@@ -2135,11 +2135,22 @@ export const compileModuleScalarRuntime = ({
             y: lowerGeometryValueScalar(value.construction.y, context)
           }
         : null
-      : (() => {
-          const start = lowerGeometryValuePoint(value.construction.start, context, executionPosition);
-          const end = lowerGeometryValuePoint(value.construction.end, context, executionPosition);
-          return start && end ? { kind: "segment" as const, start, end } : null;
-        })();
+      : value.construction.kind === "segment"
+        ? (() => {
+            const start = lowerGeometryValuePoint(value.construction.start, context, executionPosition);
+            const end = lowerGeometryValuePoint(value.construction.end, context, executionPosition);
+            return start && end ? { kind: "segment" as const, start, end } : null;
+          })()
+        : (() => {
+            const center = lowerGeometryValuePoint(value.construction.center, context, executionPosition);
+            const radius = value.construction.radius ? lowerGeometryValueScalar(value.construction.radius, context) : null;
+            const startAngleDeg = value.construction.start ? lowerGeometryValueScalar(value.construction.start, context) : null;
+            const endAngleDeg = value.construction.end ? lowerGeometryValueScalar(value.construction.end, context) : null;
+            const direction = value.construction.direction ? lowerGeometryValueScalar(value.construction.direction, context) : null;
+            return center && radius && startAngleDeg && endAngleDeg && direction
+              ? { kind: "arc" as const, center, radius, startAngleDeg, endAngleDeg, direction }
+              : null;
+          })();
     if (!construction) return;
     geometryValueProgramEntries.push({
       sourceStatementId: value.statementId,

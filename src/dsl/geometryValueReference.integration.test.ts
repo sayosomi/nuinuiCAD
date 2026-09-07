@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { compileDslDocument } from "./dslDocument";
 import { parseDsl } from "./dslParser";
 import { unwrapModuleGeometrySourceTarget } from "./moduleSemanticTypes";
+import { pureGeometryValueConstructionCandidates } from "./dslCallCompletionCandidates";
 
 const compile = (source: string, prefix = "geometry-value") => {
   const parsed = parseDsl(source);
@@ -137,6 +138,31 @@ describe("immutable single-geometry reference values", () => {
     ].join("\n"));
     expect(errorCodes(mutable)).toContain("geometry-value-const-only");
     expect(mutable.document).toBeNull();
+  });
+
+  it("registers direct arc as a path-only pure construction", () => {
+    const compiled = compile([
+      "nui 1",
+      "const A: path = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: counterclockwise)",
+      "const BadLine: line = arc(center: (0, 0), radius: 10, start: 0, end: 90)",
+      "const BadPoint: point = arc(center: (0, 0), radius: 10, start: 0, end: 90)"
+    ].join("\n"), "geometry-value-arc");
+
+    expect(errorCodes(compiled)).toEqual([
+      "module-geometry-type-mismatch",
+      "module-geometry-type-mismatch"
+    ]);
+    expect(compiled.moduleSemanticAnalysis?.geometryValues.find((value) => value.name === "A")?.construction).toMatchObject({
+      kind: "arc",
+      center: { coordinate: { x: { type: { kind: "number" } }, y: { type: { kind: "number" } } } },
+      radius: { type: { kind: "number" } },
+      start: { type: { kind: "number" } },
+      end: { type: { kind: "number" } },
+      direction: { type: { kind: "choice", options: ["counterclockwise", "clockwise"] } }
+    });
+    expect(pureGeometryValueConstructionCandidates("point").map((candidate) => candidate.label)).toEqual(["coordinate"]);
+    expect(pureGeometryValueConstructionCandidates("line").map((candidate) => candidate.label)).toEqual(["segment"]);
+    expect(pureGeometryValueConstructionCandidates("path").map((candidate) => candidate.label)).toEqual(["segment", "arc"]);
   });
 
   it("keeps construction interfaces and initializer argument spans source-owned", () => {

@@ -9,6 +9,7 @@ import type {
   ForGroupGeneratedRow,
   GeometryMutationExecution
 } from "../types/geometry";
+import type { ArcDirection } from "../types/geometry";
 import {
   isConditionalGroupElement,
   isForGroupElement,
@@ -67,7 +68,7 @@ import type { ModuleMaterialization } from "../dsl/moduleMaterialization";
 import type { GeometryValueProgram } from "../dsl/moduleGeometryValueProgram";
 import { geometryValueOccurrenceKey } from "../model/geometryValueOccurrence";
 import type { ComputedGeometryValue, ComputedGeometryValueEntry } from "./evaluationTypes";
-import { coordinateGeometryKernel, segmentGeometryKernel, type StructuralPoint } from "./geometryValueKernels";
+import { arcGeometryKernel, coordinateGeometryKernel, segmentGeometryKernel, type StructuralPoint } from "./geometryValueKernels";
 import { evaluateTypedExpression } from "../scalars/expressionEvaluator";
 
 export type EvaluateElementsOptions = {
@@ -332,6 +333,20 @@ export const evaluateElements = (
     return evaluation.status === "ok" && evaluation.value.kind === "number" ? evaluation.value.value : undefined;
   };
 
+  const evaluateGeometryValueDirection = (expression: TypedScalarExpression, sourceOrder: number): ArcDirection | undefined => {
+    const evaluation = evaluateTypedExpression(expression, {
+      lookupBinding: scalarBindingResolver
+        ? scalarBindingResolver.resolveBinding
+        : () => ({ status: "error", type: { kind: "choice", options: [] }, issueCode: "evaluation-binding-unavailable" }),
+      lookupGeometryProperty: (reference) => resolveDocumentGeometryProperty(geometryRuntime, reference, sourceOrder),
+      lookupGeometryTarget: (target) => resolveDocumentGeometryTarget(geometryRuntime, target, sourceOrder)
+    });
+    if (evaluation.status !== "ok" || evaluation.value.kind !== "choice") return undefined;
+    return evaluation.value.value === "clockwise" || evaluation.value.value === "counterclockwise"
+      ? evaluation.value.value
+      : undefined;
+  };
+
   const structuralPointForValueTarget = (target: Parameters<typeof resolveDocumentGeometryTarget>[1], sourceOrder: number): StructuralPoint | undefined => {
     const geometry = resolveDocumentGeometryTarget(geometryRuntime, target, sourceOrder);
     if (!geometry || geometry.kind === "unavailable") return undefined;
@@ -363,11 +378,21 @@ export const evaluateElements = (
       if (x !== undefined && y !== undefined) {
         value = { kind: "point", ...coordinateGeometryKernel(x, y) };
       }
-    } else {
+    } else if (entry.construction.kind === "segment") {
       const start = structuralPointForProgramPoint(entry.construction.start, sourceOrder);
       const end = structuralPointForProgramPoint(entry.construction.end, sourceOrder);
       if (start && end) {
         value = segmentGeometryKernel(start, end);
+      }
+    } else {
+      if (entry.declaredInterfaceType !== "path") return;
+      const center = structuralPointForProgramPoint(entry.construction.center, sourceOrder);
+      const radius = evaluateGeometryValueScalar(entry.construction.radius, sourceOrder);
+      const startAngleDeg = evaluateGeometryValueScalar(entry.construction.startAngleDeg, sourceOrder);
+      const endAngleDeg = evaluateGeometryValueScalar(entry.construction.endAngleDeg, sourceOrder);
+      const direction = evaluateGeometryValueDirection(entry.construction.direction, sourceOrder);
+      if (center && radius !== undefined && startAngleDeg !== undefined && endAngleDeg !== undefined && direction) {
+        value = arcGeometryKernel(center, radius, startAngleDeg, endAngleDeg, direction);
       }
     }
     if (value) {

@@ -3,7 +3,6 @@ import type {
   ComputedBezierCurve,
   ComputedGeometry,
   ComputedGeometryValue,
-  ComputedGeometryValueLine,
   ComputedLine,
   ComputedOffsetLine,
   ComputedOffsetLineSegment,
@@ -15,7 +14,7 @@ import { projectPointOntoOffsetLine } from "./offsetSegmentProjection";
 type Point = { x: number; y: number };
 
 export type LineLikeGeometry = ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine | ComputedPolyline;
-export type LineLikeGeometryInput = LineLikeGeometry | ComputedGeometryValueLine;
+export type LineLikeGeometryInput = LineLikeGeometry | Extract<ComputedGeometryValue, { kind: "line" | "arcLine" }>;
 
 type BezierLikeSegment = {
   start: Point;

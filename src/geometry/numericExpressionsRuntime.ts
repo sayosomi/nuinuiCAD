@@ -2,6 +2,7 @@ import type {
   CadElement,
   ComputedBezierSegment,
   ComputedGeometry,
+  ComputedGeometryValue,
   ComputedLine,
   ComputedOffsetLineSegment,
   ComputedPoint,
@@ -157,7 +158,7 @@ const arcEndpointDirections = (geometry: {
   };
 };
 
-const computedPathEndpointPoints = (geometry: ComputedGeometry) => {
+const computedPathEndpointPoints = (geometry: ComputedGeometry | ComputedGeometryValue) => {
   if (geometry.kind === "line" || geometry.kind === "polyline") {
     return { start: geometry.start, end: geometry.end };
   }
@@ -170,7 +171,7 @@ const computedPathEndpointPoints = (geometry: ComputedGeometry) => {
 };
 
 /** Canonical computed-geometry property accessor shared by numeric and typed scalar evaluation. */
-export const computedReferencePathValue = (geometry: ComputedGeometry | undefined, property: string) => {
+export const computedReferencePathValue = (geometry: ComputedGeometry | ComputedGeometryValue | undefined, property: string) => {
   if (!isKnownNumericComputedGeometryProperty(property) || !geometry) return undefined;
 
   if (geometry.kind === "point") {

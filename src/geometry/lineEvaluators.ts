@@ -5,7 +5,6 @@ import {
   CIRCLE_EPSILON,
   circleThroughThreePoints,
   degreesToRadians,
-  directedSweepDegrees,
   handlePoint,
   normalizeDegrees,
   positiveSweepDegrees
@@ -13,7 +12,7 @@ import {
 import { dependencyError, geometryError, getPointAnchorOrError, numericError } from "./evaluationContext";
 import type { ElementEvaluationContext } from "./elementEvaluatorTypes";
 import { arcTangentAngles, lineTangentAngles } from "./lineMeasurements";
-import { segmentGeometryKernel } from "./geometryValueKernels";
+import { arcGeometryKernel, segmentGeometryKernel } from "./geometryValueKernels";
 import { resolveLineGeometryInput } from "./lineGeometryInput";
 
 export const evaluateLineElement = (element: CadElement, context: ElementEvaluationContext) => {
@@ -363,12 +362,15 @@ export const evaluateLineElement = (element: CadElement, context: ElementEvaluat
           break;
         }
 
-        const startAngleRad = degreesToRadians(startAngleDeg);
-        const endAngleRad = degreesToRadians(endAngleDeg);
-        const sweepAngleDeg = directedSweepDegrees(startAngleDeg, endAngleDeg, element.direction ?? "counterclockwise");
-        const tangentAngles = arcTangentAngles({ startAngleDeg, endAngleDeg, sweepAngleDeg });
+        const structural = arcGeometryKernel(
+          { x: center.x, y: center.y },
+          radius,
+          startAngleDeg,
+          endAngleDeg,
+          element.direction ?? "counterclockwise"
+        );
         computedGeometry.set(element.id, {
-          kind: "arcLine",
+          ...structural,
           elementId: element.id,
           name: element.name,
           centerPointId: anchorReferenceElementId(element.centerPoint),
@@ -377,22 +379,14 @@ export const evaluateLineElement = (element: CadElement, context: ElementEvaluat
             kind: "point",
             elementId: `${element.id}:start`,
             name: `${element.name}.始点`,
-            x: center.x + Math.cos(startAngleRad) * radius,
-            y: center.y + Math.sin(startAngleRad) * radius
+            ...structural.start
           },
           end: {
             kind: "point",
             elementId: `${element.id}:end`,
             name: `${element.name}.終点`,
-            x: center.x + Math.cos(endAngleRad) * radius,
-            y: center.y + Math.sin(endAngleRad) * radius
-          },
-          radius,
-          startAngleDeg,
-          endAngleDeg,
-          ...tangentAngles,
-          sweepAngleDeg,
-          length: radius * Math.abs(degreesToRadians(sweepAngleDeg))
+            ...structural.end
+          }
         });
         break;
       }

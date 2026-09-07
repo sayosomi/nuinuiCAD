@@ -34,6 +34,14 @@ export type GeometryValueProgramConstruction =
       kind: "segment";
       start: GeometryValueProgramPoint;
       end: GeometryValueProgramPoint;
+    }
+  | {
+      kind: "arc";
+      center: GeometryValueProgramPoint;
+      radius: TypedScalarExpression;
+      startAngleDeg: TypedScalarExpression;
+      endAngleDeg: TypedScalarExpression;
+      direction: TypedScalarExpression;
     };
 
 /** Host-neutral, already-resolved immutable geometry value execution entry.
@@ -53,7 +61,7 @@ export type GeometryValueProgram = readonly GeometryValueProgramEntry[];
  * needed. It deliberately lowers only already-resolved numeric literal
  * expressions; Module-owned scalar expressions are lowered by the full scalar
  * runtime compiler. */
-const literalNumericExpression = (semantic: ModuleScalarExpressionSemantic | null): TypedScalarExpression | null => {
+const literalScalarExpression = (semantic: ModuleScalarExpressionSemantic | null): TypedScalarExpression | null => {
   if (!semantic) return null;
   const lower = (node: ModuleScalarExpressionSemantic["ast"]): TypedScalarExpression | null => {
     switch (node.kind) {
@@ -71,6 +79,10 @@ const literalNumericExpression = (semantic: ModuleScalarExpressionSemantic | nul
         const expression = lower(node.expression);
         return expression ? { kind: "group", span: node.span, expression, type: { kind: "number" } } : null;
       }
+      case "unresolvedChoiceLiteral":
+        return semantic.type?.kind === "choice"
+          ? { kind: "choiceLiteral", span: node.span, value: node.raw, type: semantic.type }
+          : null;
       default: return null;
     }
   };
@@ -86,8 +98,8 @@ export const buildRootGeometryValueProgram = ({
 }): GeometryValueProgram => {
   const pointForReference = (reference: ModuleGeometryReferenceSemantic): GeometryValueProgramPoint | undefined => {
     if (reference.coordinate?.x && reference.coordinate.y) {
-      const x = literalNumericExpression(reference.coordinate.x);
-      const y = literalNumericExpression(reference.coordinate.y);
+      const x = literalScalarExpression(reference.coordinate.x);
+      const y = literalScalarExpression(reference.coordinate.y);
       return x && y ? { kind: "coordinate", x, y } : undefined;
     }
     if (!reference.target) return undefined;
@@ -127,15 +139,26 @@ export const buildRootGeometryValueProgram = ({
     if (!value.construction || value.ownerModuleDefinitionStatementId !== null) return [];
     const construction = value.construction.kind === "coordinate"
       ? (() => {
-          const x = literalNumericExpression(value.construction.x);
-          const y = literalNumericExpression(value.construction.y);
+          const x = literalScalarExpression(value.construction.x);
+          const y = literalScalarExpression(value.construction.y);
           return x && y ? { kind: "coordinate" as const, x, y } : null;
         })()
-      : (() => {
-          const start = pointForReference(value.construction.start);
-          const end = pointForReference(value.construction.end);
-          return start && end ? { kind: "segment" as const, start, end } : null;
-        })();
+      : value.construction.kind === "segment"
+        ? (() => {
+            const start = pointForReference(value.construction.start);
+            const end = pointForReference(value.construction.end);
+            return start && end ? { kind: "segment" as const, start, end } : null;
+          })()
+        : (() => {
+            const center = pointForReference(value.construction.center);
+            const radius = literalScalarExpression(value.construction.radius);
+            const startAngleDeg = literalScalarExpression(value.construction.start);
+            const endAngleDeg = literalScalarExpression(value.construction.end);
+            const direction = literalScalarExpression(value.construction.direction);
+            return center && radius && startAngleDeg && endAngleDeg && direction
+              ? { kind: "arc" as const, center, radius, startAngleDeg, endAngleDeg, direction }
+              : null;
+          })();
     return construction
       ? [{
           sourceStatementId: value.statementId,

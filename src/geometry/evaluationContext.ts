@@ -185,6 +185,8 @@ export const getPointAnchorOrError = (
       ? value
       : value?.kind === "line"
         ? anchor.pointKey === "end" ? value.end : anchor.pointKey === "start" ? value.start : undefined
+        : value?.kind === "arcLine"
+          ? anchor.pointKey === "end" ? value.end : anchor.pointKey === "start" ? value.start : undefined
         : undefined;
     if (!point) {
       errors.push({

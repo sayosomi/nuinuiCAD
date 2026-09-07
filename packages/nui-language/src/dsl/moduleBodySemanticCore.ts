@@ -473,6 +473,12 @@ export const analyzeModuleBody = ({
         } else if (construction?.kind === "segment") {
           addGeometry(bodySemantic, "construction:start", construction.start.span, construction.start);
           addGeometry(bodySemantic, "construction:end", construction.end.span, construction.end);
+        } else if (construction?.kind === "arc") {
+          addGeometry(bodySemantic, "construction:center", construction.center.span, construction.center);
+          if (construction.radius) addScalar(bodySemantic, "construction:radius", construction.radius.ast.span, construction.radius);
+          if (construction.start) addScalar(bodySemantic, "construction:start", construction.start.ast.span, construction.start);
+          if (construction.end) addScalar(bodySemantic, "construction:end", construction.end.ast.span, construction.end);
+          if (construction.direction) addScalar(bodySemantic, "construction:direction", construction.direction.ast.span, construction.direction);
         }
         const value: ModuleGeometryValueSemantic = {
           statementId,

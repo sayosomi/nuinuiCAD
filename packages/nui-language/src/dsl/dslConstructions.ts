@@ -17,6 +17,8 @@ export type DslArgSpec = {
   special?: DslArgSpecial;
 };
 
+export type DslPureValueInterface = "point" | "line" | "path";
+
 export const DSL_GEOMETRY_DECLARATION_CATEGORIES = [
   "point",
   "line",
@@ -54,7 +56,7 @@ export type DslConstructionSpec = {
   elementType: CadElementType;
   /** Immutable geometry interface supported when this construction is used
    * as a source value. Omitted constructions remain drawable-only here. */
-  pureValueInterface?: "point" | "line";
+  pureValueInterface?: DslPureValueInterface;
   preset?: Partial<CadElement>;
   exclusiveGroups?: string[][];
   args: DslArgSpec[];
@@ -215,7 +217,7 @@ const constructionSpecs: DslConstructionSpec[] = [
       special("intermediates", "intermediates"),
     ],
   },
-  { category: "arc", construction: "arc", elementType: "arcLine", args: [required("center", "centerPoint"), arg("radius"), arg("start", "startAngleDeg"), arg("end", "endAngleDeg"), arg("direction")] },
+  { category: "arc", construction: "arc", elementType: "arcLine", pureValueInterface: "path", args: [required("center", "centerPoint"), arg("radius"), arg("start", "startAngleDeg"), arg("end", "endAngleDeg"), arg("direction")] },
   { category: "arc", construction: "through", elementType: "threePointArcLine", args: [required("point1"), required("point2"), required("point3"), arg("start", "startAngleDeg"), arg("end", "endAngleDeg")] },
   { category: "arc", construction: "corner", elementType: "cornerRadiusArcLine", args: [required("end1", "endpoint1"), required("end2", "endpoint2"), arg("radius"), arg("index", "intersectionIndex")] },
   { category: "text", construction: "label", elementType: "text", args: [required("text"), arg("anchor"), arg("size", "fontSize")] },
@@ -258,6 +260,10 @@ export const constructionFor = (category: string, construction: string): DslCons
 /** Read-only registry queries for parser diagnostics && completion. */
 export const constructionCandidatesFor = (category: string): readonly DslConstructionSpec[] =>
   constructionSpecs.filter((spec) => spec.category === category);
+
+/** All construction specs in registry order. Consumers filter this view by
+ * semantic capability rather than maintaining a second construction list. */
+export const allConstructionSpecs = (): readonly DslConstructionSpec[] => constructionSpecs;
 
 /** All registry specs for one construction spelling, in registry order. */
 export const constructionSpecsFor = (construction: string): readonly DslConstructionSpec[] =>

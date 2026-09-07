@@ -1,4 +1,4 @@
-import type { ComputedBezierCurve, ComputedGeometry, ComputedGeometryValueLine } from "../types/geometry";
+import type { ComputedBezierCurve, ComputedGeometry, ComputedGeometryValue } from "../types/geometry";
 import type { Point, SourceSegment } from "./offsetPathTypes";
 import { unitTangentAt } from "./offsetBezier";
 import { EPSILON, arcPoint, degreesToRadians, lineLength } from "./offsetPathMath";
@@ -12,7 +12,7 @@ const bezierSourceSegments = (curve: ComputedBezierCurve): SourceSegment[] =>
     end: segment.end
   }));
 
-export const sourceSegmentsForGeometry = (geometry: ComputedGeometry | ComputedGeometryValueLine): SourceSegment[] => {
+export const sourceSegmentsForGeometry = (geometry: ComputedGeometry | ComputedGeometryValue): SourceSegment[] => {
   if (geometry.kind === "line") {
     return [{ kind: "line", start: geometry.start, end: geometry.end }];
   }

@@ -1,7 +1,7 @@
 import type {
   CadElement,
   ComputedGeometry,
-  ComputedGeometryValueLine,
+  ComputedGeometryValue,
   ComputedOffsetLine,
   OffsetLineSide
 } from "../types/geometry";
@@ -39,7 +39,7 @@ export const evaluateOffsetLineElement = (element: CadElement, context: ElementE
         );
         if (offset === undefined) break;
 
-        const baseGeometries: Array<ComputedGeometry | ComputedGeometryValueLine> = [];
+        const baseGeometries: Array<ComputedGeometry | ComputedGeometryValue> = [];
         let hasMissingBase = false;
         for (const [index, baseLineId] of element.baseLineIds.entries()) {
           const geometry = resolveLineGeometryInputAt(context, "baseLineIds", index, baseLineId);

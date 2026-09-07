@@ -85,6 +85,41 @@ describe("pure geometry construction runtime", () => {
     expect(scalars.get("binding:geometry-value-runtime:9")).toBe(0);
   });
 
+  it("evaluates direct arc values as identity-free paths and feeds read-only consumers", () => {
+    const { compiled, result } = evaluate([
+      "nui 1",
+      "const Arc: path = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: counterclockwise)",
+      "const DefaultArc: path = arc(center: (10, 20))",
+      "const Length: number = @Arc.length",
+      "const StartX: number = @Arc.start.x",
+      "line Chord = segment(start: @Arc.start, end: @Arc.end)",
+      "line Offset = offset(sources: [@Arc], distance: 1, side: right, closed: false, suppressTrimWarnings: false)"
+    ].join("\n"));
+
+    expect(compiled.diagnostics).toEqual([]);
+    expect(result.errors).toEqual([]);
+    const values = [...(result.computedGeometryValues?.values() ?? [])];
+    const arc = values.find((entry) => entry.occurrence.sourceStatementId === "geometry-value-runtime:1")?.value;
+    const defaultArc = values.find((entry) => entry.occurrence.sourceStatementId === "geometry-value-runtime:2")?.value;
+    expect(arc).toEqual(expect.objectContaining({
+      kind: "arcLine",
+      center: { x: 0, y: 0 },
+      start: { x: 10, y: 0 },
+      radius: 10,
+      startAngleDeg: 0,
+      endAngleDeg: 90,
+      sweepAngleDeg: 90,
+      length: 10 * Math.PI / 2
+    }));
+    expect(arc && arc.kind === "arcLine" ? arc.end.x : undefined).toBeCloseTo(0);
+    expect(arc && arc.kind === "arcLine" ? arc.end.y : undefined).toBeCloseTo(10);
+    expect(arc).not.toHaveProperty("elementId");
+    expect(arc).not.toHaveProperty("name");
+    expect(defaultArc).toEqual(expect.objectContaining({ radius: 30, sweepAngleDeg: 90 }));
+    expect(result.computedGeometry.get("geometry-value-runtime:5")).toMatchObject({ kind: "line" });
+    expect(result.computedGeometry.get("geometry-value-runtime:6")).toMatchObject({ kind: "offsetLine" });
+  });
+
   it("passes a constructed line directly to a strict read-only line consumer", () => {
     const { compiled, result } = evaluate([
       "nui 1",

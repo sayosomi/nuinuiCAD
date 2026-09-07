@@ -11,6 +11,15 @@ fn number(value: f64) -> Value {
     })
 }
 
+fn choice(value: &str) -> Value {
+    json!({
+        "kind": "choiceLiteral",
+        "span": { "start": 0, "end": value.len() },
+        "value": value,
+        "type": { "kind": "choice", "options": ["counterclockwise", "clockwise"] }
+    })
+}
+
 fn input(elements: Vec<Value>, program: Vec<Value>) -> EvaluationInput {
     EvaluationInput {
         geometry_input_targets: None,
@@ -158,6 +167,51 @@ fn drawable_and_value_segments_share_the_same_structural_numeric_fields() {
     }
     assert_eq!(drawable["start"]["elementId"], json!("drawable:line:start"));
     assert!(value["start"].get("elementId").is_none());
+}
+
+#[test]
+fn direct_arc_value_uses_identity_free_arc_geometry_and_feeds_endpoint_anchor() {
+    let occurrence = json!({
+        "sourceStatementId": "value:arc",
+        "instancePath": []
+    });
+    let element = json!({
+        "id": "drawable:line",
+        "name": "L",
+        "type": "line",
+        "activity": "visible",
+        "startPoint": { "mode": "geometryValue", "occurrence": occurrence.clone(), "pointKey": "start" },
+        "endPoint": { "mode": "coordinate", "x": 0, "y": 10 }
+    });
+    let program = json!({
+        "sourceStatementId": "value:arc",
+        "sourceStatementIndex": 0,
+        "declaredInterfaceType": "path",
+        "occurrence": occurrence,
+        "executionPosition": -0.5,
+        "construction": {
+            "kind": "arc",
+            "center": { "kind": "coordinate", "x": number(0.0), "y": number(0.0) },
+            "radius": number(10.0),
+            "startAngleDeg": number(0.0),
+            "endAngleDeg": number(90.0),
+            "direction": choice("counterclockwise")
+        }
+    });
+
+    let result = evaluate_document_input(input(vec![element], vec![program]));
+    assert!(result.errors.is_empty());
+    let value = &result.computed_geometry_values[0]["value"];
+    assert_eq!(value["kind"], "arcLine");
+    assert_eq!(value["center"], json!({ "x": 0.0, "y": 0.0 }));
+    assert_eq!(value["start"], json!({ "x": 10.0, "y": 0.0 }));
+    assert_eq!(value["radius"], 10.0);
+    assert_eq!(value["sweepAngleDeg"], 90.0);
+    assert!(value.get("elementId").is_none());
+    assert!(value.get("name").is_none());
+    assert!(value.get("centerPointId").is_none());
+    assert_eq!(result.computed_geometry[0]["start"]["x"], 10.0);
+    assert_eq!(result.computed_geometry[0]["start"]["y"], 0.0);
 }
 
 #[test]
