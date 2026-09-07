@@ -1,6 +1,7 @@
 import { act, render, screen } from "@testing-library/react";
 import type { RefObject } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { projectDslRevealRuntimeStatementOwner } from "@nuinuicad/nui-language";
 import { selectElement } from "../commands/selectionCommands";
 import * as commandRegistry from "../commands/commands";
 import { confirmCommandLineSession, submitCommandLineInput } from "../commands/commandLineSessionCommands";
@@ -345,15 +346,19 @@ describe("VSCodeApp Canvas history coordinator", () => {
     expect(diagnosticState.currentSourceRevision).not.toBe(importedRevealGraphRootSourceRevision);
     const statementOwnerTarget = fixture.target;
     if (statementOwnerTarget.kind !== "statement-owner") throw new Error("expected imported statement-owner target");
-    const runtimeProjection = {
-      candidates: fixture.compiled.moduleMaterialization!.executionStatements
-        .filter((entry) => entry.sourceStatementIndex === statementOwnerTarget.sourceStatementIndex)
-        .map((entry) => entry.runtimeElementId)
-    };
-    const expectedRuntimeElementId = runtimeProjection.candidates.find((candidate) =>
-      fixture.runtimePresentation.elements.some((element) => element.id === candidate)
+    const rootDirect = fixture.compiled.moduleMaterialization!.executionStatements.find((entry) =>
+      entry.type === "moduleInstance" &&
+      entry.sourceStatementIndex === statementOwnerTarget.sourceStatementIndex &&
+      String(entry.origin?.sourceDocumentId) === fixture.publication.graph.rootDocumentId
     );
-    expect(expectedRuntimeElementId).toBeDefined();
+    expect(rootDirect).toBeDefined();
+    const runtimeProjection = projectDslRevealRuntimeStatementOwner(
+      fixture.compiled,
+      statementOwnerTarget.sourceStatementIndex,
+      fixture.publication.graph.rootDocumentId
+    );
+    expect(runtimeProjection).toEqual({ candidates: [rootDirect!.runtimeElementId] });
+    const expectedRuntimeElementId = rootDirect!.runtimeElementId;
     expect(canvasNavigationFreshnessFor({
       authoritativeDocumentAvailable: true,
       graphBackedRequest: true,
@@ -381,6 +386,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
     });
 
     expect(useCadUiStore.getState().selectedElementId).toBe(expectedRuntimeElementId);
+    expect(useCadUiStore.getState().selectedElementIds).toEqual([expectedRuntimeElementId]);
     expect(api.postMessage).toHaveBeenCalledWith({
       type: "canvasNavigationResult",
       requestId: 9041,

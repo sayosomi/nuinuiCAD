@@ -135,13 +135,17 @@ const semanticCandidates = ({
 
 const ownerCandidates = (
   compiled: DslRevealRuntimeProjectionInput["compiled"],
-  sourceStatementIndex: number | null
+  sourceStatementIndex: number | null,
+  authoredSourceDocumentId?: string
 ): readonly (ElementId | null)[] => {
   if (sourceStatementIndex === null) return [];
   const materialized = compiled.moduleMaterialization?.executionStatements
     .filter((entry) => entry.sourceStatementIndex === sourceStatementIndex)
+    .filter((entry) => authoredSourceDocumentId === undefined ||
+      String(entry.origin?.sourceDocumentId) === authoredSourceDocumentId)
     .map((entry) => entry.runtimeElementId) ?? [];
   if (materialized.length > 0) return materialized;
+  if (authoredSourceDocumentId !== undefined) return [];
   const direct = compiled.statementMap?.elementIdByStatementIndex.get(sourceStatementIndex);
   return direct ? [direct] : [];
 };
@@ -153,9 +157,10 @@ const ownerCandidates = (
  */
 export const projectDslRevealRuntimeStatementOwner = (
   compiled: Pick<DslRevealRuntimeProjectionInput["compiled"], "statementMap" | "moduleMaterialization">,
-  sourceStatementIndex: number
+  sourceStatementIndex: number,
+  authoredSourceDocumentId?: string
 ): DslRevealRuntimeStatementOwnerProjection => ({
-  candidates: ownerCandidates(compiled, sourceStatementIndex)
+  candidates: ownerCandidates(compiled, sourceStatementIndex, authoredSourceDocumentId)
 });
 
 /**

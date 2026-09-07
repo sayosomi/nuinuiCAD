@@ -281,7 +281,8 @@ export const revealInCanvasSourceTargetForEditor = async (
             ? {
                 runtimeProjection: projectDslRevealRuntimeStatementOwner(
                   graphSemantic.compiled,
-                  graphTarget.target.sourceStatementIndex
+                  graphTarget.target.sourceStatementIndex,
+                  graphSemantic.rootDocumentId
                 )
               }
             : {})

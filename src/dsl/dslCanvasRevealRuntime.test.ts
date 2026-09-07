@@ -13,6 +13,7 @@ import {
   queryDslCanvasRevealRuntimeStatementOwner,
   queryDslCanvasRevealRuntimeTarget
 } from "./dslCanvasRevealRuntime";
+import { projectDslRevealRuntimeStatementOwner } from "./dslRevealRuntimeProjection";
 
 const element = (id: ElementId): CadElement => ({ id } as unknown as CadElement);
 
@@ -220,6 +221,31 @@ describe("queryDslCanvasRevealRuntimeTarget", () => {
       primaryRuntimeElementId: "M1",
       degradations: [{ kind: "partial-targets", omittedCount: 1, causes: ["hidden"] }]
     });
+  });
+
+  it("qualifies graph statement-owner projection by authored source document", () => {
+    const projection = projectDslRevealRuntimeStatementOwner(compiled({
+      entries: [
+        {
+          sourceStatementIndex: 2,
+          runtimeElementId: "Direct",
+          origin: { sourceDocumentId: "root.nui" } as MaterializedExecutionStatement["origin"]
+        },
+        {
+          sourceStatementIndex: 2,
+          runtimeElementId: "DependencyBody",
+          origin: { sourceDocumentId: "library.nui" } as MaterializedExecutionStatement["origin"]
+        },
+        { sourceStatementIndex: 2, runtimeElementId: "Unqualified" }
+      ]
+    }), 2, "root.nui");
+
+    expect(projection).toEqual({ candidates: ["Direct"] });
+    expect(projectDslRevealRuntimeStatementOwner(
+      compiled({ direct: [[2, "unqualified-direct"]] }),
+      2,
+      "root.nui"
+    )).toEqual({ candidates: [] });
   });
 
   it("expands module parameters in materialization order and reports a partial subset", () => {
