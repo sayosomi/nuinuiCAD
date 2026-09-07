@@ -76,7 +76,7 @@ export const runtimeGeometryDiagnostics = (input: {
     return [{
       severity: "error",
       line: statement.line,
-      column: physicalSpan.segments[0]!.from + 1,
+      column: physicalSpan.segments[0]!.from - statement.documentRange.from + 1,
       message: error.message,
       sourceRevision: statement.sourceRevision,
       physicalSpan,

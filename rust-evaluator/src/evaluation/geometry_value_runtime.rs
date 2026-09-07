@@ -347,7 +347,11 @@ pub(crate) fn evaluate_geometry_value_entry(
     let value = match &entry.construction {
         GeometryValueConstruction::Coordinate { x, y } => {
             if entry.declared_interface_type != "point" {
-                append_geometry_value_error(state, entry);
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "Geometry value construction is incompatible with its declared interface type.",
+                );
                 return;
             }
             let x = number_expression(x, resolver, state, source_order);
@@ -359,7 +363,11 @@ pub(crate) fn evaluate_geometry_value_entry(
         }
         GeometryValueConstruction::Segment { start, end } => {
             if entry.declared_interface_type != "line" && entry.declared_interface_type != "path" {
-                append_geometry_value_error(state, entry);
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "Geometry value construction is incompatible with its declared interface type.",
+                );
                 return;
             }
             evaluate_point(start, resolver, state, source_order)
@@ -374,13 +382,15 @@ pub(crate) fn evaluate_geometry_value_entry(
     }
 }
 
-fn append_geometry_value_error(state: &mut EvaluationState, entry: &GeometryValueProgramEntry) {
+fn append_geometry_value_error(
+    state: &mut EvaluationState,
+    entry: &GeometryValueProgramEntry,
+    message: &str,
+) {
     state
         .geometry_value_errors
         .push(GeometryValueEvaluationError {
             occurrence: entry.occurrence.clone(),
-            message:
-                "Geometry value construction is incompatible with its declared interface type."
-                    .to_owned(),
+            message: message.to_owned(),
         });
 }

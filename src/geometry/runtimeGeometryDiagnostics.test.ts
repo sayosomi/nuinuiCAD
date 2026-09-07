@@ -88,7 +88,7 @@ describe("runtimeGeometryDiagnostics", () => {
     expect(runtimeGeometryDiagnostics({ geometryValueErrors: [error], compiledDocument })).toEqual([{
       severity: "error",
       line: statement.line,
-      column: statement.namePhysicalSpan.segments[0]!.from + 1,
+      column: 7,
       message: error.message,
       sourceRevision: statement.sourceRevision,
       physicalSpan: statement.namePhysicalSpan,
@@ -123,6 +123,7 @@ describe("runtimeGeometryDiagnostics", () => {
       expect(statement.kind).toBe("typedDeclaration");
       expect(diagnostic).toMatchObject({
         message: errors[index]!.message,
+        column: [9, 16][index],
         statementIndex,
         physicalSpan: statement.namePhysicalSpan,
         navigationTarget: { kind: "sourceSpan", physicalSpan: statement.namePhysicalSpan },

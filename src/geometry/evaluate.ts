@@ -337,10 +337,13 @@ export const evaluateElements = (
     return evaluation.status === "ok" && evaluation.value.kind === "number" ? evaluation.value.value : undefined;
   };
 
-  const appendGeometryValueError = (entry: import("../dsl/moduleGeometryValueProgram").GeometryValueProgramEntry) => {
+  const appendGeometryValueError = (
+    entry: import("../dsl/moduleGeometryValueProgram").GeometryValueProgramEntry,
+    message: string
+  ) => {
     geometryValueErrors.push({
       occurrence: entry.occurrence,
-      message: "Geometry value construction is incompatible with its declared interface type."
+      message
     });
   };
 
@@ -371,7 +374,7 @@ export const evaluateElements = (
     let value: ComputedGeometryValue | undefined;
     if (entry.construction.kind === "coordinate") {
       if (entry.declaredInterfaceType !== "point") {
-        appendGeometryValueError(entry);
+        appendGeometryValueError(entry, "Geometry value construction is incompatible with its declared interface type.");
         return;
       }
       const x = evaluateGeometryValueScalar(entry.construction.x, sourceOrder);
@@ -381,7 +384,7 @@ export const evaluateElements = (
       }
     } else {
       if (entry.declaredInterfaceType !== "line" && entry.declaredInterfaceType !== "path") {
-        appendGeometryValueError(entry);
+        appendGeometryValueError(entry, "Geometry value construction is incompatible with its declared interface type.");
         return;
       }
       const start = structuralPointForProgramPoint(entry.construction.start, sourceOrder);
