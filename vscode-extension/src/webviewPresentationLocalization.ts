@@ -227,6 +227,8 @@ export const webviewPresentationTranslationCatalog = {
   "modulePreview.parameters.unavailable.source-stale": { en: "Module Preview parameters are waiting for the refreshed source.", ja: "Module Previewパラメータは更新されたSourceを待機しています。" },
   "modulePreview.parameters.unavailable.target-unavailable": { en: "The Module Preview target is not available in the current source.", ja: "現在のSourceでModule Previewの対象を利用できません。" },
   "modulePreview.parameters.unavailable.disposed": { en: "The Module Preview panel is no longer available.", ja: "Module Previewパネルは利用できなくなりました。" },
+  "modulePreview.parameters.diagnostic.requiredValueMissing": { en: "Enter a value.", ja: "値を入力してください。" },
+  "modulePreview.parameters.diagnostic.invalidExpression": { en: "Enter a valid expression.", ja: "有効な式を入力してください。" },
   "modulePreview.parameters.diagnostic.required-value-missing": { en: "Parameter \"{name}\" requires a value.", ja: "パラメータ「{name}」には値が必要です。" },
   "modulePreview.parameters.diagnostic.invalid-expression": { en: "Value for \"{name}\" is not a valid Module argument expression in this context.", ja: "「{name}」の値はこのコンテキストで有効なModule引数式ではありません。" }
 } satisfies TranslationCatalog;
