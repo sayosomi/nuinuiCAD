@@ -120,6 +120,69 @@ describe("pure geometry construction runtime", () => {
     expect([...result.evaluatedElementIds ?? []]).not.toContain("geometry-value-runtime:3");
   });
 
+  it("passes constructed segments through tangentOffset, onLine, transformCopy, and mirrorCopy", () => {
+    const { compiled, result } = evaluate([
+      "nui 1",
+      "const A: point = coordinate(x: 0, y: 0)",
+      "const B: point = coordinate(x: 10, y: 0)",
+      "const L: line = segment(start: @A, end: @B)",
+      "const Alias: line = @L",
+      "point Tangent = tangentOffset(line: @Alias, base: @A, angle: 0, distance: 2)",
+      "point Division = onLine(from: @L.end, ratio: 0.5)",
+      "line Transform = transformCopy(startPoint: @A, endPoint: @B, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@L])",
+      "line Mirror = mirrorCopy(axis1: @A, axis2: @B, baseLines: [@L])",
+    ].join("\n"));
+
+    expect(compiled.diagnostics).toEqual([]);
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometry.get("geometry-value-runtime:5")).toMatchObject({ kind: "point", x: 2, y: 0 });
+    expect(result.computedGeometry.get("geometry-value-runtime:6")).toMatchObject({ kind: "point", x: 5, y: 0 });
+    expect(result.computedGeometry.get("geometry-value-runtime:7")).toMatchObject({ kind: "offsetLine" });
+    expect(result.computedGeometry.get("geometry-value-runtime:8")).toMatchObject({ kind: "offsetLine" });
+    expect([...result.computedGeometryValues!.values()].every(({ value }) => !("elementId" in value))).toBe(true);
+    expect([...result.evaluatedElementIds ?? []]).not.toContain("geometry-value-runtime:3");
+  });
+
+  it("passes a Module-local constructed segment through tangentOffset", () => {
+    const { compiled, result } = evaluate([
+      "nui 1",
+      "module M() {",
+      "  const A: point = coordinate(x: 0, y: 0)",
+      "  const B: point = coordinate(x: 10, y: 0)",
+      "  const L: line = segment(start: @A, end: @B)",
+      "  point T = tangentOffset(line: @L, base: @A, angle: 0, distance: 1)",
+      "  export const Out: line = @L",
+      "}",
+      "instance One = M()",
+    ].join("\n"));
+
+    expect(compiled.diagnostics).toEqual([]);
+    expect(result.errors).toEqual([]);
+    expect([...result.computedGeometry.values()].some((geometry) => geometry.kind === "point" && geometry.x === 1 && geometry.y === 0)).toBe(true);
+    expect([...result.computedGeometryValues!.values()].every(({ value }) => !("elementId" in value))).toBe(true);
+  });
+
+  it("preserves specialized wrong-kind diagnostics for immutable line inputs", () => {
+    const { compiled, result } = evaluate([
+      "nui 1",
+      "const A: point = coordinate(x: 0, y: 0)",
+      "const B: point = coordinate(x: 10, y: 0)",
+      "const L: line = segment(start: @A, end: @B)",
+      "const C: point = coordinate(x: 20, y: 0)",
+      "const D: point = coordinate(x: 30, y: 0)",
+      "const R: line = segment(start: @C, end: @D)",
+      "point Extreme = bezierExtremePoint(source: @L, segmentIndex: 0, direction: 0)",
+      "line Tangent = commonTangent(first: @L, second: @R, kind: external, side: left)",
+    ].join("\n"));
+
+    expect(compiled.diagnostics).toEqual([]);
+    expect(result.errors).toEqual(expect.arrayContaining([
+      expect.objectContaining({ elementId: "geometry-value-runtime:7", message: expect.stringContaining("ベジェ曲線") }),
+      expect.objectContaining({ elementId: "geometry-value-runtime:8", message: expect.stringContaining("円弧") }),
+    ]));
+    expect(result.errors.some((error) => error.message.includes("存在しません") || error.message.includes("後にある"))).toBe(false);
+  });
+
   it("passes a Module-exported constructed line to a root consumer", () => {
     const { compiled, result } = evaluate([
       "nui 1",
@@ -143,6 +206,8 @@ describe("pure geometry construction runtime", () => {
 
   it("rejects immutable geometry values in mutation target roles", () => {
     for (const [mutation, expectedCount] of [
+      ["line Split = split(source: @L, at: @A)", 1],
+      ["arc Corner = corner(end1: @L.start, end2: @L.end, radius: 1, index: 0)", 2],
       ["edge(end1: @L.start, end2: @L.end)", 2],
       ["extend(end: @L.start, to: (3, 0))", 1],
       ["move(targets: [@L], from: (0, 0), to: (1, 0))", 1],

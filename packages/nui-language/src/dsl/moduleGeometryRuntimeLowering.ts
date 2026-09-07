@@ -335,10 +335,20 @@ export const resolverForBody = ({
       }
       return null;
     },
-    resolveImmutableGeometryReference: (token) => {
+    resolveLineEndpointTarget: (token) => {
       const site = siteFor(token, "lineEndpointReference");
       const lowered = site && lowerReference(site.reference, currentPath, statement, contextsByPath, materialization, exportsByPath);
-      return lowered?.kind === "value" ? lowered.occurrence : null;
+      if (lowered?.kind === "line") {
+        return { kind: "drawable", elementId: lowered.elementId, geometryType: "line" } satisfies GeometryInputTarget;
+      }
+      if (lowered?.kind === "value" && lowered.geometryType === "line") {
+        return {
+          kind: "geometryValue",
+          occurrence: lowered.occurrence,
+          geometryType: lowered.interfaceType === "path" ? "path" : "line"
+        } satisfies GeometryInputTarget;
+      }
+      return null;
     },
     resolveId: (token, index, line, diagnostics, currentElement) => {
       const site = siteFor(token, "lineReference") ?? siteFor(token, "lineReferenceList");
@@ -363,6 +373,10 @@ export const resolverForBody = ({
       if (lowered?.kind === "line") {
         const pointKey = site?.reference.target?.pointKey;
         return { lineId: lowered.elementId, endpointKey: pointKey === "end" ? "end" : "start" };
+      }
+      if (lowered?.kind === "value" && lowered.geometryType === "line") {
+        const pointKey = site?.reference.target?.pointKey;
+        return { lineId: token.trim(), endpointKey: pointKey === "end" ? "end" : "start" };
       }
       return fallback.resolveEndpoint(token, index, line, diagnostics, currentElement);
     }

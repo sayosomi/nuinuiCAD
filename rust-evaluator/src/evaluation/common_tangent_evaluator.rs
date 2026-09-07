@@ -1,6 +1,7 @@
 use serde_json::{json, Value};
 
 use super::errors::{dependency_error, geometry_error};
+use super::line_geometry_input::resolve_line_geometry_input;
 use super::math::{angle_from_to, CIRCLE_EPSILON};
 use super::types::{element_id, element_name, insert_geometry, EvaluationState, Point};
 
@@ -13,7 +14,8 @@ fn arc_geometry(
     label: &str,
 ) -> Option<Value> {
     let reference_id = element.get(key).and_then(Value::as_str).unwrap_or_default();
-    let Some(geometry) = state.computed_geometry.get(reference_id).cloned() else {
+    let owner_id = element_id(element).unwrap_or_default();
+    let Some(geometry) = resolve_line_geometry_input(state, &owner_id, key, reference_id) else {
         let error = dependency_error(state, element, reference_id);
         state.errors.push(error);
         return None;

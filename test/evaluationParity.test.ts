@@ -75,6 +75,26 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("uses the discriminated geometry input target for immutable segment consumers", () => {
+    const fixture = readParityFixture(repoRoot, "nui1-geometry-value-segment-consumer.nui");
+    const options = optionsFor(fixture);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustFixture(repoRoot, fixture);
+    const ts = evaluationPayloadToResult(tsPayload);
+    const rust = evaluationPayloadToResult(rustPayload);
+
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+    expect(ts.errors).toEqual([]);
+    expect(rust.errors).toEqual([]);
+    for (const result of [ts, rust]) {
+      expect(result.computedGeometry.get(fixture.elements.find((element) => element.name === "Tangent")!.id)).toMatchObject({ kind: "point" });
+      expect(result.computedGeometry.get(fixture.elements.find((element) => element.name === "Division")!.id)).toMatchObject({ kind: "point" });
+      expect(result.computedGeometry.get(fixture.elements.find((element) => element.name === "Transform")!.id)).toMatchObject({ kind: "offsetLine" });
+      expect(result.computedGeometry.get(fixture.elements.find((element) => element.name === "Mirror")!.id)).toMatchObject({ kind: "offsetLine" });
+    }
+  }, 30000);
+
   it("evaluates Label, Bare, and Boolean through the Rust-first declarations/templates fixture", () => {
     const fixture = readParityFixture(repoRoot, "nui1-declarations-templates.nui");
     const options = optionsFor(fixture);

@@ -14,6 +14,7 @@ import { dependencyError, geometryError, getPointAnchorOrError, numericError } f
 import type { ElementEvaluationContext } from "./elementEvaluatorTypes";
 import { arcTangentAngles, lineTangentAngles } from "./lineMeasurements";
 import { segmentGeometryKernel } from "./geometryValueKernels";
+import { resolveLineGeometryInput } from "./lineGeometryInput";
 
 export const evaluateLineElement = (element: CadElement, context: ElementEvaluationContext) => {
   const {
@@ -204,8 +205,8 @@ export const evaluateLineElement = (element: CadElement, context: ElementEvaluat
         break;
       }
       case "commonTangentLine": {
-        const firstGeometry = computedGeometry.get(element.firstLineId);
-        const secondGeometry = computedGeometry.get(element.secondLineId);
+        const firstGeometry = resolveLineGeometryInput(context, "firstLineId", element.firstLineId);
+        const secondGeometry = resolveLineGeometryInput(context, "secondLineId", element.secondLineId);
         if (!firstGeometry) {
           errors.push(dependencyError(element, element.firstLineId, elementsById, disabledByGroupId, errors));
         } else if (firstGeometry.kind !== "arcLine") {

@@ -72,6 +72,44 @@ fn coordinate_value_stays_out_of_drawable_geometry_and_feeds_a_line() {
 }
 
 #[test]
+fn drawable_free_point_and_immutable_coordinate_share_the_coordinate_kernel() {
+    let occurrence = json!({
+        "sourceStatementId": "value:p",
+        "instancePath": []
+    });
+    let drawable = json!({
+        "id": "drawable:point",
+        "name": "P",
+        "type": "freePoint",
+        "activity": "visible",
+        "x": 10,
+        "y": 20
+    });
+    let program = json!({
+        "sourceStatementId": "value:p",
+        "sourceStatementIndex": 0,
+        "declaredInterfaceType": "point",
+        "occurrence": occurrence,
+        "executionPosition": -0.5,
+        "construction": {
+            "kind": "coordinate",
+            "x": number(10.0),
+            "y": number(20.0)
+        }
+    });
+
+    let result = evaluate_document_input(input(vec![drawable], vec![program]));
+    assert_eq!(result.errors.len(), 0);
+    assert_eq!(result.computed_geometry[0]["x"], 10.0);
+    assert_eq!(result.computed_geometry[0]["y"], 20.0);
+    assert_eq!(result.computed_geometry_values[0]["value"]["x"], 10.0);
+    assert_eq!(result.computed_geometry_values[0]["value"]["y"], 20.0);
+    assert!(result.computed_geometry_values[0]["value"]
+        .get("elementId")
+        .is_none());
+}
+
+#[test]
 fn drawable_and_value_segments_share_the_same_structural_numeric_fields() {
     let occurrence = json!({
         "sourceStatementId": "value:line",

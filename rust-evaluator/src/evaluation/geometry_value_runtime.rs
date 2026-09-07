@@ -1,6 +1,8 @@
 use serde_json::{json, Value};
 
-use super::geometry_value_kernels::{segment_geometry_kernel, StructuralPoint};
+use super::geometry_value_kernels::{
+    coordinate_geometry_kernel, segment_geometry_kernel, StructuralPoint,
+};
 use super::point_anchor::point_from_geometry;
 use super::scalar_expression_runtime::evaluate_document_typed_expression;
 use super::scalars::{
@@ -251,10 +253,6 @@ fn decode_entry(value: &Value) -> Result<GeometryValueProgramEntry, String> {
     })
 }
 
-fn point_json(x: f64, y: f64) -> Value {
-    json!({ "kind": "point", "x": x, "y": y })
-}
-
 fn segment_json(start: (f64, f64), end: (f64, f64)) -> Value {
     let structural = segment_geometry_kernel(
         StructuralPoint {
@@ -351,7 +349,10 @@ pub(crate) fn evaluate_geometry_value_entry(
             }
             let x = number_expression(x, resolver, state, source_order);
             let y = number_expression(y, resolver, state, source_order);
-            x.zip(y).map(|(x, y)| point_json(x, y))
+            x.zip(y).map(|(x, y)| {
+                let structural = coordinate_geometry_kernel(x, y);
+                json!({ "kind": "point", "x": structural.x, "y": structural.y })
+            })
         }
         GeometryValueConstruction::Segment { start, end } => {
             if entry.declared_interface_type != "line" && entry.declared_interface_type != "path" {

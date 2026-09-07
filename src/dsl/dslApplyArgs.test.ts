@@ -6,7 +6,7 @@ import { getParameterValue } from "../parameters/parameterAccess";
 import { findParameterDefinition } from "../parameters/parameterDefinitions";
 import type { CadElement, CadElementType } from "../types/geometry";
 import { scanCallArgs, type ScannedArg } from "./dslArgScanner";
-import { applyArgs, type DslApplyArgsResolvers } from "./dslApplyArgs";
+import { applyArgs, geometryLineConsumerPolicyFor, type DslApplyArgsResolvers } from "./dslApplyArgs";
 import { constructionFor, type DslConstructionSpec } from "./dslConstructions";
 import { createNameIndex } from "./dslReferences";
 
@@ -74,6 +74,34 @@ const specs = [
 ] as const;
 
 describe("DSL nui 1 compiler argument application", () => {
+  it("classifies the complete current line consumer matrix once at the apply boundary", () => {
+    const expected: Array<[CadElementType, string, "readOnly" | "identityMutation"]> = [
+      ["intersectionPoint", "line1Id", "readOnly"],
+      ["intersectionPoint", "line2Id", "readOnly"],
+      ["lineTangentOffsetPoint", "baseLineId", "readOnly"],
+      ["bezierExtremePoint", "baseLineId", "readOnly"],
+      ["bezierBulgePoint", "baseLineId", "readOnly"],
+      ["splitLine", "baseLineId", "identityMutation"],
+      ["commonTangentLine", "firstLineId", "readOnly"],
+      ["commonTangentLine", "secondLineId", "readOnly"],
+      ["pathReverse", "targetLineId", "identityMutation"],
+      ["offsetLine", "baseLineIds", "readOnly"],
+      ["copyLine", "baseLineIds", "readOnly"],
+      ["symmetricCopyLine", "baseLineIds", "readOnly"],
+      ["move", "baseLineIds", "identityMutation"],
+      ["symmetricMove", "baseLineIds", "identityMutation"],
+      ["lineDivisionPoint", "endpoint", "readOnly"],
+      ["cornerRadiusArcLine", "endpoint1", "identityMutation"],
+      ["cornerRadiusArcLine", "endpoint2", "identityMutation"],
+      ["edge", "endpoint1", "identityMutation"],
+      ["edge", "endpoint2", "identityMutation"],
+      ["extendTrim", "endpoint", "identityMutation"],
+    ];
+
+    expect(expected.every(([type, key, policy]) => geometryLineConsumerPolicyFor(type, key) === policy)).toBe(true);
+    expect(geometryLineConsumerPolicyFor("offsetLine", "offset")).toBeUndefined();
+  });
+
   it("applies populated and minimal arguments for every registry construction", () => {
     for (const [category, construction] of specs) {
       const spec = constructionFor(category, construction)!;

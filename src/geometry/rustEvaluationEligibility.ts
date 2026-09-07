@@ -250,16 +250,22 @@ const canUseRustEvaluationForElement = (
     return false;
   }
   if (element.type === "lineDivisionPoint") {
-    return referencesRustSupportedLine(element.endpoint.lineId, elementsById);
+    return referencesRustSupportedLineTarget(element.endpoint.lineId, element, "endpoint", options, elementsById);
   }
   if (element.type === "lineTangentOffsetPoint") {
-    return referencesRustSupportedLine(element.baseLineId, elementsById);
+    return referencesRustSupportedLineTarget(element.baseLineId, element, "baseLineId", options, elementsById);
   }
   if (element.type === "bezierExtremePoint") {
-    return referencesRustSupportedLine(element.baseLineId, elementsById);
+    return referencesRustSupportedLineTarget(element.baseLineId, element, "baseLineId", options, elementsById);
   }
   if (element.type === "bezierBulgePoint") {
-    return referencesRustSupportedLine(element.baseLineId, elementsById);
+    return referencesRustSupportedLineTarget(element.baseLineId, element, "baseLineId", options, elementsById);
+  }
+  if (element.type === "commonTangentLine") {
+    return (
+      referencesRustSupportedLineTarget(element.firstLineId, element, "firstLineId", options, elementsById) &&
+      referencesRustSupportedLineTarget(element.secondLineId, element, "secondLineId", options, elementsById)
+    );
   }
   if (element.type === "intersectionPoint") {
     return (
@@ -269,8 +275,9 @@ const canUseRustEvaluationForElement = (
   }
   if (element.type === "offsetLine") {
     const target = options.geometryInputTargetsByElementId?.get(element.id)?.get("baseLineIds");
-    if (target && Array.isArray(target)) {
-      return target.every((candidate) => candidate.kind === "geometryValue" || referencesRustSupportedLine(candidate.elementId, elementsById));
+    if (target) {
+      const candidates = Array.isArray(target) ? target : [target];
+      return candidates.every((candidate) => candidate.kind === "geometryValue" || referencesRustSupportedLine(candidate.elementId, elementsById));
     }
     return element.baseLineIds.every((baseLineId) => referencesRustSupportedLine(baseLineId, elementsById));
   }
@@ -297,13 +304,17 @@ const canUseRustEvaluationForElement = (
   }
   if (
     element.type === "copyLine" ||
-    element.type === "symmetricCopyLine" ||
-    element.type === "move" ||
-    element.type === "symmetricMove"
+    element.type === "symmetricCopyLine"
   ) {
-    return element.baseLineIds.every((baseLineId) =>
-      referencesRustSupportedLine(baseLineId, elementsById)
-    );
+    const target = options.geometryInputTargetsByElementId?.get(element.id)?.get("baseLineIds");
+    if (target) {
+      const candidates = Array.isArray(target) ? target : [target];
+      return candidates.every((candidate) => candidate.kind === "geometryValue" || referencesRustSupportedLine(candidate.elementId, elementsById));
+    }
+    return element.baseLineIds.every((baseLineId) => referencesRustSupportedLine(baseLineId, elementsById));
+  }
+  if (element.type === "move" || element.type === "symmetricMove") {
+    return element.baseLineIds.every((baseLineId) => referencesRustSupportedLine(baseLineId, elementsById));
   }
   return true;
 };

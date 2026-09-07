@@ -1,4 +1,5 @@
 import type {
+  GeometryInputTarget,
   GeometryValueOccurrence
 } from "../types/geometry";
 import type { ElementEvaluationContext } from "./elementEvaluatorTypes";
@@ -8,20 +9,40 @@ import { geometryValueOccurrenceKey } from "../model/geometryValueOccurrence";
 const valueForOccurrence = (context: ElementEvaluationContext, occurrence: GeometryValueOccurrence) =>
   context.computedGeometryValues?.get(geometryValueOccurrenceKey(occurrence))?.value;
 
+const geometryForTarget = (
+  context: ElementEvaluationContext,
+  target: GeometryInputTarget
+) => target.kind === "drawable"
+  ? context.computedGeometry.get(target.elementId)
+  : valueForOccurrence(context, target.occurrence);
+
+export const resolveLineGeometryInputAt = (
+  context: ElementEvaluationContext,
+  parameterKey: string,
+  index: number,
+  fallbackElementId: string
+): LineLikeGeometryInput | undefined => {
+  const target = context.geometryInputTargets?.get(parameterKey);
+  if (target && "kind" in target) {
+    const geometry = geometryForTarget(context, target);
+    return isLineLikeGeometryInput(geometry) ? geometry : undefined;
+  }
+  if (target) {
+    const candidate = target[index];
+    if (!candidate) return undefined;
+    const geometry = geometryForTarget(context, candidate);
+    return isLineLikeGeometryInput(geometry) ? geometry : undefined;
+  }
+  const geometry = context.computedGeometry.get(fallbackElementId);
+  return isLineLikeGeometryInput(geometry) ? geometry : undefined;
+};
+
 export const resolveLineGeometryInput = (
   context: ElementEvaluationContext,
   parameterKey: string,
   fallbackElementId: string
 ): LineLikeGeometryInput | undefined => {
-  const target = context.geometryInputTargets?.get(parameterKey);
-  if (target && "kind" in target) {
-    const geometry = target.kind === "drawable"
-      ? context.computedGeometry.get(target.elementId)
-      : valueForOccurrence(context, target.occurrence);
-    return isLineLikeGeometryInput(geometry) ? geometry : undefined;
-  }
-  const geometry = context.computedGeometry.get(fallbackElementId);
-  return isLineLikeGeometryInput(geometry) ? geometry : undefined;
+  return resolveLineGeometryInputAt(context, parameterKey, 0, fallbackElementId);
 };
 
 export const resolveLineGeometryInputs = (
@@ -29,17 +50,8 @@ export const resolveLineGeometryInputs = (
   parameterKey: string,
   fallbackElementIds: readonly string[]
 ): LineLikeGeometryInput[] => {
-  const target = context.geometryInputTargets?.get(parameterKey);
-  if (target && !("kind" in target)) {
-    return target.flatMap((candidate) => {
-      const geometry = candidate.kind === "drawable"
-        ? context.computedGeometry.get(candidate.elementId)
-        : valueForOccurrence(context, candidate.occurrence);
-      return isLineLikeGeometryInput(geometry) ? [geometry] : [];
-    });
-  }
-  return fallbackElementIds.flatMap((elementId) => {
-    const geometry = context.computedGeometry.get(elementId);
-    return isLineLikeGeometryInput(geometry) ? [geometry] : [];
+  return fallbackElementIds.flatMap((elementId, index) => {
+    const geometry = resolveLineGeometryInputAt(context, parameterKey, index, elementId);
+    return geometry ? [geometry] : [];
   });
 };

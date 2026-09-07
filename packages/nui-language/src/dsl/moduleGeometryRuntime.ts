@@ -286,7 +286,14 @@ export const buildModuleGeometryRuntime = ({
     resolversByRuntimeElementId.set(entry.runtimeElementId, {
       ...baseResolver,
       recordGeometryInputTarget: (_elementId, parameterKey, target) => {
-        targetsForElement.set(parameterKey, target);
+        const existing = targetsForElement.get(parameterKey);
+        if (!existing) {
+          targetsForElement.set(parameterKey, target);
+        } else {
+          const existingTargets = Array.isArray(existing) ? existing : [existing];
+          const newTargets = Array.isArray(target) ? target : [target];
+          targetsForElement.set(parameterKey, [...existingTargets, ...newTargets]);
+        }
         geometryInputTargetsByRuntimeElementId.set(entry.runtimeElementId, targetsForElement);
       },
       resolveLineReferenceList: (token) => geometryArrayRuntime.resolveLineReferenceList(

@@ -220,6 +220,25 @@ pub(crate) fn resolve_line_geometry_input(
     state.computed_geometry.get(fallback_id).cloned()
 }
 
+pub(crate) fn resolve_line_geometry_input_at(
+    state: &EvaluationState,
+    element_id: &str,
+    parameter_key: &str,
+    index: usize,
+    fallback_id: &str,
+) -> Option<Value> {
+    let targets = state
+        .geometry_input_targets
+        .get(element_id)
+        .and_then(|parameters| parameters.get(parameter_key));
+    if let Some(targets) = targets {
+        return targets
+            .get(index)
+            .and_then(|target| geometry_for_target(state, target));
+    }
+    state.computed_geometry.get(fallback_id).cloned()
+}
+
 pub(crate) fn resolve_line_geometry_inputs(
     state: &EvaluationState,
     element_id: &str,

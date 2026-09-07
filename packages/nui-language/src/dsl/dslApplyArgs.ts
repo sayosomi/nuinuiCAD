@@ -12,7 +12,7 @@ import { isLineLikeElement } from "../model/pointAnchors";
 import type { ElementNameContext } from "../model/elementNames";
 import { findParameterDefinition } from "../parameters/parameterDefinitions";
 import { setParameterValue } from "../parameters/parameterAccess";
-import type { CadElement, ElementId, GeometryInputTarget, GeometryValueOccurrence, NumericValue, VisibilityRole } from "../types/geometry";
+import type { CadElement, ElementId, GeometryInputTarget, NumericValue, VisibilityRole } from "../types/geometry";
 import {
   resolveAnchor as resolveAnchorFromDsl,
   resolveEndpoint as resolveEndpointFromDsl,
@@ -93,8 +93,8 @@ export type DslLineReferenceTargetResolver = (
   sourceSpan?: DslSpan
 ) => GeometryInputTarget | null;
 
-/** Resolves an immutable geometry reference used by a mutation-only endpoint. */
-export type DslImmutableGeometryReferenceResolver = (
+/** Resolves a line endpoint's backing geometry input at the consumer boundary. */
+export type DslLineEndpointTargetResolver = (
   token: string,
   parameterKey: string,
   index: NameIndex,
@@ -102,7 +102,7 @@ export type DslImmutableGeometryReferenceResolver = (
   diagnostics: DslDiagnostic[],
   currentElement?: CadElement,
   sourceSpan?: DslSpan
-) => GeometryValueOccurrence | null;
+) => GeometryInputTarget | null;
 
 export type DslGeometryInputTargetRecorder = (
   elementId: ElementId,
@@ -124,7 +124,7 @@ export type DslGeometryResolverOverrides = {
   resolveAnchor?: DslAnchorResolver;
   resolveEndpoint?: DslEndpointResolver;
   resolveLineReferenceTarget?: DslLineReferenceTargetResolver;
-  resolveImmutableGeometryReference?: DslImmutableGeometryReferenceResolver;
+  resolveLineEndpointTarget?: DslLineEndpointTargetResolver;
   recordGeometryInputTarget?: DslGeometryInputTargetRecorder;
   resolveLineReferenceList?: DslLineReferenceListResolver;
   resolvePointReferenceList?: DslPointReferenceListResolver;
@@ -226,6 +226,42 @@ const roleIdFor = (roles: readonly VisibilityRole[], token: string) => {
   return roles.find((role) => role.id === value || role.name === value)?.id ?? value;
 };
 
+export type GeometryLineConsumerPolicy = "readOnly" | "identityMutation";
+
+/**
+ * The parameter schema owns which inputs are line references. This finite
+ * policy only classifies the current consumers that give those references
+ * their runtime identity semantics; it is not a second parameter vocabulary.
+ */
+const geometryLineConsumerPolicies: ReadonlyMap<string, GeometryLineConsumerPolicy> = new Map([
+  ["intersectionPoint.line1Id", "readOnly"],
+  ["intersectionPoint.line2Id", "readOnly"],
+  ["lineTangentOffsetPoint.baseLineId", "readOnly"],
+  ["bezierExtremePoint.baseLineId", "readOnly"],
+  ["bezierBulgePoint.baseLineId", "readOnly"],
+  ["splitLine.baseLineId", "identityMutation"],
+  ["commonTangentLine.firstLineId", "readOnly"],
+  ["commonTangentLine.secondLineId", "readOnly"],
+  ["pathReverse.targetLineId", "identityMutation"],
+  ["offsetLine.baseLineIds", "readOnly"],
+  ["copyLine.baseLineIds", "readOnly"],
+  ["symmetricCopyLine.baseLineIds", "readOnly"],
+  ["move.baseLineIds", "identityMutation"],
+  ["symmetricMove.baseLineIds", "identityMutation"],
+  ["lineDivisionPoint.endpoint", "readOnly"],
+  ["cornerRadiusArcLine.endpoint1", "identityMutation"],
+  ["cornerRadiusArcLine.endpoint2", "identityMutation"],
+  ["edge.endpoint1", "identityMutation"],
+  ["edge.endpoint2", "identityMutation"],
+  ["extendTrim.endpoint", "identityMutation"]
+]);
+
+export const geometryLineConsumerPolicyFor = (
+  elementType: CadElement["type"] | string | undefined,
+  parameterKey: string
+): GeometryLineConsumerPolicy | undefined =>
+  elementType ? geometryLineConsumerPolicies.get(`${elementType}.${parameterKey}`) : undefined;
+
 /**
  * Applies already-scanned nui 1 arguments without parsing statements || assigning
  * document ownership. `metadata` is deliberately returned for the C1 compiler
@@ -258,11 +294,10 @@ export const applyArgs = (
     );
   const anchor = (source: string, sourceSpan?: DslSpan) =>
     resolveAnchor(source, resolvers.index, resolvers.line, diagnostics, numeric, next, sourceSpan);
-  const mutationLineTarget = (parameterKey: string) =>
-    (next.type === "move" || next.type === "symmetricMove") && parameterKey === "baseLineIds" ||
-    next.type === "pathReverse" && parameterKey === "targetLineId";
+  const lineConsumerPolicy = (parameterKey: string) =>
+    geometryLineConsumerPolicyFor(next.type, parameterKey);
   const rejectImmutableMutationTarget = (target: GeometryInputTarget, parameterKey: string, sourceSpan?: DslSpan) => {
-    if (target.kind !== "geometryValue" || !mutationLineTarget(parameterKey)) return false;
+    if (target.kind !== "geometryValue" || lineConsumerPolicy(parameterKey) !== "identityMutation") return false;
     diagnostics.push({
       severity: "error",
       line: resolvers.line,
@@ -290,7 +325,9 @@ export const applyArgs = (
       );
       if (lowered) {
         if (rejectImmutableMutationTarget(lowered, parameterKey, sourceSpan)) return source.trim();
-        resolvers.recordGeometryInputTarget?.(next.id, parameterKey, lowered);
+        if (lineConsumerPolicy(parameterKey) === "readOnly") {
+          resolvers.recordGeometryInputTarget?.(next.id, parameterKey, lowered);
+        }
         if (lowered.kind === "drawable") return lowered.elementId;
         // Preserve authored source text only as compiler data. The runtime
         // sidecar above is authoritative and prevents this token from being
@@ -412,29 +449,25 @@ export const applyArgs = (
         next = setParameterValue(next, parameterKey, value === "none" ? null : anchor(value, scanned.valueSpan));
         break;
       case "lineEndpointReference":
-        if (resolvers.resolveImmutableGeometryReference?.(
-          value,
-          parameterKey,
-          resolvers.index,
-          resolvers.line,
-          diagnostics,
-          next,
-          scanned.valueSpan
-        )) {
-          diagnostics.push({
-            severity: "error",
-            line: resolvers.line,
-            column: scanned.valueSpan.start + 1,
-            code: "geometry-value-mutation-target-unsupported",
-            message: "immutable geometry value は mutation target にできません。",
-            presentation: { key: "diagnostic.geometry-value-mutation-target-unsupported" },
-            logicalSpan: scanned.valueSpan
-          });
-          next = setParameterValue(next, parameterKey, {
-            lineId: value.trim(),
-            endpointKey: value.trim().endsWith(".end") ? "end" : "start"
-          });
-        } else {
+        {
+          const lowered = resolvers.resolveLineEndpointTarget?.(
+            value,
+            parameterKey,
+            resolvers.index,
+            resolvers.line,
+            diagnostics,
+            next,
+            scanned.valueSpan
+          );
+          if (lowered) {
+            if (rejectImmutableMutationTarget(lowered, parameterKey, scanned.valueSpan)) {
+              next = setParameterValue(next, parameterKey, resolveEndpoint(value, resolvers.index, resolvers.line, diagnostics, next, scanned.valueSpan));
+              break;
+            }
+            if (lineConsumerPolicy(parameterKey) === "readOnly") {
+              resolvers.recordGeometryInputTarget?.(next.id, parameterKey, lowered);
+            }
+          }
           next = setParameterValue(next, parameterKey, resolveEndpoint(value, resolvers.index, resolvers.line, diagnostics, next, scanned.valueSpan));
         }
         break;
@@ -456,14 +489,6 @@ export const applyArgs = (
             const itemSpan = { start: scanned.valueSpan.start + item.offset, end: scanned.valueSpan.start + item.offset + item.text.length };
             return lineReferenceId(item.text, parameterKey, itemSpan);
           });
-          if (!sourceLowered && !mutationLineTarget(parameterKey)) {
-            const targets = referenceListItems(value).flatMap((item) => {
-              const itemSpan = { start: scanned.valueSpan.start + item.offset, end: scanned.valueSpan.start + item.offset + item.text.length };
-              const target = resolvers.resolveLineReferenceTarget?.(item.text, parameterKey, resolvers.index, resolvers.line, diagnostics, next, itemSpan);
-              return target ? [target] : [];
-            });
-            if (targets.length) resolvers.recordGeometryInputTarget?.(next.id, parameterKey, targets);
-          }
           next = setParameterValue(next, parameterKey, [...refs]);
         }
         break;

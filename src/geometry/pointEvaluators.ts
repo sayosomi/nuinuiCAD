@@ -14,7 +14,7 @@ import {
 } from "./bezierMath";
 import { CIRCLE_EPSILON } from "./evaluateGeometryPrimitives";
 import { dependencyError, geometryError, getComputedPointOrError, getPointAnchorOrError, numericError } from "./evaluationContext";
-import { pointAtDistanceFromEndpoint, isLineLikeGeometry, isLineLikeGeometryInput, tangentAtPointOnLineLikeGeometry } from "./linePaths";
+import { pointAtDistanceFromEndpoint, isLineLikeGeometryInput, tangentAtPointOnLineLikeGeometry } from "./linePaths";
 import { findLineIntersections } from "./lineIntersections";
 import { resolveLineGeometryInput } from "./lineGeometryInput";
 import type { ElementEvaluationContext } from "./elementEvaluatorTypes";
@@ -349,8 +349,8 @@ export const evaluatePointElement = (element: CadElement, context: ElementEvalua
         break;
       }
       case "lineDivisionPoint": {
-        const geometry = computedGeometry.get(element.endpoint.lineId);
-        if (!isLineLikeGeometry(geometry)) {
+        const geometry = resolveLineGeometryInput(context, "endpoint", element.endpoint.lineId);
+        if (!isLineLikeGeometryInput(geometry)) {
           errors.push(dependencyError(element, element.endpoint.lineId, elementsById, disabledByGroupId));
           break;
         }
@@ -449,12 +449,12 @@ export const evaluatePointElement = (element: CadElement, context: ElementEvalua
         break;
       }
       case "lineTangentOffsetPoint": {
-        const baseLine = computedGeometry.get(element.baseLineId);
+        const baseLine = resolveLineGeometryInput(context, "baseLineId", element.baseLineId);
         if (!baseLine) {
           errors.push(dependencyError(element, element.baseLineId, elementsById, disabledByGroupId));
           break;
         }
-        if (element.curveSide === undefined && !isLineLikeGeometry(baseLine)) {
+        if (element.curveSide === undefined && !isLineLikeGeometryInput(baseLine)) {
           errors.push(dependencyError(element, element.baseLineId, elementsById, disabledByGroupId));
           break;
         }
@@ -493,7 +493,7 @@ export const evaluatePointElement = (element: CadElement, context: ElementEvalua
           break;
         }
 
-        if (!isLineLikeGeometry(baseLine)) {
+        if (!isLineLikeGeometryInput(baseLine)) {
           errors.push(dependencyError(element, element.baseLineId, elementsById, disabledByGroupId));
           break;
         }
@@ -523,7 +523,7 @@ export const evaluatePointElement = (element: CadElement, context: ElementEvalua
         break;
       }
       case "bezierExtremePoint": {
-        const source = computedGeometry.get(element.baseLineId);
+        const source = resolveLineGeometryInput(context, "baseLineId", element.baseLineId);
         if (!source) {
           errors.push(dependencyError(element, element.baseLineId, elementsById, disabledByGroupId, errors));
           break;
@@ -580,7 +580,7 @@ export const evaluatePointElement = (element: CadElement, context: ElementEvalua
         break;
       }
       case "bezierBulgePoint": {
-        const source = computedGeometry.get(element.baseLineId);
+        const source = resolveLineGeometryInput(context, "baseLineId", element.baseLineId);
         if (!source) {
           errors.push(dependencyError(element, element.baseLineId, elementsById, disabledByGroupId, errors));
           break;
