@@ -312,6 +312,15 @@ export type ModuleGeometryConstructionSemantic =
       start: ModuleScalarExpressionSemantic | null;
       end: ModuleScalarExpressionSemantic | null;
       direction: ModuleScalarExpressionSemantic | null;
+    }
+  | {
+      kind: "through";
+      span: DslSpan;
+      point1: ModuleGeometryReferenceSemantic;
+      point2: ModuleGeometryReferenceSemantic;
+      point3: ModuleGeometryReferenceSemantic;
+      start: ModuleScalarExpressionSemantic | null;
+      end: ModuleScalarExpressionSemantic | null;
     };
 
 export type ModuleGeometryValueSemantic = {

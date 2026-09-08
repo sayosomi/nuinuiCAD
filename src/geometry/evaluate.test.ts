@@ -5619,7 +5619,7 @@ point Q = coordinate(x: distance(P, PR:start), y: 0)`);
     expect(result.errors[0]).toMatchObject({
       elementId: "arc",
       missingDependencyId: "arc",
-      message: expect.stringContaining("円を作れません")
+      message: "三点円弧 は点1・点2・点3から円を作れません。3点が重複しているか、一直線上にあります。別の3点を指定してください。"
     });
   });
 

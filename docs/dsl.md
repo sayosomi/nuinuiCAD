@@ -39,9 +39,13 @@ The initializer may be an existing geometry reference or an implemented pure
 geometry construction: `coordinate(...)` produces a non-drawable `point`,
 `segment(...)` produces a non-drawable `line` and may initialize `path` through
 the existing directional `line -> path` assignability rule, and direct
-`arc(...)` produces a non-drawable `path`. These remain source-level immutable
-geometry values, not drawable elements. Pure `through`, `bezier`, `offset`, and
-other deferred constructors are not implied here.
+`arc(...)` produces a non-drawable `path`, and `through(...)` produces an
+identity-free `arcLine` path value from three point inputs. `through` defaults
+`start` and `end` to 0 and 90 degrees and fails duplicate or collinear points
+through the occurrence-owned geometry-value diagnostic channel. These remain
+source-level immutable geometry values, not drawable elements. Pure `bezier`,
+`offset`, `corner`, `polyline`, and other deferred constructors remain
+unsupported.
 
 The reference covers the current implemented language:
 

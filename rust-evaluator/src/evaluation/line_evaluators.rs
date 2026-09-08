@@ -3,9 +3,10 @@ use std::collections::HashMap;
 
 use super::errors::geometry_error;
 use super::geometry_value_kernels::{
-    direct_arc_geometry_kernel, segment_geometry_kernel, StructuralArcLine, StructuralPoint,
+    direct_arc_geometry_kernel, segment_geometry_kernel, through_arc_geometry_kernel,
+    StructuralArcLine, StructuralPoint,
 };
-use super::math::{angle_from_to, circle_through_three_points};
+use super::math::angle_from_to;
 use super::numeric_expression::evaluate_numeric_or_push;
 use super::point_anchor::{anchor_reference_element_id, computed_point, point_anchor_or_error};
 use super::types::{element_id, element_name, insert_geometry, EvaluationState, Point};
@@ -394,7 +395,22 @@ pub(crate) fn evaluate_three_point_arc_line(
     ) else {
         return;
     };
-    let Some(circle) = circle_through_three_points(&point1, &point2, &point3) else {
+    let Some(structural) = through_arc_geometry_kernel(
+        StructuralPoint {
+            x: point1.x,
+            y: point1.y,
+        },
+        StructuralPoint {
+            x: point2.x,
+            y: point2.y,
+        },
+        StructuralPoint {
+            x: point3.x,
+            y: point3.y,
+        },
+        start_angle_deg,
+        end_angle_deg,
+    ) else {
         state.errors.push(geometry_error(
             element,
             format!(
@@ -405,16 +421,6 @@ pub(crate) fn evaluate_three_point_arc_line(
         return;
     };
 
-    let structural = direct_arc_geometry_kernel(
-        StructuralPoint {
-            x: circle.x,
-            y: circle.y,
-        },
-        circle.radius,
-        start_angle_deg,
-        end_angle_deg,
-        "counterclockwise",
-    );
     let id = element_id(element).unwrap_or_default();
     insert_arc_line_geometry(
         state,
@@ -425,8 +431,8 @@ pub(crate) fn evaluate_three_point_arc_line(
             center: Point {
                 element_id: format!("{id}:center"),
                 name: format!("{}.中心点", element_name(element)),
-                x: circle.x,
-                y: circle.y,
+                x: structural.center.x,
+                y: structural.center.y,
             },
             structural,
         },

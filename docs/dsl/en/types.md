@@ -44,17 +44,22 @@ const originPoint: point = coordinate(x: 0, y: 0)
 const measuredEdge: line = segment(start: @originPoint, end: (10, 0))
 const broadEdge: path = segment(start: @originPoint, end: (10, 0))
 const roundedEdge: path = arc(center: @originPoint, radius: 10, start: 0, end: 90)
+const throughEdge: path = through(point1: @originPoint, point2: (10, 10), point3: (20, 0))
 ```
 
 The initializer may be an existing legal `@` geometry reference or one of the
 implemented pure construction forms: `coordinate` produces `point`, `segment`
-produces strict `line`, and direct `arc` produces broad `path`. A strict
-`line` is also assignable to `path`. These values are source-level values, not
-drawable elements or scalar runtime values. The declared type remains the
-public type through alias chains: `point` accepts only `point`, `line` accepts
-only `line`, and `path` accepts `line` or `path`. Single-geometry values are
-`const`-only. `through`, `bezier`, and `offset` remain deferred as pure value
-initializers.
+produces strict `line`, direct `arc` produces broad `path`, and `through`
+produces an immutable non-drawable `path` by fitting a circle through
+`point1`, `point2`, and `point3`. `through` accepts optional `start` and `end`
+angles, defaulting to 0 and 90 degrees, and is counterclockwise. Duplicate or
+collinear points fail at runtime through the value-owned geometry diagnostic
+channel. A strict `line` is also assignable to `path`. These values are
+source-level values, not drawable elements or scalar runtime values. The
+declared type remains the public type through alias chains: `point` accepts
+only `point`, `line` accepts only `line`, and `path` accepts `line` or `path`.
+Single-geometry values are `const`-only. Pure `bezier`, `offset`, `corner`,
+`polyline`, and other deferred constructions remain unsupported.
 
 ## Geometry arrays
 

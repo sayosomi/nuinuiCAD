@@ -479,6 +479,12 @@ export const analyzeModuleBody = ({
           if (construction.start) addScalar(bodySemantic, "construction:start", construction.start.ast.span, construction.start);
           if (construction.end) addScalar(bodySemantic, "construction:end", construction.end.ast.span, construction.end);
           if (construction.direction) addScalar(bodySemantic, "construction:direction", construction.direction.ast.span, construction.direction);
+        } else if (construction?.kind === "through") {
+          addGeometry(bodySemantic, "construction:point1", construction.point1.span, construction.point1);
+          addGeometry(bodySemantic, "construction:point2", construction.point2.span, construction.point2);
+          addGeometry(bodySemantic, "construction:point3", construction.point3.span, construction.point3);
+          if (construction.start) addScalar(bodySemantic, "construction:start", construction.start.ast.span, construction.start);
+          if (construction.end) addScalar(bodySemantic, "construction:end", construction.end.ast.span, construction.end);
         }
         const value: ModuleGeometryValueSemantic = {
           statementId,

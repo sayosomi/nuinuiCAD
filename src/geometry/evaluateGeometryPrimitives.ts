@@ -28,38 +28,6 @@ export const directedSweepDegrees = (
   return sweep === 0 ? 0 : sweep;
 };
 
-export const circleThroughThreePoints = (
-  point1: ComputedPoint,
-  point2: ComputedPoint,
-  point3: ComputedPoint
-) => {
-  const denominator =
-    2 *
-    (point1.x * (point2.y - point3.y) +
-      point2.x * (point3.y - point1.y) +
-      point3.x * (point1.y - point2.y));
-
-  if (Math.abs(denominator) < CIRCLE_EPSILON) return null;
-
-  const point1Squared = point1.x * point1.x + point1.y * point1.y;
-  const point2Squared = point2.x * point2.x + point2.y * point2.y;
-  const point3Squared = point3.x * point3.x + point3.y * point3.y;
-  const x =
-    (point1Squared * (point2.y - point3.y) +
-      point2Squared * (point3.y - point1.y) +
-      point3Squared * (point1.y - point2.y)) /
-    denominator;
-  const y =
-    (point1Squared * (point3.x - point2.x) +
-      point2Squared * (point1.x - point3.x) +
-      point3Squared * (point2.x - point1.x)) /
-    denominator;
-  const radius = Math.hypot(point1.x - x, point1.y - y);
-
-  if (!Number.isFinite(radius) || radius <= CIRCLE_EPSILON) return null;
-  return { x, y, radius };
-};
-
 export const handlePoint = (point: ComputedPoint, angleDeg: number, length: number) => {
   const angleRad = degreesToRadians(angleDeg);
   return {

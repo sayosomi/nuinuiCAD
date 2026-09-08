@@ -311,6 +311,132 @@ fn direct_arc_value_uses_identity_free_arc_geometry_and_feeds_endpoint_anchor() 
 }
 
 #[test]
+fn through_value_shares_structural_arc_fields_with_drawable_three_point_arc() {
+    let occurrence = json!({
+        "sourceStatementId": "value:through",
+        "instancePath": []
+    });
+    let drawable = json!({
+        "id": "drawable:through",
+        "name": "Arc",
+        "type": "threePointArcLine",
+        "activity": "visible",
+        "point1": { "mode": "coordinate", "x": 10, "y": 0 },
+        "point2": { "mode": "coordinate", "x": 0, "y": 10 },
+        "point3": { "mode": "coordinate", "x": -10, "y": 0 },
+        "startAngleDeg": 30,
+        "endAngleDeg": 120
+    });
+    let program = json!({
+        "sourceStatementId": "value:through",
+        "sourceStatementIndex": 0,
+        "declaredInterfaceType": "path",
+        "occurrence": occurrence,
+        "executionPosition": -0.5,
+        "construction": {
+            "kind": "through",
+            "point1": { "kind": "coordinate", "x": number(10.0), "y": number(0.0) },
+            "point2": { "kind": "coordinate", "x": number(0.0), "y": number(10.0) },
+            "point3": { "kind": "coordinate", "x": number(-10.0), "y": number(0.0) },
+            "startAngleDeg": number(30.0),
+            "endAngleDeg": number(120.0)
+        }
+    });
+
+    let result = evaluate_document_input(input(vec![drawable], vec![program]));
+
+    assert!(result.errors.is_empty());
+    assert_eq!(result.computed_geometry_values.len(), 1);
+    let value = &result.computed_geometry_values[0]["value"];
+    let drawable = &result.computed_geometry[0];
+    for field in [
+        "radius",
+        "startAngleDeg",
+        "endAngleDeg",
+        "startTangentAngleDeg",
+        "endTangentAngleDeg",
+        "sweepAngleDeg",
+        "length",
+    ] {
+        assert_eq!(
+            drawable[field], value[field],
+            "structural field {field} diverged"
+        );
+    }
+    for field in ["center", "start", "end"] {
+        assert_eq!(
+            drawable[field]["x"], value[field]["x"],
+            "structural field {field}.x diverged"
+        );
+        assert_eq!(
+            drawable[field]["y"], value[field]["y"],
+            "structural field {field}.y diverged"
+        );
+    }
+    assert_eq!(drawable["elementId"], json!("drawable:through"));
+    assert_eq!(drawable["name"], json!("Arc"));
+    assert!(value.get("elementId").is_none());
+    assert!(value.get("name").is_none());
+}
+
+#[test]
+fn invalid_through_values_use_exact_occurrence_owned_errors_without_drawable_identity() {
+    let program = [
+        ("value:through-duplicate", Vec::<&str>::new(), 0.0, 0.0, 0.0, 0.0, 1.0, 1.0),
+        ("value:through-collinear", vec!["instance:one"], 0.0, 0.0, 1.0, 1.0, 2.0, 2.0),
+    ]
+    .into_iter()
+    .map(|(source_statement_id, instance_path, point1_x, point1_y, point2_x, point2_y, point3_x, point3_y)| {
+        json!({
+            "sourceStatementId": source_statement_id,
+            "sourceStatementIndex": 0,
+            "declaredInterfaceType": "path",
+            "occurrence": {
+                "sourceStatementId": source_statement_id,
+                "instancePath": instance_path
+            },
+            "executionPosition": 0.0,
+            "construction": {
+                "kind": "through",
+                "point1": { "kind": "coordinate", "x": number(point1_x), "y": number(point1_y) },
+                "point2": { "kind": "coordinate", "x": number(point2_x), "y": number(point2_y) },
+                "point3": { "kind": "coordinate", "x": number(point3_x), "y": number(point3_y) },
+                "startAngleDeg": number(0.0),
+                "endAngleDeg": number(90.0)
+            }
+        })
+    })
+    .collect();
+
+    let result = evaluate_document_input(input(Vec::new(), program));
+
+    assert!(result.errors.is_empty());
+    assert!(result.computed_geometry_values.is_empty());
+    assert_eq!(result.geometry_value_errors.len(), 2);
+    assert_eq!(
+        result.geometry_value_errors[0].occurrence,
+        super::types::GeometryValueOccurrence {
+            source_statement_id: "value:through-duplicate".to_owned(),
+            instance_path: Vec::new()
+        }
+    );
+    assert_eq!(
+        result.geometry_value_errors[1].occurrence,
+        super::types::GeometryValueOccurrence {
+            source_statement_id: "value:through-collinear".to_owned(),
+            instance_path: vec!["instance:one".to_owned()]
+        }
+    );
+    assert!(result.geometry_value_errors.iter().all(|error| {
+        error.message == "点1・点2・点3から円を作れません。3点が重複しているか、一直線上にあります。別の3点を指定してください。"
+    }));
+    let serialized = serde_json::to_value(&result).expect("EvaluationPayload must serialize");
+    assert!(!serialized["geometryValueErrors"]
+        .to_string()
+        .contains("elementId"));
+}
+
+#[test]
 fn invalid_direct_arc_radius_uses_occurrence_owned_errors_without_computed_values() {
     let program = [
         ("value:arc-zero", Vec::<&str>::new(), 0.0),

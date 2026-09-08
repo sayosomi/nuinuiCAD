@@ -2,7 +2,7 @@ use serde_json::{json, Value};
 
 use super::geometry_value_kernels::{
     coordinate_geometry_kernel, direct_arc_geometry_kernel, segment_geometry_kernel,
-    StructuralPoint,
+    through_arc_geometry_kernel, StructuralPoint,
 };
 use super::point_anchor::point_from_geometry;
 use super::scalar_expression_runtime::evaluate_document_typed_expression;
@@ -52,6 +52,13 @@ pub(crate) enum GeometryValueConstruction {
         start_angle_deg: Box<TypedScalarExpression>,
         end_angle_deg: Box<TypedScalarExpression>,
         direction: Box<TypedScalarExpression>,
+    },
+    Through {
+        point1: Box<GeometryValuePoint>,
+        point2: Box<GeometryValuePoint>,
+        point3: Box<GeometryValuePoint>,
+        start_angle_deg: Box<TypedScalarExpression>,
+        end_angle_deg: Box<TypedScalarExpression>,
     },
 }
 
@@ -286,6 +293,39 @@ fn decode_entry(value: &Value) -> Result<GeometryValueProgramEntry, String> {
                     .map_err(|error| format!("{error:?}"))?,
                 ),
             },
+            "through" => GeometryValueConstruction::Through {
+                point1: Box::new(decode_point(
+                    construction_object
+                        .get("point1")
+                        .ok_or_else(|| "geometry value through is missing point1".to_owned())?,
+                )?),
+                point2: Box::new(decode_point(
+                    construction_object
+                        .get("point2")
+                        .ok_or_else(|| "geometry value through is missing point2".to_owned())?,
+                )?),
+                point3: Box::new(decode_point(
+                    construction_object
+                        .get("point3")
+                        .ok_or_else(|| "geometry value through is missing point3".to_owned())?,
+                )?),
+                start_angle_deg: Box::new(
+                    validate_typed_expression_payload(
+                        construction_object.get("startAngleDeg").ok_or_else(|| {
+                            "geometry value through is missing startAngleDeg".to_owned()
+                        })?,
+                    )
+                    .map_err(|error| format!("{error:?}"))?,
+                ),
+                end_angle_deg: Box::new(
+                    validate_typed_expression_payload(
+                        construction_object.get("endAngleDeg").ok_or_else(|| {
+                            "geometry value through is missing endAngleDeg".to_owned()
+                        })?,
+                    )
+                    .map_err(|error| format!("{error:?}"))?,
+                ),
+            },
             kind => {
                 return Err(format!(
                     "unsupported geometry value construction kind {kind}"
@@ -482,6 +522,75 @@ pub(crate) fn evaluate_geometry_value_entry(
                         end_angle_deg,
                         &direction,
                     );
+                    Some(json!({
+                        "kind": "arcLine",
+                        "center": { "x": structural.center.x, "y": structural.center.y },
+                        "start": { "x": structural.start.x, "y": structural.start.y },
+                        "end": { "x": structural.end.x, "y": structural.end.y },
+                        "radius": structural.radius,
+                        "startAngleDeg": structural.start_angle_deg,
+                        "endAngleDeg": structural.end_angle_deg,
+                        "startTangentAngleDeg": structural.start_tangent_angle_deg,
+                        "endTangentAngleDeg": structural.end_tangent_angle_deg,
+                        "sweepAngleDeg": structural.sweep_angle_deg,
+                        "length": structural.length
+                    }))
+                }
+                _ => None,
+            }
+        }
+        GeometryValueConstruction::Through {
+            point1,
+            point2,
+            point3,
+            start_angle_deg,
+            end_angle_deg,
+        } => {
+            if entry.declared_interface_type != "path" {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "Geometry value construction is incompatible with its declared interface type.",
+                );
+                return;
+            }
+            let point1 = evaluate_point(point1, resolver, state, source_order);
+            let point2 = evaluate_point(point2, resolver, state, source_order);
+            let point3 = evaluate_point(point3, resolver, state, source_order);
+            let start_angle_deg = number_expression(start_angle_deg, resolver, state, source_order);
+            let end_angle_deg = number_expression(end_angle_deg, resolver, state, source_order);
+            match (point1, point2, point3, start_angle_deg, end_angle_deg) {
+                (
+                    Some(point1),
+                    Some(point2),
+                    Some(point3),
+                    Some(start_angle_deg),
+                    Some(end_angle_deg),
+                ) => {
+                    let structural = through_arc_geometry_kernel(
+                        StructuralPoint {
+                            x: point1.0,
+                            y: point1.1,
+                        },
+                        StructuralPoint {
+                            x: point2.0,
+                            y: point2.1,
+                        },
+                        StructuralPoint {
+                            x: point3.0,
+                            y: point3.1,
+                        },
+                        start_angle_deg,
+                        end_angle_deg,
+                    );
+                    let Some(structural) = structural else {
+                        append_geometry_value_error(
+                            state,
+                            entry,
+                            "点1・点2・点3から円を作れません。3点が重複しているか、一直線上にあります。別の3点を指定してください。",
+                        );
+                        return;
+                    };
                     Some(json!({
                         "kind": "arcLine",
                         "center": { "x": structural.center.x, "y": structural.center.y },

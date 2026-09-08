@@ -1845,6 +1845,9 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     const xArgument = argument("x");
     const yArgument = argument("y");
     const centerArgument = argument("center");
+    const point1Argument = argument("point1");
+    const point2Argument = argument("point2");
+    const point3Argument = argument("point3");
     const radiusArgument = argument("radius");
     const startArgument = argument("start");
     const endArgument = argument("end");
@@ -1885,6 +1888,40 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         }));
       }
       return { kind: "coordinate", span: { start: constructionSpan.start, end: initializerSpan.end }, x: scalar(xArgument, { kind: "number" }, "0"), y: scalar(yArgument, { kind: "number" }, "0") };
+    }
+    if (invocation.construction === "through" && invocation.pureValueInterface === "path") {
+      if (expectedInterfaceType !== "path") {
+        addLocal(statementIndex, issue("module-geometry-type-mismatch", constructionSpan, "through construction は path value にのみ代入できます。", {
+          presentation: { key: "diagnostic.module-geometry-type-mismatch", parameters: { target: "through" } }
+        }));
+      }
+      const point = (candidate: typeof point1Argument) => candidate
+        ? resolveGeometry(
+            statementIndex,
+            ownerIndex,
+            source.slice(candidate.valueSpan.start, candidate.valueSpan.end),
+            candidate.valueSpan,
+            "point",
+            {
+              expectedInterfaceType: "point",
+              allowCoordinate: true,
+              role: "pointReference",
+              scalarResolver: options.scalarResolver,
+              bareScalarResolver: options.bareScalarResolver,
+              geometryPropertyResolver: options.geometryPropertyResolver,
+              presenceFacts: options.presenceFacts
+            }
+          )
+        : geometryReference("", constructionSpan, "point", null, "invalid", null, "pointReference");
+      return {
+        kind: "through",
+        span: { start: constructionSpan.start, end: initializerSpan.end },
+        point1: point(point1Argument),
+        point2: point(point2Argument),
+        point3: point(point3Argument),
+        start: scalar(startArgument, { kind: "number" }, "0"),
+        end: scalar(endArgument, { kind: "number" }, "90")
+      };
     }
     if (invocation.construction === "arc" && invocation.pureValueInterface === "path") {
       if (expectedInterfaceType !== "path") {
@@ -2436,6 +2473,12 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     } else if (construction?.kind === "arc") {
       rootGeometryReferencesByStatementId.set(statementId, [
         { parameterKey: "center", span: construction.center.span, reference: construction.center }
+      ]);
+    } else if (construction?.kind === "through") {
+      rootGeometryReferencesByStatementId.set(statementId, [
+        { parameterKey: "point1", span: construction.point1.span, reference: construction.point1 },
+        { parameterKey: "point2", span: construction.point2.span, reference: construction.point2 },
+        { parameterKey: "point3", span: construction.point3.span, reference: construction.point3 }
       ]);
     }
   }

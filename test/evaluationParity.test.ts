@@ -120,6 +120,63 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("matches pure through values and degenerate diagnostics across TypeScript and Rust", () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "const P1: point = coordinate(x: 10, y: 0)",
+      "const P2: point = coordinate(x: 0, y: 10)",
+      "const P3: point = coordinate(x: -10, y: 0)",
+      "const Valid: path = through(point1: @P1, point2: @P2, point3: @P3, start: 30, end: 120)",
+      "const Invalid: path = through(point1: (0, 0), point2: (1, 1), point3: (2, 2))"
+    ].join("\n"));
+    const program = fixture.compiled?.doc.geometryValueProgram;
+    if (!program) throw new Error("expected pure through geometry value program entries");
+    const validEntry = program.find((entry) => entry.construction.kind === "through" && entry.sourceStatementIndex === 4);
+    const invalidEntry = program.find((entry) => entry.construction.kind === "through" && entry.sourceStatementIndex === 5);
+    if (!validEntry || !invalidEntry) throw new Error("expected valid and invalid pure through program entries");
+    const options = optionsFor(fixture);
+
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustOptions(repoRoot, fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+
+    const ts = evaluationPayloadToResult(tsPayload);
+    const rust = evaluationPayloadToResult(rustPayload);
+    const sameOccurrence = (
+      left: typeof validEntry.occurrence,
+      right: typeof validEntry.occurrence
+    ) => left.sourceStatementId === right.sourceStatementId &&
+      left.instancePath.length === right.instancePath.length &&
+      left.instancePath.every((value, index) => value === right.instancePath[index]);
+    const valueFor = (
+      result: ReturnType<typeof evaluationPayloadToResult>,
+      occurrence: typeof validEntry.occurrence
+    ) => [...(result.computedGeometryValues?.values() ?? [])]
+      .find((entry) => sameOccurrence(entry.occurrence, occurrence))?.value;
+
+    for (const result of [ts, rust]) {
+      expect(result.errors).toEqual([]);
+      expect(result.geometryValueErrors).toEqual([{
+        occurrence: invalidEntry.occurrence,
+        message: "点1・点2・点3から円を作れません。3点が重複しているか、一直線上にあります。別の3点を指定してください。"
+      }]);
+      const validValue = valueFor(result, validEntry.occurrence);
+      expect(validValue).toMatchObject({
+        kind: "arcLine",
+        center: { x: 0, y: 0 },
+        radius: 10,
+        startAngleDeg: 30,
+        endAngleDeg: 120,
+        sweepAngleDeg: 90,
+        length: 10 * Math.PI / 2
+      });
+      expect(validValue).not.toHaveProperty("elementId");
+      expect(valueFor(result, invalidEntry.occurrence)).toBeUndefined();
+      expect(result.geometryValueErrors?.every((error) => !("elementId" in error))).toBe(true);
+    }
+  }, 30000);
+
   it.each(fixtureNames)("%s matches the TypeScript reference payload", (name: string) => {
     const fixture = readParityFixture(repoRoot, name);
     const options = optionsFor(fixture);
