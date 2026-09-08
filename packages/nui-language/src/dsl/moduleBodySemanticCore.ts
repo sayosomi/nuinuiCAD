@@ -503,6 +503,11 @@ export const analyzeModuleBody = ({
             if (intermediate.incomingLength) addScalar(bodySemantic, `construction:intermediates:${index}:incomingLength`, intermediate.incomingLength.ast.span, intermediate.incomingLength);
             if (intermediate.outgoingLength) addScalar(bodySemantic, `construction:intermediates:${index}:outgoingLength`, intermediate.outgoingLength.ast.span, intermediate.outgoingLength);
           });
+        } else if (construction?.kind === "polyline") {
+          construction.points.forEach((point, index) => {
+            addGeometry(bodySemantic, `construction:points:${index}`, point.span, point);
+          });
+          if (construction.closed) addScalar(bodySemantic, "construction:closed", construction.closed.ast.span, construction.closed);
         }
         const value: ModuleGeometryValueSemantic = {
           statementId,

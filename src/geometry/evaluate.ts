@@ -74,7 +74,7 @@ import type {
   ComputedGeometryValueEntry,
   GeometryValueEvaluationError
 } from "./evaluationTypes";
-import { arcGeometryKernel, bezierGeometryKernel, coordinateGeometryKernel, segmentGeometryKernel, throughArcGeometryKernel, type StructuralPoint } from "./geometryValueKernels";
+import { arcGeometryKernel, bezierGeometryKernel, coordinateGeometryKernel, polylineGeometryKernel, segmentGeometryKernel, throughArcGeometryKernel, type StructuralPoint } from "./geometryValueKernels";
 import { evaluateTypedExpression } from "../scalars/expressionEvaluator";
 import { setParameterValue } from "../parameters/parameterAccess";
 
@@ -436,6 +436,17 @@ export const evaluateElements = (
       : undefined;
   };
 
+  const evaluateGeometryValueBoolean = (expression: TypedScalarExpression, sourceOrder: number): boolean | undefined => {
+    const evaluation = evaluateTypedExpression(expression, {
+      lookupBinding: scalarBindingResolver
+        ? scalarBindingResolver.resolveBinding
+        : () => ({ status: "error", type: { kind: "boolean" }, issueCode: "evaluation-binding-unavailable" }),
+      lookupGeometryProperty: (reference) => resolveDocumentGeometryProperty(geometryRuntime, reference, sourceOrder),
+      lookupGeometryTarget: (target) => resolveDocumentGeometryTarget(geometryRuntime, target, sourceOrder)
+    });
+    return evaluation.status === "ok" && evaluation.value.kind === "boolean" ? evaluation.value.value : undefined;
+  };
+
   const appendGeometryValueError = (
     entry: import("../dsl/moduleGeometryValueProgram").GeometryValueProgramEntry,
     message: string
@@ -576,6 +587,23 @@ export const evaluateElements = (
         return;
       }
       value = bezierValue;
+    } else if (entry.construction.kind === "polyline") {
+      if (entry.declaredInterfaceType !== "path") {
+        appendGeometryValueError(entry, "Geometry value construction is incompatible with its declared interface type.");
+        return;
+      }
+      const closed = evaluateGeometryValueBoolean(entry.construction.closed, sourceOrder);
+      const points = entry.construction.points.map((point) => structuralPointForProgramPoint(point, sourceOrder));
+      if (closed === undefined || points.some((point) => !point)) {
+        appendGeometryValueError(entry, "Polyline geometry value construction inputs are unavailable or invalid.");
+        return;
+      }
+      const polylineValue = polylineGeometryKernel(points as StructuralPoint[], closed);
+      if (!polylineValue) {
+        appendGeometryValueError(entry, `Polyline geometry value construction requires at least ${closed ? 3 : 2} finite points.`);
+        return;
+      }
+      value = polylineValue;
     }
     if (value) {
       computedGeometryValues.set(geometryValueOccurrenceKey(entry.occurrence), { occurrence: entry.occurrence, value });

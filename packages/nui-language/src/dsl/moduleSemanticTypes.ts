@@ -432,6 +432,13 @@ export type ModuleGeometryConstructionSemantic =
       endAngle: ModuleScalarExpressionSemantic | null;
       endLength: ModuleScalarExpressionSemantic | null;
       intermediates: readonly ModuleGeometryBezierIntermediateSemantic[];
+    }
+  | {
+      kind: "polyline";
+      span: DslSpan;
+      points: readonly ModuleGeometryReferenceSemantic[];
+      pointsReference: { source: string; span: DslSpan } | null;
+      closed: ModuleScalarExpressionSemantic | null;
     };
 
 export type ModuleGeometryValueSemantic = {

@@ -59,8 +59,13 @@ source-level values, not drawable elements or scalar runtime values. The
 declared type remains the public type through alias chains: `point` accepts
 only `point`, `line` accepts only `line`, and `path` accepts `line` or `path`.
 Single-geometry values are `const`-only. Pure `bezier(...)` is a supported
-`path` initializer and stores identity-free cubic segments. Pure `offset`,
-`corner`, `polyline`, and other deferred constructions remain unsupported.
+`path` initializer and stores identity-free cubic segments. Pure
+`polyline(...)` is also a `path` initializer using the drawable `points` and
+`closed` arguments; it stores ordered identity-free line segments, preserves
+duplicate points, and requires at least two open points or three closed points.
+Invalid runtime inputs fail through the occurrence-owned geometry-value
+diagnostic channel. Pure `offset`, `corner`, and other deferred constructions
+remain unsupported.
 
 ## One-dimensional arrays
 

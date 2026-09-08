@@ -151,6 +151,7 @@ const constructionSpecs: DslConstructionSpec[] = [
     category: "line",
     construction: "polyline",
     elementType: "polyline",
+    pureValueInterface: "path",
     args: [special("points", "points", true), arg("closed")],
   },
   { category: "line", construction: "split", elementType: "splitLine", args: [required("source", "baseLineId"), required("at", "splitPoint")] },

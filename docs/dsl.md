@@ -47,8 +47,10 @@ source-level immutable geometry values, not drawable elements. Pure `bezier(...)
 also produces an identity-free `bezierCurve` path value using the drawable
 constructor's endpoint handles and optional intermediate records; its runtime
 controls and length are available to existing path-compatible consumers. Pure
-`offset`, `corner`, `polyline`, and other deferred constructors remain
-unsupported.
+`polyline(...)` also produces an identity-free `polyline` path value using the
+drawable constructor's ordered `points` and optional `closed` arguments; open
+values require at least two points and closed values at least three. Pure
+`offset`, `corner`, and other deferred constructors remain unsupported.
 
 The reference covers the current implemented language:
 

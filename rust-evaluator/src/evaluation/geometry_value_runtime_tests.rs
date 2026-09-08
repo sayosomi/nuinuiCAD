@@ -11,6 +11,15 @@ fn number(value: f64) -> Value {
     })
 }
 
+fn boolean(value: bool) -> Value {
+    json!({
+        "kind": "booleanLiteral",
+        "span": { "start": 0, "end": 1 },
+        "value": value,
+        "type": { "kind": "boolean" }
+    })
+}
+
 fn choice(value: &str) -> Value {
     json!({
         "kind": "choiceLiteral",
@@ -377,6 +386,100 @@ fn through_value_shares_structural_arc_fields_with_drawable_three_point_arc() {
     assert_eq!(drawable["name"], json!("Arc"));
     assert!(value.get("elementId").is_none());
     assert!(value.get("name").is_none());
+}
+
+#[test]
+fn pure_polyline_values_preserve_open_closed_geometry_without_identity() {
+    let open_occurrence = json!({
+        "sourceStatementId": "value:polyline-open",
+        "instancePath": []
+    });
+    let closed_occurrence = json!({
+        "sourceStatementId": "value:polyline-closed",
+        "instancePath": ["instance:one"]
+    });
+    let points = |closed: bool| {
+        json!({
+            "kind": "polyline",
+            "points": [
+                { "kind": "coordinate", "x": number(0.0), "y": number(0.0) },
+                { "kind": "coordinate", "x": number(3.0), "y": number(4.0) },
+                { "kind": "coordinate", "x": number(3.0), "y": number(0.0) }
+            ],
+            "closed": boolean(closed)
+        })
+    };
+    let program = vec![
+        json!({
+            "sourceStatementId": "value:polyline-open",
+            "sourceStatementIndex": 0,
+            "declaredInterfaceType": "path",
+            "occurrence": open_occurrence,
+            "executionPosition": 0.0,
+            "construction": points(false)
+        }),
+        json!({
+            "sourceStatementId": "value:polyline-closed",
+            "sourceStatementIndex": 1,
+            "declaredInterfaceType": "path",
+            "occurrence": closed_occurrence,
+            "executionPosition": 1.0,
+            "construction": points(true)
+        }),
+    ];
+
+    let result = evaluate_document_input(input(Vec::new(), program));
+
+    assert!(result.errors.is_empty());
+    assert!(result.geometry_value_errors.is_empty());
+    assert_eq!(result.computed_geometry_values.len(), 2);
+    let open = &result.computed_geometry_values[0]["value"];
+    let closed = &result.computed_geometry_values[1]["value"];
+    assert_eq!(open["kind"], "polyline");
+    assert_eq!(open["closed"], false);
+    assert_eq!(open["length"], 9.0);
+    assert_eq!(open["segments"].as_array().map(Vec::len), Some(2));
+    assert_eq!(open["end"], json!({ "x": 3.0, "y": 0.0 }));
+    assert_eq!(closed["kind"], "polyline");
+    assert_eq!(closed["closed"], true);
+    assert_eq!(closed["length"], 12.0);
+    assert_eq!(closed["segments"].as_array().map(Vec::len), Some(3));
+    assert_eq!(closed["end"], json!({ "x": 0.0, "y": 0.0 }));
+    assert!(open.get("elementId").is_none());
+    assert!(open.get("name").is_none());
+}
+
+#[test]
+fn invalid_pure_polyline_cardinality_uses_occurrence_owned_error() {
+    let occurrence = json!({
+        "sourceStatementId": "value:polyline-invalid",
+        "instancePath": []
+    });
+    let program = vec![json!({
+        "sourceStatementId": "value:polyline-invalid",
+        "sourceStatementIndex": 0,
+        "declaredInterfaceType": "path",
+        "occurrence": occurrence,
+        "executionPosition": 0.0,
+        "construction": {
+            "kind": "polyline",
+            "points": [{ "kind": "coordinate", "x": number(0.0), "y": number(0.0) }],
+            "closed": boolean(false)
+        }
+    })];
+
+    let result = evaluate_document_input(input(Vec::new(), program));
+
+    assert!(result.errors.is_empty());
+    assert!(result.computed_geometry_values.is_empty());
+    assert_eq!(result.geometry_value_errors.len(), 1);
+    assert_eq!(
+        result.geometry_value_errors[0].message,
+        "Polyline geometry value construction requires at least 2 finite points."
+    );
+    assert!(!serde_json::to_string(&result.geometry_value_errors)
+        .expect("geometry value errors serialize")
+        .contains("elementId"));
 }
 
 #[test]
