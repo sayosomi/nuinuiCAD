@@ -1305,6 +1305,16 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       return;
     }
 
+    // Pick-owned pointer semantics above are the only left-click path that
+    // may run while an explicit Pick session is active. Keep ordinary
+    // selection, rectangle selection, overlap activation, and drag setup out
+    // of the same gesture; the VS Code host adapter remains the authoritative
+    // execution guard for any command that reaches it.
+    if (isPickModeActive) {
+      focusCanvas();
+      return;
+    }
+
     setPointPickCandidateMenu(null);
     setLinePickCandidateMenu(null);
     setMeasurementCandidateMenu(null);
@@ -1455,6 +1465,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     isLinePickActive,
     isNumericReferencePickActive,
     isPointPickActive,
+    isPickModeActive,
     hasCommandLineGhost,
     linePickCandidatesAt,
     numericReferenceCandidatesAt,

@@ -2,6 +2,7 @@ import { act, render, screen } from "@testing-library/react";
 import type { RefObject } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ComputedLine, ComputedPoint, EvaluationResult } from "../types/geometry";
+import { pickModeSessionForTarget } from "../model/pickModeSession";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import { VSCodeApp as VSCodeAppForTest } from "./VSCodeApp";
@@ -116,6 +117,67 @@ describe("VSCodeApp Reveal viewport fitting", () => {
     });
 
     expect(useCadUiStore.getState().selectedElementId).toBe(line.id);
+    expect(useCadUiStore.getState().canvasViewport).toEqual({
+      zoom: 3.36,
+      panX: -168,
+      panY: 84
+    });
+  });
+
+  it("keeps the exact active Pick session while Reveal applies normal selection and framing", async () => {
+    const source = [
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 100, y: 50)",
+      "line AB = segment(start: @A, end: @B)"
+    ].join("\n");
+    const api = { postMessage: vi.fn() };
+    render(<VSCodeAppForTest api={api} />);
+    setViewportRect();
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText: source, documentVersion: 61 }
+      }));
+    });
+
+    const state = useCadDocumentStore.getState();
+    const line = state.elements.find((element) => element.name === "AB")!;
+    const target = { elementId: "target", parameterKey: "points" };
+    const session = pickModeSessionForTarget("point", target, "ordered-multiple", [{
+      kind: "point",
+      key: "draft-point",
+      anchor: { mode: "coordinate", x: 12, y: 8 }
+    }]);
+    useCadUiStore.setState({
+      activePointPickTarget: { ...target, selectionCardinality: "ordered-multiple" },
+      activePickModeSession: session,
+      selectedElementId: null,
+      selectedElementIds: [],
+      selectionAnchorElementId: null
+    });
+    const start = pointGeometry(state.elements[0]!.id, state.elements[0]!.name, 0, 0);
+    const end = pointGeometry(state.elements[1]!.id, state.elements[1]!.name, 100, 50);
+    drawingCanvasProps.evaluation.computedGeometry.set(line.id, lineGeometry(line.id, line.name, start, end));
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "canvasNavigationRequest",
+          requestId: 611,
+          documentVersion: 61,
+          normalizedSourceOffset: source.indexOf("AB = segment")
+        }
+      }));
+    });
+
+    expect(useCadUiStore.getState().activePickModeSession).toEqual(session);
+    expect(useCadUiStore.getState().activePointPickTarget).toEqual({
+      ...target,
+      selectionCardinality: "ordered-multiple"
+    });
+    expect(useCadUiStore.getState().selectedElementId).toBe(line.id);
+    expect(useCadUiStore.getState().selectedElementIds).toEqual([line.id]);
     expect(useCadUiStore.getState().canvasViewport).toEqual({
       zoom: 3.36,
       panX: -168,

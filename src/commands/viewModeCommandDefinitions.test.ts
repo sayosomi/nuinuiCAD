@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CadElement, ComputedGeometry, EvaluationResult } from "../types/geometry";
+import { pickModeSessionForTarget } from "../model/pickModeSession";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import { publishTestCanvasSelectionEligibility } from "../test/canvasSelectionTestUtils";
@@ -228,5 +229,20 @@ describe("Canvas history fallback commands", () => {
     viewModeCommandDefinitions.redo.run(undefined);
 
     expect(useCadDocumentStore.getState().sourceText).toBe(changedSourceText);
+  });
+
+  it("suppresses Canvas Undo and Redo while Pick is active", () => {
+    const target = { elementId: "target", parameterKey: "point" };
+    useCadUiStore.setState({
+      activePointPickTarget: target,
+      activePickModeSession: pickModeSessionForTarget("point", target)
+    });
+    const canvasHistory = vi.fn();
+    const finalizeCanvasInteraction = vi.fn();
+
+    expect(viewModeCommandDefinitions.undo.run({ canvasHistory, finalizeCanvasInteraction })).toBe(false);
+    expect(viewModeCommandDefinitions.redo.run({ canvasHistory, finalizeCanvasInteraction })).toBe(false);
+    expect(canvasHistory).not.toHaveBeenCalled();
+    expect(finalizeCanvasInteraction).not.toHaveBeenCalled();
   });
 });
