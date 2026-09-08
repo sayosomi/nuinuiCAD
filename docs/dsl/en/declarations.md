@@ -4,7 +4,7 @@
 
 Typed scalar declarations use an explicit type annotation and initializer:
 
-- `const name: type = expression` creates a read-only scalar or geometry array.
+- `const name: type = expression` creates a read-only scalar, geometry value, nominal record value, or one-dimensional `T[]` collection.
 - `const name: point|line|path = @reference` creates a read-only, non-drawable
   geometry value. The initializer may be an existing geometry reference or, in
   the implemented pure-value subset, `coordinate(x: ..., y: ...)` for `point`,
@@ -24,6 +24,13 @@ evaluation.
 `let` is not allowed for single-geometry values. `line` aliases can be used
 where `path` is expected, but a `path` alias cannot be used where `line` is
 required.
+
+Collection declarations require an explicit element type and use `const`:
+`number[]`, `string[]`, `boolean[]`, `choice(...)[]`, `point[]`, `line[]`,
+`path[]`, and arrays of already-valid nominal record values are supported.
+Array literals preserve order and duplicates; `[]` uses the declared element
+type, and a whole-value `@reference` keeps its resolved collection identity.
+Nested arrays such as `T[][]` are rejected.
 
 Pure geometry constructions are source values, not drawable declarations. They
 do not create an element or drawable identity. `through` is an implemented pure

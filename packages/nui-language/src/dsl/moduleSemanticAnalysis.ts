@@ -49,7 +49,7 @@ import {
   resolveModuleLexicalPath as resolveSharedModuleLexicalPath
 } from "./moduleLexicalResolution";
 import type { ScalarType } from "../scalars/types";
-import { isDslGeometryValueType, scalarTypeOfDslValueType } from "./dslValueTypes";
+import { isDslArrayValueType, isDslGeometryValueType, scalarTypeOfDslValueType } from "./dslValueTypes";
 import type { StatementIdentity } from "../document/statementIdentity";
 import type {
   ModuleArgumentSemantic,
@@ -456,6 +456,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       ...(definitionIdentity ? { definitionIdentity } : {}),
       name: parameter.name,
       type: parameter.type,
+      valueType: parameter.valueType,
       ...(parameter.numericTypeOptions ? { numericTypeOptions: parameter.numericTypeOptions } : {}),
       recordTypeIdentity: recordTypeIdentityByParameter.get(`${statementId}:${parameterIndex}`) ?? null,
       optional: parameter.optional,
@@ -2582,6 +2583,38 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
   }
 
   const presenceFactsByStatementIndex = new Map<number, ReadonlySet<string>>();
+  const definitionByStatementId = new Map(definitionStates.map((definition) => [definition.statementId, definition] as const));
+  const moduleParameterForSlot = (definitionStatementId: string, parameterIndex: number) => {
+    const definition = definitionByStatementId.get(definitionStatementId);
+    const parameter = definition?.parameters[parameterIndex];
+    return parameter
+      ? { definitionStatementId, parameterIndex, name: parameter.name, optional: parameter.optional, valueType: parameter.valueType }
+      : null;
+  };
+  const optionalGenericCollectionParameterForValueId = (targetValueId: string) => {
+    const match = /^(.*):parameter:(\d+)$/.exec(targetValueId);
+    return match
+      ? moduleParameterForSlot(match[1]!, Number(match[2]))
+      : null;
+  };
+  const addOptionalGenericCollectionPresenceDiagnostic = (
+    statementIndex: number,
+    span: DslSpan,
+    parameter: NonNullable<ReturnType<typeof optionalGenericCollectionParameterForValueId>>,
+    presenceFacts: ReadonlySet<string>
+  ) => {
+    if (!parameter.optional || presenceFacts.has(moduleParameterPresenceKey(parameter.definitionStatementId, parameter.parameterIndex))) return;
+    const definition = definitionByStatementId.get(parameter.definitionStatementId);
+    addLocal(statementIndex, issue(
+      "module-optional-value-required",
+      span,
+      `optional module parameter「${parameter.name}」は hasValue(@${parameter.name}) で存在を確認してから参照してください。`,
+      {
+        relatedSources: definition ? relatedForParameter(definition, parameter.parameterIndex) : [],
+        presentation: { key: "diagnostic.module-optional-value-required", parameters: { name: parameter.name } }
+      }
+    ));
+  };
   const instances: ModuleInstanceSemantic[] = [];
   // Body semantic analysis needs instance -> callee identity to resolve
   // qualified exports, while full argument analysis waits for branch facts.
@@ -2698,6 +2731,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
               parameterIndex: parameter.parameterIndex,
               parameterName: parameter.name,
               parameterType: parameter.type,
+              parameterValueType: parameter.valueType,
               argumentIndex: null,
               argumentLabel: null,
               argumentSpan: null,
@@ -2707,9 +2741,30 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
             });
             continue;
           }
-          const parameterScalarType = scalarTypeOf(parameter.type);
+          const parameterArrayType = isDslArrayValueType(parameter.valueType) && !isDslGeometryValueType(parameter.valueType.elementType)
+            ? parameter.valueType
+            : null;
           let value: ModuleArgumentSemantic | null = null;
-          if (parameterScalarType) {
+          if (parameterArrayType) {
+            const presenceFacts = presenceFactsByStatementIndex.get(statementIndex) ?? new Set<string>();
+            if (ownerIndex !== null) {
+              const parsedReference = parseDslSourceReference(argument.value.trim());
+              if (parsedReference.kind === "valid" && parsedReference.reference.property === null) {
+                const lookup = resolveModuleLexicalPath(statementIndex, ownerIndex, parseDslReferenceToken(parsedReference.reference.pathText));
+                if (lookup.kind === "parameter") {
+                  const sourceParameter = moduleParameterForSlot(lookup.definition.statementId, lookup.parameter.index);
+                  if (sourceParameter && isDslArrayValueType(sourceParameter.valueType) && !isDslGeometryValueType(sourceParameter.valueType.elementType)) {
+                    addOptionalGenericCollectionPresenceDiagnostic(statementIndex, argument.valueSpan, sourceParameter, presenceFacts);
+                  }
+                }
+              }
+            }
+          }
+          const parameterScalarType = scalarTypeOf(parameter.type);
+          if (parameterArrayType) {
+            // Generic collections remain source-semantic in this slice. Keep
+            // the argument binding shape, but do not invent runtime transport.
+          } else if (parameterScalarType) {
             const presenceFacts = presenceFactsByStatementIndex.get(statementIndex) ?? new Set<string>();
             const expression = analyzeExpression(
               statementIndex,
@@ -2774,6 +2829,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
             parameterIndex: parameter.parameterIndex,
             parameterName: parameter.name,
             parameterType: parameter.type,
+            parameterValueType: parameter.valueType,
             argumentIndex: argumentIndex ?? null,
             argumentLabel: argument.label,
             argumentSpan: argument.valueSpan,
@@ -2909,6 +2965,22 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       }
       return facts;
     };
+    const genericCollectionAnalysis = sourceNamespace.geometryArraySemanticAnalysis;
+    for (const value of genericCollectionAnalysis?.genericValues ?? []) {
+      if (value.ownerModuleDefinitionStatementIndex !== definition.statementIndex || !value.value) continue;
+      const presenceFacts = presenceFactsForSourceStatement(value.statementIndex);
+      if (value.value.kind === "alias") {
+        const parameter = optionalGenericCollectionParameterForValueId(value.value.targetValueId);
+        if (parameter) addOptionalGenericCollectionPresenceDiagnostic(value.statementIndex, value.value.sourceSpan, parameter, presenceFacts);
+      } else {
+        for (const member of value.value.members) {
+          const parameter = member.target.kind === "moduleParameterValue"
+            ? moduleParameterForSlot(member.target.definitionStatementId, member.target.parameterIndex)
+            : null;
+          if (parameter) addOptionalGenericCollectionPresenceDiagnostic(value.statementIndex, member.sourceSpan, parameter, presenceFacts);
+        }
+      }
+    }
     const definitionRecordValues: ModuleRecordValueSemantic[] = [...(recordAnalysis?.valuesByStatementId.values() ?? [])]
       .filter((value) => moduleOwnerIndexOf(statements, value.statementIndex) === definition.statementIndex)
       .sort((left, right) => left.statementIndex - right.statementIndex)

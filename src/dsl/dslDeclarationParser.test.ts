@@ -45,22 +45,33 @@ describe("DSL typed declaration parser", () => {
     }
   });
 
-  it("rejects mutable and unsupported geometry-array type spellings", () => {
+  it("requires const for every immutable array and rejects nested/invalid spellings", () => {
     const mutable = parse("let items: path[] = []");
     expect(mutable.statement?.valueType).toEqual({ kind: "array", elementType: { kind: "path" } });
     expect(mutable.diagnostics).toContainEqual(
       expect.objectContaining({ code: "geometry-array-const-only", span: { start: 0, end: 3 } })
     );
 
-    for (const source of [
-      "const items: number[] = []",
-      "const items: point[][] = []",
-      "const items: path [ ] = []"
-    ]) {
+    const numberArray = parse("const items: number[] = []");
+    expect(numberArray.diagnostics).toEqual([]);
+    expect(numberArray.statement?.valueType).toEqual({ kind: "array", elementType: { kind: "number" } });
+
+    for (const source of ["const items: point[][] = []", "const items: path [ ] = []"]) {
       const result = parse(source);
       expect(result.statement?.valueType).toBeNull();
-      expect(result.diagnostics).toContainEqual(expect.objectContaining({ code: "unknown-type" }));
+      expect(result.diagnostics).toContainEqual(expect.objectContaining({ code: source.includes("[][]") ? "nested-array-type" : "unknown-type" }));
     }
+  });
+
+  it("parses scalar, choice, and nominal-record arrays", () => {
+    expect(parse("const numbers: number[] = [1, 2]").diagnostics).toEqual([]);
+    expect(parse("const labels: string[] = [\"a\", \"b\"]").diagnostics).toEqual([]);
+    expect(parse("const flags: boolean[] = [true, false]").diagnostics).toEqual([]);
+    expect(parse("const choices: choice(left, right)[] = [left, right]").diagnostics).toEqual([]);
+    expect(parse("const records: Measurements[] = []").statement?.valueType).toEqual({
+      kind: "array",
+      elementType: { kind: "record", name: "Measurements" }
+    });
   });
 
   it("parses a choice declaration and records per-option spans in order", () => {

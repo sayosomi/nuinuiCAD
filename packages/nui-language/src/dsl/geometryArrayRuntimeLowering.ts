@@ -21,6 +21,7 @@ const lowerValue = (
   analysis: GeometryArraySemanticAnalysis,
   value: GeometryArraySemanticValue<GeometryArraySourceTarget>,
   elementIdByStatementIndex: ReadonlyMap<number, ElementId>,
+  geometryValueByStatementIndex: ReadonlyMap<number, { kind: "value" | "drawable"; occurrence?: { sourceStatementId: string; instancePath: readonly string[] }; declaredInterfaceType: "point" | "line" | "path"; elementId?: ElementId }> | undefined,
   visited: ReadonlySet<string>
 ): readonly ElementId[] | null => {
   if (value.type.elementType === "point") return null;
@@ -32,12 +33,16 @@ const lowerValue = (
       analysis,
       target.value,
       elementIdByStatementIndex,
+      geometryValueByStatementIndex,
       new Set([...visited, value.targetValueId])
     );
   }
 
   const ids: ElementId[] = [];
   for (const member of value.members) {
+    // A pure geometry value has no drawable ElementId and therefore cannot
+    // enter a line identity list. The Module runtime may lower it through its
+    // geometry-value alias at a value-aware consumer boundary.
     if (member.target.kind !== "geometry") return null;
     const id = elementIdByStatementIndex.get(member.target.statementIndex);
     if (!id) return null;
@@ -62,6 +67,7 @@ const lowerPointValue = (
   analysis: GeometryArraySemanticAnalysis,
   value: GeometryArraySemanticValue<GeometryArraySourceTarget>,
   elementIdByStatementIndex: ReadonlyMap<number, ElementId>,
+  geometryValueByStatementIndex: ReadonlyMap<number, { kind: "value" | "drawable"; occurrence?: { sourceStatementId: string; instancePath: readonly string[] }; declaredInterfaceType: "point" | "line" | "path"; elementId?: ElementId }> | undefined,
   visited: ReadonlySet<string>
 ): readonly PointAnchor[] | null => {
   if (value.type.elementType !== "point") return null;
@@ -69,7 +75,7 @@ const lowerPointValue = (
     if (visited.has(value.targetValueId)) return null;
     const target = valueForId(analysis, value.targetValueId);
     if (!target?.value) return null;
-    return lowerPointValue(analysis, target.value, elementIdByStatementIndex, new Set([...visited, value.targetValueId]));
+    return lowerPointValue(analysis, target.value, elementIdByStatementIndex, geometryValueByStatementIndex, new Set([...visited, value.targetValueId]));
   }
 
   const anchors: PointAnchor[] = [];
@@ -78,6 +84,16 @@ const lowerPointValue = (
       const anchor = coordinateAnchor(member.target.source);
       if (!anchor) return null;
       anchors.push(anchor);
+      continue;
+    }
+    if (member.target.kind === "geometryValue") {
+      const geometryValue = geometryValueByStatementIndex?.get(member.target.statementIndex);
+      if (geometryValue?.kind !== "value" || !geometryValue.occurrence) return null;
+      anchors.push({
+        mode: "geometryValue",
+        occurrence: geometryValue.occurrence,
+        ...(member.target.pointKey ? { pointKey: member.target.pointKey } : {})
+      });
       continue;
     }
     if (member.target.kind !== "geometry") return null;
@@ -117,6 +133,7 @@ export const lowerSourceGeometryArrayLineReferenceList = (
     analysis,
     semantic.value,
     sourceResolution.elementIdByStatementIndex,
+    sourceResolution.geometryValueByStatementIndex,
     new Set([semantic.statementId])
   );
 };
@@ -147,6 +164,7 @@ export const lowerSourceGeometryArrayPointReferenceList = (
     analysis,
     semantic.value,
     sourceResolution.elementIdByStatementIndex,
+    sourceResolution.geometryValueByStatementIndex,
     new Set([semantic.statementId])
   );
 };

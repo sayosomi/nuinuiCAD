@@ -1,6 +1,6 @@
 import type { DslSpan } from "./dslTypes";
 import type { DslValueType } from "./dslValueTypes";
-import { isDslGeometryValueType } from "./dslValueTypes";
+import { isDslArrayValueType, isDslGeometryValueType } from "./dslValueTypes";
 import { geometryArrayTypeOfDslValueType } from "./geometryArrayTypes";
 import { unquoteDslString } from "./dslTokens";
 import {
@@ -146,6 +146,13 @@ export const parseDslTypedDeclarationStatement = (logicalText: string): DslDecla
       message: "geometry array は const で宣言してください。",
       span: keywordSpan,
       code: "geometry-array-const-only"
+    });
+  } else if (keyword === "let" && isDslArrayValueType(parsedType.valueType)) {
+    diagnostics.push({
+      message: "array は const で宣言してください。",
+      span: keywordSpan,
+      code: "array-const-only",
+      presentation: { key: "diagnostic.array-const-only" }
     });
   }
   if (keyword === "let" && isDslGeometryValueType(parsedType.valueType)) {

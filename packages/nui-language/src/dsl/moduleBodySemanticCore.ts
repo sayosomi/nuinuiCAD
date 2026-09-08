@@ -38,7 +38,7 @@ import type {
   ModuleScalarReferenceResolution
 } from "./moduleScalarExpression";
 import { presenceFactsForSemanticFalse, presenceFactsForSemanticTruth } from "./moduleScalarExpression";
-import { isDslGeometryValueType, scalarTypeOfDslValueType } from "./dslValueTypes";
+import { isDslArrayValueType, isDslGeometryValueType, scalarTypeOfDslValueType } from "./dslValueTypes";
 import { parseDslSourceReference } from "./dslReferenceTokens";
 import { moduleGeometryInterfaceTypeOfElement } from "./moduleGeometryInterfaces";
 import { geometryValueConstructionControlFlowUnsupported } from "./geometryValueConstructionScope";
@@ -530,7 +530,7 @@ export const analyzeModuleBody = ({
             }, statement.exportSpan ?? statement.nameSpan ?? statement.keywordSpan);
           }
         }
-      } else {
+      } else if (!isDslArrayValueType(statement.valueType)) {
         const declaredType = scalarTypeOfDslValueType(statement.valueType);
         const initializerSpan = statement.payloadSpans.initializer;
         const initializer = initializerSpan

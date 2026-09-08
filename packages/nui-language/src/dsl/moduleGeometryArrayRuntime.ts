@@ -74,6 +74,17 @@ type RuntimeResult = {
   actualType: GeometryArrayType | null;
 };
 
+const pointAnchorForAlias = (alias: GeometryAlias | null | undefined): PointAnchor | undefined => {
+  if (!alias) return undefined;
+  if (alias.kind === "point") return alias.anchor;
+  if (alias.kind === "value") return {
+    mode: "geometryValue",
+    occurrence: alias.occurrence,
+    ...(alias.pointKey ? { pointKey: alias.pointKey } : {})
+  };
+  return undefined;
+};
+
 const moduleOwnerIndexOf = (statements: readonly DslStatement[], statementIndex: number): number | null => {
   const visited = new Set<number>();
   let enclosing = statements[statementIndex]?.enclosing ?? null;
@@ -291,6 +302,16 @@ export const buildModuleGeometryArrayRuntime = ({
         geometryKind: target.interfaceType === "point" ? "point" as const : "line" as const
       };
     }
+    if (target.kind === "geometryValue") {
+      return {
+        kind: "geometryValue" as const,
+        statementId: target.statementId,
+        statementIndex: target.statementIndex,
+        declaredInterfaceType: target.interfaceType,
+        backingTarget: null,
+        ...(target.pointKey ? { pointKey: target.pointKey } : {})
+      };
+    }
     if (target.kind !== "geometry") return null;
     const statement = sourceForPath(currentPath).statements[target.statementIndex];
     if (statement?.kind !== "element" || !isGeometryDeclarationCategory(statement.category)) return null;
@@ -466,7 +487,7 @@ export const buildModuleGeometryArrayRuntime = ({
                 members.push({
                   interfaceType: memberInterfaceType,
                   alias,
-                  ...(alias?.kind === "point" ? { anchor: alias.anchor } : {})
+                  ...(pointAnchorForAlias(alias) ? { anchor: pointAnchorForAlias(alias) } : {})
                 });
                 continue;
               }
@@ -522,7 +543,7 @@ export const buildModuleGeometryArrayRuntime = ({
           members.push({
             interfaceType: memberInterfaceType,
             alias,
-            ...(alias?.kind === "point" ? { anchor: alias.anchor } : {})
+            ...(pointAnchorForAlias(alias) ? { anchor: pointAnchorForAlias(alias) } : {})
           });
           continue;
         }
@@ -568,7 +589,7 @@ export const buildModuleGeometryArrayRuntime = ({
           members.push({
             interfaceType: memberInterfaceType,
             alias,
-            ...(alias?.kind === "point" ? { anchor: alias.anchor } : {})
+            ...(pointAnchorForAlias(alias) ? { anchor: pointAnchorForAlias(alias) } : {})
           });
           continue;
         }
@@ -616,7 +637,7 @@ export const buildModuleGeometryArrayRuntime = ({
         return {
           interfaceType: member.interfaceType,
           alias: alias ?? null,
-          ...(alias?.kind === "point" ? { anchor: alias.anchor } : {})
+          ...(pointAnchorForAlias(alias) ? { anchor: pointAnchorForAlias(alias) } : {})
         };
       });
       const value = { type: semantic.type, members };

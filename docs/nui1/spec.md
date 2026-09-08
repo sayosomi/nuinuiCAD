@@ -937,13 +937,14 @@ ordinary named Module parameter binding path; no positional or shorthand kind
 exists in the runtime payload.
 
 A parameter may be `point`, `line`, `path`, `number`, `string`, `boolean`,
-`choice(...)`, `point[]`, `line[]`, or `path[]` as appropriate. Singular geometry
+`choice(...)`, a nominal record type, or a one-dimensional `T[]` whose element
+type is one of those non-array value types. Singular geometry
 parameters are resolved external targets exposed inside the module as read-only
 aliases. A singular geometry parameter cannot be a mutation target. Geometry-array
 parameters are immutable ordered values; they may be passed as inline literals or
 named array references and do not have defaults.
 
-Any scalar, geometry, or geometry-array parameter may be optional by writing
+Any scalar, geometry, record, or collection parameter may be optional by writing
 `name?: type`. Optional parameters cannot also have a default. Omission is an
 intentional absent value: it is not `none`, `null`, or a runtime value, and an
 omitted scalar has no eager initializer or binding. Required, defaulted, and
@@ -957,7 +958,7 @@ valid in a boolean default and is the only presence test for an optional
 parameter.
 
 Inside a module body, `hasValue(@parameter)` accepts exactly one optional scalar,
-geometry, or geometry-array parameter and returns `boolean`. Its result may
+geometry, record, or collection parameter and returns `boolean`. Its result may
 narrow presence in the same lexical descendant: a true `if` branch, the
 right-hand side of `and`, and the false branch of `or` prove presence. `not`
 reverses the fact. Facts do not escape the branch, do not flow through boolean
@@ -988,8 +989,8 @@ of the activity choices `visible`, `hidden`, or `disabled`.
 ### Visibility and exports
 
 Module members are private by default. `export` is a visibility modifier on the
-member declaration itself and is valid for geometry, scalars, and immutable
-geometry arrays:
+member declaration itself and is valid for geometry, scalars, records, and
+immutable collections:
 
 ```text
 export point 頂点 = tangentOffset(
@@ -1214,10 +1215,12 @@ constant `pi` is the explicit scanner-level exception and is not a choice
 literal. A reference to a named value always includes `@`.
 
 nui1 implements three first-class immutable single-geometry types (`point`,
-`line`, and `path`) and exactly three first-class immutable geometry-array
-types: `point[]`, `line[]`, and `path[]`. Named arrays are `const` only; `let`, `set`,
-mutable collection operations, scalar arrays, nested arrays, indexing, spread,
-and a general-purpose collection API are not part of this contract.
+`line`, and `path`) and one-dimensional immutable collection types `T[]`.
+The element type `T` may be any currently valid non-array value type:
+`number`, `string`, `boolean`, `choice(...)`, `point`, `line`, `path`, or an
+already-valid nominal record type. Named arrays are `const` only, and the
+declaration type annotation is mandatory. Nested arrays such as `T[][]` are
+rejected; the type model is intentionally one-dimensional.
 
 ```text
 const points: point[] = [@A, @B]
@@ -1225,26 +1228,33 @@ const strictLines: line[] = [@AB]
 const paths: path[] = [@AB, @curve]
 const emptyPaths: path[] = []
 const copiedPaths: path[] = @paths
+const numbers: number[] = [1, 2, 3]
+const labels: string[] = ["front", "back"]
+const sides: choice(left, right)[] = [left, right]
+const copiedNumbers: number[] = @numbers
 ```
 
 Array literals preserve source order and duplicates exactly. `[]` is valid when
-the expected geometry-array type is known. Every member is validated against
-the expected interface: `point[]` accepts point geometry (including the normal
-qualified/derived/coordinate point forms), `line[]` accepts only the strict
-`line` interface, and `path[]` accepts the broad line-like `path` interface.
-Array aliases and array references use the ordinary lexical/source-order/private
-and export rules; references always retain their `@` marker.
+the expected collection type is known. Every member is validated against the
+declared element type using the existing scalar, choice, geometry, and nominal
+record assignability rules. Geometry arrays accept the normal
+qualified/derived/coordinate point forms; `line[]` remains assignable to
+`path[]`. Whole-value array references retain their source identity and use the
+ordinary lexical/source-order/private and export rules; references always retain
+their `@` marker.
 
 Geometry-array assignability is intentionally narrow: `point[] -> point[]`,
 `line[] -> line[]`, `path[] -> path[]`, and `line[] -> path[]` are valid. The
 reverse `path[] -> line[]`, point/non-point conversions, and implicit untyped
 conversion are invalid.
 
-Module signatures may declare required or optional geometry-array parameters.
+Module signatures may declare required or optional collection parameters.
 They have no defaults. Optional arrays use the same `hasValue(@parameter)`
 presence narrowing as other optional Module parameters. Module bodies may
 create local immutable arrays and may export them with `export const`; private,
-source-order, and instance-member visibility rules are unchanged.
+source-order, and instance-member visibility rules are unchanged. Collection
+members remain values: pure geometry members are not converted into drawable
+identities.
 
 Existing broad line-list consumers treat their list value as `path[]`. This
 includes `offset.sources`, `transformCopy.baseLines`, `mirrorCopy.baseLines`,
@@ -1267,8 +1277,8 @@ move(
 A named array reference remains a named reference in source; canonical
 formatting does not flatten it into an inline literal. Runtime lowering feeds
 the resolved ordered geometry members into the existing geometry-list paths;
-this feature does not add geometry arrays to scalar `ScalarType` / `ScalarValue`
-or introduce a generic Rust/runtime collection value.
+scalar and nominal-record collections remain source-semantic values until a
+later collection-consumer slice.
 
 ## Canonical formatting
 

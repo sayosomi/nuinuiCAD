@@ -1,5 +1,6 @@
 import type { DslGeometryDeclarationCategory } from "./dslConstructions";
 import type { DslDiagnostic, DslModuleParameterType, DslSpan, DslStatement } from "./dslTypes";
+import type { DslValueType } from "./dslValueTypes";
 import type { ScalarExpressionAst } from "../scalars/expressionAst";
 import type { ScalarType } from "../scalars/types";
 import type { BindingId } from "../scalars/bindingCatalog";
@@ -343,6 +344,7 @@ export type ResolvedModuleParameter = {
   definitionIdentity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
   name: string;
   type: DslModuleParameterType | null;
+  valueType: DslValueType | null;
   numericTypeOptions?: DslNumericTypeOptions;
   recordTypeIdentity: RecordTypeIdentity | null;
   optional: boolean;
@@ -362,6 +364,7 @@ export type ResolvedModuleParameterBinding = {
   parameterIndex: number;
   parameterName: string;
   parameterType: DslModuleParameterType | null;
+  parameterValueType: DslValueType | null;
   argumentIndex: number | null;
   argumentLabel: string | null;
   argumentSpan: DslSpan | null;

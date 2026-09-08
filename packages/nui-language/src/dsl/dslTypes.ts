@@ -142,6 +142,8 @@ export type DslModuleParameter = {
   optional: boolean;
   optionalSpan: DslSpan | null;
   type: DslModuleParameterType | null;
+  /** Canonical source-level type, including the generalized immutable T[] form. */
+  valueType: DslValueType | null;
   /** Source-only unresolved nominal record type. Never enters Module runtime in SAY-114. */
   recordTypeReference?: DslRecordTypeReference | null;
   typeSpan: DslSpan | null;
