@@ -210,6 +210,15 @@ export interface TypedScalarCallExpressionNode {
   readonly type: ScalarType | null;
 }
 
+export interface TypedScalarValueIfExpressionNode {
+  readonly kind: "valueIf";
+  readonly span: ScalarSpan;
+  readonly condition: TypedScalarExpression;
+  readonly thenBranch: TypedScalarExpression;
+  readonly elseBranch: TypedScalarExpression;
+  readonly type: ScalarType | null;
+}
+
 export type TypedScalarExpression =
   | TypedScalarNumberLiteralNode
   | TypedScalarStringLiteralNode
@@ -221,7 +230,8 @@ export type TypedScalarExpression =
   | TypedScalarUnaryExpressionNode
   | TypedScalarBinaryExpressionNode
   | TypedScalarGroupExpressionNode
-  | TypedScalarCallExpressionNode;
+  | TypedScalarCallExpressionNode
+  | TypedScalarValueIfExpressionNode;
 
 export type ScalarExpressionTypecheckIssueCode =
   | "scalar-type-mismatch"

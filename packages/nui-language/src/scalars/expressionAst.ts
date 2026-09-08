@@ -139,6 +139,15 @@ export interface ScalarCallExpressionNode {
   readonly args: readonly ScalarCallArgumentNode[];
 }
 
+/** A value-producing scalar `if (condition) { then } else { otherwise }`. */
+export interface ScalarValueIfExpressionNode {
+  readonly kind: "valueIf";
+  readonly span: ScalarSpan;
+  readonly condition: ScalarExpressionAst;
+  readonly thenBranch: ScalarExpressionAst;
+  readonly elseBranch: ScalarExpressionAst;
+}
+
 export type ScalarExpressionAst =
   | ScalarNumberLiteralNode
   | ScalarStringLiteralNode
@@ -150,7 +159,8 @@ export type ScalarExpressionAst =
   | ScalarUnaryExpressionNode
   | ScalarBinaryExpressionNode
   | ScalarGroupExpressionNode
-  | ScalarCallExpressionNode;
+  | ScalarCallExpressionNode
+  | ScalarValueIfExpressionNode;
 
 export type ScalarExpressionIssueCode =
   | "unexpected-token"
@@ -164,7 +174,10 @@ export type ScalarExpressionIssueCode =
   | "unterminated-string"
   | "physical-newline-in-string"
   | "invalid-string-escape"
-  | "geometry-property-in-typed-expression";
+  | "geometry-property-in-typed-expression"
+  | "value-if-missing-else"
+  | "value-if-malformed-condition"
+  | "value-if-malformed-branch";
 
 export interface ScalarExpressionDiagnostic {
   readonly message: string;

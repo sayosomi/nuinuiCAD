@@ -1,6 +1,6 @@
-//! Shape validation (own fields only, not children) for the four
+//! Shape validation (own fields only, not children) for the five
 //! recursive `TypedScalarExpression` node kinds - `unary`/`binary`/
-//! `group`/`call`. Split out of `expression_leaf_payload.rs` to keep both files
+//! `group`/`valueIf`/`call`. Split out of `expression_leaf_payload.rs` to keep both files
 //! under this project's file-size guidance; conceptually still the same
 //! "non-recursive per-node-kind field validation" role described there.
 //! None of these functions recurse or touch child JSON values beyond
@@ -121,6 +121,48 @@ pub(crate) fn validate_group_shape(
         span,
         r#type,
         expression,
+    })
+}
+
+/// A `valueIf` node's own fields, validated - all three branches are borrowed
+/// references to their still-undecoded child JSON.
+pub(crate) struct ValueIfShape<'a> {
+    pub(crate) span: ScalarSpan,
+    pub(crate) r#type: Option<ScalarType>,
+    pub(crate) condition: &'a Value,
+    pub(crate) then_branch: &'a Value,
+    pub(crate) else_branch: &'a Value,
+}
+
+pub(crate) fn validate_value_if_shape(
+    object: &Map<String, Value>,
+) -> Result<ValueIfShape<'_>, ScalarPayloadIssue> {
+    reject_unexpected_fields(
+        object,
+        &[
+            "kind",
+            "span",
+            "condition",
+            "thenBranch",
+            "elseBranch",
+            "type",
+        ],
+        "value-if node",
+    )?;
+    let span = decode_span(
+        require_field(object, "span", "value-if node")?,
+        "value-if node span",
+    )?;
+    let r#type = decode_nullable_scalar_type(require_field(object, "type", "value-if node")?)?;
+    let condition = require_field(object, "condition", "value-if node")?;
+    let then_branch = require_field(object, "thenBranch", "value-if node")?;
+    let else_branch = require_field(object, "elseBranch", "value-if node")?;
+    Ok(ValueIfShape {
+        span,
+        r#type,
+        condition,
+        then_branch,
+        else_branch,
     })
 }
 

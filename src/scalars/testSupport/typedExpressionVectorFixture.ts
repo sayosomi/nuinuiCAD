@@ -89,6 +89,15 @@ export const decodeTypedExpressionNode = (json: unknown): TypedScalarExpression 
         expression: decodeTypedExpressionNode(json.expression),
         type: decodeNullableScalarType(json.type)
       };
+    case "valueIf":
+      return {
+        kind: "valueIf",
+        span: DUMMY_SPAN,
+        condition: decodeTypedExpressionNode(json.condition),
+        thenBranch: decodeTypedExpressionNode(json.thenBranch),
+        elseBranch: decodeTypedExpressionNode(json.elseBranch),
+        type: decodeNullableScalarType(json.type)
+      };
     default:
       return fail(`unknown expression node kind: ${String(json.kind)}`);
   }

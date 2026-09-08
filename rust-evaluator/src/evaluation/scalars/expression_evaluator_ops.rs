@@ -460,6 +460,79 @@ pub(crate) fn continue_logical<'a>(
     work.push(EvalWork::Eval(right));
 }
 
+/// Evaluates a value-if condition first and schedules exactly one branch.
+/// The unselected branch is never placed on the work stack, so its bindings
+/// and runtime errors remain unreachable just like TS's reference evaluator.
+pub(crate) fn continue_value_if<'a>(
+    r#type: ScalarType,
+    then_branch: &'a TypedScalarExpression,
+    else_branch: &'a TypedScalarExpression,
+    work: &mut Vec<EvalWork<'a>>,
+    output: &mut Vec<ScalarEvaluation>,
+) {
+    let condition = output
+        .pop()
+        .expect("value-if condition must already be resolved before its continuation");
+    match condition {
+        ScalarEvaluation::Error {
+            issue_code,
+            binding_id,
+            context,
+            ..
+        } => output.push(ScalarEvaluation::Error {
+            r#type,
+            issue_code,
+            binding_id,
+            context,
+        }),
+        ScalarEvaluation::Ok {
+            r#type: condition_type,
+            value: ScalarValue::Boolean(value),
+        } if condition_type == ScalarType::Boolean => {
+            work.push(EvalWork::FinishValueIf {
+                r#type: r#type.clone(),
+            });
+            work.push(EvalWork::Eval(if value {
+                then_branch
+            } else {
+                else_branch
+            }));
+        }
+        _ => output.push(runtime_value_type_mismatch(r#type)),
+    }
+}
+
+/// Re-stamps the selected branch result to the value-if type and enforces the
+/// same runtime type/value trust-boundary check as the TypeScript evaluator.
+pub(crate) fn finish_value_if(r#type: ScalarType, output: &mut Vec<ScalarEvaluation>) {
+    let selected = output
+        .pop()
+        .expect("selected value-if branch must already be resolved");
+    match selected {
+        ScalarEvaluation::Error {
+            issue_code,
+            binding_id,
+            context,
+            ..
+        } => output.push(ScalarEvaluation::Error {
+            r#type,
+            issue_code,
+            binding_id,
+            context,
+        }),
+        ScalarEvaluation::Ok {
+            r#type: result_type,
+            value,
+        } if result_type == r#type && scalar_value_matches_type(&result_type, &value) => {
+            output.push(ScalarEvaluation::Ok {
+                r#type: result_type,
+                value,
+            });
+        }
+        ScalarEvaluation::Ok { .. } => output.push(runtime_value_type_mismatch(r#type)),
+    }
+}
+
 /// Pops the already-resolved right operand of a non-short-circuited `&&`/
 /// `||`; on error, propagates; else the result is simply the right operand's
 /// own boolean value (matches TS returning `booleanValueOf(right.value)`

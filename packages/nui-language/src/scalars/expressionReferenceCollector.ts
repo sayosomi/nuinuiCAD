@@ -29,6 +29,11 @@ export const collectScalarExpressionReferences = (
       case "group":
         visit(node.expression);
         return;
+      case "valueIf":
+        visit(node.condition);
+        visit(node.thenBranch);
+        visit(node.elseBranch);
+        return;
       case "call":
         node.args.forEach((argument) => visit(argument.expression));
         return;

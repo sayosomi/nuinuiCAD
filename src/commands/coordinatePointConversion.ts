@@ -166,6 +166,8 @@ const constantNumericAst = (ast: ScalarExpressionAst): boolean => {
         constantNumericAst(ast.left) && constantNumericAst(ast.right);
     case "group":
       return constantNumericAst(ast.expression);
+    case "valueIf":
+      return false;
     case "call": {
       const definition = getBuiltinFunctionDefinition(ast.name);
       if (!definition || !definition.signatures.every((signature) =>

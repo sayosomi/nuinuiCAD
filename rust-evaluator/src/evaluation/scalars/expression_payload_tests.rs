@@ -26,7 +26,7 @@ const FIXTURE_JSON: &str = include_str!(concat!(
     "/../test/fixtures/typed-expressions.json"
 ));
 
-const AST_NODE_KINDS: [&str; 9] = [
+const AST_NODE_KINDS: [&str; 10] = [
     "numberLiteral",
     "stringLiteral",
     "booleanLiteral",
@@ -35,6 +35,7 @@ const AST_NODE_KINDS: [&str; 9] = [
     "unary",
     "binary",
     "group",
+    "valueIf",
     "call",
 ];
 
@@ -57,7 +58,15 @@ fn inject_dummy_spans(value: &mut Value) {
             }
         }
     }
-    for key in ["operand", "left", "right", "expression"] {
+    for key in [
+        "operand",
+        "left",
+        "right",
+        "expression",
+        "condition",
+        "thenBranch",
+        "elseBranch",
+    ] {
         if let Some(child) = map.get_mut(key) {
             inject_dummy_spans(child);
         }
@@ -159,11 +168,49 @@ fn number_literal() -> Value {
     json!({"kind": "numberLiteral", "span": {"start": 0, "end": 1}, "value": 1.0, "type": {"kind": "number"}})
 }
 
+fn value_if_payload() -> Value {
+    json!({
+        "kind": "valueIf",
+        "span": {"start": 0, "end": 35},
+        "condition": {"kind": "booleanLiteral", "span": {"start": 4, "end": 8}, "value": true, "type": {"kind": "boolean"}},
+        "thenBranch": {"kind": "numberLiteral", "span": {"start": 12, "end": 14}, "value": 10.0, "type": {"kind": "number"}},
+        "elseBranch": {"kind": "numberLiteral", "span": {"start": 23, "end": 25}, "value": 20.0, "type": {"kind": "number"}},
+        "type": {"kind": "number"}
+    })
+}
+
 fn reference_literal() -> Value {
     json!({
         "kind": "reference", "span": {"start": 0, "end": 1}, "nameSpan": {"start": 0, "end": 1},
         "name": "x", "bindingId": "binding:x", "type": {"kind": "number"}
     })
+}
+
+#[test]
+fn decodes_value_if_with_three_typed_children() {
+    let decoded = validate_typed_expression_payload(&value_if_payload())
+        .expect("value-if payload should decode");
+    match &decoded {
+        TypedScalarExpression::ValueIf {
+            condition,
+            then_branch,
+            else_branch,
+            r#type: Some(ScalarType::Number),
+            ..
+        } => {
+            assert!(matches!(
+                condition.as_ref(),
+                TypedScalarExpression::BooleanLiteral { value: true, .. }
+            ));
+            assert!(
+                matches!(then_branch.as_ref(), TypedScalarExpression::NumberLiteral { value, .. } if *value == 10.0)
+            );
+            assert!(
+                matches!(else_branch.as_ref(), TypedScalarExpression::NumberLiteral { value, .. } if *value == 20.0)
+            );
+        }
+        other => panic!("expected value-if root, got {other:?}"),
+    }
 }
 
 fn geometry_property_literal() -> Value {

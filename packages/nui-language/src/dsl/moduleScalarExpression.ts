@@ -430,6 +430,17 @@ const resolveAndTypecheck = ({
         }
       case "group": return { ...node, expression: resolve(node.expression, presenceFacts) };
       case "unary": return { ...node, operand: resolve(node.operand, presenceFacts) };
+      case "valueIf": {
+        const condition = resolve(node.condition, presenceFacts);
+        const thenFacts = presenceFactsFor(condition, "truth");
+        const elseFacts = presenceFactsFor(condition, "false");
+        return {
+          ...node,
+          condition,
+          thenBranch: resolve(node.thenBranch, new Set([...presenceFacts, ...thenFacts])),
+          elseBranch: resolve(node.elseBranch, new Set([...presenceFacts, ...elseFacts]))
+        };
+      }
       case "binary": {
         const left = resolve(node.left, presenceFacts);
         const leftFacts = node.operator === "&&" ? presenceFactsFor(left, "truth") : node.operator === "||" ? presenceFactsFor(left, "false") : new Set<string>();

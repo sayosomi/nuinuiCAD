@@ -48,6 +48,28 @@ mutable scalar in scope, and its right-hand side is checked against that
 binding's scalar type. A `set` is evaluated in document order, so a later
 version can use the value produced by the previous version.
 
+### Scalar and choice value-if
+
+Scalar and choice declarations may use a value-producing conditional with a
+required `else` branch:
+
+<!-- dsl-example: syntax-fragment -->
+```nui
+const amount: number = if (@flag) { 10 } else { 20 }
+const side: choice(left, right) = if (@flag) {
+  left
+} else {
+  right
+}
+```
+
+The condition must be boolean. Both branches are parsed, resolved, and
+typechecked against the declaration's scalar or choice type; bare choice
+literals are resolved using that exact declared choice type. At runtime the
+condition is evaluated first and only the selected branch is evaluated. The
+current value-if surface does not produce geometry, record, or collection
+values.
+
 ## Numeric editor metadata
 
 `number` may include positive `step` and finite `min`/`max` metadata, for

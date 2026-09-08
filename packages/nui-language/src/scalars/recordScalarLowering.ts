@@ -474,6 +474,11 @@ export const resolveRecordScalarProperties = ({
       case "group":
         visit(node.expression);
         return;
+      case "valueIf":
+        visit(node.condition);
+        visit(node.thenBranch);
+        visit(node.elseBranch);
+        return;
       case "call":
         node.args.forEach((argument) => visit(argument.expression));
         return;
@@ -589,6 +594,7 @@ export const prepareRecordScalarExpressionFromCatalog = ({
       case "unary": classify(node.operand); return;
       case "binary": classify(node.left); classify(node.right); return;
       case "group": classify(node.expression); return;
+      case "valueIf": classify(node.condition); classify(node.thenBranch); classify(node.elseBranch); return;
       case "collectionIndex": classify(node.index); return;
       case "call": node.args.forEach((argument) => classify(argument.expression)); return;
       default: return;
@@ -628,6 +634,12 @@ export const prepareRecordScalarExpressionFromCatalog = ({
       case "unary": return { ...node, operand: rewrite(node.operand) };
       case "binary": return { ...node, left: rewrite(node.left), right: rewrite(node.right) };
       case "group": return { ...node, expression: rewrite(node.expression) };
+      case "valueIf": return {
+        ...node,
+        condition: rewrite(node.condition),
+        thenBranch: rewrite(node.thenBranch),
+        elseBranch: rewrite(node.elseBranch)
+      };
       case "call": return { ...node, args: node.args.map((argument) => ({ ...argument, expression: rewrite(argument.expression) })) };
       default: return node;
     }
@@ -720,6 +732,13 @@ export const prepareRecordScalarExpression = ({
         return { ...node, left: rewrite(node.left), right: rewrite(node.right) };
       case "group":
         return { ...node, expression: rewrite(node.expression) };
+      case "valueIf":
+        return {
+          ...node,
+          condition: rewrite(node.condition),
+          thenBranch: rewrite(node.thenBranch),
+          elseBranch: rewrite(node.elseBranch)
+        };
       case "collectionIndex": {
         const resolution = referenceResolutions[referenceCursor];
         if (!resolution) throw new Error(`recordScalarLowering: no resolution supplied for collection index at ${node.span.start}`);

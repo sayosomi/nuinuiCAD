@@ -763,6 +763,58 @@ describe("typecheckScalarExpression / declaration expected type", () => {
   it("never reports a top-level mismatch when there is no expected type", () => {
     expect(check("5", null).diagnostics).toEqual([]);
   });
+
+  it("typechecks both scalar value-if branches against the declaration type", () => {
+    const result = check("if (true) { 10 } else { 20 }", { kind: "number" });
+    expect(result.type).toEqual({ kind: "number" });
+    expect(result.diagnostics).toEqual([]);
+    expect(result.typed).toMatchObject({
+      kind: "valueIf",
+      condition: { kind: "booleanLiteral", type: { kind: "boolean" } },
+      thenBranch: { kind: "numberLiteral", type: { kind: "number" } },
+      elseBranch: { kind: "numberLiteral", type: { kind: "number" } }
+    });
+  });
+
+  it("resolves bare choice literals in both branches from the exact declaration choice type", () => {
+    const expected = choiceType(["left", "right"]);
+    const result = check("if (true) { left } else { right }", expected);
+    expect(result.type).toEqual(expected);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.typed).toMatchObject({
+      kind: "valueIf",
+      thenBranch: { kind: "choiceLiteral", value: "left", type: expected },
+      elseBranch: { kind: "choiceLiteral", value: "right", type: expected }
+    });
+  });
+
+  it("checks the condition and reports a branch mismatch without skipping either branch", () => {
+    const result = check("if (1) { 10 } else { \"twenty\" }", { kind: "number" });
+    expect(result.type).toBeNull();
+    expect(result.diagnostics).toEqual([
+      expect.objectContaining({ code: "scalar-type-mismatch", span: { start: 4, end: 5 }, expectedType: { kind: "boolean" } }),
+      expect.objectContaining({ code: "scalar-type-mismatch", span: { start: 21, end: 29 }, expectedType: { kind: "number" } })
+    ]);
+  });
+
+  it("consumes condition and branch reference resolutions in source order", () => {
+    const result = check(
+      "if (@flag) { @thenValue } else { @elseValue }",
+      { kind: "number" },
+      [
+        { kind: "resolvedType", bindingId: "binding:flag", type: { kind: "boolean" } },
+        { kind: "resolvedType", bindingId: "binding:then", type: { kind: "number" } },
+        { kind: "resolvedType", bindingId: "binding:else", type: { kind: "number" } }
+      ]
+    );
+    expect(result.type).toEqual({ kind: "number" });
+    expect(result.diagnostics).toEqual([]);
+    expect(result.typed).toMatchObject({
+      condition: { kind: "reference", bindingId: "binding:flag" },
+      thenBranch: { kind: "reference", bindingId: "binding:then" },
+      elseBranch: { kind: "reference", bindingId: "binding:else" }
+    });
+  });
 });
 
 // --- reference binding ID attachment ----------------------------------------

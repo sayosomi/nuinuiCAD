@@ -116,6 +116,38 @@ const expectValid = (compiled: ReturnType<typeof compileWithIds>) => {
 };
 
 describe("module scalar runtime integration", () => {
+  it("uses the shared scalar value-if semantics for Module exports and skips an unselected branch", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "module ChoiceModule(flag: boolean) {",
+      "  export const amount: number = if (@flag) { 10 } else { 1 / 0 }",
+      "  export const side: choice(left, right) = if (@flag) { left } else { right }",
+      "}",
+      "instance A = ChoiceModule(flag: true)",
+      "const selected: number = @A::amount",
+      "const selectedSide: choice(left, right) = @A::side"
+    ].join("\n"));
+    expectValid(compiled);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const bindingValue = (name: string) => {
+      const binding = compiled.bindingAnalysis?.catalog.bindings.find((candidate) => candidate.name === name);
+      return binding ? result.computedScalarBindings?.get(binding.id) : undefined;
+    };
+    expect(bindingValue("A::amount")).toEqual({
+      status: "ok",
+      type: { kind: "number" },
+      value: { kind: "number", value: 10 }
+    });
+    expect(bindingValue("A::side")).toEqual({
+      status: "ok",
+      type: { kind: "choice", options: ["left", "right"] },
+      value: { kind: "choice", value: "left", options: ["left", "right"] }
+    });
+    expect(bindingValue("selectedSide")).toEqual(bindingValue("A::side"));
+  });
+
   it("does not lower an omitted optional value from a compound presence guard", () => {
     const compiled = compileWithIds([
       "nui 1",

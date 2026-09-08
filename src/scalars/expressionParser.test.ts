@@ -82,6 +82,41 @@ describe("parseScalarExpression / literal nodes", () => {
   });
 });
 
+describe("parseScalarExpression / scalar value-if", () => {
+  it("parses the inline value-if form with source spans for all branches", () => {
+    const source = "if (@flag) { 10 } else { 20 }";
+    expect(parseOk(source)).toEqual({
+      kind: "valueIf",
+      span: { start: 0, end: source.length },
+      condition: {
+        kind: "reference",
+        span: { start: 4, end: 9 },
+        nameSpan: { start: 5, end: 9 },
+        name: "flag"
+      },
+      thenBranch: { kind: "numberLiteral", span: { start: 13, end: 15 }, value: 10 },
+      elseBranch: { kind: "numberLiteral", span: { start: 25, end: 27 }, value: 20 }
+    });
+  });
+
+  it("allows nested value-if expressions in branch expression positions", () => {
+    const ast = parseOk("if (true) { if (false) { 1 } else { 2 } } else { 3 }");
+    expect(ast.kind).toBe("valueIf");
+    if (ast.kind !== "valueIf") return;
+    expect(ast.thenBranch.kind).toBe("valueIf");
+    expect(ast.elseBranch).toMatchObject({ kind: "numberLiteral", value: 3 });
+  });
+
+  it("requires else and brace-delimited branches", () => {
+    expect(parseErr("if (true) { 10 }").code).toBe("value-if-missing-else");
+    expect(parseErr("if (true) 10 else { 20 }").code).toBe("value-if-malformed-branch");
+  });
+
+  it("recognizes value-if source as a typed scalar expression candidate", () => {
+    expect(isScalarExpressionCandidateSource("if (@flag) { 10 } else { 20 }")).toBe(true);
+  });
+});
+
 describe("parseScalarExpression / @qualifiedName reference", () => {
   it("parses a single ASCII reference with an exact nameSpan excluding the sigil", () => {
     expect(parseOk("@width")).toEqual({

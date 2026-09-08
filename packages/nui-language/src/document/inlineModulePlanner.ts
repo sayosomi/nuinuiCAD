@@ -498,6 +498,12 @@ const specializeInlineScalarExpression = (
       visitAst(node.right);
       return;
     }
+    if (node.kind === "valueIf") {
+      visitAst(node.condition);
+      visitAst(node.thenBranch);
+      visitAst(node.elseBranch);
+      return;
+    }
     if (node.kind === "call") for (const argument of node.args) visitAst(argument.expression);
   };
   visitAst(semantic.ast);
@@ -663,6 +669,36 @@ const specializeInlineScalarExpression = (
         changed: left.changed || right.changed,
         known: null,
         eliminatedSourceRanges: eliminatedSourceRangesForChildren([left, right])
+      };
+    }
+    if (node.kind === "valueIf") {
+      const condition = specialize(node.condition);
+      const thenBranch = specialize(node.thenBranch);
+      const elseBranch = specialize(node.elseBranch);
+      if (!condition || !thenBranch || !elseBranch) return null;
+      if (condition.known?.presenceDerived) {
+        const selected = condition.known.value ? thenBranch : elseBranch;
+        const eliminated = condition.known.value ? elseBranch : thenBranch;
+        return {
+          text: selected.text,
+          range,
+          changed: true,
+          known: selected.known,
+          eliminatedSourceRanges: [condition.range, eliminated.range, ...selected.eliminatedSourceRanges]
+        };
+      }
+      const text = replaceNestedExpressionText(source, range, [
+        { range: condition.range, text: condition.text },
+        { range: thenBranch.range, text: thenBranch.text },
+        { range: elseBranch.range, text: elseBranch.text }
+      ]);
+      if (text === null) return null;
+      return {
+        text,
+        range,
+        changed: condition.changed || thenBranch.changed || elseBranch.changed,
+        known: null,
+        eliminatedSourceRanges: eliminatedSourceRangesForChildren([condition, thenBranch, elseBranch])
       };
     }
     if (node.kind === "call") {
@@ -2679,6 +2715,12 @@ const geometryTargetsInTypedExpression = (
       return [
         ...geometryTargetsInTypedExpression(expression.left),
         ...geometryTargetsInTypedExpression(expression.right)
+      ];
+    case "valueIf":
+      return [
+        ...geometryTargetsInTypedExpression(expression.condition),
+        ...geometryTargetsInTypedExpression(expression.thenBranch),
+        ...geometryTargetsInTypedExpression(expression.elseBranch)
       ];
     case "call": {
       const targets: ScalarExpressionResolvedGeometryTarget[] = [];

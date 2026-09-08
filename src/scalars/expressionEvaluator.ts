@@ -478,6 +478,24 @@ const evaluateCall = (node: TypedScalarCallExpressionNode, environment: ScalarEv
   return finiteNumberResult(type, result.value);
 };
 
+const evaluateValueIf = (
+  node: Extract<TypedScalarExpression, { kind: "valueIf" }>,
+  environment: ScalarEvaluationEnvironment
+): ScalarEvaluation => {
+  const type = node.type;
+  if (type === null) return staticTypeNullError();
+  const condition = evaluateTypedExpression(node.condition, environment);
+  if (condition.status === "error") return propagateError(type, condition);
+  if (condition.type.kind !== "boolean" || condition.value.kind !== "boolean") {
+    return { status: "error", type, issueCode: "evaluation-runtime-value-type-mismatch" };
+  }
+  const selected = evaluateTypedExpression(condition.value.value ? node.thenBranch : node.elseBranch, environment);
+  if (selected.status === "error") return propagateError(type, selected);
+  return scalarTypesEqual(type, selected.type) && scalarValueMatchesType(selected.type, selected.value)
+    ? selected
+    : { status: "error", type, issueCode: "evaluation-runtime-value-type-mismatch" };
+};
+
 const evaluateTypedExpressionNode = (
   node: TypedScalarExpression,
   environment: ScalarEvaluationEnvironment
@@ -509,6 +527,8 @@ const evaluateTypedExpressionNode = (
       if (type === null) return staticTypeNullError();
       return evaluateTypedExpression(node.expression, environment);
     }
+    case "valueIf":
+      return evaluateValueIf(node, environment);
     case "call":
       return evaluateCall(node, environment);
   }

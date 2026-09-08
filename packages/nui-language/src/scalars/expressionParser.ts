@@ -64,6 +64,7 @@ export const isScalarExpressionCandidateSource = (source: string): boolean => {
   if (trimmed.length === 0) return false;
   if (trimmed.startsWith("\"") || trimmed.startsWith("'")) return false;
   if (trimmed.startsWith("@") || trimmed.startsWith("(") || trimmed.startsWith("!")) return true;
+  if (/^if\s*\(/.test(trimmed)) return true;
   if (isScalarNamedCallCandidateSource(trimmed)) return true;
   return containsScalarWordOperator(trimmed) || /&&|\|\||==|!=|<=|>=|[<>]/.test(trimmed);
 };
@@ -81,6 +82,8 @@ export const containsScalarNamedCall = (ast: ScalarExpressionAst): boolean => {
       return containsScalarNamedCall(ast.expression);
     case "collectionIndex":
       return containsScalarNamedCall(ast.index);
+    case "valueIf":
+      return containsScalarNamedCall(ast.condition) || containsScalarNamedCall(ast.thenBranch) || containsScalarNamedCall(ast.elseBranch);
     default:
       return false;
   }
@@ -227,6 +230,9 @@ class Parser {
     if (!token) return fail("missing-operand", { start: this.boundaryEnd, end: this.boundaryEnd }, "式が必要です。");
 
     if (token.kind === "literal") {
+      if (token.literal.kind === "choice" && token.literal.raw === "if" && this.peek(1)?.kind === "leftParen") {
+        return this.parseValueIf(token);
+      }
       if (token.literal.kind === "choice" && this.peek(1)?.kind === "leftParen") {
         return this.parseCall(token);
       }
@@ -259,6 +265,64 @@ class Parser {
     }
 
     return fail("missing-operand", token.span, "式が必要です。");
+  }
+
+  private parseValueIf(ifToken: Extract<ScalarExpressionToken, { kind: "literal" }>): ScalarExpressionAst {
+    const keyword = ifToken.literal;
+    if (keyword.kind !== "choice") return fail("missing-operand", keyword.span, "式が必要です。");
+    this.enterNesting(keyword.span);
+    try {
+      this.consume();
+      const openingParen = this.peek();
+      if (!openingParen || openingParen.kind !== "leftParen") {
+        return fail("value-if-malformed-condition", keyword.span, "value-if の条件は「if (条件)」の形で指定してください。");
+      }
+      this.consume();
+      const condition = this.parseTier(0);
+      const closingParen = this.peek();
+      if (!closingParen || closingParen.kind !== "rightParen") {
+        return fail("value-if-malformed-condition", openingParen.span, "value-if の条件を閉じる「)」がありません。");
+      }
+      this.consume();
+
+      const thenOpening = this.peek();
+      if (!thenOpening || thenOpening.kind !== "leftBrace") {
+        return fail("value-if-malformed-branch", thenOpening ? tokenSpan(thenOpening) : { start: this.boundaryEnd, end: this.boundaryEnd }, "value-if の then ブランチは「{ 式 }」の形で指定してください。");
+      }
+      this.consume();
+      const thenBranch = this.parseTier(0);
+      const thenClosing = this.peek();
+      if (!thenClosing || thenClosing.kind !== "rightBrace") {
+        return fail("value-if-malformed-branch", thenOpening.span, "value-if の then ブランチを閉じる「}」がありません。");
+      }
+      this.consume();
+
+      const elseKeyword = this.peek();
+      if (!elseKeyword || elseKeyword.kind !== "literal" || elseKeyword.literal.kind !== "choice" || elseKeyword.literal.raw !== "else") {
+        return fail("value-if-missing-else", elseKeyword ? tokenSpan(elseKeyword) : { start: this.boundaryEnd, end: this.boundaryEnd }, "value-if には else ブランチが必要です。");
+      }
+      this.consume();
+      const elseOpening = this.peek();
+      if (!elseOpening || elseOpening.kind !== "leftBrace") {
+        return fail("value-if-malformed-branch", elseOpening ? tokenSpan(elseOpening) : { start: this.boundaryEnd, end: this.boundaryEnd }, "value-if の else ブランチは「{ 式 }」の形で指定してください。");
+      }
+      this.consume();
+      const elseBranch = this.parseTier(0);
+      const elseClosing = this.peek();
+      if (!elseClosing || elseClosing.kind !== "rightBrace") {
+        return fail("value-if-malformed-branch", elseOpening.span, "value-if の else ブランチを閉じる「}」がありません。");
+      }
+      this.consume();
+      return {
+        kind: "valueIf",
+        span: { start: keyword.span.start, end: elseClosing.span.end },
+        condition,
+        thenBranch,
+        elseBranch
+      };
+    } finally {
+      this.depth -= 1;
+    }
   }
 
   private parseCollectionIndex(reference: Extract<ScalarExpressionToken, { kind: "reference" }>): ScalarExpressionAst {

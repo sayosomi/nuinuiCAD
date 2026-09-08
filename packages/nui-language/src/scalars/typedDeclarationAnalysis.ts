@@ -126,6 +126,8 @@ export const containsNonNumericScalarSyntax = (ast: ScalarExpressionAst): boolea
       );
     case "group":
       return containsNonNumericScalarSyntax(ast.expression);
+    case "valueIf":
+      return true;
     case "collectionIndex":
       return containsNonNumericScalarSyntax(ast.index);
     case "call":
@@ -151,6 +153,7 @@ const collectionIndexResolutionsFor = (
     if (node.kind === "unary") return visit(node.operand);
     if (node.kind === "binary") { visit(node.left); visit(node.right); return; }
     if (node.kind === "group") return visit(node.expression);
+    if (node.kind === "valueIf") { visit(node.condition); visit(node.thenBranch); visit(node.elseBranch); return; }
     if (node.kind === "call") node.args.forEach((argument) => visit(argument.expression));
   };
   visit(ast);
@@ -168,6 +171,7 @@ const collectionIndexBaseStartsFor = (ast: ScalarExpressionAst): ReadonlySet<num
     if (node.kind === "unary") return visit(node.operand);
     if (node.kind === "binary") { visit(node.left); visit(node.right); return; }
     if (node.kind === "group") return visit(node.expression);
+    if (node.kind === "valueIf") { visit(node.condition); visit(node.thenBranch); visit(node.elseBranch); return; }
     if (node.kind === "call") node.args.forEach((argument) => visit(argument.expression));
   };
   visit(ast);
@@ -193,6 +197,7 @@ const referenceResolutionsForAst = (
     if (node.kind === "unary") return visit(node.operand);
     if (node.kind === "binary") { visit(node.left); visit(node.right); return; }
     if (node.kind === "group") return visit(node.expression);
+    if (node.kind === "valueIf") { visit(node.condition); visit(node.thenBranch); visit(node.elseBranch); return; }
     if (node.kind === "call") node.args.forEach((argument) => visit(argument.expression));
   };
   visit(ast);

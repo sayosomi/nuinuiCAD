@@ -4,7 +4,7 @@ import { parseScalarEvaluationJson, parseScalarValueJson } from "./scalarJson";
 import type { ScalarEvaluation, ScalarValue } from "./types";
 import type { TypedScalarExpression } from "./typedExpressionAst";
 
-export type ConditionEvaluationTraceChildRole = "operand" | "left" | "right" | "expression" | "argument";
+export type ConditionEvaluationTraceChildRole = "operand" | "left" | "right" | "expression" | "argument" | "condition" | "then" | "else";
 
 export type ConditionEvaluationTraceChild = {
   role: ConditionEvaluationTraceChildRole;
@@ -73,6 +73,12 @@ const childrenForNode = (
       return [reachedChild(nodeIndexByNode, "expression", node.expression)].filter(
         (child): child is ConditionEvaluationTraceChild => child !== undefined
       );
+    case "valueIf":
+      return [
+        reachedChild(nodeIndexByNode, "condition", node.condition),
+        reachedChild(nodeIndexByNode, "then", node.thenBranch),
+        reachedChild(nodeIndexByNode, "else", node.elseBranch)
+      ].filter((child): child is ConditionEvaluationTraceChild => child !== undefined);
     case "call":
       return node.args.flatMap((argument, argumentIndex) => {
         if (argument.kind !== "scalar") return [];
@@ -162,9 +168,10 @@ const NODE_KINDS = new Set<TypedScalarExpression["kind"]>([
   "unary",
   "binary",
   "group",
+  "valueIf",
   "call"
 ]);
-const CHILD_ROLES = new Set<ConditionEvaluationTraceChildRole>(["operand", "left", "right", "expression", "argument"]);
+const CHILD_ROLES = new Set<ConditionEvaluationTraceChildRole>(["operand", "left", "right", "expression", "argument", "condition", "then", "else"]);
 const UNARY_OPERATORS = new Set<ScalarUnaryOperator>(["!", "+", "-"]);
 const BINARY_OPERATORS = new Set<ScalarBinaryOperator>([
   "||", "&&", "==", "!=", "<", "<=", ">", ">=", "+", "-", "*", "/", "%", "^"
