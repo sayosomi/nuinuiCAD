@@ -435,11 +435,12 @@ export const evaluateElements = (
       const startAngleDeg = evaluateGeometryValueScalar(entry.construction.startAngleDeg, sourceOrder);
       const endAngleDeg = evaluateGeometryValueScalar(entry.construction.endAngleDeg, sourceOrder);
       if (point1 && point2 && point3 && startAngleDeg !== undefined && endAngleDeg !== undefined) {
-        value = throughArcGeometryKernel(point1, point2, point3, startAngleDeg, endAngleDeg);
-        if (!value) {
+        const throughValue = throughArcGeometryKernel(point1, point2, point3, startAngleDeg, endAngleDeg);
+        if (!throughValue) {
           appendGeometryValueError(entry, "点1・点2・点3から円を作れません。3点が重複しているか、一直線上にあります。別の3点を指定してください。");
           return;
         }
+        value = throughValue;
       }
     }
     if (value) {
