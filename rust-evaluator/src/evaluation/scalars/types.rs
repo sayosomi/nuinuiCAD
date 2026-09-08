@@ -281,6 +281,16 @@ pub(crate) enum TypedScalarExpression {
         binding_id: Option<BindingId>,
         r#type: Option<ScalarType>,
     },
+    CollectionIndex {
+        span: ScalarSpan,
+        name_span: ScalarSpan,
+        name: String,
+        collection_value_id: Option<String>,
+        collection_length: Option<f64>,
+        target_source_order: Option<f64>,
+        index: Box<TypedScalarExpression>,
+        r#type: Option<ScalarType>,
+    },
     GeometryProperty {
         span: ScalarSpan,
         element_name_span: ScalarSpan,
@@ -405,5 +415,8 @@ fn detach_children(node: &mut TypedScalarExpression) -> Vec<TypedScalarExpressio
         | TypedScalarExpression::ChoiceLiteral { .. }
         | TypedScalarExpression::Reference { .. }
         | TypedScalarExpression::GeometryProperty { .. } => Vec::new(),
+        TypedScalarExpression::CollectionIndex { index, .. } => {
+            vec![std::mem::replace(index.as_mut(), childless_placeholder())]
+        }
     }
 }

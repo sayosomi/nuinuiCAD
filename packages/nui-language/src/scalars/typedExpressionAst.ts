@@ -63,6 +63,26 @@ export interface TypedScalarReferenceNode {
   readonly type: ScalarType | null;
 }
 
+export type ScalarExpressionResolvedCollectionIndex = {
+  readonly kind: "resolvedCollectionIndex";
+  readonly collectionValueId: string;
+  readonly collectionLength: number | null;
+  readonly targetSourceOrder: number;
+  readonly type: ScalarType | null;
+};
+
+export interface TypedScalarCollectionIndexNode {
+  readonly kind: "collectionIndex";
+  readonly span: ScalarSpan;
+  readonly nameSpan: ScalarSpan;
+  readonly name: string;
+  readonly collectionValueId: string | null;
+  readonly collectionLength: number | null;
+  readonly targetSourceOrder: number | null;
+  readonly index: TypedScalarExpression;
+  readonly type: ScalarType | null;
+}
+
 /**
  * A resolved type supplied by a closed frontend such as Module semantics.
  * The frontend owns the target identity && may lower it to a real
@@ -93,7 +113,8 @@ export type ScalarExpressionResolvedReference =
   | {
       readonly kind: "resolvedGeometry";
       readonly target: ScalarExpressionResolvedGeometryTarget | null;
-    };
+    }
+  | ScalarExpressionResolvedCollectionIndex;
 
 /** Compiler/frontend-resolved metadata for a scalar geometry-property read.
  * The common expression typechecker consumes this closed result; it does not
@@ -195,6 +216,7 @@ export type TypedScalarExpression =
   | TypedScalarBooleanLiteralNode
   | TypedScalarChoiceLiteralNode
   | TypedScalarReferenceNode
+  | TypedScalarCollectionIndexNode
   | TypedScalarGeometryPropertyReferenceNode
   | TypedScalarUnaryExpressionNode
   | TypedScalarBinaryExpressionNode

@@ -5,7 +5,15 @@ import { scalarTypeOfDslValueType } from "../dsl/dslValueTypes";
 import type { BindingId } from "./bindingCatalog";
 import type { TypedDeclarationAnalysis } from "./typedDeclarationAnalysis";
 import type { TypedScalarExpression } from "./typedExpressionAst";
-import type { ScalarType } from "./types";
+import type { ScalarType, ScalarValue } from "./types";
+
+export type ScalarProgramCollectionMember =
+  | { kind: "literal"; type: ScalarType; value: ScalarValue }
+  | { kind: "binding"; type: ScalarType; bindingId: BindingId };
+
+export type ScalarProgramCollection =
+  | { valueId: string; kind: "literal"; members: readonly ScalarProgramCollectionMember[] }
+  | { valueId: string; kind: "alias"; targetValueId: string };
 
 export type ScalarProgramDeclaration = {
   bindingKind: "const" | "let";
@@ -23,6 +31,8 @@ export type ScalarProgramStatement = {
 
 export type ScalarProgram = {
   statements: readonly ScalarProgramStatement[];
+  /** Source-owned scalar/choice collection values used by collectionIndex nodes. */
+  collectionValues?: readonly ScalarProgramCollection[];
   /** Statement-stream position of stop, not an elements-array index. */
   evaluationLimitSourceOrder?: number;
   /** Reserved for future output-time scalar evaluation; SAY-63 has no local bindings. */
@@ -39,10 +49,12 @@ export const lowerScalarProgram = ({
   typedInitializerByBindingId,
   positionMap,
   sourceOrderByBindingId,
-  evaluationLimitSourceOrder
+  evaluationLimitSourceOrder,
+  collectionValues
 }: TypedDeclarationAnalysis & {
   sourceOrderByBindingId?: ReadonlyMap<BindingId, number>;
   evaluationLimitSourceOrder?: number;
+  collectionValues?: readonly ScalarProgramCollection[];
 }): ScalarProgram => {
   const statements: ScalarProgramStatement[] = [];
   for (const bindingId of selectCompiledProgramBindings(bindingAnalysis).bindingIds) {
@@ -69,6 +81,7 @@ export const lowerScalarProgram = ({
   }
   return {
     statements,
+    ...(collectionValues?.length ? { collectionValues } : {}),
     ...(evaluationLimitSourceOrder !== undefined
       ? { evaluationLimitSourceOrder }
       : positionMap.evaluationLimit

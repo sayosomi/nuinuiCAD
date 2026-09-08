@@ -22,6 +22,7 @@ fn node_kind(node: &TypedScalarExpression) -> &'static str {
         TypedScalarExpression::BooleanLiteral { .. } => "booleanLiteral",
         TypedScalarExpression::ChoiceLiteral { .. } => "choiceLiteral",
         TypedScalarExpression::Reference { .. } => "reference",
+        TypedScalarExpression::CollectionIndex { .. } => "collectionIndex",
         TypedScalarExpression::GeometryProperty { .. } => "geometryProperty",
         TypedScalarExpression::Unary { .. } => "unary",
         TypedScalarExpression::Binary { .. } => "binary",
@@ -37,6 +38,7 @@ fn node_span(node: &TypedScalarExpression) -> (usize, usize) {
         | TypedScalarExpression::BooleanLiteral { span, .. }
         | TypedScalarExpression::ChoiceLiteral { span, .. }
         | TypedScalarExpression::Reference { span, .. }
+        | TypedScalarExpression::CollectionIndex { span, .. }
         | TypedScalarExpression::GeometryProperty { span, .. }
         | TypedScalarExpression::Unary { span, .. }
         | TypedScalarExpression::Binary { span, .. }
@@ -103,6 +105,11 @@ fn children_for_node(
     node_index_by_identity: &HashMap<usize, usize>,
 ) -> Vec<Value> {
     match node {
+        TypedScalarExpression::CollectionIndex { index, .. } => {
+            reached_child(node_index_by_identity, "index", index, None)
+                .into_iter()
+                .collect()
+        }
         TypedScalarExpression::Unary { operand, .. } => {
             reached_child(node_index_by_identity, "operand", operand, None)
                 .into_iter()

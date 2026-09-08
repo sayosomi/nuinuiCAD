@@ -7,7 +7,9 @@ import type {
   EvaluationResult,
   EvaluationWarning,
   ForGroupGeneratedRow,
-  GeometryMutationExecution
+  GeometryMutationExecution,
+  GeometryInputTarget,
+  PointAnchor
 } from "../types/geometry";
 import type { ArcDirection } from "../types/geometry";
 import {
@@ -25,7 +27,7 @@ import {
   effectiveDrawingModifierStrokeByRuntime
 } from "../model/elementActivity";
 import type { EvaluationResultWithDrawingModifierInspection } from "../model/drawingModifierInspection";
-import { numericError } from "./evaluationContext";
+import { geometryError, numericError } from "./evaluationContext";
 import { evaluateElement } from "./elementEvaluators";
 import {
   expandForGroupIteration,
@@ -74,6 +76,7 @@ import type {
 } from "./evaluationTypes";
 import { arcGeometryKernel, coordinateGeometryKernel, segmentGeometryKernel, throughArcGeometryKernel, type StructuralPoint } from "./geometryValueKernels";
 import { evaluateTypedExpression } from "../scalars/expressionEvaluator";
+import { setParameterValue } from "../parameters/parameterAccess";
 
 export type EvaluateElementsOptions = {
   evaluationLimitIndex?: number;
@@ -109,7 +112,7 @@ export type EvaluateElementsOptions = {
   moduleForGroupMutationOwnerByElementId?: ReadonlyMap<ElementId, ForGroupMutationOwner>;
   moduleMaterialization?: ModuleMaterialization;
   /** Compiler-resolved read-only line/path consumer targets. */
-  geometryInputTargetsByElementId?: ReadonlyMap<ElementId, ReadonlyMap<string, import("../types/geometry").GeometryInputTarget | readonly import("../types/geometry").GeometryInputTarget[]>>;
+  geometryInputTargetsByElementId?: ReadonlyMap<ElementId, ReadonlyMap<string, GeometryInputTarget | readonly GeometryInputTarget[]>>;
   /** Compiled immutable geometry values; never converted into elements. */
   geometryValueProgram?: GeometryValueProgram;
   /**
@@ -285,7 +288,7 @@ export const evaluateElements = (
     throw new Error("evaluateElements: binding mutation requires compiled source execution positions");
   }
   const linearMutationResolver = linearMutationEnabled
-    ? createDocumentLinearScalarBindingResolver(options.bindingVersions!, { computedGeometry, computedGeometryValues, elementsById: runtimeElementsById, activities })
+    ? createDocumentLinearScalarBindingResolver(options.bindingVersions!, { computedGeometry, computedGeometryValues, elementsById: runtimeElementsById, activities }, options.scalarProgram?.collectionValues)
     : undefined;
   const knownConditionalMutationOwnerIds = new Set(
     options.bindingVersions?.versions.flatMap((version) => version.control.ownerChain
@@ -326,6 +329,87 @@ export const evaluateElements = (
             "was provided - a typed hole implies a typed declaration, which implies a scalarProgram"
       );
       };
+
+  const pointAnchorForGeometryInputTarget = (target: GeometryInputTarget): PointAnchor | undefined => {
+    if (target.kind === "coordinate") return target.anchor;
+    if (target.kind === "drawable" && target.geometryType === "point") {
+      return target.pointKey
+        ? { mode: "derived", elementId: target.elementId, pointKey: target.pointKey }
+        : { mode: "reference", pointId: target.elementId };
+    }
+    if (target.kind === "geometryValue" && target.geometryType === "point") {
+      return {
+        mode: "geometryValue",
+        occurrence: target.occurrence,
+        ...(target.pointKey ? { pointKey: target.pointKey } : {})
+      };
+    }
+    return undefined;
+  };
+
+  const materializeGeometryInputTargets = (
+    element: CadElement,
+    targets: ReadonlyMap<string, GeometryInputTarget | readonly GeometryInputTarget[]>,
+    sourceOrder: number
+  ): { element: CadElement; targets: ReadonlyMap<string, GeometryInputTarget | readonly GeometryInputTarget[]> } | null => {
+    const materialized = new Map<string, GeometryInputTarget | readonly GeometryInputTarget[]>();
+    let materializedElement = element;
+    const isTargetList = (value: GeometryInputTarget | readonly GeometryInputTarget[]): value is readonly GeometryInputTarget[] => Array.isArray(value);
+    const invalid = (target: Extract<GeometryInputTarget, { kind: "collectionIndex" }>, issueCode: string) => {
+      errors.push(geometryError(
+        element,
+        `${element.name} の geometry collection index を評価できません。(${issueCode})`
+      ));
+      void target;
+    };
+    const materialize = (target: GeometryInputTarget): GeometryInputTarget | null => {
+      if (target.kind !== "collectionIndex") return target;
+      if (target.targetSourceOrder >= sourceOrder) {
+        invalid(target, "evaluation-collection-index-unavailable");
+        return null;
+      }
+      const evaluation = evaluateTypedExpression(target.index, {
+        lookupBinding: scalarBindingResolver
+          ? scalarBindingResolver.resolveBinding
+          : () => ({ status: "error", type: { kind: "number" }, issueCode: "evaluation-binding-unavailable" }),
+        lookupGeometryProperty: (reference) => resolveDocumentGeometryProperty(geometryRuntime, reference, sourceOrder),
+        lookupGeometryTarget: (resolvedTarget) => resolveDocumentGeometryTarget(geometryRuntime, resolvedTarget, sourceOrder)
+      });
+      if (evaluation.status === "error") {
+        invalid(target, evaluation.issueCode);
+        return null;
+      }
+      const index = evaluation.value.kind === "number" ? evaluation.value.value : Number.NaN;
+      if (!Number.isFinite(index) || !Number.isInteger(index) || index < 0 ||
+        (target.collectionLength !== null && index >= target.collectionLength)) {
+        invalid(target, "evaluation-collection-index-invalid");
+        return null;
+      }
+      const selected = target.members[index];
+      if (!selected || selected.kind === "collectionIndex") {
+        invalid(target, "evaluation-collection-index-invalid");
+        return null;
+      }
+      return selected;
+    };
+
+    for (const [parameterKey, target] of targets) {
+      if (isTargetList(target)) {
+        const selected = target.map(materialize);
+        if (selected.some((candidate) => candidate === null)) return null;
+        materialized.set(parameterKey, selected as GeometryInputTarget[]);
+        continue;
+      }
+      const selected = materialize(target);
+      if (!selected) return null;
+      materialized.set(parameterKey, selected);
+      if (target.kind === "collectionIndex") {
+        const anchor = pointAnchorForGeometryInputTarget(selected);
+        if (anchor) materializedElement = setParameterValue(materializedElement, parameterKey, anchor);
+      }
+    }
+    return { element: materializedElement, targets: materialized };
+  };
 
   const evaluateGeometryValueScalar = (expression: TypedScalarExpression, sourceOrder: number): number | undefined => {
     const evaluation = evaluateTypedExpression(expression, {
@@ -867,6 +951,19 @@ export const evaluateElements = (
     // template.
     const textTemplateForElement = textTemplateEntriesByElementId?.get((sourceElement ?? element).id);
 
+    const geometryInputTargetsForElement = options.geometryInputTargetsByElementId?.get((sourceElement ?? element).id);
+    let materializedGeometryInputTargets: ReadonlyMap<string, GeometryInputTarget | readonly GeometryInputTarget[]> | undefined;
+    if (geometryInputTargetsForElement) {
+      const geometrySourceOrder = options.scalarExecutionPositionByElementId?.get(element.id) ??
+        options.sourceExecutionPositionByElementId?.get(element.id) ??
+        sourceOrder;
+      const materialized = materializeGeometryInputTargets(elementToEvaluate, geometryInputTargetsForElement, geometrySourceOrder);
+      if (!materialized) return;
+      elementToEvaluate = materialized.element;
+      materializedGeometryInputTargets = materialized.targets;
+      runtimeElementsById.set(elementToEvaluate.id, elementToEvaluate);
+    }
+
     const mutationTargetIds = geometryMutationTargetIds(elementToEvaluate);
     const errorCountBeforeElementEvaluation = errors.length;
     evaluateElement(elementToEvaluate, {
@@ -878,8 +975,8 @@ export const evaluateElements = (
       disabledByGroupId,
       localVariables,
       elements: runtimeElements,
-      ...(options.geometryInputTargetsByElementId?.has((sourceElement ?? element).id)
-        ? { geometryInputTargets: options.geometryInputTargetsByElementId.get((sourceElement ?? element).id) }
+      ...(materializedGeometryInputTargets
+        ? { geometryInputTargets: materializedGeometryInputTargets }
         : {}),
       ...(textTemplateForElement
         ? { textTemplate: textTemplateForElement, resolveScalarBinding: resolveScalarBindingForText }

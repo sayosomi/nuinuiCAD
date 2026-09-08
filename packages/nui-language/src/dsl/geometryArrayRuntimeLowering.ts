@@ -168,3 +168,25 @@ export const lowerSourceGeometryArrayPointReferenceList = (
     new Set([semantic.statementId])
   );
 };
+
+export const lowerSourceGeometryArrayLineReferenceAt = (
+  token: string,
+  index: NameIndex,
+  currentElement: CadElement | undefined,
+  memberIndex: number
+): ElementId | null => {
+  if (!Number.isInteger(memberIndex) || memberIndex < 0) return null;
+  const members = lowerSourceGeometryArrayLineReferenceList(token, index, currentElement);
+  return members?.[memberIndex] ?? null;
+};
+
+export const lowerSourceGeometryArrayPointReferenceAt = (
+  token: string,
+  index: NameIndex,
+  currentElement: CadElement | undefined,
+  memberIndex: number
+): PointAnchor | null => {
+  if (!Number.isInteger(memberIndex) || memberIndex < 0) return null;
+  const members = lowerSourceGeometryArrayPointReferenceList(token, index, currentElement);
+  return members?.[memberIndex] ?? null;
+};

@@ -17,6 +17,7 @@ import {
 } from "./dslReferenceTokens";
 import { resolveSourceLexicalPath, type SourceLexicalNamespaceIndex } from "./sourceLexicalNamespaceIndex";
 import { isDslGeometryValueType } from "./dslValueTypes";
+import { parseScalarExpression } from "../scalars/expressionParser";
 
 export type NameIndex = {
   elements: CadElement[];
@@ -150,6 +151,12 @@ export const resolveId = (
   currentElement?: CadElement,
   sourceSpan?: DslSpan
 ) => {
+  // The preliminary compiler pass does not own source-aware collection
+  // lowering. Preserve any typed collection-index expression for the
+  // semantic Module/runtime pass, which records its resolved target sidecar.
+  if (parseScalarExpression(token, { start: 0, end: token.length }).ast?.kind === "collectionIndex") {
+    return token.trim();
+  }
   const reference = sourceReference(token, line, diagnostics, sourceSpan);
   if (!reference) return token.trim();
   const path = reference.path;
@@ -247,6 +254,11 @@ export const resolveAnchor = (
 ): PointAnchor => {
   const coordinate = coordinateAnchor(value, numeric);
   if (coordinate) return coordinate;
+  // See resolveId: collection members are lowered only at the consumer
+  // boundary once the typed index and collection target are available.
+  if (parseScalarExpression(value, { start: 0, end: value.length }).ast?.kind === "collectionIndex") {
+    return referenceAnchor(value.trim());
+  }
   const reference = sourceReference(value, line, diagnostics, sourceSpan);
   if (!reference) return referenceAnchor(value.trim());
   const sourceResolution = index.sourceLexicalResolution && currentElement

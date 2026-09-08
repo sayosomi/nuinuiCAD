@@ -1,6 +1,8 @@
-use serde_json::Value;
+use serde_json::{json, Value};
 use std::collections::HashMap;
 
+use super::scalar_expression_runtime::evaluate_document_typed_expression;
+use super::scalars::{ScalarDocumentBindingResolver, ScalarEvaluation, ScalarValue};
 use super::types::{
     ElementId, EvaluationCommandError, EvaluationState, GeometryInputTarget,
     GeometryValueOccurrence,
@@ -83,22 +85,40 @@ fn decode_target(
         .as_object()
         .ok_or_else(|| invalid(format!("{context} must be an object")))?;
     let kind = non_empty_string(object, "kind", context)?;
-    let geometry_type = non_empty_string(object, "geometryType", context)?;
-    if geometry_type != "line" && geometry_type != "path" {
-        return Err(invalid(format!(
-            "{context}.geometryType must be line or path"
-        )));
-    }
     match kind.as_str() {
         "drawable" => {
-            reject_unexpected_fields(object, &["kind", "elementId", "geometryType"], context)?;
+            reject_unexpected_fields(
+                object,
+                &["kind", "elementId", "geometryType", "pointKey"],
+                context,
+            )?;
+            let geometry_type = non_empty_string(object, "geometryType", context)?;
+            if geometry_type != "point" && geometry_type != "line" && geometry_type != "path" {
+                return Err(invalid(format!(
+                    "{context}.geometryType must be point, line, or path"
+                )));
+            }
             Ok(GeometryInputTarget::Drawable {
                 element_id: non_empty_string(object, "elementId", context)?,
                 geometry_type,
+                point_key: object
+                    .get("pointKey")
+                    .and_then(Value::as_str)
+                    .map(ToOwned::to_owned),
             })
         }
         "geometryValue" => {
-            reject_unexpected_fields(object, &["kind", "occurrence", "geometryType"], context)?;
+            reject_unexpected_fields(
+                object,
+                &["kind", "occurrence", "geometryType", "pointKey"],
+                context,
+            )?;
+            let geometry_type = non_empty_string(object, "geometryType", context)?;
+            if geometry_type != "point" && geometry_type != "line" && geometry_type != "path" {
+                return Err(invalid(format!(
+                    "{context}.geometryType must be point, line, or path"
+                )));
+            }
             Ok(GeometryInputTarget::GeometryValue {
                 occurrence: decode_occurrence(
                     object
@@ -107,6 +127,92 @@ fn decode_target(
                     &format!("{context}.occurrence"),
                 )?,
                 geometry_type,
+                point_key: object
+                    .get("pointKey")
+                    .and_then(Value::as_str)
+                    .map(ToOwned::to_owned),
+            })
+        }
+        "coordinate" => {
+            reject_unexpected_fields(object, &["kind", "anchor"], context)?;
+            let anchor = object
+                .get("anchor")
+                .ok_or_else(|| invalid(format!("{context}.anchor is required")))?;
+            if !anchor.is_object() {
+                return Err(invalid(format!("{context}.anchor must be an object")));
+            }
+            Ok(GeometryInputTarget::Coordinate {
+                anchor: anchor.clone(),
+            })
+        }
+        "collectionIndex" => {
+            reject_unexpected_fields(
+                object,
+                &[
+                    "kind",
+                    "collectionValueId",
+                    "collectionLength",
+                    "targetSourceOrder",
+                    "index",
+                    "members",
+                ],
+                context,
+            )?;
+            let collection_length = match object.get("collectionLength") {
+                None | Some(Value::Null) => None,
+                Some(value) => {
+                    let length = value.as_f64().ok_or_else(|| {
+                        invalid(format!(
+                            "{context}.collectionLength must be a number or null"
+                        ))
+                    })?;
+                    if !length.is_finite() || length < 0.0 || length.fract() != 0.0 {
+                        return Err(invalid(format!(
+                            "{context}.collectionLength must be a non-negative integer"
+                        )));
+                    }
+                    Some(length)
+                }
+            };
+            let target_source_order = object
+                .get("targetSourceOrder")
+                .and_then(Value::as_f64)
+                .filter(|value| value.is_finite())
+                .ok_or_else(|| {
+                    invalid(format!(
+                        "{context}.targetSourceOrder must be a finite number"
+                    ))
+                })?;
+            let index = super::scalars::validate_typed_expression_payload(
+                object
+                    .get("index")
+                    .ok_or_else(|| invalid(format!("{context}.index is required")))?,
+            )
+            .map_err(|issue| invalid(format!("{context}.index is invalid: {issue:?}")))?;
+            let members = object
+                .get("members")
+                .and_then(Value::as_array)
+                .ok_or_else(|| invalid(format!("{context}.members must be an array")))?
+                .iter()
+                .enumerate()
+                .map(|(member_index, member)| {
+                    decode_target(member, &format!("{context}.members[{member_index}]"))
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            if members
+                .iter()
+                .any(|member| matches!(member, GeometryInputTarget::CollectionIndex { .. }))
+            {
+                return Err(invalid(format!(
+                    "{context}.members must not contain collectionIndex targets"
+                )));
+            }
+            Ok(GeometryInputTarget::CollectionIndex {
+                collection_value_id: non_empty_string(object, "collectionValueId", context)?,
+                collection_length,
+                target_source_order,
+                index: Box::new(index),
+                members,
             })
         }
         _ => Err(invalid(format!("{context}.kind is unsupported"))),
@@ -182,6 +288,124 @@ pub(crate) fn decode_geometry_input_targets(
     Ok(output)
 }
 
+fn point_anchor_for_target(target: &GeometryInputTarget) -> Option<Value> {
+    match target {
+        GeometryInputTarget::Drawable {
+            geometry_type,
+            element_id,
+            point_key,
+        } if geometry_type == "point" => Some(match point_key {
+            Some(point_key) => json!({
+                "mode": "derived",
+                "elementId": element_id,
+                "pointKey": point_key,
+            }),
+            None => json!({ "mode": "reference", "pointId": element_id }),
+        }),
+        GeometryInputTarget::GeometryValue {
+            geometry_type,
+            occurrence,
+            point_key,
+        } if geometry_type == "point" => {
+            let mut anchor = json!({
+                "mode": "geometryValue",
+                "occurrence": {
+                    "sourceStatementId": occurrence.source_statement_id,
+                    "instancePath": occurrence.instance_path,
+                },
+            });
+            if let Some(point_key) = point_key {
+                anchor["pointKey"] = Value::String(point_key.clone());
+            }
+            Some(anchor)
+        }
+        GeometryInputTarget::Coordinate { anchor } => Some(anchor.clone()),
+        _ => None,
+    }
+}
+
+fn materialize_target(
+    target: GeometryInputTarget,
+    resolver: Option<&dyn ScalarDocumentBindingResolver>,
+    state: &EvaluationState,
+    current_source_order: Option<f64>,
+) -> Result<GeometryInputTarget, String> {
+    let GeometryInputTarget::CollectionIndex {
+        collection_value_id: _collection_value_id,
+        collection_length,
+        target_source_order,
+        index,
+        members,
+    } = target
+    else {
+        return Ok(target);
+    };
+    if current_source_order.is_some_and(|source_order| target_source_order >= source_order) {
+        return Err("evaluation-collection-index-unavailable".to_owned());
+    }
+    let Some(resolver) = resolver else {
+        return Err("evaluation-binding-unavailable".to_owned());
+    };
+    let evaluation =
+        evaluate_document_typed_expression(&index, resolver, state, current_source_order);
+    let index = match evaluation {
+        ScalarEvaluation::Ok {
+            value: ScalarValue::Number(index),
+            ..
+        } if index.is_finite()
+            && index.fract() == 0.0
+            && index >= 0.0
+            && collection_length.map_or(true, |length| index < length) =>
+        {
+            index as usize
+        }
+        ScalarEvaluation::Ok { .. } => return Err("evaluation-collection-index-invalid".to_owned()),
+        ScalarEvaluation::Error { issue_code, .. } => return Err(issue_code),
+    };
+    let selected = members
+        .into_iter()
+        .nth(index)
+        .filter(|member| !matches!(member, GeometryInputTarget::CollectionIndex { .. }))
+        .ok_or_else(|| "evaluation-collection-index-invalid".to_owned())?;
+    Ok(selected)
+}
+
+/// Resolves deferred geometry collection indexes at the same document/runtime
+/// position as the consuming element. The target members are already lowered
+/// identities; this function only evaluates the typed numeric index and never
+/// reparses the authored reference.
+pub(crate) fn materialize_geometry_input_targets(
+    state: &mut EvaluationState,
+    element: &mut Value,
+    element_id: &str,
+    resolver: Option<&dyn ScalarDocumentBindingResolver>,
+    current_source_order: Option<f64>,
+) -> Result<(), String> {
+    let Some(parameters) = state.geometry_input_targets.remove(element_id) else {
+        return Ok(());
+    };
+    let mut materialized_parameters = HashMap::new();
+    for (parameter_key, targets) in parameters {
+        let target_count = targets.len();
+        let materialized = targets
+            .into_iter()
+            .map(|target| materialize_target(target, resolver, state, current_source_order))
+            .collect::<Result<Vec<_>, _>>()?;
+        if target_count == 1 {
+            if let Some(anchor) = materialized.first().and_then(point_anchor_for_target) {
+                if let Some(object) = element.as_object_mut() {
+                    object.insert(parameter_key.clone(), anchor);
+                }
+            }
+        }
+        materialized_parameters.insert(parameter_key, materialized);
+    }
+    state
+        .geometry_input_targets
+        .insert(element_id.to_owned(), materialized_parameters);
+    Ok(())
+}
+
 fn geometry_for_target(state: &EvaluationState, target: &GeometryInputTarget) -> Option<Value> {
     match target {
         GeometryInputTarget::Drawable { geometry_type, .. }
@@ -199,6 +423,9 @@ fn geometry_for_target(state: &EvaluationState, target: &GeometryInputTarget) ->
         }
         GeometryInputTarget::GeometryValue { occurrence, .. } => {
             state.computed_geometry_values.get(occurrence).cloned()
+        }
+        GeometryInputTarget::Coordinate { .. } | GeometryInputTarget::CollectionIndex { .. } => {
+            None
         }
     }
 }

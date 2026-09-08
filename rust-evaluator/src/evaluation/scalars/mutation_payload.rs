@@ -8,6 +8,10 @@ use serde_json::Value;
 use super::expression_payload::validate_typed_expression_payload;
 use super::issue::{ScalarPayloadIssue, ScalarPayloadIssueCode as Code};
 use super::json_helpers::{as_object, issue, reject_unexpected_fields, require_field};
+use super::program_payload::{
+    decode_collection_values, ValidatedScalarProgramCollection,
+    ValidatedScalarProgramCollectionMember,
+};
 use super::scalar_payload::decode_scalar_type;
 use super::types::{BindingId, ScalarType, TypedBuiltinArgument, TypedScalarExpression};
 
@@ -49,6 +53,7 @@ pub(crate) struct ValidatedBindingVersions {
     pub(crate) post_stop_binding_ids: HashSet<BindingId>,
     pub(crate) conditional_owners_by_element_id: HashMap<String, String>,
     pub(crate) for_group_owners_by_element_id: HashMap<String, ValidatedForGroupOwner>,
+    pub(crate) collection_values: Vec<ValidatedScalarProgramCollection>,
 }
 
 #[derive(Debug, Clone)]
@@ -87,6 +92,7 @@ fn expression_type(expression: &TypedScalarExpression) -> Option<&ScalarType> {
         | TypedScalarExpression::GeometryProperty { r#type, .. } => Some(r#type),
         TypedScalarExpression::ChoiceLiteral { r#type, .. }
         | TypedScalarExpression::Reference { r#type, .. }
+        | TypedScalarExpression::CollectionIndex { r#type, .. }
         | TypedScalarExpression::Unary { r#type, .. }
         | TypedScalarExpression::Binary { r#type, .. }
         | TypedScalarExpression::Group { r#type, .. }
@@ -423,6 +429,7 @@ fn collect_references<'a>(expression: &'a TypedScalarExpression, output: &mut Ve
                 binding_id: Some(id),
                 ..
             } => output.push(id),
+            TypedScalarExpression::CollectionIndex { index, .. } => work.push(index),
             TypedScalarExpression::Unary { operand, .. }
             | TypedScalarExpression::Group {
                 expression: operand,
@@ -459,6 +466,7 @@ pub(crate) fn validate_binding_versions_payload(
             "forGroupOwners",
             "evaluationLimitSourceOrder",
             "postStopBindingIds",
+            "collectionValues",
         ],
         "binding versions payload",
     )?;
@@ -509,6 +517,27 @@ pub(crate) fn validate_binding_versions_payload(
         versions.push(version);
     }
     let binding_ids = declared_types.keys().cloned().collect::<HashSet<_>>();
+    let collection_values = object
+        .get("collectionValues")
+        .map(decode_collection_values)
+        .transpose()?
+        .unwrap_or_default();
+    for collection in &collection_values {
+        if let super::program_payload::ValidatedScalarProgramCollectionValue::Literal(members) =
+            &collection.value
+        {
+            for member in members {
+                if let ValidatedScalarProgramCollectionMember::Binding { binding_id, .. } = member {
+                    if !binding_ids.contains(binding_id) {
+                        return Err(issue(
+                            Code::InvalidBindingId,
+                            "scalar program collection member references an unknown bindingId",
+                        ));
+                    }
+                }
+            }
+        }
+    }
     // Iteration bindings are issued by the compiler catalog, not by a typed
     // declaration version. Their exact owner/canonical form is validated with
     // `forGroupOwners` below; accepting only listed ids here keeps reference
@@ -903,5 +932,6 @@ pub(crate) fn validate_binding_versions_payload(
         post_stop_binding_ids,
         conditional_owners_by_element_id,
         for_group_owners_by_element_id,
+        collection_values,
     })
 }

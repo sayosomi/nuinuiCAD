@@ -30,6 +30,7 @@ pub(crate) fn declared_type(expression: &TypedScalarExpression) -> Option<Scalar
         | TypedScalarExpression::GeometryProperty { r#type, .. } => Some(r#type.clone()),
         TypedScalarExpression::ChoiceLiteral { r#type, .. }
         | TypedScalarExpression::Reference { r#type, .. }
+        | TypedScalarExpression::CollectionIndex { r#type, .. }
         | TypedScalarExpression::Unary { r#type, .. }
         | TypedScalarExpression::Binary { r#type, .. }
         | TypedScalarExpression::Group { r#type, .. }

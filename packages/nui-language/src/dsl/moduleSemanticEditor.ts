@@ -107,6 +107,12 @@ const sourceTarget = (target: ModuleSourceTarget | ModuleRecordSourceTarget | nu
   if (target.kind === "recordField") return sourceTarget(target.record);
   if (target.kind === "deferredModuleRecordExport") return { kind: "moduleSource", statementId: target.exportedStatementId };
   if (target.kind === "collectionValueLength") return { kind: "moduleSource", statementId: target.statementId };
+  if (target.kind === "collectionValue") return { kind: "moduleSource", statementId: target.statementId };
+  if (target.kind === "collectionParameter") return { kind: "moduleParameter", slot: {
+    definitionStatementId: target.definitionStatementId,
+    parameterIndex: target.parameterIndex
+  }};
+  if (target.kind === "deferredModuleCollectionExport") return { kind: "moduleSource", statementId: target.exportedStatementId };
   if (target.kind === "collectionParameterLength") return { kind: "moduleParameter", slot: {
     definitionStatementId: target.definitionStatementId,
     parameterIndex: target.parameterIndex
@@ -299,6 +305,15 @@ export const createModuleSemanticRangeIndex = (compiled: CompiledDslDocument): M
     if (declaration) declarations.set(moduleSemanticTargetKey(target), token);
   };
   const addSourceTarget = (statementIndex: number, target: ModuleSourceTarget | ModuleRecordSourceTarget | null, span: DslSpan | null | undefined) => {
+    if (target?.kind === "recordCollectionIndex") {
+      addSourceTarget(statementIndex, target.collectionTarget, target.nameSpan);
+      return;
+    }
+    if (target?.kind === "deferredModuleCollectionExport") {
+      add(statementIndex, target.instanceSpan, { kind: "moduleInstance", statementId: target.instanceStatementId });
+      add(statementIndex, target.memberSpan, { kind: "moduleSource", statementId: target.exportedStatementId });
+      return;
+    }
     const editorTarget = sourceTarget(target);
     if (!editorTarget) return;
     if (editorTarget.kind === "documentBinding" && target?.kind === "documentBinding") {

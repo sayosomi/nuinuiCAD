@@ -1,3 +1,5 @@
+import type { TypedScalarExpression } from "../scalars/typedExpressionAst";
+
 export type ElementId = string;
 
 export type DrawingModifierState = "visible" | "hidden" | "disabled";
@@ -174,8 +176,17 @@ export type GeometryValueOccurrence = {
 /** Runtime-only input for a read-only geometry consumer. This is deliberately
  * separate from persisted ElementId fields and is never a drawable identity. */
 export type GeometryInputTarget =
-  | { kind: "drawable"; elementId: ElementId; geometryType: "line" | "path" }
-  | { kind: "geometryValue"; occurrence: GeometryValueOccurrence; geometryType: "line" | "path" };
+  | { kind: "drawable"; elementId: ElementId; geometryType: "point" | "line" | "path"; pointKey?: string }
+  | { kind: "geometryValue"; occurrence: GeometryValueOccurrence; geometryType: "point" | "line" | "path"; pointKey?: string }
+  | { kind: "coordinate"; anchor: Extract<PointAnchor, { mode: "coordinate" }> }
+  | {
+      kind: "collectionIndex";
+      collectionValueId: string;
+      collectionLength: number | null;
+      targetSourceOrder: number;
+      index: TypedScalarExpression;
+      members: readonly GeometryInputTarget[];
+    };
 
 export type LineDivisionPointElement = CadElementBase & {
   type: "lineDivisionPoint";

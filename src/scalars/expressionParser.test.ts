@@ -109,6 +109,31 @@ describe("parseScalarExpression / @qualifiedName reference", () => {
       name: source.slice(1)
     });
   });
+
+  it("parses a collection index as an expression with an independently parsed numeric index", () => {
+    expect(parseOk("@marks[@index + 1]")).toEqual({
+      kind: "collectionIndex",
+      span: { start: 0, end: 18 },
+      nameSpan: { start: 1, end: 6 },
+      name: "marks",
+      index: {
+        kind: "binary",
+        span: { start: 7, end: 17 },
+        operator: "+",
+        left: {
+          kind: "reference",
+          span: { start: 7, end: 13 },
+          nameSpan: { start: 8, end: 13 },
+          name: "index"
+        },
+        right: { kind: "numberLiteral", span: { start: 16, end: 17 }, value: 1 }
+      }
+    });
+  });
+
+  it.each(["@marks[]", "@marks[0"])("rejects malformed collection index syntax %j", (source) => {
+    expect(parseErr(source).code).toBe(source.endsWith("[]") ? "empty-index" : "unterminated-index");
+  });
 });
 
 describe("parseScalarExpression / unary", () => {

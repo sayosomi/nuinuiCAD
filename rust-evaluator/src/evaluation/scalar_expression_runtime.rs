@@ -186,6 +186,35 @@ impl ScalarEvaluationEnvironment for ResolverEnvironment<'_> {
         )
     }
 
+    fn lookup_collection_index(
+        &self,
+        collection_value_id: &str,
+        index: f64,
+        element_type: &ScalarType,
+        collection_length: Option<f64>,
+        target_source_order: f64,
+    ) -> ScalarEvaluation {
+        if self
+            .current_source_order
+            .is_some_and(|source_order| target_source_order >= source_order)
+        {
+            return ScalarEvaluation::Error {
+                r#type: element_type.clone(),
+                issue_code: "evaluation-collection-index-unavailable".to_owned(),
+                binding_id: None,
+                context: None,
+            };
+        }
+        self.resolver.resolve_collection_index(
+            collection_value_id,
+            index,
+            element_type,
+            collection_length,
+            target_source_order,
+            self.state,
+        )
+    }
+
     fn lookup_geometry_builtin_target(
         &self,
         target: &super::scalars::ScalarExpressionResolvedGeometryTarget,

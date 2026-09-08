@@ -79,6 +79,8 @@ export const containsScalarNamedCall = (ast: ScalarExpressionAst): boolean => {
       return containsScalarNamedCall(ast.left) || containsScalarNamedCall(ast.right);
     case "group":
       return containsScalarNamedCall(ast.expression);
+    case "collectionIndex":
+      return containsScalarNamedCall(ast.index);
     default:
       return false;
   }
@@ -234,6 +236,7 @@ class Parser {
 
     if (token.kind === "reference") {
       this.consume();
+      if (this.peek()?.kind === "leftBracket") return this.parseCollectionIndex(token);
       return { kind: "reference", span: token.span, nameSpan: token.nameSpan, name: token.name };
     }
 
@@ -256,6 +259,22 @@ class Parser {
     }
 
     return fail("missing-operand", token.span, "式が必要です。");
+  }
+
+  private parseCollectionIndex(reference: Extract<ScalarExpressionToken, { kind: "reference" }>): ScalarExpressionAst {
+    const opening = this.consume();
+    if (this.peek()?.kind === "rightBracket") return fail("empty-index", tokenSpan(opening), "collection index の式が必要です。");
+    const index = this.parseTier(0);
+    const closing = this.peek();
+    if (!closing || closing.kind !== "rightBracket") return fail("unterminated-index", tokenSpan(opening), "閉じ括弧 ']' がありません。");
+    this.consume();
+    return {
+      kind: "collectionIndex",
+      span: { start: reference.span.start, end: closing.span.end },
+      nameSpan: reference.nameSpan,
+      name: reference.name,
+      index
+    };
   }
 
   private parseCall(nameToken: Extract<ScalarExpressionToken, { kind: "literal" }>): ScalarExpressionAst {

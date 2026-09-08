@@ -180,6 +180,7 @@ const constantNumericAst = (ast: ScalarExpressionAst): boolean => {
     case "unresolvedChoiceLiteral":
     case "reference":
     case "geometryProperty":
+    case "collectionIndex":
       return false;
   }
 };

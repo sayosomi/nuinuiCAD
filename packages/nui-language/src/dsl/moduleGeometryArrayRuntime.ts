@@ -6,6 +6,7 @@ import { parseDslReferenceToken, parseDslSourceReference } from "./dslReferenceT
 import { coordinateComponent } from "./dslParameterSpanScanner";
 import { makeNumericExpression } from "../geometry/numericExpressions";
 import { parseGeometryArrayExpression } from "./geometryArrayExpression";
+import { parseScalarExpression } from "../scalars/expressionParser";
 import {
   parseGeometryArrayDeferredModuleExportId,
   type GeometryArraySemanticAnalysis,
@@ -30,6 +31,9 @@ import type { ModuleRuntimeContext } from "./moduleRuntimeContext";
 import {
   pathKey,
   sourceAliasForTarget,
+  geometryInputTargetForAlias,
+  type GeometryInputTargetSource,
+  type RuntimeGeometryInputTarget,
   type ExportEntry,
   type GeometryAlias,
   type InstanceContext
@@ -52,6 +56,18 @@ export type ModuleGeometryArrayRuntimeCompilation = {
     statementIndex: number,
     currentPath: readonly string[]
   ) => readonly PointAnchor[] | null;
+  resolveLineReferenceTargetAt: (
+    token: string,
+    statementIndex: number,
+    currentPath: readonly string[],
+    target?: ModuleGeometryReferenceSemantic["target"]
+  ) => RuntimeGeometryInputTarget | null;
+  resolvePointReferenceAt: (
+    token: string,
+    statementIndex: number,
+    currentPath: readonly string[],
+    target?: ModuleGeometryReferenceSemantic["target"]
+  ) => PointAnchor | Extract<RuntimeGeometryInputTarget, { kind: "collectionIndex" }> | null;
   acceptsDeferredLineListExport: (
     reference: ModuleGeometryReferenceSemantic,
     currentPath: readonly string[]
@@ -249,6 +265,8 @@ export const buildModuleGeometryArrayRuntime = ({
       diagnostics,
       resolveLineReferenceList: () => null,
       resolvePointReferenceList: () => null,
+      resolveLineReferenceTargetAt: () => null,
+      resolvePointReferenceAt: () => null,
       acceptsDeferredLineListExport: () => false
     };
   }
@@ -858,11 +876,102 @@ export const buildModuleGeometryArrayRuntime = ({
     return anchors;
   };
 
+  const indexedSource = (token: string) => {
+    const parsed = parseScalarExpression(token, { start: 0, end: token.length });
+    return parsed.ast?.kind === "collectionIndex" && parsed.ast.index.kind === "numberLiteral"
+      ? { base: `@${parsed.ast.name}`, index: parsed.ast.index.value }
+      : null;
+  };
+
+  const aliasesFor = (value: RuntimeArrayValue): GeometryAlias[] | null => value.members.flatMap((member) => {
+    if (member.alias) return [member.alias];
+    return member.anchor ? [{ kind: "point" as const, anchor: member.anchor }] : [];
+  }).length === value.members.length
+    ? value.members.map((member) => member.alias ?? { kind: "point" as const, anchor: member.anchor! })
+    : null;
+
+  const indexedTargetFor = (
+    target: Extract<ModuleGeometryReferenceSemantic["target"], { kind: "collectionIndex" }> | undefined,
+    resolved: RuntimeArrayValue | null,
+    expectedGeometryKind: "point" | "line",
+    currentPath: readonly string[]
+  ): PointAnchor | RuntimeGeometryInputTarget | null => {
+    if (!target || !resolved) return null;
+    const aliases = aliasesFor(resolved);
+    if (!aliases) return null;
+    if (target.index.ast.kind === "numberLiteral") {
+      const member = aliases[target.index.ast.value];
+      return member
+        ? expectedGeometryKind === "point"
+          ? pointAnchorForAlias(member) ?? null
+          : geometryInputTargetForAlias(member)
+        : null;
+    }
+    if (expectedGeometryKind === "line" && aliases.some((alias) => alias.kind === "point")) return null;
+    const members = aliases.flatMap((alias) => {
+      const lowered = geometryInputTargetForAlias(alias);
+      return lowered ? [lowered] : [];
+    });
+    return members.length === aliases.length
+      ? {
+          kind: "collectionIndex",
+          target,
+          members: aliases,
+          currentPath
+        } satisfies GeometryInputTargetSource
+      : null;
+  };
+
+  const resolveLineReferenceTargetAt = (token: string, statementIndex: number, currentPath: readonly string[], target?: ModuleGeometryReferenceSemantic["target"]) => {
+    if (target?.kind === "collectionIndex") {
+      const resolved = resolveWholeReference(target.source, statementIndex, currentPath, new Set());
+      const indexed = indexedTargetFor(target, resolved.value, "line", currentPath);
+      return indexed && "kind" in indexed ? indexed : null;
+    }
+    const indexed = indexedSource(token);
+    if (!indexed || !Number.isInteger(indexed.index) || indexed.index < 0) return null;
+    const resolved = resolveWholeReference(indexed.base, statementIndex, currentPath, new Set());
+    const member = resolved.value?.members[indexed.index];
+    if (!member || !isModuleGeometryInterfaceAssignable(member.interfaceType, "path") || !member.alias) return null;
+    if (member.alias.kind === "line") {
+      return { kind: "drawable" as const, elementId: member.alias.elementId, geometryType: "line" as const };
+    }
+    if (member.alias.kind === "value" && member.alias.geometryType === "line") {
+      return {
+        kind: "geometryValue" as const,
+        occurrence: member.alias.occurrence,
+        geometryType: member.alias.interfaceType === "path" ? "path" as const : "line" as const
+      };
+    }
+    return null;
+  };
+
+  const resolvePointReferenceAt = (token: string, statementIndex: number, currentPath: readonly string[], target?: ModuleGeometryReferenceSemantic["target"]) => {
+    if (target?.kind === "collectionIndex") {
+      const resolved = resolveWholeReference(target.source, statementIndex, currentPath, new Set());
+      const indexed = indexedTargetFor(target, resolved.value, "point", currentPath);
+      if (!indexed) return null;
+      return "target" in indexed || "mode" in indexed ? indexed : null;
+    }
+    const indexed = indexedSource(token);
+    if (!indexed || !Number.isInteger(indexed.index) || indexed.index < 0) return null;
+    const resolved = resolveWholeReference(indexed.base, statementIndex, currentPath, new Set());
+    const anchors = resolved.value ? pointAnchorsFor(resolved.value) : null;
+    return anchors?.[indexed.index] ?? null;
+  };
+
   const acceptsDeferredLineListExport = (reference: ModuleGeometryReferenceSemantic, currentPath: readonly string[]) => {
     if (reference.role !== "lineReferenceList" || reference.target?.kind !== "deferredModuleExport") return false;
     const exported = arrayExportSemantic(currentPath, reference.target.instanceStatementId, reference.target.exportName)?.exported;
     return Boolean(exported && exported.type.elementType !== "point");
   };
 
-  return { diagnostics, resolveLineReferenceList, resolvePointReferenceList, acceptsDeferredLineListExport };
+  return {
+    diagnostics,
+    resolveLineReferenceList,
+    resolvePointReferenceList,
+    resolveLineReferenceTargetAt,
+    resolvePointReferenceAt,
+    acceptsDeferredLineListExport
+  };
 };

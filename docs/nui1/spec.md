@@ -1290,6 +1290,25 @@ collection parameters require an established `hasValue(@parameter)` presence
 proof before `.length` access. `.length` does not select or materialize a
 collection member and does not create a declaration identity.
 
+A declared collection value may also be indexed with a first-class, read-only
+`@collection[index]` expression. Indexing is zero-based, and `index` is an
+ordinary typed numeric expression, so expressions such as `@marks[0]` and
+`@marks[@index + 1]` are valid. The result has exactly the declared element
+type, including the nominal identity of a record element. Collection order,
+duplicates, aliases, and pure geometry value identity are preserved; indexing
+does not create a drawable `ElementId`, and nested arrays are not supported.
+The form is available for root collections and through the same lexical,
+Module-parameter, local, export, qualified, and cross-document paths as a
+whole collection reference. An optional Module collection parameter must first
+be proven present with `hasValue(@parameter)`.
+
+The index must evaluate to a finite integer in the inclusive lower bound `0`
+and exclusive upper bound `@collection.length`. Negative, fractional,
+non-finite, and out-of-range indexes are evaluation errors; the runtime never
+clamps, wraps, coerces, or fabricates a member. Statically known invalid
+indexes may be reported during semantic checking, but runtime validation
+remains authoritative for dynamic expressions.
+
 ## Canonical formatting
 
 Parser input tolerance and canonical formatting are separate concerns. The

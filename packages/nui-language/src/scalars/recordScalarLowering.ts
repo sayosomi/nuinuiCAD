@@ -589,6 +589,7 @@ export const prepareRecordScalarExpressionFromCatalog = ({
       case "unary": classify(node.operand); return;
       case "binary": classify(node.left); classify(node.right); return;
       case "group": classify(node.expression); return;
+      case "collectionIndex": classify(node.index); return;
       case "call": node.args.forEach((argument) => classify(argument.expression)); return;
       default: return;
     }
@@ -616,6 +617,13 @@ export const prepareRecordScalarExpressionFromCatalog = ({
           nameSpan: { start: node.elementNameSpan.start, end: node.propertySpan.end },
           name: `${node.elementName}.${node.property}`
         };
+      }
+      case "collectionIndex": {
+        const resolution = referenceResolutions[referenceCursor];
+        if (!resolution) throw new Error(`recordScalarLowering: no resolution supplied for collection index at ${node.span.start}`);
+        referenceCursor += 1;
+        references.push(resolution);
+        return { ...node, index: rewrite(node.index) };
       }
       case "unary": return { ...node, operand: rewrite(node.operand) };
       case "binary": return { ...node, left: rewrite(node.left), right: rewrite(node.right) };
@@ -712,6 +720,13 @@ export const prepareRecordScalarExpression = ({
         return { ...node, left: rewrite(node.left), right: rewrite(node.right) };
       case "group":
         return { ...node, expression: rewrite(node.expression) };
+      case "collectionIndex": {
+        const resolution = referenceResolutions[referenceCursor];
+        if (!resolution) throw new Error(`recordScalarLowering: no resolution supplied for collection index at ${node.span.start}`);
+        referenceCursor += 1;
+        references.push(resolution);
+        return { ...node, index: rewrite(node.index) };
+      }
       case "call":
         return {
           ...node,

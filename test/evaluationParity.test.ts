@@ -212,6 +212,60 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("matches typed dynamic geometry collection indexing across TypeScript and Rust", () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "const index: number = 1",
+      "point A = coordinate(x: 1, y: 2)",
+      "point B = coordinate(x: 3, y: 4)",
+      "const points: point[] = [@A, @B]",
+      "line Selected = segment(start: @points[@index], end: @points[@index - 1])"
+    ].join("\n"));
+    const options = optionsFor(fixture);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustOptions(repoRoot, fixture.elements, options);
+    const ts = evaluationPayloadToResult(tsPayload);
+    const rust = evaluationPayloadToResult(rustPayload);
+    const selected = fixture.elements.find((element) => element.name === "Selected")!;
+
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+    expect(ts.errors).toEqual([]);
+    expect(rust.errors).toEqual([]);
+    for (const result of [ts, rust]) {
+      expect(result.computedGeometry.get(selected.id)).toMatchObject({
+        kind: "line",
+        start: { x: 3, y: 4 },
+        end: { x: 1, y: 2 }
+      });
+    }
+  }, 30000);
+
+  it("matches invalid dynamic geometry collection indexes across TypeScript and Rust", () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "const badIndex: number = -1",
+      "point A = coordinate(x: 1, y: 2)",
+      "const points: point[] = [@A]",
+      "line Invalid = segment(start: @points[@badIndex], end: @A)"
+    ].join("\n"));
+    const options = optionsFor(fixture);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustOptions(repoRoot, fixture.elements, options);
+    const ts = evaluationPayloadToResult(tsPayload);
+    const rust = evaluationPayloadToResult(rustPayload);
+    const invalid = fixture.elements.find((element) => element.name === "Invalid")!;
+
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+    for (const result of [ts, rust]) {
+      expect(result.computedGeometry.get(invalid.id)).toBeUndefined();
+      expect(result.errors).toEqual(expect.arrayContaining([
+        expect.objectContaining({ message: expect.stringContaining("evaluation-collection-index-invalid") })
+      ]));
+    }
+  }, 30000);
+
   it.each(fixtureNames)("%s matches the TypeScript reference payload", (name: string) => {
     const fixture = readParityFixture(repoRoot, name);
     const options = optionsFor(fixture);

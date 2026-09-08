@@ -747,7 +747,7 @@ const moduleCandidatesAt = (
       context.qualifiedInstanceName,
       context.expectedGeometryKind
     );
-    if (sourceCandidates !== null) return sourceCandidates;
+    if (sourceCandidates !== null && sourceCandidates.length > 0) return sourceCandidates;
   }
   const moduleKind = context.kind === "moduleCallee"
     ? "callee"

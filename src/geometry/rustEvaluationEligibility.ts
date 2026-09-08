@@ -1,4 +1,4 @@
-import type { CadElement, ElementId, PointAnchor } from "../types/geometry";
+import type { CadElement, ElementId, GeometryInputTarget, PointAnchor } from "../types/geometry";
 import { anchorReferenceElementId, pointAnchorForElement } from "../model/pointAnchors";
 import { getDirectParentIds } from "../model/dependencies";
 import type { EvaluateElementsOptions } from "./evaluate";
@@ -93,6 +93,23 @@ const referencesRustSupportedLine = (
     : false;
 };
 
+const referencesRustSupportedLineTargetValue = (
+  target: GeometryInputTarget,
+  elementsById: ReadonlyMap<ElementId, CadElement>
+): boolean => {
+  if (target.kind === "geometryValue") {
+    return target.geometryType === "line" || target.geometryType === "path";
+  }
+  if (target.kind === "drawable") {
+    return (target.geometryType === "line" || target.geometryType === "path") &&
+      referencesRustSupportedLine(target.elementId, elementsById);
+  }
+  if (target.kind === "collectionIndex") {
+    return target.members.every((member) => referencesRustSupportedLineTargetValue(member, elementsById));
+  }
+  return false;
+};
+
 const referencesRustSupportedLineTarget = (
   fallbackId: string,
   element: CadElement,
@@ -103,7 +120,7 @@ const referencesRustSupportedLineTarget = (
   const target = options.geometryInputTargetsByElementId?.get(element.id)?.get(parameterKey);
   const candidates = target && Array.isArray(target) ? target : target ? [target] : [];
   if (candidates.length > 0) return candidates.every((candidate) =>
-    candidate.kind === "geometryValue" || referencesRustSupportedLine(candidate.elementId, elementsById)
+    referencesRustSupportedLineTargetValue(candidate, elementsById)
   );
   return referencesRustSupportedLine(fallbackId, elementsById);
 };
@@ -118,6 +135,41 @@ const referencesRustSupportedPointAnchor = (
   return anchor.mode === "reference"
     ? rustSupportedPointReferenceTypes.has(referencedElement.type)
     : rustSupportedDerivedPointSourceTypes.has(referencedElement.type);
+};
+
+const referencesRustSupportedPointTargetValue = (
+  target: GeometryInputTarget,
+  elementsById: ReadonlyMap<ElementId, CadElement>
+): boolean => {
+  if (target.kind === "coordinate") return true;
+  if (target.kind === "geometryValue") return target.geometryType === "point";
+  if (target.kind === "drawable") {
+    if (target.geometryType !== "point") return false;
+    return referencesRustSupportedPointAnchor(
+      target.pointKey
+        ? { mode: "derived", elementId: target.elementId, pointKey: target.pointKey }
+        : { mode: "reference", pointId: target.elementId },
+      elementsById
+    );
+  }
+  if (target.kind === "collectionIndex") {
+    return target.members.every((member) => referencesRustSupportedPointTargetValue(member, elementsById));
+  }
+  return false;
+};
+
+const hasRustSupportedDeferredPointTarget = (
+  element: CadElement,
+  options: EvaluateElementsOptions,
+  elementsById: ReadonlyMap<ElementId, CadElement>
+) => {
+  const targets = options.geometryInputTargetsByElementId?.get(element.id)?.values() ?? [];
+  return [...targets].some((target) => {
+    const candidates = Array.isArray(target) ? target : [target];
+    return candidates.some((candidate) =>
+      candidate.kind === "collectionIndex" && referencesRustSupportedPointTargetValue(candidate, elementsById)
+    );
+  });
 };
 
 const pointAnchorsForElement = (element: CadElement): PointAnchor[] => {
@@ -235,7 +287,7 @@ const canUseRustEvaluationForElement = (
   if (
     pointAnchorsForElement(element).some(
       (anchor) => !referencesRustSupportedPointAnchor(anchor, elementsById)
-    )
+    ) && !hasRustSupportedDeferredPointTarget(element, options, elementsById)
   ) {
     return false;
   }
@@ -277,7 +329,7 @@ const canUseRustEvaluationForElement = (
     const target = options.geometryInputTargetsByElementId?.get(element.id)?.get("baseLineIds");
     if (target) {
       const candidates = Array.isArray(target) ? target : [target];
-      return candidates.every((candidate) => candidate.kind === "geometryValue" || referencesRustSupportedLine(candidate.elementId, elementsById));
+      return candidates.every((candidate) => referencesRustSupportedLineTargetValue(candidate, elementsById));
     }
     return element.baseLineIds.every((baseLineId) => referencesRustSupportedLine(baseLineId, elementsById));
   }
@@ -309,7 +361,7 @@ const canUseRustEvaluationForElement = (
     const target = options.geometryInputTargetsByElementId?.get(element.id)?.get("baseLineIds");
     if (target) {
       const candidates = Array.isArray(target) ? target : [target];
-      return candidates.every((candidate) => candidate.kind === "geometryValue" || referencesRustSupportedLine(candidate.elementId, elementsById));
+      return candidates.every((candidate) => referencesRustSupportedLineTargetValue(candidate, elementsById));
     }
     return element.baseLineIds.every((baseLineId) => referencesRustSupportedLine(baseLineId, elementsById));
   }

@@ -45,6 +45,15 @@ export interface ScalarEvaluationEnvironment {
   /** Resolves an already-resolved geometry builtin target to runtime geometry. */
   lookupGeometryTarget?: (target: ScalarExpressionResolvedGeometryTarget) => GeometryBuiltinTargetLookupResult | undefined;
 
+  /** Resolves one already-typed collection member after its numeric index. */
+  lookupCollectionIndex?: (
+    collectionValueId: string,
+    index: number,
+    elementType: ScalarType,
+    collectionLength: number | null,
+    targetSourceOrder: number
+  ) => ScalarEvaluation;
+
   /** Optional inspection hook. Called once after each expression node actually reached by production evaluation. */
   onExpressionEvaluated?: (node: TypedScalarExpression, evaluation: ScalarEvaluation) => void;
 
@@ -196,6 +205,36 @@ const evaluateGeometryProperty = (
     return { status: "error", type: node.type, issueCode: "evaluation-runtime-value-type-mismatch" };
   }
   return result;
+};
+
+const evaluateCollectionIndex = (
+  node: Extract<TypedScalarExpression, { kind: "collectionIndex" }>,
+  environment: ScalarEvaluationEnvironment
+): ScalarEvaluation => {
+  if (node.type === null || node.collectionValueId === null || node.targetSourceOrder === null) return staticTypeNullError();
+  const index = evaluateTypedExpression(node.index, environment);
+  if (index.status === "error") return propagateError(node.type, index);
+  if (
+    index.value.kind !== "number" ||
+    !Number.isFinite(index.value.value) ||
+    !Number.isInteger(index.value.value) ||
+    index.value.value < 0 ||
+    (node.collectionLength !== null && index.value.value >= node.collectionLength)
+  ) {
+    return { status: "error", type: node.type, issueCode: "evaluation-collection-index-invalid" };
+  }
+  if (!environment.lookupCollectionIndex) return { status: "error", type: node.type, issueCode: "evaluation-collection-index-unavailable" };
+  const result = environment.lookupCollectionIndex(
+    node.collectionValueId,
+    index.value.value,
+    node.type,
+    node.collectionLength,
+    node.targetSourceOrder
+  );
+  if (result.status === "error") return result;
+  return scalarTypesEqual(node.type, result.type) && scalarValueMatchesType(result.type, result.value)
+    ? result
+    : { status: "error", type: node.type, issueCode: "evaluation-runtime-value-type-mismatch" };
 };
 
 const evaluateUnary = (node: TypedScalarUnaryExpressionNode, environment: ScalarEvaluationEnvironment): ScalarEvaluation => {
@@ -457,6 +496,8 @@ const evaluateTypedExpressionNode = (
     }
     case "reference":
       return evaluateReference(node, environment);
+    case "collectionIndex":
+      return evaluateCollectionIndex(node, environment);
     case "geometryProperty":
       return evaluateGeometryProperty(node, environment);
     case "unary":

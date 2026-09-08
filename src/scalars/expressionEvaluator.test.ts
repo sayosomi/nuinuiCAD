@@ -12,7 +12,7 @@ import type {
   TypedBuiltinArgument,
   TypedScalarExpression
 } from "./typedExpressionAst";
-import type { ScalarEvaluation } from "./types";
+import type { ScalarEvaluation, ScalarType } from "./types";
 import type { ComputedGeometry, ComputedLine, ComputedPoint } from "../types/geometry";
 
 type TypedExpressionVector = {
@@ -163,6 +163,37 @@ describe("evaluateTypedExpression / short-circuit", () => {
       type: { kind: "boolean" },
       value: { kind: "boolean", value: true }
     });
+  });
+});
+
+describe("evaluateTypedExpression / collection index", () => {
+  const collectionIndex = (index: TypedScalarExpression, type: ScalarType = { kind: "number" }): TypedScalarExpression => ({
+    kind: "collectionIndex",
+    span: { start: 0, end: 0 },
+    nameSpan: { start: 1, end: 6 },
+    name: "marks",
+    collectionValueId: "collection:marks",
+    collectionLength: 3,
+    targetSourceOrder: 1,
+    index,
+    type
+  });
+
+  it("returns the typed member supplied by the runtime lookup", () => {
+    expect(evaluateTypedExpression(collectionIndex(numberLiteral(1)), {
+      lookupBinding: () => ({ status: "error", type: { kind: "number" }, issueCode: "unused" }),
+      lookupCollectionIndex: (valueId, index, elementType, length, sourceOrder) => {
+        expect([valueId, index, elementType, length, sourceOrder]).toEqual(["collection:marks", 1, { kind: "number" }, 3, 1]);
+        return { status: "ok", type: { kind: "number" }, value: { kind: "number", value: 20 } };
+      }
+    })).toEqual({ status: "ok", type: { kind: "number" }, value: { kind: "number", value: 20 } });
+  });
+
+  it.each([-1, 3, 1.5, Number.POSITIVE_INFINITY, Number.NaN])("rejects invalid runtime index %j", (value) => {
+    expect(evaluateTypedExpression(collectionIndex(numberLiteral(value)), {
+      lookupBinding: () => ({ status: "error", type: { kind: "number" }, issueCode: "unused" }),
+      lookupCollectionIndex: () => { throw new Error("invalid indexes must fail before lookup"); }
+    })).toEqual({ status: "error", type: { kind: "number" }, issueCode: "evaluation-collection-index-invalid" });
   });
 });
 

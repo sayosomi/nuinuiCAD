@@ -27,6 +27,7 @@ import {
   sourceAliasForTarget,
   type ExportEntry,
   type GeometryAlias,
+  type RuntimeGeometryInputTarget,
   type InstanceContext,
   type ModuleGeometryPropertyRuntimeTarget
 } from "./moduleGeometryRuntimeLowering";
@@ -52,6 +53,7 @@ export type ModuleGeometryRuntimeCompilation = {
   diagnostics: readonly DslDiagnostic[];
   resolversByRuntimeElementId: ReadonlyMap<ElementId, DslGeometryResolverOverrides>;
   geometryInputTargetsByRuntimeElementId: ReadonlyMap<ElementId, ReadonlyMap<string, GeometryInputTarget | readonly GeometryInputTarget[]>>;
+  geometryInputTargetSourcesByRuntimeElementId: ReadonlyMap<ElementId, ReadonlyMap<string, RuntimeGeometryInputTarget | readonly RuntimeGeometryInputTarget[]>>;
   resolvePropertyTarget: (
     target: ModuleGeometryPropertySourceTarget,
     instancePath: readonly string[],
@@ -86,6 +88,8 @@ export const buildModuleGeometryRuntime = ({
   const exportsByPath = new Map<string, ReadonlyMap<string, ExportEntry>>();
   const resolversByRuntimeElementId = new Map<ElementId, DslGeometryResolverOverrides>();
   const geometryInputTargetsByRuntimeElementId = new Map<ElementId, Map<string, GeometryInputTarget | readonly GeometryInputTarget[]>>();
+  const geometryInputTargetSourcesByRuntimeElementId = new Map<ElementId, Map<string, RuntimeGeometryInputTarget | readonly RuntimeGeometryInputTarget[]>>();
+  const isTargetList = (target: RuntimeGeometryInputTarget | readonly RuntimeGeometryInputTarget[]): target is readonly RuntimeGeometryInputTarget[] => Array.isArray(target);
 
   const exportAliasFor = (path: readonly string[], exported: Extract<ResolvedModuleExport, { kind: "geometry" }>): GeometryAlias | undefined => {
     if (exported.backingTarget) {
@@ -165,6 +169,42 @@ export const buildModuleGeometryRuntime = ({
     exportsByPath,
     moduleRuntimeContext
   });
+  for (const context of contextsByPath.values()) {
+    const instance = moduleRuntimeContext?.instanceFor({
+      documentId: context.instanceDocumentId!,
+      localIdentity: context.instanceStatementId
+    }) ?? moduleSemanticAnalysis.instancesByStatementId.get(context.instanceStatementId);
+    if (!instance) continue;
+    for (const parameter of context.definition.parameters) {
+      const binding = instance.parameterBindings.find((candidate) => candidate.parameterIndex === parameter.parameterIndex);
+      const reference = binding?.value?.kind === "geometry" ? binding.value.reference : null;
+      if (reference?.target?.kind !== "collectionIndex") continue;
+      const indexedTarget = reference.target.expectedGeometryKind === "point"
+        ? (() => {
+            const target = geometryArrayRuntime.resolvePointReferenceAt(reference.source, instance.statementIndex, context.path.slice(0, -1), reference.target);
+            if (!target) return undefined;
+            if (target && "target" in target) {
+              return { kind: "collectionIndex" as const, target: target.target, members: target.members } satisfies GeometryAlias;
+            }
+            return target ? { kind: "point" as const, anchor: target } : undefined;
+          })()
+        : (() => {
+            const resolved = geometryArrayRuntime.resolveLineReferenceTargetAt(reference.source, instance.statementIndex, context.path.slice(0, -1), reference.target);
+            if (!resolved) return undefined;
+            if ("target" in resolved) return { kind: "collectionIndex" as const, target: resolved.target, members: resolved.members } satisfies GeometryAlias;
+            if (resolved.kind === "drawable") return { kind: "line" as const, elementId: resolved.elementId };
+            if (resolved.kind !== "geometryValue") return undefined;
+            return {
+              kind: "value" as const,
+              occurrence: resolved.occurrence,
+              geometryType: resolved.geometryType === "path" ? "line" as const : resolved.geometryType,
+              interfaceType: resolved.geometryType
+            };
+          })();
+      if (indexedTarget) (context.aliases as Map<number, GeometryAlias>).set(parameter.parameterIndex, indexedTarget);
+    }
+  }
+
   diagnostics.push(...geometryArrayRuntime.diagnostics);
 
   const definitionForInstance = (instanceStatementId: string) => {
@@ -278,11 +318,14 @@ export const buildModuleGeometryRuntime = ({
       statement: entry.statement,
       sites,
       currentPath: entry.runtimeInstancePath ?? entry.instancePath,
+      statementIndex: entry.sourceStatementIndex,
       contextsByPath,
       materialization: moduleMaterialization,
-      exportsByPath
+      exportsByPath,
+      resolveLineReferenceTargetAt: geometryArrayRuntime.resolveLineReferenceTargetAt,
+      resolvePointReferenceAt: geometryArrayRuntime.resolvePointReferenceAt
     });
-    const targetsForElement = new Map<string, GeometryInputTarget | readonly GeometryInputTarget[]>();
+    const targetsForElement = new Map<string, RuntimeGeometryInputTarget | readonly RuntimeGeometryInputTarget[]>();
     resolversByRuntimeElementId.set(entry.runtimeElementId, {
       ...baseResolver,
       recordGeometryInputTarget: (_elementId, parameterKey, target) => {
@@ -294,7 +337,12 @@ export const buildModuleGeometryRuntime = ({
           const newTargets = Array.isArray(target) ? target : [target];
           targetsForElement.set(parameterKey, [...existingTargets, ...newTargets]);
         }
-        geometryInputTargetsByRuntimeElementId.set(entry.runtimeElementId, targetsForElement);
+        const sourceTargets = geometryInputTargetSourcesByRuntimeElementId.get(entry.runtimeElementId) ?? new Map();
+        sourceTargets.set(parameterKey, target);
+        geometryInputTargetSourcesByRuntimeElementId.set(entry.runtimeElementId, sourceTargets);
+        if (!isTargetList(target) && target.kind !== "collectionIndex") {
+          geometryInputTargetsByRuntimeElementId.set(entry.runtimeElementId, targetsForElement as Map<string, GeometryInputTarget | readonly GeometryInputTarget[]>);
+        }
       },
       resolveLineReferenceList: (token) => geometryArrayRuntime.resolveLineReferenceList(
         token,
@@ -384,5 +432,13 @@ export const buildModuleGeometryRuntime = ({
     return undefined;
   };
 
-  return { diagnostics, resolversByRuntimeElementId, geometryInputTargetsByRuntimeElementId, resolvePropertyTarget, resolveBuiltinTarget, coordinateForReference };
+  return {
+    diagnostics,
+    resolversByRuntimeElementId,
+    geometryInputTargetsByRuntimeElementId,
+    geometryInputTargetSourcesByRuntimeElementId,
+    resolvePropertyTarget,
+    resolveBuiltinTarget,
+    coordinateForReference
+  };
 };

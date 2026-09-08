@@ -24,6 +24,7 @@ import {
   type ModuleGeometryBuiltinReferenceResolver,
   type ModuleGeometryPropertyReferenceInput,
   type ModuleGeometryPropertyReferenceResolution,
+  type ModuleCollectionIndexReferenceResolution,
   type ModuleScalarLocalDiagnostic,
   type ModuleScalarReferenceResolution
 } from "./moduleScalarExpression";
@@ -31,6 +32,7 @@ import { moduleCallEdges, moduleRecursionCycles } from "./moduleCallGraph";
 import { analyzeModuleBody } from "./moduleBodySemantic";
 import { parseDslReferenceToken, parseDslSourceReference } from "./dslReferenceTokens";
 import { coordinateComponent } from "./dslParameterSpanScanner";
+import { parseScalarExpression } from "../scalars/expressionParser";
 import { parseDslConstructionInvocation } from "./dslCallParser";
 import { splitDslList } from "./dslTokens";
 import { getParameterDefinitions, scalarTypeForParameterDefinition } from "../parameters/parameterDefinitions";
@@ -963,6 +965,174 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-invalid-reference", declaration.nameSpan ?? declaration.statement.keywordSpan, `「${name}」はscalar bindingではありません。`, { relatedSources: declarationRelated, presentation: { key: "diagnostic.module-invalid-reference", parameters: { name } } }) };
   };
 
+  const collectionValueTypeFor = (value: ReturnType<typeof collectionValueSemanticForStatement>) =>
+    value && "valueType" in value
+      ? value.valueType
+      : value
+        ? { kind: "array" as const, elementType: { kind: value.type.elementType as "point" | "line" | "path" } }
+        : null;
+
+  const resolveCollectionIndex = (
+    statementIndex: number,
+    ownerIndex: number | null,
+    reference: { name: string; span: DslSpan },
+    presenceFacts: ReadonlySet<string> = new Set()
+  ): ModuleCollectionIndexReferenceResolution => {
+    const invalid = (
+      target: ModuleScalarSourceTarget | null,
+      resolution: ModuleScalarReferenceResolution["resolution"],
+      code: string,
+      message: string,
+      diagnosticSpan = reference.span,
+      relatedSources: readonly DiagnosticRelatedSource[] = []
+    ): ModuleCollectionIndexReferenceResolution => ({
+      target,
+      type: null,
+      resolution,
+      collectionValueId: null,
+      collectionLength: null,
+      targetSourceOrder: null,
+      diagnostic: issue(code, diagnosticSpan, message, { relatedSources })
+    });
+
+    const collectionAnalysis = sourceNamespace.geometryArraySemanticAnalysis;
+    if (!collectionAnalysis) {
+      return invalid(null, "undefined", "module-collection-index-unavailable", `collection「${reference.name}」を解決できません。`);
+    }
+    const path = parseDslReferenceToken(reference.name);
+    const parameter = path.segments.length === 1 && !path.absolute
+      ? moduleParameterByName(statements, stableStatementIdByIndex, statementIndex, path.segments[0]!)
+      : null;
+    if (parameter) {
+      const valueType = collectionAnalysis.genericModuleParametersBySlot.get(`${parameter.definitionStatementId}:${parameter.parameterIndex}`)?.valueType;
+      if (!valueType) {
+        return invalid(
+          null,
+          "invalid",
+          "module-collection-index-type",
+          `collection「${reference.name}」は scalar element collection ではありません。`,
+          reference.span,
+          relatedForParameter(
+            definitionStates.find((candidate) => candidate.statementId === parameter.definitionStatementId)!,
+            parameter.parameterIndex
+          )
+        );
+      }
+      const target: ModuleScalarSourceTarget = {
+        kind: "collectionParameter",
+        definitionStatementId: parameter.definitionStatementId,
+        parameterIndex: parameter.parameterIndex,
+        valueType,
+        optional: parameter.parameter.optional
+      };
+      const elementType = scalarTypeOfDslValueType(valueType.elementType);
+      if (!elementType) {
+        return invalid(target, "invalid", "module-collection-index-type", `collection「${reference.name}」の element 型は scalar ではありません。`);
+      }
+      if (parameter.parameter.optional && !presenceFacts.has(moduleParameterPresenceKey(parameter.definitionStatementId, parameter.parameterIndex))) {
+        return invalid(
+          target,
+          "invalid",
+          "module-optional-value-required",
+          `optional module parameter「${reference.name}」は hasValue(@${reference.name}) で存在を確認してから参照してください。`,
+          reference.span,
+          relatedForParameter(
+            definitionStates.find((candidate) => candidate.statementId === parameter.definitionStatementId)!,
+            parameter.parameterIndex
+          )
+        );
+      }
+      return {
+        target,
+        type: elementType,
+        resolution: "resolved",
+        collectionValueId: `${parameter.definitionStatementId}:parameter:${parameter.parameterIndex}`,
+        collectionLength: null,
+        targetSourceOrder: -1
+      };
+    }
+
+    const qualified = path.segments.length > 1
+      ? resolveQualifiedModuleExport(statementIndex, ownerIndex, reference.name, reference.span, reference.span.end - reference.span.start === reference.name.length + 1 ? 1 : 0)
+      : null;
+    if (qualified?.kind === "deferred") {
+      const exported = qualifiedCollectionExportFor(qualified);
+      if (exported?.kind === "collection") {
+        const target: ModuleScalarSourceTarget = {
+          kind: "deferredModuleCollectionExport",
+          instanceStatementId: qualified.instance.statementId,
+          instanceStatementIndex: qualified.instance.statementIndex,
+          instanceName: qualified.instanceName,
+          exportName: qualified.exportName,
+          exportedStatementId: exported.exportedStatementId,
+          exportedStatementIndex: exported.exportedStatementIndex,
+          valueType: exported.valueType,
+          referenceSpan: reference.span,
+          instanceSpan: qualified.instanceSpan,
+          memberSpan: qualified.memberSpan,
+          ...(input.documentId ? { instanceIdentity: qualifySemanticIdentity(input.documentId, qualified.instance.statementId) } : {})
+        };
+        const elementType = scalarTypeOfDslValueType(exported.valueType.elementType);
+        if (!elementType) return invalid(target, "invalid", "module-collection-index-type", `module export「${qualified.exportName}」の element 型は scalar ではありません。`, qualified.memberSpan);
+        return {
+          target,
+          type: elementType,
+          resolution: "resolved",
+          collectionValueId: geometryArrayDeferredModuleExportId(qualified.instance.statementId, qualified.exportName),
+          collectionLength: null,
+          targetSourceOrder: qualified.instance.statementIndex
+        };
+      }
+      const diagnosticSpan = qualified.memberSpan;
+      return invalid(
+        null,
+        "invalid",
+        exported?.kind === "private" ? "module-private-member" : "module-undefined-export",
+        exported?.kind === "private"
+          ? `module member「${qualified.exportName}」はexportされていないため参照できません。`
+          : `module export「${qualified.exportName}」が見つかりません。`,
+        diagnosticSpan
+      );
+    }
+    if (qualified) {
+      const resolution = qualified.kind === "forward" ? "forward" : qualified.kind === "outerCapture" ? "outerCapture" : "invalid";
+      return invalid(null, resolution, resolution === "forward" ? "module-forward-instance-reference" : resolution === "outerCapture" ? "module-outer-capture" : "module-undefined-instance-reference", `module instance「${qualified.instanceName}」を解決できません。`, qualified.memberSpan);
+    }
+
+    const lookup = ownerIndex === null
+      ? qualifiedSourceDeclarationResolution(sourceNamespace, statementIndex, path) ?? sourceDeclarationResolution(sourceNamespace, statementIndex, reference.name)
+      : resolveModuleLexicalPath(statementIndex, ownerIndex, path);
+    if (lookup.kind !== "resolved" || lookup.declaration.kind !== "typedDeclaration" || lookup.declaration.statement.kind !== "typedDeclaration") {
+      if (lookup.kind === "forward") return invalid(null, "forward", "module-forward-reference", `collection「${reference.name}」はこの位置より後で宣言されています。`, reference.span, relatedForLookup(lookup));
+      if (lookup.kind === "ambiguous") return invalid(null, "invalid", "module-ambiguous-reference", `collection「${reference.name}」を一意に解決できません。`, reference.span, relatedForLookup(lookup));
+      return invalid(null, "undefined", "module-undefined-reference", `未定義の collection「${reference.name}」を参照しています。`, reference.span);
+    }
+    const value = collectionValueSemanticForStatement(collectionAnalysis, lookup.declaration.statementIndex);
+    const valueType = collectionValueTypeFor(value);
+    if (!value || !valueType) return invalid(null, "invalid", "module-collection-index-type", `参照先「${reference.name}」は collection ではありません。`, reference.span, relatedForDeclaration(lookup.declaration));
+    const declarationOwner = moduleOwnerIndexOf(statements, lookup.declaration.statementIndex);
+    if (ownerIndex !== null && declarationOwner !== ownerIndex) {
+      return invalid(null, "outerCapture", "module-outer-capture", `module body から outer collection「${reference.name}」を暗黙 capture できません。`, reference.span, relatedForDeclaration(lookup.declaration));
+    }
+    const elementType = scalarTypeOfDslValueType(valueType.elementType);
+    const target: ModuleScalarSourceTarget = {
+      kind: "collectionValue",
+      statementId: value.statementId,
+      statementIndex: value.statementIndex,
+      valueType,
+      ...(input.documentId ? { identity: qualifySemanticIdentity(input.documentId, value.statementId) } : {})
+    };
+    if (!elementType) return invalid(target, "invalid", "module-collection-index-type", `collection「${reference.name}」の element 型は scalar ではありません。`, reference.span);
+    return {
+      target,
+      type: elementType,
+      resolution: "resolved",
+      collectionValueId: value.statementId,
+      collectionLength: collectionLengthForValueId(collectionAnalysis, value.statementId),
+      targetSourceOrder: value.statementIndex
+    };
+  };
+
   const resolveDefaultScalar = (definition: DefinitionState, parameterIndex: number, reference: { name: string; span: DslSpan }): ReferenceResolution => {
     const ownParameter = definition.parameterByName.get(reference.name);
     if (ownParameter) {
@@ -1080,6 +1250,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
 
   const analyzeExpression = (
     statementIndex: number,
+    ownerIndex: number | null,
     raw: string,
     span: DslSpan,
     expectedType: ScalarType | null,
@@ -1103,6 +1274,12 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           : resolution;
       },
       resolveHasValue,
+      resolveCollectionIndex: (reference, expressionPresenceFacts) => resolveCollectionIndex(
+        statementIndex,
+        ownerIndex,
+        reference,
+        expressionPresenceFacts ?? presenceFacts
+      ),
       resolveBareReference: bareResolver,
       resolveGeometryProperty: geometryPropertyResolver,
       resolveGeometryBuiltin: geometryBuiltinResolver,
@@ -1139,6 +1316,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       const defaultSpan = parameter.defaultSpan;
       if (!defaultSpan) continue;
       const semantic = analyzeExpression(
+        definition.statementIndex,
         definition.statementIndex,
         parameter.defaultValue,
         defaultSpan,
@@ -1558,6 +1736,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     if (!componentSpan) return null;
     return analyzeExpression(
       statementIndex,
+      ownerIndex,
       source.slice(componentSpan.start, componentSpan.end),
       componentSpan,
       { kind: "number" },
@@ -1611,6 +1790,101 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       if (options.allowNone) return semantic(null, "resolved");
       addLocal(statementIndex, issue("module-geometry-none", semanticSpan, `geometry ${expectedDiagnosticType} reference に none は指定できません。`, { presentation: { key: "diagnostic.module-geometry-none", parameters: { expected: expectedDiagnosticType } } }));
       return semantic(null, "invalid");
+    }
+    const parsedScalar = logicalSource
+      ? parseScalarExpression(logicalSource, semanticSpan)
+      : parseScalarExpression(trimmed, { start: 0, end: trimmed.length });
+    if (parsedScalar.ast?.kind === "collectionIndex") {
+      const node = parsedScalar.ast;
+      const base = node.name;
+      const baseSpan = logicalSource
+        ? node.nameSpan
+        : { start: semanticSpan.start + node.nameSpan.start, end: semanticSpan.start + node.nameSpan.end };
+      referenceNameSpan = baseSpan;
+      const collectionAnalysis = sourceNamespace.geometryArraySemanticAnalysis;
+      const path = parseDslReferenceToken(base);
+      const qualified = path.segments.length > 1
+        ? resolveQualifiedModuleExport(statementIndex, ownerIndex, base, baseSpan)
+        : null;
+      const deferredQualified = qualified?.kind === "deferred" ? qualified : null;
+      const collection = deferredQualified
+        ? qualifiedCollectionExportFor(deferredQualified)
+        : null;
+      const parameter = path.segments.length === 1 && !path.absolute
+        ? moduleParameterByName(statements, stableStatementIdByIndex, statementIndex, path.segments[0]!)
+        : null;
+      const value = !qualified && !parameter && collectionAnalysis
+        ? (() => {
+            const lookup = ownerIndex === null
+              ? qualifiedSourceDeclarationResolution(sourceNamespace, statementIndex, path) ?? sourceDeclarationResolution(sourceNamespace, statementIndex, base)
+              : resolveModuleLexicalPath(statementIndex, ownerIndex, path);
+            if (lookup.kind !== "resolved" || lookup.declaration.kind !== "typedDeclaration") return null;
+            const resolved = collectionValueSemanticForStatement(collectionAnalysis, lookup.declaration.statementIndex);
+            const declarationOwner = moduleOwnerIndexOf(statements, lookup.declaration.statementIndex);
+            if (ownerIndex !== null && declarationOwner !== ownerIndex) {
+              addLocal(statementIndex, issue("module-outer-capture", baseSpan, `module body から outer collection「${base}」を暗黙 capture できません。`, { relatedSources: relatedForDeclaration(lookup.declaration), presentation: { key: "diagnostic.module-outer-capture", parameters: { name: base } } }));
+              return null;
+            }
+            return resolved;
+          })()
+        : null;
+      const valueType = collection?.kind === "collection"
+        ? collection.valueType
+        : parameter
+          ? collectionAnalysis?.genericModuleParametersBySlot.get(`${parameter.definitionStatementId}:${parameter.parameterIndex}`)?.valueType ?? null
+          : collectionAnalysis ? collectionValueTypeFor(value) : null;
+      const elementType = valueType && isDslArrayValueType(valueType)
+        ? valueType.elementType.kind === "point" || valueType.elementType.kind === "line" || valueType.elementType.kind === "path"
+          ? valueType.elementType.kind
+          : null
+        : null;
+      const expectedInterfaceType = options.expectedInterfaceType ?? (expected === "point" ? "point" : "path");
+      const compatible = elementType !== null && (expected === "point"
+        ? elementType === "point"
+        : isModuleGeometryInterfaceAssignable(elementType, expectedInterfaceType));
+      const indexSource = logicalSource ?? trimmed;
+      const indexSpan = node.index.span;
+      const indexSemantic = analyzeExpression(
+        statementIndex,
+        ownerIndex,
+        indexSource.slice(indexSpan.start, indexSpan.end),
+        indexSpan,
+        { kind: "number" },
+        options.scalarResolver ?? ((reference, facts) => resolveSourceScalar(statementIndex, ownerIndex, reference.name, ownerIndex, reference.span, facts)),
+        options.bareScalarResolver,
+        options.geometryPropertyResolver,
+        undefined,
+        undefined,
+        options.presenceFacts
+      );
+      if (!indexSemantic || indexSemantic.type?.kind !== "number") return semantic(null, "invalid");
+      if (parameter && parameter.parameter.optional && !options.presenceFacts?.has(moduleParameterPresenceKey(parameter.definitionStatementId, parameter.parameterIndex))) {
+        addLocal(statementIndex, issue("module-optional-value-required", baseSpan, `optional module parameter「${base}」は hasValue(@${base}) で存在を確認してから参照してください。`, { relatedSources: relatedForParameter(definitionStates.find((candidate) => candidate.statementId === parameter.definitionStatementId)!, parameter.parameterIndex), presentation: { key: "diagnostic.module-optional-value-required", parameters: { name: base } } }));
+        return semantic(null, "invalid");
+      }
+      if (!compatible || !valueType || !collectionAnalysis) {
+        addLocal(statementIndex, issue("module-geometry-type-mismatch", baseSpan, `collection「${base}」の element 型が geometry reference の期待型と一致しません。`, { presentation: { key: "diagnostic.module-geometry-type-mismatch", parameters: { target: base } } }));
+        return semantic(null, "invalid");
+      }
+      const collectionValueId = collection?.kind === "collection"
+        ? geometryArrayDeferredModuleExportId(deferredQualified!.instance.statementId, deferredQualified!.exportName)
+        : parameter
+          ? `${parameter.definitionStatementId}:parameter:${parameter.parameterIndex}`
+          : value!.statementId;
+      const target: Extract<ModuleGeometrySourceTarget, { kind: "collectionIndex" }> = {
+        kind: "collectionIndex",
+        collectionValueId,
+        collectionLength: parameter || collection ? null : collectionLengthForValueId(collectionAnalysis, value!.statementId),
+        targetSourceOrder: parameter ? -1 : collection ? deferredQualified!.instance.statementIndex : value!.statementIndex,
+        elementInterfaceType: elementType,
+        expectedGeometryKind: expected,
+        expectedInterfaceType,
+        index: indexSemantic,
+        source: `@${base}`,
+        referenceSpan: semanticSpan,
+        nameSpan: baseSpan
+      };
+      return semantic(target, "resolved", null, expected === "point" ? "pointReference" : role);
     }
     if (trimmed.startsWith("(") || trimmed.startsWith("[")) {
       const coordinate = trimmed.startsWith("(") && trimmed.endsWith(")");
@@ -1908,6 +2182,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     ) => candidate
       ? analyzeExpression(
           statementIndex,
+          ownerIndex,
           source.slice(candidate.valueSpan.start, candidate.valueSpan.end),
           candidate.valueSpan,
           expectedType,
@@ -1920,6 +2195,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         )
       : analyzeExpression(
           statementIndex,
+          ownerIndex,
           defaultValue,
           { start: constructionSpan.end, end: constructionSpan.end + defaultValue.length },
           expectedType,
@@ -2398,6 +2674,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     ...field,
     expression: analyzeExpression(
       statementIndex,
+      ownerIndex,
       field.value,
       field.valueSpan,
       field.expectedType,
@@ -2452,6 +2729,134 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       return invalid("invalid", "record Module parameter の nominal type を解決できません。");
     }
     const trimmed = raw.trim();
+    const parsedScalar = input.logicalTextByStatementIndex?.get(statementIndex)
+      ? parseScalarExpression(input.logicalTextByStatementIndex.get(statementIndex)!, span)
+      : parseScalarExpression(trimmed, { start: 0, end: trimmed.length });
+    if (parsedScalar.ast?.kind === "collectionIndex") {
+      const node = parsedScalar.ast;
+      const base = node.name;
+      const baseSpan = input.logicalTextByStatementIndex?.get(statementIndex)
+        ? node.nameSpan
+        : { start: span.start + node.nameSpan.start, end: span.start + node.nameSpan.end };
+      const path = parseDslReferenceToken(base);
+      const qualified = path.segments.length > 1
+        ? resolveQualifiedModuleExport(statementIndex, ownerIndex, base, baseSpan)
+        : null;
+      const deferredQualified = qualified?.kind === "deferred" ? qualified : null;
+      const exported = deferredQualified ? qualifiedCollectionExportFor(deferredQualified) : null;
+      const parameter = path.segments.length === 1 && !path.absolute
+        ? moduleParameterByName(statements, stableStatementIdByIndex, statementIndex, path.segments[0]!)
+        : null;
+      const lookup = !deferredQualified && !parameter
+        ? (ownerIndex === null
+            ? qualifiedSourceDeclarationResolution(sourceNamespace, statementIndex, path) ?? sourceDeclarationResolution(sourceNamespace, statementIndex, base)
+            : resolveModuleLexicalPath(statementIndex, ownerIndex, path))
+        : null;
+      const collectionAnalysis = sourceNamespace.geometryArraySemanticAnalysis;
+      const value = lookup?.kind === "resolved" && lookup.declaration.kind === "typedDeclaration"
+        ? collectionAnalysis ? collectionValueSemanticForStatement(collectionAnalysis, lookup.declaration.statementIndex) : null
+        : null;
+      const valueType = exported?.kind === "collection"
+        ? exported.valueType
+        : parameter
+          ? collectionAnalysis?.genericModuleParametersBySlot.get(`${parameter.definitionStatementId}:${parameter.parameterIndex}`)?.valueType ?? null
+          : collectionAnalysis ? collectionValueTypeFor(value) : null;
+      const element = valueType?.elementType.kind === "record" ? valueType.elementType : null;
+      const indexSource = input.logicalTextByStatementIndex?.get(statementIndex) ?? trimmed;
+      const indexSemantic = analyzeExpression(
+        statementIndex,
+        ownerIndex,
+        indexSource.slice(node.index.span.start, node.index.span.end),
+        node.index.span,
+        { kind: "number" },
+        (reference, facts) => ownerIndex === null
+          ? resolveSourceScalar(statementIndex, null, reference.name, null, reference.span, facts)
+          : resolveBodyScalar(statementIndex, ownerIndex, reference, facts),
+        undefined,
+        (reference) => resolveGeometryProperty(statementIndex, ownerIndex, reference),
+        undefined,
+        undefined,
+        presenceFacts
+      );
+      if (parameter && parameter.parameter.optional && !presenceFacts.has(moduleParameterPresenceKey(parameter.definitionStatementId, parameter.parameterIndex))) {
+        return invalid("invalid", `optional module parameter「${base}」は hasValue(@${base}) で存在を確認してから参照してください。`, baseSpan, [], { key: "diagnostic.module-optional-value-required", parameters: { name: base } });
+      }
+      if (!collectionAnalysis || !element || element.identity !== expectedTypeIdentity || !indexSemantic || indexSemantic.type?.kind !== "number") {
+        return invalid("invalid", `collection「${base}」の element 型が expected record 型と一致しません。`, baseSpan, [], { key: "diagnostic.module-record-invalid-reference", parameters: { name: base } });
+      }
+      const recordMembersFor = (valueId: string, seen: ReadonlySet<string> = new Set()): readonly Extract<ModuleRecordSourceTarget, { kind: "recordValue" }>[] => {
+        if (seen.has(valueId)) return [];
+        const value = collectionAnalysis.genericValuesByStatementId.get(valueId);
+        if (!value?.value) return [];
+        if (value.value.kind === "alias") return recordMembersFor(value.value.targetValueId, new Set([...seen, valueId]));
+        return value.value.members.flatMap((member) => {
+          if (member.target.kind !== "recordValue") return [];
+          const recordValue = recordAnalysis?.valuesByStatementId.get(member.target.statementId);
+          return recordValue?.typeIdentity
+            ? [{
+                kind: "recordValue" as const,
+                statementId: member.target.statementId,
+                statementIndex: member.target.statementIndex,
+                typeIdentity: recordValue.typeIdentity
+              }]
+            : [];
+        });
+      };
+      const exportedValueId = exported?.kind === "collection" ? exported.exportedStatementId : "";
+      const members = recordMembersFor(value?.statementId ?? exportedValueId);
+      const collectionTarget: ModuleScalarSourceTarget = exported?.kind === "collection"
+        ? {
+            kind: "deferredModuleCollectionExport",
+            instanceStatementId: deferredQualified!.instance.statementId,
+            instanceStatementIndex: deferredQualified!.instance.statementIndex,
+            instanceName: deferredQualified!.instanceName,
+            exportName: deferredQualified!.exportName,
+            exportedStatementId: exported.exportedStatementId,
+            exportedStatementIndex: exported.exportedStatementIndex,
+            valueType: exported.valueType,
+            referenceSpan: span,
+            instanceSpan: deferredQualified!.instanceSpan,
+            memberSpan: deferredQualified!.memberSpan
+          }
+        : parameter
+          ? {
+              kind: "collectionParameter",
+              definitionStatementId: parameter.definitionStatementId,
+              parameterIndex: parameter.parameterIndex,
+              valueType: valueType!,
+              optional: parameter.parameter.optional
+            }
+          : {
+              kind: "collectionValue",
+              statementId: value!.statementId,
+              statementIndex: value!.statementIndex,
+              valueType: valueType!
+            };
+      return {
+        source: raw,
+        span,
+        typeIdentity: expectedTypeIdentity,
+        target: {
+          kind: "recordCollectionIndex",
+          collectionValueId: exported?.kind === "collection"
+            ? geometryArrayDeferredModuleExportId(deferredQualified!.instance.statementId, deferredQualified!.exportName)
+            : parameter
+              ? `${parameter.definitionStatementId}:parameter:${parameter.parameterIndex}`
+              : value!.statementId,
+          collectionLength: parameter || exported ? null : collectionLengthForValueId(collectionAnalysis, value!.statementId),
+          targetSourceOrder: parameter ? -1 : exported ? deferredQualified!.instance.statementIndex : value!.statementIndex,
+          typeIdentity: expectedTypeIdentity,
+          index: indexSemantic,
+          collectionTarget,
+          source: `@${base}`,
+          referenceSpan: span,
+          nameSpan: baseSpan,
+          ...(members.length > 0 ? { members } : {})
+        },
+        constructor: null,
+        resolution: "resolved"
+      };
+    }
     const parsed = parseDslSourceReference(trimmed);
     if (parsed.kind === "valid" && parsed.reference.property === null) {
       const baseSpan = {
@@ -2700,8 +3105,13 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       const sitesFor = (reference: ModuleGeometryReferenceSemantic, parameterKey: string | null, span: DslSpan) => sites.push({ parameterKey, span, reference });
       const referenceKind = (value: string): "module" | "ordinary" | "skip" => {
         const parsedReference = parseDslSourceReference(value);
-        if (parsedReference.kind !== "valid") return "skip";
-        const path = parsedReference.reference.path;
+        const parsedScalar = parseScalarExpression(value, { start: 0, end: value.length });
+        const path = parsedScalar.ast?.kind === "collectionIndex"
+          ? parseDslReferenceToken(parsedScalar.ast.name)
+          : parsedReference.kind === "valid"
+            ? parsedReference.reference.path
+            : null;
+        if (!path) return "skip";
         if (path.segments.length === 1) return "ordinary";
         const firstSegment = path.segments[0];
         const instanceLookup = sourceDeclarationResolution(sourceNamespace, statementIndex, firstSegment);
@@ -2978,6 +3388,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
             const presenceFacts = presenceFactsByStatementIndex.get(statementIndex) ?? new Set<string>();
             const expression = analyzeExpression(
               statementIndex,
+              ownerIndex,
               argument.value,
               argument.valueSpan,
               parameterScalarType,
@@ -3087,6 +3498,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     const diagnosticsBefore = localDiagnosticsByStatement.get(statementIndex)?.length ?? 0;
     const expression = analyzeExpression(
       statementIndex,
+      null,
       statement.initializer,
       initializerSpan,
       scalarTypeOfDslValueType(statement.valueType),

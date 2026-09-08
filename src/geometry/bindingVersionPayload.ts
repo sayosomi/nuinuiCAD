@@ -3,6 +3,7 @@
 // resolves names, || synthesizes any identity.
 import type { CadElement, ElementId } from "../types/geometry";
 import type { BindingVersion, BindingVersionGraph } from "../scalars/bindingVersions";
+import type { ScalarProgramCollection } from "../scalars/scalarProgram";
 import { buildConditionalMutationOwners } from "../scalars/conditionalMutationControl";
 import { buildForGroupMutationOwners } from "../scalars/forGroupMutationControl";
 
@@ -28,6 +29,7 @@ export type RustBindingMutationPayload = {
   }[];
   evaluationLimitSourceOrder?: number;
   postStopBindingIds?: readonly string[];
+  collectionValues?: readonly ScalarProgramCollection[];
 };
 
 type StatementInfo = { statementIndex: number };
@@ -62,7 +64,8 @@ export const buildRustBindingMutationPayload = (
   sourceExecutionPositionByElementId?: ReadonlyMap<ElementId, number>,
   scalarExecutionPositionByElementId?: ReadonlyMap<ElementId, number>,
   moduleConditionalOwners?: ReadonlyMap<ElementId, string>,
-  moduleForGroupOwners?: ReadonlyMap<ElementId, Extract<import("../scalars/bindingVersions").BindingControlOwner, { kind: "forGroup" }> & { elementId: ElementId }>
+  moduleForGroupOwners?: ReadonlyMap<ElementId, Extract<import("../scalars/bindingVersions").BindingControlOwner, { kind: "forGroup" }> & { elementId: ElementId }>,
+  collectionValues?: readonly ScalarProgramCollection[]
 ): RustBindingMutationPayload => {
   if (!statementInfoByElementId && !sourceExecutionPositionByElementId && !scalarExecutionPositionByElementId) {
     throw new Error("buildRustBindingMutationPayload: missing compiled source execution positions");
@@ -131,6 +134,7 @@ export const buildRustBindingMutationPayload = (
       : { evaluationLimitSourceOrder: graph.evaluationLimitSourceOrder }),
     ...(graph.postStopBindingIds && graph.postStopBindingIds.size > 0
       ? { postStopBindingIds: [...graph.postStopBindingIds] }
-      : {})
+      : {}),
+    ...(collectionValues?.length ? { collectionValues } : {})
   };
 };

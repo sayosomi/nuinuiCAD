@@ -11,6 +11,10 @@ use super::geometry_builtin_runtime::resolve_geometry_builtin_target;
 use super::mutation_payload::{
     InitialState, ValidatedBindingVersion, ValidatedBindingVersionKind, ValidatedBindingVersions,
 };
+use super::program_payload::{
+    ValidatedScalarProgramCollectionMember, ValidatedScalarProgramCollectionValue,
+};
+use super::scalar_payload::scalar_value_matches_type;
 use super::types::{BindingId, ScalarEvaluation, ScalarType};
 use crate::evaluation::geometry_value_runtime::{
     evaluate_geometry_value_entry, GeometryValueProgramEntry,
@@ -22,6 +26,7 @@ use std::collections::{HashMap, HashSet};
 pub(crate) use for_group_scheduler::ForGroupMutationStatement;
 
 const VERSION_UNAVAILABLE: &str = "evaluation-binding-version-unavailable";
+const RUNTIME_VALUE_TYPE_MISMATCH: &str = "evaluation-runtime-value-type-mismatch";
 
 struct ScopeFrame {
     scope_id: String,
@@ -335,6 +340,107 @@ impl<'a> ScalarMutationResolver<'a> {
                 context: None,
             })
     }
+
+    fn resolve_collection_index(
+        &self,
+        collection_value_id: &str,
+        index: f64,
+        element_type: &ScalarType,
+        collection_length: Option<f64>,
+        _target_source_order: f64,
+        state: &EvaluationState,
+    ) -> ScalarEvaluation {
+        if !index.is_finite()
+            || index.fract() != 0.0
+            || index < 0.0
+            || collection_length.is_some_and(|length| index >= length)
+        {
+            return ScalarEvaluation::Error {
+                r#type: element_type.clone(),
+                issue_code: "evaluation-collection-index-invalid".to_owned(),
+                binding_id: None,
+                context: None,
+            };
+        }
+        let mut current = collection_value_id;
+        let mut seen = HashSet::new();
+        let member = loop {
+            if !seen.insert(current.to_owned()) {
+                return ScalarEvaluation::Error {
+                    r#type: element_type.clone(),
+                    issue_code: "evaluation-collection-index-unavailable".to_owned(),
+                    binding_id: None,
+                    context: None,
+                };
+            }
+            let Some(value) = self
+                .program
+                .collection_values
+                .iter()
+                .find(|value| value.value_id == current)
+            else {
+                return ScalarEvaluation::Error {
+                    r#type: element_type.clone(),
+                    issue_code: "evaluation-collection-index-unavailable".to_owned(),
+                    binding_id: None,
+                    context: None,
+                };
+            };
+            match &value.value {
+                ValidatedScalarProgramCollectionValue::Alias(target) => current = target,
+                ValidatedScalarProgramCollectionValue::Literal(members) => {
+                    break members.get(index as usize)
+                }
+            }
+        };
+        let Some(member) = member else {
+            return ScalarEvaluation::Error {
+                r#type: element_type.clone(),
+                issue_code: "evaluation-collection-index-invalid".to_owned(),
+                binding_id: None,
+                context: None,
+            };
+        };
+        let result = match member {
+            ValidatedScalarProgramCollectionMember::Literal { r#type, value } => {
+                ScalarEvaluation::Ok {
+                    r#type: r#type.clone(),
+                    value: value.clone(),
+                }
+            }
+            ValidatedScalarProgramCollectionMember::Binding { r#type, binding_id } => {
+                if r#type != element_type {
+                    return ScalarEvaluation::Error {
+                        r#type: element_type.clone(),
+                        issue_code: RUNTIME_VALUE_TYPE_MISMATCH.to_owned(),
+                        binding_id: None,
+                        context: None,
+                    };
+                }
+                self.resolve(binding_id, state)
+            }
+        };
+        match result {
+            ScalarEvaluation::Ok {
+                r#type: result_type,
+                value,
+            } if result_type == *element_type
+                && scalar_value_matches_type(&result_type, &value) =>
+            {
+                ScalarEvaluation::Ok {
+                    r#type: result_type,
+                    value,
+                }
+            }
+            ScalarEvaluation::Ok { .. } => ScalarEvaluation::Error {
+                r#type: element_type.clone(),
+                issue_code: RUNTIME_VALUE_TYPE_MISMATCH.to_owned(),
+                binding_id: None,
+                context: None,
+            },
+            error @ ScalarEvaluation::Error { .. } => error,
+        }
+    }
 }
 struct MutationEnvironment<'a, 'b> {
     resolver: &'a ScalarMutationResolver<'a>,
@@ -390,9 +496,54 @@ impl ScalarEvaluationEnvironment for MutationEnvironment<'_, '_> {
     > {
         resolve_geometry_builtin_target(self.state, self.source_order as f64, target)
     }
+
+    fn lookup_collection_index(
+        &self,
+        collection_value_id: &str,
+        index: f64,
+        element_type: &ScalarType,
+        collection_length: Option<f64>,
+        target_source_order: f64,
+    ) -> ScalarEvaluation {
+        if target_source_order >= self.source_order as f64 {
+            return ScalarEvaluation::Error {
+                r#type: element_type.clone(),
+                issue_code: "evaluation-collection-index-unavailable".to_owned(),
+                binding_id: None,
+                context: None,
+            };
+        }
+        self.resolver.resolve_collection_index(
+            collection_value_id,
+            index,
+            element_type,
+            collection_length,
+            target_source_order,
+            self.state,
+        )
+    }
 }
 impl ScalarDocumentBindingResolver for ScalarMutationResolver<'_> {
     fn resolve_binding(&self, binding_id: &str, state: &EvaluationState) -> ScalarEvaluation {
         self.resolve(binding_id, state)
+    }
+
+    fn resolve_collection_index(
+        &self,
+        collection_value_id: &str,
+        index: f64,
+        element_type: &ScalarType,
+        collection_length: Option<f64>,
+        target_source_order: f64,
+        state: &EvaluationState,
+    ) -> ScalarEvaluation {
+        self.resolve_collection_index(
+            collection_value_id,
+            index,
+            element_type,
+            collection_length,
+            target_source_order,
+            state,
+        )
     }
 }

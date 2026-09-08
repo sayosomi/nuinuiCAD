@@ -417,6 +417,40 @@ describe("multi-document module runtime", () => {
     expect(point && result.computedGeometry.get(point.id)).toMatchObject({ kind: "point", x: 13, y: 24 });
   });
 
+  it("uses a typed dynamic geometry-array index across an imported Module boundary", async () => {
+    const library = savedSource("dynamic-array-library", "sha256:dynamic-array-library", [
+      "nui 1",
+      "export module Shift(input: path) {",
+      "  line Shifted = offset(sources: [@input], distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
+      "}"
+    ].join("\n"));
+    const root = rootSource("dynamic-array-root", [
+      "nui 1",
+      "const index: number = 1",
+      "line A = segment(start: (0, 0), end: (10, 0))",
+      "line B = segment(start: (0, 10), end: (10, 10))",
+      "const lines: line[] = [@A, @B]",
+      "const paths: path[] = @lines",
+      "import \"./dynamic-array-library.nui\" as lib",
+      "instance use = lib::Shift(input: @paths[@index])"
+    ].join("\n"));
+    const { compiled } = await compileImported(
+      root,
+      new Map([[`${root.documentId}|./dynamic-array-library.nui`, library]])
+    );
+
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const shifted = compiled.document?.elements.find((element) => element.name === "Shifted");
+    expect(shifted).toBeDefined();
+    expect(shifted && result.computedGeometry.get(shifted.id)).toMatchObject({
+      kind: "offsetLine",
+      start: { x: 0, y: 11 },
+      end: { x: 10, y: 11 }
+    });
+  });
+
   it("lowers imported geometry-array parameters in the defining document", async () => {
     const library = savedSource("array-library", "sha256:array-library", [
       "nui 1",
@@ -621,6 +655,42 @@ describe("multi-document module runtime", () => {
     expect(result.errors).toEqual([]);
     const point = compiled.document.elements.find((element) => element.name === "Result");
     expect(point && result.computedGeometry.get(point.id)).toMatchObject({ kind: "point", x: 10, y: 0 });
+  });
+
+  it("indexes an exported collection through a cross-document Module occurrence", async () => {
+    const library = savedSource("indexed-collection-library", "sha256:indexed-collection-library", [
+      "nui 1",
+      "export module Collection() {",
+      "  export const values: number[] = [3, 8]",
+      "}"
+    ].join("\n"));
+    const root = rootSource("indexed-collection-root", [
+      "nui 1",
+      "import \"./indexed-collection-library.nui\" as lib",
+      "instance use = lib::Collection()",
+      "const result: number = @use::values[1]",
+      "point Result = coordinate(x: @result, y: 0)"
+    ].join("\n"));
+    const compiled = await compileImported(root, new Map([[`${root.documentId}|./indexed-collection-library.nui`, library]]));
+    expect(compiled.graph.valid).toBe(true);
+    expect(compiled.semantics.valid).toBe(true);
+    expect(compiled.compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    if (!compiled.compiled.document || !compiled.compiled.statementMap || compiled.compiled.majorVersion === null) return;
+    const result = evaluateElements(
+      compiled.compiled.document.elements,
+      buildEvaluationOptions({
+        compiledDocument: {
+          ...compiled.compiled,
+          document: compiled.compiled.document,
+          statementMap: compiled.compiled.statementMap,
+          majorVersion: compiled.compiled.majorVersion
+        },
+        evaluationLimitIndex: compiled.compiled.document.evaluationLimitIndex
+      })
+    );
+    expect(result.errors).toEqual([]);
+    const point = compiled.compiled.document.elements.find((element) => element.name === "Result");
+    expect(point && result.computedGeometry.get(point.id)).toMatchObject({ kind: "point", x: 8, y: 0 });
   });
 
   it("resolves imported geometry exports and geometry-property reads", async () => {

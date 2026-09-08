@@ -28,7 +28,7 @@ import type {
 } from "./moduleSemanticTypes";
 import type { BindingAnalysis } from "../scalars/bindingAnalysis";
 import type { BindingId } from "../scalars/bindingCatalog";
-import { isDslGeometryValueType, scalarTypeOfDslValueType } from "./dslValueTypes";
+import { isDslArrayValueType, isDslGeometryValueType, scalarTypeOfDslValueType } from "./dslValueTypes";
 import { geometryPropertiesIn, referencesIn } from "../scalars/typedDependencyGraph";
 import { parsePropertyBindingOccurrenceKey } from "../scalars/propertyBindingCompiler";
 import type { CompiledNumericBinding } from "../scalars/numericBindingCompiler";
@@ -224,7 +224,9 @@ const addTypedOccurrences = (
   const analysis = bindingAnalysis;
   if (!analysis) return;
   for (const binding of analysis.catalog.bindings) {
-    if (binding.kind !== "typed" || !binding.nameSpan || scalarTypeOfDslValueType(binding.declaredType) === null) continue;
+    const isNonGeometryArray = isDslArrayValueType(binding.declaredType) && !isDslGeometryValueType(binding.declaredType.elementType);
+    if (binding.kind !== "typed" || !binding.nameSpan ||
+        (scalarTypeOfDslValueType(binding.declaredType) === null && !isNonGeometryArray)) continue;
     addPhysicalOccurrence(add, compiled, binding.statementIndex, binding.nameSpan, { kind: "typed", bindingId: binding.id }, "declaration");
   }
   const addExpression = (statementIndex: number, expression: TypedScalarExpression) => {
@@ -429,6 +431,38 @@ const addModuleRecordTarget = (
   }
   if (target.kind === "recordParameter") {
     if (nameSpan) addPhysicalOccurrence(add, compiled, statementIndex, nameSpan, moduleParameterIdentity(target), "reference");
+    return;
+  }
+  if (target.kind === "recordCollectionIndex") {
+    const collection = target.collectionTarget;
+    if (collection.kind === "deferredModuleCollectionExport") {
+      addPhysicalOccurrence(add, compiled, statementIndex, collection.instanceSpan, {
+        kind: "module",
+        target: { kind: "moduleInstance", statementId: collection.instanceStatementId }
+      }, "reference");
+      addPhysicalOccurrence(add, compiled, statementIndex, collection.memberSpan, {
+        kind: "module",
+        target: { kind: "moduleSource", statementId: collection.exportedStatementId }
+      }, "reference");
+    } else if (collection.kind === "collectionParameter") {
+      addPhysicalOccurrence(add, compiled, statementIndex, target.nameSpan, semanticIdentityForModuleTarget(compiled, {
+        kind: "moduleParameter",
+        slot: { definitionStatementId: collection.definitionStatementId, parameterIndex: collection.parameterIndex }
+      }), "reference");
+    } else if (collection.kind === "collectionValue") {
+      const declarationIndex = statementIndexForId(compiled, collection.statementId);
+      const binding = declarationIndex === undefined
+        ? undefined
+        : compiled.bindingAnalysis?.catalog.bindings.find((candidate) =>
+            candidate.kind === "typed" && candidate.statementIndex === declarationIndex && !isSyntheticRecordBinding(candidate.id)
+          );
+      addPhysicalOccurrence(add, compiled, statementIndex, target.nameSpan, binding
+        ? { kind: "typed", bindingId: binding.id }
+        : semanticIdentityForModuleTarget(compiled, {
+            kind: "moduleSource",
+            statementId: collection.statementId
+          }), "reference");
+    }
     return;
   }
   addPhysicalOccurrence(add, compiled, statementIndex, target.instanceSpan, {
@@ -767,6 +801,42 @@ const addModuleSemanticPathOccurrences = (compiled: CompiledDslDocument, add: Ad
     }
     addQualifiedPathOccurrences(compiled, add, statementIndex, nameSpan, finalTarget);
   };
+  const addCollectionIndexBase = (statementIndex: number, reference: ModuleScalarExpressionSemantic["references"][number]) => {
+    const target = reference.target;
+    if (!target) return;
+    if (target.kind === "collectionValue") {
+      const declarationIndex = statementIndexForId(compiled, target.statementId);
+      const binding = declarationIndex === undefined
+        ? undefined
+        : compiled.bindingAnalysis?.catalog.bindings.find((candidate) =>
+            candidate.kind === "typed" && candidate.statementIndex === declarationIndex && !isSyntheticRecordBinding(candidate.id)
+          );
+      addPhysicalOccurrence(add, compiled, statementIndex, reference.nameSpan, binding
+        ? { kind: "typed", bindingId: binding.id }
+        : semanticIdentityForModuleTarget(compiled, {
+            kind: "moduleSource",
+            statementId: target.statementId
+          }), "reference");
+      return;
+    }
+    if (target.kind === "collectionParameter") {
+      addPhysicalOccurrence(add, compiled, statementIndex, reference.nameSpan, semanticIdentityForModuleTarget(compiled, {
+        kind: "moduleParameter",
+        slot: { definitionStatementId: target.definitionStatementId, parameterIndex: target.parameterIndex }
+      }), "reference");
+      return;
+    }
+    if (target.kind === "deferredModuleCollectionExport") {
+      addPhysicalOccurrence(add, compiled, statementIndex, target.instanceSpan, {
+        kind: "module",
+        target: { kind: "moduleInstance", statementId: target.instanceStatementId }
+      }, "reference");
+      addPhysicalOccurrence(add, compiled, statementIndex, target.memberSpan, {
+        kind: "module",
+        target: { kind: "moduleSource", statementId: target.exportedStatementId }
+      }, "reference");
+    }
+  };
   for (const [statementId, references] of analysis.rootGeometryReferencesByStatementId) {
     const statementIndex = statementIndexForId(compiled, statementId);
     if (statementIndex === undefined) continue;
@@ -775,6 +845,7 @@ const addModuleSemanticPathOccurrences = (compiled: CompiledDslDocument, add: Ad
   for (const [statementId, site] of analysis.rootScalarExpressionsByStatementId) {
     const statementIndex = statementIndexForId(compiled, statementId);
     if (statementIndex === undefined) continue;
+    for (const reference of site.expression.references) addCollectionIndexBase(statementIndex, reference);
     for (const reference of site.expression.geometryProperties) addGeometry(statementIndex, reference);
   }
   for (const [statementId, site] of analysis.rootParentReferencesByStatementId) {
@@ -790,9 +861,11 @@ const addModuleSemanticPathOccurrences = (compiled: CompiledDslDocument, add: Ad
     for (const body of definition.bodyStatements) {
       for (const reference of body.geometryReferences) addGeometry(body.statementIndex, reference.reference);
       for (const site of body.scalarExpressions) {
+        for (const reference of site.expression.references) addCollectionIndexBase(body.statementIndex, reference);
         for (const reference of site.expression.geometryProperties) addGeometry(body.statementIndex, reference);
       }
       for (const site of body.textTemplateHoles) {
+        for (const reference of site.expression.references) addCollectionIndexBase(body.statementIndex, reference);
         for (const reference of site.expression.geometryProperties) addGeometry(body.statementIndex, reference);
       }
     }
