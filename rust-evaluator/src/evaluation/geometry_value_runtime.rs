@@ -1,5 +1,6 @@
 use serde_json::{json, Value};
 
+use super::bezier_math::approximate_cubic_length;
 use super::geometry_value_kernels::{
     coordinate_geometry_kernel, direct_arc_geometry_kernel, segment_geometry_kernel,
     through_arc_geometry_kernel, StructuralPoint,
@@ -37,6 +38,14 @@ pub(crate) enum GeometryValuePoint {
 }
 
 #[derive(Debug)]
+pub(crate) struct GeometryValueBezierIntermediate {
+    pub(crate) point: Box<GeometryValuePoint>,
+    pub(crate) angle_deg: Box<TypedScalarExpression>,
+    pub(crate) incoming_length: Box<TypedScalarExpression>,
+    pub(crate) outgoing_length: Box<TypedScalarExpression>,
+}
+
+#[derive(Debug)]
 pub(crate) enum GeometryValueConstruction {
     Coordinate {
         x: Box<TypedScalarExpression>,
@@ -59,6 +68,15 @@ pub(crate) enum GeometryValueConstruction {
         point3: Box<GeometryValuePoint>,
         start_angle_deg: Box<TypedScalarExpression>,
         end_angle_deg: Box<TypedScalarExpression>,
+    },
+    Bezier {
+        start: Box<GeometryValuePoint>,
+        end: Box<GeometryValuePoint>,
+        start_angle_deg: Box<TypedScalarExpression>,
+        start_length: Box<TypedScalarExpression>,
+        end_angle_deg: Box<TypedScalarExpression>,
+        end_length: Box<TypedScalarExpression>,
+        intermediates: Vec<GeometryValueBezierIntermediate>,
     },
 }
 
@@ -173,6 +191,19 @@ fn decode_point(value: &Value) -> Result<GeometryValuePoint, String> {
         )),
         kind => Err(format!("unsupported geometry value point kind {kind}")),
     }
+}
+
+fn decode_typed_field(
+    object: &serde_json::Map<String, Value>,
+    name: &str,
+    context: &str,
+) -> Result<TypedScalarExpression, String> {
+    validate_typed_expression_payload(
+        object
+            .get(name)
+            .ok_or_else(|| format!("{context} is missing {name}"))?,
+    )
+    .map_err(|error| format!("{error:?}"))
 }
 
 fn decode_entry(value: &Value) -> Result<GeometryValueProgramEntry, String> {
@@ -326,6 +357,75 @@ fn decode_entry(value: &Value) -> Result<GeometryValueProgramEntry, String> {
                     .map_err(|error| format!("{error:?}"))?,
                 ),
             },
+            "bezier" => {
+                let intermediates = construction_object
+                    .get("intermediates")
+                    .and_then(Value::as_array)
+                    .ok_or_else(|| "geometry value bezier is missing intermediates".to_owned())?
+                    .iter()
+                    .enumerate()
+                    .map(|(index, value)| {
+                        let intermediate = object(value, "geometry value bezier intermediate")?;
+                        Ok(GeometryValueBezierIntermediate {
+                            point: Box::new(decode_point(intermediate.get("point").ok_or_else(
+                                || {
+                                    format!(
+                                    "geometry value bezier intermediate {index} is missing point"
+                                )
+                                },
+                            )?)?),
+                            angle_deg: Box::new(decode_typed_field(
+                                intermediate,
+                                "angleDeg",
+                                "geometry value bezier intermediate",
+                            )?),
+                            incoming_length: Box::new(decode_typed_field(
+                                intermediate,
+                                "incomingLength",
+                                "geometry value bezier intermediate",
+                            )?),
+                            outgoing_length: Box::new(decode_typed_field(
+                                intermediate,
+                                "outgoingLength",
+                                "geometry value bezier intermediate",
+                            )?),
+                        })
+                    })
+                    .collect::<Result<Vec<_>, String>>()?;
+                GeometryValueConstruction::Bezier {
+                    start: Box::new(decode_point(
+                        construction_object
+                            .get("start")
+                            .ok_or_else(|| "geometry value bezier is missing start".to_owned())?,
+                    )?),
+                    end: Box::new(decode_point(
+                        construction_object
+                            .get("end")
+                            .ok_or_else(|| "geometry value bezier is missing end".to_owned())?,
+                    )?),
+                    start_angle_deg: Box::new(decode_typed_field(
+                        construction_object,
+                        "startAngleDeg",
+                        "geometry value bezier",
+                    )?),
+                    start_length: Box::new(decode_typed_field(
+                        construction_object,
+                        "startLength",
+                        "geometry value bezier",
+                    )?),
+                    end_angle_deg: Box::new(decode_typed_field(
+                        construction_object,
+                        "endAngleDeg",
+                        "geometry value bezier",
+                    )?),
+                    end_length: Box::new(decode_typed_field(
+                        construction_object,
+                        "endLength",
+                        "geometry value bezier",
+                    )?),
+                    intermediates,
+                }
+            }
             kind => {
                 return Err(format!(
                     "unsupported geometry value construction kind {kind}"
@@ -400,7 +500,21 @@ fn target_point(
         let geometry = state.computed_geometry_values.get(occurrence)?;
         if let Some(point_key) = target.point_key.as_deref() {
             return match point_key {
-                "start" | "end" => geometry.get(point_key).and_then(|value| {
+                "start" | "end" => {
+                    let value =
+                        if geometry.get("kind").and_then(Value::as_str) == Some("bezierCurve") {
+                            let segments = geometry.get("segments")?.as_array()?;
+                            if point_key == "start" {
+                                segments.first()?.get("start")?
+                            } else {
+                                segments.last()?.get("end")?
+                            }
+                        } else {
+                            geometry.get(point_key)?
+                        };
+                    Some(value)
+                }
+                .and_then(|value| {
                     value
                         .get("x")
                         .and_then(Value::as_f64)
@@ -435,6 +549,91 @@ fn evaluate_point(
         )),
         GeometryValuePoint::Target(target) => target_point(target, state),
     }
+}
+
+fn bezier_handle_point(point: (f64, f64), angle_deg: f64, length: f64) -> (f64, f64) {
+    let angle_rad = angle_deg.to_radians();
+    (
+        point.0 + angle_rad.cos() * length,
+        point.1 + angle_rad.sin() * length,
+    )
+}
+
+fn bezier_json(
+    start: (f64, f64),
+    end: (f64, f64),
+    start_angle_deg: f64,
+    start_length: f64,
+    end_angle_deg: f64,
+    end_length: f64,
+    intermediates: &[(f64, f64, f64, f64, f64)],
+) -> Option<Value> {
+    let anchors = std::iter::once(start)
+        .chain(
+            intermediates
+                .iter()
+                .map(|intermediate| (intermediate.0, intermediate.1)),
+        )
+        .chain(std::iter::once(end))
+        .collect::<Vec<_>>();
+    let outgoing_handles =
+        std::iter::once(bezier_handle_point(start, start_angle_deg, start_length))
+            .chain(intermediates.iter().map(|intermediate| {
+                bezier_handle_point(
+                    (intermediate.0, intermediate.1),
+                    intermediate.2,
+                    intermediate.4,
+                )
+            }))
+            .collect::<Vec<_>>();
+    let incoming_handles = intermediates
+        .iter()
+        .map(|intermediate| {
+            bezier_handle_point(
+                (intermediate.0, intermediate.1),
+                intermediate.2 + 180.0,
+                intermediate.3,
+            )
+        })
+        .chain(std::iter::once(bezier_handle_point(
+            end,
+            end_angle_deg + 180.0,
+            end_length,
+        )))
+        .collect::<Vec<_>>();
+    if anchors
+        .iter()
+        .chain(outgoing_handles.iter())
+        .chain(incoming_handles.iter())
+        .any(|point| !point.0.is_finite() || !point.1.is_finite())
+    {
+        return None;
+    }
+    let segments = anchors
+        .windows(2)
+        .enumerate()
+        .map(|(index, pair)| {
+            json!({
+                "start": { "x": pair[0].0, "y": pair[0].1 },
+                "control1": { "x": outgoing_handles[index].0, "y": outgoing_handles[index].1 },
+                "control2": { "x": incoming_handles[index].0, "y": incoming_handles[index].1 },
+                "end": { "x": pair[1].0, "y": pair[1].1 }
+            })
+        })
+        .collect::<Vec<_>>();
+    let length = segments
+        .iter()
+        .map(|segment| approximate_cubic_length(segment, 32))
+        .collect::<Option<Vec<_>>>()?
+        .into_iter()
+        .sum::<f64>();
+    length.is_finite().then(|| {
+        json!({
+            "kind": "bezierCurve",
+            "segments": segments,
+            "length": length
+        })
+    })
 }
 
 pub(crate) fn evaluate_geometry_value_entry(
@@ -607,6 +806,122 @@ pub(crate) fn evaluate_geometry_value_entry(
                 }
                 _ => None,
             }
+        }
+        GeometryValueConstruction::Bezier {
+            start,
+            end,
+            start_angle_deg,
+            start_length,
+            end_angle_deg,
+            end_length,
+            intermediates,
+        } => {
+            if entry.declared_interface_type != "path" {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "Geometry value construction is incompatible with its declared interface type.",
+                );
+                return;
+            }
+            let start = evaluate_point(start, resolver, state, source_order);
+            let end = evaluate_point(end, resolver, state, source_order);
+            let start_angle_deg = number_expression(start_angle_deg, resolver, state, source_order);
+            let start_length = number_expression(start_length, resolver, state, source_order);
+            let end_angle_deg = number_expression(end_angle_deg, resolver, state, source_order);
+            let end_length = number_expression(end_length, resolver, state, source_order);
+            let intermediates = intermediates
+                .iter()
+                .map(|intermediate| {
+                    evaluate_point(&intermediate.point, resolver, state, source_order)
+                        .zip(number_expression(
+                            &intermediate.angle_deg,
+                            resolver,
+                            state,
+                            source_order,
+                        ))
+                        .zip(number_expression(
+                            &intermediate.incoming_length,
+                            resolver,
+                            state,
+                            source_order,
+                        ))
+                        .zip(number_expression(
+                            &intermediate.outgoing_length,
+                            resolver,
+                            state,
+                            source_order,
+                        ))
+                        .map(|(((point, angle_deg), incoming_length), outgoing_length)| {
+                            (
+                                point.0,
+                                point.1,
+                                angle_deg,
+                                incoming_length,
+                                outgoing_length,
+                            )
+                        })
+                })
+                .collect::<Option<Vec<_>>>();
+            let Some((
+                start,
+                end,
+                start_angle_deg,
+                start_length,
+                end_angle_deg,
+                end_length,
+                intermediates,
+            )) = start
+                .zip(end)
+                .zip(start_angle_deg)
+                .zip(start_length)
+                .zip(end_angle_deg)
+                .zip(end_length)
+                .zip(intermediates)
+                .map(
+                    |(
+                        (
+                            ((((start, end), start_angle_deg), start_length), end_angle_deg),
+                            end_length,
+                        ),
+                        intermediates,
+                    )| {
+                        (
+                            start,
+                            end,
+                            start_angle_deg,
+                            start_length,
+                            end_angle_deg,
+                            end_length,
+                            intermediates,
+                        )
+                    },
+                )
+            else {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "Bezier geometry value construction inputs are unavailable or invalid.",
+                );
+                return;
+            };
+            let Some(value) = bezier_json(
+                start,
+                end,
+                start_angle_deg,
+                start_length,
+                end_angle_deg,
+                end_length,
+                &intermediates,
+            ) else {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "Bezier geometry value construction inputs are unavailable or invalid.",
+                );
+                return;
+            };
+            Some(value)
         }
     };
     if let Some(value) = value {

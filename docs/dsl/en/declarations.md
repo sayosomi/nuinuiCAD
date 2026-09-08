@@ -40,8 +40,12 @@ counterclockwise sweep. Duplicate or collinear points fail at runtime through
 the occurrence-owned geometry-value diagnostic channel. Direct arc values
 continue to expose the common path geometry surface and preserve their
 evaluated center, endpoints, radius, directed sweep, and length without a
-drawable identity. Pure `bezier`, `offset`, `corner`, `polyline`, and other
-deferred constructions remain unsupported as pure value initializers.
+drawable identity. Pure `bezier(...)` is also a `path` initializer with the
+drawable constructor's `start`, `end`, endpoint handle, and optional
+intermediate-point arguments. It produces identity-free cubic segments and
+remains consumable by existing path-compatible readers. Pure `offset`,
+`corner`, `polyline`, and other deferred constructions remain unsupported as
+pure value initializers.
 
 `set` does not create a geometry element or a new binding. Its target must be a
 mutable scalar in scope, and its right-hand side is checked against that

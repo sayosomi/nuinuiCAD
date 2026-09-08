@@ -1,9 +1,10 @@
-import type { ComputedBezierCurve, ComputedGeometry, ComputedGeometryValue } from "../types/geometry";
+import type { ComputedGeometry, ComputedGeometryValue } from "../types/geometry";
+import type { BezierLikeSegment } from "./bezierMath";
 import type { Point, SourceSegment } from "./offsetPathTypes";
 import { unitTangentAt } from "./offsetBezier";
 import { EPSILON, arcPoint, degreesToRadians, lineLength } from "./offsetPathMath";
 
-const bezierSourceSegments = (curve: ComputedBezierCurve): SourceSegment[] =>
+const bezierSourceSegments = (curve: { segments: readonly BezierLikeSegment[] }): SourceSegment[] =>
   curve.segments.map((segment) => ({
     kind: "bezier" as const,
     start: segment.start,

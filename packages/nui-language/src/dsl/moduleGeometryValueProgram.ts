@@ -50,6 +50,21 @@ export type GeometryValueProgramConstruction =
       point3: GeometryValueProgramPoint;
       startAngleDeg: TypedScalarExpression;
       endAngleDeg: TypedScalarExpression;
+    }
+  | {
+      kind: "bezier";
+      start: GeometryValueProgramPoint;
+      end: GeometryValueProgramPoint;
+      startAngleDeg: TypedScalarExpression;
+      startLength: TypedScalarExpression;
+      endAngleDeg: TypedScalarExpression;
+      endLength: TypedScalarExpression;
+      intermediates: readonly {
+        point: GeometryValueProgramPoint;
+        angleDeg: TypedScalarExpression;
+        incomingLength: TypedScalarExpression;
+        outgoingLength: TypedScalarExpression;
+      }[];
     };
 
 /** Host-neutral, already-resolved immutable geometry value execution entry.
@@ -168,7 +183,8 @@ export const buildRootGeometryValueProgram = ({
               ? { kind: "arc" as const, center, radius, startAngleDeg, endAngleDeg, direction }
               : null;
             })()
-          : (() => {
+          : value.construction.kind === "through"
+            ? (() => {
               const point1 = pointForReference(value.construction.point1);
               const point2 = pointForReference(value.construction.point2);
               const point3 = pointForReference(value.construction.point3);
@@ -177,7 +193,27 @@ export const buildRootGeometryValueProgram = ({
               return point1 && point2 && point3 && startAngleDeg && endAngleDeg
                 ? { kind: "through" as const, point1, point2, point3, startAngleDeg, endAngleDeg }
                 : null;
-            })();
+            })()
+            : (() => {
+                const start = pointForReference(value.construction.start);
+                const end = pointForReference(value.construction.end);
+                const startAngleDeg = literalScalarExpression(value.construction.startAngle);
+                const startLength = literalScalarExpression(value.construction.startLength);
+                const endAngleDeg = literalScalarExpression(value.construction.endAngle);
+                const endLength = literalScalarExpression(value.construction.endLength);
+                const intermediates = value.construction.intermediates.flatMap((intermediate) => {
+                  const point = pointForReference(intermediate.point);
+                  const angleDeg = literalScalarExpression(intermediate.angle);
+                  const incomingLength = literalScalarExpression(intermediate.incomingLength);
+                  const outgoingLength = literalScalarExpression(intermediate.outgoingLength);
+                  return point && angleDeg && incomingLength && outgoingLength
+                    ? [{ point, angleDeg, incomingLength, outgoingLength }]
+                    : [];
+                });
+                return start && end && startAngleDeg && startLength && endAngleDeg && endLength && intermediates.length === value.construction.intermediates.length
+                  ? { kind: "bezier" as const, start, end, startAngleDeg, startLength, endAngleDeg, endLength, intermediates }
+                  : null;
+              })();
     return construction
       ? [{
           sourceStatementId: value.statementId,

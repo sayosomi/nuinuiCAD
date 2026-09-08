@@ -383,6 +383,14 @@ export type ModuleGeometryReferenceSemantic = {
   resolution: "resolved" | "undefined" | "forward" | "outerCapture" | "invalid" | "deferred";
 };
 
+export type ModuleGeometryBezierIntermediateSemantic = {
+  span: DslSpan;
+  point: ModuleGeometryReferenceSemantic;
+  angle: ModuleScalarExpressionSemantic | null;
+  incomingLength: ModuleScalarExpressionSemantic | null;
+  outgoingLength: ModuleScalarExpressionSemantic | null;
+};
+
 export type ModuleGeometryConstructionSemantic =
   | {
       kind: "coordinate";
@@ -413,6 +421,17 @@ export type ModuleGeometryConstructionSemantic =
       point3: ModuleGeometryReferenceSemantic;
       start: ModuleScalarExpressionSemantic | null;
       end: ModuleScalarExpressionSemantic | null;
+    }
+  | {
+      kind: "bezier";
+      span: DslSpan;
+      start: ModuleGeometryReferenceSemantic;
+      end: ModuleGeometryReferenceSemantic;
+      startAngle: ModuleScalarExpressionSemantic | null;
+      startLength: ModuleScalarExpressionSemantic | null;
+      endAngle: ModuleScalarExpressionSemantic | null;
+      endLength: ModuleScalarExpressionSemantic | null;
+      intermediates: readonly ModuleGeometryBezierIntermediateSemantic[];
     };
 
 export type ModuleGeometryValueSemantic = {

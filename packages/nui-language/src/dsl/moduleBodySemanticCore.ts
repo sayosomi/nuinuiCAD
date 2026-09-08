@@ -490,6 +490,19 @@ export const analyzeModuleBody = ({
           addGeometry(bodySemantic, "construction:point3", construction.point3.span, construction.point3);
           if (construction.start) addScalar(bodySemantic, "construction:start", construction.start.ast.span, construction.start);
           if (construction.end) addScalar(bodySemantic, "construction:end", construction.end.ast.span, construction.end);
+        } else if (construction?.kind === "bezier") {
+          addGeometry(bodySemantic, "construction:start", construction.start.span, construction.start);
+          addGeometry(bodySemantic, "construction:end", construction.end.span, construction.end);
+          if (construction.startAngle) addScalar(bodySemantic, "construction:startAngle", construction.startAngle.ast.span, construction.startAngle);
+          if (construction.startLength) addScalar(bodySemantic, "construction:startLength", construction.startLength.ast.span, construction.startLength);
+          if (construction.endAngle) addScalar(bodySemantic, "construction:endAngle", construction.endAngle.ast.span, construction.endAngle);
+          if (construction.endLength) addScalar(bodySemantic, "construction:endLength", construction.endLength.ast.span, construction.endLength);
+          construction.intermediates.forEach((intermediate, index) => {
+            addGeometry(bodySemantic, `construction:intermediates:${index}:point`, intermediate.point.span, intermediate.point);
+            if (intermediate.angle) addScalar(bodySemantic, `construction:intermediates:${index}:angle`, intermediate.angle.ast.span, intermediate.angle);
+            if (intermediate.incomingLength) addScalar(bodySemantic, `construction:intermediates:${index}:incomingLength`, intermediate.incomingLength.ast.span, intermediate.incomingLength);
+            if (intermediate.outgoingLength) addScalar(bodySemantic, `construction:intermediates:${index}:outgoingLength`, intermediate.outgoingLength.ast.span, intermediate.outgoingLength);
+          });
         }
         const value: ModuleGeometryValueSemantic = {
           statementId,

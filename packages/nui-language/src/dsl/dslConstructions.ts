@@ -207,6 +207,7 @@ const constructionSpecs: DslConstructionSpec[] = [
     category: "curve",
     construction: "bezier",
     elementType: "bezierCurve",
+    pureValueInterface: "path",
     args: [
       required("start", "startPoint"),
       required("end", "endPoint"),

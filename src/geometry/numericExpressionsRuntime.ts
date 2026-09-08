@@ -1,6 +1,5 @@
 import type {
   CadElement,
-  ComputedBezierSegment,
   ComputedGeometry,
   ComputedGeometryValue,
   ComputedLine,
@@ -10,6 +9,7 @@ import type {
   NumericValue,
   PointAnchor
 } from "../types/geometry";
+import type { BezierLikeSegment } from "./bezierMath";
 import { resolveDerivedPoint } from "../model/pointAnchorsRuntime";
 import { getParameterValue } from "../../packages/nui-language/src/parameters/parameterAccess";
 import { Parser, tokenize } from "../../packages/nui-language/src/geometry/numericExpressionParser";
@@ -79,12 +79,12 @@ const finitePointDistance = (from: { x: number; y: number }, to: { x: number; y:
 const reverseDirection = (angle: number | undefined) =>
   angle === undefined ? undefined : normalizeDirectionDegrees(angle + 180);
 
-const bezierStartForwardDirection = (segment: ComputedBezierSegment | Extract<ComputedOffsetLineSegment, { kind: "bezier" }>) =>
+const bezierStartForwardDirection = (segment: BezierLikeSegment | Extract<ComputedOffsetLineSegment, { kind: "bezier" }>) =>
   directionAngle(segment.start, segment.control1) ??
   directionAngle(segment.start, segment.control2) ??
   directionAngle(segment.start, segment.end);
 
-const bezierEndForwardDirection = (segment: ComputedBezierSegment | Extract<ComputedOffsetLineSegment, { kind: "bezier" }>) =>
+const bezierEndForwardDirection = (segment: BezierLikeSegment | Extract<ComputedOffsetLineSegment, { kind: "bezier" }>) =>
   directionAngle(segment.control2, segment.end) ??
   directionAngle(segment.control1, segment.end) ??
   directionAngle(segment.start, segment.end);

@@ -58,8 +58,9 @@ channel. A strict `line` is also assignable to `path`. These values are
 source-level values, not drawable elements or scalar runtime values. The
 declared type remains the public type through alias chains: `point` accepts
 only `point`, `line` accepts only `line`, and `path` accepts `line` or `path`.
-Single-geometry values are `const`-only. Pure `bezier`, `offset`, `corner`,
-`polyline`, and other deferred constructions remain unsupported.
+Single-geometry values are `const`-only. Pure `bezier(...)` is a supported
+`path` initializer and stores identity-free cubic segments. Pure `offset`,
+`corner`, `polyline`, and other deferred constructions remain unsupported.
 
 ## One-dimensional arrays
 

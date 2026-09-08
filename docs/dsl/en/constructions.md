@@ -723,7 +723,10 @@ when both handles are zero.
 
 **Notes:** Bezier geometry is broad `path` geometry. It can be consumed by
 `path[]` operations and by the Bezier-specific point constructions when the
-computed result remains a Bezier.
+computed result remains a Bezier. The same argument contract is available in
+an immutable typed `path` declaration such as
+`const outline: path = bezier(start: (0, 0), end: (10, 0))`; that form stores
+identity-free computed cubic segments and does not create a drawable element.
 
 ### `arc`
 

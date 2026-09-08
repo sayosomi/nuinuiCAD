@@ -31,7 +31,7 @@ import {
 import { moduleCallEdges, moduleRecursionCycles } from "./moduleCallGraph";
 import { analyzeModuleBody } from "./moduleBodySemantic";
 import { parseDslReferenceToken, parseDslSourceReference } from "./dslReferenceTokens";
-import { coordinateComponent } from "./dslParameterSpanScanner";
+import { coordinateComponent, recordField, recordSpans } from "./dslParameterSpanScanner";
 import { parseScalarExpression } from "../scalars/expressionParser";
 import { parseDslConstructionInvocation } from "./dslCallParser";
 import { splitDslList } from "./dslTokens";
@@ -2174,17 +2174,22 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     const radiusArgument = argument("radius");
     const startArgument = argument("start");
     const endArgument = argument("end");
+    const startAngleArgument = argument("startAngle");
+    const startLengthArgument = argument("startLength");
+    const endAngleArgument = argument("endAngle");
+    const endLengthArgument = argument("endLength");
     const directionArgument = argument("direction");
-    const scalar = (
-      candidate: typeof xArgument,
+    const intermediatesArgument = argument("intermediates");
+    const scalarForSpan = (
+      valueSpan: DslSpan | null | undefined,
       expectedType: ScalarType | null,
       defaultValue: string
-    ) => candidate
+    ) => valueSpan
       ? analyzeExpression(
           statementIndex,
           ownerIndex,
-          source.slice(candidate.valueSpan.start, candidate.valueSpan.end),
-          candidate.valueSpan,
+          source.slice(valueSpan.start, valueSpan.end),
+          valueSpan,
           expectedType,
           options.scalarResolver ?? ((reference, presenceFacts) => resolveSourceScalar(statementIndex, ownerIndex, reference.name, ownerIndex, reference.span, presenceFacts)),
           options.bareScalarResolver,
@@ -2206,6 +2211,11 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           undefined,
           options.presenceFacts
         );
+    const scalar = (
+      candidate: typeof xArgument,
+      expectedType: ScalarType | null,
+      defaultValue: string
+    ) => scalarForSpan(candidate?.valueSpan, expectedType, defaultValue);
     if (invocation.pureValueInterface === "point") {
       if (expectedInterfaceType !== "point") {
         addLocal(statementIndex, issue("module-geometry-type-mismatch", constructionSpan, "coordinate construction は point value にのみ代入できます。", {
@@ -2306,8 +2316,54 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
             geometryPropertyResolver: options.geometryPropertyResolver,
             presenceFacts: options.presenceFacts
           }
-        )
+      )
       : geometryReference("", constructionSpan, "point", null, "invalid", null, "lineEndpointReference");
+    if (invocation.construction === "bezier" && invocation.pureValueInterface === "path") {
+      if (expectedInterfaceType !== "path") {
+        addLocal(statementIndex, issue("module-geometry-type-mismatch", constructionSpan, "bezier construction は path value にのみ代入できます。", {
+          presentation: { key: "diagnostic.module-geometry-type-mismatch", parameters: { target: "bezier" } }
+        }));
+      }
+      const intermediates = recordSpans(source, intermediatesArgument?.valueSpan ?? { start: 0, end: 0 })?.map((record) => {
+        const pointSpan = recordField(source, record, 0);
+        const point = pointSpan
+          ? resolveGeometry(
+              statementIndex,
+              ownerIndex,
+              source.slice(pointSpan.start, pointSpan.end),
+              pointSpan,
+              "point",
+              {
+                expectedInterfaceType: "point",
+                allowCoordinate: true,
+                role: "pointReference",
+                scalarResolver: options.scalarResolver,
+                bareScalarResolver: options.bareScalarResolver,
+                geometryPropertyResolver: options.geometryPropertyResolver,
+                presenceFacts: options.presenceFacts
+              }
+            )
+          : geometryReference("", record, "point", null, "invalid", null, "pointReference");
+        return {
+          span: record,
+          point,
+          angle: scalarForSpan(recordField(source, record, 1), { kind: "number" }, "0"),
+          incomingLength: scalarForSpan(recordField(source, record, 2), { kind: "number" }, "30"),
+          outgoingLength: scalarForSpan(recordField(source, record, 3), { kind: "number" }, "30")
+        };
+      }) ?? [];
+      return {
+        kind: "bezier",
+        span: { start: constructionSpan.start, end: initializerSpan.end },
+        start: endpoint(startArgument),
+        end: endpoint(endArgument),
+        startAngle: scalar(startAngleArgument, { kind: "number" }, "0"),
+        startLength: scalar(startLengthArgument, { kind: "number" }, "30"),
+        endAngle: scalar(endAngleArgument, { kind: "number" }, "0"),
+        endLength: scalar(endLengthArgument, { kind: "number" }, "30"),
+        intermediates
+      };
+    }
     return { kind: "segment", span: { start: constructionSpan.start, end: initializerSpan.end }, start: endpoint(startArgument), end: endpoint(endArgument) };
   };
 
@@ -3036,6 +3092,16 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         { parameterKey: "point1", span: construction.point1.span, reference: construction.point1 },
         { parameterKey: "point2", span: construction.point2.span, reference: construction.point2 },
         { parameterKey: "point3", span: construction.point3.span, reference: construction.point3 }
+      ]);
+    } else if (construction?.kind === "bezier") {
+      rootGeometryReferencesByStatementId.set(statementId, [
+        { parameterKey: "start", span: construction.start.span, reference: construction.start },
+        { parameterKey: "end", span: construction.end.span, reference: construction.end },
+        ...construction.intermediates.map((intermediate, index) => ({
+          parameterKey: `intermediates:${index}:point`,
+          span: intermediate.point.span,
+          reference: intermediate.point
+        }))
       ]);
     }
   }
