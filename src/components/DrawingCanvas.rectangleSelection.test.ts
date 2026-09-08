@@ -396,15 +396,30 @@ describe("DrawingCanvas rectangle selection", () => {
     expect(container.querySelector("[data-canvas-rectangle-selection]")).toBeNull();
   });
 
-  it("keeps ordinary geometry-origin interaction as click selection", () => {
+  it.each([
+    ["no modifier", {}, "replace"],
+    ["Shift", { shiftKey: true }, "add"],
+    ["Meta", { metaKey: true }, "toggle"],
+    ["Ctrl", { ctrlKey: true }, "toggle"]
+  ] as const)("routes ordinary geometry-origin %s to %s selection", (_label, modifiers, expectedMode) => {
     const commitCanvasRectangleSelection = vi.fn();
     const selectElement = vi.fn();
     const { viewport } = renderCanvas({ commitCanvasRectangleSelection, selectElement });
 
-    fireEvent.pointerDown(viewport, { button: 0, buttons: 1, ...pointer(200, 160), pointerId: 12 });
-    fireEvent.pointerUp(viewport, { buttons: 0, ...pointer(200, 160), pointerId: 12 });
+    fireEvent.pointerDown(viewport, {
+      button: 0,
+      buttons: 1,
+      ...pointer(200, 160),
+      ...modifiers,
+      pointerId: 12
+    });
+    fireEvent.pointerUp(viewport, {
+      buttons: 0,
+      ...pointer(200, 160),
+      pointerId: 12
+    });
 
-    expect(selectElement).toHaveBeenCalledWith("window-line", "replace");
+    expect(selectElement).toHaveBeenCalledWith("window-line", expectedMode);
     expect(commitCanvasRectangleSelection).not.toHaveBeenCalled();
   });
 

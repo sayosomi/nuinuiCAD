@@ -875,7 +875,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     intent.modifiers.metaKey || intent.modifiers.ctrlKey
       ? "toggle" as const
       : intent.modifiers.shiftKey
-        ? "range" as const
+        ? "add" as const
         : "replace" as const;
 
   const clearHoveredElement = useCallback(() => {
