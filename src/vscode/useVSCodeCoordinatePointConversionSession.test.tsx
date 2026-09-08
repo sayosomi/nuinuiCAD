@@ -112,7 +112,7 @@ describe("useVSCodeCoordinatePointConversionSession", () => {
       postCanvasCommit
     }));
 
-    dispatch({ ...request, targetIds: [goodId, badId] });
+    dispatch({ ...request, targetIds: [goodId, badId], canvasBasePick: true });
     expect(hook.result.current.session).not.toBeNull();
     expect(useCadUiStore.getState().activePointPickTarget).toMatchObject({
       elementId: "__coordinate-point-conversion__",

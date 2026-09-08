@@ -53,6 +53,7 @@ import { NumericVariableSuggestPopover } from "../components/NumericVariableSugg
 import { commandLineEditingInputValue, commandLineStepLabel, completedCommandLineSteps } from "../components/commandLineProgress";
 import { commandLineStepHelp, isCommandLineReferenceStep } from "../components/commandLineBarHelpers";
 import { isImeComposingKeyEvent } from "../components/keyboardEventGuards";
+import { matchingPickModeSessionForTargets } from "../model/pickModeSession";
 import {
   isCommandLineInputComposing,
   setCommandLineInputComposing
@@ -113,6 +114,14 @@ export const VSCodeCreationAssistOverlay = ({
   const activePointPickTarget = useCadUiStore((state) => state.activePointPickTarget);
   const activeNumericReferencePickTarget = useCadUiStore((state) => state.activeNumericReferencePickTarget);
   const activeLinePickTarget = useCadUiStore((state) => state.activeLinePickTarget);
+  const isPickModeActive = useCadUiStore((state) => Boolean(matchingPickModeSessionForTargets(
+    state.activePickModeSession,
+    {
+      point: state.activePointPickTarget,
+      numericReference: state.activeNumericReferencePickTarget,
+      line: state.activeLinePickTarget
+    }
+  )));
   const lineListDraftSignature = activeLinePickTarget?.draftLineIds?.join("\0") ?? "";
   const pointListDraftSignature = activePointPickTarget?.draftPointAnchors
     ? JSON.stringify(activePointPickTarget.draftPointAnchors)
@@ -445,9 +454,7 @@ export const VSCodeCreationAssistOverlay = ({
           event.stopImmediatePropagation();
           return;
         }
-        const canvasOwnsPickEscape = target === viewport && (
-          activePointPickTarget || activeNumericReferencePickTarget || activeLinePickTarget
-        );
+        const canvasOwnsPickEscape = target === viewport && isPickModeActive;
         if (canvasOwnsPickEscape) return;
         event.preventDefault();
         event.stopImmediatePropagation();
@@ -457,9 +464,8 @@ export const VSCodeCreationAssistOverlay = ({
       }
       if (!active) return;
 
-      const canvasOwnsPick = target === viewport && (
-        activePointPickTarget || activeNumericReferencePickTarget || activeLinePickTarget
-      ) && !(event.key === "Enter" && event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey);
+      const canvasOwnsPick = target === viewport && isPickModeActive &&
+        !(event.key === "Enter" && event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey);
       if (canvasOwnsPick) return;
 
       if (isModifierEnter(event) && (target === viewport || inDock || isTextEntryTarget(target))) {
@@ -488,7 +494,11 @@ export const VSCodeCreationAssistOverlay = ({
       }
       if (event.key === "Enter" && target === viewport) {
         const state = useCadUiStore.getState();
-        if (state.activePointPickTarget || state.activeNumericReferencePickTarget || state.activeLinePickTarget) return;
+        if (matchingPickModeSessionForTargets(state.activePickModeSession, {
+          point: state.activePointPickTarget,
+          numericReference: state.activeNumericReferencePickTarget,
+          line: state.activeLinePickTarget
+        })) return;
         event.preventDefault();
         event.stopImmediatePropagation();
         if (currentStep(state.commandLineSession)) skipCommandLineStep(completionCommandContext);
@@ -498,7 +508,7 @@ export const VSCodeCreationAssistOverlay = ({
 
     window.addEventListener("keydown", handleWindowKeyDown, true);
     return () => window.removeEventListener("keydown", handleWindowKeyDown, true);
-  }, [activeLinePickTarget, activeNumericReferencePickTarget, activePointPickTarget, canvasFocusRef, cancelWithRestart, closeSuggestionPopup, completionCommandContext, confirmAndPersist, dismissRestart, isCanvasOriginSession, restartRecipe, session, step?.kind]);
+  }, [activeLinePickTarget, activeNumericReferencePickTarget, activePointPickTarget, canvasFocusRef, cancelWithRestart, closeSuggestionPopup, completionCommandContext, confirmAndPersist, dismissRestart, isCanvasOriginSession, isPickModeActive, restartRecipe, session, step?.kind]);
 
   useEffect(() => {
     if (!isCanvasOriginSession) return;

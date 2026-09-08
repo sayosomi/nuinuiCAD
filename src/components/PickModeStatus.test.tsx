@@ -4,6 +4,7 @@ import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocume
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import type { CadElement } from "../types/geometry";
 import { PickModeStatus } from "./PickModeStatus";
+import { pickModeSessionForTarget } from "../model/pickModeSession";
 
 const line = (id: string, name: string): CadElement => ({
   id,
@@ -20,6 +21,19 @@ describe("PickModeStatus", () => {
     useCadUiStore.setState(initialCadUiState());
   });
 
+  it("stays hidden when a semantic target is only pick-capable", () => {
+    const activeLinePickTarget = {
+      elementId: "offset",
+      parameterKey: "baseLineIds",
+      draftLineIds: []
+    };
+    useCadUiStore.setState({ activeLinePickTarget });
+
+    render(<PickModeStatus />);
+
+    expect(screen.queryByText("PICK MODE")).not.toBeInTheDocument();
+  });
+
   it("shows the first four draft line names and the remaining count", () => {
     const lines = Array.from({ length: 5 }, (_, index) => line(`line-${index + 1}`, `線${index + 1}`));
     const target: CadElement = {
@@ -33,12 +47,14 @@ describe("PickModeStatus", () => {
       closed: false
     };
     useCadDocumentStore.setState({ elements: [...lines, target] });
-    useCadUiStore.setState({
-      activeLinePickTarget: {
+    const activeLinePickTarget = {
         elementId: target.id,
         parameterKey: "baseLineIds",
         draftLineIds: lines.map((item) => item.id)
-      }
+    };
+    useCadUiStore.setState({
+      activeLinePickTarget,
+      activePickModeSession: pickModeSessionForTarget("line", activeLinePickTarget)
     });
 
     render(<PickModeStatus />);

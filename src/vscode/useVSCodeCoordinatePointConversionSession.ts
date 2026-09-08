@@ -25,6 +25,7 @@ import {
   coordinatePointConversionPickTarget,
   isCoordinatePointConversionPickTarget
 } from "./coordinatePointConversionPick";
+import { pickModeSessionForTarget } from "../model/pickModeSession";
 
 export type VscodeCoordinatePointConversionCurrentContext = {
   document: CanonicalDocumentValue;
@@ -165,23 +166,33 @@ export const useVSCodeCoordinatePointConversionSession = ({
   }, [currentAuthorityFor, currentContextFor, replaceSession, session, tryStart]);
 
   useEffect(() => {
-    if (session) {
-      useCadUiStore.getState().setActivePointPickTarget(coordinatePointConversionPickTarget());
+    if (session && canvasBasePickRef.current) {
+      const activePointPickTarget = coordinatePointConversionPickTarget();
       useCadUiStore.setState({
+        activePointPickTarget,
         activeNumericReferencePickTarget: null,
         activeLinePickTarget: null,
+        activePickModeSession: pickModeSessionForTarget("point", activePointPickTarget),
         activePickCursor: null
       });
     } else {
       const ui = useCadUiStore.getState();
       if (isCoordinatePointConversionPickTarget(ui.activePointPickTarget)) {
-        useCadUiStore.setState({ activePointPickTarget: null, activePickCursor: null });
+        useCadUiStore.setState({
+          activePointPickTarget: null,
+          activePickModeSession: null,
+          activePickCursor: null
+        });
       }
     }
     return () => {
       const ui = useCadUiStore.getState();
       if (isCoordinatePointConversionPickTarget(ui.activePointPickTarget)) {
-        useCadUiStore.setState({ activePointPickTarget: null, activePickCursor: null });
+        useCadUiStore.setState({
+          activePointPickTarget: null,
+          activePickModeSession: null,
+          activePickCursor: null
+        });
       }
     };
   }, [session]);
@@ -341,7 +352,14 @@ export const useVSCodeCoordinatePointConversionSession = ({
 
   const startPick = useCallback(() => {
     if (!sessionRef.current) return;
-    useCadUiStore.getState().setActivePointPickTarget(coordinatePointConversionPickTarget());
+    const activePointPickTarget = coordinatePointConversionPickTarget();
+    useCadUiStore.setState({
+      activePointPickTarget,
+      activeNumericReferencePickTarget: null,
+      activeLinePickTarget: null,
+      activePickModeSession: pickModeSessionForTarget("point", activePointPickTarget),
+      activePickCursor: null
+    });
   }, []);
 
   return { session, canvasBasePick, setQuery, selectBase, startPick, confirm, cancel };

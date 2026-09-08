@@ -2,6 +2,7 @@ import { dispatchCommand } from "../commands/commands";
 import { findParameterDefinition } from "../parameters/parameterDefinitions";
 import { effectiveElements, useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
+import { matchingPickModeSessionForTargets } from "../model/pickModeSession";
 import { pointAnchorName } from "./commandLineProgress";
 
 export const PickModeStatus = () => {
@@ -9,9 +10,19 @@ export const PickModeStatus = () => {
   const pointTarget = useCadUiStore((state) => state.activePointPickTarget);
   const numericTarget = useCadUiStore((state) => state.activeNumericReferencePickTarget);
   const lineTarget = useCadUiStore((state) => state.activeLinePickTarget);
-  const isCommandLineSession = useCadUiStore((state) => Boolean(state.commandLineSession));
-  const target = pointTarget ?? numericTarget ?? lineTarget;
-  if (!target || isCommandLineSession) return null;
+  const pickModeSession = useCadUiStore((state) => matchingPickModeSessionForTargets(state.activePickModeSession, {
+    point: state.activePointPickTarget,
+    numericReference: state.activeNumericReferencePickTarget,
+    line: state.activeLinePickTarget
+  }));
+  const target = pickModeSession?.kind === "point"
+    ? pointTarget
+    : pickModeSession?.kind === "numeric-reference"
+      ? numericTarget
+      : pickModeSession?.kind === "line"
+        ? lineTarget
+        : null;
+  if (!target) return null;
 
   const element = elements.find((candidate) => candidate.id === target.elementId);
   const definition = element

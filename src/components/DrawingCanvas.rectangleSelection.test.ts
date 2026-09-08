@@ -12,6 +12,7 @@ import { DEFAULT_CANVAS_VIEWPORT } from "../state/useCadStore";
 import type { CadElement } from "../types/geometry";
 import { DrawingCanvas, type DrawingCanvasHandle } from "./DrawingCanvas";
 import type { CanvasHostAdapter } from "./canvasHostAdapter";
+import { pickModeSessionForTarget } from "../model/pickModeSession";
 import { LEGACY_CANVAS_THEME } from "./canvasTheme";
 import { worldToScreen } from "./canvasViewport";
 
@@ -80,6 +81,13 @@ const createHostAdapter = (
 ): CanvasHostAdapter => {
   const elements = overrides.elements ?? rectangleElements;
   const canonicalElements = overrides.canonicalElements ?? elements;
+  const defaultPickModeSession = overrides.activePointPickTarget
+    ? pickModeSessionForTarget("point", overrides.activePointPickTarget)
+    : overrides.activeNumericReferencePickTarget
+      ? pickModeSessionForTarget("numeric-reference", overrides.activeNumericReferencePickTarget)
+      : overrides.activeLinePickTarget
+        ? pickModeSessionForTarget("line", overrides.activeLinePickTarget)
+        : null;
   return {
     elements,
     canonicalElements,
@@ -100,6 +108,7 @@ const createHostAdapter = (
     activePointPickTarget: null,
     activeNumericReferencePickTarget: null,
     activeLinePickTarget: null,
+    activePickModeSession: defaultPickModeSession,
     commandLineSession: null,
     flushSourceEditorOnCanvasPointerDown: vi.fn<CanvasHostAdapter["flushSourceEditorOnCanvasPointerDown"]>(() => "clean"),
     setCommandErrorMessage: vi.fn(),

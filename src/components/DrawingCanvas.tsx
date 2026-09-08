@@ -14,6 +14,7 @@ import { numericGeometryStaticTargetForElementInDocument } from "../geometry/num
 import { pickCandidates, pickSourcePrecedesTarget } from "../model/pickCandidates";
 import { isSemanticGeometryCandidateAllowed } from "../model/moduleSemanticCandidateBoundary";
 import { pickRefForOption, pickRefKey } from "../model/pickReferences";
+import { matchingPickModeSessionForTargets } from "../model/pickModeSession";
 import type { BezierHandleRole as CommandBezierHandleRole } from "../model/elementDragTransforms";
 import type {
   CadElement,
@@ -272,6 +273,21 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     activeLinePickTarget,
     commandLineSession
   } = hostAdapter;
+  const storePickModeSession = useCadUiStore((state) => state.activePickModeSession);
+  const pickModeSession = matchingPickModeSessionForTargets(
+    hostAdapter.activePickModeSession !== undefined
+      ? hostAdapter.activePickModeSession
+      : storePickModeSession,
+    {
+      point: activePointPickTarget,
+      numericReference: activeNumericReferencePickTarget,
+      line: activeLinePickTarget
+    }
+  );
+  const isPointPickActive = pickModeSession?.kind === "point";
+  const isNumericReferencePickActive = pickModeSession?.kind === "numeric-reference";
+  const isLinePickActive = pickModeSession?.kind === "line";
+  const isPickModeActive = Boolean(pickModeSession);
   const renderFixedCanvasChrome = hostAdapter.renderFixedCanvasChrome ?? true;
   const previewElementIds = useMemo(() => {
     const documentElementIds = new Set(documentElements.map((element) => element.id));
@@ -357,7 +373,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     evaluation,
     elements,
     selectedElementId,
-    pointPickCandidates: activePointPickTarget ? pointPickCandidates : [],
+    pointPickCandidates: isPointPickActive ? pointPickCandidates : [],
     excludedInteractionElementIds: previewElementIds,
     viewportSize,
     canvasViewport,
@@ -601,9 +617,9 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
           effectiveDrawingModifierStrokes: evaluation.effectiveDrawingModifierStrokes,
           canvasTheme,
           showCanvasPoints,
-          isPointPickActive: Boolean(activePointPickTarget),
-          isNumericReferencePickActive: Boolean(activeNumericReferencePickTarget),
-          isLinePickActive: Boolean(activeLinePickTarget),
+          isPointPickActive,
+          isNumericReferencePickActive,
+          isLinePickActive,
           onImageAssetSettled: scheduleImageRender
         });
         if (isCurrent) {
@@ -613,9 +629,9 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       }
     );
   }, [
-    activePointPickTarget,
-    activeNumericReferencePickTarget,
-    activeLinePickTarget,
+    isPointPickActive,
+    isNumericReferencePickActive,
+    isLinePickActive,
     arcs,
     canvasViewport,
     compiledDocumentRevision,
@@ -752,7 +768,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
 
   const applyMeasurementCandidate = useCallback((candidate: LineMeasurementCandidate) => {
     const expression = `${candidate.line.elementId}.${candidate.property}`;
-    if (activeNumericReferencePickTarget) {
+    if (isNumericReferencePickActive && activeNumericReferencePickTarget) {
       hostAdapter.applyPickedNumericReference(expression);
     } else {
       if (!measurementCandidateMenu) return;
@@ -763,7 +779,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       });
     }
     setMeasurementCandidateMenu(null);
-  }, [activeNumericReferencePickTarget, hostAdapter, measurementCandidateMenu]);
+  }, [activeNumericReferencePickTarget, hostAdapter, isNumericReferencePickActive, measurementCandidateMenu]);
   const applyLinePickCandidate = useCallback((candidate: LinePickCandidate) => {
     hostAdapter.applyPickedLine({
       pickedLineId: candidate.line.elementId,
@@ -781,6 +797,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
   /** Resolves a drawn overlay line to the id a line pick would apply, || null when
    * the line is not pickable for the active line-pick target. */
   const pickableLineIdForLinePick = useCallback((lineElementId: ElementId) => {
+    if (!isLinePickActive) return null;
     const activeTarget = activeLinePickTarget;
     if (!activeTarget) return null;
     const refKey = pickRefKey(pickRefForOption(lineElementId, {
@@ -789,8 +806,9 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       lineId: lineElementId
     }));
     return sharedLinePickRefKeys.has(refKey) ? lineElementId : null;
-  }, [activeLinePickTarget, sharedLinePickRefKeys]);
+  }, [activeLinePickTarget, isLinePickActive, sharedLinePickRefKeys]);
   const isPickableForNumericReference = useCallback((lineElementId: ElementId) => {
+    if (!isNumericReferencePickActive) return false;
     const activeTarget = activeNumericReferencePickTarget;
     if (!activeTarget) return false;
     if (!isSemanticGeometryCandidateAllowed({
@@ -802,13 +820,13 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       lineElementId !== activeTarget.elementId &&
       pickSourcePrecedesTarget(elements, activeTarget.elementId, lineElementId, activeTarget.insertionIndex)
     );
-  }, [activeNumericReferencePickTarget, elements, moduleSemanticContext]);
+  }, [activeNumericReferencePickTarget, elements, isNumericReferencePickActive, moduleSemanticContext]);
   const pickCandidateLineIds = useMemo(() => {
     const ids = new Set<ElementId>();
-    if (!activeLinePickTarget && !activeNumericReferencePickTarget) return ids;
+    if (!isLinePickActive && !isNumericReferencePickActive) return ids;
     for (const { line } of overlayNumericReferenceCandidates) {
       if (previewElementIds.has(line.elementId)) continue;
-      if (activeNumericReferencePickTarget
+      if (isNumericReferencePickActive && activeNumericReferencePickTarget
         ? isPickableForNumericReference(line.elementId)
         : pickableLineIdForLinePick(line.elementId) !== null) {
         ids.add(line.elementId);
@@ -816,15 +834,16 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     }
     return ids;
   }, [
-    activeLinePickTarget,
     activeNumericReferencePickTarget,
+    isLinePickActive,
+    isNumericReferencePickActive,
     isPickableForNumericReference,
     overlayNumericReferenceCandidates,
     previewElementIds,
     pickableLineIdForLinePick
   ]);
   const linePickCandidatesAt = useCallback((screen: ScreenPoint) => {
-    if (!activeLinePickTarget) return [];
+    if (!isLinePickActive || !activeLinePickTarget) return [];
 
     const uniqueCandidates = new Map<ElementId, LinePickCandidate>();
     for (const candidate of hitTestLineMeasurementCandidates({
@@ -841,9 +860,9 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       });
     }
     return Array.from(uniqueCandidates.values());
-  }, [activeLinePickTarget, overlayNumericReferenceCandidates, pickableLineIdForLinePick, previewElementIds, sharedLineSourceReferences]);
+  }, [activeLinePickTarget, isLinePickActive, overlayNumericReferenceCandidates, pickableLineIdForLinePick, previewElementIds, sharedLineSourceReferences]);
   const numericReferenceCandidatesAt = useCallback((screen: ScreenPoint) => {
-    if (!activeNumericReferencePickTarget) return [];
+    if (!isNumericReferencePickActive || !activeNumericReferencePickTarget) return [];
 
     const uniqueCandidates = new Map<string, LineMeasurementCandidate>();
     for (const line of hitTestLineCandidates({
@@ -862,7 +881,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       }
     }
     return Array.from(uniqueCandidates.values());
-  }, [activeNumericReferencePickTarget, elements, isPickableForNumericReference, overlayNumericReferenceCandidates, previewElementIds]);
+  }, [activeNumericReferencePickTarget, elements, isNumericReferencePickActive, isPickableForNumericReference, overlayNumericReferenceCandidates, previewElementIds]);
 
   const applyPendingPointerTransition = useCallback((transition: PendingCanvasPointerTransition) => {
     pendingPointerStateRef.current = transition.state;
@@ -976,9 +995,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     isBezierHandleDragging ||
     rectangleSelectionSession ||
     pendingPointerState.kind === "waiting" ||
-    activePointPickTarget ||
-    activeNumericReferencePickTarget ||
-    activeLinePickTarget ||
+    isPickModeActive ||
     hasCommandLineGhost ||
     overlapCandidateSession ||
     !evaluationStateIsCurrentFor(evaluationState, compiledDocumentRevision)
@@ -1063,7 +1080,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
   ]);
 
   useEffect(() => {
-    if (overlapCandidateSession && (activePointPickTarget || activeNumericReferencePickTarget || activeLinePickTarget || commandLineSession)) {
+    if (overlapCandidateSession && (isPickModeActive || commandLineSession)) {
       finalizeOverlapSession();
     }
   }, [
@@ -1072,7 +1089,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     activePointPickTarget,
     commandLineSession,
     finalizeOverlapSession,
-    hasCommandLineGhost,
+    isPickModeActive,
     overlapCandidateSession
   ]);
 
@@ -1205,7 +1222,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     const focusCanvas = () => viewport.focus();
     const handle = hitTestBezierHandle(screen, selectedBezierHandles, BEZIER_HANDLE_HIT_RADIUS_PX);
 
-    if (activeLinePickTarget) {
+    if (isLinePickActive && activeLinePickTarget) {
       const candidates = linePickCandidatesAt(screen);
       focusCanvas();
       if (candidates.length === 1) applyLinePickCandidate(candidates[0]);
@@ -1215,7 +1232,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       setPointPickCandidateMenu(null);
       return;
     }
-    if (activePointPickTarget) {
+    if (isPointPickActive && activePointPickTarget) {
       const candidates = hitTestPointPickCandidates(screen, overlayPointPickCandidates, POINT_PICK_CANDIDATE_RADIUS_PX);
       focusCanvas();
       if (candidates.length === 1) applyPointPickCandidate(candidates[0]);
@@ -1223,7 +1240,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       else setPointPickCandidateMenu(null);
       return;
     }
-    if (activeNumericReferencePickTarget) {
+    if (isNumericReferencePickActive && activeNumericReferencePickTarget) {
       const candidates = numericReferenceCandidatesAt(screen);
       focusCanvas();
       if (candidates.length > 0) {
@@ -1241,13 +1258,14 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       return;
     }
 
-    setPointPickCandidateMenu(null);
-    setLinePickCandidateMenu(null);
-    setMeasurementCandidateMenu(null);
     if (hasCommandLineGhost) {
       focusCanvas();
       return;
     }
+
+    setPointPickCandidateMenu(null);
+    setLinePickCandidateMenu(null);
+    setMeasurementCandidateMenu(null);
     if (handle) {
       focusCanvas();
       hostAdapter.selectElement(handle.curveId, selectionModeFor(intent));
@@ -1392,6 +1410,9 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     commitRectangleSelectionAt,
     currentBezierHandleDragBase,
     currentDocumentDragBase,
+    isLinePickActive,
+    isNumericReferencePickActive,
+    isPointPickActive,
     hasCommandLineGhost,
     linePickCandidatesAt,
     numericReferenceCandidatesAt,
@@ -1696,11 +1717,11 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
         return;
       }
     }
-    const activePickTarget = activePointPickTarget
+    const activePickTarget = isPointPickActive
       ? "point"
-      : activeNumericReferencePickTarget
+      : isNumericReferencePickActive
         ? "numeric"
-        : activeLinePickTarget
+        : isLinePickActive
           ? "line"
           : null;
     if (activePickTarget && event.currentTarget === document.activeElement) {
@@ -1739,8 +1760,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       }
     }
     if (event.key !== "Escape" || event.currentTarget !== document.activeElement) return;
-    if (commandLineSession || activeNumericReferencePickTarget || activeLinePickTarget) return;
-    if (activePointPickTarget) {
+    if (isNumericReferencePickActive || isLinePickActive) return;
+    if (isPointPickActive) {
       if (hostAdapter.cancelCanvasPickOperation) {
         event.preventDefault();
         event.stopPropagation();
@@ -1972,9 +1993,9 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
           isPointDragging ? "is-point-dragging" : "",
           isBezierHandleDragging ? "is-bezier-handle-dragging" : "",
           rectangleSelectionSession ? "is-rectangle-selecting" : "",
-          activePointPickTarget ? "is-point-picking" : "",
-          activeNumericReferencePickTarget ? "is-numeric-reference-picking" : "",
-          activeLinePickTarget ? "is-line-picking" : ""
+          isPointPickActive ? "is-point-picking" : "",
+          isNumericReferencePickActive ? "is-numeric-reference-picking" : "",
+          isLinePickActive ? "is-line-picking" : ""
         ].filter(Boolean).join(" ")}
         style={canvasThemeCssVariables(canvasTheme)}
         ref={canvasFocusRef}
@@ -2028,9 +2049,9 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
           hoveredElementIds={hoveredElementIds}
           hoverRepresentativeElementId={hoverRepresentativeElementId}
           showCanvasPoints={showCanvasPoints}
-          isPointPickActive={Boolean(activePointPickTarget)}
-          isNumericReferencePickActive={Boolean(activeNumericReferencePickTarget)}
-          isLinePickActive={Boolean(activeLinePickTarget)}
+          isPointPickActive={isPointPickActive}
+          isNumericReferencePickActive={isNumericReferencePickActive}
+          isLinePickActive={isLinePickActive}
         />
         {pointDragFeedback ? (
           <PointDragAxisLockFeedback

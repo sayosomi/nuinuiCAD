@@ -6,6 +6,7 @@ import { effectiveElements, useCadDocumentStore } from "../state/cadDocumentStor
 import { useCadUiStore } from "../state/cadUiStore";
 import type { SourceEditorHandle } from "../editor/sourceEditorTypes";
 import type { ElementId } from "../types/geometry";
+import { matchingPickModeSessionForTargets } from "../model/pickModeSession";
 
 type SourceSearchPanelProps = {
   handle: SourceEditorHandle | null;
@@ -28,9 +29,14 @@ export const SourceSearchPanel = ({ handle, isOpen, onClose }: SourceSearchPanel
   const setElementSearchCursorId = useCadUiStore((state) => state.setElementSearchCursorId);
   const elementSearchPickableOnly = useCadUiStore((state) => state.elementSearchPickableOnly);
   const setElementSearchPickableOnly = useCadUiStore((state) => state.setElementSearchPickableOnly);
-  const isPickActive = useCadUiStore((state) => Boolean(
-    state.activePointPickTarget || state.activeNumericReferencePickTarget || state.activeLinePickTarget
-  ));
+  const isPickActive = useCadUiStore((state) => Boolean(matchingPickModeSessionForTargets(
+    state.activePickModeSession,
+    {
+      point: state.activePointPickTarget,
+      numericReference: state.activeNumericReferencePickTarget,
+      line: state.activeLinePickTarget
+    }
+  )));
   const [mode, setMode] = useState<"element" | "text">("element");
 
   const roleNamesById = useMemo(() => visibilityRoleNamesById(visibilityRoles), [visibilityRoles]);

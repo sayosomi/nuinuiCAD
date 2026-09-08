@@ -35,6 +35,7 @@ import {
   typedBindingRuntimeInspectorPresentation,
   type TypedBindingRuntimeConsumerRow,
 } from "./typedBindingRuntimeInspectorPresentation";
+import { matchingPickModeSessionForTargets } from "../model/pickModeSession";
 
 const statusLabels = (status: ElementPresentationStatus) =>
   [
@@ -74,11 +75,14 @@ export const InspectorPanel = ({
   const isInspectorExpanded = useCadUiStore(
     (state) => state.isInspectorExpanded,
   );
-  const activePointPickTarget = useCadUiStore((state) => state.activePointPickTarget);
-  const activeNumericReferencePickTarget = useCadUiStore(
-    (state) => state.activeNumericReferencePickTarget,
-  );
-  const activeLinePickTarget = useCadUiStore((state) => state.activeLinePickTarget);
+  const activePickModeSession = useCadUiStore((state) => matchingPickModeSessionForTargets(
+    state.activePickModeSession,
+    {
+      point: state.activePointPickTarget,
+      numericReference: state.activeNumericReferencePickTarget,
+      line: state.activeLinePickTarget
+    }
+  ));
   const profiles = useCadDocumentStore((state) => state.visibilityProfiles);
   const activeProfileId = useCadDocumentStore(
     (state) => state.activeVisibilityProfileId,
@@ -552,13 +556,8 @@ export const InspectorPanel = ({
                     const pickCommandId = definition
                       ? parameterPickCommandId(definition.kind)
                       : null;
-                    const isPicking =
-                      activePointPickTarget?.elementId === element.id &&
-                        activePointPickTarget.parameterKey === row.parameterKey ||
-                      activeNumericReferencePickTarget?.elementId === element.id &&
-                        activeNumericReferencePickTarget.parameterKey === row.parameterKey ||
-                      activeLinePickTarget?.elementId === element.id &&
-                        activeLinePickTarget.parameterKey === row.parameterKey;
+                    const isPicking = activePickModeSession?.targetElementId === element.id &&
+                      activePickModeSession.targetParameterKey === row.parameterKey;
                     return pickCommandId ? (
                       <button
                         type="button"

@@ -14,6 +14,7 @@ import type {
 } from "./creationRecipes";
 import type { CommandLineInsertionAnchor } from "./commandLineInsertionAnchor";
 import type { SourceCreationInsertionOrigin } from "./sourceCreationInsertion";
+import type { PickModeSession } from "../model/pickModeSession";
 
 /**
  * Uncommitted progress through a declarative creation recipe. This state never
@@ -74,6 +75,7 @@ export type CommandLineEditingReturnPickState = {
   pointListDraftPointAnchors: PointAnchor[] | null;
   /** Candidate cursor owned by the active command-line reference prompt. */
   activePickCursor: { elementId: ElementId; optionIndex: number } | null;
+  activePickModeSession?: PickModeSession | null;
 };
 
 const hasOwn = (value: object, key: string) => Object.prototype.hasOwnProperty.call(value, key);
@@ -88,7 +90,8 @@ const cloneEditingReturnPickState = (
       ...value,
       lineListDraftLineIds: value.lineListDraftLineIds ? [...value.lineListDraftLineIds] : null,
       pointListDraftPointAnchors: value.pointListDraftPointAnchors ? [...value.pointListDraftPointAnchors] : null,
-      activePickCursor: value.activePickCursor ? { ...value.activePickCursor } : null
+      activePickCursor: value.activePickCursor ? { ...value.activePickCursor } : null,
+      activePickModeSession: value.activePickModeSession ? { ...value.activePickModeSession } : null
     }
   : null;
 
