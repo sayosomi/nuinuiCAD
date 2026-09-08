@@ -71,6 +71,7 @@ export const DrawingCanvasTestHost = forwardRef<DrawingCanvasHandle, DrawingCanv
     const activePointPickTarget = useCadUiStore((state) => state.activePointPickTarget);
     const activeNumericReferencePickTarget = useCadUiStore((state) => state.activeNumericReferencePickTarget);
     const activeLinePickTarget = useCadUiStore((state) => state.activeLinePickTarget);
+    const activePickModeSession = useCadUiStore((state) => state.activePickModeSession);
     const commandLineSession = useCadUiStore((state) => state.commandLineSession);
 
     const moduleSemanticContext = useMemo(() => ({
@@ -125,6 +126,7 @@ export const DrawingCanvasTestHost = forwardRef<DrawingCanvasHandle, DrawingCanv
       activePointPickTarget,
       activeNumericReferencePickTarget,
       activeLinePickTarget,
+      activePickModeSession,
       commandLineSession,
       flushSourceEditorOnCanvasPointerDown: () => sourceEditSession.flush("canvas-pointerdown"),
       setCommandErrorMessage: (message) => useCadUiStore.getState().setCommandErrorMessage(message),
@@ -173,6 +175,7 @@ export const DrawingCanvasTestHost = forwardRef<DrawingCanvasHandle, DrawingCanv
       activeLinePickTarget,
       activeNumericReferencePickTarget,
       activePointPickTarget,
+      activePickModeSession,
       canvasPresentation,
       canvasViewport,
       commandContext,

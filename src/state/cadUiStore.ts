@@ -16,6 +16,10 @@ import { isGroupExpanded } from "../model/groups";
 import type { FoldTarget, GroupFoldById, GroupFoldState } from "../model/groups";
 import type { BindingId } from "../scalars/bindingCatalog";
 import type { ModuleSemanticTarget } from "../dsl/moduleSemanticEditor";
+import {
+  matchingPickModeSessionForTargets,
+  type PickModeSession
+} from "../model/pickModeSession";
 
 export type MeasurementInsertMode = "distance" | "angle" | "lineDistance";
 export type MeasurementPointSlot = "point1" | "point2";
@@ -253,6 +257,7 @@ export type CadUiState = CadElementSelection & {
   activePointPickTarget: ActivePointPickTarget | null;
   activeNumericReferencePickTarget: ActiveNumericReferencePickTarget | null;
   activeLinePickTarget: ActiveLinePickTarget | null;
+  activePickModeSession: PickModeSession | null;
   activeMeasurementInsertTarget: ActiveMeasurementInsertTarget | null;
   commandLineSession: CommandLineSession | null;
   activePickCursor: ActivePickCursor | null;
@@ -291,6 +296,7 @@ export type CadUiState = CadElementSelection & {
     activeNumericReferencePickTarget: ActiveNumericReferencePickTarget | null
   ) => void;
   setActiveLinePickTarget: (activeLinePickTarget: ActiveLinePickTarget | null) => void;
+  setActivePickModeSession: (activePickModeSession: PickModeSession | null) => void;
   setActiveMeasurementInsertTarget: (
     activeMeasurementInsertTarget: ActiveMeasurementInsertTarget | null
   ) => void;
@@ -377,6 +383,7 @@ export const initialCadUiState = (): Omit<
   | "setActivePointPickTarget"
   | "setActiveNumericReferencePickTarget"
   | "setActiveLinePickTarget"
+  | "setActivePickModeSession"
   | "setActiveMeasurementInsertTarget"
   | "setCommandLineSession"
   | "startCommandLineSession"
@@ -439,6 +446,7 @@ export const initialCadUiState = (): Omit<
   activePointPickTarget: null,
   activeNumericReferencePickTarget: null,
   activeLinePickTarget: null,
+  activePickModeSession: null,
   activeMeasurementInsertTarget: null,
   commandLineSession: null,
   activePickCursor: null,
@@ -509,11 +517,43 @@ export const useCadUiStore = create<CadUiState>((set, get) => ({
   ...initialCadUiState(),
   setInspectorExpanded: (isInspectorExpanded) => set({ isInspectorExpanded }),
   setActivePointPickTarget: (activePointPickTarget) =>
-    set({ activePointPickTarget, activePickCursor: null }),
+    set((state) => ({
+      activePointPickTarget,
+      activePickModeSession: matchingPickModeSessionForTargets(state.activePickModeSession, {
+        point: activePointPickTarget,
+        numericReference: state.activeNumericReferencePickTarget,
+        line: state.activeLinePickTarget
+      }),
+      activePickCursor: null
+    })),
   setActiveNumericReferencePickTarget: (activeNumericReferencePickTarget) =>
-    set({ activeNumericReferencePickTarget, activePickCursor: null }),
+    set((state) => ({
+      activeNumericReferencePickTarget,
+      activePickModeSession: matchingPickModeSessionForTargets(state.activePickModeSession, {
+        point: state.activePointPickTarget,
+        numericReference: activeNumericReferencePickTarget,
+        line: state.activeLinePickTarget
+      }),
+      activePickCursor: null
+    })),
   setActiveLinePickTarget: (activeLinePickTarget) =>
-    set({ activeLinePickTarget, activePickCursor: null }),
+    set((state) => ({
+      activeLinePickTarget,
+      activePickModeSession: matchingPickModeSessionForTargets(state.activePickModeSession, {
+        point: state.activePointPickTarget,
+        numericReference: state.activeNumericReferencePickTarget,
+        line: activeLinePickTarget
+      }),
+      activePickCursor: null
+    })),
+  setActivePickModeSession: (activePickModeSession) =>
+    set((state) => ({
+      activePickModeSession: matchingPickModeSessionForTargets(activePickModeSession, {
+        point: state.activePointPickTarget,
+        numericReference: state.activeNumericReferencePickTarget,
+        line: state.activeLinePickTarget
+      })
+    })),
   setActiveMeasurementInsertTarget: (activeMeasurementInsertTarget) =>
     set({ activeMeasurementInsertTarget }),
   setCommandLineSession: (commandLineSession) => {
@@ -528,6 +568,7 @@ export const useCadUiStore = create<CadUiState>((set, get) => ({
       activePointPickTarget: null,
       activeNumericReferencePickTarget: null,
       activeLinePickTarget: null,
+      activePickModeSession: null,
       activeMeasurementInsertTarget: null,
       activePickCursor: null,
       commandLineSession
@@ -545,6 +586,7 @@ export const useCadUiStore = create<CadUiState>((set, get) => ({
       activePointPickTarget: null,
       activeNumericReferencePickTarget: null,
       activeLinePickTarget: null,
+      activePickModeSession: null,
       activePickCursor: null,
       commandLineSession: null
     });

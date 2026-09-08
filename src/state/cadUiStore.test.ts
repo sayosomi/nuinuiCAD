@@ -204,6 +204,55 @@ describe("cadUiStore group fold state", () => {
     useCadUiStore.getState().clearPickMode();
 
     expect(useCadUiStore.getState().commandLineSession).toBeNull();
+    expect(useCadUiStore.getState().activePickModeSession).toBeNull();
+  });
+
+  it("keeps semantic pick capability separate from the explicit Pick Mode session", () => {
+    const target = { elementId: "point", parameterKey: "startPoint" as never };
+    useCadUiStore.getState().setActivePointPickTarget(target);
+
+    expect(useCadUiStore.getState().activePointPickTarget).toEqual(target);
+    expect(useCadUiStore.getState().activePickModeSession).toBeNull();
+
+    useCadUiStore.getState().setActivePickModeSession({
+      kind: "point",
+      targetElementId: target.elementId,
+      targetParameterKey: target.parameterKey,
+      selectionCardinality: "single"
+    });
+    expect(useCadUiStore.getState().activePickModeSession).toMatchObject({
+      kind: "point",
+      targetElementId: "point",
+      targetParameterKey: "startPoint"
+    });
+
+    useCadUiStore.getState().setActivePointPickTarget({ elementId: "other", parameterKey: "startPoint" as never });
+    expect(useCadUiStore.getState().activePickModeSession).toBeNull();
+
+    useCadUiStore.getState().setActivePickModeSession({
+      kind: "point",
+      targetElementId: "missing",
+      targetParameterKey: "startPoint",
+      selectionCardinality: "single"
+    });
+    expect(useCadUiStore.getState().activePickModeSession).toBeNull();
+  });
+
+  it("classifies draft list sessions as ordered-multiple", () => {
+    const target = {
+      elementId: "line-list",
+      parameterKey: "baseLineIds" as never,
+      draftLineIds: []
+    };
+    useCadUiStore.getState().setActiveLinePickTarget(target);
+    useCadUiStore.getState().setActivePickModeSession({
+      kind: "line",
+      targetElementId: target.elementId,
+      targetParameterKey: target.parameterKey,
+      selectionCardinality: "ordered-multiple"
+    });
+
+    expect(useCadUiStore.getState().activePickModeSession?.selectionCardinality).toBe("ordered-multiple");
   });
 
   it("keeps an in-progress measurement insert through clearPickMode", () => {

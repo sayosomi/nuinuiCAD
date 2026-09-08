@@ -42,6 +42,7 @@ import { VSCodeCanvasRibbonOverlay } from "./VSCodeCanvasRibbonOverlay";
 import { VSCodeCreationAssistOverlay } from "./VSCodeCreationAssistOverlay";
 import { VSCodeReferencePickOverlay } from "./VSCodeReferencePickOverlay";
 import { CommandLineBar } from "../components/CommandLineBar";
+import { PickModeStatus } from "../components/PickModeStatus";
 import type { RibbonPosition } from "../components/commandRibbonFloatingGeometry";
 import type { CommandRibbonPresentationCommandItem } from "../components/CommandRibbonView";
 import { LEGACY_CANVAS_THEME, type CanvasTheme } from "../components/canvasTheme";
@@ -142,6 +143,7 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
     const activePointPickTarget = useCadUiStore((state) => state.activePointPickTarget);
     const activeNumericReferencePickTarget = useCadUiStore((state) => state.activeNumericReferencePickTarget);
     const activeLinePickTarget = useCadUiStore((state) => state.activeLinePickTarget);
+    const activePickModeSession = useCadUiStore((state) => state.activePickModeSession);
     const commandLineSession = useCadUiStore((state) => state.commandLineSession);
     const runtimeOnlyElementIds = useMemo(() => {
       if (!multiDocumentRuntimePresentation) return new Set<ElementId>();
@@ -457,6 +459,7 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       activePointPickTarget,
       activeNumericReferencePickTarget,
       activeLinePickTarget,
+      activePickModeSession,
       commandLineSession,
       canvasContextMenuData: vscodeCanvasContextDataFor("blank", selectedElementIds.length > 0, undefined, false, hasCoordinatePointConversionTarget),
       publishCanvasPointerPosition: postCanvasPointerPosition,
@@ -583,6 +586,7 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       resolveImageSourceUrl: (sourcePath) => sourcePath,
       renderHostOverlay: (viewportSize) => (
         <>
+          <PickModeStatus />
           <VSCodeCreationAssistOverlay
             canvasFocusRef={canvasFocusRef}
             commandContext={creationCommandContext}
@@ -640,6 +644,7 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       activeLinePickTarget,
       activeNumericReferencePickTarget,
       activePointPickTarget,
+      activePickModeSession,
       canvasPresentation,
       canvasPresentationAdapter,
       canvasViewport,

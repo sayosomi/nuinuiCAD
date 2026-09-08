@@ -12,6 +12,11 @@ import {
   cancelPointPick,
   finishLinePick,
   finishPointPick,
+  startLinePick,
+  startMeasurementFunctionInsert,
+  startMeasurementLinePick,
+  startNumericReferencePick,
+  startPointPick,
   selectPickCandidateByOffset
 } from "./pickCommands";
 import {
@@ -59,6 +64,89 @@ describe("command-line pick routing", () => {
     useCadUiStore.setState(initialCadUiState());
     useCadDocumentStore.getState().commitText(source, "test");
     publishTestCanvasSelectionEligibility();
+  });
+
+  it("keeps a pick-capable step inactive until explicit entry and exits after a single apply", () => {
+    expect(startCommandLineCreation("line")).toBe(true);
+    expect(submitCommandLineInput("")).toBe(true);
+    expect(useCadUiStore.getState().activePointPickTarget).not.toBeNull();
+    expect(useCadUiStore.getState().activePickModeSession).toBeNull();
+
+    expect(startCommandLinePickForCurrentStep()).toBe(true);
+    expect(useCadUiStore.getState().activePickModeSession).toMatchObject({
+      kind: "point",
+      targetElementId: COMMAND_LINE_PICK_TARGET_ID,
+      targetParameterKey: "startPoint",
+      selectionCardinality: "single"
+    });
+
+    cancelPointPick();
+    expect(useCadUiStore.getState().activePointPickTarget).toBeNull();
+    expect(useCadUiStore.getState().activePickModeSession).toBeNull();
+    expect(useCadUiStore.getState().commandLineSession).not.toBeNull();
+
+    expect(startCommandLinePickForCurrentStep()).toBe(true);
+    applyPickedPoint({ pickedPointAnchor: referenceAnchor(byName("A").id) });
+    expect(useCadUiStore.getState().activePointPickTarget).toMatchObject({ parameterKey: "endPoint" });
+    expect(useCadUiStore.getState().activePickModeSession).toBeNull();
+  });
+
+  it("establishes the shared session for direct point, line, and numeric Canvas starts", () => {
+    const point = byName("A");
+    const line = byName("AB");
+    const offsetLine: CadElement = {
+      id: "offset-target",
+      name: "Offset target",
+      type: "offsetLine",
+      activity: "visible",
+      baseLineIds: [],
+      offset: 10,
+      side: "right",
+      closed: false
+    };
+    useCadDocumentStore.setState({
+      elements: [...useCadDocumentStore.getState().elements, offsetLine]
+    });
+
+    startPointPick({ elementId: line.id, parameterKey: "startPoint" });
+    expect(useCadUiStore.getState().activePickModeSession).toMatchObject({
+      kind: "point",
+      targetElementId: line.id,
+      targetParameterKey: "startPoint"
+    });
+
+    startLinePick({ elementId: offsetLine.id, parameterKey: "baseLineIds" });
+    expect(useCadUiStore.getState().activePickModeSession).toMatchObject({
+      kind: "line",
+      targetElementId: offsetLine.id,
+      targetParameterKey: "baseLineIds",
+      selectionCardinality: "ordered-multiple"
+    });
+
+    expect(startNumericReferencePick({ elementId: point.id, parameterKey: "x" })).toBe(true);
+    expect(useCadUiStore.getState().activePickModeSession).toMatchObject({
+      kind: "numeric-reference",
+      targetElementId: point.id,
+      targetParameterKey: "x",
+      selectionCardinality: "single"
+    });
+
+    startMeasurementFunctionInsert({
+      elementId: point.id,
+      parameterKey: "x",
+      measurementInsertMode: "distance"
+    });
+    expect(useCadUiStore.getState().activePickModeSession).toMatchObject({
+      kind: "point",
+      targetElementId: point.id,
+      targetParameterKey: "x"
+    });
+    startMeasurementLinePick({ elementId: point.id, parameterKey: "x" });
+    expect(useCadUiStore.getState().activePickModeSession).toMatchObject({
+      kind: "line",
+      targetElementId: point.id,
+      targetParameterKey: "x"
+    });
   });
 
   it("fills point, endpoint, line, line-list, and numeric steps without mutating the document", () => {
@@ -187,6 +275,10 @@ describe("command-line pick routing", () => {
       parameterKey: "points",
       draftPointAnchors: []
     });
+    expect(useCadUiStore.getState().activePickModeSession).toMatchObject({
+      kind: "point",
+      selectionCardinality: "ordered-multiple"
+    });
 
     applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointA.id) });
     applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointB.id) });
@@ -205,6 +297,7 @@ describe("command-line pick routing", () => {
       referenceAnchor(pointA.id)
     ]);
     expect(useCadUiStore.getState().activePointPickTarget).toBeNull();
+    expect(useCadUiStore.getState().activePickModeSession).toBeNull();
     expect(useCadUiStore.getState().commandLineSession?.currentStepIndex).toBe(2);
 
     expect(confirmCommandLineSession()).toBe(true);
@@ -365,6 +458,7 @@ describe("command-line pick routing", () => {
     expect(startCommandLineCreation("line")).toBe(true);
     submitCommandLineInput("");
     applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointA.id) });
+    expect(startCommandLinePickForCurrentStep()).toBe(true);
     useCadUiStore.getState().setActivePickCursor({ elementId: pointB.id, optionIndex: 0 });
 
     const transitions: Array<{ editingStepIndex: number | null; parameterKey: string | null }> = [];
@@ -382,9 +476,14 @@ describe("command-line pick routing", () => {
       expect(cancelCommandLineStepEdit()).toBe(true);
       expect(transitions).toEqual([{ editingStepIndex: null, parameterKey: "endPoint" }]);
       expect(useCadUiStore.getState().activePickCursor).toEqual({ elementId: pointB.id, optionIndex: 0 });
+      expect(useCadUiStore.getState().activePickModeSession).toMatchObject({
+        kind: "point",
+        targetParameterKey: "endPoint"
+      });
       transitions.length = 0;
 
       applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointB.id) });
+      expect(useCadUiStore.getState().activePickModeSession).toBeNull();
       expect(transitions).toEqual([
         { editingStepIndex: null, parameterKey: null },
         { editingStepIndex: null, parameterKey: null }

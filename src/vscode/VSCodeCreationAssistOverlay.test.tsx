@@ -7,6 +7,7 @@ import type { CanvasPresentation } from "../components/canvasPresentation";
 import { dispatchCommand } from "../commands/commands";
 import { applyPickedLine, applyPickedPoint } from "../commands/pickCommands";
 import { referenceAnchor } from "../model/pointAnchors";
+import { pickModeSessionForTarget } from "../model/pickModeSession";
 import {
   startCommandLineCreationForRecipe,
   syncCommandLinePickTarget
@@ -229,7 +230,11 @@ describe("VSCodeCreationAssistOverlay", () => {
     fireEvent.keyDown(input(), { key: "Enter" });
     const viewport = canvasFocusRef.current!;
     viewport.focus();
-    act(() => { useCadUiStore.getState().setActivePickCursor({ elementId: "point-a", optionIndex: 0 }); });
+    const target = useCadUiStore.getState().activePointPickTarget;
+    act(() => {
+      useCadUiStore.getState().setActivePickModeSession(pickModeSessionForTarget("point", target));
+      useCadUiStore.getState().setActivePickCursor({ elementId: "point-a", optionIndex: 0 });
+    });
     const targetBefore = useCadUiStore.getState().activePointPickTarget;
 
     fireEvent.keyDown(viewport, { key: "Enter", altKey: true });
@@ -432,6 +437,8 @@ describe("VSCodeCreationAssistOverlay", () => {
     fireEvent.keyDown(input(), { key: "Enter" });
     expect(useCadUiStore.getState().commandLineSession).not.toBeNull();
     expect(useCadUiStore.getState().activePointPickTarget).toMatchObject({ parameterKey: "startPoint" });
+    const target = useCadUiStore.getState().activePointPickTarget;
+    act(() => { useCadUiStore.getState().setActivePickModeSession(pickModeSessionForTarget("point", target)); });
     const canvas = canvasFocusRef.current!;
     canvas.focus();
 

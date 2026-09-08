@@ -9,6 +9,7 @@ import type { CadElement } from "../types/geometry";
 import type { DslDocumentData } from "../dsl/dslDocument";
 import { dslTextForElements } from "../dsl/dslDocumentTestUtils";
 import { initialGroupFoldForLoadedDocument } from "../model/groups";
+import { pickModeSessionForTarget } from "../model/pickModeSession";
 import { dispatchCommand } from "../commands/commands";
 import { startCommandLineCreation } from "../commands/commandLineSessionCommands";
 import { publishTestCanvasSelectionEligibility } from "../test/canvasSelectionTestUtils";
@@ -439,7 +440,9 @@ describe("SourceEditorController commit and history boundaries", () => {
     expect(dispatchCommand("startCanvasPickFromSourceSelection")).toBe(false);
 
     expect(controller.jumpToParameterValue(point.id, "dx")).toBe(true);
-    useCadUiStore.setState({ activePointPickTarget: { elementId: point.id, parameterKey: "fromPoint" } });
+    const activePointPickTarget = { elementId: point.id, parameterKey: "fromPoint" };
+    useCadUiStore.getState().setActivePointPickTarget(activePointPickTarget);
+    useCadUiStore.getState().setActivePickModeSession(pickModeSessionForTarget("point", activePointPickTarget));
     expect(dispatchCommand("startCanvasPickFromSourceSelection")).toBe(false);
     expect(useCadUiStore.getState().activePointPickTarget).toEqual({ elementId: point.id, parameterKey: "fromPoint" });
 

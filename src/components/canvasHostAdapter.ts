@@ -24,6 +24,7 @@ import type { CanonicalGeometrySourceReference } from "../model/moduleSemanticCa
 import type { ViewportSize } from "./canvasViewport";
 import type { CanvasTheme } from "./canvasTheme";
 import type { PickCandidate } from "../model/pickCandidates";
+import type { PickModeSession } from "../model/pickModeSession";
 import type { CanvasModuleMaterialization } from "../dsl/moduleMaterialization";
 import type { CommandId } from "../commands/commandTypes";
 import type { CanvasPresentation } from "./canvasPresentation";
@@ -115,6 +116,8 @@ export type CanvasHostAdapter = {
   activePointPickTarget: ActivePointPickTarget | null;
   activeNumericReferencePickTarget: ActiveNumericReferencePickTarget | null;
   activeLinePickTarget: ActiveLinePickTarget | null;
+  /** Explicit Pick Mode authority; semantic targets above remain candidate data. */
+  activePickModeSession?: PickModeSession | null;
   commandLineSession: CommandLineSession | null;
 
   flushSourceEditorOnCanvasPointerDown: () => "blocked-composition" | "flushed" | "clean";

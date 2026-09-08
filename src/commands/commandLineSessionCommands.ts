@@ -66,6 +66,7 @@ import {
   validateCommandLineElementName
 } from "./commandLineNameValidation";
 import type { CommandContext } from "./commandTypes";
+import { pickModeSessionForTarget } from "../model/pickModeSession";
 
 const compositionError = "日本語入力の確定中はコマンドを実行できません。入力を確定してから再操作してください。";
 const staleError = "ドキュメントが変更されたため、コマンドライン作成をキャンセルしました。もう一度開始してください。";
@@ -424,10 +425,12 @@ export const startCommandLineNumericReferencePick = () => {
   if (!session || cancelStaleCommandLineSession()) return false;
   const step = currentStep(session);
   if (step?.kind !== "number") return false;
+  const activeNumericReferencePickTarget = commandLineNumericReferencePickTargetFor(session);
   useCadUiStore.setState({
     activePointPickTarget: null,
     activeLinePickTarget: null,
-    activeNumericReferencePickTarget: commandLineNumericReferencePickTargetFor(session),
+    activeNumericReferencePickTarget,
+    activePickModeSession: pickModeSessionForTarget("numeric-reference", activeNumericReferencePickTarget),
     activePickCursor: null
   });
   return true;
@@ -443,8 +446,15 @@ export const startCommandLinePickForCurrentStep = (context?: CommandContext) => 
   } else if (!isPickCapableCreationStep(step)) {
     return false;
   } else {
-    syncCommandLinePickTarget(session);
-    useCadUiStore.getState().setActivePickCursor(null);
+    const pickState = commandLinePickStateForSession(session);
+    const target = pickState.activePointPickTarget ?? pickState.activeLinePickTarget;
+    const kind = pickState.activePointPickTarget ? "point" : pickState.activeLinePickTarget ? "line" : null;
+    if (!target || !kind) return false;
+    useCadUiStore.setState({
+      ...pickState,
+      activePickModeSession: pickModeSessionForTarget(kind, target),
+      activePickCursor: null
+    });
   }
   context?.focusCanvas?.();
   return true;

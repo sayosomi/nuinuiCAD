@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { dispatchCommand } from "../commands/commands";
 import { effectiveElements, initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
+import { pickModeSessionForTarget } from "../model/pickModeSession";
 import { SourceEditorController } from "./sourceEditorController";
 
 const source = "nui 1\npoint A = coordinate(x: 12, y: 0)";
@@ -298,6 +299,10 @@ describe("SourceEditor editor-native value step commands", () => {
       useCadUiStore.getState().clearPickMode();
       selectToken(view, "12");
       activatePickMode();
+      const ui = useCadUiStore.getState();
+      const target = ui.activePointPickTarget ?? ui.activeNumericReferencePickTarget ?? ui.activeLinePickTarget;
+      const kind = ui.activePointPickTarget ? "point" : ui.activeNumericReferencePickTarget ? "numeric-reference" : "line";
+      if (target) useCadUiStore.getState().setActivePickModeSession(pickModeSessionForTarget(kind, target));
       const before = view.state.doc.toString();
       pressStep(view, 1);
       expect(view.state.doc.toString()).toBe(before);
