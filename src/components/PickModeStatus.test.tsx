@@ -5,7 +5,7 @@ import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import type { CadElement } from "../types/geometry";
 import { PickModeStatus } from "./PickModeStatus";
 import { pickModeSessionForTarget } from "../model/pickModeSession";
-import { referenceAnchor } from "../model/pointAnchors";
+import { derivedAnchor, referenceAnchor } from "../model/pointAnchors";
 
 const line = (id: string, name: string): CadElement => ({
   id,
@@ -200,6 +200,112 @@ describe("PickModeStatus", () => {
 
     expect(screen.getByLabelText("選択済み 1 件")).toBeInTheDocument();
     expect(screen.getByText("__command-line__ / baseLineIds")).toBeInTheDocument();
+  });
+
+  it("shows the current single point draft using its source identity", () => {
+    const target = {
+      elementId: "__command-line__",
+      parameterKey: "point"
+    };
+    useCadUiStore.setState({
+      activePointPickTarget: target,
+      activePickModeSession: pickModeSessionForTarget("point", target, "single", [{
+        kind: "point",
+        key: "point-ref",
+        anchor: derivedAnchor("runtime-line", "start"),
+        sourceReference: { base: "I::Out", pointKey: "start" }
+      }])
+    });
+
+    render(<PickModeStatus />);
+
+    expect(screen.getByLabelText("現在の選択")).toHaveTextContent("@I::Out.start");
+  });
+
+  it("shows the current single line draft using its source identity", () => {
+    const target = {
+      elementId: "__command-line__",
+      parameterKey: "line"
+    };
+    useCadUiStore.setState({
+      activeLinePickTarget: target,
+      activePickModeSession: pickModeSessionForTarget("line", target, "single", [{
+        kind: "line",
+        key: "line-ref",
+        lineId: "runtime-line",
+        sourceReference: { base: "I::Out" }
+      }])
+    });
+
+    render(<PickModeStatus />);
+
+    expect(screen.getByLabelText("現在の選択")).toHaveTextContent("@I::Out");
+  });
+
+  it("shows the complete current numeric-reference expression", () => {
+    const target = {
+      elementId: "__command-line__",
+      parameterKey: "length",
+      mode: "replace" as const,
+      property: "length" as const
+    };
+    const expression = "@I::Out.length + 12.5";
+    useCadUiStore.setState({
+      activeNumericReferencePickTarget: target,
+      activePickModeSession: pickModeSessionForTarget("numeric-reference", target, "single", [{
+        kind: "numeric-reference",
+        key: "numeric-ref",
+        expression
+      }])
+    });
+
+    render(<PickModeStatus />);
+
+    expect(screen.getByLabelText("現在の選択")).toHaveTextContent(expression);
+  });
+
+  it("does not fabricate a current value for empty single or numeric drafts", () => {
+    const target = {
+      elementId: "__command-line__",
+      parameterKey: "point"
+    };
+    useCadUiStore.setState({
+      activePointPickTarget: target,
+      activePickModeSession: pickModeSessionForTarget("point", target)
+    });
+
+    const { unmount } = render(<PickModeStatus />);
+    expect(screen.queryByLabelText("現在の選択")).not.toBeInTheDocument();
+    unmount();
+
+    const lineTarget = {
+      elementId: "__command-line__",
+      parameterKey: "line"
+    };
+    useCadUiStore.setState({
+      activeLinePickTarget: lineTarget,
+      activePickModeSession: pickModeSessionForTarget("line", lineTarget)
+    });
+
+    const { unmount: unmountLine } = render(<PickModeStatus />);
+    expect(screen.queryByLabelText("現在の選択")).not.toBeInTheDocument();
+    unmountLine();
+
+    const numericTarget = {
+      elementId: "__command-line__",
+      parameterKey: "length",
+      mode: "replace" as const,
+      property: "length" as const
+    };
+    useCadUiStore.setState({
+      activePointPickTarget: null,
+      activeLinePickTarget: null,
+      activeNumericReferencePickTarget: numericTarget,
+      activePickModeSession: pickModeSessionForTarget("numeric-reference", numericTarget)
+    });
+
+    render(<PickModeStatus />);
+    expect(screen.queryByLabelText("現在の選択")).not.toBeInTheDocument();
   });
 
 });

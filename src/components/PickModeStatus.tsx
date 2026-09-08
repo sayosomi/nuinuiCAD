@@ -6,7 +6,11 @@ import {
 import { findParameterDefinition } from "../parameters/parameterDefinitions";
 import { effectiveElements, useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
-import { matchingPickModeSessionForTargets } from "../model/pickModeSession";
+import {
+  matchingPickModeSessionForTargets,
+  type PickModeDraftEntry
+} from "../model/pickModeSession";
+import { sourceReferenceText } from "../model/moduleSemanticCandidateBoundary";
 import { pointAnchorName } from "./commandLineProgress";
 
 export const PickModeStatus = () => {
@@ -43,6 +47,22 @@ export const PickModeStatus = () => {
   const selectedPointNames = draft
     .filter((entry): entry is Extract<typeof draft[number], { kind: "point" }> => entry.kind === "point")
     .map((entry) => pointAnchorName(entry.anchor, elements));
+  const singlePointEntry = !isPointList
+    ? draft.find((entry): entry is Extract<PickModeDraftEntry, { kind: "point" }> => entry.kind === "point")
+    : undefined;
+  const singleLineEntry = !isLineList
+    ? draft.find((entry): entry is Extract<PickModeDraftEntry, { kind: "line" }> => entry.kind === "line")
+    : undefined;
+  const numericReferenceEntry = pickModeSession.kind === "numeric-reference"
+    ? draft.find((entry): entry is Extract<PickModeDraftEntry, { kind: "numeric-reference" }> => entry.kind === "numeric-reference")
+    : undefined;
+  const pointDraftLabel = singlePointEntry
+    ? sourceReferenceText(singlePointEntry.sourceReference ?? null) ?? pointAnchorName(singlePointEntry.anchor, elements)
+    : null;
+  const lineDraftLabel = singleLineEntry
+    ? sourceReferenceText(singleLineEntry.sourceReference ?? null) ??
+      (elements.find((candidate) => candidate.id === singleLineEntry.lineId)?.name ?? singleLineEntry.lineId)
+    : null;
   const selectedCount = selectedLineNames.length;
   const selectedPointCount = selectedPointNames.length;
   const instruction = pickModeSession.kind === "point"
@@ -134,6 +154,21 @@ export const PickModeStatus = () => {
       <div className="pick-mode-status-copy">
         <strong>{element?.name ?? targetElementId} / {definition?.label ?? targetParameterKey}</strong>
         <small>{instruction}</small>
+        {pointDraftLabel !== null ? (
+          <div className="pick-mode-status-selection" aria-label="現在の選択">
+            <span>現在の選択: {pointDraftLabel}</span>
+          </div>
+        ) : null}
+        {lineDraftLabel !== null ? (
+          <div className="pick-mode-status-selection" aria-label="現在の選択">
+            <span>現在の選択: {lineDraftLabel}</span>
+          </div>
+        ) : null}
+        {numericReferenceEntry ? (
+          <div className="pick-mode-status-selection" aria-label="現在の選択">
+            <span>現在の値: <code>{numericReferenceEntry.expression}</code></span>
+          </div>
+        ) : null}
         {isLineList ? (
           renderOrderedDraft(
             draft.filter((entry): entry is Extract<typeof draft[number], { kind: "line" }> => entry.kind === "line"),
