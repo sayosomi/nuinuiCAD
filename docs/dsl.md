@@ -43,7 +43,10 @@ the existing directional `line -> path` assignability rule, and direct
 identity-free `arcLine` path value from three point inputs. `through` defaults
 `start` and `end` to 0 and 90 degrees and fails duplicate or collinear points
 through the occurrence-owned geometry-value diagnostic channel. These remain
-source-level immutable geometry values, not drawable elements. Pure `bezier`,
+source-level immutable geometry values, not drawable elements. Pure `bezier(...)`
+also produces an identity-free `bezierCurve` path value using the drawable
+constructor's endpoint handles and optional intermediate records; its runtime
+controls and length are available to existing path-compatible consumers. Pure
 `offset`, `corner`, `polyline`, and other deferred constructors remain
 unsupported.
 

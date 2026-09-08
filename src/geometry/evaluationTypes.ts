@@ -42,7 +42,24 @@ export type ComputedGeometryValueArcLine = {
   length: number;
 };
 
-export type ComputedGeometryValue = ComputedGeometryValuePoint | ComputedGeometryValueLine | ComputedGeometryValueArcLine;
+export type ComputedGeometryValueBezierSegment = {
+  start: { x: number; y: number };
+  control1: { x: number; y: number };
+  control2: { x: number; y: number };
+  end: { x: number; y: number };
+};
+
+export type ComputedGeometryValueBezierCurve = {
+  kind: "bezierCurve";
+  segments: ComputedGeometryValueBezierSegment[];
+  length: number;
+};
+
+export type ComputedGeometryValue =
+  | ComputedGeometryValuePoint
+  | ComputedGeometryValueLine
+  | ComputedGeometryValueArcLine
+  | ComputedGeometryValueBezierCurve;
 
 export type ComputedGeometryValueEntry = {
   occurrence: GeometryValueOccurrence;

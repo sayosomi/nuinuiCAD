@@ -1,4 +1,4 @@
-import type { CadElement, ComputedBezierCurve, ComputedBezierSegment, NumericValue } from "../types/geometry";
+import type { CadElement, NumericValue } from "../types/geometry";
 import { pointAnchorForElement } from "../model/pointAnchors";
 import { degreesToRadians, normalizeDegrees360 } from "../scalars/angleMath";
 import {
@@ -12,6 +12,7 @@ import {
   signedCurvatureAt,
   solveRealQuadratic
 } from "./bezierMath";
+import type { BezierLikeSegment } from "./bezierMath";
 import { CIRCLE_EPSILON } from "./evaluateGeometryPrimitives";
 import { dependencyError, geometryError, getComputedPointOrError, getPointAnchorOrError, numericError } from "./evaluationContext";
 import { pointAtDistanceFromEndpoint, isLineLikeGeometryInput, tangentAtPointOnLineLikeGeometry } from "./linePaths";
@@ -36,7 +37,7 @@ const decodeDivisionPlacement = (
 };
 
 const bezierExtremePointAt = (
-  segment: ComputedBezierSegment,
+  segment: BezierLikeSegment,
   direction: { x: number; y: number }
 ) => {
   const derivativeProjection = (t: number) => dot(cubicDerivativeAt(segment, t), direction);
@@ -71,7 +72,7 @@ const bezierExtremePointAt = (
   return cubicPointAt(segment, selected?.t ?? 0.5);
 };
 
-const bezierBulgePointAt = (segment: ComputedBezierSegment) => {
+const bezierBulgePointAt = (segment: BezierLikeSegment) => {
   const chord = {
     x: segment.end.x - segment.start.x,
     y: segment.end.y - segment.start.y
@@ -111,7 +112,7 @@ type CurveSideFrame = {
 };
 
 const curveSideFrameAt = (
-  segment: ComputedBezierSegment,
+  segment: BezierLikeSegment,
   t: number,
   curveSide: CurveSide
 ): CurveSideFrame | null => {
@@ -138,7 +139,7 @@ const curveSideFrameAt = (
 };
 
 const curveSidePoint = (
-  curve: ComputedBezierCurve,
+  curve: { segments: BezierLikeSegment[] },
   basePoint: { x: number; y: number },
   curveSide: unknown,
   distance: number

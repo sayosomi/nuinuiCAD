@@ -44,6 +44,15 @@ pub(crate) fn point_from_value(value: &Value) -> Option<Point> {
     })
 }
 
+fn point_from_identity_free_value(value: &Value) -> Option<Point> {
+    Some(Point {
+        element_id: String::new(),
+        name: String::new(),
+        x: value.get("x")?.as_f64()?,
+        y: value.get("y")?.as_f64()?,
+    })
+}
+
 pub(crate) fn point_anchor_for_element(element: &Value) -> Option<Value> {
     if element_type(element) != Some("offsetPoint")
         && element_type(element) != Some("polarOffsetPoint")
@@ -122,14 +131,18 @@ pub(crate) fn resolve_derived_point(
                     .as_array()?
                     .first()?
                     .get("start")
-                    .and_then(point_from_value)
+                    .and_then(|value| {
+                        point_from_value(value).or_else(|| point_from_identity_free_value(value))
+                    })
             } else if point_key == "end" {
                 source
                     .get("segments")?
                     .as_array()?
                     .last()?
                     .get("end")
-                    .and_then(point_from_value)
+                    .and_then(|value| {
+                        point_from_value(value).or_else(|| point_from_identity_free_value(value))
+                    })
             } else {
                 let intermediate_id = point_key.strip_prefix("intermediate:")?;
                 let index = source
@@ -230,13 +243,17 @@ pub(crate) fn point_anchor_or_error(
             };
             let geometry = state.computed_geometry_values.get(&occurrence)?;
             let point = if let Some(point_key) = anchor.get("pointKey").and_then(Value::as_str) {
-                let value = geometry.get(point_key)?;
-                Point {
-                    element_id: String::new(),
-                    name: String::new(),
-                    x: value.get("x")?.as_f64()?,
-                    y: value.get("y")?.as_f64()?,
-                }
+                let value = if geometry.get("kind").and_then(Value::as_str) == Some("bezierCurve") {
+                    let segments = geometry.get("segments")?.as_array()?;
+                    match point_key {
+                        "start" => segments.first()?.get("start")?,
+                        "end" => segments.last()?.get("end")?,
+                        _ => return None,
+                    }
+                } else {
+                    geometry.get(point_key)?
+                };
+                point_from_identity_free_value(value)?
             } else {
                 Point {
                     element_id: String::new(),

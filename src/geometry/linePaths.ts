@@ -8,20 +8,13 @@ import type {
   ComputedOffsetLineSegment,
   ComputedPolyline
 } from "../types/geometry";
-import { cubicDerivativeAt, projectPointOntoCurve } from "./bezierMath";
+import { cubicDerivativeAt, projectPointOntoCurve, type BezierLikeSegment } from "./bezierMath";
 import { projectPointOntoOffsetLine } from "./offsetSegmentProjection";
 
 type Point = { x: number; y: number };
 
 export type LineLikeGeometry = ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine | ComputedPolyline;
-export type LineLikeGeometryInput = LineLikeGeometry | Extract<ComputedGeometryValue, { kind: "line" | "arcLine" }>;
-
-type BezierLikeSegment = {
-  start: Point;
-  control1: Point;
-  control2: Point;
-  end: Point;
-};
+export type LineLikeGeometryInput = LineLikeGeometry | Extract<ComputedGeometryValue, { kind: "line" | "arcLine" | "bezierCurve" }>;
 
 type PathSegment = {
   start: Point;
@@ -196,7 +189,7 @@ const arcSegments = ({
   });
 };
 
-const bezierSegments = (curve: ComputedBezierCurve) =>
+const bezierSegments = (curve: { segments: readonly BezierLikeSegment[] }) =>
   curve.segments.flatMap((segment) => {
     const points = Array.from({ length: CURVE_PATH_STEPS + 1 }, (_, index) =>
       cubicPointAt(segment, index / CURVE_PATH_STEPS)

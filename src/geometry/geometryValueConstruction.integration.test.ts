@@ -179,6 +179,89 @@ describe("pure geometry construction runtime", () => {
     expect(result.computedGeometry.get("geometry-value-runtime:7")).toMatchObject({ kind: "offsetLine" });
   });
 
+  it("evaluates pure bezier values with multiple segments and shared path consumers", () => {
+    const { compiled, result } = evaluate([
+      "nui 1",
+      "const Start: point = coordinate(x: 0, y: 0)",
+      "const Middle: point = coordinate(x: 5, y: 2)",
+      "const End: point = coordinate(x: 10, y: 0)",
+      "const Curve: path = bezier(start: @Start, end: @End, startAngle: 0, startLength: 3, endAngle: 180, endLength: 4, intermediates: [@Middle: 90: 1: 2])",
+      "const Alias: path = @Curve",
+      "const Length: number = @Alias.length",
+      "line Chord = segment(start: @Curve.start, end: @Curve.end)",
+      "line Offset = offset(sources: [@Alias], distance: 1, side: right, closed: false, suppressTrimWarnings: false)"
+    ].join("\n"));
+
+    const curve = [...(result.computedGeometryValues?.values() ?? [])]
+      .find((entry) => entry.occurrence.sourceStatementId === "geometry-value-runtime:4")?.value;
+    expect(compiled.geometryValueProgram?.[3]?.construction.kind).toBe("bezier");
+    expect(result.errors).toEqual([]);
+    expect(curve).toMatchObject({
+      kind: "bezierCurve",
+      segments: [
+        { start: { x: 0, y: 0 }, control1: { x: 3, y: 0 }, control2: { x: 5, y: 1 }, end: { x: 5, y: 2 } },
+        { start: { x: 5, y: 2 }, control1: { x: 5, y: 4 }, control2: { x: 14 }, end: { x: 10, y: 0 } }
+      ]
+    });
+    expect(curve).not.toHaveProperty("elementId");
+    expect(curve).not.toHaveProperty("name");
+    expect(result.computedGeometry.get("geometry-value-runtime:7")).toMatchObject({ kind: "line", start: { x: 0, y: 0 }, end: { x: 10, y: 0 } });
+    expect(result.computedGeometry.get("geometry-value-runtime:8")).toMatchObject({ kind: "offsetLine" });
+  });
+
+  it("lowers root typed scalar inputs into the pure bezier value program", () => {
+    const { result } = evaluate([
+      "nui 1",
+      "const StartAngle: number = 90",
+      "const Curve: path = bezier(start: (0, 0), end: (10, 0), startAngle: @StartAngle, startLength: 3, endAngle: 180, endLength: 2)",
+      "const Length: number = @Curve.length"
+    ].join("\n"));
+
+    const curve = [...(result.computedGeometryValues?.values() ?? [])]
+      .find((entry) => entry.occurrence.sourceStatementId === "geometry-value-runtime:2")?.value;
+    expect(result.errors).toEqual([]);
+    expect(curve).toMatchObject({
+      kind: "bezierCurve",
+      segments: [{ control1: { y: 3 } }]
+    });
+  });
+
+  it("evaluates local and exported Module pure bezier occurrences", () => {
+    const { result } = evaluate([
+      "nui 1",
+      "module M(startAngle: number) {",
+      "  const Local: path = bezier(start: (0, 0), end: (10, 0), startAngle: @startAngle, startLength: 2, endAngle: 180, endLength: 2)",
+      "  export const Output: path = bezier(start: (0, 0), end: (10, 0), startAngle: 90, startLength: 3, endAngle: 270, endLength: 3)",
+      "}",
+      "instance One = M(startAngle: 90)",
+      "const Length: number = @One::Output.length",
+      "line Use = segment(start: @One::Output.start, end: @One::Output.end)"
+    ].join("\n"));
+
+    expect(result.errors).toEqual([]);
+    const values = [...(result.computedGeometryValues?.values() ?? [])];
+    expect(values.filter((entry) => entry.value.kind === "bezierCurve")).toHaveLength(2);
+    expect(values.filter((entry) => entry.occurrence.instancePath.length === 1 && entry.value.kind === "bezierCurve")).toHaveLength(2);
+    expect(values.filter((entry) => entry.occurrence.instancePath.length === 1 && entry.value.kind === "bezierCurve").map((entry) => entry.value.kind === "bezierCurve" ? entry.value.segments[0]?.control1.y : undefined)).toEqual(expect.arrayContaining([2, 3]));
+    expect(result.computedGeometry.get("geometry-value-runtime:7")).toMatchObject({ kind: "line", start: { x: 0, y: 0 }, end: { x: 10, y: 0 } });
+  });
+
+  it("reports invalid pure bezier runtime inputs through the occurrence-owned channel", () => {
+    const { compiled, result } = evaluate([
+      "nui 1",
+      "const Invalid: path = bezier(start: (0, 0), end: (10, 0), startAngle: 0, startLength: 10 / 0, endAngle: 180, endLength: 2)"
+    ].join("\n"));
+
+    const occurrence = compiled.geometryValueProgram![0]!.occurrence;
+    expect(result.computedGeometryValues).toEqual(new Map());
+    expect(result.geometryValueErrors).toEqual([{
+      occurrence,
+      message: "Bezier geometry value construction inputs are unavailable or invalid."
+    }]);
+    expect(result.errors).toEqual([]);
+    expect(result.geometryValueErrors?.every((error) => !("elementId" in error))).toBe(true);
+  });
+
   it("supports authored and derived points plus exported Module through occurrences", () => {
     const { compiled, result } = evaluate([
       "nui 1",

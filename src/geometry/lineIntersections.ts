@@ -1,10 +1,6 @@
-import type {
-  ComputedBezierCurve,
-  ComputedOffsetLine,
-  ComputedOffsetLineSegment
-} from "../types/geometry";
+import type { ComputedOffsetLine, ComputedOffsetLineSegment } from "../types/geometry";
 import type { LineLikeGeometryInput } from "./linePaths";
-import { cubicDerivativeAt, cubicPointAt } from "./bezierMath";
+import { cubicDerivativeAt, cubicPointAt, type BezierLikeSegment } from "./bezierMath";
 
 type Point = { x: number; y: number };
 
@@ -182,7 +178,7 @@ const pushBezierChords = (
   }
 };
 
-const bezierPathSegments = (curve: ComputedBezierCurve) => {
+const bezierPathSegments = (curve: { segments: BezierLikeSegment[] }) => {
   const segments: IntersectionSegment[] = [];
   const accumulated = { value: 0 };
   for (const segment of curve.segments) {

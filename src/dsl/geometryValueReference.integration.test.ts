@@ -162,7 +162,7 @@ describe("immutable single-geometry reference values", () => {
     });
     expect(pureGeometryValueConstructionCandidates("point").map((candidate) => candidate.label)).toEqual(["coordinate"]);
     expect(pureGeometryValueConstructionCandidates("line").map((candidate) => candidate.label)).toEqual(["segment"]);
-    expect(pureGeometryValueConstructionCandidates("path").map((candidate) => candidate.label)).toEqual(["segment", "arc", "through"]);
+    expect(pureGeometryValueConstructionCandidates("path").map((candidate) => candidate.label)).toEqual(["segment", "bezier", "arc", "through"]);
     expect(pureGeometryValueConstructionCandidates("point").map((candidate) => candidate.label)).not.toContain("through");
     expect(pureGeometryValueConstructionCandidates("line").map((candidate) => candidate.label)).not.toContain("through");
   });
@@ -228,7 +228,7 @@ describe("immutable single-geometry reference values", () => {
     });
   });
 
-  it("typechecks the construction subset, rejects deferred constructors, and preserves spans", () => {
+  it("typechecks the construction subset, accepts pure bezier, and preserves spans", () => {
     const incompatible = compile([
       "nui 1",
       "const badPoint: line = coordinate(x: 0, y: 0)",
@@ -239,14 +239,19 @@ describe("immutable single-geometry reference values", () => {
       "module-geometry-type-mismatch"
     ]);
 
-    const deferred = compile([
+    const bezier = compile([
       "nui 1",
-      "const deferred: path = bezier(start: (0, 0), end: (1, 0))"
-    ].join("\n"), "geometry-value-deferred-construction");
-    expect(errorCodes(deferred)).toContain("geometry-value-unsupported-construction");
-    expect(deferred.diagnostics.find((diagnostic) => diagnostic.code === "geometry-value-unsupported-construction")?.physicalSpan?.segments[0]).toEqual(
-      expect.objectContaining({ from: 29, to: 35 })
-    );
+      "const Curve: path = bezier(start: (0, 0), end: (10, 0), startAngle: 0, startLength: 3, endAngle: 180, endLength: 4, intermediates: [(5, 2): 90: 1: 2])"
+    ].join("\n"), "geometry-value-bezier");
+    expect(bezier.diagnostics).toEqual([]);
+    expect(bezier.geometryValueProgram?.[0]?.construction).toMatchObject({
+      kind: "bezier",
+      startAngleDeg: { kind: "numberLiteral", value: 0 },
+      startLength: { kind: "numberLiteral", value: 3 },
+      endAngleDeg: { kind: "numberLiteral", value: 180 },
+      endLength: { kind: "numberLiteral", value: 4 },
+      intermediates: [{ angleDeg: { kind: "numberLiteral", value: 90 }, incomingLength: { kind: "numberLiteral", value: 1 }, outgoingLength: { kind: "numberLiteral", value: 2 } }]
+    });
 
     const metadata = compile([
       "nui 1",

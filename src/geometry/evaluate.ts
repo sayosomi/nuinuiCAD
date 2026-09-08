@@ -74,7 +74,7 @@ import type {
   ComputedGeometryValueEntry,
   GeometryValueEvaluationError
 } from "./evaluationTypes";
-import { arcGeometryKernel, coordinateGeometryKernel, segmentGeometryKernel, throughArcGeometryKernel, type StructuralPoint } from "./geometryValueKernels";
+import { arcGeometryKernel, bezierGeometryKernel, coordinateGeometryKernel, segmentGeometryKernel, throughArcGeometryKernel, type StructuralPoint } from "./geometryValueKernels";
 import { evaluateTypedExpression } from "../scalars/expressionEvaluator";
 import { setParameterValue } from "../parameters/parameterAccess";
 
@@ -526,6 +526,56 @@ export const evaluateElements = (
         }
         value = throughValue;
       }
+    } else if (entry.construction.kind === "bezier") {
+      if (entry.declaredInterfaceType !== "path") {
+        appendGeometryValueError(entry, "Geometry value construction is incompatible with its declared interface type.");
+        return;
+      }
+      const start = structuralPointForProgramPoint(entry.construction.start, sourceOrder);
+      const end = structuralPointForProgramPoint(entry.construction.end, sourceOrder);
+      const startAngleDeg = evaluateGeometryValueScalar(entry.construction.startAngleDeg, sourceOrder);
+      const startLength = evaluateGeometryValueScalar(entry.construction.startLength, sourceOrder);
+      const endAngleDeg = evaluateGeometryValueScalar(entry.construction.endAngleDeg, sourceOrder);
+      const endLength = evaluateGeometryValueScalar(entry.construction.endLength, sourceOrder);
+      const intermediates = entry.construction.intermediates.map((intermediate) => ({
+        point: structuralPointForProgramPoint(intermediate.point, sourceOrder),
+        angleDeg: evaluateGeometryValueScalar(intermediate.angleDeg, sourceOrder),
+        incomingLength: evaluateGeometryValueScalar(intermediate.incomingLength, sourceOrder),
+        outgoingLength: evaluateGeometryValueScalar(intermediate.outgoingLength, sourceOrder)
+      }));
+      if (
+        !start || !end ||
+        startAngleDeg === undefined || startLength === undefined ||
+        endAngleDeg === undefined || endLength === undefined ||
+        intermediates.some((intermediate) =>
+          !intermediate.point ||
+          intermediate.angleDeg === undefined ||
+          intermediate.incomingLength === undefined ||
+          intermediate.outgoingLength === undefined
+        )
+      ) {
+        appendGeometryValueError(entry, "Bezier geometry value construction inputs are unavailable or invalid.");
+        return;
+      }
+      const bezierValue = bezierGeometryKernel(
+        start,
+        end,
+        startAngleDeg,
+        startLength,
+        endAngleDeg,
+        endLength,
+        intermediates.map((intermediate) => ({
+          point: intermediate.point!,
+          angleDeg: intermediate.angleDeg!,
+          incomingLength: intermediate.incomingLength!,
+          outgoingLength: intermediate.outgoingLength!
+        }))
+      );
+      if (!bezierValue) {
+        appendGeometryValueError(entry, "Bezier geometry value construction inputs are unavailable or invalid.");
+        return;
+      }
+      value = bezierValue;
     }
     if (value) {
       computedGeometryValues.set(geometryValueOccurrenceKey(entry.occurrence), { occurrence: entry.occurrence, value });
