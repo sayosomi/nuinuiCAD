@@ -242,7 +242,9 @@ export const moduleSemanticStableFingerprint = (compiled: CompiledDslDocument) =
         ? { id: entry.exportedStatementId, kind: entry.kind, category: entry.category }
         : entry.kind === "record"
           ? { id: entry.exportedStatementId, kind: entry.kind, typeIdentity: entry.typeIdentity }
-          : { id: entry.exportedStatementId, kind: entry.kind, declaredType: entry.declaredType, bindingKind: entry.bindingKind })
+          : entry.kind === "scalar"
+            ? { id: entry.exportedStatementId, kind: entry.kind, declaredType: entry.declaredType, bindingKind: entry.bindingKind }
+            : { id: entry.exportedStatementId, kind: entry.kind, valueType: entry.valueType })
     })),
     instances: analysis.instances.map((instance) => ({
       id: instance.statementId,

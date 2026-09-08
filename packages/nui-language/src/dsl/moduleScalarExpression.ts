@@ -156,6 +156,23 @@ const geometryPropertyMetadataFor = (
   target: ModuleGeometryPropertySourceTarget,
   type: ScalarType
 ): ScalarExpressionResolvedGeometryProperty => {
+  if (target.kind === "collectionValueLength" || target.kind === "collectionParameterLength" || target.kind === "deferredModuleCollectionExportLength") {
+    return {
+      kind: "collection",
+      collectionValueId: target.kind === "collectionValueLength"
+        ? target.valueId
+        : target.kind === "collectionParameterLength"
+          ? `${target.definitionStatementId}:parameter:${target.parameterIndex}`
+          : JSON.stringify([target.instanceStatementId, target.exportName]),
+      collectionLength: target.kind === "collectionValueLength" ? target.length ?? 0 : 0,
+      targetSourceOrder: target.kind === "collectionValueLength"
+        ? target.statementIndex
+        : target.kind === "deferredModuleCollectionExportLength"
+          ? target.instanceStatementIndex
+          : -1,
+      type: { kind: "number" }
+    };
+  }
   if (target.kind === "sourceGeometryProperty") {
     return { elementId: target.statementId, property: target.property, targetSourceOrder: target.statementIndex, type };
   }

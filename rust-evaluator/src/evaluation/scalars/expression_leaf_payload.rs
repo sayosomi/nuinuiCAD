@@ -335,6 +335,8 @@ pub(crate) fn decode_geometry_property(
             "propertySpan",
             "elementName",
             "elementId",
+            "collectionValueId",
+            "collectionLength",
             "geometryValueOccurrence",
             "geometryValuePointKey",
             "property",
@@ -377,6 +379,36 @@ pub(crate) fn decode_geometry_property(
                 )
             })?
             .to_owned(),
+    };
+    let collection_value_id = match object.get("collectionValueId") {
+        None | Some(Value::Null) => None,
+        Some(value) => Some(
+            value
+                .as_str()
+                .filter(|value| !value.is_empty())
+                .ok_or_else(|| {
+                    issue(
+                        Code::InvalidFieldType,
+                        "geometryProperty node \"collectionValueId\" must be a non-empty string",
+                    )
+                })?
+                .to_owned(),
+        ),
+    };
+    let collection_length = match object.get("collectionLength") {
+        None | Some(Value::Null) => None,
+        Some(value) => {
+            let length = value
+                .as_f64()
+                .filter(|value| value.is_finite() && *value >= 0.0 && value.fract() == 0.0)
+                .ok_or_else(|| {
+                    issue(
+                Code::InvalidFieldType,
+                "geometryProperty node \"collectionLength\" must be a finite non-negative integer",
+            )
+                })?;
+            Some(length)
+        }
     };
     let geometry_value_occurrence = match object.get("geometryValueOccurrence") {
         None | Some(Value::Null) => None,
@@ -446,12 +478,33 @@ pub(crate) fn decode_geometry_property(
             "geometryProperty node \"type\" must be a number or choice type",
         ));
     }
+    if collection_length.is_some() {
+        if collection_value_id.is_none()
+            || !element_id.is_empty()
+            || geometry_value_occurrence.is_some()
+            || geometry_value_point_key.is_some()
+            || property != "length"
+            || scalar_type != ScalarType::Number
+        {
+            return Err(issue(
+                Code::LiteralTypeMismatch,
+                "collection length geometryProperty nodes must carry only a collection identity and number type",
+            ));
+        }
+    } else if collection_value_id.is_some() {
+        return Err(issue(
+            Code::LiteralTypeMismatch,
+            "collectionValueId requires collectionLength",
+        ));
+    }
     Ok(TypedScalarExpression::GeometryProperty {
         span,
         element_name_span,
         property_span,
         element_name,
         element_id,
+        collection_value_id,
+        collection_length,
         geometry_value_occurrence,
         geometry_value_point_key,
         property,

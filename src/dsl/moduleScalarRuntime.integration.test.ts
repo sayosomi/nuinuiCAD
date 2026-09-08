@@ -1458,6 +1458,44 @@ describe("module scalar runtime integration", () => {
     expect(result.computedGeometry.get(elementNamed(compiled, "P").id)).toMatchObject({ x: 10 });
   });
 
+  it("evaluates root and Module collection lengths without a geometry runtime read", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "const values: number[] = [1, 2, 2]",
+      "const labels: string[] = [\"a\", \"a\"]",
+      "const rootAlias: number[] = @values",
+      "const rootLength: number = @rootAlias.length",
+      "module M(items: number[], optional?: string[]) {",
+      "  const local: number[] = @items",
+      "  const localLength: number = @local.length",
+      "  if (hasValue(@optional)) {",
+      "    const optionalLength: number = @optional.length",
+      "    point OptionalLength = coordinate(x: @optionalLength, y: 0)",
+      "  }",
+      "  export const output: number[] = @local",
+      "}",
+      "instance Use = M(items: @values, optional: @labels)",
+      "const exportLength: number = @Use::output.length"
+    ].join("\n"), "collection-length-runtime");
+    expectValid(compiled);
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const valueFor = (name: string) => {
+      const binding = compiled.bindingAnalysis!.catalog.bindings.find((candidate) => candidate.kind === "typed" && candidate.name === name);
+      return binding ? result.computedScalarBindings?.get(binding.id) : undefined;
+    };
+    for (const name of ["rootLength", "localLength", "exportLength"]) expect(valueFor(name), name).toMatchObject({ status: "ok", value: { kind: "number", value: 3 } });
+    expect(compiled.document!.elements.filter((element) => element.name === "OptionalLength").map((element) => result.computedGeometry.get(element.id))).toEqual([
+      expect.objectContaining({ kind: "point", x: 2, y: 0 })
+    ]);
+    const collectionInitializers = (compiled.scalarProgram?.statements ?? [])
+      .map((statement) => statement.declaration.initializer)
+      .filter((initializer) => initializer.kind === "geometryProperty" && initializer.collectionValueId !== undefined);
+    expect(collectionInitializers).toHaveLength(4);
+    expect(collectionInitializers.filter((initializer) => initializer.kind === "geometryProperty" && initializer.collectionLength === 3)).toHaveLength(3);
+    expect(collectionInitializers.filter((initializer) => initializer.kind === "geometryProperty" && initializer.collectionLength === 2)).toHaveLength(1);
+  });
+
   it("carries a concrete choice geometry property through module scalar runtime lowering", () => {
     const compiled = compileWithIds([
       "nui 1",

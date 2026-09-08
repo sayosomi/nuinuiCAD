@@ -50,6 +50,13 @@ import {
 } from "./moduleLexicalResolution";
 import type { ScalarType } from "../scalars/types";
 import { isDslArrayValueType, isDslGeometryValueType, scalarTypeOfDslValueType } from "./dslValueTypes";
+import { isDslNonArrayValueTypeAssignable } from "./geometryArrayTypes";
+import {
+  collectionLengthForValueId,
+  collectionValueSemanticForStatement,
+  geometryArrayDeferredModuleExportId,
+  moduleParameterByName
+} from "./geometryArraySemanticAnalysis";
 import type { StatementIdentity } from "../document/statementIdentity";
 import type {
   ModuleArgumentSemantic,
@@ -1262,6 +1269,47 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     };
   };
 
+  const qualifiedCollectionExportFor = (
+    qualified: Extract<QualifiedModuleExportLookup, { kind: "deferred" }>
+  ): { kind: "collection"; exportedStatementId: StatementIdentity; exportedStatementIndex: number; valueType: import("./dslValueTypes").DslArrayValueType }
+    | { kind: "private"; exportedStatementIndex: number }
+    | null => {
+    const instance = instances.find((candidate) => candidate.statementId === qualified.instance.statementId);
+    const externalDefinition = instance?.callee?.definition;
+    if (externalDefinition) {
+      const exported = externalDefinition.exports.find((candidate) => candidate.name === qualified.exportName);
+      return exported?.kind === "collection"
+        ? {
+            kind: "collection",
+            exportedStatementId: exported.exportedStatementId,
+            exportedStatementIndex: exported.exportedStatementIndex,
+            valueType: exported.valueType
+          }
+        : null;
+    }
+    const definition = instance?.callee && stateByIndex.get(instance.callee.definitionStatementIndex);
+    const named = definition?.bodyStatementIndexes
+      .map((statementIndex) => ({ statementIndex, statement: statements[statementIndex] }))
+      .find(({ statement }) =>
+        isDirectModuleChild(statement, definition.statementIndex) &&
+        statement.name === qualified.exportName &&
+        statement.kind === "typedDeclaration"
+    );
+    if (!named) return null;
+    if (named.statement.kind !== "typedDeclaration") return null;
+    if (!named.statement.exported) return { kind: "private", exportedStatementIndex: named.statementIndex };
+    if (!isDslArrayValueType(named.statement.valueType)) return null;
+    const value = collectionValueSemanticForStatement(sourceNamespace.geometryArraySemanticAnalysis!, named.statementIndex);
+    return value
+      ? {
+          kind: "collection",
+          exportedStatementId: value.statementId,
+          exportedStatementIndex: named.statementIndex,
+          valueType: "valueType" in value ? value.valueType : { kind: "array" as const, elementType: { kind: value.type.elementType as "point" | "line" | "path" } }
+        }
+      : null;
+  };
+
   type RecordSourceLookup =
     | {
         kind: "record";
@@ -2050,6 +2098,109 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     ownerIndex: number | null,
     reference: ModuleGeometryPropertyReferenceInput
   ): ModuleGeometryPropertyReferenceResolution => {
+    const collectionAnalysis = sourceNamespace.geometryArraySemanticAnalysis;
+    if (reference.property === "length" && collectionAnalysis) {
+      const qualified = resolveQualifiedModuleExport(statementIndex, ownerIndex, reference.elementName, reference.elementNameSpan);
+      if (qualified?.kind === "deferred") {
+        const exported = qualifiedCollectionExportFor(qualified);
+        if (exported?.kind === "collection") {
+          return {
+            target: {
+              kind: "deferredModuleCollectionExportLength",
+              instanceStatementId: qualified.instance.statementId,
+              instanceStatementIndex: qualified.instance.statementIndex,
+              instanceName: qualified.instanceName,
+              exportName: qualified.exportName,
+              exportedStatementId: exported.exportedStatementId,
+              exportedStatementIndex: exported.exportedStatementIndex,
+              valueType: exported.valueType,
+              referenceSpan: reference.span,
+              instanceSpan: qualified.instanceSpan,
+              memberSpan: qualified.memberSpan
+            },
+            type: { kind: "number" },
+            resolution: "deferred"
+          };
+        }
+        if (exported?.kind === "private") {
+          addLocal(statementIndex, issue(
+            "module-private-member",
+            qualified.memberSpan,
+            `module member「${qualified.exportName}」はexportされていないため参照できません。`,
+            { presentation: { key: "diagnostic.module-private-member", parameters: { target: qualified.exportName } } }
+          ));
+          return { target: null, type: null, resolution: "invalid" };
+        }
+      } else if (qualified) {
+        qualifiedDiagnostic(statementIndex, reference.span, qualified, null);
+        return {
+          target: null,
+          type: null,
+          resolution: qualified.kind === "forward" ? "forward" : qualified.kind === "undefined" ? "undefined" : qualified.kind === "outerCapture" ? "outerCapture" : "invalid"
+        };
+      }
+
+      const path = parseDslReferenceToken(reference.elementName);
+      const lookup = ownerIndex === null
+        ? qualifiedSourceDeclarationResolution(sourceNamespace, statementIndex, path) ?? sourceDeclarationResolution(sourceNamespace, statementIndex, reference.elementName)
+        : resolveModuleLexicalPath(statementIndex, ownerIndex, path);
+      if (lookup.kind === "parameter") {
+        if (isDslArrayValueType(lookup.parameter.parameter.valueType)) {
+          const parameterTarget = {
+          kind: "collectionParameterLength" as const,
+          definitionStatementId: lookup.definition.statementId,
+          parameterIndex: lookup.parameter.index,
+          valueType: lookup.parameter.parameter.valueType,
+          optional: lookup.parameter.parameter.optional
+        };
+          if (lookup.parameter.parameter.optional && !reference.presenceFacts?.has(moduleParameterPresenceKey(parameterTarget.definitionStatementId, parameterTarget.parameterIndex))) {
+          return {
+            target: parameterTarget,
+            type: null,
+            resolution: "invalid",
+            diagnostic: issue(
+              "module-optional-value-required",
+              reference.span,
+              `optional module parameter「${reference.elementName}」は hasValue(@${reference.elementName}) で存在を確認してから参照してください。`,
+              { relatedSources: relatedForParameter(lookup.definition, lookup.parameter.index), presentation: { key: "diagnostic.module-optional-value-required", parameters: { name: reference.elementName } } }
+            )
+          };
+          }
+          return { target: parameterTarget, type: { kind: "number" }, resolution: "resolved" };
+        }
+      }
+      if (lookup.kind === "resolved" && lookup.declaration.kind === "typedDeclaration" && lookup.declaration.statement.kind === "typedDeclaration") {
+        const value = collectionValueSemanticForStatement(collectionAnalysis, lookup.declaration.statementIndex);
+        if (value) {
+          const declarationOwner = moduleOwnerIndexOf(statements, lookup.declaration.statementIndex);
+          if (ownerIndex !== null && declarationOwner !== ownerIndex) {
+          return {
+            target: null,
+            type: null,
+            resolution: "outerCapture",
+            diagnostic: issue("module-outer-capture", reference.span, `module body から outer collection「${reference.elementName}」を暗黙 capture できません。`, {
+              relatedSources: relatedForDeclaration(lookup.declaration),
+              presentation: { key: "diagnostic.module-outer-capture", parameters: { name: reference.elementName } }
+            })
+          };
+          }
+          const valueType = "valueType" in value ? value.valueType : { kind: "array" as const, elementType: { kind: value.type.elementType as "point" | "line" | "path" } };
+          return {
+          target: {
+            kind: "collectionValueLength",
+            statementId: value.statementId,
+            statementIndex: value.statementIndex,
+            valueId: value.statementId,
+            valueType,
+            length: collectionLengthForValueId(collectionAnalysis, value.statementId),
+            ...(value.statementId ? { identity: input.documentId ? qualifySemanticIdentity(input.documentId, value.statementId) : undefined } : {})
+          },
+          type: { kind: "number" },
+          resolution: "resolved"
+          };
+        }
+      }
+    }
     const record = recordSourceLookup(statementIndex, ownerIndex, reference.elementName, reference.elementNameSpan);
     if (record.kind === "record") {
       const fieldTarget = recordFieldTargetFor(record, reference);
@@ -2615,6 +2766,60 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       }
     ));
   };
+  const collectionArgumentSemantic = (
+    statementIndex: number,
+    ownerIndex: number | null,
+    source: string,
+    span: DslSpan,
+    expectedType: import("./dslValueTypes").DslArrayValueType
+  ): ModuleArgumentSemantic | null => {
+    const parsed = parseDslSourceReference(source.trim());
+    if (parsed.kind !== "valid" || parsed.reference.property) return null;
+    const path = parseDslReferenceToken(parsed.reference.pathText);
+    if (path.segments.length === 1 && !path.absolute) {
+      const parameter = moduleParameterByName(statements, stableStatementIdByIndex, statementIndex, path.segments[0]!);
+      if (parameter && isDslArrayValueType(parameter.parameter.valueType)) {
+        return {
+          kind: "collection",
+          source,
+          span,
+          targetValueId: `${parameter.definitionStatementId}:parameter:${parameter.parameterIndex}`,
+          valueType: parameter.parameter.valueType
+        };
+      }
+    }
+    const lookup = resolveSourceLexicalPath(sourceNamespace, statementIndex, path);
+    if (lookup.kind === "invalidTraversal" && lookup.declaration.kind === "moduleInstance" && path.segments.length === 2) {
+      const qualified = resolveQualifiedModuleExport(statementIndex, ownerIndex, parsed.reference.pathText, span, parsed.reference.pathRange.start);
+      if (qualified?.kind === "deferred") {
+        const exported = qualifiedCollectionExportFor(qualified);
+        if (exported?.kind === "collection" && isDslNonArrayValueTypeAssignable(exported.valueType.elementType, expectedType.elementType)) {
+          return {
+            kind: "collection",
+            source,
+            span,
+            targetValueId: geometryArrayDeferredModuleExportId(lookup.declaration.statementId, path.segments[1]!),
+            valueType: exported.valueType
+          };
+        }
+      }
+      return null;
+    }
+    if (lookup.kind !== "resolved") return null;
+    const value = sourceNamespace.geometryArraySemanticAnalysis
+      ? collectionValueSemanticForStatement(sourceNamespace.geometryArraySemanticAnalysis, lookup.declaration.statementIndex)
+      : null;
+    if (!value) return null;
+    const valueType = "valueType" in value ? value.valueType : { kind: "array" as const, elementType: { kind: value.type.elementType as "point" | "line" | "path" } };
+    if (!isDslNonArrayValueTypeAssignable(valueType.elementType, expectedType.elementType)) return null;
+    return {
+      kind: "collection",
+      source,
+      span,
+      targetValueId: value.statementId,
+      valueType
+    };
+  };
   const instances: ModuleInstanceSemantic[] = [];
   // Body semantic analysis needs instance -> callee identity to resolve
   // qualified exports, while full argument analysis waits for branch facts.
@@ -2741,7 +2946,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
             });
             continue;
           }
-          const parameterArrayType = isDslArrayValueType(parameter.valueType) && !isDslGeometryValueType(parameter.valueType.elementType)
+          const parameterArrayType = isDslArrayValueType(parameter.valueType)
             ? parameter.valueType
             : null;
           let value: ModuleArgumentSemantic | null = null;
@@ -2753,7 +2958,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
                 const lookup = resolveModuleLexicalPath(statementIndex, ownerIndex, parseDslReferenceToken(parsedReference.reference.pathText));
                 if (lookup.kind === "parameter") {
                   const sourceParameter = moduleParameterForSlot(lookup.definition.statementId, lookup.parameter.index);
-                  if (sourceParameter && isDslArrayValueType(sourceParameter.valueType) && !isDslGeometryValueType(sourceParameter.valueType.elementType)) {
+                  if (sourceParameter && isDslArrayValueType(sourceParameter.valueType)) {
                     addOptionalGenericCollectionPresenceDiagnostic(statementIndex, argument.valueSpan, sourceParameter, presenceFacts);
                   }
                 }
@@ -2762,8 +2967,13 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           }
           const parameterScalarType = scalarTypeOf(parameter.type);
           if (parameterArrayType) {
-            // Generic collections remain source-semantic in this slice. Keep
-            // the argument binding shape, but do not invent runtime transport.
+            value = collectionArgumentSemantic(
+              statementIndex,
+              ownerIndex,
+              argument.value,
+              argument.valueSpan,
+              parameterArrayType
+            );
           } else if (parameterScalarType) {
             const presenceFacts = presenceFactsByStatementIndex.get(statementIndex) ?? new Set<string>();
             const expression = analyzeExpression(
@@ -3079,6 +3289,41 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       });
       exportedNames.add(recordValue.value.name);
     }
+    const collectionAnalysis = sourceNamespace.geometryArraySemanticAnalysis;
+    const definitionCollections = collectionAnalysis
+      ? [
+          ...collectionAnalysis.genericValues,
+          ...collectionAnalysis.values.map((value) => ({
+            ...value,
+            valueType: { kind: "array" as const, elementType: { kind: value.type.elementType as "point" | "line" | "path" } }
+          }))
+        ].filter((value) => value.ownerModuleDefinitionStatementIndex === definition.statementIndex)
+      : [];
+    for (const collectionValue of definitionCollections) {
+      const statement = statements[collectionValue.statementIndex];
+      if (!statement || !statementIsExported(statement) || !isDirectModuleChild(statement, definition.statementIndex)) continue;
+      if (!collectionValue.name || exportedNames.has(collectionValue.name)) {
+        if (collectionValue.name && exportedNames.has(collectionValue.name)) {
+          addLocal(collectionValue.statementIndex, {
+            code: "module-duplicate-export",
+            span: (statement.kind === "typedDeclaration" || statement.kind === "element" ? statement.exportSpan : null) ?? statement.nameSpan ?? statement.keywordSpan,
+            message: `module export「${collectionValue.name}」が重複しています。`,
+            presentation: { key: "diagnostic.module-duplicate-export", parameters: { name: collectionValue.name } }
+          });
+        }
+        continue;
+      }
+      definitionExports.push({
+        kind: "collection",
+        ownerModuleDefinitionStatementId: definition.statementId,
+        exportedStatementId: collectionValue.statementId,
+        exportedStatementIndex: collectionValue.statementIndex,
+        sourceOrder: collectionValue.statementIndex,
+        name: collectionValue.name,
+        valueType: collectionValue.valueType
+      });
+      exportedNames.add(collectionValue.name);
+    }
     exportsByDefinition.set(definition.statementIndex, definitionExports);
   }
 
@@ -3257,6 +3502,7 @@ export const decorateDocumentQualifiedModuleSemantics = (
   const mapArgument = (argument: ModuleArgumentSemantic): ModuleArgumentSemantic => {
     if (argument.kind === "scalar") return { ...argument, expression: mapExpression(argument.expression) };
     if (argument.kind === "geometry") return { ...argument, reference: mapGeometryReference(argument.reference) };
+    if (argument.kind === "collection") return argument;
     return { ...argument, reference: mapRecordReference(argument.reference) };
   };
   const definitions = analysis.definitions.map((definition) => ({

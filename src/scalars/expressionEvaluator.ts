@@ -178,6 +178,12 @@ const evaluateGeometryProperty = (
   environment: ScalarEvaluationEnvironment
 ): ScalarEvaluation => {
   if (node.type === null) return staticTypeNullError();
+  if (node.collectionLength !== undefined) {
+    if (node.type.kind !== "number" || !Number.isInteger(node.collectionLength) || node.collectionLength < 0) {
+      return { status: "error", type: node.type, issueCode: "evaluation-geometry-property-unavailable" };
+    }
+    return { status: "ok", type: node.type, value: { kind: "number", value: node.collectionLength } };
+  }
   if (node.type.kind !== "number" && node.type.kind !== "choice") {
     return { status: "error", type: node.type, issueCode: "evaluation-geometry-property-unavailable" };
   }

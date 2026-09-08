@@ -94,6 +94,37 @@ export type GeometryArraySemanticAnalysis = {
   diagnostics: readonly DslDiagnostic[];
 };
 
+/** The shared declaration-backed view used by scalar property consumers. The
+ * historical geometry projection and the generalized collection projection
+ * remain separate for their existing runtime clients, but cardinality reads
+ * use this one owner. */
+export type DslCollectionValueSemantic =
+  | GenericArrayValueSemantic
+  | GeometryArrayValueSemantic;
+
+export const collectionValueSemanticForStatement = (
+  analysis: GeometryArraySemanticAnalysis,
+  statementIndex: number
+): DslCollectionValueSemantic | null =>
+  analysis.genericValuesByStatementIndex.get(statementIndex) ??
+  analysis.valuesByStatementIndex.get(statementIndex) ??
+  null;
+
+/** Resolve only statically-known literal/alias cardinality. Module parameter
+ * and deferred export identities deliberately remain unresolved here; the
+ * Module runtime supplies those values from the materialized argument. */
+export const collectionLengthForValueId = (
+  analysis: GeometryArraySemanticAnalysis,
+  valueId: string,
+  seen: ReadonlySet<string> = new Set()
+): number | null => {
+  if (seen.has(valueId)) return null;
+  const value = analysis.genericValuesByStatementId.get(valueId) ?? analysis.valuesByStatementId.get(valueId);
+  if (!value?.value) return null;
+  if (value.value.kind === "literal") return value.value.members.length;
+  return collectionLengthForValueId(analysis, value.value.targetValueId, new Set([...seen, valueId]));
+};
+
 export type GeometryArraySemanticAnalysisInput = {
   statements: readonly DslStatement[];
   stableStatementIdByIndex: ReadonlyMap<number, string>;
@@ -181,7 +212,7 @@ const offsetExpression = (expression: GeometryArrayExpression, offset: number): 
         }))
       };
 
-const moduleParameterByName = (
+export const moduleParameterByName = (
   statements: readonly DslStatement[],
   stableStatementIdByIndex: ReadonlyMap<number, string>,
   statementIndex: number,

@@ -287,6 +287,8 @@ pub(crate) enum TypedScalarExpression {
         property_span: ScalarSpan,
         element_name: String,
         element_id: String,
+        collection_value_id: Option<String>,
+        collection_length: Option<f64>,
         geometry_value_occurrence: Option<GeometryValueOccurrence>,
         geometry_value_point_key: Option<String>,
         property: String,

@@ -332,6 +332,29 @@ describe("queryDslCompletion", () => {
     expect(property?.replacementRange.from).toBe(source.indexOf("@AB.le") + "@AB.".length);
   });
 
+  it("exposes collection length only for resolved collection values", () => {
+    const source = [
+      "nui 1",
+      "const items: number[] = [1, 2]",
+      "const count: number = @items.",
+      "module M(values: string[]) {",
+      "  const local: number = @values.length",
+      "}",
+      "instance Use = M(values: @items)"
+    ].join("\n");
+    expect(labels(exactQuery(source, "@items.", "@items.".length))).toContain("length");
+
+    const moduleSource = [
+      "nui 1",
+      "module M(values: number[]) {",
+      "  const count: number = @values.le",
+      "}",
+      "const items: number[] = [1]",
+      "instance Use = M(values: @items)"
+    ].join("\n");
+    expect(labels(exactQuery(moduleSource, "@values.le", "@values.le".length))).toContain("length");
+  });
+
   it("offers only exactly assignable choice geometry properties", () => {
     const source = [
       "nui 1",

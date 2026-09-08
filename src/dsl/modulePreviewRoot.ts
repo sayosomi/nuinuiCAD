@@ -222,7 +222,9 @@ const bindingIsResolved = (binding: ResolvedModuleParameterBinding): boolean => 
     ? expressionIsResolved(binding.value.expression)
     : binding.value.kind === "geometry"
       ? referenceIsResolved(binding.value.reference)
-      : recordReferenceIsResolved(binding.value.reference);
+      : binding.value.kind === "record"
+        ? recordReferenceIsResolved(binding.value.reference)
+        : true;
 };
 
 const callerSourceStatementIsSafe = (
@@ -358,7 +360,9 @@ const parameterBindingIsSafe = (
         callerModuleStatementIndexes,
         statements
       )
-      : recordReferenceIsResolved(binding.value.reference);
+      : binding.value.kind === "record"
+        ? recordReferenceIsResolved(binding.value.reference)
+        : true;
 };
 
 const reachableDefinitionIdsFrom = (

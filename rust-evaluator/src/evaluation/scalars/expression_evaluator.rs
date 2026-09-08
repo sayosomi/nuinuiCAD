@@ -277,6 +277,7 @@ fn eval_node<'a>(
         }
         TypedScalarExpression::GeometryProperty {
             element_id,
+            collection_length,
             geometry_value_occurrence,
             geometry_value_point_key,
             property,
@@ -284,7 +285,12 @@ fn eval_node<'a>(
             r#type,
             ..
         } => {
-            let result = if let Some(occurrence) = geometry_value_occurrence {
+            let result = if let Some(length) = collection_length {
+                ScalarEvaluation::Ok {
+                    r#type: r#type.clone(),
+                    value: ScalarValue::Number(*length),
+                }
+            } else if let Some(occurrence) = geometry_value_occurrence {
                 environment.lookup_geometry_value_property(
                     occurrence,
                     geometry_value_point_key.as_deref(),
