@@ -7,6 +7,7 @@ import { creationRecipeForType } from "../commands/creationRecipes";
 import { startSession } from "../commands/commandLineSession";
 import {
   startCommandLineCreationForRecipe,
+  startCommandLinePickForCurrentStep,
   submitCommandLineInput
 } from "../commands/commandLineSessionCommands";
 import { COMMAND_LINE_PICK_TARGET_ID } from "../commands/commandLinePickRouting";
@@ -25,6 +26,7 @@ import { DrawingCanvasTestHost } from "./DrawingCanvas.testHost";
 import type { CanvasHostAdapter } from "./canvasHostAdapter";
 import { worldToScreen } from "./canvasViewport";
 import { hitTestCanvasGeometry } from "./DrawingCanvasHitTest";
+import { pickModeSessionForTarget } from "../model/pickModeSession";
 import {
   abortBenchmarkSample,
   beginBenchmarkSample,
@@ -141,6 +143,7 @@ const resetStore = () => {
     activePointPickTarget: null,
     activeNumericReferencePickTarget: null,
     activeLinePickTarget: null,
+    activePickModeSession: null,
     activeMeasurementInsertTarget: null,
     activePickCursor: null,
     commandLineSession: null,
@@ -206,10 +209,32 @@ const renderWithHostAdapter = (overrides: Partial<CanvasHostAdapter> = {}) => {
   return { ...view, hostAdapter, viewport };
 };
 
+const activatePointPickModeForTest = () => {
+  const target = useCadStore.getState().activePointPickTarget;
+  useCadStore.setState({ activePickModeSession: pickModeSessionForTarget("point", target) });
+};
+
+const activateNumericReferencePickModeForTest = () => {
+  const target = useCadStore.getState().activeNumericReferencePickTarget;
+  useCadStore.setState({ activePickModeSession: pickModeSessionForTarget("numeric-reference", target) });
+};
+
+const activateLinePickModeForTest = () => {
+  const target = useCadStore.getState().activeLinePickTarget;
+  useCadStore.setState({ activePickModeSession: pickModeSessionForTarget("line", target) });
+};
+
 const createFakeCanvasHostAdapter = (
   overrides: Partial<CanvasHostAdapter> = {}
 ): CanvasHostAdapter => {
   const elements = useCadStore.getState().elements;
+  const defaultPickModeSession = overrides.activePointPickTarget
+    ? pickModeSessionForTarget("point", overrides.activePointPickTarget)
+    : overrides.activeNumericReferencePickTarget
+      ? pickModeSessionForTarget("numeric-reference", overrides.activeNumericReferencePickTarget)
+      : overrides.activeLinePickTarget
+        ? pickModeSessionForTarget("line", overrides.activeLinePickTarget)
+        : null;
   return {
     elements,
     canonicalElements: elements,
@@ -228,6 +253,7 @@ const createFakeCanvasHostAdapter = (
     activePointPickTarget: null,
     activeNumericReferencePickTarget: null,
     activeLinePickTarget: null,
+    activePickModeSession: defaultPickModeSession,
     commandLineSession: null,
     flushSourceEditorOnCanvasPointerDown: vi.fn<CanvasHostAdapter["flushSourceEditorOnCanvasPointerDown"]>(() => "clean"),
     setCommandErrorMessage: vi.fn(),
@@ -1465,6 +1491,7 @@ describe("DrawingCanvas point dragging", () => {
         parameterKey: "startPoint"
       }
     });
+    activatePointPickModeForTest();
     const { container, viewport } = renderDrawingCanvas();
 
     fireEvent.pointerDown(viewport, {
@@ -1643,6 +1670,7 @@ describe("DrawingCanvas point dragging", () => {
         property: "length"
       }
     });
+    activateNumericReferencePickModeForTest();
     const { viewport, getByRole } = renderDrawingCanvas();
 
     expect(viewport).toHaveClass("is-numeric-reference-picking");
@@ -1679,6 +1707,7 @@ describe("DrawingCanvas point dragging", () => {
         property: "length"
       }
     });
+    activateNumericReferencePickModeForTest();
     const { viewport, getByRole } = renderDrawingCanvas();
 
     fireEvent.pointerDown(viewport, {
@@ -1715,6 +1744,7 @@ describe("DrawingCanvas point dragging", () => {
         selectionEnd: null
       }
     });
+    activateNumericReferencePickModeForTest();
     const { viewport, getByRole } = renderDrawingCanvas();
 
     fireEvent.pointerDown(viewport, {
@@ -1752,6 +1782,7 @@ describe("DrawingCanvas point dragging", () => {
       elements: [...sampleElements, target],
       activeNumericReferencePickTarget: pickTarget
     });
+    activateNumericReferencePickModeForTest();
     const { container, unmount } = renderDrawingCanvas();
     expect(
       container.querySelectorAll('[data-numeric-reference-candidate="true"]').length
@@ -1762,6 +1793,7 @@ describe("DrawingCanvas point dragging", () => {
       elements: [target, ...sampleElements],
       activeNumericReferencePickTarget: pickTarget
     });
+    activateNumericReferencePickModeForTest();
     const { container: laterContainer } = renderDrawingCanvas();
     expect(laterContainer.querySelector('[data-numeric-reference-candidate="true"]')).toBeNull();
   });
@@ -1788,6 +1820,7 @@ describe("DrawingCanvas point dragging", () => {
         property: "length"
       }
     });
+    activateNumericReferencePickModeForTest();
     const { viewport } = renderDrawingCanvas();
 
     fireEvent.pointerDown(viewport, {
@@ -1828,6 +1861,7 @@ describe("DrawingCanvas point dragging", () => {
         parameterKey: "startPoint"
       }
     });
+    activatePointPickModeForTest();
     const { viewport } = renderDrawingCanvas();
 
     fireEvent.pointerDown(viewport, {
@@ -1854,6 +1888,7 @@ describe("DrawingCanvas point dragging", () => {
       selectedElementIds: ["point-target"],
       activePointPickTarget: { elementId: "point-target", parameterKey: "fromPoint" }
     });
+    activatePointPickModeForTest();
     const { viewport, container, unmount } = renderDrawingCanvas();
 
     // All prior same-instance points && line endpoints remain selectable;
@@ -1873,6 +1908,7 @@ describe("DrawingCanvas point dragging", () => {
       selectedElementIds: ["endpoint-target"],
       activePointPickTarget: { elementId: "endpoint-target", parameterKey: "endpoint" }
     });
+    activatePointPickModeForTest();
     const endpointView = renderDrawingCanvas();
     expect(endpointView.container.querySelectorAll(".overlay-derived-point-pick-candidate")).toHaveLength(6);
     const endpointScreen = screenFor({ x: 40, y: 20 });
@@ -1890,6 +1926,7 @@ describe("DrawingCanvas point dragging", () => {
       selectedElementIds: ["line-target"],
       activeLinePickTarget: { elementId: "line-target", parameterKey: "baseLineIds" }
     });
+    activateLinePickModeForTest();
     const { viewport, container } = renderDrawingCanvas();
 
     expect(container.querySelectorAll("[data-line-pick-candidate=\"true\"]")).toHaveLength(3);
@@ -1919,9 +1956,11 @@ describe("DrawingCanvas point dragging", () => {
       selectedElementIds: ["offset-line"],
       activeLinePickTarget: {
         elementId: "offset-line",
-        parameterKey: "baseLineIds"
+        parameterKey: "baseLineIds",
+        draftLineIds: []
       }
     });
+    activateLinePickModeForTest();
     const { viewport, container } = renderDrawingCanvas();
 
     expect(viewport).toHaveClass("is-line-picking");
@@ -2000,6 +2039,7 @@ describe("DrawingCanvas point dragging", () => {
 
     expect(startCommandLineCreationForRecipe(recipe)).toBe(true);
     expect(submitCommandLineInput("")).toBe(true);
+    expect(startCommandLinePickForCurrentStep()).toBe(true);
     expect(useCadUiStore.getState().activeLinePickTarget).toMatchObject({
       elementId: COMMAND_LINE_PICK_TARGET_ID,
       parameterKey: "baseLineIds",
@@ -2050,9 +2090,11 @@ describe("DrawingCanvas point dragging", () => {
       selectedElementIds: ["offset-line"],
       activeLinePickTarget: {
         elementId: "offset-line",
-        parameterKey: "baseLineIds"
+        parameterKey: "baseLineIds",
+        draftLineIds: []
       }
     });
+    activateLinePickModeForTest();
     const { viewport, getByRole } = renderDrawingCanvas();
 
     fireEvent.pointerDown(viewport, {
@@ -2104,6 +2146,7 @@ describe("DrawingCanvas point dragging", () => {
         draftLineIds: []
       }
     });
+    activateLinePickModeForTest();
     const { viewport } = renderDrawingCanvas();
 
     fireEvent.pointerDown(viewport, {
@@ -2127,6 +2170,7 @@ describe("DrawingCanvas point dragging", () => {
         parameterKey: "startPoint"
       }
     });
+    activateLinePickModeForTest();
 
     act(() => { dispatchCommand("finishLinePick"); });
 

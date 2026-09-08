@@ -29,6 +29,7 @@ import {
 } from "../model/moduleSemanticCandidateBoundary";
 import { findPickOptionByRef, type PickRef } from "../model/pickReferences";
 import { referenceAnchor } from "../model/pointAnchors";
+import { pickModeSessionForTarget } from "../model/pickModeSession";
 import { findParameterDefinition } from "../parameters/parameterDefinitions";
 import { getParameterValue, setParameterValue } from "../parameters/parameterAccess";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
@@ -260,15 +261,17 @@ export const startMeasurementFunctionInsert = (context?: CommandContext) => {
     point2Anchor: null,
     lineId: null
   };
+  const activePointPickTarget = {
+    elementId: target.elementId,
+    parameterKey: target.parameterKey,
+    measurementSlot: "point1" as const
+  };
   useCadUiStore.setState({
     activeMeasurementInsertTarget: nextTarget,
     activeNumericReferencePickTarget: null,
     activeLinePickTarget: null,
-    activePointPickTarget: {
-      elementId: target.elementId,
-      parameterKey: target.parameterKey,
-      measurementSlot: "point1"
-    }
+    activePointPickTarget,
+    activePickModeSession: pickModeSessionForTarget("point", activePointPickTarget)
   });
 };
 
@@ -277,14 +280,16 @@ export const startMeasurementPointPick = (context?: CommandContext) => {
   const measurementSlot = context?.measurementPointSlot;
   if (!target || !measurementSlot) return;
 
+  const activePointPickTarget = {
+    elementId: target.elementId,
+    parameterKey: target.parameterKey,
+    measurementSlot
+  };
   useCadUiStore.setState({
     activeNumericReferencePickTarget: null,
     activeLinePickTarget: null,
-    activePointPickTarget: {
-      elementId: target.elementId,
-      parameterKey: target.parameterKey,
-      measurementSlot
-    }
+    activePointPickTarget,
+    activePickModeSession: pickModeSessionForTarget("point", activePointPickTarget)
   });
 };
 
@@ -292,14 +297,16 @@ export const startMeasurementLinePick = (context?: CommandContext) => {
   const target = ensureMeasurementTarget(context);
   if (!target) return;
 
+  const activeLinePickTarget = {
+    elementId: target.elementId,
+    parameterKey: target.parameterKey,
+    measurementSlot: "line" as const
+  };
   useCadUiStore.setState({
     activeNumericReferencePickTarget: null,
     activePointPickTarget: null,
-    activeLinePickTarget: {
-      elementId: target.elementId,
-      parameterKey: target.parameterKey,
-      measurementSlot: "line"
-    }
+    activeLinePickTarget,
+    activePickModeSession: pickModeSessionForTarget("line", activeLinePickTarget)
   });
 };
 
@@ -345,15 +352,17 @@ export const startNumericReferencePick = (context?: CommandContext) => {
   const definition = explicitTarget?.definition;
   if (!selectedElement || definition?.kind !== "number") return false;
 
+  const activeNumericReferencePickTarget = {
+    elementId: selectedElement.id,
+    parameterKey: definition.key,
+    mode: "replace" as const,
+    property: initialNumericReferencePickProperty(definition.stepLevels)
+  };
   useCadUiStore.setState({
     activePointPickTarget: null,
     activeLinePickTarget: null,
-    activeNumericReferencePickTarget: {
-      elementId: selectedElement.id,
-      parameterKey: definition.key,
-      mode: "replace",
-      property: initialNumericReferencePickProperty(definition.stepLevels)
-    }
+    activeNumericReferencePickTarget,
+    activePickModeSession: pickModeSessionForTarget("numeric-reference", activeNumericReferencePickTarget)
   });
   return true;
 };
@@ -370,18 +379,20 @@ export const startNumericReferenceInsertPick = (context?: CommandContext) => {
         ? currentValue
         : "");
 
+  const activeNumericReferencePickTarget = {
+    elementId: target.targetElement.id,
+    parameterKey: target.definition.key,
+    mode: "insert" as const,
+    property: context?.numericReferenceProperty ?? "length",
+    displayedExpression,
+    selectionStart: context?.selectionStart ?? null,
+    selectionEnd: context?.selectionEnd ?? null
+  };
   useCadUiStore.setState({
     activePointPickTarget: null,
     activeLinePickTarget: null,
-    activeNumericReferencePickTarget: {
-      elementId: target.targetElement.id,
-      parameterKey: target.definition.key,
-      mode: "insert",
-      property: context?.numericReferenceProperty ?? "length",
-      displayedExpression,
-      selectionStart: context?.selectionStart ?? null,
-      selectionEnd: context?.selectionEnd ?? null
-    }
+    activeNumericReferencePickTarget,
+    activePickModeSession: pickModeSessionForTarget("numeric-reference", activeNumericReferencePickTarget)
   });
 };
 
@@ -591,16 +602,18 @@ export const startPointPick = (
       : []
     : undefined;
 
+  const activePointPickTarget = {
+    elementId: selectedElement.id,
+    parameterKey: definition.key,
+    ...(draftPointAnchors ? { draftPointAnchors } : {}),
+    ...(context?.nextParameterKey ? { nextParameterKey: context.nextParameterKey } : {}),
+    ...(context?.pickFlow ? { pickFlow: context.pickFlow } : {})
+  };
   useCadUiStore.setState({
     activeNumericReferencePickTarget: null,
     activeLinePickTarget: null,
-    activePointPickTarget: {
-      elementId: selectedElement.id,
-      parameterKey: definition.key,
-      ...(draftPointAnchors ? { draftPointAnchors } : {}),
-      ...(context?.nextParameterKey ? { nextParameterKey: context.nextParameterKey } : {}),
-      ...(context?.pickFlow ? { pickFlow: context.pickFlow } : {})
-    }
+    activePointPickTarget,
+    activePickModeSession: pickModeSessionForTarget("point", activePointPickTarget)
   });
 };
 
@@ -756,20 +769,27 @@ export const applyPickedPoint = (context?: CommandContext) => {
     useCadUiStore.getState().setActiveMeasurementInsertTarget(nextTarget);
     if (activePointPickTarget.measurementSlot === "point1") {
       if (current.mode === "lineDistance") {
+        const activeLinePickTarget = {
+          elementId: current.elementId,
+          parameterKey: current.parameterKey,
+          measurementSlot: "line" as const
+        };
         useCadUiStore.setState({
           activePointPickTarget: null,
-          activeLinePickTarget: {
-            elementId: current.elementId,
-            parameterKey: current.parameterKey,
-            measurementSlot: "line"
-          }
+          activeLinePickTarget,
+          activePickModeSession: pickModeSessionForTarget("line", activeLinePickTarget)
         });
         return;
       }
-      useCadUiStore.getState().setActivePointPickTarget({
+      const activePointPickTarget = {
         elementId: current.elementId,
         parameterKey: current.parameterKey,
         measurementSlot: "point2"
+      } as const;
+      useCadUiStore.setState({
+        activePointPickTarget,
+        activePickModeSession: pickModeSessionForTarget("point", activePointPickTarget),
+        activePickCursor: null
       });
       return;
     }
@@ -831,10 +851,15 @@ export const applyPickedPoint = (context?: CommandContext) => {
     if (activePointPickTarget.nextParameterKey) {
       const nextDefinition = findParameterDefinition(targetElement, activePointPickTarget.nextParameterKey);
       if (nextDefinition?.kind === "reference" || nextDefinition?.kind === "lineEndpointReference") {
-        useCadUiStore.getState().setActivePointPickTarget({
+        const nextPointPickTarget = {
           elementId: activePointPickTarget.elementId,
           parameterKey: nextDefinition.key,
           ...(activePointPickTarget.pickFlow ? { pickFlow: activePointPickTarget.pickFlow } : {})
+        };
+        useCadUiStore.setState({
+          activePointPickTarget: nextPointPickTarget,
+          activePickModeSession: pickModeSessionForTarget("point", nextPointPickTarget),
+          activePickCursor: null
         });
         return;
       }
@@ -890,10 +915,15 @@ export const applyPickedPoint = (context?: CommandContext) => {
   if (activePointPickTarget.nextParameterKey) {
     const nextDefinition = findParameterDefinition(targetElement, activePointPickTarget.nextParameterKey);
     if (nextDefinition?.kind === "reference" || nextDefinition?.kind === "lineEndpointReference") {
-      useCadUiStore.getState().setActivePointPickTarget({
+      const nextPointPickTarget = {
         elementId: activePointPickTarget.elementId,
         parameterKey: nextDefinition.key,
         ...(activePointPickTarget.pickFlow ? { pickFlow: activePointPickTarget.pickFlow } : {})
+      };
+      useCadUiStore.setState({
+        activePointPickTarget: nextPointPickTarget,
+        activePickModeSession: pickModeSessionForTarget("point", nextPointPickTarget),
+        activePickCursor: null
       });
       return;
     }
@@ -930,16 +960,18 @@ export const startLinePick = (
       : []
     : undefined;
 
+  const activeLinePickTarget = {
+    elementId: selectedElement.id,
+    parameterKey: definition.key,
+    ...(draftLineIds ? { draftLineIds } : {}),
+    ...(context?.nextParameterKey ? { nextPointParameterKey: context.nextParameterKey } : {}),
+    ...(context?.pickFlow ? { pickFlow: context.pickFlow } : {})
+  };
   useCadUiStore.setState({
     activePointPickTarget: null,
     activeNumericReferencePickTarget: null,
-    activeLinePickTarget: {
-      elementId: selectedElement.id,
-      parameterKey: definition.key,
-      ...(draftLineIds ? { draftLineIds } : {}),
-      ...(context?.nextParameterKey ? { nextPointParameterKey: context.nextParameterKey } : {}),
-      ...(context?.pickFlow ? { pickFlow: context.pickFlow } : {})
-    }
+    activeLinePickTarget,
+    activePickModeSession: pickModeSessionForTarget("line", activeLinePickTarget)
   });
 };
 
@@ -1082,14 +1114,16 @@ export const applyPickedLine = (context?: CommandContext) => {
     if (activeLinePickTarget.nextPointParameterKey) {
       const nextDefinition = findParameterDefinition(targetElement, activeLinePickTarget.nextPointParameterKey);
       if (nextDefinition?.kind === "reference") {
+        const activePointPickTarget = {
+          elementId: targetElement.id,
+          parameterKey: nextDefinition.key,
+          ...(activeLinePickTarget.pickFlow ? { pickFlow: activeLinePickTarget.pickFlow } : {})
+        };
         useCadUiStore.setState({
           activeLinePickTarget: null,
           activePickCursor: null,
-          activePointPickTarget: {
-            elementId: targetElement.id,
-            parameterKey: nextDefinition.key,
-            ...(activeLinePickTarget.pickFlow ? { pickFlow: activeLinePickTarget.pickFlow } : {})
-          }
+          activePointPickTarget,
+          activePickModeSession: pickModeSessionForTarget("point", activePointPickTarget)
         });
         return;
       }

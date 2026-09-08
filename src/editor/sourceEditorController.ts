@@ -32,6 +32,7 @@ import { isConditionalGroupElement, isFoldTargetExpanded, isStatementExpanded } 
 import { getParameterDefinitions } from "../parameters/parameterDefinitions";
 import { parameterPickCommandId } from "../commands/parameterPickCommand";
 import { pickCandidates } from "../model/pickCandidates";
+import { matchingPickModeSessionForTargets } from "../model/pickModeSession";
 import { isRuntimeBindingDisplayFresh } from "../model/runtimeBindingFreshness";
 import { runtimeScalarDiagnostics } from "../scalars/runtimeScalarDiagnostics";
 import type { BindingId } from "../scalars/bindingCatalog";
@@ -118,6 +119,18 @@ import type { DslPhysicalSpan } from "../dsl/logicalStatementSourceMap";
 import { resolveParameterValueSpan } from "../dsl/dslParameterSpans";
 import { propertyBindingOccurrenceKey } from "../scalars/propertyBindingCompiler";
 import { logicalOffsetForPhysicalPosition, logicalTextForProjection, physicalSpanForStatementRange, singlePhysicalSegment, statementProjectionAt } from "../dsl/dslStatementProjection";
+
+const pickModeSessionForUi = (ui: Pick<CadUiState,
+  "activePickModeSession" | "activePointPickTarget" | "activeNumericReferencePickTarget" | "activeLinePickTarget"
+>) => matchingPickModeSessionForTargets(ui.activePickModeSession, {
+  point: ui.activePointPickTarget,
+  numericReference: ui.activeNumericReferencePickTarget,
+  line: ui.activeLinePickTarget
+});
+
+const pickModeIsActive = (ui: Pick<CadUiState,
+  "activePickModeSession" | "activePointPickTarget" | "activeNumericReferencePickTarget" | "activeLinePickTarget"
+>) => Boolean(pickModeSessionForUi(ui));
 import { resolveDslValueStep, type DslValueStepDirection } from "../dsl/dslValueStep";
 import { resolveTypedValueStep, typedNumericStepOptions, typedValueStepTargetForBinding, type TypedValueStepOptions } from "../dsl/dslTypedValueStep";
 import { scanDslSource, splitDslTerms } from "../dsl/dslTokens";
@@ -867,7 +880,7 @@ export class SourceEditorController implements SourceEditorHandle {
   private stepSourceValue(direction: DslValueStepDirection) {
     if (this.protocol.composing) return false;
     const ui = this.uiStore.getState();
-    if (ui.activePointPickTarget || ui.activeNumericReferencePickTarget || ui.activeLinePickTarget) return false;
+    if (pickModeIsActive(ui)) return false;
     const selection = this.view.state.selection;
     if (selection.ranges.length !== 1) return false;
     const main = selection.main;
@@ -1079,9 +1092,7 @@ export class SourceEditorController implements SourceEditorHandle {
     if (this.protocol.composing) return false;
     const ui = this.uiStore.getState();
     if (
-      ui.activePointPickTarget ||
-      ui.activeNumericReferencePickTarget ||
-      ui.activeLinePickTarget
+      pickModeIsActive(ui)
     ) return false;
 
     const selection = this.view.state.selection;
@@ -1115,7 +1126,7 @@ export class SourceEditorController implements SourceEditorHandle {
   private observeValueStepKeydown(event: KeyboardEvent, view: EditorView) {
     if (this.destroyed || this.protocol.composing || view.compositionStarted) return;
     const ui = this.uiStore.getState();
-    if (ui.activePointPickTarget || ui.activeNumericReferencePickTarget || ui.activeLinePickTarget) return;
+    if (pickModeIsActive(ui)) return;
     const binding = sourceEditorShortcutBindings(ui.shortcutSettings).find((candidate) => {
       const direction = valueStepDirectionForCommand(candidate.commandId);
       return direction !== null && bindingMatchesEvent(candidate, event) &&
@@ -1260,7 +1271,7 @@ export class SourceEditorController implements SourceEditorHandle {
 
   private runPickApply() {
     const ui = this.uiStore.getState();
-    if (!(ui.activePointPickTarget || ui.activeNumericReferencePickTarget || ui.activeLinePickTarget)) return false;
+    if (!pickModeIsActive(ui)) return false;
     if (this.protocol.composing || this.flush("command") === "blocked-composition") return true;
     const cursor = ui.activePickCursor;
     if (!cursor || !this.currentPickCandidates().some((candidate) => candidate.elementId === cursor.elementId)) return false;
@@ -1270,7 +1281,7 @@ export class SourceEditorController implements SourceEditorHandle {
   private runPickNavigation(commandId: "selectNextPickCandidate" | "selectPreviousPickCandidate" | "selectNextPickOption" | "selectPreviousPickOption") {
     if (this.protocol.composing) return true;
     const ui = this.uiStore.getState();
-    if (!(ui.activePointPickTarget || ui.activeNumericReferencePickTarget || ui.activeLinePickTarget)) return false;
+    if (!pickModeIsActive(ui)) return false;
     dispatchCommand(commandId);
     return true;
   }
@@ -1292,16 +1303,11 @@ export class SourceEditorController implements SourceEditorHandle {
       dispatchCommand("cancelCommandLineSession");
       return true;
     }
-    if (ui.activePointPickTarget) {
-      dispatchCommand("cancelPointPick");
-      return true;
-    }
-    if (ui.activeNumericReferencePickTarget) {
-      dispatchCommand("cancelNumericReferencePick");
-      return true;
-    }
-    if (ui.activeLinePickTarget) {
-      dispatchCommand("cancelLinePick");
+    const pickModeSession = pickModeSessionForUi(ui);
+    if (pickModeSession) {
+      if (pickModeSession.kind === "point") dispatchCommand("cancelPointPick");
+      else if (pickModeSession.kind === "numeric-reference") dispatchCommand("cancelNumericReferencePick");
+      else dispatchCommand("cancelLinePick");
       return true;
     }
     this.flush("command");
@@ -1311,7 +1317,7 @@ export class SourceEditorController implements SourceEditorHandle {
 
   private handleContextMenu(event: MouseEvent, view: EditorView) {
     const ui = this.uiStore.getState();
-    if (this.protocol.composing || ui.activePointPickTarget || ui.activeNumericReferencePickTarget || ui.activeLinePickTarget) return false;
+    if (this.protocol.composing || pickModeIsActive(ui)) return false;
     const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
     if (pos === null) return false;
     const lineFrom = view.state.doc.lineAt(pos).from;
@@ -1460,7 +1466,7 @@ export class SourceEditorController implements SourceEditorHandle {
   private autoContinueAtTermBoundary(view: EditorView): boolean {
     if (this.protocol.composing || view.compositionStarted) return false;
     const ui = this.uiStore.getState();
-    if (ui.activePointPickTarget || ui.activeNumericReferencePickTarget || ui.activeLinePickTarget) return true;
+    if (pickModeIsActive(ui)) return true;
     const selection = view.state.selection;
     if (selection.ranges.length !== 1 || !selection.main.empty) return false;
     const pos = selection.main.head;
@@ -1559,7 +1565,7 @@ export class SourceEditorController implements SourceEditorHandle {
           run: (view) => {
             if (this.protocol.composing || view.compositionStarted) return true;
             const ui = this.uiStore.getState();
-            if (ui.activePointPickTarget || ui.activeNumericReferencePickTarget || ui.activeLinePickTarget) return false;
+            if (pickModeIsActive(ui)) return false;
             const handled = dispatchCommand(binding.commandId, {
               currentCursorElementId: this.currentCursorElementId,
               currentSourceCursor: this.currentSourceCursor,
@@ -1636,7 +1642,7 @@ export class SourceEditorController implements SourceEditorHandle {
   ) {
     if (this.protocol.composing || view.compositionStarted || view.state.selection.ranges.length !== 1) return false;
     const ui = this.uiStore.getState();
-    if (ui.activePointPickTarget || ui.activeNumericReferencePickTarget || ui.activeLinePickTarget) return false;
+    if (pickModeIsActive(ui)) return false;
     const lineFrom = view.state.doc.lineAt(view.state.selection.main.head).from;
     const target = collapsedFoldTargetAtLine(
       this.statementRanges,
@@ -1778,9 +1784,15 @@ export class SourceEditorController implements SourceEditorHandle {
   private cancelActivePickForHistory() {
     const ui = this.uiStore.getState();
     if (ui.commandLineSession) return dispatchCommand("cancelCommandLineSession") !== false;
-    if (ui.activePointPickTarget) return dispatchCommand("cancelPointPick") !== false;
-    if (ui.activeNumericReferencePickTarget) return dispatchCommand("cancelNumericReferencePick") !== false;
-    if (ui.activeLinePickTarget) return dispatchCommand("cancelLinePick") !== false;
+    const pickModeSession = pickModeSessionForUi(ui);
+    if (pickModeSession) {
+      const commandId = pickModeSession.kind === "point"
+        ? "cancelPointPick"
+        : pickModeSession.kind === "numeric-reference"
+          ? "cancelNumericReferencePick"
+          : "cancelLinePick";
+      return dispatchCommand(commandId) !== false;
+    }
     return false;
   }
 

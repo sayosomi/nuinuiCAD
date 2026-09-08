@@ -7,12 +7,14 @@ import {
   type CommandLineSession
 } from "./commandLineSession";
 import type { ElementId, PointAnchor } from "../types/geometry";
+import { matchingPickModeSessionForTargets } from "../model/pickModeSession";
 
 type CommandLinePickFields = Pick<
   CadUiState,
   | "activePointPickTarget"
   | "activeNumericReferencePickTarget"
   | "activeLinePickTarget"
+  | "activePickModeSession"
   | "activePickCursor"
 >;
 
@@ -46,12 +48,18 @@ export const commandLinePickStateForSession = (
       }
     : null;
   const activePickCursor = restoredPickState?.activePickCursor ?? null;
+  const activePickModeSession = restoredPickState?.activePickModeSession ?? null;
 
   if (step?.kind === "point" || step?.kind === "endpoint") {
     return {
       activePointPickTarget: target,
       activeNumericReferencePickTarget: null,
       activeLinePickTarget: null,
+      activePickModeSession: matchingPickModeSessionForTargets(activePickModeSession, {
+        point: target,
+        numericReference: null,
+        line: null
+      }),
       activePickCursor
     };
   }
@@ -63,6 +71,11 @@ export const commandLinePickStateForSession = (
       activePointPickTarget: target ? { ...target, draftPointAnchors } : null,
       activeNumericReferencePickTarget: null,
       activeLinePickTarget: null,
+      activePickModeSession: matchingPickModeSessionForTargets(activePickModeSession, {
+        point: target ? { ...target, draftPointAnchors } : null,
+        numericReference: null,
+        line: null
+      }),
       activePickCursor
     };
   }
@@ -71,6 +84,11 @@ export const commandLinePickStateForSession = (
       activePointPickTarget: null,
       activeNumericReferencePickTarget: null,
       activeLinePickTarget: target,
+      activePickModeSession: matchingPickModeSessionForTargets(activePickModeSession, {
+        point: null,
+        numericReference: null,
+        line: target
+      }),
       activePickCursor
     };
   }
@@ -82,6 +100,11 @@ export const commandLinePickStateForSession = (
       activePointPickTarget: null,
       activeNumericReferencePickTarget: null,
       activeLinePickTarget: target ? { ...target, draftLineIds } : null,
+      activePickModeSession: matchingPickModeSessionForTargets(activePickModeSession, {
+        point: null,
+        numericReference: null,
+        line: target ? { ...target, draftLineIds } : null
+      }),
       activePickCursor
     };
   }
@@ -93,6 +116,14 @@ export const commandLinePickStateForSession = (
         session!,
         restoredPickState.numericReferencePickProperty
       ),
+      activePickModeSession: matchingPickModeSessionForTargets(activePickModeSession, {
+        point: null,
+        numericReference: commandLineNumericReferencePickTargetFor(
+          session!,
+          restoredPickState.numericReferencePickProperty
+        ),
+        line: null
+      }),
       activePickCursor
     };
   }
@@ -100,6 +131,7 @@ export const commandLinePickStateForSession = (
     activePointPickTarget: null,
     activeNumericReferencePickTarget: null,
     activeLinePickTarget: null,
+    activePickModeSession: null,
     activePickCursor
   };
 };
@@ -132,7 +164,12 @@ export const editingReturnPickStateFor = (
   const activePickCursor = pointTargetOwned || lineTargetOwned || numericTargetOwned
       ? ui.activePickCursor ? { ...ui.activePickCursor } : null
       : null;
-  return numericReferencePickProperty || lineListDraftLineIds || pointListDraftPointAnchors || activePickCursor
-    ? { numericReferencePickProperty, lineListDraftLineIds, pointListDraftPointAnchors, activePickCursor }
+  const activePickModeSession = matchingPickModeSessionForTargets(ui.activePickModeSession, {
+    point: ui.activePointPickTarget,
+    numericReference: ui.activeNumericReferencePickTarget,
+    line: ui.activeLinePickTarget
+  });
+  return numericReferencePickProperty || lineListDraftLineIds || pointListDraftPointAnchors || activePickCursor || activePickModeSession
+    ? { numericReferencePickProperty, lineListDraftLineIds, pointListDraftPointAnchors, activePickCursor, activePickModeSession }
     : null;
 };
