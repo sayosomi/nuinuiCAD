@@ -531,6 +531,23 @@ const pickModeSessionForUi = () => {
   });
 };
 
+/** Re-resolves committed ordered values through the current candidate authority. */
+export const seedPickModeDraft = (
+  kind: "point" | "line",
+  values: readonly PointAnchor[] | readonly ElementId[]
+) => {
+  const session = pickModeSessionForUi();
+  if (!session || session.kind !== kind) return false;
+  const candidates = activePickCandidates();
+  const draft = kind === "point"
+    ? pickModeDraftForPointAnchors(values as readonly PointAnchor[], candidates)
+    : pickModeDraftForLineIds(values as readonly ElementId[], candidates);
+  useCadUiStore.setState({
+    activePickModeSession: { ...session, draft }
+  });
+  return true;
+};
+
 const activatePickModeDraft = (entry: PickModeDraftEntry) => {
   const session = pickModeSessionForUi();
   if (!session || session.kind !== entry.kind) return false;
@@ -551,7 +568,11 @@ const pointDraftEntryFor = (
   return pickModeDraftEntryForOption(candidateElementId, {
     kind: "point",
     label: "",
-    anchor,
+    anchor: context?.pickedPointCandidateElementId
+      ? anchor
+      : context?.pickedPointSourceReference
+        ? pointAnchorForSourceReference(context.pickedPointSourceReference)
+        : anchor,
     ...(context?.pickedPointSourceReference ? { sourceReference: context.pickedPointSourceReference } : {})
   });
 };
@@ -699,9 +720,10 @@ export const startPointPick = (
       "point",
       activePointPickTarget,
       pickModeSelectionCardinalityFor(activePointPickTarget),
-      draftPointAnchors ? pickModeDraftForPointAnchors(draftPointAnchors) : []
+      []
     )
   });
+  if (draftPointAnchors?.length) seedPickModeDraft("point", draftPointAnchors);
 };
 
 export const startLineEndpointPairPick = (context?: Pick<CommandContext, "elementId">) => {
@@ -814,9 +836,7 @@ export const applyPickedPoint = (context?: CommandContext) => {
       }
       if (pickedAnchor.mode === "derived" && !elements.some((element) => element.id === pickedAnchor.elementId)) return;
       const entry = pointDraftEntryFor(
-        context?.pickedPointSourceReference
-          ? sourceAnchor
-          : commandLineStep.kind === "endpoint" ? anchor : pickedAnchor,
+        commandLineStep.kind === "endpoint" ? anchor : pickedAnchor,
         context
       );
       if (!entry) return;
@@ -853,7 +873,7 @@ export const applyPickedPoint = (context?: CommandContext) => {
       if (!pointElement || !["freePoint", "offsetPoint", "polarOffsetPoint", "divisionPoint", "lineDivisionPoint", "intersectionPoint", "lineTangentOffsetPoint"].includes(pointElement.type)) return;
     }
     if (pickedAnchor.mode === "derived" && !elements.some((element) => element.id === pickedAnchor.elementId)) return;
-      const entry = pointDraftEntryFor(sourceReference ? sourceAnchor : pickedAnchor, context);
+      const entry = pointDraftEntryFor(pickedAnchor, context);
     if (entry) activatePickModeDraft(entry);
     return;
   }
@@ -1142,9 +1162,10 @@ export const startLinePick = (
       "line",
       activeLinePickTarget,
       pickModeSelectionCardinalityFor(activeLinePickTarget),
-      draftLineIds ? pickModeDraftForLineIds(draftLineIds) : []
+      []
     )
   });
+  if (draftLineIds?.length) seedPickModeDraft("line", draftLineIds);
 };
 
 export const startLineAndPointPick = (

@@ -7,7 +7,7 @@ import {
 import { adjustEvaluationLimitForInsertion } from "../model/evaluationDivider";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
-import type { CadElementType, ElementId, PointAnchor } from "../types/geometry";
+import type { CadElementType } from "../types/geometry";
 import { sourceEditSession } from "../editor/sourceEditSession";
 import { isCommandLineInputComposing } from "./commandLineInputComposition";
 import { commitDocumentChangeAndSelect } from "./commitDocumentChangeAndSelect";
@@ -66,9 +66,8 @@ import {
   validateCommandLineElementName
 } from "./commandLineNameValidation";
 import type { CommandContext } from "./commandTypes";
+import { seedPickModeDraft } from "./pickCommands";
 import {
-  pickModeDraftForLineIds,
-  pickModeDraftForPointAnchors,
   pickModeSelectionCardinalityFor,
   pickModeSessionForTarget
 } from "../model/pickModeSession";
@@ -455,21 +454,21 @@ export const startCommandLinePickForCurrentStep = (context?: CommandContext) => 
     const target = pickState.activePointPickTarget ?? pickState.activeLinePickTarget;
     const kind = pickState.activePointPickTarget ? "point" : pickState.activeLinePickTarget ? "line" : null;
     if (!target || !kind) return false;
-    const draft = kind === "point" && step?.kind === "pointList" && Array.isArray(session.editingDraft)
-      ? pickModeDraftForPointAnchors(session.editingDraft as PointAnchor[])
-      : kind === "line" && step?.kind === "lineList" && Array.isArray(session.editingDraft)
-        ? pickModeDraftForLineIds(session.editingDraft as ElementId[])
-        : [];
     useCadUiStore.setState({
       ...pickState,
       activePickModeSession: pickModeSessionForTarget(
         kind,
         target,
         pickModeSelectionCardinalityFor(target),
-        draft
+        []
       ),
       activePickCursor: null
     });
+    if (kind === "point" && step?.kind === "pointList" && Array.isArray(session.editingDraft)) {
+      seedPickModeDraft("point", session.editingDraft);
+    } else if (kind === "line" && step?.kind === "lineList" && Array.isArray(session.editingDraft)) {
+      seedPickModeDraft("line", session.editingDraft);
+    }
   }
   context?.focusCanvas?.();
   return true;

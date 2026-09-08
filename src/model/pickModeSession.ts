@@ -1,7 +1,8 @@
 import type { ElementId } from "../types/geometry";
 import type { PointAnchor } from "../types/geometry";
 import type { CanonicalGeometrySourceReference } from "./moduleSemanticCandidateBoundary";
-import type { PickOption } from "./pickCandidates";
+import { pointAnchorForSourceReference, sourceReferenceText } from "./moduleSemanticCandidateBoundary";
+import type { PickCandidate, PickOption } from "./pickCandidates";
 import { pickRefForOption, pickRefKey } from "./pickReferences";
 
 export type PickModeKind = "point" | "line" | "numeric-reference";
@@ -80,36 +81,61 @@ export const pickModeDraftEntryForOption = (
   };
 };
 
-const pickModeDraftEntryForAnchor = (anchor: PointAnchor): PickModeDraftEntry | null => {
-  if (anchor.mode === "reference") {
-    return pickModeDraftEntryForOption(anchor.pointId, {
-      kind: "point",
-      label: "",
-      anchor
-    });
-  }
-  if (anchor.mode === "derived") {
-    return pickModeDraftEntryForOption(anchor.elementId, {
-      kind: "point",
-      label: "",
-      anchor
-    });
+const pointAnchorKey = (anchor: PointAnchor) => JSON.stringify(anchor);
+
+const pointOptionMatchesAnchor = (anchor: PointAnchor, option: PickOption) =>
+  option.kind === "point" && (
+    pointAnchorKey(option.sourceReference ? pointAnchorForSourceReference(option.sourceReference) : option.anchor) === pointAnchorKey(anchor) ||
+    Boolean(option.sourceReference) && pointAnchorKey(option.anchor) === pointAnchorKey(anchor)
+  );
+
+const lineOptionMatchesValue = (lineId: ElementId, option: PickOption) => {
+  if (option.kind !== "line") return false;
+  if (!option.sourceReference) return option.lineId === lineId;
+  const sourceText = sourceReferenceText(option.sourceReference);
+  return lineId === sourceText ||
+    lineId === option.sourceReference.base ||
+    lineId === sourceText?.slice(1) ||
+    lineId === option.lineId;
+};
+
+const firstMatchingOption = (
+  candidates: readonly PickCandidate[],
+  matches: (option: PickOption) => boolean
+) => {
+  for (const candidate of candidates) {
+    const option = candidate.options.find(matches);
+    if (option) return { candidate, option };
   }
   return null;
 };
 
-export const pickModeDraftForPointAnchors = (anchors: readonly PointAnchor[]) =>
-  anchors.flatMap((anchor) => {
-    const entry = pickModeDraftEntryForAnchor(anchor);
-    return entry ? [entry] : [];
+const uniqueDraftEntries = (entries: readonly PickModeDraftEntry[]) => {
+  const seen = new Set<string>();
+  return entries.filter((entry) => {
+    if (seen.has(entry.key)) return false;
+    seen.add(entry.key);
+    return true;
   });
+};
 
-export const pickModeDraftForLineIds = (lineIds: readonly ElementId[]) =>
-  lineIds.map((lineId) => pickModeDraftEntryForOption(lineId, {
-    kind: "line",
-    label: "",
-    lineId
-  }));
+/** Resolves committed point-list values through the current Canvas candidate authority. */
+export const pickModeDraftForPointAnchors = (
+  anchors: readonly PointAnchor[],
+  candidates: readonly PickCandidate[]
+) => uniqueDraftEntries(anchors.flatMap((anchor) => {
+  const resolved = firstMatchingOption(candidates, (option) => pointOptionMatchesAnchor(anchor, option));
+  return resolved ? [pickModeDraftEntryForOption(resolved.candidate.elementId, resolved.option)] : [];
+}));
+
+/** Resolves committed line-list values through the current Canvas candidate authority. */
+export const pickModeDraftForLineIds = (
+  lineIds: readonly ElementId[],
+  candidates: readonly PickCandidate[]
+) => uniqueDraftEntries(lineIds.flatMap((lineId) => {
+  const resolved = firstMatchingOption(candidates, (option) => lineOptionMatchesValue(lineId, option));
+  return resolved ? [pickModeDraftEntryForOption(resolved.candidate.elementId, resolved.option)] : [];
+}));
 
 export const activatePickModeDraftEntry = (
   session: PickModeSession,

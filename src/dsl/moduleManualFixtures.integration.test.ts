@@ -9,7 +9,13 @@ import { elementParameterReferenceOptionsForPosition } from "../geometry/element
 import { buildConditionalMutationOwners, conditionalOwnerIdByElementId } from "../scalars/conditionalMutationControl";
 import { buildForGroupMutationOwners, forGroupMutationOwnerByElementId } from "../scalars/forGroupMutationControl";
 import { pickCandidates } from "../model/pickCandidates";
-import { activePickCandidates, applyPickReference, finishLinePick } from "../commands/pickCommands";
+import {
+  activePickCandidates,
+  applyPickReference,
+  finishLinePick,
+  startLinePick,
+  startPointPick
+} from "../commands/pickCommands";
 import { pickRefForOption } from "../model/pickReferences";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { DEFAULT_CANVAS_VIEWPORT, initialCadUiState, useCadUiStore } from "../state/cadUiStore";
@@ -468,6 +474,57 @@ describe("Module v1 manual fixtures", () => {
     expect(useCadDocumentStore.getState().sourceText).toContain("@I::Out");
     expect(useCadDocumentStore.getState().sourceText).not.toContain("module-runtime:");
     expect(errorsOf(compileSource(useCadDocumentStore.getState().sourceText))).toEqual([]);
+  });
+
+  it("seeds qualified point and line lists through the current Canvas candidates", () => {
+    const source = [
+      "nui 1",
+      "module M() {",
+      "  export line Out = segment(start: (0, 0), end: (10, 0))",
+      "  export point P = coordinate(x: 0, y: 0)",
+      "}",
+      "instance I = M()",
+      "line LineUse = offset(sources: [@I::Out], distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
+      "line PointUse = polyline(points: [@I::P], closed: false)"
+    ].join("\n");
+    useCadDocumentStore.setState(initialCadDocumentState());
+    useCadUiStore.setState(initialCadUiState());
+    useCadDocumentStore.getState().commitText(source, "test");
+    const elements = useCadDocumentStore.getState().elements;
+    const lineUse = elements.find((element) => element.name === "LineUse");
+    const pointUse = elements.find((element) => element.name === "PointUse");
+    expect(lineUse).toBeDefined();
+    expect(pointUse).toBeDefined();
+    if (!lineUse || !pointUse) return;
+
+    startLinePick({ elementId: lineUse.id, parameterKey: "baseLineIds" });
+    const seededLine = useCadUiStore.getState().activePickModeSession?.draft[0];
+    expect(seededLine).toMatchObject({ kind: "line", sourceReference: { base: "I::Out" } });
+    const lineCandidate = activePickCandidates().flatMap((candidate) => candidate.options
+      .map((option) => ({ candidate, option })))
+      .find(({ option }) => option.kind === "line" && option.sourceReference?.base === "I::Out");
+    expect(lineCandidate).toBeDefined();
+    if (!lineCandidate) return;
+    expect(applyPickReference(pickRefForOption(lineCandidate.candidate.elementId, lineCandidate.option))).toBe(true);
+    expect(useCadUiStore.getState().activePickModeSession?.draft).toEqual([]);
+    expect(applyPickReference(pickRefForOption(lineCandidate.candidate.elementId, lineCandidate.option))).toBe(true);
+    expect(useCadUiStore.getState().activePickModeSession?.draft).toHaveLength(1);
+
+    startPointPick({ elementId: pointUse.id, parameterKey: "points" });
+    const seededPoint = useCadUiStore.getState().activePickModeSession?.draft[0];
+    expect(seededPoint).toMatchObject({
+      kind: "point",
+      sourceReference: { base: "I::P" }
+    });
+    const pointCandidate = activePickCandidates().flatMap((candidate) => candidate.options
+      .map((option) => ({ candidate, option })))
+      .find(({ option }) => option.kind === "point" && option.sourceReference?.base === "I::P");
+    expect(pointCandidate).toBeDefined();
+    if (!pointCandidate) return;
+    expect(applyPickReference(pickRefForOption(pointCandidate.candidate.elementId, pointCandidate.option))).toBe(true);
+    expect(useCadUiStore.getState().activePickModeSession?.draft).toEqual([]);
+    expect(applyPickReference(pickRefForOption(pointCandidate.candidate.elementId, pointCandidate.option))).toBe(true);
+    expect(useCadUiStore.getState().activePickModeSession?.draft).toHaveLength(1);
   });
 
   it("adopts quoted Module exports without splitting dots in source references", () => {

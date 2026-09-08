@@ -2165,6 +2165,115 @@ describe("DrawingCanvas point dragging", () => {
     });
   });
 
+  it("consumes point pick candidate-menu Enter and Escape before the outer Pick lifecycle", () => {
+    useCadStore.setState({
+      activePointPickTarget: { elementId: "line-bc", parameterKey: "startPoint" }
+    });
+    activatePointPickModeForTest();
+    const { viewport, getByRole, queryByRole } = renderDrawingCanvas();
+    const pointScreen = screenFor({ x: 50, y: -50 });
+
+    fireEvent.pointerDown(viewport, {
+      button: 0, buttons: 1, clientX: pointScreen.x, clientY: pointScreen.y, pointerId: 1
+    });
+    expect(getByRole("menu", { name: "点選択候補" })).toBeInTheDocument();
+    fireEvent.keyDown(viewport, { key: "Escape" });
+    expect(queryByRole("menu", { name: "点選択候補" })).toBeNull();
+    expect(useCadStore.getState().activePickModeSession?.draft).toEqual([]);
+
+    fireEvent.pointerDown(viewport, {
+      button: 0, buttons: 1, clientX: pointScreen.x, clientY: pointScreen.y, pointerId: 2
+    });
+    fireEvent.keyDown(viewport, { key: "Enter" });
+    expect(queryByRole("menu", { name: "点選択候補" })).toBeNull();
+    expect(useCadStore.getState().activePickModeSession?.draft).toHaveLength(1);
+    expect(useCadStore.getState().activePointPickTarget).not.toBeNull();
+  });
+
+  it("consumes line pick candidate-menu Enter and Escape before the outer Pick lifecycle", () => {
+    useCadStore.setState({
+      elements: [
+        ...sampleElements,
+        {
+          id: "line-ab-copy",
+          name: "直線AB重ね",
+          type: "line",
+          activity: "visible",
+          startPoint: { mode: "reference", pointId: "point-a" },
+          endPoint: { mode: "reference", pointId: "point-b" }
+        },
+        {
+          id: "offset-line",
+          name: "オフセット線",
+          type: "offsetLine",
+          activity: "visible",
+          baseLineIds: [],
+          offset: 10,
+          side: "right",
+          closed: false
+        }
+      ],
+      activeLinePickTarget: {
+        elementId: "offset-line",
+        parameterKey: "baseLineIds",
+        selectionCardinality: "ordered-multiple"
+      }
+    });
+    activateLinePickModeForTest();
+    const { viewport, getByRole, queryByRole } = renderDrawingCanvas();
+
+    fireEvent.pointerDown(viewport, {
+      button: 0, buttons: 1, clientX: 350, clientY: 250, pointerId: 1
+    });
+    expect(getByRole("menu", { name: "線選択候補" })).toBeInTheDocument();
+    fireEvent.keyDown(viewport, { key: "Escape" });
+    expect(queryByRole("menu", { name: "線選択候補" })).toBeNull();
+    expect(useCadStore.getState().activePickModeSession?.draft).toEqual([]);
+
+    fireEvent.pointerDown(viewport, {
+      button: 0, buttons: 1, clientX: 350, clientY: 250, pointerId: 2
+    });
+    fireEvent.keyDown(viewport, { key: "Enter" });
+    expect(queryByRole("menu", { name: "線選択候補" })).toBeNull();
+    expect(useCadStore.getState().activePickModeSession?.draft).toHaveLength(1);
+    expect(useCadStore.getState().activeLinePickTarget).not.toBeNull();
+  });
+
+  it("consumes numeric candidate-menu Enter and Escape before the outer Pick lifecycle", () => {
+    useCadStore.setState({
+      elements: [
+        ...sampleElements,
+        { id: "target-point", name: "参照先", type: "freePoint", activity: "visible", x: 0, y: 0 }
+      ],
+      selectedElementId: "target-point",
+      selectedElementIds: ["target-point"],
+      activeNumericReferencePickTarget: {
+        elementId: "target-point",
+        parameterKey: "x",
+        mode: "replace",
+        property: "length"
+      }
+    });
+    activateNumericReferencePickModeForTest();
+    const { viewport, getByRole, queryByRole } = renderDrawingCanvas();
+
+    fireEvent.pointerDown(viewport, {
+      button: 0, buttons: 1, clientX: 350, clientY: 250, pointerId: 1
+    });
+    expect(getByRole("menu", { name: "数値参照候補" })).toBeInTheDocument();
+    fireEvent.keyDown(viewport, { key: "Escape" });
+    expect(queryByRole("menu", { name: "数値参照候補" })).toBeNull();
+    expect(useCadStore.getState().activePickModeSession?.draft).toEqual([]);
+
+    fireEvent.pointerDown(viewport, {
+      button: 0, buttons: 1, clientX: 350, clientY: 250, pointerId: 2
+    });
+    fireEvent.keyDown(viewport, { key: "Enter" });
+    expect(queryByRole("menu", { name: "数値参照候補" })).toBeNull();
+    expect(useCadStore.getState().activePickModeSession?.draft).toHaveLength(1);
+    expect(useCadStore.getState().activeNumericReferencePickTarget).not.toBeNull();
+  });
+
   it("discards draft base-line picks when cancelled", () => {
     useCadStore.setState({
       elements: [

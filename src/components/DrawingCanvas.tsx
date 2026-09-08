@@ -1759,6 +1759,45 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
         return;
       }
     }
+    const pickCandidateMenuIsOpen = Boolean(
+      pointPickCandidateMenu || linePickCandidateMenu || measurementCandidateMenu
+    );
+    const pickCandidateMenuHasFocus = event.currentTarget === document.activeElement ||
+      (event.target instanceof Element && Boolean(event.target.closest(
+        ".numeric-reference-candidate-menu, .measurement-candidate-menu, .line-pick-candidate-menu"
+      )));
+    if (
+      pickCandidateMenuIsOpen &&
+      pickCandidateMenuHasFocus &&
+      !event.metaKey &&
+      !event.ctrlKey &&
+      !event.altKey &&
+      !event.shiftKey
+    ) {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        event.stopPropagation();
+        if (pointPickCandidateMenu) {
+          const candidate = pointPickCandidateMenu.candidates[0];
+          if (candidate) applyPointPickCandidate(candidate);
+        } else if (linePickCandidateMenu) {
+          const candidate = linePickCandidateMenu.candidates[0];
+          if (candidate) applyLinePickCandidate(candidate);
+        } else if (measurementCandidateMenu) {
+          const candidate = measurementCandidateMenu.candidates[0];
+          if (candidate) applyMeasurementCandidate(candidate);
+        }
+        return;
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        if (pointPickCandidateMenu) setPointPickCandidateMenu(null);
+        else if (linePickCandidateMenu) setLinePickCandidateMenu(null);
+        else setMeasurementCandidateMenu(null);
+        return;
+      }
+    }
     const activePickTarget = isPointPickActive
       ? "point"
       : isNumericReferencePickActive
