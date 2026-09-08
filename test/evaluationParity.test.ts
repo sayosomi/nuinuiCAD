@@ -177,6 +177,41 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("matches root collection length evaluation across TypeScript and Rust", () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "const numbers: number[] = [1, 1, 2]",
+      "const count: number = @numbers.length"
+    ].join("\n"));
+    const options = optionsFor(fixture);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustOptions(repoRoot, fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+    expectScalarNumberClose(scalarBindingFor(fixture, tsPayload, "count"), 3);
+    expectScalarNumberClose(scalarBindingFor(fixture, rustPayload, "count"), 3);
+  }, 30000);
+
+  it("matches Module collection length evaluation across TypeScript and Rust", () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "const values: number[] = [1, 2, 2]",
+      "module M(items: number[]) {",
+      "  const localLength: number = @items.length",
+      "  export const output: number[] = @items",
+      "}",
+      "instance Use = M(items: @values)",
+      "const exportLength: number = @Use::output.length"
+    ].join("\n"));
+    const options = optionsFor(fixture);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustOptions(repoRoot, fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+    for (const name of ["localLength", "exportLength"]) {
+      expectScalarNumberClose(scalarBindingFor(fixture, tsPayload, name), 3);
+      expectScalarNumberClose(scalarBindingFor(fixture, rustPayload, name), 3);
+    }
+  }, 30000);
+
   it.each(fixtureNames)("%s matches the TypeScript reference payload", (name: string) => {
     const fixture = readParityFixture(repoRoot, name);
     const options = optionsFor(fixture);

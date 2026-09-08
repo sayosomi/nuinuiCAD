@@ -1280,6 +1280,16 @@ the resolved ordered geometry members into the existing geometry-list paths;
 scalar and nominal-record collections remain source-semantic values until a
 later collection-consumer slice.
 
+Every one-dimensional collection supports the read-only scalar property
+`@collection.length` with type `number`. Its value is the resolved collection
+cardinality: an empty literal is `0`, a literal counts every authored member
+including duplicates, and whole-value aliases preserve the target cardinality.
+The property is available for root declarations, Module parameters, locals,
+and exports wherever the underlying collection reference is valid. Optional
+collection parameters require an established `hasValue(@parameter)` presence
+proof before `.length` access. `.length` does not select or materialize a
+collection member and does not create a declaration identity.
+
 ## Canonical formatting
 
 Parser input tolerance and canonical formatting are separate concerns. The

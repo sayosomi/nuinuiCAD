@@ -487,6 +487,8 @@ fn evaluates_number_boolean_nested_reference_and_geometry_builtin_calls() {
                 property_span: span(),
                 element_name: "line".to_owned(),
                 element_id: "element:line".to_owned(),
+                collection_value_id: None,
+                collection_length: None,
                 geometry_value_occurrence: None,
                 geometry_value_point_key: None,
                 property: "length".to_owned(),
@@ -519,6 +521,40 @@ fn evaluates_number_boolean_nested_reference_and_geometry_builtin_calls() {
         ScalarEvaluation::Ok {
             r#type: ScalarType::Boolean,
             value: ScalarValue::Boolean(true),
+        }
+    );
+}
+
+#[test]
+fn evaluates_collection_length_without_geometry_runtime_lookup() {
+    let environment = GeometryEnvironment {
+        bindings: HashMap::new(),
+        geometry: ScalarEvaluation::Error {
+            r#type: ScalarType::Number,
+            issue_code: "must-not-read-geometry".to_owned(),
+            binding_id: None,
+            context: None,
+        },
+    };
+    let expression = TypedScalarExpression::GeometryProperty {
+        span: span(),
+        element_name_span: span(),
+        property_span: span(),
+        element_name: "items".to_owned(),
+        element_id: String::new(),
+        collection_value_id: Some("statement:items".to_owned()),
+        collection_length: Some(4.0),
+        geometry_value_occurrence: None,
+        geometry_value_point_key: None,
+        property: "length".to_owned(),
+        target_source_order: 0.0,
+        r#type: ScalarType::Number,
+    };
+    assert_eq!(
+        evaluate_typed_expression(&expression, &environment),
+        ScalarEvaluation::Ok {
+            r#type: ScalarType::Number,
+            value: ScalarValue::Number(4.0),
         }
     );
 }

@@ -106,6 +106,12 @@ const sourceTarget = (target: ModuleSourceTarget | ModuleRecordSourceTarget | nu
   }};
   if (target.kind === "recordField") return sourceTarget(target.record);
   if (target.kind === "deferredModuleRecordExport") return { kind: "moduleSource", statementId: target.exportedStatementId };
+  if (target.kind === "collectionValueLength") return { kind: "moduleSource", statementId: target.statementId };
+  if (target.kind === "collectionParameterLength") return { kind: "moduleParameter", slot: {
+    definitionStatementId: target.definitionStatementId,
+    parameterIndex: target.parameterIndex
+  }};
+  if (target.kind === "deferredModuleCollectionExportLength") return { kind: "moduleSource", statementId: target.exportedStatementId };
   if (target.kind === "geometryValue") return { kind: "moduleSource", statementId: target.statementId };
   if (target.kind === "sourceGeometry" || target.kind === "sourceGeometryProperty" || target.kind === "moduleLocal") {
     return { kind: "moduleSource", statementId: target.statementId };

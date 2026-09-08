@@ -1,6 +1,6 @@
 import type { DslGeometryDeclarationCategory } from "./dslConstructions";
 import type { DslDiagnostic, DslModuleParameterType, DslSpan, DslStatement } from "./dslTypes";
-import type { DslValueType } from "./dslValueTypes";
+import type { DslArrayValueType, DslValueType } from "./dslValueTypes";
 import type { ScalarExpressionAst } from "../scalars/expressionAst";
 import type { ScalarType } from "../scalars/types";
 import type { BindingId } from "../scalars/bindingCatalog";
@@ -166,6 +166,35 @@ export type ModuleParentReferenceSemantic = {
 
 export type ModuleGeometryPropertySourceTarget =
   | ModuleRecordFieldSourceTarget
+  | {
+      kind: "collectionValueLength";
+      statementId: StatementIdentity;
+      statementIndex: number;
+      valueId: string;
+      valueType: DslArrayValueType;
+      length: number | null;
+      identity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
+    }
+  | (ModuleParameterSlot & {
+      kind: "collectionParameterLength";
+      valueType: DslArrayValueType;
+      optional: boolean;
+    })
+  | {
+      kind: "deferredModuleCollectionExportLength";
+      instanceStatementId: StatementIdentity;
+      instanceStatementIndex: number;
+      instanceName: string;
+      exportName: string;
+      exportedStatementId: StatementIdentity;
+      exportedStatementIndex: number;
+      valueType: DslArrayValueType;
+      referenceSpan: DslSpan;
+      instanceSpan: DslSpan;
+      memberSpan: DslSpan;
+      instanceIdentity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
+      exportedIdentity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
+    }
   | (ModuleParameterSlot & { kind: "parameterProperty"; geometryKind: "point" | "line"; property: string; pointKey?: string })
   | {
       kind: "geometryValueProperty";
@@ -357,7 +386,14 @@ export type ResolvedModuleParameter = {
 export type ModuleArgumentSemantic =
   | { kind: "scalar"; expression: ModuleScalarExpressionSemantic }
   | { kind: "geometry"; reference: ModuleGeometryReferenceSemantic }
-  | { kind: "record"; reference: ModuleRecordReferenceSemantic };
+  | { kind: "record"; reference: ModuleRecordReferenceSemantic }
+  | {
+      kind: "collection";
+      source: string;
+      span: DslSpan;
+      targetValueId: string;
+      valueType: DslArrayValueType;
+    };
 
 /** One entry per callee parameter, already in parameter source order. */
 export type ResolvedModuleParameterBinding = {
@@ -403,7 +439,12 @@ export type ResolvedModuleRecordExport = ResolvedModuleExportBase & {
   backingTarget: ModuleRecordSourceTarget;
 };
 
-export type ResolvedModuleExport = ResolvedModuleGeometryExport | ResolvedModuleScalarExport | ResolvedModuleRecordExport;
+export type ResolvedModuleCollectionExport = ResolvedModuleExportBase & {
+  kind: "collection";
+  valueType: DslArrayValueType;
+};
+
+export type ResolvedModuleExport = ResolvedModuleGeometryExport | ResolvedModuleScalarExport | ResolvedModuleRecordExport | ResolvedModuleCollectionExport;
 
 export type ModuleRecordValueSemantic = {
   value: RecordValueSemantic;

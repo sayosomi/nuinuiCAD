@@ -64,6 +64,7 @@ import type { RecordFieldIdentity } from "../dsl/recordSemanticAnalysis";
 import { planRecordScalarLowering, recordScalarBindingIdFor, recordScalarDeclarationVersionIdFor } from "./recordScalarLowering";
 import { analyzeTypedDeclarations, type TypedDeclarationAnalysis } from "./typedDeclarationAnalysis";
 import { scalarTypeOfDslValueType } from "../dsl/dslValueTypes";
+import { parseGeometryArrayDeferredModuleExportId } from "../dsl/geometryArraySemanticAnalysis";
 
 export type MaterializedPropertyBindingSource = {
   elementId: ElementId;
@@ -615,6 +616,7 @@ const lowerExpression = (
   bindingForTarget: (target: ModuleScalarSourceTarget, name: string, statementIndex: number) => Binding | undefined,
   catalogBindings: ReadonlyMap<BindingId, Binding>,
   geometryPropertyForTarget?: (target: ModuleGeometryPropertySourceTarget) => ModuleGeometryPropertyRuntimeTarget | undefined,
+  collectionLengthForTarget?: (target: Extract<ModuleGeometryPropertySourceTarget, { kind: "collectionValueLength" | "collectionParameterLength" | "deferredModuleCollectionExportLength" }>) => number | undefined,
   geometryBuiltinForTarget?: (occurrence: ModuleGeometryBuiltinArgumentSemantic) => ScalarExpressionResolvedGeometryTarget | undefined,
   hasValueForParameter: (definitionStatementId: string, parameterIndex: number, definitionDocumentId?: DocumentId) => boolean = () => false
 ): { expression: TypedScalarExpression; references: InitializerReference[] } => {
@@ -631,6 +633,31 @@ const lowerExpression = (
     if (property.target?.kind === "recordField") continue;
     if (!property.target || !property.type) {
       geometryPropertyReferences.set(property.span.start, null);
+      continue;
+    }
+    if (property.target.kind === "collectionValueLength" || property.target.kind === "collectionParameterLength" || property.target.kind === "deferredModuleCollectionExportLength") {
+      const length = property.target.kind === "collectionValueLength" && property.target.length !== null
+        ? property.target.length
+        : collectionLengthForTarget?.(property.target);
+      if (length !== undefined) {
+        geometryPropertyReferences.set(property.span.start, {
+          kind: "collection",
+          collectionValueId: property.target.kind === "collectionValueLength"
+            ? property.target.valueId
+            : property.target.kind === "collectionParameterLength"
+              ? `${property.target.definitionStatementId}:parameter:${property.target.parameterIndex}`
+              : JSON.stringify([property.target.instanceStatementId, property.target.exportName]),
+          collectionLength: length,
+          targetSourceOrder: property.target.kind === "collectionValueLength"
+            ? property.target.statementIndex
+            : property.target.kind === "deferredModuleCollectionExportLength"
+              ? property.target.instanceStatementIndex
+              : -1,
+          type: property.type.kind === "number" ? property.type : { kind: "number" }
+        });
+      } else {
+        geometryPropertyReferences.set(property.span.start, null);
+      }
       continue;
     }
     const runtimeTarget = geometryPropertyForTarget?.(property.target);
@@ -755,7 +782,7 @@ const lowerExpression = (
       const resolved = semanticProperty?.target && geometryPropertyForTarget?.(semanticProperty.target);
       if (!resolved) return { node, references: [] };
       if (resolved.kind === "expression") {
-        const lowered = lowerExpression(resolved.expression, bindingForTarget, catalogBindings, geometryPropertyForTarget, geometryBuiltinForTarget, hasValueForParameter);
+        const lowered = lowerExpression(resolved.expression, bindingForTarget, catalogBindings, geometryPropertyForTarget, collectionLengthForTarget, geometryBuiltinForTarget, hasValueForParameter);
         return { node: lowered.expression, references: lowered.references };
       }
       return {
@@ -1687,6 +1714,67 @@ export const compileModuleScalarRuntime = ({
     const sourceOrder = elementOrderById.get(documentElementId);
     return sourceOrder === undefined ? undefined : { kind: "runtime", elementId: documentElementId, property: target.property, targetSourceOrder: sourceOrder };
   };
+  const collectionLengthForValueIdAt = (
+    valueId: string,
+    context: InstanceContext,
+    visited: ReadonlySet<string> = new Set()
+  ): number | undefined => {
+    if (visited.has(`${context.key}:${valueId}`)) return undefined;
+    const nextVisited = new Set([...visited, `${context.key}:${valueId}`]);
+    const definitionDocument = moduleRuntimeContext?.documentFor(context.definitionDocumentId);
+    const analysis = definitionDocument?.sourceLexicalNamespace.geometryArraySemanticAnalysis ?? sourceNamespace?.geometryArraySemanticAnalysis;
+    const byId = analysis?.genericValuesByStatementId.get(valueId) ?? analysis?.valuesByStatementId.get(valueId);
+    if (byId?.value) {
+      if (byId.value.kind === "literal") return byId.value.members.length;
+      return collectionLengthForValueIdAt(byId.value.targetValueId, context, nextVisited);
+    }
+    const parameterMatch = /^(.*):parameter:(\d+)$/.exec(valueId);
+    if (parameterMatch) {
+      const definitionStatementId = parameterMatch[1]!;
+      const parameterIndex = Number(parameterMatch[2]);
+      let owner: InstanceContext | undefined = context;
+      while (owner) {
+        if (owner.definition.statementId === definitionStatementId) {
+          const binding = owner.instance.parameterBindings.find((candidate) => candidate.parameterIndex === parameterIndex);
+          if (binding?.value?.kind !== "collection") return undefined;
+          return collectionLengthForValueIdAt(binding.value.targetValueId, owner, nextVisited);
+        }
+        owner = owner.parentKey ? contextsByKey.get(owner.parentKey) : undefined;
+      }
+      return undefined;
+    }
+    const deferred = parseGeometryArrayDeferredModuleExportId(valueId);
+    if (deferred) {
+      const child = runtimeContextForSourceInstance(context, deferred.instanceStatementId);
+      const exported = child?.definition.exports.find((candidate) => candidate.kind === "collection" && candidate.name === deferred.exportName);
+      return child && exported?.kind === "collection"
+        ? collectionLengthForValueIdAt(exported.exportedStatementId, child, nextVisited)
+        : undefined;
+    }
+    return undefined;
+  };
+  const collectionLengthForTargetContext = (
+    target: Extract<ModuleGeometryPropertySourceTarget, { kind: "collectionValueLength" | "collectionParameterLength" | "deferredModuleCollectionExportLength" }>,
+    context: InstanceContext
+  ): number | undefined => {
+    if (target.kind === "collectionValueLength") {
+      return target.length ?? collectionLengthForValueIdAt(target.valueId, context);
+    }
+    if (target.kind === "collectionParameterLength") {
+      const candidates = contextCandidatesFor(context).filter((candidate) =>
+        candidate.definition.statementId === target.definitionStatementId &&
+        (!target.definitionIdentity || candidate.definitionDocumentId === target.definitionIdentity.documentId)
+      );
+      const binding = candidates[0]?.instance.parameterBindings.find((candidate) => candidate.parameterIndex === target.parameterIndex);
+      return binding?.value?.kind === "collection"
+        ? collectionLengthForValueIdAt(binding.value.targetValueId, candidates[0]!, new Set())
+        : undefined;
+    }
+    const child = runtimeContextForSourceInstance(context, target.instanceStatementId, target.instanceIdentity?.documentId);
+    return child
+      ? collectionLengthForValueIdAt(target.exportedStatementId, child, new Set())
+      : undefined;
+  };
   const resolvedGeometryBuiltinForContext = (
     occurrence: ModuleGeometryBuiltinArgumentSemantic,
     context: InstanceContext
@@ -1747,6 +1835,7 @@ export const compileModuleScalarRuntime = ({
       (target) => resolvedBindingForContext(target, context),
       bindingsById,
       (target) => resolvedGeometryPropertyForContext(target, context),
+      (target) => collectionLengthForTargetContext(target, context),
       (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context),
       (definitionStatementId, parameterIndex, definitionDocumentId) => hasValueForParameter(context, definitionStatementId, parameterIndex, definitionDocumentId)
     );
@@ -1824,6 +1913,7 @@ export const compileModuleScalarRuntime = ({
         (target) => resolvedBindingForContext(target, context),
         bindingsById,
         (target) => resolvedGeometryPropertyForContext(target, context),
+        (target) => collectionLengthForTargetContext(target, context),
         (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context),
         (definitionStatementId, parameterIndex, definitionDocumentId) => hasValueForParameter(context, definitionStatementId, parameterIndex, definitionDocumentId)
       );
@@ -1871,6 +1961,7 @@ export const compileModuleScalarRuntime = ({
             (target) => resolvedBindingForContext(target, context),
             bindingsById,
             (target) => resolvedGeometryPropertyForContext(target, context),
+            (target) => collectionLengthForTargetContext(target, context),
             (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context),
             (definitionStatementId, parameterIndex, definitionDocumentId) => hasValueForParameter(context, definitionStatementId, parameterIndex, definitionDocumentId)
           );
@@ -1902,6 +1993,7 @@ export const compileModuleScalarRuntime = ({
           (target) => resolvedBindingForContext(target, context),
           bindingsById,
           (target) => resolvedGeometryPropertyForContext(target, context),
+          (target) => collectionLengthForTargetContext(target, context),
           (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context),
           (definitionStatementId, parameterIndex, definitionDocumentId) => hasValueForParameter(context, definitionStatementId, parameterIndex, definitionDocumentId)
         );
@@ -1977,6 +2069,23 @@ export const compileModuleScalarRuntime = ({
     const sourceOrder = elementOrderById.get(lowered.elementId);
     return sourceOrder === undefined ? undefined : { ...lowered, targetSourceOrder: sourceOrder };
   };
+  const rootCollectionLengthFor = (
+    target: Extract<ModuleGeometryPropertySourceTarget, { kind: "collectionValueLength" | "collectionParameterLength" | "deferredModuleCollectionExportLength" }>
+  ): number | undefined => {
+    if (target.kind === "collectionValueLength") {
+      if (target.length !== null) return target.length;
+      const deferred = parseGeometryArrayDeferredModuleExportId(target.valueId);
+      if (!deferred) return undefined;
+      const child = runtimeContextForSourceInstance(null, deferred.instanceStatementId);
+      const exported = child?.definition.exports.find((candidate) => candidate.kind === "collection" && candidate.name === deferred.exportName);
+      return child && exported?.kind === "collection"
+        ? collectionLengthForValueIdAt(exported.exportedStatementId, child, new Set())
+        : undefined;
+    }
+    if (target.kind === "collectionParameterLength") return undefined;
+    const child = runtimeContextForSourceInstance(null, target.instanceStatementId, target.instanceIdentity?.documentId);
+    return child ? collectionLengthForValueIdAt(target.exportedStatementId, child, new Set()) : undefined;
+  };
   const rootBindingForTarget = (target: ModuleScalarSourceTarget, statementIndex: number): Binding | undefined => {
     if (target.kind === "documentBinding") return bindingsById.get(runtimeBindingIdForDocumentTarget(target));
     if (target.kind === "recordField") {
@@ -2047,6 +2156,7 @@ export const compileModuleScalarRuntime = ({
           (target) => rootBindingForTarget(target, statementIndex),
           bindingsById,
           rootGeometryPropertyFor,
+          rootCollectionLengthFor,
           resolvedGeometryBuiltinForRoot
         );
         initializers.set(bindingId, lowered.expression);
@@ -2066,6 +2176,7 @@ export const compileModuleScalarRuntime = ({
           (target) => resolvedBindingForContext(target, context),
           bindingsById,
           (target) => resolvedGeometryPropertyForContext(target, context),
+          (target) => collectionLengthForTargetContext(target, context),
           (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context),
           (definitionStatementId, parameterIndex, definitionDocumentId) => hasValueForParameter(context, definitionStatementId, parameterIndex, definitionDocumentId)
         )
@@ -2074,6 +2185,7 @@ export const compileModuleScalarRuntime = ({
           (target, name, statementIndex) => rootBindingForTarget(target, statementIndex),
           bindingsById,
           rootGeometryPropertyFor,
+          rootCollectionLengthFor,
           resolvedGeometryBuiltinForRoot
         );
     return lowered.expression;

@@ -30,11 +30,13 @@ input to `sqrt`, and a non-integral real result such as `(-1) ^ 0.5`.
 
 A bare `@name` reads a declaration in the current scope. `@instance::name`
 reads an exported module value, and `@value.property` reads a property that
-the referenced geometry publishes. Reads happen at the source position: a
+the referenced value publishes. Collection values expose the read-only numeric
+property `length`; it counts authored members, including duplicates, after
+whole-value aliases are resolved. Reads happen at the source position: a
 later mutation does not change an earlier scalar read. Hidden geometry remains
 readable; disabled, failed, or not-yet-evaluated geometry is unavailable.
 
-## Geometry properties
+## Geometry and collection properties
 
 Only numeric computed properties and schema-declared choice properties are
 available as scalar reads. A line can expose measurements such as `.length`,
@@ -48,6 +50,14 @@ handle uses the opposite finite direction when available, and both angles are
 unavailable when both handles are zero. String and boolean element properties
 are not general scalar geometry-property reads. A property must also be valid
 for the value's interface and available at the read position.
+
+For every implemented one-dimensional collection type (`number[]`, `string[]`,
+`boolean[]`, `choice(...)[]`, `point[]`, `line[]`, `path[]`, and nominal-record
+arrays), `.length` is a read-only `number`. Empty literals have length `0`; a
+non-empty literal counts every authored member in order, including duplicates.
+Whole-value aliases and Module collection parameters/exports preserve the same
+cardinality. Optional Module parameters require the established
+`hasValue(@parameter)` presence proof before `.length` is read.
 
 ## Function calls and interpolation
 

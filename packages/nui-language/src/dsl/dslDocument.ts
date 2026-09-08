@@ -44,6 +44,7 @@ import { compilePropertyReferenceSyntax } from "./dslPropertyReferenceSyntax";
 import { buildPlacementRefsByStatementIndex } from "./dslPrintLayoutPlacementIndex";
 import { isGeometryDeclarationCategory } from "./dslConstructions";
 import { isDslGeometryValueType } from "./dslValueTypes";
+import { collectionLengthForValueId, collectionValueSemanticForStatement } from "./geometryArraySemanticAnalysis";
 import {
   buildSourceLexicalNamespaceIndex,
   type SourceLexicalNamespaceIndex
@@ -1296,6 +1297,47 @@ export const compileDslDocument = (
             lookup.declaration.kind !== "typedDeclaration" ||
             lookup.declaration.statement.kind !== "typedDeclaration" ||
             !isDslGeometryValueType(lookup.declaration.statement.valueType)) {
+          if (
+            lookup.kind === "resolved" &&
+            lookup.declaration.kind === "typedDeclaration" &&
+            lookup.declaration.statement.kind === "typedDeclaration" &&
+            node.property === "length"
+          ) {
+            const collectionAnalysis = sourceLexicalNamespace.geometryArraySemanticAnalysis;
+            const value = collectionAnalysis
+              ? collectionValueSemanticForStatement(collectionAnalysis, lookup.declaration.statementIndex)
+              : null;
+            const length = value && collectionAnalysis
+              ? collectionLengthForValueId(collectionAnalysis, value.statementId)
+              : null;
+            if (value && length !== null) {
+              return {
+                kind: "collection" as const,
+                collectionValueId: value.statementId,
+                collectionLength: length ?? 0,
+                targetSourceOrder: lookup.declaration.statementIndex,
+                type: { kind: "number" as const }
+              };
+            }
+          }
+          // Module export property resolution is owned by the later Module
+          // semantic pass. Keep the first scalar pass fail-closed without
+          // emitting a duplicate geometry diagnostic for a qualified
+          // collection candidate; the later pass replaces this placeholder
+          // with the exact export identity or its diagnostic.
+          const path = parseDslReferenceToken(node.elementName);
+          const instanceLookup = path.segments.length === 2
+            ? resolveSourceLexicalDeclaration(sourceLexicalNamespace, statementIndex, path.segments[0]!)
+            : null;
+          if (node.property === "length" && instanceLookup?.kind === "resolved" && instanceLookup.declaration.kind === "moduleInstance") {
+            return {
+              kind: "collection" as const,
+              collectionValueId: JSON.stringify([instanceLookup.declaration.statementId, path.segments[1]]),
+              collectionLength: 0,
+              targetSourceOrder: instanceLookup.declaration.statementIndex,
+              type: { kind: "number" as const }
+            };
+          }
           return null;
         }
         const declaredInterfaceType = lookup.declaration.statement.valueType.kind;
@@ -1384,7 +1426,13 @@ export const compileDslDocument = (
       .some((site) => site.expression.geometryBuiltinArguments.length > 0 || site.expression.geometryProperties.some((property) =>
         property.target?.kind === "sourceGeometryProperty" || property.target?.kind === "deferredModuleExportProperty"
       ));
-    if (usableExportBindingSeeds.length > 0 || hasRootGeometryRuntimeOccurrences) {
+    const hasRootCollectionLengthOccurrences = [...moduleSemanticCompilation.rootScalarExpressionsByStatementId.values()]
+      .some((site) => site.expression.geometryProperties.some((property) =>
+        property.target?.kind === "collectionValueLength" ||
+        property.target?.kind === "collectionParameterLength" ||
+        property.target?.kind === "deferredModuleCollectionExportLength"
+      ));
+    if (usableExportBindingSeeds.length > 0 || hasRootGeometryRuntimeOccurrences || hasRootCollectionLengthOccurrences) {
       const seedById = new Map(usableExportBindingSeeds.map((seed) => [seed.id, seed] as const));
       const qualifiedModuleExportFor = (statementIndex: number, path: ReturnType<typeof parseDslReferenceToken>) => {
         if (path.segments.length !== 2) return null;
@@ -1541,6 +1589,25 @@ export const compileDslDocument = (
           const property = candidates.find((candidate) => candidate.span.start === node.span.start) ?? (candidates.length === 1 ? candidates[0] : undefined);
           const target = property?.target;
           if (!property?.type || !target) return null;
+          if (target.kind === "collectionValueLength" || target.kind === "collectionParameterLength" || target.kind === "deferredModuleCollectionExportLength") {
+            return {
+              kind: "collection" as const,
+              collectionValueId: target.kind === "collectionValueLength"
+                ? target.valueId
+                : target.kind === "collectionParameterLength"
+                  ? `${target.definitionStatementId}:parameter:${target.parameterIndex}`
+                  : JSON.stringify([target.instanceStatementId, target.exportName]),
+              // The Module runtime replaces this intermediate value with the
+              // materialized argument/export cardinality before evaluation.
+              collectionLength: target.kind === "collectionValueLength" ? target.length ?? 0 : 0,
+              targetSourceOrder: target.kind === "collectionValueLength"
+                ? target.statementIndex
+                : target.kind === "deferredModuleCollectionExportLength"
+                  ? target.instanceStatementIndex
+                  : -1,
+              type: { kind: "number" as const }
+            };
+          }
           if (target.kind === "sourceGeometryProperty") {
             const elementId = compiled.elementIdsByStatementIndex?.get(target.statementIndex);
             if (!elementId) return null;

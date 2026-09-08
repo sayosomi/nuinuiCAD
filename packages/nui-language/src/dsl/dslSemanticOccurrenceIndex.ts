@@ -23,6 +23,7 @@ import type {
   ModuleRecordReferenceSemantic,
   ModuleRecordSourceTarget,
   ModuleScalarExpressionSemantic,
+  ModuleSourceTarget,
   ResolvedModuleRecordExport
 } from "./moduleSemanticTypes";
 import type { BindingAnalysis } from "../scalars/bindingAnalysis";
@@ -704,7 +705,7 @@ const addModuleSemanticPathOccurrences = (compiled: CompiledDslDocument, add: Ad
   const addGeometry = (statementIndex: number, reference: { nameSpan?: { start: number; end: number }; elementNameSpan?: { start: number; end: number }; propertySpan?: { start: number; end: number }; target: unknown }) => {
     const nameSpan = reference.nameSpan ?? reference.elementNameSpan;
     if (!nameSpan || !reference.target) return;
-    const target = reference.target as { kind?: string; statementId?: string };
+    const target = reference.target as ModuleSourceTarget;
     if (target.kind === "recordField") {
       const recordTarget = reference.target as Extract<ModuleScalarExpressionSemantic["geometryProperties"][number]["target"], { kind: "recordField" }>;
       const property = reference as ModuleScalarExpressionSemantic["geometryProperties"][number];
@@ -727,15 +728,43 @@ const addModuleSemanticPathOccurrences = (compiled: CompiledDslDocument, add: Ad
       if (identity) addPhysicalOccurrence(add, compiled, statementIndex, nameSpan, identity, "reference");
       return;
     }
-    const finalTarget = target.kind === "geometryValue"
-      ? target.statementId
+    if (target.kind === "collectionValueLength") {
+      const identity = semanticIdentityForModuleTarget(compiled, { kind: "moduleSource", statementId: target.statementId });
+      addPhysicalOccurrence(add, compiled, statementIndex, nameSpan, identity, "reference");
+      return;
+    }
+    if (target.kind === "collectionParameterLength") {
+      const identity = semanticIdentityForModuleTarget(compiled, {
+        kind: "moduleParameter",
+        slot: { definitionStatementId: target.definitionStatementId, parameterIndex: target.parameterIndex }
+      });
+      addPhysicalOccurrence(add, compiled, statementIndex, nameSpan, identity, "reference");
+      return;
+    }
+    if (target.kind === "deferredModuleCollectionExportLength") {
+      const physical = physicalRange(compiled, statementIndex, nameSpan);
+      const source = compiled.spans.sourceMap.source;
+      const ranges = physical ? readDslReferencePathSegments(source, physical.from, physical.to) : null;
+      if (physical && ranges?.kind === "valid" && ranges.segments.length === 2) {
+        const instanceRange = ranges.segments[0];
+        const memberRange = ranges.segments[1];
+        if (instanceRange) add("reference", instanceRange.start, instanceRange.end, {
+          kind: "module",
+          target: { kind: "moduleInstance", statementId: target.instanceStatementId }
+        });
+        if (memberRange) add("reference", memberRange.start, memberRange.end, {
+          kind: "module",
+          target: { kind: "moduleSource", statementId: target.exportedStatementId }
+        });
+      }
+      return;
+    }
+    let finalTarget: DslSemanticIdentity | null = null;
+    if (target.kind === "geometryValue" || target.kind === "sourceGeometry" || target.kind === "sourceGeometryProperty") {
+      finalTarget = target.statementId
         ? semanticIdentityForModuleTarget(compiled, { kind: "moduleSource", statementId: target.statementId })
-        : null
-      : target.kind === "sourceGeometry" || target.kind === "sourceGeometryProperty"
-      ? target.statementId
-        ? semanticIdentityForModuleTarget(compiled, { kind: "moduleSource", statementId: target.statementId })
-        : null
-      : null;
+        : null;
+    }
     addQualifiedPathOccurrences(compiled, add, statementIndex, nameSpan, finalTarget);
   };
   for (const [statementId, references] of analysis.rootGeometryReferencesByStatementId) {

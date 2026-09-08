@@ -36,6 +36,8 @@ import { isGeometryArrayTypeAssignable, type GeometryArrayType } from "./geometr
 import { numericGeometryPropertiesForStaticTarget } from "../geometry/numericGeometryProperties";
 import type { DocumentQualifiedSemanticIdentity } from "../document/multiDocumentPrimitives";
 import { scalarTypeOfDslValueType } from "./dslValueTypes";
+import { isDslArrayValueType } from "./dslValueTypes";
+import { collectionValueSemanticForStatement } from "./geometryArraySemanticAnalysis";
 
 export type ModuleCompletionSite = {
   statementIndex: number;
@@ -256,6 +258,60 @@ export const moduleGeometryPropertyCandidates = (
   }));
 };
 
+/** Completes the generalized collection cardinality property. This stays
+ * beside the established Module geometry-property lane so collection values
+ * do not acquire a second namespace or runtime identity. */
+export const moduleCollectionLengthCandidates = (
+  compiled: CompiledDslDocument,
+  statementIndex: number,
+  baseName: string,
+  request?: ModuleCompletionPresenceRequest
+): ModuleCompletionCandidate[] => {
+  const resolved = visibleLookup(
+    compiled,
+    statementIndex,
+    baseName.replace(/^@/, ""),
+    request?.scopeId,
+    request?.sourceOrderIndex
+  );
+  const lookup = resolved?.lookup;
+  if (!lookup) return [];
+  if (lookup.kind === "parameter") {
+    if (!isDslArrayValueType(lookup.parameter.value.valueType) || !optionalParameterIsAvailable(compiled, statementIndex, lookup.parameter.value, request)) return [];
+    return [{
+      kind: "property",
+      label: "length",
+      identity: `module-collection-parameter:${lookup.parameter.value.definitionStatementId}:${lookup.parameter.value.parameterIndex}:length`
+    }];
+  }
+  if (lookup.kind !== "resolved" || lookup.declaration.kind !== "typedDeclaration" || lookup.declaration.statement.kind !== "typedDeclaration") return [];
+  if (!isDslArrayValueType(lookup.declaration.statement.valueType)) return [];
+  const analysis = compiled.sourceLexicalNamespace?.geometryArraySemanticAnalysis;
+  const value = analysis ? collectionValueSemanticForStatement(analysis, lookup.declaration.statementIndex) : null;
+  return value ? [{ kind: "property", label: "length", identity: `${value.statementId}:length` }] : [];
+};
+
+export const moduleQualifiedCollectionLengthCandidates = (
+  compiled: CompiledDslDocument,
+  statementIndex: number,
+  qualifiedName: string,
+  scopeId?: ScopeId,
+  sourceOrderIndex?: number
+): ModuleCompletionCandidate[] => {
+  const separator = qualifiedName.indexOf("::");
+  if (separator < 1) return [];
+  const instanceName = qualifiedName.slice(0, separator).replace(/^@/, "");
+  const exportName = qualifiedName.slice(separator + 2);
+  const resolved = visibleLookup(compiled, statementIndex, instanceName, scopeId, sourceOrderIndex);
+  if (resolved?.lookup.kind !== "resolved" || resolved.lookup.declaration.kind !== "moduleInstance") return [];
+  const instance = compiled.moduleSemanticAnalysis?.instancesByStatementId.get(resolved.lookup.declaration.statementId);
+  const definition = definitionForInstance(compiled, instance ?? null);
+  const exported = definition?.exports.find((entry) => entry.kind === "collection" && entry.name === exportName);
+  return exported?.kind === "collection"
+    ? [{ kind: "property", label: "length", identity: `${exported.exportedStatementId}:length` }]
+    : [];
+};
+
 /** Completes fields after a qualified Module record export, e.g.
  * `@source::output.`. The instance/export lookup remains owned by the Module
  * semantic resolver; this function only projects the resolved nominal fields. */
@@ -295,8 +351,12 @@ const stableStatementIndex = (request: ModuleCompletionRequest): number =>
 
 export const isInsideModuleSemanticStatement = (compiled: CompiledDslDocument, position: number) => {
   const index = statementIndexAt(compiled, position);
+  if (index < 0 || !compiled.moduleSemanticAnalysis) return false;
   const id = compiled.statementMap?.statementIdByStatementIndex?.get(index);
-  return index >= 0 && Boolean(id && compiled.moduleSemanticAnalysis?.definitions.some((definition) => definition.bodyStatementIds.includes(id)));
+  if (id) return compiled.moduleSemanticAnalysis.definitions.some((definition) => definition.bodyStatementIds.includes(id));
+  return compiled.moduleSemanticAnalysis.definitions.some((definition) =>
+    definition.bodyStatements.some((statement) => statement.statementIndex === index)
+  );
 };
 
 const moduleDefinitionForScope = (compiled: CompiledDslDocument, scopeId: ScopeId | undefined): ModuleDefinitionSemantic | null => {

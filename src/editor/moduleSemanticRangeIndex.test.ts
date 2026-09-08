@@ -203,4 +203,34 @@ describe("module semantic editor range view", () => {
     expect(exportRename.verdict).toBe("ok");
     if (exportRename.verdict === "ok") expect(exportRename.entries.map((entry) => entry.oldName)).toEqual(["Export", "Export"]);
   });
+
+  it("keeps collection length references on their collection identities", () => {
+    const collectionSource = [
+      "nui 1",
+      "const values: number[] = [1, 2]",
+      "module M(items: number[]) {",
+      "  const local: number[] = @items",
+      "  const localLength: number = @local.length",
+      "  const parameterLength: number = @items.length",
+      "}",
+      "instance Use = M(items: @values)"
+    ].join("\n");
+    const parsed = parseDslSnapshot({ normalizedSource: collectionSource, sourceRevision: 0 });
+    const document = compileDslDocument(collectionSource, {
+      preparsed: parsed,
+      assignedStatementIds: new Map(parsed.statements.map((_, index) => [index, `statement:collection:${index}`]))
+    });
+    const index = createModuleSemanticRangeIndex(document);
+    const localReference = index.tokens.find((token) =>
+      collectionSource.slice(token.from, token.to) === "local" && token.from > collectionSource.indexOf("localLength")
+    );
+    const moduleReference = index.tokens.find((token) =>
+      collectionSource.slice(token.from, token.to) === "items" && token.from > collectionSource.indexOf("parameterLength")
+    );
+    expect(localReference?.target).toEqual({ kind: "moduleSource", statementId: "statement:collection:3" });
+    expect(moduleReference?.target).toEqual({
+      kind: "moduleParameter",
+      slot: { definitionStatementId: "statement:collection:2", parameterIndex: 0 }
+    });
+  });
 });
