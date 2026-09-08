@@ -340,6 +340,7 @@ export const useCanvasOverlayData = ({
             }))
           ))
           .map((candidate) => ({
+            candidateElementId: geometry.elementId,
             anchor: candidate.anchor,
             label: candidate.label,
             screen: worldToScreen(candidate.point, viewportSize, canvasViewport),

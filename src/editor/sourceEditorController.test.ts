@@ -394,8 +394,8 @@ describe("SourceEditorController commit and history boundaries", () => {
     expect(useCadUiStore.getState().activeLinePickTarget).toMatchObject({
       elementId: seam.id,
       parameterKey: "baseLineIds",
-      draftLineIds: [byName("AB").id]
     });
+    expect(useCadUiStore.getState().activePickModeSession?.draft.map((entry) => entry.kind === "line" ? entry.lineId : null)).toEqual([byName("AB").id]);
 
     controller.destroy();
     parent.remove();

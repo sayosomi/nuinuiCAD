@@ -108,6 +108,7 @@ export type MeasurementCandidateMenu = {
 };
 
 export type PointPickCandidate = {
+  candidateElementId?: ElementId;
   anchor: PointAnchor;
   label: string;
   screen: ScreenPoint;
@@ -120,6 +121,7 @@ export type PointPickCandidateMenu = {
 };
 
 export type LinePickCandidate = {
+  candidateElementId?: ElementId;
   line: ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine | ComputedPolyline;
   sourceReference?: CanonicalGeometrySourceReference;
 };

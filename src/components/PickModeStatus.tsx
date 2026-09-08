@@ -30,12 +30,15 @@ export const PickModeStatus = () => {
     : null;
   const isLineList = Boolean(lineTarget && definition?.kind === "lineReferenceList");
   const isPointList = Boolean(pointTarget && definition?.kind === "pointReferenceList");
-  const selectedCount = lineTarget?.draftLineIds?.length ?? 0;
-  const selectedLineNames = (lineTarget?.draftLineIds ?? []).map(
-    (id) => elements.find((candidate) => candidate.id === id)?.name ?? id
-  );
-  const selectedPointCount = pointTarget?.draftPointAnchors?.length ?? 0;
-  const selectedPointNames = (pointTarget?.draftPointAnchors ?? []).map((anchor) => pointAnchorName(anchor, elements));
+  const draft = pickModeSession?.draft ?? [];
+  const selectedLineNames = draft
+    .filter((entry): entry is Extract<typeof draft[number], { kind: "line" }> => entry.kind === "line")
+    .map((entry) => elements.find((candidate) => candidate.id === entry.lineId)?.name ?? entry.lineId);
+  const selectedPointNames = draft
+    .filter((entry): entry is Extract<typeof draft[number], { kind: "point" }> => entry.kind === "point")
+    .map((entry) => pointAnchorName(entry.anchor, elements));
+  const selectedCount = selectedLineNames.length;
+  const selectedPointCount = selectedPointNames.length;
   const instruction = pointTarget
     ? isPointList
       ? `点を順番に仮選択中（${selectedPointCount}件）。Canvas上で追加できます。`
@@ -45,13 +48,7 @@ export const PickModeStatus = () => {
       : isLineList
         ? `線を仮選択中（${selectedCount}件）。Canvas上で追加・解除できます。`
         : "Canvasまたは構成リストから線を選択";
-  const finish = () => {
-    if (isPointList) dispatchCommand("finishPointPick");
-    else if (pointTarget) dispatchCommand("cancelPointPick");
-    else if (numericTarget) dispatchCommand("cancelNumericReferencePick");
-    else if (isLineList) dispatchCommand("finishLinePick");
-    else dispatchCommand("cancelLinePick");
-  };
+  const finish = () => dispatchCommand("finishPickMode");
 
   return (
     <aside className="pick-mode-status" role="status" aria-live="polite">
@@ -83,9 +80,9 @@ export const PickModeStatus = () => {
         ) : null}
       </span>
       <button type="button" onClick={finish}>
-        {isLineList || isPointList ? "選択を完了" : "選択を終了"}
+        選択を完了
       </button>
-      {isLineList || isPointList ? <kbd title="⌘Enter / Ctrl+Enter で選択を完了">⌘↵</kbd> : null}
+      <kbd title="Enter で選択を完了">↵</kbd>
       <kbd>Esc</kbd>
     </aside>
   );

@@ -10,6 +10,7 @@ import {
   applyPickedPoint,
   applySelectedPickCandidate,
   cancelPointPick,
+  finishPickMode,
   finishLinePick,
   finishPointPick,
   startLinePick,
@@ -81,14 +82,17 @@ describe("command-line pick routing", () => {
     });
 
     cancelPointPick();
-    expect(useCadUiStore.getState().activePointPickTarget).toBeNull();
+    expect(useCadUiStore.getState().activePointPickTarget).toMatchObject({ parameterKey: "startPoint" });
     expect(useCadUiStore.getState().activePickModeSession).toBeNull();
     expect(useCadUiStore.getState().commandLineSession).not.toBeNull();
 
     expect(startCommandLinePickForCurrentStep()).toBe(true);
     applyPickedPoint({ pickedPointAnchor: referenceAnchor(byName("A").id) });
+    expect(useCadUiStore.getState().activePointPickTarget).toMatchObject({ parameterKey: "startPoint" });
+    expect(useCadUiStore.getState().commandLineSession?.args.startPoint).toBeUndefined();
+    finishPickMode();
     expect(useCadUiStore.getState().activePointPickTarget).toMatchObject({ parameterKey: "endPoint" });
-    expect(useCadUiStore.getState().activePickModeSession).toBeNull();
+    expect(useCadUiStore.getState().commandLineSession?.args.startPoint).toEqual(referenceAnchor(byName("A").id));
   });
 
   it("establishes the shared session for direct point, line, and numeric Canvas starts", () => {
@@ -185,8 +189,9 @@ describe("command-line pick routing", () => {
 
     expect(startCommandLineCreation("offsetLine")).toBe(true);
     submitCommandLineInput("");
+    expect(startCommandLinePickForCurrentStep()).toBe(true);
     applyPickedLine({ pickedLineId: line.id });
-    expect(useCadUiStore.getState().activeLinePickTarget?.draftLineIds).toEqual([line.id]);
+    expect(useCadUiStore.getState().activePickModeSession?.draft.map((entry) => entry.kind === "line" ? entry.lineId : null)).toEqual([line.id]);
     finishLinePick();
     expect(useCadUiStore.getState().commandLineSession?.args.baseLineIds).toEqual([line.id]);
     expect(useCadUiStore.getState().activeLinePickTarget).toBeNull();
@@ -200,6 +205,7 @@ describe("command-line pick routing", () => {
       property: "startAngleDeg"
     });
     applyPickedNumericReference({ numericReferenceExpression: `${line.id}.length` });
+    finishPickMode();
 
     expect(startCommandLineNumericReferencePick()).toBe(true);
     expect(useCadUiStore.getState().activeNumericReferencePickTarget).toMatchObject({
@@ -230,8 +236,9 @@ describe("command-line pick routing", () => {
 
     expect(startCommandLineCreation("offsetLine")).toBe(true);
     submitCommandLineInput("");
+    expect(startCommandLinePickForCurrentStep()).toBe(true);
     applyPickedLine({ pickedLineId: line.id });
-    expect(useCadUiStore.getState().activeLinePickTarget?.draftLineIds).toEqual([line.id]);
+    expect(useCadUiStore.getState().activePickModeSession?.draft.map((entry) => entry.kind === "line" ? entry.lineId : null)).toEqual([line.id]);
     expect(startCommandLineCreation("line")).toBe(true);
     expect(useCadUiStore.getState().commandLineSession).toMatchObject({
       recipe: { type: "line" },
@@ -273,7 +280,7 @@ describe("command-line pick routing", () => {
     expect(useCadUiStore.getState().activePointPickTarget).toMatchObject({
       elementId: COMMAND_LINE_PICK_TARGET_ID,
       parameterKey: "points",
-      draftPointAnchors: []
+      selectionCardinality: "ordered-multiple"
     });
     expect(useCadUiStore.getState().activePickModeSession).toMatchObject({
       kind: "point",
@@ -283,16 +290,15 @@ describe("command-line pick routing", () => {
     applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointA.id) });
     applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointB.id) });
     applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointA.id) });
+    applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointA.id) });
     expect(useCadUiStore.getState().commandLineSession?.args.points).toBeUndefined();
-    expect(useCadUiStore.getState().activePointPickTarget?.draftPointAnchors).toEqual([
-      referenceAnchor(pointA.id),
+    expect(useCadUiStore.getState().activePickModeSession?.draft.map((entry) => entry.kind === "point" ? entry.anchor : null)).toEqual([
       referenceAnchor(pointB.id),
       referenceAnchor(pointA.id)
     ]);
 
     finishPointPick();
     expect(useCadUiStore.getState().commandLineSession?.args.points).toEqual([
-      referenceAnchor(pointA.id),
       referenceAnchor(pointB.id),
       referenceAnchor(pointA.id)
     ]);
@@ -305,7 +311,6 @@ describe("command-line pick routing", () => {
     expect(created).toMatchObject({
       type: "polyline",
       points: [
-        referenceAnchor(pointA.id),
         referenceAnchor(pointB.id),
         referenceAnchor(pointA.id)
       ],
@@ -319,10 +324,9 @@ describe("command-line pick routing", () => {
 
     expect(startCommandLineCreation("polyline")).toBe(true);
     submitCommandLineInput("");
+    expect(startCommandLinePickForCurrentStep()).toBe(true);
     applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointA.id) });
-    expect(useCadUiStore.getState().activePointPickTarget?.draftPointAnchors).toEqual([
-      referenceAnchor(pointA.id)
-    ]);
+    expect(useCadUiStore.getState().activePickModeSession?.draft).toHaveLength(1);
 
     cancelPointPick();
     expect(useCadUiStore.getState().commandLineSession?.args.points).toBeUndefined();
@@ -334,14 +338,17 @@ describe("command-line pick routing", () => {
 
     expect(startCommandLineCreation("polyline")).toBe(true);
     submitCommandLineInput("");
+    expect(startCommandLinePickForCurrentStep()).toBe(true);
     applyPickedPoint({
       pickedPointAnchor: referenceAnchor(pointA.id),
       pickedPointSourceReference: { base: "A" }
     });
 
-    expect(useCadUiStore.getState().activePointPickTarget?.draftPointAnchors).toEqual([
-      referenceAnchor("A")
-    ]);
+    expect(useCadUiStore.getState().activePickModeSession?.draft[0]).toMatchObject({
+      kind: "point",
+      anchor: referenceAnchor("A"),
+      sourceReference: { base: "A" }
+    });
   });
 
   it("restores a point-list draft after cancelling an isolated edit", () => {
@@ -358,8 +365,9 @@ describe("command-line pick routing", () => {
 
     expect(startCommandLineCreationForRecipe(recipe)).toBe(true);
     applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointA.id) });
+    expect(startCommandLinePickForCurrentStep()).toBe(true);
     applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointB.id) });
-    expect(useCadUiStore.getState().activePointPickTarget?.draftPointAnchors).toEqual([
+    expect(useCadUiStore.getState().activePickModeSession?.draft.map((entry) => entry.kind === "point" ? entry.anchor : null)).toEqual([
       referenceAnchor(pointB.id)
     ]);
 
@@ -368,8 +376,10 @@ describe("command-line pick routing", () => {
     expect(cancelCommandLineStepEdit()).toBe(true);
     expect(useCadUiStore.getState().activePointPickTarget).toMatchObject({
       parameterKey: "points",
-      draftPointAnchors: [referenceAnchor(pointB.id)]
     });
+    expect(useCadUiStore.getState().activePickModeSession?.draft.map((entry) => entry.kind === "point" ? entry.anchor : null)).toEqual([
+      referenceAnchor(pointB.id)
+    ]);
     expect(useCadUiStore.getState().commandLineSession?.args).toEqual({
       startPoint: referenceAnchor(pointA.id)
     });
@@ -410,6 +420,8 @@ describe("command-line pick routing", () => {
     expect(startCommandLineStepEdit(2)).toBe(true);
     expect(startCommandLineNumericReferencePick()).toBe(true);
     applyPickedNumericReference({ numericReferenceExpression: `${line.id}.length` });
+    expect(useCadUiStore.getState().commandLineSession?.args.ratio).toBe(0.5);
+    finishPickMode();
     expect(useCadUiStore.getState().commandLineSession).toMatchObject({
       currentStepIndex: completedDivision.currentStepIndex,
       editingStepIndex: null,
@@ -437,9 +449,10 @@ describe("command-line pick routing", () => {
     expect(useCadUiStore.getState().commandLineSession?.editingDraft).not.toBe(
       completedOffset.args.baseLineIds
     );
-    expect(useCadUiStore.getState().activeLinePickTarget?.draftLineIds).toEqual([line.id]);
+    expect(startCommandLinePickForCurrentStep()).toBe(true);
+    expect(useCadUiStore.getState().activePickModeSession?.draft.map((entry) => entry.kind === "line" ? entry.lineId : null)).toEqual([line.id]);
     applyPickedLine({ pickedLineId: line.id });
-    expect(useCadUiStore.getState().activeLinePickTarget?.draftLineIds).toEqual([]);
+    expect(useCadUiStore.getState().activePickModeSession?.draft).toEqual([]);
     expect(useCadUiStore.getState().commandLineSession?.args.baseLineIds).toEqual([line.id]);
     expect(cancelCommandLineStepEdit()).toBe(true);
     expect(useCadUiStore.getState().commandLineSession).toMatchObject({
@@ -483,8 +496,10 @@ describe("command-line pick routing", () => {
       transitions.length = 0;
 
       applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointB.id) });
+      finishPickMode();
       expect(useCadUiStore.getState().activePickModeSession).toBeNull();
       expect(transitions).toEqual([
+        { editingStepIndex: null, parameterKey: "endPoint" },
         { editingStepIndex: null, parameterKey: null },
         { editingStepIndex: null, parameterKey: null }
       ]);
@@ -519,17 +534,16 @@ describe("command-line pick routing", () => {
     const line = byName("AB");
     expect(startCommandLineCreationForRecipe(midSessionLineListRecipe)).toBe(true);
     applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointA.id) });
+    expect(startCommandLinePickForCurrentStep()).toBe(true);
     applyPickedLine({ pickedLineId: line.id });
     expect(useCadUiStore.getState().activeLinePickTarget).toMatchObject({
-      parameterKey: "baseLineIds",
-      draftLineIds: [line.id]
+      parameterKey: "baseLineIds"
     });
-    const preEditDraftLineIds = useCadUiStore.getState().activeLinePickTarget?.draftLineIds;
-    if (!preEditDraftLineIds) throw new Error("Expected line-list draft");
+    const preEditDraft = useCadUiStore.getState().activePickModeSession?.draft;
+    if (!preEditDraft) throw new Error("Expected line-list draft");
 
     expect(startCommandLineStepEdit(0)).toBe(true);
     expect(useCadUiStore.getState().activePointPickTarget?.parameterKey).toBe("startPoint");
-    preEditDraftLineIds.push("later-update" as never);
     expect(cancelCommandLineStepEdit()).toBe(true);
     expect(useCadUiStore.getState().commandLineSession).toMatchObject({
       currentStepIndex: 1,
@@ -537,9 +551,9 @@ describe("command-line pick routing", () => {
       args: { startPoint: referenceAnchor(pointA.id) }
     });
     expect(useCadUiStore.getState().activeLinePickTarget).toMatchObject({
-      parameterKey: "baseLineIds",
-      draftLineIds: [line.id]
+      parameterKey: "baseLineIds"
     });
+    expect(useCadUiStore.getState().activePickModeSession?.draft.map((entry) => entry.kind === "line" ? entry.lineId : null)).toEqual([line.id]);
     expect(useCadUiStore.getState().commandLineSession?.editingReturnPickState).toBeNull();
   });
 

@@ -21,8 +21,7 @@ import {
   activePickCandidates,
   applyPickReference,
   applySelectedPickCandidate,
-  finishLinePick,
-  finishPointPick,
+  finishPickMode,
   selectPickCandidateByOffset,
   selectPickOptionByOffset
 } from "../commands/pickCommands";
@@ -48,6 +47,7 @@ import { NumericVariableSuggestPopover } from "./NumericVariableSuggestPopover";
 import type { CanvasPresentation } from "./canvasPresentation";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
+import { matchingPickModeSessionForTargets } from "../model/pickModeSession";
 import { isImeComposingKeyEvent } from "./keyboardEventGuards";
 import { elementTypeLabels, type EvaluationResult } from "../types/geometry";
 import {
@@ -92,6 +92,8 @@ export type CoordinatePointConversionCommandLineProps = {
   presentation?: CanvasPresentation;
 };
 
+const EMPTY_PICK_MODE_DRAFT = [] as const;
+
 const CreationCommandLineBar = ({ commandContext, evaluation, evaluationIsCurrent = true, presentation }: CommandLineBarProps) => {
   const session = useCadUiStore((state) => state.commandLineSession);
   const sourceRevision = useCadDocumentStore((state) => state.sourceRevision);
@@ -102,13 +104,23 @@ const CreationCommandLineBar = ({ commandContext, evaluation, evaluationIsCurren
   const evaluationLimitIndex = useCadDocumentStore((state) => state.evaluationLimitIndex);
   const selectedElementId = useCadUiStore((state) => state.selectedElementId);
   const activePickCursor = useCadUiStore((state) => state.activePickCursor);
-  const lineListDraftSignature = useCadUiStore((state) =>
-    state.activeLinePickTarget?.draftLineIds?.join("\0") ?? ""
-  );
-  const pointListDraftSignature = useCadUiStore((state) =>
-    state.activePointPickTarget?.draftPointAnchors ? JSON.stringify(state.activePointPickTarget.draftPointAnchors) : ""
-  );
-  const pointListDraftCount = useCadUiStore((state) => state.activePointPickTarget?.draftPointAnchors?.length ?? 0);
+  const pickModeSession = useCadUiStore((state) => matchingPickModeSessionForTargets(
+    state.activePickModeSession,
+    {
+      point: state.activePointPickTarget,
+      numericReference: state.activeNumericReferencePickTarget,
+      line: state.activeLinePickTarget
+    }
+  ));
+  const pickModeDraft = pickModeSession?.draft ?? EMPTY_PICK_MODE_DRAFT;
+  const lineListDraftSignature = pickModeDraft
+    .filter((entry) => entry.kind === "line")
+    .map((entry) => entry.lineId)
+    .join("\0");
+  const pointListDraftSignature = JSON.stringify(pickModeDraft
+    .filter((entry) => entry.kind === "point")
+    .map((entry) => entry.key));
+  const pointListDraftCount = pickModeDraft.filter((entry) => entry.kind === "point").length;
   const inputRef = useRef<HTMLInputElement>(null);
   const confirmButtonRef = useRef<HTMLButtonElement>(null);
   const progressButtonRefs = useRef(new Map<number, HTMLButtonElement>());
@@ -689,10 +701,10 @@ const CreationCommandLineBar = ({ commandContext, evaluation, evaluationIsCurren
                   <button type="button" onClick={() => startCommandLineNumericReferencePick()}>参照値を選択</button>
                 ) : null}
                 {step.kind === "lineList" ? (
-                  <button type="button" onClick={() => { clearPendingSuggestionState(); finishLinePick(); }}>選択を完了</button>
+                  <button type="button" onClick={() => { clearPendingSuggestionState(); finishPickMode(); }}>選択を完了</button>
                 ) : null}
                 {step.kind === "pointList" ? (
-                  <button type="button" onClick={() => { clearPendingSuggestionState(); finishPointPick(); }}>選択を完了</button>
+                  <button type="button" onClick={() => { clearPendingSuggestionState(); finishPickMode(); }}>選択を完了</button>
                 ) : null}
                 {canSkip ? <button type="button" onClick={() => { clearPendingSuggestionState(); skipCommandLineStep(); }}>スキップ</button> : null}
                 {isEditing ? (

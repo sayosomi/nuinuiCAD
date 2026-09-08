@@ -311,6 +311,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     activePointPickTarget,
     activeNumericReferencePickTarget: null,
     activeLinePickTarget,
+    pickModeDraft: pickModeSession?.draft,
     commandLineSession,
     commandLinePickParentGroupId,
     referenceElements: commandLinePlacement?.referenceElements,
@@ -323,8 +324,38 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     commandLineSession,
     documentElements,
     evaluation,
-    moduleSemanticContext
+    moduleSemanticContext,
+    pickModeSession?.draft
   ]);
+  const numericPickCandidates = useMemo(() => pickCandidates(documentElements, evaluation, {
+    activePointPickTarget: null,
+    activeNumericReferencePickTarget,
+    activeLinePickTarget: null,
+    pickModeDraft: pickModeSession?.draft,
+    commandLineSession,
+    commandLinePickParentGroupId,
+    referenceElements: commandLinePlacement?.referenceElements,
+    moduleSemanticContext
+  }), [
+    activeNumericReferencePickTarget,
+    commandLinePickParentGroupId,
+    commandLinePlacement?.referenceElements,
+    commandLineSession,
+    documentElements,
+    evaluation,
+    moduleSemanticContext,
+    pickModeSession?.draft
+  ]);
+  const numericPickExpressions = useMemo(() => new Map(
+    numericPickCandidates.flatMap((candidate) => candidate.options.flatMap((option) =>
+      option.kind === "numericReference"
+        ? [[`${candidate.elementId}:${option.property}`, {
+            expression: option.expression,
+            candidateElementId: candidate.elementId
+          }] as const]
+        : []
+    ))
+  ), [numericPickCandidates]);
   const sharedLinePickRefKeys = useMemo(() => new Set(sharedPickCandidates.flatMap((candidate) =>
     candidate.options.flatMap((option) => option.kind === "line"
       ? [pickRefKey(pickRefForOption(candidate.elementId, option))]
@@ -335,17 +366,24 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       ? [[option.lineId, option.sourceReference] as const]
       : [])
   )), [sharedPickCandidates]);
+  const sharedLineCandidateElementIds = useMemo(() => new Map(sharedPickCandidates.flatMap((candidate) =>
+    candidate.options.flatMap((option) => option.kind === "line"
+      ? [[option.lineId, candidate.elementId] as const]
+      : [])
+  )), [sharedPickCandidates]);
   const pointPickCandidates = hostAdapter.filterPointPickCandidates?.(sharedPickCandidates) ?? sharedPickCandidates;
   const selectedElementIdSet = useMemo(() => new Set(selectedElementIds), [selectedElementIds]);
   const draftLinePickElementIds = useMemo(() => {
-    const draftLineIds = new Set(activeLinePickTarget?.draftLineIds ?? []);
+    const draftLineIds = new Set(pickModeSession?.draft.flatMap((entry) =>
+      entry.kind === "line" ? [entry.lineId] : []
+    ) ?? []);
     return new Set(sharedPickCandidates.flatMap((candidate) =>
       candidate.options.flatMap((option) => option.kind === "line" &&
         draftLineIds.has(candidate.referenceElementId ?? option.lineId)
         ? [option.lineId]
         : [])
     ));
-  }, [activeLinePickTarget?.draftLineIds, sharedPickCandidates]);
+  }, [pickModeSession?.draft, sharedPickCandidates]);
   const [imageRenderVersion, scheduleImageRender] = useReducer((version: number) => version + 1, 0);
   const {
     lines,
@@ -767,9 +805,10 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
   };
 
   const applyMeasurementCandidate = useCallback((candidate: LineMeasurementCandidate) => {
-    const expression = `${candidate.line.elementId}.${candidate.property}`;
+    const numericPick = numericPickExpressions.get(`${candidate.line.elementId}:${candidate.property}`);
+    const expression = numericPick?.expression ?? `${candidate.line.elementId}.${candidate.property}`;
     if (isNumericReferencePickActive && activeNumericReferencePickTarget) {
-      hostAdapter.applyPickedNumericReference(expression);
+      hostAdapter.applyPickedNumericReference(expression, numericPick?.candidateElementId ?? candidate.line.elementId);
     } else {
       if (!measurementCandidateMenu) return;
       hostAdapter.applyNumericExpressionReference({
@@ -779,10 +818,11 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       });
     }
     setMeasurementCandidateMenu(null);
-  }, [activeNumericReferencePickTarget, hostAdapter, isNumericReferencePickActive, measurementCandidateMenu]);
+  }, [activeNumericReferencePickTarget, hostAdapter, isNumericReferencePickActive, measurementCandidateMenu, numericPickExpressions]);
   const applyLinePickCandidate = useCallback((candidate: LinePickCandidate) => {
     hostAdapter.applyPickedLine({
       pickedLineId: candidate.line.elementId,
+      ...(candidate.candidateElementId ? { pickedLineCandidateElementId: candidate.candidateElementId } : {}),
       ...(candidate.sourceReference ? { pickedLineSourceReference: candidate.sourceReference } : {})
     });
     setLinePickCandidateMenu(null);
@@ -790,6 +830,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
   const applyPointPickCandidate = useCallback((candidate: PointPickCandidate) => {
     hostAdapter.applyPickedPoint({
       pickedPointAnchor: candidate.anchor,
+      ...(candidate.candidateElementId ? { pickedPointCandidateElementId: candidate.candidateElementId } : {}),
       ...(candidate.sourceReference ? { pickedPointSourceReference: candidate.sourceReference } : {})
     });
     setPointPickCandidateMenu(null);
@@ -853,6 +894,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       const lineId = pickableLineIdForLinePick(candidate.line.elementId);
       if (!lineId) continue;
       uniqueCandidates.set(lineId, {
+        candidateElementId: sharedLineCandidateElementIds.get(lineId) ?? lineId,
         line: candidate.line,
         ...(sharedLineSourceReferences.get(lineId) ? {
           sourceReference: sharedLineSourceReferences.get(lineId)
@@ -860,7 +902,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       });
     }
     return Array.from(uniqueCandidates.values());
-  }, [activeLinePickTarget, isLinePickActive, overlayNumericReferenceCandidates, pickableLineIdForLinePick, previewElementIds, sharedLineSourceReferences]);
+  }, [activeLinePickTarget, isLinePickActive, overlayNumericReferenceCandidates, pickableLineIdForLinePick, previewElementIds, sharedLineCandidateElementIds, sharedLineSourceReferences]);
   const numericReferenceCandidatesAt = useCallback((screen: ScreenPoint) => {
     if (!isNumericReferencePickActive || !activeNumericReferencePickTarget) return [];
 
@@ -1736,20 +1778,18 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
               : event.key === "ArrowRight"
                 ? "selectNextPickOption"
                 : event.key === "Enter"
-                  ? "applySelectedPickCandidate"
+                  ? "finishPickMode"
+                  : event.key === " "
+                    ? "applySelectedPickCandidate"
                   : null;
       }
       if (event.key === "Escape" && !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey) {
-        commandId = activePickTarget === "point"
-          ? "cancelPointPick"
-          : activePickTarget === "numeric"
-            ? "cancelNumericReferencePick"
-            : "cancelLinePick";
+        commandId = "cancelPickMode";
       }
       if (commandId) {
         event.preventDefault();
         event.stopPropagation();
-        if (commandId.startsWith("cancel") && hostAdapter.cancelCanvasPickOperation) {
+        if (commandId === "cancelPickMode" && hostAdapter.cancelCanvasPickOperation) {
           hostAdapter.cancelCanvasPickOperation();
         } else if (hostAdapter.dispatchCanvasPickCommand) {
           hostAdapter.dispatchCanvasPickCommand(commandId);

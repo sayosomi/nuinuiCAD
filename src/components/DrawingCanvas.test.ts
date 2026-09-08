@@ -633,7 +633,8 @@ describe("DrawingCanvas rendering", () => {
         kind: "point",
         targetElementId: "stale-target",
         targetParameterKey: target.parameterKey,
-        selectionCardinality: "single"
+        selectionCardinality: "single",
+        draft: []
       }
     });
 
@@ -728,8 +729,8 @@ describe("DrawingCanvas rendering", () => {
 
     expect(dispatchCanvasPickCommand).toHaveBeenNthCalledWith(1, "selectPreviousPickCandidate");
     expect(dispatchCanvasPickCommand).toHaveBeenNthCalledWith(2, "selectNextPickOption");
-    expect(dispatchCanvasPickCommand).toHaveBeenNthCalledWith(3, "applySelectedPickCandidate");
-    expect(dispatchCanvasPickCommand).toHaveBeenNthCalledWith(4, "cancelPointPick");
+    expect(dispatchCanvasPickCommand).toHaveBeenNthCalledWith(3, "finishPickMode");
+    expect(dispatchCanvasPickCommand).toHaveBeenNthCalledWith(4, "cancelPickMode");
   });
 
   it("lets a host hide the shared fixed Canvas chrome", () => {
@@ -1713,6 +1714,8 @@ describe("DrawingCanvas point dragging", () => {
     expect(useCadStore.getState().activeNumericReferencePickTarget).not.toBeNull();
     expect(getByRole("menu", { name: "数値参照候補" })).toBeInTheDocument();
     fireEvent.click(getByRole("menuitem", { name: /直線AB.*長さ/ }));
+    expect(useCadStore.getState().activeNumericReferencePickTarget).not.toBeNull();
+    act(() => { dispatchCommand("finishPickMode"); });
     expect(useCadStore.getState().activeNumericReferencePickTarget).toBeNull();
     expect(useCadStore.getState().elements.at(-1)).toMatchObject({
       x: { kind: "expression", expression: "line-ab.length" }
@@ -1747,6 +1750,8 @@ describe("DrawingCanvas point dragging", () => {
 
     expect(getByRole("menu", { name: "数値参照候補" })).toBeInTheDocument();
     fireEvent.click(getByRole("menuitem", { name: /直線AB.*始点からパス内部への角度/ }));
+    expect(useCadStore.getState().activeNumericReferencePickTarget).not.toBeNull();
+    act(() => { dispatchCommand("finishPickMode"); });
     expect(useCadStore.getState().activeNumericReferencePickTarget).toBeNull();
     expect(useCadStore.getState().elements.at(-1)).toMatchObject({
       x: { kind: "expression", expression: "line-ab.startAngleDeg" }
@@ -1783,6 +1788,8 @@ describe("DrawingCanvas point dragging", () => {
     });
 
     fireEvent.click(getByRole("menuitem", { name: /直線AB.*始点からパス内部への角度/ }));
+    expect(useCadStore.getState().activeNumericReferencePickTarget).not.toBeNull();
+    act(() => { dispatchCommand("finishPickMode"); });
     expect(useCadStore.getState().activeNumericReferencePickTarget).toBeNull();
     expect(useCadStore.getState().elements.at(-1)).toMatchObject({
       x: { kind: "expression", expression: "10 + line-ab.startAngleDeg" }
@@ -1925,6 +1932,7 @@ describe("DrawingCanvas point dragging", () => {
     fireEvent.pointerDown(viewport, {
       button: 0, buttons: 1, clientX: pointScreen.x, clientY: pointScreen.y, pointerId: 1
     });
+    act(() => { dispatchCommand("finishPickMode"); });
     expect(useCadStore.getState().elements.find((element) => element.id === "point-target"))
       .toMatchObject({ fromPoint: { mode: "reference", pointId: "loop-point" } });
     unmount();
@@ -1942,6 +1950,7 @@ describe("DrawingCanvas point dragging", () => {
     fireEvent.pointerDown(endpointView.viewport, {
       button: 0, buttons: 1, clientX: endpointScreen.x, clientY: endpointScreen.y, pointerId: 2
     });
+    act(() => { dispatchCommand("finishPickMode"); });
     expect(useCadStore.getState().elements.find((element) => element.id === "endpoint-target"))
       .toMatchObject({ endpoint: { lineId: "loop-line", endpointKey: "end" } });
   });
@@ -1961,7 +1970,8 @@ describe("DrawingCanvas point dragging", () => {
     fireEvent.pointerDown(viewport, {
       button: 0, buttons: 1, clientX: lineScreen.x, clientY: lineScreen.y, pointerId: 3
     });
-    expect(useCadStore.getState().activeLinePickTarget).toMatchObject({ draftLineIds: ["loop-line"] });
+    expect(useCadStore.getState().activePickModeSession?.draft.map((entry) => entry.kind === "line" ? entry.lineId : null)).toEqual(["loop-line"]);
+    act(() => { dispatchCommand("finishPickMode"); });
   });
 
   it("adds a base line while line picking is active", async () => {
@@ -1984,7 +1994,7 @@ describe("DrawingCanvas point dragging", () => {
       activeLinePickTarget: {
         elementId: "offset-line",
         parameterKey: "baseLineIds",
-        draftLineIds: []
+        selectionCardinality: "ordered-multiple"
       }
     });
     activateLinePickModeForTest();
@@ -2003,8 +2013,9 @@ describe("DrawingCanvas point dragging", () => {
     expect(useCadStore.getState().activeLinePickTarget).toEqual({
       elementId: "offset-line",
       parameterKey: "baseLineIds",
-      draftLineIds: ["line-ab"]
+      selectionCardinality: "ordered-multiple"
     });
+    expect(useCadStore.getState().activePickModeSession?.draft.map((entry) => entry.kind === "line" ? entry.lineId : null)).toEqual(["line-ab"]);
     const draftLine = container.querySelector(".overlay-draft-line-pick");
     expect(draftLine).toBeInTheDocument();
     expect(draftLine).toHaveAttribute("data-line-pick-candidate", "true");
@@ -2023,7 +2034,7 @@ describe("DrawingCanvas point dragging", () => {
       clientY: 250,
       pointerId: 1
     });
-    expect(useCadStore.getState().activeLinePickTarget).toMatchObject({ draftLineIds: [] });
+    expect(useCadStore.getState().activePickModeSession?.draft).toEqual([]);
     expect(container.querySelector(".overlay-draft-line-pick")).toBeNull();
     expect(container.querySelector(".overlay-draft-line-pick-marker")).toBeNull();
     fireEvent.pointerUp(viewport, {
@@ -2070,7 +2081,7 @@ describe("DrawingCanvas point dragging", () => {
     expect(useCadUiStore.getState().activeLinePickTarget).toMatchObject({
       elementId: COMMAND_LINE_PICK_TARGET_ID,
       parameterKey: "baseLineIds",
-      draftLineIds: []
+      selectionCardinality: "ordered-multiple"
     });
 
     const { viewport } = renderDrawingCanvas();
@@ -2085,8 +2096,9 @@ describe("DrawingCanvas point dragging", () => {
     expect(useCadUiStore.getState().activeLinePickTarget).toMatchObject({
       elementId: COMMAND_LINE_PICK_TARGET_ID,
       parameterKey: "baseLineIds",
-      draftLineIds: ["line-ab"]
+      selectionCardinality: "ordered-multiple"
     });
+    expect(useCadUiStore.getState().activePickModeSession?.draft.map((entry) => entry.kind === "line" ? entry.lineId : null)).toEqual(["line-ab"]);
     expect(useCadUiStore.getState().commandLineSession?.args).not.toHaveProperty("baseLineIds");
   });
 
@@ -2118,7 +2130,7 @@ describe("DrawingCanvas point dragging", () => {
       activeLinePickTarget: {
         elementId: "offset-line",
         parameterKey: "baseLineIds",
-        draftLineIds: []
+        selectionCardinality: "ordered-multiple"
       }
     });
     activateLinePickModeForTest();
@@ -2139,8 +2151,9 @@ describe("DrawingCanvas point dragging", () => {
     expect(useCadStore.getState().activeLinePickTarget).toEqual({
       elementId: "offset-line",
       parameterKey: "baseLineIds",
-      draftLineIds: ["line-ab-copy"]
+      selectionCardinality: "ordered-multiple"
     });
+    expect(useCadStore.getState().activePickModeSession?.draft.map((entry) => entry.kind === "line" ? entry.lineId : null)).toEqual(["line-ab-copy"]);
     expect(useCadStore.getState().elements.at(-1)).toMatchObject({
       type: "offsetLine",
       baseLineIds: []
@@ -2170,7 +2183,7 @@ describe("DrawingCanvas point dragging", () => {
       activeLinePickTarget: {
         elementId: "offset-line",
         parameterKey: "baseLineIds",
-        draftLineIds: []
+        selectionCardinality: "ordered-multiple"
       }
     });
     activateLinePickModeForTest();

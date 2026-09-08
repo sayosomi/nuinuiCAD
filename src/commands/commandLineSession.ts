@@ -69,10 +69,6 @@ export type CommandLineStepValue = CreationArgumentValue | string;
 export type CommandLineEditingReturnPickState = {
   /** Property selected by an explicit numeric-reference pick, || no active pick. */
   numericReferencePickProperty: NumericMeasurementKey | null;
-  /** Unconfirmed multi-line selection owned by the active line-list prompt. */
-  lineListDraftLineIds: ElementId[] | null;
-  /** Unconfirmed ordered point selection owned by the active point-list prompt. */
-  pointListDraftPointAnchors: PointAnchor[] | null;
   /** Candidate cursor owned by the active command-line reference prompt. */
   activePickCursor: { elementId: ElementId; optionIndex: number } | null;
   activePickModeSession?: PickModeSession | null;
@@ -88,10 +84,10 @@ const cloneEditingReturnPickState = (
 ) => value
   ? {
       ...value,
-      lineListDraftLineIds: value.lineListDraftLineIds ? [...value.lineListDraftLineIds] : null,
-      pointListDraftPointAnchors: value.pointListDraftPointAnchors ? [...value.pointListDraftPointAnchors] : null,
       activePickCursor: value.activePickCursor ? { ...value.activePickCursor } : null,
-      activePickModeSession: value.activePickModeSession ? { ...value.activePickModeSession } : null
+      activePickModeSession: value.activePickModeSession
+        ? { ...value.activePickModeSession, draft: [...value.activePickModeSession.draft] }
+        : null
     }
   : null;
 

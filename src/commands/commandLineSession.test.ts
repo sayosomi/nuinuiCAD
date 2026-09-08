@@ -263,9 +263,8 @@ describe("commandLineSession", () => {
     const partial = fillCurrentStep(start(), referenceAnchor("point-a"));
     const returnPickState = {
       numericReferencePickProperty: null,
-      lineListDraftLineIds: null,
-      pointListDraftPointAnchors: null,
-      activePickCursor: { elementId: "point-a", optionIndex: 0 }
+      activePickCursor: { elementId: "point-a", optionIndex: 0 },
+      activePickModeSession: null
     };
 
     const editing = beginStepEdit(partial, 0, returnPickState);

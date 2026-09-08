@@ -18,6 +18,7 @@ import type { BindingId } from "../scalars/bindingCatalog";
 import type { ModuleSemanticTarget } from "../dsl/moduleSemanticEditor";
 import {
   matchingPickModeSessionForTargets,
+  type PickModeSelectionCardinality,
   type PickModeSession
 } from "../model/pickModeSession";
 
@@ -33,7 +34,7 @@ export type ActivePointPickTarget = {
    * creation). Candidates must precede this index. */
   insertionIndex?: number;
   /** Present only while editing a pointReferenceList; changes remain uncommitted until finish. */
-  draftPointAnchors?: PointAnchor[];
+  selectionCardinality?: PickModeSelectionCardinality;
   measurementSlot?: MeasurementPointSlot;
   nextParameterKey?: ParameterKey;
   pickFlow?: "lineEndpointPair" | "lineAndPoint" | "endpointPair" | "endpointAndPoint";
@@ -57,7 +58,7 @@ export type ActiveLinePickTarget = {
   /** See ActivePointPickTarget.insertionIndex. */
   insertionIndex?: number;
   /** Present only while editing a lineReferenceList; changes remain uncommitted until finish. */
-  draftLineIds?: ElementId[];
+  selectionCardinality?: PickModeSelectionCardinality;
   measurementSlot?: "line";
   nextPointParameterKey?: ParameterKey;
   pickFlow?: "lineAndPoint";

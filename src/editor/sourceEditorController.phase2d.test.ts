@@ -443,7 +443,7 @@ describe("SourceEditorController Escape priority chain", () => {
     const internals = controller as unknown as ControllerInternals;
 
     expect(internals.runEscape()).toBe(true);
-    expect(dispatchCommand).toHaveBeenCalledWith("cancelPointPick");
+    expect(dispatchCommand).toHaveBeenCalledWith("cancelPickMode");
     expect(onRequestCanvasFocus).not.toHaveBeenCalled();
 
     controller.destroy();

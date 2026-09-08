@@ -25,7 +25,7 @@ describe("PickModeStatus", () => {
     const activeLinePickTarget = {
       elementId: "offset",
       parameterKey: "baseLineIds",
-      draftLineIds: []
+      selectionCardinality: "ordered-multiple" as const
     };
     useCadUiStore.setState({ activeLinePickTarget });
 
@@ -50,17 +50,21 @@ describe("PickModeStatus", () => {
     const activeLinePickTarget = {
         elementId: target.id,
         parameterKey: "baseLineIds",
-        draftLineIds: lines.map((item) => item.id)
+        selectionCardinality: "ordered-multiple" as const
     };
     useCadUiStore.setState({
       activeLinePickTarget,
-      activePickModeSession: pickModeSessionForTarget("line", activeLinePickTarget)
+      activePickModeSession: pickModeSessionForTarget("line", activeLinePickTarget, "ordered-multiple", lines.map((item) => ({
+        kind: "line" as const,
+        key: item.id,
+        lineId: item.id
+      })))
     });
 
     render(<PickModeStatus />);
 
     expect(screen.getByLabelText("選択済み 5 件")).toBeInTheDocument();
-    expect(screen.getByTitle("⌘Enter / Ctrl+Enter で選択を完了")).toHaveTextContent("⌘↵");
+    expect(screen.getByTitle("Enter で選択を完了")).toHaveTextContent("↵");
     for (const name of ["線1", "線2", "線3", "線4"]) {
       expect(screen.getByText(name)).toBeInTheDocument();
     }

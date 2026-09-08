@@ -7,7 +7,7 @@ import {
 import { adjustEvaluationLimitForInsertion } from "../model/evaluationDivider";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
-import type { CadElementType } from "../types/geometry";
+import type { CadElementType, ElementId, PointAnchor } from "../types/geometry";
 import { sourceEditSession } from "../editor/sourceEditSession";
 import { isCommandLineInputComposing } from "./commandLineInputComposition";
 import { commitDocumentChangeAndSelect } from "./commitDocumentChangeAndSelect";
@@ -66,7 +66,12 @@ import {
   validateCommandLineElementName
 } from "./commandLineNameValidation";
 import type { CommandContext } from "./commandTypes";
-import { pickModeSessionForTarget } from "../model/pickModeSession";
+import {
+  pickModeDraftForLineIds,
+  pickModeDraftForPointAnchors,
+  pickModeSelectionCardinalityFor,
+  pickModeSessionForTarget
+} from "../model/pickModeSession";
 
 const compositionError = "日本語入力の確定中はコマンドを実行できません。入力を確定してから再操作してください。";
 const staleError = "ドキュメントが変更されたため、コマンドライン作成をキャンセルしました。もう一度開始してください。";
@@ -450,9 +455,19 @@ export const startCommandLinePickForCurrentStep = (context?: CommandContext) => 
     const target = pickState.activePointPickTarget ?? pickState.activeLinePickTarget;
     const kind = pickState.activePointPickTarget ? "point" : pickState.activeLinePickTarget ? "line" : null;
     if (!target || !kind) return false;
+    const draft = kind === "point" && step?.kind === "pointList" && Array.isArray(session.editingDraft)
+      ? pickModeDraftForPointAnchors(session.editingDraft as PointAnchor[])
+      : kind === "line" && step?.kind === "lineList" && Array.isArray(session.editingDraft)
+        ? pickModeDraftForLineIds(session.editingDraft as ElementId[])
+        : [];
     useCadUiStore.setState({
       ...pickState,
-      activePickModeSession: pickModeSessionForTarget(kind, target),
+      activePickModeSession: pickModeSessionForTarget(
+        kind,
+        target,
+        pickModeSelectionCardinalityFor(target),
+        draft
+      ),
       activePickCursor: null
     });
   }
