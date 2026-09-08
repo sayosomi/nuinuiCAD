@@ -12,9 +12,11 @@ const valueForOccurrence = (context: ElementEvaluationContext, occurrence: Geome
 const geometryForTarget = (
   context: ElementEvaluationContext,
   target: GeometryInputTarget
-) => target.kind === "drawable"
-  ? context.computedGeometry.get(target.elementId)
-  : valueForOccurrence(context, target.occurrence);
+) => {
+  if (target.kind === "drawable") return context.computedGeometry.get(target.elementId);
+  if (target.kind === "geometryValue") return valueForOccurrence(context, target.occurrence);
+  return undefined;
+};
 
 export const resolveLineGeometryInputAt = (
   context: ElementEvaluationContext,

@@ -18,7 +18,6 @@ import {
 import { resolveSourceLexicalPath, type SourceLexicalNamespaceIndex } from "./sourceLexicalNamespaceIndex";
 import { isDslGeometryValueType } from "./dslValueTypes";
 import { parseScalarExpression } from "../scalars/expressionParser";
-import { lowerSourceGeometryArrayLineReferenceAt, lowerSourceGeometryArrayPointReferenceAt } from "./geometryArrayRuntimeLowering";
 
 export type NameIndex = {
   elements: CadElement[];
@@ -152,16 +151,11 @@ export const resolveId = (
   currentElement?: CadElement,
   sourceSpan?: DslSpan
 ) => {
-  const indexed = parseScalarExpression(token, { start: 0, end: token.length });
-  if (indexed.ast?.kind === "collectionIndex" && indexed.ast.index.kind === "numberLiteral") {
-    const memberIndex = indexed.ast.index.value;
-    const lowered = lowerSourceGeometryArrayLineReferenceAt(
-      `@${indexed.ast.name}`,
-      index,
-      currentElement,
-      memberIndex
-    );
-    if (lowered) return lowered;
+  // The preliminary compiler pass does not own source-aware collection
+  // lowering. Preserve any typed collection-index expression for the
+  // semantic Module/runtime pass, which records its resolved target sidecar.
+  if (parseScalarExpression(token, { start: 0, end: token.length }).ast?.kind === "collectionIndex") {
+    return token.trim();
   }
   const reference = sourceReference(token, line, diagnostics, sourceSpan);
   if (!reference) return token.trim();
@@ -260,15 +254,10 @@ export const resolveAnchor = (
 ): PointAnchor => {
   const coordinate = coordinateAnchor(value, numeric);
   if (coordinate) return coordinate;
-  const indexed = parseScalarExpression(value, { start: 0, end: value.length });
-  if (indexed.ast?.kind === "collectionIndex" && indexed.ast.index.kind === "numberLiteral") {
-    const lowered = lowerSourceGeometryArrayPointReferenceAt(
-      `@${indexed.ast.name}`,
-      index,
-      currentElement,
-      indexed.ast.index.value
-    );
-    if (lowered) return lowered;
+  // See resolveId: collection members are lowered only at the consumer
+  // boundary once the typed index and collection target are available.
+  if (parseScalarExpression(value, { start: 0, end: value.length }).ast?.kind === "collectionIndex") {
+    return referenceAnchor(value.trim());
   }
   const reference = sourceReference(value, line, diagnostics, sourceSpan);
   if (!reference) return referenceAnchor(value.trim());

@@ -417,6 +417,40 @@ describe("multi-document module runtime", () => {
     expect(point && result.computedGeometry.get(point.id)).toMatchObject({ kind: "point", x: 13, y: 24 });
   });
 
+  it("uses a typed dynamic geometry-array index across an imported Module boundary", async () => {
+    const library = savedSource("dynamic-array-library", "sha256:dynamic-array-library", [
+      "nui 1",
+      "export module Shift(input: path) {",
+      "  line Shifted = offset(sources: [@input], distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
+      "}"
+    ].join("\n"));
+    const root = rootSource("dynamic-array-root", [
+      "nui 1",
+      "const index: number = 1",
+      "line A = segment(start: (0, 0), end: (10, 0))",
+      "line B = segment(start: (0, 10), end: (10, 10))",
+      "const lines: line[] = [@A, @B]",
+      "const paths: path[] = @lines",
+      "import \"./dynamic-array-library.nui\" as lib",
+      "instance use = lib::Shift(input: @paths[@index])"
+    ].join("\n"));
+    const { compiled } = await compileImported(
+      root,
+      new Map([[`${root.documentId}|./dynamic-array-library.nui`, library]])
+    );
+
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const shifted = compiled.document?.elements.find((element) => element.name === "Shifted");
+    expect(shifted).toBeDefined();
+    expect(shifted && result.computedGeometry.get(shifted.id)).toMatchObject({
+      kind: "offsetLine",
+      start: { x: 0, y: 11 },
+      end: { x: 10, y: 11 }
+    });
+  });
+
   it("lowers imported geometry-array parameters in the defining document", async () => {
     const library = savedSource("array-library", "sha256:array-library", [
       "nui 1",

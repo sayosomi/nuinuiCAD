@@ -24,7 +24,21 @@ import { encodeIdentityTuple } from "../document/identityTuple";
 export type GeometryAlias =
   | { kind: "line"; elementId: ElementId }
   | { kind: "point"; anchor: PointAnchor; coordinate?: ModulePointCoordinateSemantic }
-  | { kind: "value"; occurrence: GeometryValueOccurrence; geometryType: "point" | "line"; interfaceType: "point" | "line" | "path"; pointKey?: string };
+  | { kind: "value"; occurrence: GeometryValueOccurrence; geometryType: "point" | "line"; interfaceType: "point" | "line" | "path"; pointKey?: string }
+  | { kind: "collectionIndex"; target: Extract<ModuleGeometrySourceTarget, { kind: "collectionIndex" }>; members: readonly GeometryAlias[] };
+
+/** Geometry consumer lowering may need to defer only the numeric index until
+ * the scalar runtime has produced its typed expression. The collection and
+ * its already-resolved members stay compiler-owned; runtime never reparses
+ * the authored reference. */
+export type GeometryInputTargetSource = {
+  kind: "collectionIndex";
+  target: Extract<ModuleGeometrySourceTarget, { kind: "collectionIndex" }>;
+  members: readonly GeometryAlias[];
+  currentPath?: readonly string[];
+};
+
+export type RuntimeGeometryInputTarget = Exclude<GeometryInputTarget, { kind: "collectionIndex" }> | GeometryInputTargetSource;
 
 export type InstanceContext = {
   path: readonly string[];
@@ -150,10 +164,56 @@ export const diagnosticForExportNamespace = (
 };
 
 const lowerAliasWithPointKey = (alias: GeometryAlias, pointKey: string | undefined): GeometryAlias | undefined => {
+  if (alias.kind === "collectionIndex") {
+    return pointKey ? undefined : alias;
+  }
   if (!pointKey) return alias;
   if (alias.kind === "value") return { ...alias, geometryType: "point", pointKey };
   if (alias.kind !== "line") return undefined;
   return { kind: "point", anchor: derivedAnchor(alias.elementId, pointKey) };
+};
+
+export const geometryInputTargetForAlias = (alias: GeometryAlias): Exclude<GeometryInputTarget, { kind: "collectionIndex" }> | null => {
+  if (alias.kind === "collectionIndex") return null;
+  if (alias.kind === "line") {
+    return { kind: "drawable", elementId: alias.elementId, geometryType: "line" };
+  }
+  if (alias.kind === "value") {
+    return {
+      kind: "geometryValue",
+      occurrence: alias.occurrence,
+      geometryType: alias.interfaceType === "path" ? "path" : alias.geometryType,
+      ...(alias.pointKey ? { pointKey: alias.pointKey } : {})
+    };
+  }
+  if (alias.anchor.mode === "reference") {
+    return { kind: "drawable", elementId: alias.anchor.pointId, geometryType: "point" };
+  }
+  if (alias.anchor.mode === "derived") {
+    return { kind: "drawable", elementId: alias.anchor.elementId, geometryType: "point", pointKey: alias.anchor.pointKey };
+  }
+  if (alias.anchor.mode === "geometryValue") {
+    return { kind: "geometryValue", occurrence: alias.anchor.occurrence, geometryType: "point", ...(alias.anchor.pointKey ? { pointKey: alias.anchor.pointKey } : {}) };
+  }
+  return { kind: "coordinate", anchor: alias.anchor };
+};
+
+export const pointAnchorForAlias = (alias: GeometryAlias): PointAnchor | null => {
+  if (alias.kind === "collectionIndex") return null;
+  if (alias.kind === "point") return alias.anchor;
+  if (alias.kind === "value" && alias.geometryType === "point") {
+    return { mode: "geometryValue", occurrence: alias.occurrence, ...(alias.pointKey ? { pointKey: alias.pointKey } : {}) };
+  }
+  return null;
+};
+
+export const geometryInputTargetSourceForAlias = (alias: GeometryAlias): RuntimeGeometryInputTarget | null => {
+  if (alias.kind !== "collectionIndex") return geometryInputTargetForAlias(alias);
+  return {
+    kind: "collectionIndex",
+    target: alias.target,
+    members: alias.members
+  };
 };
 
 export const propertyForAlias = (
@@ -170,6 +230,7 @@ export const propertyForAlias = (
     };
   }
   if (alias.kind === "line") return { kind: "runtime", elementId: alias.elementId, property };
+  if (alias.kind === "collectionIndex") return undefined;
   if (alias.coordinate && (property === "x" || property === "y")) {
     const expression = alias.coordinate[property];
     return expression ? { kind: "expression", expression } : undefined;
@@ -315,8 +376,8 @@ export const resolverForBody = ({
   contextsByPath: ReadonlyMap<string, InstanceContext>;
   materialization: ModuleMaterialization;
   exportsByPath: ReadonlyMap<string, ReadonlyMap<string, ExportEntry>>;
-  resolveLineReferenceTargetAt?: (token: string, statementIndex: number, currentPath: readonly string[]) => GeometryInputTarget | null;
-  resolvePointReferenceAt?: (token: string, statementIndex: number, currentPath: readonly string[]) => PointAnchor | null;
+  resolveLineReferenceTargetAt?: (token: string, statementIndex: number, currentPath: readonly string[], target?: ModuleGeometrySourceTarget) => RuntimeGeometryInputTarget | null;
+  resolvePointReferenceAt?: (token: string, statementIndex: number, currentPath: readonly string[], target?: ModuleGeometrySourceTarget) => PointAnchor | Extract<RuntimeGeometryInputTarget, { kind: "collectionIndex" }> | null;
 }): DslGeometryResolverOverrides => {
   const siteFor = (token: string, role: ModuleGeometryReferenceSemantic["role"]) => sites.find((site) =>
     site.reference.role === role && site.reference.source.trim() === token.trim()
@@ -329,9 +390,11 @@ export const resolverForBody = ({
   return {
     resolveLineReferenceTarget: (token) => {
       const site = siteFor(token, "lineReference") ?? siteFor(token, "lineReferenceList");
-      const indexed = resolveLineReferenceTargetAt?.(token, statementIndex, currentPath);
+      const indexed = resolveLineReferenceTargetAt?.(token, statementIndex, currentPath, site?.reference.target ?? undefined);
       if (indexed) return indexed;
       const lowered = site && lowerReference(site.reference, currentPath, statement, contextsByPath, materialization, exportsByPath);
+      const loweredTarget = lowered ? geometryInputTargetSourceForAlias(lowered) : null;
+      if (loweredTarget?.kind === "collectionIndex") return { ...loweredTarget, currentPath };
       if (lowered?.kind === "line") {
         return { kind: "drawable", elementId: lowered.elementId, geometryType: "line" } satisfies GeometryInputTarget;
       }
@@ -366,9 +429,11 @@ export const resolverForBody = ({
     },
     resolveAnchor: (token, index, line, diagnostics, numeric, currentElement) => {
       const site = siteFor(token, "pointReference") ?? siteFor(token, "derivedPoint") ?? siteFor(token, "coordinatePoint");
-      const indexed = resolvePointReferenceAt?.(token, statementIndex, currentPath);
+      const indexed = resolvePointReferenceAt?.(token, statementIndex, currentPath, site?.reference.target ?? undefined);
       if (indexed) return indexed;
       const lowered = site && lowerReference(site.reference, currentPath, statement, contextsByPath, materialization, exportsByPath);
+      const loweredTarget = lowered ? geometryInputTargetSourceForAlias(lowered) : null;
+      if (loweredTarget?.kind === "collectionIndex") return { ...loweredTarget, currentPath };
       if (lowered?.kind === "point") return lowered.anchor;
       if (lowered?.kind === "value" && lowered.geometryType === "point") {
         return { mode: "geometryValue", occurrence: lowered.occurrence, ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {}) };

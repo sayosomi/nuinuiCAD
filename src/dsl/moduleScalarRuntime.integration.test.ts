@@ -27,6 +27,7 @@ const evaluateCompiled = (compiled: ReturnType<typeof compileWithIds>) => {
     evaluationLimitIndex: compiled.document.evaluationLimitIndex,
     scalarProgram: compiled.scalarProgram,
     bindingVersions: compiled.bindingVersions,
+    geometryInputTargetsByElementId: compiled.moduleGeometryRuntime?.geometryInputTargetsByRuntimeElementId,
     statementInfoByElementId: compiled.statementMap.byElementId,
     statementIdByStatementIndex: compiled.statementMap.statementIdByStatementIndex,
     sourceExecutionPositionByElementId: compiled.moduleMaterialization?.sourceExecutionPositionByRuntimeElementId,
@@ -1663,6 +1664,53 @@ describe("module scalar runtime integration", () => {
       end: { x: 3, y: 4 }
     });
     expect(result.computedGeometry.get(elementNamed(compiled, "SelectedAlias").id)).toMatchObject({ kind: "point", x: 2.8284271247461903, y: 0 });
+  });
+
+  it("evaluates typed dynamic indexes for root points and Module line/path inputs", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "const index: number = 1",
+      "point A = coordinate(x: 1, y: 2)",
+      "point B = coordinate(x: 3, y: 4)",
+      "line AB = segment(start: @A, end: @B)",
+      "const points: point[] = [@A, @B]",
+      "const lines: line[] = [@AB, @AB]",
+      "const paths: path[] = @lines",
+      "line Selected = segment(start: @points[@index], end: @points[@index - 1])",
+      "module ReadPath(input: path) {",
+      "  line Shifted = offset(sources: [@input], distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
+      "}",
+      "instance PathUse = ReadPath(input: @paths[@index])"
+    ].join("\n"), "collection-index-geometry-dynamic-runtime");
+    expectValid(compiled);
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometry.get(elementNamed(compiled, "Selected").id)).toMatchObject({
+      kind: "line",
+      start: { x: 3, y: 4 },
+      end: { x: 1, y: 2 }
+    });
+    expect(result.computedGeometry.get(elementNamed(compiled, "Shifted").id)).toMatchObject({
+      kind: "offsetLine",
+      start: { x: 0.29289321881345254, y: 2.7071067811865475 },
+      end: { x: 2.2928932188134525, y: 4.707106781186548 }
+    });
+  });
+
+  it("reports the established invalid-index error for a dynamic geometry index", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "const badIndex: number = -1",
+      "point A = coordinate(x: 1, y: 2)",
+      "const points: point[] = [@A]",
+      "line Selected = segment(start: @points[@badIndex], end: @A)"
+    ].join("\n"), "collection-index-geometry-invalid-runtime");
+    expectValid(compiled);
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual(expect.arrayContaining([
+      expect.objectContaining({ message: expect.stringContaining("evaluation-collection-index-invalid") })
+    ]));
+    expect(result.computedGeometry.get(elementNamed(compiled, "Selected").id)).toBeUndefined();
   });
 
   it("carries a concrete choice geometry property through module scalar runtime lowering", () => {

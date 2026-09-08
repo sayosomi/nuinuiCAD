@@ -81,7 +81,7 @@ import { serializeElementStatementBlock, type SerializedStatement } from "./dslS
 import type { DslDiagnostic, DslEnclosing, DslStatement, ParseDslResult } from "./dslTypes";
 import { formatDslReferencePath, formatDslReferenceToken, parseDslReferenceToken, parseDslSourceReference } from "./dslReferenceTokens";
 import { resolveSourceLexicalDeclaration, resolveSourceLexicalPath } from "./sourceLexicalNamespaceIndex";
-import { DSL_INDENT, formatDslName } from "./dslTokens";
+import { DSL_INDENT, formatDslName, splitDslList } from "./dslTokens";
 import { parseScalarExpression } from "../scalars/expressionParser";
 import type { ScalarExpressionAst } from "../scalars/expressionAst";
 import {
@@ -1135,6 +1135,14 @@ export const compileDslDocument = (
       ? containsCollectionIndex(parseScalarExpression(statement.initializer, { start: 0, end: statement.initializer.length }).ast)
       : false
   );
+  const hasGeometryCollectionIndexStatements = parsed.statements.some((statement, statementIndex) =>
+    isElementDslStatement(statement) && includeStatement(statement, statementIndex) && statement.attrs.some((attribute) => {
+      const sources = [attribute.value, ...splitDslList(attribute.value)];
+      return sources.some((source) =>
+        containsCollectionIndex(parseScalarExpression(source, { start: 0, end: source.length }).ast)
+      );
+    })
+  );
   const hasCompilableGeometryStatements = parsed.statements.some(
     (statement, statementIndex) => isElementDslStatement(statement) && includeStatement(statement, statementIndex)
   );
@@ -1533,7 +1541,7 @@ export const compileDslDocument = (
   // The source semantic projection is also useful for Definition Query in a
   // document without Modules. Geometry values also need this path so their
   // source-only aliases can be lowered at existing geometry consumers.
-  const moduleSemanticCompilation = hasModuleStatements || hasGeometryValueStatements || hasGenericCollectionIndexStatements ? sourceSemanticCompilation : undefined;
+  const moduleSemanticCompilation = hasModuleStatements || hasGeometryValueStatements || hasGenericCollectionIndexStatements || hasGeometryCollectionIndexStatements ? sourceSemanticCompilation : undefined;
   if (moduleSemanticCompilation && sourceLexicalNamespace && stableStatementIdByIndex) {
     const exportBindingSeeds = moduleScalarExportBindingSeeds(
       moduleSemanticCompilation,
@@ -1956,6 +1964,14 @@ export const compileDslDocument = (
     }
     compiled = {
       ...compiled,
+      ...(compiled.moduleGeometryRuntime
+        ? {
+            moduleGeometryRuntime: {
+              ...compiled.moduleGeometryRuntime,
+              geometryInputTargetsByRuntimeElementId: moduleScalarCompilation.geometryInputTargetsByRuntimeElementId
+            }
+          }
+        : {}),
       moduleMaterialization: {
         ...compiled.moduleMaterialization,
         scalarExecutionPositionByRuntimeElementId: moduleScalarCompilation.scalarExecutionPositionByRuntimeElementId

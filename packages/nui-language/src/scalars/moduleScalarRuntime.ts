@@ -18,6 +18,7 @@ import type {
 import { unwrapModuleGeometrySourceTarget } from "../dsl/moduleSemanticTypes";
 import type { ModuleMaterialization } from "../dsl/moduleMaterialization";
 import type { ModuleGeometryPropertyRuntimeTarget, ModuleGeometryRuntimeCompilation } from "../dsl/moduleGeometryRuntime";
+import { geometryInputTargetForAlias, type RuntimeGeometryInputTarget } from "../dsl/moduleGeometryRuntimeLowering";
 import type {
   GeometryValueProgram,
   GeometryValueProgramEntry,
@@ -25,7 +26,7 @@ import type {
 } from "../dsl/moduleGeometryValueProgram";
 import { buildLexicalScopeIndexFromStatements } from "../dsl/lexicalScopeIndexAdapter";
 import { moduleParameterPresenceKey } from "../dsl/moduleScalarExpression";
-import type { CadElement, DrawingModifierDefinition, ElementId } from "../types/geometry";
+import type { CadElement, DrawingModifierDefinition, ElementId, GeometryInputTarget } from "../types/geometry";
 import { findParameterDefinition, scalarTypeForParameterDefinition } from "../parameters/parameterDefinitions";
 import type { BindingAnalysis, InitializerReference } from "./bindingAnalysis";
 import { analyzeBindings } from "./bindingAnalysis";
@@ -103,6 +104,7 @@ export type ModuleScalarRuntimeCompilation = {
   conditionalOwnerStatementIdByElementId: ReadonlyMap<ElementId, string>;
   forGroupMutationOwnerByElementId: ReadonlyMap<ElementId, Extract<BindingControlOwner, { kind: "forGroup" }> & { elementId: ElementId }>;
   geometryValueProgram: GeometryValueProgram;
+  geometryInputTargetsByRuntimeElementId: ReadonlyMap<ElementId, ReadonlyMap<string, GeometryInputTarget | readonly GeometryInputTarget[]>>;
 };
 
 type BindingInfo = {
@@ -2384,6 +2386,76 @@ export const compileModuleScalarRuntime = ({
     }
     return undefined;
   };
+
+  const lowerGeometryInputTarget = (
+    source: RuntimeGeometryInputTarget
+  ): GeometryInputTarget | null => {
+    if (source.kind !== "collectionIndex" || !("target" in source)) return source;
+    const currentPath = source.currentPath ?? [];
+    const context = contextsByKey.get(pathKey(currentPath));
+    const loweredIndex = context
+      ? lowerExpression(
+          source.target.index,
+          (target) => resolvedBindingForContext(target, context),
+          bindingsById,
+          (target) => resolvedGeometryPropertyForContext(target, context),
+          (target) => collectionLengthForTargetContext(target, context),
+          (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context),
+          (definitionStatementId, parameterIndex, definitionDocumentId) => hasValueForParameter(context, definitionStatementId, parameterIndex, definitionDocumentId),
+          (valueId) => collectionValueIdFor(valueId, context),
+          (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder
+        )
+      : lowerExpression(
+          source.target.index,
+          (target) => rootBindingForTarget(target, source.target.targetSourceOrder),
+          bindingsById,
+          rootGeometryPropertyFor,
+          rootCollectionLengthFor,
+          resolvedGeometryBuiltinForRoot,
+          undefined,
+          (valueId) => collectionValueIdFor(valueId, null),
+          (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue([], sourceOrder) : sourceOrder
+        );
+    const members = source.members.flatMap((member) => {
+      const lowered = geometryInputTargetForAlias(member);
+      return lowered ? [lowered] : [];
+    });
+    if (members.length !== source.members.length) return null;
+    return {
+      kind: "collectionIndex",
+      collectionValueId: collectionValueIdFor(source.target.collectionValueId, context ?? null),
+      collectionLength: source.target.collectionLength ?? members.length,
+      targetSourceOrder: context
+        ? executionPositionForValue(context.path, source.target.targetSourceOrder)
+        : executionPositionForValue([], source.target.targetSourceOrder),
+      index: loweredIndex.expression,
+      members
+    };
+  };
+
+  const geometryInputTargetsByRuntimeElementId = new Map<ElementId, ReadonlyMap<string, GeometryInputTarget | readonly GeometryInputTarget[]>>();
+  const isTargetList = (source: RuntimeGeometryInputTarget | readonly RuntimeGeometryInputTarget[]): source is readonly RuntimeGeometryInputTarget[] => Array.isArray(source);
+  for (const [elementId, sources] of moduleGeometryRuntime?.geometryInputTargetSourcesByRuntimeElementId ?? []) {
+    const targets = new Map<string, GeometryInputTarget | readonly GeometryInputTarget[]>();
+    for (const [parameterKey, source] of sources) {
+      if (isTargetList(source)) {
+        const lowered = source.flatMap((item) => {
+          const target = lowerGeometryInputTarget(item);
+          return target ? [target] : [];
+        });
+        if (lowered.length === source.length) targets.set(parameterKey, lowered);
+      } else {
+        const lowered = lowerGeometryInputTarget(source);
+        if (lowered) targets.set(parameterKey, lowered);
+      }
+    }
+    if (targets.size > 0) geometryInputTargetsByRuntimeElementId.set(elementId, targets);
+  }
+  for (const [elementId, targets] of moduleGeometryRuntime?.geometryInputTargetsByRuntimeElementId ?? []) {
+    if (geometryInputTargetsByRuntimeElementId.has(elementId)) continue;
+    geometryInputTargetsByRuntimeElementId.set(elementId, targets);
+  }
+
   for (const [bindingId, initializer, statementIndex] of documentBindingAnalysis
     ? (documentBindingAnalysis as BindingAnalysis).catalog.bindings
       .filter((binding) => binding.kind === "typed")
@@ -2737,6 +2809,7 @@ export const compileModuleScalarRuntime = ({
     materializedConditionalGroupConditions,
     conditionalOwnerStatementIdByElementId,
     forGroupMutationOwnerByElementId,
-    geometryValueProgram
+    geometryValueProgram,
+    geometryInputTargetsByRuntimeElementId
   };
 };

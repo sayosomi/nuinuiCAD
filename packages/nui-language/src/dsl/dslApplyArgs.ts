@@ -8,17 +8,18 @@ import { parseScalarExpression } from "../scalars/expressionParser";
 import { typecheckScalarExpression } from "../scalars/expressionTypecheck";
 import { createCadElementId } from "../model/cadIds";
 import { elementTypeSupportsHiddenActivity } from "../model/elementActivity";
-import { isLineLikeElement } from "../model/pointAnchors";
+import { isLineLikeElement, referenceAnchor } from "../model/pointAnchors";
 import type { ElementNameContext } from "../model/elementNames";
 import { findParameterDefinition } from "../parameters/parameterDefinitions";
 import { setParameterValue } from "../parameters/parameterAccess";
-import type { CadElement, ElementId, GeometryInputTarget, NumericValue, VisibilityRole } from "../types/geometry";
+import type { CadElement, ElementId, NumericValue, VisibilityRole } from "../types/geometry";
 import {
   resolveAnchor as resolveAnchorFromDsl,
   resolveEndpoint as resolveEndpointFromDsl,
   resolveId as resolveIdFromDsl,
   type NameIndex,
 } from "./dslReferences";
+import type { RuntimeGeometryInputTarget } from "./moduleGeometryRuntimeLowering";
 import { splitDslList, splitDslRecords, unquoteDslString } from "./dslTokens";
 import type { DslDiagnostic, DslSpan } from "./dslTypes";
 import type { ScannedArg } from "./dslArgScanner";
@@ -57,7 +58,7 @@ export type DslAnchorResolver = (
   numeric: (source: string) => NumericValue,
   currentElement?: CadElement,
   sourceSpan?: DslSpan
-) => NonNullable<ReturnType<typeof resolveAnchorFromDsl>>;
+) => NonNullable<ReturnType<typeof resolveAnchorFromDsl>> | Extract<RuntimeGeometryInputTarget, { kind: "collectionIndex" }>;
 
 export type DslEndpointResolver = (
   token: string,
@@ -91,7 +92,7 @@ export type DslLineReferenceTargetResolver = (
   diagnostics: DslDiagnostic[],
   currentElement?: CadElement,
   sourceSpan?: DslSpan
-) => GeometryInputTarget | null;
+) => RuntimeGeometryInputTarget | null;
 
 /** Resolves a line endpoint's backing geometry input at the consumer boundary. */
 export type DslLineEndpointTargetResolver = (
@@ -102,12 +103,12 @@ export type DslLineEndpointTargetResolver = (
   diagnostics: DslDiagnostic[],
   currentElement?: CadElement,
   sourceSpan?: DslSpan
-) => GeometryInputTarget | null;
+) => RuntimeGeometryInputTarget | null;
 
 export type DslGeometryInputTargetRecorder = (
   elementId: ElementId,
   parameterKey: string,
-  target: GeometryInputTarget | readonly GeometryInputTarget[]
+  target: RuntimeGeometryInputTarget | readonly RuntimeGeometryInputTarget[]
 ) => void;
 
 export type DslPointReferenceListResolver = (
@@ -129,6 +130,11 @@ export type DslGeometryResolverOverrides = {
   resolveLineReferenceList?: DslLineReferenceListResolver;
   resolvePointReferenceList?: DslPointReferenceListResolver;
 };
+
+const isDeferredGeometryInputTarget = (
+  value: unknown
+): value is Extract<RuntimeGeometryInputTarget, { kind: "collectionIndex" }> =>
+  Boolean(value && typeof value === "object" && "kind" in value && value.kind === "collectionIndex" && "target" in value);
 
 /** Dependencies supplied by the compiler skeleton when it connects P6 in C1. */
 export type DslApplyArgsResolvers = DslGeometryResolverOverrides & {
@@ -292,11 +298,20 @@ export const applyArgs = (
         resolvers.nameContext,
       ),
     );
-  const anchor = (source: string, sourceSpan?: DslSpan) =>
-    resolveAnchor(source, resolvers.index, resolvers.line, diagnostics, numeric, next, sourceSpan);
+  const anchor = (source: string, parameterKeyOrSpan?: string | DslSpan, sourceSpan?: DslSpan) => {
+    const parameterKey = typeof parameterKeyOrSpan === "string" ? parameterKeyOrSpan : undefined;
+    const actualSpan = typeof parameterKeyOrSpan === "string" ? sourceSpan : parameterKeyOrSpan;
+    const resolved = resolveAnchor(source, resolvers.index, resolvers.line, diagnostics, numeric, next, actualSpan);
+    if (isDeferredGeometryInputTarget(resolved)) {
+      resolvers.recordGeometryInputTarget?.(next.id, parameterKey ?? "", resolved);
+      return referenceAnchor(source.trim());
+    }
+    return resolved;
+  };
   const lineConsumerPolicy = (parameterKey: string) =>
     geometryLineConsumerPolicyFor(next.type, parameterKey);
-  const rejectImmutableMutationTarget = (target: GeometryInputTarget, parameterKey: string, sourceSpan?: DslSpan) => {
+  const rejectImmutableMutationTarget = (target: RuntimeGeometryInputTarget, parameterKey: string, sourceSpan?: DslSpan) => {
+    if (target.kind === "collectionIndex") return false;
     if (target.kind !== "geometryValue" || lineConsumerPolicy(parameterKey) !== "identityMutation") return false;
     diagnostics.push({
       severity: "error",
@@ -446,7 +461,7 @@ export const applyArgs = (
         next = setParameterValue(next, parameterKey, numeric(value));
         break;
       case "reference":
-        next = setParameterValue(next, parameterKey, value === "none" ? null : anchor(value, scanned.valueSpan));
+        next = setParameterValue(next, parameterKey, value === "none" ? null : anchor(value, parameterKey, scanned.valueSpan));
         break;
       case "lineEndpointReference":
         {
@@ -497,7 +512,7 @@ export const applyArgs = (
           const sourceLowered = lowerSourceGeometryArrayPointReferenceList(value, resolvers.index, next);
           const refs = sourceLowered ?? referenceListItems(value).map((item) => {
             const itemSpan = { start: scanned.valueSpan.start + item.offset, end: scanned.valueSpan.start + item.offset + item.text.length };
-            return anchor(item.text, itemSpan);
+            return anchor(item.text, parameterKey, itemSpan);
           });
           next = setParameterValue(next, parameterKey, [...refs]);
         }
@@ -537,7 +552,7 @@ export const applyArgs = (
         const [point = "none", angle = "0", incoming = "30", outgoing = "30", pointId] = splitRecordFields(record);
         return {
           id: pointId || resolvers.createIntermediateId(),
-          point: anchor(point, undefined),
+          point: anchor(point),
           handleAngleDeg: numeric(angle),
           incomingHandleLength: numeric(incoming),
           outgoingHandleLength: numeric(outgoing),

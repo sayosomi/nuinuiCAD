@@ -1,4 +1,4 @@
-import type { ElementId, PointAnchor, GeometryInputTarget } from "../types/geometry";
+import type { ElementId, PointAnchor } from "../types/geometry";
 import { derivedAnchor, isDerivedPointKeyForGeometryCategory } from "../model/pointAnchors";
 import { isGeometryDeclarationCategory } from "./dslConstructions";
 import type { DslDiagnostic, DslSpan, DslStatement } from "./dslTypes";
@@ -31,6 +31,9 @@ import type { ModuleRuntimeContext } from "./moduleRuntimeContext";
 import {
   pathKey,
   sourceAliasForTarget,
+  geometryInputTargetForAlias,
+  type GeometryInputTargetSource,
+  type RuntimeGeometryInputTarget,
   type ExportEntry,
   type GeometryAlias,
   type InstanceContext
@@ -56,13 +59,15 @@ export type ModuleGeometryArrayRuntimeCompilation = {
   resolveLineReferenceTargetAt: (
     token: string,
     statementIndex: number,
-    currentPath: readonly string[]
-  ) => GeometryInputTarget | null;
+    currentPath: readonly string[],
+    target?: ModuleGeometryReferenceSemantic["target"]
+  ) => RuntimeGeometryInputTarget | null;
   resolvePointReferenceAt: (
     token: string,
     statementIndex: number,
-    currentPath: readonly string[]
-  ) => PointAnchor | null;
+    currentPath: readonly string[],
+    target?: ModuleGeometryReferenceSemantic["target"]
+  ) => PointAnchor | Extract<RuntimeGeometryInputTarget, { kind: "collectionIndex" }> | null;
   acceptsDeferredLineListExport: (
     reference: ModuleGeometryReferenceSemantic,
     currentPath: readonly string[]
@@ -878,7 +883,51 @@ export const buildModuleGeometryArrayRuntime = ({
       : null;
   };
 
-  const resolveLineReferenceTargetAt = (token: string, statementIndex: number, currentPath: readonly string[]) => {
+  const aliasesFor = (value: RuntimeArrayValue): GeometryAlias[] | null => value.members.flatMap((member) => {
+    if (member.alias) return [member.alias];
+    return member.anchor ? [{ kind: "point" as const, anchor: member.anchor }] : [];
+  }).length === value.members.length
+    ? value.members.map((member) => member.alias ?? { kind: "point" as const, anchor: member.anchor! })
+    : null;
+
+  const indexedTargetFor = (
+    target: Extract<ModuleGeometryReferenceSemantic["target"], { kind: "collectionIndex" }> | undefined,
+    resolved: RuntimeArrayValue | null,
+    expectedGeometryKind: "point" | "line",
+    currentPath: readonly string[]
+  ): PointAnchor | RuntimeGeometryInputTarget | null => {
+    if (!target || !resolved) return null;
+    const aliases = aliasesFor(resolved);
+    if (!aliases) return null;
+    if (target.index.ast.kind === "numberLiteral") {
+      const member = aliases[target.index.ast.value];
+      return member
+        ? expectedGeometryKind === "point"
+          ? pointAnchorForAlias(member) ?? null
+          : geometryInputTargetForAlias(member)
+        : null;
+    }
+    if (expectedGeometryKind === "line" && aliases.some((alias) => alias.kind === "point")) return null;
+    const members = aliases.flatMap((alias) => {
+      const lowered = geometryInputTargetForAlias(alias);
+      return lowered ? [lowered] : [];
+    });
+    return members.length === aliases.length
+      ? {
+          kind: "collectionIndex",
+          target,
+          members: aliases,
+          currentPath
+        } satisfies GeometryInputTargetSource
+      : null;
+  };
+
+  const resolveLineReferenceTargetAt = (token: string, statementIndex: number, currentPath: readonly string[], target?: ModuleGeometryReferenceSemantic["target"]) => {
+    if (target?.kind === "collectionIndex") {
+      const resolved = resolveWholeReference(target.source, statementIndex, currentPath, new Set());
+      const indexed = indexedTargetFor(target, resolved.value, "line", currentPath);
+      return indexed && "kind" in indexed ? indexed : null;
+    }
     const indexed = indexedSource(token);
     if (!indexed || !Number.isInteger(indexed.index) || indexed.index < 0) return null;
     const resolved = resolveWholeReference(indexed.base, statementIndex, currentPath, new Set());
@@ -897,7 +946,13 @@ export const buildModuleGeometryArrayRuntime = ({
     return null;
   };
 
-  const resolvePointReferenceAt = (token: string, statementIndex: number, currentPath: readonly string[]) => {
+  const resolvePointReferenceAt = (token: string, statementIndex: number, currentPath: readonly string[], target?: ModuleGeometryReferenceSemantic["target"]) => {
+    if (target?.kind === "collectionIndex") {
+      const resolved = resolveWholeReference(target.source, statementIndex, currentPath, new Set());
+      const indexed = indexedTargetFor(target, resolved.value, "point", currentPath);
+      if (!indexed) return null;
+      return "target" in indexed || "mode" in indexed ? indexed : null;
+    }
     const indexed = indexedSource(token);
     if (!indexed || !Number.isInteger(indexed.index) || indexed.index < 0) return null;
     const resolved = resolveWholeReference(indexed.base, statementIndex, currentPath, new Set());

@@ -3,6 +3,8 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::fmt;
 
+use super::scalars::TypedScalarExpression;
+
 pub type ElementId = String;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
@@ -12,15 +14,27 @@ pub(crate) struct GeometryValueOccurrence {
     pub(crate) instance_path: Vec<String>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub(crate) enum GeometryInputTarget {
     Drawable {
         element_id: ElementId,
         geometry_type: String,
+        point_key: Option<String>,
     },
     GeometryValue {
         occurrence: GeometryValueOccurrence,
         geometry_type: String,
+        point_key: Option<String>,
+    },
+    Coordinate {
+        anchor: Value,
+    },
+    CollectionIndex {
+        collection_value_id: String,
+        collection_length: Option<f64>,
+        target_source_order: f64,
+        index: TypedScalarExpression,
+        members: Vec<GeometryInputTarget>,
     },
 }
 

@@ -3105,8 +3105,13 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       const sitesFor = (reference: ModuleGeometryReferenceSemantic, parameterKey: string | null, span: DslSpan) => sites.push({ parameterKey, span, reference });
       const referenceKind = (value: string): "module" | "ordinary" | "skip" => {
         const parsedReference = parseDslSourceReference(value);
-        if (parsedReference.kind !== "valid") return "skip";
-        const path = parsedReference.reference.path;
+        const parsedScalar = parseScalarExpression(value, { start: 0, end: value.length });
+        const path = parsedScalar.ast?.kind === "collectionIndex"
+          ? parseDslReferenceToken(parsedScalar.ast.name)
+          : parsedReference.kind === "valid"
+            ? parsedReference.reference.path
+            : null;
+        if (!path) return "skip";
         if (path.segments.length === 1) return "ordinary";
         const firstSegment = path.segments[0];
         const instanceLookup = sourceDeclarationResolution(sourceNamespace, statementIndex, firstSegment);

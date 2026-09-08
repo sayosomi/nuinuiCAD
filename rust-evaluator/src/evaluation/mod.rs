@@ -137,6 +137,7 @@ use control_boolean_runtime::{
 };
 use corner_radius_evaluator::evaluate_corner_radius_arc_line;
 use edge_extend_evaluator::{evaluate_edge, evaluate_extend_trim};
+use errors::geometry_error;
 use for_group::{
     for_group_loop_values, for_group_template_descendant_ids, iteration_local_variables,
 };
@@ -153,7 +154,9 @@ use line_evaluators::{
     evaluate_angle_length_line, evaluate_arc_line, evaluate_line, evaluate_polyline,
     evaluate_three_point_arc_line,
 };
-use line_geometry_input::{decode_geometry_input_targets, GeometryInputTargets};
+use line_geometry_input::{
+    decode_geometry_input_targets, materialize_geometry_input_targets, GeometryInputTargets,
+};
 use line_tangent_offset_point_evaluator::evaluate_line_tangent_offset_point;
 use numeric_binding_runtime::{
     apply_numeric_bindings, validate_numeric_bindings_payload, ValidatedNumericBinding,
@@ -1145,6 +1148,26 @@ fn evaluate_document_input_with_scalar_program(
                     current_source_order,
                 ) {
                     Ok(materialized_element) => {
+                        let mut materialized_element = materialized_element;
+                        if let Err(issue_code) = materialize_geometry_input_targets(
+                            &mut state,
+                            &mut materialized_element,
+                            &id,
+                            active_scalar_binding_resolver,
+                            Some(current_execution_position),
+                        ) {
+                            let element_name = materialized_element
+                                .get("name")
+                                .and_then(Value::as_str)
+                                .unwrap_or(&id);
+                            state.errors.push(geometry_error(
+                                &materialized_element,
+                                format!(
+                                    "{element_name} の geometry collection index を評価できません。({issue_code})"
+                                ),
+                            ));
+                            continue;
+                        }
                         state.elements[index] = materialized_element.clone();
                         evaluate_element_by_type(
                             id.clone(),
@@ -1167,23 +1190,45 @@ fn evaluate_document_input_with_scalar_program(
                     Err(error) => state.errors.push(error),
                 }
             }
-            _ => evaluate_element_by_type(
-                id.clone(),
-                element,
-                local_variables,
-                &mut conditional_group_states,
-                ConditionalGroupContext {
-                    lookup_id: &id,
-                    by_element_id: &condition_by_element_id,
-                    scalar_binding_resolver: active_scalar_binding_resolver,
-                },
-                TextTemplateContext {
-                    lookup_id: &id,
-                    by_element_id: &text_templates_by_element_id,
-                    scalar_binding_resolver: active_scalar_binding_resolver,
-                },
-                &mut state,
-            ),
+            _ => {
+                if let Err(issue_code) = materialize_geometry_input_targets(
+                    &mut state,
+                    &mut element,
+                    &id,
+                    active_scalar_binding_resolver,
+                    Some(current_execution_position),
+                ) {
+                    let element_name = element
+                        .get("name")
+                        .and_then(Value::as_str)
+                        .unwrap_or(&id);
+                    state.errors.push(geometry_error(
+                        &element,
+                        format!(
+                            "{element_name} の geometry collection index を評価できません。({issue_code})"
+                        ),
+                    ));
+                    continue;
+                }
+                state.elements[index] = element.clone();
+                evaluate_element_by_type(
+                    id.clone(),
+                    element,
+                    local_variables,
+                    &mut conditional_group_states,
+                    ConditionalGroupContext {
+                        lookup_id: &id,
+                        by_element_id: &condition_by_element_id,
+                        scalar_binding_resolver: active_scalar_binding_resolver,
+                    },
+                    TextTemplateContext {
+                        lookup_id: &id,
+                        by_element_id: &text_templates_by_element_id,
+                        scalar_binding_resolver: active_scalar_binding_resolver,
+                    },
+                    &mut state,
+                )
+            }
         }
     }
     let remaining_geometry_value_resolver = scalar_mutation_resolver
