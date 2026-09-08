@@ -6,7 +6,7 @@ import type { DslDiagnostic, DslSpan, DslStatement } from "./dslTypes";
 import { analyzeRecordSemantics, type RecordSemanticAnalysis } from "./recordSemanticAnalysis";
 import { analyzeGeometryArraySemantics, type GeometryArraySemanticAnalysis } from "./geometryArraySemanticAnalysis";
 import { scopeChain, type IncludeStatement, type LexicalScopeIndex, type ScopeId } from "../scalars/lexicalScopeIndex";
-import { isDslGeometryValueType, nominalRecordTypeOfDslValueType, scalarTypeOfDslValueType } from "./dslValueTypes";
+import { isDslArrayValueType, isDslGeometryValueType, nominalRecordTypeOfDslValueType, scalarTypeOfDslValueType } from "./dslValueTypes";
 
 /** Named declarations that participate in the source-level lexical namespace. */
 export type SourceLexicalDeclarationKind =
@@ -144,6 +144,7 @@ const isDirectModuleExport = (
     : statement.kind === "typedDeclaration"
       ? statement.exported && scalarTypeOfDslValueType(statement.valueType) !== null
         || statement.exported && isDslGeometryValueType(statement.valueType)
+        || statement.exported && isDslArrayValueType(statement.valueType)
       : statement.kind === "element"
         ? statement.exported && isGeometryDeclarationCategory(statement.category)
         : false;
@@ -324,7 +325,8 @@ export const buildSourceLexicalNamespaceIndex = (
   const geometryArraySemanticAnalysis = analyzeGeometryArraySemantics({
     statements,
     stableStatementIdByIndex,
-    resolvePath: (statementIndex, path) => resolveSourceLexicalPath(baseIndex, statementIndex, path)
+    resolvePath: (statementIndex, path) => resolveSourceLexicalPath(baseIndex, statementIndex, path),
+    recordSemanticAnalysis
   });
 
   return {

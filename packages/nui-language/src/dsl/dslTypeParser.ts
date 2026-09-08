@@ -40,6 +40,8 @@ export const dslTypedDeclarationTypeNames: readonly string[] = [
   NUMBER_TYPE_NAME,
   ...Object.keys(KNOWN_SIMPLE_TYPES),
   dslChoiceTypeName,
+  `${NUMBER_TYPE_NAME}[]`,
+  ...Object.keys(KNOWN_SIMPLE_TYPES).map((name) => `${name}[]`),
   "point",
   "line",
   "path",
@@ -50,6 +52,8 @@ export const dslModuleParameterTypeNames: readonly string[] = [
   NUMBER_TYPE_NAME,
   ...Object.keys(KNOWN_SIMPLE_TYPES),
   dslChoiceTypeName,
+  `${NUMBER_TYPE_NAME}[]`,
+  ...Object.keys(KNOWN_SIMPLE_TYPES).map((name) => `${name}[]`),
   "point",
   "line",
   "path",
@@ -237,9 +241,9 @@ const isBareTypeName = (text: string) =>
 
 /**
  * Parses a declaration-facing value type. Built-in scalar spellings retain
- * their existing parser/diagnostics; single geometry and geometry arrays are
- * projected into the canonical value type; any other bare identifier becomes
- * an unresolved nominal record type.
+ * their existing parser/diagnostics; a single `[]` suffix lifts any currently
+ * valid non-array value type into the canonical immutable collection type;
+ * any other bare identifier becomes an unresolved nominal record type.
  */
 export const parseDslDeclaredValueType = (
   source: string,
@@ -247,26 +251,58 @@ export const parseDslDeclaredValueType = (
   diagnostics: DslTypeDiagnostic[]
 ): DslDeclaredValueTypeParseResult => {
   const text = source.slice(typeSpan.start, typeSpan.end);
-  if (text === "point" || text === "line" || text === "path") {
-    return { valueType: { kind: text }, choiceOptionSpans: [] };
+  const trimmedText = text.trimEnd();
+  const arraySuffix = trimmedText.endsWith("[]");
+  const nestedArray = arraySuffix && trimmedText.slice(0, -2).trimEnd().endsWith("[]");
+  const elementTypeSpan = arraySuffix
+    ? trimSpan(source, typeSpan.start, typeSpan.end - (text.length - trimmedText.length) - 2)
+    : typeSpan;
+  if (nestedArray) {
+    const suffixStart = typeSpan.start + text.lastIndexOf("[]");
+    diagnostics.push({
+      message: "配列は1次元のみ対応しています。T[][] は使用できません。",
+      span: { start: suffixStart, end: suffixStart + 2 },
+      code: "nested-array-type",
+      presentation: { key: "diagnostic.nested-array-type" }
+    });
+    return { valueType: null, choiceOptionSpans: [] };
   }
-  const geometryValueType = dslValueTypeOfGeometryArrayTypeName(text);
-  if (geometryValueType) return { valueType: geometryValueType, choiceOptionSpans: [] };
+
+  const elementText = source.slice(elementTypeSpan.start, elementTypeSpan.end);
+  if (elementText === "point" || elementText === "line" || elementText === "path") {
+    return { valueType: arraySuffix ? { kind: "array", elementType: { kind: elementText } } : { kind: elementText }, choiceOptionSpans: [] };
+  }
+  const geometryValueType = dslValueTypeOfGeometryArrayTypeName(elementText);
+  if (geometryValueType) {
+    diagnostics.push({
+      message: "配列型の要素型に配列型を指定できません。",
+      span: elementTypeSpan,
+      code: "nested-array-type",
+      presentation: { key: "diagnostic.nested-array-type" }
+    });
+    return { valueType: null, choiceOptionSpans: [] };
+  }
 
   const builtInScalarSyntax =
-    text === NUMBER_TYPE_NAME ||
-    text === dslChoiceTypeName ||
-    Object.prototype.hasOwnProperty.call(KNOWN_SIMPLE_TYPES, text) ||
-    NUMBER_HEAD.test(text) ||
-    CHOICE_HEAD.test(text);
-  if (builtInScalarSyntax || !isBareTypeName(text)) {
-    const parsed = parseDslScalarType(source, typeSpan, diagnostics, {
-      acceptedTypeDescription: "number/string/boolean/choice(...)/point/line/path/point[]/line[]/path[]"
+    elementText === NUMBER_TYPE_NAME ||
+    elementText === dslChoiceTypeName ||
+    Object.prototype.hasOwnProperty.call(KNOWN_SIMPLE_TYPES, elementText) ||
+    NUMBER_HEAD.test(elementText) ||
+    CHOICE_HEAD.test(elementText);
+  if (builtInScalarSyntax || !isBareTypeName(elementText)) {
+    const parsed = parseDslScalarType(source, elementTypeSpan, diagnostics, {
+      acceptedTypeDescription: "number/string/boolean/choice(...)/point/line/path/T[]"
     });
-    return { valueType: parsed.declaredType, choiceOptionSpans: parsed.choiceOptionSpans, ...(parsed.numericTypeOptions ? { numericTypeOptions: parsed.numericTypeOptions } : {}) };
+    return {
+      valueType: parsed.declaredType
+        ? arraySuffix ? { kind: "array", elementType: parsed.declaredType } : parsed.declaredType
+        : null,
+      choiceOptionSpans: parsed.choiceOptionSpans,
+      ...(parsed.numericTypeOptions ? { numericTypeOptions: parsed.numericTypeOptions } : {})
+    };
   }
   return {
-    valueType: { kind: "record", name: text },
+    valueType: arraySuffix ? { kind: "array", elementType: { kind: "record", name: elementText } } : { kind: "record", name: elementText },
     choiceOptionSpans: []
   };
 };

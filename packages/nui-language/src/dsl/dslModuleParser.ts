@@ -136,10 +136,10 @@ const moduleParameterType = (
   source: string,
   typeSpan: DslSpan,
   diagnostics: DslModuleDiagnostic[]
-): Pick<DslModuleParameter, "type" | "recordTypeReference" | "choiceOptionSpans" | "numericTypeOptions"> => {
+): Pick<DslModuleParameter, "type" | "valueType" | "recordTypeReference" | "choiceOptionSpans" | "numericTypeOptions"> => {
   const text = source.slice(typeSpan.start, typeSpan.end);
   if (text === "point" || text === "line" || text === "path") {
-    return { type: { kind: text }, recordTypeReference: null, choiceOptionSpans: [] };
+    return { type: { kind: text }, valueType: { kind: text }, recordTypeReference: null, choiceOptionSpans: [] };
   }
   const parsedDiagnostics: DslModuleDiagnostic[] = [];
   const parsed = parseDslDeclaredValueType(source, typeSpan, parsedDiagnostics);
@@ -147,6 +147,7 @@ const moduleParameterType = (
   const geometryType = isDslGeometryValueType(parsed.valueType) ? parsed.valueType : null;
   return {
     type: geometryType ?? scalarTypeOfDslValueType(parsed.valueType),
+    valueType: parsed.valueType,
     recordTypeReference: nominalRecordTypeOfDslValueType(parsed.valueType),
     choiceOptionSpans: parsed.choiceOptionSpans,
     ...(parsed.numericTypeOptions ? { numericTypeOptions: parsed.numericTypeOptions } : {})
@@ -183,7 +184,7 @@ const parameterFromArg = (source: string, arg: ScannedArg, diagnostics: DslModul
   }
 
   const parsedType = typeSpan.start === typeSpan.end
-    ? { type: null, recordTypeReference: null, choiceOptionSpans: [] as DslSpan[] }
+    ? { type: null, valueType: null, recordTypeReference: null, choiceOptionSpans: [] as DslSpan[] }
     : moduleParameterType(source, typeSpan, diagnostics);
   return {
     kind: "moduleParameter",
@@ -191,6 +192,7 @@ const parameterFromArg = (source: string, arg: ScannedArg, diagnostics: DslModul
     optional: Boolean(arg.optionalSpan),
     optionalSpan: arg.optionalSpan ?? null,
     type: parsedType.type,
+    valueType: parsedType.valueType,
     recordTypeReference: parsedType.recordTypeReference,
     typeSpan: typeSpan.start === typeSpan.end ? null : typeSpan,
     choiceOptionSpans: parsedType.choiceOptionSpans,

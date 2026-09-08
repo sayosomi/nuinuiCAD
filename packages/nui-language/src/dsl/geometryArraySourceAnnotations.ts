@@ -1,6 +1,7 @@
 import type { DslModuleParameter, DslStatement, ParseDslResult } from "./dslTypes";
 import { parseDslDeclaredValueType, type DslTypeDiagnostic } from "./dslTypeParser";
 import { geometryArrayTypeOfDslValueType, type GeometryArrayType } from "./geometryArrayTypes";
+import { isDslArrayValueType, type DslArrayValueType } from "./dslValueTypes";
 
 const moduleParameterTypes = new WeakMap<object, GeometryArrayType>();
 
@@ -10,7 +11,12 @@ export const geometryArrayTypeOfTypedDeclaration = (
 
 export const geometryArrayTypeOfModuleParameter = (
   parameter: DslModuleParameter
-): GeometryArrayType | null => moduleParameterTypes.get(parameter) ?? null;
+): GeometryArrayType | null => geometryArrayTypeOfDslValueType(parameter.valueType) ?? moduleParameterTypes.get(parameter) ?? null;
+
+/** Canonical source-level collection type for a Module parameter. */
+export const arrayValueTypeOfModuleParameter = (
+  parameter: DslModuleParameter
+): DslArrayValueType | null => isDslArrayValueType(parameter.valueType) ? parameter.valueType : null;
 
 /**
  * Attach source-only geometry-array types to Module parameter object identity.

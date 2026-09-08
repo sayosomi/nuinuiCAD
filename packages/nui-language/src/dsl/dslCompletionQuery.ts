@@ -531,7 +531,8 @@ const sourceRecordPropertyCandidates = (
 
 const sourceRecordTypeCandidates = (
   compiled: CompiledDslDocument | undefined,
-  statementIndex: number
+  statementIndex: number,
+  allowArrays = true
 ): DslCompletionCandidate[] => {
   const namespace = compiled?.sourceLexicalNamespace;
   const records = namespace?.recordSemanticAnalysis;
@@ -543,7 +544,10 @@ const sourceRecordTypeCandidates = (
       return lookup.kind === "resolved" && lookup.declaration.statementId === declaration.statementId;
     })
     .filter((declaration) => records.definitionsByStatementId.has(declaration.statementId))
-    .map((declaration) => ({ kind: "type" as const, label: declaration.name, identity: declaration.statementId }));
+    .flatMap((declaration) => [
+      { kind: "type" as const, label: declaration.name, identity: declaration.statementId },
+      ...(allowArrays ? [{ kind: "type" as const, label: `${declaration.name}[]`, identity: `${declaration.statementId}:array` }] : [])
+    ]);
 };
 
 const sourceRecordTypeIdentity = (
@@ -920,7 +924,7 @@ const queryCandidates = (
       : dslTypedDeclarationTypeNames.filter((label) => !label.endsWith("[]"));
     return [
       ...names.map((label) => ({ kind: "type" as const, label, identity: label })),
-      ...sourceRecordTypeCandidates(compiled, statementIndex)
+      ...sourceRecordTypeCandidates(compiled, statementIndex, context.bindingKind === "const")
     ];
   }
   if (context.kind === "moduleParameterType") {

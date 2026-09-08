@@ -61,25 +61,29 @@ only `point`, `line` accepts only `line`, and `path` accepts `line` or `path`.
 Single-geometry values are `const`-only. Pure `bezier`, `offset`, `corner`,
 `polyline`, and other deferred constructions remain unsupported.
 
-## Geometry arrays
+## One-dimensional arrays
 
-The immutable named geometry array types are exactly `point[]`, `line[]`, and
-`path[]`. Arrays are declared with `const`; there is no indexing, spreading,
-nested array, or scalar array syntax. An array literal preserves its authored
-order and duplicates. An empty literal is valid when the expected array type
-is known.
+The immutable named collection type is one-dimensional `T[]`. `T` may be
+`number`, `string`, `boolean`, `choice(...)`, `point`, `line`, `path`, or an
+already-valid nominal record type. Arrays require an explicit declaration type
+and `const`; nested arrays such as `T[][]` are rejected.
 
 Assignability is intentionally narrow: `point[]` to `point[]`, `line[]` to
 `line[]`, `path[]` to `path[]`, and `line[]` to `path[]` are valid. The reverse
-`path[]` to `line[]` conversion is not. Array values are consumed by existing
-list-taking constructions such as `polyline`, `offset`, `transformCopy`,
-`mirrorCopy`, `move`, and `mirrorMove`; they do not add general collection
-operations to the language.
+`path[]` to `line[]` conversion is not. Array literals preserve authored order
+and duplicates. Empty literals use the declared element type, and whole-value
+references retain their resolved source identity. Scalar, choice, geometry, and
+nominal-record members use the existing element assignability rules. Scalar and
+record collections are source-semantic values in this slice.
 
 ```text
 const vertices: point[] = [@A, @B]
 const edges: line[] = [@AB]
 const outline: path[] = [@AB, @Arc]
+const widths: number[] = [10, 20]
+const labels: string[] = ["front", "back"]
+const sides: choice(left, right)[] = [left, right]
+const copiedWidths: number[] = @widths
 ```
 
 ## Records

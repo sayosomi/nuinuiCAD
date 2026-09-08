@@ -18,7 +18,7 @@ describe("declaredTypeCompletionContextAt", () => {
 
   it("uses the grammar's declared type names as the completion catalog", () => {
     expect(dslTypedDeclarationTypeNames).toEqual([
-      "number", "string", "boolean", "choice", "point", "line", "path", "point[]", "line[]", "path[]"
+      "number", "string", "boolean", "choice", "number[]", "string[]", "boolean[]", "point", "line", "path", "point[]", "line[]", "path[]"
     ]);
   });
 

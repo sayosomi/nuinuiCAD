@@ -9,15 +9,16 @@ be declared as a parameter. Definitions and instances are non-hoisted and are
 resolved in document order.
 
 Module parameters may use scalar types, `point`, `line`, `path`, record types,
-or the geometry arrays `point[]`, `line[]`, and `path[]`. The singular geometry
-interfaces are read-only inside a module. Geometry arrays are immutable and
-can be forwarded to the existing list-taking constructions; see
-[Types](types.md).
+or the immutable one-dimensional collection type `T[]` for any currently valid
+non-array element type. The singular geometry interfaces are read-only inside
+a module. Collection parameters and locals use the same source semantic owner
+for literals and whole-value references; geometry arrays can be forwarded to
+the existing list-taking constructions. See [Types](types.md).
 
 Append `?` to make a parameter optional. An optional parameter has no value
 until supplied and cannot also have a default. Only non-optional scalar
 parameters (`number`, `boolean`, `string`, or `choice(...)`) may declare a
-default with `=`. Geometry parameters, geometry-array parameters, and record
+default with `=`. Geometry parameters, collection parameters, and record
 parameters do not gain default-value support. Scalar defaults are evaluated in
 source order in the module's parameter context and do not capture values from
 the module's caller.
@@ -30,7 +31,7 @@ named argument. Use explicit `name: value` form for qualified references,
 properties, literals, and compound expressions. Positional arguments are not
 supported. Unknown, duplicate, missing, or mixed-style arguments are errors.
 
-Module bodies can export geometry, geometry arrays, scalar values, and records.
+Module bodies can export geometry, collections, scalar values, and records.
 Exports are private to the instance until explicitly declared with `export`.
 An external reference uses `@instance::export`; an exported record field can
 then be read with `.`, for example `@front::measure.height`. A module instance

@@ -3,9 +3,11 @@ import type { ModuleGeometryInterfaceType } from "./moduleGeometryInterfaces";
 import type { GeometryArrayExpression, GeometryArrayLiteralMember } from "./geometryArrayExpression";
 import {
   geometryArrayTypeName,
+  isDslNonArrayValueTypeAssignable,
   isGeometryArrayTypeAssignable,
   type GeometryArrayType
 } from "./geometryArrayTypes";
+import type { DslArrayValueType, DslNonArrayValueType } from "./dslValueTypes";
 
 export type GeometryArraySemanticDiagnostic = {
   code: string;
@@ -48,6 +50,31 @@ export type GeometryArrayAliasValue = {
 
 export type GeometryArraySemanticValue<TTarget> = GeometryArrayLiteralValue<TTarget> | GeometryArrayAliasValue;
 
+/** Generalized one-dimensional collection semantic value. Kept beside the
+ * historical geometry projection so all collection resolution still has one
+ * owner while existing geometry consumers retain their stable shape. */
+export type DslArrayMemberSemantic<TTarget> = {
+  sourceText: string;
+  sourceSpan: DslSpan;
+  elementType: DslNonArrayValueType;
+  target: TTarget;
+};
+
+export type DslArrayLiteralValue<TTarget> = {
+  kind: "literal";
+  valueType: DslArrayValueType;
+  members: readonly DslArrayMemberSemantic<TTarget>[];
+};
+
+export type DslArrayAliasValue = {
+  kind: "alias";
+  valueType: DslArrayValueType;
+  targetValueId: string;
+  sourceSpan: DslSpan;
+};
+
+export type DslArraySemanticValue<TTarget> = DslArrayLiteralValue<TTarget> | DslArrayAliasValue;
+
 export type GeometryArrayMemberResolution<TTarget> =
   | { kind: "resolved"; value: GeometryArrayResolvedMember<TTarget> }
   | { kind: "invalid"; diagnostic: GeometryArraySemanticDiagnostic };
@@ -73,6 +100,103 @@ export type ResolveGeometryArrayExpressionInput<TTarget> = {
 export type ResolveGeometryArrayExpressionResult<TTarget> = {
   value: GeometryArraySemanticValue<TTarget> | null;
   diagnostics: readonly GeometryArraySemanticDiagnostic[];
+};
+
+export type DslArrayMemberResolution<TTarget> =
+  | { kind: "resolved"; value: { elementType: DslNonArrayValueType; target: TTarget } }
+  | { kind: "invalid"; diagnostic: GeometryArraySemanticDiagnostic };
+
+export type DslArrayReferenceResolution =
+  | { kind: "resolved"; targetValueId: string; valueType: DslArrayValueType }
+  | { kind: "deferred"; targetValueId: string }
+  | { kind: "invalid"; diagnostic: GeometryArraySemanticDiagnostic };
+
+export type ResolveDslArrayExpressionInput<TTarget> = {
+  expectedType: DslArrayValueType;
+  expression: GeometryArrayExpression;
+  resolveMember: (member: GeometryArrayLiteralMember) => DslArrayMemberResolution<TTarget>;
+  resolveArrayReference: (sourceText: string, sourceSpan: DslSpan) => DslArrayReferenceResolution;
+};
+
+export type ResolveDslArrayExpressionResult<TTarget> = {
+  value: DslArraySemanticValue<TTarget> | null;
+  diagnostics: readonly GeometryArraySemanticDiagnostic[];
+};
+
+const dslArrayTypeName = (type: DslArrayValueType) => {
+  const element = type.elementType;
+  return `${element.kind === "record" ? element.name : element.kind}[]`;
+};
+
+const dslArrayMemberTypeMismatch = (
+  expectedType: DslArrayValueType,
+  member: GeometryArrayLiteralMember,
+  actualType: DslNonArrayValueType
+): GeometryArraySemanticDiagnostic => ({
+  code: "array-member-type-mismatch",
+  message: `array member の型が一致しません: ${dslArrayTypeName(expectedType)} には ${dslArrayTypeName({ kind: "array", elementType: actualType })} の要素が渡されています。`,
+  span: member.span,
+  presentation: {
+    key: "diagnostic.array-member-type-mismatch",
+    parameters: { member: member.text, expected: dslArrayTypeName(expectedType), actual: actualType.kind }
+  }
+});
+
+/** Resolve literals and whole-value references for every supported T[]. */
+export const resolveDslArrayExpression = <TTarget>(
+  input: ResolveDslArrayExpressionInput<TTarget>
+): ResolveDslArrayExpressionResult<TTarget> => {
+  if (input.expression.kind === "reference") {
+    const resolution = input.resolveArrayReference(input.expression.text, input.expression.span);
+    if (resolution.kind === "invalid") return { value: null, diagnostics: [resolution.diagnostic] };
+    if (resolution.kind === "resolved" && !isDslNonArrayValueTypeAssignable(resolution.valueType.elementType, input.expectedType.elementType)) {
+      return {
+        value: null,
+        diagnostics: [{
+          code: "array-assignability-mismatch",
+          message: `array の型が一致しません: ${dslArrayTypeName(resolution.valueType)} は ${dslArrayTypeName(input.expectedType)} に代入できません。`,
+          span: input.expression.span,
+          presentation: {
+            key: "diagnostic.array-assignability-mismatch",
+            parameters: { actual: dslArrayTypeName(resolution.valueType), expected: dslArrayTypeName(input.expectedType) }
+          }
+        }]
+      };
+    }
+    return {
+      value: {
+        kind: "alias",
+        valueType: input.expectedType,
+        targetValueId: resolution.targetValueId,
+        sourceSpan: input.expression.span
+      },
+      diagnostics: []
+    };
+  }
+
+  const diagnostics: GeometryArraySemanticDiagnostic[] = [];
+  const members: DslArrayMemberSemantic<TTarget>[] = [];
+  for (const member of input.expression.members) {
+    const resolution = input.resolveMember(member);
+    if (resolution.kind === "invalid") {
+      diagnostics.push(resolution.diagnostic);
+      continue;
+    }
+    if (!isDslNonArrayValueTypeAssignable(resolution.value.elementType, input.expectedType.elementType)) {
+      diagnostics.push(dslArrayMemberTypeMismatch(input.expectedType, member, resolution.value.elementType));
+      continue;
+    }
+    members.push({
+      sourceText: member.text,
+      sourceSpan: member.span,
+      elementType: resolution.value.elementType,
+      target: resolution.value.target
+    });
+  }
+  return {
+    value: diagnostics.length === 0 ? { kind: "literal", valueType: input.expectedType, members } : null,
+    diagnostics
+  };
 };
 
 const memberTypeMismatch = (

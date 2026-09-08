@@ -9,6 +9,8 @@ export type DslGeometryValueType = {
 export type DslRecordTypeReference = {
   readonly kind: "record";
   readonly name: string;
+  /** Resolved semantic identity when a source owner has already established it. */
+  readonly identity?: string;
 };
 
 /** A value type that is not an array. Array element types use this boundary. */
