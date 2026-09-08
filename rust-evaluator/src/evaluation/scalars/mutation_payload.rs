@@ -8,7 +8,10 @@ use serde_json::Value;
 use super::expression_payload::validate_typed_expression_payload;
 use super::issue::{ScalarPayloadIssue, ScalarPayloadIssueCode as Code};
 use super::json_helpers::{as_object, issue, reject_unexpected_fields, require_field};
-use super::program_payload::{decode_collection_values, ValidatedScalarProgramCollection, ValidatedScalarProgramCollectionMember};
+use super::program_payload::{
+    decode_collection_values, ValidatedScalarProgramCollection,
+    ValidatedScalarProgramCollectionMember,
+};
 use super::scalar_payload::decode_scalar_type;
 use super::types::{BindingId, ScalarType, TypedBuiltinArgument, TypedScalarExpression};
 
@@ -520,11 +523,16 @@ pub(crate) fn validate_binding_versions_payload(
         .transpose()?
         .unwrap_or_default();
     for collection in &collection_values {
-        if let super::program_payload::ValidatedScalarProgramCollectionValue::Literal(members) = &collection.value {
+        if let super::program_payload::ValidatedScalarProgramCollectionValue::Literal(members) =
+            &collection.value
+        {
             for member in members {
                 if let ValidatedScalarProgramCollectionMember::Binding { binding_id, .. } = member {
                     if !binding_ids.contains(binding_id) {
-                        return Err(issue(Code::InvalidBindingId, "scalar program collection member references an unknown bindingId"));
+                        return Err(issue(
+                            Code::InvalidBindingId,
+                            "scalar program collection member references an unknown bindingId",
+                        ));
                     }
                 }
             }

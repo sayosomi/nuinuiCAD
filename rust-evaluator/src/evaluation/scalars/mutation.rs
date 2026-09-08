@@ -388,7 +388,9 @@ impl<'a> ScalarMutationResolver<'a> {
             };
             match &value.value {
                 ValidatedScalarProgramCollectionValue::Alias(target) => current = target,
-                ValidatedScalarProgramCollectionValue::Literal(members) => break members.get(index as usize),
+                ValidatedScalarProgramCollectionValue::Literal(members) => {
+                    break members.get(index as usize)
+                }
             }
         };
         let Some(member) = member else {
@@ -400,10 +402,12 @@ impl<'a> ScalarMutationResolver<'a> {
             };
         };
         let result = match member {
-            ValidatedScalarProgramCollectionMember::Literal { r#type, value } => ScalarEvaluation::Ok {
-                r#type: r#type.clone(),
-                value: value.clone(),
-            },
+            ValidatedScalarProgramCollectionMember::Literal { r#type, value } => {
+                ScalarEvaluation::Ok {
+                    r#type: r#type.clone(),
+                    value: value.clone(),
+                }
+            }
             ValidatedScalarProgramCollectionMember::Binding { r#type, binding_id } => {
                 if r#type != element_type {
                     return ScalarEvaluation::Error {
@@ -417,10 +421,16 @@ impl<'a> ScalarMutationResolver<'a> {
             }
         };
         match result {
-            ScalarEvaluation::Ok { r#type: result_type, value }
-                if result_type == *element_type && scalar_value_matches_type(&result_type, &value) =>
+            ScalarEvaluation::Ok {
+                r#type: result_type,
+                value,
+            } if result_type == *element_type
+                && scalar_value_matches_type(&result_type, &value) =>
             {
-                ScalarEvaluation::Ok { r#type: result_type, value }
+                ScalarEvaluation::Ok {
+                    r#type: result_type,
+                    value,
+                }
             }
             ScalarEvaluation::Ok { .. } => ScalarEvaluation::Error {
                 r#type: element_type.clone(),

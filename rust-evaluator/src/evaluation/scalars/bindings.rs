@@ -234,7 +234,9 @@ impl<'a> ScalarBindingResolver<'a> {
             };
             match &value.value {
                 ValidatedScalarProgramCollectionValue::Alias(target) => current = target,
-                ValidatedScalarProgramCollectionValue::Literal(members) => break members.get(index as usize),
+                ValidatedScalarProgramCollectionValue::Literal(members) => {
+                    break members.get(index as usize)
+                }
             }
         };
         let Some(member) = member else {
@@ -265,11 +267,16 @@ impl<'a> ScalarBindingResolver<'a> {
             }
         };
         match result {
-            ScalarEvaluation::Ok { r#type: result_type, value }
-                if result_type == *element_type
-                    && scalar_value_matches_type(&result_type, &value) =>
+            ScalarEvaluation::Ok {
+                r#type: result_type,
+                value,
+            } if result_type == *element_type
+                && scalar_value_matches_type(&result_type, &value) =>
             {
-                ScalarEvaluation::Ok { r#type: result_type, value }
+                ScalarEvaluation::Ok {
+                    r#type: result_type,
+                    value,
+                }
             }
             ScalarEvaluation::Ok { .. } => ScalarEvaluation::Error {
                 r#type: element_type.clone(),

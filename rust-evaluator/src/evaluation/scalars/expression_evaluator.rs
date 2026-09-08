@@ -214,24 +214,37 @@ where
                 target_source_order,
                 r#type,
             } => {
-                let index = output.pop().expect("collection index expression result must be present");
+                let index = output
+                    .pop()
+                    .expect("collection index expression result must be present");
                 let result = match index {
-                    ScalarEvaluation::Error { issue_code, binding_id, context, .. } => ScalarEvaluation::Error {
+                    ScalarEvaluation::Error {
+                        issue_code,
+                        binding_id,
+                        context,
+                        ..
+                    } => ScalarEvaluation::Error {
                         r#type: r#type.clone(),
                         issue_code,
                         binding_id,
                         context,
                     },
-                    ScalarEvaluation::Ok { value: ScalarValue::Number(index), .. }
-                        if index.is_finite() && index.fract() == 0.0 && index >= 0.0 &&
-                           collection_length.is_none_or(|length| index < length) =>
+                    ScalarEvaluation::Ok {
+                        value: ScalarValue::Number(index),
+                        ..
+                    } if index.is_finite()
+                        && index.fract() == 0.0
+                        && index >= 0.0
+                        && collection_length.is_none_or(|length| index < length) =>
+                    {
                         environment.lookup_collection_index(
                             &collection_value_id,
                             index,
                             &r#type,
                             collection_length,
                             target_source_order,
-                        ),
+                        )
+                    }
                     _ => ScalarEvaluation::Error {
                         r#type: r#type.clone(),
                         issue_code: "evaluation-collection-index-invalid".to_owned(),
@@ -240,10 +253,16 @@ where
                     },
                 };
                 output.push(match result {
-                    ScalarEvaluation::Ok { r#type: result_type, value }
-                        if result_type == r#type && scalar_value_matches_type(&result_type, &value) =>
+                    ScalarEvaluation::Ok {
+                        r#type: result_type,
+                        value,
+                    } if result_type == r#type
+                        && scalar_value_matches_type(&result_type, &value) =>
                     {
-                        ScalarEvaluation::Ok { r#type: result_type, value }
+                        ScalarEvaluation::Ok {
+                            r#type: result_type,
+                            value,
+                        }
                     }
                     ScalarEvaluation::Ok { .. } => ScalarEvaluation::Error {
                         r#type,

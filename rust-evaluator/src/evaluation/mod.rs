@@ -1198,10 +1198,7 @@ fn evaluate_document_input_with_scalar_program(
                     active_scalar_binding_resolver,
                     Some(current_execution_position),
                 ) {
-                    let element_name = element
-                        .get("name")
-                        .and_then(Value::as_str)
-                        .unwrap_or(&id);
+                    let element_name = element.get("name").and_then(Value::as_str).unwrap_or(&id);
                     state.errors.push(geometry_error(
                         &element,
                         format!(

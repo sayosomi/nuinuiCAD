@@ -87,22 +87,37 @@ fn decode_target(
     let kind = non_empty_string(object, "kind", context)?;
     match kind.as_str() {
         "drawable" => {
-            reject_unexpected_fields(object, &["kind", "elementId", "geometryType", "pointKey"], context)?;
+            reject_unexpected_fields(
+                object,
+                &["kind", "elementId", "geometryType", "pointKey"],
+                context,
+            )?;
             let geometry_type = non_empty_string(object, "geometryType", context)?;
             if geometry_type != "point" && geometry_type != "line" && geometry_type != "path" {
-                return Err(invalid(format!("{context}.geometryType must be point, line, or path")));
+                return Err(invalid(format!(
+                    "{context}.geometryType must be point, line, or path"
+                )));
             }
             Ok(GeometryInputTarget::Drawable {
                 element_id: non_empty_string(object, "elementId", context)?,
                 geometry_type,
-                point_key: object.get("pointKey").and_then(Value::as_str).map(ToOwned::to_owned),
+                point_key: object
+                    .get("pointKey")
+                    .and_then(Value::as_str)
+                    .map(ToOwned::to_owned),
             })
         }
         "geometryValue" => {
-            reject_unexpected_fields(object, &["kind", "occurrence", "geometryType", "pointKey"], context)?;
+            reject_unexpected_fields(
+                object,
+                &["kind", "occurrence", "geometryType", "pointKey"],
+                context,
+            )?;
             let geometry_type = non_empty_string(object, "geometryType", context)?;
             if geometry_type != "point" && geometry_type != "line" && geometry_type != "path" {
-                return Err(invalid(format!("{context}.geometryType must be point, line, or path")));
+                return Err(invalid(format!(
+                    "{context}.geometryType must be point, line, or path"
+                )));
             }
             Ok(GeometryInputTarget::GeometryValue {
                 occurrence: decode_occurrence(
@@ -112,7 +127,10 @@ fn decode_target(
                     &format!("{context}.occurrence"),
                 )?,
                 geometry_type,
-                point_key: object.get("pointKey").and_then(Value::as_str).map(ToOwned::to_owned),
+                point_key: object
+                    .get("pointKey")
+                    .and_then(Value::as_str)
+                    .map(ToOwned::to_owned),
             })
         }
         "coordinate" => {
@@ -123,7 +141,9 @@ fn decode_target(
             if !anchor.is_object() {
                 return Err(invalid(format!("{context}.anchor must be an object")));
             }
-            Ok(GeometryInputTarget::Coordinate { anchor: anchor.clone() })
+            Ok(GeometryInputTarget::Coordinate {
+                anchor: anchor.clone(),
+            })
         }
         "collectionIndex" => {
             reject_unexpected_fields(
@@ -142,7 +162,9 @@ fn decode_target(
                 None | Some(Value::Null) => None,
                 Some(value) => {
                     let length = value.as_f64().ok_or_else(|| {
-                        invalid(format!("{context}.collectionLength must be a number or null"))
+                        invalid(format!(
+                            "{context}.collectionLength must be a number or null"
+                        ))
                     })?;
                     if !length.is_finite() || length < 0.0 || length.fract() != 0.0 {
                         return Err(invalid(format!(
@@ -156,7 +178,11 @@ fn decode_target(
                 .get("targetSourceOrder")
                 .and_then(Value::as_f64)
                 .filter(|value| value.is_finite())
-                .ok_or_else(|| invalid(format!("{context}.targetSourceOrder must be a finite number")))?;
+                .ok_or_else(|| {
+                    invalid(format!(
+                        "{context}.targetSourceOrder must be a finite number"
+                    ))
+                })?;
             let index = super::scalars::validate_typed_expression_payload(
                 object
                     .get("index")
@@ -320,7 +346,8 @@ fn materialize_target(
     let Some(resolver) = resolver else {
         return Err("evaluation-binding-unavailable".to_owned());
     };
-    let evaluation = evaluate_document_typed_expression(&index, resolver, state, current_source_order);
+    let evaluation =
+        evaluate_document_typed_expression(&index, resolver, state, current_source_order);
     let index = match evaluation {
         ScalarEvaluation::Ok {
             value: ScalarValue::Number(index),
@@ -328,10 +355,11 @@ fn materialize_target(
         } if index.is_finite()
             && index.fract() == 0.0
             && index >= 0.0
-            && collection_length.map_or(true, |length| index < length) => index as usize,
-        ScalarEvaluation::Ok { .. } => {
-            return Err("evaluation-collection-index-invalid".to_owned())
+            && collection_length.map_or(true, |length| index < length) =>
+        {
+            index as usize
         }
+        ScalarEvaluation::Ok { .. } => return Err("evaluation-collection-index-invalid".to_owned()),
         ScalarEvaluation::Error { issue_code, .. } => return Err(issue_code),
     };
     let selected = members
@@ -396,8 +424,9 @@ fn geometry_for_target(state: &EvaluationState, target: &GeometryInputTarget) ->
         GeometryInputTarget::GeometryValue { occurrence, .. } => {
             state.computed_geometry_values.get(occurrence).cloned()
         }
-        GeometryInputTarget::Coordinate { .. }
-        | GeometryInputTarget::CollectionIndex { .. } => None,
+        GeometryInputTarget::Coordinate { .. } | GeometryInputTarget::CollectionIndex { .. } => {
+            None
+        }
     }
 }
 
