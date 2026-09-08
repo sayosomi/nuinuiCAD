@@ -179,6 +179,16 @@ fn geometry_property_with_type(r#type: Value) -> Value {
     })
 }
 
+fn collection_length_property_literal(length: usize) -> Value {
+    json!({
+        "kind": "geometryProperty", "span": {"start": 0, "end": 1},
+        "elementNameSpan": {"start": 0, "end": 1}, "propertySpan": {"start": 0, "end": 1},
+        "elementName": "items", "elementId": null,
+        "collectionValueId": "statement:items", "collectionLength": length,
+        "property": "length", "targetSourceOrder": 0, "type": {"kind": "number"}
+    })
+}
+
 fn builtin_call(name: &str, args: Vec<Value>) -> Value {
     builtin_call_with_type(name, args, json!({"kind": "number"}))
 }
@@ -387,6 +397,30 @@ fn geometry_property_payload_accepts_number_and_choice_and_preserves_resolved_fi
             );
         }
     }
+}
+
+#[test]
+fn collection_length_property_payload_preserves_identity_without_drawable_id() {
+    let decoded =
+        validate_typed_expression_payload(&collection_length_property_literal(3)).unwrap();
+    let TypedScalarExpression::GeometryProperty {
+        element_id,
+        collection_value_id,
+        collection_length,
+        geometry_value_occurrence,
+        property,
+        r#type,
+        ..
+    } = &decoded
+    else {
+        panic!("expected a geometryProperty node");
+    };
+    assert!(element_id.is_empty());
+    assert_eq!(collection_value_id.as_deref(), Some("statement:items"));
+    assert_eq!(*collection_length, Some(3.0));
+    assert!(geometry_value_occurrence.is_none());
+    assert_eq!(property, "length");
+    assert_eq!(r#type, &ScalarType::Number);
 }
 
 #[test]

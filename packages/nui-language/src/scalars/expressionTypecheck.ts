@@ -268,9 +268,13 @@ const checkNode = (
         propertySpan: node.propertySpan,
         elementName: node.elementName,
         elementId: resolved && "elementId" in resolved ? resolved.elementId : null,
+        ...(resolved?.kind === "collection" ? {
+          collectionValueId: resolved.collectionValueId,
+          collectionLength: resolved.collectionLength
+        } : {}),
         ...(resolved && resolved.kind === "geometryValue" ? { geometryValueOccurrence: resolved.occurrence } : {}),
         ...(resolved && resolved.kind === "geometryValue" && resolved.pointKey ? { geometryValuePointKey: resolved.pointKey } : {}),
-        property: resolved?.property ?? node.property,
+        property: resolved?.kind === "collection" ? node.property : resolved?.property ?? node.property,
         targetSourceOrder: resolved?.targetSourceOrder ?? null,
         type: resolved?.type ?? null
       };

@@ -111,6 +111,12 @@ export type ScalarExpressionResolvedGeometryProperty = {
   readonly pointKey?: string;
   readonly targetSourceOrder: number;
   readonly type: ScalarType;
+} | {
+  readonly kind: "collection";
+  readonly collectionValueId: string;
+  readonly collectionLength: number;
+  readonly targetSourceOrder: number;
+  readonly type: Extract<ScalarType, { kind: "number" }>;
 };
 
 /** Resolved at compile time. `elementId` is never re-resolved by a runtime. */
@@ -121,6 +127,10 @@ export interface TypedScalarGeometryPropertyReferenceNode {
   readonly propertySpan: ScalarSpan;
   readonly elementName: string;
   readonly elementId: string | null;
+  /** Collection cardinality is a source-semantic property, not a drawable
+   * identity. These fields are mutually exclusive with geometry targets. */
+  readonly collectionValueId?: string;
+  readonly collectionLength?: number;
   readonly geometryValueOccurrence?: GeometryValueOccurrence;
   readonly geometryValuePointKey?: string;
   readonly property: string;

@@ -29,6 +29,8 @@ import {
 import {
   moduleCompletionCandidates,
   moduleGeometryPropertyCandidates,
+  moduleCollectionLengthCandidates,
+  moduleQualifiedCollectionLengthCandidates,
   moduleRecordFieldCompletions,
   moduleQualifiedRecordFieldCompletions,
   isInsideModuleSemanticStatement,
@@ -74,6 +76,7 @@ import { dslModifierCompletionContextAt } from "./dslModifierCompletionContext";
 import { modifierPropertyMetadata } from "./dslModifierAuthoring";
 import { formatDslName } from "./dslTokens";
 import { createModifierAuthoringIndex } from "./dslModifierAuthoringIndex";
+import { collectionValueSemanticForStatement } from "./geometryArraySemanticAnalysis";
 
 export type DslCompletionCandidateKind =
   | "keyword"
@@ -508,6 +511,23 @@ const sourceGeometryPropertyCandidates = (
       label: definition.key,
       identity: `${lookup.declaration.statementId}:${definition.key}`
     }));
+};
+
+const sourceCollectionLengthCandidates = (
+  compiled: CompiledDslDocument,
+  statementIndex: number,
+  elementToken: string,
+  expectedType: ScalarType | null
+) => {
+  if (expectedType?.kind !== "number") return [];
+  const namespace = compiled.sourceLexicalNamespace;
+  if (!namespace) return [];
+  const lookup = resolveSourceLexicalPath(namespace, statementIndex, parseDslReferenceToken(elementToken));
+  if (lookup.kind !== "resolved" || lookup.declaration.kind !== "typedDeclaration") return [];
+  const value = namespace.geometryArraySemanticAnalysis
+    ? collectionValueSemanticForStatement(namespace.geometryArraySemanticAnalysis, lookup.declaration.statementIndex)
+    : null;
+  return value ? [{ kind: "property" as const, label: "length", identity: `${value.statementId}:length` }] : [];
 };
 
 const sourceRecordPropertyCandidates = (
@@ -964,6 +984,8 @@ const queryCandidates = (
     if (!compiled || !exact) return [];
     const recordCandidates = sourceRecordPropertyCandidates(compiled, statementIndex, context.elementToken);
     if (recordCandidates.length > 0) return recordCandidates;
+    const qualifiedCollectionCandidates = moduleQualifiedCollectionLengthCandidates(compiled, statementIndex, context.elementToken, undefined, statementIndex);
+    if (qualifiedCollectionCandidates.length > 0) return qualifiedCollectionCandidates.map(moduleCandidate);
     const qualifiedRecordCandidates = moduleQualifiedRecordFieldCompletions(compiled, statementIndex, context.elementToken, undefined, statementIndex);
     if (qualifiedRecordCandidates.length > 0) return qualifiedRecordCandidates.map(moduleCandidate);
     if (isInsideModuleSemanticStatement(compiled, position)) {
@@ -973,6 +995,12 @@ const queryCandidates = (
         logicalCursorPosition: input.localPosition
       });
       if (moduleRecordCandidates.length > 0) return moduleRecordCandidates.map(moduleCandidate);
+      const moduleCollectionCandidates = moduleCollectionLengthCandidates(compiled, statementIndex, context.elementToken, {
+        sourceOrderIndex: statementIndex,
+        liveStatementText: input.lineText,
+        logicalCursorPosition: input.localPosition
+      });
+      if (moduleCollectionCandidates.length > 0) return moduleCollectionCandidates.map(moduleCandidate);
       const moduleGeometryCandidates = moduleGeometryPropertyCandidates(compiled, statementIndex, context.elementToken, {
         sourceOrderIndex: statementIndex,
         liveStatementText: input.lineText,
@@ -980,7 +1008,10 @@ const queryCandidates = (
       });
       if (moduleGeometryCandidates.length > 0) return moduleGeometryCandidates.map(moduleCandidate);
     }
-    return sourceGeometryPropertyCandidates(compiled, statementIndex, context.elementToken, context.expectedScalarType);
+    const collectionCandidates = sourceCollectionLengthCandidates(compiled, statementIndex, context.elementToken, context.expectedScalarType);
+    return collectionCandidates.length > 0
+      ? collectionCandidates
+      : sourceGeometryPropertyCandidates(compiled, statementIndex, context.elementToken, context.expectedScalarType);
   }
   if (context.kind === "typedInitializer" || context.kind === "conditionExpression" || context.kind === "propertyScalarValue" || context.kind === "templateHole") {
     return scalarCandidatesAt(context, input, position, semantic, compiled, exact, statementIndex);

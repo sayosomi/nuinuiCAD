@@ -86,6 +86,10 @@ const sides: choice(left, right)[] = [left, right]
 const copiedWidths: number[] = @widths
 ```
 
+Every collection exposes the read-only numeric property `.length`. It reports
+the authored member count, including duplicates, for literals and for all
+whole-value alias chains. It does not project or materialize a selected member.
+
 ## Records
 
 Records are nominal source-only types whose fields must be scalar. See

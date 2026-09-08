@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { parseDsl } from "./dslParser";
 import { buildSourceLexicalNamespaceIndex } from "./sourceLexicalNamespaceIndex";
 import { compileDslDocument } from "./dslDocument";
+import { collectionLengthForValueId } from "./geometryArraySemanticAnalysis";
 
 const analyze = (source: string) => {
   const parsed = parseDsl(source);
@@ -182,6 +183,83 @@ describe("geometry array source semantic integration", () => {
       assignedStatementIds: new Map(parsed.statements.map((_, index) => [index, `stable-${index}`]))
     });
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+  });
+
+  it("resolves collection length for scalar, geometry, and record values", () => {
+    const { namespace, analysis } = analyze([
+      "nui 1",
+      "record Pair(x: number)",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line AB = segment(start: @A, end: @B)",
+      "const numbers: number[] = [1, 1, 2]",
+      "const empty: string[] = []",
+      "const copied: number[] = @numbers",
+      "const points: point[] = [@A, @B]",
+      "const lines: line[] = [@AB]",
+      "const widened: path[] = @lines",
+      "const paths: path[] = [@AB, @AB]",
+      "const pair: Pair = Pair(x: 1)",
+      "const pairs: Pair[] = [@pair, @pair]"
+    ].join("\n"));
+    expect(namespace.diagnostics).toEqual([]);
+    for (const [name, expected] of [["numbers", 3], ["empty", 0], ["copied", 3], ["points", 2], ["lines", 1], ["widened", 1], ["paths", 2], ["pairs", 2]] as const) {
+      const value = [...analysis.genericValues, ...analysis.values].find((candidate) => candidate.name === name)!;
+      expect(collectionLengthForValueId(analysis, value.statementId)).toBe(expected);
+    }
+    const compiled = compile([
+      "nui 1",
+      "const numbers: number[] = [1, 1, 2]",
+      "const count: number = @numbers.length"
+    ].join("\n"));
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const initializer = compiled.scalarProgram?.statements.at(-1)?.declaration.initializer;
+    expect(initializer).toMatchObject({
+      kind: "geometryProperty",
+      property: "length",
+      collectionValueId: "statement:1",
+      collectionLength: 3,
+      type: { kind: "number" }
+    });
+  });
+
+  it("supports Module collection length, aliases, exports, and optional presence narrowing", () => {
+    const guarded = compile([
+      "nui 1",
+      "const values: number[] = [1, 2, 2]",
+      "module M(items: number[], labels?: string[]) {",
+      "  const local: number[] = @items",
+      "  const required: number = @local.length",
+      "  if (hasValue(@labels)) {",
+      "    const optional: number = @labels.length",
+      "  }",
+      "  export const out: number = @items.length",
+      "}",
+      "instance Use = M(items: @values)"
+    ].join("\n"));
+    expect(guarded.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+
+    const unguarded = compile([
+      "nui 1",
+      "module M(labels?: string[]) {",
+      "  const count: number = @labels.length",
+      "}",
+      "instance Use = M()"
+    ].join("\n"));
+    expect(unguarded.diagnostics).toContainEqual(expect.objectContaining({
+      code: "module-optional-value-required",
+      presentation: { key: "diagnostic.module-optional-value-required", parameters: { name: "labels" } }
+    }));
+
+    const exported = compile([
+      "nui 1",
+      "module M() {",
+      "  export const values: number[] = [1, 2]",
+      "}",
+      "instance Use = M()",
+      "const count: number = @Use::values.length"
+    ].join("\n"));
+    expect(exported.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
   });
 
   it("checks compatible whole-value collection arguments at Module boundaries", () => {

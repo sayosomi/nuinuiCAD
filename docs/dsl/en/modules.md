@@ -15,6 +15,10 @@ a module. Collection parameters and locals use the same source semantic owner
 for literals and whole-value references; geometry arrays can be forwarded to
 the existing list-taking constructions. See [Types](types.md).
 
+Collection parameters, locals, and exports support the read-only numeric
+property `.length`. An optional collection parameter must first be narrowed by
+`hasValue(@parameter)` before its length is read.
+
 Append `?` to make a parameter optional. An optional parameter has no value
 until supplied and cannot also have a default. Only non-optional scalar
 parameters (`number`, `boolean`, `string`, or `choice(...)`) may declare a
