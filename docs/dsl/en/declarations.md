@@ -60,11 +60,12 @@ required `else` branch:
 <!-- dsl-example: syntax-fragment -->
 ```nui
 const amount: number = if (@flag) { 10 } else { 20 }
-const side: choice(left, right) = if (@flag) {
-  left
-} else {
-  right
-}
+const side: choice(left, right) =
+  if (@flag) {
+    left
+  } else {
+    right
+  }
 ```
 
 The condition must be boolean. Both branches are parsed, resolved, and

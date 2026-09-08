@@ -53,7 +53,8 @@ describe("logicalStatementSourceMap", () => {
     const source = [
       "nui 1",
       "const flag: boolean = true",
-      "const amount: number = if (@flag) {",
+      "const amount: number =",
+      "  if (@flag) {",
       "  10",
       "} else {",
       "  20",
@@ -67,19 +68,21 @@ describe("logicalStatementSourceMap", () => {
       "const amount: number = if (@flag) { 10 } else { 20 }",
       "const after: number = 30"
     ]);
-    expect(map.statements[2]).toMatchObject({ range: { startLine: 3, endLine: 7 } });
+    expect(map.statements[2]).toMatchObject({ range: { startLine: 3, endLine: 8 } });
   });
 
   it("keeps canonical multiline exported value-if declarations separate from a following declaration", () => {
     const source = [
       "nui 1",
       "module M() {",
-      "  export const amount: number = if (true) {",
+      "  export const amount: number =",
+      "    if (true) {",
       "    10",
       "  } else {",
       "    20",
       "  }",
-      "  export let side: choice(left, right) = if (true) {",
+      "  export let side: choice(left, right) =",
+      "    if (true) {",
       "    left",
       "  } else {",
       "    right",
@@ -95,6 +98,16 @@ describe("logicalStatementSourceMap", () => {
       "export let side: choice(left, right) = if (true) { left } else { right }",
       "const after: number = 30",
       "}"
+    ]);
+  });
+
+  it("does not swallow a following non-value-if statement after a trailing equals", () => {
+    const source = "nui 1\nconst amount: number =\nconst after: number = 30";
+    const map = createLogicalStatementSourceMap({ normalizedSource: source, sourceRevision: 13 });
+    expect(map.statements.map((statement) => statement.logicalText)).toEqual([
+      "nui 1",
+      "const amount: number =",
+      "const after: number = 30"
     ]);
   });
 

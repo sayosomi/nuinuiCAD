@@ -97,7 +97,8 @@ describe("compiled scalar program", () => {
     const compiled = compileCanonical([
       "nui 1",
       "const flag: boolean = true",
-      "const amount: number = if (@flag) {",
+      "const amount: number =",
+      "  if (@flag) {",
       "  10",
       "} else {",
       "  1 / 0",

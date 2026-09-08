@@ -119,6 +119,9 @@ const structuralKind = (code: string): LogicalStatement["structural"] => {
 const isTypedDeclarationValueIfStart = (code: string): boolean =>
   /^\s*(?:export\s+)?(?:const|let)\b[\s\S]*=\s*if\s*\(/.test(code);
 
+const isTypedDeclarationValueIfTrailingEquals = (code: string): boolean =>
+  /^\s*(?:export\s+)?(?:const|let)\b[\s\S]*=\s*$/.test(code);
+
 /** Counts only value-if braces. This is deliberately local to the typed
  * declaration continuation path; ordinary DSL block ownership and the
  * shared call/list scanner remain parenthesis/bracket based. */
@@ -227,7 +230,8 @@ export const createLogicalStatementSourceMap = (snapshot: SourceSnapshot): Logic
     const fragments: string[] = [];
     const segments: DslPhysicalSegment[] = [];
     const continuationLines: number[] = [];
-    const valueIfContinuation = isTypedDeclarationValueIfStart(first.codeText);
+    let valueIfContinuation = isTypedDeclarationValueIfStart(first.codeText);
+    let awaitingValueIfHeader = !valueIfContinuation && isTypedDeclarationValueIfTrailingEquals(first.codeText);
     let valueIfBraceDepth = 0;
     let cursor = index;
     while (true) {
@@ -259,21 +263,29 @@ export const createLogicalStatementSourceMap = (snapshot: SourceSnapshot): Logic
         end: lineEnd
       });
       if (valueIfContinuation) valueIfBraceDepth += valueIfBraceDelta(line.codeText);
+      const next = cursor + 1;
+      const nextCode = next < lines.length ? lexicalLines[next]!.codeText : "";
+      const nextIsValueIfHeader = /^\s*if\s*\(/.test(nextCode);
+      const activatesValueIfOnNextLine = awaitingValueIfHeader && nextIsValueIfHeader;
       const continues = valueIfContinuation
         ? valueIfBraceDepth > 0
-        : nesting.unmatchedOpeners.length > 0;
+        : awaitingValueIfHeader
+          ? activatesValueIfOnNextLine
+          : nesting.unmatchedOpeners.length > 0;
       if (!continues) break;
 
-      const next = cursor + 1;
       if (next >= lines.length) {
         invalidContinuationLines.push(cursor + 1);
         break;
       }
       const nextLine = lines[next]!;
-      const nextCode = lexicalLines[next]!.codeText;
       const nextIsBlank = nextLine.trim() === "";
       const nextIsStructural = structuralKind(nextCode) !== null;
-      const nextIsNestedValueIf = /^\s*if\s*\(/.test(nextCode);
+      if (activatesValueIfOnNextLine) {
+        valueIfContinuation = true;
+        awaitingValueIfHeader = false;
+      }
+      const nextIsNestedValueIf = nextIsValueIfHeader;
       const valueIfBoundary = valueIfContinuation &&
         !nextIsStructural &&
         !nextIsNestedValueIf &&
