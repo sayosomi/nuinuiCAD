@@ -64,7 +64,10 @@ import {
 import { vscodeWebviewApi } from "./vscodeWebviewApiContext";
 import type { VscodeMultiDocumentCanvasRuntimePresentation } from "./multiDocumentRuntimeTransport";
 import type { SourceCreationCursor } from "../commands/sourceCreationInsertion";
-import { pickModeCanvasOperationAllowed } from "./pickModeCanvasPolicy";
+import {
+  pickModeCanvasCommandAllowed,
+  pickModeCanvasOperationAllowed
+} from "./pickModeCanvasPolicy";
 
 type VSCodeDrawingCanvasProps = {
   evaluation: EvaluationResult;
@@ -341,13 +344,15 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
     }), [activePickModeSession, selectedElementIds.length, showCanvasGeometryNames, showCanvasPointNames, showCanvasPoints]);
 
     const executeRibbonCommand = useCallback((item: CommandRibbonPresentationCommandItem) => {
+      const currentUiState = useCadUiStore.getState();
+      if (!pickModeCanvasCommandAllowed(item.commandId, currentUiState.activePickModeSession)) return;
       const definition = vscodeCanvasRibbonCommandFor(item.commandId);
       if (!definition || !definition.isAvailable({
-        hasSelection: useCadUiStore.getState().selectedElementIds.length > 0,
-        showCanvasPointNames: useCadUiStore.getState().showCanvasPointNames,
-        showCanvasGeometryNames: useCadUiStore.getState().showCanvasGeometryNames,
-        showCanvasPoints: useCadUiStore.getState().showCanvasPoints,
-        pickModeActive: Boolean(useCadUiStore.getState().activePickModeSession)
+        hasSelection: currentUiState.selectedElementIds.length > 0,
+        showCanvasPointNames: currentUiState.showCanvasPointNames,
+        showCanvasGeometryNames: currentUiState.showCanvasGeometryNames,
+        showCanvasPoints: currentUiState.showCanvasPoints,
+        pickModeActive: Boolean(currentUiState.activePickModeSession)
       })) return;
       drawingCanvasRef.current?.finalizeCanvasInteraction();
       if (definition.hostAction === "editCanvasRibbon") {

@@ -46,6 +46,7 @@ describe("Pick Mode Canvas operation policy", () => {
     ["resetCanvasView", "reset-view"],
     ["fitDrawing", "fit-drawing"],
     ["toggleCanvasPointNames", "presentation-toggle"],
+    ["editCanvasRibbon", "workflow-start"],
     ["zoomInCanvas", "zoom"],
     ["undo", "undo"],
     ["redo", "redo"],
@@ -61,6 +62,7 @@ describe("Pick Mode Canvas operation policy", () => {
     expect(pickModeCanvasCommandAllowed("finishPickMode", activeSession)).toBe(true);
     expect(pickModeCanvasCommandAllowed("cancelPickMode", activeSession)).toBe(true);
     expect(pickModeCanvasCommandAllowed("fitDrawing", activeSession)).toBe(true);
+    expect(pickModeCanvasCommandAllowed("editCanvasRibbon", activeSession)).toBe(false);
     expect(pickModeCanvasCommandAllowed("clearCanvasSelection", activeSession)).toBe(false);
     expect(pickModeCanvasCommandAllowed("undo", activeSession)).toBe(false);
     expect(pickModeCanvasCommandAllowed("addLine", activeSession)).toBe(false);

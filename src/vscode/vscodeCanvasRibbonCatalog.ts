@@ -106,7 +106,8 @@ export const vscodeCanvasRibbonCommandCatalog: Record<
     description: "Open the VS Code setting for Canvas Ribbon items.",
     icon: "settings-2",
     hostAction: "editCanvasRibbon",
-    isAvailable: () => true
+    isAvailable: ({ pickModeActive }) =>
+      pickModeCanvasOperationAllowedForActive("workflow-start", Boolean(pickModeActive))
   }
 };
 

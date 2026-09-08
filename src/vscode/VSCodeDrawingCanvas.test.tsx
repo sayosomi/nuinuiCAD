@@ -157,6 +157,7 @@ describe("VSCodeDrawingCanvas adapter", () => {
     });
     mocks.dispatchCommand.mockReturnValue({ status: "applied" });
     const evaluation = emptyEvaluationResult(useCadDocumentStore.getState().elements);
+    const onEditCanvasRibbon = vi.fn();
     const { adapter } = renderCanvas(evaluation, undefined, vi.fn(), [{
       id: "ribbon",
       label: "Ribbon",
@@ -167,22 +168,26 @@ describe("VSCodeDrawingCanvas adapter", () => {
         { id: "clear", type: "command", commandId: "clearCanvasSelection", icon: "x", showLabel: true },
         { id: "reset", type: "command", commandId: "resetCanvasView", icon: "scan", showLabel: true },
         { id: "fit", type: "command", commandId: "fitDrawing", icon: "maximize", showLabel: true },
-        { id: "names", type: "command", commandId: "toggleCanvasPointNames", icon: "tags", showLabel: true }
+        { id: "names", type: "command", commandId: "toggleCanvasPointNames", icon: "tags", showLabel: true },
+        { id: "edit", type: "command", commandId: "editCanvasRibbon", icon: "settings-2", showLabel: true }
       ]
-    }]);
+    }], onEditCanvasRibbon);
     const overlay = adapter.renderHostOverlay?.({ width: 400, height: 300 });
     if (!overlay) throw new Error("Ribbon overlay was not rendered");
     render(overlay);
 
     expect(screen.getByRole("button", { name: "キャンバス選択を解除" })).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByRole("button", { name: "Edit Canvas Ribbon" })).toHaveAttribute("aria-disabled", "true");
     fireEvent.click(screen.getByRole("button", { name: "キャンバス表示をリセット" }));
     fireEvent.click(screen.getByRole("button", { name: "描画全体を表示" }));
     fireEvent.click(screen.getByRole("button", { name: "Toggle Point Names" }));
+    fireEvent.click(screen.getByRole("button", { name: "Edit Canvas Ribbon" }));
 
     expect(mocks.dispatchCommand).toHaveBeenCalledWith("resetCanvasView", expect.anything());
     expect(mocks.dispatchCommand).toHaveBeenCalledWith("fitDrawing", expect.anything());
     expect(mocks.dispatchCommand).toHaveBeenCalledWith("toggleCanvasPointNames", expect.anything());
     expect(mocks.dispatchCommand).not.toHaveBeenCalledWith("clearCanvasSelection", expect.anything());
+    expect(onEditCanvasRibbon).not.toHaveBeenCalled();
   });
 
   it("commits rectangle selection through the shared command owner with history enabled", () => {
