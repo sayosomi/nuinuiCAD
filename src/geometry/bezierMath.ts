@@ -81,6 +81,17 @@ export const cubicPointAt = (segment: BezierLikeSegment, t: number): Point => {
   };
 };
 
+export const approximateCubicLength = (segment: BezierLikeSegment, steps = 32): number => {
+  let length = 0;
+  let previous = segment.start;
+  for (let step = 1; step <= steps; step += 1) {
+    const next = cubicPointAt(segment, step / steps);
+    length += distance(previous, next);
+    previous = next;
+  }
+  return length;
+};
+
 export const cubicDerivativeAt = (segment: BezierLikeSegment, t: number): Point => {
   const inverse = 1 - t;
   return {

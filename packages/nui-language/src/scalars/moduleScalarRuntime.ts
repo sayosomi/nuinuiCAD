@@ -2623,7 +2623,8 @@ export const compileModuleScalarRuntime = ({
               ? { kind: "arc" as const, center, radius, startAngleDeg, endAngleDeg, direction }
               : null;
             })()
-          : (() => {
+          : value.construction.kind === "through"
+            ? (() => {
               const point1 = lowerGeometryValuePoint(value.construction.point1, context, executionPosition);
               const point2 = lowerGeometryValuePoint(value.construction.point2, context, executionPosition);
               const point3 = lowerGeometryValuePoint(value.construction.point3, context, executionPosition);
@@ -2632,7 +2633,27 @@ export const compileModuleScalarRuntime = ({
               return point1 && point2 && point3 && startAngleDeg && endAngleDeg
                 ? { kind: "through" as const, point1, point2, point3, startAngleDeg, endAngleDeg }
                 : null;
-            })();
+            })()
+            : (() => {
+                const start = lowerGeometryValuePoint(value.construction.start, context, executionPosition);
+                const end = lowerGeometryValuePoint(value.construction.end, context, executionPosition);
+                const startAngleDeg = value.construction.startAngle ? lowerGeometryValueScalar(value.construction.startAngle, context) : null;
+                const startLength = value.construction.startLength ? lowerGeometryValueScalar(value.construction.startLength, context) : null;
+                const endAngleDeg = value.construction.endAngle ? lowerGeometryValueScalar(value.construction.endAngle, context) : null;
+                const endLength = value.construction.endLength ? lowerGeometryValueScalar(value.construction.endLength, context) : null;
+                const intermediates = value.construction.intermediates.flatMap((intermediate) => {
+                  const point = lowerGeometryValuePoint(intermediate.point, context, executionPosition);
+                  const angleDeg = intermediate.angle ? lowerGeometryValueScalar(intermediate.angle, context) : null;
+                  const incomingLength = intermediate.incomingLength ? lowerGeometryValueScalar(intermediate.incomingLength, context) : null;
+                  const outgoingLength = intermediate.outgoingLength ? lowerGeometryValueScalar(intermediate.outgoingLength, context) : null;
+                  return point && angleDeg && incomingLength && outgoingLength
+                    ? [{ point, angleDeg, incomingLength, outgoingLength }]
+                    : [];
+                });
+                return start && end && startAngleDeg && startLength && endAngleDeg && endLength && intermediates.length === value.construction.intermediates.length
+                  ? { kind: "bezier" as const, start, end, startAngleDeg, startLength, endAngleDeg, endLength, intermediates }
+                  : null;
+              })();
     if (!construction) return;
     geometryValueProgramEntries.push({
       sourceStatementId: value.statementId,

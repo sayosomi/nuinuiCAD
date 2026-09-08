@@ -122,6 +122,17 @@ pub(crate) fn cubic_point(segment: &Value, t: f64) -> Option<Point> {
     })
 }
 
+pub(crate) fn approximate_cubic_length(segment: &Value, steps: usize) -> Option<f64> {
+    let mut length = 0.0;
+    let mut previous = cubic_point(segment, 0.0)?;
+    for step in 1..=steps {
+        let next = cubic_point(segment, step as f64 / steps as f64)?;
+        length += distance(previous, next);
+        previous = next;
+    }
+    Some(length)
+}
+
 pub(crate) fn cubic_derivative(segment: &Value, t: f64) -> Option<Point> {
     let start = segment.get("start").and_then(value_point)?;
     let control1 = segment.get("control1").and_then(value_point)?;

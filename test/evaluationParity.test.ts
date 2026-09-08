@@ -177,6 +177,60 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("matches pure bezier values, intermediates, and invalid-input diagnostics across TypeScript and Rust", () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "const Start: point = coordinate(x: 0, y: 0)",
+      "const Middle: point = coordinate(x: 5, y: 2)",
+      "const End: point = coordinate(x: 10, y: 0)",
+      "const Valid: path = bezier(start: @Start, end: @End, startAngle: 0, startLength: 3, endAngle: 180, endLength: 4, intermediates: [@Middle: 90: 1: 2])",
+      "const Invalid: path = bezier(start: (0, 0), end: (10, 0), startAngle: 0, startLength: 10 / 0, endAngle: 180, endLength: 2)"
+    ].join("\n"));
+    const program = fixture.compiled?.doc.geometryValueProgram;
+    if (!program) throw new Error("expected pure bezier geometry value program entries");
+    const validEntry = program.find((entry) => entry.construction.kind === "bezier" && entry.sourceStatementIndex === 4);
+    const invalidEntry = program.find((entry) => entry.construction.kind === "bezier" && entry.sourceStatementIndex === 5);
+    if (!validEntry || !invalidEntry) throw new Error("expected valid and invalid pure bezier program entries");
+    const options = optionsFor(fixture);
+
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustOptions(repoRoot, fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+
+    const ts = evaluationPayloadToResult(tsPayload);
+    const rust = evaluationPayloadToResult(rustPayload);
+    const sameOccurrence = (
+      left: typeof validEntry.occurrence,
+      right: typeof validEntry.occurrence
+    ) => left.sourceStatementId === right.sourceStatementId &&
+      left.instancePath.length === right.instancePath.length &&
+      left.instancePath.every((value, index) => value === right.instancePath[index]);
+    const valueFor = (
+      result: ReturnType<typeof evaluationPayloadToResult>,
+      occurrence: typeof validEntry.occurrence
+    ) => [...(result.computedGeometryValues?.values() ?? [])]
+      .find((entry) => sameOccurrence(entry.occurrence, occurrence))?.value;
+
+    for (const result of [ts, rust]) {
+      expect(result.errors).toEqual([]);
+      expect(result.geometryValueErrors).toEqual([{
+        occurrence: invalidEntry.occurrence,
+        message: "Bezier geometry value construction inputs are unavailable or invalid."
+      }]);
+      expect(valueFor(result, validEntry.occurrence)).toMatchObject({
+        kind: "bezierCurve",
+        segments: [
+          { start: { x: 0, y: 0 }, control1: { x: 3, y: 0 }, control2: { x: 5, y: 1 }, end: { x: 5, y: 2 } },
+          { start: { x: 5, y: 2 }, control1: { x: 5, y: 4 }, control2: { x: 14 }, end: { x: 10, y: 0 } }
+        ]
+      });
+      expect(valueFor(result, validEntry.occurrence)).not.toHaveProperty("elementId");
+      expect(valueFor(result, invalidEntry.occurrence)).toBeUndefined();
+      expect(result.geometryValueErrors?.every((error) => !("elementId" in error))).toBe(true);
+    }
+  }, 30000);
+
   it("matches root collection length evaluation across TypeScript and Rust", () => {
     const fixture = fixtureFromSource([
       "nui 1",

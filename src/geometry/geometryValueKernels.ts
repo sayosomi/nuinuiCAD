@@ -1,4 +1,6 @@
 import type { ArcDirection } from "../types/geometry";
+import type { ComputedGeometryValueBezierCurve } from "./evaluationTypes";
+import { approximateCubicLength, type BezierLikeSegment } from "./bezierMath";
 import { CIRCLE_EPSILON, degreesToRadians, directedSweepDegrees } from "./evaluateGeometryPrimitives";
 import { arcTangentAngles, lineTangentAngles } from "./lineMeasurements";
 
@@ -103,4 +105,51 @@ export const throughArcGeometryKernel = (
     return null;
   }
   return arcGeometryKernel({ x: centerX, y: centerY }, radius, startAngleDeg, endAngleDeg, "counterclockwise");
+};
+
+export type BezierGeometryIntermediate = {
+  point: StructuralPoint;
+  angleDeg: number;
+  incomingLength: number;
+  outgoingLength: number;
+};
+
+const bezierHandlePoint = (point: StructuralPoint, angleDeg: number, length: number): StructuralPoint => {
+  const angleRad = degreesToRadians(angleDeg);
+  return {
+    x: point.x + Math.cos(angleRad) * length,
+    y: point.y + Math.sin(angleRad) * length
+  };
+};
+
+export const bezierGeometryKernel = (
+  start: StructuralPoint,
+  end: StructuralPoint,
+  startAngleDeg: number,
+  startLength: number,
+  endAngleDeg: number,
+  endLength: number,
+  intermediates: readonly BezierGeometryIntermediate[]
+): ComputedGeometryValueBezierCurve | null => {
+  const anchors = [start, ...intermediates.map((intermediate) => intermediate.point), end];
+  const outgoingHandles = [
+    bezierHandlePoint(start, startAngleDeg, startLength),
+    ...intermediates.map((intermediate) => bezierHandlePoint(intermediate.point, intermediate.angleDeg, intermediate.outgoingLength))
+  ];
+  const incomingHandles = [
+    ...intermediates.map((intermediate) => bezierHandlePoint(intermediate.point, intermediate.angleDeg + 180, intermediate.incomingLength)),
+    bezierHandlePoint(end, endAngleDeg + 180, endLength)
+  ];
+  const segments: BezierLikeSegment[] = anchors.slice(0, -1).map((anchor, index) => ({
+    start: anchor,
+    control1: outgoingHandles[index]!,
+    control2: incomingHandles[index]!,
+    end: anchors[index + 1]!
+  }));
+  if (segments.some((segment) => Object.values(segment).some((point) => !Number.isFinite(point.x) || !Number.isFinite(point.y)))) return null;
+  return {
+    kind: "bezierCurve",
+    segments,
+    length: segments.reduce((sum, segment) => sum + approximateCubicLength(segment), 0)
+  };
 };

@@ -1041,6 +1041,10 @@ const originPoint: point = coordinate(x: 10, y: 20)
 const edge: line = segment(start: @originPoint, end: (30, 20))
 const outline: path = segment(start: @originPoint, end: (30, 20))
 const roundedOutline: path = arc(center: @originPoint, radius: 10, start: 0, end: 90)
+const curvedOutline: path = bezier(
+  start: @originPoint, end: (30, 20),
+  startAngle: 0, startLength: 10, endAngle: 180, endLength: 10
+)
 ```
 
 `coordinate` produces `point`; `segment` produces strict `line`; and direct
@@ -1058,9 +1062,15 @@ is a `path` construction with `point1`, `point2`, and `point3`, plus optional
 `start` and `end` angles defaulting to 0 and 90 degrees; it is counterclockwise.
 Duplicate or collinear points fail at runtime through the occurrence-owned
 geometry-value diagnostic channel. Geometry consumers resolve these values
-through the shared runtime target boundary. Pure `bezier`, `offset`, `corner`,
-`polyline`, and other deferred constructions remain unsupported; direct
-`arc(...)` remains implemented.
+through the shared runtime target boundary. Pure `bezier(...)` is also a
+`path` construction and accepts the drawable Bezier arguments `start`, `end`,
+`startAngle`, `startLength`, `endAngle`, `endLength`, and optional
+`intermediates`. It stores identity-free cubic segment geometry and its
+computed length, supports multiple intermediate segments, and is consumable by
+the existing path-compatible readers. Unavailable or non-finite Bezier inputs
+fail through the occurrence-owned geometry-value diagnostic channel; they do
+not create a drawable identity. Pure `offset`, `corner`, `polyline`, and other
+deferred constructions remain unsupported.
 
 The same form is available for root declarations, module locals, and exported
 members. Module parameters are declared in the Module signature rather than

@@ -70,14 +70,16 @@ export const resolveDocumentGeometryProperty = (
       const value = (() => {
         if (entry.value.kind === "point") return reference.property === "x" ? entry.value.x : reference.property === "y" ? entry.value.y : undefined;
         if (reference.property === "length") return entry.value.length;
-        if (reference.geometryValuePointKey === "start" && reference.property === "x") return entry.value.start.x;
-        if (reference.geometryValuePointKey === "start" && reference.property === "y") return entry.value.start.y;
-        if (reference.geometryValuePointKey === "end" && reference.property === "x") return entry.value.end.x;
-        if (reference.geometryValuePointKey === "end" && reference.property === "y") return entry.value.end.y;
-        if (reference.property === "start.x" || reference.property === "startPoint.x") return entry.value.start.x;
-        if (reference.property === "start.y" || reference.property === "startPoint.y") return entry.value.start.y;
-        if (reference.property === "end.x" || reference.property === "endPoint.x") return entry.value.end.x;
-        if (reference.property === "end.y" || reference.property === "endPoint.y") return entry.value.end.y;
+        const start = entry.value.kind === "bezierCurve" ? entry.value.segments[0]?.start : entry.value.start;
+        const end = entry.value.kind === "bezierCurve" ? entry.value.segments.at(-1)?.end : entry.value.end;
+        if (reference.geometryValuePointKey === "start" && reference.property === "x") return start?.x;
+        if (reference.geometryValuePointKey === "start" && reference.property === "y") return start?.y;
+        if (reference.geometryValuePointKey === "end" && reference.property === "x") return end?.x;
+        if (reference.geometryValuePointKey === "end" && reference.property === "y") return end?.y;
+        if (reference.property === "start.x" || reference.property === "startPoint.x") return start?.x;
+        if (reference.property === "start.y" || reference.property === "startPoint.y") return start?.y;
+        if (reference.property === "end.x" || reference.property === "endPoint.x") return end?.x;
+        if (reference.property === "end.y" || reference.property === "endPoint.y") return end?.y;
         return computedReferencePathValue(entry.value as never, reference.property);
       })();
       return typeof value === "number"
