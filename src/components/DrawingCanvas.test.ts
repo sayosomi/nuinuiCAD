@@ -625,6 +625,33 @@ describe("DrawingCanvas rendering", () => {
     expect(container.querySelector(".canvas-hover-identity-candidate-menu")).toBeNull();
   });
 
+  it("keeps ordinary Canvas interaction when a semantic target has no matching Pick Mode session", () => {
+    const target = { elementId: "line-ab", parameterKey: "startPoint" as const };
+    const view = renderWithHostAdapter({
+      activePointPickTarget: target,
+      activePickModeSession: {
+        kind: "point",
+        targetElementId: "stale-target",
+        targetParameterKey: target.parameterKey,
+        selectionCardinality: "single"
+      }
+    });
+
+    expect(view.viewport).not.toHaveClass("is-point-picking");
+    expect(view.container.querySelectorAll(".overlay-derived-point-pick-candidate")).toHaveLength(0);
+
+    fireEvent.pointerDown(view.viewport, {
+      button: 0,
+      buttons: 1,
+      clientX: 350,
+      clientY: 250,
+      pointerId: 1
+    });
+
+    expect(view.hostAdapter.applyPickedPoint).not.toHaveBeenCalled();
+    expect(view.hostAdapter.selectElement).toHaveBeenCalled();
+  });
+
   it.each([
     ["no modifier", {}],
     ["Meta", { metaKey: true }],
