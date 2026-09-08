@@ -3858,23 +3858,69 @@ textarea {
 }
 
 .pick-mode-status-selection {
-  display: flex;
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  font-size: 11px;
+}
+
+.pick-mode-status-list {
+  display: grid;
+  gap: 3px;
+  max-height: min(180px, 28vh);
+  margin: 0;
+  overflow: auto;
+  padding: 0 3px 0 22px;
+}
+
+.pick-mode-status-list-item {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
   align-items: center;
   gap: 4px;
   min-width: 0;
+  border: 1px solid rgb(255 255 255 / 22%);
+  border-radius: 5px;
+  background: rgb(0 0 0 / 10%);
+  padding: 2px 3px;
+}
+
+.pick-mode-status-list-item:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 1px;
+}
+
+.pick-mode-status-list-index {
+  color: rgb(255 255 255 / 68%);
+  text-align: right;
+}
+
+.pick-mode-status-list-label {
+  min-width: 0;
   overflow: hidden;
-  font-size: 11px;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.pick-mode-status-chip {
-  max-width: 110px;
-  overflow: hidden;
+.pick-mode-status-list-actions {
+  display: flex;
+  gap: 2px;
+}
+
+.pick-mode-status-list-actions button {
+  min-width: 22px;
+  margin-left: 0;
   border: 1px solid rgb(255 255 255 / 30%);
-  border-radius: 999px;
   background: rgb(0 0 0 / 13%);
-  padding: 1px 6px;
-  text-overflow: ellipsis;
+  color: #ffffff;
+  padding: 1px 4px;
+  font-size: 11px;
+  line-height: 1.1;
+}
+
+.pick-mode-status-list-actions button:disabled {
+  cursor: default;
+  opacity: 0.38;
 }
 
 .pick-mode-status kbd {
@@ -3954,6 +4000,19 @@ textarea {
   stroke: color-mix(in srgb, var(--canvas-selection) 30%, transparent);
 }
 
+.drawing-overlay .overlay-normal-selection-layer {
+  stroke-width: 13;
+  opacity: 0.72;
+}
+
+.drawing-overlay .overlay-pick-selected-line {
+  stroke: var(--canvas-pick-candidate);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 8;
+  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--canvas-pick-candidate) 62%, transparent));
+}
+
 .drawing-overlay [data-numeric-reference-candidate="true"] {
   stroke: color-mix(in srgb, var(--canvas-pick-candidate) 34%, transparent);
   stroke-width: 13;
@@ -4029,6 +4088,14 @@ textarea {
   fill: color-mix(in srgb, var(--canvas-background) 78%, transparent);
   stroke: color-mix(in srgb, var(--canvas-pick-candidate) 72%, transparent);
   stroke-width: 2.25;
+}
+
+.drawing-overlay .overlay-pick-selected-point,
+.drawing-overlay .overlay-draft-point-pick {
+  fill: color-mix(in srgb, var(--canvas-pick-candidate) 14%, transparent);
+  stroke: var(--canvas-pick-candidate);
+  stroke-width: 2.5;
+  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--canvas-pick-candidate) 60%, transparent));
 }
 
 .canvas-viewport.is-point-picking .overlay-bezier-handle {

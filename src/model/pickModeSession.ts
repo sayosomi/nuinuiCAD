@@ -172,6 +172,11 @@ export const movePickModeDraftEntry = (
   return next;
 };
 
+export const removePickModeDraftEntry = (
+  draft: readonly PickModeDraftEntry[],
+  key: string
+) => draft.filter((entry) => entry.key !== key);
+
 export const pickModeSessionForTarget = (
   kind: PickModeKind,
   target: PickModeSemanticTarget | null,
