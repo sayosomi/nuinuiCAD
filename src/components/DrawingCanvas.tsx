@@ -295,6 +295,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       .filter((element) => !documentElementIds.has(element.id) && !hostAdapter.runtimeElementIds?.has(element.id))
       .map((element) => element.id));
   }, [documentElements, elements, hostAdapter.runtimeElementIds]);
+  const hasCommandLineGhost = Boolean(commandLineSession && previewElementIds.size > 0);
   const commandLinePlacement = useMemo(
     () => commandLineSession
       ? creationPlacementForTarget(
@@ -995,6 +996,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     rectangleSelectionSession ||
     pendingPointerState.kind === "waiting" ||
     isPickModeActive ||
+    hasCommandLineGhost ||
     overlapCandidateSession ||
     !evaluationStateIsCurrentFor(evaluationState, compiledDocumentRevision)
   );
@@ -1256,6 +1258,11 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       return;
     }
 
+    if (hasCommandLineGhost) {
+      focusCanvas();
+      return;
+    }
+
     setPointPickCandidateMenu(null);
     setLinePickCandidateMenu(null);
     setMeasurementCandidateMenu(null);
@@ -1406,6 +1413,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     isLinePickActive,
     isNumericReferencePickActive,
     isPointPickActive,
+    hasCommandLineGhost,
     linePickCandidatesAt,
     numericReferenceCandidatesAt,
     hitCandidatesAt,

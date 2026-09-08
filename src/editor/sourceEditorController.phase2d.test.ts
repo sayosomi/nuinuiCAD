@@ -9,6 +9,7 @@ import type { PositionedDiagnostic } from "./sourceEditorDiagnostics";
 import type { AtStopRange } from "./statementRangeIndex";
 import type { EvaluationResult } from "../types/geometry";
 import { evaluateElements } from "../geometry/evaluate";
+import { pickModeSessionForTarget } from "../model/pickModeSession";
 
 const forGroupSource = () => dslTextForElements([
   { id: "loop", name: "繰返し", type: "forGroup", activity: "visible", variableName: "i", min: 0, max: 1, step: 1, showGenerated: true },
@@ -431,10 +432,9 @@ describe("SourceEditorController Escape priority chain", () => {
 
   it("cancels an active pick mode before falling back to canvas focus", () => {
     const onRequestCanvasFocus = vi.fn();
-    useCadUiStore.setState({
-      ...useCadUiStore.getState(),
-      activePointPickTarget: { elementId: "e1", parameterKey: "startPoint" as never }
-    });
+    const activePointPickTarget = { elementId: "e1", parameterKey: "startPoint" as never };
+    useCadUiStore.getState().setActivePointPickTarget(activePointPickTarget);
+    useCadUiStore.getState().setActivePickModeSession(pickModeSessionForTarget("point", activePointPickTarget));
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent, undefined, undefined, {
       onRequestCanvasFocus,
@@ -495,7 +495,9 @@ describe("SourceEditorController flushed pick safety", () => {
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
-    useCadUiStore.getState().setActivePointPickTarget({ elementId: "missing", parameterKey: "startPoint" as never });
+    const activePointPickTarget = { elementId: "missing", parameterKey: "startPoint" as never };
+    useCadUiStore.getState().setActivePointPickTarget(activePointPickTarget);
+    useCadUiStore.getState().setActivePickModeSession(pickModeSessionForTarget("point", activePointPickTarget));
     useCadUiStore.getState().setActivePickCursor({ elementId: "removed-element", optionIndex: 0 });
     internals.view.dispatch({ changes: { from: internals.view.state.doc.length, insert: "\n// pending" } });
 
@@ -670,10 +672,12 @@ describe("SourceEditorController structural shortcuts", () => {
 
   it("yields structural shortcuts to pick navigation while a pick target is active", () => {
     const { controller, content } = buildController();
-    useCadUiStore.getState().setActivePointPickTarget({
+    const activePointPickTarget = {
       elementId: "target-element",
       parameterKey: "startPoint" as never
-    });
+    };
+    useCadUiStore.getState().setActivePointPickTarget(activePointPickTarget);
+    useCadUiStore.getState().setActivePickModeSession(pickModeSessionForTarget("point", activePointPickTarget));
 
     fireEvent.keyDown(content, { key: "]", ctrlKey: true });
     fireEvent.keyDown(content, { key: "ArrowUp", ctrlKey: true });
