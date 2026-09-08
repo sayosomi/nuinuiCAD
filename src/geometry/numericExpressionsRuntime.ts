@@ -2,6 +2,7 @@ import type {
   CadElement,
   ComputedGeometry,
   ComputedGeometryValue,
+  ComputedGeometryValueOffsetLineSegment,
   ComputedLine,
   ComputedOffsetLineSegment,
   ComputedPoint,
@@ -28,6 +29,7 @@ import {
 import { numericGeometryStaticTargetForComputedGeometry } from "./numericGeometryPropertiesRuntime";
 
 const EPSILON = 1e-9;
+type OffsetLineSegment = ComputedOffsetLineSegment | ComputedGeometryValueOffsetLineSegment;
 
 const pointValueFromAnchor = ({
   anchor,
@@ -79,12 +81,12 @@ const finitePointDistance = (from: { x: number; y: number }, to: { x: number; y:
 const reverseDirection = (angle: number | undefined) =>
   angle === undefined ? undefined : normalizeDirectionDegrees(angle + 180);
 
-const bezierStartForwardDirection = (segment: BezierLikeSegment | Extract<ComputedOffsetLineSegment, { kind: "bezier" }>) =>
+const bezierStartForwardDirection = (segment: BezierLikeSegment | Extract<OffsetLineSegment, { kind: "bezier" }>) =>
   directionAngle(segment.start, segment.control1) ??
   directionAngle(segment.start, segment.control2) ??
   directionAngle(segment.start, segment.end);
 
-const bezierEndForwardDirection = (segment: BezierLikeSegment | Extract<ComputedOffsetLineSegment, { kind: "bezier" }>) =>
+const bezierEndForwardDirection = (segment: BezierLikeSegment | Extract<OffsetLineSegment, { kind: "bezier" }>) =>
   directionAngle(segment.control2, segment.end) ??
   directionAngle(segment.control1, segment.end) ??
   directionAngle(segment.start, segment.end);
@@ -108,7 +110,7 @@ const lastInteriorDirection = <T>(
   return undefined;
 };
 
-const offsetSegmentStartDirection = (segment: ComputedOffsetLineSegment) => {
+const offsetSegmentStartDirection = (segment: OffsetLineSegment) => {
   if (segment.kind === "line") return directionAngle(segment.start, segment.end);
   if (segment.kind === "bezier") return bezierStartForwardDirection(segment);
   if (Math.abs(segment.radius) <= EPSILON || Math.abs(segment.sweepAngleDeg) <= EPSILON) return undefined;
@@ -119,7 +121,7 @@ const offsetSegmentStartDirection = (segment: ComputedOffsetLineSegment) => {
   );
 };
 
-const offsetSegmentEndForwardDirection = (segment: ComputedOffsetLineSegment) => {
+const offsetSegmentEndForwardDirection = (segment: OffsetLineSegment) => {
   if (segment.kind === "line") return directionAngle(segment.start, segment.end);
   if (segment.kind === "bezier") return bezierEndForwardDirection(segment);
   if (Math.abs(segment.radius) <= EPSILON || Math.abs(segment.sweepAngleDeg) <= EPSILON) return undefined;

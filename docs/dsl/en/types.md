@@ -64,8 +64,10 @@ Single-geometry values are `const`-only. Pure `bezier(...)` is a supported
 `closed` arguments; it stores ordered identity-free line segments, preserves
 duplicate points, and requires at least two open points or three closed points.
 Invalid runtime inputs fail through the occurrence-owned geometry-value
-diagnostic channel. Pure `offset`, `corner`, and other deferred constructions
-remain unsupported.
+diagnostic channel. Point and path `offset(...)` are also implemented pure
+initializers; they reuse the corresponding drawable offset geometry and remain
+consumable by existing point/path-compatible readers. `corner` and other
+deferred constructions remain unsupported.
 
 ## One-dimensional arrays
 

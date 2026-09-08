@@ -273,6 +273,55 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("matches pure point and line offset values, joins, and occurrence diagnostics across TypeScript and Rust", () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "point BasePoint = coordinate(x: 1, y: 2)",
+      "line AB = segment(start: (0, 0), end: (10, 0))",
+      "line BC = segment(start: (10, 0), end: (10, 10))",
+      "line CA = segment(start: (10, 10), end: (0, 0))",
+      "line CD = segment(start: (20, 0), end: (30, 0))",
+      "const Point: point = offset(from: @BasePoint, dx: 1 + 2, dy: -4)",
+      "const Open: path = offset(sources: [@AB, @BC], distance: 2, side: right, closed: false, suppressTrimWarnings: false)",
+      "const Closed: path = offset(sources: [@AB, @BC, @CA], distance: 2, side: right, closed: true, suppressTrimWarnings: false)",
+      "const Invalid: path = offset(sources: [@AB, @CD], distance: 1, side: right, closed: false, suppressTrimWarnings: false)",
+      "line Use = segment(start: @Point, end: @Open.start)"
+    ].join("\n"));
+    const program = fixture.compiled?.doc.geometryValueProgram;
+    if (!program) throw new Error("expected pure offset geometry value program entries");
+    const pointEntry = program.find((entry) => entry.construction.kind === "offsetPoint");
+    const openEntry = program.find((entry) => entry.construction.kind === "offsetPath" && entry.sourceStatementIndex === 7);
+    const closedEntry = program.find((entry) => entry.construction.kind === "offsetPath" && entry.sourceStatementIndex === 8);
+    const invalidEntry = program.find((entry) => entry.construction.kind === "offsetPath" && entry.sourceStatementIndex === 9);
+    if (!pointEntry || !openEntry || !closedEntry || !invalidEntry) throw new Error("expected point, open, closed, and invalid offset entries");
+    const options = optionsFor(fixture);
+
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustOptions(repoRoot, fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+
+    const valueFor = (
+      payload: ReturnType<typeof evaluationPayloadToResult>,
+      occurrence: typeof pointEntry.occurrence
+    ) => [...(payload.computedGeometryValues?.values() ?? [])]
+      .find((entry) => entry.occurrence.sourceStatementId === occurrence.sourceStatementId && entry.occurrence.instancePath.join("\0") === occurrence.instancePath.join("\0"))?.value;
+    for (const payload of [evaluationPayloadToResult(tsPayload), evaluationPayloadToResult(rustPayload)]) {
+      expect(payload.errors).toEqual([]);
+      expect(valueFor(payload, pointEntry.occurrence)).toEqual({ kind: "point", x: 4, y: -2 });
+      expect(valueFor(payload, pointEntry.occurrence)).not.toHaveProperty("elementId");
+      expect(valueFor(payload, openEntry.occurrence)).toMatchObject({ kind: "offsetLine", closed: false, start: { x: 0, y: -2 }, end: { x: 12, y: 10 } });
+      expect(valueFor(payload, closedEntry.occurrence)).toMatchObject({ kind: "offsetLine", closed: true });
+      expect(valueFor(payload, closedEntry.occurrence)).not.toHaveProperty("name");
+      expect(valueFor(payload, invalidEntry.occurrence)).toBeUndefined();
+      expect(payload.geometryValueErrors).toEqual([{
+        occurrence: invalidEntry.occurrence,
+        message: "geometry value の sources は前の線.end から次の線.start へ連続していません。reverse を使うか順序を見直してください。"
+      }]);
+      expect(payload.geometryValueErrors?.every((error) => !("elementId" in error))).toBe(true);
+    }
+  }, 30000);
+
   it("matches root collection length evaluation across TypeScript and Rust", () => {
     const fixture = fixtureFromSource([
       "nui 1",

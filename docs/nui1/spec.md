@@ -1077,8 +1077,16 @@ construction and accepts the drawable `points` and `closed` arguments. It
 stores ordered identity-free line segments, preserves duplicate points, adds a
 closing segment only when needed, and requires at least two open points or
 three closed points. Unavailable points and invalid cardinality fail through
-the occurrence-owned geometry-value diagnostic channel. Pure `offset`,
-`corner`, and other deferred constructions remain unsupported.
+the occurrence-owned geometry-value diagnostic channel. Point
+`offset(from: ..., dx: ..., dy: ...)` is an implemented pure `point`
+initializer using the drawable point-offset semantics and defaults. Path
+`offset(sources: ..., distance: ..., side: ..., closed: ..., suppressTrimWarnings: ...)`
+is an implemented pure `path` initializer using the drawable line-offset
+geometry, ordering, defaults, validation, and trimming behavior. Both pure
+forms are identity-free and remain consumable by the existing compatible
+geometry readers; runtime failures use the occurrence-owned geometry-value
+diagnostic channel. `corner` and other deferred constructions remain
+unsupported.
 
 The same form is available for root declarations, module locals, and exported
 members. Module parameters are declared in the Module signature rather than

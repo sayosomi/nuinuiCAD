@@ -475,6 +475,10 @@ export const analyzeModuleBody = ({
         if (construction?.kind === "coordinate") {
           if (construction.x) addScalar(bodySemantic, "construction:x", construction.x.ast.span, construction.x);
           if (construction.y) addScalar(bodySemantic, "construction:y", construction.y.ast.span, construction.y);
+        } else if (construction?.kind === "offsetPoint") {
+          addGeometry(bodySemantic, "construction:from", construction.from.span, construction.from);
+          if (construction.dx) addScalar(bodySemantic, "construction:dx", construction.dx.ast.span, construction.dx);
+          if (construction.dy) addScalar(bodySemantic, "construction:dy", construction.dy.ast.span, construction.dy);
         } else if (construction?.kind === "segment") {
           addGeometry(bodySemantic, "construction:start", construction.start.span, construction.start);
           addGeometry(bodySemantic, "construction:end", construction.end.span, construction.end);
@@ -508,6 +512,14 @@ export const analyzeModuleBody = ({
             addGeometry(bodySemantic, `construction:points:${index}`, point.span, point);
           });
           if (construction.closed) addScalar(bodySemantic, "construction:closed", construction.closed.ast.span, construction.closed);
+        } else if (construction?.kind === "offsetPath") {
+          construction.sources.forEach((source, index) => {
+            addGeometry(bodySemantic, `construction:sources:${index}`, source.span, source);
+          });
+          if (construction.distance) addScalar(bodySemantic, "construction:distance", construction.distance.ast.span, construction.distance);
+          if (construction.side) addScalar(bodySemantic, "construction:side", construction.side.ast.span, construction.side);
+          if (construction.closed) addScalar(bodySemantic, "construction:closed", construction.closed.ast.span, construction.closed);
+          if (construction.suppressTrimWarnings) addScalar(bodySemantic, "construction:suppressTrimWarnings", construction.suppressTrimWarnings.ast.span, construction.suppressTrimWarnings);
         }
         const value: ModuleGeometryValueSemantic = {
           statementId,

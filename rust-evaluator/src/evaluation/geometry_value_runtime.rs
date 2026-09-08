@@ -2,9 +2,11 @@ use serde_json::{json, Value};
 
 use super::bezier_math::approximate_cubic_length;
 use super::geometry_value_kernels::{
-    coordinate_geometry_kernel, direct_arc_geometry_kernel, polyline_geometry_kernel,
-    segment_geometry_kernel, through_arc_geometry_kernel, StructuralPoint,
+    coordinate_geometry_kernel, direct_arc_geometry_kernel, offset_point_geometry_kernel,
+    polyline_geometry_kernel, segment_geometry_kernel, through_arc_geometry_kernel,
+    StructuralPoint,
 };
+use super::offset_paths::{build_offset_line_geometry, is_line_like_geometry};
 use super::point_anchor::point_from_geometry;
 use super::scalar_expression_runtime::evaluate_document_typed_expression;
 use super::scalars::{
@@ -51,6 +53,11 @@ pub(crate) enum GeometryValueConstruction {
         x: Box<TypedScalarExpression>,
         y: Box<TypedScalarExpression>,
     },
+    OffsetPoint {
+        from: Box<GeometryValuePoint>,
+        dx: Box<TypedScalarExpression>,
+        dy: Box<TypedScalarExpression>,
+    },
     Segment {
         start: Box<GeometryValuePoint>,
         end: Box<GeometryValuePoint>,
@@ -81,6 +88,13 @@ pub(crate) enum GeometryValueConstruction {
     Polyline {
         points: Vec<GeometryValuePoint>,
         closed: Box<TypedScalarExpression>,
+    },
+    OffsetPath {
+        sources: Vec<super::scalars::ScalarExpressionResolvedGeometryTarget>,
+        distance: Box<TypedScalarExpression>,
+        side: Box<TypedScalarExpression>,
+        closed: Box<TypedScalarExpression>,
+        suppress_trim_warnings: Box<TypedScalarExpression>,
     },
 }
 
@@ -277,6 +291,21 @@ fn decode_entry(value: &Value) -> Result<GeometryValueProgramEntry, String> {
                     .map_err(|error| format!("{error:?}"))?,
                 ),
             },
+            "offsetPoint" => GeometryValueConstruction::OffsetPoint {
+                from: Box::new(decode_point(construction_object.get("from").ok_or_else(
+                    || "geometry value offsetPoint is missing from".to_owned(),
+                )?)?),
+                dx: Box::new(decode_typed_field(
+                    construction_object,
+                    "dx",
+                    "geometry value offsetPoint",
+                )?),
+                dy: Box::new(decode_typed_field(
+                    construction_object,
+                    "dy",
+                    "geometry value offsetPoint",
+                )?),
+            },
             "segment" => GeometryValueConstruction::Segment {
                 start: Box::new(decode_point(
                     construction_object
@@ -444,6 +473,48 @@ fn decode_entry(value: &Value) -> Result<GeometryValueProgramEntry, String> {
                     "geometry value polyline",
                 )?),
             },
+            "offsetPath" => GeometryValueConstruction::OffsetPath {
+                sources: construction_object
+                    .get("sources")
+                    .and_then(Value::as_array)
+                    .ok_or_else(|| "geometry value offsetPath is missing sources".to_owned())?
+                    .iter()
+                    .enumerate()
+                    .map(|(index, source)| {
+                        let target_payload = source
+                            .as_object()
+                            .and_then(|object| object.get("target"))
+                            .unwrap_or(source);
+                        super::scalars::decode_geometry_target_payload(target_payload)
+                            .map_err(|error| {
+                                format!("geometry value offsetPath source {index}: {error:?}")
+                            })?
+                            .ok_or_else(|| {
+                                format!("geometry value offsetPath source {index} cannot be null")
+                            })
+                    })
+                    .collect::<Result<Vec<_>, _>>()?,
+                distance: Box::new(decode_typed_field(
+                    construction_object,
+                    "distance",
+                    "geometry value offsetPath",
+                )?),
+                side: Box::new(decode_typed_field(
+                    construction_object,
+                    "side",
+                    "geometry value offsetPath",
+                )?),
+                closed: Box::new(decode_typed_field(
+                    construction_object,
+                    "closed",
+                    "geometry value offsetPath",
+                )?),
+                suppress_trim_warnings: Box::new(decode_typed_field(
+                    construction_object,
+                    "suppressTrimWarnings",
+                    "geometry value offsetPath",
+                )?),
+            },
             kind => {
                 return Err(format!(
                     "unsupported geometry value construction kind {kind}"
@@ -525,6 +596,21 @@ fn choice_expression(
     }
 }
 
+fn side_expression(
+    expression: &TypedScalarExpression,
+    resolver: &dyn ScalarDocumentBindingResolver,
+    state: &EvaluationState,
+    source_order: f64,
+) -> Option<String> {
+    match evaluate_document_typed_expression(expression, resolver, state, Some(source_order)) {
+        ScalarEvaluation::Ok {
+            r#type: ScalarType::Choice { .. },
+            value: ScalarValue::Choice { value, .. },
+        } if value == "left" || value == "right" => Some(value),
+        _ => None,
+    }
+}
+
 fn target_point(
     target: &super::scalars::ScalarExpressionResolvedGeometryTarget,
     state: &EvaluationState,
@@ -567,6 +653,36 @@ fn target_point(
             .map(|point| (point.x, point.y));
     }
     point_from_geometry(geometry).map(|point| (point.x, point.y))
+}
+
+fn target_geometry<'a>(
+    target: &super::scalars::ScalarExpressionResolvedGeometryTarget,
+    state: &'a EvaluationState,
+) -> Option<&'a Value> {
+    if let Some(occurrence) = &target.geometry_value_occurrence {
+        state.computed_geometry_values.get(occurrence)
+    } else {
+        state.computed_geometry.get(&target.statement_id)
+    }
+}
+
+fn remove_geometry_identity(value: &mut Value) {
+    match value {
+        Value::Array(values) => values.iter_mut().for_each(remove_geometry_identity),
+        Value::Object(object) => {
+            if object.get("kind").and_then(Value::as_str) == Some("point")
+                && object.contains_key("x")
+                && object.contains_key("y")
+            {
+                object.remove("kind");
+            }
+            object.remove("elementId");
+            object.remove("name");
+            object.remove("baseLineIds");
+            object.values_mut().for_each(remove_geometry_identity);
+        }
+        _ => {}
+    }
 }
 
 fn evaluate_point(
@@ -719,6 +835,30 @@ pub(crate) fn evaluate_geometry_value_entry(
                 let structural = coordinate_geometry_kernel(x, y);
                 json!({ "kind": "point", "x": structural.x, "y": structural.y })
             })
+        }
+        GeometryValueConstruction::OffsetPoint { from, dx, dy } => {
+            if entry.declared_interface_type != "point" {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "Geometry value construction is incompatible with its declared interface type.",
+                );
+                return;
+            }
+            evaluate_point(from, resolver, state, source_order)
+                .zip(number_expression(dx, resolver, state, source_order))
+                .zip(number_expression(dy, resolver, state, source_order))
+                .map(|((from, dx), dy)| {
+                    let structural = offset_point_geometry_kernel(
+                        StructuralPoint {
+                            x: from.0,
+                            y: from.1,
+                        },
+                        dx,
+                        dy,
+                    );
+                    json!({ "kind": "point", "x": structural.x, "y": structural.y })
+                })
         }
         GeometryValueConstruction::Segment { start, end } => {
             if entry.declared_interface_type != "line" && entry.declared_interface_type != "path" {
@@ -1022,6 +1162,83 @@ pub(crate) fn evaluate_geometry_value_entry(
                 return;
             };
             Some(value)
+        }
+        GeometryValueConstruction::OffsetPath {
+            sources,
+            distance,
+            side,
+            closed,
+            suppress_trim_warnings,
+        } => {
+            if entry.declared_interface_type != "path" {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "Geometry value construction is incompatible with its declared interface type.",
+                );
+                return;
+            }
+            let distance = number_expression(distance, resolver, state, source_order);
+            let side = side_expression(side, resolver, state, source_order);
+            let closed = boolean_expression(closed, resolver, state, source_order);
+            let suppress_trim_warnings =
+                boolean_expression(suppress_trim_warnings, resolver, state, source_order);
+            let base_geometries = sources
+                .iter()
+                .map(|source| target_geometry(source, state).cloned())
+                .collect::<Option<Vec<_>>>();
+            let Some((distance, side, closed, suppress_trim_warnings, base_geometries)) = distance
+                .zip(side)
+                .zip(closed)
+                .zip(suppress_trim_warnings)
+                .zip(base_geometries)
+                .map(
+                    |((((distance, side), closed), suppress_trim_warnings), base_geometries)| {
+                        (
+                            distance,
+                            side,
+                            closed,
+                            suppress_trim_warnings,
+                            base_geometries,
+                        )
+                    },
+                )
+            else {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "Offset geometry value construction inputs are unavailable or invalid.",
+                );
+                return;
+            };
+            if base_geometries
+                .iter()
+                .any(|geometry| !is_line_like_geometry(Some(geometry)))
+            {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "Offset geometry value construction inputs are unavailable or invalid.",
+                );
+                return;
+            }
+            let result = build_offset_line_geometry(
+                "",
+                "geometry value",
+                Vec::new(),
+                &base_geometries,
+                if side == "right" { distance } else { -distance },
+                closed,
+                suppress_trim_warnings,
+            );
+            if let Some(error) = result.error {
+                append_geometry_value_error(state, entry, &error);
+                return;
+            }
+            result.geometry.map(|mut value| {
+                remove_geometry_identity(&mut value);
+                value
+            })
         }
     };
     if let Some(value) = value {

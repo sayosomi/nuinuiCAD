@@ -72,12 +72,50 @@ export type ComputedGeometryValuePolyline = {
   endTangentAngleDeg: number | null;
 };
 
+export type ComputedGeometryValueOffsetLineSegment =
+  | {
+      kind: "line";
+      start: { x: number; y: number };
+      end: { x: number; y: number };
+      length: number;
+    }
+  | {
+      kind: "bezier";
+      start: { x: number; y: number };
+      control1: { x: number; y: number };
+      control2: { x: number; y: number };
+      end: { x: number; y: number };
+      length: number;
+    }
+  | {
+      kind: "arc";
+      center: { x: number; y: number };
+      start: { x: number; y: number };
+      end: { x: number; y: number };
+      radius: number;
+      startAngleDeg: number;
+      sweepAngleDeg: number;
+      length: number;
+    };
+
+export type ComputedGeometryValueOffsetLine = {
+  kind: "offsetLine";
+  start: { x: number; y: number } | null;
+  end: { x: number; y: number } | null;
+  segments: ComputedGeometryValueOffsetLineSegment[];
+  closed: boolean;
+  length: number;
+  startTangentAngleDeg: number | null;
+  endTangentAngleDeg: number | null;
+};
+
 export type ComputedGeometryValue =
   | ComputedGeometryValuePoint
   | ComputedGeometryValueLine
   | ComputedGeometryValueArcLine
   | ComputedGeometryValueBezierCurve
-  | ComputedGeometryValuePolyline;
+  | ComputedGeometryValuePolyline
+  | ComputedGeometryValueOffsetLine;
 
 export type ComputedGeometryValueEntry = {
   occurrence: GeometryValueOccurrence;

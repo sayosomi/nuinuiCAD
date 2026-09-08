@@ -82,6 +82,96 @@ describe("pure geometry construction runtime", () => {
     ]);
   });
 
+  it("evaluates point offsets as identity-free values with numeric expressions", () => {
+    const { compiled, result } = evaluate([
+      "nui 1",
+      "point Base = coordinate(x: 1, y: 2)",
+      "const P: point = offset(from: @Base, dx: 1 + 2, dy: -4)",
+      "const Default: point = offset(from: @Base)",
+      "line Use = segment(start: @P, end: @Default)"
+    ].join("\n"));
+
+    expect(compiled.document!.elements.map((element) => element.name)).toEqual(["Base", "Use"]);
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometryValues).toEqual(expect.any(Map));
+    const values = [...(result.computedGeometryValues?.values() ?? [])];
+    expect(values.map((entry) => entry.value)).toEqual([
+      { kind: "point", x: 4, y: -2 },
+      { kind: "point", x: 1, y: 2 }
+    ]);
+    expect(values.every((entry) => !("elementId" in entry.value) && !("name" in entry.value))).toBe(true);
+    expect(result.computedGeometry.get("geometry-value-runtime:4")).toMatchObject({
+      kind: "line",
+      start: { x: 4, y: -2 },
+      end: { x: 1, y: 2 }
+    });
+  });
+
+  it("evaluates open and closed line offsets as identity-free paths and reuses them", () => {
+    const { compiled, result } = evaluate([
+      "nui 1",
+      "line AB = segment(start: (0, 0), end: (10, 0))",
+      "line BC = segment(start: (10, 0), end: (10, 10))",
+      "line CA = segment(start: (10, 10), end: (0, 0))",
+      "const Open: path = offset(sources: [@AB, @BC], distance: 2, side: right, closed: false, suppressTrimWarnings: false)",
+      "const Closed: path = offset(sources: [@AB, @BC, @CA], distance: 2, side: right, closed: true, suppressTrimWarnings: false)",
+      "line Use = offset(sources: [@Open], distance: 1, side: right, closed: false, suppressTrimWarnings: false)"
+    ].join("\n"));
+
+    expect(compiled.diagnostics).toEqual([]);
+    expect(result.errors).toEqual([]);
+    const values = [...(result.computedGeometryValues?.values() ?? [])];
+    const open = values.find((entry) => entry.occurrence.sourceStatementId === "geometry-value-runtime:4")?.value;
+    const closed = values.find((entry) => entry.occurrence.sourceStatementId === "geometry-value-runtime:5")?.value;
+    expect(open).toMatchObject({ kind: "offsetLine", closed: false, start: { x: 0, y: -2 }, end: { x: 12, y: 10 } });
+    expect(closed).toMatchObject({ kind: "offsetLine", closed: true });
+    expect(closed && closed.kind === "offsetLine" ? closed.start : undefined).toEqual(closed && closed.kind === "offsetLine" ? closed.end : undefined);
+    expect(open).not.toHaveProperty("elementId");
+    expect(open).not.toHaveProperty("name");
+    expect((open as { segments: unknown[] }).segments.length).toBeGreaterThan(0);
+    expect(result.computedGeometry.get("geometry-value-runtime:6")).toMatchObject({ kind: "offsetLine", start: { x: 0, y: -3 } });
+  });
+
+  it("reports invalid pure line offsets through the occurrence-owned channel", () => {
+    const { compiled, result } = evaluate([
+      "nui 1",
+      "line AB = segment(start: (0, 0), end: (10, 0))",
+      "line CD = segment(start: (20, 0), end: (30, 0))",
+      "const Invalid: path = offset(sources: [@AB, @CD], distance: 1, side: right, closed: false, suppressTrimWarnings: false)"
+    ].join("\n"));
+
+    const entry = compiled.geometryValueProgram!.find((candidate) => candidate.sourceStatementId === "geometry-value-runtime:3")!;
+    expect(result.computedGeometryValues).toEqual(new Map());
+    expect(result.geometryValueErrors).toEqual([{
+      occurrence: entry.occurrence,
+      message: "geometry value の sources は前の線.end から次の線.start へ連続していません。reverse を使うか順序を見直してください。"
+    }]);
+    expect(result.errors).toEqual([]);
+    expect(result.geometryValueErrors?.every((error) => !("elementId" in error))).toBe(true);
+  });
+
+  it("evaluates Module-local and exported pure line offsets through the shared value owner", () => {
+    const { compiled, result } = evaluate([
+      "nui 1",
+      "module M(source: path) {",
+      "  const Local: path = offset(sources: [@source], distance: 1, side: right, closed: false, suppressTrimWarnings: false)",
+      "  export const Output: path = offset(sources: [@source], distance: 2, side: right, closed: false, suppressTrimWarnings: false)",
+      "}",
+      "line Base = segment(start: (0, 0), end: (10, 0))",
+      "instance One = M(source: @Base)",
+      "const Root: path = offset(sources: [@One::Output], distance: 1, side: right, closed: false, suppressTrimWarnings: false)",
+      "line Use = segment(start: @Root.start, end: @One::Output.end)"
+    ].join("\n"));
+
+    expect(compiled.diagnostics).toEqual([]);
+    expect(result.errors).toEqual([]);
+    const values = [...(result.computedGeometryValues?.values() ?? [])];
+    expect(values.filter((entry) => entry.occurrence.instancePath.length === 1 && entry.value.kind === "offsetLine")).toHaveLength(2);
+    expect(values.some((entry) => entry.occurrence.instancePath.length === 1 && entry.value.kind === "offsetLine" && entry.value.start?.y === -2)).toBe(true);
+    expect(values.some((entry) => entry.occurrence.instancePath.length === 0 && entry.value.kind === "offsetLine" && entry.value.start?.y === -3)).toBe(true);
+    expect(result.computedGeometry.get("geometry-value-runtime:8")).toMatchObject({ kind: "line", start: { x: 0, y: -3 }, end: { x: 10, y: -2 } });
+  });
+
   it("supports segment values, aliases, properties, point access, and geometry builtins", () => {
     const { result } = evaluate([
       "nui 1",

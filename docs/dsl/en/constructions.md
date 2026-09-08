@@ -578,7 +578,9 @@ drawing metadata are described in [Modifiers](modifiers.md).
 ### `coordinate`, `offset`, and `polar`
 
 **Description:** `coordinate` creates a free point at its `x` and `y`
-coordinates. `offset` adds `dx` and `dy` millimetres to an earlier point.
+coordinates. `offset` adds `dx` and `dy` millimetres to an earlier
+point-compatible value. It is available both as a drawable point construction
+and as an identity-free pure `point` initializer in `const` declarations.
 `polar` adds a distance at an angle in degrees from an earlier point.
 
 **Notes:** Point references are valid inputs to later constructions. Angles are
@@ -683,6 +685,10 @@ source direction. `closed` closes the resulting chain when requested.
 **Notes:** Sources are supplied as a `path[]`-compatible list, so lines, arcs,
 and Bezier paths may participate. Offset trimming can produce warnings;
 `suppressTrimWarnings` controls those warnings, not the geometry calculation.
+The same construction is available as an identity-free pure `path` initializer
+in `const` declarations. Pure and drawable forms share the same ordering,
+offset geometry, validation, and trimming behavior; pure runtime failures are
+owned by the value occurrence and do not allocate a drawable identity.
 
 ### `polyline`
 

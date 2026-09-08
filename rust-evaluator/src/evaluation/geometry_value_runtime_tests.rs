@@ -29,6 +29,15 @@ fn choice(value: &str) -> Value {
     })
 }
 
+fn side_choice(value: &str) -> Value {
+    json!({
+        "kind": "choiceLiteral",
+        "span": { "start": 0, "end": value.len() },
+        "value": value,
+        "type": { "kind": "choice", "options": ["right", "left"] }
+    })
+}
+
 #[test]
 fn incompatible_geometry_value_constructions_emit_occurrence_owned_errors() {
     let coordinate_occurrence = json!({
@@ -183,6 +192,86 @@ fn coordinate_value_stays_out_of_drawable_geometry_and_feeds_a_line() {
     assert_eq!(result.computed_geometry_values[0]["value"]["kind"], "point");
     assert_eq!(result.computed_geometry[0]["start"]["x"], 10.0);
     assert_eq!(result.computed_geometry[0]["length"], 20.0);
+}
+
+#[test]
+fn offset_point_and_line_values_stay_identity_free_and_reuse_drawable_geometry() {
+    let point_occurrence = json!({
+        "sourceStatementId": "value:point",
+        "instancePath": []
+    });
+    let path_occurrence = json!({
+        "sourceStatementId": "value:path",
+        "instancePath": []
+    });
+    let elements = vec![
+        json!({
+            "id": "drawable:point",
+            "name": "P",
+            "type": "freePoint",
+            "activity": "visible",
+            "x": 1,
+            "y": 2
+        }),
+        json!({
+            "id": "drawable:line",
+            "name": "L",
+            "type": "line",
+            "activity": "visible",
+            "startPoint": { "mode": "coordinate", "x": 0, "y": 0 },
+            "endPoint": { "mode": "coordinate", "x": 10, "y": 0 }
+        }),
+    ];
+    let program = vec![
+        json!({
+            "sourceStatementId": "value:point",
+            "sourceStatementIndex": 2,
+            "declaredInterfaceType": "point",
+            "occurrence": point_occurrence,
+            "executionPosition": 1.5,
+            "construction": {
+                "kind": "offsetPoint",
+                "from": {
+                    "kind": "target",
+                    "target": { "kind": "drawable", "statementId": "drawable:point", "statementIndex": 0, "geometryType": "point" }
+                },
+                "dx": number(3.0),
+                "dy": number(-4.0)
+            }
+        }),
+        json!({
+            "sourceStatementId": "value:path",
+            "sourceStatementIndex": 3,
+            "declaredInterfaceType": "path",
+            "occurrence": path_occurrence,
+            "executionPosition": 2.5,
+            "construction": {
+                "kind": "offsetPath",
+                "sources": [{ "kind": "drawable", "statementId": "drawable:line", "statementIndex": 1, "geometryType": "line" }],
+                "distance": number(2.0),
+                "side": side_choice("right"),
+                "closed": boolean(false),
+                "suppressTrimWarnings": boolean(false)
+            }
+        }),
+    ];
+
+    let result = evaluate_document_input(input(elements, program));
+    assert!(result.errors.is_empty());
+    assert_eq!(result.computed_geometry.len(), 2);
+    assert_eq!(result.computed_geometry_values.len(), 2);
+    assert_eq!(
+        result.computed_geometry_values[0]["value"],
+        json!({ "kind": "point", "x": 4.0, "y": -2.0 })
+    );
+    let path = &result.computed_geometry_values[1]["value"];
+    assert_eq!(path["kind"], "offsetLine");
+    assert_eq!(path["start"], json!({ "x": 0.0, "y": -2.0 }));
+    assert_eq!(path["end"], json!({ "x": 10.0, "y": -2.0 }));
+    assert!(path.get("elementId").is_none());
+    assert!(path.get("name").is_none());
+    assert!(path["segments"][0].get("elementId").is_none());
+    assert!(path["segments"][0]["start"].get("elementId").is_none());
 }
 
 #[test]

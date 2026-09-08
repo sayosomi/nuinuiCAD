@@ -399,6 +399,13 @@ export type ModuleGeometryConstructionSemantic =
       y: ModuleScalarExpressionSemantic | null;
     }
   | {
+      kind: "offsetPoint";
+      span: DslSpan;
+      from: ModuleGeometryReferenceSemantic;
+      dx: ModuleScalarExpressionSemantic | null;
+      dy: ModuleScalarExpressionSemantic | null;
+    }
+  | {
       kind: "segment";
       span: DslSpan;
       start: ModuleGeometryReferenceSemantic;
@@ -439,6 +446,15 @@ export type ModuleGeometryConstructionSemantic =
       points: readonly ModuleGeometryReferenceSemantic[];
       pointsReference: { source: string; span: DslSpan } | null;
       closed: ModuleScalarExpressionSemantic | null;
+    }
+  | {
+      kind: "offsetPath";
+      span: DslSpan;
+      sources: readonly ModuleGeometryReferenceSemantic[];
+      distance: ModuleScalarExpressionSemantic | null;
+      side: ModuleScalarExpressionSemantic | null;
+      closed: ModuleScalarExpressionSemantic | null;
+      suppressTrimWarnings: ModuleScalarExpressionSemantic | null;
     };
 
 export type ModuleGeometryValueSemantic = {
