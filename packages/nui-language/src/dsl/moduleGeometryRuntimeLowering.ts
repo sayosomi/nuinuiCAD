@@ -277,6 +277,7 @@ export const sourceAliasForTarget = (
       : { kind: "line", elementId: entry.runtimeElementId } as const;
     return lowerAliasWithPointKey(alias, target.pointKey);
   }
+  if (target.kind === "collectionIndex") return undefined;
   const child = childContextFor(target.instanceStatementId, target.instanceIdentity?.documentId);
   const alias = child ? exportsByPath.get(pathKey(child.path))?.get(target.exportName)?.alias : undefined;
   return alias ? lowerAliasWithPointKey(alias, target.pointKey) : undefined;
@@ -300,16 +301,22 @@ export const resolverForBody = ({
   statement,
   sites,
   currentPath,
+  statementIndex,
   contextsByPath,
   materialization,
-  exportsByPath
+  exportsByPath,
+  resolveLineReferenceTargetAt,
+  resolvePointReferenceAt
 }: {
   statement: DslStatement;
   sites: readonly ModuleGeometryReferenceSite[];
   currentPath: readonly string[];
+  statementIndex: number;
   contextsByPath: ReadonlyMap<string, InstanceContext>;
   materialization: ModuleMaterialization;
   exportsByPath: ReadonlyMap<string, ReadonlyMap<string, ExportEntry>>;
+  resolveLineReferenceTargetAt?: (token: string, statementIndex: number, currentPath: readonly string[]) => GeometryInputTarget | null;
+  resolvePointReferenceAt?: (token: string, statementIndex: number, currentPath: readonly string[]) => PointAnchor | null;
 }): DslGeometryResolverOverrides => {
   const siteFor = (token: string, role: ModuleGeometryReferenceSemantic["role"]) => sites.find((site) =>
     site.reference.role === role && site.reference.source.trim() === token.trim()
@@ -322,6 +329,8 @@ export const resolverForBody = ({
   return {
     resolveLineReferenceTarget: (token) => {
       const site = siteFor(token, "lineReference") ?? siteFor(token, "lineReferenceList");
+      const indexed = resolveLineReferenceTargetAt?.(token, statementIndex, currentPath);
+      if (indexed) return indexed;
       const lowered = site && lowerReference(site.reference, currentPath, statement, contextsByPath, materialization, exportsByPath);
       if (lowered?.kind === "line") {
         return { kind: "drawable", elementId: lowered.elementId, geometryType: "line" } satisfies GeometryInputTarget;
@@ -357,6 +366,8 @@ export const resolverForBody = ({
     },
     resolveAnchor: (token, index, line, diagnostics, numeric, currentElement) => {
       const site = siteFor(token, "pointReference") ?? siteFor(token, "derivedPoint") ?? siteFor(token, "coordinatePoint");
+      const indexed = resolvePointReferenceAt?.(token, statementIndex, currentPath);
+      if (indexed) return indexed;
       const lowered = site && lowerReference(site.reference, currentPath, statement, contextsByPath, materialization, exportsByPath);
       if (lowered?.kind === "point") return lowered.anchor;
       if (lowered?.kind === "value" && lowered.geometryType === "point") {

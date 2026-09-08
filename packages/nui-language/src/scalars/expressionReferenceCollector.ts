@@ -15,6 +15,10 @@ export const collectScalarExpressionReferences = (
       case "reference":
         references.push({ name: node.name, span: node.span });
         return;
+      case "collectionIndex":
+        references.push({ name: node.name, span: { start: node.span.start, end: node.nameSpan.end + 1 } });
+        visit(node.index);
+        return;
       case "unary":
         visit(node.operand);
         return;

@@ -43,8 +43,8 @@ import { isCompilableDslStatement, isCanonicalValueBindingDeclaration, type DslS
 import { compilePropertyReferenceSyntax } from "./dslPropertyReferenceSyntax";
 import { buildPlacementRefsByStatementIndex } from "./dslPrintLayoutPlacementIndex";
 import { isGeometryDeclarationCategory } from "./dslConstructions";
-import { isDslGeometryValueType } from "./dslValueTypes";
-import { collectionLengthForValueId, collectionValueSemanticForStatement } from "./geometryArraySemanticAnalysis";
+import { isDslGeometryValueType, scalarTypeOfDslValueType } from "./dslValueTypes";
+import { collectionLengthForValueId, collectionValueSemanticForStatement, geometryArrayDeferredModuleExportId } from "./geometryArraySemanticAnalysis";
 import {
   buildSourceLexicalNamespaceIndex,
   type SourceLexicalNamespaceIndex
@@ -62,8 +62,10 @@ import { isElementDslStatement, parseDsl, parseDslSnapshot } from "./dslParser";
 import type { SourceRevision } from "./logicalStatementSourceMap";
 import { createStatementIdentity, type StatementIdentity } from "../document/statementIdentity";
 import type { BindingAnalysis } from "../scalars/bindingAnalysis";
-import type { BindingId, SourceNamespaceBindingResolver } from "../scalars/bindingCatalog";
-import type { ScalarProgram, ScalarProgramPositionMap } from "../scalars/scalarProgram";
+import { bindingIdForStableStatementId, type BindingId, type SourceNamespaceBindingResolver } from "../scalars/bindingCatalog";
+import type { ScalarProgram, ScalarProgramCollection, ScalarProgramCollectionMember, ScalarProgramPositionMap } from "../scalars/scalarProgram";
+import type { ScalarValue } from "../scalars/types";
+import { scanScalarLiteral } from "../scalars/literalScanner";
 import type {
   MaterializedNumericBindingSource,
   MaterializedPropertyBindingSource
@@ -78,8 +80,10 @@ import {
 import { serializeElementStatementBlock, type SerializedStatement } from "./dslSerializeElement";
 import type { DslDiagnostic, DslEnclosing, DslStatement, ParseDslResult } from "./dslTypes";
 import { formatDslReferencePath, formatDslReferenceToken, parseDslReferenceToken, parseDslSourceReference } from "./dslReferenceTokens";
-import { resolveSourceLexicalDeclaration } from "./sourceLexicalNamespaceIndex";
+import { resolveSourceLexicalDeclaration, resolveSourceLexicalPath } from "./sourceLexicalNamespaceIndex";
 import { DSL_INDENT, formatDslName } from "./dslTokens";
+import { parseScalarExpression } from "../scalars/expressionParser";
+import type { ScalarExpressionAst } from "../scalars/expressionAst";
 import {
   isSupportedDslMajorVersion,
   NEW_DOCUMENT_DSL_MAJOR_VERSION,
@@ -1115,6 +1119,22 @@ export const compileDslDocument = (
     (statement) => statement.kind === "typedDeclaration" && statement.valueType?.kind !== "array" &&
       (statement.valueType?.kind === "point" || statement.valueType?.kind === "line" || statement.valueType?.kind === "path")
   );
+  const containsCollectionIndex = (ast: ScalarExpressionAst | null): boolean => {
+    if (!ast) return false;
+    switch (ast.kind) {
+      case "collectionIndex": return true;
+      case "unary": return containsCollectionIndex(ast.operand);
+      case "binary": return containsCollectionIndex(ast.left) || containsCollectionIndex(ast.right);
+      case "group": return containsCollectionIndex(ast.expression);
+      case "call": return ast.args.some((argument) => containsCollectionIndex(argument.expression));
+      default: return false;
+    }
+  };
+  const hasGenericCollectionIndexStatements = parsed.statements.some((statement) =>
+    statement.kind === "typedDeclaration" && statement.initializer
+      ? containsCollectionIndex(parseScalarExpression(statement.initializer, { start: 0, end: statement.initializer.length }).ast)
+      : false
+  );
   const hasCompilableGeometryStatements = parsed.statements.some(
     (statement, statementIndex) => isElementDslStatement(statement) && includeStatement(statement, statementIndex)
   );
@@ -1359,6 +1379,109 @@ export const compileDslDocument = (
       }
     : undefined;
 
+  const rootCollectionIndexResolver = sourceLexicalNamespace
+    ? ({ statementIndex, node }: {
+        statementIndex: number;
+        node: Extract<import("../scalars/expressionAst").ScalarExpressionAst, { kind: "collectionIndex" }>;
+      }) => {
+        const path = parseDslReferenceToken(node.name);
+        const lookup = resolveSourceLexicalPath(sourceLexicalNamespace, statementIndex, path);
+        let value: ReturnType<typeof collectionValueSemanticForStatement> = null;
+        let targetSourceOrder: number | null = null;
+        let collectionValueId: string | null = null;
+        if (lookup.kind === "resolved" && lookup.declaration.kind === "typedDeclaration") {
+          value = sourceLexicalNamespace.geometryArraySemanticAnalysis
+            ? collectionValueSemanticForStatement(sourceLexicalNamespace.geometryArraySemanticAnalysis, lookup.declaration.statementIndex)
+            : null;
+          targetSourceOrder = lookup.declaration.statementIndex;
+          collectionValueId = value?.statementId ?? null;
+        } else if (path.segments.length === 2 && lookup.kind === "invalidTraversal" && lookup.declaration.kind === "moduleInstance") {
+          const instance = lookup.declaration.statement;
+          if (instance.kind !== "moduleInstance") return null;
+          const localDefinitionLookup = resolveSourceLexicalPath(sourceLexicalNamespace, lookup.declaration.statementIndex, parseDslReferenceToken(instance.moduleName));
+          const runtimeInstance = moduleRuntimeContext?.analysisFor(moduleRuntimeContext.rootDocumentId)?.instancesByStatementId.get(lookup.declaration.statementId);
+          const runtimeDefinition = moduleRuntimeContext && runtimeInstance?.callee
+            ? moduleRuntimeContext.definitionFor(runtimeInstance.callee.definitionIdentity)
+            : undefined;
+          if (runtimeDefinition && moduleRuntimeContext) {
+            const definingAnalysis = moduleRuntimeContext.documentFor(runtimeDefinition.documentId ?? moduleRuntimeContext.rootDocumentId)?.sourceLexicalNamespace.geometryArraySemanticAnalysis;
+            const exported = runtimeDefinition.exports.find((candidate) => candidate.kind === "collection" && candidate.name === path.segments[1]);
+            if (exported?.kind === "collection" && definingAnalysis) {
+              value = definingAnalysis.genericValuesByStatementId.get(exported.exportedStatementId) ?? null;
+              targetSourceOrder = lookup.declaration.statementIndex;
+              collectionValueId = geometryArrayDeferredModuleExportId(lookup.declaration.statementId, path.segments[1]!);
+            }
+          } else if (localDefinitionLookup.kind === "resolved" && localDefinitionLookup.declaration.statement.kind === "moduleDefinition") {
+            const exportedIndex = parsed.statements.findIndex((candidate) =>
+              candidate.kind === "typedDeclaration" && candidate.exported && candidate.name === path.segments[1] &&
+              candidate.enclosing?.statementIndex === localDefinitionLookup.declaration.statementIndex
+            );
+            if (exportedIndex >= 0) {
+              value = sourceLexicalNamespace.geometryArraySemanticAnalysis
+                ? collectionValueSemanticForStatement(sourceLexicalNamespace.geometryArraySemanticAnalysis, exportedIndex)
+                : null;
+              targetSourceOrder = lookup.declaration.statementIndex;
+              collectionValueId = geometryArrayDeferredModuleExportId(lookup.declaration.statementId, path.segments[1]!);
+            }
+          }
+        }
+        if (!value || !sourceLexicalNamespace.geometryArraySemanticAnalysis || !("valueType" in value)) return null;
+        const scalarElementType = scalarTypeOfDslValueType(value.valueType.elementType);
+        if (!scalarElementType) return null;
+        return {
+          kind: "resolvedCollectionIndex" as const,
+          collectionValueId: collectionValueId ?? value.statementId,
+          collectionLength: collectionValueId === value.statementId
+            ? collectionLengthForValueId(sourceLexicalNamespace.geometryArraySemanticAnalysis, value.statementId)
+            : null,
+          targetSourceOrder: targetSourceOrder ?? -1,
+          type: scalarElementType
+        };
+      }
+    : undefined;
+
+  const rootScalarCollectionValues = (analysis: BindingAnalysis): readonly ScalarProgramCollection[] => {
+    const collectionAnalysis = sourceLexicalNamespace?.geometryArraySemanticAnalysis;
+    if (!collectionAnalysis || !stableStatementIdByIndex) return [];
+    const values: ScalarProgramCollection[] = [];
+    for (const value of collectionAnalysis.genericValues) {
+      if (value.ownerModuleDefinitionStatementIndex !== null) continue;
+      const elementType = scalarTypeOfDslValueType(value.valueType.elementType);
+      if (!elementType || !value.value) continue;
+      if (value.value.kind === "alias") {
+        values.push({ valueId: value.statementId, kind: "alias", targetValueId: value.value.targetValueId });
+        continue;
+      }
+      const members: ScalarProgramCollectionMember[] = [];
+      for (const member of value.value.members) {
+        if (member.target.kind === "scalarValue" && member.target.statementId === value.statementId) {
+          const literal = scanScalarLiteral(member.sourceText, { start: 0, end: member.sourceText.length });
+          if (literal.kind === "error" || literal.span.start !== 0 || literal.span.end !== member.sourceText.length) break;
+          const scalarValue: ScalarValue | null = literal.kind === "number"
+            ? { kind: "number", value: literal.value }
+            : literal.kind === "string"
+              ? { kind: "string", value: literal.cooked }
+              : literal.kind === "boolean"
+                ? { kind: "boolean", value: literal.value }
+                : elementType.kind === "choice"
+                  ? { kind: "choice", value: literal.raw, options: elementType.options }
+                  : null;
+          if (!scalarValue) break;
+          members.push({ kind: "literal", type: elementType, value: scalarValue });
+          continue;
+        }
+        if (member.target.kind !== "scalarValue") break;
+        const binding = analysis.catalog.bindingsById.get(bindingIdForStableStatementId(member.target.statementId));
+        if (!binding || binding.kind !== "typed") break;
+        members.push({ kind: "binding", type: elementType, bindingId: binding.id });
+      }
+      if (members.length === value.value.members.length) {
+        values.push({ valueId: value.statementId, kind: "literal", members });
+      }
+    }
+    return values;
+  };
+
   let scalarAnalysisCompilation = stableStatementIdByIndex
     ? analyzeTypedDeclarations({
         statements: parsed.statements,
@@ -1370,11 +1493,14 @@ export const compileDslDocument = (
         spans,
         includeStatement,
         sourceNamespace: sourceLexicalNamespace,
-        additionalGeometryPropertyResolver: rootGeometryValuePropertyResolver
+        additionalGeometryPropertyResolver: rootGeometryValuePropertyResolver,
+        additionalCollectionIndexResolver: rootCollectionIndexResolver
       })
     : { diagnostics: [] };
   let documentScalarAnalysis = scalarAnalysisCompilation.analysis;
-  let documentScalarProgram = documentScalarAnalysis ? lowerScalarProgram(documentScalarAnalysis) : undefined;
+  let documentScalarProgram = documentScalarAnalysis
+    ? lowerScalarProgram({ ...documentScalarAnalysis, collectionValues: rootScalarCollectionValues(documentScalarAnalysis.bindingAnalysis) })
+    : undefined;
   const logicalTextByStatementIndex = new Map<number, string>();
   for (const [statementIndex, statement] of parsed.statements.entries()) {
     const logical = parsed.logicalStatementByRangeFrom.get(statement.documentRange.from);
@@ -1407,7 +1533,7 @@ export const compileDslDocument = (
   // The source semantic projection is also useful for Definition Query in a
   // document without Modules. Geometry values also need this path so their
   // source-only aliases can be lowered at existing geometry consumers.
-  const moduleSemanticCompilation = hasModuleStatements || hasGeometryValueStatements ? sourceSemanticCompilation : undefined;
+  const moduleSemanticCompilation = hasModuleStatements || hasGeometryValueStatements || hasGenericCollectionIndexStatements ? sourceSemanticCompilation : undefined;
   if (moduleSemanticCompilation && sourceLexicalNamespace && stableStatementIdByIndex) {
     const exportBindingSeeds = moduleScalarExportBindingSeeds(
       moduleSemanticCompilation,
@@ -1432,7 +1558,9 @@ export const compileDslDocument = (
         property.target?.kind === "collectionParameterLength" ||
         property.target?.kind === "deferredModuleCollectionExportLength"
       ));
-    if (usableExportBindingSeeds.length > 0 || hasRootGeometryRuntimeOccurrences || hasRootCollectionLengthOccurrences) {
+    const hasRootCollectionIndexOccurrences = [...moduleSemanticCompilation.rootScalarExpressionsByStatementId.values()]
+      .some((site) => site.expression.ast.kind === "collectionIndex" || site.expression.references.some((reference) => reference.collectionValueId !== undefined));
+    if (usableExportBindingSeeds.length > 0 || hasRootGeometryRuntimeOccurrences || hasRootCollectionLengthOccurrences || hasRootCollectionIndexOccurrences) {
       const seedById = new Map(usableExportBindingSeeds.map((seed) => [seed.id, seed] as const));
       const qualifiedModuleExportFor = (statementIndex: number, path: ReturnType<typeof parseDslReferenceToken>) => {
         if (path.segments.length !== 2) return null;
@@ -1496,9 +1624,18 @@ export const compileDslDocument = (
         }
         const exported = resolved?.exported;
         if (!resolved || !exported || exported.kind !== "scalar") {
-          const privateMember = !resolved?.definition.exports.some((entry) => entry.name === path.segments[1]) && resolved?.definition.bodyStatements.some((body) =>
-              (moduleRuntimeContext?.documentFor(resolved.definition.documentId ?? resolved.instance.callee?.definitionIdentity?.documentId)?.statements[body.statementIndex]
-                ?? parsed.statements[body.statementIndex])?.name === path.segments[1]
+          const definingStatements = resolved
+            ? moduleRuntimeContext?.documentFor(
+                resolved.definition.documentId ?? resolved.instance.callee?.definitionIdentity?.documentId
+              )?.statements ?? parsed.statements
+            : [];
+          const privateMember = !resolved?.definition.exports.some((entry) => entry.name === path.segments[1]) && (
+            resolved?.definition.localScalars.some((local) => local.name === path.segments[1]) ||
+            (resolved
+              ? definingStatements.some((candidate) =>
+                  candidate.name === path.segments[1] && candidate.enclosing?.statementIndex === resolved.definition.statementIndex
+                )
+              : false)
           );
           return {
             kind: "blocked",
@@ -1534,6 +1671,7 @@ export const compileDslDocument = (
         sourceNamespace: sourceLexicalNamespace,
         additionalBindings: usableExportBindingSeeds,
         additionalBindingResolver,
+        additionalCollectionIndexResolver: rootCollectionIndexResolver,
         additionalRecordValueResolver: (value) => {
           const reference = value.reference;
           if (!reference || value.typeIdentity === null) return null;
@@ -1685,6 +1823,7 @@ export const compileDslDocument = (
               ...(pointKey ? { pointKey } : {})
             };
           }
+          if (unwrapped.target.kind === "collectionIndex") return undefined;
           return {
             statementId: unwrapped.target.instanceStatementId,
             statementIndex: unwrapped.target.instanceStatementIndex,
@@ -1694,7 +1833,9 @@ export const compileDslDocument = (
         }
       });
       documentScalarAnalysis = scalarAnalysisCompilation.analysis;
-      documentScalarProgram = documentScalarAnalysis ? lowerScalarProgram(documentScalarAnalysis) : undefined;
+      documentScalarProgram = documentScalarAnalysis
+        ? lowerScalarProgram({ ...documentScalarAnalysis, collectionValues: rootScalarCollectionValues(documentScalarAnalysis.bindingAnalysis) })
+        : undefined;
     }
   }
   if (

@@ -20,7 +20,7 @@ import { typecheckScalarExpression } from "./expressionTypecheck";
 import type { ReconciledCadContainerInput } from "./containerIndex";
 import type { ScalarProgramPositionMap } from "./scalarProgram";
 import type { ScalarType } from "./types";
-import type { ScalarExpressionResolvedReference, TypedScalarExpression } from "./typedExpressionAst";
+import type { ScalarExpressionResolvedCollectionIndex, ScalarExpressionResolvedReference, TypedScalarExpression } from "./typedExpressionAst";
 import { resolveGeometryPropertyMetadata } from "./typedGeometryPropertyResolution";
 import { findParameterDefinition, scalarTypeForParameterDefinition } from "../parameters/parameterDefinitions";
 import { createElementNameContext } from "../model/elementNames";
@@ -85,6 +85,11 @@ export type PrepareScalarExpression = (input: {
   dependencies?: readonly PreparedScalarExpressionDependency[];
 };
 
+type CollectionIndexResolver = (input: {
+  statementIndex: number;
+  node: Extract<ScalarExpressionAst, { kind: "collectionIndex" }>;
+}) => ScalarExpressionResolvedCollectionIndex | null;
+
 type ParsedInitializer = { ast: ScalarExpressionAst; references: ReturnType<typeof collectReferences> };
 
 /** Pure AST walker with no declaration-specific logic - reused as-is by
@@ -121,11 +126,78 @@ export const containsNonNumericScalarSyntax = (ast: ScalarExpressionAst): boolea
       );
     case "group":
       return containsNonNumericScalarSyntax(ast.expression);
+    case "collectionIndex":
+      return containsNonNumericScalarSyntax(ast.index);
     case "call":
       return getBuiltinFunctionDefinition(ast.name)?.signatures.some((signature) => signature.returnType.kind === "boolean") ?? false;
     default:
       return false;
   }
+};
+
+const collectionIndexResolutionsFor = (
+  ast: ScalarExpressionAst,
+  statementIndex: number,
+  resolver: CollectionIndexResolver | undefined
+): ReadonlyMap<number, ScalarExpressionResolvedCollectionIndex> => {
+  const resolutions = new Map<number, ScalarExpressionResolvedCollectionIndex>();
+  const visit = (node: ScalarExpressionAst): void => {
+    if (node.kind === "collectionIndex") {
+      const resolution = resolver?.({ statementIndex, node });
+      if (resolution) resolutions.set(node.span.start, resolution);
+      visit(node.index);
+      return;
+    }
+    if (node.kind === "unary") return visit(node.operand);
+    if (node.kind === "binary") { visit(node.left); visit(node.right); return; }
+    if (node.kind === "group") return visit(node.expression);
+    if (node.kind === "call") node.args.forEach((argument) => visit(argument.expression));
+  };
+  visit(ast);
+  return resolutions;
+};
+
+const collectionIndexBaseStartsFor = (ast: ScalarExpressionAst): ReadonlySet<number> => {
+  const starts = new Set<number>();
+  const visit = (node: ScalarExpressionAst): void => {
+    if (node.kind === "collectionIndex") {
+      starts.add(node.span.start);
+      visit(node.index);
+      return;
+    }
+    if (node.kind === "unary") return visit(node.operand);
+    if (node.kind === "binary") { visit(node.left); visit(node.right); return; }
+    if (node.kind === "group") return visit(node.expression);
+    if (node.kind === "call") node.args.forEach((argument) => visit(argument.expression));
+  };
+  visit(ast);
+  return starts;
+};
+
+const referenceResolutionsForAst = (
+  ast: ScalarExpressionAst,
+  collectionResolutions: ReadonlyMap<number, ScalarExpressionResolvedCollectionIndex>,
+  ordinary: readonly (BindingResolution | ScalarExpressionResolvedReference)[]
+): readonly (BindingResolution | ScalarExpressionResolvedReference)[] => {
+  const output: (BindingResolution | ScalarExpressionResolvedReference)[] = [];
+  let cursor = 0;
+  const visit = (node: ScalarExpressionAst): void => {
+    if (node.kind === "reference") { output.push(ordinary[cursor++]!); return; }
+    if (node.kind === "collectionIndex") {
+      const resolved = collectionResolutions.get(node.span.start);
+      if (resolved) output.push(resolved);
+      else output.push(ordinary[cursor++]!);
+      visit(node.index);
+      return;
+    }
+    if (node.kind === "unary") return visit(node.operand);
+    if (node.kind === "binary") { visit(node.left); visit(node.right); return; }
+    if (node.kind === "group") return visit(node.expression);
+    if (node.kind === "call") node.args.forEach((argument) => visit(argument.expression));
+  };
+  visit(ast);
+  if (cursor !== ordinary.length) throw new Error("typedDeclarationAnalysis: scalar reference resolution sequence is out of sync");
+  return output;
 };
 
 /** Shared "why this reference isn't usable" message for a non-resolved
@@ -281,6 +353,7 @@ export const analyzeTypedDeclarations = ({
   additionalBindings,
   additionalBindingResolver,
   additionalGeometryResolver,
+  additionalCollectionIndexResolver,
   additionalGeometryPropertyResolver,
   additionalInitializers,
   prepareScalarExpression,
@@ -301,6 +374,7 @@ export const analyzeTypedDeclarations = ({
     readonly occurrenceIndex: number | null;
     readonly expectedGeometryType: Extract<import("../dsl/moduleGeometryInterfaces").ModuleGeometryInterfaceType, "point" | "line">;
   }) => import("./typedExpressionAst").ScalarExpressionResolvedGeometryTarget | undefined;
+  additionalCollectionIndexResolver?: CollectionIndexResolver;
   additionalInitializers?: readonly AdditionalScalarInitializer[];
   prepareScalarExpression?: PrepareScalarExpression;
   additionalRecordPropertyResolver?: (input: {
@@ -459,13 +533,32 @@ export const analyzeTypedDeclarations = ({
   }
   if (diagnostics.length > 0) return { diagnostics };
 
+  const collectionIndexResolutionByBindingId = new Map<BindingId, ReadonlyMap<number, ScalarExpressionResolvedCollectionIndex>>();
+  const ordinaryReferencesByBindingId = new Map<BindingId, readonly { name: string; span: { start: number; end: number } }[]>();
+  const collectionIndexBaseReferenceOccurrenceIndexesByBindingId = new Map<BindingId, ReadonlySet<number>>();
+  for (const binding of catalog.bindings) {
+    const parsed = parsedByBindingId.get(binding.id);
+    if (!parsed || !isScalarTypedBinding(binding) || !analyzesInitializer(binding.id, binding.resolutionMode)) continue;
+    collectionIndexResolutionByBindingId.set(
+      binding.id,
+      collectionIndexResolutionsFor(parsed.ast, binding.statementIndex, additionalCollectionIndexResolver)
+    );
+  }
   const requests: InitializerResolutionRequest[] = [];
   for (const binding of catalog.bindings) {
     if (!isScalarTypedBinding(binding) || !analyzesInitializer(binding.id, binding.resolutionMode)) continue;
     const parsed = parsedByBindingId.get(binding.id);
     if (!parsed) throw new Error(`typedDeclarationAnalysis: missing parsed initializer for ${binding.id}`);
+    const collectionIndexBaseStarts = collectionIndexBaseStartsFor(parsed.ast);
     const scopeId = scopeIndex.scopeOfStatement.get(binding.statementIndex) ?? scopeIndex.rootScopeId;
-    parsed.references.forEach((reference, occurrenceIndex) => requests.push({
+    const ordinaryReferences = parsed.references.filter((reference) => !collectionIndexResolutionByBindingId.get(binding.id)?.has(reference.span.start));
+    ordinaryReferencesByBindingId.set(binding.id, ordinaryReferences);
+    const collectionIndexBaseReferenceOccurrenceIndexes = new Set<number>();
+    ordinaryReferences.forEach((reference, occurrenceIndex) => {
+      if (collectionIndexBaseStarts.has(reference.span.start)) collectionIndexBaseReferenceOccurrenceIndexes.add(occurrenceIndex);
+    });
+    collectionIndexBaseReferenceOccurrenceIndexesByBindingId.set(binding.id, collectionIndexBaseReferenceOccurrenceIndexes);
+    ordinaryReferences.forEach((reference, occurrenceIndex) => requests.push({
       fromBindingId: binding.id,
       occurrenceIndex,
       name: reference.name,
@@ -492,6 +585,7 @@ export const analyzeTypedDeclarations = ({
       ast: parsed.ast,
       statementIndex: binding.statementIndex,
       scalarReferenceResolutions: resolvedByBindingId.get(binding.id) ?? [],
+      collectionIndexBaseReferenceOccurrenceIndexes: collectionIndexBaseReferenceOccurrenceIndexesByBindingId.get(binding.id),
       sourceDeclarationsByStatementId,
       additionalGeometryResolver: additionalGeometryResolver
         ? ({ node, occurrenceIndex, expectedGeometryType }) => additionalGeometryResolver({
@@ -519,7 +613,11 @@ export const analyzeTypedDeclarations = ({
         bindingId: binding.id,
         statementIndex: binding.statementIndex,
         ast: parsed.ast,
-        referenceResolutions: geometryResolution.references,
+        referenceResolutions: referenceResolutionsForAst(
+          parsed.ast,
+          collectionIndexResolutionByBindingId.get(binding.id) ?? new Map(),
+          geometryResolution.references
+        ),
         geometryPropertySpanStarts: new Set(geometryResolution.geometryPropertyTargets.keys())
       });
       preparedByBindingId.set(binding.id, prepared);
@@ -537,7 +635,7 @@ export const analyzeTypedDeclarations = ({
     if (geometryResolutionByBindingId.get(reference.fromBindingId)?.claimedReferenceOccurrenceIndexes.has(reference.occurrenceIndex)) continue;
     if (reference.resolution.reason === "ambiguous") continue;
     const statement = statements[reference.site.statementIndex];
-    const span = parsedByBindingId.get(reference.fromBindingId)?.references[reference.occurrenceIndex]?.span;
+    const span = ordinaryReferencesByBindingId.get(reference.fromBindingId)?.[reference.occurrenceIndex]?.span;
     if (!statement || !span) continue;
     const privateMember = reference.resolution.reason === "private"
       ? parseDslReferenceToken(reference.name).segments.at(-1) ?? reference.name
@@ -572,7 +670,7 @@ export const analyzeTypedDeclarations = ({
     if (!parsed) continue;
     const normal = (resolvedReferencesByBindingId.get(binding.id) ?? []).map((reference) => ({
       name: reference.name,
-      span: parsed.references[reference.occurrenceIndex]?.span ?? null,
+      span: ordinaryReferencesByBindingId.get(binding.id)?.[reference.occurrenceIndex]?.span ?? null,
       resolution: geometryResolutionByBindingId.get(binding.id)?.claimedReferenceOccurrenceIndexes.has(reference.occurrenceIndex)
         ? {
             kind: "namespace" as const,
@@ -643,7 +741,11 @@ export const analyzeTypedDeclarations = ({
     );
     const checked = typecheckScalarExpression(prepared?.ast ?? parsed.ast, {
       expectedType: scalarTypeOfDslValueType(binding.declaredType),
-      references: prepared?.references ?? geometryResolutionByBindingId.get(binding.id)?.references ?? resolvedByBindingId.get(binding.id) ?? [],
+      references: prepared?.references ?? referenceResolutionsForAst(
+        parsed.ast,
+        collectionIndexResolutionByBindingId.get(binding.id) ?? new Map(),
+        geometryResolutionByBindingId.get(binding.id)?.references ?? resolvedByBindingId.get(binding.id) ?? []
+      ),
       geometryBuiltinArguments: geometryResolutionByBindingId.get(binding.id)?.geometryPropertyTargets,
       geometryPropertyReferences: geometryPropertyResolution.geometryPropertyReferences
     });

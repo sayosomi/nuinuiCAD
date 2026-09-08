@@ -6,7 +6,8 @@ import { getBuiltinFunctionDefinition, type BuiltinFunctionName } from "../scala
 import type {
   ScalarExpressionResolvedGeometryProperty,
   ScalarExpressionResolvedGeometryTarget,
-  ScalarExpressionResolvedReference
+  ScalarExpressionResolvedReference,
+  ScalarExpressionResolvedCollectionIndex
 } from "../scalars/typedExpressionAst";
 import type { ScalarType } from "../scalars/types";
 import type { DslDiagnosticPresentation } from "./dslTypes";
@@ -119,6 +120,12 @@ export type ModuleScalarReferenceResolution = {
   diagnostic?: ModuleScalarLocalDiagnostic;
 };
 
+export type ModuleCollectionIndexReferenceResolution = ModuleScalarReferenceResolution & {
+  collectionValueId: string | null;
+  collectionLength: number | null;
+  targetSourceOrder: number | null;
+};
+
 export type ModuleGeometryPropertyReferenceResolution = {
   target: ModuleGeometryPropertySourceTarget | ModuleRecordFieldSourceTarget | null;
   type: ScalarType | null;
@@ -202,6 +209,7 @@ const resolveAndTypecheck = ({
   ast,
   expectedType,
   resolveReference,
+  resolveCollectionIndex,
   resolveHasValue,
   resolveBareReference,
   resolveGeometryProperty,
@@ -211,6 +219,7 @@ const resolveAndTypecheck = ({
   ast: ScalarExpressionAst;
   expectedType: ScalarType | null;
   resolveReference: (reference: { name: string; span: DslSpan }, presenceFacts?: ReadonlySet<string>) => ModuleScalarReferenceResolution;
+  resolveCollectionIndex?: (reference: { name: string; span: DslSpan }, presenceFacts?: ReadonlySet<string>) => ModuleCollectionIndexReferenceResolution;
   resolveHasValue?: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution;
   resolveBareReference?: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution | null;
   resolveGeometryProperty?: (reference: {
@@ -268,6 +277,38 @@ const resolveAndTypecheck = ({
       case "reference":
         resolveNodeReference(node, presenceFacts);
         return node;
+      case "collectionIndex": {
+        const base = { name: node.name, span: { start: node.span.start, end: node.nameSpan.end + 1 } };
+        const resolution = resolveCollectionIndex
+          ? resolveCollectionIndex(base, presenceFacts)
+          : {
+              ...resolveReference(base, presenceFacts),
+              collectionValueId: null,
+              collectionLength: null,
+              targetSourceOrder: null
+            };
+        resolvedReferences.push({
+          ...base,
+          nameSpan: node.nameSpan,
+          target: resolution.target,
+          resolution: resolution.resolution,
+          collectionValueId: resolution.collectionValueId,
+          collectionLength: resolution.collectionLength,
+          targetSourceOrder: resolution.targetSourceOrder,
+          collectionElementType: resolution.type
+        });
+        if (resolution.diagnostic) diagnostics.push(resolution.diagnostic);
+        const resolvedIndex: ScalarExpressionResolvedCollectionIndex = {
+          kind: "resolvedCollectionIndex",
+          collectionValueId: resolution.collectionValueId ?? "",
+          collectionLength: resolution.collectionLength,
+          targetSourceOrder: resolution.targetSourceOrder ?? -1,
+          type: resolution.type
+        };
+        resolvedTypes.push(resolvedIndex);
+        resolve(node.index, presenceFacts);
+        return node;
+      }
       case "call": {
         if (node.name === "hasValue" && resolveHasValue) {
           const argument = node.args.length === 1 && node.args[0]?.kind === "positional" ? node.args[0].expression : null;
@@ -477,6 +518,7 @@ const typecheckGeometryTarget = (
       ...(pointKey ? { pointKey } : {})
     };
   }
+  if (target.kind === "collectionIndex") return null;
   return {
     statementId: target.instanceStatementId,
     statementIndex: target.instanceStatementIndex,
@@ -490,6 +532,7 @@ export const parseAndCheckModuleScalarExpression = ({
   span,
   expectedType,
   resolveReference,
+  resolveCollectionIndex,
   resolveHasValue,
   resolveBareReference,
   resolveGeometryProperty,
@@ -501,6 +544,7 @@ export const parseAndCheckModuleScalarExpression = ({
   span: DslSpan;
   expectedType: ScalarType | null;
   resolveReference: (reference: { name: string; span: DslSpan }, presenceFacts?: ReadonlySet<string>) => ModuleScalarReferenceResolution;
+  resolveCollectionIndex?: (reference: { name: string; span: DslSpan }, presenceFacts?: ReadonlySet<string>) => ModuleCollectionIndexReferenceResolution;
   resolveHasValue?: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution;
   resolveBareReference?: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution | null;
   resolveGeometryProperty?: (reference: ModuleGeometryPropertyReferenceInput) => ModuleGeometryPropertyReferenceResolution;
@@ -517,6 +561,7 @@ export const parseAndCheckModuleScalarExpression = ({
     ast: parsed.ast,
     expectedType,
     resolveReference,
+    resolveCollectionIndex,
     resolveHasValue,
     resolveBareReference,
     resolveGeometryProperty,

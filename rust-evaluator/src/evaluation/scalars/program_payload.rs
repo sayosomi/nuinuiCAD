@@ -9,14 +9,33 @@ use serde_json::Value;
 use super::expression_payload::validate_typed_expression_payload;
 use super::issue::{ScalarPayloadIssue, ScalarPayloadIssueCode as Code};
 use super::json_helpers::{as_object, issue, reject_unexpected_fields, require_field};
-use super::scalar_payload::decode_scalar_type;
+use super::scalar_payload::{decode_scalar_type, decode_scalar_value, scalar_value_matches_type};
 use super::types::{BindingId, ScalarType, TypedScalarExpression};
 
 #[derive(Debug)]
 pub(crate) struct ValidatedScalarProgram {
     pub(crate) statements: Vec<ValidatedScalarProgramStatement>,
+    pub(crate) collection_values: Vec<ValidatedScalarProgramCollection>,
     pub(crate) evaluation_limit_source_order: Option<usize>,
     pub(crate) post_stop_binding_ids: HashSet<BindingId>,
+}
+
+#[derive(Debug)]
+pub(crate) struct ValidatedScalarProgramCollection {
+    pub(crate) value_id: String,
+    pub(crate) value: ValidatedScalarProgramCollectionValue,
+}
+
+#[derive(Debug)]
+pub(crate) enum ValidatedScalarProgramCollectionValue {
+    Literal(Vec<ValidatedScalarProgramCollectionMember>),
+    Alias(String),
+}
+
+#[derive(Debug)]
+pub(crate) enum ValidatedScalarProgramCollectionMember {
+    Literal { r#type: ScalarType, value: super::types::ScalarValue },
+    Binding { r#type: ScalarType, binding_id: BindingId },
 }
 
 #[derive(Debug)]
@@ -27,6 +46,62 @@ pub(crate) struct ValidatedScalarProgramStatement {
     /// An initializer error becomes a typed poison only after the statement's
     /// identity, declared type, and source position have been decoded.
     pub(crate) initializer: Result<TypedScalarExpression, String>,
+}
+
+pub(crate) fn decode_collection_values(
+    value: &Value,
+) -> Result<Vec<ValidatedScalarProgramCollection>, ScalarPayloadIssue> {
+    let values = value
+        .as_array()
+        .ok_or_else(|| issue(Code::InvalidFieldType, "scalar program collectionValues must be an array"))?;
+    let mut ids = HashSet::new();
+    let mut decoded = Vec::with_capacity(values.len());
+    for entry in values {
+        let entry = as_object(entry, "scalar program collection value")?;
+        reject_unexpected_fields(entry, &["valueId", "kind", "members", "targetValueId"], "scalar program collection value")?;
+        let value_id = non_empty_string(require_field(entry, "valueId", "scalar program collection value")?, "scalar program collection value valueId")?.to_owned();
+        if !ids.insert(value_id.clone()) {
+            return Err(issue(Code::InvalidBindingId, "scalar program collection valueId must be unique"));
+        }
+        let kind = non_empty_string(require_field(entry, "kind", "scalar program collection value")?, "scalar program collection value kind")?;
+        let decoded_value = match kind {
+            "alias" => {
+                reject_unexpected_fields(entry, &["valueId", "kind", "targetValueId"], "scalar program collection alias")?;
+                ValidatedScalarProgramCollectionValue::Alias(non_empty_string(require_field(entry, "targetValueId", "scalar program collection alias")?, "scalar program collection alias targetValueId")?.to_owned())
+            }
+            "literal" => {
+                reject_unexpected_fields(entry, &["valueId", "kind", "members"], "scalar program collection literal")?;
+                let members = require_field(entry, "members", "scalar program collection literal")?.as_array().ok_or_else(|| issue(Code::InvalidFieldType, "scalar program collection members must be an array"))?;
+                let mut decoded_members = Vec::with_capacity(members.len());
+                for member in members {
+                    let member = as_object(member, "scalar program collection member")?;
+                    reject_unexpected_fields(member, &["kind", "type", "value", "bindingId"], "scalar program collection member")?;
+                    let member_kind = non_empty_string(require_field(member, "kind", "scalar program collection member")?, "scalar program collection member kind")?;
+                    let member_type = decode_scalar_type(require_field(member, "type", "scalar program collection member")?)?;
+                    match member_kind {
+                        "literal" => {
+                            reject_unexpected_fields(member, &["kind", "type", "value"], "scalar program literal member")?;
+                            let scalar_value = decode_scalar_value(require_field(member, "value", "scalar program literal member")?)?;
+                            if !scalar_value_matches_type(&member_type, &scalar_value) {
+                                return Err(issue(Code::InvalidEvaluationValue, "scalar program literal member value does not match its declared type"));
+                            }
+                            decoded_members.push(ValidatedScalarProgramCollectionMember::Literal { r#type: member_type, value: scalar_value });
+                        }
+                        "binding" => {
+                            reject_unexpected_fields(member, &["kind", "type", "bindingId"], "scalar program binding member")?;
+                            let binding_id = non_empty_string(require_field(member, "bindingId", "scalar program binding member")?, "scalar program binding member bindingId")?.to_owned();
+                            decoded_members.push(ValidatedScalarProgramCollectionMember::Binding { r#type: member_type, binding_id });
+                        }
+                        _ => return Err(issue(Code::UnknownKind, "unknown scalar program collection member kind")),
+                    }
+                }
+                ValidatedScalarProgramCollectionValue::Literal(decoded_members)
+            }
+            _ => return Err(issue(Code::UnknownKind, "unknown scalar program collection value kind")),
+        };
+        decoded.push(ValidatedScalarProgramCollection { value_id, value: decoded_value });
+    }
+    Ok(decoded)
 }
 
 fn non_empty_string<'a>(json: &'a Value, context: &str) -> Result<&'a str, ScalarPayloadIssue> {
@@ -138,6 +213,7 @@ pub(crate) fn validate_scalar_program_payload(
         object,
         &[
             "statements",
+            "collectionValues",
             "evaluationLimitSourceOrder",
             "postStopBindingIds",
         ],
@@ -156,6 +232,11 @@ pub(crate) fn validate_scalar_program_payload(
     for statement in statements {
         decoded.push(decode_statement(statement, &mut binding_ids)?);
     }
+    let collection_values = object
+        .get("collectionValues")
+        .map(decode_collection_values)
+        .transpose()?
+        .unwrap_or_default();
     let post_stop_binding_ids = object
         .get("postStopBindingIds")
         .map(|value| {
@@ -190,6 +271,7 @@ pub(crate) fn validate_scalar_program_payload(
     };
     Ok(ValidatedScalarProgram {
         statements: decoded,
+        collection_values,
         evaluation_limit_source_order,
         post_stop_binding_ids,
     })

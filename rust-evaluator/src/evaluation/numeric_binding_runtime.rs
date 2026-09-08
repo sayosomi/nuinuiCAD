@@ -126,6 +126,7 @@ fn validate_typed_expression_runtime_targets(
                     ));
                 }
             }
+            TypedScalarExpression::CollectionIndex { index, .. } => pending.push(index),
             TypedScalarExpression::Unary { operand, .. }
             | TypedScalarExpression::Group {
                 expression: operand,

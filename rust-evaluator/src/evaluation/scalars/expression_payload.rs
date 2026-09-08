@@ -39,7 +39,7 @@ use serde_json::Value;
 
 use super::expression_leaf_payload::{
     decode_boolean_literal, decode_choice_literal, decode_geometry_property, decode_number_literal,
-    decode_reference, decode_string_literal,
+    decode_reference, decode_string_literal, decode_span, decode_nullable_scalar_type,
 };
 use super::expression_shape_payload::{
     decode_call_argument_shape, validate_binary_shape, validate_call_argument_shapes,
@@ -94,6 +94,15 @@ enum WorkItem<'a> {
         operator: ScalarUnaryOperator,
         r#type: Option<ScalarType>,
     },
+    BuildCollectionIndex {
+        span: ScalarSpan,
+        name_span: ScalarSpan,
+        name: String,
+        collection_value_id: Option<String>,
+        collection_length: Option<f64>,
+        target_source_order: Option<f64>,
+        r#type: Option<ScalarType>,
+    },
     BuildBinary {
         span: ScalarSpan,
         operator: ScalarBinaryOperator,
@@ -111,6 +120,47 @@ enum WorkItem<'a> {
         arguments: Vec<CallArgumentShape<'a>>,
         r#type: Option<ScalarType>,
     },
+}
+
+fn decode_collection_index_shape(
+    object: &serde_json::Map<String, Value>,
+) -> Result<(
+    ScalarSpan,
+    ScalarSpan,
+    String,
+    Option<String>,
+    Option<f64>,
+    Option<f64>,
+    Option<ScalarType>,
+    &Value,
+), ScalarPayloadIssue> {
+    super::json_helpers::reject_unexpected_fields(
+        object,
+        &["kind", "span", "nameSpan", "name", "collectionValueId", "collectionLength", "targetSourceOrder", "index", "type"],
+        "collection index node",
+    )?;
+    let span = decode_span(require_field(object, "span", "collection index node")?, "collection index node span")?;
+    let name_span = decode_span(require_field(object, "nameSpan", "collection index node")?, "collection index node nameSpan")?;
+    let name = require_field(object, "name", "collection index node")?
+        .as_str().filter(|value| !value.is_empty()).ok_or_else(|| issue(Code::InvalidFieldType, "collection index node name must be a non-empty string"))?.to_owned();
+    let collection_value_id = match object.get("collectionValueId") {
+        Some(Value::Null) | None => None,
+        Some(value) => Some(value.as_str().filter(|value| !value.is_empty()).ok_or_else(|| issue(Code::InvalidFieldType, "collection index node collectionValueId must be a non-empty string"))?.to_owned()),
+    };
+    let collection_length = match object.get("collectionLength") {
+        Some(Value::Null) | None => None,
+        Some(value) => {
+            let length = value.as_f64().filter(|value| value.is_finite() && value.fract() == 0.0 && *value >= 0.0).ok_or_else(|| issue(Code::InvalidFieldType, "collection index node collectionLength must be a finite non-negative integer"))?;
+            Some(length)
+        }
+    };
+    let target_source_order = match object.get("targetSourceOrder") {
+        Some(Value::Null) | None => None,
+        Some(value) => Some(value.as_f64().filter(|value| value.is_finite()).ok_or_else(|| issue(Code::InvalidFieldType, "collection index node targetSourceOrder must be a finite number"))?),
+    };
+    let r#type = decode_nullable_scalar_type(require_field(object, "type", "collection index node")?)?;
+    let index = require_field(object, "index", "collection index node")?;
+    Ok((span, name_span, name, collection_value_id, collection_length, target_source_order, r#type, index))
 }
 
 /// Processes one `Visit` work item: applies both guards, decodes the node's
@@ -166,6 +216,19 @@ fn visit_node<'a>(
         "booleanLiteral" => output.push(decode_boolean_literal(object)?),
         "choiceLiteral" => output.push(decode_choice_literal(object)?),
         "reference" => output.push(decode_reference(object)?),
+        "collectionIndex" => {
+            let (span, name_span, name, collection_value_id, collection_length, target_source_order, r#type, index) = decode_collection_index_shape(object)?;
+            work.push(WorkItem::BuildCollectionIndex {
+                span,
+                name_span,
+                name,
+                collection_value_id,
+                collection_length,
+                target_source_order,
+                r#type,
+            });
+            work.push(WorkItem::Visit { json: index, expression_depth: expression_depth + 1 });
+        }
         "geometryProperty" => output.push(decode_geometry_property(object)?),
         "unary" => {
             let shape = validate_unary_shape(object)?;
@@ -285,6 +348,27 @@ pub(crate) fn validate_typed_expression_payload(
                     span,
                     operator,
                     operand: Box::new(operand),
+                    r#type,
+                });
+            }
+            WorkItem::BuildCollectionIndex {
+                span,
+                name_span,
+                name,
+                collection_value_id,
+                collection_length,
+                target_source_order,
+                r#type,
+            } => {
+                let index = output.pop().expect("collection index expression must already be decoded (post-order build invariant)");
+                output.push(TypedScalarExpression::CollectionIndex {
+                    span,
+                    name_span,
+                    name,
+                    collection_value_id,
+                    collection_length,
+                    target_source_order,
+                    index: Box::new(index),
                     r#type,
                 });
             }

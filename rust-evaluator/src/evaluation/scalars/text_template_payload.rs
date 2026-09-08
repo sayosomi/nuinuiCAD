@@ -69,6 +69,7 @@ fn root_type(expression: &TypedScalarExpression) -> Option<ScalarType> {
         TypedScalarExpression::BooleanLiteral { r#type, .. } => Some(r#type.clone()),
         TypedScalarExpression::ChoiceLiteral { r#type, .. } => r#type.clone(),
         TypedScalarExpression::Reference { r#type, .. } => r#type.clone(),
+        TypedScalarExpression::CollectionIndex { r#type, .. } => r#type.clone(),
         TypedScalarExpression::GeometryProperty { r#type, .. } => Some(r#type.clone()),
         TypedScalarExpression::Unary { r#type, .. } => r#type.clone(),
         TypedScalarExpression::Binary { r#type, .. } => r#type.clone(),
@@ -92,6 +93,7 @@ fn requires_scalar_runtime(expression: &TypedScalarExpression) -> bool {
                 r#type: Some(_),
                 ..
             } => return true,
+            TypedScalarExpression::CollectionIndex { index, .. } => work.push(index),
             TypedScalarExpression::Unary { operand, .. } => work.push(operand),
             TypedScalarExpression::Binary { left, right, .. } => {
                 work.push(left);

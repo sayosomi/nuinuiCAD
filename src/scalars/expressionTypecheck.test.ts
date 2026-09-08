@@ -137,6 +137,52 @@ describe("typecheckScalarExpression / arithmetic operators (+ - * / % ^)", () =>
   });
 });
 
+describe("typecheckScalarExpression / collection index", () => {
+  it("requires a numeric index and returns the resolved element type", () => {
+    const source = "@marks[@index + 1]";
+    const result = typecheckScalarExpression(astFor(source), {
+      expectedType: { kind: "number" },
+      references: [
+        {
+          kind: "resolvedCollectionIndex",
+          collectionValueId: "collection:marks",
+          collectionLength: 3,
+          targetSourceOrder: 1,
+          type: { kind: "number" }
+        },
+        { kind: "resolvedType", bindingId: "binding:index", type: { kind: "number" } }
+      ]
+    });
+    expect(result.type).toEqual({ kind: "number" });
+    expect(result.diagnostics).toEqual([]);
+    expect(result.typed).toMatchObject({
+      kind: "collectionIndex",
+      collectionValueId: "collection:marks",
+      collectionLength: 3,
+      index: { kind: "binary", operator: "+", left: { kind: "reference", bindingId: "binding:index" } }
+    });
+  });
+
+  it("reports a type mismatch for a non-number index", () => {
+    const source = "@marks[@label]";
+    const result = typecheckScalarExpression(astFor(source), {
+      expectedType: { kind: "number" },
+      references: [
+        {
+          kind: "resolvedCollectionIndex",
+          collectionValueId: "collection:marks",
+          collectionLength: 1,
+          targetSourceOrder: 1,
+          type: { kind: "number" }
+        },
+        { kind: "resolvedType", bindingId: "binding:label", type: { kind: "string" } }
+      ]
+    });
+    expect(result.type).toBeNull();
+    expect(result.diagnostics).toEqual([expect.objectContaining({ code: "scalar-type-mismatch", actualType: { kind: "string" } })]);
+  });
+});
+
 describe("typecheckScalarExpression / numeric comparison (< <= > >=)", () => {
   it.each(["<", "<=", ">", ">="])("accepts number %s number and yields boolean", (op) => {
     const result = check(`1 ${op} 2`);

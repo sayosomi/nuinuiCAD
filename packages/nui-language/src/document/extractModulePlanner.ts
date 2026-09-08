@@ -721,7 +721,7 @@ const recordFieldBaseOccurrenceFor = (
   };
 };
 
-const recordSourceTargetIdentity = (target: ModuleRecordSourceTarget): DslSemanticIdentity => {
+const recordSourceTargetIdentity = (target: ModuleRecordSourceTarget): DslSemanticIdentity | null => {
   if (target.kind === "recordValue") return { kind: "recordValue", statementId: target.statementId };
   if (target.kind === "recordParameter") {
     return {
@@ -735,6 +735,7 @@ const recordSourceTargetIdentity = (target: ModuleRecordSourceTarget): DslSemant
       }
     };
   }
+  if (target.kind === "recordCollectionIndex") return null;
   return {
     kind: "module",
     target: { kind: "moduleSource", statementId: target.exportedStatementId }

@@ -285,7 +285,7 @@ export const evaluateElements = (
     throw new Error("evaluateElements: binding mutation requires compiled source execution positions");
   }
   const linearMutationResolver = linearMutationEnabled
-    ? createDocumentLinearScalarBindingResolver(options.bindingVersions!, { computedGeometry, computedGeometryValues, elementsById: runtimeElementsById, activities })
+    ? createDocumentLinearScalarBindingResolver(options.bindingVersions!, { computedGeometry, computedGeometryValues, elementsById: runtimeElementsById, activities }, options.scalarProgram?.collectionValues)
     : undefined;
   const knownConditionalMutationOwnerIds = new Set(
     options.bindingVersions?.versions.flatMap((version) => version.control.ownerChain

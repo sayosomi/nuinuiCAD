@@ -15,7 +15,8 @@ import {
   type ForGroupMutationFrame,
   type ForGroupMutationRunOutcome
 } from "./forGroupMutationCore";
-import type { ScalarEvaluation } from "./types";
+import { scalarTypesEqual, scalarValueMatchesType, type ScalarEvaluation, type ScalarType } from "./types";
+import type { ScalarProgramCollection } from "./scalarProgram";
 import type {
   ScalarExpressionResolvedGeometryTarget,
   TypedScalarGeometryPropertyReferenceNode
@@ -114,7 +115,8 @@ const conditionalOwners = (graph: BindingVersionGraph): ReadonlyMap<string, read
 export const createIncrementalLinearMutationEvaluator = (
   graph: BindingVersionGraph,
   resolveGeometryProperty?: (reference: TypedScalarGeometryPropertyReferenceNode, sourceOrder: number) => ScalarEvaluation,
-  resolveGeometryTarget?: (target: ScalarExpressionResolvedGeometryTarget, sourceOrder: number) => GeometryBuiltinTargetLookupResult | undefined
+  resolveGeometryTarget?: (target: ScalarExpressionResolvedGeometryTarget, sourceOrder: number) => GeometryBuiltinTargetLookupResult | undefined,
+  collectionValues?: readonly ScalarProgramCollection[]
 ): IncrementalLinearMutationEvaluator => {
   const currentByBindingId = new Map<BindingId, ScalarEvaluation>();
   const historyByVersionId = new Map<BindingVersionId, BindingVersionRuntimeHistory>();
@@ -133,6 +135,7 @@ export const createIncrementalLinearMutationEvaluator = (
   ).map((version) => version.bindingId);
   let nextVersionIndex = 0;
   let activeLoopEnvironment: ReturnType<typeof createForGroupMutationEnvironment<ScalarEvaluation>> | undefined;
+  const collectionValuesById = new Map((collectionValues ?? []).map((value) => [value.valueId, value] as const));
 
   const conditionalResultFor = (ownerStatementId: string) => {
     for (let index = loopConditionalResults.length - 1; index >= 0; index -= 1) {
@@ -150,6 +153,41 @@ export const createIncrementalLinearMutationEvaluator = (
     if (loopValue) return loopValue;
     const current = currentByBindingId.get(bindingId);
     return current ?? unavailable(bindingId);
+  };
+
+  const resolveCollectionIndex = (
+    collectionValueId: string,
+    index: number,
+    elementType: ScalarType,
+    collectionLength: number | null,
+    targetSourceOrder: number,
+    sourceOrder: number
+  ): ScalarEvaluation => {
+    if (targetSourceOrder >= sourceOrder) {
+      return { status: "error", type: elementType, issueCode: "evaluation-collection-index-unavailable" };
+    }
+    if (!Number.isFinite(index) || !Number.isInteger(index) || index < 0 ||
+      (collectionLength !== null && index >= collectionLength)) {
+      return { status: "error", type: elementType, issueCode: "evaluation-collection-index-invalid" };
+    }
+    const seen = new Set<string>();
+    const lookup = (valueId: string): ScalarEvaluation | undefined => {
+      if (seen.has(valueId)) return undefined;
+      seen.add(valueId);
+      const collection = collectionValuesById.get(valueId);
+      if (!collection) return undefined;
+      if (collection.kind === "alias") return lookup(collection.targetValueId);
+      const member = collection.members[index];
+      if (!member) return { status: "error", type: elementType, issueCode: "evaluation-collection-index-invalid" };
+      if (member.kind === "literal") return { status: "ok", type: member.type, value: member.value };
+      return resolveCurrent(member.bindingId);
+    };
+    const result = lookup(collectionValueId);
+    if (!result) return { status: "error", type: elementType, issueCode: "evaluation-collection-index-unavailable" };
+    if (result.status === "error") return result;
+    return scalarTypesEqual(result.type, elementType) && scalarValueMatchesType(result.type, result.value)
+      ? result
+      : { status: "error", type: elementType, issueCode: "evaluation-runtime-value-type-mismatch" };
   };
 
   const retireFramesBefore = (sourceOrder: number) => {
@@ -191,6 +229,7 @@ export const createIncrementalLinearMutationEvaluator = (
       ? poisoned(version)
       : evaluateTypedExpression(version.kind === "declare" ? version.initializer! : version.expression, {
         lookupBinding: resolveCurrent,
+        ...(collectionValuesById.size ? { lookupCollectionIndex: (collectionValueId, index, elementType, collectionLength, targetSourceOrder) => resolveCollectionIndex(collectionValueId, index, elementType, collectionLength, targetSourceOrder, version.sourceOrder) } : {}),
         ...(resolveGeometryProperty ? { lookupGeometryProperty: (reference) => resolveGeometryProperty(reference, version.sourceOrder) } : {}),
         ...(resolveGeometryTarget ? { lookupGeometryTarget: (target) => resolveGeometryTarget(target, version.sourceOrder) } : {})
       });
@@ -229,6 +268,7 @@ export const createIncrementalLinearMutationEvaluator = (
       ? poisoned(version)
       : evaluateTypedExpression(version.kind === "declare" ? version.initializer! : version.expression, {
         lookupBinding: resolveCurrent,
+        ...(collectionValuesById.size ? { lookupCollectionIndex: (collectionValueId, index, elementType, collectionLength, targetSourceOrder) => resolveCollectionIndex(collectionValueId, index, elementType, collectionLength, targetSourceOrder, version.sourceOrder) } : {}),
         ...(resolveGeometryProperty ? { lookupGeometryProperty: (reference) => resolveGeometryProperty(reference, version.sourceOrder) } : {}),
         ...(resolveGeometryTarget ? { lookupGeometryTarget: (target) => resolveGeometryTarget(target, version.sourceOrder) } : {})
       });

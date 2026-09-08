@@ -90,6 +90,16 @@ Every collection exposes the read-only numeric property `.length`. It reports
 the authored member count, including duplicates, for literals and for all
 whole-value alias chains. It does not project or materialize a selected member.
 
+Collections support first-class zero-based indexing with `@collection[index]`.
+The index is a normal typed `number` expression, for example
+`@marks[0]` or `@marks[@index + 1]`, and the result has the collection's exact
+element type. This preserves order, duplicates, aliases, nominal record
+identity, and pure geometry value identity without creating a drawable element
+identity. Optional Module collection parameters require a preceding
+`hasValue(@parameter)` proof. The index must be finite, integral, at least `0`,
+and less than the collection length; invalid dynamic indexes are evaluation
+errors and are never clamped or wrapped.
+
 ## Records
 
 Records are nominal source-only types whose fields must be scalar. See

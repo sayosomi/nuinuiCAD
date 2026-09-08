@@ -36,6 +36,22 @@ export type ModuleParameterSlot = {
 
 export type ModuleRecordSourceTarget =
   | {
+      kind: "recordCollectionIndex";
+      collectionValueId: string;
+      collectionLength: number | null;
+      targetSourceOrder: number;
+      typeIdentity: RecordTypeIdentity;
+      index: ModuleScalarExpressionSemantic;
+      /** The declaration-backed collection binding whose member is selected. */
+      collectionTarget: ModuleScalarSourceTarget;
+      source: string;
+      referenceSpan: DslSpan;
+      nameSpan: DslSpan;
+      /** Statically known record members are retained for field-backing
+       * resolution. Dynamic indexes are evaluated by the runtime owner. */
+      members?: readonly Extract<ModuleRecordSourceTarget, { kind: "recordValue" }>[];
+    }
+  | {
       kind: "recordValue";
       statementId: StatementIdentity;
       statementIndex: number;
@@ -72,10 +88,37 @@ export type ModuleRecordFieldSourceTarget = {
 
 export type ModuleScalarSourceTarget =
   | (ModuleParameterSlot & { kind: "parameter" })
+  | (ModuleParameterSlot & {
+      kind: "collectionParameter";
+      valueType: DslArrayValueType;
+      optional: boolean;
+    })
   | ModuleRecordFieldSourceTarget
   | { kind: "iteration"; statementId: StatementIdentity; statementIndex: number; name: string; identity?: DocumentQualifiedSemanticIdentity<StatementIdentity> }
   | { kind: "moduleLocal"; statementId: StatementIdentity; statementIndex: number; identity?: DocumentQualifiedSemanticIdentity<StatementIdentity> }
   | { kind: "documentBinding"; bindingId: BindingId; statementId: StatementIdentity; statementIndex: number; identity?: DocumentQualifiedSemanticIdentity<StatementIdentity> }
+  | {
+      kind: "collectionValue";
+      statementId: StatementIdentity;
+      statementIndex: number;
+      valueType: DslArrayValueType;
+      identity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
+    }
+  | {
+      kind: "deferredModuleCollectionExport";
+      instanceStatementId: StatementIdentity;
+      instanceStatementIndex: number;
+      instanceName: string;
+      exportName: string;
+      exportedStatementId: StatementIdentity;
+      exportedStatementIndex: number;
+      valueType: DslArrayValueType;
+      instanceIdentity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
+      exportedIdentity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
+      referenceSpan: DslSpan;
+      instanceSpan: DslSpan;
+      memberSpan: DslSpan;
+    }
   | {
       kind: "deferredModuleScalarExport";
       instanceStatementId: StatementIdentity;
@@ -94,6 +137,20 @@ export type ModuleScalarSourceTarget =
 
 export type ModuleGeometrySourceTarget =
   | (ModuleParameterSlot & { kind: "parameter"; geometryKind: "point" | "line"; pointKey?: string })
+  | {
+      kind: "collectionIndex";
+      collectionValueId: string;
+      collectionLength: number | null;
+      targetSourceOrder: number;
+      elementInterfaceType: ModuleGeometryInterfaceType;
+      expectedGeometryKind: "point" | "line";
+      expectedInterfaceType?: ModuleGeometryInterfaceType;
+      index: ModuleScalarExpressionSemantic;
+      source: string;
+      referenceSpan: DslSpan;
+      nameSpan: DslSpan;
+      pointKey?: string;
+    }
   | {
       kind: "sourceGeometry";
       statementId: StatementIdentity;
@@ -240,6 +297,11 @@ export type ModuleScalarReference = {
   span: DslSpan;
   target: ModuleSourceTarget | null;
   resolution: "resolved" | "undefined" | "forward" | "outerCapture" | "invalid";
+  /** Present only for a collection-index base reference. */
+  collectionValueId?: string | null;
+  collectionLength?: number | null;
+  targetSourceOrder?: number | null;
+  collectionElementType?: ScalarType | null;
 };
 
 export type ModuleScalarExpressionSemantic = {

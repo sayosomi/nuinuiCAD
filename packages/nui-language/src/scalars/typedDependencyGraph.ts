@@ -94,6 +94,7 @@ export const referencesIn = (expression: TypedScalarExpression): readonly Extrac
     else if (node.kind === "unary") visit(node.operand);
     else if (node.kind === "binary") { visit(node.left); visit(node.right); }
     else if (node.kind === "group") visit(node.expression);
+    else if (node.kind === "collectionIndex") visit(node.index);
     else if (node.kind === "call") node.args.forEach((argument) => {
       if (argument.kind === "scalar") visit(argument.expression);
     });
@@ -109,6 +110,7 @@ export const geometryPropertiesIn = (expression: TypedScalarExpression): readonl
     else if (node.kind === "unary") visit(node.operand);
     else if (node.kind === "binary") { visit(node.left); visit(node.right); }
     else if (node.kind === "group") visit(node.expression);
+    else if (node.kind === "collectionIndex") visit(node.index);
     else if (node.kind === "call") node.args.forEach((argument) => {
       if (argument.kind === "scalar") visit(argument.expression);
     });

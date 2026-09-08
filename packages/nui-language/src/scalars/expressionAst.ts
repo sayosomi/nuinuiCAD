@@ -72,6 +72,15 @@ export interface ScalarReferenceNode {
   readonly name: string;
 }
 
+/** A first-class zero-based lookup into a declared one-dimensional collection. */
+export interface ScalarCollectionIndexNode {
+  readonly kind: "collectionIndex";
+  readonly span: ScalarSpan;
+  readonly nameSpan: ScalarSpan;
+  readonly name: string;
+  readonly index: ScalarExpressionAst;
+}
+
 /** A nui 1 `@Element.property` reference.  Resolution to a stable element
  * identity happens with the compiled document, not in the syntax parser. */
 export interface ScalarGeometryPropertyReferenceNode {
@@ -136,6 +145,7 @@ export type ScalarExpressionAst =
   | ScalarBooleanLiteralNode
   | ScalarUnresolvedChoiceLiteralNode
   | ScalarReferenceNode
+  | ScalarCollectionIndexNode
   | ScalarGeometryPropertyReferenceNode
   | ScalarUnaryExpressionNode
   | ScalarBinaryExpressionNode
@@ -146,6 +156,8 @@ export type ScalarExpressionIssueCode =
   | "unexpected-token"
   | "missing-operand"
   | "unterminated-group"
+  | "unterminated-index"
+  | "empty-index"
   | "trailing-token"
   | "expression-depth-exceeded"
   | "chained-comparison-not-supported"

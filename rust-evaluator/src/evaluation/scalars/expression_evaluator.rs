@@ -85,6 +85,22 @@ pub(crate) trait ScalarEvaluationEnvironment {
     ) -> Result<GeometryBuiltinRuntimeTarget, GeometryBuiltinRuntimeError> {
         Err(GeometryBuiltinRuntimeError::Unavailable)
     }
+
+    fn lookup_collection_index(
+        &self,
+        _collection_value_id: &str,
+        _index: f64,
+        element_type: &ScalarType,
+        _collection_length: Option<f64>,
+        _target_source_order: f64,
+    ) -> ScalarEvaluation {
+        ScalarEvaluation::Error {
+            r#type: element_type.clone(),
+            issue_code: "evaluation-collection-index-unavailable".to_owned(),
+            binding_id: None,
+            context: None,
+        }
+    }
 }
 
 /// One entry in the explicit work stack. `Eval` still needs evaluating;
@@ -99,6 +115,12 @@ pub(super) enum EvalWork<'a> {
     Record(&'a TypedScalarExpression),
     FinishUnary {
         operator: ScalarUnaryOperator,
+        r#type: ScalarType,
+    },
+    FinishCollectionIndex {
+        collection_value_id: String,
+        collection_length: Option<f64>,
+        target_source_order: f64,
         r#type: ScalarType,
     },
     /// Left has not been evaluated yet when this is pushed; it is evaluated
@@ -185,6 +207,52 @@ where
             }
             EvalWork::FinishUnary { operator, r#type } => {
                 finish_unary(operator, r#type, &mut output)
+            }
+            EvalWork::FinishCollectionIndex {
+                collection_value_id,
+                collection_length,
+                target_source_order,
+                r#type,
+            } => {
+                let index = output.pop().expect("collection index expression result must be present");
+                let result = match index {
+                    ScalarEvaluation::Error { issue_code, binding_id, context, .. } => ScalarEvaluation::Error {
+                        r#type: r#type.clone(),
+                        issue_code,
+                        binding_id,
+                        context,
+                    },
+                    ScalarEvaluation::Ok { value: ScalarValue::Number(index), .. }
+                        if index.is_finite() && index.fract() == 0.0 && index >= 0.0 &&
+                           collection_length.is_none_or(|length| index < length) =>
+                        environment.lookup_collection_index(
+                            &collection_value_id,
+                            index,
+                            &r#type,
+                            collection_length,
+                            target_source_order,
+                        ),
+                    _ => ScalarEvaluation::Error {
+                        r#type: r#type.clone(),
+                        issue_code: "evaluation-collection-index-invalid".to_owned(),
+                        binding_id: None,
+                        context: None,
+                    },
+                };
+                output.push(match result {
+                    ScalarEvaluation::Ok { r#type: result_type, value }
+                        if result_type == r#type && scalar_value_matches_type(&result_type, &value) =>
+                    {
+                        ScalarEvaluation::Ok { r#type: result_type, value }
+                    }
+                    ScalarEvaluation::Ok { .. } => ScalarEvaluation::Error {
+                        r#type,
+                        issue_code: "evaluation-runtime-value-type-mismatch".to_owned(),
+                        binding_id: None,
+                        context: None,
+                    },
+                    error @ ScalarEvaluation::Error { .. } => error,
+                });
             }
             EvalWork::ContinueLogical {
                 operator,
@@ -275,6 +343,25 @@ fn eval_node<'a>(
         } => {
             output.push(evaluate_reference(r#type, binding_id, environment));
         }
+        TypedScalarExpression::CollectionIndex {
+            collection_value_id,
+            collection_length,
+            target_source_order,
+            index,
+            r#type,
+            ..
+        } => match (collection_value_id, target_source_order, r#type) {
+            (Some(collection_value_id), Some(target_source_order), Some(concrete_type)) => {
+                work.push(EvalWork::FinishCollectionIndex {
+                    collection_value_id: collection_value_id.clone(),
+                    collection_length: *collection_length,
+                    target_source_order: *target_source_order,
+                    r#type: concrete_type.clone(),
+                });
+                work.push(EvalWork::Eval(index));
+            }
+            _ => output.push(static_type_null_error(None)),
+        },
         TypedScalarExpression::GeometryProperty {
             element_id,
             collection_length,

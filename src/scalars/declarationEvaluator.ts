@@ -31,6 +31,7 @@ import type { BindingId } from "./bindingCatalog";
 import { evaluateTypedExpression, type GeometryBuiltinTargetLookupResult, type ScalarEvaluationEnvironment } from "./expressionEvaluator";
 import type { ScalarProgram, ScalarProgramStatement } from "./scalarProgram";
 import type { ScalarEvaluation } from "./types";
+import { scalarTypesEqual, scalarValueMatchesType, type ScalarType } from "./types";
 import type {
   ScalarExpressionResolvedGeometryTarget,
   TypedScalarGeometryPropertyReferenceNode
@@ -106,7 +107,31 @@ export const createLazyScalarProgramEvaluator = (
       const environment: ScalarEvaluationEnvironment = {
         lookupBinding: resolve,
         ...(resolveGeometryProperty ? { lookupGeometryProperty: (reference) => resolveGeometryProperty(reference, statement.sourceOrder) } : {}),
-        ...(resolveGeometryTarget ? { lookupGeometryTarget: (target) => resolveGeometryTarget(target, statement.sourceOrder) } : {})
+        ...(resolveGeometryTarget ? { lookupGeometryTarget: (target) => resolveGeometryTarget(target, statement.sourceOrder) } : {}),
+        ...(program.collectionValues?.length ? {
+          lookupCollectionIndex: (collectionValueId: string, index: number, elementType: ScalarType, collectionLength: number | null, targetSourceOrder: number): ScalarEvaluation => {
+            if (targetSourceOrder >= statement.sourceOrder) return { status: "error", type: elementType, issueCode: "evaluation-collection-index-unavailable" };
+            const valuesById = new Map(program.collectionValues!.map((value) => [value.valueId, value] as const));
+            const seen = new Set<string>();
+            const lookup = (valueId: string): ScalarEvaluation | undefined => {
+              if (seen.has(valueId)) return undefined;
+              seen.add(valueId);
+              const value = valuesById.get(valueId);
+              if (!value) return undefined;
+              if (value.kind === "alias") return lookup(value.targetValueId);
+              const member = value.members[index];
+              if (!member) return { status: "error", type: elementType, issueCode: "evaluation-collection-index-invalid" };
+              if (member.kind === "literal") return { status: "ok", type: member.type, value: member.value };
+              return resolve(member.bindingId);
+            };
+            const result = lookup(collectionValueId);
+            if (!result) return { status: "error", type: elementType, issueCode: "evaluation-collection-index-unavailable" };
+            if (result.status === "error") return result;
+            return scalarTypesEqual(result.type, elementType) && scalarValueMatchesType(result.type, result.value)
+              ? result
+              : { status: "error", type: elementType, issueCode: "evaluation-runtime-value-type-mismatch" };
+          }
+        } : {})
       };
       const evaluation = evaluateTypedExpression(statement.declaration.initializer, environment);
       cache.set(bindingId, evaluation);

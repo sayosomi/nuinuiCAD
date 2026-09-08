@@ -1,4 +1,4 @@
-import type { ElementId, PointAnchor } from "../types/geometry";
+import type { ElementId, PointAnchor, GeometryInputTarget } from "../types/geometry";
 import { derivedAnchor, isDerivedPointKeyForGeometryCategory } from "../model/pointAnchors";
 import { isGeometryDeclarationCategory } from "./dslConstructions";
 import type { DslDiagnostic, DslSpan, DslStatement } from "./dslTypes";
@@ -6,6 +6,7 @@ import { parseDslReferenceToken, parseDslSourceReference } from "./dslReferenceT
 import { coordinateComponent } from "./dslParameterSpanScanner";
 import { makeNumericExpression } from "../geometry/numericExpressions";
 import { parseGeometryArrayExpression } from "./geometryArrayExpression";
+import { parseScalarExpression } from "../scalars/expressionParser";
 import {
   parseGeometryArrayDeferredModuleExportId,
   type GeometryArraySemanticAnalysis,
@@ -52,6 +53,16 @@ export type ModuleGeometryArrayRuntimeCompilation = {
     statementIndex: number,
     currentPath: readonly string[]
   ) => readonly PointAnchor[] | null;
+  resolveLineReferenceTargetAt: (
+    token: string,
+    statementIndex: number,
+    currentPath: readonly string[]
+  ) => GeometryInputTarget | null;
+  resolvePointReferenceAt: (
+    token: string,
+    statementIndex: number,
+    currentPath: readonly string[]
+  ) => PointAnchor | null;
   acceptsDeferredLineListExport: (
     reference: ModuleGeometryReferenceSemantic,
     currentPath: readonly string[]
@@ -249,6 +260,8 @@ export const buildModuleGeometryArrayRuntime = ({
       diagnostics,
       resolveLineReferenceList: () => null,
       resolvePointReferenceList: () => null,
+      resolveLineReferenceTargetAt: () => null,
+      resolvePointReferenceAt: () => null,
       acceptsDeferredLineListExport: () => false
     };
   }
@@ -858,11 +871,52 @@ export const buildModuleGeometryArrayRuntime = ({
     return anchors;
   };
 
+  const indexedSource = (token: string) => {
+    const parsed = parseScalarExpression(token, { start: 0, end: token.length });
+    return parsed.ast?.kind === "collectionIndex" && parsed.ast.index.kind === "numberLiteral"
+      ? { base: `@${parsed.ast.name}`, index: parsed.ast.index.value }
+      : null;
+  };
+
+  const resolveLineReferenceTargetAt = (token: string, statementIndex: number, currentPath: readonly string[]) => {
+    const indexed = indexedSource(token);
+    if (!indexed || !Number.isInteger(indexed.index) || indexed.index < 0) return null;
+    const resolved = resolveWholeReference(indexed.base, statementIndex, currentPath, new Set());
+    const member = resolved.value?.members[indexed.index];
+    if (!member || !isModuleGeometryInterfaceAssignable(member.interfaceType, "path") || !member.alias) return null;
+    if (member.alias.kind === "line") {
+      return { kind: "drawable" as const, elementId: member.alias.elementId, geometryType: "line" as const };
+    }
+    if (member.alias.kind === "value" && member.alias.geometryType === "line") {
+      return {
+        kind: "geometryValue" as const,
+        occurrence: member.alias.occurrence,
+        geometryType: member.alias.interfaceType === "path" ? "path" as const : "line" as const
+      };
+    }
+    return null;
+  };
+
+  const resolvePointReferenceAt = (token: string, statementIndex: number, currentPath: readonly string[]) => {
+    const indexed = indexedSource(token);
+    if (!indexed || !Number.isInteger(indexed.index) || indexed.index < 0) return null;
+    const resolved = resolveWholeReference(indexed.base, statementIndex, currentPath, new Set());
+    const anchors = resolved.value ? pointAnchorsFor(resolved.value) : null;
+    return anchors?.[indexed.index] ?? null;
+  };
+
   const acceptsDeferredLineListExport = (reference: ModuleGeometryReferenceSemantic, currentPath: readonly string[]) => {
     if (reference.role !== "lineReferenceList" || reference.target?.kind !== "deferredModuleExport") return false;
     const exported = arrayExportSemantic(currentPath, reference.target.instanceStatementId, reference.target.exportName)?.exported;
     return Boolean(exported && exported.type.elementType !== "point");
   };
 
-  return { diagnostics, resolveLineReferenceList, resolvePointReferenceList, acceptsDeferredLineListExport };
+  return {
+    diagnostics,
+    resolveLineReferenceList,
+    resolvePointReferenceList,
+    resolveLineReferenceTargetAt,
+    resolvePointReferenceAt,
+    acceptsDeferredLineListExport
+  };
 };

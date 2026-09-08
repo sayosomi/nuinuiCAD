@@ -623,6 +623,42 @@ describe("multi-document module runtime", () => {
     expect(point && result.computedGeometry.get(point.id)).toMatchObject({ kind: "point", x: 10, y: 0 });
   });
 
+  it("indexes an exported collection through a cross-document Module occurrence", async () => {
+    const library = savedSource("indexed-collection-library", "sha256:indexed-collection-library", [
+      "nui 1",
+      "export module Collection() {",
+      "  export const values: number[] = [3, 8]",
+      "}"
+    ].join("\n"));
+    const root = rootSource("indexed-collection-root", [
+      "nui 1",
+      "import \"./indexed-collection-library.nui\" as lib",
+      "instance use = lib::Collection()",
+      "const result: number = @use::values[1]",
+      "point Result = coordinate(x: @result, y: 0)"
+    ].join("\n"));
+    const compiled = await compileImported(root, new Map([[`${root.documentId}|./indexed-collection-library.nui`, library]]));
+    expect(compiled.graph.valid).toBe(true);
+    expect(compiled.semantics.valid).toBe(true);
+    expect(compiled.compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    if (!compiled.compiled.document || !compiled.compiled.statementMap || compiled.compiled.majorVersion === null) return;
+    const result = evaluateElements(
+      compiled.compiled.document.elements,
+      buildEvaluationOptions({
+        compiledDocument: {
+          ...compiled.compiled,
+          document: compiled.compiled.document,
+          statementMap: compiled.compiled.statementMap,
+          majorVersion: compiled.compiled.majorVersion
+        },
+        evaluationLimitIndex: compiled.compiled.document.evaluationLimitIndex
+      })
+    );
+    expect(result.errors).toEqual([]);
+    const point = compiled.compiled.document.elements.find((element) => element.name === "Result");
+    expect(point && result.computedGeometry.get(point.id)).toMatchObject({ kind: "point", x: 8, y: 0 });
+  });
+
   it("resolves imported geometry exports and geometry-property reads", async () => {
     const library = savedSource("geometry-export-library", "sha256:geometry-export-library", [
       "nui 1",

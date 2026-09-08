@@ -34,6 +34,10 @@ export type ResolveBuiltinGeometryArgumentsInput = {
   readonly ast: ScalarExpressionAst;
   readonly statementIndex: number;
   readonly scalarReferenceResolutions: readonly BindingResolution[];
+  /** Collection-index base references are ordinary resolutions only when
+   * collection resolution failed. They are consumed for cursor alignment,
+   * but are not geometry arguments themselves. */
+  readonly collectionIndexBaseReferenceOccurrenceIndexes?: ReadonlySet<number>;
   readonly sourceDeclarationsByStatementId: ReadonlyMap<string, SourceLexicalDeclaration>;
   /** Root source lexical lookup for a geometry property base name. This is
    * deliberately separate from scalar reference occurrences: a
@@ -105,6 +109,7 @@ export const resolveBuiltinGeometryArguments = ({
   ast,
   statementIndex,
   scalarReferenceResolutions,
+  collectionIndexBaseReferenceOccurrenceIndexes,
   sourceDeclarationsByStatementId,
   additionalGeometryResolver,
   resolveSourceGeometryPath
@@ -248,6 +253,12 @@ export const resolveBuiltinGeometryArguments = ({
     switch (node.kind) {
       case "reference":
         nextReference(node.name, node.span);
+        return;
+      case "collectionIndex":
+        if (collectionIndexBaseReferenceOccurrenceIndexes?.has(referenceCursor)) {
+          nextReference(node.name, node.span);
+        }
+        visit(node.index);
         return;
       case "geometryProperty":
       case "numberLiteral":

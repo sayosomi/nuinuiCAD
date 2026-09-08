@@ -6,6 +6,7 @@ import type { SourceLexicalLookup } from "./sourceLexicalNamespaceIndex";
 import { isBareDslIdentifierChar } from "./dslTokens";
 import type { ScalarType } from "../scalars/types";
 import { nominalRecordTypeOfDslValueType } from "./dslValueTypes";
+import { parseScalarExpression } from "../scalars/expressionParser";
 
 export type RecordTypeIdentity = string;
 export type RecordValueIdentity = string;
@@ -445,6 +446,15 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
     let constructor: RecordConstructorSemantic | null = null;
     let reference: RecordValueReferenceSemantic | null = null;
     if (initializerSpan && statement.initializer.trimStart().startsWith("@")) {
+      const parsedScalar = parseScalarExpression(statement.initializer, { start: 0, end: statement.initializer.length });
+      // Generic collection indexing owns the bracket expression. Record
+      // semantic analysis still owns nominal type declarations, but must not
+      // reinterpret `@pairs[0]` as an invalid dotted/qualified record name.
+      if (parsedScalar.ast?.kind === "collectionIndex") {
+        // The Module semantic pass proves the collection element's nominal
+        // identity. Keep this source value in the record namespace while the
+        // runtime lowering supplies its field backing.
+      } else {
       const parsedReference = parseDslSourceReference(statement.initializer);
       const span = referenceSpan(statement.initializer, initializerSpan);
       if (
@@ -488,6 +498,7 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
           diagnostics.push(diagnostic(statement, span, "record-nominal-type-mismatch", `参照「@${name}」の nominal record 型は宣言された型「${recordTypeReference.name}」と一致しません。`, { name, expected: recordTypeReference.name }));
         }
         reference = { name, span, targetTypeIdentity };
+      }
       }
     } else if (initializerSpan) {
       const candidate = constructorCandidate(statement.initializer, initializerSpan);

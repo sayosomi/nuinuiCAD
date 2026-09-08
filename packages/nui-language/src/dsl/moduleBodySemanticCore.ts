@@ -53,6 +53,7 @@ export type ModuleBodyDefinition = {
 type AddLocalDiagnostic = (statementIndex: number, diagnostic: ModuleScalarLocalDiagnostic) => void;
 type AnalyzeExpression = (
   statementIndex: number,
+  ownerIndex: number | null,
   raw: string,
   span: DslSpan,
   expectedType: ScalarType | null,
@@ -197,6 +198,7 @@ export const analyzeModuleBody = ({
 
   const analyzeExpression = (
     statementIndex: number,
+    ownerIndex: number | null,
     raw: string,
     span: DslSpan,
     expectedType: ScalarType | null,
@@ -207,6 +209,7 @@ export const analyzeModuleBody = ({
     resolveHasValue?: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution
   ) => analyzeSourceExpression(
     statementIndex,
+    ownerIndex,
     raw,
     span,
     expectedType,
@@ -289,6 +292,7 @@ export const analyzeModuleBody = ({
     for (const hole of scanned.segments.filter((segment): segment is Extract<typeof segment, { kind: "hole" }> => segment.kind === "hole")) {
       const expression = analyzeExpression(
         statementIndex,
+        definition.statementIndex,
         source.slice(hole.contentSpan.start, hole.contentSpan.end),
         hole.contentSpan,
         null,
@@ -336,6 +340,7 @@ export const analyzeModuleBody = ({
         if (!fieldSpan) continue;
         const expression = analyzeExpression(
           statementIndex,
+          definition.statementIndex,
           source.slice(fieldSpan.start, fieldSpan.end),
           fieldSpan,
           { kind: "number" },
@@ -536,6 +541,7 @@ export const analyzeModuleBody = ({
         const initializer = initializerSpan
           ? analyzeExpression(
               statementIndex,
+              definition.statementIndex,
               statement.initializer,
               initializerSpan,
               declaredType,
@@ -574,6 +580,7 @@ export const analyzeModuleBody = ({
       const expressionSpan = statement.payloadSpans.expression ?? statement.keywordSpan;
       const expression = analyzeExpression(
         statementIndex,
+        definition.statementIndex,
         statement.expression,
         expressionSpan,
         target.type,
@@ -671,6 +678,7 @@ export const analyzeModuleBody = ({
                 ? textParameterSemantic(value, valueSpan)
                 : analyzeExpression(
                   statementIndex,
+                  definition.statementIndex,
                   value,
                   valueSpan,
                   expectedType,

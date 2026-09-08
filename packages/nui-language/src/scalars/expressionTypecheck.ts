@@ -26,6 +26,7 @@ import {
 import type {
   ScalarExpressionResolvedGeometryTarget,
   ScalarExpressionResolvedGeometryProperty,
+  ScalarExpressionResolvedCollectionIndex,
   ScalarExpressionResolvedReference,
   ScalarExpressionTypecheckContext,
   ScalarExpressionTypecheckDiagnostic,
@@ -257,6 +258,26 @@ const checkNode = (
       const declaredType = scalarTypeOfDslValueType(binding.declaredType);
       const type = binding.kind === "typed" ? declaredType : (declaredType ?? NUMBER_TYPE);
       return { kind: "reference", span: node.span, nameSpan: node.nameSpan, name: node.name, bindingId: binding.id, type };
+    }
+
+    case "collectionIndex": {
+      const resolution = nextReferenceResolution(state, node.name, node.span.start);
+      const index = checkNode(node.index, NUMBER_TYPE, state);
+      const indexOk = checkOperandType(state, index, NUMBER_TYPE);
+      const collection = resolution.kind === "resolvedCollectionIndex"
+        ? resolution as ScalarExpressionResolvedCollectionIndex
+        : null;
+      return {
+        kind: "collectionIndex",
+        span: node.span,
+        nameSpan: node.nameSpan,
+        name: node.name,
+        collectionValueId: collection?.collectionValueId ?? null,
+        collectionLength: collection?.collectionLength ?? null,
+        targetSourceOrder: collection?.targetSourceOrder ?? null,
+        index,
+        type: collection && indexOk ? collection.type : null
+      };
     }
 
     case "geometryProperty": {

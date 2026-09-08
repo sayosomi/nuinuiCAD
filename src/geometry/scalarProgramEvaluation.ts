@@ -19,7 +19,7 @@ import {
   type LinearMutationEvaluation
 } from "../scalars/linearMutationEvaluator";
 import type { ForGroupMutationRunOutcome } from "../scalars/forGroupMutationCore";
-import type { ScalarProgram } from "../scalars/scalarProgram";
+import type { ScalarProgram, ScalarProgramCollection } from "../scalars/scalarProgram";
 import type { BindingId } from "../scalars/bindingCatalog";
 import type { ScalarEvaluation } from "../scalars/types";
 import type { ScalarExpressionResolvedGeometryTarget, TypedScalarGeometryPropertyReferenceNode } from "../scalars/typedExpressionAst";
@@ -171,7 +171,8 @@ export const createDocumentScalarBindingResolver = (
 /** Task 31's live document adapter for a Task 30 graph with linear sets. */
 export const createDocumentLinearScalarBindingResolver = (
   graph: BindingVersionGraph,
-  geometry?: DocumentGeometryRuntime
+  geometry?: DocumentGeometryRuntime,
+  collectionValues?: readonly ScalarProgramCollection[]
 ): LinearScalarBindingResolver => {
   const resolveGeometryProperty = geometry
     ? (reference: TypedScalarGeometryPropertyReferenceNode, sourceOrder: number): ScalarEvaluation =>
@@ -182,7 +183,7 @@ export const createDocumentLinearScalarBindingResolver = (
         return resolveDocumentGeometryTarget(geometry, target, sourceOrder);
       }
     : undefined;
-  const evaluator = createIncrementalLinearMutationEvaluator(graph, resolveGeometryProperty, resolveGeometryTarget);
+  const evaluator = createIncrementalLinearMutationEvaluator(graph, resolveGeometryProperty, resolveGeometryTarget, collectionValues);
   return {
     advanceTo: evaluator.advanceTo,
     registerConditionalResult: evaluator.registerConditionalResult,

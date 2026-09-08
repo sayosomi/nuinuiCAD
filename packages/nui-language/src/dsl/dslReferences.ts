@@ -17,6 +17,8 @@ import {
 } from "./dslReferenceTokens";
 import { resolveSourceLexicalPath, type SourceLexicalNamespaceIndex } from "./sourceLexicalNamespaceIndex";
 import { isDslGeometryValueType } from "./dslValueTypes";
+import { parseScalarExpression } from "../scalars/expressionParser";
+import { lowerSourceGeometryArrayLineReferenceAt, lowerSourceGeometryArrayPointReferenceAt } from "./geometryArrayRuntimeLowering";
 
 export type NameIndex = {
   elements: CadElement[];
@@ -150,6 +152,17 @@ export const resolveId = (
   currentElement?: CadElement,
   sourceSpan?: DslSpan
 ) => {
+  const indexed = parseScalarExpression(token, { start: 0, end: token.length });
+  if (indexed.ast?.kind === "collectionIndex" && indexed.ast.index.kind === "numberLiteral") {
+    const memberIndex = indexed.ast.index.value;
+    const lowered = lowerSourceGeometryArrayLineReferenceAt(
+      `@${indexed.ast.name}`,
+      index,
+      currentElement,
+      memberIndex
+    );
+    if (lowered) return lowered;
+  }
   const reference = sourceReference(token, line, diagnostics, sourceSpan);
   if (!reference) return token.trim();
   const path = reference.path;
@@ -247,6 +260,16 @@ export const resolveAnchor = (
 ): PointAnchor => {
   const coordinate = coordinateAnchor(value, numeric);
   if (coordinate) return coordinate;
+  const indexed = parseScalarExpression(value, { start: 0, end: value.length });
+  if (indexed.ast?.kind === "collectionIndex" && indexed.ast.index.kind === "numberLiteral") {
+    const lowered = lowerSourceGeometryArrayPointReferenceAt(
+      `@${indexed.ast.name}`,
+      index,
+      currentElement,
+      indexed.ast.index.value
+    );
+    if (lowered) return lowered;
+  }
   const reference = sourceReference(value, line, diagnostics, sourceSpan);
   if (!reference) return referenceAnchor(value.trim());
   const sourceResolution = index.sourceLexicalResolution && currentElement

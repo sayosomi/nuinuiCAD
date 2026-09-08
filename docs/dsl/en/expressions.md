@@ -59,6 +59,30 @@ Whole-value aliases and Module collection parameters/exports preserve the same
 cardinality. Optional Module parameters require the established
 `hasValue(@parameter)` presence proof before `.length` is read.
 
+Declared collections also support first-class zero-based indexing:
+`@collection[index]`. The index is a normal typed numeric expression, so both
+`@marks[0]` and `@marks[@index + 1]` are valid. The result has exactly the
+collection element type, including nominal record identity. Order, duplicates,
+aliases, and pure geometry value identity are preserved; indexing does not
+create a drawable element identity, and nested arrays remain unsupported.
+Root values, aliases, Module parameters, locals, exports, qualified exports,
+and cross-document exports use the same lexical and source-order rules as
+whole collection references. An optional collection parameter needs a proven
+`hasValue(@parameter)` guard before indexing.
+
+The index must evaluate to a finite integer from `0` through one less than the
+collection length. Negative, fractional, non-finite, or out-of-range indexes
+are evaluation errors. Runtime validation is authoritative for dynamic
+indexes, and never clamps, wraps, coerces, or fabricates a value.
+
+<!-- dsl-example: compile-success -->
+```nui
+nui 1
+const marks: number[] = [10, 20, 30]
+const index: number = 1
+const selected: number = @marks[@index + 1]
+```
+
 ## Function calls and interpolation
 
 Builtin calls use a bare function name followed by typed expressions in

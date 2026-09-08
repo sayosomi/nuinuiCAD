@@ -223,6 +223,41 @@ describe("geometry array source semantic integration", () => {
     });
   });
 
+  it("typechecks and evaluates a root scalar collection index", () => {
+    const compiled = compile([
+      "nui 1",
+      "const index: number = 0",
+      "const numbers: number[] = [10, 20, 30]",
+      "const selected: number = @numbers[@index + 1]"
+    ].join("\n"));
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(compiled.scalarProgram?.statements.at(-1)?.declaration.initializer).toMatchObject({
+      kind: "collectionIndex",
+      collectionValueId: "statement:2",
+      collectionLength: 3,
+      type: { kind: "number" },
+      index: { kind: "binary", operator: "+" }
+    });
+  });
+
+  it("preserves nominal record identity for an indexed collection at a Module boundary", () => {
+    const compiled = compile([
+      "nui 1",
+      "record Pair(x: number)",
+      "const pair: Pair = Pair(x: 7)",
+      "const pairs: Pair[] = [@pair]",
+      "module M(item: Pair) {",
+      "  const selected: number = @item.x",
+      "}",
+      "instance Use = M(item: @pairs[0])"
+    ].join("\n"));
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(compiled.moduleSemanticAnalysis?.instances.at(-1)?.parameterBindings.at(0)?.value).toMatchObject({
+      kind: "record",
+      reference: { resolution: "resolved", typeIdentity: "statement:1", target: { kind: "recordCollectionIndex" } }
+    });
+  });
+
   it("supports Module collection length, aliases, exports, and optional presence narrowing", () => {
     const guarded = compile([
       "nui 1",
@@ -414,5 +449,22 @@ describe("geometry array source semantic integration", () => {
     const value = result.analysis.values.find((candidate) => candidate.name === "points")?.value;
     expect(value?.kind).toBe("literal");
     if (value?.kind === "literal") expect(value.members[0]?.target.kind).toBe("geometryValue");
+  });
+
+  it("resolves geometry and nominal-record collection indexes as typed references", () => {
+    const compiled = compile([
+      "nui 1",
+      "record Pair(x: number)",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line AB = segment(start: @A, end: @B)",
+      "const points: point[] = [@A, @B]",
+      "const lines: line[] = [@AB, @AB]",
+      "const pair: Pair = Pair(x: 1)",
+      "const pairs: Pair[] = [@pair, @pair]",
+      "line Selected = segment(start: @points[0], end: @points[1])",
+      "const selectedPair: Pair = @pairs[0]"
+    ].join("\n"));
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
   });
 });

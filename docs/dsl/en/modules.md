@@ -19,6 +19,13 @@ Collection parameters, locals, and exports support the read-only numeric
 property `.length`. An optional collection parameter must first be narrowed by
 `hasValue(@parameter)` before its length is read.
 
+Collection parameters, locals, and exports can be indexed with the same
+zero-based `@collection[index]` expression as root collections. The index is a
+normal typed number expression, and the result keeps the declared element type
+and value identity. Optional collection parameters require
+`hasValue(@parameter)` proof before indexing. A non-finite, fractional,
+negative, or out-of-range index is an evaluation error.
+
 Append `?` to make a parameter optional. An optional parameter has no value
 until supplied and cannot also have a default. Only non-optional scalar
 parameters (`number`, `boolean`, `string`, or `choice(...)`) may declare a

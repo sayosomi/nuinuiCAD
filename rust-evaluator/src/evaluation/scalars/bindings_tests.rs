@@ -51,6 +51,7 @@ fn declare(
 fn program(statements: Vec<ValidatedScalarProgramStatement>) -> ValidatedScalarProgram {
     ValidatedScalarProgram {
         statements,
+        collection_values: Vec::new(),
         evaluation_limit_source_order: None,
         post_stop_binding_ids: std::collections::HashSet::new(),
     }

@@ -165,6 +165,36 @@ export const buildModuleGeometryRuntime = ({
     exportsByPath,
     moduleRuntimeContext
   });
+  for (const context of contextsByPath.values()) {
+    const instance = moduleRuntimeContext?.instanceFor({
+      documentId: context.instanceDocumentId!,
+      localIdentity: context.instanceStatementId
+    }) ?? moduleSemanticAnalysis.instancesByStatementId.get(context.instanceStatementId);
+    if (!instance) continue;
+    for (const parameter of context.definition.parameters) {
+      const binding = instance.parameterBindings.find((candidate) => candidate.parameterIndex === parameter.parameterIndex);
+      const reference = binding?.value?.kind === "geometry" ? binding.value.reference : null;
+      if (reference?.target?.kind !== "collectionIndex") continue;
+      const indexedTarget = reference.target.expectedGeometryKind === "point"
+        ? (() => {
+            const anchor = geometryArrayRuntime.resolvePointReferenceAt(reference.source, instance.statementIndex, context.path.slice(0, -1));
+            return anchor ? { kind: "point" as const, anchor } : undefined;
+          })()
+        : (() => {
+            const resolved = geometryArrayRuntime.resolveLineReferenceTargetAt(reference.source, instance.statementIndex, context.path.slice(0, -1));
+            if (!resolved) return undefined;
+            if (resolved.kind === "drawable") return { kind: "line" as const, elementId: resolved.elementId };
+            return {
+              kind: "value" as const,
+              occurrence: resolved.occurrence,
+              geometryType: resolved.geometryType === "path" ? "line" as const : resolved.geometryType,
+              interfaceType: resolved.geometryType
+            };
+          })();
+      if (indexedTarget) (context.aliases as Map<number, GeometryAlias>).set(parameter.parameterIndex, indexedTarget);
+    }
+  }
+
   diagnostics.push(...geometryArrayRuntime.diagnostics);
 
   const definitionForInstance = (instanceStatementId: string) => {
@@ -278,9 +308,12 @@ export const buildModuleGeometryRuntime = ({
       statement: entry.statement,
       sites,
       currentPath: entry.runtimeInstancePath ?? entry.instancePath,
+      statementIndex: entry.sourceStatementIndex,
       contextsByPath,
       materialization: moduleMaterialization,
-      exportsByPath
+      exportsByPath,
+      resolveLineReferenceTargetAt: geometryArrayRuntime.resolveLineReferenceTargetAt,
+      resolvePointReferenceAt: geometryArrayRuntime.resolvePointReferenceAt
     });
     const targetsForElement = new Map<string, GeometryInputTarget | readonly GeometryInputTarget[]>();
     resolversByRuntimeElementId.set(entry.runtimeElementId, {

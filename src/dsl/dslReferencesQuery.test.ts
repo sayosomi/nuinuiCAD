@@ -322,6 +322,31 @@ describe("queryDslReferences", () => {
     expect(publicDeclaration).toEqual(publicSegment);
   });
 
+  it("keeps indexed collection bases on the declaration identity and indexes remain ordinary bindings", () => {
+    const source = [
+      "nui 1",
+      "const index: number = 1",
+      "const values: number[] = [2, 4]",
+      "const selected: number = @values[@index]"
+    ].join("\n");
+    const compiled = compile(source);
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const index = createDslSemanticOccurrenceIndex(compiled);
+    const valueDeclaration = index.occurrences.find((occurrence) =>
+      occurrence.kind === "declaration" && source.slice(occurrence.from, occurrence.to) === "values"
+    );
+    const valueReference = index.occurrences.find((occurrence) =>
+      occurrence.kind === "reference" && occurrence.from === source.indexOf("@values") + 1
+    );
+    const indexReference = index.occurrences.find((occurrence) =>
+      occurrence.kind === "reference" && occurrence.from === source.indexOf("@index", source.indexOf("@values")) + 1
+    );
+    expect(valueDeclaration?.identity).toEqual({ kind: "typed", bindingId: "binding:references-test:2" });
+    expect(valueReference?.identity).toEqual(valueDeclaration?.identity);
+    expect(indexReference?.identity.kind).toBe("typed");
+    expect(indexReference?.identity).not.toEqual(valueDeclaration?.identity);
+  });
+
   it("does not match comments, literals, punctuation, or unresolved and ambiguous references", () => {
     const source = [
       "nui 1",
