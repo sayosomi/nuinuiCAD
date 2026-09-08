@@ -14,7 +14,7 @@ import { projectPointOntoOffsetLine } from "./offsetSegmentProjection";
 type Point = { x: number; y: number };
 
 export type LineLikeGeometry = ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine | ComputedPolyline;
-export type LineLikeGeometryInput = LineLikeGeometry | Extract<ComputedGeometryValue, { kind: "line" | "arcLine" | "bezierCurve" }>;
+export type LineLikeGeometryInput = LineLikeGeometry | Extract<ComputedGeometryValue, { kind: "line" | "arcLine" | "bezierCurve" | "polyline" }>;
 
 type PathSegment = {
   start: Point;

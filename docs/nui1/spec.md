@@ -1045,6 +1045,9 @@ const curvedOutline: path = bezier(
   start: @originPoint, end: (30, 20),
   startAngle: 0, startLength: 10, endAngle: 180, endLength: 10
 )
+const polygon: path = polyline(
+  points: [@originPoint, (30, 20), (10, 40)], closed: true
+)
 ```
 
 `coordinate` produces `point`; `segment` produces strict `line`; and direct
@@ -1069,8 +1072,13 @@ through the shared runtime target boundary. Pure `bezier(...)` is also a
 computed length, supports multiple intermediate segments, and is consumable by
 the existing path-compatible readers. Unavailable or non-finite Bezier inputs
 fail through the occurrence-owned geometry-value diagnostic channel; they do
-not create a drawable identity. Pure `offset`, `corner`, `polyline`, and other
-deferred constructions remain unsupported.
+not create a drawable identity. Pure `polyline(...)` is also a `path`
+construction and accepts the drawable `points` and `closed` arguments. It
+stores ordered identity-free line segments, preserves duplicate points, adds a
+closing segment only when needed, and requires at least two open points or
+three closed points. Unavailable points and invalid cardinality fail through
+the occurrence-owned geometry-value diagnostic channel. Pure `offset`,
+`corner`, and other deferred constructions remain unsupported.
 
 The same form is available for root declarations, module locals, and exported
 members. Module parameters are declared in the Module signature rather than

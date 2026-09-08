@@ -231,6 +231,48 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("matches pure polyline values and occurrence-owned cardinality diagnostics across TypeScript and Rust", () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "const Open: path = polyline(points: [(0, 0), (3, 4), (3, 0)], closed: false)",
+      "const Closed: path = polyline(points: [(0, 0), (3, 4), (3, 0)], closed: true)",
+      "const Invalid: path = polyline(points: [(0, 0)], closed: false)"
+    ].join("\n"));
+    const program = fixture.compiled?.doc.geometryValueProgram;
+    if (!program) throw new Error("expected pure polyline geometry value program entries");
+    const openEntry = program.find((entry) => entry.construction.kind === "polyline" && entry.sourceStatementIndex === 1);
+    const closedEntry = program.find((entry) => entry.construction.kind === "polyline" && entry.sourceStatementIndex === 2);
+    const invalidEntry = program.find((entry) => entry.construction.kind === "polyline" && entry.sourceStatementIndex === 3);
+    if (!openEntry || !closedEntry || !invalidEntry) throw new Error("expected open, closed, and invalid pure polyline entries");
+    const options = optionsFor(fixture);
+
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustOptions(repoRoot, fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+
+    const ts = evaluationPayloadToResult(tsPayload);
+    const rust = evaluationPayloadToResult(rustPayload);
+    const valueFor = (
+      result: ReturnType<typeof evaluationPayloadToResult>,
+      occurrence: typeof openEntry.occurrence
+    ) => [...(result.computedGeometryValues?.values() ?? [])]
+      .find((entry) => entry.occurrence.sourceStatementId === occurrence.sourceStatementId && entry.occurrence.instancePath.join("\0") === occurrence.instancePath.join("\0"))?.value;
+
+    for (const result of [ts, rust]) {
+      expect(result.errors).toEqual([]);
+      expect(valueFor(result, openEntry.occurrence)).toMatchObject({ kind: "polyline", closed: false, length: 9 });
+      expect(valueFor(result, closedEntry.occurrence)).toMatchObject({ kind: "polyline", closed: true, length: 12, end: { x: 0, y: 0 } });
+      expect(valueFor(result, openEntry.occurrence)).not.toHaveProperty("elementId");
+      expect(valueFor(result, invalidEntry.occurrence)).toBeUndefined();
+      expect(result.geometryValueErrors).toEqual([{
+        occurrence: invalidEntry.occurrence,
+        message: "Polyline geometry value construction requires at least 2 finite points."
+      }]);
+      expect(result.geometryValueErrors?.every((error) => !("elementId" in error))).toBe(true);
+    }
+  }, 30000);
+
   it("matches root collection length evaluation across TypeScript and Rust", () => {
     const fixture = fixtureFromSource([
       "nui 1",

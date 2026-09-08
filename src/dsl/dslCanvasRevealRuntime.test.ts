@@ -120,6 +120,7 @@ const runtime = ({
   resolversByRuntimeElementId: new Map(),
   geometryInputTargetsByRuntimeElementId: new Map(),
   geometryInputTargetSourcesByRuntimeElementId: new Map(),
+  resolvePointReferenceList: () => null,
   resolveBuiltinTarget: (_target, instancePath, expectedGeometryType) => {
     const id = builtin.get(JSON.stringify(instancePath));
     return id ? { kind: "drawable", elementId: id, geometryType: expectedGeometryType } : undefined;

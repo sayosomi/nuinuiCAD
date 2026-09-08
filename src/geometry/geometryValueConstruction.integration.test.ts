@@ -209,6 +209,85 @@ describe("pure geometry construction runtime", () => {
     expect(result.computedGeometry.get("geometry-value-runtime:8")).toMatchObject({ kind: "offsetLine" });
   });
 
+  it("evaluates open and closed pure polylines without drawable identity", () => {
+    const { compiled, result } = evaluate([
+      "nui 1",
+      "const Open: path = polyline(points: [(0, 0), (3, 4), (3, 0)], closed: false)",
+      "const Closed: path = polyline(points: [(0, 0), (3, 4), (3, 0)], closed: true)",
+      "const OpenLength: number = @Open.length",
+      "const ClosedLength: number = @Closed.length",
+      "line Use = segment(start: @Open.start, end: @Closed.end)",
+      "line Offset = offset(sources: [@Closed], distance: 1, side: right, closed: false, suppressTrimWarnings: false)"
+    ].join("\n"));
+
+    expect(compiled.diagnostics).toEqual([]);
+    expect(result.errors).toEqual([]);
+    const values = [...(result.computedGeometryValues?.values() ?? [])];
+    const open = values.find((entry) => entry.occurrence.sourceStatementId === "geometry-value-runtime:1")?.value;
+    const closed = values.find((entry) => entry.occurrence.sourceStatementId === "geometry-value-runtime:2")?.value;
+    expect(open).toEqual(expect.objectContaining({
+      kind: "polyline",
+      closed: false,
+      start: { x: 0, y: 0 },
+      end: { x: 3, y: 0 },
+      length: 9
+    }));
+    expect(open && open.kind === "polyline" ? open.segments : undefined).toEqual([
+      { start: { x: 0, y: 0 }, end: { x: 3, y: 4 }, length: 5 },
+      { start: { x: 3, y: 4 }, end: { x: 3, y: 0 }, length: 4 }
+    ]);
+    expect(closed).toEqual(expect.objectContaining({
+      kind: "polyline",
+      closed: true,
+      start: { x: 0, y: 0 },
+      end: { x: 0, y: 0 },
+      length: 12
+    }));
+    expect(closed && closed.kind === "polyline" ? closed.segments.map((segment) => segment.length) : undefined).toEqual([5, 4, 3]);
+    expect(open).not.toHaveProperty("elementId");
+    expect(open).not.toHaveProperty("name");
+    expect(result.computedGeometry.get("geometry-value-runtime:5")).toMatchObject({ kind: "line" });
+    expect(result.computedGeometry.get("geometry-value-runtime:6")).toMatchObject({ kind: "offsetLine" });
+  });
+
+  it("supports pure polyline points aliases and Module local/export flows", () => {
+    const { compiled, result } = evaluate([
+      "nui 1",
+      "const vertices: point[] = [(0, 0), (3, 4), (3, 0)]",
+      "const Root: path = polyline(points: @vertices, closed: false)",
+      "module M() {",
+      "  const Local: path = polyline(points: [(0, 0), (10, 0)], closed: false)",
+      "  export const Output: path = polyline(points: [(0, 0), (0, 10), (10, 10)], closed: true)",
+      "}",
+      "instance One = M()",
+      "const Length: number = @One::Output.length",
+      "line Use = segment(start: @Root.start, end: @One::Output.end)"
+    ].join("\n"));
+
+    expect(compiled.diagnostics).toEqual([]);
+    expect(result.errors).toEqual([]);
+    const values = [...(result.computedGeometryValues?.values() ?? [])].filter((entry) => entry.value.kind === "polyline");
+    expect(values).toHaveLength(3);
+    expect(values.some((entry) => entry.occurrence.sourceStatementId === "geometry-value-runtime:2" && entry.occurrence.instancePath.length === 0)).toBe(true);
+    expect(values.some((entry) => entry.occurrence.instancePath.length === 1 && entry.value.kind === "polyline" && entry.value.closed)).toBe(true);
+    expect(result.computedGeometry.get("geometry-value-runtime:9")).toMatchObject({ kind: "line" });
+  });
+
+  it("reports invalid pure polyline inputs through the occurrence-owned channel", () => {
+    const { compiled, result } = evaluate([
+      "nui 1",
+      "const Invalid: path = polyline(points: [(0, 0), (10 / 0, 0)], closed: false)"
+    ].join("\n"));
+
+    const occurrence = compiled.geometryValueProgram![0]!.occurrence;
+    expect(result.computedGeometryValues).toEqual(new Map());
+    expect(result.geometryValueErrors).toEqual([{
+      occurrence,
+      message: "Polyline geometry value construction inputs are unavailable or invalid."
+    }]);
+    expect(result.errors).toEqual([]);
+  });
+
   it("lowers root typed scalar inputs into the pure bezier value program", () => {
     const { result } = evaluate([
       "nui 1",

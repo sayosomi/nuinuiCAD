@@ -43,9 +43,11 @@ evaluated center, endpoints, radius, directed sweep, and length without a
 drawable identity. Pure `bezier(...)` is also a `path` initializer with the
 drawable constructor's `start`, `end`, endpoint handle, and optional
 intermediate-point arguments. It produces identity-free cubic segments and
-remains consumable by existing path-compatible readers. Pure `offset`,
-`corner`, `polyline`, and other deferred constructions remain unsupported as
-pure value initializers.
+remains consumable by existing path-compatible readers. `polyline(...)` is an
+implemented pure `path` initializer using the drawable `points` and `closed`
+arguments; it preserves authored order and requires at least two open points
+or three closed points. Pure `offset`, `corner`, and other deferred
+constructions remain unsupported as pure value initializers.
 
 `set` does not create a geometry element or a new binding. Its target must be a
 mutable scalar in scope, and its right-hand side is checked against that

@@ -486,9 +486,9 @@ pub(crate) fn continue_value_if<'a>(
             context,
         }),
         ScalarEvaluation::Ok {
-            r#type: condition_type,
+            r#type: ScalarType::Boolean,
             value: ScalarValue::Boolean(value),
-        } if condition_type == ScalarType::Boolean => {
+        } => {
             work.push(EvalWork::FinishValueIf {
                 r#type: r#type.clone(),
             });

@@ -31,6 +31,24 @@ pub(crate) struct StructuralArcLine {
     pub(crate) length: f64,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct StructuralPolylineSegment {
+    pub(crate) start: StructuralPoint,
+    pub(crate) end: StructuralPoint,
+    pub(crate) length: f64,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct StructuralPolyline {
+    pub(crate) segments: Vec<StructuralPolylineSegment>,
+    pub(crate) closed: bool,
+    pub(crate) start: StructuralPoint,
+    pub(crate) end: StructuralPoint,
+    pub(crate) length: f64,
+    pub(crate) start_tangent_angle_deg: Option<f64>,
+    pub(crate) end_tangent_angle_deg: Option<f64>,
+}
+
 pub(crate) fn coordinate_geometry_kernel(x: f64, y: f64) -> StructuralPoint {
     StructuralPoint { x, y }
 }
@@ -64,6 +82,55 @@ pub(crate) fn segment_geometry_kernel(
         start_tangent_angle_deg: start_angle_deg,
         end_tangent_angle_deg: end_angle_deg,
     }
+}
+
+pub(crate) fn polyline_geometry_kernel(
+    points: &[StructuralPoint],
+    closed: bool,
+) -> Option<StructuralPolyline> {
+    let minimum = if closed { 3 } else { 2 };
+    if points.len() < minimum
+        || points
+            .iter()
+            .any(|point| !point.x.is_finite() || !point.y.is_finite())
+    {
+        return None;
+    }
+    let mut segments = points
+        .windows(2)
+        .map(|pair| StructuralPolylineSegment {
+            start: pair[0],
+            end: pair[1],
+            length: (pair[1].x - pair[0].x).hypot(pair[1].y - pair[0].y),
+        })
+        .collect::<Vec<_>>();
+    let first = *points.first()?;
+    let last = *points.last()?;
+    if closed && (last.x - first.x).hypot(last.y - first.y) > CIRCLE_EPSILON {
+        segments.push(StructuralPolylineSegment {
+            start: last,
+            end: first,
+            length: (first.x - last.x).hypot(first.y - last.y),
+        });
+    }
+    let first_nonzero = segments
+        .iter()
+        .find(|segment| segment.length > CIRCLE_EPSILON);
+    let last_nonzero = segments
+        .iter()
+        .rev()
+        .find(|segment| segment.length > CIRCLE_EPSILON);
+    Some(StructuralPolyline {
+        length: segments.iter().map(|segment| segment.length).sum(),
+        start_tangent_angle_deg: first_nonzero
+            .and_then(|segment| angle_from_to(segment.start, segment.end)),
+        end_tangent_angle_deg: last_nonzero
+            .and_then(|segment| angle_from_to(segment.end, segment.start)),
+        segments,
+        closed,
+        start: first,
+        end: if closed { first } else { last },
+    })
 }
 
 pub(crate) fn direct_arc_geometry_kernel(
@@ -152,8 +219,8 @@ pub(crate) fn through_arc_geometry_kernel(
 #[cfg(test)]
 mod tests {
     use super::{
-        coordinate_geometry_kernel, direct_arc_geometry_kernel, segment_geometry_kernel,
-        through_arc_geometry_kernel, StructuralPoint,
+        coordinate_geometry_kernel, direct_arc_geometry_kernel, polyline_geometry_kernel,
+        segment_geometry_kernel, through_arc_geometry_kernel, StructuralPoint,
     };
 
     #[test]
@@ -231,5 +298,22 @@ mod tests {
 
         assert!(duplicate.is_none());
         assert!(collinear.is_none());
+    }
+
+    #[test]
+    fn structural_polyline_preserves_open_and_closed_geometry() {
+        let points = [
+            coordinate_geometry_kernel(0.0, 0.0),
+            coordinate_geometry_kernel(3.0, 4.0),
+            coordinate_geometry_kernel(3.0, 0.0),
+        ];
+        let open = polyline_geometry_kernel(&points, false).expect("open polyline");
+        assert_eq!(open.segments.len(), 2);
+        assert_eq!(open.length, 9.0);
+        assert_eq!(open.end, points[2]);
+        let closed = polyline_geometry_kernel(&points, true).expect("closed polyline");
+        assert_eq!(closed.segments.len(), 3);
+        assert_eq!(closed.length, 12.0);
+        assert_eq!(closed.end, points[0]);
     }
 }

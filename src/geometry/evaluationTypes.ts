@@ -55,11 +55,29 @@ export type ComputedGeometryValueBezierCurve = {
   length: number;
 };
 
+export type ComputedGeometryValuePolylineSegment = {
+  start: { x: number; y: number };
+  end: { x: number; y: number };
+  length: number;
+};
+
+export type ComputedGeometryValuePolyline = {
+  kind: "polyline";
+  segments: ComputedGeometryValuePolylineSegment[];
+  closed: boolean;
+  start: { x: number; y: number };
+  end: { x: number; y: number };
+  length: number;
+  startTangentAngleDeg: number | null;
+  endTangentAngleDeg: number | null;
+};
+
 export type ComputedGeometryValue =
   | ComputedGeometryValuePoint
   | ComputedGeometryValueLine
   | ComputedGeometryValueArcLine
-  | ComputedGeometryValueBezierCurve;
+  | ComputedGeometryValueBezierCurve
+  | ComputedGeometryValuePolyline;
 
 export type ComputedGeometryValueEntry = {
   occurrence: GeometryValueOccurrence;

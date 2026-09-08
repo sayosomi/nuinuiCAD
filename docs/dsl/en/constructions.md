@@ -691,6 +691,9 @@ path. With `closed: true`, it adds the final-to-first connection when needed.
 
 **Notes:** An open polyline requires at least two points; a closed polyline
 requires at least three. The authored order and duplicate points are retained.
+The same construction is available as an immutable, non-drawable pure `path`
+value in `const` geometry-value initializers; runtime failures remain owned by
+the value occurrence and do not allocate a drawable identity.
 
 ### `split`
 
