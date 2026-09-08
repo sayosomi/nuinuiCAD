@@ -6,8 +6,9 @@ import { compileDslDocument } from "../dsl/dslDocument";
 import { parseDsl } from "../dsl/dslParser";
 import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
 import type { CanvasHostAdapter } from "../components/canvasHostAdapter";
+import { pickModeSessionForTarget } from "../model/pickModeSession";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
-import { useCadUiStore } from "../state/cadUiStore";
+import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import { VSCodeDrawingCanvas } from "./VSCodeDrawingCanvas";
 import type { VscodeCanvasRibbon } from "./vscodeCanvasRibbonConfig";
 
@@ -51,6 +52,7 @@ afterEach(() => {
   mocks.commitCanvasRectangleSelection.mockReset();
   mocks.hostAdapter = null;
   mocks.canvasFocusRef = null;
+  useCadUiStore.setState(initialCadUiState());
 });
 
 const makeEvaluationState = (
@@ -104,6 +106,85 @@ const renderCanvas = (
 };
 
 describe("VSCodeDrawingCanvas adapter", () => {
+  it("blocks ordinary Canvas selection, rectangle selection, and drag mutation during Pick", () => {
+    const target = { elementId: "target", parameterKey: "point" };
+    useCadUiStore.setState({
+      activePointPickTarget: target,
+      activePickModeSession: pickModeSessionForTarget("point", target)
+    });
+    const evaluation = emptyEvaluationResult(useCadDocumentStore.getState().elements);
+    const { adapter } = renderCanvas(evaluation, undefined);
+    const baseElements = useCadDocumentStore.getState().elements;
+    const pointDrag = {
+      elementId: baseElements[0]?.id ?? "point",
+      dx: 1,
+      dy: 2,
+      angleLocked: false,
+      distanceLocked: false,
+      commitMode: "preview" as const,
+      baseElements
+    };
+    const bezierDrag = {
+      ...pointDrag,
+      bezierHandleRole: "start" as const
+    };
+
+    expect(adapter.selectElement("element", "replace")).toBe(false);
+    expect(adapter.previewCanvasSelection({
+      selectedElementId: null,
+      selectedElementIds: [],
+      selectionAnchorElementId: null
+    }, "element", "replace")).toBe(false);
+    expect(adapter.finalizeCanvasSelectionSession({
+      selectedElementId: null,
+      selectedElementIds: [],
+      selectionAnchorElementId: null
+    })).toBe(false);
+    expect(adapter.commitCanvasRectangleSelection(["element"], "replace")).toBe(false);
+    expect(adapter.clearCanvasSelection()).toBe(false);
+    expect(adapter.movePointElementByDelta(pointDrag)).toBe(false);
+    expect(adapter.moveBezierHandleByDelta(bezierDrag)).toBe(false);
+    expect(mocks.dispatchCommand).not.toHaveBeenCalled();
+    expect(mocks.commitCanvasRectangleSelection).not.toHaveBeenCalled();
+  });
+
+  it("keeps view and presentation Ribbon operations available during Pick", () => {
+    const target = { elementId: "target", parameterKey: "point" };
+    useCadUiStore.setState({
+      activePointPickTarget: target,
+      activePickModeSession: pickModeSessionForTarget("point", target),
+      selectedElementIds: ["selected"]
+    });
+    mocks.dispatchCommand.mockReturnValue({ status: "applied" });
+    const evaluation = emptyEvaluationResult(useCadDocumentStore.getState().elements);
+    const { adapter } = renderCanvas(evaluation, undefined, vi.fn(), [{
+      id: "ribbon",
+      label: "Ribbon",
+      x: null,
+      y: 12,
+      orientation: "vertical",
+      items: [
+        { id: "clear", type: "command", commandId: "clearCanvasSelection", icon: "x", showLabel: true },
+        { id: "reset", type: "command", commandId: "resetCanvasView", icon: "scan", showLabel: true },
+        { id: "fit", type: "command", commandId: "fitDrawing", icon: "maximize", showLabel: true },
+        { id: "names", type: "command", commandId: "toggleCanvasPointNames", icon: "tags", showLabel: true }
+      ]
+    }]);
+    const overlay = adapter.renderHostOverlay?.({ width: 400, height: 300 });
+    if (!overlay) throw new Error("Ribbon overlay was not rendered");
+    render(overlay);
+
+    expect(screen.getByRole("button", { name: "キャンバス選択を解除" })).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(screen.getByRole("button", { name: "キャンバス表示をリセット" }));
+    fireEvent.click(screen.getByRole("button", { name: "描画全体を表示" }));
+    fireEvent.click(screen.getByRole("button", { name: "Toggle Point Names" }));
+
+    expect(mocks.dispatchCommand).toHaveBeenCalledWith("resetCanvasView", expect.anything());
+    expect(mocks.dispatchCommand).toHaveBeenCalledWith("fitDrawing", expect.anything());
+    expect(mocks.dispatchCommand).toHaveBeenCalledWith("toggleCanvasPointNames", expect.anything());
+    expect(mocks.dispatchCommand).not.toHaveBeenCalledWith("clearCanvasSelection", expect.anything());
+  });
+
   it("commits rectangle selection through the shared command owner with history enabled", () => {
     const evaluation = emptyEvaluationResult(useCadDocumentStore.getState().elements);
     const { adapter } = renderCanvas(evaluation, undefined);

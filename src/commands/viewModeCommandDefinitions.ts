@@ -2,6 +2,7 @@ import { effectiveElements, useCadDocumentStore } from "../state/cadDocumentStor
 import { useCadUiStore } from "../state/cadUiStore";
 import { visibleCanvasDrawingBounds } from "../geometry/canvasDrawingBounds";
 import { CANVAS_FIT_PADDING_PX, fitCanvasViewportToBounds } from "../geometry/canvasViewportFit";
+import { pickModeCanvasOperationAllowed } from "../vscode/pickModeCanvasPolicy";
 import type { Command, CommandContext, CommandId } from "./commandTypes";
 
 const canvasZoomAnchor = (context?: CommandContext) => {
@@ -48,6 +49,7 @@ export const viewModeCommandDefinitions = {
     palette: { order: 24, keywords: ["undo", "戻す"] },
     shortcuts: [{ keys: "Mod+Z" }],
     run: (context) => {
+      if (!pickModeCanvasOperationAllowed("undo", useCadUiStore.getState().activePickModeSession)) return false;
       context?.finalizeCanvasInteraction?.();
       if (context?.canvasHistory) {
         context.canvasHistory("undo");
@@ -63,6 +65,7 @@ export const viewModeCommandDefinitions = {
     palette: { order: 25, keywords: ["redo", "やり直す"] },
     shortcuts: [{ keys: "Mod+Y" }],
     run: (context) => {
+      if (!pickModeCanvasOperationAllowed("redo", useCadUiStore.getState().activePickModeSession)) return false;
       context?.finalizeCanvasInteraction?.();
       if (context?.canvasHistory) {
         context.canvasHistory("redo");

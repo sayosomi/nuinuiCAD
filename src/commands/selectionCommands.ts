@@ -93,6 +93,9 @@ const clearTransientSelectionUi = () => {
 };
 
 export type CanvasSelectionMode = "replace" | "add" | "toggle" | "range";
+export type CanvasSelectionMutationOptions = {
+  preservePickMode?: boolean;
+};
 
 const mutateCanvasSelection = (recordHistory: boolean, mutate: () => void) => {
   const before = {
@@ -195,7 +198,8 @@ export const replaceCanvasSelection = (
   recordHistory = false,
   ordering: "document" | "requested" = "document",
   canvasEligibility?: CanvasSelectionEligibility,
-  activeElements?: readonly CadElement[]
+  activeElements?: readonly CadElement[],
+  options: CanvasSelectionMutationOptions = {}
 ) => {
   const elements = [...(activeElements ?? useCadDocumentStore.getState().elements)];
   const selectableIds = selectionEligibleElementIds(elements, canvasEligibility);
@@ -216,7 +220,7 @@ export const replaceCanvasSelection = (
       selectionAnchorElementId: primaryId
     }, canvasEligibility)
   );
-  clearTransientSelectionUi();
+  if (!options.preservePickMode) clearTransientSelectionUi();
   return true;
 };
 

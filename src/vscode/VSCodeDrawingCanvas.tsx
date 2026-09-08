@@ -64,6 +64,7 @@ import {
 import { vscodeWebviewApi } from "./vscodeWebviewApiContext";
 import type { VscodeMultiDocumentCanvasRuntimePresentation } from "./multiDocumentRuntimeTransport";
 import type { SourceCreationCursor } from "../commands/sourceCreationInsertion";
+import { pickModeCanvasOperationAllowed } from "./pickModeCanvasPolicy";
 
 type VSCodeDrawingCanvasProps = {
   evaluation: EvaluationResult;
@@ -335,18 +336,20 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       hasSelection: selectedElementIds.length > 0,
       showCanvasPointNames,
       showCanvasGeometryNames,
-      showCanvasPoints
-    }), [selectedElementIds.length, showCanvasGeometryNames, showCanvasPointNames, showCanvasPoints]);
+      showCanvasPoints,
+      pickModeActive: Boolean(activePickModeSession)
+    }), [activePickModeSession, selectedElementIds.length, showCanvasGeometryNames, showCanvasPointNames, showCanvasPoints]);
 
     const executeRibbonCommand = useCallback((item: CommandRibbonPresentationCommandItem) => {
-      drawingCanvasRef.current?.finalizeCanvasInteraction();
       const definition = vscodeCanvasRibbonCommandFor(item.commandId);
       if (!definition || !definition.isAvailable({
         hasSelection: useCadUiStore.getState().selectedElementIds.length > 0,
         showCanvasPointNames: useCadUiStore.getState().showCanvasPointNames,
         showCanvasGeometryNames: useCadUiStore.getState().showCanvasGeometryNames,
-        showCanvasPoints: useCadUiStore.getState().showCanvasPoints
+        showCanvasPoints: useCadUiStore.getState().showCanvasPoints,
+        pickModeActive: Boolean(useCadUiStore.getState().activePickModeSession)
       })) return;
+      drawingCanvasRef.current?.finalizeCanvasInteraction();
       if (definition.hostAction === "editCanvasRibbon") {
         onEditCanvasRibbon?.();
         return;
@@ -497,6 +500,9 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       panCanvasViewport: (dx, dy) => useCadUiStore.getState().panCanvasViewport(dx, dy),
       zoomCanvasViewportAt: (zoomFactor, anchor) => useCadUiStore.getState().zoomCanvasViewportAt(zoomFactor, anchor),
       selectElement: (elementId, selectionMode, recordHistory) => {
+        if (!pickModeCanvasOperationAllowed("normal-selection", useCadUiStore.getState().activePickModeSession)) {
+          return false;
+        }
         if (multiDocumentRuntimePresentation) {
           const previousSelection = canvasSelectionSnapshot();
           const selection = canvasSelectionForElement(
@@ -519,22 +525,38 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       },
       getCanvasSelectionSnapshot: () => canvasSelectionSnapshot(),
       previewCanvasSelection: (previousSelection, elementId, selectionMode) =>
-        multiDocumentRuntimePresentation
+        !pickModeCanvasOperationAllowed("normal-selection", useCadUiStore.getState().activePickModeSession)
+          ? false
+          : multiDocumentRuntimePresentation
           ? previewCanvasSelection(previousSelection, elementId, selectionMode, canvasPresentation.elements)
           : previewCanvasSelection(previousSelection, elementId, selectionMode),
       finalizeCanvasSelectionSession: (previousSelection) =>
-        finalizeCanvasSelectionSession(previousSelection),
+        pickModeCanvasOperationAllowed("normal-selection", useCadUiStore.getState().activePickModeSession)
+          ? finalizeCanvasSelectionSession(previousSelection)
+          : false,
       commitCanvasRectangleSelection: (memberIds, mode) =>
-        multiDocumentRuntimePresentation
+        !pickModeCanvasOperationAllowed("rectangle-selection", useCadUiStore.getState().activePickModeSession)
+          ? false
+          : multiDocumentRuntimePresentation
           ? commitCanvasRectangleSelection(memberIds, mode, true, canvasPresentation.elements)
           : commitCanvasRectangleSelection(memberIds, mode, true),
-      clearCanvasSelection: () => dispatchCommand("clearCanvasSelection", { recordSelectionHistory: true }),
+      clearCanvasSelection: () => pickModeCanvasOperationAllowed("clear-selection", useCadUiStore.getState().activePickModeSession)
+        ? dispatchCommand("clearCanvasSelection", { recordSelectionHistory: true })
+        : false,
       movePointElementByDelta: (action) => action.commitMode === "preview"
-        ? runtimeOnlyElementIds.has(action.elementId) ? false : dragPreviewScheduler.dispatchPreview(action, evaluationState)
-        : commitGeometryCommand.movePointElementByDelta(action),
+        ? !pickModeCanvasOperationAllowed("point-drag", useCadUiStore.getState().activePickModeSession)
+          ? false
+          : runtimeOnlyElementIds.has(action.elementId) ? false : dragPreviewScheduler.dispatchPreview(action, evaluationState)
+        : pickModeCanvasOperationAllowed("point-drag", useCadUiStore.getState().activePickModeSession)
+          ? commitGeometryCommand.movePointElementByDelta(action)
+          : false,
       moveBezierHandleByDelta: (action) => action.commitMode === "preview"
-        ? runtimeOnlyElementIds.has(action.elementId) ? false : dragPreviewScheduler.dispatchPreview(action, evaluationState)
-        : commitGeometryCommand.moveBezierHandleByDelta(action),
+        ? !pickModeCanvasOperationAllowed("bezier-drag", useCadUiStore.getState().activePickModeSession)
+          ? false
+          : runtimeOnlyElementIds.has(action.elementId) ? false : dragPreviewScheduler.dispatchPreview(action, evaluationState)
+        : pickModeCanvasOperationAllowed("bezier-drag", useCadUiStore.getState().activePickModeSession)
+          ? commitGeometryCommand.moveBezierHandleByDelta(action)
+          : false,
       applyPickedNumericReference: (numericReferenceExpression, candidateElementId) => dispatchCommand("applyPickedNumericReference", {
         ...creationCommandContext,
         numericReferenceExpression,
