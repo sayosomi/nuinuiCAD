@@ -117,7 +117,7 @@ const structuralKind = (code: string): LogicalStatement["structural"] => {
 };
 
 const isTypedDeclarationValueIfStart = (code: string): boolean =>
-  /^\s*(?:const|let)\b[\s\S]*=\s*if\s*\(/.test(code);
+  /^\s*(?:export\s+)?(?:const|let)\b[\s\S]*=\s*if\s*\(/.test(code);
 
 /** Counts only value-if braces. This is deliberately local to the typed
  * declaration continuation path; ordinary DSL block ownership and the
@@ -128,7 +128,13 @@ const valueIfBraceDelta = (code: string): number => {
   for (let index = 0; index < code.length; index += 1) {
     const character = code[index]!;
     if (quote) {
-      if (character === quote && code[index - 1] !== "\\") quote = null;
+      if (character === quote) {
+        let backslashCount = 0;
+        for (let previous = index - 1; previous >= 0 && code[previous] === "\\"; previous -= 1) {
+          backslashCount += 1;
+        }
+        if (backslashCount % 2 === 0) quote = null;
+      }
       continue;
     }
     if (character === "\"" || character === "'") {
