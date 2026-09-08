@@ -32,11 +32,13 @@ import { referenceAnchor } from "../model/pointAnchors";
 import {
   activatePickModeDraftEntry,
   matchingPickModeSessionForTargets,
+  movePickModeDraftEntry as moveDraftEntry,
   pickModeDraftEntryForOption,
   pickModeDraftForLineIds,
   pickModeDraftForPointAnchors,
   pickModeSelectionCardinalityFor,
   pickModeSessionForTarget,
+  removePickModeDraftEntry,
   type PickModeDraftEntry,
   type PickModeSession
 } from "../model/pickModeSession";
@@ -553,6 +555,32 @@ const activatePickModeDraft = (entry: PickModeDraftEntry) => {
   if (!session || session.kind !== entry.kind) return false;
   useCadUiStore.setState({
     activePickModeSession: activatePickModeDraftEntry(session, entry),
+    activePickCursor: null
+  });
+  return true;
+};
+
+export const removePickModeDraftEntryFromSession = (key: string) => {
+  const session = pickModeSessionForUi();
+  if (!session || session.selectionCardinality !== "ordered-multiple") return false;
+  if (!session.draft.some((entry) => entry.key === key)) return false;
+  useCadUiStore.setState({
+    activePickModeSession: {
+      ...session,
+      draft: removePickModeDraftEntry(session.draft, key)
+    },
+    activePickCursor: null
+  });
+  return true;
+};
+
+export const movePickModeDraftEntryInSession = (key: string, toIndex: number) => {
+  const session = pickModeSessionForUi();
+  if (!session || session.selectionCardinality !== "ordered-multiple") return false;
+  const nextDraft = moveDraftEntry(session.draft, key, toIndex);
+  if (nextDraft.every((entry, index) => entry.key === session.draft[index]?.key)) return false;
+  useCadUiStore.setState({
+    activePickModeSession: { ...session, draft: nextDraft },
     activePickCursor: null
   });
   return true;

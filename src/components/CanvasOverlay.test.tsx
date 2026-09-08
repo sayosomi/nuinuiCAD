@@ -1,9 +1,27 @@
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import type { CanvasIdentityCandidate, CanvasOverlayText } from "./DrawingCanvasTypes";
+import type { CanvasIdentityCandidate, CanvasOverlayText, CanvasOverlayLine } from "./DrawingCanvasTypes";
 import { CanvasOverlay } from "./CanvasOverlay";
 import { LEGACY_CANVAS_THEME } from "./canvasTheme";
-import type { ComputedBezierCurve } from "../types/geometry";
+import type { ComputedBezierCurve, ComputedLine } from "../types/geometry";
+
+const overlayLine = (elementId: string, x = 20): CanvasOverlayLine => {
+  const line: ComputedLine = {
+    kind: "line",
+    elementId,
+    name: elementId,
+    startPointId: `${elementId}-start`,
+    endPointId: `${elementId}-end`,
+    start: { kind: "point", elementId: `${elementId}-start`, name: "start", x: 0, y: 0 },
+    end: { kind: "point", elementId: `${elementId}-end`, name: "end", x: 100, y: 0 },
+    length: 100,
+    startAngleDeg: 0,
+    endAngleDeg: 180,
+    startTangentAngleDeg: 0,
+    endTangentAngleDeg: 180
+  };
+  return { line, start: { x, y: 100 }, end: { x: x + 100, y: 100 } };
+};
 
 const overlayText = (
   elementId: string,
@@ -198,6 +216,63 @@ describe("CanvasOverlay text rendering", () => {
     expect(helper).not.toBeNull();
     expect(helper).not.toHaveAttribute("data-line-pick-candidate");
     expect(helper).not.toHaveAttribute("data-numeric-reference-candidate");
+  });
+});
+
+describe("CanvasOverlay selection layers", () => {
+  const renderSelectionLayers = (
+    overlayLines: CanvasOverlayLine[],
+    selectedElementIds: string[],
+    pickSelectedElementIds: string[]
+  ) => render(
+    <CanvasOverlay
+      viewportSize={{ width: 500, height: 400 }}
+      overlayLines={overlayLines}
+      overlayArcs={[]}
+      overlayCurves={[]}
+      overlayOffsetLines={[]}
+      overlayPoints={[]}
+      overlayTexts={[]}
+      selectedBezierEditingHelper={null}
+      selectedBezierHandles={[]}
+      overlayPointPickCandidates={[]}
+      selectedElementIdSet={new Set(selectedElementIds)}
+      draftLinePickElementIds={new Set()}
+      pickSelectedElementIdSet={new Set(pickSelectedElementIds)}
+      pickCandidateLineIds={new Set()}
+      selectedElementId={selectedElementIds[0] ?? null}
+      canvasTheme={LEGACY_CANVAS_THEME}
+      showCanvasPointNames={false}
+      showCanvasGeometryNames={false}
+      showCanvasPoints={false}
+      isPointPickActive={false}
+      isNumericReferencePickActive={false}
+      isLinePickActive={false}
+      hoveredElementIds={new Set()}
+      hoverRepresentativeElementId={null}
+    />
+  );
+
+  it.each([
+    ["normal-selection-only", ["normal"], [], 1, 0],
+    ["Pick-selection-only", [], ["pick"], 0, 1],
+    ["different elements carrying the two states", ["normal"], ["pick"], 1, 1],
+    ["one element carrying both states", ["same"], ["same"], 1, 1]
+  ] as const)("preserves %s as separate layers", (_label, selectedIds, pickIds, normalCount, pickCount) => {
+    const ids = [...new Set([...selectedIds, ...pickIds])];
+    const pickIdSet = new Set<string>(pickIds);
+    const { container } = renderSelectionLayers(
+      ids.map((id, index) => overlayLine(id, 20 + index * 8)),
+      [...selectedIds],
+      [...pickIds]
+    );
+
+    expect(container.querySelectorAll(".overlay-selected-line")).toHaveLength(normalCount);
+    expect(container.querySelectorAll(".overlay-pick-selected-line")).toHaveLength(pickCount);
+    expect(container.querySelectorAll("[data-normal-selection='true']")).toHaveLength(
+      selectedIds.filter((id) => pickIdSet.has(id)).length
+    );
+    expect(container.querySelectorAll("[data-pick-selection='true']")).toHaveLength(pickCount);
   });
 });
 
