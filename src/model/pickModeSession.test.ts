@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   activatePickModeDraftEntry,
   movePickModeDraftEntry,
+  removePickModeDraftEntry,
   pickModeDraftForLineIds,
   pickModeDraftForPointAnchors,
   pickModeDraftEntryForOption,
@@ -55,6 +56,15 @@ describe("Pick Mode session draft", () => {
     const c = lineEntry("C");
     expect(movePickModeDraftEntry([a, b, c], a.key, 2)).toEqual([b, c, a]);
     expect(movePickModeDraftEntry([a, b, c], "missing", 0)).toEqual([a, b, c]);
+  });
+
+  it("removes an entry by stable identity and closes the gap", () => {
+    const a = lineEntry("A");
+    const b = lineEntry("B");
+    const c = lineEntry("C");
+
+    expect(removePickModeDraftEntry([a, b, c], b.key)).toEqual([a, c]);
+    expect(removePickModeDraftEntry([a, b, c], "missing")).toEqual([a, b, c]);
   });
 
   it("seeds a qualified point through the current candidate identity", () => {

@@ -384,6 +384,39 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
         : [])
     ));
   }, [pickModeSession?.draft, sharedPickCandidates]);
+  const draftPointPickReferenceKeys = useMemo(
+    () => new Set(pickModeSession?.draft.flatMap((entry) => entry.kind === "point" ? [entry.key] : []) ?? []),
+    [pickModeSession?.draft]
+  );
+  const pickSelectedElementIdSet = useMemo(() => {
+    const draftKeys = new Set(pickModeSession?.draft.map((entry) => entry.key) ?? []);
+    const selected = new Set<ElementId>();
+    const collect = (candidates: typeof sharedPickCandidates) => {
+      for (const candidate of candidates) {
+        for (const option of candidate.options) {
+          if (option.kind === "point" && option.anchor.mode === "coordinate") continue;
+          let key: string;
+          try {
+            key = pickRefKey(pickRefForOption(candidate.elementId, option));
+          } catch {
+            continue;
+          }
+          if (!draftKeys.has(key)) continue;
+          if (option.kind === "point") {
+            if (option.anchor.mode === "reference") selected.add(option.anchor.pointId);
+            else if (option.anchor.mode === "derived") selected.add(option.anchor.elementId);
+          } else if (option.kind === "line") {
+            selected.add(option.lineId);
+          } else if (option.kind === "numericReference") {
+            selected.add(candidate.elementId);
+          }
+        }
+      }
+    };
+    collect(sharedPickCandidates);
+    collect(numericPickCandidates);
+    return selected;
+  }, [numericPickCandidates, pickModeSession?.draft, sharedPickCandidates]);
   const [imageRenderVersion, scheduleImageRender] = useReducer((version: number) => version + 1, 0);
   const {
     lines,
@@ -2129,6 +2162,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
           overlayPointPickCandidates={overlayPointPickCandidates}
           selectedElementIdSet={selectedElementIdSet}
           draftLinePickElementIds={draftLinePickElementIds}
+          pickSelectedElementIdSet={pickSelectedElementIdSet}
+          draftPointPickReferenceKeys={draftPointPickReferenceKeys}
           pickCandidateLineIds={pickCandidateLineIds}
           selectedElementId={selectedElementId}
           canvasTheme={canvasTheme}

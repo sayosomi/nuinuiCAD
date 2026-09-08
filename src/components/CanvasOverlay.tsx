@@ -1,4 +1,5 @@
 import type { DrawingModifierStroke, ElementId } from "../types/geometry";
+import { pickRefForOption, pickRefKey } from "../model/pickReferences";
 import type { ViewportSize } from "./canvasViewport";
 import type { ModuleInstanceSelectionFrameOverlay } from "./moduleInstanceSelectionFrame";
 import {
@@ -42,6 +43,9 @@ type CanvasOverlayProps = {
   overlayPointPickCandidates: PointPickCandidate[];
   selectedElementIdSet: Set<ElementId>;
   draftLinePickElementIds: Set<ElementId>;
+  /** Transient Pick selections, kept visually separate from ordinary Canvas selection. */
+  pickSelectedElementIdSet?: ReadonlySet<ElementId>;
+  draftPointPickReferenceKeys?: ReadonlySet<string>;
   /** Overlay lines that the active line/numeric pick would actually accept. */
   pickCandidateLineIds: Set<ElementId>;
   selectedElementId: ElementId | null;
@@ -78,6 +82,8 @@ export const CanvasOverlay = ({
   overlayPointPickCandidates,
   selectedElementIdSet,
   draftLinePickElementIds,
+  pickSelectedElementIdSet = new Set(),
+  draftPointPickReferenceKeys = new Set(),
   pickCandidateLineIds,
   selectedElementId,
   canvasTheme,
@@ -91,9 +97,12 @@ export const CanvasOverlay = ({
   hoveredElementIds,
   hoverRepresentativeElementId
 }: CanvasOverlayProps) => {
+  const pickSelected = (elementId: ElementId) =>
+    pickSelectedElementIdSet.has(elementId) || draftLinePickElementIds.has(elementId);
   const lineOverlayClass = (elementId: ElementId) =>
     [
-      selectedElementIdSet.has(elementId) ? "overlay-selected-line" : "",
+      selectedElementIdSet.has(elementId) && !pickSelected(elementId) ? "overlay-selected-line" : "",
+      pickSelected(elementId) ? "overlay-pick-selected-line" : "",
       draftLinePickElementIds.has(elementId) ? "overlay-draft-line-pick" : ""
     ].filter(Boolean).join(" ");
   const draftLinePickMarker = (
@@ -135,12 +144,24 @@ export const CanvasOverlay = ({
   >
     {overlayLines.map(({ line, start, end }) => (
       <g key={line.elementId}>
+        {selectedElementIdSet.has(line.elementId) && pickSelected(line.elementId) ? (
+          <line
+            x1={start.x}
+            y1={start.y}
+            x2={end.x}
+            y2={end.y}
+            className="overlay-selected-line overlay-normal-selection-layer"
+            data-normal-selection="true"
+            style={{ pointerEvents: "none" }}
+          />
+        ) : null}
         <line
           x1={start.x}
           y1={start.y}
           x2={end.x}
           y2={end.y}
           className={lineOverlayClass(line.elementId)}
+          data-pick-selection={pickSelected(line.elementId) ? "true" : undefined}
           {...pickCandidateAttributes(line.elementId)}
         />
         {draftLinePickMarker(line.elementId, { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 })}
@@ -148,9 +169,18 @@ export const CanvasOverlay = ({
     ))}
     {overlayCurves.map(({ curve, points }) => (
       <g key={curve.elementId}>
+        {selectedElementIdSet.has(curve.elementId) && pickSelected(curve.elementId) ? (
+          <polyline
+            points={points.map((point) => `${point.x},${point.y}`).join(" ")}
+            className="overlay-selected-line overlay-normal-selection-layer"
+            data-normal-selection="true"
+            style={{ pointerEvents: "none" }}
+          />
+        ) : null}
         <polyline
           points={points.map((point) => `${point.x},${point.y}`).join(" ")}
           className={lineOverlayClass(curve.elementId)}
+          data-pick-selection={pickSelected(curve.elementId) ? "true" : undefined}
           {...pickCandidateAttributes(curve.elementId)}
         />
         {draftLinePickMarker(curve.elementId, centerOf(points))}
@@ -158,9 +188,18 @@ export const CanvasOverlay = ({
     ))}
     {overlayArcs.map(({ arc, points }) => (
       <g key={arc.elementId}>
+        {selectedElementIdSet.has(arc.elementId) && pickSelected(arc.elementId) ? (
+          <polyline
+            points={points.map((point) => `${point.x},${point.y}`).join(" ")}
+            className="overlay-selected-line overlay-normal-selection-layer"
+            data-normal-selection="true"
+            style={{ pointerEvents: "none" }}
+          />
+        ) : null}
         <polyline
           points={points.map((point) => `${point.x},${point.y}`).join(" ")}
           className={lineOverlayClass(arc.elementId)}
+          data-pick-selection={pickSelected(arc.elementId) ? "true" : undefined}
           {...pickCandidateAttributes(arc.elementId)}
         />
         {draftLinePickMarker(arc.elementId, centerOf(points))}
@@ -168,9 +207,18 @@ export const CanvasOverlay = ({
     ))}
     {overlayOffsetLines.map(({ line, points }) => (
       <g key={line.elementId}>
+        {selectedElementIdSet.has(line.elementId) && pickSelected(line.elementId) ? (
+          <polyline
+            points={points.map((point) => `${point.x},${point.y}`).join(" ")}
+            className="overlay-selected-line overlay-normal-selection-layer"
+            data-normal-selection="true"
+            style={{ pointerEvents: "none" }}
+          />
+        ) : null}
         <polyline
           points={points.map((point) => `${point.x},${point.y}`).join(" ")}
           className={lineOverlayClass(line.elementId)}
+          data-pick-selection={pickSelected(line.elementId) ? "true" : undefined}
           {...pickCandidateAttributes(line.elementId)}
         />
         {draftLinePickMarker(line.elementId, centerOf(points))}
@@ -257,12 +305,13 @@ export const CanvasOverlay = ({
     {overlayPoints.map(({ point, screen }) => {
       const isSelected = selectedElementIdSet.has(point.elementId);
       const isPrimarySelected = point.elementId === selectedElementId;
-      const shouldShowPoint = showCanvasPoints || isSelected || isPointPickActive;
+      const isPickSelected = pickSelected(point.elementId);
+      const shouldShowPoint = showCanvasPoints || isSelected || isPointPickActive || isPickSelected;
       return (
         <g key={point.elementId}>
           {shouldShowPoint ? (
             <>
-              {isSelected && !isPointPickActive ? (
+              {isSelected ? (
                 <circle
                   cx={screen.x}
                   cy={screen.y}
@@ -278,6 +327,16 @@ export const CanvasOverlay = ({
                   isSelected ? "overlay-selected-point" : ""
                 }`}
               />
+              {isSelected && isPickSelected ? (
+                <circle
+                  cx={screen.x}
+                  cy={screen.y}
+                  r={isPrimarySelected ? 11 : 9}
+                  className="overlay-pick-selected-point"
+                  data-pick-selection="true"
+                  style={{ pointerEvents: "none" }}
+                />
+              ) : null}
             </>
           ) : null}
         </g>
@@ -307,7 +366,22 @@ export const CanvasOverlay = ({
             cx={candidate.screen.x}
             cy={candidate.screen.y}
             r={7}
-            className="overlay-derived-point-pick-candidate"
+            className={`overlay-derived-point-pick-candidate ${
+              candidate.candidateElementId && candidate.anchor.mode !== "coordinate" &&
+              draftPointPickReferenceKeys.has(pickRefKey(pickRefForOption(candidate.candidateElementId, {
+                kind: "point",
+                label: candidate.label,
+                anchor: candidate.anchor,
+                ...(candidate.sourceReference ? { sourceReference: candidate.sourceReference } : {})
+              }))) ? "overlay-draft-point-pick" : ""
+            }`}
+            data-pick-selection={candidate.candidateElementId && candidate.anchor.mode !== "coordinate" &&
+              draftPointPickReferenceKeys.has(pickRefKey(pickRefForOption(candidate.candidateElementId, {
+                kind: "point",
+                label: candidate.label,
+                anchor: candidate.anchor,
+                ...(candidate.sourceReference ? { sourceReference: candidate.sourceReference } : {})
+              }))) ? "true" : undefined}
           />
         ))
       : null}
