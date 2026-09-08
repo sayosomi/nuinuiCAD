@@ -1,5 +1,5 @@
 import type { ArcDirection } from "../types/geometry";
-import type { ComputedGeometryValueBezierCurve } from "./evaluationTypes";
+import type { ComputedGeometryValueBezierCurve, ComputedGeometryValuePolyline } from "./evaluationTypes";
 import { approximateCubicLength, type BezierLikeSegment } from "./bezierMath";
 import { CIRCLE_EPSILON, degreesToRadians, directedSweepDegrees } from "./evaluateGeometryPrimitives";
 import { arcTangentAngles, lineTangentAngles } from "./lineMeasurements";
@@ -40,6 +40,36 @@ export const segmentGeometryKernel = (start: StructuralPoint, end: StructuralPoi
   length: Math.hypot(end.x - start.x, end.y - start.y),
   ...lineTangentAngles(start, end)
 });
+
+export const polylineGeometryKernel = (
+  points: readonly StructuralPoint[],
+  closed: boolean
+): ComputedGeometryValuePolyline | null => {
+  const minimumPointCount = closed ? 3 : 2;
+  if (points.length < minimumPointCount || points.some((point) => !Number.isFinite(point.x) || !Number.isFinite(point.y))) return null;
+  const segments = points.slice(0, -1).map((start, index) => {
+    const end = points[index + 1]!;
+    return { start, end, length: Math.hypot(end.x - start.x, end.y - start.y) };
+  });
+  const first = points[0]!;
+  const last = points.at(-1)!;
+  if (closed && Math.hypot(last.x - first.x, last.y - first.y) > CIRCLE_EPSILON) {
+    segments.push({ start: last, end: first, length: Math.hypot(first.x - last.x, first.y - last.y) });
+  }
+  const nonZero = segments.filter((segment) => segment.length > CIRCLE_EPSILON);
+  const startTangentAngleDeg = nonZero[0] ? lineTangentAngles(nonZero[0].start, nonZero[0].end).startTangentAngleDeg : null;
+  const endTangentAngleDeg = nonZero.at(-1) ? lineTangentAngles(nonZero.at(-1)!.start, nonZero.at(-1)!.end).endTangentAngleDeg : null;
+  return {
+    kind: "polyline",
+    segments,
+    closed,
+    start: first,
+    end: closed ? first : last,
+    length: segments.reduce((sum, segment) => sum + segment.length, 0),
+    startTangentAngleDeg,
+    endTangentAngleDeg
+  };
+};
 
 export const arcGeometryKernel = (
   center: StructuralPoint,

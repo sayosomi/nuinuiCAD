@@ -1,5 +1,5 @@
 import { referenceAnchor } from "../model/pointAnchors";
-import type { CadElement, ElementId, GeometryInputTarget, GeometryValueOccurrence } from "../types/geometry";
+import type { CadElement, ElementId, GeometryInputTarget, GeometryValueOccurrence, PointAnchor } from "../types/geometry";
 import type { DslDiagnostic, DslStatement } from "./dslTypes";
 import type { DslGeometryResolverOverrides } from "./dslApplyArgs";
 import type { MaterializedExecutionStatement, ModuleMaterialization } from "./moduleMaterialization";
@@ -64,6 +64,11 @@ export type ModuleGeometryRuntimeCompilation = {
     instancePath: readonly string[],
     expectedGeometryType: Extract<ModuleGeometryInterfaceType, "point" | "line">
   ) => ModuleGeometryBuiltinRuntimeTarget | undefined;
+  resolvePointReferenceList: (
+    token: string,
+    statementIndex: number,
+    currentPath: readonly string[]
+  ) => readonly PointAnchor[] | null;
   coordinateForReference: (
     reference: ModuleGeometryReferenceSemantic,
     instancePath: readonly string[]
@@ -439,6 +444,7 @@ export const buildModuleGeometryRuntime = ({
     geometryInputTargetSourcesByRuntimeElementId,
     resolvePropertyTarget,
     resolveBuiltinTarget,
+    resolvePointReferenceList: (token, statementIndex, currentPath) => geometryArrayRuntime.resolvePointReferenceList(token, statementIndex, currentPath),
     coordinateForReference
   };
 };

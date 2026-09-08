@@ -189,6 +189,8 @@ export const getPointAnchorOrError = (
           ? anchor.pointKey === "end" ? value.end : anchor.pointKey === "start" ? value.start : undefined
         : value?.kind === "bezierCurve"
           ? anchor.pointKey === "end" ? value.segments.at(-1)?.end : anchor.pointKey === "start" ? value.segments[0]?.start : undefined
+        : value?.kind === "polyline"
+          ? anchor.pointKey === "end" ? value.end : anchor.pointKey === "start" ? value.start : undefined
         : undefined;
     if (!point) {
       errors.push({

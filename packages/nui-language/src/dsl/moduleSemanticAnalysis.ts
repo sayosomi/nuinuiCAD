@@ -34,6 +34,7 @@ import { parseDslReferenceToken, parseDslSourceReference } from "./dslReferenceT
 import { coordinateComponent, recordField, recordSpans } from "./dslParameterSpanScanner";
 import { parseScalarExpression } from "../scalars/expressionParser";
 import { parseDslConstructionInvocation } from "./dslCallParser";
+import { parseGeometryArrayExpression } from "./geometryArrayExpression";
 import { splitDslList } from "./dslTokens";
 import { getParameterDefinitions, scalarTypeForParameterDefinition } from "../parameters/parameterDefinitions";
 import type { BindingId } from "../scalars/bindingCatalog";
@@ -2180,6 +2181,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     const endLengthArgument = argument("endLength");
     const directionArgument = argument("direction");
     const intermediatesArgument = argument("intermediates");
+    const pointsArgument = argument("points");
+    const closedArgument = argument("closed");
     const scalarForSpan = (
       valueSpan: DslSpan | null | undefined,
       expectedType: ScalarType | null,
@@ -2362,6 +2365,61 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         endAngle: scalar(endAngleArgument, { kind: "number" }, "0"),
         endLength: scalar(endLengthArgument, { kind: "number" }, "30"),
         intermediates
+      };
+    }
+    if (invocation.construction === "polyline" && invocation.pureValueInterface === "path") {
+      if (expectedInterfaceType !== "path") {
+        addLocal(statementIndex, issue("module-geometry-type-mismatch", constructionSpan, "polyline construction は path value にのみ代入できます。", {
+          presentation: { key: "diagnostic.module-geometry-type-mismatch", parameters: { target: "polyline" } }
+        }));
+      }
+      const pointReferences: ModuleGeometryReferenceSemantic[] = [];
+      let pointsReference: { source: string; span: DslSpan } | null = null;
+      if (pointsArgument) {
+        const pointsSpan = pointsArgument.valueSpan;
+        const pointsSource = source.slice(pointsSpan.start, pointsSpan.end);
+        const parsedPoints = parseGeometryArrayExpression(pointsSource);
+        for (const diagnostic of parsedPoints.diagnostics) {
+          addLocal(statementIndex, issue(
+            diagnostic.code,
+            { start: pointsSpan.start + diagnostic.span.start, end: pointsSpan.start + diagnostic.span.end },
+            diagnostic.message,
+            { presentation: { key: `diagnostic.${diagnostic.code}` } }
+          ));
+        }
+        if (parsedPoints.expression?.kind === "literal" && parsedPoints.diagnostics.length === 0) {
+          for (const member of parsedPoints.expression.members) {
+            const memberSpan = {
+              start: pointsSpan.start + member.span.start,
+              end: pointsSpan.start + member.span.end
+            };
+            pointReferences.push(resolveGeometry(
+              statementIndex,
+              ownerIndex,
+              source.slice(memberSpan.start, memberSpan.end),
+              memberSpan,
+              "point",
+              {
+                expectedInterfaceType: "point",
+                allowCoordinate: true,
+                role: "pointReference",
+                scalarResolver: options.scalarResolver,
+                bareScalarResolver: options.bareScalarResolver,
+                geometryPropertyResolver: options.geometryPropertyResolver,
+                presenceFacts: options.presenceFacts
+              }
+            ));
+          }
+        } else if (parsedPoints.expression?.kind === "reference" && parsedPoints.diagnostics.length === 0) {
+          pointsReference = { source: pointsSource, span: pointsSpan };
+        }
+      }
+      return {
+        kind: "polyline",
+        span: { start: constructionSpan.start, end: initializerSpan.end },
+        points: pointReferences,
+        pointsReference,
+        closed: scalar(closedArgument, { kind: "boolean" }, "false")
       };
     }
     return { kind: "segment", span: { start: constructionSpan.start, end: initializerSpan.end }, start: endpoint(startArgument), end: endpoint(endArgument) };

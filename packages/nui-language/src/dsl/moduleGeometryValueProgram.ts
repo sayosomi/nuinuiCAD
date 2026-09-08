@@ -65,6 +65,11 @@ export type GeometryValueProgramConstruction =
         incomingLength: TypedScalarExpression;
         outgoingLength: TypedScalarExpression;
       }[];
+    }
+  | {
+      kind: "polyline";
+      points: readonly GeometryValueProgramPoint[];
+      closed: TypedScalarExpression;
     };
 
 /** Host-neutral, already-resolved immutable geometry value execution entry.
@@ -89,6 +94,7 @@ const literalScalarExpression = (semantic: ModuleScalarExpressionSemantic | null
   const lower = (node: ModuleScalarExpressionSemantic["ast"]): TypedScalarExpression | null => {
     switch (node.kind) {
       case "numberLiteral": return { kind: "numberLiteral", span: node.span, value: node.value, type: { kind: "number" } };
+      case "booleanLiteral": return { kind: "booleanLiteral", span: node.span, value: node.value, type: { kind: "boolean" } };
       case "unary": {
         const operand = lower(node.operand);
         return operand ? { kind: "unary", span: node.span, operator: node.operator, operand, type: { kind: "number" } } : null;
@@ -194,7 +200,8 @@ export const buildRootGeometryValueProgram = ({
                 ? { kind: "through" as const, point1, point2, point3, startAngleDeg, endAngleDeg }
                 : null;
             })()
-            : (() => {
+            : value.construction.kind === "bezier"
+              ? (() => {
                 const start = pointForReference(value.construction.start);
                 const end = pointForReference(value.construction.end);
                 const startAngleDeg = literalScalarExpression(value.construction.startAngle);
@@ -212,6 +219,16 @@ export const buildRootGeometryValueProgram = ({
                 });
                 return start && end && startAngleDeg && startLength && endAngleDeg && endLength && intermediates.length === value.construction.intermediates.length
                   ? { kind: "bezier" as const, start, end, startAngleDeg, startLength, endAngleDeg, endLength, intermediates }
+                  : null;
+              })()
+              : (() => {
+                const points = value.construction.points.flatMap((point) => {
+                  const lowered = pointForReference(point);
+                  return lowered ? [lowered] : [];
+                });
+                const closed = literalScalarExpression(value.construction.closed);
+                return closed && points.length === value.construction.points.length
+                  ? { kind: "polyline" as const, points, closed }
                   : null;
               })();
     return construction

@@ -26,7 +26,7 @@ import type {
 } from "../dsl/moduleGeometryValueProgram";
 import { buildLexicalScopeIndexFromStatements } from "../dsl/lexicalScopeIndexAdapter";
 import { moduleParameterPresenceKey } from "../dsl/moduleScalarExpression";
-import type { CadElement, DrawingModifierDefinition, ElementId, GeometryInputTarget } from "../types/geometry";
+import type { CadElement, DrawingModifierDefinition, ElementId, GeometryInputTarget, PointAnchor } from "../types/geometry";
 import { findParameterDefinition, scalarTypeForParameterDefinition } from "../parameters/parameterDefinitions";
 import type { BindingAnalysis, InitializerReference } from "./bindingAnalysis";
 import { analyzeBindings } from "./bindingAnalysis";
@@ -2557,6 +2557,48 @@ export const compileModuleScalarRuntime = ({
     };
   };
 
+  const lowerGeometryValueAnchor = (
+    anchor: PointAnchor,
+    executionPosition: number
+  ): GeometryValueProgramPoint | undefined => {
+    if (anchor.mode === "coordinate") {
+      if (typeof anchor.x !== "number" || typeof anchor.y !== "number") return undefined;
+      const numberLiteral = (value: number): TypedScalarExpression => ({
+        kind: "numberLiteral",
+        span: { start: 0, end: 0 },
+        value,
+        type: { kind: "number" }
+      });
+      return { kind: "coordinate", x: numberLiteral(anchor.x), y: numberLiteral(anchor.y) };
+    }
+    if (!moduleGeometryRuntime) return undefined;
+    if (anchor.mode === "geometryValue") {
+      return {
+        kind: "target",
+        target: {
+          kind: "geometryValue",
+          occurrence: anchor.occurrence,
+          statementId: anchor.occurrence.sourceStatementId,
+          statementIndex: executionPosition,
+          geometryType: "point",
+          ...(anchor.pointKey ? { pointKey: anchor.pointKey } : {})
+        }
+      };
+    }
+    const elementId = anchor.mode === "reference" ? anchor.pointId : anchor.elementId;
+    const statementIndex = elementOrderById.get(elementId);
+    if (statementIndex === undefined) return undefined;
+    return {
+      kind: "target",
+      target: {
+        statementId: elementId,
+        statementIndex,
+        geometryType: "point",
+        ...(anchor.mode === "derived" ? { pointKey: anchor.pointKey } : {})
+      }
+    };
+  };
+
   const addGeometryValueProgramEntry = (value: import("../dsl/moduleSemanticTypes").ModuleGeometryValueSemantic, context?: InstanceContext) => {
     if (!value.construction) return;
     const path = context?.path ?? [];
@@ -2586,7 +2628,7 @@ export const compileModuleScalarRuntime = ({
               ? { kind: "arc" as const, center, radius, startAngleDeg, endAngleDeg, direction }
               : null;
             })()
-          : value.construction.kind === "through"
+            : value.construction.kind === "through"
             ? (() => {
               const point1 = lowerGeometryValuePoint(value.construction.point1, context, executionPosition);
               const point2 = lowerGeometryValuePoint(value.construction.point2, context, executionPosition);
@@ -2597,7 +2639,8 @@ export const compileModuleScalarRuntime = ({
                 ? { kind: "through" as const, point1, point2, point3, startAngleDeg, endAngleDeg }
                 : null;
             })()
-            : (() => {
+            : value.construction.kind === "bezier"
+              ? (() => {
                 const start = lowerGeometryValuePoint(value.construction.start, context, executionPosition);
                 const end = lowerGeometryValuePoint(value.construction.end, context, executionPosition);
                 const startAngleDeg = value.construction.startAngle ? lowerGeometryValueScalar(value.construction.startAngle, context) : null;
@@ -2615,6 +2658,25 @@ export const compileModuleScalarRuntime = ({
                 });
                 return start && end && startAngleDeg && startLength && endAngleDeg && endLength && intermediates.length === value.construction.intermediates.length
                   ? { kind: "bezier" as const, start, end, startAngleDeg, startLength, endAngleDeg, endLength, intermediates }
+                  : null;
+              })()
+              : (() => {
+                const points = value.construction.pointsReference
+                  ? moduleGeometryRuntime?.resolvePointReferenceList(
+                    value.construction.pointsReference.source,
+                    value.statementIndex,
+                    path
+                  )?.flatMap((anchor) => {
+                    const lowered = lowerGeometryValueAnchor(anchor, executionPosition);
+                    return lowered ? [lowered] : [];
+                  }) ?? []
+                  : value.construction.points.flatMap((point) => {
+                    const lowered = lowerGeometryValuePoint(point, context, executionPosition);
+                    return lowered ? [lowered] : [];
+                  });
+                const closed = value.construction.closed ? lowerGeometryValueScalar(value.construction.closed, context) : null;
+                return closed && (value.construction.pointsReference || points.length === value.construction.points.length)
+                  ? { kind: "polyline" as const, points, closed }
                   : null;
               })();
     if (!construction) return;

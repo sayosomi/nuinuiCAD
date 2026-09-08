@@ -2,8 +2,8 @@ use serde_json::{json, Value};
 
 use super::bezier_math::approximate_cubic_length;
 use super::geometry_value_kernels::{
-    coordinate_geometry_kernel, direct_arc_geometry_kernel, segment_geometry_kernel,
-    through_arc_geometry_kernel, StructuralPoint,
+    coordinate_geometry_kernel, direct_arc_geometry_kernel, polyline_geometry_kernel,
+    segment_geometry_kernel, through_arc_geometry_kernel, StructuralPoint,
 };
 use super::point_anchor::point_from_geometry;
 use super::scalar_expression_runtime::evaluate_document_typed_expression;
@@ -77,6 +77,10 @@ pub(crate) enum GeometryValueConstruction {
         end_angle_deg: Box<TypedScalarExpression>,
         end_length: Box<TypedScalarExpression>,
         intermediates: Vec<GeometryValueBezierIntermediate>,
+    },
+    Polyline {
+        points: Vec<GeometryValuePoint>,
+        closed: Box<TypedScalarExpression>,
     },
 }
 
@@ -426,6 +430,20 @@ fn decode_entry(value: &Value) -> Result<GeometryValueProgramEntry, String> {
                     intermediates,
                 }
             }
+            "polyline" => GeometryValueConstruction::Polyline {
+                points: construction_object
+                    .get("points")
+                    .and_then(Value::as_array)
+                    .ok_or_else(|| "geometry value polyline is missing points".to_owned())?
+                    .iter()
+                    .map(decode_point)
+                    .collect::<Result<Vec<_>, _>>()?,
+                closed: Box::new(decode_typed_field(
+                    construction_object,
+                    "closed",
+                    "geometry value polyline",
+                )?),
+            },
             kind => {
                 return Err(format!(
                     "unsupported geometry value construction kind {kind}"
@@ -472,6 +490,21 @@ fn number_expression(
         ScalarEvaluation::Ok {
             r#type: ScalarType::Number,
             value: ScalarValue::Number(value),
+        } => Some(value),
+        _ => None,
+    }
+}
+
+fn boolean_expression(
+    expression: &TypedScalarExpression,
+    resolver: &dyn ScalarDocumentBindingResolver,
+    state: &EvaluationState,
+    source_order: f64,
+) -> Option<bool> {
+    match evaluate_document_typed_expression(expression, resolver, state, Some(source_order)) {
+        ScalarEvaluation::Ok {
+            r#type: ScalarType::Boolean,
+            value: ScalarValue::Boolean(value),
         } => Some(value),
         _ => None,
     }
@@ -634,6 +667,31 @@ fn bezier_json(
             "length": length
         })
     })
+}
+
+fn polyline_json(points: &[StructuralPoint], closed: bool) -> Option<Value> {
+    let structural = polyline_geometry_kernel(points, closed)?;
+    let segments = structural
+        .segments
+        .iter()
+        .map(|segment| {
+            json!({
+                "start": { "x": segment.start.x, "y": segment.start.y },
+                "end": { "x": segment.end.x, "y": segment.end.y },
+                "length": segment.length
+            })
+        })
+        .collect::<Vec<_>>();
+    Some(json!({
+        "kind": "polyline",
+        "segments": segments,
+        "closed": structural.closed,
+        "start": { "x": structural.start.x, "y": structural.start.y },
+        "end": { "x": structural.end.x, "y": structural.end.y },
+        "length": structural.length,
+        "startTangentAngleDeg": structural.start_tangent_angle_deg,
+        "endTangentAngleDeg": structural.end_tangent_angle_deg
+    }))
 }
 
 pub(crate) fn evaluate_geometry_value_entry(
@@ -918,6 +976,48 @@ pub(crate) fn evaluate_geometry_value_entry(
                     state,
                     entry,
                     "Bezier geometry value construction inputs are unavailable or invalid.",
+                );
+                return;
+            };
+            Some(value)
+        }
+        GeometryValueConstruction::Polyline { points, closed } => {
+            if entry.declared_interface_type != "path" {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "Geometry value construction is incompatible with its declared interface type.",
+                );
+                return;
+            }
+            let closed = boolean_expression(closed, resolver, state, source_order);
+            let points = points
+                .iter()
+                .map(|point| evaluate_point(point, resolver, state, source_order))
+                .collect::<Option<Vec<_>>>();
+            let Some((closed, points)) = closed.zip(points) else {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "Polyline geometry value construction inputs are unavailable or invalid.",
+                );
+                return;
+            };
+            let structural_points = points
+                .iter()
+                .map(|point| StructuralPoint {
+                    x: point.0,
+                    y: point.1,
+                })
+                .collect::<Vec<_>>();
+            let Some(value) = polyline_json(&structural_points, closed) else {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    &format!(
+                        "Polyline geometry value construction requires at least {} finite points.",
+                        if closed { 3 } else { 2 }
+                    ),
                 );
                 return;
             };
