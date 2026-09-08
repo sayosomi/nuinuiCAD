@@ -177,6 +177,19 @@ describe("VS Code Canvas Ribbon configuration", () => {
     expect(vscodeCanvasRibbonCommandFor("toggleCanvasGeometryNames")?.label).toBe("Toggle Geometry Names");
   });
 
+  it("blocks Edit Canvas Ribbon only while Pick Mode is active", () => {
+    const command = vscodeCanvasRibbonCommandFor("editCanvasRibbon");
+    const context = {
+      hasSelection: false,
+      showCanvasPointNames: false,
+      showCanvasGeometryNames: false,
+      showCanvasPoints: false
+    };
+
+    expect(command?.isAvailable({ ...context, pickModeActive: false })).toBe(true);
+    expect(command?.isAvailable({ ...context, pickModeActive: true })).toBe(false);
+  });
+
   it("resolves known Lucide names and uses a deterministic fallback", () => {
     expect(resolveVscodeLucideIconName("circle")).toBe("circle");
     expect(resolveVscodeLucideIconName("not-a-lucide-icon")).toBe("circle");

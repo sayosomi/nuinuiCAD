@@ -43,6 +43,10 @@ import { vscodeBakeOperationResultFromCommand } from "./vscodeBakeOperationResul
 import { canvasObservationSnapshot } from "./canvasObservation";
 import { canvasNavigationContainerTarget } from "./canvasNavigationContainerTarget";
 import { isVscodeCanvasCreationCommandId } from "./vscodeCanvasCreationCommands";
+import {
+  pickModeCanvasCommandAllowed,
+  pickModeCanvasOperationAllowed
+} from "./pickModeCanvasPolicy";
 import { effectiveDrawElementIds, effectiveEvaluationElementIds } from "../model/elementActivity";
 import { effectiveVisibleElementIdsForProfile, visibilityProfileById } from "../model/visibilityProfiles";
 import { creationPlacementForTarget, applyCreationPlacement } from "../model/elementCreationPlacement";
@@ -1292,6 +1296,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       } else if (message.type === "canvasRibbonConfiguration") {
         setCanvasRibbonRibbons(normalizeVscodeCanvasRibbons(message.ribbons));
       } else if (message.type === "canvasCommand") {
+        if (!pickModeCanvasCommandAllowed(message.commandId, useCadUiStore.getState().activePickModeSession)) return;
         if (message.commandId === "bakeCurrentShape" || message.commandId === "bakeBaseShape") {
           void runCanvasBake(message);
           return;
@@ -1312,6 +1317,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         });
       } else if (message.type === "canvasCreationCommand") {
         if (!isVscodeCanvasCreationCommandId(message.commandId)) return;
+        if (!pickModeCanvasOperationAllowed("workflow-start", useCadUiStore.getState().activePickModeSession)) return;
         if (!Number.isInteger(message.requestId) ||
           !Number.isInteger(message.documentVersion) ||
           !canvasCreationSourcePositionIsValid(message.sourcePosition)) return;
@@ -1602,7 +1608,8 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           true,
           "requested",
           currentEvaluationIsCurrent ? selectionEligibleIds : undefined,
-          runtimeElements
+          runtimeElements,
+          { preservePickMode: pickModeCanvasOperationAllowed("reveal", useCadUiStore.getState().activePickModeSession) }
         )) {
           api.postMessage({
             type: "canvasNavigationResult",

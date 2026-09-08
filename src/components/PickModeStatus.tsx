@@ -22,42 +22,41 @@ export const PickModeStatus = () => {
       : pickModeSession?.kind === "line"
         ? lineTarget
         : null;
-  if (!target) return null;
+  if (!pickModeSession) return null;
 
-  const element = elements.find((candidate) => candidate.id === target.elementId);
+  const targetElementId = target?.elementId ?? pickModeSession.targetElementId;
+  const targetParameterKey = target?.parameterKey ?? pickModeSession.targetParameterKey;
+  const element = elements.find((candidate) => candidate.id === targetElementId);
   const definition = element
-    ? findParameterDefinition(element, target.parameterKey)
+    ? findParameterDefinition(element, targetParameterKey)
     : null;
-  const isLineList = Boolean(lineTarget && definition?.kind === "lineReferenceList");
-  const isPointList = Boolean(pointTarget && definition?.kind === "pointReferenceList");
-  const selectedCount = lineTarget?.draftLineIds?.length ?? 0;
-  const selectedLineNames = (lineTarget?.draftLineIds ?? []).map(
-    (id) => elements.find((candidate) => candidate.id === id)?.name ?? id
-  );
-  const selectedPointCount = pointTarget?.draftPointAnchors?.length ?? 0;
-  const selectedPointNames = (pointTarget?.draftPointAnchors ?? []).map((anchor) => pointAnchorName(anchor, elements));
-  const instruction = pointTarget
+  const isLineList = pickModeSession.kind === "line" && pickModeSession.selectionCardinality === "ordered-multiple";
+  const isPointList = pickModeSession.kind === "point" && pickModeSession.selectionCardinality === "ordered-multiple";
+  const draft = pickModeSession?.draft ?? [];
+  const selectedLineNames = draft
+    .filter((entry): entry is Extract<typeof draft[number], { kind: "line" }> => entry.kind === "line")
+    .map((entry) => elements.find((candidate) => candidate.id === entry.lineId)?.name ?? entry.lineId);
+  const selectedPointNames = draft
+    .filter((entry): entry is Extract<typeof draft[number], { kind: "point" }> => entry.kind === "point")
+    .map((entry) => pointAnchorName(entry.anchor, elements));
+  const selectedCount = selectedLineNames.length;
+  const selectedPointCount = selectedPointNames.length;
+  const instruction = pickModeSession.kind === "point"
     ? isPointList
       ? `点を順番に仮選択中（${selectedPointCount}件）。Canvas上で追加できます。`
       : "Canvasまたは構成リストから点を選択"
-    : numericTarget
+    : pickModeSession.kind === "numeric-reference"
       ? "線・曲線を選び、使用する値を明示的に選択"
       : isLineList
         ? `線を仮選択中（${selectedCount}件）。Canvas上で追加・解除できます。`
         : "Canvasまたは構成リストから線を選択";
-  const finish = () => {
-    if (isPointList) dispatchCommand("finishPointPick");
-    else if (pointTarget) dispatchCommand("cancelPointPick");
-    else if (numericTarget) dispatchCommand("cancelNumericReferencePick");
-    else if (isLineList) dispatchCommand("finishLinePick");
-    else dispatchCommand("cancelLinePick");
-  };
+  const finish = () => dispatchCommand("finishPickMode");
 
   return (
     <aside className="pick-mode-status" role="status" aria-live="polite">
       <span className="pick-mode-status-title" aria-hidden="true">PICK MODE</span>
       <span className="pick-mode-status-copy">
-        <strong>{element?.name ?? target.elementId} / {definition?.label ?? target.parameterKey}</strong>
+        <strong>{element?.name ?? targetElementId} / {definition?.label ?? targetParameterKey}</strong>
         <small>{instruction}</small>
         {isLineList && selectedLineNames.length > 0 ? (
           <span className="pick-mode-status-selection" aria-label={`選択済み ${selectedCount} 件`}>
@@ -83,9 +82,9 @@ export const PickModeStatus = () => {
         ) : null}
       </span>
       <button type="button" onClick={finish}>
-        {isLineList || isPointList ? "選択を完了" : "選択を終了"}
+        選択を完了
       </button>
-      {isLineList || isPointList ? <kbd title="⌘Enter / Ctrl+Enter で選択を完了">⌘↵</kbd> : null}
+      <kbd title="Enter で選択を完了">↵</kbd>
       <kbd>Esc</kbd>
     </aside>
   );

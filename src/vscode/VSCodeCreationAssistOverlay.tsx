@@ -28,8 +28,8 @@ import type { CreationRecipe, CreationStep } from "../commands/creationRecipes";
 import {
   activePickCandidates,
   applyPickReference,
-  finishLinePick,
-  finishPointPick
+  cancelPickMode,
+  finishPickMode
 } from "../commands/pickCommands";
 import { commandLineTypedBindingSuggestions } from "../commands/commandLineTypedBindingSuggestions";
 import { creationPlacementForTarget } from "../model/elementCreationPlacement";
@@ -114,18 +114,22 @@ export const VSCodeCreationAssistOverlay = ({
   const activePointPickTarget = useCadUiStore((state) => state.activePointPickTarget);
   const activeNumericReferencePickTarget = useCadUiStore((state) => state.activeNumericReferencePickTarget);
   const activeLinePickTarget = useCadUiStore((state) => state.activeLinePickTarget);
-  const isPickModeActive = useCadUiStore((state) => Boolean(matchingPickModeSessionForTargets(
+  const pickModeSession = useCadUiStore((state) => matchingPickModeSessionForTargets(
     state.activePickModeSession,
     {
       point: state.activePointPickTarget,
       numericReference: state.activeNumericReferencePickTarget,
       line: state.activeLinePickTarget
     }
-  )));
-  const lineListDraftSignature = activeLinePickTarget?.draftLineIds?.join("\0") ?? "";
-  const pointListDraftSignature = activePointPickTarget?.draftPointAnchors
-    ? JSON.stringify(activePointPickTarget.draftPointAnchors)
-    : "";
+  ));
+  const isPickModeActive = Boolean(pickModeSession);
+  const lineListDraftSignature = pickModeSession?.draft
+    .filter((entry) => entry.kind === "line")
+    .map((entry) => entry.lineId)
+    .join("\0") ?? "";
+  const pointListDraftSignature = JSON.stringify(pickModeSession?.draft
+    .filter((entry) => entry.kind === "point")
+    .map((entry) => entry.key) ?? []);
   const [restartRecipe, setRestartRecipe] = useState<CreationRecipe | null>(null);
   const [inputState, setInputState] = useState({ identity: "", value: "" });
   const [numberSuggestionSelection, setNumberSuggestionSelection] = useState<{
@@ -166,7 +170,7 @@ export const VSCodeCreationAssistOverlay = ({
   );
   const completedCurrentStep = completedSteps.find((item) => item.stepIndex === session?.currentStepIndex);
   const stepIdentity = session && isCanvasOriginSession
-    ? `${session.startedAtRevision}:${session.currentStepIndex}:${session.editingStepIndex ?? "new"}:${step?.kind ?? "complete"}:${step?.kind === "name" ? completedCurrentStep?.value ?? "" : step?.kind === "number" ? completedCurrentStep?.value ?? "" : step?.kind === "pointList" ? pointListDraftSignature : activeLinePickTarget?.draftLineIds?.join("\0") ?? ""}`
+    ? `${session.startedAtRevision}:${session.currentStepIndex}:${session.editingStepIndex ?? "new"}:${step?.kind ?? "complete"}:${step?.kind === "name" ? completedCurrentStep?.value ?? "" : step?.kind === "number" ? completedCurrentStep?.value ?? "" : step?.kind === "pointList" ? pointListDraftSignature : lineListDraftSignature}`
     : "";
   const existingInputValue = session && isCanvasOriginSession
     ? stepValueForInput(session, step, completedSteps)
@@ -468,6 +472,14 @@ export const VSCodeCreationAssistOverlay = ({
         !(event.key === "Enter" && event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey);
       if (canvasOwnsPick) return;
 
+      if (isPickModeActive && event.key === "Escape" &&
+        !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        cancelPickMode(completionCommandContext);
+        return;
+      }
+
       if (isModifierEnter(event) && (target === viewport || inDock || isTextEntryTarget(target))) {
         event.preventDefault();
         event.stopImmediatePropagation();
@@ -557,9 +569,9 @@ export const VSCodeCreationAssistOverlay = ({
 
   if (!session) return null;
   const isLineList = step?.kind === "lineList";
-  const lineListDraftCount = activeLinePickTarget?.draftLineIds?.length ?? 0;
+  const lineListDraftCount = pickModeSession?.draft.filter((entry) => entry.kind === "line").length ?? 0;
   const isPointList = step?.kind === "pointList";
-  const pointListDraftCount = activePointPickTarget?.draftPointAnchors?.length ?? 0;
+  const pointListDraftCount = pickModeSession?.draft.filter((entry) => entry.kind === "point").length ?? 0;
   const stepLabel = commandLineStepLabel(step);
   const inputHelp = commandLineStepHelp(step, presentation);
   const activeStepIndex = session.currentStepIndex;
@@ -736,13 +748,13 @@ export const VSCodeCreationAssistOverlay = ({
               {presentation?.text("canvas.creationAssist.pickOnCanvas", "Pick on Canvas") ?? "Pick on Canvas"}
             </button>
           ) : null}
-          {isLineList && Array.isArray(activeLinePickTarget?.draftLineIds) ? (
-            <button type="button" onClick={() => finishLinePick(completionCommandContext)}>
+          {isLineList && isPickModeActive ? (
+            <button type="button" onClick={() => finishPickMode(completionCommandContext)}>
               {presentation?.text("canvas.creationAssist.finishSelection", "Finish selection") ?? "Finish selection"}
             </button>
           ) : null}
-          {isPointList && Array.isArray(activePointPickTarget?.draftPointAnchors) ? (
-            <button type="button" onClick={() => finishPointPick(completionCommandContext)}>
+          {isPointList && isPickModeActive ? (
+            <button type="button" onClick={() => finishPickMode(completionCommandContext)}>
               {presentation?.text("canvas.creationAssist.finishSelection", "Finish selection") ?? "Finish selection"}
             </button>
           ) : null}

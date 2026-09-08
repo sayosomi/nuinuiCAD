@@ -97,6 +97,8 @@ export type CommandId =
   | "finishLinePick"
   | "finishPointPick"
   | "cancelLinePick"
+  | "finishPickMode"
+  | "cancelPickMode"
   | "cycleElementActivity"
   | "setElementActivity"
   | "setSelectedElementsVisible"
@@ -258,9 +260,17 @@ export type CommandContext = {
   pickedPointAnchor?: PointAnchor;
   /** Structured canonical source reference supplied by a semantic Module pick candidate. */
   pickedPointSourceReference?: CanonicalGeometrySourceReference;
+  /** Candidate identity used to derive the stable PickRef key for an explicit session. */
+  pickedPointCandidateElementId?: ElementId;
   pickedLineId?: ElementId;
   /** Canonical source reference supplied by a semantic Module pick candidate. */
   pickedLineSourceReference?: CanonicalGeometrySourceReference;
+  /** Candidate identity used to derive the stable PickRef key for an explicit session. */
+  pickedLineCandidateElementId?: ElementId;
+  /** Internal caller adapter flag: apply a resolved Pick draft during Finish. */
+  pickModeFinish?: boolean;
+  /** Candidate identity used to derive the stable PickRef key for an explicit session. */
+  numericReferenceCandidateElementId?: ElementId;
   numericValue?: NumericValue;
   activity?: ElementActivity;
 };

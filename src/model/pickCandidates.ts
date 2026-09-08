@@ -33,6 +33,7 @@ import type {
   ActivePickCursor,
   ActivePointPickTarget
 } from "../state/cadUiStore";
+import type { PickModeDraftEntry } from "./pickModeSession";
 import type { CommandLineSession } from "../commands/commandLineSession";
 import {
   commandLinePointPickTargetIds,
@@ -91,6 +92,8 @@ type PickTargets = {
   activePointPickTarget: ActivePointPickTarget | null;
   activeNumericReferencePickTarget: ActiveNumericReferencePickTarget | null;
   activeLinePickTarget: ActiveLinePickTarget | null;
+  /** Explicit Pick session draft; absent means ordinary suggestion/candidate mode. */
+  pickModeDraft?: readonly PickModeDraftEntry[];
   /** Optional context only for the command-line virtual target. Normal targets
    * deliberately retain their candidate set && ordering unchanged. */
   commandLineSession?: CommandLineSession | null;
@@ -260,13 +263,16 @@ const lineCandidates = (
   elements: CadElement[],
   evaluation: EvaluationResult,
   activeLinePickTarget: ActiveLinePickTarget,
+  pickModeDraft: readonly PickModeDraftEntry[] | undefined,
   referenceElements?: readonly CadElement[],
   commandLineSession?: CommandLineSession | null,
   commandLinePickParentGroupId?: ElementId,
   moduleSemanticContext?: ModuleSemanticCandidateContext
 ): PickCandidate[] => {
   const targetElement = elements.find((element) => element.id === activeLinePickTarget.elementId);
-  const parameterValue = activeLinePickTarget.draftLineIds ?? (targetElement
+  const parameterValue = pickModeDraft
+    ?.filter((entry): entry is Extract<PickModeDraftEntry, { kind: "line" }> => entry.kind === "line")
+    .map((entry) => entry.lineId) ?? (targetElement
     ? getParameterValue(targetElement, activeLinePickTarget.parameterKey)
     : null);
   const selectedLineIds = new Set<ElementId>(
@@ -305,7 +311,7 @@ const lineCandidates = (
         candidate.geometry.kind !== "image" &&
         candidate.geometry.kind !== "text" &&
         isEnabledPickSource(evaluation, candidate.geometry.elementId) &&
-        (activeLinePickTarget.draftLineIds !== undefined ||
+        (pickModeDraft !== undefined ||
           (!selectedLineIds.has(candidate.templateElement.id) &&
             !selectedLineIds.has(sourceReferenceText(sourceReferenceForRuntimeElement({
               runtimeElementId: candidate.templateElement.id,
@@ -414,6 +420,7 @@ export const pickCandidates = (
       elements,
       evaluation,
       targets.activeLinePickTarget,
+      targets.pickModeDraft,
       targets.referenceElements,
       targets.commandLineSession,
       targets.commandLinePickParentGroupId,

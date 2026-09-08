@@ -7,6 +7,7 @@ import {
 } from "../commands/commandLineInputComposition";
 import {
   startCommandLineCreation as startCommandLineCreationForValuePrompt,
+  startCommandLinePickForCurrentStep,
   syncCommandLinePickTarget,
   startCommandLineStepEdit,
   submitCommandLineInput
@@ -728,7 +729,6 @@ describe("CommandLineBar", () => {
       "point B = coordinate(x: 10, y: 0)",
       "line AB = segment(start: @A, end: @B)"
     ].join("\n"), "test");
-    const line = useCadDocumentStore.getState().elements.find((element) => element.name === "AB")!;
     renderBar();
     act(() => { startCommandLineCreation("offsetLine"); });
     const input = screen.getByRole<HTMLInputElement>("textbox");
@@ -737,9 +737,9 @@ describe("CommandLineBar", () => {
     expect(fireEvent.keyDown(input, { key: "Enter" })).toBe(false);
     expect(useCadUiStore.getState().commandLineSession?.args).not.toHaveProperty("baseLineIds");
     expect(useCadUiStore.getState().commandLineSession?.currentStepIndex).toBe(1);
-    expect(useCadUiStore.getState().activeLinePickTarget?.draftLineIds).toEqual([]);
+    expect(useCadUiStore.getState().activeLinePickTarget).toMatchObject({ selectionCardinality: "ordered-multiple" });
     fireEvent.keyDown(input, { key: "Enter" });
-    expect(useCadUiStore.getState().activeLinePickTarget?.draftLineIds).toEqual([line.id]);
+    expect(useCadUiStore.getState().activePickModeSession).toBeNull();
 
     expect(fireEvent.keyDown(input, { key: "Enter", metaKey: true })).toBe(false);
     expect(useCadUiStore.getState().commandLineSession).toBeNull();
@@ -769,6 +769,7 @@ describe("CommandLineBar", () => {
     ].join("\n"), "test");
     renderBar();
     act(() => { startCommandLineCreation("polyline"); });
+    act(() => { expect(startCommandLinePickForCurrentStep()).toBe(true); });
 
     const pointA = useCadDocumentStore.getState().elements.find((element) => element.name === "A")!;
     act(() => { applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointA.id) }); });

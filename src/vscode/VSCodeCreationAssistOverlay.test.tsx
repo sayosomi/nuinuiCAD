@@ -336,11 +336,11 @@ describe("VSCodeCreationAssistOverlay", () => {
       "point B = coordinate(x: 20, y: 0)"
     ].join("\n"), "test");
     publishTestCanvasSelectionEligibility();
-    const dispatchCanvasPickCommand = vi.fn((commandId: "cancelNumericReferencePick") => {
+    const dispatchCanvasPickCommand = vi.fn((commandId: "cancelPickMode") => {
       dispatchCommand(commandId);
     });
     const { canvasFocusRef } = renderOverlay(vi.fn(), (event) => {
-      if (event.key === "Escape") dispatchCanvasPickCommand("cancelNumericReferencePick");
+      if (event.key === "Escape") dispatchCanvasPickCommand("cancelPickMode");
     });
     start("divisionPoint");
     fireEvent.click(navigateButton(4));
@@ -359,8 +359,8 @@ describe("VSCodeCreationAssistOverlay", () => {
     fireEvent.keyDown(canvas, { key: "Escape" });
 
     expect(dispatchCanvasPickCommand).toHaveBeenCalledTimes(1);
-    expect(dispatchCanvasPickCommand).toHaveBeenCalledWith("cancelNumericReferencePick");
-    expect(useCadUiStore.getState().activeNumericReferencePickTarget).toBeNull();
+    expect(dispatchCanvasPickCommand).toHaveBeenCalledWith("cancelPickMode");
+    expect(useCadUiStore.getState().activeNumericReferencePickTarget).not.toBeNull();
     expect(useCadUiStore.getState().commandLineSession).not.toBeNull();
     expect(screen.queryByRole("button", { name: "Start again" })).not.toBeInTheDocument();
     expect(document.activeElement).toBe(canvas);
@@ -369,7 +369,8 @@ describe("VSCodeCreationAssistOverlay", () => {
   it("uses an explicit line-list Finish selection action and never modifier+Enter", () => {
     renderOverlay();
     start("offsetLine");
-    fireEvent.keyDown(input(), { key: "Enter" });
+    fireEvent.click(navigateButton(2));
+    fireEvent.click(screen.getByRole("button", { name: "Pick on Canvas" }));
     const line = useCadDocumentStore.getState().elements.find((element) => element.name === "AB")!;
     act(() => { applyPickedLine({ pickedLineId: line.id }); });
     expect(screen.getByText("1 selected")).toBeInTheDocument();
@@ -382,7 +383,8 @@ describe("VSCodeCreationAssistOverlay", () => {
   it("uses the shared point-list count and explicit Finish selection action", () => {
     renderOverlay();
     start("polyline");
-    fireEvent.keyDown(input(), { key: "Enter" });
+    fireEvent.click(navigateButton(2));
+    fireEvent.click(screen.getByRole("button", { name: "Pick on Canvas" }));
     expect(screen.getByText("0 selected")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Finish selection" })).toBeInTheDocument();
 
@@ -394,16 +396,14 @@ describe("VSCodeCreationAssistOverlay", () => {
       applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointB.id) });
       applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointA.id) });
     });
-    expect(screen.getByText("3 selected")).toBeInTheDocument();
+    expect(screen.getByText("1 selected")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Finish selection" }));
     expect(useCadUiStore.getState().commandLineSession).toBeNull();
     expect(useCadDocumentStore.getState().elements.at(-1)).toMatchObject({
       type: "polyline",
       points: [
-        referenceAnchor(pointA.id),
-        referenceAnchor(pointB.id),
-        referenceAnchor(pointA.id)
+        referenceAnchor(pointB.id)
       ],
       closed: false
     });
@@ -427,11 +427,11 @@ describe("VSCodeCreationAssistOverlay", () => {
   });
 
   it("lets Canvas-owned Escape cancel only the shared pick and retain Canvas focus", () => {
-    const dispatchCanvasPickCommand = vi.fn((commandId: "cancelPointPick") => {
+    const dispatchCanvasPickCommand = vi.fn((commandId: "cancelPickMode") => {
       dispatchCommand(commandId);
     });
     const { canvasFocusRef } = renderOverlay(vi.fn(), (event) => {
-      if (event.key === "Escape") dispatchCanvasPickCommand("cancelPointPick");
+      if (event.key === "Escape") dispatchCanvasPickCommand("cancelPickMode");
     });
     start("line");
     fireEvent.keyDown(input(), { key: "Enter" });
@@ -445,9 +445,9 @@ describe("VSCodeCreationAssistOverlay", () => {
     fireEvent.keyDown(canvas, { key: "Escape" });
 
     expect(dispatchCanvasPickCommand).toHaveBeenCalledTimes(1);
-    expect(dispatchCanvasPickCommand).toHaveBeenCalledWith("cancelPointPick");
+    expect(dispatchCanvasPickCommand).toHaveBeenCalledWith("cancelPickMode");
     expect(useCadUiStore.getState().commandLineSession).not.toBeNull();
-    expect(useCadUiStore.getState().activePointPickTarget).toBeNull();
+    expect(useCadUiStore.getState().activePointPickTarget).not.toBeNull();
     expect(screen.queryByRole("button", { name: "Start again" })).not.toBeInTheDocument();
     expect(document.activeElement).toBe(canvas);
   });

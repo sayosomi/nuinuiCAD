@@ -1246,6 +1246,7 @@ export class SourceEditorController implements SourceEditorHandle {
       activePointPickTarget: ui.activePointPickTarget,
       activeNumericReferencePickTarget: ui.activeNumericReferencePickTarget,
       activeLinePickTarget: ui.activeLinePickTarget,
+      pickModeDraft: pickModeSessionForUi(ui)?.draft,
       commandLineSession: ui.commandLineSession,
       commandLinePickParentGroupId: ui.commandLineSession
         ? creationPlacementForTarget(
@@ -1305,9 +1306,7 @@ export class SourceEditorController implements SourceEditorHandle {
     }
     const pickModeSession = pickModeSessionForUi(ui);
     if (pickModeSession) {
-      if (pickModeSession.kind === "point") dispatchCommand("cancelPointPick");
-      else if (pickModeSession.kind === "numeric-reference") dispatchCommand("cancelNumericReferencePick");
-      else dispatchCommand("cancelLinePick");
+      dispatchCommand("cancelPickMode");
       return true;
     }
     this.flush("command");
@@ -1786,12 +1785,7 @@ export class SourceEditorController implements SourceEditorHandle {
     if (ui.commandLineSession) return dispatchCommand("cancelCommandLineSession") !== false;
     const pickModeSession = pickModeSessionForUi(ui);
     if (pickModeSession) {
-      const commandId = pickModeSession.kind === "point"
-        ? "cancelPointPick"
-        : pickModeSession.kind === "numeric-reference"
-          ? "cancelNumericReferencePick"
-          : "cancelLinePick";
-      return dispatchCommand(commandId) !== false;
+      return dispatchCommand("cancelPickMode") !== false;
     }
     return false;
   }

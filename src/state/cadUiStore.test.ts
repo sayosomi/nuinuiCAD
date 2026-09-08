@@ -154,7 +154,7 @@ describe("cadUiStore group fold state", () => {
       activeLinePickTarget: {
         elementId: "line",
         parameterKey: "baseLineIds" as never,
-        draftLineIds: ["line-a"]
+        selectionCardinality: "ordered-multiple"
       },
       activeMeasurementInsertTarget: {
         elementId: "measurement",
@@ -218,12 +218,14 @@ describe("cadUiStore group fold state", () => {
       kind: "point",
       targetElementId: target.elementId,
       targetParameterKey: target.parameterKey,
-      selectionCardinality: "single"
+      selectionCardinality: "single",
+      draft: []
     });
     expect(useCadUiStore.getState().activePickModeSession).toMatchObject({
       kind: "point",
       targetElementId: "point",
-      targetParameterKey: "startPoint"
+      targetParameterKey: "startPoint",
+      draft: []
     });
 
     useCadUiStore.getState().setActivePointPickTarget({ elementId: "other", parameterKey: "startPoint" as never });
@@ -233,7 +235,8 @@ describe("cadUiStore group fold state", () => {
       kind: "point",
       targetElementId: "missing",
       targetParameterKey: "startPoint",
-      selectionCardinality: "single"
+      selectionCardinality: "single",
+      draft: []
     });
     expect(useCadUiStore.getState().activePickModeSession).toBeNull();
   });
@@ -242,14 +245,15 @@ describe("cadUiStore group fold state", () => {
     const target = {
       elementId: "line-list",
       parameterKey: "baseLineIds" as never,
-      draftLineIds: []
+      selectionCardinality: "ordered-multiple" as const
     };
     useCadUiStore.getState().setActiveLinePickTarget(target);
     useCadUiStore.getState().setActivePickModeSession({
       kind: "line",
       targetElementId: target.elementId,
       targetParameterKey: target.parameterKey,
-      selectionCardinality: "ordered-multiple"
+      selectionCardinality: "ordered-multiple",
+      draft: []
     });
 
     expect(useCadUiStore.getState().activePickModeSession?.selectionCardinality).toBe("ordered-multiple");

@@ -38,6 +38,8 @@ export type CanvasPickKeyboardCommandId = Extract<CommandId,
   | "selectPreviousPickOption"
   | "selectNextPickOption"
   | "applySelectedPickCandidate"
+  | "finishPickMode"
+  | "cancelPickMode"
   | "cancelPointPick"
   | "cancelNumericReferencePick"
   | "cancelLinePick"
@@ -144,7 +146,7 @@ export type CanvasHostAdapter = {
   clearCanvasSelection: () => unknown;
   movePointElementByDelta: (action: CanvasPointDragAction) => unknown;
   moveBezierHandleByDelta: (action: CanvasBezierHandleDragAction) => unknown;
-  applyPickedNumericReference: (numericReferenceExpression: string) => unknown;
+  applyPickedNumericReference: (numericReferenceExpression: string, candidateElementId?: ElementId) => unknown;
   applyNumericExpressionReference: (action: {
     elementId: ElementId;
     parameterKey: string;
@@ -152,10 +154,12 @@ export type CanvasHostAdapter = {
   }) => unknown;
   applyPickedLine: (action: {
     pickedLineId: ElementId;
+    pickedLineCandidateElementId?: ElementId;
     pickedLineSourceReference?: CanonicalGeometrySourceReference;
   }) => unknown;
   applyPickedPoint: (action: {
     pickedPointAnchor: PointAnchor;
+    pickedPointCandidateElementId?: ElementId;
     pickedPointSourceReference?: CanonicalGeometrySourceReference;
   }) => unknown;
   /** Shared Canvas keyboard boundary for the active pick scope. */

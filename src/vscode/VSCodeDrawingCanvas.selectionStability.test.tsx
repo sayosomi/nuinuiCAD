@@ -569,11 +569,10 @@ describe("VSCodeDrawingCanvas transient invalid-source selection presentation", 
     lineInput.focus();
     fireEvent.keyDown(lineInput, { key: "Enter", altKey: true });
 
-    const lineId = state.elements.find((element) => element.name === "AB")!.id;
     expect(useCadUiStore.getState().activeLinePickTarget).toMatchObject({
       elementId: "__command-line__",
       parameterKey: "baseLineIds",
-      draftLineIds: []
+      selectionCardinality: "ordered-multiple"
     });
     expect(document.activeElement).toBe(viewport);
 
@@ -594,7 +593,7 @@ describe("VSCodeDrawingCanvas transient invalid-source selection presentation", 
     expect(useCadUiStore.getState().activeLinePickTarget).toMatchObject({
       elementId: "__command-line__",
       parameterKey: "baseLineIds",
-      draftLineIds: [lineId]
+      selectionCardinality: "ordered-multiple"
     });
     expect(useCadUiStore.getState().commandLineSession?.args).not.toHaveProperty("baseLineIds");
     expect(useCadDocumentStore.getState().sourceText).toBe(baseline);
@@ -638,7 +637,7 @@ describe("VSCodeDrawingCanvas transient invalid-source selection presentation", 
     fireEvent.keyDown(lineInput, { key: "Enter", altKey: true });
 
     const lineId = state.elements.find((element) => element.name === "AB")!.id;
-    expect(useCadUiStore.getState().activeLinePickTarget?.draftLineIds).toEqual([]);
+    expect(useCadUiStore.getState().activePickModeSession?.draft).toEqual([]);
     expect(document.activeElement).toBe(viewport);
 
     const clickLine = async (pointerId: number, nativeFallbackFirst = false) => {
@@ -681,15 +680,15 @@ describe("VSCodeDrawingCanvas transient invalid-source selection presentation", 
     };
 
     await clickLine(1);
-    expect(useCadUiStore.getState().activeLinePickTarget?.draftLineIds).toEqual([lineId]);
+    expect(useCadUiStore.getState().activePickModeSession?.draft.map((entry) => entry.kind === "line" ? entry.lineId : null)).toEqual([lineId]);
     expect(useCadDocumentStore.getState().sourceText).toBe(baseline);
 
     await clickLine(1);
-    expect(useCadUiStore.getState().activeLinePickTarget?.draftLineIds).toEqual([]);
+    expect(useCadUiStore.getState().activePickModeSession?.draft).toEqual([]);
     expect(useCadDocumentStore.getState().sourceText).toBe(baseline);
 
     await clickLine(1, true);
-    expect(useCadUiStore.getState().activeLinePickTarget?.draftLineIds).toEqual([lineId]);
+    expect(useCadUiStore.getState().activePickModeSession?.draft.map((entry) => entry.kind === "line" ? entry.lineId : null)).toEqual([lineId]);
     expect(useCadDocumentStore.getState().sourceText).toBe(baseline);
     view.unmount();
     container.removeEventListener("pointerdown", stopReactPointerBoundary);
