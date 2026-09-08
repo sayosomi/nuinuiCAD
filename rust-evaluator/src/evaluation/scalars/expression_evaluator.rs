@@ -235,7 +235,7 @@ where
                     } if index.is_finite()
                         && index.fract() == 0.0
                         && index >= 0.0
-                        && collection_length.is_none_or(|length| index < length) =>
+                        && collection_length.map_or(true, |length| index < length) =>
                     {
                         environment.lookup_collection_index(
                             &collection_value_id,

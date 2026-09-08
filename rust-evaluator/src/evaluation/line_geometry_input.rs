@@ -211,7 +211,7 @@ fn decode_target(
                 collection_value_id: non_empty_string(object, "collectionValueId", context)?,
                 collection_length,
                 target_source_order,
-                index,
+                index: Box::new(index),
                 members,
             })
         }

@@ -33,7 +33,7 @@ pub(crate) enum GeometryInputTarget {
         collection_value_id: String,
         collection_length: Option<f64>,
         target_source_order: f64,
-        index: TypedScalarExpression,
+        index: Box<TypedScalarExpression>,
         members: Vec<GeometryInputTarget>,
     },
 }

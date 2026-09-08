@@ -123,21 +123,20 @@ enum WorkItem<'a> {
     },
 }
 
-fn decode_collection_index_shape(
-    object: &serde_json::Map<String, Value>,
-) -> Result<
-    (
-        ScalarSpan,
-        ScalarSpan,
-        String,
-        Option<String>,
-        Option<f64>,
-        Option<f64>,
-        Option<ScalarType>,
-        &Value,
-    ),
-    ScalarPayloadIssue,
-> {
+type CollectionIndexShape<'a> = (
+    ScalarSpan,
+    ScalarSpan,
+    String,
+    Option<String>,
+    Option<f64>,
+    Option<f64>,
+    Option<ScalarType>,
+    &'a Value,
+);
+
+fn decode_collection_index_shape<'a>(
+    object: &'a serde_json::Map<String, Value>,
+) -> Result<CollectionIndexShape<'a>, ScalarPayloadIssue> {
     super::json_helpers::reject_unexpected_fields(
         object,
         &[
