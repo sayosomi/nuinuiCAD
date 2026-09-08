@@ -66,7 +66,11 @@ import {
   validateCommandLineElementName
 } from "./commandLineNameValidation";
 import type { CommandContext } from "./commandTypes";
-import { pickModeSessionForTarget } from "../model/pickModeSession";
+import { seedPickModeDraft } from "./pickCommands";
+import {
+  pickModeSelectionCardinalityFor,
+  pickModeSessionForTarget
+} from "../model/pickModeSession";
 
 const compositionError = "日本語入力の確定中はコマンドを実行できません。入力を確定してから再操作してください。";
 const staleError = "ドキュメントが変更されたため、コマンドライン作成をキャンセルしました。もう一度開始してください。";
@@ -452,9 +456,19 @@ export const startCommandLinePickForCurrentStep = (context?: CommandContext) => 
     if (!target || !kind) return false;
     useCadUiStore.setState({
       ...pickState,
-      activePickModeSession: pickModeSessionForTarget(kind, target),
+      activePickModeSession: pickModeSessionForTarget(
+        kind,
+        target,
+        pickModeSelectionCardinalityFor(target),
+        []
+      ),
       activePickCursor: null
     });
+    if (kind === "point" && step?.kind === "pointList" && Array.isArray(session.editingDraft)) {
+      seedPickModeDraft("point", session.editingDraft);
+    } else if (kind === "line" && step?.kind === "lineList" && Array.isArray(session.editingDraft)) {
+      seedPickModeDraft("line", session.editingDraft);
+    }
   }
   context?.focusCanvas?.();
   return true;

@@ -119,7 +119,7 @@ export const dslReferenceCompletionOptions = ({
           elementId: targetElementId,
           parameterKey: parameterKey ?? "__reference__",
           insertionIndex: live.length,
-          ...(kind === "pointReferenceList" ? { draftPointAnchors: [] } : {})
+          ...(kind === "pointReferenceList" ? { selectionCardinality: "ordered-multiple" as const } : {})
         }
       : null,
     activeLinePickTarget: kind === "lineReference" || kind === "lineReferenceList"
@@ -127,9 +127,10 @@ export const dslReferenceCompletionOptions = ({
           elementId: targetElementId,
           parameterKey: parameterKey ?? "__line__",
           insertionIndex: live.length,
-          ...(kind === "lineReferenceList" ? { draftLineIds: [] } : {})
+          ...(kind === "lineReferenceList" ? { selectionCardinality: "ordered-multiple" as const } : {})
         }
       : null,
+    pickModeDraft: kind === "lineReferenceList" ? [] : undefined,
     activeNumericReferencePickTarget: null,
     referenceElements: live
   });

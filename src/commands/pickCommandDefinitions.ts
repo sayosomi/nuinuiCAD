@@ -6,9 +6,11 @@ import {
   applyPickedNumericReference,
   applyPickedPoint,
   applySelectedPickCandidate,
+  cancelPickMode,
   cancelLinePick,
   finishLinePick,
   finishPointPick,
+  finishPickMode,
   cancelNumericReferencePick,
   cancelPointPick,
   selectPickCandidateByOffset,
@@ -89,7 +91,17 @@ export const pickCommandDefinitions = {
   cancelNumericReferencePick: {
     id: "cancelNumericReferencePick",
     label: "数値選択をキャンセル",
-    run: () => cancelNumericReferencePick()
+    run: (context) => cancelNumericReferencePick(context)
+  },
+  finishPickMode: {
+    id: "finishPickMode",
+    label: "選択を完了",
+    run: (context) => finishPickMode(context)
+  },
+  cancelPickMode: {
+    id: "cancelPickMode",
+    label: "選択をキャンセル",
+    run: (context) => cancelPickMode(context)
   },
   selectNextPickCandidate: {
     id: "selectNextPickCandidate",
@@ -150,7 +162,7 @@ export const pickCommandDefinitions = {
   cancelPointPick: {
     id: "cancelPointPick",
     label: "点選択をキャンセル",
-    run: () => cancelPointPick()
+    run: (context) => cancelPointPick(context)
   },
   startLinePick: {
     id: "startLinePick",
@@ -181,6 +193,6 @@ export const pickCommandDefinitions = {
   cancelLinePick: {
     id: "cancelLinePick",
     label: "線選択をキャンセル",
-    run: () => cancelLinePick()
+    run: (context) => cancelLinePick(context)
   }
 } satisfies Partial<Record<CommandId, Command>>;

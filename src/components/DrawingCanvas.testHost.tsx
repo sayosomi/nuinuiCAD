@@ -157,8 +157,9 @@ export const DrawingCanvasTestHost = forwardRef<DrawingCanvasHandle, DrawingCanv
       clearCanvasSelection: () => dispatchCommand("clearCanvasSelection"),
       movePointElementByDelta: (action) => dispatchCommand("movePointElementByDelta", action),
       moveBezierHandleByDelta: (action) => dispatchCommand("moveBezierHandleByDelta", action),
-      applyPickedNumericReference: (numericReferenceExpression) => dispatchCommand("applyPickedNumericReference", {
-        numericReferenceExpression
+      applyPickedNumericReference: (numericReferenceExpression, candidateElementId) => dispatchCommand("applyPickedNumericReference", {
+        numericReferenceExpression,
+        ...(candidateElementId ? { numericReferenceCandidateElementId: candidateElementId } : {})
       }),
       applyNumericExpressionReference: (action) => dispatchCommand("applyNumericExpressionReference", action),
       applyPickedLine: (action) => dispatchCommand("applyPickedLine", action),

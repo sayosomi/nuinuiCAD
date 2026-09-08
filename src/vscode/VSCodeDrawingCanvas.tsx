@@ -535,9 +535,10 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       moveBezierHandleByDelta: (action) => action.commitMode === "preview"
         ? runtimeOnlyElementIds.has(action.elementId) ? false : dragPreviewScheduler.dispatchPreview(action, evaluationState)
         : commitGeometryCommand.moveBezierHandleByDelta(action),
-      applyPickedNumericReference: (numericReferenceExpression) => dispatchCommand("applyPickedNumericReference", {
+      applyPickedNumericReference: (numericReferenceExpression, candidateElementId) => dispatchCommand("applyPickedNumericReference", {
         ...creationCommandContext,
-        numericReferenceExpression
+        numericReferenceExpression,
+        ...(candidateElementId ? { numericReferenceCandidateElementId: candidateElementId } : {})
       }),
       applyNumericExpressionReference: (action) => dispatchCommand("applyNumericExpressionReference", action),
       applyPickedLine: (action) => dispatchCommand("applyPickedLine", {

@@ -29,7 +29,17 @@ import {
 } from "../model/moduleSemanticCandidateBoundary";
 import { findPickOptionByRef, type PickRef } from "../model/pickReferences";
 import { referenceAnchor } from "../model/pointAnchors";
-import { pickModeSessionForTarget } from "../model/pickModeSession";
+import {
+  activatePickModeDraftEntry,
+  matchingPickModeSessionForTargets,
+  pickModeDraftEntryForOption,
+  pickModeDraftForLineIds,
+  pickModeDraftForPointAnchors,
+  pickModeSelectionCardinalityFor,
+  pickModeSessionForTarget,
+  type PickModeDraftEntry,
+  type PickModeSession
+} from "../model/pickModeSession";
 import { findParameterDefinition } from "../parameters/parameterDefinitions";
 import { getParameterValue, setParameterValue } from "../parameters/parameterAccess";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
@@ -411,6 +421,10 @@ export const applyPickedNumericReference = (context?: CommandContext) => {
   if (!numericExpression) return;
   const { activeNumericReferencePickTarget } = useCadUiStore.getState();
   if (!activeNumericReferencePickTarget) return;
+  if (!context?.pickModeFinish) {
+    const draftEntry = numericDraftEntryFor(numericExpression, context);
+    if (draftEntry && activatePickModeDraft(draftEntry)) return;
+  }
   const commandLineStep = commandLineStepForPickTarget(
     activeNumericReferencePickTarget,
     useCadUiStore.getState().commandLineSession
@@ -441,10 +455,6 @@ export const applyPickedNumericReference = (context?: CommandContext) => {
   useCadUiStore.getState().setActiveNumericReferencePickTarget(null);
 };
 
-export const cancelNumericReferencePick = () => {
-  useCadUiStore.getState().setActiveNumericReferencePickTarget(null);
-};
-
 export const activePickCandidates = (currentEvaluation?: EvaluationResult) => {
   const ui = useCadUiStore.getState();
   const {
@@ -453,6 +463,11 @@ export const activePickCandidates = (currentEvaluation?: EvaluationResult) => {
     activeLinePickTarget
   } = ui;
   const { elements, evaluationLimitIndex, doc } = useCadDocumentStore.getState();
+  const pickModeSession = matchingPickModeSessionForTargets(ui.activePickModeSession, {
+    point: activePointPickTarget,
+    numericReference: activeNumericReferencePickTarget,
+    line: activeLinePickTarget
+  });
   const commandLinePlacement = ui.commandLineSession
     ? creationPlacementForTarget(
         elements,
@@ -464,6 +479,7 @@ export const activePickCandidates = (currentEvaluation?: EvaluationResult) => {
     activePointPickTarget,
     activeNumericReferencePickTarget,
     activeLinePickTarget,
+    pickModeDraft: pickModeSession?.draft,
     commandLineSession: ui.commandLineSession,
     commandLinePickParentGroupId: commandLinePlacement?.parentGroupId,
     referenceElements: commandLinePlacement?.referenceElements,
@@ -476,10 +492,15 @@ export const activePickCandidates = (currentEvaluation?: EvaluationResult) => {
   });
 };
 
-const applyPickOption = (option: PickOption, context?: CommandContext) => {
+const applyPickOption = (
+  candidateElementId: ElementId,
+  option: PickOption,
+  context?: CommandContext
+) => {
   if (option.kind === "point") {
     applyPickedPoint({
       ...context,
+      pickedPointCandidateElementId: candidateElementId,
       pickedPointAnchor: option.anchor,
       ...(option.sourceReference ? { pickedPointSourceReference: option.sourceReference } : {})
     });
@@ -488,12 +509,94 @@ const applyPickOption = (option: PickOption, context?: CommandContext) => {
   if (option.kind === "line") {
     applyPickedLine({
       ...context,
+      pickedLineCandidateElementId: candidateElementId,
       pickedLineId: option.lineId,
       ...(option.sourceReference ? { pickedLineSourceReference: option.sourceReference } : {})
     });
     return;
   }
-  applyPickedNumericReference({ ...context, numericReferenceExpression: option.expression });
+  applyPickedNumericReference({
+    ...context,
+    numericReferenceCandidateElementId: candidateElementId,
+    numericReferenceExpression: option.expression
+  });
+};
+
+const pickModeSessionForUi = () => {
+  const ui = useCadUiStore.getState();
+  return matchingPickModeSessionForTargets(ui.activePickModeSession, {
+    point: ui.activePointPickTarget,
+    numericReference: ui.activeNumericReferencePickTarget,
+    line: ui.activeLinePickTarget
+  });
+};
+
+/** Re-resolves committed ordered values through the current candidate authority. */
+export const seedPickModeDraft = (
+  kind: "point" | "line",
+  values: readonly PointAnchor[] | readonly ElementId[]
+) => {
+  const session = pickModeSessionForUi();
+  if (!session || session.kind !== kind) return false;
+  const candidates = activePickCandidates();
+  const draft = kind === "point"
+    ? pickModeDraftForPointAnchors(values as readonly PointAnchor[], candidates)
+    : pickModeDraftForLineIds(values as readonly ElementId[], candidates);
+  useCadUiStore.setState({
+    activePickModeSession: { ...session, draft }
+  });
+  return true;
+};
+
+const activatePickModeDraft = (entry: PickModeDraftEntry) => {
+  const session = pickModeSessionForUi();
+  if (!session || session.kind !== entry.kind) return false;
+  useCadUiStore.setState({
+    activePickModeSession: activatePickModeDraftEntry(session, entry),
+    activePickCursor: null
+  });
+  return true;
+};
+
+const pointDraftEntryFor = (
+  anchor: PointAnchor,
+  context?: CommandContext
+) => {
+  const candidateElementId = context?.pickedPointCandidateElementId ??
+    (anchor.mode === "reference" ? anchor.pointId : anchor.mode === "derived" ? anchor.elementId : null);
+  if (!candidateElementId) return null;
+  return pickModeDraftEntryForOption(candidateElementId, {
+    kind: "point",
+    label: "",
+    anchor: context?.pickedPointCandidateElementId
+      ? anchor
+      : context?.pickedPointSourceReference
+        ? pointAnchorForSourceReference(context.pickedPointSourceReference)
+        : anchor,
+    ...(context?.pickedPointSourceReference ? { sourceReference: context.pickedPointSourceReference } : {})
+  });
+};
+
+const lineDraftEntryFor = (lineId: ElementId, context?: CommandContext) => {
+  const candidateElementId = context?.pickedLineCandidateElementId ?? lineId;
+  return pickModeDraftEntryForOption(candidateElementId, {
+    kind: "line",
+    label: "",
+    lineId,
+    ...(context?.pickedLineSourceReference ? { sourceReference: context.pickedLineSourceReference } : {})
+  });
+};
+
+const numericDraftEntryFor = (expression: string, context?: CommandContext) => {
+  const target = useCadUiStore.getState().activeNumericReferencePickTarget;
+  const candidateElementId = context?.numericReferenceCandidateElementId ?? expression.split(".", 1)[0];
+  if (!target || !candidateElementId) return null;
+  return pickModeDraftEntryForOption(candidateElementId as ElementId, {
+    kind: "numericReference",
+    label: target.property,
+    property: target.property,
+    expression
+  });
 };
 
 export const applyPickReference = (
@@ -504,7 +607,7 @@ export const applyPickReference = (
   if (cancelStaleCommandLineSession()) return false;
   const resolved = findPickOptionByRef(activePickCandidates(currentEvaluation), ref);
   if (!resolved) return false;
-  applyPickOption(resolved.option, context);
+  applyPickOption(resolved.candidate.elementId, resolved.option, context);
   return true;
 };
 
@@ -570,7 +673,7 @@ export const applySelectedPickCandidate = (
   const selected = selectedPickOption(candidates, useCadUiStore.getState().activePickCursor);
   if (!selected) return;
 
-  applyPickOption(selected.option, context);
+  applyPickOption(selected.candidate.elementId, selected.option, context);
 };
 
 export const startPointPick = (
@@ -605,7 +708,7 @@ export const startPointPick = (
   const activePointPickTarget = {
     elementId: selectedElement.id,
     parameterKey: definition.key,
-    ...(draftPointAnchors ? { draftPointAnchors } : {}),
+    ...(draftPointAnchors ? { selectionCardinality: "ordered-multiple" as const } : {}),
     ...(context?.nextParameterKey ? { nextParameterKey: context.nextParameterKey } : {}),
     ...(context?.pickFlow ? { pickFlow: context.pickFlow } : {})
   };
@@ -613,8 +716,14 @@ export const startPointPick = (
     activeNumericReferencePickTarget: null,
     activeLinePickTarget: null,
     activePointPickTarget,
-    activePickModeSession: pickModeSessionForTarget("point", activePointPickTarget)
+    activePickModeSession: pickModeSessionForTarget(
+      "point",
+      activePointPickTarget,
+      pickModeSelectionCardinalityFor(activePointPickTarget),
+      []
+    )
   });
+  if (draftPointAnchors?.length) seedPickModeDraft("point", draftPointAnchors);
 };
 
 export const startLineEndpointPairPick = (context?: Pick<CommandContext, "elementId">) => {
@@ -689,6 +798,85 @@ export const applyPickedPoint = (context?: CommandContext) => {
   if (!activePointPickTarget) return;
   const commandLineSession = useCadUiStore.getState().commandLineSession;
   const commandLineStep = commandLineStepForPickTarget(activePointPickTarget, commandLineSession);
+  if (!context?.pickModeFinish && pickModeSessionForUi()?.kind === "point") {
+    if (commandLineStep?.kind === "point" || commandLineStep?.kind === "endpoint" || commandLineStep?.kind === "pointList") {
+      const parentGroupId = commandLineSession
+        ? creationPlacementForTarget(
+            elements,
+            commandLineSession.insertionTarget,
+            useCadDocumentStore.getState().evaluationLimitIndex
+          ).parentGroupId
+        : undefined;
+      const pointPickTargetIds = commandLinePointPickTargetIds({
+        target: activePointPickTarget,
+        session: commandLineSession,
+        parentGroupId,
+        elements
+      });
+      if (!isValidPickedPointAnchorForTarget({
+        elements,
+        ...pointPickTargetIds,
+        anchor,
+        allowLineEndpoint: commandLineStep.kind === "endpoint"
+      })) return;
+      const pickedAnchor = pickedPointAnchorForTargetForGroup({
+        elements,
+        targetElementId: pointPickTargetIds.normalizationTargetElementId ?? pointPickTargetIds.targetElementId,
+        anchor
+      });
+      if (!pickedAnchor) return;
+      if (commandLineStep.kind === "endpoint" && !lineEndpointReferenceForPickedAnchor({
+        elements,
+        targetElementId: pointPickTargetIds.normalizationTargetElementId ?? pointPickTargetIds.targetElementId,
+        anchor
+      })) return;
+      if (pickedAnchor.mode === "reference") {
+        const pointElement = elements.find((element) => element.id === pickedAnchor.pointId);
+        if (!pointElement || !["freePoint", "offsetPoint", "polarOffsetPoint", "divisionPoint", "lineDivisionPoint", "intersectionPoint", "lineTangentOffsetPoint"].includes(pointElement.type)) return;
+      }
+      if (pickedAnchor.mode === "derived" && !elements.some((element) => element.id === pickedAnchor.elementId)) return;
+      const entry = pointDraftEntryFor(
+        commandLineStep.kind === "endpoint" ? anchor : pickedAnchor,
+        context
+      );
+      if (!entry) return;
+      activatePickModeDraft(entry);
+      return;
+    }
+    if (activePointPickTarget.measurementSlot) {
+      const entry = pointDraftEntryFor(anchor, context);
+      if (entry) activatePickModeDraft(entry);
+      return;
+    }
+    const targetElement = elements.find((element) => element.id === activePointPickTarget.elementId);
+    if (!targetElement) return;
+    const definition = findParameterDefinition(targetElement, activePointPickTarget.parameterKey);
+    if (pickedPointAnchorReferencesTarget({
+      elements,
+      targetElementId: activePointPickTarget.elementId,
+      anchor
+    })) return;
+    const pickedAnchor = pickedPointAnchorForTargetForGroup({
+      elements,
+      targetElementId: activePointPickTarget.elementId,
+      anchor
+    });
+    if (!pickedAnchor) return;
+    if (definition?.kind === "lineEndpointReference" && !lineEndpointReferenceForPickedAnchor({
+      elements,
+      targetElementId: activePointPickTarget.elementId,
+      anchor
+    })) return;
+    if (definition?.kind !== "reference" && definition?.kind !== "lineEndpointReference" && definition?.kind !== "pointReferenceList") return;
+    if (pickedAnchor.mode === "reference") {
+      const pointElement = elements.find((element) => element.id === pickedAnchor.pointId);
+      if (!pointElement || !["freePoint", "offsetPoint", "polarOffsetPoint", "divisionPoint", "lineDivisionPoint", "intersectionPoint", "lineTangentOffsetPoint"].includes(pointElement.type)) return;
+    }
+    if (pickedAnchor.mode === "derived" && !elements.some((element) => element.id === pickedAnchor.elementId)) return;
+      const entry = pointDraftEntryFor(pickedAnchor, context);
+    if (entry) activatePickModeDraft(entry);
+    return;
+  }
   if (commandLineStep?.kind === "point" || commandLineStep?.kind === "endpoint" || commandLineStep?.kind === "pointList") {
     if (cancelStaleCommandLineSession()) return;
     const parentGroupId = commandLineSession
@@ -747,13 +935,10 @@ export const applyPickedPoint = (context?: CommandContext) => {
       return;
     }
     if (commandLineStep.kind === "pointList") {
-      useCadUiStore.getState().setActivePointPickTarget({
-        ...activePointPickTarget,
-        draftPointAnchors: [
-          ...(activePointPickTarget.draftPointAnchors ?? []),
-          context?.pickedPointSourceReference ? sourceAnchor : pickedAnchor
-        ]
-      });
+      fillCommandLineCurrentStep(
+        [context?.pickedPointSourceReference ? sourceAnchor : pickedAnchor],
+        context
+      );
       return;
     }
     fillCommandLineCurrentStep(context?.pickedPointSourceReference ? sourceAnchor : pickedAnchor, context);
@@ -891,12 +1076,18 @@ export const applyPickedPoint = (context?: CommandContext) => {
   }
 
   if (definition.kind === "pointReferenceList") {
-    useCadUiStore.getState().setActivePointPickTarget({
-      ...activePointPickTarget,
-      draftPointAnchors: [
-        ...(activePointPickTarget.draftPointAnchors ?? []),
-        context?.pickedPointSourceReference ? sourceAnchor : pickedAnchor
-      ]
+    commitDocumentChangeAndSelect({
+      elements: elements.map((element) =>
+        element.id === activePointPickTarget.elementId
+          ? setParameterValue(element, activePointPickTarget.parameterKey, [
+              context?.pickedPointSourceReference ? sourceAnchor : pickedAnchor
+            ])
+          : element
+      )
+    }, {
+      selectedElementId: activePointPickTarget.elementId,
+      selectedElementIds: [activePointPickTarget.elementId],
+      selectionAnchorElementId: activePointPickTarget.elementId
     });
     return;
   }
@@ -931,10 +1122,6 @@ export const applyPickedPoint = (context?: CommandContext) => {
   useCadUiStore.getState().setActivePointPickTarget(null);
 };
 
-export const cancelPointPick = () => {
-  useCadUiStore.getState().setActivePointPickTarget(null);
-};
-
 export const startLinePick = (
   context?: Pick<CommandContext, "elementId" | "parameterKey" | "nextParameterKey"> & {
     pickFlow?: "lineAndPoint";
@@ -963,7 +1150,7 @@ export const startLinePick = (
   const activeLinePickTarget = {
     elementId: selectedElement.id,
     parameterKey: definition.key,
-    ...(draftLineIds ? { draftLineIds } : {}),
+    ...(draftLineIds ? { selectionCardinality: "ordered-multiple" as const } : {}),
     ...(context?.nextParameterKey ? { nextPointParameterKey: context.nextParameterKey } : {}),
     ...(context?.pickFlow ? { pickFlow: context.pickFlow } : {})
   };
@@ -971,8 +1158,14 @@ export const startLinePick = (
     activePointPickTarget: null,
     activeNumericReferencePickTarget: null,
     activeLinePickTarget,
-    activePickModeSession: pickModeSessionForTarget("line", activeLinePickTarget)
+    activePickModeSession: pickModeSessionForTarget(
+      "line",
+      activeLinePickTarget,
+      pickModeSelectionCardinalityFor(activeLinePickTarget),
+      []
+    )
   });
+  if (draftLineIds?.length) seedPickModeDraft("line", draftLineIds);
 };
 
 export const startLineAndPointPick = (
@@ -1008,6 +1201,43 @@ export const applyPickedLine = (context?: CommandContext) => {
   if (!activeLinePickTarget) return;
   const commandLineSession = useCadUiStore.getState().commandLineSession;
   const commandLineStep = commandLineStepForPickTarget(activeLinePickTarget, commandLineSession);
+  if (!context?.pickModeFinish && pickModeSessionForUi()?.kind === "line") {
+    let normalizedLineId: ElementId | null = pickedLineId;
+    if (commandLineStep?.kind === "line" || commandLineStep?.kind === "lineList") {
+      const parentGroupId = commandLineSession
+        ? creationPlacementForTarget(
+            elements,
+            commandLineSession.insertionTarget,
+            useCadDocumentStore.getState().evaluationLimitIndex
+          ).parentGroupId
+        : undefined;
+      const normalizationTargetId = commandLinePickNormalizationTargetId(
+        activeLinePickTarget,
+        commandLineSession,
+        parentGroupId,
+        elements
+      );
+      normalizedLineId = generatedElementIdForTargetForGroup({
+        elements,
+        targetElementId: normalizationTargetId,
+        pickedElementId: pickedLineId
+      });
+    } else if (activeLinePickTarget.measurementSlot) {
+      normalizedLineId = pickedLineId;
+    } else {
+      normalizedLineId = generatedElementIdForTargetForGroup({
+        elements,
+        targetElementId: activeLinePickTarget.elementId,
+        pickedElementId: pickedLineId
+      });
+    }
+    const pickedLine = normalizedLineId ? elements.find((element) => element.id === normalizedLineId) : null;
+    if (!normalizedLineId || !pickedLine || !isLineLikeElement(pickedLine)) return;
+    if (!activeLinePickTarget.measurementSlot && normalizedLineId === activeLinePickTarget.elementId) return;
+    const entry = lineDraftEntryFor(normalizedLineId, context);
+    if (entry) activatePickModeDraft(entry);
+    return;
+  }
   if (commandLineStep?.kind === "line" || commandLineStep?.kind === "lineList") {
     if (cancelStaleCommandLineSession()) return;
     const parentGroupId = commandLineSession
@@ -1036,14 +1266,7 @@ export const applyPickedLine = (context?: CommandContext) => {
       fillCommandLineCurrentStep(sourceReferenceToken ?? normalizedPickedLineId, context);
       return;
     }
-    const draftLineIds = activeLinePickTarget.draftLineIds ?? [];
-    const adoptedLineId = sourceReferenceId ?? normalizedPickedLineId;
-    useCadUiStore.getState().setActiveLinePickTarget({
-      ...activeLinePickTarget,
-      draftLineIds: draftLineIds.includes(adoptedLineId)
-        ? draftLineIds.filter((id) => id !== adoptedLineId)
-        : [...draftLineIds, adoptedLineId]
-    });
+    fillCommandLineCurrentStep([sourceReferenceId ?? normalizedPickedLineId], context);
     return;
   }
   if (activeLinePickTarget.measurementSlot) {
@@ -1133,39 +1356,11 @@ export const applyPickedLine = (context?: CommandContext) => {
   }
 
   if (!currentLineIds) return;
-  const draftLineIds = activeLinePickTarget.draftLineIds ?? currentLineIds;
   const adoptedLineId = sourceReferenceId ?? normalizedPickedLineId;
-  useCadUiStore.getState().setActiveLinePickTarget({
-    ...activeLinePickTarget,
-    draftLineIds: draftLineIds.includes(adoptedLineId)
-      ? draftLineIds.filter((id) => id !== adoptedLineId)
-      : [...draftLineIds, adoptedLineId]
-  });
-};
-
-export const cancelLinePick = () => {
-  useCadUiStore.getState().setActiveLinePickTarget(null);
-};
-
-export const finishLinePick = (context?: CommandContext) => {
-  const { activeLinePickTarget } = useCadUiStore.getState();
-  if (!activeLinePickTarget || activeLinePickTarget.draftLineIds === undefined) return;
-  const commandLineStep = commandLineStepForPickTarget(
-    activeLinePickTarget,
-    useCadUiStore.getState().commandLineSession
-  );
-  if (commandLineStep?.kind === "lineList") {
-    if (cancelStaleCommandLineSession()) return;
-    fillCommandLineCurrentStep(activeLinePickTarget.draftLineIds, context);
-    return;
-  }
-  const { elements } = useCadDocumentStore.getState();
-  const targetElement = elements.find((element) => element.id === activeLinePickTarget.elementId);
-  if (!targetElement) return;
   commitDocumentChangeAndSelect({
     elements: elements.map((element) =>
       element.id === targetElement.id
-        ? setParameterValue(targetElement, activeLinePickTarget.parameterKey, activeLinePickTarget.draftLineIds!)
+        ? setParameterValue(targetElement, activeLinePickTarget.parameterKey, [adoptedLineId])
         : element
     )
   }, {
@@ -1173,30 +1368,55 @@ export const finishLinePick = (context?: CommandContext) => {
     selectedElementIds: [targetElement.id],
     selectionAnchorElementId: targetElement.id
   });
-  useCadUiStore.getState().setActiveLinePickTarget(null);
 };
 
-export const finishPointPick = (context?: CommandContext) => {
-  const { activePointPickTarget } = useCadUiStore.getState();
-  if (!activePointPickTarget || activePointPickTarget.draftPointAnchors === undefined) return;
-  const commandLineStep = commandLineStepForPickTarget(
-    activePointPickTarget,
-    useCadUiStore.getState().commandLineSession
-  );
+const pickModeEmptyDraftError = "選択を1件以上追加してから完了してください。";
+
+const clearFinishedPickTarget = (kind: PickModeSession["kind"]) => {
+  useCadUiStore.setState({
+    ...(kind === "point" ? { activePointPickTarget: null } : {}),
+    ...(kind === "line" ? { activeLinePickTarget: null } : {}),
+    ...(kind === "numeric-reference" ? { activeNumericReferencePickTarget: null } : {}),
+    activePickModeSession: null,
+    activePickCursor: null
+  });
+};
+
+const finishPointDraft = (session: PickModeSession, context?: CommandContext) => {
+  const ui = useCadUiStore.getState();
+  const target = ui.activePointPickTarget;
+  if (!target) return false;
+  const pointEntries = session.draft.filter((entry): entry is Extract<PickModeDraftEntry, { kind: "point" }> => entry.kind === "point");
+  if (pointEntries.length === 0) return false;
+  if (session.selectionCardinality === "single") {
+    const entry = pointEntries[0];
+    if (!entry) return false;
+    applyPickedPoint({
+      ...context,
+      pickModeFinish: true,
+      pickedPointAnchor: entry.anchor,
+      ...(entry.sourceReference ? { pickedPointSourceReference: entry.sourceReference } : {})
+    });
+    return true;
+  }
+
+  const values = pointEntries.map((entry) => entry.sourceReference
+    ? pointAnchorForSourceReference(entry.sourceReference)
+    : entry.anchor);
+  const commandLineStep = commandLineStepForPickTarget(target, ui.commandLineSession);
   if (commandLineStep?.kind === "pointList") {
-    if (cancelStaleCommandLineSession()) return;
-    fillCommandLineCurrentStep(activePointPickTarget.draftPointAnchors, context);
-    return;
+    if (cancelStaleCommandLineSession()) return false;
+    fillCommandLineCurrentStep(values, context);
+    return true;
   }
   const { elements } = useCadDocumentStore.getState();
-  const targetElement = elements.find((element) => element.id === activePointPickTarget.elementId);
-  if (!targetElement) return;
-  const definition = findParameterDefinition(targetElement, activePointPickTarget.parameterKey);
-  if (definition?.kind !== "pointReferenceList") return;
+  const targetElement = elements.find((element) => element.id === target.elementId);
+  const definition = targetElement ? findParameterDefinition(targetElement, target.parameterKey) : null;
+  if (!targetElement || definition?.kind !== "pointReferenceList") return false;
   commitDocumentChangeAndSelect({
     elements: elements.map((element) =>
       element.id === targetElement.id
-        ? setParameterValue(targetElement, activePointPickTarget.parameterKey, activePointPickTarget.draftPointAnchors!)
+        ? setParameterValue(targetElement, target.parameterKey, values)
         : element
     )
   }, {
@@ -1204,5 +1424,102 @@ export const finishPointPick = (context?: CommandContext) => {
     selectedElementIds: [targetElement.id],
     selectionAnchorElementId: targetElement.id
   });
-  useCadUiStore.getState().setActivePointPickTarget(null);
+  clearFinishedPickTarget("point");
+  return true;
+};
+
+const finishLineDraft = (session: PickModeSession, context?: CommandContext) => {
+  const ui = useCadUiStore.getState();
+  const target = ui.activeLinePickTarget;
+  if (!target) return false;
+  const lineEntries = session.draft.filter((entry): entry is Extract<PickModeDraftEntry, { kind: "line" }> => entry.kind === "line");
+  if (lineEntries.length === 0) return false;
+  if (session.selectionCardinality === "single") {
+    const entry = lineEntries[0];
+    if (!entry) return false;
+    applyPickedLine({
+      ...context,
+      pickModeFinish: true,
+      pickedLineId: entry.lineId,
+      ...(entry.sourceReference ? { pickedLineSourceReference: entry.sourceReference } : {})
+    });
+    return true;
+  }
+
+  const values = lineEntries.map((entry) => entry.sourceReference?.base ?? entry.lineId);
+  const commandLineStep = commandLineStepForPickTarget(target, ui.commandLineSession);
+  if (commandLineStep?.kind === "lineList") {
+    if (cancelStaleCommandLineSession()) return false;
+    fillCommandLineCurrentStep(values, context);
+    return true;
+  }
+  const { elements } = useCadDocumentStore.getState();
+  const targetElement = elements.find((element) => element.id === target.elementId);
+  const definition = targetElement ? findParameterDefinition(targetElement, target.parameterKey) : null;
+  if (!targetElement || definition?.kind !== "lineReferenceList") return false;
+  commitDocumentChangeAndSelect({
+    elements: elements.map((element) =>
+      element.id === targetElement.id
+        ? setParameterValue(targetElement, target.parameterKey, values)
+        : element
+    )
+  }, {
+    selectedElementId: targetElement.id,
+    selectedElementIds: [targetElement.id],
+    selectionAnchorElementId: targetElement.id
+  });
+  clearFinishedPickTarget("line");
+  return true;
+};
+
+export const finishPickMode = (context?: CommandContext) => {
+  const session = pickModeSessionForUi();
+  if (!session) return false;
+  if (session.draft.length === 0) {
+    useCadUiStore.getState().setCommandErrorMessage(pickModeEmptyDraftError);
+    return false;
+  }
+  if (session.kind === "point") return finishPointDraft(session, context);
+  if (session.kind === "line") return finishLineDraft(session, context);
+  const entry = session.draft.find((candidate): candidate is Extract<PickModeDraftEntry, { kind: "numeric-reference" }> => candidate.kind === "numeric-reference");
+  if (!entry) return false;
+  applyPickedNumericReference({
+    ...context,
+    pickModeFinish: true,
+    numericReferenceExpression: entry.expression
+  });
+  return true;
+};
+
+export const cancelPickMode = (context?: CommandContext) => {
+  const session = pickModeSessionForUi();
+  if (!session) return false;
+  const ui = useCadUiStore.getState();
+  const commandLineOwned = commandLineStepForPickTarget(
+    session.kind === "point" ? ui.activePointPickTarget : session.kind === "line" ? ui.activeLinePickTarget : ui.activeNumericReferencePickTarget,
+    ui.commandLineSession
+  ) !== null;
+  useCadUiStore.setState({
+    ...(commandLineOwned ? {} : session.kind === "point" ? { activePointPickTarget: null } : session.kind === "line" ? { activeLinePickTarget: null } : { activeNumericReferencePickTarget: null }),
+    activePickModeSession: null,
+    activePickCursor: null
+  });
+  if (!commandLineOwned) context?.focusSourceEditor?.();
+  return true;
+};
+
+export const cancelLinePick = (context?: CommandContext) => {
+  if (!cancelPickMode(context)) useCadUiStore.getState().setActiveLinePickTarget(null);
+};
+
+export const finishLinePick = (context?: CommandContext) => finishPickMode(context);
+
+export const finishPointPick = (context?: CommandContext) => finishPickMode(context);
+
+export const cancelPointPick = (context?: CommandContext) => {
+  if (!cancelPickMode(context)) useCadUiStore.getState().setActivePointPickTarget(null);
+};
+
+export const cancelNumericReferencePick = (context?: CommandContext) => {
+  if (!cancelPickMode(context)) useCadUiStore.getState().setActiveNumericReferencePickTarget(null);
 };

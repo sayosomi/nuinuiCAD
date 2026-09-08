@@ -5,6 +5,7 @@ import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import type { CadElement } from "../types/geometry";
 import { PickModeStatus } from "./PickModeStatus";
 import { pickModeSessionForTarget } from "../model/pickModeSession";
+import { referenceAnchor } from "../model/pointAnchors";
 
 const line = (id: string, name: string): CadElement => ({
   id,
@@ -25,7 +26,7 @@ describe("PickModeStatus", () => {
     const activeLinePickTarget = {
       elementId: "offset",
       parameterKey: "baseLineIds",
-      draftLineIds: []
+      selectionCardinality: "ordered-multiple" as const
     };
     useCadUiStore.setState({ activeLinePickTarget });
 
@@ -50,22 +51,68 @@ describe("PickModeStatus", () => {
     const activeLinePickTarget = {
         elementId: target.id,
         parameterKey: "baseLineIds",
-        draftLineIds: lines.map((item) => item.id)
+        selectionCardinality: "ordered-multiple" as const
     };
     useCadUiStore.setState({
       activeLinePickTarget,
-      activePickModeSession: pickModeSessionForTarget("line", activeLinePickTarget)
+      activePickModeSession: pickModeSessionForTarget("line", activeLinePickTarget, "ordered-multiple", lines.map((item) => ({
+        kind: "line" as const,
+        key: item.id,
+        lineId: item.id
+      })))
     });
 
     render(<PickModeStatus />);
 
     expect(screen.getByLabelText("選択済み 5 件")).toBeInTheDocument();
-    expect(screen.getByTitle("⌘Enter / Ctrl+Enter で選択を完了")).toHaveTextContent("⌘↵");
+    expect(screen.getByTitle("Enter で選択を完了")).toHaveTextContent("↵");
     for (const name of ["線1", "線2", "線3", "線4"]) {
       expect(screen.getByText(name)).toBeInTheDocument();
     }
     expect(screen.queryByText("線5")).not.toBeInTheDocument();
     expect(screen.getByText("+1")).toBeInTheDocument();
+  });
+
+  it("shows a virtual ordered point-list session from the shared draft", () => {
+    const target = {
+      elementId: "__command-line__",
+      parameterKey: "points",
+      selectionCardinality: "ordered-multiple" as const
+    };
+    useCadUiStore.setState({
+      activePointPickTarget: target,
+      activePickModeSession: pickModeSessionForTarget("point", target, "ordered-multiple", [{
+        kind: "point",
+        key: "point",
+        anchor: referenceAnchor("point-a")
+      }])
+    });
+
+    render(<PickModeStatus />);
+
+    expect(screen.getByLabelText("選択済み 1 件")).toBeInTheDocument();
+    expect(screen.getByText("__command-line__ / points")).toBeInTheDocument();
+  });
+
+  it("shows a virtual ordered line-list session from the shared draft", () => {
+    const target = {
+      elementId: "__command-line__",
+      parameterKey: "baseLineIds",
+      selectionCardinality: "ordered-multiple" as const
+    };
+    useCadUiStore.setState({
+      activeLinePickTarget: target,
+      activePickModeSession: pickModeSessionForTarget("line", target, "ordered-multiple", [{
+        kind: "line",
+        key: "line",
+        lineId: "line-a"
+      }])
+    });
+
+    render(<PickModeStatus />);
+
+    expect(screen.getByLabelText("選択済み 1 件")).toBeInTheDocument();
+    expect(screen.getByText("__command-line__ / baseLineIds")).toBeInTheDocument();
   });
 
 });
