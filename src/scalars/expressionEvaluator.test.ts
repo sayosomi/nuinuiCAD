@@ -166,6 +166,50 @@ describe("evaluateTypedExpression / short-circuit", () => {
   });
 });
 
+describe("evaluateTypedExpression / scalar value-if", () => {
+  const valueIf = (
+    condition: boolean,
+    thenBranch: TypedScalarExpression,
+    elseBranch: TypedScalarExpression
+  ): TypedScalarExpression => ({
+    kind: "valueIf",
+    span: { start: 0, end: 0 },
+    condition: { kind: "booleanLiteral", span: { start: 0, end: 0 }, value: condition, type: { kind: "boolean" } },
+    thenBranch,
+    elseBranch,
+    type: { kind: "number" }
+  });
+
+  const poisonedReference = (bindingId: string): TypedScalarExpression => ({
+    kind: "reference",
+    span: { start: 0, end: 0 },
+    nameSpan: { start: 0, end: 0 },
+    name: bindingId,
+    bindingId,
+    type: { kind: "number" }
+  });
+
+  it("evaluates only the selected branch and does not observe an unselected binding lookup", () => {
+    expect(evaluateTypedExpression(valueIf(false, poisonedReference("binding:then"), numberLiteral(20)), {
+      lookupBinding: () => { throw new Error("unselected branch binding must not be looked up"); }
+    })).toEqual({ status: "ok", type: { kind: "number" }, value: { kind: "number", value: 20 } });
+  });
+
+  it("does not observe an unselected branch runtime error", () => {
+    const divideByZero: TypedScalarExpression = {
+      kind: "binary",
+      span: { start: 0, end: 0 },
+      operator: "/",
+      left: numberLiteral(1),
+      right: numberLiteral(0),
+      type: { kind: "number" }
+    };
+    expect(evaluateTypedExpression(valueIf(true, numberLiteral(10), divideByZero), {
+      lookupBinding: () => { throw new Error("no binding lookup expected"); }
+    })).toEqual({ status: "ok", type: { kind: "number" }, value: { kind: "number", value: 10 } });
+  });
+});
+
 describe("evaluateTypedExpression / collection index", () => {
   const collectionIndex = (index: TypedScalarExpression, type: ScalarType = { kind: "number" }): TypedScalarExpression => ({
     kind: "collectionIndex",

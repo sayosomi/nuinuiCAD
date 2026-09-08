@@ -136,6 +136,16 @@ fn validate_typed_expression_runtime_targets(
                 pending.push(left);
                 pending.push(right);
             }
+            TypedScalarExpression::ValueIf {
+                condition,
+                then_branch,
+                else_branch,
+                ..
+            } => {
+                pending.push(condition);
+                pending.push(then_branch);
+                pending.push(else_branch);
+            }
             TypedScalarExpression::Call { args, .. } => {
                 for argument in args {
                     if let TypedBuiltinArgument::Scalar { expression } = argument {

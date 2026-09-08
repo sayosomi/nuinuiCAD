@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { compileDslDocument } from "../dsl/dslDocument";
 import { emptyDocument } from "../dsl/dslDocumentTestUtils";
 import { compileCanonicalText, regenerateCanonicalFromModel } from "../document/canonicalDocument";
+import { evaluateScalarProgram } from "./declarationEvaluator";
 
 const compileCanonical = (source: string) => {
   const baseline = regenerateCanonicalFromModel(emptyDocument(), 1);
@@ -90,5 +91,39 @@ describe("compiled scalar program", () => {
     expect(missingIdentity.diagnostics).toEqual(expect.arrayContaining([
       expect.objectContaining({ code: "missing-stable-statement-identity", line: 2 })
     ]));
+  });
+
+  it("compiles and evaluates scalar and choice value-if declarations, including canonical multiline framing", () => {
+    const compiled = compileCanonical([
+      "nui 1",
+      "const flag: boolean = true",
+      "const amount: number =",
+      "  if (@flag) {",
+      "  10",
+      "} else {",
+      "  1 / 0",
+      "}",
+      "const side: choice(left, right) = if (@flag) { left } else { right }",
+      "const after: number = 30"
+    ].join("\n"));
+
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const scalarProgram = compiled.scalarProgram!;
+    const byName = new Map(scalarProgram.statements.map((statement) => [
+      compiled.bindingAnalysis!.catalog.bindingsById.get(statement.bindingId)!.name,
+      statement.bindingId
+    ]));
+    const evaluated = evaluateScalarProgram(scalarProgram).resultsByBindingId;
+    expect(evaluated.get(byName.get("amount")!)).toEqual({
+      status: "ok",
+      type: { kind: "number" },
+      value: { kind: "number", value: 10 }
+    });
+    expect(evaluated.get(byName.get("side")!)).toEqual({
+      status: "ok",
+      type: { kind: "choice", options: ["left", "right"] },
+      value: { kind: "choice", value: "left", options: ["left", "right"] }
+    });
+    expect(evaluated.get(byName.get("after")!)).toMatchObject({ status: "ok", value: { value: 30 } });
   });
 });

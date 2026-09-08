@@ -32,7 +32,7 @@ const FIXTURE_JSON: &str = include_str!(concat!(
     "/../test/fixtures/typed-expressions.json"
 ));
 
-const AST_NODE_KINDS: [&str; 9] = [
+const AST_NODE_KINDS: [&str; 10] = [
     "numberLiteral",
     "stringLiteral",
     "booleanLiteral",
@@ -41,6 +41,7 @@ const AST_NODE_KINDS: [&str; 9] = [
     "unary",
     "binary",
     "group",
+    "valueIf",
     "call",
 ];
 
@@ -60,7 +61,15 @@ fn inject_dummy_spans(value: &mut Value) {
             }
         }
     }
-    for key in ["operand", "left", "right", "expression"] {
+    for key in [
+        "operand",
+        "left",
+        "right",
+        "expression",
+        "condition",
+        "thenBranch",
+        "elseBranch",
+    ] {
         if let Some(child) = map.get_mut(key) {
             inject_dummy_spans(child);
         }
@@ -166,6 +175,21 @@ fn boolean_literal(value: bool) -> TypedScalarExpression {
         span: span(),
         value,
         r#type: ScalarType::Boolean,
+    }
+}
+
+fn value_if(
+    condition: bool,
+    then_branch: TypedScalarExpression,
+    else_branch: TypedScalarExpression,
+    r#type: ScalarType,
+) -> TypedScalarExpression {
+    TypedScalarExpression::ValueIf {
+        span: span(),
+        condition: Box::new(boolean_literal(condition)),
+        then_branch: Box::new(then_branch),
+        else_branch: Box::new(else_branch),
+        r#type: Some(r#type),
     }
 }
 
@@ -282,6 +306,24 @@ fn or_with_a_true_left_never_evaluates_a_right_side_unary_operand() {
         ScalarEvaluation::Ok {
             r#type: ScalarType::Boolean,
             value: ScalarValue::Boolean(true),
+        }
+    );
+}
+
+#[test]
+fn value_if_evaluates_only_the_selected_branch() {
+    let node = value_if(
+        false,
+        reference("then", "binding:then", ScalarType::Number),
+        number_literal(20.0),
+        ScalarType::Number,
+    );
+    let result = evaluate_typed_expression(&node, &PanicEnvironment);
+    assert_eq!(
+        result,
+        ScalarEvaluation::Ok {
+            r#type: ScalarType::Number,
+            value: ScalarValue::Number(20.0),
         }
     );
 }

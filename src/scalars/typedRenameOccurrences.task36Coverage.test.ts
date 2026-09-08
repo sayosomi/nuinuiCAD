@@ -31,6 +31,32 @@ const compile = () => {
 };
 
 describe("typed rename occurrence coverage against Task 36's dependency graph", () => {
+  it("keeps condition and both value-if branch references in source order", () => {
+    const valueIfSource = [
+      "nui 1",
+      "const flag: boolean = true",
+      "const thenValue: number = 10",
+      "const elseValue: number = 20",
+      "const result: number = if (@flag) { @thenValue } else { @elseValue }"
+    ].join("\n");
+    const parsed = parseDsl(valueIfSource);
+    const compiled = compileDslDocument(valueIfSource, {
+      preparsed: parsed,
+      assignedStatementIds: new Map(parsed.statements.map((_, index) => [index, `statement:value-if:${index}`]))
+    });
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const occurrences = collectInitializerOccurrences(compiled.scalarProgram, compiled.bindingAnalysis!.catalog)
+      .filter((occurrence) => occurrence.initializerOwner?.fromBindingId === compiled.scalarProgram!.statements.at(-1)!.bindingId);
+    const initializerSource = "const result: number = if (@flag) { @thenValue } else { @elseValue }";
+
+    expect(occurrences.map((occurrence) => occurrence.currentName)).toEqual(["flag", "thenValue", "elseValue"]);
+    expect(occurrences.map((occurrence) => initializerSource.slice(occurrence.span.start, occurrence.span.end))).toEqual([
+      "flag",
+      "thenValue",
+      "elseValue"
+    ]);
+  });
+
   it("has a matching rename occurrence for every resolved typed dependency edge, across all four edge kinds", () => {
     const compiled = compile();
     const graph = compiled.typedDependencyGraph!;

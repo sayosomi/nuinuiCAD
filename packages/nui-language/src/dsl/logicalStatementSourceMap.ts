@@ -116,6 +116,40 @@ const structuralKind = (code: string): LogicalStatement["structural"] => {
   return null;
 };
 
+const isTypedDeclarationValueIfStart = (code: string): boolean =>
+  /^\s*(?:export\s+)?(?:const|let)\b[\s\S]*=\s*if\s*\(/.test(code);
+
+const isTypedDeclarationValueIfTrailingEquals = (code: string): boolean =>
+  /^\s*(?:export\s+)?(?:const|let)\b[\s\S]*=\s*$/.test(code);
+
+/** Counts only value-if braces. This is deliberately local to the typed
+ * declaration continuation path; ordinary DSL block ownership and the
+ * shared call/list scanner remain parenthesis/bracket based. */
+const valueIfBraceDelta = (code: string): number => {
+  let delta = 0;
+  let quote: string | null = null;
+  for (let index = 0; index < code.length; index += 1) {
+    const character = code[index]!;
+    if (quote) {
+      if (character === quote) {
+        let backslashCount = 0;
+        for (let previous = index - 1; previous >= 0 && code[previous] === "\\"; previous -= 1) {
+          backslashCount += 1;
+        }
+        if (backslashCount % 2 === 0) quote = null;
+      }
+      continue;
+    }
+    if (character === "\"" || character === "'") {
+      quote = character;
+      continue;
+    }
+    if (character === "{") delta += 1;
+    else if (character === "}") delta -= 1;
+  }
+  return delta;
+};
+
 /**
  * A blank line is harmless only when the currently-open outer delimiter has a
  * real matching closer later in the same safe statement envelope. This is the
@@ -196,6 +230,9 @@ export const createLogicalStatementSourceMap = (snapshot: SourceSnapshot): Logic
     const fragments: string[] = [];
     const segments: DslPhysicalSegment[] = [];
     const continuationLines: number[] = [];
+    let valueIfContinuation = isTypedDeclarationValueIfStart(first.codeText);
+    let awaitingValueIfHeader = !valueIfContinuation && isTypedDeclarationValueIfTrailingEquals(first.codeText);
+    let valueIfBraceDepth = 0;
     let cursor = index;
     while (true) {
       const line = lexicalLines[cursor]!;
@@ -225,23 +262,40 @@ export const createLogicalStatementSourceMap = (snapshot: SourceSnapshot): Logic
         start: starts[firstLine]!,
         end: lineEnd
       });
-      const continues = nesting.unmatchedOpeners.length > 0;
+      if (valueIfContinuation) valueIfBraceDepth += valueIfBraceDelta(line.codeText);
+      const next = cursor + 1;
+      const nextCode = next < lines.length ? lexicalLines[next]!.codeText : "";
+      const nextIsValueIfHeader = /^\s*if\s*\(/.test(nextCode);
+      const activatesValueIfOnNextLine = awaitingValueIfHeader && nextIsValueIfHeader;
+      const continues = valueIfContinuation
+        ? valueIfBraceDepth > 0
+        : awaitingValueIfHeader
+          ? activatesValueIfOnNextLine
+          : nesting.unmatchedOpeners.length > 0;
       if (!continues) break;
 
-      const next = cursor + 1;
       if (next >= lines.length) {
         invalidContinuationLines.push(cursor + 1);
         break;
       }
       const nextLine = lines[next]!;
-      const nextCode = lexicalLines[next]!.codeText;
       const nextIsBlank = nextLine.trim() === "";
       const nextIsStructural = structuralKind(nextCode) !== null;
+      if (activatesValueIfOnNextLine) {
+        valueIfContinuation = true;
+        awaitingValueIfHeader = false;
+      }
+      const nextIsNestedValueIf = nextIsValueIfHeader;
+      const valueIfBoundary = valueIfContinuation &&
+        !nextIsStructural &&
+        !nextIsNestedValueIf &&
+        (nextIsBlank || isUnsafeDslContinuationFragment(nextCode));
       const allowModuleParameterFragments =
         nesting.unmatchedOpeners.length === 1 &&
         /^\s*module(?:\s|$)/.test(lexicalLines[firstLine]!.codeText);
       if (
-        nextIsStructural ||
+        valueIfBoundary ||
+        (!valueIfContinuation && nextIsStructural) ||
         (nextIsBlank && !canContinueAcrossBlank(
           codeSource,
           lexicalLines,

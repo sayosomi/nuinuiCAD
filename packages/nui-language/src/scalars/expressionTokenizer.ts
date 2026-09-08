@@ -31,6 +31,8 @@ export type ScalarExpressionOperatorSymbol =
 export type ScalarExpressionToken =
   | { readonly kind: "leftParen"; readonly span: ScalarSpan }
   | { readonly kind: "rightParen"; readonly span: ScalarSpan }
+  | { readonly kind: "leftBrace"; readonly span: ScalarSpan }
+  | { readonly kind: "rightBrace"; readonly span: ScalarSpan }
   | { readonly kind: "leftBracket"; readonly span: ScalarSpan }
   | { readonly kind: "rightBracket"; readonly span: ScalarSpan }
   | { readonly kind: "comma"; readonly span: ScalarSpan }
@@ -108,6 +110,16 @@ export const tokenizeScalarExpression = (source: string, span: ScalarSpan): Scal
     }
     if (char === ")") {
       tokens.push({ kind: "rightParen", span: { start: index, end: index + 1 } });
+      index += 1;
+      continue;
+    }
+    if (char === "{") {
+      tokens.push({ kind: "leftBrace", span: { start: index, end: index + 1 } });
+      index += 1;
+      continue;
+    }
+    if (char === "}") {
+      tokens.push({ kind: "rightBrace", span: { start: index, end: index + 1 } });
       index += 1;
       continue;
     }

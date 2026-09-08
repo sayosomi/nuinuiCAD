@@ -323,6 +323,35 @@ const checkNode = (
       return { kind: "group", span: node.span, expression, type: expression.type };
     }
 
+    case "valueIf": {
+      const condition = checkNode(node.condition, BOOLEAN_TYPE, state);
+      const conditionOk = checkOperandType(state, condition, BOOLEAN_TYPE);
+      const thenBranch = checkNode(node.thenBranch, expectedType, state);
+      const elseBranch = checkNode(node.elseBranch, expectedType, state);
+      let type: ScalarType | null = null;
+      if (expectedType !== null) {
+        const thenOk = checkOperandType(state, thenBranch, expectedType);
+        const elseOk = checkOperandType(state, elseBranch, expectedType);
+        if (conditionOk && thenOk && elseOk) type = expectedType;
+      } else if (thenBranch.type !== null && elseBranch.type !== null) {
+        if (isScalarTypeAssignable(thenBranch.type, elseBranch.type)) type = thenBranch.type;
+        else {
+          addDiagnostic(state, {
+            code: "scalar-type-mismatch",
+            span: node.span,
+            message: `value-ifの両ブランチの型が一致しません(${describeScalarType(thenBranch.type)} vs ${describeScalarType(elseBranch.type)})。`,
+            presentation: {
+              key: "diagnostic.scalar-type-mismatch",
+              parameters: { expected: describeScalarType(thenBranch.type), actual: describeScalarType(elseBranch.type) }
+            },
+            expectedType: thenBranch.type,
+            actualType: elseBranch.type
+          });
+        }
+      }
+      return { kind: "valueIf", span: node.span, condition, thenBranch, elseBranch, type };
+    }
+
     case "call": {
       const definition = getBuiltinFunctionDefinition(node.name);
       if (definition === null) {

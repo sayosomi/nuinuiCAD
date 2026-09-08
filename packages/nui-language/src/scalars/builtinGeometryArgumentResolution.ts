@@ -276,6 +276,11 @@ export const resolveBuiltinGeometryArguments = ({
       case "group":
         visit(node.expression);
         return;
+      case "valueIf":
+        visit(node.condition);
+        visit(node.thenBranch);
+        visit(node.elseBranch);
+        return;
       case "call": {
         const definition = getBuiltinFunctionDefinition(node.name);
         const signature = definition?.signatures.find((candidate) =>

@@ -160,6 +160,7 @@ export const resolveGeometryPropertyMetadata = (
     if (node.kind === "unary") { visit(node.operand); return; }
     if (node.kind === "binary") { visit(node.left); visit(node.right); return; }
     if (node.kind === "group") { visit(node.expression); return; }
+    if (node.kind === "valueIf") { visit(node.condition); visit(node.thenBranch); visit(node.elseBranch); return; }
     if (node.kind === "call") {
       node.args.forEach((argument) => visit(argument.expression));
     }

@@ -27,6 +27,7 @@ fn node_kind(node: &TypedScalarExpression) -> &'static str {
         TypedScalarExpression::Unary { .. } => "unary",
         TypedScalarExpression::Binary { .. } => "binary",
         TypedScalarExpression::Group { .. } => "group",
+        TypedScalarExpression::ValueIf { .. } => "valueIf",
         TypedScalarExpression::Call { .. } => "call",
     }
 }
@@ -43,6 +44,7 @@ fn node_span(node: &TypedScalarExpression) -> (usize, usize) {
         | TypedScalarExpression::Unary { span, .. }
         | TypedScalarExpression::Binary { span, .. }
         | TypedScalarExpression::Group { span, .. }
+        | TypedScalarExpression::ValueIf { span, .. }
         | TypedScalarExpression::Call { span, .. } => (span.start, span.end),
     }
 }
@@ -127,6 +129,19 @@ fn children_for_node(
                 .into_iter()
                 .collect()
         }
+        TypedScalarExpression::ValueIf {
+            condition,
+            then_branch,
+            else_branch,
+            ..
+        } => [
+            reached_child(node_index_by_identity, "condition", condition, None),
+            reached_child(node_index_by_identity, "then", then_branch, None),
+            reached_child(node_index_by_identity, "else", else_branch, None),
+        ]
+        .into_iter()
+        .flatten()
+        .collect(),
         TypedScalarExpression::Call { args, .. } => args
             .iter()
             .enumerate()

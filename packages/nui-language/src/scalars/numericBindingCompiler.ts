@@ -202,6 +202,11 @@ const bareReferencesIn = (ast: ScalarExpressionAst | null, outer: DslSpan): Bare
       case "group":
         visit(node.expression, numericValuePosition);
         return;
+      case "valueIf":
+        visit(node.condition, false);
+        visit(node.thenBranch, numericValuePosition);
+        visit(node.elseBranch, numericValuePosition);
+        return;
       case "call": {
         const argumentPositions = numericCallArgumentPositions(node.name, node.args);
         node.args.forEach((argument, index) => visit(argument.expression, argumentPositions[index] ?? false));

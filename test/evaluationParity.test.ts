@@ -287,6 +287,30 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     expectScalarNumberClose(scalarBindingFor(fixture, rustPayload, "count"), 3);
   }, 30000);
 
+  it("matches scalar and choice value-if evaluation while skipping the unselected branch", () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "const flag: boolean = true",
+      "const amount: number = if (@flag) { 10 } else { 1 / 0 }",
+      "const side: choice(left, right) = if (@flag) { left } else { right }"
+    ].join("\n"));
+    const options = optionsFor(fixture);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustOptions(repoRoot, fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+    expectScalarNumberClose(scalarBindingFor(fixture, tsPayload, "amount"), 10);
+    expectScalarNumberClose(scalarBindingFor(fixture, rustPayload, "amount"), 10);
+    expect(scalarBindingFor(fixture, tsPayload, "side")).toMatchObject({
+      status: "ok",
+      value: { kind: "choice", value: "left", options: ["left", "right"] }
+    });
+    expect(scalarBindingFor(fixture, rustPayload, "side")).toMatchObject({
+      status: "ok",
+      value: { kind: "choice", value: "left", options: ["left", "right"] }
+    });
+  }, 30000);
+
   it("matches Module collection length evaluation across TypeScript and Rust", () => {
     const fixture = fixtureFromSource([
       "nui 1",

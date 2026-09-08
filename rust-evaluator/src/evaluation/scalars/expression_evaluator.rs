@@ -28,8 +28,9 @@
 //! the decode side.
 
 use super::expression_evaluator_ops::{
-    continue_builtin_call, continue_logical, evaluate_geometry_builtin_call, evaluate_reference,
-    finish_eager_binary, finish_logical_right, finish_unary, static_type_null_error,
+    continue_builtin_call, continue_logical, continue_value_if, evaluate_geometry_builtin_call,
+    evaluate_reference, finish_eager_binary, finish_logical_right, finish_unary, finish_value_if,
+    static_type_null_error,
 };
 use super::geometry_builtin_runtime::{GeometryBuiltinRuntimeError, GeometryBuiltinRuntimeTarget};
 use super::scalar_payload::scalar_value_matches_type;
@@ -133,6 +134,14 @@ pub(super) enum EvalWork<'a> {
         operator: ScalarBinaryOperator,
         r#type: ScalarType,
         right: &'a TypedScalarExpression,
+    },
+    ContinueValueIf {
+        r#type: ScalarType,
+        then_branch: &'a TypedScalarExpression,
+        else_branch: &'a TypedScalarExpression,
+    },
+    FinishValueIf {
+        r#type: ScalarType,
     },
     FinishLogicalRight {
         r#type: ScalarType,
@@ -278,6 +287,12 @@ where
                 r#type,
                 right,
             } => continue_logical(operator, r#type, right, &mut work, &mut output),
+            EvalWork::ContinueValueIf {
+                r#type,
+                then_branch,
+                else_branch,
+            } => continue_value_if(r#type, then_branch, else_branch, &mut work, &mut output),
+            EvalWork::FinishValueIf { r#type } => finish_value_if(r#type, &mut output),
             EvalWork::FinishLogicalRight { r#type } => finish_logical_right(r#type, &mut output),
             EvalWork::FinishEagerBinary { operator, r#type } => {
                 finish_eager_binary(operator, r#type, &mut output)
@@ -451,6 +466,23 @@ fn eval_node<'a>(
         } => match r#type {
             None => output.push(static_type_null_error(None)),
             Some(_) => work.push(EvalWork::Eval(expression)),
+        },
+        TypedScalarExpression::ValueIf {
+            condition,
+            then_branch,
+            else_branch,
+            r#type,
+            ..
+        } => match r#type {
+            None => output.push(static_type_null_error(None)),
+            Some(concrete_type) => {
+                work.push(EvalWork::ContinueValueIf {
+                    r#type: concrete_type.clone(),
+                    then_branch,
+                    else_branch,
+                });
+                work.push(EvalWork::Eval(condition));
+            }
         },
         TypedScalarExpression::Binary {
             operator,

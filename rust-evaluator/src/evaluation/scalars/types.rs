@@ -5,7 +5,7 @@
 //!
 //! Mirrors (field-for-field): `src/scalars/types.ts` (`ScalarType`,
 //! `ScalarValue`, `ScalarEvaluation`) and `src/scalars/typedExpressionAst.ts`
-//! (`TypedScalarExpression` and its 9 node kinds). `BindingId` is an opaque
+//! (`TypedScalarExpression` and its 10 node kinds). `BindingId` is an opaque
 //! string (format `binding:<id>`, per `src/scalars/bindingCatalog.ts`) that
 //! Rust never parses or resolves - see the module doc on
 //! `expression_payload.rs` for why.
@@ -323,6 +323,13 @@ pub(crate) enum TypedScalarExpression {
         expression: Box<TypedScalarExpression>,
         r#type: Option<ScalarType>,
     },
+    ValueIf {
+        span: ScalarSpan,
+        condition: Box<TypedScalarExpression>,
+        then_branch: Box<TypedScalarExpression>,
+        else_branch: Box<TypedScalarExpression>,
+        r#type: Option<ScalarType>,
+    },
     Call {
         span: ScalarSpan,
         name_span: ScalarSpan,
@@ -402,6 +409,16 @@ fn detach_children(node: &mut TypedScalarExpression) -> Vec<TypedScalarExpressio
                 childless_placeholder(),
             )]
         }
+        TypedScalarExpression::ValueIf {
+            condition,
+            then_branch,
+            else_branch,
+            ..
+        } => vec![
+            std::mem::replace(condition.as_mut(), childless_placeholder()),
+            std::mem::replace(then_branch.as_mut(), childless_placeholder()),
+            std::mem::replace(else_branch.as_mut(), childless_placeholder()),
+        ],
         TypedScalarExpression::Call { args, .. } => std::mem::take(args)
             .into_iter()
             .filter_map(|argument| match argument {

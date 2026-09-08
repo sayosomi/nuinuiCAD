@@ -177,6 +177,12 @@ const remapTypedExpressionBindingIds = (
       right: remapTypedExpressionBindingIds(expression.right, bindingIdByLocalId)
     };
     case "group": return { ...expression, expression: remapTypedExpressionBindingIds(expression.expression, bindingIdByLocalId) };
+    case "valueIf": return {
+      ...expression,
+      condition: remapTypedExpressionBindingIds(expression.condition, bindingIdByLocalId),
+      thenBranch: remapTypedExpressionBindingIds(expression.thenBranch, bindingIdByLocalId),
+      elseBranch: remapTypedExpressionBindingIds(expression.elseBranch, bindingIdByLocalId)
+    };
     case "collectionIndex": return { ...expression, index: remapTypedExpressionBindingIds(expression.index, bindingIdByLocalId) };
     case "call": return {
       ...expression,
@@ -533,6 +539,11 @@ const semanticReferencesUsedByAst = (semantic: ModuleScalarExpressionSemantic, a
     } else if (node.kind === "unary") collectCollectionBases(node.operand);
     else if (node.kind === "binary") { collectCollectionBases(node.left); collectCollectionBases(node.right); }
     else if (node.kind === "group") collectCollectionBases(node.expression);
+    else if (node.kind === "valueIf") {
+      collectCollectionBases(node.condition);
+      collectCollectionBases(node.thenBranch);
+      collectCollectionBases(node.elseBranch);
+    }
     else if (node.kind === "call") node.args.forEach((argument) => collectCollectionBases(argument.expression));
   };
   collectCollectionBases(ast);
@@ -569,6 +580,12 @@ const lowerRecordPropertyAst = (
       case "unary": return { ...node, operand: visit(node.operand) };
       case "binary": return { ...node, left: visit(node.left), right: visit(node.right) };
       case "group": return { ...node, expression: visit(node.expression) };
+      case "valueIf": return {
+        ...node,
+        condition: visit(node.condition),
+        thenBranch: visit(node.thenBranch),
+        elseBranch: visit(node.elseBranch)
+      };
       case "call": return { ...node, args: node.args.map((argument) => ({ ...argument, expression: visit(argument.expression) })) };
       default: return node;
     }
@@ -607,6 +624,12 @@ const materializeHasValueAst = (
       return { ...ast, left, right };
     }
     case "group": return { ...ast, expression: materializeHasValueAst(ast.expression, semantic, hasValueForParameter) };
+    case "valueIf": return {
+      ...ast,
+      condition: materializeHasValueAst(ast.condition, semantic, hasValueForParameter),
+      thenBranch: materializeHasValueAst(ast.thenBranch, semantic, hasValueForParameter),
+      elseBranch: materializeHasValueAst(ast.elseBranch, semantic, hasValueForParameter)
+    };
     case "collectionIndex": return { ...ast, index: materializeHasValueAst(ast.index, semantic, hasValueForParameter) };
     case "call": return {
       ...ast,
@@ -832,6 +855,11 @@ const lowerExpression = (
       case "group":
         collectTypecheckResolutions(node.expression);
         return;
+      case "valueIf":
+        collectTypecheckResolutions(node.condition);
+        collectTypecheckResolutions(node.thenBranch);
+        collectTypecheckResolutions(node.elseBranch);
+        return;
       default:
         return;
     }
@@ -883,6 +911,15 @@ const lowerExpression = (
     if (node.kind === "group") {
       const expression = lowerGeometryProperties(node.expression);
       return { node: { ...node, expression: expression.node }, references: expression.references };
+    }
+    if (node.kind === "valueIf") {
+      const condition = lowerGeometryProperties(node.condition);
+      const thenBranch = lowerGeometryProperties(node.thenBranch);
+      const elseBranch = lowerGeometryProperties(node.elseBranch);
+      return {
+        node: { ...node, condition: condition.node, thenBranch: thenBranch.node, elseBranch: elseBranch.node },
+        references: [...condition.references, ...thenBranch.references, ...elseBranch.references]
+      };
     }
     if (node.kind === "call") {
       const args = node.args.map((argument, argumentIndex) => {
