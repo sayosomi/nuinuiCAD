@@ -6,7 +6,7 @@ import {
 } from "./geometryArraySourceAnnotations";
 import { resolveSourceLexicalPath } from "./sourceLexicalNamespaceIndex";
 import { nominalRecordTypeOfDslValueType } from "./dslValueTypes";
-import { isDslArrayValueType } from "./dslValueTypes";
+import { isDslArrayValueType, isDslGeometryValueType } from "./dslValueTypes";
 import { moduleParameterPresenceKey, type ModuleScalarLocalDiagnostic } from "./moduleScalarExpression";
 import * as core from "./moduleBodySemanticCore";
 
@@ -27,6 +27,13 @@ const moduleOwnerIndexOf = (statements: readonly DslStatement[], statementIndex:
 const isSourceOnlyTypedDeclaration = (
   statement: Extract<DslStatement, { kind: "typedDeclaration" }>
 ) => Boolean(nominalRecordTypeOfDslValueType(statement.valueType) || isDslArrayValueType(statement.valueType) || geometryArrayTypeOfTypedDeclaration(statement));
+
+const isCollectionModuleParameter = (
+  parameter: Extract<DslStatement, { kind: "moduleDefinition" }>['parameters'][number]
+) => Boolean(
+  geometryArrayTypeOfModuleParameter(parameter) ||
+  (isDslArrayValueType(parameter.valueType) && !isDslGeometryValueType(parameter.valueType.elementType))
+);
 
 type GeometryArrayWholeReference =
   | {
@@ -152,7 +159,7 @@ export const analyzeModuleBody = (
       if (owner?.kind !== "moduleDefinition") return existing;
       const parameterIndex = owner.parameters.findIndex((parameter) => parameter.name === reference.name);
       const parameter = parameterIndex >= 0 ? owner.parameters[parameterIndex] : undefined;
-      if (!parameter?.optional || !geometryArrayTypeOfModuleParameter(parameter)) return existing;
+      if (!parameter?.optional || !isCollectionModuleParameter(parameter)) return existing;
       return {
         target: {
           kind: "parameter" as const,

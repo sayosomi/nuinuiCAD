@@ -10,6 +10,14 @@ const analyze = (source: string) => {
   return { parsed, namespace, analysis: namespace.geometryArraySemanticAnalysis! };
 };
 
+const compile = (source: string) => {
+  const parsed = parseDsl(source);
+  return compileDslDocument(source, {
+    preparsed: parsed,
+    assignedStatementIds: new Map(parsed.statements.map((_, index) => [index, `statement:${index}`]))
+  });
+};
+
 describe("geometry array source semantic integration", () => {
   it("uses the shared collection owner for scalar and nominal-record arrays", () => {
     const { namespace, analysis } = analyze([
@@ -67,7 +75,84 @@ describe("geometry array source semantic integration", () => {
     ]));
   });
 
-  it("shares collection parameter semantics across Module locals and exports", () => {
+  it("shares collection parameter semantics and Module presence proofs", () => {
+    const required = compile([
+      "nui 1",
+      "const values: number[] = [1, 2]",
+      "module M(items: number[]) {",
+      "  const local: number[] = @items",
+      "}",
+      "instance Use = M(items: @values)"
+    ].join("\n"));
+    expect(required.diagnostics).toEqual([]);
+
+    const unguardedAlias = compile([
+      "nui 1",
+      "module M(labels?: string[]) {",
+      "  export const out: string[] = @labels",
+      "}",
+      "instance Use = M()"
+    ].join("\n"));
+    expect(unguardedAlias.diagnostics).toContainEqual(expect.objectContaining({
+      code: "module-optional-value-required",
+      presentation: { key: "diagnostic.module-optional-value-required", parameters: { name: "labels" } }
+    }));
+
+    const guardedAlias = compile([
+      "nui 1",
+      "module M(labels?: string[]) {",
+      "  if (hasValue(@labels)) {",
+      "    const out: string[] = @labels",
+      "  }",
+      "}",
+      "instance Use = M()"
+    ].join("\n"));
+    expect(guardedAlias.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+
+    const unguardedMember = compile([
+      "nui 1",
+      "module M(label?: string) {",
+      "  const out: string[] = [@label]",
+      "}",
+      "instance Use = M()"
+    ].join("\n"));
+    expect(unguardedMember.diagnostics).toContainEqual(expect.objectContaining({ code: "module-optional-value-required" }));
+
+    const guardedMember = compile([
+      "nui 1",
+      "module M(label?: string) {",
+      "  if (hasValue(@label)) {",
+      "    const out: string[] = [@label]",
+      "  }",
+      "}",
+      "instance Use = M()"
+    ].join("\n"));
+    expect(guardedMember.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+
+    const unguardedArgument = compile([
+      "nui 1",
+      "module Inner(items: string[]) {",
+      "}",
+      "module Outer(labels?: string[]) {",
+      "  instance child = Inner(items: @labels)",
+      "}",
+      "instance Use = Outer()"
+    ].join("\n"));
+    expect(unguardedArgument.diagnostics).toContainEqual(expect.objectContaining({ code: "module-optional-value-required" }));
+
+    const guardedArgument = compile([
+      "nui 1",
+      "module Inner(items: string[]) {",
+      "}",
+      "module Outer(labels?: string[]) {",
+      "  if (hasValue(@labels)) {",
+      "    instance child = Inner(items: @labels)",
+      "  }",
+      "}",
+      "instance Use = Outer()"
+    ].join("\n"));
+    expect(guardedArgument.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+
     const { namespace, analysis } = analyze([
       "nui 1",
       "module M(values: number[], labels?: string[]) {",
