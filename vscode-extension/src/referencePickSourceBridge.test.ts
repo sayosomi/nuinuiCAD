@@ -195,6 +195,37 @@ describe("createVscodeReferencePickSourceBridge", () => {
     });
   });
 
+  it("accepts an explicit terminal cancellation without editing or creating an applied handoff", async () => {
+    const { source, document, editor, bridge } = createBridgeFixture(24);
+    const request = bridge.start();
+    expect(request).not.toBeNull();
+    const originalVersion = document.version;
+
+    expect(await bridge.handleResult({
+      type: "referencePickResult",
+      requestId: 24,
+      documentUri: request!.documentUri,
+      documentVersion: request!.documentVersion,
+      targetProof: request!.targetProof,
+      status: "started",
+      candidateReferences: [{ base: "A" }]
+    })).toBe("started");
+    expect(await bridge.handleResult({
+      type: "referencePickResult",
+      requestId: 24,
+      documentUri: request!.documentUri,
+      documentVersion: request!.documentVersion,
+      targetProof: request!.targetProof,
+      status: "canceled"
+    })).toBe("canceled");
+
+    expect(editor.edit).not.toHaveBeenCalled();
+    expect(document.getText()).toBe(source);
+    expect(document.version).toBe(originalVersion);
+    expect(bridge.appliedHandoff()).toBeNull();
+    expect(bridge.activeRequest()).toBeNull();
+  });
+
   it("carries an optional restored draft into a fresh start request", () => {
     const { bridge } = createBridgeFixture(20, [{ base: "A" }]);
     const request = bridge.start();
