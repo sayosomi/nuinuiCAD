@@ -10,6 +10,10 @@ export const canvasQuickCreateTranslationCatalog = {
     en: "Create geometry",
     ja: "ジオメトリを作成"
   },
+  "canvasQuickCreate.placeholder.selectForm": {
+    en: "Choose creation form",
+    ja: "作成形式を選択"
+  },
   "canvasQuickCreate.description.create": {
     en: "Create {action}",
     ja: "{action}を作成"
