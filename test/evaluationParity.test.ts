@@ -189,6 +189,40 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("matches pure tangentOffset angle and curve-side values across TypeScript and Rust", () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "const Line: path = segment(start: (0, 0), end: (10, 0))",
+      "const Base: point = coordinate(x: 0, y: 0)",
+      "const Explicit: point = tangentOffset(line: @Line, base: @Base, angle: 90, distance: 2)",
+      "const Default: point = tangentOffset(line: @Line, base: @Base, distance: 2)",
+      "const Curve: path = bezier(start: (0, 0), end: (10, 0), startAngle: 90, startLength: 10, endAngle: -90, endLength: 10)",
+      "const Convex: point = tangentOffset(line: @Curve, base: (5, 7.5), curveSide: convex, distance: 1)",
+      "const Concave: point = tangentOffset(line: @Curve, base: (5, 7.5), curveSide: concave, distance: 1)",
+      "line Use = segment(start: @Explicit, end: @Concave)"
+    ].join("\n"));
+    const program = fixture.compiled?.doc.geometryValueProgram;
+    if (!program || program.length !== 7) throw new Error("expected seven pure tangentOffset program entries");
+    const options = optionsFor(fixture);
+
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustOptions(repoRoot, fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+
+    for (const result of [evaluationPayloadToResult(tsPayload), evaluationPayloadToResult(rustPayload)]) {
+      expect(result.errors).toEqual([]);
+      expect(result.geometryValueErrors).toEqual([]);
+      const values = [...(result.computedGeometryValues?.values() ?? [])];
+      expect(values).toHaveLength(7);
+      expect(values[2]?.value).toMatchObject({ kind: "point", x: expect.closeTo(0, 10), y: expect.closeTo(2, 10) });
+      expect(values[3]?.value).toMatchObject({ kind: "point", x: expect.closeTo(2, 10), y: expect.closeTo(0, 10) });
+      expect(values[5]?.value).toMatchObject({ kind: "point", x: expect.closeTo(5, 10), y: expect.closeTo(8.5, 10) });
+      expect(values[6]?.value).toMatchObject({ kind: "point", x: expect.closeTo(5, 10), y: expect.closeTo(6.5, 10) });
+      expect(values.every(({ value }) => !("elementId" in value) && !("name" in value))).toBe(true);
+    }
+  }, 30000);
+
   it("matches pure between and onLine division points across TypeScript and Rust", () => {
     const fixture = fixtureFromSource([
       "nui 1",

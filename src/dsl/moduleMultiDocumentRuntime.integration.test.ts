@@ -865,6 +865,55 @@ describe("multi-document module runtime", () => {
     });
   });
 
+  it("consumes imported pure tangentOffset values with local and exported modes", async () => {
+    const library = savedSource("tangent-library", "sha256:tangent-library", [
+      "nui 1",
+      "export module Tangent(line: path, base: point) {",
+      "  const LocalAngle: point = tangentOffset(line: @line, base: @base, angle: 90, distance: 2)",
+      "  export const Convex: point = tangentOffset(line: @line, base: @base, curveSide: convex, distance: 1)",
+      "  export const DefaultAngle: point = tangentOffset(line: @line, base: @base, distance: 2)",
+      "}"
+    ].join("\n"));
+    const root = rootSource("tangent-root", [
+      "nui 1",
+      "const Curve: path = bezier(start: (0, 0), end: (10, 0), startAngle: 90, startLength: 10, endAngle: -90, endLength: 10)",
+      "const Base: point = coordinate(x: 5, y: 7.5)",
+      "import \"./tangent-library.nui\" as lib",
+      "instance use = lib::Tangent(line: @Curve, base: @Base)",
+      "const Convex: point = @use::Convex",
+      "const DefaultAngle: point = @use::DefaultAngle",
+      "line Use = segment(start: @DefaultAngle, end: @Convex)"
+    ].join("\n"));
+    const { graph, semantics, context, compiled } = await compileImported(
+      root,
+      new Map([[`${root.documentId}|./tangent-library.nui`, library]])
+    );
+
+    expect(graph.valid).toBe(true);
+    expect(semantics.valid).toBe(true);
+    expect(context.valid).toBe(true);
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const result = evaluateCompiled(compiled);
+
+    expect(result.errors).toEqual([]);
+    expect(result.geometryValueErrors).toEqual([]);
+    const importedValues = [...(result.computedGeometryValues?.values() ?? [])]
+      .filter((entry) => entry.occurrence.instancePath.length === 1);
+    expect(importedValues).toHaveLength(3);
+    expect(importedValues.map((entry) => entry.value)).toEqual(expect.arrayContaining([
+      { kind: "point", x: 5, y: 9.5 },
+      { kind: "point", x: 5, y: 8.5 },
+      { kind: "point", x: 7, y: 7.5 }
+    ]));
+    expect(importedValues.every(({ value }) => !("elementId" in value) && !("name" in value))).toBe(true);
+    const use = compiled.document?.elements.find((element) => element.name === "Use");
+    expect(use && result.computedGeometry.get(use.id)).toMatchObject({
+      kind: "line",
+      start: { x: 7, y: 7.5 },
+      end: { x: 5, y: 8.5 }
+    });
+  });
+
   it("keeps imported record values, record parameters, and record exports in the defining document", async () => {
     const library = savedSource("record-library", "sha256:record-library", [
       "nui 1",

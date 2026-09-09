@@ -495,6 +495,12 @@ export const analyzeModuleBody = ({
           addGeometry(bodySemantic, "construction:line2", construction.line2.span, construction.line2);
           if (construction.index) addScalar(bodySemantic, "construction:index", construction.index.ast.span, construction.index);
           if (construction.extensions) addScalar(bodySemantic, "construction:extensions", construction.extensions.ast.span, construction.extensions);
+        } else if (construction?.kind === "tangentOffset") {
+          addGeometry(bodySemantic, "construction:line", construction.line.span, construction.line);
+          addGeometry(bodySemantic, "construction:base", construction.base.span, construction.base);
+          if (construction.angle) addScalar(bodySemantic, "construction:angle", construction.angle.ast.span, construction.angle);
+          if (construction.curveSide) addScalar(bodySemantic, "construction:curveSide", construction.curveSide.ast.span, construction.curveSide);
+          if (construction.distance) addScalar(bodySemantic, "construction:distance", construction.distance.ast.span, construction.distance);
         } else if (construction?.kind === "bezierExtremePoint") {
           addGeometry(bodySemantic, "construction:source", construction.source.span, construction.source);
           if (construction.segmentIndex) addScalar(bodySemantic, "construction:segmentIndex", construction.segmentIndex.ast.span, construction.segmentIndex);

@@ -72,6 +72,14 @@ export type GeometryValueProgramConstruction =
       extensions: TypedScalarExpression;
     }
   | {
+      kind: "tangentOffset";
+      line: GeometryValueProgramPath;
+      base: GeometryValueProgramPoint;
+      angleDeg: TypedScalarExpression | null;
+      curveSide: TypedScalarExpression | null;
+      distance: TypedScalarExpression;
+    }
+  | {
       kind: "bezierExtremePoint";
       source: GeometryValueProgramPath;
       segmentIndex: TypedScalarExpression;
@@ -311,6 +319,17 @@ export const buildRootGeometryValueProgram = ({
               const extensions = literalScalarExpression(value.construction.extensions);
               return line1 && line2 && index && extensions
                 ? { kind: "intersection" as const, line1, line2, index, extensions }
+                : null;
+            })()
+        : value.construction.kind === "tangentOffset"
+          ? (() => {
+              const line = pathForReference(value.construction.line);
+              const base = pointForReference(value.construction.base);
+              const angleDeg = literalScalarExpression(value.construction.angle);
+              const curveSide = literalScalarExpression(value.construction.curveSide);
+              const distance = literalScalarExpression(value.construction.distance);
+              return line && base && distance
+                ? { kind: "tangentOffset" as const, line, base, angleDeg, curveSide, distance }
                 : null;
             })()
         : value.construction.kind === "bezierExtremePoint"
