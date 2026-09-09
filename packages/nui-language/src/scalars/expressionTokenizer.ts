@@ -37,6 +37,7 @@ export type ScalarExpressionToken =
   | { readonly kind: "rightBracket"; readonly span: ScalarSpan }
   | { readonly kind: "comma"; readonly span: ScalarSpan }
   | { readonly kind: "colon"; readonly span: ScalarSpan }
+  | { readonly kind: "arrow"; readonly span: ScalarSpan }
   | { readonly kind: "operator"; readonly value: ScalarExpressionOperatorSymbol; readonly span: ScalarSpan }
   | { readonly kind: "reference"; readonly name: string; readonly nameSpan: ScalarSpan; readonly span: ScalarSpan }
   | { readonly kind: "geometryProperty"; readonly elementName: string; readonly elementNameSpan: ScalarSpan; readonly property: string; readonly propertySpan: ScalarSpan; readonly span: ScalarSpan }
@@ -145,6 +146,11 @@ export const tokenizeScalarExpression = (source: string, span: ScalarSpan): Scal
     }
 
     const twoChar = index + 1 < end ? source.slice(index, index + 2) : "";
+    if (twoChar === "=>") {
+      tokens.push({ kind: "arrow", span: { start: index, end: index + 2 } });
+      index += 2;
+      continue;
+    }
     if (TWO_CHAR_OPERATORS.has(twoChar)) {
       tokens.push({ kind: "operator", value: twoChar as ScalarExpressionOperatorSymbol, span: { start: index, end: index + 2 } });
       index += 2;

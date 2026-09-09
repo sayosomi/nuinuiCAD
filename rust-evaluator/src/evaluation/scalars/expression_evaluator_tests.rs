@@ -32,7 +32,7 @@ const FIXTURE_JSON: &str = include_str!(concat!(
     "/../test/fixtures/typed-expressions.json"
 ));
 
-const AST_NODE_KINDS: [&str; 10] = [
+const AST_NODE_KINDS: [&str; 11] = [
     "numberLiteral",
     "stringLiteral",
     "booleanLiteral",
@@ -42,6 +42,7 @@ const AST_NODE_KINDS: [&str; 10] = [
     "binary",
     "group",
     "valueIf",
+    "valueMatch",
     "call",
 ];
 
@@ -61,6 +62,10 @@ fn inject_dummy_spans(value: &mut Value) {
             }
         }
     }
+    if map.contains_key("label") && map.contains_key("expression") {
+        map.entry("labelSpan".to_owned())
+            .or_insert_with(|| json!({"start": 0, "end": 0}));
+    }
     for key in [
         "operand",
         "left",
@@ -69,6 +74,7 @@ fn inject_dummy_spans(value: &mut Value) {
         "condition",
         "thenBranch",
         "elseBranch",
+        "scrutinee",
     ] {
         if let Some(child) = map.get_mut(key) {
             inject_dummy_spans(child);
@@ -77,6 +83,11 @@ fn inject_dummy_spans(value: &mut Value) {
     if let Some(Value::Array(args)) = map.get_mut("args") {
         for argument in args {
             inject_dummy_spans(argument);
+        }
+    }
+    if let Some(Value::Array(arms)) = map.get_mut("arms") {
+        for arm in arms {
+            inject_dummy_spans(arm);
         }
     }
 }

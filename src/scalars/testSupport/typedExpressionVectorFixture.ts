@@ -98,6 +98,22 @@ export const decodeTypedExpressionNode = (json: unknown): TypedScalarExpression 
         elseBranch: decodeTypedExpressionNode(json.elseBranch),
         type: decodeNullableScalarType(json.type)
       };
+    case "valueMatch":
+      if (!Array.isArray(json.arms)) return fail("value-match arms must be an array");
+      return {
+        kind: "valueMatch",
+        span: DUMMY_SPAN,
+        scrutinee: decodeTypedExpressionNode(json.scrutinee),
+        arms: json.arms.map((arm) => {
+          if (!isPlainObject(arm) || typeof arm.label !== "string") return fail("value-match arm must have a string label");
+          return {
+            label: arm.label,
+            labelSpan: DUMMY_SPAN,
+            expression: decodeTypedExpressionNode(arm.expression)
+          };
+        }),
+        type: decodeNullableScalarType(json.type)
+      };
     default:
       return fail(`unknown expression node kind: ${String(json.kind)}`);
   }

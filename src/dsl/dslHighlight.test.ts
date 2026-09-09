@@ -80,6 +80,17 @@ describe("DSL highlighting", () => {
     );
   });
 
+  it("highlights exhaustive choice match syntax", () => {
+    expect(highlightDslLine("const value: number = match @size { small => 5 large => 10 }")).toEqual(
+      expect.arrayContaining([
+        { kind: "keyword", text: "match" },
+        { kind: "reference", text: "@size" },
+        { kind: "operator", text: "=>" },
+        { kind: "number", text: "5" }
+      ])
+    );
+  });
+
   it("classifies stop as a keyword, not a reference", () => {
     expect(tokenKinds("stop")).toEqual(["keyword"]);
   });

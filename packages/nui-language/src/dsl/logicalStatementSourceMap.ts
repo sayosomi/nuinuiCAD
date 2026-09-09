@@ -116,16 +116,16 @@ const structuralKind = (code: string): LogicalStatement["structural"] => {
   return null;
 };
 
-const isTypedDeclarationValueIfStart = (code: string): boolean =>
-  /^\s*(?:export\s+)?(?:const|let)\b[\s\S]*=\s*if\s*\(/.test(code);
+const isTypedDeclarationValueControlFlowStart = (code: string): boolean =>
+  /^\s*(?:export\s+)?(?:const|let)\b[\s\S]*=\s*(?:if\s*\(|match\b)/.test(code);
 
-const isTypedDeclarationValueIfTrailingEquals = (code: string): boolean =>
+const isTypedDeclarationValueControlFlowTrailingEquals = (code: string): boolean =>
   /^\s*(?:export\s+)?(?:const|let)\b[\s\S]*=\s*$/.test(code);
 
-/** Counts only value-if braces. This is deliberately local to the typed
+/** Counts only typed value-control-flow braces. This is deliberately local to the typed
  * declaration continuation path; ordinary DSL block ownership and the
  * shared call/list scanner remain parenthesis/bracket based. */
-const valueIfBraceDelta = (code: string): number => {
+const valueControlFlowBraceDelta = (code: string): number => {
   let delta = 0;
   let quote: string | null = null;
   for (let index = 0; index < code.length; index += 1) {
@@ -230,9 +230,9 @@ export const createLogicalStatementSourceMap = (snapshot: SourceSnapshot): Logic
     const fragments: string[] = [];
     const segments: DslPhysicalSegment[] = [];
     const continuationLines: number[] = [];
-    let valueIfContinuation = isTypedDeclarationValueIfStart(first.codeText);
-    let awaitingValueIfHeader = !valueIfContinuation && isTypedDeclarationValueIfTrailingEquals(first.codeText);
-    let valueIfBraceDepth = 0;
+    let valueControlFlowContinuation = isTypedDeclarationValueControlFlowStart(first.codeText);
+    let awaitingValueControlFlowHeader = !valueControlFlowContinuation && isTypedDeclarationValueControlFlowTrailingEquals(first.codeText);
+    let valueControlFlowBraceDepth = 0;
     let cursor = index;
     while (true) {
       const line = lexicalLines[cursor]!;
@@ -262,15 +262,16 @@ export const createLogicalStatementSourceMap = (snapshot: SourceSnapshot): Logic
         start: starts[firstLine]!,
         end: lineEnd
       });
-      if (valueIfContinuation) valueIfBraceDepth += valueIfBraceDelta(line.codeText);
+      if (valueControlFlowContinuation) valueControlFlowBraceDepth += valueControlFlowBraceDelta(line.codeText);
       const next = cursor + 1;
       const nextCode = next < lines.length ? lexicalLines[next]!.codeText : "";
-      const nextIsValueIfHeader = /^\s*if\s*\(/.test(nextCode);
-      const activatesValueIfOnNextLine = awaitingValueIfHeader && nextIsValueIfHeader;
-      const continues = valueIfContinuation
-        ? valueIfBraceDepth > 0
-        : awaitingValueIfHeader
-          ? activatesValueIfOnNextLine
+      const nextIsValueControlFlowHeader = /^\s*(?:if\s*\(|match\b)/.test(nextCode);
+      const nextIsValueMatchArm = /^\s*[^\s{}]+\s*=>/.test(nextCode);
+      const activatesValueControlFlowOnNextLine = awaitingValueControlFlowHeader && nextIsValueControlFlowHeader;
+      const continues = valueControlFlowContinuation
+        ? valueControlFlowBraceDepth > 0
+        : awaitingValueControlFlowHeader
+          ? activatesValueControlFlowOnNextLine
           : nesting.unmatchedOpeners.length > 0;
       if (!continues) break;
 
@@ -281,21 +282,22 @@ export const createLogicalStatementSourceMap = (snapshot: SourceSnapshot): Logic
       const nextLine = lines[next]!;
       const nextIsBlank = nextLine.trim() === "";
       const nextIsStructural = structuralKind(nextCode) !== null;
-      if (activatesValueIfOnNextLine) {
-        valueIfContinuation = true;
-        awaitingValueIfHeader = false;
+      if (activatesValueControlFlowOnNextLine) {
+        valueControlFlowContinuation = true;
+        awaitingValueControlFlowHeader = false;
       }
-      const nextIsNestedValueIf = nextIsValueIfHeader;
-      const valueIfBoundary = valueIfContinuation &&
+      const nextIsNestedValueControlFlow = nextIsValueControlFlowHeader;
+      const valueControlFlowBoundary = valueControlFlowContinuation &&
         !nextIsStructural &&
-        !nextIsNestedValueIf &&
+        !nextIsNestedValueControlFlow &&
+        !nextIsValueMatchArm &&
         (nextIsBlank || isUnsafeDslContinuationFragment(nextCode));
       const allowModuleParameterFragments =
         nesting.unmatchedOpeners.length === 1 &&
         /^\s*module(?:\s|$)/.test(lexicalLines[firstLine]!.codeText);
       if (
-        valueIfBoundary ||
-        (!valueIfContinuation && nextIsStructural) ||
+        valueControlFlowBoundary ||
+        (!valueControlFlowContinuation && nextIsStructural) ||
         (nextIsBlank && !canContinueAcrossBlank(
           codeSource,
           lexicalLines,

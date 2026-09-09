@@ -128,6 +128,8 @@ export const containsNonNumericScalarSyntax = (ast: ScalarExpressionAst): boolea
       return containsNonNumericScalarSyntax(ast.expression);
     case "valueIf":
       return true;
+    case "valueMatch":
+      return true;
     case "collectionIndex":
       return containsNonNumericScalarSyntax(ast.index);
     case "call":
@@ -154,6 +156,7 @@ const collectionIndexResolutionsFor = (
     if (node.kind === "binary") { visit(node.left); visit(node.right); return; }
     if (node.kind === "group") return visit(node.expression);
     if (node.kind === "valueIf") { visit(node.condition); visit(node.thenBranch); visit(node.elseBranch); return; }
+    if (node.kind === "valueMatch") { visit(node.scrutinee); node.arms.forEach((arm) => visit(arm.expression)); return; }
     if (node.kind === "call") node.args.forEach((argument) => visit(argument.expression));
   };
   visit(ast);
@@ -172,6 +175,7 @@ const collectionIndexBaseStartsFor = (ast: ScalarExpressionAst): ReadonlySet<num
     if (node.kind === "binary") { visit(node.left); visit(node.right); return; }
     if (node.kind === "group") return visit(node.expression);
     if (node.kind === "valueIf") { visit(node.condition); visit(node.thenBranch); visit(node.elseBranch); return; }
+    if (node.kind === "valueMatch") { visit(node.scrutinee); node.arms.forEach((arm) => visit(arm.expression)); return; }
     if (node.kind === "call") node.args.forEach((argument) => visit(argument.expression));
   };
   visit(ast);
@@ -198,6 +202,7 @@ const referenceResolutionsForAst = (
     if (node.kind === "binary") { visit(node.left); visit(node.right); return; }
     if (node.kind === "group") return visit(node.expression);
     if (node.kind === "valueIf") { visit(node.condition); visit(node.thenBranch); visit(node.elseBranch); return; }
+    if (node.kind === "valueMatch") { visit(node.scrutinee); node.arms.forEach((arm) => visit(arm.expression)); return; }
     if (node.kind === "call") node.args.forEach((argument) => visit(argument.expression));
   };
   visit(ast);

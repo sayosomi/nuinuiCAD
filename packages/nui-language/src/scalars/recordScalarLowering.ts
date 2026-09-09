@@ -479,6 +479,10 @@ export const resolveRecordScalarProperties = ({
         visit(node.thenBranch);
         visit(node.elseBranch);
         return;
+      case "valueMatch":
+        visit(node.scrutinee);
+        node.arms.forEach((arm) => visit(arm.expression));
+        return;
       case "call":
         node.args.forEach((argument) => visit(argument.expression));
         return;
@@ -595,6 +599,7 @@ export const prepareRecordScalarExpressionFromCatalog = ({
       case "binary": classify(node.left); classify(node.right); return;
       case "group": classify(node.expression); return;
       case "valueIf": classify(node.condition); classify(node.thenBranch); classify(node.elseBranch); return;
+      case "valueMatch": classify(node.scrutinee); node.arms.forEach((arm) => classify(arm.expression)); return;
       case "collectionIndex": classify(node.index); return;
       case "call": node.args.forEach((argument) => classify(argument.expression)); return;
       default: return;
@@ -639,6 +644,11 @@ export const prepareRecordScalarExpressionFromCatalog = ({
         condition: rewrite(node.condition),
         thenBranch: rewrite(node.thenBranch),
         elseBranch: rewrite(node.elseBranch)
+      };
+      case "valueMatch": return {
+        ...node,
+        scrutinee: rewrite(node.scrutinee),
+        arms: node.arms.map((arm) => ({ ...arm, expression: rewrite(arm.expression) }))
       };
       case "call": return { ...node, args: node.args.map((argument) => ({ ...argument, expression: rewrite(argument.expression) })) };
       default: return node;
@@ -738,6 +748,12 @@ export const prepareRecordScalarExpression = ({
           condition: rewrite(node.condition),
           thenBranch: rewrite(node.thenBranch),
           elseBranch: rewrite(node.elseBranch)
+        };
+      case "valueMatch":
+        return {
+          ...node,
+          scrutinee: rewrite(node.scrutinee),
+          arms: node.arms.map((arm) => ({ ...arm, expression: rewrite(arm.expression) }))
         };
       case "collectionIndex": {
         const resolution = referenceResolutions[referenceCursor];

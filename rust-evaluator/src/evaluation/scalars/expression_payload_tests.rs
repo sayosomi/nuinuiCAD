@@ -26,7 +26,7 @@ const FIXTURE_JSON: &str = include_str!(concat!(
     "/../test/fixtures/typed-expressions.json"
 ));
 
-const AST_NODE_KINDS: [&str; 10] = [
+const AST_NODE_KINDS: [&str; 11] = [
     "numberLiteral",
     "stringLiteral",
     "booleanLiteral",
@@ -36,6 +36,7 @@ const AST_NODE_KINDS: [&str; 10] = [
     "binary",
     "group",
     "valueIf",
+    "valueMatch",
     "call",
 ];
 
@@ -58,6 +59,10 @@ fn inject_dummy_spans(value: &mut Value) {
             }
         }
     }
+    if map.contains_key("label") && map.contains_key("expression") {
+        map.entry("labelSpan".to_owned())
+            .or_insert_with(|| json!({"start": 0, "end": 0}));
+    }
     for key in [
         "operand",
         "left",
@@ -66,6 +71,7 @@ fn inject_dummy_spans(value: &mut Value) {
         "condition",
         "thenBranch",
         "elseBranch",
+        "scrutinee",
     ] {
         if let Some(child) = map.get_mut(key) {
             inject_dummy_spans(child);
@@ -74,6 +80,11 @@ fn inject_dummy_spans(value: &mut Value) {
     if let Some(Value::Array(args)) = map.get_mut("args") {
         for argument in args {
             inject_dummy_spans(argument);
+        }
+    }
+    if let Some(Value::Array(arms)) = map.get_mut("arms") {
+        for arm in arms {
+            inject_dummy_spans(arm);
         }
     }
 }
@@ -179,6 +190,32 @@ fn value_if_payload() -> Value {
     })
 }
 
+fn value_match_payload() -> Value {
+    json!({
+        "kind": "valueMatch",
+        "span": {"start": 0, "end": 39},
+        "scrutinee": {
+            "kind": "choiceLiteral",
+            "span": {"start": 6, "end": 11},
+            "value": "small",
+            "type": {"kind": "choice", "options": ["small", "large"]}
+        },
+        "arms": [
+            {
+                "label": "small",
+                "labelSpan": {"start": 14, "end": 19},
+                "expression": {"kind": "numberLiteral", "span": {"start": 23, "end": 24}, "value": 5.0, "type": {"kind": "number"}}
+            },
+            {
+                "label": "large",
+                "labelSpan": {"start": 25, "end": 30},
+                "expression": {"kind": "numberLiteral", "span": {"start": 34, "end": 36}, "value": 10.0, "type": {"kind": "number"}}
+            }
+        ],
+        "type": {"kind": "number"}
+    })
+}
+
 fn reference_literal() -> Value {
     json!({
         "kind": "reference", "span": {"start": 0, "end": 1}, "nameSpan": {"start": 0, "end": 1},
@@ -211,6 +248,44 @@ fn decodes_value_if_with_three_typed_children() {
         }
         other => panic!("expected value-if root, got {other:?}"),
     }
+}
+
+#[test]
+fn decodes_value_match_with_scrutinee_and_authored_arm_order() {
+    let decoded = validate_typed_expression_payload(&value_match_payload())
+        .expect("value-match payload should decode");
+    match &decoded {
+        TypedScalarExpression::ValueMatch {
+            scrutinee,
+            arms,
+            r#type: Some(ScalarType::Number),
+            ..
+        } => {
+            assert!(matches!(
+                scrutinee.as_ref(),
+                TypedScalarExpression::ChoiceLiteral { value, .. } if value == "small"
+            ));
+            assert_eq!(
+                arms.iter()
+                    .map(|arm| arm.label.as_str())
+                    .collect::<Vec<_>>(),
+                ["small", "large"]
+            );
+            assert!(matches!(
+                &arms[1].expression,
+                TypedScalarExpression::NumberLiteral { value, .. } if *value == 10.0
+            ));
+        }
+        other => panic!("expected value-match root, got {other:?}"),
+    }
+}
+
+#[test]
+fn rejects_value_match_arm_with_an_unexpected_field() {
+    let mut payload = value_match_payload();
+    payload["arms"][0]["extra"] = json!(true);
+    let error = validate_typed_expression_payload(&payload).unwrap_err();
+    assert_eq!(error.code, Code::UnexpectedField);
 }
 
 fn geometry_property_literal() -> Value {

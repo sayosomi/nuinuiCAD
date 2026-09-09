@@ -815,6 +815,63 @@ describe("typecheckScalarExpression / declaration expected type", () => {
       elseBranch: { kind: "reference", bindingId: "binding:else" }
     });
   });
+
+  it("typechecks an exhaustive choice match and resolves bare choice results", () => {
+    const scrutineeType = choiceType(["small", "large"]);
+    const expected = choiceType(["left", "right"]);
+    const result = check(
+      "match @size { small => left large => right }",
+      expected,
+      [{ kind: "resolvedType", bindingId: "binding:size", type: scrutineeType }]
+    );
+    expect(result.type).toEqual(expected);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.typed).toMatchObject({
+      kind: "valueMatch",
+      scrutinee: { kind: "reference", bindingId: "binding:size", type: scrutineeType },
+      arms: [
+        { label: "small", expression: { kind: "choiceLiteral", value: "left", type: expected } },
+        { label: "large", expression: { kind: "choiceLiteral", value: "right", type: expected } }
+      ]
+    });
+  });
+
+  it("reports impossible, duplicate, and missing match cases in authored/declaration order", () => {
+    const result = check(
+      "match @size { small => 1 small => 2 extra => 3 }",
+      { kind: "number" },
+      [{ kind: "resolvedType", bindingId: "binding:size", type: choiceType(["small", "large"]) }]
+    );
+    expect(result.type).toBeNull();
+    expect(result.diagnostics.map((diagnostic) => diagnostic.code)).toEqual([
+      "duplicate-match-case",
+      "impossible-match-case",
+      "missing-match-case"
+    ]);
+  });
+
+  it("suppresses exhaustive-case cascades when the match scrutinee is not a choice", () => {
+    const result = check("match true { yes => 1 no => 2 }");
+    expect(result.type).toBeNull();
+    expect(result.diagnostics).toEqual([
+      expect.objectContaining({ code: "non-choice-match-scrutinee", span: { start: 6, end: 10 } })
+    ]);
+  });
+
+  it("consumes scrutinee and arm references in source order", () => {
+    const expectedChoice = choiceType(["small", "large"]);
+    const result = check(
+      "match @size { small => @small large => @large }",
+      { kind: "number" },
+      [
+        { kind: "resolvedType", bindingId: "binding:size", type: expectedChoice },
+        { kind: "resolvedType", bindingId: "binding:small", type: { kind: "number" } },
+        { kind: "resolvedType", bindingId: "binding:large", type: { kind: "number" } }
+      ]
+    );
+    expect(result.type).toEqual({ kind: "number" });
+    expect(result.diagnostics).toEqual([]);
+  });
 });
 
 // --- reference binding ID attachment ----------------------------------------

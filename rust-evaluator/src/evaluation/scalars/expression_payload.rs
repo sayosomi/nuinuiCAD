@@ -45,7 +45,7 @@ use super::expression_leaf_payload::{
 use super::expression_shape_payload::{
     decode_call_argument_shape, validate_binary_shape, validate_call_argument_shapes,
     validate_call_shape, validate_group_shape, validate_unary_shape, validate_value_if_shape,
-    CallArgumentShape,
+    validate_value_match_arm_shape, validate_value_match_shape, CallArgumentShape,
 };
 use super::issue::{ScalarPayloadIssue, ScalarPayloadIssueCode as Code};
 use super::json_helpers::{as_object, issue, require_field};
@@ -116,6 +116,11 @@ enum WorkItem<'a> {
     },
     BuildValueIf {
         span: ScalarSpan,
+        r#type: Option<ScalarType>,
+    },
+    BuildValueMatch {
+        span: ScalarSpan,
+        arms: Vec<(String, ScalarSpan)>,
         r#type: Option<ScalarType>,
     },
     BuildCall {
@@ -363,6 +368,33 @@ fn visit_node<'a>(
                 expression_depth: expression_depth + 1,
             });
         }
+        "valueMatch" => {
+            let shape = validate_value_match_shape(object)?;
+            let arm_shapes = shape
+                .arms
+                .iter()
+                .map(validate_value_match_arm_shape)
+                .collect::<Result<Vec<_>, _>>()?;
+            let arms = arm_shapes
+                .iter()
+                .map(|arm| (arm.label.clone(), arm.label_span))
+                .collect();
+            work.push(WorkItem::BuildValueMatch {
+                span: shape.span,
+                arms,
+                r#type: shape.r#type,
+            });
+            for arm in arm_shapes.iter().rev() {
+                work.push(WorkItem::Visit {
+                    json: arm.expression,
+                    expression_depth: expression_depth + 1,
+                });
+            }
+            work.push(WorkItem::Visit {
+                json: shape.scrutinee,
+                expression_depth: expression_depth + 1,
+            });
+        }
         "call" => {
             let shape = validate_call_shape(object)?;
             let arguments = shape
@@ -510,6 +542,35 @@ pub(crate) fn validate_typed_expression_payload(
                     condition: Box::new(condition),
                     then_branch: Box::new(then_branch),
                     else_branch: Box::new(else_branch),
+                    r#type,
+                });
+            }
+            WorkItem::BuildValueMatch { span, arms, r#type } => {
+                let mut expressions = Vec::with_capacity(arms.len());
+                for _ in 0..arms.len() {
+                    expressions.push(output.pop().expect(
+                        "value-match arm expression must already be decoded (post-order build invariant)",
+                    ));
+                }
+                expressions.reverse();
+                let scrutinee = output.pop().expect(
+                    "value-match scrutinee must already be decoded (post-order build invariant)",
+                );
+                let arms = arms
+                    .into_iter()
+                    .zip(expressions)
+                    .map(|((label, label_span), expression)| {
+                        super::types::TypedScalarValueMatchArm {
+                            label,
+                            label_span,
+                            expression,
+                        }
+                    })
+                    .collect();
+                output.push(TypedScalarExpression::ValueMatch {
+                    span,
+                    scrutinee: Box::new(scrutinee),
+                    arms,
                     r#type,
                 });
             }

@@ -28,9 +28,9 @@
 //! the decode side.
 
 use super::expression_evaluator_ops::{
-    continue_builtin_call, continue_logical, continue_value_if, evaluate_geometry_builtin_call,
-    evaluate_reference, finish_eager_binary, finish_logical_right, finish_unary, finish_value_if,
-    static_type_null_error,
+    continue_builtin_call, continue_logical, continue_value_if, continue_value_match,
+    evaluate_geometry_builtin_call, evaluate_reference, finish_eager_binary, finish_logical_right,
+    finish_unary, finish_value_if, finish_value_match, static_type_null_error,
 };
 use super::geometry_builtin_runtime::{GeometryBuiltinRuntimeError, GeometryBuiltinRuntimeTarget};
 use super::scalar_payload::scalar_value_matches_type;
@@ -141,6 +141,14 @@ pub(super) enum EvalWork<'a> {
         else_branch: &'a TypedScalarExpression,
     },
     FinishValueIf {
+        r#type: ScalarType,
+    },
+    ContinueValueMatch {
+        r#type: ScalarType,
+        scrutinee_type: ScalarType,
+        arms: &'a [super::types::TypedScalarValueMatchArm],
+    },
+    FinishValueMatch {
         r#type: ScalarType,
     },
     FinishLogicalRight {
@@ -293,6 +301,12 @@ where
                 else_branch,
             } => continue_value_if(r#type, then_branch, else_branch, &mut work, &mut output),
             EvalWork::FinishValueIf { r#type } => finish_value_if(r#type, &mut output),
+            EvalWork::ContinueValueMatch {
+                r#type,
+                scrutinee_type,
+                arms,
+            } => continue_value_match(r#type, scrutinee_type, arms, &mut work, &mut output),
+            EvalWork::FinishValueMatch { r#type } => finish_value_match(r#type, &mut output),
             EvalWork::FinishLogicalRight { r#type } => finish_logical_right(r#type, &mut output),
             EvalWork::FinishEagerBinary { operator, r#type } => {
                 finish_eager_binary(operator, r#type, &mut output)
@@ -484,6 +498,38 @@ fn eval_node<'a>(
                 work.push(EvalWork::Eval(condition));
             }
         },
+        TypedScalarExpression::ValueMatch {
+            scrutinee,
+            arms,
+            r#type,
+            ..
+        } => match r#type {
+            None => output.push(static_type_null_error(None)),
+            Some(concrete_type) => {
+                let Some(scrutinee_type) = static_expression_type(scrutinee) else {
+                    output.push(
+                        super::expression_evaluator_ops::runtime_value_type_mismatch(
+                            concrete_type.clone(),
+                        ),
+                    );
+                    return;
+                };
+                if !matches!(&scrutinee_type, ScalarType::Choice { .. }) {
+                    output.push(
+                        super::expression_evaluator_ops::runtime_value_type_mismatch(
+                            concrete_type.clone(),
+                        ),
+                    );
+                    return;
+                }
+                work.push(EvalWork::ContinueValueMatch {
+                    r#type: concrete_type.clone(),
+                    scrutinee_type,
+                    arms,
+                });
+                work.push(EvalWork::Eval(scrutinee));
+            }
+        },
         TypedScalarExpression::Binary {
             operator,
             left,
@@ -550,5 +596,23 @@ fn eval_node<'a>(
                 }
             }
         },
+    }
+}
+
+fn static_expression_type(expression: &TypedScalarExpression) -> Option<ScalarType> {
+    match expression {
+        TypedScalarExpression::NumberLiteral { r#type, .. }
+        | TypedScalarExpression::StringLiteral { r#type, .. }
+        | TypedScalarExpression::BooleanLiteral { r#type, .. }
+        | TypedScalarExpression::GeometryProperty { r#type, .. } => Some(r#type.clone()),
+        TypedScalarExpression::ChoiceLiteral { r#type, .. }
+        | TypedScalarExpression::Reference { r#type, .. }
+        | TypedScalarExpression::CollectionIndex { r#type, .. }
+        | TypedScalarExpression::Unary { r#type, .. }
+        | TypedScalarExpression::Binary { r#type, .. }
+        | TypedScalarExpression::Group { r#type, .. }
+        | TypedScalarExpression::ValueIf { r#type, .. }
+        | TypedScalarExpression::ValueMatch { r#type, .. }
+        | TypedScalarExpression::Call { r#type, .. } => r#type.clone(),
     }
 }

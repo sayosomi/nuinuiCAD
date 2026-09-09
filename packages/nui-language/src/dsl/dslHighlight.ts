@@ -17,11 +17,12 @@ const stopKeywords = new Set(["stop"]);
 // followed by a separate `.length` (this file's ASCII-only identifier
 // limitation is unchanged either way - not fixed, not worsened).
 const tokenPattern =
-  /("[^"]*(?:"|$)|'[^']*(?:'|$)|[A-Za-z_][\w:-]*(?=\??:\s)|-?\d+(?:\.\d+)?|==|!=|>=|<=|[-={}()[\],;*/^%+?]|@?[A-Za-z_][\w:-]*(?:\.[A-Za-z_][\w:-]*)?)/g;
+  /("[^"]*(?:"|$)|'[^']*(?:'|$)|[A-Za-z_][\w:-]*(?=\??:\s)|-?\d+(?:\.\d+)?|=>|==|!=|>=|<=|[-={}()[\],;*/^%+?]|@?[A-Za-z_][\w:-]*(?:\.[A-Za-z_][\w:-]*)?)/g;
 
 const classify = (text: string): DslTokenKind => {
   if (text.startsWith("\"") || text.startsWith("'")) return "string";
   if (stopKeywords.has(text)) return "keyword";
+  if (text === "if" || text === "else" || text === "match") return "keyword";
   if (/^[A-Za-z_][\w:-]*$/.test(text)) return "reference";
   if (/^[A-Za-z_][\w:-]*\.[A-Za-z_][\w:-]*$/.test(text)) return "reference";
   if (/^@[A-Za-z_][\w:-]*$/.test(text)) return "reference";

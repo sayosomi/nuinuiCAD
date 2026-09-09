@@ -4,7 +4,7 @@ import { parseScalarEvaluationJson, parseScalarValueJson } from "./scalarJson";
 import type { ScalarEvaluation, ScalarValue } from "./types";
 import type { TypedScalarExpression } from "./typedExpressionAst";
 
-export type ConditionEvaluationTraceChildRole = "operand" | "left" | "right" | "expression" | "argument" | "condition" | "then" | "else";
+export type ConditionEvaluationTraceChildRole = "operand" | "left" | "right" | "expression" | "argument" | "condition" | "then" | "else" | "scrutinee" | "arm";
 
 export type ConditionEvaluationTraceChild = {
   role: ConditionEvaluationTraceChildRole;
@@ -78,6 +78,11 @@ const childrenForNode = (
         reachedChild(nodeIndexByNode, "condition", node.condition),
         reachedChild(nodeIndexByNode, "then", node.thenBranch),
         reachedChild(nodeIndexByNode, "else", node.elseBranch)
+      ].filter((child): child is ConditionEvaluationTraceChild => child !== undefined);
+    case "valueMatch":
+      return [
+        reachedChild(nodeIndexByNode, "scrutinee", node.scrutinee),
+        ...node.arms.map((arm, armIndex) => reachedChild(nodeIndexByNode, "arm", arm.expression, armIndex))
       ].filter((child): child is ConditionEvaluationTraceChild => child !== undefined);
     case "call":
       return node.args.flatMap((argument, argumentIndex) => {
@@ -169,9 +174,10 @@ const NODE_KINDS = new Set<TypedScalarExpression["kind"]>([
   "binary",
   "group",
   "valueIf",
+  "valueMatch",
   "call"
 ]);
-const CHILD_ROLES = new Set<ConditionEvaluationTraceChildRole>(["operand", "left", "right", "expression", "argument", "condition", "then", "else"]);
+const CHILD_ROLES = new Set<ConditionEvaluationTraceChildRole>(["operand", "left", "right", "expression", "argument", "condition", "then", "else", "scrutinee", "arm"]);
 const UNARY_OPERATORS = new Set<ScalarUnaryOperator>(["!", "+", "-"]);
 const BINARY_OPERATORS = new Set<ScalarBinaryOperator>([
   "||", "&&", "==", "!=", "<", "<=", ">", ">=", "+", "-", "*", "/", "%", "^"
@@ -195,7 +201,7 @@ const parseChild = (value: unknown, currentIndex: number, context: string): Cond
   if (!Number.isInteger(value.nodeIndex) || (value.nodeIndex as number) < 0 || (value.nodeIndex as number) >= currentIndex) {
     return failTrace(`${context} child must reference an earlier trace node`);
   }
-  if (value.role === "argument") {
+  if (value.role === "argument" || value.role === "arm") {
     if (!Number.isInteger(value.argumentIndex) || (value.argumentIndex as number) < 0) {
       return failTrace(`${context} argument child requires a non-negative argumentIndex`);
     }

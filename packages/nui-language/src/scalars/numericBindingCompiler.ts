@@ -207,6 +207,10 @@ const bareReferencesIn = (ast: ScalarExpressionAst | null, outer: DslSpan): Bare
         visit(node.thenBranch, numericValuePosition);
         visit(node.elseBranch, numericValuePosition);
         return;
+      case "valueMatch":
+        visit(node.scrutinee, false);
+        node.arms.forEach((arm) => visit(arm.expression, numericValuePosition));
+        return;
       case "call": {
         const argumentPositions = numericCallArgumentPositions(node.name, node.args);
         node.args.forEach((argument, index) => visit(argument.expression, argumentPositions[index] ?? false));

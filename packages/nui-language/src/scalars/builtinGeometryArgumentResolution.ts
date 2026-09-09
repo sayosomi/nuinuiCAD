@@ -281,6 +281,10 @@ export const resolveBuiltinGeometryArguments = ({
         visit(node.thenBranch);
         visit(node.elseBranch);
         return;
+      case "valueMatch":
+        visit(node.scrutinee);
+        node.arms.forEach((arm) => visit(arm.expression));
+        return;
       case "call": {
         const definition = getBuiltinFunctionDefinition(node.name);
         const signature = definition?.signatures.find((candidate) =>

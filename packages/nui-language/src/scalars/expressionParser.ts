@@ -29,7 +29,8 @@ import {
   type ScalarExpressionIssueCode,
   type ScalarExpressionParseResult,
   type ScalarSpan,
-  type ScalarUnaryOperator
+  type ScalarUnaryOperator,
+  type ScalarValueMatchArmNode
 } from "./expressionAst";
 import { containsScalarWordOperator, tokenizeScalarExpression, type ScalarExpressionToken } from "./expressionTokenizer";
 import type { ScalarLiteralToken } from "./literalScanner";
@@ -65,6 +66,7 @@ export const isScalarExpressionCandidateSource = (source: string): boolean => {
   if (trimmed.startsWith("\"") || trimmed.startsWith("'")) return false;
   if (trimmed.startsWith("@") || trimmed.startsWith("(") || trimmed.startsWith("!")) return true;
   if (/^if\s*\(/.test(trimmed)) return true;
+  if (/^match\b/.test(trimmed)) return true;
   if (isScalarNamedCallCandidateSource(trimmed)) return true;
   return containsScalarWordOperator(trimmed) || /&&|\|\||==|!=|<=|>=|[<>]/.test(trimmed);
 };
@@ -84,6 +86,8 @@ export const containsScalarNamedCall = (ast: ScalarExpressionAst): boolean => {
       return containsScalarNamedCall(ast.index);
     case "valueIf":
       return containsScalarNamedCall(ast.condition) || containsScalarNamedCall(ast.thenBranch) || containsScalarNamedCall(ast.elseBranch);
+    case "valueMatch":
+      return containsScalarNamedCall(ast.scrutinee) || ast.arms.some((arm) => containsScalarNamedCall(arm.expression));
     default:
       return false;
   }
@@ -233,6 +237,9 @@ class Parser {
       if (token.literal.kind === "choice" && token.literal.raw === "if" && this.peek(1)?.kind === "leftParen") {
         return this.parseValueIf(token);
       }
+      if (token.literal.kind === "choice" && token.literal.raw === "match") {
+        return this.parseValueMatch(token);
+      }
       if (token.literal.kind === "choice" && this.peek(1)?.kind === "leftParen") {
         return this.parseCall(token);
       }
@@ -320,6 +327,55 @@ class Parser {
         thenBranch,
         elseBranch
       };
+    } finally {
+      this.depth -= 1;
+    }
+  }
+
+  private parseValueMatch(matchToken: Extract<ScalarExpressionToken, { kind: "literal" }>): ScalarExpressionAst {
+    const keyword = matchToken.literal;
+    if (keyword.kind !== "choice") return fail("value-match-malformed", keyword.span, "value-match の構文が不正です。");
+    this.enterNesting(keyword.span);
+    try {
+      this.consume();
+      const scrutinee = this.peek()?.kind === "leftBrace"
+        ? fail("value-match-missing-scrutinee", tokenSpan(this.peek()!), "match にはscrutinee式が必要です。")
+        : this.parseTier(0);
+      const opening = this.peek();
+      if (!opening || opening.kind !== "leftBrace") {
+        return fail("value-match-malformed", opening ? tokenSpan(opening) : { start: this.boundaryEnd, end: this.boundaryEnd }, "match には「{ ケース }」の本体が必要です。");
+      }
+      this.consume();
+      const arms: ScalarValueMatchArmNode[] = [];
+      for (;;) {
+        const label = this.peek();
+        if (!label) return fail("value-match-missing-closing-brace", opening.span, "match を閉じる「}」がありません。");
+        if (label.kind === "rightBrace") {
+          this.consume();
+          return {
+            kind: "valueMatch",
+            span: { start: keyword.span.start, end: label.span.end },
+            scrutinee,
+            arms
+          };
+        }
+        if (label.kind !== "literal" || label.literal.kind !== "choice") {
+          return fail("value-match-malformed-arm", tokenSpan(label), "match ケースはchoice optionラベルで始めてください。");
+        }
+        const arrow = this.peek(1);
+        if (!arrow || arrow.kind !== "arrow") {
+          return fail("value-match-missing-arrow", arrow ? tokenSpan(arrow) : { start: this.boundaryEnd, end: this.boundaryEnd }, "match ケースには「=>」が必要です。");
+        }
+        this.consume();
+        this.consume();
+        const expression = this.parseTier(0);
+        arms.push({ label: label.literal.raw, labelSpan: label.literal.span, expression });
+        const next = this.peek();
+        if (!next) return fail("value-match-missing-closing-brace", opening.span, "match を閉じる「}」がありません。");
+        if (next.kind === "rightBrace") continue;
+        if (next.kind === "literal" && next.literal.kind === "choice" && this.peek(1)?.kind === "arrow") continue;
+        return fail("value-match-malformed-arm", tokenSpan(next), "match ケースの式の後に次のchoice optionと「=>」または「}」が必要です。");
+      }
     } finally {
       this.depth -= 1;
     }

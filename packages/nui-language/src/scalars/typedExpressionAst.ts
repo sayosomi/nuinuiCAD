@@ -219,6 +219,20 @@ export interface TypedScalarValueIfExpressionNode {
   readonly type: ScalarType | null;
 }
 
+export interface TypedScalarValueMatchArmNode {
+  readonly label: string;
+  readonly labelSpan: ScalarSpan;
+  readonly expression: TypedScalarExpression;
+}
+
+export interface TypedScalarValueMatchExpressionNode {
+  readonly kind: "valueMatch";
+  readonly span: ScalarSpan;
+  readonly scrutinee: TypedScalarExpression;
+  readonly arms: readonly TypedScalarValueMatchArmNode[];
+  readonly type: ScalarType | null;
+}
+
 export type TypedScalarExpression =
   | TypedScalarNumberLiteralNode
   | TypedScalarStringLiteralNode
@@ -231,10 +245,15 @@ export type TypedScalarExpression =
   | TypedScalarBinaryExpressionNode
   | TypedScalarGroupExpressionNode
   | TypedScalarCallExpressionNode
-  | TypedScalarValueIfExpressionNode;
+  | TypedScalarValueIfExpressionNode
+  | TypedScalarValueMatchExpressionNode;
 
 export type ScalarExpressionTypecheckIssueCode =
   | "scalar-type-mismatch"
+  | "non-choice-match-scrutinee"
+  | "impossible-match-case"
+  | "duplicate-match-case"
+  | "missing-match-case"
   | "invalid-choice-literal"
   | "unknown-function"
   | "function-arity-mismatch"

@@ -122,6 +122,31 @@ condition is evaluated first and only the selected branch is evaluated. The
 current value-if surface does not produce geometry, record, or collection
 values.
 
+### Exhaustive choice value-match
+
+Scalar and choice declarations may also select a value with an exhaustive
+`match` over a concrete `choice(...)` expression:
+
+<!-- dsl-example: syntax-fragment -->
+```nui
+const amount: number = match @size { small => 5 large => 10 }
+const side: choice(left, right) =
+  match @size {
+    small => left
+    large => right
+  }
+```
+
+The scrutinee must have a concrete `choice(...)` type. Each declared option
+must appear exactly once as a bare case label: impossible labels, duplicate
+labels, and missing labels are deterministic diagnostics. There is no wildcard
+or default arm. Every arm result is parsed and typechecked; results may be
+`number`, `string`, `boolean`, or `choice(...)` and must share the declaration's
+exact type. Bare choice result literals use the declaration's exact choice type.
+At runtime the scrutinee is evaluated first and only the matching arm is
+evaluated. Geometry, record, collection, and optional `none`/`some` match
+values are deferred.
+
 ## Numeric editor metadata
 
 `number` may include positive `step` and finite `min`/`max` metadata, for

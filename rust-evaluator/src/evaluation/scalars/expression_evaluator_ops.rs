@@ -97,7 +97,7 @@ fn boolean_value_of(value: &ScalarValue) -> Option<bool> {
     }
 }
 
-fn runtime_value_type_mismatch(r#type: ScalarType) -> ScalarEvaluation {
+pub(super) fn runtime_value_type_mismatch(r#type: ScalarType) -> ScalarEvaluation {
     ScalarEvaluation::Error {
         r#type,
         issue_code: "evaluation-runtime-value-type-mismatch".to_owned(),
@@ -508,6 +508,78 @@ pub(crate) fn finish_value_if(r#type: ScalarType, output: &mut Vec<ScalarEvaluat
     let selected = output
         .pop()
         .expect("selected value-if branch must already be resolved");
+    match selected {
+        ScalarEvaluation::Error {
+            issue_code,
+            binding_id,
+            context,
+            ..
+        } => output.push(ScalarEvaluation::Error {
+            r#type,
+            issue_code,
+            binding_id,
+            context,
+        }),
+        ScalarEvaluation::Ok {
+            r#type: result_type,
+            value,
+        } if result_type == r#type && scalar_value_matches_type(&result_type, &value) => {
+            output.push(ScalarEvaluation::Ok {
+                r#type: result_type,
+                value,
+            });
+        }
+        ScalarEvaluation::Ok { .. } => output.push(runtime_value_type_mismatch(r#type)),
+    }
+}
+
+/// Evaluates a value-match scrutinee first and schedules only the arm selected
+/// by its runtime choice member. The static scrutinee type is checked against
+/// the evaluated result before any arm is reached, matching the TypeScript
+/// reference evaluator's runtime trust boundary.
+pub(crate) fn continue_value_match<'a>(
+    r#type: ScalarType,
+    scrutinee_type: ScalarType,
+    arms: &'a [super::types::TypedScalarValueMatchArm],
+    work: &mut Vec<EvalWork<'a>>,
+    output: &mut Vec<ScalarEvaluation>,
+) {
+    let scrutinee = output
+        .pop()
+        .expect("value-match scrutinee must already be resolved before its continuation");
+    let ScalarEvaluation::Ok {
+        r#type: runtime_type,
+        value,
+    } = scrutinee
+    else {
+        output.push(propagate_error(r#type, scrutinee));
+        return;
+    };
+    if scrutinee_type != runtime_type || !scalar_value_matches_type(&runtime_type, &value) {
+        output.push(runtime_value_type_mismatch(r#type));
+        return;
+    }
+    let ScalarValue::Choice { value, .. } = value else {
+        output.push(runtime_value_type_mismatch(r#type));
+        return;
+    };
+    let Some(arm) = arms.iter().find(|arm| arm.label == value) else {
+        output.push(runtime_value_type_mismatch(r#type));
+        return;
+    };
+    work.push(EvalWork::FinishValueMatch {
+        r#type: r#type.clone(),
+    });
+    work.push(EvalWork::Eval(&arm.expression));
+}
+
+/// Re-stamps and validates the selected value-match arm result against the
+/// match expression's already-established result type. Unselected arms are
+/// never placed on the work stack.
+pub(crate) fn finish_value_match(r#type: ScalarType, output: &mut Vec<ScalarEvaluation>) {
+    let selected = output
+        .pop()
+        .expect("selected value-match arm must already be resolved");
     match selected {
         ScalarEvaluation::Error {
             issue_code,

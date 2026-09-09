@@ -35,6 +35,7 @@ pub(crate) fn declared_type(expression: &TypedScalarExpression) -> Option<Scalar
         | TypedScalarExpression::Binary { r#type, .. }
         | TypedScalarExpression::Group { r#type, .. }
         | TypedScalarExpression::ValueIf { r#type, .. }
+        | TypedScalarExpression::ValueMatch { r#type, .. }
         | TypedScalarExpression::Call { r#type, .. } => r#type.clone(),
     }
 }

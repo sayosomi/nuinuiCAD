@@ -71,6 +71,24 @@ describe("logicalStatementSourceMap", () => {
     expect(map.statements[2]).toMatchObject({ range: { startLine: 3, endLine: 8 } });
   });
 
+  it("keeps a canonical multiline exhaustive choice match declaration together", () => {
+    const source = [
+      "nui 1",
+      "const size: choice(small, large) =",
+      "  match @size {",
+      "  small => 5",
+      "  large => 10",
+      "}",
+      "const after: number = 30"
+    ].join("\n");
+    const map = createLogicalStatementSourceMap({ normalizedSource: source, sourceRevision: 14 });
+    expect(map.statements.map((statement) => statement.logicalText)).toEqual([
+      "nui 1",
+      "const size: choice(small, large) = match @size { small => 5 large => 10 }",
+      "const after: number = 30"
+    ]);
+  });
+
   it("keeps canonical multiline exported value-if declarations separate from a following declaration", () => {
     const source = [
       "nui 1",

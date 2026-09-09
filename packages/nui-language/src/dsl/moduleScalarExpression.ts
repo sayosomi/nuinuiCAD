@@ -441,6 +441,12 @@ const resolveAndTypecheck = ({
           elseBranch: resolve(node.elseBranch, new Set([...presenceFacts, ...elseFacts]))
         };
       }
+      case "valueMatch":
+        return {
+          ...node,
+          scrutinee: resolve(node.scrutinee, presenceFacts),
+          arms: node.arms.map((arm) => ({ ...arm, expression: resolve(arm.expression, presenceFacts) }))
+        };
       case "binary": {
         const left = resolve(node.left, presenceFacts);
         const leftFacts = node.operator === "&&" ? presenceFactsFor(left, "truth") : node.operator === "||" ? presenceFactsFor(left, "false") : new Set<string>();

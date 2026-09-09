@@ -97,6 +97,7 @@ fn expression_type(expression: &TypedScalarExpression) -> Option<&ScalarType> {
         | TypedScalarExpression::Binary { r#type, .. }
         | TypedScalarExpression::Group { r#type, .. }
         | TypedScalarExpression::ValueIf { r#type, .. }
+        | TypedScalarExpression::ValueMatch { r#type, .. }
         | TypedScalarExpression::Call { r#type, .. } => r#type.as_ref(),
     }
 }
@@ -449,6 +450,14 @@ fn collect_references<'a>(expression: &'a TypedScalarExpression, output: &mut Ve
                 work.push(condition);
                 work.push(then_branch);
                 work.push(else_branch);
+            }
+            TypedScalarExpression::ValueMatch {
+                scrutinee, arms, ..
+            } => {
+                work.push(scrutinee);
+                for arm in arms {
+                    work.push(&arm.expression);
+                }
             }
             TypedScalarExpression::Call { args, .. } => {
                 for argument in args {
