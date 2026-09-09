@@ -74,6 +74,7 @@ impl<'a> ForGroupMutationRuntime<'a> {
         show_generated: bool,
         ancestor_iteration_variables: &[Value],
         ancestor_element_id_map: &HashMap<ElementId, ElementId>,
+        ancestor_occurrence_path: &[types::ForGroupGeneratedOccurrenceStep],
         state: &mut EvaluationState,
     ) -> Result<ForGroupMutationRunOutcome, ForGroupMutationError> {
         let template_for_group_id = element_id(template_for_group)
@@ -102,6 +103,7 @@ impl<'a> ForGroupMutationRuntime<'a> {
         let mut generated = Vec::new();
         let mut rows = Vec::new();
         let mut current_iteration_variable = Value::Null;
+        let mut current_occurrence_path = ancestor_occurrence_path.to_vec();
         let mut current_child_ancestor_element_id_map = ancestor_element_id_map.clone();
         let instance_is_visible = element_id(instance_for_group)
             .is_some_and(|id| self.effective_visible_element_ids.contains(&id));
@@ -128,10 +130,12 @@ impl<'a> ForGroupMutationRuntime<'a> {
                         context.iteration_index,
                         context.iteration_value,
                         ancestor_element_id_map,
+                        ancestor_occurrence_path,
                     );
                     generated = expanded.0;
                     rows = expanded.1;
                     current_iteration_variable = expanded.2;
+                    current_occurrence_path = expanded.3;
                     current_child_ancestor_element_id_map = ancestor_element_id_map.clone();
                     for (generated_element, template_id) in &generated {
                         if owned_template_ids.contains(template_id) {
@@ -153,6 +157,7 @@ impl<'a> ForGroupMutationRuntime<'a> {
                     ancestor_iteration_variables,
                     &current_child_ancestor_element_id_map,
                     &current_iteration_variable,
+                    &current_occurrence_path,
                     state,
                 )
             },
@@ -172,6 +177,7 @@ impl<'a> ForGroupMutationRuntime<'a> {
         ancestor_iteration_variables: &[Value],
         ancestor_element_id_map: &HashMap<ElementId, ElementId>,
         current_iteration_variable: &Value,
+        current_occurrence_path: &[types::ForGroupGeneratedOccurrenceStep],
         state: &mut EvaluationState,
     ) -> Result<ForGroupMutationRunOutcome, ForGroupMutationError> {
         let Some((mut generated_element, template_id)) = generated
@@ -272,6 +278,7 @@ impl<'a> ForGroupMutationRuntime<'a> {
                 nested_show_generated,
                 &child_ancestor_iteration_variables,
                 ancestor_element_id_map,
+                current_occurrence_path,
                 state,
             );
         }

@@ -29,6 +29,40 @@ describe("evaluation payload conversion", () => {
     expect(roundTrip.effectiveDrawingModifierStrokes).toEqual(evaluation.effectiveDrawingModifierStrokes);
   });
 
+  it("round-trips generated occurrence paths unchanged", () => {
+    const evaluation = evaluateElements([
+      {
+        id: "loop",
+        name: "Loop",
+        type: "forGroup",
+        activity: "visible",
+        variableName: "i",
+        min: 0,
+        max: 1,
+        step: 1,
+        showGenerated: false
+      },
+      {
+        id: "point",
+        name: "Point",
+        type: "freePoint",
+        activity: "visible",
+        parentGroupId: "loop",
+        x: 0,
+        y: 0
+      }
+    ]);
+    const payload = evaluationResultToPayload(evaluation);
+
+    expect(payload.forGroupGeneratedRows?.map((row) => row.occurrencePath)).toEqual([
+      [{ templateForGroupId: "loop", iterationIndex: 0 }],
+      [{ templateForGroupId: "loop", iterationIndex: 1 }]
+    ]);
+    expect(evaluationPayloadToResult(payload).forGroupGeneratedRows).toEqual(
+      evaluation.forGroupGeneratedRows
+    );
+  });
+
   it("round-trips occurrence-owned geometry value errors without drawable identity", () => {
     const occurrence = { sourceStatementId: "statement:value", instancePath: ["instance:one", "instance:two"] };
     const baseline = evaluationResultToPayload(evaluateElements(sampleElements, { evaluationLimitIndex: 3 }));
