@@ -15,5 +15,9 @@ export const VSCodeReferencePickModeStatus = ({
   onFinish: () => void;
 }) => {
   if (!context || session.draft.status !== "active") return null;
-  return <PickModeStatusView model={referencePickModeStatusModelFor({ session, context, onFinish })} />;
+  return (
+    <div data-reference-pick-ui="true" style={{ display: "contents" }}>
+      <PickModeStatusView model={referencePickModeStatusModelFor({ session, context, onFinish })} />
+    </div>
+  );
 };
