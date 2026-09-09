@@ -79,6 +79,7 @@ impl<'a> GenericForGroupRuntime<'a> {
         effective_show_generated: bool,
         ancestor_iteration_variables: &[Value],
         ancestor_element_id_map: &HashMap<ElementId, ElementId>,
+        ancestor_occurrence_path: &[types::ForGroupGeneratedOccurrenceStep],
         state: &mut EvaluationState,
     ) {
         let template_for_group_id = element_id(template_for_group)
@@ -91,14 +92,16 @@ impl<'a> GenericForGroupRuntime<'a> {
             .is_some_and(|id| self.effective_visible_element_ids.contains(&id));
 
         for (iteration_index, variable_value) in iteration_values.iter().copied().enumerate() {
-            let (generated, rows, iteration_variable) = expand_for_group_iteration_from_template(
-                self.original_elements,
-                instance_for_group,
-                Some(&template_for_group_id),
-                iteration_index,
-                variable_value,
-                ancestor_element_id_map,
-            );
+            let (generated, rows, iteration_variable, occurrence_path) =
+                expand_for_group_iteration_from_template(
+                    self.original_elements,
+                    instance_for_group,
+                    Some(&template_for_group_id),
+                    iteration_index,
+                    variable_value,
+                    ancestor_element_id_map,
+                    ancestor_occurrence_path,
+                );
             for row in rows
                 .into_iter()
                 .filter(|row| owned_template_ids.contains(&row.template_element_id))
@@ -126,6 +129,7 @@ impl<'a> GenericForGroupRuntime<'a> {
                     instance_is_visible,
                     &child_ancestor_iteration_variables,
                     &child_ancestor_element_id_map,
+                    &occurrence_path,
                     state,
                 );
             }
@@ -141,6 +145,7 @@ impl<'a> GenericForGroupRuntime<'a> {
         instance_is_visible: bool,
         ancestor_iteration_variables: &[Value],
         ancestor_element_id_map: &HashMap<ElementId, ElementId>,
+        occurrence_path: &[types::ForGroupGeneratedOccurrenceStep],
         state: &mut EvaluationState,
     ) {
         let Some(generated_id) = element_id(&generated_element) else {
@@ -210,6 +215,7 @@ impl<'a> GenericForGroupRuntime<'a> {
                 nested_effective_show_generated,
                 ancestor_iteration_variables,
                 ancestor_element_id_map,
+                occurrence_path,
                 state,
             );
             return;

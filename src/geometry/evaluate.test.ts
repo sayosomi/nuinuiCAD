@@ -673,9 +673,9 @@ describe("evaluateElements", () => {
     expect(result.computedGeometry.get("p@loop:1")).toMatchObject({ kind: "point", x: 20, y: 5 });
     expect(result.computedGeometry.get("p@loop:2")).toMatchObject({ kind: "point", x: 40, y: 5 });
     expect(result.forGroupGeneratedRows).toEqual([
-      expect.objectContaining({ forGroupId: "loop", templateElementId: "p", generatedElementId: "p@loop:0" }),
-      expect.objectContaining({ forGroupId: "loop", templateElementId: "p", generatedElementId: "p@loop:1" }),
-      expect.objectContaining({ forGroupId: "loop", templateElementId: "p", generatedElementId: "p@loop:2" })
+      expect.objectContaining({ forGroupId: "loop", templateElementId: "p", generatedElementId: "p@loop:0", occurrencePath: [{ templateForGroupId: "loop", iterationIndex: 0 }] }),
+      expect.objectContaining({ forGroupId: "loop", templateElementId: "p", generatedElementId: "p@loop:1", occurrencePath: [{ templateForGroupId: "loop", iterationIndex: 1 }] }),
+      expect.objectContaining({ forGroupId: "loop", templateElementId: "p", generatedElementId: "p@loop:2", occurrencePath: [{ templateForGroupId: "loop", iterationIndex: 2 }] })
     ]);
     expect(result.effectiveDrawingModifierStrokes?.get("p@loop:0")).toEqual(undefined);
   });
@@ -927,12 +927,27 @@ describe("evaluateElements", () => {
       [1, 0], [1, 1], [1, 2]
     ];
     const expectedPIds: string[] = [];
+    const expectedRows: Array<{
+      forGroupId: string;
+      templateElementId: string;
+      generatedElementId: string;
+      occurrencePath: Array<{ templateForGroupId: string; iterationIndex: number }>;
+    }> = [];
     let index = 0;
     for (let i = 0; i < 2; i += 1) {
       const generatedInnerId = forGroupGeneratedElementId({ forGroupId: "outer", templateElementId: "inner", iterationIndex: i });
       for (let j = 0; j < 3; j += 1) {
         const generatedPId = forGroupGeneratedElementId({ forGroupId: generatedInnerId, templateElementId: "p", iterationIndex: j });
         expectedPIds.push(generatedPId);
+        expectedRows.push({
+          forGroupId: generatedInnerId,
+          templateElementId: "p",
+          generatedElementId: generatedPId,
+          occurrencePath: [
+            { templateForGroupId: "outer", iterationIndex: i },
+            { templateForGroupId: "inner", iterationIndex: j }
+          ]
+        });
         const [x, y] = expectedCoordinates[index];
         expect(result.computedGeometry.get(generatedPId)).toMatchObject({ kind: "point", x, y });
         index += 1;
@@ -952,6 +967,9 @@ describe("evaluateElements", () => {
       expect(expectedPIds).toContain(row.generatedElementId);
       expect(row.templateElementId).toBe("p");
     }
+    expect(result.forGroupGeneratedRows).toEqual(
+      expectedRows.map((expected) => expect.objectContaining(expected))
+    );
   });
 
   it("shadows an outer iteration binding when a nested for group reuses its variable name", () => {

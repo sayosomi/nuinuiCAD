@@ -155,11 +155,19 @@ pub struct EvaluationWarning {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub(crate) struct ForGroupGeneratedOccurrenceStep {
+    pub(crate) template_for_group_id: ElementId,
+    pub(crate) iteration_index: usize,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub(crate) struct ForGroupGeneratedRow {
     pub(crate) for_group_id: ElementId,
     pub(crate) template_element_id: ElementId,
     pub(crate) generated_element_id: ElementId,
     pub(crate) iteration_index: usize,
+    pub(crate) occurrence_path: Vec<ForGroupGeneratedOccurrenceStep>,
     pub(crate) variable_name: String,
     pub(crate) variable_value: f64,
     pub(crate) element_name: String,

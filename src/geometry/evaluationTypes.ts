@@ -309,11 +309,17 @@ export type EvaluationWarning = {
   message: string;
 };
 
+export type ForGroupGeneratedOccurrenceStep = {
+  templateForGroupId: ElementId;
+  iterationIndex: number;
+};
+
 export type ForGroupGeneratedRow = {
   forGroupId: ElementId;
   templateElementId: ElementId;
   generatedElementId: ElementId;
   iterationIndex: number;
+  occurrencePath: ForGroupGeneratedOccurrenceStep[];
   variableName: string;
   variableValue: number;
   elementName: string;

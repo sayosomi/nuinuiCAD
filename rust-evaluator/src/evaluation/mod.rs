@@ -1097,6 +1097,7 @@ fn evaluate_document_input_with_scalar_program(
                         effective_show_generated,
                         &[],
                         &HashMap::new(),
+                        &[],
                         &mut state,
                     )
                     .expect("validated forGroup scheduler must not mutate an iteration binding");
@@ -1131,6 +1132,7 @@ fn evaluate_document_input_with_scalar_program(
                 effective_show_generated,
                 &[],
                 &HashMap::new(),
+                &[],
                 &mut state,
             );
             continue;
