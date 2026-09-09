@@ -61,6 +61,18 @@ describe("queryDslReferences", () => {
     )).toBe(true);
   });
 
+  it("keeps value-for binder references local to the mapped body", () => {
+    const source = [
+      "nui 1",
+      "const values: number[] = [1, 2]",
+      "const doubled: number[] = for item in @values { @item * 2 }"
+    ].join("\n");
+    const result = queryAt(source, "@item");
+    expect(result).not.toBeNull();
+    expect(slices(source, result!.declarationRange)).toEqual(["item"]);
+    expect(slices(source, result!.referenceRanges)).toEqual(["item"]);
+  });
+
   it("keeps root immutable geometry aliases on one declaration identity", () => {
     const source = [
       "nui 1",

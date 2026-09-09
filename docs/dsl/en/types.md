@@ -139,6 +139,22 @@ const sides: choice(left, right)[] = [left, right]
 const copiedWidths: number[] = @widths
 ```
 
+Scalar and choice arrays also support a lazy value-for mapping from an
+existing whole-value collection. The result type remains the explicit
+one-dimensional declaration type:
+
+<!-- dsl-example: syntax-fragment -->
+```nui
+const doubled: number[] = for value in @widths { @value * 2 }
+```
+
+The binder is immutable and body-local, has the exact source element type, and
+produces one result for every source member in source order. Duplicates and
+empty sources are preserved. `.length` reads source cardinality without
+evaluating the body; indexing evaluates only the requested mapped member.
+Geometry and nominal-record value-for are not part of the current DSL
+Reference surface.
+
 Every collection exposes the read-only numeric property `.length`. It reports
 the authored member count, including duplicates, for literals and for all
 whole-value alias chains. It does not project or materialize a selected member.

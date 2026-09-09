@@ -240,6 +240,118 @@ describe("geometry array source semantic integration", () => {
     });
   });
 
+  it("lowers and evaluates lazy scalar value-for mappings", () => {
+    const compiled = compile([
+      "nui 1",
+      "const values: number[] = [1, 2, 2]",
+      "const doubled: number[] = for x in @values { @x * 2 }",
+      "const flags: boolean[] = for x in @values { @x > 1 }",
+      "const selected: number = @doubled[1]",
+      "const count: number = @doubled.length",
+      "const selectedFlag: boolean = @flags[0]"
+    ].join("\n"));
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(compiled.scalarProgram?.collectionValues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: "map", sourceValueId: "statement:1", sourceElementType: { kind: "number" }, resultElementType: { kind: "number" } }),
+      expect.objectContaining({ kind: "map", sourceValueId: "statement:1", resultElementType: { kind: "boolean" } })
+    ]));
+    const selected = compiled.scalarProgram?.statements.find((statement) => statement.bindingId === "binding:statement:4");
+    expect(selected?.declaration.initializer).toMatchObject({ kind: "collectionIndex", collectionValueId: "statement:2", collectionLength: 3 });
+  });
+
+  it("supports exact choice source/result identities, multiline framing, aliases, and empty sources", () => {
+    const source = [
+      "nui 1",
+      "const choices: choice(for, match)[] = [for, match]",
+      "const mapped: choice(left, right)[] =",
+      "for item in @choices {",
+      "  left",
+      "}",
+      "const mappedKeyword: choice(for, match)[] = for item in @choices { for }",
+      "const mappedAlias: choice(left, right)[] = @mapped",
+      "const selected: choice(left, right) = @mappedAlias[1]",
+      "const count: number = @mappedAlias.length",
+      "const empty: number[] = []",
+      "const emptyMapped: number[] = for item in @empty { @item / 0 }"
+    ].join("\n");
+    const compiled = compile(source);
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const mapped = compiled.sourceLexicalNamespace?.geometryArraySemanticAnalysis?.genericValues.find((value) => value.name === "mapped");
+    expect(mapped?.value).toMatchObject({
+      kind: "map",
+      sourceElementType: { kind: "choice", options: ["for", "match"] },
+      resultElementType: { kind: "choice", options: ["left", "right"] },
+      body: { type: { kind: "choice", options: ["left", "right"] } }
+    });
+    expect(mapped?.value?.kind === "map" ? mapped.value.body : null).toMatchObject({
+      kind: "choiceLiteral",
+      value: "left"
+    });
+    const mappedKeyword = compiled.sourceLexicalNamespace?.geometryArraySemanticAnalysis?.genericValues.find((value) => value.name === "mappedKeyword");
+    expect(mappedKeyword?.value?.kind === "map" ? mappedKeyword.value.body : null).toMatchObject({ kind: "choiceLiteral", value: "for" });
+    const selectedInitializer = compiled.scalarProgram?.statements.find((statement) => statement.declaration.initializer.kind === "collectionIndex")?.declaration.initializer;
+    expect(selectedInitializer).toMatchObject({
+      kind: "collectionIndex",
+      collectionValueId: "statement:4",
+      collectionLength: 2
+    });
+  });
+
+  it("rejects non-collection and unsupported geometry/record sources, and result mismatches", () => {
+    const { namespace } = analyze([
+      "nui 1",
+      "const scalar: number = 1",
+      "const values: number[] = [1]",
+      "point A = coordinate(x: 0, y: 0)",
+      "const points: point[] = [@A]",
+      "record Pair(x: number)",
+      "const pair: Pair = Pair(x: 1)",
+      "const pairs: Pair[] = [@pair]",
+      "const badScalar: number[] = for x in @scalar { @x }",
+      "const badGeometry: number[] = for x in @points { 1 }",
+      "const badRecord: number[] = for x in @pairs { 1 }",
+      "const badResult: boolean[] = for x in @values { @x * 2 }"
+    ].join("\n"));
+    expect(namespace.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "array-value-for-source-invalid", exactSpanOnly: true }),
+      expect.objectContaining({ code: "array-value-for-source-unsupported", exactSpanOnly: true }),
+      expect.objectContaining({ code: "scalar-type-mismatch", exactSpanOnly: true })
+    ]));
+  });
+
+  it("keeps the value-for binder immutable and body-local", () => {
+    const compiled = compile([
+      "nui 1",
+      "const values: number[] = [1]",
+      "const mapped: number[] = for item in @values { @item + 1 }",
+      "const leaked: number = @item"
+    ].join("\n"));
+    expect([...compiled.diagnostics, ...(compiled.bindingIssueDiagnostics ?? [])].filter((diagnostic) => diagnostic.severity === "error")).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "undefined-binding" })
+    ]));
+    expect(compiled.scalarProgram?.collectionValues?.find((value) => value.kind === "map")).toMatchObject({
+      kind: "map",
+      binderId: expect.stringContaining("value-for-binder")
+    });
+  });
+
+  it("projects multiline value-for body diagnostics back to their exact physical span", () => {
+    const source = [
+      "nui 1",
+      "const values: number[] = [1]",
+      "const bad: boolean[] =",
+      "for item in @values {",
+      "  @item * 2",
+      "}"
+    ].join("\n");
+    const compiled = compile(source);
+    const diagnostic = compiled.diagnostics.find((candidate) => candidate.code === "scalar-type-mismatch");
+    expect(diagnostic?.exactSpanOnly).toBe(true);
+    const physical = diagnostic?.physicalSpan?.segments[0];
+    expect(physical).toBeDefined();
+    expect(source.slice(physical!.from, physical!.to)).toContain("@item * 2");
+  });
+
   it("preserves nominal record identity for an indexed collection at a Module boundary", () => {
     const compiled = compile([
       "nui 1",

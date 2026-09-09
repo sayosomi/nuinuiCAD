@@ -539,6 +539,70 @@ const projectSourceRenameEdits = (
   return { ok: true, edits };
 };
 
+const projectValueForBinderRenameEdits = (
+  sourceText: string,
+  compiled: CompiledDslDocument,
+  bindingId: string,
+  newName: string
+): { ok: true; edits: readonly DslRenameEdit[] } | { ok: false; rejection: DslRenameRejection } => {
+  const normalizedName = newName.trim();
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(normalizedName)) {
+    return { ok: false, rejection: { reason: "invalid-name", message: "value-for binder は有効な識別子である必要があります。" } };
+  }
+  const value = compiled.sourceLexicalNamespace?.geometryArraySemanticAnalysis?.genericValues.find(
+    (candidate) => candidate.value?.kind === "map" && candidate.value.binderId === bindingId
+  );
+  if (!value || value.value?.kind !== "map" || !compiled.statementMap) {
+    return { ok: false, rejection: unavailableRenameRejection() };
+  }
+  const occurrenceIndex = createDslSemanticOccurrenceIndex(compiled);
+  const occurrences = occurrenceIndex.occurrences.filter((occurrence) =>
+    dslSemanticIdentityKey(occurrence.identity) === dslSemanticIdentityKey({ kind: "typed", bindingId })
+  );
+  if (occurrences.filter((occurrence) => occurrence.kind === "declaration").length !== 1) {
+    return { ok: false, rejection: unavailableRenameRejection() };
+  }
+  const bodyPhysical = exactPhysicalSpan(compiled.spans, compiled.statements[value.statementIndex]!, value.value.body.span);
+  if (!bodyPhysical) return { ok: false, rejection: unavailableRenameRejection() };
+  const inBody = (from: number, to: number) => bodyPhysical.segments.some((segment) => from >= segment.from && to <= segment.to);
+  if (normalizedName !== value.value.binder) {
+    const captured = occurrenceIndex.occurrences.find((occurrence) =>
+      occurrence.kind === "reference" &&
+      inBody(occurrence.from, occurrence.to) &&
+      dslSemanticIdentityKey(occurrence.identity) !== dslSemanticIdentityKey({ kind: "typed", bindingId }) &&
+      sourceText.slice(occurrence.from, occurrence.to) === normalizedName
+    );
+    if (captured) {
+      return { ok: false, rejection: { reason: "reference-resolution-change", family: "typed", referencedName: normalizedName } };
+    }
+  }
+  const edits = occurrences.map((occurrence) => ({
+    from: occurrence.from,
+    to: occurrence.to,
+    expectedText: sourceText.slice(occurrence.from, occurrence.to),
+    newText: normalizedName
+  }));
+  if (!editsAreSafe(edits)) return { ok: false, rejection: unavailableRenameRejection() };
+  const candidateSource = [...edits]
+    .sort((left, right) => right.from - left.from || right.to - left.to)
+    .reduce((source, edit) => `${source.slice(0, edit.from)}${edit.newText}${source.slice(edit.to)}`, sourceText);
+  const after = compileDslDocument(candidateSource, {
+    assignedElementIds: compiled.statementMap.elementIdByStatementIndex,
+    assignedStatementIds: compiled.statementMap.statementIdByStatementIndex
+  });
+  if (
+    after.diagnostics.some((diagnostic) => diagnostic.severity === "error") ||
+    !after.document ||
+    !after.statementMap ||
+    !after.sourceLexicalNamespace ||
+    !after.sourceLexicalNamespace.geometryArraySemanticAnalysis?.genericValues.some(
+      (candidate) => candidate.value?.kind === "map" && candidate.value.binderId === bindingId && candidate.value.binder === normalizedName
+    ) ||
+    !mapsMatch(compiled.statementMap.statementIdByStatementIndex!, after.statementMap.statementIdByStatementIndex!)
+  ) return { ok: false, rejection: unavailableRenameRejection() };
+  return { ok: true, edits };
+};
+
 const projectModifierRenameEdits = (
   sourceText: string,
   compiled: CompiledDslDocument,
@@ -601,18 +665,25 @@ export const planDslRenameEditsResult = (
   let edits: readonly DslRenameEdit[];
   const identity = selected.candidate.identity;
   if (identity.kind === "typed") {
-    const analysis = analyzeTypedBindingRenameInDocument({ compiled: exact.compiled, targetBindingId: identity.bindingId, newName });
-    if (analysis.verdict !== "ok") return { status: "rejected", rejection: typedRenameRejection(analysis, exact.compiled) };
-    if (!analysis.declarationSpan) return { status: "rejected", rejection: unavailableRenameRejection() };
-    const target = exact.compiled.bindingAnalysis?.catalog.bindingsById.get(identity.bindingId);
-    if (!target) return { status: "rejected", rejection: unavailableRenameRejection() };
-    const entries: TypedRenameSpliceEntry[] = [
-      { statementIndex: target.statementIndex, span: analysis.declarationSpan, oldName: target.name, newName: analysis.newName },
-      ...analysis.occurrences
-    ];
-    const projection = projectTypedRenameEdits(exact.source.normalizedSource, exact.compiled, entries);
-    if (!projection.ok) return { status: "rejected", rejection: unavailableRenameRejection() };
-    edits = projection.edits.map((edit) => ({ ...edit }));
+    const valueForBinder = identity.bindingId.startsWith("value-for-binder:");
+    if (valueForBinder) {
+      const projected = projectValueForBinderRenameEdits(exact.source.normalizedSource, exact.compiled, identity.bindingId, newName);
+      if (!projected.ok) return { status: "rejected", rejection: projected.rejection };
+      edits = projected.edits;
+    } else {
+      const analysis = analyzeTypedBindingRenameInDocument({ compiled: exact.compiled, targetBindingId: identity.bindingId, newName });
+      if (analysis.verdict !== "ok") return { status: "rejected", rejection: typedRenameRejection(analysis, exact.compiled) };
+      if (!analysis.declarationSpan) return { status: "rejected", rejection: unavailableRenameRejection() };
+      const target = exact.compiled.bindingAnalysis?.catalog.bindingsById.get(identity.bindingId);
+      if (!target) return { status: "rejected", rejection: unavailableRenameRejection() };
+      const entries: TypedRenameSpliceEntry[] = [
+        { statementIndex: target.statementIndex, span: analysis.declarationSpan, oldName: target.name, newName: analysis.newName },
+        ...analysis.occurrences
+      ];
+      const projection = projectTypedRenameEdits(exact.source.normalizedSource, exact.compiled, entries);
+      if (!projection.ok) return { status: "rejected", rejection: unavailableRenameRejection() };
+      edits = projection.edits.map((edit) => ({ ...edit }));
+    }
   } else if (identity.kind === "module") {
     const analysis = analyzeModuleSemanticRename(exact.source.normalizedSource, exact.compiled, identity.target, newName);
     if (analysis.verdict !== "ok") return { status: "rejected", rejection: moduleRenameRejection(analysis, newName, exact.compiled) };

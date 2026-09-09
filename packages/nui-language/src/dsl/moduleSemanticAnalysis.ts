@@ -3465,6 +3465,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         const value = collectionAnalysis.genericValuesByStatementId.get(valueId);
         if (!value?.value) return [];
         if (value.value.kind === "alias") return recordMembersFor(value.value.targetValueId, new Set([...seen, valueId]));
+        if (value.value.kind === "map") return [];
         return value.value.members.flatMap((member) => {
           if (member.target.kind !== "recordValue") return [];
           const recordValue = recordAnalysis?.valuesByStatementId.get(member.target.statementId);
@@ -4342,6 +4343,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     for (const value of genericCollectionAnalysis?.genericValues ?? []) {
       if (value.ownerModuleDefinitionStatementIndex !== definition.statementIndex || !value.value) continue;
       const presenceFacts = presenceFactsForSourceStatement(value.statementIndex);
+      if (value.value.kind === "map") continue;
       if (value.value.kind === "alias") {
         const parameter = optionalGenericCollectionParameterForValueId(value.value.targetValueId);
         if (parameter) addOptionalGenericCollectionPresenceDiagnostic(value.statementIndex, value.value.sourceSpan, parameter, presenceFacts);

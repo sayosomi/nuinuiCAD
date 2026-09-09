@@ -61,6 +61,20 @@ describe("queryDslCompletion", () => {
     expect(argument?.candidates.every((candidate) => candidate.kind === "argumentName")).toBe(true);
   });
 
+  it("exposes the value-for binder only inside its scalar body", () => {
+    const source = [
+      "nui 1",
+      "const values: number[] = [1, 2]",
+      "const doubled: number[] = for item in @values { @item * 2 }"
+    ].join("\n");
+    const inside = exactQuery(source, "@item", 1);
+    expect(inside?.candidates).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: "binding", label: "item", identity: "value-for-binder:completion-test:2" })
+    ]));
+    const outside = exactQuery(source, "@values", 1);
+    expect(outside?.candidates.some((candidate) => candidate.label === "item") ?? false).toBe(false);
+  });
+
   it("completes the next argument name after a comma in an incomplete call", () => {
     const source = [
       "nui 1",

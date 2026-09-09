@@ -137,6 +137,21 @@ describe("diagnostic presentation localization", () => {
     expect(diagnosticTextFor(nonChoiceDiagnostic, "ja-JP")).toBe("match のscrutineeはchoice(...)型である必要があります（実際: boolean）。");
   });
 
+  it("localizes scalar collection value-for diagnostics through the production compiler path", () => {
+    const document = AutomationDocument.fromSource([
+      "nui 1",
+      "const scalar: number = 1",
+      "const bad: number[] = for item in @scalar { @item }"
+    ].join("\n"));
+    const diagnostic = compilerDiagnosticsForState(document.getSource(), document.getState()).find(
+      (candidate) => candidate.code === "array-value-for-source-invalid"
+    );
+    if (!diagnostic) throw new Error("missing production diagnostic array-value-for-source-invalid");
+    expect(diagnostic.presentation).toEqual({ key: "diagnostic.array-value-for-source-invalid" });
+    expect(diagnosticTextFor(diagnostic, "en")).toBe("The value-for source must be a visible whole-value collection.");
+    expect(diagnosticTextFor(diagnostic, "ja-JP")).toBe("value-forのsourceには可視のwhole-value collectionが必要です。");
+  });
+
   it("keeps a property binding reference name through the production compiler path", () => {
     const source = [
       "nui 1",

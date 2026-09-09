@@ -8,6 +8,8 @@ import {
   type GeometryArrayType
 } from "./geometryArrayTypes";
 import type { DslArrayValueType, DslNonArrayValueType } from "./dslValueTypes";
+import type { TypedScalarExpression } from "../scalars/typedExpressionAst";
+import type { ScalarType } from "../scalars/types";
 
 export type GeometryArraySemanticDiagnostic = {
   code: string;
@@ -73,7 +75,21 @@ export type DslArrayAliasValue = {
   sourceSpan: DslSpan;
 };
 
-export type DslArraySemanticValue<TTarget> = DslArrayLiteralValue<TTarget> | DslArrayAliasValue;
+export type DslArrayMappedValue = {
+  kind: "map";
+  valueType: DslArrayValueType;
+  sourceValueId: string;
+  sourceElementType: ScalarType;
+  resultElementType: ScalarType;
+  binderId: string;
+  binder: string;
+  binderSpan: DslSpan;
+  sourceSpan: DslSpan;
+  body: TypedScalarExpression;
+  sourceOrder: number;
+};
+
+export type DslArraySemanticValue<TTarget> = DslArrayLiteralValue<TTarget> | DslArrayAliasValue | DslArrayMappedValue;
 
 export type GeometryArrayMemberResolution<TTarget> =
   | { kind: "resolved"; value: GeometryArrayResolvedMember<TTarget> }
@@ -116,6 +132,9 @@ export type ResolveDslArrayExpressionInput<TTarget> = {
   expression: GeometryArrayExpression;
   resolveMember: (member: GeometryArrayLiteralMember) => DslArrayMemberResolution<TTarget>;
   resolveArrayReference: (sourceText: string, sourceSpan: DslSpan) => DslArrayReferenceResolution;
+  resolveValueFor?: (expression: Extract<GeometryArrayExpression, { kind: "valueFor" }>) =>
+    | { kind: "resolved"; value: DslArrayMappedValue }
+    | { kind: "invalid"; diagnostic: GeometryArraySemanticDiagnostic };
 };
 
 export type ResolveDslArrayExpressionResult<TTarget> = {
@@ -146,6 +165,18 @@ const dslArrayMemberTypeMismatch = (
 export const resolveDslArrayExpression = <TTarget>(
   input: ResolveDslArrayExpressionInput<TTarget>
 ): ResolveDslArrayExpressionResult<TTarget> => {
+  if (input.expression.kind === "valueFor") {
+    const resolution = input.resolveValueFor?.(input.expression);
+    if (!resolution) {
+      return {
+        value: null,
+        diagnostics: [{ code: "array-value-for-unsupported", message: "この collection では value-for を使用できません。", span: input.expression.span }]
+      };
+    }
+    return resolution.kind === "resolved"
+      ? { value: resolution.value, diagnostics: [] }
+      : { value: null, diagnostics: [resolution.diagnostic] };
+  }
   if (input.expression.kind === "reference") {
     const resolution = input.resolveArrayReference(input.expression.text, input.expression.span);
     if (resolution.kind === "invalid") return { value: null, diagnostics: [resolution.diagnostic] };
@@ -222,6 +253,12 @@ export const resolveGeometryArrayExpression = <TTarget>(
   input: ResolveGeometryArrayExpressionInput<TTarget>
 ): ResolveGeometryArrayExpressionResult<TTarget> => {
   const diagnostics: GeometryArraySemanticDiagnostic[] = [];
+  if (input.expression.kind === "valueFor") {
+    return {
+      value: null,
+      diagnostics: [{ code: "geometry-array-value-for-unsupported", message: "geometry array では scalar value-for を使用できません。", span: input.expression.span }]
+    };
+  }
   if (input.expression.kind === "reference") {
     const resolution = input.resolveArrayReference(input.expression.text, input.expression.span);
     if (resolution.kind === "invalid") return { value: null, diagnostics: [resolution.diagnostic] };

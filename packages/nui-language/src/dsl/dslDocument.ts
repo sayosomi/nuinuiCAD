@@ -1458,6 +1458,19 @@ export const compileDslDocument = (
       if (value.ownerModuleDefinitionStatementIndex !== null) continue;
       const elementType = scalarTypeOfDslValueType(value.valueType.elementType);
       if (!elementType || !value.value) continue;
+      if (value.value.kind === "map") {
+        values.push({
+          valueId: value.statementId,
+          kind: "map",
+          sourceValueId: value.value.sourceValueId,
+          sourceElementType: value.value.sourceElementType,
+          resultElementType: value.value.resultElementType,
+          binderId: value.value.binderId,
+          body: value.value.body,
+          sourceOrder: value.value.sourceOrder
+        });
+        continue;
+      }
       if (value.value.kind === "alias") {
         values.push({ valueId: value.statementId, kind: "alias", targetValueId: value.value.targetValueId });
         continue;

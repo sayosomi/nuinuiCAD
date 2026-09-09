@@ -13,7 +13,17 @@ export type ScalarProgramCollectionMember =
 
 export type ScalarProgramCollection =
   | { valueId: string; kind: "literal"; members: readonly ScalarProgramCollectionMember[] }
-  | { valueId: string; kind: "alias"; targetValueId: string };
+  | { valueId: string; kind: "alias"; targetValueId: string }
+  | {
+      valueId: string;
+      kind: "map";
+      sourceValueId: string;
+      sourceElementType: ScalarType;
+      resultElementType: ScalarType;
+      binderId: BindingId;
+      body: TypedScalarExpression;
+      sourceOrder: number;
+    };
 
 export type ScalarProgramDeclaration = {
   bindingKind: "const" | "let";

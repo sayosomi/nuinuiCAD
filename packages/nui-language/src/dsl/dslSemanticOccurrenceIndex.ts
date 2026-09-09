@@ -246,6 +246,39 @@ const addTypedOccurrences = (
       addExpression(statementIndex, statement.declaration.initializer);
     }
   }
+  for (const value of compiled.sourceLexicalNamespace?.geometryArraySemanticAnalysis?.genericValues ?? []) {
+    if (value.value?.kind !== "map") continue;
+    const binderIdentity: DslSemanticIdentity = { kind: "typed", bindingId: value.value.binderId };
+    addPhysicalOccurrence(add, compiled, value.statementIndex, value.value.binderSpan, binderIdentity, "declaration");
+    addExpression(value.statementIndex, value.value.body);
+    const statement = compiled.statements[value.statementIndex];
+    const logical = statement
+      ? compiled.spans.logicalStatementByRangeFrom.get(statement.documentRange.from)
+      : undefined;
+    const sourceText = logical?.logicalText.slice(value.value.sourceSpan.start, value.value.sourceSpan.end) ?? "";
+    const sourceReference = parseDslSourceReference(sourceText);
+    if (sourceReference.kind === "valid") {
+      const path = parseDslReferenceToken(sourceReference.reference.pathText);
+      const lookup = compiled.sourceLexicalNamespace
+        ? resolveSourceLexicalPathSegments(compiled.sourceLexicalNamespace, value.statementIndex, path)
+        : null;
+      const sourceDeclaration = lookup?.lookup.kind === "resolved" ? lookup.lookup.declaration : null;
+      const sourceBinding = sourceDeclaration?.kind === "typedDeclaration"
+        ? compiled.bindingAnalysis?.catalog.bindings.find((candidate) =>
+            candidate.kind === "typed" && candidate.statementIndex === sourceDeclaration.statementIndex && !isSyntheticRecordBinding(candidate.id)
+          )
+        : undefined;
+      const sourceIdentity = sourceBinding
+        ? { kind: "typed" as const, bindingId: sourceBinding.id }
+        : sourceDeclaration
+          ? declarationIdentity(compiled, sourceDeclaration)
+          : null;
+      addPhysicalOccurrence(add, compiled, value.statementIndex, {
+        start: value.value.sourceSpan.start + 1,
+        end: value.value.sourceSpan.end
+      }, sourceIdentity, "reference");
+    }
+  }
   for (const reference of analysis.initializerReferences) {
     if (reference.resolution.kind !== "resolved" || !reference.span) continue;
     if (isSyntheticRecordBinding(reference.resolution.binding.id)) continue;

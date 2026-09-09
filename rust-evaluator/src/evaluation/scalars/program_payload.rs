@@ -30,6 +30,14 @@ pub(crate) struct ValidatedScalarProgramCollection {
 pub(crate) enum ValidatedScalarProgramCollectionValue {
     Literal(Vec<ValidatedScalarProgramCollectionMember>),
     Alias(String),
+    Map {
+        source_value_id: String,
+        source_element_type: ScalarType,
+        result_element_type: ScalarType,
+        binder_id: BindingId,
+        body: Box<TypedScalarExpression>,
+        source_order: usize,
+    },
 }
 
 #[derive(Debug)]
@@ -69,7 +77,18 @@ pub(crate) fn decode_collection_values(
         let entry = as_object(entry, "scalar program collection value")?;
         reject_unexpected_fields(
             entry,
-            &["valueId", "kind", "members", "targetValueId"],
+            &[
+                "valueId",
+                "kind",
+                "members",
+                "targetValueId",
+                "sourceValueId",
+                "sourceElementType",
+                "resultElementType",
+                "binderId",
+                "body",
+                "sourceOrder",
+            ],
             "scalar program collection value",
         )?;
         let value_id = non_empty_string(
@@ -182,6 +201,63 @@ pub(crate) fn decode_collection_values(
                     }
                 }
                 ValidatedScalarProgramCollectionValue::Literal(decoded_members)
+            }
+            "map" => {
+                reject_unexpected_fields(
+                    entry,
+                    &[
+                        "valueId",
+                        "kind",
+                        "sourceValueId",
+                        "sourceElementType",
+                        "resultElementType",
+                        "binderId",
+                        "body",
+                        "sourceOrder",
+                    ],
+                    "scalar program collection map",
+                )?;
+                let source_value_id = non_empty_string(
+                    require_field(entry, "sourceValueId", "scalar program collection map")?,
+                    "scalar program collection map sourceValueId",
+                )?
+                .to_owned();
+                let source_element_type = decode_scalar_type(require_field(
+                    entry,
+                    "sourceElementType",
+                    "scalar program collection map",
+                )?)?;
+                let result_element_type = decode_scalar_type(require_field(
+                    entry,
+                    "resultElementType",
+                    "scalar program collection map",
+                )?)?;
+                let binder_id = non_empty_string(
+                    require_field(entry, "binderId", "scalar program collection map")?,
+                    "scalar program collection map binderId",
+                )?
+                .to_owned();
+                let body = validate_typed_expression_payload(require_field(
+                    entry,
+                    "body",
+                    "scalar program collection map",
+                )?)?;
+                let source_order_value =
+                    require_field(entry, "sourceOrder", "scalar program collection map")?;
+                let source_order = source_order_value.as_u64().ok_or_else(|| {
+                    issue(
+                        Code::InvalidFieldType,
+                        "scalar program collection map sourceOrder must be a non-negative integer",
+                    )
+                })? as usize;
+                ValidatedScalarProgramCollectionValue::Map {
+                    source_value_id,
+                    source_element_type,
+                    result_element_type,
+                    binder_id,
+                    body: Box::new(body),
+                    source_order,
+                }
             }
             _ => {
                 return Err(issue(

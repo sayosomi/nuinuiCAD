@@ -418,7 +418,7 @@ export const buildModuleGeometryArrayRuntime = ({
       } else if (resolved.value) {
         value = { type: parameter.type, members: resolved.value.members };
       }
-    } else {
+    } else if (parsed.expression.kind === "literal") {
       const members: RuntimeArrayMember[] = [];
       for (const member of parsed.expression.members) {
         const span = { start: argument.valueSpan.start + member.span.start, end: argument.valueSpan.start + member.span.end };
@@ -620,6 +620,13 @@ export const buildModuleGeometryArrayRuntime = ({
         ));
       }
       if (members.length === parsed.expression.members.length) value = { type: parameter.type, members };
+    } else {
+      addDiagnostic(runtimeDiagnostic(
+        statement,
+        argument.valueSpan,
+        "geometry-array-value-for-unsupported",
+        "geometry array parameter では scalar value-for を使用できません。"
+      ));
     }
 
     parameterValueCache.set(key, value);

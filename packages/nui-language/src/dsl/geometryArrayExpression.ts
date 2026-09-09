@@ -22,6 +22,15 @@ export type GeometryArrayExpression =
       kind: "reference";
       span: DslSpan;
       text: string;
+    }
+  | {
+      kind: "valueFor";
+      span: DslSpan;
+      binder: string;
+      binderSpan: DslSpan;
+      sourceText: string;
+      sourceSpan: DslSpan;
+      bodySpan: DslSpan;
     };
 
 export type GeometryArrayExpressionParseResult = {
@@ -68,6 +77,92 @@ const matchingSquareClose = (source: string, open: number, end: number) => {
     else if (character === "}") braceDepth = Math.max(0, braceDepth - 1);
   }
   return -1;
+};
+
+const matchingBraceClose = (source: string, open: number, end: number) => {
+  let quote: string | null = null;
+  let depth = 0;
+  for (let index = open; index < end; index += 1) {
+    const character = source[index]!;
+    if (quote) {
+      if (character === quote && !escaped(source, index)) quote = null;
+      continue;
+    }
+    if ((character === "\"" || character === "'") && !escaped(source, index)) {
+      quote = character;
+      continue;
+    }
+    if (character === "{") depth += 1;
+    else if (character === "}") {
+      depth -= 1;
+      if (depth === 0) return index;
+    }
+  }
+  return -1;
+};
+
+const firstUnquotedBrace = (source: string, start: number, end: number) => {
+  let quote: string | null = null;
+  for (let index = start; index < end; index += 1) {
+    const character = source[index]!;
+    if (quote) {
+      if (character === quote && !escaped(source, index)) quote = null;
+      continue;
+    }
+    if ((character === "\"" || character === "'") && !escaped(source, index)) {
+      quote = character;
+      continue;
+    }
+    if (character === "{") return index;
+  }
+  return -1;
+};
+
+const identifierStart = (character: string | undefined) => Boolean(character && /[A-Za-z_]/.test(character));
+const identifierPart = (character: string | undefined) => Boolean(character && /[A-Za-z0-9_]/.test(character));
+
+const parseValueFor = (source: string, span: DslSpan): GeometryArrayExpressionParseResult => {
+  let cursor = span.start + 3;
+  while (cursor < span.end && whitespace.test(source[cursor]!)) cursor += 1;
+  const binderStart = cursor;
+  if (!identifierStart(source[cursor])) return {
+    expression: null,
+    diagnostics: [{ code: "geometry-array-value-for-invalid", message: "value-for の binder が不正です。", span: { start: binderStart, end: Math.min(span.end, binderStart + 1) } }]
+  };
+  cursor += 1;
+  while (cursor < span.end && identifierPart(source[cursor])) cursor += 1;
+  const binderSpan = { start: binderStart, end: cursor };
+  const binder = source.slice(binderSpan.start, binderSpan.end);
+  const inStart = cursor;
+  while (cursor < span.end && whitespace.test(source[cursor]!)) cursor += 1;
+  if (source.slice(cursor, cursor + 2) !== "in" || identifierPart(source[cursor - 1]) || identifierPart(source[cursor + 2])) {
+    return { expression: null, diagnostics: [{ code: "geometry-array-value-for-invalid", message: "value-for には `in @collection` が必要です。", span: { start: inStart, end: Math.min(span.end, cursor + 2) } }] };
+  }
+  cursor += 2;
+  while (cursor < span.end && whitespace.test(source[cursor]!)) cursor += 1;
+  const open = firstUnquotedBrace(source, cursor, span.end);
+  if (open < 0) return { expression: null, diagnostics: [{ code: "geometry-array-value-for-invalid", message: "value-for body の `{` がありません。", span: { start: span.end, end: span.end } }] };
+  const sourceSpan = trimSpan(source, cursor, open);
+  const sourceReference = parseDslSourceReference(source.slice(sourceSpan.start, sourceSpan.end));
+  if (sourceReference.kind !== "valid" || sourceReference.reference.property) {
+    return { expression: null, diagnostics: [{ code: "geometry-array-value-for-invalid", message: "value-for の source には whole-value collection reference が必要です。", span: sourceSpan }] };
+  }
+  const close = matchingBraceClose(source, open, span.end);
+  if (close < 0) return { expression: null, diagnostics: [{ code: "geometry-array-value-for-invalid", message: "value-for body の `{` が閉じられていません。", span: { start: open, end: open + 1 } }] };
+  const trailing = trimSpan(source, close + 1, span.end);
+  if (trailing.start !== trailing.end) return { expression: null, diagnostics: [{ code: "geometry-array-value-for-invalid", message: "value-for body の後に余分なトークンがあります。", span: trailing }] };
+  return {
+    expression: {
+      kind: "valueFor",
+      span,
+      binder,
+      binderSpan,
+      sourceText: source.slice(sourceSpan.start, sourceSpan.end),
+      sourceSpan,
+      bodySpan: trimSpan(source, open + 1, close)
+    },
+    diagnostics: []
+  };
 };
 
 const splitMembers = (source: string, span: DslSpan) => {
@@ -177,6 +272,10 @@ export const parseGeometryArrayExpression = (
       expression: { kind: "literal", span: { start: span.start, end: close + 1 }, members: split.members },
       diagnostics: split.diagnostics
     };
+  }
+
+  if (source.slice(span.start, span.start + 3) === "for" && !identifierPart(source[span.start + 3])) {
+    return parseValueFor(source, span);
   }
 
   const text = source.slice(span.start, span.end);

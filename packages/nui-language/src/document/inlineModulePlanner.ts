@@ -2958,6 +2958,7 @@ const geometryArrayInitializerOccurrencesFor = (
       arrayType
     ) ? references : null;
   }
+  if (parsed.expression.kind !== "literal") return null;
   for (const member of parsed.expression.members) {
     const parsedMember = parseDslSourceReference(member.text);
     if (parsedMember.kind !== "valid") {

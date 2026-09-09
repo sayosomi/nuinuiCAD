@@ -177,6 +177,27 @@ export const createIncrementalLinearMutationEvaluator = (
       const collection = collectionValuesById.get(valueId);
       if (!collection) return undefined;
       if (collection.kind === "alias") return lookup(collection.targetValueId);
+      if (collection.kind === "map") {
+        const source = resolveCollectionIndex(
+          collection.sourceValueId,
+          index,
+          collection.sourceElementType,
+          null,
+          -1,
+          sourceOrder
+        );
+        if (source.status === "error") return source;
+        const mapped = evaluateTypedExpression(collection.body, {
+          lookupBinding: (bindingId) => bindingId === collection.binderId ? source : resolveCurrent(bindingId),
+          ...(collectionValuesById.size ? { lookupCollectionIndex: (nestedValueId, nestedIndex, nestedElementType, nestedLength, nestedSourceOrder) => resolveCollectionIndex(nestedValueId, nestedIndex, nestedElementType, nestedLength, nestedSourceOrder, sourceOrder) } : {}),
+          ...(resolveGeometryProperty ? { lookupGeometryProperty: (reference) => resolveGeometryProperty(reference, sourceOrder) } : {}),
+          ...(resolveGeometryTarget ? { lookupGeometryTarget: (target) => resolveGeometryTarget(target, sourceOrder) } : {})
+        });
+        if (mapped.status === "error") return mapped;
+        return scalarTypesEqual(mapped.type, collection.resultElementType) && scalarValueMatchesType(mapped.type, mapped.value)
+          ? mapped
+          : { status: "error", type: collection.resultElementType, issueCode: "evaluation-runtime-value-type-mismatch" };
+      }
       const member = collection.members[index];
       if (!member) return { status: "error", type: elementType, issueCode: "evaluation-collection-index-invalid" };
       if (member.kind === "literal") return { status: "ok", type: member.type, value: member.value };
