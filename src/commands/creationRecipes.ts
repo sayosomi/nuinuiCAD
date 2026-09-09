@@ -70,7 +70,7 @@ const nameStep: CreationStep = { kind: "name", autoSuggest: true };
 const definitionElement = (type: CadElementType) =>
   createCadElement(type, [], { createId: () => `${type}-recipe-definition` });
 
-const definitionFor = (type: CadElementType, key: ParameterKey): ParameterDefinition => {
+export const creationParameterDefinitionFor = (type: CadElementType, key: ParameterKey): ParameterDefinition => {
   const definition = getParameterDefinitions(definitionElement(type)).find((item) => item.key === key);
   if (!definition) throw new Error(`作成レシピのparameter定義が見つかりません: ${type}.${key}`);
   return definition;
@@ -97,7 +97,7 @@ const creationStepForDefinition = (
 };
 
 const stepFor = (type: CadElementType, key: ParameterKey) => {
-  const step = creationStepForDefinition(definitionFor(type, key));
+  const step = creationStepForDefinition(creationParameterDefinitionFor(type, key));
   if (!step) throw new Error(`作成レシピに使えないparameter定義です: ${type}.${key}`);
   return step;
 };
