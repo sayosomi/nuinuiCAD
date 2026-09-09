@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   pickModeCanvasCommandAllowed,
+  pickModeCanvasCommandAllowedForActive,
   pickModeCanvasOperationAllowed,
   pickModeCanvasOperationForCommand
 } from "./pickModeCanvasPolicy";
@@ -66,5 +67,14 @@ describe("Pick Mode Canvas operation policy", () => {
     expect(pickModeCanvasCommandAllowed("clearCanvasSelection", activeSession)).toBe(false);
     expect(pickModeCanvasCommandAllowed("undo", activeSession)).toBe(false);
     expect(pickModeCanvasCommandAllowed("addLine", activeSession)).toBe(false);
+  });
+
+  it("applies the same command classification to an externally active Source Pick", () => {
+    expect(pickModeCanvasCommandAllowedForActive("applySelectedPickCandidate", true)).toBe(true);
+    expect(pickModeCanvasCommandAllowedForActive("fitDrawing", true)).toBe(true);
+    expect(pickModeCanvasCommandAllowedForActive("clearCanvasSelection", true)).toBe(false);
+    expect(pickModeCanvasCommandAllowedForActive("undo", true)).toBe(false);
+    expect(pickModeCanvasCommandAllowedForActive("addLine", true)).toBe(false);
+    expect(pickModeCanvasCommandAllowedForActive("addLine", false)).toBe(true);
   });
 });

@@ -88,3 +88,11 @@ export const pickModeCanvasCommandAllowed = (
   pickModeCanvasOperationForCommand(commandId),
   session
 );
+
+export const pickModeCanvasCommandAllowedForActive = (
+  commandId: string,
+  active: boolean
+): boolean => pickModeCanvasOperationAllowedForActive(
+  pickModeCanvasOperationForCommand(commandId),
+  active
+);
