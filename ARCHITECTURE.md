@@ -1060,12 +1060,15 @@ history prevents a Pick from starting.
 owns final one-edit Source mutation and Source focus/caret restoration. In the
 Webview, `useVSCodeReferencePickSession.ts` independently checks the current
 canonical source, compiled source/revision, and evaluation freshness before
-starting the shared reference-pick session. `VSCodeReferencePickOverlay.tsx`
-projects the existing candidate/hit-test/session semantics into hover, draft,
-Done/Enter, and Esc UI using the established Canvas bottom-right transient hint
-and Canvas theme variables. Source changes, document close, stale proof/version,
-panel disposal, stale responses, or invalidated targets cancel or fail closed
-without source mutation.
+starting the shared reference-pick session. `VSCodeDrawingCanvas.tsx` renders
+`VSCodeReferencePickModeStatus.tsx`, which projects the Source target and draft
+through the shared `PickModeStatusView` inside the existing
+`data-reference-pick-ui="true"` interaction boundary. `VSCodeReferencePickOverlay.tsx`
+remains the candidate/hit-test and subordinate point/property chooser owner and
+routes Canvas pointer/keyboard interaction into the shared session; it no longer
+owns a caller-specific outer status shell. Source changes, document close, stale
+proof/version, panel disposal, stale responses, or invalidated targets cancel or
+fail closed without source mutation.
 
 The Preview route uses `modulePreviewProtocol.ts`,
 `useVSCodeModulePreviewReferencePickSession.ts`, and
