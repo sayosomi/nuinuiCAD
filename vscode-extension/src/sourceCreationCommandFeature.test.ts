@@ -2,7 +2,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   commands: new Map<string, (...args: unknown[]) => unknown>(),
-  runSourceCreationFlow: vi.fn()
+  pickCreationCommand: vi.fn(),
+  showQuickPick: vi.fn(),
+  insertSnippet: vi.fn()
 }));
 
 const disposable = (dispose: () => void = () => undefined) => ({ dispose });
@@ -15,8 +17,14 @@ vi.mock("vscode", () => ({
     }
   }
 }));
-vi.mock("./sourceCreationFlow", () => ({
-  runSourceCreationFlow: mocks.runSourceCreationFlow
+vi.mock("./creationCommandQuickPick", () => ({
+  pickVscodeCreationCommand: mocks.pickCreationCommand
+}));
+vi.mock("./nativeQuickInput", () => ({
+  nativeShowQuickPick: mocks.showQuickPick
+}));
+vi.mock("./sourceCreationSnippetAdapter", () => ({
+  insertSourceCreationSnippet: mocks.insertSnippet
 }));
 
 import {
@@ -26,23 +34,37 @@ import {
 
 beforeEach(() => {
   mocks.commands.clear();
-  mocks.runSourceCreationFlow.mockReset();
+  mocks.pickCreationCommand.mockReset();
+  mocks.showQuickPick.mockReset();
+  mocks.insertSnippet.mockReset();
 });
 
 describe("Source Create Geometry command feature", () => {
-  it("captures the supplied Source editor caret once and runs the existing flow", async () => {
+  it("runs the one-form production command path through materialization and snippet insertion", async () => {
     const activePosition = { line: 4, character: 7 };
     const editor = { selection: { active: activePosition } };
     const activeSourceEditor = vi.fn(() => editor);
     const displayLanguageFor = vi.fn(() => "ja-JP");
-    mocks.runSourceCreationFlow.mockResolvedValue(true);
+    const insertionResult = Promise.resolve(true);
+    mocks.pickCreationCommand.mockResolvedValue("addLine");
+    mocks.insertSnippet.mockReturnValue(insertionResult);
     const feature = registerVscodeSourceCreationCommandFeature({ activeSourceEditor, displayLanguageFor });
 
     await expect(mocks.commands.get(VSCODE_SOURCE_CREATE_GEOMETRY_COMMAND_ID)?.()).resolves.toBe(true);
 
     expect(activeSourceEditor).toHaveBeenCalledTimes(1);
     expect(displayLanguageFor).toHaveBeenCalledTimes(1);
-    expect(mocks.runSourceCreationFlow).toHaveBeenCalledWith(editor, activePosition, "ja-JP");
+    expect(mocks.pickCreationCommand).toHaveBeenCalledTimes(1);
+    expect(mocks.pickCreationCommand).toHaveBeenCalledWith({ displayLanguage: "ja-JP" });
+    expect(mocks.showQuickPick).not.toHaveBeenCalled();
+    expect(mocks.insertSnippet).toHaveBeenCalledTimes(1);
+    const [insertedEditor, materialization, insertedPosition] = mocks.insertSnippet.mock.calls[0]!;
+    expect(insertedEditor).toBe(editor);
+    expect(insertedPosition).toBe(activePosition);
+    expect(materialization).toMatchObject({
+      commandId: "addLine",
+      formIndex: 0
+    });
     feature.dispose();
   });
 
@@ -55,20 +77,38 @@ describe("Source Create Geometry command feature", () => {
 
     expect(activeSourceEditor).toHaveBeenCalledTimes(1);
     expect(displayLanguageFor).not.toHaveBeenCalled();
-    expect(mocks.runSourceCreationFlow).not.toHaveBeenCalled();
+    expect(mocks.pickCreationCommand).not.toHaveBeenCalled();
+    expect(mocks.showQuickPick).not.toHaveBeenCalled();
+    expect(mocks.insertSnippet).not.toHaveBeenCalled();
     feature.dispose();
   });
 
-  it("leaves type and form cancellation to the existing flow without editing", async () => {
+  it("stops at type cancellation without opening a form picker or inserting a snippet", async () => {
     const editor = { selection: { active: { line: 1, character: 2 } } };
-    mocks.runSourceCreationFlow.mockResolvedValue(undefined);
+    mocks.pickCreationCommand.mockResolvedValue(undefined);
     const feature = registerVscodeSourceCreationCommandFeature({
       activeSourceEditor: () => editor,
       displayLanguageFor: () => "en"
     });
 
     await expect(mocks.commands.get(VSCODE_SOURCE_CREATE_GEOMETRY_COMMAND_ID)?.()).resolves.toBeUndefined();
-    expect(mocks.runSourceCreationFlow).toHaveBeenCalledTimes(1);
+    expect(mocks.showQuickPick).not.toHaveBeenCalled();
+    expect(mocks.insertSnippet).not.toHaveBeenCalled();
+    feature.dispose();
+  });
+
+  it("stops at form cancellation after reaching the real form picker", async () => {
+    const editor = { selection: { active: { line: 1, character: 2 } } };
+    mocks.pickCreationCommand.mockResolvedValue("addDivisionPoint");
+    mocks.showQuickPick.mockResolvedValue(undefined);
+    const feature = registerVscodeSourceCreationCommandFeature({
+      activeSourceEditor: () => editor,
+      displayLanguageFor: () => "en"
+    });
+
+    await expect(mocks.commands.get(VSCODE_SOURCE_CREATE_GEOMETRY_COMMAND_ID)?.()).resolves.toBeUndefined();
+    expect(mocks.showQuickPick).toHaveBeenCalledTimes(1);
+    expect(mocks.insertSnippet).not.toHaveBeenCalled();
     feature.dispose();
   });
 });
