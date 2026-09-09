@@ -2173,6 +2173,9 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     const sourceArgument = argument("source");
     const line1Argument = argument("line1");
     const line2Argument = argument("line2");
+    const firstArgument = argument("first");
+    const secondArgument = argument("second");
+    const kindArgument = argument("kind");
     const lineArgument = argument("line");
     const baseArgument = argument("base");
     const distanceArgument = argument("distance");
@@ -2534,6 +2537,45 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         line2: line(line2Argument),
         index: scalar(argument("index"), { kind: "number" }, "0"),
         extensions: scalar(argument("extensions"), { kind: "boolean" }, "false")
+      };
+    }
+    if (invocation.construction === "commonTangent" && invocation.pureValueInterface === "line") {
+      if (expectedInterfaceType !== "line" && expectedInterfaceType !== "path") {
+        addLocal(statementIndex, issue("module-geometry-type-mismatch", constructionSpan, "commonTangent construction は line または path value にのみ代入できます。", {
+          presentation: { key: "diagnostic.module-geometry-type-mismatch", parameters: { target: "commonTangent" } }
+        }));
+      }
+      const line = (candidate: typeof firstArgument) => candidate
+        ? resolveGeometry(
+            statementIndex,
+            ownerIndex,
+            source.slice(candidate.valueSpan.start, candidate.valueSpan.end),
+            candidate.valueSpan,
+            "line",
+            {
+              expectedInterfaceType: "path",
+              allowCoordinate: false,
+              role: "lineReference",
+              scalarResolver: options.scalarResolver,
+              bareScalarResolver: options.bareScalarResolver,
+              geometryPropertyResolver: options.geometryPropertyResolver,
+              presenceFacts: options.presenceFacts
+            }
+          )
+        : geometryReference("", constructionSpan, "line", null, "invalid", null, "lineReference");
+      const tangentKindType = scalarTypeForParameterDefinition(
+        getParameterDefinitions({ type: "commonTangentLine" } as never).find((definition) => definition.key === "kind")
+      );
+      const sideType = scalarTypeForParameterDefinition(
+        getParameterDefinitions({ type: "commonTangentLine" } as never).find((definition) => definition.key === "side")
+      );
+      return {
+        kind: "commonTangent",
+        span: { start: constructionSpan.start, end: initializerSpan.end },
+        first: line(firstArgument),
+        second: line(secondArgument),
+        tangentKind: kindArgument && tangentKindType ? scalar(kindArgument, tangentKindType, "external") : null,
+        side: sideArgument && sideType ? scalar(sideArgument, sideType, "left") : null
       };
     }
     if (invocation.construction === "tangentOffset" && invocation.pureValueInterface === "point") {
@@ -3652,6 +3694,11 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       rootGeometryReferencesByStatementId.set(statementId, [
         { parameterKey: "line", span: construction.line.span, reference: construction.line },
         { parameterKey: "base", span: construction.base.span, reference: construction.base }
+      ]);
+    } else if (construction?.kind === "commonTangent") {
+      rootGeometryReferencesByStatementId.set(statementId, [
+        { parameterKey: "first", span: construction.first.span, reference: construction.first },
+        { parameterKey: "second", span: construction.second.span, reference: construction.second }
       ]);
     } else if (construction?.kind === "bezierExtremePoint") {
       rootGeometryReferencesByStatementId.set(statementId, [

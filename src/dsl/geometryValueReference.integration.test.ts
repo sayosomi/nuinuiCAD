@@ -161,10 +161,16 @@ describe("immutable single-geometry reference values", () => {
       direction: { type: { kind: "choice", options: ["counterclockwise", "clockwise"] } }
     });
     expect(pureGeometryValueConstructionCandidates("point").map((candidate) => candidate.label)).toEqual(["coordinate", "offset", "polar", "between", "onLine", "intersection", "tangentOffset", "bezierExtremePoint", "bezierBulgePoint"]);
-    expect(pureGeometryValueConstructionCandidates("line").map((candidate) => candidate.label)).toEqual(["segment", "polar"]);
-    expect(pureGeometryValueConstructionCandidates("path").map((candidate) => candidate.label)).toEqual(["segment", "polar", "offset", "polyline", "bezier", "arc", "through"]);
+    expect(pureGeometryValueConstructionCandidates("line").map((candidate) => candidate.label)).toEqual(["segment", "polar", "commonTangent"]);
+    expect(pureGeometryValueConstructionCandidates("path").map((candidate) => candidate.label)).toEqual(["segment", "polar", "commonTangent", "offset", "polyline", "bezier", "arc", "through"]);
     expect(pureGeometryValueConstructionCandidates("point").map((candidate) => candidate.label)).not.toContain("through");
     expect(pureGeometryValueConstructionCandidates("line").map((candidate) => candidate.label)).not.toContain("through");
+
+    const missingRequiredChoice = compile([
+      "nui 1",
+      "const Missing: line = commonTangent(first: (0, 0), second: (10, 0), kind: external)"
+    ].join("\n"));
+    expect(missingRequiredChoice.diagnostics.some((diagnostic) => diagnostic.message.includes("必須引数「side」"))).toBe(true);
   });
 
   it("registers point and strict-line polar constructions with shared reference and scalar sites", () => {

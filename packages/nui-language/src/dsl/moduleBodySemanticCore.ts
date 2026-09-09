@@ -495,6 +495,11 @@ export const analyzeModuleBody = ({
           addGeometry(bodySemantic, "construction:line2", construction.line2.span, construction.line2);
           if (construction.index) addScalar(bodySemantic, "construction:index", construction.index.ast.span, construction.index);
           if (construction.extensions) addScalar(bodySemantic, "construction:extensions", construction.extensions.ast.span, construction.extensions);
+        } else if (construction?.kind === "commonTangent") {
+          addGeometry(bodySemantic, "construction:first", construction.first.span, construction.first);
+          addGeometry(bodySemantic, "construction:second", construction.second.span, construction.second);
+          if (construction.tangentKind) addScalar(bodySemantic, "construction:kind", construction.tangentKind.ast.span, construction.tangentKind);
+          if (construction.side) addScalar(bodySemantic, "construction:side", construction.side.ast.span, construction.side);
         } else if (construction?.kind === "tangentOffset") {
           addGeometry(bodySemantic, "construction:line", construction.line.span, construction.line);
           addGeometry(bodySemantic, "construction:base", construction.base.span, construction.base);
