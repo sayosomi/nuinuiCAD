@@ -1,7 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { throughArcGeometryKernel, type StructuralPoint } from "./geometryValueKernels";
+import { polarLineGeometryKernel, polarPointGeometryKernel, throughArcGeometryKernel, type StructuralPoint } from "./geometryValueKernels";
 
 const point = (x: number, y: number): StructuralPoint => ({ x, y });
+
+describe("polar geometry kernels", () => {
+  it("shares the polar endpoint calculation with the strict-line kernel", () => {
+    const start = point(10, 20);
+    const end = polarPointGeometryKernel(start, 30, 100);
+    const line = polarLineGeometryKernel(start, 30, 100);
+
+    expect(end.x).toBeCloseTo(10 + Math.cos(Math.PI / 6) * 100, 12);
+    expect(end.y).toBeCloseTo(20 + Math.sin(Math.PI / 6) * 100, 12);
+    expect(line).toEqual(expect.objectContaining({ kind: "line", start, end }));
+    expect(line.length).toBeCloseTo(100, 12);
+    expect(line.startAngleDeg).toBeCloseTo(30, 12);
+    expect(line.endAngleDeg).toBeCloseTo(210, 12);
+  });
+});
 
 describe("throughArcGeometryKernel", () => {
   it("solves an identity-free circle and creates the requested counterclockwise arc", () => {

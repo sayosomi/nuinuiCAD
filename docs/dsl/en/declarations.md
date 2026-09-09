@@ -8,7 +8,9 @@ Typed scalar declarations use an explicit type annotation and initializer:
 - `const name: point|line|path = @reference` creates a read-only, non-drawable
   geometry value. The initializer may be an existing geometry reference or, in
   the implemented pure-value subset, `coordinate(x: ..., y: ...)` for `point`,
-  `segment(start: ..., end: ...)` for `line` or `path`, and direct
+  `polar(from: ..., angle: ..., distance: ...)` for `point`,
+  `segment(start: ..., end: ...)` for `line` or `path`, `polar(start: ...,
+  angle: ..., length: ...)` for `line` or `path`, and direct
   `arc(center: ..., radius: ..., start: ..., end: ..., direction: ...)` for
   `path`. `direction` defaults to `counterclockwise`.
 - `let name: type = expression` creates a mutable scalar binding.
@@ -52,6 +54,13 @@ both reuse the corresponding drawable offset geometry and preserve the same
 defaults and validation. Runtime failures remain owned by the value occurrence
 and do not create a drawable identity. `corner` and other deferred
 constructions remain unsupported as pure value initializers.
+
+Point `polar(...)` is an identity-free pure point initializer with the same
+degree-angle and `distance` semantics and defaults (`angle: 0`, `distance: 0`)
+as drawable point `polar`. Line `polar(...)` is an identity-free pure strict
+line initializer with the same semantics and defaults (`angle: 0`,
+`length: 100`) as drawable line `polar`; its `line` result is also assignable to
+`path`. Neither pure form creates a drawable element or identity.
 
 `set` does not create a geometry element or a new binding. Its target must be a
 mutable scalar in scope, and its right-hand side is checked against that

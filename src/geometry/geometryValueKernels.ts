@@ -45,6 +45,18 @@ export const offsetPointGeometryKernel = (
   dy: number
 ): StructuralPoint => ({ x: from.x + dx, y: from.y + dy });
 
+export const polarPointGeometryKernel = (
+  from: StructuralPoint,
+  angleDeg: number,
+  distance: number
+): StructuralPoint => {
+  const angleRad = degreesToRadians(angleDeg);
+  return {
+    x: from.x + Math.cos(angleRad) * distance,
+    y: from.y + Math.sin(angleRad) * distance
+  };
+};
+
 const identityFreePoint = ({ x, y }: { x: number; y: number }) => ({ x, y });
 
 const identityFreeOffsetSegment = (
@@ -95,6 +107,12 @@ export const segmentGeometryKernel = (start: StructuralPoint, end: StructuralPoi
   length: Math.hypot(end.x - start.x, end.y - start.y),
   ...lineTangentAngles(start, end)
 });
+
+export const polarLineGeometryKernel = (
+  start: StructuralPoint,
+  angleDeg: number,
+  length: number
+): StructuralLine => segmentGeometryKernel(start, polarPointGeometryKernel(start, angleDeg, length));
 
 export const polylineGeometryKernel = (
   points: readonly StructuralPoint[],

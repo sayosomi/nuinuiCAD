@@ -42,9 +42,21 @@ export type GeometryValueProgramConstruction =
       dy: TypedScalarExpression;
     }
   | {
+      kind: "polarPoint";
+      from: GeometryValueProgramPoint;
+      angleDeg: TypedScalarExpression;
+      distance: TypedScalarExpression;
+    }
+  | {
       kind: "segment";
       start: GeometryValueProgramPoint;
       end: GeometryValueProgramPoint;
+    }
+  | {
+      kind: "polarLine";
+      start: GeometryValueProgramPoint;
+      angleDeg: TypedScalarExpression;
+      length: TypedScalarExpression;
     }
   | {
       kind: "arc";
@@ -232,12 +244,26 @@ export const buildRootGeometryValueProgram = ({
             const dy = literalScalarExpression(value.construction.dy);
             return from && dx && dy ? { kind: "offsetPoint" as const, from, dx, dy } : null;
           })()
+        : value.construction.kind === "polarPoint"
+          ? (() => {
+              const from = pointForReference(value.construction.from);
+              const angleDeg = literalScalarExpression(value.construction.angle);
+              const distance = literalScalarExpression(value.construction.distance);
+              return from && angleDeg && distance ? { kind: "polarPoint" as const, from, angleDeg, distance } : null;
+            })()
         : value.construction.kind === "segment"
         ? (() => {
             const start = pointForReference(value.construction.start);
             const end = pointForReference(value.construction.end);
             return start && end ? { kind: "segment" as const, start, end } : null;
           })()
+        : value.construction.kind === "polarLine"
+          ? (() => {
+              const start = pointForReference(value.construction.start);
+              const angleDeg = literalScalarExpression(value.construction.angle);
+              const length = literalScalarExpression(value.construction.length);
+              return start && angleDeg && length ? { kind: "polarLine" as const, start, angleDeg, length } : null;
+            })()
         : value.construction.kind === "arc"
           ? (() => {
             const center = pointForReference(value.construction.center);

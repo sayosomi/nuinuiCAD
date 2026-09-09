@@ -93,7 +93,7 @@ export const commonArgSpecs: DslArgSpec[] = [
 const constructionSpecs: DslConstructionSpec[] = [
   { category: "point", construction: "coordinate", elementType: "freePoint", pureValueInterface: "point", args: [arg("x"), arg("y")] },
   { category: "point", construction: "offset", elementType: "offsetPoint", pureValueInterface: "point", args: [required("from", "fromPoint"), arg("dx"), arg("dy")] },
-  { category: "point", construction: "polar", elementType: "polarOffsetPoint", args: [required("from", "fromPoint"), arg("angle", "angleDeg"), arg("distance")] },
+  { category: "point", construction: "polar", elementType: "polarOffsetPoint", pureValueInterface: "point", args: [required("from", "fromPoint"), arg("angle", "angleDeg"), arg("distance")] },
   {
     category: "point",
     construction: "between",
@@ -134,7 +134,7 @@ const constructionSpecs: DslConstructionSpec[] = [
     args: [required("source", "baseLineId"), arg("segmentIndex")],
   },
   { category: "line", construction: "segment", elementType: "line", pureValueInterface: "line", args: [required("start", "startPoint"), required("end", "endPoint")] },
-  { category: "line", construction: "polar", elementType: "angleLengthLine", args: [required("start", "startPoint"), arg("angle", "angleDeg"), arg("length")] },
+  { category: "line", construction: "polar", elementType: "angleLengthLine", pureValueInterface: "line", args: [required("start", "startPoint"), arg("angle", "angleDeg"), arg("length")] },
   {
     category: "line",
     construction: "commonTangent",
