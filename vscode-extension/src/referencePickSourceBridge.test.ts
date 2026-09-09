@@ -198,6 +198,34 @@ describe("createVscodeReferencePickSourceBridge", () => {
     expect(request?.initialDraftReferences).toEqual([{ base: "A" }]);
   });
 
+  it("carries an existing numeric property draft into a fresh start request", () => {
+    const source = [
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line Base = segment(start: @A, end: @B)",
+      "point P = offset(from: @A, dx: @Base.length, dy: 0)"
+    ].join("\n");
+    const document = createDocument(source);
+    const editor = createEditor(document);
+    mocks.textDocuments = [document];
+    const bridge = createVscodeReferencePickSourceBridge({
+      editor: editor as never,
+      languageAnalysisSession: createLanguageAnalysisSession(source),
+      requestId: 22,
+      normalizedSourceOffset: source.indexOf("@Base.length") + 1,
+      initialNumericPropertyDraft: { reference: { base: "Base" }, property: "length" },
+      postMessage: vi.fn()
+    });
+
+    const request = bridge.start();
+
+    expect(request?.initialNumericPropertyDraft).toEqual({
+      reference: { base: "Base" },
+      property: "length"
+    });
+  });
+
   it("applies a numeric confirmation as one complete Source edit and restores the final caret", async () => {
     const source = [
       "nui 1",

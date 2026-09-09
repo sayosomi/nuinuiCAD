@@ -18,7 +18,7 @@ const compile = (source: string, sourceRevision = REVISION): CompiledDslDocument
 const fixture = (source: string, fragment: string) => {
   const compiled = compile(source);
   const fragmentStart = source.indexOf(fragment);
-  const position = fragmentStart + Math.max(1, fragment.indexOf("@") + 2);
+  const position = fragmentStart + Math.max(1, fragment.indexOf("@") + 1);
   const target = queryDslReferencePickTarget({
     source: { normalizedSource: source, sourceRevision: REVISION },
     position,
@@ -182,7 +182,7 @@ describe("planVscodeReferencePickSourceEdit", () => {
       });
     };
 
-    const declarationPosition = source.indexOf("const X: number = ") + "const X: number = ".length;
+    const declarationPosition = source.indexOf("const X: number =") + "const X: number =".length;
     const declarationPlan = planFor(declarationPosition);
     expect(declarationPlan).toMatchObject({
       range: { from: declarationPosition, to: declarationPosition },

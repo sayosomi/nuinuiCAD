@@ -27,7 +27,7 @@ describe("queryDslReferencePickTarget empty values", () => {
       "instance X = M(broad: )"
     ].join("\n");
     const compiled = compileWithIds(source);
-    const position = source.lastIndexOf("broad: ") + "broad: ".length;
+    const position = source.lastIndexOf("broad:") + "broad:".length;
 
     expect(queryAt(source, compiled, position)).toMatchObject({
       expectedGeometryInterface: "path",

@@ -257,6 +257,27 @@ export const referencePickSeedReferences = (
   return parsed ? [parsed] : [];
 };
 
+/**
+ * Seeds the shared numeric-property Pick draft only for a complete
+ * `@Geometry.property` source operand. Numeric literals and scalar variables
+ * intentionally return no Canvas selection seed.
+ */
+export const referencePickNumericPropertyDraftFor = (
+  proof: VscodeReferencePickTargetProof
+): VscodeReferencePickNumericPropertyDraft | null => {
+  if (proof.role !== "numericPropertyBase" || !proof.numericProperty) return null;
+  const parsed = parseDslSourceReference(proof.oldText);
+  if (
+    parsed.kind !== "valid" ||
+    parsed.reference.property === null ||
+    !isNumericComputedGeometryProperty(parsed.reference.property)
+  ) return null;
+  return {
+    reference: { base: formatDslReferencePath(parsed.reference.path) },
+    property: parsed.reference.property
+  };
+};
+
 export const referencePickReplacementText = (
   multiplicity: DslReferencePickTarget["multiplicity"],
   references: readonly CanonicalGeometrySourceReference[]
