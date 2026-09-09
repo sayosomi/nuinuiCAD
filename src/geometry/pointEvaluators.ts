@@ -2,15 +2,10 @@ import type { CadElement, NumericValue } from "../types/geometry";
 import { pointAnchorForElement } from "../model/pointAnchors";
 import { degreesToRadians, normalizeDegrees360 } from "../scalars/angleMath";
 import {
-  cross,
   cubicDerivativeAt,
-  cubicPointAt,
-  dot,
   EPSILON,
   projectPointOntoCurve,
-  selectBestBezierFeatureCandidate,
   signedCurvatureAt,
-  solveRealQuadratic
 } from "./bezierMath";
 import type { BezierLikeSegment } from "./bezierMath";
 import { dependencyError, geometryError, getComputedPointOrError, getPointAnchorOrError, numericError } from "./evaluationContext";
@@ -18,7 +13,13 @@ import { pointAtDistanceFromEndpoint, isLineLikeGeometryInput, tangentAtPointOnL
 import { findLineIntersections } from "./lineIntersections";
 import { resolveLineGeometryInput } from "./lineGeometryInput";
 import type { ElementEvaluationContext } from "./elementEvaluatorTypes";
-import { coordinateGeometryKernel, divisionPointGeometryKernel, polarPointGeometryKernel } from "./geometryValueKernels";
+import {
+  bezierBulgePointGeometryKernel,
+  bezierExtremePointGeometryKernel,
+  coordinateGeometryKernel,
+  divisionPointGeometryKernel,
+  polarPointGeometryKernel
+} from "./geometryValueKernels";
 
 /**
  * The only place a divisionPoint/lineDivisionPoint's placement is read leniently:
@@ -33,75 +34,6 @@ const decodeDivisionPlacement = (
   return record?.kind === "distance"
     ? { kind: "distance", value: record.value }
     : { kind: "ratio", value: record?.value };
-};
-
-const bezierExtremePointAt = (
-  segment: BezierLikeSegment,
-  direction: { x: number; y: number }
-) => {
-  const derivativeProjection = (t: number) => dot(cubicDerivativeAt(segment, t), direction);
-  const f0 = derivativeProjection(0);
-  const fHalf = derivativeProjection(0.5);
-  const f1 = derivativeProjection(1);
-  const c = f0;
-  const a = 2 * (f1 + f0 - 2 * fHalf);
-  const b = f1 - f0 - a;
-  const candidates = [0, 1].map((t) => ({
-    t,
-    score: dot(cubicPointAt(segment, t), direction)
-  }));
-
-  for (const root of solveRealQuadratic(a, b, c)) {
-    if (root > 0 && root < 1) {
-      candidates.push({
-        t: root,
-        score: dot(cubicPointAt(segment, root), direction)
-      });
-    }
-  }
-
-  if (Math.abs(f0) <= EPSILON && Math.abs(fHalf) <= EPSILON && Math.abs(f1) <= EPSILON) {
-    candidates.push({
-      t: 0.5,
-      score: dot(cubicPointAt(segment, 0.5), direction)
-    });
-  }
-
-  const selected = selectBestBezierFeatureCandidate(candidates);
-  return cubicPointAt(segment, selected?.t ?? 0.5);
-};
-
-const bezierBulgePointAt = (segment: BezierLikeSegment) => {
-  const chord = {
-    x: segment.end.x - segment.start.x,
-    y: segment.end.y - segment.start.y
-  };
-  const chordLength = Math.hypot(chord.x, chord.y);
-  if (chordLength <= EPSILON) return null;
-
-  const derivativeCross = (t: number) => cross(chord, cubicDerivativeAt(segment, t));
-  const q0 = derivativeCross(0);
-  const qHalf = derivativeCross(0.5);
-  const q1 = derivativeCross(1);
-  const c = q0;
-  const a = 2 * (q1 + q0 - 2 * qHalf);
-  const b = q1 - q0 - a;
-  const scoreAt = (t: number) =>
-    Math.abs(cross(chord, {
-      x: cubicPointAt(segment, t).x - segment.start.x,
-      y: cubicPointAt(segment, t).y - segment.start.y
-    })) / chordLength;
-  const candidates = [] as { t: number; score: number }[];
-
-  for (const root of solveRealQuadratic(a, b, c)) {
-    if (root > 0 && root < 1) candidates.push({ t: root, score: scoreAt(root) });
-  }
-  if (Math.abs(q0) <= EPSILON && Math.abs(qHalf) <= EPSILON && Math.abs(q1) <= EPSILON) {
-    candidates.push({ t: 0.5, score: scoreAt(0.5) });
-  }
-
-  const selected = selectBestBezierFeatureCandidate(candidates);
-  return cubicPointAt(segment, selected?.t ?? 0.5);
 };
 
 type CurveSide = "convex" | "concave";
@@ -562,7 +494,7 @@ export const evaluatePointElement = (element: CadElement, context: ElementEvalua
         }
 
         const normalizedDirection = degreesToRadians(normalizeDegrees360(directionDeg));
-        const point = bezierExtremePointAt(source.segments[segmentIndex], {
+        const point = bezierExtremePointGeometryKernel(source.segments[segmentIndex], {
           x: Math.cos(normalizedDirection),
           y: Math.sin(normalizedDirection)
         });
@@ -623,7 +555,7 @@ export const evaluatePointElement = (element: CadElement, context: ElementEvalua
           break;
         }
 
-        const point = bezierBulgePointAt(segment);
+        const point = bezierBulgePointGeometryKernel(segment);
         if (!point) break;
         computedGeometry.set(element.id, {
           kind: "point",

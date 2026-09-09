@@ -153,6 +153,42 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("matches pure Bezier feature points from pure and drawable sources", () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "const Curve: path = bezier(start: (0, 0), end: (10, 0), startAngle: 90, startLength: 10, endAngle: -90, endLength: 10)",
+      "const PureExtreme: point = bezierExtremePoint(source: @Curve, segmentIndex: 0, direction: 450)",
+      "const PureBulge: point = bezierBulgePoint(source: @Curve)",
+      "curve Drawable = bezier(start: (0, 0), end: (10, 0), startAngle: 90, startLength: 10, endAngle: -90, endLength: 10)",
+      "const DrawableExtreme: point = bezierExtremePoint(source: @Drawable, direction: 90)",
+      "const DrawableBulge: point = bezierBulgePoint(source: @Drawable)"
+    ].join("\n"));
+    const program = fixture.compiled?.doc.geometryValueProgram;
+    if (!program || program.length !== 5) throw new Error("expected five pure Bezier feature-point program entries");
+    const options = optionsFor(fixture);
+
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustOptions(repoRoot, fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+
+    for (const result of [evaluationPayloadToResult(tsPayload), evaluationPayloadToResult(rustPayload)]) {
+      expect(result.errors).toEqual([]);
+      expect(result.geometryValueErrors).toEqual([]);
+      const values = [...(result.computedGeometryValues?.values() ?? [])];
+      expect(values).toHaveLength(5);
+      for (const entry of values.filter((candidate) => candidate.value.kind === "point")) {
+        expect(entry.value).toMatchObject({
+          kind: "point",
+          x: expect.closeTo(5, 10),
+          y: expect.closeTo(7.5, 10)
+        });
+        expect(entry.value).not.toHaveProperty("elementId");
+        expect(entry.value).not.toHaveProperty("name");
+      }
+    }
+  }, 30000);
+
   it("matches pure between and onLine division points across TypeScript and Rust", () => {
     const fixture = fixtureFromSource([
       "nui 1",

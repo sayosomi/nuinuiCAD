@@ -156,6 +156,203 @@ fn input(elements: Vec<Value>, program: Vec<Value>) -> EvaluationInput {
 }
 
 #[test]
+fn pure_bezier_feature_points_accept_pure_sources_and_remain_identity_free() {
+    let curve_occurrence = json!({
+        "sourceStatementId": "value:curve",
+        "instancePath": []
+    });
+    let extreme_occurrence = json!({
+        "sourceStatementId": "value:extreme",
+        "instancePath": []
+    });
+    let bulge_occurrence = json!({
+        "sourceStatementId": "value:bulge",
+        "instancePath": []
+    });
+    let curve_target = json!({
+        "kind": "geometryValue",
+        "statementId": "value:curve",
+        "statementIndex": 0,
+        "geometryType": "path",
+        "occurrence": curve_occurrence.clone()
+    });
+    let curve = json!({
+        "kind": "bezier",
+        "start": { "kind": "coordinate", "x": number(0.0), "y": number(0.0) },
+        "end": { "kind": "coordinate", "x": number(10.0), "y": number(0.0) },
+        "startAngleDeg": number(90.0),
+        "startLength": number(10.0),
+        "endAngleDeg": number(-90.0),
+        "endLength": number(10.0),
+        "intermediates": []
+    });
+    let feature_source = json!({ "kind": "target", "target": curve_target.clone() });
+    let program = vec![
+        json!({
+            "sourceStatementId": "value:curve",
+            "sourceStatementIndex": 0,
+            "declaredInterfaceType": "path",
+            "occurrence": curve_occurrence,
+            "executionPosition": 0.0,
+            "construction": curve
+        }),
+        json!({
+            "sourceStatementId": "value:extreme",
+            "sourceStatementIndex": 1,
+            "declaredInterfaceType": "point",
+            "occurrence": extreme_occurrence,
+            "executionPosition": 1.0,
+            "construction": {
+                "kind": "bezierExtremePoint",
+                "source": feature_source,
+                "segmentIndex": number(0.0),
+                "direction": number(450.0)
+            }
+        }),
+        json!({
+            "sourceStatementId": "value:bulge",
+            "sourceStatementIndex": 2,
+            "declaredInterfaceType": "point",
+            "occurrence": bulge_occurrence,
+            "executionPosition": 2.0,
+            "construction": {
+                "kind": "bezierBulgePoint",
+                "source": { "kind": "target", "target": curve_target },
+                "segmentIndex": number(0.0)
+            }
+        }),
+    ];
+
+    let result = evaluate_document_input(input(Vec::new(), program));
+
+    assert!(result.errors.is_empty());
+    assert!(result.geometry_value_errors.is_empty());
+    assert!(result.computed_geometry.is_empty());
+    assert_eq!(result.computed_geometry_values.len(), 3);
+    for value in result.computed_geometry_values.iter().skip(1) {
+        assert_eq!(value["value"]["kind"], "point");
+        assert!((value["value"]["x"].as_f64().unwrap() - 5.0).abs() < 1e-10);
+        assert!((value["value"]["y"].as_f64().unwrap() - 7.5).abs() < 1e-10);
+        assert!(value["value"].get("elementId").is_none());
+        assert!(value["value"].get("name").is_none());
+    }
+}
+
+#[test]
+fn pure_bezier_feature_points_report_occurrence_owned_source_and_segment_errors() {
+    let source_occurrence = json!({
+        "sourceStatementId": "value:source",
+        "instancePath": []
+    });
+    let invalid_occurrence = json!({
+        "sourceStatementId": "value:invalid",
+        "instancePath": ["instance:one"]
+    });
+    let source_target = json!({
+        "kind": "geometryValue",
+        "statementId": "value:source",
+        "statementIndex": 0,
+        "geometryType": "path",
+        "occurrence": source_occurrence.clone()
+    });
+    let source = json!({
+        "kind": "segment",
+        "start": { "kind": "coordinate", "x": number(0.0), "y": number(0.0) },
+        "end": { "kind": "coordinate", "x": number(10.0), "y": number(0.0) }
+    });
+    let program = vec![
+        json!({
+            "sourceStatementId": "value:source",
+            "sourceStatementIndex": 0,
+            "declaredInterfaceType": "path",
+            "occurrence": source_occurrence,
+            "executionPosition": 0.0,
+            "construction": source
+        }),
+        json!({
+            "sourceStatementId": "value:invalid",
+            "sourceStatementIndex": 1,
+            "declaredInterfaceType": "point",
+            "occurrence": invalid_occurrence.clone(),
+            "executionPosition": 1.0,
+            "construction": {
+                "kind": "bezierExtremePoint",
+                "source": { "kind": "target", "target": source_target },
+                "segmentIndex": number(0.0),
+                "direction": number(90.0)
+            }
+        }),
+    ];
+    let result = evaluate_document_input(input(Vec::new(), program));
+    assert!(result.errors.is_empty());
+    assert_eq!(result.computed_geometry_values.len(), 1);
+    assert_eq!(result.geometry_value_errors.len(), 1);
+    assert_eq!(
+        result.geometry_value_errors[0].occurrence.instance_path,
+        vec!["instance:one"]
+    );
+    assert_eq!(
+        result.geometry_value_errors[0].message,
+        "Bezier feature-point construction requires a computed Bezier curve source."
+    );
+
+    let source_occurrence = json!({
+        "sourceStatementId": "value:curve",
+        "instancePath": []
+    });
+    let feature_occurrence = json!({
+        "sourceStatementId": "value:feature",
+        "instancePath": []
+    });
+    let curve_target = json!({
+        "kind": "geometryValue",
+        "statementId": "value:curve",
+        "statementIndex": 0,
+        "geometryType": "path",
+        "occurrence": source_occurrence.clone()
+    });
+    let curve = json!({
+        "kind": "bezier",
+        "start": { "kind": "coordinate", "x": number(0.0), "y": number(0.0) },
+        "end": { "kind": "coordinate", "x": number(10.0), "y": number(0.0) },
+        "startAngleDeg": number(0.0),
+        "startLength": number(0.0),
+        "endAngleDeg": number(0.0),
+        "endLength": number(0.0),
+        "intermediates": []
+    });
+    let range_program = vec![
+        json!({
+            "sourceStatementId": "value:curve",
+            "sourceStatementIndex": 0,
+            "declaredInterfaceType": "path",
+            "occurrence": source_occurrence,
+            "executionPosition": 0.0,
+            "construction": curve
+        }),
+        json!({
+            "sourceStatementId": "value:feature",
+            "sourceStatementIndex": 1,
+            "declaredInterfaceType": "point",
+            "occurrence": feature_occurrence,
+            "executionPosition": 1.0,
+            "construction": {
+                "kind": "bezierBulgePoint",
+                "source": { "kind": "target", "target": curve_target },
+                "segmentIndex": number(1.0)
+            }
+        }),
+    ];
+    let result = evaluate_document_input(input(Vec::new(), range_program));
+    assert!(result.errors.is_empty());
+    assert_eq!(result.computed_geometry_values.len(), 1);
+    assert_eq!(
+        result.geometry_value_errors[0].message,
+        "bezierBulgePoint segmentIndex 1 is outside the source Bezier segment range (1 segments)."
+    );
+}
+
+#[test]
 fn coordinate_value_stays_out_of_drawable_geometry_and_feeds_a_line() {
     let occurrence = json!({
         "sourceStatementId": "value:p",

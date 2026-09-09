@@ -779,6 +779,14 @@ geometry and Bezier geometry produced by split, trim, or extend are accepted;
 other computed kinds such as line, arc, or offset line produce a geometry
 error, while missing or disabled sources produce a dependency error.
 
+`bezierExtremePoint(...)` and `bezierBulgePoint(...)` are also supported as
+identity-free pure `point` initializers. Their `source` is a resolved geometry
+value target and may be either a drawable Bezier curve or a pure `bezier(...)`
+path value, including supported Module local, export, and cross-document value
+flows. They use the same segment validation, direction normalization, candidate
+selection, and degenerate-chord rules described above; pure failures are stored
+on the value occurrence and do not allocate a drawable identity.
+
 ## Groups and activity
 
 `group` combines four roles:

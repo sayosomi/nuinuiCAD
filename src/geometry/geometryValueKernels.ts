@@ -6,11 +6,94 @@ import type {
   ComputedGeometryValuePolyline,
   ComputedOffsetLine
 } from "./evaluationTypes";
-import { approximateCubicLength, type BezierLikeSegment } from "./bezierMath";
+import {
+  approximateCubicLength,
+  cross,
+  cubicDerivativeAt,
+  cubicPointAt,
+  dot,
+  EPSILON,
+  selectBestBezierFeatureCandidate,
+  solveRealQuadratic,
+  type BezierLikeSegment
+} from "./bezierMath";
 import { CIRCLE_EPSILON, degreesToRadians, directedSweepDegrees } from "./evaluateGeometryPrimitives";
 import { arcTangentAngles, lineTangentAngles } from "./lineMeasurements";
 
 export type StructuralPoint = { x: number; y: number };
+
+/** Identity-free structural form of the drawable Bezier extreme-point calculation. */
+export const bezierExtremePointGeometryKernel = (
+  segment: BezierLikeSegment,
+  direction: StructuralPoint
+): StructuralPoint => {
+  const derivativeProjection = (t: number) => dot(cubicDerivativeAt(segment, t), direction);
+  const f0 = derivativeProjection(0);
+  const fHalf = derivativeProjection(0.5);
+  const f1 = derivativeProjection(1);
+  const c = f0;
+  const a = 2 * (f1 + f0 - 2 * fHalf);
+  const b = f1 - f0 - a;
+  const candidates = [0, 1].map((t) => ({
+    t,
+    score: dot(cubicPointAt(segment, t), direction)
+  }));
+
+  for (const root of solveRealQuadratic(a, b, c)) {
+    if (root > 0 && root < 1) {
+      candidates.push({
+        t: root,
+        score: dot(cubicPointAt(segment, root), direction)
+      });
+    }
+  }
+
+  if (Math.abs(f0) <= EPSILON && Math.abs(fHalf) <= EPSILON && Math.abs(f1) <= EPSILON) {
+    candidates.push({
+      t: 0.5,
+      score: dot(cubicPointAt(segment, 0.5), direction)
+    });
+  }
+
+  const selected = selectBestBezierFeatureCandidate(candidates);
+  return cubicPointAt(segment, selected?.t ?? 0.5);
+};
+
+/** Identity-free structural form of the drawable Bezier bulge-point calculation. */
+export const bezierBulgePointGeometryKernel = (
+  segment: BezierLikeSegment
+): StructuralPoint | null => {
+  const chord = {
+    x: segment.end.x - segment.start.x,
+    y: segment.end.y - segment.start.y
+  };
+  const chordLength = Math.hypot(chord.x, chord.y);
+  if (chordLength <= EPSILON) return null;
+
+  const derivativeCross = (t: number) => cross(chord, cubicDerivativeAt(segment, t));
+  const q0 = derivativeCross(0);
+  const qHalf = derivativeCross(0.5);
+  const q1 = derivativeCross(1);
+  const c = q0;
+  const a = 2 * (q1 + q0 - 2 * qHalf);
+  const b = q1 - q0 - a;
+  const scoreAt = (t: number) =>
+    Math.abs(cross(chord, {
+      x: cubicPointAt(segment, t).x - segment.start.x,
+      y: cubicPointAt(segment, t).y - segment.start.y
+    })) / chordLength;
+  const candidates: { t: number; score: number }[] = [];
+
+  for (const root of solveRealQuadratic(a, b, c)) {
+    if (root > 0 && root < 1) candidates.push({ t: root, score: scoreAt(root) });
+  }
+  if (Math.abs(q0) <= EPSILON && Math.abs(qHalf) <= EPSILON && Math.abs(q1) <= EPSILON) {
+    candidates.push({ t: 0.5, score: scoreAt(0.5) });
+  }
+
+  const selected = selectBestBezierFeatureCandidate(candidates);
+  return cubicPointAt(segment, selected?.t ?? 0.5);
+};
 
 export type StructuralLine = {
   kind: "line";

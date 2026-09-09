@@ -82,6 +82,51 @@ const evaluateCompiled = (compiled: ReturnType<typeof compileDslDocument>) => {
 };
 
 describe("multi-document module runtime", () => {
+  it("evaluates imported Module pure Bezier feature-point exports through geometry values", async () => {
+    const library = savedSource("feature-library", "sha256:feature-library", [
+      "nui 1",
+      "export module Feature() {",
+      "  const Curve: path = bezier(start: (0, 0), end: (10, 0), startAngle: 90, startLength: 10, endAngle: -90, endLength: 10)",
+      "  export const Extreme: point = bezierExtremePoint(source: @Curve, direction: 90)",
+      "  export const Bulge: point = bezierBulgePoint(source: @Curve)",
+      "}"
+    ].join("\n"));
+    const root = rootSource("feature-root", [
+      "nui 1",
+      "import \"./feature-library.nui\" as lib",
+      "instance use = lib::Feature()",
+      "const Extreme: point = @use::Extreme",
+      "const Bulge: point = @use::Bulge",
+      "line Use = segment(start: @Extreme, end: @Bulge)"
+    ].join("\n"));
+    const { graph, semantics, context, compiled } = await compileImported(
+      root,
+      new Map([[`${root.documentId}|./feature-library.nui`, library]])
+    );
+
+    expect(graph.valid).toBe(true);
+    expect(semantics.valid).toBe(true);
+    expect(context.valid).toBe(true);
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(result.geometryValueErrors).toEqual([]);
+    const values = [...(result.computedGeometryValues?.values() ?? [])].filter((entry) => entry.occurrence.instancePath.length === 1);
+    expect(values).toHaveLength(3);
+    expect(values.filter((entry) => entry.value.kind === "point")).toHaveLength(2);
+    for (const entry of values.filter((candidate) => candidate.value.kind === "point")) {
+      expect(entry.value).toMatchObject({ x: expect.closeTo(5, 10), y: expect.closeTo(7.5, 10) });
+      expect(entry.value).not.toHaveProperty("elementId");
+      expect(entry.value).not.toHaveProperty("name");
+    }
+    const use = compiled.document?.elements.find((element) => element.name === "Use");
+    expect(use && result.computedGeometry.get(use.id)).toMatchObject({
+      kind: "line",
+      start: { x: expect.closeTo(5, 10), y: expect.closeTo(7.5, 10) },
+      end: { x: expect.closeTo(5, 10), y: expect.closeTo(7.5, 10) }
+    });
+  });
+
   it("materializes imported bodies with caller values and defining-document defaults", async () => {
     const library = savedSource("library", "sha256:library", [
       "nui 1",
