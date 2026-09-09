@@ -2,9 +2,11 @@ import {
   argNameForParameter,
   constructionForElementType,
   parameterKeyForArg,
-  type DslConstructionCategory
+  type DslConstructionCategory,
+  type DslConstructionSpec
 } from "../dsl/dslConstructions";
-import type { ParameterKey } from "../parameters/parameterDefinitions";
+import { creationParameterDefinitionFor } from "./creationRecipes";
+import type { ParameterDefinition, ParameterKey } from "../parameters/parameterDefinitions";
 import type { CadElementType } from "../types/geometry";
 import {
   creationRecipeForLegacyCommand,
@@ -18,6 +20,10 @@ export type SourceCreationTemplateArgumentHole = {
   argName: string;
   /** The existing creation-recipe parameter filled by this argument. */
   parameterKey: ParameterKey;
+  /** The existing parameter value kind used by the Source adapter. */
+  kind: ParameterDefinition["kind"];
+  /** The existing parameter label used by the Source adapter. */
+  label: string;
 };
 
 export type SourceCreationTemplateExclusiveChoice = {
@@ -45,8 +51,7 @@ export type SourceCreationTemplatePlan = {
   forms: readonly SourceCreationTemplateForm[];
 };
 
-type ExclusiveGroupOverlay = {
-  anchorIndex: number;
+type ExclusiveGroupOptions = {
   group: readonly string[];
   choices: readonly SourceCreationTemplateExclusiveChoice[];
 };
@@ -57,98 +62,134 @@ const commandIds = Object.keys(
 
 const hasOwn = (value: object, key: string) => Object.prototype.hasOwnProperty.call(value, key);
 
-const exclusiveChoiceFor = (
+const argumentHoleFor = (
   type: CadElementType,
-  group: readonly string[],
+  spec: DslConstructionSpec,
   argName: string
-): SourceCreationTemplateExclusiveChoice | null => {
-  const spec = constructionForElementType(type);
-  const argSpec = spec.args.find((candidate) => candidate.arg === argName);
-  if (!argSpec || argSpec.special) return null;
+): SourceCreationTemplateArgumentHole | null => {
+  if (!spec.args.some((argSpec) => argSpec.arg === argName)) return null;
+
+  const parameterKey = parameterKeyForArg(type, argName);
+  let definition: ParameterDefinition;
+  try {
+    definition = creationParameterDefinitionFor(type, parameterKey);
+  } catch {
+    return null;
+  }
 
   return {
-    group,
-    selectedArgName: argName,
-    parameterKey: parameterKeyForArg(type, argName)
+    argName,
+    parameterKey,
+    kind: definition.kind,
+    label: definition.label
   };
 };
 
-const baseArgumentHolesFor = (
+const recipeParameterKeysFor = (
   type: CadElementType,
+  spec: DslConstructionSpec,
   recipe: NonNullable<ReturnType<typeof creationRecipeForLegacyCommand>>
-): SourceCreationTemplateArgumentHole[] | null => {
-  const holes: SourceCreationTemplateArgumentHole[] = [];
+): ReadonlySet<ParameterKey> | null => {
+  const parameterKeys = new Set<ParameterKey>();
   for (const step of recipe.steps) {
     if (step.kind === "name") continue;
+
     const argName = argNameForParameter(type, step.key);
-    if (argName === null) return null;
-    holes.push({ argName, parameterKey: step.key });
+    if (argName === null || !spec.args.some((argSpec) => argSpec.arg === argName)) return null;
+    if (parameterKeyForArg(type, argName) !== step.key) return null;
+    parameterKeys.add(step.key);
   }
-  return holes;
+  return parameterKeys;
 };
 
-const overlaysFor = (
+const exclusiveGroupOptionsFor = (
   type: CadElementType,
-  argumentHoles: readonly SourceCreationTemplateArgumentHole[],
-  exclusiveGroups: readonly (readonly string[])[]
-): ExclusiveGroupOverlay[] | null => {
-  const overlays: ExclusiveGroupOverlay[] = [];
+  spec: DslConstructionSpec
+): ExclusiveGroupOptions[] | null => {
+  const options: ExclusiveGroupOptions[] = [];
+  const seenMembers = new Set<string>();
 
-  for (const group of exclusiveGroups) {
+  for (const group of spec.exclusiveGroups ?? []) {
     if (group.length === 0 || new Set(group).size !== group.length) return null;
+    if (group.some((argName) => seenMembers.has(argName))) return null;
+    for (const argName of group) seenMembers.add(argName);
 
-    const representedIndexes = argumentHoles.flatMap((hole, index) =>
-      group.includes(hole.argName) ? [index] : []
-    );
-    if (representedIndexes.length !== 1) return null;
-
-    const choices = group.map((argName) => exclusiveChoiceFor(type, group, argName));
-    if (choices.some((choice) => choice === null)) return null;
-
-    overlays.push({
-      anchorIndex: representedIndexes[0]!,
-      group,
-      choices: choices as SourceCreationTemplateExclusiveChoice[]
-    });
+    const choices: SourceCreationTemplateExclusiveChoice[] = [];
+    for (const argName of group) {
+      if (!spec.args.some((argSpec) => argSpec.arg === argName)) return null;
+      choices.push({
+        group: [...group],
+        selectedArgName: argName,
+        parameterKey: parameterKeyForArg(type, argName)
+      });
+    }
+    options.push({ group: [...group], choices });
   }
 
-  return overlays;
+  return options;
+};
+
+const selectionsFor = (
+  groups: readonly ExclusiveGroupOptions[]
+): SourceCreationTemplateExclusiveChoice[][] => {
+  let selections: SourceCreationTemplateExclusiveChoice[][] = [[]];
+  for (const group of groups) {
+    const nextSelections: SourceCreationTemplateExclusiveChoice[][] = [];
+    for (const selection of selections) {
+      for (const choice of group.choices) {
+        nextSelections.push([...selection, choice]);
+      }
+    }
+    selections = nextSelections;
+  }
+  return selections;
+};
+
+const formFor = (
+  type: CadElementType,
+  spec: DslConstructionSpec,
+  recipeParameterKeys: ReadonlySet<ParameterKey>,
+  groups: readonly ExclusiveGroupOptions[],
+  selection: readonly SourceCreationTemplateExclusiveChoice[]
+): SourceCreationTemplateForm | null => {
+  const selectedByArg = new Map(selection.map((choice) => [choice.selectedArgName, choice]));
+  const exclusiveMembers = new Set(groups.flatMap(({ group }) => group));
+  const argumentHoles: SourceCreationTemplateArgumentHole[] = [];
+
+  for (const argSpec of spec.args) {
+    const choice = selectedByArg.get(argSpec.arg);
+    const parameterKey = parameterKeyForArg(type, argSpec.arg);
+    const include = choice !== undefined || (
+      !exclusiveMembers.has(argSpec.arg) && (
+        recipeParameterKeys.has(parameterKey) || (argSpec.required === true && !argSpec.special)
+      )
+    );
+    if (!include) continue;
+
+    const hole = argumentHoleFor(type, spec, argSpec.arg);
+    if (!hole) return null;
+    argumentHoles.push(hole);
+  }
+
+  for (const group of groups) {
+    if (argumentHoles.filter((hole) => group.group.includes(hole.argName)).length !== 1) return null;
+  }
+
+  return { argumentHoles, exclusiveChoices: [...selection] };
 };
 
 const formsFor = (
   type: CadElementType,
-  argumentHoles: readonly SourceCreationTemplateArgumentHole[],
-  exclusiveGroups: readonly (readonly string[])[] | undefined
+  spec: DslConstructionSpec,
+  recipeParameterKeys: ReadonlySet<ParameterKey>
 ): SourceCreationTemplateForm[] | null => {
-  const overlays = overlaysFor(type, argumentHoles, exclusiveGroups ?? []);
-  if (overlays === null) return null;
+  const groups = exclusiveGroupOptionsFor(type, spec);
+  if (groups === null) return null;
 
-  let forms: SourceCreationTemplateForm[] = [{
-    argumentHoles: [...argumentHoles],
-    exclusiveChoices: []
-  }];
-
-  for (const overlay of overlays) {
-    const nextForms: SourceCreationTemplateForm[] = [];
-    for (const form of forms) {
-      for (const choice of overlay.choices) {
-        const nextHoles = form.argumentHoles.map((hole, index) =>
-          index === overlay.anchorIndex
-            ? { argName: choice.selectedArgName, parameterKey: choice.parameterKey }
-            : hole
-        );
-        const memberCount = nextHoles.filter((hole) => overlay.group.includes(hole.argName)).length;
-        if (memberCount !== 1) continue;
-        nextForms.push({
-          argumentHoles: nextHoles,
-          exclusiveChoices: [...form.exclusiveChoices, choice]
-        });
-      }
-    }
-    forms = nextForms;
-  }
-
-  return forms.length > 0 ? forms : null;
+  const forms = selectionsFor(groups).map((selection) =>
+    formFor(type, spec, recipeParameterKeys, groups, selection)
+  );
+  return forms.every((form): form is SourceCreationTemplateForm => form !== null) ? forms : null;
 };
 
 /**
@@ -169,9 +210,9 @@ export const sourceCreationTemplatePlanForLegacyCommand = (
     const spec = constructionForElementType(entry.type);
     if (spec.elementType !== entry.type) return null;
 
-    const argumentHoles = baseArgumentHolesFor(entry.type, recipe);
-    if (argumentHoles === null) return null;
-    const forms = formsFor(entry.type, argumentHoles, spec.exclusiveGroups);
+    const recipeParameterKeys = recipeParameterKeysFor(entry.type, spec, recipe);
+    if (recipeParameterKeys === null) return null;
+    const forms = formsFor(entry.type, spec, recipeParameterKeys);
     if (forms === null) return null;
 
     return {
