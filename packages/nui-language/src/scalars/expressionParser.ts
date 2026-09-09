@@ -66,7 +66,7 @@ export const isScalarExpressionCandidateSource = (source: string): boolean => {
   if (trimmed.startsWith("\"") || trimmed.startsWith("'")) return false;
   if (trimmed.startsWith("@") || trimmed.startsWith("(") || trimmed.startsWith("!")) return true;
   if (/^if\s*\(/.test(trimmed)) return true;
-  if (/^match\b/.test(trimmed)) return true;
+  if (/^match\b/.test(trimmed)) return trimmed !== "match";
   if (isScalarNamedCallCandidateSource(trimmed)) return true;
   return containsScalarWordOperator(trimmed) || /&&|\|\||==|!=|<=|>=|[<>]/.test(trimmed);
 };
@@ -237,7 +237,7 @@ class Parser {
       if (token.literal.kind === "choice" && token.literal.raw === "if" && this.peek(1)?.kind === "leftParen") {
         return this.parseValueIf(token);
       }
-      if (token.literal.kind === "choice" && token.literal.raw === "match") {
+      if (token.literal.kind === "choice" && token.literal.raw === "match" && this.hasValueMatchBody()) {
         return this.parseValueMatch(token);
       }
       if (token.literal.kind === "choice" && this.peek(1)?.kind === "leftParen") {
@@ -379,6 +379,36 @@ class Parser {
     } finally {
       this.depth -= 1;
     }
+  }
+
+  private hasValueMatchBody(): boolean {
+    let parenthesisDepth = 0;
+    let bracketDepth = 0;
+    for (const token of this.tokens.slice(this.index + 1)) {
+      if (token.kind === "leftParen") {
+        parenthesisDepth += 1;
+        continue;
+      }
+      if (token.kind === "rightParen") {
+        if (parenthesisDepth === 0) return false;
+        parenthesisDepth -= 1;
+        continue;
+      }
+      if (token.kind === "leftBracket") {
+        bracketDepth += 1;
+        continue;
+      }
+      if (token.kind === "rightBracket") {
+        if (bracketDepth === 0) return false;
+        bracketDepth -= 1;
+        continue;
+      }
+      if (parenthesisDepth > 0 || bracketDepth > 0) continue;
+      if (token.kind === "leftBrace") return true;
+      if (token.kind === "rightBrace" || token.kind === "arrow" || token.kind === "comma") return false;
+      if (token.kind === "operator" && !["!", "+", "-"].includes(token.value)) return false;
+    }
+    return false;
   }
 
   private parseCollectionIndex(reference: Extract<ScalarExpressionToken, { kind: "reference" }>): ScalarExpressionAst {

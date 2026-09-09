@@ -160,6 +160,25 @@ describe("parseScalarExpression / exhaustive choice value-match", () => {
     expect(parseErr("match @size { small > 5 }").code).toBe("value-match-missing-arrow");
     expect(parseErr("match @size { small => 5").code).toBe("value-match-missing-closing-brace");
   });
+
+  it("keeps bare match as an unresolved choice literal outside value-match syntax", () => {
+    expect(isScalarExpressionCandidateSource("match")).toBe(false);
+    expect(parseOk("match")).toEqual({
+      kind: "unresolvedChoiceLiteral",
+      span: { start: 0, end: 5 },
+      raw: "match"
+    });
+    expect(parseOk("if (true) { match } else { other }")).toMatchObject({
+      kind: "valueIf",
+      thenBranch: { kind: "unresolvedChoiceLiteral", raw: "match" }
+    });
+    expect(parseOk("match == match")).toMatchObject({
+      kind: "binary",
+      operator: "==",
+      left: { kind: "unresolvedChoiceLiteral", raw: "match" },
+      right: { kind: "unresolvedChoiceLiteral", raw: "match" }
+    });
+  });
 });
 
 describe("parseScalarExpression / @qualifiedName reference", () => {

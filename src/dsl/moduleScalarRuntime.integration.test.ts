@@ -158,6 +158,48 @@ describe("module scalar runtime integration", () => {
     expect(bindingValue("selectedSide")).toEqual(bindingValue("A::side"));
   });
 
+  it("resolves Module-local and exported value matches through the production runtime path", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "module MatchModule(size: choice(small, large)) {",
+      "  const localAmount: number =",
+      "    match @size {",
+      "      small => 10",
+      "      large => 1 / 0",
+      "    }",
+      "  export const amount: number = @localAmount",
+      "  export const side: choice(left, right) =",
+      "    match @size {",
+      "      small => left",
+      "      large => right",
+      "    }",
+      "}",
+      "instance A = MatchModule(size: small)",
+      "const selected: number = @A::amount",
+      "const selectedSide: choice(left, right) = @A::side"
+    ].join("\n"));
+    expectValid(compiled);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const bindingValue = (name: string) => {
+      const binding = compiled.bindingAnalysis?.catalog.bindings.find((candidate) => candidate.name === name);
+      return binding ? result.computedScalarBindings?.get(binding.id) : undefined;
+    };
+    expect(bindingValue("A::amount")).toEqual({
+      status: "ok",
+      type: { kind: "number" },
+      value: { kind: "number", value: 10 }
+    });
+    expect(bindingValue("A::side")).toEqual({
+      status: "ok",
+      type: { kind: "choice", options: ["left", "right"] },
+      value: { kind: "choice", value: "left", options: ["left", "right"] }
+    });
+    expect(bindingValue("selected")).toEqual(bindingValue("A::amount"));
+    expect(bindingValue("selectedSide")).toEqual(bindingValue("A::side"));
+  });
+
   it("does not lower an omitted optional value from a compound presence guard", () => {
     const compiled = compileWithIds([
       "nui 1",
