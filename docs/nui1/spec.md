@@ -714,6 +714,16 @@ ambiguous/corner internal join, off-curve base point, invalid `curveSide`
 literal, or negative distance is an evaluation error. Distance zero remains
 valid after these geometry validations pass.
 
+The same `tangentOffset` construction is an implemented identity-free
+`point` initializer for `const` geometry values. Its `line` input accepts the
+shared line-like `line`/`path` target boundary, its `base` input accepts a
+point value or point reference, and omitted `angle`/`curveSide` uses angle `0`.
+Curve-side mode accepts computed cubic Bezier geometry, including pure Bezier
+path values and Module local/export/imported occurrences. Pure failures are
+reported against the value occurrence and do not create a drawable element or
+synthetic `ElementId`; the geometry algorithm and validation semantics remain
+aligned with the drawable construction.
+
 ### Bezier direction extreme points
 
 `bezierExtremePoint` creates a point at the maximum projection of one cubic

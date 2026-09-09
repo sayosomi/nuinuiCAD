@@ -75,7 +75,7 @@ import type {
   ComputedGeometryValueEntry,
   GeometryValueEvaluationError
 } from "./evaluationTypes";
-import { arcGeometryKernel, bezierBulgePointGeometryKernel, bezierExtremePointGeometryKernel, bezierGeometryKernel, coordinateGeometryKernel, divisionPointGeometryKernel, offsetLineGeometryValueKernel, offsetPointGeometryKernel, polarLineGeometryKernel, polarPointGeometryKernel, polylineGeometryKernel, segmentGeometryKernel, throughArcGeometryKernel, type StructuralPoint } from "./geometryValueKernels";
+import { arcGeometryKernel, bezierBulgePointGeometryKernel, bezierExtremePointGeometryKernel, bezierGeometryKernel, coordinateGeometryKernel, divisionPointGeometryKernel, offsetLineGeometryValueKernel, offsetPointGeometryKernel, polarLineGeometryKernel, polarPointGeometryKernel, polylineGeometryKernel, segmentGeometryKernel, tangentOffsetPointGeometryKernel, throughArcGeometryKernel, type StructuralPoint } from "./geometryValueKernels";
 import { buildOffsetLineGeometry } from "./offsetPaths";
 import { isLineLikeGeometryInput, pointAtDistanceFromEndpoint } from "./linePaths";
 import { findLineIntersections } from "./lineIntersections";
@@ -454,6 +454,20 @@ export const evaluateElements = (
       : undefined;
   };
 
+  const evaluateGeometryValueCurveSide = (expression: TypedScalarExpression, sourceOrder: number): "convex" | "concave" | undefined => {
+    const evaluation = evaluateTypedExpression(expression, {
+      lookupBinding: scalarBindingResolver
+        ? scalarBindingResolver.resolveBinding
+        : () => ({ status: "error", type: { kind: "choice", options: [] }, issueCode: "evaluation-binding-unavailable" }),
+      lookupGeometryProperty: (reference) => resolveDocumentGeometryProperty(geometryRuntime, reference, sourceOrder),
+      lookupGeometryTarget: (target) => resolveDocumentGeometryTarget(geometryRuntime, target, sourceOrder)
+    });
+    if (evaluation.status !== "ok" || evaluation.value.kind !== "choice") return undefined;
+    return evaluation.value.value === "convex" || evaluation.value.value === "concave"
+      ? evaluation.value.value
+      : undefined;
+  };
+
   const evaluateGeometryValueBoolean = (expression: TypedScalarExpression, sourceOrder: number): boolean | undefined => {
     const evaluation = evaluateTypedExpression(expression, {
       lookupBinding: scalarBindingResolver
@@ -623,6 +637,46 @@ export const evaluateElements = (
         return;
       }
       value = { kind: "point", x: intersection.x, y: intersection.y };
+    } else if (entry.construction.kind === "tangentOffset") {
+      if (entry.declaredInterfaceType !== "point") {
+        appendGeometryValueError(entry, "Geometry value construction is incompatible with its declared interface type.");
+        return;
+      }
+      const geometry = resolveDocumentGeometryTarget(geometryRuntime, entry.construction.line.target, sourceOrder);
+      const line = geometry && geometry.kind !== "unavailable" && isLineLikeGeometryInput(geometry) ? geometry : undefined;
+      const base = structuralPointForProgramPoint(entry.construction.base, sourceOrder);
+      const distance = evaluateGeometryValueScalar(entry.construction.distance, sourceOrder);
+      if (!line || !base || distance === undefined) {
+        appendGeometryValueError(entry, "tangentOffset geometry value inputs are unavailable or invalid.");
+        return;
+      }
+      const curveSide = entry.construction.curveSide
+        ? evaluateGeometryValueCurveSide(entry.construction.curveSide, sourceOrder)
+        : undefined;
+      if (entry.construction.curveSide && curveSide === undefined) {
+        appendGeometryValueError(entry, "tangentOffset geometry value curveSide must be convex or concave.");
+        return;
+      }
+      const angleDeg = entry.construction.angleDeg
+        ? evaluateGeometryValueScalar(entry.construction.angleDeg, sourceOrder)
+        : undefined;
+      if (!entry.construction.curveSide && angleDeg === undefined) {
+        appendGeometryValueError(entry, "tangentOffset geometry value angle must be a finite number.");
+        return;
+      }
+      const result = tangentOffsetPointGeometryKernel(
+        line,
+        base,
+        curveSide !== undefined
+          ? { kind: "curveSide", curveSide }
+          : { kind: "angle", angleDeg: angleDeg ?? 0 },
+        distance
+      );
+      if ("error" in result) {
+        appendGeometryValueError(entry, `tangentOffset geometry value ${result.error}`);
+        return;
+      }
+      value = { kind: "point", ...result.point };
     } else if (entry.construction.kind === "bezierExtremePoint") {
       if (entry.declaredInterfaceType !== "point") {
         appendGeometryValueError(entry, "Geometry value construction is incompatible with its declared interface type.");

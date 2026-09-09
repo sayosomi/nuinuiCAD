@@ -405,6 +405,68 @@ describe("pure geometry construction runtime", () => {
     expect(result.computedGeometry.has("geometry-value-runtime:3")).toBe(false);
   });
 
+  it("evaluates pure tangentOffset angle defaults and curve-side modes without drawable identity", () => {
+    const { compiled, result } = evaluate([
+      "nui 1",
+      "const Line: path = segment(start: (0, 0), end: (10, 0))",
+      "const Base: point = coordinate(x: 0, y: 0)",
+      "const Explicit: point = tangentOffset(line: @Line, base: @Base, angle: 90, distance: 2)",
+      "const Default: point = tangentOffset(line: @Line, base: @Base, distance: 2)",
+      "const Curve: path = bezier(start: (0, 0), end: (10, 0), startAngle: 90, startLength: 10, endAngle: -90, endLength: 10)",
+      "const Convex: point = tangentOffset(line: @Curve, base: (5, 7.5), curveSide: convex, distance: 1)",
+      "const Concave: point = tangentOffset(line: @Curve, base: (5, 7.5), curveSide: concave, distance: 1)",
+      "line Use = segment(start: @Explicit, end: @Concave)"
+    ].join("\n"));
+
+    expect(compiled.geometryValueProgram?.map((entry) => entry.construction.kind)).toEqual([
+      "segment", "coordinate", "tangentOffset", "tangentOffset", "bezier", "tangentOffset", "tangentOffset"
+    ]);
+    expect(result.errors).toEqual([]);
+    const values = [...(result.computedGeometryValues?.values() ?? [])];
+    expect(values.map((entry) => entry.value)).toEqual([
+      expect.objectContaining({ kind: "line", start: { x: 0, y: 0 }, end: { x: 10, y: 0 } }),
+      { kind: "point", x: 0, y: 0 },
+      { kind: "point", x: expect.closeTo(0, 10), y: expect.closeTo(2, 10) },
+      { kind: "point", x: expect.closeTo(2, 10), y: expect.closeTo(0, 10) },
+      expect.objectContaining({ kind: "bezierCurve" }),
+      { kind: "point", x: expect.closeTo(5, 10), y: expect.closeTo(8.5, 10) },
+      { kind: "point", x: expect.closeTo(5, 10), y: expect.closeTo(6.5, 10) }
+    ]);
+    expect(values.every((entry) => !("elementId" in entry.value) && !("name" in entry.value))).toBe(true);
+    expect(result.computedGeometry.has("geometry-value-runtime:3")).toBe(false);
+    expect(result.computedGeometry.has("geometry-value-runtime:6")).toBe(false);
+    expect(result.computedGeometry.has("geometry-value-runtime:7")).toBe(false);
+    expect(result.computedGeometry.get("geometry-value-runtime:8")).toMatchObject({
+      kind: "line",
+      start: { x: expect.closeTo(0, 10), y: expect.closeTo(2, 10) },
+      end: { x: expect.closeTo(5, 10), y: expect.closeTo(6.5, 10) }
+    });
+  });
+
+  it.each([
+    [
+      "curveSide on a non-Bezier path",
+      ["const Line: path = segment(start: (0, 0), end: (10, 0))", "const Bad: point = tangentOffset(line: @Line, base: (0, 0), curveSide: convex, distance: 1)"],
+      "tangentOffset geometry value curveSide はベジェ曲線の計算結果にのみ指定できます。"
+    ],
+    [
+      "negative curveSide distance",
+      ["const Curve: path = bezier(start: (0, 0), end: (10, 0), startAngle: 90, startLength: 10, endAngle: -90, endLength: 10)", "const Bad: point = tangentOffset(line: @Curve, base: (5, 7.5), curveSide: convex, distance: -1)"],
+      "tangentOffset geometry value curveSide の距離は0以上で指定してください。"
+    ],
+    [
+      "off-curve base point",
+      ["const Line: path = segment(start: (0, 0), end: (10, 0))", "const Bad: point = tangentOffset(line: @Line, base: (5, 1), angle: 0, distance: 1)"],
+      "tangentOffset geometry value 基準点は基準線上にありません。基準線上の点を指定してください。"
+    ]
+  ] as const)("reports %s through the occurrence-owned channel", (_kind, declarations, message) => {
+    const { compiled, result } = evaluate(["nui 1", ...declarations].join("\n"));
+    const occurrence = compiled.geometryValueProgram?.at(-1)?.occurrence;
+    expect(result.computedGeometryValues).toEqual(expect.any(Map));
+    expect(result.geometryValueErrors).toEqual([{ occurrence, message }]);
+    expect(result.errors).toEqual([]);
+  });
+
   it.each([
     ["non-Bezier source", "const Source: path = segment(start: (0, 0), end: (10, 0))", "const Invalid: point = bezierExtremePoint(source: @Source, segmentIndex: 0, direction: 90)", "Bezier feature-point construction requires a computed Bezier curve source."],
     ["out-of-range segment", "const Source: path = bezier(start: (0, 0), end: (10, 0))", "const Invalid: point = bezierBulgePoint(source: @Source, segmentIndex: 1)", "bezierBulgePoint segmentIndex 1 is outside the source Bezier segment range (1 segments)."],

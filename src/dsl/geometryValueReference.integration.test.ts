@@ -160,7 +160,7 @@ describe("immutable single-geometry reference values", () => {
       end: { type: { kind: "number" } },
       direction: { type: { kind: "choice", options: ["counterclockwise", "clockwise"] } }
     });
-    expect(pureGeometryValueConstructionCandidates("point").map((candidate) => candidate.label)).toEqual(["coordinate", "offset", "polar", "between", "onLine", "intersection", "bezierExtremePoint", "bezierBulgePoint"]);
+    expect(pureGeometryValueConstructionCandidates("point").map((candidate) => candidate.label)).toEqual(["coordinate", "offset", "polar", "between", "onLine", "intersection", "tangentOffset", "bezierExtremePoint", "bezierBulgePoint"]);
     expect(pureGeometryValueConstructionCandidates("line").map((candidate) => candidate.label)).toEqual(["segment", "polar"]);
     expect(pureGeometryValueConstructionCandidates("path").map((candidate) => candidate.label)).toEqual(["segment", "polar", "offset", "polyline", "bezier", "arc", "through"]);
     expect(pureGeometryValueConstructionCandidates("point").map((candidate) => candidate.label)).not.toContain("through");
@@ -261,6 +261,42 @@ describe("immutable single-geometry reference values", () => {
     expect(compiled.moduleSemanticAnalysis?.rootGeometryReferencesByStatementId.get(extreme!.statementId)?.map((site) => site.parameterKey)).toEqual(["source"]);
     expect(compiled.geometryValueProgram?.map((entry) => entry.construction.kind)).toEqual([
       "bezier", "bezierExtremePoint", "bezierBulgePoint"
+    ]);
+  });
+
+  it("registers pure tangentOffset with line, base, mode, and distance references", () => {
+    const compiled = compile([
+      "nui 1",
+      "const Line: path = segment(start: (0, 0), end: (10, 0))",
+      "const Base: point = coordinate(x: 0, y: 0)",
+      "const Explicit: point = tangentOffset(line: @Line, base: @Base, angle: 90, distance: 2)",
+      "const Default: point = tangentOffset(line: @Line, base: @Base, distance: 2)",
+      "const Curve: path = bezier(start: (0, 0), end: (10, 0), startAngle: 90, startLength: 10, endAngle: -90, endLength: 10)",
+      "const Convex: point = tangentOffset(line: @Curve, base: (5, 7.5), curveSide: convex, distance: 1)"
+    ].join("\n"), "geometry-value-tangent-offset");
+
+    expect(compiled.diagnostics).toEqual([]);
+    expect(compiled.moduleSemanticAnalysis?.geometryValues.map((value) => value.construction?.kind)).toEqual([
+      "segment", "coordinate", "tangentOffset", "tangentOffset", "bezier", "tangentOffset"
+    ]);
+    const explicit = compiled.moduleSemanticAnalysis?.geometryValues.find((value) => value.name === "Explicit");
+    const curve = compiled.moduleSemanticAnalysis?.geometryValues.find((value) => value.name === "Convex");
+    expect(explicit?.construction).toMatchObject({
+      kind: "tangentOffset",
+      line: { target: { kind: "geometryValue" } },
+      base: { target: { kind: "geometryValue" } },
+      angle: { ast: { kind: "numberLiteral", value: 90 } },
+      curveSide: null,
+      distance: { ast: { kind: "numberLiteral", value: 2 } }
+    });
+    expect(curve?.construction).toMatchObject({
+      kind: "tangentOffset",
+      angle: null,
+      curveSide: { ast: { kind: "unresolvedChoiceLiteral", raw: "convex" } }
+    });
+    expect(compiled.moduleSemanticAnalysis?.rootGeometryReferencesByStatementId.get(explicit!.statementId)?.map((site) => site.parameterKey)).toEqual(["line", "base"]);
+    expect(compiled.geometryValueProgram?.map((entry) => entry.construction.kind)).toEqual([
+      "segment", "coordinate", "tangentOffset", "tangentOffset", "bezier", "tangentOffset"
     ]);
   });
 

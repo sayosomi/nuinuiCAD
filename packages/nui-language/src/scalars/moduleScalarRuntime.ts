@@ -2725,6 +2725,17 @@ export const compileModuleScalarRuntime = ({
               ? { kind: "intersection" as const, line1, line2, index, extensions }
               : null;
           })()
+      : value.construction.kind === "tangentOffset"
+        ? (() => {
+            const line = lowerGeometryValuePath(value.construction.line, context, executionPosition);
+            const base = lowerGeometryValuePoint(value.construction.base, context, executionPosition);
+            const angleDeg = value.construction.angle ? lowerGeometryValueScalar(value.construction.angle, context) : null;
+            const curveSide = value.construction.curveSide ? lowerGeometryValueScalar(value.construction.curveSide, context) : null;
+            const distance = value.construction.distance ? lowerGeometryValueScalar(value.construction.distance, context) : null;
+            return line && base && distance
+              ? { kind: "tangentOffset" as const, line, base, angleDeg, curveSide, distance }
+              : null;
+          })()
       : value.construction.kind === "bezierExtremePoint"
         ? (() => {
             const source = lowerGeometryValuePath(value.construction.source, context, executionPosition);

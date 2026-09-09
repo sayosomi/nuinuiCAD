@@ -630,14 +630,18 @@ rather than a guessed result; an unavailable index is also an error.
 **Description:** `tangentOffset` starts at `base` on `line` and creates a point
 at the requested `distance` along a tangent direction. Use `angle` for an
 explicit tangent angle, or `curveSide: convex` / `concave` for a curvature-side
-offset on a computed cubic Bezier.
+offset on a computed cubic Bezier. The same construction is available as an
+identity-free `point` initializer in `const` geometry values.
 
 **Notes:** `angle` and `curveSide` are mutually exclusive. With neither, the
-construction uses the existing angle mode with angle `0`. Curvature-side mode
-requires a computed Bezier result (including a split, trim, extend, or reverse
-result); lines, arcs, and offset lines are rejected. The base point must lie on
-the curve within the implemented `0.001 mm` tolerance. Degenerate, ambiguous,
-or off-curve cases are errors; distance `0` is valid after those checks.
+construction uses the existing angle mode with angle `0`. Angle mode accepts
+line-like geometry, including pure `line` and `path` values. Curvature-side
+mode requires a computed Bezier result (including a split, trim, extend, or
+reverse result and pure Bezier values); lines, arcs, and offset lines are
+rejected. The base point must lie on the curve within the implemented `0.001 mm`
+tolerance. Degenerate, ambiguous, or off-curve cases are occurrence-owned
+geometry-value errors for pure values; drawable errors remain attached to the
+drawable element. Distance `0` is valid after those checks.
 
 ### `bezierExtremePoint` and `bezierBulgePoint`
 

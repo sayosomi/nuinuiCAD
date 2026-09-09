@@ -112,6 +112,57 @@ fn curve_side_point(
     })
 }
 
+pub(crate) fn tangent_offset_point_from_tangent_geometry_kernel(
+    base_point: BezierPoint,
+    tangent_angle_deg: f64,
+    requested_angle_deg: f64,
+    distance: f64,
+) -> BezierPoint {
+    let angle_rad = (tangent_angle_deg + requested_angle_deg).to_radians();
+    BezierPoint {
+        x: base_point.x + angle_rad.cos() * distance,
+        y: base_point.y + angle_rad.sin() * distance,
+    }
+}
+
+pub(crate) fn tangent_offset_point_geometry_kernel(
+    base_line: &Value,
+    base_point: BezierPoint,
+    curve_side: Option<&str>,
+    tangent_angle_deg: Option<f64>,
+    distance: f64,
+) -> Result<BezierPoint, &'static str> {
+    if let Some(curve_side) = curve_side {
+        if curve_side != "convex" && curve_side != "concave" {
+            return Err("curveSide は convex または concave で指定してください。");
+        }
+        if base_line.get("kind").and_then(Value::as_str) != Some("bezierCurve") {
+            return Err("curveSide はベジェ曲線の計算結果にのみ指定できます。");
+        }
+        if distance < 0.0 {
+            return Err("curveSide の距離は0以上で指定してください。");
+        }
+        return curve_side_point(base_line, base_point, curve_side, distance);
+    }
+
+    let Some(tangent_angle_deg) = tangent_angle_deg else {
+        return Err("angle は有限の数値で指定してください。");
+    };
+    let Some((base_tangent_angle_deg, _distance_from_line)) = tangent_at_point_on_geometry(
+        base_line,
+        (base_point.x, base_point.y),
+        LINE_POINT_TOLERANCE,
+    ) else {
+        return Err("基準点は基準線上にありません。基準線上の点を指定してください。");
+    };
+    Ok(tangent_offset_point_from_tangent_geometry_kernel(
+        base_point,
+        base_tangent_angle_deg,
+        tangent_angle_deg,
+        distance,
+    ))
+}
+
 pub(crate) fn evaluate_line_tangent_offset_point(
     element: &Value,
     local_variables: &(HashMap<String, f64>, HashMap<String, String>),
@@ -180,13 +231,14 @@ pub(crate) fn evaluate_line_tangent_offset_point(
             ));
             return;
         }
-        let point = match curve_side_point(
+        let point = match tangent_offset_point_geometry_kernel(
             &base_line,
             BezierPoint {
                 x: base_point.x,
                 y: base_point.y,
             },
-            curve_side,
+            Some(curve_side),
+            None,
             distance,
         ) {
             Ok(point) => point,
@@ -242,16 +294,19 @@ pub(crate) fn evaluate_line_tangent_offset_point(
         return;
     };
 
-    let angle_rad = (base_tangent_angle_deg + tangent_angle_deg).to_radians();
+    let point = tangent_offset_point_from_tangent_geometry_kernel(
+        BezierPoint {
+            x: base_point.x,
+            y: base_point.y,
+        },
+        base_tangent_angle_deg,
+        tangent_angle_deg,
+        distance,
+    );
     let id = element_id(element).unwrap_or_default();
     insert_geometry(
         state,
         id.clone(),
-        computed_point(
-            id,
-            element_name(element),
-            base_point.x + angle_rad.cos() * distance,
-            base_point.y + angle_rad.sin() * distance,
-        ),
+        computed_point(id, element_name(element), point.x, point.y),
     );
 }

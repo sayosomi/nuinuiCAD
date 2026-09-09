@@ -121,6 +121,7 @@ const constructionSpecs: DslConstructionSpec[] = [
     category: "point",
     construction: "tangentOffset",
     elementType: "lineTangentOffsetPoint",
+    pureValueInterface: "point",
     exclusiveGroups: [["angle", "curveSide"]],
     args: [required("line", "baseLineId"), required("base", "basePoint"), arg("angle", "tangentAngleDeg"), arg("curveSide"), arg("distance")],
   },
