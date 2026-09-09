@@ -177,12 +177,12 @@ export const PickModeStatus = () => {
   const instruction = pickModeSession.kind === "point"
     ? isPointList
       ? `点を順番に仮選択中（${selectedPointCount}件）。Canvas上で追加できます。`
-      : "Canvasまたは構成リストから点を選択"
+      : "Canvasから点を選択"
     : pickModeSession.kind === "numeric-reference"
       ? "線・曲線を選び、使用する値を明示的に選択"
       : isLineList
         ? `線を仮選択中（${selectedCount}件）。Canvas上で追加・解除できます。`
-        : "Canvasまたは構成リストから線を選択";
+        : "Canvasから線を選択";
   const finish = () => dispatchCommand("finishPickMode");
   const moveDraftEntry = (key: string, toIndex: number) => {
     movePickModeDraftEntryInSession(key, toIndex);

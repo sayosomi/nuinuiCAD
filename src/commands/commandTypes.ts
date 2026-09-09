@@ -147,7 +147,6 @@ export type CommandId =
   /** @deprecated Compatibility alias for toggleCanvasPointNames. */
   | "toggleCanvasElementNames"
   | "toggleCanvasPoints"
-  | "toggleElementListColorAccents"
   | "openCommandPalette"
   | "closeCommandPalette"
   | "openShortcutSettings"

@@ -3827,20 +3827,21 @@ textarea {
   align-items: center;
   gap: 12px;
   width: min(920px, calc(100vw - 44px));
-  border: 1px solid #075e57;
+  border: 1px solid color-mix(in srgb, var(--canvas-accent) 72%, var(--canvas-background));
   border-radius: 9px;
-  background: #0f766e;
-  box-shadow: 0 9px 24px rgb(7 94 87 / 32%);
-  color: #ffffff;
+  background: var(--canvas-background);
+  box-shadow: 0 9px 24px color-mix(in srgb, var(--canvas-foreground) 24%, transparent);
+  color: var(--canvas-foreground);
   padding: 8px 12px;
   transform: translateX(-50%);
 }
 
 .pick-mode-status-title {
   flex: 0 0 auto;
-  border: 1px solid rgb(255 255 255 / 38%);
+  border: 1px solid color-mix(in srgb, var(--canvas-accent) 58%, var(--canvas-background));
   border-radius: 4px;
-  background: rgb(0 0 0 / 13%);
+  background: color-mix(in srgb, var(--canvas-accent) 14%, var(--canvas-background));
+  color: var(--canvas-accent);
   padding: 4px 6px;
   font-size: 10px;
   font-weight: 800;
@@ -3854,7 +3855,7 @@ textarea {
 }
 
 .pick-mode-status-copy small {
-  color: rgb(255 255 255 / 82%);
+  color: var(--canvas-muted);
 }
 
 .pick-mode-status-selection {
@@ -3879,19 +3880,19 @@ textarea {
   align-items: center;
   gap: 4px;
   min-width: 0;
-  border: 1px solid rgb(255 255 255 / 22%);
+  border: 1px solid color-mix(in srgb, var(--canvas-foreground) 22%, var(--canvas-background));
   border-radius: 5px;
-  background: rgb(0 0 0 / 10%);
+  background: color-mix(in srgb, var(--canvas-foreground) 6%, var(--canvas-background));
   padding: 2px 3px;
 }
 
 .pick-mode-status-list-item:focus-visible {
-  outline: 2px solid #ffffff;
+  outline: 2px solid var(--canvas-accent);
   outline-offset: 1px;
 }
 
 .pick-mode-status-list-index {
-  color: rgb(255 255 255 / 68%);
+  color: var(--canvas-muted);
   text-align: right;
 }
 
@@ -3910,9 +3911,9 @@ textarea {
 .pick-mode-status-list-actions button {
   min-width: 22px;
   margin-left: 0;
-  border: 1px solid rgb(255 255 255 / 30%);
-  background: rgb(0 0 0 / 13%);
-  color: #ffffff;
+  border: 1px solid color-mix(in srgb, var(--canvas-accent) 55%, var(--canvas-background));
+  background: color-mix(in srgb, var(--canvas-accent) 8%, var(--canvas-background));
+  color: var(--canvas-foreground);
   padding: 1px 4px;
   font-size: 11px;
   line-height: 1.1;
@@ -3924,24 +3925,25 @@ textarea {
 }
 
 .pick-mode-status kbd {
-  border: 1px solid rgb(255 255 255 / 28%);
+  border: 1px solid color-mix(in srgb, var(--canvas-muted) 58%, var(--canvas-background));
   border-radius: 4px;
-  color: rgb(255 255 255 / 82%);
+  color: var(--canvas-muted);
   font-size: 11px;
   padding: 2px 4px;
 }
 
 .pick-mode-status button {
   margin-left: auto;
-  border-color: transparent;
-  background: #ffffff;
-  color: #0b5f58;
+  border-color: color-mix(in srgb, var(--canvas-accent) 72%, var(--canvas-background));
+  background: color-mix(in srgb, var(--canvas-accent) 16%, var(--canvas-background));
+  color: var(--canvas-foreground);
   font-weight: 700;
   white-space: nowrap;
 }
 
 .pick-mode-status button:hover {
-  background: #dff3ec;
+  border-color: var(--canvas-accent);
+  background: color-mix(in srgb, var(--canvas-accent) 26%, var(--canvas-background));
 }
 
 .canvas-viewport.is-point-dragging,

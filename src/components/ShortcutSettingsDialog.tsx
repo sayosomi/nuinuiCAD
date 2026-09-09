@@ -19,7 +19,7 @@ import { selectTextInputValue } from "./textInputSelection";
 const scopeLabels = {
   crossFocus: "フォーカス横断",
   normal: "通常",
-  pick: "構成リスト選択",
+  pick: "Pick Mode",
   sourceEditor: "Source Editor",
   modal: "モーダル"
 };

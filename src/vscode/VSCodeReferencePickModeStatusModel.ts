@@ -55,8 +55,8 @@ const instructionFor = (session: VscodeReferencePickCanvasSession): string => {
     return `${session.target.expectedGeometryInterface === "point" ? "点" : "線"}を仮選択中（${count}件）。Canvas上で追加できます。`;
   }
   return session.target.expectedGeometryInterface === "point"
-    ? "Canvasまたは構成リストから点を選択"
-    : "Canvasまたは構成リストから線を選択";
+    ? "Canvasから点を選択"
+    : "Canvasから線を選択";
 };
 
 export const referencePickModeStatusModelFor = ({

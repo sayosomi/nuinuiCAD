@@ -73,9 +73,31 @@ describe("VSCodeReferencePickModeStatus", () => {
 
     expect(screen.getByText("PICK MODE")).toBeInTheDocument();
     expect(screen.getByText("Cross / line1")).toBeInTheDocument();
+    expect(screen.getByText("Canvasから線を選択")).toBeInTheDocument();
     expect(screen.getByLabelText("現在の選択")).toHaveTextContent("@AB");
     fireEvent.click(screen.getByRole("button", { name: "選択を完了" }));
     expect(onFinish).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ["point", "Canvasから点を選択"],
+    ["line", "Canvasから線を選択"]
+  ] as const)("uses the Canvas-only instruction for a single %s Reference Pick", (kind, instruction) => {
+    const view = render(
+      <VSCodeReferencePickModeStatus
+        session={sessionFor({
+          target: { ...target, expectedGeometryInterface: kind }
+        })}
+        context={{
+          source: { normalizedSource: source, sourceRevision },
+          compiled
+        }}
+        onFinish={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText(instruction)).toBeInTheDocument();
+    view.unmount();
   });
 
   it("shows a complete canonical numeric-property expression", () => {
