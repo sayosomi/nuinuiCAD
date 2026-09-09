@@ -63,40 +63,20 @@ beforeEach(() => {
 });
 
 describe("shared VS Code Source authoring position owner", () => {
-  it("supplies one retained position to free-point and generic Canvas requests", () => {
+  it("supplies one retained position to free-point command requests", () => {
     const document = documentFor();
     const editor = { document, selection: { active: { line: 4, character: 2 } } };
     const feature = registerVscodeSourceAuthoringPositionFeature();
     mocks.selectionListeners[0]?.({ textEditor: editor, kind: 1 });
 
-    const generic = feature.beginCanvasCreation({}, document);
     const freeRequestId = feature.beginCommandOwnedEdit({
       sessionToken: {},
       document,
-      sourcePosition: generic!.sourcePosition
-    });
-
-    expect(generic).toEqual({
-      requestId: expect.any(Number),
-      documentVersion: 1,
       sourcePosition: { documentVersion: 1, line: 4, character: 2 }
     });
+
     expect(freeRequestId).toEqual(expect.any(Number));
-    expect(feature.sourceAuthoringPositionFor(document)).toEqual(generic!.sourcePosition);
-    feature.dispose();
-  });
-
-  it("fails closed for a missing or stale retained position", () => {
-    const document = documentFor();
-    const feature = registerVscodeSourceAuthoringPositionFeature();
-
-    expect(feature.beginCanvasCreation({}, document)).toBeNull();
-    mocks.selectionListeners[0]?.({
-      textEditor: { document, selection: { active: { line: 1, character: 0 } } },
-      kind: 1
-    });
-    document.version = 2;
-    expect(feature.beginCanvasCreation({}, document)).toBeNull();
+    expect(feature.sourceAuthoringPositionFor(document)).toEqual({ documentVersion: 1, line: 4, character: 2 });
     feature.dispose();
   });
 
@@ -107,7 +87,11 @@ describe("shared VS Code Source authoring position owner", () => {
       textEditor: { document, selection: { active: { line: 2, character: 1 } } },
       kind: 1
     });
-    const requestId = feature.beginCanvasCreation({}, document)!.requestId;
+    const requestId = feature.beginCommandOwnedEdit({
+      sessionToken: {},
+      document,
+      sourcePosition: { documentVersion: 1, line: 2, character: 1 }
+    })!;
     feature.markCommandOwnedEdit(requestId);
     document.version = 2;
     mocks.documentChangeListeners[0]?.({ document, contentChanges: [{}] });
@@ -133,18 +117,22 @@ describe("shared VS Code Source authoring position owner", () => {
       textEditor: { document, selection: { active: { line: 2, character: 1 } } },
       kind: 1
     });
-    const request = feature.beginCanvasCreation({}, document)!;
-    feature.markCommandOwnedEdit(request.requestId);
-    feature.rejectCommandOwnedEdit(request.requestId);
+    const requestId = feature.beginCommandOwnedEdit({
+      sessionToken: {},
+      document,
+      sourcePosition: { documentVersion: 1, line: 2, character: 1 }
+    })!;
+    feature.markCommandOwnedEdit(requestId);
+    feature.rejectCommandOwnedEdit(requestId);
     document.version = 2;
 
     expect(feature.completeCommandOwnedEdit({
-      requestId: request.requestId,
+      requestId,
       document,
       documentVersion: 2,
       postPosition: { line: 2, character: 25 }
     })).toBe(false);
-    expect(feature.sourceAuthoringPositionFor(document)).toEqual(request.sourcePosition);
+    expect(feature.sourceAuthoringPositionFor(document)).toEqual({ documentVersion: 1, line: 2, character: 1 });
     feature.dispose();
   });
 });

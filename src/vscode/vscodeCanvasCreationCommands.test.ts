@@ -2,10 +2,8 @@ import { describe, expect, it } from "vitest";
 import { creationCommandDefinitions } from "../commands/creationCommandDefinitions";
 import { legacyCreationCommandRecipeMap } from "../commands/legacyCreationRecipes";
 import {
-  normalizeVscodeCanvasQuickCreateCommands,
   filterVscodeCanvasCreationCommands,
-  vscodeCanvasCreationCommands,
-  type VscodeCanvasCreationCommandId
+  vscodeCanvasCreationCommands
 } from "./vscodeCanvasCreationCommands";
 
 describe("VS Code Canvas creation catalog", () => {
@@ -17,7 +15,6 @@ describe("VS Code Canvas creation catalog", () => {
 
   it("projects Polyline with its canonical label and localized search vocabulary", () => {
     expect(vscodeCanvasCreationCommands.find(({ commandId }) => commandId === "addPolyline")).toMatchObject({
-      title: "nuinuiCAD: Create Polyline",
       quickPickLabel: "Polyline",
       keywords: expect.arrayContaining(["polyline", "折れ線", "ポリライン"])
     });
@@ -27,8 +24,6 @@ describe("VS Code Canvas creation catalog", () => {
     for (const entry of vscodeCanvasCreationCommands) {
       const definition = creationCommandDefinitions[entry.commandId as keyof typeof creationCommandDefinitions];
       expect(definition.palette?.keywords).toEqual(entry.keywords);
-      expect(entry.title.startsWith("nuinuiCAD: Create ")).toBe(true);
-      expect(entry.quickPickDescription).toContain(entry.keywords[0]!);
     }
   });
 
@@ -58,39 +53,5 @@ describe("VS Code Canvas creation catalog", () => {
       "addPolyline"
     ]);
     expect(filterVscodeCanvasCreationCommands("   ")).toEqual(vscodeCanvasCreationCommands);
-  });
-});
-
-describe("VS Code Canvas Quick Create normalization", () => {
-  it("accepts an empty configuration", () => {
-    expect(normalizeVscodeCanvasQuickCreateCommands([])).toEqual([]);
-    expect(normalizeVscodeCanvasQuickCreateCommands(undefined)).toEqual([]);
-  });
-
-  it("preserves order, keeps the first duplicate, and drops unknown values", () => {
-    const input = [
-      "addLine",
-      "addPolyline",
-      "unknown",
-      "addFreePoint",
-      "addLine",
-      "addArcLine",
-      "addText",
-      "addMove",
-      "addOffsetLine",
-      "addCopyLine",
-      "addSymmetricMove"
-    ];
-    expect(normalizeVscodeCanvasQuickCreateCommands(input)).toEqual([
-      "addLine",
-      "addPolyline",
-      "addFreePoint",
-      "addArcLine",
-      "addText",
-      "addMove",
-      "addOffsetLine",
-      "addCopyLine",
-      "addSymmetricMove"
-    ] satisfies VscodeCanvasCreationCommandId[]);
   });
 });

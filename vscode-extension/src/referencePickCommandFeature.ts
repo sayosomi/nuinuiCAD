@@ -71,6 +71,7 @@ type ReferencePickTargetQuickPickItem = vscode.QuickPickItem & {
 
 type ActiveReferencePick = {
   editor: vscode.TextEditor;
+  sourceSelection: vscode.Selection;
   normalizedSourceOffset: number;
   documentVersion: number;
   requestId: number;
@@ -726,6 +727,22 @@ export const registerVscodeReferencePickFeature = ({
       refreshContext(vscode.window.activeTextEditor);
       return;
     }
+    if (outcome === "canceled") {
+      clearActive(false);
+      clearHistoryHandoff();
+      try {
+        await vscode.window.showTextDocument(current.editor.document, {
+          viewColumn: current.editor.viewColumn,
+          preserveFocus: false,
+          preview: false,
+          selection: current.sourceSelection
+        });
+      } catch {
+        // Pick cancellation is already complete. Focus restoration is best effort.
+      }
+      refreshContext(vscode.window.activeTextEditor);
+      return;
+    }
     clearActive(false);
     clearHistoryHandoff();
     refreshContext(vscode.window.activeTextEditor);
@@ -743,8 +760,10 @@ export const registerVscodeReferencePickFeature = ({
     }
 
     const documentVersion = handoff.editor.document.version;
+    const sourceSelection = handoff.editor.selection;
     const current: ActiveReferencePick = {
       editor: handoff.editor,
+      sourceSelection,
       normalizedSourceOffset: handoff.normalizedSourceOffset,
       documentVersion,
       requestId: nextRequestId++,
@@ -834,6 +853,7 @@ export const registerVscodeReferencePickFeature = ({
 
     const current: ActiveReferencePick = {
       editor,
+      sourceSelection,
       normalizedSourceOffset: selectedTarget.range.from,
       documentVersion,
       requestId: nextRequestId++,

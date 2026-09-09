@@ -1,7 +1,7 @@
 import type { RefObject } from "react";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from "react";
 import { dispatchCommand } from "../commands/commands";
-import type { CommandContext, SourceCreationCommitMetadata } from "../commands/commandTypes";
+import type { CommandContext } from "../commands/commandTypes";
 import { commitCanvasRectangleSelection } from "../commands/canvasRectangleSelectionCommands";
 import {
   canvasSelectionSnapshot,
@@ -39,7 +39,6 @@ import {
 } from "./vscodeCanvasRibbonConfig";
 import { vscodeCanvasRibbonCommandFor } from "./vscodeCanvasRibbonCatalog";
 import { VSCodeCanvasRibbonOverlay } from "./VSCodeCanvasRibbonOverlay";
-import { VSCodeCreationAssistOverlay } from "./VSCodeCreationAssistOverlay";
 import { VSCodeReferencePickOverlay } from "./VSCodeReferencePickOverlay";
 import { VSCodeReferencePickModeStatus } from "./VSCodeReferencePickModeStatus";
 import { CommandLineBar } from "../components/CommandLineBar";
@@ -64,7 +63,6 @@ import {
 } from "./coordinatePointConversionPick";
 import { vscodeWebviewApi } from "./vscodeWebviewApiContext";
 import type { VscodeMultiDocumentCanvasRuntimePresentation } from "./multiDocumentRuntimeTransport";
-import type { SourceCreationCursor } from "../commands/sourceCreationInsertion";
 import {
   pickModeCanvasCommandAllowedForActive,
   pickModeCanvasOperationAllowedForActive
@@ -74,11 +72,7 @@ type VSCodeDrawingCanvasProps = {
   evaluation: EvaluationResult;
   evaluationState?: EvaluationEngineState;
   canvasFocusRef: RefObject<HTMLDivElement | null>;
-  postCanonicalSourceText: (sourceText: string, metadata?: SourceCreationCommitMetadata) => void;
-  canvasCreationRequest?: {
-    requestId: number;
-    sourceCursor: SourceCreationCursor;
-  };
+  postCanonicalSourceText: (sourceText: string) => void;
   postCanvasCommit?: (operationId?: number, coordinatePointConversionRequestId?: number) => void;
   postCanvasPointerPosition?: (pointer: VscodeCanvasPointer) => void;
   canvasTheme?: CanvasTheme;
@@ -109,7 +103,6 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
     evaluationState,
     canvasFocusRef,
     postCanonicalSourceText,
-    canvasCreationRequest,
     postCanvasCommit,
     postCanvasPointerPosition,
     canvasTheme = LEGACY_CANVAS_THEME,
@@ -415,15 +408,8 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       clearPendingCanvasPointerIntent: () => drawingCanvasRef.current?.clearPendingCanvasPointerIntent(),
       clearSourceEditorFocusReservation: () => drawingCanvasRef.current?.clearEditorFocusReservation(),
       postCanonicalSourceText,
-      completeCommandLineSession: true,
-      ...(canvasCreationRequest
-        ? {
-            currentSourceCursor: () => canvasCreationRequest.sourceCursor,
-            sourceCreationOrigin: "canvas-retained" as const,
-            canvasCreationRequestId: canvasCreationRequest.requestId
-          }
-        : {})
-    }), [canvasCreationRequest, canvasFocusRef, canvasPresentation.renderEvaluation, canvasPresentation.renderEvaluationState, compiledDocumentRevision, measureCanvasTextWidth, postCanonicalSourceText]);
+      completeCommandLineSession: true
+    }), [canvasFocusRef, canvasPresentation.renderEvaluation, canvasPresentation.renderEvaluationState, compiledDocumentRevision, measureCanvasTextWidth, postCanonicalSourceText]);
 
     useEffect(() => () => dragPreviewScheduler.dispose(), [dragPreviewScheduler]);
     useEffect(() => {
@@ -638,14 +624,6 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
           ) : (
             <PickModeStatus />
           )}
-          <VSCodeCreationAssistOverlay
-            canvasFocusRef={canvasFocusRef}
-            commandContext={creationCommandContext}
-            evaluation={canvasPresentation.renderEvaluation}
-            evaluationIsCurrent={creationCommandContext.evaluationIsCurrent ?? true}
-            postCanonicalSourceText={postCanonicalSourceText}
-            presentation={canvasPresentationAdapter}
-          />
           {referencePickSession ? (
             <VSCodeReferencePickOverlay
               canvasFocusRef={canvasFocusRef}
@@ -728,7 +706,6 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       confirmReferencePick,
       cancelReferencePick,
       postCanvasPointerPosition,
-      postCanonicalSourceText,
       coordinatePointConversionSession,
       coordinatePointConversionCanvasBasePick,
       setCoordinatePointConversionQuery,

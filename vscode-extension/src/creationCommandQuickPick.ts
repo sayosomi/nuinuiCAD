@@ -17,7 +17,6 @@ type QuickPickCreationItem = vscode.QuickPickItem & {
 
 export type VscodeCreationCommandPickerOptions = {
   displayLanguage: string;
-  registerCloser?: (closer: () => void) => vscode.Disposable;
 };
 
 const quickPickItemsFor = (
@@ -32,15 +31,12 @@ const quickPickItemsFor = (
 
 /** Picks one existing Create Geometry command without owning any command lifecycle. */
 export const pickVscodeCreationCommand = ({
-  displayLanguage,
-  registerCloser
+  displayLanguage
 }: VscodeCreationCommandPickerOptions): Promise<VscodeCanvasCreationCommandId | undefined> => {
   const picker = nativeCreateQuickPick<QuickPickCreationItem>();
   let settled = false;
   let resolvePick: (selection: VscodeCanvasCreationCommandId | undefined) => void = () => undefined;
-  const closerRegistration: { disposable?: vscode.Disposable } = {};
   let finish: (selection: QuickPickCreationItem | undefined) => void = () => undefined;
-  const close = (): void => finish(undefined);
 
   const result = new Promise<VscodeCanvasCreationCommandId | undefined>((resolve) => {
     resolvePick = resolve;
@@ -50,7 +46,6 @@ export const pickVscodeCreationCommand = ({
     if (settled) return;
     settled = true;
     for (const listener of listeners) listener.dispose();
-    closerRegistration.disposable?.dispose();
     picker.dispose();
     resolvePick(
       selection && isVscodeCanvasCreationCommandId(selection.commandId)
@@ -58,8 +53,6 @@ export const pickVscodeCreationCommand = ({
         : undefined
     );
   };
-  closerRegistration.disposable = registerCloser?.(close);
-
   picker.placeholder = canvasQuickCreateTranslatorFor(displayLanguage)(
     "canvasQuickCreate.placeholder.createGeometry"
   );

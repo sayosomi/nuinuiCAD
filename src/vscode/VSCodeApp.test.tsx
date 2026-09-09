@@ -4,8 +4,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { projectDslRevealRuntimeStatementOwner } from "@nuinuicad/nui-language";
 import { selectElement } from "../commands/selectionCommands";
 import * as commandRegistry from "../commands/commands";
-import { confirmCommandLineSession, submitCommandLineInput } from "../commands/commandLineSessionCommands";
-import type { SourceCreationCommitMetadata } from "../commands/commandTypes";
 import { planInlineModule } from "../document/inlineModulePlanner";
 import { applyLineSplices } from "../document/textPatch";
 import { dslTextForElements } from "../dsl/dslDocumentTestUtils";
@@ -33,7 +31,7 @@ import {
 import { canvasNavigationFreshnessFor } from "./canvasNavigationFreshness";
 
 const drawingCanvasProps = vi.hoisted(() => ({
-  postCanonicalSourceText: null as ((sourceText: string, metadata?: SourceCreationCommitMetadata) => void) | null,
+  postCanonicalSourceText: null as ((sourceText: string) => void) | null,
   currentReferencePickAuthorityFor: null as VscodeReferencePickAuthorityFor | null,
   bakeSandboxTargetIds: null as string[] | null,
   bakeSandboxPromise: null as Promise<unknown> | null,
@@ -68,7 +66,7 @@ vi.mock("./VSCodeDrawingCanvas", () => ({
     multiDocumentRuntimePresentation
   }: {
     canvasFocusRef: RefObject<HTMLDivElement | null>;
-    postCanonicalSourceText: (sourceText: string, metadata?: SourceCreationCommitMetadata) => void;
+    postCanonicalSourceText: (sourceText: string) => void;
     currentReferencePickAuthorityFor: VscodeReferencePickAuthorityFor;
     multiDocumentRuntimePresentation?: VscodeMultiDocumentCanvasRuntimePresentation | null;
   }) => {
@@ -232,41 +230,6 @@ describe("VSCodeApp Canvas history coordinator", () => {
       status: "rejected",
       documentVersion: 7
     });
-  });
-
-  it.each([
-    ["ja", "現在のSource位置が古くなっています。現在のSourceでキャレットを再確定してから再試行してください。"],
-    ["en", "The current Source position is stale. Reconfirm the caret in the current Source and try again."]
-  ] as const)("localizes stale Canvas source anchors for the %s host without starting creation", async (language, expectedError) => {
-    const api = { postMessage: vi.fn() };
-    render(<VSCodeAppForTest api={api} />);
-
-    await act(async () => {
-      window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "webviewPresentation", presentation: webviewPresentationFor(language) }
-      }));
-    });
-    await act(async () => {
-      window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "replaceTextDocument", sourceText: "nui 1\n", documentVersion: 7 }
-      }));
-      window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "webviewAuthoritativeDocumentReady", documentVersion: 7 }
-      }));
-      window.dispatchEvent(new MessageEvent("message", {
-        data: {
-          type: "canvasCreationCommand",
-          commandId: "addLine",
-          requestId: 602,
-          documentVersion: 7,
-          sourcePosition: { line: 4, character: 0 }
-        }
-      }));
-    });
-
-    expect(useCadUiStore.getState().commandErrorMessage).toBe(expectedError);
-    expect(useCadUiStore.getState().commandLineSession).toBeNull();
-    expect(api.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "canvasCommit" }));
   });
 
   it("accepts a graph/runtime source revision that differs from the Webview compiler revision", async () => {
@@ -822,39 +785,6 @@ describe("VSCodeApp Canvas history coordinator", () => {
     expect(useCadUiStore.getState().selectedElementId).toBe(base.id);
   });
 
-  it("dispatches only runtime-validated Canvas creation messages through the shared command registry", async () => {
-    const dispatchCommand = vi.spyOn(commandRegistry, "dispatchCommand").mockReturnValue(false);
-    const api = { postMessage: vi.fn() };
-    render(<VSCodeAppForTest api={api} />);
-
-    await act(async () => {
-      const sourceText = useCadDocumentStore.getState().sourceText;
-      window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "replaceTextDocument", sourceText, documentVersion: 1 }
-      }));
-      window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "webviewAuthoritativeDocumentReady", documentVersion: 1 }
-      }));
-      window.dispatchEvent(new MessageEvent("message", {
-        data: {
-          type: "canvasCreationCommand",
-          commandId: "addLine",
-          requestId: 1,
-          documentVersion: 1,
-          sourcePosition: { line: 0, character: 0 }
-        }
-      }));
-      window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "canvasCreationCommand", commandId: "not-allowlisted" }
-      }));
-    });
-
-    expect(dispatchCommand).toHaveBeenCalledTimes(1);
-    expect(dispatchCommand).toHaveBeenCalledWith("addLine", expect.objectContaining({
-      recordSelectionHistory: true
-    }));
-  });
-
   it("dispatches Select Instance Canvas messages through the shared command registry", async () => {
     const dispatchCommand = vi.spyOn(commandRegistry, "dispatchCommand").mockReturnValue(false);
     const api = { postMessage: vi.fn() };
@@ -956,102 +886,6 @@ describe("VSCodeApp Canvas history coordinator", () => {
       selectedElementIds: [importedInstanceId],
       selectionAnchorElementId: importedInstanceId
     });
-  });
-
-  it("starts the existing command-line creation session for a valid Canvas creation message", async () => {
-    const api = { postMessage: vi.fn() };
-    render(<VSCodeAppForTest api={api} />);
-
-    await act(async () => {
-      const sourceText = useCadDocumentStore.getState().sourceText;
-      window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "replaceTextDocument", sourceText, documentVersion: 1 }
-      }));
-      window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "webviewAuthoritativeDocumentReady", documentVersion: 1 }
-      }));
-      window.dispatchEvent(new MessageEvent("message", {
-        data: {
-          type: "canvasCreationCommand",
-          commandId: "addLine",
-          requestId: 1,
-          documentVersion: 1,
-          sourcePosition: { line: 0, character: 0 }
-        }
-      }));
-    });
-
-    expect(useCadUiStore.getState().commandLineSession).toMatchObject({
-      recipe: { type: "line" }
-    });
-  });
-
-  it("routes retained Canvas creation persistence through the existing canvasCommit bridge", async () => {
-    const source = sourceForSelectionChronology(0);
-    const api = { postMessage: vi.fn() };
-    render(<VSCodeAppForTest api={api} />);
-
-    await act(async () => {
-      window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "replaceTextDocument", sourceText: source, documentVersion: 7 }
-      }));
-      window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "webviewAuthoritativeDocumentReady", documentVersion: 7 }
-      }));
-      window.dispatchEvent(new MessageEvent("message", {
-        data: {
-          type: "canvasCreationCommand",
-          commandId: "addFreePoint",
-          requestId: 1,
-          documentVersion: 7,
-          sourcePosition: { line: 0, character: 0 }
-        }
-      }));
-    });
-
-    await act(async () => {
-      submitCommandLineInput("");
-      submitCommandLineInput("1");
-      submitCommandLineInput("2");
-      expect(confirmCommandLineSession()).toBe(true);
-    });
-
-    const committedDocument = useCadDocumentStore.getState();
-    const created = committedDocument.elements.find((element) => element.name === "");
-    const createdInfo = created && committedDocument.doc.statementMap.byElementId.get(created.id);
-    const nextSourceLine = createdInfo && Math.max(createdInfo.range.endLine, createdInfo.endLine) - 1;
-    expect(committedDocument.sourceUpdate.kind).toBe("model-patch");
-    const committedSplices = committedDocument.sourceUpdate.kind === "model-patch"
-      ? committedDocument.sourceUpdate.splices
-      : [];
-    expect(drawingCanvasProps.postCanonicalSourceText).not.toBeNull();
-    await act(async () => {
-      drawingCanvasProps.postCanonicalSourceText!(committedDocument.sourceText, {
-        requestId: 1,
-        insertedElementId: created?.id,
-        nextSourcePosition: nextSourceLine === undefined ? undefined : {
-          line: nextSourceLine,
-          character: committedDocument.sourceText.split("\n")[nextSourceLine]?.length ?? 0
-        }
-      });
-    });
-
-    expect(api.postMessage).toHaveBeenCalledWith(expect.objectContaining({
-      type: "canvasCommit",
-      sourceText: committedDocument.sourceText,
-      expectedDocumentVersion: 7,
-      mutationKind: "model-patch",
-      splices: committedSplices,
-      operationId: 1,
-      sourceCreation: {
-        requestId: 1,
-        insertedElementId: created?.id,
-        nextSourcePosition: nextSourceLine === undefined ? undefined : {
-          line: nextSourceLine,
-          character: committedDocument.sourceText.split("\n")[nextSourceLine]?.length ?? 0
-        }
-      }
-    }));
   });
 
   it("rolls back a rejected Canvas free-point commit to the exact Source and selection snapshot", async () => {

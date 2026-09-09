@@ -76,10 +76,8 @@ beforeEach(() => {
 
 describe("pickVscodeCreationCommand", () => {
   it("keeps the ordered catalog, localized presentation, filtering, and explicit hide cancellation", async () => {
-    const registerCloser = vi.fn((close: () => void) => disposable(close));
     const englishPending = pickVscodeCreationCommand({
-      displayLanguage: "en-US",
-      registerCloser
+      displayLanguage: "en-US"
     });
     const englishPicker = mocks.quickPicks[0]!;
 
@@ -107,7 +105,6 @@ describe("pickVscodeCreationCommand", () => {
     englishPicker.fireHide();
     englishPicker.fireAccept();
     await expect(englishPending).resolves.toBeUndefined();
-    expect(registerCloser).toHaveBeenCalledTimes(1);
     expect(englishPicker.dispose).toHaveBeenCalledTimes(1);
 
     const japanesePending = pickVscodeCreationCommand({ displayLanguage: "ja-JP" });
@@ -123,25 +120,4 @@ describe("pickVscodeCreationCommand", () => {
     expect(japanesePicker.dispose).toHaveBeenCalledTimes(1);
   });
 
-  it("lets the owner close an active picker and unregisters it after disposal", async () => {
-    let close: (() => void) | undefined;
-    const pending = pickVscodeCreationCommand({
-      displayLanguage: "en",
-      registerCloser: (registeredClose) => {
-        close = registeredClose;
-        return disposable(() => {
-          close = undefined;
-        });
-      }
-    });
-    const picker = mocks.quickPicks[0]!;
-
-    close?.();
-    await expect(pending).resolves.toBeUndefined();
-    expect(picker.dispose).toHaveBeenCalledTimes(1);
-    expect(close).toBeUndefined();
-
-    picker.fireHide();
-    expect(picker.dispose).toHaveBeenCalledTimes(1);
-  });
 });
