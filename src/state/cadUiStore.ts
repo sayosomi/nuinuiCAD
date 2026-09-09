@@ -271,7 +271,6 @@ export type CadUiState = CadElementSelection & {
   showCanvasPoints: boolean;
   /** Latest authoritative normal Canvas presentation boundary. */
   canvasSelectionEligibleElementIds: CanvasSelectionEligibility | null;
-  showElementListColorAccents: boolean;
   showShortcutHelp: boolean;
   showShortcutSettings: boolean;
   showVisibilityProfileSettings: boolean;
@@ -322,7 +321,6 @@ export type CadUiState = CadElementSelection & {
     elements: readonly CadElement[],
     canvasSelectionEligibleElementIds: CanvasSelectionEligibility
   ) => void;
-  setShowElementListColorAccents: (showElementListColorAccents: boolean) => void;
   setShowShortcutHelp: (showShortcutHelp: boolean) => void;
   setShowShortcutSettings: (showShortcutSettings: boolean) => void;
   setShowVisibilityProfileSettings: (showVisibilityProfileSettings: boolean) => void;
@@ -398,7 +396,6 @@ export const initialCadUiState = (): Omit<
   | "setShowCanvasPoints"
   | "invalidateCanvasSelectionEligibility"
   | "setCanvasSelectionEligibility"
-  | "setShowElementListColorAccents"
   | "setShowShortcutHelp"
   | "setShowShortcutSettings"
   | "setShowVisibilityProfileSettings"
@@ -458,7 +455,6 @@ export const initialCadUiState = (): Omit<
   showCanvasGeometryNames: false,
   showCanvasPoints: true,
   canvasSelectionEligibleElementIds: null,
-  showElementListColorAccents: false,
   showShortcutHelp: false,
   showShortcutSettings: false,
   showVisibilityProfileSettings: false,
@@ -627,8 +623,6 @@ export const useCadUiStore = create<CadUiState>((set, get) => ({
         ...(selectionEqual(currentSelection, nextSelection) ? {} : nextSelection)
       };
     }),
-  setShowElementListColorAccents: (showElementListColorAccents) =>
-    set({ showElementListColorAccents }),
   setShowShortcutHelp: (showShortcutHelp) => set({ showShortcutHelp }),
   setShowShortcutSettings: (showShortcutSettings) => set({ showShortcutSettings }),
   setShowVisibilityProfileSettings: (showVisibilityProfileSettings) =>
