@@ -1,126 +1,44 @@
 import type {
   CadElement,
-  ComputedBezierSegment,
   ComputedOffsetLine,
   ComputedOffsetLineSegment,
-  ElementId
 } from "../types/geometry";
 import { dependencyError, geometryError, getPointAnchorOrError } from "./evaluationContext";
-import { approximateBezierSegmentLength } from "./evaluateGeometryPrimitives";
 import type { ElementEvaluationContext } from "./elementEvaluatorTypes";
-import { angleOfPoint, computedPoint, degreesToRadians, lineLength } from "./offsetPathMath";
-import type { Point, SourceSegment } from "./offsetPathTypes";
+import type { ComputedGeometryValueOffsetLineSegment } from "./evaluationTypes";
+import { computedPoint, lineLength } from "./offsetPathMath";
+import { copyPathGeometry, type CopyPathTransform } from "./copyPathGeometry";
+import type { SourceSegment } from "./offsetPathTypes";
 import {
   connectSourceSegmentGroups,
-  sourceEnd,
-  sourceSegmentsForGeometry,
-  sourceStart
+  sourceSegmentsForGeometry
 } from "./offsetSourceSegments";
 import { isLineLikeGeometryInput } from "./linePaths";
 import { resolveLineGeometryInputAt } from "./lineGeometryInput";
 import { offsetLineEndpointMeasurements } from "./lineMeasurements";
 
-const reflectPointAcrossAxis = ({
-  point,
-  axisPoint1,
-  axisPoint2
-}: {
-  point: Point;
-  axisPoint1: Point;
-  axisPoint2: Point;
-}): Point | null => {
-  const axis = {
-    x: axisPoint2.x - axisPoint1.x,
-    y: axisPoint2.y - axisPoint1.y
-  };
-  const axisLengthSquared = axis.x * axis.x + axis.y * axis.y;
-  if (axisLengthSquared <= 0) return null;
-
-  const relative = {
-    x: point.x - axisPoint1.x,
-    y: point.y - axisPoint1.y
-  };
-  const projectionScale = (relative.x * axis.x + relative.y * axis.y) / axisLengthSquared;
-  const projection = {
-    x: axis.x * projectionScale,
-    y: axis.y * projectionScale
-  };
-
-  return {
-    x: axisPoint1.x + 2 * projection.x - relative.x,
-    y: axisPoint1.y + 2 * projection.y - relative.y
-  };
-};
-
-const transformedSegment = ({
-  segment,
-  elementId,
-  name,
-  index,
-  axisPoint1,
-  axisPoint2
-}: {
-  segment: SourceSegment;
-  elementId: ElementId;
-  name: string;
-  index: number;
-  axisPoint1: Point;
-  axisPoint2: Point;
-}): ComputedOffsetLineSegment | null => {
-  const transform = (point: Point) => {
-    const reflected = reflectPointAcrossAxis({ point, axisPoint1, axisPoint2 });
-    return reflected
-      ? computedPoint(`${elementId}:${index}`, `${name}.${index + 1}`, reflected)
-      : null;
-  };
-
-  if (segment.kind === "line") {
-    const start = transform(segment.start);
-    const end = transform(segment.end);
-    if (!start || !end) return null;
-    const length = lineLength(start, end);
-    return length <= 0 ? null : { kind: "line", start, end, length };
-  }
-
+const decorateSegment = (
+  segment: ComputedGeometryValueOffsetLineSegment,
+  elementId: string,
+  name: string,
+  index: number
+): ComputedOffsetLineSegment => {
+  const point = (value: { x: number; y: number }) => computedPoint(`${elementId}:${index}`, `${name}.${index + 1}`, value);
+  if (segment.kind === "line") return { ...segment, start: point(segment.start), end: point(segment.end) };
   if (segment.kind === "bezier") {
-    const start = transform(segment.start);
-    const control1 = reflectPointAcrossAxis({ point: segment.control1, axisPoint1, axisPoint2 });
-    const control2 = reflectPointAcrossAxis({ point: segment.control2, axisPoint1, axisPoint2 });
-    const end = transform(segment.end);
-    if (!start || !control1 || !control2 || !end) return null;
-    const bezierSegment: ComputedBezierSegment = {
-      startPointId: null,
-      endPointId: null,
-      start,
-      control1,
-      control2,
-      end
-    };
     return {
-      kind: "bezier",
-      start,
-      control1,
-      control2,
-      end,
-      length: approximateBezierSegmentLength(bezierSegment)
+      ...segment,
+      start: point(segment.start),
+      control1: segment.control1,
+      control2: segment.control2,
+      end: point(segment.end)
     };
   }
-
-  const center = transform(segment.center);
-  const start = transform(sourceStart(segment));
-  const end = transform(sourceEnd(segment));
-  if (!center || !start || !end) return null;
-  const startAngleDeg = angleOfPoint(center, start);
-  const sweepAngleDeg = -segment.sweepAngleDeg;
   return {
-    kind: "arc",
-    center,
-    start,
-    end,
-    radius: segment.radius,
-    startAngleDeg,
-    sweepAngleDeg,
-    length: Math.max(segment.radius, 0) * Math.abs(degreesToRadians(sweepAngleDeg))
+    ...segment,
+    center: point(segment.center),
+    start: point(segment.start),
+    end: point(segment.end)
   };
 };
 
@@ -194,17 +112,9 @@ export const evaluateSymmetricCopyLineElement = (
     errors.push(geometryError(element, `${element.name} の基準線は指定順・指定方向で連続していません。reverse を使うか順序を見直してください。`));
     return true;
   }
-  const segments = sourceSegments.flatMap((segment, index) => {
-    const transformed = transformedSegment({
-      segment,
-      elementId: element.id,
-      name: element.name,
-      index,
-      axisPoint1,
-      axisPoint2
-    });
-    return transformed ? [transformed] : [];
-  });
+  const transform: CopyPathTransform = { kind: "mirror", axis1: axisPoint1, axis2: axisPoint2 };
+  const structuralSegments = copyPathGeometry(sourceSegments, transform)?.segments ?? [];
+  const segments = structuralSegments.map((segment, index) => decorateSegment(segment, element.id, element.name, index));
 
   if (segments.length === 0) {
     errors.push(geometryError(element, `${element.name} は基準線から作図できる長さの線分がありません。`));

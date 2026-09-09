@@ -558,6 +558,21 @@ export const analyzeModuleBody = ({
           if (construction.side) addScalar(bodySemantic, "construction:side", construction.side.ast.span, construction.side);
           if (construction.closed) addScalar(bodySemantic, "construction:closed", construction.closed.ast.span, construction.closed);
           if (construction.suppressTrimWarnings) addScalar(bodySemantic, "construction:suppressTrimWarnings", construction.suppressTrimWarnings.ast.span, construction.suppressTrimWarnings);
+        } else if (construction?.kind === "transformCopy") {
+          addGeometry(bodySemantic, "construction:startPoint", construction.startPoint.span, construction.startPoint);
+          addGeometry(bodySemantic, "construction:endPoint", construction.endPoint.span, construction.endPoint);
+          construction.baseLines.forEach((source, index) => {
+            addGeometry(bodySemantic, `construction:baseLines:${index}`, source.span, source);
+          });
+          if (construction.scale) addScalar(bodySemantic, "construction:scale", construction.scale.ast.span, construction.scale);
+          if (construction.angleDeg) addScalar(bodySemantic, "construction:angleDeg", construction.angleDeg.ast.span, construction.angleDeg);
+          if (construction.mirrorX) addScalar(bodySemantic, "construction:mirrorX", construction.mirrorX.ast.span, construction.mirrorX);
+        } else if (construction?.kind === "mirrorCopy") {
+          addGeometry(bodySemantic, "construction:axis1", construction.axis1.span, construction.axis1);
+          addGeometry(bodySemantic, "construction:axis2", construction.axis2.span, construction.axis2);
+          construction.baseLines.forEach((source, index) => {
+            addGeometry(bodySemantic, `construction:baseLines:${index}`, source.span, source);
+          });
         }
         const value: ModuleGeometryValueSemantic = {
           statementId,

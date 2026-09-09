@@ -151,6 +151,21 @@ export type GeometryValueProgramConstruction =
       side: TypedScalarExpression;
       closed: TypedScalarExpression;
       suppressTrimWarnings: TypedScalarExpression;
+    }
+  | {
+      kind: "transformCopy";
+      startPoint: GeometryValueProgramPoint;
+      endPoint: GeometryValueProgramPoint;
+      scale: TypedScalarExpression;
+      angleDeg: TypedScalarExpression;
+      mirrorX: TypedScalarExpression;
+      baseLines: readonly GeometryValueProgramPath[];
+    }
+  | {
+      kind: "mirrorCopy";
+      axis1: GeometryValueProgramPoint;
+      axis2: GeometryValueProgramPoint;
+      baseLines: readonly GeometryValueProgramPath[];
     };
 
 /** Host-neutral, already-resolved immutable geometry value execution entry.
@@ -422,6 +437,33 @@ export const buildRootGeometryValueProgram = ({
                   ? { kind: "bezier" as const, start, end, startAngleDeg, startLength, endAngleDeg, endLength, intermediates }
                   : null;
               })()
+              : value.construction.kind === "transformCopy"
+                ? (() => {
+                    const startPoint = pointForReference(value.construction.startPoint);
+                    const endPoint = pointForReference(value.construction.endPoint);
+                    const scale = literalScalarExpression(value.construction.scale);
+                    const angleDeg = literalScalarExpression(value.construction.angleDeg);
+                    const mirrorX = literalScalarExpression(value.construction.mirrorX);
+                    const baseLines = value.construction.baseLines.flatMap((source) => {
+                      const lowered = pathForReference(source);
+                      return lowered ? [lowered] : [];
+                    });
+                    return startPoint && endPoint && scale && angleDeg && mirrorX && baseLines.length === value.construction.baseLines.length
+                      ? { kind: "transformCopy" as const, startPoint, endPoint, scale, angleDeg, mirrorX, baseLines }
+                      : null;
+                  })()
+                : value.construction.kind === "mirrorCopy"
+                  ? (() => {
+                      const axis1 = pointForReference(value.construction.axis1);
+                      const axis2 = pointForReference(value.construction.axis2);
+                      const baseLines = value.construction.baseLines.flatMap((source) => {
+                        const lowered = pathForReference(source);
+                        return lowered ? [lowered] : [];
+                      });
+                      return axis1 && axis2 && baseLines.length === value.construction.baseLines.length
+                        ? { kind: "mirrorCopy" as const, axis1, axis2, baseLines }
+                        : null;
+                    })()
               : value.construction.kind === "offsetPath"
                 ? (() => {
                     const sources = value.construction.sources.flatMap((source) => {

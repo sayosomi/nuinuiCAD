@@ -69,6 +69,16 @@ Single-geometry values are `const`-only. Pure `bezier(...)` is a supported
 `polyline(...)` is also a `path` initializer using the drawable `points` and
 `closed` arguments; it stores ordered identity-free line segments, preserves
 duplicate points, and requires at least two open points or three closed points.
+`transformCopy(...)` and `mirrorCopy(...)` are also immutable, non-drawable
+`path` initializers. `transformCopy` first translates every source point by
+`endPoint - startPoint`; when `mirrorX` is true it mirrors about the vertical
+axis through `endPoint`, then scales about `endPoint`, and finally rotates
+about `endPoint` by `angleDeg`. Its defaults are `scale: 1`, `angleDeg: 0`,
+and `mirrorX: false`; `startPoint` is an explicit transform reference, not an
+implicit source-list endpoint. `mirrorCopy` reflects across the axis from
+`axis1` to `axis2`.
+Both preserve ordered structural line, arc, and Bezier segments and record
+all source references without creating a drawable identity.
 Invalid runtime inputs fail through the occurrence-owned geometry-value
 diagnostic channel. Point and path `offset(...)` are also implemented pure
 initializers; they reuse the corresponding drawable offset geometry and remain

@@ -1152,8 +1152,22 @@ is an implemented pure `path` initializer using the drawable line-offset
 geometry, ordering, defaults, validation, and trimming behavior. Both pure
 forms are identity-free and remain consumable by the existing compatible
 geometry readers; runtime failures use the occurrence-owned geometry-value
-diagnostic channel. `corner` and other deferred constructions remain
-unsupported.
+diagnostic channel. `transformCopy(startPoint: ..., endPoint: ..., scale: ...,
+angleDeg: ..., mirrorX: ..., baseLines: ...)` and
+`mirrorCopy(axis1: ..., axis2: ..., baseLines: ...)` are implemented pure
+`path` initializers. Their source list is an ordered, non-empty list of
+line-like geometry and is not rewritten or auto-reversed. transformCopy
+translates the source start point to `endPoint`, optionally mirrors about the
+vertical through `endPoint`, scales about `endPoint`, then rotates by
+`angleDeg`; `scale` defaults to 1, `angleDeg` to 0, and `mirrorX` to false.
+mirrorCopy reflects across the directed two-point axis and reverses arc sweep.
+Both forms transform line endpoints, Bezier controls, and arc radius/sweep,
+drop degenerate transformed line/Bezier segments, retain ordered segments and
+endpoint tangents, and produce no drawable element identity. Missing,
+disabled, invalid, non-line-like, empty, discontinuous, or too-late sources,
+non-positive scales, coincident axes, and no-segment results fail through the
+occurrence-owned geometry-value diagnostic channel. `corner` and other
+deferred constructions remain unsupported.
 
 The same form is available for root declarations, module locals, and exported
 members. Module parameters are declared in the Module signature rather than

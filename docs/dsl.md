@@ -79,7 +79,14 @@ the drawable point offset semantics, and
 produces an identity-free `path` using the drawable line offset geometry and
 validation. Both forms remain consumable by existing geometry readers; runtime
 failures are owned by the value occurrence and do not create a drawable
-identity. `corner` and other deferred constructors remain unsupported.
+identity. `transformCopy(startPoint: ..., endPoint: ..., scale: ..., angleDeg: ..., mirrorX: ..., baseLines: ...[])`
+and `mirrorCopy(axis1: ..., axis2: ..., baseLines: ...[])` are also immutable,
+non-drawable pure `path` initializers. They reuse the ordered line-like source
+boundary and copy geometry: transformCopy translates, mirrors about the
+destination vertical, scales about the destination, then rotates; mirrorCopy
+reflects across its two-point axis. Pure results retain structural line, arc,
+and Bezier segments without drawable identity. `corner` and other deferred
+constructors remain unsupported.
 
 The reference covers the current implemented language:
 
