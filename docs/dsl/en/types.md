@@ -44,15 +44,17 @@ const originPoint: point = coordinate(x: 0, y: 0)
 const measuredEdge: line = segment(start: @originPoint, end: (10, 0))
 const broadEdge: path = segment(start: @originPoint, end: (10, 0))
 const polarPoint: point = polar(from: @originPoint, angle: 90, distance: 20)
+const middlePoint: point = between(start: @originPoint, end: (10, 0), ratio: 0.5)
 const polarLine: line = polar(start: @polarPoint, angle: 30, length: 100)
+const fromEnd: point = onLine(from: @polarLine.end, distance: 25)
 const polarPath: path = @polarLine
 const roundedEdge: path = arc(center: @originPoint, radius: 10, start: 0, end: 90)
 const throughEdge: path = through(point1: @originPoint, point2: (10, 10), point3: (20, 0))
 ```
 
 The initializer may be an existing legal `@` geometry reference or one of the
-implemented pure construction forms: `coordinate` and point `polar` produce
-`point`, `segment` and line `polar` produce strict `line`, direct `arc` produces broad `path`, and `through`
+implemented pure construction forms: `coordinate`, `between`, and `onLine`
+produce `point`, `segment` and line `polar` produce strict `line`, direct `arc` produces broad `path`, and `through`
 produces an immutable non-drawable `path` by fitting a circle through
 `point1`, `point2`, and `point3`. `through` accepts optional `start` and `end`
 angles, defaulting to 0 and 90 degrees, and is counterclockwise. Duplicate or
@@ -72,7 +74,12 @@ initializers; they reuse the corresponding drawable offset geometry and remain
 consumable by existing point/path-compatible readers. Pure point and line
 `polar(...)` initializers likewise share the drawable polar geometry and
 defaults; the strict pure line participates in the existing `line` to `path`
-assignability rule. `corner` and other
+assignability rule. Pure `between(...)` requires exactly one `distance` or
+`ratio`; distance advances from `start` toward `end`, and ratio `0`/`1` denote
+the endpoints while allowing directed extrapolation. Pure `onLine(...)`
+requires exactly one of the same modes and retains the full line/path target
+plus the referenced endpoint direction. Missing or simultaneous modes are
+invalid, and these pure forms allocate no drawable identity. `corner` and other
 deferred constructions remain unsupported.
 
 ## One-dimensional arrays

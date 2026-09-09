@@ -483,6 +483,13 @@ export const analyzeModuleBody = ({
           addGeometry(bodySemantic, "construction:from", construction.from.span, construction.from);
           if (construction.angle) addScalar(bodySemantic, "construction:angle", construction.angle.ast.span, construction.angle);
           if (construction.distance) addScalar(bodySemantic, "construction:distance", construction.distance.ast.span, construction.distance);
+        } else if (construction?.kind === "between") {
+          addGeometry(bodySemantic, "construction:start", construction.start.span, construction.start);
+          addGeometry(bodySemantic, "construction:end", construction.end.span, construction.end);
+          addScalar(bodySemantic, `construction:${construction.placement.kind}`, construction.placement.value.ast.span, construction.placement.value);
+        } else if (construction?.kind === "onLine") {
+          addGeometry(bodySemantic, "construction:from", construction.from.span, construction.from);
+          addScalar(bodySemantic, `construction:${construction.placement.kind}`, construction.placement.value.ast.span, construction.placement.value);
         } else if (construction?.kind === "segment") {
           addGeometry(bodySemantic, "construction:start", construction.start.span, construction.start);
           addGeometry(bodySemantic, "construction:end", construction.end.span, construction.end);

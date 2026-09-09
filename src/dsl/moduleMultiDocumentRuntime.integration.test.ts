@@ -737,6 +737,47 @@ describe("multi-document module runtime", () => {
     expect(point && result.computedGeometry.get(point.id)).toMatchObject({ kind: "point", x: 6, y: 0 });
   });
 
+  it("consumes imported pure division-point exports without drawable identity", async () => {
+    const library = savedSource("division-library", "sha256:division-library", [
+      "nui 1",
+      "export module Division(source: path) {",
+      "  export const Mid: point = between(start: @source.start, end: @source.end, ratio: 0.5)",
+      "  export const FromEnd: point = onLine(from: @source.end, distance: 25)",
+      "}"
+    ].join("\n"));
+    const root = rootSource("division-root", [
+      "nui 1",
+      "line Base = segment(start: (0, 0), end: (100, 0))",
+      "import \"./division-library.nui\" as lib",
+      "instance use = lib::Division(source: @Base)",
+      "line Use = segment(start: @use::Mid, end: @use::FromEnd)"
+    ].join("\n"));
+    const { compiled } = await compileImported(
+      root,
+      new Map([[`${root.documentId}|./division-library.nui`, library]])
+    );
+
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    if (!compiled.document || !compiled.statementMap || compiled.majorVersion === null) return;
+    const result = evaluateCompiled(compiled);
+
+    expect(result.errors).toEqual([]);
+    expect(result.geometryValueErrors).toEqual([]);
+    const use = compiled.document.elements.find((element) => element.name === "Use");
+    expect(use && result.computedGeometry.get(use.id)).toMatchObject({
+      kind: "line",
+      start: { x: 50, y: 0 },
+      end: { x: 75, y: 0 }
+    });
+    const pureValues = [...(result.computedGeometryValues?.values() ?? [])];
+    expect(pureValues).toHaveLength(2);
+    expect(pureValues.map((entry) => entry.value)).toEqual([
+      { kind: "point", x: 50, y: 0 },
+      { kind: "point", x: 75, y: 0 }
+    ]);
+    expect(pureValues.every(({ value }) => !("elementId" in value) && !("name" in value))).toBe(true);
+  });
+
   it("keeps imported record values, record parameters, and record exports in the defining document", async () => {
     const library = savedSource("record-library", "sha256:record-library", [
       "nui 1",

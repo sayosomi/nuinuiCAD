@@ -29,6 +29,11 @@ export type GeometryValueProgramPath = {
   target: ScalarExpressionResolvedGeometryTarget;
 };
 
+export type GeometryValueProgramPlacement = {
+  kind: "distance" | "ratio";
+  value: TypedScalarExpression;
+};
+
 export type GeometryValueProgramConstruction =
   | {
       kind: "coordinate";
@@ -46,6 +51,18 @@ export type GeometryValueProgramConstruction =
       from: GeometryValueProgramPoint;
       angleDeg: TypedScalarExpression;
       distance: TypedScalarExpression;
+    }
+  | {
+      kind: "between";
+      start: GeometryValueProgramPoint;
+      end: GeometryValueProgramPoint;
+      placement: GeometryValueProgramPlacement;
+    }
+  | {
+      kind: "onLine";
+      line: GeometryValueProgramPath;
+      endpointKey: "start" | "end";
+      placement: GeometryValueProgramPlacement;
     }
   | {
       kind: "segment";
@@ -250,6 +267,23 @@ export const buildRootGeometryValueProgram = ({
               const angleDeg = literalScalarExpression(value.construction.angle);
               const distance = literalScalarExpression(value.construction.distance);
               return from && angleDeg && distance ? { kind: "polarPoint" as const, from, angleDeg, distance } : null;
+            })()
+        : value.construction.kind === "between"
+          ? (() => {
+              const start = pointForReference(value.construction.start);
+              const end = pointForReference(value.construction.end);
+              const placement = literalScalarExpression(value.construction.placement.value);
+              return start && end && placement
+                ? { kind: "between" as const, start, end, placement: { kind: value.construction.placement.kind, value: placement } }
+                : null;
+            })()
+        : value.construction.kind === "onLine"
+          ? (() => {
+              const line = pathForReference(value.construction.line);
+              const placement = literalScalarExpression(value.construction.placement.value);
+              return line && placement
+                ? { kind: "onLine" as const, line, endpointKey: value.construction.endpointKey, placement: { kind: value.construction.placement.kind, value: placement } }
+                : null;
             })()
         : value.construction.kind === "segment"
         ? (() => {

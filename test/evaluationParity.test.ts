@@ -153,6 +153,94 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("matches pure between and onLine division points across TypeScript and Rust", () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "const A: point = coordinate(x: 0, y: 0)",
+      "const B: point = coordinate(x: 100, y: 0)",
+      "const BetweenRatio: point = between(start: @A, end: @B, ratio: 0.5)",
+      "const BetweenDistance: point = between(start: @A, end: @B, distance: 25)",
+      "const L: line = segment(start: @A, end: @B)",
+      "const OnLineRatio: point = onLine(from: @L.start, ratio: 0.5)",
+      "const OnLineDistance: point = onLine(from: @L.end, distance: 25)",
+      "line Use = segment(start: @BetweenRatio, end: @OnLineDistance)"
+    ].join("\n"));
+    const program = fixture.compiled?.doc.geometryValueProgram;
+    if (!program) throw new Error("expected pure division geometry value program entries");
+    const entryFor = (sourceStatementIndex: number) => program.find((entry) => entry.sourceStatementIndex === sourceStatementIndex);
+    const betweenRatio = entryFor(3);
+    const betweenDistance = entryFor(4);
+    const line = entryFor(5);
+    const onLineRatio = entryFor(6);
+    const onLineDistance = entryFor(7);
+    if (!betweenRatio || !betweenDistance || !line || !onLineRatio || !onLineDistance) {
+      throw new Error("expected all pure division geometry value entries");
+    }
+    const options = optionsFor(fixture);
+
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustOptions(repoRoot, fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+
+    const valueFor = (
+      result: ReturnType<typeof evaluationPayloadToResult>,
+      occurrence: typeof betweenRatio.occurrence
+    ) => [...(result.computedGeometryValues?.values() ?? [])]
+      .find((entry) => entry.occurrence.sourceStatementId === occurrence.sourceStatementId &&
+        entry.occurrence.instancePath.join("\0") === occurrence.instancePath.join("\0"))?.value;
+
+    for (const result of [evaluationPayloadToResult(tsPayload), evaluationPayloadToResult(rustPayload)]) {
+      expect(result.errors).toEqual([]);
+      expect(result.geometryValueErrors).toEqual([]);
+      expect(valueFor(result, betweenRatio.occurrence)).toEqual({ kind: "point", x: 50, y: 0 });
+      expect(valueFor(result, betweenDistance.occurrence)).toEqual({ kind: "point", x: 25, y: 0 });
+      expect(valueFor(result, line.occurrence)).toMatchObject({ kind: "line", start: { x: 0, y: 0 }, end: { x: 100, y: 0 }, length: 100 });
+      expect(valueFor(result, onLineRatio.occurrence)).toEqual({ kind: "point", x: 50, y: 0 });
+      expect(valueFor(result, onLineDistance.occurrence)).toEqual({ kind: "point", x: 75, y: 0 });
+      expect([...result.computedGeometryValues!.values()].every(({ value }) => !("elementId" in value) && !("name" in value))).toBe(true);
+      expect([...result.computedGeometry.values()][0]).toMatchObject({ kind: "line", start: { x: 50, y: 0 }, end: { x: 75, y: 0 } });
+    }
+  }, 30000);
+
+  it("matches pure division-point degenerate diagnostics across TypeScript and Rust", () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "const A: point = coordinate(x: 0, y: 0)",
+      "const B: point = coordinate(x: 0, y: 0)",
+      "const BetweenDistance: point = between(start: @A, end: @B, distance: 1)",
+      "const L: line = segment(start: @A, end: @B)",
+      "const OnLineDistance: point = onLine(from: @L.start, distance: 1)"
+    ].join("\n"));
+    const program = fixture.compiled?.doc.geometryValueProgram;
+    if (!program) throw new Error("expected pure division geometry value program entries");
+    const betweenDistance = program.find((entry) => entry.sourceStatementIndex === 3);
+    const onLineDistance = program.find((entry) => entry.sourceStatementIndex === 5);
+    if (!betweenDistance || !onLineDistance) throw new Error("expected degenerate division entries");
+    const options = optionsFor(fixture);
+
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustOptions(repoRoot, fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+    expect(evaluationPayloadToResult(tsPayload).errors).toEqual([]);
+    expect(evaluationPayloadToResult(rustPayload).errors).toEqual([]);
+    for (const payload of [tsPayload, rustPayload]) {
+      const result = evaluationPayloadToResult(payload);
+      expect(result.geometryValueErrors).toEqual([
+        {
+          occurrence: betweenDistance.occurrence,
+          message: "between construction cannot determine a distance direction because its endpoints coincide."
+        },
+        {
+          occurrence: onLineDistance.occurrence,
+          message: "onLine construction cannot determine a point from the referenced line. Specify a usable line-like geometry."
+        }
+      ]);
+      expect(result.geometryValueErrors?.every((error) => !("elementId" in error))).toBe(true);
+    }
+  }, 30000);
+
   it("matches pure through values and degenerate diagnostics across TypeScript and Rust", () => {
     const fixture = fixtureFromSource([
       "nui 1",

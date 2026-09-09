@@ -598,8 +598,18 @@ millimetre offset from `start`, while ratio `0` is `start` and ratio `1` is
 does the corresponding operation from a referenced line endpoint; its
 `distance` or `ratio` also selects exactly one mode.
 
+Both constructions are available as identity-free pure `point` initializers
+in `const` declarations as well as drawable point constructions. Pure
+`between` measures along the directed start-to-end vector. Pure `onLine`
+retains the complete line/path geometry and the selected `start` or `end`
+orientation for path-distance traversal. Neither pure form creates a drawable
+element, computed drawable entry, or synthetic identity.
+
 **Notes:** A missing or simultaneous `distance` and `ratio` is invalid. The
-referenced endpoint must be available at the source position.
+referenced endpoint must be available at the source position. Coincident
+endpoints are invalid for pure distance placement; pure ratio placement keeps
+the existing coincident-point behavior. Unusable or degenerate pure `onLine`
+geometry reports an occurrence-owned geometry-value runtime error.
 
 ### `intersection`
 

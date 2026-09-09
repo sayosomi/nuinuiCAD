@@ -100,6 +100,14 @@ export const buildModuleGeometryRuntime = ({
     if (exported.backingTarget) {
       return sourceAliasForTarget(exported.backingTarget, path, contextsByPath, moduleMaterialization, exportsByPath);
     }
+    if (!exported.category && (exported.interfaceType === "point" || exported.interfaceType === "line" || exported.interfaceType === "path")) {
+      return {
+        kind: "value",
+        occurrence: { sourceStatementId: exported.exportedStatementId, instancePath: [...path] },
+        geometryType: exported.interfaceType === "point" ? "point" : "line",
+        interfaceType: exported.interfaceType
+      };
+    }
     const entry = runtimeEntryForBody(moduleMaterialization, path, exported.exportedStatementId);
     const kind = geometryKindOfCategory(exported.category, exported.interfaceType);
     if (!entry || !kind) return undefined;

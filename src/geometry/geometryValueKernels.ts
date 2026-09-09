@@ -57,6 +57,26 @@ export const polarPointGeometryKernel = (
   };
 };
 
+export const divisionPointGeometryKernel = (
+  start: StructuralPoint,
+  end: StructuralPoint,
+  placement: { kind: "distance" | "ratio"; value: number }
+): StructuralPoint | null => {
+  const vector = { x: end.x - start.x, y: end.y - start.y };
+  if (placement.kind === "ratio") {
+    return {
+      x: start.x + vector.x * placement.value,
+      y: start.y + vector.y * placement.value
+    };
+  }
+  const length = Math.hypot(vector.x, vector.y);
+  if (length <= CIRCLE_EPSILON) return null;
+  return {
+    x: start.x + (vector.x / length) * placement.value,
+    y: start.y + (vector.y / length) * placement.value
+  };
+};
+
 const identityFreePoint = ({ x, y }: { x: number; y: number }) => ({ x, y });
 
 const identityFreeOffsetSegment = (

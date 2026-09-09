@@ -74,9 +74,9 @@ import type {
   ComputedGeometryValueEntry,
   GeometryValueEvaluationError
 } from "./evaluationTypes";
-import { arcGeometryKernel, bezierGeometryKernel, coordinateGeometryKernel, offsetLineGeometryValueKernel, offsetPointGeometryKernel, polarLineGeometryKernel, polarPointGeometryKernel, polylineGeometryKernel, segmentGeometryKernel, throughArcGeometryKernel, type StructuralPoint } from "./geometryValueKernels";
+import { arcGeometryKernel, bezierGeometryKernel, coordinateGeometryKernel, divisionPointGeometryKernel, offsetLineGeometryValueKernel, offsetPointGeometryKernel, polarLineGeometryKernel, polarPointGeometryKernel, polylineGeometryKernel, segmentGeometryKernel, throughArcGeometryKernel, type StructuralPoint } from "./geometryValueKernels";
 import { buildOffsetLineGeometry } from "./offsetPaths";
-import { isLineLikeGeometryInput } from "./linePaths";
+import { isLineLikeGeometryInput, pointAtDistanceFromEndpoint } from "./linePaths";
 import { evaluateTypedExpression } from "../scalars/expressionEvaluator";
 import { setParameterValue } from "../parameters/parameterAccess";
 
@@ -530,6 +530,46 @@ export const evaluateElements = (
       if (from && angleDeg !== undefined && distance !== undefined) {
         value = { kind: "point", ...polarPointGeometryKernel(from, angleDeg, distance) };
       }
+    } else if (entry.construction.kind === "between") {
+      if (entry.declaredInterfaceType !== "point") {
+        appendGeometryValueError(entry, "Geometry value construction is incompatible with its declared interface type.");
+        return;
+      }
+      const start = structuralPointForProgramPoint(entry.construction.start, sourceOrder);
+      const end = structuralPointForProgramPoint(entry.construction.end, sourceOrder);
+      const placementValue = evaluateGeometryValueScalar(entry.construction.placement.value, sourceOrder);
+      if (start && end && placementValue !== undefined) {
+        const point = divisionPointGeometryKernel(start, end, {
+          kind: entry.construction.placement.kind,
+          value: placementValue
+        });
+        if (!point) {
+          appendGeometryValueError(entry, "between construction cannot determine a distance direction because its endpoints coincide.");
+          return;
+        }
+        value = { kind: "point", ...point };
+      }
+    } else if (entry.construction.kind === "onLine") {
+      if (entry.declaredInterfaceType !== "point") {
+        appendGeometryValueError(entry, "Geometry value construction is incompatible with its declared interface type.");
+        return;
+      }
+      const geometry = resolveDocumentGeometryTarget(geometryRuntime, entry.construction.line.target, sourceOrder);
+      const line = geometry && geometry.kind !== "unavailable" && isLineLikeGeometryInput(geometry) ? geometry : undefined;
+      const placementValue = evaluateGeometryValueScalar(entry.construction.placement.value, sourceOrder);
+      if (!line || placementValue === undefined) {
+        appendGeometryValueError(entry, "onLine construction cannot determine a point from the referenced line. Specify a usable line-like geometry.");
+        return;
+      }
+      const distanceFromEndpoint = entry.construction.placement.kind === "distance"
+        ? placementValue
+        : line.length * placementValue;
+      const point = pointAtDistanceFromEndpoint(line, entry.construction.endpointKey, distanceFromEndpoint);
+      if (!point) {
+        appendGeometryValueError(entry, "onLine construction cannot determine a point from the referenced line. Specify a usable line-like geometry.");
+        return;
+      }
+      value = { kind: "point", ...point };
     } else if (entry.construction.kind === "segment") {
       if (entry.declaredInterfaceType !== "line" && entry.declaredInterfaceType !== "path") {
         appendGeometryValueError(entry, "Geometry value construction is incompatible with its declared interface type.");

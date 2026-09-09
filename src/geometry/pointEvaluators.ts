@@ -13,13 +13,12 @@ import {
   solveRealQuadratic
 } from "./bezierMath";
 import type { BezierLikeSegment } from "./bezierMath";
-import { CIRCLE_EPSILON } from "./evaluateGeometryPrimitives";
 import { dependencyError, geometryError, getComputedPointOrError, getPointAnchorOrError, numericError } from "./evaluationContext";
 import { pointAtDistanceFromEndpoint, isLineLikeGeometryInput, tangentAtPointOnLineLikeGeometry } from "./linePaths";
 import { findLineIntersections } from "./lineIntersections";
 import { resolveLineGeometryInput } from "./lineGeometryInput";
 import type { ElementEvaluationContext } from "./elementEvaluatorTypes";
-import { coordinateGeometryKernel, polarPointGeometryKernel } from "./geometryValueKernels";
+import { coordinateGeometryKernel, divisionPointGeometryKernel, polarPointGeometryKernel } from "./geometryValueKernels";
 
 /**
  * The only place a divisionPoint/lineDivisionPoint's placement is read leniently:
@@ -305,19 +304,14 @@ export const evaluatePointElement = (element: CadElement, context: ElementEvalua
           break;
         }
 
-        const vector = {
-          x: end.x - start.x,
-          y: end.y - start.y
-        };
-        const length = Math.hypot(vector.x, vector.y);
-
         const placement = decodeDivisionPlacement(element.placement);
         if (placement.value === undefined) break;
 
         if (placement.kind === "distance") {
           const distance = evaluateNumber(placement.value);
           if (distance === undefined) break;
-          if (length <= CIRCLE_EPSILON) {
+          const point = divisionPointGeometryKernel(start, end, { kind: "distance", value: distance });
+          if (!point) {
             errors.push(
               geometryError(
                 element,
@@ -330,8 +324,8 @@ export const evaluatePointElement = (element: CadElement, context: ElementEvalua
             kind: "point",
             elementId: element.id,
             name: element.name,
-            x: start.x + (vector.x / length) * distance,
-            y: start.y + (vector.y / length) * distance
+            x: point.x,
+            y: point.y
           });
           break;
         }
@@ -339,12 +333,14 @@ export const evaluatePointElement = (element: CadElement, context: ElementEvalua
         const ratio = evaluateNumber(placement.value);
         if (ratio === undefined) break;
 
+        const point = divisionPointGeometryKernel(start, end, { kind: "ratio", value: ratio });
+        if (!point) break;
         computedGeometry.set(element.id, {
           kind: "point",
           elementId: element.id,
           name: element.name,
-          x: start.x + vector.x * ratio,
-          y: start.y + vector.y * ratio
+          x: point.x,
+          y: point.y
         });
         break;
       }

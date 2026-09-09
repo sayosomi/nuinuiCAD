@@ -4,6 +4,7 @@ use serde_json::Value;
 /// place a missing or unrecognized `placement.kind` is treated as ratio -- every
 /// evaluator that reads a division element's placement goes through
 /// `decode_division_placement` instead of re-checking the raw JSON string itself.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum DivisionPlacementKind {
     Distance,
     Ratio,

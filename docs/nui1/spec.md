@@ -1039,7 +1039,9 @@ construction forms:
 ```text
 const originPoint: point = coordinate(x: 10, y: 20)
 const polarPoint: point = polar(from: @originPoint, angle: 90, distance: 20)
+const middlePoint: point = between(start: @originPoint, end: (30, 20), ratio: 0.5)
 const edge: line = segment(start: @originPoint, end: (30, 20))
+const fromEnd: point = onLine(from: @edge.end, distance: 5)
 const polarEdge: line = polar(start: @polarPoint, angle: 30, length: 100)
 const polarPath: path = @polarEdge
 const outline: path = segment(start: @originPoint, end: (30, 20))
@@ -1082,6 +1084,19 @@ stores ordered identity-free line segments, preserves duplicate points, adds a
 closing segment only when needed, and requires at least two open points or
 three closed points. Unavailable points and invalid cardinality fail through
 the occurrence-owned geometry-value diagnostic channel. Point
+`between(start: ..., end: ..., distance: ...)` and
+`between(start: ..., end: ..., ratio: ...)` are implemented pure `point`
+initializers. Exactly one of `distance` and `ratio` is required: distance is
+measured from `start` toward `end`, while ratio `0` is `start` and ratio `1` is
+`end`, including directed extrapolation outside that interval. A distance
+placement cannot evaluate coincident endpoints, while a ratio placement keeps
+the drawable coincident-point behavior. `onLine(from: ..., distance: ...)`
+and `onLine(from: ..., ratio: ...)` are likewise pure `point` initializers;
+they retain the full line/path value and endpoint direction for path-distance
+traversal. Exactly one placement mode is required, and unusable or degenerate
+line-like geometry fails through the occurrence-owned geometry-value
+diagnostic channel. These pure division forms do not allocate a drawable
+identity. Point
 `offset(from: ..., dx: ..., dy: ...)` is an implemented pure `point`
 initializer using the drawable point-offset semantics and defaults. Point
 `polar(from: ..., angle: ..., distance: ...)` is an implemented identity-free
