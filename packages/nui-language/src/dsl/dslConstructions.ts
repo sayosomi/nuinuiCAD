@@ -92,7 +92,7 @@ export const commonArgSpecs: DslArgSpec[] = [
 
 const constructionSpecs: DslConstructionSpec[] = [
   { category: "point", construction: "coordinate", elementType: "freePoint", pureValueInterface: "point", args: [arg("x"), arg("y")] },
-  { category: "point", construction: "offset", elementType: "offsetPoint", args: [required("from", "fromPoint"), arg("dx"), arg("dy")] },
+  { category: "point", construction: "offset", elementType: "offsetPoint", pureValueInterface: "point", args: [required("from", "fromPoint"), arg("dx"), arg("dy")] },
   { category: "point", construction: "polar", elementType: "polarOffsetPoint", args: [required("from", "fromPoint"), arg("angle", "angleDeg"), arg("distance")] },
   {
     category: "point",
@@ -145,6 +145,7 @@ const constructionSpecs: DslConstructionSpec[] = [
     category: "line",
     construction: "offset",
     elementType: "offsetLine",
+    pureValueInterface: "path",
     args: [required("sources", "baseLineIds"), arg("distance", "offset"), arg("side"), arg("closed"), arg("suppressTrimWarnings")],
   },
   {

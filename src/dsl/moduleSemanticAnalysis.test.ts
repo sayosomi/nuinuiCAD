@@ -64,13 +64,13 @@ describe("module semantic analysis", () => {
     expect(module.diagnostics).toEqual([]);
   });
 
-  it("selects the compatible overload before reporting deferred pure-runtime support", () => {
+  it("selects the compatible overload for pure offset and preserves deferred diagnostics", () => {
     const pointOffset = compileWithIds([
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "const P: point = offset(from: @A, dx: 1, dy: 2)"
     ].join("\n"));
-    expect(pointOffset.diagnostics.map((diagnostic) => diagnostic.code)).toEqual(["geometry-value-unsupported-construction"]);
+    expect(pointOffset.diagnostics).toEqual([]);
 
     const pathOffset = compileWithIds([
       "nui 1",
@@ -79,7 +79,7 @@ describe("module semantic analysis", () => {
       "line L = segment(start: @A, end: @B)",
       "const P: path = offset(sources: [@L], distance: 1, side: right)"
     ].join("\n"));
-    expect(pathOffset.diagnostics.map((diagnostic) => diagnostic.code)).toEqual(["geometry-value-unsupported-construction"]);
+    expect(pathOffset.diagnostics).toEqual([]);
 
     const linePolar = compileWithIds([
       "nui 1",

@@ -1,8 +1,10 @@
-import type { ComputedOffsetLine, ComputedOffsetLineSegment } from "../types/geometry";
+import type { ComputedGeometryValueOffsetLine, ComputedOffsetLine, ComputedOffsetLineSegment } from "../types/geometry";
 import type { LineLikeGeometryInput } from "./linePaths";
 import { cubicDerivativeAt, cubicPointAt, type BezierLikeSegment } from "./bezierMath";
 
 type Point = { x: number; y: number };
+type OffsetLine = ComputedOffsetLine | ComputedGeometryValueOffsetLine;
+type OffsetLineSegment = ComputedOffsetLineSegment | ComputedGeometryValueOffsetLine["segments"][number];
 
 type IntersectionSegment = {
   start: Point;
@@ -193,7 +195,7 @@ const bezierPathSegments = (curve: { segments: BezierLikeSegment[] }) => {
 // unlike the previous implementation, does not special-case closed offset
 // lines -- a closed offset line can still be intersected, it just never gets
 // endpoint extension segments (see `endpointTangents`).
-const offsetPathSegments = (line: ComputedOffsetLine) => {
+const offsetPathSegments = (line: OffsetLine) => {
   const segments: IntersectionSegment[] = [];
   const accumulated = { value: 0 };
 
@@ -264,13 +266,13 @@ const arcForwardTangent = (angleDeg: number, sweepAngleDeg: number) => {
   };
 };
 
-const offsetSegmentStartForward = (segment: ComputedOffsetLineSegment) => {
+const offsetSegmentStartForward = (segment: OffsetLineSegment) => {
   if (segment.kind === "line") return normalizeVector(vectorBetween(segment.start, segment.end));
   if (segment.kind === "bezier") return bezierStartForward(segment);
   return arcForwardTangent(segment.startAngleDeg, segment.sweepAngleDeg);
 };
 
-const offsetSegmentEndForward = (segment: ComputedOffsetLineSegment) => {
+const offsetSegmentEndForward = (segment: OffsetLineSegment) => {
   if (segment.kind === "line") return normalizeVector(vectorBetween(segment.start, segment.end));
   if (segment.kind === "bezier") return bezierEndForward(segment);
   return arcForwardTangent(segment.startAngleDeg + segment.sweepAngleDeg, segment.sweepAngleDeg);
