@@ -13,6 +13,115 @@ import {
 import { sourceReferenceText } from "../model/moduleSemanticCandidateBoundary";
 import { pointAnchorName } from "./commandLineProgress";
 
+export type PickModeStatusOrderedDraftEntry = {
+  key: string;
+  label: string;
+};
+
+export type PickModeStatusModel = {
+  targetLabel: string;
+  instruction: string;
+  currentSelection?: string | null;
+  currentValue?: string | null;
+  orderedDraft?: {
+    entries: readonly PickModeStatusOrderedDraftEntry[];
+    count: number;
+    onMove: (key: string, toIndex: number) => void;
+    onRemove: (key: string) => void;
+  };
+  onFinish: () => void;
+};
+
+export const PickModeStatusView = ({ model }: { model: PickModeStatusModel }) => {
+  const renderOrderedDraft = () => {
+    if (!model.orderedDraft) return null;
+    const { entries, count, onMove, onRemove } = model.orderedDraft;
+    return (
+      <div className="pick-mode-status-selection" aria-label={`選択済み ${count} 件`}>
+        <span>選択済み {count}件</span>
+        {entries.length > 0 ? (
+          <ol className="pick-mode-status-list">
+            {entries.map((entry, index) => (
+              <li
+                key={entry.key}
+                className="pick-mode-status-list-item"
+                data-pick-draft-key={entry.key}
+                tabIndex={0}
+                onKeyDown={(event) => {
+                  if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
+                  if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+                  event.preventDefault();
+                  event.stopPropagation();
+                  onMove(entry.key, index + (event.key === "ArrowUp" ? -1 : 1));
+                }}
+              >
+                <span className="pick-mode-status-list-index">{index + 1}</span>
+                <span className="pick-mode-status-list-label" title={entry.label}>{entry.label}</span>
+                <span className="pick-mode-status-list-actions">
+                  <button
+                    type="button"
+                    aria-label={`${entry.label}を上へ移動`}
+                    disabled={index === 0}
+                    onClick={() => onMove(entry.key, index - 1)}
+                  >
+                    ↑
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`${entry.label}を下へ移動`}
+                    disabled={index === entries.length - 1}
+                    onClick={() => onMove(entry.key, index + 1)}
+                  >
+                    ↓
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`${entry.label}を削除`}
+                    onClick={() => onRemove(entry.key)}
+                  >
+                    ×
+                  </button>
+                </span>
+              </li>
+            ))}
+          </ol>
+        ) : null}
+      </div>
+    );
+  };
+
+  return (
+    <aside
+      className="pick-mode-status"
+      role="status"
+      aria-live="polite"
+      onPointerDown={(event) => event.stopPropagation()}
+    >
+      <span className="pick-mode-status-title" aria-hidden="true">PICK MODE</span>
+      <div className="pick-mode-status-copy">
+        <strong>{model.targetLabel}</strong>
+        <small>{model.instruction}</small>
+        {model.currentSelection !== null && model.currentSelection !== undefined ? (
+          <div className="pick-mode-status-selection" aria-label="現在の選択">
+            <span>現在の選択: {model.currentSelection}</span>
+          </div>
+        ) : null}
+        {model.currentValue !== null && model.currentValue !== undefined ? (
+          <div className="pick-mode-status-selection" aria-label="現在の選択">
+            <span>現在の値: <code>{model.currentValue}</code></span>
+          </div>
+        ) : null}
+        {renderOrderedDraft()}
+      </div>
+      <button type="button" onClick={model.onFinish}>
+        選択を完了
+      </button>
+      <kbd title="Enter で選択を完了">↵</kbd>
+      <kbd>Esc</kbd>
+    </aside>
+  );
+};
+
 export const PickModeStatus = () => {
   const elements = useCadDocumentStore(effectiveElements);
   const pointTarget = useCadUiStore((state) => state.activePointPickTarget);
@@ -81,112 +190,33 @@ export const PickModeStatus = () => {
   const removeDraftEntry = (key: string) => {
     removePickModeDraftEntryFromSession(key);
   };
-  function renderOrderedDraft<T extends Extract<typeof draft[number], { kind: "line" | "point" }>>(
-    entries: readonly T[],
-    labelFor: (entry: T) => string,
-    count: number
-  ) {
-    return (
-    <div className="pick-mode-status-selection" aria-label={`選択済み ${count} 件`}>
-      <span>選択済み {count}件</span>
-      {entries.length > 0 ? (
-        <ol className="pick-mode-status-list">
-          {entries.map((entry, index) => {
-            const label = labelFor(entry);
-            return (
-              <li
-                key={entry.key}
-                className="pick-mode-status-list-item"
-                data-pick-draft-key={entry.key}
-                tabIndex={0}
-                onKeyDown={(event) => {
-                  if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
-                  if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
-                  event.preventDefault();
-                  event.stopPropagation();
-                  moveDraftEntry(entry.key, index + (event.key === "ArrowUp" ? -1 : 1));
-                }}
-              >
-                <span className="pick-mode-status-list-index">{index + 1}</span>
-                <span className="pick-mode-status-list-label" title={label}>{label}</span>
-                <span className="pick-mode-status-list-actions">
-                  <button
-                    type="button"
-                    aria-label={`${label}を上へ移動`}
-                    disabled={index === 0}
-                    onClick={() => moveDraftEntry(entry.key, index - 1)}
-                  >
-                    ↑
-                  </button>
-                  <button
-                    type="button"
-                    aria-label={`${label}を下へ移動`}
-                    disabled={index === entries.length - 1}
-                    onClick={() => moveDraftEntry(entry.key, index + 1)}
-                  >
-                    ↓
-                  </button>
-                  <button
-                    type="button"
-                    aria-label={`${label}を削除`}
-                    onClick={() => removeDraftEntry(entry.key)}
-                  >
-                    ×
-                  </button>
-                </span>
-              </li>
-            );
-          })}
-        </ol>
-      ) : null}
-    </div>
-    );
-  }
-
   return (
-    <aside
-      className="pick-mode-status"
-      role="status"
-      aria-live="polite"
-      onPointerDown={(event) => event.stopPropagation()}
-    >
-      <span className="pick-mode-status-title" aria-hidden="true">PICK MODE</span>
-      <div className="pick-mode-status-copy">
-        <strong>{element?.name ?? targetElementId} / {definition?.label ?? targetParameterKey}</strong>
-        <small>{instruction}</small>
-        {pointDraftLabel !== null ? (
-          <div className="pick-mode-status-selection" aria-label="現在の選択">
-            <span>現在の選択: {pointDraftLabel}</span>
-          </div>
-        ) : null}
-        {lineDraftLabel !== null ? (
-          <div className="pick-mode-status-selection" aria-label="現在の選択">
-            <span>現在の選択: {lineDraftLabel}</span>
-          </div>
-        ) : null}
-        {numericReferenceEntry ? (
-          <div className="pick-mode-status-selection" aria-label="現在の選択">
-            <span>現在の値: <code>{numericReferenceEntry.expression}</code></span>
-          </div>
-        ) : null}
-        {isLineList ? (
-          renderOrderedDraft(
-            draft.filter((entry): entry is Extract<typeof draft[number], { kind: "line" }> => entry.kind === "line"),
-            (entry) => elements.find((candidate) => candidate.id === entry.lineId)?.name ?? entry.lineId,
-            selectedCount
-          )
-        ) : null}
-        {isPointList ? renderOrderedDraft(
-          draft.filter((entry): entry is Extract<typeof draft[number], { kind: "point" }> => entry.kind === "point"),
-          (entry) => pointAnchorName(entry.anchor, elements),
-          selectedPointCount
-        ) : null}
-      </div>
-      <button type="button" onClick={finish}>
-        選択を完了
-      </button>
-      <kbd title="Enter で選択を完了">↵</kbd>
-      <kbd>Esc</kbd>
-    </aside>
+    <PickModeStatusView
+      model={{
+        targetLabel: `${element?.name ?? targetElementId} / ${definition?.label ?? targetParameterKey}`,
+        instruction,
+        currentSelection: pointDraftLabel ?? lineDraftLabel,
+        currentValue: numericReferenceEntry?.expression,
+        orderedDraft: isLineList ? {
+          entries: draft
+            .filter((entry): entry is Extract<typeof draft[number], { kind: "line" }> => entry.kind === "line")
+            .map((entry) => ({
+              key: entry.key,
+              label: elements.find((candidate) => candidate.id === entry.lineId)?.name ?? entry.lineId
+            })),
+          count: selectedCount,
+          onMove: moveDraftEntry,
+          onRemove: removeDraftEntry
+        } : isPointList ? {
+          entries: draft
+            .filter((entry): entry is Extract<typeof draft[number], { kind: "point" }> => entry.kind === "point")
+            .map((entry) => ({ key: entry.key, label: pointAnchorName(entry.anchor, elements) })),
+          count: selectedPointCount,
+          onMove: moveDraftEntry,
+          onRemove: removeDraftEntry
+        } : undefined,
+        onFinish: finish
+      }}
+    />
   );
 };
