@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+
 use super::division_placement::DivisionPlacementKind;
 use super::math::{arc_tangent_angles, positive_sweep_degrees, CIRCLE_EPSILON};
 use super::scalars::degrees_to_radians;
@@ -128,6 +130,88 @@ pub(crate) fn segment_geometry_kernel(
         start_tangent_angle_deg: start_angle_deg,
         end_tangent_angle_deg: end_angle_deg,
     }
+}
+
+pub(crate) fn common_tangent_geometry_kernel(
+    first_center: StructuralPoint,
+    first_radius: f64,
+    second_center: StructuralPoint,
+    second_radius: f64,
+    kind: &str,
+    side: &str,
+) -> Result<StructuralSegment, Vec<String>> {
+    let mut errors = Vec::new();
+    if first_radius.partial_cmp(&CIRCLE_EPSILON) != Some(Ordering::Greater) {
+        errors.push(
+            "first の半径が0以下です。共通接線には半径のある円弧を指定してください。".to_owned(),
+        );
+    }
+    if second_radius.partial_cmp(&CIRCLE_EPSILON) != Some(Ordering::Greater) {
+        errors.push(
+            "second の半径が0以下です。共通接線には半径のある円弧を指定してください。".to_owned(),
+        );
+    }
+    if !errors.is_empty() {
+        return Err(errors);
+    }
+
+    let dx = second_center.x - first_center.x;
+    let dy = second_center.y - first_center.y;
+    let center_distance = dx.hypot(dy);
+    if center_distance <= CIRCLE_EPSILON {
+        return Err(vec![
+            if (first_radius - second_radius).abs() <= CIRCLE_EPSILON {
+                "2つの円が同一円のため、共通接線を1本に決定できません。".to_owned()
+            } else {
+                "2つの円が同心円のため、共通接線は存在しません。".to_owned()
+            },
+        ]);
+    }
+
+    let internal = kind == "internal";
+    let second_radius_sign = if internal { -1.0 } else { 1.0 };
+    let threshold = if internal {
+        first_radius + second_radius
+    } else {
+        (first_radius - second_radius).abs()
+    };
+    if center_distance < threshold - CIRCLE_EPSILON {
+        return Err(vec![format!(
+            "kind: {kind} の共通接線は存在しません。2つの円の位置・半径または kind を変更してください。"
+        )]);
+    }
+    if center_distance <= threshold + CIRCLE_EPSILON {
+        return Err(vec!["2つの接点が一致するため、有限長の共通接線として表現できません。2つの円の位置・半径または kind を変更してください。".to_owned()]);
+    }
+
+    let cosine =
+        ((first_radius - second_radius_sign * second_radius) / center_distance).clamp(-1.0, 1.0);
+    let sine_squared = 1.0 - cosine * cosine;
+    let sine = if sine_squared < 0.0 && sine_squared > -CIRCLE_EPSILON {
+        0.0
+    } else {
+        sine_squared.max(0.0).sqrt()
+    };
+    let ux = dx / center_distance;
+    let uy = dy / center_distance;
+    let vx = -uy;
+    let vy = ux;
+    let side_sign = if side == "right" { -1.0 } else { 1.0 };
+    let nx = cosine * ux + side_sign * sine * vx;
+    let ny = cosine * uy + side_sign * sine * vy;
+    let start = StructuralPoint {
+        x: first_center.x + first_radius * nx,
+        y: first_center.y + first_radius * ny,
+    };
+    let end = StructuralPoint {
+        x: second_center.x + second_radius_sign * second_radius * nx,
+        y: second_center.y + second_radius_sign * second_radius * ny,
+    };
+    let line = segment_geometry_kernel(start, end);
+    if line.length <= CIRCLE_EPSILON {
+        return Err(vec!["2つの接点が一致するため、有限長の共通接線として表現できません。2つの円の位置・半径または kind を変更してください。".to_owned()]);
+    }
+    Ok(line)
 }
 
 pub(crate) fn polar_line_geometry_kernel(

@@ -153,6 +153,46 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("matches pure commonTangent solutions and pure arc inputs across TypeScript and Rust", () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "point C1 = coordinate(x: 0, y: 0)",
+      "point C2 = coordinate(x: 60, y: 0)",
+      "arc A = arc(center: @C1, radius: 20, start: 40, end: 80)",
+      "arc B = arc(center: @C2, radius: 10, start: 210, end: 250)",
+      "const ExternalLeft: line = commonTangent(first: @A, second: @B, kind: external, side: left)",
+      "const ExternalRight: line = commonTangent(first: @A, second: @B, kind: external, side: right)",
+      "const InternalLeft: line = commonTangent(first: @A, second: @B, kind: internal, side: left)",
+      "const InternalRight: line = commonTangent(first: @A, second: @B, kind: internal, side: right)",
+      "const PureFirst: path = arc(center: (0, 0), radius: 20, start: 0, end: 90, direction: counterclockwise)",
+      "const PureSecond: path = through(point1: (70, 0), point2: (60, 10), point3: (50, 0), start: 0, end: 90)",
+      "const PureInputs: line = commonTangent(first: @PureFirst, second: @PureSecond, kind: external, side: left)"
+    ].join("\n"));
+    const program = fixture.compiled?.doc.geometryValueProgram;
+    if (!program || program.length !== 7) throw new Error("expected seven pure commonTangent program entries");
+    const options = optionsFor(fixture);
+
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustOptions(repoRoot, fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+
+    for (const result of [evaluationPayloadToResult(tsPayload), evaluationPayloadToResult(rustPayload)]) {
+      expect(result.errors).toEqual([]);
+      expect(result.geometryValueErrors).toEqual([]);
+      const values = [...(result.computedGeometryValues?.values() ?? [])];
+      expect(values).toHaveLength(7);
+      expect(values.filter((entry) => entry.value.kind === "line")).toHaveLength(5);
+      expect(values.filter((entry) => entry.value.kind === "line").every((entry) => {
+        const value = entry.value;
+        return value.kind === "line" && !(
+          "elementId" in value || "name" in value
+        );
+      })).toBe(true);
+      expect(values.at(-1)?.value).toMatchObject({ kind: "line", length: expect.any(Number) });
+    }
+  }, 30000);
+
   it("matches pure Bezier feature points from pure and drawable sources", () => {
     const fixture = fixtureFromSource([
       "nui 1",

@@ -145,6 +145,7 @@ const constructionSpecs: DslConstructionSpec[] = [
     category: "line",
     construction: "commonTangent",
     elementType: "commonTangentLine",
+    pureValueInterface: "line",
     args: [required("first", "firstLineId"), required("second", "secondLineId"), required("kind"), required("side")],
   },
   {

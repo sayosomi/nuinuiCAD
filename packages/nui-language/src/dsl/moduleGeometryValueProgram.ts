@@ -72,6 +72,13 @@ export type GeometryValueProgramConstruction =
       extensions: TypedScalarExpression;
     }
   | {
+      kind: "commonTangent";
+      first: GeometryValueProgramPath;
+      second: GeometryValueProgramPath;
+      tangentKind: TypedScalarExpression;
+      side: TypedScalarExpression;
+    }
+  | {
       kind: "tangentOffset";
       line: GeometryValueProgramPath;
       base: GeometryValueProgramPoint;
@@ -319,6 +326,16 @@ export const buildRootGeometryValueProgram = ({
               const extensions = literalScalarExpression(value.construction.extensions);
               return line1 && line2 && index && extensions
                 ? { kind: "intersection" as const, line1, line2, index, extensions }
+                : null;
+            })()
+        : value.construction.kind === "commonTangent"
+          ? (() => {
+              const first = pathForReference(value.construction.first);
+              const second = pathForReference(value.construction.second);
+              const tangentKind = literalScalarExpression(value.construction.tangentKind);
+              const side = literalScalarExpression(value.construction.side);
+              return first && second && tangentKind && side
+                ? { kind: "commonTangent" as const, first, second, tangentKind, side }
                 : null;
             })()
         : value.construction.kind === "tangentOffset"

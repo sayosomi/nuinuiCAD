@@ -14,7 +14,9 @@ Typed scalar declarations use an explicit type annotation and initializer:
   `intersection(line1: ..., line2: ..., index: ..., extensions: ...)` for `point`,
   `tangentOffset(line: ..., base: ..., angle: ..., curveSide: ..., distance: ...)` for `point`,
   `segment(start: ..., end: ...)` for `line` or `path`, `polar(start: ...,
-  angle: ..., length: ...)` for `line` or `path`, and direct
+  angle: ..., length: ...)` for `line` or `path`, and
+  `commonTangent(first: ..., second: ..., kind: ..., side: ...)` for `line`
+  or `path`, and direct
   `arc(center: ..., radius: ..., start: ..., end: ..., direction: ...)` for
   `path`. `bezierExtremePoint(source: ..., segmentIndex: ..., direction: ...)`
   and `bezierBulgePoint(source: ..., segmentIndex: ...)` are also pure `point`
@@ -23,6 +25,10 @@ Typed scalar declarations use an explicit type annotation and initializer:
   uses normalized degree semantics, and coincident bulge endpoints fail through
   the occurrence-owned geometry-value diagnostic channel. `direction` defaults
   to `counterclockwise` only for direct `arc`.
+  `commonTangent` requires both inputs and both choices: `kind` is `external`
+  or `internal`, and `side` is `left` or `right`. Its inputs must evaluate to
+  arcs at runtime, including direct or through pure arc values; failures are
+  reported through the occurrence-owned geometry-value diagnostic channel.
   `tangentOffset` angle mode uses a line-like source and defaults `angle` to
   `0` when both modes are omitted. Its `curveSide` mode accepts `convex` or
   `concave` only for computed cubic Bezier geometry and requires an on-curve

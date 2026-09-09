@@ -331,6 +331,72 @@ export const segmentGeometryKernel = (start: StructuralPoint, end: StructuralPoi
   ...lineTangentAngles(start, end)
 });
 
+export const commonTangentGeometryKernel = (
+  first: { center: StructuralPoint; radius: number },
+  second: { center: StructuralPoint; radius: number },
+  kind: unknown,
+  side: unknown
+): { line: StructuralLine } | { errors: readonly string[] } => {
+  const errors: string[] = [];
+  if (!(first.radius > CIRCLE_EPSILON)) {
+    errors.push("first の半径が0以下です。共通接線には半径のある円弧を指定してください。");
+  }
+  if (!(second.radius > CIRCLE_EPSILON)) {
+    errors.push("second の半径が0以下です。共通接線には半径のある円弧を指定してください。");
+  }
+  if (errors.length > 0) return { errors };
+
+  const dx = second.center.x - first.center.x;
+  const dy = second.center.y - first.center.y;
+  const centerDistance = Math.hypot(dx, dy);
+  if (centerDistance <= CIRCLE_EPSILON) {
+    return {
+      errors: [Math.abs(first.radius - second.radius) <= CIRCLE_EPSILON
+        ? "2つの円が同一円のため、共通接線を1本に決定できません。"
+        : "2つの円が同心円のため、共通接線は存在しません。"]
+    };
+  }
+
+  const kindValue = kind === "internal" ? "internal" : "external";
+  const secondRadiusSign = kindValue === "external" ? 1 : -1;
+  const threshold = kindValue === "internal"
+    ? first.radius + second.radius
+    : Math.abs(first.radius - second.radius);
+  if (centerDistance < threshold - CIRCLE_EPSILON) {
+    return {
+      errors: [`kind: ${String(kind)} の共通接線は存在しません。2つの円の位置・半径または kind を変更してください。`]
+    };
+  }
+  if (centerDistance <= threshold + CIRCLE_EPSILON) {
+    return {
+      errors: ["2つの接点が一致するため、有限長の共通接線として表現できません。2つの円の位置・半径または kind を変更してください。"]
+    };
+  }
+
+  const cosine = Math.max(-1, Math.min(1, (first.radius - secondRadiusSign * second.radius) / centerDistance));
+  const sineSquared = 1 - cosine * cosine;
+  const sine = Math.sqrt(sineSquared < 0 && sineSquared > -CIRCLE_EPSILON ? 0 : Math.max(0, sineSquared));
+  const ux = dx / centerDistance;
+  const uy = dy / centerDistance;
+  const vx = -uy;
+  const vy = ux;
+  const sideSign = side === "right" ? -1 : 1;
+  const nx = cosine * ux + sideSign * sine * vx;
+  const ny = cosine * uy + sideSign * sine * vy;
+  const start = {
+    x: first.center.x + first.radius * nx,
+    y: first.center.y + first.radius * ny
+  };
+  const end = {
+    x: second.center.x + secondRadiusSign * second.radius * nx,
+    y: second.center.y + secondRadiusSign * second.radius * ny
+  };
+  const line = segmentGeometryKernel(start, end);
+  return line.length <= CIRCLE_EPSILON
+    ? { errors: ["2つの接点が一致するため、有限長の共通接線として表現できません。2つの円の位置・半径または kind を変更してください。"] }
+    : { line };
+};
+
 export const polarLineGeometryKernel = (
   start: StructuralPoint,
   angleDeg: number,

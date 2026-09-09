@@ -441,6 +441,14 @@ export type ModuleGeometryConstructionSemantic =
       extensions: ModuleScalarExpressionSemantic | null;
     }
   | {
+      kind: "commonTangent";
+      span: DslSpan;
+      first: ModuleGeometryReferenceSemantic;
+      second: ModuleGeometryReferenceSemantic;
+      tangentKind: ModuleScalarExpressionSemantic | null;
+      side: ModuleScalarExpressionSemantic | null;
+    }
+  | {
       kind: "tangentOffset";
       span: DslSpan;
       line: ModuleGeometryReferenceSemantic;

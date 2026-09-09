@@ -2725,6 +2725,20 @@ export const compileModuleScalarRuntime = ({
               ? { kind: "intersection" as const, line1, line2, index, extensions }
               : null;
           })()
+      : value.construction.kind === "commonTangent"
+        ? (() => {
+            const first = lowerGeometryValuePath(value.construction.first, context, executionPosition);
+            const second = lowerGeometryValuePath(value.construction.second, context, executionPosition);
+            const tangentKind = value.construction.tangentKind
+              ? lowerGeometryValueScalar(value.construction.tangentKind, context)
+              : null;
+            const side = value.construction.side
+              ? lowerGeometryValueScalar(value.construction.side, context)
+              : null;
+            return first && second && tangentKind && side
+              ? { kind: "commonTangent" as const, first, second, tangentKind, side }
+              : null;
+          })()
       : value.construction.kind === "tangentOffset"
         ? (() => {
             const line = lowerGeometryValuePath(value.construction.line, context, executionPosition);

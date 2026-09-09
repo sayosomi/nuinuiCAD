@@ -75,7 +75,7 @@ import type {
   ComputedGeometryValueEntry,
   GeometryValueEvaluationError
 } from "./evaluationTypes";
-import { arcGeometryKernel, bezierBulgePointGeometryKernel, bezierExtremePointGeometryKernel, bezierGeometryKernel, coordinateGeometryKernel, divisionPointGeometryKernel, offsetLineGeometryValueKernel, offsetPointGeometryKernel, polarLineGeometryKernel, polarPointGeometryKernel, polylineGeometryKernel, segmentGeometryKernel, tangentOffsetPointGeometryKernel, throughArcGeometryKernel, type StructuralPoint } from "./geometryValueKernels";
+import { arcGeometryKernel, bezierBulgePointGeometryKernel, bezierExtremePointGeometryKernel, bezierGeometryKernel, commonTangentGeometryKernel, coordinateGeometryKernel, divisionPointGeometryKernel, offsetLineGeometryValueKernel, offsetPointGeometryKernel, polarLineGeometryKernel, polarPointGeometryKernel, polylineGeometryKernel, segmentGeometryKernel, tangentOffsetPointGeometryKernel, throughArcGeometryKernel, type StructuralPoint } from "./geometryValueKernels";
 import { buildOffsetLineGeometry } from "./offsetPaths";
 import { isLineLikeGeometryInput, pointAtDistanceFromEndpoint } from "./linePaths";
 import { findLineIntersections } from "./lineIntersections";
@@ -454,6 +454,20 @@ export const evaluateElements = (
       : undefined;
   };
 
+  const evaluateGeometryValueTangentKind = (expression: TypedScalarExpression, sourceOrder: number): "external" | "internal" | undefined => {
+    const evaluation = evaluateTypedExpression(expression, {
+      lookupBinding: scalarBindingResolver
+        ? scalarBindingResolver.resolveBinding
+        : () => ({ status: "error", type: { kind: "choice", options: [] }, issueCode: "evaluation-binding-unavailable" }),
+      lookupGeometryProperty: (reference) => resolveDocumentGeometryProperty(geometryRuntime, reference, sourceOrder),
+      lookupGeometryTarget: (target) => resolveDocumentGeometryTarget(geometryRuntime, target, sourceOrder)
+    });
+    if (evaluation.status !== "ok" || evaluation.value.kind !== "choice") return undefined;
+    return evaluation.value.value === "external" || evaluation.value.value === "internal"
+      ? evaluation.value.value
+      : undefined;
+  };
+
   const evaluateGeometryValueCurveSide = (expression: TypedScalarExpression, sourceOrder: number): "convex" | "concave" | undefined => {
     const evaluation = evaluateTypedExpression(expression, {
       lookupBinding: scalarBindingResolver
@@ -637,6 +651,38 @@ export const evaluateElements = (
         return;
       }
       value = { kind: "point", x: intersection.x, y: intersection.y };
+    } else if (entry.construction.kind === "commonTangent") {
+      if (entry.declaredInterfaceType !== "line" && entry.declaredInterfaceType !== "path") {
+        appendGeometryValueError(entry, "Geometry value construction is incompatible with its declared interface type.");
+        return;
+      }
+      const firstGeometry = resolveDocumentGeometryTarget(geometryRuntime, entry.construction.first.target, sourceOrder);
+      const secondGeometry = resolveDocumentGeometryTarget(geometryRuntime, entry.construction.second.target, sourceOrder);
+      const firstArc = firstGeometry && firstGeometry.kind !== "unavailable" && firstGeometry.kind === "arcLine"
+        ? firstGeometry
+        : undefined;
+      const secondArc = secondGeometry && secondGeometry.kind !== "unavailable" && secondGeometry.kind === "arcLine"
+        ? secondGeometry
+        : undefined;
+      if (!firstArc) appendGeometryValueError(entry, "first に円弧が指定されていません。共通接線には円弧を指定してください。");
+      if (!secondArc) appendGeometryValueError(entry, "second に円弧が指定されていません。共通接線には円弧を指定してください。");
+      if (!firstArc || !secondArc) return;
+      const tangentKind = evaluateGeometryValueTangentKind(entry.construction.tangentKind, sourceOrder);
+      if (!tangentKind) {
+        appendGeometryValueError(entry, "commonTangent geometry value kind must be external or internal.");
+        return;
+      }
+      const side = evaluateGeometryValueSide(entry.construction.side, sourceOrder);
+      if (!side) {
+        appendGeometryValueError(entry, "commonTangent geometry value side must be left or right.");
+        return;
+      }
+      const result = commonTangentGeometryKernel(firstArc, secondArc, tangentKind, side);
+      if ("errors" in result) {
+        for (const message of result.errors) appendGeometryValueError(entry, message);
+        return;
+      }
+      value = result.line;
     } else if (entry.construction.kind === "tangentOffset") {
       if (entry.declaredInterfaceType !== "point") {
         appendGeometryValueError(entry, "Geometry value construction is incompatible with its declared interface type.");
