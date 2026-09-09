@@ -2691,13 +2691,27 @@ export const compileModuleScalarRuntime = ({
             const dy = value.construction.dy ? lowerGeometryValueScalar(value.construction.dy, context) : null;
             return from && dx && dy ? { kind: "offsetPoint" as const, from, dx, dy } : null;
           })()
+      : value.construction.kind === "polarPoint"
+        ? (() => {
+            const from = lowerGeometryValuePoint(value.construction.from, context, executionPosition);
+            const angleDeg = value.construction.angle ? lowerGeometryValueScalar(value.construction.angle, context) : null;
+            const distance = value.construction.distance ? lowerGeometryValueScalar(value.construction.distance, context) : null;
+            return from && angleDeg && distance ? { kind: "polarPoint" as const, from, angleDeg, distance } : null;
+          })()
       : value.construction.kind === "segment"
         ? (() => {
             const start = lowerGeometryValuePoint(value.construction.start, context, executionPosition);
             const end = lowerGeometryValuePoint(value.construction.end, context, executionPosition);
             return start && end ? { kind: "segment" as const, start, end } : null;
           })()
-        : value.construction.kind === "arc"
+      : value.construction.kind === "polarLine"
+        ? (() => {
+            const start = lowerGeometryValuePoint(value.construction.start, context, executionPosition);
+            const angleDeg = value.construction.angle ? lowerGeometryValueScalar(value.construction.angle, context) : null;
+            const length = value.construction.length ? lowerGeometryValueScalar(value.construction.length, context) : null;
+            return start && angleDeg && length ? { kind: "polarLine" as const, start, angleDeg, length } : null;
+          })()
+      : value.construction.kind === "arc"
           ? (() => {
             const center = lowerGeometryValuePoint(value.construction.center, context, executionPosition);
             const radius = value.construction.radius ? lowerGeometryValueScalar(value.construction.radius, context) : null;

@@ -3,10 +3,9 @@ use std::collections::HashMap;
 
 use super::errors::geometry_error;
 use super::geometry_value_kernels::{
-    direct_arc_geometry_kernel, segment_geometry_kernel, through_arc_geometry_kernel,
-    StructuralArcLine, StructuralPoint,
+    direct_arc_geometry_kernel, polar_line_geometry_kernel, segment_geometry_kernel,
+    through_arc_geometry_kernel, StructuralArcLine, StructuralPoint,
 };
-use super::math::angle_from_to;
 use super::numeric_expression::evaluate_numeric_or_push;
 use super::point_anchor::{anchor_reference_element_id, computed_point, point_anchor_or_error};
 use super::types::{element_id, element_name, insert_geometry, EvaluationState, Point};
@@ -229,16 +228,20 @@ pub(crate) fn evaluate_angle_length_line(
         return;
     };
 
-    let angle_rad = angle_deg.to_radians();
+    let structural = polar_line_geometry_kernel(
+        StructuralPoint {
+            x: start.x,
+            y: start.y,
+        },
+        angle_deg,
+        length,
+    );
     let end = Point {
         element_id: format!("{}:end", element_id(element).unwrap_or_default()),
         name: format!("{}.終点", element_name(element)),
-        x: start.x + angle_rad.cos() * length,
-        y: start.y + angle_rad.sin() * length,
+        x: structural.end.x,
+        y: structural.end.y,
     };
-    let computed_length = (end.x - start.x).hypot(end.y - start.y);
-    let start_angle = angle_from_to(&start, &end);
-    let end_angle = angle_from_to(&end, &start);
     let id = element_id(element).unwrap_or_default();
     insert_geometry(
         state,
@@ -251,11 +254,11 @@ pub(crate) fn evaluate_angle_length_line(
             "endPointId": null,
             "start": computed_point(format!("{id}:start"), format!("{}.始点", element_name(element)), start.x, start.y),
             "end": computed_point(end.element_id, end.name, end.x, end.y),
-            "length": computed_length,
-            "startAngleDeg": start_angle,
-            "endAngleDeg": end_angle,
-            "startTangentAngleDeg": start_angle,
-            "endTangentAngleDeg": end_angle
+            "length": structural.length,
+            "startAngleDeg": structural.start_angle_deg,
+            "endAngleDeg": structural.end_angle_deg,
+            "startTangentAngleDeg": structural.start_tangent_angle_deg,
+            "endTangentAngleDeg": structural.end_tangent_angle_deg
         }),
     );
 }

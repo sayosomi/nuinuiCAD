@@ -120,6 +120,39 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("matches pure polar point and strict-line values across TypeScript and Rust", () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "point Base = coordinate(x: 10, y: 20)",
+      "const P: point = polar(from: @Base, angle: 90, distance: 20)",
+      "const DefaultP: point = polar(from: @Base)",
+      "const L: line = polar(start: @P, angle: 30, length: 100)",
+      "const DefaultL: line = polar(start: @P)",
+      "const Path: path = @L",
+      "const Px: number = @P.x",
+      "const Ly: number = @L.end.y"
+    ].join("\n"));
+    const program = fixture.compiled?.doc.geometryValueProgram;
+    if (!program || program.length !== 4) throw new Error("expected four pure polar geometry value program entries");
+    const options = optionsFor(fixture);
+
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustOptions(repoRoot, fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+
+    for (const result of [evaluationPayloadToResult(tsPayload), evaluationPayloadToResult(rustPayload)]) {
+      expect(result.errors).toEqual([]);
+      const values = [...(result.computedGeometryValues?.values() ?? [])];
+      expect(values).toHaveLength(4);
+      expect(values[0]?.value).toMatchObject({ kind: "point", x: expect.closeTo(10, 10), y: 40 });
+      expect(values[1]?.value).toEqual({ kind: "point", x: 10, y: 20 });
+      expect(values[2]?.value).toMatchObject({ kind: "line", start: { x: expect.closeTo(10, 10), y: 40 }, length: expect.closeTo(100, 10) });
+      expect(values[3]?.value).toMatchObject({ kind: "line", start: { x: expect.closeTo(10, 10), y: 40 }, end: { x: expect.closeTo(110, 10), y: 40 }, length: expect.closeTo(100, 10) });
+      expect(values.every((entry) => !("elementId" in entry.value) && !("name" in entry.value))).toBe(true);
+    }
+  }, 30000);
+
   it("matches pure through values and degenerate diagnostics across TypeScript and Rust", () => {
     const fixture = fixtureFromSource([
       "nui 1",

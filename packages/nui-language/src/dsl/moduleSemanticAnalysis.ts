@@ -2177,6 +2177,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     const radiusArgument = argument("radius");
     const startArgument = argument("start");
     const endArgument = argument("end");
+    const angleArgument = argument("angle");
+    const lengthArgument = argument("length");
     const startAngleArgument = argument("startAngle");
     const startLengthArgument = argument("startLength");
     const endAngleArgument = argument("endAngle");
@@ -2320,6 +2322,38 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         suppressTrimWarnings: scalar(suppressTrimWarningsArgument, { kind: "boolean" }, "false")
       };
     }
+    if (invocation.construction === "polar" && invocation.pureValueInterface === "point") {
+      if (expectedInterfaceType !== "point") {
+        addLocal(statementIndex, issue("module-geometry-type-mismatch", constructionSpan, "polar point construction は point value にのみ代入できます。", {
+          presentation: { key: "diagnostic.module-geometry-type-mismatch", parameters: { target: "polar" } }
+        }));
+      }
+      const from = fromArgument
+        ? resolveGeometry(
+            statementIndex,
+            ownerIndex,
+            source.slice(fromArgument.valueSpan.start, fromArgument.valueSpan.end),
+            fromArgument.valueSpan,
+            "point",
+            {
+              expectedInterfaceType: "point",
+              allowCoordinate: false,
+              role: "pointReference",
+              scalarResolver: options.scalarResolver,
+              bareScalarResolver: options.bareScalarResolver,
+              geometryPropertyResolver: options.geometryPropertyResolver,
+              presenceFacts: options.presenceFacts
+            }
+          )
+        : geometryReference("", constructionSpan, "point", null, "invalid", null, "pointReference");
+      return {
+        kind: "polarPoint",
+        span: { start: constructionSpan.start, end: initializerSpan.end },
+        from,
+        angle: scalar(angleArgument, { kind: "number" }, "0"),
+        distance: scalar(argument("distance"), { kind: "number" }, "0")
+      };
+    }
     if (invocation.pureValueInterface === "point") {
       if (expectedInterfaceType !== "point") {
         addLocal(statementIndex, issue("module-geometry-type-mismatch", constructionSpan, "coordinate construction は point value にのみ代入できます。", {
@@ -2422,6 +2456,38 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           }
       )
       : geometryReference("", constructionSpan, "point", null, "invalid", null, "lineEndpointReference");
+    if (invocation.construction === "polar" && invocation.pureValueInterface === "line") {
+      if (expectedInterfaceType !== "line" && expectedInterfaceType !== "path") {
+        addLocal(statementIndex, issue("module-geometry-type-mismatch", constructionSpan, "polar line construction は line または path value にのみ代入できます。", {
+          presentation: { key: "diagnostic.module-geometry-type-mismatch", parameters: { target: "polar" } }
+        }));
+      }
+      const start = startArgument
+        ? resolveGeometry(
+            statementIndex,
+            ownerIndex,
+            source.slice(startArgument.valueSpan.start, startArgument.valueSpan.end),
+            startArgument.valueSpan,
+            "point",
+            {
+              expectedInterfaceType: "point",
+              allowCoordinate: true,
+              role: "lineEndpointReference",
+              scalarResolver: options.scalarResolver,
+              bareScalarResolver: options.bareScalarResolver,
+              geometryPropertyResolver: options.geometryPropertyResolver,
+              presenceFacts: options.presenceFacts
+            }
+          )
+        : geometryReference("", constructionSpan, "point", null, "invalid", null, "lineEndpointReference");
+      return {
+        kind: "polarLine",
+        span: { start: constructionSpan.start, end: initializerSpan.end },
+        start,
+        angle: scalar(angleArgument, { kind: "number" }, "0"),
+        length: scalar(lengthArgument, { kind: "number" }, "100")
+      };
+    }
     if (invocation.construction === "bezier" && invocation.pureValueInterface === "path") {
       if (expectedInterfaceType !== "path") {
         addLocal(statementIndex, issue("module-geometry-type-mismatch", constructionSpan, "bezier construction は path value にのみ代入できます。", {
@@ -3265,6 +3331,14 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     } else if (construction?.kind === "offsetPoint") {
       rootGeometryReferencesByStatementId.set(statementId, [
         { parameterKey: "from", span: construction.from.span, reference: construction.from }
+      ]);
+    } else if (construction?.kind === "polarPoint") {
+      rootGeometryReferencesByStatementId.set(statementId, [
+        { parameterKey: "from", span: construction.from.span, reference: construction.from }
+      ]);
+    } else if (construction?.kind === "polarLine") {
+      rootGeometryReferencesByStatementId.set(statementId, [
+        { parameterKey: "start", span: construction.start.span, reference: construction.start }
       ]);
     } else if (construction?.kind === "offsetPath") {
       rootGeometryReferencesByStatementId.set(statementId, construction.sources.map((source, index) => ({

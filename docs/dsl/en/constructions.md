@@ -581,7 +581,9 @@ drawing metadata are described in [Modifiers](modifiers.md).
 coordinates. `offset` adds `dx` and `dy` millimetres to an earlier
 point-compatible value. It is available both as a drawable point construction
 and as an identity-free pure `point` initializer in `const` declarations.
-`polar` adds a distance at an angle in degrees from an earlier point.
+`polar` adds a distance at an angle in degrees from an earlier point. It is
+available both as a drawable point construction and as an identity-free pure
+`point` initializer; both forms default `angle` and `distance` to `0`.
 
 **Notes:** Point references are valid inputs to later constructions. Angles are
 measured in the Y-up drafting coordinate system; ordinary distances are in
@@ -664,8 +666,12 @@ point Bulge = bezierBulgePoint(source: @Bow)
 
 **Description:** `segment` joins two points with a strict straight line.
 Line `polar` starts at a point and extends for a millimetre `length` at a
-degree `angle`. A zero-length result is not a usable strict line for line
-measurements.
+degree `angle`. It is available both as a drawable strict line construction
+and as an identity-free pure strict-line initializer; both forms default
+`angle` to `0` and `length` to `100`. A zero-length result is not a usable
+strict line for line measurements. The pure line result remains assignable to
+the existing broad `path` interface, and neither pure form allocates a
+drawable identity.
 
 ### `commonTangent`
 

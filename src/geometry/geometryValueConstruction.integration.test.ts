@@ -107,6 +107,64 @@ describe("pure geometry construction runtime", () => {
     });
   });
 
+  it("evaluates polar point and strict-line values with drawable defaults", () => {
+    const { compiled, result } = evaluate([
+      "nui 1",
+      "point Base = coordinate(x: 10, y: 20)",
+      "const P: point = polar(from: @Base, angle: 90, distance: 20)",
+      "const DefaultP: point = polar(from: @Base)",
+      "const L: line = polar(start: @P, angle: 30, length: 100)",
+      "const DefaultL: line = polar(start: @P)",
+      "const Path: path = @L",
+      "const Px: number = @P.x",
+      "const Ly: number = @L.end.y",
+      "line Use = segment(start: @P, end: @Path.end)"
+    ].join("\n"));
+
+    expect(compiled.document!.elements.map((element) => element.name)).toEqual(["Base", "Use"]);
+    expect(result.errors).toEqual([]);
+    const values = [...(result.computedGeometryValues?.values() ?? [])];
+    expect(values.map((entry) => entry.value)).toEqual([
+      expect.objectContaining({ kind: "point", x: expect.closeTo(10, 10), y: 40 }),
+      { kind: "point", x: 10, y: 20 },
+      expect.objectContaining({ kind: "line", start: { x: expect.closeTo(10, 10), y: 40 }, length: expect.closeTo(100, 10) }),
+      expect.objectContaining({ kind: "line", start: { x: expect.closeTo(10, 10), y: 40 }, end: { x: expect.closeTo(110, 10), y: 40 }, length: expect.closeTo(100, 10) })
+    ]);
+    expect(values.every((entry) => !("elementId" in entry.value) && !("name" in entry.value))).toBe(true);
+    expect(result.computedGeometry.get("geometry-value-runtime:9")).toMatchObject({
+      kind: "line",
+      start: { x: expect.closeTo(10, 10), y: 40 },
+      end: { x: 10 + Math.cos(Math.PI / 6) * 100, y: 40 + Math.sin(Math.PI / 6) * 100 }
+    });
+    const scalarValues = [...(result.computedScalarBindings?.values() ?? [])]
+      .filter((value): value is Extract<typeof value, { status: "ok" }> => value.status === "ok")
+      .map((value) => value.value.kind === "number" ? value.value.value : null);
+    expect(scalarValues).toEqual(expect.arrayContaining([expect.closeTo(10, 10), 90]));
+  });
+
+  it("evaluates module-local and exported polar values with occurrence identity", () => {
+    const { compiled, result } = evaluate([
+      "nui 1",
+      "module M(source: point) {",
+      "  const Local: point = polar(from: @source, angle: 90, distance: 10)",
+      "  export const Output: line = polar(start: @Local, angle: 0, length: 5)",
+      "}",
+      "point Base = coordinate(x: 1, y: 2)",
+      "instance One = M(source: @Base)",
+      "const Root: line = @One::Output",
+      "line Use = segment(start: @Root.start, end: @Root.end)"
+    ].join("\n"));
+
+    expect(compiled.diagnostics).toEqual([]);
+    expect(result.errors).toEqual([]);
+    const moduleValues = [...(result.computedGeometryValues?.values() ?? [])].filter((entry) => entry.occurrence.instancePath.length === 1);
+    expect(moduleValues.map((entry) => entry.value)).toEqual([
+      expect.objectContaining({ kind: "point", x: expect.closeTo(1, 10), y: 12 }),
+      expect.objectContaining({ kind: "line", start: { x: expect.closeTo(1, 10), y: 12 }, end: { x: expect.closeTo(6, 10), y: 12 }, length: 5 })
+    ]);
+    expect(moduleValues.every((entry) => !("elementId" in entry.value) && !("name" in entry.value))).toBe(true);
+  });
+
   it("evaluates open and closed line offsets as identity-free paths and reuses them", () => {
     const { compiled, result } = evaluate([
       "nui 1",

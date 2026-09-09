@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 use super::division_placement::{decode_division_placement, DivisionPlacementKind};
 use super::errors::geometry_error;
-use super::geometry_value_kernels::coordinate_geometry_kernel;
+use super::geometry_value_kernels::{coordinate_geometry_kernel, polar_point_geometry_kernel};
 use super::math::CIRCLE_EPSILON;
 use super::numeric_expression::evaluate_numeric_or_push;
 use super::point_anchor::{
@@ -152,17 +152,19 @@ pub(crate) fn evaluate_polar_offset_point(
     ) else {
         return;
     };
-    let angle_rad = angle_deg.to_radians();
+    let point = polar_point_geometry_kernel(
+        super::geometry_value_kernels::StructuralPoint {
+            x: from_point.x,
+            y: from_point.y,
+        },
+        angle_deg,
+        distance,
+    );
     let id = element_id(element).unwrap_or_default();
     insert_geometry(
         state,
         id.clone(),
-        computed_point(
-            id,
-            element_name(element),
-            from_point.x + angle_rad.cos() * distance,
-            from_point.y + angle_rad.sin() * distance,
-        ),
+        computed_point(id, element_name(element), point.x, point.y),
     );
 }
 

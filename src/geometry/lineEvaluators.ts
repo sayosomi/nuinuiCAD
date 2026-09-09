@@ -3,14 +3,13 @@ import { anchorReferenceElementId } from "../model/pointAnchors";
 import {
   approximateBezierSegmentLength,
   CIRCLE_EPSILON,
-  degreesToRadians,
   handlePoint,
   normalizeDegrees
 } from "./evaluateGeometryPrimitives";
 import { dependencyError, geometryError, getPointAnchorOrError, numericError } from "./evaluationContext";
 import type { ElementEvaluationContext } from "./elementEvaluatorTypes";
 import { lineTangentAngles } from "./lineMeasurements";
-import { arcGeometryKernel, segmentGeometryKernel, throughArcGeometryKernel } from "./geometryValueKernels";
+import { arcGeometryKernel, polarLineGeometryKernel, segmentGeometryKernel, throughArcGeometryKernel } from "./geometryValueKernels";
 import { resolveLineGeometryInput } from "./lineGeometryInput";
 
 export const evaluateLineElement = (element: CadElement, context: ElementEvaluationContext) => {
@@ -173,15 +172,13 @@ export const evaluateLineElement = (element: CadElement, context: ElementEvaluat
           break;
         }
 
-        const angleRad = degreesToRadians(angleDeg);
+        const structural = polarLineGeometryKernel(start, angleDeg, length);
         const end: ComputedPoint = {
           kind: "point",
           elementId: `${element.id}:end`,
           name: `${element.name}.終点`,
-          x: start.x + Math.cos(angleRad) * length,
-          y: start.y + Math.sin(angleRad) * length
+          ...structural.end
         };
-        const angles = lineTangentAngles(start, end);
         computedGeometry.set(element.id, {
           kind: "line",
           elementId: element.id,
@@ -196,8 +193,11 @@ export const evaluateLineElement = (element: CadElement, context: ElementEvaluat
             y: start.y
           },
           end,
-          length: Math.hypot(end.x - start.x, end.y - start.y),
-          ...angles
+          length: structural.length,
+          startAngleDeg: structural.startAngleDeg,
+          endAngleDeg: structural.endAngleDeg,
+          startTangentAngleDeg: structural.startTangentAngleDeg,
+          endTangentAngleDeg: structural.endTangentAngleDeg
         });
         break;
       }

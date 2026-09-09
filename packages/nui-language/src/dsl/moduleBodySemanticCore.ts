@@ -479,9 +479,17 @@ export const analyzeModuleBody = ({
           addGeometry(bodySemantic, "construction:from", construction.from.span, construction.from);
           if (construction.dx) addScalar(bodySemantic, "construction:dx", construction.dx.ast.span, construction.dx);
           if (construction.dy) addScalar(bodySemantic, "construction:dy", construction.dy.ast.span, construction.dy);
+        } else if (construction?.kind === "polarPoint") {
+          addGeometry(bodySemantic, "construction:from", construction.from.span, construction.from);
+          if (construction.angle) addScalar(bodySemantic, "construction:angle", construction.angle.ast.span, construction.angle);
+          if (construction.distance) addScalar(bodySemantic, "construction:distance", construction.distance.ast.span, construction.distance);
         } else if (construction?.kind === "segment") {
           addGeometry(bodySemantic, "construction:start", construction.start.span, construction.start);
           addGeometry(bodySemantic, "construction:end", construction.end.span, construction.end);
+        } else if (construction?.kind === "polarLine") {
+          addGeometry(bodySemantic, "construction:start", construction.start.span, construction.start);
+          if (construction.angle) addScalar(bodySemantic, "construction:angle", construction.angle.ast.span, construction.angle);
+          if (construction.length) addScalar(bodySemantic, "construction:length", construction.length.ast.span, construction.length);
         } else if (construction?.kind === "arc") {
           addGeometry(bodySemantic, "construction:center", construction.center.span, construction.center);
           if (construction.radius) addScalar(bodySemantic, "construction:radius", construction.radius.ast.span, construction.radius);

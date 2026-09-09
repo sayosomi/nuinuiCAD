@@ -19,7 +19,7 @@ import { pointAtDistanceFromEndpoint, isLineLikeGeometryInput, tangentAtPointOnL
 import { findLineIntersections } from "./lineIntersections";
 import { resolveLineGeometryInput } from "./lineGeometryInput";
 import type { ElementEvaluationContext } from "./elementEvaluatorTypes";
-import { coordinateGeometryKernel } from "./geometryValueKernels";
+import { coordinateGeometryKernel, polarPointGeometryKernel } from "./geometryValueKernels";
 
 /**
  * The only place a divisionPoint/lineDivisionPoint's placement is read leniently:
@@ -289,13 +289,12 @@ export const evaluatePointElement = (element: CadElement, context: ElementEvalua
         const distance = evaluateNumber(element.distance);
         if (angleDeg === undefined || distance === undefined) break;
 
-        const angleRad = degreesToRadians(angleDeg);
+        const end = polarPointGeometryKernel(resolvedFromPoint, angleDeg, distance);
         computedGeometry.set(element.id, {
           kind: "point",
           elementId: element.id,
           name: element.name,
-          x: resolvedFromPoint.x + Math.cos(angleRad) * distance,
-          y: resolvedFromPoint.y + Math.sin(angleRad) * distance
+          ...end
         });
         break;
       }
