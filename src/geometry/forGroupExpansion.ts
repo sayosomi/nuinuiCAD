@@ -6,6 +6,7 @@ import type {
   CadElement,
   ElementId,
   ForGroupElement,
+  ForGroupGeneratedOccurrenceStep,
   ForGroupGeneratedRow
 } from "../types/geometry";
 
@@ -103,7 +104,8 @@ export const expandForGroupIteration = ({
   templateForGroupId,
   iterationIndex,
   variableValue,
-  ancestorElementIdMap = new Map()
+  ancestorElementIdMap = new Map(),
+  ancestorOccurrencePath = []
 }: {
   elements: CadElement[];
   forGroup: ForGroupElement;
@@ -120,8 +122,14 @@ export const expandForGroupIteration = ({
    * stays scoped to this invocation's own idMap.
    */
   ancestorElementIdMap?: ReadonlyMap<ElementId, ElementId>;
+  /** Source/template occurrence path owned by enclosing forGroup invocations. */
+  ancestorOccurrencePath?: readonly ForGroupGeneratedOccurrenceStep[];
 }) => {
   const templateRootId = templateForGroupId ?? forGroup.id;
+  const occurrencePath = [
+    ...ancestorOccurrencePath,
+    { templateForGroupId: templateRootId, iterationIndex }
+  ];
   const templateElements = forGroupTemplateElements(elements, templateRootId);
   const idMap = new Map(
     templateElements.map((element) => [
@@ -182,11 +190,12 @@ export const expandForGroupIteration = ({
       templateElementId: templateElementIdByGeneratedId.get(element.id) ?? element.id,
       generatedElementId: element.id,
       iterationIndex,
+      occurrencePath,
       variableName: iterationVariable.name,
       variableValue,
       elementName: elementDisplayName(element),
       elementType: element.type
     }));
 
-  return { generatedElements, rows, templateElementIdByGeneratedId, iterationVariable };
+  return { generatedElements, rows, templateElementIdByGeneratedId, iterationVariable, occurrencePath };
 };

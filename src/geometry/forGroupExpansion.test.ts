@@ -200,6 +200,38 @@ describe("expandForGroupIteration (anonymous mutation name invariant)", () => {
   });
 });
 
+describe("expandForGroupIteration occurrence provenance", () => {
+  it("stamps generated rows with the source/template path without changing generated ids", () => {
+    const point: FreePointElement = {
+      id: "generated-point",
+      name: "Generated point",
+      type: "freePoint",
+      activity: "visible",
+      parentGroupId: forGroup.id,
+      x: 0,
+      y: 0
+    };
+    const { rows } = expandForGroupIteration({
+      elements: [...basePoints, forGroup, point],
+      forGroup,
+      iterationIndex: 2,
+      variableValue: 2
+    });
+
+    expect(rows).toEqual([
+      expect.objectContaining({
+        generatedElementId: "generated-point@loop:2",
+        occurrencePath: [{ templateForGroupId: "loop", iterationIndex: 2 }]
+      })
+    ]);
+    expect(rows[0].generatedElementId).toBe(forGroupGeneratedElementId({
+      forGroupId: "loop",
+      templateElementId: "generated-point",
+      iterationIndex: 2
+    }));
+  });
+});
+
 describe("expandForGroupIteration (nested forGroup ownership and iteration context)", () => {
   const outerForGroup: ForGroupElement = {
     id: "outer",

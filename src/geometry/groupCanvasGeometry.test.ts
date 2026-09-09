@@ -122,6 +122,7 @@ describe("groupCanvasGeometry", () => {
         templateElementId: "template",
         generatedElementId: "generated",
         iterationIndex: 0,
+        occurrencePath: [{ templateForGroupId: "for-group", iterationIndex: 0 }],
         variableName: "i",
         variableValue: 0,
         elementName: "generated",

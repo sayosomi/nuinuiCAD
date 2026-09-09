@@ -55,7 +55,7 @@ fn remaps_a_direct_childs_parent_group_id_to_the_runtime_forgroup_instance() {
         point_referencing("p", "inner", "@i", "@j"),
     ];
 
-    let (outer_generated, _outer_rows, _outer_iteration_variable) =
+    let (outer_generated, _outer_rows, _outer_iteration_variable, _outer_occurrence_path) =
         expand_for_group_iteration_from_template(
             &elements,
             &elements[0],
@@ -63,6 +63,7 @@ fn remaps_a_direct_childs_parent_group_id_to_the_runtime_forgroup_instance() {
             0,
             0.0,
             &std::collections::HashMap::new(),
+            &[],
         );
     let (generated_inner, _) = outer_generated
         .into_iter()
@@ -78,7 +79,7 @@ fn remaps_a_direct_childs_parent_group_id_to_the_runtime_forgroup_instance() {
         Some("outer")
     );
 
-    let (inner_generated, _inner_rows, _inner_iteration_variable) =
+    let (inner_generated, _inner_rows, _inner_iteration_variable, _inner_occurrence_path) =
         expand_for_group_iteration_from_template(
             &elements,
             &generated_inner,
@@ -86,6 +87,7 @@ fn remaps_a_direct_childs_parent_group_id_to_the_runtime_forgroup_instance() {
             0,
             0.0,
             &std::collections::HashMap::new(),
+            &[],
         );
     let (generated_p, _) = inner_generated
         .into_iter()
@@ -114,7 +116,7 @@ fn does_not_mix_parent_chains_across_two_outer_iterations() {
 
     let mut generated_p_parents = Vec::new();
     for outer_iteration_index in 0..2usize {
-        let (outer_generated, _rows, _outer_iteration_variable) =
+        let (outer_generated, _rows, _outer_iteration_variable, _outer_occurrence_path) =
             expand_for_group_iteration_from_template(
                 &elements,
                 &elements[0],
@@ -122,20 +124,23 @@ fn does_not_mix_parent_chains_across_two_outer_iterations() {
                 outer_iteration_index,
                 outer_iteration_index as f64,
                 &std::collections::HashMap::new(),
+                &[],
             );
         let (generated_inner, _) = outer_generated
             .into_iter()
             .find(|(element, _)| element_type(element) == Some("forGroup"))
             .unwrap();
         let generated_inner_id = element_id(&generated_inner).unwrap();
-        let (inner_generated, _rows, _iv) = expand_for_group_iteration_from_template(
-            &elements,
-            &generated_inner,
-            Some("inner"),
-            0,
-            0.0,
-            &std::collections::HashMap::new(),
-        );
+        let (inner_generated, _rows, _iv, _occurrence_path) =
+            expand_for_group_iteration_from_template(
+                &elements,
+                &generated_inner,
+                Some("inner"),
+                0,
+                0.0,
+                &std::collections::HashMap::new(),
+                &[],
+            );
         let (generated_p, _) = inner_generated
             .into_iter()
             .find(|(element, _)| element_type(element) == Some("freePoint"))
@@ -158,7 +163,7 @@ fn threads_both_outer_and_inner_ancestor_iteration_variables_into_the_nested_bod
         point_referencing("p", "inner", "@i", "@j"),
     ];
 
-    let (outer_generated, _rows, outer_iteration_variable) =
+    let (outer_generated, _rows, outer_iteration_variable, _outer_occurrence_path) =
         expand_for_group_iteration_from_template(
             &elements,
             &elements[0],
@@ -166,12 +171,13 @@ fn threads_both_outer_and_inner_ancestor_iteration_variables_into_the_nested_bod
             1,
             1.0,
             &std::collections::HashMap::new(),
+            &[],
         );
     let (generated_inner, _) = outer_generated
         .into_iter()
         .find(|(element, _)| element_type(element) == Some("forGroup"))
         .unwrap();
-    let (inner_generated, _rows, inner_iteration_variable) =
+    let (inner_generated, _rows, inner_iteration_variable, _inner_occurrence_path) =
         expand_for_group_iteration_from_template(
             &elements,
             &generated_inner,
@@ -179,6 +185,7 @@ fn threads_both_outer_and_inner_ancestor_iteration_variables_into_the_nested_bod
             2,
             2.0,
             &std::collections::HashMap::new(),
+            &[],
         );
     let (_generated_p, _) = inner_generated
         .into_iter()
@@ -200,7 +207,7 @@ fn an_inner_loop_variable_shadows_an_outer_loop_variable_of_the_same_name() {
         point_referencing("p", "inner", "@i", "0"),
     ];
 
-    let (outer_generated, _rows, outer_iteration_variable) =
+    let (outer_generated, _rows, outer_iteration_variable, _outer_occurrence_path) =
         expand_for_group_iteration_from_template(
             &elements,
             &elements[0],
@@ -208,12 +215,13 @@ fn an_inner_loop_variable_shadows_an_outer_loop_variable_of_the_same_name() {
             0,
             100.0,
             &std::collections::HashMap::new(),
+            &[],
         );
     let (generated_inner, _) = outer_generated
         .into_iter()
         .find(|(element, _)| element_type(element) == Some("forGroup"))
         .unwrap();
-    let (inner_generated, _rows, inner_iteration_variable) =
+    let (inner_generated, _rows, inner_iteration_variable, _inner_occurrence_path) =
         expand_for_group_iteration_from_template(
             &elements,
             &generated_inner,
@@ -221,6 +229,7 @@ fn an_inner_loop_variable_shadows_an_outer_loop_variable_of_the_same_name() {
             0,
             5.0,
             &std::collections::HashMap::new(),
+            &[],
         );
     let (_generated_p, _) = inner_generated
         .into_iter()
@@ -245,7 +254,7 @@ fn a_nested_body_element_resolves_a_reference_to_an_element_generated_by_an_oute
     ];
 
     for outer_iteration_index in 0..2usize {
-        let (outer_generated, _rows, _outer_iteration_variable) =
+        let (outer_generated, _rows, _outer_iteration_variable, _outer_occurrence_path) =
             expand_for_group_iteration_from_template(
                 &elements,
                 &elements[1],
@@ -253,6 +262,7 @@ fn a_nested_body_element_resolves_a_reference_to_an_element_generated_by_an_oute
                 outer_iteration_index,
                 outer_iteration_index as f64,
                 &std::collections::HashMap::new(),
+                &[],
             );
         let generated_a = outer_generated
             .iter()
@@ -275,14 +285,16 @@ fn a_nested_body_element_resolves_a_reference_to_an_element_generated_by_an_oute
         let mut ancestor_element_id_map = std::collections::HashMap::new();
         ancestor_element_id_map.insert("a".to_owned(), generated_a_id.clone());
 
-        let (inner_generated, _rows, _iv) = expand_for_group_iteration_from_template(
-            &elements,
-            &generated_inner,
-            Some("inner"),
-            0,
-            0.0,
-            &ancestor_element_id_map,
-        );
+        let (inner_generated, _rows, _iv, _occurrence_path) =
+            expand_for_group_iteration_from_template(
+                &elements,
+                &generated_inner,
+                Some("inner"),
+                0,
+                0.0,
+                &ancestor_element_id_map,
+                &[],
+            );
         let generated_l = inner_generated
             .into_iter()
             .find(|(element, _)| element_type(element) == Some("line"))
