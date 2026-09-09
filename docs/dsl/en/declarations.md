@@ -9,6 +9,8 @@ Typed scalar declarations use an explicit type annotation and initializer:
   geometry value. The initializer may be an existing geometry reference or, in
   the implemented pure-value subset, `coordinate(x: ..., y: ...)` for `point`,
   `polar(from: ..., angle: ..., distance: ...)` for `point`,
+  `between(start: ..., end: ..., distance: ...)` or `between(start: ..., end: ..., ratio: ...)` for `point`,
+  `onLine(from: ..., distance: ...)` or `onLine(from: ..., ratio: ...)` for `point`,
   `segment(start: ..., end: ...)` for `line` or `path`, `polar(start: ...,
   angle: ..., length: ...)` for `line` or `path`, and direct
   `arc(center: ..., radius: ..., start: ..., end: ..., direction: ...)` for
@@ -61,6 +63,13 @@ as drawable point `polar`. Line `polar(...)` is an identity-free pure strict
 line initializer with the same semantics and defaults (`angle: 0`,
 `length: 100`) as drawable line `polar`; its `line` result is also assignable to
 `path`. Neither pure form creates a drawable element or identity.
+
+Point `between(...)` and `onLine(...)` are also identity-free pure point
+initializers. Each requires exactly one of `distance` or `ratio`; omitting both
+or supplying both is invalid. `between` measures distance from `start` toward
+`end`, while `onLine` measures from the referenced `start` or `end` endpoint
+using the complete line/path geometry. Pure forms do not create a drawable
+element, computed drawable entry, or synthetic identity.
 
 `set` does not create a geometry element or a new binding. Its target must be a
 mutable scalar in scope, and its right-hand side is checked against that

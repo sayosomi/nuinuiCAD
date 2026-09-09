@@ -391,6 +391,11 @@ export type ModuleGeometryBezierIntermediateSemantic = {
   outgoingLength: ModuleScalarExpressionSemantic | null;
 };
 
+export type ModuleGeometryPlacementSemantic = {
+  kind: "distance" | "ratio";
+  value: ModuleScalarExpressionSemantic;
+};
+
 export type ModuleGeometryConstructionSemantic =
   | {
       kind: "coordinate";
@@ -411,6 +416,21 @@ export type ModuleGeometryConstructionSemantic =
       from: ModuleGeometryReferenceSemantic;
       angle: ModuleScalarExpressionSemantic | null;
       distance: ModuleScalarExpressionSemantic | null;
+    }
+  | {
+      kind: "between";
+      span: DslSpan;
+      start: ModuleGeometryReferenceSemantic;
+      end: ModuleGeometryReferenceSemantic;
+      placement: ModuleGeometryPlacementSemantic;
+    }
+  | {
+      kind: "onLine";
+      span: DslSpan;
+      from: ModuleGeometryReferenceSemantic;
+      line: ModuleGeometryReferenceSemantic;
+      endpointKey: "start" | "end";
+      placement: ModuleGeometryPlacementSemantic;
     }
   | {
       kind: "segment";

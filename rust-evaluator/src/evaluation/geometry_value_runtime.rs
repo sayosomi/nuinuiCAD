@@ -1,11 +1,14 @@
 use serde_json::{json, Value};
 
 use super::bezier_math::approximate_cubic_length;
+use super::division_placement::DivisionPlacementKind;
 use super::geometry_value_kernels::{
-    coordinate_geometry_kernel, direct_arc_geometry_kernel, offset_point_geometry_kernel,
-    polar_line_geometry_kernel, polar_point_geometry_kernel, polyline_geometry_kernel,
-    segment_geometry_kernel, through_arc_geometry_kernel, StructuralPoint,
+    coordinate_geometry_kernel, direct_arc_geometry_kernel, division_point_geometry_kernel,
+    offset_point_geometry_kernel, polar_line_geometry_kernel, polar_point_geometry_kernel,
+    polyline_geometry_kernel, segment_geometry_kernel, through_arc_geometry_kernel,
+    StructuralPoint,
 };
+use super::line_path::{geometry_length, point_at_distance_from_endpoint};
 use super::offset_paths::{build_offset_line_geometry, is_line_like_geometry};
 use super::point_anchor::point_from_geometry;
 use super::scalar_expression_runtime::evaluate_document_typed_expression;
@@ -40,6 +43,12 @@ pub(crate) enum GeometryValuePoint {
 }
 
 #[derive(Debug)]
+pub(crate) enum GeometryValuePlacement {
+    Distance(Box<TypedScalarExpression>),
+    Ratio(Box<TypedScalarExpression>),
+}
+
+#[derive(Debug)]
 pub(crate) struct GeometryValueBezierIntermediate {
     pub(crate) point: Box<GeometryValuePoint>,
     pub(crate) angle_deg: Box<TypedScalarExpression>,
@@ -62,6 +71,16 @@ pub(crate) enum GeometryValueConstruction {
         from: Box<GeometryValuePoint>,
         angle_deg: Box<TypedScalarExpression>,
         distance: Box<TypedScalarExpression>,
+    },
+    Between {
+        start: Box<GeometryValuePoint>,
+        end: Box<GeometryValuePoint>,
+        placement: GeometryValuePlacement,
+    },
+    OnLine {
+        line: super::scalars::ScalarExpressionResolvedGeometryTarget,
+        endpoint_key: String,
+        placement: GeometryValuePlacement,
     },
     Segment {
         start: Box<GeometryValuePoint>,
@@ -234,6 +253,29 @@ fn decode_typed_field(
     .map_err(|error| format!("{error:?}"))
 }
 
+fn decode_placement(
+    construction_object: &serde_json::Map<String, Value>,
+    context: &str,
+) -> Result<GeometryValuePlacement, String> {
+    let placement = object(
+        construction_object
+            .get("placement")
+            .ok_or_else(|| format!("{context} is missing placement"))?,
+        context,
+    )?;
+    let kind = string_field(placement, "kind", &format!("{context} placement"))?;
+    let value = Box::new(decode_typed_field(
+        placement,
+        "value",
+        &format!("{context} placement"),
+    )?);
+    match kind.as_str() {
+        "distance" => Ok(GeometryValuePlacement::Distance(value)),
+        "ratio" => Ok(GeometryValuePlacement::Ratio(value)),
+        _ => Err(format!("{context} placement kind {kind} is unsupported")),
+    }
+}
+
 fn decode_entry(value: &Value) -> Result<GeometryValueProgramEntry, String> {
     let entry_object = object(value, "geometry value program entry")?;
     let source_statement_id = string_field(
@@ -331,6 +373,46 @@ fn decode_entry(value: &Value) -> Result<GeometryValueProgramEntry, String> {
                     "geometry value polarPoint",
                 )?),
             },
+            "between" => GeometryValueConstruction::Between {
+                start: Box::new(decode_point(
+                    construction_object
+                        .get("start")
+                        .ok_or_else(|| "geometry value between is missing start".to_owned())?,
+                )?),
+                end: Box::new(decode_point(
+                    construction_object
+                        .get("end")
+                        .ok_or_else(|| "geometry value between is missing end".to_owned())?,
+                )?),
+                placement: decode_placement(construction_object, "geometry value between")?,
+            },
+            "onLine" => {
+                let endpoint_key =
+                    string_field(construction_object, "endpointKey", "geometry value onLine")?;
+                if endpoint_key != "start" && endpoint_key != "end" {
+                    return Err("geometry value onLine endpointKey must be start or end".to_owned());
+                }
+                let line_object = object(
+                    construction_object
+                        .get("line")
+                        .ok_or_else(|| "geometry value onLine is missing line".to_owned())?,
+                    "geometry value onLine line",
+                )?;
+                if string_field(line_object, "kind", "geometry value onLine line")? != "target" {
+                    return Err("geometry value onLine line must be a target".to_owned());
+                }
+                GeometryValueConstruction::OnLine {
+                    line: super::scalars::decode_geometry_target_payload(
+                        line_object.get("target").ok_or_else(|| {
+                            "geometry value onLine line is missing target".to_owned()
+                        })?,
+                    )
+                    .map_err(|error| format!("{error:?}"))?
+                    .ok_or_else(|| "geometry value onLine line cannot be null".to_owned())?,
+                    endpoint_key,
+                    placement: decode_placement(construction_object, "geometry value onLine")?,
+                }
+            }
             "segment" => GeometryValueConstruction::Segment {
                 start: Box::new(decode_point(
                     construction_object
@@ -740,6 +822,24 @@ fn evaluate_point(
     }
 }
 
+fn evaluate_geometry_placement(
+    placement: &GeometryValuePlacement,
+    resolver: &dyn ScalarDocumentBindingResolver,
+    state: &EvaluationState,
+    source_order: f64,
+) -> Option<(DivisionPlacementKind, f64)> {
+    match placement {
+        GeometryValuePlacement::Distance(value) => Some((
+            DivisionPlacementKind::Distance,
+            number_expression(value, resolver, state, source_order)?,
+        )),
+        GeometryValuePlacement::Ratio(value) => Some((
+            DivisionPlacementKind::Ratio,
+            number_expression(value, resolver, state, source_order)?,
+        )),
+    }
+}
+
 fn bezier_handle_point(point: (f64, f64), angle_deg: f64, length: f64) -> (f64, f64) {
     let angle_rad = angle_deg.to_radians();
     (
@@ -921,6 +1021,110 @@ pub(crate) fn evaluate_geometry_value_entry(
                         polar_point_geometry_kernel(StructuralPoint { x, y }, angle_deg, distance);
                     json!({ "kind": "point", "x": structural.x, "y": structural.y })
                 })
+        }
+        GeometryValueConstruction::Between {
+            start,
+            end,
+            placement,
+        } => {
+            if entry.declared_interface_type != "point" {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "Geometry value construction is incompatible with its declared interface type.",
+                );
+                return;
+            }
+            let start = evaluate_point(start, resolver, state, source_order);
+            let end = evaluate_point(end, resolver, state, source_order);
+            let placement = evaluate_geometry_placement(placement, resolver, state, source_order);
+            match (start, end, placement) {
+                (Some(start), Some(end), Some((kind, value))) => {
+                    let structural = division_point_geometry_kernel(
+                        StructuralPoint {
+                            x: start.0,
+                            y: start.1,
+                        },
+                        StructuralPoint { x: end.0, y: end.1 },
+                        kind,
+                        value,
+                    );
+                    let Some(structural) = structural else {
+                        append_geometry_value_error(
+                            state,
+                            entry,
+                            "between construction cannot determine a distance direction because its endpoints coincide.",
+                        );
+                        return;
+                    };
+                    Some(json!({
+                        "kind": "point",
+                        "x": structural.x,
+                        "y": structural.y
+                    }))
+                }
+                _ => None,
+            }
+        }
+        GeometryValueConstruction::OnLine {
+            line,
+            endpoint_key,
+            placement,
+        } => {
+            if entry.declared_interface_type != "point" {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "Geometry value construction is incompatible with its declared interface type.",
+                );
+                return;
+            }
+            let Some(geometry) = target_geometry(line, state) else {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "onLine construction cannot determine a point from the referenced line. Specify a usable line-like geometry.",
+                );
+                return;
+            };
+            if !is_line_like_geometry(Some(geometry)) {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "onLine construction cannot determine a point from the referenced line. Specify a usable line-like geometry.",
+                );
+                return;
+            }
+            let Some((kind, value)) =
+                evaluate_geometry_placement(placement, resolver, state, source_order)
+            else {
+                return;
+            };
+            let path_distance = match kind {
+                DivisionPlacementKind::Distance => value,
+                DivisionPlacementKind::Ratio => {
+                    let Some(length) = geometry_length(geometry) else {
+                        append_geometry_value_error(
+                            state,
+                            entry,
+                            "onLine construction cannot determine a point from the referenced line. Specify a usable line-like geometry.",
+                        );
+                        return;
+                    };
+                    length * value
+                }
+            };
+            let Some((x, y)) =
+                point_at_distance_from_endpoint(geometry, endpoint_key, path_distance)
+            else {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "onLine construction cannot determine a point from the referenced line. Specify a usable line-like geometry.",
+                );
+                return;
+            };
+            Some(json!({ "kind": "point", "x": x, "y": y }))
         }
         GeometryValueConstruction::Segment { start, end } => {
             if entry.declared_interface_type != "line" && entry.declared_interface_type != "path" {

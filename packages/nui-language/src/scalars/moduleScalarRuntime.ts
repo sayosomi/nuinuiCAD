@@ -2698,6 +2698,23 @@ export const compileModuleScalarRuntime = ({
             const distance = value.construction.distance ? lowerGeometryValueScalar(value.construction.distance, context) : null;
             return from && angleDeg && distance ? { kind: "polarPoint" as const, from, angleDeg, distance } : null;
           })()
+      : value.construction.kind === "between"
+        ? (() => {
+            const start = lowerGeometryValuePoint(value.construction.start, context, executionPosition);
+            const end = lowerGeometryValuePoint(value.construction.end, context, executionPosition);
+            const placement = lowerGeometryValueScalar(value.construction.placement.value, context);
+            return start && end && placement
+              ? { kind: "between" as const, start, end, placement: { kind: value.construction.placement.kind, value: placement } }
+              : null;
+          })()
+      : value.construction.kind === "onLine"
+        ? (() => {
+            const line = lowerGeometryValuePath(value.construction.line, context, executionPosition);
+            const placement = lowerGeometryValueScalar(value.construction.placement.value, context);
+            return line && placement
+              ? { kind: "onLine" as const, line, endpointKey: value.construction.endpointKey, placement: { kind: value.construction.placement.kind, value: placement } }
+              : null;
+          })()
       : value.construction.kind === "segment"
         ? (() => {
             const start = lowerGeometryValuePoint(value.construction.start, context, executionPosition);

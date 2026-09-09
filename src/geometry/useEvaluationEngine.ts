@@ -100,6 +100,8 @@ export const useEvaluationEngine = (
   const moduleConditionalOwnerStatementIdByElementId = options.moduleConditionalOwnerStatementIdByElementId;
   const moduleForGroupMutationOwnerByElementId = options.moduleForGroupMutationOwnerByElementId;
   const moduleMaterialization = options.moduleMaterialization;
+  const geometryValueProgram = options.geometryValueProgram;
+  const geometryInputTargetsByElementId = options.geometryInputTargetsByElementId;
   const propertyBindingEntries = options.propertyBindingEntries;
   const numericBindingEntries = options.numericBindingEntries;
   const controlBooleanEntries = options.controlBooleanEntries;
@@ -119,6 +121,10 @@ export const useEvaluationEngine = (
         moduleConditionalOwnerStatementIdByElementId, moduleForGroupMutationOwnerByElementId
       } : {}),
       ...(moduleMaterialization ? { moduleMaterialization } : {}),
+      ...(sourceExecutionPositionByElementId ? { sourceExecutionPositionByElementId } : {}),
+      ...(scalarExecutionPositionByElementId ? { scalarExecutionPositionByElementId } : {}),
+      ...(geometryValueProgram?.length ? { geometryValueProgram } : {}),
+      ...(geometryInputTargetsByElementId?.size ? { geometryInputTargetsByElementId } : {}),
       ...(propertyBindingEntries?.length ? { propertyBindingEntries } : {}),
       ...(numericBindingEntries?.length ? { numericBindingEntries } : {}),
       ...(controlBooleanEntries?.length ? { controlBooleanEntries } : {}),
@@ -142,6 +148,8 @@ export const useEvaluationEngine = (
       moduleConditionalOwnerStatementIdByElementId,
       moduleForGroupMutationOwnerByElementId,
       moduleMaterialization,
+      geometryValueProgram,
+      geometryInputTargetsByElementId,
       propertyBindingEntries,
       numericBindingEntries,
       controlBooleanEntries,
@@ -164,6 +172,16 @@ export const useEvaluationEngine = (
       selectedDrawingProfileId,
       scalarProgram,
       bindingVersions,
+      sourceExecutionPositionByElementId: sourceExecutionPositionByElementId
+        ? Array.from(sourceExecutionPositionByElementId)
+        : undefined,
+      scalarExecutionPositionByElementId: scalarExecutionPositionByElementId
+        ? Array.from(scalarExecutionPositionByElementId)
+        : undefined,
+      geometryValueProgram,
+      geometryInputTargetsByElementId: geometryInputTargetsByElementId
+        ? Array.from(geometryInputTargetsByElementId)
+        : undefined,
       statementIdByStatementIndex: statementIdByStatementIndex ? Array.from(statementIdByStatementIndex) : undefined,
       conditionalOwnerStatementIdByElementId: conditionalOwnerStatementIdByElementId
         ? Array.from(conditionalOwnerStatementIdByElementId) : undefined,
@@ -192,6 +210,10 @@ export const useEvaluationEngine = (
       selectedDrawingProfileId,
       scalarProgram,
       bindingVersions,
+      sourceExecutionPositionByElementId,
+      scalarExecutionPositionByElementId,
+      geometryValueProgram,
+      geometryInputTargetsByElementId,
       statementIdByStatementIndex,
       conditionalOwnerStatementIdByElementId,
       forGroupMutationOwnerByElementId,

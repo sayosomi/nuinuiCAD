@@ -814,4 +814,109 @@ describe("pure geometry construction runtime", () => {
     expect(occurrences.every((entry) => !("elementId" in entry.value))).toBe(true);
     expect(result.computedGeometry.get("geometry-value-runtime:10")).toMatchObject({ kind: "line", start: { x: 10, y: 5 }, end: { x: 20, y: 5 } });
   });
+
+  it("evaluates pure between and onLine points without drawable identity", () => {
+    const { compiled, result } = evaluate([
+      "nui 1",
+      "const A: point = coordinate(x: 0, y: 0)",
+      "const B: point = coordinate(x: 100, y: 0)",
+      "const M: point = between(start: @A, end: @B, ratio: 0.5)",
+      "const D: point = between(start: @A, end: @B, distance: 25)",
+      "const L: line = segment(start: @A, end: @B)",
+      "const P: point = onLine(from: @L.start, ratio: 0.5)",
+      "const Q: point = onLine(from: @L.end, distance: 25)",
+      "line Use = segment(start: @M, end: @Q)"
+    ].join("\n"));
+
+    expect(compiled.diagnostics).toEqual([]);
+    expect(compiled.document?.elements.map((element) => element.name)).toEqual(["Use"]);
+    expect(result.errors).toEqual([]);
+    expect(result.geometryValueErrors).toEqual([]);
+    expect([...result.computedGeometryValues!.values()].map((entry) => entry.value)).toEqual([
+      { kind: "point", x: 0, y: 0 },
+      { kind: "point", x: 100, y: 0 },
+      { kind: "point", x: 50, y: 0 },
+      { kind: "point", x: 25, y: 0 },
+      expect.objectContaining({ kind: "line", start: { x: 0, y: 0 }, end: { x: 100, y: 0 } }),
+      { kind: "point", x: 50, y: 0 },
+      { kind: "point", x: 75, y: 0 }
+    ]);
+    expect([...result.computedGeometryValues!.values()].every(({ value }) => !("elementId" in value) && !("name" in value))).toBe(true);
+    expect(result.computedGeometry.get("geometry-value-runtime:8")).toMatchObject({
+      kind: "line",
+      start: { x: 50, y: 0 },
+      end: { x: 75, y: 0 }
+    });
+  });
+
+  it("supports pure division values in Module locals and exports", () => {
+    const { compiled, result } = evaluate([
+      "nui 1",
+      "module M(source: path) {",
+      "  export const Local: point = onLine(from: @source.start, ratio: 0.25)",
+      "  export const Output: point = between(start: @source.start, end: @source.end, distance: 5)",
+      "}",
+      "line Base = segment(start: (0, 0), end: (100, 0))",
+      "instance One = M(source: @Base)",
+      "line Use = segment(start: @One::Local, end: @One::Output)"
+    ].join("\n"));
+
+    expect(compiled.diagnostics).toEqual([]);
+    expect(result.errors).toEqual([]);
+    expect(result.geometryValueErrors).toEqual([]);
+    expect(result.computedGeometry.get("geometry-value-runtime:7")).toMatchObject({
+      kind: "line",
+      start: { x: 25, y: 0 },
+      end: { x: 5, y: 0 }
+    });
+    expect([...result.computedGeometryValues!.values()]
+      .filter((entry) => entry.occurrence.instancePath.length === 1)
+      .map((entry) => entry.value)).toEqual([
+        { kind: "point", x: 25, y: 0 },
+        { kind: "point", x: 5, y: 0 }
+      ]);
+  });
+
+  it("reports pure distance and onLine degenerate failures by occurrence", () => {
+    const { compiled, result } = evaluate([
+      "nui 1",
+      "const A: point = coordinate(x: 0, y: 0)",
+      "const B: point = coordinate(x: 0, y: 0)",
+      "const Distance: point = between(start: @A, end: @B, distance: 1)",
+      "const L: line = segment(start: @A, end: @B)",
+      "const OnLine: point = onLine(from: @L.start, distance: 1)"
+    ].join("\n"));
+
+    expect(compiled.diagnostics).toEqual([]);
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometryValues).toEqual(expect.any(Map));
+    expect([...result.computedGeometryValues!.values()].map((entry) => entry.occurrence.sourceStatementId)).toEqual([
+      "geometry-value-runtime:1",
+      "geometry-value-runtime:2",
+      "geometry-value-runtime:4"
+    ]);
+    expect(result.geometryValueErrors).toEqual([
+      {
+        occurrence: { sourceStatementId: "geometry-value-runtime:3", instancePath: [] },
+        message: "between construction cannot determine a distance direction because its endpoints coincide."
+      },
+      {
+        occurrence: { sourceStatementId: "geometry-value-runtime:5", instancePath: [] },
+        message: "onLine construction cannot determine a point from the referenced line. Specify a usable line-like geometry."
+      }
+    ]);
+  });
+
+  it("preserves ratio semantics for coincident pure between endpoints", () => {
+    const { result } = evaluate([
+      "nui 1",
+      "const A: point = coordinate(x: 2, y: 3)",
+      "const B: point = coordinate(x: 2, y: 3)",
+      "const Ratio: point = between(start: @A, end: @B, ratio: 0.5)"
+    ].join("\n"));
+
+    expect(result.errors).toEqual([]);
+    expect(result.geometryValueErrors).toEqual([]);
+    expect([...result.computedGeometryValues!.values()].at(-1)?.value).toEqual({ kind: "point", x: 2, y: 3 });
+  });
 });

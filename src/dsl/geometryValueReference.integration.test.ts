@@ -160,7 +160,7 @@ describe("immutable single-geometry reference values", () => {
       end: { type: { kind: "number" } },
       direction: { type: { kind: "choice", options: ["counterclockwise", "clockwise"] } }
     });
-    expect(pureGeometryValueConstructionCandidates("point").map((candidate) => candidate.label)).toEqual(["coordinate", "offset", "polar"]);
+    expect(pureGeometryValueConstructionCandidates("point").map((candidate) => candidate.label)).toEqual(["coordinate", "offset", "polar", "between", "onLine"]);
     expect(pureGeometryValueConstructionCandidates("line").map((candidate) => candidate.label)).toEqual(["segment", "polar"]);
     expect(pureGeometryValueConstructionCandidates("path").map((candidate) => candidate.label)).toEqual(["segment", "polar", "offset", "polyline", "bezier", "arc", "through"]);
     expect(pureGeometryValueConstructionCandidates("point").map((candidate) => candidate.label)).not.toContain("through");
@@ -201,6 +201,62 @@ describe("immutable single-geometry reference values", () => {
       "polarLine",
       "polarLine"
     ]);
+  });
+
+  it("registers pure between and onLine with explicit placement modes and full line targets", () => {
+    const compiled = compile([
+      "nui 1",
+      "const A: point = coordinate(x: 0, y: 0)",
+      "const B: point = coordinate(x: 100, y: 0)",
+      "const M: point = between(start: @A, end: @B, ratio: 0.5)",
+      "const D: point = between(start: @A, end: @B, distance: 25)",
+      "const L: line = segment(start: @A, end: @B)",
+      "const P: point = onLine(from: @L.start, ratio: 0.5)",
+      "const Q: point = onLine(from: @L.end, distance: 25)"
+    ].join("\n"), "geometry-value-division");
+
+    expect(compiled.diagnostics).toEqual([]);
+    expect(compiled.moduleSemanticAnalysis?.geometryValues.map((value) => value.construction?.kind)).toEqual([
+      "coordinate", "coordinate", "between", "between", "segment", "onLine", "onLine"
+    ]);
+    expect(compiled.moduleSemanticAnalysis?.geometryValues.find((value) => value.name === "M")?.construction).toMatchObject({
+      kind: "between",
+      start: { target: { kind: "geometryValue" } },
+      end: { target: { kind: "geometryValue" } },
+      placement: { kind: "ratio", value: { ast: { kind: "numberLiteral", value: 0.5 } } }
+    });
+    expect(compiled.moduleSemanticAnalysis?.geometryValues.find((value) => value.name === "P")?.construction).toMatchObject({
+      kind: "onLine",
+      from: { target: { kind: "geometryValue", pointKey: "start" } },
+      line: { target: { kind: "geometryValue" } },
+      endpointKey: "start",
+      placement: { kind: "ratio", value: { ast: { kind: "numberLiteral", value: 0.5 } } }
+    });
+    expect(compiled.moduleSemanticAnalysis?.rootGeometryReferencesByStatementId.get("geometry-value-division:3")?.map((site) => site.parameterKey)).toEqual(["start", "end"]);
+    expect(compiled.moduleSemanticAnalysis?.rootGeometryReferencesByStatementId.get("geometry-value-division:6")?.map((site) => site.parameterKey)).toEqual(["from"]);
+    expect(compiled.geometryValueProgram?.map((entry) => entry.construction.kind)).toEqual([
+      "coordinate", "coordinate", "between", "between", "segment", "onLine", "onLine"
+    ]);
+  });
+
+  it("requires exactly one pure division placement mode", () => {
+    const missing = compile([
+      "nui 1",
+      "const A: point = coordinate(x: 0, y: 0)",
+      "const B: point = coordinate(x: 10, y: 0)",
+      "const Missing: point = between(start: @A, end: @B)"
+    ].join("\n"), "geometry-value-missing-placement");
+    expect(errorCodes(missing)).toContain("geometry-value-placement-required");
+    expect(missing.geometryValueProgram?.some((entry) => entry.sourceStatementId.endsWith(":3"))).toBe(false);
+
+    const simultaneous = compile([
+      "nui 1",
+      "const A: point = coordinate(x: 0, y: 0)",
+      "const B: point = coordinate(x: 10, y: 0)",
+      "const L: line = segment(start: @A, end: @B)",
+      "const Both: point = onLine(from: @L.start, distance: 1, ratio: 0.5)"
+    ].join("\n"), "geometry-value-simultaneous-placement");
+    expect(simultaneous.diagnostics.some((diagnostic) => diagnostic.message.includes("同時に指定できません"))).toBe(true);
   });
 
   it("uses the existing point-reference restrictions for point polar", () => {

@@ -1,3 +1,4 @@
+use super::division_placement::DivisionPlacementKind;
 use super::math::{arc_tangent_angles, positive_sweep_degrees, CIRCLE_EPSILON};
 use super::scalars::degrees_to_radians;
 
@@ -75,6 +76,27 @@ pub(crate) fn polar_point_geometry_kernel(
         x: from.x + angle_rad.cos() * distance,
         y: from.y + angle_rad.sin() * distance,
     }
+}
+
+pub(crate) fn division_point_geometry_kernel(
+    start: StructuralPoint,
+    end: StructuralPoint,
+    placement_kind: DivisionPlacementKind,
+    placement_value: f64,
+) -> Option<StructuralPoint> {
+    let vector_x = end.x - start.x;
+    let vector_y = end.y - start.y;
+    if matches!(placement_kind, DivisionPlacementKind::Ratio) {
+        return Some(StructuralPoint {
+            x: start.x + vector_x * placement_value,
+            y: start.y + vector_y * placement_value,
+        });
+    }
+    let length = vector_x.hypot(vector_y);
+    (length > CIRCLE_EPSILON).then_some(StructuralPoint {
+        x: start.x + (vector_x / length) * placement_value,
+        y: start.y + (vector_y / length) * placement_value,
+    })
 }
 
 fn angle_from_to(start: StructuralPoint, end: StructuralPoint) -> Option<f64> {

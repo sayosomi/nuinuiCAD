@@ -3,8 +3,10 @@ use std::collections::HashMap;
 
 use super::division_placement::{decode_division_placement, DivisionPlacementKind};
 use super::errors::geometry_error;
-use super::geometry_value_kernels::{coordinate_geometry_kernel, polar_point_geometry_kernel};
-use super::math::CIRCLE_EPSILON;
+use super::geometry_value_kernels::{
+    coordinate_geometry_kernel, division_point_geometry_kernel, polar_point_geometry_kernel,
+    StructuralPoint,
+};
 use super::numeric_expression::evaluate_numeric_or_push;
 use super::point_anchor::{
     computed_point, get_computed_point_or_error, point_anchor_for_element, point_anchor_or_error,
@@ -194,12 +196,13 @@ pub(crate) fn evaluate_division_point(
         return;
     };
 
-    let vector_x = end.x - start.x;
-    let vector_y = end.y - start.y;
-    let length = vector_x.hypot(vector_y);
-
     let (kind, placement_value) = decode_division_placement(element);
-    let (x, y) = match kind {
+    let structural_start = StructuralPoint {
+        x: start.x,
+        y: start.y,
+    };
+    let structural_end = StructuralPoint { x: end.x, y: end.y };
+    let point = match kind {
         DivisionPlacementKind::Distance => {
             let Some(distance) = evaluate_numeric_or_push(
                 placement_value,
@@ -210,7 +213,9 @@ pub(crate) fn evaluate_division_point(
             ) else {
                 return;
             };
-            if length <= CIRCLE_EPSILON {
+            let Some(point) =
+                division_point_geometry_kernel(structural_start, structural_end, kind, distance)
+            else {
                 state.errors.push(geometry_error(
                     element,
                     format!(
@@ -219,11 +224,8 @@ pub(crate) fn evaluate_division_point(
                     ),
                 ));
                 return;
-            }
-            (
-                start.x + (vector_x / length) * distance,
-                start.y + (vector_y / length) * distance,
-            )
+            };
+            point
         }
         DivisionPlacementKind::Ratio => {
             let Some(ratio) = evaluate_numeric_or_push(
@@ -235,7 +237,12 @@ pub(crate) fn evaluate_division_point(
             ) else {
                 return;
             };
-            (start.x + vector_x * ratio, start.y + vector_y * ratio)
+            let Some(point) =
+                division_point_geometry_kernel(structural_start, structural_end, kind, ratio)
+            else {
+                return;
+            };
+            point
         }
     };
 
@@ -243,6 +250,6 @@ pub(crate) fn evaluate_division_point(
     insert_geometry(
         state,
         id.clone(),
-        computed_point(id, element_name(element), x, y),
+        computed_point(id, element_name(element), point.x, point.y),
     );
 }

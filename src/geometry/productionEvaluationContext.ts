@@ -139,6 +139,8 @@ export const buildEvaluationOptions = ({
       moduleForGroupMutationOwnerByElementId
     } : {}),
     ...(compiledDocument.moduleMaterialization ? { moduleMaterialization: compiledDocument.moduleMaterialization } : {}),
+    ...(sourceExecutionPositionByElementId ? { sourceExecutionPositionByElementId } : {}),
+    ...(scalarExecutionPositionByElementId ? { scalarExecutionPositionByElementId } : {}),
     ...(compiledDocument.moduleGeometryRuntime?.geometryInputTargetsByRuntimeElementId
       ? { geometryInputTargetsByElementId: compiledDocument.moduleGeometryRuntime.geometryInputTargetsByRuntimeElementId }
       : {}),

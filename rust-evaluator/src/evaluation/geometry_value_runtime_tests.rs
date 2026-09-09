@@ -904,3 +904,211 @@ fn module_runtime_position_allows_geometry_property_read_after_backing_drawable(
         json!({ "kind": "point", "x": 0.0, "y": 42.0 })
     );
 }
+
+#[test]
+fn pure_division_points_are_identity_free_and_feed_drawable_consumers() {
+    let line_occurrence = json!({
+        "sourceStatementId": "value:line",
+        "instancePath": []
+    });
+    let between_ratio_occurrence = json!({
+        "sourceStatementId": "value:between-ratio",
+        "instancePath": []
+    });
+    let between_distance_occurrence = json!({
+        "sourceStatementId": "value:between-distance",
+        "instancePath": []
+    });
+    let on_line_ratio_occurrence = json!({
+        "sourceStatementId": "value:on-line-ratio",
+        "instancePath": []
+    });
+    let on_line_distance_occurrence = json!({
+        "sourceStatementId": "value:on-line-distance",
+        "instancePath": []
+    });
+    let line_target = json!({
+        "kind": "geometryValue",
+        "statementId": "value:line",
+        "statementIndex": 0,
+        "geometryType": "line",
+        "occurrence": line_occurrence.clone()
+    });
+    let elements = vec![json!({
+        "id": "drawable:consumer",
+        "name": "Consumer",
+        "type": "line",
+        "activity": "visible",
+        "startPoint": {
+            "mode": "geometryValue",
+            "occurrence": on_line_ratio_occurrence.clone()
+        },
+        "endPoint": {
+            "mode": "geometryValue",
+            "occurrence": between_distance_occurrence.clone()
+        }
+    })];
+    let program = vec![
+        json!({
+            "sourceStatementId": "value:line",
+            "sourceStatementIndex": 0,
+            "declaredInterfaceType": "line",
+            "occurrence": line_occurrence,
+            "executionPosition": -5.0,
+            "construction": {
+                "kind": "segment",
+                "start": { "kind": "coordinate", "x": number(0.0), "y": number(0.0) },
+                "end": { "kind": "coordinate", "x": number(100.0), "y": number(0.0) }
+            }
+        }),
+        json!({
+            "sourceStatementId": "value:between-ratio",
+            "sourceStatementIndex": 1,
+            "declaredInterfaceType": "point",
+            "occurrence": between_ratio_occurrence,
+            "executionPosition": -4.0,
+            "construction": {
+                "kind": "between",
+                "start": { "kind": "coordinate", "x": number(0.0), "y": number(0.0) },
+                "end": { "kind": "coordinate", "x": number(100.0), "y": number(0.0) },
+                "placement": { "kind": "ratio", "value": number(0.5) }
+            }
+        }),
+        json!({
+            "sourceStatementId": "value:between-distance",
+            "sourceStatementIndex": 2,
+            "declaredInterfaceType": "point",
+            "occurrence": between_distance_occurrence,
+            "executionPosition": -3.0,
+            "construction": {
+                "kind": "between",
+                "start": { "kind": "coordinate", "x": number(0.0), "y": number(0.0) },
+                "end": { "kind": "coordinate", "x": number(100.0), "y": number(0.0) },
+                "placement": { "kind": "distance", "value": number(25.0) }
+            }
+        }),
+        json!({
+            "sourceStatementId": "value:on-line-ratio",
+            "sourceStatementIndex": 3,
+            "declaredInterfaceType": "point",
+            "occurrence": on_line_ratio_occurrence,
+            "executionPosition": -2.0,
+            "construction": {
+                "kind": "onLine",
+                "line": { "kind": "target", "target": line_target.clone() },
+                "endpointKey": "start",
+                "placement": { "kind": "ratio", "value": number(0.5) }
+            }
+        }),
+        json!({
+            "sourceStatementId": "value:on-line-distance",
+            "sourceStatementIndex": 4,
+            "declaredInterfaceType": "point",
+            "occurrence": on_line_distance_occurrence,
+            "executionPosition": -1.0,
+            "construction": {
+                "kind": "onLine",
+                "line": { "kind": "target", "target": line_target },
+                "endpointKey": "end",
+                "placement": { "kind": "distance", "value": number(25.0) }
+            }
+        }),
+    ];
+    let result = evaluate_document_input(input(elements, program));
+
+    assert!(result.errors.is_empty());
+    assert!(result.geometry_value_errors.is_empty());
+    assert_eq!(result.computed_geometry.len(), 1);
+    assert_eq!(result.computed_geometry_values.len(), 5);
+    assert_eq!(result.computed_geometry[0]["start"]["x"], 50.0);
+    assert_eq!(result.computed_geometry[0]["end"]["x"], 25.0);
+    for entry in &result.computed_geometry_values {
+        assert!(entry["value"].get("elementId").is_none());
+        assert!(entry["value"].get("name").is_none());
+    }
+}
+
+#[test]
+fn pure_division_points_report_occurrence_owned_degenerate_errors() {
+    let line_occurrence = json!({
+        "sourceStatementId": "value:zero-line",
+        "instancePath": []
+    });
+    let line_target = json!({
+        "kind": "geometryValue",
+        "statementId": "value:zero-line",
+        "statementIndex": 0,
+        "geometryType": "line",
+        "occurrence": line_occurrence.clone()
+    });
+    let between_occurrence = json!({
+        "sourceStatementId": "value:between-distance",
+        "instancePath": ["instance:one"]
+    });
+    let on_line_occurrence = json!({
+        "sourceStatementId": "value:on-line-distance",
+        "instancePath": ["instance:one"]
+    });
+    let program = vec![
+        json!({
+            "sourceStatementId": "value:zero-line",
+            "sourceStatementIndex": 0,
+            "declaredInterfaceType": "line",
+            "occurrence": line_occurrence,
+            "executionPosition": -3.0,
+            "construction": {
+                "kind": "segment",
+                "start": { "kind": "coordinate", "x": number(0.0), "y": number(0.0) },
+                "end": { "kind": "coordinate", "x": number(0.0), "y": number(0.0) }
+            }
+        }),
+        json!({
+            "sourceStatementId": "value:between-distance",
+            "sourceStatementIndex": 1,
+            "declaredInterfaceType": "point",
+            "occurrence": between_occurrence,
+            "executionPosition": -2.0,
+            "construction": {
+                "kind": "between",
+                "start": { "kind": "coordinate", "x": number(0.0), "y": number(0.0) },
+                "end": { "kind": "coordinate", "x": number(0.0), "y": number(0.0) },
+                "placement": { "kind": "distance", "value": number(1.0) }
+            }
+        }),
+        json!({
+            "sourceStatementId": "value:on-line-distance",
+            "sourceStatementIndex": 2,
+            "declaredInterfaceType": "point",
+            "occurrence": on_line_occurrence,
+            "executionPosition": -1.0,
+            "construction": {
+                "kind": "onLine",
+                "line": { "kind": "target", "target": line_target },
+                "endpointKey": "start",
+                "placement": { "kind": "distance", "value": number(1.0) }
+            }
+        }),
+    ];
+
+    let result = evaluate_document_input(input(Vec::new(), program));
+
+    assert!(result.errors.is_empty());
+    assert_eq!(result.computed_geometry_values.len(), 1);
+    assert_eq!(result.geometry_value_errors.len(), 2);
+    assert_eq!(
+        result.geometry_value_errors[0].message,
+        "between construction cannot determine a distance direction because its endpoints coincide."
+    );
+    assert_eq!(
+        result.geometry_value_errors[1].message,
+        "onLine construction cannot determine a point from the referenced line. Specify a usable line-like geometry."
+    );
+    assert_eq!(
+        result.geometry_value_errors[0].occurrence.instance_path,
+        vec!["instance:one"]
+    );
+    assert_eq!(
+        result.geometry_value_errors[1].occurrence.instance_path,
+        vec!["instance:one"]
+    );
+}

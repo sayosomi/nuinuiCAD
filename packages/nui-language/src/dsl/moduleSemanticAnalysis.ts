@@ -92,6 +92,7 @@ import type {
   ResolvedModuleParameter,
   ResolvedModuleParameterBinding
 } from "./moduleSemanticTypes";
+import { unwrapModuleGeometrySourceTarget } from "./moduleSemanticTypes";
 import type {
   RecordConstructorFieldSemantic,
   RecordDefinitionSemantic,
@@ -2169,6 +2170,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     const xArgument = argument("x");
     const yArgument = argument("y");
     const fromArgument = argument("from");
+    const distanceArgument = argument("distance");
+    const ratioArgument = argument("ratio");
     const sourcesArgument = argument("sources");
     const centerArgument = argument("center");
     const point1Argument = argument("point1");
@@ -2225,6 +2228,23 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       expectedType: ScalarType | null,
       defaultValue: string
     ) => scalarForSpan(candidate?.valueSpan, expectedType, defaultValue);
+    const placement = () => {
+      const hasDistance = Boolean(distanceArgument);
+      const hasRatio = Boolean(ratioArgument);
+      if (!hasDistance && !hasRatio) {
+        addLocal(statementIndex, issue(
+          "geometry-value-placement-required",
+          constructionSpan,
+          `construction「${invocation.construction}」にはdistanceまたはratioのいずれか一方が必要です。`,
+          { presentation: { key: "diagnostic.geometry-value-placement-required", parameters: { construction: invocation.construction } } }
+        ));
+        return null;
+      }
+      if (hasDistance === hasRatio) return null;
+      const selected = hasDistance ? distanceArgument : ratioArgument;
+      const value = selected ? scalarForSpan(selected.valueSpan, { kind: "number" }, "0") : null;
+      return value ? { kind: hasDistance ? "distance" as const : "ratio" as const, value } : null;
+    };
     if (invocation.construction === "offset" && invocation.pureValueInterface === "point") {
       if (expectedInterfaceType !== "point") {
         addLocal(statementIndex, issue("module-geometry-type-mismatch", constructionSpan, "offset point construction は point value にのみ代入できます。", {
@@ -2353,6 +2373,129 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         angle: scalar(angleArgument, { kind: "number" }, "0"),
         distance: scalar(argument("distance"), { kind: "number" }, "0")
       };
+    }
+    if (invocation.construction === "between" && invocation.pureValueInterface === "point") {
+      if (expectedInterfaceType !== "point") {
+        addLocal(statementIndex, issue("module-geometry-type-mismatch", constructionSpan, "between construction は point value にのみ代入できます。", {
+          presentation: { key: "diagnostic.module-geometry-type-mismatch", parameters: { target: "between" } }
+        }));
+      }
+      const start = startArgument
+        ? resolveGeometry(
+            statementIndex,
+            ownerIndex,
+            source.slice(startArgument.valueSpan.start, startArgument.valueSpan.end),
+            startArgument.valueSpan,
+            "point",
+            {
+              expectedInterfaceType: "point",
+              allowCoordinate: true,
+              role: "pointReference",
+              scalarResolver: options.scalarResolver,
+              bareScalarResolver: options.bareScalarResolver,
+              geometryPropertyResolver: options.geometryPropertyResolver,
+              presenceFacts: options.presenceFacts
+            }
+          )
+        : geometryReference("", constructionSpan, "point", null, "invalid", null, "pointReference");
+      const end = endArgument
+        ? resolveGeometry(
+            statementIndex,
+            ownerIndex,
+            source.slice(endArgument.valueSpan.start, endArgument.valueSpan.end),
+            endArgument.valueSpan,
+            "point",
+            {
+              expectedInterfaceType: "point",
+              allowCoordinate: true,
+              role: "pointReference",
+              scalarResolver: options.scalarResolver,
+              bareScalarResolver: options.bareScalarResolver,
+              geometryPropertyResolver: options.geometryPropertyResolver,
+              presenceFacts: options.presenceFacts
+            }
+          )
+        : geometryReference("", constructionSpan, "point", null, "invalid", null, "pointReference");
+      const selectedPlacement = placement();
+      return selectedPlacement
+        ? {
+            kind: "between",
+            span: { start: constructionSpan.start, end: initializerSpan.end },
+            start,
+            end,
+            placement: selectedPlacement
+          }
+        : null;
+    }
+    if (invocation.construction === "onLine" && invocation.pureValueInterface === "point") {
+      if (expectedInterfaceType !== "point") {
+        addLocal(statementIndex, issue("module-geometry-type-mismatch", constructionSpan, "onLine construction は point value にのみ代入できます。", {
+          presentation: { key: "diagnostic.module-geometry-type-mismatch", parameters: { target: "onLine" } }
+        }));
+      }
+      const from = fromArgument
+        ? resolveGeometry(
+            statementIndex,
+            ownerIndex,
+            source.slice(fromArgument.valueSpan.start, fromArgument.valueSpan.end),
+            fromArgument.valueSpan,
+            "point",
+            {
+              expectedInterfaceType: "point",
+              allowCoordinate: false,
+              role: "lineEndpointReference",
+              scalarResolver: options.scalarResolver,
+              bareScalarResolver: options.bareScalarResolver,
+              geometryPropertyResolver: options.geometryPropertyResolver,
+              presenceFacts: options.presenceFacts
+            }
+          )
+        : geometryReference("", constructionSpan, "point", null, "invalid", null, "lineEndpointReference");
+      const line = fromArgument
+        ? (() => {
+            const rawFrom = source.slice(fromArgument.valueSpan.start, fromArgument.valueSpan.end).trim();
+            const parsedFrom = parseDslSourceReference(rawFrom);
+            if (parsedFrom.kind !== "valid" || !parsedFrom.reference.property) {
+              return geometryReference("", constructionSpan, "line", null, "invalid", null, "lineReference");
+            }
+            const lineSource = `@${parsedFrom.reference.pathText}`;
+            const lineSpan = { start: fromArgument.valueSpan.start, end: fromArgument.valueSpan.start + lineSource.length };
+            return resolveGeometry(
+              statementIndex,
+              ownerIndex,
+              lineSource,
+              lineSpan,
+              "line",
+              {
+                expectedInterfaceType: "path",
+                allowCoordinate: false,
+                role: "lineReference",
+                scalarResolver: options.scalarResolver,
+                bareScalarResolver: options.bareScalarResolver,
+                geometryPropertyResolver: options.geometryPropertyResolver,
+                presenceFacts: options.presenceFacts
+              }
+            );
+          })()
+        : geometryReference("", constructionSpan, "line", null, "invalid", null, "lineReference");
+      const endpointKey = from.target
+        ? unwrapModuleGeometrySourceTarget(from.target).pointKey === "end" ? "end" as const : "start" as const
+        : (() => {
+            const rawFrom = fromArgument ? source.slice(fromArgument.valueSpan.start, fromArgument.valueSpan.end).trim() : "";
+            const parsedFrom = parseDslSourceReference(rawFrom);
+            return parsedFrom.kind === "valid" && parsedFrom.reference.property === "end" ? "end" as const : "start" as const;
+          })();
+      const selectedPlacement = placement();
+      return selectedPlacement
+        ? {
+            kind: "onLine",
+            span: { start: constructionSpan.start, end: initializerSpan.end },
+            from,
+            line,
+            endpointKey,
+            placement: selectedPlacement
+          }
+        : null;
     }
     if (invocation.pureValueInterface === "point") {
       if (expectedInterfaceType !== "point") {
@@ -3333,6 +3476,15 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         { parameterKey: "from", span: construction.from.span, reference: construction.from }
       ]);
     } else if (construction?.kind === "polarPoint") {
+      rootGeometryReferencesByStatementId.set(statementId, [
+        { parameterKey: "from", span: construction.from.span, reference: construction.from }
+      ]);
+    } else if (construction?.kind === "between") {
+      rootGeometryReferencesByStatementId.set(statementId, [
+        { parameterKey: "start", span: construction.start.span, reference: construction.start },
+        { parameterKey: "end", span: construction.end.span, reference: construction.end }
+      ]);
+    } else if (construction?.kind === "onLine") {
       rootGeometryReferencesByStatementId.set(statementId, [
         { parameterKey: "from", span: construction.from.span, reference: construction.from }
       ]);
