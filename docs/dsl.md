@@ -57,6 +57,13 @@ Pure `intersection(line1: ..., line2: ..., index: ..., extensions: ...)` also
 produces an identity-free `point` from line-like geometry. `index` defaults to
 `0` and `extensions` to `false`; parallel, unavailable, same-source, and
 out-of-range cases fail through the occurrence-owned geometry-value channel.
+Pure `commonTangent(first: ..., second: ..., kind: ..., side: ...)` produces a
+strict identity-free `line` (also assignable to `path`). Both inputs are
+line/path-compatible at the language boundary but must evaluate to arc geometry;
+`kind` is `external` or `internal` and `side` is `left` or `right`. The same
+construction accepts drawable arcs and pure direct/through arc values, including
+Module and instance flows. Invalid or unavailable tangent solutions fail through
+the occurrence-owned geometry-value channel.
 Pure `tangentOffset(line: ..., base: ..., angle: ..., curveSide: ..., distance: ...)`
 also produces an identity-free `point`. Angle mode accepts line-like geometry
 and defaults `angle` to `0` when both modes are omitted; `curveSide` accepts

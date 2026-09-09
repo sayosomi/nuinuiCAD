@@ -697,10 +697,14 @@ drawable identity.
 
 **Description:** `commonTangent` constructs a tangent line between two
 computed arcs. `kind` chooses an external or internal tangent and `side`
-chooses the left or right solution.
+chooses the left or right solution. It is also available as an identity-free
+pure strict `line` initializer in `const` declarations; that result remains
+assignable to `path`.
 
-**Notes:** Both inputs must be valid arcs with positive radii. Concentric,
-degenerate, or otherwise unavailable tangent solutions are errors.
+**Notes:** Both inputs must be valid arcs with positive radii at runtime. The
+language accepts line/path-compatible references, including drawable arcs and
+pure `arc`/`through` values. Concentric, degenerate, or otherwise unavailable
+tangent solutions are occurrence-owned geometry-value errors for pure values.
 
 ### `offset`
 

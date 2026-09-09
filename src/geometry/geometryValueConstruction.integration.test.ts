@@ -165,6 +165,33 @@ describe("pure geometry construction runtime", () => {
     expect(moduleValues.every((entry) => !("elementId" in entry.value) && !("name" in entry.value))).toBe(true);
   });
 
+  it("evaluates Module-local and exported commonTangent values through an instance", () => {
+    const { compiled, result } = evaluate([
+      "nui 1",
+      "module M(first: point, second: point) {",
+      "  const FirstArc: path = arc(center: @first, radius: 20, start: 0, end: 90)",
+      "  const SecondArc: path = arc(center: @second, radius: 10, start: 0, end: 90)",
+      "  const Local: line = commonTangent(first: @FirstArc, second: @SecondArc, kind: external, side: left)",
+      "  export const Output: line = @Local",
+      "}",
+      "point C1 = coordinate(x: 0, y: 0)",
+      "point C2 = coordinate(x: 60, y: 0)",
+      "instance One = M(first: @C1, second: @C2)",
+      "const Root: line = @One::Output",
+      "line Use = segment(start: @Root.start, end: @Root.end)"
+    ].join("\n"));
+
+    expect(compiled.diagnostics).toEqual([]);
+    expect(result.errors).toEqual([]);
+    expect(result.geometryValueErrors).toEqual([]);
+    const values = [...(result.computedGeometryValues?.values() ?? [])];
+    expect(values.filter((entry) => entry.occurrence.instancePath.length === 1)).toHaveLength(3);
+    expect(values.filter((entry) => entry.occurrence.instancePath.length === 1 && entry.value.kind === "line")).toHaveLength(1);
+    expect(values.every((entry) => !("elementId" in entry.value) && !("name" in entry.value))).toBe(true);
+    const use = compiled.document!.elements.find((element) => element.name === "Use");
+    expect(use && result.computedGeometry.get(use.id)).toMatchObject({ kind: "line" });
+  });
+
   it("evaluates open and closed line offsets as identity-free paths and reuses them", () => {
     const { compiled, result } = evaluate([
       "nui 1",
@@ -325,6 +352,108 @@ describe("pure geometry construction runtime", () => {
     expect(through).not.toHaveProperty("name");
     expect(result.computedGeometry.get("geometry-value-runtime:6")).toMatchObject({ kind: "line", length: 10 * Math.SQRT2 });
     expect(result.computedGeometry.get("geometry-value-runtime:7")).toMatchObject({ kind: "offsetLine" });
+  });
+
+  it.each([
+    ["external", "left"],
+    ["external", "right"],
+    ["internal", "left"],
+    ["internal", "right"]
+  ] as const)("evaluates pure commonTangent %s/%s as a strict identity-free line", (kind, side) => {
+    const { compiled, result } = evaluate([
+      "nui 1",
+      "point C1 = coordinate(x: 0, y: 0)",
+      "point C2 = coordinate(x: 60, y: 0)",
+      "arc A = arc(center: @C1, radius: 20, start: 40, end: 80)",
+      "arc B = arc(center: @C2, radius: 10, start: 210, end: 250)",
+      `const Tangent: line = commonTangent(first: @A, second: @B, kind: ${kind}, side: ${side})`,
+      "const Path: path = @Tangent",
+      "const StartX: number = @Tangent.start.x",
+      "line Use = segment(start: @Tangent.start, end: @Tangent.end)"
+    ].join("\n"));
+
+    const entry = compiled.geometryValueProgram?.find((candidate) => candidate.sourceStatementId === "geometry-value-runtime:5");
+    const value = [...(result.computedGeometryValues?.values() ?? [])]
+      .find((candidate) => candidate.occurrence.sourceStatementId === "geometry-value-runtime:5")?.value;
+    expect(entry?.construction.kind).toBe("commonTangent");
+    expect(result.errors).toEqual([]);
+    expect(result.geometryValueErrors).toEqual([]);
+    expect(value).toMatchObject({ kind: "line", length: expect.any(Number) });
+    expect(value && "elementId" in value).toBe(false);
+    expect(value && "name" in value).toBe(false);
+    expect(result.computedGeometry.get("geometry-value-runtime:8")).toMatchObject({
+      kind: "line",
+      start: { x: value?.kind === "line" ? value.start.x : expect.any(Number) },
+      end: { x: value?.kind === "line" ? value.end.x : expect.any(Number) }
+    });
+  });
+
+  it("accepts direct and through pure arcs as commonTangent inputs", () => {
+    const { result } = evaluate([
+      "nui 1",
+      "const First: path = arc(center: (0, 0), radius: 20, start: 0, end: 90, direction: counterclockwise)",
+      "const Second: path = through(point1: (70, 0), point2: (60, 10), point3: (50, 0), start: 0, end: 90)",
+      "const Tangent: line = commonTangent(first: @First, second: @Second, kind: external, side: left)",
+      "const Path: path = @Tangent"
+    ].join("\n"));
+
+    expect(result.errors).toEqual([]);
+    expect(result.geometryValueErrors).toEqual([]);
+    expect([...result.computedGeometryValues!.values()].map((entry) => entry.value.kind)).toEqual([
+      "arcLine",
+      "arcLine",
+      "line"
+    ]);
+  });
+
+  it("evaluates commonTangent kind and side through typed choice bindings", () => {
+    const { result } = evaluate([
+      "nui 1",
+      "const Kind: choice(external, internal) = internal",
+      "const Side: choice(left, right) = right",
+      "const First: path = arc(center: (0, 0), radius: 20, start: 0, end: 90)",
+      "const Second: path = arc(center: (60, 0), radius: 10, start: 0, end: 90)",
+      "const Tangent: line = commonTangent(first: @First, second: @Second, kind: @Kind, side: @Side)"
+    ].join("\n"));
+
+    expect(result.errors).toEqual([]);
+    expect(result.geometryValueErrors).toEqual([]);
+    expect([...result.computedGeometryValues!.values()].at(-1)?.value).toMatchObject({ kind: "line" });
+  });
+
+  it("reports pure commonTangent non-arc and impossible solutions on the owning occurrence", () => {
+    const nonArc = evaluate([
+      "nui 1",
+      "const Line: line = segment(start: (0, 0), end: (10, 0))",
+      "const Tangent: line = commonTangent(first: @Line, second: @Line, kind: external, side: left)"
+    ].join("\n"));
+    expect(nonArc.result.errors).toEqual([]);
+    expect(nonArc.result.computedGeometryValues).toEqual(expect.any(Map));
+    expect([...nonArc.result.computedGeometryValues!.values()].map((entry) => entry.value.kind)).toEqual(["line"]);
+    expect(nonArc.result.geometryValueErrors).toEqual([
+      {
+        occurrence: nonArc.compiled.geometryValueProgram![1]!.occurrence,
+        message: "first に円弧が指定されていません。共通接線には円弧を指定してください。"
+      },
+      {
+        occurrence: nonArc.compiled.geometryValueProgram![1]!.occurrence,
+        message: "second に円弧が指定されていません。共通接線には円弧を指定してください。"
+      }
+    ]);
+
+    const impossible = evaluate([
+      "nui 1",
+      "const First: path = arc(center: (0, 0), radius: 10, start: 0, end: 90)",
+      "const Second: path = arc(center: (15, 0), radius: 10, start: 0, end: 90)",
+      "const Tangent: line = commonTangent(first: @First, second: @Second, kind: internal, side: left)"
+    ].join("\n"));
+    expect(impossible.result.errors).toEqual([]);
+    expect(impossible.result.computedGeometryValues).toEqual(expect.any(Map));
+    expect([...impossible.result.computedGeometryValues!.values()].map((entry) => entry.value.kind)).toEqual(["arcLine", "arcLine"]);
+    expect(impossible.result.geometryValueErrors).toEqual([{
+      occurrence: impossible.compiled.geometryValueProgram![2]!.occurrence,
+      message: "kind: internal の共通接線は存在しません。2つの円の位置・半径または kind を変更してください。"
+    }]);
   });
 
   it("evaluates pure bezier values with multiple segments and shared path consumers", () => {

@@ -1134,7 +1134,19 @@ of `angle: 0` and `distance: 0`. Line
 pure strict-line initializer using the drawable line-polar geometry and
 defaults of `angle: 0` and `length: 100`; its strict `line` result participates
 in the existing `line -> path` assignability rule. Neither pure polar form
-allocates a drawable identity. Path
+allocates a drawable identity. Line
+`commonTangent(first: ..., second: ..., kind: ..., side: ...)` is an implemented
+identity-free pure strict `line` initializer and is also assignable to `path`.
+The static input boundary accepts `line` or `path` references, but runtime
+evaluation requires both inputs to be computed `arcLine` geometry; this includes
+drawable arcs and pure `arc(...)` or `through(...)` values. `kind` is required
+and accepts `external` or `internal`; `side` is required and accepts `left` or
+`right`. The four choices are evaluated from resolved typed expressions, so the
+construction introduces no source-name lookup. Missing, disabled, invalid,
+non-arc, coincident, concentric, or otherwise impossible inputs fail through
+the occurrence-owned geometry-value diagnostic channel. The same target boundary
+preserves Module locals, exports, instances, and cross-document flows. Pure
+common-tangent values do not allocate a drawable identity. Path
 `offset(sources: ..., distance: ..., side: ..., closed: ..., suppressTrimWarnings: ...)`
 is an implemented pure `path` initializer using the drawable line-offset
 geometry, ordering, defaults, validation, and trimming behavior. Both pure

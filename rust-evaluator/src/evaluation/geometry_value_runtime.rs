@@ -4,10 +4,10 @@ use super::bezier_feature_point_evaluator::{bezier_bulge_point_at, bezier_extrem
 use super::bezier_math::{approximate_cubic_length, Point};
 use super::division_placement::DivisionPlacementKind;
 use super::geometry_value_kernels::{
-    coordinate_geometry_kernel, direct_arc_geometry_kernel, division_point_geometry_kernel,
-    offset_point_geometry_kernel, polar_line_geometry_kernel, polar_point_geometry_kernel,
-    polyline_geometry_kernel, segment_geometry_kernel, through_arc_geometry_kernel,
-    StructuralPoint,
+    common_tangent_geometry_kernel, coordinate_geometry_kernel, direct_arc_geometry_kernel,
+    division_point_geometry_kernel, offset_point_geometry_kernel, polar_line_geometry_kernel,
+    polar_point_geometry_kernel, polyline_geometry_kernel, segment_geometry_kernel,
+    through_arc_geometry_kernel, StructuralPoint,
 };
 use super::line_intersections::find_line_intersections;
 use super::line_path::{geometry_length, point_at_distance_from_endpoint};
@@ -91,6 +91,12 @@ pub(crate) enum GeometryValueConstruction {
         line2: super::scalars::ScalarExpressionResolvedGeometryTarget,
         index: Box<TypedScalarExpression>,
         extensions: Box<TypedScalarExpression>,
+    },
+    CommonTangent {
+        first: super::scalars::ScalarExpressionResolvedGeometryTarget,
+        second: super::scalars::ScalarExpressionResolvedGeometryTarget,
+        tangent_kind: Box<TypedScalarExpression>,
+        side: Box<TypedScalarExpression>,
     },
     TangentOffset {
         line: super::scalars::ScalarExpressionResolvedGeometryTarget,
@@ -487,6 +493,50 @@ fn decode_entry(value: &Value) -> Result<GeometryValueProgramEntry, String> {
                     "geometry value intersection",
                 )?),
             },
+            "commonTangent" => {
+                let target = |name: &str| -> Result<
+                    super::scalars::ScalarExpressionResolvedGeometryTarget,
+                    String,
+                > {
+                    let target_object = object(
+                        construction_object.get(name).ok_or_else(|| {
+                            format!("geometry value commonTangent is missing {name}")
+                        })?,
+                        &format!("geometry value commonTangent {name}"),
+                    )?;
+                    if string_field(
+                        target_object,
+                        "kind",
+                        &format!("geometry value commonTangent {name}"),
+                    )? != "target"
+                    {
+                        return Err(format!(
+                            "geometry value commonTangent {name} must be a target"
+                        ));
+                    }
+                    super::scalars::decode_geometry_target_payload(
+                        target_object.get("target").ok_or_else(|| {
+                            format!("geometry value commonTangent {name} is missing target")
+                        })?,
+                    )
+                    .map_err(|error| format!("{error:?}"))?
+                    .ok_or_else(|| format!("geometry value commonTangent {name} cannot be null"))
+                };
+                GeometryValueConstruction::CommonTangent {
+                    first: target("first")?,
+                    second: target("second")?,
+                    tangent_kind: Box::new(decode_typed_field(
+                        construction_object,
+                        "tangentKind",
+                        "geometry value commonTangent",
+                    )?),
+                    side: Box::new(decode_typed_field(
+                        construction_object,
+                        "side",
+                        "geometry value commonTangent",
+                    )?),
+                }
+            }
             "tangentOffset" => {
                 let line_object = object(
                     construction_object
@@ -903,6 +953,21 @@ fn choice_expression(
             r#type: ScalarType::Choice { .. },
             value: ScalarValue::Choice { value, .. },
         } if value == "counterclockwise" || value == "clockwise" => Some(value),
+        _ => None,
+    }
+}
+
+fn tangent_kind_expression(
+    expression: &TypedScalarExpression,
+    resolver: &dyn ScalarDocumentBindingResolver,
+    state: &EvaluationState,
+    source_order: f64,
+) -> Option<String> {
+    match evaluate_document_typed_expression(expression, resolver, state, Some(source_order)) {
+        ScalarEvaluation::Ok {
+            r#type: ScalarType::Choice { .. },
+            value: ScalarValue::Choice { value, .. },
+        } if value == "external" || value == "internal" => Some(value),
         _ => None,
     }
 }
@@ -1441,6 +1506,122 @@ pub(crate) fn evaluate_geometry_value_entry(
                 return;
             };
             Some(json!({ "kind": "point", "x": intersection.x, "y": intersection.y }))
+        }
+        GeometryValueConstruction::CommonTangent {
+            first,
+            second,
+            tangent_kind,
+            side,
+        } => {
+            if entry.declared_interface_type != "line" && entry.declared_interface_type != "path" {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "Geometry value construction is incompatible with its declared interface type.",
+                );
+                return;
+            }
+            let first_geometry = target_geometry(first, state).cloned();
+            let second_geometry = target_geometry(second, state).cloned();
+            if first_geometry
+                .as_ref()
+                .and_then(|geometry| geometry.get("kind"))
+                .and_then(Value::as_str)
+                != Some("arcLine")
+            {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "first に円弧が指定されていません。共通接線には円弧を指定してください。",
+                );
+            }
+            if second_geometry
+                .as_ref()
+                .and_then(|geometry| geometry.get("kind"))
+                .and_then(Value::as_str)
+                != Some("arcLine")
+            {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "second に円弧が指定されていません。共通接線には円弧を指定してください。",
+                );
+            }
+            if first_geometry
+                .as_ref()
+                .and_then(|geometry| geometry.get("kind"))
+                .and_then(Value::as_str)
+                != Some("arcLine")
+                || second_geometry
+                    .as_ref()
+                    .and_then(|geometry| geometry.get("kind"))
+                    .and_then(Value::as_str)
+                    != Some("arcLine")
+            {
+                return;
+            }
+            let first_geometry = first_geometry.expect("arcLine checked above");
+            let second_geometry = second_geometry.expect("arcLine checked above");
+            let first_center = StructuralPoint {
+                x: first_geometry["center"]["x"].as_f64().unwrap_or(f64::NAN),
+                y: first_geometry["center"]["y"].as_f64().unwrap_or(f64::NAN),
+            };
+            let second_center = StructuralPoint {
+                x: second_geometry["center"]["x"].as_f64().unwrap_or(f64::NAN),
+                y: second_geometry["center"]["y"].as_f64().unwrap_or(f64::NAN),
+            };
+            let first_radius = first_geometry
+                .get("radius")
+                .and_then(Value::as_f64)
+                .unwrap_or(f64::NAN);
+            let second_radius = second_geometry
+                .get("radius")
+                .and_then(Value::as_f64)
+                .unwrap_or(f64::NAN);
+            let Some(tangent_kind) =
+                tangent_kind_expression(tangent_kind, resolver, state, source_order)
+            else {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "commonTangent geometry value kind must be external or internal.",
+                );
+                return;
+            };
+            let Some(side) = side_expression(side, resolver, state, source_order) else {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "commonTangent geometry value side must be left or right.",
+                );
+                return;
+            };
+            let structural = match common_tangent_geometry_kernel(
+                first_center,
+                first_radius,
+                second_center,
+                second_radius,
+                &tangent_kind,
+                &side,
+            ) {
+                Ok(value) => value,
+                Err(messages) => {
+                    for message in messages {
+                        append_geometry_value_error(state, entry, &message);
+                    }
+                    return;
+                }
+            };
+            Some(json!({
+                "kind": "line",
+                "start": { "x": structural.start.x, "y": structural.start.y },
+                "end": { "x": structural.end.x, "y": structural.end.y },
+                "length": structural.length,
+                "startAngleDeg": structural.start_angle_deg,
+                "endAngleDeg": structural.end_angle_deg,
+                "startTangentAngleDeg": structural.start_tangent_angle_deg,
+                "endTangentAngleDeg": structural.end_tangent_angle_deg
+            }))
         }
         GeometryValueConstruction::TangentOffset {
             line,
