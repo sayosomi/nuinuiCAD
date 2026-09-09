@@ -86,10 +86,29 @@ describe("runSourceCreationFlow", () => {
     expect(renderedArgumentsFor(ratio)).not.toContain("distance");
   });
 
+  it("presents division exclusive forms in English for the default host locale", async () => {
+    mocks.pickCreationCommand.mockResolvedValue("addDivisionPoint");
+    mocks.showQuickPick.mockImplementation(async (items: readonly { label: string; formIndex: number }[]) => {
+      expect(items.map(({ label }) => label)).toEqual(["Distance", "Ratio"]);
+      return items[1];
+    });
+
+    await runSourceCreationFlow({} as TestEditor, {} as TestPosition, "en-US");
+
+    const ratio = mocks.insertSnippet.mock.calls[0]?.[1] as {
+      parts: ReadonlyArray<
+        | { kind: "text"; text: string }
+        | { kind: "hole"; hole: { role: "name" } | { role: "argument"; argName: string } }
+      >;
+    };
+    expect(renderedArgumentsFor(ratio)).toContain("ratio");
+    expect(renderedArgumentsFor(ratio)).not.toContain("distance");
+  });
+
   it("derives tangentOffset forms from planner metadata and keeps only the selected exclusive argument", async () => {
     mocks.pickCreationCommand.mockResolvedValue("addLineTangentOffsetPoint");
     mocks.showQuickPick.mockImplementation(async (items: readonly { label: string; formIndex: number }[]) => {
-      expect(items.map(({ label }) => label)).toEqual(["接線角度", "曲率側"]);
+      expect(items.map(({ label }) => label)).toEqual(["Angle", "Curve Side"]);
       return items[1];
     });
     const plan = sourceCreationTemplatePlanForLegacyCommand("addLineTangentOffsetPoint");

@@ -63,6 +63,10 @@ type BridgeState = {
   allowedNumericCandidates: readonly VscodeReferencePickNumericCandidate[] | null;
 };
 
+/** Escapes text before it is passed as literal data to the snippet engine. */
+export const snippetLiteralForText = (text: string): string =>
+  text.replace(/[\\$}]/g, (character) => `\\${character}`);
+
 const sameDocumentUri = (document: vscode.TextDocument, documentUri: string): boolean =>
   document.uri.toString() === documentUri;
 
@@ -260,16 +264,35 @@ export const createVscodeReferencePickSourceBridge = ({
     current.phase = "applying";
     const preConfirmSource = rawSource;
     const editRange = vscodeRangeForNormalized(document, rawSource, plan.range);
-    let applied: boolean;
+    const rawRangeStart = rawOffsetFromNormalized(rawSource, plan.range.from);
+    const rawRangeEnd = rawOffsetFromNormalized(rawSource, plan.range.to);
+    const expectedPostConfirmSource = rawSource.slice(0, rawRangeStart) +
+      plan.replacement +
+      rawSource.slice(rawRangeEnd);
+    let shownEditor: vscode.TextEditor;
     try {
-      applied = await editor.edit((editBuilder) => {
-        editBuilder.replace(editRange, plan.replacement);
-      }, { undoStopBefore: true, undoStopAfter: true });
+      shownEditor = await vscode.window.showTextDocument(document, {
+        viewColumn: editor.viewColumn,
+        preserveFocus: false,
+        preview: false,
+        selection: editRange
+      });
+      if (!sameDocumentUri(shownEditor.document, documentUri)) {
+        finish();
+        return "rejected";
+      }
+      const commandResult = await vscode.commands.executeCommand<unknown>(
+        "editor.action.insertSnippet",
+        {
+          snippet: snippetLiteralForText(plan.replacement),
+          ranges: [editRange]
+        }
+      );
+      if (commandResult === false || document.getText() !== expectedPostConfirmSource) {
+        finish();
+        return "rejected";
+      }
     } catch {
-      finish();
-      return "rejected";
-    }
-    if (!applied) {
       finish();
       return "rejected";
     }
@@ -285,7 +308,6 @@ export const createVscodeReferencePickSourceBridge = ({
       ...(numericProperty ? { numericProperty } : {})
     };
 
-    const rawRangeStart = rawOffsetFromNormalized(rawSource, plan.range.from);
     const rawCaretOffset = rawRangeStart + plan.caretNormalizedOffset - plan.range.from;
     const caret = document.positionAt(rawCaretOffset);
     finish();

@@ -3,7 +3,9 @@ import {
   cancelReferencePickSession,
   confirmReferencePickSession,
   confirmedReferencePickResult,
+  moveReferencePickDraft,
   referencePickDraftKey,
+  removeReferencePickDraft,
   selectReferencePickDraft,
   selectReferencePickNumericGeometry,
   selectReferencePickNumericProperty,
@@ -118,6 +120,39 @@ describe("referencePickSession", () => {
       { base: "B" }
     ]);
     expect(referencePickDraftKey({ base: "A" })).toBe(referencePickDraftKey({ base: "A" }));
+  });
+
+  it("moves and removes multiple-reference draft entries while preserving canonical order", () => {
+    const session = startReferencePickSession({
+      expectedGeometryInterface: "path",
+      role: "geometry",
+      multiplicity: "multiple",
+      seedReferences: [{ base: "A" }, { base: "B" }, { base: "C" }]
+    });
+    const bKey = referencePickDraftKey({ base: "B" });
+    const moved = moveReferencePickDraft(session, bKey, 0);
+
+    expect(moved.draftReferences).toEqual([{ base: "B" }, { base: "A" }, { base: "C" }]);
+    expect(moveReferencePickDraft(moved, bKey, 0)).toBe(moved);
+    expect(moveReferencePickDraft(moved, bKey, -1).draftReferences).toEqual([
+      { base: "B" }, { base: "A" }, { base: "C" }
+    ]);
+    expect(moveReferencePickDraft(moved, bKey, 99).draftReferences).toEqual([
+      { base: "A" }, { base: "C" }, { base: "B" }
+    ]);
+    expect(moveReferencePickDraft(moved, referencePickDraftKey({ base: "Missing" }), 1)).toBe(moved);
+
+    const removed = removeReferencePickDraft(moved, referencePickDraftKey({ base: "A" }));
+    expect(removed.draftReferences).toEqual([{ base: "B" }, { base: "C" }]);
+    expect(removeReferencePickDraft(removed, referencePickDraftKey({ base: "Missing" }))).toBe(removed);
+    const single = startReferencePickSession({
+      expectedGeometryInterface: "point",
+      role: "geometry",
+      multiplicity: "single",
+      seedReferences: [{ base: "A" }]
+    });
+    expect(moveReferencePickDraft(single, referencePickDraftKey({ base: "A" }), 0)).toBe(single);
+    expect(removeReferencePickDraft(single, referencePickDraftKey({ base: "A" }))).toBe(single);
   });
 
   it("ignores invalid selections and makes confirm/cancel terminal without source ownership", () => {

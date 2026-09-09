@@ -7,6 +7,8 @@ import type { EvaluationResult } from "../types/geometry";
 import {
   cancelVscodeReferencePickCanvasSession,
   confirmVscodeReferencePickCanvasSession,
+  moveVscodeReferencePickCanvasDraft,
+  removeVscodeReferencePickCanvasDraft,
   selectVscodeReferencePickCanvasDraft,
   selectVscodeReferencePickCanvasNumericProperty,
   setVscodeReferencePickCanvasHover,
@@ -87,11 +89,20 @@ export const useVSCodeReferencePickSession = ({
     if (!api) return;
     const authoritative = currentReferencePickAuthorityFor(message.documentVersion);
     const current = currentContextFor();
-    if (
-      !authoritative ||
-      !current ||
-      !contextMatchesAuthority(message, authoritative, current)
-    ) {
+    if (!authoritative) {
+      pendingStartRequestRef.current = null;
+      postStale(message);
+      return;
+    }
+    // The host authority can become current before this render has hydrated
+    // the Source/compiler context. Keep the request pending in that narrow
+    // window; an absent context is not evidence that the Source request is
+    // stale. Once a context exists, it must still prove the exact authority.
+    if (!current) {
+      pendingStartRequestRef.current = message;
+      return;
+    }
+    if (!contextMatchesAuthority(message, authoritative, current)) {
       pendingStartRequestRef.current = null;
       postStale(message);
       return;
@@ -124,26 +135,18 @@ export const useVSCodeReferencePickSession = ({
   useEffect(() => {
     const current = currentContextFor();
     const pending = pendingStartRequestRef.current;
-    if (
-      pending &&
-      !contextMatchesAuthority(
-        pending,
-        currentReferencePickAuthorityFor(pending.documentVersion),
-        current
-      )
-    ) {
+    const pendingAuthority = pending
+      ? currentReferencePickAuthorityFor(pending.documentVersion)
+      : null;
+    if (pending && (!pendingAuthority || (current && !contextMatchesAuthority(pending, pendingAuthority, current)))) {
       pendingStartRequestRef.current = null;
     }
 
     const active = sessionRef.current;
-    if (
-      active &&
-      !contextMatchesAuthority(
-        active.request,
-        currentReferencePickAuthorityFor(active.request.documentVersion),
-        current
-      )
-    ) {
+    const activeAuthority = active
+      ? currentReferencePickAuthorityFor(active.request.documentVersion)
+      : null;
+    if (active && (!activeAuthority || (current && !contextMatchesAuthority(active.request, activeAuthority, current)))) {
       replaceSession(null);
     }
 
@@ -213,6 +216,18 @@ export const useVSCodeReferencePickSession = ({
     replaceSession(selectVscodeReferencePickCanvasNumericProperty(current, property));
   }, [replaceSession]);
 
+  const moveDraftEntry = useCallback((referenceKey: string, toIndex: number) => {
+    const current = sessionRef.current;
+    if (!current) return;
+    replaceSession(moveVscodeReferencePickCanvasDraft(current, referenceKey, toIndex));
+  }, [replaceSession]);
+
+  const removeDraftEntry = useCallback((referenceKey: string) => {
+    const current = sessionRef.current;
+    if (!current) return;
+    replaceSession(removeVscodeReferencePickCanvasDraft(current, referenceKey));
+  }, [replaceSession]);
+
   const confirm = useCallback(() => {
     const current = sessionRef.current;
     if (!current || !api) return;
@@ -233,5 +248,14 @@ export const useVSCodeReferencePickSession = ({
     replaceSession(null);
   }, [api, replaceSession]);
 
-  return { session, setHover, select, selectNumericProperty, confirm, cancel };
+  return {
+    session,
+    setHover,
+    select,
+    selectNumericProperty,
+    moveDraftEntry,
+    removeDraftEntry,
+    confirm,
+    cancel
+  };
 };
