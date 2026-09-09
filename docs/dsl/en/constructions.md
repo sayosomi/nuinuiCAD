@@ -646,8 +646,11 @@ unsigned distance from the curve's chord, considering both sides.
 **Notes:** `segmentIndex` defaults to `0` and must select a valid segment. The
 source must be Bezier geometry at runtime, not merely a declaration whose
 category once happened to be `curve`. A degenerate chord is invalid for the
-bulge calculation. Ties use the point nearest the segment midpoint, then the
-smaller curve parameter.
+bulge calculation. These constructions are also supported as identity-free
+pure `point` initializers; their source may be a drawable Bezier or a pure
+`bezier(...)` path value. Pure failures belong to the value occurrence and do
+not create drawable identity. Ties use the point nearest the segment midpoint,
+then the smaller curve parameter.
 
 **Example:**
 

@@ -2715,6 +2715,23 @@ export const compileModuleScalarRuntime = ({
               ? { kind: "onLine" as const, line, endpointKey: value.construction.endpointKey, placement: { kind: value.construction.placement.kind, value: placement } }
               : null;
           })()
+      : value.construction.kind === "bezierExtremePoint"
+        ? (() => {
+            const source = lowerGeometryValuePath(value.construction.source, context, executionPosition);
+            const segmentIndex = value.construction.segmentIndex ? lowerGeometryValueScalar(value.construction.segmentIndex, context) : null;
+            const direction = value.construction.direction ? lowerGeometryValueScalar(value.construction.direction, context) : null;
+            return source && segmentIndex && direction
+              ? { kind: "bezierExtremePoint" as const, source, segmentIndex, direction }
+              : null;
+          })()
+      : value.construction.kind === "bezierBulgePoint"
+        ? (() => {
+            const source = lowerGeometryValuePath(value.construction.source, context, executionPosition);
+            const segmentIndex = value.construction.segmentIndex ? lowerGeometryValueScalar(value.construction.segmentIndex, context) : null;
+            return source && segmentIndex
+              ? { kind: "bezierBulgePoint" as const, source, segmentIndex }
+              : null;
+          })()
       : value.construction.kind === "segment"
         ? (() => {
             const start = lowerGeometryValuePoint(value.construction.start, context, executionPosition);

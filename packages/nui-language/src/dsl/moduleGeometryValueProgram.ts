@@ -65,6 +65,17 @@ export type GeometryValueProgramConstruction =
       placement: GeometryValueProgramPlacement;
     }
   | {
+      kind: "bezierExtremePoint";
+      source: GeometryValueProgramPath;
+      segmentIndex: TypedScalarExpression;
+      direction: TypedScalarExpression;
+    }
+  | {
+      kind: "bezierBulgePoint";
+      source: GeometryValueProgramPath;
+      segmentIndex: TypedScalarExpression;
+    }
+  | {
       kind: "segment";
       start: GeometryValueProgramPoint;
       end: GeometryValueProgramPoint;
@@ -283,6 +294,23 @@ export const buildRootGeometryValueProgram = ({
               const placement = literalScalarExpression(value.construction.placement.value);
               return line && placement
                 ? { kind: "onLine" as const, line, endpointKey: value.construction.endpointKey, placement: { kind: value.construction.placement.kind, value: placement } }
+                : null;
+            })()
+        : value.construction.kind === "bezierExtremePoint"
+          ? (() => {
+              const source = pathForReference(value.construction.source);
+              const segmentIndex = literalScalarExpression(value.construction.segmentIndex);
+              const direction = literalScalarExpression(value.construction.direction);
+              return source && segmentIndex && direction
+                ? { kind: "bezierExtremePoint" as const, source, segmentIndex, direction }
+                : null;
+            })()
+        : value.construction.kind === "bezierBulgePoint"
+          ? (() => {
+              const source = pathForReference(value.construction.source);
+              const segmentIndex = literalScalarExpression(value.construction.segmentIndex);
+              return source && segmentIndex
+                ? { kind: "bezierBulgePoint" as const, source, segmentIndex }
                 : null;
             })()
         : value.construction.kind === "segment"

@@ -14,7 +14,13 @@ Typed scalar declarations use an explicit type annotation and initializer:
   `segment(start: ..., end: ...)` for `line` or `path`, `polar(start: ...,
   angle: ..., length: ...)` for `line` or `path`, and direct
   `arc(center: ..., radius: ..., start: ..., end: ..., direction: ...)` for
-  `path`. `direction` defaults to `counterclockwise`.
+  `path`. `bezierExtremePoint(source: ..., segmentIndex: ..., direction: ...)`
+  and `bezierBulgePoint(source: ..., segmentIndex: ...)` are also pure `point`
+  initializers. Their source must evaluate to Bezier geometry, including a pure
+  `bezier(...)` path value; `segmentIndex` defaults to `0`, extreme direction
+  uses normalized degree semantics, and coincident bulge endpoints fail through
+  the occurrence-owned geometry-value diagnostic channel. `direction` defaults
+  to `counterclockwise` only for direct `arc`.
 - `let name: type = expression` creates a mutable scalar binding.
 - `set name = expression` creates a new source-order version of an existing
   `let` binding.

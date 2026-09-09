@@ -20,6 +20,88 @@ fn derivative_cross(segment: &Value, chord: Point, t: f64) -> Option<f64> {
     Some(cross(chord, cubic_derivative(segment, t)?))
 }
 
+pub(crate) fn bezier_extreme_point_at(segment: &Value, direction: Point) -> Option<Point> {
+    let f0 = derivative_projection(segment, direction, 0.0)?;
+    let f_half = derivative_projection(segment, direction, 0.5)?;
+    let f1 = derivative_projection(segment, direction, 1.0)?;
+    let c = f0;
+    let a = 2.0 * (f1 + f0 - 2.0 * f_half);
+    let b = f1 - f0 - a;
+    let mut candidates = Vec::with_capacity(4);
+    for t in [0.0, 1.0] {
+        let point = cubic_point(segment, t)?;
+        candidates.push(BezierFeatureCandidate {
+            t,
+            score: dot(point, direction),
+        });
+    }
+    for root in solve_real_quadratic(a, b, c) {
+        if root > 0.0 && root < 1.0 {
+            let point = cubic_point(segment, root)?;
+            candidates.push(BezierFeatureCandidate {
+                t: root,
+                score: dot(point, direction),
+            });
+        }
+    }
+    if f0.abs() <= EPSILON && f_half.abs() <= EPSILON && f1.abs() <= EPSILON {
+        let point = cubic_point(segment, 0.5)?;
+        candidates.push(BezierFeatureCandidate {
+            t: 0.5,
+            score: dot(point, direction),
+        });
+    }
+    let best = select_best_bezier_feature_candidate(&candidates)?;
+    cubic_point(segment, best.t)
+}
+
+pub(crate) fn bezier_bulge_point_at(segment: &Value) -> Option<Point> {
+    let start = segment.get("start").and_then(value_point)?;
+    let end = segment.get("end").and_then(value_point)?;
+    let chord = Point {
+        x: end.x - start.x,
+        y: end.y - start.y,
+    };
+    let chord_length = chord.x.hypot(chord.y);
+    if chord_length <= EPSILON {
+        return None;
+    }
+
+    let q0 = derivative_cross(segment, chord, 0.0)?;
+    let q_half = derivative_cross(segment, chord, 0.5)?;
+    let q1 = derivative_cross(segment, chord, 1.0)?;
+    let c = q0;
+    let a = 2.0 * (q1 + q0 - 2.0 * q_half);
+    let b = q1 - q0 - a;
+    let score_at = |t: f64| -> Option<f64> {
+        let point = cubic_point(segment, t)?;
+        Some(
+            cross(
+                chord,
+                Point {
+                    x: point.x - start.x,
+                    y: point.y - start.y,
+                },
+            )
+            .abs()
+                / chord_length,
+        )
+    };
+    let mut candidates = Vec::with_capacity(3);
+    for root in solve_real_quadratic(a, b, c) {
+        if root > 0.0 && root < 1.0 {
+            let score = score_at(root)?;
+            candidates.push(BezierFeatureCandidate { t: root, score });
+        }
+    }
+    if q0.abs() <= EPSILON && q_half.abs() <= EPSILON && q1.abs() <= EPSILON {
+        let score = score_at(0.5)?;
+        candidates.push(BezierFeatureCandidate { t: 0.5, score });
+    }
+    let best = select_best_bezier_feature_candidate(&candidates)?;
+    cubic_point(segment, best.t)
+}
+
 pub(crate) fn evaluate_bezier_extreme_point(
     element: &Value,
     local_variables: &(HashMap<String, f64>, HashMap<String, String>),
@@ -126,53 +208,7 @@ pub(crate) fn evaluate_bezier_extreme_point(
         y: direction_rad.sin(),
     };
     let segment = &segments[segment_index as usize];
-    let Some(f0) = derivative_projection(segment, direction, 0.0) else {
-        return;
-    };
-    let Some(f_half) = derivative_projection(segment, direction, 0.5) else {
-        return;
-    };
-    let Some(f1) = derivative_projection(segment, direction, 1.0) else {
-        return;
-    };
-    let c = f0;
-    let a = 2.0 * (f1 + f0 - 2.0 * f_half);
-    let b = f1 - f0 - a;
-    let mut candidates = Vec::with_capacity(4);
-    for t in [0.0, 1.0] {
-        let Some(point) = cubic_point(segment, t) else {
-            return;
-        };
-        candidates.push(BezierFeatureCandidate {
-            t,
-            score: dot(point, direction),
-        });
-    }
-    for root in solve_real_quadratic(a, b, c) {
-        if root > 0.0 && root < 1.0 {
-            let Some(point) = cubic_point(segment, root) else {
-                return;
-            };
-            candidates.push(BezierFeatureCandidate {
-                t: root,
-                score: dot(point, direction),
-            });
-        }
-    }
-    if f0.abs() <= EPSILON && f_half.abs() <= EPSILON && f1.abs() <= EPSILON {
-        let Some(point) = cubic_point(segment, 0.5) else {
-            return;
-        };
-        candidates.push(BezierFeatureCandidate {
-            t: 0.5,
-            score: dot(point, direction),
-        });
-    }
-
-    let Some(best) = select_best_bezier_feature_candidate(&candidates) else {
-        return;
-    };
-    let Some(point) = cubic_point(segment, best.t) else {
+    let Some(point) = bezier_extreme_point_at(segment, direction) else {
         return;
     };
     let id = element_id(element).unwrap_or_default();
@@ -286,52 +322,7 @@ pub(crate) fn evaluate_bezier_bulge_point(
         return;
     }
 
-    let Some(q0) = derivative_cross(segment, chord, 0.0) else {
-        return;
-    };
-    let Some(q_half) = derivative_cross(segment, chord, 0.5) else {
-        return;
-    };
-    let Some(q1) = derivative_cross(segment, chord, 1.0) else {
-        return;
-    };
-    let c = q0;
-    let a = 2.0 * (q1 + q0 - 2.0 * q_half);
-    let b = q1 - q0 - a;
-    let score_at = |t: f64| -> Option<f64> {
-        let point = cubic_point(segment, t)?;
-        Some(
-            cross(
-                chord,
-                Point {
-                    x: point.x - start.x,
-                    y: point.y - start.y,
-                },
-            )
-            .abs()
-                / chord_length,
-        )
-    };
-    let mut candidates = Vec::with_capacity(3);
-    for root in solve_real_quadratic(a, b, c) {
-        if root > 0.0 && root < 1.0 {
-            let Some(score) = score_at(root) else {
-                return;
-            };
-            candidates.push(BezierFeatureCandidate { t: root, score });
-        }
-    }
-    if q0.abs() <= EPSILON && q_half.abs() <= EPSILON && q1.abs() <= EPSILON {
-        let Some(score) = score_at(0.5) else {
-            return;
-        };
-        candidates.push(BezierFeatureCandidate { t: 0.5, score });
-    }
-
-    let Some(best) = select_best_bezier_feature_candidate(&candidates) else {
-        return;
-    };
-    let Some(point) = cubic_point(segment, best.t) else {
+    let Some(point) = bezier_bulge_point_at(segment) else {
         return;
     };
     let id = element_id(element).unwrap_or_default();

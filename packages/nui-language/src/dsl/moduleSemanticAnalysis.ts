@@ -2170,6 +2170,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     const xArgument = argument("x");
     const yArgument = argument("y");
     const fromArgument = argument("from");
+    const sourceArgument = argument("source");
     const distanceArgument = argument("distance");
     const ratioArgument = argument("ratio");
     const sourcesArgument = argument("sources");
@@ -2496,6 +2497,69 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
             placement: selectedPlacement
           }
         : null;
+    }
+    if (invocation.construction === "bezierExtremePoint" && invocation.pureValueInterface === "point") {
+      if (expectedInterfaceType !== "point") {
+        addLocal(statementIndex, issue("module-geometry-type-mismatch", constructionSpan, "bezierExtremePoint construction は point value にのみ代入できます。", {
+          presentation: { key: "diagnostic.module-geometry-type-mismatch", parameters: { target: "bezierExtremePoint" } }
+        }));
+      }
+      const sourceReference = sourceArgument
+        ? resolveGeometry(
+            statementIndex,
+            ownerIndex,
+            source.slice(sourceArgument.valueSpan.start, sourceArgument.valueSpan.end),
+            sourceArgument.valueSpan,
+            "line",
+            {
+              expectedInterfaceType: "path",
+              allowCoordinate: false,
+              role: "lineReference",
+              scalarResolver: options.scalarResolver,
+              bareScalarResolver: options.bareScalarResolver,
+              geometryPropertyResolver: options.geometryPropertyResolver,
+              presenceFacts: options.presenceFacts
+            }
+          )
+        : geometryReference("", constructionSpan, "line", null, "invalid", null, "lineReference");
+      return {
+        kind: "bezierExtremePoint",
+        span: { start: constructionSpan.start, end: initializerSpan.end },
+        source: sourceReference,
+        segmentIndex: scalar(argument("segmentIndex"), { kind: "number" }, "0"),
+        direction: scalar(directionArgument, { kind: "number" }, "0")
+      };
+    }
+    if (invocation.construction === "bezierBulgePoint" && invocation.pureValueInterface === "point") {
+      if (expectedInterfaceType !== "point") {
+        addLocal(statementIndex, issue("module-geometry-type-mismatch", constructionSpan, "bezierBulgePoint construction は point value にのみ代入できます。", {
+          presentation: { key: "diagnostic.module-geometry-type-mismatch", parameters: { target: "bezierBulgePoint" } }
+        }));
+      }
+      const sourceReference = sourceArgument
+        ? resolveGeometry(
+            statementIndex,
+            ownerIndex,
+            source.slice(sourceArgument.valueSpan.start, sourceArgument.valueSpan.end),
+            sourceArgument.valueSpan,
+            "line",
+            {
+              expectedInterfaceType: "path",
+              allowCoordinate: false,
+              role: "lineReference",
+              scalarResolver: options.scalarResolver,
+              bareScalarResolver: options.bareScalarResolver,
+              geometryPropertyResolver: options.geometryPropertyResolver,
+              presenceFacts: options.presenceFacts
+            }
+          )
+        : geometryReference("", constructionSpan, "line", null, "invalid", null, "lineReference");
+      return {
+        kind: "bezierBulgePoint",
+        span: { start: constructionSpan.start, end: initializerSpan.end },
+        source: sourceReference,
+        segmentIndex: scalar(argument("segmentIndex"), { kind: "number" }, "0")
+      };
     }
     if (invocation.pureValueInterface === "point") {
       if (expectedInterfaceType !== "point") {
@@ -3487,6 +3551,14 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     } else if (construction?.kind === "onLine") {
       rootGeometryReferencesByStatementId.set(statementId, [
         { parameterKey: "from", span: construction.from.span, reference: construction.from }
+      ]);
+    } else if (construction?.kind === "bezierExtremePoint") {
+      rootGeometryReferencesByStatementId.set(statementId, [
+        { parameterKey: "source", span: construction.source.span, reference: construction.source }
+      ]);
+    } else if (construction?.kind === "bezierBulgePoint") {
+      rootGeometryReferencesByStatementId.set(statementId, [
+        { parameterKey: "source", span: construction.source.span, reference: construction.source }
       ]);
     } else if (construction?.kind === "polarLine") {
       rootGeometryReferencesByStatementId.set(statementId, [

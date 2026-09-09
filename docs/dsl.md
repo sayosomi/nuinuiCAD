@@ -47,6 +47,12 @@ source-level immutable geometry values, not drawable elements. Pure `bezier(...)
 also produces an identity-free `bezierCurve` path value using the drawable
 constructor's endpoint handles and optional intermediate records; its runtime
 controls and length are available to existing path-compatible consumers. Pure
+`bezierExtremePoint(source: ..., segmentIndex: ..., direction: ...)` and
+`bezierBulgePoint(source: ..., segmentIndex: ...)` produce identity-free
+`point` values. Their source must evaluate to Bezier geometry, including a pure
+Bezier path value; the optional segment index defaults to `0`, extreme direction
+uses the existing normalized degree semantics, and a bulge with coincident
+segment endpoints fails through the occurrence-owned geometry-value channel.
 `polyline(...)` also produces an identity-free `polyline` path value using the
 drawable constructor's ordered `points` and optional `closed` arguments; open
 values require at least two points and closed values at least three. Pure

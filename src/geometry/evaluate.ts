@@ -66,6 +66,7 @@ import type { TextTemplateAst } from "../scalars/textTemplate";
 import type { BindingId } from "../scalars/bindingCatalog";
 import type { ForGroupMutationOwner } from "../scalars/forGroupMutationControl";
 import type { ForGroupMutationStatement } from "../scalars/linearMutationEvaluator";
+import { degreesToRadians, normalizeDegrees360 } from "../scalars/angleMath";
 import type { ModuleMaterialization } from "../dsl/moduleMaterialization";
 import type { GeometryValueProgram } from "../dsl/moduleGeometryValueProgram";
 import { geometryValueOccurrenceKey } from "../model/geometryValueOccurrence";
@@ -74,7 +75,7 @@ import type {
   ComputedGeometryValueEntry,
   GeometryValueEvaluationError
 } from "./evaluationTypes";
-import { arcGeometryKernel, bezierGeometryKernel, coordinateGeometryKernel, divisionPointGeometryKernel, offsetLineGeometryValueKernel, offsetPointGeometryKernel, polarLineGeometryKernel, polarPointGeometryKernel, polylineGeometryKernel, segmentGeometryKernel, throughArcGeometryKernel, type StructuralPoint } from "./geometryValueKernels";
+import { arcGeometryKernel, bezierBulgePointGeometryKernel, bezierExtremePointGeometryKernel, bezierGeometryKernel, coordinateGeometryKernel, divisionPointGeometryKernel, offsetLineGeometryValueKernel, offsetPointGeometryKernel, polarLineGeometryKernel, polarPointGeometryKernel, polylineGeometryKernel, segmentGeometryKernel, throughArcGeometryKernel, type StructuralPoint } from "./geometryValueKernels";
 import { buildOffsetLineGeometry } from "./offsetPaths";
 import { isLineLikeGeometryInput, pointAtDistanceFromEndpoint } from "./linePaths";
 import { evaluateTypedExpression } from "../scalars/expressionEvaluator";
@@ -567,6 +568,69 @@ export const evaluateElements = (
       const point = pointAtDistanceFromEndpoint(line, entry.construction.endpointKey, distanceFromEndpoint);
       if (!point) {
         appendGeometryValueError(entry, "onLine construction cannot determine a point from the referenced line. Specify a usable line-like geometry.");
+        return;
+      }
+      value = { kind: "point", ...point };
+    } else if (entry.construction.kind === "bezierExtremePoint") {
+      if (entry.declaredInterfaceType !== "point") {
+        appendGeometryValueError(entry, "Geometry value construction is incompatible with its declared interface type.");
+        return;
+      }
+      const geometry = resolveDocumentGeometryTarget(geometryRuntime, entry.construction.source.target, sourceOrder);
+      if (!geometry || geometry.kind === "unavailable" || geometry.kind !== "bezierCurve") {
+        appendGeometryValueError(entry, "Bezier feature-point construction requires a computed Bezier curve source.");
+        return;
+      }
+      const segmentIndex = evaluateGeometryValueScalar(entry.construction.segmentIndex, sourceOrder);
+      if (segmentIndex === undefined || !Number.isFinite(segmentIndex)) {
+        appendGeometryValueError(entry, "bezierExtremePoint segmentIndex must be a finite number.");
+        return;
+      }
+      if (!Number.isInteger(segmentIndex) || segmentIndex < 0) {
+        appendGeometryValueError(entry, "bezierExtremePoint segmentIndex must be a non-negative integer.");
+        return;
+      }
+      if (segmentIndex >= geometry.segments.length) {
+        appendGeometryValueError(entry, `bezierExtremePoint segmentIndex ${segmentIndex} is outside the source Bezier segment range (${geometry.segments.length} segments).`);
+        return;
+      }
+      const directionDeg = evaluateGeometryValueScalar(entry.construction.direction, sourceOrder);
+      if (directionDeg === undefined || !Number.isFinite(directionDeg)) {
+        appendGeometryValueError(entry, "bezierExtremePoint direction must be a finite number.");
+        return;
+      }
+      const directionRad = degreesToRadians(normalizeDegrees360(directionDeg));
+      const point = bezierExtremePointGeometryKernel(geometry.segments[segmentIndex], {
+        x: Math.cos(directionRad),
+        y: Math.sin(directionRad)
+      });
+      value = { kind: "point", ...point };
+    } else if (entry.construction.kind === "bezierBulgePoint") {
+      if (entry.declaredInterfaceType !== "point") {
+        appendGeometryValueError(entry, "Geometry value construction is incompatible with its declared interface type.");
+        return;
+      }
+      const geometry = resolveDocumentGeometryTarget(geometryRuntime, entry.construction.source.target, sourceOrder);
+      if (!geometry || geometry.kind === "unavailable" || geometry.kind !== "bezierCurve") {
+        appendGeometryValueError(entry, "Bezier feature-point construction requires a computed Bezier curve source.");
+        return;
+      }
+      const segmentIndex = evaluateGeometryValueScalar(entry.construction.segmentIndex, sourceOrder);
+      if (segmentIndex === undefined || !Number.isFinite(segmentIndex)) {
+        appendGeometryValueError(entry, "bezierBulgePoint segmentIndex must be a finite number.");
+        return;
+      }
+      if (!Number.isInteger(segmentIndex) || segmentIndex < 0) {
+        appendGeometryValueError(entry, "bezierBulgePoint segmentIndex must be a non-negative integer.");
+        return;
+      }
+      if (segmentIndex >= geometry.segments.length) {
+        appendGeometryValueError(entry, `bezierBulgePoint segmentIndex ${segmentIndex} is outside the source Bezier segment range (${geometry.segments.length} segments).`);
+        return;
+      }
+      const point = bezierBulgePointGeometryKernel(geometry.segments[segmentIndex]);
+      if (!point) {
+        appendGeometryValueError(entry, "bezierBulgePoint selected segment has coincident endpoints, so its bulge chord is undefined.");
         return;
       }
       value = { kind: "point", ...point };

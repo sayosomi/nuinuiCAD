@@ -357,6 +357,67 @@ describe("pure geometry construction runtime", () => {
     expect(result.computedGeometry.get("geometry-value-runtime:8")).toMatchObject({ kind: "offsetLine" });
   });
 
+  it("evaluates pure Bezier feature points from an identity-free Bezier path", () => {
+    const { compiled, result } = evaluate([
+      "nui 1",
+      "const Curve: path = bezier(start: (0, 0), end: (10, 0), startAngle: 90, startLength: 10, endAngle: -90, endLength: 10)",
+      "const Extreme: point = bezierExtremePoint(source: @Curve, segmentIndex: 0, direction: 90)",
+      "const Bulge: point = bezierBulgePoint(source: @Curve, segmentIndex: 0)",
+      "line Use = segment(start: @Extreme, end: @Bulge)"
+    ].join("\n"));
+
+    expect(compiled.geometryValueProgram?.map((entry) => entry.construction.kind)).toEqual([
+      "bezier",
+      "bezierExtremePoint",
+      "bezierBulgePoint"
+    ]);
+    expect(result.errors).toEqual([]);
+    const values = [...(result.computedGeometryValues?.values() ?? [])];
+    expect(values[0]?.value).toEqual(expect.objectContaining({ kind: "bezierCurve" }));
+    expect(values[1]?.value).toMatchObject({ kind: "point", x: expect.closeTo(5, 10), y: expect.closeTo(7.5, 10) });
+    expect(values[2]?.value).toEqual({ kind: "point", x: 5, y: 7.5 });
+    expect(values.every((entry) => !("elementId" in entry.value) && !("name" in entry.value))).toBe(true);
+    expect(result.computedGeometry.has("geometry-value-runtime:2")).toBe(false);
+    expect(result.computedGeometry.has("geometry-value-runtime:3")).toBe(false);
+    expect(result.computedGeometry.get("geometry-value-runtime:4")).toMatchObject({
+      kind: "line",
+      start: { x: expect.closeTo(5, 10), y: expect.closeTo(7.5, 10) },
+      end: { x: 5, y: 7.5 }
+    });
+  });
+
+  it("evaluates pure Bezier feature points from a drawable Bezier source", () => {
+    const { result } = evaluate([
+      "nui 1",
+      "curve Curve = bezier(start: (0, 0), end: (10, 0), startAngle: 90, startLength: 10, endAngle: -90, endLength: 10)",
+      "const Extreme: point = bezierExtremePoint(source: @Curve, segmentIndex: 0, direction: 450)",
+      "const Bulge: point = bezierBulgePoint(source: @Curve)"
+    ].join("\n"));
+
+    expect(result.errors).toEqual([]);
+    const values = [...(result.computedGeometryValues?.values() ?? [])];
+    expect(values[0]?.value).toMatchObject({ kind: "point", x: expect.closeTo(5, 10), y: expect.closeTo(7.5, 10) });
+    expect(values[1]?.value).toEqual({ kind: "point", x: 5, y: 7.5 });
+    expect(result.computedGeometry.get("geometry-value-runtime:1")).toMatchObject({
+      kind: "bezierCurve"
+    });
+    expect(result.computedGeometry.has("geometry-value-runtime:2")).toBe(false);
+    expect(result.computedGeometry.has("geometry-value-runtime:3")).toBe(false);
+  });
+
+  it.each([
+    ["non-Bezier source", "const Source: path = segment(start: (0, 0), end: (10, 0))", "const Invalid: point = bezierExtremePoint(source: @Source, segmentIndex: 0, direction: 90)", "Bezier feature-point construction requires a computed Bezier curve source."],
+    ["out-of-range segment", "const Source: path = bezier(start: (0, 0), end: (10, 0))", "const Invalid: point = bezierBulgePoint(source: @Source, segmentIndex: 1)", "bezierBulgePoint segmentIndex 1 is outside the source Bezier segment range (1 segments)."],
+    ["degenerate bulge chord", "const Source: path = bezier(start: (0, 0), end: (0, 0), startAngle: 0, startLength: 0, endAngle: 0, endLength: 0)", "const Invalid: point = bezierBulgePoint(source: @Source)", "bezierBulgePoint selected segment has coincident endpoints, so its bulge chord is undefined."]
+  ] as const)("reports pure Bezier feature-point failure for %s through the occurrence-owned channel", (_kind, source, declaration, message) => {
+    const { compiled, result } = evaluate(["nui 1", source, declaration].join("\n"));
+    const occurrence = compiled.geometryValueProgram?.at(-1)?.occurrence;
+    expect(result.computedGeometryValues).toEqual(expect.any(Map));
+    expect(result.computedGeometryValues?.size).toBe(1);
+    expect(result.geometryValueErrors).toEqual([{ occurrence, message }]);
+    expect(result.errors).toEqual([]);
+  });
+
   it("evaluates open and closed pure polylines without drawable identity", () => {
     const { compiled, result } = evaluate([
       "nui 1",
@@ -471,6 +532,31 @@ describe("pure geometry construction runtime", () => {
     expect(values.filter((entry) => entry.occurrence.instancePath.length === 1 && entry.value.kind === "bezierCurve")).toHaveLength(2);
     expect(values.filter((entry) => entry.occurrence.instancePath.length === 1 && entry.value.kind === "bezierCurve").map((entry) => entry.value.kind === "bezierCurve" ? entry.value.segments[0]?.control1.y : undefined)).toEqual(expect.arrayContaining([2, 3]));
     expect(result.computedGeometry.get("geometry-value-runtime:7")).toMatchObject({ kind: "line", start: { x: 0, y: 0 }, end: { x: 10, y: 0 } });
+  });
+
+  it("evaluates Module-local Bezier feature points and qualified exports", () => {
+    const { compiled, result } = evaluate([
+      "nui 1",
+      "module M() {",
+      "  const Curve: path = bezier(start: (0, 0), end: (10, 0), startAngle: 90, startLength: 10, endAngle: -90, endLength: 10)",
+      "  const LocalExtreme: point = bezierExtremePoint(source: @Curve, direction: 90)",
+      "  export const Output: point = bezierBulgePoint(source: @Curve)",
+      "}",
+      "instance One = M()",
+      "const Root: point = @One::Output",
+      "line Use = segment(start: @Root, end: @One::Output)"
+    ].join("\n"));
+
+    expect(compiled.diagnostics).toEqual([]);
+    expect(result.errors).toEqual([]);
+    const values = [...(result.computedGeometryValues?.values() ?? [])].filter((entry) => entry.occurrence.instancePath.length === 1);
+    expect(values).toHaveLength(3);
+    expect(values.filter((entry) => entry.value.kind === "point")).toHaveLength(2);
+    for (const entry of values.filter((candidate) => candidate.value.kind === "point")) {
+      expect(entry.value).toMatchObject({ x: expect.closeTo(5, 10), y: expect.closeTo(7.5, 10) });
+    }
+    expect(result.computedGeometry.has("geometry-value-runtime:7")).toBe(false);
+    expect(result.computedGeometry.get("geometry-value-runtime:8")).toMatchObject({ kind: "line" });
   });
 
   it("reports invalid pure bezier runtime inputs through the occurrence-owned channel", () => {

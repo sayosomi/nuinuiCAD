@@ -490,6 +490,13 @@ export const analyzeModuleBody = ({
         } else if (construction?.kind === "onLine") {
           addGeometry(bodySemantic, "construction:from", construction.from.span, construction.from);
           addScalar(bodySemantic, `construction:${construction.placement.kind}`, construction.placement.value.ast.span, construction.placement.value);
+        } else if (construction?.kind === "bezierExtremePoint") {
+          addGeometry(bodySemantic, "construction:source", construction.source.span, construction.source);
+          if (construction.segmentIndex) addScalar(bodySemantic, "construction:segmentIndex", construction.segmentIndex.ast.span, construction.segmentIndex);
+          if (construction.direction) addScalar(bodySemantic, "construction:direction", construction.direction.ast.span, construction.direction);
+        } else if (construction?.kind === "bezierBulgePoint") {
+          addGeometry(bodySemantic, "construction:source", construction.source.span, construction.source);
+          if (construction.segmentIndex) addScalar(bodySemantic, "construction:segmentIndex", construction.segmentIndex.ast.span, construction.segmentIndex);
         } else if (construction?.kind === "segment") {
           addGeometry(bodySemantic, "construction:start", construction.start.span, construction.start);
           addGeometry(bodySemantic, "construction:end", construction.end.span, construction.end);

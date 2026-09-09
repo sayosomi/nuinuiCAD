@@ -82,6 +82,14 @@ plus the referenced endpoint direction. Missing or simultaneous modes are
 invalid, and these pure forms allocate no drawable identity. `corner` and other
 deferred constructions remain unsupported.
 
+`bezierExtremePoint(source: ..., segmentIndex: ..., direction: ...)` and
+`bezierBulgePoint(source: ..., segmentIndex: ...)` are identity-free pure
+`point` initializers. Their source must be a computed Bezier curve, either
+drawable or a pure `bezier(...)` path value. `segmentIndex` defaults to `0`;
+extreme directions use the existing normalized degree semantics, and a bulge
+segment with coincident endpoints fails through the occurrence-owned diagnostic
+channel.
+
 ## One-dimensional arrays
 
 The immutable named collection type is one-dimensional `T[]`. `T` may be

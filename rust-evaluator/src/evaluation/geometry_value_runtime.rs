@@ -1,6 +1,7 @@
 use serde_json::{json, Value};
 
-use super::bezier_math::approximate_cubic_length;
+use super::bezier_feature_point_evaluator::{bezier_bulge_point_at, bezier_extreme_point_at};
+use super::bezier_math::{approximate_cubic_length, Point};
 use super::division_placement::DivisionPlacementKind;
 use super::geometry_value_kernels::{
     coordinate_geometry_kernel, direct_arc_geometry_kernel, division_point_geometry_kernel,
@@ -13,8 +14,9 @@ use super::offset_paths::{build_offset_line_geometry, is_line_like_geometry};
 use super::point_anchor::point_from_geometry;
 use super::scalar_expression_runtime::evaluate_document_typed_expression;
 use super::scalars::{
-    validate_typed_expression_payload, ScalarDocumentBindingResolver, ScalarEvaluation, ScalarType,
-    ScalarValue, TypedScalarExpression,
+    degrees_to_radians, normalize_degrees_360, validate_typed_expression_payload,
+    ScalarDocumentBindingResolver, ScalarEvaluation, ScalarType, ScalarValue,
+    TypedScalarExpression,
 };
 use super::types::{
     EvaluationCommandError, EvaluationState, GeometryValueEvaluationError, GeometryValueOccurrence,
@@ -81,6 +83,15 @@ pub(crate) enum GeometryValueConstruction {
         line: super::scalars::ScalarExpressionResolvedGeometryTarget,
         endpoint_key: String,
         placement: GeometryValuePlacement,
+    },
+    BezierExtremePoint {
+        source: super::scalars::ScalarExpressionResolvedGeometryTarget,
+        segment_index: Box<TypedScalarExpression>,
+        direction: Box<TypedScalarExpression>,
+    },
+    BezierBulgePoint {
+        source: super::scalars::ScalarExpressionResolvedGeometryTarget,
+        segment_index: Box<TypedScalarExpression>,
     },
     Segment {
         start: Box<GeometryValuePoint>,
@@ -411,6 +422,79 @@ fn decode_entry(value: &Value) -> Result<GeometryValueProgramEntry, String> {
                     .ok_or_else(|| "geometry value onLine line cannot be null".to_owned())?,
                     endpoint_key,
                     placement: decode_placement(construction_object, "geometry value onLine")?,
+                }
+            }
+            "bezierExtremePoint" => {
+                let source_object = object(
+                    construction_object.get("source").ok_or_else(|| {
+                        "geometry value bezierExtremePoint is missing source".to_owned()
+                    })?,
+                    "geometry value bezierExtremePoint source",
+                )?;
+                if string_field(
+                    source_object,
+                    "kind",
+                    "geometry value bezierExtremePoint source",
+                )? != "target"
+                {
+                    return Err(
+                        "geometry value bezierExtremePoint source must be a target".to_owned()
+                    );
+                }
+                GeometryValueConstruction::BezierExtremePoint {
+                    source: super::scalars::decode_geometry_target_payload(
+                        source_object.get("target").ok_or_else(|| {
+                            "geometry value bezierExtremePoint source is missing target".to_owned()
+                        })?,
+                    )
+                    .map_err(|error| format!("{error:?}"))?
+                    .ok_or_else(|| {
+                        "geometry value bezierExtremePoint source cannot be null".to_owned()
+                    })?,
+                    segment_index: Box::new(decode_typed_field(
+                        construction_object,
+                        "segmentIndex",
+                        "geometry value bezierExtremePoint",
+                    )?),
+                    direction: Box::new(decode_typed_field(
+                        construction_object,
+                        "direction",
+                        "geometry value bezierExtremePoint",
+                    )?),
+                }
+            }
+            "bezierBulgePoint" => {
+                let source_object = object(
+                    construction_object.get("source").ok_or_else(|| {
+                        "geometry value bezierBulgePoint is missing source".to_owned()
+                    })?,
+                    "geometry value bezierBulgePoint source",
+                )?;
+                if string_field(
+                    source_object,
+                    "kind",
+                    "geometry value bezierBulgePoint source",
+                )? != "target"
+                {
+                    return Err(
+                        "geometry value bezierBulgePoint source must be a target".to_owned()
+                    );
+                }
+                GeometryValueConstruction::BezierBulgePoint {
+                    source: super::scalars::decode_geometry_target_payload(
+                        source_object.get("target").ok_or_else(|| {
+                            "geometry value bezierBulgePoint source is missing target".to_owned()
+                        })?,
+                    )
+                    .map_err(|error| format!("{error:?}"))?
+                    .ok_or_else(|| {
+                        "geometry value bezierBulgePoint source cannot be null".to_owned()
+                    })?,
+                    segment_index: Box::new(decode_typed_field(
+                        construction_object,
+                        "segmentIndex",
+                        "geometry value bezierBulgePoint",
+                    )?),
                 }
             }
             "segment" => GeometryValueConstruction::Segment {
@@ -1125,6 +1209,198 @@ pub(crate) fn evaluate_geometry_value_entry(
                 return;
             };
             Some(json!({ "kind": "point", "x": x, "y": y }))
+        }
+        GeometryValueConstruction::BezierExtremePoint {
+            source,
+            segment_index,
+            direction,
+        } => {
+            if entry.declared_interface_type != "point" {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "Geometry value construction is incompatible with its declared interface type.",
+                );
+                return;
+            }
+            let Some(geometry) = target_geometry(source, state) else {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "Bezier feature-point construction requires a computed Bezier curve source.",
+                );
+                return;
+            };
+            if geometry.get("kind").and_then(Value::as_str) != Some("bezierCurve") {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "Bezier feature-point construction requires a computed Bezier curve source.",
+                );
+                return;
+            }
+            let Some(segments) = geometry.get("segments").and_then(Value::as_array) else {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "Bezier feature-point construction requires a computed Bezier curve source.",
+                );
+                return;
+            };
+            let Some(segment_index) =
+                number_expression(segment_index, resolver, state, source_order)
+            else {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "bezierExtremePoint segmentIndex must be a finite number.",
+                );
+                return;
+            };
+            if !segment_index.is_finite() {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "bezierExtremePoint segmentIndex must be a finite number.",
+                );
+                return;
+            }
+            if segment_index.fract() != 0.0 || segment_index < 0.0 {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "bezierExtremePoint segmentIndex must be a non-negative integer.",
+                );
+                return;
+            }
+            if segment_index >= segments.len() as f64 {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    &format!(
+                        "bezierExtremePoint segmentIndex {} is outside the source Bezier segment range ({} segments).",
+                        segment_index,
+                        segments.len()
+                    ),
+                );
+                return;
+            }
+            let Some(direction_deg) = number_expression(direction, resolver, state, source_order)
+            else {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "bezierExtremePoint direction must be a finite number.",
+                );
+                return;
+            };
+            if !direction_deg.is_finite() {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "bezierExtremePoint direction must be a finite number.",
+                );
+                return;
+            }
+            let direction_rad = degrees_to_radians(normalize_degrees_360(direction_deg));
+            let direction = Point {
+                x: direction_rad.cos(),
+                y: direction_rad.sin(),
+            };
+            let Some(point) = bezier_extreme_point_at(&segments[segment_index as usize], direction)
+            else {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "Bezier feature-point construction requires a computed Bezier curve source.",
+                );
+                return;
+            };
+            Some(json!({ "kind": "point", "x": point.x, "y": point.y }))
+        }
+        GeometryValueConstruction::BezierBulgePoint {
+            source,
+            segment_index,
+        } => {
+            if entry.declared_interface_type != "point" {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "Geometry value construction is incompatible with its declared interface type.",
+                );
+                return;
+            }
+            let Some(geometry) = target_geometry(source, state) else {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "Bezier feature-point construction requires a computed Bezier curve source.",
+                );
+                return;
+            };
+            if geometry.get("kind").and_then(Value::as_str) != Some("bezierCurve") {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "Bezier feature-point construction requires a computed Bezier curve source.",
+                );
+                return;
+            }
+            let Some(segments) = geometry.get("segments").and_then(Value::as_array) else {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "Bezier feature-point construction requires a computed Bezier curve source.",
+                );
+                return;
+            };
+            let Some(segment_index) =
+                number_expression(segment_index, resolver, state, source_order)
+            else {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "bezierBulgePoint segmentIndex must be a finite number.",
+                );
+                return;
+            };
+            if !segment_index.is_finite() {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "bezierBulgePoint segmentIndex must be a finite number.",
+                );
+                return;
+            }
+            if segment_index.fract() != 0.0 || segment_index < 0.0 {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "bezierBulgePoint segmentIndex must be a non-negative integer.",
+                );
+                return;
+            }
+            if segment_index >= segments.len() as f64 {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    &format!(
+                        "bezierBulgePoint segmentIndex {} is outside the source Bezier segment range ({} segments).",
+                        segment_index,
+                        segments.len()
+                    ),
+                );
+                return;
+            }
+            let Some(point) = bezier_bulge_point_at(&segments[segment_index as usize]) else {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "bezierBulgePoint selected segment has coincident endpoints, so its bulge chord is undefined.",
+                );
+                return;
+            };
+            Some(json!({ "kind": "point", "x": point.x, "y": point.y }))
         }
         GeometryValueConstruction::Segment { start, end } => {
             if entry.declared_interface_type != "line" && entry.declared_interface_type != "path" {

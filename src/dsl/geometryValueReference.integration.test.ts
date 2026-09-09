@@ -160,7 +160,7 @@ describe("immutable single-geometry reference values", () => {
       end: { type: { kind: "number" } },
       direction: { type: { kind: "choice", options: ["counterclockwise", "clockwise"] } }
     });
-    expect(pureGeometryValueConstructionCandidates("point").map((candidate) => candidate.label)).toEqual(["coordinate", "offset", "polar", "between", "onLine"]);
+    expect(pureGeometryValueConstructionCandidates("point").map((candidate) => candidate.label)).toEqual(["coordinate", "offset", "polar", "between", "onLine", "bezierExtremePoint", "bezierBulgePoint"]);
     expect(pureGeometryValueConstructionCandidates("line").map((candidate) => candidate.label)).toEqual(["segment", "polar"]);
     expect(pureGeometryValueConstructionCandidates("path").map((candidate) => candidate.label)).toEqual(["segment", "polar", "offset", "polyline", "bezier", "arc", "through"]);
     expect(pureGeometryValueConstructionCandidates("point").map((candidate) => candidate.label)).not.toContain("through");
@@ -236,6 +236,31 @@ describe("immutable single-geometry reference values", () => {
     expect(compiled.moduleSemanticAnalysis?.rootGeometryReferencesByStatementId.get("geometry-value-division:6")?.map((site) => site.parameterKey)).toEqual(["from"]);
     expect(compiled.geometryValueProgram?.map((entry) => entry.construction.kind)).toEqual([
       "coordinate", "coordinate", "between", "between", "segment", "onLine", "onLine"
+    ]);
+  });
+
+  it("registers pure Bezier feature points with path sources, scalar defaults, and reference sites", () => {
+    const compiled = compile([
+      "nui 1",
+      "const Curve: path = bezier(start: (0, 0), end: (10, 0))",
+      "const Extreme: point = bezierExtremePoint(source: @Curve, direction: 90)",
+      "const Bulge: point = bezierBulgePoint(source: @Curve, segmentIndex: 0)"
+    ].join("\n"), "geometry-value-bezier-feature-points");
+
+    expect(compiled.diagnostics).toEqual([]);
+    expect(compiled.moduleSemanticAnalysis?.geometryValues.map((value) => value.construction?.kind)).toEqual([
+      "bezier", "bezierExtremePoint", "bezierBulgePoint"
+    ]);
+    const extreme = compiled.moduleSemanticAnalysis?.geometryValues.find((value) => value.name === "Extreme");
+    expect(extreme?.construction).toMatchObject({
+      kind: "bezierExtremePoint",
+      source: { target: { kind: "geometryValue" } },
+      segmentIndex: { ast: { kind: "numberLiteral", value: 0 } },
+      direction: { ast: { kind: "numberLiteral", value: 90 } }
+    });
+    expect(compiled.moduleSemanticAnalysis?.rootGeometryReferencesByStatementId.get(extreme!.statementId)?.map((site) => site.parameterKey)).toEqual(["source"]);
+    expect(compiled.geometryValueProgram?.map((entry) => entry.construction.kind)).toEqual([
+      "bezier", "bezierExtremePoint", "bezierBulgePoint"
     ]);
   });
 
