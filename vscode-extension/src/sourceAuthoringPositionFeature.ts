@@ -11,12 +11,6 @@ export type VscodeSourceAuthoringPositionAfterCommit = {
   character: number;
 };
 
-export type VscodeCanvasCreationRequest = {
-  requestId: number;
-  documentVersion: number;
-  sourcePosition: VscodeSourceAuthoringPosition;
-};
-
 type CommandOwnedAnchorPosition = Pick<VscodeSourceAuthoringPosition, "line" | "character">;
 
 type CommandOwnedAnchorHistoryEntry = {
@@ -58,10 +52,6 @@ export type VscodeSourceAuthoringPositionFeature = vscode.Disposable & {
     sourcePosition: VscodeSourceAuthoringPosition;
     onObserved?: (documentVersion: number) => void;
   }) => number | null;
-  beginCanvasCreation: (
-    sessionToken: object,
-    document: vscode.TextDocument
-  ) => VscodeCanvasCreationRequest | null;
   markCommandOwnedEdit: (requestId: number) => void;
   completeCommandOwnedEdit: (options: {
     requestId: number;
@@ -265,19 +255,6 @@ export const registerVscodeSourceAuthoringPositionFeature = ({
       return position ? { ...position } : null;
     },
     beginCommandOwnedEdit,
-    beginCanvasCreation: (
-      sessionToken: object,
-      document: vscode.TextDocument
-    ): VscodeCanvasCreationRequest | null => {
-      const sourcePosition = sourceAnchors.get(sourceDocumentKey(document));
-      if (!sourcePosition || sourcePosition.documentVersion !== document.version) return null;
-      const requestId = beginCommandOwnedEdit({ sessionToken, document, sourcePosition });
-      return requestId === null ? null : {
-        requestId,
-        documentVersion: document.version,
-        sourcePosition: { ...sourcePosition }
-      };
-    },
     markCommandOwnedEdit: (requestId: number): void => {
       const pending = pendingCommandOwnedEdits.get(requestId);
       if (pending) pending.marked = true;
