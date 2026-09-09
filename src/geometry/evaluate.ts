@@ -74,7 +74,7 @@ import type {
   ComputedGeometryValueEntry,
   GeometryValueEvaluationError
 } from "./evaluationTypes";
-import { arcGeometryKernel, bezierGeometryKernel, coordinateGeometryKernel, offsetLineGeometryValueKernel, offsetPointGeometryKernel, polylineGeometryKernel, segmentGeometryKernel, throughArcGeometryKernel, type StructuralPoint } from "./geometryValueKernels";
+import { arcGeometryKernel, bezierGeometryKernel, coordinateGeometryKernel, offsetLineGeometryValueKernel, offsetPointGeometryKernel, polarLineGeometryKernel, polarPointGeometryKernel, polylineGeometryKernel, segmentGeometryKernel, throughArcGeometryKernel, type StructuralPoint } from "./geometryValueKernels";
 import { buildOffsetLineGeometry } from "./offsetPaths";
 import { isLineLikeGeometryInput } from "./linePaths";
 import { evaluateTypedExpression } from "../scalars/expressionEvaluator";
@@ -519,6 +519,17 @@ export const evaluateElements = (
       if (from && dx !== undefined && dy !== undefined) {
         value = { kind: "point", ...offsetPointGeometryKernel(from, dx, dy) };
       }
+    } else if (entry.construction.kind === "polarPoint") {
+      if (entry.declaredInterfaceType !== "point") {
+        appendGeometryValueError(entry, "Geometry value construction is incompatible with its declared interface type.");
+        return;
+      }
+      const from = structuralPointForProgramPoint(entry.construction.from, sourceOrder);
+      const angleDeg = evaluateGeometryValueScalar(entry.construction.angleDeg, sourceOrder);
+      const distance = evaluateGeometryValueScalar(entry.construction.distance, sourceOrder);
+      if (from && angleDeg !== undefined && distance !== undefined) {
+        value = { kind: "point", ...polarPointGeometryKernel(from, angleDeg, distance) };
+      }
     } else if (entry.construction.kind === "segment") {
       if (entry.declaredInterfaceType !== "line" && entry.declaredInterfaceType !== "path") {
         appendGeometryValueError(entry, "Geometry value construction is incompatible with its declared interface type.");
@@ -528,6 +539,17 @@ export const evaluateElements = (
       const end = structuralPointForProgramPoint(entry.construction.end, sourceOrder);
       if (start && end) {
         value = segmentGeometryKernel(start, end);
+      }
+    } else if (entry.construction.kind === "polarLine") {
+      if (entry.declaredInterfaceType !== "line" && entry.declaredInterfaceType !== "path") {
+        appendGeometryValueError(entry, "Geometry value construction is incompatible with its declared interface type.");
+        return;
+      }
+      const start = structuralPointForProgramPoint(entry.construction.start, sourceOrder);
+      const angleDeg = evaluateGeometryValueScalar(entry.construction.angleDeg, sourceOrder);
+      const length = evaluateGeometryValueScalar(entry.construction.length, sourceOrder);
+      if (start && angleDeg !== undefined && length !== undefined) {
+        value = polarLineGeometryKernel(start, angleDeg, length);
       }
     } else if (entry.construction.kind === "arc") {
       if (entry.declaredInterfaceType !== "path") {

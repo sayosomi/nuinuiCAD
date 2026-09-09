@@ -195,6 +195,105 @@ fn coordinate_value_stays_out_of_drawable_geometry_and_feeds_a_line() {
 }
 
 #[test]
+fn polar_point_and_line_values_use_identity_free_geometry_and_defaults() {
+    let point_occurrence = json!({
+        "sourceStatementId": "value:polar-point",
+        "instancePath": []
+    });
+    let default_point_occurrence = json!({
+        "sourceStatementId": "value:polar-default-point",
+        "instancePath": []
+    });
+    let line_occurrence = json!({
+        "sourceStatementId": "value:polar-line",
+        "instancePath": []
+    });
+    let point_target = json!({
+        "kind": "geometryValue",
+        "statementId": "value:polar-point",
+        "statementIndex": 1,
+        "geometryType": "point",
+        "occurrence": point_occurrence.clone()
+    });
+    let program = vec![
+        json!({
+            "sourceStatementId": "value:polar-point",
+            "sourceStatementIndex": 1,
+            "declaredInterfaceType": "point",
+            "occurrence": point_occurrence,
+            "executionPosition": 1.0,
+            "construction": {
+                "kind": "polarPoint",
+                "from": { "kind": "coordinate", "x": number(10.0), "y": number(20.0) },
+                "angleDeg": number(90.0),
+                "distance": number(20.0)
+            }
+        }),
+        json!({
+            "sourceStatementId": "value:polar-default-point",
+            "sourceStatementIndex": 2,
+            "declaredInterfaceType": "point",
+            "occurrence": default_point_occurrence,
+            "executionPosition": 2.0,
+            "construction": {
+                "kind": "polarPoint",
+                "from": { "kind": "coordinate", "x": number(10.0), "y": number(20.0) },
+                "angleDeg": number(0.0),
+                "distance": number(0.0)
+            }
+        }),
+        json!({
+            "sourceStatementId": "value:polar-line",
+            "sourceStatementIndex": 3,
+            "declaredInterfaceType": "line",
+            "occurrence": line_occurrence,
+            "executionPosition": 3.0,
+            "construction": {
+                "kind": "polarLine",
+                "start": { "kind": "target", "target": point_target },
+                "angleDeg": number(30.0),
+                "length": number(100.0)
+            }
+        }),
+    ];
+
+    let result = evaluate_document_input(input(Vec::new(), program));
+    assert!(result.errors.is_empty());
+    assert!(result.geometry_value_errors.is_empty());
+    assert_eq!(result.computed_geometry.len(), 0);
+    assert_eq!(result.computed_geometry_values.len(), 3);
+
+    let point = &result.computed_geometry_values[0]["value"];
+    assert_eq!(point["kind"], "point");
+    assert!((point["x"].as_f64().unwrap() - 10.0).abs() < 1e-12);
+    assert_eq!(point["y"], 40.0);
+    assert!(point.get("elementId").is_none());
+    assert!(point.get("name").is_none());
+
+    let default_point = &result.computed_geometry_values[1]["value"];
+    assert_eq!(
+        default_point,
+        &json!({ "kind": "point", "x": 10.0, "y": 20.0 })
+    );
+
+    let line = &result.computed_geometry_values[2]["value"];
+    assert_eq!(line["kind"], "line");
+    assert!((line["start"]["x"].as_f64().unwrap() - 10.0).abs() < 1e-12);
+    assert_eq!(line["start"]["y"], 40.0);
+    assert!(
+        (line["end"]["x"].as_f64().unwrap() - (10.0 + 30_f64.to_radians().cos() * 100.0)).abs()
+            < 1e-12
+    );
+    assert!(
+        (line["end"]["y"].as_f64().unwrap() - (40.0 + 30_f64.to_radians().sin() * 100.0)).abs()
+            < 1e-12
+    );
+    assert!((line["length"].as_f64().unwrap() - 100.0).abs() < 1e-12);
+    assert!(line.get("elementId").is_none());
+    assert!(line.get("name").is_none());
+}
+
+#[test]
 fn offset_point_and_line_values_stay_identity_free_and_reuse_drawable_geometry() {
     let point_occurrence = json!({
         "sourceStatementId": "value:point",

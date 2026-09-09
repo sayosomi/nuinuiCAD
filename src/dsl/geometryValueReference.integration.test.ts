@@ -160,11 +160,56 @@ describe("immutable single-geometry reference values", () => {
       end: { type: { kind: "number" } },
       direction: { type: { kind: "choice", options: ["counterclockwise", "clockwise"] } }
     });
-    expect(pureGeometryValueConstructionCandidates("point").map((candidate) => candidate.label)).toEqual(["coordinate", "offset"]);
-    expect(pureGeometryValueConstructionCandidates("line").map((candidate) => candidate.label)).toEqual(["segment"]);
-    expect(pureGeometryValueConstructionCandidates("path").map((candidate) => candidate.label)).toEqual(["segment", "offset", "polyline", "bezier", "arc", "through"]);
+    expect(pureGeometryValueConstructionCandidates("point").map((candidate) => candidate.label)).toEqual(["coordinate", "offset", "polar"]);
+    expect(pureGeometryValueConstructionCandidates("line").map((candidate) => candidate.label)).toEqual(["segment", "polar"]);
+    expect(pureGeometryValueConstructionCandidates("path").map((candidate) => candidate.label)).toEqual(["segment", "polar", "offset", "polyline", "bezier", "arc", "through"]);
     expect(pureGeometryValueConstructionCandidates("point").map((candidate) => candidate.label)).not.toContain("through");
     expect(pureGeometryValueConstructionCandidates("line").map((candidate) => candidate.label)).not.toContain("through");
+  });
+
+  it("registers point and strict-line polar constructions with shared reference and scalar sites", () => {
+    const compiled = compile([
+      "nui 1",
+      "point Base = coordinate(x: 1, y: 2)",
+      "const P: point = polar(from: @Base, angle: 90, distance: 20)",
+      "const L: line = polar(start: @P, angle: 30, length: 100)",
+      "const Broad: path = polar(start: @P, angle: 0, length: 5)"
+    ].join("\n"), "geometry-value-polar");
+
+    expect(compiled.diagnostics).toEqual([]);
+    expect(compiled.moduleSemanticAnalysis?.geometryValues.map((value) => value.construction?.kind)).toEqual([
+      "polarPoint",
+      "polarLine",
+      "polarLine"
+    ]);
+    expect(compiled.moduleSemanticAnalysis?.geometryValues[0]?.construction).toMatchObject({
+      kind: "polarPoint",
+      from: { target: { kind: "sourceGeometry", geometryKind: "point" } },
+      angle: { ast: { kind: "numberLiteral", value: 90 } },
+      distance: { ast: { kind: "numberLiteral", value: 20 } }
+    });
+    expect(compiled.moduleSemanticAnalysis?.geometryValues[1]?.construction).toMatchObject({
+      kind: "polarLine",
+      start: { target: { kind: "geometryValue" } },
+      angle: { ast: { kind: "numberLiteral", value: 30 } },
+      length: { ast: { kind: "numberLiteral", value: 100 } }
+    });
+    expect(compiled.moduleSemanticAnalysis?.rootGeometryReferencesByStatementId.get("geometry-value-polar:2")?.map((site) => site.parameterKey)).toEqual(["from"]);
+    expect(compiled.moduleSemanticAnalysis?.rootGeometryReferencesByStatementId.get("geometry-value-polar:3")?.map((site) => site.parameterKey)).toEqual(["start"]);
+    expect(compiled.geometryValueProgram?.map((entry) => entry.construction.kind)).toEqual([
+      "polarPoint",
+      "polarLine",
+      "polarLine"
+    ]);
+  });
+
+  it("uses the existing point-reference restrictions for point polar", () => {
+    const compiled = compile([
+      "nui 1",
+      "const Invalid: point = polar(from: (1, 2), angle: 0, distance: 1)"
+    ].join("\n"), "geometry-value-polar-coordinate");
+
+    expect(errorCodes(compiled)).toContain("module-geometry-type-mismatch");
   });
 
   it("registers point and path offset as pure constructions with resolved sources", () => {

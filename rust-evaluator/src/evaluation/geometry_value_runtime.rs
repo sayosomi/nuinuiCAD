@@ -3,8 +3,8 @@ use serde_json::{json, Value};
 use super::bezier_math::approximate_cubic_length;
 use super::geometry_value_kernels::{
     coordinate_geometry_kernel, direct_arc_geometry_kernel, offset_point_geometry_kernel,
-    polyline_geometry_kernel, segment_geometry_kernel, through_arc_geometry_kernel,
-    StructuralPoint,
+    polar_line_geometry_kernel, polar_point_geometry_kernel, polyline_geometry_kernel,
+    segment_geometry_kernel, through_arc_geometry_kernel, StructuralPoint,
 };
 use super::offset_paths::{build_offset_line_geometry, is_line_like_geometry};
 use super::point_anchor::point_from_geometry;
@@ -58,9 +58,19 @@ pub(crate) enum GeometryValueConstruction {
         dx: Box<TypedScalarExpression>,
         dy: Box<TypedScalarExpression>,
     },
+    PolarPoint {
+        from: Box<GeometryValuePoint>,
+        angle_deg: Box<TypedScalarExpression>,
+        distance: Box<TypedScalarExpression>,
+    },
     Segment {
         start: Box<GeometryValuePoint>,
         end: Box<GeometryValuePoint>,
+    },
+    PolarLine {
+        start: Box<GeometryValuePoint>,
+        angle_deg: Box<TypedScalarExpression>,
+        length: Box<TypedScalarExpression>,
     },
     Arc {
         center: Box<GeometryValuePoint>,
@@ -306,6 +316,21 @@ fn decode_entry(value: &Value) -> Result<GeometryValueProgramEntry, String> {
                     "geometry value offsetPoint",
                 )?),
             },
+            "polarPoint" => GeometryValueConstruction::PolarPoint {
+                from: Box::new(decode_point(construction_object.get("from").ok_or_else(
+                    || "geometry value polarPoint is missing from".to_owned(),
+                )?)?),
+                angle_deg: Box::new(decode_typed_field(
+                    construction_object,
+                    "angleDeg",
+                    "geometry value polarPoint",
+                )?),
+                distance: Box::new(decode_typed_field(
+                    construction_object,
+                    "distance",
+                    "geometry value polarPoint",
+                )?),
+            },
             "segment" => GeometryValueConstruction::Segment {
                 start: Box::new(decode_point(
                     construction_object
@@ -316,6 +341,21 @@ fn decode_entry(value: &Value) -> Result<GeometryValueProgramEntry, String> {
                     construction_object
                         .get("end")
                         .ok_or_else(|| "geometry value segment is missing end".to_owned())?,
+                )?),
+            },
+            "polarLine" => GeometryValueConstruction::PolarLine {
+                start: Box::new(decode_point(construction_object.get("start").ok_or_else(
+                    || "geometry value polarLine is missing start".to_owned(),
+                )?)?),
+                angle_deg: Box::new(decode_typed_field(
+                    construction_object,
+                    "angleDeg",
+                    "geometry value polarLine",
+                )?),
+                length: Box::new(decode_typed_field(
+                    construction_object,
+                    "length",
+                    "geometry value polarLine",
                 )?),
             },
             "arc" => GeometryValueConstruction::Arc {
@@ -860,6 +900,28 @@ pub(crate) fn evaluate_geometry_value_entry(
                     json!({ "kind": "point", "x": structural.x, "y": structural.y })
                 })
         }
+        GeometryValueConstruction::PolarPoint {
+            from,
+            angle_deg,
+            distance,
+        } => {
+            if entry.declared_interface_type != "point" {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "Geometry value construction is incompatible with its declared interface type.",
+                );
+                return;
+            }
+            evaluate_point(from, resolver, state, source_order)
+                .zip(number_expression(angle_deg, resolver, state, source_order))
+                .zip(number_expression(distance, resolver, state, source_order))
+                .map(|(((x, y), angle_deg), distance)| {
+                    let structural =
+                        polar_point_geometry_kernel(StructuralPoint { x, y }, angle_deg, distance);
+                    json!({ "kind": "point", "x": structural.x, "y": structural.y })
+                })
+        }
         GeometryValueConstruction::Segment { start, end } => {
             if entry.declared_interface_type != "line" && entry.declared_interface_type != "path" {
                 append_geometry_value_error(
@@ -872,6 +934,37 @@ pub(crate) fn evaluate_geometry_value_entry(
             evaluate_point(start, resolver, state, source_order)
                 .zip(evaluate_point(end, resolver, state, source_order))
                 .map(|(start, end)| segment_json(start, end))
+        }
+        GeometryValueConstruction::PolarLine {
+            start,
+            angle_deg,
+            length,
+        } => {
+            if entry.declared_interface_type != "line" && entry.declared_interface_type != "path" {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "Geometry value construction is incompatible with its declared interface type.",
+                );
+                return;
+            }
+            evaluate_point(start, resolver, state, source_order)
+                .zip(number_expression(angle_deg, resolver, state, source_order))
+                .zip(number_expression(length, resolver, state, source_order))
+                .map(|(((x, y), angle_deg), length)| {
+                    let structural =
+                        polar_line_geometry_kernel(StructuralPoint { x, y }, angle_deg, length);
+                    json!({
+                        "kind": "line",
+                        "start": { "x": structural.start.x, "y": structural.start.y },
+                        "end": { "x": structural.end.x, "y": structural.end.y },
+                        "length": structural.length,
+                        "startAngleDeg": structural.start_angle_deg,
+                        "endAngleDeg": structural.end_angle_deg,
+                        "startTangentAngleDeg": structural.start_tangent_angle_deg,
+                        "endTangentAngleDeg": structural.end_tangent_angle_deg
+                    })
+                })
         }
         GeometryValueConstruction::Arc {
             center,

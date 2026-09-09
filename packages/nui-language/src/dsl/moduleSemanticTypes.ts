@@ -406,10 +406,24 @@ export type ModuleGeometryConstructionSemantic =
       dy: ModuleScalarExpressionSemantic | null;
     }
   | {
+      kind: "polarPoint";
+      span: DslSpan;
+      from: ModuleGeometryReferenceSemantic;
+      angle: ModuleScalarExpressionSemantic | null;
+      distance: ModuleScalarExpressionSemantic | null;
+    }
+  | {
       kind: "segment";
       span: DslSpan;
       start: ModuleGeometryReferenceSemantic;
       end: ModuleGeometryReferenceSemantic;
+    }
+  | {
+      kind: "polarLine";
+      span: DslSpan;
+      start: ModuleGeometryReferenceSemantic;
+      angle: ModuleScalarExpressionSemantic | null;
+      length: ModuleScalarExpressionSemantic | null;
     }
   | {
       kind: "arc";

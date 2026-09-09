@@ -1038,7 +1038,10 @@ construction forms:
 
 ```text
 const originPoint: point = coordinate(x: 10, y: 20)
+const polarPoint: point = polar(from: @originPoint, angle: 90, distance: 20)
 const edge: line = segment(start: @originPoint, end: (30, 20))
+const polarEdge: line = polar(start: @polarPoint, angle: 30, length: 100)
+const polarPath: path = @polarEdge
 const outline: path = segment(start: @originPoint, end: (30, 20))
 const roundedOutline: path = arc(center: @originPoint, radius: 10, start: 0, end: 90)
 const curvedOutline: path = bezier(
@@ -1050,7 +1053,8 @@ const polygon: path = polyline(
 )
 ```
 
-`coordinate` produces `point`; `segment` produces strict `line`; and direct
+`coordinate` and point `polar` produce `point`; `segment` and line `polar`
+produce strict `line`; and direct
 `arc` produces broad `path`. The directional `line -> path` interface rule
 also permits the `segment` path form. Direct `arc` accepts the same
 `center`, `radius`, `start`, `end`, and optional `direction` values as its
@@ -1079,7 +1083,15 @@ closing segment only when needed, and requires at least two open points or
 three closed points. Unavailable points and invalid cardinality fail through
 the occurrence-owned geometry-value diagnostic channel. Point
 `offset(from: ..., dx: ..., dy: ...)` is an implemented pure `point`
-initializer using the drawable point-offset semantics and defaults. Path
+initializer using the drawable point-offset semantics and defaults. Point
+`polar(from: ..., angle: ..., distance: ...)` is an implemented identity-free
+pure `point` initializer using the drawable point-polar geometry and defaults
+of `angle: 0` and `distance: 0`. Line
+`polar(start: ..., angle: ..., length: ...)` is an implemented identity-free
+pure strict-line initializer using the drawable line-polar geometry and
+defaults of `angle: 0` and `length: 100`; its strict `line` result participates
+in the existing `line -> path` assignability rule. Neither pure polar form
+allocates a drawable identity. Path
 `offset(sources: ..., distance: ..., side: ..., closed: ..., suppressTrimWarnings: ...)`
 is an implemented pure `path` initializer using the drawable line-offset
 geometry, ordering, defaults, validation, and trimming behavior. Both pure

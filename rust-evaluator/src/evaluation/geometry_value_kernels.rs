@@ -1,4 +1,5 @@
 use super::math::{arc_tangent_angles, positive_sweep_degrees, CIRCLE_EPSILON};
+use super::scalars::degrees_to_radians;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct StructuralPoint {
@@ -64,6 +65,18 @@ pub(crate) fn offset_point_geometry_kernel(
     }
 }
 
+pub(crate) fn polar_point_geometry_kernel(
+    from: StructuralPoint,
+    angle_deg: f64,
+    distance: f64,
+) -> StructuralPoint {
+    let angle_rad = degrees_to_radians(angle_deg);
+    StructuralPoint {
+        x: from.x + angle_rad.cos() * distance,
+        y: from.y + angle_rad.sin() * distance,
+    }
+}
+
 fn angle_from_to(start: StructuralPoint, end: StructuralPoint) -> Option<f64> {
     let dx = end.x - start.x;
     let dy = end.y - start.y;
@@ -93,6 +106,14 @@ pub(crate) fn segment_geometry_kernel(
         start_tangent_angle_deg: start_angle_deg,
         end_tangent_angle_deg: end_angle_deg,
     }
+}
+
+pub(crate) fn polar_line_geometry_kernel(
+    start: StructuralPoint,
+    angle_deg: f64,
+    length: f64,
+) -> StructuralSegment {
+    segment_geometry_kernel(start, polar_point_geometry_kernel(start, angle_deg, length))
 }
 
 pub(crate) fn polyline_geometry_kernel(
@@ -230,9 +251,25 @@ pub(crate) fn through_arc_geometry_kernel(
 #[cfg(test)]
 mod tests {
     use super::{
-        coordinate_geometry_kernel, direct_arc_geometry_kernel, polyline_geometry_kernel,
-        segment_geometry_kernel, through_arc_geometry_kernel, StructuralPoint,
+        coordinate_geometry_kernel, direct_arc_geometry_kernel, polar_line_geometry_kernel,
+        polar_point_geometry_kernel, polyline_geometry_kernel, segment_geometry_kernel,
+        through_arc_geometry_kernel, StructuralPoint,
     };
+
+    #[test]
+    fn structural_polar_kernels_share_endpoint_and_line_measurements() {
+        let start = coordinate_geometry_kernel(10.0, 20.0);
+        let end = polar_point_geometry_kernel(start, 30.0, 100.0);
+        let line = polar_line_geometry_kernel(start, 30.0, 100.0);
+
+        assert!((end.x - (10.0 + 30_f64.to_radians().cos() * 100.0)).abs() < 1e-12);
+        assert!((end.y - (20.0 + 30_f64.to_radians().sin() * 100.0)).abs() < 1e-12);
+        assert_eq!(line.start, start);
+        assert_eq!(line.end, end);
+        assert!((line.length - 100.0).abs() < 1e-12);
+        assert!((line.start_angle_deg.unwrap() - 30.0).abs() < 1e-12);
+        assert!((line.end_angle_deg.unwrap() - 210.0).abs() < 1e-12);
+    }
 
     #[test]
     fn structural_segment_is_identity_free_and_deterministic() {

@@ -64,7 +64,7 @@ describe("module semantic analysis", () => {
     expect(module.diagnostics).toEqual([]);
   });
 
-  it("selects the compatible overload for pure offset and preserves deferred diagnostics", () => {
+  it("selects compatible overloads for pure offset and polar constructions", () => {
     const pointOffset = compileWithIds([
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
@@ -86,7 +86,7 @@ describe("module semantic analysis", () => {
       "point A = coordinate(x: 0, y: 0)",
       "const L: line = polar(start: @A, angle: 0, length: 10)"
     ].join("\n"));
-    expect(linePolar.diagnostics.map((diagnostic) => diagnostic.code)).toEqual(["geometry-value-unsupported-construction"]);
+    expect(linePolar.diagnostics).toEqual([]);
   });
 
   it("requires optional scalar presence proof and narrows a guarded branch", () => {
