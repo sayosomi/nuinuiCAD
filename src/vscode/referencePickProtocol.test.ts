@@ -4,6 +4,7 @@ import { parseDslSnapshot } from "../dsl/dslParser";
 import { queryDslReferencePickTarget } from "../dsl/dslReferencePickQuery";
 import {
   referencePickReplacementText,
+  referencePickNumericPropertyDraftFor,
   referencePickSeedReferences,
   referencePickTargetMatchesProof,
   referencePickTargetProofFor
@@ -77,7 +78,7 @@ describe("reference pick VS Code protocol proof", () => {
 
     expect(proof.range).toEqual({ from: target.range.from, to: target.range.to });
     expect(source.slice(proof.range.from, proof.range.to)).toBe("@Base.length");
-    expect(source.slice(proof.activationRange.from, proof.activationRange.to)).toBe("@Base.length");
+    expect(source.slice(proof.activationRange.from, proof.activationRange.to)).toBe(" dx: @Base.length");
     expect(proof.numericProperty).toEqual({ kind: "propertySelectionRequired" });
     expect(referencePickTargetMatchesProof(source, target, proof)).toBe(true);
     expect(referencePickTargetMatchesProof(source.replace("length", "endAngleDeg"), target, proof)).toBe(false);
@@ -85,6 +86,13 @@ describe("reference pick VS Code protocol proof", () => {
       ...proof,
       numericProperty: null
     })).toBe(false);
+
+    expect(referencePickNumericPropertyDraftFor(proof)).toEqual({
+      reference: { base: "Base" },
+      property: "length"
+    });
+    expect(referencePickNumericPropertyDraftFor({ ...proof, oldText: "20" })).toBeNull();
+    expect(referencePickNumericPropertyDraftFor({ ...proof, oldText: "scalarValue" })).toBeNull();
   });
 
   it("parses current list references as draft seed without losing quoted names", () => {

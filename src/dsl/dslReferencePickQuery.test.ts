@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { compileDslDocument, type CompiledDslDocument } from "./dslDocument";
 import { parseDslSnapshot } from "./dslParser";
-import { queryDslReferencePickTarget } from "./dslReferencePickQuery";
+import {
+  queryDslReferencePickTarget,
+  queryDslReferencePickTargetResolution
+} from "./dslReferencePickQuery";
 
 const compileWithIds = (source: string, sourceRevision = 17): CompiledDslDocument => {
   const parsed = parseDslSnapshot({ normalizedSource: source, sourceRevision });
@@ -41,7 +44,7 @@ describe("queryDslReferencePickTarget", () => {
     const compiled = compileWithIds(source);
 
     const pointFrom = source.indexOf("@A", source.indexOf("point Offset"));
-    const point = queryAt(source, compiled, pointFrom + 2);
+    const point = queryAt(source, compiled, pointFrom + 1);
     expect(point).toMatchObject({
       expectedGeometryInterface: "point",
       role: "geometry",
@@ -115,7 +118,7 @@ describe("queryDslReferencePickTarget", () => {
     ] as const;
 
     for (const [fragment, expectedGeometryInterface] of expectations) {
-      const at = source.indexOf(fragment) + fragment.indexOf("@") + 2;
+      const at = source.indexOf(fragment) + fragment.indexOf("@") + 1;
       expect(queryAt(source, compiled, at)).toMatchObject({
         expectedGeometryInterface,
         role: "geometry",
@@ -132,7 +135,7 @@ describe("queryDslReferencePickTarget", () => {
       "instance X = M(broad: )"
     ].join("\n");
     const compiled = compileWithIds(source);
-    const noCommaPosition = source.lastIndexOf("broad: ") + "broad: ".length;
+    const noCommaPosition = source.lastIndexOf("broad:") + "broad:".length;
 
     expect(queryAt(source, compiled, noCommaPosition)).toMatchObject({
       expectedGeometryInterface: "path",
@@ -143,7 +146,7 @@ describe("queryDslReferencePickTarget", () => {
 
     const commaSource = source.replace("broad: )", "broad: ,)");
     const commaCompiled = compileWithIds(commaSource);
-    const commaPosition = commaSource.lastIndexOf("broad: ") + "broad: ".length;
+    const commaPosition = commaSource.lastIndexOf("broad:") + "broad:".length;
     expect(queryAt(commaSource, commaCompiled, commaPosition)).toMatchObject({
       expectedGeometryInterface: "path",
       role: "geometry",
@@ -166,7 +169,7 @@ describe("queryDslReferencePickTarget", () => {
       "broad: ",
       ")"
     ].join("\n");
-    const noCommaPosition = source.lastIndexOf("broad: ") + "broad: ".length;
+    const noCommaPosition = source.lastIndexOf("broad:") + "broad:".length;
     const compiled = compileWithIds(source);
 
     expect(queryAt(source, compiled, noCommaPosition)).toMatchObject({
@@ -178,7 +181,7 @@ describe("queryDslReferencePickTarget", () => {
 
     const commaSource = source.replace("instance X = M(\nbroad: ", "instance X = M(\nbroad: ,");
     const commaCompiled = compileWithIds(commaSource);
-    const commaPosition = commaSource.lastIndexOf("broad: ") + "broad: ".length;
+    const commaPosition = commaSource.lastIndexOf("broad:") + "broad:".length;
     expect(queryAt(commaSource, commaCompiled, commaPosition)).toMatchObject({
       expectedGeometryInterface: "path",
       role: "geometry",
@@ -215,7 +218,7 @@ describe("queryDslReferencePickTarget", () => {
     const compiled = compileWithIds(source);
 
     const distanceA = source.indexOf("@A", source.indexOf("distance("));
-    expect(queryAt(source, compiled, distanceA + 2)).toMatchObject({ expectedGeometryInterface: "point" });
+    expect(queryAt(source, compiled, distanceA + 1)).toMatchObject({ expectedGeometryInterface: "point" });
 
     const lineDistanceBase = source.indexOf("@Base", source.indexOf("lineDistance("));
     expect(queryAt(source, compiled, lineDistanceBase + 3)).toMatchObject({ expectedGeometryInterface: "line" });
@@ -238,7 +241,7 @@ describe("queryDslReferencePickTarget", () => {
       expectedGeometryInterface: "path",
       role: "numericPropertyBase",
       multiplicity: "single",
-      activationRange: { from: numberFrom, to: numberFrom + 2 },
+      activationRange: { from: source.indexOf("dx:") - 1, to: source.indexOf(", dy") },
       numericProperty: { kind: "propertySelectionRequired" }
     });
     expect(sliceRange(source, result)).toBe("20");
@@ -262,7 +265,7 @@ describe("queryDslReferencePickTarget", () => {
       multiplicity: "single"
     });
     expect(sliceRange(source, result)).toBe("@Base.length");
-    expect(result?.activationRange).toEqual({ from: baseFrom, to: baseFrom + "@Base.length".length });
+    expect(source.slice(result!.activationRange!.from, result!.activationRange!.to)).toBe(" dx: @Base.length");
     expect(result?.numericProperty).toEqual({ kind: "propertySelectionRequired" });
 
     for (const offset of [baseFrom + 2, baseFrom + "@Base".length, baseFrom + "@Base.".length + 2]) {
@@ -295,7 +298,9 @@ describe("queryDslReferencePickTarget", () => {
         numericProperty: { kind: "propertySelectionRequired" },
         range: { from, to: from + reference.length }
       });
-      expect(result?.activationRange).toEqual({ from, to: from + reference.length });
+      expect(source.slice(result!.activationRange!.from, result!.activationRange!.to)).toBe(
+        reference === "@Arc.radius" ? " dx: @Arc.radius" : reference === "@Arc.sweepAngleDeg" ? " dy: @Arc.sweepAngleDeg" : " dx: @Curve.intermediatePoints[1].x"
+      );
       if (reference === "@Arc.radius") {
         for (const offset of [from + 2, from + "@Arc".length, from + "@Arc.".length + 2]) {
           const equivalent = queryAt(source, compiled, offset);
@@ -329,7 +334,7 @@ describe("queryDslReferencePickTarget", () => {
       "point P = coordinate(x: 0, y: )"
     ].join("\n");
     const declarationCompiled = compileWithIds(declarationSource);
-    const declarationPosition = declarationSource.indexOf("const X: number = ") + "const X: number = ".length;
+    const declarationPosition = declarationSource.indexOf("const X: number =") + "const X: number =".length;
     const declaration = queryAt(declarationSource, declarationCompiled, declarationPosition);
     expect(declaration).toMatchObject({
       expectedGeometryInterface: "path",
@@ -344,6 +349,174 @@ describe("queryDslReferencePickTarget", () => {
       role: "numericPropertyBase",
       range: { from: coordinatePosition, to: coordinatePosition },
       numericProperty: { kind: "propertySelectionRequired" }
+    });
+  });
+
+  it("broadly activates a uniquely pickable parameter line while preserving its value range", () => {
+    const source = [
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "module M(anchor: point) {",
+      "}",
+      "instance X = M(",
+      "  anchor: @A,",
+      ")"
+    ].join("\n");
+    const compiled = compileWithIds(source);
+    const lineFrom = source.lastIndexOf("  anchor");
+    const lineTo = source.indexOf("\n", lineFrom);
+    const valueFrom = source.indexOf("@A", lineFrom);
+
+    for (const position of [lineFrom, lineFrom + 2, lineFrom + 7, valueFrom, lineTo]) {
+      const result = queryAt(source, compiled, position);
+      expect(result).toMatchObject({
+        expectedGeometryInterface: "point",
+        role: "geometry",
+        range: { from: valueFrom, to: valueFrom + 2 },
+        activationRange: { from: lineFrom, to: lineTo }
+      });
+    }
+  });
+
+  it("keeps broad activation stable for parameters on separate physical lines", () => {
+    const source = [
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "module M(anchor: point, distance: number) {",
+      "}",
+      "instance X = M(",
+      "  anchor: @A,",
+      "  distance: 20,",
+      ")"
+    ].join("\n");
+    const compiled = compileWithIds(source);
+    const cases = [
+      { line: "anchor", value: "@A", role: "geometry" },
+      { line: "distance", value: "20", role: "numericPropertyBase" }
+    ] as const;
+
+    for (const entry of cases) {
+      const lineFrom = source.lastIndexOf(`  ${entry.line}`);
+      const lineTo = source.indexOf("\n", lineFrom);
+      const valueFrom = source.indexOf(entry.value, lineFrom);
+      const positions = [lineFrom, source.indexOf(":", lineFrom), valueFrom, lineTo];
+      const targets = positions.map((position) => queryAt(source, compiled, position));
+      expect(targets.every((target) => target?.role === entry.role)).toBe(true);
+      for (const target of targets) {
+        expect(target?.range).toEqual({ from: valueFrom, to: valueFrom + entry.value.length });
+        expect(target?.activationRange).toEqual({ from: lineFrom, to: lineTo });
+      }
+      const exact = queryAt(source, compiled, valueFrom);
+      expect(exact?.activationRange).toEqual({ from: lineFrom, to: lineTo });
+    }
+
+    const emptySource = source.replace("distance: 20,", "distance: 10 +");
+    const emptyCompiled = compileWithIds(emptySource);
+    const emptyLineFrom = emptySource.lastIndexOf("  distance");
+    const emptyLineTo = emptySource.indexOf("\n", emptyLineFrom);
+    const plus = emptySource.indexOf("+", emptyLineFrom);
+    for (const position of [emptyLineFrom, emptySource.indexOf(":", emptyLineFrom), plus, emptyLineTo]) {
+      const target = queryAt(emptySource, emptyCompiled, position);
+      expect(target).toMatchObject({
+        role: "numericPropertyBase",
+        range: { from: plus + 1, to: plus + 1 },
+        activationRange: { from: emptyLineFrom, to: emptyLineTo }
+      });
+    }
+  });
+
+  it("disambiguates same-line parameters and exposes unclear boundaries", () => {
+    const source = [
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "point P = offset(from: @A, dx: 0, dy: 0)"
+    ].join("\n");
+    const compiled = compileWithIds(source);
+    const lineFrom = source.lastIndexOf("point P");
+    const fromLabel = source.indexOf("from", lineFrom);
+    const dxLabel = source.indexOf("dx", lineFrom);
+    const comma = source.indexOf(",", dxLabel);
+    const fromTarget = queryAt(source, compiled, fromLabel);
+    const dxTarget = queryAt(source, compiled, dxLabel);
+
+    expect(fromTarget?.range).toEqual({
+      from: source.indexOf("@A", lineFrom),
+      to: source.indexOf("@A", lineFrom) + 2
+    });
+    expect(source.slice(fromTarget!.activationRange!.from, fromTarget!.activationRange!.to)).toBe("from: @A");
+    expect(dxTarget?.range).toEqual({
+      from: source.indexOf("0", dxLabel),
+      to: source.indexOf("0", dxLabel) + 1
+    });
+    expect(source.slice(dxTarget!.activationRange!.from, dxTarget!.activationRange!.to)).toBe(" dx: 0");
+
+    const ambiguous = queryDslReferencePickTargetResolution({
+      source: { normalizedSource: source, sourceRevision: 17 },
+      position: lineFrom,
+      semantic: { sourceRevision: 17, compiled }
+    });
+    expect(ambiguous.kind).toBe("ambiguous");
+    if (ambiguous.kind === "ambiguous") expect(ambiguous.targets).toHaveLength(3);
+    expect(queryDslReferencePickTargetResolution({
+      source: { normalizedSource: source, sourceRevision: 17 },
+      position: comma,
+      semantic: { sourceRevision: 17, compiled }
+    }).kind).toBe("ambiguous");
+  });
+
+  it("broadly activates a typed empty number and inserts immediately after equals", () => {
+    const source = [
+      "nui 1",
+      "const v: number =   "
+    ].join("\n");
+    const compiled = compileWithIds(source);
+    const lineFrom = source.indexOf("const v");
+    const equalsAfter = source.indexOf("=", lineFrom) + 1;
+    const lineTo = source.length;
+
+    for (const position of [lineFrom, source.indexOf("number", lineFrom), equalsAfter, lineTo]) {
+      expect(queryAt(source, compiled, position)).toMatchObject({
+        role: "numericPropertyBase",
+        range: { from: equalsAfter, to: equalsAfter },
+        activationRange: { from: lineFrom, to: lineTo }
+      });
+    }
+  });
+
+  it("targets numeric operands individually, reports numeric ambiguity, and anchors empty insertion", () => {
+    const source = [
+      "nui 1",
+      "const sum: number = 10 + 5"
+    ].join("\n");
+    const compiled = compileWithIds(source);
+    const first = source.indexOf("10");
+    const second = source.indexOf("5", first);
+    const plus = source.indexOf("+");
+
+    expect(queryAt(source, compiled, first + 1)?.range).toEqual({ from: first, to: first + 2 });
+    expect(queryAt(source, compiled, second)?.range).toEqual({ from: second, to: second + 1 });
+    expect(queryDslReferencePickTargetResolution({
+      source: { normalizedSource: source, sourceRevision: 17 },
+      position: source.indexOf("const sum"),
+      semantic: { sourceRevision: 17, compiled }
+    }).kind).toBe("ambiguous");
+    expect(queryDslReferencePickTargetResolution({
+      source: { normalizedSource: source, sourceRevision: 17 },
+      position: plus,
+      semantic: { sourceRevision: 17, compiled }
+    }).kind).toBe("ambiguous");
+
+    const incomplete = [
+      "nui 1",
+      "const sum: number = 10 +"
+    ].join("\n");
+    const incompleteCompiled = compileWithIds(incomplete);
+    const insertion = incomplete.indexOf("+") + 1;
+    const result = queryAt(incomplete, incompleteCompiled, incomplete.indexOf("const sum"));
+    expect(result).toMatchObject({
+      range: { from: insertion, to: insertion },
+      activationRange: { from: incomplete.indexOf("const sum"), to: incomplete.length }
     });
   });
 

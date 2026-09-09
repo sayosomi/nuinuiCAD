@@ -91,7 +91,7 @@ describe("SAY-99 counted-run Reference Pick fixture", () => {
     const semantic = currentCompiledSemanticSnapshotFor(languageSession, sourceSnapshot);
     expect(semantic).toBeDefined();
     const offsetPointLine = source.indexOf("point OffsetPoint");
-    const offset = atEndOf("@A", offsetPointLine);
+    const offset = source.indexOf("@A", offsetPointLine) + 1;
 
     expect(queryDslReferencePickTarget({
       source: sourceSnapshot,
@@ -102,8 +102,8 @@ describe("SAY-99 counted-run Reference Pick fixture", () => {
       role: "geometry",
       multiplicity: "single",
       range: {
-        from: offset - "@A".length,
-        to: offset
+        from: offset - 1,
+        to: offset + 1
       }
     });
   });
