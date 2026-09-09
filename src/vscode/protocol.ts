@@ -29,7 +29,6 @@ import type {
   VscodeReferencePickToExtensionMessage
 } from "./referencePickProtocol";
 import type { VscodeRuntimeDiagnosticsToExtensionMessage } from "./runtimeDiagnosticsProtocol";
-import type { VscodeCanvasCreationCommandId } from "./vscodeCanvasCreationCommands";
 import type {
   VscodeInlineModuleCanvasTargetsPublication,
   VscodeInlineModuleSelectionResult,
@@ -114,7 +113,6 @@ export type {
   VscodeMultiDocumentSourceLocation,
   VscodeMultiDocumentSourceSnapshot
 } from "./multiDocumentGraphTransport";
-export type { VscodeCanvasCreationCommandId } from "./vscodeCanvasCreationCommands";
 export type {
   VscodeInlineModuleCanvasTargetProof,
   VscodeInlineModuleCanvasTargetsPublication,
@@ -284,11 +282,6 @@ export type VscodeToExtensionMessage =
       splices?: readonly LineSplice[];
       operationId?: number;
       coordinatePointConversionRequestId?: number;
-      sourceCreation?: {
-        requestId: number;
-        insertedElementId?: string;
-        nextSourcePosition?: { line: number; character: number };
-      };
     }
   | {
       type: "coordinatePointConversionResult";
@@ -400,13 +393,6 @@ export type ExtensionToVscodeMessage =
       type: "canvasCommand";
       commandId: VscodeCanvasCommandId;
     } & Partial<VscodeBakeSettings>
-  | {
-      type: "canvasCreationCommand";
-      commandId: VscodeCanvasCreationCommandId;
-      requestId: number;
-      documentVersion: number;
-      sourcePosition: { line: number; character: number };
-    }
   | {
       type: "bakeSourceRequest";
       requestId: number;

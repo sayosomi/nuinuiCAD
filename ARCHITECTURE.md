@@ -953,6 +953,11 @@ Primary:
 - `vscode-extension/src/coordinatePointConversionPresentation.ts`
 - `vscode-extension/src/referencePickSourceBridge.ts`
 - `vscode-extension/src/sourceValueStepCommandFeature.ts`
+- `vscode-extension/src/sourceCreationCommandFeature.ts`
+- `vscode-extension/src/sourceCreationFlow.ts`
+- `vscode-extension/src/creationCommandQuickPick.ts`
+- `vscode-extension/src/sourceCreationSnippetAdapter.ts`
+- `src/vscode/vscodeCanvasCreationCommands.ts`
 - `src/geometry/geometryHoverPresentation.ts`
 - `src/node/rustEvaluationProcess.ts`
 - `src/vscode/VSCodeApp.tsx`
@@ -1069,6 +1074,16 @@ routes Canvas pointer/keyboard interaction into the shared session; it no longer
 owns a caller-specific outer status shell. Source changes, document close, stale
 proof/version, panel disposal, stale responses, or invalidated targets cancel or
 fail closed without source mutation.
+
+`nuinuiCAD: Create Geometry…` is a native Source/Extension Host command. Its
+composition-root registration resolves the active file-backed `.nui` Source
+editor once, captures its current caret, and runs the existing native type/form
+Quick Picks, host-neutral template plan materialization, and native
+`TextEditor.insertSnippet` adapter. Creation Assist ends immediately after the
+snippet insertion; Canvas does not own generic Create Geometry or a Creation
+Assist Bottom Dock. Canvas Free Point at Pointer remains a separate
+command-owned Source-position flow, and shared Pick Mode remains a distinct
+Canvas interaction owner.
 
 The Preview route uses `modulePreviewProtocol.ts`,
 `useVSCodeModulePreviewReferencePickSession.ts`, and

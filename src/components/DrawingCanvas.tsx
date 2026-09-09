@@ -167,7 +167,7 @@ const deferPointerGestureCleanup = (callback: () => void): void => {
 const canvasPointerBoundaryFallbackShouldRun = (event: PointerEvent): boolean => {
   const target = event.target;
   return !(target instanceof Element && target.closest(
-    ".command-ribbon, .vscode-creation-assist-dock, [data-reference-pick-ui='true'], " +
+    ".command-ribbon, [data-reference-pick-ui='true'], " +
     ".numeric-reference-candidate-menu, .measurement-candidate-menu, .line-pick-candidate-menu, " +
     ".canvas-overlap-candidate-menu"
   ));
