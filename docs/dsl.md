@@ -57,6 +57,12 @@ Pure `intersection(line1: ..., line2: ..., index: ..., extensions: ...)` also
 produces an identity-free `point` from line-like geometry. `index` defaults to
 `0` and `extensions` to `false`; parallel, unavailable, same-source, and
 out-of-range cases fail through the occurrence-owned geometry-value channel.
+Pure `tangentOffset(line: ..., base: ..., angle: ..., curveSide: ..., distance: ...)`
+also produces an identity-free `point`. Angle mode accepts line-like geometry
+and defaults `angle` to `0` when both modes are omitted; `curveSide` accepts
+`convex` or `concave` only for computed cubic Bezier geometry, including pure
+Bezier values, and requires a nonnegative distance and an on-curve base point.
+Failures are occurrence-owned and do not create a drawable identity.
 `polyline(...)` also produces an identity-free `polyline` path value using the
 drawable constructor's ordered `points` and optional `closed` arguments; open
 values require at least two points and closed values at least three. Pure

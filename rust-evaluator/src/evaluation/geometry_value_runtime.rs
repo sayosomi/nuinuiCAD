@@ -11,6 +11,7 @@ use super::geometry_value_kernels::{
 };
 use super::line_intersections::find_line_intersections;
 use super::line_path::{geometry_length, point_at_distance_from_endpoint};
+use super::line_tangent_offset_point_evaluator::tangent_offset_point_geometry_kernel;
 use super::offset_paths::{build_offset_line_geometry, is_line_like_geometry};
 use super::point_anchor::point_from_geometry;
 use super::scalar_expression_runtime::evaluate_document_typed_expression;
@@ -90,6 +91,13 @@ pub(crate) enum GeometryValueConstruction {
         line2: super::scalars::ScalarExpressionResolvedGeometryTarget,
         index: Box<TypedScalarExpression>,
         extensions: Box<TypedScalarExpression>,
+    },
+    TangentOffset {
+        line: super::scalars::ScalarExpressionResolvedGeometryTarget,
+        base: Box<GeometryValuePoint>,
+        angle_deg: Option<Box<TypedScalarExpression>>,
+        curve_side: Option<Box<TypedScalarExpression>>,
+        distance: Box<TypedScalarExpression>,
     },
     BezierExtremePoint {
         source: super::scalars::ScalarExpressionResolvedGeometryTarget,
@@ -269,6 +277,22 @@ fn decode_typed_field(
             .ok_or_else(|| format!("{context} is missing {name}"))?,
     )
     .map_err(|error| format!("{error:?}"))
+}
+
+fn decode_optional_typed_field(
+    object: &serde_json::Map<String, Value>,
+    name: &str,
+    _context: &str,
+) -> Result<Option<TypedScalarExpression>, String> {
+    let Some(value) = object.get(name) else {
+        return Ok(None);
+    };
+    if value.is_null() {
+        return Ok(None);
+    }
+    validate_typed_expression_payload(value)
+        .map(Some)
+        .map_err(|error| format!("{error:?}"))
 }
 
 fn decode_placement(
@@ -463,6 +487,48 @@ fn decode_entry(value: &Value) -> Result<GeometryValueProgramEntry, String> {
                     "geometry value intersection",
                 )?),
             },
+            "tangentOffset" => {
+                let line_object = object(
+                    construction_object
+                        .get("line")
+                        .ok_or_else(|| "geometry value tangentOffset is missing line".to_owned())?,
+                    "geometry value tangentOffset line",
+                )?;
+                if string_field(line_object, "kind", "geometry value tangentOffset line")?
+                    != "target"
+                {
+                    return Err("geometry value tangentOffset line must be a target".to_owned());
+                }
+                GeometryValueConstruction::TangentOffset {
+                    line: super::scalars::decode_geometry_target_payload(
+                        line_object.get("target").ok_or_else(|| {
+                            "geometry value tangentOffset line is missing target".to_owned()
+                        })?,
+                    )
+                    .map_err(|error| format!("{error:?}"))?
+                    .ok_or_else(|| "geometry value tangentOffset line cannot be null".to_owned())?,
+                    base: Box::new(decode_point(construction_object.get("base").ok_or_else(
+                        || "geometry value tangentOffset is missing base".to_owned(),
+                    )?)?),
+                    angle_deg: decode_optional_typed_field(
+                        construction_object,
+                        "angleDeg",
+                        "geometry value tangentOffset",
+                    )?
+                    .map(Box::new),
+                    curve_side: decode_optional_typed_field(
+                        construction_object,
+                        "curveSide",
+                        "geometry value tangentOffset",
+                    )?
+                    .map(Box::new),
+                    distance: Box::new(decode_typed_field(
+                        construction_object,
+                        "distance",
+                        "geometry value tangentOffset",
+                    )?),
+                }
+            }
             "bezierExtremePoint" => {
                 let source_object = object(
                     construction_object.get("source").ok_or_else(|| {
@@ -837,6 +903,21 @@ fn choice_expression(
             r#type: ScalarType::Choice { .. },
             value: ScalarValue::Choice { value, .. },
         } if value == "counterclockwise" || value == "clockwise" => Some(value),
+        _ => None,
+    }
+}
+
+fn curve_side_expression(
+    expression: &TypedScalarExpression,
+    resolver: &dyn ScalarDocumentBindingResolver,
+    state: &EvaluationState,
+    source_order: f64,
+) -> Option<String> {
+    match evaluate_document_typed_expression(expression, resolver, state, Some(source_order)) {
+        ScalarEvaluation::Ok {
+            r#type: ScalarType::Choice { .. },
+            value: ScalarValue::Choice { value, .. },
+        } if value == "convex" || value == "concave" => Some(value),
         _ => None,
     }
 }
@@ -1360,6 +1441,111 @@ pub(crate) fn evaluate_geometry_value_entry(
                 return;
             };
             Some(json!({ "kind": "point", "x": intersection.x, "y": intersection.y }))
+        }
+        GeometryValueConstruction::TangentOffset {
+            line,
+            base,
+            angle_deg,
+            curve_side,
+            distance,
+        } => {
+            if entry.declared_interface_type != "point" {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "Geometry value construction is incompatible with its declared interface type.",
+                );
+                return;
+            }
+            let Some(geometry) = target_geometry(line, state) else {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "tangentOffset geometry value inputs are unavailable or invalid.",
+                );
+                return;
+            };
+            if !is_line_like_geometry(Some(geometry)) {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "tangentOffset geometry value inputs are unavailable or invalid.",
+                );
+                return;
+            }
+            let Some(base) = evaluate_point(base, resolver, state, source_order) else {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "tangentOffset geometry value inputs are unavailable or invalid.",
+                );
+                return;
+            };
+            let Some(distance) = number_expression(distance, resolver, state, source_order) else {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "tangentOffset geometry value inputs are unavailable or invalid.",
+                );
+                return;
+            };
+            let curve_side = if let Some(expression) = curve_side {
+                let Some(curve_side) =
+                    curve_side_expression(expression, resolver, state, source_order)
+                else {
+                    append_geometry_value_error(
+                        state,
+                        entry,
+                        "tangentOffset geometry value curveSide must be convex or concave.",
+                    );
+                    return;
+                };
+                Some(curve_side)
+            } else {
+                None
+            };
+            let angle_deg = if curve_side.is_none() {
+                match angle_deg {
+                    Some(expression) => {
+                        let Some(angle_deg) =
+                            number_expression(expression, resolver, state, source_order)
+                        else {
+                            append_geometry_value_error(
+                                state,
+                                entry,
+                                "tangentOffset geometry value angle must be a finite number.",
+                            );
+                            return;
+                        };
+                        Some(angle_deg)
+                    }
+                    None => Some(0.0),
+                }
+            } else {
+                None
+            };
+            let result = tangent_offset_point_geometry_kernel(
+                geometry,
+                Point {
+                    x: base.0,
+                    y: base.1,
+                },
+                curve_side.as_deref(),
+                angle_deg,
+                distance,
+            );
+            let point = match result {
+                Ok(point) => point,
+                Err(error) => {
+                    append_geometry_value_error(
+                        state,
+                        entry,
+                        &format!("tangentOffset geometry value {error}"),
+                    );
+                    return;
+                }
+            };
+            Some(json!({ "kind": "point", "x": point.x, "y": point.y }))
         }
         GeometryValueConstruction::BezierExtremePoint {
             source,

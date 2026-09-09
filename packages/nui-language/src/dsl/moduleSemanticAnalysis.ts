@@ -2173,6 +2173,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     const sourceArgument = argument("source");
     const line1Argument = argument("line1");
     const line2Argument = argument("line2");
+    const lineArgument = argument("line");
+    const baseArgument = argument("base");
     const distanceArgument = argument("distance");
     const ratioArgument = argument("ratio");
     const sourcesArgument = argument("sources");
@@ -2184,6 +2186,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     const startArgument = argument("start");
     const endArgument = argument("end");
     const angleArgument = argument("angle");
+    const curveSideArgument = argument("curveSide");
     const lengthArgument = argument("length");
     const startAngleArgument = argument("startAngle");
     const startLengthArgument = argument("startLength");
@@ -2531,6 +2534,64 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         line2: line(line2Argument),
         index: scalar(argument("index"), { kind: "number" }, "0"),
         extensions: scalar(argument("extensions"), { kind: "boolean" }, "false")
+      };
+    }
+    if (invocation.construction === "tangentOffset" && invocation.pureValueInterface === "point") {
+      if (expectedInterfaceType !== "point") {
+        addLocal(statementIndex, issue("module-geometry-type-mismatch", constructionSpan, "tangentOffset construction は point value にのみ代入できます。", {
+          presentation: { key: "diagnostic.module-geometry-type-mismatch", parameters: { target: "tangentOffset" } }
+        }));
+      }
+      const line = lineArgument
+        ? resolveGeometry(
+            statementIndex,
+            ownerIndex,
+            source.slice(lineArgument.valueSpan.start, lineArgument.valueSpan.end),
+            lineArgument.valueSpan,
+            "line",
+            {
+              expectedInterfaceType: "path",
+              allowCoordinate: false,
+              role: "lineReference",
+              scalarResolver: options.scalarResolver,
+              bareScalarResolver: options.bareScalarResolver,
+              geometryPropertyResolver: options.geometryPropertyResolver,
+              presenceFacts: options.presenceFacts
+            }
+          )
+        : geometryReference("", constructionSpan, "line", null, "invalid", null, "lineReference");
+      const base = baseArgument
+        ? resolveGeometry(
+            statementIndex,
+            ownerIndex,
+            source.slice(baseArgument.valueSpan.start, baseArgument.valueSpan.end),
+            baseArgument.valueSpan,
+            "point",
+            {
+              expectedInterfaceType: "point",
+              allowCoordinate: true,
+              role: "pointReference",
+              scalarResolver: options.scalarResolver,
+              bareScalarResolver: options.bareScalarResolver,
+              geometryPropertyResolver: options.geometryPropertyResolver,
+              presenceFacts: options.presenceFacts
+            }
+          )
+        : geometryReference("", constructionSpan, "point", null, "invalid", null, "pointReference");
+      const curveSideType = scalarTypeForParameterDefinition(
+        getParameterDefinitions({ type: "lineTangentOffsetPoint" } as never).find((definition) => definition.key === "curveSide")
+      );
+      const curveSide = curveSideArgument && curveSideType
+        ? scalar(curveSideArgument, curveSideType, "convex")
+        : null;
+      return {
+        kind: "tangentOffset",
+        span: { start: constructionSpan.start, end: initializerSpan.end },
+        line,
+        base,
+        angle: curveSide ? null : scalar(angleArgument, { kind: "number" }, "0"),
+        curveSide,
+        distance: scalar(distanceArgument, { kind: "number" }, "0")
       };
     }
     if (invocation.construction === "bezierExtremePoint" && invocation.pureValueInterface === "point") {
@@ -3586,6 +3647,11 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     } else if (construction?.kind === "onLine") {
       rootGeometryReferencesByStatementId.set(statementId, [
         { parameterKey: "from", span: construction.from.span, reference: construction.from }
+      ]);
+    } else if (construction?.kind === "tangentOffset") {
+      rootGeometryReferencesByStatementId.set(statementId, [
+        { parameterKey: "line", span: construction.line.span, reference: construction.line },
+        { parameterKey: "base", span: construction.base.span, reference: construction.base }
       ]);
     } else if (construction?.kind === "bezierExtremePoint") {
       rootGeometryReferencesByStatementId.set(statementId, [

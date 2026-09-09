@@ -13,14 +13,134 @@ import {
   cubicPointAt,
   dot,
   EPSILON,
+  projectPointOntoCurve,
   selectBestBezierFeatureCandidate,
   solveRealQuadratic,
+  signedCurvatureAt,
   type BezierLikeSegment
 } from "./bezierMath";
 import { CIRCLE_EPSILON, degreesToRadians, directedSweepDegrees } from "./evaluateGeometryPrimitives";
+import { tangentAtPointOnLineLikeGeometry, type LineLikeGeometryInput } from "./linePaths";
 import { arcTangentAngles, lineTangentAngles } from "./lineMeasurements";
 
 export type StructuralPoint = { x: number; y: number };
+
+type CurveSide = "convex" | "concave";
+type CurveSideFrame = {
+  tangent: StructuralPoint;
+  normal: StructuralPoint;
+};
+
+const curveSideFrameAt = (
+  segment: BezierLikeSegment,
+  t: number,
+  curveSide: CurveSide
+): CurveSideFrame | null => {
+  const first = cubicDerivativeAt(segment, t);
+  const speed = Math.hypot(first.x, first.y);
+  if (speed <= EPSILON) return null;
+
+  const curvature = signedCurvatureAt(segment, t);
+  if (!Number.isFinite(curvature) || Math.abs(curvature) <= EPSILON) return null;
+
+  const tangent = { x: first.x / speed, y: first.y / speed };
+  const leftNormal = { x: -tangent.y, y: tangent.x };
+  const concaveSign = curvature > 0 ? 1 : -1;
+  const concaveNormal = {
+    x: concaveSign * leftNormal.x,
+    y: concaveSign * leftNormal.y
+  };
+  return {
+    tangent,
+    normal: curveSide === "concave"
+      ? concaveNormal
+      : { x: -concaveNormal.x, y: -concaveNormal.y }
+  };
+};
+
+export const curveSidePointGeometryKernel = (
+  curve: { segments: BezierLikeSegment[] },
+  basePoint: StructuralPoint,
+  curveSide: unknown,
+  distance: number
+): { point: StructuralPoint } | { error: string } => {
+  if (curveSide !== "convex" && curveSide !== "concave") {
+    return { error: "curveSide は convex または concave で指定してください。" };
+  }
+
+  const projection = projectPointOntoCurve(curve.segments, basePoint);
+  if (!projection || projection.distance > 0.001) {
+    return { error: "curveSide の基準点は基準ベジェ曲線上にありません。基準曲線上の点を指定してください。" };
+  }
+
+  const samples = [{ segmentIndex: projection.segmentIndex, localT: projection.localT }];
+  if (projection.localT <= EPSILON && projection.segmentIndex > 0) {
+    samples.unshift({ segmentIndex: projection.segmentIndex - 1, localT: 1 });
+  } else if (projection.localT >= 1 - EPSILON && projection.segmentIndex + 1 < curve.segments.length) {
+    samples.push({ segmentIndex: projection.segmentIndex + 1, localT: 0 });
+  }
+
+  const frames = samples.map(({ segmentIndex, localT }) =>
+    curveSideFrameAt(curve.segments[segmentIndex]!, localT, curveSide)
+  );
+  if (frames.some((frame) => frame === null)) {
+    return { error: "curveSide を決定する接線または曲率が不定義です。" };
+  }
+
+  const [first, second] = frames as [CurveSideFrame, ...CurveSideFrame[]];
+  if (second) {
+    const tangentMismatch = Math.hypot(first.tangent.x - second.tangent.x, first.tangent.y - second.tangent.y);
+    const normalMismatch = Math.hypot(first.normal.x - second.normal.x, first.normal.y - second.normal.y);
+    if (tangentMismatch > EPSILON || normalMismatch > EPSILON) {
+      return { error: "curveSide の基準点がベジェ曲線の曖昧な内部 join にあります。corner または不一致の曲率側は指定できません。" };
+    }
+  }
+
+  return {
+    point: {
+      x: basePoint.x + first.normal.x * distance,
+      y: basePoint.y + first.normal.y * distance
+    }
+  };
+};
+
+export const tangentOffsetPointFromTangentGeometryKernel = (
+  basePoint: StructuralPoint,
+  tangentAngleDeg: number,
+  requestedAngleDeg: number,
+  distance: number
+): StructuralPoint => {
+  const angleRad = degreesToRadians(tangentAngleDeg + requestedAngleDeg);
+  return {
+    x: basePoint.x + Math.cos(angleRad) * distance,
+    y: basePoint.y + Math.sin(angleRad) * distance
+  };
+};
+
+export const tangentOffsetPointGeometryKernel = (
+  line: LineLikeGeometryInput,
+  basePoint: StructuralPoint,
+  mode: { kind: "angle"; angleDeg: number } | { kind: "curveSide"; curveSide: unknown },
+  distance: number
+): { point: StructuralPoint } | { error: string } => {
+  if (mode.kind === "curveSide") {
+    if (line.kind !== "bezierCurve") {
+      return { error: "curveSide はベジェ曲線の計算結果にのみ指定できます。" };
+    }
+    if (distance < 0) {
+      return { error: "curveSide の距離は0以上で指定してください。" };
+    }
+    return curveSidePointGeometryKernel(line, basePoint, mode.curveSide, distance);
+  }
+
+  const tangent = tangentAtPointOnLineLikeGeometry(line, basePoint);
+  if (!tangent) {
+    return { error: "基準点は基準線上にありません。基準線上の点を指定してください。" };
+  }
+  return {
+    point: tangentOffsetPointFromTangentGeometryKernel(basePoint, tangent.angleDeg, mode.angleDeg, distance)
+  };
+};
 
 /** Identity-free structural form of the drawable Bezier extreme-point calculation. */
 export const bezierExtremePointGeometryKernel = (

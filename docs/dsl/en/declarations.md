@@ -12,6 +12,7 @@ Typed scalar declarations use an explicit type annotation and initializer:
   `between(start: ..., end: ..., distance: ...)` or `between(start: ..., end: ..., ratio: ...)` for `point`,
   `onLine(from: ..., distance: ...)` or `onLine(from: ..., ratio: ...)` for `point`,
   `intersection(line1: ..., line2: ..., index: ..., extensions: ...)` for `point`,
+  `tangentOffset(line: ..., base: ..., angle: ..., curveSide: ..., distance: ...)` for `point`,
   `segment(start: ..., end: ...)` for `line` or `path`, `polar(start: ...,
   angle: ..., length: ...)` for `line` or `path`, and direct
   `arc(center: ..., radius: ..., start: ..., end: ..., direction: ...)` for
@@ -22,6 +23,10 @@ Typed scalar declarations use an explicit type annotation and initializer:
   uses normalized degree semantics, and coincident bulge endpoints fail through
   the occurrence-owned geometry-value diagnostic channel. `direction` defaults
   to `counterclockwise` only for direct `arc`.
+  `tangentOffset` angle mode uses a line-like source and defaults `angle` to
+  `0` when both modes are omitted. Its `curveSide` mode accepts `convex` or
+  `concave` only for computed cubic Bezier geometry and requires an on-curve
+  base point and nonnegative distance; failures remain occurrence-owned.
 - `let name: type = expression` creates a mutable scalar binding.
 - `set name = expression` creates a new source-order version of an existing
   `let` binding.

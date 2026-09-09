@@ -441,6 +441,15 @@ export type ModuleGeometryConstructionSemantic =
       extensions: ModuleScalarExpressionSemantic | null;
     }
   | {
+      kind: "tangentOffset";
+      span: DslSpan;
+      line: ModuleGeometryReferenceSemantic;
+      base: ModuleGeometryReferenceSemantic;
+      angle: ModuleScalarExpressionSemantic | null;
+      curveSide: ModuleScalarExpressionSemantic | null;
+      distance: ModuleScalarExpressionSemantic | null;
+    }
+  | {
       kind: "bezierExtremePoint";
       span: DslSpan;
       source: ModuleGeometryReferenceSemantic;
