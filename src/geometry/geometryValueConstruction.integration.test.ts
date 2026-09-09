@@ -1000,6 +1000,79 @@ describe("pure geometry construction runtime", () => {
     });
   });
 
+  it("selects deterministic nonzero pure intersection indexes and feeds the selected points to a consumer", () => {
+    const { compiled, result } = evaluate([
+      "nui 1",
+      "line Horizontal = segment(start: (-20, 0), end: (20, 0))",
+      "const Circle: path = arc(center: (0, 0), radius: 10, start: 0, end: 360, direction: counterclockwise)",
+      "const First: point = intersection(line1: @Horizontal, line2: @Circle, index: 0, extensions: false)",
+      "const Second: point = intersection(line1: @Horizontal, line2: @Circle, index: 1, extensions: false)",
+      "line Use = segment(start: @First, end: @Second)"
+    ].join("\n"));
+
+    expect(compiled.diagnostics).toEqual([]);
+    expect(result.errors).toEqual([]);
+    expect(result.geometryValueErrors).toEqual([]);
+    const valueFor = (sourceStatementId: string) => [...result.computedGeometryValues!.values()]
+      .find((entry) => entry.occurrence.sourceStatementId === sourceStatementId)?.value;
+    expect(valueFor("geometry-value-runtime:3")).toEqual({ kind: "point", x: -10, y: 0 });
+    expect(valueFor("geometry-value-runtime:4")).toEqual({ kind: "point", x: 10, y: 0 });
+    expect(result.computedGeometry.get("geometry-value-runtime:5")).toMatchObject({
+      kind: "line",
+      start: { x: -10, y: 0 },
+      end: { x: 10, y: 0 },
+      length: 20
+    });
+    expect([...result.computedGeometryValues!.values()].every(({ value }) => !("elementId" in value) && !("name" in value))).toBe(true);
+  });
+
+  it("rejects distinct source-level aliases that resolve to the same intersection source", () => {
+    const { compiled, result } = evaluate([
+      "nui 1",
+      "line Source = segment(start: (0, 0), end: (100, 0))",
+      "const First: path = @Source",
+      "const Second: line = @Source",
+      "const Same: point = intersection(line1: @First, line2: @Second)"
+    ].join("\n"));
+
+    expect(compiled.diagnostics).toEqual([]);
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometryValues).toEqual(new Map());
+    expect(result.geometryValueErrors).toEqual([{
+      occurrence: { sourceStatementId: "geometry-value-runtime:4", instancePath: [] },
+      message: "intersection geometry value cannot intersect the same source geometry twice."
+    }]);
+    expect(result.geometryValueErrors?.every((error) => !("elementId" in error))).toBe(true);
+  });
+
+  it("reports an intersection with an unavailable invalid path through occurrence-owned geometryValueErrors", () => {
+    const { compiled, result } = evaluate([
+      "nui 1",
+      "line Vertical = segment(start: (5, -10), end: (5, 10))",
+      "const Invalid: path = polyline(points: [(0, 0), (10 / 0, 0)], closed: false)",
+      "const Failed: point = intersection(line1: @Invalid, line2: @Vertical)"
+    ].join("\n"));
+
+    const invalid = compiled.geometryValueProgram?.find((entry) => entry.sourceStatementId === "geometry-value-runtime:2");
+    const failed = compiled.geometryValueProgram?.find((entry) => entry.sourceStatementId === "geometry-value-runtime:3");
+    expect(invalid).toBeDefined();
+    expect(failed).toBeDefined();
+    expect(result.computedGeometryValues).toEqual(new Map());
+    expect(result.geometryValueErrors).toEqual([
+      {
+        occurrence: invalid!.occurrence,
+        message: "Polyline geometry value construction inputs are unavailable or invalid."
+      },
+      {
+        occurrence: failed!.occurrence,
+        message: "intersection geometry value inputs are unavailable or invalid."
+      }
+    ]);
+    expect(result.errors).toEqual([]);
+    expect(compiled.document?.elements.map((element) => element.name)).toEqual(["Vertical"]);
+    expect(result.geometryValueErrors?.every((error) => !("elementId" in error))).toBe(true);
+  });
+
   it("reports pure intersection source, index, and cardinality failures by occurrence", () => {
     const { compiled, result } = evaluate([
       "nui 1",
