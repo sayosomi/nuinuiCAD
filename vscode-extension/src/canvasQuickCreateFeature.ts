@@ -1,19 +1,12 @@
 import * as vscode from "vscode";
 import {
-  filterVscodeCanvasCreationCommands,
   normalizeVscodeCanvasQuickCreateCommands,
   VSCODE_CANVAS_QUICK_CREATE_SETTING,
   VSCODE_CANVAS_QUICK_CREATE_SLOT_COUNT,
   vscodeCanvasCreationCommands,
-  isVscodeCanvasCreationCommandId,
-  type VscodeCanvasCreationCommand,
   type VscodeCanvasCreationCommandId
 } from "../../src/vscode/vscodeCanvasCreationCommands";
-import {
-  canvasQuickCreateDescriptionFor,
-  canvasQuickCreateTranslatorFor
-} from "./canvasQuickCreateLocalization";
-import { nativeCreateQuickPick } from "./nativeQuickInput";
+import { pickVscodeCreationCommand } from "./creationCommandQuickPick";
 
 export const VSCODE_CANVAS_CREATE_GEOMETRY_COMMAND_ID = "nuinuiCAD.createGeometry";
 export const VSCODE_CANVAS_CONFIGURE_QUICK_CREATE_COMMAND_ID = "nuinuiCAD.configureQuickCreate";
@@ -34,21 +27,6 @@ export type VscodeCanvasCreationEndpoint = {
   isCurrent: () => boolean;
   postCreationCommand: (commandId: VscodeCanvasCreationCommandId) => void;
 };
-
-type QuickPickCreationItem = vscode.QuickPickItem & {
-  commandId: VscodeCanvasCreationCommandId;
-};
-
-const quickPickItemsFor = (
-  entries: readonly VscodeCanvasCreationCommand[],
-  displayLanguage: string,
-  alwaysShow = false
-): QuickPickCreationItem[] => entries.map((entry) => ({
-  label: entry.quickPickLabel,
-  description: canvasQuickCreateDescriptionFor(entry.commandId, displayLanguage),
-  commandId: entry.commandId,
-  alwaysShow
-}));
 
 export const registerVscodeCanvasQuickCreateFeature = ({
   activeCanvasEndpoint,
@@ -92,44 +70,6 @@ export const registerVscodeCanvasQuickCreateFeature = ({
       .then(() => undefined);
   };
 
-  const pickCreationCommand = (): Promise<QuickPickCreationItem | undefined> => {
-    const displayLanguage = displayLanguageFor();
-    const picker = nativeCreateQuickPick<QuickPickCreationItem>();
-    let settled = false;
-    let resolvePick: (selection: QuickPickCreationItem | undefined) => void = () => undefined;
-    let finish: (selection: QuickPickCreationItem | undefined) => void = () => undefined;
-    const close = (): void => finish(undefined);
-    activePickerClosers.add(close);
-
-    const result = new Promise<QuickPickCreationItem | undefined>((resolve) => {
-      resolvePick = resolve;
-    });
-    const listeners: vscode.Disposable[] = [];
-    finish = (selection): void => {
-      if (settled) return;
-      settled = true;
-      activePickerClosers.delete(close);
-      for (const listener of listeners) listener.dispose();
-      picker.dispose();
-      resolvePick(selection);
-    };
-
-    picker.placeholder = canvasQuickCreateTranslatorFor(displayLanguage)("canvasQuickCreate.placeholder.createGeometry");
-    picker.matchOnDescription = false;
-    picker.items = quickPickItemsFor(filterVscodeCanvasCreationCommands(""), displayLanguage, true);
-    listeners.push(picker.onDidChangeValue((value) => {
-      picker.items = quickPickItemsFor(filterVscodeCanvasCreationCommands(value), displayLanguage, true);
-    }));
-    listeners.push(picker.onDidAccept(() => finish(picker.selectedItems[0])));
-    listeners.push(picker.onDidHide(() => finish(undefined)));
-    try {
-      picker.show();
-    } catch {
-      finish(undefined);
-    }
-    return result;
-  };
-
   const configureQuickCreate = (): void => {
     void vscode.commands.executeCommand(
       "workbench.action.openSettings",
@@ -141,8 +81,14 @@ export const registerVscodeCanvasQuickCreateFeature = ({
     const captured = activeCanvasEndpoint();
     if (!captured || !captured.isCurrent()) return;
 
-    const selected = await pickCreationCommand();
-    if (!selected || !isVscodeCanvasCreationCommandId(selected.commandId)) return;
+    const selected = await pickVscodeCreationCommand({
+      displayLanguage: displayLanguageFor(),
+      registerCloser: (close) => {
+        activePickerClosers.add(close);
+        return { dispose: () => activePickerClosers.delete(close) };
+      }
+    });
+    if (!selected) return;
 
     const current = activeCanvasEndpoint();
     if (
@@ -151,7 +97,7 @@ export const registerVscodeCanvasQuickCreateFeature = ({
       !captured.isCurrent() ||
       !current.isCurrent()
     ) return;
-    current.postCreationCommand(selected.commandId);
+    current.postCreationCommand(selected);
   };
 
   const commandDisposables = [
