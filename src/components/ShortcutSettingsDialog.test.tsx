@@ -100,6 +100,12 @@ describe("ShortcutSettingsDialog", () => {
     expect(screen.getByLabelText("検索中のショートカットキー")).toHaveTextContent("Mod+z");
   });
 
+  it("labels Pick shortcut scopes as Pick Mode", async () => {
+    await renderDialog();
+
+    expect(screen.getByText("Pick Mode / selectPreviousPickCandidate")).toBeInTheDocument();
+  });
+
   it("filters commands by shortcuts added in the current draft", async () => {
     await renderDialog();
 

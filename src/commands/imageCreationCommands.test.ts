@@ -87,7 +87,6 @@ const resetStore = () => {
     showCanvasPointNames: true,
     showCanvasGeometryNames: false,
     showCanvasPoints: true,
-    showElementListColorAccents: false,
     showShortcutHelp: false,
     showShortcutSettings: false,
     pendingImageImport: null,

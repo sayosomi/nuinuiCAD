@@ -8,7 +8,7 @@ type ShortcutHelpOverlayProps = {
 };
 
 const modeLabel = ({ isPickMode = false }: ShortcutHelpOverlayProps) => {
-  if (isPickMode) return "構成リスト選択";
+  if (isPickMode) return "Pick Mode";
   return "通常";
 };
 

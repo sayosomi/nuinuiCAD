@@ -315,7 +315,7 @@ describe("PickModeStatus", () => {
       <PickModeStatusView
         model={{
           targetLabel: "Cross / line1",
-          instruction: "Canvasまたは構成リストから線を選択",
+          instruction: "Canvasから線を選択",
           currentSelection: "@AB",
           onFinish
         }}
@@ -327,6 +327,24 @@ describe("PickModeStatus", () => {
     expect(screen.getByLabelText("現在の選択")).toHaveTextContent("@AB");
     fireEvent.click(screen.getByRole("button", { name: "選択を完了" }));
     expect(onFinish).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ["point", "Canvasから点を選択"],
+    ["line", "Canvasから線を選択"]
+  ] as const)("uses the Canvas-only instruction for a single %s Pick", (kind, instruction) => {
+    const target = kind === "point"
+      ? { elementId: "__command-line__", parameterKey: "point" as const }
+      : { elementId: "__command-line__", parameterKey: "line" as const };
+    useCadUiStore.setState({
+      activePointPickTarget: kind === "point" ? target : null,
+      activeLinePickTarget: kind === "line" ? target : null,
+      activePickModeSession: pickModeSessionForTarget(kind, target)
+    });
+
+    render(<PickModeStatus />);
+
+    expect(screen.getByText(instruction)).toBeInTheDocument();
   });
 
 });
