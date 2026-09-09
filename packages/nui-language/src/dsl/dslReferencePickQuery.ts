@@ -716,6 +716,23 @@ const targetCandidatesOnLine = (
     if (candidates.some((existing) => sameTarget(existing.target, candidate.target))) continue;
     candidates.push(candidate);
   }
+  if (candidates.length === 1) {
+    return [{ ...candidates[0]!, region: line }];
+  }
+
+  // `10 +` has one empty operand and one concrete operand in the same named
+  // parameter. The empty operand owns the otherwise-unique physical line for
+  // broad activation, while the concrete operand remains exact-only. A second
+  // argument on the same line keeps the parameter-local region instead.
+  const empty = candidates.filter((candidate) => candidate.target.range.from === candidate.target.range.to);
+  const regions = candidates.reduce<DslReferencePickRange[]>((result, candidate) =>
+    result.some((region) => sameRange(region, candidate.region)) ? result : [...result, candidate.region], []);
+  if (empty.length === 1 && regions.length === 1) {
+    const emptyTarget = empty[0]!.target;
+    return candidates.map((candidate) => candidate.target === emptyTarget
+      ? { ...candidate, region: line }
+      : candidate);
+  }
   return candidates;
 };
 

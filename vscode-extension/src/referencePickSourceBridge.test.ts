@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createLanguageAnalysisSession } from "./languageAnalysisSession";
+import {
+  createLanguageAnalysisSession,
+  currentCompiledSemanticSnapshotFor
+} from "./languageAnalysisSession";
+import { queryDslReferencePickTarget } from "@nuinuicad/nui-language";
+import { referencePickTargetProofFor } from "../../src/vscode/referencePickProtocol";
 
 const mocks = vi.hoisted(() => ({
   textDocuments: [] as TestDocument[],
@@ -223,6 +228,53 @@ describe("createVscodeReferencePickSourceBridge", () => {
     expect(request?.initialNumericPropertyDraft).toEqual({
       reference: { base: "Base" },
       property: "length"
+    });
+  });
+
+  it("accepts a broad own-line proof when the bridge re-queries from the exact value", () => {
+    const source = [
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "module M(anchor: point, distance: number) {",
+      "}",
+      "instance X = M(",
+      "  anchor: @A,",
+      "  distance: 20,",
+      ")"
+    ].join("\n");
+    const document = createDocument(source);
+    const editor = createEditor(document);
+    mocks.textDocuments = [document];
+    const session = createLanguageAnalysisSession(source);
+    const broadOffset = source.lastIndexOf("  anchor");
+    const sourceSnapshot = {
+      normalizedSource: source,
+      sourceRevision: session.getSourceRevision()
+    };
+    const semantic = currentCompiledSemanticSnapshotFor(session, sourceSnapshot);
+    const broadTarget = queryDslReferencePickTarget({
+      source: sourceSnapshot,
+      position: broadOffset,
+      semantic
+    });
+    if (!broadTarget) throw new Error("missing broad own-line target");
+    const proof = referencePickTargetProofFor(source, broadTarget);
+    if (!proof) throw new Error("missing broad own-line proof");
+    const bridge = createVscodeReferencePickSourceBridge({
+      editor: editor as never,
+      languageAnalysisSession: session,
+      requestId: 23,
+      normalizedSourceOffset: broadTarget.range.from,
+      expectedTargetProof: proof,
+      postMessage: vi.fn()
+    });
+
+    const request = bridge.start();
+
+    expect(request).not.toBeNull();
+    expect(request?.targetProof.activationRange).toEqual({
+      from: broadOffset,
+      to: source.indexOf("\n", broadOffset)
     });
   });
 

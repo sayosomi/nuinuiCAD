@@ -168,7 +168,11 @@ const referencePickQuickPickItemsFor = (
   displayLanguage: string
 ): readonly ReferencePickTargetQuickPickItem[] => {
   const translate = referencePickTranslatorFor(displayLanguage);
-  return targets.map((target) => {
+  const rows = [...targets]
+    .map((target, index) => ({ target, index }))
+    .sort((left, right) => left.target.range.from - right.target.range.from ||
+      left.target.range.to - right.target.range.to || left.index - right.index)
+    .map(({ target }) => {
     const value = source.slice(target.range.from, target.range.to);
     const activation = source.slice(
       (target.activationRange ?? target.range).from,
@@ -180,6 +184,19 @@ const referencePickQuickPickItemsFor = (
       detail: activation,
       target
     };
+  });
+  const collisions = new Map<string, number[]>();
+  rows.forEach((row, index) => {
+    const key = JSON.stringify([row.label, row.description, row.detail]);
+    const indexes = collisions.get(key) ?? [];
+    indexes.push(index);
+    collisions.set(key, indexes);
+  });
+  return rows.map((row, index) => {
+    const indexes = collisions.get(JSON.stringify([row.label, row.description, row.detail]));
+    if (!indexes || indexes.length < 2) return row;
+    const ordinal = indexes.indexOf(index) + 1;
+    return { ...row, description: `${row.description} ${ordinal}/${indexes.length}` };
   });
 };
 

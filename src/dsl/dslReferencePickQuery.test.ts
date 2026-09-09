@@ -378,6 +378,53 @@ describe("queryDslReferencePickTarget", () => {
     }
   });
 
+  it("keeps broad activation stable for parameters on separate physical lines", () => {
+    const source = [
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "module M(anchor: point, distance: number) {",
+      "}",
+      "instance X = M(",
+      "  anchor: @A,",
+      "  distance: 20,",
+      ")"
+    ].join("\n");
+    const compiled = compileWithIds(source);
+    const cases = [
+      { line: "anchor", value: "@A", role: "geometry" },
+      { line: "distance", value: "20", role: "numericPropertyBase" }
+    ] as const;
+
+    for (const entry of cases) {
+      const lineFrom = source.lastIndexOf(`  ${entry.line}`);
+      const lineTo = source.indexOf("\n", lineFrom);
+      const valueFrom = source.indexOf(entry.value, lineFrom);
+      const positions = [lineFrom, source.indexOf(":", lineFrom), valueFrom, lineTo];
+      const targets = positions.map((position) => queryAt(source, compiled, position));
+      expect(targets.every((target) => target?.role === entry.role)).toBe(true);
+      for (const target of targets) {
+        expect(target?.range).toEqual({ from: valueFrom, to: valueFrom + entry.value.length });
+        expect(target?.activationRange).toEqual({ from: lineFrom, to: lineTo });
+      }
+      const exact = queryAt(source, compiled, valueFrom);
+      expect(exact?.activationRange).toEqual({ from: lineFrom, to: lineTo });
+    }
+
+    const emptySource = source.replace("distance: 20,", "distance: 10 +");
+    const emptyCompiled = compileWithIds(emptySource);
+    const emptyLineFrom = emptySource.lastIndexOf("  distance");
+    const emptyLineTo = emptySource.indexOf("\n", emptyLineFrom);
+    const plus = emptySource.indexOf("+", emptyLineFrom);
+    for (const position of [emptyLineFrom, emptySource.indexOf(":", emptyLineFrom), plus, emptyLineTo]) {
+      const target = queryAt(emptySource, emptyCompiled, position);
+      expect(target).toMatchObject({
+        role: "numericPropertyBase",
+        range: { from: plus + 1, to: plus + 1 },
+        activationRange: { from: emptyLineFrom, to: emptyLineTo }
+      });
+    }
+  });
+
   it("disambiguates same-line parameters and exposes unclear boundaries", () => {
     const source = [
       "nui 1",
