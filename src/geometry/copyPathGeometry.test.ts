@@ -4,7 +4,7 @@ import { copyPathGeometry } from "./copyPathGeometry";
 import type { SourceSegment } from "./offsetPathTypes";
 
 describe("copyPathGeometry", () => {
-  it("applies translation, mirror, scale, and rotation about the destination point", () => {
+  it("applies translation, mirrorX, scale, and rotation about the destination point", () => {
     const source: SourceSegment[] = [{
       kind: "line",
       start: { x: 0, y: 0 },
@@ -17,13 +17,68 @@ describe("copyPathGeometry", () => {
       endPoint: { x: 20, y: 10 },
       scale: 2,
       angleDeg: 90,
-      mirrorX: false
+      mirrorX: true
     })).toMatchObject({
       kind: "offsetLine",
       start: { x: 20, y: 10 },
-      end: { x: 20, y: 30 },
+      end: { x: 20, y: -10 },
       length: 20,
       segments: [{ kind: "line", length: 20 }]
+    });
+  });
+
+  it("reverses arc orientation when transform mirrorX is enabled", () => {
+    const source: SourceSegment[] = [{
+      kind: "arc",
+      center: { x: 0, y: 0 },
+      radius: 10,
+      startAngleDeg: 0,
+      sweepAngleDeg: 90
+    }];
+
+    expect(copyPathGeometry(source, {
+      kind: "transform",
+      startPoint: { x: 0, y: 0 },
+      endPoint: { x: 20, y: 0 },
+      scale: 1,
+      angleDeg: 0,
+      mirrorX: true
+    })).toMatchObject({
+      segments: [{
+        kind: "arc",
+        center: { x: 20, y: 0 },
+        start: { x: 10, y: 0 },
+        end: { x: 20, y: 10 },
+        radius: 10,
+        sweepAngleDeg: -90
+      }]
+    });
+  });
+
+  it("transforms Bezier controls together with their endpoints", () => {
+    const source: SourceSegment[] = [{
+      kind: "bezier",
+      start: { x: 0, y: 0 },
+      control1: { x: 2, y: 2 },
+      control2: { x: 8, y: 2 },
+      end: { x: 10, y: 0 }
+    }];
+
+    expect(copyPathGeometry(source, {
+      kind: "transform",
+      startPoint: { x: 0, y: 0 },
+      endPoint: { x: 10, y: 0 },
+      scale: 1,
+      angleDeg: 0,
+      mirrorX: true
+    })).toMatchObject({
+      segments: [{
+        kind: "bezier",
+        start: { x: 10, y: 0 },
+        control1: { x: 8, y: 2 },
+        control2: { x: 2, y: 2 },
+        end: { x: 0, y: 0 }
+      }]
     });
   });
 

@@ -927,7 +927,7 @@ export const evaluateElements = (
         return;
       }
       if (scale <= 0) {
-        appendGeometryValueError(entry, "transformCopy geometry value construction requires a positive scale.");
+        appendGeometryValueError(entry, "transformCopy geometry value construction scale must be a finite positive number.");
         return;
       }
       const sourceGroups = entry.construction.baseLines.map((source) => {
