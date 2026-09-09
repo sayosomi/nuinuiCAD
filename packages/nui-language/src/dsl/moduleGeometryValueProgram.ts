@@ -24,11 +24,22 @@ export type GeometryValueProgramPoint =
       y: TypedScalarExpression;
     };
 
+export type GeometryValueProgramPath = {
+  kind: "target";
+  target: ScalarExpressionResolvedGeometryTarget;
+};
+
 export type GeometryValueProgramConstruction =
   | {
       kind: "coordinate";
       x: TypedScalarExpression;
       y: TypedScalarExpression;
+    }
+  | {
+      kind: "offsetPoint";
+      from: GeometryValueProgramPoint;
+      dx: TypedScalarExpression;
+      dy: TypedScalarExpression;
     }
   | {
       kind: "segment";
@@ -70,6 +81,14 @@ export type GeometryValueProgramConstruction =
       kind: "polyline";
       points: readonly GeometryValueProgramPoint[];
       closed: TypedScalarExpression;
+    }
+  | {
+      kind: "offsetPath";
+      sources: readonly GeometryValueProgramPath[];
+      distance: TypedScalarExpression;
+      side: TypedScalarExpression;
+      closed: TypedScalarExpression;
+      suppressTrimWarnings: TypedScalarExpression;
     };
 
 /** Host-neutral, already-resolved immutable geometry value execution entry.
@@ -164,6 +183,40 @@ export const buildRootGeometryValueProgram = ({
     return undefined;
   };
 
+  const pathForReference = (reference: ModuleGeometryReferenceSemantic): GeometryValueProgramPath | undefined => {
+    if (!reference.target) return undefined;
+    const unwrapped = unwrapModuleGeometrySourceTarget(reference.target);
+    const target = unwrapped.target;
+    if (target.kind === "geometryValue" && !target.backingTarget) {
+      return {
+        kind: "target",
+        target: {
+          kind: "geometryValue",
+          occurrence: { sourceStatementId: target.statementId, instancePath: [] },
+          statementId: target.statementId,
+          statementIndex: target.statementIndex,
+          geometryType: target.declaredInterfaceType,
+          ...(unwrapped.pointKey ? { pointKey: unwrapped.pointKey } : {})
+        }
+      };
+    }
+    if (target.kind === "sourceGeometry") {
+      const elementId = elementIdByStatementIndex.get(target.statementIndex);
+      return elementId
+        ? {
+            kind: "target",
+            target: {
+              statementId: elementId,
+              statementIndex: target.statementIndex,
+              geometryType: target.geometryKind,
+              ...(unwrapped.pointKey ? { pointKey: unwrapped.pointKey } : {})
+            }
+          }
+        : undefined;
+    }
+    return undefined;
+  };
+
   return values.flatMap((value): GeometryValueProgramEntry[] => {
     if (!value.construction || value.ownerModuleDefinitionStatementId !== null) return [];
     const construction = value.construction.kind === "coordinate"
@@ -172,7 +225,14 @@ export const buildRootGeometryValueProgram = ({
           const y = literalScalarExpression(value.construction.y);
           return x && y ? { kind: "coordinate" as const, x, y } : null;
         })()
-      : value.construction.kind === "segment"
+      : value.construction.kind === "offsetPoint"
+        ? (() => {
+            const from = pointForReference(value.construction.from);
+            const dx = literalScalarExpression(value.construction.dx);
+            const dy = literalScalarExpression(value.construction.dy);
+            return from && dx && dy ? { kind: "offsetPoint" as const, from, dx, dy } : null;
+          })()
+        : value.construction.kind === "segment"
         ? (() => {
             const start = pointForReference(value.construction.start);
             const end = pointForReference(value.construction.end);
@@ -221,7 +281,21 @@ export const buildRootGeometryValueProgram = ({
                   ? { kind: "bezier" as const, start, end, startAngleDeg, startLength, endAngleDeg, endLength, intermediates }
                   : null;
               })()
-              : (() => {
+              : value.construction.kind === "offsetPath"
+                ? (() => {
+                    const sources = value.construction.sources.flatMap((source) => {
+                      const lowered = pathForReference(source);
+                      return lowered ? [lowered] : [];
+                    });
+                    const distance = literalScalarExpression(value.construction.distance);
+                    const side = literalScalarExpression(value.construction.side);
+                    const closed = literalScalarExpression(value.construction.closed);
+                    const suppressTrimWarnings = literalScalarExpression(value.construction.suppressTrimWarnings);
+                    return distance && side && closed && suppressTrimWarnings && sources.length === value.construction.sources.length
+                      ? { kind: "offsetPath" as const, sources, distance, side, closed, suppressTrimWarnings }
+                      : null;
+                  })()
+                : (() => {
                 const points = value.construction.points.flatMap((point) => {
                   const lowered = pointForReference(point);
                   return lowered ? [lowered] : [];

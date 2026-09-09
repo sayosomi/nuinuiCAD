@@ -22,6 +22,7 @@ import { geometryInputTargetForAlias, type RuntimeGeometryInputTarget } from "..
 import type {
   GeometryValueProgram,
   GeometryValueProgramEntry,
+  GeometryValueProgramPath,
   GeometryValueProgramPoint
 } from "../dsl/moduleGeometryValueProgram";
 import { buildLexicalScopeIndexFromStatements } from "../dsl/lexicalScopeIndexAdapter";
@@ -2594,6 +2595,41 @@ export const compileModuleScalarRuntime = ({
     };
   };
 
+  const lowerGeometryValuePath = (
+    reference: import("../dsl/moduleSemanticTypes").ModuleGeometryReferenceSemantic,
+    context: InstanceContext | undefined,
+    executionPosition: number
+  ): GeometryValueProgramPath | undefined => {
+    if (!reference.target || !moduleGeometryRuntime) return undefined;
+    const path = context?.path ?? [];
+    const lowered = moduleGeometryRuntime.resolveBuiltinTarget(reference.target, path, "line");
+    if (!lowered) return undefined;
+    if (lowered.kind === "geometryValue") {
+      return {
+        kind: "target",
+        target: {
+          kind: "geometryValue",
+          occurrence: lowered.occurrence,
+          statementId: lowered.occurrence.sourceStatementId,
+          statementIndex: reference.target.kind === "geometryValue"
+            ? executionPositionForValue(path, reference.target.statementIndex)
+            : executionPosition,
+          geometryType: lowered.geometryType
+        }
+      };
+    }
+    const targetSourceOrder = elementOrderById.get(lowered.elementId);
+    if (targetSourceOrder === undefined) return undefined;
+    return {
+      kind: "target",
+      target: {
+        statementId: lowered.elementId,
+        statementIndex: targetSourceOrder,
+        geometryType: lowered.geometryType
+      }
+    };
+  };
+
   const lowerGeometryValueAnchor = (
     anchor: PointAnchor,
     executionPosition: number
@@ -2648,6 +2684,13 @@ export const compileModuleScalarRuntime = ({
             y: lowerGeometryValueScalar(value.construction.y, context)
           }
         : null
+      : value.construction.kind === "offsetPoint"
+        ? (() => {
+            const from = lowerGeometryValuePoint(value.construction.from, context, executionPosition);
+            const dx = value.construction.dx ? lowerGeometryValueScalar(value.construction.dx, context) : null;
+            const dy = value.construction.dy ? lowerGeometryValueScalar(value.construction.dy, context) : null;
+            return from && dx && dy ? { kind: "offsetPoint" as const, from, dx, dy } : null;
+          })()
       : value.construction.kind === "segment"
         ? (() => {
             const start = lowerGeometryValuePoint(value.construction.start, context, executionPosition);
@@ -2697,7 +2740,23 @@ export const compileModuleScalarRuntime = ({
                   ? { kind: "bezier" as const, start, end, startAngleDeg, startLength, endAngleDeg, endLength, intermediates }
                   : null;
               })()
-              : (() => {
+              : value.construction.kind === "offsetPath"
+                ? (() => {
+                    const sources = value.construction.sources.flatMap((source) => {
+                      const lowered = lowerGeometryValuePath(source, context, executionPosition);
+                      return lowered ? [lowered] : [];
+                    });
+                    const distance = value.construction.distance ? lowerGeometryValueScalar(value.construction.distance, context) : null;
+                    const side = value.construction.side ? lowerGeometryValueScalar(value.construction.side, context) : null;
+                    const closed = value.construction.closed ? lowerGeometryValueScalar(value.construction.closed, context) : null;
+                    const suppressTrimWarnings = value.construction.suppressTrimWarnings
+                      ? lowerGeometryValueScalar(value.construction.suppressTrimWarnings, context)
+                      : null;
+                    return distance && side && closed && suppressTrimWarnings && sources.length === value.construction.sources.length
+                      ? { kind: "offsetPath" as const, sources, distance, side, closed, suppressTrimWarnings }
+                      : null;
+                  })()
+                : (() => {
                 const points = value.construction.pointsReference
                   ? moduleGeometryRuntime?.resolvePointReferenceList(
                     value.construction.pointsReference.source,

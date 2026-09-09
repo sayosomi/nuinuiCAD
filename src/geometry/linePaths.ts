@@ -3,18 +3,18 @@ import type {
   ComputedBezierCurve,
   ComputedGeometry,
   ComputedGeometryValue,
+  ComputedGeometryValueOffsetLine,
   ComputedLine,
   ComputedOffsetLine,
-  ComputedOffsetLineSegment,
   ComputedPolyline
 } from "../types/geometry";
 import { cubicDerivativeAt, projectPointOntoCurve, type BezierLikeSegment } from "./bezierMath";
-import { projectPointOntoOffsetLine } from "./offsetSegmentProjection";
+import { projectPointOntoOffsetLine, type OffsetLineSegment } from "./offsetSegmentProjection";
 
 type Point = { x: number; y: number };
 
 export type LineLikeGeometry = ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine | ComputedPolyline;
-export type LineLikeGeometryInput = LineLikeGeometry | Extract<ComputedGeometryValue, { kind: "line" | "arcLine" | "bezierCurve" | "polyline" }>;
+export type LineLikeGeometryInput = LineLikeGeometry | Extract<ComputedGeometryValue, { kind: "line" | "arcLine" | "bezierCurve" | "offsetLine" | "polyline" }>;
 
 type PathSegment = {
   start: Point;
@@ -200,8 +200,8 @@ const bezierSegments = (curve: { segments: readonly BezierLikeSegment[] }) =>
     });
   });
 
-const offsetSegments = (line: ComputedOffsetLine) =>
-  line.segments.flatMap((segment: ComputedOffsetLineSegment) => {
+const offsetSegments = (line: ComputedOffsetLine | ComputedGeometryValueOffsetLine) =>
+  line.segments.flatMap((segment: OffsetLineSegment) => {
     if (segment.kind === "line") {
       const path = pathSegment(segment.start, segment.end);
       return path ? [path] : [];
@@ -296,7 +296,7 @@ const analyticBezierTangentAtPoint = (
 };
 
 const offsetSegmentTangent = (
-  segment: ComputedOffsetLineSegment,
+  segment: OffsetLineSegment,
   projection: { localT: number; point: Point }
 ): Point | null => {
   if (segment.kind === "line") return unitVector(segment.start, segment.end);
@@ -376,9 +376,7 @@ export const tangentAtPointOnLineLikeGeometry = (
   }
   if (geometry.kind === "offsetLine") {
     const tangent = bestBezierEndpointTangent(
-      geometry.segments.filter((segment): segment is Extract<ComputedOffsetLineSegment, { kind: "bezier" }> =>
-        segment.kind === "bezier"
-      ),
+      geometry.segments.filter((segment) => segment.kind === "bezier") as Extract<OffsetLineSegment, { kind: "bezier" }>[],
       point,
       tolerance
     );

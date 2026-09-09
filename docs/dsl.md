@@ -50,7 +50,13 @@ controls and length are available to existing path-compatible consumers. Pure
 `polyline(...)` also produces an identity-free `polyline` path value using the
 drawable constructor's ordered `points` and optional `closed` arguments; open
 values require at least two points and closed values at least three. Pure
-`offset`, `corner`, and other deferred constructors remain unsupported.
+`offset(from: ..., dx: ..., dy: ...)` produces an identity-free `point` using
+the drawable point offset semantics, and
+`offset(sources: ..., distance: ..., side: ..., closed: ..., suppressTrimWarnings: ...)`
+produces an identity-free `path` using the drawable line offset geometry and
+validation. Both forms remain consumable by existing geometry readers; runtime
+failures are owned by the value occurrence and do not create a drawable
+identity. `corner` and other deferred constructors remain unsupported.
 
 The reference covers the current implemented language:
 

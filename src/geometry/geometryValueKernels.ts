@@ -1,5 +1,11 @@
 import type { ArcDirection } from "../types/geometry";
-import type { ComputedGeometryValueBezierCurve, ComputedGeometryValuePolyline } from "./evaluationTypes";
+import type {
+  ComputedGeometryValueBezierCurve,
+  ComputedGeometryValueOffsetLine,
+  ComputedGeometryValueOffsetLineSegment,
+  ComputedGeometryValuePolyline,
+  ComputedOffsetLine
+} from "./evaluationTypes";
 import { approximateCubicLength, type BezierLikeSegment } from "./bezierMath";
 import { CIRCLE_EPSILON, degreesToRadians, directedSweepDegrees } from "./evaluateGeometryPrimitives";
 import { arcTangentAngles, lineTangentAngles } from "./lineMeasurements";
@@ -32,6 +38,55 @@ export type StructuralArcLine = {
 };
 
 export const coordinateGeometryKernel = (x: number, y: number): StructuralPoint => ({ x, y });
+
+export const offsetPointGeometryKernel = (
+  from: StructuralPoint,
+  dx: number,
+  dy: number
+): StructuralPoint => ({ x: from.x + dx, y: from.y + dy });
+
+const identityFreePoint = ({ x, y }: { x: number; y: number }) => ({ x, y });
+
+const identityFreeOffsetSegment = (
+  segment: ComputedOffsetLine["segments"][number]
+): ComputedGeometryValueOffsetLineSegment => {
+  if (segment.kind === "line") {
+    return { kind: "line", start: identityFreePoint(segment.start), end: identityFreePoint(segment.end), length: segment.length };
+  }
+  if (segment.kind === "bezier") {
+    return {
+      kind: "bezier",
+      start: identityFreePoint(segment.start),
+      control1: segment.control1,
+      control2: segment.control2,
+      end: identityFreePoint(segment.end),
+      length: segment.length
+    };
+  }
+  return {
+    kind: "arc",
+    center: identityFreePoint(segment.center),
+    start: identityFreePoint(segment.start),
+    end: identityFreePoint(segment.end),
+    radius: segment.radius,
+    startAngleDeg: segment.startAngleDeg,
+    sweepAngleDeg: segment.sweepAngleDeg,
+    length: segment.length
+  };
+};
+
+export const offsetLineGeometryValueKernel = (
+  line: ComputedOffsetLine
+): ComputedGeometryValueOffsetLine => ({
+  kind: "offsetLine",
+  start: line.start ? identityFreePoint(line.start) : null,
+  end: line.end ? identityFreePoint(line.end) : null,
+  segments: line.segments.map(identityFreeOffsetSegment),
+  closed: line.closed,
+  length: line.length,
+  startTangentAngleDeg: line.startTangentAngleDeg,
+  endTangentAngleDeg: line.endTangentAngleDeg
+});
 
 export const segmentGeometryKernel = (start: StructuralPoint, end: StructuralPoint): StructuralLine => ({
   kind: "line",

@@ -1,8 +1,9 @@
-import type { ComputedOffsetLineSegment } from "../types/geometry";
+import type { ComputedGeometryValueOffsetLineSegment, ComputedOffsetLineSegment } from "../types/geometry";
 import { degreesToRadians, normalizeDegrees, radiansToDegrees } from "./evaluateGeometryPrimitives";
 import { cubicPointAt, distance, interpolate, refineBezierProjection, type Point } from "./bezierMath";
 
 const EPSILON = 1e-9;
+export type OffsetLineSegment = ComputedOffsetLineSegment | ComputedGeometryValueOffsetLineSegment;
 
 export type OffsetSegmentProjection = {
   localT: number;
@@ -27,7 +28,7 @@ const projectLine = (point: Point, start: Point, end: Point): OffsetSegmentProje
 
 const projectArc = (
   point: Point,
-  segment: Extract<ComputedOffsetLineSegment, { kind: "arc" }>
+  segment: Extract<OffsetLineSegment, { kind: "arc" }>
 ): OffsetSegmentProjection | null => {
   if (segment.radius <= EPSILON || Math.abs(segment.sweepAngleDeg) <= EPSILON) return null;
   const pointAngleDeg = radiansToDegrees(Math.atan2(point.y - segment.center.y, point.x - segment.center.x));
@@ -51,7 +52,7 @@ const projectArc = (
 // exact intersection point is on that sub-segment || where it is split.
 export const projectPointOntoOffsetSegment = (
   point: Point,
-  segment: ComputedOffsetLineSegment,
+  segment: OffsetLineSegment,
   seedT: number
 ): OffsetSegmentProjection | null => {
   if (segment.kind === "line") return projectLine(point, segment.start, segment.end);
@@ -62,7 +63,7 @@ export const projectPointOntoOffsetSegment = (
   return { localT: refined.localT, point: projected, distance: refined.distanceFromLine };
 };
 
-const samplePoint = (segment: ComputedOffsetLineSegment, t: number): Point => {
+const samplePoint = (segment: OffsetLineSegment, t: number): Point => {
   if (segment.kind === "line") return interpolate(segment.start, segment.end, t);
   if (segment.kind === "bezier") return cubicPointAt(segment, t);
   const angleRad = degreesToRadians(segment.startAngleDeg + segment.sweepAngleDeg * t);
@@ -74,7 +75,7 @@ const samplePoint = (segment: ComputedOffsetLineSegment, t: number): Point => {
 
 export const projectPointOntoOffsetLine = (
   point: Point,
-  segments: ComputedOffsetLineSegment[]
+  segments: OffsetLineSegment[]
 ): OffsetLineProjection | null => {
   let best: OffsetLineProjection | null = null;
   for (const [segmentIndex, segment] of segments.entries()) {

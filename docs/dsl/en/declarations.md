@@ -46,7 +46,11 @@ intermediate-point arguments. It produces identity-free cubic segments and
 remains consumable by existing path-compatible readers. `polyline(...)` is an
 implemented pure `path` initializer using the drawable `points` and `closed`
 arguments; it preserves authored order and requires at least two open points
-or three closed points. Pure `offset`, `corner`, and other deferred
+or three closed points. Point `offset(...)` is an implemented pure `point`
+initializer, and path `offset(...)` is an implemented pure `path` initializer;
+both reuse the corresponding drawable offset geometry and preserve the same
+defaults and validation. Runtime failures remain owned by the value occurrence
+and do not create a drawable identity. `corner` and other deferred
 constructions remain unsupported as pure value initializers.
 
 `set` does not create a geometry element or a new binding. Its target must be a

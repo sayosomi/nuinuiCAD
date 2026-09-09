@@ -53,6 +53,17 @@ pub(crate) fn coordinate_geometry_kernel(x: f64, y: f64) -> StructuralPoint {
     StructuralPoint { x, y }
 }
 
+pub(crate) fn offset_point_geometry_kernel(
+    from: StructuralPoint,
+    dx: f64,
+    dy: f64,
+) -> StructuralPoint {
+    StructuralPoint {
+        x: from.x + dx,
+        y: from.y + dy,
+    }
+}
+
 fn angle_from_to(start: StructuralPoint, end: StructuralPoint) -> Option<f64> {
     let dx = end.x - start.x;
     let dy = end.y - start.y;

@@ -160,11 +160,38 @@ describe("immutable single-geometry reference values", () => {
       end: { type: { kind: "number" } },
       direction: { type: { kind: "choice", options: ["counterclockwise", "clockwise"] } }
     });
-    expect(pureGeometryValueConstructionCandidates("point").map((candidate) => candidate.label)).toEqual(["coordinate"]);
+    expect(pureGeometryValueConstructionCandidates("point").map((candidate) => candidate.label)).toEqual(["coordinate", "offset"]);
     expect(pureGeometryValueConstructionCandidates("line").map((candidate) => candidate.label)).toEqual(["segment"]);
-    expect(pureGeometryValueConstructionCandidates("path").map((candidate) => candidate.label)).toEqual(["segment", "polyline", "bezier", "arc", "through"]);
+    expect(pureGeometryValueConstructionCandidates("path").map((candidate) => candidate.label)).toEqual(["segment", "offset", "polyline", "bezier", "arc", "through"]);
     expect(pureGeometryValueConstructionCandidates("point").map((candidate) => candidate.label)).not.toContain("through");
     expect(pureGeometryValueConstructionCandidates("line").map((candidate) => candidate.label)).not.toContain("through");
+  });
+
+  it("registers point and path offset as pure constructions with resolved sources", () => {
+    const compiled = compile([
+      "nui 1",
+      "point BasePoint = coordinate(x: 1, y: 2)",
+      "line BaseLine = segment(start: (0, 0), end: (10, 0))",
+      "const P: point = offset(from: @BasePoint, dx: 1 + 2, dy: -4)",
+      "const Path: path = offset(sources: [@BaseLine], distance: 2, side: right, closed: false, suppressTrimWarnings: false)"
+    ].join("\n"), "geometry-value-offset");
+
+    expect(compiled.diagnostics).toEqual([]);
+    expect(compiled.moduleSemanticAnalysis?.geometryValues.map((value) => value.construction?.kind)).toEqual([
+      "offsetPoint",
+      "offsetPath"
+    ]);
+    const path = compiled.moduleSemanticAnalysis?.geometryValues.find((value) => value.name === "Path");
+    expect(path?.construction).toMatchObject({
+      kind: "offsetPath",
+      sources: [{ target: { kind: "sourceGeometry", geometryKind: "line" } }],
+      distance: { type: { kind: "number" } },
+      side: { type: { kind: "choice", options: ["right", "left"] } },
+      closed: { type: { kind: "boolean" } },
+      suppressTrimWarnings: { type: { kind: "boolean" } }
+    });
+    expect(compiled.moduleSemanticAnalysis?.rootGeometryReferencesByStatementId.get(path!.statementId)?.map((site) => site.parameterKey)).toEqual(["sources:0"]);
+    expect(compiled.geometryValueProgram?.map((entry) => entry.construction.kind)).toEqual(["offsetPoint", "offsetPath"]);
   });
 
   it("accepts through as a path-only pure construction with resolved point sites and defaults", () => {

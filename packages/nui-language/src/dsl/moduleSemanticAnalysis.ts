@@ -2168,6 +2168,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     const argument = (name: string) => invocation.args.find((candidate) => candidate.key === name);
     const xArgument = argument("x");
     const yArgument = argument("y");
+    const fromArgument = argument("from");
+    const sourcesArgument = argument("sources");
     const centerArgument = argument("center");
     const point1Argument = argument("point1");
     const point2Argument = argument("point2");
@@ -2183,6 +2185,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     const intermediatesArgument = argument("intermediates");
     const pointsArgument = argument("points");
     const closedArgument = argument("closed");
+    const sideArgument = argument("side");
+    const suppressTrimWarningsArgument = argument("suppressTrimWarnings");
     const scalarForSpan = (
       valueSpan: DslSpan | null | undefined,
       expectedType: ScalarType | null,
@@ -2219,6 +2223,103 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       expectedType: ScalarType | null,
       defaultValue: string
     ) => scalarForSpan(candidate?.valueSpan, expectedType, defaultValue);
+    if (invocation.construction === "offset" && invocation.pureValueInterface === "point") {
+      if (expectedInterfaceType !== "point") {
+        addLocal(statementIndex, issue("module-geometry-type-mismatch", constructionSpan, "offset point construction は point value にのみ代入できます。", {
+          presentation: { key: "diagnostic.module-geometry-type-mismatch", parameters: { target: "offset" } }
+        }));
+      }
+      const from = fromArgument
+        ? resolveGeometry(
+            statementIndex,
+            ownerIndex,
+            source.slice(fromArgument.valueSpan.start, fromArgument.valueSpan.end),
+            fromArgument.valueSpan,
+            "point",
+            {
+              expectedInterfaceType: "point",
+              allowCoordinate: true,
+              role: "pointReference",
+              scalarResolver: options.scalarResolver,
+              bareScalarResolver: options.bareScalarResolver,
+              geometryPropertyResolver: options.geometryPropertyResolver,
+              presenceFacts: options.presenceFacts
+            }
+          )
+        : geometryReference("", constructionSpan, "point", null, "invalid", null, "pointReference");
+      return {
+        kind: "offsetPoint",
+        span: { start: constructionSpan.start, end: initializerSpan.end },
+        from,
+        dx: scalar(argument("dx"), { kind: "number" }, "0"),
+        dy: scalar(argument("dy"), { kind: "number" }, "0")
+      };
+    }
+    if (invocation.construction === "offset" && invocation.pureValueInterface === "path") {
+      if (expectedInterfaceType !== "path") {
+        addLocal(statementIndex, issue("module-geometry-type-mismatch", constructionSpan, "offset line construction は path value にのみ代入できます。", {
+          presentation: { key: "diagnostic.module-geometry-type-mismatch", parameters: { target: "offset" } }
+        }));
+      }
+      const sources: ModuleGeometryReferenceSemantic[] = [];
+      if (sourcesArgument) {
+        const sourcesSpan = sourcesArgument.valueSpan;
+        const parsedSources = parseGeometryArrayExpression(source.slice(sourcesSpan.start, sourcesSpan.end));
+        for (const diagnostic of parsedSources.diagnostics) {
+          addLocal(statementIndex, issue(
+            diagnostic.code,
+            { start: sourcesSpan.start + diagnostic.span.start, end: sourcesSpan.start + diagnostic.span.end },
+            diagnostic.message,
+            { presentation: { key: `diagnostic.${diagnostic.code}` } }
+          ));
+        }
+        if (parsedSources.expression?.kind === "literal" && parsedSources.diagnostics.length === 0) {
+          for (const member of parsedSources.expression.members) {
+            const memberSpan = {
+              start: sourcesSpan.start + member.span.start,
+              end: sourcesSpan.start + member.span.end
+            };
+            sources.push(resolveGeometry(
+              statementIndex,
+              ownerIndex,
+              source.slice(memberSpan.start, memberSpan.end),
+              memberSpan,
+              "line",
+              {
+                expectedInterfaceType: "path",
+                allowCoordinate: false,
+                role: "lineReference",
+                scalarResolver: options.scalarResolver,
+                bareScalarResolver: options.bareScalarResolver,
+                geometryPropertyResolver: options.geometryPropertyResolver,
+                presenceFacts: options.presenceFacts
+              }
+            ));
+          }
+        } else if (parsedSources.expression?.kind === "reference" && parsedSources.diagnostics.length === 0) {
+          addLocal(statementIndex, issue(
+            "geometry-value-array-reference-unsupported",
+            sourcesSpan,
+            "pure offset の sources には geometry reference の配列リテラルを指定してください。",
+            { presentation: { key: "diagnostic.geometry-value-array-reference-unsupported" } }
+          ));
+        }
+      } else {
+        sources.push(geometryReference("", constructionSpan, "line", null, "invalid", null, "lineReference"));
+      }
+      const offsetSideType = scalarTypeForParameterDefinition(
+        getParameterDefinitions({ type: "offsetLine" } as never).find((definition) => definition.key === "side")
+      );
+      return {
+        kind: "offsetPath",
+        span: { start: constructionSpan.start, end: initializerSpan.end },
+        sources,
+        distance: scalar(argument("distance"), { kind: "number" }, "10"),
+        side: offsetSideType ? scalar(sideArgument, offsetSideType, "right") : null,
+        closed: scalar(closedArgument, { kind: "boolean" }, "false"),
+        suppressTrimWarnings: scalar(suppressTrimWarningsArgument, { kind: "boolean" }, "false")
+      };
+    }
     if (invocation.pureValueInterface === "point") {
       if (expectedInterfaceType !== "point") {
         addLocal(statementIndex, issue("module-geometry-type-mismatch", constructionSpan, "coordinate construction は point value にのみ代入できます。", {
@@ -3161,6 +3262,16 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           reference: intermediate.point
         }))
       ]);
+    } else if (construction?.kind === "offsetPoint") {
+      rootGeometryReferencesByStatementId.set(statementId, [
+        { parameterKey: "from", span: construction.from.span, reference: construction.from }
+      ]);
+    } else if (construction?.kind === "offsetPath") {
+      rootGeometryReferencesByStatementId.set(statementId, construction.sources.map((source, index) => ({
+        parameterKey: `sources:${index}`,
+        span: source.span,
+        reference: source
+      })));
     }
   }
   const parentArg = commonArgSpecs.find((arg) => arg.special === "parent");

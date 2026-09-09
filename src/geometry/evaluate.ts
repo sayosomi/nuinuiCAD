@@ -74,7 +74,9 @@ import type {
   ComputedGeometryValueEntry,
   GeometryValueEvaluationError
 } from "./evaluationTypes";
-import { arcGeometryKernel, bezierGeometryKernel, coordinateGeometryKernel, polylineGeometryKernel, segmentGeometryKernel, throughArcGeometryKernel, type StructuralPoint } from "./geometryValueKernels";
+import { arcGeometryKernel, bezierGeometryKernel, coordinateGeometryKernel, offsetLineGeometryValueKernel, offsetPointGeometryKernel, polylineGeometryKernel, segmentGeometryKernel, throughArcGeometryKernel, type StructuralPoint } from "./geometryValueKernels";
+import { buildOffsetLineGeometry } from "./offsetPaths";
+import { isLineLikeGeometryInput } from "./linePaths";
 import { evaluateTypedExpression } from "../scalars/expressionEvaluator";
 import { setParameterValue } from "../parameters/parameterAccess";
 
@@ -436,6 +438,20 @@ export const evaluateElements = (
       : undefined;
   };
 
+  const evaluateGeometryValueSide = (expression: TypedScalarExpression, sourceOrder: number): "left" | "right" | undefined => {
+    const evaluation = evaluateTypedExpression(expression, {
+      lookupBinding: scalarBindingResolver
+        ? scalarBindingResolver.resolveBinding
+        : () => ({ status: "error", type: { kind: "choice", options: [] }, issueCode: "evaluation-binding-unavailable" }),
+      lookupGeometryProperty: (reference) => resolveDocumentGeometryProperty(geometryRuntime, reference, sourceOrder),
+      lookupGeometryTarget: (target) => resolveDocumentGeometryTarget(geometryRuntime, target, sourceOrder)
+    });
+    if (evaluation.status !== "ok" || evaluation.value.kind !== "choice") return undefined;
+    return evaluation.value.value === "left" || evaluation.value.value === "right"
+      ? evaluation.value.value
+      : undefined;
+  };
+
   const evaluateGeometryValueBoolean = (expression: TypedScalarExpression, sourceOrder: number): boolean | undefined => {
     const evaluation = evaluateTypedExpression(expression, {
       lookupBinding: scalarBindingResolver
@@ -491,6 +507,17 @@ export const evaluateElements = (
       const y = evaluateGeometryValueScalar(entry.construction.y, sourceOrder);
       if (x !== undefined && y !== undefined) {
         value = { kind: "point", ...coordinateGeometryKernel(x, y) };
+      }
+    } else if (entry.construction.kind === "offsetPoint") {
+      if (entry.declaredInterfaceType !== "point") {
+        appendGeometryValueError(entry, "Geometry value construction is incompatible with its declared interface type.");
+        return;
+      }
+      const from = structuralPointForProgramPoint(entry.construction.from, sourceOrder);
+      const dx = evaluateGeometryValueScalar(entry.construction.dx, sourceOrder);
+      const dy = evaluateGeometryValueScalar(entry.construction.dy, sourceOrder);
+      if (from && dx !== undefined && dy !== undefined) {
+        value = { kind: "point", ...offsetPointGeometryKernel(from, dx, dy) };
       }
     } else if (entry.construction.kind === "segment") {
       if (entry.declaredInterfaceType !== "line" && entry.declaredInterfaceType !== "path") {
@@ -604,6 +631,40 @@ export const evaluateElements = (
         return;
       }
       value = polylineValue;
+    } else if (entry.construction.kind === "offsetPath") {
+      if (entry.declaredInterfaceType !== "path") {
+        appendGeometryValueError(entry, "Geometry value construction is incompatible with its declared interface type.");
+        return;
+      }
+      const distance = evaluateGeometryValueScalar(entry.construction.distance, sourceOrder);
+      const side = evaluateGeometryValueSide(entry.construction.side, sourceOrder);
+      const closed = evaluateGeometryValueBoolean(entry.construction.closed, sourceOrder);
+      const suppressTrimWarnings = evaluateGeometryValueBoolean(entry.construction.suppressTrimWarnings, sourceOrder);
+      const sources = entry.construction.sources.map((source) => {
+        const geometry = resolveDocumentGeometryTarget(geometryRuntime, source.target, sourceOrder);
+        return geometry && geometry.kind !== "unavailable" && isLineLikeGeometryInput(geometry) ? geometry : undefined;
+      });
+      if (
+        distance === undefined || side === undefined || closed === undefined || suppressTrimWarnings === undefined ||
+        sources.some((source) => !source)
+      ) {
+        appendGeometryValueError(entry, "Offset geometry value construction inputs are unavailable or invalid.");
+        return;
+      }
+      const result = buildOffsetLineGeometry({
+        elementId: "",
+        name: "geometry value",
+        baseLineIds: [],
+        baseGeometries: sources as Array<ComputedGeometry | ComputedGeometryValue>,
+        offset: side === "right" ? distance : -distance,
+        closed,
+        suppressTrimWarnings
+      });
+      if (result.error) {
+        appendGeometryValueError(entry, result.error);
+        return;
+      }
+      if (result.geometry) value = offsetLineGeometryValueKernel(result.geometry);
     }
     if (value) {
       computedGeometryValues.set(geometryValueOccurrenceKey(entry.occurrence), { occurrence: entry.occurrence, value });
