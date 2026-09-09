@@ -164,14 +164,18 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       "line Second = segment(start: (20, 0), end: (30, 0))",
       "const BadScale: path = transformCopy(startPoint: (0, 0), endPoint: (10, 0), scale: 0, baseLines: [@First])",
       "const BadAxis: path = mirrorCopy(axis1: (0, 0), axis2: (0, 0), baseLines: [@First])",
-      "const Discontinuous: path = transformCopy(startPoint: (0, 0), endPoint: (10, 0), baseLines: [@First, @Second])"
+      "const Discontinuous: path = transformCopy(startPoint: (0, 0), endPoint: (10, 0), baseLines: [@First, @Second])",
+      "const EmptyTransform: path = transformCopy(startPoint: (0, 0), endPoint: (10, 0), baseLines: [])",
+      "const EmptyMirror: path = mirrorCopy(axis1: (0, 0), axis2: (0, 10), baseLines: [])"
     ].join("\n"));
     const program = fixture.compiled?.doc.geometryValueProgram;
-    if (!program || program.length !== 3) throw new Error("expected three invalid pure copy path program entries");
+    if (!program || program.length !== 5) throw new Error("expected five invalid pure copy path program entries");
     const badScale = program.find((entry) => entry.sourceStatementIndex === 3);
     const badAxis = program.find((entry) => entry.sourceStatementIndex === 4);
     const discontinuous = program.find((entry) => entry.sourceStatementIndex === 5);
-    if (!badScale || !badAxis || !discontinuous) throw new Error("expected invalid copy path entries");
+    const emptyTransform = program.find((entry) => entry.sourceStatementIndex === 6);
+    const emptyMirror = program.find((entry) => entry.sourceStatementIndex === 7);
+    if (!badScale || !badAxis || !discontinuous || !emptyTransform || !emptyMirror) throw new Error("expected invalid copy path entries");
     const options = optionsFor(fixture);
 
     expect(isRustEligibleFixture(fixture)).toBe(true);
@@ -195,6 +199,14 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
         {
           occurrence: discontinuous.occurrence,
           message: "transformCopy geometry value construction baseLines are not continuous in the specified order."
+        },
+        {
+          occurrence: emptyTransform.occurrence,
+          message: "transformCopy geometry value construction inputs are unavailable, non-line-like, or contain no segments."
+        },
+        {
+          occurrence: emptyMirror.occurrence,
+          message: "mirrorCopy geometry value construction inputs are unavailable, non-line-like, or contain no segments."
         }
       ]);
       expect(result.geometryValueErrors?.every((error) => !("elementId" in error))).toBe(true);

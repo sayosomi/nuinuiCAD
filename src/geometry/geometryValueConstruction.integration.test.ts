@@ -150,7 +150,14 @@ describe("pure geometry construction runtime", () => {
         [
           "const Bad: path = transformCopy(startPoint: (0, 0), endPoint: (10, 0), baseLines: [])"
         ],
-        "transformCopy geometry value construction produced no transformed segments."
+        "transformCopy geometry value construction inputs are unavailable, non-line-like, or contain no segments."
+      ],
+      [
+        "empty mirror source list",
+        [
+          "const Bad: path = mirrorCopy(axis1: (0, 0), axis2: (0, 10), baseLines: [])"
+        ],
+        "mirrorCopy geometry value construction inputs are unavailable, non-line-like, or contain no segments."
       ],
       [
         "degenerate source segments",

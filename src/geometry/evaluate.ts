@@ -936,7 +936,7 @@ export const evaluateElements = (
         const segments = sourceSegmentsForGeometry(geometry);
         return segments.length > 0 ? segments : undefined;
       });
-      if (sourceGroups.some((group) => !group)) {
+      if (sourceGroups.length === 0 || sourceGroups.some((group) => !group)) {
         appendGeometryValueError(entry, "transformCopy geometry value construction inputs are unavailable, non-line-like, or contain no segments.");
         return;
       }
@@ -975,7 +975,7 @@ export const evaluateElements = (
         const segments = sourceSegmentsForGeometry(geometry);
         return segments.length > 0 ? segments : undefined;
       });
-      if (sourceGroups.some((group) => !group)) {
+      if (sourceGroups.length === 0 || sourceGroups.some((group) => !group)) {
         appendGeometryValueError(entry, "mirrorCopy geometry value construction inputs are unavailable, non-line-like, or contain no segments.");
         return;
       }
