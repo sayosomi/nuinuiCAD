@@ -1105,6 +1105,16 @@ traversal. Exactly one placement mode is required, and unusable or degenerate
 line-like geometry fails through the occurrence-owned geometry-value
 diagnostic channel. These pure division forms do not allocate a drawable
 identity. Point
+`intersection(line1: ..., line2: ..., index: ..., extensions: ...)` is also an
+implemented pure `point` initializer. Both inputs resolve through the shared
+line-like geometry target boundary and may be drawable or immutable `line`/
+`path` values, including Module local, export, and cross-document flows. The
+`index` defaults to `0` and `extensions` defaults to `false`; the construction
+uses the existing deterministic line-intersection ordering and finite-versus-
+extended geometry rules. Same-source inputs, parallel or unavailable inputs,
+non-intersections, invalid indexes, and out-of-range indexes fail through the
+occurrence-owned geometry-value diagnostic channel. Pure intersection values do
+not allocate a drawable identity. Point
 `offset(from: ..., dx: ..., dy: ...)` is an implemented pure `point`
 initializer using the drawable point-offset semantics and defaults. Point
 `polar(from: ..., angle: ..., distance: ...)` is an implemented identity-free

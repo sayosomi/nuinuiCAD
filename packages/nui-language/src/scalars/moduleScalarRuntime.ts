@@ -2715,6 +2715,16 @@ export const compileModuleScalarRuntime = ({
               ? { kind: "onLine" as const, line, endpointKey: value.construction.endpointKey, placement: { kind: value.construction.placement.kind, value: placement } }
               : null;
           })()
+      : value.construction.kind === "intersection"
+        ? (() => {
+            const line1 = lowerGeometryValuePath(value.construction.line1, context, executionPosition);
+            const line2 = lowerGeometryValuePath(value.construction.line2, context, executionPosition);
+            const index = value.construction.index ? lowerGeometryValueScalar(value.construction.index, context) : null;
+            const extensions = value.construction.extensions ? lowerGeometryValueScalar(value.construction.extensions, context) : null;
+            return line1 && line2 && index && extensions
+              ? { kind: "intersection" as const, line1, line2, index, extensions }
+              : null;
+          })()
       : value.construction.kind === "bezierExtremePoint"
         ? (() => {
             const source = lowerGeometryValuePath(value.construction.source, context, executionPosition);

@@ -65,6 +65,13 @@ export type GeometryValueProgramConstruction =
       placement: GeometryValueProgramPlacement;
     }
   | {
+      kind: "intersection";
+      line1: GeometryValueProgramPath;
+      line2: GeometryValueProgramPath;
+      index: TypedScalarExpression;
+      extensions: TypedScalarExpression;
+    }
+  | {
       kind: "bezierExtremePoint";
       source: GeometryValueProgramPath;
       segmentIndex: TypedScalarExpression;
@@ -294,6 +301,16 @@ export const buildRootGeometryValueProgram = ({
               const placement = literalScalarExpression(value.construction.placement.value);
               return line && placement
                 ? { kind: "onLine" as const, line, endpointKey: value.construction.endpointKey, placement: { kind: value.construction.placement.kind, value: placement } }
+                : null;
+            })()
+        : value.construction.kind === "intersection"
+          ? (() => {
+              const line1 = pathForReference(value.construction.line1);
+              const line2 = pathForReference(value.construction.line2);
+              const index = literalScalarExpression(value.construction.index);
+              const extensions = literalScalarExpression(value.construction.extensions);
+              return line1 && line2 && index && extensions
+                ? { kind: "intersection" as const, line1, line2, index, extensions }
                 : null;
             })()
         : value.construction.kind === "bezierExtremePoint"
