@@ -496,6 +496,34 @@ const evaluateValueIf = (
     : { status: "error", type, issueCode: "evaluation-runtime-value-type-mismatch" };
 };
 
+const evaluateValueMatch = (
+  node: Extract<TypedScalarExpression, { kind: "valueMatch" }>,
+  environment: ScalarEvaluationEnvironment
+): ScalarEvaluation => {
+  const type = node.type;
+  if (type === null) return staticTypeNullError();
+  const scrutineeType = node.scrutinee.type;
+  if (scrutineeType === null || scrutineeType.kind !== "choice") {
+    return { status: "error", type, issueCode: "evaluation-runtime-value-type-mismatch" };
+  }
+  const scrutinee = evaluateTypedExpression(node.scrutinee, environment);
+  if (scrutinee.status === "error") return propagateError(type, scrutinee);
+  if (
+    !scalarTypesEqual(scrutineeType, scrutinee.type) ||
+    !scalarValueMatchesType(scrutineeType, scrutinee.value) ||
+    scrutinee.value.kind !== "choice"
+  ) {
+    return { status: "error", type, issueCode: "evaluation-runtime-value-type-mismatch" };
+  }
+  const selected = node.arms.find((arm) => arm.label === scrutinee.value.value);
+  if (!selected) return { status: "error", type, issueCode: "evaluation-runtime-value-type-mismatch" };
+  const result = evaluateTypedExpression(selected.expression, environment);
+  if (result.status === "error") return propagateError(type, result);
+  return scalarTypesEqual(type, result.type) && scalarValueMatchesType(result.type, result.value)
+    ? result
+    : { status: "error", type, issueCode: "evaluation-runtime-value-type-mismatch" };
+};
+
 const evaluateTypedExpressionNode = (
   node: TypedScalarExpression,
   environment: ScalarEvaluationEnvironment
@@ -529,6 +557,8 @@ const evaluateTypedExpressionNode = (
     }
     case "valueIf":
       return evaluateValueIf(node, environment);
+    case "valueMatch":
+      return evaluateValueMatch(node, environment);
     case "call":
       return evaluateCall(node, environment);
   }

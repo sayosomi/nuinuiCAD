@@ -146,6 +146,14 @@ fn validate_typed_expression_runtime_targets(
                 pending.push(then_branch);
                 pending.push(else_branch);
             }
+            TypedScalarExpression::ValueMatch {
+                scrutinee, arms, ..
+            } => {
+                pending.push(scrutinee);
+                for arm in arms {
+                    pending.push(&arm.expression);
+                }
+            }
             TypedScalarExpression::Call { args, .. } => {
                 for argument in args {
                     if let TypedBuiltinArgument::Scalar { expression } = argument {

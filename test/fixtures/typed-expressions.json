@@ -520,6 +520,24 @@
       },
       "bindings": {},
       "expected": { "status": "error", "type": { "kind": "number" }, "issueCode": "evaluation-non-finite-result" }
+    },
+    {
+      "name": "value-match-evaluates-only-the-selected-arm",
+      "description": "a concrete choice scrutinee selects small and never evaluates the unreachable large arm",
+      "ast": {
+        "kind": "valueMatch", "type": { "kind": "number" },
+        "scrutinee": {
+          "kind": "choiceLiteral", "value": "small",
+          "type": { "kind": "choice", "options": ["small", "large"] }
+        },
+        "arms": [
+          { "label": "small", "expression": { "kind": "numberLiteral", "value": 5, "type": { "kind": "number" } } },
+          { "label": "large", "expression": { "kind": "reference", "name": "unreachable", "bindingId": "binding:unreachable", "type": { "kind": "number" } } }
+        ]
+      },
+      "bindings": {},
+      "tripwireBindingIds": ["binding:unreachable"],
+      "expected": { "status": "ok", "type": { "kind": "number" }, "value": { "kind": "number", "value": 5 } }
     }
   ]
 }

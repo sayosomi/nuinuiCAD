@@ -126,4 +126,74 @@ describe("compiled scalar program", () => {
     });
     expect(evaluated.get(byName.get("after")!)).toMatchObject({ status: "ok", value: { value: 30 } });
   });
+
+  it("compiles and evaluates exhaustive choice matches through the canonical scalar program", () => {
+    const compiled = compileCanonical([
+      "nui 1",
+      "const size: choice(small, large) = small",
+      "const amount: number = match @size { small => 5 large => 10 }",
+      "const side: choice(left, right) =",
+      "  match @size {",
+      "    small => left",
+      "    large => right",
+      "  }",
+      "const after: number = 30"
+    ].join("\n"));
+
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const scalarProgram = compiled.scalarProgram!;
+    const byName = new Map(scalarProgram.statements.map((statement) => [
+      compiled.bindingAnalysis!.catalog.bindingsById.get(statement.bindingId)!.name,
+      statement.bindingId
+    ]));
+    const evaluated = evaluateScalarProgram(scalarProgram).resultsByBindingId;
+    expect(evaluated.get(byName.get("amount")!)).toEqual({
+      status: "ok",
+      type: { kind: "number" },
+      value: { kind: "number", value: 5 }
+    });
+    expect(evaluated.get(byName.get("side")!)).toEqual({
+      status: "ok",
+      type: { kind: "choice", options: ["left", "right"] },
+      value: { kind: "choice", value: "left", options: ["left", "right"] }
+    });
+  });
+
+  it("preserves match as a choice literal and supports it in labels and results", () => {
+    const compiled = compileCanonical([
+      "nui 1",
+      "const c: choice(match, other) = match",
+      "const size: choice(match, other) = match",
+      "const amount: number = match @size { match => 10 other => 20 }",
+      "const selector: choice(first, second) = first",
+      "const selected: choice(match, other) =",
+      "  match @selector {",
+      "    first => match",
+      "    second => other",
+      "  }"
+    ].join("\n"));
+
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const scalarProgram = compiled.scalarProgram!;
+    const byName = new Map(scalarProgram.statements.map((statement) => [
+      compiled.bindingAnalysis!.catalog.bindingsById.get(statement.bindingId)!.name,
+      statement.bindingId
+    ]));
+    const evaluated = evaluateScalarProgram(scalarProgram).resultsByBindingId;
+    expect(evaluated.get(byName.get("c")!)).toEqual({
+      status: "ok",
+      type: { kind: "choice", options: ["match", "other"] },
+      value: { kind: "choice", value: "match", options: ["match", "other"] }
+    });
+    expect(evaluated.get(byName.get("amount")!)).toEqual({
+      status: "ok",
+      type: { kind: "number" },
+      value: { kind: "number", value: 10 }
+    });
+    expect(evaluated.get(byName.get("selected")!)).toEqual({
+      status: "ok",
+      type: { kind: "choice", options: ["match", "other"] },
+      value: { kind: "choice", value: "match", options: ["match", "other"] }
+    });
+  });
 });

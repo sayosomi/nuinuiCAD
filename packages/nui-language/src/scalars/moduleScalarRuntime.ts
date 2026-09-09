@@ -184,6 +184,11 @@ const remapTypedExpressionBindingIds = (
       thenBranch: remapTypedExpressionBindingIds(expression.thenBranch, bindingIdByLocalId),
       elseBranch: remapTypedExpressionBindingIds(expression.elseBranch, bindingIdByLocalId)
     };
+    case "valueMatch": return {
+      ...expression,
+      scrutinee: remapTypedExpressionBindingIds(expression.scrutinee, bindingIdByLocalId),
+      arms: expression.arms.map((arm) => ({ ...arm, expression: remapTypedExpressionBindingIds(arm.expression, bindingIdByLocalId) }))
+    };
     case "collectionIndex": return { ...expression, index: remapTypedExpressionBindingIds(expression.index, bindingIdByLocalId) };
     case "call": return {
       ...expression,
@@ -545,6 +550,10 @@ const semanticReferencesUsedByAst = (semantic: ModuleScalarExpressionSemantic, a
       collectCollectionBases(node.thenBranch);
       collectCollectionBases(node.elseBranch);
     }
+    else if (node.kind === "valueMatch") {
+      collectCollectionBases(node.scrutinee);
+      node.arms.forEach((arm) => collectCollectionBases(arm.expression));
+    }
     else if (node.kind === "call") node.args.forEach((argument) => collectCollectionBases(argument.expression));
   };
   collectCollectionBases(ast);
@@ -586,6 +595,11 @@ const lowerRecordPropertyAst = (
         condition: visit(node.condition),
         thenBranch: visit(node.thenBranch),
         elseBranch: visit(node.elseBranch)
+      };
+      case "valueMatch": return {
+        ...node,
+        scrutinee: visit(node.scrutinee),
+        arms: node.arms.map((arm) => ({ ...arm, expression: visit(arm.expression) }))
       };
       case "call": return { ...node, args: node.args.map((argument) => ({ ...argument, expression: visit(argument.expression) })) };
       default: return node;
@@ -630,6 +644,11 @@ const materializeHasValueAst = (
       condition: materializeHasValueAst(ast.condition, semantic, hasValueForParameter),
       thenBranch: materializeHasValueAst(ast.thenBranch, semantic, hasValueForParameter),
       elseBranch: materializeHasValueAst(ast.elseBranch, semantic, hasValueForParameter)
+    };
+    case "valueMatch": return {
+      ...ast,
+      scrutinee: materializeHasValueAst(ast.scrutinee, semantic, hasValueForParameter),
+      arms: ast.arms.map((arm) => ({ ...arm, expression: materializeHasValueAst(arm.expression, semantic, hasValueForParameter) }))
     };
     case "collectionIndex": return { ...ast, index: materializeHasValueAst(ast.index, semantic, hasValueForParameter) };
     case "call": return {
@@ -861,6 +880,10 @@ const lowerExpression = (
         collectTypecheckResolutions(node.thenBranch);
         collectTypecheckResolutions(node.elseBranch);
         return;
+      case "valueMatch":
+        collectTypecheckResolutions(node.scrutinee);
+        node.arms.forEach((arm) => collectTypecheckResolutions(arm.expression));
+        return;
       default:
         return;
     }
@@ -920,6 +943,18 @@ const lowerExpression = (
       return {
         node: { ...node, condition: condition.node, thenBranch: thenBranch.node, elseBranch: elseBranch.node },
         references: [...condition.references, ...thenBranch.references, ...elseBranch.references]
+      };
+    }
+    if (node.kind === "valueMatch") {
+      const scrutinee = lowerGeometryProperties(node.scrutinee);
+      const arms = node.arms.map((arm) => ({ arm, lowered: lowerGeometryProperties(arm.expression) }));
+      return {
+        node: {
+          ...node,
+          scrutinee: scrutinee.node,
+          arms: arms.map(({ arm, lowered }) => ({ ...arm, expression: lowered.node }))
+        },
+        references: [scrutinee.references, ...arms.map(({ lowered }) => lowered.references)].flat()
       };
     }
     if (node.kind === "call") {

@@ -117,6 +117,70 @@ describe("parseScalarExpression / scalar value-if", () => {
   });
 });
 
+describe("parseScalarExpression / exhaustive choice value-match", () => {
+  it("parses an inline match with exact scrutinee, arm-label, and result spans", () => {
+    const source = "match @size { small => 5 large => 10 }";
+    expect(parseOk(source)).toEqual({
+      kind: "valueMatch",
+      span: fullSpan(source),
+      scrutinee: {
+        kind: "reference",
+        span: { start: 6, end: 11 },
+        nameSpan: { start: 7, end: 11 },
+        name: "size"
+      },
+      arms: [
+        {
+          label: "small",
+          labelSpan: { start: 14, end: 19 },
+          expression: { kind: "numberLiteral", span: { start: 23, end: 24 }, value: 5 }
+        },
+        {
+          label: "large",
+          labelSpan: { start: 25, end: 30 },
+          expression: { kind: "numberLiteral", span: { start: 34, end: 36 }, value: 10 }
+        }
+      ]
+    });
+  });
+
+  it("allows value-if and value-match nesting in arm result positions", () => {
+    const ast = parseOk("match @size { small => if (@flag) { 5 } else { 6 } large => 7 }");
+    expect(ast.kind).toBe("valueMatch");
+    if (ast.kind !== "valueMatch") return;
+    expect(ast.arms[0]?.expression.kind).toBe("valueIf");
+    expect(parseOk("if (true) { match @size { small => 1 large => 2 } } else { 3 }")).toMatchObject({
+      kind: "valueIf",
+      thenBranch: { kind: "valueMatch" }
+    });
+  });
+
+  it("recognizes match as a scalar expression candidate and rejects malformed arms", () => {
+    expect(isScalarExpressionCandidateSource("match @size { small => 5 large => 10 }")).toBe(true);
+    expect(parseErr("match @size { small > 5 }").code).toBe("value-match-missing-arrow");
+    expect(parseErr("match @size { small => 5").code).toBe("value-match-missing-closing-brace");
+  });
+
+  it("keeps bare match as an unresolved choice literal outside value-match syntax", () => {
+    expect(isScalarExpressionCandidateSource("match")).toBe(false);
+    expect(parseOk("match")).toEqual({
+      kind: "unresolvedChoiceLiteral",
+      span: { start: 0, end: 5 },
+      raw: "match"
+    });
+    expect(parseOk("if (true) { match } else { other }")).toMatchObject({
+      kind: "valueIf",
+      thenBranch: { kind: "unresolvedChoiceLiteral", raw: "match" }
+    });
+    expect(parseOk("match == match")).toMatchObject({
+      kind: "binary",
+      operator: "==",
+      left: { kind: "unresolvedChoiceLiteral", raw: "match" },
+      right: { kind: "unresolvedChoiceLiteral", raw: "match" }
+    });
+  });
+});
+
 describe("parseScalarExpression / @qualifiedName reference", () => {
   it("parses a single ASCII reference with an exact nameSpan excluding the sigil", () => {
     expect(parseOk("@width")).toEqual({

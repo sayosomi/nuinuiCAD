@@ -5,7 +5,7 @@
 //!
 //! Mirrors (field-for-field): `src/scalars/types.ts` (`ScalarType`,
 //! `ScalarValue`, `ScalarEvaluation`) and `src/scalars/typedExpressionAst.ts`
-//! (`TypedScalarExpression` and its 10 node kinds). `BindingId` is an opaque
+//! (`TypedScalarExpression` and its 11 node kinds). `BindingId` is an opaque
 //! string (format `binding:<id>`, per `src/scalars/bindingCatalog.ts`) that
 //! Rust never parses or resolves - see the module doc on
 //! `expression_payload.rs` for why.
@@ -239,6 +239,13 @@ pub(crate) enum TypedScalarCallTarget {
     Builtin(BuiltinFunctionName),
 }
 
+#[derive(Debug, PartialEq)]
+pub(crate) struct TypedScalarValueMatchArm {
+    pub(crate) label: String,
+    pub(crate) label_span: ScalarSpan,
+    pub(crate) expression: TypedScalarExpression,
+}
+
 /// Mirrors `src/scalars/typedExpressionAst.ts`'s `TypedScalarExpression`.
 /// Every node kind except the four literal leaves carries a nullable
 /// `type: Option<ScalarType>` - per that TS module's own documented
@@ -330,6 +337,12 @@ pub(crate) enum TypedScalarExpression {
         else_branch: Box<TypedScalarExpression>,
         r#type: Option<ScalarType>,
     },
+    ValueMatch {
+        span: ScalarSpan,
+        scrutinee: Box<TypedScalarExpression>,
+        arms: Vec<TypedScalarValueMatchArm>,
+        r#type: Option<ScalarType>,
+    },
     Call {
         span: ScalarSpan,
         name_span: ScalarSpan,
@@ -419,6 +432,16 @@ fn detach_children(node: &mut TypedScalarExpression) -> Vec<TypedScalarExpressio
             std::mem::replace(then_branch.as_mut(), childless_placeholder()),
             std::mem::replace(else_branch.as_mut(), childless_placeholder()),
         ],
+        TypedScalarExpression::ValueMatch {
+            scrutinee, arms, ..
+        } => {
+            let mut children = vec![std::mem::replace(
+                scrutinee.as_mut(),
+                childless_placeholder(),
+            )];
+            children.extend(arms.drain(..).map(|arm| arm.expression));
+            children
+        }
         TypedScalarExpression::Call { args, .. } => std::mem::take(args)
             .into_iter()
             .filter_map(|argument| match argument {

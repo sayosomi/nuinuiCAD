@@ -1127,6 +1127,7 @@ export const compileDslDocument = (
       case "binary": return containsCollectionIndex(ast.left) || containsCollectionIndex(ast.right);
       case "group": return containsCollectionIndex(ast.expression);
       case "valueIf": return containsCollectionIndex(ast.condition) || containsCollectionIndex(ast.thenBranch) || containsCollectionIndex(ast.elseBranch);
+      case "valueMatch": return containsCollectionIndex(ast.scrutinee) || ast.arms.some((arm) => containsCollectionIndex(arm.expression));
       case "call": return ast.args.some((argument) => containsCollectionIndex(argument.expression));
       default: return false;
     }

@@ -148,6 +148,20 @@ export interface ScalarValueIfExpressionNode {
   readonly elseBranch: ScalarExpressionAst;
 }
 
+export interface ScalarValueMatchArmNode {
+  readonly label: string;
+  readonly labelSpan: ScalarSpan;
+  readonly expression: ScalarExpressionAst;
+}
+
+/** A value-producing exhaustive choice match. */
+export interface ScalarValueMatchExpressionNode {
+  readonly kind: "valueMatch";
+  readonly span: ScalarSpan;
+  readonly scrutinee: ScalarExpressionAst;
+  readonly arms: readonly ScalarValueMatchArmNode[];
+}
+
 export type ScalarExpressionAst =
   | ScalarNumberLiteralNode
   | ScalarStringLiteralNode
@@ -160,7 +174,8 @@ export type ScalarExpressionAst =
   | ScalarBinaryExpressionNode
   | ScalarGroupExpressionNode
   | ScalarCallExpressionNode
-  | ScalarValueIfExpressionNode;
+  | ScalarValueIfExpressionNode
+  | ScalarValueMatchExpressionNode;
 
 export type ScalarExpressionIssueCode =
   | "unexpected-token"
@@ -177,7 +192,12 @@ export type ScalarExpressionIssueCode =
   | "geometry-property-in-typed-expression"
   | "value-if-missing-else"
   | "value-if-malformed-condition"
-  | "value-if-malformed-branch";
+  | "value-if-malformed-branch"
+  | "value-match-malformed"
+  | "value-match-missing-scrutinee"
+  | "value-match-malformed-arm"
+  | "value-match-missing-arrow"
+  | "value-match-missing-closing-brace";
 
 export interface ScalarExpressionDiagnostic {
   readonly message: string;

@@ -504,6 +504,11 @@ const specializeInlineScalarExpression = (
       visitAst(node.elseBranch);
       return;
     }
+    if (node.kind === "valueMatch") {
+      visitAst(node.scrutinee);
+      node.arms.forEach((arm) => visitAst(arm.expression));
+      return;
+    }
     if (node.kind === "call") for (const argument of node.args) visitAst(argument.expression);
   };
   visitAst(semantic.ast);
@@ -699,6 +704,27 @@ const specializeInlineScalarExpression = (
         changed: condition.changed || thenBranch.changed || elseBranch.changed,
         known: null,
         eliminatedSourceRanges: eliminatedSourceRangesForChildren([condition, thenBranch, elseBranch])
+      };
+    }
+    if (node.kind === "valueMatch") {
+      const scrutinee = specialize(node.scrutinee);
+      const arms = node.arms.map((arm) => ({ arm, result: specialize(arm.expression) }));
+      if (!scrutinee || arms.some((entry) => !entry.result)) return null;
+      const childRanges = [
+        { range: scrutinee.range, text: scrutinee.text },
+        ...arms.map(({ result }) => ({ range: result!.range, text: result!.text }))
+      ];
+      const text = replaceNestedExpressionText(source, range, childRanges);
+      if (text === null) return null;
+      return {
+        text,
+        range,
+        changed: scrutinee.changed || arms.some(({ result }) => result!.changed),
+        known: null,
+        eliminatedSourceRanges: eliminatedSourceRangesForChildren([
+          scrutinee,
+          ...arms.map(({ result }) => result!)
+        ])
       };
     }
     if (node.kind === "call") {
@@ -2721,6 +2747,11 @@ const geometryTargetsInTypedExpression = (
         ...geometryTargetsInTypedExpression(expression.condition),
         ...geometryTargetsInTypedExpression(expression.thenBranch),
         ...geometryTargetsInTypedExpression(expression.elseBranch)
+      ];
+    case "valueMatch":
+      return [
+        ...geometryTargetsInTypedExpression(expression.scrutinee),
+        ...expression.arms.flatMap((arm) => geometryTargetsInTypedExpression(arm.expression))
       ];
     case "call": {
       const targets: ScalarExpressionResolvedGeometryTarget[] = [];

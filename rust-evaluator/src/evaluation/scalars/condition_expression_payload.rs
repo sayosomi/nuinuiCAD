@@ -59,6 +59,7 @@ fn root_type(expression: &TypedScalarExpression) -> Option<ScalarType> {
         TypedScalarExpression::Binary { r#type, .. } => r#type.clone(),
         TypedScalarExpression::Group { r#type, .. } => r#type.clone(),
         TypedScalarExpression::ValueIf { r#type, .. } => r#type.clone(),
+        TypedScalarExpression::ValueMatch { r#type, .. } => r#type.clone(),
         TypedScalarExpression::Call { r#type, .. } => r#type.clone(),
     }
 }

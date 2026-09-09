@@ -352,6 +352,120 @@ const checkNode = (
       return { kind: "valueIf", span: node.span, condition, thenBranch, elseBranch, type };
     }
 
+    case "valueMatch": {
+      const scrutinee = checkNode(node.scrutinee, null, state);
+      let scrutineeIsChoice = false;
+      let exhaustive = false;
+      if (scrutinee.type !== null) {
+        if (isChoiceScalarType(scrutinee.type)) {
+          scrutineeIsChoice = true;
+          const declaredOptions = scrutinee.type.options;
+          const seen = new Set<string>();
+          for (const arm of node.arms) {
+            if (!declaredOptions.includes(arm.label)) {
+              addDiagnostic(state, {
+                code: "impossible-match-case",
+                span: arm.labelSpan,
+                message: `match ケース「${arm.label}」はscrutineeのchoice(${declaredOptions.join(", ")})には存在しません。`,
+                presentation: {
+                  key: "diagnostic.impossible-match-case",
+                  parameters: { option: arm.label, expected: describeScalarType(scrutinee.type) }
+                },
+                expectedType: scrutinee.type
+              });
+              continue;
+            }
+            if (seen.has(arm.label)) {
+              addDiagnostic(state, {
+                code: "duplicate-match-case",
+                span: arm.labelSpan,
+                message: `match ケース「${arm.label}」が重複しています。`,
+                presentation: {
+                  key: "diagnostic.duplicate-match-case",
+                  parameters: { option: arm.label }
+                }
+              });
+              continue;
+            }
+            seen.add(arm.label);
+          }
+          const missing = declaredOptions.filter((option) => !seen.has(option));
+          exhaustive = missing.length === 0;
+          if (missing.length > 0) {
+            addDiagnostic(state, {
+              code: "missing-match-case",
+              span: node.span,
+              message: `match に必要なchoiceケースがありません: ${missing.join(", ")}。`,
+              presentation: {
+                key: "diagnostic.missing-match-case",
+                parameters: { options: missing.join(", ") }
+              },
+              expectedType: scrutinee.type
+            });
+          }
+        } else {
+          addDiagnostic(state, {
+            code: "non-choice-match-scrutinee",
+            span: node.scrutinee.span,
+            message: `match のscrutineeはchoice(...)型である必要があります(実際: ${describeScalarType(scrutinee.type)})。`,
+            presentation: {
+              key: "diagnostic.non-choice-match-scrutinee",
+              parameters: { actual: describeScalarType(scrutinee.type) }
+            },
+            actualType: scrutinee.type
+          });
+        }
+      }
+
+      const armResults = node.arms.map((arm) => ({
+        arm,
+        expression: checkNode(arm.expression, expectedType, state)
+      }));
+      let armResultsValid = armResults.every(({ expression }) => expression.type !== null);
+      let type: ScalarType | null = null;
+      if (expectedType !== null) {
+        for (const { expression } of armResults) {
+          if (!checkOperandType(state, expression, expectedType)) armResultsValid = false;
+        }
+        if (armResultsValid) type = expectedType;
+      } else {
+        const firstTyped = armResults.find(({ expression }) => expression.type !== null)?.expression.type ?? null;
+        if (firstTyped !== null) {
+          type = firstTyped;
+          for (const { arm, expression } of armResults) {
+            if (expression.type === null) {
+              armResultsValid = false;
+              continue;
+            }
+            if (!isScalarTypeAssignable(expression.type, firstTyped)) {
+              armResultsValid = false;
+              addDiagnostic(state, {
+                code: "scalar-type-mismatch",
+                span: arm.expression.span,
+                message: `match ケースの型が一致しません(期待: ${describeScalarType(firstTyped)}, 実際: ${describeScalarType(expression.type)})。`,
+                presentation: {
+                  key: "diagnostic.scalar-type-mismatch",
+                  parameters: { expected: describeScalarType(firstTyped), actual: describeScalarType(expression.type) }
+                },
+                expectedType: firstTyped,
+                actualType: expression.type
+              });
+            }
+          }
+        } else {
+          armResultsValid = false;
+        }
+      }
+      if (!scrutineeIsChoice || !exhaustive || !armResultsValid || scrutinee.type === null) type = null;
+      return {
+        kind: "valueMatch",
+        span: node.span,
+        scrutinee,
+        arms: armResults.map(({ arm, expression }) => ({ ...arm, expression })),
+        type
+      };
+    }
+
     case "call": {
       const definition = getBuiltinFunctionDefinition(node.name);
       if (definition === null) {

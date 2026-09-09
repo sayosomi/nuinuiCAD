@@ -75,6 +75,7 @@ fn root_type(expression: &TypedScalarExpression) -> Option<ScalarType> {
         TypedScalarExpression::Binary { r#type, .. } => r#type.clone(),
         TypedScalarExpression::Group { r#type, .. } => r#type.clone(),
         TypedScalarExpression::ValueIf { r#type, .. } => r#type.clone(),
+        TypedScalarExpression::ValueMatch { r#type, .. } => r#type.clone(),
         TypedScalarExpression::Call { r#type, .. } => r#type.clone(),
     }
 }
@@ -110,6 +111,14 @@ fn requires_scalar_runtime(expression: &TypedScalarExpression) -> bool {
                 work.push(condition);
                 work.push(then_branch);
                 work.push(else_branch);
+            }
+            TypedScalarExpression::ValueMatch {
+                scrutinee, arms, ..
+            } => {
+                work.push(scrutinee);
+                for arm in arms {
+                    work.push(&arm.expression);
+                }
             }
             TypedScalarExpression::Call { args, .. } => {
                 for argument in args {

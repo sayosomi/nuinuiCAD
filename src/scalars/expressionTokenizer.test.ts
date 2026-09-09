@@ -26,6 +26,14 @@ describe("tokenizeScalarExpression / parens and operators", () => {
     ]);
   });
 
+  it("tokenizes match arrows as a distinct two-character token", () => {
+    expect(tokenizeOk("small => 5")).toEqual([
+      { kind: "literal", literal: { kind: "choice", span: { start: 0, end: 5 }, raw: "small" } },
+      { kind: "arrow", span: { start: 6, end: 8 } },
+      { kind: "literal", literal: { kind: "number", span: { start: 9, end: 10 }, raw: "5", value: 5 } }
+    ]);
+  });
+
   it("tokenizes a named argument colon without changing the identifier token", () => {
     expect(tokenizeOk("name: expression")).toEqual([
       { kind: "literal", literal: { kind: "choice", span: { start: 0, end: 4 }, raw: "name" } },

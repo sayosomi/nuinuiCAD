@@ -210,6 +210,66 @@ describe("evaluateTypedExpression / scalar value-if", () => {
   });
 });
 
+describe("evaluateTypedExpression / exhaustive choice value-match", () => {
+  const choiceLiteral = (value: string, options: readonly string[]): TypedScalarExpression => ({
+    kind: "choiceLiteral",
+    span: { start: 0, end: 0 },
+    value,
+    type: { kind: "choice", options }
+  });
+
+  const valueMatch = (
+    scrutinee: TypedScalarExpression,
+    arms: readonly [string, TypedScalarExpression][],
+    type: ScalarType
+  ): TypedScalarExpression => ({
+    kind: "valueMatch",
+    span: { start: 0, end: 0 },
+    scrutinee,
+    arms: arms.map(([label, expression]) => ({ label, labelSpan: { start: 0, end: 0 }, expression })),
+    type
+  });
+
+  it("evaluates only the selected arm", () => {
+    const unreachable = valueMatch(
+      choiceLiteral("small", ["small", "large"]),
+      [
+        ["small", numberLiteral(5)],
+        ["large", {
+          kind: "reference",
+          span: { start: 0, end: 0 },
+          nameSpan: { start: 0, end: 0 },
+          name: "unreachable",
+          bindingId: "binding:unreachable",
+          type: { kind: "number" }
+        }]
+      ],
+      { kind: "number" }
+    );
+    expect(evaluateTypedExpression(unreachable, {
+      lookupBinding: () => { throw new Error("unselected match arm must not be looked up"); }
+    })).toEqual({ status: "ok", type: { kind: "number" }, value: { kind: "number", value: 5 } });
+  });
+
+  it("does not observe an unselected arm runtime error", () => {
+    const divideByZero: TypedScalarExpression = {
+      kind: "binary",
+      span: { start: 0, end: 0 },
+      operator: "/",
+      left: numberLiteral(1),
+      right: numberLiteral(0),
+      type: { kind: "number" }
+    };
+    expect(evaluateTypedExpression(valueMatch(
+      choiceLiteral("large", ["small", "large"]),
+      [["small", divideByZero], ["large", numberLiteral(10)]],
+      { kind: "number" }
+    ), {
+      lookupBinding: () => { throw new Error("no binding lookup expected"); }
+    })).toEqual({ status: "ok", type: { kind: "number" }, value: { kind: "number", value: 10 } });
+  });
+});
+
 describe("evaluateTypedExpression / collection index", () => {
   const collectionIndex = (index: TypedScalarExpression, type: ScalarType = { kind: "number" }): TypedScalarExpression => ({
     kind: "collectionIndex",

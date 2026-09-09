@@ -1,6 +1,6 @@
-//! Shape validation (own fields only, not children) for the five
+//! Shape validation (own fields only, not children) for the six
 //! recursive `TypedScalarExpression` node kinds - `unary`/`binary`/
-//! `group`/`valueIf`/`call`. Split out of `expression_leaf_payload.rs` to keep both files
+//! `group`/`valueIf`/`valueMatch`/`call`. Split out of `expression_leaf_payload.rs` to keep both files
 //! under this project's file-size guidance; conceptually still the same
 //! "non-recursive per-node-kind field validation" role described there.
 //! None of these functions recurse or touch child JSON values beyond
@@ -163,6 +163,80 @@ pub(crate) fn validate_value_if_shape(
         condition,
         then_branch,
         else_branch,
+    })
+}
+
+pub(crate) struct ValueMatchArmShape<'a> {
+    pub(crate) label: String,
+    pub(crate) label_span: ScalarSpan,
+    pub(crate) expression: &'a Value,
+}
+
+pub(crate) struct ValueMatchShape<'a> {
+    pub(crate) span: ScalarSpan,
+    pub(crate) r#type: Option<ScalarType>,
+    pub(crate) scrutinee: &'a Value,
+    pub(crate) arms: &'a [Value],
+}
+
+pub(crate) fn validate_value_match_shape(
+    object: &Map<String, Value>,
+) -> Result<ValueMatchShape<'_>, ScalarPayloadIssue> {
+    reject_unexpected_fields(
+        object,
+        &["kind", "span", "scrutinee", "arms", "type"],
+        "value-match node",
+    )?;
+    let span = decode_span(
+        require_field(object, "span", "value-match node")?,
+        "value-match node span",
+    )?;
+    let r#type = decode_nullable_scalar_type(require_field(object, "type", "value-match node")?)?;
+    let scrutinee = require_field(object, "scrutinee", "value-match node")?;
+    let arms = require_field(object, "arms", "value-match node")?
+        .as_array()
+        .ok_or_else(|| {
+            issue(
+                Code::InvalidFieldType,
+                "value-match node \"arms\" must be an array",
+            )
+        })?;
+    Ok(ValueMatchShape {
+        span,
+        r#type,
+        scrutinee,
+        arms,
+    })
+}
+
+pub(crate) fn validate_value_match_arm_shape(
+    json: &Value,
+) -> Result<ValueMatchArmShape<'_>, ScalarPayloadIssue> {
+    let object = as_object(json, "value-match arm")?;
+    reject_unexpected_fields(
+        object,
+        &["label", "labelSpan", "expression"],
+        "value-match arm",
+    )?;
+    let label = require_field(object, "label", "value-match arm")?
+        .as_str()
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| {
+            issue(
+                Code::InvalidFieldType,
+                "value-match arm \"label\" must be a non-empty string",
+            )
+        })?
+        .to_owned();
+    let label_span = decode_span(
+        require_field(object, "labelSpan", "value-match arm")?,
+        "value-match arm labelSpan",
+    )?;
+    let expression = require_field(object, "expression", "value-match arm")?;
+    Ok(ValueMatchArmShape {
+        label,
+        label_span,
+        expression,
     })
 }
 

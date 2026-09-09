@@ -28,6 +28,7 @@ fn node_kind(node: &TypedScalarExpression) -> &'static str {
         TypedScalarExpression::Binary { .. } => "binary",
         TypedScalarExpression::Group { .. } => "group",
         TypedScalarExpression::ValueIf { .. } => "valueIf",
+        TypedScalarExpression::ValueMatch { .. } => "valueMatch",
         TypedScalarExpression::Call { .. } => "call",
     }
 }
@@ -45,6 +46,7 @@ fn node_span(node: &TypedScalarExpression) -> (usize, usize) {
         | TypedScalarExpression::Binary { span, .. }
         | TypedScalarExpression::Group { span, .. }
         | TypedScalarExpression::ValueIf { span, .. }
+        | TypedScalarExpression::ValueMatch { span, .. }
         | TypedScalarExpression::Call { span, .. } => (span.start, span.end),
     }
 }
@@ -142,6 +144,22 @@ fn children_for_node(
         .into_iter()
         .flatten()
         .collect(),
+        TypedScalarExpression::ValueMatch {
+            scrutinee, arms, ..
+        } => {
+            let mut children = reached_child(node_index_by_identity, "scrutinee", scrutinee, None)
+                .into_iter()
+                .collect::<Vec<_>>();
+            children.extend(arms.iter().enumerate().filter_map(|(arm_index, arm)| {
+                reached_child(
+                    node_index_by_identity,
+                    "arm",
+                    &arm.expression,
+                    Some(arm_index),
+                )
+            }));
+            children
+        }
         TypedScalarExpression::Call { args, .. } => args
             .iter()
             .enumerate()

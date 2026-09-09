@@ -398,6 +398,28 @@ The constraints are:
   power result such as `(-1) ^ 0.5`, `0 ^ -1`, or `10 ^ 10000` produces
   `evaluation-non-finite-result`.
 
+### Exhaustive choice value match
+
+A scalar value expression may use the following exhaustive choice-match form:
+
+```nui
+match @size { small => 5 large => 10 }
+```
+
+The scrutinee is evaluated as an ordinary typed scalar expression and must
+have a concrete `choice(...)` type. The arm list consists of bare choice option
+labels followed by `=>` and one scalar value expression. Every option declared
+by the scrutinee must occur exactly once, in any authored order. A label that
+is not an option, a duplicate label, or a missing option is an error. Wildcard
+and default arms are not part of nui1.
+
+All arm result expressions are parsed and typechecked. The result type is one
+of `number`, `string`, `boolean`, or an exact `choice(...)` type shared by every
+arm; a bare choice literal is resolved against the expected result type. At
+runtime the scrutinee is evaluated first and only the arm whose label equals
+the selected choice value is evaluated. Geometry, records, collections, and
+optional `none`/`some` values are outside this slice.
+
 Named scalar function calls use the following syntax:
 
 ```nui

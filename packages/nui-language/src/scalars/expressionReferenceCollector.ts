@@ -34,6 +34,10 @@ export const collectScalarExpressionReferences = (
         visit(node.thenBranch);
         visit(node.elseBranch);
         return;
+      case "valueMatch":
+        visit(node.scrutinee);
+        node.arms.forEach((arm) => visit(arm.expression));
+        return;
       case "call":
         node.args.forEach((argument) => visit(argument.expression));
         return;
