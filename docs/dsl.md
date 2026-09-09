@@ -53,6 +53,10 @@ controls and length are available to existing path-compatible consumers. Pure
 Bezier path value; the optional segment index defaults to `0`, extreme direction
 uses the existing normalized degree semantics, and a bulge with coincident
 segment endpoints fails through the occurrence-owned geometry-value channel.
+Pure `intersection(line1: ..., line2: ..., index: ..., extensions: ...)` also
+produces an identity-free `point` from line-like geometry. `index` defaults to
+`0` and `extensions` to `false`; parallel, unavailable, same-source, and
+out-of-range cases fail through the occurrence-owned geometry-value channel.
 `polyline(...)` also produces an identity-free `polyline` path value using the
 drawable constructor's ordered `points` and optional `closed` arguments; open
 values require at least two points and closed values at least three. Pure

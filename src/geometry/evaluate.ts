@@ -78,6 +78,7 @@ import type {
 import { arcGeometryKernel, bezierBulgePointGeometryKernel, bezierExtremePointGeometryKernel, bezierGeometryKernel, coordinateGeometryKernel, divisionPointGeometryKernel, offsetLineGeometryValueKernel, offsetPointGeometryKernel, polarLineGeometryKernel, polarPointGeometryKernel, polylineGeometryKernel, segmentGeometryKernel, throughArcGeometryKernel, type StructuralPoint } from "./geometryValueKernels";
 import { buildOffsetLineGeometry } from "./offsetPaths";
 import { isLineLikeGeometryInput, pointAtDistanceFromEndpoint } from "./linePaths";
+import { findLineIntersections } from "./lineIntersections";
 import { evaluateTypedExpression } from "../scalars/expressionEvaluator";
 import { setParameterValue } from "../parameters/parameterAccess";
 
@@ -571,6 +572,57 @@ export const evaluateElements = (
         return;
       }
       value = { kind: "point", ...point };
+    } else if (entry.construction.kind === "intersection") {
+      if (entry.declaredInterfaceType !== "point") {
+        appendGeometryValueError(entry, "Geometry value construction is incompatible with its declared interface type.");
+        return;
+      }
+      const line1Target = entry.construction.line1.target;
+      const line2Target = entry.construction.line2.target;
+      const sameSource = line1Target.kind === "geometryValue" || line2Target.kind === "geometryValue"
+        ? line1Target.kind === "geometryValue" && line2Target.kind === "geometryValue" &&
+          line1Target.occurrence.sourceStatementId === line2Target.occurrence.sourceStatementId &&
+          line1Target.occurrence.instancePath.length === line2Target.occurrence.instancePath.length &&
+          line1Target.occurrence.instancePath.every((part, index) => part === line2Target.occurrence.instancePath[index])
+        : line1Target.statementId === line2Target.statementId;
+      if (sameSource) {
+        appendGeometryValueError(entry, "intersection geometry value cannot intersect the same source geometry twice.");
+        return;
+      }
+      const geometry1 = resolveDocumentGeometryTarget(geometryRuntime, line1Target, sourceOrder);
+      const geometry2 = resolveDocumentGeometryTarget(geometryRuntime, line2Target, sourceOrder);
+      const line1 = geometry1 && geometry1.kind !== "unavailable" && isLineLikeGeometryInput(geometry1) ? geometry1 : undefined;
+      const line2 = geometry2 && geometry2.kind !== "unavailable" && isLineLikeGeometryInput(geometry2) ? geometry2 : undefined;
+      if (!line1 || !line2) {
+        appendGeometryValueError(entry, "intersection geometry value inputs are unavailable or invalid.");
+        return;
+      }
+      const intersectionIndex = evaluateGeometryValueScalar(entry.construction.index, sourceOrder);
+      if (intersectionIndex === undefined || !Number.isFinite(intersectionIndex) || !Number.isInteger(intersectionIndex) || intersectionIndex < 0) {
+        appendGeometryValueError(entry, "intersection geometry value index must be a finite non-negative integer.");
+        return;
+      }
+      const useExtensions = evaluateGeometryValueBoolean(entry.construction.extensions, sourceOrder);
+      if (useExtensions === undefined) {
+        appendGeometryValueError(entry, "intersection geometry value extensions must be boolean.");
+        return;
+      }
+      const result = findLineIntersections(line1, line2, { useExtensions });
+      if (result.error) {
+        appendGeometryValueError(entry, result.error);
+        return;
+      }
+      const intersection = result.intersections[intersectionIndex];
+      if (!intersection) {
+        appendGeometryValueError(
+          entry,
+          result.intersections.length === 0
+            ? "intersection geometry value could not find an intersection between the referenced geometry inputs. Check line1, line2, or extensions."
+            : `intersection geometry value index ${intersectionIndex} is unavailable. There are ${result.intersections.length} intersections.`
+        );
+        return;
+      }
+      value = { kind: "point", x: intersection.x, y: intersection.y };
     } else if (entry.construction.kind === "bezierExtremePoint") {
       if (entry.declaredInterfaceType !== "point") {
         appendGeometryValueError(entry, "Geometry value construction is incompatible with its declared interface type.");

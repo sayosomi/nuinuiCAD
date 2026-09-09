@@ -823,6 +823,48 @@ describe("multi-document module runtime", () => {
     expect(pureValues.every(({ value }) => !("elementId" in value) && !("name" in value))).toBe(true);
   });
 
+  it("consumes imported pure intersection exports through a root geometry consumer", async () => {
+    const library = savedSource("intersection-library", "sha256:intersection-library", [
+      "nui 1",
+      "export module Cross(first: path, second: path) {",
+      "  const Local: point = intersection(line1: @first, line2: @second, index: 0, extensions: false)",
+      "  export const Output: point = @Local",
+      "}"
+    ].join("\n"));
+    const root = rootSource("intersection-root", [
+      "nui 1",
+      "line Horizontal = segment(start: (0, 0), end: (100, 0))",
+      "line Vertical = segment(start: (50, -50), end: (50, 50))",
+      "import \"./intersection-library.nui\" as lib",
+      "instance use = lib::Cross(first: @Horizontal, second: @Vertical)",
+      "const Point: point = @use::Output",
+      "line Use = segment(start: @Point, end: (75, 0))"
+    ].join("\n"));
+    const { graph, semantics, context, compiled } = await compileImported(
+      root,
+      new Map([[`${root.documentId}|./intersection-library.nui`, library]])
+    );
+
+    expect(graph.valid).toBe(true);
+    expect(semantics.valid).toBe(true);
+    expect(context.valid).toBe(true);
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const result = evaluateCompiled(compiled);
+
+    expect(result.errors).toEqual([]);
+    expect(result.geometryValueErrors).toEqual([]);
+    const importedValues = [...(result.computedGeometryValues?.values() ?? [])]
+      .filter((entry) => entry.occurrence.instancePath.length === 1);
+    expect(importedValues.map((entry) => entry.value)).toEqual([{ kind: "point", x: 50, y: 0 }]);
+    expect(importedValues.every(({ value }) => !("elementId" in value) && !("name" in value))).toBe(true);
+    const use = compiled.document?.elements.find((element) => element.name === "Use");
+    expect(use && result.computedGeometry.get(use.id)).toMatchObject({
+      kind: "line",
+      start: { x: 50, y: 0 },
+      end: { x: 75, y: 0 }
+    });
+  });
+
   it("keeps imported record values, record parameters, and record exports in the defining document", async () => {
     const library = savedSource("record-library", "sha256:record-library", [
       "nui 1",

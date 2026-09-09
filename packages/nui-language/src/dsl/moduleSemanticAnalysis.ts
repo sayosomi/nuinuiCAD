@@ -2171,6 +2171,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     const yArgument = argument("y");
     const fromArgument = argument("from");
     const sourceArgument = argument("source");
+    const line1Argument = argument("line1");
+    const line2Argument = argument("line2");
     const distanceArgument = argument("distance");
     const ratioArgument = argument("ratio");
     const sourcesArgument = argument("sources");
@@ -2497,6 +2499,39 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
             placement: selectedPlacement
           }
         : null;
+    }
+    if (invocation.construction === "intersection" && invocation.pureValueInterface === "point") {
+      if (expectedInterfaceType !== "point") {
+        addLocal(statementIndex, issue("module-geometry-type-mismatch", constructionSpan, "intersection construction は point value にのみ代入できます。", {
+          presentation: { key: "diagnostic.module-geometry-type-mismatch", parameters: { target: "intersection" } }
+        }));
+      }
+      const line = (candidate: typeof line1Argument) => candidate
+        ? resolveGeometry(
+            statementIndex,
+            ownerIndex,
+            source.slice(candidate.valueSpan.start, candidate.valueSpan.end),
+            candidate.valueSpan,
+            "line",
+            {
+              expectedInterfaceType: "path",
+              allowCoordinate: false,
+              role: "lineReference",
+              scalarResolver: options.scalarResolver,
+              bareScalarResolver: options.bareScalarResolver,
+              geometryPropertyResolver: options.geometryPropertyResolver,
+              presenceFacts: options.presenceFacts
+            }
+          )
+        : geometryReference("", constructionSpan, "line", null, "invalid", null, "lineReference");
+      return {
+        kind: "intersection",
+        span: { start: constructionSpan.start, end: initializerSpan.end },
+        line1: line(line1Argument),
+        line2: line(line2Argument),
+        index: scalar(argument("index"), { kind: "number" }, "0"),
+        extensions: scalar(argument("extensions"), { kind: "boolean" }, "false")
+      };
     }
     if (invocation.construction === "bezierExtremePoint" && invocation.pureValueInterface === "point") {
       if (expectedInterfaceType !== "point") {

@@ -11,6 +11,7 @@ Typed scalar declarations use an explicit type annotation and initializer:
   `polar(from: ..., angle: ..., distance: ...)` for `point`,
   `between(start: ..., end: ..., distance: ...)` or `between(start: ..., end: ..., ratio: ...)` for `point`,
   `onLine(from: ..., distance: ...)` or `onLine(from: ..., ratio: ...)` for `point`,
+  `intersection(line1: ..., line2: ..., index: ..., extensions: ...)` for `point`,
   `segment(start: ..., end: ...)` for `line` or `path`, `polar(start: ...,
   angle: ..., length: ...)` for `line` or `path`, and direct
   `arc(center: ..., radius: ..., start: ..., end: ..., direction: ...)` for
@@ -76,6 +77,11 @@ or supplying both is invalid. `between` measures distance from `start` toward
 `end`, while `onLine` measures from the referenced `start` or `end` endpoint
 using the complete line/path geometry. Pure forms do not create a drawable
 element, computed drawable entry, or synthetic identity.
+
+Pure `intersection(...)` accepts line-like `line` or `path` inputs and uses
+`index: 0` and `extensions: false` when omitted. It returns an identity-free
+point; same-source, parallel, unavailable, and out-of-range inputs remain
+occurrence-owned geometry-value runtime errors.
 
 `set` does not create a geometry element or a new binding. Its target must be a
 mutable scalar in scope, and its right-hand side is checked against that

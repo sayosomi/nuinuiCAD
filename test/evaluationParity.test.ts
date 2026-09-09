@@ -239,6 +239,181 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("matches pure intersection points, extensions, and path inputs across TypeScript and Rust", () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "line Horizontal = segment(start: (0, 0), end: (100, 0))",
+      "line Vertical = segment(start: (50, -50), end: (50, 50))",
+      "const Default: point = intersection(line1: @Horizontal, line2: @Vertical)",
+      "const Explicit: point = intersection(line1: @Horizontal, line2: @Vertical, index: 0, extensions: false)",
+      "const Path: path = polyline(points: [(0, 0), (100, 0)], closed: false)",
+      "const FromPath: point = intersection(line1: @Path, line2: @Vertical)",
+      "line Far = segment(start: (150, -50), end: (150, 50))",
+      "const NoIntersection: point = intersection(line1: @Horizontal, line2: @Far)",
+      "const Extended: point = intersection(line1: @Horizontal, line2: @Far, extensions: true)",
+      "line Use = segment(start: @Default, end: @FromPath)"
+    ].join("\n"));
+    const program = fixture.compiled?.doc.geometryValueProgram;
+    if (!program) throw new Error("expected pure intersection geometry value program entries");
+    const entryFor = (sourceStatementIndex: number) => program.find((entry) => entry.sourceStatementIndex === sourceStatementIndex);
+    const defaultEntry = entryFor(3);
+    const explicitEntry = entryFor(4);
+    const pathEntry = entryFor(5);
+    const fromPathEntry = entryFor(6);
+    const noIntersectionEntry = entryFor(8);
+    const extendedEntry = entryFor(9);
+    if (!defaultEntry || !explicitEntry || !pathEntry || !fromPathEntry || !noIntersectionEntry || !extendedEntry) {
+      throw new Error("expected all pure intersection entries");
+    }
+    const options = optionsFor(fixture);
+
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustOptions(repoRoot, fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+
+    const valueFor = (
+      result: ReturnType<typeof evaluationPayloadToResult>,
+      occurrence: typeof defaultEntry.occurrence
+    ) => [...(result.computedGeometryValues?.values() ?? [])]
+      .find((entry) => entry.occurrence.sourceStatementId === occurrence.sourceStatementId &&
+        entry.occurrence.instancePath.join("\0") === occurrence.instancePath.join("\0"))?.value;
+
+    for (const result of [evaluationPayloadToResult(tsPayload), evaluationPayloadToResult(rustPayload)]) {
+      expect(result.errors).toEqual([]);
+      expect(valueFor(result, defaultEntry.occurrence)).toEqual({ kind: "point", x: 50, y: 0 });
+      expect(valueFor(result, explicitEntry.occurrence)).toEqual({ kind: "point", x: 50, y: 0 });
+      expect(valueFor(result, pathEntry.occurrence)).toMatchObject({ kind: "polyline", closed: false });
+      expect(valueFor(result, fromPathEntry.occurrence)).toEqual({ kind: "point", x: 50, y: 0 });
+      expect(valueFor(result, extendedEntry.occurrence)).toEqual({ kind: "point", x: 150, y: 0 });
+      expect(result.geometryValueErrors).toEqual([{
+        occurrence: noIntersectionEntry.occurrence,
+        message: "intersection geometry value could not find an intersection between the referenced geometry inputs. Check line1, line2, or extensions."
+      }]);
+      expect([...result.computedGeometryValues!.values()].every(({ value }) => !("elementId" in value) && !("name" in value))).toBe(true);
+    }
+  }, 30000);
+
+  it("matches deterministic nonzero pure intersection indexes across TypeScript and Rust", () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "line Horizontal = segment(start: (-20, 0), end: (20, 0))",
+      "const Circle: path = arc(center: (0, 0), radius: 10, start: 0, end: 360, direction: counterclockwise)",
+      "const First: point = intersection(line1: @Horizontal, line2: @Circle, index: 0, extensions: false)",
+      "const Second: point = intersection(line1: @Horizontal, line2: @Circle, index: 1, extensions: false)",
+      "line Use = segment(start: @First, end: @Second)"
+    ].join("\n"));
+    const program = fixture.compiled?.doc.geometryValueProgram;
+    if (!program) throw new Error("expected pure intersection geometry value program entries");
+    const firstEntry = program.find((entry) => entry.sourceStatementIndex === 3);
+    const secondEntry = program.find((entry) => entry.sourceStatementIndex === 4);
+    if (!firstEntry || !secondEntry) throw new Error("expected both indexed pure intersection entries");
+    const options = optionsFor(fixture);
+
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustOptions(repoRoot, fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+
+    const valueFor = (
+      result: ReturnType<typeof evaluationPayloadToResult>,
+      occurrence: typeof firstEntry.occurrence
+    ) => [...(result.computedGeometryValues?.values() ?? [])]
+      .find((entry) => entry.occurrence.sourceStatementId === occurrence.sourceStatementId &&
+        entry.occurrence.instancePath.join("\0") === occurrence.instancePath.join("\0"))?.value;
+
+    for (const payload of [tsPayload, rustPayload]) {
+      const result = evaluationPayloadToResult(payload);
+      expect(result.errors).toEqual([]);
+      expect(result.geometryValueErrors).toEqual([]);
+      expect(valueFor(result, firstEntry.occurrence)).toEqual({ kind: "point", x: -10, y: 0 });
+      expect(valueFor(result, secondEntry.occurrence)).toEqual({ kind: "point", x: 10, y: 0 });
+      expect([...result.computedGeometryValues!.values()].every(({ value }) => !("elementId" in value) && !("name" in value))).toBe(true);
+    }
+  }, 30000);
+
+  it("matches same-source alias rejection and unavailable intersection inputs across TypeScript and Rust", () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "line Source = segment(start: (0, 0), end: (100, 0))",
+      "const First: path = @Source",
+      "const Second: line = @Source",
+      "const Same: point = intersection(line1: @First, line2: @Second)",
+      "line Vertical = segment(start: (5, -10), end: (5, 10))",
+      "const Invalid: path = polyline(points: [(0, 0), (10 / 0, 0)], closed: false)",
+      "const Failed: point = intersection(line1: @Invalid, line2: @Vertical)"
+    ].join("\n"));
+    const program = fixture.compiled?.doc.geometryValueProgram;
+    if (!program) throw new Error("expected pure intersection geometry value program entries");
+    const sameEntry = program.find((entry) => entry.sourceStatementIndex === 4);
+    const invalidEntry = program.find((entry) => entry.sourceStatementIndex === 6);
+    const failedEntry = program.find((entry) => entry.sourceStatementIndex === 7);
+    if (!sameEntry || !invalidEntry || !failedEntry) throw new Error("expected alias and unavailable intersection entries");
+    const options = optionsFor(fixture);
+
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustOptions(repoRoot, fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+    for (const payload of [tsPayload, rustPayload]) {
+      const result = evaluationPayloadToResult(payload);
+      expect(result.errors).toEqual([]);
+      expect(result.computedGeometryValues).toEqual(new Map());
+      expect(result.geometryValueErrors).toEqual([
+        {
+          occurrence: sameEntry.occurrence,
+          message: "intersection geometry value cannot intersect the same source geometry twice."
+        },
+        {
+          occurrence: invalidEntry.occurrence,
+          message: "Polyline geometry value construction inputs are unavailable or invalid."
+        },
+        {
+          occurrence: failedEntry.occurrence,
+          message: "intersection geometry value inputs are unavailable or invalid."
+        }
+      ]);
+      expect(result.geometryValueErrors?.every((error) => !("elementId" in error))).toBe(true);
+    }
+  }, 30000);
+
+  it("matches pure intersection source, index, and cardinality diagnostics across TypeScript and Rust", () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "line Horizontal = segment(start: (0, 0), end: (100, 0))",
+      "line Vertical = segment(start: (50, -50), end: (50, 50))",
+      "const Same: point = intersection(line1: @Horizontal, line2: @Horizontal)",
+      "const Negative: point = intersection(line1: @Horizontal, line2: @Vertical, index: -1)",
+      "const Fractional: point = intersection(line1: @Horizontal, line2: @Vertical, index: 0.5)",
+      "const OutOfRange: point = intersection(line1: @Horizontal, line2: @Vertical, index: 1)"
+    ].join("\n"));
+    const program = fixture.compiled?.doc.geometryValueProgram;
+    if (!program) throw new Error("expected pure intersection geometry value program entries");
+    const entryFor = (sourceStatementIndex: number) => program.find((entry) => entry.sourceStatementIndex === sourceStatementIndex);
+    const same = entryFor(3);
+    const negative = entryFor(4);
+    const fractional = entryFor(5);
+    const outOfRange = entryFor(6);
+    if (!same || !negative || !fractional || !outOfRange) throw new Error("expected all intersection diagnostic entries");
+    const options = optionsFor(fixture);
+
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustOptions(repoRoot, fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+    for (const payload of [tsPayload, rustPayload]) {
+      const result = evaluationPayloadToResult(payload);
+      expect(result.errors).toEqual([]);
+      expect(result.geometryValueErrors).toEqual([
+        { occurrence: same.occurrence, message: "intersection geometry value cannot intersect the same source geometry twice." },
+        { occurrence: negative.occurrence, message: "intersection geometry value index must be a finite non-negative integer." },
+        { occurrence: fractional.occurrence, message: "intersection geometry value index must be a finite non-negative integer." },
+        { occurrence: outOfRange.occurrence, message: "intersection geometry value index 1 is unavailable. There are 1 intersections." }
+      ]);
+      expect(result.geometryValueErrors?.every((error) => !("elementId" in error))).toBe(true);
+    }
+  }, 30000);
+
   it("matches pure division-point degenerate diagnostics across TypeScript and Rust", () => {
     const fixture = fixtureFromSource([
       "nui 1",
