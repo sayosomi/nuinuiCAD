@@ -894,6 +894,65 @@ describe("registerVscodeReferencePickFeature", () => {
     feature.dispose();
   });
 
+  it("restores the captured Source selection after explicit Canvas cancellation", async () => {
+    const editor = createEditor();
+    const originalSelection = editor.selection;
+    mocks.activeTextEditor = editor;
+    mocks.showTextDocument.mockResolvedValue(editor);
+    const languageSession = createLanguageAnalysisSession(source);
+    const { panel, webviewListeners } = createPanel();
+    const bridge = createBridge();
+    bridge.handleResult.mockResolvedValue("canceled");
+    mocks.bridgeFactory.mockReturnValue(bridge);
+    const feature = registerVscodeReferencePickFeature({
+      languageAnalysisSessionFor: () => languageSession,
+      ensureCanvas: vi.fn(() => ({
+        document: editor.document,
+        panel,
+        isAuthoritativeReady: () => true
+      }))
+    });
+
+    const command = mocks.commands.get(VSCODE_REFERENCE_PICK_COMMAND_ID);
+    if (!command) throw new Error("reference pick command was not registered");
+    await command();
+
+    expect(mocks.showTextDocument).toHaveBeenCalledTimes(1);
+    expect(mocks.showTextDocument.mock.calls[0]?.[1]).toMatchObject({
+      viewColumn: editor.viewColumn,
+      preserveFocus: false,
+      preview: false,
+      selection: originalSelection
+    });
+    expect(bridge.start).toHaveBeenCalledTimes(1);
+    const resultListener = webviewListeners[0];
+    if (!resultListener) throw new Error("reference pick webview listener was not installed");
+
+    editor.selection = { active: { offset: 0 } };
+    resultListener({ type: "referencePickResult", status: "canceled" });
+    await flush();
+
+    expect(webviewListeners).toHaveLength(0);
+    expect(mocks.showTextDocument).toHaveBeenCalledTimes(2);
+    expect(mocks.showTextDocument.mock.calls[1]).toEqual([
+      editor.document,
+      {
+        viewColumn: editor.viewColumn,
+        preserveFocus: false,
+        preview: false,
+        selection: originalSelection
+      }
+    ]);
+    expect(mocks.bridgeFactory).toHaveBeenCalledTimes(1);
+
+    for (const listener of [...mocks.documentChangeListeners]) {
+      listener({ document: editor.document, contentChanges: [{}] });
+    }
+    expect(mocks.bridgeFactory).toHaveBeenCalledTimes(1);
+
+    feature.dispose();
+  });
+
   it("abandons a pending Pick when Source changes before Canvas becomes ready", async () => {
     const editor = createEditor();
     mocks.activeTextEditor = editor;
