@@ -9,6 +9,7 @@ use super::geometry_value_kernels::{
     polyline_geometry_kernel, segment_geometry_kernel, through_arc_geometry_kernel,
     StructuralPoint,
 };
+use super::line_intersections::find_line_intersections;
 use super::line_path::{geometry_length, point_at_distance_from_endpoint};
 use super::offset_paths::{build_offset_line_geometry, is_line_like_geometry};
 use super::point_anchor::point_from_geometry;
@@ -83,6 +84,12 @@ pub(crate) enum GeometryValueConstruction {
         line: super::scalars::ScalarExpressionResolvedGeometryTarget,
         endpoint_key: String,
         placement: GeometryValuePlacement,
+    },
+    Intersection {
+        line1: super::scalars::ScalarExpressionResolvedGeometryTarget,
+        line2: super::scalars::ScalarExpressionResolvedGeometryTarget,
+        index: Box<TypedScalarExpression>,
+        extensions: Box<TypedScalarExpression>,
     },
     BezierExtremePoint {
         source: super::scalars::ScalarExpressionResolvedGeometryTarget,
@@ -424,6 +431,38 @@ fn decode_entry(value: &Value) -> Result<GeometryValueProgramEntry, String> {
                     placement: decode_placement(construction_object, "geometry value onLine")?,
                 }
             }
+            "intersection" => GeometryValueConstruction::Intersection {
+                line1: super::scalars::decode_geometry_target_payload(
+                    construction_object
+                        .get("line1")
+                        .and_then(|value| value.get("target"))
+                        .ok_or_else(|| {
+                            "geometry value intersection is missing line1 target".to_owned()
+                        })?,
+                )
+                .map_err(|error| format!("{error:?}"))?
+                .ok_or_else(|| "geometry value intersection line1 cannot be null".to_owned())?,
+                line2: super::scalars::decode_geometry_target_payload(
+                    construction_object
+                        .get("line2")
+                        .and_then(|value| value.get("target"))
+                        .ok_or_else(|| {
+                            "geometry value intersection is missing line2 target".to_owned()
+                        })?,
+                )
+                .map_err(|error| format!("{error:?}"))?
+                .ok_or_else(|| "geometry value intersection line2 cannot be null".to_owned())?,
+                index: Box::new(decode_typed_field(
+                    construction_object,
+                    "index",
+                    "geometry value intersection",
+                )?),
+                extensions: Box::new(decode_typed_field(
+                    construction_object,
+                    "extensions",
+                    "geometry value intersection",
+                )?),
+            },
             "bezierExtremePoint" => {
                 let source_object = object(
                     construction_object.get("source").ok_or_else(|| {
@@ -872,6 +911,20 @@ fn target_geometry<'a>(
     }
 }
 
+fn same_geometry_source(
+    left: &super::scalars::ScalarExpressionResolvedGeometryTarget,
+    right: &super::scalars::ScalarExpressionResolvedGeometryTarget,
+) -> bool {
+    match (
+        left.geometry_value_occurrence.as_ref(),
+        right.geometry_value_occurrence.as_ref(),
+    ) {
+        (Some(left), Some(right)) => left == right,
+        (None, None) => left.statement_id == right.statement_id,
+        _ => false,
+    }
+}
+
 fn remove_geometry_identity(value: &mut Value) {
     match value {
         Value::Array(values) => values.iter_mut().for_each(remove_geometry_identity),
@@ -1209,6 +1262,104 @@ pub(crate) fn evaluate_geometry_value_entry(
                 return;
             };
             Some(json!({ "kind": "point", "x": x, "y": y }))
+        }
+        GeometryValueConstruction::Intersection {
+            line1,
+            line2,
+            index,
+            extensions,
+        } => {
+            if entry.declared_interface_type != "point" {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "Geometry value construction is incompatible with its declared interface type.",
+                );
+                return;
+            }
+            if same_geometry_source(line1, line2) {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "intersection geometry value cannot intersect the same source geometry twice.",
+                );
+                return;
+            }
+            let Some(geometry1) = target_geometry(line1, state) else {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "intersection geometry value inputs are unavailable or invalid.",
+                );
+                return;
+            };
+            let Some(geometry2) = target_geometry(line2, state) else {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "intersection geometry value inputs are unavailable or invalid.",
+                );
+                return;
+            };
+            if !is_line_like_geometry(Some(geometry1)) || !is_line_like_geometry(Some(geometry2)) {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "intersection geometry value inputs are unavailable or invalid.",
+                );
+                return;
+            }
+            let Some(index) = number_expression(index, resolver, state, source_order) else {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "intersection geometry value index must be a finite non-negative integer.",
+                );
+                return;
+            };
+            if !index.is_finite() || index.fract() != 0.0 || index < 0.0 {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "intersection geometry value index must be a finite non-negative integer.",
+                );
+                return;
+            }
+            let Some(extensions) = boolean_expression(extensions, resolver, state, source_order)
+            else {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "intersection geometry value extensions must be boolean.",
+                );
+                return;
+            };
+            let Some(result) = find_line_intersections(geometry1, geometry2, extensions) else {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "intersection geometry value inputs are unavailable or invalid.",
+                );
+                return;
+            };
+            if let Some(error) = result.error {
+                append_geometry_value_error(state, entry, &error);
+                return;
+            }
+            let Some(intersection) = result.intersections.get(index as usize) else {
+                let message = if result.intersections.is_empty() {
+                    "intersection geometry value could not find an intersection between the referenced geometry inputs. Check line1, line2, or extensions.".to_owned()
+                } else {
+                    format!(
+                        "intersection geometry value index {} is unavailable. There are {} intersections.",
+                        index,
+                        result.intersections.len()
+                    )
+                };
+                append_geometry_value_error(state, entry, &message);
+                return;
+            };
+            Some(json!({ "kind": "point", "x": intersection.x, "y": intersection.y }))
         }
         GeometryValueConstruction::BezierExtremePoint {
             source,

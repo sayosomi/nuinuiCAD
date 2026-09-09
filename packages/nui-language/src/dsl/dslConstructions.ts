@@ -114,6 +114,7 @@ const constructionSpecs: DslConstructionSpec[] = [
     category: "point",
     construction: "intersection",
     elementType: "intersectionPoint",
+    pureValueInterface: "point",
     args: [required("line1", "line1Id"), required("line2", "line2Id"), arg("index", "intersectionIndex"), arg("extensions", "useExtensions")],
   },
   {

@@ -619,8 +619,11 @@ geometry provides them. `extensions: true` permits the infinite extensions of
 the two lines; otherwise the construction uses the supported finite geometry
 intersection rules.
 
-**Notes:** Parallel, unavailable, or otherwise non-intersecting inputs produce
-an invalid point rather than a guessed result.
+As an immutable geometry value, `const name: point = intersection(...)` accepts
+line-like `line` or `path` values, defaults `index` to `0` and `extensions` to
+`false`, and creates no drawable identity. Parallel, unavailable, same-source,
+or otherwise non-intersecting inputs produce an occurrence-owned invalid point
+rather than a guessed result; an unavailable index is also an error.
 
 ### `tangentOffset`
 

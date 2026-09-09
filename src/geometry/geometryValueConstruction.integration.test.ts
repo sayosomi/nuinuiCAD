@@ -960,7 +960,109 @@ describe("pure geometry construction runtime", () => {
       .map((entry) => entry.value)).toEqual([
         { kind: "point", x: 25, y: 0 },
         { kind: "point", x: 5, y: 0 }
-      ]);
+    ]);
+  });
+
+  it("evaluates pure intersection points from drawable and path inputs with defaults", () => {
+    const { compiled, result } = evaluate([
+      "nui 1",
+      "line Horizontal = segment(start: (0, 0), end: (100, 0))",
+      "line Vertical = segment(start: (50, -50), end: (50, 50))",
+      "const Default: point = intersection(line1: @Horizontal, line2: @Vertical)",
+      "const Explicit: point = intersection(line1: @Horizontal, line2: @Vertical, index: 0, extensions: false)",
+      "const Path: path = polyline(points: [(0, 0), (100, 0)], closed: false)",
+      "const FromPath: point = intersection(line1: @Path, line2: @Vertical)",
+      "line Far = segment(start: (150, -50), end: (150, 50))",
+      "const NoIntersection: point = intersection(line1: @Horizontal, line2: @Far)",
+      "const Extended: point = intersection(line1: @Horizontal, line2: @Far, extensions: true)",
+      "line Use = segment(start: @Default, end: @FromPath)"
+    ].join("\n"));
+
+    expect(compiled.diagnostics).toEqual([]);
+    expect(compiled.document?.elements.map((element) => element.name)).toEqual(["Horizontal", "Vertical", "Far", "Use"]);
+    expect(result.errors).toEqual([]);
+    expect(result.geometryValueErrors).toEqual([{
+      occurrence: { sourceStatementId: "geometry-value-runtime:8", instancePath: [] },
+      message: "intersection geometry value could not find an intersection between the referenced geometry inputs. Check line1, line2, or extensions."
+    }]);
+    const valueFor = (sourceStatementId: string) => [...result.computedGeometryValues!.values()]
+      .find((entry) => entry.occurrence.sourceStatementId === sourceStatementId)?.value;
+    expect(valueFor("geometry-value-runtime:3")).toEqual({ kind: "point", x: 50, y: 0 });
+    expect(valueFor("geometry-value-runtime:4")).toEqual({ kind: "point", x: 50, y: 0 });
+    expect(valueFor("geometry-value-runtime:5")).toMatchObject({ kind: "polyline", closed: false });
+    expect(valueFor("geometry-value-runtime:6")).toEqual({ kind: "point", x: 50, y: 0 });
+    expect(valueFor("geometry-value-runtime:9")).toEqual({ kind: "point", x: 150, y: 0 });
+    expect([...result.computedGeometryValues!.values()].every(({ value }) => !("elementId" in value) && !("name" in value))).toBe(true);
+    expect(result.computedGeometry.get("geometry-value-runtime:10")).toMatchObject({
+      kind: "line",
+      start: { x: 50, y: 0 },
+      end: { x: 50, y: 0 }
+    });
+  });
+
+  it("reports pure intersection source, index, and cardinality failures by occurrence", () => {
+    const { compiled, result } = evaluate([
+      "nui 1",
+      "line Horizontal = segment(start: (0, 0), end: (100, 0))",
+      "line Vertical = segment(start: (50, -50), end: (50, 50))",
+      "const Same: point = intersection(line1: @Horizontal, line2: @Horizontal)",
+      "const Negative: point = intersection(line1: @Horizontal, line2: @Vertical, index: -1)",
+      "const Fractional: point = intersection(line1: @Horizontal, line2: @Vertical, index: 0.5)",
+      "const OutOfRange: point = intersection(line1: @Horizontal, line2: @Vertical, index: 1)"
+    ].join("\n"));
+
+    expect(compiled.diagnostics).toEqual([]);
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometryValues).toEqual(expect.any(Map));
+    expect(result.geometryValueErrors).toEqual([
+      {
+        occurrence: { sourceStatementId: "geometry-value-runtime:3", instancePath: [] },
+        message: "intersection geometry value cannot intersect the same source geometry twice."
+      },
+      {
+        occurrence: { sourceStatementId: "geometry-value-runtime:4", instancePath: [] },
+        message: "intersection geometry value index must be a finite non-negative integer."
+      },
+      {
+        occurrence: { sourceStatementId: "geometry-value-runtime:5", instancePath: [] },
+        message: "intersection geometry value index must be a finite non-negative integer."
+      },
+      {
+        occurrence: { sourceStatementId: "geometry-value-runtime:6", instancePath: [] },
+        message: "intersection geometry value index 1 is unavailable. There are 1 intersections."
+      }
+    ]);
+  });
+
+  it("supports pure intersection points in Module locals and qualified exports", () => {
+    const { compiled, result } = evaluate([
+      "nui 1",
+      "module M(first: path, second: path) {",
+      "  const Local: point = intersection(line1: @first, line2: @second)",
+      "  export const Output: point = intersection(line1: @first, line2: @second, index: 0, extensions: false)",
+      "}",
+      "line Horizontal = segment(start: (0, 0), end: (100, 0))",
+      "line Vertical = segment(start: (50, -50), end: (50, 50))",
+      "instance One = M(first: @Horizontal, second: @Vertical)",
+      "const Root: point = @One::Output",
+      "line Use = segment(start: @One::Output, end: @Root)"
+    ].join("\n"));
+
+    expect(compiled.diagnostics).toEqual([]);
+    expect(result.errors).toEqual([]);
+    expect(result.geometryValueErrors).toEqual([]);
+    const values = [...result.computedGeometryValues!.values()];
+    expect(values.filter((entry) => entry.occurrence.instancePath.length === 1).map((entry) => entry.value)).toEqual([
+      { kind: "point", x: 50, y: 0 },
+      { kind: "point", x: 50, y: 0 }
+    ]);
+    expect(values.filter((entry) => entry.occurrence.instancePath.length === 0)).toEqual([]);
+    expect(values.every(({ value }) => !("elementId" in value) && !("name" in value))).toBe(true);
+    expect(result.computedGeometry.get("geometry-value-runtime:9")).toMatchObject({
+      kind: "line",
+      start: { x: 50, y: 0 },
+      end: { x: 50, y: 0 }
+    });
   });
 
   it("reports pure distance and onLine degenerate failures by occurrence", () => {

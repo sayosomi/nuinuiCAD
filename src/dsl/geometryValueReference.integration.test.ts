@@ -160,7 +160,7 @@ describe("immutable single-geometry reference values", () => {
       end: { type: { kind: "number" } },
       direction: { type: { kind: "choice", options: ["counterclockwise", "clockwise"] } }
     });
-    expect(pureGeometryValueConstructionCandidates("point").map((candidate) => candidate.label)).toEqual(["coordinate", "offset", "polar", "between", "onLine", "bezierExtremePoint", "bezierBulgePoint"]);
+    expect(pureGeometryValueConstructionCandidates("point").map((candidate) => candidate.label)).toEqual(["coordinate", "offset", "polar", "between", "onLine", "intersection", "bezierExtremePoint", "bezierBulgePoint"]);
     expect(pureGeometryValueConstructionCandidates("line").map((candidate) => candidate.label)).toEqual(["segment", "polar"]);
     expect(pureGeometryValueConstructionCandidates("path").map((candidate) => candidate.label)).toEqual(["segment", "polar", "offset", "polyline", "bezier", "arc", "through"]);
     expect(pureGeometryValueConstructionCandidates("point").map((candidate) => candidate.label)).not.toContain("through");

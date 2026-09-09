@@ -433,6 +433,14 @@ export type ModuleGeometryConstructionSemantic =
       placement: ModuleGeometryPlacementSemantic;
     }
   | {
+      kind: "intersection";
+      span: DslSpan;
+      line1: ModuleGeometryReferenceSemantic;
+      line2: ModuleGeometryReferenceSemantic;
+      index: ModuleScalarExpressionSemantic | null;
+      extensions: ModuleScalarExpressionSemantic | null;
+    }
+  | {
       kind: "bezierExtremePoint";
       span: DslSpan;
       source: ModuleGeometryReferenceSemantic;

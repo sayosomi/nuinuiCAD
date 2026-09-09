@@ -53,7 +53,8 @@ const throughEdge: path = through(point1: @originPoint, point2: (10, 10), point3
 ```
 
 The initializer may be an existing legal `@` geometry reference or one of the
-implemented pure construction forms: `coordinate`, `between`, and `onLine`
+implemented pure construction forms: `coordinate`, `between`, `onLine`, and
+`intersection`
 produce `point`, `segment` and line `polar` produce strict `line`, direct `arc` produces broad `path`, and `through`
 produces an immutable non-drawable `path` by fitting a circle through
 `point1`, `point2`, and `point3`. `through` accepts optional `start` and `end`
@@ -81,6 +82,12 @@ requires exactly one of the same modes and retains the full line/path target
 plus the referenced endpoint direction. Missing or simultaneous modes are
 invalid, and these pure forms allocate no drawable identity. `corner` and other
 deferred constructions remain unsupported.
+
+Pure `intersection(line1: ..., line2: ..., index: ..., extensions: ...)` is an
+identity-free `point` initializer accepting line-like `line` or `path` inputs.
+`index` defaults to `0` and `extensions` defaults to `false`; same-source,
+parallel, unavailable, and out-of-range cases fail through the occurrence-owned
+geometry-value diagnostic channel.
 
 `bezierExtremePoint(source: ..., segmentIndex: ..., direction: ...)` and
 `bezierBulgePoint(source: ..., segmentIndex: ...)` are identity-free pure
