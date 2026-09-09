@@ -73,7 +73,50 @@ fn copy_segment_value(
     }
 }
 
-fn transform_source_segment(
+fn structural_segment_value(segment: &OffsetSegment) -> Value {
+    match segment {
+        OffsetSegment::Line { start, end, length } => json!({
+            "kind": "line",
+            "start": { "x": start.x, "y": start.y },
+            "end": { "x": end.x, "y": end.y },
+            "length": length
+        }),
+        OffsetSegment::Bezier {
+            start,
+            control1,
+            control2,
+            end,
+            length,
+        } => json!({
+            "kind": "bezier",
+            "start": { "x": start.x, "y": start.y },
+            "control1": { "x": control1.x, "y": control1.y },
+            "control2": { "x": control2.x, "y": control2.y },
+            "end": { "x": end.x, "y": end.y },
+            "length": length
+        }),
+        OffsetSegment::Arc {
+            center,
+            start,
+            end,
+            radius,
+            start_angle_deg,
+            sweep_angle_deg,
+            length,
+        } => json!({
+            "kind": "arc",
+            "center": { "x": center.x, "y": center.y },
+            "start": { "x": start.x, "y": start.y },
+            "end": { "x": end.x, "y": end.y },
+            "radius": radius,
+            "startAngleDeg": start_angle_deg,
+            "sweepAngleDeg": sweep_angle_deg,
+            "length": length
+        }),
+    }
+}
+
+pub(crate) fn transform_source_segment(
     segment: &SourceSegment,
     transform: &LineTransform,
 ) -> Option<OffsetSegment> {
@@ -142,6 +185,46 @@ fn transform_source_segment(
     }
 }
 
+pub(crate) fn transformed_source_segments(
+    source_segments: &[SourceSegment],
+    transform: &LineTransform,
+) -> Vec<OffsetSegment> {
+    source_segments
+        .iter()
+        .filter_map(|segment| transform_source_segment(segment, transform))
+        .collect()
+}
+
+pub(crate) fn copied_offset_line_geometry_value(
+    source_segments: &[SourceSegment],
+    transform: &LineTransform,
+) -> Option<Value> {
+    let segments = transformed_source_segments(source_segments, transform);
+    if segments.is_empty() {
+        return None;
+    }
+    let (_, _, start_tangent_angle_deg, end_tangent_angle_deg) =
+        offset_line_endpoint_measurements(&segments);
+    let segment_values = segments
+        .iter()
+        .map(structural_segment_value)
+        .collect::<Vec<_>>();
+    Some(json!({
+        "kind": "offsetLine",
+        "start": segment_values.first().and_then(|segment| segment.get("start")).cloned().unwrap_or(Value::Null),
+        "end": segment_values.last().and_then(|segment| segment.get("end")).cloned().unwrap_or(Value::Null),
+        "segments": segment_values,
+        "closed": false,
+        "length": segments.iter().map(|segment| match segment {
+            OffsetSegment::Line { length, .. }
+            | OffsetSegment::Bezier { length, .. }
+            | OffsetSegment::Arc { length, .. } => length,
+        }).sum::<f64>(),
+        "startTangentAngleDeg": start_tangent_angle_deg,
+        "endTangentAngleDeg": end_tangent_angle_deg
+    }))
+}
+
 pub(crate) fn copied_offset_line_geometry(
     element_id: &str,
     name: &str,
@@ -150,10 +233,7 @@ pub(crate) fn copied_offset_line_geometry(
     transform: &LineTransform,
     include_bezier_control_metadata: bool,
 ) -> Option<Value> {
-    let segments = source_segments
-        .iter()
-        .filter_map(|segment| transform_source_segment(segment, transform))
-        .collect::<Vec<_>>();
+    let segments = transformed_source_segments(source_segments, transform);
     if segments.is_empty() {
         return None;
     }

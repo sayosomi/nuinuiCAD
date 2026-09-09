@@ -14,6 +14,8 @@ interpreted, and where its restrictions matter.
 
 **Syntax**: `point Name = coordinate(...)`
 
+**Pure value interface**: `point`
+
 **Arguments**:
 
 | Spelling | Kind and constraints | Required | Positional | Special |
@@ -31,6 +33,8 @@ interpreted, and where its restrictions matter.
 ### `point / offset`
 
 **Syntax**: `point Name = offset(...)`
+
+**Pure value interface**: `point`
 
 **Arguments**:
 
@@ -51,6 +55,8 @@ interpreted, and where its restrictions matter.
 
 **Syntax**: `point Name = polar(...)`
 
+**Pure value interface**: `point`
+
 **Arguments**:
 
 | Spelling | Kind and constraints | Required | Positional | Special |
@@ -69,6 +75,8 @@ interpreted, and where its restrictions matter.
 ### `point / between`
 
 **Syntax**: `point Name = between(...)`
+
+**Pure value interface**: `point`
 
 **Arguments**:
 
@@ -90,6 +98,8 @@ interpreted, and where its restrictions matter.
 
 **Syntax**: `point Name = onLine(...)`
 
+**Pure value interface**: `point`
+
 **Arguments**:
 
 | Spelling | Kind and constraints | Required | Positional | Special |
@@ -108,6 +118,8 @@ interpreted, and where its restrictions matter.
 ### `point / intersection`
 
 **Syntax**: `point Name = intersection(...)`
+
+**Pure value interface**: `point`
 
 **Arguments**:
 
@@ -128,6 +140,8 @@ interpreted, and where its restrictions matter.
 ### `point / tangentOffset`
 
 **Syntax**: `point Name = tangentOffset(...)`
+
+**Pure value interface**: `point`
 
 **Arguments**:
 
@@ -150,6 +164,8 @@ interpreted, and where its restrictions matter.
 
 **Syntax**: `point Name = bezierExtremePoint(...)`
 
+**Pure value interface**: `point`
+
 **Arguments**:
 
 | Spelling | Kind and constraints | Required | Positional | Special |
@@ -169,6 +185,8 @@ interpreted, and where its restrictions matter.
 
 **Syntax**: `point Name = bezierBulgePoint(...)`
 
+**Pure value interface**: `point`
+
 **Arguments**:
 
 | Spelling | Kind and constraints | Required | Positional | Special |
@@ -186,6 +204,8 @@ interpreted, and where its restrictions matter.
 ### `line / segment`
 
 **Syntax**: `line Name = segment(...)`
+
+**Pure value interface**: `line`
 
 **Arguments**:
 
@@ -205,6 +225,8 @@ interpreted, and where its restrictions matter.
 
 **Syntax**: `line Name = polar(...)`
 
+**Pure value interface**: `line`
+
 **Arguments**:
 
 | Spelling | Kind and constraints | Required | Positional | Special |
@@ -223,6 +245,8 @@ interpreted, and where its restrictions matter.
 ### `line / commonTangent`
 
 **Syntax**: `line Name = commonTangent(...)`
+
+**Pure value interface**: `line`
 
 **Arguments**:
 
@@ -244,6 +268,8 @@ interpreted, and where its restrictions matter.
 
 **Syntax**: `line Name = offset(...)`
 
+**Pure value interface**: `path`
+
 **Arguments**:
 
 | Spelling | Kind and constraints | Required | Positional | Special |
@@ -264,6 +290,8 @@ interpreted, and where its restrictions matter.
 ### `line / polyline`
 
 **Syntax**: `line Name = polyline(...)`
+
+**Pure value interface**: `path`
 
 **Arguments**:
 
@@ -301,6 +329,8 @@ interpreted, and where its restrictions matter.
 
 **Syntax**: `line Name = transformCopy(...)`
 
+**Pure value interface**: `path`
+
 **Arguments**:
 
 | Spelling | Kind and constraints | Required | Positional | Special |
@@ -323,6 +353,8 @@ interpreted, and where its restrictions matter.
 
 **Syntax**: `line Name = mirrorCopy(...)`
 
+**Pure value interface**: `path`
+
 **Arguments**:
 
 | Spelling | Kind and constraints | Required | Positional | Special |
@@ -341,6 +373,8 @@ interpreted, and where its restrictions matter.
 ### `curve / bezier`
 
 **Syntax**: `curve Name = bezier(...)`
+
+**Pure value interface**: `path`
 
 **Arguments**:
 
@@ -365,6 +399,8 @@ interpreted, and where its restrictions matter.
 
 **Syntax**: `arc Name = arc(...)`
 
+**Pure value interface**: `path`
+
 **Arguments**:
 
 | Spelling | Kind and constraints | Required | Positional | Special |
@@ -385,6 +421,8 @@ interpreted, and where its restrictions matter.
 ### `arc / through`
 
 **Syntax**: `arc Name = through(...)`
+
+**Pure value interface**: `path`
 
 **Arguments**:
 

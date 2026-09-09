@@ -27,6 +27,56 @@ const evaluate = (source: string) => {
 };
 
 describe("pure geometry construction runtime", () => {
+  it("evaluates transformCopy and mirrorCopy as identity-free path values", () => {
+    const { compiled, result } = evaluate([
+      "nui 1",
+      "line Base = segment(start: (0, 0), end: (10, 0))",
+      "const Copied: path = transformCopy(startPoint: (0, 0), endPoint: (20, 10), baseLines: [@Base])",
+      "const Mirrored: path = mirrorCopy(axis1: (0, 0), axis2: (0, 10), baseLines: [@Base])"
+    ].join("\n"));
+
+    expect(compiled.geometryValueProgram?.map((entry) => entry.construction.kind)).toEqual([
+      "transformCopy",
+      "mirrorCopy"
+    ]);
+    const values = [...(result.computedGeometryValues?.values() ?? [])].map((entry) => entry.value);
+    expect(values).toEqual([
+      expect.objectContaining({
+        kind: "offsetLine",
+        start: { x: 20, y: 10 },
+        end: { x: 30, y: 10 }
+      }),
+      expect.objectContaining({
+        kind: "offsetLine",
+        start: { x: 0, y: 0 },
+        end: { x: -10, y: 0 }
+      })
+    ]);
+    expect(values.every((value) => !("elementId" in value) && !("name" in value) && !("baseLineIds" in value))).toBe(true);
+    expect(result.computedGeometry.get("geometry-value-runtime:1")).toMatchObject({ kind: "line" });
+  });
+
+  it("evaluates copy path values through a Module local, export, and instance", () => {
+    const { compiled, result } = evaluate([
+      "nui 1",
+      "module M(source: path) {",
+      "  const copied: path = transformCopy(startPoint: (0, 0), endPoint: (20, 10), baseLines: [@source])",
+      "  export const output: path = @copied",
+      "}",
+      "line Base = segment(start: (0, 0), end: (10, 0))",
+      "instance I = M(source: @Base)",
+      "const Root: path = @I::output"
+    ].join("\n"));
+
+    expect(compiled.diagnostics).toEqual([]);
+    expect(result.errors).toEqual([]);
+    const copyValues = [...(result.computedGeometryValues?.values() ?? [])]
+      .filter((entry) => entry.value.kind === "offsetLine");
+    expect(copyValues).toHaveLength(1);
+    expect(copyValues.every((entry) => entry.value.kind === "offsetLine" && !("elementId" in entry.value))).toBe(true);
+    expect(copyValues.at(-1)?.value).toMatchObject({ start: { x: 20, y: 10 }, end: { x: 30, y: 10 } });
+  });
+
   it.each([
     ["coordinate", "point", "line"],
     ["segment", "line", "point"]

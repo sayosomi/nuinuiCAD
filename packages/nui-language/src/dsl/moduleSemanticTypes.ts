@@ -527,6 +527,23 @@ export type ModuleGeometryConstructionSemantic =
       side: ModuleScalarExpressionSemantic | null;
       closed: ModuleScalarExpressionSemantic | null;
       suppressTrimWarnings: ModuleScalarExpressionSemantic | null;
+    }
+  | {
+      kind: "transformCopy";
+      span: DslSpan;
+      startPoint: ModuleGeometryReferenceSemantic;
+      endPoint: ModuleGeometryReferenceSemantic;
+      scale: ModuleScalarExpressionSemantic | null;
+      angleDeg: ModuleScalarExpressionSemantic | null;
+      mirrorX: ModuleScalarExpressionSemantic | null;
+      baseLines: readonly ModuleGeometryReferenceSemantic[];
+    }
+  | {
+      kind: "mirrorCopy";
+      span: DslSpan;
+      axis1: ModuleGeometryReferenceSemantic;
+      axis2: ModuleGeometryReferenceSemantic;
+      baseLines: readonly ModuleGeometryReferenceSemantic[];
     };
 
 export type ModuleGeometryValueSemantic = {

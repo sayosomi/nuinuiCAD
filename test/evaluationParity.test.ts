@@ -120,6 +120,33 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("matches pure transformCopy and mirrorCopy path values across TypeScript and Rust", () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "line Base = segment(start: (0, 0), end: (10, 0))",
+      "const Copied: path = transformCopy(startPoint: (0, 0), endPoint: (20, 10), baseLines: [@Base])",
+      "const Mirrored: path = mirrorCopy(axis1: (0, 0), axis2: (0, 10), baseLines: [@Base])"
+    ].join("\n"));
+    const program = fixture.compiled?.doc.geometryValueProgram;
+    if (!program || program.length !== 2) throw new Error("expected two pure copy path program entries");
+    const options = optionsFor(fixture);
+
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustOptions(repoRoot, fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+
+    for (const result of [evaluationPayloadToResult(tsPayload), evaluationPayloadToResult(rustPayload)]) {
+      expect(result.errors).toEqual([]);
+      const values = [...(result.computedGeometryValues?.values() ?? [])].map((entry) => entry.value);
+      expect(values).toHaveLength(2);
+      expect(values[0]).toMatchObject({ kind: "offsetLine", start: { x: 20, y: 10 }, end: { x: 30, y: 10 } });
+      expect(values[1]).toMatchObject({ kind: "offsetLine", start: { x: 0, y: 0 }, end: { x: -10, y: 0 } });
+      expect(values.every((value) => !("elementId" in value) && !("name" in value) && !("baseLineIds" in value))).toBe(true);
+      expect(result.geometryValueErrors).toEqual([]);
+    }
+  }, 30000);
+
   it("matches pure polar point and strict-line values across TypeScript and Rust", () => {
     const fixture = fixtureFromSource([
       "nui 1",

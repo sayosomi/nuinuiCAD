@@ -162,7 +162,7 @@ describe("immutable single-geometry reference values", () => {
     });
     expect(pureGeometryValueConstructionCandidates("point").map((candidate) => candidate.label)).toEqual(["coordinate", "offset", "polar", "between", "onLine", "intersection", "tangentOffset", "bezierExtremePoint", "bezierBulgePoint"]);
     expect(pureGeometryValueConstructionCandidates("line").map((candidate) => candidate.label)).toEqual(["segment", "polar", "commonTangent"]);
-    expect(pureGeometryValueConstructionCandidates("path").map((candidate) => candidate.label)).toEqual(["segment", "polar", "commonTangent", "offset", "polyline", "bezier", "arc", "through"]);
+    expect(pureGeometryValueConstructionCandidates("path").map((candidate) => candidate.label)).toEqual(["segment", "polar", "commonTangent", "offset", "polyline", "transformCopy", "mirrorCopy", "bezier", "arc", "through"]);
     expect(pureGeometryValueConstructionCandidates("point").map((candidate) => candidate.label)).not.toContain("through");
     expect(pureGeometryValueConstructionCandidates("line").map((candidate) => candidate.label)).not.toContain("through");
 
@@ -360,6 +360,35 @@ describe("immutable single-geometry reference values", () => {
     });
     expect(compiled.moduleSemanticAnalysis?.rootGeometryReferencesByStatementId.get(path!.statementId)?.map((site) => site.parameterKey)).toEqual(["sources:0"]);
     expect(compiled.geometryValueProgram?.map((entry) => entry.construction.kind)).toEqual(["offsetPoint", "offsetPath"]);
+  });
+
+  it("registers copy constructions as path values with every reference site", () => {
+    const compiled = compile([
+      "nui 1",
+      "line Base = segment(start: (0, 0), end: (10, 0))",
+      "const Copied: path = transformCopy(startPoint: (0, 0), endPoint: (20, 10), baseLines: [@Base])",
+      "const Mirrored: path = mirrorCopy(axis1: (0, 0), axis2: (0, 10), baseLines: [@Base])"
+    ].join("\n"), "geometry-value-copy");
+
+    expect(compiled.diagnostics).toEqual([]);
+    expect(compiled.moduleSemanticAnalysis?.geometryValues.map((value) => value.construction?.kind)).toEqual([
+      "transformCopy",
+      "mirrorCopy"
+    ]);
+    const copied = compiled.moduleSemanticAnalysis?.geometryValues.find((value) => value.name === "Copied");
+    expect(copied?.construction).toMatchObject({
+      kind: "transformCopy",
+      startPoint: { coordinate: { x: { type: { kind: "number" } } } },
+      endPoint: { coordinate: { x: { type: { kind: "number" } } } },
+      scale: { ast: { kind: "numberLiteral", value: 1 } },
+      angleDeg: { ast: { kind: "numberLiteral", value: 0 } },
+      mirrorX: { ast: { kind: "booleanLiteral", value: false } },
+      baseLines: [{ target: { kind: "sourceGeometry", geometryKind: "line" } }]
+    });
+    expect(compiled.moduleSemanticAnalysis?.rootGeometryReferencesByStatementId.get(copied!.statementId)?.map((site) => site.parameterKey)).toEqual([
+      "startPoint", "endPoint", "baseLines:0"
+    ]);
+    expect(compiled.geometryValueProgram?.map((entry) => entry.construction.kind)).toEqual(["transformCopy", "mirrorCopy"]);
   });
 
   it("accepts through as a path-only pure construction with resolved point sites and defaults", () => {

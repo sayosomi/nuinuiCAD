@@ -67,6 +67,7 @@ export type ConstructionFact = {
   category: DslConstructionCategory;
   construction: string;
   elementType: CadElementType;
+  pureValueInterface: DslConstructionSpec["pureValueInterface"];
   arguments: readonly ArgumentFact[];
 };
 
@@ -193,6 +194,7 @@ const constructionFacts = (): readonly ConstructionFact[] => allConstructionCate
       category: spec.category,
       construction: spec.construction,
       elementType: spec.elementType,
+      pureValueInterface: spec.pureValueInterface,
       arguments: effectiveArgsFor(spec).map((argument) => argumentFactFor(argument, definitions)),
     } satisfies ConstructionFact;
   }),
@@ -275,6 +277,7 @@ export const renderConstructionRegion = (facts: DslReferenceFacts): string => {
       "",
       `**Syntax**: \`${constructionSyntax(fact)}\``,
       "",
+      ...(fact.pureValueInterface ? [`**Pure value interface**: \`${fact.pureValueInterface}\``, ""] : []),
       "**Arguments**:",
       "",
       "| Spelling | Kind and constraints | Required | Positional | Special |",

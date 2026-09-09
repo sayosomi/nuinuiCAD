@@ -78,6 +78,9 @@ import type {
 import { arcGeometryKernel, bezierBulgePointGeometryKernel, bezierExtremePointGeometryKernel, bezierGeometryKernel, commonTangentGeometryKernel, coordinateGeometryKernel, divisionPointGeometryKernel, offsetLineGeometryValueKernel, offsetPointGeometryKernel, polarLineGeometryKernel, polarPointGeometryKernel, polylineGeometryKernel, segmentGeometryKernel, tangentOffsetPointGeometryKernel, throughArcGeometryKernel, type StructuralPoint } from "./geometryValueKernels";
 import { buildOffsetLineGeometry } from "./offsetPaths";
 import { isLineLikeGeometryInput, pointAtDistanceFromEndpoint } from "./linePaths";
+import { copyPathGeometry } from "./copyPathGeometry";
+import { connectSourceSegmentGroups, sourceSegmentsForGeometry } from "./offsetSourceSegments";
+import { lineLength } from "./offsetPathMath";
 import { findLineIntersections } from "./lineIntersections";
 import { evaluateTypedExpression } from "../scalars/expressionEvaluator";
 import { setParameterValue } from "../parameters/parameterAccess";
@@ -909,6 +912,80 @@ export const evaluateElements = (
         return;
       }
       value = polylineValue;
+    } else if (entry.construction.kind === "transformCopy") {
+      if (entry.declaredInterfaceType !== "path") {
+        appendGeometryValueError(entry, "Geometry value construction is incompatible with its declared interface type.");
+        return;
+      }
+      const startPoint = structuralPointForProgramPoint(entry.construction.startPoint, sourceOrder);
+      const endPoint = structuralPointForProgramPoint(entry.construction.endPoint, sourceOrder);
+      const scale = evaluateGeometryValueScalar(entry.construction.scale, sourceOrder);
+      const angleDeg = evaluateGeometryValueScalar(entry.construction.angleDeg, sourceOrder);
+      const mirrorX = evaluateGeometryValueBoolean(entry.construction.mirrorX, sourceOrder);
+      if (!startPoint || !endPoint || scale === undefined || angleDeg === undefined || mirrorX === undefined) {
+        appendGeometryValueError(entry, "transformCopy geometry value construction inputs are unavailable or invalid.");
+        return;
+      }
+      if (scale <= 0) {
+        appendGeometryValueError(entry, "transformCopy geometry value construction requires a positive scale.");
+        return;
+      }
+      const sourceGroups = entry.construction.baseLines.map((source) => {
+        const geometry = resolveDocumentGeometryTarget(geometryRuntime, source.target, sourceOrder);
+        if (!geometry || geometry.kind === "unavailable" || !isLineLikeGeometryInput(geometry)) return undefined;
+        const segments = sourceSegmentsForGeometry(geometry);
+        return segments.length > 0 ? segments : undefined;
+      });
+      if (sourceGroups.some((group) => !group)) {
+        appendGeometryValueError(entry, "transformCopy geometry value construction inputs are unavailable, non-line-like, or contain no segments.");
+        return;
+      }
+      const sourceSegments = connectSourceSegmentGroups(sourceGroups as Array<import("./offsetPathTypes").SourceSegment[]>, false);
+      if (!sourceSegments) {
+        appendGeometryValueError(entry, "transformCopy geometry value construction baseLines are not continuous in the specified order.");
+        return;
+      }
+      value = copyPathGeometry(sourceSegments, {
+        kind: "transform",
+        startPoint,
+        endPoint,
+        scale,
+        angleDeg,
+        mirrorX
+      }) ?? undefined;
+      if (!value) appendGeometryValueError(entry, "transformCopy geometry value construction produced no transformed segments.");
+    } else if (entry.construction.kind === "mirrorCopy") {
+      if (entry.declaredInterfaceType !== "path") {
+        appendGeometryValueError(entry, "Geometry value construction is incompatible with its declared interface type.");
+        return;
+      }
+      const axis1 = structuralPointForProgramPoint(entry.construction.axis1, sourceOrder);
+      const axis2 = structuralPointForProgramPoint(entry.construction.axis2, sourceOrder);
+      if (!axis1 || !axis2) {
+        appendGeometryValueError(entry, "mirrorCopy geometry value construction axis points are unavailable or invalid.");
+        return;
+      }
+      if (lineLength(axis1, axis2) <= 1e-9) {
+        appendGeometryValueError(entry, "mirrorCopy geometry value construction requires two distinct axis points.");
+        return;
+      }
+      const sourceGroups = entry.construction.baseLines.map((source) => {
+        const geometry = resolveDocumentGeometryTarget(geometryRuntime, source.target, sourceOrder);
+        if (!geometry || geometry.kind === "unavailable" || !isLineLikeGeometryInput(geometry)) return undefined;
+        const segments = sourceSegmentsForGeometry(geometry);
+        return segments.length > 0 ? segments : undefined;
+      });
+      if (sourceGroups.some((group) => !group)) {
+        appendGeometryValueError(entry, "mirrorCopy geometry value construction inputs are unavailable, non-line-like, or contain no segments.");
+        return;
+      }
+      const sourceSegments = connectSourceSegmentGroups(sourceGroups as Array<import("./offsetPathTypes").SourceSegment[]>, false);
+      if (!sourceSegments) {
+        appendGeometryValueError(entry, "mirrorCopy geometry value construction baseLines are not continuous in the specified order.");
+        return;
+      }
+      value = copyPathGeometry(sourceSegments, { kind: "mirror", axis1, axis2 }) ?? undefined;
+      if (!value) appendGeometryValueError(entry, "mirrorCopy geometry value construction produced no transformed segments.");
     } else if (entry.construction.kind === "offsetPath") {
       if (entry.declaredInterfaceType !== "path") {
         appendGeometryValueError(entry, "Geometry value construction is incompatible with its declared interface type.");

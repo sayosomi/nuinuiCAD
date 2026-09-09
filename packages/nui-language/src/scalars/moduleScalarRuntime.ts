@@ -2823,6 +2823,33 @@ export const compileModuleScalarRuntime = ({
                   ? { kind: "bezier" as const, start, end, startAngleDeg, startLength, endAngleDeg, endLength, intermediates }
                   : null;
               })()
+              : value.construction.kind === "transformCopy"
+                ? (() => {
+                    const startPoint = lowerGeometryValuePoint(value.construction.startPoint, context, executionPosition);
+                    const endPoint = lowerGeometryValuePoint(value.construction.endPoint, context, executionPosition);
+                    const scale = value.construction.scale ? lowerGeometryValueScalar(value.construction.scale, context) : null;
+                    const angleDeg = value.construction.angleDeg ? lowerGeometryValueScalar(value.construction.angleDeg, context) : null;
+                    const mirrorX = value.construction.mirrorX ? lowerGeometryValueScalar(value.construction.mirrorX, context) : null;
+                    const baseLines = value.construction.baseLines.flatMap((source) => {
+                      const lowered = lowerGeometryValuePath(source, context, executionPosition);
+                      return lowered ? [lowered] : [];
+                    });
+                    return startPoint && endPoint && scale && angleDeg && mirrorX && baseLines.length === value.construction.baseLines.length
+                      ? { kind: "transformCopy" as const, startPoint, endPoint, scale, angleDeg, mirrorX, baseLines }
+                      : null;
+                  })()
+                : value.construction.kind === "mirrorCopy"
+                  ? (() => {
+                      const axis1 = lowerGeometryValuePoint(value.construction.axis1, context, executionPosition);
+                      const axis2 = lowerGeometryValuePoint(value.construction.axis2, context, executionPosition);
+                      const baseLines = value.construction.baseLines.flatMap((source) => {
+                        const lowered = lowerGeometryValuePath(source, context, executionPosition);
+                        return lowered ? [lowered] : [];
+                      });
+                      return axis1 && axis2 && baseLines.length === value.construction.baseLines.length
+                        ? { kind: "mirrorCopy" as const, axis1, axis2, baseLines }
+                        : null;
+                    })()
               : value.construction.kind === "offsetPath"
                 ? (() => {
                     const sources = value.construction.sources.flatMap((source) => {

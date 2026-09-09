@@ -88,6 +88,7 @@ describe("DSL nui 1 construction registry", () => {
       category: "line",
       construction: "transformCopy",
       elementType: "copyLine",
+      pureValueInterface: "path",
       args: [
         { arg: "startPoint", required: true },
         { arg: "endPoint", required: true },
@@ -96,6 +97,10 @@ describe("DSL nui 1 construction registry", () => {
         { arg: "mirrorX" },
         { arg: "baseLines", required: true, parameterKey: "baseLineIds" },
       ],
+    });
+    expect(constructionFor("line", "mirrorCopy")).toMatchObject({
+      elementType: "symmetricCopyLine",
+      pureValueInterface: "path"
     });
     expect(constructionFor("line", "copy")).toBeNull();
   });

@@ -9,10 +9,14 @@ use super::geometry_value_kernels::{
     polar_point_geometry_kernel, polyline_geometry_kernel, segment_geometry_kernel,
     through_arc_geometry_kernel, StructuralPoint,
 };
+use super::line_copy_geometry::copied_offset_line_geometry_value;
 use super::line_intersections::find_line_intersections;
 use super::line_path::{geometry_length, point_at_distance_from_endpoint};
 use super::line_tangent_offset_point_evaluator::tangent_offset_point_geometry_kernel;
+use super::line_transform::LineTransform;
 use super::offset_paths::{build_offset_line_geometry, is_line_like_geometry};
+use super::offset_source_segments::{connect_source_segment_groups, source_segments_for_geometry};
+use super::offset_types::{line_length, SourceSegment, EPSILON};
 use super::point_anchor::point_from_geometry;
 use super::scalar_expression_runtime::evaluate_document_typed_expression;
 use super::scalars::{
@@ -157,6 +161,19 @@ pub(crate) enum GeometryValueConstruction {
         closed: Box<TypedScalarExpression>,
         suppress_trim_warnings: Box<TypedScalarExpression>,
     },
+    TransformCopy {
+        start_point: Box<GeometryValuePoint>,
+        end_point: Box<GeometryValuePoint>,
+        scale: Box<TypedScalarExpression>,
+        angle_deg: Box<TypedScalarExpression>,
+        mirror_x: Box<TypedScalarExpression>,
+        base_lines: Vec<super::scalars::ScalarExpressionResolvedGeometryTarget>,
+    },
+    MirrorCopy {
+        axis1: Box<GeometryValuePoint>,
+        axis2: Box<GeometryValuePoint>,
+        base_lines: Vec<super::scalars::ScalarExpressionResolvedGeometryTarget>,
+    },
 }
 
 #[derive(Debug)]
@@ -299,6 +316,29 @@ fn decode_optional_typed_field(
     validate_typed_expression_payload(value)
         .map(Some)
         .map_err(|error| format!("{error:?}"))
+}
+
+fn decode_target_list(
+    construction_object: &serde_json::Map<String, Value>,
+    name: &str,
+    context: &str,
+) -> Result<Vec<super::scalars::ScalarExpressionResolvedGeometryTarget>, String> {
+    construction_object
+        .get(name)
+        .and_then(Value::as_array)
+        .ok_or_else(|| format!("{context} is missing {name}"))?
+        .iter()
+        .enumerate()
+        .map(|(index, source)| {
+            let target_payload = source
+                .as_object()
+                .and_then(|object| object.get("target"))
+                .unwrap_or(source);
+            super::scalars::decode_geometry_target_payload(target_payload)
+                .map_err(|error| format!("{context} {name} source {index}: {error:?}"))?
+                .ok_or_else(|| format!("{context} {name} source {index} cannot be null"))
+        })
+        .collect()
 }
 
 fn decode_placement(
@@ -834,6 +874,51 @@ fn decode_entry(value: &Value) -> Result<GeometryValueProgramEntry, String> {
                     "geometry value polyline",
                 )?),
             },
+            "transformCopy" => GeometryValueConstruction::TransformCopy {
+                start_point: Box::new(decode_point(
+                    construction_object.get("startPoint").ok_or_else(|| {
+                        "geometry value transformCopy is missing startPoint".to_owned()
+                    })?,
+                )?),
+                end_point: Box::new(decode_point(
+                    construction_object.get("endPoint").ok_or_else(|| {
+                        "geometry value transformCopy is missing endPoint".to_owned()
+                    })?,
+                )?),
+                scale: Box::new(decode_typed_field(
+                    construction_object,
+                    "scale",
+                    "geometry value transformCopy",
+                )?),
+                angle_deg: Box::new(decode_typed_field(
+                    construction_object,
+                    "angleDeg",
+                    "geometry value transformCopy",
+                )?),
+                mirror_x: Box::new(decode_typed_field(
+                    construction_object,
+                    "mirrorX",
+                    "geometry value transformCopy",
+                )?),
+                base_lines: decode_target_list(
+                    construction_object,
+                    "baseLines",
+                    "geometry value transformCopy",
+                )?,
+            },
+            "mirrorCopy" => GeometryValueConstruction::MirrorCopy {
+                axis1: Box::new(decode_point(construction_object.get("axis1").ok_or_else(
+                    || "geometry value mirrorCopy is missing axis1".to_owned(),
+                )?)?),
+                axis2: Box::new(decode_point(construction_object.get("axis2").ok_or_else(
+                    || "geometry value mirrorCopy is missing axis2".to_owned(),
+                )?)?),
+                base_lines: decode_target_list(
+                    construction_object,
+                    "baseLines",
+                    "geometry value mirrorCopy",
+                )?,
+            },
             "offsetPath" => GeometryValueConstruction::OffsetPath {
                 sources: construction_object
                     .get("sources")
@@ -1055,6 +1140,33 @@ fn target_geometry<'a>(
     } else {
         state.computed_geometry.get(&target.statement_id)
     }
+}
+
+fn copy_source_segments(
+    sources: &[super::scalars::ScalarExpressionResolvedGeometryTarget],
+    state: &EvaluationState,
+) -> Result<Vec<SourceSegment>, &'static str> {
+    if sources.is_empty() {
+        return Err("inputs are unavailable, non-line-like, or contain no segments");
+    }
+    let mut groups = Vec::with_capacity(sources.len());
+    for source in sources {
+        let Some(geometry) = target_geometry(source, state) else {
+            return Err("inputs are unavailable, non-line-like, or contain no segments");
+        };
+        if !is_line_like_geometry(Some(geometry)) {
+            return Err("inputs are unavailable, non-line-like, or contain no segments");
+        }
+        let segments = source_segments_for_geometry(geometry);
+        if segments.is_empty() {
+            return Err("inputs are unavailable, non-line-like, or contain no segments");
+        }
+        groups.push(segments);
+    }
+    let connected = connect_source_segment_groups(&groups, false);
+    (!connected.is_empty())
+        .then_some(connected)
+        .ok_or("baseLines are not continuous in the specified order")
 }
 
 fn same_geometry_source(
@@ -2249,6 +2361,184 @@ pub(crate) fn evaluate_geometry_value_entry(
                         "Polyline geometry value construction requires at least {} finite points.",
                         if closed { 3 } else { 2 }
                     ),
+                );
+                return;
+            };
+            Some(value)
+        }
+        GeometryValueConstruction::TransformCopy {
+            start_point,
+            end_point,
+            scale,
+            angle_deg,
+            mirror_x,
+            base_lines,
+        } => {
+            if entry.declared_interface_type != "path" {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "Geometry value construction is incompatible with its declared interface type.",
+                );
+                return;
+            }
+            let Some(start_point) = evaluate_point(start_point, resolver, state, source_order)
+            else {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "transformCopy geometry value construction inputs are unavailable or invalid.",
+                );
+                return;
+            };
+            let Some(end_point) = evaluate_point(end_point, resolver, state, source_order) else {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "transformCopy geometry value construction inputs are unavailable or invalid.",
+                );
+                return;
+            };
+            let Some(scale) = number_expression(scale, resolver, state, source_order) else {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "transformCopy geometry value construction scale must be a finite positive number.",
+                );
+                return;
+            };
+            if !scale.is_finite() || scale <= 0.0 {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "transformCopy geometry value construction scale must be a finite positive number.",
+                );
+                return;
+            }
+            let Some(angle_deg) = number_expression(angle_deg, resolver, state, source_order)
+            else {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "transformCopy geometry value construction angleDeg must be a finite number.",
+                );
+                return;
+            };
+            let Some(mirror_x) = boolean_expression(mirror_x, resolver, state, source_order) else {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "transformCopy geometry value construction mirrorX must be boolean.",
+                );
+                return;
+            };
+            let source_segments = match copy_source_segments(base_lines, state) {
+                Ok(segments) => segments,
+                Err(reason) => {
+                    let message = if reason.contains("continuous") {
+                        "transformCopy geometry value construction baseLines are not continuous in the specified order."
+                    } else {
+                        "transformCopy geometry value construction inputs are unavailable, non-line-like, or contain no segments."
+                    };
+                    append_geometry_value_error(state, entry, message);
+                    return;
+                }
+            };
+            let transform = LineTransform::move_between(
+                super::offset_types::OffsetPoint {
+                    x: start_point.0,
+                    y: start_point.1,
+                },
+                super::offset_types::OffsetPoint {
+                    x: end_point.0,
+                    y: end_point.1,
+                },
+                angle_deg,
+                mirror_x,
+                scale,
+            );
+            let Some(value) = copied_offset_line_geometry_value(&source_segments, &transform)
+            else {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "transformCopy geometry value construction produced no transformed segments.",
+                );
+                return;
+            };
+            Some(value)
+        }
+        GeometryValueConstruction::MirrorCopy {
+            axis1,
+            axis2,
+            base_lines,
+        } => {
+            if entry.declared_interface_type != "path" {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "Geometry value construction is incompatible with its declared interface type.",
+                );
+                return;
+            }
+            let Some(axis1) = evaluate_point(axis1, resolver, state, source_order) else {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "mirrorCopy geometry value construction axis points are unavailable or invalid.",
+                );
+                return;
+            };
+            let Some(axis2) = evaluate_point(axis2, resolver, state, source_order) else {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "mirrorCopy geometry value construction axis points are unavailable or invalid.",
+                );
+                return;
+            };
+            let axis1 = super::offset_types::OffsetPoint {
+                x: axis1.0,
+                y: axis1.1,
+            };
+            let axis2 = super::offset_types::OffsetPoint {
+                x: axis2.0,
+                y: axis2.1,
+            };
+            if line_length(axis1, axis2) <= EPSILON {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "mirrorCopy geometry value construction requires two distinct axis points.",
+                );
+                return;
+            }
+            let source_segments = match copy_source_segments(base_lines, state) {
+                Ok(segments) => segments,
+                Err(reason) => {
+                    let message = if reason.contains("continuous") {
+                        "mirrorCopy geometry value construction baseLines are not continuous in the specified order."
+                    } else {
+                        "mirrorCopy geometry value construction inputs are unavailable, non-line-like, or contain no segments."
+                    };
+                    append_geometry_value_error(state, entry, message);
+                    return;
+                }
+            };
+            let Some(transform) = LineTransform::reflect(axis1, axis2) else {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "mirrorCopy geometry value construction requires two distinct axis points.",
+                );
+                return;
+            };
+            let Some(value) = copied_offset_line_geometry_value(&source_segments, &transform)
+            else {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "mirrorCopy geometry value construction produced no transformed segments.",
                 );
                 return;
             };
