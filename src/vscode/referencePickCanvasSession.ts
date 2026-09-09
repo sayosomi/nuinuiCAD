@@ -15,6 +15,8 @@ import {
   confirmReferencePickSession,
   confirmedReferencePickNumericResult,
   confirmedReferencePickResult,
+  moveReferencePickDraft,
+  removeReferencePickDraft,
   selectReferencePickDraft,
   selectReferencePickNumericGeometry,
   selectReferencePickNumericProperty,
@@ -170,6 +172,84 @@ export const reanchorReferencePickTargetToCanvasSnapshot = ({
   };
 };
 
+/**
+ * Project a newly appended, semantically queryable Source target onto the
+ * coherent Canvas namespace without claiming that the old Canvas document
+ * contains the new statement. Every existing Canvas statement must retain its
+ * reconciler-owned identity and position; only the target's existing lexical
+ * scope is extended to the virtual appended statement index.
+ */
+const reanchorAppendedReferencePickTargetToCanvasSnapshot = ({
+  target,
+  currentCompiled,
+  canvasSnapshot
+}: {
+  target: DslReferencePickTarget;
+  currentCompiled: CompiledDslDocument;
+  canvasSnapshot: VscodeReferencePickCanvasSnapshot;
+}): DslReferencePickTarget | null => {
+  if (!coherentCanvasSnapshot(canvasSnapshot)) return null;
+  const currentIds = currentCompiled.statementMap?.statementIdByStatementIndex;
+  const canvasIds = canvasSnapshot.compiled.statementMap?.statementIdByStatementIndex;
+  const canvasScopeIndex = canvasSnapshot.compiled.sourceLexicalNamespace?.scopeIndex;
+  if (!currentIds || !canvasIds || !canvasScopeIndex) return null;
+
+  const appendedIndex = canvasSnapshot.compiled.statements.length;
+  if (
+    target.sourceAnchor.statementIndex !== appendedIndex ||
+    currentCompiled.statements.length <= appendedIndex ||
+    currentIds.get(appendedIndex) !== target.sourceAnchor.statementId ||
+    [...canvasIds.values()].filter((statementId) => statementId === target.sourceAnchor.statementId).length > 0 ||
+    !canvasScopeIndex.scopes.has(target.sourceAnchor.scopeId)
+  ) return null;
+
+  for (let index = 0; index < appendedIndex; index += 1) {
+    const currentId = currentIds.get(index);
+    const canvasId = canvasIds.get(index);
+    const currentStatement = currentCompiled.statements[index];
+    const canvasStatement = canvasSnapshot.compiled.statements[index];
+    if (
+      currentId === undefined ||
+      canvasId === undefined ||
+      currentId !== canvasId ||
+      !currentStatement ||
+      !canvasStatement ||
+      !sameReconciledStatementShape(currentStatement, canvasStatement)
+    ) return null;
+  }
+
+  return {
+    ...target,
+    sourceAnchor: {
+      ...target.sourceAnchor,
+      sourceRevision: canvasSnapshot.source.sourceRevision,
+      statementIndex: appendedIndex,
+      sourceOrderIndex: appendedIndex,
+      scopeId: target.sourceAnchor.scopeId
+    }
+  };
+};
+
+const candidateCompiledForReferencePickTarget = (
+  compiled: CompiledDslDocument,
+  target: DslReferencePickTarget
+): CompiledDslDocument => {
+  const namespace = compiled.sourceLexicalNamespace;
+  if (!namespace || target.sourceAnchor.statementIndex !== compiled.statements.length) return compiled;
+  const scopeOfStatement = new Map(namespace.scopeIndex.scopeOfStatement);
+  scopeOfStatement.set(target.sourceAnchor.statementIndex, target.sourceAnchor.scopeId);
+  return {
+    ...compiled,
+    sourceLexicalNamespace: {
+      ...namespace,
+      scopeIndex: {
+        ...namespace.scopeIndex,
+        scopeOfStatement
+      }
+    }
+  };
+};
+
 export const referencePickCandidateReferences = (
   candidates: readonly ReferencePickCandidate[]
 ): CanonicalGeometrySourceReference[] => {
@@ -272,10 +352,13 @@ export const startVscodeReferencePickCanvasSession = ({
   }
 
   const candidateTarget = candidateSnapshot
-    ? reanchorReferencePickTargetToCanvasSnapshot({ target, currentCompiled: compiled, canvasSnapshot: candidateSnapshot })
+    ? reanchorReferencePickTargetToCanvasSnapshot({ target, currentCompiled: compiled, canvasSnapshot: candidateSnapshot }) ??
+      reanchorAppendedReferencePickTargetToCanvasSnapshot({ target, currentCompiled: compiled, canvasSnapshot: candidateSnapshot })
     : target;
   if (!candidateTarget) return { session: null, result: rejected("stale") };
-  const candidateCompiled = candidateSnapshot?.compiled ?? compiled;
+  const candidateCompiled = candidateSnapshot
+    ? candidateCompiledForReferencePickTarget(candidateSnapshot.compiled, candidateTarget)
+    : compiled;
   const candidateEvaluation = candidateSnapshot?.evaluation ?? evaluation;
   const candidates = referencePickCandidates({ compiled: candidateCompiled, evaluation: candidateEvaluation, target: candidateTarget });
   const candidateReferenceKeys = new Set(referencePickCandidateReferences(candidates).map(referencePickReferenceKey));
@@ -338,7 +421,7 @@ export const startVscodeReferencePickCanvasSession = ({
     : draft;
   const session: VscodeReferencePickCanvasSession = {
     request,
-    target: candidateTarget,
+    target,
     candidates,
     draft: seededDraft
   };
@@ -403,6 +486,23 @@ export const selectVscodeReferencePickCanvasDraft = <TSession extends VscodeRefe
   }
   return { ...session, draft: selectReferencePickDraft(session.draft, selection) } as TSession;
 };
+
+export const moveVscodeReferencePickCanvasDraft = <TSession extends VscodeReferencePickCanvasSessionLike>(
+  session: TSession,
+  referenceKey: string,
+  toIndex: number
+): TSession => ({
+  ...session,
+  draft: moveReferencePickDraft(session.draft, referenceKey, toIndex)
+} as TSession);
+
+export const removeVscodeReferencePickCanvasDraft = <TSession extends VscodeReferencePickCanvasSessionLike>(
+  session: TSession,
+  referenceKey: string
+): TSession => ({
+  ...session,
+  draft: removeReferencePickDraft(session.draft, referenceKey)
+} as TSession);
 
 export const selectVscodeReferencePickCanvasNumericProperty = <TSession extends VscodeReferencePickCanvasSessionLike>(
   session: TSession,

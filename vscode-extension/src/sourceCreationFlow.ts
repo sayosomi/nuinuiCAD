@@ -8,7 +8,10 @@ import {
   type SourceCreationTemplateForm,
   type SourceCreationTemplatePlan
 } from "../../src/commands/sourceCreationTemplatePlan";
-import { canvasQuickCreateTranslatorFor } from "./canvasQuickCreateLocalization";
+import {
+  canvasQuickCreateFormLabelFor,
+  canvasQuickCreateTranslatorFor
+} from "./canvasQuickCreateLocalization";
 import { pickVscodeCreationCommand } from "./creationCommandQuickPick";
 import { nativeShowQuickPick } from "./nativeQuickInput";
 import { insertSourceCreationSnippet } from "./sourceCreationSnippetAdapter";
@@ -17,22 +20,28 @@ type SourceCreationFormPickerItem = vscode.QuickPickItem & {
   formIndex: number;
 };
 
-const formPickerLabelFor = (form: SourceCreationTemplateForm): string | null => {
+const formPickerLabelFor = (
+  form: SourceCreationTemplateForm,
+  displayLanguage: string
+): string | null => {
   const labels: string[] = [];
   for (const choice of form.exclusiveChoices) {
     const hole = form.argumentHoles.find(({ argName }) => argName === choice.selectedArgName);
     if (!hole) return null;
-    labels.push(hole.label);
+    const label = canvasQuickCreateFormLabelFor(hole.parameterKey, displayLanguage);
+    if (!label) return null;
+    labels.push(label);
   }
   return labels.length > 0 ? labels.join(" + ") : null;
 };
 
 const formPickerItemsFor = (
-  plan: SourceCreationTemplatePlan
+  plan: SourceCreationTemplatePlan,
+  displayLanguage: string
 ): SourceCreationFormPickerItem[] | null => {
   const items: SourceCreationFormPickerItem[] = [];
   for (const [formIndex, form] of plan.forms.entries()) {
-    const label = formPickerLabelFor(form);
+    const label = formPickerLabelFor(form, displayLanguage);
     if (!label) return null;
     items.push({ label, formIndex });
   }
@@ -45,7 +54,7 @@ const selectedMaterializationFor = async (
 ): Promise<SourceCreationTemplateMaterialization | null> => {
   let formIndex = 0;
   if (plan.forms.length > 1) {
-    const items = formPickerItemsFor(plan);
+    const items = formPickerItemsFor(plan, displayLanguage);
     if (!items) return null;
     const selected = await nativeShowQuickPick(items, {
       placeHolder: canvasQuickCreateTranslatorFor(displayLanguage)(

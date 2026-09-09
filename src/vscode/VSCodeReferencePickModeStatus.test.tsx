@@ -75,6 +75,7 @@ describe("VSCodeReferencePickModeStatus", () => {
     expect(screen.getByText("Cross / line1")).toBeInTheDocument();
     expect(screen.getByText("Canvasから線を選択")).toBeInTheDocument();
     expect(screen.getByLabelText("現在の選択")).toHaveTextContent("@AB");
+    expect(screen.queryByLabelText("選択済み 1 件")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "選択を完了" }));
     expect(onFinish).toHaveBeenCalledTimes(1);
   });
@@ -97,6 +98,43 @@ describe("VSCodeReferencePickModeStatus", () => {
     );
 
     expect(screen.getByText(instruction)).toBeInTheDocument();
+    view.unmount();
+  });
+
+  it("projects multiple references into the shared ordered draft controls", () => {
+    const onMoveDraftEntry = vi.fn();
+    const onRemoveDraftEntry = vi.fn();
+    const view = render(
+      <VSCodeReferencePickModeStatus
+        session={sessionFor({
+          target: { ...target, multiplicity: "multiple" },
+          draft: {
+            expectedGeometryInterface: target.expectedGeometryInterface,
+            role: target.role,
+            multiplicity: "multiple",
+            hover: null,
+            draftReferences: [{ base: "AB" }, { base: "AC" }, { base: "AB", pointKey: "start" }],
+            numericProperty: null,
+            status: "active"
+          }
+        })}
+        context={{
+          source: { normalizedSource: source, sourceRevision },
+          compiled
+        }}
+        onFinish={vi.fn()}
+        onMoveDraftEntry={onMoveDraftEntry}
+        onRemoveDraftEntry={onRemoveDraftEntry}
+      />
+    );
+
+    expect(screen.getByLabelText("選択済み 3 件")).toHaveTextContent("@AB");
+    expect(screen.getByLabelText("選択済み 3 件")).toHaveTextContent("@AC");
+    expect(screen.queryByLabelText("現在の選択")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "@ACを上へ移動" }));
+    fireEvent.click(screen.getByRole("button", { name: "@ABを削除" }));
+    expect(onMoveDraftEntry).toHaveBeenCalledWith('["AC",null]', 0);
+    expect(onRemoveDraftEntry).toHaveBeenCalledWith('["AB",null]');
     view.unmount();
   });
 
@@ -137,6 +175,7 @@ describe("VSCodeReferencePickModeStatus", () => {
     );
 
     expect(screen.getByLabelText("現在の選択")).toHaveTextContent("@AB.length");
+    expect(screen.queryByLabelText("選択済み 1 件")).toBeNull();
   });
 
   it("isolates the shared Source panel from the overlay capture listeners while keeping Finish usable", () => {

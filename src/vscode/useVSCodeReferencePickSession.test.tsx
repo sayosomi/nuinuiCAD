@@ -138,6 +138,25 @@ const resultMessages = (api: ReturnType<typeof createApi>) => api.postMessage.mo
   );
 
 describe("useVSCodeReferencePickSession readiness lifecycle", () => {
+  it("keeps an exact request pending while the current Source context hydrates", () => {
+    const fixture = fixtureFor();
+    const api = createApi();
+    let hydrated = false;
+    const hook = renderHook(() => useVSCodeReferencePickSession({
+      api,
+      currentContextFor: () => hydrated ? contextFor(fixture, true) : null,
+      currentReferencePickAuthorityFor: () => authorityFor(fixture)
+    }));
+
+    dispatch(fixture.request);
+    expect(resultMessages(api)).toEqual([]);
+
+    hydrated = true;
+    act(() => hook.rerender());
+    expect(resultMessages(api)).toMatchObject([{ status: "started" }]);
+    expect(hook.result.current.session).not.toBeNull();
+  });
+
   it("retains a cold-open request without hook hydration until matching evaluation is current and starts it once", () => {
     const fixture = fixtureFor();
     const api = createApi();

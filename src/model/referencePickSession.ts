@@ -244,6 +244,46 @@ export const selectReferencePickDraft = (
   };
 };
 
+/** Moves one canonical reference within an active multiple-reference draft. */
+export const moveReferencePickDraft = (
+  session: ReferencePickSession,
+  referenceKey: string,
+  toIndex: number
+): ReferencePickSession => {
+  if (
+    session.status !== "active" ||
+    session.multiplicity !== "multiple" ||
+    !Number.isInteger(toIndex)
+  ) return session;
+  const fromIndex = session.draftReferences.findIndex(
+    (reference) => referencePickDraftKey(reference) === referenceKey
+  );
+  if (fromIndex < 0 || session.draftReferences.length < 2) return session;
+  const boundedIndex = Math.max(0, Math.min(toIndex, session.draftReferences.length - 1));
+  if (fromIndex === boundedIndex) return session;
+  const draftReferences = [...session.draftReferences];
+  const [reference] = draftReferences.splice(fromIndex, 1);
+  if (!reference) return session;
+  draftReferences.splice(boundedIndex, 0, reference);
+  return { ...session, draftReferences };
+};
+
+/** Removes one canonical reference from an active multiple-reference draft. */
+export const removeReferencePickDraft = (
+  session: ReferencePickSession,
+  referenceKey: string
+): ReferencePickSession => {
+  if (session.status !== "active" || session.multiplicity !== "multiple") return session;
+  const index = session.draftReferences.findIndex(
+    (reference) => referencePickDraftKey(reference) === referenceKey
+  );
+  if (index < 0) return session;
+  return {
+    ...session,
+    draftReferences: session.draftReferences.filter((_, candidateIndex) => candidateIndex !== index)
+  };
+};
+
 export const confirmReferencePickSession = (
   session: ReferencePickSession
 ): ReferencePickSession => {

@@ -2,7 +2,10 @@ import { dslDocumentValueSpansAt } from "../dsl/dslValueSpans";
 import type { CompiledDslDocument } from "../dsl/dslDocument";
 import type { SourceSnapshot } from "../dsl/logicalStatementSourceMap";
 import type { PickModeStatusModel } from "../components/PickModeStatus";
-import { referencePickSourceForReference } from "./referencePickProtocol";
+import {
+  referencePickReferenceKey,
+  referencePickSourceForReference
+} from "./referencePickProtocol";
 import type { VscodeReferencePickCanvasSession } from "./referencePickCanvasSession";
 
 export type VSCodeReferencePickModeStatusContext = {
@@ -62,23 +65,40 @@ const instructionFor = (session: VscodeReferencePickCanvasSession): string => {
 export const referencePickModeStatusModelFor = ({
   session,
   context,
-  onFinish
+  onFinish,
+  onMoveDraftEntry,
+  onRemoveDraftEntry
 }: {
   session: VscodeReferencePickCanvasSession;
   context: VSCodeReferencePickModeStatusContext;
   onFinish: () => void;
+  onMoveDraftEntry: (key: string, toIndex: number) => void;
+  onRemoveDraftEntry: (key: string) => void;
 }): PickModeStatusModel => {
   const numericDraft = session.draft.numericProperty?.draft;
-  const references = session.draft.draftReferences.map(referencePickSourceForReference);
+  const draftReferences = session.draft.draftReferences;
+  const references = draftReferences.map(referencePickSourceForReference);
+  const orderedDraft = session.draft.multiplicity === "multiple" && session.target.role !== "numericPropertyBase"
+    ? {
+        entries: draftReferences.map((reference) => ({
+          key: referencePickReferenceKey(reference),
+          label: referencePickSourceForReference(reference)
+        })),
+        count: draftReferences.length,
+        onMove: onMoveDraftEntry,
+        onRemove: onRemoveDraftEntry
+      }
+    : undefined;
   return {
     targetLabel: referencePickTargetLabelFor({ session, context }),
     instruction: instructionFor(session),
-    currentSelection: numericDraft
+    currentSelection: numericDraft || orderedDraft
       ? null
       : references.length > 0 ? references.join(", ") : null,
     currentValue: numericDraft
       ? `${referencePickSourceForReference(numericDraft.reference)}.${numericDraft.property}`
       : null,
+    orderedDraft,
     onFinish
   };
 };
