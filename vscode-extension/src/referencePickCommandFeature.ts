@@ -11,12 +11,22 @@ import {
   type DslOutputPreviewRevealSourceQueryResult,
   type DslOutputPreviewRevealSourceTarget
 } from "@nuinuicad/nui-language";
-import { queryDslReferencePickTarget } from "@nuinuicad/nui-language";
+import {
+  queryDslReferencePickTarget,
+  queryDslReferencePickTargetResolution,
+  type DslReferencePickTarget,
+  type DslReferencePickTargetResolution
+} from "@nuinuicad/nui-language";
 import type { CanonicalGeometrySourceReference } from "../../src/model/moduleSemanticCandidateBoundary";
 import type {
   VscodeReferencePickResult,
   VscodeReferencePickNumericPropertyDraft,
   VscodeReferencePickTargetProof
+} from "../../src/vscode/referencePickProtocol";
+import {
+  referencePickNumericPropertyDraftFor,
+  referencePickSeedReferences,
+  referencePickTargetProofFor
 } from "../../src/vscode/referencePickProtocol";
 import {
   currentCompiledSemanticSnapshotFor,
@@ -33,6 +43,7 @@ import {
   type VscodeReferencePickSourceBridge
 } from "./referencePickSourceBridge";
 import { normalizedOffsetFromRaw, normalizedSourceFor } from "./sourceOffsetAdapter";
+import { nativeShowQuickPick } from "./nativeQuickInput";
 
 export const VSCODE_REFERENCE_PICK_COMMAND_ID = "nuinuiCAD.pickReferenceFromCanvas";
 export const VSCODE_REFERENCE_PICK_CONTEXT_KEY = "nuinuiCAD.referencePickSourceTarget";
@@ -52,6 +63,10 @@ export type VscodeReferencePickCanvasEndpoint = {
   document: vscode.TextDocument;
   panel: vscode.WebviewPanel;
   isAuthoritativeReady: () => boolean;
+};
+
+type ReferencePickTargetQuickPickItem = vscode.QuickPickItem & {
+  target: DslReferencePickTarget;
 };
 
 type ActiveReferencePick = {
@@ -104,6 +119,14 @@ const unavailableSourceTargets = (): VscodeSourceTargetAvailability => ({
   bake: false
 });
 
+type ReferencePickEditorState = {
+  rawSource: string;
+  source: { normalizedSource: string; sourceRevision: number };
+  semantic: ReturnType<typeof currentCompiledSemanticSnapshotFor>;
+  normalizedSourceOffset: number;
+  resolution: DslReferencePickTargetResolution;
+};
+
 const isSupportedSourceEditor = (editor: vscode.TextEditor | undefined): editor is vscode.TextEditor =>
   Boolean(editor) &&
   editor!.document.uri.scheme === "file" &&
@@ -111,6 +134,71 @@ const isSupportedSourceEditor = (editor: vscode.TextEditor | undefined): editor 
 
 const sameDocument = (left: vscode.TextDocument, right: vscode.TextDocument): boolean =>
   left === right || left.uri.toString() === right.uri.toString();
+
+const referencePickEditorStateFor = (
+  editor: vscode.TextEditor,
+  languageAnalysisSession: NuiLanguageAnalysisSession
+): ReferencePickEditorState | null => {
+  if (!isSupportedSourceEditor(editor)) return null;
+  const rawSource = editor.document.getText();
+  if (languageAnalysisSession.getSource() !== rawSource) languageAnalysisSession.replaceSource(rawSource);
+  const source = {
+    normalizedSource: normalizedSourceFor(rawSource),
+    sourceRevision: languageAnalysisSession.getSourceRevision()
+  };
+  const semantic = currentCompiledSemanticSnapshotFor(languageAnalysisSession, source);
+  const normalizedSourceOffset = normalizedOffsetFromRaw(
+    rawSource,
+    editor.document.offsetAt(editor.selection.active)
+  );
+  return {
+    rawSource,
+    source,
+    semantic,
+    normalizedSourceOffset,
+    resolution: semantic?.compiled
+      ? queryDslReferencePickTargetResolution({ source, position: normalizedSourceOffset, semantic })
+      : { kind: "none" }
+  };
+};
+
+const referencePickQuickPickItemsFor = (
+  source: string,
+  targets: readonly DslReferencePickTarget[],
+  displayLanguage: string
+): readonly ReferencePickTargetQuickPickItem[] => {
+  const translate = referencePickTranslatorFor(displayLanguage);
+  const rows = [...targets]
+    .map((target, index) => ({ target, index }))
+    .sort((left, right) => left.target.range.from - right.target.range.from ||
+      left.target.range.to - right.target.range.to || left.index - right.index)
+    .map(({ target }) => {
+    const value = source.slice(target.range.from, target.range.to);
+    const activation = source.slice(
+      (target.activationRange ?? target.range).from,
+      (target.activationRange ?? target.range).to
+    ).trim();
+    return {
+      label: value || translate("referencePick.emptyTarget"),
+      description: `${target.role} · ${target.expectedGeometryInterface}`,
+      detail: activation,
+      target
+    };
+  });
+  const collisions = new Map<string, number[]>();
+  rows.forEach((row, index) => {
+    const key = JSON.stringify([row.label, row.description, row.detail]);
+    const indexes = collisions.get(key) ?? [];
+    indexes.push(index);
+    collisions.set(key, indexes);
+  });
+  return rows.map((row, index) => {
+    const indexes = collisions.get(JSON.stringify([row.label, row.description, row.detail]));
+    if (!indexes || indexes.length < 2) return row;
+    const ordinal = indexes.indexOf(index) + 1;
+    return { ...row, description: `${row.description} ${ordinal}/${indexes.length}` };
+  });
+};
 
 const targetSourceStatementIndex = (
   target: import("@nuinuicad/nui-language").DslCanvasRevealSourceTarget
@@ -364,23 +452,10 @@ export const sourceTargetAvailabilityForEditor = (
   languageAnalysisSession: NuiLanguageAnalysisSession
 ): VscodeSourceTargetAvailability => {
   if (!isSupportedSourceEditor(editor)) return unavailableSourceTargets();
-  const rawSource = editor.document.getText();
-  if (languageAnalysisSession.getSource() !== rawSource) languageAnalysisSession.replaceSource(rawSource);
-  const source = {
-    normalizedSource: normalizedSourceFor(rawSource),
-    sourceRevision: languageAnalysisSession.getSourceRevision()
-  };
-  const semantic = currentCompiledSemanticSnapshotFor(languageAnalysisSession, source);
-  if (!semantic?.compiled) return unavailableSourceTargets();
-  const normalizedSourceOffset = normalizedOffsetFromRaw(
-    rawSource,
-    editor.document.offsetAt(editor.selection.active)
-  );
-  const referencePickSourceOffset = queryDslReferencePickTarget({
-    source,
-    position: normalizedSourceOffset,
-    semantic
-  }) ? normalizedSourceOffset : null;
+  const state = referencePickEditorStateFor(editor, languageAnalysisSession);
+  if (!state?.semantic?.compiled) return unavailableSourceTargets();
+  const { source, normalizedSourceOffset, semantic } = state;
+  const referencePickSourceOffset = state.resolution.kind === "none" ? null : normalizedSourceOffset;
   const revealInCanvas = Boolean(semantic.compiled.statementMap) &&
     queryDslCanvasRevealSourceTarget({
       source,
@@ -431,24 +506,15 @@ export const referencePickSourceOffsetForEditor = (
   editor: vscode.TextEditor,
   languageAnalysisSession: NuiLanguageAnalysisSession
 ): number | null => {
-  if (!isSupportedSourceEditor(editor)) return null;
-  const rawSource = editor.document.getText();
-  if (languageAnalysisSession.getSource() !== rawSource) languageAnalysisSession.replaceSource(rawSource);
-  const source = {
-    normalizedSource: normalizedSourceFor(rawSource),
-    sourceRevision: languageAnalysisSession.getSourceRevision()
-  };
-  const semantic = currentCompiledSemanticSnapshotFor(languageAnalysisSession, source);
-  if (!semantic?.compiled) return null;
-  const normalizedSourceOffset = normalizedOffsetFromRaw(
-    rawSource,
-    editor.document.offsetAt(editor.selection.active)
-  );
-  return queryDslReferencePickTarget({
-    source,
-    position: normalizedSourceOffset,
-    semantic
-  }) ? normalizedSourceOffset : null;
+  const state = referencePickEditorStateFor(editor, languageAnalysisSession);
+  return state && state.resolution.kind !== "none" ? state.normalizedSourceOffset : null;
+};
+
+export const referencePickSourceTargetResolutionForEditor = (
+  editor: vscode.TextEditor,
+  languageAnalysisSession: NuiLanguageAnalysisSession
+): DslReferencePickTargetResolution => referencePickEditorStateFor(editor, languageAnalysisSession)?.resolution ?? {
+  kind: "none"
 };
 
 export const registerVscodeReferencePickFeature = ({
@@ -568,11 +634,22 @@ export const registerVscodeReferencePickFeature = ({
       clearActive(false);
       return;
     }
-    const freshOffset = referencePickSourceOffsetForEditor(
-      current.editor,
-      languageAnalysisSessionFor(current.editor.document)
-    );
-    if (freshOffset !== current.normalizedSourceOffset) {
+    const currentSession = languageAnalysisSessionFor(current.editor.document);
+    const rawSource = current.editor.document.getText();
+    if (currentSession.getSource() !== rawSource) currentSession.replaceSource(rawSource);
+    const source = {
+      normalizedSource: normalizedSourceFor(rawSource),
+      sourceRevision: currentSession.getSourceRevision()
+    };
+    const semantic = currentCompiledSemanticSnapshotFor(currentSession, source);
+    const freshTarget = semantic?.compiled
+      ? queryDslReferencePickTarget({
+          source,
+          position: current.normalizedSourceOffset,
+          semantic
+        })
+      : null;
+    if (!freshTarget) {
       clearActive(false);
       refreshContext(current.editor);
       return;
@@ -686,11 +763,9 @@ export const registerVscodeReferencePickFeature = ({
   const command = vscode.commands.registerCommand(VSCODE_REFERENCE_PICK_COMMAND_ID, async () => {
     const editor = vscode.window.activeTextEditor;
     if (!isSupportedSourceEditor(editor)) return;
-    const normalizedSourceOffset = referencePickSourceOffsetForEditor(
-      editor,
-      languageAnalysisSessionFor(editor.document)
-    );
-    if (normalizedSourceOffset === null) {
+    const languageAnalysisSession = languageAnalysisSessionFor(editor.document);
+    const captured = referencePickEditorStateFor(editor, languageAnalysisSession);
+    if (!captured || !captured.semantic?.compiled || captured.resolution.kind === "none") {
       refreshContext(editor);
       void vscode.window.showErrorMessage(
         referencePickTranslatorFor(displayLanguageFor())("referencePick.noTarget")
@@ -698,15 +773,51 @@ export const registerVscodeReferencePickFeature = ({
       return;
     }
 
+    const document = editor.document;
+    const documentVersion = document.version;
+    const capturedSource = captured.rawSource;
+    const displayLanguage = displayLanguageFor();
+    let selectedTarget: DslReferencePickTarget | null = captured.resolution.kind === "target"
+      ? captured.resolution.target
+      : null;
+    if (captured.resolution.kind === "ambiguous") {
+      const selected = await nativeShowQuickPick(
+        referencePickQuickPickItemsFor(
+          captured.source.normalizedSource,
+          captured.resolution.targets,
+          displayLanguage
+        ),
+        {
+          placeHolder: referencePickTranslatorFor(displayLanguage)("referencePick.targetPickerPlaceholder"),
+          matchOnDescription: true,
+          matchOnDetail: true
+        }
+      );
+      if (!selected) return;
+      if (
+        vscode.window.activeTextEditor !== editor ||
+        document.version !== documentVersion ||
+        document.getText() !== capturedSource
+      ) return;
+      selectedTarget = selected.target;
+    }
+    if (!selectedTarget) return;
+    const targetProof = referencePickTargetProofFor(captured.source.normalizedSource, selectedTarget);
+    if (!targetProof) return;
+    const seedReferences = selectedTarget.role === "numericPropertyBase"
+      ? []
+      : referencePickSeedReferences(targetProof);
+    const initialNumericPropertyDraft = referencePickNumericPropertyDraftFor(targetProof);
+
     cancelActive();
     clearHistoryHandoff();
-    const documentVersion = editor.document.version;
     const sourceSelection = editor.selection;
     const endpoint = await ensureCanvas(editor.document);
     if (
       !endpoint ||
       editor.document.version !== documentVersion ||
-      !sameDocument(editor.document, endpoint.document)
+      !sameDocument(editor.document, endpoint.document) ||
+      editor.document.getText() !== capturedSource
     ) return;
 
     try {
@@ -723,11 +834,14 @@ export const registerVscodeReferencePickFeature = ({
 
     const current: ActiveReferencePick = {
       editor,
-      normalizedSourceOffset,
+      normalizedSourceOffset: selectedTarget.range.from,
       documentVersion,
       requestId: nextRequestId++,
       endpoint,
       bridge: null,
+      ...(seedReferences.length > 0 ? { initialDraftReferences: seedReferences } : {}),
+      ...(initialNumericPropertyDraft ? { initialNumericPropertyDraft } : {}),
+      expectedTargetProof: targetProof,
       webviewDisposable: { dispose: () => undefined },
       panelDisposable: { dispose: () => undefined }
     };

@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   executeCommand: vi.fn(),
   showTextDocument: vi.fn(),
   showErrorMessage: vi.fn(),
+  showQuickPick: vi.fn(),
   activeTextEditor: undefined as TestEditor | undefined,
   activeEditorListeners: [] as Array<(editor: TestEditor | undefined) => void>,
   selectionListeners: [] as Array<(event: { textEditor: TestEditor }) => void>,
@@ -79,6 +80,7 @@ vi.mock("vscode", () => ({
     },
     showTextDocument: mocks.showTextDocument,
     showErrorMessage: mocks.showErrorMessage,
+    showQuickPick: mocks.showQuickPick,
     onDidChangeActiveTextEditor: (listener: (editor: TestEditor | undefined) => void) => {
       mocks.activeEditorListeners.push(listener);
       return disposableFor(() => removeListener(mocks.activeEditorListeners, listener));
@@ -293,6 +295,8 @@ beforeEach(() => {
   mocks.executeCommand.mockResolvedValue(undefined);
   mocks.showTextDocument.mockReset();
   mocks.showErrorMessage.mockReset();
+  mocks.showQuickPick.mockReset();
+  mocks.showQuickPick.mockResolvedValue(undefined);
   mocks.showErrorMessage.mockResolvedValue(undefined);
   mocks.activeTextEditor = undefined;
   mocks.activeEditorListeners = [];
@@ -563,6 +567,261 @@ describe("registerVscodeReferencePickFeature", () => {
     feature.dispose();
   });
 
+  it("resolves ambiguous same-line Source targets with native Quick Pick before Canvas", async () => {
+    const ambiguousSource = [
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "point P = offset(from: @A, dx: 0, dy: 0)"
+    ].join("\n");
+    const editor = createEditorForSource(ambiguousSource, ambiguousSource.lastIndexOf("point P"));
+    mocks.activeTextEditor = editor;
+    mocks.showTextDocument.mockResolvedValue(editor);
+    const languageSession = createLanguageAnalysisSession(ambiguousSource);
+    const { panel } = createPanel();
+    const bridge = createBridge();
+    mocks.bridgeFactory.mockReturnValue(bridge);
+    mocks.showQuickPick.mockImplementation(async (items: readonly { target: unknown }[]) => items[1]);
+    const ensureCanvas = vi.fn(() => ({
+      document: editor.document,
+      panel,
+      isAuthoritativeReady: () => true
+    }));
+    const feature = registerVscodeReferencePickFeature({
+      languageAnalysisSessionFor: () => languageSession,
+      ensureCanvas
+    });
+
+    await mocks.commands.get(VSCODE_REFERENCE_PICK_COMMAND_ID)?.();
+
+    expect(mocks.showQuickPick).toHaveBeenCalledWith(
+      expect.arrayContaining([expect.objectContaining({ label: "@A" })]),
+      expect.objectContaining({
+        placeHolder: "Choose a Source target to pick from Canvas",
+        matchOnDescription: true,
+        matchOnDetail: true,
+        ignoreFocusOut: true
+      })
+    );
+    expect(ensureCanvas).toHaveBeenCalledTimes(1);
+    expect(mocks.bridgeFactory).toHaveBeenCalledWith(expect.objectContaining({
+      normalizedSourceOffset: ambiguousSource.indexOf("0", ambiguousSource.indexOf("dx:")),
+      expectedTargetProof: expect.objectContaining({ oldText: "0" })
+    }));
+    expect(bridge.start).toHaveBeenCalledTimes(1);
+
+    feature.dispose();
+  });
+
+  it("disambiguates duplicate numeric Quick Pick rows in source order and hands off the second range", async () => {
+    const duplicateSource = [
+      "nui 1",
+      "const sum: number = 10 + 10"
+    ].join("\n");
+    const lineFrom = duplicateSource.indexOf("const sum");
+    const first = duplicateSource.indexOf("10");
+    const second = duplicateSource.indexOf("10", first + 1);
+    const editor = createEditorForSource(duplicateSource, lineFrom);
+    mocks.activeTextEditor = editor;
+    mocks.showTextDocument.mockResolvedValue(editor);
+    const languageSession = createLanguageAnalysisSession(duplicateSource);
+    const { panel } = createPanel();
+    const bridge = createBridge();
+    mocks.bridgeFactory.mockReturnValue(bridge);
+    let quickPickItems: ReadonlyArray<{
+      label: string;
+      description?: string;
+      detail?: string;
+      target: { range: { from: number; to: number } };
+    }> = [];
+    mocks.showQuickPick.mockImplementation(async (items: typeof quickPickItems) => {
+      quickPickItems = items;
+      return items[1];
+    });
+    const feature = registerVscodeReferencePickFeature({
+      languageAnalysisSessionFor: () => languageSession,
+      ensureCanvas: vi.fn(() => ({
+        document: editor.document,
+        panel,
+        isAuthoritativeReady: () => true
+      }))
+    });
+
+    await mocks.commands.get(VSCODE_REFERENCE_PICK_COMMAND_ID)?.();
+
+    expect(quickPickItems).toHaveLength(2);
+    expect(quickPickItems.map((item) => item.label)).toEqual(["10", "10"]);
+    expect(quickPickItems.map((item) => item.description)).toEqual([
+      expect.stringContaining("1/2"),
+      expect.stringContaining("2/2")
+    ]);
+    expect(quickPickItems.map((item) => item.detail)).toEqual(["10", "10"]);
+    expect(quickPickItems[0]?.target.range).toEqual({ from: first, to: first + 2 });
+    expect(quickPickItems[1]?.target.range).toEqual({ from: second, to: second + 2 });
+    expect(mocks.bridgeFactory).toHaveBeenCalledWith(expect.objectContaining({
+      normalizedSourceOffset: second,
+      expectedTargetProof: expect.objectContaining({
+        range: { from: second, to: second + 2 },
+        oldText: "10"
+      })
+    }));
+    expect(bridge.start).toHaveBeenCalledTimes(1);
+    feature.dispose();
+  });
+
+  it("does not enter Canvas Pick Mode when the target Quick Pick is canceled", async () => {
+    const ambiguousSource = [
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "point P = offset(from: @A, dx: 0, dy: 0)"
+    ].join("\n");
+    const editor = createEditorForSource(ambiguousSource, ambiguousSource.lastIndexOf("point P"));
+    mocks.activeTextEditor = editor;
+    const languageSession = createLanguageAnalysisSession(ambiguousSource);
+    const ensureCanvas = vi.fn();
+    const feature = registerVscodeReferencePickFeature({
+      languageAnalysisSessionFor: () => languageSession,
+      ensureCanvas
+    });
+
+    await mocks.commands.get(VSCODE_REFERENCE_PICK_COMMAND_ID)?.();
+
+    expect(mocks.showQuickPick).toHaveBeenCalledTimes(1);
+    expect(ensureCanvas).not.toHaveBeenCalled();
+    expect(mocks.bridgeFactory).not.toHaveBeenCalled();
+    expect(mocks.showTextDocument).not.toHaveBeenCalled();
+    feature.dispose();
+  });
+
+  it("hands an existing numeric property draft to Canvas for the exact Source operand", async () => {
+    const numericSource = [
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line Base = segment(start: @A, end: @B)",
+      "point P = offset(from: @A, dx: @Base.length, dy: 0)"
+    ].join("\n");
+    const propertyOffset = numericSource.indexOf("@Base.length");
+    const editor = createEditorForSource(numericSource, propertyOffset + 1);
+    mocks.activeTextEditor = editor;
+    mocks.showTextDocument.mockResolvedValue(editor);
+    const languageSession = createLanguageAnalysisSession(numericSource);
+    const { panel } = createPanel();
+    const bridge = createBridge();
+    mocks.bridgeFactory.mockReturnValue(bridge);
+    const feature = registerVscodeReferencePickFeature({
+      languageAnalysisSessionFor: () => languageSession,
+      ensureCanvas: vi.fn(() => ({
+        document: editor.document,
+        panel,
+        isAuthoritativeReady: () => true
+      }))
+    });
+
+    await mocks.commands.get(VSCODE_REFERENCE_PICK_COMMAND_ID)?.();
+
+    expect(mocks.bridgeFactory).toHaveBeenCalledWith(expect.objectContaining({
+      normalizedSourceOffset: propertyOffset,
+      initialNumericPropertyDraft: { reference: { base: "Base" }, property: "length" },
+      expectedTargetProof: expect.objectContaining({ oldText: "@Base.length" })
+    }));
+    expect(bridge.start).toHaveBeenCalledTimes(1);
+    feature.dispose();
+  });
+
+  it("starts Canvas Pick from an own-line geometry target activated by indentation", async () => {
+    const multilineSource = [
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "module M(anchor: point, distance: number) {",
+      "}",
+      "instance X = M(",
+      "  anchor: @A,",
+      "  distance: 20,",
+      ")"
+    ].join("\n");
+    const anchorLine = multilineSource.lastIndexOf("  anchor");
+    const editor = createEditorForSource(multilineSource, anchorLine);
+    mocks.activeTextEditor = editor;
+    mocks.showTextDocument.mockResolvedValue(editor);
+    const languageSession = createLanguageAnalysisSession(multilineSource);
+    const { panel } = createPanel();
+    const bridge = createBridge();
+    mocks.bridgeFactory.mockReturnValue(bridge);
+    const feature = registerVscodeReferencePickFeature({
+      languageAnalysisSessionFor: () => languageSession,
+      ensureCanvas: vi.fn(() => ({
+        document: editor.document,
+        panel,
+        isAuthoritativeReady: () => true
+      }))
+    });
+
+    await mocks.commands.get(VSCODE_REFERENCE_PICK_COMMAND_ID)?.();
+
+    expect(bridge.start).toHaveBeenCalledTimes(1);
+    expect(mocks.bridgeFactory).toHaveBeenCalledWith(expect.objectContaining({
+      normalizedSourceOffset: multilineSource.indexOf("@A", anchorLine),
+      expectedTargetProof: expect.objectContaining({
+        oldText: "@A",
+        activationRange: { from: anchorLine, to: multilineSource.indexOf("\n", anchorLine) }
+      })
+    }));
+    feature.dispose();
+  });
+
+  it("starts Canvas Pick from broad numeric own-line targets, including a trailing empty operand", async () => {
+    const cases = [
+      { value: "20,", expectedText: "20", insertion: false },
+      { value: "10 +", expectedText: "", insertion: true }
+    ] as const;
+    for (const entry of cases) {
+      const multilineSource = [
+        "nui 1",
+        "point A = coordinate(x: 0, y: 0)",
+        "module M(anchor: point, distance: number) {",
+        "}",
+        "instance X = M(",
+        "  anchor: @A,",
+        `  distance: ${entry.value}`,
+        ")"
+      ].join("\n");
+      const distanceLine = multilineSource.lastIndexOf("  distance");
+      const editor = createEditorForSource(multilineSource, distanceLine);
+      mocks.activeTextEditor = editor;
+      mocks.showTextDocument.mockResolvedValue(editor);
+      const languageSession = createLanguageAnalysisSession(multilineSource);
+      const { panel } = createPanel();
+      const bridge = createBridge();
+      mocks.bridgeFactory.mockReset();
+      mocks.bridgeFactory.mockReturnValue(bridge);
+      const feature = registerVscodeReferencePickFeature({
+        languageAnalysisSessionFor: () => languageSession,
+        ensureCanvas: vi.fn(() => ({
+          document: editor.document,
+          panel,
+          isAuthoritativeReady: () => true
+        }))
+      });
+
+      await mocks.commands.get(VSCODE_REFERENCE_PICK_COMMAND_ID)?.();
+
+      const valueFrom = entry.insertion
+        ? multilineSource.indexOf("+", distanceLine) + 1
+        : multilineSource.indexOf(entry.expectedText, distanceLine);
+      expect(bridge.start).toHaveBeenCalledTimes(1);
+      expect(mocks.bridgeFactory).toHaveBeenCalledWith(expect.objectContaining({
+        normalizedSourceOffset: valueFrom,
+        expectedTargetProof: expect.objectContaining({
+          oldText: entry.expectedText,
+          activationRange: { from: distanceLine, to: multilineSource.indexOf("\n", distanceLine) }
+        })
+      }));
+      feature.dispose();
+      mocks.commands.clear();
+    }
+  });
+
   it("uses Japanese copy for the same non-pickable Source caret", async () => {
     const editor = createEditor();
     editor.selection = { active: { offset: 0 } };
@@ -620,6 +879,9 @@ describe("registerVscodeReferencePickFeature", () => {
       listener({ type: "webviewAuthoritativeDocumentReady", documentVersion: editor.document.version });
     }
     expect(mocks.bridgeFactory).toHaveBeenCalledTimes(1);
+    expect(mocks.bridgeFactory).toHaveBeenCalledWith(expect.objectContaining({
+      initialDraftReferences: [{ base: "A" }]
+    }));
     expect(bridge.start).toHaveBeenCalledTimes(1);
 
     for (const listener of [...webviewListeners]) {

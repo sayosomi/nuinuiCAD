@@ -17,7 +17,7 @@
   "command.goToSourceDefinition.title": "nuinuiCAD: Go to Source Definition",
   "command.revealInCanvas.title": "nuinuiCAD: Reveal in Canvas",
   "command.revealInOutputPreview.title": "nuinuiCAD: Reveal in Output Preview",
-  "command.pickReferenceFromCanvas.title": "nuinuiCAD: Pick Reference from Canvas",
+  "command.pickReferenceFromCanvas.title": "nuinuiCAD: Pick from Canvas",
   "command.convertPointToXYOffset.title": "nuinuiCAD: Convert Point to XY Offset",
   "command.convertPointToXYOffset.shortTitle": "XY Offset…",
   "command.convertPointToAngleDistanceOffset.title": "nuinuiCAD: Convert Point to Angle-Distance Offset",

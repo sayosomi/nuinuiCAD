@@ -99,6 +99,17 @@ type NumericOperandTarget = {
   numericProperty?: DslReferencePickNumericPropertyTarget;
 };
 
+type ReferencePickTargetCandidate = {
+  target: DslReferencePickTarget;
+  /** The syntactic region that identifies this target during broad activation. */
+  region: DslReferencePickRange;
+};
+
+export type DslReferencePickTargetResolution =
+  | { kind: "target"; target: DslReferencePickTarget }
+  | { kind: "ambiguous"; targets: readonly DslReferencePickTarget[] }
+  | { kind: "none" };
+
 const semanticSourceText = (semantic: DslReferencePickSemanticSnapshot) =>
   semantic.sourceText ?? semantic.compiled?.spans.sourceMap.source;
 
@@ -114,8 +125,11 @@ const exactCompiledSemantic = (
   return semantic.compiled;
 };
 
-const exactPositionAt = (source: SourceSnapshot, position: number): ExactPosition | null => {
-  const map = createLogicalStatementSourceMap(source);
+const exactPositionAt = (
+  source: SourceSnapshot,
+  position: number,
+  map = createLogicalStatementSourceMap(source)
+): ExactPosition | null => {
   const statementIndex = map.statements.findIndex((candidate) =>
     position >= candidate.range.from && position <= candidate.range.to
   );
@@ -223,6 +237,10 @@ const activeCallArgument = (call: DslCallAuthoringContext): ActiveCallArgument |
   const scannedResult = scanCallArgs(call.logicalText, segment);
   if (scannedResult.args.length > 1) return null;
   const scanned = scannedResult.args[0] ?? null;
+  if (
+    call.logicalText[call.logicalCursorPosition] === "," &&
+    scanned?.valueSpan.start !== scanned?.valueSpan.end
+  ) return null;
   if (scanned?.keySpan) {
     const colon = call.logicalText.indexOf(":", scanned.keySpan.end);
     if (colon < 0 || call.logicalCursorPosition <= colon) return null;
@@ -276,6 +294,14 @@ const callValueRange = (
   sourcePosition: number
 ): DslReferencePickRange | null => {
   if (!argument.scanned || argument.scanned.valueSpan.start === argument.scanned.valueSpan.end) {
+    if (argument.scanned?.rawValueSpan) {
+      const insertion = physicalRangeForLogical(
+        exact,
+        { start: argument.scanned.rawValueSpan.start, end: argument.scanned.rawValueSpan.start },
+        sourcePosition
+      );
+      if (insertion) return insertion;
+    }
     return { from: sourcePosition, to: sourcePosition };
   }
   const physical = physicalRangeForLogical(exact, argument.scanned.valueSpan, sourcePosition);
@@ -301,6 +327,7 @@ const scalarTokenSpan = (token: ScalarExpressionToken): DslSpan =>
 
 const tokenOwnsCaret = (source: string, expressionSpan: DslSpan, token: ScalarExpressionToken, position: number) => {
   const span = scalarTokenSpan(token);
+  if (token.kind === "operator" || token.kind === "comma" || token.kind === "colon") return false;
   if (position >= span.start && position < span.end) return true;
   if (position !== span.end) return false;
   return source.slice(span.end, expressionSpan.end).trim().length === 0;
@@ -349,6 +376,12 @@ const numericOperandTarget = (
   }
   if (token) return null;
 
+  // Completion classifiers intentionally inspect only the prefix ending at
+  // the caret. For Pick targeting, that prefix may describe a missing
+  // operand only when the remainder of the expression is whitespace; never
+  // reinterpret the gap before an existing operand as an empty slot.
+  if (source.slice(logicalPosition, expressionSpan.end).trim().length > 0) return null;
+
   const completion = scalarExpressionCompletionContextAt(
     source,
     logicalPosition,
@@ -356,9 +389,17 @@ const numericOperandTarget = (
     { kind: "number" }
   );
   if (completion?.kind !== "operand" || completion.expectedType?.kind !== "number") return null;
+  const lastToken = tokenized.tokens.at(-1);
+  const insertionAt = lastToken && (
+    lastToken.kind === "operator" ||
+    lastToken.kind === "leftParen" ||
+    lastToken.kind === "comma"
+  )
+    ? scalarTokenSpan(lastToken).end
+    : completion.from;
   return {
     expectation,
-    range: { start: completion.from, end: completion.to },
+    range: { start: insertionAt, end: insertionAt },
     numericProperty: { kind: "propertySelectionRequired" }
   };
 };
@@ -484,27 +525,6 @@ const targetForCall = (
     : null;
 };
 
-const callTarget = (
-  source: SourceSnapshot,
-  position: number,
-  exact: ExactPosition,
-  compiled: CompiledDslDocument,
-  anchor: DslReferencePickSourceAnchor
-): DslReferencePickTarget | null => {
-  const primary = dslCallAuthoringContextAt(source, position);
-  const primaryTarget = primary
-    ? targetForCall(source, position, exact, compiled, anchor, primary)
-    : null;
-  if (primaryTarget) return primaryTarget;
-
-  const currentCharacter = source.normalizedSource[position];
-  if (position <= 0 || (currentCharacter !== "," && currentCharacter !== ")" && currentCharacter !== "]")) return null;
-  const previous = dslCallAuthoringContextAt(source, position - 1);
-  return previous
-    ? targetForCall(source, position, exact, compiled, anchor, previous)
-    : null;
-};
-
 const emptyConstructionTarget = (
   position: number,
   exact: ExactPosition,
@@ -556,9 +576,20 @@ const typedDeclarationTarget = (
   if (!expressionSpan) return null;
   const numeric = numericOperandTarget(exact.statement.logicalText, exact.logicalPosition, expressionSpan);
   if (!numeric) return null;
-  const range = physicalRangeForLogical(exact, numeric.range, position);
+  const emptyInitializer = !existing && numeric.range.start === numeric.range.end;
+  const numericRange = emptyInitializer
+    ? { start: expressionSpan.start, end: expressionSpan.start }
+    : numeric.range;
+  const range = emptyInitializer
+    ? (() => {
+        const physical = logicalOffsetToPhysical(exact.map, exact.statement, expressionSpan.start);
+        return physical === null ? null : { from: physical, to: physical };
+      })()
+    : physicalRangeForLogical(exact, numericRange, position);
   if (!range) return null;
-  const activationRange = numeric.activationRange
+  const activationRange = emptyInitializer
+    ? range
+    : numeric.activationRange
     ? physicalRangeForLogical(exact, numeric.activationRange, position)
     : range;
   return activationRange
@@ -596,6 +627,213 @@ const setNumericTarget = (
     : null;
 };
 
+const sameRange = (
+  left: DslReferencePickRange,
+  right: DslReferencePickRange
+): boolean => left.from === right.from && left.to === right.to;
+
+const sameTarget = (
+  left: DslReferencePickTarget,
+  right: DslReferencePickTarget
+): boolean =>
+  left.sourceAnchor.statementIndex === right.sourceAnchor.statementIndex &&
+  left.expectedGeometryInterface === right.expectedGeometryInterface &&
+  left.role === right.role &&
+  left.multiplicity === right.multiplicity &&
+  sameRange(left.range, right.range) &&
+  (left.numericProperty?.kind ?? null) === (right.numericProperty?.kind ?? null);
+
+const lineRangeAt = (
+  source: string,
+  position: number
+): DslReferencePickRange => {
+  const from = source.lastIndexOf("\n", Math.max(0, position - 1)) + 1;
+  const newline = source.indexOf("\n", position);
+  return { from, to: newline < 0 ? source.length : newline };
+};
+
+const containsRange = (
+  range: DslReferencePickRange,
+  position: number
+): boolean => range.from === range.to
+  ? position === range.from
+  : range.from <= position && position < range.to;
+
+const targetCandidateAt = (
+  source: SourceSnapshot,
+  position: number,
+  compiled: CompiledDslDocument,
+  map: LogicalStatementSourceMap
+): ReferencePickTargetCandidate | null => {
+  const exact = exactPositionAt(source, position, map);
+  if (!exact) return null;
+  const anchor = sourceAnchorFor(compiled, exact);
+  if (!anchor) return null;
+
+  const primary = dslCallAuthoringContextAt(source, position);
+  for (const call of [primary]) {
+    if (!call) continue;
+    const target = targetForCall(source, position, exact, compiled, anchor, call);
+    if (!target) continue;
+    const candidateLine = lineRangeAt(source.normalizedSource, position);
+    const argument = activeCallArgument(call);
+    const callEnd = matchingDslDelimiter(call.logicalText, call.callee.logicalOpenParen);
+    const callArguments = scanCallArgs(call.logicalText, {
+      start: call.callee.logicalOpenParen + 1,
+      end: callEnd >= 0 ? callEnd : call.logicalText.length
+    }).args;
+    const physicalArgument = argument
+      ? physicalSpanForLogicalRange(exact.map, exact.statement, argument.segment)
+      : null;
+    const argumentRegion = physicalArgument?.segments.length === 1
+      ? physicalArgument.segments[0]
+      : null;
+    const region = callArguments.length <= 1 || !argumentRegion
+      ? candidateLine
+      : argumentRegion;
+    return { target, region };
+  }
+
+  const target = emptyConstructionTarget(position, exact, compiled, anchor) ??
+    typedDeclarationTarget(position, exact, anchor) ??
+    setNumericTarget(position, exact, compiled, anchor);
+  return target
+    ? { target, region: lineRangeAt(source.normalizedSource, position) }
+    : null;
+};
+
+const targetCandidatesOnLine = (
+  source: SourceSnapshot,
+  position: number,
+  compiled: CompiledDslDocument,
+  map: LogicalStatementSourceMap
+): ReferencePickTargetCandidate[] => {
+  const line = lineRangeAt(source.normalizedSource, position);
+  const candidates: ReferencePickTargetCandidate[] = [];
+  for (let probe = line.from; probe <= line.to; probe += 1) {
+    const candidate = targetCandidateAt(source, probe, compiled, map);
+    if (!candidate) continue;
+    if (candidates.some((existing) => sameTarget(existing.target, candidate.target))) continue;
+    candidates.push(candidate);
+  }
+  if (candidates.length === 1) {
+    return [{ ...candidates[0]!, region: line }];
+  }
+
+  // `10 +` has one empty operand and one concrete operand in the same named
+  // parameter. The empty operand owns the otherwise-unique physical line for
+  // broad activation, while the concrete operand remains exact-only. A second
+  // argument on the same line keeps the parameter-local region instead.
+  const empty = candidates.filter((candidate) => candidate.target.range.from === candidate.target.range.to);
+  const regions = candidates.reduce<DslReferencePickRange[]>((result, candidate) =>
+    result.some((region) => sameRange(region, candidate.region)) ? result : [...result, candidate.region], []);
+  if (empty.length === 1 && regions.length === 1) {
+    const emptyTarget = empty[0]!.target;
+    return candidates.map((candidate) => candidate.target === emptyTarget
+      ? { ...candidate, region: line }
+      : candidate);
+  }
+  return candidates;
+};
+
+const numericCandidateRegion = (
+  candidate: ReferencePickTargetCandidate,
+  candidates: readonly ReferencePickTargetCandidate[]
+): DslReferencePickRange => {
+  if (candidate.target.role !== "numericPropertyBase") return candidate.region;
+  const sameRegion = candidates.filter((other) =>
+    other.target.role === "numericPropertyBase" && sameRange(other.region, candidate.region)
+  );
+  return sameRegion.length > 1 ? candidate.target.range : candidate.region;
+};
+
+const targetWithActivation = (
+  candidate: ReferencePickTargetCandidate,
+  activationRange: DslReferencePickRange
+): DslReferencePickTarget => ({
+  ...candidate.target,
+  activationRange: { ...activationRange }
+});
+
+const targetResolutionForCandidates = (
+  source: SourceSnapshot,
+  position: number,
+  exactCandidate: ReferencePickTargetCandidate | null,
+  candidates: readonly ReferencePickTargetCandidate[]
+): DslReferencePickTargetResolution => {
+  if (candidates.length === 0) return { kind: "none" };
+
+  const exactRangeCandidates = candidates.filter((candidate) => {
+    const range = candidate.target.range;
+    return range.from === range.to
+      ? position === range.from
+      : range.from <= position && position < range.to;
+  });
+  if (exactRangeCandidates.length === 1) {
+    const candidate = exactRangeCandidates[0]!;
+    return {
+      kind: "target",
+      target: targetWithActivation(candidate, numericCandidateRegion(candidate, candidates))
+    };
+  }
+
+  const regionCandidates = candidates.filter((candidate) => containsRange(candidate.region, position));
+  const empty = regionCandidates.filter((candidate) => candidate.target.range.from === candidate.target.range.to);
+  if (empty.length === 1) {
+    const candidate = empty[0]!;
+    return {
+      kind: "target",
+      target: targetWithActivation(candidate, candidate.region)
+    };
+  }
+  if (empty.length > 1) {
+    return {
+      kind: "ambiguous",
+      targets: empty.map((candidate) => targetWithActivation(candidate, candidate.region))
+    };
+  }
+
+  if (regionCandidates.length === 1) {
+    const candidate = regionCandidates[0]!;
+    return {
+      kind: "target",
+      target: targetWithActivation(candidate, candidate.region)
+    };
+  }
+
+  if (regionCandidates.length > 1) {
+    return {
+      kind: "ambiguous",
+      targets: regionCandidates.map((candidate) => targetWithActivation(
+        candidate,
+        numericCandidateRegion(candidate, candidates)
+      ))
+    };
+  }
+
+  if (exactCandidate && candidates.length === 1) {
+    return {
+      kind: "target",
+      target: targetWithActivation(candidates[0]!, lineRangeAt(source.normalizedSource, position))
+    };
+  }
+
+  if (candidates.length === 1) {
+    return {
+      kind: "target",
+      target: targetWithActivation(candidates[0]!, lineRangeAt(source.normalizedSource, position))
+    };
+  }
+
+  return {
+    kind: "ambiguous",
+    targets: candidates.map((candidate) => targetWithActivation(
+      candidate,
+      numericCandidateRegion(candidate, candidates)
+    ))
+  };
+};
+
 /**
  * Identify the one exact-current Source Editor range that may be mutated by a
  * Canvas reference-pick session. The query is host-neutral and read-only. It
@@ -608,17 +846,27 @@ export const queryDslReferencePickTarget = ({
   position,
   semantic
 }: DslReferencePickQueryInput): DslReferencePickTarget | null => {
-  if (!Number.isInteger(position) || position < 0 || position > source.normalizedSource.length) return null;
+  const resolution = queryDslReferencePickTargetResolution({ source, position, semantic });
+  return resolution.kind === "target" ? resolution.target : null;
+};
+
+/**
+ * Resolves the broad Source activation region without weakening the exact
+ * mutation range. Multiple targets on one line remain explicit ambiguity so
+ * the Extension Host can ask the user before entering Canvas Pick Mode.
+ */
+export const queryDslReferencePickTargetResolution = ({
+  source,
+  position,
+  semantic
+}: DslReferencePickQueryInput): DslReferencePickTargetResolution => {
+  if (!Number.isInteger(position) || position < 0 || position > source.normalizedSource.length) return { kind: "none" };
   const compiled = exactCompiledSemantic(source, semantic);
-  if (!compiled) return null;
-  const exact = exactPositionAt(source, position);
-  if (!exact) return null;
-  const anchor = sourceAnchorFor(compiled, exact);
-  if (!anchor) return null;
-  return callTarget(source, position, exact, compiled, anchor)
-    ?? emptyConstructionTarget(position, exact, compiled, anchor)
-    ?? typedDeclarationTarget(position, exact, anchor)
-    ?? setNumericTarget(position, exact, compiled, anchor);
+  if (!compiled) return { kind: "none" };
+  const map = createLogicalStatementSourceMap(source);
+  const exactCandidate = targetCandidateAt(source, position, compiled, map);
+  const candidates = targetCandidatesOnLine(source, position, compiled, map);
+  return targetResolutionForCandidates(source, position, exactCandidate, candidates);
 };
 
 export type { SourceRevision, SourceSnapshot } from "./logicalStatementSourceMap";

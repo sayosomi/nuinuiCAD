@@ -193,6 +193,33 @@ describe("VS Code Canvas reference pick session bridge", () => {
     expect(coordinate.session?.target.sourceAnchor.sourceRevision).toBe(CANVAS_REVISION);
   });
 
+  it("restores an existing numeric property selection into the shared Pick draft", () => {
+    const source = [
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line Base = segment(start: @A, end: @B)",
+      "point P = offset(from: @A, dx: @Base.length, dy: 0)"
+    ].join("\n");
+    const host = setup(source, "@Base.length");
+    const started = startSession({
+      source,
+      ...host,
+      request: {
+        ...host.request,
+        initialNumericPropertyDraft: { reference: { base: "Base" }, property: "length" }
+      }
+    });
+
+    expect(started.result.status).toBe("started");
+    if (started.result.status !== "started" || !started.session) return;
+    expect(started.session.draft.numericProperty).toMatchObject({
+      stage: "draft",
+      selectedGeometry: { reference: { base: "Base" } },
+      draft: { reference: { base: "Base" }, property: "length" }
+    });
+  });
+
   it("preserves strict and broad Module candidate semantics from the pinned Canvas snapshot", () => {
     const currentSource = [
       "nui 1",
@@ -205,7 +232,7 @@ describe("VS Code Canvas reference pick session bridge", () => {
       "instance X = M(straight: @Straight, broad: )"
     ].join("\n");
     const canvasSource = currentSource.replace("broad: )", "broad: @Curve)");
-    const position = currentSource.indexOf("broad: )") + "broad: ".length;
+    const position = currentSource.lastIndexOf("broad:") + "broad:".length;
     const started = startWithCanvasSnapshot(
       dualAuthorityFixture(currentSource, canvasSource, position)
     );

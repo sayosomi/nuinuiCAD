@@ -293,7 +293,7 @@ describe("VS Code extension manifest command contributions", () => {
       "nuinuiCAD: Go to Source Definition",
       "nuinuiCAD: Reveal in Canvas",
       "nuinuiCAD: Reveal in Output Preview",
-      "nuinuiCAD: Pick Reference from Canvas",
+      "nuinuiCAD: Pick from Canvas",
       "nuinuiCAD: Convert Point to XY Offset",
       "nuinuiCAD: Convert Point to Angle-Distance Offset",
       "nuinuiCAD: Replace Geometry References",
