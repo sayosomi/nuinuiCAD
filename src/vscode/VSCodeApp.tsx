@@ -10,7 +10,7 @@ import {
 } from "../state/cadDocumentStore";
 import { MAX_CANVAS_ZOOM, useCadUiStore } from "../state/cadUiStore";
 import { VSCodeDrawingCanvas } from "./VSCodeDrawingCanvas";
-import type { DrawingCanvasHandle } from "../components/DrawingCanvas";
+import type { VSCodeDrawingCanvasHandle } from "./VSCodeDrawingCanvas";
 import { dispatchCommand } from "../commands/commands";
 import { VSCodeBenchmarkCaptureRunner } from "./VSCodeBenchmarkCaptureRunner";
 import { VscodeRustTransport } from "./vscodeRustTransport";
@@ -44,8 +44,8 @@ import { canvasObservationSnapshot } from "./canvasObservation";
 import { canvasNavigationContainerTarget } from "./canvasNavigationContainerTarget";
 import { isVscodeCanvasCreationCommandId } from "./vscodeCanvasCreationCommands";
 import {
-  pickModeCanvasCommandAllowed,
-  pickModeCanvasOperationAllowed
+  pickModeCanvasCommandAllowedForActive,
+  pickModeCanvasOperationAllowedForActive
 } from "./pickModeCanvasPolicy";
 import { effectiveDrawElementIds, effectiveEvaluationElementIds } from "../model/elementActivity";
 import { effectiveVisibleElementIdsForProfile, visibilityProfileById } from "../model/visibilityProfiles";
@@ -212,7 +212,11 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   const canvasHistoryInFlightRef = useRef<CanvasHistoryDirection | null>(null);
   const pendingCanvasHistoryRef = useRef<CanvasHistoryDirection[]>([]);
   const canvasFocusRef = useRef<HTMLDivElement>(null);
-  const drawingCanvasRef = useRef<DrawingCanvasHandle>(null);
+  const drawingCanvasRef = useRef<VSCodeDrawingCanvasHandle>(null);
+  const canvasPickModeActive = useCallback(
+    () => Boolean(useCadUiStore.getState().activePickModeSession || drawingCanvasRef.current?.isReferencePickActive()),
+    []
+  );
   const measureCanvasTextWidth = useMemo(
     () => createCanvasTextWidthMeasurer(() =>
       document.querySelector<HTMLElement>('[data-canvas-viewport="true"]')
@@ -1296,7 +1300,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       } else if (message.type === "canvasRibbonConfiguration") {
         setCanvasRibbonRibbons(normalizeVscodeCanvasRibbons(message.ribbons));
       } else if (message.type === "canvasCommand") {
-        if (!pickModeCanvasCommandAllowed(message.commandId, useCadUiStore.getState().activePickModeSession)) return;
+        if (!pickModeCanvasCommandAllowedForActive(message.commandId, canvasPickModeActive())) return;
         if (message.commandId === "bakeCurrentShape" || message.commandId === "bakeBaseShape") {
           void runCanvasBake(message);
           return;
@@ -1317,7 +1321,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         });
       } else if (message.type === "canvasCreationCommand") {
         if (!isVscodeCanvasCreationCommandId(message.commandId)) return;
-        if (!pickModeCanvasOperationAllowed("workflow-start", useCadUiStore.getState().activePickModeSession)) return;
+        if (!pickModeCanvasOperationAllowedForActive("workflow-start", canvasPickModeActive())) return;
         if (!Number.isInteger(message.requestId) ||
           !Number.isInteger(message.documentVersion) ||
           !canvasCreationSourcePositionIsValid(message.sourcePosition)) return;
@@ -1609,7 +1613,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           "requested",
           currentEvaluationIsCurrent ? selectionEligibleIds : undefined,
           runtimeElements,
-          { preservePickMode: pickModeCanvasOperationAllowed("reveal", useCadUiStore.getState().activePickModeSession) }
+          { preservePickMode: pickModeCanvasOperationAllowedForActive("reveal", canvasPickModeActive()) }
         )) {
           api.postMessage({
             type: "canvasNavigationResult",
@@ -1726,7 +1730,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     return () => {
       window.removeEventListener("message", onMessage);
     };
-  }, [api, applyPendingCoordinatePointConversionSelection, currentAuthoritativeDocument, currentHostSourceAuthorityFor, deferCoordinatePointConversionSelection, measureCanvasTextWidth, postCanvasCommit, publishCanvasObservation, publishCanonicalRuntimeDiagnostics, publishCurrentCanvasTheme, publishInlineModuleCanvasTargets, pumpCanvasHistory, refreshCanvasTheme, requestCanvasHistory, restoreCanvasFocus, rustTransport, selectActiveCanvasInstance, setMultiDocumentGraphPublication, sourceInsertionError, staleSourceAnchorError, canvasPointerError, tryApplyPendingCanvasFreePointSelection, tryCompleteCanvasFocus]);
+  }, [api, applyPendingCoordinatePointConversionSelection, canvasPickModeActive, currentAuthoritativeDocument, currentHostSourceAuthorityFor, deferCoordinatePointConversionSelection, measureCanvasTextWidth, postCanvasCommit, publishCanvasObservation, publishCanonicalRuntimeDiagnostics, publishCurrentCanvasTheme, publishInlineModuleCanvasTargets, pumpCanvasHistory, refreshCanvasTheme, requestCanvasHistory, restoreCanvasFocus, rustTransport, selectActiveCanvasInstance, setMultiDocumentGraphPublication, sourceInsertionError, staleSourceAnchorError, canvasPointerError, tryApplyPendingCanvasFreePointSelection, tryCompleteCanvasFocus]);
 
   const surfaceStyle = benchmarkConfig?.expectedRenderSurface
     ? {

@@ -1,9 +1,9 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import type { CadElement } from "../types/geometry";
-import { PickModeStatus } from "./PickModeStatus";
+import { PickModeStatus, PickModeStatusView } from "./PickModeStatus";
 import { pickModeSessionForTarget } from "../model/pickModeSession";
 import { derivedAnchor, referenceAnchor } from "../model/pointAnchors";
 
@@ -306,6 +306,27 @@ describe("PickModeStatus", () => {
 
     render(<PickModeStatus />);
     expect(screen.queryByLabelText("現在の選択")).not.toBeInTheDocument();
+  });
+
+  it("uses an externally supplied Finish callback through the shared view", () => {
+    const onFinish = vi.fn();
+
+    render(
+      <PickModeStatusView
+        model={{
+          targetLabel: "Cross / line1",
+          instruction: "Canvasまたは構成リストから線を選択",
+          currentSelection: "@AB",
+          onFinish
+        }}
+      />
+    );
+
+    expect(screen.getByText("PICK MODE")).toBeInTheDocument();
+    expect(screen.getByText("Cross / line1")).toBeInTheDocument();
+    expect(screen.getByLabelText("現在の選択")).toHaveTextContent("@AB");
+    fireEvent.click(screen.getByRole("button", { name: "選択を完了" }));
+    expect(onFinish).toHaveBeenCalledTimes(1);
   });
 
 });

@@ -95,7 +95,7 @@ type OverlayCallbacks = {
 const renderOverlay = (
   session: VscodeReferencePickCanvasSession,
   overrides: Partial<OverlayCallbacks> = {},
-  surface: { elements?: CadElement[]; evaluation?: EvaluationResult; evaluationIsCurrent?: boolean } = {},
+  surface: { elements?: CadElement[]; evaluation?: EvaluationResult } = {},
   presentation?: ReturnType<typeof webviewCanvasPresentationFor>
 ) => {
   const viewport = document.createElement("div");
@@ -125,7 +125,6 @@ const renderOverlay = (
       onConfirm={callbacks.onConfirm}
       onCancel={callbacks.onCancel}
       presentation={presentation}
-      evaluationIsCurrent={surface.evaluationIsCurrent ?? true}
     />,
     { container: viewport }
   );
@@ -213,41 +212,24 @@ const numericLineStartCandidate: ReferencePickCandidate = {
 };
 
 describe("VSCodeReferencePickOverlay", () => {
-  it.each([
-    ["ja", "選択 · 線", "線の選択対象", "Enter 決定", "決定"],
-    ["en", "Pick · Line", "Line target", "Enter Done", "Done"]
-  ] as const)("uses the Extension Host presentation for reference-pick chrome (%s)", (language, badge, target, shortcut, done) => {
+  it("leaves the shared Pick Mode shell as the owner of outer mode chrome", () => {
     renderOverlay(
       sessionFor({ expectedGeometryInterface: "line" }),
       {},
       {},
-      webviewCanvasPresentationFor(webviewPresentationFor(language))
+      webviewCanvasPresentationFor(webviewPresentationFor("en"))
     );
 
-    expect(screen.getByText(badge)).toBeInTheDocument();
-    expect(screen.getByText(target)).toBeInTheDocument();
-    expect(screen.getByText(shortcut)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: done })).toBeInTheDocument();
+    expect(screen.queryByText("Pick · Line")).not.toBeInTheDocument();
+    expect(screen.queryByText("Line target")).not.toBeInTheDocument();
+    expect(screen.queryByText("Enter Done")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Done" })).not.toBeInTheDocument();
   });
 
-  it("reuses the Canvas bottom-right transient hint and theme contract", () => {
+  it("keeps the Canvas frame and theme contract", () => {
     const { viewport, view } = renderOverlay(sessionFor());
-    const status = screen.getByRole("status");
-
-    expect(status).toHaveClass("point-drag-axis-lock-hint");
-    expect(status).toHaveAttribute("data-reference-pick-hint-position", "bottom-right");
-    expect(status.style.right).toBe("0px");
-    expect(status.style.bottom).toBe("0px");
-    expect(status.style.getPropertyValue("--canvas-background")).toBe(LEGACY_CANVAS_THEME.background);
-    expect(status.style.getPropertyValue("--canvas-foreground")).toBe(LEGACY_CANVAS_THEME.foreground);
-    expect(screen.getByText("Line target")).toBeInTheDocument();
-    expect(screen.getByText("Pick · Line")).toBeInTheDocument();
     const frame = document.querySelector("[data-reference-pick-frame='true']");
     expect(frame).toHaveAttribute("style", expect.stringContaining("border: 4px solid var(--canvas-accent)"));
-    expect(document.querySelector("[data-reference-pick-badge='true']")).not.toBeNull();
-    expect(screen.getByText("Enter Done")).toBeInTheDocument();
-    expect(screen.getByText("Esc Cancel")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Done" })).toBeDisabled();
     expect(document.activeElement).toBe(viewport);
 
     view.unmount();
@@ -262,12 +244,9 @@ describe("VSCodeReferencePickOverlay", () => {
       { onConfirm, onCancel }
     );
 
-    const done = screen.getByRole("button", { name: "Done" });
-    expect(done).toBeEnabled();
     fireEvent.keyDown(window, { key: "Enter" });
     expect(onConfirm).toHaveBeenCalledTimes(1);
 
-    done.focus();
     fireEvent.keyDown(window, { key: "Escape" });
     expect(onCancel).toHaveBeenCalledTimes(1);
 
@@ -295,12 +274,12 @@ describe("VSCodeReferencePickOverlay", () => {
     viewport.remove();
   });
 
-  it("labels endpoint and numeric-base targets without introducing a property chooser", () => {
+  it("does not render target labels or a property chooser in the subordinate overlay", () => {
     const first = renderOverlay(sessionFor({
       expectedGeometryInterface: "point",
       role: "endpoint"
     }));
-    expect(screen.getByText("Endpoint target")).toBeInTheDocument();
+    expect(screen.queryByText("Endpoint target")).not.toBeInTheDocument();
     first.view.unmount();
     first.viewport.remove();
 
@@ -308,7 +287,7 @@ describe("VSCodeReferencePickOverlay", () => {
       expectedGeometryInterface: "path",
       role: "numericPropertyBase"
     }));
-    expect(screen.getByText("Geometry base target")).toBeInTheDocument();
+    expect(screen.queryByText("Geometry base target")).not.toBeInTheDocument();
     expect(screen.queryByText(/length|angle/i)).not.toBeInTheDocument();
     second.view.unmount();
     second.viewport.remove();
@@ -631,12 +610,7 @@ describe("VSCodeReferencePickOverlay", () => {
     viewport.remove();
   });
 
-  it.each([
-    [true, numericLineEvaluation, true],
-    [false, numericLineEvaluation, false],
-    [true, { ...numericLineEvaluation, computedGeometry: new Map([["Base", { ...numericLineGeometry, length: Number.NaN }]]) }, false],
-    [true, { ...numericLineEvaluation, computedGeometry: new Map() }, false]
-  ] as const)("shows the canonical pending numeric draft and only a proven finite current value", (evaluationIsCurrent, evaluation, hasValue) => {
+  it("leaves the numeric draft's outer status presentation to the shared Pick Mode shell", () => {
     const draft = {
       candidateElementId: "Base",
       reference: { base: "Base" },
@@ -656,13 +630,11 @@ describe("VSCodeReferencePickOverlay", () => {
         candidates: [numericLineCandidate]
       }),
       {},
-      { elements: [numericLineElement], evaluation, evaluationIsCurrent },
+      { elements: [numericLineElement], evaluation: numericLineEvaluation },
       webviewCanvasPresentationFor(webviewPresentationFor("en"))
     );
-    const status = screen.getByRole("status");
-    expect(status).toHaveTextContent("@Base.length");
-    if (hasValue) expect(status).toHaveTextContent("@Base.length = 200 mm");
-    else expect(status).not.toHaveTextContent("200 mm");
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.queryByText("@Base.length")).toBeNull();
 
     view.unmount();
     viewport.remove();

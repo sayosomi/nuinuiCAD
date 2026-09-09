@@ -1,4 +1,4 @@
-import type { PointerEvent as ReactPointerEvent, RefObject } from "react";
+import type { RefObject } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { hitTestCanvasGeometryAll, type ScreenPoint } from "../components/DrawingCanvasHitTest";
 import { useCanvasOverlayData } from "../components/useCanvasOverlayData";
@@ -6,8 +6,7 @@ import { type ViewportSize, worldToScreen } from "../components/canvasViewport";
 import { canvasThemeCssVariables, type CanvasTheme } from "../components/canvasTheme";
 import { CanvasOverlapCandidateMenu } from "../components/CanvasOverlapCandidateMenu";
 import { candidateWheelDeltaFor } from "../components/canvasCandidateWheel";
-import { computedReferencePathValue, type NumericComputedGeometryProperty } from "../geometry/numericExpressions";
-import { formatValue } from "../geometry/numericReferencePaths";
+import type { NumericComputedGeometryProperty } from "../geometry/numericExpressions";
 import {
   filterReferencePickGeometryHits,
   hitTestReferencePickPoints
@@ -50,8 +49,6 @@ type VSCodeReferencePickOverlayProps = {
   onConfirm: () => void;
   onCancel: () => void;
   presentation?: CanvasPresentation;
-  /** Proof that the render evaluation is current for the current document. */
-  evaluationIsCurrent?: boolean;
 };
 
 const pointerScreenPoint = (event: PointerEvent, viewport: HTMLDivElement) => {
@@ -129,8 +126,7 @@ export const VSCodeReferencePickOverlay = ({
   onSelectNumericProperty,
   onConfirm,
   onCancel,
-  presentation,
-  evaluationIsCurrent = false
+  presentation
 }: VSCodeReferencePickOverlayProps) => {
   const [pointCandidateMenu, setPointCandidateMenuState] = useState<ReferencePickPointCandidateMenu | null>(null);
   const pointCandidateMenuRef = useRef<ReferencePickPointCandidateMenu | null>(null);
@@ -640,30 +636,6 @@ export const VSCodeReferencePickOverlay = ({
       return [];
     })
   ), [session.candidates]);
-  const numericPropertyState = session.draft.numericProperty;
-  const canConfirm = session.target.role === "numericPropertyBase"
-    ? Boolean(numericPropertyState?.draft)
-    : session.draft.multiplicity === "multiple" || session.draft.draftReferences.length === 1;
-  const selectionCount = session.target.role === "numericPropertyBase"
-    ? numericPropertyState?.draft ? 1 : 0
-    : session.draft.draftReferences.length;
-  const targetLabel = session.target.role === "endpoint"
-    ? presentation?.text("canvas.referencePick.target.endpoint", "Endpoint") ?? "Endpoint"
-    : session.target.role === "numericPropertyBase"
-      ? presentation?.text("canvas.referencePick.target.geometryBase", "Geometry base") ?? "Geometry base"
-      : session.target.expectedGeometryInterface === "point"
-        ? presentation?.text("canvas.referencePick.target.point", "Point") ?? "Point"
-        : session.target.expectedGeometryInterface === "line"
-          ? presentation?.text("canvas.referencePick.target.line", "Line") ?? "Line"
-          : presentation?.text("canvas.referencePick.target.path", "Path") ?? "Path";
-  const instruction = session.target.role === "numericPropertyBase" &&
-    numericPropertyState?.stage === "propertySelection"
-    ? presentation?.text("canvas.referencePick.instruction.selectProperty", "Select a property") ?? "Select a property"
-    : session.draft.multiplicity === "multiple"
-    ? presentation?.text("canvas.referencePick.instruction.selectedCount", "{count} selected", { count: selectionCount }) ?? `${selectionCount} selected`
-    : selectionCount === 0
-      ? presentation?.text("canvas.referencePick.instruction.selectCandidate", "Select a candidate") ?? "Select a candidate"
-      : presentation?.text("canvas.referencePick.instruction.referenceSelected", "Reference selected") ?? "Reference selected";
   const currentPointCandidateMenu = session.draft.status === "active" && pointCandidateMenu?.requestId === session.request.requestId
     ? pointCandidateMenu
     : null;
@@ -680,20 +652,6 @@ export const VSCodeReferencePickOverlay = ({
     name: [property, referencePickPropertyHelp(property, presentation)].filter(Boolean).join(" — "),
     detail: referencePickSourceForReference(currentNumericPropertyMenu.reference)
   })) ?? [];
-  const numericDraft = numericPropertyState?.stage === "draft" ? numericPropertyState.draft : null;
-  const numericDraftFeedback = numericDraft
-    ? (() => {
-        const expression = `${referencePickSourceForReference(numericDraft.reference)}.${numericDraft.property}`;
-        const geometry = evaluationIsCurrent
-          ? evaluation.computedGeometry.get(numericDraft.candidateElementId)
-          : undefined;
-        const value = computedReferencePathValue(geometry, numericDraft.property);
-        return typeof value === "number" && Number.isFinite(value)
-          ? `${expression} = ${formatValue(value, numericDraft.property)}`
-          : expression;
-      })()
-    : null;
-
   return (
     <>
       <svg
@@ -750,30 +708,6 @@ export const VSCodeReferencePickOverlay = ({
               zIndex: 4
             }}
           />
-          <div
-            data-reference-pick-badge="true"
-            data-reference-pick-ui="true"
-            style={{
-              ...canvasThemeCssVariables(canvasTheme),
-              position: "absolute",
-              top: 8,
-              left: 8,
-              boxSizing: "border-box",
-              border: "1px solid var(--canvas-accent)",
-              borderRadius: 4,
-              background: "color-mix(in srgb, var(--canvas-background) 88%, transparent)",
-              color: "var(--canvas-foreground)",
-              padding: "4px 7px",
-              fontSize: 11,
-              fontWeight: 700,
-              lineHeight: 1,
-              pointerEvents: "none",
-              userSelect: "none",
-              zIndex: 5
-            }}
-          >
-            {presentation?.text("canvas.referencePick.badge", "Pick · {target}", { target: targetLabel }) ?? `Pick · ${targetLabel}`}
-          </div>
         </>
       ) : null}
       {currentPointCandidateMenu ? (
@@ -810,46 +744,6 @@ export const VSCodeReferencePickOverlay = ({
           />
         </div>
       ) : null}
-      <aside
-        className="point-drag-axis-lock-hint"
-        data-reference-pick-ui="true"
-        data-reference-pick-hint-position="bottom-right"
-        role="status"
-        aria-live="polite"
-        style={{
-          ...canvasThemeCssVariables(canvasTheme),
-          right: 0,
-          bottom: 0,
-          maxWidth: "min(720px, calc(100% - 16px))",
-          gap: 8,
-          pointerEvents: "auto"
-        }}
-      >
-        <strong>{presentation?.text("canvas.referencePick.targetStatus", "{target} target", { target: targetLabel }) ?? `${targetLabel} target`}</strong>
-        <small style={{ color: canvasTheme.muted }}>{numericDraftFeedback ?? instruction}</small>
-        <span className="point-drag-axis-lock-action">
-          {presentation?.text("canvas.referencePick.enterDone", "Enter Done") ?? "Enter Done"}
-        </span>
-        <span className="point-drag-axis-lock-action">
-          {presentation?.text("canvas.referencePick.escCancel", "Esc Cancel") ?? "Esc Cancel"}
-        </span>
-        <button
-          type="button"
-          disabled={!canConfirm}
-          onPointerDown={(event: ReactPointerEvent) => event.stopPropagation()}
-          onClick={onConfirm}
-          style={{
-            marginLeft: "auto",
-            borderColor: canvasTheme.accent,
-            background: canvasTheme.background,
-            color: canvasTheme.accent,
-            padding: "4px 8px",
-            whiteSpace: "nowrap"
-          }}
-        >
-          {presentation?.text("canvas.referencePick.done", "Done") ?? "Done"}
-        </button>
-      </aside>
     </>
   );
 };
