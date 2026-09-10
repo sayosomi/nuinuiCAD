@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { vscodeCanvasCreationCommands } from "../../src/vscode/vscodeCanvasCreationCommands";
+import {
+  filterVscodeCanvasCreationCommands,
+  vscodeCanvasCreationCommands,
+  type VscodeCanvasCreationCommand
+} from "../../src/vscode/vscodeCanvasCreationCommands";
 
 type TestItem = {
   label: string;
@@ -66,7 +70,10 @@ vi.mock("vscode", () => ({
   }
 }));
 
-import { pickVscodeCreationCommand } from "./creationCommandQuickPick";
+import {
+  pickVscodeCreationCommand,
+  sortVscodeCreationCommandsForQuickPick
+} from "./creationCommandQuickPick";
 
 beforeEach(() => {
   mocks.createQuickPick.mockReset();
@@ -75,15 +82,19 @@ beforeEach(() => {
 });
 
 describe("pickVscodeCreationCommand", () => {
-  it("keeps the ordered catalog, localized presentation, filtering, and explicit hide cancellation", async () => {
+  it("sorts initial and filtered presentation without changing catalog membership", async () => {
     const englishPending = pickVscodeCreationCommand({
       displayLanguage: "en-US"
     });
     const englishPicker = mocks.quickPicks[0]!;
 
-    expect(englishPicker.items.map(({ commandId }) => commandId)).toEqual(
-      vscodeCanvasCreationCommands.map(({ commandId }) => commandId)
+    expect(englishPicker.items.map(({ label }) => label)).toEqual(
+      [...englishPicker.items.map(({ label }) => label)].sort((left, right) => left.localeCompare(right))
     );
+    expect([...englishPicker.items.map(({ commandId }) => commandId)].sort()).toEqual(
+      [...vscodeCanvasCreationCommands.map(({ commandId }) => commandId)].sort()
+    );
+    expect(englishPicker.items).toHaveLength(vscodeCanvasCreationCommands.length);
     expect(englishPicker.items.every(({ alwaysShow }) => alwaysShow)).toBe(true);
     expect(englishPicker.placeholder).toBe("Create geometry");
     expect(englishPicker.matchOnDescription).toBe(false);
@@ -93,13 +104,28 @@ describe("pickVscodeCreationCommand", () => {
     });
 
     englishPicker.fireValue("bezier 曲線");
+    const expectedBezierCommands = filterVscodeCanvasCreationCommands("bezier 曲線");
+    expect([...englishPicker.items.map(({ commandId }) => commandId)].sort()).toEqual(
+      [...expectedBezierCommands.map(({ commandId }) => commandId)].sort()
+    );
+    expect(englishPicker.items).toHaveLength(expectedBezierCommands.length);
     expect(englishPicker.items.map(({ commandId }) => commandId)).toEqual([
       "addBezierBulgePoint",
-      "addBezierExtremePoint",
-      "addBezierCurve"
+      "addBezierCurve",
+      "addBezierExtremePoint"
+    ]);
+    expect(englishPicker.items.map(({ label }) => label)).toEqual([
+      "Bezier Bulge Point",
+      "Bezier Curve",
+      "Bezier Extreme Point"
     ]);
     englishPicker.fireValue("   ");
-    expect(englishPicker.items).toHaveLength(vscodeCanvasCreationCommands.length);
+    expect(englishPicker.items.map(({ label }) => label)).toEqual(
+      [...englishPicker.items.map(({ label }) => label)].sort((left, right) => left.localeCompare(right))
+    );
+    expect([...englishPicker.items.map(({ commandId }) => commandId)].sort()).toEqual(
+      [...vscodeCanvasCreationCommands.map(({ commandId }) => commandId)].sort()
+    );
 
     englishPicker.fireHide();
     englishPicker.fireHide();
@@ -118,6 +144,19 @@ describe("pickVscodeCreationCommand", () => {
     japanesePicker.fireAccept();
     await expect(japanesePending).resolves.toBe("addLine");
     expect(japanesePicker.dispose).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses command ID as a deterministic fallback for equal labels without mutating entries", () => {
+    const entries: VscodeCanvasCreationCommand[] = [
+      { commandId: "addText", quickPickLabel: "Same Label", keywords: [] },
+      { commandId: "addLine", quickPickLabel: "Same Label", keywords: [] }
+    ];
+
+    expect(sortVscodeCreationCommandsForQuickPick(entries).map(({ commandId }) => commandId)).toEqual([
+      "addLine",
+      "addText"
+    ]);
+    expect(entries.map(({ commandId }) => commandId)).toEqual(["addText", "addLine"]);
   });
 
 });
