@@ -74,6 +74,7 @@ import {
   pickVscodeCreationCommand,
   sortVscodeCreationCommandsForQuickPick
 } from "./creationCommandQuickPick";
+import { createSourceCreationMru } from "./sourceCreationMru";
 
 beforeEach(() => {
   mocks.createQuickPick.mockReset();
@@ -171,6 +172,69 @@ describe("pickVscodeCreationCommand", () => {
       vscodeCanvasCreationCommands.length
     );
     expect(picker.items).toHaveLength(vscodeCanvasCreationCommands.length);
+
+    picker.fireHide();
+    await expect(pending).resolves.toBeUndefined();
+  });
+
+  it.each([1, 2, 3, 4, 5])(
+    "promotes every recent command for a history size of %s in newest-first order",
+    async (historySize) => {
+      const catalogCommandIds = vscodeCanvasCreationCommands.map(({ commandId }) => commandId);
+      const recentCommandIds = catalogCommandIds.slice(0, historySize).reverse();
+      const pending = pickVscodeCreationCommand({
+        displayLanguage: "en-US",
+        recentCommandIds
+      });
+      const picker = mocks.quickPicks[0]!;
+      const sortedCatalogCommandIds = sortVscodeCreationCommandsForQuickPick(vscodeCanvasCreationCommands)
+        .map(({ commandId }) => commandId);
+      const recentSet = new Set(recentCommandIds);
+      const expectedRemainder = sortedCatalogCommandIds.filter((commandId) => !recentSet.has(commandId));
+
+      expect(picker.items.map(({ commandId }) => commandId)).toEqual([
+        ...recentCommandIds,
+        ...expectedRemainder
+      ]);
+      expect(picker.items).toHaveLength(catalogCommandIds.length);
+      expect(new Set(picker.items.map(({ commandId }) => commandId)).size).toBe(catalogCommandIds.length);
+      expect(picker.items.map(({ commandId }) => commandId)).toEqual(
+        expect.arrayContaining(catalogCommandIds)
+      );
+      expect(picker.items.map(({ commandId }) => commandId).slice(0, historySize)).toEqual(recentCommandIds);
+      expect(picker.items.map(({ commandId }) => commandId).slice(historySize)).toEqual(expectedRemainder);
+
+      picker.fireHide();
+      await expect(pending).resolves.toBeUndefined();
+    }
+  );
+
+  it("connects sixth-distinct MRU eviction to empty-query chooser presentation", async () => {
+    const mru = createSourceCreationMru();
+    const catalogCommandIds = vscodeCanvasCreationCommands.map(({ commandId }) => commandId);
+    const recordedCommandIds = catalogCommandIds.slice(0, 6);
+    recordedCommandIds.forEach((commandId) => mru.record(commandId));
+    const retainedCommandIds = recordedCommandIds.slice(1).reverse();
+    const evictedCommandId = recordedCommandIds[0]!;
+
+    const pending = pickVscodeCreationCommand({
+      displayLanguage: "en-US",
+      recentCommandIds: mru.recentCommandIds
+    });
+    const picker = mocks.quickPicks[0]!;
+    const sortedCatalogCommandIds = sortVscodeCreationCommandsForQuickPick(vscodeCanvasCreationCommands)
+      .map(({ commandId }) => commandId);
+    const retainedSet = new Set(retainedCommandIds);
+    const expectedRemainder = sortedCatalogCommandIds.filter((commandId) => !retainedSet.has(commandId));
+    const presentedCommandIds = picker.items.map(({ commandId }) => commandId);
+
+    expect(mru.recentCommandIds).toEqual(retainedCommandIds);
+    expect(presentedCommandIds.slice(0, retainedCommandIds.length)).toEqual(retainedCommandIds);
+    expect(presentedCommandIds.slice(retainedCommandIds.length)).toEqual(expectedRemainder);
+    expect(presentedCommandIds.slice(0, retainedCommandIds.length)).not.toContain(evictedCommandId);
+    expect(presentedCommandIds.filter((commandId) => commandId === evictedCommandId)).toHaveLength(1);
+    expect(presentedCommandIds).toHaveLength(catalogCommandIds.length);
+    expect(new Set(presentedCommandIds).size).toBe(catalogCommandIds.length);
 
     picker.fireHide();
     await expect(pending).resolves.toBeUndefined();

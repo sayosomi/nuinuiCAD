@@ -174,6 +174,40 @@ describe("runSourceCreationFlow", () => {
     expect(sourceCreationMru.recentCommandIds).toEqual(["addLine"]);
   });
 
+  it("does not record when form materialization returns null", async () => {
+    const record = vi.fn();
+    const sourceCreationMru = { recentCommandIds: [], record };
+    mocks.pickCreationCommand.mockResolvedValue("addDivisionPoint");
+    mocks.showQuickPick.mockResolvedValue({ formIndex: 999 });
+
+    await expect(runSourceCreationFlow(
+      {} as TestEditor,
+      {} as TestPosition,
+      "en",
+      sourceCreationMru
+    )).resolves.toBeUndefined();
+
+    expect(mocks.insertSnippet).not.toHaveBeenCalled();
+    expect(record).not.toHaveBeenCalled();
+  });
+
+  it("records the selected canonical command exactly once after successful insertion", async () => {
+    const record = vi.fn();
+    const sourceCreationMru = { recentCommandIds: [], record };
+    mocks.pickCreationCommand.mockResolvedValue("addLine");
+    mocks.insertSnippet.mockResolvedValue(true);
+
+    await expect(runSourceCreationFlow(
+      {} as TestEditor,
+      {} as TestPosition,
+      "en",
+      sourceCreationMru
+    )).resolves.toBe(true);
+
+    expect(record).toHaveBeenCalledTimes(1);
+    expect(record).toHaveBeenCalledWith("addLine");
+  });
+
   it("does not record when type planning fails", async () => {
     const sourceCreationMru = createSourceCreationMru();
     mocks.pickCreationCommand.mockResolvedValue("unknownCommand");
