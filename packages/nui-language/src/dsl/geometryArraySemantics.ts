@@ -85,7 +85,11 @@ export type DslArrayMappedValue = {
   binder: string;
   binderSpan: DslSpan;
   sourceSpan: DslSpan;
-  body: TypedScalarExpression;
+  bodySpan: DslSpan;
+  /** Root documents fill this through typedDeclarationAnalysis. Module
+   * definitions fill the parallel Module semantic body through
+   * moduleScalarExpression; the collection pass itself only owns shape. */
+  body?: TypedScalarExpression;
   sourceOrder: number;
 };
 

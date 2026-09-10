@@ -250,7 +250,7 @@ const addTypedOccurrences = (
     if (value.value?.kind !== "map") continue;
     const binderIdentity: DslSemanticIdentity = { kind: "typed", bindingId: value.value.binderId };
     addPhysicalOccurrence(add, compiled, value.statementIndex, value.value.binderSpan, binderIdentity, "declaration");
-    addExpression(value.statementIndex, value.value.body);
+    if (value.value.body) addExpression(value.statementIndex, value.value.body);
     const statement = compiled.statements[value.statementIndex];
     const logical = statement
       ? compiled.spans.logicalStatementByRangeFrom.get(statement.documentRange.from)

@@ -658,7 +658,7 @@ const scalarCandidatesAt = (
     const valueFor = compiled?.sourceLexicalNamespace?.geometryArraySemanticAnalysis?.genericValues.find(
       (candidate) => candidate.statementIndex === statementIndex && candidate.value?.kind === "map"
     );
-    const valueForBody = valueFor?.value?.kind === "map" && compiled
+    const valueForBody = valueFor?.value?.kind === "map" && compiled && valueFor.value.body
       ? exactPhysicalSpan(compiled.spans, compiled.statements[statementIndex]!, valueFor.value.body.span)
       : null;
     const insideValueForBody = valueForBody?.segments.some((segment) => position >= segment.from && position <= segment.to) ?? false;

@@ -95,6 +95,7 @@ export type ModuleScalarSourceTarget =
     })
   | ModuleRecordFieldSourceTarget
   | { kind: "iteration"; statementId: StatementIdentity; statementIndex: number; name: string; identity?: DocumentQualifiedSemanticIdentity<StatementIdentity> }
+  | { kind: "valueForBinder"; binderId: BindingId; statementId: StatementIdentity; statementIndex: number; name: string; sourceElementType: ScalarType }
   | { kind: "moduleLocal"; statementId: StatementIdentity; statementIndex: number; identity?: DocumentQualifiedSemanticIdentity<StatementIdentity> }
   | { kind: "documentBinding"; bindingId: BindingId; statementId: StatementIdentity; statementIndex: number; identity?: DocumentQualifiedSemanticIdentity<StatementIdentity> }
   | {
@@ -735,6 +736,16 @@ export type ModuleDefinitionSemantic = {
     type: ScalarType | null;
     bindingKind: "const" | "let";
     initializer: ModuleScalarExpressionSemantic | null;
+  }[];
+  /** Scalar/choice value-for bodies are Module-owned semantic expressions;
+   * their binder target is rematerialized per runtime instance. */
+  mappedScalarCollectionBodies: readonly {
+    statementId: StatementIdentity;
+    statementIndex: number;
+    binderId: BindingId;
+    sourceElementType: ScalarType;
+    resultElementType: ScalarType;
+    body: ModuleScalarExpressionSemantic;
   }[];
   localGeometryValues: readonly ModuleGeometryValueSemantic[];
   recordValues: readonly ModuleRecordValueSemantic[];

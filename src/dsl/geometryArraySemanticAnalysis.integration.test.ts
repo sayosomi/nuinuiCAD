@@ -298,7 +298,7 @@ describe("geometry array source semantic integration", () => {
   });
 
   it("rejects non-collection and unsupported geometry/record sources, and result mismatches", () => {
-    const { namespace } = analyze([
+    const source = [
       "nui 1",
       "const scalar: number = 1",
       "const values: number[] = [1]",
@@ -311,10 +311,18 @@ describe("geometry array source semantic integration", () => {
       "const badGeometry: number[] = for x in @points { 1 }",
       "const badRecord: number[] = for x in @pairs { 1 }",
       "const badResult: boolean[] = for x in @values { @x * 2 }"
-    ].join("\n"));
+    ].join("\n");
+    const { namespace } = analyze(source);
     expect(namespace.diagnostics).toEqual(expect.arrayContaining([
       expect.objectContaining({ code: "array-value-for-source-invalid", exactSpanOnly: true }),
-      expect.objectContaining({ code: "array-value-for-source-unsupported", exactSpanOnly: true }),
+      expect.objectContaining({ code: "array-value-for-source-unsupported", exactSpanOnly: true })
+    ]));
+    const compiled = compile([
+      "nui 1",
+      "const values: number[] = [1]",
+      "const badResult: boolean[] = for x in @values { @x * 2 }"
+    ].join("\n"));
+    expect(compiled.diagnostics).toEqual(expect.arrayContaining([
       expect.objectContaining({ code: "scalar-type-mismatch", exactSpanOnly: true })
     ]));
   });

@@ -13,8 +13,7 @@ import {
   type DslArraySemanticValue,
   type DslArrayMemberResolution,
   type GeometryArrayMemberResolution,
-  type GeometryArraySemanticValue,
-  type GeometryArraySemanticDiagnostic
+  type GeometryArraySemanticValue
 } from "./geometryArraySemantics";
 import type { DslArrayMappedValue } from "./geometryArraySemantics";
 import { geometryArrayTypeName, isDslNonArrayValueTypeAssignable, type GeometryArrayType } from "./geometryArrayTypes";
@@ -30,10 +29,6 @@ import {
 import type { RecordSemanticAnalysis } from "./recordSemanticAnalysis";
 import { scanScalarLiteral } from "../scalars/literalScanner";
 import { isChoiceOptionMember } from "../scalars/scalarAssignability";
-import { parseScalarExpression } from "../scalars/expressionParser";
-import { collectScalarExpressionReferences } from "../scalars/expressionReferenceCollector";
-import { typecheckScalarExpression } from "../scalars/expressionTypecheck";
-import type { ScalarExpressionResolvedReference } from "../scalars/typedExpressionAst";
 
 export type GeometryArraySourceTarget =
   | { kind: "geometry"; statementId: string; statementIndex: number; interfaceType: ModuleGeometryInterfaceType; pointKey?: string }
@@ -920,43 +915,6 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
         if (!sourceElementType || !resultElementType) {
           return { kind: "invalid", diagnostic: { code: "array-value-for-source-unsupported", message: "この Slice の value-for source/result は scalar または choice collection である必要があります。", span: valueFor.span } };
         }
-        const parsedBody = parseScalarExpression(
-          " ".repeat(initializerSpan.start) + statement.initializer,
-          valueFor.bodySpan
-        );
-        if (!parsedBody.ast) {
-          const issue = parsedBody.diagnostics[0];
-          return { kind: "invalid", diagnostic: { code: "array-value-for-body-invalid", message: issue?.message ?? "value-for body を解析できません。", span: issue?.span ?? valueFor.bodySpan } };
-        }
-        const bodyReferences = collectScalarExpressionReferences(parsedBody.ast);
-        const bodyDiagnostics: GeometryArraySemanticDiagnostic[] = [];
-        const references: ScalarExpressionResolvedReference[] = bodyReferences.map((reference) => {
-          const path = parseDslReferenceToken(reference.name);
-          if (path.segments.length === 1 && !path.absolute && path.segments[0] === valueFor.binder) {
-            return { kind: "resolvedType", bindingId: `value-for-binder:${semantic.statementId}`, type: sourceElementType };
-          }
-          if (path.segments.length !== 1 || path.absolute) {
-            bodyDiagnostics.push({ code: "array-value-for-body-reference-invalid", message: `value-for body の参照「${reference.name}」を解決できません。`, span: reference.span });
-            return { kind: "resolvedType", bindingId: null, type: null };
-          }
-          const parameter = moduleParameterByName(statements, stableStatementIdByIndex, semantic.statementIndex, path.segments[0]!);
-          if (parameter) {
-            const parameterType = scalarTypeOfDslValueType(parameter.parameter.valueType);
-            if (parameterType) return { kind: "resolvedType", bindingId: `value-for-parameter:${parameter.definitionStatementId}:${parameter.parameterIndex}`, type: parameterType };
-          }
-          const resolved = input.resolvePath(semantic.statementIndex, path);
-          if (resolved.kind === "resolved" && resolved.declaration.statement.kind === "typedDeclaration") {
-            const type = scalarTypeOfDslValueType(resolved.declaration.statement.valueType);
-            if (type) return { kind: "resolvedType", bindingId: `binding:${resolved.declaration.statementId}`, type };
-          }
-          bodyDiagnostics.push({ code: "array-value-for-body-reference-invalid", message: `value-for body の参照「${reference.name}」を解決できません。`, span: reference.span });
-          return { kind: "resolvedType", bindingId: null, type: null };
-        });
-        const checked = typecheckScalarExpression(parsedBody.ast, { expectedType: resultElementType, references });
-        bodyDiagnostics.push(...checked.diagnostics.map((issue) => ({ code: issue.code, message: issue.message, span: issue.span, presentation: issue.presentation })));
-        if (bodyDiagnostics.length > 0 || checked.type === null) {
-          return { kind: "invalid", diagnostic: bodyDiagnostics[0] ?? { code: "array-value-for-body-invalid", message: "value-for body の型を解決できません。", span: valueFor.bodySpan } };
-        }
         const mapped: DslArrayMappedValue = {
           kind: "map",
           valueType: enrichedExpectedType,
@@ -967,7 +925,7 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
           binder: valueFor.binder,
           binderSpan: valueFor.binderSpan,
           sourceSpan: valueFor.sourceSpan,
-          body: checked.typed,
+          bodySpan: valueFor.bodySpan,
           sourceOrder: semantic.statementIndex
         };
         return { kind: "resolved", value: mapped };

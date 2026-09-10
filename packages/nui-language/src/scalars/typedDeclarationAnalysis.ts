@@ -56,6 +56,9 @@ export type AdditionalScalarInitializer = {
   bindingId: BindingId;
   raw: string;
   span: DslSpan;
+  /** Embedded scalar expressions may have a result type distinct from the
+   * synthetic binding used to type their lexical references. */
+  expectedType?: ScalarType;
 };
 
 export type PreparedScalarExpressionIssue = {
@@ -366,6 +369,7 @@ export const analyzeTypedDeclarations = ({
   additionalCollectionIndexResolver,
   additionalGeometryPropertyResolver,
   additionalInitializers,
+  nonProgramBindingIds,
   prepareScalarExpression,
   additionalRecordPropertyResolver,
   additionalRecordValueResolver
@@ -386,6 +390,9 @@ export const analyzeTypedDeclarations = ({
   }) => import("./typedExpressionAst").ScalarExpressionResolvedGeometryTarget | undefined;
   additionalCollectionIndexResolver?: CollectionIndexResolver;
   additionalInitializers?: readonly AdditionalScalarInitializer[];
+  /** Synthetic bindings used to typecheck an embedded expression but never
+   * emitted as standalone scalar-program declarations. */
+  nonProgramBindingIds?: ReadonlySet<BindingId>;
   prepareScalarExpression?: PrepareScalarExpression;
   additionalRecordPropertyResolver?: (input: {
     statementIndex: number;
@@ -676,6 +683,7 @@ export const analyzeTypedDeclarations = ({
   const initializerReferences: InitializerReference[] = [];
   for (const binding of catalog.bindings) {
     if (!isScalarTypedBinding(binding) || !analyzesInitializer(binding.id, binding.resolutionMode)) continue;
+    if (nonProgramBindingIds?.has(binding.id)) continue;
     const parsed = parsedByBindingId.get(binding.id);
     if (!parsed) continue;
     const normal = (resolvedReferencesByBindingId.get(binding.id) ?? []).map((reference) => ({
@@ -722,7 +730,11 @@ export const analyzeTypedDeclarations = ({
       occurrenceIndex += 1;
     }
   }
-  const bindingAnalysis = analyzeBindings({ catalog, initializerReferences });
+  const bindingAnalysis = analyzeBindings({
+    catalog,
+    initializerReferences,
+    unavailableBindingIds: nonProgramBindingIds
+  });
 
   const typedInitializerByBindingId = new Map<BindingId, TypedScalarExpression>();
   const sourceOrderByElementId = new Map<string, number>();
@@ -730,6 +742,7 @@ export const analyzeTypedDeclarations = ({
   const nameContext = createElementNameContext([...reconciledContainers.elements]);
   for (const binding of catalog.bindings) {
     if (!isScalarTypedBinding(binding) || !analyzesInitializer(binding.id, binding.resolutionMode)) continue;
+    const additional = additionalInitializerByBindingId.get(binding.id);
     const parsed = parsedByBindingId.get(binding.id);
     if (!parsed) throw new Error(`typedDeclarationAnalysis: no parsed initializer for ${binding.id}`);
     const prepared = preparedByBindingId.get(binding.id);
@@ -750,7 +763,7 @@ export const analyzeTypedDeclarations = ({
       }
     );
     const checked = typecheckScalarExpression(prepared?.ast ?? parsed.ast, {
-      expectedType: scalarTypeOfDslValueType(binding.declaredType),
+      expectedType: additional?.expectedType ?? scalarTypeOfDslValueType(binding.declaredType),
       references: prepared?.references ?? referenceResolutionsForAst(
         parsed.ast,
         collectionIndexResolutionByBindingId.get(binding.id) ?? new Map(),
