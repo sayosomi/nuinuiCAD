@@ -17,6 +17,7 @@ type QuickPickCreationItem = vscode.QuickPickItem & {
 
 export type VscodeCreationCommandPickerOptions = {
   displayLanguage: string;
+  recentCommandIds: readonly VscodeCanvasCreationCommandId[];
 };
 
 const compareCreationEntriesForQuickPick = (
@@ -33,17 +34,32 @@ export const sortVscodeCreationCommandsForQuickPick = (
 
 const quickPickItemsFor = (
   entries: readonly VscodeCanvasCreationCommand[],
-  displayLanguage: string
-): QuickPickCreationItem[] => sortVscodeCreationCommandsForQuickPick(entries).map((entry) => ({
+  displayLanguage: string,
+  recentCommandIds: readonly VscodeCanvasCreationCommandId[]
+): QuickPickCreationItem[] => {
+  const sortedEntries = sortVscodeCreationCommandsForQuickPick(entries);
+  const entriesByCommandId = new Map(sortedEntries.map((entry) => [entry.commandId, entry]));
+  const promotedCommandIds = new Set<VscodeCanvasCreationCommandId>();
+  const promotedEntries: VscodeCanvasCreationCommand[] = [];
+  for (const commandId of recentCommandIds) {
+    const entry = entriesByCommandId.get(commandId);
+    if (!entry || promotedCommandIds.has(commandId)) continue;
+    promotedCommandIds.add(commandId);
+    promotedEntries.push(entry);
+  }
+
+  return [...promotedEntries, ...sortedEntries.filter(({ commandId }) => !promotedCommandIds.has(commandId))].map((entry) => ({
   label: entry.quickPickLabel,
   description: canvasQuickCreateDescriptionFor(entry.commandId, displayLanguage),
   commandId: entry.commandId,
   alwaysShow: true
 }));
+};
 
 /** Picks one existing Create Geometry command without owning any command lifecycle. */
 export const pickVscodeCreationCommand = ({
-  displayLanguage
+  displayLanguage,
+  recentCommandIds
 }: VscodeCreationCommandPickerOptions): Promise<VscodeCanvasCreationCommandId | undefined> => {
   const picker = nativeCreateQuickPick<QuickPickCreationItem>();
   let settled = false;
@@ -69,9 +85,14 @@ export const pickVscodeCreationCommand = ({
     "canvasQuickCreate.placeholder.createGeometry"
   );
   picker.matchOnDescription = false;
-  picker.items = quickPickItemsFor(filterVscodeCanvasCreationCommands(""), displayLanguage);
+  const itemsForValue = (value: string): QuickPickCreationItem[] => quickPickItemsFor(
+    filterVscodeCanvasCreationCommands(value),
+    displayLanguage,
+    value === "" ? recentCommandIds : []
+  );
+  picker.items = itemsForValue("");
   listeners.push(picker.onDidChangeValue((value) => {
-    picker.items = quickPickItemsFor(filterVscodeCanvasCreationCommands(value), displayLanguage);
+    picker.items = itemsForValue(value);
   }));
   listeners.push(picker.onDidAccept(() => finish(picker.selectedItems[0])));
   listeners.push(picker.onDidHide(() => finish(undefined)));

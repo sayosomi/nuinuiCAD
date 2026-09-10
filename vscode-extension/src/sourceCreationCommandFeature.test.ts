@@ -55,7 +55,10 @@ describe("Source Create Geometry command feature", () => {
     expect(activeSourceEditor).toHaveBeenCalledTimes(1);
     expect(displayLanguageFor).toHaveBeenCalledTimes(1);
     expect(mocks.pickCreationCommand).toHaveBeenCalledTimes(1);
-    expect(mocks.pickCreationCommand).toHaveBeenCalledWith({ displayLanguage: "ja-JP" });
+    expect(mocks.pickCreationCommand).toHaveBeenCalledWith({
+      displayLanguage: "ja-JP",
+      recentCommandIds: []
+    });
     expect(mocks.showQuickPick).not.toHaveBeenCalled();
     expect(mocks.insertSnippet).toHaveBeenCalledTimes(1);
     const [insertedEditor, materialization, insertedPosition] = mocks.insertSnippet.mock.calls[0]!;
@@ -65,7 +68,40 @@ describe("Source Create Geometry command feature", () => {
       commandId: "addLine",
       formIndex: 0
     });
+
+    mocks.pickCreationCommand.mockResolvedValue("addBezierCurve");
+    mocks.insertSnippet.mockReturnValue(Promise.resolve(true));
+    await expect(mocks.commands.get(VSCODE_SOURCE_CREATE_GEOMETRY_COMMAND_ID)?.()).resolves.toBe(true);
+    expect(mocks.pickCreationCommand).toHaveBeenLastCalledWith({
+      displayLanguage: "ja-JP",
+      recentCommandIds: ["addLine"]
+    });
     feature.dispose();
+  });
+
+  it("starts a fresh in-memory MRU for a new feature registration", async () => {
+    const editor = { selection: { active: { line: 1, character: 2 } } };
+    mocks.pickCreationCommand.mockResolvedValue("addLine");
+    mocks.insertSnippet.mockResolvedValue(true);
+
+    const firstFeature = registerVscodeSourceCreationCommandFeature({
+      activeSourceEditor: () => editor,
+      displayLanguageFor: () => "en"
+    });
+    await mocks.commands.get(VSCODE_SOURCE_CREATE_GEOMETRY_COMMAND_ID)?.();
+    firstFeature.dispose();
+
+    const secondFeature = registerVscodeSourceCreationCommandFeature({
+      activeSourceEditor: () => editor,
+      displayLanguageFor: () => "en"
+    });
+    await mocks.commands.get(VSCODE_SOURCE_CREATE_GEOMETRY_COMMAND_ID)?.();
+
+    expect(mocks.pickCreationCommand).toHaveBeenLastCalledWith({
+      displayLanguage: "en",
+      recentCommandIds: []
+    });
+    secondFeature.dispose();
   });
 
   it("does nothing when the Source owner has no supported active editor", async () => {

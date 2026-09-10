@@ -15,6 +15,7 @@ import {
 import { pickVscodeCreationCommand } from "./creationCommandQuickPick";
 import { nativeShowQuickPick } from "./nativeQuickInput";
 import { insertSourceCreationSnippet } from "./sourceCreationSnippetAdapter";
+import type { SourceCreationMru } from "./sourceCreationMru";
 
 type SourceCreationFormPickerItem = vscode.QuickPickItem & {
   formIndex: number;
@@ -71,9 +72,13 @@ const selectedMaterializationFor = async (
 export const runSourceCreationFlow = async (
   editor: vscode.TextEditor,
   position: vscode.Position,
-  displayLanguage: string
+  displayLanguage: string,
+  sourceCreationMru: SourceCreationMru
 ): Promise<boolean | undefined> => {
-  const commandId = await pickVscodeCreationCommand({ displayLanguage });
+  const commandId = await pickVscodeCreationCommand({
+    displayLanguage,
+    recentCommandIds: sourceCreationMru.recentCommandIds
+  });
   if (!commandId) return undefined;
 
   const plan = sourceCreationTemplatePlanForLegacyCommand(commandId);
@@ -82,5 +87,7 @@ export const runSourceCreationFlow = async (
   const materialization = await selectedMaterializationFor(plan, displayLanguage);
   if (!materialization) return undefined;
 
-  return insertSourceCreationSnippet(editor, materialization, position);
+  const insertionResult = await insertSourceCreationSnippet(editor, materialization, position);
+  if (insertionResult === true) sourceCreationMru.record(commandId);
+  return insertionResult;
 };

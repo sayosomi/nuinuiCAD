@@ -20,6 +20,7 @@ vi.mock("./sourceCreationSnippetAdapter", () => ({
 
 import { sourceCreationTemplatePlanForLegacyCommand } from "../../src/commands/sourceCreationTemplatePlan";
 import { runSourceCreationFlow } from "./sourceCreationFlow";
+import { createSourceCreationMru } from "./sourceCreationMru";
 
 type TestEditor = vscode.TextEditor;
 type TestPosition = vscode.Position;
@@ -47,7 +48,7 @@ describe("runSourceCreationFlow", () => {
     const editor = { id: "editor" } as unknown as TestEditor;
     const position = { line: 4, character: 7 } as TestPosition;
 
-    await expect(runSourceCreationFlow(editor, position, "en-US")).resolves.toBe(true);
+    await expect(runSourceCreationFlow(editor, position, "en-US", createSourceCreationMru())).resolves.toBe(true);
 
     expect(mocks.showQuickPick).not.toHaveBeenCalled();
     expect(mocks.insertSnippet).toHaveBeenCalledTimes(1);
@@ -68,7 +69,7 @@ describe("runSourceCreationFlow", () => {
     const editor = {} as TestEditor;
     const position = {} as TestPosition;
 
-    await runSourceCreationFlow(editor, position, "ja-JP");
+    await runSourceCreationFlow(editor, position, "ja-JP", createSourceCreationMru());
 
     const distance = mocks.insertSnippet.mock.calls[0]?.[1] as {
       parts: ReadonlyArray<
@@ -80,7 +81,7 @@ describe("runSourceCreationFlow", () => {
     expect(renderedArgumentsFor(distance)).not.toContain("ratio");
 
     mocks.showQuickPick.mockImplementationOnce(async (items: readonly { label: string; formIndex: number }[]) => items[1]);
-    await runSourceCreationFlow(editor, position, "ja-JP");
+    await runSourceCreationFlow(editor, position, "ja-JP", createSourceCreationMru());
     const ratio = mocks.insertSnippet.mock.calls[1]?.[1] as typeof distance;
     expect(renderedArgumentsFor(ratio)).toContain("ratio");
     expect(renderedArgumentsFor(ratio)).not.toContain("distance");
@@ -93,7 +94,7 @@ describe("runSourceCreationFlow", () => {
       return items[1];
     });
 
-    await runSourceCreationFlow({} as TestEditor, {} as TestPosition, "en-US");
+    await runSourceCreationFlow({} as TestEditor, {} as TestPosition, "en-US", createSourceCreationMru());
 
     const ratio = mocks.insertSnippet.mock.calls[0]?.[1] as {
       parts: ReadonlyArray<
@@ -114,7 +115,7 @@ describe("runSourceCreationFlow", () => {
     const plan = sourceCreationTemplatePlanForLegacyCommand("addLineTangentOffsetPoint");
     expect(plan?.forms).toHaveLength(2);
 
-    await runSourceCreationFlow({} as TestEditor, {} as TestPosition, "en");
+    await runSourceCreationFlow({} as TestEditor, {} as TestPosition, "en", createSourceCreationMru());
 
     const materialization = mocks.insertSnippet.mock.calls[0]?.[1] as {
       parts: ReadonlyArray<
@@ -129,20 +130,57 @@ describe("runSourceCreationFlow", () => {
   it("fails closed on type or form cancellation and retains no flow session state", async () => {
     const editor = {} as TestEditor;
     const position = {} as TestPosition;
+    const sourceCreationMru = createSourceCreationMru();
 
     mocks.pickCreationCommand.mockResolvedValueOnce(undefined);
-    await expect(runSourceCreationFlow(editor, position, "en")).resolves.toBeUndefined();
+    await expect(runSourceCreationFlow(editor, position, "en", sourceCreationMru)).resolves.toBeUndefined();
     expect(mocks.showQuickPick).not.toHaveBeenCalled();
     expect(mocks.insertSnippet).not.toHaveBeenCalled();
 
     mocks.pickCreationCommand.mockResolvedValueOnce("addDivisionPoint");
     mocks.showQuickPick.mockResolvedValueOnce(undefined);
-    await expect(runSourceCreationFlow(editor, position, "en")).resolves.toBeUndefined();
+    await expect(runSourceCreationFlow(editor, position, "en", sourceCreationMru)).resolves.toBeUndefined();
     expect(mocks.insertSnippet).not.toHaveBeenCalled();
 
     mocks.pickCreationCommand.mockResolvedValueOnce("addDivisionPoint");
     mocks.showQuickPick.mockImplementationOnce(async (items: readonly { formIndex: number }[]) => items[1]);
-    await runSourceCreationFlow(editor, position, "en");
+    await runSourceCreationFlow(editor, position, "en", sourceCreationMru);
     expect(mocks.insertSnippet).toHaveBeenCalledTimes(1);
+    expect(sourceCreationMru.recentCommandIds).toEqual(["addDivisionPoint"]);
+  });
+
+  it("records recency only for an exactly successful insertion", async () => {
+    const sourceCreationMru = createSourceCreationMru();
+    const editor = {} as TestEditor;
+    const position = {} as TestPosition;
+
+    mocks.pickCreationCommand.mockResolvedValue("addLine");
+    mocks.insertSnippet.mockResolvedValueOnce(false);
+    await expect(runSourceCreationFlow(editor, position, "en", sourceCreationMru)).resolves.toBe(false);
+    expect(sourceCreationMru.recentCommandIds).toEqual([]);
+
+    mocks.insertSnippet.mockResolvedValueOnce(undefined);
+    await expect(runSourceCreationFlow(editor, position, "en", sourceCreationMru)).resolves.toBeUndefined();
+    expect(sourceCreationMru.recentCommandIds).toEqual([]);
+
+    mocks.insertSnippet.mockRejectedValueOnce(new Error("insertion failed"));
+    await expect(runSourceCreationFlow(editor, position, "en", sourceCreationMru)).rejects.toThrow(
+      "insertion failed"
+    );
+    expect(sourceCreationMru.recentCommandIds).toEqual([]);
+
+    mocks.insertSnippet.mockResolvedValueOnce(true);
+    await expect(runSourceCreationFlow(editor, position, "en", sourceCreationMru)).resolves.toBe(true);
+    expect(sourceCreationMru.recentCommandIds).toEqual(["addLine"]);
+  });
+
+  it("does not record when type planning fails", async () => {
+    const sourceCreationMru = createSourceCreationMru();
+    mocks.pickCreationCommand.mockResolvedValue("unknownCommand");
+
+    await expect(runSourceCreationFlow({} as TestEditor, {} as TestPosition, "en", sourceCreationMru))
+      .resolves.toBeUndefined();
+
+    expect(sourceCreationMru.recentCommandIds).toEqual([]);
   });
 });

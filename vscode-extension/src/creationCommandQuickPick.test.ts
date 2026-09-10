@@ -84,7 +84,8 @@ beforeEach(() => {
 describe("pickVscodeCreationCommand", () => {
   it("sorts initial and filtered presentation without changing catalog membership", async () => {
     const englishPending = pickVscodeCreationCommand({
-      displayLanguage: "en-US"
+      displayLanguage: "en-US",
+      recentCommandIds: []
     });
     const englishPicker = mocks.quickPicks[0]!;
 
@@ -133,7 +134,10 @@ describe("pickVscodeCreationCommand", () => {
     await expect(englishPending).resolves.toBeUndefined();
     expect(englishPicker.dispose).toHaveBeenCalledTimes(1);
 
-    const japanesePending = pickVscodeCreationCommand({ displayLanguage: "ja-JP" });
+    const japanesePending = pickVscodeCreationCommand({
+      displayLanguage: "ja-JP",
+      recentCommandIds: []
+    });
     const japanesePicker = mocks.quickPicks[1]!;
     expect(japanesePicker.placeholder).toBe("ジオメトリを作成");
     expect(japanesePicker.items.find(({ commandId }) => commandId === "addBezierCurve")).toMatchObject({
@@ -144,6 +148,72 @@ describe("pickVscodeCreationCommand", () => {
     japanesePicker.fireAccept();
     await expect(japanesePending).resolves.toBe("addLine");
     expect(japanesePicker.dispose).toHaveBeenCalledTimes(1);
+  });
+
+  it("promotes valid recent commands for an empty query while preserving catalog membership", async () => {
+    const recentCommandIds = ["addLine", "addBezierCurve", "addLine"] as const;
+    const pending = pickVscodeCreationCommand({
+      displayLanguage: "en-US",
+      recentCommandIds
+    });
+    const picker = mocks.quickPicks[0]!;
+    const recentSet = new Set(recentCommandIds);
+    const expectedRemainder = sortVscodeCreationCommandsForQuickPick(vscodeCanvasCreationCommands)
+      .map(({ commandId }) => commandId)
+      .filter((commandId) => !recentSet.has(commandId));
+
+    expect(picker.items.map(({ commandId }) => commandId)).toEqual([
+      "addLine",
+      "addBezierCurve",
+      ...expectedRemainder
+    ]);
+    expect(new Set(picker.items.map(({ commandId }) => commandId)).size).toBe(
+      vscodeCanvasCreationCommands.length
+    );
+    expect(picker.items).toHaveLength(vscodeCanvasCreationCommands.length);
+
+    picker.fireHide();
+    await expect(pending).resolves.toBeUndefined();
+  });
+
+  it("ignores unknown recent IDs and does not synthesize or remove entries", async () => {
+    const pending = pickVscodeCreationCommand({
+      displayLanguage: "en-US",
+      recentCommandIds: ["not-a-command", "addLine"] as never
+    });
+    const picker = mocks.quickPicks[0]!;
+
+    expect(picker.items[0]?.commandId).toBe("addLine");
+    expect(picker.items.some(({ commandId }) => commandId === "not-a-command")).toBe(false);
+    expect(picker.items).toHaveLength(vscodeCanvasCreationCommands.length);
+
+    picker.fireHide();
+    await expect(pending).resolves.toBeUndefined();
+  });
+
+  it("uses alphabetical filtering for non-empty searches and restores MRU after clearing", async () => {
+    const pending = pickVscodeCreationCommand({
+      displayLanguage: "en-US",
+      recentCommandIds: ["addLine"]
+    });
+    const picker = mocks.quickPicks[0]!;
+
+    picker.fireValue("line");
+    const expectedLineCommands = sortVscodeCreationCommandsForQuickPick(
+      filterVscodeCanvasCreationCommands("line")
+    ).map(({ commandId }) => commandId);
+    expect(picker.items.map(({ commandId }) => commandId)).toEqual(expectedLineCommands);
+
+    picker.fireValue("   ");
+    expect(picker.items.map(({ commandId }) => commandId)).toEqual(
+      sortVscodeCreationCommandsForQuickPick(vscodeCanvasCreationCommands).map(({ commandId }) => commandId)
+    );
+
+    picker.fireValue("");
+    expect(picker.items[0]?.commandId).toBe("addLine");
+
+    picker.fireHide();
+    await expect(pending).resolves.toBeUndefined();
   });
 
   it("uses command ID as a deterministic fallback for equal labels without mutating entries", () => {
