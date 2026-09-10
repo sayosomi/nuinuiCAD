@@ -206,6 +206,11 @@ export const moduleScalarBindingIdFor = (
   localStatementId: string
 ) => `module-binding:${encodeIdentityTuple(["local", ...path, definitionStatementId, localStatementId])}`;
 
+export const moduleCollectionBinderIdFor = (
+  path: readonly string[],
+  binderId: string
+) => `module-collection-binder:${encodeIdentityTuple([...path, binderId])}`;
+
 export const moduleScalarDeclarationVersionIdFor = (
   path: readonly string[],
   definitionStatementId: string,
@@ -819,7 +824,7 @@ const lowerExpression = (
       case "reference": {
         const reference = semanticReferenceFor(node.span.start);
         typecheckResolutions.push(bindingResolutionFor(
-          reference?.target && ["parameter", "recordField", "moduleLocal", "documentBinding", "iteration", "deferredModuleScalarExport"].includes(reference.target.kind)
+          reference?.target && ["parameter", "recordField", "moduleLocal", "documentBinding", "iteration", "valueForBinder", "deferredModuleScalarExport"].includes(reference.target.kind)
             ? bindingForTarget(reference.target as ModuleScalarSourceTarget, reference.name, reference.span.start)
             : undefined,
           reference?.name ?? node.name,
@@ -978,7 +983,7 @@ const lowerExpression = (
     return { node, references: [] };
   };
   const resolutions = references.map((reference) => bindingResolutionFor(
-    reference.target && ["parameter", "recordField", "moduleLocal", "documentBinding", "iteration", "deferredModuleScalarExport"].includes(reference.target.kind)
+    reference.target && ["parameter", "recordField", "moduleLocal", "documentBinding", "iteration", "valueForBinder", "deferredModuleScalarExport"].includes(reference.target.kind)
       ? bindingForTarget(reference.target as ModuleScalarSourceTarget, reference.name, reference.span.start)
       : undefined,
     reference.name,
@@ -1432,6 +1437,19 @@ export const compileModuleScalarRuntime = ({
   );
 
   const bindingInfoById = new Map(allBindingInfos.map((info) => [info.id, info] as const));
+  const valueForBinderBindingFor = (target: Extract<ModuleScalarSourceTarget, { kind: "valueForBinder" }>, context: InstanceContext): Binding => ({
+    id: moduleCollectionBinderIdFor(context.path, target.binderId),
+    kind: "typed",
+    name: target.name,
+    nameSpan: null,
+    statementIndex: target.statementIndex,
+    effectiveScopeId: context.scopeId,
+    visibility: { kind: "typed", scopeId: context.scopeId },
+    mutability: "readonly",
+    declaredType: target.sourceElementType,
+    rank: Number.MAX_SAFE_INTEGER,
+    resolutionMode: "preResolvedOnly"
+  });
   const runtimeBindingIdForDocumentTarget = (target: Extract<ModuleScalarSourceTarget, { kind: "documentBinding" }>): BindingId => {
     const documentId = target.identity?.documentId;
     if (!documentId || documentId === moduleRuntimeContext?.rootDocumentId) return target.bindingId;
@@ -1747,7 +1765,7 @@ export const compileModuleScalarRuntime = ({
       ? { sourceNamespaceBindingResolver: baseCatalog.sourceNamespaceBindingResolver }
       : {})
   });
-  const bindingsById = combinedCatalog.bindingsById;
+  const bindingsById = new Map(combinedCatalog.bindingsById);
   const remapForeignResolution = (
     resolution: BindingResolution,
     foreign: ForeignSourceScalars
@@ -1784,6 +1802,9 @@ export const compileModuleScalarRuntime = ({
     );
   const resolvedBindingForContext = (target: ModuleScalarSourceTarget, context: InstanceContext): Binding | undefined => {
     if (target.kind === "documentBinding") return bindingsById.get(runtimeBindingIdForDocumentTarget(target));
+    if (target.kind === "valueForBinder") {
+      return valueForBinderBindingFor(target, context);
+    }
     const info = bindingInfoForTarget(target, context);
     if (info) return bindingsById.get(info.id);
     if (target.kind === "recordField") {
@@ -1872,13 +1893,49 @@ export const compileModuleScalarRuntime = ({
       }).find((bindingId): bindingId is BindingId => bindingId !== undefined);
   };
 
-  const moduleCollectionValues: ScalarProgramCollection[] = [];
-  for (const context of contextsByKey.values()) {
+  const buildModuleCollectionValues = (): ScalarProgramCollection[] => {
+    const moduleCollectionValues: ScalarProgramCollection[] = [];
+    for (const context of contextsByKey.values()) {
     const contextAnalysis = sourceNamespaceForContext(context)?.geometryArraySemanticAnalysis;
     if (!contextAnalysis) continue;
     for (const value of contextAnalysis.genericValues) {
       if (value.ownerModuleDefinitionStatementIndex !== context.definition.statementIndex || !value.value) continue;
       const valueId = moduleCollectionValueIdFor(context.path, value.statementId);
+      if (value.value.kind === "map") {
+        const runtimeBinderId = moduleCollectionBinderIdFor(context.path, value.value.binderId);
+        bindingsById.set(runtimeBinderId, valueForBinderBindingFor({
+          kind: "valueForBinder",
+          binderId: value.value.binderId,
+          statementId: value.statementId,
+          statementIndex: value.statementIndex,
+          name: value.value.binder,
+          sourceElementType: value.value.sourceElementType
+        }, context));
+        const bodySemantic = context.definition.mappedScalarCollectionBodies.find((candidate) => candidate.statementId === value.statementId)?.body;
+        if (!bodySemantic) continue;
+        const loweredBody = lowerExpression(
+          bodySemantic,
+          (target) => resolvedBindingForContext(target, context),
+          bindingsById,
+          (target) => resolvedGeometryPropertyForContext(target, context),
+          (target) => collectionLengthForTargetContext(target, context),
+          (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context),
+          (definitionStatementId, parameterIndex, definitionDocumentId) => hasValueForParameter(context, definitionStatementId, parameterIndex, definitionDocumentId),
+          (valueId) => collectionValueIdFor(valueId, context),
+          (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder
+        );
+        moduleCollectionValues.push({
+          valueId,
+          kind: "map",
+          sourceValueId: collectionValueIdFor(value.value.sourceValueId, context),
+          sourceElementType: value.value.sourceElementType,
+          resultElementType: value.value.resultElementType,
+          binderId: runtimeBinderId,
+          body: loweredBody.expression,
+          sourceOrder: value.value.sourceOrder
+        });
+        continue;
+      }
       if (value.value.kind === "alias") {
         moduleCollectionValues.push({ valueId, kind: "alias", targetValueId: collectionValueIdFor(value.value.targetValueId, context) });
         continue;
@@ -1909,7 +1966,9 @@ export const compileModuleScalarRuntime = ({
         targetValueId
       });
     }
-  }
+    }
+    return moduleCollectionValues;
+  };
   const foreignCollectionValues: ScalarProgramCollection[] = [];
   for (const foreign of foreignSourceScalars.values()) {
     const collectionAnalysis = foreign.sourceNamespace.geometryArraySemanticAnalysis;
@@ -1921,6 +1980,23 @@ export const compileModuleScalarRuntime = ({
     for (const value of collectionAnalysis.genericValues) {
       if (value.ownerModuleDefinitionStatementIndex !== null || !value.value) continue;
       const valueId = foreignValueIdFor(value.statementId);
+      if (value.value.kind === "map") {
+        if (!value.value.body) continue;
+        const bindingIdByLocalId = new Map<BindingId, BindingId>(foreign.bindingIdByLocalId);
+        const runtimeBinderId = `module-document-collection-binder:${encodeIdentityTuple([String(foreign.documentId), value.value.binderId])}`;
+        bindingIdByLocalId.set(value.value.binderId, runtimeBinderId);
+        foreignCollectionValues.push({
+          valueId,
+          kind: "map",
+          sourceValueId: foreignValueIdFor(value.value.sourceValueId),
+          sourceElementType: value.value.sourceElementType,
+          resultElementType: value.value.resultElementType,
+          binderId: runtimeBinderId,
+          body: remapTypedExpressionBindingIds(value.value.body, bindingIdByLocalId),
+          sourceOrder: value.value.sourceOrder
+        });
+        continue;
+      }
       if (value.value.kind === "alias") {
         foreignCollectionValues.push({ valueId, kind: "alias", targetValueId: foreignValueIdFor(value.value.targetValueId) });
         continue;
@@ -2035,6 +2111,7 @@ export const compileModuleScalarRuntime = ({
     const byId = analysis?.genericValuesByStatementId.get(valueId) ?? analysis?.valuesByStatementId.get(valueId);
     if (byId?.value) {
       if (byId.value.kind === "literal") return byId.value.members.length;
+      if (byId.value.kind === "map") return collectionLengthForValueIdAt(byId.value.sourceValueId, context, nextVisited);
       return collectionLengthForValueIdAt(byId.value.targetValueId, context, nextVisited);
     }
     const parameterMatch = /^(.*):parameter:(\d+)$/.exec(valueId);
@@ -2110,6 +2187,7 @@ export const compileModuleScalarRuntime = ({
     const statementIndex = elementOrderById.get(lowered.elementId);
     return statementIndex === undefined ? undefined : { statementId: lowered.elementId, statementIndex, geometryType: lowered.geometryType, ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {}) };
   };
+  const moduleCollectionValues = buildModuleCollectionValues();
   const resolvedGeometryBuiltinForRoot = (
     occurrence: ModuleGeometryBuiltinArgumentSemantic
   ): ScalarExpressionResolvedGeometryTarget | undefined => {
@@ -2356,7 +2434,12 @@ export const compileModuleScalarRuntime = ({
   const combinedAnalysis = analyzeBindings({
     catalog: combinedCatalog,
     initializerReferences: combinedReferences,
-    unavailableBindingIds: disabledBindingIds
+    unavailableBindingIds: new Set([
+      ...disabledBindingIds,
+      ...baseCatalog.bindings
+        .filter((binding) => binding.kind === "typed" && binding.id.startsWith("value-for-binder:"))
+        .map((binding) => binding.id)
+    ])
   });
   const initializers = new Map<BindingId, TypedScalarExpression>();
   for (const foreign of foreignSourceScalars.values()) {
@@ -2389,15 +2472,26 @@ export const compileModuleScalarRuntime = ({
   const rootCollectionLengthFor = (
     target: Extract<ModuleGeometryPropertySourceTarget, { kind: "collectionValueLength" | "collectionParameterLength" | "deferredModuleCollectionExportLength" }>
   ): number | undefined => {
-    if (target.kind === "collectionValueLength") {
-      if (target.length !== null) return target.length;
-      const deferred = parseGeometryArrayDeferredModuleExportId(target.valueId);
+    const rootValueLength = (valueId: string, visited: ReadonlySet<string> = new Set()): number | undefined => {
+      if (visited.has(valueId)) return undefined;
+      const nextVisited = new Set([...visited, valueId]);
+      const value = sourceNamespace?.geometryArraySemanticAnalysis?.genericValuesByStatementId.get(valueId);
+      if (value?.value) {
+        if (value.value.kind === "literal") return value.value.members.length;
+        if (value.value.kind === "map") return rootValueLength(value.value.sourceValueId, nextVisited);
+        return rootValueLength(value.value.targetValueId, nextVisited);
+      }
+      const deferred = parseGeometryArrayDeferredModuleExportId(valueId);
       if (!deferred) return undefined;
       const child = runtimeContextForSourceInstance(null, deferred.instanceStatementId);
       const exported = child?.definition.exports.find((candidate) => candidate.kind === "collection" && candidate.name === deferred.exportName);
       return child && exported?.kind === "collection"
-        ? collectionLengthForValueIdAt(exported.exportedStatementId, child, new Set())
+        ? collectionLengthForValueIdAt(exported.exportedStatementId, child, nextVisited)
         : undefined;
+    };
+    if (target.kind === "collectionValueLength") {
+      if (target.length !== null) return target.length;
+      return rootValueLength(target.valueId);
     }
     if (target.kind === "collectionParameterLength") return undefined;
     const child = runtimeContextForSourceInstance(null, target.instanceStatementId, target.instanceIdentity?.documentId);
@@ -2948,6 +3042,11 @@ export const compileModuleScalarRuntime = ({
 
   const sourceOrderByBindingId = new Map<BindingId, number>();
   for (const [bindingId, order] of eventOrderByBindingId) sourceOrderByBindingId.set(bindingId, order);
+  const documentCollectionValues = (documentScalarProgram?.collectionValues ?? []).map((value): ScalarProgramCollection => {
+    if (value.kind === "alias") return { ...value, targetValueId: collectionValueIdFor(value.targetValueId, null) };
+    if (value.kind === "map") return { ...value, sourceValueId: collectionValueIdFor(value.sourceValueId, null) };
+    return value;
+  });
   const scalarProgram = lowerScalarProgram({
     bindingAnalysis: combinedAnalysis,
     typedInitializerByBindingId: initializers,
@@ -2955,7 +3054,7 @@ export const compileModuleScalarRuntime = ({
     sourceOrderByBindingId,
     evaluationLimitSourceOrder,
     collectionValues: [
-      ...(documentScalarProgram?.collectionValues ?? []),
+      ...documentCollectionValues,
       ...moduleCollectionValues,
       ...foreignCollectionValues
     ]

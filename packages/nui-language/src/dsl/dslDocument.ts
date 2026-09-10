@@ -62,7 +62,7 @@ import { isElementDslStatement, parseDsl, parseDslSnapshot } from "./dslParser";
 import type { SourceRevision } from "./logicalStatementSourceMap";
 import { createStatementIdentity, type StatementIdentity } from "../document/statementIdentity";
 import type { BindingAnalysis } from "../scalars/bindingAnalysis";
-import { bindingIdForStableStatementId, type BindingId, type SourceNamespaceBindingResolver } from "../scalars/bindingCatalog";
+import { bindingIdForStableStatementId, type BindingId, type BindingSeed, type SourceNamespaceBindingResolver } from "../scalars/bindingCatalog";
 import type { ScalarProgram, ScalarProgramCollection, ScalarProgramCollectionMember, ScalarProgramPositionMap } from "../scalars/scalarProgram";
 import type { ScalarValue } from "../scalars/types";
 import { scanScalarLiteral } from "../scalars/literalScanner";
@@ -1450,6 +1450,72 @@ export const compileDslDocument = (
       }
     : undefined;
 
+  // Value-for collection shape is owned by the collection semantic pass, but
+  // its scalar body belongs to the established typed-declaration analyzer.
+  // Give each body a source-owned synthetic binding so the normal source
+  // sweep, collection-index resolver, geometry-property resolver, and scalar
+  // typechecker all see the immutable binder without making it a surrounding
+  // declaration.
+  const rootValueForBodyEntries = sourceLexicalNamespace?.geometryArraySemanticAnalysis
+    ? sourceLexicalNamespace.geometryArraySemanticAnalysis.genericValues.flatMap((value) => {
+        if (value.ownerModuleDefinitionStatementIndex !== null || value.value?.kind !== "map") return [];
+        const statement = parsed.statements[value.statementIndex];
+        return statement?.kind === "typedDeclaration"
+          ? [{ value, statement }] as const
+          : [];
+      })
+    : [];
+  const rootValueForBodyBindingSeeds: readonly BindingSeed[] = rootValueForBodyEntries.map(({ value }) => {
+    const mapped = value.value;
+    if (!mapped || mapped.kind !== "map") throw new Error("value-for map entry disappeared during scalar analysis setup");
+    const binderId = mapped.binderId;
+    const scopeId = sourceLexicalNamespace!.scopeIndex.scopeOfStatement.get(value.statementIndex) ?? sourceLexicalNamespace!.scopeIndex.rootScopeId;
+    return {
+      id: binderId,
+      kind: "typed" as const,
+      name: mapped.binder,
+      nameSpan: mapped.binderSpan,
+      statementIndex: value.statementIndex,
+      sourceOrder: 1,
+      effectiveScopeId: scopeId,
+      visibility: { kind: "typed", scopeId } as const,
+      mutability: "readonly" as const,
+      declaredType: mapped.sourceElementType,
+      declarationVersionId: `value-for-binder-version:${binderId}`,
+      resolutionMode: "preResolvedOnly" as const,
+      catalogOrder: "source" as const
+    };
+  });
+  const rootValueForBodyInitializers = rootValueForBodyEntries.flatMap(({ value, statement }) => {
+    const body = value.value;
+    const initializerSpan = statement.payloadSpans.initializer;
+    if (!initializerSpan) return [];
+    return body?.kind === "map"
+      ? [{
+          bindingId: body.binderId,
+          raw: statement.initializer.slice(body.bodySpan.start - initializerSpan.start, body.bodySpan.end - initializerSpan.start),
+          span: body.bodySpan,
+          expectedType: body.resultElementType
+        }]
+      : [];
+  });
+  const rootValueForBodyBindingResolver: SourceNamespaceBindingResolver = (name, statementIndex) => {
+    const entry = rootValueForBodyEntries.find(({ value }) => {
+      const mapped = value.value;
+      return value.statementIndex === statementIndex && mapped?.kind === "map" && mapped.binder === name;
+    });
+    const mapped = entry?.value.value;
+    return mapped?.kind === "map" ? { kind: "resolved", bindingId: mapped.binderId } : null;
+  };
+  const applyRootValueForBodies = (analysis: BindingAnalysis | undefined, typedInitializers: ReadonlyMap<BindingId, TypedScalarExpression> | undefined) => {
+    if (!analysis || !typedInitializers || !sourceLexicalNamespace?.geometryArraySemanticAnalysis) return;
+    for (const { value } of rootValueForBodyEntries) {
+      if (value.value?.kind !== "map") continue;
+      const body = typedInitializers.get(value.value.binderId);
+      if (body) value.value = { ...value.value, body };
+    }
+  };
+
   const rootScalarCollectionValues = (analysis: BindingAnalysis): readonly ScalarProgramCollection[] => {
     const collectionAnalysis = sourceLexicalNamespace?.geometryArraySemanticAnalysis;
     if (!collectionAnalysis || !stableStatementIdByIndex) return [];
@@ -1457,13 +1523,28 @@ export const compileDslDocument = (
     for (const value of collectionAnalysis.genericValues) {
       if (value.ownerModuleDefinitionStatementIndex !== null) continue;
       const elementType = scalarTypeOfDslValueType(value.valueType.elementType);
-      if (!elementType || !value.value) continue;
-      if (value.value.kind === "alias") {
-        values.push({ valueId: value.statementId, kind: "alias", targetValueId: value.value.targetValueId });
+      const collectionValue = value.value;
+      if (!elementType || !collectionValue) continue;
+      if (collectionValue.kind === "map" && collectionValue.body) {
+        values.push({
+          valueId: value.statementId,
+          kind: "map",
+          sourceValueId: collectionValue.sourceValueId,
+          sourceElementType: collectionValue.sourceElementType,
+          resultElementType: collectionValue.resultElementType,
+          binderId: collectionValue.binderId,
+          body: collectionValue.body,
+          sourceOrder: collectionValue.sourceOrder
+        });
+        continue;
+      }
+      if (collectionValue.kind === "map") continue;
+      if (collectionValue.kind === "alias") {
+        values.push({ valueId: value.statementId, kind: "alias", targetValueId: collectionValue.targetValueId });
         continue;
       }
       const members: ScalarProgramCollectionMember[] = [];
-      for (const member of value.value.members) {
+      for (const member of collectionValue.members) {
         if (member.target.kind === "scalarValue" && member.target.statementId === value.statementId) {
           const literal = scanScalarLiteral(member.sourceText, { start: 0, end: member.sourceText.length });
           if (literal.kind === "error" || literal.span.start !== 0 || literal.span.end !== member.sourceText.length) break;
@@ -1485,7 +1566,7 @@ export const compileDslDocument = (
         if (!binding || binding.kind !== "typed") break;
         members.push({ kind: "binding", type: elementType, bindingId: binding.id });
       }
-      if (members.length === value.value.members.length) {
+      if (members.length === collectionValue.members.length) {
         values.push({ valueId: value.statementId, kind: "literal", members });
       }
     }
@@ -1504,10 +1585,15 @@ export const compileDslDocument = (
         includeStatement,
         sourceNamespace: sourceLexicalNamespace,
         additionalGeometryPropertyResolver: rootGeometryValuePropertyResolver,
-        additionalCollectionIndexResolver: rootCollectionIndexResolver
+        additionalCollectionIndexResolver: rootCollectionIndexResolver,
+        additionalBindings: rootValueForBodyBindingSeeds,
+        additionalBindingResolver: rootValueForBodyBindingResolver,
+        additionalInitializers: rootValueForBodyInitializers,
+        nonProgramBindingIds: new Set(rootValueForBodyBindingSeeds.map((seed) => seed.id))
       })
     : { diagnostics: [] };
   let documentScalarAnalysis = scalarAnalysisCompilation.analysis;
+  applyRootValueForBodies(documentScalarAnalysis?.bindingAnalysis, documentScalarAnalysis?.typedInitializerByBindingId);
   let documentScalarProgram = documentScalarAnalysis
     ? lowerScalarProgram({ ...documentScalarAnalysis, collectionValues: rootScalarCollectionValues(documentScalarAnalysis.bindingAnalysis) })
     : undefined;
@@ -1585,6 +1671,12 @@ export const compileDslDocument = (
         return instance && definition ? { instance, definition, exported } : null;
       };
       const additionalBindingResolver: SourceNamespaceBindingResolver = (name, statementIndex) => {
+        const valueForBinder = rootValueForBodyBindingResolver(
+          name,
+          statementIndex,
+          sourceLexicalNamespace.scopeIndex.scopeOfStatement.get(statementIndex) ?? sourceLexicalNamespace.scopeIndex.rootScopeId
+        );
+        if (valueForBinder) return valueForBinder;
         const parsedSource = parseDslSourceReference(`@${name}`);
         const path = parsedSource.kind === "valid" ? parsedSource.reference.path : parseDslReferenceToken(name);
         const property = parsedSource.kind === "valid" ? parsedSource.reference.property : null;
@@ -1679,8 +1771,10 @@ export const compileDslDocument = (
         spans,
         includeStatement,
         sourceNamespace: sourceLexicalNamespace,
-        additionalBindings: usableExportBindingSeeds,
+        additionalBindings: [...rootValueForBodyBindingSeeds, ...usableExportBindingSeeds],
         additionalBindingResolver,
+        additionalInitializers: rootValueForBodyInitializers,
+        nonProgramBindingIds: new Set(rootValueForBodyBindingSeeds.map((seed) => seed.id)),
         additionalCollectionIndexResolver: rootCollectionIndexResolver,
         additionalRecordValueResolver: (value) => {
           const reference = value.reference;
@@ -1843,6 +1937,7 @@ export const compileDslDocument = (
         }
       });
       documentScalarAnalysis = scalarAnalysisCompilation.analysis;
+      applyRootValueForBodies(documentScalarAnalysis?.bindingAnalysis, documentScalarAnalysis?.typedInitializerByBindingId);
       documentScalarProgram = documentScalarAnalysis
         ? lowerScalarProgram({ ...documentScalarAnalysis, collectionValues: rootScalarCollectionValues(documentScalarAnalysis.bindingAnalysis) })
         : undefined;

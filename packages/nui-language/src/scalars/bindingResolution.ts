@@ -200,7 +200,7 @@ const resolutionFor = (
   // The source namespace quite correctly sees the declaration as future at
   // this point, but an initializer's own declaration must stay `self` rather
   // than becoming a namespace-forward result.
-  if (request.owner && request.owner.name === name && request.owner.statementIndex === site.statementIndex) {
+  if (request.owner && request.owner.resolutionMode !== "preResolvedOnly" && request.owner.name === name && request.owner.statementIndex === site.statementIndex) {
     // Continue to the established lexical sweep below; it will emit `self`
     // after finding no visible candidate.
   } else {

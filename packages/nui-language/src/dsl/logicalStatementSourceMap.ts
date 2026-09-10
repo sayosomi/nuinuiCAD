@@ -117,7 +117,7 @@ const structuralKind = (code: string): LogicalStatement["structural"] => {
 };
 
 const isTypedDeclarationValueControlFlowStart = (code: string): boolean =>
-  /^\s*(?:export\s+)?(?:const|let)\b[\s\S]*=\s*(?:if\s*\(|match\b)/.test(code);
+  /^\s*(?:export\s+)?(?:const|let)\b[\s\S]*=\s*(?:if\s*\(|match\b|for\s+[A-Za-z_][A-Za-z0-9_]*\s+in\s+@[^{}]+\{)/.test(code);
 
 const isTypedDeclarationValueControlFlowTrailingEquals = (code: string): boolean =>
   /^\s*(?:export\s+)?(?:const|let)\b[\s\S]*=\s*$/.test(code);
@@ -265,7 +265,7 @@ export const createLogicalStatementSourceMap = (snapshot: SourceSnapshot): Logic
       if (valueControlFlowContinuation) valueControlFlowBraceDepth += valueControlFlowBraceDelta(line.codeText);
       const next = cursor + 1;
       const nextCode = next < lines.length ? lexicalLines[next]!.codeText : "";
-      const nextIsValueControlFlowHeader = /^\s*(?:if\s*\(|match\b)/.test(nextCode);
+      const nextIsValueControlFlowHeader = /^\s*(?:if\s*\(|match\b|for\s+[A-Za-z_][A-Za-z0-9_]*\s+in\s+@[^{}]+\{)/.test(nextCode);
       const nextIsValueMatchArm = /^\s*[^\s{}]+\s*=>/.test(nextCode);
       const activatesValueControlFlowOnNextLine = awaitingValueControlFlowHeader && nextIsValueControlFlowHeader;
       const continues = valueControlFlowContinuation

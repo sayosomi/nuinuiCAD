@@ -35,6 +35,32 @@ describe("geometry array expression parser", () => {
     expect(parseGeometryArrayExpression("@instance::edges").diagnostics).toEqual([]);
   });
 
+  it("recognizes value-for contextually and keeps a bare for choice literal out of the collection grammar", () => {
+    const source = "for item in @values { @item * 2 }";
+    expect(parseGeometryArrayExpression(source)).toEqual({
+      expression: {
+        kind: "valueFor",
+        span: { start: 0, end: source.length },
+        binder: "item",
+        binderSpan: { start: 4, end: 8 },
+        sourceText: "@values",
+        sourceSpan: { start: 12, end: 19 },
+        bodySpan: { start: 22, end: 31 }
+      },
+      diagnostics: []
+    });
+    const choiceLiteral = parseGeometryArrayExpression("[for]");
+    expect(choiceLiteral.diagnostics).toEqual([]);
+    expect(choiceLiteral.expression).toMatchObject({ kind: "literal", members: [{ text: "for" }] });
+  });
+
+  it("does not treat braces inside a quoted source segment as the value-for body", () => {
+    const source = "for item in @\"values{draft\" { @item }";
+    const result = parseGeometryArrayExpression(source);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.expression).toMatchObject({ kind: "valueFor", sourceText: '@"values{draft"' });
+  });
+
   it("reports malformed, empty-member, nested-array, and non-array expressions", () => {
     expect(parseGeometryArrayExpression("[@A").diagnostics).toContainEqual(
       expect.objectContaining({ code: "geometry-array-unclosed-literal" })

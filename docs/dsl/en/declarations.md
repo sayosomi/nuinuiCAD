@@ -147,6 +147,39 @@ At runtime the scrutinee is evaluated first and only the matching arm is
 evaluated. Geometry, record, collection, and optional `none`/`some` match
 values are deferred.
 
+### Scalar and choice collection value-for
+
+An immutable one-dimensional scalar or choice collection can be produced by
+mapping an existing whole-value collection:
+
+<!-- dsl-example: syntax-fragment -->
+```nui
+const doubled: number[] =
+  for x in @values {
+    @x * 2
+  }
+
+const sides: choice(left, right)[] =
+  for value in @choices {
+    left
+  }
+```
+
+The source must be a collection already declared and visible at this source
+position. The immutable binder has the source element's exact scalar or
+choice type and is visible only in the body. The body is checked against the
+declared result element type, so scalar kinds may change and bare choice
+literals use the declared result choice identity and order. Mapping emits one
+member per source member in authored order, preserves duplicates, and maps an
+empty source to an empty result. It is lazy: `.length` reports source
+cardinality without evaluating the body, and indexing evaluates only the
+requested member.
+
+Whole-value aliases, Module locals, exports, parameters, and per-instance
+namespace rules retain the collection identity. This implemented surface does
+not support geometry or nominal-record value-for, nested arrays, filtering,
+folding, scanning, or mutable accumulation.
+
 ## Numeric editor metadata
 
 `number` may include positive `step` and finite `min`/`max` metadata, for

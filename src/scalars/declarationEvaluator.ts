@@ -119,10 +119,36 @@ export const createLazyScalarProgramEvaluator = (
               const value = valuesById.get(valueId);
               if (!value) return undefined;
               if (value.kind === "alias") return lookup(value.targetValueId);
+              if (value.kind === "map") {
+                const source = lookup(value.sourceValueId);
+                if (!source || source.status === "error") return source;
+                const mapped = evaluateTypedExpression(value.body, {
+                  lookupBinding: (bindingId) => bindingId === value.binderId ? source : resolve(bindingId),
+                  ...(resolveGeometryProperty ? { lookupGeometryProperty: (reference) => resolveGeometryProperty(reference, statement.sourceOrder) } : {}),
+                  ...(resolveGeometryTarget ? { lookupGeometryTarget: (target) => resolveGeometryTarget(target, statement.sourceOrder) } : {}),
+                  lookupCollectionIndex: (nestedValueId, nestedIndex, nestedElementType, nestedLength, nestedSourceOrder) =>
+                    nestedSourceOrder >= statement.sourceOrder
+                      ? { status: "error", type: nestedElementType, issueCode: "evaluation-collection-index-unavailable" }
+                      : lookupCollectionIndex(nestedValueId, nestedIndex, nestedElementType, nestedLength, nestedSourceOrder)
+                });
+                if (mapped.status === "error") return mapped;
+                return scalarTypesEqual(mapped.type, value.resultElementType) && scalarValueMatchesType(mapped.type, mapped.value)
+                  ? mapped
+                  : { status: "error", type: value.resultElementType, issueCode: "evaluation-runtime-value-type-mismatch" };
+              }
               const member = value.members[index];
               if (!member) return { status: "error", type: elementType, issueCode: "evaluation-collection-index-invalid" };
               if (member.kind === "literal") return { status: "ok", type: member.type, value: member.value };
               return resolve(member.bindingId);
+            };
+            const lookupCollectionIndex = (nestedValueId: string, nestedIndex: number, nestedElementType: ScalarType, nestedLength: number | null, nestedSourceOrder: number): ScalarEvaluation => {
+              if (nestedSourceOrder >= statement.sourceOrder) return { status: "error", type: nestedElementType, issueCode: "evaluation-collection-index-unavailable" };
+              const nested = lookup(nestedValueId);
+              if (!nested) return { status: "error", type: nestedElementType, issueCode: "evaluation-collection-index-unavailable" };
+              if (nested.status === "error") return nested;
+              return scalarTypesEqual(nested.type, nestedElementType) && scalarValueMatchesType(nested.type, nested.value)
+                ? nested
+                : { status: "error", type: nestedElementType, issueCode: "evaluation-runtime-value-type-mismatch" };
             };
             const result = lookup(collectionValueId);
             if (!result) return { status: "error", type: elementType, issueCode: "evaluation-collection-index-unavailable" };

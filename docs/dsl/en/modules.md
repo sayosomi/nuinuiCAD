@@ -50,6 +50,14 @@ has its own `state` option: visible content evaluates and draws, hidden content
 evaluates without drawing, and disabled content does not evaluate or provide
 exports to later references.
 
+Module locals and exports may use the scalar/choice collection value-for form.
+The source collection and the mapped result keep the Module's normal lexical,
+privacy, export, and source-order rules. Each Module instance remaps the
+immutable binder and body references independently, so one instance cannot
+observe another instance's mapped members. Root consumers can read an
+exported mapped collection's `.length` or index it normally. Geometry and
+nominal-record value-for remain deferred.
+
 ## Library modules
 
 Use `export module` at the document top level to publish a Module from a `.nui`

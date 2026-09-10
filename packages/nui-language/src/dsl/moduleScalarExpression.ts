@@ -272,6 +272,14 @@ const resolveAndTypecheck = ({
           if (bareReference.type.kind === "boolean") return { kind: "booleanLiteral", span: node.span, value: false };
           return node;
         }
+        // A value-for body has an explicit declared result element type, so a
+        // bare choice option is resolved by that expected type just like a
+        // normal typed scalar initializer. This keeps choice identity/order
+        // in the common Module scalar owner without inventing a binder target
+        // for a literal.
+        if (expectedType?.kind === "choice" && expectedType.options.includes(node.raw)) {
+          resolvedChoiceTypes.set(node.span.start, expectedType);
+        }
         return node;
       }
       case "reference":

@@ -77,6 +77,7 @@ import { modifierPropertyMetadata } from "./dslModifierAuthoring";
 import { formatDslName } from "./dslTokens";
 import { createModifierAuthoringIndex } from "./dslModifierAuthoringIndex";
 import { collectionValueSemanticForStatement } from "./geometryArraySemanticAnalysis";
+import { exactPhysicalSpan } from "./dslDiagnosticSpan";
 
 export type DslCompletionCandidateKind =
   | "keyword"
@@ -654,20 +655,40 @@ const scalarCandidatesAt = (
     const candidates = bindingDeps
       ? scalarExpressionCandidates(positionContext, bindingDeps).map(scalarCandidate)
       : scalarFallbackCandidates(positionContext);
+    const valueFor = compiled?.sourceLexicalNamespace?.geometryArraySemanticAnalysis?.genericValues.find(
+      (candidate) => candidate.statementIndex === statementIndex && candidate.value?.kind === "map"
+    );
+    const valueForBody = valueFor?.value?.kind === "map" && compiled && valueFor.value.body
+      ? exactPhysicalSpan(compiled.spans, compiled.statements[statementIndex]!, valueFor.value.body.span)
+      : null;
+    const insideValueForBody = valueForBody?.segments.some((segment) => position >= segment.from && position <= segment.to) ?? false;
+    const binderCandidate = insideValueForBody && valueFor?.value?.kind === "map"
+      ? {
+          kind: "binding" as const,
+          label: valueFor.value.binder,
+          identity: valueFor.value.binderId,
+          detail: valueFor.value.sourceElementType.kind === "choice"
+            ? `value-for binder: choice(${valueFor.value.sourceElementType.options.join(", ")})`
+            : `value-for binder: ${valueFor.value.sourceElementType.kind}`
+        }
+      : null;
+    const withBinder = binderCandidate && !candidates.some((candidate) => candidate.kind === "binding" && candidate.label === binderCandidate.label)
+      ? [...candidates, binderCandidate]
+      : candidates;
     if (
       positionContext.kind !== "operand" ||
       positionContext.referenceOnly ||
       positionContext.literalOnly ||
       !positionContext.expectedType
-    ) return candidates;
-    const literalLabels = new Set(candidates.filter((candidate) => candidate.kind === "literal").map((candidate) => candidate.label));
+    ) return withBinder;
+    const literalLabels = new Set(withBinder.filter((candidate) => candidate.kind === "literal").map((candidate) => candidate.label));
     const standardLiterals = positionContext.expectedType.kind === "number"
       ? ["0", "1"]
       : positionContext.expectedType.kind === "string"
         ? ['""']
         : [];
     return [
-      ...candidates,
+      ...withBinder,
       ...standardLiterals
         .filter((label) => !literalLabels.has(label))
         .map((label) => ({ kind: "literal" as const, label }))

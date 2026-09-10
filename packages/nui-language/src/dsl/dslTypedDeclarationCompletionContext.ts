@@ -8,7 +8,8 @@ import { parseDslTypedDeclarationStatement } from "./dslDeclarationParser";
 import type { DslSpan } from "./dslTypes";
 import { scalarExpressionCompletionContextAt, type ScalarExpressionCompletionContext } from "../scalars/scalarExpressionPositionClassifier";
 import type { ScalarType } from "../scalars/types";
-import { isDslGeometryValueType, nominalRecordTypeOfDslValueType, scalarTypeOfDslValueType } from "./dslValueTypes";
+import { isDslArrayValueType, isDslGeometryValueType, nominalRecordTypeOfDslValueType, scalarTypeOfDslValueType } from "./dslValueTypes";
+import { parseGeometryArrayExpression } from "./geometryArrayExpression";
 import {
   typedGeometryPropertyCompletionContextAt,
   type TypedGeometryPropertyCompletionContext
@@ -64,9 +65,26 @@ export const typedDeclarationInitializerCompletionContext = (
   pos: number
 ): TypedDeclarationInitializerCompletionContext | null => {
   const { statement } = parseDslTypedDeclarationStatement(logicalText);
+  const valueSpan = initializerSpanIncludingEmpty(logicalText, statement?.payloadSpans.initializer);
+  const arrayElementType = scalarTypeOfDslValueType(
+    isDslArrayValueType(statement?.valueType) ? statement.valueType.elementType : null
+  );
+  if (statement && valueSpan && arrayElementType) {
+    const parsed = parseGeometryArrayExpression(logicalText.slice(valueSpan.start, valueSpan.end));
+    if (parsed.expression?.kind === "valueFor") {
+      const bodySpan = {
+        start: parsed.expression.bodySpan.start + valueSpan.start,
+        end: parsed.expression.bodySpan.end + valueSpan.start
+      };
+      if (pos >= bodySpan.start && pos <= bodySpan.end) {
+        const positionContext = scalarExpressionCompletionContextAt(logicalText, pos, bodySpan, arrayElementType);
+        if (positionContext) return { declaredType: arrayElementType, positionContext };
+      }
+    }
+  }
   const declaredType = scalarTypeOfDslValueType(statement?.valueType);
   if (!statement || declaredType === null) return null;
-  const span = initializerSpanIncludingEmpty(logicalText, statement.payloadSpans.initializer);
+  const span = valueSpan;
   if (!span || pos < span.start || pos > span.end) return null;
   const geometryProperty = typedGeometryPropertyCompletionContextAt(logicalText, pos, span, declaredType);
   if (geometryProperty) {

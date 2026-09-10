@@ -44,6 +44,24 @@ describe("host-neutral DSL rename query", () => {
     expect(plan?.edits.every((edit) => edit.newText === "横幅")).toBe(true);
   });
 
+  it("renames a value-for binder only within its mapped body", () => {
+    const source = [
+      "nui 1",
+      "const values: number[] = [1, 2]",
+      "const doubled: number[] = for item in @values { @item * 2 }"
+    ].join("\n");
+    const binderFrom = source.indexOf("item in");
+    const bodyReferenceFrom = source.indexOf("@item") + 1;
+    const target = queryDslRenameTarget(snapshot(source), binderFrom);
+    expect(target?.oldName).toBe("item");
+    const plan = planDslRenameEditsResult(snapshot(source), bodyReferenceFrom, "value");
+    expect(plan.status).toBe("ok");
+    if (plan.status !== "ok") return;
+    expect(plan.plan.edits.map((edit) => source.slice(edit.from, edit.to))).toEqual(["item", "item"]);
+    expect(plan.plan.edits.every((edit) => edit.newText === "value")).toBe(true);
+    expect(compile(applyEdits(source, plan.plan.edits)).diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+  });
+
   it("renames a root immutable geometry alias without touching its backing geometry", () => {
     const source = [
       "nui 1",
