@@ -99,7 +99,7 @@ mutable scalar in scope, and its right-hand side is checked against that
 binding's scalar type. A `set` is evaluated in document order, so a later
 version can use the value produced by the previous version.
 
-### Scalar and choice value-if
+### Scalar, choice, and geometry value-if
 
 Scalar and choice declarations may use a value-producing conditional with a
 required `else` branch:
@@ -113,14 +113,16 @@ const side: choice(left, right) =
   } else {
     right
   }
+const selectedPoint: point = if (@flag) { @origin } else { coordinate(x: 0, y: 0) }
 ```
 
 The condition must be boolean. Both branches are parsed, resolved, and
-typechecked against the declaration's scalar or choice type; bare choice
-literals are resolved using that exact declared choice type. At runtime the
-condition is evaluated first and only the selected branch is evaluated. The
-current value-if surface does not produce geometry, record, or collection
-values.
+typechecked against the declaration's scalar, choice, or geometry interface;
+bare choice literals are resolved using that exact declared choice type. At
+runtime the condition is evaluated first and only the selected branch is
+evaluated. Geometry branches may be existing `@` references or implemented
+pure geometry constructions. Record, collection, and optional values remain
+unsupported.
 
 ### Exhaustive choice value-match
 
@@ -135,6 +137,10 @@ const side: choice(left, right) =
     small => left
     large => right
   }
+const selectedPath: path = match @side {
+  left => @edge
+  right => segment(start: @origin, end: (10, 0))
+}
 ```
 
 The scrutinee must have a concrete `choice(...)` type. Each declared option
@@ -144,8 +150,10 @@ or default arm. Every arm result is parsed and typechecked; results may be
 `number`, `string`, `boolean`, or `choice(...)` and must share the declaration's
 exact type. Bare choice result literals use the declaration's exact choice type.
 At runtime the scrutinee is evaluated first and only the matching arm is
-evaluated. Geometry, record, collection, and optional `none`/`some` match
-values are deferred.
+evaluated. Geometry arms must share the declaration's `point`, `line`, or
+`path` interface and may contain existing references or implemented pure
+constructions. Record, collection, and optional `none`/`some` match values are
+deferred.
 
 ### Scalar and choice collection value-for
 

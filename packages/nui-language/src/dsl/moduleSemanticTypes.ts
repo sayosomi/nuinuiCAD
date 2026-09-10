@@ -547,6 +547,38 @@ export type ModuleGeometryConstructionSemantic =
       baseLines: readonly ModuleGeometryReferenceSemantic[];
     };
 
+/** A geometry-valued expression keeps scalar control-flow structure while
+ * leaving geometry leaves in the existing reference/construction semantic
+ * owners. It is intentionally not a TypedScalarExpression. */
+export type ModuleGeometryValueExpressionSemantic =
+  | {
+      kind: "reference";
+      span: DslSpan;
+      reference: ModuleGeometryReferenceSemantic;
+    }
+  | {
+      kind: "construction";
+      span: DslSpan;
+      construction: ModuleGeometryConstructionSemantic;
+    }
+  | {
+      kind: "if";
+      span: DslSpan;
+      condition: ModuleScalarExpressionSemantic | null;
+      thenBranch: ModuleGeometryValueExpressionSemantic | null;
+      elseBranch: ModuleGeometryValueExpressionSemantic | null;
+    }
+  | {
+      kind: "match";
+      span: DslSpan;
+      scrutinee: ModuleScalarExpressionSemantic | null;
+      arms: readonly {
+        label: string;
+        labelSpan: DslSpan;
+        expression: ModuleGeometryValueExpressionSemantic | null;
+      }[];
+    };
+
 export type ModuleGeometryValueSemantic = {
   statementId: StatementIdentity;
   statementIndex: number;
@@ -558,6 +590,7 @@ export type ModuleGeometryValueSemantic = {
   exported: boolean;
   initializer: ModuleGeometryReferenceSemantic | null;
   construction: ModuleGeometryConstructionSemantic | null;
+  valueExpression: ModuleGeometryValueExpressionSemantic | null;
   backingTarget: ModuleGeometrySourceTarget | null;
 };
 

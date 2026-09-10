@@ -141,13 +141,18 @@ interface OperatorMatch {
   readonly operator: ScalarBinaryOperator;
 }
 
+export type ScalarExpressionParserOptions = {
+  readonly allowOpaqueNamedCalls?: boolean;
+};
+
 class Parser {
   private index = 0;
   private depth = 0;
 
   constructor(
     private readonly tokens: readonly ScalarExpressionToken[],
-    private readonly boundaryEnd: number
+    private readonly boundaryEnd: number,
+    private readonly options: ScalarExpressionParserOptions
   ) {}
 
   parse(): ScalarExpressionAst {
@@ -437,6 +442,29 @@ class Parser {
     this.consume();
     this.consume();
 
+    if (this.options.allowOpaqueNamedCalls) {
+      for (let parenthesisDepth = 1; ; ) {
+        const token = this.peek();
+        if (!token) return fail("unterminated-group", opening.span, "閉じ括弧 ')' がありません。");
+        this.consume();
+        if (token.kind === "leftParen") {
+          parenthesisDepth += 1;
+        } else if (token.kind === "rightParen") {
+          parenthesisDepth -= 1;
+          if (parenthesisDepth === 0) {
+            this.depth -= 1;
+            return {
+              kind: "call",
+              span: { start: nameLiteral.span.start, end: token.span.end },
+              nameSpan: nameLiteral.span,
+              name: nameLiteral.raw,
+              args: []
+            };
+          }
+        }
+      }
+    }
+
     const args: ScalarCallArgumentNode[] = [];
     const closing = this.peek();
     if (closing?.kind === "rightParen") {
@@ -541,7 +569,11 @@ class Parser {
  * entry. There is no partial-AST-plus-diagnostic case - error recovery is
  * out of scope for this parser.
  */
-export const parseScalarExpression = (source: string, span: ScalarSpan): ScalarExpressionParseResult => {
+export const parseScalarExpression = (
+  source: string,
+  span: ScalarSpan,
+  options: ScalarExpressionParserOptions = {}
+): ScalarExpressionParseResult => {
   const tokenized = tokenizeScalarExpression(source, span);
   if (tokenized.error) {
     const { code, span: errorSpan, message } = tokenized.error;
@@ -549,7 +581,7 @@ export const parseScalarExpression = (source: string, span: ScalarSpan): ScalarE
   }
 
   try {
-    const ast = new Parser(tokenized.tokens, span.end).parse();
+    const ast = new Parser(tokenized.tokens, span.end, options).parse();
     return { ast, diagnostics: [] };
   } catch (error) {
     if (error instanceof ParseFailure) return { ast: null, diagnostics: [error.diagnostic] };

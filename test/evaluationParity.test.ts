@@ -859,6 +859,46 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     });
   }, 30000);
 
+  it("matches geometry value if and exhaustive match while skipping unselected runtime failures", () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line Base = segment(start: @A, end: @B)",
+      "const side: choice(left, right) = right",
+      "const SelectedPoint: point = if (true) { coordinate(x: 1, y: 2) } else { between(start: @A, end: @B, ratio: 1 / 0) }",
+      "const SelectedPath: path = match @side { left => arc(center: @A, radius: 0, start: 0, end: 90, direction: counterclockwise) right => segment(start: @A, end: @B) }"
+    ].join("\n"));
+    const program = fixture.compiled?.doc.geometryValueProgram;
+    if (!program || program.length !== 2) throw new Error("expected two dynamic geometry value program entries");
+    const pointEntry = program.find((entry) => entry.sourceStatementIndex === 5);
+    const pathEntry = program.find((entry) => entry.sourceStatementIndex === 6);
+    if (!pointEntry || !pathEntry) throw new Error("expected point and path dynamic entries");
+    const options = optionsFor(fixture);
+
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustOptions(repoRoot, fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+
+    const valueFor = (
+      payload: ReturnType<typeof evaluationPayloadToResult>,
+      occurrence: typeof pointEntry.occurrence
+    ) => [...(payload.computedGeometryValues?.values() ?? [])]
+      .find((entry) => entry.occurrence.sourceStatementId === occurrence.sourceStatementId &&
+        entry.occurrence.instancePath.join("\0") === occurrence.instancePath.join("\0"))?.value;
+    for (const payload of [evaluationPayloadToResult(tsPayload), evaluationPayloadToResult(rustPayload)]) {
+      expect(payload.errors).toEqual([]);
+      expect(payload.geometryValueErrors).toEqual([]);
+      expect(valueFor(payload, pointEntry.occurrence)).toEqual({ kind: "point", x: 1, y: 2 });
+      expect(valueFor(payload, pathEntry.occurrence)).toMatchObject({
+        kind: "line",
+        start: { x: 0, y: 0 },
+        end: { x: 10, y: 0 }
+      });
+    }
+  }, 30000);
+
   it("matches Module collection length evaluation across TypeScript and Rust", () => {
     const fixture = fixtureFromSource([
       "nui 1",

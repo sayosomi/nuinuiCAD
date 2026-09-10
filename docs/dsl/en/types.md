@@ -50,6 +50,8 @@ const fromEnd: point = onLine(from: @polarLine.end, distance: 25)
 const polarPath: path = @polarLine
 const roundedEdge: path = arc(center: @originPoint, radius: 10, start: 0, end: 90)
 const throughEdge: path = through(point1: @originPoint, point2: (10, 10), point3: (20, 0))
+const selectedPoint: point = if (@enabled) { @originPoint } else { coordinate(x: 0, y: 0) }
+const selectedPath: path = match @side { left => @edge right => segment(start: @originPoint, end: (10, 0)) }
 ```
 
 The initializer may be an existing legal `@` geometry reference or one of the
@@ -92,6 +94,14 @@ requires exactly one of the same modes and retains the full line/path target
 plus the referenced endpoint direction. Missing or simultaneous modes are
 invalid, and these pure forms allocate no drawable identity. `corner` and other
 deferred constructions remain unsupported.
+
+Geometry values also support expression-local value control flow. `if` requires
+a boolean condition, an `else` branch, and a geometry-compatible result in
+both branches. `match` requires an exhaustive `choice(...)` scrutinee; every
+case is resolved and checked, while only the selected branch is evaluated at
+runtime. Branches may use existing `@` geometry references or the pure
+construction forms listed above. Records, collections, and optional values are
+not supported as geometry-valued results in nui1.
 
 Pure `intersection(line1: ..., line2: ..., index: ..., extensions: ...)` is an
 identity-free `point` initializer accepting line-like `line` or `path` inputs.

@@ -77,6 +77,36 @@ describe("host-neutral DSL rename query", () => {
     expect(plan?.edits.some((edit) => source.slice(edit.from, edit.to) === "A")).toBe(false);
   });
 
+  it("renames a root geometry value-if condition through the ordinary scalar identity", () => {
+    const source = [
+      "nui 1",
+      "const flag: boolean = true",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "const Selected: point = if (@flag) { @A } else { @B }"
+    ].join("\n");
+    const plan = planDslRenameEdits(snapshot(source), at(source, "@flag") + 1, "enabled");
+
+    expect(plan).not.toBeNull();
+    expect(plan?.edits.map((edit) => source.slice(edit.from, edit.to))).toEqual(["flag", "flag"]);
+    expect(applyEdits(source, plan!.edits)).toContain("if (@enabled)");
+  });
+
+  it("renames a root geometry value-match scrutinee through the choice identity", () => {
+    const source = [
+      "nui 1",
+      "const side: choice(left, right) = left",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "const Selected: point = match @side { left => @A right => @B }"
+    ].join("\n");
+    const plan = planDslRenameEdits(snapshot(source), at(source, "@side") + 1, "whichSide");
+
+    expect(plan).not.toBeNull();
+    expect(plan?.edits.map((edit) => source.slice(edit.from, edit.to))).toEqual(["side", "side"]);
+    expect(applyEdits(source, plan!.edits)).toContain("match @whichSide");
+  });
+
   it("renames a constructed geometry declaration through its ordinary identity", () => {
     const source = [
       "nui 1",

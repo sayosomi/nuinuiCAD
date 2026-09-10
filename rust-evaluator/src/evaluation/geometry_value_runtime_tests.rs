@@ -134,6 +134,78 @@ fn empty_geometry_value_error_channel_is_omitted_from_payload() {
     assert!(serialized.get("geometryValueErrors").is_none());
 }
 
+#[test]
+fn geometry_value_if_and_match_evaluate_only_the_selected_branch() {
+    let if_occurrence = json!({
+        "sourceStatementId": "value:if",
+        "instancePath": []
+    });
+    let match_occurrence = json!({
+        "sourceStatementId": "value:match",
+        "instancePath": []
+    });
+    let coordinate = |x: f64, y: f64| {
+        json!({
+            "kind": "coordinate",
+            "x": number(x),
+            "y": number(y)
+        })
+    };
+    let program = vec![
+        json!({
+            "sourceStatementId": "value:if",
+            "sourceStatementIndex": 1,
+            "declaredInterfaceType": "point",
+            "occurrence": if_occurrence,
+            "executionPosition": 1.0,
+            "construction": {
+                "kind": "if",
+                "condition": boolean(true),
+                "thenBranch": coordinate(1.0, 2.0),
+                "elseBranch": {
+                    "kind": "between",
+                    "start": { "kind": "coordinate", "x": number(0.0), "y": number(0.0) },
+                    "end": { "kind": "coordinate", "x": number(0.0), "y": number(0.0) },
+                    "placement": { "kind": "ratio", "value": number(0.5) }
+                }
+            }
+        }),
+        json!({
+            "sourceStatementId": "value:match",
+            "sourceStatementIndex": 2,
+            "declaredInterfaceType": "point",
+            "occurrence": match_occurrence,
+            "executionPosition": 2.0,
+            "construction": {
+                "kind": "match",
+                "scrutinee": choice("counterclockwise"),
+                "arms": [
+                    { "label": "counterclockwise", "expression": coordinate(3.0, 4.0) },
+                    { "label": "clockwise", "expression": {
+                        "kind": "between",
+                        "start": { "kind": "coordinate", "x": number(0.0), "y": number(0.0) },
+                        "end": { "kind": "coordinate", "x": number(0.0), "y": number(0.0) },
+                        "placement": { "kind": "ratio", "value": number(0.5) }
+                    } }
+                ]
+            }
+        }),
+    ];
+
+    let result = evaluate_document_input(input(Vec::new(), program));
+    assert!(result.errors.is_empty());
+    assert!(result.geometry_value_errors.is_empty());
+    assert_eq!(result.computed_geometry_values.len(), 2);
+    assert_eq!(
+        result.computed_geometry_values[0]["value"],
+        json!({ "kind": "point", "x": 1.0, "y": 2.0 })
+    );
+    assert_eq!(
+        result.computed_geometry_values[1]["value"],
+        json!({ "kind": "point", "x": 3.0, "y": 4.0 })
+    );
+}
+
 fn input(elements: Vec<Value>, program: Vec<Value>) -> EvaluationInput {
     EvaluationInput {
         geometry_input_targets: None,

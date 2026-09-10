@@ -7,6 +7,7 @@ import type { ModuleGeometryInterfaceType } from "./moduleGeometryInterfaces";
 import type {
   ModuleGeometryReferenceSemantic,
   ModuleGeometryValueSemantic,
+  ModuleGeometryValueExpressionSemantic,
   ModuleScalarExpressionSemantic
 } from "./moduleSemanticTypes";
 import { unwrapModuleGeometrySourceTarget } from "./moduleSemanticTypes";
@@ -168,6 +169,24 @@ export type GeometryValueProgramConstruction =
       baseLines: readonly GeometryValueProgramPath[];
     };
 
+export type GeometryValueProgramNode =
+  | GeometryValueProgramConstruction
+  | {
+      kind: "reference";
+      target: ScalarExpressionResolvedGeometryTarget;
+    }
+  | {
+      kind: "if";
+      condition: TypedScalarExpression;
+      thenBranch: GeometryValueProgramNode;
+      elseBranch: GeometryValueProgramNode;
+    }
+  | {
+      kind: "match";
+      scrutinee: TypedScalarExpression;
+      arms: readonly { label: string; expression: GeometryValueProgramNode }[];
+    };
+
 /** Host-neutral, already-resolved immutable geometry value execution entry.
  * It contains no source-name lookup contract and no drawable identity. */
 export type GeometryValueProgramEntry = {
@@ -176,7 +195,7 @@ export type GeometryValueProgramEntry = {
   declaredInterfaceType: ModuleGeometryInterfaceType;
   occurrence: GeometryValueOccurrence;
   executionPosition: number;
-  construction: GeometryValueProgramConstruction;
+  construction: GeometryValueProgramNode;
 };
 
 export type GeometryValueProgram = readonly GeometryValueProgramEntry[];
@@ -294,8 +313,14 @@ export const buildRootGeometryValueProgram = ({
     return undefined;
   };
 
-  return values.flatMap((value): GeometryValueProgramEntry[] => {
-    if (!value.construction || value.ownerModuleDefinitionStatementId !== null) return [];
+  const lowerConstruction = (
+    sourceValue: ModuleGeometryValueSemantic,
+    semanticConstruction: ModuleGeometryValueSemantic["construction"] = sourceValue.construction
+  ): GeometryValueProgramConstruction | null => {
+    if (!semanticConstruction) return null;
+    const value = { ...sourceValue, construction: semanticConstruction } as Omit<ModuleGeometryValueSemantic, "construction"> & {
+      construction: NonNullable<ModuleGeometryValueSemantic["construction"]>;
+    };
     const construction = value.construction.kind === "coordinate"
       ? (() => {
           const x = literalScalarExpression(value.construction.x);
@@ -488,6 +513,44 @@ export const buildRootGeometryValueProgram = ({
                   ? { kind: "polyline" as const, points, closed }
                   : null;
               })();
+    return construction;
+  };
+
+  const targetForReference = (reference: ModuleGeometryReferenceSemantic): ScalarExpressionResolvedGeometryTarget | undefined => {
+    const lowered = reference.expectedGeometryKind === "point" ? pointForReference(reference) : pathForReference(reference);
+    return lowered?.kind === "target" ? lowered.target : undefined;
+  };
+
+  const lowerExpression = (
+    sourceValue: ModuleGeometryValueSemantic,
+    expression: ModuleGeometryValueExpressionSemantic
+  ): GeometryValueProgramNode | null => {
+    if (expression.kind === "reference") {
+      const target = targetForReference(expression.reference);
+      return target ? { kind: "reference", target } : null;
+    }
+    if (expression.kind === "construction") return lowerConstruction(sourceValue, expression.construction);
+    if (expression.kind === "if") {
+      const condition = literalScalarExpression(expression.condition);
+      const thenBranch = expression.thenBranch ? lowerExpression(sourceValue, expression.thenBranch) : null;
+      const elseBranch = expression.elseBranch ? lowerExpression(sourceValue, expression.elseBranch) : null;
+      return condition && thenBranch && elseBranch
+        ? { kind: "if", condition, thenBranch, elseBranch }
+        : null;
+    }
+    const scrutinee = literalScalarExpression(expression.scrutinee);
+    const arms = expression.arms.flatMap((arm) => {
+      const lowered = arm.expression ? lowerExpression(sourceValue, arm.expression) : null;
+      return lowered ? [{ label: arm.label, expression: lowered }] : [];
+    });
+    return scrutinee && arms.length === expression.arms.length ? { kind: "match", scrutinee, arms } : null;
+  };
+
+  return values.flatMap((value): GeometryValueProgramEntry[] => {
+    if ((!value.construction && !value.valueExpression) || value.ownerModuleDefinitionStatementId !== null) return [];
+    const construction = value.valueExpression
+      ? lowerExpression(value, value.valueExpression)
+      : lowerConstruction(value);
     return construction
       ? [{
           sourceStatementId: value.statementId,

@@ -65,7 +65,25 @@ pub(crate) struct GeometryValueBezierIntermediate {
 }
 
 #[derive(Debug)]
+pub(crate) struct GeometryValueMatchArm {
+    pub(crate) label: String,
+    pub(crate) expression: Box<GeometryValueConstruction>,
+}
+
+#[derive(Debug)]
 pub(crate) enum GeometryValueConstruction {
+    Reference {
+        target: super::scalars::ScalarExpressionResolvedGeometryTarget,
+    },
+    If {
+        condition: Box<TypedScalarExpression>,
+        then_branch: Box<GeometryValueConstruction>,
+        else_branch: Box<GeometryValueConstruction>,
+    },
+    Match {
+        scrutinee: Box<TypedScalarExpression>,
+        arms: Vec<GeometryValueMatchArm>,
+    },
     Coordinate {
         x: Box<TypedScalarExpression>,
         y: Box<TypedScalarExpression>,
@@ -289,6 +307,18 @@ fn decode_point(value: &Value) -> Result<GeometryValuePoint, String> {
     }
 }
 
+fn decode_nested_construction(value: &Value) -> Result<GeometryValueConstruction, String> {
+    let wrapped = json!({
+        "sourceStatementId": "nested-geometry-value",
+        "sourceStatementIndex": 0,
+        "declaredInterfaceType": "point",
+        "occurrence": { "sourceStatementId": "nested-geometry-value", "instancePath": [] },
+        "executionPosition": 0.0,
+        "construction": value
+    });
+    decode_entry(&wrapped).map(|entry| entry.construction)
+}
+
 fn decode_typed_field(
     object: &serde_json::Map<String, Value>,
     name: &str,
@@ -413,6 +443,66 @@ fn decode_entry(value: &Value) -> Result<GeometryValueProgramEntry, String> {
     )?;
     let construction =
         match string_field(construction_object, "kind", "geometry value construction")?.as_str() {
+            "reference" => GeometryValueConstruction::Reference {
+                target: super::scalars::decode_geometry_target_payload(
+                    construction_object
+                        .get("target")
+                        .ok_or_else(|| "geometry value reference is missing target".to_owned())?,
+                )
+                .map_err(|error| format!("{error:?}"))?
+                .ok_or_else(|| "geometry value reference target cannot be null".to_owned())?,
+            },
+            "if" => GeometryValueConstruction::If {
+                condition: Box::new(decode_typed_field(
+                    construction_object,
+                    "condition",
+                    "geometry value if",
+                )?),
+                then_branch: Box::new(decode_nested_construction(
+                    construction_object
+                        .get("thenBranch")
+                        .ok_or_else(|| "geometry value if is missing thenBranch".to_owned())?,
+                )?),
+                else_branch: Box::new(decode_nested_construction(
+                    construction_object
+                        .get("elseBranch")
+                        .ok_or_else(|| "geometry value if is missing elseBranch".to_owned())?,
+                )?),
+            },
+            "match" => {
+                let arms = construction_object
+                    .get("arms")
+                    .and_then(Value::as_array)
+                    .ok_or_else(|| "geometry value match is missing arms".to_owned())?
+                    .iter()
+                    .enumerate()
+                    .map(|(index, arm)| {
+                        let arm_object = object(arm, "geometry value match arm")?;
+                        let label = string_field(
+                            arm_object,
+                            "label",
+                            &format!("geometry value match arm {index}"),
+                        )?;
+                        let expression = decode_nested_construction(
+                            arm_object.get("expression").ok_or_else(|| {
+                                format!("geometry value match arm {index} is missing expression")
+                            })?,
+                        )?;
+                        Ok(GeometryValueMatchArm {
+                            label,
+                            expression: Box::new(expression),
+                        })
+                    })
+                    .collect::<Result<Vec<_>, String>>()?;
+                GeometryValueConstruction::Match {
+                    scrutinee: Box::new(decode_typed_field(
+                        construction_object,
+                        "scrutinee",
+                        "geometry value match",
+                    )?),
+                    arms,
+                }
+            }
             "coordinate" => GeometryValueConstruction::Coordinate {
                 x: Box::new(
                     validate_typed_expression_payload(
@@ -1354,7 +1444,107 @@ pub(crate) fn evaluate_geometry_value_entry(
         return;
     }
     let source_order = entry.execution_position;
-    let value = match &entry.construction {
+    evaluate_geometry_value_node(&entry.construction, entry, resolver, state, source_order);
+}
+
+fn evaluate_geometry_value_node(
+    construction: &GeometryValueConstruction,
+    entry: &GeometryValueProgramEntry,
+    resolver: &dyn ScalarDocumentBindingResolver,
+    state: &mut EvaluationState,
+    source_order: f64,
+) {
+    match construction {
+        GeometryValueConstruction::Reference { target } => {
+            let Some(geometry) = target_geometry(target, state) else {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "Geometry value reference is unavailable at runtime.",
+                );
+                return;
+            };
+            let mut value = geometry.clone();
+            remove_geometry_identity(&mut value);
+            if matches!(
+                target.geometry_type,
+                super::scalars::GeometryInterfaceType::Point
+            ) {
+                if let Value::Object(object) = &mut value {
+                    if object.contains_key("x") && object.contains_key("y") {
+                        object.insert("kind".to_owned(), Value::String("point".to_owned()));
+                    }
+                }
+            }
+            state
+                .computed_geometry_values
+                .insert(entry.occurrence.clone(), value);
+        }
+        GeometryValueConstruction::If {
+            condition,
+            then_branch,
+            else_branch,
+        } => {
+            let Some(condition) = boolean_expression(condition, resolver, state, source_order)
+            else {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "Geometry value if condition is unavailable or not boolean.",
+                );
+                return;
+            };
+            evaluate_geometry_value_node(
+                if condition { then_branch } else { else_branch },
+                entry,
+                resolver,
+                state,
+                source_order,
+            );
+        }
+        GeometryValueConstruction::Match { scrutinee, arms } => {
+            let label = match evaluate_document_typed_expression(
+                scrutinee,
+                resolver,
+                state,
+                Some(source_order),
+            ) {
+                ScalarEvaluation::Ok {
+                    r#type: ScalarType::Choice { .. },
+                    value: ScalarValue::Choice { value, .. },
+                } => Some(value),
+                _ => None,
+            };
+            let Some(label) = label else {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "Geometry value match scrutinee is unavailable or has no matching case.",
+                );
+                return;
+            };
+            let Some(arm) = arms.iter().find(|arm| arm.label == label) else {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "Geometry value match scrutinee is unavailable or has no matching case.",
+                );
+                return;
+            };
+            evaluate_geometry_value_node(&arm.expression, entry, resolver, state, source_order);
+        }
+        _ => evaluate_geometry_value_leaf(construction, entry, resolver, state, source_order),
+    }
+}
+
+fn evaluate_geometry_value_leaf(
+    construction: &GeometryValueConstruction,
+    entry: &GeometryValueProgramEntry,
+    resolver: &dyn ScalarDocumentBindingResolver,
+    state: &mut EvaluationState,
+    source_order: f64,
+) {
+    let value = match construction {
         GeometryValueConstruction::Coordinate { x, y } => {
             if entry.declared_interface_type != "point" {
                 append_geometry_value_error(
@@ -2621,6 +2811,7 @@ pub(crate) fn evaluate_geometry_value_entry(
                 value
             })
         }
+        _ => None,
     };
     if let Some(value) = value {
         state

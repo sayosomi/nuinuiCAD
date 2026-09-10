@@ -16,6 +16,7 @@ import {
   type ScalarBinaryExpressionNode,
   type ScalarExpressionAst
 } from "./expressionAst";
+import type { ScalarSpan } from "./expressionAst";
 import type { BindingResolution } from "./bindingResolution";
 import {
   formatBuiltinCallingStyleMismatch,
@@ -64,6 +65,86 @@ const scalarCallArgumentStyle = (args: readonly { kind: "positional" | "named" }
  * kept as one implementation rather than a duplicated formatter. */
 export const describeScalarType = (type: ScalarType): string =>
   type.kind === "choice" ? `choice(${type.options.join(", ")})` : type.kind;
+
+/**
+ * Validate the closed-world cases of a choice match without depending on the
+ * typed scalar tree. Geometry-valued expressions use the same parser envelope
+ * but deliberately keep their branch values outside TypedScalarExpression;
+ * this helper keeps the exhaustiveness contract shared by both owners.
+ */
+export const validateChoiceMatchExhaustiveness = ({
+  scrutineeType,
+  scrutineeSpan,
+  matchSpan,
+  arms,
+  addDiagnostic: emit
+}: {
+  scrutineeType: ScalarType | null;
+  scrutineeSpan: ScalarSpan;
+  matchSpan: ScalarSpan;
+  arms: readonly { label: string; labelSpan: ScalarSpan }[];
+  addDiagnostic: (diagnostic: ScalarExpressionTypecheckDiagnostic) => void;
+}): { scrutineeIsChoice: boolean; exhaustive: boolean } => {
+  if (scrutineeType === null) return { scrutineeIsChoice: false, exhaustive: false };
+  if (!isChoiceScalarType(scrutineeType)) {
+    emit({
+      code: "non-choice-match-scrutinee",
+      span: scrutineeSpan,
+      message: `match のscrutineeはchoice(...)型である必要があります(実際: ${describeScalarType(scrutineeType)})。`,
+      presentation: {
+        key: "diagnostic.non-choice-match-scrutinee",
+        parameters: { actual: describeScalarType(scrutineeType) }
+      },
+      actualType: scrutineeType
+    });
+    return { scrutineeIsChoice: false, exhaustive: false };
+  }
+
+  const seen = new Set<string>();
+  for (const arm of arms) {
+    if (!scrutineeType.options.includes(arm.label)) {
+      emit({
+        code: "impossible-match-case",
+        span: arm.labelSpan,
+        message: `match ケース「${arm.label}」はscrutineeのchoice(${scrutineeType.options.join(", ")})には存在しません。`,
+        presentation: {
+          key: "diagnostic.impossible-match-case",
+          parameters: { option: arm.label, expected: describeScalarType(scrutineeType) }
+        },
+        expectedType: scrutineeType
+      });
+      continue;
+    }
+    if (seen.has(arm.label)) {
+      emit({
+        code: "duplicate-match-case",
+        span: arm.labelSpan,
+        message: `match ケース「${arm.label}」が重複しています。`,
+        presentation: {
+          key: "diagnostic.duplicate-match-case",
+          parameters: { option: arm.label }
+        }
+      });
+      continue;
+    }
+    seen.add(arm.label);
+  }
+
+  const missing = scrutineeType.options.filter((option) => !seen.has(option));
+  if (missing.length > 0) {
+    emit({
+      code: "missing-match-case",
+      span: matchSpan,
+      message: `match に必要なchoiceケースがありません: ${missing.join(", ")}。`,
+      presentation: {
+        key: "diagnostic.missing-match-case",
+        parameters: { options: missing.join(", ") }
+      },
+      expectedType: scrutineeType
+    });
+  }
+  return { scrutineeIsChoice: true, exhaustive: missing.length === 0 };
+};
 
 const addDiagnostic = (state: TraversalState, diagnostic: ScalarExpressionTypecheckDiagnostic): void => {
   state.diagnostics.push(diagnostic);
@@ -354,68 +435,13 @@ const checkNode = (
 
     case "valueMatch": {
       const scrutinee = checkNode(node.scrutinee, null, state);
-      let scrutineeIsChoice = false;
-      let exhaustive = false;
-      if (scrutinee.type !== null) {
-        if (isChoiceScalarType(scrutinee.type)) {
-          scrutineeIsChoice = true;
-          const declaredOptions = scrutinee.type.options;
-          const seen = new Set<string>();
-          for (const arm of node.arms) {
-            if (!declaredOptions.includes(arm.label)) {
-              addDiagnostic(state, {
-                code: "impossible-match-case",
-                span: arm.labelSpan,
-                message: `match ケース「${arm.label}」はscrutineeのchoice(${declaredOptions.join(", ")})には存在しません。`,
-                presentation: {
-                  key: "diagnostic.impossible-match-case",
-                  parameters: { option: arm.label, expected: describeScalarType(scrutinee.type) }
-                },
-                expectedType: scrutinee.type
-              });
-              continue;
-            }
-            if (seen.has(arm.label)) {
-              addDiagnostic(state, {
-                code: "duplicate-match-case",
-                span: arm.labelSpan,
-                message: `match ケース「${arm.label}」が重複しています。`,
-                presentation: {
-                  key: "diagnostic.duplicate-match-case",
-                  parameters: { option: arm.label }
-                }
-              });
-              continue;
-            }
-            seen.add(arm.label);
-          }
-          const missing = declaredOptions.filter((option) => !seen.has(option));
-          exhaustive = missing.length === 0;
-          if (missing.length > 0) {
-            addDiagnostic(state, {
-              code: "missing-match-case",
-              span: node.span,
-              message: `match に必要なchoiceケースがありません: ${missing.join(", ")}。`,
-              presentation: {
-                key: "diagnostic.missing-match-case",
-                parameters: { options: missing.join(", ") }
-              },
-              expectedType: scrutinee.type
-            });
-          }
-        } else {
-          addDiagnostic(state, {
-            code: "non-choice-match-scrutinee",
-            span: node.scrutinee.span,
-            message: `match のscrutineeはchoice(...)型である必要があります(実際: ${describeScalarType(scrutinee.type)})。`,
-            presentation: {
-              key: "diagnostic.non-choice-match-scrutinee",
-              parameters: { actual: describeScalarType(scrutinee.type) }
-            },
-            actualType: scrutinee.type
-          });
-        }
-      }
+      const { scrutineeIsChoice, exhaustive } = validateChoiceMatchExhaustiveness({
+        scrutineeType: scrutinee.type,
+        scrutineeSpan: node.scrutinee.span,
+        matchSpan: node.span,
+        arms: node.arms,
+        addDiagnostic: (diagnostic) => addDiagnostic(state, diagnostic)
+      });
 
       const armResults = node.arms.map((arm) => ({
         arm,

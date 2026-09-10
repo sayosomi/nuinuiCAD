@@ -97,6 +97,48 @@ describe("queryDslDefinition", () => {
     expect(result!.declarationRange.from).toBe(source.indexOf("const P") + "const ".length);
   });
 
+  it("resolves root geometry value-if scalar and branch references through ordinary identities", () => {
+    const source = [
+      "nui 1",
+      "const flag: boolean = true",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "const Selected: point = if (@flag) { @A } else { @B }"
+    ].join("\n");
+    const flag = exactQuery(source, "@flag");
+    const a = exactQuery(source, "@A");
+    const b = exactQuery(source, "@B");
+
+    expect(flag).not.toBeNull();
+    expect(sourceSlice(source, flag!.referenceRange)).toBe("flag");
+    expect(sourceSlice(source, flag!.declarationRange)).toBe("flag");
+    expect(a).not.toBeNull();
+    expect(sourceSlice(source, a!.declarationRange)).toBe("A");
+    expect(b).not.toBeNull();
+    expect(sourceSlice(source, b!.declarationRange)).toBe("B");
+  });
+
+  it("resolves root geometry value-match scrutinee and branch references", () => {
+    const source = [
+      "nui 1",
+      "const side: choice(left, right) = left",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "const Selected: point = match @side { left => @A right => @B }"
+    ].join("\n");
+    const side = exactQuery(source, "@side");
+    const a = exactQuery(source, "@A");
+    const b = exactQuery(source, "@B");
+
+    expect(side).not.toBeNull();
+    expect(sourceSlice(source, side!.referenceRange)).toBe("side");
+    expect(sourceSlice(source, side!.declarationRange)).toBe("side");
+    expect(a).not.toBeNull();
+    expect(sourceSlice(source, a!.declarationRange)).toBe("A");
+    expect(b).not.toBeNull();
+    expect(sourceSlice(source, b!.declarationRange)).toBe("B");
+  });
+
   it("resolves references used by a constructed geometry declaration", () => {
     const source = [
       "nui 1",

@@ -22,6 +22,7 @@ import { geometryInputTargetForAlias, type RuntimeGeometryInputTarget } from "..
 import type {
   GeometryValueProgram,
   GeometryValueProgramEntry,
+  GeometryValueProgramNode,
   GeometryValueProgramPath,
   GeometryValueProgramPoint
 } from "../dsl/moduleGeometryValueProgram";
@@ -2801,10 +2802,70 @@ export const compileModuleScalarRuntime = ({
     };
   };
 
-  const addGeometryValueProgramEntry = (value: import("../dsl/moduleSemanticTypes").ModuleGeometryValueSemantic, context?: InstanceContext) => {
-    if (!value.construction) return;
+  const lowerGeometryValueExpression = (
+    value: import("../dsl/moduleSemanticTypes").ModuleGeometryValueSemantic,
+    expression: import("../dsl/moduleSemanticTypes").ModuleGeometryValueExpressionSemantic,
+    context: InstanceContext | undefined,
+    executionPosition: number
+  ): GeometryValueProgramNode | undefined => {
+    if (expression.kind === "reference") {
+      const lowered = expression.reference.expectedGeometryKind === "point"
+        ? lowerGeometryValuePoint(expression.reference, context, executionPosition)
+        : lowerGeometryValuePath(expression.reference, context, executionPosition);
+      return lowered?.kind === "target" ? { kind: "reference", target: lowered.target } : undefined;
+    }
+    if (expression.kind === "construction") {
+      return addGeometryValueProgramEntry(
+        { ...value, valueExpression: null, construction: expression.construction },
+        context,
+        false
+      );
+    }
+    if (expression.kind === "if") {
+      const condition = expression.condition ? lowerGeometryValueScalar(expression.condition, context) : null;
+      const thenBranch = expression.thenBranch
+        ? lowerGeometryValueExpression(value, expression.thenBranch, context, executionPosition)
+        : undefined;
+      const elseBranch = expression.elseBranch
+        ? lowerGeometryValueExpression(value, expression.elseBranch, context, executionPosition)
+        : undefined;
+      return condition && thenBranch && elseBranch
+        ? { kind: "if", condition, thenBranch, elseBranch }
+        : undefined;
+    }
+    const scrutinee = expression.scrutinee ? lowerGeometryValueScalar(expression.scrutinee, context) : null;
+    const arms = expression.arms.flatMap((arm) => {
+      const lowered = arm.expression
+        ? lowerGeometryValueExpression(value, arm.expression, context, executionPosition)
+        : undefined;
+      return lowered ? [{ label: arm.label, expression: lowered }] : [];
+    });
+    return scrutinee && arms.length === expression.arms.length ? { kind: "match", scrutinee, arms } : undefined;
+  };
+
+  const addGeometryValueProgramEntry = (
+    value: import("../dsl/moduleSemanticTypes").ModuleGeometryValueSemantic,
+    context?: InstanceContext,
+    emit = true
+  ): GeometryValueProgramNode | undefined => {
     const path = context?.path ?? [];
     const executionPosition = executionPositionForValue(path, value.statementIndex);
+    if (value.valueExpression) {
+      const expression = lowerGeometryValueExpression(value, value.valueExpression, context, executionPosition);
+      if (!expression) return undefined;
+      if (emit) {
+        geometryValueProgramEntries.push({
+          sourceStatementId: value.statementId,
+          sourceStatementIndex: value.statementIndex,
+          declaredInterfaceType: value.declaredInterfaceType,
+          occurrence: { sourceStatementId: value.statementId, instancePath: [...path] },
+          executionPosition,
+          construction: expression
+        });
+      }
+      return expression;
+    }
+    if (!value.construction) return undefined;
     const construction = value.construction.kind === "coordinate"
       ? value.construction.x && value.construction.y
         ? {
@@ -3015,6 +3076,7 @@ export const compileModuleScalarRuntime = ({
                   : null;
               })();
     if (!construction) return;
+    if (!emit) return construction;
     geometryValueProgramEntries.push({
       sourceStatementId: value.statementId,
       sourceStatementIndex: value.statementIndex,
@@ -3023,6 +3085,7 @@ export const compileModuleScalarRuntime = ({
       executionPosition,
       construction
     });
+    return construction;
   };
 
   for (const value of moduleSemanticAnalysis.geometryValues) {
