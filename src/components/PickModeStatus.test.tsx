@@ -159,6 +159,35 @@ describe("PickModeStatus", () => {
     expect(document.activeElement).toBe(screen.getByRole("button", { name: "選択を完了" }));
   });
 
+  it("keeps ordered-draft wheel input local without preventing native scrolling", () => {
+    const ancestorWheel = vi.fn();
+
+    render(
+      <div onWheel={ancestorWheel}>
+        <PickModeStatusView
+          model={{
+            targetLabel: "Cross / line1",
+            instruction: "Canvasから線を選択",
+            orderedDraft: {
+              entries: [{ key: "line-1", label: "線1" }],
+              count: 1,
+              onMove: vi.fn(),
+              onRemove: vi.fn()
+            },
+            onFinish: vi.fn()
+          }}
+        />
+      </div>
+    );
+
+    const actionButton = screen.getByRole("button", { name: "線1を削除" });
+    const wheelEvent = new WheelEvent("wheel", { bubbles: true, cancelable: true, deltaY: 24 });
+    actionButton.dispatchEvent(wheelEvent);
+
+    expect(ancestorWheel).not.toHaveBeenCalled();
+    expect(wheelEvent.defaultPrevented).toBe(false);
+  });
+
   it("finishes the exact order currently shown by the panel", () => {
     const lines = [line("line-1", "線1"), line("line-2", "線2")];
     const target: CadElement = {
