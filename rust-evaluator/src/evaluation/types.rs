@@ -12,6 +12,8 @@ pub type ElementId = String;
 pub(crate) struct GeometryValueOccurrence {
     pub(crate) source_statement_id: String,
     pub(crate) instance_path: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) mapped_member_index: Option<usize>,
 }
 
 #[derive(Debug)]
@@ -25,6 +27,16 @@ pub(crate) enum GeometryInputTarget {
         occurrence: GeometryValueOccurrence,
         geometry_type: String,
         point_key: Option<String>,
+    },
+    GeometryValueMap {
+        occurrence: GeometryValueOccurrence,
+        binder_id: String,
+        geometry_type: String,
+        point_key: Option<String>,
+        source: Box<GeometryInputTarget>,
+        program: Box<super::geometry_value_runtime::GeometryValueConstruction>,
+        execution_position: f64,
+        declared_interface_type: String,
     },
     Coordinate {
         anchor: Value,
@@ -285,6 +297,7 @@ pub(crate) struct EvaluationState {
     pub(crate) computed_geometry_values: HashMap<GeometryValueOccurrence, Value>,
     pub(crate) geometry_input_targets:
         HashMap<ElementId, HashMap<String, Vec<GeometryInputTarget>>>,
+    pub(crate) geometry_value_binders: HashMap<String, GeometryInputTarget>,
     pub(crate) pre_mutation_geometry: HashMap<ElementId, Value>,
     pub(crate) geometry_mutation_executions: Vec<GeometryMutationExecution>,
     pub(crate) condition_evaluation_traces: Vec<Value>,

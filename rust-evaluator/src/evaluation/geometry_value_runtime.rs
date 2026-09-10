@@ -25,7 +25,8 @@ use super::scalars::{
     TypedScalarExpression,
 };
 use super::types::{
-    EvaluationCommandError, EvaluationState, GeometryValueEvaluationError, GeometryValueOccurrence,
+    EvaluationCommandError, EvaluationState, GeometryInputTarget, GeometryValueEvaluationError,
+    GeometryValueOccurrence,
 };
 
 pub(crate) struct EmptyBindingResolver;
@@ -201,6 +202,7 @@ pub(crate) struct GeometryValueProgramEntry {
     pub(crate) declared_interface_type: String,
     pub(crate) occurrence: GeometryValueOccurrence,
     pub(crate) execution_position: f64,
+    pub(crate) lazy: bool,
     pub(crate) construction: GeometryValueConstruction,
 }
 
@@ -255,6 +257,13 @@ fn string_field(
 
 fn occurrence(value: &Value, context: &str) -> Result<GeometryValueOccurrence, String> {
     let object = object(value, context)?;
+    let mapped_member_index = object
+        .get("mappedMemberIndex")
+        .and_then(Value::as_u64)
+        .map(|value| {
+            usize::try_from(value).map_err(|_| format!("{context}.mappedMemberIndex is too large"))
+        })
+        .transpose()?;
     let instance_path = object
         .get("instancePath")
         .and_then(Value::as_array)
@@ -270,6 +279,7 @@ fn occurrence(value: &Value, context: &str) -> Result<GeometryValueOccurrence, S
     Ok(GeometryValueOccurrence {
         source_statement_id: string_field(object, "sourceStatementId", context)?,
         instance_path,
+        mapped_member_index,
     })
 }
 
@@ -424,6 +434,10 @@ fn decode_entry(value: &Value) -> Result<GeometryValueProgramEntry, String> {
         .ok_or_else(|| {
             "geometry value program entry executionPosition must be finite".to_owned()
         })?;
+    let lazy = entry_object
+        .get("lazy")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
     let occurrence = occurrence(
         entry_object
             .get("occurrence")
@@ -1063,8 +1077,15 @@ fn decode_entry(value: &Value) -> Result<GeometryValueProgramEntry, String> {
         declared_interface_type,
         occurrence,
         execution_position,
+        lazy,
         construction,
     })
+}
+
+pub(crate) fn decode_geometry_value_node(
+    value: &Value,
+) -> Result<GeometryValueConstruction, String> {
+    decode_nested_construction(value)
 }
 
 fn segment_json(start: (f64, f64), end: (f64, f64)) -> Value {
@@ -1181,6 +1202,10 @@ fn target_point(
     target: &super::scalars::ScalarExpressionResolvedGeometryTarget,
     state: &EvaluationState,
 ) -> Option<(f64, f64)> {
+    if let Some(binder_id) = &target.geometry_value_binder_id {
+        let source = state.geometry_value_binders.get(binder_id)?;
+        return point_from_input_target(source, state, target.point_key.as_deref());
+    }
     if let Some(occurrence) = &target.geometry_value_occurrence {
         let geometry = state.computed_geometry_values.get(occurrence)?;
         if let Some(point_key) = target.point_key.as_deref() {
@@ -1221,10 +1246,63 @@ fn target_point(
     point_from_geometry(geometry).map(|point| (point.x, point.y))
 }
 
+fn point_from_input_target(
+    target: &GeometryInputTarget,
+    state: &EvaluationState,
+    point_key: Option<&str>,
+) -> Option<(f64, f64)> {
+    match target {
+        GeometryInputTarget::Coordinate { anchor } => anchor
+            .get("x")
+            .and_then(Value::as_f64)
+            .zip(anchor.get("y").and_then(Value::as_f64)),
+        GeometryInputTarget::Drawable { element_id, .. } => {
+            let geometry = state.computed_geometry.get(element_id)?;
+            point_key
+                .and_then(|key| super::point_anchor::resolve_derived_point(geometry, key, state))
+                .map(|point| (point.x, point.y))
+                .or_else(|| point_from_geometry(geometry).map(|point| (point.x, point.y)))
+        }
+        GeometryInputTarget::GeometryValue { occurrence, .. } => {
+            let geometry = state.computed_geometry_values.get(occurrence)?;
+            point_key
+                .and_then(|key| geometry.get(key))
+                .and_then(|value| {
+                    value
+                        .get("x")
+                        .and_then(Value::as_f64)
+                        .zip(value.get("y").and_then(Value::as_f64))
+                })
+                .or_else(|| {
+                    geometry
+                        .get("x")
+                        .and_then(Value::as_f64)
+                        .zip(geometry.get("y").and_then(Value::as_f64))
+                })
+        }
+        GeometryInputTarget::GeometryValueMap { .. }
+        | GeometryInputTarget::CollectionIndex { .. } => None,
+    }
+}
+
 fn target_geometry<'a>(
     target: &super::scalars::ScalarExpressionResolvedGeometryTarget,
     state: &'a EvaluationState,
 ) -> Option<&'a Value> {
+    if let Some(binder_id) = &target.geometry_value_binder_id {
+        let source = state.geometry_value_binders.get(binder_id)?;
+        return match source {
+            GeometryInputTarget::Drawable { element_id, .. } => {
+                state.computed_geometry.get(element_id)
+            }
+            GeometryInputTarget::GeometryValue { occurrence, .. } => {
+                state.computed_geometry_values.get(occurrence)
+            }
+            GeometryInputTarget::Coordinate { .. }
+            | GeometryInputTarget::GeometryValueMap { .. }
+            | GeometryInputTarget::CollectionIndex { .. } => state.computed_geometry.get(binder_id),
+        };
+    }
     if let Some(occurrence) = &target.geometry_value_occurrence {
         state.computed_geometry_values.get(occurrence)
     } else {

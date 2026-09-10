@@ -1424,12 +1424,16 @@ expression rules against that result element type. Bare choice literals use
 the declared result choice identity and order.
 
 Value-producing collection `for` does not filter, fold, scan, carry, mutate,
-or accumulate state. Nested arrays are not introduced. The value model is
-intended to extend this same pure, lazy, one-result-per-input collection shape
-to additional element families in later slices; this slice implements only
-scalar and choice source/result collections. It does not change optional-value
-semantics or add `none`/`some` values. Geometry and nominal-record
-value-producing collection `for` remain deferred.
+or accumulate state. Nested arrays are not introduced. The value model uses
+this same pure, lazy, one-result-per-input collection shape for geometry
+collections as well. Geometry source/result bodies support `point[]`, `line[]`,
+and `path[]`, subject to the existing directional assignability rules
+(`line[]` may be used where `path[]` is expected, but `path[]` may not be used
+where `line[]` is expected). Geometry map members keep occurrence identity
+separate from drawable ElementIds, and a selected member is materialized only
+at the consuming geometry operation. Nominal-record value-producing collection
+`for` remains deferred. This does not change optional-value semantics or add
+`none`/`some` values.
 
 Existing broad line-list consumers treat their list value as `path[]`. This
 includes `offset.sources`, `transformCopy.baseLines`, `mirrorCopy.baseLines`,

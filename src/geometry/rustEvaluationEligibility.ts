@@ -100,6 +100,10 @@ const referencesRustSupportedLineTargetValue = (
   if (target.kind === "geometryValue") {
     return target.geometryType === "line" || target.geometryType === "path";
   }
+  if (target.kind === "geometryValueMap") {
+    return (target.geometryType === "line" || target.geometryType === "path") &&
+      referencesRustSupportedLineTargetValue(target.source, elementsById);
+  }
   if (target.kind === "drawable") {
     return (target.geometryType === "line" || target.geometryType === "path") &&
       referencesRustSupportedLine(target.elementId, elementsById);
@@ -143,6 +147,10 @@ const referencesRustSupportedPointTargetValue = (
 ): boolean => {
   if (target.kind === "coordinate") return true;
   if (target.kind === "geometryValue") return target.geometryType === "point";
+  if (target.kind === "geometryValueMap") {
+    return target.geometryType === "point" &&
+      referencesRustSupportedPointTargetValue(target.source, elementsById);
+  }
   if (target.kind === "drawable") {
     if (target.geometryType !== "point") return false;
     return referencesRustSupportedPointAnchor(
@@ -167,7 +175,8 @@ const hasRustSupportedDeferredPointTarget = (
   return [...targets].some((target) => {
     const candidates = Array.isArray(target) ? target : [target];
     return candidates.some((candidate) =>
-      candidate.kind === "collectionIndex" && referencesRustSupportedPointTargetValue(candidate, elementsById)
+      (candidate.kind === "collectionIndex" || candidate.kind === "geometryValueMap") &&
+      referencesRustSupportedPointTargetValue(candidate, elementsById)
     );
   });
 };

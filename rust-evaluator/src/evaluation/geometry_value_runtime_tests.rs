@@ -977,14 +977,16 @@ fn invalid_through_values_use_exact_occurrence_owned_errors_without_drawable_ide
         result.geometry_value_errors[0].occurrence,
         super::types::GeometryValueOccurrence {
             source_statement_id: "value:through-duplicate".to_owned(),
-            instance_path: Vec::new()
+            instance_path: Vec::new(),
+            mapped_member_index: None
         }
     );
     assert_eq!(
         result.geometry_value_errors[1].occurrence,
         super::types::GeometryValueOccurrence {
             source_statement_id: "value:through-collinear".to_owned(),
-            instance_path: vec!["instance:one".to_owned()]
+            instance_path: vec!["instance:one".to_owned()],
+            mapped_member_index: None
         }
     );
     assert!(result.geometry_value_errors.iter().all(|error| {

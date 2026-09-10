@@ -39,6 +39,7 @@ pub(crate) struct ScalarExpressionResolvedGeometryTarget {
     pub(crate) geometry_type: GeometryInterfaceType,
     pub(crate) point_key: Option<String>,
     pub(crate) geometry_value_occurrence: Option<GeometryValueOccurrence>,
+    pub(crate) geometry_value_binder_id: Option<String>,
 }
 
 /// A source-text offset range, `[start, end)`. Never read for evaluation
@@ -307,6 +308,7 @@ pub(crate) enum TypedScalarExpression {
         collection_value_id: Option<String>,
         collection_length: Option<f64>,
         geometry_value_occurrence: Option<GeometryValueOccurrence>,
+        geometry_value_binder_id: Option<String>,
         geometry_value_point_key: Option<String>,
         property: String,
         target_source_order: f64,

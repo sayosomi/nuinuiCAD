@@ -196,6 +196,9 @@ export type GeometryValueProgramEntry = {
   occurrence: GeometryValueOccurrence;
   executionPosition: number;
   construction: GeometryValueProgramNode;
+  /** Collection-map entries are evaluated only when the selected member is
+   * materialized; length reads never force these bodies. */
+  lazy?: boolean;
 };
 
 export type GeometryValueProgram = readonly GeometryValueProgramEntry[];

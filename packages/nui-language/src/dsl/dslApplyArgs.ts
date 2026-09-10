@@ -58,7 +58,7 @@ export type DslAnchorResolver = (
   numeric: (source: string) => NumericValue,
   currentElement?: CadElement,
   sourceSpan?: DslSpan
-) => NonNullable<ReturnType<typeof resolveAnchorFromDsl>> | Extract<RuntimeGeometryInputTarget, { kind: "collectionIndex" }>;
+) => NonNullable<ReturnType<typeof resolveAnchorFromDsl>> | RuntimeGeometryInputTarget;
 
 export type DslEndpointResolver = (
   token: string,
@@ -131,10 +131,8 @@ export type DslGeometryResolverOverrides = {
   resolvePointReferenceList?: DslPointReferenceListResolver;
 };
 
-const isDeferredGeometryInputTarget = (
-  value: unknown
-): value is Extract<RuntimeGeometryInputTarget, { kind: "collectionIndex" }> =>
-  Boolean(value && typeof value === "object" && "kind" in value && value.kind === "collectionIndex" && "target" in value);
+const isDeferredGeometryInputTarget = (value: unknown): value is RuntimeGeometryInputTarget =>
+  Boolean(value && typeof value === "object" && "kind" in value);
 
 /** Dependencies supplied by the compiler skeleton when it connects P6 in C1. */
 export type DslApplyArgsResolvers = DslGeometryResolverOverrides & {

@@ -388,6 +388,7 @@ mod tests {
         computed_geometry.insert("curve".to_owned(), source_geometry("bezierCurve"));
         let mut state = EvaluationState {
             geometry_input_targets: HashMap::new(),
+            geometry_value_binders: HashMap::new(),
             elements: vec![element.clone()],
             elements_by_id,
             drawing_modifiers: serde_json::json!([]),
@@ -434,6 +435,7 @@ mod tests {
         computed_geometry.insert("curve".to_owned(), source_geometry("line"));
         let mut state = EvaluationState {
             geometry_input_targets: HashMap::new(),
+            geometry_value_binders: HashMap::new(),
             elements: vec![element.clone()],
             elements_by_id,
             drawing_modifiers: serde_json::json!([]),

@@ -12,7 +12,7 @@ use super::scalars::{
 use super::scalars::{
     resolve_geometry_builtin_target, GeometryBuiltinRuntimeError, GeometryBuiltinRuntimeTarget,
 };
-use super::types::{EvaluationState, GeometryValueOccurrence};
+use super::types::{EvaluationState, GeometryInputTarget, GeometryValueOccurrence};
 use serde_json::Value;
 
 struct ResolverEnvironment<'a> {
@@ -61,6 +61,56 @@ pub(crate) fn lookup_geometry_value_property(
             value: ScalarValue::Number(value),
         })
         .unwrap_or_else(|| unavailable_geometry_property(property_type))
+}
+
+pub(crate) fn lookup_geometry_value_binder_property(
+    state: &EvaluationState,
+    binder_id: &str,
+    point_key: Option<&str>,
+    property: &str,
+    target_source_order: f64,
+    current_source_order: Option<f64>,
+    property_type: &ScalarType,
+) -> ScalarEvaluation {
+    let Some(source) = state.geometry_value_binders.get(binder_id) else {
+        return unavailable_geometry_property(property_type);
+    };
+    match source {
+        GeometryInputTarget::Drawable { element_id, .. } => lookup_geometry_property(
+            state,
+            element_id,
+            property,
+            target_source_order,
+            current_source_order,
+            property_type,
+        ),
+        GeometryInputTarget::GeometryValue { occurrence, .. } => lookup_geometry_value_property(
+            state,
+            occurrence,
+            point_key,
+            property,
+            target_source_order,
+            current_source_order,
+            property_type,
+        ),
+        GeometryInputTarget::Coordinate { anchor } => {
+            let value = match property {
+                "x" => anchor.get("x").and_then(Value::as_f64),
+                "y" => anchor.get("y").and_then(Value::as_f64),
+                _ => None,
+            };
+            value
+                .map(|value| ScalarEvaluation::Ok {
+                    r#type: ScalarType::Number,
+                    value: ScalarValue::Number(value),
+                })
+                .unwrap_or_else(|| unavailable_geometry_property(property_type))
+        }
+        GeometryInputTarget::GeometryValueMap { .. }
+        | GeometryInputTarget::CollectionIndex { .. } => {
+            unavailable_geometry_property(property_type)
+        }
+    }
 }
 
 /// Resolves an already-validated geometry-property reference against the
@@ -178,6 +228,25 @@ impl ScalarEvaluationEnvironment for ResolverEnvironment<'_> {
         lookup_geometry_value_property(
             self.state,
             occurrence,
+            point_key,
+            property,
+            target_source_order,
+            self.current_source_order,
+            property_type,
+        )
+    }
+
+    fn lookup_geometry_value_binder_property(
+        &self,
+        binder_id: &str,
+        point_key: Option<&str>,
+        property: &str,
+        target_source_order: f64,
+        property_type: &ScalarType,
+    ) -> ScalarEvaluation {
+        lookup_geometry_value_binder_property(
+            self.state,
+            binder_id,
             point_key,
             property,
             target_source_order,

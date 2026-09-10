@@ -37,6 +37,7 @@ const lowerValue = (
       new Set([...visited, value.targetValueId])
     );
   }
+  if (value.kind === "map") return null;
 
   const ids: ElementId[] = [];
   for (const member of value.members) {
@@ -77,6 +78,7 @@ const lowerPointValue = (
     if (!target?.value) return null;
     return lowerPointValue(analysis, target.value, elementIdByStatementIndex, geometryValueByStatementIndex, new Set([...visited, value.targetValueId]));
   }
+  if (value.kind === "map") return null;
 
   const anchors: PointAnchor[] = [];
   for (const member of value.members) {
