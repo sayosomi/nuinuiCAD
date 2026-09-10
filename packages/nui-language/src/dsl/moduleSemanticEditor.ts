@@ -429,8 +429,18 @@ export const createModuleSemanticRangeIndex = (compiled: CompiledDslDocument): M
   for (const [statementId, site] of analysis.rootScalarExpressionsByStatementId) {
     const statementIndex = indexById.get(statementId);
     if (statementIndex === undefined) continue;
+    const statement = compiled.statements[statementIndex];
+    const isRootGeometryValue = statement?.kind === "typedDeclaration" && isDslGeometryValueType(statement.valueType);
     for (const reference of site.expression.references) {
-      if (reference.target?.kind === "deferredModuleScalarExport") addScalarReference(statementIndex, reference, add, addSourceTarget);
+      if (reference.target?.kind === "recordField") continue;
+      if (reference.target?.kind === "deferredModuleScalarExport") {
+        addScalarReference(statementIndex, reference, add, addSourceTarget);
+        continue;
+      }
+      if (!isRootGeometryValue) continue;
+      const target = sourceTarget(reference.target);
+      if (target?.kind === "moduleParameter") add(statementIndex, reference.nameSpan, target);
+      else addSourceTarget(statementIndex, reference.target, reference.nameSpan);
     }
   }
   tokens.sort((a, b) => a.from - b.from || b.to - a.to);

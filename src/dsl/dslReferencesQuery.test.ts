@@ -113,6 +113,46 @@ describe("queryDslReferences", () => {
     expect(slices(source, declaration!.referenceRanges)).toEqual(["P", "P"]);
   });
 
+  it("indexes root geometry value-if scalar and branch references", () => {
+    const source = [
+      "nui 1",
+      "const flag: boolean = true",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "const Selected: point = if (@flag) { @A } else { @B }"
+    ].join("\n");
+    const flag = queryAt(source, "flag");
+    const fromCondition = queryAt(source, "@flag");
+    const a = queryAt(source, "@A");
+    const b = queryAt(source, "@B");
+
+    expect(flag).not.toBeNull();
+    expect(fromCondition).toEqual(flag);
+    expect(slices(source, flag!.declarationRange)).toEqual(["flag"]);
+    expect(slices(source, flag!.referenceRanges)).toEqual(["flag"]);
+    expect(slices(source, a!.declarationRange)).toEqual(["A"]);
+    expect(slices(source, a!.referenceRanges)).toEqual(["A"]);
+    expect(slices(source, b!.declarationRange)).toEqual(["B"]);
+    expect(slices(source, b!.referenceRanges)).toEqual(["B"]);
+  });
+
+  it("indexes root geometry value-match scrutinee on the ordinary choice identity", () => {
+    const source = [
+      "nui 1",
+      "const side: choice(left, right) = left",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "const Selected: point = match @side { left => @A right => @B }"
+    ].join("\n");
+    const side = queryAt(source, "side");
+    const fromScrutinee = queryAt(source, "@side");
+
+    expect(side).not.toBeNull();
+    expect(fromScrutinee).toEqual(side);
+    expect(slices(source, side!.declarationRange)).toEqual(["side"]);
+    expect(slices(source, side!.referenceRanges)).toEqual(["side"]);
+  });
+
   it("indexes construction references through the existing geometry identity", () => {
     const source = [
       "nui 1",

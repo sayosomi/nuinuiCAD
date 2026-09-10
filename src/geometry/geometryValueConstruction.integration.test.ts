@@ -44,6 +44,25 @@ describe("pure geometry construction runtime", () => {
     expect(result.geometryValueErrors).toEqual([]);
   });
 
+  it("evaluates a root geometry value-if condition from an actual scalar reference", () => {
+    const { compiled, result } = evaluate([
+      "nui 1",
+      "const flag: boolean = true",
+      "const Selected: point =",
+      "  if (@flag) {",
+      "    coordinate(x: 1, y: 2)",
+      "  } else {",
+      "    coordinate(x: 100, y: 200)",
+      "  }"
+    ].join("\n"));
+
+    expect(compiled.diagnostics).toEqual([]);
+    expect([...result.computedGeometryValues?.values() ?? []].map((entry) => entry.value)).toEqual([
+      { kind: "point", x: 1, y: 2 }
+    ]);
+    expect(result.geometryValueErrors).toEqual([]);
+  });
+
   it("supports point, line, and path control-flow values through existing consumers", () => {
     const { compiled, result } = evaluate([
       "nui 1",
@@ -103,6 +122,25 @@ describe("pure geometry construction runtime", () => {
       "impossible-match-case",
       "module-undefined-geometry-reference"
     ]));
+  });
+
+  it("maps a multiline geometry value diagnostic to the exact offending branch token", () => {
+    const source = [
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "const Broken: point =",
+      "  if (true) {",
+      "    @Missing",
+      "  } else {",
+      "    @A",
+      "  }"
+    ].join("\n");
+    const compiled = compile(source);
+    const diagnostic = compiled.diagnostics.find((candidate) => candidate.code === "module-undefined-geometry-reference");
+    const missingFrom = source.indexOf("@Missing") + 1;
+
+    expect(diagnostic?.physicalSpan?.segments).toEqual([{ from: missingFrom, to: missingFrom + "Missing".length }]);
+    expect(source.slice(missingFrom, missingFrom + "Missing".length)).toBe("Missing");
   });
 
   it("remaps geometry control-flow values independently for repeated Module instances", () => {

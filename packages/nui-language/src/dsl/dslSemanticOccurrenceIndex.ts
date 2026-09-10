@@ -870,6 +870,14 @@ const addModuleSemanticPathOccurrences = (compiled: CompiledDslDocument, add: Ad
       }, "reference");
     }
   };
+  const addRootScalarReference = (statementIndex: number, reference: ModuleScalarExpressionSemantic["references"][number]) => {
+    const target = reference.target;
+    if (target?.kind !== "documentBinding") return;
+    addPhysicalOccurrence(add, compiled, statementIndex, reference.nameSpan, semanticIdentityForModuleTarget(compiled, {
+      kind: "documentBinding",
+      bindingId: target.bindingId
+    }), "reference");
+  };
   for (const [statementId, references] of analysis.rootGeometryReferencesByStatementId) {
     const statementIndex = statementIndexForId(compiled, statementId);
     if (statementIndex === undefined) continue;
@@ -878,7 +886,13 @@ const addModuleSemanticPathOccurrences = (compiled: CompiledDslDocument, add: Ad
   for (const [statementId, site] of analysis.rootScalarExpressionsByStatementId) {
     const statementIndex = statementIndexForId(compiled, statementId);
     if (statementIndex === undefined) continue;
-    for (const reference of site.expression.references) addCollectionIndexBase(statementIndex, reference);
+    for (const reference of site.expression.references) {
+      addCollectionIndexBase(statementIndex, reference);
+      const statement = compiled.statements[statementIndex];
+      if (statement?.kind === "typedDeclaration" && isDslGeometryValueType(statement.valueType)) {
+        addRootScalarReference(statementIndex, reference);
+      }
+    }
     for (const reference of site.expression.geometryProperties) addGeometry(statementIndex, reference);
   }
   for (const [statementId, site] of analysis.rootParentReferencesByStatementId) {

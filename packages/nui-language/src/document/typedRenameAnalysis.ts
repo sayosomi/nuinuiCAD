@@ -13,6 +13,7 @@ import { applyLineSplices } from "./textPatch";
 import { compileDslDocument } from "../dsl/dslDocument";
 import { moduleSemanticStableFingerprint } from "./moduleSemanticRenameAnalysis";
 import type { ModuleScalarExpressionSemantic, ModuleGeometryReferenceSemantic } from "../dsl/moduleSemanticTypes";
+import { isDslGeometryValueType } from "../dsl/dslValueTypes";
 
 export type { TypedRenameAnalysis, TypedRenameAnalysisRejected, TypedRenameSpan } from "../scalars/typedRenameAnalysis";
 
@@ -168,6 +169,12 @@ const moduleBindingOccurrences = (
     const statement = compiled.statementMap?.statementIndexByStatementId?.get(statementId);
     if (statement === undefined) continue;
     for (const site of sites) addGeometry(statement, site.reference);
+  }
+  for (const [statementId, site] of analysis.rootScalarExpressionsByStatementId) {
+    const statementIndex = compiled.statementMap?.statementIndexByStatementId?.get(statementId);
+    const statement = statementIndex === undefined ? undefined : compiled.statements[statementIndex];
+    if (statementIndex === undefined || statement?.kind !== "typedDeclaration" || !isDslGeometryValueType(statement.valueType)) continue;
+    addExpression(statementIndex, site.expression);
   }
   return result;
 };
