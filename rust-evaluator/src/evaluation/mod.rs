@@ -808,6 +808,7 @@ fn evaluate_document_input_with_scalar_program(
         computed_geometry: HashMap::new(),
         computed_geometry_values: HashMap::new(),
         geometry_input_targets,
+        geometry_value_binders: HashMap::new(),
         computed_geometry_order: Vec::new(),
         pre_mutation_geometry: HashMap::new(),
         geometry_mutation_executions: Vec::new(),
@@ -933,12 +934,15 @@ fn evaluate_document_input_with_scalar_program(
             && geometry_value_program[next_geometry_value_index].execution_position
                 <= current_execution_position
         {
-            let resolver = active_scalar_binding_resolver.unwrap_or(&empty_geometry_value_resolver);
-            geometry_value_runtime::evaluate_geometry_value_entry(
-                &geometry_value_program[next_geometry_value_index],
-                resolver,
-                &mut state,
-            );
+            if !geometry_value_program[next_geometry_value_index].lazy {
+                let resolver =
+                    active_scalar_binding_resolver.unwrap_or(&empty_geometry_value_resolver);
+                geometry_value_runtime::evaluate_geometry_value_entry(
+                    &geometry_value_program[next_geometry_value_index],
+                    resolver,
+                    &mut state,
+                );
+            }
             next_geometry_value_index += 1;
         }
         if template_descendant_ids.contains(&id) {
@@ -1254,11 +1258,13 @@ fn evaluate_document_input_with_scalar_program(
                     .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
             })
             .unwrap_or(&empty_geometry_value_resolver);
-        geometry_value_runtime::evaluate_geometry_value_entry(
-            &geometry_value_program[next_geometry_value_index],
-            remaining_geometry_value_resolver,
-            &mut state,
-        );
+        if !geometry_value_program[next_geometry_value_index].lazy {
+            geometry_value_runtime::evaluate_geometry_value_entry(
+                &geometry_value_program[next_geometry_value_index],
+                remaining_geometry_value_resolver,
+                &mut state,
+            );
+        }
         next_geometry_value_index += 1;
     }
     if evaluation_limit_index > 0 {

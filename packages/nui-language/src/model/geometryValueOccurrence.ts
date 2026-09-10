@@ -6,4 +6,7 @@ import type { GeometryValueOccurrence } from "./cadDocumentTypes";
 export type GeometryValueOccurrenceKey = string & { readonly __geometryValueOccurrenceKey: true };
 
 export const geometryValueOccurrenceKey = (occurrence: GeometryValueOccurrence): GeometryValueOccurrenceKey =>
-  encodeIdentityTuple(["geometry-value", occurrence.sourceStatementId, ...occurrence.instancePath]) as GeometryValueOccurrenceKey;
+  (occurrence.mappedMemberIndex === undefined
+    ? encodeIdentityTuple(["geometry-value", occurrence.sourceStatementId, ...occurrence.instancePath])
+    : encodeIdentityTuple(["geometry-value-map-member", occurrence.sourceStatementId, ...occurrence.instancePath, String(occurrence.mappedMemberIndex)])
+  ) as GeometryValueOccurrenceKey;

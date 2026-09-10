@@ -295,7 +295,7 @@ const geometryPropertyTargetForSourceTarget = (
   property: string,
   pointKey?: string
 ): ModuleGeometryPropertySourceTarget | null => {
-  const effectivePointKey = pointKey ?? target.pointKey;
+  const effectivePointKey = pointKey ?? ("pointKey" in target ? target.pointKey : undefined);
   if (target.kind === "geometryValue") {
     if (target.backingTarget) return geometryPropertyTargetForSourceTarget(target.backingTarget, property, effectivePointKey);
     return {
@@ -453,6 +453,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
   const definitionStates: DefinitionState[] = [];
   const stateByIndex = new Map<number, DefinitionState>();
   const geometryValuesByStatementIndex = new Map<number, ModuleGeometryValueSemantic>();
+  const instances: ModuleInstanceSemantic[] = [];
   const definitions = statements
     .map((statement, statementIndex) => ({ statement, statementIndex }))
     .filter((entry): entry is { statement: Extract<DslStatement, { kind: "moduleDefinition" }>; statementIndex: number } => entry.statement.kind === "moduleDefinition");
@@ -650,6 +651,38 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     }
     return { callee: null, externalTarget: null, lookup };
   };
+
+  // Body semantic analysis needs instance -> callee identity to resolve
+  // qualified exports, while full argument analysis waits for branch facts.
+  // Seed the existing instance collection with those identities first; the
+  // complete pass below replaces these shells with normalized bindings.
+  for (const [statementIndex, statement] of statements.entries()) {
+    if (statement.kind !== "moduleInstance") continue;
+    const ownerIndex = moduleOwnerIndexOf(statements, statementIndex);
+    const resolved = resolveModuleCallee(statementIndex, ownerIndex, statement.moduleName);
+    const { callee } = resolved;
+    const lookup = resolved.lookup;
+    const calleeResolution: ModuleInstanceSemantic["calleeResolution"] = callee
+      ? "resolved"
+      : lookup.kind === "external" && (lookup.member.value as { family?: unknown }).family !== "module"
+        ? "notModule"
+      : lookup.kind === "forward"
+        ? "forward"
+        : lookup.kind === "ambiguous"
+          ? "ambiguous"
+      : lookup.kind === "parameter" || lookup.kind === "iteration" || lookup.kind === "resolved"
+        ? "notModule"
+        : "undefined";
+    instances.push({
+      statementId: statementIdAt(stableStatementIdByIndex, statementIndex),
+      statementIndex,
+      name: statement.name,
+      callerModuleDefinitionStatementId: ownerIndex === null ? null : stateByIndex.get(ownerIndex)?.statementId ?? null,
+      callee,
+      calleeResolution,
+      parameterBindings: []
+    });
+  }
 
   const relatedForLookup = (
     lookup: ModuleLexicalLookup | ReturnType<typeof resolveModuleLexicalPath>,
@@ -1754,6 +1787,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     );
   };
 
+  let activeGeometryValueBinder: Extract<ModuleGeometrySourceTarget, { kind: "geometryValueForBinder" }> | null = null;
+
   const resolveGeometry = (
     statementIndex: number,
     ownerIndex: number | null,
@@ -1795,6 +1830,23 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       if (options.allowNone) return semantic(null, "resolved");
       addLocal(statementIndex, issue("module-geometry-none", semanticSpan, `geometry ${expectedDiagnosticType} reference に none は指定できません。`, { presentation: { key: "diagnostic.module-geometry-none", parameters: { expected: expectedDiagnosticType } } }));
       return semantic(null, "invalid");
+    }
+    if (activeGeometryValueBinder) {
+      const binderPath = parseDslSourceReference(trimmed);
+      const parsedBinderPath = binderPath.kind === "valid" && !binderPath.reference.property
+        ? parseDslReferenceToken(binderPath.reference.pathText)
+        : null;
+      const expectedBinderType = options.expectedInterfaceType ?? expected;
+      if (parsedBinderPath && !parsedBinderPath.absolute && parsedBinderPath.segments.length === 1 && parsedBinderPath.segments[0] === activeGeometryValueBinder.name) {
+        referenceNameSpan = semanticSpan;
+        if (!isModuleGeometryInterfaceAssignable(activeGeometryValueBinder.sourceElementType, expectedBinderType)) {
+          addLocal(statementIndex, issue("module-geometry-type-mismatch", semanticSpan, `geometry value-for binder「${activeGeometryValueBinder.name}」の型が一致しません。`, {
+            presentation: { key: "diagnostic.module-geometry-type-mismatch", parameters: { target: activeGeometryValueBinder.name } }
+          }));
+          return semantic(null, "invalid");
+        }
+        return semantic(activeGeometryValueBinder, "resolved");
+      }
     }
     const parsedScalar = logicalSource
       ? parseScalarExpression(logicalSource, semanticSpan)
@@ -3334,6 +3386,34 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     const pointPath = /^(start|end)\.(x|y)$/.exec(reference.property);
     const resolvedProperty = pointPath ? pointPath[2]! : reference.property;
     const resolvedPointKey = pointPath ? pointPath[1] : undefined;
+    if (activeGeometryValueBinder) {
+      const binderPath = parseDslReferenceToken(reference.elementName);
+      if (!binderPath.absolute && binderPath.segments.length === 1 && binderPath.segments[0] === activeGeometryValueBinder.name) {
+        const type = pointPath
+          ? { kind: "number" as const }
+          : numericGeometryPropertySupportedByStaticTarget(
+              numericGeometryStaticTargetForModuleInterface(activeGeometryValueBinder.sourceElementType),
+              reference.property
+            )
+            ? { kind: "number" as const }
+            : null;
+        if (!type) return unknownProperty();
+        return {
+          target: {
+            kind: "geometryValueForBinder",
+            binderId: activeGeometryValueBinder.binderId,
+            statementId: activeGeometryValueBinder.statementId,
+            statementIndex: activeGeometryValueBinder.statementIndex,
+            name: activeGeometryValueBinder.name,
+            sourceElementType: activeGeometryValueBinder.sourceElementType,
+            property: resolvedProperty,
+            ...(resolvedPointKey ? { pointKey: resolvedPointKey } : {})
+          },
+          type,
+          resolution: "resolved"
+        };
+      }
+    }
     const qualified = resolveQualifiedModuleExport(statementIndex, ownerIndex, reference.elementName, reference.elementNameSpan);
     if (qualified?.kind === "deferred") {
       const exported = qualifiedScalarExportFor(qualified);
@@ -3853,7 +3933,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         }
       } else {
         const parsedReference = parseDslSourceReference(statement.initializer.trim());
-        if (parsedReference.kind !== "valid") {
+        const parsedCollectionIndex = parseScalarExpression(`${" ".repeat(initializerSpan.start)}${statement.initializer}`, initializerSpan).ast?.kind === "collectionIndex";
+        if (parsedReference.kind !== "valid" && !parsedCollectionIndex) {
         addLocal(statementIndex, issue(
           "geometry-value-reference-required",
           initializerSpan,
@@ -4237,39 +4318,6 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       valueType
     };
   };
-  const instances: ModuleInstanceSemantic[] = [];
-  // Body semantic analysis needs instance -> callee identity to resolve
-  // qualified exports, while full argument analysis waits for branch facts.
-  // Seed the existing instance collection with those identities first; the
-  // complete pass below replaces these shells with normalized bindings.
-  for (const [statementIndex, statement] of statements.entries()) {
-    if (statement.kind !== "moduleInstance") continue;
-    const ownerIndex = moduleOwnerIndexOf(statements, statementIndex);
-    const resolved = resolveModuleCallee(statementIndex, ownerIndex, statement.moduleName);
-    const { callee } = resolved;
-    const lookup = resolved.lookup;
-    const calleeResolution: ModuleInstanceSemantic["calleeResolution"] = callee
-      ? "resolved"
-      : lookup.kind === "external" && (lookup.member.value as { family?: unknown }).family !== "module"
-        ? "notModule"
-      : lookup.kind === "forward"
-        ? "forward"
-        : lookup.kind === "ambiguous"
-          ? "ambiguous"
-      : lookup.kind === "parameter" || lookup.kind === "iteration" || lookup.kind === "resolved"
-        ? "notModule"
-        : "undefined";
-    instances.push({
-      statementId: statementIdAt(stableStatementIdByIndex, statementIndex),
-      statementIndex,
-      name: statement.name,
-      callerModuleDefinitionStatementId: ownerIndex === null ? null : stateByIndex.get(ownerIndex)?.statementId ?? null,
-      callee,
-      calleeResolution,
-      parameterBindings: []
-    });
-  }
-
   const analyzeInstances = () => {
     for (const [statementIndex, statement] of statements.entries()) {
       if (statement.kind !== "moduleInstance") continue;
@@ -4604,8 +4652,83 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     }
   }
 
+  // Geometry collection maps use the existing geometry-value semantic parser
+  // and a narrow immutable binder overlay. The collection owner supplies the
+  // source identity/type; this pass owns the body spans and resolved leaves.
+  for (const value of sourceNamespace.geometryArraySemanticAnalysis?.values ?? []) {
+    if (value.ownerModuleDefinitionStatementIndex !== null || value.value?.kind !== "map") continue;
+    const statement = statements[value.statementIndex];
+    const initializerSpan = statement?.kind === "typedDeclaration" ? statement.payloadSpans.initializer : undefined;
+    if (!statement || statement.kind !== "typedDeclaration" || !initializerSpan) continue;
+    const mapped = value.value;
+    const bodyRaw = statement.initializer.slice(mapped.bodySpan.start - initializerSpan.start, mapped.bodySpan.end - initializerSpan.start);
+    const bodySource = `${" ".repeat(mapped.bodySpan.start)}${bodyRaw}`;
+    const parsedBody = parseScalarExpression(bodySource, mapped.bodySpan, { allowOpaqueNamedCalls: true });
+    for (const parserDiagnostic of parsedBody.diagnostics) addLocal(value.statementIndex, issue(parserDiagnostic.code, parserDiagnostic.span, parserDiagnostic.message));
+    if (!parsedBody.ast) continue;
+    const binder: Extract<ModuleGeometrySourceTarget, { kind: "geometryValueForBinder" }> = {
+      kind: "geometryValueForBinder",
+      binderId: mapped.binderId,
+      statementId: value.statementId,
+      statementIndex: value.statementIndex,
+      name: mapped.binder,
+      sourceElementType: mapped.sourceElementType
+    };
+    const previousBinder: Extract<ModuleGeometrySourceTarget, { kind: "geometryValueForBinder" }> | null = activeGeometryValueBinder;
+    activeGeometryValueBinder = binder;
+    try {
+      const body = parseGeometryValueExpression({
+        statementIndex: value.statementIndex,
+        ownerIndex: null,
+        source: bodySource,
+        node: parsedBody.ast,
+        expectedInterfaceType: mapped.resultElementType,
+        analyzeScalar: (raw, span, expectedType) => analyzeExpression(
+          value.statementIndex,
+          null,
+          raw,
+          span,
+          expectedType,
+          (reference, presenceFacts) => resolveSourceScalar(value.statementIndex, null, reference.name, null, reference.span, presenceFacts),
+          undefined,
+          (reference) => resolveGeometryProperty(value.statementIndex, null, reference),
+          (reference) => resolveGeometry(value.statementIndex, null, `@${reference.name}`, reference.span, reference.expectedGeometryType, {
+            expectedInterfaceType: reference.expectedGeometryType,
+            role: reference.expectedGeometryType === "point" ? "pointReference" : "lineReference"
+          })
+        ),
+        resolveReference: (raw, span) => resolveGeometry(
+          value.statementIndex,
+          null,
+          raw,
+          span,
+          mapped.resultElementType === "point" ? "point" : "line",
+          {
+            expectedInterfaceType: mapped.resultElementType,
+            role: mapped.resultElementType === "point" ? "pointReference" : "lineReference"
+          }
+        ),
+        parseConstruction: (raw, span, expectedInterfaceType) => parseGeometryValueConstruction(
+          value.statementIndex,
+          null,
+          raw,
+          span,
+          expectedInterfaceType,
+          {
+            geometryPropertyResolver: (reference) => resolveGeometryProperty(value.statementIndex, null, reference)
+          }
+        ),
+        addDiagnostic: (diagnostic) => addLocal(value.statementIndex, diagnostic)
+      });
+      if (body) mapped.body = body;
+    } finally {
+      activeGeometryValueBinder = previousBinder;
+    }
+  }
+
   const localScalarsByDefinition = new Map<number, ModuleDefinitionSemantic["localScalars"]>();
   const mappedScalarCollectionBodiesByDefinition = new Map<number, ModuleDefinitionSemantic["mappedScalarCollectionBodies"]>();
+  const mappedGeometryCollectionBodiesByDefinition = new Map<number, ModuleDefinitionSemantic["mappedGeometryCollectionBodies"]>();
   const localGeometryValuesByDefinition = new Map<number, ModuleGeometryValueSemantic[]>();
   const bodyStatementsByDefinition = new Map<number, ModuleDefinitionSemantic["bodyStatements"]>();
   const recordValuesByDefinition = new Map<number, ModuleDefinitionSemantic["recordValues"]>();
@@ -4703,6 +4826,91 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       }
     }
     mappedScalarCollectionBodiesByDefinition.set(definition.statementIndex, mappedScalarCollectionBodies);
+    const mappedGeometryCollectionBodies: NonNullable<ModuleDefinitionSemantic["mappedGeometryCollectionBodies"]>[number][] = [];
+    const geometryCollectionAnalysis = sourceNamespace.geometryArraySemanticAnalysis;
+    for (const value of geometryCollectionAnalysis?.values ?? []) {
+      if (value.ownerModuleDefinitionStatementIndex !== definition.statementIndex || value.value?.kind !== "map") continue;
+      const statement = statements[value.statementIndex];
+      const mapped = value.value;
+      if (statement?.kind !== "typedDeclaration") continue;
+      const initializerSpan = statement.payloadSpans.initializer;
+      if (!initializerSpan) continue;
+      const bodyRaw = statement.initializer.slice(mapped.bodySpan.start - initializerSpan.start, mapped.bodySpan.end - initializerSpan.start);
+      const bodySource = `${" ".repeat(mapped.bodySpan.start)}${bodyRaw}`;
+      const parsedBody = parseScalarExpression(bodySource, mapped.bodySpan, { allowOpaqueNamedCalls: true });
+      for (const parserDiagnostic of parsedBody.diagnostics) addLocal(value.statementIndex, issue(parserDiagnostic.code, parserDiagnostic.span, parserDiagnostic.message));
+      if (!parsedBody.ast) continue;
+      const binder: Extract<ModuleGeometrySourceTarget, { kind: "geometryValueForBinder" }> = {
+        kind: "geometryValueForBinder",
+        binderId: mapped.binderId,
+        statementId: value.statementId,
+        statementIndex: value.statementIndex,
+        name: mapped.binder,
+        sourceElementType: mapped.sourceElementType
+      };
+      const previousBinder: Extract<ModuleGeometrySourceTarget, { kind: "geometryValueForBinder" }> | null = activeGeometryValueBinder;
+      activeGeometryValueBinder = binder;
+      try {
+        const body = parseGeometryValueExpression({
+          statementIndex: value.statementIndex,
+          ownerIndex: definition.statementIndex,
+          source: bodySource,
+          node: parsedBody.ast,
+          expectedInterfaceType: mapped.resultElementType,
+          analyzeScalar: (raw, span, expectedType) => analyzeExpression(
+            value.statementIndex,
+            definition.statementIndex,
+            raw,
+            span,
+            expectedType,
+            (reference, presenceFacts) => resolveBodyScalar(value.statementIndex, definition.statementIndex, reference, presenceFacts),
+            undefined,
+            (reference) => resolveGeometryProperty(value.statementIndex, definition.statementIndex, reference),
+            (reference) => resolveGeometry(value.statementIndex, definition.statementIndex, `@${reference.name}`, reference.span, reference.expectedGeometryType, {
+              expectedInterfaceType: reference.expectedGeometryType,
+              role: reference.expectedGeometryType === "point" ? "pointReference" : "lineReference",
+              presenceFacts: reference.presenceFacts
+            })
+          ),
+          resolveReference: (raw, span) => resolveGeometry(
+            value.statementIndex,
+            definition.statementIndex,
+            raw,
+            span,
+            mapped.resultElementType === "point" ? "point" : "line",
+            {
+              expectedInterfaceType: mapped.resultElementType,
+              role: mapped.resultElementType === "point" ? "pointReference" : "lineReference"
+            }
+          ),
+          parseConstruction: (raw, span, expectedInterfaceType) => parseGeometryValueConstruction(
+            value.statementIndex,
+            definition.statementIndex,
+            raw,
+            span,
+            expectedInterfaceType,
+            {
+              geometryPropertyResolver: (reference) => resolveGeometryProperty(value.statementIndex, definition.statementIndex, reference)
+            }
+          ),
+          addDiagnostic: (diagnostic) => addLocal(value.statementIndex, diagnostic)
+        });
+        if (body) {
+          mapped.body = body;
+          mappedGeometryCollectionBodies.push({
+            statementId: value.statementId,
+            statementIndex: value.statementIndex,
+            binderId: mapped.binderId,
+            sourceElementType: mapped.sourceElementType,
+            resultElementType: mapped.resultElementType,
+            body
+          });
+        }
+      } finally {
+        activeGeometryValueBinder = previousBinder;
+      }
+    }
+    mappedGeometryCollectionBodiesByDefinition.set(definition.statementIndex, mappedGeometryCollectionBodies);
     localGeometryValuesByDefinition.set(definition.statementIndex, body.localGeometryValues);
     bodyStatementsByDefinition.set(definition.statementIndex, body.bodyStatements);
     for (const statement of body.bodyStatements) presenceFactsByStatementIndex.set(statement.statementIndex, new Set(statement.presenceParameterKeys));
@@ -4893,6 +5101,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     parameters: definition.parameters,
     localScalars: localScalarsByDefinition.get(definition.statementIndex) ?? [],
     mappedScalarCollectionBodies: mappedScalarCollectionBodiesByDefinition.get(definition.statementIndex) ?? [],
+    mappedGeometryCollectionBodies: mappedGeometryCollectionBodiesByDefinition.get(definition.statementIndex) ?? [],
     localGeometryValues: localGeometryValuesByDefinition.get(definition.statementIndex) ?? [],
     recordValues: recordValuesByDefinition.get(definition.statementIndex) ?? [],
     bodyStatements: bodyStatementsByDefinition.get(definition.statementIndex) ?? [],
@@ -5100,6 +5309,10 @@ export const decorateDocumentQualifiedModuleSemantics = (
     mappedScalarCollectionBodies: definition.mappedScalarCollectionBodies.map((mapped) => ({
       ...mapped,
       body: mapExpression(mapped.body)
+    })),
+    mappedGeometryCollectionBodies: (definition.mappedGeometryCollectionBodies ?? []).map((mapped) => ({
+      ...mapped,
+      body: mapGeometryValueExpression(mapped.body)
     })),
     localGeometryValues: definition.localGeometryValues.map((value) => ({
       ...value,

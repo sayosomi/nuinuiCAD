@@ -139,6 +139,17 @@ export type ModuleScalarSourceTarget =
 export type ModuleGeometrySourceTarget =
   | (ModuleParameterSlot & { kind: "parameter"; geometryKind: "point" | "line"; pointKey?: string })
   | {
+      /** Immutable geometry binder owned by a geometry collection map. It is
+       * resolved once by the Module semantic pass and never re-looked up by
+       * name in later lowering/runtime stages. */
+      kind: "geometryValueForBinder";
+      binderId: BindingId;
+      statementId: StatementIdentity;
+      statementIndex: number;
+      name: string;
+      sourceElementType: ModuleGeometryInterfaceType;
+    }
+  | {
       kind: "collectionIndex";
       collectionValueId: string;
       collectionLength: number | null;
@@ -195,13 +206,13 @@ export const unwrapModuleGeometrySourceTarget = (target: ModuleGeometrySourceTar
   pointKey?: string;
 } => {
   let current = target;
-  let pointKey = target.pointKey;
+  let pointKey = "pointKey" in target ? target.pointKey : undefined;
   while (current.kind === "geometryValue") {
     pointKey ??= current.pointKey;
     if (!current.backingTarget) break;
     current = current.backingTarget;
   }
-  pointKey ??= current.pointKey;
+  pointKey ??= "pointKey" in current ? current.pointKey : undefined;
   return { target: current, ...(pointKey ? { pointKey } : {}) };
 };
 
@@ -224,6 +235,16 @@ export type ModuleParentReferenceSemantic = {
 
 export type ModuleGeometryPropertySourceTarget =
   | ModuleRecordFieldSourceTarget
+  | {
+      kind: "geometryValueForBinder";
+      binderId: BindingId;
+      statementId: StatementIdentity;
+      statementIndex: number;
+      name: string;
+      sourceElementType: ModuleGeometryInterfaceType;
+      property: string;
+      pointKey?: string;
+    }
   | {
       kind: "collectionValueLength";
       statementId: StatementIdentity;
@@ -779,6 +800,16 @@ export type ModuleDefinitionSemantic = {
     sourceElementType: ScalarType;
     resultElementType: ScalarType;
     body: ModuleScalarExpressionSemantic;
+  }[];
+  /** Geometry-valued value-for bodies use the existing geometry-value semantic
+   * expression owner and are rematerialized per Module instance. */
+  mappedGeometryCollectionBodies?: readonly {
+    statementId: StatementIdentity;
+    statementIndex: number;
+    binderId: BindingId;
+    sourceElementType: ModuleGeometryInterfaceType;
+    resultElementType: ModuleGeometryInterfaceType;
+    body: ModuleGeometryValueExpressionSemantic;
   }[];
   localGeometryValues: readonly ModuleGeometryValueSemantic[];
   recordValues: readonly ModuleRecordValueSemantic[];

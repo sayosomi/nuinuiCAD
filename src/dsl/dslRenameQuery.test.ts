@@ -62,6 +62,74 @@ describe("host-neutral DSL rename query", () => {
     expect(compile(applyEdits(source, plan.plan.edits)).diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
   });
 
+  it("renames a geometry value-for binder and its property references only within the mapped body", () => {
+    const source = [
+      "nui 1",
+      "const points: point[] = [(1, 2), (3, 4)]",
+      "const mapped: point[] = for item in @points { coordinate(x: @item.x, y: @item.y) }"
+    ].join("\n");
+    const plan = planDslRenameEditsResult(snapshot(source), at(source, "@item.x") + 1, "pointValue");
+    expect(plan.status).toBe("ok");
+    if (plan.status !== "ok") return;
+    expect(plan.plan.edits.map((edit) => source.slice(edit.from, edit.to))).toEqual(["item", "item", "item"]);
+    expect(plan.plan.edits.every((edit) => edit.newText === "pointValue")).toBe(true);
+    expect(compile(applyEdits(source, plan.plan.edits)).diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+  });
+
+  it("renames a geometry value-for binder used by a builtin operand without touching ordinary geometry", () => {
+    const source = [
+      "nui 1",
+      "point Origin = coordinate(x: 0, y: 0)",
+      "const points: point[] = [(1, 2), (3, 4)]",
+      "const mapped: point[] = for item in @points { if (distance(@item, @Origin) > 0) { @item } else { coordinate(x: 0, y: 0) } }",
+      "point item = coordinate(x: 99, y: 99)"
+    ].join("\n");
+    const plan = planDslRenameEditsResult(snapshot(source), at(source, "@item") + 1, "value");
+    expect(plan.status).toBe("ok");
+    if (plan.status !== "ok") return;
+    expect(plan.plan.edits.map((edit) => source.slice(edit.from, edit.to))).toEqual(["item", "item", "item"]);
+    expect(plan.plan.edits.every((edit) => edit.newText === "value")).toBe(true);
+    const renamed = applyEdits(source, plan.plan.edits);
+    expect(renamed).toContain("distance(@value, @Origin)");
+    expect(renamed).toContain("point item = coordinate(x: 99, y: 99)");
+    expect(renamed).toContain("@Origin");
+    expect(compile(renamed).diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+  });
+
+  it("rejects a geometry value-for rename that would capture an ordinary builtin operand", () => {
+    const source = [
+      "nui 1",
+      "point Origin = coordinate(x: 0, y: 0)",
+      "const points: point[] = [(1, 2), (3, 4)]",
+      "const mapped: point[] = for item in @points { if (distance(@item, @Origin) > 0) { @item } else { coordinate(x: 0, y: 0) } }"
+    ].join("\n");
+    const plan = planDslRenameEditsResult(snapshot(source), at(source, "@item") + 1, "Origin");
+    expect(plan.status).toBe("rejected");
+    if (plan.status !== "rejected") return;
+    expect(plan.rejection).toMatchObject({
+      reason: "reference-resolution-change",
+      family: "typed",
+      referencedName: "Origin"
+    });
+  });
+
+  it("rejects a geometry value-for rename that would capture an ordinary geometry name", () => {
+    const source = [
+      "nui 1",
+      "point other = coordinate(x: 9, y: 9)",
+      "const points: point[] = [(1, 2), (3, 4)]",
+      "const mapped: point[] = for item in @points { coordinate(x: @other.x, y: @item.y) }"
+    ].join("\n");
+    const plan = planDslRenameEditsResult(snapshot(source), at(source, "item in"), "other");
+    expect(plan.status).toBe("rejected");
+    if (plan.status !== "rejected") return;
+    expect(plan.rejection).toMatchObject({
+      reason: "reference-resolution-change",
+      family: "typed",
+      referencedName: "other"
+    });
+  });
+
   it("renames a root immutable geometry alias without touching its backing geometry", () => {
     const source = [
       "nui 1",

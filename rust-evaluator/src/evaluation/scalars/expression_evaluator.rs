@@ -80,6 +80,22 @@ pub(crate) trait ScalarEvaluationEnvironment {
         }
     }
 
+    fn lookup_geometry_value_binder_property(
+        &self,
+        _binder_id: &str,
+        _point_key: Option<&str>,
+        _property: &str,
+        _target_source_order: f64,
+        property_type: &ScalarType,
+    ) -> ScalarEvaluation {
+        ScalarEvaluation::Error {
+            r#type: property_type.clone(),
+            issue_code: "evaluation-geometry-property-unavailable".to_owned(),
+            binding_id: None,
+            context: None,
+        }
+    }
+
     fn lookup_geometry_builtin_target(
         &self,
         _target: &ScalarExpressionResolvedGeometryTarget,
@@ -414,6 +430,7 @@ fn eval_node<'a>(
             element_id,
             collection_length,
             geometry_value_occurrence,
+            geometry_value_binder_id,
             geometry_value_point_key,
             property,
             target_source_order,
@@ -425,6 +442,14 @@ fn eval_node<'a>(
                     r#type: r#type.clone(),
                     value: ScalarValue::Number(*length),
                 }
+            } else if let Some(binder_id) = geometry_value_binder_id {
+                environment.lookup_geometry_value_binder_property(
+                    binder_id,
+                    geometry_value_point_key.as_deref(),
+                    property,
+                    *target_source_order,
+                    r#type,
+                )
             } else if let Some(occurrence) = geometry_value_occurrence {
                 environment.lookup_geometry_value_property(
                     occurrence,

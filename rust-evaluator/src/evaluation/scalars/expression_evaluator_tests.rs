@@ -246,6 +246,7 @@ fn geometry_argument(
             geometry_type: target_geometry_type,
             point_key: None,
             geometry_value_occurrence: None,
+            geometry_value_binder_id: None,
         }),
     }
 }
@@ -543,6 +544,7 @@ fn evaluates_number_boolean_nested_reference_and_geometry_builtin_calls() {
                 collection_value_id: None,
                 collection_length: None,
                 geometry_value_occurrence: None,
+                geometry_value_binder_id: None,
                 geometry_value_point_key: None,
                 property: "length".to_owned(),
                 target_source_order: 0.0,
@@ -598,6 +600,7 @@ fn evaluates_collection_length_without_geometry_runtime_lookup() {
         collection_value_id: Some("statement:items".to_owned()),
         collection_length: Some(4.0),
         geometry_value_occurrence: None,
+        geometry_value_binder_id: None,
         geometry_value_point_key: None,
         property: "length".to_owned(),
         target_source_order: 0.0,
@@ -1242,6 +1245,7 @@ fn geometry_runtime_disabled_is_distinct_from_unavailable() {
         geometry_type: GeometryInterfaceType::Point,
         point_key: None,
         geometry_value_occurrence: None,
+        geometry_value_binder_id: None,
     };
     let node = geometry_call(
         BuiltinFunctionName::Distance,
@@ -1264,9 +1268,9 @@ fn geometry_runtime_disabled_is_distinct_from_unavailable() {
     let environment = GeometryBuiltinEnvironment {
         targets: HashMap::from([(
             "disabled".to_owned(),
-            Err(GeometryBuiltinRuntimeError::Disabled(
+            Err(GeometryBuiltinRuntimeError::Disabled(Box::new(
                 disabled_target.clone(),
-            )),
+            ))),
         )]),
         looked_up: RefCell::new(Vec::new()),
     };
@@ -1292,6 +1296,7 @@ fn geometry_runtime_disabled_reports_first_failed_target_and_preserves_derived_p
         geometry_type: GeometryInterfaceType::Point,
         point_key: None,
         geometry_value_occurrence: None,
+        geometry_value_binder_id: None,
     };
     let second_target = ScalarExpressionResolvedGeometryTarget {
         statement_id: "second".to_owned(),
@@ -1299,6 +1304,7 @@ fn geometry_runtime_disabled_reports_first_failed_target_and_preserves_derived_p
         geometry_type: GeometryInterfaceType::Point,
         point_key: Some("start".to_owned()),
         geometry_value_occurrence: None,
+        geometry_value_binder_id: None,
     };
     let node = geometry_call(
         BuiltinFunctionName::Distance,
@@ -1319,7 +1325,9 @@ fn geometry_runtime_disabled_reports_first_failed_target_and_preserves_derived_p
             ("first".to_owned(), Ok(runtime_point("first", 0.0, 0.0))),
             (
                 "second".to_owned(),
-                Err(GeometryBuiltinRuntimeError::Disabled(second_target.clone())),
+                Err(GeometryBuiltinRuntimeError::Disabled(Box::new(
+                    second_target.clone(),
+                ))),
             ),
         ]),
         looked_up: RefCell::new(Vec::new()),
@@ -1343,11 +1351,15 @@ fn geometry_runtime_disabled_reports_first_failed_target_and_preserves_derived_p
         targets: HashMap::from([
             (
                 "first".to_owned(),
-                Err(GeometryBuiltinRuntimeError::Disabled(first_disabled_target)),
+                Err(GeometryBuiltinRuntimeError::Disabled(Box::new(
+                    first_disabled_target,
+                ))),
             ),
             (
                 "second".to_owned(),
-                Err(GeometryBuiltinRuntimeError::Disabled(second_target)),
+                Err(GeometryBuiltinRuntimeError::Disabled(Box::new(
+                    second_target,
+                ))),
             ),
         ]),
         looked_up: RefCell::new(Vec::new()),
@@ -1367,6 +1379,7 @@ fn geometry_runtime_disabled_reports_first_failed_target_and_preserves_derived_p
                         geometry_type: GeometryInterfaceType::Point,
                         point_key: None,
                         geometry_value_occurrence: None,
+                        geometry_value_binder_id: None,
                     }),
                 },
                 TypedBuiltinArgument::GeometryReference {
@@ -1377,6 +1390,7 @@ fn geometry_runtime_disabled_reports_first_failed_target_and_preserves_derived_p
                         geometry_type: GeometryInterfaceType::Point,
                         point_key: Some("start".to_owned()),
                         geometry_value_occurrence: None,
+                        geometry_value_binder_id: None,
                     }),
                 },
             ],

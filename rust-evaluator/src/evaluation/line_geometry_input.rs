@@ -52,7 +52,11 @@ fn decode_occurrence(
     let object = value
         .as_object()
         .ok_or_else(|| invalid(format!("{context} must be an object")))?;
-    reject_unexpected_fields(object, &["sourceStatementId", "instancePath"], context)?;
+    reject_unexpected_fields(
+        object,
+        &["sourceStatementId", "instancePath", "mappedMemberIndex"],
+        context,
+    )?;
     let source_statement_id = non_empty_string(object, "sourceStatementId", context)?;
     let instance_path = object
         .get("instancePath")
@@ -71,9 +75,18 @@ fn decode_occurrence(
                 })
         })
         .collect::<Result<Vec<_>, _>>()?;
+    let mapped_member_index = object
+        .get("mappedMemberIndex")
+        .and_then(Value::as_u64)
+        .map(|value| {
+            usize::try_from(value)
+                .map_err(|_| invalid(format!("{context}.mappedMemberIndex is too large")))
+        })
+        .transpose()?;
     Ok(GeometryValueOccurrence {
         source_statement_id,
         instance_path,
+        mapped_member_index,
     })
 }
 
@@ -131,6 +144,83 @@ fn decode_target(
                     .get("pointKey")
                     .and_then(Value::as_str)
                     .map(ToOwned::to_owned),
+            })
+        }
+        "geometryValueMap" => {
+            reject_unexpected_fields(
+                object,
+                &[
+                    "kind",
+                    "occurrence",
+                    "binderId",
+                    "geometryType",
+                    "pointKey",
+                    "source",
+                    "program",
+                    "executionPosition",
+                    "declaredInterfaceType",
+                ],
+                context,
+            )?;
+            let geometry_type = non_empty_string(object, "geometryType", context)?;
+            if geometry_type != "point" && geometry_type != "line" && geometry_type != "path" {
+                return Err(invalid(format!(
+                    "{context}.geometryType must be point, line, or path"
+                )));
+            }
+            let declared_interface_type =
+                non_empty_string(object, "declaredInterfaceType", context)?;
+            if declared_interface_type != "point"
+                && declared_interface_type != "line"
+                && declared_interface_type != "path"
+            {
+                return Err(invalid(format!(
+                    "{context}.declaredInterfaceType must be point, line, or path"
+                )));
+            }
+            let execution_position = object
+                .get("executionPosition")
+                .and_then(Value::as_f64)
+                .filter(|value| value.is_finite())
+                .ok_or_else(|| invalid(format!("{context}.executionPosition must be finite")))?;
+            let source = decode_target(
+                object
+                    .get("source")
+                    .ok_or_else(|| invalid(format!("{context}.source is required")))?,
+                &format!("{context}.source"),
+            )?;
+            if matches!(
+                source,
+                GeometryInputTarget::CollectionIndex { .. }
+                    | GeometryInputTarget::GeometryValueMap { .. }
+            ) {
+                return Err(invalid(format!(
+                    "{context}.source must be an already-resolved geometry target"
+                )));
+            }
+            let program = super::geometry_value_runtime::decode_geometry_value_node(
+                object
+                    .get("program")
+                    .ok_or_else(|| invalid(format!("{context}.program is required")))?,
+            )
+            .map_err(|error| invalid(format!("{context}.program is invalid: {error}")))?;
+            Ok(GeometryInputTarget::GeometryValueMap {
+                occurrence: decode_occurrence(
+                    object
+                        .get("occurrence")
+                        .ok_or_else(|| invalid(format!("{context}.occurrence is required")))?,
+                    &format!("{context}.occurrence"),
+                )?,
+                binder_id: non_empty_string(object, "binderId", context)?,
+                geometry_type,
+                point_key: object
+                    .get("pointKey")
+                    .and_then(Value::as_str)
+                    .map(ToOwned::to_owned),
+                source: Box::new(source),
+                program: Box::new(program),
+                execution_position,
+                declared_interface_type,
             })
         }
         "coordinate" => {
@@ -314,12 +404,17 @@ fn point_anchor_for_target(target: &GeometryInputTarget) -> Option<Value> {
                     "instancePath": occurrence.instance_path,
                 },
             });
+            if let Some(mapped_member_index) = occurrence.mapped_member_index {
+                anchor["occurrence"]["mappedMemberIndex"] = json!(mapped_member_index);
+            }
             if let Some(point_key) = point_key {
                 anchor["pointKey"] = Value::String(point_key.clone());
             }
             Some(anchor)
         }
         GeometryInputTarget::Coordinate { anchor } => Some(anchor.clone()),
+        GeometryInputTarget::GeometryValueMap { .. }
+        | GeometryInputTarget::CollectionIndex { .. } => None,
         _ => None,
     }
 }
@@ -327,9 +422,60 @@ fn point_anchor_for_target(target: &GeometryInputTarget) -> Option<Value> {
 fn materialize_target(
     target: GeometryInputTarget,
     resolver: Option<&dyn ScalarDocumentBindingResolver>,
-    state: &EvaluationState,
+    state: &mut EvaluationState,
     current_source_order: Option<f64>,
 ) -> Result<GeometryInputTarget, String> {
+    if let GeometryInputTarget::GeometryValueMap {
+        occurrence,
+        binder_id,
+        geometry_type,
+        point_key,
+        source,
+        program,
+        execution_position,
+        declared_interface_type,
+    } = target
+    {
+        let Some(resolver) = resolver else {
+            return Err("evaluation-binding-unavailable".to_owned());
+        };
+        let synthetic_coordinate = match source.as_ref() {
+            GeometryInputTarget::Coordinate { anchor } => anchor
+                .get("x")
+                .and_then(Value::as_f64)
+                .zip(anchor.get("y").and_then(Value::as_f64))
+                .map(|(x, y)| json!({ "kind": "point", "x": x, "y": y })),
+            _ => None,
+        };
+        if let Some(coordinate) = synthetic_coordinate {
+            state
+                .computed_geometry
+                .insert(binder_id.clone(), coordinate);
+        }
+        state
+            .geometry_value_binders
+            .insert(binder_id.clone(), *source);
+        let entry = super::geometry_value_runtime::GeometryValueProgramEntry {
+            source_statement_id: occurrence.source_statement_id.clone(),
+            source_statement_index: 0,
+            declared_interface_type,
+            occurrence: occurrence.clone(),
+            execution_position,
+            lazy: false,
+            construction: *program,
+        };
+        super::geometry_value_runtime::evaluate_geometry_value_entry(&entry, resolver, state);
+        state.geometry_value_binders.remove(&binder_id);
+        state.computed_geometry.remove(&binder_id);
+        if !state.computed_geometry_values.contains_key(&occurrence) {
+            return Err("evaluation-geometry-value-unavailable".to_owned());
+        }
+        return Ok(GeometryInputTarget::GeometryValue {
+            occurrence,
+            geometry_type,
+            point_key,
+        });
+    }
     let GeometryInputTarget::CollectionIndex {
         collection_value_id: _collection_value_id,
         collection_length,
@@ -365,7 +511,13 @@ fn materialize_target(
     let selected = members
         .into_iter()
         .nth(index)
-        .filter(|member| !matches!(member, GeometryInputTarget::CollectionIndex { .. }))
+        .filter(|member| {
+            !matches!(
+                member,
+                GeometryInputTarget::CollectionIndex { .. }
+                    | GeometryInputTarget::GeometryValueMap { .. }
+            )
+        })
         .ok_or_else(|| "evaluation-collection-index-invalid".to_owned())?;
     Ok(selected)
 }
@@ -424,9 +576,9 @@ fn geometry_for_target(state: &EvaluationState, target: &GeometryInputTarget) ->
         GeometryInputTarget::GeometryValue { occurrence, .. } => {
             state.computed_geometry_values.get(occurrence).cloned()
         }
-        GeometryInputTarget::Coordinate { .. } | GeometryInputTarget::CollectionIndex { .. } => {
-            None
-        }
+        GeometryInputTarget::GeometryValueMap { .. }
+        | GeometryInputTarget::Coordinate { .. }
+        | GeometryInputTarget::CollectionIndex { .. } => None,
     }
 }
 

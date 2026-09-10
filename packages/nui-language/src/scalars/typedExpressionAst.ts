@@ -96,6 +96,13 @@ export type ScalarExpressionResolvedGeometryTarget = {
   readonly geometryType: ModuleGeometryInterfaceType;
   readonly pointKey?: string;
 } | {
+  readonly kind: "geometryValueForBinder";
+  readonly binderId: BindingId;
+  readonly statementId: string;
+  readonly statementIndex: number;
+  readonly geometryType: ModuleGeometryInterfaceType;
+  readonly pointKey?: string;
+} | {
   readonly kind: "geometryValue";
   readonly occurrence: GeometryValueOccurrence;
   readonly statementId: string;
@@ -123,6 +130,13 @@ export type ScalarExpressionResolvedGeometryProperty = {
   readonly kind?: "drawable";
   readonly elementId: ElementId;
   readonly property: string;
+  readonly targetSourceOrder: number;
+  readonly type: ScalarType;
+} | {
+  readonly kind: "geometryValueForBinder";
+  readonly binderId: BindingId;
+  readonly property: string;
+  readonly pointKey?: string;
   readonly targetSourceOrder: number;
   readonly type: ScalarType;
 } | {
@@ -154,6 +168,7 @@ export interface TypedScalarGeometryPropertyReferenceNode {
   readonly collectionLength?: number;
   readonly geometryValueOccurrence?: GeometryValueOccurrence;
   readonly geometryValuePointKey?: string;
+  readonly geometryValueBinderId?: BindingId;
   readonly property: string;
   readonly targetSourceOrder: number | null;
   readonly type: ScalarType | null;

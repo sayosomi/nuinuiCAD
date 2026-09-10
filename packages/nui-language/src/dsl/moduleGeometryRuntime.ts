@@ -73,6 +73,7 @@ export type ModuleGeometryRuntimeCompilation = {
     reference: ModuleGeometryReferenceSemantic,
     instancePath: readonly string[]
   ) => ModulePointCoordinateSemantic | undefined;
+  resolveGeometryArrayAliasesForValueId?: (valueId: string, currentPath: readonly string[]) => readonly GeometryAlias[] | null;
 };
 
 export const buildModuleGeometryRuntime = ({
@@ -199,6 +200,21 @@ export const buildModuleGeometryRuntime = ({
             if (target && "target" in target) {
               return { kind: "collectionIndex" as const, target: target.target, members: target.members } satisfies GeometryAlias;
             }
+            if (target && "kind" in target) {
+              return target.kind === "geometryValueMapPending"
+                ? {
+                    kind: "mappedValue" as const,
+                    occurrence: target.occurrence,
+                    geometryType: target.geometryType === "path" ? "line" as const : target.geometryType,
+                    interfaceType: target.declaredInterfaceType,
+                    source: target.source,
+                    mapValueId: target.mapValueId,
+                    binderId: target.binderId,
+                    executionPosition: target.executionPosition,
+                    ...(target.pointKey ? { pointKey: target.pointKey } : {})
+                  }
+                : undefined;
+            }
             return target ? { kind: "point" as const, anchor: target } : undefined;
           })()
         : (() => {
@@ -206,6 +222,19 @@ export const buildModuleGeometryRuntime = ({
             if (!resolved) return undefined;
             if ("target" in resolved) return { kind: "collectionIndex" as const, target: resolved.target, members: resolved.members } satisfies GeometryAlias;
             if (resolved.kind === "drawable") return { kind: "line" as const, elementId: resolved.elementId };
+            if (resolved.kind === "geometryValueMapPending") {
+              return {
+                kind: "mappedValue" as const,
+                occurrence: resolved.occurrence,
+                geometryType: resolved.geometryType === "path" ? "line" as const : resolved.geometryType,
+                interfaceType: resolved.declaredInterfaceType,
+                source: resolved.source,
+                mapValueId: resolved.mapValueId,
+                binderId: resolved.binderId,
+                executionPosition: resolved.executionPosition,
+                ...(resolved.pointKey ? { pointKey: resolved.pointKey } : {})
+              };
+            }
             if (resolved.kind !== "geometryValue") return undefined;
             return {
               kind: "value" as const,
@@ -388,6 +417,9 @@ export const buildModuleGeometryRuntime = ({
       target.kind === "collectionParameterLength" ||
       target.kind === "deferredModuleCollectionExportLength"
     ) return undefined;
+    if (target.kind === "geometryValueForBinder") {
+      return { kind: "binder", binderId: target.binderId, property: target.property, ...(target.pointKey ? { pointKey: target.pointKey } : {}), targetSourceOrder: -1 };
+    }
     const baseTarget: ModuleGeometrySourceTarget = target.kind === "parameterProperty"
       ? { ...target, kind: "parameter" }
       : target.kind === "sourceGeometryProperty"
@@ -453,6 +485,7 @@ export const buildModuleGeometryRuntime = ({
     resolvePropertyTarget,
     resolveBuiltinTarget,
     resolvePointReferenceList: (token, statementIndex, currentPath) => geometryArrayRuntime.resolvePointReferenceList(token, statementIndex, currentPath),
-    coordinateForReference
+    coordinateForReference,
+    resolveGeometryArrayAliasesForValueId: geometryArrayRuntime.resolveGeometryArrayAliasesForValueId
   };
 };

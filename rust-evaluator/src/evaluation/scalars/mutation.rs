@@ -75,7 +75,9 @@ impl<'a> ScalarMutationResolver<'a> {
             {
                 let entry = &geometry_value_program[*next_geometry_value_index];
                 let resolver: &dyn ScalarDocumentBindingResolver = self;
-                evaluate_geometry_value_entry(entry, resolver, state);
+                if !entry.lazy {
+                    evaluate_geometry_value_entry(entry, resolver, state);
+                }
                 *next_geometry_value_index += 1;
             }
             self.next_version_index += 1;

@@ -376,6 +376,7 @@ const checkNode = (
         } : {}),
         ...(resolved && resolved.kind === "geometryValue" ? { geometryValueOccurrence: resolved.occurrence } : {}),
         ...(resolved && resolved.kind === "geometryValue" && resolved.pointKey ? { geometryValuePointKey: resolved.pointKey } : {}),
+        ...(resolved?.kind === "geometryValueForBinder" ? { geometryValueBinderId: resolved.binderId } : {}),
         property: resolved?.kind === "collection" ? node.property : resolved?.property ?? node.property,
         targetSourceOrder: resolved?.targetSourceOrder ?? null,
         type: resolved?.type ?? null
