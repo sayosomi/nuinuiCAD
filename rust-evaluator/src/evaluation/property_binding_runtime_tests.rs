@@ -105,6 +105,7 @@ fn arc(id: &str, start_angle_deg: f64, end_angle_deg: f64, direction: Option<&st
 fn state_with_element(id: &str, element: Value) -> EvaluationState {
     EvaluationState {
         geometry_input_targets: HashMap::new(),
+        geometry_value_binders: HashMap::new(),
         elements: vec![element],
         elements_by_id: HashMap::from([(id.to_owned(), 0)]),
         drawing_modifiers: json!([]),

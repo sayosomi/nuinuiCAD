@@ -237,9 +237,14 @@ pub(crate) fn point_anchor_or_error(
                 .iter()
                 .map(|value| value.as_str().map(ToOwned::to_owned))
                 .collect::<Option<Vec<_>>>()?;
+            let mapped_member_index = occurrence
+                .get("mappedMemberIndex")
+                .and_then(Value::as_u64)
+                .and_then(|value| usize::try_from(value).ok());
             let occurrence = GeometryValueOccurrence {
                 source_statement_id,
                 instance_path,
+                mapped_member_index,
             };
             let geometry = state.computed_geometry_values.get(&occurrence)?;
             let point = if let Some(point_key) = anchor.get("pointKey").and_then(Value::as_str) {

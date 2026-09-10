@@ -31,6 +31,7 @@ fn state_with_geometry(
     }
     EvaluationState {
         geometry_input_targets: HashMap::new(),
+        geometry_value_binders: HashMap::new(),
         elements: if include_element {
             vec![json!({"id": id})]
         } else {
@@ -70,6 +71,7 @@ fn target(
         geometry_type,
         point_key: None,
         geometry_value_occurrence: None,
+        geometry_value_binder_id: None,
     }
 }
 
@@ -84,6 +86,7 @@ fn derived_target(
         geometry_type: GeometryInterfaceType::Point,
         point_key: Some(point_key.to_owned()),
         geometry_value_occurrence: None,
+        geometry_value_binder_id: None,
     }
 }
 
@@ -150,7 +153,9 @@ fn disabled_geometry_target_has_a_distinct_runtime_failure() {
     let expected_target = target("point-id", 1, GeometryInterfaceType::Point);
     assert_eq!(
         resolve_geometry_builtin_target(&state, 2.0, &expected_target),
-        Err(GeometryBuiltinRuntimeError::Disabled(expected_target))
+        Err(GeometryBuiltinRuntimeError::Disabled(Box::new(
+            expected_target
+        )))
     );
 }
 
@@ -167,7 +172,9 @@ fn modifier_disabled_geometry_target_has_a_distinct_runtime_failure() {
     let expected_target = target("point-id", 1, GeometryInterfaceType::Point);
     assert_eq!(
         resolve_geometry_builtin_target(&state, 2.0, &expected_target),
-        Err(GeometryBuiltinRuntimeError::Disabled(expected_target))
+        Err(GeometryBuiltinRuntimeError::Disabled(Box::new(
+            expected_target
+        )))
     );
 }
 
@@ -182,7 +189,9 @@ fn ancestor_group_disabled_geometry_target_has_a_distinct_runtime_failure() {
     let expected_target = target("child", 1, GeometryInterfaceType::Point);
     assert_eq!(
         resolve_geometry_builtin_target(&state, 2.0, &expected_target),
-        Err(GeometryBuiltinRuntimeError::Disabled(expected_target))
+        Err(GeometryBuiltinRuntimeError::Disabled(Box::new(
+            expected_target
+        )))
     );
 }
 

@@ -1927,6 +1927,7 @@ export const compileDslDocument = (
               ...(pointKey ? { pointKey } : {})
             };
           }
+          if (unwrapped.target.kind === "geometryValueForBinder") return undefined;
           if (unwrapped.target.kind === "collectionIndex") return undefined;
           return {
             statementId: unwrapped.target.instanceStatementId,

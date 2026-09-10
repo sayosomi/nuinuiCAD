@@ -744,6 +744,11 @@ const addGeometryArrayOccurrences = (compiled: CompiledDslDocument, add: AddOccu
       continue;
     }
 
+    if (value.value.kind === "map") {
+      const sourceValue = analysis.valuesByStatementId.get(value.value.sourceValueId);
+      if (sourceValue) addReference(value.statementIndex, value.value.sourceSpan, geometryArrayValueIdentity(compiled, sourceValue.statementId));
+      continue;
+    }
     const targetValue = analysis.valuesByStatementId.get(value.value.targetValueId);
     if (targetValue) {
       addReference(value.statementIndex, value.value.sourceSpan, geometryArrayValueIdentity(compiled, targetValue.statementId));

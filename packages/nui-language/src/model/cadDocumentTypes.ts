@@ -171,6 +171,9 @@ export type LineEndpointReference = {
 export type GeometryValueOccurrence = {
   sourceStatementId: string;
   instancePath: readonly string[];
+  /** Present only for a member produced by a geometry collection map. This is
+   * a separate occurrence namespace from Module instance identity. */
+  mappedMemberIndex?: number;
 };
 
 /** Runtime-only input for a read-only geometry consumer. This is deliberately
@@ -178,6 +181,17 @@ export type GeometryValueOccurrence = {
 export type GeometryInputTarget =
   | { kind: "drawable"; elementId: ElementId; geometryType: "point" | "line" | "path"; pointKey?: string }
   | { kind: "geometryValue"; occurrence: GeometryValueOccurrence; geometryType: "point" | "line" | "path"; pointKey?: string }
+  | {
+      kind: "geometryValueMap";
+      occurrence: GeometryValueOccurrence;
+      binderId: string;
+      geometryType: "point" | "line" | "path";
+      pointKey?: string;
+      source: Exclude<GeometryInputTarget, { kind: "collectionIndex" | "geometryValueMap" }>;
+      program: import("../dsl/moduleGeometryValueProgram").GeometryValueProgramNode;
+      executionPosition: number;
+      declaredInterfaceType: "point" | "line" | "path";
+    }
   | { kind: "coordinate"; anchor: Extract<PointAnchor, { mode: "coordinate" }> }
   | {
       kind: "collectionIndex";

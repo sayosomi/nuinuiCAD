@@ -155,9 +155,9 @@ evaluated. Geometry arms must share the declaration's `point`, `line`, or
 constructions. Record, collection, and optional `none`/`some` match values are
 deferred.
 
-### Scalar and choice collection value-for
+### Collection value-for
 
-An immutable one-dimensional scalar or choice collection can be produced by
+An immutable one-dimensional scalar, choice, or geometry collection can be produced by
 mapping an existing whole-value collection:
 
 <!-- dsl-example: syntax-fragment -->
@@ -171,22 +171,27 @@ const sides: choice(left, right)[] =
   for value in @choices {
     left
   }
+
+const points: point[] = for item in @origins { @item }
+const paths: path[] = for edge in @edges { @edge }
 ```
 
 The source must be a collection already declared and visible at this source
-position. The immutable binder has the source element's exact scalar or
-choice type and is visible only in the body. The body is checked against the
-declared result element type, so scalar kinds may change and bare choice
-literals use the declared result choice identity and order. Mapping emits one
-member per source member in authored order, preserves duplicates, and maps an
-empty source to an empty result. It is lazy: `.length` reports source
-cardinality without evaluating the body, and indexing evaluates only the
-requested member.
+position. The immutable binder has the source element's exact scalar, choice,
+or geometry type and is visible only in the body. The body is checked against
+the declared result element type, so scalar kinds may change, geometry
+interfaces must be assignable, and bare choice literals use the declared
+result choice identity and order. Mapping emits one member per source member
+in authored order, preserves duplicates, and maps an empty source to an empty
+result. It is lazy: `.length` reports source cardinality without evaluating the
+body, and indexing evaluates only the requested member.
 
 Whole-value aliases, Module locals, exports, parameters, and per-instance
 namespace rules retain the collection identity. This implemented surface does
-not support geometry or nominal-record value-for, nested arrays, filtering,
-folding, scanning, or mutable accumulation.
+not support nominal-record value-for, nested arrays, filtering, folding,
+scanning, or mutable accumulation. Geometry mapping supports `point[]`,
+`line[]`, and `path[]`, including the existing `line[] -> path[]`
+assignability; a `path` result is not assignable to `line`.
 
 ## Numeric editor metadata
 

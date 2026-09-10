@@ -339,6 +339,7 @@ pub(crate) fn decode_geometry_property(
             "collectionLength",
             "geometryValueOccurrence",
             "geometryValuePointKey",
+            "geometryValueBinderId",
             "property",
             "targetSourceOrder",
             "type",
@@ -416,7 +417,7 @@ pub(crate) fn decode_geometry_property(
             let occurrence = as_object(value, "geometryProperty node geometryValueOccurrence")?;
             reject_unexpected_fields(
                 occurrence,
-                &["sourceStatementId", "instancePath"],
+                &["sourceStatementId", "instancePath", "mappedMemberIndex"],
                 "geometryProperty node geometryValueOccurrence",
             )?;
             let source_statement_id = require_field(occurrence, "sourceStatementId", "geometryProperty node geometryValueOccurrence")?
@@ -431,11 +432,39 @@ pub(crate) fn decode_geometry_property(
                 .map(|item| item.as_str().filter(|value| !value.is_empty()).map(ToOwned::to_owned)
                     .ok_or_else(|| issue(Code::InvalidFieldType, "geometryProperty node geometryValueOccurrence instancePath must contain non-empty strings")))
                 .collect::<Result<Vec<_>, _>>()?;
+            let mapped_member_index = occurrence
+                .get("mappedMemberIndex")
+                .and_then(Value::as_u64)
+                .map(|value| {
+                    usize::try_from(value).map_err(|_| {
+                        issue(
+                            Code::InvalidFieldType,
+                            "geometryProperty node geometryValueOccurrence mappedMemberIndex is too large",
+                        )
+                    })
+                })
+                .transpose()?;
             Some(GeometryValueOccurrence {
                 source_statement_id,
                 instance_path,
+                mapped_member_index,
             })
         }
+    };
+    let geometry_value_binder_id = match object.get("geometryValueBinderId") {
+        None | Some(Value::Null) => None,
+        Some(value) => Some(
+            value
+                .as_str()
+                .filter(|value| !value.is_empty())
+                .ok_or_else(|| {
+                    issue(
+                        Code::InvalidFieldType,
+                        "geometryProperty node geometryValueBinderId must be a non-empty string",
+                    )
+                })?
+                .to_owned(),
+        ),
     };
     let property = require_field(object, "property", "geometryProperty node")?
         .as_str()
@@ -506,6 +535,7 @@ pub(crate) fn decode_geometry_property(
         collection_value_id,
         collection_length,
         geometry_value_occurrence,
+        geometry_value_binder_id,
         geometry_value_point_key,
         property,
         target_source_order,

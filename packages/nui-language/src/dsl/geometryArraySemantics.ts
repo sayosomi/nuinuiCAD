@@ -10,6 +10,7 @@ import {
 import type { DslArrayValueType, DslNonArrayValueType } from "./dslValueTypes";
 import type { TypedScalarExpression } from "../scalars/typedExpressionAst";
 import type { ScalarType } from "../scalars/types";
+import type { ModuleGeometryValueExpressionSemantic } from "./moduleSemanticTypes";
 
 export type GeometryArraySemanticDiagnostic = {
   code: string;
@@ -50,7 +51,26 @@ export type GeometryArrayAliasValue = {
   sourceSpan: DslSpan;
 };
 
-export type GeometryArraySemanticValue<TTarget> = GeometryArrayLiteralValue<TTarget> | GeometryArrayAliasValue;
+/** A geometry-valued value-for keeps the resolved source collection identity
+ * and the binder/source spans in the geometry owner. Its body is populated by
+ * the Module semantic pass after the existing geometry-value parser has
+ * resolved the body; it is deliberately not represented as a scalar map. */
+export type GeometryArrayMappedValue = {
+  kind: "map";
+  type: GeometryArrayType;
+  sourceValueId: string;
+  sourceElementType: ModuleGeometryInterfaceType;
+  resultElementType: ModuleGeometryInterfaceType;
+  binderId: string;
+  binder: string;
+  binderSpan: DslSpan;
+  sourceSpan: DslSpan;
+  bodySpan: DslSpan;
+  body?: ModuleGeometryValueExpressionSemantic;
+  sourceOrder: number;
+};
+
+export type GeometryArraySemanticValue<TTarget> = GeometryArrayLiteralValue<TTarget> | GeometryArrayAliasValue | GeometryArrayMappedValue;
 
 /** Generalized one-dimensional collection semantic value. Kept beside the
  * historical geometry projection so all collection resolution still has one
@@ -115,6 +135,9 @@ export type ResolveGeometryArrayExpressionInput<TTarget> = {
   expression: GeometryArrayExpression;
   resolveMember: (member: GeometryArrayLiteralMember) => GeometryArrayMemberResolution<TTarget>;
   resolveArrayReference: (sourceText: string, sourceSpan: DslSpan) => GeometryArrayReferenceResolution;
+  resolveValueFor?: (expression: Extract<GeometryArrayExpression, { kind: "valueFor" }>) =>
+    | { kind: "resolved"; value: GeometryArrayMappedValue }
+    | { kind: "invalid"; diagnostic: GeometryArraySemanticDiagnostic };
 };
 
 export type ResolveGeometryArrayExpressionResult<TTarget> = {
@@ -258,10 +281,16 @@ export const resolveGeometryArrayExpression = <TTarget>(
 ): ResolveGeometryArrayExpressionResult<TTarget> => {
   const diagnostics: GeometryArraySemanticDiagnostic[] = [];
   if (input.expression.kind === "valueFor") {
-    return {
-      value: null,
-      diagnostics: [{ code: "geometry-array-value-for-unsupported", message: "geometry array では scalar value-for を使用できません。", span: input.expression.span }]
-    };
+    const resolution = input.resolveValueFor?.(input.expression);
+    if (!resolution) {
+      return {
+        value: null,
+        diagnostics: [{ code: "geometry-array-value-for-unsupported", message: "geometry array value-for を使用できません。", span: input.expression.span }]
+      };
+    }
+    return resolution.kind === "resolved"
+      ? { value: resolution.value, diagnostics: [] }
+      : { value: null, diagnostics: [resolution.diagnostic] };
   }
   if (input.expression.kind === "reference") {
     const resolution = input.resolveArrayReference(input.expression.text, input.expression.span);

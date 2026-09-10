@@ -601,7 +601,8 @@ export const analyzeModuleBody = ({
             }
           } else {
             const parsedReference = parseDslSourceReference(statement.initializer.trim());
-            if (parsedReference.kind !== "valid") {
+            const parsedCollectionIndex = parseScalarExpression(`${" ".repeat(initializerSpan.start)}${statement.initializer}`, initializerSpan).ast?.kind === "collectionIndex";
+            if (parsedReference.kind !== "valid" && !parsedCollectionIndex) {
             addLocal(statementIndex, {
               code: "geometry-value-reference-required",
               span: initializerSpan,

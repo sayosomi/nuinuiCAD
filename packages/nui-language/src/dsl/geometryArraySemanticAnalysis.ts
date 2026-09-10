@@ -15,7 +15,7 @@ import {
   type GeometryArrayMemberResolution,
   type GeometryArraySemanticValue
 } from "./geometryArraySemantics";
-import type { DslArrayMappedValue } from "./geometryArraySemantics";
+import type { DslArrayMappedValue, GeometryArrayMappedValue } from "./geometryArraySemantics";
 import { geometryArrayTypeName, isDslNonArrayValueTypeAssignable, type GeometryArrayType } from "./geometryArrayTypes";
 import { moduleGeometryInterfaceTypeOf, moduleGeometryInterfaceTypeOfElement, type ModuleGeometryInterfaceType } from "./moduleGeometryInterfaces";
 import {
@@ -728,6 +728,57 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
           };
         }
         return { kind: "resolved", targetValueId: target.statementId, type: target.type };
+      },
+      resolveValueFor: (valueFor) => {
+        const sourcePath = referencePath(valueFor.sourceText);
+        if (!sourcePath || sourcePath.segments.length === 0) {
+          return { kind: "invalid", diagnostic: { code: "geometry-array-value-for-source-invalid", message: "value-for の source には whole-value geometry collection reference が必要です。", span: valueFor.sourceSpan } };
+        }
+        let sourceValueId: string | null = null;
+        let sourceType: GeometryArrayType | null = null;
+        if (sourcePath.segments.length === 1 && !sourcePath.absolute) {
+          const parameter = moduleParameterByName(statements, stableStatementIdByIndex, statementIndex, sourcePath.segments[0]!);
+          if (parameter) {
+            sourceType = geometryArrayTypeOfModuleParameter(parameter.parameter);
+            sourceValueId = sourceType ? `${parameter.definitionStatementId}:parameter:${parameter.parameterIndex}` : null;
+          }
+        }
+        const lookup = sourceType ? null : input.resolvePath(statementIndex, sourcePath);
+        if (!sourceType && lookup?.kind === "invalidTraversal" && lookup.declaration.kind === "moduleInstance" && sourcePath.segments.length === 2 && lookup.segmentIndex === 1) {
+          const definitionLookup = input.resolvePath(lookup.declaration.statementIndex, parseDslReferenceToken(lookup.declaration.statement.kind === "moduleInstance" ? lookup.declaration.statement.moduleName : ""));
+          if (definitionLookup.kind === "resolved" && definitionLookup.declaration.statement.kind === "moduleDefinition") {
+            const exportedIndex = statements.findIndex((candidate) =>
+              candidate.kind === "typedDeclaration" && candidate.exported && candidate.name === sourcePath.segments[1] &&
+              candidate.enclosing?.statementIndex === definitionLookup.declaration.statementIndex
+            );
+            const exported = exportedIndex >= 0 ? valuesByStatementIndex.get(exportedIndex) : null;
+            sourceType = exported?.type ?? null;
+            sourceValueId = geometryArrayDeferredModuleExportId(lookup.declaration.statementId, sourcePath.segments[1]!);
+          }
+        }
+        if (!sourceType && lookup?.kind === "resolved") {
+          const target = valuesByStatementIndex.get(lookup.declaration.statementIndex);
+          sourceType = target?.type ?? null;
+          sourceValueId = target?.statementId ?? null;
+        }
+        if (!sourceType || !sourceValueId) {
+          const code = lookup?.kind === "forward" ? "geometry-array-value-for-source-forward" : "geometry-array-value-for-source-invalid";
+          return { kind: "invalid", diagnostic: { code, message: `value-for source「${valueFor.sourceText}」は解決できない geometry collection です。`, span: valueFor.sourceSpan } };
+        }
+        const mapped: GeometryArrayMappedValue = {
+          kind: "map",
+          type,
+          sourceValueId,
+          sourceElementType: sourceType.elementType,
+          resultElementType: type.elementType,
+          binderId: `geometry-value-for-binder:${semantic.statementId}`,
+          binder: valueFor.binder,
+          binderSpan: valueFor.binderSpan,
+          sourceSpan: valueFor.sourceSpan,
+          bodySpan: valueFor.bodySpan,
+          sourceOrder: semantic.statementIndex
+        };
+        return { kind: "resolved", value: mapped };
       }
     });
 

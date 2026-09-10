@@ -195,6 +195,9 @@ const geometryPropertyMetadataFor = (
       type
     };
   }
+  if (target.kind === "geometryValueForBinder") {
+    return { kind: "geometryValueForBinder", binderId: target.binderId, property: target.property, ...(target.pointKey ? { pointKey: target.pointKey } : {}), targetSourceOrder: target.statementIndex, type };
+  }
   if (target.kind === "recordField") {
     throw new Error("moduleScalarExpression: record field properties are lowered as scalar references");
   }
@@ -542,6 +545,9 @@ const typecheckGeometryTarget = (
       geometryType: expectedGeometryType,
       ...(pointKey ? { pointKey } : {})
     };
+  }
+  if (target.kind === "geometryValueForBinder") {
+    return { kind: "geometryValueForBinder", binderId: target.binderId, statementId: target.statementId, statementIndex: target.statementIndex, geometryType: expectedGeometryType, ...(pointKey ? { pointKey } : {}) };
   }
   if (target.kind === "collectionIndex") return null;
   return {

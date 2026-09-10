@@ -321,6 +321,7 @@ pub(crate) fn decode_geometry_target_payload(
             "geometryType",
             "pointKey",
             "occurrence",
+            "binderId",
         ],
         "geometry reference target",
     )?;
@@ -330,7 +331,7 @@ pub(crate) fn decode_geometry_target_payload(
             let occurrence = as_object(value, "geometry reference target occurrence")?;
             reject_unexpected_fields(
                 occurrence,
-                &["sourceStatementId", "instancePath"],
+                &["sourceStatementId", "instancePath", "mappedMemberIndex"],
                 "geometry reference target occurrence",
             )?;
             let source_statement_id = require_field(
@@ -357,10 +358,49 @@ pub(crate) fn decode_geometry_target_payload(
                     .ok_or_else(|| issue(Code::InvalidFieldType, "geometry reference target occurrence instancePath must contain non-empty strings"))
             })
             .collect::<Result<Vec<_>, _>>()?;
+            let mapped_member_index = occurrence
+                .get("mappedMemberIndex")
+                .and_then(Value::as_u64)
+                .map(|value| {
+                    usize::try_from(value).map_err(|_| {
+                        issue(
+                            Code::InvalidFieldType,
+                            "geometry reference target occurrence mappedMemberIndex is too large",
+                        )
+                    })
+                })
+                .transpose()?;
             Some(GeometryValueOccurrence {
                 source_statement_id,
                 instance_path,
+                mapped_member_index,
             })
+        }
+    };
+    let kind = object
+        .get("kind")
+        .and_then(Value::as_str)
+        .unwrap_or("drawable");
+    let geometry_value_binder_id = match kind {
+        "drawable" => None,
+        "geometryValue" => None,
+        "geometryValueForBinder" => Some(
+            require_field(object, "binderId", "geometry reference target")?
+                .as_str()
+                .filter(|value| !value.is_empty())
+                .ok_or_else(|| {
+                    issue(
+                        Code::InvalidFieldType,
+                        "geometry reference target binderId must be a non-empty string",
+                    )
+                })?
+                .to_owned(),
+        ),
+        _ => {
+            return Err(issue(
+                Code::UnknownKind,
+                format!("unknown geometry reference target kind \"{kind}\""),
+            ))
         }
     };
     let statement_id = require_field(object, "statementId", "geometry reference target")?
@@ -413,6 +453,7 @@ pub(crate) fn decode_geometry_target_payload(
         geometry_type,
         point_key,
         geometry_value_occurrence,
+        geometry_value_binder_id,
     }))
 }
 

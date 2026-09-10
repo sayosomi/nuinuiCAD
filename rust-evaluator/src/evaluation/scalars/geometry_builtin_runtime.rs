@@ -6,7 +6,7 @@ use crate::evaluation::activity::{effective_activity_by_element_id_with_profile,
 use crate::evaluation::point_anchor::{
     point_from_geometry, point_from_value, resolve_derived_point,
 };
-use crate::evaluation::types::{EvaluationState, Point};
+use crate::evaluation::types::{EvaluationState, GeometryInputTarget, Point};
 use serde_json::Value;
 
 #[derive(Debug, Clone)]
@@ -74,7 +74,7 @@ impl PartialEq for GeometryBuiltinRuntimeTarget {
 pub(crate) enum GeometryBuiltinRuntimeError {
     Unavailable,
     InvalidArgument,
-    Disabled(ScalarExpressionResolvedGeometryTarget),
+    Disabled(Box<ScalarExpressionResolvedGeometryTarget>),
     ZeroLengthLine,
 }
 
@@ -83,6 +83,45 @@ pub(crate) fn resolve_geometry_builtin_target(
     current_source_order: f64,
     target: &ScalarExpressionResolvedGeometryTarget,
 ) -> Result<GeometryBuiltinRuntimeTarget, GeometryBuiltinRuntimeError> {
+    if let Some(binder_id) = &target.geometry_value_binder_id {
+        let Some(source) = state.geometry_value_binders.get(binder_id) else {
+            return Err(GeometryBuiltinRuntimeError::Unavailable);
+        };
+        if let GeometryInputTarget::Coordinate { anchor } = source {
+            let Some((x, y)) = anchor
+                .get("x")
+                .and_then(Value::as_f64)
+                .zip(anchor.get("y").and_then(Value::as_f64))
+            else {
+                return Err(GeometryBuiltinRuntimeError::Unavailable);
+            };
+            return if target.geometry_type == GeometryInterfaceType::Point {
+                Ok(GeometryBuiltinRuntimeTarget::GeometryValuePoint { x, y })
+            } else {
+                Err(GeometryBuiltinRuntimeError::Unavailable)
+            };
+        }
+        let mut bound = target.clone();
+        bound.geometry_value_binder_id = None;
+        match source {
+            GeometryInputTarget::Drawable { element_id, .. } => {
+                bound.statement_id = element_id.clone();
+                bound.statement_index = -1.0;
+                bound.geometry_value_occurrence = None;
+            }
+            GeometryInputTarget::GeometryValue { occurrence, .. } => {
+                bound.statement_id = occurrence.source_statement_id.clone();
+                bound.statement_index = -1.0;
+                bound.geometry_value_occurrence = Some(occurrence.clone());
+            }
+            GeometryInputTarget::GeometryValueMap { .. }
+            | GeometryInputTarget::CollectionIndex { .. } => {
+                return Err(GeometryBuiltinRuntimeError::Unavailable)
+            }
+            GeometryInputTarget::Coordinate { .. } => unreachable!(),
+        }
+        return resolve_geometry_builtin_target(state, current_source_order, &bound);
+    }
     if target.statement_id.is_empty() {
         return Err(GeometryBuiltinRuntimeError::Unavailable);
     }
@@ -156,7 +195,9 @@ pub(crate) fn resolve_geometry_builtin_target(
         .get(&target.statement_id)
         .is_some_and(|activity| activity.activity == ElementActivity::Disabled)
     {
-        return Err(GeometryBuiltinRuntimeError::Disabled(target.clone()));
+        return Err(GeometryBuiltinRuntimeError::Disabled(Box::new(
+            target.clone(),
+        )));
     }
     let Some(geometry) = state.computed_geometry.get(&target.statement_id) else {
         return Err(GeometryBuiltinRuntimeError::Unavailable);

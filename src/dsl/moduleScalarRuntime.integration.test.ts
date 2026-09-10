@@ -1968,6 +1968,47 @@ describe("module scalar runtime integration", () => {
     expect(result.computedGeometry.get(elementNamed(compiled, "Selected").id)).toBeUndefined();
   });
 
+  it("evaluates point geometry value-for members lazily through indexed consumers", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "point A = coordinate(x: 1, y: 2)",
+      "point B = coordinate(x: 3, y: 4)",
+      "const points: point[] = [@A, @B]",
+      "const mapped: point[] = for item in @points { @item }",
+      "line Selected = segment(start: @mapped[0], end: @mapped[1])"
+    ].join("\n"), "geometry-value-for-point-runtime");
+    expectValid(compiled);
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometry.get(elementNamed(compiled, "Selected").id)).toMatchObject({
+      kind: "line",
+      start: { x: 1, y: 2 },
+      end: { x: 3, y: 4 }
+    });
+    expect(compiled.geometryValueProgram?.filter((entry) => entry.lazy)).toHaveLength(2);
+    expect(new Set(compiled.geometryValueProgram?.filter((entry) => entry.lazy).map((entry) => JSON.stringify(entry.occurrence))).size).toBe(2);
+  });
+
+  it("preserves line[] and path[] value-for interfaces through line consumers", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "line Base = segment(start: (0, 0), end: (10, 0))",
+      "const lines: line[] = [@Base]",
+      "const mappedLines: line[] = for item in @lines { @item }",
+      "const mappedPaths: path[] = for item in @lines { @item }",
+      "line Selected = offset(sources: [@mappedLines[0]], distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
+      "module Read(input: path) {",
+      "  line FromPath = offset(sources: [@input], distance: 2, side: left, closed: false, suppressTrimWarnings: false)",
+      "}",
+      "instance Use = Read(input: @mappedPaths[0])"
+    ].join("\n"), "geometry-value-for-line-path-runtime");
+    expectValid(compiled);
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometry.get(elementNamed(compiled, "Selected").id)).toMatchObject({ kind: "offsetLine" });
+    expect(result.computedGeometry.get(compiled.document!.elements.find((element) => element.name === "FromPath")!.id)).toMatchObject({ kind: "offsetLine" });
+  });
+
   it("carries a concrete choice geometry property through module scalar runtime lowering", () => {
     const compiled = compileWithIds([
       "nui 1",
