@@ -84,6 +84,7 @@ import type {
   ModuleRecordReferenceSemantic,
   ModuleRecordSourceTarget,
   ModuleRecordValueSemantic,
+  ModuleRecordValueExpressionSemantic,
   ModuleScalarExpressionSemantic,
   ModuleScalarExpressionSite,
   ModuleScalarSourceTarget,
@@ -99,7 +100,9 @@ import { unwrapModuleGeometrySourceTarget } from "./moduleSemanticTypes";
 import type {
   RecordConstructorFieldSemantic,
   RecordDefinitionSemantic,
-  RecordTypeIdentity
+  RecordFieldIdentity,
+  RecordTypeIdentity,
+  RecordValueExpressionSemantic
 } from "./recordSemanticAnalysis";
 import { parseRecordConstructorFields } from "./recordSemanticAnalysis";
 import {
@@ -3819,6 +3822,199 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     };
   };
 
+  const moduleRecordValueExpressionFor = ({
+    statementIndex,
+    ownerIndex,
+    source,
+    expression,
+    expectedTypeIdentity,
+    presenceFacts
+  }: {
+    statementIndex: number;
+    ownerIndex: number | null;
+    source: string;
+    expression: RecordValueExpressionSemantic;
+    expectedTypeIdentity: RecordTypeIdentity | null;
+    presenceFacts: ReadonlySet<string>;
+  }): ModuleRecordValueExpressionSemantic | null => {
+    const raw = source.slice(expression.span.start, expression.span.end);
+    if (expression.kind === "constructor") {
+      const reference = recordReferenceSemantic(statementIndex, ownerIndex, raw, expression.span, expectedTypeIdentity, presenceFacts);
+      return reference.constructor
+        ? { kind: "constructor", span: expression.span, constructor: reference.constructor }
+        : null;
+    }
+    if (expression.kind === "reference") {
+      const reference = recordReferenceSemantic(statementIndex, ownerIndex, raw, expression.span, expectedTypeIdentity, presenceFacts);
+      return reference.target ? { kind: "reference", span: expression.span, reference } : null;
+    }
+    if (expression.kind === "collectionIndex") {
+      const reference = recordReferenceSemantic(statementIndex, ownerIndex, raw, expression.span, expectedTypeIdentity, presenceFacts);
+      return reference.target?.kind === "recordCollectionIndex"
+        ? { kind: "collectionIndex", span: expression.span, reference }
+        : null;
+    }
+    if (expression.kind === "if") {
+      const condition = analyzeExpression(
+        statementIndex,
+        ownerIndex,
+        source.slice(expression.condition.span.start, expression.condition.span.end),
+        expression.condition.span,
+        { kind: "boolean" },
+        (reference, facts) => ownerIndex === null
+          ? resolveSourceScalar(statementIndex, null, reference.name, null, reference.span, facts)
+          : resolveBodyScalar(statementIndex, ownerIndex, reference, facts),
+        undefined,
+        (reference) => resolveGeometryProperty(statementIndex, ownerIndex, reference),
+        undefined,
+        (reference) => resolveHasValue(statementIndex, ownerIndex, reference),
+        presenceFacts
+      );
+      return {
+        kind: "if",
+        span: expression.span,
+        condition,
+        thenBranch: expression.thenBranch
+          ? moduleRecordValueExpressionFor({ statementIndex, ownerIndex, source, expression: expression.thenBranch, expectedTypeIdentity, presenceFacts })
+          : null,
+        elseBranch: expression.elseBranch
+          ? moduleRecordValueExpressionFor({ statementIndex, ownerIndex, source, expression: expression.elseBranch, expectedTypeIdentity, presenceFacts })
+          : null
+      };
+    }
+    const scrutinee = analyzeExpression(
+      statementIndex,
+      ownerIndex,
+      source.slice(expression.scrutinee.span.start, expression.scrutinee.span.end),
+      expression.scrutinee.span,
+      null,
+      (reference, facts) => ownerIndex === null
+        ? resolveSourceScalar(statementIndex, null, reference.name, null, reference.span, facts)
+        : resolveBodyScalar(statementIndex, ownerIndex, reference, facts),
+      undefined,
+      (reference) => resolveGeometryProperty(statementIndex, ownerIndex, reference),
+      undefined,
+      (reference) => resolveHasValue(statementIndex, ownerIndex, reference),
+      presenceFacts
+    );
+    if (scrutinee) {
+      validateChoiceMatchExhaustiveness({
+        scrutineeType: scrutinee.type,
+        scrutineeSpan: expression.scrutinee.span,
+        matchSpan: expression.span,
+        arms: expression.arms,
+        addDiagnostic: (diagnostic) => addLocal(statementIndex, diagnostic)
+      });
+    }
+    return {
+      kind: "match",
+      span: expression.span,
+      scrutinee,
+      arms: expression.arms.map((arm) => ({
+        label: arm.label,
+        labelSpan: arm.labelSpan,
+        expression: arm.expression
+          ? moduleRecordValueExpressionFor({ statementIndex, ownerIndex, source, expression: arm.expression, expectedTypeIdentity, presenceFacts })
+          : null
+      }))
+    };
+  };
+
+  const moduleRecordFieldExpressionFor = (
+    expression: ModuleRecordValueExpressionSemantic,
+    field: { identity: RecordFieldIdentity; name: string; type: ScalarType }
+  ): ModuleScalarExpressionSemantic | null => {
+    if (expression.kind === "constructor") {
+      return expression.constructor.fields.find((candidate) => candidate.field.fieldIndex === field.identity.fieldIndex)?.expression ?? null;
+    }
+    if (expression.kind === "reference" || expression.kind === "collectionIndex") {
+      const reference = expression.reference;
+      if (!reference.target) return null;
+      const baseName = reference.source.trim().replace(/^@/, "");
+      const target: ModuleRecordFieldSourceTarget = {
+        kind: "recordField",
+        record: reference.target,
+        field: field.identity,
+        fieldName: field.name,
+        type: field.type
+      };
+      return {
+        ast: {
+          kind: "geometryProperty",
+          span: reference.span,
+          elementNameSpan: reference.span,
+          propertySpan: reference.span,
+          elementName: baseName,
+          property: field.name
+        },
+        type: field.type,
+        references: [{
+          name: `${baseName}.${field.name}`,
+          nameSpan: reference.span,
+          span: reference.span,
+          target,
+          resolution: "resolved"
+        }],
+        geometryProperties: [{
+          geometryName: baseName,
+          property: field.name,
+          elementNameSpan: reference.span,
+          propertySpan: reference.span,
+          span: reference.span,
+          target,
+          type: field.type,
+          resolution: "resolved"
+        }],
+        geometryBuiltinArguments: [],
+        hasValueParameters: []
+      };
+    }
+    if (expression.kind === "if") {
+      const thenBranch = expression.thenBranch ? moduleRecordFieldExpressionFor(expression.thenBranch, field) : null;
+      const elseBranch = expression.elseBranch ? moduleRecordFieldExpressionFor(expression.elseBranch, field) : null;
+      return expression.condition && thenBranch && elseBranch
+        ? {
+            ast: {
+              kind: "valueIf",
+              span: expression.span,
+              condition: expression.condition.ast,
+              thenBranch: thenBranch.ast,
+              elseBranch: elseBranch.ast
+            },
+            type: field.type,
+            references: [expression.condition.references, thenBranch.references, elseBranch.references].flat(),
+            geometryProperties: [expression.condition.geometryProperties, thenBranch.geometryProperties, elseBranch.geometryProperties].flat(),
+            geometryBuiltinArguments: [expression.condition.geometryBuiltinArguments, thenBranch.geometryBuiltinArguments, elseBranch.geometryBuiltinArguments].flat(),
+            hasValueParameters: [expression.condition.hasValueParameters, thenBranch.hasValueParameters, elseBranch.hasValueParameters].flat()
+          }
+        : null;
+    }
+    const arms = expression.arms.map((arm) => ({
+      label: arm.label,
+      labelSpan: arm.labelSpan,
+      expression: arm.expression ? moduleRecordFieldExpressionFor(arm.expression, field) : null
+    }));
+    return expression.scrutinee && arms.every((arm) => arm.expression)
+      ? {
+          ast: {
+            kind: "valueMatch",
+            span: expression.span,
+            scrutinee: expression.scrutinee.ast,
+            arms: arms.map((arm) => ({
+              label: arm.label,
+              labelSpan: arm.labelSpan,
+              expression: arm.expression!.ast
+            }))
+          },
+          type: field.type,
+          references: [expression.scrutinee.references, ...arms.map((arm) => arm.expression!.references)].flat(),
+          geometryProperties: [expression.scrutinee.geometryProperties, ...arms.map((arm) => arm.expression!.geometryProperties)].flat(),
+          geometryBuiltinArguments: [expression.scrutinee.geometryBuiltinArguments, ...arms.map((arm) => arm.expression!.geometryBuiltinArguments)].flat(),
+          hasValueParameters: [expression.scrutinee.hasValueParameters, ...arms.map((arm) => arm.expression!.hasValueParameters)].flat()
+        }
+      : null;
+  };
+
   const resolvePlainScalarTarget = (statementIndex: number, ownerIndex: number | null, name: string): ReferenceResolution => {
     const resolution = resolveSourceScalar(statementIndex, ownerIndex, name, ownerIndex);
     if (resolution.diagnostic && resolution.diagnostic.span.start === 0 && resolution.diagnostic.span.end === 0) {
@@ -3835,6 +4031,49 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
   const rootGeometryReferencesByStatementId = new Map<StatementIdentity, ModuleGeometryReferenceSite[]>();
   const rootGeometryValueScalarSites = new Map<StatementIdentity, ModuleScalarExpressionSite>();
   const rootParentReferencesByStatementId = new Map<StatementIdentity, ModuleParentReferenceSite>();
+  const rootRecordValuesByStatementId = new Map<StatementIdentity, ModuleRecordValueSemantic>();
+  for (const value of recordAnalysis?.valuesByStatementId.values() ?? []) {
+    if (moduleOwnerIndexOf(statements, value.statementIndex) !== null || !value.valueExpression || !value.typeIdentity) continue;
+    const statement = statements[value.statementIndex];
+    const initializerSpan = statement?.kind === "typedDeclaration" ? statement.payloadSpans.initializer : undefined;
+    if (!initializerSpan || statement?.kind !== "typedDeclaration") continue;
+    const source = input.logicalTextByStatementIndex?.get(value.statementIndex) ?? `${" ".repeat(initializerSpan.start)}${statement.initializer}`;
+    const previous: boolean = suppressLocalDiagnostics;
+    suppressLocalDiagnostics = true;
+    let valueExpression: ModuleRecordValueExpressionSemantic | null = null;
+    try {
+      valueExpression = moduleRecordValueExpressionFor({
+        statementIndex: value.statementIndex,
+        ownerIndex: null,
+        source,
+        expression: value.valueExpression,
+        expectedTypeIdentity: value.typeIdentity,
+        presenceFacts: new Set()
+      });
+    } finally {
+      suppressLocalDiagnostics = previous;
+    }
+    const definition = recordDefinitionFor(value.typeIdentity);
+    if (!valueExpression || !definition) continue;
+    const fieldExpressions = definition.fields.map((field) => ({
+      field: field.identity,
+      expression: moduleRecordFieldExpressionFor(valueExpression!, field)
+    }));
+    const target: ModuleRecordSourceTarget = {
+      kind: "recordValue",
+      statementId: value.statementId,
+      statementIndex: value.statementIndex,
+      typeIdentity: value.typeIdentity
+    };
+    rootRecordValuesByStatementId.set(value.statementId, {
+      value,
+      target,
+      fields: [],
+      valueExpression,
+      fieldExpressions,
+      presenceParameterKeys: []
+    });
+  }
   for (const [statementIndex, statement] of statements.entries()) {
     if (statement.kind !== "typedDeclaration" || moduleOwnerIndexOf(statements, statementIndex) !== null) continue;
     if (!isDslGeometryValueType(statement.valueType)) continue;
@@ -4952,9 +5191,31 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       .sort((left, right) => left.statementIndex - right.statementIndex)
       .map((value) => {
         const statement = statements[value.statementIndex];
-        const presenceParameterKeys = [...presenceFactsForSourceStatement(value.statementIndex)];
+        const presenceFacts = presenceFactsForSourceStatement(value.statementIndex);
+        const presenceParameterKeys = [...presenceFacts];
+        const initializerSpan = statement?.kind === "typedDeclaration" ? statement.payloadSpans.initializer : undefined;
+        const recordSource = initializerSpan
+          ? input.logicalTextByStatementIndex?.get(value.statementIndex) ?? `${" ".repeat(initializerSpan.start)}${statement?.kind === "typedDeclaration" ? statement.initializer : ""}`
+          : "";
+        const valueExpression = value.valueExpression
+          ? moduleRecordValueExpressionFor({
+              statementIndex: value.statementIndex,
+              ownerIndex: definition.statementIndex,
+              source: recordSource,
+              expression: value.valueExpression,
+              expectedTypeIdentity: value.typeIdentity,
+              presenceFacts
+            })
+          : null;
         let target = value.typeIdentity
-          ? value.constructor
+          ? valueExpression
+            ? {
+                kind: "recordValue" as const,
+                statementId: value.statementId,
+                statementIndex: value.statementIndex,
+                typeIdentity: value.typeIdentity
+              }
+            : value.constructor
             ? {
                 kind: "recordValue" as const,
                 statementId: value.statementId,
@@ -4998,10 +5259,18 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
               new Set(presenceParameterKeys)
             )
           : [];
+        const fieldExpressions = valueExpression && recordDefinitionFor(value.typeIdentity)
+          ? recordDefinitionFor(value.typeIdentity)!.fields.map((field) => ({
+              field: field.identity,
+              expression: moduleRecordFieldExpressionFor(valueExpression, field)
+            }))
+          : [];
         const result: ModuleRecordValueSemantic = {
           value,
           target,
           fields,
+          valueExpression,
+          fieldExpressions,
           presenceParameterKeys
         };
         if (statementIsExported(statement) && !isDirectModuleChild(statement!, definition.statementIndex)) {
@@ -5178,6 +5447,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     callEdges,
     rootScalarExpressionsByStatementId,
     rootGeometryReferencesByStatementId,
+    rootRecordValuesByStatementId,
     geometryValues,
     geometryValuesByStatementId,
     geometryValuesByStatementIndex,
@@ -5286,6 +5556,39 @@ export const decorateDocumentQualifiedModuleSemantics = (
         }
       : null
   });
+  const mapRecordValueExpression = (expression: ModuleRecordValueExpressionSemantic): ModuleRecordValueExpressionSemantic => {
+    if (expression.kind === "constructor") {
+      return {
+        ...expression,
+        constructor: {
+          ...expression.constructor,
+          fields: expression.constructor.fields.map((field) => ({
+            ...field,
+            expression: field.expression ? mapExpression(field.expression) : null
+          }))
+        }
+      };
+    }
+    if (expression.kind === "reference" || expression.kind === "collectionIndex") {
+      return { ...expression, reference: mapRecordReference(expression.reference) };
+    }
+    if (expression.kind === "if") {
+      return {
+        ...expression,
+        condition: expression.condition ? mapExpression(expression.condition) : null,
+        thenBranch: expression.thenBranch ? mapRecordValueExpression(expression.thenBranch) : null,
+        elseBranch: expression.elseBranch ? mapRecordValueExpression(expression.elseBranch) : null
+      };
+    }
+    return {
+      ...expression,
+      scrutinee: expression.scrutinee ? mapExpression(expression.scrutinee) : null,
+      arms: expression.arms.map((arm) => ({
+        ...arm,
+        expression: arm.expression ? mapRecordValueExpression(arm.expression) : null
+      }))
+    };
+  };
   const mapArgument = (argument: ModuleArgumentSemantic): ModuleArgumentSemantic => {
     if (argument.kind === "scalar") return { ...argument, expression: mapExpression(argument.expression) };
     if (argument.kind === "geometry") return { ...argument, reference: mapGeometryReference(argument.reference) };
@@ -5327,6 +5630,11 @@ export const decorateDocumentQualifiedModuleSemantics = (
       identity: value.identity ?? identityFor(value.value.statementId),
       target: mapTarget(value.target) as ModuleRecordSourceTarget | null,
       fields: value.fields.map((field) => ({
+        ...field,
+        expression: field.expression ? mapExpression(field.expression) : null
+      })),
+      valueExpression: value.valueExpression ? mapRecordValueExpression(value.valueExpression) : null,
+      fieldExpressions: value.fieldExpressions.map((field) => ({
         ...field,
         expression: field.expression ? mapExpression(field.expression) : null
       }))
@@ -5390,6 +5698,25 @@ export const decorateDocumentQualifiedModuleSemantics = (
       sites.map((site) => ({ ...site, reference: mapGeometryReference(site.reference) }))
     ] as const)
   );
+  const rootRecordValuesByStatementId = new Map(
+    [...analysis.rootRecordValuesByStatementId].map(([statementId, value]) => [
+      statementId,
+      {
+        ...value,
+        identity: value.identity ?? identityFor(value.value.statementId),
+        target: mapTarget(value.target) as ModuleRecordSourceTarget | null,
+        valueExpression: value.valueExpression ? mapRecordValueExpression(value.valueExpression) : null,
+        fields: value.fields.map((field) => ({
+          ...field,
+          expression: field.expression ? mapExpression(field.expression) : null
+        })),
+        fieldExpressions: value.fieldExpressions.map((field) => ({
+          ...field,
+          expression: field.expression ? mapExpression(field.expression) : null
+        }))
+      }
+    ] as const)
+  );
   const definitionsByQualifiedIdentity = new Map(
     definitions.flatMap((definition) => definition.identity ? [[
       JSON.stringify([definition.identity.documentId, definition.identity.localIdentity]),
@@ -5412,6 +5739,7 @@ export const decorateDocumentQualifiedModuleSemantics = (
     callEdges,
     rootScalarExpressionsByStatementId,
     rootGeometryReferencesByStatementId,
+    rootRecordValuesByStatementId,
     geometryValues,
     geometryValuesByStatementId: new Map(geometryValues.map((value) => [value.statementId, value] as const)),
     geometryValuesByStatementIndex: new Map(geometryValues.map((value) => [value.statementIndex, value] as const)),

@@ -56,6 +56,8 @@ export type AdditionalScalarInitializer = {
   bindingId: BindingId;
   raw: string;
   span: DslSpan;
+  /** Prepared projected ASTs are used only for record field backing slots. */
+  ast?: ScalarExpressionAst;
   /** Embedded scalar expressions may have a result type distinct from the
    * synthetic binding used to type their lexical references. */
   expectedType?: ScalarType;
@@ -445,7 +447,8 @@ export const analyzeTypedDeclarations = ({
     ...(recordPlan?.initializers.map((initializer) => ({
       bindingId: initializer.bindingId,
       raw: initializer.raw,
-      span: initializer.span
+      span: initializer.span,
+      ...(initializer.ast ? { ast: initializer.ast } : {})
     })) ?? []),
     ...(additionalInitializers ?? [])
   ];
@@ -540,7 +543,9 @@ export const analyzeTypedDeclarations = ({
     const statement = statements[binding.statementIndex];
     if (!statement) throw new Error(`typedDeclarationAnalysis: typed binding ${binding.id} has no owner statement`);
     const additional = additionalInitializerByBindingId.get(binding.id);
-    const parsed = additional
+    const parsed = additional?.ast
+      ? { ok: true as const, value: { ast: additional.ast, references: collectReferences(additional.ast) } }
+      : additional
       ? parseInitializerSource(spans, statement, binding.id, additional.raw, additional.span)
       : statement.kind === "typedDeclaration"
         ? parseInitializer(spans, statement, binding.id)

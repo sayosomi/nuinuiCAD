@@ -398,7 +398,7 @@ The constraints are:
   power result such as `(-1) ^ 0.5`, `0 ^ -1`, or `10 ^ 10000` produces
   `evaluation-non-finite-result`.
 
-### Exhaustive choice value match
+### Scalar, geometry, and nominal-record value control flow
 
 Scalar and geometry value expressions may use a required-`else` conditional:
 
@@ -409,11 +409,14 @@ if (@enabled) { @leftPoint } else { coordinate(x: 0, y: 0) }
 The condition is a typed boolean expression. A geometry-valued conditional must
 have the declared geometry interface type in both branches. Each branch may be
 an existing legal `@` geometry reference or one of the implemented pure
-geometry value constructions; records, collections, and optional values are
-not part of this slice. Both branches are resolved and checked at compile time,
-but runtime evaluates the condition before evaluating only the selected branch.
+geometry value constructions. A nominal-record conditional must have the exact
+declared record-definition identity in both branches; its leaves may be a
+constructor, whole-record reference, or supported statically indexed member of
+a record collection. Collection-valued and optional conditionals are not part
+of this slice. Both branches are resolved and checked at compile time, but
+runtime evaluates the condition before evaluating only the selected branch.
 
-A scalar or geometry value expression may use the following exhaustive
+A scalar, geometry, or nominal-record value expression may use the following exhaustive
 choice-match form:
 
 ```nui
@@ -431,9 +434,12 @@ All arm result expressions are parsed and typechecked. Scalar results are one
 of `number`, `string`, `boolean`, or an exact `choice(...)` type shared by every
 arm; a bare choice literal is resolved against the expected result type.
 Geometry results must share the declared `point`, `line`, or `path` interface.
-At runtime the scrutinee is evaluated first and only the arm whose label equals
-the selected choice value is evaluated. Records, collections, and optional
-`none`/`some` values are outside this slice.
+Nominal-record results must share the declared record-definition identity, and
+each arm may be a constructor, whole-record reference, or supported statically
+indexed member of a record collection. At runtime the scrutinee is evaluated
+first and only the arm whose label equals the selected choice value is
+evaluated. Collection-valued and optional `none`/`some` values are outside this
+slice.
 
 Named scalar function calls use the following syntax:
 
@@ -608,6 +614,29 @@ a whole-record reference:
 const first: Pair = Pair(x: 10, label: "first")
 const second: Pair = @first
 ```
+
+Record values may also be produced by the scalar `if` and exhaustive `match`
+forms. Conditions and scrutinees use the existing scalar expression owner, and
+all branches or arms are statically checked against the declared record's exact
+nominal identity:
+
+```nui
+const selected: Pair = if (@enabled) {
+  Pair(x: 10, label: "left")
+} else {
+  @first
+}
+const matched: Pair = match @side {
+  left => Pair(x: 11, label: "left")
+  right => @first
+}
+```
+
+Runtime evaluates the condition or scrutinee before evaluating only the
+selected record leaf. A record leaf may be a constructor, a whole-record
+reference, or a supported statically indexed member of a record collection.
+Collection-valued control flow, optional values, and record value-for remain
+outside nui1.
 
 Constructors are named-only and must provide every field exactly once. The
 constructor name and the declared type must identify the same record definition;

@@ -99,10 +99,10 @@ mutable scalar in scope, and its right-hand side is checked against that
 binding's scalar type. A `set` is evaluated in document order, so a later
 version can use the value produced by the previous version.
 
-### Scalar, choice, and geometry value-if
+### Scalar, choice, geometry, and record value-if
 
-Scalar and choice declarations may use a value-producing conditional with a
-required `else` branch:
+Scalar, choice, geometry, and nominal-record declarations may use a
+value-producing conditional with a required `else` branch:
 
 <!-- dsl-example: syntax-fragment -->
 ```nui
@@ -114,19 +114,23 @@ const side: choice(left, right) =
     right
   }
 const selectedPoint: point = if (@flag) { @origin } else { coordinate(x: 0, y: 0) }
+const selectedPair: Pair = if (@flag) { Pair(x: 10, label: "left") } else { @fallback }
 ```
 
 The condition must be boolean. Both branches are parsed, resolved, and
-typechecked against the declaration's scalar, choice, or geometry interface;
-bare choice literals are resolved using that exact declared choice type. At
-runtime the condition is evaluated first and only the selected branch is
-evaluated. Geometry branches may be existing `@` references or implemented
-pure geometry constructions. Record, collection, and optional values remain
-unsupported.
+typechecked against the declaration's scalar, choice, geometry interface, or
+exact nominal record type; bare choice literals are resolved using that exact
+declared choice type. Record branches must each be a constructor, whole-record
+reference, or supported indexed record-collection member of the same nominal
+type. At runtime the condition is evaluated first and only the selected branch
+is evaluated. Geometry branches may be existing `@` references or implemented
+pure geometry constructions. Collection-valued control flow, optional values,
+and record value-for remain unsupported.
 
 ### Exhaustive choice value-match
 
-Scalar and choice declarations may also select a value with an exhaustive
+Scalar, choice, geometry, and nominal-record declarations may also select a
+value with an exhaustive
 `match` over a concrete `choice(...)` expression:
 
 <!-- dsl-example: syntax-fragment -->
@@ -141,6 +145,10 @@ const selectedPath: path = match @side {
   left => @edge
   right => segment(start: @origin, end: (10, 0))
 }
+const selectedPair: Pair = match @side {
+  left => Pair(x: 10, label: "left")
+  right => @fallback
+}
 ```
 
 The scrutinee must have a concrete `choice(...)` type. Each declared option
@@ -152,8 +160,10 @@ exact type. Bare choice result literals use the declaration's exact choice type.
 At runtime the scrutinee is evaluated first and only the matching arm is
 evaluated. Geometry arms must share the declaration's `point`, `line`, or
 `path` interface and may contain existing references or implemented pure
-constructions. Record, collection, and optional `none`/`some` match values are
-deferred.
+constructions. Record arms must share the declared record definition's exact
+nominal identity and may use constructors, whole-record references, or
+supported indexed record-collection members. Collection-valued and optional
+`none`/`some` match values remain deferred.
 
 ### Collection value-for
 

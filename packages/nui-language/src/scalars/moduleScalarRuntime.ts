@@ -299,14 +299,14 @@ const recordFieldBindingIdForSemanticTarget = ({
   if (target.kind === "recordValue") {
     const local = definition.recordValues.find((value) => value.value.statementId === target.statementId);
     if (local) {
-      if (local.value.constructor) return moduleRecordScalarBindingIdFor(path, target.statementId, field);
+      if (local.value.constructor || local.valueExpression) return moduleRecordScalarBindingIdFor(path, target.statementId, field);
       return local.target
         ? recordFieldBindingIdForSemanticTarget({ target: local.target, field, path, definition, instance, moduleSemanticAnalysis, sourceNamespace, rootRecordPlan, visited })
         : undefined;
     }
     const parentLocal = parentContext?.definition.recordValues.find((value) => value.value.statementId === target.statementId);
     if (parentLocal) {
-      if (parentLocal.value.constructor) return moduleRecordScalarBindingIdFor(parentContext!.path, target.statementId, field);
+      if (parentLocal.value.constructor || parentLocal.valueExpression) return moduleRecordScalarBindingIdFor(parentContext!.path, target.statementId, field);
       return parentLocal.target
         ? recordFieldBindingIdForSemanticTarget({
             target: parentLocal.target,
@@ -1410,6 +1410,24 @@ export const compileModuleScalarRuntime = ({
           fieldBindings.set(field.field.fieldIndex, info);
           allBindingInfos.push(info);
         }
+      } else if (recordValue.valueExpression) {
+        for (const field of recordDefinition.fields) {
+          const bindingId = moduleRecordScalarBindingIdFor(path, recordValue.value.statementId, field.identity);
+          const info: BindingInfo = {
+            id: bindingId,
+            declarationVersionId: moduleRecordScalarDeclarationVersionIdFor(path, recordValue.value.statementId, field.identity),
+            name: `${recordValue.value.name}.${field.name}`,
+            type: field.type,
+            bindingKind: "const",
+            scopeId: moduleScopeIdFor(path, definitionSourceScopeIndex?.scopeOfStatement.get(recordValue.value.statementIndex) ?? bodyScopeId),
+            sourceScopeId: definitionSourceScopeIndex?.scopeOfStatement.get(recordValue.value.statementIndex) ?? bodyScopeId,
+            contextKey: key,
+            statementId: recordValue.value.statementId,
+            statementIndex: recordValue.value.statementIndex
+          };
+          fieldBindings.set(field.fieldIndex, info);
+          allBindingInfos.push(info);
+        }
       } else {
         for (const field of recordDefinition.fields) {
           const bindingId = recordFieldBindingIdForTarget(recordValue.target, field.identity, context);
@@ -1616,7 +1634,7 @@ export const compileModuleScalarRuntime = ({
         if (!presenceKeysSatisfied(context, recordValue.presenceParameterKeys)) continue;
         // Aliases and pass-through values reuse the source field bindings;
         // only a constructor introduces new runtime binding events.
-        if (!recordValue.value.constructor) continue;
+        if (!recordValue.value.constructor && !recordValue.valueExpression) continue;
         for (const field of context.recordValues.get(recordValue.value.statementId)?.values() ?? []) {
           if (bindingInfoById.has(field.id)) pushEvent({ kind: "binding", bindingId: field.id }, recordValue.value.statementIndex);
         }
@@ -2276,10 +2294,17 @@ export const compileModuleScalarRuntime = ({
       }
     }
     for (const recordValue of context.definition.recordValues) {
-      if (!recordValue.value.constructor || !presenceKeysSatisfied(context, recordValue.presenceParameterKeys)) continue;
-      for (const field of recordValue.fields) {
-        const info = context.recordValues.get(recordValue.value.statementId)?.get(field.field.fieldIndex);
-        if (info?.id && field.expression) lowerForContext(field.expression, context, info.id);
+      if (!presenceKeysSatisfied(context, recordValue.presenceParameterKeys)) continue;
+      if (recordValue.value.constructor) {
+        for (const field of recordValue.fields) {
+          const info = context.recordValues.get(recordValue.value.statementId)?.get(field.field.fieldIndex);
+          if (info?.id && field.expression) lowerForContext(field.expression, context, info.id);
+        }
+      } else if (recordValue.valueExpression) {
+        for (const field of recordValue.fieldExpressions) {
+          const info = context.recordValues.get(recordValue.value.statementId)?.get(field.field.fieldIndex);
+          if (info?.id && field.expression) lowerForContext(field.expression, context, info.id);
+        }
       }
     }
     for (const local of context.definition.localScalars) {

@@ -43,20 +43,21 @@ import { isCompilableDslStatement, isCanonicalValueBindingDeclaration, type DslS
 import { compilePropertyReferenceSyntax } from "./dslPropertyReferenceSyntax";
 import { buildPlacementRefsByStatementIndex } from "./dslPrintLayoutPlacementIndex";
 import { isGeometryDeclarationCategory } from "./dslConstructions";
-import { isDslGeometryValueType, scalarTypeOfDslValueType } from "./dslValueTypes";
+import { isDslGeometryValueType, nominalRecordTypeOfDslValueType, scalarTypeOfDslValueType } from "./dslValueTypes";
 import { collectionLengthForValueId, collectionValueSemanticForStatement, geometryArrayDeferredModuleExportId } from "./geometryArraySemanticAnalysis";
 import {
   buildSourceLexicalNamespaceIndex,
   type SourceLexicalNamespaceIndex
 } from "./sourceLexicalNamespaceIndex";
 import { analyzeModuleSemantics } from "./moduleSemanticAnalysis";
-import { unwrapModuleGeometrySourceTarget, type ModuleSemanticAnalysis } from "./moduleSemanticTypes";
+import { unwrapModuleGeometrySourceTarget, type ModuleScalarSourceTarget, type ModuleSemanticAnalysis } from "./moduleSemanticTypes";
 import type { ModuleRuntimeContext } from "./moduleRuntimeContext";
 import type { ModuleMaterialization } from "./moduleMaterialization";
 import type { ModuleGeometryRuntimeCompilation } from "./moduleGeometryRuntime";
 import { geometryAliasForSourceElement, propertyForAlias } from "./moduleGeometryRuntimeLowering";
 import { buildRootGeometryValueProgram } from "./moduleGeometryValueProgram";
 import { compileModuleScalarRuntime, moduleRecordExportFieldBindingIdFor, moduleScalarBindingIdFor, moduleScalarExportBindingSeeds, type ModuleScalarRuntimeCompilation } from "../scalars/moduleScalarRuntime";
+import { recordScalarBindingIdFor } from "../scalars/recordScalarLowering";
 import { MISSING_ATTRIBUTE_VALUE_CODE } from "./dslArgScanner";
 import { isElementDslStatement, parseDsl, parseDslSnapshot } from "./dslParser";
 import type { SourceRevision } from "./logicalStatementSourceMap";
@@ -1119,6 +1120,10 @@ export const compileDslDocument = (
     (statement) => statement.kind === "typedDeclaration" && statement.valueType?.kind !== "array" &&
       (statement.valueType?.kind === "point" || statement.valueType?.kind === "line" || statement.valueType?.kind === "path")
   );
+  const hasRecordValueControlFlowStatements = parsed.statements.some(
+    (statement) => statement.kind === "typedDeclaration" && nominalRecordTypeOfDslValueType(statement.valueType) !== null &&
+      /^(?:if\s*\(|match\b)/.test(statement.initializer.trim())
+  );
   const containsCollectionIndex = (ast: ScalarExpressionAst | null): boolean => {
     if (!ast) return false;
     switch (ast.kind) {
@@ -1629,7 +1634,7 @@ export const compileDslDocument = (
   // The source semantic projection is also useful for Definition Query in a
   // document without Modules. Geometry values also need this path so their
   // source-only aliases can be lowered at existing geometry consumers.
-  const moduleSemanticCompilation = hasModuleStatements || hasGeometryValueStatements || hasGenericCollectionIndexStatements || hasGeometryCollectionIndexStatements ? sourceSemanticCompilation : undefined;
+  const moduleSemanticCompilation = hasModuleStatements || hasGeometryValueStatements || hasRecordValueControlFlowStatements || hasGenericCollectionIndexStatements || hasGeometryCollectionIndexStatements ? sourceSemanticCompilation : undefined;
   if (moduleSemanticCompilation && sourceLexicalNamespace && stableStatementIdByIndex) {
     const exportBindingSeeds = moduleScalarExportBindingSeeds(
       moduleSemanticCompilation,
@@ -1656,7 +1661,13 @@ export const compileDslDocument = (
       ));
     const hasRootCollectionIndexOccurrences = [...moduleSemanticCompilation.rootScalarExpressionsByStatementId.values()]
       .some((site) => site.expression.ast.kind === "collectionIndex" || site.expression.references.some((reference) => reference.collectionValueId !== undefined));
-    if (usableExportBindingSeeds.length > 0 || hasRootGeometryRuntimeOccurrences || hasRootCollectionLengthOccurrences || hasRootCollectionIndexOccurrences) {
+    if (
+      usableExportBindingSeeds.length > 0 ||
+      hasRootGeometryRuntimeOccurrences ||
+      hasRootCollectionLengthOccurrences ||
+      hasRootCollectionIndexOccurrences ||
+      moduleSemanticCompilation.rootRecordValuesByStatementId.size > 0
+    ) {
       const seedById = new Map(usableExportBindingSeeds.map((seed) => [seed.id, seed] as const));
       const qualifiedModuleExportFor = (statementIndex: number, path: ReturnType<typeof parseDslReferenceToken>) => {
         if (path.segments.length !== 2) return null;
@@ -1807,10 +1818,48 @@ export const compileDslDocument = (
           const site = statementId
             ? moduleSemanticCompilation.rootScalarExpressionsByStatementId.get(statementId)
             : undefined;
-          const candidates = site?.expression.geometryProperties.filter((candidate) => candidate.property === node.property) ?? [];
+          const recordValue = statementId
+            ? moduleSemanticCompilation.rootRecordValuesByStatementId.get(statementId)
+            : undefined;
+          const recordCandidates = recordValue?.fieldExpressions.flatMap((field) =>
+            field.expression?.geometryProperties.filter((candidate) => candidate.property === node.property) ?? []
+          ) ?? [];
+          const candidates = [
+            ...(site?.expression.geometryProperties.filter((candidate) => candidate.property === node.property) ?? []),
+            ...recordCandidates
+          ];
           const property = candidates.find((candidate) => candidate.span.start === node.span.start) ?? (candidates.length === 1 ? candidates[0] : undefined);
           if (property?.target?.kind !== "recordField" || !property.type) return null;
-          const lookup = additionalBindingResolver(`${node.elementName}.${node.property}`, statementIndex, sourceLexicalNamespace.scopeIndex.scopeOfStatement.get(statementIndex) ?? sourceLexicalNamespace.scopeIndex.rootScopeId);
+          const recordFieldBindingIdForTarget = (target: ModuleScalarSourceTarget): BindingId | null => {
+            if (target.kind !== "recordField") return null;
+            if (target.record.kind === "recordValue") {
+              return recordScalarBindingIdFor(target.record.statementId, target.field);
+            }
+            if (target.record.kind === "recordCollectionIndex") {
+              const index = target.record.index.ast.kind === "numberLiteral" ? target.record.index.ast.value : null;
+              const member = index !== null && Number.isInteger(index) && index >= 0
+                ? target.record.members?.[index]
+                : undefined;
+              return member ? recordFieldBindingIdForTarget({ ...target, record: member }) : null;
+            }
+            if (target.record.kind === "deferredModuleRecordExport") {
+              return moduleRecordExportFieldBindingIdFor({
+                moduleSemanticAnalysis: moduleSemanticCompilation,
+                sourceNamespace: sourceLexicalNamespace,
+                instanceStatementId: target.record.instanceStatementId,
+                instanceIdentity: target.record.instanceIdentity,
+                exportName: target.record.exportName,
+                exportedStatementId: target.record.exportedStatementId,
+                field: target.field,
+                moduleRuntimeContext
+              }) ?? null;
+            }
+            return null;
+          };
+          const directBindingId = recordFieldBindingIdForTarget(property.target);
+          const lookup = directBindingId
+            ? { kind: "resolved" as const, bindingId: directBindingId }
+            : additionalBindingResolver(`${node.elementName}.${node.property}`, statementIndex, sourceLexicalNamespace.scopeIndex.scopeOfStatement.get(statementIndex) ?? sourceLexicalNamespace.scopeIndex.rootScopeId);
           return {
             resolution: {
               kind: "resolvedType" as const,

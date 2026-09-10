@@ -5,6 +5,7 @@ import type {
   ModuleGeometrySourceTarget,
   ModuleParameterSlot,
   ModuleRecordSourceTarget,
+  ModuleRecordValueExpressionSemantic,
   ModuleRecordReferenceSemantic,
   ModuleSourceTarget,
   ModuleSemanticAnalysis
@@ -321,6 +322,38 @@ export const createModuleSemanticRangeIndex = (compiled: CompiledDslDocument): M
     }
     add(statementIndex, span, editorTarget);
   };
+  const addScalarExpression = (statementIndex: number, expression: ModuleSemanticAnalysis["definitions"][number]["recordValues"][number]["fieldExpressions"][number]["expression"]) => {
+    if (!expression) return;
+    for (const reference of expression.references) {
+      if (reference.target?.kind === "recordField") continue;
+      if (reference.target?.kind === "deferredModuleScalarExport") addScalarReference(statementIndex, reference, add, addSourceTarget);
+      else addSourceTarget(statementIndex, reference.target, reference.nameSpan);
+    }
+    for (const reference of expression.geometryProperties) {
+      addGeometryPropertyReference(compiled, statementIndex, reference, add, addSourceTarget);
+    }
+  };
+  const addRecordValueExpression = (statementIndex: number, expression: ModuleRecordValueExpressionSemantic): void => {
+    if (expression.kind === "constructor") {
+      for (const field of expression.constructor.fields) addScalarExpression(statementIndex, field.expression);
+      return;
+    }
+    if (expression.kind === "reference" || expression.kind === "collectionIndex") {
+      addSourceTarget(statementIndex, expression.reference.target, {
+        start: expression.span.start + 1,
+        end: expression.span.end
+      });
+      return;
+    }
+    if (expression.kind === "if") {
+      addScalarExpression(statementIndex, expression.condition);
+      if (expression.thenBranch) addRecordValueExpression(statementIndex, expression.thenBranch);
+      if (expression.elseBranch) addRecordValueExpression(statementIndex, expression.elseBranch);
+      return;
+    }
+    addScalarExpression(statementIndex, expression.scrutinee);
+    for (const arm of expression.arms) if (arm.expression) addRecordValueExpression(statementIndex, arm.expression);
+  };
 
   for (const definition of analysis.definitions) {
     const statementIndex = indexById.get(definition.statementId);
@@ -357,16 +390,11 @@ export const createModuleSemanticRangeIndex = (compiled: CompiledDslDocument): M
           end: recordValue.value.reference.span.end
         });
       }
+      if (recordValue.valueExpression) addRecordValueExpression(recordValue.value.statementIndex, recordValue.valueExpression);
       for (const field of recordValue.fields) {
-        const expression = field.expression;
-        if (!expression) continue;
-        for (const reference of expression.references) {
-          if (reference.target?.kind === "recordField") continue;
-          if (reference.target?.kind === "deferredModuleScalarExport") addScalarReference(statementIndex, reference, add, addSourceTarget);
-          else addSourceTarget(recordValue.value.statementIndex, reference.target, reference.nameSpan);
-        }
-        for (const reference of expression.geometryProperties) addGeometryPropertyReference(compiled, recordValue.value.statementIndex, reference, add, addSourceTarget);
+        addScalarExpression(recordValue.value.statementIndex, field.expression);
       }
+      for (const field of recordValue.fieldExpressions) addScalarExpression(recordValue.value.statementIndex, field.expression);
     }
   }
   for (const declaration of compiled.sourceLexicalNamespace?.allDeclarations ?? []) {

@@ -359,6 +359,40 @@ export type ModuleRecordReferenceSemantic = {
   resolution: "resolved" | "undefined" | "forward" | "ambiguous" | "invalid" | "outerCapture";
 };
 
+export type ModuleRecordValueExpressionSemantic =
+  | {
+      kind: "constructor";
+      span: DslSpan;
+      constructor: NonNullable<ModuleRecordReferenceSemantic["constructor"]>;
+    }
+  | {
+      kind: "reference";
+      span: DslSpan;
+      reference: ModuleRecordReferenceSemantic;
+    }
+  | {
+      kind: "collectionIndex";
+      span: DslSpan;
+      reference: ModuleRecordReferenceSemantic;
+    }
+  | {
+      kind: "if";
+      span: DslSpan;
+      condition: ModuleScalarExpressionSemantic | null;
+      thenBranch: ModuleRecordValueExpressionSemantic | null;
+      elseBranch: ModuleRecordValueExpressionSemantic | null;
+    }
+  | {
+      kind: "match";
+      span: DslSpan;
+      scrutinee: ModuleScalarExpressionSemantic | null;
+      arms: readonly {
+        label: string;
+        labelSpan: DslSpan;
+        expression: ModuleRecordValueExpressionSemantic | null;
+      }[];
+    };
+
 export type ModuleGeometryBuiltinArgumentSemantic = {
   builtinName: string;
   argumentIndex: number;
@@ -699,6 +733,12 @@ export type ModuleRecordValueSemantic = {
   identity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
   target: ModuleRecordSourceTarget | null;
   fields: readonly ModuleRecordConstructorFieldSemantic[];
+  valueExpression: ModuleRecordValueExpressionSemantic | null;
+  /** One scalar expression per declared field for dynamic record values. */
+  fieldExpressions: readonly {
+    field: RecordFieldIdentity;
+    expression: ModuleScalarExpressionSemantic | null;
+  }[];
   /** Optional Module parameters proven present at this declaration site. */
   presenceParameterKeys: readonly string[];
 };
@@ -853,6 +893,8 @@ export type ModuleSemanticAnalysis = {
   rootScalarExpressionsByStatementId: ReadonlyMap<StatementIdentity, ModuleScalarExpressionSite>;
   /** Source-only qualified geometry references in the root document. */
   rootGeometryReferencesByStatementId: ReadonlyMap<StatementIdentity, readonly ModuleGeometryReferenceSite[]>;
+  /** Source-only nominal-record values, including projected control flow. */
+  rootRecordValuesByStatementId: ReadonlyMap<StatementIdentity, ModuleRecordValueSemantic>;
   /** Source-only immutable single-geometry values, including Module locals. */
   geometryValues: readonly ModuleGeometryValueSemantic[];
   geometryValuesByStatementId: ReadonlyMap<StatementIdentity, ModuleGeometryValueSemantic>;
