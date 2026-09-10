@@ -42,6 +42,43 @@ const second: Pair = @first
 const name: string = @first.label
 ```
 
+## Value-producing control flow
+
+Record values may use the shared scalar value-producing `if` and exhaustive
+`match` forms. The declaration's record type is nominal: every branch or arm
+must resolve to the exact same record definition, even when another record has
+the same fields.
+
+<!-- dsl-example: compile-success -->
+```nui
+nui 1
+record Pair(
+  x: number,
+  label: string,
+)
+const fallback: Pair = Pair(x: 2, label: "right")
+const flag: boolean = true
+const side: choice(left, right) = left
+const selected: Pair = if (@flag) {
+  Pair(x: 10, label: "left")
+} else {
+  @fallback
+}
+const matched: Pair = match @side {
+  left => Pair(x: 11, label: "left")
+  right => @fallback
+}
+const x: number = @selected.x
+```
+
+The condition or scrutinee is checked by the ordinary scalar expression
+analyzer. Both record branches are resolved and typechecked, while runtime
+evaluates the condition or scrutinee first and evaluates only the selected
+record leaf. Record leaves may be constructors, whole-record references, or
+supported statically indexed members of a nominal record collection. Collection
+values, optional values, and record value-for are not introduced by these
+forms.
+
 ## Notes
 
 Record values group scalar data; they do not become geometry elements or a

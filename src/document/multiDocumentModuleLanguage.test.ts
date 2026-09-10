@@ -588,6 +588,33 @@ describe("host-neutral multi-document Module language adapter", () => {
     }).status).toBe("rejected");
   });
 
+  it("preserves dynamic record fields and document-qualified Module ownership across imports", async () => {
+    const library = savedSource("record-library", "sha256:record-library", [
+      "nui 1",
+      "record Pair(x: number)",
+      "export module Provider(flag: boolean) {",
+      "  const local: Pair = if (@flag) { Pair(x: 7) } else { Pair(x: 9) }",
+      "  export const output: Pair = @local",
+      "}"
+    ].join("\n"));
+    const root = rootSource("record-root", [
+      "nui 1",
+      "import \"./library.nui\" as library",
+      "instance use = library::Provider(flag: true)",
+      "const value: number = @use::output.x",
+      "point Result = coordinate(x: @value, y: 0)"
+    ].join("\n"));
+    const bundle = await buildRoot(root, new Map([[`${root.documentId}|./library.nui`, library]]));
+
+    expect(bundle.analysis.valid).toBe(true);
+    expect(bundle.compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const provider = bundle.context.analysisFor(library.documentId)?.definitions.find((definition) => definition.name === "Provider");
+    const dynamicRecord = provider?.recordValues.find((value) => value.value.name === "local");
+    expect(dynamicRecord?.valueExpression?.kind).toBe("if");
+    expect(dynamicRecord?.fieldExpressions[0]?.expression).toBeDefined();
+    expect(provider?.identity?.documentId).toBe(library.documentId);
+  });
+
   it("rejects incomplete public reverse discovery before document proofs run", async () => {
     const fixture = await directFixture();
     const result = planMultiDocumentRename({
