@@ -1651,6 +1651,98 @@ describe("module scalar runtime integration", () => {
     expect(valueFor("emptyCount")).toMatchObject({ status: "ok", value: { kind: "number", value: 0 } });
   });
 
+  it("resolves qualified Module scalar exports through a root value-for body", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "const values: number[] = [1, 2]",
+      "module Config(offset: number) {",
+      "  export const value: number = @offset",
+      "}",
+      "instance A = Config(offset: 5)",
+      "const mapped: number[] = for x in @values { @x + @A::value }",
+      "const first: number = @mapped[0]",
+      "const second: number = @mapped[1]"
+    ].join("\n"), "value-for-qualified-scalar");
+    expectValid(compiled);
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const valueFor = (name: string) => {
+      const binding = compiled.bindingAnalysis!.catalog.bindings.find((candidate) => candidate.kind === "typed" && candidate.name === name);
+      return binding ? result.computedScalarBindings?.get(binding.id) : undefined;
+    };
+    expect(valueFor("first")).toMatchObject({ status: "ok", value: { kind: "number", value: 6 } });
+    expect(valueFor("second")).toMatchObject({ status: "ok", value: { kind: "number", value: 7 } });
+  });
+
+  it("keeps normal collection-index metadata inside a value-for body", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "const values: number[] = [10, 20]",
+      "const indexes: number[] = [1, 0]",
+      "const mapped: number[] = for i in @indexes { @values[@i] }",
+      "const first: number = @mapped[0]",
+      "const second: number = @mapped[1]"
+    ].join("\n"), "value-for-collection-index");
+    expectValid(compiled);
+    const mapped = compiled.scalarProgram?.collectionValues?.find((value) =>
+      value.kind === "map" && value.valueId === "value-for-collection-index:3"
+    );
+    expect(mapped?.kind).toBe("map");
+    if (mapped?.kind !== "map") return;
+    expect(mapped.body).toMatchObject({
+      kind: "collectionIndex",
+      collectionValueId: "value-for-collection-index:1",
+      collectionLength: 2,
+      type: { kind: "number" },
+      index: { kind: "reference", type: { kind: "number" } }
+    });
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const valueFor = (name: string) => {
+      const binding = compiled.bindingAnalysis!.catalog.bindings.find((candidate) => candidate.kind === "typed" && candidate.name === name);
+      return binding ? result.computedScalarBindings?.get(binding.id) : undefined;
+    };
+    expect(valueFor("first")).toMatchObject({ status: "ok", value: { kind: "number", value: 20 } });
+    expect(valueFor("second")).toMatchObject({ status: "ok", value: { kind: "number", value: 10 } });
+  });
+
+  it("keeps normal numeric geometry-property metadata inside a value-for body", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "const values: number[] = [1, 2]",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 3, y: 4)",
+      "line AB = segment(start: @A, end: @B)",
+      "const mapped: number[] = for x in @values { @x + @AB.length }",
+      "const first: number = @mapped[0]",
+      "const second: number = @mapped[1]"
+    ].join("\n"), "value-for-geometry-property");
+    expectValid(compiled);
+    const mapped = compiled.scalarProgram?.collectionValues?.find((value) =>
+      value.kind === "map" && value.valueId === "value-for-geometry-property:5"
+    );
+    expect(mapped?.kind).toBe("map");
+    if (mapped?.kind !== "map") return;
+    expect(mapped.body).toMatchObject({
+      kind: "binary",
+      right: {
+        kind: "geometryProperty",
+        property: "length",
+        type: { kind: "number" },
+        elementId: expect.any(String),
+        targetSourceOrder: expect.any(Number)
+      }
+    });
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const valueFor = (name: string) => {
+      const binding = compiled.bindingAnalysis!.catalog.bindings.find((candidate) => candidate.kind === "typed" && candidate.name === name);
+      return binding ? result.computedScalarBindings?.get(binding.id) : undefined;
+    };
+    expect(valueFor("first")).toMatchObject({ status: "ok", value: { kind: "number", value: 6 } });
+    expect(valueFor("second")).toMatchObject({ status: "ok", value: { kind: "number", value: 7 } });
+  });
+
   it("keeps Module mapped collections instance-local through exports and consumers", () => {
     const compiled = compileWithIds([
       "nui 1",

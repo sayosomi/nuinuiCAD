@@ -4285,6 +4285,70 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     }
   }
 
+  // A root value-for body is still a scalar expression, but its containing
+  // declaration is an array and therefore is intentionally absent from the
+  // root typed-declaration loop above. Analyze the body through the same
+  // Module source resolver so qualified exports retain their normal semantic
+  // identity for navigation, completion, and rename.
+  for (const value of sourceNamespace.geometryArraySemanticAnalysis?.genericValues ?? []) {
+    if (value.ownerModuleDefinitionStatementIndex !== null || value.value?.kind !== "map") continue;
+    const statement = statements[value.statementIndex];
+    const initializerSpan = statement?.kind === "typedDeclaration" ? statement.payloadSpans.initializer : undefined;
+    if (!statement || statement.kind !== "typedDeclaration" || !initializerSpan) continue;
+    const mapped = value.value;
+    const bodyRaw = statement.initializer.slice(mapped.bodySpan.start - initializerSpan.start, mapped.bodySpan.end - initializerSpan.start);
+    const diagnosticsBefore = localDiagnosticsByStatement.get(value.statementIndex)?.length ?? 0;
+    const expression = analyzeExpression(
+      value.statementIndex,
+      null,
+      bodyRaw,
+      mapped.bodySpan,
+      mapped.resultElementType,
+      (reference, presenceFacts) => {
+        const path = parseDslReferenceToken(reference.name);
+        if (path.segments.length === 1 && !path.absolute && path.segments[0] === mapped.binder) {
+          return {
+            target: {
+              kind: "valueForBinder" as const,
+              binderId: mapped.binderId,
+              statementId: value.statementId,
+              statementIndex: value.statementIndex,
+              name: mapped.binder,
+              sourceElementType: mapped.sourceElementType
+            },
+            type: mapped.sourceElementType,
+            resolution: "resolved" as const
+          };
+        }
+        return resolveSourceScalar(value.statementIndex, null, reference.name, null, reference.span, presenceFacts);
+      },
+      undefined,
+      (reference) => resolveGeometryProperty(value.statementIndex, null, reference),
+      (reference) => resolveGeometry(
+        value.statementIndex,
+        null,
+        `@${reference.name}`,
+        reference.span,
+        reference.expectedGeometryType,
+        { expectedInterfaceType: reference.expectedGeometryType, role: reference.expectedGeometryType === "point" ? "pointReference" : "lineReference" }
+      )
+    );
+    // The ordinary scalar analyzer owns root value-for diagnostics. This
+    // pass contributes only the resolved Module source projection.
+    const diagnostics = localDiagnosticsByStatement.get(value.statementIndex);
+    if (diagnostics && diagnostics.length > diagnosticsBefore) {
+      diagnostics.splice(diagnosticsBefore);
+      if (diagnostics.length === 0) localDiagnosticsByStatement.delete(value.statementIndex);
+    }
+    if (expression) {
+      rootScalarExpressionsByStatementId.set(statementIdAt(stableStatementIdByIndex, value.statementIndex), {
+        parameterKey: null,
+        span: mapped.bodySpan,
+        expression
+      });
+    }
+  }
+
   const localScalarsByDefinition = new Map<number, ModuleDefinitionSemantic["localScalars"]>();
   const mappedScalarCollectionBodiesByDefinition = new Map<number, ModuleDefinitionSemantic["mappedScalarCollectionBodies"]>();
   const localGeometryValuesByDefinition = new Map<number, ModuleGeometryValueSemantic[]>();

@@ -73,6 +73,29 @@ describe("queryDslReferences", () => {
     expect(slices(source, result!.referenceRanges)).toEqual(["item"]);
   });
 
+  it("keeps an ordinary qualified scalar export identity separate from the value-for binder", () => {
+    const source = [
+      "nui 1",
+      "const values: number[] = [1, 2]",
+      "module Config(offset: number) {",
+      "  export const value: number = @offset",
+      "}",
+      "instance A = Config(offset: 5)",
+      "const mapped: number[] = for x in @values { @x + @A::value }"
+    ].join("\n");
+    const ordinary = queryAt(source, "@A::value");
+    expect(ordinary).not.toBeNull();
+    expect(slices(source, ordinary!.declarationRange)).toEqual(["value"]);
+    expect(ordinary!.referenceRanges).toEqual(expect.arrayContaining([
+      { from: source.indexOf("@A::value") + 1 + "A::".length, to: source.indexOf("@A::value") + "@A::value".length }
+    ]));
+    const binder = queryAt(source, "@x");
+    expect(binder).not.toBeNull();
+    expect(slices(source, binder!.declarationRange)).toEqual(["x"]);
+    expect(binder!.referenceRanges).toEqual([{ from: source.indexOf("@x") + 1, to: source.indexOf("@x") + 2 }]);
+    expect(ordinary!.declarationRange).not.toEqual(binder!.declarationRange);
+  });
+
   it("keeps root immutable geometry aliases on one declaration identity", () => {
     const source = [
       "nui 1",

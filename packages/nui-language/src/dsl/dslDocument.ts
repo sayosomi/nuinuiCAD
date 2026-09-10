@@ -1773,6 +1773,7 @@ export const compileDslDocument = (
         sourceNamespace: sourceLexicalNamespace,
         additionalBindings: [...rootValueForBodyBindingSeeds, ...usableExportBindingSeeds],
         additionalBindingResolver,
+        additionalInitializers: rootValueForBodyInitializers,
         nonProgramBindingIds: new Set(rootValueForBodyBindingSeeds.map((seed) => seed.id)),
         additionalCollectionIndexResolver: rootCollectionIndexResolver,
         additionalRecordValueResolver: (value) => {

@@ -60,6 +60,28 @@ describe("queryDslDefinition", () => {
     expect(result!.declarationRange.from).toBe(source.indexOf("item in"));
   });
 
+  it("resolves an ordinary qualified scalar export used by a value-for body", () => {
+    const source = [
+      "nui 1",
+      "const values: number[] = [1, 2]",
+      "module Config(offset: number) {",
+      "  export const value: number = @offset",
+      "}",
+      "instance A = Config(offset: 5)",
+      "const mapped: number[] = for x in @values { @x + @A::value }"
+    ].join("\n");
+    const referenceStart = source.indexOf("@A::value");
+    const result = queryDslDefinition({
+      source: { normalizedSource: source, sourceRevision: 7 },
+      position: referenceStart + "@A::value".length,
+      semantic: { sourceRevision: 7, compiled: compileWithIds(source) }
+    });
+    expect(result).not.toBeNull();
+    expect(sourceSlice(source, result!.referenceRange)).toBe("value");
+    expect(sourceSlice(source, result!.declarationRange)).toBe("value");
+    expect(result!.declarationRange.from).toBe(source.indexOf("  export const value") + "  export const ".length);
+  });
+
   it("resolves root immutable geometry aliases to their source declaration", () => {
     const source = [
       "nui 1",
