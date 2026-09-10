@@ -46,6 +46,18 @@
       {
         "id": "nuinuiCAD.convertPoint",
         "label": "%submenu.convert%"
+      },
+      {
+        "id": "nuinuiCAD.webview.display",
+        "label": "%submenu.webview.display%"
+      },
+      {
+        "id": "nuinuiCAD.webview.convertPoint",
+        "label": "%submenu.webview.convertPoint%"
+      },
+      {
+        "id": "nuinuiCAD.webview.bake",
+        "label": "%submenu.webview.bake%"
       }
     ],
     "keybindings": [
@@ -267,17 +279,113 @@
         {
           "command": "nuinuiCAD.createFreePointAtPointer",
           "when": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
+        },
+        {
+          "command": "nuinuiCAD.webview.createFreePointAtPointer",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.webview.fitDrawing",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.webview.resetCanvasView",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.webview.toggleCanvasPointNames",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.webview.toggleCanvasGeometryNames",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.webview.toggleCanvasPoints",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.webview.editCanvasRibbon",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.webview.clearCanvasSelection",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.webview.convertPointToXYOffset",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.webview.convertPointToAngleDistanceOffset",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.webview.selectParentGroup",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.webview.selectInstance",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.webview.goToSourceDefinition",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.webview.inlineModuleInstance",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.webview.extractModule",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.webview.bakeCurrentShape",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.webview.bakeBaseShape",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.webview.modulePreview.fitDrawing",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.webview.modulePreview.resetView",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.webview.modulePreview.togglePointNames",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.webview.modulePreview.toggleGeometryNames",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.webview.modulePreview.togglePoints",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.webview.modulePreview.clearSelection",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.webview.resetOutputPreviewView",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.webview.fitOutputPreview",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.webview.clearOutputPreviewFocus",
+          "when": "false"
         }
       ],
       "nuinuiCAD.convertPoint": [
-        {
-          "command": "nuinuiCAD.convertPointToXYOffset",
-          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'element' && nuinuiCAD.canvasHasCoordinatePointConversionTarget"
-        },
-        {
-          "command": "nuinuiCAD.convertPointToAngleDistanceOffset",
-          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'element' && nuinuiCAD.canvasHasCoordinatePointConversionTarget"
-        },
         {
           "command": "nuinuiCAD.convertPointToXYOffset",
           "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.coordinatePointConversionSourceTarget"
@@ -316,108 +424,150 @@
       ],
       "webview/context": [
         {
-          "command": "nuinuiCAD.createFreePointAtPointer",
+          "command": "nuinuiCAD.webview.createFreePointAtPointer",
           "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank'",
           "group": "1_create@0"
         },
         {
-          "submenu": "nuinuiCAD.convertPoint",
+          "command": "nuinuiCAD.webview.fitDrawing",
+          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank'",
+          "group": "2_view@1"
+        },
+        {
+          "command": "nuinuiCAD.webview.resetCanvasView",
+          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank'",
+          "group": "2_view@2"
+        },
+        {
+          "submenu": "nuinuiCAD.webview.display",
+          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank'",
+          "group": "2_view@3"
+        },
+        {
+          "command": "nuinuiCAD.webview.editCanvasRibbon",
+          "when": "(webviewId == 'nuinuiCAD.canvas' || webviewId == 'nuinuiCAD.modulePreview') && (webviewSection == 'blank' || webviewSection == 'ribbon')",
+          "group": "3_edit@1"
+        },
+        {
+          "command": "nuinuiCAD.webview.clearCanvasSelection",
+          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank' && nuinuiCAD.canvasHasSelection",
+          "group": "4_selection@1"
+        },
+        {
+          "submenu": "nuinuiCAD.webview.convertPoint",
           "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'element' && nuinuiCAD.canvasHasCoordinatePointConversionTarget",
           "group": "1_modification@1"
         },
         {
-          "command": "nuinuiCAD.fitDrawing",
-          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank'"
+          "command": "nuinuiCAD.webview.selectParentGroup",
+          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'element' && nuinuiCAD.canvasHasSelection",
+          "group": "1_modification@2"
         },
         {
-          "command": "nuinuiCAD.resetCanvasView",
-          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank'"
+          "command": "nuinuiCAD.webview.selectInstance",
+          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'element' && nuinuiCAD.canvasCanSelectInstance",
+          "group": "1_modification@3"
         },
         {
-          "command": "nuinuiCAD.toggleCanvasPointNames",
-          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank'"
+          "command": "nuinuiCAD.webview.goToSourceDefinition",
+          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'element' && nuinuiCAD.canvasHasSelection",
+          "group": "1_modification@4"
         },
         {
-          "command": "nuinuiCAD.toggleCanvasGeometryNames",
-          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank'"
-        },
-        {
-          "command": "nuinuiCAD.toggleCanvasPoints",
-          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank'"
-        },
-        {
-          "command": "nuinuiCAD.editCanvasRibbon",
-          "when": "(webviewId == 'nuinuiCAD.canvas' || webviewId == 'nuinuiCAD.modulePreview') && (webviewSection == 'blank' || webviewSection == 'ribbon')"
-        },
-        {
-          "command": "nuinuiCAD.clearCanvasSelection",
-          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank' && nuinuiCAD.canvasHasSelection"
-        },
-        {
-          "command": "nuinuiCAD.selectParentGroup",
-          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'element' && nuinuiCAD.canvasHasSelection"
-        },
-        {
-          "command": "nuinuiCAD.selectInstance",
-          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'element' && nuinuiCAD.canvasCanSelectInstance"
-        },
-        {
-          "command": "nuinuiCAD.resetOutputPreviewView",
-          "when": "webviewId == 'nuinuiCAD.outputPreview' && webviewSection == 'blank'"
-        },
-        {
-          "command": "nuinuiCAD.fitOutputPreview",
-          "when": "webviewId == 'nuinuiCAD.outputPreview' && webviewSection == 'blank'"
-        },
-        {
-          "command": "nuinuiCAD.clearOutputPreviewFocus",
-          "when": "webviewId == 'nuinuiCAD.outputPreview' && (webviewSection == 'blank' || webviewSection == 'place')"
-        },
-        {
-          "command": "nuinuiCAD.goToSourceDefinition",
-          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'element' && nuinuiCAD.canvasHasSelection"
-        },
-        {
-          "command": "nuinuiCAD.inlineModuleInstance",
+          "command": "nuinuiCAD.webview.inlineModuleInstance",
           "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'element' && nuinuiCAD.inlineModuleCanvasTarget",
           "group": "1_modification@7"
         },
         {
-          "command": "nuinuiCAD.extractModule",
+          "command": "nuinuiCAD.webview.extractModule",
           "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'element' && nuinuiCAD.extractModuleCanvasTarget",
           "group": "1_modification@8"
         },
         {
-          "command": "nuinuiCAD.bakeCurrentShape",
+          "submenu": "nuinuiCAD.webview.bake",
+          "when": "(webviewId == 'nuinuiCAD.canvas' || webviewId == 'nuinuiCAD.modulePreview') && webviewSection == 'element' && nuinuiCAD.canvasHasSelection",
+          "group": "1_modification@9"
+        },
+        {
+          "command": "nuinuiCAD.webview.resetOutputPreviewView",
+          "when": "webviewId == 'nuinuiCAD.outputPreview' && webviewSection == 'blank'",
+          "group": "2_view@1"
+        },
+        {
+          "command": "nuinuiCAD.webview.fitOutputPreview",
+          "when": "webviewId == 'nuinuiCAD.outputPreview' && webviewSection == 'blank'",
+          "group": "2_view@2"
+        },
+        {
+          "command": "nuinuiCAD.webview.clearOutputPreviewFocus",
+          "when": "webviewId == 'nuinuiCAD.outputPreview' && (webviewSection == 'blank' || webviewSection == 'place')",
+          "group": "4_selection@1"
+        },
+        {
+          "command": "nuinuiCAD.webview.modulePreview.fitDrawing",
+          "when": "webviewId == 'nuinuiCAD.modulePreview' && webviewSection == 'blank'",
+          "group": "2_view@1"
+        },
+        {
+          "command": "nuinuiCAD.webview.modulePreview.resetView",
+          "when": "webviewId == 'nuinuiCAD.modulePreview' && webviewSection == 'blank'",
+          "group": "2_view@2"
+        },
+        {
+          "submenu": "nuinuiCAD.webview.display",
+          "when": "webviewId == 'nuinuiCAD.modulePreview' && webviewSection == 'blank'",
+          "group": "2_view@3"
+        },
+        {
+          "command": "nuinuiCAD.webview.modulePreview.clearSelection",
+          "when": "webviewId == 'nuinuiCAD.modulePreview' && webviewSection == 'blank' && nuinuiCAD.canvasHasSelection",
+          "group": "4_selection@1"
+        }
+      ],
+      "nuinuiCAD.webview.display": [
+        {
+          "command": "nuinuiCAD.webview.toggleCanvasPointNames",
+          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank'"
+        },
+        {
+          "command": "nuinuiCAD.webview.toggleCanvasGeometryNames",
+          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank'"
+        },
+        {
+          "command": "nuinuiCAD.webview.toggleCanvasPoints",
+          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank'"
+        },
+        {
+          "command": "nuinuiCAD.webview.modulePreview.togglePointNames",
+          "when": "webviewId == 'nuinuiCAD.modulePreview' && webviewSection == 'blank'"
+        },
+        {
+          "command": "nuinuiCAD.webview.modulePreview.toggleGeometryNames",
+          "when": "webviewId == 'nuinuiCAD.modulePreview' && webviewSection == 'blank'"
+        },
+        {
+          "command": "nuinuiCAD.webview.modulePreview.togglePoints",
+          "when": "webviewId == 'nuinuiCAD.modulePreview' && webviewSection == 'blank'"
+        }
+      ],
+      "nuinuiCAD.webview.convertPoint": [
+        {
+          "command": "nuinuiCAD.webview.convertPointToXYOffset",
+          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'element' && nuinuiCAD.canvasHasCoordinatePointConversionTarget"
+        },
+        {
+          "command": "nuinuiCAD.webview.convertPointToAngleDistanceOffset",
+          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'element' && nuinuiCAD.canvasHasCoordinatePointConversionTarget"
+        }
+      ],
+      "nuinuiCAD.webview.bake": [
+        {
+          "command": "nuinuiCAD.webview.bakeCurrentShape",
           "when": "(webviewId == 'nuinuiCAD.canvas' || webviewId == 'nuinuiCAD.modulePreview') && webviewSection == 'element' && nuinuiCAD.canvasHasSelection"
         },
         {
-          "command": "nuinuiCAD.bakeBaseShape",
+          "command": "nuinuiCAD.webview.bakeBaseShape",
           "when": "(webviewId == 'nuinuiCAD.canvas' || webviewId == 'nuinuiCAD.modulePreview') && webviewSection == 'element' && nuinuiCAD.canvasHasSelection"
-        },
-        {
-          "command": "nuinuiCAD.modulePreview.fitDrawing",
-          "when": "webviewId == 'nuinuiCAD.modulePreview' && webviewSection == 'blank'"
-        },
-        {
-          "command": "nuinuiCAD.modulePreview.resetView",
-          "when": "webviewId == 'nuinuiCAD.modulePreview' && webviewSection == 'blank'"
-        },
-        {
-          "command": "nuinuiCAD.modulePreview.togglePointNames",
-          "when": "webviewId == 'nuinuiCAD.modulePreview' && webviewSection == 'blank'"
-        },
-        {
-          "command": "nuinuiCAD.modulePreview.toggleGeometryNames",
-          "when": "webviewId == 'nuinuiCAD.modulePreview' && webviewSection == 'blank'"
-        },
-        {
-          "command": "nuinuiCAD.modulePreview.togglePoints",
-          "when": "webviewId == 'nuinuiCAD.modulePreview' && webviewSection == 'blank'"
-        },
-        {
-          "command": "nuinuiCAD.modulePreview.clearSelection",
-          "when": "webviewId == 'nuinuiCAD.modulePreview' && webviewSection == 'blank' && nuinuiCAD.canvasHasSelection"
         }
       ],
       "editor/context": [
@@ -693,6 +843,110 @@
         "title": "%command.createFreePointAtPointer.title%",
         "shortTitle": "%command.createFreePointAtPointer.shortTitle%",
         "enablement": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
+      },
+      {
+        "command": "nuinuiCAD.webview.createFreePointAtPointer",
+        "title": "%command.webview.createFreePointAtPointer.title%"
+      },
+      {
+        "command": "nuinuiCAD.webview.fitDrawing",
+        "title": "%command.webview.fitDrawing.title%"
+      },
+      {
+        "command": "nuinuiCAD.webview.resetCanvasView",
+        "title": "%command.webview.resetCanvasView.title%"
+      },
+      {
+        "command": "nuinuiCAD.webview.toggleCanvasPointNames",
+        "title": "%command.webview.toggleCanvasPointNames.title%"
+      },
+      {
+        "command": "nuinuiCAD.webview.toggleCanvasGeometryNames",
+        "title": "%command.webview.toggleCanvasGeometryNames.title%"
+      },
+      {
+        "command": "nuinuiCAD.webview.toggleCanvasPoints",
+        "title": "%command.webview.toggleCanvasPoints.title%"
+      },
+      {
+        "command": "nuinuiCAD.webview.editCanvasRibbon",
+        "title": "%command.webview.editCanvasRibbon.title%"
+      },
+      {
+        "command": "nuinuiCAD.webview.clearCanvasSelection",
+        "title": "%command.webview.clearCanvasSelection.title%"
+      },
+      {
+        "command": "nuinuiCAD.webview.convertPointToXYOffset",
+        "title": "%command.webview.convertPointToXYOffset.title%"
+      },
+      {
+        "command": "nuinuiCAD.webview.convertPointToAngleDistanceOffset",
+        "title": "%command.webview.convertPointToAngleDistanceOffset.title%"
+      },
+      {
+        "command": "nuinuiCAD.webview.selectParentGroup",
+        "title": "%command.webview.selectParentGroup.title%"
+      },
+      {
+        "command": "nuinuiCAD.webview.selectInstance",
+        "title": "%command.webview.selectInstance.title%"
+      },
+      {
+        "command": "nuinuiCAD.webview.goToSourceDefinition",
+        "title": "%command.webview.goToSourceDefinition.title%"
+      },
+      {
+        "command": "nuinuiCAD.webview.inlineModuleInstance",
+        "title": "%command.webview.inlineModuleInstance.title%"
+      },
+      {
+        "command": "nuinuiCAD.webview.extractModule",
+        "title": "%command.webview.extractModule.title%"
+      },
+      {
+        "command": "nuinuiCAD.webview.bakeCurrentShape",
+        "title": "%command.webview.bakeCurrentShape.title%"
+      },
+      {
+        "command": "nuinuiCAD.webview.bakeBaseShape",
+        "title": "%command.webview.bakeBaseShape.title%"
+      },
+      {
+        "command": "nuinuiCAD.webview.modulePreview.fitDrawing",
+        "title": "%command.webview.modulePreview.fitDrawing.title%"
+      },
+      {
+        "command": "nuinuiCAD.webview.modulePreview.resetView",
+        "title": "%command.webview.modulePreview.resetView.title%"
+      },
+      {
+        "command": "nuinuiCAD.webview.modulePreview.togglePointNames",
+        "title": "%command.webview.modulePreview.togglePointNames.title%"
+      },
+      {
+        "command": "nuinuiCAD.webview.modulePreview.toggleGeometryNames",
+        "title": "%command.webview.modulePreview.toggleGeometryNames.title%"
+      },
+      {
+        "command": "nuinuiCAD.webview.modulePreview.togglePoints",
+        "title": "%command.webview.modulePreview.togglePoints.title%"
+      },
+      {
+        "command": "nuinuiCAD.webview.modulePreview.clearSelection",
+        "title": "%command.webview.modulePreview.clearSelection.title%"
+      },
+      {
+        "command": "nuinuiCAD.webview.resetOutputPreviewView",
+        "title": "%command.webview.resetOutputPreviewView.title%"
+      },
+      {
+        "command": "nuinuiCAD.webview.fitOutputPreview",
+        "title": "%command.webview.fitOutputPreview.title%"
+      },
+      {
+        "command": "nuinuiCAD.webview.clearOutputPreviewFocus",
+        "title": "%command.webview.clearOutputPreviewFocus.title%"
       }
     ],
     "configuration": {
