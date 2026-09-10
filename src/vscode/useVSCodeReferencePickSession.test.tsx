@@ -137,12 +137,6 @@ const resultMessages = (api: ReturnType<typeof createApi>) => api.postMessage.mo
     message?.type === "referencePickResult"
   );
 
-const diagnosticMessages = (api: ReturnType<typeof createApi>) => api.postMessage.mock.calls
-  .map(([message]) => message)
-  .filter((message): message is Extract<VscodeToExtensionMessage, { type: "referencePickDiagnostic" }> =>
-    message?.type === "referencePickDiagnostic"
-  );
-
 describe("useVSCodeReferencePickSession readiness lifecycle", () => {
   it("keeps an exact request pending while the current Source context hydrates", () => {
     const fixture = fixtureFor();
@@ -156,20 +150,10 @@ describe("useVSCodeReferencePickSession readiness lifecycle", () => {
 
     dispatch(fixture.request);
     expect(resultMessages(api)).toEqual([]);
-    expect(diagnosticMessages(api).map((message) => [message.stage, message.outcome])).toEqual([
-      ["referencePickStartRequestReceived", "received"],
-      ["context", "deferred"]
-    ]);
 
     hydrated = true;
     act(() => hook.rerender());
     expect(resultMessages(api)).toMatchObject([{ status: "started" }]);
-    expect(diagnosticMessages(api).map((message) => [message.stage, message.outcome])).toEqual([
-      ["referencePickStartRequestReceived", "received"],
-      ["context", "deferred"],
-      ["canvasSessionStart", "observed"],
-      ["canvasSessionStart", "started"]
-    ]);
     expect(hook.result.current.session).not.toBeNull();
   });
 
@@ -302,11 +286,6 @@ describe("useVSCodeReferencePickSession readiness lifecycle", () => {
 
     dispatch(fixture.request);
     expect(resultMessages(api)).toMatchObject([{ status: "stale", requestId: fixture.request.requestId }]);
-    expect(diagnosticMessages(api)).toContainEqual(expect.objectContaining({
-      stage: "context",
-      outcome: "stale",
-      reason: "authority-context-mismatch"
-    }));
     mismatchedHook.unmount();
 
     const invalidProofRequest = {

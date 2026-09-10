@@ -19,8 +19,6 @@ import {
 } from "@nuinuicad/nui-language";
 import type { CanonicalGeometrySourceReference } from "../../src/model/moduleSemanticCandidateBoundary";
 import type {
-  VscodeReferencePickDiagnosticEvent,
-  VscodeReferencePickDiagnosticSink,
   VscodeReferencePickResult,
   VscodeReferencePickNumericPropertyDraft,
   VscodeReferencePickTargetProof
@@ -65,17 +63,6 @@ export type VscodeReferencePickCanvasEndpoint = {
   document: vscode.TextDocument;
   panel: vscode.WebviewPanel;
   isAuthoritativeReady: () => boolean;
-  readiness?: () => VscodeReferencePickCanvasReadiness;
-};
-
-export type VscodeReferencePickCanvasReadiness = {
-  canvasHistoryHandoffSession: "clear" | "not-clear";
-  expectedCanvasSessionRegistered: boolean;
-  webviewReady: boolean;
-  authoritativeDocumentVersion: number | null;
-  currentDocumentVersion: number;
-  inFlightCanvasHistory: "absent" | "present";
-  isAuthoritativeReady: boolean;
 };
 
 type ReferencePickTargetQuickPickItem = vscode.QuickPickItem & {
@@ -534,41 +521,19 @@ export const referencePickSourceTargetResolutionForEditor = (
 export const registerVscodeReferencePickFeature = ({
   languageAnalysisSessionFor,
   ensureCanvas,
-  displayLanguageFor = vscodeDisplayLanguage,
-  diagnosticSink
+  displayLanguageFor = vscodeDisplayLanguage
 }: {
   languageAnalysisSessionFor: (document: vscode.TextDocument) => NuiLanguageAnalysisSession;
   ensureCanvas: (
     document: vscode.TextDocument
   ) => VscodeReferencePickCanvasEndpoint | null | Promise<VscodeReferencePickCanvasEndpoint | null>;
   displayLanguageFor?: () => string;
-  diagnosticSink?: VscodeReferencePickDiagnosticSink;
 }): vscode.Disposable => {
   let nextRequestId = 1;
   let active: ActiveReferencePick | null = null;
   let historyHandoff: ReferencePickHistoryHandoff | null = null;
   let contextUpdate: Promise<void> = Promise.resolve();
   let contextRefreshRevision = 0;
-
-  const emitDiagnostic = ({
-    requestId,
-    documentUri,
-    documentVersion,
-    stage,
-    outcome,
-    reason,
-    details = {}
-  }: VscodeReferencePickDiagnosticEvent): void => {
-    diagnosticSink?.({
-      ...(requestId === undefined ? {} : { requestId }),
-      documentUri,
-      documentVersion,
-      stage,
-      outcome,
-      ...(reason === undefined ? {} : { reason }),
-      details
-    });
-  };
 
   const setSourceTargetContexts = (availability: VscodeSourceTargetAvailability): void => {
     contextUpdate = contextUpdate
@@ -657,69 +622,16 @@ export const registerVscodeReferencePickFeature = ({
     const current = active;
     if (!current) return;
     current.bridge?.cancel();
-    emitDiagnostic({
-      requestId: current.requestId,
-      documentUri: current.editor.document.uri.toString(),
-      documentVersion: current.editor.document.version,
-      stage: "terminalCleared",
-      outcome: "cleared",
-      reason: "active-reference-pick-canceled",
-      details: { bridgePresent: current.bridge !== null }
-    });
     clearActive(false);
   };
 
   const tryStartActive = (): void => {
     const current = active;
-    if (!current) return;
-    const readiness = current.endpoint.readiness?.();
-    const ready = current.bridge
-      ? false
-      : readiness?.isAuthoritativeReady ?? current.endpoint.isAuthoritativeReady();
-    emitDiagnostic({
-      requestId: current.requestId,
-      documentUri: current.editor.document.uri.toString(),
-      documentVersion: current.editor.document.version,
-      stage: "tryStartActive",
-      outcome: current.bridge
-        ? "deferred"
-        : ready ? "observed" : "deferred",
-      reason: current.bridge ? "bridge-already-constructed" : ready ? "authoritative-ready" : "endpoint-not-authoritative-ready",
-      details: {
-        bridgePresent: current.bridge !== null,
-        ...(readiness ?? { isAuthoritativeReady: ready })
-      }
-    });
-    if (current.bridge) return;
-    if (!ready) {
-      emitDiagnostic({
-        requestId: current.requestId,
-        documentUri: current.editor.document.uri.toString(),
-        documentVersion: current.editor.document.version,
-        stage: "endpointReadiness",
-        outcome: "deferred",
-        reason: "endpoint-not-authoritative-ready",
-        details: readiness ?? { isAuthoritativeReady: false }
-      });
-      return;
-    }
+    if (!current || current.bridge || !current.endpoint.isAuthoritativeReady()) return;
     if (
       current.editor.document.version !== current.documentVersion ||
       !sameDocument(current.editor.document, current.endpoint.document)
     ) {
-      emitDiagnostic({
-        requestId: current.requestId,
-        documentUri: current.editor.document.uri.toString(),
-        documentVersion: current.editor.document.version,
-        stage: "tryStartActive",
-        outcome: "stale",
-        reason: "active-source-and-canvas-document-mismatch",
-        details: {
-          expectedDocumentVersion: current.documentVersion,
-          endpointDocumentVersion: current.endpoint.document.version,
-          sameDocument: sameDocument(current.editor.document, current.endpoint.document)
-        }
-      });
       clearActive(false);
       return;
     }
@@ -739,14 +651,6 @@ export const registerVscodeReferencePickFeature = ({
         })
       : null;
     if (!freshTarget) {
-      emitDiagnostic({
-        requestId: current.requestId,
-        documentUri: current.editor.document.uri.toString(),
-        documentVersion: current.editor.document.version,
-        stage: "tryStartActive",
-        outcome: "rejected",
-        reason: "current-source-target-unresolvable"
-      });
       clearActive(false);
       refreshContext(current.editor);
       return;
@@ -764,28 +668,10 @@ export const registerVscodeReferencePickFeature = ({
         ? { initialNumericPropertyDraft: current.initialNumericPropertyDraft }
         : {}),
       ...(current.expectedTargetProof ? { expectedTargetProof: current.expectedTargetProof } : {}),
-      diagnosticSink,
       postMessage: (message) => current.endpoint.panel.webview.postMessage(message)
     });
     current.bridge = bridge;
-    emitDiagnostic({
-      requestId: current.requestId,
-      documentUri: current.editor.document.uri.toString(),
-      documentVersion: current.editor.document.version,
-      stage: "bridgeConstructed",
-      outcome: "observed"
-    });
-    const startRequest = bridge.start();
-    emitDiagnostic({
-      requestId: current.requestId,
-      documentUri: current.editor.document.uri.toString(),
-      documentVersion: current.editor.document.version,
-      stage: "bridgeStart",
-      outcome: startRequest ? "posted" : "rejected",
-      reason: startRequest ? "bridge-start-returned-request" : "bridge-rejected-before-post",
-      details: { requestPosted: startRequest !== null }
-    });
-    if (!startRequest) {
+    if (!bridge.start()) {
       clearActive(true);
       clearHistoryHandoff();
       refreshContext(current.editor);
@@ -794,13 +680,6 @@ export const registerVscodeReferencePickFeature = ({
 
   const attachActive = (current: ActiveReferencePick): void => {
     active = current;
-    emitDiagnostic({
-      requestId: current.requestId,
-      documentUri: current.editor.document.uri.toString(),
-      documentVersion: current.documentVersion,
-      stage: "attachActive",
-      outcome: "observed"
-    });
     current.webviewDisposable = current.endpoint.panel.webview.onDidReceiveMessage((message: unknown) => {
       if (active !== current || typeof message !== "object" || message === null || !("type" in message)) return;
       const typed = message as { type: string };
@@ -809,20 +688,7 @@ export const registerVscodeReferencePickFeature = ({
         return;
       }
       if (typed.type === "referencePickResult") {
-        const result = message as VscodeReferencePickResult;
-        emitDiagnostic({
-          requestId: current.requestId,
-          documentUri: current.editor.document.uri.toString(),
-          documentVersion: current.editor.document.version,
-          stage: "referencePickResultReceived",
-          outcome: "received",
-          details: {
-            status: result.status,
-            resultRequestId: result.requestId ?? null,
-            resultDocumentVersion: result.documentVersion ?? null
-          }
-        });
-        void handleReferencePickResult(result);
+        void handleReferencePickResult(message as VscodeReferencePickResult);
       }
     });
     current.panelDisposable = current.endpoint.panel.onDidDispose(() => {
@@ -862,15 +728,6 @@ export const registerVscodeReferencePickFeature = ({
       return;
     }
     if (outcome === "canceled") {
-      emitDiagnostic({
-        requestId: current.requestId,
-        documentUri: current.editor.document.uri.toString(),
-        documentVersion: current.editor.document.version,
-        stage: "terminalCleared",
-        outcome: "cleared",
-        reason: "webview-canceled",
-        details: { bridgeOutcome: outcome }
-      });
       clearActive(false);
       clearHistoryHandoff();
       try {
@@ -885,17 +742,6 @@ export const registerVscodeReferencePickFeature = ({
       }
       refreshContext(vscode.window.activeTextEditor);
       return;
-    }
-    if (outcome === "stale" || outcome === "rejected") {
-      emitDiagnostic({
-        requestId: current.requestId,
-        documentUri: current.editor.document.uri.toString(),
-        documentVersion: current.editor.document.version,
-        stage: "terminalCleared",
-        outcome: "cleared",
-        reason: `webview-${outcome}`,
-        details: { bridgeOutcome: outcome }
-      });
     }
     clearActive(false);
     clearHistoryHandoff();
@@ -977,19 +823,6 @@ export const registerVscodeReferencePickFeature = ({
     if (!selectedTarget) return;
     const targetProof = referencePickTargetProofFor(captured.source.normalizedSource, selectedTarget);
     if (!targetProof) return;
-    emitDiagnostic({
-      documentUri: editor.document.uri.toString(),
-      documentVersion,
-      stage: "commandTargetCaptured",
-      outcome: "observed",
-      details: {
-        targetStatementIndex: selectedTarget.sourceAnchor.statementIndex,
-        targetStatementId: selectedTarget.sourceAnchor.statementId,
-        targetRole: selectedTarget.role,
-        targetMultiplicity: selectedTarget.multiplicity,
-        normalizedSourceOffset: selectedTarget.range.from
-      }
-    });
     const seedReferences = selectedTarget.role === "numericPropertyBase"
       ? []
       : referencePickSeedReferences(targetProof);
@@ -999,33 +832,12 @@ export const registerVscodeReferencePickFeature = ({
     clearHistoryHandoff();
     const sourceSelection = editor.selection;
     const endpoint = await ensureCanvas(editor.document);
-    emitDiagnostic({
-      documentUri: editor.document.uri.toString(),
-      documentVersion: editor.document.version,
-      stage: "ensureCanvas",
-      outcome: endpoint ? "observed" : "rejected",
-      reason: endpoint ? "canvas-endpoint-returned" : "canvas-endpoint-unavailable"
-    });
     if (
       !endpoint ||
       editor.document.version !== documentVersion ||
       !sameDocument(editor.document, endpoint.document) ||
       editor.document.getText() !== capturedSource
-    ) {
-      emitDiagnostic({
-        documentUri: editor.document.uri.toString(),
-        documentVersion: editor.document.version,
-        stage: "ensureCanvas",
-        outcome: "stale",
-        reason: "source-context-changed-before-attach",
-        details: {
-          endpointReturned: endpoint !== null,
-          expectedDocumentVersion: documentVersion,
-          endpointDocumentMatches: endpoint ? sameDocument(editor.document, endpoint.document) : false
-        }
-      });
-      return;
-    }
+    ) return;
 
     try {
       await vscode.window.showTextDocument(editor.document, {

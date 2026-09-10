@@ -56,7 +56,6 @@ const hostDocument = (
   activeSurface: "canvas",
   sourceSelection: null,
   diagnostics: [],
-  referencePickDiagnosticTrace: [],
   canvasSessionPresent: true,
   outputPreviewSessionPresent: false,
   ...overrides

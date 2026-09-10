@@ -262,7 +262,6 @@ describe("VS Code Canvas reference pick session bridge", () => {
     );
     expect(unmappable.session).toBeNull();
     expect(unmappable.result.status).toBe("stale");
-    expect(unmappable.diagnostic.reason).toBe("candidate-target-reanchor-failed");
 
     const candidateSource = currentSource.replace(
       "const X: number = ",
@@ -291,49 +290,6 @@ describe("VS Code Canvas reference pick session bridge", () => {
     });
     expect(stale.session).toBeNull();
     expect(stale.result.status).toBe("stale");
-    expect(stale.diagnostic.reason).toBe("missing-usable-evaluation-or-candidate-snapshot-authority");
-  });
-
-  it("reports the first current/pinned identity mismatch without changing the stale result", () => {
-    const canvasSource = [
-      "nui 1",
-      "point A = coordinate(x: 0, y: 0)",
-      "point B = coordinate(x: 10, y: 0)",
-      "line Base = segment(start: @A, end: @B)"
-    ].join("\n");
-    const currentSource = `${canvasSource}\npoint New = offset(from: @A, dx: 0, dy: )`;
-    const position = currentSource.indexOf("dy: )") + "dy: ".length;
-    const fixture = dualAuthorityFixture(currentSource, canvasSource, position);
-    const mismatchedPinnedCompiled = compile(canvasSource, CANVAS_REVISION, "mismatched-pinned");
-    const result = startVscodeReferencePickCanvasSession({
-      request: fixture.request,
-      authoritativeDocumentUri: DOCUMENT_URI,
-      authoritativeDocumentVersion: DOCUMENT_VERSION,
-      source: { normalizedSource: fixture.currentSource, sourceRevision: HOST_REVISION },
-      compiled: fixture.currentCompiled,
-      evaluation: fixture.canvasEvaluation,
-      evaluationIsCurrent: false,
-      candidateSnapshot: { ...fixture.canvasSnapshot, compiled: mismatchedPinnedCompiled }
-    });
-
-    expect(result.result.status).toBe("stale");
-    expect(result.diagnostic).toMatchObject({
-      stage: "canvasSessionStart",
-      outcome: "stale",
-      reason: "candidate-target-reanchor-failed",
-      details: {
-        firstMismatchingPrefixIndex: 0,
-        firstMismatchingPrefix: {
-          index: 0,
-          currentId: "shared-pick:0",
-          pinnedId: "mismatched-pinned:0"
-        },
-        targetExactlyAppendIndex: true,
-        currentTargetStatementIdMatchesCurrentStatementMap: true,
-        targetStatementIdAlreadyExistsInPinnedCanvasMap: false,
-        targetScopeExistsInPinnedCanvasScopeIndex: true
-      }
-    });
   });
 
   it("accepts an appended incomplete Source target using only the reconciled Canvas namespace as candidate authority", () => {
@@ -351,12 +307,6 @@ describe("VS Code Canvas reference pick session bridge", () => {
 
     expect(started.result.status).toBe("started");
     expect(started.session?.target.sourceAnchor.sourceRevision).toBe(HOST_REVISION);
-    expect(started.diagnostic).toMatchObject({
-      stage: "canvasSessionStart",
-      outcome: "started",
-      reason: "canvas-reference-pick-session-started",
-      details: { candidateAuthority: "pinned-canvas-snapshot", candidateReanchorMode: "appended" }
-    });
     if (started.result.status !== "started") return;
     expect(started.result.candidateReferences).toContainEqual({ base: "Base" });
   });

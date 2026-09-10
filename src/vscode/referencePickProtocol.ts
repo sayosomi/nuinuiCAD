@@ -61,60 +61,6 @@ export type VscodeReferencePickCancelRequest = {
   documentVersion: number;
 };
 
-export type VscodeReferencePickDiagnosticStage =
-  | "commandTargetCaptured"
-  | "ensureCanvas"
-  | "attachActive"
-  | "tryStartActive"
-  | "endpointReadiness"
-  | "bridgeConstructed"
-  | "bridgeStart"
-  | "referencePickStartRequestPosted"
-  | "referencePickStartRequestReceived"
-  | "authority"
-  | "context"
-  | "evaluation"
-  | "canvasSessionStart"
-  | "referencePickResultReceived"
-  | "terminalCleared";
-
-export type VscodeReferencePickDiagnosticOutcome =
-  | "observed"
-  | "posted"
-  | "deferred"
-  | "received"
-  | "started"
-  | "stale"
-  | "rejected"
-  | "failed"
-  | "cleared";
-
-export type VscodeReferencePickDiagnosticValue =
-  | string
-  | number
-  | boolean
-  | null
-  | readonly VscodeReferencePickDiagnosticValue[]
-  | { readonly [key: string]: VscodeReferencePickDiagnosticValue };
-
-export type VscodeReferencePickDiagnosticEvent = {
-  requestId?: number;
-  documentUri: string;
-  documentVersion: number | null;
-  stage: VscodeReferencePickDiagnosticStage;
-  outcome: VscodeReferencePickDiagnosticOutcome;
-  reason?: string;
-  details?: { readonly [key: string]: VscodeReferencePickDiagnosticValue };
-};
-
-export type VscodeReferencePickDiagnosticMessage = {
-  type: "referencePickDiagnostic";
-} & VscodeReferencePickDiagnosticEvent;
-
-export type VscodeReferencePickDiagnosticSink = (
-  event: VscodeReferencePickDiagnosticEvent
-) => void;
-
 type VscodeReferencePickResultBase = {
   type: "referencePickResult";
   requestId: number;
@@ -155,9 +101,7 @@ export type VscodeExtensionToReferencePickMessage =
   | VscodeReferencePickStartRequest
   | VscodeReferencePickCancelRequest;
 
-export type VscodeReferencePickToExtensionMessage =
-  | VscodeReferencePickResult
-  | VscodeReferencePickDiagnosticMessage;
+export type VscodeReferencePickToExtensionMessage = VscodeReferencePickResult;
 
 const sameRange = (
   left: { from: number; to: number },

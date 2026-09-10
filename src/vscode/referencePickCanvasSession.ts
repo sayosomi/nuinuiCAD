@@ -36,7 +36,6 @@ import {
   isValidNumericReferencePickCandidate,
   sameReferencePickTargetProof,
   type VscodeReferencePickConfirmedResult,
-  type VscodeReferencePickDiagnosticEvent,
   type VscodeReferencePickNumericCandidate,
   type VscodeReferencePickNumericPropertyDraft,
   type VscodeReferencePickResult,
@@ -231,79 +230,6 @@ const reanchorAppendedReferencePickTargetToCanvasSnapshot = ({
   };
 };
 
-const referencePickStatementShapeFor = (
-  statement: CompiledDslDocument["statements"][number] | undefined
-): { kind: string; type?: string | null; category?: string | null } | null => {
-  if (!statement) return null;
-  return statement.kind === "element"
-    ? {
-        kind: statement.kind,
-        type: statement.type ?? null,
-        category: statement.category ?? null
-      }
-    : { kind: statement.kind };
-};
-
-/**
- * Captures the identity facts used by the existing Canvas re-anchor guards.
- * This is intentionally a read-only diagnostic projection; it is not used to
- * choose a different re-anchor path.
- */
-export const referencePickCandidateReanchorFactsFor = ({
-  target,
-  currentCompiled,
-  canvasSnapshot
-}: {
-  target: DslReferencePickTarget;
-  currentCompiled: CompiledDslDocument;
-  canvasSnapshot: VscodeReferencePickCanvasSnapshot;
-}) => {
-  const currentIds = currentCompiled.statementMap?.statementIdByStatementIndex;
-  const canvasIds = canvasSnapshot.compiled.statementMap?.statementIdByStatementIndex;
-  const canvasScopeIndex = canvasSnapshot.compiled.sourceLexicalNamespace?.scopeIndex;
-  const targetStatementIndex = target.sourceAnchor.statementIndex;
-  const targetStatementId = target.sourceAnchor.statementId;
-  const sharedPrefixCount = Math.min(
-    currentCompiled.statements.length,
-    canvasSnapshot.compiled.statements.length
-  );
-  const sharedPrefixStatementIds = Array.from({ length: sharedPrefixCount }, (_, index) => ({
-    index,
-    currentId: currentIds?.get(index) ?? null,
-    pinnedId: canvasIds?.get(index) ?? null
-  }));
-  const firstMismatchingPrefix = Array.from({ length: sharedPrefixCount }, (_, index) => index)
-    .map((index) => ({
-      index,
-      currentId: currentIds?.get(index) ?? null,
-      pinnedId: canvasIds?.get(index) ?? null,
-      currentShape: referencePickStatementShapeFor(currentCompiled.statements[index]),
-      pinnedShape: referencePickStatementShapeFor(canvasSnapshot.compiled.statements[index])
-    }))
-    .find((entry) =>
-      entry.currentId !== entry.pinnedId ||
-      JSON.stringify(entry.currentShape) !== JSON.stringify(entry.pinnedShape)
-    ) ?? null;
-
-  return {
-    targetStatementIndex,
-    targetStatementId,
-    targetScopeId: target.sourceAnchor.scopeId,
-    currentStatementCount: currentCompiled.statements.length,
-    pinnedCanvasStatementCount: canvasSnapshot.compiled.statements.length,
-    targetExactlyAppendIndex: targetStatementIndex === canvasSnapshot.compiled.statements.length,
-    currentTargetStatementIdMatchesCurrentStatementMap:
-      currentIds?.get(targetStatementIndex) === targetStatementId,
-    targetStatementIdAlreadyExistsInPinnedCanvasMap:
-      [...(canvasIds?.values() ?? [])].some((statementId) => statementId === targetStatementId),
-    targetScopeExistsInPinnedCanvasScopeIndex:
-      canvasScopeIndex?.scopes.has(target.sourceAnchor.scopeId) ?? false,
-    sharedPrefixStatementIds,
-    firstMismatchingPrefixIndex: firstMismatchingPrefix?.index ?? null,
-    firstMismatchingPrefix
-  };
-};
-
 const candidateCompiledForReferencePickTarget = (
   compiled: CompiledDslDocument,
   target: DslReferencePickTarget
@@ -398,7 +324,6 @@ export const startVscodeReferencePickCanvasSession = ({
 }): {
   session: VscodeReferencePickCanvasSession | null;
   result: VscodeReferencePickResult;
-  diagnostic: VscodeReferencePickDiagnosticEvent;
 } => {
   const rejected = (status: "stale" | "rejected"): VscodeReferencePickResult => ({
     type: "referencePickResult",
@@ -408,52 +333,11 @@ export const startVscodeReferencePickCanvasSession = ({
     targetProof: request.targetProof,
     status
   });
-  const diagnosticFor = (
-    outcome: VscodeReferencePickDiagnosticEvent["outcome"],
-    reason: string,
-    details: VscodeReferencePickDiagnosticEvent["details"] = {}
-  ): VscodeReferencePickDiagnosticEvent => ({
-    requestId: request.requestId,
-    documentUri: request.documentUri,
-    documentVersion: request.documentVersion,
-    stage: "canvasSessionStart",
-    outcome,
-    reason,
-    details
-  });
-  const rejectedWithDiagnostic = (
-    status: "stale" | "rejected",
-    reason: string,
-    details: VscodeReferencePickDiagnosticEvent["details"] = {}
-  ) => ({
-    session: null,
-    result: rejected(status),
-    diagnostic: diagnosticFor(status, reason, details)
-  });
   if (
     request.documentUri !== authoritativeDocumentUri ||
-    request.documentVersion !== authoritativeDocumentVersion
-  ) {
-    return rejectedWithDiagnostic("stale", "host-document-or-version-authority-mismatch", {
-      requestDocumentUri: request.documentUri,
-      authoritativeDocumentUri,
-      requestDocumentVersion: request.documentVersion,
-      authoritativeDocumentVersion
-    });
-  }
-  if (!evaluationIsCurrent && !candidateSnapshot) {
-    return rejectedWithDiagnostic("stale", "missing-usable-evaluation-or-candidate-snapshot-authority", {
-      evaluationIsCurrent,
-      candidateSnapshotProvided: candidateSnapshot !== undefined
-    });
-  }
-  if (!evaluationIsCurrent && candidateSnapshot && !coherentCanvasSnapshot(candidateSnapshot)) {
-    return rejectedWithDiagnostic("stale", "missing-usable-evaluation-or-candidate-snapshot-authority", {
-      evaluationIsCurrent,
-      candidateSnapshotProvided: true,
-      candidateSnapshotCoherent: false
-    });
-  }
+    request.documentVersion !== authoritativeDocumentVersion ||
+    (!evaluationIsCurrent && !candidateSnapshot)
+  ) return { session: null, result: rejected("stale") };
   const target = queryDslReferencePickTarget({
     source,
     position: request.normalizedSourceOffset,
@@ -463,52 +347,15 @@ export const startVscodeReferencePickCanvasSession = ({
       compiled
     }
   });
-  if (!target) {
-    return rejectedWithDiagnostic("stale", "target-missing", {
-      normalizedSourceOffset: request.normalizedSourceOffset
-    });
-  }
-  if (!referencePickTargetMatchesProof(source.normalizedSource, target, request.targetProof)) {
-    return rejectedWithDiagnostic("stale", "target-proof-mismatch", {
-      normalizedSourceOffset: request.normalizedSourceOffset,
-      targetStatementIndex: target.sourceAnchor.statementIndex,
-      targetStatementId: target.sourceAnchor.statementId
-    });
+  if (!target || !referencePickTargetMatchesProof(source.normalizedSource, target, request.targetProof)) {
+    return { session: null, result: rejected("stale") };
   }
 
-  let candidateTarget: DslReferencePickTarget | null = target;
-  let candidateReanchorMode: "existing" | "appended" | null = null;
-  if (candidateSnapshot) {
-    const existingTarget = reanchorReferencePickTargetToCanvasSnapshot({
-      target,
-      currentCompiled: compiled,
-      canvasSnapshot: candidateSnapshot
-    });
-    const appendedTarget = existingTarget
-      ? null
-      : reanchorAppendedReferencePickTargetToCanvasSnapshot({
-          target,
-          currentCompiled: compiled,
-          canvasSnapshot: candidateSnapshot
-        });
-    candidateTarget = existingTarget ?? appendedTarget;
-    candidateReanchorMode = existingTarget ? "existing" : appendedTarget ? "appended" : null;
-    if (!candidateTarget) {
-      return rejectedWithDiagnostic("stale", "candidate-target-reanchor-failed", {
-        canvasSnapshotCoherent: coherentCanvasSnapshot(candidateSnapshot),
-        ...referencePickCandidateReanchorFactsFor({
-          target,
-          currentCompiled: compiled,
-          canvasSnapshot: candidateSnapshot
-        })
-      });
-    }
-  } else {
-    candidateTarget = target;
-  }
-  if (!candidateTarget) {
-    return rejectedWithDiagnostic("stale", "candidate-target-reanchor-failed");
-  }
+  const candidateTarget = candidateSnapshot
+    ? reanchorReferencePickTargetToCanvasSnapshot({ target, currentCompiled: compiled, canvasSnapshot: candidateSnapshot }) ??
+      reanchorAppendedReferencePickTargetToCanvasSnapshot({ target, currentCompiled: compiled, canvasSnapshot: candidateSnapshot })
+    : target;
+  if (!candidateTarget) return { session: null, result: rejected("stale") };
   const candidateCompiled = candidateSnapshot
     ? candidateCompiledForReferencePickTarget(candidateSnapshot.compiled, candidateTarget)
     : compiled;
@@ -517,10 +364,7 @@ export const startVscodeReferencePickCanvasSession = ({
   const candidateReferenceKeys = new Set(referencePickCandidateReferences(candidates).map(referencePickReferenceKey));
   const numericCandidates = uniqueNumericCandidates(candidates);
   if (candidateTarget.role === "numericPropertyBase" && !candidateTarget.numericProperty) {
-    return rejectedWithDiagnostic("rejected", "numeric-target-metadata-rejected", {
-      targetRole: candidateTarget.role,
-      numericPropertyMetadataPresent: false
-    });
+    return { session: null, result: rejected("rejected") };
   }
   const seedReferences = request.initialDraftReferences ?? (
     candidateTarget.multiplicity === "multiple" ? referencePickSeedReferences(request.targetProof) : []
@@ -533,11 +377,7 @@ export const startVscodeReferencePickCanvasSession = ({
       seedReferences.some((reference) => !candidateReferenceKeys.has(referencePickReferenceKey(reference)))
     )
   ) {
-    return rejectedWithDiagnostic("rejected", "invalid-initial-geometry-draft", {
-      targetMultiplicity: candidateTarget.multiplicity,
-      initialDraftReferenceCount: seedReferences.length,
-      candidateReferenceCount: candidateReferenceKeys.size
-    });
+    return { session: null, result: rejected("rejected") };
   }
   const initialNumericDraft = request.initialNumericPropertyDraft;
   const matchingNumericCandidate = initialNumericDraft
@@ -559,13 +399,7 @@ export const startVscodeReferencePickCanvasSession = ({
       !matchingNumericCandidate ||
       !matchingNumericCandidateElement ||
       !isCanonicalReferencePickReference(initialNumericDraft.reference)
-    ) return rejectedWithDiagnostic("rejected", "invalid-initial-numeric-draft", {
-      targetRole: candidateTarget.role,
-      numericCandidateCount: numericCandidates.length,
-      matchingNumericCandidate: matchingNumericCandidate !== undefined,
-      matchingNumericCandidateElement: matchingNumericCandidateElement !== undefined,
-      canonicalReference: isCanonicalReferencePickReference(initialNumericDraft.reference)
-    });
+    ) return { session: null, result: rejected("rejected") };
   }
   const draft = startReferencePickSession({
     expectedGeometryInterface: candidateTarget.expectedGeometryInterface,
@@ -597,18 +431,7 @@ export const startVscodeReferencePickCanvasSession = ({
     candidateReferences: referencePickCandidateReferences(candidates),
     ...(candidateTarget.role === "numericPropertyBase" ? { numericCandidates } : {})
   };
-  return {
-    session,
-    result,
-    diagnostic: diagnosticFor("started", "canvas-reference-pick-session-started", {
-      candidateAuthority: candidateSnapshot ? "pinned-canvas-snapshot" : "current-evaluation",
-      ...(candidateReanchorMode ? { candidateReanchorMode } : {}),
-      candidateCount: candidates.length,
-      candidateReferenceCount: result.candidateReferences.length,
-      numericCandidateCount: numericCandidates.length,
-      targetRole: candidateTarget.role
-    })
-  };
+  return { session, result };
 };
 
 const optionBelongsToSession = (

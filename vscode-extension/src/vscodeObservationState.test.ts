@@ -36,7 +36,6 @@ const hostDocument = (
   activeSurface: "canvas",
   sourceSelection: null,
   diagnostics: [],
-  referencePickDiagnosticTrace: [],
   canvasSessionPresent: true,
   outputPreviewSessionPresent: false,
   ...overrides
@@ -133,24 +132,6 @@ describe("VscodeObservationState", () => {
     state.replaceHostDocuments([hostDocument({ diagnostics: [diagnostic] })]);
 
     expect(state.snapshot().documents[0]?.diagnostics).toEqual([diagnostic]);
-  });
-
-  it("retains the Reference Pick diagnostic trace after Canvas runtime projection", () => {
-    const state = new VscodeObservationState();
-    const trace = {
-      sequence: 4,
-      documentUri: "file:///tmp/pattern.nui",
-      documentVersion: 3,
-      stage: "canvasSessionStart" as const,
-      outcome: "stale" as const,
-      reason: "candidate-target-reanchor-failed",
-      details: { firstMismatchingPrefixIndex: 0 }
-    };
-    state.replaceHostDocuments([hostDocument({ referencePickDiagnosticTrace: [trace] })]);
-
-    const snapshot = state.snapshot();
-
-    expect(snapshot.documents[0]?.referencePickDiagnosticTrace).toEqual([trace]);
   });
 
   it("removes all observation facts when the document closes", () => {
