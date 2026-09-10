@@ -106,7 +106,7 @@ export const PickModeStatusView = ({ model }: { model: PickModeStatusModel }) =>
       <div className="pick-mode-status-selection" aria-label={`選択済み ${count} 件`}>
         <span>選択済み {count}件</span>
         {entries.length > 0 ? (
-          <ol className="pick-mode-status-list">
+          <ol className="pick-mode-status-list" onWheel={(event) => event.stopPropagation()}>
             {entries.map((entry, index) => (
               <li
                 key={entry.key}
