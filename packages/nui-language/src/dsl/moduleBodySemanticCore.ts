@@ -10,7 +10,8 @@ import { splitDslList, unquoteDslString } from "./dslTokens";
 import { recordField, recordSpans } from "./dslParameterSpanScanner";
 import { parseGeometryArrayExpression } from "./geometryArrayExpression";
 import { scanTextTemplateLiteral } from "../scalars/textTemplateScan";
-import { isScalarExpressionCandidateSource } from "../scalars/expressionParser";
+import { isScalarExpressionCandidateSource, parseScalarExpression } from "../scalars/expressionParser";
+import type { ScalarExpressionAst } from "../scalars/expressionAst";
 import type { DslSpan, DslStatement } from "./dslTypes";
 import { getParameterDefinitions, scalarTypeForParameterDefinition } from "../parameters/parameterDefinitions";
 import type { ScalarType } from "../scalars/types";
@@ -22,6 +23,7 @@ import type {
   ModuleGeometryReferenceSemantic,
   ModuleGeometryConstructionSemantic,
   ModuleGeometryValueSemantic,
+  ModuleGeometryValueExpressionSemantic,
   ModuleScalarExpressionSemantic,
   ModuleScalarSourceTarget,
   ModuleSourceTarget,
@@ -149,6 +151,7 @@ export const analyzeModuleBody = ({
   analyzeExpression: analyzeSourceExpression,
   resolveGeometry,
   resolveGeometryConstruction,
+  parseGeometryValueExpression,
   resolvePlainScalarTarget,
   resolveBodyScalar,
   resolveBodyBareScalar,
@@ -165,6 +168,17 @@ export const analyzeModuleBody = ({
   analyzeExpression: AnalyzeExpression;
   resolveGeometry: ResolveGeometry;
   resolveGeometryConstruction: ResolveGeometryConstruction;
+  parseGeometryValueExpression: (args: {
+    statementIndex: number;
+    ownerIndex: number | null;
+    source: string;
+    node: ScalarExpressionAst;
+    expectedInterfaceType: import("./moduleGeometryInterfaces").ModuleGeometryInterfaceType;
+    analyzeScalar: (raw: string, span: DslSpan, expectedType: ScalarType | null) => ModuleScalarExpressionSemantic | null;
+    resolveReference: (raw: string, span: DslSpan) => ModuleGeometryReferenceSemantic;
+    parseConstruction: (raw: string, span: DslSpan, expectedInterfaceType: import("./moduleGeometryInterfaces").ModuleGeometryInterfaceType) => ModuleGeometryConstructionSemantic | null;
+    addDiagnostic: (diagnostic: ModuleScalarLocalDiagnostic) => void;
+  }) => ModuleGeometryValueExpressionSemantic | null;
   resolvePlainScalarTarget: ResolvePlainScalarTarget;
   resolveBodyScalar: (statementIndex: number, reference: { name: string; span: DslSpan }, presenceFacts?: ReadonlySet<string>) => ModuleScalarReferenceResolution;
   resolveBodyBareScalar: (statementIndex: number, reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution | null;
@@ -267,6 +281,63 @@ export const analyzeModuleBody = ({
     if (reference.coordinate && (parameterKey === null || !parameterKey.startsWith("intermediates:"))) {
       if (reference.coordinate.x) addScalar(bodySemantic, `${parameterKey}:x`, reference.coordinate.x.ast.span, reference.coordinate.x);
       if (reference.coordinate.y) addScalar(bodySemantic, `${parameterKey}:y`, reference.coordinate.y.ast.span, reference.coordinate.y);
+    }
+  };
+
+  const addConstructionSites = (
+    bodySemantic: ModuleBodyStatementSemantic,
+    construction: ModuleGeometryConstructionSemantic,
+    prefix: string
+  ) => {
+    const visit = (value: unknown, key: string): void => {
+      if (value === null || typeof value !== "object") return;
+      if (Array.isArray(value)) {
+        value.forEach((item, index) => visit(item, `${key}:${index}`));
+        return;
+      }
+      if ("expectedGeometryKind" in value && "resolution" in value && "span" in value) {
+        addGeometry(bodySemantic, `${prefix}:${key}`, value.span as DslSpan, value as ModuleGeometryReferenceSemantic);
+        return;
+      }
+      if ("ast" in value && "type" in value) {
+        const expression = value as ModuleScalarExpressionSemantic;
+        addScalar(bodySemantic, `${prefix}:${key}`, expression.ast.span, expression);
+        return;
+      }
+      for (const [childKey, child] of Object.entries(value)) {
+        if (childKey === "span" || childKey === "kind" || childKey === "source") continue;
+        visit(child, key ? `${key}:${childKey}` : childKey);
+      }
+    };
+    for (const [key, value] of Object.entries(construction)) {
+      if (key === "span" || key === "kind") continue;
+      visit(value, key);
+    }
+  };
+
+  const addGeometryValueExpressionSites = (
+    bodySemantic: ModuleBodyStatementSemantic,
+    expression: ModuleGeometryValueExpressionSemantic,
+    prefix = "value"
+  ): void => {
+    switch (expression.kind) {
+      case "reference":
+        addGeometry(bodySemantic, prefix, expression.reference.span, expression.reference);
+        return;
+      case "construction":
+        addConstructionSites(bodySemantic, expression.construction, prefix);
+        return;
+      case "if":
+        if (expression.condition) addScalar(bodySemantic, `${prefix}:condition`, expression.condition.ast.span, expression.condition);
+        if (expression.thenBranch) addGeometryValueExpressionSites(bodySemantic, expression.thenBranch, `${prefix}:then`);
+        if (expression.elseBranch) addGeometryValueExpressionSites(bodySemantic, expression.elseBranch, `${prefix}:else`);
+        return;
+      case "match":
+        if (expression.scrutinee) addScalar(bodySemantic, `${prefix}:scrutinee`, expression.scrutinee.ast.span, expression.scrutinee);
+        expression.arms.forEach((arm) => {
+          if (arm.expression) addGeometryValueExpressionSites(bodySemantic, arm.expression, `${prefix}:case:${arm.label}`);
+        });
+        return;
     }
   };
 
@@ -417,12 +488,95 @@ export const analyzeModuleBody = ({
     if (statement.kind === "typedDeclaration") {
       if (!statementId || !bodySemantic) continue;
       if (isDslGeometryValueType(statement.valueType)) {
+        const geometryInterfaceType = statement.valueType.kind as import("./moduleGeometryInterfaces").ModuleGeometryInterfaceType;
         const initializerSpan = statement.payloadSpans.initializer;
         let initializer: ModuleGeometryReferenceSemantic | null = null;
         let construction: ModuleGeometryConstructionSemantic | null = null;
+        let valueExpression: ModuleGeometryValueExpressionSemantic | null = null;
         if (initializerSpan) {
+          const source = sourceTextFor(statementIndex) || statement.initializer;
+          const dynamicCandidate = /^(?:if\s*\(|match\b)/.test(source.slice(initializerSpan.start, initializerSpan.end).trim());
+          const parsedExpression = dynamicCandidate
+            ? parseScalarExpression(source, initializerSpan, { allowOpaqueNamedCalls: true })
+            : { ast: null, diagnostics: [] };
+          if (dynamicCandidate) {
+            for (const diagnostic of parsedExpression.diagnostics) {
+              addLocal(statementIndex, {
+                code: diagnostic.code,
+                span: diagnostic.span,
+                message: diagnostic.message
+              });
+            }
+          }
+          const dynamicExpression = parsedExpression.ast?.kind === "valueIf" || parsedExpression.ast?.kind === "valueMatch"
+            ? parsedExpression.ast
+            : null;
           const isConstruction = /^[A-Za-z_][A-Za-z0-9_]*\s*\(/.test(statement.initializer.trim());
-          if (isConstruction) {
+          const containsConstruction = (node: ScalarExpressionAst): boolean => {
+            switch (node.kind) {
+              case "call": return true;
+              case "valueIf": return containsConstruction(node.thenBranch) || containsConstruction(node.elseBranch);
+              case "valueMatch": return node.arms.some((arm) => containsConstruction(arm.expression));
+              default: return false;
+            }
+          };
+          if (dynamicExpression) {
+            if (containsConstruction(dynamicExpression) && geometryValueConstructionControlFlowUnsupported(input.sourceNamespace.scopeIndex, statementIndex)) {
+              addLocal(statementIndex, {
+                code: "geometry-value-construction-control-flow-unsupported",
+                span: initializerSpan,
+                message: "control flow 内の geometry construction value はこのSliceでは未対応です。",
+                presentation: { key: "diagnostic.geometry-value-construction-control-flow-unsupported" }
+              });
+            } else {
+              valueExpression = parseGeometryValueExpression({
+                statementIndex,
+                ownerIndex: definition.statementIndex,
+                source,
+                node: dynamicExpression,
+                expectedInterfaceType: geometryInterfaceType,
+                analyzeScalar: (raw, span, expectedType) => analyzeSourceExpression(
+                  statementIndex,
+                  definition.statementIndex,
+                  raw,
+                  span,
+                  expectedType,
+                  (reference) => resolveBodyScalar(statementIndex, reference),
+                  (reference) => resolveBodyBareScalar(statementIndex, reference),
+                  (reference) => resolveBodyGeometryProperty(statementIndex, reference),
+                  (reference) => resolveBodyGeometryBuiltin(statementIndex, reference),
+                  (reference) => resolveBodyHasValue(statementIndex, reference)
+                ),
+                resolveReference: (raw, span) => resolveGeometry(
+                  statementIndex,
+                  definition.statementIndex,
+                  raw,
+                  span,
+                  geometryInterfaceType === "point" ? "point" : "line",
+                  {
+                    expectedInterfaceType: geometryInterfaceType,
+                    allowCoordinate: false,
+                    role: geometryInterfaceType === "point" ? "pointReference" : "lineReference",
+                    presenceFacts: presenceFactsForStatement(statementIndex)
+                  }
+                ),
+                parseConstruction: (raw, span, expectedInterfaceType) => resolveGeometryConstruction(
+                  statementIndex,
+                  definition.statementIndex,
+                  raw,
+                  span,
+                  expectedInterfaceType,
+                  {
+                    scalarResolver: (reference, presenceFacts) => resolveBodyScalar(statementIndex, reference, presenceFacts),
+                    bareScalarResolver: (reference) => resolveBodyBareScalar(statementIndex, reference),
+                    geometryPropertyResolver: (reference) => resolveBodyGeometryProperty(statementIndex, reference),
+                    presenceFacts: presenceFactsForStatement(statementIndex)
+                  }
+                ),
+                addDiagnostic: (diagnostic) => addLocal(statementIndex, diagnostic)
+              });
+            }
+          } else if (isConstruction) {
             if (geometryValueConstructionControlFlowUnsupported(input.sourceNamespace.scopeIndex, statementIndex)) {
               addLocal(statementIndex, {
                 code: "geometry-value-construction-control-flow-unsupported",
@@ -574,6 +728,7 @@ export const analyzeModuleBody = ({
             addGeometry(bodySemantic, `construction:baseLines:${index}`, source.span, source);
           });
         }
+        if (valueExpression) addGeometryValueExpressionSites(bodySemantic, valueExpression);
         const value: ModuleGeometryValueSemantic = {
           statementId,
           statementIndex,
@@ -584,6 +739,7 @@ export const analyzeModuleBody = ({
           exported: Boolean(statement.exported),
           initializer,
           construction,
+          valueExpression,
           backingTarget: initializer?.target ?? null
         };
         localGeometryValues.push(value);
@@ -596,7 +752,7 @@ export const analyzeModuleBody = ({
               message: "export は module 直下の名前付き geometry または scalar declaration にのみ指定できます。",
               presentation: { key: "diagnostic.module-invalid-export" }
             });
-          } else if (initializer || construction) {
+          } else if (initializer || construction || valueExpression) {
             registerExport({
               kind: "geometry",
               ownerModuleDefinitionStatementId: definition.statementId,

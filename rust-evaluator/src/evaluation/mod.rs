@@ -1230,16 +1230,30 @@ fn evaluate_document_input_with_scalar_program(
             }
         }
     }
-    let remaining_geometry_value_resolver = scalar_mutation_resolver
-        .as_ref()
-        .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
-        .or_else(|| {
-            scalar_binding_resolver
-                .as_ref()
-                .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
-        })
-        .unwrap_or(&empty_geometry_value_resolver);
     while next_geometry_value_index < geometry_value_program.len() {
+        if let Some(resolver) = scalar_mutation_resolver.as_mut() {
+            let source_order = geometry_value_program[next_geometry_value_index]
+                .execution_position
+                .ceil() as usize;
+            resolver.advance_before_with_geometry_values(
+                source_order,
+                &mut state,
+                &geometry_value_program,
+                &mut next_geometry_value_index,
+            );
+            if next_geometry_value_index >= geometry_value_program.len() {
+                break;
+            }
+        }
+        let remaining_geometry_value_resolver = scalar_mutation_resolver
+            .as_ref()
+            .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
+            .or_else(|| {
+                scalar_binding_resolver
+                    .as_ref()
+                    .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
+            })
+            .unwrap_or(&empty_geometry_value_resolver);
         geometry_value_runtime::evaluate_geometry_value_entry(
             &geometry_value_program[next_geometry_value_index],
             remaining_geometry_value_resolver,

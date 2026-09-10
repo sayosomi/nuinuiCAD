@@ -507,6 +507,108 @@ export const evaluateElements = (
     });
   };
 
+  const identityFreeGeometryValue = (
+    geometry: ComputedGeometry | ComputedGeometryValue
+  ): ComputedGeometryValue | undefined => {
+    switch (geometry.kind) {
+      case "point":
+        return { kind: "point", x: geometry.x, y: geometry.y };
+      case "line":
+        return {
+          kind: "line",
+          start: { x: geometry.start.x, y: geometry.start.y },
+          end: { x: geometry.end.x, y: geometry.end.y },
+          length: geometry.length,
+          startAngleDeg: geometry.startAngleDeg,
+          endAngleDeg: geometry.endAngleDeg,
+          startTangentAngleDeg: geometry.startTangentAngleDeg,
+          endTangentAngleDeg: geometry.endTangentAngleDeg
+        };
+      case "arcLine":
+        return {
+          kind: "arcLine",
+          center: { x: geometry.center.x, y: geometry.center.y },
+          start: { x: geometry.start.x, y: geometry.start.y },
+          end: { x: geometry.end.x, y: geometry.end.y },
+          radius: geometry.radius,
+          startAngleDeg: geometry.startAngleDeg,
+          endAngleDeg: geometry.endAngleDeg,
+          startTangentAngleDeg: geometry.startTangentAngleDeg,
+          endTangentAngleDeg: geometry.endTangentAngleDeg,
+          sweepAngleDeg: geometry.sweepAngleDeg,
+          length: geometry.length
+        };
+      case "bezierCurve":
+        return {
+          kind: "bezierCurve",
+          segments: geometry.segments.map((segment) => ({
+            start: { x: segment.start.x, y: segment.start.y },
+            control1: { x: segment.control1.x, y: segment.control1.y },
+            control2: { x: segment.control2.x, y: segment.control2.y },
+            end: { x: segment.end.x, y: segment.end.y }
+          })),
+          length: geometry.length
+        };
+      case "polyline":
+        return {
+          kind: "polyline",
+          segments: geometry.segments.map((segment) => ({
+            start: { x: segment.start.x, y: segment.start.y },
+            end: { x: segment.end.x, y: segment.end.y },
+            length: segment.length
+          })),
+          closed: geometry.closed,
+          start: { x: geometry.start.x, y: geometry.start.y },
+          end: { x: geometry.end.x, y: geometry.end.y },
+          length: geometry.length,
+          startTangentAngleDeg: geometry.startTangentAngleDeg,
+          endTangentAngleDeg: geometry.endTangentAngleDeg
+        };
+      case "offsetLine":
+        return {
+          kind: "offsetLine",
+          start: geometry.start ? { x: geometry.start.x, y: geometry.start.y } : null,
+          end: geometry.end ? { x: geometry.end.x, y: geometry.end.y } : null,
+          segments: geometry.segments.map((segment) => {
+            if (segment.kind === "line") {
+              return {
+                kind: "line" as const,
+                start: { x: segment.start.x, y: segment.start.y },
+                end: { x: segment.end.x, y: segment.end.y },
+                length: segment.length
+              };
+            }
+            if (segment.kind === "bezier") {
+              return {
+                kind: "bezier" as const,
+                start: { x: segment.start.x, y: segment.start.y },
+                control1: { x: segment.control1.x, y: segment.control1.y },
+                control2: { x: segment.control2.x, y: segment.control2.y },
+                end: { x: segment.end.x, y: segment.end.y },
+                length: segment.length
+              };
+            }
+            return {
+              kind: "arc" as const,
+              center: { x: segment.center.x, y: segment.center.y },
+              start: { x: segment.start.x, y: segment.start.y },
+              end: { x: segment.end.x, y: segment.end.y },
+              radius: segment.radius,
+              startAngleDeg: segment.startAngleDeg,
+              sweepAngleDeg: segment.sweepAngleDeg,
+              length: segment.length
+            };
+          }),
+          closed: geometry.closed,
+          length: geometry.length,
+          startTangentAngleDeg: geometry.startTangentAngleDeg,
+          endTangentAngleDeg: geometry.endTangentAngleDeg
+        };
+      default:
+        return undefined;
+    }
+  };
+
   const structuralPointForValueTarget = (target: Parameters<typeof resolveDocumentGeometryTarget>[1], sourceOrder: number): StructuralPoint | undefined => {
     const geometry = resolveDocumentGeometryTarget(geometryRuntime, target, sourceOrder);
     if (!geometry || geometry.kind === "unavailable") return undefined;
@@ -530,6 +632,45 @@ export const evaluateElements = (
     const sourceOrder = entry.executionPosition;
     if (linearMutationResolver) {
       linearMutationResolver.advanceTo({ kind: "beforeStatement", sourceOrder });
+    }
+    if (entry.construction.kind === "reference") {
+      const geometry = resolveDocumentGeometryTarget(geometryRuntime, entry.construction.target, sourceOrder);
+      const value = geometry && geometry.kind !== "unavailable" ? identityFreeGeometryValue(geometry) : undefined;
+      if (!value) {
+        appendGeometryValueError(entry, "Geometry value reference is unavailable at runtime.");
+        return;
+      }
+      computedGeometryValues.set(geometryValueOccurrenceKey(entry.occurrence), { occurrence: entry.occurrence, value });
+      return;
+    }
+    if (entry.construction.kind === "if") {
+      const condition = evaluateGeometryValueBoolean(entry.construction.condition, sourceOrder);
+      if (condition === undefined) {
+        appendGeometryValueError(entry, "Geometry value if condition is unavailable or not boolean.");
+        return;
+      }
+      evaluateGeometryValueEntry({
+        ...entry,
+        construction: condition ? entry.construction.thenBranch : entry.construction.elseBranch
+      });
+      return;
+    }
+    if (entry.construction.kind === "match") {
+      const evaluation = evaluateTypedExpression(entry.construction.scrutinee, {
+        lookupBinding: scalarBindingResolver
+          ? scalarBindingResolver.resolveBinding
+          : () => ({ status: "error", type: { kind: "choice", options: [] }, issueCode: "evaluation-binding-unavailable" }),
+        lookupGeometryProperty: (reference) => resolveDocumentGeometryProperty(geometryRuntime, reference, sourceOrder),
+        lookupGeometryTarget: (target) => resolveDocumentGeometryTarget(geometryRuntime, target, sourceOrder)
+      });
+      const label = evaluation.status === "ok" && evaluation.value.kind === "choice" ? evaluation.value.value : undefined;
+      const arm = label === undefined ? undefined : entry.construction.arms.find((candidate) => candidate.label === label);
+      if (!arm) {
+        appendGeometryValueError(entry, "Geometry value match scrutinee is unavailable or has no matching case.");
+        return;
+      }
+      evaluateGeometryValueEntry({ ...entry, construction: arm.expression });
+      return;
     }
     let value: ComputedGeometryValue | undefined;
     if (entry.construction.kind === "coordinate") {

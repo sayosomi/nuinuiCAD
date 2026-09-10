@@ -400,7 +400,21 @@ The constraints are:
 
 ### Exhaustive choice value match
 
-A scalar value expression may use the following exhaustive choice-match form:
+Scalar and geometry value expressions may use a required-`else` conditional:
+
+```nui
+if (@enabled) { @leftPoint } else { coordinate(x: 0, y: 0) }
+```
+
+The condition is a typed boolean expression. A geometry-valued conditional must
+have the declared geometry interface type in both branches. Each branch may be
+an existing legal `@` geometry reference or one of the implemented pure
+geometry value constructions; records, collections, and optional values are
+not part of this slice. Both branches are resolved and checked at compile time,
+but runtime evaluates the condition before evaluating only the selected branch.
+
+A scalar or geometry value expression may use the following exhaustive
+choice-match form:
 
 ```nui
 match @size { small => 5 large => 10 }
@@ -408,17 +422,18 @@ match @size { small => 5 large => 10 }
 
 The scrutinee is evaluated as an ordinary typed scalar expression and must
 have a concrete `choice(...)` type. The arm list consists of bare choice option
-labels followed by `=>` and one scalar value expression. Every option declared
-by the scrutinee must occur exactly once, in any authored order. A label that
-is not an option, a duplicate label, or a missing option is an error. Wildcard
-and default arms are not part of nui1.
+labels followed by `=>` and one scalar or geometry value expression. Every
+option declared by the scrutinee must occur exactly once, in any authored order.
+A label that is not an option, a duplicate label, or a missing option is an
+error. Wildcard and default arms are not part of nui1.
 
-All arm result expressions are parsed and typechecked. The result type is one
+All arm result expressions are parsed and typechecked. Scalar results are one
 of `number`, `string`, `boolean`, or an exact `choice(...)` type shared by every
-arm; a bare choice literal is resolved against the expected result type. At
-runtime the scrutinee is evaluated first and only the arm whose label equals
-the selected choice value is evaluated. Geometry, records, collections, and
-optional `none`/`some` values are outside this slice.
+arm; a bare choice literal is resolved against the expected result type.
+Geometry results must share the declared `point`, `line`, or `path` interface.
+At runtime the scrutinee is evaluated first and only the arm whose label equals
+the selected choice value is evaluated. Records, collections, and optional
+`none`/`some` values are outside this slice.
 
 Named scalar function calls use the following syntax:
 

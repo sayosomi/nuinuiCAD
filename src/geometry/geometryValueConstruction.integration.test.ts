@@ -27,6 +27,128 @@ const evaluate = (source: string) => {
 };
 
 describe("pure geometry construction runtime", () => {
+  it("evaluates geometry-valued if and exhaustive match with selected-branch runtime semantics", () => {
+    const { compiled, result } = evaluate([
+      "nui 1",
+      "const side: choice(left, right) = left",
+      "const P: point = if (true) { coordinate(x: 1, y: 2) } else { coordinate(x: 100, y: 200) }",
+      "const Q: point = match @side { left => coordinate(x: 3, y: 4) right => coordinate(x: 300, y: 400) }"
+    ].join("\n"));
+
+    expect(compiled.moduleSemanticAnalysis?.geometryValues.find((value) => value.name === "P")?.backingTarget).toBeNull();
+    expect(compiled.geometryValueProgram?.map((entry) => entry.construction.kind)).toEqual(["if", "match"]);
+    expect([...result.computedGeometryValues?.values() ?? []].map((entry) => entry.value)).toEqual([
+      { kind: "point", x: 1, y: 2 },
+      { kind: "point", x: 3, y: 4 }
+    ]);
+    expect(result.geometryValueErrors).toEqual([]);
+  });
+
+  it("supports point, line, and path control-flow values through existing consumers", () => {
+    const { compiled, result } = evaluate([
+      "nui 1",
+      "const side: choice(left, right) = left",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line Base = segment(start: @A, end: @B)",
+      "const SelectedPoint: point = if (true) { @A } else { between(start: @A, end: @B, ratio: 1 / 0) }",
+      "const SelectedLine: line = match @side { left => @Base right => segment(start: (0, 0), end: (10, 0)) }",
+      "const SelectedPath: path = if (true) { @Base } else { arc(center: @A, radius: 0, start: 0, end: 90) }",
+      "const SelectedX: number = @SelectedPoint.x",
+      "const SelectedLength: number = @SelectedPath.length",
+      "line Use = segment(start: @SelectedPoint, end: @SelectedPath.end)"
+    ].join("\n"));
+
+    expect(compiled.diagnostics).toEqual([]);
+    expect(result.errors).toEqual([]);
+    expect(result.geometryValueErrors).toEqual([]);
+    const values = [...(result.computedGeometryValues?.values() ?? [])];
+    expect(values.map((entry) => entry.value)).toEqual([
+      { kind: "point", x: 0, y: 0 },
+      expect.objectContaining({ kind: "line", start: { x: 0, y: 0 }, end: { x: 10, y: 0 } }),
+      expect.objectContaining({ kind: "line", start: { x: 0, y: 0 }, end: { x: 10, y: 0 } })
+    ]);
+    expect(result.computedScalarBindings?.get("binding:geometry-value-runtime:8")).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 0 }
+    });
+    expect(result.computedScalarBindings?.get("binding:geometry-value-runtime:9")).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 10 }
+    });
+    expect(result.computedGeometry.get("geometry-value-runtime:10")).toMatchObject({
+      kind: "line",
+      start: { x: 0, y: 0 },
+      end: { x: 10, y: 0 }
+    });
+  });
+
+  it("reports geometry branch type and exhaustive-match diagnostics, including unselected references", () => {
+    const compiled = compile([
+      "nui 1",
+      "const side: choice(left, right) = left",
+      "point A = coordinate(x: 0, y: 0)",
+      "line Base = segment(start: @A, end: (10, 0))",
+      "const Wrong: point = if (true) { @A } else { @Base }",
+      "const Missing: point = match @side { left => @A }",
+      "const Duplicate: point = match @side { left => @A left => @A right => @A }",
+      "const Impossible: point = match @side { left => @A right => @A other => @A }",
+      "const Dangling: point = if (true) { @A } else { @NoSuchPoint }"
+    ].join("\n"));
+    const codes = compiled.diagnostics.map((diagnostic) => diagnostic.code);
+    expect(codes).toEqual(expect.arrayContaining([
+      "module-geometry-type-mismatch",
+      "missing-match-case",
+      "duplicate-match-case",
+      "impossible-match-case",
+      "module-undefined-geometry-reference"
+    ]));
+  });
+
+  it("remaps geometry control-flow values independently for repeated Module instances", () => {
+    const { compiled, result } = evaluate([
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 5, y: 0)",
+      "point C = coordinate(x: 0, y: 7)",
+      "module M(flag: boolean, side: choice(left, right), start: point, leftEnd: point, rightEnd: point) {",
+      "  export const Point: point =",
+      "    if (@flag) {",
+      "      coordinate(x: 1, y: 2)",
+      "    } else {",
+      "      coordinate(x: 10, y: 20)",
+      "    }",
+      "  export const Edge: path =",
+      "    match @side {",
+      "      left => segment(start: @start, end: @leftEnd)",
+      "      right => segment(start: @start, end: @rightEnd)",
+      "    }",
+      "}",
+      "instance First = M(flag: true, side: left, start: @A, leftEnd: @B, rightEnd: @C)",
+      "instance Second = M(flag: false, side: right, start: @A, leftEnd: @B, rightEnd: @C)",
+      "line Use = segment(start: @First::Point, end: @Second::Point)"
+    ].join("\n"));
+
+    expect(compiled.diagnostics).toEqual([]);
+    expect(result.errors).toEqual([]);
+    expect(result.geometryValueErrors).toEqual([]);
+    const values = [...(result.computedGeometryValues?.values() ?? [])]
+      .filter((entry) => entry.occurrence.instancePath.length === 1);
+    expect(values).toHaveLength(4);
+    expect(values.map((entry) => entry.value)).toEqual(expect.arrayContaining([
+      { kind: "point", x: 1, y: 2 },
+      { kind: "point", x: 10, y: 20 },
+      expect.objectContaining({ kind: "line", end: { x: 5, y: 0 } }),
+      expect.objectContaining({ kind: "line", end: { x: 0, y: 7 } })
+    ]));
+    const use = compiled.document?.elements.find((element) => element.name === "Use");
+    expect(use && result.computedGeometry.get(use.id)).toMatchObject({
+      kind: "line",
+      start: { x: 1, y: 2 },
+      end: { x: 10, y: 20 }
+    });
+  });
+
   it("evaluates transformCopy and mirrorCopy as identity-free path values", () => {
     const { compiled, result } = evaluate([
       "nui 1",

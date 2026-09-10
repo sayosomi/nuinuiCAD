@@ -33,6 +33,8 @@ import { analyzeModuleBody } from "./moduleBodySemantic";
 import { parseDslReferenceToken, parseDslSourceReference } from "./dslReferenceTokens";
 import { coordinateComponent, recordField, recordSpans } from "./dslParameterSpanScanner";
 import { parseScalarExpression } from "../scalars/expressionParser";
+import type { ScalarExpressionAst } from "../scalars/expressionAst";
+import { validateChoiceMatchExhaustiveness } from "../scalars/expressionTypecheck";
 import { parseDslConstructionInvocation } from "./dslCallParser";
 import { parseGeometryArrayExpression } from "./geometryArrayExpression";
 import { splitDslList } from "./dslTokens";
@@ -70,6 +72,7 @@ import type {
   ModuleGeometryReferenceSite,
   ModuleGeometrySourceTarget,
   ModuleGeometryValueSemantic,
+  ModuleGeometryValueExpressionSemantic,
   ModuleParentReferenceSemantic,
   ModuleParentReferenceSite,
   ModuleParentSourceTarget,
@@ -2987,6 +2990,125 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     return { kind: "segment", span: { start: constructionSpan.start, end: initializerSpan.end }, start: endpoint(startArgument), end: endpoint(endArgument) };
   };
 
+  const parseGeometryValueExpression = ({
+    statementIndex,
+    ownerIndex,
+    source,
+    node,
+    expectedInterfaceType,
+    analyzeScalar,
+    resolveReference,
+    parseConstruction,
+    addDiagnostic
+  }: {
+    statementIndex: number;
+    ownerIndex: number | null;
+    source: string;
+    node: ScalarExpressionAst;
+    expectedInterfaceType: ModuleGeometryInterfaceType;
+    analyzeScalar: (raw: string, span: DslSpan, expectedType: ScalarType | null) => ModuleScalarExpressionSemantic | null;
+    resolveReference: (raw: string, span: DslSpan) => ModuleGeometryReferenceSemantic;
+    parseConstruction: (raw: string, span: DslSpan, expectedInterfaceType: ModuleGeometryInterfaceType) => ModuleGeometryConstructionSemantic | null;
+    addDiagnostic: (diagnostic: ModuleScalarLocalDiagnostic) => void;
+  }): ModuleGeometryValueExpressionSemantic | null => {
+    const raw = source.slice(node.span.start, node.span.end);
+    switch (node.kind) {
+      case "reference":
+        return {
+          kind: "reference",
+          span: node.span,
+          reference: resolveReference(raw, node.span)
+        };
+      case "call": {
+        const construction = parseConstruction(raw, node.span, expectedInterfaceType);
+        return construction ? { kind: "construction", span: node.span, construction } : null;
+      }
+      case "valueIf": {
+        const condition = analyzeScalar(
+          source.slice(node.condition.span.start, node.condition.span.end),
+          node.condition.span,
+          { kind: "boolean" }
+        );
+        const thenBranch = parseGeometryValueExpression({
+          statementIndex,
+          ownerIndex,
+          source,
+          node: node.thenBranch,
+          expectedInterfaceType,
+          analyzeScalar,
+          resolveReference,
+          parseConstruction,
+          addDiagnostic
+        });
+        const elseBranch = parseGeometryValueExpression({
+          statementIndex,
+          ownerIndex,
+          source,
+          node: node.elseBranch,
+          expectedInterfaceType,
+          analyzeScalar,
+          resolveReference,
+          parseConstruction,
+          addDiagnostic
+        });
+        return { kind: "if", span: node.span, condition, thenBranch, elseBranch };
+      }
+      case "valueMatch": {
+        const scrutinee = analyzeScalar(
+          source.slice(node.scrutinee.span.start, node.scrutinee.span.end),
+          node.scrutinee.span,
+          null
+        );
+        if (scrutinee) {
+          validateChoiceMatchExhaustiveness({
+            scrutineeType: scrutinee.type,
+            scrutineeSpan: node.scrutinee.span,
+            matchSpan: node.span,
+            arms: node.arms,
+            addDiagnostic
+          });
+        }
+        return {
+          kind: "match",
+          span: node.span,
+          scrutinee,
+          arms: node.arms.map((arm) => ({
+            label: arm.label,
+            labelSpan: arm.labelSpan,
+            expression: parseGeometryValueExpression({
+              statementIndex,
+              ownerIndex,
+              source,
+              node: arm.expression,
+              expectedInterfaceType,
+              analyzeScalar,
+              resolveReference,
+              parseConstruction,
+              addDiagnostic
+            })
+          }))
+        };
+      }
+      default:
+        addDiagnostic(issue(
+          "geometry-value-reference-required",
+          node.span,
+          "geometry value の分岐結果には既存の @geometry reference または対応する construction を指定してください。",
+          { presentation: { key: "diagnostic.geometry-value-reference-required" } }
+        ));
+        return null;
+    }
+  };
+
+  const geometryValueExpressionHasConstruction = (node: ScalarExpressionAst): boolean => {
+    switch (node.kind) {
+      case "call": return true;
+      case "valueIf": return geometryValueExpressionHasConstruction(node.thenBranch) || geometryValueExpressionHasConstruction(node.elseBranch);
+      case "valueMatch": return node.arms.some((arm) => geometryValueExpressionHasConstruction(arm.expression));
+      default: return false;
+    }
+  };
+
   const resolveRootGeometry = (
     statementIndex: number,
     rawValue: string,
@@ -3631,17 +3753,88 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
   // owns validation, while qualified module exports retain this pass's
   // established diagnostic behavior.
   const rootGeometryReferencesByStatementId = new Map<StatementIdentity, ModuleGeometryReferenceSite[]>();
+  const rootGeometryValueScalarSites = new Map<StatementIdentity, ModuleScalarExpressionSite>();
   const rootParentReferencesByStatementId = new Map<StatementIdentity, ModuleParentReferenceSite>();
   for (const [statementIndex, statement] of statements.entries()) {
     if (statement.kind !== "typedDeclaration" || moduleOwnerIndexOf(statements, statementIndex) !== null) continue;
     if (!isDslGeometryValueType(statement.valueType)) continue;
+    const geometryInterfaceType = statement.valueType.kind as ModuleGeometryInterfaceType;
     const statementId = statementIdAt(stableStatementIdByIndex, statementIndex);
     const initializerSpan = statement.payloadSpans.initializer;
     let initializer: ModuleGeometryReferenceSemantic | null = null;
     let construction: ModuleGeometryConstructionSemantic | null = null;
+    let valueExpression: ModuleGeometryValueExpressionSemantic | null = null;
     if (initializerSpan) {
+      const logicalSource = input.logicalTextByStatementIndex?.get(statementIndex) ?? statement.initializer;
+      const dynamicCandidate = /^(?:if\s*\(|match\b)/.test(logicalSource.slice(initializerSpan.start, initializerSpan.end).trim());
+      const parsedExpression = dynamicCandidate
+        ? parseScalarExpression(logicalSource, initializerSpan, { allowOpaqueNamedCalls: true })
+        : { ast: null, diagnostics: [] };
+      if (dynamicCandidate) {
+        for (const diagnostic of parsedExpression.diagnostics) {
+          addLocal(statementIndex, issue(diagnostic.code, diagnostic.span, diagnostic.message));
+        }
+      }
+      const dynamicExpression = parsedExpression.ast?.kind === "valueIf" || parsedExpression.ast?.kind === "valueMatch"
+        ? parsedExpression.ast
+        : null;
       const isConstruction = /^[A-Za-z_][A-Za-z0-9_]*\s*\(/.test(statement.initializer.trim());
-      if (isConstruction) {
+      if (dynamicExpression) {
+        if (geometryValueExpressionHasConstruction(dynamicExpression) && geometryValueConstructionControlFlowUnsupported(sourceNamespace.scopeIndex, statementIndex)) {
+          addLocal(statementIndex, issue(
+            "geometry-value-construction-control-flow-unsupported",
+            initializerSpan,
+            "control flow 内の geometry construction value はこのSliceでは未対応です。",
+            { presentation: { key: "diagnostic.geometry-value-construction-control-flow-unsupported" } }
+          ));
+        } else {
+          valueExpression = parseGeometryValueExpression({
+            statementIndex,
+            ownerIndex: null,
+            source: logicalSource,
+            node: dynamicExpression,
+            expectedInterfaceType: geometryInterfaceType,
+            analyzeScalar: (raw, span, expectedType) => analyzeExpression(
+              statementIndex,
+              null,
+              raw,
+              span,
+              expectedType,
+              (reference, presenceFacts) => resolveSourceScalar(statementIndex, null, reference.name, null, reference.span, presenceFacts),
+              undefined,
+              (reference) => resolveGeometryProperty(statementIndex, null, reference),
+              (reference) => resolveGeometry(
+                statementIndex,
+                null,
+                `@${reference.name}`,
+                reference.span,
+                reference.expectedGeometryType,
+                { expectedInterfaceType: reference.expectedGeometryType, role: reference.expectedGeometryType === "point" ? "pointReference" : "lineReference" }
+              )
+            ),
+            resolveReference: (raw, span) => resolveGeometry(
+              statementIndex,
+              null,
+              raw,
+              span,
+              geometryInterfaceType === "point" ? "point" : "line",
+              {
+                expectedInterfaceType: geometryInterfaceType,
+                allowCoordinate: false,
+                role: geometryInterfaceType === "point" ? "pointReference" : "lineReference"
+              }
+            ),
+            parseConstruction: (raw, span, expectedInterfaceType) => parseGeometryValueConstruction(
+              statementIndex,
+              null,
+              raw,
+              span,
+              expectedInterfaceType
+            ),
+            addDiagnostic: (diagnostic) => addLocal(statementIndex, diagnostic)
+          });
+        }
+      } else if (isConstruction) {
         if (geometryValueConstructionControlFlowUnsupported(sourceNamespace.scopeIndex, statementIndex)) {
           addLocal(statementIndex, issue(
             "geometry-value-construction-control-flow-unsupported",
@@ -3694,11 +3887,73 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       exported: Boolean(statement.exported),
       initializer,
       construction,
+      valueExpression,
       backingTarget: initializer?.target ?? null
     };
     geometryValuesByStatementIndex.set(statementIndex, value);
     if (initializer && initializerSpan) {
       rootGeometryReferencesByStatementId.set(statementId, [{ parameterKey: null, span: initializerSpan, reference: initializer }]);
+    } else if (valueExpression) {
+      const sites: ModuleGeometryReferenceSite[] = [];
+      const collectConstruction = (constructionValue: ModuleGeometryConstructionSemantic, prefix: string) => {
+        const visit = (candidate: unknown, key: string): void => {
+          if (candidate === null || typeof candidate !== "object") return;
+          if (Array.isArray(candidate)) {
+            candidate.forEach((item, index) => visit(item, `${key}:${index}`));
+            return;
+          }
+          if ("expectedGeometryKind" in candidate && "resolution" in candidate && "span" in candidate) {
+            sites.push({ parameterKey: `${prefix}:${key}`, span: candidate.span as DslSpan, reference: candidate as ModuleGeometryReferenceSemantic });
+            return;
+          }
+          for (const [childKey, child] of Object.entries(candidate)) {
+            if (childKey === "span" || childKey === "kind" || childKey === "source") continue;
+            visit(child, key ? `${key}:${childKey}` : childKey);
+          }
+        };
+        for (const [key, candidate] of Object.entries(constructionValue)) {
+          if (key === "span" || key === "kind") continue;
+          visit(candidate, key);
+        }
+      };
+      const collect = (expression: ModuleGeometryValueExpressionSemantic, prefix: string): void => {
+        if (expression.kind === "reference") {
+          sites.push({ parameterKey: prefix, span: expression.reference.span, reference: expression.reference });
+        } else if (expression.kind === "construction") {
+          collectConstruction(expression.construction, prefix);
+        } else if (expression.kind === "if") {
+          if (expression.thenBranch) collect(expression.thenBranch, `${prefix}:then`);
+          if (expression.elseBranch) collect(expression.elseBranch, `${prefix}:else`);
+        } else {
+          expression.arms.forEach((arm) => {
+            if (arm.expression) collect(arm.expression, `${prefix}:case:${arm.label}`);
+          });
+        }
+      };
+      collect(valueExpression, "value");
+      if (sites.length > 0) rootGeometryReferencesByStatementId.set(statementId, sites);
+      const firstScalarExpression = (expression: ModuleGeometryValueExpressionSemantic): ModuleScalarExpressionSemantic | null => {
+        if (expression.kind === "if") {
+          if (expression.condition) return expression.condition;
+          return expression.thenBranch ? firstScalarExpression(expression.thenBranch) : expression.elseBranch ? firstScalarExpression(expression.elseBranch) : null;
+        }
+        if (expression.kind === "match") {
+          if (expression.scrutinee) return expression.scrutinee;
+          for (const arm of expression.arms) if (arm.expression) {
+            const nested = firstScalarExpression(arm.expression);
+            if (nested) return nested;
+          }
+        }
+        return null;
+      };
+      const scalarExpression = firstScalarExpression(valueExpression);
+      if (scalarExpression) {
+        rootGeometryValueScalarSites.set(statementId, {
+          parameterKey: null,
+          span: scalarExpression.ast.span,
+          expression: scalarExpression
+        });
+      }
     } else if (construction?.kind === "segment") {
       rootGeometryReferencesByStatementId.set(statementId, [
         { parameterKey: "start", span: construction.start.span, reference: construction.start },
@@ -4237,7 +4492,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
   // qualified module scalar reference still needs the Module source identity
   // for editor completion/navigation/rename. Reuse this analysis' resolved
   // target instead of asking the editor to resolve `instance::member` again.
-  const rootScalarExpressionsByStatementId = new Map<StatementIdentity, ModuleScalarExpressionSite>();
+  const rootScalarExpressionsByStatementId = new Map<StatementIdentity, ModuleScalarExpressionSite>(rootGeometryValueScalarSites);
   for (const [statementIndex, statement] of statements.entries()) {
     if (
       statement.kind !== "typedDeclaration" ||
@@ -4365,6 +4620,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       analyzeExpression,
       resolveGeometry,
       resolveGeometryConstruction: parseGeometryValueConstruction,
+      parseGeometryValueExpression,
       resolvePlainScalarTarget,
       resolveBodyScalar: (statementIndex, reference, presenceFacts) => resolveBodyScalar(statementIndex, definition.statementIndex, reference, presenceFacts),
       resolveBodyBareScalar: (statementIndex, reference) => resolveBodyBareScalar(statementIndex, definition.statementIndex, reference),
@@ -4779,6 +5035,35 @@ export const decorateDocumentQualifiedModuleSemantics = (
         }
       : null
   });
+  const mapGeometryConstruction = (construction: ModuleGeometryConstructionSemantic): ModuleGeometryConstructionSemantic => {
+    const visit = (value: unknown): unknown => {
+      if (value === null || typeof value !== "object") return value;
+      if (Array.isArray(value)) return value.map(visit);
+      if ("expectedGeometryKind" in value && "resolution" in value && "span" in value) {
+        return mapGeometryReference(value as ModuleGeometryReferenceSemantic);
+      }
+      if ("ast" in value && "type" in value) return mapExpression(value as ModuleScalarExpressionSemantic);
+      return Object.fromEntries(Object.entries(value).map(([key, child]) => [key, visit(child)]));
+    };
+    return visit(construction) as ModuleGeometryConstructionSemantic;
+  };
+  const mapGeometryValueExpression = (expression: import("./moduleSemanticTypes").ModuleGeometryValueExpressionSemantic): import("./moduleSemanticTypes").ModuleGeometryValueExpressionSemantic => {
+    if (expression.kind === "reference") return { ...expression, reference: mapGeometryReference(expression.reference) };
+    if (expression.kind === "construction") return { ...expression, construction: mapGeometryConstruction(expression.construction) };
+    if (expression.kind === "if") {
+      return {
+        ...expression,
+        condition: expression.condition ? mapExpression(expression.condition) : null,
+        thenBranch: expression.thenBranch ? mapGeometryValueExpression(expression.thenBranch) : null,
+        elseBranch: expression.elseBranch ? mapGeometryValueExpression(expression.elseBranch) : null
+      };
+    }
+    return {
+      ...expression,
+      scrutinee: expression.scrutinee ? mapExpression(expression.scrutinee) : null,
+      arms: expression.arms.map((arm) => ({ ...arm, expression: arm.expression ? mapGeometryValueExpression(arm.expression) : null }))
+    };
+  };
   const mapRecordReference = (reference: ModuleRecordReferenceSemantic): ModuleRecordReferenceSemantic => ({
     ...reference,
     target: mapTarget(reference.target) as ModuleRecordSourceTarget | null,
@@ -4815,6 +5100,14 @@ export const decorateDocumentQualifiedModuleSemantics = (
     mappedScalarCollectionBodies: definition.mappedScalarCollectionBodies.map((mapped) => ({
       ...mapped,
       body: mapExpression(mapped.body)
+    })),
+    localGeometryValues: definition.localGeometryValues.map((value) => ({
+      ...value,
+      identity: value.identity ?? identityFor(value.statementId),
+      initializer: value.initializer ? mapGeometryReference(value.initializer) : null,
+      construction: value.construction ? mapGeometryConstruction(value.construction) : null,
+      valueExpression: value.valueExpression ? mapGeometryValueExpression(value.valueExpression) : null,
+      backingTarget: mapTarget(value.backingTarget) as ModuleGeometrySourceTarget | null
     })),
     recordValues: definition.recordValues.map((value) => ({
       ...value,
@@ -4864,6 +5157,26 @@ export const decorateDocumentQualifiedModuleSemantics = (
     calleeIdentity: edge.calleeIdentity ?? identityFor(edge.calleeModuleDefinitionStatementId),
     instanceIdentity: edge.instanceIdentity ?? identityFor(edge.instanceStatementId)
   }));
+  const geometryValues = analysis.geometryValues.map((value) => ({
+    ...value,
+    identity: value.identity ?? identityFor(value.statementId),
+    initializer: value.initializer ? mapGeometryReference(value.initializer) : null,
+    construction: value.construction ? mapGeometryConstruction(value.construction) : null,
+    valueExpression: value.valueExpression ? mapGeometryValueExpression(value.valueExpression) : null,
+    backingTarget: mapTarget(value.backingTarget) as ModuleGeometrySourceTarget | null
+  }));
+  const rootScalarExpressionsByStatementId = new Map(
+    [...analysis.rootScalarExpressionsByStatementId].map(([statementId, site]) => [
+      statementId,
+      { ...site, expression: mapExpression(site.expression) }
+    ] as const)
+  );
+  const rootGeometryReferencesByStatementId = new Map(
+    [...analysis.rootGeometryReferencesByStatementId].map(([statementId, sites]) => [
+      statementId,
+      sites.map((site) => ({ ...site, reference: mapGeometryReference(site.reference) }))
+    ] as const)
+  );
   const definitionsByQualifiedIdentity = new Map(
     definitions.flatMap((definition) => definition.identity ? [[
       JSON.stringify([definition.identity.documentId, definition.identity.localIdentity]),
@@ -4884,6 +5197,11 @@ export const decorateDocumentQualifiedModuleSemantics = (
     definitionsByStatementId: new Map(definitions.map((definition) => [definition.statementId, definition] as const)),
     instancesByStatementId: new Map(instances.map((instance) => [instance.statementId, instance] as const)),
     callEdges,
+    rootScalarExpressionsByStatementId,
+    rootGeometryReferencesByStatementId,
+    geometryValues,
+    geometryValuesByStatementId: new Map(geometryValues.map((value) => [value.statementId, value] as const)),
+    geometryValuesByStatementIndex: new Map(geometryValues.map((value) => [value.statementIndex, value] as const)),
     definitionsByQualifiedIdentity,
     instancesByQualifiedIdentity
   };
