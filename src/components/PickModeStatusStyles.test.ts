@@ -8,6 +8,15 @@ const pickModeStatusEnd = stylesheet.indexOf(".canvas-viewport.is-point-dragging
 const pickModeStatusStyles = stylesheet.slice(pickModeStatusStart, pickModeStatusEnd);
 
 describe("Pick Mode status stylesheet contract", () => {
+  it("anchors the panel at the top-left without losing the bounded list", () => {
+    expect(pickModeStatusStyles).toContain("top: 10px;");
+    expect(pickModeStatusStyles).toContain("left: 10px;");
+    expect(pickModeStatusStyles).toContain("max-height: min(180px, 28vh);");
+    expect(pickModeStatusStyles).toContain("overflow: auto;");
+    expect(pickModeStatusStyles).not.toContain("bottom:");
+    expect(pickModeStatusStyles).not.toContain("transform: translateX(-50%);");
+  });
+
   it("uses the inherited Canvas semantic theme without owning a fixed palette", () => {
     expect(pickModeStatusStart).toBeGreaterThanOrEqual(0);
     expect(pickModeStatusEnd).toBeGreaterThan(pickModeStatusStart);
