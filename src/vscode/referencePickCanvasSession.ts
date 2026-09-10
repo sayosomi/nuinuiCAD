@@ -115,6 +115,24 @@ const sameReconciledStatementShape = (
   return left.type === right.type && left.category === right.category;
 };
 
+const exactNormalizedStatementSourceFor = (
+  compiled: CompiledDslDocument,
+  statement: CompiledDslDocument["statements"][number]
+): string | null => {
+  const sourceMap = compiled.spans.sourceMap;
+  const { from, to, sourceRevision } = statement.documentRange;
+  if (
+    statement.sourceRevision !== sourceRevision ||
+    sourceRevision !== sourceMap.sourceRevision ||
+    !Number.isInteger(from) ||
+    !Number.isInteger(to) ||
+    from < 0 ||
+    to < from ||
+    to > sourceMap.source.length
+  ) return null;
+  return sourceMap.source.slice(from, to);
+};
+
 /**
  * Re-anchor an exact-current target to the only statement with the same
  * reconciler-owned identity in the coherent Canvas snapshot. Statement IDs
@@ -176,8 +194,9 @@ export const reanchorReferencePickTargetToCanvasSnapshot = ({
  * Project a newly appended, semantically queryable Source target onto the
  * coherent Canvas namespace without claiming that the old Canvas document
  * contains the new statement. Every existing Canvas statement must retain its
- * reconciler-owned identity and position; only the target's existing lexical
- * scope is extended to the virtual appended statement index.
+ * reconciler-owned identity or prove exact source continuity when it is
+ * legitimately identity-less; only the target's existing lexical scope is
+ * extended to the virtual appended statement index.
  */
 const reanchorAppendedReferencePickTargetToCanvasSnapshot = ({
   target,
@@ -208,14 +227,19 @@ const reanchorAppendedReferencePickTargetToCanvasSnapshot = ({
     const canvasId = canvasIds.get(index);
     const currentStatement = currentCompiled.statements[index];
     const canvasStatement = canvasSnapshot.compiled.statements[index];
-    if (
-      currentId === undefined ||
-      canvasId === undefined ||
-      currentId !== canvasId ||
-      !currentStatement ||
-      !canvasStatement ||
-      !sameReconciledStatementShape(currentStatement, canvasStatement)
-    ) return null;
+    if (!currentStatement || !canvasStatement || !sameReconciledStatementShape(currentStatement, canvasStatement)) return null;
+
+    const currentHasId = currentId !== undefined;
+    const canvasHasId = canvasId !== undefined;
+    if (currentHasId !== canvasHasId) return null;
+    if (currentHasId) {
+      if (currentId !== canvasId) return null;
+      continue;
+    }
+
+    const currentSource = exactNormalizedStatementSourceFor(currentCompiled, currentStatement);
+    const canvasSource = exactNormalizedStatementSourceFor(canvasSnapshot.compiled, canvasStatement);
+    if (currentSource === null || canvasSource === null || currentSource !== canvasSource) return null;
   }
 
   return {
