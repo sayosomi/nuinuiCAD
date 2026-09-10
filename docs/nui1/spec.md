@@ -635,8 +635,8 @@ const matched: Pair = match @side {
 Runtime evaluates the condition or scrutinee before evaluating only the
 selected record leaf. A record leaf may be a constructor, a whole-record
 reference, or a supported statically indexed member of a record collection.
-Collection-valued control flow, optional values, and record value-for remain
-outside nui1.
+Collection-valued control flow and record value-for are deferred to later nui1
+work; optional values remain outside this slice.
 
 Constructors are named-only and must provide every field exactly once. The
 constructor name and the declared type must identify the same record definition;
