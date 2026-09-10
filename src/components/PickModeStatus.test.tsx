@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
@@ -73,7 +73,7 @@ describe("PickModeStatus", () => {
     expect(screen.getAllByRole("listitem")).toHaveLength(5);
   });
 
-  it("removes entries and reorders the shared draft by keyboard and buttons", () => {
+  it("uses native ordered-draft controls and restores focus through shared draft mutations", () => {
     const lines = Array.from({ length: 3 }, (_, index) => line(`line-${index + 1}`, `線${index + 1}`));
     const target: CadElement = {
       id: "offset",
@@ -102,25 +102,61 @@ describe("PickModeStatus", () => {
 
     render(<PickModeStatus />);
 
-    fireEvent.click(screen.getByRole("button", { name: "線1を下へ移動" }));
+    const rows = screen.getAllByRole("listitem");
+    expect(rows).toHaveLength(3);
+    for (const row of rows) {
+      expect(row).not.toHaveAttribute("tabindex");
+      expect(within(row).getAllByRole("button")).toHaveLength(3);
+    }
+    expect(screen.getByRole("button", { name: "線1を上へ移動" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "線1を下へ移動" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "線1を削除" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "線2を上へ移動" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "線2を下へ移動" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "線2を削除" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "線3を上へ移動" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "線3を下へ移動" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "線3を削除" })).toBeEnabled();
+
+    fireEvent.keyDown(rows[1]!, { key: "ArrowDown" });
     expect(useCadUiStore.getState().activePickModeSession?.draft.map((entry) => entry.key)).toEqual([
-      "line-2",
       "line-1",
+      "line-2",
       "line-3"
     ]);
 
-    fireEvent.keyDown(screen.getAllByRole("listitem")[0]!, { key: "ArrowDown" });
+    fireEvent.click(screen.getByRole("button", { name: "線3を上へ移動" }));
+    expect(useCadUiStore.getState().activePickModeSession?.draft.map((entry) => entry.key)).toEqual([
+      "line-1",
+      "line-3",
+      "line-2"
+    ]);
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "線3を上へ移動" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "線3を下へ移動" }));
     expect(useCadUiStore.getState().activePickModeSession?.draft.map((entry) => entry.key)).toEqual([
       "line-1",
       "line-2",
       "line-3"
     ]);
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "線3を削除" }));
 
     fireEvent.click(screen.getByRole("button", { name: "線2を削除" }));
     expect(useCadUiStore.getState().activePickModeSession?.draft.map((entry) => entry.key)).toEqual([
       "line-1",
       "line-3"
     ]);
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "線3を削除" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "線3を削除" }));
+    expect(useCadUiStore.getState().activePickModeSession?.draft.map((entry) => entry.key)).toEqual([
+      "line-1"
+    ]);
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "線1を削除" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "線1を削除" }));
+    expect(useCadUiStore.getState().activePickModeSession?.draft).toEqual([]);
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "選択を完了" }));
   });
 
   it("finishes the exact order currently shown by the panel", () => {

@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef } from "react";
 import { dispatchCommand } from "../commands/commands";
 import {
   movePickModeDraftEntryInSession,
@@ -32,10 +33,75 @@ export type PickModeStatusModel = {
   onFinish: () => void;
 };
 
+type PickModeStatusAction = "move-up" | "move-down" | "remove";
+type PendingPickModeStatusFocus =
+  | { kind: "entry"; key: string; action: PickModeStatusAction }
+  | { kind: "finish" };
+
+const pickModeStatusActions: readonly PickModeStatusAction[] = ["move-up", "move-down", "remove"];
+
 export const PickModeStatusView = ({ model }: { model: PickModeStatusModel }) => {
+  const actionButtonRefs = useRef(new Map<string, Partial<Record<PickModeStatusAction, HTMLButtonElement | null>>>());
+  const finishButtonRef = useRef<HTMLButtonElement | null>(null);
+  const pendingFocusRef = useRef<PendingPickModeStatusFocus | null>(null);
+
+  useLayoutEffect(() => {
+    const pendingFocus = pendingFocusRef.current;
+    if (!pendingFocus) return;
+    pendingFocusRef.current = null;
+
+    if (pendingFocus.kind === "finish") {
+      finishButtonRef.current?.focus();
+      return;
+    }
+
+    const entryRefs = actionButtonRefs.current.get(pendingFocus.key);
+    if (!entryRefs) return;
+    const actionIndex = pickModeStatusActions.indexOf(pendingFocus.action);
+    const directTarget = entryRefs[pendingFocus.action];
+    if (directTarget && !directTarget.disabled) {
+      directTarget.focus();
+      return;
+    }
+    for (const action of pickModeStatusActions.slice(actionIndex + 1)) {
+      const fallbackTarget = entryRefs[action];
+      if (fallbackTarget && !fallbackTarget.disabled) {
+        fallbackTarget.focus();
+        return;
+      }
+    }
+  }, [model.orderedDraft?.entries]);
+
+  const setActionButtonRef = (
+    key: string,
+    action: PickModeStatusAction,
+    button: HTMLButtonElement | null
+  ) => {
+    let entryRefs = actionButtonRefs.current.get(key);
+    if (!entryRefs) {
+      entryRefs = {};
+      actionButtonRefs.current.set(key, entryRefs);
+    }
+    entryRefs[action] = button;
+  };
+
   const renderOrderedDraft = () => {
     if (!model.orderedDraft) return null;
     const { entries, count, onMove, onRemove } = model.orderedDraft;
+    const moveEntry = (key: string, action: PickModeStatusAction, toIndex: number) => {
+      pendingFocusRef.current = { kind: "entry", key, action };
+      onMove(key, toIndex);
+    };
+    const removeEntry = (key: string) => {
+      const removedIndex = entries.findIndex((entry) => entry.key === key);
+      if (removedIndex >= 0) {
+        const fallbackEntry = entries[removedIndex + 1] ?? entries[removedIndex - 1];
+        pendingFocusRef.current = fallbackEntry
+          ? { kind: "entry", key: fallbackEntry.key, action: "remove" }
+          : { kind: "finish" };
+      }
+      onRemove(key);
+    };
     return (
       <div className="pick-mode-status-selection" aria-label={`選択済み ${count} 件`}>
         <span>選択済み {count}件</span>
@@ -46,14 +112,6 @@ export const PickModeStatusView = ({ model }: { model: PickModeStatusModel }) =>
                 key={entry.key}
                 className="pick-mode-status-list-item"
                 data-pick-draft-key={entry.key}
-                tabIndex={0}
-                onKeyDown={(event) => {
-                  if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
-                  if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
-                  event.preventDefault();
-                  event.stopPropagation();
-                  onMove(entry.key, index + (event.key === "ArrowUp" ? -1 : 1));
-                }}
               >
                 <span className="pick-mode-status-list-index">{index + 1}</span>
                 <span className="pick-mode-status-list-label" title={entry.label}>{entry.label}</span>
@@ -62,7 +120,8 @@ export const PickModeStatusView = ({ model }: { model: PickModeStatusModel }) =>
                     type="button"
                     aria-label={`${entry.label}を上へ移動`}
                     disabled={index === 0}
-                    onClick={() => onMove(entry.key, index - 1)}
+                    ref={(button) => setActionButtonRef(entry.key, "move-up", button)}
+                    onClick={() => moveEntry(entry.key, "move-up", index - 1)}
                   >
                     ↑
                   </button>
@@ -70,14 +129,16 @@ export const PickModeStatusView = ({ model }: { model: PickModeStatusModel }) =>
                     type="button"
                     aria-label={`${entry.label}を下へ移動`}
                     disabled={index === entries.length - 1}
-                    onClick={() => onMove(entry.key, index + 1)}
+                    ref={(button) => setActionButtonRef(entry.key, "move-down", button)}
+                    onClick={() => moveEntry(entry.key, "move-down", index + 1)}
                   >
                     ↓
                   </button>
                   <button
                     type="button"
                     aria-label={`${entry.label}を削除`}
-                    onClick={() => onRemove(entry.key)}
+                    ref={(button) => setActionButtonRef(entry.key, "remove", button)}
+                    onClick={() => removeEntry(entry.key)}
                   >
                     ×
                   </button>
@@ -113,7 +174,7 @@ export const PickModeStatusView = ({ model }: { model: PickModeStatusModel }) =>
         ) : null}
         {renderOrderedDraft()}
       </div>
-      <button type="button" onClick={model.onFinish}>
+      <button ref={finishButtonRef} type="button" onClick={model.onFinish}>
         選択を完了
       </button>
       <kbd title="Enter で選択を完了">↵</kbd>
