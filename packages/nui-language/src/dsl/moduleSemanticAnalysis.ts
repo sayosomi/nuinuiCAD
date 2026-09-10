@@ -56,12 +56,19 @@ import {
 import type { ScalarType } from "../scalars/types";
 import { isDslArrayValueType, isDslGeometryValueType, scalarTypeOfDslValueType } from "./dslValueTypes";
 import { isDslNonArrayValueTypeAssignable } from "./geometryArrayTypes";
+import type {
+  DslArrayMappedValue,
+  DslArraySemanticValue,
+  GeometryArrayMappedValue,
+  GeometryArraySemanticValue
+} from "./geometryArraySemantics";
 import {
   collectionLengthForValueId,
   collectionValueSemanticForStatement,
   geometryArrayDeferredModuleExportId,
   moduleParameterByName
 } from "./geometryArraySemanticAnalysis";
+import type { GenericArraySourceTarget, GeometryArraySourceTarget } from "./geometryArraySemanticAnalysis";
 import type { StatementIdentity } from "../document/statementIdentity";
 import type {
   ModuleArgumentSemantic,
@@ -3671,7 +3678,31 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         if (!value?.value) return [];
         if (value.value.kind === "alias") return recordMembersFor(value.value.targetValueId, new Set([...seen, valueId]));
         if (value.value.kind === "map") return [];
-        return value.value.members.flatMap((member) => {
+        if (value.value.kind === "if") {
+          return [
+            ...recordMembersForValue(value.value.thenValue, new Set([...seen, valueId])),
+            ...recordMembersForValue(value.value.elseValue, new Set([...seen, valueId]))
+          ];
+        }
+        if (value.value.kind === "match") {
+          return value.value.arms.flatMap((arm) => recordMembersForValue(arm.value, new Set([...seen, valueId])));
+        }
+        return recordMembersForValue(value.value, new Set([...seen, valueId]));
+      };
+      const recordMembersForValue = (
+        value: DslArraySemanticValue<GenericArraySourceTarget>,
+        seen: ReadonlySet<string>
+      ): readonly Extract<ModuleRecordSourceTarget, { kind: "recordValue" }>[] => {
+        if (value.kind === "alias") return recordMembersFor(value.targetValueId, seen);
+        if (value.kind === "if") {
+          return [
+            ...recordMembersForValue(value.thenValue, seen),
+            ...recordMembersForValue(value.elseValue, seen)
+          ];
+        }
+        if (value.kind === "match") return value.arms.flatMap((arm) => recordMembersForValue(arm.value, seen));
+        if (value.kind !== "literal") return [];
+        return value.members.flatMap((member) => {
           if (member.target.kind !== "recordValue") return [];
           const recordValue = recordAnalysis?.valuesByStatementId.get(member.target.statementId);
           return recordValue?.typeIdentity
@@ -4791,8 +4822,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       statement.kind !== "typedDeclaration" ||
       moduleOwnerIndexOf(statements, statementIndex) !== null ||
       !scalarTypeOfDslValueType(statement.valueType) ||
-      !statement.payloadSpans.initializer ||
-      !statement.initializer.includes("@")
+      !statement.payloadSpans.initializer
     ) continue;
     const initializerSpan = statement.payloadSpans.initializer;
     const diagnosticsBefore = localDiagnosticsByStatement.get(statementIndex)?.length ?? 0;
@@ -4895,6 +4925,98 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         expression
       });
     }
+  }
+
+  // Collection control-flow branches reuse the established Module scalar
+  // resolver/typechecker for their condition or scrutinee.  Shape resolution
+  // already happened in geometryArraySemanticAnalysis; this pass only fills
+  // the scalar semantic needed by the runtime and editor identity paths.
+  const analyzeCollectionControlFlow = (
+    statementIndex: number,
+    ownerIndex: number | null,
+    source: string,
+    value: DslArraySemanticValue<unknown> | GeometryArraySemanticValue<unknown>,
+    analyzeScalar: (raw: string, span: DslSpan, expectedType: ScalarType | null, presenceFacts?: ReadonlySet<string>) => ModuleScalarExpressionSemantic | null,
+    addDiagnostic: (diagnostic: ModuleScalarLocalDiagnostic) => void,
+    presenceFacts: ReadonlySet<string> = new Set()
+  ): void => {
+    if (value.kind === "if") {
+      value.condition = analyzeScalar(
+        source.slice(value.conditionSpan.start, value.conditionSpan.end),
+        value.conditionSpan,
+        { kind: "boolean" },
+        presenceFacts
+      ) ?? undefined;
+      const thenPresenceFacts = new Set(presenceFacts);
+      const elsePresenceFacts = new Set(presenceFacts);
+      if (value.condition) {
+        for (const fact of presenceFactsForSemanticTruth(value.condition)) thenPresenceFacts.add(fact);
+        for (const fact of presenceFactsForSemanticFalse(value.condition)) elsePresenceFacts.add(fact);
+      }
+      analyzeCollectionControlFlow(statementIndex, ownerIndex, source, value.thenValue, analyzeScalar, addDiagnostic, thenPresenceFacts);
+      analyzeCollectionControlFlow(statementIndex, ownerIndex, source, value.elseValue, analyzeScalar, addDiagnostic, elsePresenceFacts);
+      return;
+    }
+    if (value.kind === "match") {
+      value.scrutinee = analyzeScalar(
+        source.slice(value.scrutineeSpan.start, value.scrutineeSpan.end),
+        value.scrutineeSpan,
+        null,
+        presenceFacts
+      ) ?? undefined;
+      if (value.scrutinee) {
+        validateChoiceMatchExhaustiveness({
+          scrutineeType: value.scrutinee.type,
+          scrutineeSpan: value.scrutineeSpan,
+          matchSpan: value.span,
+          arms: value.arms,
+          addDiagnostic: (diagnostic) => addDiagnostic(issue(
+            diagnostic.code,
+            diagnostic.span,
+            diagnostic.message,
+            { presentation: diagnostic.presentation }
+          ) as ModuleScalarLocalDiagnostic)
+        });
+      }
+      for (const arm of value.arms) analyzeCollectionControlFlow(statementIndex, ownerIndex, source, arm.value, analyzeScalar, addDiagnostic);
+    }
+  };
+
+  const analyzeRootCollectionControlFlow = (value: DslArraySemanticValue<unknown> | GeometryArraySemanticValue<unknown>, statementIndex: number) => {
+    const statement = statements[statementIndex];
+    if (statement?.kind !== "typedDeclaration") return;
+    const initializerSpan = statement.payloadSpans.initializer;
+    if (!initializerSpan) return;
+    const source = `${" ".repeat(initializerSpan.start)}${statement.initializer}`;
+    analyzeCollectionControlFlow(
+      statementIndex,
+      null,
+      source,
+      value,
+      (raw, span, expectedType, presenceFacts) => analyzeExpression(
+        statementIndex,
+        null,
+        raw,
+        span,
+        expectedType,
+        (reference, facts) => resolveSourceScalar(statementIndex, null, reference.name, null, reference.span, facts),
+        undefined,
+        (reference) => resolveGeometryProperty(statementIndex, null, reference),
+        (reference) => resolveGeometry(statementIndex, null, `@${reference.name}`, reference.span, reference.expectedGeometryType, {
+          expectedInterfaceType: reference.expectedGeometryType,
+          role: reference.expectedGeometryType === "point" ? "pointReference" : "lineReference"
+        }),
+        (reference) => resolveHasValue(statementIndex, null, reference),
+        presenceFacts
+      ),
+      (diagnostic) => addLocal(statementIndex, diagnostic)
+    );
+  };
+  for (const value of sourceNamespace.geometryArraySemanticAnalysis?.genericValues ?? []) {
+    if (value.ownerModuleDefinitionStatementIndex === null && value.value) analyzeRootCollectionControlFlow(value.value, value.statementIndex);
+  }
+  for (const value of sourceNamespace.geometryArraySemanticAnalysis?.values ?? []) {
+    if (value.ownerModuleDefinitionStatementIndex === null && value.value) analyzeRootCollectionControlFlow(value.value, value.statementIndex);
   }
 
   // Geometry collection maps use the existing geometry-value semantic parser
@@ -5009,17 +5131,91 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       registerGeometryValue: (value) => geometryValuesByStatementIndex.set(value.statementIndex, value)
     });
     localScalarsByDefinition.set(definition.statementIndex, body.localScalars);
-    const mappedScalarCollectionBodies: ModuleDefinitionSemantic["mappedScalarCollectionBodies"][number][] = [];
-    const genericCollectionAnalysis = sourceNamespace.geometryArraySemanticAnalysis;
-    for (const value of genericCollectionAnalysis?.genericValues ?? []) {
-      if (value.ownerModuleDefinitionStatementIndex !== definition.statementIndex || value.value?.kind !== "map") continue;
-      const statement = statements[value.statementIndex];
-      const mapped = value.value;
+    const moduleCollectionAnalysisForControlFlow = sourceNamespace.geometryArraySemanticAnalysis;
+    for (const collectionValue of [
+      ...(moduleCollectionAnalysisForControlFlow?.genericValues ?? []),
+      ...(moduleCollectionAnalysisForControlFlow?.values ?? [])
+    ]) {
+      if (collectionValue.ownerModuleDefinitionStatementIndex !== definition.statementIndex || !collectionValue.value) continue;
+      const statement = statements[collectionValue.statementIndex];
       if (statement?.kind !== "typedDeclaration") continue;
       const initializerSpan = statement.payloadSpans.initializer;
       if (!initializerSpan) continue;
-      const bodyRaw = statement.initializer.slice(mapped.bodySpan.start - initializerSpan.start, mapped.bodySpan.end - initializerSpan.start);
-      const semantic = analyzeExpression(
+      const source = `${" ".repeat(initializerSpan.start)}${statement.initializer}`;
+      analyzeCollectionControlFlow(
+        collectionValue.statementIndex,
+        definition.statementIndex,
+        source,
+        collectionValue.value,
+        (raw, span, expectedType, presenceFacts) => analyzeExpression(
+          collectionValue.statementIndex,
+          definition.statementIndex,
+          raw,
+          span,
+          expectedType,
+          (reference, facts) => resolveBodyScalar(collectionValue.statementIndex, definition.statementIndex, reference, facts),
+          undefined,
+          (reference) => resolveGeometryProperty(collectionValue.statementIndex, definition.statementIndex, reference),
+          (reference) => resolveGeometry(collectionValue.statementIndex, definition.statementIndex, `@${reference.name}`, reference.span, reference.expectedGeometryType, {
+            expectedInterfaceType: reference.expectedGeometryType,
+            role: reference.expectedGeometryType === "point" ? "pointReference" : "lineReference",
+            presenceFacts: new Set()
+          }),
+          (reference) => resolveHasValue(collectionValue.statementIndex, definition.statementIndex, reference),
+          presenceFacts
+        ),
+        (diagnostic) => addLocal(collectionValue.statementIndex, diagnostic)
+      );
+    }
+    const genericMappedValuesOf = (value: DslArraySemanticValue<GenericArraySourceTarget> | null): DslArrayMappedValue[] => {
+      const mappedValues: DslArrayMappedValue[] = [];
+      const collect = (candidate: DslArraySemanticValue<GenericArraySourceTarget>) => {
+        if (candidate.kind === "map") {
+          mappedValues.push(candidate);
+          return;
+        }
+        if (candidate.kind === "if") {
+          collect(candidate.thenValue);
+          collect(candidate.elseValue);
+          return;
+        }
+        if (candidate.kind === "match") {
+          for (const arm of candidate.arms) collect(arm.value);
+        }
+      };
+      if (value) collect(value);
+      return mappedValues;
+    };
+    const geometryMappedValuesOf = (value: GeometryArraySemanticValue<GeometryArraySourceTarget> | null): GeometryArrayMappedValue[] => {
+      const mappedValues: GeometryArrayMappedValue[] = [];
+      const collect = (candidate: GeometryArraySemanticValue<GeometryArraySourceTarget>) => {
+        if (candidate.kind === "map") {
+          mappedValues.push(candidate);
+          return;
+        }
+        if (candidate.kind === "if") {
+          collect(candidate.thenValue);
+          collect(candidate.elseValue);
+          return;
+        }
+        if (candidate.kind === "match") {
+          for (const arm of candidate.arms) collect(arm.value);
+        }
+      };
+      if (value) collect(value);
+      return mappedValues;
+    };
+    const mappedScalarCollectionBodies: ModuleDefinitionSemantic["mappedScalarCollectionBodies"][number][] = [];
+    const genericCollectionAnalysis = sourceNamespace.geometryArraySemanticAnalysis;
+    for (const value of genericCollectionAnalysis?.genericValues ?? []) {
+      if (value.ownerModuleDefinitionStatementIndex !== definition.statementIndex) continue;
+      const statement = statements[value.statementIndex];
+      if (statement?.kind !== "typedDeclaration") continue;
+      const initializerSpan = statement.payloadSpans.initializer;
+      if (!initializerSpan) continue;
+      for (const mapped of genericMappedValuesOf(value.value)) {
+        const bodyRaw = statement.initializer.slice(mapped.bodySpan.start - initializerSpan.start, mapped.bodySpan.end - initializerSpan.start);
+        const semantic = analyzeExpression(
         value.statementIndex,
         definition.statementIndex,
         bodyRaw,
@@ -5059,27 +5255,28 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         ),
         (reference) => resolveHasValue(value.statementIndex, definition.statementIndex, reference)
       );
-      if (semantic?.type) {
-        mappedScalarCollectionBodies.push({
-          statementId: value.statementId,
-          statementIndex: value.statementIndex,
-          binderId: mapped.binderId,
-          sourceElementType: mapped.sourceElementType,
-          resultElementType: mapped.resultElementType,
-          body: semantic
-        });
+        if (semantic?.type) {
+          mappedScalarCollectionBodies.push({
+            statementId: value.statementId,
+            statementIndex: value.statementIndex,
+            binderId: mapped.binderId,
+            sourceElementType: mapped.sourceElementType,
+            resultElementType: mapped.resultElementType,
+            body: semantic
+          });
+        }
       }
     }
     mappedScalarCollectionBodiesByDefinition.set(definition.statementIndex, mappedScalarCollectionBodies);
     const mappedGeometryCollectionBodies: NonNullable<ModuleDefinitionSemantic["mappedGeometryCollectionBodies"]>[number][] = [];
     const geometryCollectionAnalysis = sourceNamespace.geometryArraySemanticAnalysis;
     for (const value of geometryCollectionAnalysis?.values ?? []) {
-      if (value.ownerModuleDefinitionStatementIndex !== definition.statementIndex || value.value?.kind !== "map") continue;
+      if (value.ownerModuleDefinitionStatementIndex !== definition.statementIndex) continue;
       const statement = statements[value.statementIndex];
-      const mapped = value.value;
       if (statement?.kind !== "typedDeclaration") continue;
       const initializerSpan = statement.payloadSpans.initializer;
       if (!initializerSpan) continue;
+      for (const mapped of geometryMappedValuesOf(value.value)) {
       const bodyRaw = statement.initializer.slice(mapped.bodySpan.start - initializerSpan.start, mapped.bodySpan.end - initializerSpan.start);
       const bodySource = `${" ".repeat(mapped.bodySpan.start)}${bodyRaw}`;
       const parsedBody = parseScalarExpression(bodySource, mapped.bodySpan, { allowOpaqueNamedCalls: true });
@@ -5154,6 +5351,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       } finally {
         activeGeometryValueBinder = previousBinder;
       }
+      }
     }
     mappedGeometryCollectionBodiesByDefinition.set(definition.statementIndex, mappedGeometryCollectionBodies);
     localGeometryValuesByDefinition.set(definition.statementIndex, body.localGeometryValues);
@@ -5176,20 +5374,43 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       return facts;
     };
     const moduleGenericCollectionAnalysis = sourceNamespace.geometryArraySemanticAnalysis;
+    const checkOptionalGenericCollectionValue = (
+      value: DslArraySemanticValue<GenericArraySourceTarget>,
+      statementIndex: number,
+      presenceFacts: ReadonlySet<string>
+    ): void => {
+      if (value.kind === "if") {
+        const thenFacts = new Set(presenceFacts);
+        const elseFacts = new Set(presenceFacts);
+        if (value.condition) {
+          for (const fact of presenceFactsForSemanticTruth(value.condition)) thenFacts.add(fact);
+          for (const fact of presenceFactsForSemanticFalse(value.condition)) elseFacts.add(fact);
+        }
+        checkOptionalGenericCollectionValue(value.thenValue, statementIndex, thenFacts);
+        checkOptionalGenericCollectionValue(value.elseValue, statementIndex, elseFacts);
+        return;
+      }
+      if (value.kind === "match") {
+        for (const arm of value.arms) checkOptionalGenericCollectionValue(arm.value, statementIndex, presenceFacts);
+        return;
+      }
+      if (value.kind === "alias") {
+        const parameter = optionalGenericCollectionParameterForValueId(value.targetValueId);
+        if (parameter) addOptionalGenericCollectionPresenceDiagnostic(statementIndex, value.sourceSpan, parameter, presenceFacts);
+        return;
+      }
+      if (value.kind !== "literal") return;
+      for (const member of value.members) {
+        const parameter = member.target.kind === "moduleParameterValue"
+          ? moduleParameterForSlot(member.target.definitionStatementId, member.target.parameterIndex)
+          : null;
+        if (parameter) addOptionalGenericCollectionPresenceDiagnostic(statementIndex, member.sourceSpan, parameter, presenceFacts);
+      }
+    };
     for (const value of moduleGenericCollectionAnalysis?.genericValues ?? []) {
       if (value.ownerModuleDefinitionStatementIndex !== definition.statementIndex || !value.value) continue;
-      const presenceFacts = presenceFactsForSourceStatement(value.statementIndex);
-      if (value.value.kind === "map") continue;
-      if (value.value.kind === "alias") {
-        const parameter = optionalGenericCollectionParameterForValueId(value.value.targetValueId);
-        if (parameter) addOptionalGenericCollectionPresenceDiagnostic(value.statementIndex, value.value.sourceSpan, parameter, presenceFacts);
-      } else {
-        for (const member of value.value.members) {
-          const parameter = member.target.kind === "moduleParameterValue"
-            ? moduleParameterForSlot(member.target.definitionStatementId, member.target.parameterIndex)
-            : null;
-          if (parameter) addOptionalGenericCollectionPresenceDiagnostic(value.statementIndex, member.sourceSpan, parameter, presenceFacts);
-        }
+      if (value.value.kind !== "map") {
+        checkOptionalGenericCollectionValue(value.value, value.statementIndex, presenceFactsForSourceStatement(value.statementIndex));
       }
     }
     const definitionRecordValues: ModuleRecordValueSemantic[] = [...(recordAnalysis?.valuesByStatementId.values() ?? [])]

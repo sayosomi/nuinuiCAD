@@ -282,6 +282,104 @@ impl<'a> ScalarBindingResolver<'a> {
                         error @ ScalarEvaluation::Error { .. } => error,
                     };
                 }
+                ValidatedScalarProgramCollectionValue::If {
+                    condition,
+                    then_value_id,
+                    else_value_id,
+                } => {
+                    let environment = ResolvingEnvironment {
+                        resolver: self,
+                        state,
+                        source_order: 0,
+                        local_binding_id: None,
+                        local_binding: None,
+                    };
+                    let condition = evaluate_typed_expression(condition, &environment);
+                    let selected = match condition {
+                        ScalarEvaluation::Ok {
+                            r#type: ScalarType::Boolean,
+                            value: ScalarValue::Boolean(value),
+                        } => {
+                            if value {
+                                then_value_id
+                            } else {
+                                else_value_id
+                            }
+                        }
+                        ScalarEvaluation::Error { issue_code, .. } => {
+                            return ScalarEvaluation::Error {
+                                r#type: element_type.clone(),
+                                issue_code,
+                                binding_id: None,
+                                context: None,
+                            };
+                        }
+                        _ => {
+                            return ScalarEvaluation::Error {
+                                r#type: element_type.clone(),
+                                issue_code: RUNTIME_VALUE_TYPE_MISMATCH.to_owned(),
+                                binding_id: None,
+                                context: None,
+                            };
+                        }
+                    };
+                    return self.resolve_collection_index(
+                        selected,
+                        index,
+                        element_type,
+                        None,
+                        0.0,
+                        state,
+                    );
+                }
+                ValidatedScalarProgramCollectionValue::Match { scrutinee, arms } => {
+                    let environment = ResolvingEnvironment {
+                        resolver: self,
+                        state,
+                        source_order: 0,
+                        local_binding_id: None,
+                        local_binding: None,
+                    };
+                    let scrutinee = evaluate_typed_expression(scrutinee, &environment);
+                    let value = match scrutinee {
+                        ScalarEvaluation::Ok {
+                            r#type: ScalarType::Choice { .. },
+                            value: ScalarValue::Choice { value, .. },
+                        } => value,
+                        ScalarEvaluation::Error { issue_code, .. } => {
+                            return ScalarEvaluation::Error {
+                                r#type: element_type.clone(),
+                                issue_code,
+                                binding_id: None,
+                                context: None,
+                            };
+                        }
+                        _ => {
+                            return ScalarEvaluation::Error {
+                                r#type: element_type.clone(),
+                                issue_code: RUNTIME_VALUE_TYPE_MISMATCH.to_owned(),
+                                binding_id: None,
+                                context: None,
+                            };
+                        }
+                    };
+                    let Some((_, selected)) = arms.iter().find(|(label, _)| label == &value) else {
+                        return ScalarEvaluation::Error {
+                            r#type: element_type.clone(),
+                            issue_code: RUNTIME_VALUE_TYPE_MISMATCH.to_owned(),
+                            binding_id: None,
+                            context: None,
+                        };
+                    };
+                    return self.resolve_collection_index(
+                        selected,
+                        index,
+                        element_type,
+                        None,
+                        0.0,
+                        state,
+                    );
+                }
             }
         };
         let Some(member) = member else {
@@ -330,6 +428,73 @@ impl<'a> ScalarBindingResolver<'a> {
                 context: None,
             },
             error @ ScalarEvaluation::Error { .. } => error,
+        }
+    }
+
+    pub(crate) fn resolve_collection_length(
+        &self,
+        collection_value_id: &str,
+        state: &EvaluationState,
+        seen: &mut HashSet<String>,
+    ) -> Option<f64> {
+        if !seen.insert(collection_value_id.to_owned()) {
+            return None;
+        }
+        let value = self
+            .program
+            .collection_values
+            .iter()
+            .find(|value| value.value_id == collection_value_id)?;
+        match &value.value {
+            ValidatedScalarProgramCollectionValue::Literal(members) => Some(members.len() as f64),
+            ValidatedScalarProgramCollectionValue::Alias(target) => {
+                self.resolve_collection_length(target, state, seen)
+            }
+            ValidatedScalarProgramCollectionValue::Map {
+                source_value_id, ..
+            } => self.resolve_collection_length(source_value_id, state, seen),
+            ValidatedScalarProgramCollectionValue::If {
+                condition,
+                then_value_id,
+                else_value_id,
+            } => {
+                let environment = ResolvingEnvironment {
+                    resolver: self,
+                    state,
+                    source_order: 0,
+                    local_binding_id: None,
+                    local_binding: None,
+                };
+                match evaluate_typed_expression(condition, &environment) {
+                    ScalarEvaluation::Ok {
+                        value: ScalarValue::Boolean(true),
+                        ..
+                    } => self.resolve_collection_length(then_value_id, state, seen),
+                    ScalarEvaluation::Ok {
+                        value: ScalarValue::Boolean(false),
+                        ..
+                    } => self.resolve_collection_length(else_value_id, state, seen),
+                    _ => None,
+                }
+            }
+            ValidatedScalarProgramCollectionValue::Match { scrutinee, arms } => {
+                let environment = ResolvingEnvironment {
+                    resolver: self,
+                    state,
+                    source_order: 0,
+                    local_binding_id: None,
+                    local_binding: None,
+                };
+                let ScalarEvaluation::Ok {
+                    value: ScalarValue::Choice { value, .. },
+                    ..
+                } = evaluate_typed_expression(scrutinee, &environment)
+                else {
+                    return None;
+                };
+                let (_, target) = arms.iter().find(|(label, _)| label == &value)?;
+                self.resolve_collection_length(target, state, seen)
+            }
         }
     }
 }
@@ -435,6 +600,14 @@ impl ScalarEvaluationEnvironment for ResolvingEnvironment<'_, '_, '_> {
             collection_length,
             target_source_order,
             self.state,
+        )
+    }
+
+    fn lookup_collection_length(&self, collection_value_id: &str) -> Option<f64> {
+        self.resolver.resolve_collection_length(
+            collection_value_id,
+            self.state,
+            &mut HashSet::new(),
         )
     }
 

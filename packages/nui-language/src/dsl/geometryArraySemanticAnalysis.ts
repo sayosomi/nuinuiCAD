@@ -124,6 +124,7 @@ export const collectionLengthForValueId = (
   const value = analysis.genericValuesByStatementId.get(valueId) ?? analysis.valuesByStatementId.get(valueId);
   if (!value?.value) return null;
   if (value.value.kind === "literal") return value.value.members.length;
+  if (value.value.kind === "if" || value.value.kind === "match") return null;
   if (value.value.kind === "map") return collectionLengthForValueId(analysis, value.value.sourceValueId, new Set([...seen, valueId]));
   return collectionLengthForValueId(analysis, value.value.targetValueId, new Set([...seen, valueId]));
 };
@@ -214,14 +215,33 @@ const offsetExpression = (expression: GeometryArrayExpression, offset: number): 
           sourceSpan: { start: expression.sourceSpan.start + offset, end: expression.sourceSpan.end + offset },
           bodySpan: { start: expression.bodySpan.start + offset, end: expression.bodySpan.end + offset }
         }
-    : {
+    : expression.kind === "if"
+      ? {
+          ...expression,
+          span: { start: expression.span.start + offset, end: expression.span.end + offset },
+          conditionSpan: { start: expression.conditionSpan.start + offset, end: expression.conditionSpan.end + offset },
+          thenBranch: offsetExpression(expression.thenBranch, offset),
+          elseBranch: offsetExpression(expression.elseBranch, offset)
+        }
+      : expression.kind === "match"
+        ? {
+            ...expression,
+            span: { start: expression.span.start + offset, end: expression.span.end + offset },
+            scrutineeSpan: { start: expression.scrutineeSpan.start + offset, end: expression.scrutineeSpan.end + offset },
+            arms: expression.arms.map((arm) => ({
+              ...arm,
+              labelSpan: { start: arm.labelSpan.start + offset, end: arm.labelSpan.end + offset },
+              expression: offsetExpression(arm.expression, offset)
+            }))
+          }
+        : {
         ...expression,
         span: { start: expression.span.start + offset, end: expression.span.end + offset },
         members: expression.members.map((member) => ({
           ...member,
           span: { start: member.span.start + offset, end: member.span.end + offset }
         }))
-      };
+        };
 
 export const moduleParameterByName = (
   statements: readonly DslStatement[],

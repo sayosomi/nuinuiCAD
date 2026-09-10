@@ -136,6 +136,29 @@ export const createLazyScalarProgramEvaluator = (
                   ? mapped
                   : { status: "error", type: value.resultElementType, issueCode: "evaluation-runtime-value-type-mismatch" };
               }
+              if (value.kind === "if") {
+                const condition = evaluateTypedExpression(value.condition, {
+                  lookupBinding: resolve,
+                  lookupCollectionIndex
+                });
+                if (condition.status === "error") return condition;
+                if (condition.type.kind !== "boolean" || condition.value.kind !== "boolean") {
+                  return { status: "error", type: elementType, issueCode: "evaluation-runtime-value-type-mismatch" };
+                }
+                return lookup(condition.value.value ? value.thenValueId : value.elseValueId);
+              }
+              if (value.kind === "match") {
+                const scrutinee = evaluateTypedExpression(value.scrutinee, {
+                  lookupBinding: resolve,
+                  lookupCollectionIndex
+                });
+                if (scrutinee.status === "error") return scrutinee;
+                if (scrutinee.type.kind !== "choice" || scrutinee.value.kind !== "choice") {
+                  return { status: "error", type: elementType, issueCode: "evaluation-runtime-value-type-mismatch" };
+                }
+                const arm = value.arms.find((candidate) => candidate.label === scrutinee.value.value);
+                return arm ? lookup(arm.valueId) : { status: "error", type: elementType, issueCode: "evaluation-runtime-value-type-mismatch" };
+              }
               const member = value.members[index];
               if (!member) return { status: "error", type: elementType, issueCode: "evaluation-collection-index-invalid" };
               if (member.kind === "literal") return { status: "ok", type: member.type, value: member.value };

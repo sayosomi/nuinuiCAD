@@ -11,6 +11,7 @@ import type { DslArrayValueType, DslNonArrayValueType } from "./dslValueTypes";
 import type { TypedScalarExpression } from "../scalars/typedExpressionAst";
 import type { ScalarType } from "../scalars/types";
 import type { ModuleGeometryValueExpressionSemantic } from "./moduleSemanticTypes";
+import type { ModuleScalarExpressionSemantic } from "./moduleSemanticTypes";
 
 export type GeometryArraySemanticDiagnostic = {
   code: string;
@@ -70,7 +71,28 @@ export type GeometryArrayMappedValue = {
   sourceOrder: number;
 };
 
-export type GeometryArraySemanticValue<TTarget> = GeometryArrayLiteralValue<TTarget> | GeometryArrayAliasValue | GeometryArrayMappedValue;
+export type GeometryArrayConditionalValue<TTarget> =
+  | {
+      kind: "if";
+      span: DslSpan;
+      type: GeometryArrayType;
+      conditionText: string;
+      conditionSpan: DslSpan;
+      condition?: ModuleScalarExpressionSemantic;
+      thenValue: GeometryArraySemanticValue<TTarget>;
+      elseValue: GeometryArraySemanticValue<TTarget>;
+    }
+  | {
+      kind: "match";
+      span: DslSpan;
+      type: GeometryArrayType;
+      scrutineeText: string;
+      scrutineeSpan: DslSpan;
+      scrutinee?: ModuleScalarExpressionSemantic;
+      arms: readonly { label: string; labelSpan: DslSpan; value: GeometryArraySemanticValue<TTarget> }[];
+    };
+
+export type GeometryArraySemanticValue<TTarget> = GeometryArrayLiteralValue<TTarget> | GeometryArrayAliasValue | GeometryArrayMappedValue | GeometryArrayConditionalValue<TTarget>;
 
 /** Generalized one-dimensional collection semantic value. Kept beside the
  * historical geometry projection so all collection resolution still has one
@@ -113,7 +135,28 @@ export type DslArrayMappedValue = {
   sourceOrder: number;
 };
 
-export type DslArraySemanticValue<TTarget> = DslArrayLiteralValue<TTarget> | DslArrayAliasValue | DslArrayMappedValue;
+export type DslArrayConditionalValue<TTarget> =
+  | {
+      kind: "if";
+      span: DslSpan;
+      valueType: DslArrayValueType;
+      conditionText: string;
+      conditionSpan: DslSpan;
+      condition?: ModuleScalarExpressionSemantic;
+      thenValue: DslArraySemanticValue<TTarget>;
+      elseValue: DslArraySemanticValue<TTarget>;
+    }
+  | {
+      kind: "match";
+      span: DslSpan;
+      valueType: DslArrayValueType;
+      scrutineeText: string;
+      scrutineeSpan: DslSpan;
+      scrutinee?: ModuleScalarExpressionSemantic;
+      arms: readonly { label: string; labelSpan: DslSpan; value: DslArraySemanticValue<TTarget> }[];
+    };
+
+export type DslArraySemanticValue<TTarget> = DslArrayLiteralValue<TTarget> | DslArrayAliasValue | DslArrayMappedValue | DslArrayConditionalValue<TTarget>;
 
 export type GeometryArrayMemberResolution<TTarget> =
   | { kind: "resolved"; value: GeometryArrayResolvedMember<TTarget> }
@@ -192,6 +235,37 @@ const dslArrayMemberTypeMismatch = (
 export const resolveDslArrayExpression = <TTarget>(
   input: ResolveDslArrayExpressionInput<TTarget>
 ): ResolveDslArrayExpressionResult<TTarget> => {
+  if (input.expression.kind === "if") {
+    const thenResult = resolveDslArrayExpression({ ...input, expression: input.expression.thenBranch });
+    const elseResult = resolveDslArrayExpression({ ...input, expression: input.expression.elseBranch });
+    const diagnostics = [...thenResult.diagnostics, ...elseResult.diagnostics];
+    return thenResult.value && elseResult.value
+      ? {
+          value: {
+            kind: "if",
+            span: input.expression.span,
+            valueType: input.expectedType,
+            conditionText: input.expression.conditionText,
+            conditionSpan: input.expression.conditionSpan,
+            thenValue: thenResult.value,
+            elseValue: elseResult.value
+          },
+          diagnostics
+        }
+      : { value: null, diagnostics };
+  }
+  if (input.expression.kind === "match") {
+    const values: { label: string; labelSpan: DslSpan; value: DslArraySemanticValue<TTarget> }[] = [];
+    const diagnostics: GeometryArraySemanticDiagnostic[] = [];
+    for (const arm of input.expression.arms) {
+      const result = resolveDslArrayExpression({ ...input, expression: arm.expression });
+      diagnostics.push(...result.diagnostics);
+      if (result.value) values.push({ label: arm.label, labelSpan: arm.labelSpan, value: result.value });
+    }
+    return values.length === input.expression.arms.length && diagnostics.length === 0
+      ? { value: { kind: "match", span: input.expression.span, valueType: input.expectedType, scrutineeText: input.expression.scrutineeText, scrutineeSpan: input.expression.scrutineeSpan, arms: values }, diagnostics }
+      : { value: null, diagnostics };
+  }
   if (input.expression.kind === "valueFor") {
     const resolution = input.resolveValueFor?.(input.expression);
     if (!resolution) {
@@ -280,6 +354,36 @@ export const resolveGeometryArrayExpression = <TTarget>(
   input: ResolveGeometryArrayExpressionInput<TTarget>
 ): ResolveGeometryArrayExpressionResult<TTarget> => {
   const diagnostics: GeometryArraySemanticDiagnostic[] = [];
+  if (input.expression.kind === "if") {
+    const thenResult = resolveGeometryArrayExpression({ ...input, expression: input.expression.thenBranch });
+    const elseResult = resolveGeometryArrayExpression({ ...input, expression: input.expression.elseBranch });
+    const branchDiagnostics = [...thenResult.diagnostics, ...elseResult.diagnostics];
+    return thenResult.value && elseResult.value
+      ? {
+          value: {
+            kind: "if",
+            span: input.expression.span,
+            type: input.expectedType,
+            conditionText: input.expression.conditionText,
+            conditionSpan: input.expression.conditionSpan,
+            thenValue: thenResult.value,
+            elseValue: elseResult.value
+          },
+          diagnostics: branchDiagnostics
+        }
+      : { value: null, diagnostics: branchDiagnostics };
+  }
+  if (input.expression.kind === "match") {
+    const values: { label: string; labelSpan: DslSpan; value: GeometryArraySemanticValue<TTarget> }[] = [];
+    for (const arm of input.expression.arms) {
+      const result = resolveGeometryArrayExpression({ ...input, expression: arm.expression });
+      diagnostics.push(...result.diagnostics);
+      if (result.value) values.push({ label: arm.label, labelSpan: arm.labelSpan, value: result.value });
+    }
+    return values.length === input.expression.arms.length && diagnostics.length === 0
+      ? { value: { kind: "match", span: input.expression.span, type: input.expectedType, scrutineeText: input.expression.scrutineeText, scrutineeSpan: input.expression.scrutineeSpan, arms: values }, diagnostics }
+      : { value: null, diagnostics };
+  }
   if (input.expression.kind === "valueFor") {
     const resolution = input.resolveValueFor?.(input.expression);
     if (!resolution) {

@@ -177,6 +177,30 @@ export const createIncrementalLinearMutationEvaluator = (
       const collection = collectionValuesById.get(valueId);
       if (!collection) return undefined;
       if (collection.kind === "alias") return lookup(collection.targetValueId);
+      if (collection.kind === "if") {
+        const condition = evaluateTypedExpression(collection.condition, {
+          lookupBinding: resolveCurrent,
+          ...(collectionValuesById.size ? { lookupCollectionIndex: (nestedValueId, nestedIndex, nestedElementType, nestedLength, nestedSourceOrder) => resolveCollectionIndex(nestedValueId, nestedIndex, nestedElementType, nestedLength, nestedSourceOrder, sourceOrder) } : {}),
+          ...(collectionValuesById.size ? { lookupCollectionLength: resolveCollectionLength } : {}),
+          ...(resolveGeometryProperty ? { lookupGeometryProperty: (reference) => resolveGeometryProperty(reference, sourceOrder) } : {}),
+          ...(resolveGeometryTarget ? { lookupGeometryTarget: (target) => resolveGeometryTarget(target, sourceOrder) } : {})
+        });
+        if (condition.status === "error") return condition;
+        if (condition.type.kind !== "boolean" || condition.value.kind !== "boolean") return { status: "error", type: elementType, issueCode: "evaluation-runtime-value-type-mismatch" };
+        return lookup(condition.value.value ? collection.thenValueId : collection.elseValueId);
+      }
+      if (collection.kind === "match") {
+        const scrutinee = evaluateTypedExpression(collection.scrutinee, {
+          lookupBinding: resolveCurrent,
+          ...(collectionValuesById.size ? { lookupCollectionIndex: (nestedValueId, nestedIndex, nestedElementType, nestedLength, nestedSourceOrder) => resolveCollectionIndex(nestedValueId, nestedIndex, nestedElementType, nestedLength, nestedSourceOrder, sourceOrder) } : {}),
+          ...(resolveGeometryProperty ? { lookupGeometryProperty: (reference) => resolveGeometryProperty(reference, sourceOrder) } : {}),
+          ...(resolveGeometryTarget ? { lookupGeometryTarget: (target) => resolveGeometryTarget(target, sourceOrder) } : {})
+        });
+        if (scrutinee.status === "error") return scrutinee;
+        if (scrutinee.type.kind !== "choice" || scrutinee.value.kind !== "choice") return { status: "error", type: elementType, issueCode: "evaluation-runtime-value-type-mismatch" };
+        const arm = collection.arms.find((candidate) => candidate.label === scrutinee.value.value);
+        return arm ? lookup(arm.valueId) : { status: "error", type: elementType, issueCode: "evaluation-runtime-value-type-mismatch" };
+      }
       if (collection.kind === "map") {
         const source = resolveCollectionIndex(
           collection.sourceValueId,
@@ -209,6 +233,25 @@ export const createIncrementalLinearMutationEvaluator = (
     return scalarTypesEqual(result.type, elementType) && scalarValueMatchesType(result.type, result.value)
       ? result
       : { status: "error", type: elementType, issueCode: "evaluation-runtime-value-type-mismatch" };
+  };
+
+  const resolveCollectionLength = (collectionValueId: string, seen = new Set<string>()): number | undefined => {
+    if (seen.has(collectionValueId)) return undefined;
+    const collection = collectionValuesById.get(collectionValueId);
+    if (!collection) return undefined;
+    const nextSeen = new Set([...seen, collectionValueId]);
+    if (collection.kind === "literal") return collection.members.length;
+    if (collection.kind === "alias") return resolveCollectionLength(collection.targetValueId, nextSeen);
+    if (collection.kind === "map") return resolveCollectionLength(collection.sourceValueId, nextSeen);
+    if (collection.kind === "if") {
+      const condition = evaluateTypedExpression(collection.condition, { lookupBinding: resolveCurrent, lookupCollectionLength: (id) => resolveCollectionLength(id, nextSeen) });
+      if (condition.status !== "ok" || condition.value.kind !== "boolean") return undefined;
+      return resolveCollectionLength(condition.value.value ? collection.thenValueId : collection.elseValueId, nextSeen);
+    }
+    const scrutinee = evaluateTypedExpression(collection.scrutinee, { lookupBinding: resolveCurrent, lookupCollectionLength: (id) => resolveCollectionLength(id, nextSeen) });
+    if (scrutinee.status !== "ok" || scrutinee.value.kind !== "choice") return undefined;
+    const arm = collection.arms.find((candidate) => candidate.label === scrutinee.value.value);
+    return arm ? resolveCollectionLength(arm.valueId, nextSeen) : undefined;
   };
 
   const retireFramesBefore = (sourceOrder: number) => {
@@ -251,6 +294,7 @@ export const createIncrementalLinearMutationEvaluator = (
       : evaluateTypedExpression(version.kind === "declare" ? version.initializer! : version.expression, {
         lookupBinding: resolveCurrent,
         ...(collectionValuesById.size ? { lookupCollectionIndex: (collectionValueId, index, elementType, collectionLength, targetSourceOrder) => resolveCollectionIndex(collectionValueId, index, elementType, collectionLength, targetSourceOrder, version.sourceOrder) } : {}),
+        ...(collectionValuesById.size ? { lookupCollectionLength: resolveCollectionLength } : {}),
         ...(resolveGeometryProperty ? { lookupGeometryProperty: (reference) => resolveGeometryProperty(reference, version.sourceOrder) } : {}),
         ...(resolveGeometryTarget ? { lookupGeometryTarget: (target) => resolveGeometryTarget(target, version.sourceOrder) } : {})
       });
@@ -290,6 +334,7 @@ export const createIncrementalLinearMutationEvaluator = (
       : evaluateTypedExpression(version.kind === "declare" ? version.initializer! : version.expression, {
         lookupBinding: resolveCurrent,
         ...(collectionValuesById.size ? { lookupCollectionIndex: (collectionValueId, index, elementType, collectionLength, targetSourceOrder) => resolveCollectionIndex(collectionValueId, index, elementType, collectionLength, targetSourceOrder, version.sourceOrder) } : {}),
+        ...(collectionValuesById.size ? { lookupCollectionLength: resolveCollectionLength } : {}),
         ...(resolveGeometryProperty ? { lookupGeometryProperty: (reference) => resolveGeometryProperty(reference, version.sourceOrder) } : {}),
         ...(resolveGeometryTarget ? { lookupGeometryTarget: (target) => resolveGeometryTarget(target, version.sourceOrder) } : {})
       });

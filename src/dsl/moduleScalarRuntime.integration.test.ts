@@ -116,6 +116,88 @@ const expectValid = (compiled: ReturnType<typeof compileWithIds>) => {
 };
 
 describe("module scalar runtime integration", () => {
+  it("selects a lazy collection value-if before length and indexing", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "const flag: boolean = true",
+      "const leftValues: number[] = [1]",
+      "const rightValues: number[] = [2, 3]",
+      "const selected: number[] = if (@flag) { @leftValues } else { @rightValues }",
+      "const count: number = @selected.length",
+      "const item: number = @selected[0]"
+    ].join("\n"));
+    expectValid(compiled);
+    const evaluated = evaluateCompiled(compiled);
+    const bindingValue = (name: string) => {
+      const binding = compiled.bindingAnalysis?.catalog.bindings.find((candidate) => candidate.name === name);
+      return binding ? evaluated.computedScalarBindings?.get(binding.id) : undefined;
+    };
+    expect(bindingValue("count")).toMatchObject({ status: "ok", value: { kind: "number", value: 1 } });
+    expect(bindingValue("item")).toMatchObject({ status: "ok", value: { kind: "number", value: 1 } });
+  });
+
+  it("selects exhaustive choice collection matches lazily", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "const side: choice(left, right) = left",
+      "const leftValues: number[] = [1]",
+      "const rightValues: number[] = [2, 3]",
+      "const selected: number[] = match @side { left => @leftValues right => @rightValues }",
+      "const count: number = @selected.length",
+      "const item: number = @selected[0]"
+    ].join("\n"));
+    expectValid(compiled);
+    const evaluated = evaluateCompiled(compiled);
+    const bindingValue = (name: string) => {
+      const binding = compiled.bindingAnalysis?.catalog.bindings.find((candidate) => candidate.name === name);
+      return binding ? evaluated.computedScalarBindings?.get(binding.id) : undefined;
+    };
+    expect(bindingValue("count")).toMatchObject({ status: "ok", value: { kind: "number", value: 1 } });
+    expect(bindingValue("item")).toMatchObject({ status: "ok", value: { kind: "number", value: 1 } });
+  });
+
+  it("keeps a value-for leaf inside collection conditionals lazy", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "const flag: boolean = true",
+      "const values: number[] = [2, 3]",
+      "const selected: number[] = if (@flag) { for value in @values { @value * 2 } } else { [1] }",
+      "const item: number = @selected[1]"
+    ].join("\n"));
+    expectValid(compiled);
+    const evaluated = evaluateCompiled(compiled);
+    const binding = compiled.bindingAnalysis?.catalog.bindings.find((candidate) => candidate.name === "item");
+    expect(binding ? evaluated.computedScalarBindings?.get(binding.id) : undefined).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 6 }
+    });
+  });
+
+  it("selects Module collection branches per instance", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "module M(flag: boolean) {",
+      "  export const out: number[] = if (@flag) { [1] } else { [2, 3] }",
+      "}",
+      "instance A = M(flag: true)",
+      "instance B = M(flag: false)",
+      "const a: number = @A::out[0]",
+      "const b: number = @B::out[1]",
+      "const alen: number = @A::out.length",
+      "const blen: number = @B::out.length"
+    ].join("\n"));
+    expectValid(compiled);
+    const evaluated = evaluateCompiled(compiled);
+    const bindingValue = (name: string) => {
+      const binding = compiled.bindingAnalysis?.catalog.bindings.find((candidate) => candidate.name === name);
+      return binding ? evaluated.computedScalarBindings?.get(binding.id) : undefined;
+    };
+    expect(bindingValue("a")).toMatchObject({ status: "ok", value: { kind: "number", value: 1 } });
+    expect(bindingValue("b")).toMatchObject({ status: "ok", value: { kind: "number", value: 3 } });
+    expect(bindingValue("alen")).toMatchObject({ status: "ok", value: { kind: "number", value: 1 } });
+    expect(bindingValue("blen")).toMatchObject({ status: "ok", value: { kind: "number", value: 2 } });
+  });
+
   it("uses the shared scalar value-if semantics for Module exports and skips an unselected branch", () => {
     const compiled = compileWithIds([
       "nui 1",

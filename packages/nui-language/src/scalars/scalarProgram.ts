@@ -23,6 +23,19 @@ export type ScalarProgramCollection =
       binderId: BindingId;
       body: TypedScalarExpression;
       sourceOrder: number;
+    }
+  | {
+      valueId: string;
+      kind: "if";
+      condition: TypedScalarExpression;
+      thenValueId: string;
+      elseValueId: string;
+    }
+  | {
+      valueId: string;
+      kind: "match";
+      scrutinee: TypedScalarExpression;
+      arms: readonly { label: string; valueId: string }[];
     };
 
 export type ScalarProgramDeclaration = {

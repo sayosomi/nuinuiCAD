@@ -15,7 +15,7 @@ use super::program_payload::{
     ValidatedScalarProgramCollectionMember, ValidatedScalarProgramCollectionValue,
 };
 use super::scalar_payload::scalar_value_matches_type;
-use super::types::{BindingId, ScalarEvaluation, ScalarType};
+use super::types::{BindingId, ScalarEvaluation, ScalarType, ScalarValue};
 use crate::evaluation::geometry_value_runtime::{
     evaluate_geometry_value_entry, GeometryValueProgramEntry,
 };
@@ -438,6 +438,104 @@ impl<'a> ScalarMutationResolver<'a> {
                         error @ ScalarEvaluation::Error { .. } => error,
                     };
                 }
+                ValidatedScalarProgramCollectionValue::If {
+                    condition,
+                    then_value_id,
+                    else_value_id,
+                } => {
+                    let environment = MutationEnvironment {
+                        resolver: self,
+                        state,
+                        source_order: 0,
+                        local_binding_id: None,
+                        local_binding: None,
+                    };
+                    let condition = evaluate_typed_expression(condition, &environment);
+                    let selected = match condition {
+                        ScalarEvaluation::Ok {
+                            r#type: ScalarType::Boolean,
+                            value: ScalarValue::Boolean(value),
+                        } => {
+                            if value {
+                                then_value_id
+                            } else {
+                                else_value_id
+                            }
+                        }
+                        ScalarEvaluation::Error { issue_code, .. } => {
+                            return ScalarEvaluation::Error {
+                                r#type: element_type.clone(),
+                                issue_code,
+                                binding_id: None,
+                                context: None,
+                            };
+                        }
+                        _ => {
+                            return ScalarEvaluation::Error {
+                                r#type: element_type.clone(),
+                                issue_code: RUNTIME_VALUE_TYPE_MISMATCH.to_owned(),
+                                binding_id: None,
+                                context: None,
+                            };
+                        }
+                    };
+                    return self.resolve_collection_index(
+                        selected,
+                        index,
+                        element_type,
+                        None,
+                        0.0,
+                        state,
+                    );
+                }
+                ValidatedScalarProgramCollectionValue::Match { scrutinee, arms } => {
+                    let environment = MutationEnvironment {
+                        resolver: self,
+                        state,
+                        source_order: 0,
+                        local_binding_id: None,
+                        local_binding: None,
+                    };
+                    let scrutinee = evaluate_typed_expression(scrutinee, &environment);
+                    let value = match scrutinee {
+                        ScalarEvaluation::Ok {
+                            r#type: ScalarType::Choice { .. },
+                            value: ScalarValue::Choice { value, .. },
+                        } => value,
+                        ScalarEvaluation::Error { issue_code, .. } => {
+                            return ScalarEvaluation::Error {
+                                r#type: element_type.clone(),
+                                issue_code,
+                                binding_id: None,
+                                context: None,
+                            };
+                        }
+                        _ => {
+                            return ScalarEvaluation::Error {
+                                r#type: element_type.clone(),
+                                issue_code: RUNTIME_VALUE_TYPE_MISMATCH.to_owned(),
+                                binding_id: None,
+                                context: None,
+                            };
+                        }
+                    };
+                    let Some((_, selected)) = arms.iter().find(|(label, _)| label == &value) else {
+                        return ScalarEvaluation::Error {
+                            r#type: element_type.clone(),
+                            issue_code: RUNTIME_VALUE_TYPE_MISMATCH.to_owned(),
+                            binding_id: None,
+                            context: None,
+                        };
+                    };
+                    return self.resolve_collection_index(
+                        selected,
+                        index,
+                        element_type,
+                        None,
+                        0.0,
+                        state,
+                    );
+                }
             }
         };
         let Some(member) = member else {
@@ -487,6 +585,82 @@ impl<'a> ScalarMutationResolver<'a> {
             },
             error @ ScalarEvaluation::Error { .. } => error,
         }
+    }
+
+    fn resolve_collection_length(
+        &self,
+        collection_value_id: &str,
+        state: &EvaluationState,
+        seen: &mut HashSet<String>,
+    ) -> Option<f64> {
+        if !seen.insert(collection_value_id.to_owned()) {
+            return None;
+        }
+        let value = self
+            .program
+            .collection_values
+            .iter()
+            .find(|candidate| candidate.value_id == collection_value_id)?;
+        let result = match &value.value {
+            ValidatedScalarProgramCollectionValue::Alias(target) => {
+                self.resolve_collection_length(target, state, seen)
+            }
+            ValidatedScalarProgramCollectionValue::Literal(members) => Some(members.len() as f64),
+            ValidatedScalarProgramCollectionValue::Map {
+                source_value_id, ..
+            } => self.resolve_collection_length(source_value_id, state, seen),
+            ValidatedScalarProgramCollectionValue::If {
+                condition,
+                then_value_id,
+                else_value_id,
+            } => {
+                let environment = MutationEnvironment {
+                    resolver: self,
+                    state,
+                    source_order: 0,
+                    local_binding_id: None,
+                    local_binding: None,
+                };
+                match evaluate_typed_expression(condition, &environment) {
+                    ScalarEvaluation::Ok {
+                        r#type: ScalarType::Boolean,
+                        value: ScalarValue::Boolean(selected),
+                    } => self.resolve_collection_length(
+                        if selected {
+                            then_value_id
+                        } else {
+                            else_value_id
+                        },
+                        state,
+                        seen,
+                    ),
+                    _ => None,
+                }
+            }
+            ValidatedScalarProgramCollectionValue::Match { scrutinee, arms } => {
+                let environment = MutationEnvironment {
+                    resolver: self,
+                    state,
+                    source_order: 0,
+                    local_binding_id: None,
+                    local_binding: None,
+                };
+                let ScalarEvaluation::Ok {
+                    r#type: ScalarType::Choice { .. },
+                    value:
+                        ScalarValue::Choice {
+                            value: selected, ..
+                        },
+                } = evaluate_typed_expression(scrutinee, &environment)
+                else {
+                    return None;
+                };
+                let (_, selected_value_id) = arms.iter().find(|(label, _)| label == &selected)?;
+                self.resolve_collection_length(selected_value_id, state, seen)
+            }
+        };
+        seen.remove(collection_value_id);
+        result
     }
 }
 struct MutationEnvironment<'a, 'b, 'c> {
@@ -574,6 +748,14 @@ impl ScalarEvaluationEnvironment for MutationEnvironment<'_, '_, '_> {
             collection_length,
             target_source_order,
             self.state,
+        )
+    }
+
+    fn lookup_collection_length(&self, collection_value_id: &str) -> Option<f64> {
+        self.resolver.resolve_collection_length(
+            collection_value_id,
+            self.state,
+            &mut HashSet::new(),
         )
     }
 }

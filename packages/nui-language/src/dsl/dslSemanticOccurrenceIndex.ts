@@ -30,6 +30,8 @@ import type {
   ModuleSourceTarget,
   ResolvedModuleRecordExport
 } from "./moduleSemanticTypes";
+import type { DslArraySemanticValue, GeometryArraySemanticValue } from "./geometryArraySemantics";
+import type { GeometryArrayValueSemantic } from "./geometryArraySemanticAnalysis";
 import type { BindingAnalysis } from "../scalars/bindingAnalysis";
 import type { BindingId } from "../scalars/bindingCatalog";
 import type { ScalarExpressionAst } from "../scalars/expressionAst";
@@ -838,6 +840,85 @@ const addGeometryArrayOccurrences = (compiled: CompiledDslDocument, add: AddOccu
     }
   };
 
+  const visitNestedGeometryArrayValue = (
+    statementIndex: number,
+    value: NonNullable<GeometryArrayValueSemantic["value"]>
+  ): void => {
+    if (value.kind === "if") {
+      visitNestedGeometryArrayValue(statementIndex, value.thenValue);
+      visitNestedGeometryArrayValue(statementIndex, value.elseValue);
+      return;
+    }
+    if (value.kind === "match") {
+      for (const arm of value.arms) visitNestedGeometryArrayValue(statementIndex, arm.value);
+      return;
+    }
+    if (value.kind === "literal") {
+      for (const member of value.members) {
+        if (member.target.kind === "coordinate") continue;
+        if (member.target.kind === "moduleParameter") {
+          addReference(
+            statementIndex,
+            member.sourceSpan,
+            geometryArrayParameterIdentity(member.target.definitionStatementId, member.target.parameterIndex),
+            true
+          );
+          continue;
+        }
+        const elementId = elementIdForStatementIndex(compiled, member.target.statementIndex);
+        const identity = elementIdentity(compiled, elementId) ?? geometryArrayValueIdentity(compiled, member.target.statementId);
+        addReference(statementIndex, member.sourceSpan, identity);
+      }
+      return;
+    }
+    if (value.kind === "map") {
+      const sourceValue = analysis.valuesByStatementId.get(value.sourceValueId);
+      if (sourceValue) {
+        addReference(statementIndex, value.sourceSpan, geometryArrayValueIdentity(compiled, sourceValue.statementId));
+      } else {
+        const parameter = parameterForValueId(value.sourceValueId);
+        if (parameter) {
+          addReference(statementIndex, value.sourceSpan, geometryArrayParameterIdentity(parameter.definitionStatementId, parameter.parameterIndex), true);
+        } else {
+          const deferred = parseGeometryArrayDeferredModuleExportId(value.sourceValueId);
+          if (deferred) addDeferredExportReference(statementIndex, value.sourceSpan, deferred.instanceStatementId, deferred.exportName);
+        }
+      }
+      const binderIdentity: DslSemanticIdentity = { kind: "typed", bindingId: value.binderId };
+      addPhysicalOccurrence(add, compiled, statementIndex, value.binderSpan, binderIdentity, "declaration");
+      if (value.body) {
+        addModuleGeometryValueExpressionOccurrences(value.body, (reference) => {
+          const target = reference.target as ModuleSourceTarget | null;
+          const nameSpan = reference.nameSpan ?? reference.elementNameSpan;
+          if (!nameSpan || !target || !reference.span) return;
+          if (target.kind === "geometryValueForBinder") {
+            const physical = physicalRange(compiled, statementIndex, nameSpan);
+            if (!physical) return;
+            const from = compiled.spans.sourceMap.source[physical.from] === "@" ? physical.from + 1 : physical.from;
+            add("reference", from, physical.to, binderIdentity);
+          } else if (target.kind === "sourceGeometry" || target.kind === "geometryValue") {
+            addReference(statementIndex, reference.span, geometryArrayValueIdentity(compiled, target.statementId));
+          } else if (target.kind === "sourceGeometryProperty" || target.kind === "geometryValueProperty") {
+            addQualifiedPathOccurrences(compiled, add, statementIndex, nameSpan, geometryArrayValueIdentity(compiled, target.statementId));
+          }
+        });
+      }
+      return;
+    }
+    const targetValue = analysis.valuesByStatementId.get(value.targetValueId);
+    if (targetValue) {
+      addReference(statementIndex, value.sourceSpan, geometryArrayValueIdentity(compiled, targetValue.statementId));
+      return;
+    }
+    const parameter = parameterForValueId(value.targetValueId);
+    if (parameter) {
+      addReference(statementIndex, value.sourceSpan, geometryArrayParameterIdentity(parameter.definitionStatementId, parameter.parameterIndex), true);
+      return;
+    }
+    const deferred = parseGeometryArrayDeferredModuleExportId(value.targetValueId);
+    if (deferred) addDeferredExportReference(statementIndex, value.sourceSpan, deferred.instanceStatementId, deferred.exportName);
+  };
+
   for (const value of analysis.values) {
     const statement = compiled.statements[value.statementIndex];
     if (!statement?.nameSpan) continue;
@@ -907,6 +988,10 @@ const addGeometryArrayOccurrences = (compiled: CompiledDslDocument, add: AddOccu
           }
         });
       }
+      continue;
+    }
+    if (value.value.kind === "if" || value.value.kind === "match") {
+      visitNestedGeometryArrayValue(value.statementIndex, value.value);
       continue;
     }
     const targetValue = analysis.valuesByStatementId.get(value.value.targetValueId);
@@ -1077,6 +1162,81 @@ const addModuleSemanticPathOccurrences = (compiled: CompiledDslDocument, add: Ad
       bindingId: target.bindingId
     }), "reference");
   };
+  const addCollectionControlFlowOccurrences = (
+    statementIndex: number,
+    value: DslArraySemanticValue<unknown> | GeometryArraySemanticValue<unknown>
+  ): void => {
+    const addScalar = (expression: ModuleScalarExpressionSemantic | undefined) => {
+      for (const reference of expression?.references ?? []) {
+        addCollectionIndexBase(statementIndex, reference);
+        addRootScalarReference(statementIndex, reference);
+      }
+      for (const property of expression?.geometryProperties ?? []) addGeometry(statementIndex, property);
+    };
+    const addCollectionSource = (sourceSpan: { start: number; end: number }, targetValueId: string) => {
+      const sourceValue = compiled.sourceLexicalNamespace?.geometryArraySemanticAnalysis?.genericValuesByStatementId.get(targetValueId)
+        ?? compiled.sourceLexicalNamespace?.geometryArraySemanticAnalysis?.valuesByStatementId.get(targetValueId);
+      if (!sourceValue) return;
+      const declarationIndex = statementIndexForId(compiled, sourceValue.statementId);
+      const binding = declarationIndex === undefined
+        ? undefined
+        : compiled.bindingAnalysis?.catalog.bindings.find((candidate) =>
+            candidate.kind === "typed" && candidate.statementIndex === declarationIndex && !isSyntheticRecordBinding(candidate.id)
+          );
+      addPhysicalOccurrence(add, compiled, statementIndex, { start: sourceSpan.start + 1, end: sourceSpan.end },
+        binding
+          ? { kind: "typed", bindingId: binding.id }
+          : semanticIdentityForModuleTarget(compiled, { kind: "moduleSource", statementId: sourceValue.statementId }),
+        "reference");
+    };
+    if (value.kind === "literal") {
+      for (const member of value.members) {
+        const target = member.target as {
+          kind: string;
+          statementId?: string;
+          definitionStatementId?: string;
+          parameterIndex?: number;
+        };
+        if (target.kind === "scalarValue" || target.kind === "recordValue") {
+          if (target.statementId) addCollectionSource(member.sourceSpan, target.statementId);
+        } else if (target.kind === "moduleParameterValue" && target.definitionStatementId !== undefined && target.parameterIndex !== undefined) {
+          addPhysicalOccurrence(add, compiled, statementIndex, { start: member.sourceSpan.start + 1, end: member.sourceSpan.end }, {
+            kind: "module",
+            target: {
+              kind: "moduleParameter",
+              slot: { definitionStatementId: target.definitionStatementId, parameterIndex: target.parameterIndex }
+            }
+          }, "reference");
+        }
+      }
+      return;
+    }
+    if (value.kind === "alias") {
+      addCollectionSource(value.sourceSpan, value.targetValueId);
+      return;
+    }
+    if (value.kind === "if") {
+      addScalar(value.condition);
+      addCollectionControlFlowOccurrences(statementIndex, value.thenValue);
+      addCollectionControlFlowOccurrences(statementIndex, value.elseValue);
+      return;
+    }
+    if (value.kind === "match") {
+      addScalar(value.scrutinee);
+      for (const arm of value.arms) addCollectionControlFlowOccurrences(statementIndex, arm.value);
+    }
+  };
+  const collectionAnalysis = compiled.sourceLexicalNamespace?.geometryArraySemanticAnalysis;
+  for (const value of collectionAnalysis?.genericValues ?? []) {
+    if (value.value?.kind === "if" || value.value?.kind === "match") {
+      addCollectionControlFlowOccurrences(value.statementIndex, value.value);
+    }
+  }
+  for (const value of collectionAnalysis?.values ?? []) {
+    if (value.value?.kind === "if" || value.value?.kind === "match") {
+      addCollectionControlFlowOccurrences(value.statementIndex, value.value);
+    }
+  }
   for (const [statementId, references] of analysis.rootGeometryReferencesByStatementId) {
     const statementIndex = statementIndexForId(compiled, statementId);
     if (statementIndex === undefined) continue;

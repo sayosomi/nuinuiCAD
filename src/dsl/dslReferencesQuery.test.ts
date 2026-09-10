@@ -187,6 +187,31 @@ describe("queryDslReferences", () => {
     expect(slices(source, side!.referenceRanges)).toEqual(["side"]);
   });
 
+  it("indexes collection value-if conditions and branch references", () => {
+    const source = [
+      "nui 1",
+      "const flag: boolean = true",
+      "const leftValues: number[] = [1, 2]",
+      "const rightValues: number[] = [3]",
+      "const selected: number[] = if (@flag) { @leftValues } else { @rightValues }",
+      "const item: number = @selected[0]"
+    ].join("\n");
+    const flag = queryAt(source, "@flag");
+    const left = queryAt(source, "@leftValues");
+    const right = queryAt(source, "@rightValues");
+    const selected = queryAt(source, "@selected");
+
+    expect(flag).not.toBeNull();
+    expect(slices(source, flag!.declarationRange)).toEqual(["flag"]);
+    expect(slices(source, flag!.referenceRanges)).toEqual(["flag"]);
+    expect(slices(source, left!.declarationRange)).toEqual(["leftValues"]);
+    expect(slices(source, left!.referenceRanges)).toEqual(["leftValues"]);
+    expect(slices(source, right!.declarationRange)).toEqual(["rightValues"]);
+    expect(slices(source, right!.referenceRanges)).toEqual(["rightValues"]);
+    expect(slices(source, selected!.declarationRange)).toEqual(["selected"]);
+    expect(slices(source, selected!.referenceRanges)).toEqual(["selected"]);
+  });
+
   it("indexes construction references through the existing geometry identity", () => {
     const source = [
       "nui 1",

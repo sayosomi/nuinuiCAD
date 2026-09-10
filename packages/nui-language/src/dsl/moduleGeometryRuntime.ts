@@ -32,6 +32,7 @@ import {
   type ModuleGeometryPropertyRuntimeTarget
 } from "./moduleGeometryRuntimeLowering";
 import type { ModuleRuntimeContext } from "./moduleRuntimeContext";
+import type { SourceLexicalNamespaceIndex } from "./sourceLexicalNamespaceIndex";
 
 export type { ModuleGeometryPropertyRuntimeTarget };
 
@@ -81,13 +82,15 @@ export const buildModuleGeometryRuntime = ({
   stableStatementIdByIndex,
   moduleSemanticAnalysis,
   moduleMaterialization,
-  moduleRuntimeContext
+  moduleRuntimeContext,
+  sourceNamespace
 }: {
   statements: readonly DslStatement[];
   stableStatementIdByIndex: ReadonlyMap<number, string>;
   moduleSemanticAnalysis: ModuleSemanticAnalysis;
   moduleMaterialization: ModuleMaterialization;
   moduleRuntimeContext?: ModuleRuntimeContext;
+  sourceNamespace?: SourceLexicalNamespaceIndex;
 }): ModuleGeometryRuntimeCompilation => {
   const diagnostics: DslDiagnostic[] = [];
   const contextsByPath = new Map<string, InstanceContext>();
@@ -181,7 +184,8 @@ export const buildModuleGeometryRuntime = ({
     moduleMaterialization,
     contextsByPath,
     exportsByPath,
-    moduleRuntimeContext
+    moduleRuntimeContext,
+    sourceNamespace
   });
   for (const context of contextsByPath.values()) {
     const instance = moduleRuntimeContext?.instanceFor({

@@ -149,7 +149,7 @@ export type ScalarExpressionResolvedGeometryProperty = {
 } | {
   readonly kind: "collection";
   readonly collectionValueId: string;
-  readonly collectionLength: number;
+  readonly collectionLength: number | null;
   readonly targetSourceOrder: number;
   readonly type: Extract<ScalarType, { kind: "number" }>;
 };
@@ -165,7 +165,7 @@ export interface TypedScalarGeometryPropertyReferenceNode {
   /** Collection cardinality is a source-semantic property, not a drawable
    * identity. These fields are mutually exclusive with geometry targets. */
   readonly collectionValueId?: string;
-  readonly collectionLength?: number;
+  readonly collectionLength?: number | null;
   readonly geometryValueOccurrence?: GeometryValueOccurrence;
   readonly geometryValuePointKey?: string;
   readonly geometryValueBinderId?: BindingId;

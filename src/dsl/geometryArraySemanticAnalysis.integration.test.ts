@@ -60,6 +60,35 @@ describe("geometry array source semantic integration", () => {
     ]));
   });
 
+  it("resolves recursive collection value-if and choice match branches", () => {
+    const result = analyze([
+      "nui 1",
+      "const flag: boolean = true",
+      "const side: choice(left, right) = left",
+      "const leftValues: number[] = [1]",
+      "const rightValues: number[] = [2, 3]",
+      "const selected: number[] = if (@flag) { @leftValues } else { @rightValues }",
+      "const matched: number[] = match @side { left => @selected right => @rightValues }"
+    ].join("\n"));
+    expect(result.namespace.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(result.analysis.genericValues.find((value) => value.name === "selected")?.value).toMatchObject({ kind: "if" });
+    expect(result.analysis.genericValues.find((value) => value.name === "matched")?.value).toMatchObject({ kind: "match" });
+    const compiled = compile([
+      "nui 1",
+      "const flag: boolean = true",
+      "const side: choice(left, right) = left",
+      "const leftValues: number[] = [1]",
+      "const rightValues: number[] = [2, 3]",
+      "const selected: number[] = if (@flag) { @leftValues } else { @rightValues }",
+      "const count: number = @selected.length",
+      "const item: number = @selected[0]"
+    ].join("\n"));
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(compiled.scalarProgram?.collectionValues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: "if", valueId: "statement:5" })
+    ]));
+  });
+
   it("keeps collection member and whole-value assignment fail-closed", () => {
     const { namespace } = analyze([
       "nui 1",

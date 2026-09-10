@@ -160,6 +160,21 @@ describe("host-neutral DSL rename query", () => {
     expect(applyEdits(source, plan!.edits)).toContain("if (@enabled)");
   });
 
+  it("renames a collection value-if condition through the ordinary scalar identity", () => {
+    const source = [
+      "nui 1",
+      "const flag: boolean = true",
+      "const leftValues: number[] = [1, 2]",
+      "const rightValues: number[] = [3]",
+      "const selected: number[] = if (@flag) { @leftValues } else { @rightValues }"
+    ].join("\n");
+    const plan = planDslRenameEdits(snapshot(source), at(source, "@flag") + 1, "enabled");
+
+    expect(plan).not.toBeNull();
+    expect(plan?.edits.map((edit) => source.slice(edit.from, edit.to))).toEqual(["flag", "flag"]);
+    expect(applyEdits(source, plan!.edits)).toContain("if (@enabled)");
+  });
+
   it("renames a root geometry value-match scrutinee through the choice identity", () => {
     const source = [
       "nui 1",

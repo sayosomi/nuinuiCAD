@@ -57,6 +57,25 @@ const expectValid = (compiled: ReturnType<typeof compileWithIds>) => {
 };
 
 describe("module geometry runtime", () => {
+  it("selects a conditional point collection before geometry consumers use it", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "point A = coordinate(x: 1, y: 2)",
+      "point B = coordinate(x: 3, y: 4)",
+      "const chooseA: boolean = true",
+      "const selected: point[] = if (@chooseA) { [@A] } else { [@B, @A] }",
+      "line Use = segment(start: @selected[0], end: @selected[0])"
+    ].join("\n"), "conditional-geometry-array");
+    expectValid(compiled);
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometry.get(named(compiled, "Use").id)).toMatchObject({
+      kind: "line",
+      start: { x: 1, y: 2 },
+      end: { x: 1, y: 2 }
+    });
+  });
+
   it("lowers actual, derived, coordinate, forwarded, and repeated point aliases", () => {
     const compiled = compileWithIds([
       "nui 1",

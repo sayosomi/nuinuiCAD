@@ -26,7 +26,9 @@ import {
   type ModuleGeometryInterfaceType
 } from "./moduleGeometryInterfaces";
 import type { ModuleMaterialization } from "./moduleMaterialization";
-import type { ModuleGeometryReferenceSemantic, ModuleSemanticAnalysis } from "./moduleSemanticTypes";
+import type { ModuleGeometryReferenceSemantic, ModuleScalarExpressionSemantic, ModuleScalarSourceTarget, ModuleSemanticAnalysis } from "./moduleSemanticTypes";
+import type { ScalarExpressionAst } from "../scalars/expressionAst";
+import type { ScalarValue } from "../scalars/types";
 import type { ModuleRuntimeContext } from "./moduleRuntimeContext";
 import {
   pathKey,
@@ -203,7 +205,8 @@ export const buildModuleGeometryArrayRuntime = ({
   moduleMaterialization,
   contextsByPath,
   exportsByPath,
-  moduleRuntimeContext
+  moduleRuntimeContext,
+  sourceNamespace
 }: {
   statements: readonly DslStatement[];
   stableStatementIdByIndex: ReadonlyMap<number, string>;
@@ -212,6 +215,7 @@ export const buildModuleGeometryArrayRuntime = ({
   contextsByPath: ReadonlyMap<string, InstanceContext>;
   exportsByPath: ReadonlyMap<string, ReadonlyMap<string, ExportEntry>>;
   moduleRuntimeContext?: ModuleRuntimeContext;
+  sourceNamespace?: SourceLexicalNamespaceIndex;
 }): ModuleGeometryArrayRuntimeCompilation => {
   type RuntimeSource = {
     documentId: string;
@@ -225,7 +229,8 @@ export const buildModuleGeometryArrayRuntime = ({
     documentId: moduleRuntimeContext?.rootDocumentId ?? "root",
     statements,
     stableStatementIdByIndex,
-    sourceNamespace: moduleRuntimeContext?.documentFor(moduleRuntimeContext.rootDocumentId)?.sourceLexicalNamespace
+    sourceNamespace: sourceNamespace
+      ?? moduleRuntimeContext?.documentFor(moduleRuntimeContext.rootDocumentId)?.sourceLexicalNamespace
       ?? buildSourceLexicalNamespaceIndex(statements, stableStatementIdByIndex),
     moduleSemanticAnalysis,
     analysis: null
@@ -306,6 +311,126 @@ export const buildModuleGeometryArrayRuntime = ({
     currentPath.every((part, index) => context.path[index] === part) &&
     context.instanceStatementId === instanceStatementId
   );
+
+  // Geometry arrays are materialized before the scalar program is assembled.
+  // Conditions are already resolved and typechecked by Module semantics, so
+  // this small adapter only reads the typed scalar leaves needed to select a
+  // geometry branch at materialization time. It deliberately has no name or
+  // type resolution of its own.
+  const evaluateCollectionControlFlowScalar = (
+    semantic: ModuleScalarExpressionSemantic,
+    currentPath: readonly string[],
+    seen: ReadonlySet<string> = new Set()
+  ): ScalarValue | null => {
+    const evaluate = (expression: ModuleScalarExpressionSemantic, ast: ScalarExpressionAst): ScalarValue | null => {
+      const key = `${expression.ast.span.start}:${ast.span.start}`;
+      if (seen.has(key)) return null;
+      const reference = expression.references.find((candidate) => candidate.span.start === ast.span.start);
+      const evaluateTarget = (target: ModuleScalarSourceTarget): ScalarValue | null => {
+        if (target.kind === "documentBinding") {
+          const site = moduleSemanticAnalysis.rootScalarExpressionsByStatementId.get(target.statementId);
+          return site ? evaluate(site.expression, site.expression.ast) : null;
+        }
+        if (target.kind === "parameter") {
+          const context = contextForDefinition(currentPath, target.definitionStatementId);
+          const instance = context
+            ? sourceForDocument(context.instanceDocumentId).moduleSemanticAnalysis.instancesByStatementId.get(context.instanceStatementId)
+            : null;
+          const binding = instance?.parameterBindings.find((candidate) => candidate.parameterIndex === target.parameterIndex);
+          return binding?.value?.kind === "scalar"
+            ? evaluate(binding.value.expression, binding.value.expression.ast)
+            : binding?.usesDefault
+              ? context?.definition.parameters[target.parameterIndex]?.defaultExpression
+                ? evaluate(context.definition.parameters[target.parameterIndex]!.defaultExpression!, context.definition.parameters[target.parameterIndex]!.defaultExpression!.ast)
+                : null
+              : null;
+        }
+        if (target.kind === "moduleLocal") {
+          const context = contextForDefinition(currentPath, currentPath.length ? sourceForPath(currentPath).moduleSemanticAnalysis.definitionsByStatementId.keys().next().value ?? "" : "");
+          const definition = sourceForPath(currentPath).moduleSemanticAnalysis.definitionsByStatementId.get(target.statementId);
+          const owner = context?.definition ?? [...sourceForPath(currentPath).moduleSemanticAnalysis.definitions].find((candidate) =>
+            candidate.bodyStatements.some((statement) => statement.statementId === target.statementId)
+          );
+          const site = owner?.bodyStatements.find((statement) => statement.statementId === target.statementId)?.scalarExpressions.find((candidate) => candidate.parameterKey === null);
+          return site ? evaluate(site.expression, site.expression.ast) : definition ? null : null;
+        }
+        if (target.kind === "deferredModuleScalarExport") {
+          const child = childContextFor(currentPath, target.instanceStatementId);
+          const definition = child?.definition;
+          const site = definition?.bodyStatements.find((statement) => statement.statementId === target.exportedStatementId)?.scalarExpressions.find((candidate) => candidate.parameterKey === null);
+          return site ? evaluate(site.expression, site.expression.ast) : null;
+        }
+        return null;
+      };
+      switch (ast.kind) {
+        case "numberLiteral": return { kind: "number", value: ast.value };
+        case "stringLiteral": return { kind: "string", value: ast.value };
+        case "booleanLiteral": return { kind: "boolean", value: ast.value };
+        case "unresolvedChoiceLiteral": {
+          const type = expression.type?.kind === "choice" ? expression.type : null;
+          return type ? { kind: "choice", value: ast.raw, options: type.options } : null;
+        }
+        case "reference": {
+          const target = reference?.target;
+          if (!target) return null;
+          return ["documentBinding", "parameter", "moduleLocal", "deferredModuleScalarExport"].includes(target.kind)
+            ? evaluateTarget(target as ModuleScalarSourceTarget)
+            : null;
+        }
+        case "group": return evaluate(expression, ast.expression);
+        case "unary": {
+          const value = evaluate(expression, ast.operand);
+          if (!value) return null;
+          if (ast.operator === "!" && value.kind === "boolean") return { kind: "boolean", value: !value.value };
+          if ((ast.operator === "+" || ast.operator === "-") && value.kind === "number") return { kind: "number", value: ast.operator === "-" ? -value.value : value.value };
+          return null;
+        }
+        case "binary": {
+          const left = evaluate(expression, ast.left);
+          const right = evaluate(expression, ast.right);
+          if (!left || !right) return null;
+          if ((ast.operator === "==" || ast.operator === "!=") && left.kind === right.kind) {
+            const equal = left.kind === "choice" && right.kind === "choice"
+              ? left.value === right.value && left.options.join("\u0000") === right.options.join("\u0000")
+              : left.value === right.value;
+            return { kind: "boolean", value: ast.operator === "==" ? equal : !equal };
+          }
+          if (left.kind === "boolean" && right.kind === "boolean" && (ast.operator === "&&" || ast.operator === "||")) {
+            return { kind: "boolean", value: ast.operator === "&&" ? left.value && right.value : left.value || right.value };
+          }
+          if (left.kind === "number" && right.kind === "number") {
+            const value = ast.operator === "+" ? left.value + right.value : ast.operator === "-" ? left.value - right.value : ast.operator === "*" ? left.value * right.value : ast.operator === "/" ? left.value / right.value : null;
+            if (value !== null) return { kind: "number", value };
+          }
+          return null;
+        }
+        case "valueIf": {
+          const condition = evaluate(expression, ast.condition);
+          if (!condition || condition.kind !== "boolean") return null;
+          return evaluate(expression, condition.value ? ast.thenBranch : ast.elseBranch);
+        }
+        case "valueMatch": {
+          const scrutinee = evaluate(expression, ast.scrutinee);
+          if (!scrutinee || scrutinee.kind !== "choice") return null;
+          const arm = ast.arms.find((candidate) => candidate.label === scrutinee.value);
+          return arm ? evaluate(expression, arm.expression) : null;
+        }
+        case "call": {
+          if (ast.name !== "hasValue") return null;
+          const parameter = expression.hasValueParameters.find((candidate) => candidate.span.start === ast.span.start);
+          if (!parameter) return null;
+          const context = contextForDefinition(currentPath, parameter.definitionStatementId);
+          const instance = context
+            ? sourceForDocument(context.instanceDocumentId).moduleSemanticAnalysis.instancesByStatementId.get(context.instanceStatementId)
+            : null;
+          const binding = instance?.parameterBindings.find((candidate) => candidate.parameterIndex === parameter.parameterIndex);
+          return { kind: "boolean", value: binding?.state === "optionalSupplied" || binding?.state === "requiredSupplied" };
+        }
+        default: return null;
+      }
+    };
+    return evaluate(semantic, semantic.ast);
+  };
 
   const arrayExportSemantic = (currentPath: readonly string[], instanceStatementId: string, exportName: string) => {
     const childContext = childContextFor(currentPath, instanceStatementId);
@@ -706,6 +831,45 @@ export const buildModuleGeometryArrayRuntime = ({
         };
       });
       const value = { type: semantic.type, members: mappedMembers };
+      sourceValueCache.set(key, value);
+      return value;
+    }
+
+    if (semantic.value.kind === "if") {
+      const condition = semantic.value.condition
+        ? evaluateCollectionControlFlowScalar(semantic.value.condition, currentPath)
+        : null;
+      if (!condition || condition.kind !== "boolean") {
+        sourceValueCache.set(key, null);
+        return null;
+      }
+      const selected = condition.value ? semantic.value.thenValue : semantic.value.elseValue;
+      const selectedSemantic: GeometryArrayValueSemantic = {
+        ...semantic,
+        value: selected
+      };
+      const value = lowerSemantic(selectedSemantic, currentPath, visited);
+      sourceValueCache.set(key, value);
+      return value;
+    }
+    if (semantic.value.kind === "match") {
+      const scrutinee = semantic.value.scrutinee
+        ? evaluateCollectionControlFlowScalar(semantic.value.scrutinee, currentPath)
+        : null;
+      if (!scrutinee || scrutinee.kind !== "choice") {
+        sourceValueCache.set(key, null);
+        return null;
+      }
+      const selected = semantic.value.arms.find((arm) => arm.label === scrutinee.value)?.value;
+      if (!selected) {
+        sourceValueCache.set(key, null);
+        return null;
+      }
+      const selectedSemantic: GeometryArrayValueSemantic = {
+        ...semantic,
+        value: selected
+      };
+      const value = lowerSemantic(selectedSemantic, currentPath, visited);
       sourceValueCache.set(key, value);
       return value;
     }
