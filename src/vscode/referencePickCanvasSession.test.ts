@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { compileDslDocument, type CompiledDslDocument } from "../dsl/dslDocument";
 import { parseDslSnapshot } from "../dsl/dslParser";
 import { queryDslReferencePickTarget } from "../dsl/dslReferencePickQuery";
+import { reconcileStatements } from "../document/statementReconciler";
 import { evaluateElements } from "../geometry/evaluate";
 import type { EvaluationResult } from "../types/geometry";
 import {
@@ -31,9 +32,22 @@ const compile = (
   statementIdPrefix = "host-pick"
 ): CompiledDslDocument => {
   const parsed = parseDslSnapshot({ normalizedSource: source, sourceRevision });
+  let nextId = 0;
+  const reconciled = reconcileStatements({
+    oldStatements: [],
+    oldLines: [],
+    oldElementIds: new Map(),
+    oldStatementIds: new Map(),
+    newStatements: parsed.statements,
+    newLines: source.split("\n")
+  }, {
+    createId: (type) => `${statementIdPrefix}:${type}:${++nextId}`,
+    createStatementId: (kind) => `${statementIdPrefix}:${kind}:${++nextId}`
+  });
   return compileDslDocument(source, {
     preparsed: parsed,
-    assignedStatementIds: new Map(parsed.statements.map((_, index) => [index, `${statementIdPrefix}:${index}`]))
+    assignedElementIds: reconciled.assignedIds,
+    assignedStatementIds: reconciled.assignedIds
   });
 };
 
@@ -154,6 +168,29 @@ const startWithCanvasSnapshot = (
   evaluationIsCurrent: false,
   candidateSnapshot: fixture.canvasSnapshot
 });
+
+const withCanvasStatementIds = (
+  fixture: ReturnType<typeof dualAuthorityFixture>,
+  update: (ids: Map<number, string>) => void
+): ReturnType<typeof dualAuthorityFixture> => {
+  const statementMap = fixture.canvasSnapshot.compiled.statementMap;
+  if (!statementMap?.statementIdByStatementIndex) throw new Error("fixture has no statement identity map");
+  const statementIdByStatementIndex = new Map(statementMap.statementIdByStatementIndex);
+  update(statementIdByStatementIndex);
+  return {
+    ...fixture,
+    canvasSnapshot: {
+      ...fixture.canvasSnapshot,
+      compiled: {
+        ...fixture.canvasSnapshot.compiled,
+        statementMap: {
+          ...statementMap,
+          statementIdByStatementIndex
+        }
+      }
+    }
+  };
+};
 
 describe("VS Code Canvas reference pick session bridge", () => {
   it("uses coherent Canvas candidates for zero-width numeric targets while keeping the current Source target", () => {
@@ -309,6 +346,152 @@ describe("VS Code Canvas reference pick session bridge", () => {
     expect(started.session?.target.sourceAnchor.sourceRevision).toBe(HOST_REVISION);
     if (started.result.status !== "started") return;
     expect(started.result.candidateReferences).toContainEqual({ base: "Base" });
+  });
+
+  it("keeps the production identity fixture ID-less for the nui 1 version statement", () => {
+    const source = [
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "line Base = segment(start: @A, end: (10, 0))"
+    ].join("\n");
+    const compiled = compile(source, HOST_REVISION, "production-pick");
+    const statementIds = compiled.statementMap?.statementIdByStatementIndex;
+
+    expect(statementIds?.get(0)).toBeUndefined();
+    expect(statementIds?.get(1)).toBeDefined();
+    expect(statementIds?.get(2)).toBeDefined();
+    expect([...statementIds?.keys() ?? []]).not.toContain(0);
+  });
+
+  it("starts warm-pinned geometry-list picking with a production-style ID-less version prefix", () => {
+    const canvasSource = [
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line Base = segment(start: @A, end: @B)",
+      "line Existing = offset(sources: [@Base], distance: 1, side: right, closed: false, suppressTrimWarnings: false)"
+    ].join("\n");
+    const currentSource = [
+      canvasSource,
+      "line New = offset(",
+      "  sources: ",
+      "  distance: ",
+      ")"
+    ].join("\n");
+    const position = currentSource.indexOf("sources: ") + "sources: ".length;
+    const started = startWithCanvasSnapshot(
+      dualAuthorityFixture(currentSource, canvasSource, position)
+    );
+
+    expect(started.result.status).toBe("started");
+    if (started.result.status !== "started") return;
+    expect(started.result.candidateReferences).toContainEqual({ base: "Base" });
+  });
+
+  it("starts warm-pinned numeric picking for the production Copy Line scale hole", () => {
+    const canvasSource = [
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line Base = segment(start: @A, end: @B)",
+      "line Copy = transformCopy(startPoint: @A, endPoint: @B, scale: 1, angleDeg: 0, baseLines: [@Base])"
+    ].join("\n");
+    const currentSource = [
+      canvasSource,
+      "line New = transformCopy(",
+      "  startPoint: ",
+      "  endPoint: ",
+      "  scale: ",
+      "  angleDeg: ",
+      "  baseLines: ",
+      ")"
+    ].join("\n");
+    const position = currentSource.indexOf("scale: ") + "scale: ".length;
+    const started = startWithCanvasSnapshot(
+      dualAuthorityFixture(currentSource, canvasSource, position)
+    );
+
+    expect(started.result.status).toBe("started");
+    if (started.result.status !== "started") return;
+    expect(started.result.numericCandidates).toEqual(
+      expect.arrayContaining([{
+        reference: { base: "Base" },
+        properties: expect.arrayContaining(["length"])
+      }])
+    );
+  });
+
+  it("keeps one-sided and different shared-prefix identities stale", () => {
+    const canvasSource = [
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "line Base = segment(start: @A, end: (10, 0))"
+    ].join("\n");
+    const currentSource = `${canvasSource}\npoint New = offset(from: @A, dx: 0, dy: )`;
+    const position = currentSource.indexOf("dy: ") + "dy: ".length;
+    const fixture = dualAuthorityFixture(currentSource, canvasSource, position);
+    const pointIndex = 1;
+
+    const oneSided = startWithCanvasSnapshot(withCanvasStatementIds(fixture, (ids) => {
+      ids.delete(pointIndex);
+    }));
+    expect(oneSided.session).toBeNull();
+    expect(oneSided.result.status).toBe("stale");
+
+    const different = startWithCanvasSnapshot(withCanvasStatementIds(fixture, (ids) => {
+      ids.set(pointIndex, "different-reconciler-identity");
+    }));
+    expect(different.session).toBeNull();
+    expect(different.result.status).toBe("stale");
+  });
+
+  it("keeps a changed ID-less prefix statement stale despite matching statement shape", () => {
+    const currentSource = [
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "line Base = segment(start: @A, end: (10, 0))",
+      "point New = offset(from: @A, dx: 0, dy: )"
+    ].join("\n");
+    const canvasSource = [
+      "nui 01",
+      "point A = coordinate(x: 0, y: 0)",
+      "line Base = segment(start: @A, end: (10, 0))"
+    ].join("\n");
+    const position = currentSource.indexOf("dy: ") + "dy: ".length;
+    const changedPrefix = startWithCanvasSnapshot(
+      dualAuthorityFixture(currentSource, canvasSource, position)
+    );
+
+    expect(changedPrefix.session).toBeNull();
+    expect(changedPrefix.result.status).toBe("stale");
+  });
+
+  it("fails closed when an ID-less source continuity range is invalid", () => {
+    const canvasSource = [
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "line Base = segment(start: @A, end: (10, 0))"
+    ].join("\n");
+    const currentSource = `${canvasSource}\npoint New = offset(from: @A, dx: 0, dy: )`;
+    const position = currentSource.indexOf("dy: ") + "dy: ".length;
+    const fixture = dualAuthorityFixture(currentSource, canvasSource, position);
+    const currentVersion = fixture.currentCompiled.statements[0];
+    if (!currentVersion) throw new Error("version statement missing");
+    const invalidRange = {
+      ...fixture,
+      currentCompiled: {
+        ...fixture.currentCompiled,
+        statements: fixture.currentCompiled.statements.map((statement, index) =>
+          index === 0
+            ? { ...statement, documentRange: { ...statement.documentRange, from: -1 } }
+            : statement
+        )
+      }
+    };
+
+    const started = startWithCanvasSnapshot(invalidRange);
+    expect(started.session).toBeNull();
+    expect(started.result.status).toBe("stale");
   });
 
   it("matches document/version proof across independent Host and Webview compiler sessions", () => {
