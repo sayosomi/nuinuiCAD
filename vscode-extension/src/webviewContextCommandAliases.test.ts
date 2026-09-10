@@ -1,0 +1,87 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const mocks = vi.hoisted(() => ({
+  registerCommand: vi.fn(),
+  executeCommand: vi.fn()
+}));
+
+vi.mock("vscode", () => ({
+  commands: {
+    registerCommand: mocks.registerCommand,
+    executeCommand: mocks.executeCommand
+  },
+  Disposable: {
+    from: (...items: Array<{ dispose: () => void }>) => ({
+      dispose: () => items.forEach((item) => item.dispose())
+    })
+  }
+}));
+
+import {
+  registerWebviewContextCommandAliases,
+  WEBVIEW_CONTEXT_COMMAND_ALIASES
+} from "./webviewContextCommandAliases";
+
+describe("Webview context command aliases", () => {
+  beforeEach(() => {
+    mocks.registerCommand.mockReset();
+    mocks.executeCommand.mockReset();
+    mocks.registerCommand.mockImplementation((_command: string, handler: (...args: unknown[]) => unknown) => ({
+      dispose: vi.fn(),
+      handler
+    }));
+  });
+
+  it("defines the exact unique alias-to-canonical command set", () => {
+    expect(WEBVIEW_CONTEXT_COMMAND_ALIASES).toEqual([
+      ["nuinuiCAD.webview.createFreePointAtPointer", "nuinuiCAD.createFreePointAtPointer"],
+      ["nuinuiCAD.webview.fitDrawing", "nuinuiCAD.fitDrawing"],
+      ["nuinuiCAD.webview.resetCanvasView", "nuinuiCAD.resetCanvasView"],
+      ["nuinuiCAD.webview.toggleCanvasPointNames", "nuinuiCAD.toggleCanvasPointNames"],
+      ["nuinuiCAD.webview.toggleCanvasGeometryNames", "nuinuiCAD.toggleCanvasGeometryNames"],
+      ["nuinuiCAD.webview.toggleCanvasPoints", "nuinuiCAD.toggleCanvasPoints"],
+      ["nuinuiCAD.webview.editCanvasRibbon", "nuinuiCAD.editCanvasRibbon"],
+      ["nuinuiCAD.webview.clearCanvasSelection", "nuinuiCAD.clearCanvasSelection"],
+      ["nuinuiCAD.webview.convertPointToXYOffset", "nuinuiCAD.convertPointToXYOffset"],
+      ["nuinuiCAD.webview.convertPointToAngleDistanceOffset", "nuinuiCAD.convertPointToAngleDistanceOffset"],
+      ["nuinuiCAD.webview.selectParentGroup", "nuinuiCAD.selectParentGroup"],
+      ["nuinuiCAD.webview.selectInstance", "nuinuiCAD.selectInstance"],
+      ["nuinuiCAD.webview.goToSourceDefinition", "nuinuiCAD.goToSourceDefinition"],
+      ["nuinuiCAD.webview.inlineModuleInstance", "nuinuiCAD.inlineModuleInstance"],
+      ["nuinuiCAD.webview.extractModule", "nuinuiCAD.extractModule"],
+      ["nuinuiCAD.webview.bakeCurrentShape", "nuinuiCAD.bakeCurrentShape"],
+      ["nuinuiCAD.webview.bakeBaseShape", "nuinuiCAD.bakeBaseShape"],
+      ["nuinuiCAD.webview.modulePreview.fitDrawing", "nuinuiCAD.modulePreview.fitDrawing"],
+      ["nuinuiCAD.webview.modulePreview.resetView", "nuinuiCAD.modulePreview.resetView"],
+      ["nuinuiCAD.webview.modulePreview.togglePointNames", "nuinuiCAD.modulePreview.togglePointNames"],
+      ["nuinuiCAD.webview.modulePreview.toggleGeometryNames", "nuinuiCAD.modulePreview.toggleGeometryNames"],
+      ["nuinuiCAD.webview.modulePreview.togglePoints", "nuinuiCAD.modulePreview.togglePoints"],
+      ["nuinuiCAD.webview.modulePreview.clearSelection", "nuinuiCAD.modulePreview.clearSelection"],
+      ["nuinuiCAD.webview.resetOutputPreviewView", "nuinuiCAD.resetOutputPreviewView"],
+      ["nuinuiCAD.webview.fitOutputPreview", "nuinuiCAD.fitOutputPreview"],
+      ["nuinuiCAD.webview.clearOutputPreviewFocus", "nuinuiCAD.clearOutputPreviewFocus"]
+    ]);
+    expect(new Set(WEBVIEW_CONTEXT_COMMAND_ALIASES.map(([alias]) => alias)).size)
+      .toBe(WEBVIEW_CONTEXT_COMMAND_ALIASES.length);
+  });
+
+  it("registers every alias and delegates exactly once with unchanged arguments and result", () => {
+    const registration = registerWebviewContextCommandAliases();
+
+    expect(mocks.registerCommand).toHaveBeenCalledTimes(WEBVIEW_CONTEXT_COMMAND_ALIASES.length);
+    for (const [alias, canonical] of WEBVIEW_CONTEXT_COMMAND_ALIASES) {
+      expect(mocks.registerCommand).toHaveBeenCalledWith(alias, expect.any(Function));
+      const handler = mocks.registerCommand.mock.calls.find(([command]) => command === alias)?.[1] as
+        (...args: unknown[]) => unknown;
+      const args = [{ source: alias }, 42, undefined, "payload"];
+      const result = { canonical };
+      mocks.executeCommand.mockReturnValueOnce(result);
+
+      expect(handler(...args)).toBe(result);
+      expect(mocks.executeCommand).toHaveBeenLastCalledWith(canonical, ...args);
+    }
+    expect(mocks.executeCommand).toHaveBeenCalledTimes(WEBVIEW_CONTEXT_COMMAND_ALIASES.length);
+
+    expect(() => registration.dispose()).not.toThrow();
+  });
+});

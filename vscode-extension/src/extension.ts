@@ -107,6 +107,7 @@ import {
   type VscodeWebviewSurfaceKind
 } from "../../src/vscode/protocol";
 import { webviewPresentationFor } from "./webviewPresentationLocalization";
+import { registerWebviewContextCommandAliases } from "./webviewContextCommandAliases";
 import {
   VscodeWebviewSessionRegistry,
   type VscodeWebviewSessionBase
@@ -2331,6 +2332,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
     "nuinuiCAD.bakeBaseShape",
     () => executeBakeCommand("base")
   );
+  const webviewContextCommandAliases = registerWebviewContextCommandAliases();
 
   const closeDocumentListener = vscode.workspace.onDidCloseTextDocument((document) => {
     if (lastBakeSurface?.kind === "source" && sameDocument(lastBakeSurface.document, document)) {
@@ -2371,6 +2373,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
     ...canvasCommandDisposables,
     bakeCurrentShapeCommand,
     bakeBaseShapeCommand,
+    webviewContextCommandAliases,
     closeDocumentListener,
     disposeAllSessions,
     disposeRustProcess
