@@ -87,6 +87,26 @@ describe("queryDslReferences", () => {
     expect(result!.declarationRange.from).toBe(source.indexOf("for item") + "for ".length);
   });
 
+  it("indexes geometry value-for builtin operands with the binder and preserves ordinary operands", () => {
+    const source = [
+      "nui 1",
+      "point Origin = coordinate(x: 0, y: 0)",
+      "const points: point[] = [(1, 2), (3, 4)]",
+      "const mapped: point[] = for item in @points { if (distance(@item, @Origin) > 0) { @item } else { coordinate(x: 0, y: 0) } }"
+    ].join("\n");
+    const binder = queryAt(source, "@item");
+    const origin = queryAt(source, "@Origin");
+
+    expect(binder).not.toBeNull();
+    expect(slices(source, binder!.declarationRange)).toEqual(["item"]);
+    expect(slices(source, binder!.referenceRanges)).toEqual(["item", "item"]);
+    expect(binder!.declarationRange.from).toBe(source.indexOf("for item") + "for ".length);
+    expect(origin).not.toBeNull();
+    expect(slices(source, origin!.declarationRange)).toEqual(["Origin"]);
+    expect(slices(source, origin!.referenceRanges)).toEqual(["Origin"]);
+    expect(origin!.declarationRange).not.toEqual(binder!.declarationRange);
+  });
+
   it("keeps an ordinary qualified scalar export identity separate from the value-for binder", () => {
     const source = [
       "nui 1",

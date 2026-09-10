@@ -661,6 +661,7 @@ const addModuleGeometryValueExpressionOccurrences = (
 ) => {
   const addScalar = (scalar: ModuleScalarExpressionSemantic | null) => {
     for (const property of scalar?.geometryProperties ?? []) addGeometry(property);
+    for (const argument of scalar?.geometryBuiltinArguments ?? []) addGeometry(argument.reference);
   };
   const visitConstruction = (value: unknown): void => {
     if (value === null || typeof value !== "object") return;
