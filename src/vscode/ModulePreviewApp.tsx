@@ -1170,13 +1170,29 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     showCanvasGeometryNames,
     showCanvasPoints,
     renderFixedCanvasChrome: false,
-    canvasContextMenuData: vscodeCanvasContextDataFor("blank", selectedElementIds.length > 0),
+    canvasContextMenuData: vscodeCanvasContextDataFor(
+      "blank",
+      selectedElementIds.length > 0,
+      undefined,
+      false,
+      false,
+      { showCanvasPointNames, showCanvasGeometryNames, showCanvasPoints }
+    ),
     publishCanvasContextMenu: ({ kind }) => {
       const viewport = canvasFocusRef.current;
       if (!viewport) return;
+      const currentUiState = useCadUiStore.getState();
       viewport.dataset.vscodeContext = vscodeCanvasContextDataFor(
         kind,
-        useCadUiStore.getState().selectedElementIds.length > 0
+        currentUiState.selectedElementIds.length > 0,
+        undefined,
+        false,
+        false,
+        {
+          showCanvasPointNames: currentUiState.showCanvasPointNames,
+          showCanvasGeometryNames: currentUiState.showCanvasGeometryNames,
+          showCanvasPoints: currentUiState.showCanvasPoints
+        }
       );
     },
     activePointPickTarget: null,

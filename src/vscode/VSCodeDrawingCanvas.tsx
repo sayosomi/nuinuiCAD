@@ -472,7 +472,14 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       activeLinePickTarget,
       activePickModeSession,
       commandLineSession,
-      canvasContextMenuData: vscodeCanvasContextDataFor("blank", selectedElementIds.length > 0, undefined, false, hasCoordinatePointConversionTarget),
+      canvasContextMenuData: vscodeCanvasContextDataFor(
+        "blank",
+        selectedElementIds.length > 0,
+        undefined,
+        false,
+        hasCoordinatePointConversionTarget,
+        { showCanvasPointNames, showCanvasGeometryNames, showCanvasPoints }
+      ),
       publishCanvasPointerPosition: postCanvasPointerPosition,
       publishCanvasContextMenu: ({ kind, pointer }) => {
         const viewport = canvasFocusRef.current;
@@ -489,7 +496,12 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
           currentSelection.selectedElementIds.length > 0,
           pointer,
           canSelectInstance,
-          hasCoordinatePointConversionTarget
+          hasCoordinatePointConversionTarget,
+          {
+            showCanvasPointNames: currentSelection.showCanvasPointNames,
+            showCanvasGeometryNames: currentSelection.showCanvasGeometryNames,
+            showCanvasPoints: currentSelection.showCanvasPoints
+          }
         );
       },
       flushSourceEditorOnCanvasPointerDown: () => "clean",

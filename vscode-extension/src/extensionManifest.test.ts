@@ -44,7 +44,8 @@ type ExtensionManifest = {
       "editor/context"?: CommandPaletteMenu[];
       "nuinuiCAD.create"?: CommandPaletteMenu[];
       "nuinuiCAD.convertPoint"?: CommandPaletteMenu[];
-      "nuinuiCAD.webview.display"?: CommandPaletteMenu[];
+      "nuinuiCAD.webview.canvasDisplay"?: CommandPaletteMenu[];
+      "nuinuiCAD.webview.modulePreviewDisplay"?: CommandPaletteMenu[];
       "nuinuiCAD.webview.convertPoint"?: CommandPaletteMenu[];
       "nuinuiCAD.webview.bake"?: CommandPaletteMenu[];
       "view/item/context"?: CommandPaletteMenu[];
@@ -115,9 +116,12 @@ const webviewContextAliasIds = [
   "nuinuiCAD.webview.createFreePointAtPointer",
   "nuinuiCAD.webview.fitDrawing",
   "nuinuiCAD.webview.resetCanvasView",
-  "nuinuiCAD.webview.toggleCanvasPointNames",
-  "nuinuiCAD.webview.toggleCanvasGeometryNames",
-  "nuinuiCAD.webview.toggleCanvasPoints",
+  "nuinuiCAD.webview.showCanvasPointNames",
+  "nuinuiCAD.webview.hideCanvasPointNames",
+  "nuinuiCAD.webview.showCanvasGeometryNames",
+  "nuinuiCAD.webview.hideCanvasGeometryNames",
+  "nuinuiCAD.webview.showCanvasPoints",
+  "nuinuiCAD.webview.hideCanvasPoints",
   "nuinuiCAD.webview.editCanvasRibbon",
   "nuinuiCAD.webview.clearCanvasSelection",
   "nuinuiCAD.webview.convertPointToXYOffset",
@@ -131,9 +135,12 @@ const webviewContextAliasIds = [
   "nuinuiCAD.webview.bakeBaseShape",
   "nuinuiCAD.webview.modulePreview.fitDrawing",
   "nuinuiCAD.webview.modulePreview.resetView",
-  "nuinuiCAD.webview.modulePreview.togglePointNames",
-  "nuinuiCAD.webview.modulePreview.toggleGeometryNames",
-  "nuinuiCAD.webview.modulePreview.togglePoints",
+  "nuinuiCAD.webview.modulePreview.showPointNames",
+  "nuinuiCAD.webview.modulePreview.hidePointNames",
+  "nuinuiCAD.webview.modulePreview.showGeometryNames",
+  "nuinuiCAD.webview.modulePreview.hideGeometryNames",
+  "nuinuiCAD.webview.modulePreview.showPoints",
+  "nuinuiCAD.webview.modulePreview.hidePoints",
   "nuinuiCAD.webview.modulePreview.clearSelection",
   "nuinuiCAD.webview.resetOutputPreviewView",
   "nuinuiCAD.webview.fitOutputPreview",
@@ -357,9 +364,12 @@ describe("VS Code extension manifest command contributions", () => {
       "Create Free Point at Pointer",
       "Fit Drawing",
       "Reset View",
-      "Point Names",
-      "Geometry Names",
-      "Points",
+      "Show Point Names",
+      "Hide Point Names",
+      "Show Geometry Names",
+      "Hide Geometry Names",
+      "Show Points",
+      "Hide Points",
       "Edit Ribbon",
       "Clear Selection",
       "XY Offset…",
@@ -373,9 +383,12 @@ describe("VS Code extension manifest command contributions", () => {
       "Base Shape",
       "Fit Drawing",
       "Reset View",
-      "Point Names",
-      "Geometry Names",
-      "Points",
+      "Show Point Names",
+      "Hide Point Names",
+      "Show Geometry Names",
+      "Hide Geometry Names",
+      "Show Points",
+      "Hide Points",
       "Clear Selection",
       "Reset View",
       "Fit Preview",
@@ -385,9 +398,12 @@ describe("VS Code extension manifest command contributions", () => {
       "ポインター位置に自由点を作成",
       "図面をフィット",
       "表示をリセット",
-      "点名",
-      "ジオメトリ名",
-      "点",
+      "点名を表示",
+      "点名を非表示",
+      "ジオメトリ名を表示",
+      "ジオメトリ名を非表示",
+      "点を表示",
+      "点を非表示",
       "リボンを編集",
       "選択を解除",
       "XYオフセット…",
@@ -401,9 +417,12 @@ describe("VS Code extension manifest command contributions", () => {
       "ベース形状",
       "図面をフィット",
       "表示をリセット",
-      "点名",
-      "ジオメトリ名",
-      "点",
+      "点名を表示",
+      "点名を非表示",
+      "ジオメトリ名を表示",
+      "ジオメトリ名を非表示",
+      "点を表示",
+      "点を非表示",
       "選択を解除",
       "表示をリセット",
       "プレビューをフィット",
@@ -596,7 +615,8 @@ describe("VS Code extension manifest command contributions", () => {
     ]);
     expect(manifest.contributes?.submenus).toEqual([
       { id: "nuinuiCAD.convertPoint", label: "%submenu.convert%" },
-      { id: "nuinuiCAD.webview.display", label: "%submenu.webview.display%" },
+      { id: "nuinuiCAD.webview.canvasDisplay", label: "%submenu.webview.display%" },
+      { id: "nuinuiCAD.webview.modulePreviewDisplay", label: "%submenu.webview.display%" },
       { id: "nuinuiCAD.webview.convertPoint", label: "%submenu.webview.convertPoint%" },
       { id: "nuinuiCAD.webview.bake", label: "%submenu.webview.bake%" }
     ]);
@@ -604,7 +624,7 @@ describe("VS Code extension manifest command contributions", () => {
       { command: "nuinuiCAD.webview.createFreePointAtPointer", when: canvasBlankWhen, group: "1_create@0" },
       { command: "nuinuiCAD.webview.fitDrawing", when: canvasBlankWhen, group: "2_view@1" },
       { command: "nuinuiCAD.webview.resetCanvasView", when: canvasBlankWhen, group: "2_view@2" },
-      { submenu: "nuinuiCAD.webview.display", when: canvasBlankWhen, group: "2_view@3" },
+      { submenu: "nuinuiCAD.webview.canvasDisplay", when: canvasBlankWhen, group: "2_view@3" },
       { command: "nuinuiCAD.webview.editCanvasRibbon", when: canvasOrModulePreviewRibbonWhen, group: "3_edit@1" },
       { command: "nuinuiCAD.webview.clearCanvasSelection", when: `${canvasBlankWhen} && nuinuiCAD.canvasHasSelection`, group: "4_selection@1" },
       { submenu: "nuinuiCAD.webview.convertPoint", when: coordinatePointConversionCanvasContextWhen, group: "1_modification@1" },
@@ -619,16 +639,24 @@ describe("VS Code extension manifest command contributions", () => {
       { command: "nuinuiCAD.webview.clearOutputPreviewFocus", when: "webviewId == 'nuinuiCAD.outputPreview' && (webviewSection == 'blank' || webviewSection == 'place')", group: "4_selection@1" },
       { command: "nuinuiCAD.webview.modulePreview.fitDrawing", when: modulePreviewBlankWhen, group: "2_view@1" },
       { command: "nuinuiCAD.webview.modulePreview.resetView", when: modulePreviewBlankWhen, group: "2_view@2" },
-      { submenu: "nuinuiCAD.webview.display", when: modulePreviewBlankWhen, group: "2_view@3" },
+      { submenu: "nuinuiCAD.webview.modulePreviewDisplay", when: modulePreviewBlankWhen, group: "2_view@3" },
       { command: "nuinuiCAD.webview.modulePreview.clearSelection", when: `${modulePreviewBlankWhen} && nuinuiCAD.canvasHasSelection`, group: "4_selection@1" }
     ]);
-    expect(manifest.contributes?.menus?.["nuinuiCAD.webview.display"]).toEqual([
-      { command: "nuinuiCAD.webview.toggleCanvasPointNames", when: canvasBlankWhen },
-      { command: "nuinuiCAD.webview.toggleCanvasGeometryNames", when: canvasBlankWhen },
-      { command: "nuinuiCAD.webview.toggleCanvasPoints", when: canvasBlankWhen },
-      { command: "nuinuiCAD.webview.modulePreview.togglePointNames", when: modulePreviewBlankWhen },
-      { command: "nuinuiCAD.webview.modulePreview.toggleGeometryNames", when: modulePreviewBlankWhen },
-      { command: "nuinuiCAD.webview.modulePreview.togglePoints", when: modulePreviewBlankWhen }
+    expect(manifest.contributes?.menus?.["nuinuiCAD.webview.canvasDisplay"]).toEqual([
+      { command: "nuinuiCAD.webview.showCanvasPointNames", when: `${canvasBlankWhen} && !nuinuiCAD.showCanvasPointNames`, group: "1_display@1" },
+      { command: "nuinuiCAD.webview.hideCanvasPointNames", when: `${canvasBlankWhen} && nuinuiCAD.showCanvasPointNames`, group: "1_display@1" },
+      { command: "nuinuiCAD.webview.showCanvasGeometryNames", when: `${canvasBlankWhen} && !nuinuiCAD.showCanvasGeometryNames`, group: "1_display@2" },
+      { command: "nuinuiCAD.webview.hideCanvasGeometryNames", when: `${canvasBlankWhen} && nuinuiCAD.showCanvasGeometryNames`, group: "1_display@2" },
+      { command: "nuinuiCAD.webview.showCanvasPoints", when: `${canvasBlankWhen} && !nuinuiCAD.showCanvasPoints`, group: "1_display@3" },
+      { command: "nuinuiCAD.webview.hideCanvasPoints", when: `${canvasBlankWhen} && nuinuiCAD.showCanvasPoints`, group: "1_display@3" }
+    ]);
+    expect(manifest.contributes?.menus?.["nuinuiCAD.webview.modulePreviewDisplay"]).toEqual([
+      { command: "nuinuiCAD.webview.modulePreview.showPointNames", when: `${modulePreviewBlankWhen} && !nuinuiCAD.showCanvasPointNames`, group: "1_display@1" },
+      { command: "nuinuiCAD.webview.modulePreview.hidePointNames", when: `${modulePreviewBlankWhen} && nuinuiCAD.showCanvasPointNames`, group: "1_display@1" },
+      { command: "nuinuiCAD.webview.modulePreview.showGeometryNames", when: `${modulePreviewBlankWhen} && !nuinuiCAD.showCanvasGeometryNames`, group: "1_display@2" },
+      { command: "nuinuiCAD.webview.modulePreview.hideGeometryNames", when: `${modulePreviewBlankWhen} && nuinuiCAD.showCanvasGeometryNames`, group: "1_display@2" },
+      { command: "nuinuiCAD.webview.modulePreview.showPoints", when: `${modulePreviewBlankWhen} && !nuinuiCAD.showCanvasPoints`, group: "1_display@3" },
+      { command: "nuinuiCAD.webview.modulePreview.hidePoints", when: `${modulePreviewBlankWhen} && nuinuiCAD.showCanvasPoints`, group: "1_display@3" }
     ]);
     expect(manifest.contributes?.menus?.["nuinuiCAD.webview.convertPoint"]).toEqual([
       { command: "nuinuiCAD.webview.convertPointToXYOffset", when: coordinatePointConversionCanvasContextWhen },

@@ -48,7 +48,11 @@
         "label": "%submenu.convert%"
       },
       {
-        "id": "nuinuiCAD.webview.display",
+        "id": "nuinuiCAD.webview.canvasDisplay",
+        "label": "%submenu.webview.display%"
+      },
+      {
+        "id": "nuinuiCAD.webview.modulePreviewDisplay",
         "label": "%submenu.webview.display%"
       },
       {
@@ -293,15 +297,27 @@
           "when": "false"
         },
         {
-          "command": "nuinuiCAD.webview.toggleCanvasPointNames",
+          "command": "nuinuiCAD.webview.showCanvasPointNames",
           "when": "false"
         },
         {
-          "command": "nuinuiCAD.webview.toggleCanvasGeometryNames",
+          "command": "nuinuiCAD.webview.hideCanvasPointNames",
           "when": "false"
         },
         {
-          "command": "nuinuiCAD.webview.toggleCanvasPoints",
+          "command": "nuinuiCAD.webview.showCanvasGeometryNames",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.webview.hideCanvasGeometryNames",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.webview.showCanvasPoints",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.webview.hideCanvasPoints",
           "when": "false"
         },
         {
@@ -357,15 +373,27 @@
           "when": "false"
         },
         {
-          "command": "nuinuiCAD.webview.modulePreview.togglePointNames",
+          "command": "nuinuiCAD.webview.modulePreview.showPointNames",
           "when": "false"
         },
         {
-          "command": "nuinuiCAD.webview.modulePreview.toggleGeometryNames",
+          "command": "nuinuiCAD.webview.modulePreview.hidePointNames",
           "when": "false"
         },
         {
-          "command": "nuinuiCAD.webview.modulePreview.togglePoints",
+          "command": "nuinuiCAD.webview.modulePreview.showGeometryNames",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.webview.modulePreview.hideGeometryNames",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.webview.modulePreview.showPoints",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.webview.modulePreview.hidePoints",
           "when": "false"
         },
         {
@@ -439,7 +467,7 @@
           "group": "2_view@2"
         },
         {
-          "submenu": "nuinuiCAD.webview.display",
+          "submenu": "nuinuiCAD.webview.canvasDisplay",
           "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank'",
           "group": "2_view@3"
         },
@@ -514,7 +542,7 @@
           "group": "2_view@2"
         },
         {
-          "submenu": "nuinuiCAD.webview.display",
+          "submenu": "nuinuiCAD.webview.modulePreviewDisplay",
           "when": "webviewId == 'nuinuiCAD.modulePreview' && webviewSection == 'blank'",
           "group": "2_view@3"
         },
@@ -524,30 +552,68 @@
           "group": "4_selection@1"
         }
       ],
-      "nuinuiCAD.webview.display": [
+      "nuinuiCAD.webview.canvasDisplay": [
         {
-          "command": "nuinuiCAD.webview.toggleCanvasPointNames",
-          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank'"
+          "command": "nuinuiCAD.webview.showCanvasPointNames",
+          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank' && !nuinuiCAD.showCanvasPointNames",
+          "group": "1_display@1"
         },
         {
-          "command": "nuinuiCAD.webview.toggleCanvasGeometryNames",
-          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank'"
+          "command": "nuinuiCAD.webview.hideCanvasPointNames",
+          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank' && nuinuiCAD.showCanvasPointNames",
+          "group": "1_display@1"
         },
         {
-          "command": "nuinuiCAD.webview.toggleCanvasPoints",
-          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank'"
+          "command": "nuinuiCAD.webview.showCanvasGeometryNames",
+          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank' && !nuinuiCAD.showCanvasGeometryNames",
+          "group": "1_display@2"
         },
         {
-          "command": "nuinuiCAD.webview.modulePreview.togglePointNames",
-          "when": "webviewId == 'nuinuiCAD.modulePreview' && webviewSection == 'blank'"
+          "command": "nuinuiCAD.webview.hideCanvasGeometryNames",
+          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank' && nuinuiCAD.showCanvasGeometryNames",
+          "group": "1_display@2"
         },
         {
-          "command": "nuinuiCAD.webview.modulePreview.toggleGeometryNames",
-          "when": "webviewId == 'nuinuiCAD.modulePreview' && webviewSection == 'blank'"
+          "command": "nuinuiCAD.webview.showCanvasPoints",
+          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank' && !nuinuiCAD.showCanvasPoints",
+          "group": "1_display@3"
         },
         {
-          "command": "nuinuiCAD.webview.modulePreview.togglePoints",
-          "when": "webviewId == 'nuinuiCAD.modulePreview' && webviewSection == 'blank'"
+          "command": "nuinuiCAD.webview.hideCanvasPoints",
+          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank' && nuinuiCAD.showCanvasPoints",
+          "group": "1_display@3"
+        }
+      ],
+      "nuinuiCAD.webview.modulePreviewDisplay": [
+        {
+          "command": "nuinuiCAD.webview.modulePreview.showPointNames",
+          "when": "webviewId == 'nuinuiCAD.modulePreview' && webviewSection == 'blank' && !nuinuiCAD.showCanvasPointNames",
+          "group": "1_display@1"
+        },
+        {
+          "command": "nuinuiCAD.webview.modulePreview.hidePointNames",
+          "when": "webviewId == 'nuinuiCAD.modulePreview' && webviewSection == 'blank' && nuinuiCAD.showCanvasPointNames",
+          "group": "1_display@1"
+        },
+        {
+          "command": "nuinuiCAD.webview.modulePreview.showGeometryNames",
+          "when": "webviewId == 'nuinuiCAD.modulePreview' && webviewSection == 'blank' && !nuinuiCAD.showCanvasGeometryNames",
+          "group": "1_display@2"
+        },
+        {
+          "command": "nuinuiCAD.webview.modulePreview.hideGeometryNames",
+          "when": "webviewId == 'nuinuiCAD.modulePreview' && webviewSection == 'blank' && nuinuiCAD.showCanvasGeometryNames",
+          "group": "1_display@2"
+        },
+        {
+          "command": "nuinuiCAD.webview.modulePreview.showPoints",
+          "when": "webviewId == 'nuinuiCAD.modulePreview' && webviewSection == 'blank' && !nuinuiCAD.showCanvasPoints",
+          "group": "1_display@3"
+        },
+        {
+          "command": "nuinuiCAD.webview.modulePreview.hidePoints",
+          "when": "webviewId == 'nuinuiCAD.modulePreview' && webviewSection == 'blank' && nuinuiCAD.showCanvasPoints",
+          "group": "1_display@3"
         }
       ],
       "nuinuiCAD.webview.convertPoint": [
@@ -857,16 +923,28 @@
         "title": "%command.webview.resetCanvasView.title%"
       },
       {
-        "command": "nuinuiCAD.webview.toggleCanvasPointNames",
-        "title": "%command.webview.toggleCanvasPointNames.title%"
+        "command": "nuinuiCAD.webview.showCanvasPointNames",
+        "title": "%command.webview.showCanvasPointNames.title%"
       },
       {
-        "command": "nuinuiCAD.webview.toggleCanvasGeometryNames",
-        "title": "%command.webview.toggleCanvasGeometryNames.title%"
+        "command": "nuinuiCAD.webview.hideCanvasPointNames",
+        "title": "%command.webview.hideCanvasPointNames.title%"
       },
       {
-        "command": "nuinuiCAD.webview.toggleCanvasPoints",
-        "title": "%command.webview.toggleCanvasPoints.title%"
+        "command": "nuinuiCAD.webview.showCanvasGeometryNames",
+        "title": "%command.webview.showCanvasGeometryNames.title%"
+      },
+      {
+        "command": "nuinuiCAD.webview.hideCanvasGeometryNames",
+        "title": "%command.webview.hideCanvasGeometryNames.title%"
+      },
+      {
+        "command": "nuinuiCAD.webview.showCanvasPoints",
+        "title": "%command.webview.showCanvasPoints.title%"
+      },
+      {
+        "command": "nuinuiCAD.webview.hideCanvasPoints",
+        "title": "%command.webview.hideCanvasPoints.title%"
       },
       {
         "command": "nuinuiCAD.webview.editCanvasRibbon",
@@ -921,16 +999,28 @@
         "title": "%command.webview.modulePreview.resetView.title%"
       },
       {
-        "command": "nuinuiCAD.webview.modulePreview.togglePointNames",
-        "title": "%command.webview.modulePreview.togglePointNames.title%"
+        "command": "nuinuiCAD.webview.modulePreview.showPointNames",
+        "title": "%command.webview.modulePreview.showPointNames.title%"
       },
       {
-        "command": "nuinuiCAD.webview.modulePreview.toggleGeometryNames",
-        "title": "%command.webview.modulePreview.toggleGeometryNames.title%"
+        "command": "nuinuiCAD.webview.modulePreview.hidePointNames",
+        "title": "%command.webview.modulePreview.hidePointNames.title%"
       },
       {
-        "command": "nuinuiCAD.webview.modulePreview.togglePoints",
-        "title": "%command.webview.modulePreview.togglePoints.title%"
+        "command": "nuinuiCAD.webview.modulePreview.showGeometryNames",
+        "title": "%command.webview.modulePreview.showGeometryNames.title%"
+      },
+      {
+        "command": "nuinuiCAD.webview.modulePreview.hideGeometryNames",
+        "title": "%command.webview.modulePreview.hideGeometryNames.title%"
+      },
+      {
+        "command": "nuinuiCAD.webview.modulePreview.showPoints",
+        "title": "%command.webview.modulePreview.showPoints.title%"
+      },
+      {
+        "command": "nuinuiCAD.webview.modulePreview.hidePoints",
+        "title": "%command.webview.modulePreview.hidePoints.title%"
       },
       {
         "command": "nuinuiCAD.webview.modulePreview.clearSelection",
