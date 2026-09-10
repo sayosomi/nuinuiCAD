@@ -19,10 +19,22 @@ export type VscodeCreationCommandPickerOptions = {
   displayLanguage: string;
 };
 
+const compareCreationEntriesForQuickPick = (
+  left: VscodeCanvasCreationCommand,
+  right: VscodeCanvasCreationCommand
+): number => {
+  const labelOrder = left.quickPickLabel.localeCompare(right.quickPickLabel);
+  return labelOrder !== 0 ? labelOrder : left.commandId.localeCompare(right.commandId);
+};
+
+export const sortVscodeCreationCommandsForQuickPick = (
+  entries: readonly VscodeCanvasCreationCommand[]
+): VscodeCanvasCreationCommand[] => [...entries].sort(compareCreationEntriesForQuickPick);
+
 const quickPickItemsFor = (
   entries: readonly VscodeCanvasCreationCommand[],
   displayLanguage: string
-): QuickPickCreationItem[] => entries.map((entry) => ({
+): QuickPickCreationItem[] => sortVscodeCreationCommandsForQuickPick(entries).map((entry) => ({
   label: entry.quickPickLabel,
   description: canvasQuickCreateDescriptionFor(entry.commandId, displayLanguage),
   commandId: entry.commandId,
