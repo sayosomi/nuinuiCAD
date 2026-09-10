@@ -3465,6 +3465,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         const value = collectionAnalysis.genericValuesByStatementId.get(valueId);
         if (!value?.value) return [];
         if (value.value.kind === "alias") return recordMembersFor(value.value.targetValueId, new Set([...seen, valueId]));
+        if (value.value.kind === "map") return [];
         return value.value.members.flatMap((member) => {
           if (member.target.kind !== "recordValue") return [];
           const recordValue = recordAnalysis?.valuesByStatementId.get(member.target.statementId);
@@ -4284,7 +4285,72 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     }
   }
 
+  // A root value-for body is still a scalar expression, but its containing
+  // declaration is an array and therefore is intentionally absent from the
+  // root typed-declaration loop above. Analyze the body through the same
+  // Module source resolver so qualified exports retain their normal semantic
+  // identity for navigation, completion, and rename.
+  for (const value of sourceNamespace.geometryArraySemanticAnalysis?.genericValues ?? []) {
+    if (value.ownerModuleDefinitionStatementIndex !== null || value.value?.kind !== "map") continue;
+    const statement = statements[value.statementIndex];
+    const initializerSpan = statement?.kind === "typedDeclaration" ? statement.payloadSpans.initializer : undefined;
+    if (!statement || statement.kind !== "typedDeclaration" || !initializerSpan) continue;
+    const mapped = value.value;
+    const bodyRaw = statement.initializer.slice(mapped.bodySpan.start - initializerSpan.start, mapped.bodySpan.end - initializerSpan.start);
+    const diagnosticsBefore = localDiagnosticsByStatement.get(value.statementIndex)?.length ?? 0;
+    const expression = analyzeExpression(
+      value.statementIndex,
+      null,
+      bodyRaw,
+      mapped.bodySpan,
+      mapped.resultElementType,
+      (reference, presenceFacts) => {
+        const path = parseDslReferenceToken(reference.name);
+        if (path.segments.length === 1 && !path.absolute && path.segments[0] === mapped.binder) {
+          return {
+            target: {
+              kind: "valueForBinder" as const,
+              binderId: mapped.binderId,
+              statementId: value.statementId,
+              statementIndex: value.statementIndex,
+              name: mapped.binder,
+              sourceElementType: mapped.sourceElementType
+            },
+            type: mapped.sourceElementType,
+            resolution: "resolved" as const
+          };
+        }
+        return resolveSourceScalar(value.statementIndex, null, reference.name, null, reference.span, presenceFacts);
+      },
+      undefined,
+      (reference) => resolveGeometryProperty(value.statementIndex, null, reference),
+      (reference) => resolveGeometry(
+        value.statementIndex,
+        null,
+        `@${reference.name}`,
+        reference.span,
+        reference.expectedGeometryType,
+        { expectedInterfaceType: reference.expectedGeometryType, role: reference.expectedGeometryType === "point" ? "pointReference" : "lineReference" }
+      )
+    );
+    // The ordinary scalar analyzer owns root value-for diagnostics. This
+    // pass contributes only the resolved Module source projection.
+    const diagnostics = localDiagnosticsByStatement.get(value.statementIndex);
+    if (diagnostics && diagnostics.length > diagnosticsBefore) {
+      diagnostics.splice(diagnosticsBefore);
+      if (diagnostics.length === 0) localDiagnosticsByStatement.delete(value.statementIndex);
+    }
+    if (expression) {
+      rootScalarExpressionsByStatementId.set(statementIdAt(stableStatementIdByIndex, value.statementIndex), {
+        parameterKey: null,
+        span: mapped.bodySpan,
+        expression
+      });
+    }
+  }
+
   const localScalarsByDefinition = new Map<number, ModuleDefinitionSemantic["localScalars"]>();
+  const mappedScalarCollectionBodiesByDefinition = new Map<number, ModuleDefinitionSemantic["mappedScalarCollectionBodies"]>();
   const localGeometryValuesByDefinition = new Map<number, ModuleGeometryValueSemantic[]>();
   const bodyStatementsByDefinition = new Map<number, ModuleDefinitionSemantic["bodyStatements"]>();
   const recordValuesByDefinition = new Map<number, ModuleDefinitionSemantic["recordValues"]>();
@@ -4319,6 +4385,68 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       registerGeometryValue: (value) => geometryValuesByStatementIndex.set(value.statementIndex, value)
     });
     localScalarsByDefinition.set(definition.statementIndex, body.localScalars);
+    const mappedScalarCollectionBodies: ModuleDefinitionSemantic["mappedScalarCollectionBodies"][number][] = [];
+    const genericCollectionAnalysis = sourceNamespace.geometryArraySemanticAnalysis;
+    for (const value of genericCollectionAnalysis?.genericValues ?? []) {
+      if (value.ownerModuleDefinitionStatementIndex !== definition.statementIndex || value.value?.kind !== "map") continue;
+      const statement = statements[value.statementIndex];
+      const mapped = value.value;
+      if (statement?.kind !== "typedDeclaration") continue;
+      const initializerSpan = statement.payloadSpans.initializer;
+      if (!initializerSpan) continue;
+      const bodyRaw = statement.initializer.slice(mapped.bodySpan.start - initializerSpan.start, mapped.bodySpan.end - initializerSpan.start);
+      const semantic = analyzeExpression(
+        value.statementIndex,
+        definition.statementIndex,
+        bodyRaw,
+        mapped.bodySpan,
+        mapped.resultElementType,
+        (reference, presenceFacts) => {
+          const path = parseDslReferenceToken(reference.name);
+          if (path.segments.length === 1 && !path.absolute && path.segments[0] === mapped.binder) {
+            return {
+              target: {
+                kind: "valueForBinder" as const,
+                binderId: mapped.binderId,
+                statementId: value.statementId,
+                statementIndex: value.statementIndex,
+                name: mapped.binder,
+                sourceElementType: mapped.sourceElementType
+              },
+              type: mapped.sourceElementType,
+              resolution: "resolved" as const
+            };
+          }
+          return resolveBodyScalar(value.statementIndex, definition.statementIndex, reference, presenceFacts);
+        },
+        undefined,
+        (reference) => resolveGeometryProperty(value.statementIndex, definition.statementIndex, reference),
+        (reference) => resolveGeometry(
+          value.statementIndex,
+          definition.statementIndex,
+          `@${reference.name}`,
+          reference.span,
+          reference.expectedGeometryType,
+          {
+            expectedInterfaceType: reference.expectedGeometryType,
+            role: reference.expectedGeometryType === "point" ? "pointReference" : "lineReference",
+            presenceFacts: reference.presenceFacts
+          }
+        ),
+        (reference) => resolveHasValue(value.statementIndex, definition.statementIndex, reference)
+      );
+      if (semantic?.type) {
+        mappedScalarCollectionBodies.push({
+          statementId: value.statementId,
+          statementIndex: value.statementIndex,
+          binderId: mapped.binderId,
+          sourceElementType: mapped.sourceElementType,
+          resultElementType: mapped.resultElementType,
+          body: semantic
+        });
+      }
+    }
+    mappedScalarCollectionBodiesByDefinition.set(definition.statementIndex, mappedScalarCollectionBodies);
     localGeometryValuesByDefinition.set(definition.statementIndex, body.localGeometryValues);
     bodyStatementsByDefinition.set(definition.statementIndex, body.bodyStatements);
     for (const statement of body.bodyStatements) presenceFactsByStatementIndex.set(statement.statementIndex, new Set(statement.presenceParameterKeys));
@@ -4338,10 +4466,11 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       }
       return facts;
     };
-    const genericCollectionAnalysis = sourceNamespace.geometryArraySemanticAnalysis;
-    for (const value of genericCollectionAnalysis?.genericValues ?? []) {
+    const moduleGenericCollectionAnalysis = sourceNamespace.geometryArraySemanticAnalysis;
+    for (const value of moduleGenericCollectionAnalysis?.genericValues ?? []) {
       if (value.ownerModuleDefinitionStatementIndex !== definition.statementIndex || !value.value) continue;
       const presenceFacts = presenceFactsForSourceStatement(value.statementIndex);
+      if (value.value.kind === "map") continue;
       if (value.value.kind === "alias") {
         const parameter = optionalGenericCollectionParameterForValueId(value.value.targetValueId);
         if (parameter) addOptionalGenericCollectionPresenceDiagnostic(value.statementIndex, value.value.sourceSpan, parameter, presenceFacts);
@@ -4507,6 +4636,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     scopeId: definition.declarationScopeId,
     parameters: definition.parameters,
     localScalars: localScalarsByDefinition.get(definition.statementIndex) ?? [],
+    mappedScalarCollectionBodies: mappedScalarCollectionBodiesByDefinition.get(definition.statementIndex) ?? [],
     localGeometryValues: localGeometryValuesByDefinition.get(definition.statementIndex) ?? [],
     recordValues: recordValuesByDefinition.get(definition.statementIndex) ?? [],
     bodyStatements: bodyStatementsByDefinition.get(definition.statementIndex) ?? [],
@@ -4681,6 +4811,10 @@ export const decorateDocumentQualifiedModuleSemantics = (
       ...scalar,
       identity: identityFor(scalar.statementId),
       initializer: scalar.initializer ? mapExpression(scalar.initializer) : null
+    })),
+    mappedScalarCollectionBodies: definition.mappedScalarCollectionBodies.map((mapped) => ({
+      ...mapped,
+      body: mapExpression(mapped.body)
     })),
     recordValues: definition.recordValues.map((value) => ({
       ...value,

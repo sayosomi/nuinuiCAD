@@ -145,6 +145,8 @@ impl<'a> ScalarBindingResolver<'a> {
             resolver: self,
             state,
             source_order: statement.source_order,
+            local_binding_id: None,
+            local_binding: None,
         };
         let evaluation = match &statement.initializer {
             Ok(initializer) => result_for_declared_type(
@@ -237,6 +239,49 @@ impl<'a> ScalarBindingResolver<'a> {
                 ValidatedScalarProgramCollectionValue::Literal(members) => {
                     break members.get(index as usize)
                 }
+                ValidatedScalarProgramCollectionValue::Map {
+                    source_value_id,
+                    source_element_type,
+                    result_element_type,
+                    binder_id,
+                    body,
+                    source_order,
+                } => {
+                    let source = self.resolve_collection_index(
+                        source_value_id,
+                        index,
+                        source_element_type,
+                        None,
+                        *source_order as f64,
+                        state,
+                    );
+                    let ScalarEvaluation::Ok { .. } = source else {
+                        return source;
+                    };
+                    let environment = ResolvingEnvironment {
+                        resolver: self,
+                        state,
+                        source_order: *source_order,
+                        local_binding_id: Some(binder_id.as_str()),
+                        local_binding: Some(&source),
+                    };
+                    let mapped = evaluate_typed_expression(body, &environment);
+                    return match mapped {
+                        ScalarEvaluation::Ok { r#type, value }
+                            if r#type == *result_element_type
+                                && scalar_value_matches_type(&r#type, &value) =>
+                        {
+                            ScalarEvaluation::Ok { r#type, value }
+                        }
+                        ScalarEvaluation::Ok { .. } => ScalarEvaluation::Error {
+                            r#type: result_element_type.clone(),
+                            issue_code: RUNTIME_VALUE_TYPE_MISMATCH.to_owned(),
+                            binding_id: None,
+                            context: None,
+                        },
+                        error @ ScalarEvaluation::Error { .. } => error,
+                    };
+                }
             }
         };
         let Some(member) = member else {
@@ -314,14 +359,21 @@ impl ScalarDocumentBindingResolver for ScalarBindingResolver<'_> {
     }
 }
 
-struct ResolvingEnvironment<'a, 'b> {
+struct ResolvingEnvironment<'a, 'b, 'c> {
     resolver: &'a ScalarBindingResolver<'a>,
     state: &'b EvaluationState,
     source_order: usize,
+    local_binding_id: Option<&'c str>,
+    local_binding: Option<&'c ScalarEvaluation>,
 }
 
-impl ScalarEvaluationEnvironment for ResolvingEnvironment<'_, '_> {
+impl ScalarEvaluationEnvironment for ResolvingEnvironment<'_, '_, '_> {
     fn lookup_binding(&self, binding_id: &str) -> ScalarEvaluation {
+        if self.local_binding_id == Some(binding_id) {
+            if let Some(value) = self.local_binding {
+                return value.clone();
+            }
+        }
         self.resolver.resolve(binding_id, self.state)
     }
     fn lookup_geometry_property(

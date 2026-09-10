@@ -1385,6 +1385,37 @@ source-order, and instance-member visibility rules are unchanged. Collection
 members remain values: pure geometry members are not converted into drawable
 identities.
 
+A typed collection declaration may use a value-producing `for` to map an
+existing whole-value collection:
+
+```text
+const doubled: number[] =
+  for x in @numbers {
+    @x * 2
+  }
+```
+
+This is a mapping form only: it produces exactly one result member for each
+source member, in the source collection's authored order, preserving
+duplicates. An empty source produces an empty result, and a member body is
+evaluated only when that result member is requested. The binder is an
+immutable lexical value with the exact source element type, visible only in
+the body; it is not a statement-for mutation binding and never leaks into the
+surrounding scope. The source is a whole-value collection reference resolved
+by the ordinary lexical, source-order, alias, Module, privacy, and export
+rules. The result remains an immutable one-dimensional `T[]` with its
+declared element type, and the body is checked by the existing scalar
+expression rules against that result element type. Bare choice literals use
+the declared result choice identity and order.
+
+Value-producing collection `for` does not filter, fold, scan, carry, mutate,
+or accumulate state. Nested arrays are not introduced. The value model is
+intended to extend this same pure, lazy, one-result-per-input collection shape
+to additional element families in later slices; this slice implements only
+scalar and choice source/result collections. It does not change optional-value
+semantics or add `none`/`some` values. Geometry and nominal-record
+value-producing collection `for` remain deferred.
+
 Existing broad line-list consumers treat their list value as `path[]`. This
 includes `offset.sources`, `transformCopy.baseLines`, `mirrorCopy.baseLines`,
 `move.targets`, and `mirrorMove.targets`. An inline literal and a named `path[]`

@@ -15,12 +15,14 @@ import {
   type GeometryArrayMemberResolution,
   type GeometryArraySemanticValue
 } from "./geometryArraySemantics";
+import type { DslArrayMappedValue } from "./geometryArraySemantics";
 import { geometryArrayTypeName, isDslNonArrayValueTypeAssignable, type GeometryArrayType } from "./geometryArrayTypes";
 import { moduleGeometryInterfaceTypeOf, moduleGeometryInterfaceTypeOfElement, type ModuleGeometryInterfaceType } from "./moduleGeometryInterfaces";
 import {
   isDslArrayValueType,
   isDslGeometryValueType,
   isDslScalarValueType,
+  scalarTypeOfDslValueType,
   type DslArrayValueType,
   type DslNonArrayValueType
 } from "./dslValueTypes";
@@ -122,6 +124,7 @@ export const collectionLengthForValueId = (
   const value = analysis.genericValuesByStatementId.get(valueId) ?? analysis.valuesByStatementId.get(valueId);
   if (!value?.value) return null;
   if (value.value.kind === "literal") return value.value.members.length;
+  if (value.value.kind === "map") return collectionLengthForValueId(analysis, value.value.sourceValueId, new Set([...seen, valueId]));
   return collectionLengthForValueId(analysis, value.value.targetValueId, new Set([...seen, valueId]));
 };
 
@@ -203,6 +206,14 @@ const moduleOwnerIndexOf = (statements: readonly DslStatement[], statementIndex:
 const offsetExpression = (expression: GeometryArrayExpression, offset: number): GeometryArrayExpression =>
   expression.kind === "reference"
     ? { ...expression, span: { start: expression.span.start + offset, end: expression.span.end + offset } }
+    : expression.kind === "valueFor"
+      ? {
+          ...expression,
+          span: { start: expression.span.start + offset, end: expression.span.end + offset },
+          binderSpan: { start: expression.binderSpan.start + offset, end: expression.binderSpan.end + offset },
+          sourceSpan: { start: expression.sourceSpan.start + offset, end: expression.sourceSpan.end + offset },
+          bodySpan: { start: expression.bodySpan.start + offset, end: expression.bodySpan.end + offset }
+        }
     : {
         ...expression,
         span: { start: expression.span.start + offset, end: expression.span.end + offset },
@@ -863,6 +874,61 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
         const target = genericValuesByStatementIndex.get(lookup.declaration.statementIndex);
         if (!target) return { kind: "invalid", diagnostic: { code: "array-reference-not-array", message: `参照先「${sourceText}」はこの collection 型と互換性のある array ではありません。`, span: sourceSpan } };
         return { kind: "resolved", targetValueId: target.statementId, valueType: target.valueType };
+      },
+      resolveValueFor: (valueFor) => {
+        const sourcePath = referencePath(valueFor.sourceText);
+        if (!sourcePath || sourcePath.segments.length === 0) {
+          return { kind: "invalid", diagnostic: { code: "array-value-for-source-invalid", message: "value-for の source には whole-value collection reference が必要です。", span: valueFor.sourceSpan } };
+        }
+        let sourceValueId: string | null = null;
+        let sourceValueType: DslArrayValueType | null = null;
+        if (sourcePath.segments.length === 1 && !sourcePath.absolute) {
+          const parameter = moduleParameterByName(statements, stableStatementIdByIndex, semantic.statementIndex, sourcePath.segments[0]!);
+          if (parameter) {
+            sourceValueType = genericModuleParametersBySlot.get(`${parameter.definitionStatementId}:${parameter.parameterIndex}`)?.valueType ?? null;
+            sourceValueId = sourceValueType ? `${parameter.definitionStatementId}:parameter:${parameter.parameterIndex}` : null;
+          }
+        }
+        const lookup = sourceValueType ? null : input.resolvePath(semantic.statementIndex, sourcePath);
+        if (!sourceValueType && lookup?.kind === "invalidTraversal" && lookup.declaration.kind === "moduleInstance" && sourcePath.segments.length === 2 && lookup.segmentIndex === 1) {
+          const definitionLookup = input.resolvePath(lookup.declaration.statementIndex, parseDslReferenceToken(lookup.declaration.statement.kind === "moduleInstance" ? lookup.declaration.statement.moduleName : ""));
+          if (definitionLookup.kind === "resolved" && definitionLookup.declaration.statement.kind === "moduleDefinition") {
+            const exportedIndex = statements.findIndex((candidate) =>
+              candidate.kind === "typedDeclaration" && candidate.exported && candidate.name === sourcePath.segments[1] &&
+              candidate.enclosing?.statementIndex === definitionLookup.declaration.statementIndex
+            );
+            sourceValueType = exportedIndex >= 0 ? genericValuesByStatementIndex.get(exportedIndex)?.valueType ?? null : null;
+            sourceValueId = geometryArrayDeferredModuleExportId(lookup.declaration.statementId, sourcePath.segments[1]!);
+          }
+        }
+        if (!sourceValueType && lookup?.kind === "resolved") {
+          const target = genericValuesByStatementIndex.get(lookup.declaration.statementIndex);
+          sourceValueType = target?.valueType ?? null;
+          sourceValueId = target?.statementId ?? null;
+        }
+        if (!sourceValueType || !sourceValueId) {
+          const code = lookup?.kind === "forward" ? "array-value-for-source-forward" : "array-value-for-source-invalid";
+          return { kind: "invalid", diagnostic: { code, message: `value-for source「${valueFor.sourceText}」は解決できない collection です。`, span: valueFor.sourceSpan } };
+        }
+        const sourceElementType = scalarTypeOfDslValueType(sourceValueType.elementType);
+        const resultElementType = scalarTypeOfDslValueType(enrichedExpectedType.elementType);
+        if (!sourceElementType || !resultElementType) {
+          return { kind: "invalid", diagnostic: { code: "array-value-for-source-unsupported", message: "この Slice の value-for source/result は scalar または choice collection である必要があります。", span: valueFor.span } };
+        }
+        const mapped: DslArrayMappedValue = {
+          kind: "map",
+          valueType: enrichedExpectedType,
+          sourceValueId,
+          sourceElementType,
+          resultElementType,
+          binderId: `value-for-binder:${semantic.statementId}`,
+          binder: valueFor.binder,
+          binderSpan: valueFor.binderSpan,
+          sourceSpan: valueFor.sourceSpan,
+          bodySpan: valueFor.bodySpan,
+          sourceOrder: semantic.statementIndex
+        };
+        return { kind: "resolved", value: mapped };
       }
     });
     for (const issue of resolved.diagnostics) diagnostics.push(diagnostic(statement, issue.span, issue.code, issue.message, issue.presentation));
