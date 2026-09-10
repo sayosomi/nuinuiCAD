@@ -196,7 +196,7 @@ const evaluateGeometryProperty = (
   if (node.type.kind !== "number" && node.type.kind !== "choice") {
     return { status: "error", type: node.type, issueCode: "evaluation-geometry-property-unavailable" };
   }
-  if ((!node.elementId && !node.geometryValueOccurrence) || node.targetSourceOrder === null || !environment.lookupGeometryProperty) {
+  if ((!node.elementId && !node.geometryValueOccurrence && !node.geometryValueBinderId) || node.targetSourceOrder === null || !environment.lookupGeometryProperty) {
     return { status: "error", type: node.type, issueCode: "evaluation-geometry-property-unavailable" };
   }
   const result = environment.lookupGeometryProperty(node);

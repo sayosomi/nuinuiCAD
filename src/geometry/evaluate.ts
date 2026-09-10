@@ -359,7 +359,7 @@ export const evaluateElements = (
   const resolveGeometryTargetForEvaluation = (
     target: Parameters<typeof resolveDocumentGeometryTarget>[1],
     sourceOrder: number
-  ) => {
+  ): ReturnType<typeof resolveDocumentGeometryTarget> => {
     if (target.kind === "geometryValueForBinder" && activeGeometryMapBinder) {
       const source = activeGeometryMapBinder;
       if (source.kind === "drawable") {
@@ -381,11 +381,14 @@ export const evaluateElements = (
           ...(source.pointKey ? { pointKey: source.pointKey } : {})
         }, sourceOrder);
       }
+      if (source.kind === "coordinate" && typeof source.anchor.x === "number" && typeof source.anchor.y === "number") {
+        return { kind: "point" as const, x: source.anchor.x, y: source.anchor.y };
+      }
       return undefined;
     }
     return resolveDocumentGeometryTarget(geometryRuntime, target, sourceOrder);
   };
-  const resolveGeometryPropertyForEvaluation = (reference: Parameters<typeof resolveDocumentGeometryProperty>[1], sourceOrder: number) => {
+  const resolveGeometryPropertyForEvaluation = (reference: Parameters<typeof resolveDocumentGeometryProperty>[1], sourceOrder: number): ScalarEvaluation => {
     if (reference.geometryValueBinderId && activeGeometryMapBinder) {
       const source = activeGeometryMapBinder;
       const rest = { ...reference, geometryValueBinderId: undefined };
@@ -394,6 +397,13 @@ export const evaluateElements = (
       }
       if (source.kind === "geometryValue") {
         return resolveDocumentGeometryProperty(geometryRuntime, { ...rest, elementId: null, geometryValueOccurrence: source.occurrence }, sourceOrder);
+      }
+      const referenceType = reference.type;
+      if (source.kind === "coordinate" && referenceType?.kind === "number" && (reference.property === "x" || reference.property === "y")) {
+        const value = source.anchor[reference.property];
+        return typeof value === "number"
+          ? { status: "ok" as const, type: referenceType, value: { kind: "number" as const, value } }
+          : { status: "error" as const, type: referenceType, issueCode: "evaluation-geometry-property-unavailable" };
       }
     }
     return resolveDocumentGeometryProperty(geometryRuntime, reference, sourceOrder);

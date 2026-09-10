@@ -1989,6 +1989,94 @@ describe("module scalar runtime integration", () => {
     expect(new Set(compiled.geometryValueProgram?.filter((entry) => entry.lazy).map((entry) => JSON.stringify(entry.occurrence))).size).toBe(2);
   });
 
+  it("maps coordinate point members through direct binders without drawable identity", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "const points: point[] = [(1, 2), (3, 4)]",
+      "const mapped: point[] = for item in @points { @item }",
+      "line Selected = segment(start: @mapped[0], end: @mapped[1])"
+    ].join("\n"), "geometry-value-for-coordinate-runtime");
+    expectValid(compiled);
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometry.get(elementNamed(compiled, "Selected").id)).toMatchObject({
+      kind: "line",
+      start: { x: 1, y: 2 },
+      end: { x: 3, y: 4 }
+    });
+    const lazyOccurrences = compiled.geometryValueProgram?.filter((entry) => entry.lazy) ?? [];
+    expect(lazyOccurrences.map((entry) => entry.occurrence.mappedMemberIndex)).toEqual([0, 1]);
+    expect(lazyOccurrences.every((entry) => !Object.hasOwn(entry.occurrence, "elementId"))).toBe(true);
+  });
+
+  it("resolves coordinate point properties inside an existing pure geometry construction", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "const points: point[] = [(1, 2), (3, 4)]",
+      "const mapped: point[] = for item in @points { coordinate(x: @item.x + 10, y: @item.y - 1) }",
+      "line Selected = segment(start: @mapped[0], end: @mapped[1])"
+    ].join("\n"), "geometry-value-for-coordinate-property-runtime");
+    expectValid(compiled);
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometry.get(elementNamed(compiled, "Selected").id)).toMatchObject({
+      kind: "line",
+      start: { x: 11, y: 1 },
+      end: { x: 13, y: 3 }
+    });
+  });
+
+  it("reuses pure geometry if and match expressions inside coordinate value-for bodies", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "const points: point[] = [(1, 2), (3, 4)]",
+      "const enabled: boolean = true",
+      "const side: choice(left, right) = left",
+      "const mappedIf: point[] = for item in @points { if (@enabled) { @item } else { coordinate(x: @item.x, y: @item.y) } }",
+      "const mappedMatch: point[] = for item in @points { match @side { left => @item right => coordinate(x: @item.x, y: @item.y) } }",
+      "line Selected = segment(start: @mappedIf[0], end: @mappedMatch[1])"
+    ].join("\n"), "geometry-value-for-control-flow-runtime");
+    expectValid(compiled);
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometry.get(elementNamed(compiled, "Selected").id)).toMatchObject({
+      kind: "line",
+      start: { x: 1, y: 2 },
+      end: { x: 3, y: 4 }
+    });
+  });
+
+  it("remaps exported geometry value-for collections independently per Module instance", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "module MapPoints(input: point[]) {",
+      "  export const mapped: point[] = for item in @input { coordinate(x: @item.x + 1, y: @item.y) }",
+      "}",
+      "const first: point[] = [(1, 2), (3, 4)]",
+      "const second: point[] = [(10, 20), (30, 40)]",
+      "instance A = MapPoints(input: @first)",
+      "instance B = MapPoints(input: @second)",
+      "line UseA = segment(start: @A::mapped[0], end: @A::mapped[1])",
+      "line UseB = segment(start: @B::mapped[0], end: @B::mapped[1])"
+    ].join("\n"), "geometry-value-for-module-runtime");
+    expectValid(compiled);
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometry.get(elementNamed(compiled, "UseA").id)).toMatchObject({
+      kind: "line",
+      start: { x: 2, y: 2 },
+      end: { x: 4, y: 4 }
+    });
+    expect(result.computedGeometry.get(elementNamed(compiled, "UseB").id)).toMatchObject({
+      kind: "line",
+      start: { x: 11, y: 20 },
+      end: { x: 31, y: 40 }
+    });
+    const mappedOccurrences = [...(result.computedGeometryValues?.values() ?? [])]
+      .filter((entry) => entry.occurrence.mappedMemberIndex !== undefined);
+    expect(new Set(mappedOccurrences.map((entry) => entry.occurrence.instancePath.join("/"))).size).toBe(2);
+  });
+
   it("preserves line[] and path[] value-for interfaces through line consumers", () => {
     const compiled = compileWithIds([
       "nui 1",

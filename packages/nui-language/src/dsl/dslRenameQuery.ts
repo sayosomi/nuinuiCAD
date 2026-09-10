@@ -549,9 +549,11 @@ const projectValueForBinderRenameEdits = (
   if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(normalizedName)) {
     return { ok: false, rejection: { reason: "invalid-name", message: "value-for binder は有効な識別子である必要があります。" } };
   }
-  const value = compiled.sourceLexicalNamespace?.geometryArraySemanticAnalysis?.genericValues.find(
-    (candidate) => candidate.value?.kind === "map" && candidate.value.binderId === bindingId
-  );
+  const collectionAnalysis = compiled.sourceLexicalNamespace?.geometryArraySemanticAnalysis;
+  const value = [
+    ...(collectionAnalysis?.genericValues ?? []),
+    ...(collectionAnalysis?.values ?? [])
+  ].find((candidate) => candidate.value?.kind === "map" && candidate.value.binderId === bindingId);
   if (!value || value.value?.kind !== "map" || !compiled.statementMap) {
     return { ok: false, rejection: unavailableRenameRejection() };
   }
@@ -596,7 +598,10 @@ const projectValueForBinderRenameEdits = (
     !after.document ||
     !after.statementMap ||
     !after.sourceLexicalNamespace ||
-    !after.sourceLexicalNamespace.geometryArraySemanticAnalysis?.genericValues.some(
+    ![
+      ...(after.sourceLexicalNamespace.geometryArraySemanticAnalysis?.genericValues ?? []),
+      ...(after.sourceLexicalNamespace.geometryArraySemanticAnalysis?.values ?? [])
+    ].some(
       (candidate) => candidate.value?.kind === "map" && candidate.value.binderId === bindingId && candidate.value.binder === normalizedName
     ) ||
     !mapsMatch(compiled.statementMap.statementIdByStatementIndex!, after.statementMap.statementIdByStatementIndex!)
@@ -666,7 +671,7 @@ export const planDslRenameEditsResult = (
   let edits: readonly DslRenameEdit[];
   const identity = selected.candidate.identity;
   if (identity.kind === "typed") {
-    const valueForBinder = identity.bindingId.startsWith("value-for-binder:");
+    const valueForBinder = identity.bindingId.startsWith("value-for-binder:") || identity.bindingId.startsWith("geometry-value-for-binder:");
     if (valueForBinder) {
       const projected = projectValueForBinderRenameEdits(exact.source.normalizedSource, exact.compiled, identity.bindingId, newName);
       if (!projected.ok) return { status: "rejected", rejection: projected.rejection };

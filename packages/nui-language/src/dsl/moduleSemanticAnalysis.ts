@@ -453,6 +453,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
   const definitionStates: DefinitionState[] = [];
   const stateByIndex = new Map<number, DefinitionState>();
   const geometryValuesByStatementIndex = new Map<number, ModuleGeometryValueSemantic>();
+  const instances: ModuleInstanceSemantic[] = [];
   const definitions = statements
     .map((statement, statementIndex) => ({ statement, statementIndex }))
     .filter((entry): entry is { statement: Extract<DslStatement, { kind: "moduleDefinition" }>; statementIndex: number } => entry.statement.kind === "moduleDefinition");
@@ -650,6 +651,38 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     }
     return { callee: null, externalTarget: null, lookup };
   };
+
+  // Body semantic analysis needs instance -> callee identity to resolve
+  // qualified exports, while full argument analysis waits for branch facts.
+  // Seed the existing instance collection with those identities first; the
+  // complete pass below replaces these shells with normalized bindings.
+  for (const [statementIndex, statement] of statements.entries()) {
+    if (statement.kind !== "moduleInstance") continue;
+    const ownerIndex = moduleOwnerIndexOf(statements, statementIndex);
+    const resolved = resolveModuleCallee(statementIndex, ownerIndex, statement.moduleName);
+    const { callee } = resolved;
+    const lookup = resolved.lookup;
+    const calleeResolution: ModuleInstanceSemantic["calleeResolution"] = callee
+      ? "resolved"
+      : lookup.kind === "external" && (lookup.member.value as { family?: unknown }).family !== "module"
+        ? "notModule"
+      : lookup.kind === "forward"
+        ? "forward"
+        : lookup.kind === "ambiguous"
+          ? "ambiguous"
+      : lookup.kind === "parameter" || lookup.kind === "iteration" || lookup.kind === "resolved"
+        ? "notModule"
+        : "undefined";
+    instances.push({
+      statementId: statementIdAt(stableStatementIdByIndex, statementIndex),
+      statementIndex,
+      name: statement.name,
+      callerModuleDefinitionStatementId: ownerIndex === null ? null : stateByIndex.get(ownerIndex)?.statementId ?? null,
+      callee,
+      calleeResolution,
+      parameterBindings: []
+    });
+  }
 
   const relatedForLookup = (
     lookup: ModuleLexicalLookup | ReturnType<typeof resolveModuleLexicalPath>,
@@ -4285,39 +4318,6 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       valueType
     };
   };
-  const instances: ModuleInstanceSemantic[] = [];
-  // Body semantic analysis needs instance -> callee identity to resolve
-  // qualified exports, while full argument analysis waits for branch facts.
-  // Seed the existing instance collection with those identities first; the
-  // complete pass below replaces these shells with normalized bindings.
-  for (const [statementIndex, statement] of statements.entries()) {
-    if (statement.kind !== "moduleInstance") continue;
-    const ownerIndex = moduleOwnerIndexOf(statements, statementIndex);
-    const resolved = resolveModuleCallee(statementIndex, ownerIndex, statement.moduleName);
-    const { callee } = resolved;
-    const lookup = resolved.lookup;
-    const calleeResolution: ModuleInstanceSemantic["calleeResolution"] = callee
-      ? "resolved"
-      : lookup.kind === "external" && (lookup.member.value as { family?: unknown }).family !== "module"
-        ? "notModule"
-      : lookup.kind === "forward"
-        ? "forward"
-        : lookup.kind === "ambiguous"
-          ? "ambiguous"
-      : lookup.kind === "parameter" || lookup.kind === "iteration" || lookup.kind === "resolved"
-        ? "notModule"
-        : "undefined";
-    instances.push({
-      statementId: statementIdAt(stableStatementIdByIndex, statementIndex),
-      statementIndex,
-      name: statement.name,
-      callerModuleDefinitionStatementId: ownerIndex === null ? null : stateByIndex.get(ownerIndex)?.statementId ?? null,
-      callee,
-      calleeResolution,
-      parameterBindings: []
-    });
-  }
-
   const analyzeInstances = () => {
     for (const [statementIndex, statement] of statements.entries()) {
       if (statement.kind !== "moduleInstance") continue;
@@ -4713,7 +4713,10 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           null,
           raw,
           span,
-          expectedInterfaceType
+          expectedInterfaceType,
+          {
+            geometryPropertyResolver: (reference) => resolveGeometryProperty(value.statementIndex, null, reference)
+          }
         ),
         addDiagnostic: (diagnostic) => addLocal(value.statementIndex, diagnostic)
       });
@@ -4885,7 +4888,10 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
             definition.statementIndex,
             raw,
             span,
-            expectedInterfaceType
+            expectedInterfaceType,
+            {
+              geometryPropertyResolver: (reference) => resolveGeometryProperty(value.statementIndex, definition.statementIndex, reference)
+            }
           ),
           addDiagnostic: (diagnostic) => addLocal(value.statementIndex, diagnostic)
         });

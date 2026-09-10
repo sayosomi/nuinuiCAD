@@ -127,6 +127,52 @@ describe("multi-document module runtime", () => {
     });
   });
 
+  it("evaluates imported geometry value-for collections with coordinate members per module instance", async () => {
+    const library = savedSource("map-library", "sha256:map-library", [
+      "nui 1",
+      "export module MapPoints(input: point[]) {",
+      "  export const mapped: point[] = for item in @input { coordinate(x: @item.x + 1, y: @item.y - 1) }",
+      "}"
+    ].join("\n"));
+    const root = rootSource("map-root", [
+      "nui 1",
+      "import \"./map-library.nui\" as lib",
+      "const first: point[] = [(1, 2), (3, 4)]",
+      "const second: point[] = [(10, 20), (30, 40)]",
+      "instance A = lib::MapPoints(input: @first)",
+      "instance B = lib::MapPoints(input: @second)",
+      "line UseA = segment(start: @A::mapped[0], end: @A::mapped[1])",
+      "line UseB = segment(start: @B::mapped[0], end: @B::mapped[1])"
+    ].join("\n"));
+    const { graph, semantics, context, compiled } = await compileImported(
+      root,
+      new Map([[`${root.documentId}|./map-library.nui`, library]])
+    );
+
+    expect(graph.valid).toBe(true);
+    expect(semantics.valid).toBe(true);
+    expect(context.valid).toBe(true);
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(result.geometryValueErrors).toEqual([]);
+    const useA = compiled.document?.elements.find((element) => element.name === "UseA");
+    const useB = compiled.document?.elements.find((element) => element.name === "UseB");
+    expect(useA && result.computedGeometry.get(useA.id)).toMatchObject({
+      kind: "line",
+      start: { x: 2, y: 1 },
+      end: { x: 4, y: 3 }
+    });
+    expect(useB && result.computedGeometry.get(useB.id)).toMatchObject({
+      kind: "line",
+      start: { x: 11, y: 19 },
+      end: { x: 31, y: 39 }
+    });
+    const mappedValues = [...(result.computedGeometryValues?.values() ?? [])].filter((entry) => entry.occurrence.instancePath.length === 1);
+    expect(mappedValues).toHaveLength(4);
+    expect(new Set(mappedValues.map((entry) => entry.occurrence.instancePath.join("/"))).size).toBe(2);
+  });
+
   it("materializes imported bodies with caller values and defining-document defaults", async () => {
     const library = savedSource("library", "sha256:library", [
       "nui 1",

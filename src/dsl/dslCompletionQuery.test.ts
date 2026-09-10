@@ -75,6 +75,25 @@ describe("queryDslCompletion", () => {
     expect(outside?.candidates.some((candidate) => candidate.label === "item") ?? false).toBe(false);
   });
 
+  it("exposes a geometry value-for binder only inside its mapped body", () => {
+    const source = [
+      "nui 1",
+      "const points: point[] = [(1, 2), (3, 4)]",
+      "const mapped: point[] = for item in @points { @item }"
+    ].join("\n");
+    const inside = exactQuery(source, "@item", 1);
+    expect(inside?.candidates).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        kind: "binding",
+        label: "item",
+        identity: "geometry-value-for-binder:completion-test:2",
+        detail: "value-for binder: point"
+      })
+    ]));
+    const outside = exactQuery(source, "@points", 1);
+    expect(outside?.candidates.some((candidate) => candidate.label === "item") ?? false).toBe(false);
+  });
+
   it("completes the next argument name after a comma in an incomplete call", () => {
     const source = [
       "nui 1",

@@ -20,6 +20,8 @@ import type {
   RecordFieldIdentity
 } from "./recordSemanticAnalysis";
 import type {
+  ModuleGeometryReferenceSemantic,
+  ModuleGeometryValueExpressionSemantic,
   ModuleRecordReferenceSemantic,
   ModuleRecordSourceTarget,
   ModuleScalarExpressionSemantic,
@@ -645,6 +647,58 @@ const geometryArrayParameterIdentity = (
   }
 });
 
+type ModuleGeometryOccurrenceInput = {
+  span?: { start: number; end: number };
+  nameSpan?: { start: number; end: number };
+  elementNameSpan?: { start: number; end: number };
+  propertySpan?: { start: number; end: number };
+  target: unknown;
+};
+
+const addModuleGeometryValueExpressionOccurrences = (
+  expression: ModuleGeometryValueExpressionSemantic,
+  addGeometry: (reference: ModuleGeometryOccurrenceInput) => void
+) => {
+  const addScalar = (scalar: ModuleScalarExpressionSemantic | null) => {
+    for (const property of scalar?.geometryProperties ?? []) addGeometry(property);
+  };
+  const visitConstruction = (value: unknown): void => {
+    if (value === null || typeof value !== "object") return;
+    if (Array.isArray(value)) {
+      for (const child of value) visitConstruction(child);
+      return;
+    }
+    if ("expectedGeometryKind" in value && "resolution" in value && "span" in value) {
+      addGeometry(value as ModuleGeometryReferenceSemantic);
+      return;
+    }
+    if ("ast" in value && "geometryProperties" in value) {
+      addScalar(value as ModuleScalarExpressionSemantic);
+      return;
+    }
+    for (const child of Object.values(value)) visitConstruction(child);
+  };
+  const visit = (current: ModuleGeometryValueExpressionSemantic): void => {
+    if (current.kind === "reference") {
+      addGeometry(current.reference);
+      return;
+    }
+    if (current.kind === "construction") {
+      visitConstruction(current.construction);
+      return;
+    }
+    if (current.kind === "if") {
+      addScalar(current.condition);
+      if (current.thenBranch) visit(current.thenBranch);
+      if (current.elseBranch) visit(current.elseBranch);
+      return;
+    }
+    addScalar(current.scrutinee);
+    for (const arm of current.arms) if (arm.expression) visit(arm.expression);
+  };
+  visit(expression);
+};
+
 const addGeometryArrayOccurrences = (compiled: CompiledDslDocument, add: AddOccurrence) => {
   const analysis = compiled.sourceLexicalNamespace?.geometryArraySemanticAnalysis;
   if (!analysis) return;
@@ -746,7 +800,47 @@ const addGeometryArrayOccurrences = (compiled: CompiledDslDocument, add: AddOccu
 
     if (value.value.kind === "map") {
       const sourceValue = analysis.valuesByStatementId.get(value.value.sourceValueId);
-      if (sourceValue) addReference(value.statementIndex, value.value.sourceSpan, geometryArrayValueIdentity(compiled, sourceValue.statementId));
+      if (sourceValue) {
+        addReference(value.statementIndex, value.value.sourceSpan, geometryArrayValueIdentity(compiled, sourceValue.statementId));
+      } else {
+        const parameter = parameterForValueId(value.value.sourceValueId);
+        if (parameter) {
+          addReference(
+            value.statementIndex,
+            value.value.sourceSpan,
+            geometryArrayParameterIdentity(parameter.definitionStatementId, parameter.parameterIndex),
+            true
+          );
+        } else {
+          const deferred = parseGeometryArrayDeferredModuleExportId(value.value.sourceValueId);
+          if (deferred) addDeferredExportReference(value.statementIndex, value.value.sourceSpan, deferred.instanceStatementId, deferred.exportName);
+        }
+      }
+      const binderIdentity: DslSemanticIdentity = { kind: "typed", bindingId: value.value.binderId };
+      addPhysicalOccurrence(add, compiled, value.statementIndex, value.value.binderSpan, binderIdentity, "declaration");
+      if (value.value.body) {
+        addModuleGeometryValueExpressionOccurrences(value.value.body, (reference) => {
+          const target = reference.target as ModuleSourceTarget | null;
+          if (target?.kind === "geometryValueForBinder") {
+            const nameSpan = reference.nameSpan ?? reference.elementNameSpan;
+            if (!nameSpan) return;
+            const physical = physicalRange(compiled, value.statementIndex, nameSpan);
+            if (!physical) return;
+            const from = compiled.spans.sourceMap.source[physical.from] === "@" ? physical.from + 1 : physical.from;
+            add("reference", from, physical.to, binderIdentity);
+            return;
+          }
+          const nameSpan = reference.nameSpan ?? reference.elementNameSpan;
+          if (!nameSpan || !target || !reference.span) return;
+          if (target.kind === "sourceGeometry" || target.kind === "geometryValue") {
+            addReference(value.statementIndex, reference.span, geometryArrayValueIdentity(compiled, target.statementId));
+            return;
+          }
+          if (target.kind === "sourceGeometryProperty" || target.kind === "geometryValueProperty") {
+            addQualifiedPathOccurrences(compiled, add, value.statementIndex, nameSpan, geometryArrayValueIdentity(compiled, target.statementId));
+          }
+        });
+      }
       continue;
     }
     const targetValue = analysis.valuesByStatementId.get(value.value.targetValueId);
@@ -829,6 +923,13 @@ const addModuleSemanticPathOccurrences = (compiled: CompiledDslDocument, add: Ad
           target: { kind: "moduleSource", statementId: target.exportedStatementId }
         });
       }
+      return;
+    }
+    if (target.kind === "geometryValueForBinder") {
+      const physical = physicalRange(compiled, statementIndex, nameSpan);
+      if (!physical) return;
+      const from = compiled.spans.sourceMap.source[physical.from] === "@" ? physical.from + 1 : physical.from;
+      add("reference", from, physical.to, { kind: "typed", bindingId: target.binderId });
       return;
     }
     let finalTarget: DslSemanticIdentity | null = null;
@@ -920,6 +1021,9 @@ const addModuleSemanticPathOccurrences = (compiled: CompiledDslDocument, add: Ad
         for (const reference of site.expression.references) addCollectionIndexBase(body.statementIndex, reference);
         for (const reference of site.expression.geometryProperties) addGeometry(body.statementIndex, reference);
       }
+    }
+    for (const mapped of definition.mappedGeometryCollectionBodies ?? []) {
+      addModuleGeometryValueExpressionOccurrences(mapped.body, (reference) => addGeometry(mapped.statementIndex, reference));
     }
     for (const recordValue of definition.recordValues) {
       if (recordValue.target && recordValue.value.reference) {

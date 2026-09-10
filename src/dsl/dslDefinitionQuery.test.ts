@@ -60,6 +60,19 @@ describe("queryDslDefinition", () => {
     expect(result!.declarationRange.from).toBe(source.indexOf("item in"));
   });
 
+  it("resolves a geometry value-for property body reference to its immutable binder declaration", () => {
+    const source = [
+      "nui 1",
+      "const points: point[] = [(1, 2), (3, 4)]",
+      "const mapped: point[] = for item in @points { coordinate(x: @item.x, y: @item.y) }"
+    ].join("\n");
+    const result = exactQuery(source, "@item.x", 7, 5);
+    expect(result).not.toBeNull();
+    expect(sourceSlice(source, result!.referenceRange)).toBe("item");
+    expect(sourceSlice(source, result!.declarationRange)).toBe("item");
+    expect(result!.declarationRange.from).toBe(source.indexOf("item in"));
+  });
+
   it("resolves an ordinary qualified scalar export used by a value-for body", () => {
     const source = [
       "nui 1",

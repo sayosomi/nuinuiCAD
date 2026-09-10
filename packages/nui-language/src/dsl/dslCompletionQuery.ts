@@ -631,6 +631,35 @@ const sourceRecordInitializerCandidates = (
   return [...values, ...constructor];
 };
 
+const geometryValueForBinderCandidate = (
+  compiled: CompiledDslDocument | undefined,
+  position: number,
+  statementIndex: number
+): DslCompletionCandidate | null => {
+  if (!compiled || statementIndex < 0) return null;
+  const collectionAnalysis = compiled.sourceLexicalNamespace?.geometryArraySemanticAnalysis;
+  const valueFor = [
+    ...(collectionAnalysis?.genericValues ?? []),
+    ...(collectionAnalysis?.values ?? [])
+  ].find((candidate) => candidate.statementIndex === statementIndex && candidate.value?.kind === "map");
+  const mapValue = valueFor?.value?.kind === "map" ? valueFor.value : null;
+  const valueForBody = mapValue
+    ? exactPhysicalSpan(compiled.spans, compiled.statements[statementIndex]!, mapValue.bodySpan)
+    : null;
+  const insideValueForBody = valueForBody?.segments.some((segment) => position >= segment.from && position <= segment.to) ?? false;
+  if (!insideValueForBody || !mapValue) return null;
+  return {
+    kind: "binding",
+    label: mapValue.binder,
+    identity: mapValue.binderId,
+    detail: typeof mapValue.sourceElementType === "string"
+      ? `value-for binder: ${mapValue.sourceElementType}`
+      : mapValue.sourceElementType.kind === "choice"
+        ? `value-for binder: choice(${mapValue.sourceElementType.options.join(", ")})`
+        : `value-for binder: ${mapValue.sourceElementType.kind}`
+  };
+};
+
 const scalarCandidatesAt = (
   context: Exclude<DslCompletionContext, null>,
   input: LogicalInput,
@@ -655,23 +684,7 @@ const scalarCandidatesAt = (
     const candidates = bindingDeps
       ? scalarExpressionCandidates(positionContext, bindingDeps).map(scalarCandidate)
       : scalarFallbackCandidates(positionContext);
-    const valueFor = compiled?.sourceLexicalNamespace?.geometryArraySemanticAnalysis?.genericValues.find(
-      (candidate) => candidate.statementIndex === statementIndex && candidate.value?.kind === "map"
-    );
-    const valueForBody = valueFor?.value?.kind === "map" && compiled && valueFor.value.body
-      ? exactPhysicalSpan(compiled.spans, compiled.statements[statementIndex]!, valueFor.value.body.span)
-      : null;
-    const insideValueForBody = valueForBody?.segments.some((segment) => position >= segment.from && position <= segment.to) ?? false;
-    const binderCandidate = insideValueForBody && valueFor?.value?.kind === "map"
-      ? {
-          kind: "binding" as const,
-          label: valueFor.value.binder,
-          identity: valueFor.value.binderId,
-          detail: valueFor.value.sourceElementType.kind === "choice"
-            ? `value-for binder: choice(${valueFor.value.sourceElementType.options.join(", ")})`
-            : `value-for binder: ${valueFor.value.sourceElementType.kind}`
-        }
-      : null;
+    const binderCandidate = geometryValueForBinderCandidate(compiled, position, statementIndex);
     const withBinder = binderCandidate && !candidates.some((candidate) => candidate.kind === "binding" && candidate.label === binderCandidate.label)
       ? [...candidates, binderCandidate]
       : candidates;
@@ -998,8 +1011,13 @@ const queryCandidates = (
     return moduleCandidates.length > 0 ? moduleCandidates : sourceCandidates;
   }
   if (context.kind === "numericTypeOption") return context.options.map((label) => ({ kind: "argumentName" as const, label, identity: label }));
-  if (context.kind === "moduleCallee" || context.kind === "moduleArgumentLabel" || context.kind === "moduleArgumentValue" || context.kind === "moduleQualifiedMember" || context.kind === "moduleReference" || context.kind === "geometryArrayValue") {
+  if (context.kind === "moduleCallee" || context.kind === "moduleArgumentLabel" || context.kind === "moduleArgumentValue" || context.kind === "moduleQualifiedMember" || context.kind === "moduleReference") {
     return moduleCandidatesAt(context, input, position, semantic, compiled, exact, statementIndex, recovery);
+  }
+  if (context.kind === "geometryArrayValue") {
+    const moduleCandidates = moduleCandidatesAt(context, input, position, semantic, compiled, exact, statementIndex, recovery);
+    const binderCandidate = geometryValueForBinderCandidate(compiled, position, statementIndex);
+    return binderCandidate ? [...moduleCandidates, binderCandidate] : moduleCandidates;
   }
   if (context.kind === "elementParameter") {
     if (!compiled || !exact) return [];

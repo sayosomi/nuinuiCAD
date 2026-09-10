@@ -73,6 +73,20 @@ describe("queryDslReferences", () => {
     expect(slices(source, result!.referenceRanges)).toEqual(["item"]);
   });
 
+  it("keeps geometry value-for property references local to the mapped body", () => {
+    const source = [
+      "nui 1",
+      "point item = coordinate(x: 9, y: 9)",
+      "const points: point[] = [(1, 2), (3, 4)]",
+      "const mapped: point[] = for item in @points { coordinate(x: @item.x, y: @item.y) }"
+    ].join("\n");
+    const result = queryAt(source, "@item");
+    expect(result).not.toBeNull();
+    expect(slices(source, result!.declarationRange)).toEqual(["item"]);
+    expect(slices(source, result!.referenceRanges)).toEqual(["item", "item"]);
+    expect(result!.declarationRange.from).toBe(source.indexOf("for item") + "for ".length);
+  });
+
   it("keeps an ordinary qualified scalar export identity separate from the value-for binder", () => {
     const source = [
       "nui 1",
