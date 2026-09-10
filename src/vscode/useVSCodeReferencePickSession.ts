@@ -18,7 +18,9 @@ import {
 } from "./referencePickCanvasSession";
 import type {
   ExtensionToVscodeMessage,
-  VscodeWebviewApi
+  VscodeToExtensionMessage,
+  VscodeWebviewApi,
+  VscodeReferencePickDiagnosticEvent
 } from "./protocol";
 
 export type VscodeReferencePickCurrentContext = {
@@ -38,6 +40,13 @@ export type VscodeReferencePickAuthority = {
 export type VscodeReferencePickAuthorityFor = (
   expectedDocumentVersion: number
 ) => VscodeReferencePickAuthority | null;
+
+const referencePickDiagnosticMessageFor = (
+  event: VscodeReferencePickDiagnosticEvent
+): Extract<VscodeToExtensionMessage, { type: "referencePickDiagnostic" }> => ({
+  type: "referencePickDiagnostic",
+  ...event
+});
 
 type ReferencePickStartRequest = Extract<
   ExtensionToVscodeMessage,
@@ -74,6 +83,10 @@ export const useVSCodeReferencePickSession = ({
     setSession(next);
   }, []);
 
+  const emitDiagnostic = useCallback((event: VscodeReferencePickDiagnosticEvent): void => {
+    api?.postMessage(referencePickDiagnosticMessageFor(event));
+  }, [api]);
+
   const postStale = useCallback((message: ReferencePickStartRequest) => {
     api?.postMessage({
       type: "referencePickResult",
@@ -90,6 +103,15 @@ export const useVSCodeReferencePickSession = ({
     const authoritative = currentReferencePickAuthorityFor(message.documentVersion);
     const current = currentContextFor();
     if (!authoritative) {
+      emitDiagnostic({
+        requestId: message.requestId,
+        documentUri: message.documentUri,
+        documentVersion: message.documentVersion,
+        stage: "authority",
+        outcome: "stale",
+        reason: "authority-missing-or-stale",
+        details: { authorityPresent: false }
+      });
       pendingStartRequestRef.current = null;
       postStale(message);
       return;
@@ -99,20 +121,58 @@ export const useVSCodeReferencePickSession = ({
     // window; an absent context is not evidence that the Source request is
     // stale. Once a context exists, it must still prove the exact authority.
     if (!current) {
+      emitDiagnostic({
+        requestId: message.requestId,
+        documentUri: message.documentUri,
+        documentVersion: message.documentVersion,
+        stage: "context",
+        outcome: "deferred",
+        reason: "current-source-context-missing"
+      });
       pendingStartRequestRef.current = message;
       return;
     }
     if (!contextMatchesAuthority(message, authoritative, current)) {
+      emitDiagnostic({
+        requestId: message.requestId,
+        documentUri: message.documentUri,
+        documentVersion: message.documentVersion,
+        stage: "context",
+        outcome: "stale",
+        reason: "authority-context-mismatch",
+        details: {
+          authorityDocumentVersionMatches: authoritative.documentVersion === message.documentVersion,
+          currentSourceMatchesAuthority: current.source.normalizedSource === authoritative.normalizedSource,
+          currentCompiledSourceMatchesAuthority:
+            current.compiled.spans.sourceMap.source === authoritative.normalizedSource
+        }
+      });
       pendingStartRequestRef.current = null;
       postStale(message);
       return;
     }
     if (!current.evaluationIsCurrent && !current.canvasSnapshot) {
+      emitDiagnostic({
+        requestId: message.requestId,
+        documentUri: message.documentUri,
+        documentVersion: message.documentVersion,
+        stage: "evaluation",
+        outcome: "deferred",
+        reason: "evaluation-not-current-and-no-coherent-canvas-snapshot"
+      });
       pendingStartRequestRef.current = message;
       return;
     }
 
     pendingStartRequestRef.current = null;
+    emitDiagnostic({
+      requestId: message.requestId,
+      documentUri: message.documentUri,
+      documentVersion: message.documentVersion,
+      stage: "canvasSessionStart",
+      outcome: "observed",
+      reason: "calling-startVscodeReferencePickCanvasSession"
+    });
     const started = startVscodeReferencePickCanvasSession({
       request: message,
       // The Extension Host routes the request only to the Canvas session
@@ -129,8 +189,9 @@ export const useVSCodeReferencePickSession = ({
       ...(current.canvasSnapshot ? { candidateSnapshot: current.canvasSnapshot } : {})
     });
     api.postMessage(started.result);
+    emitDiagnostic(started.diagnostic);
     replaceSession(started.session);
-  }, [api, currentContextFor, currentReferencePickAuthorityFor, postStale, replaceSession]);
+  }, [api, currentContextFor, currentReferencePickAuthorityFor, emitDiagnostic, postStale, replaceSession]);
 
   useEffect(() => {
     const current = currentContextFor();
@@ -139,6 +200,14 @@ export const useVSCodeReferencePickSession = ({
       ? currentReferencePickAuthorityFor(pending.documentVersion)
       : null;
     if (pending && (!pendingAuthority || (current && !contextMatchesAuthority(pending, pendingAuthority, current)))) {
+      emitDiagnostic({
+        requestId: pending.requestId,
+        documentUri: pending.documentUri,
+        documentVersion: pending.documentVersion,
+        stage: "context",
+        outcome: "stale",
+        reason: pendingAuthority ? "pending-context-became-mismatched" : "pending-authority-became-missing"
+      });
       pendingStartRequestRef.current = null;
     }
 
@@ -147,18 +216,33 @@ export const useVSCodeReferencePickSession = ({
       ? currentReferencePickAuthorityFor(active.request.documentVersion)
       : null;
     if (active && (!activeAuthority || (current && !contextMatchesAuthority(active.request, activeAuthority, current)))) {
+      emitDiagnostic({
+        requestId: active.request.requestId,
+        documentUri: active.request.documentUri,
+        documentVersion: active.request.documentVersion,
+        stage: "context",
+        outcome: "stale",
+        reason: activeAuthority ? "active-context-became-mismatched" : "active-authority-became-missing"
+      });
       replaceSession(null);
     }
 
     const currentPending = pendingStartRequestRef.current;
     if (currentPending) tryStart(currentPending);
-  }, [currentContextFor, currentReferencePickAuthorityFor, replaceSession, tryStart]);
+  }, [currentContextFor, currentReferencePickAuthorityFor, emitDiagnostic, replaceSession, tryStart]);
 
   useEffect(() => {
     const onMessage = (event: MessageEvent<ExtensionToVscodeMessage>) => {
       const message = event.data;
       if (message.type === "referencePickStartRequest") {
         if (!api) return;
+        emitDiagnostic({
+          requestId: message.requestId,
+          documentUri: message.documentUri,
+          documentVersion: message.documentVersion,
+          stage: "referencePickStartRequestReceived",
+          outcome: "received"
+        });
         pendingStartRequestRef.current = null;
         const previous = sessionRef.current;
         if (previous) {
@@ -196,7 +280,7 @@ export const useVSCodeReferencePickSession = ({
 
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [api, replaceSession, tryStart]);
+  }, [api, emitDiagnostic, replaceSession, tryStart]);
 
   const setHover = useCallback((hover: ReferencePickHover | null) => {
     const current = sessionRef.current;

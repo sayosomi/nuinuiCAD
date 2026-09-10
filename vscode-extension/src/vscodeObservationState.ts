@@ -3,6 +3,7 @@ import type {
   VscodeCanvasObservationSnapshot,
   VscodeWebviewSurfaceKind
 } from "../../src/vscode/protocol";
+import type { VscodeReferencePickDiagnosticTraceEntry } from "./referencePickDiagnosticTrace";
 
 export type VscodeObservationActiveSurface = "source" | "canvas" | "outputPreview" | "none";
 
@@ -27,6 +28,7 @@ export type VscodeObservationHostDocument = {
   activeSurface: VscodeObservationActiveSurface;
   sourceSelection: VscodeObservationSelection | null;
   diagnostics: readonly CompilerDiagnostic[];
+  referencePickDiagnosticTrace: readonly VscodeReferencePickDiagnosticTraceEntry[];
   canvasSessionPresent: boolean;
   outputPreviewSessionPresent: boolean;
 };
@@ -111,6 +113,7 @@ export class VscodeObservationState {
       return {
         ...document,
         diagnostics: [...document.diagnostics],
+        referencePickDiagnosticTrace: [...document.referencePickDiagnosticTrace],
         canvas: runtime?.documentVersion === document.documentVersion ? runtime : null
       };
     });

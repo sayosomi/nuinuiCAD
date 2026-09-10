@@ -855,9 +855,11 @@ describe("registerVscodeReferencePickFeature", () => {
     }));
     const bridge = createBridge();
     mocks.bridgeFactory.mockReturnValue(bridge);
+    const diagnostics: Array<{ stage: string; outcome: string; reason?: string }> = [];
     const feature = registerVscodeReferencePickFeature({
       languageAnalysisSessionFor: () => languageSession,
-      ensureCanvas: ensureCanvas as never
+      ensureCanvas: ensureCanvas as never,
+      diagnosticSink: (event) => diagnostics.push(event)
     });
 
     const command = mocks.commands.get(VSCODE_REFERENCE_PICK_COMMAND_ID);
@@ -873,6 +875,11 @@ describe("registerVscodeReferencePickFeature", () => {
     }));
     expect(panel.reveal).toHaveBeenCalledWith(2, true);
     expect(mocks.bridgeFactory).not.toHaveBeenCalled();
+    expect(diagnostics).toContainEqual(expect.objectContaining({
+      stage: "endpointReadiness",
+      outcome: "deferred",
+      reason: "endpoint-not-authoritative-ready"
+    }));
 
     ready = true;
     for (const listener of [...webviewListeners]) {
@@ -883,6 +890,10 @@ describe("registerVscodeReferencePickFeature", () => {
       initialDraftReferences: [{ base: "A" }]
     }));
     expect(bridge.start).toHaveBeenCalledTimes(1);
+    expect(diagnostics).toContainEqual(expect.objectContaining({
+      stage: "bridgeStart",
+      outcome: "posted"
+    }));
 
     for (const listener of [...webviewListeners]) {
       listener({ type: "referencePickResult", status: "started" });
@@ -950,6 +961,44 @@ describe("registerVscodeReferencePickFeature", () => {
     }
     expect(mocks.bridgeFactory).toHaveBeenCalledTimes(1);
 
+    feature.dispose();
+  });
+
+  it("records a Webview stale result before clearing the active Pick", async () => {
+    const editor = createEditor();
+    mocks.activeTextEditor = editor;
+    mocks.showTextDocument.mockResolvedValue(editor);
+    const languageSession = createLanguageAnalysisSession(source);
+    const { panel, webviewListeners } = createPanel();
+    const bridge = createBridge();
+    bridge.handleResult.mockResolvedValue("stale");
+    mocks.bridgeFactory.mockReturnValue(bridge);
+    const diagnostics: Array<{ stage: string; outcome: string; reason?: string }> = [];
+    const feature = registerVscodeReferencePickFeature({
+      languageAnalysisSessionFor: () => languageSession,
+      ensureCanvas: () => ({
+        document: editor.document,
+        panel,
+        isAuthoritativeReady: () => true
+      }),
+      diagnosticSink: (event) => diagnostics.push(event)
+    });
+
+    await mocks.commands.get(VSCODE_REFERENCE_PICK_COMMAND_ID)?.();
+    webviewListeners[0]?.({ type: "referencePickResult", status: "stale" });
+    await flush();
+
+    expect(diagnostics).toContainEqual(expect.objectContaining({
+      stage: "referencePickResultReceived",
+      outcome: "received",
+      details: expect.objectContaining({ status: "stale" })
+    }));
+    expect(diagnostics).toContainEqual(expect.objectContaining({
+      stage: "terminalCleared",
+      outcome: "cleared",
+      reason: "webview-stale"
+    }));
+    expect(webviewListeners).toHaveLength(0);
     feature.dispose();
   });
 

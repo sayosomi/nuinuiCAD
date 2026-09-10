@@ -292,6 +292,32 @@ describe("createVscodeReferencePickSourceBridge", () => {
     });
   });
 
+  it("reports pre-post start failures separately from a successful request post", () => {
+    const diagnostics: Array<{ stage: string; outcome: string; reason?: string }> = [];
+    const { bridge, postMessage } = createBridgeFixture(26);
+    const tracedSource = "nui 1\npoint A = coordinate(x: 0, y: 0)\npoint P = offset(from: @A, dx: 0, dy: 0)";
+    const tracedBridge = createVscodeReferencePickSourceBridge({
+      editor: (createEditor(createDocument(tracedSource)) as never),
+      languageAnalysisSession: createLanguageAnalysisSession(tracedSource),
+      requestId: 27,
+      normalizedSourceOffset: tracedSource.indexOf("@A") + 1,
+      diagnosticSink: (event) => diagnostics.push(event),
+      postMessage
+    });
+
+    expect(tracedBridge.start()).not.toBeNull();
+    expect(tracedBridge.start()).toBeNull();
+    expect(diagnostics.map((event) => event.reason)).toEqual([
+      "reference-pick-start-request-posted",
+      "unfinished-bridge-request"
+    ]);
+    expect(diagnostics[0]).toMatchObject({ stage: "referencePickStartRequestPosted", outcome: "posted" });
+    expect(diagnostics[1]).toMatchObject({ stage: "bridgeStart", outcome: "rejected" });
+    expect(postMessage).toHaveBeenCalledTimes(1);
+    bridge.dispose();
+    tracedBridge.dispose();
+  });
+
   it("accepts a broad own-line proof when the bridge re-queries from the exact value", () => {
     const source = [
       "nui 1",

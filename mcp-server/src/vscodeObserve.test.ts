@@ -142,6 +142,34 @@ describe("vscode_observe", () => {
     expect(sourceRequests).toEqual([false, true]);
   });
 
+  it("projects the retained Reference Pick diagnostic trace", async () => {
+    const descriptorDirectory = temporaryDirectory();
+    const documentPath = join(descriptorDirectory, "trace.nui");
+    await bridgeFor(descriptorDirectory, 3, documentPath, {
+      referencePickDiagnosticTrace: [{
+        sequence: 12,
+        documentUri: `file://${documentPath}`,
+        documentVersion: 3,
+        stage: "canvasSessionStart",
+        outcome: "stale",
+        reason: "candidate-target-reanchor-failed",
+        details: { firstMismatchingPrefixIndex: 0 }
+      }]
+    });
+
+    const result = await observeVscode({}, { descriptorDirectory });
+
+    expect((result.observation as { documents: Array<Record<string, unknown>> }).documents[0])
+      .toMatchObject({
+        referencePickDiagnosticTrace: [{
+          sequence: 12,
+          stage: "canvasSessionStart",
+          outcome: "stale",
+          reason: "candidate-target-reanchor-failed"
+        }]
+      });
+  });
+
   it("projects Canvas runtime selection into the headless stable snapshot identity", async () => {
     const descriptorDirectory = temporaryDirectory();
     const documentPath = join(descriptorDirectory, "selection.nui");

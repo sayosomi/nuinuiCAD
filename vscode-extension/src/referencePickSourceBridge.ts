@@ -8,6 +8,7 @@ import {
   sameReferencePickTargetProof,
   type VscodeReferencePickTargetProof,
   type VscodeReferencePickCancelRequest,
+  type VscodeReferencePickDiagnosticSink,
   type VscodeReferencePickNumericCandidate,
   type VscodeReferencePickNumericPropertyDraft,
   type VscodeReferencePickResult,
@@ -81,6 +82,7 @@ export const createVscodeReferencePickSourceBridge = ({
   initialDraftReferences,
   initialNumericPropertyDraft,
   expectedTargetProof,
+  diagnosticSink,
   postMessage
 }: {
   editor: vscode.TextEditor;
@@ -90,6 +92,7 @@ export const createVscodeReferencePickSourceBridge = ({
   initialDraftReferences?: readonly CanonicalGeometrySourceReference[];
   initialNumericPropertyDraft?: VscodeReferencePickNumericPropertyDraft;
   expectedTargetProof?: VscodeReferencePickTargetProof;
+  diagnosticSink?: VscodeReferencePickDiagnosticSink;
   postMessage: (message: VscodeReferencePickStartRequest | VscodeReferencePickCancelRequest) => unknown;
 }): VscodeReferencePickSourceBridge => {
   const document = editor.document;
@@ -98,6 +101,23 @@ export const createVscodeReferencePickSourceBridge = ({
   let changeDisposable: vscode.Disposable | null = null;
   let closeDisposable: vscode.Disposable | null = null;
   let appliedHandoff: VscodeReferencePickAppliedHandoff | null = null;
+
+  const emitDiagnostic = (
+    stage: "bridgeStart" | "referencePickStartRequestPosted",
+    outcome: "posted" | "rejected",
+    reason: string,
+    details: Record<string, string | number | boolean | null> = {}
+  ): void => {
+    diagnosticSink?.({
+      requestId,
+      documentUri,
+      documentVersion: document.version,
+      stage,
+      outcome,
+      reason,
+      details
+    });
+  };
 
   const disposeListeners = (): void => {
     changeDisposable?.dispose();
@@ -139,8 +159,20 @@ export const createVscodeReferencePickSourceBridge = ({
   };
 
   const start = (): VscodeReferencePickStartRequest | null => {
-    if (state && state.phase !== "finished") return null;
-    if (!isOpenDocument(document) || !Number.isInteger(normalizedSourceOffset)) return null;
+    if (state && state.phase !== "finished") {
+      emitDiagnostic("bridgeStart", "rejected", "unfinished-bridge-request", { phase: state.phase });
+      return null;
+    }
+    if (!isOpenDocument(document)) {
+      emitDiagnostic("bridgeStart", "rejected", "source-document-not-open");
+      return null;
+    }
+    if (!Number.isInteger(normalizedSourceOffset)) {
+      emitDiagnostic("bridgeStart", "rejected", "invalid-normalized-offset", {
+        normalizedSourceOffset: Number.isFinite(normalizedSourceOffset) ? normalizedSourceOffset : null
+      });
+      return null;
+    }
     const rawSource = document.getText();
     if (languageAnalysisSession.getSource() !== rawSource) languageAnalysisSession.replaceSource(rawSource);
     const source = {
@@ -148,11 +180,26 @@ export const createVscodeReferencePickSourceBridge = ({
       sourceRevision: languageAnalysisSession.getSourceRevision()
     };
     const semantic = currentCompiledSemanticSnapshotFor(languageAnalysisSession, source);
-    if (!semantic?.compiled) return null;
+    if (!semantic?.compiled) {
+      emitDiagnostic("bridgeStart", "rejected", "semantic-compile-unavailable");
+      return null;
+    }
     const target = queryDslReferencePickTarget({ source, position: normalizedSourceOffset, semantic });
-    if (!target) return null;
+    if (!target) {
+      emitDiagnostic("bridgeStart", "rejected", "target-cannot-be-re-resolved", {
+        normalizedSourceOffset
+      });
+      return null;
+    }
     const targetProof = referencePickTargetProofFor(source.normalizedSource, target);
-    if (!targetProof || (expectedTargetProof && !sameReferencePickTargetProof(targetProof, expectedTargetProof))) return null;
+    if (!targetProof) {
+      emitDiagnostic("bridgeStart", "rejected", "target-proof-cannot-be-produced");
+      return null;
+    }
+    if (expectedTargetProof && !sameReferencePickTargetProof(targetProof, expectedTargetProof)) {
+      emitDiagnostic("bridgeStart", "rejected", "expected-proof-mismatch");
+      return null;
+    }
 
     const request: VscodeReferencePickStartRequest = {
       type: "referencePickStartRequest",
@@ -172,6 +219,7 @@ export const createVscodeReferencePickSourceBridge = ({
     };
     registerFreshnessListeners();
     postMessage(request);
+    emitDiagnostic("referencePickStartRequestPosted", "posted", "reference-pick-start-request-posted");
     return request;
   };
 

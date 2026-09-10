@@ -79,7 +79,8 @@ import {
   outputPreviewRevealSourceTargetForEditor,
   revealInCanvasSourceTargetForEditor,
   registerVscodeReferencePickFeature,
-  type VscodeReferencePickCanvasEndpoint
+  type VscodeReferencePickCanvasEndpoint,
+  type VscodeReferencePickCanvasReadiness
 } from "./referencePickCommandFeature";
 import { registerVscodeGeometryReferenceRetargetFeature } from "./geometryReferenceRetargetCommandFeature";
 import { registerVscodeSourceCreationCommandFeature } from "./sourceCreationCommandFeature";
@@ -143,6 +144,7 @@ import {
 import { registerVscodeObservationFeature } from "./vscodeObservationFeature";
 import { vscodeObservationState } from "./vscodeObservationState";
 import type { VscodeObservationHostDocument } from "./vscodeObservationState";
+import { referencePickDiagnosticTraceStore } from "./referencePickDiagnosticTrace";
 import {
   createCanvasThemeWarningFeature,
   type CanvasThemeWarning
@@ -473,6 +475,7 @@ export const registerModulePreviewBakeFallback = (
 
 export const activate = (context: vscode.ExtensionContext): void => {
   activeCanvasThemeGeneration = 0;
+  referencePickDiagnosticTraceStore.reset();
   const sessions = new VscodeWebviewSessionRegistry<WebviewSession>();
   const languageAnalysisSessions = new Map<string, NuiLanguageAnalysisSession>();
   const compilerDiagnosticCollection = vscode.languages.createDiagnosticCollection("nuinuiCAD");
@@ -971,6 +974,11 @@ export const activate = (context: vscode.ExtensionContext): void => {
   });
 
   const observationHostDocuments = (): VscodeObservationHostDocument[] => {
+    referencePickDiagnosticTraceStore.retainDocuments(new Set(
+      vscode.workspace.textDocuments
+        .filter(isSupportedNuiDocument)
+        .map((document) => documentKey(document))
+    ));
     const activeSourceEditor = activeNuiTextEditorForCommand();
     const activeCanvasSession = activeCanvasSessionForOpenCommand();
     const activeOutputPreviewSession = activeOutputPreviewSessionForOpenCommand();
@@ -1009,6 +1017,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
               }
             : null,
           diagnostics: analysis?.getSource() === sourceText ? analysis.getDiagnostics() : [],
+          referencePickDiagnosticTrace: referencePickDiagnosticTraceStore.traceFor(documentUri),
           canvasSessionPresent: sessions.get(documentUri, "canvas") !== undefined,
           outputPreviewSessionPresent: sessions.get(documentUri, "outputPreview") !== undefined
         } satisfies VscodeObservationHostDocument;
@@ -1038,6 +1047,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
     handleInlineModuleDocumentClose(document);
     handleExtractModuleDocumentClose(document);
     const key = documentKey(document);
+    referencePickDiagnosticTraceStore.clearDocument(key);
     const previousMultiDocumentDiagnostics = multiDocumentDiagnosticsByRoot.get(key);
     const affectedUris = new Set<string>([
       key,
@@ -1738,6 +1748,10 @@ export const activate = (context: vscode.ExtensionContext): void => {
         acceptRuntimeDiagnosticsPublication(session, message);
         return;
       }
+      if (message.type === "referencePickDiagnostic") {
+        referencePickDiagnosticTraceStore.recordMessage(message);
+        return;
+      }
       if (message.type === "canvasThemePublication") {
         canvasThemeWarningFeature.acceptCanvasThemePublication({
           ...message,
@@ -2024,6 +2038,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
 
   const referencePickFeature = registerVscodeReferencePickFeature({
     languageAnalysisSessionFor,
+    diagnosticSink: (event) => referencePickDiagnosticTraceStore.record(event),
     ensureCanvas: (document): VscodeReferencePickCanvasEndpoint | null => {
       const key = documentKey(document);
       let session = sessions.get(key, "canvas");
@@ -2031,15 +2046,24 @@ export const activate = (context: vscode.ExtensionContext): void => {
       if (!session) session = createCanvasPanel(document, true);
       if (!session || !sameDocument(session.document, document)) return null;
       const matchingSession = session;
-      return {
-        document: matchingSession.document,
-        panel: matchingSession.panel,
-        isAuthoritativeReady: () =>
-          canvasHistoryHandoffSession === null &&
+      const readiness = (): VscodeReferencePickCanvasReadiness => ({
+        canvasHistoryHandoffSession: canvasHistoryHandoffSession === null ? "clear" : "not-clear",
+        expectedCanvasSessionRegistered: sessions.get(key, "canvas") === matchingSession,
+        webviewReady: matchingSession.webviewReady,
+        authoritativeDocumentVersion: matchingSession.authoritativeDocumentVersion,
+        currentDocumentVersion: matchingSession.document.version,
+        inFlightCanvasHistory: matchingSession.inFlightCanvasHistory === null ? "absent" : "present",
+        isAuthoritativeReady: canvasHistoryHandoffSession === null &&
           sessions.get(key, "canvas") === matchingSession &&
           matchingSession.webviewReady &&
           matchingSession.authoritativeDocumentVersion === matchingSession.document.version &&
           matchingSession.inFlightCanvasHistory === null
+      });
+      return {
+        document: matchingSession.document,
+        panel: matchingSession.panel,
+        isAuthoritativeReady: () => readiness().isAuthoritativeReady,
+        readiness
       };
     }
   });
@@ -2336,8 +2360,10 @@ export const activate = (context: vscode.ExtensionContext): void => {
     if (lastBakeSurface?.kind === "source" && sameDocument(lastBakeSurface.document, document)) {
       lastBakeSurface = null;
     }
-    observationFeature.removeDocument(documentKey(document));
-    for (const session of sessions.forDocument(documentKey(document))) {
+    const key = documentKey(document);
+    referencePickDiagnosticTraceStore.clearDocument(key);
+    observationFeature.removeDocument(key);
+    for (const session of sessions.forDocument(key)) {
       if (sameDocument(session.document, document)) session.panel.dispose();
     }
   });
@@ -2345,6 +2371,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
     dispose: () => {
       for (const session of [...sessions.values()]) disposeSession(session);
       sessions.clear();
+      referencePickDiagnosticTraceStore.reset();
       sourceBakeRequestsWithStructuredSkips.clear();
       lastBakeSurface = null;
     }
