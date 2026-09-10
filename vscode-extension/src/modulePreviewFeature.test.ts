@@ -1106,6 +1106,81 @@ describe("registerModulePreviewFeature", () => {
     feature.dispose();
   });
 
+  it("rebuilds the exact target after each Webview recreation and fails closed when it disappears", async () => {
+    const source = [
+      "nui 1",
+      "module Pocket() {",
+      "  point P = coordinate(x: 1, y: 0)",
+      "}"
+    ].join("\n");
+    const document = createDocument(source);
+    const panel = createPanel();
+    mocks.createWebviewPanel.mockReturnValue(panel);
+    const analysis = createLanguageAnalysisSession(source);
+    mocks.activeTextEditor = {
+      document,
+      selection: { active: positionAt(source, source.indexOf("point P")) }
+    };
+    const feature = registerModulePreviewFeature({
+      languageAnalysisSessionFor: (() => analysis) as never,
+      canvasThemeGeneration: () => 0,
+      webviewHtml: () => "<html />",
+      canvasRibbons: () => [],
+      updateCanvasRibbonPosition: () => undefined,
+      editCanvasRibbon: () => undefined,
+      evaluateWithRust: async () => ({})
+    });
+    mocks.commandHandlers.get("nuinuiCAD.openModulePreview")!();
+
+    await panel.receive({ type: "webviewReady" });
+    await panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    const initialTarget = {
+      type: "modulePreviewTarget",
+      documentVersion: 1,
+      normalizedSourceOffset: source.indexOf("module Pocket")
+    };
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(initialTarget);
+
+    for (let recreation = 0; recreation < 2; recreation += 1) {
+      panel.webview.postMessage.mockClear();
+      await panel.receive({ type: "webviewReady" });
+      expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
+        type: "modulePreviewTarget"
+      }));
+      expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
+        type: "modulePreviewTargetUnavailable"
+      }));
+
+      await panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+      expect(panel.webview.postMessage).toHaveBeenCalledWith(initialTarget);
+    }
+
+    document.setSource([
+      "nui 1",
+      "point A = coordinate(x: 1, y: 0)"
+    ].join("\n"));
+    for (const listener of mocks.documentChangeListeners) {
+      listener({ document, contentChanges: [{}] });
+    }
+
+    panel.webview.postMessage.mockClear();
+    await panel.receive({ type: "webviewReady" });
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewTargetUnavailable"
+    }));
+    await panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 2 });
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({
+      type: "modulePreviewTargetUnavailable",
+      documentVersion: 2
+    });
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewTarget",
+      documentVersion: 2
+    }));
+
+    feature.dispose();
+  });
+
   it("fails closed when the open target identity disappears instead of rebinding to its ancestor", async () => {
     const source = [
       "nui 1",

@@ -1368,6 +1368,7 @@ export const registerModulePreviewFeature = ({
       }
       if (message.type === "webviewReady") {
         session.webviewReady = true;
+        refreshExistingTarget(session);
         postSessionIdentity(session);
         void panel.webview.postMessage({
           type: "webviewPresentation",

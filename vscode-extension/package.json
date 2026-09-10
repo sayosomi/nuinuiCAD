@@ -638,6 +638,11 @@
       ],
       "editor/context": [
         {
+          "command": "nuinuiCAD.createGeometry",
+          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && !editorReadonly",
+          "group": "2_nuinuiCAD@0"
+        },
+        {
           "command": "nuinuiCAD.revealInCanvas",
           "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.revealInCanvasSourceTarget",
           "group": "2_nuinuiCAD@1"
