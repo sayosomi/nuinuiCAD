@@ -155,6 +155,7 @@ const canonicalCommandShortTitles: Partial<Record<(typeof commandIds)[number], s
   "nuinuiCAD.createFreePointAtPointer": "Create Free Point at Pointer"
 };
 const sourcePaletteWhen = "editorLangId == nui && resourceScheme == file && resourceExtname == .nui";
+const sourceCreationContextWhen = `${sourcePaletteWhen} && !editorReadonly`;
 const canvasRevealContextWhen = `${sourcePaletteWhen} && nuinuiCAD.revealInCanvasSourceTarget`;
 const canvasOpenFallbackContextWhen = `${sourcePaletteWhen} && !nuinuiCAD.revealInCanvasSourceTarget`;
 const outputPreviewRevealContextWhen = `${sourcePaletteWhen} && nuinuiCAD.revealInOutputPreviewSourceTarget`;
@@ -598,6 +599,7 @@ describe("VS Code extension manifest command contributions", () => {
   it("keeps independent Reveal/Open fallback slots in the consolidated Source hierarchy", async () => {
     const manifest = await readManifest();
     expect(manifest.contributes?.menus?.["editor/context"]).toEqual([
+      { command: "nuinuiCAD.createGeometry", when: sourceCreationContextWhen, group: "2_nuinuiCAD@0" },
       { command: "nuinuiCAD.revealInCanvas", when: canvasRevealContextWhen, group: "2_nuinuiCAD@1" },
       { command: "nuinuiCAD.openCanvas", when: canvasOpenFallbackContextWhen, group: "2_nuinuiCAD@1" },
       { command: "nuinuiCAD.revealInOutputPreview", when: outputPreviewRevealContextWhen, group: "2_nuinuiCAD@2" },
@@ -668,6 +670,7 @@ describe("VS Code extension manifest command contributions", () => {
     ]);
     const editorContextCommands = (manifest.contributes?.menus?.["editor/context"] ?? []).map(({ command, submenu }) => command ?? submenu);
     expect(editorContextCommands).toEqual([
+      "nuinuiCAD.createGeometry",
       "nuinuiCAD.revealInCanvas",
       "nuinuiCAD.openCanvas",
       "nuinuiCAD.revealInOutputPreview",
