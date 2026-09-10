@@ -4,6 +4,7 @@ import type {
   RecordFieldIdentity,
   RecordSemanticAnalysis,
   RecordTypeIdentity,
+  RecordValueExpressionSemantic,
   RecordValueIdentity,
   RecordValueSemantic
 } from "../dsl/recordSemanticAnalysis";
@@ -21,6 +22,7 @@ import type {
 } from "./bindingCatalog";
 import type { BindingResolution } from "./bindingResolution";
 import type { ScalarExpressionAst } from "./expressionAst";
+import { parseScalarExpression } from "./expressionParser";
 import type { ScalarExpressionResolvedReference } from "./typedExpressionAst";
 import type { ScalarType } from "./types";
 import { scalarTypeOfDslValueType } from "../dsl/dslValueTypes";
@@ -35,6 +37,30 @@ export type RecordScalarFieldInitializer = {
   raw: string;
   span: DslSpan;
   expectedType: ScalarType;
+  /** Projected scalar AST for a record-valued control-flow initializer. */
+  ast?: ScalarExpressionAst;
+  /** Compiler-only metadata for suppressing repeated diagnostics from the
+   * shared authored record control-flow shell. */
+  recordControlFlowProjection?: RecordScalarControlFlowProjection;
+};
+
+export type RecordScalarControlFlowShell =
+  | {
+      kind: "if";
+      span: DslSpan;
+      conditionSpan: DslSpan;
+    }
+  | {
+      kind: "match";
+      span: DslSpan;
+      scrutineeSpan: DslSpan;
+      caseLabelSpans: readonly DslSpan[];
+    };
+
+export type RecordScalarControlFlowProjection = {
+  recordValueStatementId: RecordValueIdentity;
+  diagnosticOwner: boolean;
+  shells: readonly RecordScalarControlFlowShell[];
 };
 
 export type RecordScalarLoweringPlan = {
@@ -129,6 +155,91 @@ export const recordScalarDeclarationVersionIdFor = (
   ...fieldIdentityTuple(field)
 ])}`;
 
+const syntheticRecordField = (
+  reference: { name: string; span: DslSpan },
+  fieldName: string
+): Extract<ScalarExpressionAst, { kind: "geometryProperty" }> => ({
+  kind: "geometryProperty",
+  span: reference.span,
+  elementNameSpan: reference.span,
+  propertySpan: reference.span,
+  elementName: reference.name,
+  property: fieldName
+});
+
+/** Projects one nominal-record control-flow tree into the scalar expression
+ * owned by a particular field. Whole-record leaves deliberately use the
+ * existing record-property adapter with the authored leaf span; the dotted
+ * name exists only inside the compiler and cannot become a source occurrence. */
+const projectRecordFieldExpression = (
+  expression: RecordValueExpressionSemantic,
+  field: { fieldIndex: number; name: string }
+): ScalarExpressionAst | null => {
+  if (expression.kind === "constructor") {
+    const constructorField = expression.constructor.fields.find((candidate) => candidate.field.fieldIndex === field.fieldIndex);
+    if (!constructorField) return null;
+    return parseScalarExpression(
+      `${" ".repeat(constructorField.valueSpan.start)}${constructorField.value}`,
+      constructorField.valueSpan
+    ).ast;
+  }
+  if (expression.kind === "reference") return syntheticRecordField(expression.reference, field.name);
+  if (expression.kind === "collectionIndex") {
+    return syntheticRecordField({ name: expression.expression.name, span: expression.span }, field.name);
+  }
+  if (expression.kind === "if") {
+    const thenBranch = expression.thenBranch ? projectRecordFieldExpression(expression.thenBranch, field) : null;
+    const elseBranch = expression.elseBranch ? projectRecordFieldExpression(expression.elseBranch, field) : null;
+    return thenBranch && elseBranch
+      ? {
+          kind: "valueIf",
+          span: expression.span,
+          condition: expression.condition,
+          thenBranch,
+          elseBranch
+        }
+      : null;
+  }
+  const scrutinee = expression.scrutinee;
+  const arms = expression.arms.map((arm) => ({
+    label: arm.label,
+    labelSpan: arm.labelSpan,
+    expression: arm.expression ? projectRecordFieldExpression(arm.expression, field) : null
+  }));
+  return arms.every((arm) => arm.expression)
+    ? {
+        kind: "valueMatch",
+        span: expression.span,
+        scrutinee,
+        arms: arms as { label: string; labelSpan: DslSpan; expression: ScalarExpressionAst }[]
+      }
+    : null;
+};
+
+const recordControlFlowShellsFor = (
+  expression: RecordValueExpressionSemantic
+): readonly RecordScalarControlFlowShell[] => {
+  if (expression.kind === "if") {
+    return [
+      { kind: "if", span: expression.span, conditionSpan: expression.condition.span },
+      ...(expression.thenBranch ? recordControlFlowShellsFor(expression.thenBranch) : []),
+      ...(expression.elseBranch ? recordControlFlowShellsFor(expression.elseBranch) : [])
+    ];
+  }
+  if (expression.kind === "match") {
+    return [
+      {
+        kind: "match",
+        span: expression.span,
+        scrutineeSpan: expression.scrutinee.span,
+        caseLabelSpans: expression.arms.map((arm) => arm.labelSpan)
+      },
+      ...expression.arms.flatMap((arm) => arm.expression ? recordControlFlowShellsFor(arm.expression) : [])
+    ];
+  }
+  return [];
+};
+
 export const planRecordScalarLowering = ({
   analysis,
   sourceNamespace,
@@ -153,6 +264,63 @@ export const planRecordScalarLowering = ({
     const scopeId = sourceNamespace.scopeIndex.scopeOfStatement.get(value.statementIndex);
     if (!scopeId || !value.typeIdentity) {
       unresolvedValueStatementIds.push(value.statementId);
+      continue;
+    }
+
+    if (value.valueExpression) {
+      const definition = analysis.definitionsByStatementId.get(value.typeIdentity);
+      if (!definition) {
+        unresolvedValueStatementIds.push(value.statementId);
+        continue;
+      }
+      const fieldBindings = new Map<number, BindingId>();
+      let complete = true;
+      let diagnosticOwnerAssigned = false;
+      for (const field of definition.fields) {
+        const bindingId = recordScalarBindingIdFor(value.statementId, field.identity);
+        fieldBindings.set(field.fieldIndex, bindingId);
+        bindingSeeds.push({
+          id: bindingId,
+          kind: "typed",
+          name: `${value.name}.${field.name}`,
+          nameSpan: null,
+          statementIndex: value.statementIndex,
+          sourceOrder: field.fieldIndex,
+          effectiveScopeId: scopeId,
+          visibility: { kind: "typed", scopeId },
+          mutability: "const",
+          declaredType: scalarTypeOfDslValueType(field.type),
+          declarationVersionId: recordScalarDeclarationVersionIdFor(value.statementId, field.identity),
+          resolutionMode: "preResolvedOnly",
+          catalogOrder: "source"
+        });
+        const ast = projectRecordFieldExpression(value.valueExpression, field);
+        if (!ast) {
+          complete = false;
+          continue;
+        }
+        const diagnosticOwner = !diagnosticOwnerAssigned;
+        diagnosticOwnerAssigned = true;
+        initializers.push({
+          bindingId,
+          recordValueStatementId: value.statementId,
+          field: field.identity,
+          fieldName: field.name,
+          statementIndex: value.statementIndex,
+          sourceOrder: field.fieldIndex,
+          raw: "",
+          span: value.valueExpression.span,
+          expectedType: field.type,
+          ast,
+          recordControlFlowProjection: {
+            recordValueStatementId: value.statementId,
+            diagnosticOwner,
+            shells: recordControlFlowShellsFor(value.valueExpression)
+          }
+        });
+      }
+      if (complete) fieldBindingIdsByValueStatementId.set(value.statementId, fieldBindings);
+      else unresolvedValueStatementIds.push(value.statementId);
       continue;
     }
 

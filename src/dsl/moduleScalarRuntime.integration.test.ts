@@ -800,6 +800,93 @@ describe("module scalar runtime integration", () => {
     ]);
   });
 
+  it("evaluates nominal record if and exhaustive match fields per Module instance", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "record Pair(x: number, label: string)",
+      'const fallback: Pair = Pair(x: 2, label: "fallback")',
+      "module Example(flag: boolean, side: choice(left, right), input: Pair) {",
+      "  const localIf: Pair = if (@flag) {",
+      '    Pair(x: 10, label: "if-left")',
+      "  } else {",
+      "    @input",
+      "  }",
+      "  const localMatch: Pair = match @side {",
+      '    left => Pair(x: 20, label: "match-left")',
+      "    right => @input",
+      "  }",
+      "  const ifValue: number = @localIf.x",
+      "  const matchValue: number = @localMatch.x",
+      "  point IfResult = coordinate(x: @ifValue, y: 0)",
+      "  point MatchResult = coordinate(x: @matchValue, y: 0)",
+      "  export const outputIf: Pair = @localIf",
+      "  export const outputMatch: Pair = @localMatch",
+      "}",
+      "instance A = Example(flag: true, side: left, input: @fallback)",
+      "instance B = Example(flag: false, side: right, input: @fallback)"
+    ].join("\n"), "say301-record-control-flow");
+
+    expectValid(compiled);
+    const definition = compiled.moduleSemanticAnalysis!.definitions.find((candidate) => candidate.name === "Example")!;
+    expect(definition.recordValues.filter((value) => ["localIf", "localMatch"].includes(value.value.name)).map((value) => value.valueExpression?.kind)).toEqual(["if", "match"]);
+    expect(definition.recordValues.filter((value) => ["localIf", "localMatch"].includes(value.value.name)).every((value) => value.fieldExpressions.every((field) => field.expression))).toBe(true);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(compiled.document!.elements.filter((element) => element.name === "IfResult").map((element) =>
+      result.computedGeometry.get(element.id)
+    )).toEqual([
+      expect.objectContaining({ kind: "point", x: 10, y: 0 }),
+      expect.objectContaining({ kind: "point", x: 2, y: 0 })
+    ]);
+    expect(compiled.document!.elements.filter((element) => element.name === "MatchResult").map((element) =>
+      result.computedGeometry.get(element.id)
+    )).toEqual([
+      expect.objectContaining({ kind: "point", x: 20, y: 0 }),
+      expect.objectContaining({ kind: "point", x: 2, y: 0 })
+    ]);
+  });
+
+  it("evaluates root record if and match fields through the shared scalar runtime", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "record Pair(x: number, label: string)",
+      "const flag: boolean = false",
+      "const side: choice(left, right) = right",
+      'const fallback: Pair = Pair(x: 2, label: "fallback")',
+      'const selectedIf: Pair = if (@flag) { Pair(x: 10, label: "if-left") } else { @fallback }',
+      'const selectedMatch: Pair = match @side { left => Pair(x: 20, label: "match-left") right => @fallback }',
+      "const ifValue: number = @selectedIf.x",
+      "const matchValue: number = @selectedMatch.x",
+      "point IfResult = coordinate(x: @ifValue, y: 0)",
+      "point MatchResult = coordinate(x: @matchValue, y: 0)"
+    ].join("\n"), "say301-root-record-control-flow");
+
+    expectValid(compiled);
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometry.get(elementNamed(compiled, "IfResult").id)).toMatchObject({ kind: "point", x: 2, y: 0 });
+    expect(result.computedGeometry.get(elementNamed(compiled, "MatchResult").id)).toMatchObject({ kind: "point", x: 2, y: 0 });
+  });
+
+  it("statically analyzes an unselected record branch without evaluating it", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "record Pair(x: number)",
+      "module Example(flag: boolean) {",
+      "  const local: Pair = if (@flag) { Pair(x: 10) } else { Pair(x: 1 / 0) }",
+      "  const value: number = @local.x",
+      "  point Result = coordinate(x: @value, y: 0)",
+      "}",
+      "instance A = Example(flag: true)"
+    ].join("\n"), "say301-record-unselected");
+
+    expectValid(compiled);
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometry.get(elementNamed(compiled, "Result").id)).toMatchObject({ kind: "point", x: 10, y: 0 });
+  });
+
   it("keeps optional record slots absent and lowers nested/exported record fields to scalars", () => {
     const compiled = compileWithIds([
       "nui 1",
@@ -847,6 +934,64 @@ describe("module scalar runtime integration", () => {
       undefined,
       expect.objectContaining({ kind: "point", x: 8, y: 0 }),
       expect.objectContaining({ kind: "point", x: 7, y: 0 }),
+      expect.objectContaining({ kind: "point", x: 7, y: 0 })
+    ]);
+  });
+
+  it("narrows optional scalar parameters through nested record value-if branches per instance", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "record Pair(x: number)",
+      "module Choose(value?: number) {",
+      "  const selected: Pair = if (hasValue(@value)) {",
+      "    if (@value > 0) { Pair(x: @value) } else { Pair(x: 0) }",
+      "  } else {",
+      "    Pair(x: 0)",
+      "  }",
+      "  const x: number = @selected.x",
+      "  point Result = coordinate(x: @x, y: 0)",
+      "}",
+      "instance Absent = Choose()",
+      "instance Present = Choose(value: 4)",
+      "instance Zero = Choose(value: 0)"
+    ].join("\n"), "say301-record-optional-scalar-if");
+
+    expectValid(compiled);
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(compiled.document!.elements.filter((element) => element.name === "Result").map((element) =>
+      result.computedGeometry.get(element.id)
+    )).toEqual([
+      expect.objectContaining({ kind: "point", x: 0, y: 0 }),
+      expect.objectContaining({ kind: "point", x: 4, y: 0 }),
+      expect.objectContaining({ kind: "point", x: 0, y: 0 })
+    ]);
+  });
+
+  it("narrows an optional record parameter used as a whole-record value-if branch per instance", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "record Pair(x: number)",
+      "module Choose(input?: Pair) {",
+      "  const selected: Pair = if (hasValue(@input)) {",
+      "    @input",
+      "  } else {",
+      "    Pair(x: 0)",
+      "  }",
+      "  const x: number = @selected.x",
+      "  point Result = coordinate(x: @x, y: 0)",
+      "}",
+      "instance Absent = Choose()",
+      "instance Present = Choose(input: Pair(x: 7))"
+    ].join("\n"), "say301-record-optional-record-if");
+
+    expectValid(compiled);
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(compiled.document!.elements.filter((element) => element.name === "Result").map((element) =>
+      result.computedGeometry.get(element.id)
+    )).toEqual([
+      expect.objectContaining({ kind: "point", x: 0, y: 0 }),
       expect.objectContaining({ kind: "point", x: 7, y: 0 })
     ]);
   });

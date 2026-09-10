@@ -409,6 +409,30 @@ describe("queryDslReferences", () => {
     );
   });
 
+  it("indexes record control-flow leaves without exposing projected field bindings", () => {
+    const source = [
+      "nui 1",
+      "record Pair(x: number, label: string)",
+      "const flag: boolean = true",
+      'const fallback: Pair = Pair(x: 2, label: "fallback")',
+      'const selected: Pair = if (@flag) { Pair(x: 10, label: "left") } else { @fallback }',
+      "const value: number = @selected.x"
+    ].join("\n");
+    const compiled = compile(source);
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+
+    const index = createDslSemanticOccurrenceIndex(compiled);
+    const recordValueReference = index.occurrences.find((occurrence) =>
+      occurrence.kind === "reference" && source.slice(occurrence.from, occurrence.to) === "fallback"
+    );
+    expect(recordValueReference?.identity).toEqual({
+      kind: "recordValue",
+      statementId: "references-test:3"
+    });
+    expect(index.occurrences.some((occurrence) => source.slice(occurrence.from, occurrence.to) === "fallback.x")).toBe(false);
+    expect(index.occurrences.some((occurrence) => source.slice(occurrence.from, occurrence.to) === "selected.x")).toBe(false);
+  });
+
   it("keeps qualified export path segments as separate identities", () => {
     const source = [
       "nui 1",
