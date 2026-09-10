@@ -1303,8 +1303,15 @@ export const compileDslDocument = (
   // ordinary element-level diagnostic, the same way an unresolved reference
   // does, instead of discarding the whole document back to its last-good
   // state. Every other error-severity diagnostic - actual syntax errors,
-  // type errors, etc. - keeps making the document fatal.
-  if (baseDiagnostics.some((item) => item.severity === "error" && item.code !== MISSING_ATTRIBUTE_VALUE_CODE)) {
+  // type errors, etc. - keeps making the document fatal. A missing record
+  // constructor field is allowed through this gate so scalar projections can
+  // still report independent control-flow diagnostics; the final diagnostic
+  // gate below still rejects the document.
+  if (baseDiagnostics.some((item) =>
+    item.severity === "error" &&
+    item.code !== MISSING_ATTRIBUTE_VALUE_CODE &&
+    item.code !== "record-constructor-missing-field"
+  )) {
     return {
       document: null,
       majorVersion: versionValidation.majorVersion,
@@ -2260,7 +2267,8 @@ export const compileDslDocument = (
         ...(moduleScalarCompilation?.moduleSetStatements.map((set, index) => [-(index + 1), set] as const) ?? [])
       ])
     : undefined;
-  const bindingVersions = scalarAnalysis && stableStatementIdByIndex && scalarProgram && bindingControlMetadata
+  const bindingVersions = scalarAnalysis && stableStatementIdByIndex && scalarProgram && bindingControlMetadata &&
+    !allDiagnostics.some((diagnostic) => diagnostic.code === "record-constructor-missing-field")
     ? buildBindingVersionGraph({
         scalarProgram,
         bindingAnalysis: scalarAnalysis.bindingAnalysis,

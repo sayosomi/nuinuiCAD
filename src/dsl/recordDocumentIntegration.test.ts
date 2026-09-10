@@ -143,6 +143,17 @@ describe("record source-semantic document integration", () => {
     expect(count("if (true) { match @side { left => Pair(x: 1, label: \"a\") } } else { Pair(x: 2, label: \"b\") }", "missing-match-case", ["const side: choice(left, right) = left"])).toBe(1);
   });
 
+  it("assigns shared-shell ownership to the first projected field", () => {
+    const compiled = compile([
+      "nui 1",
+      "record Pair(x: number, label: string)",
+      'const broken: Pair = if (1) { Pair(label: "left") } else { Pair(x: 2, label: "right") }'
+    ].join("\n"));
+
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.code === "record-constructor-missing-field")).toHaveLength(1);
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.code === "scalar-type-mismatch")).toHaveLength(1);
+  });
+
   it("keeps field-specific errors in projected record branches", () => {
     const compiled = compile([
       "nui 1",

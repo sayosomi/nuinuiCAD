@@ -275,6 +275,7 @@ export const planRecordScalarLowering = ({
       }
       const fieldBindings = new Map<number, BindingId>();
       let complete = true;
+      let diagnosticOwnerAssigned = false;
       for (const field of definition.fields) {
         const bindingId = recordScalarBindingIdFor(value.statementId, field.identity);
         fieldBindings.set(field.fieldIndex, bindingId);
@@ -298,6 +299,8 @@ export const planRecordScalarLowering = ({
           complete = false;
           continue;
         }
+        const diagnosticOwner = !diagnosticOwnerAssigned;
+        diagnosticOwnerAssigned = true;
         initializers.push({
           bindingId,
           recordValueStatementId: value.statementId,
@@ -311,7 +314,7 @@ export const planRecordScalarLowering = ({
           ast,
           recordControlFlowProjection: {
             recordValueStatementId: value.statementId,
-            diagnosticOwner: field.fieldIndex === definition.fields[0]?.fieldIndex,
+            diagnosticOwner,
             shells: recordControlFlowShellsFor(value.valueExpression)
           }
         });
