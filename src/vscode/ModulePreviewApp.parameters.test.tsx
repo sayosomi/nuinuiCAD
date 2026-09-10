@@ -325,6 +325,36 @@ afterEach(() => {
 });
 
 describe("ModulePreviewApp parameter relay", () => {
+  it("publishes the current display state in a valid Module Preview Canvas context", () => {
+    const previousUi = useCadUiStore.getState();
+    try {
+      useCadUiStore.setState({
+        showCanvasPointNames: false,
+        showCanvasGeometryNames: true,
+        showCanvasPoints: false
+      });
+      const fixture = previewFixtureFor([
+        "nui 1",
+        "module Preview() {",
+        "  point P = coordinate(x: 1, y: 2)",
+        "}"
+      ].join("\n"));
+      renderPreviewFixture(fixture);
+
+      const hostAdapter = mocks.hostAdapter as CanvasHostAdapter | null;
+      expect(hostAdapter).not.toBeNull();
+      if (!hostAdapter) throw new Error("expected Module Preview Canvas host");
+      expect(JSON.parse(hostAdapter.canvasContextMenuData!)).toMatchObject({
+        webviewSection: "blank",
+        "nuinuiCAD.showCanvasPointNames": false,
+        "nuinuiCAD.showCanvasGeometryNames": true,
+        "nuinuiCAD.showCanvasPoints": false
+      });
+    } finally {
+      useCadUiStore.setState(previousUi);
+    }
+  });
+
   it("renders the host-published Japanese status without changing Module identity", () => {
     render(<ModulePreviewApp api={{ postMessage: mocks.postMessage }} />);
     act(() => {

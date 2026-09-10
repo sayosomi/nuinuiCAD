@@ -137,6 +137,12 @@ export type VscodeCanvasContextMenuKind = "blank" | "element" | "ribbon";
 
 export type VscodeCanvasPointer = { x: number; y: number };
 
+export type VscodeCanvasDisplayState = {
+  showCanvasPointNames: boolean;
+  showCanvasGeometryNames: boolean;
+  showCanvasPoints: boolean;
+};
+
 export type VscodeBakeSettings = {
   emitSkippedComments: boolean;
   includeHiddenGeometry: boolean;
@@ -171,10 +177,16 @@ export const vscodeCanvasContextDataFor = (
   hasSelection: boolean,
   pointer?: VscodeCanvasPointer,
   canSelectInstance = false,
-  hasCoordinatePointConversionTarget = false
+  hasCoordinatePointConversionTarget = false,
+  displayState?: VscodeCanvasDisplayState
 ): string => vscodeWebviewContextDataFor(kind, {
   "nuinuiCAD.canvasHasSelection": hasSelection,
   "nuinuiCAD.canvasCanSelectInstance": canSelectInstance,
+  ...(displayState ? {
+    "nuinuiCAD.showCanvasPointNames": displayState.showCanvasPointNames,
+    "nuinuiCAD.showCanvasGeometryNames": displayState.showCanvasGeometryNames,
+    "nuinuiCAD.showCanvasPoints": displayState.showCanvasPoints
+  } : {}),
   ...(hasCoordinatePointConversionTarget
     ? { [VSCODE_CANVAS_HAS_COORDINATE_POINT_CONVERSION_TARGET_CONTEXT_KEY]: true }
     : {}),

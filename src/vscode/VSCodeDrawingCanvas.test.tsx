@@ -216,7 +216,40 @@ describe("VSCodeDrawingCanvas adapter", () => {
       webviewSection: kind,
       "nuinuiCAD.canvasHasSelection": hasSelection,
       "nuinuiCAD.canvasCanSelectInstance": false,
+      "nuinuiCAD.showCanvasPointNames": true,
+      "nuinuiCAD.showCanvasGeometryNames": false,
+      "nuinuiCAD.showCanvasPoints": true,
       preventDefaultContextMenuItems: true
+    });
+  });
+
+  it("projects current Canvas display state into initial and refreshed context data", () => {
+    useCadUiStore.setState({
+      showCanvasPointNames: false,
+      showCanvasGeometryNames: true,
+      showCanvasPoints: false
+    });
+    const evaluation = emptyEvaluationResult(useCadDocumentStore.getState().elements);
+    const { adapter } = renderCanvas(evaluation, undefined);
+    const viewport = screen.getByTestId("drawing-canvas");
+    const context = () => JSON.parse(viewport.getAttribute("data-vscode-context")!);
+
+    expect(JSON.parse(adapter.canvasContextMenuData!)).toMatchObject({
+      "nuinuiCAD.showCanvasPointNames": false,
+      "nuinuiCAD.showCanvasGeometryNames": true,
+      "nuinuiCAD.showCanvasPoints": false
+    });
+
+    useCadUiStore.setState({
+      showCanvasPointNames: true,
+      showCanvasGeometryNames: false,
+      showCanvasPoints: true
+    });
+    adapter.publishCanvasContextMenu?.({ kind: "blank" });
+    expect(context()).toMatchObject({
+      "nuinuiCAD.showCanvasPointNames": true,
+      "nuinuiCAD.showCanvasGeometryNames": false,
+      "nuinuiCAD.showCanvasPoints": true
     });
   });
 
