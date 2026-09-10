@@ -39,6 +39,28 @@ export type RecordScalarFieldInitializer = {
   expectedType: ScalarType;
   /** Projected scalar AST for a record-valued control-flow initializer. */
   ast?: ScalarExpressionAst;
+  /** Compiler-only metadata for suppressing repeated diagnostics from the
+   * shared authored record control-flow shell. */
+  recordControlFlowProjection?: RecordScalarControlFlowProjection;
+};
+
+export type RecordScalarControlFlowShell =
+  | {
+      kind: "if";
+      span: DslSpan;
+      conditionSpan: DslSpan;
+    }
+  | {
+      kind: "match";
+      span: DslSpan;
+      scrutineeSpan: DslSpan;
+      caseLabelSpans: readonly DslSpan[];
+    };
+
+export type RecordScalarControlFlowProjection = {
+  recordValueStatementId: RecordValueIdentity;
+  diagnosticOwner: boolean;
+  shells: readonly RecordScalarControlFlowShell[];
 };
 
 export type RecordScalarLoweringPlan = {
@@ -194,6 +216,30 @@ const projectRecordFieldExpression = (
     : null;
 };
 
+const recordControlFlowShellsFor = (
+  expression: RecordValueExpressionSemantic
+): readonly RecordScalarControlFlowShell[] => {
+  if (expression.kind === "if") {
+    return [
+      { kind: "if", span: expression.span, conditionSpan: expression.condition.span },
+      ...(expression.thenBranch ? recordControlFlowShellsFor(expression.thenBranch) : []),
+      ...(expression.elseBranch ? recordControlFlowShellsFor(expression.elseBranch) : [])
+    ];
+  }
+  if (expression.kind === "match") {
+    return [
+      {
+        kind: "match",
+        span: expression.span,
+        scrutineeSpan: expression.scrutinee.span,
+        caseLabelSpans: expression.arms.map((arm) => arm.labelSpan)
+      },
+      ...expression.arms.flatMap((arm) => arm.expression ? recordControlFlowShellsFor(arm.expression) : [])
+    ];
+  }
+  return [];
+};
+
 export const planRecordScalarLowering = ({
   analysis,
   sourceNamespace,
@@ -262,7 +308,12 @@ export const planRecordScalarLowering = ({
           raw: "",
           span: value.valueExpression.span,
           expectedType: field.type,
-          ast
+          ast,
+          recordControlFlowProjection: {
+            recordValueStatementId: value.statementId,
+            diagnosticOwner: field.fieldIndex === definition.fields[0]?.fieldIndex,
+            shells: recordControlFlowShellsFor(value.valueExpression)
+          }
         });
       }
       if (complete) fieldBindingIdsByValueStatementId.set(value.statementId, fieldBindings);

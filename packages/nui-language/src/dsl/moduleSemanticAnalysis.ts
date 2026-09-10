@@ -3870,15 +3870,21 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         (reference) => resolveHasValue(statementIndex, ownerIndex, reference),
         presenceFacts
       );
+      const thenPresenceFacts = new Set(presenceFacts);
+      const elsePresenceFacts = new Set(presenceFacts);
+      if (condition) {
+        for (const fact of presenceFactsForSemanticTruth(condition)) thenPresenceFacts.add(fact);
+        for (const fact of presenceFactsForSemanticFalse(condition)) elsePresenceFacts.add(fact);
+      }
       return {
         kind: "if",
         span: expression.span,
         condition,
         thenBranch: expression.thenBranch
-          ? moduleRecordValueExpressionFor({ statementIndex, ownerIndex, source, expression: expression.thenBranch, expectedTypeIdentity, presenceFacts })
+          ? moduleRecordValueExpressionFor({ statementIndex, ownerIndex, source, expression: expression.thenBranch, expectedTypeIdentity, presenceFacts: thenPresenceFacts })
           : null,
         elseBranch: expression.elseBranch
-          ? moduleRecordValueExpressionFor({ statementIndex, ownerIndex, source, expression: expression.elseBranch, expectedTypeIdentity, presenceFacts })
+          ? moduleRecordValueExpressionFor({ statementIndex, ownerIndex, source, expression: expression.elseBranch, expectedTypeIdentity, presenceFacts: elsePresenceFacts })
           : null
       };
     }

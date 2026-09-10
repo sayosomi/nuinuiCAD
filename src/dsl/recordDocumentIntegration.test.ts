@@ -123,4 +123,33 @@ describe("record source-semantic document integration", () => {
       expect.objectContaining({ code: "record-constructor-invalid" })
     ]));
   });
+
+  it("emits one shared-shell diagnostic per root record control-flow error", () => {
+    const compileRecord = (initializer: string, extra: readonly string[] = []) => compile([
+      "nui 1",
+      "record Pair(x: number, label: string)",
+      ...extra,
+      `const broken: Pair = ${initializer}`
+    ].join("\n"));
+    const count = (initializer: string, code: string, extra: readonly string[] = []) =>
+      compileRecord(initializer, extra).diagnostics.filter((diagnostic) => diagnostic.code === code).length;
+
+    expect(count("if (1) { Pair(x: 1, label: \"a\") } else { Pair(x: 2, label: \"b\") }", "scalar-type-mismatch")).toBe(1);
+    expect(count("match @side { left => Pair(x: 1, label: \"a\") }", "missing-match-case", ["const side: choice(left, right) = left"])).toBe(1);
+    expect(count("match @side { left => Pair(x: 1, label: \"a\") left => Pair(x: 2, label: \"b\") right => Pair(x: 3, label: \"c\") }", "duplicate-match-case", ["const side: choice(left, right) = left"])).toBe(1);
+    expect(count("match @side { left => Pair(x: 1, label: \"a\") right => Pair(x: 2, label: \"b\") other => Pair(x: 3, label: \"c\") }", "impossible-match-case", ["const side: choice(left, right) = left"])).toBe(1);
+    expect(count("match 1 { left => Pair(x: 1, label: \"a\") right => Pair(x: 2, label: \"b\") }", "non-choice-match-scrutinee")).toBe(1);
+    expect(count("if (if (1) { true } else { false }) { Pair(x: 1, label: \"a\") } else { Pair(x: 2, label: \"b\") }", "scalar-type-mismatch")).toBe(1);
+    expect(count("if (true) { match @side { left => Pair(x: 1, label: \"a\") } } else { Pair(x: 2, label: \"b\") }", "missing-match-case", ["const side: choice(left, right) = left"])).toBe(1);
+  });
+
+  it("keeps field-specific errors in projected record branches", () => {
+    const compiled = compile([
+      "nui 1",
+      "record Pair(x: number, label: string)",
+      'const broken: Pair = if (1) { Pair(x: 1, label: 2) } else { Pair(x: 2, label: "fallback") }'
+    ].join("\n"));
+
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.code === "scalar-type-mismatch")).toHaveLength(2);
+  });
 });

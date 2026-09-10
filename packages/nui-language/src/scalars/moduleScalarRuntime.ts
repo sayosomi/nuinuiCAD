@@ -566,10 +566,7 @@ const semanticReferencesUsedByAst = (semantic: ModuleScalarExpressionSemantic, a
   collectCollectionBases(ast);
   return semantic.references.filter((reference) =>
     (!collectionBaseStarts.has(reference.span.start) &&
-      (astReferences.some((astReference) => astReference.span.start === reference.span.start) ||
-        semantic.geometryProperties.some((property) =>
-          property.span.start === reference.span.start && property.target?.kind === "recordField"
-        )))
+      astReferences.some((astReference) => astReference.span.start === reference.span.start))
   );
 };
 
@@ -646,12 +643,14 @@ const materializeHasValueAst = (
       return { ...ast, left, right };
     }
     case "group": return { ...ast, expression: materializeHasValueAst(ast.expression, semantic, hasValueForParameter) };
-    case "valueIf": return {
-      ...ast,
-      condition: materializeHasValueAst(ast.condition, semantic, hasValueForParameter),
-      thenBranch: materializeHasValueAst(ast.thenBranch, semantic, hasValueForParameter),
-      elseBranch: materializeHasValueAst(ast.elseBranch, semantic, hasValueForParameter)
-    };
+    case "valueIf": {
+      const condition = materializeHasValueAst(ast.condition, semantic, hasValueForParameter);
+      const thenBranch = materializeHasValueAst(ast.thenBranch, semantic, hasValueForParameter);
+      const elseBranch = materializeHasValueAst(ast.elseBranch, semantic, hasValueForParameter);
+      return condition.kind === "booleanLiteral"
+        ? condition.value ? thenBranch : elseBranch
+        : { ...ast, condition, thenBranch, elseBranch };
+    }
     case "valueMatch": return {
       ...ast,
       scrutinee: materializeHasValueAst(ast.scrutinee, semantic, hasValueForParameter),

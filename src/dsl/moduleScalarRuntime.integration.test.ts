@@ -938,6 +938,64 @@ describe("module scalar runtime integration", () => {
     ]);
   });
 
+  it("narrows optional scalar parameters through nested record value-if branches per instance", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "record Pair(x: number)",
+      "module Choose(value?: number) {",
+      "  const selected: Pair = if (hasValue(@value)) {",
+      "    if (@value > 0) { Pair(x: @value) } else { Pair(x: 0) }",
+      "  } else {",
+      "    Pair(x: 0)",
+      "  }",
+      "  const x: number = @selected.x",
+      "  point Result = coordinate(x: @x, y: 0)",
+      "}",
+      "instance Absent = Choose()",
+      "instance Present = Choose(value: 4)",
+      "instance Zero = Choose(value: 0)"
+    ].join("\n"), "say301-record-optional-scalar-if");
+
+    expectValid(compiled);
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(compiled.document!.elements.filter((element) => element.name === "Result").map((element) =>
+      result.computedGeometry.get(element.id)
+    )).toEqual([
+      expect.objectContaining({ kind: "point", x: 0, y: 0 }),
+      expect.objectContaining({ kind: "point", x: 4, y: 0 }),
+      expect.objectContaining({ kind: "point", x: 0, y: 0 })
+    ]);
+  });
+
+  it("narrows an optional record parameter used as a whole-record value-if branch per instance", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "record Pair(x: number)",
+      "module Choose(input?: Pair) {",
+      "  const selected: Pair = if (hasValue(@input)) {",
+      "    @input",
+      "  } else {",
+      "    Pair(x: 0)",
+      "  }",
+      "  const x: number = @selected.x",
+      "  point Result = coordinate(x: @x, y: 0)",
+      "}",
+      "instance Absent = Choose()",
+      "instance Present = Choose(input: Pair(x: 7))"
+    ].join("\n"), "say301-record-optional-record-if");
+
+    expectValid(compiled);
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(compiled.document!.elements.filter((element) => element.name === "Result").map((element) =>
+      result.computedGeometry.get(element.id)
+    )).toEqual([
+      expect.objectContaining({ kind: "point", x: 0, y: 0 }),
+      expect.objectContaining({ kind: "point", x: 7, y: 0 })
+    ]);
+  });
+
   it("reuses Module record export field backing for an ordinary whole-record alias", () => {
     const compiled = compileWithIds([
       "nui 1",

@@ -36,7 +36,8 @@ import {
   planRecordScalarLowering,
   prepareRecordScalarExpression,
   recordScalarSourceBindingResolverFor,
-  type ExternalRecordScalarAlias
+  type ExternalRecordScalarAlias,
+  type RecordScalarControlFlowProjection
 } from "./recordScalarLowering";
 
 export type { DiagnosticSpanContext };
@@ -61,6 +62,8 @@ export type AdditionalScalarInitializer = {
   /** Embedded scalar expressions may have a result type distinct from the
    * synthetic binding used to type their lexical references. */
   expectedType?: ScalarType;
+  /** Compiler-only metadata for root record field projections. */
+  recordControlFlowProjection?: RecordScalarControlFlowProjection;
 };
 
 export type PreparedScalarExpressionIssue = {
@@ -142,6 +145,34 @@ export const containsNonNumericScalarSyntax = (ast: ScalarExpressionAst): boolea
     default:
       return false;
   }
+};
+
+const spanContains = (container: DslSpan, candidate: DslSpan): boolean =>
+  candidate.start >= container.start && candidate.end <= container.end;
+
+const sameSpan = (left: DslSpan, right: DslSpan): boolean =>
+  left.start === right.start && left.end === right.end;
+
+const sharedRecordControlFlowDiagnostic = (
+  diagnostic: { code: string; span: DslSpan },
+  projection: RecordScalarControlFlowProjection
+): boolean => projection.shells.some((shell) => {
+  if (shell.kind === "if") return spanContains(shell.conditionSpan, diagnostic.span);
+  if (spanContains(shell.scrutineeSpan, diagnostic.span)) return true;
+  if (diagnostic.code === "missing-match-case" && sameSpan(shell.span, diagnostic.span)) return true;
+  return (
+    (diagnostic.code === "duplicate-match-case" || diagnostic.code === "impossible-match-case") &&
+    shell.caseLabelSpans.some((span) => sameSpan(span, diagnostic.span))
+  );
+});
+
+const shouldEmitRecordProjectionDiagnostic = (
+  bindingId: BindingId,
+  diagnostic: { code: string; span: DslSpan },
+  additionalInitializers: ReadonlyMap<BindingId, AdditionalScalarInitializer>
+): boolean => {
+  const projection = additionalInitializers.get(bindingId)?.recordControlFlowProjection;
+  return !projection || projection.diagnosticOwner || !sharedRecordControlFlowDiagnostic(diagnostic, projection);
 };
 
 const collectionIndexResolutionsFor = (
@@ -448,7 +479,10 @@ export const analyzeTypedDeclarations = ({
       bindingId: initializer.bindingId,
       raw: initializer.raw,
       span: initializer.span,
-      ...(initializer.ast ? { ast: initializer.ast } : {})
+      ...(initializer.ast ? { ast: initializer.ast } : {}),
+      ...(initializer.recordControlFlowProjection
+        ? { recordControlFlowProjection: initializer.recordControlFlowProjection }
+        : {})
     })) ?? []),
     ...(additionalInitializers ?? [])
   ];
@@ -625,10 +659,12 @@ export const analyzeTypedDeclarations = ({
     const statement = statements[binding.statementIndex];
     if (!statement) continue;
     for (const issue of geometryResolution.issues) {
-      diagnostics.push(compileDiagnostic(spans, statement, issue.span, issue.code, issue.message, {
-        bindingId: binding.id,
-        presentation: issue.presentation
-      }));
+      if (shouldEmitRecordProjectionDiagnostic(binding.id, issue, additionalInitializerByBindingId)) {
+        diagnostics.push(compileDiagnostic(spans, statement, issue.span, issue.code, issue.message, {
+          bindingId: binding.id,
+          presentation: issue.presentation
+        }));
+      }
     }
     if (effectivePrepareScalarExpression) {
       const prepared = effectivePrepareScalarExpression({
@@ -644,10 +680,12 @@ export const analyzeTypedDeclarations = ({
       });
       preparedByBindingId.set(binding.id, prepared);
       for (const issue of prepared.issues ?? []) {
-        diagnostics.push(compileDiagnostic(spans, statement, issue.span, issue.code, issue.message, {
-          bindingId: binding.id,
-          presentation: issue.presentation
-        }));
+        if (shouldEmitRecordProjectionDiagnostic(binding.id, issue, additionalInitializerByBindingId)) {
+          diagnostics.push(compileDiagnostic(spans, statement, issue.span, issue.code, issue.message, {
+            bindingId: binding.id,
+            presentation: issue.presentation
+          }));
+        }
       }
     }
   }
@@ -780,19 +818,23 @@ export const analyzeTypedDeclarations = ({
     const statement = statements[binding.statementIndex];
     if (!statement) throw new Error(`typedDeclarationAnalysis: no owner statement for ${binding.id}`);
     typedInitializerByBindingId.set(binding.id, checked.typed);
-    diagnostics.push(...checked.diagnostics.map((diagnostic) =>
-      compileDiagnostic(spans, statement, diagnostic.span, diagnostic.code, diagnostic.message, {
-        expectedType: diagnostic.expectedType,
-        actualType: diagnostic.actualType,
-        bindingId: binding.id,
-        presentation: diagnostic.presentation
-      })
+    diagnostics.push(...checked.diagnostics.flatMap((diagnostic) =>
+      shouldEmitRecordProjectionDiagnostic(binding.id, diagnostic, additionalInitializerByBindingId)
+        ? [compileDiagnostic(spans, statement, diagnostic.span, diagnostic.code, diagnostic.message, {
+            expectedType: diagnostic.expectedType,
+            actualType: diagnostic.actualType,
+            bindingId: binding.id,
+            presentation: diagnostic.presentation
+          })]
+        : []
     ));
-    diagnostics.push(...geometryPropertyResolution.issues.map((issue) =>
-      compileDiagnostic(spans, statement, issue.span, "geometry-property-invalid", issue.message, {
-        bindingId: binding.id,
-        presentation: issue.presentation
-      })
+    diagnostics.push(...geometryPropertyResolution.issues.flatMap((issue) =>
+      shouldEmitRecordProjectionDiagnostic(binding.id, { code: "geometry-property-invalid", span: issue.span }, additionalInitializerByBindingId)
+        ? [compileDiagnostic(spans, statement, issue.span, "geometry-property-invalid", issue.message, {
+            bindingId: binding.id,
+            presentation: issue.presentation
+          })]
+        : []
     ));
   }
   return {
