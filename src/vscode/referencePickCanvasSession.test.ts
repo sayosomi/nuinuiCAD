@@ -6,6 +6,8 @@ import { evaluateElements } from "../geometry/evaluate";
 import type { EvaluationResult } from "../types/geometry";
 import {
   confirmVscodeReferencePickCanvasSession,
+  moveVscodeReferencePickCanvasDraft,
+  removeVscodeReferencePickCanvasDraft,
   referencePickCanvasResultMatchesSession,
   referencePickHoverForCanvasOption,
   selectVscodeReferencePickCanvasDraft,
@@ -173,7 +175,7 @@ describe("VS Code Canvas reference pick session bridge", () => {
     expect(declaration.result.status).toBe("started");
     if (declaration.result.status !== "started") return;
     expect(declaration.result.candidateReferences).toContainEqual({ base: "Base" });
-    expect(declaration.session?.target.sourceAnchor.sourceRevision).toBe(CANVAS_REVISION);
+    expect(declaration.session?.target.sourceAnchor.sourceRevision).toBe(HOST_REVISION);
 
     const coordinateSource = [
       "nui 1",
@@ -190,7 +192,7 @@ describe("VS Code Canvas reference pick session bridge", () => {
     expect(coordinate.result.status).toBe("started");
     if (coordinate.result.status !== "started") return;
     expect(coordinate.result.candidateReferences).toContainEqual({ base: "Base" });
-    expect(coordinate.session?.target.sourceAnchor.sourceRevision).toBe(CANVAS_REVISION);
+    expect(coordinate.session?.target.sourceAnchor.sourceRevision).toBe(HOST_REVISION);
   });
 
   it("restores an existing numeric property selection into the shared Pick draft", () => {
@@ -288,6 +290,25 @@ describe("VS Code Canvas reference pick session bridge", () => {
     });
     expect(stale.session).toBeNull();
     expect(stale.result.status).toBe("stale");
+  });
+
+  it("accepts an appended incomplete Source target using only the reconciled Canvas namespace as candidate authority", () => {
+    const canvasSource = [
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line Base = segment(start: @A, end: @B)"
+    ].join("\n");
+    const currentSource = `${canvasSource}\npoint New = offset(from: @A, dx: 0, dy: )`;
+    const position = currentSource.indexOf("dy: )") + "dy: ".length;
+    const started = startWithCanvasSnapshot(
+      dualAuthorityFixture(currentSource, canvasSource, position)
+    );
+
+    expect(started.result.status).toBe("started");
+    expect(started.session?.target.sourceAnchor.sourceRevision).toBe(HOST_REVISION);
+    if (started.result.status !== "started") return;
+    expect(started.result.candidateReferences).toContainEqual({ base: "Base" });
   });
 
   it("matches document/version proof across independent Host and Webview compiler sessions", () => {
@@ -431,6 +452,37 @@ describe("VS Code Canvas reference pick session bridge", () => {
     expect(source).toContain("sources: [@A, @B]");
     if (confirmed.result?.resultKind !== "geometry") throw new Error("geometry result missing");
     expect(confirmed.result.references).toEqual([{ base: "A" }, { base: "C" }]);
+  });
+
+  it("projects ordered draft controls and confirms the exact retained reference order", () => {
+    const source = [
+      "nui 1",
+      "line A = segment(start: (0, 0), end: (10, 0))",
+      "line B = segment(start: (0, 10), end: (10, 10))",
+      "line C = segment(start: (0, 20), end: (10, 20))",
+      "line Seam = offset(sources: [@A, @B], distance: 1, side: left, closed: false, suppressTrimWarnings: false)"
+    ].join("\n");
+    const setupResult = setup(source, "[@A, @B]");
+    const started = startSession({ source, ...setupResult });
+    if (!started.session) throw new Error("session did not start");
+
+    let session = selectVscodeReferencePickCanvasDraft(
+      started.session,
+      referencePickHoverForCanvasOption(
+        started.session.candidates.find((candidate) => candidate.options.some((option) => option.reference.base === "C"))!,
+        started.session.candidates.flatMap((candidate) => candidate.options).find((option) => option.reference.base === "C")!
+      )
+    );
+    session = moveVscodeReferencePickCanvasDraft(session, '["C",null]', 0);
+    session = removeVscodeReferencePickCanvasDraft(session, '["A",null]');
+
+    expect(session.draft.draftReferences).toEqual([{ base: "C" }, { base: "B" }]);
+    const confirmed = confirmVscodeReferencePickCanvasSession(session);
+    expect(confirmed.result).toMatchObject({
+      status: "confirmed",
+      resultKind: "geometry",
+      references: [{ base: "C" }, { base: "B" }]
+    });
   });
 
   it("moves from numeric geometry selection to a property chooser and explicit confirmation", () => {

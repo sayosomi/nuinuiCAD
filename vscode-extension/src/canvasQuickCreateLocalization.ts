@@ -14,6 +14,10 @@ export const canvasQuickCreateTranslationCatalog = {
     en: "Choose creation form",
     ja: "作成形式を選択"
   },
+  "canvasQuickCreate.form.distance": { en: "Distance", ja: "距離" },
+  "canvasQuickCreate.form.ratio": { en: "Ratio", ja: "割合" },
+  "canvasQuickCreate.form.tangentAngleDeg": { en: "Angle", ja: "接線角度" },
+  "canvasQuickCreate.form.curveSide": { en: "Curve Side", ja: "曲率側" },
   "canvasQuickCreate.description.create": {
     en: "Create {action}",
     ja: "{action}を作成"
@@ -48,6 +52,16 @@ export const canvasQuickCreateTranslationCatalog = {
 
 export const canvasQuickCreateTranslatorFor = (displayLanguage: string) =>
   createTranslator(canvasQuickCreateTranslationCatalog, resolveLocale(displayLanguage));
+
+/** Presents a planned exclusive parameter through the host display locale. */
+export const canvasQuickCreateFormLabelFor = (
+  parameterKey: string,
+  displayLanguage: string
+): string | null => {
+  const key = `canvasQuickCreate.form.${parameterKey}`;
+  const label = canvasQuickCreateTranslatorFor(displayLanguage)(key);
+  return label === key ? null : label;
+};
 
 export const canvasQuickCreateDescriptionFor = (
   commandId: VscodeCanvasCreationCommandId,

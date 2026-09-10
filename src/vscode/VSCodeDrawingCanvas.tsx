@@ -260,6 +260,8 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       setHover: setReferencePickHover,
       select: selectReferencePick,
       selectNumericProperty: selectReferencePickNumericProperty,
+      moveDraftEntry: moveReferencePickDraftEntry,
+      removeDraftEntry: removeReferencePickDraftEntry,
       confirm: confirmReferencePick,
       cancel: cancelReferencePick
     } = useVSCodeReferencePickSession({
@@ -620,6 +622,8 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
               session={referencePickSession}
               context={referencePickPresentationContext}
               onFinish={confirmReferencePick}
+              onMoveDraftEntry={moveReferencePickDraftEntry}
+              onRemoveDraftEntry={removeReferencePickDraftEntry}
             />
           ) : (
             <PickModeStatus />
@@ -703,6 +707,8 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       setReferencePickHover,
       selectReferencePick,
       selectReferencePickNumericProperty,
+      moveReferencePickDraftEntry,
+      removeReferencePickDraftEntry,
       confirmReferencePick,
       cancelReferencePick,
       postCanvasPointerPosition,

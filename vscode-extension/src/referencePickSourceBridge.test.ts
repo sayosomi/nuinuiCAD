@@ -10,7 +10,9 @@ const mocks = vi.hoisted(() => ({
   textDocuments: [] as TestDocument[],
   changeListeners: [] as Array<(event: { document: TestDocument; contentChanges: readonly unknown[] }) => void>,
   closeListeners: [] as Array<(document: TestDocument) => void>,
-  showTextDocument: vi.fn()
+  showTextDocument: vi.fn(),
+  executeCommand: vi.fn(),
+  activeDocument: null as TestDocument | null
 }));
 
 type TestPosition = { line: number; character: number };
@@ -49,11 +51,15 @@ vi.mock("vscode", () => {
         });
       }
     },
-    window: { showTextDocument: mocks.showTextDocument }
+    window: { showTextDocument: mocks.showTextDocument },
+    commands: { executeCommand: mocks.executeCommand }
   };
 });
 
-import { createVscodeReferencePickSourceBridge } from "./referencePickSourceBridge";
+import {
+  createVscodeReferencePickSourceBridge,
+  snippetLiteralForText
+} from "./referencePickSourceBridge";
 
 const createDocument = (initialSource: string): TestDocument => {
   let source = initialSource;
@@ -98,11 +104,14 @@ const createEditor = (document: TestDocument) => {
     document.replace(editValue.range.start, editValue.range.end, editValue.replacement);
     return true;
   });
-  return {
+  const editor = {
     document,
     viewColumn: 1,
     edit
   };
+  mocks.activeDocument = document;
+  mocks.showTextDocument.mockResolvedValue(editor);
+  return editor;
 };
 
 const createBridgeFixture = (
@@ -130,11 +139,21 @@ beforeEach(() => {
   mocks.changeListeners = [];
   mocks.closeListeners = [];
   mocks.showTextDocument.mockReset();
-  mocks.showTextDocument.mockResolvedValue(undefined);
+  mocks.executeCommand.mockReset();
+  mocks.executeCommand.mockImplementation(async (
+    _command: string,
+    args: { snippet: string; ranges: Array<{ start: TestPosition; end: TestPosition }> }
+  ) => {
+    const literal = args.snippet.replace(/\\([\\$}])/g, "$1");
+    const range = args.ranges[0];
+    if (range) mocks.activeDocument?.replace(range.start, range.end, literal);
+    return true;
+  });
+  mocks.activeDocument = null;
 });
 
 describe("createVscodeReferencePickSourceBridge", () => {
-  it("revalidates then applies exactly one native editor edit / Undo step and restores Source focus", async () => {
+  it("revalidates then applies through the merge-capable snippet command and restores Source focus", async () => {
     const source = [
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
@@ -176,8 +195,13 @@ describe("createVscodeReferencePickSourceBridge", () => {
       references: [{ base: "B" }]
     })).toBe("applied");
 
-    expect(editor.edit).toHaveBeenCalledTimes(1);
-    expect(editor.edit.mock.calls[0]?.[1]).toEqual({ undoStopBefore: true, undoStopAfter: true });
+    expect(editor.edit).not.toHaveBeenCalled();
+    expect(mocks.executeCommand).toHaveBeenCalledTimes(1);
+    expect(mocks.executeCommand.mock.calls[0]?.[0]).toBe("editor.action.insertSnippet");
+    expect(mocks.executeCommand.mock.calls[0]?.[1]).toMatchObject({
+      snippet: "@B",
+      ranges: [{ start: { line: 3 }, end: { line: 3 } }]
+    });
     expect(document.getText()).toContain("from: @B");
     expect(bridge.appliedHandoff()).toEqual({
       documentUri: "file:///pick.nui",
@@ -188,11 +212,17 @@ describe("createVscodeReferencePickSourceBridge", () => {
       targetProof: request!.targetProof,
       references: [{ base: "B" }]
     });
-    expect(mocks.showTextDocument).toHaveBeenCalledTimes(1);
+    expect(mocks.showTextDocument).toHaveBeenCalledTimes(2);
     expect(mocks.showTextDocument.mock.calls[0]?.[1]).toMatchObject({
       preserveFocus: false,
       preview: false
     });
+  });
+
+  it("escapes replacement text before it enters snippet literal data", async () => {
+    const input = "a$}" + "\\" + "b";
+    const expected = "a\\$\\}" + "\\\\" + "b";
+    expect(snippetLiteralForText(input)).toBe(expected);
   });
 
   it("accepts an explicit terminal cancellation without editing or creating an applied handoff", async () => {
@@ -354,11 +384,60 @@ describe("createVscodeReferencePickSourceBridge", () => {
       property: "length"
     })).toBe("applied");
 
-    expect(editor.edit).toHaveBeenCalledTimes(1);
+    expect(editor.edit).not.toHaveBeenCalled();
+    expect(mocks.executeCommand).toHaveBeenCalledWith(
+      "editor.action.insertSnippet",
+      expect.objectContaining({ snippet: "@Base.length" })
+    );
     expect(document.getText()).toContain("dx: @Base.length");
-    expect(mocks.showTextDocument.mock.calls[0]?.[1]).toMatchObject({
+    expect(mocks.showTextDocument.mock.calls[1]?.[1]).toMatchObject({
       selection: { start: { line: 4, character: source.split("\n")[4]!.indexOf("20") + "@Base.length".length } }
     });
+  });
+
+  it("fails closed when the merge-capable command does not produce the planned Source", async () => {
+    const source = [
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "point P = offset(from: @A, dx: 0, dy: 0)"
+    ].join("\n");
+    const document = createDocument(source);
+    const editor = createEditor(document);
+    mocks.textDocuments = [document];
+    const bridge = createVscodeReferencePickSourceBridge({
+      editor: editor as never,
+      languageAnalysisSession: createLanguageAnalysisSession(source),
+      requestId: 25,
+      normalizedSourceOffset: source.indexOf("from: @A") + "from: @A".length - 1,
+      postMessage: vi.fn()
+    });
+    const request = bridge.start();
+    expect(request).not.toBeNull();
+    await bridge.handleResult({
+      type: "referencePickResult",
+      requestId: 25,
+      documentUri: request!.documentUri,
+      documentVersion: request!.documentVersion,
+      targetProof: request!.targetProof,
+      status: "started",
+      candidateReferences: [{ base: "A" }, { base: "B" }]
+    });
+    mocks.executeCommand.mockImplementationOnce(async () => true);
+
+    await expect(bridge.handleResult({
+      type: "referencePickResult",
+      requestId: 25,
+      documentUri: request!.documentUri,
+      documentVersion: request!.documentVersion,
+      targetProof: request!.targetProof,
+      status: "confirmed",
+      resultKind: "geometry",
+      references: [{ base: "B" }]
+    })).resolves.toBe("rejected");
+    expect(document.getText()).toBe(source);
+    expect(editor.edit).not.toHaveBeenCalled();
+    expect(bridge.appliedHandoff()).toBeNull();
   });
 
   it("cancels the draft immediately when the captured Source document changes", () => {
