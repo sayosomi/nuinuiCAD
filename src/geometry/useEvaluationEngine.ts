@@ -102,6 +102,7 @@ export const useEvaluationEngine = (
   const moduleMaterialization = options.moduleMaterialization;
   const geometryValueProgram = options.geometryValueProgram;
   const geometryInputTargetsByElementId = options.geometryInputTargetsByElementId;
+  const geometryCollectionNodesByValueId = options.geometryCollectionNodesByValueId;
   const propertyBindingEntries = options.propertyBindingEntries;
   const numericBindingEntries = options.numericBindingEntries;
   const controlBooleanEntries = options.controlBooleanEntries;
@@ -125,6 +126,7 @@ export const useEvaluationEngine = (
       ...(scalarExecutionPositionByElementId ? { scalarExecutionPositionByElementId } : {}),
       ...(geometryValueProgram?.length ? { geometryValueProgram } : {}),
       ...(geometryInputTargetsByElementId?.size ? { geometryInputTargetsByElementId } : {}),
+      ...(geometryCollectionNodesByValueId?.size ? { geometryCollectionNodesByValueId } : {}),
       ...(propertyBindingEntries?.length ? { propertyBindingEntries } : {}),
       ...(numericBindingEntries?.length ? { numericBindingEntries } : {}),
       ...(controlBooleanEntries?.length ? { controlBooleanEntries } : {}),
@@ -150,6 +152,7 @@ export const useEvaluationEngine = (
       moduleMaterialization,
       geometryValueProgram,
       geometryInputTargetsByElementId,
+      geometryCollectionNodesByValueId,
       propertyBindingEntries,
       numericBindingEntries,
       controlBooleanEntries,
@@ -181,6 +184,9 @@ export const useEvaluationEngine = (
       geometryValueProgram,
       geometryInputTargetsByElementId: geometryInputTargetsByElementId
         ? Array.from(geometryInputTargetsByElementId)
+        : undefined,
+      geometryCollectionNodesByValueId: geometryCollectionNodesByValueId
+        ? Array.from(geometryCollectionNodesByValueId)
         : undefined,
       statementIdByStatementIndex: statementIdByStatementIndex ? Array.from(statementIdByStatementIndex) : undefined,
       conditionalOwnerStatementIdByElementId: conditionalOwnerStatementIdByElementId
@@ -214,6 +220,7 @@ export const useEvaluationEngine = (
       scalarExecutionPositionByElementId,
       geometryValueProgram,
       geometryInputTargetsByElementId,
+      geometryCollectionNodesByValueId,
       statementIdByStatementIndex,
       conditionalOwnerStatementIdByElementId,
       forGroupMutationOwnerByElementId,

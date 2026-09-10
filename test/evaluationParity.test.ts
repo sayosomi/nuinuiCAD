@@ -920,6 +920,65 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("matches conditional geometry collection length and consumers across TypeScript and Rust", () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "point A = coordinate(x: 1, y: 2)",
+      "point B = coordinate(x: 3, y: 4)",
+      "const n: number = 1",
+      "const selected: point[] = if (@n > 0) { [@B, @A] } else { [@A] }",
+      "const count: number = @selected.length",
+      "line Use = segment(start: @selected[0], end: @selected[0])",
+      "line Outline = polyline(points: @selected, closed: false)"
+    ].join("\n"));
+    const options = optionsFor(fixture);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustOptions(repoRoot, fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+    expectScalarNumberClose(scalarBindingFor(fixture, tsPayload, "count"), 2);
+    expectScalarNumberClose(scalarBindingFor(fixture, rustPayload, "count"), 2);
+    const selected = fixture.elements.find((element) => element.name === "Use")!;
+    const outline = fixture.elements.find((element) => element.name === "Outline")!;
+    for (const result of [evaluationPayloadToResult(tsPayload), evaluationPayloadToResult(rustPayload)]) {
+      expect(result.errors).toEqual([]);
+      expect(result.computedGeometry.get(selected.id)).toMatchObject({
+        kind: "line",
+        start: { x: 3, y: 4 },
+        end: { x: 3, y: 4 }
+      });
+      expect(result.computedGeometry.get(outline.id)).toMatchObject({
+        kind: "polyline",
+        segments: [{ start: { x: 3, y: 4 }, end: { x: 1, y: 2 } }]
+      });
+    }
+  }, 30000);
+
+  it("matches conditional scalar collection length and indexing across TypeScript and Rust", () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "const trueFlag: boolean = true",
+      "const falseFlag: boolean = false",
+      "const left: number[] = [1]",
+      "const right: number[] = [2, 3]",
+      "const selectedTrue: number[] = if (@trueFlag) { @left } else { @right }",
+      "const selectedFalse: number[] = if (@falseFlag) { @left } else { @right }",
+      "const trueCount: number = @selectedTrue.length",
+      "const trueItem: number = @selectedTrue[0]",
+      "const falseCount: number = @selectedFalse.length",
+      "const falseItem: number = @selectedFalse[1]"
+    ].join("\n"));
+    const options = optionsFor(fixture);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustOptions(repoRoot, fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+    for (const [name, expected] of [["trueCount", 1], ["trueItem", 1], ["falseCount", 2], ["falseItem", 3]] as const) {
+      expectScalarNumberClose(scalarBindingFor(fixture, tsPayload, name), expected);
+      expectScalarNumberClose(scalarBindingFor(fixture, rustPayload, name), expected);
+    }
+  }, 30000);
+
   it("matches typed dynamic geometry collection indexing across TypeScript and Rust", () => {
     const fixture = fixtureFromSource([
       "nui 1",

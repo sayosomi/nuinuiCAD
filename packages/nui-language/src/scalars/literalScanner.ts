@@ -121,10 +121,15 @@ const NUMBER_PATTERN = /^\d+(?:\.\d+)?|^\.\d+/;
 export const IDENTIFIER_PATTERN = /^[\p{L}_][\p{L}\p{N}_]*/u;
 
 const IDENTIFIER_CHARACTER_PATTERN = /^[\p{L}\p{N}_]$/u;
+const IDENTIFIER_START_CHARACTER_PATTERN = /^[\p{L}_]$/u;
 
 /** Tests one Unicode code point against the identifier continuation grammar. */
 export const isScalarIdentifierCharacter = (character: string | undefined): boolean =>
   character !== undefined && IDENTIFIER_CHARACTER_PATTERN.test(character);
+
+/** Tests one code point against the scalar identifier-start grammar. */
+export const isScalarIdentifierStartCharacter = (character: string | undefined): boolean =>
+  character !== undefined && IDENTIFIER_START_CHARACTER_PATTERN.test(character);
 
 /** Tests the code point at a UTF-16 offset, including astral Unicode letters. */
 export const isScalarIdentifierCharacterAt = (source: string, index: number): boolean => {

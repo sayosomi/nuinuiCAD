@@ -178,6 +178,11 @@ export type GeometryValueOccurrence = {
 
 /** Runtime-only input for a read-only geometry consumer. This is deliberately
  * separate from persisted ElementId fields and is never a drawable identity. */
+export type GeometryInputCollectionNode =
+  | { kind: "leaf"; targets: readonly Exclude<GeometryInputTarget, { kind: "collectionIndex" } | { kind: "collectionValue" }>[] }
+  | { kind: "if"; condition: TypedScalarExpression; thenBranch: GeometryInputCollectionNode; elseBranch: GeometryInputCollectionNode }
+  | { kind: "match"; scrutinee: TypedScalarExpression; arms: readonly { label: string; value: GeometryInputCollectionNode }[] };
+
 export type GeometryInputTarget =
   | { kind: "drawable"; elementId: ElementId; geometryType: "point" | "line" | "path"; pointKey?: string }
   | { kind: "geometryValue"; occurrence: GeometryValueOccurrence; geometryType: "point" | "line" | "path"; pointKey?: string }
@@ -194,12 +199,19 @@ export type GeometryInputTarget =
     }
   | { kind: "coordinate"; anchor: Extract<PointAnchor, { mode: "coordinate" }> }
   | {
+      kind: "collectionValue";
+      collectionValueId: string;
+      targetSourceOrder: number;
+      value: GeometryInputCollectionNode;
+    }
+  | {
       kind: "collectionIndex";
       collectionValueId: string;
       collectionLength: number | null;
       targetSourceOrder: number;
       index: TypedScalarExpression;
       members: readonly GeometryInputTarget[];
+      value?: GeometryInputCollectionNode;
     };
 
 export type LineDivisionPointElement = CadElementBase & {

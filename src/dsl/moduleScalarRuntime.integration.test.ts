@@ -28,6 +28,7 @@ const evaluateCompiled = (compiled: ReturnType<typeof compileWithIds>) => {
     scalarProgram: compiled.scalarProgram,
     bindingVersions: compiled.bindingVersions,
     geometryInputTargetsByElementId: compiled.moduleGeometryRuntime?.geometryInputTargetsByRuntimeElementId,
+    geometryCollectionNodesByValueId: compiled.moduleGeometryRuntime?.geometryCollectionNodesByValueId,
     statementInfoByElementId: compiled.statementMap.byElementId,
     statementIdByStatementIndex: compiled.statementMap.statementIdByStatementIndex,
     sourceExecutionPositionByElementId: compiled.moduleMaterialization?.sourceExecutionPositionByRuntimeElementId,
@@ -116,6 +117,88 @@ const expectValid = (compiled: ReturnType<typeof compileWithIds>) => {
 };
 
 describe("module scalar runtime integration", () => {
+  it("evaluates conditional collection length and index for both selected branches", () => {
+    for (const [flag, expectedLength, expectedItem] of [
+      [true, 1, 1],
+      [false, 2, 3]
+    ] as const) {
+      const compiled = compileWithIds([
+        "nui 1",
+        `const flag: boolean = ${flag}`,
+        "const leftValues: number[] = [1]",
+        "const rightValues: number[] = [2, 3]",
+        "const selected: number[] = if (@flag) { @leftValues } else { @rightValues }",
+        "const count: number = @selected.length",
+        "const item: number = @selected[@count - 1]"
+      ].join("\n"), `conditional-collection-runtime-${flag}`);
+      expectValid(compiled);
+      const evaluated = evaluateCompiled(compiled);
+      const bindingValue = (name: string) => {
+        const binding = compiled.bindingAnalysis?.catalog.bindings.find((candidate) => candidate.name === name);
+        return binding ? evaluated.computedScalarBindings?.get(binding.id) : undefined;
+      };
+      expect(bindingValue("count")).toMatchObject({ status: "ok", value: { kind: "number", value: expectedLength } });
+      expect(bindingValue("item")).toMatchObject({ status: "ok", value: { kind: "number", value: expectedItem } });
+    }
+  });
+
+  it("short-circuits omitted optional collection values before an unsafe RHS", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "module M(optional?: number) {",
+      "  const selected: number[] = if (hasValue(@optional) and @optional > 0) { [@optional, @optional] } else { [42] }",
+      "  const count: number = @selected.length",
+      "}",
+      "instance Absent = M()",
+      "instance Present = M(optional: 7)"
+    ].join("\n"), "optional-collection-short-circuit");
+    expectValid(compiled);
+    const evaluated = evaluateCompiled(compiled);
+    expect(evaluated.errors).toEqual([]);
+    const countValues = (compiled.bindingAnalysis?.catalog.bindings ?? [])
+      .filter((candidate) => candidate.kind === "typed" && candidate.name === "count")
+      .flatMap((binding) => {
+        const value = evaluated.computedScalarBindings?.get(binding.id);
+        return value?.status === "ok" && value.value.kind === "number" ? [value.value.value] : [];
+      });
+    expect(countValues).toEqual([1, 2]);
+  });
+
+  it("shares Unicode choice labels between scalar and collection matches", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "const side: choice(左, 右) = 左",
+      "const selected: number[] = match @side { 左 => [1] 右 => [2, 3] }",
+      "const count: number = @selected.length",
+      "const item: number = @selected[0]"
+    ].join("\n"), "unicode-collection-match");
+    expectValid(compiled);
+    const evaluated = evaluateCompiled(compiled);
+    const bindingValue = (name: string) => {
+      const binding = compiled.bindingAnalysis?.catalog.bindings.find((candidate) => candidate.name === name);
+      return binding ? evaluated.computedScalarBindings?.get(binding.id) : undefined;
+    };
+    expect(bindingValue("count")).toMatchObject({ status: "ok", value: { kind: "number", value: 1 } });
+    expect(bindingValue("item")).toMatchObject({ status: "ok", value: { kind: "number", value: 1 } });
+  });
+
+  it("uses the same collection runtime environment inside a collection condition", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "const left: number[] = [10]",
+      "const right: number[] = [20, 30]",
+      "const selected: number[] = if (@right.length > 1) { @left } else { @right }",
+      "const item: number = @selected[0]"
+    ].join("\n"), "nested-collection-condition");
+    expectValid(compiled);
+    const evaluated = evaluateCompiled(compiled);
+    const binding = compiled.bindingAnalysis?.catalog.bindings.find((candidate) => candidate.name === "item");
+    expect(binding ? evaluated.computedScalarBindings?.get(binding.id) : undefined).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 10 }
+    });
+  });
+
   it("selects a lazy collection value-if before length and indexing", () => {
     const compiled = compileWithIds([
       "nui 1",

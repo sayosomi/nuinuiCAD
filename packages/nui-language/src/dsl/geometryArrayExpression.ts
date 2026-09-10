@@ -1,6 +1,10 @@
 import type { DslSpan } from "./dslTypes";
 import { parseDslSourceReference } from "./dslReferenceTokens";
 import { parseScalarExpression } from "../scalars/expressionParser";
+import {
+  isScalarIdentifierCharacterAt,
+  isScalarIdentifierStartCharacter
+} from "../scalars/literalScanner";
 
 export type GeometryArrayExpressionDiagnostic = {
   code: string;
@@ -138,13 +142,22 @@ const firstUnquotedBrace = (source: string, start: number, end: number) => {
   return -1;
 };
 
-const identifierStart = (character: string | undefined) => Boolean(character && /[A-Za-z_]/.test(character));
-const identifierPart = (character: string | undefined) => Boolean(character && /[A-Za-z0-9_]/.test(character));
+const codePointWidthAt = (source: string, index: number) => {
+  const codePoint = source.codePointAt(index);
+  return codePoint !== undefined && codePoint > 0xffff ? 2 : 1;
+};
+
+const identifierStartAt = (source: string, index: number) => {
+  const codePoint = source.codePointAt(index);
+  return codePoint !== undefined && isScalarIdentifierStartCharacter(String.fromCodePoint(codePoint));
+};
+
+const identifierPartAt = isScalarIdentifierCharacterAt;
 
 const keywordAt = (source: string, span: DslSpan, keyword: string) =>
   source.slice(span.start, span.start + keyword.length) === keyword &&
-  !identifierPart(source[span.start - 1]) &&
-  !identifierPart(source[span.start + keyword.length]);
+  !identifierPartAt(source, span.start - 1) &&
+  !identifierPartAt(source, span.start + keyword.length);
 
 const matchingDelimiter = (source: string, open: number, end: number, left: string, right: string) => {
   let quote: string | null = null;
@@ -276,9 +289,9 @@ const nextMatchArm = (source: string, start: number, end: number) => {
       braceDepth = Math.max(0, braceDepth - 1);
     }
     if (squareDepth || parenDepth || braceDepth) continue;
-    if (identifierStart(character)) {
-      let cursor = index + 1;
-      while (cursor < end && identifierPart(source[cursor])) cursor += 1;
+    if (identifierStartAt(source, index)) {
+      let cursor = index + codePointWidthAt(source, index);
+      while (cursor < end && identifierPartAt(source, cursor)) cursor += codePointWidthAt(source, cursor);
       let arrow = cursor;
       while (arrow < end && whitespace.test(source[arrow]!)) arrow += 1;
       if (source.slice(arrow, arrow + 2) === "=>") return index;
@@ -306,12 +319,12 @@ const parseValueMatch = (source: string, span: DslSpan): GeometryArrayExpression
     while (cursor < close && whitespace.test(source[cursor]!)) cursor += 1;
     if (cursor === close) break;
     const labelStart = cursor;
-    if (!identifierStart(source[cursor])) {
+    if (!identifierStartAt(source, cursor)) {
       diagnostics.push({ code: "value-match-malformed-arm", message: "match ケースはchoice optionラベルで始めてください。", span: { start: cursor, end: Math.min(close, cursor + 1) } });
       break;
     }
-    cursor += 1;
-    while (cursor < close && identifierPart(source[cursor])) cursor += 1;
+    cursor += codePointWidthAt(source, cursor);
+    while (cursor < close && identifierPartAt(source, cursor)) cursor += codePointWidthAt(source, cursor);
     const labelSpan = { start: labelStart, end: cursor };
     while (cursor < close && whitespace.test(source[cursor]!)) cursor += 1;
     if (source.slice(cursor, cursor + 2) !== "=>") {
@@ -338,17 +351,17 @@ const parseValueFor = (source: string, span: DslSpan): GeometryArrayExpressionPa
   let cursor = span.start + 3;
   while (cursor < span.end && whitespace.test(source[cursor]!)) cursor += 1;
   const binderStart = cursor;
-  if (!identifierStart(source[cursor])) return {
+  if (!identifierStartAt(source, cursor)) return {
     expression: null,
     diagnostics: [{ code: "geometry-array-value-for-invalid", message: "value-for の binder が不正です。", span: { start: binderStart, end: Math.min(span.end, binderStart + 1) } }]
   };
-  cursor += 1;
-  while (cursor < span.end && identifierPart(source[cursor])) cursor += 1;
+  cursor += codePointWidthAt(source, cursor);
+  while (cursor < span.end && identifierPartAt(source, cursor)) cursor += codePointWidthAt(source, cursor);
   const binderSpan = { start: binderStart, end: cursor };
   const binder = source.slice(binderSpan.start, binderSpan.end);
   const inStart = cursor;
   while (cursor < span.end && whitespace.test(source[cursor]!)) cursor += 1;
-  if (source.slice(cursor, cursor + 2) !== "in" || identifierPart(source[cursor - 1]) || identifierPart(source[cursor + 2])) {
+  if (source.slice(cursor, cursor + 2) !== "in" || identifierPartAt(source, cursor - 1) || identifierPartAt(source, cursor + 2)) {
     return { expression: null, diagnostics: [{ code: "geometry-array-value-for-invalid", message: "value-for には `in @collection` が必要です。", span: { start: inStart, end: Math.min(span.end, cursor + 2) } }] };
   }
   cursor += 2;
@@ -487,7 +500,7 @@ export const parseGeometryArrayExpression = (
     };
   }
 
-  if (source.slice(span.start, span.start + 3) === "for" && !identifierPart(source[span.start + 3])) {
+  if (source.slice(span.start, span.start + 3) === "for" && !identifierPartAt(source, span.start + 3)) {
     return parseValueFor(source, span);
   }
 

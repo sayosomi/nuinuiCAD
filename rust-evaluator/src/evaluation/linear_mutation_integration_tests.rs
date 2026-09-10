@@ -47,6 +47,7 @@ fn input(elements: Vec<Value>, versions: Vec<Value>, cutoff: Option<usize>) -> E
     }
     EvaluationInput {
         geometry_input_targets: None,
+        geometry_collection_nodes: None,
         geometry_value_program: None,
         module_materialization: None,
         elements,
@@ -214,6 +215,7 @@ fn mutation_payload_rejects_inconsistent_ids_types_choices_and_control_owners() 
     for binding_versions in malformed {
         let error = evaluate_document(EvaluationInput {
             geometry_input_targets: None,
+            geometry_collection_nodes: None,
             geometry_value_program: None,
             module_materialization: None,
             binding_versions: Some(binding_versions),
@@ -277,6 +279,7 @@ fn production_command_runs_for_group_mutation_and_carries_the_final_slot() {
     });
     let result = evaluate_document(EvaluationInput {
         geometry_input_targets: None,
+        geometry_collection_nodes: None,
         geometry_value_program: None,
         module_materialization: None,
         elements: vec![for_group(loop_id), template],
@@ -351,6 +354,7 @@ fn nested_inner_stop_stops_remaining_inner_and_outer_iterations() {
     point["parentGroupId"] = json!("inner");
     let result = evaluate_document(EvaluationInput {
         geometry_input_targets: None,
+        geometry_collection_nodes: None,
         geometry_value_program: None,
         module_materialization: None,
         elements: vec![for_group("outer"), inner, point],

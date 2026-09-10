@@ -2,7 +2,7 @@
 //! by Task 25's Rust runtime; this module never parses or evaluates a branch.
 mod for_group_scheduler;
 use super::super::scalar_expression_runtime::{
-    lookup_geometry_property, lookup_geometry_value_property,
+    lookup_geometry_collection_length, lookup_geometry_property, lookup_geometry_value_property,
 };
 use super::bindings::ScalarDocumentBindingResolver;
 use super::bindings::{result_for_declared_type, scalar_evaluation_json};
@@ -593,14 +593,17 @@ impl<'a> ScalarMutationResolver<'a> {
         state: &EvaluationState,
         seen: &mut HashSet<String>,
     ) -> Option<f64> {
-        if !seen.insert(collection_value_id.to_owned()) {
-            return None;
-        }
-        let value = self
+        let Some(value) = self
             .program
             .collection_values
             .iter()
-            .find(|candidate| candidate.value_id == collection_value_id)?;
+            .find(|candidate| candidate.value_id == collection_value_id)
+        else {
+            return lookup_geometry_collection_length(state, self, collection_value_id, seen);
+        };
+        if !seen.insert(collection_value_id.to_owned()) {
+            return None;
+        }
         let result = match &value.value {
             ValidatedScalarProgramCollectionValue::Alias(target) => {
                 self.resolve_collection_length(target, state, seen)
@@ -781,5 +784,14 @@ impl ScalarDocumentBindingResolver for ScalarMutationResolver<'_> {
             target_source_order,
             state,
         )
+    }
+
+    fn resolve_collection_length(
+        &self,
+        collection_value_id: &str,
+        state: &EvaluationState,
+        seen: &mut HashSet<String>,
+    ) -> Option<f64> {
+        self.resolve_collection_length(collection_value_id, state, seen)
     }
 }

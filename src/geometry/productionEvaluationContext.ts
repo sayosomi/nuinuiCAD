@@ -144,6 +144,9 @@ export const buildEvaluationOptions = ({
     ...(compiledDocument.moduleGeometryRuntime?.geometryInputTargetsByRuntimeElementId
       ? { geometryInputTargetsByElementId: compiledDocument.moduleGeometryRuntime.geometryInputTargetsByRuntimeElementId }
       : {}),
+    ...(compiledDocument.moduleGeometryRuntime?.geometryCollectionNodesByValueId
+      ? { geometryCollectionNodesByValueId: compiledDocument.moduleGeometryRuntime.geometryCollectionNodesByValueId }
+      : {}),
     ...(compiledDocument.geometryValueProgram ? { geometryValueProgram: compiledDocument.geometryValueProgram } : {}),
     ...(propertyBindingEntries?.length ? { propertyBindingEntries } : {}),
     ...(numericBindingEntries?.length ? { numericBindingEntries } : {}),

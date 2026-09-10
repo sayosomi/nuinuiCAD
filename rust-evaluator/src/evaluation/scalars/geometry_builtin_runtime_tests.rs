@@ -31,6 +31,7 @@ fn state_with_geometry(
     }
     EvaluationState {
         geometry_input_targets: HashMap::new(),
+        geometry_collection_nodes: HashMap::new(),
         geometry_value_binders: HashMap::new(),
         elements: if include_element {
             vec![json!({"id": id})]

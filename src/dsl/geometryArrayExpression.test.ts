@@ -54,6 +54,17 @@ describe("geometry array expression parser", () => {
     expect(choiceLiteral.expression).toMatchObject({ kind: "literal", members: [{ text: "for" }] });
   });
 
+  it("uses the shared Unicode identifier grammar for astral match labels and binders", () => {
+    const label = "𐐀";
+    const match = parseGeometryArrayExpression(`match @side { ${label} => @points }`);
+    expect(match.diagnostics).toEqual([]);
+    expect(match.expression).toMatchObject({ kind: "match", arms: [{ label }] });
+
+    const valueFor = parseGeometryArrayExpression(`for ${label} in @values { @${label} }`);
+    expect(valueFor.diagnostics).toEqual([]);
+    expect(valueFor.expression).toMatchObject({ kind: "valueFor", binder: label });
+  });
+
   it("does not treat braces inside a quoted source segment as the value-for body", () => {
     const source = "for item in @\"values{draft\" { @item }";
     const result = parseGeometryArrayExpression(source);

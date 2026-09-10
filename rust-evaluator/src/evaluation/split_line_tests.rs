@@ -64,6 +64,7 @@ fn split_line(id: &str, base_line_id: &str, point_id: &str) -> Value {
 fn splits_line_and_updates_base_geometry() {
     let result = evaluate_document_input(EvaluationInput {
         geometry_input_targets: None,
+        geometry_collection_nodes: None,
         geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
@@ -102,6 +103,7 @@ fn splits_line_and_updates_base_geometry() {
 fn rejects_split_point_outside_or_at_endpoint() {
     let outside = evaluate_document_input(EvaluationInput {
         geometry_input_targets: None,
+        geometry_collection_nodes: None,
         geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
@@ -132,6 +134,7 @@ fn rejects_split_point_outside_or_at_endpoint() {
 
     let endpoint = evaluate_document_input(EvaluationInput {
         geometry_input_targets: None,
+        geometry_collection_nodes: None,
         geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
@@ -164,6 +167,7 @@ fn rejects_split_point_outside_or_at_endpoint() {
 fn splits_arc_line() {
     let result = evaluate_document_input(EvaluationInput {
         geometry_input_targets: None,
+        geometry_collection_nodes: None,
         geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
@@ -214,6 +218,7 @@ fn splits_arc_line() {
 fn splits_bezier_curve() {
     let result = evaluate_document_input(EvaluationInput {
         geometry_input_targets: None,
+        geometry_collection_nodes: None,
         geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
@@ -272,6 +277,7 @@ fn splits_bezier_curve() {
 fn split_after_bezier_reverse_keeps_only_current_join_slot_ids() {
     let result = evaluate_document_input(EvaluationInput {
         geometry_input_targets: None,
+        geometry_collection_nodes: None,
         geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
@@ -350,6 +356,7 @@ fn split_after_bezier_reverse_keeps_only_current_join_slot_ids() {
 fn splits_bezier_curve_at_intersection_with_angle_line() {
     let result = evaluate_document_input(EvaluationInput {
         geometry_input_targets: None,
+        geometry_collection_nodes: None,
         geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
@@ -440,6 +447,7 @@ fn splits_bezier_curve_at_intersection_with_angle_line() {
 fn splits_offset_line() {
     let result = evaluate_document_input(EvaluationInput {
         geometry_input_targets: None,
+        geometry_collection_nodes: None,
         geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
@@ -496,6 +504,7 @@ fn splits_offset_line() {
 fn reports_base_and_split_point_dependencies() {
     let base_missing = evaluate_document_input(EvaluationInput {
         geometry_input_targets: None,
+        geometry_collection_nodes: None,
         geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
@@ -517,6 +526,7 @@ fn reports_base_and_split_point_dependencies() {
 
     let point_missing = evaluate_document_input(EvaluationInput {
         geometry_input_targets: None,
+        geometry_collection_nodes: None,
         geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
@@ -546,6 +556,7 @@ fn reports_base_and_split_point_dependencies() {
 fn split_line_can_feed_downstream_line_helpers() {
     let result = evaluate_document_input(EvaluationInput {
         geometry_input_targets: None,
+        geometry_collection_nodes: None,
         geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,

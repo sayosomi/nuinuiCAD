@@ -109,10 +109,24 @@ const referencesRustSupportedLineTargetValue = (
       referencesRustSupportedLine(target.elementId, elementsById);
   }
   if (target.kind === "collectionIndex") {
-    return target.members.every((member) => referencesRustSupportedLineTargetValue(member, elementsById));
+    return target.value
+      ? referencesRustSupportedLineCollectionNode(target.value, elementsById)
+      : target.members.every((member) => referencesRustSupportedLineTargetValue(member, elementsById));
+  }
+  if (target.kind === "collectionValue") {
+    return referencesRustSupportedLineCollectionNode(target.value, elementsById);
   }
   return false;
 };
+
+const referencesRustSupportedLineCollectionNode = (
+  node: import("../types/geometry").GeometryInputCollectionNode,
+  elementsById: ReadonlyMap<ElementId, CadElement>
+): boolean => node.kind === "leaf"
+  ? node.targets.every((target) => referencesRustSupportedLineTargetValue(target, elementsById))
+  : node.kind === "if"
+    ? referencesRustSupportedLineCollectionNode(node.thenBranch, elementsById) && referencesRustSupportedLineCollectionNode(node.elseBranch, elementsById)
+    : node.arms.every((arm) => referencesRustSupportedLineCollectionNode(arm.value, elementsById));
 
 const referencesRustSupportedLineTarget = (
   fallbackId: string,
@@ -161,10 +175,24 @@ const referencesRustSupportedPointTargetValue = (
     );
   }
   if (target.kind === "collectionIndex") {
-    return target.members.every((member) => referencesRustSupportedPointTargetValue(member, elementsById));
+    return target.value
+      ? referencesRustSupportedPointCollectionNode(target.value, elementsById)
+      : target.members.every((member) => referencesRustSupportedPointTargetValue(member, elementsById));
+  }
+  if (target.kind === "collectionValue") {
+    return referencesRustSupportedPointCollectionNode(target.value, elementsById);
   }
   return false;
 };
+
+const referencesRustSupportedPointCollectionNode = (
+  node: import("../types/geometry").GeometryInputCollectionNode,
+  elementsById: ReadonlyMap<ElementId, CadElement>
+): boolean => node.kind === "leaf"
+  ? node.targets.every((target) => referencesRustSupportedPointTargetValue(target, elementsById))
+  : node.kind === "if"
+    ? referencesRustSupportedPointCollectionNode(node.thenBranch, elementsById) && referencesRustSupportedPointCollectionNode(node.elseBranch, elementsById)
+    : node.arms.every((arm) => referencesRustSupportedPointCollectionNode(arm.value, elementsById));
 
 const hasRustSupportedDeferredPointTarget = (
   element: CadElement,
@@ -175,7 +203,7 @@ const hasRustSupportedDeferredPointTarget = (
   return [...targets].some((target) => {
     const candidates = Array.isArray(target) ? target : [target];
     return candidates.some((candidate) =>
-      (candidate.kind === "collectionIndex" || candidate.kind === "geometryValueMap") &&
+      (candidate.kind === "collectionIndex" || candidate.kind === "collectionValue" || candidate.kind === "geometryValueMap") &&
       referencesRustSupportedPointTargetValue(candidate, elementsById)
     );
   });

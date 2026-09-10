@@ -5,6 +5,22 @@ use std::fmt;
 
 use super::scalars::TypedScalarExpression;
 
+#[derive(Debug)]
+pub(crate) enum GeometryInputCollectionNode {
+    Leaf {
+        targets: Vec<GeometryInputTarget>,
+    },
+    If {
+        condition: TypedScalarExpression,
+        then_branch: Box<GeometryInputCollectionNode>,
+        else_branch: Box<GeometryInputCollectionNode>,
+    },
+    Match {
+        scrutinee: TypedScalarExpression,
+        arms: Vec<(String, GeometryInputCollectionNode)>,
+    },
+}
+
 pub type ElementId = String;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
@@ -41,12 +57,18 @@ pub(crate) enum GeometryInputTarget {
     Coordinate {
         anchor: Value,
     },
+    CollectionValue {
+        collection_value_id: String,
+        target_source_order: f64,
+        value: GeometryInputCollectionNode,
+    },
     CollectionIndex {
         collection_value_id: String,
         collection_length: Option<f64>,
         target_source_order: f64,
         index: Box<TypedScalarExpression>,
         members: Vec<GeometryInputTarget>,
+        value: Option<GeometryInputCollectionNode>,
     },
 }
 
@@ -115,6 +137,10 @@ pub struct EvaluationInput {
     /// an authored ElementId field.
     #[serde(default)]
     pub(crate) geometry_input_targets: Option<Value>,
+    /// Compiler-resolved geometry collection graphs used by scalar `.length`
+    /// reads as well as geometry-input materialization.
+    #[serde(default)]
+    pub(crate) geometry_collection_nodes: Option<Value>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -297,6 +323,7 @@ pub(crate) struct EvaluationState {
     pub(crate) computed_geometry_values: HashMap<GeometryValueOccurrence, Value>,
     pub(crate) geometry_input_targets:
         HashMap<ElementId, HashMap<String, Vec<GeometryInputTarget>>>,
+    pub(crate) geometry_collection_nodes: HashMap<String, GeometryInputCollectionNode>,
     pub(crate) geometry_value_binders: HashMap<String, GeometryInputTarget>,
     pub(crate) pre_mutation_geometry: HashMap<ElementId, Value>,
     pub(crate) geometry_mutation_executions: Vec<GeometryMutationExecution>,

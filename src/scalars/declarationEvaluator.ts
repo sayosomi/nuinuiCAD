@@ -49,6 +49,116 @@ export type LazyScalarProgramEvaluator = {
    * recursively while resolving a different binding's initializer).
    */
   resolve: (bindingId: BindingId) => ScalarEvaluation;
+  collectionResolver?: ScalarProgramCollectionResolver;
+};
+
+export type ScalarProgramCollectionResolver = {
+  environmentFor: (sourceOrder: number) => Pick<ScalarEvaluationEnvironment, "lookupCollectionIndex" | "lookupCollectionLength">;
+};
+
+/**
+ * Shared runtime boundary for collection members and cardinality. The
+ * collection graph is already compiler-resolved; this helper only follows
+ * those IDs and evaluates the already-typed control-flow expressions through
+ * the same scalar evaluator used by declarations and mutation runtime.
+ */
+export const createScalarProgramCollectionResolver = (
+  program: Pick<ScalarProgram, "collectionValues">,
+  resolveBinding: (bindingId: BindingId) => ScalarEvaluation,
+  resolveGeometryProperty?: (reference: TypedScalarGeometryPropertyReferenceNode, sourceOrder: number) => ScalarEvaluation,
+  resolveGeometryTarget?: (target: ScalarExpressionResolvedGeometryTarget, sourceOrder: number) => GeometryBuiltinTargetLookupResult | undefined
+): ScalarProgramCollectionResolver | undefined => {
+  if (!program.collectionValues?.length) return undefined;
+  const valuesById = new Map(program.collectionValues.map((value) => [value.valueId, value] as const));
+
+  const lengthFor = (collectionValueId: string, sourceOrder: number, seen: ReadonlySet<string> = new Set()): number | undefined => {
+    if (seen.has(collectionValueId)) return undefined;
+    const collection = valuesById.get(collectionValueId);
+    if (!collection) return undefined;
+    const nextSeen = new Set([...seen, collectionValueId]);
+    if (collection.kind === "literal") return collection.members.length;
+    if (collection.kind === "alias" || collection.kind === "map") {
+      return lengthFor(collection.kind === "alias" ? collection.targetValueId : collection.sourceValueId, sourceOrder, nextSeen);
+    }
+    const environment = environmentFor(sourceOrder);
+    if (collection.kind === "if") {
+      const condition = evaluateTypedExpression(collection.condition, environment);
+      if (condition.status !== "ok" || condition.value.kind !== "boolean") return undefined;
+      return lengthFor(condition.value.value ? collection.thenValueId : collection.elseValueId, sourceOrder, nextSeen);
+    }
+    const scrutinee = evaluateTypedExpression(collection.scrutinee, environment);
+    if (scrutinee.status !== "ok" || scrutinee.value.kind !== "choice") return undefined;
+    const arm = collection.arms.find((candidate) => candidate.label === scrutinee.value.value);
+    return arm ? lengthFor(arm.valueId, sourceOrder, nextSeen) : undefined;
+  };
+
+  const indexFor = (
+    collectionValueId: string,
+    index: number,
+    elementType: ScalarType,
+    collectionLength: number | null,
+    targetSourceOrder: number,
+    sourceOrder: number,
+    seen: ReadonlySet<string> = new Set()
+  ): ScalarEvaluation => {
+    if (targetSourceOrder >= sourceOrder) return { status: "error", type: elementType, issueCode: "evaluation-collection-index-unavailable" };
+    if (!Number.isFinite(index) || !Number.isInteger(index) || index < 0 ||
+      (collectionLength !== null && index >= collectionLength)) {
+      return { status: "error", type: elementType, issueCode: "evaluation-collection-index-invalid" };
+    }
+    if (seen.has(collectionValueId)) return { status: "error", type: elementType, issueCode: "evaluation-collection-index-unavailable" };
+    const collection = valuesById.get(collectionValueId);
+    if (!collection) return { status: "error", type: elementType, issueCode: "evaluation-collection-index-unavailable" };
+    const nextSeen = new Set([...seen, collectionValueId]);
+    if (collection.kind === "alias") return indexFor(collection.targetValueId, index, elementType, collectionLength, targetSourceOrder, sourceOrder, nextSeen);
+    if (collection.kind === "if") {
+      const condition = evaluateTypedExpression(collection.condition, environmentFor(sourceOrder));
+      if (condition.status === "error") return condition;
+      if (condition.value.kind !== "boolean") return { status: "error", type: elementType, issueCode: "evaluation-runtime-value-type-mismatch" };
+      return indexFor(condition.value.value ? collection.thenValueId : collection.elseValueId, index, elementType, collectionLength, targetSourceOrder, sourceOrder, nextSeen);
+    }
+    if (collection.kind === "match") {
+      const scrutinee = evaluateTypedExpression(collection.scrutinee, environmentFor(sourceOrder));
+      if (scrutinee.status === "error") return scrutinee;
+      if (scrutinee.value.kind !== "choice") return { status: "error", type: elementType, issueCode: "evaluation-runtime-value-type-mismatch" };
+      const arm = collection.arms.find((candidate) => candidate.label === scrutinee.value.value);
+      return arm
+        ? indexFor(arm.valueId, index, elementType, collectionLength, targetSourceOrder, sourceOrder, nextSeen)
+        : { status: "error", type: elementType, issueCode: "evaluation-runtime-value-type-mismatch" };
+    }
+    if (collection.kind === "map") {
+      const source = indexFor(collection.sourceValueId, index, collection.sourceElementType, null, -1, sourceOrder, nextSeen);
+      if (source.status === "error") return source;
+      const mapped = evaluateTypedExpression(collection.body, {
+        ...environmentFor(sourceOrder),
+        lookupBinding: (bindingId) => bindingId === collection.binderId ? source : resolveBinding(bindingId)
+      });
+      if (mapped.status === "error") return mapped;
+      return scalarTypesEqual(mapped.type, collection.resultElementType) && scalarValueMatchesType(mapped.type, mapped.value)
+        ? mapped
+        : { status: "error", type: collection.resultElementType, issueCode: "evaluation-runtime-value-type-mismatch" };
+    }
+    const member = collection.members[index];
+    if (!member) return { status: "error", type: elementType, issueCode: "evaluation-collection-index-invalid" };
+    const value = member.kind === "literal" ? { status: "ok" as const, type: member.type, value: member.value } : resolveBinding(member.bindingId);
+    if (value.status === "error") return value;
+    return scalarTypesEqual(value.type, elementType) && scalarValueMatchesType(value.type, value.value)
+      ? value
+      : { status: "error", type: elementType, issueCode: "evaluation-runtime-value-type-mismatch" };
+  };
+
+  function environmentFor(sourceOrder: number): ScalarEvaluationEnvironment {
+    return {
+      lookupBinding: resolveBinding,
+      ...(resolveGeometryProperty ? { lookupGeometryProperty: (reference) => resolveGeometryProperty(reference, sourceOrder) } : {}),
+      ...(resolveGeometryTarget ? { lookupGeometryTarget: (target) => resolveGeometryTarget(target, sourceOrder) } : {}),
+      lookupCollectionLength: (collectionValueId) => lengthFor(collectionValueId, sourceOrder),
+      lookupCollectionIndex: (collectionValueId, index, elementType, collectionLength, targetSourceOrder) =>
+        indexFor(collectionValueId, index, elementType, collectionLength, targetSourceOrder, sourceOrder)
+    };
+  }
+
+  return { environmentFor };
 };
 
 const isWithinEvaluationLimit = (
@@ -70,7 +180,8 @@ const isWithinEvaluationLimit = (
 export const createLazyScalarProgramEvaluator = (
   program: ScalarProgram,
   resolveGeometryProperty?: (reference: TypedScalarGeometryPropertyReferenceNode, sourceOrder: number) => ScalarEvaluation,
-  resolveGeometryTarget?: (target: ScalarExpressionResolvedGeometryTarget, sourceOrder: number) => GeometryBuiltinTargetLookupResult | undefined
+  resolveGeometryTarget?: (target: ScalarExpressionResolvedGeometryTarget, sourceOrder: number) => GeometryBuiltinTargetLookupResult | undefined,
+  resolveCollectionLength?: (collectionValueId: string, sourceOrder: number) => number | undefined
 ): LazyScalarProgramEvaluator => {
   const postStopBindingIds = new Set(program.postStopBindingIds ?? []);
   const statementByBindingId = new Map<BindingId, ScalarProgramStatement>();
@@ -108,78 +219,11 @@ export const createLazyScalarProgramEvaluator = (
         lookupBinding: resolve,
         ...(resolveGeometryProperty ? { lookupGeometryProperty: (reference) => resolveGeometryProperty(reference, statement.sourceOrder) } : {}),
         ...(resolveGeometryTarget ? { lookupGeometryTarget: (target) => resolveGeometryTarget(target, statement.sourceOrder) } : {}),
-        ...(program.collectionValues?.length ? {
-          lookupCollectionIndex: (collectionValueId: string, index: number, elementType: ScalarType, collectionLength: number | null, targetSourceOrder: number): ScalarEvaluation => {
-            if (targetSourceOrder >= statement.sourceOrder) return { status: "error", type: elementType, issueCode: "evaluation-collection-index-unavailable" };
-            const valuesById = new Map(program.collectionValues!.map((value) => [value.valueId, value] as const));
-            const seen = new Set<string>();
-            const lookup = (valueId: string): ScalarEvaluation | undefined => {
-              if (seen.has(valueId)) return undefined;
-              seen.add(valueId);
-              const value = valuesById.get(valueId);
-              if (!value) return undefined;
-              if (value.kind === "alias") return lookup(value.targetValueId);
-              if (value.kind === "map") {
-                const source = lookup(value.sourceValueId);
-                if (!source || source.status === "error") return source;
-                const mapped = evaluateTypedExpression(value.body, {
-                  lookupBinding: (bindingId) => bindingId === value.binderId ? source : resolve(bindingId),
-                  ...(resolveGeometryProperty ? { lookupGeometryProperty: (reference) => resolveGeometryProperty(reference, statement.sourceOrder) } : {}),
-                  ...(resolveGeometryTarget ? { lookupGeometryTarget: (target) => resolveGeometryTarget(target, statement.sourceOrder) } : {}),
-                  lookupCollectionIndex: (nestedValueId, nestedIndex, nestedElementType, nestedLength, nestedSourceOrder) =>
-                    nestedSourceOrder >= statement.sourceOrder
-                      ? { status: "error", type: nestedElementType, issueCode: "evaluation-collection-index-unavailable" }
-                      : lookupCollectionIndex(nestedValueId, nestedIndex, nestedElementType, nestedLength, nestedSourceOrder)
-                });
-                if (mapped.status === "error") return mapped;
-                return scalarTypesEqual(mapped.type, value.resultElementType) && scalarValueMatchesType(mapped.type, mapped.value)
-                  ? mapped
-                  : { status: "error", type: value.resultElementType, issueCode: "evaluation-runtime-value-type-mismatch" };
-              }
-              if (value.kind === "if") {
-                const condition = evaluateTypedExpression(value.condition, {
-                  lookupBinding: resolve,
-                  lookupCollectionIndex
-                });
-                if (condition.status === "error") return condition;
-                if (condition.type.kind !== "boolean" || condition.value.kind !== "boolean") {
-                  return { status: "error", type: elementType, issueCode: "evaluation-runtime-value-type-mismatch" };
-                }
-                return lookup(condition.value.value ? value.thenValueId : value.elseValueId);
-              }
-              if (value.kind === "match") {
-                const scrutinee = evaluateTypedExpression(value.scrutinee, {
-                  lookupBinding: resolve,
-                  lookupCollectionIndex
-                });
-                if (scrutinee.status === "error") return scrutinee;
-                if (scrutinee.type.kind !== "choice" || scrutinee.value.kind !== "choice") {
-                  return { status: "error", type: elementType, issueCode: "evaluation-runtime-value-type-mismatch" };
-                }
-                const arm = value.arms.find((candidate) => candidate.label === scrutinee.value.value);
-                return arm ? lookup(arm.valueId) : { status: "error", type: elementType, issueCode: "evaluation-runtime-value-type-mismatch" };
-              }
-              const member = value.members[index];
-              if (!member) return { status: "error", type: elementType, issueCode: "evaluation-collection-index-invalid" };
-              if (member.kind === "literal") return { status: "ok", type: member.type, value: member.value };
-              return resolve(member.bindingId);
-            };
-            const lookupCollectionIndex = (nestedValueId: string, nestedIndex: number, nestedElementType: ScalarType, nestedLength: number | null, nestedSourceOrder: number): ScalarEvaluation => {
-              if (nestedSourceOrder >= statement.sourceOrder) return { status: "error", type: nestedElementType, issueCode: "evaluation-collection-index-unavailable" };
-              const nested = lookup(nestedValueId);
-              if (!nested) return { status: "error", type: nestedElementType, issueCode: "evaluation-collection-index-unavailable" };
-              if (nested.status === "error") return nested;
-              return scalarTypesEqual(nested.type, nestedElementType) && scalarValueMatchesType(nested.type, nested.value)
-                ? nested
-                : { status: "error", type: nestedElementType, issueCode: "evaluation-runtime-value-type-mismatch" };
-            };
-            const result = lookup(collectionValueId);
-            if (!result) return { status: "error", type: elementType, issueCode: "evaluation-collection-index-unavailable" };
-            if (result.status === "error") return result;
-            return scalarTypesEqual(result.type, elementType) && scalarValueMatchesType(result.type, result.value)
-              ? result
-              : { status: "error", type: elementType, issueCode: "evaluation-runtime-value-type-mismatch" };
-          }
+        ...(collectionResolver ? collectionResolver.environmentFor(statement.sourceOrder) : {}),
+        ...(resolveCollectionLength ? {
+          lookupCollectionLength: (collectionValueId: string) =>
+            resolveCollectionLength(collectionValueId, statement.sourceOrder) ??
+            collectionResolver?.environmentFor(statement.sourceOrder).lookupCollectionLength?.(collectionValueId)
         } : {})
       };
       const evaluation = evaluateTypedExpression(statement.declaration.initializer, environment);
@@ -190,7 +234,14 @@ export const createLazyScalarProgramEvaluator = (
     }
   };
 
-  return { resolve };
+  const collectionResolver = createScalarProgramCollectionResolver(
+    program,
+    resolve,
+    resolveGeometryProperty,
+    resolveGeometryTarget
+  );
+
+  return { resolve, ...(collectionResolver ? { collectionResolver } : {}) };
 };
 
 /**

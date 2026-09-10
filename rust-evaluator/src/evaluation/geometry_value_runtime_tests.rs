@@ -209,6 +209,7 @@ fn geometry_value_if_and_match_evaluate_only_the_selected_branch() {
 fn input(elements: Vec<Value>, program: Vec<Value>) -> EvaluationInput {
     EvaluationInput {
         geometry_input_targets: None,
+        geometry_collection_nodes: None,
         elements,
         evaluation_limit_index: None,
         allow_disabled_element_ids: None,

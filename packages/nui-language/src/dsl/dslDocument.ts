@@ -2218,7 +2218,8 @@ export const compileDslDocument = (
         ? {
             moduleGeometryRuntime: {
               ...compiled.moduleGeometryRuntime,
-              geometryInputTargetsByRuntimeElementId: moduleScalarCompilation.geometryInputTargetsByRuntimeElementId
+              geometryInputTargetsByRuntimeElementId: moduleScalarCompilation.geometryInputTargetsByRuntimeElementId,
+              geometryCollectionNodesByValueId: moduleScalarCompilation.geometryCollectionNodesByValueId
             }
           }
         : {}),

@@ -9,6 +9,7 @@ import type { BindingReadPosition, BindingVersionGraph } from "../scalars/bindin
 import {
   createLazyScalarProgramEvaluator,
   finalizeScalarProgramEvaluation,
+  createScalarProgramCollectionResolver,
   type ScalarProgramEvaluation
 } from "../scalars/declarationEvaluator";
 import {
@@ -21,16 +22,27 @@ import {
 import type { ForGroupMutationRunOutcome } from "../scalars/forGroupMutationCore";
 import type { ScalarProgram, ScalarProgramCollection } from "../scalars/scalarProgram";
 import type { BindingId } from "../scalars/bindingCatalog";
-import type { ScalarEvaluation } from "../scalars/types";
+import type { ScalarEvaluation, ScalarType } from "../scalars/types";
 import type { ScalarExpressionResolvedGeometryTarget, TypedScalarGeometryPropertyReferenceNode } from "../scalars/typedExpressionAst";
-import type { GeometryBuiltinTargetLookupResult } from "../scalars/expressionEvaluator";
+import { evaluateTypedExpression, type GeometryBuiltinTargetLookupResult, type ScalarEvaluationEnvironment } from "../scalars/expressionEvaluator";
 import type { EffectiveElementActivity } from "../model/elementActivity";
+import type { GeometryInputCollectionNode } from "../types/geometry";
 
 /**
  * A scalar-program binding resolver for one compiled nui 1 document.
  */
 export type ScalarBindingResolver = {
   resolveBinding: (bindingId: BindingId) => ScalarEvaluation;
+  resolveCollectionIndex?: (
+    collectionValueId: string,
+    index: number,
+    elementType: ScalarType,
+    collectionLength: number | null,
+    targetSourceOrder: number,
+    sourceOrder: number
+  ) => ScalarEvaluation;
+  resolveCollectionLength?: (collectionValueId: string, sourceOrder: number) => number | undefined;
+  resolveGeometryCollectionLength?: (collectionValueId: string, sourceOrder: number) => number | undefined;
   finalize: () => ScalarProgramEvaluation;
 };
 
@@ -38,6 +50,9 @@ export type LinearScalarBindingResolver = {
   advanceTo: (position: BindingReadPosition) => void;
   registerConditionalResult: (ownerStatementId: string, branch: "then" | "else" | null) => void;
   resolveBinding: (bindingId: BindingId) => ScalarEvaluation;
+  resolveCollectionIndex?: ScalarBindingResolver["resolveCollectionIndex"];
+  resolveCollectionLength?: ScalarBindingResolver["resolveCollectionLength"];
+  resolveGeometryCollectionLength?: ScalarBindingResolver["resolveGeometryCollectionLength"];
   finalize: (position: BindingReadPosition) => LinearMutationEvaluation;
   runForGroup: (
     plan: ForGroupMutationExecutionPlan,
@@ -48,6 +63,7 @@ export type LinearScalarBindingResolver = {
 export type DocumentGeometryRuntime = {
   computedGeometry: ReadonlyMap<ElementId, ComputedGeometry>;
   computedGeometryValues?: ReadonlyMap<GeometryValueOccurrenceKey, { value: ComputedGeometryValue }>;
+  geometryCollectionNodesByValueId?: ReadonlyMap<string, GeometryInputCollectionNode>;
   elementsById: ReadonlyMap<ElementId, CadElement>;
   activities: ReadonlyMap<ElementId, EffectiveElementActivity>;
 };
@@ -55,13 +71,20 @@ export type DocumentGeometryRuntime = {
 export const resolveDocumentGeometryProperty = (
   geometry: DocumentGeometryRuntime,
   reference: TypedScalarGeometryPropertyReferenceNode,
-  sourceOrder: number
+  sourceOrder: number,
+  resolveCollectionLength?: (collectionValueId: string, sourceOrder: number) => number | undefined
 ): ScalarEvaluation => {
   if (reference.type === null) {
     return { status: "error", type: { kind: "number" }, issueCode: "evaluation-static-type-null" };
   }
   if (reference.type.kind !== "number" && reference.type.kind !== "choice") {
     return { status: "error", type: reference.type, issueCode: "evaluation-geometry-property-unavailable" };
+  }
+  if (reference.collectionValueId) {
+    const length = resolveCollectionLength?.(reference.collectionValueId, sourceOrder);
+    return typeof length === "number"
+      ? { status: "ok", type: reference.type, value: { kind: "number", value: length } }
+      : { status: "error", type: reference.type, issueCode: "evaluation-geometry-property-unavailable" };
   }
   if (reference.geometryValueOccurrence) {
     const entry = geometry.computedGeometryValues?.get(geometryValueOccurrenceKey(reference.geometryValueOccurrence));
@@ -123,6 +146,22 @@ export const resolveDocumentGeometryProperty = (
     : { status: "error", type: reference.type, issueCode: "evaluation-geometry-property-unavailable" };
 };
 
+const geometryCollectionLengthForNode = (
+  node: GeometryInputCollectionNode,
+  environment: ScalarEvaluationEnvironment
+): number | undefined => {
+  if (node.kind === "leaf") return node.targets.length;
+  if (node.kind === "if") {
+    const condition = evaluateTypedExpression(node.condition, environment);
+    if (condition.status !== "ok" || condition.value.kind !== "boolean") return undefined;
+    return geometryCollectionLengthForNode(condition.value.value ? node.thenBranch : node.elseBranch, environment);
+  }
+  const scrutinee = evaluateTypedExpression(node.scrutinee, environment);
+  if (scrutinee.status !== "ok" || scrutinee.value.kind !== "choice") return undefined;
+  const arm = node.arms.find((candidate) => candidate.label === scrutinee.value.value);
+  return arm ? geometryCollectionLengthForNode(arm.value, environment) : undefined;
+};
+
 export const resolveDocumentGeometryTarget = (
   geometry: DocumentGeometryRuntime,
   target: ScalarExpressionResolvedGeometryTarget,
@@ -153,19 +192,39 @@ export const createDocumentScalarBindingResolver = (
   program: ScalarProgram,
   geometry?: DocumentGeometryRuntime
 ): ScalarBindingResolver => {
+  const resolveGeometryCollectionLength = geometry
+    ? (collectionValueId: string, sourceOrder: number): number | undefined => {
+        const node = geometry.geometryCollectionNodesByValueId?.get(collectionValueId);
+        if (!node || !evaluator) return undefined;
+        const environment: ScalarEvaluationEnvironment = {
+          lookupBinding: evaluator.resolve,
+          lookupGeometryProperty: (reference) => resolveDocumentGeometryProperty(geometry, reference, sourceOrder, resolveGeometryCollectionLength),
+          lookupGeometryTarget: (target) => resolveDocumentGeometryTarget(geometry, target, sourceOrder),
+          ...evaluator.collectionResolver?.environmentFor(sourceOrder)
+        };
+        return geometryCollectionLengthForNode(node, environment);
+      }
+    : undefined;
   const resolveGeometryProperty = geometry
     ? (reference: TypedScalarGeometryPropertyReferenceNode, sourceOrder: number): ScalarEvaluation =>
-        resolveDocumentGeometryProperty(geometry, reference, sourceOrder)
+        resolveDocumentGeometryProperty(geometry, reference, sourceOrder, resolveGeometryCollectionLength)
     : undefined;
   const resolveGeometryTarget = geometry
     ? (target: ScalarExpressionResolvedGeometryTarget, sourceOrder: number): GeometryBuiltinTargetLookupResult | undefined => {
         return resolveDocumentGeometryTarget(geometry, target, sourceOrder);
       }
     : undefined;
-  const evaluator = createLazyScalarProgramEvaluator(program, resolveGeometryProperty, resolveGeometryTarget);
+  const evaluator = createLazyScalarProgramEvaluator(program, resolveGeometryProperty, resolveGeometryTarget, resolveGeometryCollectionLength);
+  const collectionResolver = evaluator.collectionResolver;
 
   return {
     resolveBinding: evaluator.resolve,
+    ...(collectionResolver ? {
+      resolveCollectionIndex: (collectionValueId, index, elementType, collectionLength, targetSourceOrder, sourceOrder) =>
+        collectionResolver.environmentFor(sourceOrder).lookupCollectionIndex!(collectionValueId, index, elementType, collectionLength, targetSourceOrder),
+      resolveCollectionLength: (collectionValueId, sourceOrder) => collectionResolver.environmentFor(sourceOrder).lookupCollectionLength!(collectionValueId)
+    } : {}),
+    ...(resolveGeometryCollectionLength ? { resolveGeometryCollectionLength } : {}),
     finalize: () => finalizeScalarProgramEvaluation(program, evaluator)
   };
 };
@@ -176,20 +235,45 @@ export const createDocumentLinearScalarBindingResolver = (
   geometry?: DocumentGeometryRuntime,
   collectionValues?: readonly ScalarProgramCollection[]
 ): LinearScalarBindingResolver => {
+  const resolveGeometryCollectionLength = geometry
+    ? (collectionValueId: string, sourceOrder: number): number | undefined => {
+        const node = geometry.geometryCollectionNodesByValueId?.get(collectionValueId);
+        if (!node || !evaluator) return undefined;
+        const environment: ScalarEvaluationEnvironment = {
+          lookupBinding: evaluator.resolveCurrent,
+          lookupGeometryProperty: (reference) => resolveDocumentGeometryProperty(geometry, reference, sourceOrder, resolveGeometryCollectionLength),
+          lookupGeometryTarget: (target) => resolveDocumentGeometryTarget(geometry, target, sourceOrder),
+          ...collectionResolver?.environmentFor(sourceOrder)
+        };
+        return geometryCollectionLengthForNode(node, environment);
+      }
+    : undefined;
   const resolveGeometryProperty = geometry
     ? (reference: TypedScalarGeometryPropertyReferenceNode, sourceOrder: number): ScalarEvaluation =>
-        resolveDocumentGeometryProperty(geometry, reference, sourceOrder)
+        resolveDocumentGeometryProperty(geometry, reference, sourceOrder, resolveGeometryCollectionLength)
     : undefined;
   const resolveGeometryTarget = geometry
     ? (target: ScalarExpressionResolvedGeometryTarget, sourceOrder: number): GeometryBuiltinTargetLookupResult | undefined => {
         return resolveDocumentGeometryTarget(geometry, target, sourceOrder);
       }
     : undefined;
-  const evaluator = createIncrementalLinearMutationEvaluator(graph, resolveGeometryProperty, resolveGeometryTarget, collectionValues);
+  const evaluator = createIncrementalLinearMutationEvaluator(graph, resolveGeometryProperty, resolveGeometryTarget, collectionValues, resolveGeometryCollectionLength);
+  const collectionResolver = createScalarProgramCollectionResolver(
+    { collectionValues },
+    evaluator.resolveCurrent,
+    resolveGeometryProperty,
+    resolveGeometryTarget
+  );
   return {
     advanceTo: evaluator.advanceTo,
     registerConditionalResult: evaluator.registerConditionalResult,
     resolveBinding: evaluator.resolveCurrent,
+    ...(collectionResolver ? {
+      resolveCollectionIndex: (collectionValueId, index, elementType, collectionLength, targetSourceOrder, sourceOrder) =>
+        collectionResolver.environmentFor(sourceOrder).lookupCollectionIndex!(collectionValueId, index, elementType, collectionLength, targetSourceOrder),
+      resolveCollectionLength: (collectionValueId, sourceOrder) => collectionResolver.environmentFor(sourceOrder).lookupCollectionLength!(collectionValueId)
+    } : {}),
+    ...(resolveGeometryCollectionLength ? { resolveGeometryCollectionLength } : {}),
     finalize: evaluator.finalize,
     runForGroup: evaluator.runForGroup
   };

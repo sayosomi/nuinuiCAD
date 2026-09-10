@@ -155,7 +155,8 @@ use line_evaluators::{
     evaluate_three_point_arc_line,
 };
 use line_geometry_input::{
-    decode_geometry_input_targets, materialize_geometry_input_targets, GeometryInputTargets,
+    decode_geometry_collection_nodes, decode_geometry_input_targets,
+    materialize_geometry_input_targets, GeometryInputTargets,
 };
 use line_tangent_offset_point_evaluator::evaluate_line_tangent_offset_point;
 use numeric_binding_runtime::{
@@ -442,6 +443,8 @@ pub fn evaluate_document(
     )?;
     let geometry_input_targets =
         decode_geometry_input_targets(input.geometry_input_targets.as_ref())?;
+    let geometry_collection_nodes =
+        decode_geometry_collection_nodes(input.geometry_collection_nodes.as_ref())?;
     Ok(evaluate_document_input_with_scalar_program(
         input,
         DecodedScalarPayloads {
@@ -455,6 +458,7 @@ pub fn evaluate_document(
             text_property_bindings,
             geometry_value_program,
             geometry_input_targets,
+            geometry_collection_nodes,
         },
     ))
 }
@@ -470,6 +474,7 @@ struct DecodedScalarPayloads {
     text_property_bindings: Option<Vec<ValidatedPropertyBinding>>,
     geometry_value_program: Vec<geometry_value_runtime::GeometryValueProgramEntry>,
     geometry_input_targets: GeometryInputTargets,
+    geometry_collection_nodes: HashMap<String, types::GeometryInputCollectionNode>,
 }
 
 fn inactive_conditional_group_id(
@@ -710,6 +715,9 @@ fn evaluate_document_input(input: EvaluationInput) -> EvaluationPayload {
     let geometry_input_targets =
         decode_geometry_input_targets(input.geometry_input_targets.as_ref())
             .expect("evaluation test input geometry_input_targets must be valid");
+    let geometry_collection_nodes =
+        decode_geometry_collection_nodes(input.geometry_collection_nodes.as_ref())
+            .expect("evaluation test input geometry_collection_nodes must be valid");
     evaluate_document_input_with_scalar_program(
         input,
         DecodedScalarPayloads {
@@ -723,6 +731,7 @@ fn evaluate_document_input(input: EvaluationInput) -> EvaluationPayload {
             text_property_bindings,
             geometry_value_program,
             geometry_input_targets,
+            geometry_collection_nodes,
         },
     )
 }
@@ -742,6 +751,7 @@ fn evaluate_document_input_with_scalar_program(
         text_property_bindings,
         geometry_value_program,
         geometry_input_targets,
+        geometry_collection_nodes,
     } = decoded;
     let mut geometry_value_program = geometry_value_program;
     geometry_value_program.sort_by(|left, right| {
@@ -808,6 +818,7 @@ fn evaluate_document_input_with_scalar_program(
         computed_geometry: HashMap::new(),
         computed_geometry_values: HashMap::new(),
         geometry_input_targets,
+        geometry_collection_nodes,
         geometry_value_binders: HashMap::new(),
         computed_geometry_order: Vec::new(),
         pre_mutation_geometry: HashMap::new(),

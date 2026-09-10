@@ -1,5 +1,5 @@
 import { referenceAnchor } from "../model/pointAnchors";
-import type { CadElement, ElementId, GeometryInputTarget, GeometryValueOccurrence, PointAnchor } from "../types/geometry";
+import type { CadElement, ElementId, GeometryInputCollectionNode, GeometryInputTarget, GeometryValueOccurrence, PointAnchor } from "../types/geometry";
 import type { DslDiagnostic, DslStatement } from "./dslTypes";
 import type { DslGeometryResolverOverrides } from "./dslApplyArgs";
 import type { MaterializedExecutionStatement, ModuleMaterialization } from "./moduleMaterialization";
@@ -28,6 +28,7 @@ import {
   type ExportEntry,
   type GeometryAlias,
   type RuntimeGeometryInputTarget,
+  type RuntimeGeometryCollectionNode,
   type InstanceContext,
   type ModuleGeometryPropertyRuntimeTarget
 } from "./moduleGeometryRuntimeLowering";
@@ -55,6 +56,7 @@ export type ModuleGeometryRuntimeCompilation = {
   resolversByRuntimeElementId: ReadonlyMap<ElementId, DslGeometryResolverOverrides>;
   geometryInputTargetsByRuntimeElementId: ReadonlyMap<ElementId, ReadonlyMap<string, GeometryInputTarget | readonly GeometryInputTarget[]>>;
   geometryInputTargetSourcesByRuntimeElementId: ReadonlyMap<ElementId, ReadonlyMap<string, RuntimeGeometryInputTarget | readonly RuntimeGeometryInputTarget[]>>;
+  geometryCollectionNodesByValueId?: ReadonlyMap<string, GeometryInputCollectionNode>;
   resolvePropertyTarget: (
     target: ModuleGeometryPropertySourceTarget,
     instancePath: readonly string[],
@@ -69,12 +71,13 @@ export type ModuleGeometryRuntimeCompilation = {
     token: string,
     statementIndex: number,
     currentPath: readonly string[]
-  ) => readonly PointAnchor[] | null;
+  ) => readonly PointAnchor[] | RuntimeGeometryInputTarget | null;
   coordinateForReference: (
     reference: ModuleGeometryReferenceSemantic,
     instancePath: readonly string[]
   ) => ModulePointCoordinateSemantic | undefined;
   resolveGeometryArrayAliasesForValueId?: (valueId: string, currentPath: readonly string[]) => readonly GeometryAlias[] | null;
+  resolveGeometryArrayCollectionForValueId?: (valueId: string, currentPath: readonly string[]) => RuntimeGeometryCollectionNode | null;
 };
 
 export const buildModuleGeometryRuntime = ({
@@ -202,7 +205,7 @@ export const buildModuleGeometryRuntime = ({
             const target = geometryArrayRuntime.resolvePointReferenceAt(reference.source, instance.statementIndex, context.path.slice(0, -1), reference.target);
             if (!target) return undefined;
             if (target && "target" in target) {
-              return { kind: "collectionIndex" as const, target: target.target, members: target.members } satisfies GeometryAlias;
+              return { kind: "collectionIndex" as const, target: target.target, members: target.members, ...(target.value ? { value: target.value } : {}) } satisfies GeometryAlias;
             }
             if (target && "kind" in target) {
               return target.kind === "geometryValueMapPending"
@@ -224,7 +227,7 @@ export const buildModuleGeometryRuntime = ({
         : (() => {
             const resolved = geometryArrayRuntime.resolveLineReferenceTargetAt(reference.source, instance.statementIndex, context.path.slice(0, -1), reference.target);
             if (!resolved) return undefined;
-            if ("target" in resolved) return { kind: "collectionIndex" as const, target: resolved.target, members: resolved.members } satisfies GeometryAlias;
+            if ("target" in resolved) return { kind: "collectionIndex" as const, target: resolved.target, members: resolved.members, ...(resolved.value ? { value: resolved.value } : {}) } satisfies GeometryAlias;
             if (resolved.kind === "drawable") return { kind: "line" as const, elementId: resolved.elementId };
             if (resolved.kind === "geometryValueMapPending") {
               return {
@@ -490,6 +493,7 @@ export const buildModuleGeometryRuntime = ({
     resolveBuiltinTarget,
     resolvePointReferenceList: (token, statementIndex, currentPath) => geometryArrayRuntime.resolvePointReferenceList(token, statementIndex, currentPath),
     coordinateForReference,
-    resolveGeometryArrayAliasesForValueId: geometryArrayRuntime.resolveGeometryArrayAliasesForValueId
+    resolveGeometryArrayAliasesForValueId: geometryArrayRuntime.resolveGeometryArrayAliasesForValueId,
+    resolveGeometryArrayCollectionForValueId: geometryArrayRuntime.resolveGeometryArrayCollectionForValueId
   };
 };

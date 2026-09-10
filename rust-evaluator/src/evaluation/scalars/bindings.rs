@@ -6,7 +6,7 @@ use std::collections::{HashMap, HashSet};
 use serde_json::{json, Value};
 
 use super::super::scalar_expression_runtime::{
-    lookup_geometry_property, lookup_geometry_value_property,
+    lookup_geometry_collection_length, lookup_geometry_property, lookup_geometry_value_property,
 };
 use super::expression_evaluator::{evaluate_typed_expression, ScalarEvaluationEnvironment};
 use super::geometry_builtin_runtime::resolve_geometry_builtin_target;
@@ -42,6 +42,15 @@ pub(crate) trait ScalarDocumentBindingResolver {
             binding_id: None,
             context: None,
         }
+    }
+
+    fn resolve_collection_length(
+        &self,
+        _collection_value_id: &str,
+        _state: &EvaluationState,
+        _seen: &mut HashSet<String>,
+    ) -> Option<f64> {
+        None
     }
 }
 
@@ -437,14 +446,17 @@ impl<'a> ScalarBindingResolver<'a> {
         state: &EvaluationState,
         seen: &mut HashSet<String>,
     ) -> Option<f64> {
-        if !seen.insert(collection_value_id.to_owned()) {
-            return None;
-        }
-        let value = self
+        let Some(value) = self
             .program
             .collection_values
             .iter()
-            .find(|value| value.value_id == collection_value_id)?;
+            .find(|value| value.value_id == collection_value_id)
+        else {
+            return lookup_geometry_collection_length(state, self, collection_value_id, seen);
+        };
+        if !seen.insert(collection_value_id.to_owned()) {
+            return None;
+        }
         match &value.value {
             ValidatedScalarProgramCollectionValue::Literal(members) => Some(members.len() as f64),
             ValidatedScalarProgramCollectionValue::Alias(target) => {
@@ -521,6 +533,15 @@ impl ScalarDocumentBindingResolver for ScalarBindingResolver<'_> {
             target_source_order,
             state,
         )
+    }
+
+    fn resolve_collection_length(
+        &self,
+        collection_value_id: &str,
+        state: &EvaluationState,
+        seen: &mut HashSet<String>,
+    ) -> Option<f64> {
+        self.resolve_collection_length(collection_value_id, state, seen)
     }
 }
 
