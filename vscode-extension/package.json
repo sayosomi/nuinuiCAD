@@ -115,8 +115,8 @@
       },
       {
         "command": "nuinuiCAD.createGeometry",
-        "key": "ctrl+k n",
-        "mac": "cmd+k n",
+        "key": "ctrl+k ctrl+n",
+        "mac": "cmd+k cmd+n",
         "when": "editorTextFocus && editorLangId == nui && resourceScheme == file && resourceExtname == .nui && !editorReadonly"
       },
       {
@@ -127,8 +127,8 @@
       },
       {
         "command": "nuinuiCAD.revealInCanvas",
-        "key": "ctrl+k g",
-        "mac": "cmd+k g",
+        "key": "ctrl+k ctrl+g",
+        "mac": "cmd+k cmd+g",
         "when": "editorTextFocus && editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.revealInCanvasSourceTarget"
       },
       {
@@ -139,15 +139,21 @@
       },
       {
         "command": "nuinuiCAD.inlineModuleInstance",
-        "key": "ctrl+k l",
-        "mac": "cmd+k l",
+        "key": "ctrl+k ctrl+m",
+        "mac": "cmd+k cmd+m",
         "when": "(editorTextFocus && editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.inlineModuleSourceTarget) || (activeWebviewPanelId == 'nuinuiCAD.canvas' && nuinuiCAD.inlineModuleCanvasTarget && !inputFocus)"
       },
       {
         "command": "nuinuiCAD.extractModule",
-        "key": "ctrl+k x",
-        "mac": "cmd+k x",
+        "key": "ctrl+k ctrl+e",
+        "mac": "cmd+k cmd+e",
         "when": "(editorTextFocus && editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.extractModuleSourceTarget) || (activeWebviewPanelId == 'nuinuiCAD.canvas' && nuinuiCAD.extractModuleCanvasTarget && !inputFocus)"
+      },
+      {
+        "command": "nuinuiCAD.selectInstance",
+        "key": "ctrl+k ctrl+i",
+        "mac": "cmd+k cmd+i",
+        "when": "activeWebviewPanelId == 'nuinuiCAD.canvas' && nuinuiCAD.canvasCanSelectInstance && !inputFocus"
       }
     ],
     "menus": {
@@ -377,22 +383,6 @@
           "when": "false"
         },
         {
-          "command": "nuinuiCAD.webview.selectInstance",
-          "when": "false"
-        },
-        {
-          "command": "nuinuiCAD.webview.goToSourceDefinition",
-          "when": "false"
-        },
-        {
-          "command": "nuinuiCAD.webview.inlineModuleInstance",
-          "when": "false"
-        },
-        {
-          "command": "nuinuiCAD.webview.extractModule",
-          "when": "false"
-        },
-        {
           "command": "nuinuiCAD.webview.bakeCurrentShape",
           "when": "false"
         },
@@ -528,22 +518,22 @@
           "group": "1_modification@2"
         },
         {
-          "command": "nuinuiCAD.webview.selectInstance",
+          "command": "nuinuiCAD.selectInstance",
           "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'element' && nuinuiCAD.canvasCanSelectInstance",
           "group": "1_modification@3"
         },
         {
-          "command": "nuinuiCAD.webview.goToSourceDefinition",
+          "command": "nuinuiCAD.goToSourceDefinition",
           "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'element' && nuinuiCAD.canvasHasSelection",
           "group": "1_modification@4"
         },
         {
-          "command": "nuinuiCAD.webview.inlineModuleInstance",
+          "command": "nuinuiCAD.inlineModuleInstance",
           "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'element' && nuinuiCAD.inlineModuleCanvasTarget",
           "group": "1_modification@7"
         },
         {
-          "command": "nuinuiCAD.webview.extractModule",
+          "command": "nuinuiCAD.extractModule",
           "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'element' && nuinuiCAD.extractModuleCanvasTarget",
           "group": "1_modification@8"
         },
@@ -778,16 +768,19 @@
       {
         "command": "nuinuiCAD.inlineModuleInstance",
         "title": "%command.inlineModuleInstance.title%",
+        "shortTitle": "%command.inlineModuleInstance.shortTitle%",
         "enablement": "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.inlineModuleSourceTarget) || (activeWebviewPanelId == 'nuinuiCAD.canvas' && nuinuiCAD.inlineModuleCanvasTarget)"
       },
       {
         "command": "nuinuiCAD.extractModule",
         "title": "%command.extractModule.title%",
+        "shortTitle": "%command.extractModule.shortTitle%",
         "enablement": "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.extractModuleSourceTarget) || (activeWebviewPanelId == 'nuinuiCAD.canvas' && nuinuiCAD.extractModuleCanvasTarget)"
       },
       {
         "command": "nuinuiCAD.goToSourceDefinition",
         "title": "%command.goToSourceDefinition.title%",
+        "shortTitle": "%command.goToSourceDefinition.shortTitle%",
         "enablement": "activeWebviewPanelId == 'nuinuiCAD.canvas' && nuinuiCAD.canvasHasSelection"
       },
       {
@@ -861,6 +854,7 @@
       {
         "command": "nuinuiCAD.selectInstance",
         "title": "%command.selectInstance.title%",
+        "shortTitle": "%command.selectInstance.shortTitle%",
         "enablement": "activeWebviewPanelId == 'nuinuiCAD.canvas' && nuinuiCAD.canvasCanSelectInstance"
       },
       {
@@ -1006,22 +1000,6 @@
       {
         "command": "nuinuiCAD.webview.selectParentGroup",
         "title": "%command.webview.selectParentGroup.title%"
-      },
-      {
-        "command": "nuinuiCAD.webview.selectInstance",
-        "title": "%command.webview.selectInstance.title%"
-      },
-      {
-        "command": "nuinuiCAD.webview.goToSourceDefinition",
-        "title": "%command.webview.goToSourceDefinition.title%"
-      },
-      {
-        "command": "nuinuiCAD.webview.inlineModuleInstance",
-        "title": "%command.webview.inlineModuleInstance.title%"
-      },
-      {
-        "command": "nuinuiCAD.webview.extractModule",
-        "title": "%command.webview.extractModule.title%"
       },
       {
         "command": "nuinuiCAD.webview.bakeCurrentShape",
