@@ -770,7 +770,10 @@ export const prepareRecordScalarExpressionFromCatalog = ({
 
   const classify = (node: ScalarExpressionAst): void => {
     switch (node.kind) {
-      case "geometryProperty": visitProperty(node); return;
+      case "geometryProperty":
+        visitProperty(node);
+        if (node.occurrenceIndex) classify(node.occurrenceIndex);
+        return;
       case "unary": classify(node.operand); return;
       case "binary": classify(node.left); classify(node.right); return;
       case "group": classify(node.expression); return;
@@ -796,7 +799,9 @@ export const prepareRecordScalarExpressionFromCatalog = ({
       }
       case "geometryProperty": {
         const resolution = referencesBySpanStart.get(node.span.start);
-        if (!resolution || resolution.kind !== "resolvedType") return node;
+        if (!resolution || resolution.kind !== "resolvedType") {
+          return node.occurrenceIndex ? { ...node, occurrenceIndex: rewrite(node.occurrenceIndex) } : node;
+        }
         references.push(resolution);
         return {
           kind: "reference",

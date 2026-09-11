@@ -37,7 +37,7 @@ import {
 } from "../scalars/bindingVersions";
 import { compileTextTemplates, type TextTemplateAst } from "../scalars/textTemplate";
 import { buildTypedDependencyGraph, type TypedDependencyGraph } from "../scalars/typedDependencyGraph";
-import type { TypedScalarExpression } from "../scalars/typedExpressionAst";
+import type { ScalarExpressionResolvedGeometryProperty, TypedScalarExpression } from "../scalars/typedExpressionAst";
 import { formatNumericValueForDsl } from "./dslExpressionFormat";
 import { isCompilableDslStatement, isCanonicalValueBindingDeclaration, type DslStatementInclusion } from "./dslCompilationGuard";
 import { compilePropertyReferenceSyntax } from "./dslPropertyReferenceSyntax";
@@ -1807,6 +1807,10 @@ export const compileDslDocument = (
   // document without Modules. Geometry values also need this path so their
   // source-only aliases can be lowered at existing geometry consumers.
   const moduleSemanticCompilation = hasModuleStatements || hasGeometryValueStatements || hasRecordValueControlFlowStatements || hasGenericCollectionIndexStatements || hasGeometryCollectionIndexStatements || hasCollectionControlFlowStatements || hasNominalRecordCollectionValueFor ? sourceSemanticCompilation : undefined;
+  let moduleGeometryPropertyResolver: ((input: {
+    statementIndex: number;
+    node: Extract<ScalarExpressionAst, { kind: "geometryProperty" }>;
+  }) => ScalarExpressionResolvedGeometryProperty | null) | undefined;
   if (moduleSemanticCompilation && sourceLexicalNamespace && stableStatementIdByIndex) {
     const exportBindingSeeds = moduleScalarExportBindingSeeds(
       moduleSemanticCompilation,
@@ -1945,6 +1949,85 @@ export const compileDslDocument = (
           statementId: resolved.instance.statementId
         };
       };
+      moduleGeometryPropertyResolver = ({ statementIndex, node }: {
+        statementIndex: number;
+        node: Extract<import("../scalars/expressionAst").ScalarExpressionAst, { kind: "geometryProperty" }>;
+      }) => {
+        const statementId = stableStatementIdByIndex.get(statementIndex);
+        const site = statementId
+          ? moduleSemanticCompilation.rootScalarExpressionsByStatementId.get(statementId)
+          : undefined;
+        const candidates = site?.expression.geometryProperties.filter((candidate) => candidate.property === node.property) ?? [];
+        const property = candidates.find((candidate) => candidate.span.start === node.span.start) ?? (candidates.length === 1 ? candidates[0] : undefined);
+        const target = property?.target;
+        if (!property?.type || !target) return null;
+        if (target.kind === "collectionValueLength" || target.kind === "collectionParameterLength" || target.kind === "deferredModuleCollectionExportLength") {
+          return {
+            kind: "collection" as const,
+            collectionValueId: target.kind === "collectionValueLength"
+              ? target.valueId
+              : target.kind === "collectionParameterLength"
+                ? `${target.definitionStatementId}:parameter:${target.parameterIndex}`
+                : JSON.stringify([target.instanceStatementId, target.exportName]),
+            collectionLength: target.kind === "collectionValueLength" ? target.length ?? 0 : 0,
+            targetSourceOrder: target.kind === "collectionValueLength"
+              ? target.statementIndex
+              : target.kind === "deferredModuleCollectionExportLength"
+                ? target.instanceStatementIndex
+                : -1,
+            type: { kind: "number" as const }
+          };
+        }
+        if (target.kind === "sourceGeometryProperty") {
+          const elementId = compiled.elementIdsByStatementIndex?.get(target.statementIndex);
+          if (!elementId) return null;
+          const elementsById = new Map(compiled.elements.map((element) => [element.id, element] as const));
+          const alias = geometryAliasForSourceElement(
+            elementId,
+            target.category === "point" ? "point" : "line",
+            target.pointKey
+          );
+          const lowered = alias ? propertyForAlias(alias, target.property, elementsById) : undefined;
+          if (!lowered || lowered.kind !== "runtime") return null;
+          return {
+            elementId: lowered.elementId,
+            property: lowered.property,
+            targetSourceOrder: target.statementIndex,
+            type: property.type
+          };
+        }
+        if (target.kind === "geometryValueProperty") {
+          return {
+            kind: "geometryValue",
+            occurrence: {
+              sourceStatementId: target.statementId,
+              instancePath: []
+            },
+            property: target.property,
+            ...(target.pointKey ? { pointKey: target.pointKey } : {}),
+            targetSourceOrder: target.statementIndex,
+            type: property.type
+          };
+        }
+        if (target.kind === "forGroupOccurrenceProperty") {
+          return {
+            kind: "forGroupOccurrence",
+            templateElementId: target.statementId,
+            property: target.property,
+            targetSourceOrder: target.statementIndex,
+            index: null,
+            ...(target.pointKey ? { pointKey: target.pointKey } : {}),
+            type: property.type
+          };
+        }
+        if (target.kind !== "deferredModuleExportProperty") return null;
+        return {
+          elementId: target.instanceStatementId,
+          property: target.property,
+          targetSourceOrder: target.instanceStatementIndex,
+          type: property.type
+        };
+      };
       scalarAnalysisCompilation = analyzeTypedDeclarations({
         statements: parsed.statements,
         stableStatementIdByIndex,
@@ -2044,73 +2127,7 @@ export const compileDslDocument = (
               : {})
           };
         },
-        additionalGeometryPropertyResolver: ({ statementIndex, node }) => {
-          const statementId = stableStatementIdByIndex.get(statementIndex);
-          const site = statementId
-            ? moduleSemanticCompilation.rootScalarExpressionsByStatementId.get(statementId)
-            : undefined;
-          const candidates = site?.expression.geometryProperties.filter((candidate) => candidate.property === node.property) ?? [];
-          const property = candidates.find((candidate) => candidate.span.start === node.span.start) ?? (candidates.length === 1 ? candidates[0] : undefined);
-          const target = property?.target;
-          if (!property?.type || !target) return null;
-          if (target.kind === "collectionValueLength" || target.kind === "collectionParameterLength" || target.kind === "deferredModuleCollectionExportLength") {
-            return {
-              kind: "collection" as const,
-              collectionValueId: target.kind === "collectionValueLength"
-                ? target.valueId
-                : target.kind === "collectionParameterLength"
-                  ? `${target.definitionStatementId}:parameter:${target.parameterIndex}`
-                  : JSON.stringify([target.instanceStatementId, target.exportName]),
-              // The Module runtime replaces this intermediate value with the
-              // materialized argument/export cardinality before evaluation.
-              collectionLength: target.kind === "collectionValueLength" ? target.length ?? 0 : 0,
-              targetSourceOrder: target.kind === "collectionValueLength"
-                ? target.statementIndex
-                : target.kind === "deferredModuleCollectionExportLength"
-                  ? target.instanceStatementIndex
-                  : -1,
-              type: { kind: "number" as const }
-            };
-          }
-          if (target.kind === "sourceGeometryProperty") {
-            const elementId = compiled.elementIdsByStatementIndex?.get(target.statementIndex);
-            if (!elementId) return null;
-            const elementsById = new Map(compiled.elements.map((element) => [element.id, element] as const));
-            const alias = geometryAliasForSourceElement(
-              elementId,
-              target.category === "point" ? "point" : "line",
-              target.pointKey
-            );
-            const lowered = alias ? propertyForAlias(alias, target.property, elementsById) : undefined;
-            if (!lowered || lowered.kind !== "runtime") return null;
-            return {
-              elementId: lowered.elementId,
-              property: lowered.property,
-              targetSourceOrder: target.statementIndex,
-              type: property.type
-            };
-          }
-          if (target.kind === "geometryValueProperty") {
-            return {
-              kind: "geometryValue",
-              occurrence: {
-                sourceStatementId: target.statementId,
-                instancePath: []
-              },
-              property: target.property,
-              ...(target.pointKey ? { pointKey: target.pointKey } : {}),
-              targetSourceOrder: target.statementIndex,
-              type: property.type
-            };
-          }
-          if (target.kind !== "deferredModuleExportProperty") return null;
-          return {
-            elementId: target.instanceStatementId,
-            property: target.property,
-            targetSourceOrder: target.instanceStatementIndex,
-            type: property.type
-          };
-        },
+        additionalGeometryPropertyResolver: moduleGeometryPropertyResolver,
         additionalGeometryResolver: ({ statementIndex, node, expectedGeometryType }) => {
           const statementId = stableStatementIdByIndex.get(statementIndex);
           const site = statementId
@@ -2145,6 +2162,18 @@ export const compileDslDocument = (
               occurrence: { sourceStatementId: unwrapped.target.statementId, instancePath: [] },
               statementId: unwrapped.target.statementId,
               statementIndex: unwrapped.target.statementIndex,
+              geometryType: expectedGeometryType,
+              ...(pointKey ? { pointKey } : {})
+            };
+          }
+          if (unwrapped.target.kind === "forGroupOccurrence") {
+            return {
+              kind: "forGroupOccurrence",
+              templateElementId: unwrapped.target.statementId,
+              statementId: unwrapped.target.statementId,
+              statementIndex: unwrapped.target.statementIndex,
+              targetSourceOrder: unwrapped.target.statementIndex,
+              index: null,
               geometryType: expectedGeometryType,
               ...(pointKey ? { pointKey } : {})
             };
@@ -2339,7 +2368,8 @@ export const compileDslDocument = (
         spans,
         includeStatement,
         layouts: compiled.layouts,
-        layoutIdsByStatementIndex: compiled.layoutIdsByStatementIndex
+        layoutIdsByStatementIndex: compiled.layoutIdsByStatementIndex,
+        ...(moduleGeometryPropertyResolver ? { additionalGeometryPropertyResolver: moduleGeometryPropertyResolver } : {})
       })
     : undefined;
   // Task 25: conditionalGroup.condition typed-boolean compile/typecheck.

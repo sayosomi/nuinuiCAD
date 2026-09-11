@@ -173,9 +173,16 @@ const remapTypedExpressionBindingIds = (
   expression: TypedScalarExpression,
   bindingIdByLocalId: ReadonlyMap<BindingId, BindingId>
 ): TypedScalarExpression => {
-  switch (expression.kind) {
+    switch (expression.kind) {
     case "reference":
       return { ...expression, bindingId: expression.bindingId ? bindingIdByLocalId.get(expression.bindingId) ?? null : null };
+    case "geometryProperty":
+      return {
+        ...expression,
+        ...(expression.forGroupOccurrenceIndex
+          ? { forGroupOccurrenceIndex: remapTypedExpressionBindingIds(expression.forGroupOccurrenceIndex, bindingIdByLocalId) }
+          : {})
+      };
     case "unary": return { ...expression, operand: remapTypedExpressionBindingIds(expression.operand, bindingIdByLocalId) };
     case "binary": return {
       ...expression,
@@ -223,6 +230,9 @@ const remapTypedExpressionCollectionValueIds = (
         ...expression,
         ...(expression.collectionValueId
           ? { collectionValueId: collectionValueIdFor(expression.collectionValueId) }
+          : {}),
+        ...(expression.forGroupOccurrenceIndex
+          ? { forGroupOccurrenceIndex: remapTypedExpressionCollectionValueIds(expression.forGroupOccurrenceIndex, collectionValueIdFor) }
           : {})
       };
     case "unary": return {
@@ -266,8 +276,17 @@ const remapTypedExpressionSourceOrders = (
   expression: TypedScalarExpression,
   sourceOrderFor: (sourceOrder: number) => number
 ): TypedScalarExpression => {
-  const remapGeometryTarget = (target: ScalarExpressionResolvedGeometryTarget | null) =>
-    target ? { ...target, statementIndex: target.statementIndex >= 0 ? sourceOrderFor(target.statementIndex) : target.statementIndex } : target;
+  const remapGeometryTarget = (target: ScalarExpressionResolvedGeometryTarget | null): ScalarExpressionResolvedGeometryTarget | null => {
+    if (!target) return target;
+    if (target.kind === "forGroupOccurrence") {
+      return {
+        ...target,
+        targetSourceOrder: target.targetSourceOrder >= 0 ? sourceOrderFor(target.targetSourceOrder) : target.targetSourceOrder,
+        index: target.index ? remapTypedExpressionSourceOrders(target.index, sourceOrderFor) : null
+      };
+    }
+    return { ...target, statementIndex: target.statementIndex >= 0 ? sourceOrderFor(target.statementIndex) : target.statementIndex };
+  };
   switch (expression.kind) {
     case "collectionIndex":
       return {
@@ -282,7 +301,10 @@ const remapTypedExpressionSourceOrders = (
         ...expression,
         targetSourceOrder: expression.targetSourceOrder !== null && expression.targetSourceOrder >= 0
           ? sourceOrderFor(expression.targetSourceOrder)
-          : expression.targetSourceOrder
+          : expression.targetSourceOrder,
+        ...(expression.forGroupOccurrenceIndex
+          ? { forGroupOccurrenceIndex: remapTypedExpressionSourceOrders(expression.forGroupOccurrenceIndex, sourceOrderFor) }
+          : {})
       };
     case "unary": return { ...expression, operand: remapTypedExpressionSourceOrders(expression.operand, sourceOrderFor) };
     case "binary": return {
@@ -832,6 +854,18 @@ const typecheckGeometryTargetFor = (
       ...(pointKey ? { pointKey } : {})
     };
   }
+  if (target.kind === "forGroupOccurrence") {
+    return {
+      kind: "forGroupOccurrence",
+      templateElementId: target.statementId,
+      statementId: target.statementId,
+      statementIndex: target.statementIndex,
+      targetSourceOrder: target.statementIndex,
+      index: null,
+      geometryType: occurrence.expectedGeometryType,
+      ...(pointKey ? { pointKey } : {})
+    };
+  }
   if (target.kind === "collectionIndex") return null;
   return {
     statementId: target.instanceStatementId,
@@ -898,6 +932,18 @@ export const lowerExpression = (
         property: property.target.property,
         ...(property.target.pointKey ? { pointKey: property.target.pointKey } : {}),
         targetSourceOrder: -1,
+        type: property.type
+      });
+      continue;
+    }
+    if (property.target.kind === "forGroupOccurrenceProperty") {
+      geometryPropertyReferences.set(property.span.start, {
+        kind: "forGroupOccurrence",
+        templateElementId: property.target.statementId,
+        property: property.target.property,
+        targetSourceOrder: property.target.statementIndex,
+        index: null,
+        ...(property.target.pointKey ? { pointKey: property.target.pointKey } : {}),
         type: property.type
       });
       continue;
@@ -989,6 +1035,9 @@ export const lowerExpression = (
         collectTypecheckResolutions(node.index);
         return;
       }
+      case "geometryProperty":
+        if (node.occurrenceIndex) collectTypecheckResolutions(node.occurrenceIndex);
+        return;
       case "call": {
         const definition = getBuiltinFunctionDefinition(node.name);
         const signature = definition?.signatures.find((candidate) =>
@@ -999,13 +1048,15 @@ export const lowerExpression = (
         node.args.forEach((argument, argumentIndex) => {
           const sourceArgument = argument.expression;
           const parameterType = signature?.parameters[argumentIndex]?.type;
-          const occurrence = sourceArgument.kind === "reference" || sourceArgument.kind === "geometryProperty"
+          const occurrence = sourceArgument.kind === "reference" || sourceArgument.kind === "collectionIndex" || sourceArgument.kind === "geometryProperty"
             ? geometryBuiltinFor(sourceArgument.span.start)
             : undefined;
           if (parameterType && typeof parameterType === "string" && occurrence) {
-            if (sourceArgument.kind === "reference") {
+            if (sourceArgument.kind === "reference" || sourceArgument.kind === "collectionIndex") {
               typecheckResolutions.push({ kind: "resolvedGeometry", target: typecheckGeometryTargetFor(occurrence) });
             }
+            if (sourceArgument.kind === "collectionIndex") collectTypecheckResolutions(sourceArgument.index);
+            if (sourceArgument.kind === "geometryProperty" && sourceArgument.occurrenceIndex) collectTypecheckResolutions(sourceArgument.occurrenceIndex);
           } else {
             collectTypecheckResolutions(sourceArgument);
           }
@@ -1054,17 +1105,25 @@ export const lowerExpression = (
         const lowered = lowerExpression(resolved.expression, bindingForTarget, catalogBindings, geometryPropertyForTarget, collectionLengthForTarget, geometryBuiltinForTarget, hasValueForParameter, collectionValueIdFor, collectionSourceOrderFor);
         return { node: lowered.expression, references: lowered.references };
       }
+      const loweredOccurrenceIndex = resolved.kind === "forGroupOccurrence" && resolved.index
+        ? lowerExpression(resolved.index, bindingForTarget, catalogBindings, geometryPropertyForTarget, collectionLengthForTarget, geometryBuiltinForTarget, hasValueForParameter, collectionValueIdFor, collectionSourceOrderFor)
+        : undefined;
       return {
         node: {
           ...node,
           elementId: resolved.kind === "runtime" ? resolved.elementId : null,
+          ...(resolved.kind === "forGroupOccurrence" ? {
+            forGroupOccurrenceTemplateElementId: resolved.templateElementId,
+            forGroupOccurrenceIndex: loweredOccurrenceIndex?.expression ?? node.forGroupOccurrenceIndex ?? null,
+            ...(resolved.pointKey ? { forGroupOccurrencePointKey: resolved.pointKey } : {})
+          } : {}),
           ...(resolved.kind === "value" ? { geometryValueOccurrence: resolved.occurrence } : {}),
           ...(resolved.kind === "binder" ? { geometryValueBinderId: resolved.binderId } : {}),
           ...(resolved.kind === "value" && resolved.pointKey ? { geometryValuePointKey: resolved.pointKey } : {}),
           property: resolved.property,
           targetSourceOrder: resolved.targetSourceOrder ?? null
         },
-        references: []
+        references: loweredOccurrenceIndex?.references ?? []
       };
     }
     if (node.kind === "collectionIndex") {
@@ -2668,6 +2727,14 @@ export const compileModuleScalarRuntime = ({
         };
       }
       if (lowered.kind === "binder") return lowered;
+      if (lowered.kind === "forGroupOccurrence") {
+        return {
+          ...lowered,
+          targetSourceOrder: lowered.targetSourceOrder >= 0
+            ? executionPositionForValue(context.path, lowered.targetSourceOrder)
+            : lowered.targetSourceOrder
+        };
+      }
       const sourceOrder = elementOrderById.get(lowered.elementId);
       return sourceOrder === undefined ? undefined : { ...lowered, targetSourceOrder: sourceOrder };
     }
@@ -2774,6 +2841,33 @@ export const compileModuleScalarRuntime = ({
         ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {})
       };
     }
+    if (lowered.kind === "forGroupOccurrence") {
+      const index = lowered.index
+        ? lowerExpression(
+            lowered.index,
+            (target) => resolvedBindingForContext(target, context),
+            bindingsById,
+            (target) => resolvedGeometryPropertyForContext(target, context),
+            (target) => collectionLengthForTargetContext(target, context),
+            (candidate) => resolvedGeometryBuiltinForContext(candidate, context),
+            (definitionStatementId, parameterIndex, definitionDocumentId) => hasValueForParameter(context, definitionStatementId, parameterIndex, definitionDocumentId),
+            (valueId) => collectionValueIdFor(valueId, context),
+            (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder
+          ).expression
+        : null;
+      return {
+        kind: "forGroupOccurrence",
+        templateElementId: lowered.templateElementId,
+        statementId: lowered.templateElementId,
+        statementIndex: lowered.targetSourceOrder,
+        targetSourceOrder: lowered.targetSourceOrder >= 0
+          ? executionPositionForValue(context.path, lowered.targetSourceOrder)
+          : lowered.targetSourceOrder,
+        index,
+        geometryType: lowered.geometryType,
+        ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {})
+      };
+    }
     const statementIndex = elementOrderById.get(lowered.elementId);
     return statementIndex === undefined ? undefined : { statementId: lowered.elementId, statementIndex, geometryType: lowered.geometryType, ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {}) };
   };
@@ -2795,6 +2889,33 @@ export const compileModuleScalarRuntime = ({
         statementIndex: occurrence.reference.target.kind === "geometryValue"
           ? executionPositionForValue([], occurrence.reference.target.statementIndex)
           : occurrence.span.start,
+        geometryType: lowered.geometryType,
+        ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {})
+      };
+    }
+    if (lowered.kind === "forGroupOccurrence") {
+      const index = lowered.index
+        ? lowerExpression(
+            lowered.index,
+            (target) => rootBindingForTarget(target, lowered.targetSourceOrder),
+            bindingsById,
+            rootGeometryPropertyFor,
+            rootCollectionLengthFor,
+            resolvedGeometryBuiltinForRoot,
+            undefined,
+            (valueId) => collectionValueIdFor(valueId, null),
+            (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue([], sourceOrder) : sourceOrder
+          ).expression
+        : null;
+      return {
+        kind: "forGroupOccurrence",
+        templateElementId: lowered.templateElementId,
+        statementId: lowered.templateElementId,
+        statementIndex: lowered.targetSourceOrder,
+        targetSourceOrder: lowered.targetSourceOrder >= 0
+          ? executionPositionForValue([], lowered.targetSourceOrder)
+          : lowered.targetSourceOrder,
+        index,
         geometryType: lowered.geometryType,
         ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {})
       };
@@ -3063,6 +3184,14 @@ export const compileModuleScalarRuntime = ({
       };
     }
     if (lowered.kind === "binder") return lowered;
+    if (lowered.kind === "forGroupOccurrence") {
+      return {
+        ...lowered,
+        targetSourceOrder: lowered.targetSourceOrder >= 0
+          ? executionPositionForValue([], lowered.targetSourceOrder)
+          : lowered.targetSourceOrder
+      };
+    }
     const sourceOrder = elementOrderById.get(lowered.elementId);
     return sourceOrder === undefined ? undefined : { ...lowered, targetSourceOrder: sourceOrder };
   };
@@ -3151,6 +3280,7 @@ export const compileModuleScalarRuntime = ({
         ? bindingsById.get(moduleScalarBindingIdFor(context?.path ?? [target.instanceStatementId], definitionStatementId, target.exportedStatementId))
         : undefined;
     }
+    if (target.kind === "iteration") return documentIterationBindingForTarget(target);
     return undefined;
   };
 
@@ -3266,6 +3396,45 @@ export const compileModuleScalarRuntime = ({
         collectionValueId: source.collectionValueId,
         targetSourceOrder: context ? executionPositionForValue(context.path, source.targetSourceOrder) : source.targetSourceOrder,
         value
+      };
+    }
+    if (source.kind === "forGroupOccurrenceSource") {
+      const currentPath = source.currentPath ?? [];
+      const context = contextsByKey.get(pathKey(currentPath));
+      const loweredIndex = source.index
+        ? context
+          ? lowerExpression(
+              source.index,
+              (target) => resolvedBindingForContext(target, context),
+              bindingsById,
+              (target) => resolvedGeometryPropertyForContext(target, context),
+              (target) => collectionLengthForTargetContext(target, context),
+              (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context),
+              (definitionStatementId, parameterIndex, definitionDocumentId) => hasValueForParameter(context, definitionStatementId, parameterIndex, definitionDocumentId),
+              (valueId) => collectionValueIdFor(valueId, context),
+              (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder
+            ).expression
+          : lowerExpression(
+              source.index,
+              (target) => rootBindingForTarget(target, source.targetSourceOrder),
+              bindingsById,
+              rootGeometryPropertyFor,
+              rootCollectionLengthFor,
+              resolvedGeometryBuiltinForRoot,
+              undefined,
+              (valueId) => collectionValueIdFor(valueId, null),
+              (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue([], sourceOrder) : sourceOrder
+            ).expression
+        : null;
+      return {
+        kind: "forGroupOccurrence",
+        templateElementId: source.templateElementId,
+        geometryType: source.geometryType,
+        targetSourceOrder: context && source.targetSourceOrder >= 0
+          ? executionPositionForValue(context.path, source.targetSourceOrder)
+          : source.targetSourceOrder,
+        index: loweredIndex,
+        ...(source.pointKey ? { pointKey: source.pointKey } : {})
       };
     }
     if (source.kind !== "collectionIndex" || !("target" in source)) return source;
@@ -3474,6 +3643,23 @@ export const compileModuleScalarRuntime = ({
         }
       };
     }
+    if (lowered.kind === "forGroupOccurrence") {
+      return {
+        kind: "target",
+        target: {
+          kind: "forGroupOccurrence",
+          templateElementId: lowered.templateElementId,
+          statementId: lowered.templateElementId,
+          statementIndex: lowered.targetSourceOrder,
+          targetSourceOrder: lowered.targetSourceOrder >= 0
+            ? executionPositionForValue(path, lowered.targetSourceOrder)
+            : lowered.targetSourceOrder,
+          index: lowered.index ? lowerGeometryValueScalar(lowered.index, context) : null,
+          geometryType: lowered.geometryType,
+          ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {})
+        }
+      };
+    }
     const targetSourceOrder = elementOrderById.get(lowered.elementId);
     if (targetSourceOrder === undefined) return undefined;
     return {
@@ -3519,6 +3705,23 @@ export const compileModuleScalarRuntime = ({
             ? executionPositionForValue(path, reference.target.statementIndex)
             : executionPosition,
           geometryType: lowered.geometryType
+        }
+      };
+    }
+    if (lowered.kind === "forGroupOccurrence") {
+      return {
+        kind: "target",
+        target: {
+          kind: "forGroupOccurrence",
+          templateElementId: lowered.templateElementId,
+          statementId: lowered.templateElementId,
+          statementIndex: lowered.targetSourceOrder,
+          targetSourceOrder: lowered.targetSourceOrder >= 0
+            ? executionPositionForValue(path, lowered.targetSourceOrder)
+            : lowered.targetSourceOrder,
+          index: lowered.index ? lowerGeometryValueScalar(lowered.index, context) : null,
+          geometryType: lowered.geometryType,
+          ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {})
         }
       };
     }

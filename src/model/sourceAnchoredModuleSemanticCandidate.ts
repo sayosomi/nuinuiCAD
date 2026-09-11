@@ -104,12 +104,14 @@ export const sourceReferenceForRuntimeElementAtSourceAnchor = ({
   runtimeElementId,
   target,
   context,
-  pointKey
+  pointKey,
+  occurrenceIndex
 }: {
   runtimeElementId: ElementId;
   target: DslReferencePickSourceAnchor;
   context: ModuleSemanticCandidateContext;
   pointKey?: string;
+  occurrenceIndex?: number;
 }): CanonicalGeometrySourceReference | null => {
   if (!context.moduleMaterialization?.originByRuntimeElementId.has(runtimeElementId)) return null;
   const proxyElementId = `__reference-pick-source-target__:${target.statementId}`;
@@ -128,6 +130,7 @@ export const sourceReferenceForRuntimeElementAtSourceAnchor = ({
     runtimeElementId,
     targetElementId: proxyElementId,
     context: proxyContext,
-    pointKey
+    pointKey,
+    occurrenceIndex
   });
 };

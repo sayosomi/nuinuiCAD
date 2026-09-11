@@ -97,6 +97,7 @@ export const referencesIn = (expression: TypedScalarExpression): readonly Extrac
     else if (node.kind === "valueIf") { visit(node.condition); visit(node.thenBranch); visit(node.elseBranch); }
     else if (node.kind === "valueMatch") { visit(node.scrutinee); node.arms.forEach((arm) => visit(arm.expression)); }
     else if (node.kind === "collectionIndex") visit(node.index);
+    else if (node.kind === "geometryProperty" && node.forGroupOccurrenceIndex) visit(node.forGroupOccurrenceIndex);
     else if (node.kind === "call") node.args.forEach((argument) => {
       if (argument.kind === "scalar") visit(argument.expression);
     });
@@ -108,7 +109,10 @@ export const referencesIn = (expression: TypedScalarExpression): readonly Extrac
 export const geometryPropertiesIn = (expression: TypedScalarExpression): readonly Extract<TypedScalarExpression, { kind: "geometryProperty" }>[] => {
   const result: Extract<TypedScalarExpression, { kind: "geometryProperty" }>[] = [];
   const visit = (node: TypedScalarExpression): void => {
-    if (node.kind === "geometryProperty") result.push(node);
+    if (node.kind === "geometryProperty") {
+      result.push(node);
+      if (node.forGroupOccurrenceIndex) visit(node.forGroupOccurrenceIndex);
+    }
     else if (node.kind === "unary") visit(node.operand);
     else if (node.kind === "binary") { visit(node.left); visit(node.right); }
     else if (node.kind === "group") visit(node.expression);

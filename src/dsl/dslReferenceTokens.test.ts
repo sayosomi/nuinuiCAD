@@ -64,6 +64,33 @@ describe("strict source reference grammar", () => {
     });
   });
 
+  it("retains occurrence index and property spans without treating brackets as path", () => {
+    const source = '  @Outer::"Inner name"[ 2 + @i ].start.x  ';
+    const result = parseDslSourceReference(source);
+    expect(result).toMatchObject({
+      kind: "valid",
+      reference: {
+        occurrenceIndex: "2 + @i",
+        property: "start.x"
+      }
+    });
+    if (result.kind !== "valid") return;
+    const { reference } = result;
+    expect(source.slice(reference.pathRange.start, reference.pathRange.end)).toBe('Outer::"Inner name"');
+    expect(source.slice(reference.occurrenceIndexRange!.start, reference.occurrenceIndexRange!.end)).toBe("2 + @i");
+    expect(source.slice(reference.occurrenceRange!.start, reference.occurrenceRange!.end)).toBe("[ 2 + @i ]");
+    expect(source.slice(reference.propertyRange!.start, reference.propertyRange!.end)).toBe("start.x");
+    expect(source.slice(reference.fullRange.start, reference.fullRange.end)).toBe(' @Outer::"Inner name"[ 2 + @i ].start.x'.trimStart());
+    expect(formatDslSourceReference(reference)).toBe('@Outer::"Inner name"[2 + @i].start.x');
+  });
+
+  it.each([
+    ["@A[]", "missing-index"],
+    ["@A[0", "unterminated-index"]
+  ])("rejects malformed occurrence index %s", (source, code) => {
+    expect(parseDslSourceReference(source)).toMatchObject({ kind: "invalid", code });
+  });
+
   it.each([
     ["A", "missing-sigil"],
     ["前身頃::肩線", "missing-sigil"],

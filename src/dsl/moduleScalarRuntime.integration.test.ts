@@ -11,6 +11,7 @@ import { buildForGroupMutationOwners, forGroupMutationOwnerByElementId } from ".
 import { compileDslDocument } from "./dslDocument";
 import { parseDsl } from "./dslParser";
 import { moduleRecordExportFieldBindingIdFor } from "../scalars/moduleScalarRuntime";
+import { pickCandidates } from "../model/pickCandidates";
 
 const compileWithIds = (source: string, prefix = "task6") => {
   const parsed = parseDsl(source);
@@ -117,6 +118,138 @@ const expectValid = (compiled: ReturnType<typeof compileWithIds>) => {
 };
 
 describe("module scalar runtime integration", () => {
+  it("resolves generated drawable occurrences by explicit and loop-variable index", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 100, y: 0)",
+      "for i in range(min: 0, max: 1, step: 1) {",
+      "  line Mark = segment(start: @A, end: @B)",
+      "  line Out = offset(sources: [@Mark[@i]], distance: @Mark[@i].length, side: left, closed: false, suppressTrimWarnings: false)",
+      "}"
+    ].join("\n"), "for-group-occurrence-index");
+    expectValid(compiled);
+    const evaluated = evaluateCompiled(compiled);
+    expect(evaluated.errors).toEqual([]);
+    const outputs = [...evaluated.computedGeometry.entries()]
+      .filter(([id, geometry]) => id.includes("@for-group-occurrence-index:") && geometry.kind === "offsetLine")
+      .map(([, geometry]) => geometry);
+    expect(outputs).toHaveLength(2);
+    expect(outputs.every((geometry) => geometry.kind === "offsetLine" && geometry.length === 100)).toBe(true);
+  });
+
+  it("resolves occurrence targets in a materialized module body", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "module M() {",
+      "  point A = coordinate(x: 0, y: 0)",
+      "  point B = coordinate(x: 100, y: 0)",
+      "  for i in range(min: 0, max: 1, step: 1) {",
+      "    line Mark = segment(start: @A, end: @B)",
+      "    line Out = offset(sources: [@Mark[@i]], distance: @Mark[@i].length, side: left, closed: false, suppressTrimWarnings: false)",
+      "  }",
+      "}",
+      "instance One = M()"
+    ].join("\n"), "module-for-group-occurrence-index");
+    expectValid(compiled);
+    const evaluated = evaluateCompiled(compiled);
+    expect(evaluated.errors).toEqual([]);
+    expect([...evaluated.computedGeometry.values()].filter((geometry) => geometry.kind === "offsetLine")).toHaveLength(2);
+  });
+
+  it("serializes materialized module forGroup picks with authored occurrence ordinals", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "module M() {",
+      "  point A = coordinate(x: 0, y: 0)",
+      "  point B = coordinate(x: 100, y: 0)",
+      "  for i in range(min: 0, max: 1, step: 1) {",
+      "    line Mark = segment(start: @A, end: @B)",
+      "    line Target = segment(start: (0, 0), end: (1, 0))",
+      "  }",
+      "}",
+      "instance One = M()",
+      "line RootTarget = segment(start: (0, 0), end: (1, 0))"
+    ].join("\n"), "module-for-group-pick");
+    expectValid(compiled);
+    const evaluated = evaluateCompiled(compiled);
+    expect(evaluated.errors).toEqual([]);
+    const instance = elementNamed(compiled, "One");
+    const target = compiled.document!.elements.find((element) =>
+      element.name === "Target" &&
+      element.parentGroupId !== undefined &&
+      compiled.document!.elements.find((parent) => parent.id === element.parentGroupId)?.parentGroupId === instance.id
+    );
+    const mark = compiled.document!.elements.find((element) =>
+      element.name === "Mark" &&
+      element.parentGroupId !== undefined &&
+      compiled.document!.elements.find((parent) => parent.id === element.parentGroupId)?.parentGroupId === instance.id
+    );
+    expect(target).toBeDefined();
+    expect(mark).toBeDefined();
+    if (!target || !mark) return;
+    const candidates = pickCandidates(compiled.document!.elements, evaluated, {
+      activePointPickTarget: null,
+      activeLinePickTarget: { elementId: target.id, parameterKey: "baseLineIds" },
+      activeNumericReferencePickTarget: null,
+      moduleSemanticContext: {
+        moduleMaterialization: compiled.moduleMaterialization,
+        moduleSemanticAnalysis: compiled.moduleSemanticAnalysis,
+        sourceLexicalNamespace: compiled.sourceLexicalNamespace,
+        statementInfoByElementId: compiled.statementMap!.byElementId
+      }
+    });
+    const generated = candidates
+      .filter((candidate) => candidate.referenceElementId === mark.id)
+      .flatMap((candidate) => candidate.options.flatMap((option) =>
+        option.kind === "point" || option.kind === "line" ? [option.sourceReference] : []
+      ));
+    expect(generated).toEqual([
+      { base: "Mark", occurrenceIndex: 0 },
+      { base: "Mark", occurrenceIndex: 1 }
+    ]);
+  });
+
+  it("retains nested forGroup occurrence paths while resolving the inner drawable", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 100, y: 0)",
+      "for i in range(min: 0, max: 1, step: 1) {",
+      "  for j in range(min: 0, max: 1, step: 1) {",
+      "    line Mark = segment(start: @A, end: @B)",
+      "    line Out = offset(sources: [@Mark[0]], distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
+      "  }",
+      "}"
+    ].join("\n"), "nested-for-group-occurrence-index");
+    expectValid(compiled);
+    const evaluated = evaluateCompiled(compiled);
+    expect(evaluated.errors).toEqual([]);
+    const rows = (evaluated.forGroupGeneratedRows ?? []).filter((row) => row.elementName.includes("Out"));
+    expect(rows).toHaveLength(4);
+    expect(rows.every((row) => row.occurrencePath.length > 0)).toBe(true);
+    expect(rows.every((row) => row.occurrencePath.length === 2)).toBe(true);
+  });
+
+  it("reports invalid, out-of-range, and ambiguous generated occurrence references", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "const negative: number = -1",
+      "for i in range(min: 0, max: 1, step: 1) {",
+      "  line Mark = segment(start: (0, 0), end: (100, 0))",
+      "  line BadNegative = offset(sources: [@Mark[@negative]], distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
+      "  line BadFractional = offset(sources: [@Mark[0.5]], distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
+      "  line BadRange = offset(sources: [@Mark[9]], distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
+      "  line Ambiguous = offset(sources: [@Mark], distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
+      "}"
+    ].join("\n"), "for-group-occurrence-errors");
+    expectValid(compiled);
+    const result = evaluateCompiled(compiled);
+    expect(result.errors.filter((error) => error.message.includes("evaluation-collection-index-invalid"))).not.toHaveLength(0);
+    expect(result.errors.filter((error) => error.message.includes("evaluation-collection-index-unavailable"))).not.toHaveLength(0);
+    expect([...result.computedGeometry.values()].filter((geometry) => geometry.kind === "offsetLine")).toHaveLength(0);
+  });
+
   it("evaluates conditional collection length and index for both selected branches", () => {
     for (const [flag, expectedLength, expectedItem] of [
       [true, 1, 1],

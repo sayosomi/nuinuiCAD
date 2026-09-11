@@ -41,6 +41,13 @@ pub(crate) enum GeometryInputTarget {
         geometry_type: String,
         point_key: Option<String>,
     },
+    ForGroupOccurrence {
+        template_element_id: ElementId,
+        geometry_type: String,
+        point_key: Option<String>,
+        target_source_order: f64,
+        index: Option<Box<TypedScalarExpression>>,
+    },
     GeometryValue {
         occurrence: GeometryValueOccurrence,
         geometry_type: String,
@@ -327,6 +334,8 @@ pub(crate) struct EvaluationState {
         HashMap<ElementId, HashMap<String, Vec<GeometryInputTarget>>>,
     pub(crate) geometry_collection_nodes: HashMap<String, GeometryInputCollectionNode>,
     pub(crate) geometry_value_binders: HashMap<String, GeometryInputTarget>,
+    pub(crate) for_group_generated_rows: Vec<ForGroupGeneratedRow>,
+    pub(crate) for_group_expected_occurrence_count_by_template_id: HashMap<ElementId, usize>,
     pub(crate) pre_mutation_geometry: HashMap<ElementId, Value>,
     pub(crate) geometry_mutation_executions: Vec<GeometryMutationExecution>,
     pub(crate) condition_evaluation_traces: Vec<Value>,

@@ -96,6 +96,17 @@ export type ScalarExpressionResolvedGeometryTarget = {
   readonly geometryType: ModuleGeometryInterfaceType;
   readonly pointKey?: string;
 } | {
+  readonly kind: "forGroupOccurrence";
+  readonly templateElementId: ElementId;
+  /** Compatibility projection for consumers that only understand authored
+   * drawable targets; runtime resolution uses the explicit template field. */
+  readonly statementId: ElementId;
+  readonly statementIndex: number;
+  readonly targetSourceOrder: number;
+  readonly index: TypedScalarExpression | null;
+  readonly geometryType: ModuleGeometryInterfaceType;
+  readonly pointKey?: string;
+} | {
   readonly kind: "geometryValueForBinder";
   readonly binderId: BindingId;
   readonly statementId: string;
@@ -131,6 +142,14 @@ export type ScalarExpressionResolvedGeometryProperty = {
   readonly elementId: ElementId;
   readonly property: string;
   readonly targetSourceOrder: number;
+  readonly type: ScalarType;
+} | {
+  readonly kind: "forGroupOccurrence";
+  readonly templateElementId: ElementId;
+  readonly property: string;
+  readonly targetSourceOrder: number;
+  readonly index: TypedScalarExpression | null;
+  readonly pointKey?: string;
   readonly type: ScalarType;
 } | {
   readonly kind: "geometryValueForBinder";
@@ -169,6 +188,9 @@ export interface TypedScalarGeometryPropertyReferenceNode {
   readonly geometryValueOccurrence?: GeometryValueOccurrence;
   readonly geometryValuePointKey?: string;
   readonly geometryValueBinderId?: BindingId;
+  readonly forGroupOccurrenceTemplateElementId?: ElementId;
+  readonly forGroupOccurrenceIndex?: TypedScalarExpression | null;
+  readonly forGroupOccurrencePointKey?: string;
   readonly property: string;
   readonly targetSourceOrder: number | null;
   readonly type: ScalarType | null;

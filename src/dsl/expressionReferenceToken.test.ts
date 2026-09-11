@@ -202,6 +202,24 @@ describe("scanExpressionReferences", () => {
     ]);
   });
 
+  it("scans an occurrence index expression independently from its geometry reference", () => {
+    expect(scanExpressionReferences("@Mark[@i + 1].length")).toEqual([
+      {
+        kind: "elementProperty",
+        tokenStart: 0,
+        tokenEnd: 20,
+        from: 14,
+        to: 20,
+        sigil: true,
+        elementToken: "Mark",
+        elementFrom: 1,
+        elementTo: 5,
+        query: "length"
+      },
+      { kind: "binding", tokenStart: 6, tokenEnd: 8, from: 6, to: 8, sigil: true, query: "i" }
+    ]);
+  });
+
   it("applies the offset to every returned span", () => {
     const matches = scanExpressionReferences("AB.length", 100);
     expect(matches).toEqual([

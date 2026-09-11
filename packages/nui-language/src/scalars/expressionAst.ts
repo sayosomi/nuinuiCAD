@@ -90,6 +90,11 @@ export interface ScalarGeometryPropertyReferenceNode {
   readonly propertySpan: ScalarSpan;
   readonly elementName: string;
   readonly property: string;
+  /** Present for `@Name[index].property`; the index remains an ordinary
+   * scalar expression and is typechecked by the shared expression path. */
+  readonly occurrenceIndex?: ScalarExpressionAst;
+  readonly occurrenceIndexSpan?: ScalarSpan;
+  readonly occurrenceRange?: ScalarSpan;
 }
 
 export interface ScalarUnaryExpressionNode {

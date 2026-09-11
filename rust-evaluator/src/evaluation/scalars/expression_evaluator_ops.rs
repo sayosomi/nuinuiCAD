@@ -314,6 +314,24 @@ pub(crate) fn evaluate_geometry_builtin_call(
             binding_id: None,
             context: None,
         },
+        Err(GeometryBuiltinRuntimeError::CollectionIndexInvalid) => ScalarEvaluation::Error {
+            r#type,
+            issue_code: "evaluation-collection-index-invalid".to_owned(),
+            binding_id: None,
+            context: None,
+        },
+        Err(GeometryBuiltinRuntimeError::CollectionIndexUnavailable) => ScalarEvaluation::Error {
+            r#type,
+            issue_code: "evaluation-collection-index-unavailable".to_owned(),
+            binding_id: None,
+            context: None,
+        },
+        Err(GeometryBuiltinRuntimeError::EvaluationIssue(issue_code)) => ScalarEvaluation::Error {
+            r#type,
+            issue_code,
+            binding_id: None,
+            context: None,
+        },
         Err(GeometryBuiltinRuntimeError::Disabled(target)) => ScalarEvaluation::Error {
             r#type,
             issue_code: "evaluation-geometry-builtin-disabled".to_owned(),

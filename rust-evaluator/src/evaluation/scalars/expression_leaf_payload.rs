@@ -340,6 +340,9 @@ pub(crate) fn decode_geometry_property(
             "geometryValueOccurrence",
             "geometryValuePointKey",
             "geometryValueBinderId",
+            "forGroupOccurrenceTemplateElementId",
+            "forGroupOccurrenceIndex",
+            "forGroupOccurrencePointKey",
             "property",
             "targetSourceOrder",
             "type",
@@ -444,11 +447,11 @@ pub(crate) fn decode_geometry_property(
                     })
                 })
                 .transpose()?;
-            Some(GeometryValueOccurrence {
+            Some(Box::new(GeometryValueOccurrence {
                 source_statement_id,
                 instance_path,
                 mapped_member_index,
-            })
+            }))
         }
     };
     let geometry_value_binder_id = match object.get("geometryValueBinderId") {
@@ -491,15 +494,66 @@ pub(crate) fn decode_geometry_property(
                 .to_owned(),
         ),
     };
-    let target_source_order = require_field(object, "targetSourceOrder", "geometryProperty node")?
-        .as_f64()
-        .filter(|value| value.is_finite())
-        .ok_or_else(|| {
-            issue(
-                Code::InvalidFieldType,
-                "geometryProperty node \"targetSourceOrder\" must be a finite number",
-            )
-        })?;
+    let for_group_template_element_id = match object.get("forGroupOccurrenceTemplateElementId") {
+        None | Some(Value::Null) => None,
+        Some(value) => Some(
+            value
+                .as_str()
+                .filter(|value| !value.is_empty())
+                .ok_or_else(|| {
+                    issue(
+                        Code::InvalidFieldType,
+                        "geometryProperty node forGroupOccurrenceTemplateElementId must be a non-empty string",
+                    )
+                })?
+                .to_owned(),
+        ),
+    };
+    let for_group_index = match object.get("forGroupOccurrenceIndex") {
+        None | Some(Value::Null) => None,
+        Some(value) => Some(Box::new(
+            super::expression_payload::validate_typed_expression_payload(value)
+                .map_err(|payload_issue| issue(Code::InvalidFieldType, format!("geometryProperty node forGroupOccurrenceIndex is invalid: {payload_issue:?}")))?,
+        )),
+    };
+    let for_group_point_key = match object.get("forGroupOccurrencePointKey") {
+        None | Some(Value::Null) => None,
+        Some(value) => Some(
+            value
+                .as_str()
+                .filter(|value| !value.is_empty())
+                .ok_or_else(|| issue(Code::InvalidFieldType, "geometryProperty node forGroupOccurrencePointKey must be a non-empty string"))?
+                .to_owned(),
+        ),
+    };
+    if for_group_template_element_id.is_none()
+        && (for_group_index.is_some() || for_group_point_key.is_some())
+    {
+        return Err(issue(
+            Code::LiteralTypeMismatch,
+            "forGroup occurrence geometryProperty fields require a template element id",
+        ));
+    }
+    if for_group_template_element_id.is_some() && geometry_value_point_key.is_some() {
+        return Err(issue(
+            Code::LiteralTypeMismatch,
+            "forGroup occurrence geometryProperty nodes must not carry geometryValuePointKey",
+        ));
+    }
+    let geometry_value_point_key = geometry_value_point_key.or(for_group_point_key);
+    let for_group_target_source_order = match object.get("targetSourceOrder") {
+        Some(value) => value
+            .as_f64()
+            .filter(|value| value.is_finite())
+            .ok_or_else(|| {
+                issue(
+                    Code::InvalidFieldType,
+                    "geometryProperty node targetSourceOrder must be a finite number",
+                )
+            })?,
+        None => unreachable!("targetSourceOrder is required above"),
+    };
+    let target_source_order = for_group_target_source_order;
     let scalar_type = decode_scalar_type(require_field(object, "type", "geometryProperty node")?)?;
     if !matches!(scalar_type, ScalarType::Number | ScalarType::Choice { .. }) {
         return Err(issue(
@@ -525,6 +579,15 @@ pub(crate) fn decode_geometry_property(
             "collection length geometryProperty nodes require collectionValueId",
         ));
     }
+    if for_group_template_element_id.is_some() && element_id.is_empty() {
+        // The authored element id is intentionally absent for generated
+        // occurrences; the explicit template identity above is authoritative.
+    } else if for_group_template_element_id.is_some() {
+        return Err(issue(
+            Code::LiteralTypeMismatch,
+            "forGroup occurrence geometryProperty nodes must not carry elementId",
+        ));
+    }
     Ok(TypedScalarExpression::GeometryProperty {
         span,
         element_name_span,
@@ -536,6 +599,11 @@ pub(crate) fn decode_geometry_property(
         geometry_value_occurrence,
         geometry_value_binder_id,
         geometry_value_point_key,
+        for_group_target_source_order: for_group_template_element_id
+            .as_ref()
+            .map(|_| target_source_order),
+        for_group_template_element_id,
+        for_group_index,
         property,
         target_source_order,
         r#type: scalar_type,

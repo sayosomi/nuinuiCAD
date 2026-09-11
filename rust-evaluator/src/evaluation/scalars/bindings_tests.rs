@@ -62,6 +62,8 @@ fn empty_state() -> EvaluationState {
         geometry_input_targets: HashMap::new(),
         geometry_collection_nodes: HashMap::new(),
         geometry_value_binders: HashMap::new(),
+        for_group_generated_rows: Vec::new(),
+        for_group_expected_occurrence_count_by_template_id: HashMap::new(),
         elements: Vec::new(),
         elements_by_id: HashMap::new(),
         drawing_modifiers: serde_json::json!([]),

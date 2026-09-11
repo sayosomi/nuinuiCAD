@@ -234,6 +234,10 @@ const referenceResolutionsForAst = (
       visit(node.index);
       return;
     }
+    if (node.kind === "geometryProperty") {
+      if (node.occurrenceIndex) visit(node.occurrenceIndex);
+      return;
+    }
     if (node.kind === "unary") return visit(node.operand);
     if (node.kind === "binary") { visit(node.left); visit(node.right); return; }
     if (node.kind === "group") return visit(node.expression);
@@ -417,7 +421,7 @@ export const analyzeTypedDeclarations = ({
   additionalBindingResolver?: SourceNamespaceBindingResolver;
   additionalGeometryResolver?: (input: {
     readonly statementIndex: number;
-    readonly node: Extract<import("./expressionAst").ScalarExpressionAst, { kind: "reference" | "geometryProperty" }>;
+    readonly node: Extract<import("./expressionAst").ScalarExpressionAst, { kind: "reference" | "collectionIndex" | "geometryProperty" }>;
     readonly occurrenceIndex: number | null;
     readonly expectedGeometryType: Extract<import("../dsl/moduleGeometryInterfaces").ModuleGeometryInterfaceType, "point" | "line">;
   }) => import("./typedExpressionAst").ScalarExpressionResolvedGeometryTarget | undefined;

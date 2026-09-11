@@ -46,7 +46,7 @@ export type ResolveBuiltinGeometryArgumentsInput = {
   /** Module semantic analysis may claim an already-resolved qualified geometry
    * occurrence before the ordinary source namespace lookup runs. */
   readonly additionalGeometryResolver?: (input: {
-    readonly node: Extract<ScalarExpressionAst, { kind: "reference" | "geometryProperty" }>;
+      readonly node: Extract<ScalarExpressionAst, { kind: "reference" | "collectionIndex" | "geometryProperty" }>;
     readonly occurrenceIndex: number | null;
     readonly expectedGeometryType: Extract<ModuleGeometryInterfaceType, "point" | "line">;
   }) => ScalarExpressionResolvedGeometryTarget | undefined;
@@ -161,6 +161,44 @@ export const resolveBuiltinGeometryArguments = ({
       }
     }
 
+    references[occurrenceIndex] = { kind: "resolvedGeometry", target };
+    if (target === null) {
+      issues.push({
+        code: "builtin-geometry-argument-invalid",
+        span: node.span,
+        message: invalidReferenceMessage(node.name, resolution),
+        occurrenceIndex,
+        presentation: invalidReferencePresentation(node.name)
+      });
+      return;
+    }
+    if (!isModuleGeometryInterfaceAssignable(target.geometryType, expectedGeometryType)) {
+      issues.push({
+        code: "builtin-geometry-type-mismatch",
+        span: node.span,
+        message: typeMismatchMessage(expectedGeometryType, target.geometryType),
+        occurrenceIndex,
+        expectedGeometryType,
+        actualGeometryType: target.geometryType,
+        presentation: {
+          key: "diagnostic.builtin-geometry-type-mismatch",
+          parameters: { expected: expectedGeometryType, actual: target.geometryType }
+        }
+      });
+    }
+  };
+
+  const resolveDirectGeometryCollectionIndex = (
+    node: Extract<ScalarExpressionAst, { kind: "collectionIndex" }>,
+    expectedGeometryType: Extract<ModuleGeometryInterfaceType, "point" | "line">
+  ): void => {
+    const { occurrenceIndex, resolution } = nextReference(node.name, node.span);
+    claimedReferenceOccurrenceIndexes.add(occurrenceIndex);
+    const target = additionalGeometryResolver?.({
+      node,
+      occurrenceIndex,
+      expectedGeometryType
+    }) ?? null;
     references[occurrenceIndex] = { kind: "resolvedGeometry", target };
     if (target === null) {
       issues.push({
@@ -303,6 +341,9 @@ export const resolveBuiltinGeometryArguments = ({
             ) {
               if (nodeArgument.kind === "reference") {
                 resolveDirectGeometryReference(nodeArgument, parameterType);
+              } else if (nodeArgument.kind === "collectionIndex") {
+                resolveDirectGeometryCollectionIndex(nodeArgument, parameterType);
+                visit(nodeArgument.index);
               } else if (nodeArgument.kind === "geometryProperty" && parameterType === "point") {
                 resolveDerivedPointGeometryProperty(nodeArgument);
               } else {
@@ -327,6 +368,9 @@ export const resolveBuiltinGeometryArguments = ({
           if (parameterType === "point" || parameterType === "line") {
             if (nodeArgument.kind === "reference") {
               resolveDirectGeometryReference(nodeArgument, parameterType);
+            } else if (nodeArgument.kind === "collectionIndex") {
+              resolveDirectGeometryCollectionIndex(nodeArgument, parameterType);
+              visit(nodeArgument.index);
             } else if (nodeArgument.kind === "geometryProperty" && parameterType === "point") {
               resolveDerivedPointGeometryProperty(nodeArgument);
             } else {

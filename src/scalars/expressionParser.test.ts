@@ -230,6 +230,24 @@ describe("parseScalarExpression / @qualifiedName reference", () => {
     });
   });
 
+  it.each([
+    ["@Mark[0].length+1", "+", { kind: "numberLiteral", value: 1 }],
+    ["@Mark[0].length==1", "==", { kind: "numberLiteral", value: 1 }],
+    ["@Mark[0].length&&@flag", "&&", { kind: "reference", name: "flag" }]
+  ] as const)("keeps an indexed geometry property separate from the immediate %s operator", (source, operator, right) => {
+    expect(parseOk(source)).toMatchObject({
+      kind: "binary",
+      operator,
+      left: {
+        kind: "geometryProperty",
+        elementName: "Mark",
+        property: "length",
+        occurrenceIndex: { kind: "numberLiteral", value: 0 }
+      },
+      right
+    });
+  });
+
   it.each(["@marks[]", "@marks[0"])("rejects malformed collection index syntax %j", (source) => {
     expect(parseErr(source).code).toBe(source.endsWith("[]") ? "empty-index" : "unterminated-index");
   });

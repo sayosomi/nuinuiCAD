@@ -3,7 +3,11 @@ import type { CompiledDslDocument, DslDocumentData, StatementInfo } from "../dsl
 import type { DslStatement } from "../dsl/dslTypes";
 import { coordinateComponent } from "../dsl/dslParameterSpanScanner";
 import { formatDslName, quoteDslString } from "../dsl/dslTokens";
-import { formatDslReferenceToken } from "../dsl/dslReferenceTokens";
+import {
+  formatDslSourceReference,
+  formatDslReferenceToken,
+  parseDslSourceReference
+} from "../dsl/dslReferenceTokens";
 import { getParameterValue } from "../parameters/parameterAccess";
 import { findParameterDefinition, getParameterDefinitions, type ParameterValueKind } from "../parameters/parameterDefinitions";
 import { sourceOwnerForRuntimeElementId, type SourceOwner } from "../dsl/sourceOwnership";
@@ -122,10 +126,14 @@ const safeLiteralFor = (
  * materialized IDs are intentionally rejected here so source adoption cannot
  * persist a private/runtime identity by accident. */
 const moduleReferenceLiteralFor = (kind: ParameterValueKind, value: unknown): string | null => {
-  const qualified = (token: unknown) =>
-    typeof token === "string" && !token.startsWith("module-runtime:")
-      ? `@${formatDslReferenceToken(token.replace(/^@/, ""))}`
-      : null;
+  const qualified = (token: unknown) => {
+    if (typeof token !== "string" || token.startsWith("module-runtime:")) return null;
+    const source = token.startsWith("@") ? token : `@${token}`;
+    const parsed = parseDslSourceReference(source);
+    return parsed.kind === "valid"
+      ? formatDslSourceReference(parsed.reference)
+      : `@${formatDslReferenceToken(token.replace(/^@/, ""))}`;
+  };
   if (kind === "reference" && value && typeof value === "object" && "mode" in value) {
     const anchor = value as { mode?: string; pointId?: unknown; elementId?: unknown; pointKey?: unknown };
     if (anchor.mode === "reference") return qualified(anchor.pointId);

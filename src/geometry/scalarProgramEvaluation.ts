@@ -23,7 +23,7 @@ import type { ForGroupMutationRunOutcome } from "../scalars/forGroupMutationCore
 import type { ScalarProgram, ScalarProgramCollection } from "../scalars/scalarProgram";
 import type { BindingId } from "../scalars/bindingCatalog";
 import type { ScalarEvaluation, ScalarType } from "../scalars/types";
-import type { ScalarExpressionResolvedGeometryTarget, TypedScalarGeometryPropertyReferenceNode } from "../scalars/typedExpressionAst";
+import type { ScalarExpressionResolvedGeometryTarget, TypedScalarGeometryPropertyReferenceNode, TypedScalarExpression } from "../scalars/typedExpressionAst";
 import { evaluateTypedExpression, type GeometryBuiltinTargetLookupResult, type ScalarEvaluationEnvironment } from "../scalars/expressionEvaluator";
 import type { EffectiveElementActivity } from "../model/elementActivity";
 import type { GeometryInputCollectionNode } from "../types/geometry";
@@ -66,13 +66,42 @@ export type DocumentGeometryRuntime = {
   geometryCollectionNodesByValueId?: ReadonlyMap<string, GeometryInputCollectionNode>;
   elementsById: ReadonlyMap<ElementId, CadElement>;
   activities: ReadonlyMap<ElementId, EffectiveElementActivity>;
+  forGroupGeneratedRows?: readonly import("./evaluationTypes").ForGroupGeneratedRow[];
+  /** Expected total occurrences for a source/template drawable once the
+   * enclosing statement-for expansion has been materialized. This lets bare
+   * generated references reject an ambiguous future occurrence instead of
+   * accidentally selecting the first row evaluated so far. */
+  forGroupExpectedOccurrenceCountByTemplateId?: ReadonlyMap<ElementId, number>;
+};
+
+type OccurrenceIndexResolver = (expression: TypedScalarExpression, sourceOrder: number) => ScalarEvaluation;
+
+const generatedOccurrenceRowFor = (
+  geometry: DocumentGeometryRuntime,
+  templateElementId: ElementId,
+  index: TypedScalarExpression | null,
+  sourceOrder: number,
+  resolveIndex?: OccurrenceIndexResolver
+): import("./evaluationTypes").ForGroupGeneratedRow | undefined => {
+  const rows = geometry.forGroupGeneratedRows?.filter((row) => row.templateElementId === templateElementId) ?? [];
+  if (!index) {
+    const expectedCount = geometry.forGroupExpectedOccurrenceCountByTemplateId?.get(templateElementId);
+    return (expectedCount ?? rows.length) === 1 && rows.length === 1 ? rows[0] : undefined;
+  }
+  if (!resolveIndex) return undefined;
+  const evaluated = resolveIndex(index, sourceOrder);
+  if (evaluated.status !== "ok" || evaluated.value.kind !== "number") return undefined;
+  const ordinal = evaluated.value.value;
+  if (!Number.isFinite(ordinal) || !Number.isInteger(ordinal) || ordinal < 0) return undefined;
+  return rows[ordinal];
 };
 
 export const resolveDocumentGeometryProperty = (
   geometry: DocumentGeometryRuntime,
   reference: TypedScalarGeometryPropertyReferenceNode,
   sourceOrder: number,
-  resolveCollectionLength?: (collectionValueId: string, sourceOrder: number) => number | undefined
+  resolveCollectionLength?: (collectionValueId: string, sourceOrder: number) => number | undefined,
+  resolveOccurrenceIndex?: OccurrenceIndexResolver
 ): ScalarEvaluation => {
   if (reference.type === null) {
     return { status: "error", type: { kind: "number" }, issueCode: "evaluation-static-type-null" };
@@ -84,6 +113,34 @@ export const resolveDocumentGeometryProperty = (
     const length = resolveCollectionLength?.(reference.collectionValueId, sourceOrder);
     return typeof length === "number"
       ? { status: "ok", type: reference.type, value: { kind: "number", value: length } }
+      : { status: "error", type: reference.type, issueCode: "evaluation-geometry-property-unavailable" };
+  }
+  if (reference.forGroupOccurrenceTemplateElementId) {
+    const row = generatedOccurrenceRowFor(
+      geometry,
+      reference.forGroupOccurrenceTemplateElementId,
+      reference.forGroupOccurrenceIndex ?? null,
+      sourceOrder,
+      resolveOccurrenceIndex
+    );
+    if (!row) return { status: "error", type: reference.type, issueCode: "evaluation-geometry-property-unavailable" };
+    const computed = geometry.computedGeometry.get(row.generatedElementId);
+    if (!computed) return { status: "error", type: reference.type, issueCode: "evaluation-geometry-property-unavailable" };
+    if (reference.type.kind === "number") {
+      const point = reference.forGroupOccurrencePointKey
+        ? resolveDerivedPoint(computed, reference.forGroupOccurrencePointKey, new Map(geometry.elementsById))
+        : undefined;
+      const value = point && (reference.property === "x" || reference.property === "y")
+        ? point[reference.property]
+        : computedReferencePathValue(computed, reference.property);
+      return typeof value === "number"
+        ? { status: "ok", type: reference.type, value: { kind: "number", value } }
+        : { status: "error", type: reference.type, issueCode: "evaluation-geometry-property-unavailable" };
+    }
+    const element = geometry.elementsById.get(row.generatedElementId);
+    const value = element ? getParameterValue(element, reference.property) : undefined;
+    return typeof value === "string" && reference.type.options.includes(value)
+      ? { status: "ok", type: reference.type, value: { kind: "choice", value, options: reference.type.options } }
       : { status: "error", type: reference.type, issueCode: "evaluation-geometry-property-unavailable" };
   }
   if (reference.geometryValueOccurrence) {
@@ -165,7 +222,8 @@ const geometryCollectionLengthForNode = (
 export const resolveDocumentGeometryTarget = (
   geometry: DocumentGeometryRuntime,
   target: ScalarExpressionResolvedGeometryTarget,
-  sourceOrder: number
+  sourceOrder: number,
+  resolveOccurrenceIndex?: OccurrenceIndexResolver
 ): GeometryBuiltinTargetLookupResult | undefined => {
   if (target.kind === "geometryValue") {
     const entry = geometry.computedGeometryValues?.get(geometryValueOccurrenceKey(target.occurrence));
@@ -174,6 +232,17 @@ export const resolveDocumentGeometryTarget = (
     if (entry.value.kind !== "line" && entry.value.kind !== "arcLine" && entry.value.kind !== "offsetLine" && entry.value.kind !== "joinedPath" && entry.value.kind !== "polyline") return undefined;
     return target.pointKey === "end" && entry.value.end ? { kind: "point", x: entry.value.end.x, y: entry.value.end.y } :
       target.pointKey === "start" && entry.value.start ? { kind: "point", x: entry.value.start.x, y: entry.value.start.y } : undefined;
+  }
+  if (target.kind === "forGroupOccurrence") {
+    const row = generatedOccurrenceRowFor(geometry, target.templateElementId, target.index, sourceOrder, resolveOccurrenceIndex);
+    if (!row) return undefined;
+    if (geometry.activities.get(row.generatedElementId)?.activity === "disabled") {
+      return { kind: "unavailable", reason: "disabled" };
+    }
+    const computed = geometry.computedGeometry.get(row.generatedElementId);
+    if (!computed) return undefined;
+    if (!target.pointKey) return computed;
+    return resolveDerivedPoint(computed, target.pointKey, new Map(geometry.elementsById)) ?? undefined;
   }
   if (target.statementIndex >= sourceOrder || !geometry.elementsById.has(target.statementId)) return undefined;
   if (geometry.activities.get(target.statementId)?.activity === "disabled") {
@@ -198,8 +267,8 @@ export const createDocumentScalarBindingResolver = (
         if (!node || !evaluator) return undefined;
         const environmentFor = (currentSourceOrder: number): ScalarEvaluationEnvironment => ({
           lookupBinding: evaluator.resolve,
-          lookupGeometryProperty: (reference) => resolveDocumentGeometryProperty(geometry, reference, currentSourceOrder, resolveGeometryCollectionLength),
-          lookupGeometryTarget: (target) => resolveDocumentGeometryTarget(geometry, target, currentSourceOrder),
+          lookupGeometryProperty: (reference) => resolveDocumentGeometryProperty(geometry, reference, currentSourceOrder, resolveGeometryCollectionLength, evaluateOccurrenceIndex),
+          lookupGeometryTarget: (target) => resolveDocumentGeometryTarget(geometry, target, currentSourceOrder, evaluateOccurrenceIndex),
           ...evaluator.collectionResolver?.environmentFor(currentSourceOrder)
         });
         return geometryCollectionLengthForNode(node, environmentFor);
@@ -207,15 +276,21 @@ export const createDocumentScalarBindingResolver = (
     : undefined;
   const resolveGeometryProperty = geometry
     ? (reference: TypedScalarGeometryPropertyReferenceNode, sourceOrder: number): ScalarEvaluation =>
-        resolveDocumentGeometryProperty(geometry, reference, sourceOrder, resolveGeometryCollectionLength)
+        resolveDocumentGeometryProperty(geometry, reference, sourceOrder, resolveGeometryCollectionLength, evaluateOccurrenceIndex)
     : undefined;
   const resolveGeometryTarget = geometry
     ? (target: ScalarExpressionResolvedGeometryTarget, sourceOrder: number): GeometryBuiltinTargetLookupResult | undefined => {
-        return resolveDocumentGeometryTarget(geometry, target, sourceOrder);
+        return resolveDocumentGeometryTarget(geometry, target, sourceOrder, evaluateOccurrenceIndex);
       }
     : undefined;
   const evaluator = createLazyScalarProgramEvaluator(program, resolveGeometryProperty, resolveGeometryTarget, resolveGeometryCollectionLength);
   const collectionResolver = evaluator.collectionResolver;
+  const evaluateOccurrenceIndex: OccurrenceIndexResolver = (expression, sourceOrder) => evaluateTypedExpression(expression, {
+    lookupBinding: evaluator.resolve,
+    lookupGeometryProperty: (reference) => resolveDocumentGeometryProperty(geometry!, reference, sourceOrder, resolveGeometryCollectionLength, evaluateOccurrenceIndex),
+    lookupGeometryTarget: (target) => resolveDocumentGeometryTarget(geometry!, target, sourceOrder, evaluateOccurrenceIndex),
+    ...collectionResolver?.environmentFor(sourceOrder)
+  });
 
   return {
     resolveBinding: evaluator.resolve,
@@ -241,8 +316,8 @@ export const createDocumentLinearScalarBindingResolver = (
         if (!node || !evaluator) return undefined;
         const environmentFor = (currentSourceOrder: number): ScalarEvaluationEnvironment => ({
           lookupBinding: evaluator.resolveCurrent,
-          lookupGeometryProperty: (reference) => resolveDocumentGeometryProperty(geometry, reference, currentSourceOrder, resolveGeometryCollectionLength),
-          lookupGeometryTarget: (target) => resolveDocumentGeometryTarget(geometry, target, currentSourceOrder),
+          lookupGeometryProperty: (reference) => resolveDocumentGeometryProperty(geometry, reference, currentSourceOrder, resolveGeometryCollectionLength, evaluateOccurrenceIndex),
+          lookupGeometryTarget: (target) => resolveDocumentGeometryTarget(geometry, target, currentSourceOrder, evaluateOccurrenceIndex),
           ...collectionResolver?.environmentFor(currentSourceOrder)
         });
         return geometryCollectionLengthForNode(node, environmentFor);
@@ -250,11 +325,11 @@ export const createDocumentLinearScalarBindingResolver = (
     : undefined;
   const resolveGeometryProperty = geometry
     ? (reference: TypedScalarGeometryPropertyReferenceNode, sourceOrder: number): ScalarEvaluation =>
-        resolveDocumentGeometryProperty(geometry, reference, sourceOrder, resolveGeometryCollectionLength)
+        resolveDocumentGeometryProperty(geometry, reference, sourceOrder, resolveGeometryCollectionLength, evaluateOccurrenceIndex)
     : undefined;
   const resolveGeometryTarget = geometry
     ? (target: ScalarExpressionResolvedGeometryTarget, sourceOrder: number): GeometryBuiltinTargetLookupResult | undefined => {
-        return resolveDocumentGeometryTarget(geometry, target, sourceOrder);
+        return resolveDocumentGeometryTarget(geometry, target, sourceOrder, evaluateOccurrenceIndex);
       }
     : undefined;
   const evaluator = createIncrementalLinearMutationEvaluator(graph, resolveGeometryProperty, resolveGeometryTarget, collectionValues, resolveGeometryCollectionLength);
@@ -264,6 +339,12 @@ export const createDocumentLinearScalarBindingResolver = (
     resolveGeometryProperty,
     resolveGeometryTarget
   );
+  const evaluateOccurrenceIndex: OccurrenceIndexResolver = (expression, sourceOrder) => evaluateTypedExpression(expression, {
+    lookupBinding: evaluator.resolveCurrent,
+    lookupGeometryProperty: (reference) => resolveDocumentGeometryProperty(geometry!, reference, sourceOrder, resolveGeometryCollectionLength, evaluateOccurrenceIndex),
+    lookupGeometryTarget: (target) => resolveDocumentGeometryTarget(geometry!, target, sourceOrder, evaluateOccurrenceIndex),
+    ...collectionResolver?.environmentFor(sourceOrder)
+  });
   return {
     advanceTo: evaluator.advanceTo,
     registerConditionalResult: evaluator.registerConditionalResult,

@@ -286,6 +286,13 @@ describe("pickCandidates", () => {
     expect(pointIds.map((candidate) => candidate.elementId)).toEqual([
       "loop-point@loop:0", "loop-point@loop:1", "loop-point@loop:2"
     ]);
+    expect(pointIds.flatMap((candidate) => candidate.options.flatMap((option) =>
+      option.kind === "point" || option.kind === "line" ? [option.sourceReference] : []
+    ))).toEqual([
+      { base: 'Loop::"Loop point"', occurrenceIndex: 0 },
+      { base: 'Loop::"Loop point"', occurrenceIndex: 1 },
+      { base: 'Loop::"Loop point"', occurrenceIndex: 2 }
+    ]);
 
     const endpointCandidates = pickCandidates(generatedElements, generatedEvaluation, {
       activePointPickTarget: { elementId: "endpoint-target", parameterKey: "endpoint" },
@@ -297,6 +304,16 @@ describe("pickCandidates", () => {
       "[i=1] Loop line.始点", "[i=1] Loop line.終点",
       "[i=2] Loop line.始点", "[i=2] Loop line.終点"
     ]);
+    expect(endpointCandidates.flatMap((candidate) => candidate.options.flatMap((option) =>
+      option.kind === "point" || option.kind === "line" ? [option.sourceReference] : []
+    ))).toEqual([
+      { base: 'Loop::"Loop line"', occurrenceIndex: 0, pointKey: "start" },
+      { base: 'Loop::"Loop line"', occurrenceIndex: 0, pointKey: "end" },
+      { base: 'Loop::"Loop line"', occurrenceIndex: 1, pointKey: "start" },
+      { base: 'Loop::"Loop line"', occurrenceIndex: 1, pointKey: "end" },
+      { base: 'Loop::"Loop line"', occurrenceIndex: 2, pointKey: "start" },
+      { base: 'Loop::"Loop line"', occurrenceIndex: 2, pointKey: "end" }
+    ]);
 
     const lineCandidates = pickCandidates(generatedElements, generatedEvaluation, {
       activePointPickTarget: null,
@@ -306,6 +323,14 @@ describe("pickCandidates", () => {
     expect(lineCandidates.filter((candidate) => candidate.referenceElementId === "loop-line")
       .map((candidate) => candidate.elementId)).toEqual([
         "loop-line@loop:0", "loop-line@loop:1", "loop-line@loop:2"
+      ]);
+    expect(lineCandidates.filter((candidate) => candidate.referenceElementId === "loop-line")
+      .flatMap((candidate) => candidate.options.flatMap((option) =>
+        option.kind === "point" || option.kind === "line" ? [option.sourceReference] : []
+      ))).toEqual([
+        { base: 'Loop::"Loop line"', occurrenceIndex: 0 },
+        { base: 'Loop::"Loop line"', occurrenceIndex: 1 },
+        { base: 'Loop::"Loop line"', occurrenceIndex: 2 }
       ]);
     expect(lineCandidates.map((candidate) => candidate.elementId)).not.toContain("later@loop:0");
     expect(lineCandidates.map((candidate) => candidate.elementId)).not.toContain("other-point@other-loop:0");

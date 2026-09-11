@@ -157,6 +157,7 @@ fn decode_collection_node(
                     target,
                     GeometryInputTarget::CollectionIndex { .. }
                         | GeometryInputTarget::CollectionValue { .. }
+                        | GeometryInputTarget::ForGroupOccurrence { .. }
                 )
             }) {
                 return Err(invalid(format!(
@@ -298,6 +299,53 @@ fn decode_target(
                     .map(ToOwned::to_owned),
             })
         }
+        "forGroupOccurrence" => {
+            reject_unexpected_fields(
+                object,
+                &[
+                    "kind",
+                    "templateElementId",
+                    "geometryType",
+                    "pointKey",
+                    "targetSourceOrder",
+                    "index",
+                ],
+                context,
+            )?;
+            let geometry_type = non_empty_string(object, "geometryType", context)?;
+            if geometry_type != "point" && geometry_type != "line" && geometry_type != "path" {
+                return Err(invalid(format!(
+                    "{context}.geometryType must be point, line, or path"
+                )));
+            }
+            let target_source_order = object
+                .get("targetSourceOrder")
+                .and_then(Value::as_f64)
+                .filter(|value| value.is_finite())
+                .ok_or_else(|| {
+                    invalid(format!(
+                        "{context}.targetSourceOrder must be a finite number"
+                    ))
+                })?;
+            let index = match object.get("index") {
+                None | Some(Value::Null) => None,
+                Some(value) => Some(
+                    super::scalars::validate_typed_expression_payload(value).map_err(|issue| {
+                        invalid(format!("{context}.index is invalid: {issue:?}"))
+                    })?,
+                ),
+            };
+            Ok(GeometryInputTarget::ForGroupOccurrence {
+                template_element_id: non_empty_string(object, "templateElementId", context)?,
+                geometry_type,
+                point_key: object
+                    .get("pointKey")
+                    .and_then(Value::as_str)
+                    .map(ToOwned::to_owned),
+                target_source_order,
+                index: index.map(Box::new),
+            })
+        }
         "geometryValue" => {
             reject_unexpected_fields(
                 object,
@@ -371,6 +419,7 @@ fn decode_target(
                 source,
                 GeometryInputTarget::CollectionIndex { .. }
                     | GeometryInputTarget::GeometryValueMap { .. }
+                    | GeometryInputTarget::ForGroupOccurrence { .. }
             ) {
                 return Err(invalid(format!(
                     "{context}.source must be an already-resolved geometry target"
@@ -629,7 +678,8 @@ fn point_anchor_for_target(target: &GeometryInputTarget) -> Option<Value> {
         GeometryInputTarget::Coordinate { anchor } => Some(anchor.clone()),
         GeometryInputTarget::GeometryValueMap { .. }
         | GeometryInputTarget::CollectionValue { .. }
-        | GeometryInputTarget::CollectionIndex { .. } => None,
+        | GeometryInputTarget::CollectionIndex { .. }
+        | GeometryInputTarget::ForGroupOccurrence { .. } => None,
         _ => None,
     }
 }
@@ -759,6 +809,58 @@ fn materialize_target(
             point_key,
         }]);
     }
+    if let GeometryInputTarget::ForGroupOccurrence {
+        template_element_id,
+        geometry_type,
+        point_key,
+        target_source_order,
+        index,
+    } = target
+    {
+        if current_source_order.is_some_and(|source_order| target_source_order >= source_order) {
+            return Err("evaluation-collection-index-unavailable".to_owned());
+        }
+        let Some(resolver) = resolver else {
+            return Err("evaluation-binding-unavailable".to_owned());
+        };
+        let rows = state
+            .for_group_generated_rows
+            .iter()
+            .filter(|row| row.template_element_id == template_element_id)
+            .collect::<Vec<_>>();
+        let ordinal = if let Some(index) = index.as_deref() {
+            let evaluation =
+                evaluate_document_typed_expression(index, resolver, state, current_source_order);
+            match evaluation {
+                ScalarEvaluation::Ok {
+                    value: ScalarValue::Number(value),
+                    ..
+                } if value.is_finite() && value.fract() == 0.0 && value >= 0.0 => value as usize,
+                ScalarEvaluation::Error { issue_code, .. } => return Err(issue_code),
+                ScalarEvaluation::Ok { .. } => {
+                    return Err("evaluation-collection-index-invalid".to_owned())
+                }
+            }
+        } else if rows.len() == 1 {
+            0
+        } else {
+            return Err("evaluation-collection-index-unavailable".to_owned());
+        };
+        let row = rows
+            .get(ordinal)
+            .ok_or_else(|| "evaluation-collection-index-invalid".to_owned())?;
+        if !state
+            .computed_geometry
+            .contains_key(&row.generated_element_id)
+        {
+            return Err("evaluation-collection-index-unavailable".to_owned());
+        }
+        return Ok(vec![GeometryInputTarget::Drawable {
+            element_id: row.generated_element_id.clone(),
+            geometry_type,
+            point_key,
+        }]);
+    }
     if let GeometryInputTarget::CollectionValue {
         collection_value_id: _collection_value_id,
         target_source_order,
@@ -816,6 +918,7 @@ fn materialize_target(
                 member,
                 GeometryInputTarget::CollectionIndex { .. }
                     | GeometryInputTarget::GeometryValueMap { .. }
+                    | GeometryInputTarget::ForGroupOccurrence { .. }
             )
         })
         .ok_or_else(|| "evaluation-collection-index-invalid".to_owned())?;
@@ -833,7 +936,25 @@ pub(crate) fn materialize_geometry_input_targets(
     resolver: Option<&dyn ScalarDocumentBindingResolver>,
     current_source_order: Option<f64>,
 ) -> Result<(), String> {
-    let Some(parameters) = state.geometry_input_targets.remove(element_id) else {
+    materialize_geometry_input_targets_for_runtime(
+        state,
+        element,
+        element_id,
+        element_id,
+        resolver,
+        current_source_order,
+    )
+}
+
+pub(crate) fn materialize_geometry_input_targets_for_runtime(
+    state: &mut EvaluationState,
+    element: &mut Value,
+    target_element_id: &str,
+    runtime_element_id: &str,
+    resolver: Option<&dyn ScalarDocumentBindingResolver>,
+    current_source_order: Option<f64>,
+) -> Result<(), String> {
+    let Some(parameters) = state.geometry_input_targets.remove(target_element_id) else {
         return Ok(());
     };
     let mut materialized_parameters = HashMap::new();
@@ -868,7 +989,7 @@ pub(crate) fn materialize_geometry_input_targets(
     }
     state
         .geometry_input_targets
-        .insert(element_id.to_owned(), materialized_parameters);
+        .insert(runtime_element_id.to_owned(), materialized_parameters);
     Ok(())
 }
 
@@ -893,7 +1014,8 @@ fn geometry_for_target(state: &EvaluationState, target: &GeometryInputTarget) ->
         GeometryInputTarget::GeometryValueMap { .. }
         | GeometryInputTarget::Coordinate { .. }
         | GeometryInputTarget::CollectionValue { .. }
-        | GeometryInputTarget::CollectionIndex { .. } => None,
+        | GeometryInputTarget::CollectionIndex { .. }
+        | GeometryInputTarget::ForGroupOccurrence { .. } => None,
     }
 }
 

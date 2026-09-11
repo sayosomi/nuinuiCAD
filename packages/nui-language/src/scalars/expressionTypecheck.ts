@@ -363,6 +363,10 @@ const checkNode = (
 
     case "geometryProperty": {
       const resolved = state.geometryPropertyReferences?.get(node.span.start) ?? null;
+      const occurrenceIndex = node.occurrenceIndex
+        ? checkNode(node.occurrenceIndex, NUMBER_TYPE, state)
+        : null;
+      const occurrenceIndexOk = occurrenceIndex === null || checkOperandType(state, occurrenceIndex, NUMBER_TYPE);
       return {
         kind: "geometryProperty",
         span: node.span,
@@ -377,9 +381,14 @@ const checkNode = (
         ...(resolved && resolved.kind === "geometryValue" ? { geometryValueOccurrence: resolved.occurrence } : {}),
         ...(resolved && resolved.kind === "geometryValue" && resolved.pointKey ? { geometryValuePointKey: resolved.pointKey } : {}),
         ...(resolved?.kind === "geometryValueForBinder" ? { geometryValueBinderId: resolved.binderId } : {}),
+        ...(resolved?.kind === "forGroupOccurrence" ? {
+          forGroupOccurrenceTemplateElementId: resolved.templateElementId,
+          forGroupOccurrenceIndex: occurrenceIndex,
+          ...(resolved.pointKey ? { forGroupOccurrencePointKey: resolved.pointKey } : {})
+        } : {}),
         property: resolved?.kind === "collection" ? node.property : resolved?.property ?? node.property,
         targetSourceOrder: resolved?.targetSourceOrder ?? null,
-        type: resolved?.type ?? null
+        type: occurrenceIndexOk ? resolved?.type ?? null : null
       };
     }
 
@@ -517,19 +526,26 @@ const checkNode = (
           arg.kind === "positional" &&
           (parameterType === "point" || parameterType === "line")
         ) {
-          if (sourceArgument.kind === "reference") {
-            const resolution = nextReferenceResolution(state, sourceArgument.name, sourceArgument.span.start);
+          if (sourceArgument.kind === "reference" || sourceArgument.kind === "collectionIndex" || sourceArgument.kind === "geometryProperty") {
+            const resolution = sourceArgument.kind === "geometryProperty"
+              ? null
+              : nextReferenceResolution(state, sourceArgument.name, sourceArgument.span.start);
+            let target = sourceArgument.kind === "geometryProperty"
+              ? state.geometryBuiltinArguments?.get(sourceArgument.span.start) ?? null
+              : resolution?.kind === "resolvedGeometry" ? resolution.target : null;
+            if (sourceArgument.kind === "collectionIndex") {
+              const index = checkNode(sourceArgument.index, NUMBER_TYPE, state);
+              checkOperandType(state, index, NUMBER_TYPE);
+              if (target?.kind === "forGroupOccurrence") target = { ...target, index };
+            } else if (sourceArgument.kind === "geometryProperty" && sourceArgument.occurrenceIndex) {
+              const index = checkNode(sourceArgument.occurrenceIndex, NUMBER_TYPE, state);
+              checkOperandType(state, index, NUMBER_TYPE);
+              if (target?.kind === "forGroupOccurrence") target = { ...target, index };
+            }
             return {
               kind: "geometryReference",
               expectedGeometryType: parameterType,
-              target: resolution.kind === "resolvedGeometry" ? resolution.target : null
-            };
-          }
-          if (sourceArgument.kind === "geometryProperty" && parameterType === "point") {
-            return {
-              kind: "geometryReference",
-              expectedGeometryType: parameterType,
-              target: state.geometryBuiltinArguments?.get(sourceArgument.span.start) ?? null
+              target
             };
           }
           checkNode(sourceArgument, null, state);
@@ -667,17 +683,26 @@ const checkNode = (
 
         let target: ScalarExpressionResolvedGeometryTarget | null = null;
         const sourceArgument = nodeArgument.expression;
-        if (sourceArgument.kind === "reference") {
-          const resolution = nextReferenceResolution(state, sourceArgument.name, sourceArgument.span.start);
-          if (resolution.kind === "resolvedGeometry") target = resolution.target;
-          if (resolution.kind !== "resolvedGeometry" || resolution.target === null) {
-            argumentsAreValid = false;
-          } else if (!isModuleGeometryInterfaceAssignable(resolution.target.geometryType, parameterType)) {
-            argumentsAreValid = false;
+        if (sourceArgument.kind === "reference" || sourceArgument.kind === "collectionIndex" || sourceArgument.kind === "geometryProperty") {
+          const resolution = sourceArgument.kind === "geometryProperty"
+            ? null
+            : nextReferenceResolution(state, sourceArgument.name, sourceArgument.span.start);
+          target = sourceArgument.kind === "geometryProperty"
+            ? state.geometryBuiltinArguments?.get(sourceArgument.span.start) ?? null
+            : resolution?.kind === "resolvedGeometry" ? resolution.target : null;
+          if (sourceArgument.kind === "collectionIndex") {
+            const index = checkNode(sourceArgument.index, NUMBER_TYPE, state);
+            if (!checkOperandType(state, index, NUMBER_TYPE)) argumentsAreValid = false;
+            if (target?.kind === "forGroupOccurrence") target = { ...target, index };
+          } else if (sourceArgument.kind === "geometryProperty" && sourceArgument.occurrenceIndex) {
+            const index = checkNode(sourceArgument.occurrenceIndex, NUMBER_TYPE, state);
+            if (!checkOperandType(state, index, NUMBER_TYPE)) argumentsAreValid = false;
+            if (target?.kind === "forGroupOccurrence") target = { ...target, index };
           }
-        } else if (sourceArgument.kind === "geometryProperty" && parameterType === "point") {
-          target = state.geometryBuiltinArguments?.get(sourceArgument.span.start) ?? null;
-          if (target === null || !isModuleGeometryInterfaceAssignable(target.geometryType, parameterType)) {
+          if ((sourceArgument.kind === "geometryProperty" && target === null) ||
+            (sourceArgument.kind !== "geometryProperty" && (resolution?.kind !== "resolvedGeometry" || resolution.target === null))) {
+            argumentsAreValid = false;
+          } else if (target && !isModuleGeometryInterfaceAssignable(target.geometryType, parameterType)) {
             argumentsAreValid = false;
           }
         } else {

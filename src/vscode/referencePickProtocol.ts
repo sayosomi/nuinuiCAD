@@ -192,11 +192,15 @@ export const isValidNumericReferencePickCandidate = (
 
 export const referencePickSourceForReference = (
   reference: CanonicalGeometrySourceReference
-): string => `@${reference.base}${reference.pointKey === undefined ? "" : `.${reference.pointKey}`}`;
+): string => `@${reference.base}${reference.occurrenceIndex === undefined ? "" : `[${reference.occurrenceIndex}]`}${reference.pointKey === undefined ? "" : `.${reference.pointKey}`}`;
 
 export const referencePickReferenceKey = (
   reference: CanonicalGeometrySourceReference
-): string => JSON.stringify([reference.base, reference.pointKey ?? null]);
+): string => JSON.stringify([
+  reference.base,
+  reference.pointKey ?? null,
+  ...(reference.occurrenceIndex === undefined ? [] : [String(reference.occurrenceIndex)])
+]);
 
 export const isCanonicalReferencePickReference = (
   reference: CanonicalGeometrySourceReference
@@ -209,6 +213,7 @@ export const isCanonicalReferencePickReference = (
   if (parsed.kind !== "valid") return false;
   return (
     formatDslReferencePath(parsed.reference.path) === reference.base &&
+    (parsed.reference.occurrenceIndex ?? undefined) === (reference.occurrenceIndex === undefined ? undefined : String(reference.occurrenceIndex)) &&
     (parsed.reference.property ?? undefined) === reference.pointKey
   );
 };
@@ -217,6 +222,7 @@ const referenceFromParsedSource = (
   reference: DslSourceReference
 ): CanonicalGeometrySourceReference => ({
   base: formatDslReferencePath(reference.path),
+  ...(reference.occurrenceIndex === null ? {} : { occurrenceIndex: reference.occurrenceIndex }),
   ...(reference.property === null ? {} : { pointKey: reference.property })
 });
 
@@ -273,7 +279,10 @@ export const referencePickNumericPropertyDraftFor = (
     !isNumericComputedGeometryProperty(parsed.reference.property)
   ) return null;
   return {
-    reference: { base: formatDslReferencePath(parsed.reference.path) },
+    reference: {
+      base: formatDslReferencePath(parsed.reference.path),
+      ...(parsed.reference.occurrenceIndex === null ? {} : { occurrenceIndex: parsed.reference.occurrenceIndex })
+    },
     property: parsed.reference.property
   };
 };

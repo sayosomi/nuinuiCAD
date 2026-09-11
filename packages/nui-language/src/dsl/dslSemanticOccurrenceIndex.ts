@@ -1126,7 +1126,13 @@ const addModuleSemanticPathOccurrences = (compiled: CompiledDslDocument, add: Ad
       return;
     }
     let finalTarget: DslSemanticIdentity | null = null;
-    if (target.kind === "geometryValue" || target.kind === "sourceGeometry" || target.kind === "sourceGeometryProperty") {
+    if (
+      target.kind === "geometryValue" ||
+      target.kind === "sourceGeometry" ||
+      target.kind === "sourceGeometryProperty" ||
+      target.kind === "forGroupOccurrence" ||
+      target.kind === "forGroupOccurrenceProperty"
+    ) {
       finalTarget = target.statementId
         ? semanticIdentityForModuleTarget(compiled, { kind: "moduleSource", statementId: target.statementId })
         : null;

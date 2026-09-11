@@ -160,7 +160,8 @@ use line_evaluators::{
 };
 use line_geometry_input::{
     decode_geometry_collection_nodes, decode_geometry_input_targets,
-    materialize_geometry_input_targets, GeometryInputTargets,
+    materialize_geometry_input_targets, materialize_geometry_input_targets_for_runtime,
+    GeometryInputTargets,
 };
 use line_tangent_offset_point_evaluator::evaluate_line_tangent_offset_point;
 use numeric_binding_runtime::{
@@ -825,6 +826,8 @@ fn evaluate_document_input_with_scalar_program(
         geometry_input_targets,
         geometry_collection_nodes,
         geometry_value_binders: HashMap::new(),
+        for_group_generated_rows: Vec::new(),
+        for_group_expected_occurrence_count_by_template_id: HashMap::new(),
         computed_geometry_order: Vec::new(),
         pre_mutation_geometry: HashMap::new(),
         geometry_mutation_executions: Vec::new(),
@@ -846,7 +849,6 @@ fn evaluate_document_input_with_scalar_program(
         effective_drawing_modifier_resolution_by_runtime(
             &source_effective_drawing_modifier_runtime,
         );
-    let mut for_group_generated_rows = Vec::new();
     let mut for_group_effective_show_generated_ids = Vec::<ElementId>::new();
     let capture_completed_instances = |completed_index: usize, state: &mut EvaluationState| {
         for snapshot in instance_snapshots
@@ -1104,7 +1106,6 @@ fn evaluate_document_input_with_scalar_program(
                     &mut effective_enabled_order,
                     &mut conditional_group_states,
                     &mut condition_inactive_ids,
-                    &mut for_group_generated_rows,
                     &mut for_group_effective_show_generated_ids,
                 );
                 let outcome = runtime
@@ -1142,7 +1143,6 @@ fn evaluate_document_input_with_scalar_program(
                 &mut effective_enabled_order,
                 &mut conditional_group_states,
                 &mut condition_inactive_ids,
-                &mut for_group_generated_rows,
                 &mut for_group_effective_show_generated_ids,
             );
             generic_runtime.run(
@@ -1327,7 +1327,7 @@ fn evaluate_document_input_with_scalar_program(
     // Generated ids are runtime identities. Their modifier semantics belong
     // to the source template, so use the structured evaluator relationship
     // instead of inferring a template from the generated id string.
-    for row in &for_group_generated_rows {
+    for row in &state.for_group_generated_rows {
         if let Some(stroke) = source_effective_drawing_modifier_strokes
             .get(&row.template_element_id)
             .cloned()
@@ -1401,7 +1401,7 @@ fn evaluate_document_input_with_scalar_program(
             .filter(|id| condition_inactive_ids.contains(id))
             .collect(),
         condition_evaluation_traces: state.condition_evaluation_traces,
-        for_group_generated_rows,
+        for_group_generated_rows: state.for_group_generated_rows,
         for_group_effective_show_generated_ids,
         computed_scalar_bindings,
         computed_scalar_binding_versions,

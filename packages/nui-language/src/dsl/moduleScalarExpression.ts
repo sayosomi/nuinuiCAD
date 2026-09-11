@@ -101,6 +101,9 @@ export type ModuleGeometryPropertyReferenceInput = {
   elementNameSpan: DslSpan;
   propertySpan: DslSpan;
   span: DslSpan;
+  occurrenceIndex?: ScalarExpressionAst;
+  occurrenceIndexSpan?: DslSpan;
+  occurrenceRange?: DslSpan;
   presenceFacts?: ReadonlySet<string>;
 };
 
@@ -198,6 +201,17 @@ const geometryPropertyMetadataFor = (
   if (target.kind === "geometryValueForBinder") {
     return { kind: "geometryValueForBinder", binderId: target.binderId, property: target.property, ...(target.pointKey ? { pointKey: target.pointKey } : {}), targetSourceOrder: target.statementIndex, type };
   }
+  if (target.kind === "forGroupOccurrenceProperty") {
+    return {
+      kind: "forGroupOccurrence",
+      templateElementId: target.statementId,
+      property: target.property,
+      targetSourceOrder: target.statementIndex,
+      index: null,
+      ...(target.pointKey ? { pointKey: target.pointKey } : {}),
+      type
+    };
+  }
   if (target.kind === "recordField") {
     throw new Error("moduleScalarExpression: record field properties are lowered as scalar references");
   }
@@ -210,6 +224,7 @@ const isBuiltinGeometryParameterType = (
 
 const resolveAndTypecheck = ({
   ast,
+  sourceText,
   expectedType,
   resolveReference,
   resolveCollectionIndex,
@@ -220,6 +235,7 @@ const resolveAndTypecheck = ({
   presenceFacts: initialPresenceFacts = new Set()
 }: {
   ast: ScalarExpressionAst;
+  sourceText?: string;
   expectedType: ScalarType | null;
   resolveReference: (reference: { name: string; span: DslSpan }, presenceFacts?: ReadonlySet<string>) => ModuleScalarReferenceResolution;
   resolveCollectionIndex?: (reference: { name: string; span: DslSpan }, presenceFacts?: ReadonlySet<string>) => ModuleCollectionIndexReferenceResolution;
@@ -354,13 +370,15 @@ const resolveAndTypecheck = ({
               signature &&
               parameterType !== undefined &&
               isBuiltinGeometryParameterType(parameterType) &&
-              (sourceArgument.kind === "reference" || sourceArgument.kind === "geometryProperty") &&
+              (sourceArgument.kind === "reference" || sourceArgument.kind === "collectionIndex" || sourceArgument.kind === "geometryProperty") &&
               resolveGeometryBuiltin
             ) {
               const reference = resolveGeometryBuiltin({
                 builtinName: definition.name,
                 argumentIndex,
-                name: sourceArgument.kind === "reference" ? sourceArgument.name : `${sourceArgument.elementName}.${sourceArgument.property}`,
+                name: sourceArgument.kind === "reference"
+                  ? sourceArgument.name
+                  : sourceText?.slice(sourceArgument.span.start, sourceArgument.span.end) ?? (sourceArgument.kind === "collectionIndex" ? sourceArgument.name : `${sourceArgument.elementName}.${sourceArgument.property}`),
                 span: sourceArgument.span,
                 expectedGeometryType: parameterType,
                 presenceFacts
@@ -372,7 +390,9 @@ const resolveAndTypecheck = ({
                 expectedGeometryType: parameterType,
                 reference
               });
-              if (sourceArgument.kind === "reference") {
+              if (sourceArgument.kind === "collectionIndex") resolve(sourceArgument.index, presenceFacts);
+              if (sourceArgument.kind === "geometryProperty" && sourceArgument.occurrenceIndex) resolve(sourceArgument.occurrenceIndex, presenceFacts);
+              if (sourceArgument.kind === "reference" || sourceArgument.kind === "collectionIndex") {
                 resolvedTypes.push({
                   kind: "resolvedGeometry",
                   target: typecheckGeometryTarget(reference, parameterType)
@@ -399,8 +419,12 @@ const resolveAndTypecheck = ({
             elementNameSpan: node.elementNameSpan,
             propertySpan: node.propertySpan,
             span: node.span,
+            ...(node.occurrenceIndex ? { occurrenceIndex: node.occurrenceIndex } : {}),
+            ...(node.occurrenceIndexSpan ? { occurrenceIndexSpan: node.occurrenceIndexSpan } : {}),
+            ...(node.occurrenceRange ? { occurrenceRange: node.occurrenceRange } : {}),
             presenceFacts
           });
+          if (node.occurrenceIndex) resolve(node.occurrenceIndex, presenceFacts);
           geometryProperties.push({
             geometryName: node.elementName,
             property: node.property,
@@ -549,6 +573,18 @@ const typecheckGeometryTarget = (
   if (target.kind === "geometryValueForBinder") {
     return { kind: "geometryValueForBinder", binderId: target.binderId, statementId: target.statementId, statementIndex: target.statementIndex, geometryType: expectedGeometryType, ...(pointKey ? { pointKey } : {}) };
   }
+  if (target.kind === "forGroupOccurrence") {
+    return {
+      kind: "forGroupOccurrence",
+      templateElementId: target.statementId,
+      statementId: target.statementId,
+      statementIndex: target.statementIndex,
+      targetSourceOrder: target.statementIndex,
+      index: null,
+      geometryType: expectedGeometryType,
+      ...(pointKey ? { pointKey } : {})
+    };
+  }
   if (target.kind === "collectionIndex") return null;
   return {
     statementId: target.instanceStatementId,
@@ -583,13 +619,15 @@ export const parseAndCheckModuleScalarExpression = ({
   presenceFacts?: ReadonlySet<string>;
   diagnostics: ModuleScalarLocalDiagnostic[];
 }): ModuleScalarExpressionSemantic | null => {
-  const parsed = parseScalarExpression(`${" ".repeat(span.start)}${raw}`, span);
+  const sourceText = `${" ".repeat(span.start)}${raw}`;
+  const parsed = parseScalarExpression(sourceText, span);
   if (!parsed.ast) {
     diagnostics.push(...parsed.diagnostics.map((item) => localIssue(`module-${item.code}`, item.span, item.message)));
     return null;
   }
   const checked = resolveAndTypecheck({
     ast: parsed.ast,
+    sourceText,
     expectedType,
     resolveReference,
     resolveCollectionIndex,

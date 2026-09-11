@@ -96,6 +96,23 @@ pub(crate) trait ScalarEvaluationEnvironment {
         }
     }
 
+    fn lookup_for_group_geometry_property(
+        &self,
+        _template_element_id: &str,
+        _index: Option<&TypedScalarExpression>,
+        _point_key: Option<&str>,
+        _property: &str,
+        _target_source_order: f64,
+        property_type: &ScalarType,
+    ) -> ScalarEvaluation {
+        ScalarEvaluation::Error {
+            r#type: property_type.clone(),
+            issue_code: "evaluation-geometry-property-unavailable".to_owned(),
+            binding_id: None,
+            context: None,
+        }
+    }
+
     fn lookup_geometry_builtin_target(
         &self,
         _target: &ScalarExpressionResolvedGeometryTarget,
@@ -437,6 +454,9 @@ fn eval_node<'a>(
             geometry_value_occurrence,
             geometry_value_binder_id,
             geometry_value_point_key,
+            for_group_template_element_id,
+            for_group_target_source_order,
+            for_group_index,
             property,
             target_source_order,
             r#type,
@@ -460,6 +480,15 @@ fn eval_node<'a>(
                         context: None,
                     },
                 }
+            } else if let Some(template_element_id) = for_group_template_element_id {
+                environment.lookup_for_group_geometry_property(
+                    template_element_id,
+                    for_group_index.as_deref(),
+                    geometry_value_point_key.as_deref(),
+                    property,
+                    for_group_target_source_order.unwrap_or(*target_source_order),
+                    r#type,
+                )
             } else if let Some(binder_id) = geometry_value_binder_id {
                 environment.lookup_geometry_value_binder_property(
                     binder_id,

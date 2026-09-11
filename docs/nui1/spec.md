@@ -214,13 +214,22 @@ The conceptual reference grammar is:
 
 ```text
 @qualifiedName
+@qualifiedName[index]
 @qualifiedName.property
+@qualifiedName[index].property
 ```
 
 `::` is namespace/container traversal. It moves from one resolved named
 container to a named member, such as `@前身頃::肩線` or
 `@foo::頂点`. `.` is property access after the name has been resolved, such as
-`@AB.length` or `@写し::縫い線.end`.
+`@AB.length` or `@写し::縫い線.end`. For a drawable declaration materialized
+by a statement-for, `[index]` is an explicit zero-based occurrence selector
+after the resolved qualified name; it is not a qualified-path segment. The
+index is a typed numeric expression and must evaluate to a finite, integral,
+non-negative, in-range occurrence that is available at the reference position.
+The optional property is applied after the occurrence selector. Generated
+runtime identifiers are not source references and must never be parsed to
+recover an occurrence index.
 
 Every value reference, including scalar references, geometry references, derived
 points, endpoints, and property references, uses this same `@` form. There is
@@ -969,7 +978,12 @@ iteration at `min`. The canonical source spelling uses the exact spacing
 statement-for header as a control option and does not change range values.
 Non-finite operands, descending bounds, non-positive steps, and ranges that
 would generate more than 1000 values are evaluation diagnostics. A loop does
-not create an implicit outer binding.
+not create an implicit outer binding. Each drawable declaration in a
+statement-for has one deterministic, ordered zero-based occurrence collection
+across its materialized instances; nested loops retain each occurrence path.
+`@Name[index]` addresses one occurrence, while bare `@Name` is valid only when
+exactly one occurrence is available and otherwise reports the existing
+collection-index-unavailable diagnostic rather than selecting zero.
 
 ## Modules
 

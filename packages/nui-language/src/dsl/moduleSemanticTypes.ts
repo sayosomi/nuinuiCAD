@@ -173,6 +173,25 @@ export type ModuleGeometrySourceTarget =
       pointKey?: string;
     }
   | {
+      /** A drawable declaration whose runtime materialization is owned by a
+       * statement-for occurrence collection. */
+      kind: "forGroupOccurrence";
+      statementId: StatementIdentity;
+      statementIndex: number;
+      category: DslGeometryDeclarationCategory;
+      geometryKind: "point" | "line";
+      expectedGeometryKind: "point" | "line";
+      expectedInterfaceType?: ModuleGeometryInterfaceType;
+      index: ModuleScalarExpressionSemantic | null;
+      source: string;
+      referenceSpan: DslSpan;
+      nameSpan: DslSpan;
+      occurrenceIndexSpan?: DslSpan;
+      occurrenceRange?: DslSpan;
+      pointKey?: string;
+      identity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
+    }
+  | {
       kind: "sourceGeometry";
       statementId: StatementIdentity;
       statementIndex: number;
@@ -301,6 +320,18 @@ export type ModuleGeometryPropertySourceTarget =
       statementIndex: number;
       category: DslGeometryDeclarationCategory;
       property: string;
+      pointKey?: string;
+      identity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
+    }
+  | {
+      kind: "forGroupOccurrenceProperty";
+      statementId: StatementIdentity;
+      statementIndex: number;
+      category: DslGeometryDeclarationCategory;
+      property: string;
+      index: ModuleScalarExpressionSemantic | null;
+      occurrenceIndexSpan?: DslSpan;
+      occurrenceRange?: DslSpan;
       pointKey?: string;
       identity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
     }

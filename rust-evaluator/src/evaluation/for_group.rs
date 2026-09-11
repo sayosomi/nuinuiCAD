@@ -5,6 +5,7 @@ use super::for_group_ancestor_reference::{
     remap_ancestor_element_references, remap_current_invocation_numeric_references,
 };
 use super::numeric_expression::evaluate_numeric_or_push;
+use super::scalars::{ScalarDocumentBindingResolver, ScalarEvaluation, ScalarType, ScalarValue};
 use super::types::{
     element_display_name, element_id, element_name, element_type,
     element_type_without_own_drawable_geometry, DependencyError, ElementId, EvaluationState,
@@ -35,6 +36,69 @@ pub(crate) fn iteration_local_variables(
         values.insert(name.to_owned(), value);
     }
     (values, names)
+}
+
+/// Adds the currently active forGroup iteration variables to the ordinary
+/// document binding resolver without changing the resolver's document-wide
+/// semantics. Generated geometry targets use this narrow adapter when an
+/// occurrence index is an authored loop-variable expression such as `@Mark[i]`.
+pub(crate) struct IterationScalarBindingResolver<'a> {
+    base: &'a dyn ScalarDocumentBindingResolver,
+    values: HashMap<String, f64>,
+}
+
+impl<'a> IterationScalarBindingResolver<'a> {
+    pub(crate) fn new(
+        base: &'a dyn ScalarDocumentBindingResolver,
+        iteration_variables: &[Value],
+    ) -> Self {
+        Self {
+            base,
+            values: iteration_local_variables(iteration_variables).0,
+        }
+    }
+}
+
+impl ScalarDocumentBindingResolver for IterationScalarBindingResolver<'_> {
+    fn resolve_binding(&self, binding_id: &str, state: &EvaluationState) -> ScalarEvaluation {
+        self.values
+            .get(binding_id)
+            .copied()
+            .map(|value| ScalarEvaluation::Ok {
+                r#type: ScalarType::Number,
+                value: ScalarValue::Number(value),
+            })
+            .unwrap_or_else(|| self.base.resolve_binding(binding_id, state))
+    }
+
+    fn resolve_collection_index(
+        &self,
+        collection_value_id: &str,
+        index: f64,
+        element_type: &ScalarType,
+        collection_length: Option<f64>,
+        target_source_order: f64,
+        state: &EvaluationState,
+    ) -> ScalarEvaluation {
+        self.base.resolve_collection_index(
+            collection_value_id,
+            index,
+            element_type,
+            collection_length,
+            target_source_order,
+            state,
+        )
+    }
+
+    fn resolve_collection_length(
+        &self,
+        collection_value_id: &str,
+        state: &EvaluationState,
+        seen: &mut HashSet<String>,
+    ) -> Option<f64> {
+        self.base
+            .resolve_collection_length(collection_value_id, state, seen)
+    }
 }
 
 /// Reads and validates a forGroup element's min/max/step. Shared by the
@@ -240,6 +304,51 @@ pub(crate) fn for_group_owned_template_ids(
         .collect()
 }
 
+/// Records the total occurrence count that a generated drawable will have
+/// after this invocation, including enclosing forGroup expansion. Evaluation
+/// is still incremental; this side table only prevents a bare `@Name` from
+/// selecting the first row before later rows have been materialized.
+pub(crate) fn record_for_group_expected_occurrences(
+    elements: &[Value],
+    template_for_group_id: &str,
+    iteration_count: usize,
+    state: &mut EvaluationState,
+) {
+    let mut enclosing_count = 1usize;
+    let mut parent_id = elements
+        .iter()
+        .find(|element| element_id(element).as_deref() == Some(template_for_group_id))
+        .and_then(|element| element.get("parentGroupId"))
+        .and_then(Value::as_str);
+    while let Some(id) = parent_id {
+        let Some(parent) = elements
+            .iter()
+            .find(|element| element_id(element).as_deref() == Some(id))
+        else {
+            break;
+        };
+        if element_type(parent) == Some("forGroup") {
+            enclosing_count = enclosing_count.saturating_mul(
+                state
+                    .for_group_expected_occurrence_count_by_template_id
+                    .get(id)
+                    .copied()
+                    .unwrap_or(1),
+            );
+        }
+        parent_id = parent.get("parentGroupId").and_then(Value::as_str);
+    }
+    let expected_count = enclosing_count.saturating_mul(iteration_count);
+    state
+        .for_group_expected_occurrence_count_by_template_id
+        .insert(template_for_group_id.to_owned(), expected_count);
+    for template_id in for_group_owned_template_ids(elements, template_for_group_id) {
+        state
+            .for_group_expected_occurrence_count_by_template_id
+            .insert(template_id, expected_count);
+    }
+}
+
 fn remap_json_ids(value: &mut Value, id_map: &HashMap<ElementId, ElementId>) {
     match value {
         Value::String(text) => {
@@ -425,6 +534,8 @@ mod tests {
             geometry_input_targets: HashMap::new(),
             geometry_collection_nodes: HashMap::new(),
             geometry_value_binders: HashMap::new(),
+            for_group_generated_rows: Vec::new(),
+            for_group_expected_occurrence_count_by_template_id: HashMap::new(),
             elements: vec![element],
             elements_by_id: HashMap::from([(id, 0)]),
             drawing_modifiers: json!([]),

@@ -61,6 +61,18 @@ import {
 } from "./commandLineSessionCommands";
 import { isLineLikeElement } from "./commandRuntime";
 
+const sourceReferenceValue = (sourceReference: Parameters<typeof sourceReferenceText>[0]) => {
+  const token = sourceReferenceText(sourceReference);
+  return token ? token.slice(1) : null;
+};
+
+const endpointForSourceReference = (sourceReference: CommandContext["pickedPointSourceReference"]) => {
+  const lineId = sourceReferenceValue(sourceReference ?? null);
+  const pointKey = sourceReference?.pointKey;
+  if (!lineId || (pointKey !== "start" && pointKey !== "end")) return null;
+  return { lineId, endpointKey: pointKey as "start" | "end" };
+};
+
 export const applyNumericExpressionReference = (context?: CommandContext) => {
   const numericExpression = context?.numericExpression;
   if (!numericExpression) return;
@@ -821,6 +833,7 @@ export const applyPickedPoint = (context?: CommandContext) => {
   if (!anchor) return;
   const sourceReference = context?.pickedPointSourceReference;
   const sourceAnchor = sourceReference ? pointAnchorForSourceReference(sourceReference) : anchor;
+  const hasSourceReference = Boolean(sourceReference);
   const { activePointPickTarget } = useCadUiStore.getState();
   const { elements } = useCadDocumentStore.getState();
   if (!activePointPickTarget) return;
@@ -841,7 +854,7 @@ export const applyPickedPoint = (context?: CommandContext) => {
         parentGroupId,
         elements
       });
-      if (!isValidPickedPointAnchorForTarget({
+      if (!hasSourceReference && !isValidPickedPointAnchorForTarget({
         elements,
         ...pointPickTargetIds,
         anchor,
@@ -852,19 +865,20 @@ export const applyPickedPoint = (context?: CommandContext) => {
         targetElementId: pointPickTargetIds.normalizationTargetElementId ?? pointPickTargetIds.targetElementId,
         anchor
       });
-      if (!pickedAnchor) return;
-      if (commandLineStep.kind === "endpoint" && !lineEndpointReferenceForPickedAnchor({
+      const resolvedPickedAnchor = pickedAnchor ?? (hasSourceReference ? sourceAnchor : null);
+      if (!resolvedPickedAnchor) return;
+      if (commandLineStep.kind === "endpoint" && !hasSourceReference && !lineEndpointReferenceForPickedAnchor({
         elements,
         targetElementId: pointPickTargetIds.normalizationTargetElementId ?? pointPickTargetIds.targetElementId,
         anchor
       })) return;
-      if (pickedAnchor.mode === "reference") {
-        const pointElement = elements.find((element) => element.id === pickedAnchor.pointId);
+      if (!hasSourceReference && resolvedPickedAnchor.mode === "reference") {
+        const pointElement = elements.find((element) => element.id === resolvedPickedAnchor.pointId);
         if (!pointElement || !["freePoint", "offsetPoint", "polarOffsetPoint", "divisionPoint", "lineDivisionPoint", "intersectionPoint", "lineTangentOffsetPoint"].includes(pointElement.type)) return;
       }
-      if (pickedAnchor.mode === "derived" && !elements.some((element) => element.id === pickedAnchor.elementId)) return;
+      if (!hasSourceReference && resolvedPickedAnchor.mode === "derived" && !elements.some((element) => element.id === resolvedPickedAnchor.elementId)) return;
       const entry = pointDraftEntryFor(
-        commandLineStep.kind === "endpoint" ? anchor : pickedAnchor,
+        commandLineStep.kind === "endpoint" ? anchor : resolvedPickedAnchor,
         context
       );
       if (!entry) return;
@@ -879,7 +893,7 @@ export const applyPickedPoint = (context?: CommandContext) => {
     const targetElement = elements.find((element) => element.id === activePointPickTarget.elementId);
     if (!targetElement) return;
     const definition = findParameterDefinition(targetElement, activePointPickTarget.parameterKey);
-    if (pickedPointAnchorReferencesTarget({
+    if (!hasSourceReference && pickedPointAnchorReferencesTarget({
       elements,
       targetElementId: activePointPickTarget.elementId,
       anchor
@@ -889,19 +903,20 @@ export const applyPickedPoint = (context?: CommandContext) => {
       targetElementId: activePointPickTarget.elementId,
       anchor
     });
-    if (!pickedAnchor) return;
-    if (definition?.kind === "lineEndpointReference" && !lineEndpointReferenceForPickedAnchor({
+    const resolvedPickedAnchor = pickedAnchor ?? (hasSourceReference ? sourceAnchor : null);
+    if (!resolvedPickedAnchor) return;
+    if (definition?.kind === "lineEndpointReference" && !hasSourceReference && !lineEndpointReferenceForPickedAnchor({
       elements,
       targetElementId: activePointPickTarget.elementId,
       anchor
     })) return;
     if (definition?.kind !== "reference" && definition?.kind !== "lineEndpointReference" && definition?.kind !== "pointReferenceList") return;
-    if (pickedAnchor.mode === "reference") {
-      const pointElement = elements.find((element) => element.id === pickedAnchor.pointId);
+    if (!hasSourceReference && resolvedPickedAnchor.mode === "reference") {
+      const pointElement = elements.find((element) => element.id === resolvedPickedAnchor.pointId);
       if (!pointElement || !["freePoint", "offsetPoint", "polarOffsetPoint", "divisionPoint", "lineDivisionPoint", "intersectionPoint", "lineTangentOffsetPoint"].includes(pointElement.type)) return;
     }
-    if (pickedAnchor.mode === "derived" && !elements.some((element) => element.id === pickedAnchor.elementId)) return;
-      const entry = pointDraftEntryFor(pickedAnchor, context);
+    if (!hasSourceReference && resolvedPickedAnchor.mode === "derived" && !elements.some((element) => element.id === resolvedPickedAnchor.elementId)) return;
+    const entry = pointDraftEntryFor(resolvedPickedAnchor, context);
     if (entry) activatePickModeDraft(entry);
     return;
   }
@@ -920,7 +935,7 @@ export const applyPickedPoint = (context?: CommandContext) => {
       parentGroupId,
       elements
     });
-    if (!isValidPickedPointAnchorForTarget({
+    if (!hasSourceReference && !isValidPickedPointAnchorForTarget({
       elements,
       ...pointPickTargetIds,
       anchor,
@@ -933,21 +948,22 @@ export const applyPickedPoint = (context?: CommandContext) => {
       targetElementId: normalizationTargetId,
       anchor
     });
-    if (!pickedAnchor) return;
+    const resolvedPickedAnchor = pickedAnchor ?? (hasSourceReference ? sourceAnchor : null);
+    if (!resolvedPickedAnchor) return;
     if (commandLineStep.kind === "endpoint") {
-      const endpoint = lineEndpointReferenceForPickedAnchor({
+      const endpoint = endpointForSourceReference(sourceReference) ?? lineEndpointReferenceForPickedAnchor({
         elements,
         targetElementId: normalizationTargetId,
         anchor
       });
       if (endpoint) {
-        const sourceLineId = context?.pickedPointSourceReference?.base;
+        const sourceLineId = sourceReferenceValue(context?.pickedPointSourceReference ?? null);
         fillCommandLineCurrentStep(sourceLineId ? { ...endpoint, lineId: sourceLineId } : endpoint, context);
       }
       return;
     }
-    if (pickedAnchor.mode === "reference") {
-      const pointElement = elements.find((element) => element.id === pickedAnchor.pointId);
+    if (!hasSourceReference && resolvedPickedAnchor.mode === "reference") {
+      const pointElement = elements.find((element) => element.id === resolvedPickedAnchor.pointId);
       if (
         !pointElement ||
         (pointElement.type !== "freePoint" &&
@@ -959,17 +975,17 @@ export const applyPickedPoint = (context?: CommandContext) => {
           pointElement.type !== "lineTangentOffsetPoint")
       ) return;
     }
-    if (pickedAnchor.mode === "derived" && !elements.some((element) => element.id === pickedAnchor.elementId)) {
+    if (!hasSourceReference && resolvedPickedAnchor.mode === "derived" && !elements.some((element) => element.id === resolvedPickedAnchor.elementId)) {
       return;
     }
     if (commandLineStep.kind === "pointList") {
       fillCommandLineCurrentStep(
-        [context?.pickedPointSourceReference ? sourceAnchor : pickedAnchor],
+        [context?.pickedPointSourceReference ? sourceAnchor : resolvedPickedAnchor],
         context
       );
       return;
     }
-    fillCommandLineCurrentStep(context?.pickedPointSourceReference ? sourceAnchor : pickedAnchor, context);
+    fillCommandLineCurrentStep(context?.pickedPointSourceReference ? sourceAnchor : resolvedPickedAnchor, context);
     return;
   }
   if (activePointPickTarget.measurementSlot) {
@@ -1018,7 +1034,7 @@ export const applyPickedPoint = (context?: CommandContext) => {
 
   const definition = findParameterDefinition(targetElement, activePointPickTarget.parameterKey);
   if (
-    pickedPointAnchorReferencesTarget({
+    !hasSourceReference && pickedPointAnchorReferencesTarget({
       elements,
       targetElementId: activePointPickTarget.elementId,
       anchor
@@ -1031,10 +1047,11 @@ export const applyPickedPoint = (context?: CommandContext) => {
     targetElementId: activePointPickTarget.elementId,
     anchor
   });
-  if (!pickedAnchor) return;
+  const resolvedPickedAnchor = pickedAnchor ?? (hasSourceReference ? sourceAnchor : null);
+  if (!resolvedPickedAnchor) return;
 
   if (definition?.kind === "lineEndpointReference") {
-    const endpoint = lineEndpointReferenceForPickedAnchor({
+    const endpoint = endpointForSourceReference(sourceReference) ?? lineEndpointReferenceForPickedAnchor({
       elements,
       targetElementId: activePointPickTarget.elementId,
       anchor
@@ -1050,7 +1067,7 @@ export const applyPickedPoint = (context?: CommandContext) => {
               context?.pickedPointSourceReference
                 ? {
                     ...endpoint,
-                    lineId: context.pickedPointSourceReference.base
+                    lineId: sourceReferenceValue(context.pickedPointSourceReference) ?? endpoint.lineId
                   }
                 : endpoint
             )
@@ -1083,8 +1100,8 @@ export const applyPickedPoint = (context?: CommandContext) => {
 
   if (definition?.kind !== "reference" && definition?.kind !== "pointReferenceList") return;
 
-  if (pickedAnchor.mode === "reference") {
-    const pointElement = elements.find((element) => element.id === pickedAnchor.pointId);
+  if (!hasSourceReference && resolvedPickedAnchor.mode === "reference") {
+    const pointElement = elements.find((element) => element.id === resolvedPickedAnchor.pointId);
     if (
       !pointElement ||
       (pointElement.type !== "freePoint" &&
@@ -1099,7 +1116,7 @@ export const applyPickedPoint = (context?: CommandContext) => {
     }
   }
 
-  if (pickedAnchor.mode === "derived" && !elements.some((element) => element.id === pickedAnchor.elementId)) {
+  if (!hasSourceReference && resolvedPickedAnchor.mode === "derived" && !elements.some((element) => element.id === resolvedPickedAnchor.elementId)) {
     return;
   }
 
@@ -1108,7 +1125,7 @@ export const applyPickedPoint = (context?: CommandContext) => {
       elements: elements.map((element) =>
         element.id === activePointPickTarget.elementId
           ? setParameterValue(element, activePointPickTarget.parameterKey, [
-              context?.pickedPointSourceReference ? sourceAnchor : pickedAnchor
+              context?.pickedPointSourceReference ? sourceAnchor : resolvedPickedAnchor
             ])
           : element
       )
@@ -1223,7 +1240,8 @@ export const applyPickedLine = (context?: CommandContext) => {
   const pickedLineId = context?.pickedLineId;
   if (!pickedLineId) return;
   const sourceReferenceToken = sourceReferenceText(context?.pickedLineSourceReference ?? null);
-  const sourceReferenceId = context?.pickedLineSourceReference?.base ?? null;
+  const sourceReferenceId = sourceReferenceValue(context?.pickedLineSourceReference ?? null);
+  const hasSourceReference = Boolean(context?.pickedLineSourceReference);
   const { activeLinePickTarget } = useCadUiStore.getState();
   const { elements } = useCadDocumentStore.getState();
   if (!activeLinePickTarget) return;
@@ -1260,7 +1278,7 @@ export const applyPickedLine = (context?: CommandContext) => {
       });
     }
     const pickedLine = normalizedLineId ? elements.find((element) => element.id === normalizedLineId) : null;
-    if (!normalizedLineId || !pickedLine || !isLineLikeElement(pickedLine)) return;
+    if (!normalizedLineId || (!pickedLine && !hasSourceReference) || (pickedLine && !isLineLikeElement(pickedLine))) return;
     if (!activeLinePickTarget.measurementSlot && normalizedLineId === activeLinePickTarget.elementId) return;
     const entry = lineDraftEntryFor(normalizedLineId, context);
     if (entry) activatePickModeDraft(entry);
@@ -1289,7 +1307,7 @@ export const applyPickedLine = (context?: CommandContext) => {
     const pickedLine = normalizedPickedLineId
       ? elements.find((element) => element.id === normalizedPickedLineId)
       : null;
-    if (!normalizedPickedLineId || !pickedLine || !isLineLikeElement(pickedLine)) return;
+    if (!normalizedPickedLineId || (!pickedLine && !hasSourceReference) || (pickedLine && !isLineLikeElement(pickedLine))) return;
     if (commandLineStep.kind === "line") {
       fillCommandLineCurrentStep(sourceReferenceToken ?? normalizedPickedLineId, context);
       return;
@@ -1302,13 +1320,15 @@ export const applyPickedLine = (context?: CommandContext) => {
     const current = useCadUiStore.getState().activeMeasurementInsertTarget;
     if (
       !current ||
-      !pickedLine ||
-      !isLineLikeElement(pickedLine) ||
-      pickedLine.id === activeLinePickTarget.elementId
+      (!pickedLine && !hasSourceReference) ||
+      (pickedLine && !isLineLikeElement(pickedLine)) ||
+      pickedLine?.id === activeLinePickTarget.elementId
     ) return;
+    const lineId = sourceReferenceId ?? pickedLine?.id;
+    if (!lineId) return;
     useCadUiStore.getState().setActiveMeasurementInsertTarget({
       ...current,
-      lineId: sourceReferenceId ?? pickedLine.id
+      lineId
     });
     useCadUiStore.getState().setActiveLinePickTarget(null);
     insertSelectedMeasurement({
@@ -1324,7 +1344,7 @@ export const applyPickedLine = (context?: CommandContext) => {
     targetElementId: activeLinePickTarget.elementId,
     pickedElementId: pickedLineId
   });
-  if (!normalizedPickedLineId) return;
+  if (!normalizedPickedLineId && !hasSourceReference) return;
 
   const pickedLine = elements.find((element) => element.id === normalizedPickedLineId);
   const definition = targetElement
@@ -1339,9 +1359,8 @@ export const applyPickedLine = (context?: CommandContext) => {
   if (
     !targetElement ||
     (definition?.kind !== "lineReferenceList" && definition?.kind !== "lineReference") ||
-    !pickedLine ||
-    !isLineLikeElement(pickedLine) ||
-    normalizedPickedLineId === targetElement.id
+    (!hasSourceReference && (!pickedLine || !isLineLikeElement(pickedLine))) ||
+    (!hasSourceReference && normalizedPickedLineId === targetElement.id)
   ) {
     return;
   }
@@ -1474,7 +1493,7 @@ const finishLineDraft = (session: PickModeSession, context?: CommandContext) => 
     return true;
   }
 
-  const values = lineEntries.map((entry) => entry.sourceReference?.base ?? entry.lineId);
+  const values = lineEntries.map((entry) => sourceReferenceValue(entry.sourceReference ?? null) ?? entry.lineId);
   const commandLineStep = commandLineStepForPickTarget(target, ui.commandLineSession);
   if (commandLineStep?.kind === "lineList") {
     if (cancelStaleCommandLineSession()) return false;

@@ -25,7 +25,8 @@ import {
 } from "./forGroupGeneratedReferences";
 import {
   elementsByIdForPickCandidateGeometries,
-  pickCandidateGeometries
+  pickCandidateGeometries,
+  type PickCandidateGeometry
 } from "./pickCandidateGeometry";
 import type {
   ActiveLinePickTarget,
@@ -42,13 +43,14 @@ import {
 } from "../commands/commandLinePickRouting";
 import {
   isSemanticGeometryCandidateAllowed,
-  sourceReferenceForAnchor,
+  sourceReferenceForRootTemplate,
   sourceReferenceForElement,
   sourceReferenceForRuntimeElement,
   sourceReferenceText,
   type CanonicalGeometrySourceReference,
   type ModuleSemanticCandidateContext
 } from "./moduleSemanticCandidateBoundary";
+import { elementQualifiedNameParts } from "./elementNames";
 import {
   numericGeometryStaticTargetForElementInDocument,
   numericGeometryStaticTargetForModuleInterface
@@ -101,6 +103,49 @@ type PickTargets = {
   /** Creation placement / live DSL scope is authoritative when supplied. */
   referenceElements?: readonly CadElement[];
   moduleSemanticContext?: ModuleSemanticCandidateContext;
+};
+
+const sourceReferenceForCandidate = ({
+  candidate,
+  elements,
+  targetElementId,
+  context,
+  pointKey
+}: {
+  candidate: Pick<PickCandidateGeometry, "templateElement" | "generatedOccurrenceIndex">;
+  elements: readonly CadElement[];
+  targetElementId: ElementId;
+  context?: ModuleSemanticCandidateContext;
+  pointKey?: string;
+}): CanonicalGeometrySourceReference | null => {
+  if (candidate.generatedOccurrenceIndex !== undefined) {
+    const materialized = context
+      ? sourceReferenceForRuntimeElement({
+          runtimeElementId: candidate.templateElement.id,
+          targetElementId,
+          context,
+          occurrenceIndex: candidate.generatedOccurrenceIndex,
+          ...(pointKey ? { pointKey } : {})
+        })
+      : null;
+    return materialized ?? sourceReferenceForRootTemplate({
+      templatePath: elementQualifiedNameParts(candidate.templateElement, [...elements]),
+      occurrenceIndex: candidate.generatedOccurrenceIndex,
+      ...(pointKey ? { pointKey } : {})
+    });
+  }
+  if (!context) return null;
+  return sourceReferenceForRuntimeElement({
+    runtimeElementId: candidate.templateElement.id,
+    targetElementId,
+    context,
+    ...(pointKey ? { pointKey } : {})
+  });
+};
+
+const sourceReferenceSelectionKeys = (reference: CanonicalGeometrySourceReference | null) => {
+  const text = sourceReferenceText(reference);
+  return text ? [text, text.slice(1)] : [];
 };
 
 const eligibleReferenceElements = (
@@ -200,7 +245,7 @@ const pointCandidates = (
 
   return geometryCandidates
     .filter((candidate) => !moduleSemanticContext || isSemanticGeometryCandidateAllowed({
-      candidateElementId: candidate.geometry.elementId,
+      candidateElementId: candidate.templateElement.id,
       targetElementId: activePointPickTarget.elementId,
       context: moduleSemanticContext
     }))
@@ -218,13 +263,12 @@ const pointCandidates = (
         candidate.geometry.kind === "point" &&
         isValidPointCandidate(referenceAnchor(candidate.geometry.elementId))
       ) {
-        const sourceReference = moduleSemanticContext
-          ? sourceReferenceForAnchor({
-              anchor: referenceAnchor(candidate.geometry.elementId),
-              targetElementId: activePointPickTarget.elementId,
-              context: moduleSemanticContext
-            })
-          : null;
+        const sourceReference = sourceReferenceForCandidate({
+          candidate,
+          elements,
+          targetElementId: activePointPickTarget.elementId,
+          context: moduleSemanticContext
+        });
         options.push({
           kind: "point",
           label: candidate.geometry.name,
@@ -234,13 +278,13 @@ const pointCandidates = (
       } else {
         options.push(
           ...selectablePoints.map((point) => {
-            const sourceReference = moduleSemanticContext
-              ? sourceReferenceForAnchor({
-                  anchor: point.anchor,
-                  targetElementId: activePointPickTarget.elementId,
-                  context: moduleSemanticContext
-                })
-              : null;
+            const sourceReference = sourceReferenceForCandidate({
+              candidate,
+              elements,
+              targetElementId: activePointPickTarget.elementId,
+              context: moduleSemanticContext,
+              ...(point.anchor.mode === "derived" ? { pointKey: point.anchor.pointKey } : {})
+            });
             return {
               kind: "point" as const,
               label: point.label,
@@ -303,7 +347,7 @@ const lineCandidates = (
     .filter(
       (candidate) =>
         (!moduleSemanticContext || isSemanticGeometryCandidateAllowed({
-          candidateElementId: candidate.geometry.elementId,
+          candidateElementId: candidate.templateElement.id,
           targetElementId: activeLinePickTarget.elementId,
           context: moduleSemanticContext
         })) &&
@@ -314,20 +358,20 @@ const lineCandidates = (
         isEnabledPickSource(evaluation, candidate.geometry.elementId) &&
         (pickModeDraft !== undefined ||
           (!selectedLineIds.has(candidate.templateElement.id) &&
-            !selectedLineIds.has(sourceReferenceText(sourceReferenceForRuntimeElement({
-              runtimeElementId: candidate.templateElement.id,
+            sourceReferenceSelectionKeys(sourceReferenceForCandidate({
+              candidate,
+              elements,
               targetElementId: activeLinePickTarget.elementId,
-              context: moduleSemanticContext ?? {}
-            })) ?? "")))
+              context: moduleSemanticContext
+            })).every((key) => !selectedLineIds.has(key))))
     )
     .map((candidate) => {
-      const sourceReference = moduleSemanticContext
-        ? sourceReferenceForRuntimeElement({
-            runtimeElementId: candidate.templateElement.id,
-            targetElementId: activeLinePickTarget.elementId,
-            context: moduleSemanticContext
-          })
-        : null;
+      const sourceReference = sourceReferenceForCandidate({
+        candidate,
+        elements,
+        targetElementId: activeLinePickTarget.elementId,
+        context: moduleSemanticContext
+      });
       return {
         elementId: candidate.geometry.elementId,
         ...(candidate.referenceElementId ? { referenceElementId: candidate.referenceElementId } : {}),
