@@ -166,7 +166,10 @@ export const recordDeclarationInitializerCompletionContextAt = (
   pos: number
 ): RecordDeclarationInitializerCompletionContext | null => {
   const { statement } = parseDslTypedDeclarationStatement(logicalText);
-  const recordTypeName = nominalRecordTypeOfDslValueType(statement?.valueType)?.name;
+  const recordTypeName = nominalRecordTypeOfDslValueType(statement?.valueType)?.name ??
+    (isDslArrayValueType(statement?.valueType)
+      ? nominalRecordTypeOfDslValueType(statement.valueType.elementType)?.name
+      : undefined);
   if (!statement || !recordTypeName) return null;
   const span = initializerSpanIncludingEmpty(logicalText, statement.payloadSpans.initializer);
   if (!span || pos < span.start || pos > span.end) return null;

@@ -125,7 +125,7 @@ reference, or supported indexed record-collection member of the same nominal
 type. At runtime the condition is evaluated first and only the selected branch
 is evaluated. Geometry branches may be existing `@` references or implemented
 pure geometry constructions. Collection-valued `if` and exhaustive `match` are
-supported; optional result values and nominal-record value-for remain deferred.
+supported; optional result values remain deferred.
 
 ### Exhaustive choice value-match
 
@@ -184,13 +184,13 @@ conditional collection may feed existing point, line, or path consumers when
 its element type is assignable to the required geometry interface. Nominal
 record collections preserve their declared record identity and indexed field
 consumption. Collection control flow is lazy: the unselected branch or arm is
-not evaluated. Nested arrays, optional result values, and nominal-record
-collection-producing `for` remain outside the current language surface.
+not evaluated. Nested arrays and optional result values remain outside the
+current language surface.
 
 ### Collection value-for
 
-An immutable one-dimensional scalar, choice, or geometry collection can be produced by
-mapping an existing whole-value collection:
+An immutable one-dimensional scalar, choice, geometry, or nominal-record
+collection can be produced by mapping an existing whole-value collection:
 
 <!-- dsl-example: syntax-fragment -->
 ```nui
@@ -206,22 +206,33 @@ const sides: choice(left, right)[] =
 
 const points: point[] = for item in @origins { @item }
 const paths: path[] = for edge in @edges { @edge }
+
+record Pair(
+  x: number,
+  label: string,
+)
+const first: Pair = Pair(x: 1, label: "one")
+const pairs: Pair[] = [@first]
+const shifted: Pair[] = for item in @pairs {
+  Pair(x: @item.x + 10, label: @item.label)
+}
 ```
 
 The source must be a collection already declared and visible at this source
 position. The immutable binder has the source element's exact scalar, choice,
-or geometry type and is visible only in the body. The body is checked against
-the declared result element type, so scalar kinds may change, geometry
-interfaces must be assignable, and bare choice literals use the declared
-result choice identity and order. Mapping emits one member per source member
-in authored order, preserves duplicates, and maps an empty source to an empty
-result. It is lazy: `.length` reports source cardinality without evaluating the
-body, and indexing evaluates only the requested member.
+geometry, or nominal-record type and is visible only in the body. The body is
+checked against the declared result element type, so scalar kinds may change,
+geometry interfaces must be assignable, bare choice literals use the declared
+result choice identity and order, and record source/result types must retain
+exact nominal identity. Mapping emits one member per source member in authored
+order, preserves duplicates, and maps an empty source to an empty result. It is
+lazy: `.length` reports source cardinality without evaluating the body, and
+indexing evaluates only the requested member or record field.
 
 Whole-value aliases, Module locals, exports, parameters, and per-instance
 namespace rules retain the collection identity. This implemented surface does
-not support nominal-record value-for, nested arrays, filtering, folding,
-scanning, or mutable accumulation. Geometry mapping supports `point[]`,
+not support nested arrays, filtering, folding, scanning, or mutable
+accumulation. Geometry mapping supports `point[]`,
 `line[]`, and `path[]`, including the existing `line[] -> path[]`
 assignability; a `path` result is not assignable to `line`.
 

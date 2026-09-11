@@ -50,13 +50,16 @@ has its own `state` option: visible content evaluates and draws, hidden content
 evaluates without drawing, and disabled content does not evaluate or provide
 exports to later references.
 
-Module locals and exports may use the scalar/choice collection value-for form.
+Module locals and exports may use the scalar, choice, geometry, and nominal-record
+collection value-for form.
 The source collection and the mapped result keep the Module's normal lexical,
 privacy, export, and source-order rules. Each Module instance remaps the
 immutable binder and body references independently, so one instance cannot
 observe another instance's mapped members. Root consumers can read an
-exported mapped collection's `.length` or index it normally. Geometry and
-nominal-record value-for remains deferred.
+exported mapped collection's `.length` or index it normally. Nominal-record
+maps preserve exact source/result record identity and evaluate each requested
+record field lazily within the Module instance. Each instance keeps its own
+binder and mapped body state.
 
 Module collection locals and exports may also use collection-valued `if` and
 exhaustive choice `match`. Each instance evaluates its own condition or

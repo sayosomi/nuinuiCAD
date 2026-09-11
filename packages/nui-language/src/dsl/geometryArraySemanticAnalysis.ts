@@ -22,6 +22,7 @@ import {
   isDslArrayValueType,
   isDslGeometryValueType,
   isDslScalarValueType,
+  recordTypeReferenceOfDslValueType,
   scalarTypeOfDslValueType,
   type DslArrayValueType,
   type DslNonArrayValueType
@@ -981,10 +982,15 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
           const code = lookup?.kind === "forward" ? "array-value-for-source-forward" : "array-value-for-source-invalid";
           return { kind: "invalid", diagnostic: { code, message: `value-for source「${valueFor.sourceText}」は解決できない collection です。`, span: valueFor.sourceSpan } };
         }
-        const sourceElementType = scalarTypeOfDslValueType(sourceValueType.elementType);
-        const resultElementType = scalarTypeOfDslValueType(enrichedExpectedType.elementType);
+        const sourceElementType = scalarTypeOfDslValueType(sourceValueType.elementType)
+          ?? recordTypeReferenceOfDslValueType(sourceValueType.elementType);
+        const resultElementType = scalarTypeOfDslValueType(enrichedExpectedType.elementType)
+          ?? recordTypeReferenceOfDslValueType(enrichedExpectedType.elementType);
         if (!sourceElementType || !resultElementType) {
-          return { kind: "invalid", diagnostic: { code: "array-value-for-source-unsupported", message: "この Slice の value-for source/result は scalar または choice collection である必要があります。", span: valueFor.span } };
+          return { kind: "invalid", diagnostic: { code: "array-value-for-source-unsupported", message: "この value-for の source/result は scalar、choice、または nominal-record collection である必要があります。", span: valueFor.span } };
+        }
+        if ((sourceElementType.kind === "record") !== (resultElementType.kind === "record")) {
+          return { kind: "invalid", diagnostic: { code: "array-value-for-source-unsupported", message: "nominal-record value-for は nominal-record collection 同士でのみ使用できます。", span: valueFor.span } };
         }
         const mapped: DslArrayMappedValue = {
           kind: "map",

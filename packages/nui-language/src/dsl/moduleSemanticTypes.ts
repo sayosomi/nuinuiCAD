@@ -58,6 +58,15 @@ export type ModuleRecordSourceTarget =
       typeIdentity: RecordTypeIdentity;
       identity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
     }
+  | {
+      /** Immutable nominal-record binder owned by a record collection map. */
+      kind: "recordValueForBinder";
+      binderId: BindingId;
+      statementId: StatementIdentity;
+      statementIndex: number;
+      name: string;
+      typeIdentity: RecordTypeIdentity;
+    }
   | (ModuleParameterSlot & {
       kind: "recordParameter";
       typeIdentity: RecordTypeIdentity;
@@ -841,6 +850,26 @@ export type ModuleDefinitionSemantic = {
     resultElementType: ScalarType;
     body: ModuleScalarExpressionSemantic;
   }[];
+  /** Nominal-record collection maps lower each result field through the
+   * established scalar expression/runtime boundary. */
+  mappedRecordCollectionBodies?: readonly {
+    statementId: StatementIdentity;
+    statementIndex: number;
+    binderId: BindingId;
+    sourceTypeIdentity: RecordTypeIdentity;
+    resultTypeIdentity: RecordTypeIdentity;
+    binderFields: readonly {
+      field: RecordFieldIdentity;
+      fieldName: string;
+      type: ScalarType;
+    }[];
+    fields: readonly {
+      field: RecordFieldIdentity;
+      fieldName: string;
+      type: ScalarType;
+      body: ModuleScalarExpressionSemantic;
+    }[];
+  }[];
   /** Geometry-valued value-for bodies use the existing geometry-value semantic
    * expression owner and are rematerialized per Module instance. */
   mappedGeometryCollectionBodies?: readonly {
@@ -888,6 +917,8 @@ export type ModuleSemanticAnalysis = {
   instances: readonly ModuleInstanceSemantic[];
   definitionsByStatementId: ReadonlyMap<StatementIdentity, ModuleDefinitionSemantic>;
   instancesByStatementId: ReadonlyMap<StatementIdentity, ModuleInstanceSemantic>;
+  /** Root-document and Module-owned nominal-record collection maps. */
+  mappedRecordCollectionBodies: readonly NonNullable<ModuleDefinitionSemantic["mappedRecordCollectionBodies"]>[number][];
   callEdges: readonly ModuleCallEdge[];
   /** Source-only qualified scalar references in root typed declarations. */
   rootScalarExpressionsByStatementId: ReadonlyMap<StatementIdentity, ModuleScalarExpressionSite>;

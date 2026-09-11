@@ -87,6 +87,24 @@ describe("queryDslDefinition", () => {
     expect(result!.declarationRange.from).toBe(source.indexOf("item in"));
   });
 
+  it("resolves a nominal-record value-for field reference to its immutable binder declaration", () => {
+    const source = [
+      "nui 1",
+      "record Pair(",
+      "  x: number,",
+      "  label: string,",
+      ")",
+      "const first: Pair = Pair(x: 1, label: \"one\")",
+      "const pairs: Pair[] = [@first]",
+      "const mapped: Pair[] = for item in @pairs { Pair(x: @item.x + 1, label: @item.label) }"
+    ].join("\n");
+    const result = exactQuery(source, "@item.x", 7, 5);
+    expect(result).not.toBeNull();
+    expect(sourceSlice(source, result!.referenceRange)).toBe("item");
+    expect(sourceSlice(source, result!.declarationRange)).toBe("item");
+    expect(result!.declarationRange.from).toBe(source.indexOf("item in"));
+  });
+
   it("resolves an ordinary qualified scalar export used by a value-for body", () => {
     const source = [
       "nui 1",

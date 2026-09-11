@@ -2008,6 +2008,103 @@ describe("module scalar runtime integration", () => {
     expect(valueFor("emptyCount")).toMatchObject({ status: "ok", value: { kind: "number", value: 0 } });
   });
 
+  it("evaluates nominal-record value-for maps and lazy field projections", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "record Pair(x: number, label: string)",
+      "const first: Pair = Pair(x: 1, label: \"first\")",
+      "const second: Pair = Pair(x: 4, label: \"second\")",
+      "const pairs: Pair[] = [@first, @second]",
+      "const mapped: Pair[] = for item in @pairs { Pair(x: @item.x + 10, label: @item.label) }",
+      "const selected: Pair = @mapped[1]",
+      "const selectedX: number = @selected.x",
+      "const selectedLabel: string = @selected.label"
+    ].join("\n"), "value-for-record-root");
+    expectValid(compiled);
+    const mapped = compiled.scalarProgram?.collectionValues?.find((value) =>
+      value.kind === "recordMap" && value.valueId === "value-for-record-root:5"
+    );
+    expect(mapped?.kind).toBe("recordMap");
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const valueFor = (name: string) => {
+      const binding = compiled.bindingAnalysis!.catalog.bindings.find((candidate) => candidate.kind === "typed" && candidate.name === name);
+      return binding ? result.computedScalarBindings?.get(binding.id) : undefined;
+    };
+    expect(valueFor("selectedX")).toMatchObject({ status: "ok", value: { kind: "number", value: 14 } });
+    expect(valueFor("selectedLabel")).toMatchObject({ status: "ok", value: { kind: "string", value: "second" } });
+  });
+
+  it("does not evaluate an unrequested failing mapped record field", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "record Pair(x: number, label: string)",
+      'const source: Pair = Pair(x: 2, label: "source")',
+      'const labels: string[] = ["valid"]',
+      "const pairs: Pair[] = [@source]",
+      "const mapped: Pair[] = for item in @pairs { Pair(x: @item.x + 10, label: @labels[99]) }",
+      "const selected: Pair = @mapped[0]",
+      "const selectedX: number = @selected.x"
+    ].join("\n"), "value-for-record-lazy-output-field");
+    expectValid(compiled);
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(result.computedScalarBindings?.get(
+      compiled.bindingAnalysis!.catalog.bindings.find((binding) => binding.kind === "typed" && binding.name === "selectedX")!.id
+    )).toMatchObject({ status: "ok", value: { kind: "number", value: 12 } });
+  });
+
+  it("does not evaluate an unused failing source record binder field", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "record Pair(x: number, label: string)",
+      'const labels: string[] = ["valid"]',
+      "const source: Pair = Pair(x: 7, label: @labels[99])",
+      "const pairs: Pair[] = [@source]",
+      "let offset: number = 0",
+      "set offset = 1",
+      'const mapped: Pair[] = for item in @pairs { Pair(x: @item.x + @offset, label: "mapped") }',
+      "const selected: Pair = @mapped[0]",
+      "const selectedX: number = @selected.x"
+    ].join("\n"), "value-for-record-lazy-source-field");
+    expectValid(compiled);
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(result.computedScalarBindings?.get(
+      compiled.bindingAnalysis!.catalog.bindings.find((binding) => binding.kind === "typed" && binding.name === "selectedX")!.id
+    )).toMatchObject({ status: "ok", value: { kind: "number", value: 8 } });
+  });
+
+  it("evaluates nominal-record value-for maps independently for Module instances", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "record Pair(x: number)",
+      "const first: Pair = Pair(x: 2)",
+      "const second: Pair = Pair(x: 5)",
+      "const left: Pair[] = [@first]",
+      "const right: Pair[] = [@second]",
+      "module Mapper(items: Pair[]) {",
+      "  const mapped: Pair[] = for item in @items { Pair(x: @item.x + 3) }",
+      "  export const output: Pair = @mapped[0]",
+      "}",
+      "instance A = Mapper(items: @left)",
+      "instance B = Mapper(items: @right)",
+      "const aOutput: Pair = @A::output",
+      "const bOutput: Pair = @B::output",
+      "const aValue: number = @aOutput.x",
+      "const bValue: number = @bOutput.x"
+    ].join("\n"), "value-for-record-module");
+    expectValid(compiled);
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const valueFor = (name: string) => {
+      const binding = compiled.bindingAnalysis!.catalog.bindings.find((candidate) => candidate.kind === "typed" && candidate.name === name);
+      return binding ? result.computedScalarBindings?.get(binding.id) : undefined;
+    };
+    expect(valueFor("aValue")).toMatchObject({ status: "ok", value: { kind: "number", value: 5 } });
+    expect(valueFor("bValue")).toMatchObject({ status: "ok", value: { kind: "number", value: 8 } });
+  });
+
   it("resolves qualified Module scalar exports through a root value-for body", () => {
     const compiled = compileWithIds([
       "nui 1",

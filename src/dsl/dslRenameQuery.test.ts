@@ -76,6 +76,25 @@ describe("host-neutral DSL rename query", () => {
     expect(compile(applyEdits(source, plan.plan.edits)).diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
   });
 
+  it("renames a nominal-record value-for binder and its field references only within the mapped body", () => {
+    const source = [
+      "nui 1",
+      "record Pair(",
+      "  x: number,",
+      "  label: string,",
+      ")",
+      "const first: Pair = Pair(x: 1, label: \"one\")",
+      "const pairs: Pair[] = [@first]",
+      "const mapped: Pair[] = for item in @pairs { Pair(x: @item.x + 1, label: @item.label) }"
+    ].join("\n");
+    const plan = planDslRenameEditsResult(snapshot(source), at(source, "@item.x") + 1, "pair");
+    expect(plan.status).toBe("ok");
+    if (plan.status !== "ok") return;
+    expect(plan.plan.edits.map((edit) => source.slice(edit.from, edit.to))).toEqual(["item", "item", "item"]);
+    expect(plan.plan.edits.every((edit) => edit.newText === "pair")).toBe(true);
+    expect(compile(applyEdits(source, plan.plan.edits)).diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+  });
+
   it("renames a geometry value-for binder used by a builtin operand without touching ordinary geometry", () => {
     const source = [
       "nui 1",

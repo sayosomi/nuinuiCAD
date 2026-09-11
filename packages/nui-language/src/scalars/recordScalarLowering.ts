@@ -167,6 +167,11 @@ const syntheticRecordField = (
   property: fieldName
 });
 
+const recordCollectionFieldIndexNameFor = (
+  baseName: string,
+  field: { identity?: RecordFieldIdentity; fieldIndex: number }
+) => `__nui_record_field__${JSON.stringify([baseName, field.identity?.recordStatementId ?? null, field.fieldIndex])}`;
+
 /** Projects one nominal-record control-flow tree into the scalar expression
  * owned by a particular field. Whole-record leaves deliberately use the
  * existing record-property adapter with the authored leaf span; the dotted
@@ -185,7 +190,10 @@ const projectRecordFieldExpression = (
   }
   if (expression.kind === "reference") return syntheticRecordField(expression.reference, field.name);
   if (expression.kind === "collectionIndex") {
-    return syntheticRecordField({ name: expression.expression.name, span: expression.span }, field.name);
+    return {
+      ...expression.expression,
+      name: recordCollectionFieldIndexNameFor(expression.expression.name, field)
+    };
   }
   if (expression.kind === "if") {
     const thenBranch = expression.thenBranch ? projectRecordFieldExpression(expression.thenBranch, field) : null;

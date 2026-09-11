@@ -736,6 +736,7 @@ const recordSourceTargetIdentity = (target: ModuleRecordSourceTarget): DslSemant
     };
   }
   if (target.kind === "recordCollectionIndex") return null;
+  if (target.kind === "recordValueForBinder") return null;
   return {
     kind: "module",
     target: { kind: "moduleSource", statementId: target.exportedStatementId }

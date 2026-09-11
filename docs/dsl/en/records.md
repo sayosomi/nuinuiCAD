@@ -76,8 +76,37 @@ analyzer. Both record branches are resolved and typechecked, while runtime
 evaluates the condition or scrutinee first and evaluates only the selected
 record leaf. Record leaves may be constructors, whole-record references, or
 supported statically indexed members of a nominal record collection. Collection
-values, optional values, and record value-for are not introduced by these
-forms.
+values and optional values are not introduced by these forms.
+
+## Collection value-for
+
+Nominal-record collections support the same lazy, value-producing `for` form as
+scalar, choice, and geometry collections. The source and result element types
+must be exact nominal record identities. The binder has the source record type
+and is visible only in the body. A requested result member evaluates only its
+corresponding scalar field body.
+
+<!-- dsl-example: compile-success -->
+```nui
+nui 1
+record Pair(
+  x: number,
+  label: string,
+)
+const first: Pair = Pair(x: 1, label: "one")
+const second: Pair = Pair(x: 2, label: "two")
+const pairs: Pair[] = [@first, @second]
+const shifted: Pair[] = for item in @pairs {
+  Pair(x: @item.x + 10, label: @item.label)
+}
+const selected: Pair = @shifted[1]
+const selectedLabel: string = @selected.label
+```
+
+The map preserves source order, duplicates, and empty-source cardinality.
+Record collection `.length` does not evaluate field bodies, and indexing is
+zero-based with the normal runtime bounds checks. Nested arrays and optional
+result values remain unsupported.
 
 ## Notes
 
