@@ -523,6 +523,24 @@ describe("queryDslReferences", () => {
     expect(indexReference?.identity).not.toEqual(valueDeclaration?.identity);
   });
 
+  it("keeps an indexed geometry-property index binding in the semantic rename pipeline", () => {
+    const source = [
+      "nui 1",
+      "const i: number = 0",
+      "for j in range(min: 0, max: 1, step: 1) {",
+      "  line Mark = segment(start: (0, 0), end: (10, 0))",
+      "  line Out = offset(sources: [@Mark[0]], distance: 1, side: left, closed: @Mark[@i].length > 0, suppressTrimWarnings: false)",
+      "}"
+    ].join("\n");
+    const compiled = compile(source);
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+
+    const result = queryAt(source, "@i");
+    expect(result).not.toBeNull();
+    expect(slices(source, result!.declarationRange)).toEqual(["i"]);
+    expect(slices(source, result!.referenceRanges)).toEqual(["i"]);
+  });
+
   it("does not match comments, literals, punctuation, or unresolved and ambiguous references", () => {
     const source = [
       "nui 1",

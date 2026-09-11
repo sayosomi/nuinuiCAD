@@ -187,7 +187,9 @@ export const formatDslReferencePath = ({ absolute, segments }: DslReferencePath)
 export const formatDslReferenceToken = (token: string) =>
   formatDslReferencePath(parseDslReferenceToken(token));
 
-const propertyBoundary = (value: string) =>
+/** Boundary characters shared by strict source-reference properties and the
+ * scalar tokenizer's postfix-property form. */
+export const isDslReferencePropertyBoundary = (value: string) =>
   /\s/.test(value) || "()+*/<>!=&|,[]{};:'\"".includes(value);
 
 const readProperty = (source: string, start: number, end: number) => {
@@ -207,7 +209,7 @@ const readProperty = (source: string, start: number, end: number) => {
       segmentStart = cursor;
       continue;
     }
-    if (propertyBoundary(char)) break;
+    if (isDslReferencePropertyBoundary(char)) break;
     cursor += 1;
   }
   if (cursor === segmentStart) return { end: cursor, invalidAt: start, value: "" };

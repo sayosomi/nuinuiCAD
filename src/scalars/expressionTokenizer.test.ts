@@ -188,6 +188,17 @@ describe("tokenizeScalarExpression / @qualifiedName references", () => {
     expect(result.tokens).toHaveLength(3);
     expect(result.tokens[2]).toMatchObject({ kind: "geometryProperty", span: { start: 4, end: source.length } });
   });
+
+  it.each([
+    ["@Mark[0].length+1", "+"],
+    ["@Mark[0].length==1", "=="],
+    ["@Mark[0].length&&@flag", "&&"]
+  ] as const)("terminates an indexed postfix property before the %s operator", (source, operator) => {
+    const result = tokenizeScalarExpression(source, fullSpan(source));
+    expect(result.error).toBeNull();
+    expect(result.tokens.find((token) => token.kind === "postfixProperty")).toMatchObject({ property: "length" });
+    expect(result.tokens.find((token) => token.kind === "operator")).toMatchObject({ value: operator });
+  });
 });
 
 describe("tokenizeScalarExpression / literal delegation", () => {

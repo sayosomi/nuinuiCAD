@@ -9,7 +9,7 @@
 
 import { isScalarIdentifierCharacterAt, scanScalarLiteral, type ScalarLiteralToken, type ScalarSpan } from "./literalScanner";
 import type { ScalarExpressionIssueCode } from "./expressionAst";
-import { parseDslSourceReferenceAt } from "../dsl/dslReferenceTokens";
+import { isDslReferencePropertyBoundary, parseDslSourceReferenceAt } from "../dsl/dslReferenceTokens";
 
 export type ScalarExpressionOperatorSymbol =
   | "||"
@@ -137,7 +137,7 @@ export const tokenizeScalarExpression = (source: string, span: ScalarSpan): Scal
     }
     if (char === "." && index + 1 < end && !/[0-9]/.test(source[index + 1]!)) {
       let propertyEnd = index + 1;
-      while (propertyEnd < end && !/[\s()[\]{}:,]/.test(source[propertyEnd]!)) propertyEnd += 1;
+      while (propertyEnd < end && !isDslReferencePropertyBoundary(source[propertyEnd]!)) propertyEnd += 1;
       if (propertyEnd > index + 1) {
         tokens.push({
           kind: "postfixProperty",
