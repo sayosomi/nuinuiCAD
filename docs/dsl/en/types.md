@@ -162,8 +162,8 @@ The binder is immutable and body-local, has the exact source element type, and
 produces one result for every source member in source order. Duplicates and
 empty sources are preserved. `.length` reads source cardinality without
 evaluating the body; indexing evaluates only the requested mapped member.
-Geometry and nominal-record value-for are not part of the current DSL
-Reference surface.
+Nominal-record value-for remains deferred work; scalar, choice, and geometry
+value-for are supported in their existing domains.
 
 Every collection exposes the read-only numeric property `.length`. It reports
 the authored member count, including duplicates, for literals and for all
@@ -178,6 +178,15 @@ identity. Optional Module collection parameters require a preceding
 `hasValue(@parameter)` proof. The index must be finite, integral, at least `0`,
 and less than the collection length; invalid dynamic indexes are evaluation
 errors and are never clamped or wrapped.
+
+Collection-valued `if` and exhaustive choice `match` are lazy value expressions.
+All branches or arms must resolve to the same declared one-dimensional
+collection type, while cardinalities may differ. The selected branch determines
+`.length` and indexed members, and an unselected branch is not evaluated.
+Collection values retain their scalar, choice, geometry, or nominal-record
+element identity, so assignable `point[]`, `line[]`, and `path[]` values can be
+passed to existing geometry consumers. Optional result values, nested arrays,
+and nominal-record collection-producing `for` remain deferred.
 
 ## Records
 

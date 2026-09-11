@@ -1281,6 +1281,7 @@ fn point_from_input_target(
                 })
         }
         GeometryInputTarget::GeometryValueMap { .. }
+        | GeometryInputTarget::CollectionValue { .. }
         | GeometryInputTarget::CollectionIndex { .. } => None,
     }
 }
@@ -1299,6 +1300,7 @@ fn target_geometry<'a>(
                 state.computed_geometry_values.get(occurrence)
             }
             GeometryInputTarget::Coordinate { .. }
+            | GeometryInputTarget::CollectionValue { .. }
             | GeometryInputTarget::GeometryValueMap { .. }
             | GeometryInputTarget::CollectionIndex { .. } => state.computed_geometry.get(binder_id),
         };

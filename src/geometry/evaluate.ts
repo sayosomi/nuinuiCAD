@@ -121,6 +121,7 @@ export type EvaluateElementsOptions = {
   moduleMaterialization?: ModuleMaterialization;
   /** Compiler-resolved read-only line/path consumer targets. */
   geometryInputTargetsByElementId?: ReadonlyMap<ElementId, ReadonlyMap<string, GeometryInputTarget | readonly GeometryInputTarget[]>>;
+  geometryCollectionNodesByValueId?: ReadonlyMap<string, import("../types/geometry").GeometryInputCollectionNode>;
   /** Compiled immutable geometry values; never converted into elements. */
   geometryValueProgram?: GeometryValueProgram;
   /**
@@ -295,8 +296,15 @@ export const evaluateElements = (
     !options.sourceExecutionPositionByElementId && !options.scalarExecutionPositionByElementId) {
     throw new Error("evaluateElements: binding mutation requires compiled source execution positions");
   }
+  const geometryRuntime = {
+    computedGeometry,
+    computedGeometryValues,
+    elementsById: runtimeElementsById,
+    activities,
+    ...(options.geometryCollectionNodesByValueId ? { geometryCollectionNodesByValueId: options.geometryCollectionNodesByValueId } : {})
+  };
   const linearMutationResolver = linearMutationEnabled
-    ? createDocumentLinearScalarBindingResolver(options.bindingVersions!, { computedGeometry, computedGeometryValues, elementsById: runtimeElementsById, activities }, options.scalarProgram?.collectionValues)
+    ? createDocumentLinearScalarBindingResolver(options.bindingVersions!, geometryRuntime, options.scalarProgram?.collectionValues)
     : undefined;
   const knownConditionalMutationOwnerIds = new Set(
     options.bindingVersions?.versions.flatMap((version) => version.control.ownerChain
@@ -304,10 +312,9 @@ export const evaluateElements = (
       .map((owner) => owner.ownerStatementId)) ?? []
   );
   const declarationResolver = !linearMutationResolver && options.scalarProgram
-    ? createDocumentScalarBindingResolver(options.scalarProgram, { computedGeometry, computedGeometryValues, elementsById: runtimeElementsById, activities })
+    ? createDocumentScalarBindingResolver(options.scalarProgram, geometryRuntime)
     : undefined;
   const scalarBindingResolver = linearMutationResolver ?? declarationResolver;
-  const geometryRuntime = { computedGeometry, computedGeometryValues, elementsById: runtimeElementsById, activities };
   const propertyBindingEntriesByElementId = options.propertyBindingEntries
     ? groupPropertyBindingRuntimeEntriesByElement(options.propertyBindingEntries)
     : undefined;
@@ -393,10 +400,10 @@ export const evaluateElements = (
       const source = activeGeometryMapBinder;
       const rest = { ...reference, geometryValueBinderId: undefined };
       if (source.kind === "drawable") {
-        return resolveDocumentGeometryProperty(geometryRuntime, { ...rest, elementId: source.elementId, geometryValueOccurrence: undefined }, sourceOrder);
+        return resolveDocumentGeometryProperty(geometryRuntime, { ...rest, elementId: source.elementId, geometryValueOccurrence: undefined }, sourceOrder, scalarBindingResolver?.resolveGeometryCollectionLength);
       }
       if (source.kind === "geometryValue") {
-        return resolveDocumentGeometryProperty(geometryRuntime, { ...rest, elementId: null, geometryValueOccurrence: source.occurrence }, sourceOrder);
+        return resolveDocumentGeometryProperty(geometryRuntime, { ...rest, elementId: null, geometryValueOccurrence: source.occurrence }, sourceOrder, scalarBindingResolver?.resolveGeometryCollectionLength);
       }
       const referenceType = reference.type;
       if (source.kind === "coordinate" && referenceType?.kind === "number" && (reference.property === "x" || reference.property === "y")) {
@@ -406,7 +413,7 @@ export const evaluateElements = (
           : { status: "error" as const, type: referenceType, issueCode: "evaluation-geometry-property-unavailable" };
       }
     }
-    return resolveDocumentGeometryProperty(geometryRuntime, reference, sourceOrder);
+    return resolveDocumentGeometryProperty(geometryRuntime, reference, sourceOrder, scalarBindingResolver?.resolveGeometryCollectionLength);
   };
 
   const materializeGeometryInputTargets = (
@@ -423,6 +430,36 @@ export const evaluateElements = (
         `${element.name} の geometry collection index を評価できません。(${issueCode})`
       ));
       void target;
+    };
+    const scalarEnvironmentFor = (evaluationSourceOrder: number) => ({
+      lookupBinding: scalarBindingResolver
+        ? scalarBindingResolver.resolveBinding
+        : () => ({ status: "error" as const, type: { kind: "number" as const }, issueCode: "evaluation-binding-unavailable" }),
+      lookupGeometryProperty: (reference: Parameters<typeof resolveDocumentGeometryProperty>[1]) => resolveGeometryPropertyForEvaluation(reference, evaluationSourceOrder),
+      lookupGeometryTarget: (target: Parameters<typeof resolveDocumentGeometryTarget>[1]) => resolveGeometryTargetForEvaluation(target, evaluationSourceOrder),
+      ...(scalarBindingResolver?.resolveCollectionIndex ? {
+        lookupCollectionIndex: (collectionValueId: string, index: number, elementType: import("../scalars/types").ScalarType, collectionLength: number | null, targetSourceOrder: number) =>
+          scalarBindingResolver.resolveCollectionIndex!(collectionValueId, index, elementType, collectionLength, targetSourceOrder, evaluationSourceOrder)
+      } : {}),
+      ...(scalarBindingResolver?.resolveCollectionLength ? {
+        lookupCollectionLength: (collectionValueId: string) => scalarBindingResolver.resolveCollectionLength!(collectionValueId, evaluationSourceOrder)
+      } : {})
+    });
+    const materializeCollectionNode = (node: import("../types/geometry").GeometryInputCollectionNode): GeometryInputTarget[] | null => {
+      if (node.kind === "leaf") {
+        const targets = node.targets.map(materialize);
+        return targets.some((target) => target === null) ? null : targets as GeometryInputTarget[];
+      }
+      if (node.kind === "if") {
+        const environment = scalarEnvironmentFor(node.sourceOrder);
+        const condition = evaluateTypedExpression(node.condition, environment);
+        if (condition.status !== "ok" || condition.value.kind !== "boolean") return null;
+        return materializeCollectionNode(condition.value.value ? node.thenBranch : node.elseBranch);
+      }
+      const scrutinee = evaluateTypedExpression(node.scrutinee, scalarEnvironmentFor(node.sourceOrder));
+      if (scrutinee.status !== "ok" || scrutinee.value.kind !== "choice") return null;
+      const arm = node.arms.find((candidate) => candidate.label === scrutinee.value.value);
+      return arm ? materializeCollectionNode(arm.value) : null;
     };
     const materialize = (target: GeometryInputTarget): GeometryInputTarget | null => {
       if (target.kind === "geometryValueMap") {
@@ -445,18 +482,25 @@ export const evaluateElements = (
           ...(target.pointKey ? { pointKey: target.pointKey } : {})
         };
       }
+      if (target.kind === "collectionValue") {
+        const selected = materializeCollectionNode(target.value);
+        if (!selected || selected.some((candidate) => candidate.kind === "collectionIndex" || candidate.kind === "collectionValue")) return null;
+        return {
+          kind: "collectionValue",
+          collectionValueId: target.collectionValueId,
+          targetSourceOrder: target.targetSourceOrder,
+          value: {
+            kind: "leaf",
+            targets: selected as Exclude<GeometryInputTarget, { kind: "collectionIndex" | "collectionValue" }>[]
+          }
+        };
+      }
       if (target.kind !== "collectionIndex") return target;
       if (target.targetSourceOrder >= sourceOrder) {
         invalid(target, "evaluation-collection-index-unavailable");
         return null;
       }
-      const evaluation = evaluateTypedExpression(target.index, {
-        lookupBinding: scalarBindingResolver
-          ? scalarBindingResolver.resolveBinding
-          : () => ({ status: "error", type: { kind: "number" }, issueCode: "evaluation-binding-unavailable" }),
-        lookupGeometryProperty: (reference) => resolveGeometryPropertyForEvaluation(reference, sourceOrder),
-        lookupGeometryTarget: (resolvedTarget) => resolveGeometryTargetForEvaluation(resolvedTarget, sourceOrder)
-      });
+      const evaluation = evaluateTypedExpression(target.index, scalarEnvironmentFor(sourceOrder));
       if (evaluation.status === "error") {
         invalid(target, evaluation.issueCode);
         return null;
@@ -467,7 +511,12 @@ export const evaluateElements = (
         invalid(target, "evaluation-collection-index-invalid");
         return null;
       }
-      const selected = target.members[index];
+      const members = target.value ? materializeCollectionNode(target.value) : target.members.map(materialize);
+      if (!members || members.some((member) => member === null)) {
+        invalid(target, "evaluation-collection-index-invalid");
+        return null;
+      }
+      const selected = members[index];
       if (!selected || selected.kind === "collectionIndex") {
         invalid(target, "evaluation-collection-index-invalid");
         return null;
@@ -484,6 +533,18 @@ export const evaluateElements = (
       }
       const selected = materialize(target);
       if (!selected) return null;
+      if (selected.kind === "collectionValue") {
+        const members = materializeCollectionNode(selected.value);
+        if (!members) return null;
+        if (parameterKey === "points") {
+          const anchors = members.map(pointAnchorForGeometryInputTarget);
+          if (anchors.every((anchor): anchor is PointAnchor => anchor !== undefined)) {
+            materializedElement = setParameterValue(materializedElement, parameterKey, anchors);
+          }
+        }
+        materialized.set(parameterKey, members);
+        continue;
+      }
       materialized.set(parameterKey, selected);
       if (target.kind === "collectionIndex" || target.kind === "geometryValueMap") {
         const anchor = pointAnchorForGeometryInputTarget(selected);

@@ -81,7 +81,7 @@ export type DslLineReferenceListResolver = (
   diagnostics: DslDiagnostic[],
   currentElement?: CadElement,
   sourceSpan?: DslSpan
-) => readonly ElementId[] | null;
+) => readonly ElementId[] | RuntimeGeometryInputTarget | null;
 
 /** Compiler/runtime sidecar target for a read-only line consumer. */
 export type DslLineReferenceTargetResolver = (
@@ -118,7 +118,7 @@ export type DslPointReferenceListResolver = (
   diagnostics: DslDiagnostic[],
   currentElement?: CadElement,
   sourceSpan?: DslSpan
-) => readonly NonNullable<ReturnType<typeof resolveAnchorFromDsl>>[] | null;
+) => readonly NonNullable<ReturnType<typeof resolveAnchorFromDsl>>[] | RuntimeGeometryInputTarget | null;
 
 export type DslGeometryResolverOverrides = {
   resolveId?: DslIdResolver;
@@ -497,6 +497,11 @@ export const applyArgs = (
             next,
             scanned.valueSpan
           ) ?? null;
+          if (moduleLowered && isDeferredGeometryInputTarget(moduleLowered)) {
+            resolvers.recordGeometryInputTarget?.(next.id, parameterKey, moduleLowered);
+            next = setParameterValue(next, parameterKey, []);
+            break;
+          }
           const sourceLowered = moduleLowered ?? lowerSourceGeometryArrayLineReferenceList(value, resolvers.index, next);
           const refs = sourceLowered ?? referenceListItems(value).map((item) => {
             const itemSpan = { start: scanned.valueSpan.start + item.offset, end: scanned.valueSpan.start + item.offset + item.text.length };
@@ -572,36 +577,41 @@ export const applyArgs = (
         next,
         pointsArg.valueSpan
       ) ?? null;
-      const sourceLowered = moduleLowered ?? lowerSourceGeometryArrayPointReferenceList(pointsArg.value, resolvers.index, next);
-      if (sourceLowered) {
-        next = { ...next, points: [...sourceLowered] };
+      if (moduleLowered && isDeferredGeometryInputTarget(moduleLowered)) {
+        resolvers.recordGeometryInputTarget?.(next.id, "points", moduleLowered);
+        next = { ...next, points: [] };
       } else {
-        const parsed = parseGeometryArrayExpression(pointsArg.value);
-        for (const issue of parsed.diagnostics) {
-          diagnostics.push({
-            severity: "error",
-            line: resolvers.line,
-            column: pointsArg.valueSpan.start + issue.span.start + 1,
-            code: issue.code,
-            message: issue.message,
-            presentation: { key: `diagnostic.${issue.code}` },
-            logicalSpan: {
-              start: pointsArg.valueSpan.start + issue.span.start,
-              end: pointsArg.valueSpan.start + issue.span.end
-            }
-          });
-        }
-        if (parsed.expression?.kind === "literal" && parsed.diagnostics.length === 0) {
-          next = {
-            ...next,
-            points: parsed.expression.members.map((member) => {
-              const span = {
-                start: pointsArg.valueSpan.start + member.span.start,
-                end: pointsArg.valueSpan.start + member.span.end
-              };
-              return anchor(member.text, span);
-            })
-          };
+        const sourceLowered = moduleLowered ?? lowerSourceGeometryArrayPointReferenceList(pointsArg.value, resolvers.index, next);
+        if (sourceLowered) {
+          next = { ...next, points: [...sourceLowered] };
+        } else {
+          const parsed = parseGeometryArrayExpression(pointsArg.value);
+          for (const issue of parsed.diagnostics) {
+            diagnostics.push({
+              severity: "error",
+              line: resolvers.line,
+              column: pointsArg.valueSpan.start + issue.span.start + 1,
+              code: issue.code,
+              message: issue.message,
+              presentation: { key: `diagnostic.${issue.code}` },
+              logicalSpan: {
+                start: pointsArg.valueSpan.start + issue.span.start,
+                end: pointsArg.valueSpan.start + issue.span.end
+              }
+            });
+          }
+          if (parsed.expression?.kind === "literal" && parsed.diagnostics.length === 0) {
+            next = {
+              ...next,
+              points: parsed.expression.members.map((member) => {
+                const span = {
+                  start: pointsArg.valueSpan.start + member.span.start,
+                  end: pointsArg.valueSpan.start + member.span.end
+                };
+                return anchor(member.text, span);
+              })
+            };
+          }
         }
       }
     }

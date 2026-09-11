@@ -60,6 +60,7 @@ fn program(statements: Vec<ValidatedScalarProgramStatement>) -> ValidatedScalarP
 fn empty_state() -> EvaluationState {
     EvaluationState {
         geometry_input_targets: HashMap::new(),
+        geometry_collection_nodes: HashMap::new(),
         geometry_value_binders: HashMap::new(),
         elements: Vec::new(),
         elements_by_id: HashMap::new(),

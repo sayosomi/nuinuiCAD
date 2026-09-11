@@ -6,6 +6,7 @@ use serde_json::json;
 fn edge_extends_and_trims_two_line_endpoints() {
     let result = evaluate_document_input(EvaluationInput {
         geometry_input_targets: None,
+        geometry_collection_nodes: None,
         geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
@@ -54,6 +55,7 @@ fn edge_extends_and_trims_two_line_endpoints() {
 fn edge_trims_a_bezier_and_a_line() {
     let result = evaluate_document_input(EvaluationInput {
         geometry_input_targets: None,
+        geometry_collection_nodes: None,
         geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
@@ -107,6 +109,7 @@ fn edge_trims_a_bezier_and_a_line() {
 fn edge_trims_two_bezier_curves() {
     let result = evaluate_document_input(EvaluationInput {
         geometry_input_targets: None,
+        geometry_collection_nodes: None,
         geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
@@ -168,6 +171,7 @@ fn edge_trims_two_bezier_curves() {
 fn edge_extends_a_bezier_along_its_handle_angle() {
     let result = evaluate_document_input(EvaluationInput {
         geometry_input_targets: None,
+        geometry_collection_nodes: None,
         geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
@@ -229,6 +233,7 @@ fn edge_extends_a_bezier_along_its_handle_angle() {
 fn edge_reports_geometry_errors() {
     let same_line = evaluate_document_input(EvaluationInput {
         geometry_input_targets: None,
+        geometry_collection_nodes: None,
         geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
@@ -262,6 +267,7 @@ fn edge_reports_geometry_errors() {
 
     let parallel = evaluate_document_input(EvaluationInput {
         geometry_input_targets: None,
+        geometry_collection_nodes: None,
         geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
@@ -298,6 +304,7 @@ fn edge_reports_geometry_errors() {
 
     let invalid_index = evaluate_document_input(EvaluationInput {
         geometry_input_targets: None,
+        geometry_collection_nodes: None,
         geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,

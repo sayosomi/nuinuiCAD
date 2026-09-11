@@ -35,6 +35,7 @@ fn bezier_curve(id: &str, start_id: &str, end_id: &str) -> Value {
 fn corner_radius_trims_two_lines_and_creates_arc() {
     let result = evaluate_document_input(EvaluationInput {
         geometry_input_targets: None,
+        geometry_collection_nodes: None,
         geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
@@ -78,6 +79,7 @@ fn corner_radius_trims_two_lines_and_creates_arc() {
 fn corner_radius_trims_bezier_and_offset_line_to_polylines() {
     let result = evaluate_document_input(EvaluationInput {
         geometry_input_targets: None,
+        geometry_collection_nodes: None,
         geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
@@ -108,6 +110,7 @@ fn corner_radius_trims_bezier_and_offset_line_to_polylines() {
 
     let offset_result = evaluate_document_input(EvaluationInput {
         geometry_input_targets: None,
+        geometry_collection_nodes: None,
         geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
@@ -158,6 +161,7 @@ fn corner_radius_trims_bezier_and_offset_line_to_polylines() {
 fn corner_radius_can_feed_downstream_line_elements() {
     let result = evaluate_document_input(EvaluationInput {
         geometry_input_targets: None,
+        geometry_collection_nodes: None,
         geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
@@ -198,6 +202,7 @@ fn corner_radius_can_feed_downstream_line_elements() {
 fn corner_radius_reports_geometry_and_dependency_errors() {
     let same_line = evaluate_document_input(EvaluationInput {
         geometry_input_targets: None,
+        geometry_collection_nodes: None,
         geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
@@ -223,6 +228,7 @@ fn corner_radius_reports_geometry_and_dependency_errors() {
 
     let radius_error = evaluate_document_input(EvaluationInput {
         geometry_input_targets: None,
+        geometry_collection_nodes: None,
         geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
@@ -250,6 +256,7 @@ fn corner_radius_reports_geometry_and_dependency_errors() {
 
     let missing = evaluate_document_input(EvaluationInput {
         geometry_input_targets: None,
+        geometry_collection_nodes: None,
         geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,

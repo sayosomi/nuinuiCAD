@@ -14,6 +14,7 @@ import { compileDslDocument } from "../dsl/dslDocument";
 import { moduleSemanticStableFingerprint } from "./moduleSemanticRenameAnalysis";
 import type { ModuleScalarExpressionSemantic, ModuleGeometryReferenceSemantic } from "../dsl/moduleSemanticTypes";
 import { isDslGeometryValueType } from "../dsl/dslValueTypes";
+import type { DslArraySemanticValue, GeometryArraySemanticValue } from "../dsl/geometryArraySemantics";
 
 export type { TypedRenameAnalysis, TypedRenameAnalysisRejected, TypedRenameSpan } from "../scalars/typedRenameAnalysis";
 
@@ -175,6 +176,30 @@ const moduleBindingOccurrences = (
     const statement = statementIndex === undefined ? undefined : compiled.statements[statementIndex];
     if (statementIndex === undefined || statement?.kind !== "typedDeclaration" || !isDslGeometryValueType(statement.valueType)) continue;
     addExpression(statementIndex, site.expression);
+  }
+  const addCollectionControlFlow = (
+    statementIndex: number,
+    value: DslArraySemanticValue<unknown> | GeometryArraySemanticValue<unknown>
+  ): void => {
+    if (value.kind === "if") {
+      addExpression(statementIndex, value.condition ?? null);
+      addCollectionControlFlow(statementIndex, value.thenValue);
+      addCollectionControlFlow(statementIndex, value.elseValue);
+      return;
+    }
+    if (value.kind === "match") {
+      addExpression(statementIndex, value.scrutinee ?? null);
+      for (const arm of value.arms) addCollectionControlFlow(statementIndex, arm.value);
+    }
+  };
+  const collectionAnalysis = compiled.sourceLexicalNamespace?.geometryArraySemanticAnalysis;
+  for (const value of collectionAnalysis?.genericValues ?? []) {
+    const statementIndex = compiled.statementMap?.statementIndexByStatementId?.get(value.statementId);
+    if (statementIndex !== undefined && value.value) addCollectionControlFlow(statementIndex, value.value);
+  }
+  for (const value of collectionAnalysis?.values ?? []) {
+    const statementIndex = compiled.statementMap?.statementIndexByStatementId?.get(value.statementId);
+    if (statementIndex !== undefined && value.value) addCollectionControlFlow(statementIndex, value.value);
   }
   return result;
 };

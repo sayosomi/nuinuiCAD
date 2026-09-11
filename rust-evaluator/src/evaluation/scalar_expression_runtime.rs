@@ -12,8 +12,11 @@ use super::scalars::{
 use super::scalars::{
     resolve_geometry_builtin_target, GeometryBuiltinRuntimeError, GeometryBuiltinRuntimeTarget,
 };
-use super::types::{EvaluationState, GeometryInputTarget, GeometryValueOccurrence};
+use super::types::{
+    EvaluationState, GeometryInputCollectionNode, GeometryInputTarget, GeometryValueOccurrence,
+};
 use serde_json::Value;
+use std::collections::HashSet;
 
 struct ResolverEnvironment<'a> {
     resolver: &'a dyn ScalarDocumentBindingResolver,
@@ -28,6 +31,70 @@ fn unavailable_geometry_property(property_type: &ScalarType) -> ScalarEvaluation
         binding_id: None,
         context: None,
     }
+}
+
+fn geometry_collection_length_for_node(
+    node: &GeometryInputCollectionNode,
+    resolver: &dyn ScalarDocumentBindingResolver,
+    state: &EvaluationState,
+) -> Option<f64> {
+    match node {
+        GeometryInputCollectionNode::Leaf { targets } => Some(targets.len() as f64),
+        GeometryInputCollectionNode::If {
+            condition,
+            source_order,
+            then_branch,
+            else_branch,
+        } => match evaluate_document_typed_expression(
+            condition,
+            resolver,
+            state,
+            Some(*source_order),
+        ) {
+            ScalarEvaluation::Ok {
+                value: ScalarValue::Boolean(true),
+                ..
+            } => geometry_collection_length_for_node(then_branch, resolver, state),
+            ScalarEvaluation::Ok {
+                value: ScalarValue::Boolean(false),
+                ..
+            } => geometry_collection_length_for_node(else_branch, resolver, state),
+            _ => None,
+        },
+        GeometryInputCollectionNode::Match {
+            scrutinee,
+            source_order,
+            arms,
+        } => {
+            let ScalarEvaluation::Ok {
+                value: ScalarValue::Choice { value, .. },
+                ..
+            } = evaluate_document_typed_expression(scrutinee, resolver, state, Some(*source_order))
+            else {
+                return None;
+            };
+            arms.iter()
+                .find(|(label, _)| label == &value)
+                .and_then(|(_, branch)| {
+                    geometry_collection_length_for_node(branch, resolver, state)
+                })
+        }
+    }
+}
+
+pub(crate) fn lookup_geometry_collection_length(
+    state: &EvaluationState,
+    resolver: &dyn ScalarDocumentBindingResolver,
+    collection_value_id: &str,
+    seen: &mut HashSet<String>,
+) -> Option<f64> {
+    if !seen.insert(collection_value_id.to_owned()) {
+        return None;
+    }
+    state
+        .geometry_collection_nodes
+        .get(collection_value_id)
+        .and_then(|node| geometry_collection_length_for_node(node, resolver, state))
 }
 
 pub(crate) fn lookup_geometry_value_property(
@@ -107,6 +174,7 @@ pub(crate) fn lookup_geometry_value_binder_property(
                 .unwrap_or_else(|| unavailable_geometry_property(property_type))
         }
         GeometryInputTarget::GeometryValueMap { .. }
+        | GeometryInputTarget::CollectionValue { .. }
         | GeometryInputTarget::CollectionIndex { .. } => {
             unavailable_geometry_property(property_type)
         }
@@ -281,6 +349,14 @@ impl ScalarEvaluationEnvironment for ResolverEnvironment<'_> {
             collection_length,
             target_source_order,
             self.state,
+        )
+    }
+
+    fn lookup_collection_length(&self, collection_value_id: &str) -> Option<f64> {
+        self.resolver.resolve_collection_length(
+            collection_value_id,
+            self.state,
+            &mut HashSet::new(),
         )
     }
 

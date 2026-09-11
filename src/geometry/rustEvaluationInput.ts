@@ -7,6 +7,7 @@ import type { PropertyBindingRuntimeEntry } from "./propertyBindingRuntime";
 import type { NumericBindingRuntimeEntry } from "./numericBindingRuntime";
 import { toRustTextTemplateSegments, type RustTextTemplateSegment } from "./textTemplateRuntime";
 import type { ModuleMaterialization } from "../dsl/moduleMaterialization";
+import type { GeometryInputCollectionNode } from "../types/geometry";
 
 type ConditionExpressionInput = { elementId: ElementId; expression: TypedScalarExpression };
 type TextTemplateInput = { elementId: ElementId; segments: readonly RustTextTemplateSegment[] };
@@ -30,6 +31,10 @@ export type EvaluateDocumentInput = {
       parameterKey: string;
       target: import("../types/geometry").GeometryInputTarget | readonly import("../types/geometry").GeometryInputTarget[];
     }>;
+  }>;
+  geometryCollectionNodes?: Array<{
+    collectionValueId: string;
+    value: GeometryInputCollectionNode;
   }>;
   conditionExpressions?: readonly ConditionExpressionInput[];
   textTemplates?: readonly TextTemplateInput[];
@@ -82,6 +87,9 @@ export const buildRustEvaluationInput = (
             parameters: Array.from(parameters, ([parameterKey, target]) => ({ parameterKey, target }))
           }))
         }
+      : {}),
+    ...(options.geometryCollectionNodesByValueId?.size
+      ? { geometryCollectionNodes: Array.from(options.geometryCollectionNodesByValueId, ([collectionValueId, value]) => ({ collectionValueId, value })) }
       : {}),
     ...(options.conditionalGroupConditionsByElementId?.size
       ? { conditionExpressions: Array.from(options.conditionalGroupConditionsByElementId, ([elementId, expression]) => ({ elementId, expression })) }

@@ -761,7 +761,8 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
       stableStatementIdByIndex: context.stableStatementIdByIndex,
       moduleSemanticAnalysis: context.moduleSemanticAnalysis,
       moduleMaterialization,
-      moduleRuntimeContext: context.moduleRuntimeContext
+      moduleRuntimeContext: context.moduleRuntimeContext,
+      sourceNamespace: context.sourceLexicalResolution?.sourceNamespace
     });
     diagnostics.push(...moduleGeometryRuntime.diagnostics);
     return {

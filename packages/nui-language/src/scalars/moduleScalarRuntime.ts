@@ -18,7 +18,7 @@ import type {
 import { unwrapModuleGeometrySourceTarget } from "../dsl/moduleSemanticTypes";
 import type { ModuleMaterialization } from "../dsl/moduleMaterialization";
 import type { ModuleGeometryPropertyRuntimeTarget, ModuleGeometryRuntimeCompilation } from "../dsl/moduleGeometryRuntime";
-import { geometryInputTargetForAlias, type GeometryAlias, type RuntimeGeometryInputTarget } from "../dsl/moduleGeometryRuntimeLowering";
+import { geometryInputTargetForAlias, type GeometryAlias, type RuntimeGeometryCollectionNode, type RuntimeGeometryInputTarget } from "../dsl/moduleGeometryRuntimeLowering";
 import type {
   GeometryValueProgram,
   GeometryValueProgramEntry,
@@ -28,7 +28,7 @@ import type {
 } from "../dsl/moduleGeometryValueProgram";
 import { buildLexicalScopeIndexFromStatements } from "../dsl/lexicalScopeIndexAdapter";
 import { moduleParameterPresenceKey } from "../dsl/moduleScalarExpression";
-import type { CadElement, DrawingModifierDefinition, ElementId, GeometryInputTarget, PointAnchor } from "../types/geometry";
+import type { CadElement, DrawingModifierDefinition, ElementId, GeometryInputCollectionNode, GeometryInputTarget, PointAnchor } from "../types/geometry";
 import { findParameterDefinition, scalarTypeForParameterDefinition } from "../parameters/parameterDefinitions";
 import type { BindingAnalysis, InitializerReference } from "./bindingAnalysis";
 import { analyzeBindings } from "./bindingAnalysis";
@@ -73,7 +73,8 @@ import type { RecordFieldIdentity } from "../dsl/recordSemanticAnalysis";
 import { planRecordScalarLowering, recordScalarBindingIdFor, recordScalarDeclarationVersionIdFor } from "./recordScalarLowering";
 import { analyzeTypedDeclarations, type TypedDeclarationAnalysis } from "./typedDeclarationAnalysis";
 import { scalarTypeOfDslValueType } from "../dsl/dslValueTypes";
-import { parseGeometryArrayDeferredModuleExportId } from "../dsl/geometryArraySemanticAnalysis";
+import { collectionLengthForValueId, geometryArrayDeferredModuleExportId, parseGeometryArrayDeferredModuleExportId } from "../dsl/geometryArraySemanticAnalysis";
+import type { GeometryArraySemanticAnalysis } from "../dsl/geometryArraySemanticAnalysis";
 import { scanScalarLiteral } from "./literalScanner";
 import { geometryValueOccurrenceKey } from "../model/geometryValueOccurrence";
 
@@ -108,6 +109,7 @@ export type ModuleScalarRuntimeCompilation = {
   forGroupMutationOwnerByElementId: ReadonlyMap<ElementId, Extract<BindingControlOwner, { kind: "forGroup" }> & { elementId: ElementId }>;
   geometryValueProgram: GeometryValueProgram;
   geometryInputTargetsByRuntimeElementId: ReadonlyMap<ElementId, ReadonlyMap<string, GeometryInputTarget | readonly GeometryInputTarget[]>>;
+  geometryCollectionNodesByValueId: ReadonlyMap<string, GeometryInputCollectionNode>;
 };
 
 type BindingInfo = {
@@ -197,6 +199,56 @@ const remapTypedExpressionBindingIds = (
       args: expression.args.map((argument) => argument.kind === "scalar"
         ? { ...argument, expression: remapTypedExpressionBindingIds(argument.expression, bindingIdByLocalId) }
         : argument)
+    };
+    default: return expression;
+  }
+};
+
+const remapTypedExpressionSourceOrders = (
+  expression: TypedScalarExpression,
+  sourceOrderFor: (sourceOrder: number) => number
+): TypedScalarExpression => {
+  const remapGeometryTarget = (target: ScalarExpressionResolvedGeometryTarget | null) =>
+    target ? { ...target, statementIndex: target.statementIndex >= 0 ? sourceOrderFor(target.statementIndex) : target.statementIndex } : target;
+  switch (expression.kind) {
+    case "collectionIndex":
+      return {
+        ...expression,
+        targetSourceOrder: expression.targetSourceOrder !== null && expression.targetSourceOrder >= 0
+          ? sourceOrderFor(expression.targetSourceOrder)
+          : expression.targetSourceOrder,
+        index: remapTypedExpressionSourceOrders(expression.index, sourceOrderFor)
+      };
+    case "geometryProperty":
+      return {
+        ...expression,
+        targetSourceOrder: expression.targetSourceOrder !== null && expression.targetSourceOrder >= 0
+          ? sourceOrderFor(expression.targetSourceOrder)
+          : expression.targetSourceOrder
+      };
+    case "unary": return { ...expression, operand: remapTypedExpressionSourceOrders(expression.operand, sourceOrderFor) };
+    case "binary": return {
+      ...expression,
+      left: remapTypedExpressionSourceOrders(expression.left, sourceOrderFor),
+      right: remapTypedExpressionSourceOrders(expression.right, sourceOrderFor)
+    };
+    case "group": return { ...expression, expression: remapTypedExpressionSourceOrders(expression.expression, sourceOrderFor) };
+    case "valueIf": return {
+      ...expression,
+      condition: remapTypedExpressionSourceOrders(expression.condition, sourceOrderFor),
+      thenBranch: remapTypedExpressionSourceOrders(expression.thenBranch, sourceOrderFor),
+      elseBranch: remapTypedExpressionSourceOrders(expression.elseBranch, sourceOrderFor)
+    };
+    case "valueMatch": return {
+      ...expression,
+      scrutinee: remapTypedExpressionSourceOrders(expression.scrutinee, sourceOrderFor),
+      arms: expression.arms.map((arm) => ({ ...arm, expression: remapTypedExpressionSourceOrders(arm.expression, sourceOrderFor) }))
+    };
+    case "call": return {
+      ...expression,
+      args: expression.args.map((argument) => argument.kind === "scalar"
+        ? { ...argument, expression: remapTypedExpressionSourceOrders(argument.expression, sourceOrderFor) }
+        : { ...argument, target: remapGeometryTarget(argument.target) })
     };
     default: return expression;
   }
@@ -717,7 +769,7 @@ const typecheckGeometryTargetFor = (
   };
 };
 
-const lowerExpression = (
+export const lowerExpression = (
   semantic: ModuleScalarExpressionSemantic,
   bindingForTarget: (target: ModuleScalarSourceTarget, name: string, statementIndex: number) => Binding | undefined,
   catalogBindings: ReadonlyMap<BindingId, Binding>,
@@ -750,25 +802,21 @@ const lowerExpression = (
       const length = property.target.kind === "collectionValueLength" && property.target.length !== null
         ? property.target.length
         : collectionLengthForTarget?.(property.target);
-      if (length !== undefined) {
-        geometryPropertyReferences.set(property.span.start, {
-          kind: "collection",
-          collectionValueId: property.target.kind === "collectionValueLength"
-            ? property.target.valueId
-            : property.target.kind === "collectionParameterLength"
-              ? `${property.target.definitionStatementId}:parameter:${property.target.parameterIndex}`
-              : JSON.stringify([property.target.instanceStatementId, property.target.exportName]),
-          collectionLength: length,
-          targetSourceOrder: property.target.kind === "collectionValueLength"
-            ? property.target.statementIndex
-            : property.target.kind === "deferredModuleCollectionExportLength"
-              ? property.target.instanceStatementIndex
-              : -1,
-          type: property.type.kind === "number" ? property.type : { kind: "number" }
-        });
-      } else {
-        geometryPropertyReferences.set(property.span.start, null);
-      }
+      geometryPropertyReferences.set(property.span.start, {
+        kind: "collection",
+        collectionValueId: collectionValueIdFor(property.target.kind === "collectionValueLength"
+          ? property.target.valueId
+          : property.target.kind === "collectionParameterLength"
+            ? `${property.target.definitionStatementId}:parameter:${property.target.parameterIndex}`
+            : geometryArrayDeferredModuleExportId(property.target.instanceStatementId, property.target.exportName)),
+        collectionLength: length ?? null,
+        targetSourceOrder: property.target.kind === "collectionValueLength"
+          ? property.target.statementIndex
+          : property.target.kind === "deferredModuleCollectionExportLength"
+            ? property.target.instanceStatementIndex
+            : -1,
+        type: property.type.kind === "number" ? property.type : { kind: "number" }
+      });
       continue;
     }
     if (property.target.kind === "geometryValueForBinder") {
@@ -924,6 +972,9 @@ const lowerExpression = (
   });
   const lowerGeometryProperties = (node: TypedScalarExpression): { node: TypedScalarExpression; references: InitializerReference[] } => {
     if (node.kind === "geometryProperty") {
+      if (node.collectionValueId) {
+        return { node: { ...node, collectionValueId: collectionValueIdFor(node.collectionValueId) }, references: [] };
+      }
       const semanticProperty = semantic.geometryProperties.find((property) => property.span.start === node.span.start);
       const resolved = semanticProperty?.target && geometryPropertyForTarget?.(semanticProperty.target);
       if (!resolved) return { node, references: [] };
@@ -1936,12 +1987,89 @@ export const compileModuleScalarRuntime = ({
 
   const buildModuleCollectionValues = (): ScalarProgramCollection[] => {
     const moduleCollectionValues: ScalarProgramCollection[] = [];
+    const appendConditional = (
+      value: import("../dsl/geometryArraySemantics").DslArraySemanticValue<import("../dsl/geometryArraySemanticAnalysis").GenericArraySourceTarget>,
+      valueId: string,
+      context: InstanceContext,
+      contextAnalysis: GeometryArraySemanticAnalysis,
+      sourceOrder: number
+    ): void => {
+      if (value.kind === "if") {
+        const thenValueId = `${valueId}:then`;
+        const elseValueId = `${valueId}:else`;
+        appendConditional(value.thenValue, thenValueId, context, contextAnalysis, sourceOrder);
+        appendConditional(value.elseValue, elseValueId, context, contextAnalysis, sourceOrder);
+        if (!value.condition) return;
+        const condition = lowerExpression(
+          value.condition,
+          (target) => resolvedBindingForContext(target, context),
+          bindingsById,
+          (target) => resolvedGeometryPropertyForContext(target, context),
+          (target) => collectionLengthForTargetContext(target, context),
+          (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context),
+          (definitionStatementId, parameterIndex, definitionDocumentId) => hasValueForParameter(context, definitionStatementId, parameterIndex, definitionDocumentId),
+          (id) => collectionValueIdFor(id, context),
+          (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder
+        ).expression;
+        moduleCollectionValues.push({ valueId, kind: "if", condition, thenValueId, elseValueId, sourceOrder: executionPositionForValue(context.path, sourceOrder) });
+        return;
+      }
+      if (value.kind === "match") {
+        const arms: { label: string; valueId: string }[] = [];
+        for (const arm of value.arms) {
+          const armValueId = `${valueId}:arm:${arm.label}`;
+          appendConditional(arm.value, armValueId, context, contextAnalysis, sourceOrder);
+          arms.push({ label: arm.label, valueId: armValueId });
+        }
+        if (!value.scrutinee) return;
+        const scrutinee = lowerExpression(
+          value.scrutinee,
+          (target) => resolvedBindingForContext(target, context),
+          bindingsById,
+          (target) => resolvedGeometryPropertyForContext(target, context),
+          (target) => collectionLengthForTargetContext(target, context),
+          (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context),
+          (definitionStatementId, parameterIndex, definitionDocumentId) => hasValueForParameter(context, definitionStatementId, parameterIndex, definitionDocumentId),
+          (id) => collectionValueIdFor(id, context),
+          (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder
+        ).expression;
+        moduleCollectionValues.push({ valueId, kind: "match", scrutinee, arms, sourceOrder: executionPositionForValue(context.path, sourceOrder) });
+        return;
+      }
+      if (value.kind === "alias") {
+        moduleCollectionValues.push({ valueId, kind: "alias", targetValueId: collectionValueIdFor(value.targetValueId, context) });
+        return;
+      }
+      if (value.kind === "map") {
+        if (!value.body) return;
+        const runtimeBinderId = moduleCollectionBinderIdFor(context.path, value.binderId);
+        moduleCollectionValues.push({ valueId, kind: "map", sourceValueId: collectionValueIdFor(value.sourceValueId, context), sourceElementType: value.sourceElementType, resultElementType: value.resultElementType, binderId: runtimeBinderId, body: value.body, sourceOrder: value.sourceOrder });
+        return;
+      }
+      const elementType = scalarTypeOfDslValueType(value.valueType.elementType);
+      if (!elementType) return;
+      const members: ScalarProgramCollectionMember[] = [];
+      for (const member of value.members) {
+        const literal = scalarCollectionMemberFromLiteral(member.sourceText, elementType);
+        if (literal) members.push(literal);
+        else {
+          const bindingId = scalarCollectionBindingForTarget(member.target, context);
+          if (!bindingId) return;
+          members.push({ kind: "binding", type: elementType, bindingId });
+        }
+      }
+      moduleCollectionValues.push({ valueId, kind: "literal", members });
+    };
     for (const context of contextsByKey.values()) {
     const contextAnalysis = sourceNamespaceForContext(context)?.geometryArraySemanticAnalysis;
     if (!contextAnalysis) continue;
     for (const value of contextAnalysis.genericValues) {
       if (value.ownerModuleDefinitionStatementIndex !== context.definition.statementIndex || !value.value) continue;
       const valueId = moduleCollectionValueIdFor(context.path, value.statementId);
+      if (value.value.kind === "if" || value.value.kind === "match") {
+        appendConditional(value.value, valueId, context, contextAnalysis, value.statementIndex);
+        continue;
+      }
       if (value.value.kind === "map") {
         const runtimeBinderId = moduleCollectionBinderIdFor(context.path, value.value.binderId);
         bindingsById.set(runtimeBinderId, valueForBinderBindingFor({
@@ -2018,49 +2146,121 @@ export const compileModuleScalarRuntime = ({
       collectionAnalysis.genericValuesByStatementId.has(valueId)
         ? `module-document-collection:${encodeIdentityTuple([String(foreign.documentId), valueId])}`
         : valueId;
-    for (const value of collectionAnalysis.genericValues) {
-      if (value.ownerModuleDefinitionStatementIndex !== null || !value.value) continue;
-      const valueId = foreignValueIdFor(value.statementId);
-      if (value.value.kind === "map") {
-        if (!value.value.body) continue;
+    const foreignBindingForTarget = (target: ModuleScalarSourceTarget): Binding | undefined => {
+      const localBindingId = target.kind === "documentBinding"
+          ? target.bindingId
+          : target.kind === "moduleLocal" || target.kind === "iteration"
+            ? foreign.analysis.bindingAnalysis.catalog.bindings.find((candidate) =>
+              candidate.kind === "typed" && candidate.statementIndex === target.statementIndex &&
+              (target.kind === "moduleLocal" || candidate.name === target.name)
+            )?.id
+          : undefined;
+      const runtimeBindingId = localBindingId ? foreign.bindingIdByLocalId.get(localBindingId) : undefined;
+      return runtimeBindingId ? bindingsById.get(runtimeBindingId) : undefined;
+    };
+    const foreignSourceOrderFor = (statementIndex: number): number => {
+      const candidates = foreign.analysis.bindingAnalysis.catalog.bindings
+        .filter((candidate) => candidate.kind === "typed")
+        .sort((left, right) => left.statementIndex - right.statementIndex);
+      const candidate = candidates.find((entry) => entry.statementIndex >= statementIndex) ?? candidates.at(-1);
+      const runtimeBindingId = candidate ? foreign.bindingIdByLocalId.get(candidate.id) : undefined;
+      return runtimeBindingId === undefined
+        ? statementIndex
+        : eventOrderByBindingId.get(runtimeBindingId) ?? statementIndex;
+    };
+    const appendForeignValue = (
+      value: import("../dsl/geometryArraySemantics").DslArraySemanticValue<import("../dsl/geometryArraySemanticAnalysis").GenericArraySourceTarget>,
+      valueId: string,
+      sourceOrder: number
+    ): void => {
+      if (value.kind === "if") {
+        appendForeignValue(value.thenValue, `${valueId}:then`, sourceOrder);
+        appendForeignValue(value.elseValue, `${valueId}:else`, sourceOrder);
+        if (!value.condition) return;
+        const condition = lowerExpression(
+          value.condition,
+          (target) => foreignBindingForTarget(target),
+          bindingsById,
+          undefined,
+          (target) => target.kind === "collectionValueLength"
+            ? target.length ?? collectionLengthForValueId(collectionAnalysis, target.valueId) ?? undefined
+            : undefined,
+          undefined,
+          undefined,
+          foreignValueIdFor,
+          foreignSourceOrderFor
+        ).expression;
+        foreignCollectionValues.push({ valueId, kind: "if", condition, thenValueId: `${valueId}:then`, elseValueId: `${valueId}:else`, sourceOrder: foreignSourceOrderFor(sourceOrder) });
+        return;
+      }
+      if (value.kind === "match") {
+        const arms: { label: string; valueId: string }[] = [];
+        for (const arm of value.arms) {
+          const armValueId = `${valueId}:arm:${arm.label}`;
+          appendForeignValue(arm.value, armValueId, sourceOrder);
+          arms.push({ label: arm.label, valueId: armValueId });
+        }
+        if (!value.scrutinee) return;
+        const scrutinee = lowerExpression(
+          value.scrutinee,
+          (target) => foreignBindingForTarget(target),
+          bindingsById,
+          undefined,
+          (target) => target.kind === "collectionValueLength"
+            ? target.length ?? collectionLengthForValueId(collectionAnalysis, target.valueId) ?? undefined
+            : undefined,
+          undefined,
+          undefined,
+          foreignValueIdFor,
+          foreignSourceOrderFor
+        ).expression;
+        foreignCollectionValues.push({ valueId, kind: "match", scrutinee, arms, sourceOrder: foreignSourceOrderFor(sourceOrder) });
+        return;
+      }
+      if (value.kind === "map") {
+        if (!value.body) return;
         const bindingIdByLocalId = new Map<BindingId, BindingId>(foreign.bindingIdByLocalId);
-        const runtimeBinderId = `module-document-collection-binder:${encodeIdentityTuple([String(foreign.documentId), value.value.binderId])}`;
-        bindingIdByLocalId.set(value.value.binderId, runtimeBinderId);
+        const runtimeBinderId = `module-document-collection-binder:${encodeIdentityTuple([String(foreign.documentId), value.binderId])}`;
+        bindingIdByLocalId.set(value.binderId, runtimeBinderId);
         foreignCollectionValues.push({
           valueId,
           kind: "map",
-          sourceValueId: foreignValueIdFor(value.value.sourceValueId),
-          sourceElementType: value.value.sourceElementType,
-          resultElementType: value.value.resultElementType,
+          sourceValueId: foreignValueIdFor(value.sourceValueId),
+          sourceElementType: value.sourceElementType,
+          resultElementType: value.resultElementType,
           binderId: runtimeBinderId,
-          body: remapTypedExpressionBindingIds(value.value.body, bindingIdByLocalId),
-          sourceOrder: value.value.sourceOrder
+          body: remapTypedExpressionBindingIds(value.body, bindingIdByLocalId),
+          sourceOrder: value.sourceOrder
         });
-        continue;
+        return;
       }
-      if (value.value.kind === "alias") {
-        foreignCollectionValues.push({ valueId, kind: "alias", targetValueId: foreignValueIdFor(value.value.targetValueId) });
-        continue;
+      if (value.kind === "alias") {
+        foreignCollectionValues.push({ valueId, kind: "alias", targetValueId: foreignValueIdFor(value.targetValueId) });
+        return;
       }
       const elementType = scalarTypeOfDslValueType(value.valueType.elementType);
-      if (!elementType) continue;
+      if (!elementType) return;
       const members: ScalarProgramCollectionMember[] = [];
-      for (const member of value.value.members) {
+      for (const member of value.members) {
         const literal = scalarCollectionMemberFromLiteral(member.sourceText, elementType);
         if (literal) {
           members.push(literal);
           continue;
         }
-        if (member.target.kind !== "scalarValue") break;
         const target = member.target;
+        if (target.kind !== "scalarValue") return;
         const binding = foreign.analysis.bindingAnalysis.catalog.bindings.find((candidate) =>
           candidate.kind === "typed" && candidate.statementIndex === target.statementIndex
         );
         const bindingId = binding ? foreign.bindingIdByLocalId.get(binding.id) : undefined;
-        if (!bindingId) break;
+        if (!bindingId) return;
         members.push({ kind: "binding", type: elementType, bindingId });
       }
-      if (members.length === value.value.members.length) foreignCollectionValues.push({ valueId, kind: "literal", members });
+      foreignCollectionValues.push({ valueId, kind: "literal", members });
+    };
+    for (const value of collectionAnalysis.genericValues) {
+      if (value.ownerModuleDefinitionStatementIndex !== null || !value.value) continue;
+      appendForeignValue(value.value, foreignValueIdFor(value.statementId), value.statementIndex);
     }
   }
   const executionPositionForValue = (path: readonly string[], statementIndex: number): number => {
@@ -2153,6 +2353,7 @@ export const compileModuleScalarRuntime = ({
     const byId = analysis?.genericValuesByStatementId.get(valueId) ?? analysis?.valuesByStatementId.get(valueId);
     if (byId?.value) {
       if (byId.value.kind === "literal") return byId.value.members.length;
+      if (byId.value.kind === "if" || byId.value.kind === "match") return undefined;
       if (byId.value.kind === "map") return collectionLengthForValueIdAt(byId.value.sourceValueId, context, nextVisited);
       return collectionLengthForValueIdAt(byId.value.targetValueId, context, nextVisited);
     }
@@ -2528,6 +2729,7 @@ export const compileModuleScalarRuntime = ({
       const value = sourceNamespace?.geometryArraySemanticAnalysis?.genericValuesByStatementId.get(valueId);
       if (value?.value) {
         if (value.value.kind === "literal") return value.value.members.length;
+        if (value.value.kind === "if" || value.value.kind === "match") return undefined;
         if (value.value.kind === "map") return rootValueLength(value.value.sourceValueId, nextVisited);
         return rootValueLength(value.value.targetValueId, nextVisited);
       }
@@ -2605,6 +2807,78 @@ export const compileModuleScalarRuntime = ({
   };
 
   const lazyGeometryValuePrograms = new Map<string, GeometryValueProgramNode>();
+  const lowerCollectionScalar = (
+    expression: ModuleScalarExpressionSemantic,
+    context: InstanceContext | undefined
+  ): TypedScalarExpression => context
+    ? lowerExpression(
+        expression,
+        (target) => resolvedBindingForContext(target, context),
+        bindingsById,
+        (target) => resolvedGeometryPropertyForContext(target, context),
+        (target) => collectionLengthForTargetContext(target, context),
+        (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context),
+        (definitionStatementId, parameterIndex, definitionDocumentId) => hasValueForParameter(context, definitionStatementId, parameterIndex, definitionDocumentId),
+        (valueId) => collectionValueIdFor(valueId, context),
+        (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder
+      ).expression
+    : lowerExpression(
+        expression,
+        (target) => rootBindingForTarget(target, expression.ast.span.start),
+        bindingsById,
+        rootGeometryPropertyFor,
+        rootCollectionLengthFor,
+        resolvedGeometryBuiltinForRoot,
+        undefined,
+        (valueId) => collectionValueIdFor(valueId, null),
+        (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue([], sourceOrder) : sourceOrder
+      ).expression;
+
+  const lowerCollectionNode = (
+    node: RuntimeGeometryCollectionNode
+  ): GeometryInputCollectionNode | null => {
+    if (node.kind === "leaf") {
+      const targets = node.aliases.map((alias) => {
+        const lowered = geometryInputTargetForAlias(alias);
+        if (!lowered) return null;
+        const target = lowerGeometryInputTarget(lowered);
+        return target && target.kind !== "collectionIndex" && target.kind !== "collectionValue"
+          ? target
+          : null;
+      });
+      return targets.every((target) => target !== null)
+        ? { kind: "leaf", targets: targets as Exclude<GeometryInputTarget, { kind: "collectionIndex" } | { kind: "collectionValue" }>[] }
+        : null;
+    }
+    if (node.kind === "if") {
+      const sourceContext = node.sourcePath.length > 0 ? contextsByKey.get(pathKey(node.sourcePath)) : undefined;
+      const thenBranch = lowerCollectionNode(node.thenBranch);
+      const elseBranch = lowerCollectionNode(node.elseBranch);
+      return thenBranch && elseBranch
+        ? {
+            kind: "if",
+            condition: lowerCollectionScalar(node.condition, sourceContext),
+            sourceOrder: executionPositionForValue(node.sourcePath, node.sourceOrder),
+            thenBranch,
+            elseBranch
+          }
+        : null;
+    }
+    const sourceContext = node.sourcePath.length > 0 ? contextsByKey.get(pathKey(node.sourcePath)) : undefined;
+    const arms = node.arms.map((arm) => {
+      const value = lowerCollectionNode(arm.value);
+      return value ? { label: arm.label, value } : null;
+    });
+    return arms.every((arm) => arm !== null)
+      ? {
+          kind: "match",
+          scrutinee: lowerCollectionScalar(node.scrutinee, sourceContext),
+          sourceOrder: executionPositionForValue(node.sourcePath, node.sourceOrder),
+          arms: arms as { label: string; value: GeometryInputCollectionNode }[]
+        }
+      : null;
+  };
+
   const lowerGeometryInputTarget = (
     source: RuntimeGeometryInputTarget
   ): GeometryInputTarget | null => {
@@ -2630,6 +2904,18 @@ export const compileModuleScalarRuntime = ({
         },
         executionPosition: source.executionPosition,
         declaredInterfaceType: source.declaredInterfaceType
+      };
+    }
+    if (source.kind === "collectionValue") {
+      const currentPath = source.currentPath ?? [];
+      const context = contextsByKey.get(pathKey(currentPath));
+      const value = lowerCollectionNode(source.value);
+      if (!value) return null;
+      return {
+        kind: "collectionValue",
+        collectionValueId: source.collectionValueId,
+        targetSourceOrder: context ? executionPositionForValue(context.path, source.targetSourceOrder) : source.targetSourceOrder,
+        value
       };
     }
     if (source.kind !== "collectionIndex" || !("target" in source)) return source;
@@ -2665,15 +2951,18 @@ export const compileModuleScalarRuntime = ({
       return target ? [target] : [];
     });
     if (members.length !== source.members.length) return null;
+    const value = source.value ? lowerCollectionNode(source.value) : null;
+    if (source.value && !value) return null;
     return {
       kind: "collectionIndex",
       collectionValueId: collectionValueIdFor(source.target.collectionValueId, context ?? null),
-      collectionLength: source.target.collectionLength ?? members.length,
+      collectionLength: source.target.collectionLength ?? (source.value ? null : members.length),
       targetSourceOrder: context
         ? executionPositionForValue(context.path, source.target.targetSourceOrder)
         : executionPositionForValue([], source.target.targetSourceOrder),
       index: loweredIndex.expression,
-      members
+      members: source.value ? [] : members,
+      ...(value ? { value } : {})
     };
   };
 
@@ -2698,6 +2987,41 @@ export const compileModuleScalarRuntime = ({
   for (const [elementId, targets] of moduleGeometryRuntime?.geometryInputTargetsByRuntimeElementId ?? []) {
     if (geometryInputTargetsByRuntimeElementId.has(elementId)) continue;
     geometryInputTargetsByRuntimeElementId.set(elementId, targets);
+  }
+
+  const geometryCollectionNodesByValueId = new Map<string, GeometryInputCollectionNode>();
+  const registerGeometryCollectionNode = (
+    valueId: string,
+    currentPath: readonly string[],
+    context: InstanceContext | null
+  ) => {
+    const runtimeNode = moduleGeometryRuntime?.resolveGeometryArrayCollectionForValueId?.(valueId, currentPath);
+    if (!runtimeNode) return;
+    const lowered = lowerCollectionNode(runtimeNode);
+    if (!lowered) return;
+    geometryCollectionNodesByValueId.set(collectionValueIdFor(valueId, context), lowered);
+  };
+  for (const value of moduleSemanticAnalysis.geometryValues) {
+    if (value.ownerModuleDefinitionStatementId === null) {
+      registerGeometryCollectionNode(value.statementId, [], null);
+    }
+  }
+  for (const value of sourceNamespace?.geometryArraySemanticAnalysis?.values ?? []) {
+    if (value.ownerModuleDefinitionStatementIndex === null) {
+      registerGeometryCollectionNode(value.statementId, [], null);
+    }
+  }
+  for (const context of contextsByKey.values()) {
+    if (contextIsDisabled(context) || !contextIsReachable(context)) continue;
+    for (const value of context.definition.localGeometryValues) {
+      registerGeometryCollectionNode(value.statementId, context.path, context);
+    }
+    const source = sourceNamespaceForContext(context)?.geometryArraySemanticAnalysis;
+    for (const value of source?.values ?? []) {
+      if (value.ownerModuleDefinitionStatementIndex === context.definition.statementIndex) {
+        registerGeometryCollectionNode(value.statementId, context.path, context);
+      }
+    }
   }
 
   for (const [bindingId, initializer, statementIndex] of documentBindingAnalysis
@@ -3156,16 +3480,23 @@ export const compileModuleScalarRuntime = ({
                       ? { kind: "offsetPath" as const, sources, distance, side, closed, suppressTrimWarnings }
                       : null;
                   })()
-                : (() => {
-                const points = value.construction.pointsReference
+              : (() => {
+                const resolvedPoints = value.construction.pointsReference
                   ? moduleGeometryRuntime?.resolvePointReferenceList(
                     value.construction.pointsReference.source,
                     value.statementIndex,
                     path
-                  )?.flatMap((anchor) => {
+                  ) ?? null
+                  : null;
+                const resolvedPointAnchors: readonly PointAnchor[] | null = value.construction.pointsReference
+                  ? Array.isArray(resolvedPoints) ? resolvedPoints : null
+                  : null;
+                if (value.construction.pointsReference && resolvedPoints && !resolvedPointAnchors) return null;
+                const points = value.construction.pointsReference
+                  ? (resolvedPointAnchors ?? []).flatMap((anchor: PointAnchor) => {
                     const lowered = lowerGeometryValueAnchor(anchor, executionPosition);
                     return lowered ? [lowered] : [];
-                  }) ?? []
+                  })
                   : value.construction.points.flatMap((point) => {
                     const lowered = lowerGeometryValuePoint(point, context, executionPosition);
                     return lowered ? [lowered] : [];
@@ -3267,7 +3598,13 @@ export const compileModuleScalarRuntime = ({
         source: replaceLazyGeometryMapPrograms(target.source as GeometryInputTarget) as Exclude<GeometryInputTarget, { kind: "collectionIndex" | "geometryValueMap" }>
       };
     }
-    if (target.kind === "collectionIndex") return { ...target, members: target.members.map(replaceLazyGeometryMapPrograms) };
+    const replaceCollectionNode = (node: GeometryInputCollectionNode): GeometryInputCollectionNode => {
+      if (node.kind === "leaf") return { kind: "leaf", targets: node.targets.map(replaceLazyGeometryMapPrograms) as Exclude<GeometryInputTarget, { kind: "collectionIndex" | "collectionValue" }>[] };
+      if (node.kind === "if") return { ...node, thenBranch: replaceCollectionNode(node.thenBranch), elseBranch: replaceCollectionNode(node.elseBranch) };
+      return { ...node, arms: node.arms.map((arm) => ({ ...arm, value: replaceCollectionNode(arm.value) })) };
+    };
+    if (target.kind === "collectionValue") return { ...target, value: replaceCollectionNode(target.value) };
+    if (target.kind === "collectionIndex") return { ...target, members: target.members.map(replaceLazyGeometryMapPrograms), ...(target.value ? { value: replaceCollectionNode(target.value) } : {}) };
     return target;
   };
   for (const [elementId, targets] of geometryInputTargetsByRuntimeElementId) {
@@ -3285,6 +3622,20 @@ export const compileModuleScalarRuntime = ({
   const documentCollectionValues = (documentScalarProgram?.collectionValues ?? []).map((value): ScalarProgramCollection => {
     if (value.kind === "alias") return { ...value, targetValueId: collectionValueIdFor(value.targetValueId, null) };
     if (value.kind === "map") return { ...value, sourceValueId: collectionValueIdFor(value.sourceValueId, null) };
+    if (value.kind === "if") {
+      return {
+        ...value,
+        condition: remapTypedExpressionSourceOrders(value.condition, (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue([], sourceOrder) : sourceOrder),
+        sourceOrder: executionPositionForValue([], value.sourceOrder)
+      };
+    }
+    if (value.kind === "match") {
+      return {
+        ...value,
+        scrutinee: remapTypedExpressionSourceOrders(value.scrutinee, (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue([], sourceOrder) : sourceOrder),
+        sourceOrder: executionPositionForValue([], value.sourceOrder)
+      };
+    }
     return value;
   });
   const scalarProgram = lowerScalarProgram({
@@ -3473,6 +3824,7 @@ export const compileModuleScalarRuntime = ({
     conditionalOwnerStatementIdByElementId,
     forGroupMutationOwnerByElementId,
     geometryValueProgram,
-    geometryInputTargetsByRuntimeElementId
+    geometryInputTargetsByRuntimeElementId,
+    geometryCollectionNodesByValueId
   };
 };

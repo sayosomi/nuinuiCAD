@@ -507,9 +507,8 @@ pub(crate) fn decode_geometry_property(
             "geometryProperty node \"type\" must be a number or choice type",
         ));
     }
-    if collection_length.is_some() {
-        if collection_value_id.is_none()
-            || !element_id.is_empty()
+    if collection_value_id.is_some() {
+        if !element_id.is_empty()
             || geometry_value_occurrence.is_some()
             || geometry_value_point_key.is_some()
             || property != "length"
@@ -520,10 +519,10 @@ pub(crate) fn decode_geometry_property(
                 "collection length geometryProperty nodes must carry only a collection identity and number type",
             ));
         }
-    } else if collection_value_id.is_some() {
+    } else if collection_length.is_some() {
         return Err(issue(
             Code::LiteralTypeMismatch,
-            "collectionValueId requires collectionLength",
+            "collection length geometryProperty nodes require collectionValueId",
         ));
     }
     Ok(TypedScalarExpression::GeometryProperty {

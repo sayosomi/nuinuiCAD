@@ -56,7 +56,12 @@ privacy, export, and source-order rules. Each Module instance remaps the
 immutable binder and body references independently, so one instance cannot
 observe another instance's mapped members. Root consumers can read an
 exported mapped collection's `.length` or index it normally. Geometry and
-nominal-record value-for remain deferred.
+nominal-record value-for remains deferred.
+
+Module collection locals and exports may also use collection-valued `if` and
+exhaustive choice `match`. Each instance evaluates its own condition or
+scrutinee and materializes only the selected collection branch, so `.length`,
+indexing, and existing geometry consumers observe the instance-local result.
 
 ## Library modules
 

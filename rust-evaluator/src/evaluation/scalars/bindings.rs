@@ -6,7 +6,7 @@ use std::collections::{HashMap, HashSet};
 use serde_json::{json, Value};
 
 use super::super::scalar_expression_runtime::{
-    lookup_geometry_property, lookup_geometry_value_property,
+    lookup_geometry_collection_length, lookup_geometry_property, lookup_geometry_value_property,
 };
 use super::expression_evaluator::{evaluate_typed_expression, ScalarEvaluationEnvironment};
 use super::geometry_builtin_runtime::resolve_geometry_builtin_target;
@@ -42,6 +42,15 @@ pub(crate) trait ScalarDocumentBindingResolver {
             binding_id: None,
             context: None,
         }
+    }
+
+    fn resolve_collection_length(
+        &self,
+        _collection_value_id: &str,
+        _state: &EvaluationState,
+        _seen: &mut HashSet<String>,
+    ) -> Option<f64> {
+        None
     }
 }
 
@@ -144,7 +153,7 @@ impl<'a> ScalarBindingResolver<'a> {
         let environment = ResolvingEnvironment {
             resolver: self,
             state,
-            source_order: statement.source_order,
+            source_order: statement.source_order as f64,
             local_binding_id: None,
             local_binding: None,
         };
@@ -261,7 +270,7 @@ impl<'a> ScalarBindingResolver<'a> {
                     let environment = ResolvingEnvironment {
                         resolver: self,
                         state,
-                        source_order: *source_order,
+                        source_order: *source_order as f64,
                         local_binding_id: Some(binder_id.as_str()),
                         local_binding: Some(&source),
                     };
@@ -281,6 +290,109 @@ impl<'a> ScalarBindingResolver<'a> {
                         },
                         error @ ScalarEvaluation::Error { .. } => error,
                     };
+                }
+                ValidatedScalarProgramCollectionValue::If {
+                    condition,
+                    then_value_id,
+                    else_value_id,
+                    source_order,
+                } => {
+                    let environment = ResolvingEnvironment {
+                        resolver: self,
+                        state,
+                        source_order: *source_order,
+                        local_binding_id: None,
+                        local_binding: None,
+                    };
+                    let condition = evaluate_typed_expression(condition, &environment);
+                    let selected = match condition {
+                        ScalarEvaluation::Ok {
+                            r#type: ScalarType::Boolean,
+                            value: ScalarValue::Boolean(value),
+                        } => {
+                            if value {
+                                then_value_id
+                            } else {
+                                else_value_id
+                            }
+                        }
+                        ScalarEvaluation::Error { issue_code, .. } => {
+                            return ScalarEvaluation::Error {
+                                r#type: element_type.clone(),
+                                issue_code,
+                                binding_id: None,
+                                context: None,
+                            };
+                        }
+                        _ => {
+                            return ScalarEvaluation::Error {
+                                r#type: element_type.clone(),
+                                issue_code: RUNTIME_VALUE_TYPE_MISMATCH.to_owned(),
+                                binding_id: None,
+                                context: None,
+                            };
+                        }
+                    };
+                    return self.resolve_collection_index(
+                        selected,
+                        index,
+                        element_type,
+                        None,
+                        *source_order,
+                        state,
+                    );
+                }
+                ValidatedScalarProgramCollectionValue::Match {
+                    scrutinee,
+                    arms,
+                    source_order,
+                } => {
+                    let environment = ResolvingEnvironment {
+                        resolver: self,
+                        state,
+                        source_order: *source_order,
+                        local_binding_id: None,
+                        local_binding: None,
+                    };
+                    let scrutinee = evaluate_typed_expression(scrutinee, &environment);
+                    let value = match scrutinee {
+                        ScalarEvaluation::Ok {
+                            r#type: ScalarType::Choice { .. },
+                            value: ScalarValue::Choice { value, .. },
+                        } => value,
+                        ScalarEvaluation::Error { issue_code, .. } => {
+                            return ScalarEvaluation::Error {
+                                r#type: element_type.clone(),
+                                issue_code,
+                                binding_id: None,
+                                context: None,
+                            };
+                        }
+                        _ => {
+                            return ScalarEvaluation::Error {
+                                r#type: element_type.clone(),
+                                issue_code: RUNTIME_VALUE_TYPE_MISMATCH.to_owned(),
+                                binding_id: None,
+                                context: None,
+                            };
+                        }
+                    };
+                    let Some((_, selected)) = arms.iter().find(|(label, _)| label == &value) else {
+                        return ScalarEvaluation::Error {
+                            r#type: element_type.clone(),
+                            issue_code: RUNTIME_VALUE_TYPE_MISMATCH.to_owned(),
+                            binding_id: None,
+                            context: None,
+                        };
+                    };
+                    return self.resolve_collection_index(
+                        selected,
+                        index,
+                        element_type,
+                        None,
+                        *source_order,
+                        state,
+                    );
                 }
             }
         };
@@ -332,6 +444,81 @@ impl<'a> ScalarBindingResolver<'a> {
             error @ ScalarEvaluation::Error { .. } => error,
         }
     }
+
+    pub(crate) fn resolve_collection_length(
+        &self,
+        collection_value_id: &str,
+        state: &EvaluationState,
+        seen: &mut HashSet<String>,
+    ) -> Option<f64> {
+        let Some(value) = self
+            .program
+            .collection_values
+            .iter()
+            .find(|value| value.value_id == collection_value_id)
+        else {
+            return lookup_geometry_collection_length(state, self, collection_value_id, seen);
+        };
+        if !seen.insert(collection_value_id.to_owned()) {
+            return None;
+        }
+        match &value.value {
+            ValidatedScalarProgramCollectionValue::Literal(members) => Some(members.len() as f64),
+            ValidatedScalarProgramCollectionValue::Alias(target) => {
+                self.resolve_collection_length(target, state, seen)
+            }
+            ValidatedScalarProgramCollectionValue::Map {
+                source_value_id, ..
+            } => self.resolve_collection_length(source_value_id, state, seen),
+            ValidatedScalarProgramCollectionValue::If {
+                condition,
+                then_value_id,
+                else_value_id,
+                source_order,
+            } => {
+                let environment = ResolvingEnvironment {
+                    resolver: self,
+                    state,
+                    source_order: *source_order,
+                    local_binding_id: None,
+                    local_binding: None,
+                };
+                match evaluate_typed_expression(condition, &environment) {
+                    ScalarEvaluation::Ok {
+                        value: ScalarValue::Boolean(true),
+                        ..
+                    } => self.resolve_collection_length(then_value_id, state, seen),
+                    ScalarEvaluation::Ok {
+                        value: ScalarValue::Boolean(false),
+                        ..
+                    } => self.resolve_collection_length(else_value_id, state, seen),
+                    _ => None,
+                }
+            }
+            ValidatedScalarProgramCollectionValue::Match {
+                scrutinee,
+                arms,
+                source_order,
+            } => {
+                let environment = ResolvingEnvironment {
+                    resolver: self,
+                    state,
+                    source_order: *source_order,
+                    local_binding_id: None,
+                    local_binding: None,
+                };
+                let ScalarEvaluation::Ok {
+                    value: ScalarValue::Choice { value, .. },
+                    ..
+                } = evaluate_typed_expression(scrutinee, &environment)
+                else {
+                    return None;
+                };
+                let (_, target) = arms.iter().find(|(label, _)| label == &value)?;
+                self.resolve_collection_length(target, state, seen)
+            }
+        }
+    }
 }
 
 impl ScalarDocumentBindingResolver for ScalarBindingResolver<'_> {
@@ -357,12 +544,21 @@ impl ScalarDocumentBindingResolver for ScalarBindingResolver<'_> {
             state,
         )
     }
+
+    fn resolve_collection_length(
+        &self,
+        collection_value_id: &str,
+        state: &EvaluationState,
+        seen: &mut HashSet<String>,
+    ) -> Option<f64> {
+        self.resolve_collection_length(collection_value_id, state, seen)
+    }
 }
 
 struct ResolvingEnvironment<'a, 'b, 'c> {
     resolver: &'a ScalarBindingResolver<'a>,
     state: &'b EvaluationState,
-    source_order: usize,
+    source_order: f64,
     local_binding_id: Option<&'c str>,
     local_binding: Option<&'c ScalarEvaluation>,
 }
@@ -388,7 +584,7 @@ impl ScalarEvaluationEnvironment for ResolvingEnvironment<'_, '_, '_> {
             element_id,
             property,
             target_source_order,
-            Some(self.source_order as f64),
+            Some(self.source_order),
             property_type,
         )
     }
@@ -407,7 +603,7 @@ impl ScalarEvaluationEnvironment for ResolvingEnvironment<'_, '_, '_> {
             point_key,
             property,
             target_source_order,
-            Some(self.source_order as f64),
+            Some(self.source_order),
             property_type,
         )
     }
@@ -420,7 +616,7 @@ impl ScalarEvaluationEnvironment for ResolvingEnvironment<'_, '_, '_> {
         collection_length: Option<f64>,
         target_source_order: f64,
     ) -> ScalarEvaluation {
-        if target_source_order >= self.source_order as f64 {
+        if target_source_order >= self.source_order {
             return ScalarEvaluation::Error {
                 r#type: element_type.clone(),
                 issue_code: "evaluation-collection-index-unavailable".to_owned(),
@@ -438,6 +634,14 @@ impl ScalarEvaluationEnvironment for ResolvingEnvironment<'_, '_, '_> {
         )
     }
 
+    fn lookup_collection_length(&self, collection_value_id: &str) -> Option<f64> {
+        self.resolver.resolve_collection_length(
+            collection_value_id,
+            self.state,
+            &mut HashSet::new(),
+        )
+    }
+
     fn lookup_geometry_builtin_target(
         &self,
         target: &super::types::ScalarExpressionResolvedGeometryTarget,
@@ -445,7 +649,7 @@ impl ScalarEvaluationEnvironment for ResolvingEnvironment<'_, '_, '_> {
         super::geometry_builtin_runtime::GeometryBuiltinRuntimeTarget,
         super::geometry_builtin_runtime::GeometryBuiltinRuntimeError,
     > {
-        resolve_geometry_builtin_target(self.state, self.source_order as f64, target)
+        resolve_geometry_builtin_target(self.state, self.source_order, target)
     }
 }
 

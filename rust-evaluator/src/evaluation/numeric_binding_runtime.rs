@@ -567,6 +567,7 @@ mod tests {
     fn geometry_state(element: Value) -> EvaluationState {
         EvaluationState {
             geometry_input_targets: HashMap::new(),
+            geometry_collection_nodes: HashMap::new(),
             geometry_value_binders: HashMap::new(),
             elements: vec![
                 json!({
@@ -616,6 +617,7 @@ mod tests {
     fn state(element: Value) -> EvaluationState {
         EvaluationState {
             geometry_input_targets: HashMap::new(),
+            geometry_collection_nodes: HashMap::new(),
             geometry_value_binders: HashMap::new(),
             elements: vec![element],
             elements_by_id: HashMap::from([(String::from("p"), 0)]),

@@ -115,6 +115,7 @@ pub(crate) fn resolve_geometry_builtin_target(
                 bound.geometry_value_occurrence = Some(occurrence.clone());
             }
             GeometryInputTarget::GeometryValueMap { .. }
+            | GeometryInputTarget::CollectionValue { .. }
             | GeometryInputTarget::CollectionIndex { .. } => {
                 return Err(GeometryBuiltinRuntimeError::Unavailable)
             }

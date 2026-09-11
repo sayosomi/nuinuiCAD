@@ -38,6 +38,17 @@ pub(crate) enum ValidatedScalarProgramCollectionValue {
         body: Box<TypedScalarExpression>,
         source_order: usize,
     },
+    If {
+        condition: Box<TypedScalarExpression>,
+        then_value_id: String,
+        else_value_id: String,
+        source_order: f64,
+    },
+    Match {
+        scrutinee: Box<TypedScalarExpression>,
+        arms: Vec<(String, String)>,
+        source_order: f64,
+    },
 }
 
 #[derive(Debug)]
@@ -88,6 +99,11 @@ pub(crate) fn decode_collection_values(
                 "binderId",
                 "body",
                 "sourceOrder",
+                "condition",
+                "thenValueId",
+                "elseValueId",
+                "scrutinee",
+                "arms",
             ],
             "scalar program collection value",
         )?;
@@ -256,6 +272,106 @@ pub(crate) fn decode_collection_values(
                     result_element_type,
                     binder_id,
                     body: Box::new(body),
+                    source_order,
+                }
+            }
+            "if" => {
+                reject_unexpected_fields(
+                    entry,
+                    &[
+                        "valueId",
+                        "kind",
+                        "condition",
+                        "thenValueId",
+                        "elseValueId",
+                        "sourceOrder",
+                    ],
+                    "scalar program collection if",
+                )?;
+                let condition = validate_typed_expression_payload(require_field(
+                    entry,
+                    "condition",
+                    "scalar program collection if",
+                )?)?;
+                let then_value_id = non_empty_string(
+                    require_field(entry, "thenValueId", "scalar program collection if")?,
+                    "scalar program collection if thenValueId",
+                )?
+                .to_owned();
+                let else_value_id = non_empty_string(
+                    require_field(entry, "elseValueId", "scalar program collection if")?,
+                    "scalar program collection if elseValueId",
+                )?
+                .to_owned();
+                let source_order =
+                    require_field(entry, "sourceOrder", "scalar program collection if")?
+                        .as_f64()
+                        .filter(|value| value.is_finite() && *value >= 0.0)
+                        .ok_or_else(|| {
+                            issue(
+                        Code::InvalidFieldType,
+                        "scalar program collection if sourceOrder must be a non-negative number",
+                    )
+                        })?;
+                ValidatedScalarProgramCollectionValue::If {
+                    condition: Box::new(condition),
+                    then_value_id,
+                    else_value_id,
+                    source_order,
+                }
+            }
+            "match" => {
+                reject_unexpected_fields(
+                    entry,
+                    &["valueId", "kind", "scrutinee", "arms", "sourceOrder"],
+                    "scalar program collection match",
+                )?;
+                let scrutinee = validate_typed_expression_payload(require_field(
+                    entry,
+                    "scrutinee",
+                    "scalar program collection match",
+                )?)?;
+                let arms = require_field(entry, "arms", "scalar program collection match")?
+                    .as_array()
+                    .ok_or_else(|| {
+                        issue(
+                            Code::InvalidFieldType,
+                            "scalar program collection match arms must be an array",
+                        )
+                    })?;
+                let mut decoded_arms = Vec::with_capacity(arms.len());
+                for arm in arms {
+                    let arm = as_object(arm, "scalar program collection match arm")?;
+                    reject_unexpected_fields(
+                        arm,
+                        &["label", "valueId"],
+                        "scalar program collection match arm",
+                    )?;
+                    let label = non_empty_string(
+                        require_field(arm, "label", "scalar program collection match arm")?,
+                        "scalar program collection match arm label",
+                    )?
+                    .to_owned();
+                    let value_id = non_empty_string(
+                        require_field(arm, "valueId", "scalar program collection match arm")?,
+                        "scalar program collection match arm valueId",
+                    )?
+                    .to_owned();
+                    decoded_arms.push((label, value_id));
+                }
+                let source_order =
+                    require_field(entry, "sourceOrder", "scalar program collection match")?
+                        .as_f64()
+                        .filter(|value| value.is_finite() && *value >= 0.0)
+                        .ok_or_else(|| {
+                            issue(
+                        Code::InvalidFieldType,
+                        "scalar program collection match sourceOrder must be a non-negative number",
+                    )
+                        })?;
+                ValidatedScalarProgramCollectionValue::Match {
+                    scrutinee: Box::new(scrutinee),
+                    arms: decoded_arms,
                     source_order,
                 }
             }

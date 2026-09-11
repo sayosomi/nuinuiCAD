@@ -68,6 +68,7 @@ fn evaluates_line_offset() {
     elements.push(offset_line("offset", vec!["line"], json!(10)));
     let result = evaluate_document_input(EvaluationInput {
         geometry_input_targets: None,
+        geometry_collection_nodes: None,
         geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
@@ -102,6 +103,7 @@ fn evaluates_numeric_offset_parameter() {
     elements.push(offset);
     let result = evaluate_document_input(EvaluationInput {
         geometry_input_targets: None,
+        geometry_collection_nodes: None,
         geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
@@ -150,6 +152,7 @@ fn rejects_reversed_base_lines_without_an_explicit_reverse() {
     ];
     let result = evaluate_document_input(EvaluationInput {
         geometry_input_targets: None,
+        geometry_collection_nodes: None,
         geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
@@ -202,6 +205,7 @@ fn rejects_a_source_chain_that_does_not_follow_the_first_line() {
     ];
     let result = evaluate_document_input(EvaluationInput {
         geometry_input_targets: None,
+        geometry_collection_nodes: None,
         geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
@@ -235,6 +239,7 @@ fn evaluates_arc_offset_and_radius_error() {
     ];
     let result = evaluate_document_input(EvaluationInput {
         geometry_input_targets: None,
+        geometry_collection_nodes: None,
         geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
@@ -273,6 +278,7 @@ fn evaluates_arc_offset_and_radius_error() {
     failing.push(failing_offset);
     let failing_result = evaluate_document_input(EvaluationInput {
         geometry_input_targets: None,
+        geometry_collection_nodes: None,
         geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
@@ -313,6 +319,7 @@ fn evaluates_bezier_and_nested_offset() {
     ];
     let result = evaluate_document_input(EvaluationInput {
         geometry_input_targets: None,
+        geometry_collection_nodes: None,
         geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
@@ -359,6 +366,7 @@ fn reports_bezier_trim_warning() {
     ];
     let result = evaluate_document_input(EvaluationInput {
         geometry_input_targets: None,
+        geometry_collection_nodes: None,
         geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
@@ -405,6 +413,7 @@ fn suppresses_bezier_trim_warning_when_requested() {
     ];
     let result = evaluate_document_input(EvaluationInput {
         geometry_input_targets: None,
+        geometry_collection_nodes: None,
         geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
@@ -433,6 +442,7 @@ fn reports_too_late_base_dependency() {
     elements.extend(base_line_elements());
     let result = evaluate_document_input(EvaluationInput {
         geometry_input_targets: None,
+        geometry_collection_nodes: None,
         geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
@@ -496,6 +506,7 @@ fn offset_line_can_feed_line_point_and_intersection_helpers() {
     ]);
     let result = evaluate_document_input(EvaluationInput {
         geometry_input_targets: None,
+        geometry_collection_nodes: None,
         geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,

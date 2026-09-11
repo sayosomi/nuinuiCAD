@@ -30,6 +30,7 @@ fn run_performance_case(name: &str, elements: Vec<Value>) -> EvaluationPayload {
     let started = Instant::now();
     let result = evaluate_document_input(EvaluationInput {
         geometry_input_targets: None,
+        geometry_collection_nodes: None,
         geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,

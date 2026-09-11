@@ -10,12 +10,13 @@ import type {
   BindingVersionId
 } from "./bindingVersions";
 import { evaluateTypedExpression, type GeometryBuiltinTargetLookupResult } from "./expressionEvaluator";
+import { createScalarProgramCollectionResolver } from "./declarationEvaluator";
 import {
   createForGroupMutationEnvironment,
   type ForGroupMutationFrame,
   type ForGroupMutationRunOutcome
 } from "./forGroupMutationCore";
-import { scalarTypesEqual, scalarValueMatchesType, type ScalarEvaluation, type ScalarType } from "./types";
+import type { ScalarEvaluation } from "./types";
 import type { ScalarProgramCollection } from "./scalarProgram";
 import type {
   ScalarExpressionResolvedGeometryTarget,
@@ -116,7 +117,8 @@ export const createIncrementalLinearMutationEvaluator = (
   graph: BindingVersionGraph,
   resolveGeometryProperty?: (reference: TypedScalarGeometryPropertyReferenceNode, sourceOrder: number) => ScalarEvaluation,
   resolveGeometryTarget?: (target: ScalarExpressionResolvedGeometryTarget, sourceOrder: number) => GeometryBuiltinTargetLookupResult | undefined,
-  collectionValues?: readonly ScalarProgramCollection[]
+  collectionValues?: readonly ScalarProgramCollection[],
+  resolveCollectionLength?: (collectionValueId: string, sourceOrder: number) => number | undefined
 ): IncrementalLinearMutationEvaluator => {
   const currentByBindingId = new Map<BindingId, ScalarEvaluation>();
   const historyByVersionId = new Map<BindingVersionId, BindingVersionRuntimeHistory>();
@@ -135,8 +137,6 @@ export const createIncrementalLinearMutationEvaluator = (
   ).map((version) => version.bindingId);
   let nextVersionIndex = 0;
   let activeLoopEnvironment: ReturnType<typeof createForGroupMutationEnvironment<ScalarEvaluation>> | undefined;
-  const collectionValuesById = new Map((collectionValues ?? []).map((value) => [value.valueId, value] as const));
-
   const conditionalResultFor = (ownerStatementId: string) => {
     for (let index = loopConditionalResults.length - 1; index >= 0; index -= 1) {
       const result = loopConditionalResults[index].get(ownerStatementId);
@@ -155,61 +155,12 @@ export const createIncrementalLinearMutationEvaluator = (
     return current ?? unavailable(bindingId);
   };
 
-  const resolveCollectionIndex = (
-    collectionValueId: string,
-    index: number,
-    elementType: ScalarType,
-    collectionLength: number | null,
-    targetSourceOrder: number,
-    sourceOrder: number
-  ): ScalarEvaluation => {
-    if (targetSourceOrder >= sourceOrder) {
-      return { status: "error", type: elementType, issueCode: "evaluation-collection-index-unavailable" };
-    }
-    if (!Number.isFinite(index) || !Number.isInteger(index) || index < 0 ||
-      (collectionLength !== null && index >= collectionLength)) {
-      return { status: "error", type: elementType, issueCode: "evaluation-collection-index-invalid" };
-    }
-    const seen = new Set<string>();
-    const lookup = (valueId: string): ScalarEvaluation | undefined => {
-      if (seen.has(valueId)) return undefined;
-      seen.add(valueId);
-      const collection = collectionValuesById.get(valueId);
-      if (!collection) return undefined;
-      if (collection.kind === "alias") return lookup(collection.targetValueId);
-      if (collection.kind === "map") {
-        const source = resolveCollectionIndex(
-          collection.sourceValueId,
-          index,
-          collection.sourceElementType,
-          null,
-          -1,
-          sourceOrder
-        );
-        if (source.status === "error") return source;
-        const mapped = evaluateTypedExpression(collection.body, {
-          lookupBinding: (bindingId) => bindingId === collection.binderId ? source : resolveCurrent(bindingId),
-          ...(collectionValuesById.size ? { lookupCollectionIndex: (nestedValueId, nestedIndex, nestedElementType, nestedLength, nestedSourceOrder) => resolveCollectionIndex(nestedValueId, nestedIndex, nestedElementType, nestedLength, nestedSourceOrder, sourceOrder) } : {}),
-          ...(resolveGeometryProperty ? { lookupGeometryProperty: (reference) => resolveGeometryProperty(reference, sourceOrder) } : {}),
-          ...(resolveGeometryTarget ? { lookupGeometryTarget: (target) => resolveGeometryTarget(target, sourceOrder) } : {})
-        });
-        if (mapped.status === "error") return mapped;
-        return scalarTypesEqual(mapped.type, collection.resultElementType) && scalarValueMatchesType(mapped.type, mapped.value)
-          ? mapped
-          : { status: "error", type: collection.resultElementType, issueCode: "evaluation-runtime-value-type-mismatch" };
-      }
-      const member = collection.members[index];
-      if (!member) return { status: "error", type: elementType, issueCode: "evaluation-collection-index-invalid" };
-      if (member.kind === "literal") return { status: "ok", type: member.type, value: member.value };
-      return resolveCurrent(member.bindingId);
-    };
-    const result = lookup(collectionValueId);
-    if (!result) return { status: "error", type: elementType, issueCode: "evaluation-collection-index-unavailable" };
-    if (result.status === "error") return result;
-    return scalarTypesEqual(result.type, elementType) && scalarValueMatchesType(result.type, result.value)
-      ? result
-      : { status: "error", type: elementType, issueCode: "evaluation-runtime-value-type-mismatch" };
-  };
+  const collectionResolver = createScalarProgramCollectionResolver(
+    { collectionValues },
+    resolveCurrent,
+    resolveGeometryProperty,
+    resolveGeometryTarget
+  );
 
   const retireFramesBefore = (sourceOrder: number) => {
     for (let index = frames.length - 1; index >= 0; index -= 1) {
@@ -250,7 +201,12 @@ export const createIncrementalLinearMutationEvaluator = (
       ? poisoned(version)
       : evaluateTypedExpression(version.kind === "declare" ? version.initializer! : version.expression, {
         lookupBinding: resolveCurrent,
-        ...(collectionValuesById.size ? { lookupCollectionIndex: (collectionValueId, index, elementType, collectionLength, targetSourceOrder) => resolveCollectionIndex(collectionValueId, index, elementType, collectionLength, targetSourceOrder, version.sourceOrder) } : {}),
+        ...(collectionResolver ? collectionResolver.environmentFor(version.sourceOrder) : {}),
+        ...(resolveCollectionLength ? {
+          lookupCollectionLength: (collectionValueId: string) =>
+            resolveCollectionLength(collectionValueId, version.sourceOrder) ??
+            collectionResolver?.environmentFor(version.sourceOrder).lookupCollectionLength?.(collectionValueId)
+        } : {}),
         ...(resolveGeometryProperty ? { lookupGeometryProperty: (reference) => resolveGeometryProperty(reference, version.sourceOrder) } : {}),
         ...(resolveGeometryTarget ? { lookupGeometryTarget: (target) => resolveGeometryTarget(target, version.sourceOrder) } : {})
       });
@@ -289,7 +245,12 @@ export const createIncrementalLinearMutationEvaluator = (
       ? poisoned(version)
       : evaluateTypedExpression(version.kind === "declare" ? version.initializer! : version.expression, {
         lookupBinding: resolveCurrent,
-        ...(collectionValuesById.size ? { lookupCollectionIndex: (collectionValueId, index, elementType, collectionLength, targetSourceOrder) => resolveCollectionIndex(collectionValueId, index, elementType, collectionLength, targetSourceOrder, version.sourceOrder) } : {}),
+        ...(collectionResolver ? collectionResolver.environmentFor(version.sourceOrder) : {}),
+        ...(resolveCollectionLength ? {
+          lookupCollectionLength: (collectionValueId: string) =>
+            resolveCollectionLength(collectionValueId, version.sourceOrder) ??
+            collectionResolver?.environmentFor(version.sourceOrder).lookupCollectionLength?.(collectionValueId)
+        } : {}),
         ...(resolveGeometryProperty ? { lookupGeometryProperty: (reference) => resolveGeometryProperty(reference, version.sourceOrder) } : {}),
         ...(resolveGeometryTarget ? { lookupGeometryTarget: (target) => resolveGeometryTarget(target, version.sourceOrder) } : {})
       });

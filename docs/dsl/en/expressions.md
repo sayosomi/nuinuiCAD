@@ -75,6 +75,14 @@ collection length. Negative, fractional, non-finite, or out-of-range indexes
 are evaluation errors. Runtime validation is authoritative for dynamic
 indexes, and never clamps, wraps, coerces, or fabricates a value.
 
+An `if` or exhaustive choice `match` can produce a collection value when all
+branches or arms have the same declared one-dimensional collection type. The
+selected branch determines `.length` and indexed values; different branches
+may have different cardinalities. The condition or scrutinee is evaluated
+first, and the unselected branch or arm remains lazy. Collection values keep
+their element identity, including geometry assignability and nominal-record
+identity.
+
 <!-- dsl-example: compile-success -->
 ```nui
 nui 1

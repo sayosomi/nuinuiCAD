@@ -118,6 +118,10 @@ pub(crate) trait ScalarEvaluationEnvironment {
             context: None,
         }
     }
+
+    fn lookup_collection_length(&self, _collection_value_id: &str) -> Option<f64> {
+        None
+    }
 }
 
 /// One entry in the explicit work stack. `Eval` still needs evaluating;
@@ -428,6 +432,7 @@ fn eval_node<'a>(
         },
         TypedScalarExpression::GeometryProperty {
             element_id,
+            collection_value_id,
             collection_length,
             geometry_value_occurrence,
             geometry_value_binder_id,
@@ -441,6 +446,19 @@ fn eval_node<'a>(
                 ScalarEvaluation::Ok {
                     r#type: r#type.clone(),
                     value: ScalarValue::Number(*length),
+                }
+            } else if let Some(collection_value_id) = collection_value_id {
+                match environment.lookup_collection_length(collection_value_id) {
+                    Some(length) => ScalarEvaluation::Ok {
+                        r#type: r#type.clone(),
+                        value: ScalarValue::Number(length),
+                    },
+                    None => ScalarEvaluation::Error {
+                        r#type: r#type.clone(),
+                        issue_code: "evaluation-geometry-property-unavailable".to_owned(),
+                        binding_id: None,
+                        context: None,
+                    },
                 }
             } else if let Some(binder_id) = geometry_value_binder_id {
                 environment.lookup_geometry_value_binder_property(

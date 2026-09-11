@@ -22,6 +22,7 @@ fn bezier_curve(id: &str, start_id: &str, end_id: &str) -> Value {
 fn copy_line_rejects_a_discontinuous_source_list() {
     let result = evaluate_document_input(EvaluationInput {
         geometry_input_targets: None,
+        geometry_collection_nodes: None,
         geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
@@ -85,6 +86,7 @@ fn copy_line_rejects_a_discontinuous_source_list() {
 fn copy_line_mirror_reverses_arc_sweep() {
     let result = evaluate_document_input(EvaluationInput {
         geometry_input_targets: None,
+        geometry_collection_nodes: None,
         geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
@@ -137,6 +139,7 @@ fn copy_line_mirror_reverses_arc_sweep() {
 fn copy_line_arc_scale_keeps_radius_and_length_consistent() {
     let result = evaluate_document_input(EvaluationInput {
         geometry_input_targets: None,
+        geometry_collection_nodes: None,
         geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
@@ -263,6 +266,7 @@ fn copy_line_arc_scale_keeps_radius_and_length_consistent() {
 fn copy_line_and_move_scale_around_end_point() {
     let copy_result = evaluate_document_input(EvaluationInput {
         geometry_input_targets: None,
+        geometry_collection_nodes: None,
         geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
@@ -306,6 +310,7 @@ fn copy_line_and_move_scale_around_end_point() {
 
     let move_result = evaluate_document_input(EvaluationInput {
         geometry_input_targets: None,
+        geometry_collection_nodes: None,
         geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
@@ -363,6 +368,7 @@ fn copy_line_and_move_scale_around_end_point() {
 fn symmetric_copy_line_rejects_a_discontinuous_source_list() {
     let result = evaluate_document_input(EvaluationInput {
         geometry_input_targets: None,
+        geometry_collection_nodes: None,
         geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
@@ -403,6 +409,7 @@ fn symmetric_copy_line_rejects_a_discontinuous_source_list() {
 fn move_updates_existing_geometry_and_downstream_references() {
     let result = evaluate_document_input(EvaluationInput {
         geometry_input_targets: None,
+        geometry_collection_nodes: None,
         geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
@@ -458,6 +465,7 @@ fn move_updates_existing_geometry_and_downstream_references() {
 fn symmetric_move_reports_axis_and_dependency_errors() {
     let axis_error = evaluate_document_input(EvaluationInput {
         geometry_input_targets: None,
+        geometry_collection_nodes: None,
         geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
@@ -492,6 +500,7 @@ fn symmetric_move_reports_axis_and_dependency_errors() {
 
     let dependency_error = evaluate_document_input(EvaluationInput {
         geometry_input_targets: None,
+        geometry_collection_nodes: None,
         geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,

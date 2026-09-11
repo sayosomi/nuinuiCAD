@@ -412,9 +412,12 @@ an existing legal `@` geometry reference or one of the implemented pure
 geometry value constructions. A nominal-record conditional must have the exact
 declared record-definition identity in both branches; its leaves may be a
 constructor, whole-record reference, or supported statically indexed member of
-a record collection. Collection-valued and optional conditionals are not part
-of this slice. Both branches are resolved and checked at compile time, but
-runtime evaluates the condition before evaluating only the selected branch.
+a record collection. A collection-valued conditional must have the same
+declared one-dimensional collection type in both branches; each branch is
+recursively resolved as a collection expression. Both branches are resolved
+and checked at compile time, but runtime evaluates the condition before
+evaluating only the selected branch. Optional result values are not part of
+nui1.
 
 A scalar, geometry, or nominal-record value expression may use the following exhaustive
 choice-match form:
@@ -436,10 +439,11 @@ arm; a bare choice literal is resolved against the expected result type.
 Geometry results must share the declared `point`, `line`, or `path` interface.
 Nominal-record results must share the declared record-definition identity, and
 each arm may be a constructor, whole-record reference, or supported statically
-indexed member of a record collection. At runtime the scrutinee is evaluated
-first and only the arm whose label equals the selected choice value is
-evaluated. Collection-valued and optional `none`/`some` values are outside this
-slice.
+indexed member of a record collection. Collection results must share the
+declared one-dimensional collection type, and each arm is recursively resolved
+as a collection expression. At runtime the scrutinee is evaluated first and
+only the arm whose label equals the selected choice value is evaluated.
+Optional `none`/`some` values remain outside this slice.
 
 Named scalar function calls use the following syntax:
 
@@ -635,8 +639,8 @@ const matched: Pair = match @side {
 Runtime evaluates the condition or scrutinee before evaluating only the
 selected record leaf. A record leaf may be a constructor, a whole-record
 reference, or a supported statically indexed member of a record collection.
-Collection-valued control flow and record value-for are deferred to later nui1
-work; optional values remain outside this slice.
+Record value-for remains deferred to later nui1 work; optional values remain
+outside this slice.
 
 Constructors are named-only and must provide every field exactly once. The
 constructor name and the declared type must identify the same record definition;
@@ -1453,7 +1457,7 @@ expression rules against that result element type. Bare choice literals use
 the declared result choice identity and order.
 
 Value-producing collection `for` does not filter, fold, scan, carry, mutate,
-or accumulate state. Nested arrays are not introduced. The value model uses
+or accumulate state. Nested arrays are not introduced. Collection-valued `if` and exhaustive choice `match` select exactly one branch or arm lazily before `.length` or indexing delegates to the existing collection runtime; branches may have different cardinalities and unselected dependencies are not evaluated. The value model uses
 this same pure, lazy, one-result-per-input collection shape for geometry
 collections as well. Geometry source/result bodies support `point[]`, `line[]`,
 and `path[]`, subject to the existing directional assignability rules

@@ -423,6 +423,7 @@ mod tests {
         let id = element["id"].as_str().unwrap().to_owned();
         EvaluationState {
             geometry_input_targets: HashMap::new(),
+            geometry_collection_nodes: HashMap::new(),
             geometry_value_binders: HashMap::new(),
             elements: vec![element],
             elements_by_id: HashMap::from([(id, 0)]),

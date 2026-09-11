@@ -124,8 +124,8 @@ declared choice type. Record branches must each be a constructor, whole-record
 reference, or supported indexed record-collection member of the same nominal
 type. At runtime the condition is evaluated first and only the selected branch
 is evaluated. Geometry branches may be existing `@` references or implemented
-pure geometry constructions. Collection-valued control flow, optional values,
-and record value-for remain unsupported.
+pure geometry constructions. Collection-valued `if` and exhaustive `match` are
+supported; optional result values and nominal-record value-for remain deferred.
 
 ### Exhaustive choice value-match
 
@@ -162,8 +162,30 @@ evaluated. Geometry arms must share the declaration's `point`, `line`, or
 `path` interface and may contain existing references or implemented pure
 constructions. Record arms must share the declared record definition's exact
 nominal identity and may use constructors, whole-record references, or
-supported indexed record-collection members. Collection-valued and optional
-`none`/`some` match values remain deferred.
+supported indexed record-collection members. Collection match values are
+supported recursively; optional `none`/`some` match values remain deferred.
+
+### Collection value-if and value-match
+
+An `if` or exhaustive choice `match` may produce a one-dimensional collection
+when every branch or arm has the same declared collection type:
+
+<!-- dsl-example: syntax-fragment -->
+```nui
+const widths: number[] = if (@wide) { [20, 30] } else { [10] }
+const sideMarks: choice(left, right)[] = match @side {
+  left => [left]
+  right => [right, right]
+}
+```
+
+The selected branch or arm determines `.length` and indexed members. A
+conditional collection may feed existing point, line, or path consumers when
+its element type is assignable to the required geometry interface. Nominal
+record collections preserve their declared record identity and indexed field
+consumption. Collection control flow is lazy: the unselected branch or arm is
+not evaluated. Nested arrays, optional result values, and nominal-record
+collection-producing `for` remain outside the current language surface.
 
 ### Collection value-for
 

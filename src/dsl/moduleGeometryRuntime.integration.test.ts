@@ -23,6 +23,8 @@ const evaluateCompiled = (compiled: ReturnType<typeof compileWithIds>) => {
   return evaluateElements(elements, {
     evaluationLimitIndex: compiled.document.evaluationLimitIndex,
     scalarProgram: compiled.scalarProgram,
+    geometryInputTargetsByElementId: compiled.moduleGeometryRuntime?.geometryInputTargetsByRuntimeElementId,
+    geometryCollectionNodesByValueId: compiled.moduleGeometryRuntime?.geometryCollectionNodesByValueId,
     bindingVersions: compiled.bindingVersions,
     statementInfoByElementId: compiled.statementMap.byElementId,
     statementIdByStatementIndex: compiled.statementMap.statementIdByStatementIndex,
@@ -57,6 +59,55 @@ const expectValid = (compiled: ReturnType<typeof compileWithIds>) => {
 };
 
 describe("module geometry runtime", () => {
+  it("selects conditional geometry collections for length, indexed, and whole-list consumers", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "point A = coordinate(x: 1, y: 2)",
+      "point B = coordinate(x: 3, y: 4)",
+      "const n: number = 1",
+      "const selected: point[] = if (@n > 0) { [@B, @A] } else { [@A] }",
+      "const count: number = @selected.length",
+      "line Use = segment(start: @selected[0], end: @selected[0])",
+      "line Outline = polyline(points: @selected, closed: false)"
+    ].join("\n"), "conditional-geometry-consumers");
+    expectValid(compiled);
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const countBinding = compiled.bindingAnalysis?.catalog.bindings.find((candidate) => candidate.name === "count");
+    expect(countBinding ? result.computedScalarBindings?.get(countBinding.id) : undefined).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 2 }
+    });
+    expect(result.computedGeometry.get(named(compiled, "Use").id)).toMatchObject({
+      kind: "line",
+      start: { x: 3, y: 4 },
+      end: { x: 3, y: 4 }
+    });
+    expect(result.computedGeometry.get(named(compiled, "Outline").id)).toMatchObject({
+      kind: "polyline",
+      segments: [{ start: { x: 3, y: 4 }, end: { x: 1, y: 2 } }]
+    });
+  });
+
+  it("selects a conditional point collection before geometry consumers use it", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "point A = coordinate(x: 1, y: 2)",
+      "point B = coordinate(x: 3, y: 4)",
+      "const chooseA: boolean = true",
+      "const selected: point[] = if (@chooseA) { [@A] } else { [@B, @A] }",
+      "line Use = segment(start: @selected[0], end: @selected[0])"
+    ].join("\n"), "conditional-geometry-array");
+    expectValid(compiled);
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometry.get(named(compiled, "Use").id)).toMatchObject({
+      kind: "line",
+      start: { x: 1, y: 2 },
+      end: { x: 1, y: 2 }
+    });
+  });
+
   it("lowers actual, derived, coordinate, forwarded, and repeated point aliases", () => {
     const compiled = compileWithIds([
       "nui 1",

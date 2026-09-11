@@ -26,7 +26,12 @@ export type GeometryAlias =
   | { kind: "point"; anchor: PointAnchor; coordinate?: ModulePointCoordinateSemantic }
   | { kind: "value"; occurrence: GeometryValueOccurrence; geometryType: "point" | "line"; interfaceType: "point" | "line" | "path"; pointKey?: string }
   | { kind: "mappedValue"; occurrence: GeometryValueOccurrence; geometryType: "point" | "line"; interfaceType: "point" | "line" | "path"; source: Exclude<GeometryAlias, { kind: "collectionIndex" }>; mapValueId: string; binderId: string; executionPosition: number; pointKey?: string }
-  | { kind: "collectionIndex"; target: Extract<ModuleGeometrySourceTarget, { kind: "collectionIndex" }>; members: readonly GeometryAlias[] };
+  | { kind: "collectionIndex"; target: Extract<ModuleGeometrySourceTarget, { kind: "collectionIndex" }>; members: readonly GeometryAlias[]; value?: RuntimeGeometryCollectionNode };
+
+export type RuntimeGeometryCollectionNode =
+  | { kind: "leaf"; aliases: readonly Exclude<GeometryAlias, { kind: "collectionIndex" }>[] }
+  | { kind: "if"; condition: ModuleScalarExpressionSemantic; sourceOrder: number; sourcePath: readonly string[]; thenBranch: RuntimeGeometryCollectionNode; elseBranch: RuntimeGeometryCollectionNode }
+  | { kind: "match"; scrutinee: ModuleScalarExpressionSemantic; sourceOrder: number; sourcePath: readonly string[]; arms: readonly { label: string; value: RuntimeGeometryCollectionNode }[] };
 
 export type GeometryValueMapPendingTarget = {
   kind: "geometryValueMapPending";
@@ -49,10 +54,19 @@ export type GeometryInputTargetSource = {
   kind: "collectionIndex";
   target: Extract<ModuleGeometrySourceTarget, { kind: "collectionIndex" }>;
   members: readonly GeometryAlias[];
+  value?: RuntimeGeometryCollectionNode;
   currentPath?: readonly string[];
 };
 
-export type RuntimeGeometryInputTarget = Exclude<GeometryInputTarget, { kind: "collectionIndex" }> | GeometryInputTargetSource | GeometryValueMapPendingTarget;
+export type GeometryCollectionInputTargetSource = {
+  kind: "collectionValue";
+  collectionValueId: string;
+  targetSourceOrder: number;
+  value: RuntimeGeometryCollectionNode;
+  currentPath?: readonly string[];
+};
+
+export type RuntimeGeometryInputTarget = Exclude<GeometryInputTarget, { kind: "collectionIndex" | "collectionValue" }> | GeometryInputTargetSource | GeometryCollectionInputTargetSource | GeometryValueMapPendingTarget;
 
 export type InstanceContext = {
   path: readonly string[];
@@ -188,7 +202,7 @@ const lowerAliasWithPointKey = (alias: GeometryAlias, pointKey: string | undefin
   return { kind: "point", anchor: derivedAnchor(alias.elementId, pointKey) };
 };
 
-export const geometryInputTargetForAlias = (alias: GeometryAlias): Exclude<GeometryInputTarget, { kind: "collectionIndex" }> | GeometryValueMapPendingTarget | null => {
+export const geometryInputTargetForAlias = (alias: GeometryAlias): Exclude<GeometryInputTarget, { kind: "collectionIndex" } | { kind: "collectionValue" }> | GeometryValueMapPendingTarget | null => {
   if (alias.kind === "collectionIndex") return null;
   if (alias.kind === "line") {
     return { kind: "drawable", elementId: alias.elementId, geometryType: "line" };
@@ -243,7 +257,8 @@ export const geometryInputTargetSourceForAlias = (alias: GeometryAlias): Runtime
   return {
     kind: "collectionIndex",
     target: alias.target,
-    members: alias.members
+    members: alias.members,
+    ...(alias.value ? { value: alias.value } : {})
   };
 };
 
