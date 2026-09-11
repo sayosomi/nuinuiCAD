@@ -1,9 +1,9 @@
-import type { ComputedGeometryValueOffsetLine, ComputedOffsetLine, ComputedOffsetLineSegment } from "../types/geometry";
+import type { ComputedGeometryValueOffsetLine, ComputedOffsetLineSegment } from "../types/geometry";
 import type { LineLikeGeometryInput } from "./linePaths";
 import { cubicDerivativeAt, cubicPointAt, type BezierLikeSegment } from "./bezierMath";
 
 type Point = { x: number; y: number };
-type OffsetLine = ComputedOffsetLine | ComputedGeometryValueOffsetLine;
+type OffsetLine = { segments: Array<ComputedOffsetLineSegment | ComputedGeometryValueOffsetLine["segments"][number]> };
 type OffsetLineSegment = ComputedOffsetLineSegment | ComputedGeometryValueOffsetLine["segments"][number];
 
 type IntersectionSegment = {

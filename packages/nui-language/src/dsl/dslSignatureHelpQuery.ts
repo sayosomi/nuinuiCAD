@@ -34,6 +34,7 @@ import { getParameterValue } from "../parameters/parameterAccess";
 import type { CadElementType } from "../types/geometry";
 import type { ScalarType } from "../scalars/types";
 import { moduleSemanticIdentityKey } from "./moduleSemanticTypes";
+import { geometryArrayTypeName } from "./geometryArrayTypes";
 
 export type DslSignatureHelpDocumentation = {
   /** Stable localization key; the host presentation layer selects the locale. */
@@ -111,6 +112,7 @@ const allowedValuesFor = (type: ScalarType | null | undefined): readonly string[
 };
 
 const parameterTypeFor = (definition: ParameterDefinition): string | undefined => {
+  if (definition.geometryArrayType) return geometryArrayTypeName(definition.geometryArrayType);
   const scalarType = scalarTypeForParameterDefinition(definition);
   if (scalarType) return scalarTypeName(scalarType);
   switch (definition.kind) {

@@ -71,6 +71,9 @@ Single-geometry values are `const`-only. Pure `bezier(...)` is a supported
 `polyline(...)` is also a `path` initializer using the drawable `points` and
 `closed` arguments; it stores ordered identity-free line segments, preserves
 duplicate points, and requires at least two open points or three closed points.
+`join(paths: ..., closed: ...)` is a `path` initializer and accepts `path[]`
+(or covariant `line[]`), preserving source order, duplicates, exact primitive
+geometry, and degenerate segments while validating the specified connections.
 `transformCopy(...)` and `mirrorCopy(...)` are also immutable, non-drawable
 `path` initializers. `transformCopy` first translates every source point by
 `endPoint - startPoint`; when `mirrorX` is true it mirrors about the vertical

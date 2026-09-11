@@ -97,17 +97,18 @@ type CandidateContext = {
 
 const numericReferenceGeometryFor = (
   geometry: ComputedGeometry
-): Extract<ComputedGeometry, { kind: "line" | "arcLine" | "bezierCurve" | "offsetLine" | "polyline" }> | null =>
+): Extract<ComputedGeometry, { kind: "line" | "arcLine" | "bezierCurve" | "offsetLine" | "joinedPath" | "polyline" }> | null =>
   geometry.kind === "line" ||
   geometry.kind === "arcLine" ||
   geometry.kind === "bezierCurve" ||
   geometry.kind === "offsetLine" ||
+  geometry.kind === "joinedPath" ||
   geometry.kind === "polyline"
     ? geometry
     : null;
 
 const numericPropertiesForSubgeometry = (
-  geometry: Extract<ComputedGeometry, { kind: "line" | "arcLine" | "bezierCurve" | "offsetLine" | "polyline" }>,
+  geometry: Extract<ComputedGeometry, { kind: "line" | "arcLine" | "bezierCurve" | "offsetLine" | "joinedPath" | "polyline" }>,
   subgeometry: ReferencePickNumericSubgeometry
 ): readonly NumericComputedGeometryProperty[] => {
   if (subgeometry.kind === "body") {
@@ -167,7 +168,7 @@ const numericPropertiesForSubgeometry = (
 };
 
 const numericPropertiesForHit = (
-  geometry: Extract<ComputedGeometry, { kind: "line" | "arcLine" | "bezierCurve" | "offsetLine" | "polyline" }>,
+  geometry: Extract<ComputedGeometry, { kind: "line" | "arcLine" | "bezierCurve" | "offsetLine" | "joinedPath" | "polyline" }>,
   subgeometry: ReferencePickNumericSubgeometry,
   staticTarget: Parameters<typeof numericComputedGeometryPropertiesFor>[1]
 ): NumericComputedGeometryProperty[] => {

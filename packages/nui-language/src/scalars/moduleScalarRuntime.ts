@@ -3830,6 +3830,17 @@ export const compileModuleScalarRuntime = ({
                       ? { kind: "offsetPath" as const, sources, distance, side, closed, suppressTrimWarnings }
                       : null;
                   })()
+              : value.construction.kind === "joinedPath"
+                ? (() => {
+                    const paths = value.construction.paths.flatMap((source) => {
+                      const lowered = lowerGeometryValuePath(source, context, executionPosition);
+                      return lowered ? [lowered] : [];
+                    });
+                    const closed = value.construction.closed ? lowerGeometryValueScalar(value.construction.closed, context) : null;
+                    return closed && paths.length === value.construction.paths.length
+                      ? { kind: "joinedPath" as const, paths, closed }
+                      : null;
+                  })()
               : (() => {
                 const resolvedPoints = value.construction.pointsReference
                   ? moduleGeometryRuntime?.resolvePointReferenceList(

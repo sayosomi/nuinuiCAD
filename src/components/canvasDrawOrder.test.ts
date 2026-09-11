@@ -14,6 +14,7 @@ describe("Canvas base draw order", () => {
       "arcLine",
       "bezierCurve",
       "offsetLine",
+      "joinedPath",
       "text",
       "point"
     ]);

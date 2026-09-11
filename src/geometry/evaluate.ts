@@ -81,6 +81,7 @@ import { buildOffsetLineGeometry } from "./offsetPaths";
 import { isLineLikeGeometryInput, pointAtDistanceFromEndpoint } from "./linePaths";
 import { copyPathGeometry } from "./copyPathGeometry";
 import { connectSourceSegmentGroups, sourceSegmentsForGeometry } from "./offsetSourceSegments";
+import { joinedPathGeometryValueKernel } from "./joinedPathGeometryValue";
 import { lineLength } from "./offsetPathMath";
 import { findLineIntersections } from "./lineIntersections";
 import { evaluateTypedExpression } from "../scalars/expressionEvaluator";
@@ -700,8 +701,9 @@ export const evaluateElements = (
           endTangentAngleDeg: geometry.endTangentAngleDeg
         };
       case "offsetLine":
+      case "joinedPath":
         return {
-          kind: "offsetLine",
+          kind: geometry.kind,
           start: geometry.start ? { x: geometry.start.x, y: geometry.start.y } : null,
           end: geometry.end ? { x: geometry.end.x, y: geometry.end.y } : null,
           segments: geometry.segments.map((segment) => {
@@ -1189,6 +1191,26 @@ export const evaluateElements = (
         return;
       }
       value = polylineValue;
+    } else if (entry.construction.kind === "joinedPath") {
+      if (entry.declaredInterfaceType !== "path") {
+        appendGeometryValueError(entry, "Geometry value construction is incompatible with its declared interface type.");
+        return;
+      }
+      const closed = evaluateGeometryValueBoolean(entry.construction.closed, sourceOrder);
+      const sources = entry.construction.paths.map((path) => {
+        const geometry = resolveGeometryTargetForEvaluation(path.target, sourceOrder);
+        return geometry && geometry.kind !== "unavailable" && isLineLikeGeometryInput(geometry) ? geometry : undefined;
+      });
+      if (closed === undefined || sources.some((source) => !source)) {
+        appendGeometryValueError(entry, "Join geometry value construction inputs are unavailable or invalid.");
+        return;
+      }
+      const result = joinedPathGeometryValueKernel(sources as Array<ComputedGeometry | ComputedGeometryValue>, closed);
+      if ("error" in result) {
+        appendGeometryValueError(entry, result.error);
+        return;
+      }
+      value = result;
     } else if (entry.construction.kind === "transformCopy") {
       if (entry.declaredInterfaceType !== "path") {
         appendGeometryValueError(entry, "Geometry value construction is incompatible with its declared interface type.");

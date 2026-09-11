@@ -29,6 +29,7 @@ const rustSupportedElementTypes = new Set<CadElement["type"]>([
   "bezierBulgePoint",
   "bezierExtremePoint",
   "offsetLine",
+  "joinedPath",
   "splitLine",
   "edge",
   "extendTrim",
@@ -50,6 +51,7 @@ const rustSupportedLineReferenceTypes = new Set<CadElement["type"]>([
   "cornerRadiusArcLine",
   "bezierCurve",
   "offsetLine",
+  "joinedPath",
   "polyline",
   "splitLine",
   "copyLine",
@@ -77,6 +79,7 @@ const rustSupportedDerivedPointSourceTypes = new Set<CadElement["type"]>([
   "cornerRadiusArcLine",
   "bezierCurve",
   "offsetLine",
+  "joinedPath",
   "polyline",
   "splitLine",
   "copyLine",
@@ -369,6 +372,9 @@ const canUseRustEvaluationForElement = (
       return candidates.every((candidate) => referencesRustSupportedLineTargetValue(candidate, elementsById));
     }
     return element.baseLineIds.every((baseLineId) => referencesRustSupportedLine(baseLineId, elementsById));
+  }
+  if (element.type === "joinedPath") {
+    return element.pathIds.every((pathId) => referencesRustSupportedLine(pathId, elementsById));
   }
   if (element.type === "splitLine") {
     return referencesRustSupportedLine(element.baseLineId, elementsById);

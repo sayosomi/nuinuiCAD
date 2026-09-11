@@ -9,6 +9,7 @@ import type {
   ComputedArcLine,
   ComputedBezierCurve,
   ComputedGeometry,
+  ComputedJoinedPath,
   ComputedLine,
   ComputedOffsetLine,
   ComputedPolyline,
@@ -40,12 +41,12 @@ export const numericReferenceProperties = (
 ) => numericReferencePropertiesForGeometry(geometry);
 
 export const numericReferenceExpression = (
-  geometry: ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine | ComputedPolyline,
+  geometry: ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine | ComputedJoinedPath | ComputedPolyline,
   property: NumericMeasurementKey
 ) => `${geometry.elementId}.${property}`;
 
 export const numericReferenceValue = (
-  geometry: ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine | ComputedPolyline,
+  geometry: ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine | ComputedJoinedPath | ComputedPolyline,
   property: NumericMeasurementKey,
   presentation?: Pick<CanvasPresentation, "undefinedValue" | "numericReferenceLabels">
 ) => {
@@ -58,7 +59,7 @@ export const numericReferenceValue = (
 };
 
 export const numericReferenceLabel = (
-  geometry: ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine | ComputedPolyline,
+  geometry: ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine | ComputedJoinedPath | ComputedPolyline,
   property: NumericMeasurementKey,
   presentation?: Pick<CanvasPresentation, "numericReferenceLabels">
 ) => presentation?.numericReferenceLabels?.[property] ?? propertyLabels[property];
@@ -112,6 +113,15 @@ export const offsetLineInfoRows = (line: ComputedOffsetLine): GeometryInfoRow[] 
   ...(line.closed ? [{ label: "閉じる", value: "はい" }] : [])
 ];
 
+export const joinedPathInfoRows = (line: ComputedJoinedPath): GeometryInfoRow[] => [
+  { label: "始点", value: line.start ? formatCoordinate(line.start) : "未定義" },
+  { label: "終点", value: line.end ? formatCoordinate(line.end) : "未定義" },
+  { label: "始接線角度", value: formatAngleDeg(line.startTangentAngleDeg) },
+  { label: "終接線角度", value: formatAngleDeg(line.endTangentAngleDeg) },
+  { label: "長さ", value: formatMillimeters(line.length) },
+  ...(line.closed ? [{ label: "閉じる", value: "はい" }] : [])
+];
+
 export const polylineInfoRows = (line: ComputedPolyline): GeometryInfoRow[] => [
   { label: "始点", value: formatCoordinate(line.start) },
   { label: "終点", value: formatCoordinate(line.end) },
@@ -131,6 +141,7 @@ export const geometryInfoRows = (
   if (geometry.kind === "arcLine") return arcLineInfoRows(geometry);
   if (geometry.kind === "bezierCurve") return bezierCurveInfoRows(geometry);
   if (geometry.kind === "offsetLine") return offsetLineInfoRows(geometry);
+  if (geometry.kind === "joinedPath") return joinedPathInfoRows(geometry);
   if (geometry.kind === "polyline") return polylineInfoRows(geometry);
   return [];
 };

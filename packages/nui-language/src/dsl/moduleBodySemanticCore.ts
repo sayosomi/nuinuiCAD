@@ -713,6 +713,11 @@ export const analyzeModuleBody = ({
           if (construction.side) addScalar(bodySemantic, "construction:side", construction.side.ast.span, construction.side);
           if (construction.closed) addScalar(bodySemantic, "construction:closed", construction.closed.ast.span, construction.closed);
           if (construction.suppressTrimWarnings) addScalar(bodySemantic, "construction:suppressTrimWarnings", construction.suppressTrimWarnings.ast.span, construction.suppressTrimWarnings);
+        } else if (construction?.kind === "joinedPath") {
+          construction.paths.forEach((path, index) => {
+            addGeometry(bodySemantic, `construction:paths:${index}`, path.span, path);
+          });
+          if (construction.closed) addScalar(bodySemantic, "construction:closed", construction.closed.ast.span, construction.closed);
         } else if (construction?.kind === "transformCopy") {
           addGeometry(bodySemantic, "construction:startPoint", construction.startPoint.span, construction.startPoint);
           addGeometry(bodySemantic, "construction:endPoint", construction.endPoint.span, construction.endPoint);

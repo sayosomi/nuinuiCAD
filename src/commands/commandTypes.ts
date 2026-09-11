@@ -112,6 +112,7 @@ export type CommandId =
   | "addBezierExtremePoint"
   | "addLine"
   | "addPolyline"
+  | "addJoinedPath"
   | "addAngleLengthLine"
   | "addCommonTangentLine"
   | "addArcLine"

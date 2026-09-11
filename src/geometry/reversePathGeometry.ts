@@ -3,6 +3,7 @@ import type {
   ComputedBezierCurve,
   ComputedBezierSegment,
   ComputedGeometry,
+  ComputedJoinedPath,
   ComputedLine,
   ComputedOffsetLine,
   ComputedOffsetLineSegment
@@ -88,6 +89,15 @@ const reverseOffset = (line: ComputedOffsetLine): ComputedOffsetLine => {
   };
 };
 
+const reverseJoined = (line: ComputedJoinedPath): ComputedJoinedPath => {
+  const segments = [...line.segments].reverse().map(reverseOffsetSegment);
+  return {
+    ...line,
+    segments,
+    ...offsetLineEndpointMeasurements(segments)
+  };
+};
+
 const reversePolyline = (line: Extract<LineLikeGeometry, { kind: "polyline" }>): LineLikeGeometry => {
   const segments = [...line.segments].reverse().map((segment) => ({
     ...segment,
@@ -115,6 +125,7 @@ export const reverseLineLikeGeometry = (geometry: LineLikeGeometry): LineLikeGeo
   if (geometry.kind === "arcLine") return reverseArc(geometry);
   if (geometry.kind === "bezierCurve") return reverseBezier(geometry);
   if (geometry.kind === "polyline") return reversePolyline(geometry);
+  if (geometry.kind === "joinedPath") return reverseJoined(geometry);
   return reverseOffset(geometry);
 };
 

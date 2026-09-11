@@ -41,6 +41,24 @@ describe("Source creation template planning", () => {
     }]);
   });
 
+  it("plans addJoinedPath through the shared catalog with an ordered paths hole", () => {
+    const plan = planFor("addJoinedPath");
+
+    expect(plan).toMatchObject({
+      commandId: "addJoinedPath",
+      elementType: "joinedPath",
+      category: "line",
+      construction: "join",
+      hasNameHole: true
+    });
+    expect(plan.forms).toEqual([{
+      argumentHoles: [
+        { argName: "paths", parameterKey: "pathIds", kind: "lineReferenceList", label: "パス" }
+      ],
+      exclusiveChoices: []
+    }]);
+  });
+
   it("includes commonTangent's required choice arguments from the DSL spec", () => {
     const plan = planFor("addCommonTangentLine");
 

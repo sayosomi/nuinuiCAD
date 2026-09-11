@@ -16,6 +16,7 @@ import type {
   BezierHandleOverlay,
   CanvasOverlayArc,
   CanvasOverlayCurve,
+  CanvasOverlayJoinedPath,
   CanvasIdentityCandidate,
   CanvasOverlayLine,
   CanvasOverlayOffsetLine,
@@ -31,6 +32,7 @@ type CanvasOverlayProps = {
   overlayArcs: CanvasOverlayArc[];
   overlayCurves: CanvasOverlayCurve[];
   overlayOffsetLines: CanvasOverlayOffsetLine[];
+  overlayJoinedPaths?: CanvasOverlayJoinedPath[];
   rectangleSelection?: {
     rectangle: ScreenSelectionRectangle;
     mode: CanvasRectangleMembershipMode;
@@ -73,6 +75,7 @@ export const CanvasOverlay = ({
   overlayArcs,
   overlayCurves,
   overlayOffsetLines,
+  overlayJoinedPaths = [],
   rectangleSelection = null,
   overlayPoints,
   overlayTexts,
@@ -206,6 +209,25 @@ export const CanvasOverlay = ({
       </g>
     ))}
     {overlayOffsetLines.map(({ line, points }) => (
+      <g key={line.elementId}>
+        {selectedElementIdSet.has(line.elementId) && pickSelected(line.elementId) ? (
+          <polyline
+            points={points.map((point) => `${point.x},${point.y}`).join(" ")}
+            className="overlay-selected-line overlay-normal-selection-layer"
+            data-normal-selection="true"
+            style={{ pointerEvents: "none" }}
+          />
+        ) : null}
+        <polyline
+          points={points.map((point) => `${point.x},${point.y}`).join(" ")}
+          className={lineOverlayClass(line.elementId)}
+          data-pick-selection={pickSelected(line.elementId) ? "true" : undefined}
+          {...pickCandidateAttributes(line.elementId)}
+        />
+        {draftLinePickMarker(line.elementId, centerOf(points))}
+      </g>
+    ))}
+    {overlayJoinedPaths.map(({ line, points }) => (
       <g key={line.elementId}>
         {selectedElementIdSet.has(line.elementId) && pickSelected(line.elementId) ? (
           <polyline

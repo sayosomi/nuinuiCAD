@@ -142,6 +142,7 @@ const numericReferenceGeometry = (
   geometry?.kind === "arcLine" ||
   geometry?.kind === "bezierCurve" ||
   geometry?.kind === "offsetLine" ||
+  geometry?.kind === "joinedPath" ||
   geometry?.kind === "polyline"
     ? geometry
     : null;

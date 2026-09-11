@@ -2,6 +2,7 @@ import type {
   CadElement,
   ComputedBezierCurve,
   ComputedGeometry,
+  ComputedJoinedPath,
   ComputedLine,
   ComputedOffsetLine,
   ComputedPolyline,
@@ -17,7 +18,7 @@ export type SelectablePoint = {
 };
 
 const derivedPoint = (
-  source: ComputedLine | ComputedBezierCurve | ComputedOffsetLine | ComputedPolyline | Extract<ComputedGeometry, { kind: "arcLine" }>,
+  source: ComputedLine | ComputedBezierCurve | ComputedOffsetLine | ComputedJoinedPath | ComputedPolyline | Extract<ComputedGeometry, { kind: "arcLine" }>,
   pointKey: string
 ): ComputedPoint | null => {
   if (source.kind === "line") {
@@ -36,6 +37,12 @@ const derivedPoint = (
   if (source.kind === "offsetLine") {
     if (pointKey === "start") return source.segments[0]?.start ?? null;
     if (pointKey === "end") return source.segments.at(-1)?.end ?? null;
+    return null;
+  }
+
+  if (source.kind === "joinedPath") {
+    if (pointKey === "start") return source.start;
+    if (pointKey === "end") return source.end;
     return null;
   }
 
@@ -73,6 +80,7 @@ export const resolveDerivedPoint = (
       source.kind !== "arcLine" &&
       source.kind !== "bezierCurve" &&
       source.kind !== "offsetLine" &&
+      source.kind !== "joinedPath" &&
       source.kind !== "polyline"
     )
   ) return null;
@@ -156,6 +164,25 @@ export const selectablePointsForGeometry = (
             anchor: derivedAnchor(geometry.elementId, "end"),
             label: `${geometry.name}.終点`,
             point: computedPoint(`${geometry.elementId}:end`, `${geometry.name}.終点`, end)
+          }]
+        : [])
+    ];
+  }
+
+  if (geometry.kind === "joinedPath") {
+    return [
+      ...(geometry.start
+        ? [{
+            anchor: derivedAnchor(geometry.elementId, "start"),
+            label: `${geometry.name}.始点`,
+            point: computedPoint(`${geometry.elementId}:start`, `${geometry.name}.始点`, geometry.start)
+          }]
+        : []),
+      ...(geometry.end
+        ? [{
+            anchor: derivedAnchor(geometry.elementId, "end"),
+            label: `${geometry.name}.終点`,
+            point: computedPoint(`${geometry.elementId}:end`, `${geometry.name}.終点`, geometry.end)
           }]
         : [])
     ];

@@ -1,5 +1,6 @@
 import type { CadElement, PointAnchor } from "../types/geometry";
 import type { ScalarType } from "../scalars/types";
+import type { GeometryArrayType } from "../dsl/geometryArrayTypes";
 
 export type ParameterValueKind =
   | "text"
@@ -23,6 +24,8 @@ export type ParameterDefinition = {
   emptyInputDefaultValue?: number;
   stepLevels?: readonly number[];
   choiceOptions?: readonly string[];
+  /** Source-level geometry-array type for broad path-list parameters. */
+  geometryArrayType?: GeometryArrayType;
 };
 
 /**
@@ -480,6 +483,12 @@ const parameterDefinitionsForElement = (
           label: "トリム警告を表示しない",
           kind: "boolean",
         },
+      ];
+    case "joinedPath":
+      return [
+        ...commonParameters,
+        { key: "pathIds", label: "パス", kind: "lineReferenceList", geometryArrayType: { kind: "geometryArray", elementType: "path" } },
+        { key: "closed", label: "閉じる", kind: "boolean" },
       ];
     case "copyLine":
     case "move":

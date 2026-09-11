@@ -162,7 +162,7 @@ describe("immutable single-geometry reference values", () => {
     });
     expect(pureGeometryValueConstructionCandidates("point").map((candidate) => candidate.label)).toEqual(["coordinate", "offset", "polar", "between", "onLine", "intersection", "tangentOffset", "bezierExtremePoint", "bezierBulgePoint"]);
     expect(pureGeometryValueConstructionCandidates("line").map((candidate) => candidate.label)).toEqual(["segment", "polar", "commonTangent"]);
-    expect(pureGeometryValueConstructionCandidates("path").map((candidate) => candidate.label)).toEqual(["segment", "polar", "commonTangent", "offset", "polyline", "transformCopy", "mirrorCopy", "bezier", "arc", "through"]);
+    expect(pureGeometryValueConstructionCandidates("path").map((candidate) => candidate.label)).toEqual(["segment", "polar", "commonTangent", "offset", "join", "polyline", "transformCopy", "mirrorCopy", "bezier", "arc", "through"]);
     expect(pureGeometryValueConstructionCandidates("point").map((candidate) => candidate.label)).not.toContain("through");
     expect(pureGeometryValueConstructionCandidates("line").map((candidate) => candidate.label)).not.toContain("through");
     expect(pureGeometryValueConstructionCandidates("point").map((candidate) => candidate.label)).not.toContain("transformCopy");

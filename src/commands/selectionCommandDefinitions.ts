@@ -58,7 +58,7 @@ const reverseEligible = () => {
   if (!selected || getSelectedElementIds().length !== 1) return null;
   if (![
     "line", "angleLengthLine", "arcLine", "threePointArcLine", "cornerRadiusArcLine",
-    "bezierCurve", "offsetLine", "polyline", "splitLine", "copyLine", "symmetricCopyLine"
+    "bezierCurve", "offsetLine", "joinedPath", "polyline", "splitLine", "copyLine", "symmetricCopyLine"
   ].includes(selected.type)) return null;
   return selected;
 };

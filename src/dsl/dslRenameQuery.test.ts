@@ -44,6 +44,23 @@ describe("host-neutral DSL rename query", () => {
     expect(plan?.edits.every((edit) => edit.newText === "横幅")).toBe(true);
   });
 
+  it("renames a named broad-path array consumed by Join", () => {
+    const source = [
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line First = segment(start: @A, end: @B)",
+      "const parts: path[] = [@First]",
+      "line Joined = join(paths: @parts, closed: false)"
+    ].join("\n");
+    const result = planDslRenameEditsResult(snapshot(source), at(source, "@parts") + 1, "outlineParts");
+
+    expect(result.status).toBe("ok");
+    if (result.status !== "ok") return;
+    expect(result.plan.edits.map((edit) => source.slice(edit.from, edit.to))).toEqual(["parts", "parts"]);
+    expect(compile(applyEdits(source, result.plan.edits)).diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+  });
+
   it("renames a value-for binder only within its mapped body", () => {
     const source = [
       "nui 1",

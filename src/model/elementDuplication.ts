@@ -266,6 +266,11 @@ export const remapElementReferences = (source: CadElement, idMap: Map<ElementId,
         baseLineIds: remapBaseLineIds(element.baseLineIds, idMap),
         offset: remapNumericValue(element.offset, idMap)
       };
+    case "joinedPath":
+      return {
+        ...element,
+        pathIds: remapBaseLineIds(element.pathIds, idMap)
+      };
     case "polyline":
       return {
         ...element,

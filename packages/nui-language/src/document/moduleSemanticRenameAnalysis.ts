@@ -72,7 +72,17 @@ const sameScopeCollision = (
   const analysis = compiled.moduleSemanticAnalysis;
   const namespace = compiled.sourceLexicalNamespace;
   const unavailable = (): ModuleRenameCollision => ({ conflictingName: newName });
-  if (!analysis || !namespace) return unavailable();
+  if (!namespace) return unavailable();
+  if (!analysis) {
+    if (target.kind !== "moduleSource") return unavailable();
+    const declaration = namespace.allDeclarations.find((candidate) => candidate.statementId === target.statementId);
+    if (!declaration) return unavailable();
+    const conflictingDeclaration = (namespace.declarationsByScopeAndName.get(declaration.scopeId)?.get(newName) ?? [])
+      .find((candidate) => candidate.statementId !== target.statementId);
+    if (!conflictingDeclaration) return null;
+    const conflictingRange = declarationNameRange({ statement: compiled.statements[conflictingDeclaration.statementIndex]! });
+    return { conflictingName: conflictingDeclaration.name, ...(conflictingRange ? { conflictingRange } : {}) };
+  }
   if (target.kind === "documentBinding") return unavailable();
   if (target.kind === "moduleParameter") {
     const definition = analysis.definitionsByStatementId.get(target.slot.definitionStatementId);
@@ -383,11 +393,13 @@ export const analyzeModuleSemanticRename = (
   newName: string,
   options: ModuleSemanticRenameOptions = {}
 ): ModuleRenameAnalysis => {
-  if (!compiled.moduleSemanticAnalysis || !compiled.statementMap || !compiled.sourceLexicalNamespace) return { verdict: "rejected", reason: "stale" };
+  if (!compiled.statementMap || !compiled.sourceLexicalNamespace) return { verdict: "rejected", reason: "stale" };
   if (sourceText.replace(/\r\n/g, "\n") !== compiled.spans.sourceMap.source) return { verdict: "rejected", reason: "stale" };
   if (!validIdentifier(newName)) return { verdict: "rejected", reason: "invalid-name", detail: "名前をDSL識別子として安全に表現できません。" };
   const index = createModuleSemanticRangeIndex(compiled);
   const geometryArrayOccurrences = geometryArraySemanticOccurrences(compiled, target);
+  const geometryArrayOnly = geometryArrayOccurrences !== null && !compiled.moduleSemanticAnalysis;
+  if (!compiled.moduleSemanticAnalysis && !geometryArrayOnly) return { verdict: "rejected", reason: "stale" };
   const declaration = moduleSemanticDeclarationRange(index, target) ?? geometryArrayOccurrences?.declaration;
   if (!declaration) return { verdict: "rejected", reason: "target-not-found" };
   const oldName = sourceText.slice(declaration.from, declaration.to);
@@ -445,7 +457,12 @@ export const analyzeModuleSemanticRename = (
   const after = options.compileCandidate
     ? options.compileCandidate(edited, compiled)
     : compileWithStableIds(edited, compiled);
-  if (!after || after.diagnostics.length > 0 || !after.moduleSemanticAnalysis || moduleSemanticStableFingerprint(after) !== moduleSemanticStableFingerprint(compiled)) {
+  const geometryArrayStillResolves = geometryArrayOnly && target.kind === "moduleSource" && after?.sourceLexicalNamespace?.geometryArraySemanticAnalysis?.valuesByStatementId.has(target.statementId);
+  if (
+    !after ||
+    after.diagnostics.length > 0 ||
+    (geometryArrayOnly ? !geometryArrayStillResolves : !after.moduleSemanticAnalysis || moduleSemanticStableFingerprint(after) !== moduleSemanticStableFingerprint(compiled))
+  ) {
     return { verdict: "rejected", reason: "capture" };
   }
   return { verdict: "ok", target, oldName, newName, entries };

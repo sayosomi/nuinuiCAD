@@ -217,6 +217,8 @@ export const getDirectParentIds = (
           ...element.baseLineIds.map((elementId) => ({ elementId })),
           ...extractNumericExpressionReferences(element.offset)
         ].map((reference) => reference.elementId);
+      case "joinedPath":
+        return element.pathIds;
       case "copyLine":
       case "move":
         return [
@@ -281,6 +283,8 @@ export const getDirectParentIds = (
     case "edge":
     case "extendTrim":
     case "pathReverse":
+      return numericExpressionParentIds();
+    case "joinedPath":
       return numericExpressionParentIds();
     case "bezierCurve":
     case "offsetLine":

@@ -19,6 +19,7 @@ export type CanvasRectangleMembershipInput = {
   arcs?: ReadonlyArray<{ arc: GeometryIdentity; points: readonly ScreenPoint[] }>;
   curves?: ReadonlyArray<{ curve: GeometryIdentity; points: readonly ScreenPoint[] }>;
   offsetLines?: ReadonlyArray<{ line: GeometryIdentity; points: readonly ScreenPoint[] }>;
+  joinedPaths?: ReadonlyArray<{ line: GeometryIdentity; points: readonly ScreenPoint[] }>;
   polylines?: ReadonlyArray<{ polyline: GeometryIdentity; points: readonly ScreenPoint[] }>;
   images?: ReadonlyArray<{ image: GeometryIdentity; corners: readonly ScreenPoint[] }>;
   texts?: ReadonlyArray<{
@@ -193,6 +194,7 @@ export const canvasRectangleMemberIds = ({
   arcs = [],
   curves = [],
   offsetLines = [],
+  joinedPaths = [],
   polylines = [],
   images = [],
   texts = [],
@@ -217,6 +219,9 @@ export const canvasRectangleMemberIds = ({
     addIf(curve.elementId, polylineMatches(sampledPoints, rectangle, mode));
   }
   for (const { line, points: sampledPoints } of offsetLines) {
+    addIf(line.elementId, polylineMatches(sampledPoints, rectangle, mode));
+  }
+  for (const { line, points: sampledPoints } of joinedPaths) {
     addIf(line.elementId, polylineMatches(sampledPoints, rectangle, mode));
   }
   for (const { polyline, points: sampledPoints } of polylines) {

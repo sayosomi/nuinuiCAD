@@ -286,6 +286,26 @@ interpreted, and where its restrictions matter.
 | `parent` | — | no | no | parent |
 | `branch` | — | no | no | branch |
 
+<!-- dsl-ref:construction:line/join -->
+### `line / join`
+
+**Syntax**: `line Name = join(...)`
+
+**Pure value interface**: `path`
+
+**Arguments**:
+
+| Spelling | Kind and constraints | Required | Positional | Special |
+| --- | --- | --- | --- | --- |
+| `paths` | lineReferenceList | yes | no | — |
+| `closed` | boolean | no | no | — |
+| `state` | — | no | no | — |
+| `steps` | — | no | no | steps |
+| `id` | — | no | no | id |
+| `roles` | — | no | no | roles |
+| `parent` | — | no | no | parent |
+| `branch` | — | no | no | branch |
+
 <!-- dsl-ref:construction:line/polyline -->
 ### `line / polyline`
 
@@ -768,6 +788,20 @@ requires at least three. The authored order and duplicate points are retained.
 The same construction is available as an immutable, non-drawable pure `path`
 value in `const` geometry-value initializers; runtime failures remain owned by
 the value occurrence and do not allocate a drawable identity.
+
+### `join`
+
+**Description:** `join` concatenates an ordered `path[]` of line-like sources
+into one path. `line[]` is accepted through the existing directional
+assignability rule. It is available as a drawable `joinedPath` line element
+and as an identity-free pure `path` initializer.
+
+**Notes:** Each later source must meet the current chain end at its authored
+start, or the computed view is reversed when its authored end meets. Sources
+are never reordered, snapped, trimmed, simplified, deduplicated, or connected
+with synthesized geometry. `closed: true` validates the last-to-first
+connection without adding a closing segment. Empty lists and discontinuities
+are errors; source primitive order and degenerate geometry are preserved.
 
 ### `split`
 

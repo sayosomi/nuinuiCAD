@@ -47,6 +47,22 @@ describe("geometry array expected-type completion", () => {
     expect(labels(queryAt(points, "[@"))).toEqual(expect.arrayContaining(["A", "B", "L.start", "L.end"]));
   });
 
+  it("reuses broad-path completion for Join's paths parameter", () => {
+    const source = [...geometryBase, "line Joined = join(paths: [@], closed: false)"].join("\n");
+    const result = queryAt(source, "paths: [@");
+
+    expect(result?.category).toBe("geometryArrayValue");
+    expect(labels(result)).toEqual(expect.arrayContaining(["L", "Curve"]));
+
+    const named = [
+      ...geometryBase,
+      "const strict: line[] = [@L]",
+      "const paths: path[] = [@Curve]",
+      "line Joined = join(paths: @, closed: false)"
+    ].join("\n");
+    expect(labels(queryAt(named, "paths: @"))).toEqual(expect.arrayContaining(["strict", "paths"]));
+  });
+
   it("offers only assignable named arrays for a whole-array reference", () => {
     const source = [
       ...geometryBase,

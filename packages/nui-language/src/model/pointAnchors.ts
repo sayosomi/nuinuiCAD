@@ -100,6 +100,9 @@ export const pointAnchorOptions = (elements: CadElement[]): PointAnchor[] =>
     if (element.type === "offsetLine") {
       return [derivedAnchor(element.id, "start"), derivedAnchor(element.id, "end")];
     }
+    if (element.type === "joinedPath") {
+      return [derivedAnchor(element.id, "start"), derivedAnchor(element.id, "end")];
+    }
     if (element.type === "polyline") {
       return [derivedAnchor(element.id, "start"), derivedAnchor(element.id, "end")];
     }
@@ -154,6 +157,7 @@ export const isLineLikeElement = (element: CadElement) =>
   element.type === "cornerRadiusArcLine" ||
   element.type === "bezierCurve" ||
   element.type === "offsetLine" ||
+  element.type === "joinedPath" ||
   element.type === "polyline" ||
   element.type === "splitLine" ||
   element.type === "copyLine" ||

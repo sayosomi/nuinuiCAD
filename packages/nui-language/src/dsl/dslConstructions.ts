@@ -157,6 +157,13 @@ const constructionSpecs: DslConstructionSpec[] = [
   },
   {
     category: "line",
+    construction: "join",
+    elementType: "joinedPath",
+    pureValueInterface: "path",
+    args: [required("paths", "pathIds"), arg("closed")],
+  },
+  {
+    category: "line",
     construction: "polyline",
     elementType: "polyline",
     pureValueInterface: "path",

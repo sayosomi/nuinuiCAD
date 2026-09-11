@@ -105,6 +105,10 @@ const presentationByCommandId = {
     quickPickLabel: "Polyline",
     keywords: ["polyline", "line", "path", "折れ線", "ポリライン", "線", "追加"]
   },
+  addJoinedPath: {
+    quickPickLabel: "Joined Path",
+    keywords: ["join", "line", "path", "結合", "パス", "線", "追加"]
+  },
   addAngleLengthLine: {
     quickPickLabel: "Angle Length Line",
     keywords: ["angle", "length", "line", "角度", "距離", "長さ", "線", "追加"]
