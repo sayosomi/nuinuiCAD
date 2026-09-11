@@ -531,6 +531,13 @@ const addModuleRecordTarget = (
     if (nameSpan) addPhysicalOccurrence(add, compiled, statementIndex, nameSpan, recordValueIdentityOccurrence(target.statementId), "reference");
     return;
   }
+  if (target.kind === "recordValueForBinder") {
+    if (nameSpan) addPhysicalOccurrence(add, compiled, statementIndex, nameSpan, {
+      kind: "typed",
+      bindingId: target.binderId
+    }, "reference");
+    return;
+  }
   if (target.kind === "recordParameter") {
     if (nameSpan) addPhysicalOccurrence(add, compiled, statementIndex, nameSpan, moduleParameterIdentity(target), "reference");
     return;
@@ -617,7 +624,7 @@ const qualifiedModuleRecordExportAt = (
   };
 };
 
-const addModuleRecordReferenceOccurrences = (
+  const addModuleRecordReferenceOccurrences = (
   compiled: CompiledDslDocument,
   add: AddOccurrence,
   statementIndex: number,
@@ -1091,6 +1098,20 @@ const addModuleSemanticPathOccurrences = (compiled: CompiledDslDocument, add: Ad
     }
     addQualifiedPathOccurrences(compiled, add, statementIndex, nameSpan, finalTarget);
   };
+  const addRecordMapScalarExpression = (statementIndex: number, expression: ModuleScalarExpressionSemantic) => {
+    for (const reference of expression.references) {
+      const target = reference.target;
+      const recordTarget = target as ModuleRecordSourceTarget | null;
+      if (recordTarget?.kind === "recordValue" || recordTarget?.kind === "recordValueForBinder" ||
+          recordTarget?.kind === "recordParameter" || recordTarget?.kind === "recordCollectionIndex") {
+        addModuleRecordTarget(compiled, add, statementIndex, recordTarget, reference.nameSpan);
+      } else {
+        addCollectionIndexBase(statementIndex, reference);
+        addRootScalarReference(statementIndex, reference);
+      }
+    }
+    for (const reference of expression.geometryProperties) addGeometry(statementIndex, reference);
+  };
   const addCollectionIndexBase = (statementIndex: number, reference: ModuleScalarExpressionSemantic["references"][number]) => {
     const target = reference.target;
     if (!target) return;
@@ -1237,6 +1258,9 @@ const addModuleSemanticPathOccurrences = (compiled: CompiledDslDocument, add: Ad
       addCollectionControlFlowOccurrences(value.statementIndex, value.value);
     }
   }
+  for (const mapped of analysis.mappedRecordCollectionBodies) {
+    for (const field of mapped.fields) addRecordMapScalarExpression(mapped.statementIndex, field.body);
+  }
   for (const [statementId, references] of analysis.rootGeometryReferencesByStatementId) {
     const statementIndex = statementIndexForId(compiled, statementId);
     if (statementIndex === undefined) continue;
@@ -1277,6 +1301,9 @@ const addModuleSemanticPathOccurrences = (compiled: CompiledDslDocument, add: Ad
     }
     for (const mapped of definition.mappedGeometryCollectionBodies ?? []) {
       addModuleGeometryValueExpressionOccurrences(mapped.body, (reference) => addGeometry(mapped.statementIndex, reference));
+    }
+    for (const mapped of definition.mappedRecordCollectionBodies ?? []) {
+      for (const field of mapped.fields) addRecordMapScalarExpression(mapped.statementIndex, field.body);
     }
     for (const recordValue of definition.recordValues) {
       if (recordValue.target && recordValue.value.reference) {

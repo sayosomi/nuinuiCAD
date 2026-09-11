@@ -94,6 +94,30 @@ describe("queryDslCompletion", () => {
     expect(outside?.candidates.some((candidate) => candidate.label === "item") ?? false).toBe(false);
   });
 
+  it("exposes a nominal-record value-for binder only inside its mapped body", () => {
+    const source = [
+      "nui 1",
+      "record Pair(",
+      "  x: number,",
+      "  label: string,",
+      ")",
+      "const first: Pair = Pair(x: 1, label: \"one\")",
+      "const pairs: Pair[] = [@first]",
+      "const mapped: Pair[] = for item in @pairs { Pair(x: @item.x + 1, label: @item.label) }"
+    ].join("\n");
+    const inside = exactQuery(source, "@item.x", 1);
+    expect(inside?.candidates).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        kind: "binding",
+        label: "item",
+        identity: "value-for-binder:completion-test:4",
+        detail: "value-for binder: record"
+      })
+    ]));
+    const outside = exactQuery(source, "@pairs", 1);
+    expect(outside?.candidates.some((candidate) => candidate.label === "item") ?? false).toBe(false);
+  });
+
   it("completes the next argument name after a comma in an incomplete call", () => {
     const source = [
       "nui 1",

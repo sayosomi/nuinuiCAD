@@ -639,8 +639,9 @@ const matched: Pair = match @side {
 Runtime evaluates the condition or scrutinee before evaluating only the
 selected record leaf. A record leaf may be a constructor, a whole-record
 reference, or a supported statically indexed member of a record collection.
-Record value-for remains deferred to later nui1 work; optional values remain
-outside this slice.
+Record values also support the collection value-producing `for` form described
+below when the source and result element types are exact nominal record
+identities. Optional values remain outside this slice.
 
 Constructors are named-only and must provide every field exactly once. The
 constructor name and the declared type must identify the same record definition;
@@ -1465,8 +1466,29 @@ and `path[]`, subject to the existing directional assignability rules
 where `line[]` is expected). Geometry map members keep occurrence identity
 separate from drawable ElementIds, and a selected member is materialized only
 at the consuming geometry operation. Nominal-record value-producing collection
-`for` remains deferred. This does not change optional-value semantics or add
-`none`/`some` values.
+`for` uses the same pure, lazy, one-result-per-input shape. Its source and
+result element types must be exact nominal record identities; the body is a
+record value expression checked against the result identity, and a requested
+record member evaluates only the corresponding scalar field body. This does
+not change optional-value semantics or add `none`/`some` values.
+
+For example:
+
+```text
+record Pair(
+  x: number,
+  label: string,
+)
+const pairs: Pair[] = [
+  Pair(x: 1, label: "one"),
+  Pair(x: 2, label: "two"),
+]
+const shifted: Pair[] = for item in @pairs {
+  Pair(x: @item.x + 10, label: @item.label)
+}
+const selected: Pair = @shifted[1]
+const selectedX: number = @selected.x
+```
 
 Existing broad line-list consumers treat their list value as `path[]`. This
 includes `offset.sources`, `transformCopy.baseLines`, `mirrorCopy.baseLines`,

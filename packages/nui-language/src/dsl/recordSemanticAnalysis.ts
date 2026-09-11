@@ -724,8 +724,12 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
           expectedTypeReference: typeReference,
           diagnostics
         });
-        constructor = leaf.constructor;
-        reference = leaf.reference;
+        if (leaf.collectionIndex) {
+          valueExpression = { kind: "collectionIndex", span: initializerSpan, expression: leaf.collectionIndex };
+        } else {
+          constructor = leaf.constructor;
+          reference = leaf.reference;
+        }
       }
     }
 

@@ -12,6 +12,8 @@ import type { TypedScalarExpression } from "../scalars/typedExpressionAst";
 import type { ScalarType } from "../scalars/types";
 import type { ModuleGeometryValueExpressionSemantic } from "./moduleSemanticTypes";
 import type { ModuleScalarExpressionSemantic } from "./moduleSemanticTypes";
+import type { RecordFieldIdentity } from "./recordSemanticAnalysis";
+import type { DslRecordTypeReference } from "./dslValueTypes";
 
 export type GeometryArraySemanticDiagnostic = {
   code: string;
@@ -121,8 +123,8 @@ export type DslArrayMappedValue = {
   kind: "map";
   valueType: DslArrayValueType;
   sourceValueId: string;
-  sourceElementType: ScalarType;
-  resultElementType: ScalarType;
+  sourceElementType: ScalarType | DslRecordTypeReference;
+  resultElementType: ScalarType | DslRecordTypeReference;
   binderId: string;
   binder: string;
   binderSpan: DslSpan;
@@ -132,6 +134,15 @@ export type DslArrayMappedValue = {
    * definitions fill the parallel Module semantic body through
    * moduleScalarExpression; the collection pass itself only owns shape. */
   body?: TypedScalarExpression;
+  /** Nominal-record maps retain one scalar body per result field. The
+   * Module semantic owner populates these after the collection pass has
+   * established the source/result record identities. */
+  recordFields?: readonly {
+    field: RecordFieldIdentity;
+    fieldName: string;
+    type: ScalarType;
+    body?: ModuleScalarExpressionSemantic;
+  }[];
   sourceOrder: number;
 };
 

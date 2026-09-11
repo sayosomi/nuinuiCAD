@@ -7,9 +7,17 @@ import type { TypedDeclarationAnalysis } from "./typedDeclarationAnalysis";
 import type { TypedScalarExpression } from "./typedExpressionAst";
 import type { ScalarType, ScalarValue } from "./types";
 
+export type ScalarProgramRecordField = {
+  recordStatementId: string;
+  fieldIndex: number;
+  type: ScalarType;
+  bindingId: BindingId;
+};
+
 export type ScalarProgramCollectionMember =
   | { kind: "literal"; type: ScalarType; value: ScalarValue }
-  | { kind: "binding"; type: ScalarType; bindingId: BindingId };
+  | { kind: "binding"; type: ScalarType; bindingId: BindingId }
+  | { kind: "record"; typeIdentity: string; fields: readonly ScalarProgramRecordField[] };
 
 export type ScalarProgramCollection =
   | { valueId: string; kind: "literal"; members: readonly ScalarProgramCollectionMember[] }
@@ -22,6 +30,29 @@ export type ScalarProgramCollection =
       resultElementType: ScalarType;
       binderId: BindingId;
       body: TypedScalarExpression;
+      sourceOrder: number;
+    }
+  | {
+      valueId: string;
+      kind: "recordMap";
+      sourceValueId: string;
+      sourceTypeIdentity: string;
+      resultTypeIdentity: string;
+      binderId: BindingId;
+      binderFields: readonly ScalarProgramRecordField[];
+      fields: readonly {
+        recordStatementId: string;
+        fieldIndex: number;
+        type: ScalarType;
+        body: TypedScalarExpression;
+      }[];
+      sourceOrder: number;
+    }
+  | {
+      valueId: string;
+      kind: "recordField";
+      sourceValueId: string;
+      field: { recordStatementId: string; fieldIndex: number; type: ScalarType };
       sourceOrder: number;
     }
   | {

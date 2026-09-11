@@ -564,8 +564,8 @@ const projectValueForBinderRenameEdits = (
   if (occurrences.filter((occurrence) => occurrence.kind === "declaration").length !== 1) {
     return { ok: false, rejection: unavailableRenameRejection() };
   }
-  if (!value.value.body) return { ok: false, rejection: unavailableRenameRejection() };
-  const bodyPhysical = exactPhysicalSpan(compiled.spans, compiled.statements[value.statementIndex]!, value.value.body.span);
+  const bodySpan = value.value.body?.span ?? value.value.bodySpan;
+  const bodyPhysical = exactPhysicalSpan(compiled.spans, compiled.statements[value.statementIndex]!, bodySpan);
   if (!bodyPhysical) return { ok: false, rejection: unavailableRenameRejection() };
   const inBody = (from: number, to: number) => bodyPhysical.segments.some((segment) => from >= segment.from && to <= segment.to);
   if (normalizedName !== value.value.binder) {

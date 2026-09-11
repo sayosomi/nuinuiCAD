@@ -149,9 +149,9 @@ const sides: choice(left, right)[] = [left, right]
 const copiedWidths: number[] = @widths
 ```
 
-Scalar and choice arrays also support a lazy value-for mapping from an
-existing whole-value collection. The result type remains the explicit
-one-dimensional declaration type:
+Scalar, choice, geometry, and nominal-record arrays support a lazy value-for
+mapping from an existing whole-value collection. The result type remains the
+explicit one-dimensional declaration type:
 
 <!-- dsl-example: syntax-fragment -->
 ```nui
@@ -162,8 +162,27 @@ The binder is immutable and body-local, has the exact source element type, and
 produces one result for every source member in source order. Duplicates and
 empty sources are preserved. `.length` reads source cardinality without
 evaluating the body; indexing evaluates only the requested mapped member.
-Nominal-record value-for remains deferred work; scalar, choice, and geometry
-value-for are supported in their existing domains.
+For nominal records, source and result types must have exact nominal identity,
+and the body is a record value expression checked against the result record.
+Record field bodies remain scalar and are evaluated lazily when that field is
+read. For example:
+
+<!-- dsl-example: compile-success -->
+```nui
+nui 1
+record Pair(
+  x: number,
+  label: string,
+)
+const first: Pair = Pair(x: 1, label: "one")
+const second: Pair = Pair(x: 2, label: "two")
+const pairs: Pair[] = [@first, @second]
+const shifted: Pair[] = for item in @pairs {
+  Pair(x: @item.x + 10, label: @item.label)
+}
+const selected: Pair = @shifted[1]
+const selectedX: number = @selected.x
+```
 
 Every collection exposes the read-only numeric property `.length`. It reports
 the authored member count, including duplicates, for literals and for all
@@ -185,8 +204,8 @@ collection type, while cardinalities may differ. The selected branch determines
 `.length` and indexed members, and an unselected branch is not evaluated.
 Collection values retain their scalar, choice, geometry, or nominal-record
 element identity, so assignable `point[]`, `line[]`, and `path[]` values can be
-passed to existing geometry consumers. Optional result values, nested arrays,
-and nominal-record collection-producing `for` remain deferred.
+passed to existing geometry consumers. Optional result values and nested arrays
+remain deferred.
 
 ## Records
 

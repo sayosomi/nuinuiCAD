@@ -988,7 +988,11 @@ const queryCandidates = (
     ];
   }
   if (context.kind === "recordInitializer") {
-    const sourceCandidates = sourceRecordInitializerCandidates(context, compiled, statementIndex, input);
+    const binderCandidate = geometryValueForBinderCandidate(compiled, position, statementIndex);
+    const sourceCandidates = [
+      ...sourceRecordInitializerCandidates(context, compiled, statementIndex, input),
+      ...(binderCandidate ? [binderCandidate] : [])
+    ];
     if (!compiled || !exact || statementIndex < 0 || !isInsideModuleSemanticStatement(compiled, position)) return sourceCandidates;
     const lookup = compiled.sourceLexicalNamespace
       ? resolveSourceLexicalDeclaration(compiled.sourceLexicalNamespace, statementIndex, context.recordTypeName)

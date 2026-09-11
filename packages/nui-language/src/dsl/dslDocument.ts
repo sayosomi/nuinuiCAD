@@ -1245,6 +1245,16 @@ export const compileDslDocument = (
   const sourceLexicalNamespace = sourceNamespaceHasCompleteIdentity
     ? buildSourceLexicalNamespaceIndex(parsed.statements, stableStatementIdByIndex!)
     : undefined;
+  const hasNominalRecordCollectionValueFor = sourceLexicalNamespace?.geometryArraySemanticAnalysis?.genericValues.some((value) => {
+    if (value.valueType.elementType.kind !== "record" || !value.value) return false;
+    const visit = (candidate: DslArraySemanticValue<GenericArraySourceTarget>): boolean => {
+      if (candidate.kind === "map") return candidate.sourceElementType.kind === "record" || candidate.resultElementType.kind === "record";
+      if (candidate.kind === "if") return visit(candidate.thenValue) || visit(candidate.elseValue);
+      if (candidate.kind === "match") return candidate.arms.some((arm) => visit(arm.value));
+      return false;
+    };
+    return visit(value.value);
+  }) ?? false;
   const moduleRuntimeContext = (() => {
     const candidate = options.moduleRuntimeContext;
     if (!candidate?.valid || !stableStatementIdByIndex || !sourceLexicalNamespace) return undefined;
@@ -1414,6 +1424,54 @@ export const compileDslDocument = (
         statementIndex: number;
         node: Extract<import("../scalars/expressionAst").ScalarExpressionAst, { kind: "collectionIndex" }>;
       }) => {
+        const recordFieldPrefix = "__nui_record_field__";
+        if (node.name.startsWith(recordFieldPrefix)) {
+          try {
+            const encoded = JSON.parse(node.name.slice(recordFieldPrefix.length)) as unknown;
+            if (
+              Array.isArray(encoded) && encoded.length === 3 &&
+              typeof encoded[0] === "string" && typeof encoded[1] === "string" &&
+              typeof encoded[2] === "number" && Number.isInteger(encoded[2]) && encoded[2] >= 0
+            ) {
+              const basePath = parseDslReferenceToken(encoded[0]);
+              const baseLookup = resolveSourceLexicalPath(sourceLexicalNamespace, statementIndex, basePath);
+              const baseValue = baseLookup.kind === "resolved" && baseLookup.declaration.kind === "typedDeclaration"
+                ? sourceLexicalNamespace.geometryArraySemanticAnalysis?.genericValuesByStatementIndex.get(baseLookup.declaration.statementIndex) ?? null
+                : null;
+              const recordType = baseValue?.valueType.elementType.kind === "record"
+                ? baseValue.valueType.elementType.identity
+                : null;
+              const field = recordType
+                ? sourceLexicalNamespace.recordSemanticAnalysis?.definitionsByStatementId.get(recordType)?.fields.find((candidate) =>
+                    candidate.identity.recordStatementId === encoded[1] && candidate.fieldIndex === encoded[2]
+                  )
+                : undefined;
+              if (baseValue && field) {
+                const collectionValueId = `record-field-collection:${JSON.stringify([
+                  baseValue.statementId,
+                  encoded[1],
+                  encoded[2]
+                ])}`;
+                return {
+                  kind: "resolvedCollectionIndex" as const,
+                  collectionValueId,
+                  collectionLength: collectionLengthForValueId(sourceLexicalNamespace.geometryArraySemanticAnalysis!, baseValue.statementId),
+                  // The record field backing slot is ordered within its
+                  // record declaration, while the collection owner is
+                  // ordered by its enclosing declaration. Semantic analysis
+                  // already proves the source precedes this record value;
+                  // use the established synthetic marker at runtime so the
+                  // two order domains are not compared as if they were one.
+                  targetSourceOrder: -1,
+                  type: field.type
+                };
+              }
+            }
+          } catch {
+            // The compiler only emits its own encoded field projection names.
+          }
+          return null;
+        }
         const path = parseDslReferenceToken(node.name);
         const lookup = resolveSourceLexicalPath(sourceLexicalNamespace, statementIndex, path);
         let value: ReturnType<typeof collectionValueSemanticForStatement> = null;
@@ -1484,6 +1542,7 @@ export const compileDslDocument = (
         const mappedValues: DslArrayMappedValue[] = [];
         const collect = (candidate: DslArraySemanticValue<GenericArraySourceTarget>) => {
           if (candidate.kind === "map") {
+            if (candidate.sourceElementType.kind === "record" || candidate.resultElementType.kind === "record") return;
             mappedValues.push(candidate);
             return;
           }
@@ -1500,7 +1559,9 @@ export const compileDslDocument = (
         return mappedValues.map((mapped) => ({ value, mapped, statement }));
       })
     : [];
-  const rootValueForBodyBindingSeeds: readonly BindingSeed[] = rootValueForBodyEntries.map(({ value, mapped }) => {
+  const rootValueForBodyBindingSeeds: readonly BindingSeed[] = rootValueForBodyEntries.flatMap(({ value, mapped }) => {
+    const sourceElementType = scalarTypeOfDslValueType(mapped.sourceElementType);
+    if (!sourceElementType) return [];
     const binderId = mapped.binderId;
     const scopeId = sourceLexicalNamespace!.scopeIndex.scopeOfStatement.get(value.statementIndex) ?? sourceLexicalNamespace!.scopeIndex.rootScopeId;
     return {
@@ -1513,20 +1574,22 @@ export const compileDslDocument = (
       effectiveScopeId: scopeId,
       visibility: { kind: "typed", scopeId } as const,
       mutability: "readonly" as const,
-      declaredType: mapped.sourceElementType,
+      declaredType: sourceElementType,
       declarationVersionId: `value-for-binder-version:${binderId}`,
       resolutionMode: "preResolvedOnly" as const,
       catalogOrder: "source" as const
     };
   });
   const rootValueForBodyInitializers = rootValueForBodyEntries.flatMap(({ mapped, statement }) => {
+    const resultElementType = scalarTypeOfDslValueType(mapped.resultElementType);
+    if (!resultElementType) return [];
     const initializerSpan = statement.payloadSpans.initializer;
     if (!initializerSpan) return [];
     return [{
       bindingId: mapped.binderId,
       raw: statement.initializer.slice(mapped.bodySpan.start - initializerSpan.start, mapped.bodySpan.end - initializerSpan.start),
       span: mapped.bodySpan,
-      expectedType: mapped.resultElementType
+      expectedType: resultElementType
     }];
   });
   const rootValueForBodyBindingResolver: SourceNamespaceBindingResolver = (name, statementIndex) => {
@@ -1589,9 +1652,11 @@ export const compileDslDocument = (
         values.push({ valueId, kind: "match", scrutinee, arms, sourceOrder });
         return;
       }
+      if (collectionValue.valueType.elementType.kind === "record") return;
       const elementType = scalarTypeOfDslValueType(collectionValue.valueType.elementType);
       if (!elementType) return;
       if (collectionValue.kind === "map") {
+        if (collectionValue.sourceElementType.kind === "record" || collectionValue.resultElementType.kind === "record") return;
         if (!collectionValue.body) return;
         values.push({ valueId, kind: "map", sourceValueId: collectionValue.sourceValueId, sourceElementType: collectionValue.sourceElementType, resultElementType: collectionValue.resultElementType, binderId: collectionValue.binderId, body: collectionValue.body, sourceOrder: collectionValue.sourceOrder });
         return;
@@ -1625,6 +1690,7 @@ export const compileDslDocument = (
     };
     for (const value of collectionAnalysis.genericValues) {
       if (value.ownerModuleDefinitionStatementIndex !== null) continue;
+      if (value.valueType.elementType.kind === "record") continue;
       const elementType = scalarTypeOfDslValueType(value.valueType.elementType);
       const collectionValue = value.value;
       if (!elementType || !collectionValue) continue;
@@ -1633,12 +1699,16 @@ export const compileDslDocument = (
         continue;
       }
       if (collectionValue.kind === "map" && collectionValue.body) {
+        if (collectionValue.sourceElementType.kind === "record" || collectionValue.resultElementType.kind === "record") continue;
+        const sourceElementType = scalarTypeOfDslValueType(collectionValue.sourceElementType);
+        const resultElementType = scalarTypeOfDslValueType(collectionValue.resultElementType);
+        if (!sourceElementType || !resultElementType) continue;
         values.push({
           valueId: value.statementId,
           kind: "map",
           sourceValueId: collectionValue.sourceValueId,
-          sourceElementType: collectionValue.sourceElementType,
-          resultElementType: collectionValue.resultElementType,
+          sourceElementType,
+          resultElementType,
           binderId: collectionValue.binderId,
           body: collectionValue.body,
           sourceOrder: collectionValue.sourceOrder
@@ -1736,7 +1806,7 @@ export const compileDslDocument = (
   // The source semantic projection is also useful for Definition Query in a
   // document without Modules. Geometry values also need this path so their
   // source-only aliases can be lowered at existing geometry consumers.
-  const moduleSemanticCompilation = hasModuleStatements || hasGeometryValueStatements || hasRecordValueControlFlowStatements || hasGenericCollectionIndexStatements || hasGeometryCollectionIndexStatements || hasCollectionControlFlowStatements ? sourceSemanticCompilation : undefined;
+  const moduleSemanticCompilation = hasModuleStatements || hasGeometryValueStatements || hasRecordValueControlFlowStatements || hasGenericCollectionIndexStatements || hasGeometryCollectionIndexStatements || hasCollectionControlFlowStatements || hasNominalRecordCollectionValueFor ? sourceSemanticCompilation : undefined;
   if (moduleSemanticCompilation && sourceLexicalNamespace && stableStatementIdByIndex) {
     const exportBindingSeeds = moduleScalarExportBindingSeeds(
       moduleSemanticCompilation,
