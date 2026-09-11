@@ -311,7 +311,7 @@ pub(crate) enum TypedScalarExpression {
         element_id: String,
         collection_value_id: Option<String>,
         collection_length: Option<f64>,
-        geometry_value_occurrence: Option<GeometryValueOccurrence>,
+        geometry_value_occurrence: Option<Box<GeometryValueOccurrence>>,
         geometry_value_binder_id: Option<String>,
         geometry_value_point_key: Option<String>,
         for_group_template_element_id: Option<String>,

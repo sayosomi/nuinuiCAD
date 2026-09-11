@@ -447,11 +447,11 @@ pub(crate) fn decode_geometry_property(
                     })
                 })
                 .transpose()?;
-            Some(GeometryValueOccurrence {
+            Some(Box::new(GeometryValueOccurrence {
                 source_statement_id,
                 instance_path,
                 mapped_member_index,
-            })
+            }))
         }
     };
     let geometry_value_binder_id = match object.get("geometryValueBinderId") {

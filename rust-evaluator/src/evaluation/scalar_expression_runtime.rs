@@ -22,6 +22,16 @@ struct ResolverEnvironment<'a> {
     current_source_order: Option<f64>,
 }
 
+pub(crate) struct ForGroupGeometryPropertyRequest<'a> {
+    pub(crate) template_element_id: &'a str,
+    pub(crate) index: Option<&'a TypedScalarExpression>,
+    pub(crate) point_key: Option<&'a str>,
+    pub(crate) property: &'a str,
+    pub(crate) target_source_order: f64,
+    pub(crate) current_source_order: Option<f64>,
+    pub(crate) property_type: &'a ScalarType,
+}
+
 fn unavailable_geometry_property(property_type: &ScalarType) -> ScalarEvaluation {
     ScalarEvaluation::Error {
         r#type: property_type.clone(),
@@ -87,42 +97,37 @@ pub(crate) fn for_group_occurrence_element_id(
 pub(crate) fn lookup_for_group_geometry_property(
     state: &EvaluationState,
     resolver: &dyn ScalarDocumentBindingResolver,
-    template_element_id: &str,
-    index: Option<&TypedScalarExpression>,
-    point_key: Option<&str>,
-    property: &str,
-    target_source_order: f64,
-    current_source_order: Option<f64>,
-    property_type: &ScalarType,
+    request: ForGroupGeometryPropertyRequest<'_>,
 ) -> ScalarEvaluation {
     let generated_id = match for_group_occurrence_element_id(
         state,
         resolver,
-        template_element_id,
-        index,
-        target_source_order,
-        current_source_order,
+        request.template_element_id,
+        request.index,
+        request.target_source_order,
+        request.current_source_order,
     ) {
         Ok(id) => id,
         Err(issue_code) => {
             return ScalarEvaluation::Error {
-                r#type: property_type.clone(),
+                r#type: request.property_type.clone(),
                 issue_code,
                 binding_id: None,
                 context: None,
             }
         }
     };
-    if point_key.is_some() {
+    if request.point_key.is_some() {
         let Some(geometry) = state.computed_geometry.get(&generated_id) else {
-            return unavailable_geometry_property(property_type);
+            return unavailable_geometry_property(request.property_type);
         };
-        let Some(point) = point_key
+        let Some(point) = request
+            .point_key
             .and_then(|key| super::point_anchor::resolve_derived_point(geometry, key, state))
         else {
-            return unavailable_geometry_property(property_type);
+            return unavailable_geometry_property(request.property_type);
         };
-        let value = match property {
+        let value = match request.property {
             "x" => Some(point.x),
             "y" => Some(point.y),
             _ => None,
@@ -132,9 +137,16 @@ pub(crate) fn lookup_for_group_geometry_property(
                 r#type: ScalarType::Number,
                 value: ScalarValue::Number(value),
             })
-            .unwrap_or_else(|| unavailable_geometry_property(property_type));
+            .unwrap_or_else(|| unavailable_geometry_property(request.property_type));
     }
-    lookup_geometry_property(state, &generated_id, property, -1.0, None, property_type)
+    lookup_geometry_property(
+        state,
+        &generated_id,
+        request.property,
+        -1.0,
+        None,
+        request.property_type,
+    )
 }
 
 pub(crate) fn resolve_for_group_geometry_builtin_target(
@@ -482,13 +494,15 @@ impl ScalarEvaluationEnvironment for ResolverEnvironment<'_> {
         lookup_for_group_geometry_property(
             self.state,
             self.resolver,
-            template_element_id,
-            index,
-            point_key,
-            property,
-            target_source_order,
-            self.current_source_order,
-            property_type,
+            ForGroupGeometryPropertyRequest {
+                template_element_id,
+                index,
+                point_key,
+                property,
+                target_source_order,
+                current_source_order: self.current_source_order,
+                property_type,
+            },
         )
     }
 

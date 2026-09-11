@@ -8,7 +8,7 @@ use serde_json::{json, Value};
 use super::super::scalar_expression_runtime::{
     lookup_for_group_geometry_property, lookup_geometry_collection_length,
     lookup_geometry_property, lookup_geometry_value_property,
-    resolve_for_group_geometry_builtin_target,
+    resolve_for_group_geometry_builtin_target, ForGroupGeometryPropertyRequest,
 };
 use super::expression_evaluator::{evaluate_typed_expression, ScalarEvaluationEnvironment};
 use super::program_payload::{
@@ -932,13 +932,15 @@ impl ScalarEvaluationEnvironment for ResolvingEnvironment<'_, '_, '_> {
         lookup_for_group_geometry_property(
             self.state,
             self.resolver,
-            template_element_id,
-            index,
-            point_key,
-            property,
-            target_source_order,
-            Some(self.source_order),
-            property_type,
+            ForGroupGeometryPropertyRequest {
+                template_element_id,
+                index,
+                point_key,
+                property,
+                target_source_order,
+                current_source_order: Some(self.source_order),
+                property_type,
+            },
         )
     }
 
