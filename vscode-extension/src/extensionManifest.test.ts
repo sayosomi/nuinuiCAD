@@ -179,6 +179,12 @@ const extractModuleCanvasContextWhen = "webviewId == 'nuinuiCAD.canvas' && webvi
 const sourceOrCanvasPaletteWhen = "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui) || activeWebviewPanelId == 'nuinuiCAD.canvas'";
 const sourceOrOutputPreviewPaletteWhen = "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui) || activeWebviewPanelId == 'nuinuiCAD.outputPreview'";
 const canvasPaletteWhen = "activeWebviewPanelId == 'nuinuiCAD.canvas'";
+const sourceKeybindingWhen = `editorTextFocus && ${sourcePaletteWhen}`;
+const sourceCreationKeybindingWhen = `${sourceKeybindingWhen} && !editorReadonly`;
+const canvasKeybindingWhen = `${canvasPaletteWhen}`;
+const canvasSelectionKeybindingWhen = `${canvasKeybindingWhen} && nuinuiCAD.canvasHasSelection && !inputFocus`;
+const inlineModuleKeybindingWhen = `(${sourceKeybindingWhen} && nuinuiCAD.inlineModuleSourceTarget) || (${canvasKeybindingWhen} && nuinuiCAD.inlineModuleCanvasTarget && !inputFocus)`;
+const extractModuleKeybindingWhen = `(${sourceKeybindingWhen} && nuinuiCAD.extractModuleSourceTarget) || (${canvasKeybindingWhen} && nuinuiCAD.extractModuleCanvasTarget && !inputFocus)`;
 const bakePaletteWhen = "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui) || activeWebviewPanelId == 'nuinuiCAD.canvas'";
 const canvasHistoryWhen = "activeWebviewPanelId == 'nuinuiCAD.canvas' || activeWebviewPanelId == 'nuinuiCAD.modulePreview' || (editorTextFocus && nuinuiCAD.canvasHistoryHandoff)";
 const outputPreviewHistoryWhen = "activeWebviewPanelId == 'nuinuiCAD.outputPreview'";
@@ -752,7 +758,7 @@ describe("VS Code extension manifest keybindings", () => {
     const manifest = await readManifest();
     const keybindings = manifest.contributes?.keybindings ?? [];
 
-    expect(keybindings).toHaveLength(8);
+    expect(keybindings).toHaveLength(14);
     expect(keybindings).toContainEqual({
       command: "nuinuiCAD.stepSourceValueForward.keybinding",
       key: "ctrl+shift+.",
@@ -809,7 +815,6 @@ describe("VS Code extension manifest keybindings", () => {
       command === "nuinuiCAD.openOutputPreview" ||
       command === "nuinuiCAD.fitOutputPreview" ||
       command === "nuinuiCAD.resetOutputPreviewView")).toBe(false);
-    expect(keybindings.some(({ command }) => command === "nuinuiCAD.pickReferenceFromCanvas")).toBe(false);
     expect(keybindings.some(({ command }) => command === "nuinuiCAD.replaceGeometryReferences")).toBe(false);
     expect(keybindings.filter(({ command }) => command.includes("modulePreview"))).toEqual([
       {
@@ -835,6 +840,83 @@ describe("VS Code extension manifest keybindings", () => {
       command === "nuinuiCAD.stepSourceValueForward" || command === "nuinuiCAD.stepSourceValueBackward")).toBe(false);
     expect(keybindings.some(({ command }) =>
       command === "nuinuiCAD.modulePreviewUndo" || command === "nuinuiCAD.modulePreviewRedo")).toBe(false);
+  });
+
+  it("declares exactly the six v1 command-wide defaults with Source and Canvas focus ownership", async () => {
+    const manifest = await readManifest();
+    const keybindings = manifest.contributes?.keybindings ?? [];
+    const expectedNewBindings = [
+      {
+        command: "nuinuiCAD.createGeometry",
+        key: "ctrl+k n",
+        mac: "cmd+k n",
+        when: sourceCreationKeybindingWhen
+      },
+      {
+        command: "nuinuiCAD.pickReferenceFromCanvas",
+        key: "alt+enter",
+        mac: "alt+enter",
+        when: `${sourceKeybindingWhen} && nuinuiCAD.referencePickSourceTarget`
+      },
+      {
+        command: "nuinuiCAD.revealInCanvas",
+        key: "ctrl+k g",
+        mac: "cmd+k g",
+        when: `${sourceKeybindingWhen} && nuinuiCAD.revealInCanvasSourceTarget`
+      },
+      {
+        command: "nuinuiCAD.goToSourceDefinition",
+        key: "f12",
+        mac: "f12",
+        when: canvasSelectionKeybindingWhen
+      },
+      {
+        command: "nuinuiCAD.inlineModuleInstance",
+        key: "ctrl+k l",
+        mac: "cmd+k l",
+        when: inlineModuleKeybindingWhen
+      },
+      {
+        command: "nuinuiCAD.extractModule",
+        key: "ctrl+k x",
+        mac: "cmd+k x",
+        when: extractModuleKeybindingWhen
+      }
+    ];
+    const newBindingCommands = expectedNewBindings.map(({ command }) => command);
+    const existingBindingCommands = [
+      "nuinuiCAD.stepSourceValueForward.keybinding",
+      "nuinuiCAD.stepSourceValueBackward.keybinding",
+      "nuinuiCAD.modulePreviewValueStepForward.keybinding",
+      "nuinuiCAD.modulePreviewValueStepBackward.keybinding",
+      "nuinuiCAD.canvasUndo",
+      "nuinuiCAD.canvasRedo",
+      "nuinuiCAD.outputPreviewUndo",
+      "nuinuiCAD.outputPreviewRedo"
+    ];
+
+    expect(keybindings).toHaveLength(existingBindingCommands.length + expectedNewBindings.length);
+    expect(keybindings.filter(({ command }) => newBindingCommands.includes(command))).toEqual(expectedNewBindings);
+    expect(keybindings.every(({ command }) =>
+      existingBindingCommands.includes(command) || newBindingCommands.includes(command))).toBe(true);
+
+    for (const binding of expectedNewBindings) {
+      expect(binding.when).not.toContain("editorLangId == nui && resourceScheme == file && resourceExtname == .nui || activeWebviewPanelId");
+      if (binding.command === "nuinuiCAD.goToSourceDefinition") {
+        expect(binding.when).toContain("activeWebviewPanelId == 'nuinuiCAD.canvas'");
+        expect(binding.when).toContain("nuinuiCAD.canvasHasSelection");
+        expect(binding.when).toContain("!inputFocus");
+        expect(binding.when).not.toContain("editorTextFocus");
+      } else if (binding.command === "nuinuiCAD.inlineModuleInstance" || binding.command === "nuinuiCAD.extractModule") {
+        expect(binding.when).toContain("editorTextFocus");
+        expect(binding.when).toContain("!inputFocus");
+        expect(binding.when).toContain(`nuinuiCAD.${binding.command === "nuinuiCAD.inlineModuleInstance" ? "inlineModuleSourceTarget" : "extractModuleSourceTarget"}`);
+        expect(binding.when).toContain(`nuinuiCAD.${binding.command === "nuinuiCAD.inlineModuleInstance" ? "inlineModuleCanvasTarget" : "extractModuleCanvasTarget"}`);
+      } else {
+        expect(binding.when).toContain("editorTextFocus");
+        expect(binding.when).not.toContain("activeWebviewPanelId == 'nuinuiCAD.canvas'");
+      }
+    }
   });
 });
 
