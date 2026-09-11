@@ -93,6 +93,8 @@ export type CadDocumentState = {
   /** @deprecated Derived compatibility views. sourceText remains canonical. */
   elements: CadElement[];
   /** @deprecated Derived compatibility view. sourceText remains canonical. */
+  transformationRecipes: NonNullable<DslDocumentData["transformationRecipes"]>;
+  /** @deprecated Derived compatibility view. sourceText remains canonical. */
   modifiers?: DrawingModifierDefinition[];
   /** @deprecated Derived compatibility view. sourceText remains canonical. */
   drawingProfiles: DrawingProfile[];
@@ -169,6 +171,7 @@ const HISTORY_LIMIT = 200;
 type DocumentCompatibilityView = Pick<
   CadDocumentState,
   | "elements"
+  | "transformationRecipes"
   | "modifiers"
   | "drawingProfiles"
   | "visibilityRoles"
@@ -182,6 +185,7 @@ type DocumentCompatibilityView = Pick<
 
 const documentOf = (state: DocumentCompatibilityView): DslDocumentData => ({
   elements: state.elements,
+  transformationRecipes: state.transformationRecipes,
   modifiers: state.modifiers ?? [],
   drawingProfiles: state.drawingProfiles ?? [],
   visibilityRoles: state.visibilityRoles,
@@ -196,6 +200,7 @@ const documentOf = (state: DocumentCompatibilityView): DslDocumentData => ({
 const compatibilityViewMatchesDoc = (state: CadDocumentState) => {
   const document = state.doc.document;
   return state.elements === document.elements &&
+    state.transformationRecipes === (document.transformationRecipes ?? []) &&
     state.modifiers === document.modifiers &&
     (document.drawingProfiles === undefined
       ? state.drawingProfiles.length === 0
@@ -284,6 +289,7 @@ const canonicalFields = (value: CanonicalDocumentValue | TextCompileResult) => {
     bindingIssueDiagnostics: value.bindingIssueDiagnostics,
     typedDependencyGraph: value.typedDependencyGraph,
     elements: document.elements,
+    transformationRecipes: document.transformationRecipes ?? [],
     modifiers: document.modifiers ?? [],
     drawingProfiles: document.drawingProfiles ?? [],
     visibilityRoles: document.visibilityRoles,
@@ -329,6 +335,7 @@ const documentFromChange = (
   const before = documentOf(state);
   return {
     elements: change.elements ?? before.elements,
+    transformationRecipes: change.transformationRecipes ?? before.transformationRecipes ?? [],
     modifiers: change.modifiers ?? before.modifiers ?? [],
     drawingProfiles: change.drawingProfiles ?? before.drawingProfiles ?? [],
     visibilityRoles: change.visibilityRoles ?? before.visibilityRoles,

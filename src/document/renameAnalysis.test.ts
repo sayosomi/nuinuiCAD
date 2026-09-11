@@ -144,7 +144,6 @@ describe("renameAnalysis", () => {
         dx: { kind: "expression", expression: "@L.length" },
         dy: 0
       },
-      { id: "extended", name: "Extended", type: "extendTrim", activity: "visible", endpoint: { lineId: "l", endpointKey: "end" }, point: { mode: "reference", pointId: "a" } }
     ]);
     const compiled = complete(source);
     const target = compiled.document.elements.find((element) => element.name === "L")!;
@@ -153,7 +152,6 @@ describe("renameAnalysis", () => {
     expect(analysis).toMatchObject({ verdict: "ok" });
     if (analysis.verdict !== "ok") return;
     expect(analysis.occurrences.map((occurrence) => occurrence.form)).toEqual(expect.arrayContaining([
-      "direct",
       "derived",
       "expression"
     ]));

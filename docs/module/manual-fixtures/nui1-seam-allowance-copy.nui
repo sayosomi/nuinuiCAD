@@ -15,15 +15,6 @@ module 縫い代写し(基準点: point, 写し元縫い線: path, 合わせ先�
 
   const 角度: number = @合わせ先縫い線.endAngleDeg - @脇コピー.endAngleDeg
 
-  move(
-    targets: [@脇コピー],
-    from: @脇コピー.end,
-    to: @脇コピー.end,
-    scale: 1,
-    angleDeg: @角度,
-    mirrorX: false
-  )
-
   export line 先に縫う = transformCopy(
     startPoint: @基準点,
     endPoint: @脇コピー.end,
@@ -90,11 +81,6 @@ group 前身頃 {
     extensions: false
   )
 
-  extend(
-    end: @先に縫う.end,
-    to: @交点
-  )
-
   group 縫い代 {
     line 先に縫う = offset(
       sources: [@前身頃::先に縫う],
@@ -110,11 +96,6 @@ group 前身頃 {
       closed: false
     )
 
-    edge(
-      end1: @後で縫う.end,
-      end2: @先に縫う.end,
-      index: 1
-    )
   }
 }
 
@@ -122,15 +103,6 @@ group 後ろ身頃 {
   line 後で縫う = split(
     source: @前身頃::後で縫う,
     at: @前身頃::交点
-  )
-
-  move(
-    targets: [@後で縫う],
-    from: @前身頃::交点,
-    to: (0, 0),
-    scale: 1,
-    angleDeg: 11,
-    mirrorX: true
   )
 
   line 先に縫う = transformCopy(
@@ -166,16 +138,5 @@ group 後ろ身頃 {
       mirrorX: true
     )
 
-    edge(
-      end1: @先に縫う.end,
-      end2: @写し::先に縫う.start,
-      index: 1
-    )
-
-    edge(
-      end1: @後で縫う.start,
-      end2: @写し::後で縫う.start,
-      index: 0
-    )
   }
 }

@@ -50,6 +50,7 @@ const userFacingCommonArgumentNames = new Set([
  * outside this projection.
  */
 export const userFacingConstructionArgumentSpecs = (spec: DslConstructionSpec): readonly DslConstructionSpec["args"][number][] => {
+  if (spec.category === "transformation") return spec.args;
   const byName = new Map(spec.args.map((arg) => [arg.arg, arg]));
   for (const arg of commonArgSpecs) {
     if (arg.arg === "color" && spec.category === MUTATION_CATEGORY) continue;

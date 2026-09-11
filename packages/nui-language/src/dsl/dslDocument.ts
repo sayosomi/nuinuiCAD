@@ -79,6 +79,7 @@ import {
   flatRefs,
   serializedStatementLines,
   serializeVisibilitySettingsLines,
+  serializeTransformationRecipeLines,
   type DslSerializerRefs
 } from "./dslSerializer";
 import { serializeElementStatementBlock, type SerializedStatement } from "./dslSerializeElement";
@@ -106,6 +107,8 @@ export {
 
 export type DslDocumentData = {
   elements: CadElement[];
+  /** Declarative transformation clauses kept separate from drawable elements. */
+  transformationRecipes?: import("./transformationRecipes").TransformationRecipe[];
   /** Document-level source definitions; runtime modifier resolution is deferred. */
   modifiers?: DrawingModifierDefinition[];
   /** Document-level drawing profile declarations, in source order. */
@@ -747,6 +750,12 @@ export const serializeDocumentToDsl = (
     options.preserveElementOrder
       ? serializeFlatElementTree(data.elements, refs, data.evaluationLimitIndex)
       : serializeElementTree(data.elements, refs, data.evaluationLimitIndex),
+    (data.transformationRecipes ?? []).flatMap((recipe) => serializeTransformationRecipeLines(
+      recipe,
+      "",
+      refs,
+      data.elements.find((element) => element.id === recipe.targets[0]?.ownerId)
+    )),
     serializeSourceOutputLines(data)
   ];
   return sections
@@ -2560,6 +2569,7 @@ export const compileDslDocument = (
 
   const document: DslDocumentData = {
     elements: compiled.elements,
+    transformationRecipes: compiled.transformationRecipes ?? [],
     modifiers: compiled.modifiers ?? [],
     ...(compiled.drawingProfiles?.length ? { drawingProfiles: compiled.drawingProfiles } : {}),
     visibilityRoles: compiled.visibilityRoles ?? [],

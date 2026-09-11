@@ -64,10 +64,6 @@ describe("renameElementWithPropagation", () => {
       "  dx: @L.length,",
       "  dy: 0,",
       ") // expression comment",
-      "extend(",
-      "  end: @L.end,",
-      "  to: @A,",
-      ")",
       "// leave this alone"
     ].join("\n");
     seed(source);
@@ -76,7 +72,7 @@ describe("renameElementWithPropagation", () => {
     expect(renameElementWithPropagation(elementId("L"), "Seam")).toBe(true);
 
     const after = useCadDocumentStore.getState().sourceText;
-    expect(changedLines(before, after)).toEqual([11, 17, 23, 27]);
+    expect(changedLines(before, after)).toEqual([11, 17, 23]);
     expect(after).toContain("// keep this comment\n");
     expect(after).toContain("\n\npoint Derived");
     expect(after).toContain("// leave this alone");

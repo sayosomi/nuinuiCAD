@@ -123,6 +123,7 @@ export const buildEvaluationOptions = ({
 
   return {
     evaluationLimitIndex,
+    ...(document.transformationRecipes?.length ? { transformationRecipes: document.transformationRecipes } : {}),
     statementInfoByElementId,
     drawingModifiers: document.modifiers ?? [],
     ...(selectedDrawingProfileId ? { selectedDrawingProfileId } : {}),

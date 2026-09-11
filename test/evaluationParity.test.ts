@@ -42,6 +42,32 @@ const expectScalarNumberClose = (
 };
 
 describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", () => {
+  it("matches a declarative transformation recipe chain and its immutable stage snapshots", () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "line A = segment(start: (0, 0), end: (10, 0))",
+      "move A as moved (from: (0, 0), to: (10, 0))",
+      "reverse A ()",
+      "extend A.moved.end as extended (to: (30, 0))"
+    ].join("\n"));
+    const options = optionsFor(fixture);
+    const owner = fixture.elements.find((element) => element.name === "A");
+    if (!owner) throw new Error("expected line A");
+    expect(options.transformationRecipes).toHaveLength(3);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustOptions(repoRoot, fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+
+    for (const result of [evaluationPayloadToResult(tsPayload), evaluationPayloadToResult(rustPayload)]) {
+      expect(result.errors).toEqual([]);
+      expect(result.transformationStageGeometry?.get(`${owner.id}\u0000*\u0000moved`)).toBeDefined();
+      expect(result.transformationStageGeometry?.get(`${owner.id}\u0000*\u0000moved.extended`)).toBeDefined();
+      expect(result.computedGeometry.get(owner.id)).toBeDefined();
+    }
+  }, 30000);
+
   it("keeps incompatible geometry-value construction in the occurrence-owned error channel", () => {
     const fixture = fixtureFromSource([
       "nui 1",

@@ -38,8 +38,7 @@ const baseSource = [
   "  start: @BC0,",
   "  end: @BC1,",
   ")",
-  "move(",
-  "  targets: [@BaseCurrent],",
+  "move BaseCurrent (",
   "  from: (0, 140),",
   "  to: (20, 170),",
   ")"
@@ -82,7 +81,7 @@ const expectBaseBakedSource = () => {
   const baseEndLine = lines.findIndex((line, index) => index > baseStartLine && line === ")");
   expect(baseEndLine).toBeGreaterThanOrEqual(0);
   expect(lines[baseEndLine + 1]).toBe("line BaseCurrent_bake = segment(start: (0, 140), end: (100, 140))");
-  expect(lines[baseEndLine + 2]).toBe("move(");
+  expect(lines[baseEndLine + 2]).toBe("move BaseCurrent (");
 };
 
 describe.skipIf(!existsSync(rustBinary))("VS Code production Bake path", () => {

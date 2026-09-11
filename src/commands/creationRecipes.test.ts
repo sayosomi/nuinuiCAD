@@ -186,7 +186,13 @@ describe("creationRecipes", () => {
   });
 
   it("round-trips named and unnamed legacy creation recipes through the parser and compiler", () => {
+    // Declarative transformation clauses are no longer drawable elements, so
+    // the legacy CadElement creation flow is intentionally outside this
+    // parser/compiler round-trip.  Its semantic coverage lives in
+    // transformationRecipes.test.ts.
+    const transformationTypes = new Set<CadElementType>(["edge", "extendTrim", "move", "symmetricMove", "pathReverse"]);
     for (const recipe of legacyCreationRecipes()) {
+      if (transformationTypes.has(recipe.type)) continue;
       for (const includeName of [true, false]) {
         const { context, element } = emittedFor(recipe, includeName);
         const source = [

@@ -1465,24 +1465,22 @@ describe("pure geometry construction runtime", () => {
     expect([...result.computedGeometryValues!.values()].every(({ value }) => !("elementId" in value))).toBe(true);
   });
 
-  it("rejects immutable geometry values in mutation target roles", () => {
-    for (const [mutation, expectedCount] of [
-      ["line Split = split(source: @L, at: @A)", 1],
-      ["arc Corner = corner(end1: @L.start, end2: @L.end, radius: 1, index: 0)", 2],
-      ["edge(end1: @L.start, end2: @L.end)", 2],
-      ["extend(end: @L.start, to: (3, 0))", 1],
-      ["move(targets: [@L], from: (0, 0), to: (1, 0))", 1],
-      ["mirrorMove(targets: [@L], axis1: (0, 0), axis2: (0, 1))", 1],
-      ["reverse(target: @L)", 1]
+  it("rejects point targets in transformation target roles", () => {
+    for (const [transformation, expectedCount] of [
+      ["edge [A.end, B.end] (index: 0)", 1],
+      ["extend A.end (to: (3, 0))", 1],
+      ["move A (from: (0, 0), to: (1, 0))", 1],
+      ["mirrorMove A (axis1: (0, 0), axis2: (0, 1))", 1],
+      ["reverse A ()", 1]
     ] as const) {
       const compiled = compile([
         "nui 1",
         "const A: point = coordinate(x: 0, y: 0)",
         "const B: point = coordinate(x: 10, y: 0)",
         "const L: line = segment(start: @A, end: @B)",
-        mutation
+        transformation
       ].join("\n"));
-      expect(compiled.diagnostics.filter((diagnostic) => diagnostic.code === "geometry-value-mutation-target-unsupported")).toHaveLength(expectedCount);
+      expect(compiled.diagnostics.filter((diagnostic) => diagnostic.code === "transformation-target-kind-incompatible")).toHaveLength(expectedCount);
       expect(compiled.document).toBeNull();
     }
   });

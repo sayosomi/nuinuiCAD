@@ -166,8 +166,8 @@ describe("dslDocument round-trip matrix", () => {
         "point C = coordinate(x: 150,y: 0)",
         "line AB = segment(start: @A,end: @B)",
         "line BC = segment(start: @B,end: @C)",
-        "edge(end1: @AB.end, end2: @BC.start, index: 0)",
-        "extend(end: @AB.end, to: @C)"
+        "edge [AB.end, BC.start] as joined (index: 0)",
+        "extend AB.end as extended (to: @C)"
       ].join("\n")
     );
     expectSemanticallyEqualDocuments(document, { ...document, elements: parsed.elements });
@@ -208,8 +208,8 @@ describe("dslDocument round-trip matrix", () => {
         "line AB = segment(start: @A,end: @B)",
         "line cp = transformCopy(startPoint: @A,endPoint: @B,scale: 1,angleDeg: 0,mirrorX: false,baseLines: [@AB])",
         "line sym = mirrorCopy(axis1: @A,axis2: @B,baseLines: [@AB])",
-        "move(targets: [@AB], from: @A, to: @B, scale: 1, angleDeg: 0, mirrorX: false)",
-        "mirrorMove(targets: [@AB] ,axis1: @A ,axis2: @B)"
+        "move AB as moved (from: @A, to: @B, scale: 1, angleDeg: 0, mirrorX: false)",
+        "mirrorMove AB as mirrored (axis1: @A, axis2: @B)"
       ].join("\n")
     );
     expectSemanticallyEqualDocuments(document, { ...document, elements: parsed.elements });

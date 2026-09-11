@@ -473,21 +473,21 @@ describe("module geometry runtime", () => {
     expect(errorsOf(mismatch).some((diagnostic) => diagnostic.code === "module-geometry-type-mismatch")).toBe(true);
   });
 
-  it("guards only mutation write targets for caller-owned geometry parameters", () => {
+  it("keeps declarative transformations out of the source-only module body path", () => {
     const uninstantiated = compileWithIds([
       "nui 1",
       "module DefinitionOnly(path: line) {",
-      "  reverse(target: @path)",
+      "  reverse path ()",
       "}"
     ].join("\n"));
-    expect(errorsOf(uninstantiated).some((diagnostic) => diagnostic.code === "module-geometry-parameter-mutation")).toBe(true);
+    expect(errorsOf(uninstantiated).some((diagnostic) => diagnostic.code === "module-forbidden-body-statement")).toBe(true);
 
     for (const mutation of [
-      "edge(end1: @path.start, end2: @path.end)",
-      "extend(end: @path.start, to: @input)",
-      "move(targets: [@path], from: @input, to: @input)",
-      "mirrorMove(targets: [@path], axis1: @input, axis2: @input)",
-      "reverse(target: @path)"
+      "edge [path.start, path.end] ()",
+      "extend path.start (to: @input)",
+      "move path (from: @input, to: @input)",
+      "mirrorMove path (axis1: @input, axis2: @input)",
+      "reverse path ()"
     ]) {
       const compiled = compileWithIds([
         "nui 1",
@@ -498,14 +498,13 @@ describe("module geometry runtime", () => {
         "line Base = segment(start: (0, 0), end: (10, 0))",
         "instance X = M(path: @Base, input: @Input)"
       ].join("\n"));
-      expect(errorsOf(compiled).some((diagnostic) => diagnostic.code === "module-geometry-parameter-mutation")).toBe(true);
+      expect(errorsOf(compiled).some((diagnostic) => diagnostic.code === "module-forbidden-body-statement")).toBe(true);
     }
 
     const allowed = compileWithIds([
       "nui 1",
       "module M(path: line) {",
       "  line Copy = transformCopy(startPoint: @path.start, endPoint: @path.end, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@path])",
-      "  reverse(target: @Copy)",
       "}",
       "line Base = segment(start: (0, 0), end: (10, 0))",
       "instance X = M(path: @Base)"

@@ -18,6 +18,7 @@ import { formatDslReferencePath, formatDslReferenceToken } from "./dslReferenceT
 import { serializeElementStatementBlock, type SerializedStatement } from "./dslSerializeElement";
 import type { SerializeDslOptions } from "./dslTypes";
 import { DSL_INDENT, formatDslName, quoteDslString } from "./dslTokens";
+import type { TransformationRecipe } from "./transformationRecipes";
 
 // 要素→DSL文の変換は、参照の書き方(生ID || 解決可能な名前トークン)を
 // DslSerializerRefs として注入する。正準経路(dslDocument.ts の文書グラマーと
@@ -108,6 +109,50 @@ export const serializedStatementLines = (statement: SerializedStatement, indent:
         `${indent}${statement.close}`
       ]
     : [`${indent}${statement.header}`];
+
+const transformationOperationArgs = (
+  recipe: TransformationRecipe,
+  refs: DslSerializerRefs = flatRefs(),
+  source: CadElement = { id: "transformation", name: "transformation", type: "group", activity: "visible" }
+): Array<{ key: string; text: string }> => {
+  const operation = recipe.operation;
+  const args: Array<{ key: string; text: string }> = [];
+  const numeric = (value: NumericValue) => refs.numeric(value, source);
+  const anchor = (value: PointAnchor | null | undefined) => refs.anchor(value, source);
+  if (operation.kind === "edge") args.push({ key: "index", text: `index: ${numeric(operation.intersectionIndex)}` });
+  if (operation.kind === "extend") args.push({ key: "to", text: `to: ${anchor(operation.point)}` });
+  if (operation.kind === "move") {
+    args.push({ key: "from", text: `from: ${anchor(operation.startPoint)}` });
+    args.push({ key: "to", text: `to: ${anchor(operation.endPoint)}` });
+    args.push({ key: "scale", text: `scale: ${numeric(operation.scale)}` });
+    args.push({ key: "angleDeg", text: `angleDeg: ${numeric(operation.angleDeg)}` });
+    args.push({ key: "mirrorX", text: `mirrorX: ${operation.mirrorX}` });
+  }
+  if (operation.kind === "mirrorMove") {
+    args.push({ key: "axis1", text: `axis1: ${anchor(operation.axisPoint1)}` });
+    args.push({ key: "axis2", text: `axis2: ${anchor(operation.axisPoint2)}` });
+  }
+  if (!recipe.enabled) args.push({ key: "enabled", text: "enabled: false" });
+  return args;
+};
+
+/** Serialize a declarative recipe with selectors in its header. */
+export const serializeTransformationRecipeLines = (
+  recipe: TransformationRecipe,
+  indent = "",
+  refs: DslSerializerRefs = flatRefs(),
+  source?: CadElement
+): string[] => {
+  const targets = recipe.targets.map((target) => target.canonical.replace(/^@/, ""));
+  const targetText = targets.length > 1 ? `[${targets.join(", ")}]` : (targets[0] ?? "");
+  const stage = recipe.stageName ? ` as ${formatDslName(recipe.stageName)}` : "";
+  return serializedStatementLines({
+    header: `${recipe.construction} ${targetText}${stage} (`,
+    args: transformationOperationArgs(recipe, refs, source),
+    close: ")",
+    argumentSeparator: "comma"
+  }, indent);
+};
 
 // 生ID参照のフラット書き出し(決定的な出力が欲しいテストフィクスチャ・
 // ゴールデン比較専用)。グループ/if/for のブレース構造(子の入れ子)は

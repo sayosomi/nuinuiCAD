@@ -70,6 +70,11 @@ import type { ForGroupMutationStatement } from "../scalars/linearMutationEvaluat
 import { degreesToRadians, normalizeDegrees360 } from "../scalars/angleMath";
 import type { ModuleMaterialization } from "../dsl/moduleMaterialization";
 import type { GeometryValueProgram } from "../dsl/moduleGeometryValueProgram";
+import {
+  transformationStageKey,
+  type TransformationRecipe,
+  type TransformationTargetSelector
+} from "../../packages/nui-language/src/dsl/transformationRecipes";
 import { geometryValueOccurrenceKey } from "../model/geometryValueOccurrence";
 import type {
   ComputedGeometryValue,
@@ -89,6 +94,8 @@ import { setParameterValue } from "../parameters/parameterAccess";
 
 export type EvaluateElementsOptions = {
   evaluationLimitIndex?: number;
+  /** Compiled declarative transformation recipes, kept outside drawable elements. */
+  transformationRecipes?: readonly TransformationRecipe[];
   /** Bake-only evaluation escape hatch; normal evaluation leaves disabled elements unevaluated. */
   allowDisabledElementIds?: ReadonlySet<ElementId>;
   /** Compiled document-level drawing modifier definitions. */
@@ -231,6 +238,8 @@ export const evaluateElements = (
   const computedGeometryValues = new Map<import("../model/geometryValueOccurrence").GeometryValueOccurrenceKey, ComputedGeometryValueEntry>();
   const geometryValueErrors: GeometryValueEvaluationError[] = [];
   const preMutationGeometry = new Map<ElementId, ComputedGeometry>();
+  const baseTransformationGeometry = new Map<ElementId, ComputedGeometry>();
+  const transformationStageGeometry = new Map<string, ComputedGeometry>();
   const geometryMutationExecutions: GeometryMutationExecution[] = [];
   const instanceBaseGeometry = new Map<ElementId, ComputedGeometry[]>();
   const instanceSnapshotsByEnd = new Map<number, ModuleMaterialization["instanceBaseGeometrySnapshots"]>();
@@ -1902,6 +1911,228 @@ export const evaluateElements = (
       const geometry = computedGeometry.get(elementToEvaluate.id);
       if (geometry) preMutationGeometry.set(elementToEvaluate.id, structuredClone(geometry));
     }
+    if (!baseTransformationGeometry.has(elementToEvaluate.id)) {
+      const geometry = computedGeometry.get(elementToEvaluate.id);
+      if (geometry) baseTransformationGeometry.set(elementToEvaluate.id, structuredClone(geometry));
+    }
+  };
+
+  const recipeList = [...(options.transformationRecipes ?? [])].sort(
+    (left, right) => left.sourceStatementIndex - right.sourceStatementIndex
+  );
+  let nextTransformationRecipeIndex = 0;
+  const generatedOwnerIds = new Set(
+    elements
+      .filter((element) => {
+        let parentId = element.parentGroupId;
+        const visited = new Set<ElementId>();
+        while (parentId && !visited.has(parentId)) {
+          visited.add(parentId);
+          const parent = elementsById.get(parentId);
+          if (!parent) return false;
+          if (isForGroupElement(parent)) return true;
+          parentId = parent.parentGroupId;
+        }
+        return false;
+      })
+      .map((element) => element.id)
+  );
+
+  type RuntimeRecipeTarget = TransformationTargetSelector & { runtimeOwnerId: ElementId };
+
+  const recipeError = (
+    recipe: TransformationRecipe,
+    target: TransformationTargetSelector,
+    message: string
+  ) => errors.push({
+    elementId: recipe.id,
+    elementName: recipe.construction,
+    missingDependencyId: target.ownerId,
+    missingDependencyName: target.source,
+    message
+  });
+
+  const runtimeTargetsFor = (
+    recipe: TransformationRecipe,
+    target: TransformationTargetSelector
+  ): RuntimeRecipeTarget[] => {
+    const rows = forGroupGeneratedRows.filter((row) => row.templateElementId === target.ownerId);
+    if (target.occurrenceIndex !== undefined) {
+      const occurrenceIndex = Number(target.occurrenceIndex);
+      const row = Number.isInteger(occurrenceIndex) && occurrenceIndex >= 0 ? rows[occurrenceIndex] : undefined;
+      if (!row) {
+        recipeError(recipe, target, `generated occurrence「${target.source}」はこの評価位置では利用できません。`);
+        return [];
+      }
+      return [{ ...target, runtimeOwnerId: row.generatedElementId }];
+    }
+    if (generatedOwnerIds.has(target.ownerId)) {
+      // Bulk selection of a generated owner is deliberately a no-op when the
+      // owner produced no rows; it never falls back to the template geometry.
+      return rows.map((row) => ({ ...target, runtimeOwnerId: row.generatedElementId }));
+    }
+    return [{ ...target, runtimeOwnerId: target.ownerId }];
+  };
+
+  const transformationSyntheticElement = (
+    recipe: TransformationRecipe,
+    targets: readonly RuntimeRecipeTarget[]
+  ): CadElement => {
+    const base = { id: recipe.id, name: recipe.construction, activity: "visible" as const };
+    switch (recipe.operation.kind) {
+      case "edge":
+        return {
+          ...base,
+          type: "edge",
+          endpoint1: { lineId: targets[0]!.runtimeOwnerId, endpointKey: targets[0]!.endpointKey! },
+          endpoint2: { lineId: targets[1]!.runtimeOwnerId, endpointKey: targets[1]!.endpointKey! },
+          intersectionIndex: recipe.operation.intersectionIndex
+        };
+      case "extend":
+        return {
+          ...base,
+          type: "extendTrim",
+          endpoint: { lineId: targets[0]!.runtimeOwnerId, endpointKey: targets[0]!.endpointKey! },
+          point: recipe.operation.point
+        };
+      case "move":
+        return {
+          ...base,
+          type: "move",
+          startPoint: recipe.operation.startPoint,
+          endPoint: recipe.operation.endPoint,
+          scale: recipe.operation.scale,
+          angleDeg: recipe.operation.angleDeg,
+          mirrorX: recipe.operation.mirrorX,
+          baseLineIds: targets.map((target) => target.runtimeOwnerId)
+        };
+      case "mirrorMove":
+        return {
+          ...base,
+          type: "symmetricMove",
+          axisPoint1: recipe.operation.axisPoint1,
+          axisPoint2: recipe.operation.axisPoint2,
+          baseLineIds: targets.map((target) => target.runtimeOwnerId)
+        };
+      case "reverse":
+        return { ...base, type: "pathReverse", targetLineId: targets[0]!.runtimeOwnerId };
+    }
+  };
+
+  const executeTransformationInvocation = (
+    recipe: TransformationRecipe,
+    targets: readonly RuntimeRecipeTarget[]
+  ) => {
+    if (targets.length === 0) return;
+    const inputByRuntimeId = new Map<ElementId, ComputedGeometry>();
+    for (const target of targets) {
+      const input = target.stagePath.length === 0
+        ? computedGeometry.get(target.runtimeOwnerId)
+        : target.stagePath[0] === "base" && target.stagePath.length === 1
+          ? baseTransformationGeometry.get(target.runtimeOwnerId)
+          : transformationStageGeometry.get(
+              transformationStageKey(target.runtimeOwnerId, undefined, target.stagePath)
+            );
+      if (!input) {
+        recipeError(recipe, target, `transformation target「${target.source}」の stage geometry は利用できません。`);
+        return;
+      }
+      inputByRuntimeId.set(target.runtimeOwnerId, structuredClone(input));
+    }
+
+    const targetIds = new Set(targets.map((target) => target.runtimeOwnerId));
+    const originalGeometry = new Map<ElementId, ComputedGeometry | undefined>(
+      [...targetIds].map((id) => [id, computedGeometry.get(id)])
+    );
+    for (const [id, input] of inputByRuntimeId) computedGeometry.set(id, input);
+    const synthetic = transformationSyntheticElement(recipe, targets);
+    runtimeElementsById.set(synthetic.id, synthetic);
+    const errorCountBefore = errors.length;
+    if (recipe.enabled) {
+      evaluateElement(synthetic, {
+        computedGeometry,
+        computedGeometryValues,
+        elementsById: runtimeElementsById,
+        errors,
+        warnings,
+        disabledByGroupId,
+        localVariables: { localVariableValues: new Map(), localVariableNames: new Map() },
+        elements: runtimeElements
+      });
+    }
+    runtimeElementsById.delete(synthetic.id);
+    if (errors.length !== errorCountBefore) {
+      for (const [id, original] of originalGeometry) {
+        if (original) computedGeometry.set(id, original);
+        else computedGeometry.delete(id);
+      }
+      return;
+    }
+
+    for (const target of targets) {
+      const output = computedGeometry.get(target.runtimeOwnerId);
+      if (!output) continue;
+      if (recipe.stageName) {
+        transformationStageGeometry.set(
+          transformationStageKey(
+            target.runtimeOwnerId,
+            undefined,
+            [...target.stagePath, recipe.stageName]
+          ),
+          structuredClone(output)
+        );
+        transformationStageGeometry.set(
+          transformationStageKey(
+            target.runtimeOwnerId,
+            undefined,
+            [...target.stagePath, recipe.stageName, "final"]
+          ),
+          structuredClone(output)
+        );
+      } else if (target.stagePath.length > 0) {
+        transformationStageGeometry.set(
+          transformationStageKey(
+            target.runtimeOwnerId,
+            undefined,
+            [...target.stagePath, "final"]
+          ),
+          structuredClone(output)
+        );
+      }
+    }
+    for (const target of targets) {
+      if (target.stagePath.length > 0) {
+        const original = originalGeometry.get(target.runtimeOwnerId);
+        if (original) computedGeometry.set(target.runtimeOwnerId, original);
+        else computedGeometry.delete(target.runtimeOwnerId);
+      }
+    }
+  };
+
+  const executeTransformationRecipe = (recipe: TransformationRecipe) => {
+    const expandedTargets = recipe.targets.map((target) => runtimeTargetsFor(recipe, target));
+    if (expandedTargets.some((targets) => targets.length === 0)) return;
+    if (recipe.construction === "edge" && expandedTargets.some((targets) => targets.length > 1)) {
+      const count = Math.max(...expandedTargets.map((targets) => targets.length));
+      for (let index = 0; index < count; index += 1) {
+        const pair = expandedTargets.map((targets) => targets[index] ?? (targets.length === 1 ? targets[0] : undefined));
+        if (pair.some((target) => target === undefined)) {
+          recipeError(recipe, recipe.targets[0]!, "coupled generated occurrences が対応付けできません。");
+          continue;
+        }
+        executeTransformationInvocation(recipe, pair as RuntimeRecipeTarget[]);
+      }
+      return;
+    }
+    executeTransformationInvocation(recipe, expandedTargets.flat());
+  };
+
+  const evaluateTransformationRecipesThrough = (sourceOrder: number) => {
+    while (nextTransformationRecipeIndex < recipeList.length &&
+      recipeList[nextTransformationRecipeIndex]!.sourceStatementIndex <= sourceOrder) {
+      executeTransformationRecipe(recipeList[nextTransformationRecipeIndex]!);
+      nextTransformationRecipeIndex += 1;
+    }
   };
 
   for (const [elementIndex, element] of evaluatedElements.entries()) {
@@ -1910,7 +2141,12 @@ export const evaluateElements = (
       options.sourceExecutionPositionByElementId?.get(element.id) ??
       options.statementInfoByElementId?.get(element.id)?.statementIndex ?? elementIndex;
     evaluateGeometryValuesThrough(sourceOrder);
+    // Apply clauses between declarations before the later declaration observes
+    // the owner's geometry. Statement positions are integer indexes, so the
+    // half-step excludes the current declaration itself.
+    evaluateTransformationRecipesThrough(sourceOrder - 0.5);
     evaluateRuntimeElement(element);
+    evaluateTransformationRecipesThrough(sourceOrder);
     for (const snapshot of instanceSnapshotsByEnd.get(elementIndex) ?? []) {
       const geometry = snapshot.descendantIds
         .map((id) => computedGeometry.get(id))
@@ -1921,6 +2157,7 @@ export const evaluateElements = (
   }
 
   evaluateGeometryValuesThrough(Number.POSITIVE_INFINITY);
+  evaluateTransformationRecipesThrough(Number.POSITIVE_INFINITY);
 
   const linearFinal = linearMutationResolver
     ? linearMutationResolver.finalize({
@@ -1948,6 +2185,7 @@ export const evaluateElements = (
   return {
     computedGeometry,
     computedGeometryValues,
+    transformationStageGeometry,
     geometryValueErrors,
     preMutationGeometry,
     geometryMutationExecutions,

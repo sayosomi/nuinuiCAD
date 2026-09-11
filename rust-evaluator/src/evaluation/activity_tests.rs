@@ -76,6 +76,8 @@ fn module_instance_is_an_activity_container_and_a_geometry_noop() {
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
     });
     assert!(result.errors.is_empty(), "errors: {:?}", result.errors);
     assert!(result
@@ -131,6 +133,8 @@ fn bake_sandbox_can_evaluate_disabled_geometry_without_changing_normal_evaluatio
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
     });
     let sandbox = evaluate_document_input(super::types::EvaluationInput {
         geometry_input_targets: None,
@@ -150,6 +154,8 @@ fn bake_sandbox_can_evaluate_disabled_geometry_without_changing_normal_evaluatio
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
     });
 
     assert!(normal.computed_geometry.is_empty());
@@ -195,6 +201,8 @@ fn bake_sandbox_does_not_enable_a_disabled_dependency_that_is_not_a_target() {
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
     });
 
     assert!(result.computed_geometry.is_empty());
@@ -352,6 +360,8 @@ fn generated_rows_receive_the_template_stroke_without_id_parsing() {
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
     });
 
     assert_eq!(result.for_group_generated_rows.len(), 2);
@@ -395,6 +405,8 @@ fn drawing_modifier_activity_uses_compiled_definitions_for_evaluation() {
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
     });
 
     assert!(result
@@ -451,6 +463,8 @@ fn directly_disabled_dependency_reports_evaluation_off() {
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
     });
 
     assert!(result

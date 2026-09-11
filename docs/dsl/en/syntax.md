@@ -101,8 +101,10 @@ expressions; the construction determines how the value is computed:
 point Name = coordinate(x: 0, y: 0)
 ```
 
-Bare mutation statements such as `move(...)` have no declared name. A `group`
-has a name and contains declarations; `if`, `for`, `module`, and `layout`
+Transformation clauses such as `move A as shifted (...)` select an existing
+design object without `@`; their target selectors are part of the clause
+header, not ordinary call arguments. A `group` has a name and contains
+declarations; `if`, `for`, `module`, and `layout`
 introduce their own block rules. Blocks use braces and preserve source order.
 Declarations are not hoisted: a later statement cannot be referenced from an
 earlier one, even when both statements are in the same block.

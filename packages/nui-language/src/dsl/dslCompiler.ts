@@ -1,8 +1,8 @@
 import { makeNumericExpression, normalizeNumericExpressionInput } from "../geometry/numericExpressions";
 import { createCadElement } from "../model/elementFactory";
-import { isPointElement } from "../model/pointAnchors";
-import type {
-  ElementNameContext } from "../model/elementNames";
+import { isLineLikeElement, isPointElement } from "../model/pointAnchors";
+import type { ElementNameContext } from "../model/elementNames";
+import { resolveElementNamePath } from "../model/elementNames";
 import type {
   CadElement,
   CadElementType,
@@ -26,7 +26,7 @@ import { constructionFor, type DslConstructionSpec } from "./dslConstructions";
 import { isCompilableDslStatement, type DslStatementInclusion } from "./dslCompilationGuard";
 import { isElementDslStatement, parseDsl } from "./dslParser";
 import { createNameIndex, resolveId, type NameIndex } from "./dslReferences";
-import { parseDslReferenceToken, parseDslSourceReference } from "./dslReferenceTokens";
+import { formatDslReferencePath, parseDslReferenceToken, parseDslSourceReference, type DslSourceReference } from "./dslReferenceTokens";
 import { resolveSourceLexicalPath, resolveSourceLexicalPathSegments, type SourceLexicalNamespaceIndex } from "./sourceLexicalNamespaceIndex";
 import type {
   CompileDslContext,
@@ -41,6 +41,9 @@ import type { DslMajorVersion } from "./dslVersion";
 import { materializeModuleExecution } from "./moduleMaterialization";
 import { buildModuleGeometryRuntime } from "./moduleGeometryRuntime";
 import { compileMaterializedExecution } from "./moduleExecutionCompiler";
+import type { TransformationOperation, TransformationRecipe, TransformationTargetSelector } from "./transformationRecipes";
+import { transformationElementType } from "./transformationRecipes";
+import { isKnownNumericComputedGeometryProperty } from "../geometry/numericGeometryProperties";
 
 const attr = (attrs: DslAttribute[], key: string) =>
   attrs.find((item) => item.key === key)?.value;
@@ -297,6 +300,323 @@ export const applyStatement = (
     next = { ...next, conditionalBranch: result.metadata.branch };
   }
   return next;
+};
+
+type TransformationStatement = Extract<DslStatement, { kind: "transformation" }>;
+
+const transformationDiagnostic = (
+  statement: TransformationStatement,
+  message: string,
+  code: string,
+  logicalSpan?: { start: number; end: number },
+  statementIndex?: number
+): DslDiagnostic => ({
+  severity: "error",
+  line: statement.line,
+  column: 1,
+  code,
+  message,
+  presentation: { key: `diagnostic.${code}` },
+  ...(logicalSpan && statementIndex !== undefined ? { logicalSpan, statementIndex } : {})
+});
+
+const transformationTargetPath = (target: TransformationTargetSelector) =>
+  target.stagePath.length ? target.stagePath.join(".") : "<root>";
+
+const targetOccurrenceKey = (target: TransformationTargetSelector) => target.occurrenceIndex ?? "*";
+
+const hasForGroupAncestor = (element: CadElement, elementsById: ReadonlyMap<ElementId, CadElement>) => {
+  const visited = new Set<ElementId>();
+  let parentId = element.parentGroupId;
+  while (parentId && !visited.has(parentId)) {
+    visited.add(parentId);
+    const parent = elementsById.get(parentId);
+    if (!parent) return false;
+    if (parent.type === "forGroup") return true;
+    parentId = parent.parentGroupId;
+  }
+  return false;
+};
+
+const resolveTransformationOwner = ({
+  target,
+  statement,
+  statementIndex,
+  index,
+  sourceNamespace,
+  sourceElementIds,
+  currentElement,
+  diagnostics
+}: {
+  target: DslSourceReference;
+  statement: TransformationStatement;
+  statementIndex: number;
+  index: NameIndex;
+  sourceNamespace?: SourceLexicalNamespaceIndex;
+  sourceElementIds?: ReadonlyMap<number, ElementId>;
+  currentElement?: Pick<CadElement, "parentGroupId">;
+  diagnostics: DslDiagnostic[];
+}): ElementId | null => {
+  if (sourceNamespace && sourceElementIds) {
+    const lookup = resolveSourceLexicalPath(sourceNamespace, statementIndex, target.path);
+    if (lookup.kind === "resolved" && lookup.declaration.kind === "geometry") {
+      const elementId = sourceElementIds.get(lookup.declaration.statementIndex);
+      if (elementId) return elementId;
+    }
+    const message = lookup.kind === "forward"
+      ? `transformation target「${target.source}」はこの位置より後で宣言されています。`
+      : lookup.kind === "ambiguous"
+        ? `transformation target「${target.source}」が曖昧です。`
+        : lookup.kind === "resolved"
+          ? `transformation target「${target.source}」は geometry ではありません。`
+          : `transformation target「${target.source}」を解決できません。`;
+    diagnostics.push(transformationDiagnostic(statement, message, "unresolved-transformation-target", target.pathRange, statementIndex));
+    return null;
+  }
+  const resolved = resolveElementNamePath({
+    path: { absolute: target.path.absolute, parts: target.path.segments },
+    elements: index.elements,
+    currentElement,
+    context: index.nameContext
+  });
+  if (resolved.status === "resolved") return resolved.element.id;
+  diagnostics.push(transformationDiagnostic(
+    statement,
+    resolved.status === "ambiguous"
+      ? `transformation target「${target.source}」が曖昧です。`
+      : `transformation target「${target.source}」を解決できません。`,
+    "unresolved-transformation-target",
+    target.pathRange,
+    statementIndex
+  ));
+  return null;
+};
+
+const parseTransformationTargetSelector = (
+  source: string,
+  span: { start: number; end: number },
+  statement: TransformationStatement,
+  statementIndex: number,
+  operation: TransformationStatement["construction"],
+  index: NameIndex,
+  sourceNamespace: SourceLexicalNamespaceIndex | undefined,
+  sourceElementIds: ReadonlyMap<number, ElementId> | undefined,
+  stageDeclarations: ReadonlySet<string>,
+  diagnostics: DslDiagnostic[]
+): TransformationTargetSelector | null => {
+  if (source.startsWith("@")) {
+    diagnostics.push(transformationDiagnostic(statement, "transformation target に `@` は付けません。", "malformed-transformation-target", span, statementIndex));
+    return null;
+  }
+  const parsed = parseDslSourceReference(`@${source}`);
+  if (parsed.kind !== "valid") {
+    diagnostics.push(transformationDiagnostic(statement, `transformation target が不正です: ${source}`, "malformed-transformation-target", span, statementIndex));
+    return null;
+  }
+  const reference = parsed.reference;
+  if (reference.property?.includes("[")) {
+    diagnostics.push(transformationDiagnostic(statement, `generated occurrence は stage/property の後ではなく selector の直後に指定してください: ${source}`, "malformed-transformation-target", span, statementIndex));
+    return null;
+  }
+  const propertySegments = reference.property ? reference.property.split(".") : [];
+  const endpointKey = operation === "edge" || operation === "extend"
+    ? propertySegments.at(-1) === "start" || propertySegments.at(-1) === "end"
+      ? propertySegments.at(-1) as "start" | "end"
+      : undefined
+    : undefined;
+  const stagePath = endpointKey ? propertySegments.slice(0, -1) : propertySegments;
+  if (stagePath.some((part) => part === "final")) {
+    diagnostics.push(transformationDiagnostic(statement, "`final` は transformation target に指定できません。", "invalid-final-transformation-target", span, statementIndex));
+  }
+  if (operation !== "edge" && operation !== "extend" && (propertySegments.includes("start") || propertySegments.includes("end"))) {
+    diagnostics.push(transformationDiagnostic(statement, `${operation} は endpoint ではなく owner / stage を対象にします。`, "transformation-target-kind-incompatible", span, statementIndex));
+  }
+  if ((operation === "edge" || operation === "extend") && !endpointKey) {
+    diagnostics.push(transformationDiagnostic(statement, `${operation} の target には `.concat("`.start` または `.end` が必要です。"), "transformation-target-kind-incompatible", span, statementIndex));
+  }
+  const ownerId = resolveTransformationOwner({
+    target: reference,
+    statement,
+    statementIndex,
+    index,
+    sourceNamespace,
+    sourceElementIds,
+    currentElement: statement.enclosing && sourceElementIds
+      ? { parentGroupId: sourceElementIds.get(statement.enclosing.statementIndex) }
+      : undefined,
+    diagnostics
+  });
+  if (!ownerId) return null;
+  const owner = index.elementsById.get(ownerId);
+  if (!owner || !isLineLikeElement(owner)) {
+    diagnostics.push(transformationDiagnostic(statement, `transformation target「${source}」は線 / path geometry ではありません。`, "transformation-target-kind-incompatible", span, statementIndex));
+  }
+  const occurrenceIndex = reference.occurrenceIndex ?? undefined;
+  if (occurrenceIndex !== undefined && owner && !hasForGroupAncestor(owner, index.elementsById)) {
+    diagnostics.push(transformationDiagnostic(statement, `明示された generated occurrence「${source}」は利用できません。`, "generated-occurrence-unavailable", span, statementIndex));
+  }
+  const canonical = `@${formatDslReferencePath(reference.path)}${occurrenceIndex === undefined ? "" : `[${occurrenceIndex}]`}${reference.property ? `.${reference.property}` : ""}`;
+  const stageKey = `${ownerId}\u0000${occurrenceIndex ?? "*"}\u0000${stagePath.join(".")}`;
+  const stageDeclared = stageDeclarations.has(stageKey) ||
+    (occurrenceIndex !== undefined && stageDeclarations.has(`${ownerId}\u0000*\u0000${stagePath.join(".")}`));
+  if (stagePath.length > 0 && stagePath[0] !== "base" && !stageDeclared) {
+    diagnostics.push(transformationDiagnostic(statement, `stage「${transformationTargetPath({ ownerId, source, canonical, stagePath })}」はこの位置では利用できません。`, "unresolved-transformation-stage", span, statementIndex));
+  }
+  return {
+    source,
+    canonical,
+    ownerId,
+    stagePath,
+    ...(occurrenceIndex !== undefined ? { occurrenceIndex } : {}),
+    ...(endpointKey ? { endpointKey } : {})
+  };
+};
+
+const compileTransformationOperation = ({
+  statement,
+  statementIndex,
+  targets,
+  elements,
+  index,
+  diagnostics
+}: {
+  statement: TransformationStatement;
+  statementIndex: number;
+  targets: readonly TransformationTargetSelector[];
+  elements: CadElement[];
+  index: NameIndex;
+  diagnostics: DslDiagnostic[];
+}): TransformationOperation | null => {
+  const mutationSpec = constructionFor("mutation", statement.construction);
+  if (!mutationSpec) return null;
+  const ignoredTargetArgs = new Set(["end1", "end2", "end", "targets", "target"]);
+  const operationSpec: DslConstructionSpec = {
+    ...mutationSpec,
+    args: mutationSpec.args.filter((argSpec) => !ignoredTargetArgs.has(argSpec.arg))
+  };
+  const ownerId = targets[0]?.ownerId ?? `transformation:${statementIndex}`;
+  const seed = { ...createCadElement(transformationElementType(statement.construction), elements), id: ownerId, name: "" };
+  const result = applyArgs(
+    seed,
+    operationSpec,
+    scannedArgsFromAttrs(statement.attrs.filter((item) => item.key !== "enabled")),
+    {
+      index,
+      line: statement.line,
+      elementsForExpressions: elements,
+      nameContext: index.nameContext,
+      createIntermediateId: createDefaultIntermediateId,
+      majorVersion: undefined
+    }
+  );
+  diagnostics.push(...result.diagnostics.map((item) => ({ ...item, statementIndex })));
+  switch (statement.construction) {
+    case "edge":
+      return { kind: "edge", intersectionIndex: (result.element as Extract<CadElement, { type: "edge" }>).intersectionIndex };
+    case "extend":
+      return { kind: "extend", point: (result.element as Extract<CadElement, { type: "extendTrim" }>).point };
+    case "move": {
+      const element = result.element as Extract<CadElement, { type: "move" }>;
+      return { kind: "move", startPoint: element.startPoint, endPoint: element.endPoint, scale: element.scale, angleDeg: element.angleDeg, mirrorX: element.mirrorX };
+    }
+    case "mirrorMove": {
+      const element = result.element as Extract<CadElement, { type: "symmetricMove" }>;
+      return { kind: "mirrorMove", axisPoint1: element.axisPoint1, axisPoint2: element.axisPoint2 };
+    }
+    case "reverse":
+      return { kind: "reverse" };
+  }
+};
+
+const compileTransformationRecipes = ({
+  statements,
+  elements,
+  index,
+  sourceNamespace,
+  sourceElementIds,
+  stableStatementIdByIndex,
+  includeStatement,
+  diagnostics
+}: {
+  statements: readonly DslStatement[];
+  elements: CadElement[];
+  index: NameIndex;
+  sourceNamespace?: SourceLexicalNamespaceIndex;
+  sourceElementIds?: ReadonlyMap<number, ElementId>;
+  stableStatementIdByIndex?: ReadonlyMap<number, string>;
+  includeStatement: DslStatementInclusion;
+  diagnostics: DslDiagnostic[];
+}): TransformationRecipe[] => {
+  const recipes: TransformationRecipe[] = [];
+  const stageDeclarations = new Set<string>();
+  const geometryPropertyNames = new Set<string>([
+    ...["start", "end", "center", "intermediatePoints"],
+    ...["length", "radius", "sweepAngleDeg", "startAngleDeg", "endAngleDeg", "startHandleLength", "endHandleLength", "x", "y"]
+  ]);
+  for (const [statementIndex, candidate] of statements.entries()) {
+    if (!includeStatement(candidate, statementIndex) || candidate.kind !== "transformation") continue;
+    const statement = candidate;
+    const targets = statement.targets.flatMap((target) => {
+      const parsed = parseTransformationTargetSelector(
+        target.source,
+        target.span,
+        statement,
+        statementIndex,
+        statement.construction,
+        index,
+        sourceNamespace,
+        sourceElementIds,
+        stageDeclarations,
+        diagnostics
+      );
+      return parsed ? [parsed] : [];
+    });
+    const expectedCount = statement.construction === "edge" ? 2 : 1;
+    if ((statement.construction === "edge" && targets.length !== expectedCount) ||
+        (statement.construction === "extend" && targets.length !== expectedCount) ||
+        ((statement.construction === "reverse") && targets.length !== expectedCount) ||
+        ((statement.construction === "move" || statement.construction === "mirrorMove") && targets.length < expectedCount)) {
+      diagnostics.push(transformationDiagnostic(statement, `${statement.construction} の target 数が不正です。`, "transformation-target-kind-incompatible", undefined, statementIndex));
+      continue;
+    }
+    if (statement.stageName && (statement.stageName === "base" || statement.stageName === "final")) {
+      diagnostics.push(transformationDiagnostic(statement, `stage name「${statement.stageName}」は予約されています。`, "reserved-transformation-stage-name", statement.stageNameSpan ?? undefined, statementIndex));
+    }
+    if (statement.stageName && (geometryPropertyNames.has(statement.stageName) || isKnownNumericComputedGeometryProperty(statement.stageName))) {
+      diagnostics.push(transformationDiagnostic(statement, `stage name「${statement.stageName}」は geometry property と衝突します。`, "transformation-stage-property-collision", statement.stageNameSpan ?? undefined, statementIndex));
+    }
+    if (!targets.length) continue;
+    for (const target of targets) {
+      if (!statement.stageName) continue;
+      const siblingKey = `${target.ownerId}\u0000${targetOccurrenceKey(target)}\u0000${target.stagePath.join(".")}\u0000${statement.stageName}`;
+      if (stageDeclarations.has(siblingKey)) {
+        diagnostics.push(transformationDiagnostic(statement, `同じ recipe branch に stage「${statement.stageName}」が重複しています。`, "duplicate-transformation-stage", statement.stageNameSpan ?? undefined, statementIndex));
+      }
+      stageDeclarations.add(`${target.ownerId}\u0000${targetOccurrenceKey(target)}\u0000${[...target.stagePath, statement.stageName].join(".")}`);
+      // Keep the sibling key in the same set as a private marker: the full
+      // path above is what later target selectors resolve against.
+      stageDeclarations.add(siblingKey);
+    }
+    const operation = compileTransformationOperation({ statement, statementIndex, targets, elements, index, diagnostics });
+    if (!operation) continue;
+    const enabledToken = attr(statement.attrs, "enabled");
+    const enabled = enabledToken === undefined ? true : booleanValue(unquoteDslString(enabledToken));
+    if (enabled === null) {
+      diagnostics.push(transformationDiagnostic(statement, "enabled は true / false で指定してください。", "invalid-transformation-enabled", statement.payloadSpans.enabled, statementIndex));
+    }
+    recipes.push({
+      id: stableStatementIdByIndex?.get(statementIndex) ?? `transformation:${statementIndex}`,
+      sourceStatementIndex: statementIndex,
+      ...(stableStatementIdByIndex?.get(statementIndex) ? { sourceStatementId: stableStatementIdByIndex.get(statementIndex) } : {}),
+      construction: statement.construction,
+      targets,
+      recipeOwnerPath: targets[0]?.stagePath ?? [],
+      stageName: statement.stageName,
+      enabled: enabled ?? true,
+      operation
+    });
+  }
+  return recipes;
 };
 
 export const applyVisibilitySettings = ({
@@ -686,6 +1006,7 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
   if (parsed.diagnostics.some((item) => item.severity === "error" && item.code !== MISSING_ATTRIBUTE_VALUE_CODE)) {
     return {
       elements: context.elements,
+      transformationRecipes: [],
       modifiers,
       drawingProfiles,
       selectedElementId: null,
@@ -765,8 +1086,7 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
       sourceNamespace: context.sourceLexicalResolution?.sourceNamespace
     });
     diagnostics.push(...moduleGeometryRuntime.diagnostics);
-    return {
-      ...compileMaterializedExecution({
+    const materialized = compileMaterializedExecution({
       statements: parsed.statements,
       context,
       diagnostics,
@@ -775,7 +1095,25 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
       moduleGeometryRuntime,
       applyStatement,
       buildSourceOutputModel
-      }),
+    });
+    // Module bodies remain source-only until their dedicated lowering slice,
+    // but root-level declarative recipes target the materialized root
+    // geometry exactly like ordinary document recipes. Keep this compilation
+    // in the same explicit recipe product; never lower a recipe into a
+    // mutation-shaped drawable element.
+    const transformationRecipes = compileTransformationRecipes({
+      statements: parsed.statements,
+      elements: materialized.elements,
+      index: createNameIndex(materialized.elements, context.sourceLexicalResolution),
+      sourceNamespace: context.sourceLexicalResolution?.sourceNamespace,
+      sourceElementIds: moduleMaterialization.elementIdBySourceStatementIndex,
+      stableStatementIdByIndex: context.stableStatementIdByIndex,
+      includeStatement,
+      diagnostics
+    });
+    return {
+      ...materialized,
+      transformationRecipes,
       modifiers,
       drawingProfiles
     };
@@ -939,8 +1277,20 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
     if (index !== undefined) elementIdsByStatementIndex.set(index, id);
   }
 
+  const transformationRecipes = compileTransformationRecipes({
+    statements: parsed.statements,
+    elements,
+    index: createNameIndex(elements, context.sourceLexicalResolution),
+    sourceNamespace,
+    sourceElementIds: elementIdBySourceStatement,
+    stableStatementIdByIndex: context.stableStatementIdByIndex,
+    includeStatement,
+    diagnostics
+  });
+
   return {
     elements,
+    transformationRecipes,
     modifiers,
     drawingProfiles,
     selectedElementId: selectedElementIds[0] ?? null,

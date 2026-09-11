@@ -61,6 +61,8 @@ fn evaluates_intersection_point_between_line_segments() {
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 100.0, 100.0),
@@ -105,6 +107,8 @@ fn uses_line_endpoint_tangent_extensions_when_requested() {
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
         elements: [
             base.clone(),
             vec![intersection("ab", "cd", json!(0), false)],
@@ -128,6 +132,8 @@ fn uses_line_endpoint_tangent_extensions_when_requested() {
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
         elements: [base, vec![intersection("ab", "cd", json!(0), true)]].concat(),
         evaluation_limit_index: None,
         allow_disabled_element_ids: None,
@@ -163,6 +169,8 @@ fn evaluates_intersection_point_between_arc_and_line() {
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
         elements: vec![
             free_point("center", "中心", 0.0, 0.0),
             free_point("p1", "P1", -20.0, 7.0),
@@ -209,6 +217,8 @@ fn selects_intersection_point_by_index() {
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
         elements: vec![
             free_point("center", "中心", 0.0, 0.0),
             free_point("p1", "P1", -20.0, 7.0),
@@ -255,6 +265,8 @@ fn reports_intersection_point_dependency_that_appears_too_late() {
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
         elements: vec![
             intersection("ab", "missing", json!(0), false),
             free_point("a", "A", 0.0, 0.0),
@@ -299,6 +311,8 @@ fn reports_intersection_point_geometry_errors() {
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
         elements: [
             base.clone(),
             vec![intersection("ab", "ab", json!(0), false)],
@@ -322,6 +336,8 @@ fn reports_intersection_point_geometry_errors() {
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
         elements: [
             base.clone(),
             vec![intersection("ab", "cd", json!(0.5), false)],
@@ -345,6 +361,8 @@ fn reports_intersection_point_geometry_errors() {
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
         elements: [base, vec![intersection("ab", "cd", json!(1), false)]].concat(),
         evaluation_limit_index: None,
         allow_disabled_element_ids: None,
@@ -372,6 +390,8 @@ fn reports_no_intersection_and_overlapping_lines() {
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 10.0, 0.0),
@@ -399,6 +419,8 @@ fn reports_no_intersection_and_overlapping_lines() {
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 10.0, 0.0),
@@ -435,6 +457,8 @@ fn evaluates_intersection_index_numeric_parameter() {
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 100.0, 100.0),

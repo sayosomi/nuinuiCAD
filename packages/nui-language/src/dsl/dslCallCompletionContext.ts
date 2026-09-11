@@ -200,6 +200,14 @@ const constructionContextAt = (
 const leadingIdentifierAt = (source: string): string | null => source.match(/^[A-Za-z_][A-Za-z0-9_]*/)?.[0] ?? null;
 
 export const dslCallCompletionContextAt = (source: string, pos: number): DslCallCompletionContext => {
+  const transformationSpec = constructionFor("transformation", leadingIdentifierAt(source) ?? "");
+  if (transformationSpec) {
+    const open = topLevelOpenParen(source);
+    if (open < 0) return null;
+    const close = matchingParen(source, open);
+    return argumentContextAt(source, pos, transformationSpec, open, close >= 0 ? close : source.length);
+  }
+
   const bareSpec = bareConstructionFor(leadingIdentifierAt(source) ?? "");
   if (bareSpec) {
     const open = topLevelOpenParen(source);

@@ -63,6 +63,8 @@ fn input(elements: Vec<Value>, versions: Vec<Value>, cutoff: Option<usize>) -> E
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
     }
 }
 
@@ -295,6 +297,8 @@ fn production_command_runs_for_group_mutation_and_carries_the_final_slot() {
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
     })
     .unwrap();
     assert_eq!(
@@ -394,6 +398,8 @@ fn nested_inner_stop_stops_remaining_inner_and_outer_iterations() {
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
     })
     .unwrap();
 

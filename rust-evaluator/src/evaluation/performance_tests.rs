@@ -38,6 +38,8 @@ fn run_performance_case(name: &str, elements: Vec<Value>) -> EvaluationPayload {
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
         elements,
         evaluation_limit_index: None,
         allow_disabled_element_ids: None,

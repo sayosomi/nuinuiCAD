@@ -4,7 +4,6 @@ import { fileURLToPath } from "node:url";
 import {
   DSL_CONTAINER_CATEGORIES,
   DSL_GEOMETRY_DECLARATION_CATEGORIES,
-  MUTATION_CATEGORY,
   commonArgSpecs,
   constructionCandidatesFor,
   type DslConstructionCategory,
@@ -126,7 +125,7 @@ export type DslReferenceIssue = {
 const allConstructionCategories: readonly DslConstructionCategory[] = [
   ...DSL_GEOMETRY_DECLARATION_CATEGORIES,
   ...DSL_CONTAINER_CATEGORIES,
-  MUTATION_CATEGORY,
+  "transformation",
 ];
 
 const sampleElements = new Map<CadElementType, CadElement>();
@@ -151,6 +150,7 @@ const parameterFactFor = (definition: ParameterDefinition): ParameterFact => ({
 });
 
 const effectiveArgsFor = (spec: DslConstructionSpec): readonly DslConstructionSpec["args"][number][] => {
+  if (spec.category === "transformation") return spec.args;
   const seen = new Set<string>();
   return [...spec.args, ...commonArgSpecs].filter((argument) => {
     if (seen.has(argument.arg)) return false;
@@ -252,7 +252,7 @@ const constructionSyntax = (fact: ConstructionFact): string => {
   if (fact.category === "group") return "group Name { … }";
   if (fact.category === "if") return "if (condition) { … }";
   if (fact.category === "for") return "for variable in range(...) { … }";
-  if (fact.category === MUTATION_CATEGORY) return `${fact.construction}(...)`;
+  if (fact.category === "transformation") return `${fact.construction} target [as stage] (...)`;
   return `${fact.category} Name = ${fact.construction}(...)`;
 };
 

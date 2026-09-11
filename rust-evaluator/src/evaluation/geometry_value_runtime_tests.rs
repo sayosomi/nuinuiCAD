@@ -223,6 +223,8 @@ fn input(elements: Vec<Value>, program: Vec<Value>) -> EvaluationInput {
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
         geometry_value_program: Some(Value::Array(program)),
         module_materialization: None,
     }

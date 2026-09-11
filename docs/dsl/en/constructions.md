@@ -524,100 +524,69 @@ interpreted, and where its restrictions matter.
 | `parent` | — | no | no | parent |
 | `branch` | — | no | no | branch |
 
-<!-- dsl-ref:construction:mutation/edge -->
-### `mutation / edge`
+<!-- dsl-ref:construction:transformation/edge -->
+### `transformation / edge`
 
-**Syntax**: `edge(...)`
+**Syntax**: `edge target [as stage] (...)`
 
 **Arguments**:
 
 | Spelling | Kind and constraints | Required | Positional | Special |
 | --- | --- | --- | --- | --- |
-| `end1` | lineEndpointReference | yes | no | — |
-| `end2` | lineEndpointReference | yes | no | — |
 | `index` | number | no | no | — |
-| `state` | — | no | no | — |
-| `steps` | — | no | no | steps |
-| `id` | — | no | no | id |
-| `roles` | — | no | no | roles |
-| `parent` | — | no | no | parent |
-| `branch` | — | no | no | branch |
+| `enabled` | — | no | no | — |
 
-<!-- dsl-ref:construction:mutation/extend -->
-### `mutation / extend`
+<!-- dsl-ref:construction:transformation/extend -->
+### `transformation / extend`
 
-**Syntax**: `extend(...)`
+**Syntax**: `extend target [as stage] (...)`
 
 **Arguments**:
 
 | Spelling | Kind and constraints | Required | Positional | Special |
 | --- | --- | --- | --- | --- |
-| `end` | lineEndpointReference | yes | no | — |
 | `to` | reference | yes | no | — |
-| `state` | — | no | no | — |
-| `steps` | — | no | no | steps |
-| `id` | — | no | no | id |
-| `roles` | — | no | no | roles |
-| `parent` | — | no | no | parent |
-| `branch` | — | no | no | branch |
+| `enabled` | — | no | no | — |
 
-<!-- dsl-ref:construction:mutation/move -->
-### `mutation / move`
+<!-- dsl-ref:construction:transformation/move -->
+### `transformation / move`
 
-**Syntax**: `move(...)`
+**Syntax**: `move target [as stage] (...)`
 
 **Arguments**:
 
 | Spelling | Kind and constraints | Required | Positional | Special |
 | --- | --- | --- | --- | --- |
-| `targets` | lineReferenceList | yes | no | — |
 | `from` | reference | yes | no | — |
 | `to` | reference | yes | no | — |
 | `scale` | number; steps: 0.01, 0.1, 1, 10 | no | no | — |
 | `angleDeg` | number; steps: 0.1, 1, 15, 60, 90 | no | no | — |
 | `mirrorX` | boolean | no | no | — |
-| `state` | — | no | no | — |
-| `steps` | — | no | no | steps |
-| `id` | — | no | no | id |
-| `roles` | — | no | no | roles |
-| `parent` | — | no | no | parent |
-| `branch` | — | no | no | branch |
+| `enabled` | — | no | no | — |
 
-<!-- dsl-ref:construction:mutation/mirrorMove -->
-### `mutation / mirrorMove`
+<!-- dsl-ref:construction:transformation/mirrorMove -->
+### `transformation / mirrorMove`
 
-**Syntax**: `mirrorMove(...)`
+**Syntax**: `mirrorMove target [as stage] (...)`
 
 **Arguments**:
 
 | Spelling | Kind and constraints | Required | Positional | Special |
 | --- | --- | --- | --- | --- |
-| `targets` | lineReferenceList | yes | no | — |
 | `axis1` | reference | yes | no | — |
 | `axis2` | reference | yes | no | — |
-| `state` | — | no | no | — |
-| `steps` | — | no | no | steps |
-| `id` | — | no | no | id |
-| `roles` | — | no | no | roles |
-| `parent` | — | no | no | parent |
-| `branch` | — | no | no | branch |
+| `enabled` | — | no | no | — |
 
-<!-- dsl-ref:construction:mutation/reverse -->
-### `mutation / reverse`
+<!-- dsl-ref:construction:transformation/reverse -->
+### `transformation / reverse`
 
-**Syntax**: `reverse(...)`
+**Syntax**: `reverse target [as stage] (...)`
 
 **Arguments**:
 
 | Spelling | Kind and constraints | Required | Positional | Special |
 | --- | --- | --- | --- | --- |
-| `target` | lineReference | yes | no | — |
-| `state` | — | no | no | — |
-| `steps` | — | no | no | steps |
-| `id` | — | no | no | id |
-| `roles` | — | no | no | roles |
-| `parent` | — | no | no | parent |
-| `branch` | — | no | no | branch |
+| `enabled` | — | no | no | — |
 
 <!-- dsl-ref:generated:end constructions -->
 
@@ -923,46 +892,49 @@ and `mirrorX` control display transformation.
 positive when supplied. The DSL stores the source and display parameters; it
 does not turn image data into geometry.
 
-## Mutations
+## Transformation recipes
 
-Mutation statements have no declared name. They operate on earlier line-like
-geometry in document order and do not create a new referenceable element.
-Every target and source is still an `@` reference or a typed geometry array.
+Transformation clauses select an existing design object without `@` and apply
+an ordered operation to its recipe. They do not create drawable elements. A
+named `as stage` checkpoint is immutable; a later clause can continue the root
+recipe or start a branch from that checkpoint. `enabled: false` keeps the
+checkpoint but bypasses only that operation.
 
 ### `edge`
 
-**Description:** `edge` trims or joins geometry at the intersection selected by
-two line endpoints. `index` selects an alternative intersection when one is
-available.
+**Description:** `edge [A.end, B.start] as joined (...)` trims or joins two
+line endpoints at the selected intersection. `index` selects an alternative
+intersection when one is available.
 
 **Notes:** The endpoints must be available line endpoints and the requested
 intersection must be geometrically valid.
 
 ### `extend`
 
-**Description:** `extend` extends or trims the selected line endpoint toward a
-point. The point is used as the target on the line or its supported extension.
+**Description:** `extend A.end as extended (...)` extends or trims the selected
+line endpoint toward a point. The point is used as the target on the line or
+its supported extension.
 
 **Notes:** The operation reports an invalid geometry result when the endpoint,
 target, or source type cannot support the requested extension.
 
 ### `move`
 
-**Description:** `move` rewrites one or more earlier line-like targets by
-mapping `from` to `to` and applying optional positive `scale`, rotation
-`angleDeg`, and `mirrorX` settings. The targets retain their source order.
+**Description:** `move A as moved (...)` maps `from` to `to` and applies
+optional positive `scale`, rotation `angleDeg`, and `mirrorX` settings. A list
+such as `move [A, B] (...)` applies the same operation to coupled owners.
 
 ### `mirrorMove`
 
-**Description:** `mirrorMove` rewrites the target list by reflecting it across
-the axis from `axis1` to `axis2`. The axis points must be distinct and
-available.
+**Description:** `mirrorMove [A, B] as mirrored (...)` reflects the selected
+owners across the axis from `axis1` to `axis2`. The axis points must be
+distinct and available.
 
 ### `reverse`
 
-**Description:** `reverse` reverses the direction of an earlier line-like
-target in place. Later constructions observe the reversed value; earlier
-scalar reads do not change retroactively.
+**Description:** `reverse A as reversed (...)` reverses the selected line-like
+owner. Later root clauses observe the new final value; an earlier named stage
+does not change retroactively.
 
 **Example:**
 
@@ -972,16 +944,15 @@ nui 1
 point A = coordinate(x: 0, y: 0)
 point B = coordinate(x: 100, y: 0)
 line Base = segment(start: @A, end: @B)
-reverse(target: @Base)
+reverse Base as reversed ()
 ```
 
-The following shows the shape of a list-consuming mutation without claiming a
-particular geometric result.
+The following shows a coupled target list without claiming a particular
+geometric result.
 
 <!-- dsl-example: syntax-fragment -->
 ```nui
-move(
-  targets: [@EarlierLine],
+move [EarlierLine] (
   from: @A,
   to: @B,
   scale: 1,

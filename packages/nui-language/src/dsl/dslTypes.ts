@@ -222,6 +222,8 @@ export type DslStatementBase = {
   namePhysicalSpan?: DslPhysicalSpan | null;
   keywordPhysicalSpan?: DslPhysicalSpan | null;
   payloadPhysicalSpans?: Record<string, DslPhysicalSpan | null>;
+  targetPhysicalSpans?: readonly (DslPhysicalSpan | null)[];
+  stageNamePhysicalSpan?: DslPhysicalSpan | null;
   /** Source-owned ordered drawing-modifier references on geometry declarations. */
   modifierNames?: readonly string[];
   modifierNameSpans?: readonly DslSpan[];
@@ -304,6 +306,14 @@ export type DslStatement =
       exported: boolean;
       exportSpan?: DslSpan | null;
       exportPhysicalSpan?: DslPhysicalSpan | null;
+    })
+  | (DslStatementBase & {
+      kind: "transformation";
+      construction: "edge" | "extend" | "move" | "mirrorMove" | "reverse";
+      /** Header-owned target selectors; these are not ordinary call args. */
+      targets: readonly { source: string; span: DslSpan }[];
+      stageName: string | null;
+      stageNameSpan: DslSpan | null;
     })
   | (DslStatementBase & { kind: "version"; value: string })
   | (DslStatementBase & { kind: "atStop" })
@@ -391,6 +401,8 @@ export type CompileDslContext = {
 
 export type CompileDslResult = {
   elements: CadElement[];
+  /** Host-neutral declarative transformation recipes, in authored order. */
+  transformationRecipes?: import("./transformationRecipes").TransformationRecipe[];
   modifiers?: DrawingModifierDefinition[];
   drawingProfiles?: DrawingProfile[];
   selectedElementId: ElementId | null;

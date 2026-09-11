@@ -149,7 +149,7 @@ describe("Bake structured failure results", () => {
       "nui 1",
       "point C = coordinate(x: 0, y: 0)",
       "arc A = arc(center: @C, radius: 10, start: 0, end: 90)",
-      "reverse(target: @A)"
+      "reverse A ()"
     ].join("\n"));
     const arc = compiled.doc.document.elements.find((element) => element.name === "A")!;
     const evaluation = evaluate(compiled);

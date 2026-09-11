@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { compileDslToElements } from "./dslCompiler";
 import { documentDslRefs, serializeElementsToDsl } from "./dslSerializer";
 import { serializeElementStatementLogical } from "./dslSerializeElement";
+import { createCadElement } from "../model/elementFactory";
+import { referenceAnchor } from "../model/pointAnchors";
 
 // 決定論的なIDを明示して要素を組み立て、フラット出力のバイト列を固定する。
 // serializer共通化後も、正規化された nui1 の `@` 参照を安定して出力する
@@ -24,16 +26,12 @@ const buildElements = () => {
       "point H = tangentOffset(line: @armhole,base: @A,angle: 90,distance: 12, id: p7)",
       "arc r = corner(end1: @AB.end, end2: @shoulder.start,radius: 10,index: 0, id: a2)",
       "line lower = split(source: @armhole, at: @D, id: l3)",
-      "extend(end: @shoulder.end, to: @E, id: l4)",
       "line seam = offset(sources: [@AB, @shoulder],distance: 10,side: left,closed: false, id: l5)",
       "curve neckline = bezier(start: @A,end: @B,startAngle: -90,startLength: 35,endAngle: 180,endLength: 45,intermediates: [@C:45:20:25:i1], id: c1)",
       "arc three = through(point1: @A,point2: @B,point3: @C,start: 180,end: 270, id: a3)",
       'text label = label(text: "前中心",anchor: @A,size: 4, id: t1)',
-      "edge(end1: @AB.start, end2: @shoulder.end, index: 0, id: e1)",
       "line cp = transformCopy(startPoint: @A,endPoint: @B,scale: 1,angleDeg: 0,mirrorX: false,baseLines: [@AB], id: e2)",
       "line sym = mirrorCopy(axis1: @A,axis2: @B,baseLines: [@AB], id: e3)",
-      "move(targets: [@AB], from: @A, to: @B, scale: 1, angleDeg: 0, mirrorX: false, id: e4)",
-      "mirrorMove(targets: [@AB], axis1: @A, axis2: @B, id: e5)",
       "if (1) {",
       "}",
       "for i in range(min: 0, max: 4, step: 1,showGenerated: false, id: e7) {",
@@ -48,7 +46,47 @@ const buildElements = () => {
       .filter((item) => item.severity === "error")
       .map((item) => `${item.line}: ${item.message}`)
   ).toEqual([]);
-  return result.elements;
+  // These five runtime element shapes are retained only as an internal
+  // serializer regression fixture. Their removed bare-call source syntax is
+  // intentionally not accepted by the compiler anymore.
+  const legacy = (type: "edge" | "extendTrim" | "move" | "symmetricMove", id: string) =>
+    createCadElement(type, result.elements, { createId: () => id });
+  const edge = {
+    ...legacy("edge", "e1"),
+    name: "",
+    endpoint1: { lineId: "l1", endpointKey: "start" as const },
+    endpoint2: { lineId: "l2", endpointKey: "end" as const },
+    intersectionIndex: 0
+  };
+  const extend = {
+    ...legacy("extendTrim", "l4"),
+    name: "",
+    endpoint: { lineId: "l2", endpointKey: "end" as const },
+    point: referenceAnchor("p5")
+  };
+  const move = {
+    ...legacy("move", "e4"),
+    name: "",
+    baseLineIds: ["l1"],
+    startPoint: referenceAnchor("p1"),
+    endPoint: referenceAnchor("p2"),
+    scale: 1,
+    angleDeg: 0,
+    mirrorX: false
+  };
+  const mirrorMove = {
+    ...legacy("symmetricMove", "e5"),
+    name: "",
+    baseLineIds: ["l1"],
+    axisPoint1: referenceAnchor("p1"),
+    axisPoint2: referenceAnchor("p2")
+  };
+  const elements = [...result.elements];
+  elements.splice(elements.findIndex((element) => element.id === "e2"), 0, edge);
+  elements.splice(elements.findIndex((element) => element.id === "l5"), 0, extend);
+  const firstContainer = elements.findIndex((element) => element.type === "conditionalGroup");
+  elements.splice(firstContainer, 0, move, mirrorMove);
+  return elements;
 };
 
 describe("serializeElementsToDsl flat output", () => {

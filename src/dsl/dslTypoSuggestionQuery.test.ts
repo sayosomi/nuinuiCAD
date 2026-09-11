@@ -64,7 +64,7 @@ describe("queryDslTypoSuggestions", () => {
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line L = segment(start: @A, end: @B)",
-      "move(targets: [@L], form: @A, to: @B)"
+      "move L (form: @A, to: @B)"
     ].join("\n");
     expect(labels(mutation, "unknown-construction-argument")).toContain("from");
   });

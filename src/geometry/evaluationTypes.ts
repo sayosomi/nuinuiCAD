@@ -361,6 +361,8 @@ export type GeometryMutationExecution = {
 
 export type EvaluationResult = {
   computedGeometry: Map<ElementId, ComputedGeometry>;
+  /** Immutable snapshots keyed by runtime owner and recipe stage path. */
+  transformationStageGeometry?: Map<string, ComputedGeometry>;
   /** Immutable construction results, deliberately separate from drawable geometry. */
   computedGeometryValues?: Map<GeometryValueOccurrenceKey, ComputedGeometryValueEntry>;
   /** Runtime failures owned by immutable geometry-value occurrences, never drawable elements. */

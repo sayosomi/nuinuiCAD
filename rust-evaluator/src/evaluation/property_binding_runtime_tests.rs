@@ -35,6 +35,8 @@ fn input(
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
     }
 }
 
@@ -116,6 +118,8 @@ fn state_with_element(id: &str, element: Value) -> EvaluationState {
         selected_drawing_profile_id: None,
         group_states: HashMap::new(),
         computed_geometry: HashMap::new(),
+        base_transformation_geometry: HashMap::new(),
+        transformation_stage_geometry: HashMap::new(),
         computed_geometry_values: HashMap::new(),
         computed_geometry_order: Vec::new(),
         pre_mutation_geometry: HashMap::new(),

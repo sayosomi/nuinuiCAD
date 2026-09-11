@@ -32,7 +32,8 @@ and the geometry and output declarations that are currently available. The
 - [Expressions](expressions.md) — literals, operators, references, and
   interpolation.
 - [Declarations](declarations.md) — `const`, `let`, and `set`.
-- [Constructions](constructions.md) — geometry constructions, mutations, and
+- [Constructions](constructions.md) — geometry constructions, transformation
+  recipes, and
   their argument behavior.
 - [Control flow](control-flow.md) — groups, conditions, and ranges.
 - [Modules](modules.md) — module definitions, instances, parameters, and

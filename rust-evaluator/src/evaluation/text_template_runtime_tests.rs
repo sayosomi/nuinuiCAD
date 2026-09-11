@@ -34,6 +34,8 @@ fn input(
         condition_expressions: None,
         text_templates,
         text_property_bindings,
+        transformation_recipes: None,
+        source_statement_indices: None,
     }
 }
 

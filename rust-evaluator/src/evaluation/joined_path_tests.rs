@@ -14,6 +14,8 @@ fn evaluates_ordered_joined_paths_with_reversal_and_closed_validation() {
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 10.0, 0.0),
@@ -94,6 +96,8 @@ fn uses_shared_epsilon_and_preserves_authored_bezier_orientation_on_a_tie() {
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 10.0, 0.0),
@@ -179,6 +183,8 @@ fn reverses_directed_arcs_broad_paths_and_nested_joined_paths_exactly() {
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 10.0, 0.0),
@@ -352,6 +358,8 @@ fn rejects_empty_and_discontinuous_joined_paths() {
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
         elements: vec![element(json!({
             "id": "empty",
             "name": "Empty",
