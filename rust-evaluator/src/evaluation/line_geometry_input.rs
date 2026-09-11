@@ -168,7 +168,13 @@ fn decode_collection_node(
         "if" => {
             reject_unexpected_fields(
                 object,
-                &["kind", "condition", "thenBranch", "elseBranch"],
+                &[
+                    "kind",
+                    "condition",
+                    "sourceOrder",
+                    "thenBranch",
+                    "elseBranch",
+                ],
                 context,
             )?;
             let condition = super::scalars::validate_typed_expression_payload(
@@ -189,14 +195,28 @@ fn decode_collection_node(
                     .ok_or_else(|| invalid(format!("{context}.elseBranch is required")))?,
                 &format!("{context}.elseBranch"),
             )?;
+            let source_order = object
+                .get("sourceOrder")
+                .and_then(Value::as_f64)
+                .filter(|value| value.is_finite() && *value >= 0.0)
+                .ok_or_else(|| {
+                    invalid(format!(
+                        "{context}.sourceOrder must be a non-negative number"
+                    ))
+                })?;
             Ok(GeometryInputCollectionNode::If {
                 condition,
+                source_order,
                 then_branch: Box::new(then_branch),
                 else_branch: Box::new(else_branch),
             })
         }
         "match" => {
-            reject_unexpected_fields(object, &["kind", "scrutinee", "arms"], context)?;
+            reject_unexpected_fields(
+                object,
+                &["kind", "scrutinee", "sourceOrder", "arms"],
+                context,
+            )?;
             let scrutinee = super::scalars::validate_typed_expression_payload(
                 object
                     .get("scrutinee")
@@ -229,7 +249,20 @@ fn decode_collection_node(
                     Ok((label, value))
                 })
                 .collect::<Result<Vec<_>, EvaluationCommandError>>()?;
-            Ok(GeometryInputCollectionNode::Match { scrutinee, arms })
+            let source_order = object
+                .get("sourceOrder")
+                .and_then(Value::as_f64)
+                .filter(|value| value.is_finite() && *value >= 0.0)
+                .ok_or_else(|| {
+                    invalid(format!(
+                        "{context}.sourceOrder must be a non-negative number"
+                    ))
+                })?;
+            Ok(GeometryInputCollectionNode::Match {
+                scrutinee,
+                source_order,
+                arms,
+            })
         }
         _ => Err(invalid(format!("{context}.kind is unsupported"))),
     }
@@ -615,18 +648,15 @@ fn materialize_collection_node(
             .map(|groups| groups.into_iter().flatten().collect()),
         GeometryInputCollectionNode::If {
             condition,
+            source_order,
             then_branch,
             else_branch,
         } => {
             let Some(resolver) = resolver else {
                 return Err("evaluation-binding-unavailable".to_owned());
             };
-            let evaluation = evaluate_document_typed_expression(
-                &condition,
-                resolver,
-                state,
-                current_source_order,
-            );
+            let evaluation =
+                evaluate_document_typed_expression(&condition, resolver, state, Some(source_order));
             match evaluation {
                 ScalarEvaluation::Ok {
                     value: ScalarValue::Boolean(value),
@@ -643,16 +673,16 @@ fn materialize_collection_node(
                 }
             }
         }
-        GeometryInputCollectionNode::Match { scrutinee, arms } => {
+        GeometryInputCollectionNode::Match {
+            scrutinee,
+            source_order,
+            arms,
+        } => {
             let Some(resolver) = resolver else {
                 return Err("evaluation-binding-unavailable".to_owned());
             };
-            let evaluation = evaluate_document_typed_expression(
-                &scrutinee,
-                resolver,
-                state,
-                current_source_order,
-            );
+            let evaluation =
+                evaluate_document_typed_expression(&scrutinee, resolver, state, Some(source_order));
             let label = match evaluation {
                 ScalarEvaluation::Ok {
                     value: ScalarValue::Choice { value, .. },

@@ -42,10 +42,12 @@ pub(crate) enum ValidatedScalarProgramCollectionValue {
         condition: Box<TypedScalarExpression>,
         then_value_id: String,
         else_value_id: String,
+        source_order: f64,
     },
     Match {
         scrutinee: Box<TypedScalarExpression>,
         arms: Vec<(String, String)>,
+        source_order: f64,
     },
 }
 
@@ -276,7 +278,14 @@ pub(crate) fn decode_collection_values(
             "if" => {
                 reject_unexpected_fields(
                     entry,
-                    &["valueId", "kind", "condition", "thenValueId", "elseValueId"],
+                    &[
+                        "valueId",
+                        "kind",
+                        "condition",
+                        "thenValueId",
+                        "elseValueId",
+                        "sourceOrder",
+                    ],
                     "scalar program collection if",
                 )?;
                 let condition = validate_typed_expression_payload(require_field(
@@ -294,16 +303,27 @@ pub(crate) fn decode_collection_values(
                     "scalar program collection if elseValueId",
                 )?
                 .to_owned();
+                let source_order =
+                    require_field(entry, "sourceOrder", "scalar program collection if")?
+                        .as_f64()
+                        .filter(|value| value.is_finite() && *value >= 0.0)
+                        .ok_or_else(|| {
+                            issue(
+                        Code::InvalidFieldType,
+                        "scalar program collection if sourceOrder must be a non-negative number",
+                    )
+                        })?;
                 ValidatedScalarProgramCollectionValue::If {
                     condition: Box::new(condition),
                     then_value_id,
                     else_value_id,
+                    source_order,
                 }
             }
             "match" => {
                 reject_unexpected_fields(
                     entry,
-                    &["valueId", "kind", "scrutinee", "arms"],
+                    &["valueId", "kind", "scrutinee", "arms", "sourceOrder"],
                     "scalar program collection match",
                 )?;
                 let scrutinee = validate_typed_expression_payload(require_field(
@@ -339,9 +359,20 @@ pub(crate) fn decode_collection_values(
                     .to_owned();
                     decoded_arms.push((label, value_id));
                 }
+                let source_order =
+                    require_field(entry, "sourceOrder", "scalar program collection match")?
+                        .as_f64()
+                        .filter(|value| value.is_finite() && *value >= 0.0)
+                        .ok_or_else(|| {
+                            issue(
+                        Code::InvalidFieldType,
+                        "scalar program collection match sourceOrder must be a non-negative number",
+                    )
+                        })?;
                 ValidatedScalarProgramCollectionValue::Match {
                     scrutinee: Box::new(scrutinee),
                     arms: decoded_arms,
+                    source_order,
                 }
             }
             _ => {

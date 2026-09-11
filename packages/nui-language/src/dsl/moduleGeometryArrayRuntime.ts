@@ -746,7 +746,7 @@ export const buildModuleGeometryArrayRuntime = ({
       const thenCollection = thenValue ? collectionNodeForValue(thenValue) : null;
       const elseCollection = elseValue ? collectionNodeForValue(elseValue) : null;
       const value = thenCollection && elseCollection
-        ? { type: semantic.type, members: [], collection: { kind: "if" as const, condition: semantic.value.condition, thenBranch: thenCollection, elseBranch: elseCollection } }
+        ? { type: semantic.type, members: [], collection: { kind: "if" as const, condition: semantic.value.condition, sourceOrder: semantic.statementIndex, sourcePath: [...currentPath], thenBranch: thenCollection, elseBranch: elseCollection } }
         : null;
       sourceValueCache.set(key, value);
       return value;
@@ -771,6 +771,8 @@ export const buildModuleGeometryArrayRuntime = ({
         collection: {
           kind: "match" as const,
           scrutinee: semantic.value.scrutinee,
+          sourceOrder: semantic.statementIndex,
+          sourcePath: [...currentPath],
           arms: arms as { label: string; value: RuntimeGeometryCollectionNode }[]
         }
       };

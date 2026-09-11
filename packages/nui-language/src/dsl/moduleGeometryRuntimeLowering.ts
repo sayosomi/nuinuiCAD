@@ -30,8 +30,8 @@ export type GeometryAlias =
 
 export type RuntimeGeometryCollectionNode =
   | { kind: "leaf"; aliases: readonly Exclude<GeometryAlias, { kind: "collectionIndex" }>[] }
-  | { kind: "if"; condition: ModuleScalarExpressionSemantic; thenBranch: RuntimeGeometryCollectionNode; elseBranch: RuntimeGeometryCollectionNode }
-  | { kind: "match"; scrutinee: ModuleScalarExpressionSemantic; arms: readonly { label: string; value: RuntimeGeometryCollectionNode }[] };
+  | { kind: "if"; condition: ModuleScalarExpressionSemantic; sourceOrder: number; sourcePath: readonly string[]; thenBranch: RuntimeGeometryCollectionNode; elseBranch: RuntimeGeometryCollectionNode }
+  | { kind: "match"; scrutinee: ModuleScalarExpressionSemantic; sourceOrder: number; sourcePath: readonly string[]; arms: readonly { label: string; value: RuntimeGeometryCollectionNode }[] };
 
 export type GeometryValueMapPendingTarget = {
   kind: "geometryValueMapPending";

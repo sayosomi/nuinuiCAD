@@ -920,6 +920,33 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("matches repeated Module conditional collection selectors across TypeScript and Rust", () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "const first: number[] = [2]",
+      "const second: number[] = [0]",
+      "module M(items: number[]) {",
+      "  export const selected: number[] = if (@items[0] > 0) { [10] } else { [20, 30] }",
+      "  export const count: number = @selected.length",
+      "}",
+      "instance A = M(items: @first)",
+      "instance B = M(items: @second)",
+      "const aItem: number = @A::selected[0]",
+      "const aCount: number = @A::count",
+      "const bItem: number = @B::selected[1]",
+      "const bCount: number = @B::count"
+    ].join("\n"));
+    const options = optionsFor(fixture);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustOptions(repoRoot, fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+    for (const [name, expected] of [["aItem", 10], ["aCount", 1], ["bItem", 30], ["bCount", 2]] as const) {
+      expectScalarNumberClose(scalarBindingFor(fixture, tsPayload, name), expected);
+      expectScalarNumberClose(scalarBindingFor(fixture, rustPayload, name), expected);
+    }
+  }, 30000);
+
   it("matches conditional geometry collection length and consumers across TypeScript and Rust", () => {
     const fixture = fixtureFromSource([
       "nui 1",
@@ -976,6 +1003,53 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     for (const [name, expected] of [["trueCount", 1], ["trueItem", 1], ["falseCount", 2], ["falseItem", 3]] as const) {
       expectScalarNumberClose(scalarBindingFor(fixture, tsPayload, name), expected);
       expectScalarNumberClose(scalarBindingFor(fixture, rustPayload, name), expected);
+    }
+  }, 30000);
+
+  it("matches collection selector source-order capabilities across TypeScript and Rust", () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "const base: number[] = [2]",
+      "const selectedByIndex: number[] = if (@base[0] > 0) { [10] } else { [20, 30] }",
+      "const indexItem: number = @selectedByIndex[0]",
+      "const selectedByLength: number[] = if (@base.length > 0) { [11] } else { [21, 31] }",
+      "const lengthCount: number = @selectedByLength.length",
+      "const lengthItem: number = @selectedByLength[0]",
+      "const choices: choice(left, right)[] = [left]",
+      "const selectedByMatch: number[] = match @choices[0] { left => [12] right => [22, 32] }",
+      "const matchItem: number = @selectedByMatch[0]",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line AB = segment(start: @A, end: @B)",
+      "const selectedByProperty: point[] = if (@AB.length > 0) { [@A, @B] } else { [@A] }",
+      "const propertyCount: number = @selectedByProperty.length",
+      "line PropertyUse = segment(start: @selectedByProperty[0], end: @selectedByProperty[1])",
+      "const selectedByBuiltin: point[] = if (distance(@A, @B) > 0) { [@A, @B] } else { [@A] }",
+      "const builtinCount: number = @selectedByBuiltin.length",
+      "line BuiltinUse = segment(start: @selectedByBuiltin[0], end: @selectedByBuiltin[1])"
+    ].join("\n"));
+    const options = optionsFor(fixture);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustOptions(repoRoot, fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+    for (const name of ["indexItem", "lengthItem", "matchItem"] as const) {
+      const expected = name === "indexItem" ? 10 : name === "lengthItem" ? 11 : 12;
+      expectScalarNumberClose(scalarBindingFor(fixture, tsPayload, name), expected);
+      expectScalarNumberClose(scalarBindingFor(fixture, rustPayload, name), expected);
+    }
+    expectScalarNumberClose(scalarBindingFor(fixture, tsPayload, "lengthCount"), 1);
+    expectScalarNumberClose(scalarBindingFor(fixture, rustPayload, "lengthCount"), 1);
+    for (const name of ["propertyCount", "builtinCount"] as const) {
+      expectScalarNumberClose(scalarBindingFor(fixture, tsPayload, name), 2);
+      expectScalarNumberClose(scalarBindingFor(fixture, rustPayload, name), 2);
+    }
+    const propertyUse = fixture.elements.find((element) => element.name === "PropertyUse")!;
+    const builtinUse = fixture.elements.find((element) => element.name === "BuiltinUse")!;
+    for (const result of [evaluationPayloadToResult(tsPayload), evaluationPayloadToResult(rustPayload)]) {
+      expect(result.errors).toEqual([]);
+      expect(result.computedGeometry.get(propertyUse.id)).toMatchObject({ kind: "line", start: { x: 0, y: 0 }, end: { x: 10, y: 0 } });
+      expect(result.computedGeometry.get(builtinUse.id)).toMatchObject({ kind: "line", start: { x: 0, y: 0 }, end: { x: 10, y: 0 } });
     }
   }, 30000);
 

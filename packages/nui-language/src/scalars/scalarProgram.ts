@@ -30,12 +30,14 @@ export type ScalarProgramCollection =
       condition: TypedScalarExpression;
       thenValueId: string;
       elseValueId: string;
+      sourceOrder: number;
     }
   | {
       valueId: string;
       kind: "match";
       scrutinee: TypedScalarExpression;
       arms: readonly { label: string; valueId: string }[];
+      sourceOrder: number;
     };
 
 export type ScalarProgramDeclaration = {

@@ -199,6 +199,53 @@ describe("module scalar runtime integration", () => {
     });
   });
 
+  it("evaluates collection selectors at their owning declaration source order", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "const base: number[] = [2]",
+      "const selectedByIndex: number[] = if (@base[0] > 0) { [10] } else { [20, 30] }",
+      "const indexItem: number = @selectedByIndex[0]",
+      "const selectedByLength: number[] = if (@base.length > 0) { [11] } else { [21, 31] }",
+      "const lengthCount: number = @selectedByLength.length",
+      "const lengthItem: number = @selectedByLength[0]",
+      "const choices: choice(left, right)[] = [left]",
+      "const selectedByMatch: number[] = match @choices[0] { left => [12] right => [22, 32] }",
+      "const matchItem: number = @selectedByMatch[0]",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line AB = segment(start: @A, end: @B)",
+      "const selectedByProperty: point[] = if (@AB.length > 0) { [@A, @B] } else { [@A] }",
+      "const propertyCount: number = @selectedByProperty.length",
+      "line PropertyUse = segment(start: @selectedByProperty[0], end: @selectedByProperty[1])",
+      "const selectedByBuiltin: point[] = if (distance(@A, @B) > 0) { [@A, @B] } else { [@A] }",
+      "const builtinCount: number = @selectedByBuiltin.length",
+      "line BuiltinUse = segment(start: @selectedByBuiltin[0], end: @selectedByBuiltin[1])"
+    ].join("\n"), "collection-selector-source-order");
+    expectValid(compiled);
+    const evaluated = evaluateCompiled(compiled);
+    expect(evaluated.errors).toEqual([]);
+    const valueFor = (name: string) => {
+      const binding = compiled.bindingAnalysis?.catalog.bindings.find((candidate) => candidate.kind === "typed" && candidate.name === name);
+      return binding ? evaluated.computedScalarBindings?.get(binding.id) : undefined;
+    };
+    expect(valueFor("indexItem")).toMatchObject({ status: "ok", value: { kind: "number", value: 10 } });
+    expect(valueFor("lengthCount")).toMatchObject({ status: "ok", value: { kind: "number", value: 1 } });
+    expect(valueFor("lengthItem")).toMatchObject({ status: "ok", value: { kind: "number", value: 11 } });
+    expect(valueFor("matchItem")).toMatchObject({ status: "ok", value: { kind: "number", value: 12 } });
+    expect(valueFor("propertyCount")).toMatchObject({ status: "ok", value: { kind: "number", value: 2 } });
+    expect(valueFor("builtinCount")).toMatchObject({ status: "ok", value: { kind: "number", value: 2 } });
+    expect(evaluated.computedGeometry.get(elementNamed(compiled, "PropertyUse").id)).toMatchObject({
+      kind: "line",
+      start: { x: 0, y: 0 },
+      end: { x: 10, y: 0 }
+    });
+    expect(evaluated.computedGeometry.get(elementNamed(compiled, "BuiltinUse").id)).toMatchObject({
+      kind: "line",
+      start: { x: 0, y: 0 },
+      end: { x: 10, y: 0 }
+    });
+  });
+
   it("selects a lazy collection value-if before length and indexing", () => {
     const compiled = compileWithIds([
       "nui 1",

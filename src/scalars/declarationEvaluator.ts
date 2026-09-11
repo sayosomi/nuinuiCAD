@@ -80,12 +80,13 @@ export const createScalarProgramCollectionResolver = (
     if (collection.kind === "alias" || collection.kind === "map") {
       return lengthFor(collection.kind === "alias" ? collection.targetValueId : collection.sourceValueId, sourceOrder, nextSeen);
     }
-    const environment = environmentFor(sourceOrder);
     if (collection.kind === "if") {
+      const environment = environmentFor(collection.sourceOrder);
       const condition = evaluateTypedExpression(collection.condition, environment);
       if (condition.status !== "ok" || condition.value.kind !== "boolean") return undefined;
       return lengthFor(condition.value.value ? collection.thenValueId : collection.elseValueId, sourceOrder, nextSeen);
     }
+    const environment = environmentFor(collection.sourceOrder);
     const scrutinee = evaluateTypedExpression(collection.scrutinee, environment);
     if (scrutinee.status !== "ok" || scrutinee.value.kind !== "choice") return undefined;
     const arm = collection.arms.find((candidate) => candidate.label === scrutinee.value.value);
@@ -112,13 +113,13 @@ export const createScalarProgramCollectionResolver = (
     const nextSeen = new Set([...seen, collectionValueId]);
     if (collection.kind === "alias") return indexFor(collection.targetValueId, index, elementType, collectionLength, targetSourceOrder, sourceOrder, nextSeen);
     if (collection.kind === "if") {
-      const condition = evaluateTypedExpression(collection.condition, environmentFor(sourceOrder));
+      const condition = evaluateTypedExpression(collection.condition, environmentFor(collection.sourceOrder));
       if (condition.status === "error") return condition;
       if (condition.value.kind !== "boolean") return { status: "error", type: elementType, issueCode: "evaluation-runtime-value-type-mismatch" };
       return indexFor(condition.value.value ? collection.thenValueId : collection.elseValueId, index, elementType, collectionLength, targetSourceOrder, sourceOrder, nextSeen);
     }
     if (collection.kind === "match") {
-      const scrutinee = evaluateTypedExpression(collection.scrutinee, environmentFor(sourceOrder));
+      const scrutinee = evaluateTypedExpression(collection.scrutinee, environmentFor(collection.sourceOrder));
       if (scrutinee.status === "error") return scrutinee;
       if (scrutinee.value.kind !== "choice") return { status: "error", type: elementType, issueCode: "evaluation-runtime-value-type-mismatch" };
       const arm = collection.arms.find((candidate) => candidate.label === scrutinee.value.value);

@@ -180,8 +180,8 @@ export type GeometryValueOccurrence = {
  * separate from persisted ElementId fields and is never a drawable identity. */
 export type GeometryInputCollectionNode =
   | { kind: "leaf"; targets: readonly Exclude<GeometryInputTarget, { kind: "collectionIndex" } | { kind: "collectionValue" }>[] }
-  | { kind: "if"; condition: TypedScalarExpression; thenBranch: GeometryInputCollectionNode; elseBranch: GeometryInputCollectionNode }
-  | { kind: "match"; scrutinee: TypedScalarExpression; arms: readonly { label: string; value: GeometryInputCollectionNode }[] };
+  | { kind: "if"; condition: TypedScalarExpression; sourceOrder: number; thenBranch: GeometryInputCollectionNode; elseBranch: GeometryInputCollectionNode }
+  | { kind: "match"; scrutinee: TypedScalarExpression; sourceOrder: number; arms: readonly { label: string; value: GeometryInputCollectionNode }[] };
 
 export type GeometryInputTarget =
   | { kind: "drawable"; elementId: ElementId; geometryType: "point" | "line" | "path"; pointKey?: string }

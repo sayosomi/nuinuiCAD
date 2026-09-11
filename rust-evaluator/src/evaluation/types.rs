@@ -12,11 +12,13 @@ pub(crate) enum GeometryInputCollectionNode {
     },
     If {
         condition: TypedScalarExpression,
+        source_order: f64,
         then_branch: Box<GeometryInputCollectionNode>,
         else_branch: Box<GeometryInputCollectionNode>,
     },
     Match {
         scrutinee: TypedScalarExpression,
+        source_order: f64,
         arms: Vec<(String, GeometryInputCollectionNode)>,
     },
 }

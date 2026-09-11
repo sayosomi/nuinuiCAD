@@ -450,13 +450,13 @@ export const evaluateElements = (
         const targets = node.targets.map(materialize);
         return targets.some((target) => target === null) ? null : targets as GeometryInputTarget[];
       }
-      const environment = scalarEnvironmentFor(sourceOrder);
       if (node.kind === "if") {
+        const environment = scalarEnvironmentFor(node.sourceOrder);
         const condition = evaluateTypedExpression(node.condition, environment);
         if (condition.status !== "ok" || condition.value.kind !== "boolean") return null;
         return materializeCollectionNode(condition.value.value ? node.thenBranch : node.elseBranch);
       }
-      const scrutinee = evaluateTypedExpression(node.scrutinee, environment);
+      const scrutinee = evaluateTypedExpression(node.scrutinee, scalarEnvironmentFor(node.sourceOrder));
       if (scrutinee.status !== "ok" || scrutinee.value.kind !== "choice") return null;
       const arm = node.arms.find((candidate) => candidate.label === scrutinee.value.value);
       return arm ? materializeCollectionNode(arm.value) : null;

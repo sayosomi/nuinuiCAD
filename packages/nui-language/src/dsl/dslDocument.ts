@@ -1547,12 +1547,12 @@ export const compileDslDocument = (
     const collectionAnalysis = sourceLexicalNamespace?.geometryArraySemanticAnalysis;
     if (!collectionAnalysis || !stableStatementIdByIndex) return [];
     const values: ScalarProgramCollection[] = [];
-    const append = (valueId: string, collectionValue: NonNullable<typeof collectionAnalysis.genericValues[number]["value"]>, sourceStatementId: string): void => {
+    const append = (valueId: string, collectionValue: NonNullable<typeof collectionAnalysis.genericValues[number]["value"]>, sourceStatementId: string, sourceOrder: number): void => {
       if (collectionValue.kind === "if") {
         const thenValueId = `${valueId}:then`;
         const elseValueId = `${valueId}:else`;
-        append(thenValueId, collectionValue.thenValue as NonNullable<typeof collectionAnalysis.genericValues[number]["value"]>, sourceStatementId);
-        append(elseValueId, collectionValue.elseValue as NonNullable<typeof collectionAnalysis.genericValues[number]["value"]>, sourceStatementId);
+        append(thenValueId, collectionValue.thenValue as NonNullable<typeof collectionAnalysis.genericValues[number]["value"]>, sourceStatementId, sourceOrder);
+        append(elseValueId, collectionValue.elseValue as NonNullable<typeof collectionAnalysis.genericValues[number]["value"]>, sourceStatementId, sourceOrder);
         if (!collectionValue.condition) return;
         const condition = lowerExpression(
           collectionValue.condition,
@@ -1565,14 +1565,14 @@ export const compileDslDocument = (
           (id) => id,
           (order) => order
         ).expression;
-        values.push({ valueId, kind: "if", condition, thenValueId, elseValueId });
+        values.push({ valueId, kind: "if", condition, thenValueId, elseValueId, sourceOrder });
         return;
       }
       if (collectionValue.kind === "match") {
         if (!collectionValue.scrutinee) return;
         const arms = collectionValue.arms.map((arm) => {
           const armValueId = `${valueId}:arm:${arm.label}`;
-          append(armValueId, arm.value as NonNullable<typeof collectionAnalysis.genericValues[number]["value"]>, sourceStatementId);
+          append(armValueId, arm.value as NonNullable<typeof collectionAnalysis.genericValues[number]["value"]>, sourceStatementId, sourceOrder);
           return { label: arm.label, valueId: armValueId };
         });
         const scrutinee = lowerExpression(
@@ -1586,7 +1586,7 @@ export const compileDslDocument = (
           (id) => id,
           (order) => order
         ).expression;
-        values.push({ valueId, kind: "match", scrutinee, arms });
+        values.push({ valueId, kind: "match", scrutinee, arms, sourceOrder });
         return;
       }
       const elementType = scalarTypeOfDslValueType(collectionValue.valueType.elementType);
@@ -1629,7 +1629,7 @@ export const compileDslDocument = (
       const collectionValue = value.value;
       if (!elementType || !collectionValue) continue;
       if (collectionValue.kind === "if" || collectionValue.kind === "match") {
-        if (moduleAnalysis) append(value.statementId, collectionValue, value.statementId);
+        if (moduleAnalysis) append(value.statementId, collectionValue, value.statementId, value.statementIndex);
         continue;
       }
       if (collectionValue.kind === "map" && collectionValue.body) {

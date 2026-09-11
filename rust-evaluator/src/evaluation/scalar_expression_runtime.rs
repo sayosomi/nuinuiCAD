@@ -42,9 +42,15 @@ fn geometry_collection_length_for_node(
         GeometryInputCollectionNode::Leaf { targets } => Some(targets.len() as f64),
         GeometryInputCollectionNode::If {
             condition,
+            source_order,
             then_branch,
             else_branch,
-        } => match evaluate_document_typed_expression(condition, resolver, state, None) {
+        } => match evaluate_document_typed_expression(
+            condition,
+            resolver,
+            state,
+            Some(*source_order),
+        ) {
             ScalarEvaluation::Ok {
                 value: ScalarValue::Boolean(true),
                 ..
@@ -55,11 +61,15 @@ fn geometry_collection_length_for_node(
             } => geometry_collection_length_for_node(else_branch, resolver, state),
             _ => None,
         },
-        GeometryInputCollectionNode::Match { scrutinee, arms } => {
+        GeometryInputCollectionNode::Match {
+            scrutinee,
+            source_order,
+            arms,
+        } => {
             let ScalarEvaluation::Ok {
                 value: ScalarValue::Choice { value, .. },
                 ..
-            } = evaluate_document_typed_expression(scrutinee, resolver, state, None)
+            } = evaluate_document_typed_expression(scrutinee, resolver, state, Some(*source_order))
             else {
                 return None;
             };

@@ -148,18 +148,18 @@ export const resolveDocumentGeometryProperty = (
 
 const geometryCollectionLengthForNode = (
   node: GeometryInputCollectionNode,
-  environment: ScalarEvaluationEnvironment
+  environmentFor: (sourceOrder: number) => ScalarEvaluationEnvironment
 ): number | undefined => {
   if (node.kind === "leaf") return node.targets.length;
   if (node.kind === "if") {
-    const condition = evaluateTypedExpression(node.condition, environment);
+    const condition = evaluateTypedExpression(node.condition, environmentFor(node.sourceOrder));
     if (condition.status !== "ok" || condition.value.kind !== "boolean") return undefined;
-    return geometryCollectionLengthForNode(condition.value.value ? node.thenBranch : node.elseBranch, environment);
+    return geometryCollectionLengthForNode(condition.value.value ? node.thenBranch : node.elseBranch, environmentFor);
   }
-  const scrutinee = evaluateTypedExpression(node.scrutinee, environment);
+  const scrutinee = evaluateTypedExpression(node.scrutinee, environmentFor(node.sourceOrder));
   if (scrutinee.status !== "ok" || scrutinee.value.kind !== "choice") return undefined;
   const arm = node.arms.find((candidate) => candidate.label === scrutinee.value.value);
-  return arm ? geometryCollectionLengthForNode(arm.value, environment) : undefined;
+  return arm ? geometryCollectionLengthForNode(arm.value, environmentFor) : undefined;
 };
 
 export const resolveDocumentGeometryTarget = (
@@ -193,16 +193,16 @@ export const createDocumentScalarBindingResolver = (
   geometry?: DocumentGeometryRuntime
 ): ScalarBindingResolver => {
   const resolveGeometryCollectionLength = geometry
-    ? (collectionValueId: string, sourceOrder: number): number | undefined => {
+    ? (collectionValueId: string): number | undefined => {
         const node = geometry.geometryCollectionNodesByValueId?.get(collectionValueId);
         if (!node || !evaluator) return undefined;
-        const environment: ScalarEvaluationEnvironment = {
+        const environmentFor = (currentSourceOrder: number): ScalarEvaluationEnvironment => ({
           lookupBinding: evaluator.resolve,
-          lookupGeometryProperty: (reference) => resolveDocumentGeometryProperty(geometry, reference, sourceOrder, resolveGeometryCollectionLength),
-          lookupGeometryTarget: (target) => resolveDocumentGeometryTarget(geometry, target, sourceOrder),
-          ...evaluator.collectionResolver?.environmentFor(sourceOrder)
-        };
-        return geometryCollectionLengthForNode(node, environment);
+          lookupGeometryProperty: (reference) => resolveDocumentGeometryProperty(geometry, reference, currentSourceOrder, resolveGeometryCollectionLength),
+          lookupGeometryTarget: (target) => resolveDocumentGeometryTarget(geometry, target, currentSourceOrder),
+          ...evaluator.collectionResolver?.environmentFor(currentSourceOrder)
+        });
+        return geometryCollectionLengthForNode(node, environmentFor);
       }
     : undefined;
   const resolveGeometryProperty = geometry
@@ -236,16 +236,16 @@ export const createDocumentLinearScalarBindingResolver = (
   collectionValues?: readonly ScalarProgramCollection[]
 ): LinearScalarBindingResolver => {
   const resolveGeometryCollectionLength = geometry
-    ? (collectionValueId: string, sourceOrder: number): number | undefined => {
+    ? (collectionValueId: string): number | undefined => {
         const node = geometry.geometryCollectionNodesByValueId?.get(collectionValueId);
         if (!node || !evaluator) return undefined;
-        const environment: ScalarEvaluationEnvironment = {
+        const environmentFor = (currentSourceOrder: number): ScalarEvaluationEnvironment => ({
           lookupBinding: evaluator.resolveCurrent,
-          lookupGeometryProperty: (reference) => resolveDocumentGeometryProperty(geometry, reference, sourceOrder, resolveGeometryCollectionLength),
-          lookupGeometryTarget: (target) => resolveDocumentGeometryTarget(geometry, target, sourceOrder),
-          ...collectionResolver?.environmentFor(sourceOrder)
-        };
-        return geometryCollectionLengthForNode(node, environment);
+          lookupGeometryProperty: (reference) => resolveDocumentGeometryProperty(geometry, reference, currentSourceOrder, resolveGeometryCollectionLength),
+          lookupGeometryTarget: (target) => resolveDocumentGeometryTarget(geometry, target, currentSourceOrder),
+          ...collectionResolver?.environmentFor(currentSourceOrder)
+        });
+        return geometryCollectionLengthForNode(node, environmentFor);
       }
     : undefined;
   const resolveGeometryProperty = geometry

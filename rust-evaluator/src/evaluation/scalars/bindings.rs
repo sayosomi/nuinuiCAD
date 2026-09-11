@@ -153,7 +153,7 @@ impl<'a> ScalarBindingResolver<'a> {
         let environment = ResolvingEnvironment {
             resolver: self,
             state,
-            source_order: statement.source_order,
+            source_order: statement.source_order as f64,
             local_binding_id: None,
             local_binding: None,
         };
@@ -270,7 +270,7 @@ impl<'a> ScalarBindingResolver<'a> {
                     let environment = ResolvingEnvironment {
                         resolver: self,
                         state,
-                        source_order: *source_order,
+                        source_order: *source_order as f64,
                         local_binding_id: Some(binder_id.as_str()),
                         local_binding: Some(&source),
                     };
@@ -295,11 +295,12 @@ impl<'a> ScalarBindingResolver<'a> {
                     condition,
                     then_value_id,
                     else_value_id,
+                    source_order,
                 } => {
                     let environment = ResolvingEnvironment {
                         resolver: self,
                         state,
-                        source_order: 0,
+                        source_order: *source_order,
                         local_binding_id: None,
                         local_binding: None,
                     };
@@ -337,15 +338,19 @@ impl<'a> ScalarBindingResolver<'a> {
                         index,
                         element_type,
                         None,
-                        0.0,
+                        *source_order,
                         state,
                     );
                 }
-                ValidatedScalarProgramCollectionValue::Match { scrutinee, arms } => {
+                ValidatedScalarProgramCollectionValue::Match {
+                    scrutinee,
+                    arms,
+                    source_order,
+                } => {
                     let environment = ResolvingEnvironment {
                         resolver: self,
                         state,
-                        source_order: 0,
+                        source_order: *source_order,
                         local_binding_id: None,
                         local_binding: None,
                     };
@@ -385,7 +390,7 @@ impl<'a> ScalarBindingResolver<'a> {
                         index,
                         element_type,
                         None,
-                        0.0,
+                        *source_order,
                         state,
                     );
                 }
@@ -469,11 +474,12 @@ impl<'a> ScalarBindingResolver<'a> {
                 condition,
                 then_value_id,
                 else_value_id,
+                source_order,
             } => {
                 let environment = ResolvingEnvironment {
                     resolver: self,
                     state,
-                    source_order: 0,
+                    source_order: *source_order,
                     local_binding_id: None,
                     local_binding: None,
                 };
@@ -489,11 +495,15 @@ impl<'a> ScalarBindingResolver<'a> {
                     _ => None,
                 }
             }
-            ValidatedScalarProgramCollectionValue::Match { scrutinee, arms } => {
+            ValidatedScalarProgramCollectionValue::Match {
+                scrutinee,
+                arms,
+                source_order,
+            } => {
                 let environment = ResolvingEnvironment {
                     resolver: self,
                     state,
-                    source_order: 0,
+                    source_order: *source_order,
                     local_binding_id: None,
                     local_binding: None,
                 };
@@ -548,7 +558,7 @@ impl ScalarDocumentBindingResolver for ScalarBindingResolver<'_> {
 struct ResolvingEnvironment<'a, 'b, 'c> {
     resolver: &'a ScalarBindingResolver<'a>,
     state: &'b EvaluationState,
-    source_order: usize,
+    source_order: f64,
     local_binding_id: Option<&'c str>,
     local_binding: Option<&'c ScalarEvaluation>,
 }
@@ -574,7 +584,7 @@ impl ScalarEvaluationEnvironment for ResolvingEnvironment<'_, '_, '_> {
             element_id,
             property,
             target_source_order,
-            Some(self.source_order as f64),
+            Some(self.source_order),
             property_type,
         )
     }
@@ -593,7 +603,7 @@ impl ScalarEvaluationEnvironment for ResolvingEnvironment<'_, '_, '_> {
             point_key,
             property,
             target_source_order,
-            Some(self.source_order as f64),
+            Some(self.source_order),
             property_type,
         )
     }
@@ -606,7 +616,7 @@ impl ScalarEvaluationEnvironment for ResolvingEnvironment<'_, '_, '_> {
         collection_length: Option<f64>,
         target_source_order: f64,
     ) -> ScalarEvaluation {
-        if target_source_order >= self.source_order as f64 {
+        if target_source_order >= self.source_order {
             return ScalarEvaluation::Error {
                 r#type: element_type.clone(),
                 issue_code: "evaluation-collection-index-unavailable".to_owned(),
@@ -639,7 +649,7 @@ impl ScalarEvaluationEnvironment for ResolvingEnvironment<'_, '_, '_> {
         super::geometry_builtin_runtime::GeometryBuiltinRuntimeTarget,
         super::geometry_builtin_runtime::GeometryBuiltinRuntimeError,
     > {
-        resolve_geometry_builtin_target(self.state, self.source_order as f64, target)
+        resolve_geometry_builtin_target(self.state, self.source_order, target)
     }
 }
 
