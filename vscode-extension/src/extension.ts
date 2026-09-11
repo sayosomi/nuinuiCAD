@@ -1213,54 +1213,56 @@ export const activate = (context: vscode.ExtensionContext): void => {
         session.document,
         message.runtimeElementId
       );
-      if (!resolved.handled || !resolved.value) return;
-      const target = resolved.value;
-      let targetDocument: vscode.TextDocument;
-      try {
-        targetDocument = await vscode.workspace.openTextDocument(target.targetUri);
-      } catch {
-        return;
-      }
-      if (
-        normalizedSourceFor(targetDocument.getText()) !== target.normalizedSource ||
-        (target.sourceIdentity.kind === "dependency-saved" && targetDocument.isDirty) ||
-        !normalizedRangeIsSafe(targetDocument, target.range)
-      ) return;
-      const targetRange = vscodeRangeForNormalized(
-        targetDocument,
-        targetDocument.getText(),
-        target.range
-      );
-      const visibleEditor = visibleEditorFor(targetDocument) ?? visibleEditorFor(session.document);
-      let editor: vscode.TextEditor | undefined;
-      try {
-        editor = await vscode.window.showTextDocument(targetDocument, {
-          viewColumn: visibleEditor?.viewColumn ?? vscode.ViewColumn.Beside,
-          preserveFocus: false,
-          preview: false,
-          selection: new vscode.Range(targetRange.start, targetRange.start)
+      if (resolved.handled) {
+        if (!resolved.value) return;
+        const target = resolved.value;
+        let targetDocument: vscode.TextDocument;
+        try {
+          targetDocument = await vscode.workspace.openTextDocument(target.targetUri);
+        } catch {
+          return;
+        }
+        if (
+          normalizedSourceFor(targetDocument.getText()) !== target.normalizedSource ||
+          (target.sourceIdentity.kind === "dependency-saved" && targetDocument.isDirty) ||
+          !normalizedRangeIsSafe(targetDocument, target.range)
+        ) return;
+        const targetRange = vscodeRangeForNormalized(
+          targetDocument,
+          targetDocument.getText(),
+          target.range
+        );
+        const visibleEditor = visibleEditorFor(targetDocument) ?? visibleEditorFor(session.document);
+        let editor: vscode.TextEditor | undefined;
+        try {
+          editor = await vscode.window.showTextDocument(targetDocument, {
+            viewColumn: visibleEditor?.viewColumn ?? vscode.ViewColumn.Beside,
+            preserveFocus: false,
+            preview: false,
+            selection: new vscode.Range(targetRange.start, targetRange.start)
+          });
+        } catch {
+          return;
+        }
+        if (
+          !editor ||
+          normalizedSourceFor(targetDocument.getText()) !== target.normalizedSource ||
+          (target.sourceIdentity.kind === "dependency-saved" && targetDocument.isDirty)
+        ) return;
+        try {
+          await vscode.commands.executeCommand("editor.unfold");
+        } catch {
+          return;
+        }
+        canvasFreePointAtPointerFeature?.setExplicitSourceAuthoringPosition(targetDocument, {
+          documentVersion: targetDocument.version,
+          line: targetRange.start.line,
+          character: targetRange.start.character
         });
-      } catch {
+        editor.revealRange(targetRange, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
+        clearCanvasHistoryHandoff(session);
         return;
       }
-      if (
-        !editor ||
-        normalizedSourceFor(targetDocument.getText()) !== target.normalizedSource ||
-        (target.sourceIdentity.kind === "dependency-saved" && targetDocument.isDirty)
-      ) return;
-      try {
-        await vscode.commands.executeCommand("editor.unfold");
-      } catch {
-        return;
-      }
-      canvasFreePointAtPointerFeature?.setExplicitSourceAuthoringPosition(targetDocument, {
-        documentVersion: targetDocument.version,
-        line: targetRange.start.line,
-        character: targetRange.start.character
-      });
-      editor.revealRange(targetRange, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
-      clearCanvasHistoryHandoff(session);
-      return;
     }
 
     if (!message.range || !normalizedRangeIsSafe(session.document, message.range)) return;

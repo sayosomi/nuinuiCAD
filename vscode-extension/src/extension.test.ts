@@ -4390,6 +4390,44 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
     );
   });
 
+  it("falls back to the current root Source range when the multi-document host declines ownership", async () => {
+    const source = "nui 1\npoint Root = coordinate(x: 0, y: 0)";
+    const document = documentFor("/tmp/source-definition-local.nui", "file:///tmp/source-definition-local.nui", source);
+    const editor = editorFor(document);
+    mocks.multiDocumentHost = {
+      diagnosticsStateFor: vi.fn(() => ({ status: "current", owner: "local", documentVersion: 1, rootGeneration: 1 })),
+      onDiagnosticsChanged: vi.fn(),
+      canvasSourceDefinitionFor: vi.fn().mockResolvedValue({ handled: false })
+    };
+    setup(false, editor, [document]);
+    const panel = openPanelFor(editor);
+    const handler = messageHandlerFor(panel);
+    commandHandlerFor("nuinuiCAD.goToSourceDefinition")?.();
+    const request = panel.webview.postMessage.mock.calls.find(([message]) => message?.type === "canvasSourceDefinitionRequest")?.[0] as { requestId: number };
+    const range = { from: source.indexOf("Root"), to: source.indexOf("Root") + "Root".length };
+    mocks.showTextDocument.mockResolvedValue(editor);
+
+    await handler({
+      type: "canvasSourceDefinitionResult",
+      requestId: request.requestId,
+      documentVersion: 1,
+      runtimeElementId: "webview-local-runtime",
+      range
+    });
+
+    expect(mocks.multiDocumentHost.canvasSourceDefinitionFor).toHaveBeenCalledWith(
+      document,
+      "webview-local-runtime"
+    );
+    expect(mocks.showTextDocument).toHaveBeenCalledWith(document, expect.objectContaining({
+      preserveFocus: false,
+      selection: expect.objectContaining({
+        start: document.positionAt(range.from),
+        end: document.positionAt(range.from)
+      })
+    }));
+  });
+
   it("does not transfer focus for stale or no-target navigation results", async () => {
     const source = [
       "nui 1",

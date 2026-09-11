@@ -781,6 +781,11 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
       ))
     ) return { handled: true, value: undefined };
 
+    const rootNode = graph.nodes.get(documentId);
+    if (graph.nodes.size === 1 && rootNode?.artifact.imports.length === 0) {
+      return { handled: false };
+    }
+
     const target = queryDslCanvasSourceDefinitionQualified({
       source: graph.rootSource,
       compiled,

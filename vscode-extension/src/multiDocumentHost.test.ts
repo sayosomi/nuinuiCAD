@@ -132,6 +132,7 @@ vi.mock("../../src/vscode/vscodeWebviewSession", () => ({
 }));
 
 import * as vscode from "vscode";
+import { compileFreshCanonicalText } from "@nuinuicad/nui-language/document";
 import { queryDslCompletion } from "@nuinuicad/nui-language";
 import { queryDslSignatureHelp } from "@nuinuicad/nui-language";
 import { diagnosticTextFor } from "./diagnosticLocalization";
@@ -715,6 +716,86 @@ describe("VS Code multi-document host lifecycle", () => {
       expect(diagnosticTextFor(importDiagnostic, "en")).toBe("The imported file './library.nui' was not found.");
       expect(diagnosticTextFor(importDiagnostic, "ja-JP")).toBe("import先「./library.nui」が見つかりません。");
     }
+
+    host.dispose();
+  });
+
+  it("resolves a root Canvas geometry through the production host runtime identity", async () => {
+    const rootPath = "/workspace/root-direct.nui";
+    const libraryPath = "/workspace/library-direct.nui";
+    const rootSource = [
+      "nui 1",
+      "import \"./library-direct.nui\" as lib",
+      "instance use = lib::Panel()",
+      "point Root = coordinate(x: 20, y: 10)"
+    ].join("\n");
+    const librarySource = [
+      "nui 1",
+      "export module Panel() {",
+      "  point P = coordinate(x: 3, y: 4)",
+      "}"
+    ].join("\n");
+    mocks.files.set(libraryPath, encoder.encode(librarySource));
+    const root = documentFor(rootPath, rootSource);
+    mocks.textDocuments = [root];
+
+    const host = createVscodeModuleMultiDocumentHost();
+    host.start();
+    const rootUri = root.uri.toString();
+    await vi.waitFor(() => {
+      expect(latestCurrentPublicationFor(rootUri)?.canvasRuntime).toBeDefined();
+    });
+
+    const runtime = latestCurrentPublicationFor(rootUri)?.canvasRuntime;
+    const rootId = runtime?.preparedRustEvaluation.input.elements.find(
+      (element) => element.name === "Root"
+    )?.id;
+    expect(rootId).toBeDefined();
+    if (!rootId) return;
+
+    const target = await host.canvasSourceDefinitionFor(root, rootId);
+
+    expect(target).toMatchObject({
+      handled: true,
+      value: {
+        targetUri: { scheme: "file", fsPath: rootPath },
+        normalizedSource: rootSource,
+        range: {
+          from: rootSource.indexOf("Root"),
+          to: rootSource.indexOf("Root") + "Root".length
+        },
+        sourceIdentity: {
+          kind: "root-current",
+          documentId: rootUri
+        }
+      }
+    });
+
+    host.dispose();
+  });
+
+  it("leaves single-document Canvas source navigation to the local owner", async () => {
+    const rootPath = "/workspace/root-local.nui";
+    const rootSource = "nui 1\npoint Root = coordinate(x: 20, y: 10)";
+    const root = documentFor(rootPath, rootSource);
+    mocks.textDocuments = [root];
+
+    const host = createVscodeModuleMultiDocumentHost();
+    host.start();
+    const rootUri = root.uri.toString();
+    await vi.waitFor(() => {
+      expect(latestCurrentPublicationFor(rootUri)).toBeDefined();
+    });
+
+    const localRuntimeId = compileFreshCanonicalText(rootSource).doc.document.elements.find(
+      (element) => element.name === "Root"
+    )?.id;
+    expect(localRuntimeId).toBeDefined();
+    if (!localRuntimeId) return;
+
+    await expect(host.canvasSourceDefinitionFor(root, localRuntimeId)).resolves.toEqual({
+      handled: false
+    });
 
     host.dispose();
   });
