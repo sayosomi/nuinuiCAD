@@ -142,6 +142,22 @@ describe("queryDslDefinition", () => {
     expect(result!.declarationRange.from).toBe(source.indexOf("const P") + "const ".length);
   });
 
+  it("resolves a Join paths array reference to its typed declaration", () => {
+    const source = [
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line First = segment(start: @A, end: @B)",
+      "const parts: path[] = [@First]",
+      "line Joined = join(paths: @parts, closed: false)"
+    ].join("\n");
+    const result = exactQuery(source, "@parts");
+
+    expect(result).not.toBeNull();
+    expect(sourceSlice(source, result!.referenceRange)).toBe("parts");
+    expect(sourceSlice(source, result!.declarationRange)).toBe("parts");
+  });
+
   it("resolves root geometry value-if scalar and branch references through ordinary identities", () => {
     const source = [
       "nui 1",

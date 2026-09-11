@@ -2261,6 +2261,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     const distanceArgument = argument("distance");
     const ratioArgument = argument("ratio");
     const sourcesArgument = argument("sources");
+    const pathsArgument = argument("paths");
     const centerArgument = argument("center");
     const point1Argument = argument("point1");
     const point2Argument = argument("point2");
@@ -2448,6 +2449,19 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         side: offsetSideType ? scalar(sideArgument, offsetSideType, "right") : null,
         closed: scalar(closedArgument, { kind: "boolean" }, "false"),
         suppressTrimWarnings: scalar(suppressTrimWarningsArgument, { kind: "boolean" }, "false")
+      };
+    }
+    if (invocation.construction === "join" && invocation.pureValueInterface === "path") {
+      if (expectedInterfaceType !== "path") {
+        addLocal(statementIndex, issue("module-geometry-type-mismatch", constructionSpan, "join construction は path value にのみ代入できます。", {
+          presentation: { key: "diagnostic.module-geometry-type-mismatch", parameters: { target: "join" } }
+        }));
+      }
+      return {
+        kind: "joinedPath",
+        span: { start: constructionSpan.start, end: initializerSpan.end },
+        paths: pathReferences(pathsArgument),
+        closed: scalar(closedArgument, { kind: "boolean" }, "false")
       };
     }
     if (invocation.construction === "transformCopy" && invocation.pureValueInterface === "path") {

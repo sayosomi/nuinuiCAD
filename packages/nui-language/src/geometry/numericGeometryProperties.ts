@@ -283,6 +283,7 @@ export const numericGeometryStaticTargetForConstruction = (
   if (construction === "offset" || construction === "transformCopy" || construction === "mirrorCopy") {
     return targetForFamily("genericPath");
   }
+  if (construction === "join") return targetForFamily("genericPath");
   if (construction === "polyline") return targetForFamily("polyline");
   if (construction === "split") {
     const base = options.baseTarget;
@@ -325,6 +326,7 @@ export const numericGeometryStaticTargetForElement = (
     case "offsetLine":
     case "copyLine":
     case "symmetricCopyLine":
+    case "joinedPath":
       return targetForFamily("genericPath");
     case "polyline":
       return targetForFamily("polyline");

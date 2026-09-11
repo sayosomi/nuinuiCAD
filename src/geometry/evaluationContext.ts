@@ -193,6 +193,8 @@ export const getPointAnchorOrError = (
           ? anchor.pointKey === "end" ? value.end : anchor.pointKey === "start" ? value.start : undefined
         : value?.kind === "offsetLine"
           ? anchor.pointKey === "end" ? value.end : anchor.pointKey === "start" ? value.start : undefined
+        : value?.kind === "joinedPath"
+          ? anchor.pointKey === "end" ? value.end : anchor.pointKey === "start" ? value.start : undefined
         : undefined;
     if (!point) {
       errors.push({

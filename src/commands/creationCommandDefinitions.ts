@@ -126,6 +126,12 @@ export const creationCommandDefinitions = {
     palette: { order: 8.25, keywords: ["polyline", "line", "path", "折れ線", "ポリライン", "線", "追加"] },
     run: (context) => startCreationSessionForCommand("addPolyline", context)
   },
+  addJoinedPath: {
+    id: "addJoinedPath",
+    label: "結合パスを追加",
+    palette: { order: 8.375, keywords: ["join", "line", "path", "結合", "パス", "線", "追加"] },
+    run: (context) => startCreationSessionForCommand("addJoinedPath", context)
+  },
   addAngleLengthLine: {
     id: "addAngleLengthLine",
     label: "角度距離線を追加",

@@ -165,6 +165,7 @@ const computedPathEndpointPoints = (geometry: ComputedGeometry | ComputedGeometr
     return { start: geometry.start, end: geometry.end };
   }
   if (geometry.kind === "offsetLine") return { start: geometry.start, end: geometry.end };
+  if (geometry.kind === "joinedPath") return { start: geometry.start, end: geometry.end };
   if (geometry.kind === "bezierCurve") {
     return { start: geometry.segments[0]?.start, end: geometry.segments.at(-1)?.end };
   }
@@ -299,6 +300,13 @@ export const computedReferencePathValue = (geometry: ComputedGeometry | Computed
     if (property === "length") return geometry.length;
     if (property === "startAngleDeg") return directions.start;
     if (property === "endAngleDeg") return directions.end;
+    return undefined;
+  }
+
+  if (geometry.kind === "joinedPath") {
+    if (property === "length") return geometry.length;
+    if (property === "startAngleDeg") return geometry.startTangentAngleDeg ?? undefined;
+    if (property === "endAngleDeg") return geometry.endTangentAngleDeg ?? undefined;
     return undefined;
   }
 

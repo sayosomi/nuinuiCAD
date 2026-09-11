@@ -73,6 +73,15 @@ Failures are occurrence-owned and do not create a drawable identity.
 `polyline(...)` also produces an identity-free `polyline` path value using the
 drawable constructor's ordered `points` and optional `closed` arguments; open
 values require at least two points and closed values at least three. Pure
+`join(paths: ..., closed: ...)` produces an identity-free joined `path` value
+or a drawable `joinedPath` line element. `paths` accepts a `path[]` value (and
+the existing directional `line[]` to `path[]` covariance); authored order and
+duplicates are preserved. Each later path must meet the current chain end at
+either authored endpoint, reversing only the computed view when its authored
+end matches. `closed: true` validates the final-to-first connection without
+adding a closing segment. Discontinuities and empty path lists are errors.
+The joined result preserves source primitives and exposes the common path
+length, endpoint, and tangent measurements. Pure
 `offset(from: ..., dx: ..., dy: ...)` produces an identity-free `point` using
 the drawable point offset semantics, and
 `offset(sources: ..., distance: ..., side: ..., closed: ..., suppressTrimWarnings: ...)`

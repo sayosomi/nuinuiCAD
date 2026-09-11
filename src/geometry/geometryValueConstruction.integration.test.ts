@@ -1003,6 +1003,97 @@ describe("pure geometry construction runtime", () => {
     expect(result.computedGeometry.get("geometry-value-runtime:6")).toMatchObject({ kind: "offsetLine" });
   });
 
+  it("evaluates pure joins in authored order with exact segment reversal and closure validation", () => {
+    const { compiled, result } = evaluate([
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "point C = coordinate(x: 10, y: 10)",
+      "point D = coordinate(x: 20, y: 0)",
+      "line First = segment(start: @A, end: @B)",
+      "line Backward = segment(start: @D, end: @B)",
+      "line Second = segment(start: @B, end: @C)",
+      "line Third = segment(start: @C, end: @A)",
+      "const Open: path = join(paths: [@First, @Backward], closed: false)",
+      "const Closed: path = join(paths: [@First, @Second, @Third], closed: true)",
+      "const OpenLength: number = @Open.length",
+      "line Use = segment(start: @Open.start, end: @Closed.end)"
+    ].join("\n"));
+
+    expect(compiled.diagnostics).toEqual([]);
+    expect(result.errors).toEqual([]);
+    expect(result.geometryValueErrors).toEqual([]);
+    const values = [...(result.computedGeometryValues?.values() ?? [])]
+      .filter((entry) => entry.value.kind === "joinedPath");
+    expect(values).toHaveLength(2);
+
+    const open = values.find((entry) => entry.value.kind === "joinedPath" && !entry.value.closed)?.value;
+    const closed = values.find((entry) => entry.value.kind === "joinedPath" && entry.value.closed)?.value;
+    expect(open).toEqual(expect.objectContaining({
+      kind: "joinedPath",
+      closed: false,
+      start: { x: 0, y: 0 },
+      end: { x: 20, y: 0 },
+      length: 20
+    }));
+    expect(open && open.kind === "joinedPath" ? open.segments : undefined).toEqual([
+      { kind: "line", start: { x: 0, y: 0 }, end: { x: 10, y: 0 }, length: 10 },
+      { kind: "line", start: { x: 10, y: 0 }, end: { x: 20, y: 0 }, length: 10 }
+    ]);
+    expect(closed).toEqual(expect.objectContaining({
+      kind: "joinedPath",
+      closed: true,
+      start: { x: 0, y: 0 },
+      end: { x: 0, y: 0 }
+    }));
+    expect(open).not.toHaveProperty("elementId");
+    expect(open).not.toHaveProperty("name");
+    expect(result.computedScalarBindings?.get("binding:geometry-value-runtime:11")).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 20 }
+    });
+    expect(result.computedGeometry.get("geometry-value-runtime:12")).toMatchObject({ kind: "line" });
+  });
+
+  it("keeps usable endpoint tangents when a joined path contains degenerate primitives", () => {
+    const { compiled, result } = evaluate([
+      "nui 1",
+      "const Usable: path = polyline(points: [(0, 0), (0, 0), (10, 0), (10, 0)], closed: false)",
+      "const Joined: path = join(paths: [@Usable], closed: false)",
+      "const Degenerate: path = polyline(points: [(0, 0), (0, 0)], closed: false)",
+      "const OnlyDegenerate: path = join(paths: [@Degenerate], closed: false)"
+    ].join("\n"));
+
+    expect(compiled.diagnostics).toEqual([]);
+    const values = [...(result.computedGeometryValues?.values() ?? [])].map((entry) => entry.value);
+    const joined = values.find((value) => value.kind === "joinedPath" && value.closed === false);
+    if (!joined || joined.kind !== "joinedPath") throw new Error("expected joined path value");
+    expect(joined.startTangentAngleDeg).toBe(0);
+    expect(joined.endTangentAngleDeg).toBe(180);
+    expect(values.filter((value) => value.kind === "joinedPath")).toHaveLength(2);
+    expect(values.find((value) => value.kind === "joinedPath" && value.length === 0)).toMatchObject({
+      startTangentAngleDeg: null,
+      endTangentAngleDeg: null
+    });
+  });
+
+  it("reports pure join discontinuities through the occurrence-owned channel", () => {
+    const { compiled, result } = evaluate([
+      "nui 1",
+      "line First = segment(start: (0, 0), end: (10, 0))",
+      "line Unrelated = segment(start: (20, 0), end: (30, 0))",
+      "const Invalid: path = join(paths: [@First, @Unrelated], closed: false)"
+    ].join("\n"));
+
+    const occurrence = compiled.geometryValueProgram?.at(-1)?.occurrence;
+    expect(result.computedGeometryValues).toEqual(expect.any(Map));
+    expect(result.geometryValueErrors).toEqual([{
+      occurrence,
+      message: "join geometry value construction paths are not continuous in the specified order."
+    }]);
+    expect(result.errors).toEqual([]);
+  });
+
   it("supports pure polyline points aliases and Module local/export flows", () => {
     const { compiled, result } = evaluate([
       "nui 1",

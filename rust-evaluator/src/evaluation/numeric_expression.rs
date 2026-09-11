@@ -460,7 +460,7 @@ pub(crate) fn computed_reference_value(geometry: &Value, property: &str) -> Opti
                     _ => intermediate_point_value(segments, property),
                 }
             }
-            "offsetLine" => {
+            "offsetLine" | "joinedPath" => {
                 let segments = geometry.get("segments")?.as_array()?;
                 let start_direction =
                     first_segment_direction(segments, offset_segment_start_direction);

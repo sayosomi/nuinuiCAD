@@ -18,6 +18,7 @@ export const numericGeometryStaticTargetForComputedGeometry = (
     });
   }
   if (geometry.kind === "offsetLine") return numericGeometryStaticTargetForFamily("genericPath");
+  if (geometry.kind === "joinedPath") return numericGeometryStaticTargetForFamily("genericPath");
   if (geometry.kind === "polyline") return numericGeometryStaticTargetForFamily("polyline");
   if (geometry.kind === "image") return numericGeometryStaticTargetForFamily("image");
   return numericGeometryStaticTargetForFamily("text");

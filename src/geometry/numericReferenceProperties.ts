@@ -3,6 +3,7 @@ import type {
   CadElement,
   ComputedArcLine,
   ComputedBezierCurve,
+  ComputedJoinedPath,
   ComputedLine,
   ComputedOffsetLine,
   ComputedPolyline
@@ -21,6 +22,7 @@ export type NumericReferenceGeometry =
   | ComputedArcLine
   | ComputedBezierCurve
   | ComputedOffsetLine
+  | ComputedJoinedPath
   | ComputedPolyline;
 
 export const numericReferencePickProperties: readonly NumericMeasurementKey[] =

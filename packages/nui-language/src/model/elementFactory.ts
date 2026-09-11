@@ -41,6 +41,7 @@ export const createCadElement = (
       element.type === "cornerRadiusArcLine" ||
       element.type === "bezierCurve" ||
       element.type === "offsetLine" ||
+      element.type === "joinedPath" ||
       element.type === "polyline" ||
       element.type === "splitLine" ||
       element.type === "copyLine" ||
@@ -442,6 +443,19 @@ export const createCadElement = (
         side: "right",
         closed: false,
         suppressTrimWarnings: false
+      };
+    }
+    case "joinedPath": {
+      const id = createId(type);
+      const joinCount = elements.filter((element) => element.type === "joinedPath").length;
+      const requestedName = `結合パス${joinCount + 1}`;
+      return {
+        id,
+        name: uniqueName(id, requestedName),
+        type,
+        activity: "visible",
+        pathIds: lineLikeElements[0] ? [lineLikeElements[0].id] : [],
+        closed: false
       };
     }
     case "splitLine": {

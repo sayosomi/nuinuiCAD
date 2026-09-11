@@ -2,6 +2,7 @@ import type { CanvasViewport } from "../state/cadUiStore";
 import type {
   ComputedArcLine,
   ComputedBezierCurve,
+  ComputedJoinedPath,
   ComputedLine,
   ComputedOffsetLine,
   ComputedPolyline,
@@ -92,6 +93,7 @@ type RenderCanvasGeometryArgs = {
   arcs: ComputedArcLine[];
   curves: ComputedBezierCurve[];
   offsetLines: ComputedOffsetLine[];
+  joinedPaths?: ComputedJoinedPath[];
   polylines?: ComputedPolyline[];
   images?: CanvasOverlayImage[];
   points: ComputedPoint[];
@@ -225,6 +227,7 @@ export const renderCanvasGeometry = ({
   arcs,
   curves,
   offsetLines,
+  joinedPaths = [],
   polylines = [],
   images = [],
   points,
@@ -365,7 +368,7 @@ export const renderCanvasGeometry = ({
     ctx.stroke();
   }};
 
-  const drawOffsetLines = () => { for (const line of offsetLines) {
+  const drawSegmentedPaths = (paths: Array<ComputedOffsetLine | ComputedJoinedPath>) => { for (const line of paths) {
     if (!visibleElementIds.has(line.elementId)) continue;
     const isSelected = selectedElementIdSet.has(line.elementId);
     const isPrimarySelected = line.elementId === selectedElementId;
@@ -409,6 +412,8 @@ export const renderCanvasGeometry = ({
     });
     ctx.stroke();
   }};
+  const drawOffsetLines = () => drawSegmentedPaths(offsetLines);
+  const drawJoinedPaths = () => drawSegmentedPaths(joinedPaths);
 
   const drawPolylines = () => { for (const polyline of polylines) {
     if (!visibleElementIds.has(polyline.elementId)) continue;
@@ -498,6 +503,7 @@ export const renderCanvasGeometry = ({
     else if (kind === "arcLine") drawArcs();
     else if (kind === "bezierCurve") drawCurves();
     else if (kind === "offsetLine") drawOffsetLines();
+    else if (kind === "joinedPath") drawJoinedPaths();
     else if (kind === "polyline") drawPolylines();
     else if (kind === "text") continue;
     else drawPoints();

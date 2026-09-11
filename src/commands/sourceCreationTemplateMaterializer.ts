@@ -2,6 +2,7 @@ import { MUTATION_CATEGORY } from "../dsl/dslConstructions";
 import { DSL_INDENT } from "../dsl/dslTokens";
 import type {
   SourceCreationTemplateArgumentHole,
+  SourceCreationTemplateLiteralArgument,
   SourceCreationTemplatePlan
 } from "./sourceCreationTemplatePlan";
 
@@ -35,13 +36,23 @@ const appendText = (parts: SourceCreationTemplatePart[], text: string): void => 
 
 const appendArgumentParts = (
   parts: SourceCreationTemplatePart[],
-  argumentHoles: readonly SourceCreationTemplateArgumentHole[]
+  argumentHoles: readonly SourceCreationTemplateArgumentHole[],
+  literalArguments: readonly SourceCreationTemplateLiteralArgument[]
 ): void => {
+  const argumentsInOrder = [
+    ...argumentHoles.map((argumentHole) => ({ kind: "hole" as const, argumentHole })),
+    ...literalArguments.map((literalArgument) => ({ kind: "literal" as const, literalArgument }))
+  ];
   appendText(parts, "\n");
-  argumentHoles.forEach((argumentHole, index) => {
-    appendText(parts, `${DSL_INDENT}${argumentHole.argName}: `);
-    parts.push(holePart({ role: "argument", ...argumentHole }));
-    appendText(parts, index === argumentHoles.length - 1 ? "" : ",\n");
+  argumentsInOrder.forEach((argument, index) => {
+    const last = index === argumentsInOrder.length - 1;
+    if (argument.kind === "hole") {
+      appendText(parts, `${DSL_INDENT}${argument.argumentHole.argName}: `);
+      parts.push(holePart({ role: "argument", ...argument.argumentHole }));
+    } else {
+      appendText(parts, `${DSL_INDENT}${argument.literalArgument.argName}: ${argument.literalArgument.value}`);
+    }
+    appendText(parts, last ? "" : ",\n");
   });
   appendText(parts, "\n)");
 };
@@ -69,7 +80,7 @@ export const materializeSourceCreationTemplate = (
     parts.push(holePart({ role: "name" }));
     appendText(parts, ` = ${plan.construction}(`);
   }
-  appendArgumentParts(parts, form.argumentHoles);
+  appendArgumentParts(parts, form.argumentHoles, form.literalArguments ?? []);
 
   return { commandId: plan.commandId, formIndex, parts };
 };

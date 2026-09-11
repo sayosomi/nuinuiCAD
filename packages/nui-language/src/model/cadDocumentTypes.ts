@@ -379,6 +379,12 @@ export type OffsetLineElement = CadElementBase & {
   suppressTrimWarnings?: boolean;
 };
 
+export type JoinedPathElement = CadElementBase & {
+  type: "joinedPath";
+  pathIds: ElementId[];
+  closed: boolean;
+};
+
 export type SplitLineElement = CadElementBase & {
   type: "splitLine";
   baseLineId: ElementId;
@@ -488,6 +494,7 @@ export type CadElement =
   | PathReverseElement
   | BezierCurveElement
   | OffsetLineElement
+  | JoinedPathElement
   | SplitLineElement
   | CopyLineElement
   | SymmetricCopyLineElement

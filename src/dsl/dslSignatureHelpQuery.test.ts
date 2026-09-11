@@ -87,6 +87,24 @@ describe("DSL Signature Help query", () => {
     });
   });
 
+  it("projects Join's broad path-array parameter and closed default", () => {
+    const result = queryAt("nui 1\nline Joined = join(paths: ");
+    const parameters = result?.signatures[0]?.parameters ?? [];
+    const paths = parameters.find((parameter) => parameter.name === "paths");
+    const closed = parameters.find((parameter) => parameter.name === "closed");
+
+    expect(paths).toMatchObject({
+      type: "path[]",
+      documentation: { key: "signatureHelp.parameter.lineReferenceList" }
+    });
+    expect(closed).toMatchObject({
+      type: "boolean",
+      defaultValue: "false",
+      allowedValues: ["true", "false"],
+      documentation: { key: "signatureHelp.parameter.boolean" }
+    });
+  });
+
   it("does not guess unknown construction names, comma gaps, or out-of-range arguments", () => {
     const typo = queryAt("nui 1\npoint P = coordinate(sid: ");
     const comma = queryAt("nui 1\npoint P = coordinate(x: 0, ");

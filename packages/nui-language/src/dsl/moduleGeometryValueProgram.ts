@@ -154,6 +154,11 @@ export type GeometryValueProgramConstruction =
       suppressTrimWarnings: TypedScalarExpression;
     }
   | {
+      kind: "joinedPath";
+      paths: readonly GeometryValueProgramPath[];
+      closed: TypedScalarExpression;
+    }
+  | {
       kind: "transformCopy";
       startPoint: GeometryValueProgramPoint;
       endPoint: GeometryValueProgramPoint;
@@ -504,6 +509,17 @@ export const buildRootGeometryValueProgram = ({
                     const suppressTrimWarnings = literalScalarExpression(value.construction.suppressTrimWarnings);
                     return distance && side && closed && suppressTrimWarnings && sources.length === value.construction.sources.length
                       ? { kind: "offsetPath" as const, sources, distance, side, closed, suppressTrimWarnings }
+                      : null;
+                  })()
+              : value.construction.kind === "joinedPath"
+                ? (() => {
+                    const paths = value.construction.paths.flatMap((source) => {
+                      const lowered = pathForReference(source);
+                      return lowered ? [lowered] : [];
+                    });
+                    const closed = literalScalarExpression(value.construction.closed);
+                    return closed && paths.length === value.construction.paths.length
+                      ? { kind: "joinedPath" as const, paths, closed }
                       : null;
                   })()
                 : (() => {

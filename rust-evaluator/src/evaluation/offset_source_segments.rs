@@ -97,7 +97,7 @@ pub(crate) fn source_segments_for_geometry(geometry: &Value) -> Vec<SourceSegmen
                 })
             })
             .collect(),
-        Some("offsetLine") => offset_line_source_segments(geometry),
+        Some("offsetLine" | "joinedPath") => offset_line_source_segments(geometry),
         _ => Vec::new(),
     }
 }

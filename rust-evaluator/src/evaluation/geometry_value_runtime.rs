@@ -15,8 +15,12 @@ use super::line_path::{geometry_length, point_at_distance_from_endpoint};
 use super::line_tangent_offset_point_evaluator::tangent_offset_point_geometry_kernel;
 use super::line_transform::LineTransform;
 use super::offset_paths::{build_offset_line_geometry, is_line_like_geometry};
-use super::offset_source_segments::{connect_source_segment_groups, source_segments_for_geometry};
-use super::offset_types::{line_length, SourceSegment, EPSILON};
+use super::offset_source_segments::{
+    connect_source_segment_groups, source_end, source_segments_for_geometry, source_start,
+};
+use super::offset_types::{
+    line_length, offset_line_endpoint_measurements_from_values, SourceSegment, EPSILON,
+};
 use super::point_anchor::point_from_geometry;
 use super::scalar_expression_runtime::evaluate_document_typed_expression;
 use super::scalars::{
@@ -179,6 +183,10 @@ pub(crate) enum GeometryValueConstruction {
         side: Box<TypedScalarExpression>,
         closed: Box<TypedScalarExpression>,
         suppress_trim_warnings: Box<TypedScalarExpression>,
+    },
+    JoinedPath {
+        paths: Vec<super::scalars::ScalarExpressionResolvedGeometryTarget>,
+        closed: Box<TypedScalarExpression>,
     },
     TransformCopy {
         start_point: Box<GeometryValuePoint>,
@@ -1065,6 +1073,18 @@ fn decode_entry(value: &Value) -> Result<GeometryValueProgramEntry, String> {
                     "geometry value offsetPath",
                 )?),
             },
+            "joinedPath" => GeometryValueConstruction::JoinedPath {
+                paths: decode_target_list(
+                    construction_object,
+                    "paths",
+                    "geometry value joinedPath",
+                )?,
+                closed: Box::new(decode_typed_field(
+                    construction_object,
+                    "closed",
+                    "geometry value joinedPath",
+                )?),
+            },
             kind => {
                 return Err(format!(
                     "unsupported geometry value construction kind {kind}"
@@ -1512,6 +1532,160 @@ fn polyline_json(points: &[StructuralPoint], closed: bool) -> Option<Value> {
         "length": structural.length,
         "startTangentAngleDeg": structural.start_tangent_angle_deg,
         "endTangentAngleDeg": structural.end_tangent_angle_deg
+    }))
+}
+
+fn reverse_source_segment(segment: &SourceSegment) -> SourceSegment {
+    match segment {
+        SourceSegment::Line { start, end } => SourceSegment::Line {
+            start: *end,
+            end: *start,
+        },
+        SourceSegment::Bezier {
+            start,
+            control1,
+            control2,
+            end,
+        } => SourceSegment::Bezier {
+            start: *end,
+            control1: *control2,
+            control2: *control1,
+            end: *start,
+        },
+        SourceSegment::Arc {
+            center,
+            radius,
+            start_angle_deg,
+            sweep_angle_deg,
+        } => SourceSegment::Arc {
+            center: *center,
+            radius: *radius,
+            start_angle_deg: *start_angle_deg + *sweep_angle_deg,
+            sweep_angle_deg: -*sweep_angle_deg,
+        },
+    }
+}
+
+fn joined_path_segment_value(segment: &SourceSegment) -> Option<Value> {
+    match segment {
+        SourceSegment::Line { start, end } => Some(json!({
+            "kind": "line",
+            "start": { "x": start.x, "y": start.y },
+            "end": { "x": end.x, "y": end.y },
+            "length": line_length(*start, *end)
+        })),
+        SourceSegment::Bezier {
+            start,
+            control1,
+            control2,
+            end,
+        } => {
+            let base = json!({
+                "kind": "bezier",
+                "start": { "x": start.x, "y": start.y },
+                "control1": { "x": control1.x, "y": control1.y },
+                "control2": { "x": control2.x, "y": control2.y },
+                "end": { "x": end.x, "y": end.y }
+            });
+            Some(json!({
+                "kind": "bezier",
+                "start": base.get("start")?,
+                "control1": base.get("control1")?,
+                "control2": base.get("control2")?,
+                "end": base.get("end")?,
+                "length": approximate_cubic_length(&base, 32)?
+            }))
+        }
+        SourceSegment::Arc {
+            center,
+            radius,
+            start_angle_deg,
+            sweep_angle_deg,
+        } => {
+            let start = source_start(segment);
+            let end = source_end(segment);
+            Some(json!({
+                "kind": "arc",
+                "center": { "x": center.x, "y": center.y },
+                "start": { "x": start.x, "y": start.y },
+                "end": { "x": end.x, "y": end.y },
+                "radius": radius,
+                "startAngleDeg": start_angle_deg,
+                "sweepAngleDeg": sweep_angle_deg,
+                "length": radius * sweep_angle_deg.to_radians().abs()
+            }))
+        }
+    }
+}
+
+fn joined_path_json(geometries: &[Value], closed: bool) -> Result<Value, String> {
+    if geometries.is_empty() {
+        return Err("join geometry value construction requires at least one path.".to_owned());
+    }
+    let mut oriented = Vec::<SourceSegment>::new();
+    for geometry in geometries {
+        if !is_line_like_geometry(Some(geometry)) {
+            return Err(
+                "join geometry value construction inputs are unavailable or invalid.".to_owned(),
+            );
+        }
+        let segments = source_segments_for_geometry(geometry);
+        let Some(first) = segments.first() else {
+            return Err(
+                "join geometry value construction contains an empty or unsupported path."
+                    .to_owned(),
+            );
+        };
+        let Some(last) = segments.last() else {
+            return Err(
+                "join geometry value construction contains a path without endpoints.".to_owned(),
+            );
+        };
+        if let Some(previous_end) = oriented.last().map(source_end) {
+            let authored_start = source_start(first);
+            let authored_end = source_end(last);
+            if line_length(previous_end, authored_start) <= EPSILON {
+                oriented.extend(segments);
+            } else if line_length(previous_end, authored_end) <= EPSILON {
+                oriented.extend(segments.iter().rev().map(reverse_source_segment));
+            } else {
+                return Err("join geometry value construction paths are not continuous in the specified order.".to_owned());
+            }
+        } else {
+            oriented.extend(segments);
+        }
+    }
+    let Some(first_segment) = oriented.first() else {
+        return Err("join geometry value construction produced no segments.".to_owned());
+    };
+    let Some(last_segment) = oriented.last() else {
+        return Err("join geometry value construction produced no segments.".to_owned());
+    };
+    if closed && line_length(source_end(last_segment), source_start(first_segment)) > EPSILON {
+        return Err("join geometry value construction is closed but the final path does not connect to the first path.".to_owned());
+    }
+    let segments = oriented
+        .iter()
+        .map(joined_path_segment_value)
+        .collect::<Option<Vec<_>>>()
+        .ok_or_else(|| {
+            "join geometry value construction produced invalid primitive geometry.".to_owned()
+        })?;
+    let (_, _, start_tangent, end_tangent) =
+        offset_line_endpoint_measurements_from_values(&segments);
+    let length = segments
+        .iter()
+        .filter_map(|segment| segment.get("length").and_then(Value::as_f64))
+        .sum::<f64>();
+    Ok(json!({
+        "kind": "joinedPath",
+        "start": segments.first().and_then(|segment| segment.get("start")).cloned().unwrap_or(Value::Null),
+        "end": segments.last().and_then(|segment| segment.get("end")).cloned().unwrap_or(Value::Null),
+        "segments": segments,
+        "closed": closed,
+        "length": length,
+        "startTangentAngleDeg": start_tangent,
+        "endTangentAngleDeg": end_tangent
     }))
 }
 
@@ -2633,6 +2807,44 @@ fn evaluate_geometry_value_leaf(
                     ),
                 );
                 return;
+            };
+            Some(value)
+        }
+        GeometryValueConstruction::JoinedPath { paths, closed } => {
+            if entry.declared_interface_type != "path" {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "Geometry value construction is incompatible with its declared interface type.",
+                );
+                return;
+            }
+            let Some(closed) = boolean_expression(closed, resolver, state, source_order) else {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "Join geometry value construction inputs are unavailable or invalid.",
+                );
+                return;
+            };
+            let Some(geometries) = paths
+                .iter()
+                .map(|path| target_geometry(path, state).cloned())
+                .collect::<Option<Vec<_>>>()
+            else {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "Join geometry value construction inputs are unavailable or invalid.",
+                );
+                return;
+            };
+            let value = match joined_path_json(&geometries, closed) {
+                Ok(value) => value,
+                Err(error) => {
+                    append_geometry_value_error(state, entry, &error);
+                    return;
+                }
             };
             Some(value)
         }

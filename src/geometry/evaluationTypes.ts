@@ -109,13 +109,25 @@ export type ComputedGeometryValueOffsetLine = {
   endTangentAngleDeg: number | null;
 };
 
+export type ComputedGeometryValueJoinedPath = {
+  kind: "joinedPath";
+  start: { x: number; y: number } | null;
+  end: { x: number; y: number } | null;
+  segments: ComputedGeometryValueOffsetLineSegment[];
+  closed: boolean;
+  length: number;
+  startTangentAngleDeg: number | null;
+  endTangentAngleDeg: number | null;
+};
+
 export type ComputedGeometryValue =
   | ComputedGeometryValuePoint
   | ComputedGeometryValueLine
   | ComputedGeometryValueArcLine
   | ComputedGeometryValueBezierCurve
   | ComputedGeometryValuePolyline
-  | ComputedGeometryValueOffsetLine;
+  | ComputedGeometryValueOffsetLine
+  | ComputedGeometryValueJoinedPath;
 
 export type ComputedGeometryValueEntry = {
   occurrence: GeometryValueOccurrence;
@@ -234,6 +246,20 @@ export type ComputedOffsetLine = {
   endTangentAngleDeg: number | null;
 };
 
+export type ComputedJoinedPath = {
+  kind: "joinedPath";
+  elementId: ElementId;
+  name: string;
+  pathIds: ElementId[];
+  start: ComputedPoint | null;
+  end: ComputedPoint | null;
+  segments: ComputedOffsetLineSegment[];
+  closed: boolean;
+  length: number;
+  startTangentAngleDeg: number | null;
+  endTangentAngleDeg: number | null;
+};
+
 export type ComputedPolylineSegment = {
   kind: "line";
   start: ComputedPoint;
@@ -286,6 +312,7 @@ export type ComputedGeometry =
   | ComputedArcLine
   | ComputedBezierCurve
   | ComputedOffsetLine
+  | ComputedJoinedPath
   | ComputedPolyline
   | ComputedImage
   | ComputedText;

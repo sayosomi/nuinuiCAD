@@ -276,13 +276,14 @@ public geometry-property paths.
 | arc | line/path properties plus radius, sweepAngleDeg, startRadiusAngleDeg, endRadiusAngleDeg, centerPoint.x, centerPoint.y |
 | Bezier | line/path properties plus startHandleAngleDeg, startHandleLength, endHandleAngleDeg, endHandleLength, and, for each statically proven authored intermediate point n, intermediatePoints[n].x, intermediatePoints[n].y, intermediatePoints[n].incomingHandleAngleDeg, intermediatePoints[n].incomingHandleLength, intermediatePoints[n].outgoingHandleAngleDeg, intermediatePoints[n].outgoingHandleLength |
 | polyline | line/path properties |
+| joined path | line/path properties |
 | image | originPoint.x, originPoint.y, widthMm, heightMm, scale, angleDeg, naturalWidthPx, naturalHeightPx, sourceDpi, targetPixelsPerMm |
 | text | anchorPoint.x, anchorPoint.y, fontSize |
 
 segment, polar, and commonTangent produce the line surface. arc, through, and
 corner produce the arc surface. bezier produces the Bezier surface; offset,
-transformCopy, and mirrorCopy produce the generic path surface. polyline
-produces the polyline surface. A split preserves a concrete arc or Bezier
+join, transformCopy, and mirrorCopy produce the generic path surface. polyline
+produces the polyline surface, and join produces the joined path surface. A split preserves a concrete arc or Bezier
 surface only when its source target is statically proven; otherwise it exposes
 the common path surface. Module point parameters expose x/y, while Module line
 and path parameters and exports expose only the common path surface.
@@ -1172,7 +1173,23 @@ construction and accepts the drawable `points` and `closed` arguments. It
 stores ordered identity-free line segments, preserves duplicate points, adds a
 closing segment only when needed, and requires at least two open points or
 three closed points. Unavailable points and invalid cardinality fail through
-the occurrence-owned geometry-value diagnostic channel. Point
+the occurrence-owned geometry-value diagnostic channel. `join(paths: ..., closed: ...)`
+is an implemented path construction for both drawable `line` declarations and
+immutable `path` values. Its required `paths` argument has type `path[]`; the
+existing directional covariance also accepts `line[]`. The list is evaluated
+in authored order and preserves duplicates. A later path is accepted when its
+authored start meets the current chain end, or its computed view is reversed
+when its authored end meets the chain end. No route search, reordering,
+snapping, connector, trimming, simplification, or deduplication occurs. Open
+joins validate adjacent connections; `closed: true` additionally validates
+the last-to-first connection and never synthesizes a closing segment. Empty
+lists, discontinuities, unavailable dependencies, and invalid sources fail
+with an actionable evaluation error. The result retains each source's exact
+primitive order and geometry, including nested joined paths and degenerate
+primitives, and exposes the common path length, endpoints, and first/last
+usable tangents. For a drawable declaration the persisted element type is
+`joinedPath` with `pathIds` and `closed`; for an immutable value the result has
+no drawable identity and runtime failures belong to its value occurrence. Point
 `between(start: ..., end: ..., distance: ...)` and
 `between(start: ..., end: ..., ratio: ...)` are implemented pure `point`
 initializers. Exactly one of `distance` and `ratio` is required: distance is

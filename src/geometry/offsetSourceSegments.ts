@@ -36,7 +36,7 @@ export const sourceSegmentsForGeometry = (geometry: ComputedGeometry | ComputedG
       end: segment.end
     }));
   }
-  if (geometry.kind === "offsetLine") {
+  if (geometry.kind === "offsetLine" || geometry.kind === "joinedPath") {
     return geometry.segments.map((segment) =>
       segment.kind === "line"
         ? { kind: "line", start: segment.start, end: segment.end }

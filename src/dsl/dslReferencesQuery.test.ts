@@ -147,6 +147,24 @@ describe("queryDslReferences", () => {
     expect(slices(source, declaration!.referenceRanges)).toEqual(["P", "P"]);
   });
 
+  it("indexes a named broad-path array consumed by Join", () => {
+    const source = [
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line First = segment(start: @A, end: @B)",
+      "const parts: path[] = [@First]",
+      "line Joined = join(paths: @parts, closed: false)"
+    ].join("\n");
+    const declaration = queryAt(source, "parts");
+    const reference = queryAt(source, "@parts");
+
+    expect(declaration).not.toBeNull();
+    expect(reference).toEqual(declaration);
+    expect(slices(source, declaration!.declarationRange)).toEqual(["parts"]);
+    expect(slices(source, declaration!.referenceRanges)).toEqual(["parts"]);
+  });
+
   it("indexes root geometry value-if scalar and branch references", () => {
     const source = [
       "nui 1",

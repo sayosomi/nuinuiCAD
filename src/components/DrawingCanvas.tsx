@@ -423,6 +423,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     arcs,
     curves,
     offsetLines,
+    joinedPaths,
     polylines,
     points,
     visibleElementIds,
@@ -432,6 +433,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     overlayArcs,
     overlayCurves,
     overlayOffsetLines,
+    overlayJoinedPaths,
     overlayPolylines,
     overlayImages,
     overlayTexts,
@@ -506,6 +508,12 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     ),
     [overlayOffsetLines, previewElementIds, selectionEligibleElementIds]
   );
+  const interactiveOverlayJoinedPaths = useMemo(
+    () => overlayJoinedPaths.filter(({ line }) =>
+      !previewElementIds.has(line.elementId) && selectionEligibleElementIds.has(line.elementId)
+    ),
+    [overlayJoinedPaths, previewElementIds, selectionEligibleElementIds]
+  );
   const interactiveOverlayPolylines = useMemo(
     () => overlayPolylines.filter(({ polyline }) =>
       !previewElementIds.has(polyline.elementId) && selectionEligibleElementIds.has(polyline.elementId)
@@ -537,6 +545,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       arcs: interactiveOverlayArcs,
       curves: interactiveOverlayCurves,
       offsetLines: interactiveOverlayOffsetLines,
+      joinedPaths: interactiveOverlayJoinedPaths,
       polylines: interactiveOverlayPolylines,
       images: interactiveOverlayImages,
       texts: interactiveOverlayTexts,
@@ -547,6 +556,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     hostAdapter,
     interactiveOverlayArcs,
     interactiveOverlayCurves,
+    interactiveOverlayJoinedPaths,
     interactiveOverlayImages,
     interactiveOverlayLines,
     interactiveOverlayOffsetLines,
@@ -587,6 +597,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     arcs: interactiveOverlayArcs,
     curves: interactiveOverlayCurves,
     offsetLines: interactiveOverlayOffsetLines,
+    joinedPaths: interactiveOverlayJoinedPaths,
     polylines: interactiveOverlayPolylines,
     images: interactiveOverlayImages,
     texts: interactiveOverlayTexts,
@@ -597,6 +608,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     interactiveOverlayImages,
     interactiveOverlayLines,
     interactiveOverlayOffsetLines,
+    interactiveOverlayJoinedPaths,
     interactiveOverlayPolylines,
     interactiveOverlayPoints,
     interactiveOverlayTexts
@@ -679,6 +691,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
           arcs,
           curves,
           offsetLines,
+          joinedPaths,
           polylines,
           images: overlayImages,
           points,
@@ -713,6 +726,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     evaluationState,
     imageRenderVersion,
     offsetLines,
+    joinedPaths,
     polylines,
     overlayImages,
     lines,
@@ -2146,6 +2160,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
           overlayArcs={overlayArcs}
           overlayCurves={overlayCurves}
           overlayOffsetLines={overlayOffsetLines}
+          overlayJoinedPaths={overlayJoinedPaths}
           rectangleSelection={rectangleSelectionSession?.activated ? {
             rectangle: screenSelectionRectangleBetween(
               rectangleSelectionSession.start,

@@ -139,6 +139,18 @@ describe("Source creation template materializer", () => {
     expect(render(materialization.parts)).not.toMatch(/(?:side|closed|suppressTrimWarnings):/u);
   });
 
+  it("materializes addJoinedPath with an editable paths hole and canonical closed default", () => {
+    const materialization = materializeFor("addJoinedPath");
+
+    expect(render(materialization.parts)).toBe([
+      "line <name> = join(",
+      "  paths: <paths>,",
+      "  closed: false",
+      ")"
+    ].join("\n"));
+    expect(argumentHolesFor(materialization).map(({ argName }) => argName)).toEqual(["paths"]);
+  });
+
   it("uses mutation syntax for addMove without a name hole", () => {
     const plan = planFor("addMove");
     const materialization = materializeFor("addMove");

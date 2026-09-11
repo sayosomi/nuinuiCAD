@@ -5,7 +5,6 @@ import type {
   ComputedBezierSegment,
   ComputedGeometry,
   ComputedLine,
-  ComputedOffsetLine,
   ComputedOffsetLineSegment,
   ComputedPoint,
   ComputedPolyline,
@@ -15,7 +14,7 @@ import { anchorReferenceElementId } from "../model/pointAnchors";
 import { approximateBezierSegmentLength, degreesToRadians, normalizeDegrees, radiansToDegrees } from "./evaluateGeometryPrimitives";
 import { dependencyError, geometryError, getPointAnchorOrError } from "./evaluationContext";
 import type { ElementEvaluationContext } from "./elementEvaluatorTypes";
-import { isLineLikeGeometry } from "./linePaths";
+import { isLineLikeGeometry, type LineLikeGeometry } from "./linePaths";
 import { arcTangentAngles, lineTangentAngles, offsetLineEndpointMeasurements } from "./lineMeasurements";
 import { cubicPointAt, distance, interpolate, refineBezierProjection, splitBezierLike, type Point } from "./bezierMath";
 import { projectPointOntoOffsetSegment } from "./offsetSegmentProjection";
@@ -376,7 +375,7 @@ export const splitOffsetSegment = (segment: ComputedOffsetLineSegment, t: number
 };
 
 const splitOffsetLineGeometry = (
-  line: ComputedOffsetLine,
+  line: Extract<LineLikeGeometry, { kind: "offsetLine" | "joinedPath" }>,
   splitPoint: ComputedPoint,
   splitLineId: ElementId,
   splitLineName: string
@@ -507,7 +506,7 @@ const splitGeometry = (
   if (geometry.kind === "line") return splitLineGeometry(geometry, splitPoint, splitLineId, splitLineName, splitPointId);
   if (geometry.kind === "arcLine") return splitArcGeometry(geometry, splitPoint, splitLineId, splitLineName);
   if (geometry.kind === "bezierCurve") return splitBezierCurveGeometry(geometry, splitPoint, splitLineId, splitLineName, splitPointId);
-  if (geometry.kind === "offsetLine") return splitOffsetLineGeometry(geometry, splitPoint, splitLineId, splitLineName);
+  if (geometry.kind === "offsetLine" || geometry.kind === "joinedPath") return splitOffsetLineGeometry(geometry, splitPoint, splitLineId, splitLineName);
   if (geometry.kind === "polyline") return splitPolylineGeometry(geometry, splitPoint, splitLineId, splitLineName);
   return null;
 };

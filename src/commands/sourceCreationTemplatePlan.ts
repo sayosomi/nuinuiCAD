@@ -12,6 +12,8 @@ import {
   creationRecipeForLegacyCommand,
   legacyCreationCommandRecipeMap
 } from "./legacyCreationRecipes";
+import { createCadElement } from "../model/elementFactory";
+import { getParameterValue } from "../parameters/parameterAccess";
 
 export type SourceCreationTemplateCommandId = keyof typeof legacyCreationCommandRecipeMap;
 
@@ -26,6 +28,15 @@ export type SourceCreationTemplateArgumentHole = {
   label: string;
 };
 
+export type SourceCreationTemplateLiteralArgument = {
+  /** The argument spelling used by the nui declaration. */
+  argName: string;
+  /** The existing creation-recipe parameter represented by the literal. */
+  parameterKey: ParameterKey;
+  /** The canonical DSL literal text emitted by the materializer. */
+  value: string;
+};
+
 export type SourceCreationTemplateExclusiveChoice = {
   /** The registry-owned set of mutually-exclusive argument spellings. */
   group: readonly string[];
@@ -38,6 +49,8 @@ export type SourceCreationTemplateExclusiveChoice = {
 export type SourceCreationTemplateForm = {
   /** Ordered holes for this declaration form. */
   argumentHoles: readonly SourceCreationTemplateArgumentHole[];
+  /** Canonical literal arguments emitted without editable holes. */
+  literalArguments?: readonly SourceCreationTemplateLiteralArgument[];
   /** Explicit selections made for the registry-owned exclusive groups. */
   exclusiveChoices: readonly SourceCreationTemplateExclusiveChoice[];
 };
@@ -83,6 +96,27 @@ const argumentHoleFor = (
     kind: definition.kind,
     label: definition.label
   };
+};
+
+const literalArgumentsFor = (
+  type: CadElementType,
+  spec: DslConstructionSpec,
+  argumentHoles: readonly SourceCreationTemplateArgumentHole[]
+): SourceCreationTemplateLiteralArgument[] => {
+  const holeNames = new Set(argumentHoles.map((hole) => hole.argName));
+  if (type !== "joinedPath") return [];
+
+  return spec.args.flatMap((argSpec) => {
+    if (argSpec.arg !== "closed" || holeNames.has(argSpec.arg)) return [];
+    const parameterKey = parameterKeyForArg(type, argSpec.arg);
+    const definition = creationParameterDefinitionFor(type, parameterKey);
+    if (definition.kind !== "boolean") return [];
+    const defaultElement = createCadElement(type, [], { createId: () => `${type}-source-template-default` });
+    const defaultValue = getParameterValue(defaultElement, parameterKey);
+    return typeof defaultValue === "boolean"
+      ? [{ argName: argSpec.arg, parameterKey, value: String(defaultValue) }]
+      : [];
+  });
 };
 
 const recipeParameterKeysFor = (
@@ -175,7 +209,12 @@ const formFor = (
     if (argumentHoles.filter((hole) => group.group.includes(hole.argName)).length !== 1) return null;
   }
 
-  return { argumentHoles, exclusiveChoices: [...selection] };
+  const literalArguments = literalArgumentsFor(type, spec, argumentHoles);
+  return {
+    argumentHoles,
+    ...(literalArguments.length > 0 ? { literalArguments } : {}),
+    exclusiveChoices: [...selection]
+  };
 };
 
 const formsFor = (

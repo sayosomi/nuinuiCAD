@@ -106,7 +106,7 @@ pub(crate) fn resolve_derived_point(
                 None
             }
         }
-        "offsetLine" => {
+        "offsetLine" | "joinedPath" => {
             if point_key == "start" {
                 source.get("start").and_then(point_from_value)
             } else if point_key == "end" {

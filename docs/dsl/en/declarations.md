@@ -74,6 +74,14 @@ both reuse the corresponding drawable offset geometry and preserve the same
 defaults and validation. Runtime failures remain owned by the value occurrence
 and do not create a drawable identity. `corner` and other deferred
 constructions remain unsupported as pure value initializers.
+`join(paths: ..., closed: ...)` is also an implemented pure `path` initializer.
+Its `paths` argument is `path[]` (with the existing `line[]` to `path[]`
+covariance), and it preserves authored order, duplicates, exact source
+primitives, and degenerate segments. Each adjacent source must meet the
+current chain end; only the computed view is reversed when the authored end
+matches. `closed: true` validates the final-to-first connection without adding
+a segment. The same construction creates a drawable `joinedPath` element in a
+`line` declaration, with actionable errors for empty lists and discontinuity.
 
 Point `polar(...)` is an identity-free pure point initializer with the same
 degree-angle and `distance` semantics and defaults (`angle: 0`, `distance: 0`)

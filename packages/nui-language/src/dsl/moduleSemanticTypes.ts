@@ -594,6 +594,12 @@ export type ModuleGeometryConstructionSemantic =
       suppressTrimWarnings: ModuleScalarExpressionSemantic | null;
     }
   | {
+      kind: "joinedPath";
+      span: DslSpan;
+      paths: readonly ModuleGeometryReferenceSemantic[];
+      closed: ModuleScalarExpressionSemantic | null;
+    }
+  | {
       kind: "transformCopy";
       span: DslSpan;
       startPoint: ModuleGeometryReferenceSemantic;

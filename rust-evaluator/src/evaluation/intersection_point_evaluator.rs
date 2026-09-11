@@ -11,7 +11,7 @@ use super::types::{element_id, element_name, insert_geometry, EvaluationState};
 fn is_supported_line_geometry(geometry: &Value) -> bool {
     matches!(
         geometry.get("kind").and_then(Value::as_str),
-        Some("line" | "arcLine" | "bezierCurve" | "offsetLine" | "polyline")
+        Some("line" | "arcLine" | "bezierCurve" | "offsetLine" | "joinedPath" | "polyline")
     )
 }
 

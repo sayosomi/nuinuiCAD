@@ -10,6 +10,7 @@ import type {
   CadElement,
   ComputedBezierCurve,
   ComputedGeometry,
+  ComputedJoinedPath,
   ComputedOffsetLine,
   ComputedPolyline,
   ComputedPoint,
@@ -96,6 +97,14 @@ export type OutputOffsetLine = {
   stroke: OutputStroke;
 };
 
+export type OutputJoinedPath = {
+  kind: "joinedPath";
+  elementId: ElementId;
+  name: string;
+  segments: OutputPathSegment[];
+  stroke: OutputStroke;
+};
+
 export type OutputPolyline = {
   kind: "polyline";
   elementId: ElementId;
@@ -121,7 +130,7 @@ export type OutputText = {
   colorHex: string;
 };
 
-export type OutputDrawable = OutputPath | OutputOffsetLine | OutputPolyline | OutputText;
+export type OutputDrawable = OutputPath | OutputOffsetLine | OutputJoinedPath | OutputPolyline | OutputText;
 
 export type OutputJoiningLabel = {
   text: string;
@@ -358,7 +367,7 @@ const bezierSegments = (geometry: ComputedBezierCurve): OutputPathSegment[] => g
   end: pointOf(segment.end)
 }));
 
-const offsetSegments = (geometry: ComputedOffsetLine): OutputPathSegment[] => geometry.segments.map((segment): OutputPathSegment => {
+const offsetSegments = (geometry: Pick<ComputedOffsetLine | ComputedJoinedPath, "segments">): OutputPathSegment[] => geometry.segments.map((segment): OutputPathSegment => {
   if (segment.kind === "line") return { kind: "line", start: pointOf(segment.start), end: pointOf(segment.end) };
   if (segment.kind === "bezier") {
     return {
@@ -514,7 +523,7 @@ const segmentBounds = (segment: OutputPathSegment): OutputBounds => {
 
 const drawableBounds = (drawable: OutputDrawable): OutputBounds => {
   if (drawable.kind === "text") return textBounds(drawable);
-  const paths = drawable.kind === "offsetLine" || drawable.kind === "polyline" ? drawable.segments : [drawable];
+  const paths = drawable.kind === "offsetLine" || drawable.kind === "joinedPath" || drawable.kind === "polyline" ? drawable.segments : [drawable];
   let bounds = emptyBounds();
   for (const path of paths) bounds = mergeBounds(bounds, segmentBounds(path));
   return expandBounds(bounds, drawable.stroke.widthMm / 2);
@@ -542,6 +551,10 @@ const outputGeometryFor = (
   if (geometry.kind === "offsetLine") {
     const segments = offsetSegments(geometry).map((segment) => transformSegment(segment, transform.origin, transform.at, transform.scale, transform.angleDeg, transform.mirror));
     return segments.length ? [{ kind: "offsetLine", elementId, name, segments, stroke: finalStroke }] : [];
+  }
+  if (geometry.kind === "joinedPath") {
+    const segments = offsetSegments(geometry).map((segment) => transformSegment(segment, transform.origin, transform.at, transform.scale, transform.angleDeg, transform.mirror));
+    return segments.length ? [{ kind: "joinedPath", elementId, name, segments, stroke: finalStroke }] : [];
   }
   if (geometry.kind === "polyline") {
     const segments = polylineSegments(geometry).map((segment) => transformSegment(segment, transform.origin, transform.at, transform.scale, transform.angleDeg, transform.mirror));
@@ -692,7 +705,7 @@ const resolvedPlacement = (
     const sourceId = templateByGeneratedId.get(geometry.elementId) ?? geometry.elementId;
     if (!targetIds.has(sourceId)) continue;
     if (!evaluation.effectiveVisibleElementIds?.has(geometry.elementId)) continue;
-    if (geometry.kind !== "line" && geometry.kind !== "arcLine" && geometry.kind !== "bezierCurve" && geometry.kind !== "offsetLine" && geometry.kind !== "polyline" && geometry.kind !== "text") continue;
+    if (geometry.kind !== "line" && geometry.kind !== "arcLine" && geometry.kind !== "bezierCurve" && geometry.kind !== "offsetLine" && geometry.kind !== "joinedPath" && geometry.kind !== "polyline" && geometry.kind !== "text") continue;
     const sourceElement = sourceElementsById.get(sourceId);
     const name = sourceElement?.name ?? geometry.name;
     drawables.push(...outputGeometryFor(geometry, geometry.elementId, name, strokeFor(geometry.elementId, evaluation), { origin, at, scale, angleDeg, mirror: placement.mirror }));
