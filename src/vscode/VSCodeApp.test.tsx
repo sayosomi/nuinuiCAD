@@ -261,6 +261,41 @@ describe("VSCodeApp Canvas history coordinator", () => {
     expect(drawingCanvasProps.multiDocumentRuntimePresentation?.rootSourceRevision).toBe(37);
   });
 
+  it("transfers the selected root runtime identity with its current Source range", async () => {
+    const source = "nui 1\npoint Root = coordinate(x: 20, y: 10)";
+    const api = { postMessage: vi.fn() };
+    render(<VSCodeAppForTest api={api} />);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText: source, documentVersion: 7 }
+      }));
+    });
+
+    publishAllCurrentElementsAsPresented();
+    const root = useCadDocumentStore.getState().elements.find((element) => element.name === "Root");
+    expect(root).toBeDefined();
+    if (!root) return;
+    useCadUiStore.getState().setSelectedElementId(root.id);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "canvasSourceDefinitionRequest", requestId: 9043 }
+      }));
+    });
+
+    expect(api.postMessage).toHaveBeenCalledWith({
+      type: "canvasSourceDefinitionResult",
+      requestId: 9043,
+      documentVersion: 7,
+      runtimeElementId: root.id,
+      range: {
+        from: source.indexOf("Root"),
+        to: source.indexOf("Root") + "Root".length
+      }
+    });
+  });
+
   it("reveals a genuine imported caller from graph runtime authority without local compiled-document currentness", async () => {
     const fixture = await buildImportedRevealFreshnessFixture();
     const api = { postMessage: vi.fn() };
