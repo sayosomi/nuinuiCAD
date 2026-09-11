@@ -5,7 +5,9 @@ use super::super::scalar_expression_runtime::{
     lookup_geometry_collection_length, lookup_geometry_property, lookup_geometry_value_property,
 };
 use super::bindings::ScalarDocumentBindingResolver;
-use super::bindings::{result_for_declared_type, scalar_evaluation_json};
+use super::bindings::{
+    result_for_declared_type, scalar_evaluation_json, ScalarRecordMapBinderContext,
+};
 use super::expression_evaluator::{evaluate_typed_expression, ScalarEvaluationEnvironment};
 use super::geometry_builtin_runtime::resolve_geometry_builtin_target;
 use super::mutation_payload::{
@@ -323,6 +325,7 @@ impl<'a> ScalarMutationResolver<'a> {
             local_binding_id: None,
             local_binding: None,
             local_bindings: None,
+            record_map_context: None,
         };
         result_for_declared_type(
             evaluate_typed_expression(expression, &environment),
@@ -407,37 +410,101 @@ impl<'a> ScalarMutationResolver<'a> {
                         context: None,
                     };
                 };
-                let mut local_bindings = HashMap::with_capacity(binder_fields.len());
-                for binder_field in binder_fields {
-                    let value = self.resolve_record_field(
-                        source_value_id,
-                        index,
-                        &ValidatedScalarProgramRecordFieldIdentity {
-                            record_statement_id: binder_field.record_statement_id.clone(),
-                            field_index: binder_field.field_index,
-                            r#type: binder_field.r#type.clone(),
-                        },
-                        state,
-                        &mut seen.clone(),
-                    );
-                    if matches!(&value, ScalarEvaluation::Error { .. }) {
-                        return value;
-                    }
-                    local_bindings.insert(binder_field.binding_id.clone(), value);
-                }
+                let record_map_context =
+                    ScalarRecordMapBinderContext::new(source_value_id, index, binder_fields, seen);
                 let environment = MutationEnvironment {
                     resolver: self,
                     state,
                     source_order: *source_order as f64,
                     local_binding_id: None,
                     local_binding: None,
-                    local_bindings: Some(&local_bindings),
+                    local_bindings: None,
+                    record_map_context: Some(&record_map_context),
                 };
                 result_for_declared_type(
                     evaluate_typed_expression(&mapped_field.body, &environment),
                     &mapped_field.r#type,
                     collection_value_id,
                 )
+            }
+            ValidatedScalarProgramCollectionValue::If {
+                condition,
+                then_value_id,
+                else_value_id,
+                source_order,
+            } => {
+                let environment = MutationEnvironment {
+                    resolver: self,
+                    state,
+                    source_order: *source_order,
+                    local_binding_id: None,
+                    local_binding: None,
+                    local_bindings: None,
+                    record_map_context: None,
+                };
+                let selected = match evaluate_typed_expression(condition, &environment) {
+                    ScalarEvaluation::Ok {
+                        value: ScalarValue::Boolean(true),
+                        ..
+                    } => then_value_id,
+                    ScalarEvaluation::Ok {
+                        value: ScalarValue::Boolean(false),
+                        ..
+                    } => else_value_id,
+                    ScalarEvaluation::Error { issue_code, .. } => {
+                        return ScalarEvaluation::Error {
+                            r#type: field.r#type.clone(),
+                            issue_code,
+                            binding_id: None,
+                            context: None,
+                        };
+                    }
+                    _ => {
+                        return ScalarEvaluation::Error {
+                            r#type: field.r#type.clone(),
+                            issue_code: RUNTIME_VALUE_TYPE_MISMATCH.to_owned(),
+                            binding_id: None,
+                            context: None,
+                        };
+                    }
+                };
+                self.resolve_record_field(selected, index, field, state, seen)
+            }
+            ValidatedScalarProgramCollectionValue::Match {
+                scrutinee,
+                arms,
+                source_order,
+            } => {
+                let environment = MutationEnvironment {
+                    resolver: self,
+                    state,
+                    source_order: *source_order,
+                    local_binding_id: None,
+                    local_binding: None,
+                    local_bindings: None,
+                    record_map_context: None,
+                };
+                let ScalarEvaluation::Ok {
+                    value: ScalarValue::Choice { value, .. },
+                    ..
+                } = evaluate_typed_expression(scrutinee, &environment)
+                else {
+                    return ScalarEvaluation::Error {
+                        r#type: field.r#type.clone(),
+                        issue_code: RUNTIME_VALUE_TYPE_MISMATCH.to_owned(),
+                        binding_id: None,
+                        context: None,
+                    };
+                };
+                let Some((_, selected)) = arms.iter().find(|(label, _)| label == &value) else {
+                    return ScalarEvaluation::Error {
+                        r#type: field.r#type.clone(),
+                        issue_code: RUNTIME_VALUE_TYPE_MISMATCH.to_owned(),
+                        binding_id: None,
+                        context: None,
+                    };
+                };
+                self.resolve_record_field(selected, index, field, state, seen)
             }
             ValidatedScalarProgramCollectionValue::Literal(members) => {
                 let Some(ValidatedScalarProgramCollectionMember::Record { fields }) =
@@ -552,6 +619,7 @@ impl<'a> ScalarMutationResolver<'a> {
                         local_binding_id: Some(binder_id.as_str()),
                         local_binding: Some(&source),
                         local_bindings: None,
+                        record_map_context: None,
                     };
                     let mapped = evaluate_typed_expression(body, &environment);
                     return match mapped {
@@ -604,6 +672,7 @@ impl<'a> ScalarMutationResolver<'a> {
                         local_binding_id: None,
                         local_binding: None,
                         local_bindings: None,
+                        record_map_context: None,
                     };
                     let condition = evaluate_typed_expression(condition, &environment);
                     let selected = match condition {
@@ -655,6 +724,7 @@ impl<'a> ScalarMutationResolver<'a> {
                         local_binding_id: None,
                         local_binding: None,
                         local_bindings: None,
+                        record_map_context: None,
                     };
                     let scrutinee = evaluate_typed_expression(scrutinee, &environment);
                     let value = match scrutinee {
@@ -799,6 +869,7 @@ impl<'a> ScalarMutationResolver<'a> {
                     local_binding_id: None,
                     local_binding: None,
                     local_bindings: None,
+                    record_map_context: None,
                 };
                 match evaluate_typed_expression(condition, &environment) {
                     ScalarEvaluation::Ok {
@@ -828,6 +899,7 @@ impl<'a> ScalarMutationResolver<'a> {
                     local_binding_id: None,
                     local_binding: None,
                     local_bindings: None,
+                    record_map_context: None,
                 };
                 let ScalarEvaluation::Ok {
                     r#type: ScalarType::Choice { .. },
@@ -854,9 +926,31 @@ struct MutationEnvironment<'a, 'b, 'c> {
     local_binding_id: Option<&'c str>,
     local_binding: Option<&'c ScalarEvaluation>,
     local_bindings: Option<&'c HashMap<BindingId, ScalarEvaluation>>,
+    record_map_context: Option<&'c ScalarRecordMapBinderContext>,
 }
 impl ScalarEvaluationEnvironment for MutationEnvironment<'_, '_, '_> {
     fn lookup_binding(&self, binding_id: &str) -> ScalarEvaluation {
+        if let Some(context) = self.record_map_context {
+            if let Some(binder_field) = context
+                .binder_fields
+                .iter()
+                .find(|field| field.binding_id == binding_id)
+            {
+                let field = ValidatedScalarProgramRecordFieldIdentity {
+                    record_statement_id: binder_field.record_statement_id.clone(),
+                    field_index: binder_field.field_index,
+                    r#type: binder_field.r#type.clone(),
+                };
+                let mut seen = context.seen.clone();
+                return self.resolver.resolve_record_field(
+                    &context.source_value_id,
+                    context.index,
+                    &field,
+                    self.state,
+                    &mut seen,
+                );
+            }
+        }
         if let Some(local_bindings) = self.local_bindings {
             if let Some(value) = local_bindings.get(binding_id) {
                 return value.clone();

@@ -2035,6 +2035,46 @@ describe("module scalar runtime integration", () => {
     expect(valueFor("selectedLabel")).toMatchObject({ status: "ok", value: { kind: "string", value: "second" } });
   });
 
+  it("does not evaluate an unrequested failing mapped record field", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "record Pair(x: number, label: string)",
+      'const source: Pair = Pair(x: 2, label: "source")',
+      'const labels: string[] = ["valid"]',
+      "const pairs: Pair[] = [@source]",
+      "const mapped: Pair[] = for item in @pairs { Pair(x: @item.x + 10, label: @labels[99]) }",
+      "const selected: Pair = @mapped[0]",
+      "const selectedX: number = @selected.x"
+    ].join("\n"), "value-for-record-lazy-output-field");
+    expectValid(compiled);
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(result.computedScalarBindings?.get(
+      compiled.bindingAnalysis!.catalog.bindings.find((binding) => binding.kind === "typed" && binding.name === "selectedX")!.id
+    )).toMatchObject({ status: "ok", value: { kind: "number", value: 12 } });
+  });
+
+  it("does not evaluate an unused failing source record binder field", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "record Pair(x: number, label: string)",
+      'const labels: string[] = ["valid"]',
+      "const source: Pair = Pair(x: 7, label: @labels[99])",
+      "const pairs: Pair[] = [@source]",
+      "let offset: number = 0",
+      "set offset = 1",
+      'const mapped: Pair[] = for item in @pairs { Pair(x: @item.x + @offset, label: "mapped") }',
+      "const selected: Pair = @mapped[0]",
+      "const selectedX: number = @selected.x"
+    ].join("\n"), "value-for-record-lazy-source-field");
+    expectValid(compiled);
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(result.computedScalarBindings?.get(
+      compiled.bindingAnalysis!.catalog.bindings.find((binding) => binding.kind === "typed" && binding.name === "selectedX")!.id
+    )).toMatchObject({ status: "ok", value: { kind: "number", value: 8 } });
+  });
+
   it("evaluates nominal-record value-for maps independently for Module instances", () => {
     const compiled = compileWithIds([
       "nui 1",

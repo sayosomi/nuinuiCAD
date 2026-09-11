@@ -1035,6 +1035,52 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("matches lazy unrequested mapped record field failures across TypeScript and Rust", () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "record Pair(x: number, label: string)",
+      'const source: Pair = Pair(x: 2, label: "source")',
+      'const labels: string[] = ["valid"]',
+      "const pairs: Pair[] = [@source]",
+      "const mapped: Pair[] = for item in @pairs { Pair(x: @item.x + 10, label: @labels[99]) }",
+      "const selected: Pair = @mapped[0]",
+      "const selectedX: number = @selected.x"
+    ].join("\n"));
+    const options = optionsFor(fixture);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustOptions(repoRoot, fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+    for (const payload of [tsPayload, rustPayload]) {
+      expect(evaluationPayloadToResult(payload).errors).toEqual([]);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "selectedX"), 12);
+    }
+  }, 30000);
+
+  it("matches lazy unused source record binder field failures across TypeScript and Rust", () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "record Pair(x: number, label: string)",
+      'const labels: string[] = ["valid"]',
+      "const source: Pair = Pair(x: 7, label: @labels[99])",
+      "const pairs: Pair[] = [@source]",
+      "let offset: number = 0",
+      "set offset = 1",
+      'const mapped: Pair[] = for item in @pairs { Pair(x: @item.x + @offset, label: "mapped") }',
+      "const selected: Pair = @mapped[0]",
+      "const selectedX: number = @selected.x"
+    ].join("\n"));
+    const options = optionsFor(fixture);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustOptions(repoRoot, fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+    for (const payload of [tsPayload, rustPayload]) {
+      expect(evaluationPayloadToResult(payload).errors).toEqual([]);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "selectedX"), 8);
+    }
+  }, 30000);
+
   it("matches collection selector source-order capabilities across TypeScript and Rust", () => {
     const fixture = fixtureFromSource([
       "nui 1",
