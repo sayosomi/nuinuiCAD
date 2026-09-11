@@ -1,11 +1,9 @@
 import type { ComputedGeometry, ComputedGeometryValue, ComputedGeometryValueJoinedPath, ComputedGeometryValueOffsetLineSegment } from "./evaluationTypes";
 import { approximateBezierSegmentLength } from "./evaluateGeometryPrimitives";
 import { offsetLineEndpointMeasurements } from "./lineMeasurements";
-import { lineLength } from "./offsetPathMath";
+import { EPSILON, lineLength } from "./offsetPathMath";
 import { sourceEnd, sourceSegmentsForGeometry, sourceStart } from "./offsetSourceSegments";
 import type { Point, SourceSegment } from "./offsetPathTypes";
-
-const EPSILON = 1e-9;
 
 const plainPoint = (point: Point): Point => ({ x: point.x, y: point.y });
 

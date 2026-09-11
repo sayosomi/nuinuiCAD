@@ -7,9 +7,10 @@ import type {
 } from "../types/geometry";
 import { dependencyError, geometryError } from "./evaluationContext";
 import type { ElementEvaluationContext } from "./elementEvaluatorTypes";
-import { CIRCLE_EPSILON, approximateBezierSegmentLength } from "./evaluateGeometryPrimitives";
+import { approximateBezierSegmentLength } from "./evaluateGeometryPrimitives";
 import { offsetLineEndpointMeasurements } from "./lineMeasurements";
 import { isLineLikeGeometry, type LineLikeGeometry } from "./linePaths";
+import { EPSILON } from "./offsetPathMath";
 import { reverseLineLikeGeometry } from "./reversePathGeometry";
 
 const endpointDistance = (a: { x: number; y: number }, b: { x: number; y: number }) =>
@@ -83,9 +84,9 @@ export const evaluateJoinedPathElement = (element: CadElement, context: ElementE
     }
     const currentEnd = endpointsForGeometry(orientedSources.at(-1)!)?.end;
     if (!currentEnd) return true;
-    if (endpointDistance(endpoints.start, currentEnd) <= CIRCLE_EPSILON) {
+    if (endpointDistance(endpoints.start, currentEnd) <= EPSILON) {
       orientedSources.push(source);
-    } else if (endpointDistance(endpoints.end, currentEnd) <= CIRCLE_EPSILON) {
+    } else if (endpointDistance(endpoints.end, currentEnd) <= EPSILON) {
       orientedSources.push(reverseLineLikeGeometry(source));
     } else {
       const sourceElement = elementsById.get(pathId);
@@ -101,7 +102,7 @@ export const evaluateJoinedPathElement = (element: CadElement, context: ElementE
   const last = orientedSources.at(-1)!;
   const firstEndpoints = endpointsForGeometry(first)!;
   const lastEndpoints = endpointsForGeometry(last)!;
-  if (element.closed && endpointDistance(lastEndpoints.end, firstEndpoints.start) > CIRCLE_EPSILON) {
+  if (element.closed && endpointDistance(lastEndpoints.end, firstEndpoints.start) > EPSILON) {
     errors.push(geometryError(
       element,
       `${element.name} は closed: true ですが、最後の path.end が最初の path.start に接続していません。閉じるための線分は自動生成されません。`

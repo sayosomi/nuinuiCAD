@@ -103,6 +103,20 @@ describe("VS Code source creation snippet adapter", () => {
     expect(snippet.value).not.toContain("angle:");
   });
 
+  it("emits Joined Path's canonical closed default without a tabstop", () => {
+    const materialization = materializeFor("addJoinedPath");
+    const snippet = snippetFor(materialization);
+
+    expect(holeNamesFor(materialization)).toEqual(["name", "paths"]);
+    expect(tabstopEventsFor(snippet).map(({ index }) => index)).toEqual([1, 2]);
+    expect(snippet.value).toBe([
+      "line $1 = join(",
+      "  paths: $2,",
+      "  closed: false",
+      ")"
+    ].join("\n"));
+  });
+
   it("starts mutation tabstops at the first materialized argument hole", () => {
     const materialization = materializeFor("addMove");
     const snippet = snippetFor(materialization);

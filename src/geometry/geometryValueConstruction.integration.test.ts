@@ -1055,6 +1055,28 @@ describe("pure geometry construction runtime", () => {
     expect(result.computedGeometry.get("geometry-value-runtime:12")).toMatchObject({ kind: "line" });
   });
 
+  it("keeps usable endpoint tangents when a joined path contains degenerate primitives", () => {
+    const { compiled, result } = evaluate([
+      "nui 1",
+      "const Usable: path = polyline(points: [(0, 0), (0, 0), (10, 0), (10, 0)], closed: false)",
+      "const Joined: path = join(paths: [@Usable], closed: false)",
+      "const Degenerate: path = polyline(points: [(0, 0), (0, 0)], closed: false)",
+      "const OnlyDegenerate: path = join(paths: [@Degenerate], closed: false)"
+    ].join("\n"));
+
+    expect(compiled.diagnostics).toEqual([]);
+    const values = [...(result.computedGeometryValues?.values() ?? [])].map((entry) => entry.value);
+    const joined = values.find((value) => value.kind === "joinedPath" && value.closed === false);
+    if (!joined || joined.kind !== "joinedPath") throw new Error("expected joined path value");
+    expect(joined.startTangentAngleDeg).toBe(0);
+    expect(joined.endTangentAngleDeg).toBe(180);
+    expect(values.filter((value) => value.kind === "joinedPath")).toHaveLength(2);
+    expect(values.find((value) => value.kind === "joinedPath" && value.length === 0)).toMatchObject({
+      startTangentAngleDeg: null,
+      endTangentAngleDeg: null
+    });
+  });
+
   it("reports pure join discontinuities through the occurrence-owned channel", () => {
     const { compiled, result } = evaluate([
       "nui 1",

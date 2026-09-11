@@ -2,9 +2,9 @@ use serde_json::{json, Value};
 
 use super::bezier_path::approximate_segment_length;
 use super::errors::{dependency_error, geometry_error};
-use super::math::CIRCLE_EPSILON;
 use super::offset_types::{
     line_length, offset_line_endpoint_measurements, value_point, OffsetPoint, OffsetSegment,
+    EPSILON,
 };
 use super::path_reverse_geometry::reverse_line_like_geometry;
 use super::types::{element_id, element_name, insert_geometry, EvaluationState};
@@ -152,9 +152,9 @@ pub(crate) fn evaluate_joined_path(element: &Value, state: &mut EvaluationState)
             };
             match (value_point(&start), value_point(&end)) {
                 (Some(authored_start), Some(_))
-                    if point_distance(&authored_start, &current_end) <= CIRCLE_EPSILON => {}
+                    if point_distance(&authored_start, &current_end) <= EPSILON => {}
                 (Some(_), Some(authored_end))
-                    if point_distance(&authored_end, &current_end) <= CIRCLE_EPSILON =>
+                    if point_distance(&authored_end, &current_end) <= EPSILON =>
                 {
                     let Some(reversed) = reverse_line_like_geometry(source) else {
                         state.errors.push(geometry_error(
@@ -202,7 +202,7 @@ pub(crate) fn evaluate_joined_path(element: &Value, state: &mut EvaluationState)
         ) else {
             return;
         };
-        if point_distance(&first_start, &last_end) > CIRCLE_EPSILON {
+        if point_distance(&first_start, &last_end) > EPSILON {
             state.errors.push(geometry_error(
                 element,
                 format!(

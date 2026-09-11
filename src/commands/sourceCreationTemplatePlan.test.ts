@@ -55,6 +55,9 @@ describe("Source creation template planning", () => {
       argumentHoles: [
         { argName: "paths", parameterKey: "pathIds", kind: "lineReferenceList", label: "パス" }
       ],
+      literalArguments: [
+        { argName: "closed", parameterKey: "closed", value: "false" }
+      ],
       exclusiveChoices: []
     }]);
   });

@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { compileDslDocument } from "../dsl/dslDocument";
 import { parseDsl } from "../dsl/dslParser";
-import type { CadElement, ComputedGeometry, ComputedJoinedPath } from "../types/geometry";
+import type {
+  ArcLineElement,
+  BezierCurveElement,
+  CadElement,
+  ComputedGeometry,
+  ComputedJoinedPath,
+  PolylineElement
+} from "../types/geometry";
 import { evaluateElements } from "./evaluate";
 
 const point = (id: string, x: number, y: number): CadElement => ({
@@ -12,6 +19,41 @@ const line = (id: string, startPoint: string, endPoint: string, activity: CadEle
   id, name: id, type: "line", activity,
   startPoint: { mode: "reference", pointId: startPoint },
   endPoint: { mode: "reference", pointId: endPoint }
+});
+
+const bezier = (id: string, startPoint: string, endPoint: string): BezierCurveElement => ({
+  id,
+  name: id,
+  type: "bezierCurve",
+  activity: "visible",
+  startPoint: { mode: "reference", pointId: startPoint },
+  startHandleAngleDeg: 90,
+  startHandleLength: 2,
+  intermediatePoints: [],
+  endPoint: { mode: "reference", pointId: endPoint },
+  endHandleAngleDeg: 270,
+  endHandleLength: 3
+});
+
+const arc = (id: string, centerPoint: string, startAngleDeg: number, endAngleDeg: number, direction: ArcLineElement["direction"]): ArcLineElement => ({
+  id,
+  name: id,
+  type: "arcLine",
+  activity: "visible",
+  centerPoint: { mode: "reference", pointId: centerPoint },
+  radius: 10,
+  startAngleDeg,
+  endAngleDeg,
+  direction
+});
+
+const polyline = (id: string, points: string[]): PolylineElement => ({
+  id,
+  name: id,
+  type: "polyline",
+  activity: "visible",
+  points: points.map((pointId) => ({ mode: "reference", pointId })),
+  closed: false
 });
 
 const join = (id: string, pathIds: string[], closed = false): CadElement => ({
@@ -41,6 +83,74 @@ describe("joined path construction", () => {
     });
     expect(joined(result.computedGeometry.get("reversed")).segments.map((segment) => [segment.start.x, segment.end.x])).toEqual([[0, 10], [10, 20]]);
     expect(joined(result.computedGeometry.get("duplicates")).pathIds).toEqual(["first", "first"]);
+  });
+
+  it("rejects an endpoint just outside the shared epsilon and lets an epsilon tie keep authored orientation", () => {
+    const result = evaluateElements([
+      point("a", 0, 0), point("b", 10, 0), point("inside", 10 + 0.5e-9, 0), point("outside", 10 + 1.5e-9, 0),
+      point("insideEnd", 10 - 0.5e-9, 1), point("outsideEnd", 10 + 1.5e-9, 1),
+      line("first", "a", "b"), line("insideLine", "inside", "insideEnd"), line("outsideLine", "outside", "outsideEnd"),
+      bezier("tie", "inside", "insideEnd"),
+      join("insideJoin", ["first", "insideLine"]), join("outsideJoin", ["first", "outsideLine"]), join("tieJoin", ["first", "tie"])
+    ]);
+
+    expect(result.computedGeometry.has("insideJoin")).toBe(true);
+    expect(result.computedGeometry.has("outsideJoin")).toBe(false);
+    const tieSource = result.computedGeometry.get("tie");
+    const tieJoined = joined(result.computedGeometry.get("tieJoin"));
+    if (!tieSource || tieSource.kind !== "bezierCurve") throw new Error("expected tie Bezier");
+    expect(tieJoined.segments[1]).toMatchObject({
+      kind: "bezier",
+      start: tieSource.segments[0].start,
+      control1: tieSource.segments[0].control1,
+      control2: tieSource.segments[0].control2,
+      end: tieSource.segments[0].end
+    });
+  });
+
+  it("reverses Bezier controls, directed arcs, broad paths, and nested joins exactly", () => {
+    const result = evaluateElements([
+      point("a", 0, 0), point("b", 10, 0), point("arcCenter", 0, 0),
+      point("curveStart", 0, 10), point("curveEnd", 10, 0),
+      point("prefixStart", -10, 0), point("nestedStart", 20, 0), point("nestedMiddle", 10, 0),
+      line("first", "a", "b"), bezier("curve", "curveStart", "curveEnd"),
+      arc("arc", "arcCenter", 90, 0, "clockwise"),
+      polyline("broad", ["nestedStart", "nestedMiddle", "b"]),
+      line("prefix", "prefixStart", "a"), line("nestedA", "nestedMiddle", "a"), line("nestedB", "nestedStart", "nestedMiddle"),
+      join("curveJoin", ["first", "curve"]), join("arcJoin", ["first", "arc"]),
+      join("broadJoin", ["first", "broad"]),
+      join("nested", ["nestedB", "nestedA"]), join("nestedJoin", ["prefix", "nested"])
+    ]);
+
+    const curveSource = result.computedGeometry.get("curve");
+    if (!curveSource || curveSource.kind !== "bezierCurve") throw new Error("expected curve");
+    expect(joined(result.computedGeometry.get("curveJoin")).segments[1]).toMatchObject({
+      kind: "bezier",
+      start: curveSource.segments[0].end,
+      control1: curveSource.segments[0].control2,
+      control2: curveSource.segments[0].control1,
+      end: curveSource.segments[0].start
+    });
+
+    const arcSegment = joined(result.computedGeometry.get("arcJoin")).segments[1];
+    expect(arcSegment).toMatchObject({ kind: "arc", startAngleDeg: 0, sweepAngleDeg: 90 });
+    expect(arcSegment.start.x).toBeCloseTo(10);
+    expect(arcSegment.start.y).toBeCloseTo(0);
+    expect(arcSegment.end.x).toBeCloseTo(0);
+    expect(arcSegment.end.y).toBeCloseTo(10);
+
+    const broadSource = result.computedGeometry.get("broad");
+    const broadJoined = joined(result.computedGeometry.get("broadJoin"));
+    if (!broadSource || broadSource.kind !== "polyline") throw new Error("expected polyline");
+    expect(broadJoined.segments.slice(1)).toEqual(broadSource.segments.slice().reverse().map((segment) => ({
+      kind: "line",
+      start: segment.end,
+      end: segment.start,
+      length: segment.length
+    })));
+    expect(joined(result.computedGeometry.get("nestedJoin")).segments.map((segment) => [segment.start.x, segment.end.x])).toEqual([
+      [-10, 0], [0, 10], [10, 20]
+    ]);
   });
 
   it("validates open and closed continuity without synthesizing a closing segment", () => {
