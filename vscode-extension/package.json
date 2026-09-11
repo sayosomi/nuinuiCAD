@@ -112,6 +112,42 @@
         "key": "ctrl+y",
         "mac": "cmd+shift+z",
         "when": "activeWebviewPanelId == 'nuinuiCAD.outputPreview'"
+      },
+      {
+        "command": "nuinuiCAD.createGeometry",
+        "key": "ctrl+k n",
+        "mac": "cmd+k n",
+        "when": "editorTextFocus && editorLangId == nui && resourceScheme == file && resourceExtname == .nui && !editorReadonly"
+      },
+      {
+        "command": "nuinuiCAD.pickReferenceFromCanvas",
+        "key": "alt+enter",
+        "mac": "alt+enter",
+        "when": "editorTextFocus && editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.referencePickSourceTarget"
+      },
+      {
+        "command": "nuinuiCAD.revealInCanvas",
+        "key": "ctrl+k g",
+        "mac": "cmd+k g",
+        "when": "editorTextFocus && editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.revealInCanvasSourceTarget"
+      },
+      {
+        "command": "nuinuiCAD.goToSourceDefinition",
+        "key": "f12",
+        "mac": "f12",
+        "when": "activeWebviewPanelId == 'nuinuiCAD.canvas' && nuinuiCAD.canvasHasSelection && !inputFocus"
+      },
+      {
+        "command": "nuinuiCAD.inlineModuleInstance",
+        "key": "ctrl+k l",
+        "mac": "cmd+k l",
+        "when": "(editorTextFocus && editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.inlineModuleSourceTarget) || (activeWebviewPanelId == 'nuinuiCAD.canvas' && nuinuiCAD.inlineModuleCanvasTarget && !inputFocus)"
+      },
+      {
+        "command": "nuinuiCAD.extractModule",
+        "key": "ctrl+k x",
+        "mac": "cmd+k x",
+        "when": "(editorTextFocus && editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.extractModuleSourceTarget) || (activeWebviewPanelId == 'nuinuiCAD.canvas' && nuinuiCAD.extractModuleCanvasTarget && !inputFocus)"
       }
     ],
     "menus": {
