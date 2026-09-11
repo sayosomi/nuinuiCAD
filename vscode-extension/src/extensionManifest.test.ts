@@ -884,14 +884,14 @@ describe("VS Code extension manifest keybindings", () => {
       command === "nuinuiCAD.modulePreviewUndo" || command === "nuinuiCAD.modulePreviewRedo")).toBe(false);
   });
 
-  it("declares exactly the seven v2 command-wide defaults with Source and Canvas focus ownership", async () => {
+  it("declares exactly the seven v3 command-wide defaults with Source and Canvas focus ownership", async () => {
     const manifest = await readManifest();
     const keybindings = manifest.contributes?.keybindings ?? [];
     const expectedNewBindings = [
       {
         command: "nuinuiCAD.createGeometry",
-        key: "ctrl+k ctrl+n",
-        mac: "cmd+k cmd+n",
+        key: "ctrl+shift+alt+n",
+        mac: "ctrl+shift+n",
         when: sourceCreationKeybindingWhen
       },
       {
@@ -902,8 +902,8 @@ describe("VS Code extension manifest keybindings", () => {
       },
       {
         command: "nuinuiCAD.revealInCanvas",
-        key: "ctrl+k ctrl+g",
-        mac: "cmd+k cmd+g",
+        key: "ctrl+shift+alt+c",
+        mac: "ctrl+shift+c",
         when: `${sourceKeybindingWhen} && nuinuiCAD.revealInCanvasSourceTarget`
       },
       {
@@ -914,20 +914,20 @@ describe("VS Code extension manifest keybindings", () => {
       },
       {
         command: "nuinuiCAD.inlineModuleInstance",
-        key: "ctrl+k ctrl+m",
-        mac: "cmd+k cmd+m",
+        key: "ctrl+shift+alt+m",
+        mac: "ctrl+shift+l",
         when: inlineModuleKeybindingWhen
       },
       {
         command: "nuinuiCAD.extractModule",
-        key: "ctrl+k ctrl+e",
-        mac: "cmd+k cmd+e",
+        key: "ctrl+shift+alt+x",
+        mac: "ctrl+shift+x",
         when: extractModuleKeybindingWhen
       },
       {
         command: "nuinuiCAD.selectInstance",
-        key: "ctrl+k ctrl+i",
-        mac: "cmd+k cmd+i",
+        key: "ctrl+shift+alt+i",
+        mac: "ctrl+shift+i",
         when: `${canvasKeybindingWhen} && nuinuiCAD.canvasCanSelectInstance && !inputFocus`
       }
     ];
@@ -947,6 +947,7 @@ describe("VS Code extension manifest keybindings", () => {
     expect(keybindings.filter(({ command }) => newBindingCommands.includes(command))).toEqual(expectedNewBindings);
     expect(keybindings.every(({ command }) =>
       existingBindingCommands.includes(command) || newBindingCommands.includes(command))).toBe(true);
+    expect(expectedNewBindings.flatMap(({ key, mac }) => [key, mac]).every((shortcut) => !shortcut.includes(" "))).toBe(true);
 
     for (const binding of expectedNewBindings) {
       expect(binding.when).not.toContain("editorLangId == nui && resourceScheme == file && resourceExtname == .nui || activeWebviewPanelId");
