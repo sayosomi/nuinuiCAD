@@ -74,6 +74,9 @@ impl PartialEq for GeometryBuiltinRuntimeTarget {
 pub(crate) enum GeometryBuiltinRuntimeError {
     Unavailable,
     InvalidArgument,
+    CollectionIndexInvalid,
+    CollectionIndexUnavailable,
+    EvaluationIssue(String),
     Disabled(Box<ScalarExpressionResolvedGeometryTarget>),
     ZeroLengthLine,
 }
@@ -116,7 +119,8 @@ pub(crate) fn resolve_geometry_builtin_target(
             }
             GeometryInputTarget::GeometryValueMap { .. }
             | GeometryInputTarget::CollectionValue { .. }
-            | GeometryInputTarget::CollectionIndex { .. } => {
+            | GeometryInputTarget::CollectionIndex { .. }
+            | GeometryInputTarget::ForGroupOccurrence { .. } => {
                 return Err(GeometryBuiltinRuntimeError::Unavailable)
             }
             GeometryInputTarget::Coordinate { .. } => unreachable!(),

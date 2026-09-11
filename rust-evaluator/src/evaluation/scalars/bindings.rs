@@ -6,10 +6,11 @@ use std::collections::{HashMap, HashSet};
 use serde_json::{json, Value};
 
 use super::super::scalar_expression_runtime::{
-    lookup_geometry_collection_length, lookup_geometry_property, lookup_geometry_value_property,
+    lookup_for_group_geometry_property, lookup_geometry_collection_length,
+    lookup_geometry_property, lookup_geometry_value_property,
+    resolve_for_group_geometry_builtin_target,
 };
 use super::expression_evaluator::{evaluate_typed_expression, ScalarEvaluationEnvironment};
-use super::geometry_builtin_runtime::resolve_geometry_builtin_target;
 use super::program_payload::{
     ValidatedScalarProgram, ValidatedScalarProgramCollectionMember,
     ValidatedScalarProgramCollectionValue, ValidatedScalarProgramRecordField,
@@ -919,6 +920,28 @@ impl ScalarEvaluationEnvironment for ResolvingEnvironment<'_, '_, '_> {
         )
     }
 
+    fn lookup_for_group_geometry_property(
+        &self,
+        template_element_id: &str,
+        index: Option<&super::types::TypedScalarExpression>,
+        point_key: Option<&str>,
+        property: &str,
+        target_source_order: f64,
+        property_type: &ScalarType,
+    ) -> ScalarEvaluation {
+        lookup_for_group_geometry_property(
+            self.state,
+            self.resolver,
+            template_element_id,
+            index,
+            point_key,
+            property,
+            target_source_order,
+            Some(self.source_order),
+            property_type,
+        )
+    }
+
     fn lookup_collection_index(
         &self,
         collection_value_id: &str,
@@ -960,7 +983,12 @@ impl ScalarEvaluationEnvironment for ResolvingEnvironment<'_, '_, '_> {
         super::geometry_builtin_runtime::GeometryBuiltinRuntimeTarget,
         super::geometry_builtin_runtime::GeometryBuiltinRuntimeError,
     > {
-        resolve_geometry_builtin_target(self.state, self.source_order, target)
+        resolve_for_group_geometry_builtin_target(
+            self.state,
+            self.resolver,
+            self.source_order,
+            target,
+        )
     }
 }
 

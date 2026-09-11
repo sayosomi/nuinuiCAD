@@ -122,6 +122,25 @@ describe("referencePickSession", () => {
     expect(referencePickDraftKey({ base: "A" })).toBe(referencePickDraftKey({ base: "A" }));
   });
 
+  it("keeps generated occurrences distinct in a multiple-value draft", () => {
+    const initial = startReferencePickSession({
+      expectedGeometryInterface: "point",
+      role: "geometry",
+      multiplicity: "multiple",
+      seedReferences: [
+        { base: "Mark", occurrenceIndex: 0 },
+        { base: "Mark", occurrenceIndex: 1 }
+      ]
+    });
+
+    expect(initial.draftReferences).toEqual([
+      { base: "Mark", occurrenceIndex: 0 },
+      { base: "Mark", occurrenceIndex: 1 }
+    ]);
+    expect(referencePickDraftKey(initial.draftReferences[0]!))
+      .not.toBe(referencePickDraftKey(initial.draftReferences[1]!));
+  });
+
   it("moves and removes multiple-reference draft entries while preserving canonical order", () => {
     const session = startReferencePickSession({
       expectedGeometryInterface: "path",

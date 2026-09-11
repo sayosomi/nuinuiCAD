@@ -123,6 +123,9 @@ const sourceTarget = (target: ModuleSourceTarget | ModuleRecordSourceTarget | nu
   if (target.kind === "sourceGeometry" || target.kind === "sourceGeometryProperty" || target.kind === "moduleLocal") {
     return { kind: "moduleSource", statementId: target.statementId };
   }
+  if (target.kind === "forGroupOccurrence" || target.kind === "forGroupOccurrenceProperty") {
+    return { kind: "moduleSource", statementId: target.statementId };
+  }
   if (target.kind === "iteration") return { kind: "moduleIteration", statementId: target.statementId };
   if (target.kind === "documentBinding") return { kind: "documentBinding", bindingId: target.bindingId };
   return null;

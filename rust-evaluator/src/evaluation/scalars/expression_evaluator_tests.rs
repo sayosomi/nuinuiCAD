@@ -247,6 +247,9 @@ fn geometry_argument(
             point_key: None,
             geometry_value_occurrence: None,
             geometry_value_binder_id: None,
+            for_group_template_element_id: None,
+            for_group_target_source_order: None,
+            for_group_index: None,
         }),
     }
 }
@@ -545,6 +548,9 @@ fn evaluates_number_boolean_nested_reference_and_geometry_builtin_calls() {
                 collection_length: None,
                 geometry_value_occurrence: None,
                 geometry_value_binder_id: None,
+                for_group_template_element_id: None,
+                for_group_target_source_order: None,
+                for_group_index: None,
                 geometry_value_point_key: None,
                 property: "length".to_owned(),
                 target_source_order: 0.0,
@@ -601,6 +607,9 @@ fn evaluates_collection_length_without_geometry_runtime_lookup() {
         collection_length: Some(4.0),
         geometry_value_occurrence: None,
         geometry_value_binder_id: None,
+        for_group_template_element_id: None,
+        for_group_target_source_order: None,
+        for_group_index: None,
         geometry_value_point_key: None,
         property: "length".to_owned(),
         target_source_order: 0.0,
@@ -1246,6 +1255,9 @@ fn geometry_runtime_disabled_is_distinct_from_unavailable() {
         point_key: None,
         geometry_value_occurrence: None,
         geometry_value_binder_id: None,
+        for_group_template_element_id: None,
+        for_group_target_source_order: None,
+        for_group_index: None,
     };
     let node = geometry_call(
         BuiltinFunctionName::Distance,
@@ -1297,6 +1309,9 @@ fn geometry_runtime_disabled_reports_first_failed_target_and_preserves_derived_p
         point_key: None,
         geometry_value_occurrence: None,
         geometry_value_binder_id: None,
+        for_group_template_element_id: None,
+        for_group_target_source_order: None,
+        for_group_index: None,
     };
     let second_target = ScalarExpressionResolvedGeometryTarget {
         statement_id: "second".to_owned(),
@@ -1305,6 +1320,9 @@ fn geometry_runtime_disabled_reports_first_failed_target_and_preserves_derived_p
         point_key: Some("start".to_owned()),
         geometry_value_occurrence: None,
         geometry_value_binder_id: None,
+        for_group_template_element_id: None,
+        for_group_target_source_order: None,
+        for_group_index: None,
     };
     let node = geometry_call(
         BuiltinFunctionName::Distance,
@@ -1380,6 +1398,9 @@ fn geometry_runtime_disabled_reports_first_failed_target_and_preserves_derived_p
                         point_key: None,
                         geometry_value_occurrence: None,
                         geometry_value_binder_id: None,
+                        for_group_template_element_id: None,
+                        for_group_target_source_order: None,
+                        for_group_index: None,
                     }),
                 },
                 TypedBuiltinArgument::GeometryReference {
@@ -1391,6 +1412,9 @@ fn geometry_runtime_disabled_reports_first_failed_target_and_preserves_derived_p
                         point_key: Some("start".to_owned()),
                         geometry_value_occurrence: None,
                         geometry_value_binder_id: None,
+                        for_group_template_element_id: None,
+                        for_group_target_source_order: None,
+                        for_group_index: None,
                     }),
                 },
             ],

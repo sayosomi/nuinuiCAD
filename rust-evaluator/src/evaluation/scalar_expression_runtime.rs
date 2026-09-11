@@ -9,9 +9,7 @@ use super::scalars::{
     evaluate_typed_expression, ScalarDocumentBindingResolver, ScalarEvaluation,
     ScalarEvaluationEnvironment, ScalarType, ScalarValue, TypedScalarExpression,
 };
-use super::scalars::{
-    resolve_geometry_builtin_target, GeometryBuiltinRuntimeError, GeometryBuiltinRuntimeTarget,
-};
+use super::scalars::{GeometryBuiltinRuntimeError, GeometryBuiltinRuntimeTarget};
 use super::types::{
     EvaluationState, GeometryInputCollectionNode, GeometryInputTarget, GeometryValueOccurrence,
 };
@@ -31,6 +29,154 @@ fn unavailable_geometry_property(property_type: &ScalarType) -> ScalarEvaluation
         binding_id: None,
         context: None,
     }
+}
+
+pub(crate) fn for_group_occurrence_element_id(
+    state: &EvaluationState,
+    resolver: &dyn ScalarDocumentBindingResolver,
+    template_element_id: &str,
+    index: Option<&TypedScalarExpression>,
+    target_source_order: f64,
+    current_source_order: Option<f64>,
+) -> Result<String, String> {
+    if current_source_order.is_some_and(|source_order| target_source_order >= source_order) {
+        return Err("evaluation-collection-index-unavailable".to_owned());
+    }
+    let rows = state
+        .for_group_generated_rows
+        .iter()
+        .filter(|row| row.template_element_id == template_element_id)
+        .collect::<Vec<_>>();
+    let ordinal = if let Some(index) = index {
+        let evaluation =
+            evaluate_document_typed_expression(index, resolver, state, current_source_order);
+        match evaluation {
+            ScalarEvaluation::Ok {
+                value: ScalarValue::Number(value),
+                ..
+            } if value.is_finite() && value.fract() == 0.0 && value >= 0.0 => value as usize,
+            ScalarEvaluation::Error { issue_code, .. } => return Err(issue_code),
+            ScalarEvaluation::Ok { .. } => {
+                return Err("evaluation-collection-index-invalid".to_owned())
+            }
+        }
+    } else if state
+        .for_group_expected_occurrence_count_by_template_id
+        .get(template_element_id)
+        .copied()
+        .unwrap_or(rows.len())
+        == 1
+        && rows.len() == 1
+    {
+        0
+    } else {
+        return Err("evaluation-collection-index-unavailable".to_owned());
+    };
+    let row = rows
+        .get(ordinal)
+        .ok_or_else(|| "evaluation-collection-index-invalid".to_owned())?;
+    if !state
+        .computed_geometry
+        .contains_key(&row.generated_element_id)
+    {
+        return Err("evaluation-collection-index-unavailable".to_owned());
+    }
+    Ok(row.generated_element_id.clone())
+}
+
+pub(crate) fn lookup_for_group_geometry_property(
+    state: &EvaluationState,
+    resolver: &dyn ScalarDocumentBindingResolver,
+    template_element_id: &str,
+    index: Option<&TypedScalarExpression>,
+    point_key: Option<&str>,
+    property: &str,
+    target_source_order: f64,
+    current_source_order: Option<f64>,
+    property_type: &ScalarType,
+) -> ScalarEvaluation {
+    let generated_id = match for_group_occurrence_element_id(
+        state,
+        resolver,
+        template_element_id,
+        index,
+        target_source_order,
+        current_source_order,
+    ) {
+        Ok(id) => id,
+        Err(issue_code) => {
+            return ScalarEvaluation::Error {
+                r#type: property_type.clone(),
+                issue_code,
+                binding_id: None,
+                context: None,
+            }
+        }
+    };
+    if point_key.is_some() {
+        let Some(geometry) = state.computed_geometry.get(&generated_id) else {
+            return unavailable_geometry_property(property_type);
+        };
+        let Some(point) = point_key
+            .and_then(|key| super::point_anchor::resolve_derived_point(geometry, key, state))
+        else {
+            return unavailable_geometry_property(property_type);
+        };
+        let value = match property {
+            "x" => Some(point.x),
+            "y" => Some(point.y),
+            _ => None,
+        };
+        return value
+            .map(|value| ScalarEvaluation::Ok {
+                r#type: ScalarType::Number,
+                value: ScalarValue::Number(value),
+            })
+            .unwrap_or_else(|| unavailable_geometry_property(property_type));
+    }
+    lookup_geometry_property(state, &generated_id, property, -1.0, None, property_type)
+}
+
+pub(crate) fn resolve_for_group_geometry_builtin_target(
+    state: &EvaluationState,
+    resolver: &dyn ScalarDocumentBindingResolver,
+    current_source_order: f64,
+    target: &super::scalars::ScalarExpressionResolvedGeometryTarget,
+) -> Result<super::scalars::GeometryBuiltinRuntimeTarget, super::scalars::GeometryBuiltinRuntimeError>
+{
+    if let Some(template_element_id) = target.for_group_template_element_id.as_deref() {
+        let generated_id = for_group_occurrence_element_id(
+            state,
+            resolver,
+            template_element_id,
+            target.for_group_index.as_deref(),
+            target
+                .for_group_target_source_order
+                .unwrap_or(target.statement_index),
+            Some(current_source_order),
+        )
+        .map_err(|issue_code| match issue_code.as_str() {
+            "evaluation-collection-index-invalid" => {
+                super::scalars::GeometryBuiltinRuntimeError::CollectionIndexInvalid
+            }
+            "evaluation-collection-index-unavailable" => {
+                super::scalars::GeometryBuiltinRuntimeError::CollectionIndexUnavailable
+            }
+            _ => super::scalars::GeometryBuiltinRuntimeError::EvaluationIssue(issue_code),
+        })?;
+        let mut bound = target.clone();
+        bound.statement_id = generated_id;
+        bound.statement_index = -1.0;
+        bound.for_group_template_element_id = None;
+        bound.for_group_target_source_order = None;
+        bound.for_group_index = None;
+        return super::scalars::resolve_geometry_builtin_target(
+            state,
+            current_source_order,
+            &bound,
+        );
+    }
+    super::scalars::resolve_geometry_builtin_target(state, current_source_order, target)
 }
 
 fn geometry_collection_length_for_node(
@@ -175,7 +321,8 @@ pub(crate) fn lookup_geometry_value_binder_property(
         }
         GeometryInputTarget::GeometryValueMap { .. }
         | GeometryInputTarget::CollectionValue { .. }
-        | GeometryInputTarget::CollectionIndex { .. } => {
+        | GeometryInputTarget::CollectionIndex { .. }
+        | GeometryInputTarget::ForGroupOccurrence { .. } => {
             unavailable_geometry_property(property_type)
         }
     }
@@ -323,6 +470,28 @@ impl ScalarEvaluationEnvironment for ResolverEnvironment<'_> {
         )
     }
 
+    fn lookup_for_group_geometry_property(
+        &self,
+        template_element_id: &str,
+        index: Option<&TypedScalarExpression>,
+        point_key: Option<&str>,
+        property: &str,
+        target_source_order: f64,
+        property_type: &ScalarType,
+    ) -> ScalarEvaluation {
+        lookup_for_group_geometry_property(
+            self.state,
+            self.resolver,
+            template_element_id,
+            index,
+            point_key,
+            property,
+            target_source_order,
+            self.current_source_order,
+            property_type,
+        )
+    }
+
     fn lookup_collection_index(
         &self,
         collection_value_id: &str,
@@ -367,7 +536,7 @@ impl ScalarEvaluationEnvironment for ResolverEnvironment<'_> {
         let Some(source_order) = self.current_source_order else {
             return Err(GeometryBuiltinRuntimeError::Unavailable);
         };
-        resolve_geometry_builtin_target(self.state, source_order, target)
+        resolve_for_group_geometry_builtin_target(self.state, self.resolver, source_order, target)
     }
 }
 

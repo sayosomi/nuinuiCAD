@@ -12,7 +12,11 @@ for actual implementation details.
 Lengths and coordinates use millimetres with Y-up drafting coordinates.
 Declarations are evaluated in document order, and unavailable or invalid
 dependencies are reported rather than repaired. References use `@`, module
-exports use `::`, and geometry properties use `.`.
+exports use `::`, geometry properties use `.`, and generated drawable
+occurrences use an explicit zero-based suffix such as `@Mark[1]` or
+`@Mark[@i]`. The suffix is an occurrence expression after the resolved source
+reference, not part of a qualified path; bare `@Mark` is not allowed to
+silently choose occurrence zero when multiple loop occurrences are available.
 
 Numeric geometry properties use canonical English source keys and are
 target-aware. Points expose x/y; lines, paths, and polylines expose length,

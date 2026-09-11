@@ -6,9 +6,10 @@
 use super::*;
 use crate::evaluation::for_group::{
     expand_for_group_iteration_from_template, for_group_loop_values, for_group_owned_template_ids,
-    iteration_local_variables,
+    iteration_local_variables, record_for_group_expected_occurrences,
 };
 use crate::evaluation::scalars::{ForGroupMutationEnvironment, ForGroupMutationError};
+use crate::evaluation::types::element_name;
 
 pub(super) struct ForGroupMutationRuntime<'a> {
     original_elements: &'a [Value],
@@ -23,7 +24,6 @@ pub(super) struct ForGroupMutationRuntime<'a> {
     effective_enabled_order: &'a mut Vec<ElementId>,
     conditional_group_states: &'a mut HashMap<ElementId, Option<&'static str>>,
     condition_inactive_ids: &'a mut HashSet<ElementId>,
-    for_group_generated_rows: &'a mut Vec<types::ForGroupGeneratedRow>,
     for_group_effective_show_generated_ids: &'a mut Vec<ElementId>,
 }
 
@@ -42,7 +42,6 @@ impl<'a> ForGroupMutationRuntime<'a> {
         effective_enabled_order: &'a mut Vec<ElementId>,
         conditional_group_states: &'a mut HashMap<ElementId, Option<&'static str>>,
         condition_inactive_ids: &'a mut HashSet<ElementId>,
-        for_group_generated_rows: &'a mut Vec<types::ForGroupGeneratedRow>,
         for_group_effective_show_generated_ids: &'a mut Vec<ElementId>,
     ) -> Self {
         Self {
@@ -58,7 +57,6 @@ impl<'a> ForGroupMutationRuntime<'a> {
             effective_enabled_order,
             conditional_group_states,
             condition_inactive_ids,
-            for_group_generated_rows,
             for_group_effective_show_generated_ids,
         }
     }
@@ -79,6 +77,12 @@ impl<'a> ForGroupMutationRuntime<'a> {
     ) -> Result<ForGroupMutationRunOutcome, ForGroupMutationError> {
         let template_for_group_id = element_id(template_for_group)
             .expect("forGroup template must have a validated element id");
+        record_for_group_expected_occurrences(
+            self.original_elements,
+            &template_for_group_id,
+            iteration_values.len(),
+            state,
+        );
         let owned_template_ids_vec =
             for_group_owned_template_ids(self.original_elements, &template_for_group_id);
         let owned_template_ids: HashSet<ElementId> =
@@ -192,7 +196,7 @@ impl<'a> ForGroupMutationRuntime<'a> {
             .find(|row| row.template_element_id == template_id)
             .cloned()
         {
-            self.for_group_generated_rows.push(row);
+            state.for_group_generated_rows.push(row);
         }
         let Some(generated_id) = element_id(&generated_element) else {
             return Ok(ForGroupMutationRunOutcome::Completed);
@@ -248,6 +252,27 @@ impl<'a> ForGroupMutationRuntime<'a> {
             iteration_variables.push(current_iteration_variable.clone());
         }
         let local_variables = iteration_local_variables(&iteration_variables);
+
+        if let Err(error) = materialize_geometry_input_targets_for_runtime(
+            state,
+            &mut generated_element,
+            &template_id,
+            &generated_id,
+            Some(&loop_binding_resolver),
+            resolver
+                .source_order_for_element(&template_id)
+                .map(|source_order| source_order as f64),
+        ) {
+            state.errors.push(geometry_error(
+                &generated_element,
+                format!(
+                    "{} の geometry collection index を評価できません。({error})",
+                    element_name(&generated_element)
+                ),
+            ));
+            return Ok(ForGroupMutationRunOutcome::Completed);
+        }
+        state.elements[generated_index] = generated_element.clone();
 
         if element_type(&generated_element) == Some("forGroup") {
             let template_for_group = self

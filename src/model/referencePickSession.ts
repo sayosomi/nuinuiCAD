@@ -55,7 +55,11 @@ export type StartReferencePickSessionInput = {
 
 export const referencePickDraftKey = (
   reference: CanonicalGeometrySourceReference
-) => JSON.stringify([reference.base, reference.pointKey ?? null]);
+) => JSON.stringify([
+  reference.base,
+  reference.pointKey ?? null,
+  ...(reference.occurrenceIndex === undefined ? [] : [String(reference.occurrenceIndex)])
+]);
 
 export const referencePickHoverKey = (hover: ReferencePickHover) => JSON.stringify([
   hover.candidateElementId,

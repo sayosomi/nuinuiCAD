@@ -13,6 +13,7 @@
 pub(crate) type BindingId = String;
 
 use crate::evaluation::types::GeometryValueOccurrence;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum GeometryInterfaceType {
@@ -40,6 +41,9 @@ pub(crate) struct ScalarExpressionResolvedGeometryTarget {
     pub(crate) point_key: Option<String>,
     pub(crate) geometry_value_occurrence: Option<GeometryValueOccurrence>,
     pub(crate) geometry_value_binder_id: Option<String>,
+    pub(crate) for_group_template_element_id: Option<String>,
+    pub(crate) for_group_target_source_order: Option<f64>,
+    pub(crate) for_group_index: Option<Arc<TypedScalarExpression>>,
 }
 
 /// A source-text offset range, `[start, end)`. Never read for evaluation
@@ -310,6 +314,9 @@ pub(crate) enum TypedScalarExpression {
         geometry_value_occurrence: Option<GeometryValueOccurrence>,
         geometry_value_binder_id: Option<String>,
         geometry_value_point_key: Option<String>,
+        for_group_template_element_id: Option<String>,
+        for_group_target_source_order: Option<f64>,
+        for_group_index: Option<Box<TypedScalarExpression>>,
         property: String,
         target_source_order: f64,
         r#type: ScalarType,

@@ -10,7 +10,6 @@ import type {
 import type { GeometryValueOccurrence } from "../model/cadDocumentTypes";
 import type { DslDiagnostic, DslSpan } from "./dslTypes";
 import {
-  formatDslReferencePath,
   formatDslSourceReference,
   parseDslSourceReference,
   type DslSourceReference
@@ -291,7 +290,11 @@ export const resolveAnchor = (
       };
     }
   }
-  const pathToken = `@${formatDslReferencePath(reference.path)}`;
+  const pathToken = formatDslSourceReference({
+    path: reference.path,
+    occurrenceIndex: reference.occurrenceIndex,
+    property: null
+  });
   const elementId = resolveId(pathToken, index, line, diagnostics, currentElement, sourceSpan);
   return reference.property
     ? derivedAnchor(elementId, reference.property)
@@ -308,7 +311,11 @@ export const resolveEndpoint = (
 ): LineEndpointReference => {
   const reference = sourceReference(value, line, diagnostics, sourceSpan);
   if (!reference) return { lineId: value.trim(), endpointKey: "start" };
-  const lineName = `@${formatDslReferencePath(reference.path)}`;
+  const lineName = formatDslSourceReference({
+    path: reference.path,
+    occurrenceIndex: reference.occurrenceIndex,
+    property: null
+  });
   const endpointKey = reference.property === "end" ? "end" : "start";
   return {
     lineId: resolveId(lineName, index, line, diagnostics, currentElement, sourceSpan),

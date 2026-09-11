@@ -185,6 +185,17 @@ export type GeometryInputCollectionNode =
 
 export type GeometryInputTarget =
   | { kind: "drawable"; elementId: ElementId; geometryType: "point" | "line" | "path"; pointKey?: string }
+  | {
+      /** A source/template drawable materialized by statement-for. The
+       * evaluator resolves the ordinal against explicit provenance rows; it
+       * never parses a generated element id. */
+      kind: "forGroupOccurrence";
+      templateElementId: ElementId;
+      geometryType: "point" | "line" | "path";
+      pointKey?: string;
+      targetSourceOrder: number;
+      index: TypedScalarExpression | null;
+    }
   | { kind: "geometryValue"; occurrence: GeometryValueOccurrence; geometryType: "point" | "line" | "path"; pointKey?: string }
   | {
       kind: "geometryValueMap";

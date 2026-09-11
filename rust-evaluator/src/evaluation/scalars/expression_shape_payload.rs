@@ -322,6 +322,9 @@ pub(crate) fn decode_geometry_target_payload(
             "pointKey",
             "occurrence",
             "binderId",
+            "templateElementId",
+            "targetSourceOrder",
+            "index",
         ],
         "geometry reference target",
     )?;
@@ -384,6 +387,7 @@ pub(crate) fn decode_geometry_target_payload(
     let geometry_value_binder_id = match kind {
         "drawable" => None,
         "geometryValue" => None,
+        "forGroupOccurrence" => None,
         "geometryValueForBinder" => Some(
             require_field(object, "binderId", "geometry reference target")?
                 .as_str()
@@ -403,6 +407,64 @@ pub(crate) fn decode_geometry_target_payload(
             ))
         }
     };
+    let for_group_template_element_id = match object.get("templateElementId") {
+        None | Some(Value::Null) => None,
+        Some(value) => Some(
+            value
+                .as_str()
+                .filter(|value| !value.is_empty())
+                .ok_or_else(|| {
+                    issue(
+                        Code::InvalidFieldType,
+                        "geometry reference target templateElementId must be a non-empty string",
+                    )
+                })?
+                .to_owned(),
+        ),
+    };
+    let for_group_target_source_order = match object.get("targetSourceOrder") {
+        None | Some(Value::Null) => None,
+        Some(value) => Some(
+            value
+                .as_f64()
+                .filter(|value| value.is_finite())
+                .ok_or_else(|| {
+                    issue(
+                        Code::InvalidFieldType,
+                        "geometry reference target targetSourceOrder must be a finite number",
+                    )
+                })?,
+        ),
+    };
+    let for_group_index = match object.get("index") {
+        None | Some(Value::Null) => None,
+        Some(value) => Some(std::sync::Arc::new(
+            super::expression_payload::validate_typed_expression_payload(value).map_err(
+                |payload_issue| {
+                    issue(
+                        Code::InvalidFieldType,
+                        format!("geometry reference target index is invalid: {payload_issue:?}"),
+                    )
+                },
+            )?,
+        )),
+    };
+    if kind != "forGroupOccurrence" {
+        if for_group_template_element_id.is_some()
+            || for_group_target_source_order.is_some()
+            || for_group_index.is_some()
+        {
+            return Err(issue(
+                Code::LiteralTypeMismatch,
+                "forGroup occurrence fields require a forGroupOccurrence target",
+            ));
+        }
+    } else if for_group_template_element_id.is_none() || for_group_target_source_order.is_none() {
+        return Err(issue(
+            Code::InvalidFieldType,
+            "forGroupOccurrence target requires templateElementId and targetSourceOrder",
+        ));
+    }
     let statement_id = require_field(object, "statementId", "geometry reference target")?
         .as_str()
         .filter(|value| !value.is_empty())
@@ -454,6 +516,9 @@ pub(crate) fn decode_geometry_target_payload(
         point_key,
         geometry_value_occurrence,
         geometry_value_binder_id,
+        for_group_template_element_id,
+        for_group_target_source_order,
+        for_group_index,
     }))
 }
 

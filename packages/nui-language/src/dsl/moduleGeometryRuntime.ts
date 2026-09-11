@@ -11,6 +11,7 @@ import type {
   ModuleGeometrySourceTarget,
   ModulePointCoordinateSemantic,
   ModuleSemanticAnalysis,
+  ModuleScalarExpressionSemantic,
   ResolvedModuleExport,
 } from "./moduleSemanticTypes";
 import { moduleMutationOwnershipDiagnostics } from "./moduleMutationOwnership";
@@ -47,6 +48,14 @@ export type ModuleGeometryBuiltinRuntimeTarget =
   | {
       kind: "geometryValue";
       occurrence: GeometryValueOccurrence;
+      geometryType: Extract<ModuleGeometryInterfaceType, "point" | "line">;
+      pointKey?: string;
+    }
+  | {
+      kind: "forGroupOccurrence";
+      templateElementId: ElementId;
+      targetSourceOrder: number;
+      index: ModuleScalarExpressionSemantic | null;
       geometryType: Extract<ModuleGeometryInterfaceType, "point" | "line">;
       pointKey?: string;
     };
@@ -427,6 +436,27 @@ export const buildModuleGeometryRuntime = ({
     if (target.kind === "geometryValueForBinder") {
       return { kind: "binder", binderId: target.binderId, property: target.property, ...(target.pointKey ? { pointKey: target.pointKey } : {}), targetSourceOrder: -1 };
     }
+    if (target.kind === "forGroupOccurrenceProperty") {
+      const geometryKind = target.category === "point" ? "point" : "line";
+      const baseTarget: Extract<ModuleGeometrySourceTarget, { kind: "forGroupOccurrence" }> = {
+        kind: "forGroupOccurrence",
+        statementId: target.statementId,
+        statementIndex: target.statementIndex,
+        category: target.category,
+        geometryKind,
+        expectedGeometryKind: geometryKind,
+        index: target.index,
+        source: "",
+        referenceSpan: { start: 0, end: 0 },
+        nameSpan: { start: 0, end: 0 },
+        ...(target.occurrenceIndexSpan ? { occurrenceIndexSpan: target.occurrenceIndexSpan } : {}),
+        ...(target.occurrenceRange ? { occurrenceRange: target.occurrenceRange } : {}),
+        ...(target.pointKey ? { pointKey: target.pointKey } : {}),
+        ...(target.identity ? { identity: target.identity } : {})
+      };
+      const alias = sourceAliasForTarget(baseTarget, instancePath, contextsByPath, moduleMaterialization, exportsByPath);
+      return alias ? propertyForAlias(alias, target.property, elementsById) : undefined;
+    }
     const baseTarget: ModuleGeometrySourceTarget = target.kind === "parameterProperty"
       ? { ...target, kind: "parameter" }
       : target.kind === "sourceGeometryProperty"
@@ -462,6 +492,16 @@ export const buildModuleGeometryRuntime = ({
   ): ModuleGeometryBuiltinRuntimeTarget | undefined => {
     const alias = sourceAliasForTarget(target, instancePath, contextsByPath, moduleMaterialization, exportsByPath);
     if (!alias) return undefined;
+    if (alias.kind === "forGroupOccurrence") {
+      return {
+        kind: "forGroupOccurrence",
+        templateElementId: alias.templateElementId,
+        targetSourceOrder: alias.targetSourceOrder,
+        index: alias.index,
+        geometryType: expectedGeometryType,
+        ...(alias.pointKey ? { pointKey: alias.pointKey } : {})
+      };
+    }
     if (expectedGeometryType === "line" && alias.kind === "line") {
       return { kind: "drawable", elementId: alias.elementId, geometryType: "line" };
     }

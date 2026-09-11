@@ -203,7 +203,7 @@ const evaluateGeometryProperty = (
   if (node.type.kind !== "number" && node.type.kind !== "choice") {
     return { status: "error", type: node.type, issueCode: "evaluation-geometry-property-unavailable" };
   }
-  if ((!node.elementId && !node.geometryValueOccurrence && !node.geometryValueBinderId) || node.targetSourceOrder === null || !environment.lookupGeometryProperty) {
+  if ((!node.elementId && !node.geometryValueOccurrence && !node.geometryValueBinderId && !node.forGroupOccurrenceTemplateElementId) || node.targetSourceOrder === null || !environment.lookupGeometryProperty) {
     return { status: "error", type: node.type, issueCode: "evaluation-geometry-property-unavailable" };
   }
   const result = environment.lookupGeometryProperty(node);
@@ -377,7 +377,7 @@ const evaluateGeometryBuiltin = (
           ? {
               context: {
                 kind: "geometryBuiltinTarget" as const,
-                targetElementId: target.statementId,
+                targetElementId: target.kind === "forGroupOccurrence" ? target.templateElementId : target.statementId,
                 ...(target.pointKey !== undefined ? { pointKey: target.pointKey } : {})
               }
             }

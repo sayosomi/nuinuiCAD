@@ -257,6 +257,14 @@ export const scanExpressionReferences = (
             ...(reference.path.segments.length > 1 || reference.path.absolute ? { qualifiedPath: true } : {})
           });
         }
+        if (reference.occurrenceIndexRange) {
+          const indexStart = reference.occurrenceIndexRange.start;
+          const indexEnd = reference.occurrenceIndexRange.end;
+          results.push(...scanExpressionReferences(
+            text.slice(indexStart, indexEnd),
+            offset + indexStart
+          ));
+        }
         index = parsed.end;
         continue;
       }

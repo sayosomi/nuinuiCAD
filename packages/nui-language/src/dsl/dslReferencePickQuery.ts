@@ -31,6 +31,7 @@ import { resolveSourceLexicalDeclaration } from "./sourceLexicalNamespaceIndex";
 import {
   isNumericComputedGeometryProperty
 } from "../geometry/numericExpressions";
+import { parseDslSourceReferenceAt } from "./dslReferenceTokens";
 
 export type DslReferencePickRange = { from: number; to: number };
 
@@ -339,15 +340,36 @@ const numericOperandTarget = (
   expressionSpan: DslSpan
 ): NumericOperandTarget | null => {
   if (logicalPosition < expressionSpan.start || logicalPosition > expressionSpan.end) return null;
-  const tokenized = tokenizeScalarExpression(source, expressionSpan);
-  if (tokenized.error) return null;
-  const token = tokenized.tokens.find((candidate) => tokenOwnsCaret(source, expressionSpan, candidate, logicalPosition));
   const expectation: PickExpectation = {
     expectedGeometryInterface: "path",
     role: "numericPropertyBase",
     multiplicity: "single"
   };
-
+  const tokenized = tokenizeScalarExpression(source, expressionSpan);
+  if (tokenized.error) return null;
+  const indexedReference = tokenized.tokens.find((candidate) => candidate.kind === "reference" &&
+    source[candidate.span.start] === "@");
+  if (indexedReference?.kind === "reference") {
+    const parsed = parseDslSourceReferenceAt(source, indexedReference.span.start, expressionSpan.end);
+    if (parsed.kind === "valid" && parsed.reference.occurrenceIndex !== null &&
+        logicalPosition >= parsed.reference.fullRange.start && logicalPosition <= parsed.reference.fullRange.end) {
+      if (parsed.reference.property !== null) {
+        return isNumericComputedGeometryProperty(parsed.reference.property)
+          ? {
+              expectation,
+              range: parsed.reference.fullRange,
+              numericProperty: { kind: "propertySelectionRequired" }
+            }
+          : null;
+      }
+      return {
+        expectation,
+        range: parsed.reference.fullRange,
+        numericProperty: { kind: "propertySelectionRequired" }
+      };
+    }
+  }
+  const token = tokenized.tokens.find((candidate) => tokenOwnsCaret(source, expressionSpan, candidate, logicalPosition));
   if (token?.kind === "geometryProperty") {
     if (!isNumericComputedGeometryProperty(token.property)) return null;
     return logicalPosition >= token.span.start && logicalPosition <= token.span.end

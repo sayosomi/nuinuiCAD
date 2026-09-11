@@ -19,6 +19,9 @@ export const collectScalarExpressionReferences = (
         references.push({ name: node.name, span: { start: node.span.start, end: node.nameSpan.end + 1 } });
         visit(node.index);
         return;
+      case "geometryProperty":
+        if (node.occurrenceIndex) visit(node.occurrenceIndex);
+        return;
       case "unary":
         visit(node.operand);
         return;

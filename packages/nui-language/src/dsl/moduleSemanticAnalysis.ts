@@ -203,6 +203,21 @@ const moduleOwnerIndexOf = (statements: readonly DslStatement[], statementIndex:
   return null;
 };
 
+const isMaterializedForGroupTemplate = (
+  statements: readonly DslStatement[],
+  statementIndex: number
+): boolean => {
+  const visited = new Set<number>();
+  let enclosing = statements[statementIndex]?.enclosing ?? null;
+  while (enclosing && !visited.has(enclosing.statementIndex)) {
+    visited.add(enclosing.statementIndex);
+    const candidate = statements[enclosing.statementIndex];
+    if (candidate?.kind === "element" && candidate.type === "forGroup") return true;
+    enclosing = candidate?.enclosing ?? null;
+  }
+  return false;
+};
+
 const isDirectModuleChild = (statement: DslStatement, moduleIndex: number) =>
   statement.enclosing?.statementIndex === moduleIndex;
 
@@ -1921,6 +1936,9 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           : null
         : null;
       const expectedInterfaceType = options.expectedInterfaceType ?? (expected === "point" ? "point" : "path");
+      const generatedLookup = ownerIndex === null
+        ? qualifiedSourceDeclarationResolution(sourceNamespace, statementIndex, path) ?? sourceDeclarationResolution(sourceNamespace, statementIndex, base)
+        : resolveModuleLexicalPath(statementIndex, ownerIndex, path);
       const compatible = elementType !== null && (expected === "point"
         ? elementType === "point"
         : isModuleGeometryInterfaceAssignable(elementType, expectedInterfaceType));
@@ -1940,6 +1958,46 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         options.presenceFacts
       );
       if (!indexSemantic || indexSemantic.type?.kind !== "number") return semantic(null, "invalid");
+      if (generatedLookup.kind === "resolved" && generatedLookup.declaration.kind === "geometry" &&
+          isMaterializedForGroupTemplate(statements, generatedLookup.declaration.statementIndex)) {
+        const declarationOwner = moduleOwnerIndexOf(statements, generatedLookup.declaration.statementIndex);
+        const declarationRelated = relatedForDeclaration(generatedLookup.declaration);
+        if (ownerIndex !== null && declarationOwner !== ownerIndex) {
+          addLocal(statementIndex, issue("module-outer-capture", baseSpan, `module body から outer geometry「${base}」を暗黙 capture できません。`, {
+            relatedSources: declarationRelated,
+            presentation: { key: "diagnostic.module-outer-capture", parameters: { name: base } }
+          }));
+          return semantic(null, "outerCapture");
+        }
+        const sourceTarget = declarationGeometryTarget(generatedLookup.declaration, stableStatementIdByIndex);
+        const actualInterfaceType = moduleGeometryInterfaceTypeOfElement(generatedLookup.declaration.statement);
+        if (!sourceTarget || !actualInterfaceType || !isModuleGeometryInterfaceAssignable(actualInterfaceType, expectedInterfaceType)) {
+          addLocal(statementIndex, issue("module-geometry-type-mismatch", baseSpan, `geometry reference「${base}」の型が一致しません(期待: ${expectedDiagnosticType})。`, {
+            relatedSources: expectedRelatedSources.length ? expectedRelatedSources : declarationRelated,
+            presentation: { key: "diagnostic.module-geometry-type-mismatch", parameters: { target: base } }
+          }));
+          return semantic(null, "invalid");
+        }
+        const target: Extract<ModuleGeometrySourceTarget, { kind: "forGroupOccurrence" }> = {
+          kind: "forGroupOccurrence",
+          statementId: sourceTarget.statementId,
+          statementIndex: sourceTarget.statementIndex,
+          category: sourceTarget.category,
+          geometryKind: sourceTarget.geometryKind,
+          expectedGeometryKind: expected,
+          expectedInterfaceType,
+          index: indexSemantic,
+          source: logicalSource?.slice(semanticSpan.start, semanticSpan.end) ?? trimmed,
+          referenceSpan: semanticSpan,
+          nameSpan: baseSpan,
+          occurrenceIndexSpan: logicalSource
+            ? node.index.span
+            : { start: semanticSpan.start + node.index.span.start, end: semanticSpan.start + node.index.span.end },
+          occurrenceRange: { start: baseSpan.end, end: semanticSpan.end },
+          ...(input.documentId ? { identity: qualifySemanticIdentity(input.documentId, sourceTarget.statementId) } : {})
+        };
+        return semantic(target, "resolved", null, expected === "point" ? "pointReference" : role);
+      }
       if (parameter && parameter.parameter.optional && !options.presenceFacts?.has(moduleParameterPresenceKey(parameter.definitionStatementId, parameter.parameterIndex))) {
         addLocal(statementIndex, issue("module-optional-value-required", baseSpan, `optional module parameter「${base}」は hasValue(@${base}) で存在を確認してから参照してください。`, { relatedSources: relatedForParameter(definitionStates.find((candidate) => candidate.statementId === parameter.definitionStatementId)!, parameter.parameterIndex), presentation: { key: "diagnostic.module-optional-value-required", parameters: { name: base } } }));
         return semantic(null, "invalid");
@@ -2159,6 +2217,72 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     const target = declarationGeometryTarget(lookup.declaration, stableStatementIdByIndex);
     const declarationOwner = moduleOwnerIndexOf(statements, lookup.declaration.statementIndex);
     const declarationRelated = relatedForDeclaration(lookup.declaration);
+    if (lookup.kind === "resolved" && lookup.declaration.kind === "geometry" &&
+        isMaterializedForGroupTemplate(statements, lookup.declaration.statementIndex)) {
+      if (ownerIndex !== null && declarationOwner !== ownerIndex) {
+        addLocal(statementIndex, issue("module-outer-capture", baseSpan, `module body から outer geometry「${base}」を暗黙 capture できません。`, {
+          relatedSources: declarationRelated,
+          presentation: { key: "diagnostic.module-outer-capture", parameters: { name: base } }
+        }));
+        return semantic(null, "outerCapture", null, derivedRole);
+      }
+      const sourceTarget = target;
+      const actualInterfaceType = moduleGeometryInterfaceTypeOfElement(lookup.declaration.statement);
+      const pointTarget = pointKey && expected === "point" && sourceTarget && isDerivedPointKeyForGeometryCategory(sourceTarget.category, pointKey)
+        ? pointKey
+        : pointKey ? null : undefined;
+      const compatible = pointKey
+        ? pointTarget !== null
+        : Boolean(actualInterfaceType && isModuleGeometryInterfaceAssignable(actualInterfaceType, options.expectedInterfaceType ?? (expected === "point" ? "point" : "path")));
+      const indexSpan = reference.occurrenceIndexRange
+        ? { start: semanticSpan.start + reference.occurrenceIndexRange.start, end: semanticSpan.start + reference.occurrenceIndexRange.end }
+        : null;
+      const indexSemantic = reference.occurrenceIndex && indexSpan
+        ? analyzeExpression(
+            statementIndex,
+            ownerIndex,
+            reference.occurrenceIndex,
+            indexSpan,
+            { kind: "number" },
+            options.scalarResolver ?? ((candidate, facts) => resolveSourceScalar(statementIndex, ownerIndex, candidate.name, ownerIndex, candidate.span, facts)),
+            options.bareScalarResolver,
+            options.geometryPropertyResolver,
+            undefined,
+            undefined,
+            options.presenceFacts
+          )
+        : null;
+      if (!sourceTarget || !compatible || (reference.occurrenceIndex && (!indexSemantic || indexSemantic.type?.kind !== "number"))) {
+        addLocal(statementIndex, issue("module-geometry-type-mismatch", baseSpan, `geometry reference「${base}」の型が一致しません(期待: ${expectedDiagnosticType})。`, {
+          relatedSources: expectedRelatedSources.length ? expectedRelatedSources : declarationRelated,
+          presentation: { key: "diagnostic.module-geometry-type-mismatch", parameters: { target: base } }
+        }));
+        return semantic(null, "invalid", null, derivedRole);
+      }
+      const occurrenceTarget: Extract<ModuleGeometrySourceTarget, { kind: "forGroupOccurrence" }> = {
+        kind: "forGroupOccurrence",
+        statementId: sourceTarget.statementId,
+        statementIndex: sourceTarget.statementIndex,
+        category: sourceTarget.category,
+        geometryKind: sourceTarget.geometryKind,
+        expectedGeometryKind: expected,
+        expectedInterfaceType: options.expectedInterfaceType ?? (expected === "point" ? "point" : "path"),
+        index: indexSemantic,
+        source: logicalSource?.slice(semanticSpan.start, semanticSpan.end) ?? trimmed,
+        referenceSpan: semanticSpan,
+        nameSpan: baseSpan,
+        ...(indexSpan ? { occurrenceIndexSpan: indexSpan } : {}),
+        ...(reference.occurrenceRange ? {
+          occurrenceRange: {
+            start: semanticSpan.start + reference.occurrenceRange.start,
+            end: semanticSpan.start + reference.occurrenceRange.end
+          }
+        } : {}),
+        ...(pointKey ? { pointKey } : {}),
+        ...(input.documentId ? { identity: qualifySemanticIdentity(input.documentId, sourceTarget.statementId) } : {})
+      };
+      return semantic(occurrenceTarget, "resolved", null, derivedRole);
+    }
     if (!target) {
       addLocal(statementIndex, issue("module-geometry-type-mismatch", baseSpan, `「${base}」はgeometryではありません。`, {
         relatedSources: expectedRelatedSources.length ? expectedRelatedSources : declarationRelated,
@@ -3530,6 +3654,68 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     if (lookup.kind === "invalidOverlayTraversal") return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-geometry-property-type-mismatch", reference.span, `「${lookup.name}」はparameter/iteration namespaceではありません。`, { presentation: { key: "diagnostic.module-geometry-property-type-mismatch", parameters: { target: lookup.name } } }) };
     if (lookup.kind === "invalidTraversal") return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-geometry-property-type-mismatch", reference.span, `「${lookup.declaration.name}」はnamespace/containerではありません。`, { relatedSources: relatedForLookup(lookup), presentation: { key: "diagnostic.module-geometry-property-type-mismatch", parameters: { target: lookup.declaration.name } } }) };
     const declarationRelated = relatedForDeclaration(lookup.declaration);
+    if (lookup.kind === "resolved" && lookup.declaration.kind === "geometry" &&
+        isMaterializedForGroupTemplate(statements, lookup.declaration.statementIndex)) {
+      const declarationOwner = moduleOwnerIndexOf(statements, lookup.declaration.statementIndex);
+      if (ownerIndex !== null && declarationOwner !== ownerIndex) {
+        return {
+          target: null,
+          type: null,
+          resolution: "outerCapture",
+          diagnostic: issue("module-outer-capture", reference.span, `module body から outer geometry「${reference.elementName}」を暗黙 capture できません。`, {
+            relatedSources: declarationRelated,
+            presentation: { key: "diagnostic.module-outer-capture", parameters: { name: reference.elementName } }
+          })
+        };
+      }
+      const sourceTarget = declarationGeometryTarget(lookup.declaration, stableStatementIdByIndex);
+      const indexSemantic = reference.occurrenceIndex
+        ? (() => {
+            const indexSpan = reference.occurrenceIndexSpan ?? reference.occurrenceIndex.span;
+            const source = input.logicalTextByStatementIndex?.get(statementIndex);
+            return analyzeExpression(
+              statementIndex,
+              ownerIndex,
+              source?.slice(indexSpan.start, indexSpan.end) ?? "",
+              indexSpan,
+              { kind: "number" },
+              (candidate, facts) => ownerIndex === null
+                ? resolveSourceScalar(statementIndex, null, candidate.name, null, candidate.span, facts)
+                : resolveBodyScalar(statementIndex, ownerIndex, candidate, facts),
+              undefined,
+              (candidate) => resolveGeometryProperty(statementIndex, ownerIndex, candidate),
+              undefined,
+              undefined,
+              reference.presenceFacts
+            );
+          })()
+        : null;
+      const type = pointPath
+        ? { kind: "number" as const }
+        : numericGeometryPropertySupportedByStaticTarget(
+            numericGeometryTargetForSourceStatement(lookup.declaration.statementIndex, ownerIndex, lookup.declaration.statement),
+            reference.property
+          )
+          ? { kind: "number" as const }
+          : choiceGeometryPropertyTypeForStatement(lookup.declaration.statement, reference.property);
+      if (!sourceTarget || !type || (reference.occurrenceIndex && (!indexSemantic || indexSemantic.type?.kind !== "number"))) return unknownProperty();
+      return {
+        target: {
+          kind: "forGroupOccurrenceProperty",
+          statementId: sourceTarget.statementId,
+          statementIndex: sourceTarget.statementIndex,
+          category: sourceTarget.category,
+          property: resolvedProperty,
+          index: indexSemantic,
+          ...(reference.occurrenceIndexSpan ? { occurrenceIndexSpan: reference.occurrenceIndexSpan } : {}),
+          ...(reference.occurrenceRange ? { occurrenceRange: reference.occurrenceRange } : {}),
+          ...(resolvedPointKey ? { pointKey: resolvedPointKey } : {}),
+          ...(input.documentId ? { identity: qualifySemanticIdentity(input.documentId, sourceTarget.statementId) } : {})
+        },
+        type,
+        resolution: "resolved"
+      };
+    }
     if (lookup.declaration.kind === "typedDeclaration" && lookup.declaration.statement.kind === "typedDeclaration" && isDslGeometryValueType(lookup.declaration.statement.valueType)) {
       const declarationOwner = moduleOwnerIndexOf(statements, lookup.declaration.statementIndex);
       if (ownerIndex !== null && declarationOwner !== ownerIndex) {
@@ -3603,7 +3789,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       (reference) => resolveGeometry(
         statementIndex,
         ownerIndex,
-        `@${reference.name}`,
+        reference.name.startsWith("@") ? reference.name : `@${reference.name}`,
         reference.span,
         reference.expectedGeometryType,
         {
@@ -4428,7 +4614,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
               (reference) => resolveGeometry(
                 statementIndex,
                 null,
-                `@${reference.name}`,
+                reference.name.startsWith("@") ? reference.name : `@${reference.name}`,
                 reference.span,
                 reference.expectedGeometryType,
                 { expectedInterfaceType: reference.expectedGeometryType, role: reference.expectedGeometryType === "point" ? "pointReference" : "lineReference" }
@@ -4997,7 +5183,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
               (reference) => resolveGeometry(
                 statementIndex,
                 ownerIndex,
-                `@${reference.name}`,
+                reference.name.startsWith("@") ? reference.name : `@${reference.name}`,
                 reference.span,
                 reference.expectedGeometryType,
                 {
@@ -5104,7 +5290,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       (reference) => resolveGeometry(
         statementIndex,
         null,
-        `@${reference.name}`,
+        reference.name.startsWith("@") ? reference.name : `@${reference.name}`,
         reference.span,
         reference.expectedGeometryType,
         { expectedInterfaceType: reference.expectedGeometryType, role: reference.expectedGeometryType === "point" ? "pointReference" : "lineReference" }
@@ -5175,7 +5361,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       (reference) => resolveGeometry(
         value.statementIndex,
         null,
-        `@${reference.name}`,
+        reference.name.startsWith("@") ? reference.name : `@${reference.name}`,
         reference.span,
         reference.expectedGeometryType,
         { expectedInterfaceType: reference.expectedGeometryType, role: reference.expectedGeometryType === "point" ? "pointReference" : "lineReference" }
@@ -5272,7 +5458,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         (reference, facts) => resolveSourceScalar(statementIndex, null, reference.name, null, reference.span, facts),
         undefined,
         (reference) => resolveGeometryProperty(statementIndex, null, reference),
-        (reference) => resolveGeometry(statementIndex, null, `@${reference.name}`, reference.span, reference.expectedGeometryType, {
+        (reference) => resolveGeometry(statementIndex, null, reference.name.startsWith("@") ? reference.name : `@${reference.name}`, reference.span, reference.expectedGeometryType, {
           expectedInterfaceType: reference.expectedGeometryType,
           role: reference.expectedGeometryType === "point" ? "pointReference" : "lineReference"
         }),
@@ -5329,7 +5515,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           (reference, presenceFacts) => resolveSourceScalar(value.statementIndex, null, reference.name, null, reference.span, presenceFacts),
           undefined,
           (reference) => resolveGeometryProperty(value.statementIndex, null, reference),
-          (reference) => resolveGeometry(value.statementIndex, null, `@${reference.name}`, reference.span, reference.expectedGeometryType, {
+          (reference) => resolveGeometry(value.statementIndex, null, reference.name.startsWith("@") ? reference.name : `@${reference.name}`, reference.span, reference.expectedGeometryType, {
             expectedInterfaceType: reference.expectedGeometryType,
             role: reference.expectedGeometryType === "point" ? "pointReference" : "lineReference"
           })
@@ -5389,7 +5575,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       resolveBodyGeometryBuiltin: (statementIndex, reference) => resolveGeometry(
         statementIndex,
         definition.statementIndex,
-        `@${reference.name}`,
+        reference.name.startsWith("@") ? reference.name : `@${reference.name}`,
         reference.span,
         reference.expectedGeometryType,
         {
@@ -5427,7 +5613,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           (reference, facts) => resolveBodyScalar(collectionValue.statementIndex, definition.statementIndex, reference, facts),
           undefined,
           (reference) => resolveGeometryProperty(collectionValue.statementIndex, definition.statementIndex, reference),
-          (reference) => resolveGeometry(collectionValue.statementIndex, definition.statementIndex, `@${reference.name}`, reference.span, reference.expectedGeometryType, {
+          (reference) => resolveGeometry(collectionValue.statementIndex, definition.statementIndex, reference.name.startsWith("@") ? reference.name : `@${reference.name}`, reference.span, reference.expectedGeometryType, {
             expectedInterfaceType: reference.expectedGeometryType,
             role: reference.expectedGeometryType === "point" ? "pointReference" : "lineReference",
             presenceFacts: new Set()
@@ -5520,7 +5706,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         (reference) => resolveGeometry(
           value.statementIndex,
           definition.statementIndex,
-          `@${reference.name}`,
+          reference.name.startsWith("@") ? reference.name : `@${reference.name}`,
           reference.span,
           reference.expectedGeometryType,
           {
@@ -5596,7 +5782,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
             (reference, presenceFacts) => resolveBodyScalar(value.statementIndex, definition.statementIndex, reference, presenceFacts),
             undefined,
             (reference) => resolveGeometryProperty(value.statementIndex, definition.statementIndex, reference),
-            (reference) => resolveGeometry(value.statementIndex, definition.statementIndex, `@${reference.name}`, reference.span, reference.expectedGeometryType, {
+            (reference) => resolveGeometry(value.statementIndex, definition.statementIndex, reference.name.startsWith("@") ? reference.name : `@${reference.name}`, reference.span, reference.expectedGeometryType, {
               expectedInterfaceType: reference.expectedGeometryType,
               role: reference.expectedGeometryType === "point" ? "pointReference" : "lineReference",
               presenceFacts: reference.presenceFacts

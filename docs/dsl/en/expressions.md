@@ -36,6 +36,20 @@ whole-value aliases are resolved. Reads happen at the source position: a
 later mutation does not change an earlier scalar read. Hidden geometry remains
 readable; disabled, failed, or not-yet-evaluated geometry is unavailable.
 
+Generated drawable occurrences from a `for` statement use an explicit
+zero-based occurrence suffix after the resolved source reference:
+`@Mark[0]` or `@Mark[@i]`. The bracket expression is a typed numeric scalar;
+it must be finite, integral, non-negative, in range, and available at the
+reference position. A property follows the occurrence suffix, for example
+`@Mark[1].length`. The brackets are not part of a qualified `::` path and are
+never recovered from a generated runtime id. A source/template drawable has
+one ordered occurrence collection across its materialized loop instances;
+nested loops retain their occurrence paths. Bare `@Mark` is valid only when
+exactly one occurrence is available, so it cannot silently select occurrence
+zero when several exist. The same authored occurrence spelling is used for
+geometry targets, scalar geometry-property reads, and generated-candidate
+insertion.
+
 ## Geometry and collection properties
 
 Only numeric computed properties and schema-declared choice properties are

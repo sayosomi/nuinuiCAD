@@ -9,9 +9,9 @@ use `/* ... */`. The `#` character does not start a comment.
 The first meaningful statement must be `nui 1`; comments and blank lines may
 come before it. Names follow the DSL identifier grammar, including non-ASCII
 names. A reference always has an `@` sigil: `@Front` names a declaration,
-`@Front::Hem` selects a module export, and `@Line.length` reads an available
-numeric property. See [Expressions](expressions.md) for the rules that make a
-reference available.
+`@Front::Hem` selects a module export, `@Line[0]` selects an explicit generated
+occurrence, and `@Line[0].length` reads a property from that occurrence. See
+[Expressions](expressions.md) for the rules that make a reference available.
 
 ## Statement spellings
 

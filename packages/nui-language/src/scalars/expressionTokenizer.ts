@@ -41,6 +41,7 @@ export type ScalarExpressionToken =
   | { readonly kind: "operator"; readonly value: ScalarExpressionOperatorSymbol; readonly span: ScalarSpan }
   | { readonly kind: "reference"; readonly name: string; readonly nameSpan: ScalarSpan; readonly span: ScalarSpan }
   | { readonly kind: "geometryProperty"; readonly elementName: string; readonly elementNameSpan: ScalarSpan; readonly property: string; readonly propertySpan: ScalarSpan; readonly span: ScalarSpan }
+  | { readonly kind: "postfixProperty"; readonly property: string; readonly propertySpan: ScalarSpan; readonly span: ScalarSpan }
   | { readonly kind: "literal"; readonly literal: ScalarLiteralToken };
 
 export interface ScalarExpressionTokenizeError {
@@ -134,6 +135,20 @@ export const tokenizeScalarExpression = (source: string, span: ScalarSpan): Scal
       index += 1;
       continue;
     }
+    if (char === "." && index + 1 < end && !/[0-9]/.test(source[index + 1]!)) {
+      let propertyEnd = index + 1;
+      while (propertyEnd < end && !/[\s()[\]{}:,]/.test(source[propertyEnd]!)) propertyEnd += 1;
+      if (propertyEnd > index + 1) {
+        tokens.push({
+          kind: "postfixProperty",
+          property: source.slice(index + 1, propertyEnd),
+          propertySpan: { start: index + 1, end: propertyEnd },
+          span: { start: index, end: propertyEnd }
+        });
+        index = propertyEnd;
+        continue;
+      }
+    }
     if (char === ",") {
       tokens.push({ kind: "comma", span: { start: index, end: index + 1 } });
       index += 1;
@@ -175,7 +190,7 @@ export const tokenizeScalarExpression = (source: string, span: ScalarSpan): Scal
     }
 
     if (char === "@") {
-      const parsed = parseDslSourceReferenceAt(source, index, end);
+      const parsed = parseDslSourceReferenceAt(source, index, end, { parseOccurrenceIndex: false });
       if (parsed.kind === "invalid") {
         return {
           tokens,

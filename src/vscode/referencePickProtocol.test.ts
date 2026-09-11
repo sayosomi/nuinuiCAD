@@ -6,6 +6,7 @@ import {
   referencePickReplacementText,
   referencePickNumericPropertyDraftFor,
   referencePickSeedReferences,
+  referencePickSourceForReference,
   referencePickTargetMatchesProof,
   referencePickTargetProofFor
 } from "./referencePickProtocol";
@@ -93,6 +94,26 @@ describe("reference pick VS Code protocol proof", () => {
     });
     expect(referencePickNumericPropertyDraftFor({ ...proof, oldText: "20" })).toBeNull();
     expect(referencePickNumericPropertyDraftFor({ ...proof, oldText: "scalarValue" })).toBeNull();
+  });
+
+  it("preserves an occurrence selector through numeric pick proofs and replacements", () => {
+    const source = [
+      "nui 1",
+      "line Mark = segment(start: (0, 0), end: (10, 0))",
+      "point P = offset(from: @Mark[0].start, dx: @Mark[1].length, dy: 0)"
+    ].join("\n");
+    const { target } = targetAt(source, "@Mark[1].length");
+    const proof = referencePickTargetProofFor(source, target)!;
+
+    expect(proof.oldText).toBe("@Mark[1].length");
+    expect(referencePickNumericPropertyDraftFor(proof)).toEqual({
+      reference: { base: "Mark", occurrenceIndex: "1" },
+      property: "length"
+    });
+    expect(referencePickSourceForReference({ base: "Mark", occurrenceIndex: 1, pointKey: "start" }))
+      .toBe("@Mark[1].start");
+    expect(referencePickReplacementText("single", [{ base: "Mark", occurrenceIndex: 1, pointKey: "start" }]))
+      .toBe("@Mark[1].start");
   });
 
   it("parses current list references as draft seed without losing quoted names", () => {

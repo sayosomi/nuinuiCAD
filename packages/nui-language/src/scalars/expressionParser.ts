@@ -84,6 +84,8 @@ export const containsScalarNamedCall = (ast: ScalarExpressionAst): boolean => {
       return containsScalarNamedCall(ast.expression);
     case "collectionIndex":
       return containsScalarNamedCall(ast.index);
+    case "geometryProperty":
+      return ast.occurrenceIndex ? containsScalarNamedCall(ast.occurrenceIndex) : false;
     case "valueIf":
       return containsScalarNamedCall(ast.condition) || containsScalarNamedCall(ast.thenBranch) || containsScalarNamedCall(ast.elseBranch);
     case "valueMatch":
@@ -423,6 +425,21 @@ class Parser {
     const closing = this.peek();
     if (!closing || closing.kind !== "rightBracket") return fail("unterminated-index", tokenSpan(opening), "閉じ括弧 ']' がありません。");
     this.consume();
+    const property = this.peek();
+    if (property?.kind === "postfixProperty") {
+      this.consume();
+      return {
+        kind: "geometryProperty",
+        span: { start: reference.span.start, end: property.span.end },
+        elementNameSpan: reference.nameSpan,
+        propertySpan: property.propertySpan,
+        elementName: reference.name,
+        property: property.property,
+        occurrenceIndex: index,
+        occurrenceIndexSpan: index.span,
+        occurrenceRange: { start: tokenSpan(opening).start, end: tokenSpan(closing).end }
+      };
+    }
     return {
       kind: "collectionIndex",
       span: { start: reference.span.start, end: closing.span.end },

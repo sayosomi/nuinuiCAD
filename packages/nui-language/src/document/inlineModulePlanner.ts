@@ -22,7 +22,7 @@ import {
 } from "../dsl/geometryArrayTypes";
 import { parseDslSnapshot } from "../dsl/dslParser";
 import {
-  formatDslReferencePath,
+  formatDslSourceReference,
   parseDslSourceReference,
   parseDslSourceReferenceAt,
   readDslReferencePathSegments
@@ -2422,17 +2422,25 @@ const canonicalSourceReferenceFor = (
     parsed.reference.path.segments.length > 1
   ) {
     const absolutePath = { absolute: true, segments: parsed.reference.path.segments };
-    const absoluteSource = `@${formatDslReferencePath(absolutePath)}`;
+    const absoluteSource = formatDslSourceReference({
+      path: absolutePath,
+      occurrenceIndex: parsed.reference.occurrenceIndex,
+      property: parsed.reference.property
+    });
     const absoluteIdentity = moduleSourceIdentityForReference(compiled, referenceStatementIndex, absoluteSource);
     if (absoluteIdentity && dslSemanticIdentityKey(absoluteIdentity) === dslSemanticIdentityKey(identity)) {
-      return `${absoluteSource}${parsed.reference.property ? `.${parsed.reference.property}` : ""}`;
+      return absoluteSource;
     }
   }
   const declaration = sourceDeclarationForIdentity(compiled, identity);
   if (!declaration) return null;
   const path = canonicalPathForDeclaration(compiled, declaration, referenceStatementIndex);
   if (!path) return null;
-  return `@${formatDslReferencePath(path)}${parsed.reference.property ? `.${parsed.reference.property}` : ""}`;
+  return formatDslSourceReference({
+    path,
+    occurrenceIndex: parsed.reference.occurrenceIndex,
+    property: parsed.reference.property
+  });
 };
 
 const occurrenceSlotsForStatement = (
@@ -2725,9 +2733,11 @@ const sameGeometryTarget = (
   right: ScalarExpressionResolvedGeometryTarget | null
 ): boolean => Boolean(
   left && right &&
-  left.statementId === right.statementId &&
-  left.geometryType === right.geometryType &&
-  left.pointKey === right.pointKey
+  left.kind === right.kind &&
+  (left.kind === "forGroupOccurrence" && right.kind === "forGroupOccurrence"
+    ? left.templateElementId === right.templateElementId && left.targetSourceOrder === right.targetSourceOrder
+    : left.kind !== "forGroupOccurrence" && right.kind !== "forGroupOccurrence" &&
+      left.statementId === right.statementId && left.geometryType === right.geometryType && left.pointKey === right.pointKey)
 );
 
 const geometryTargetsInTypedExpression = (
@@ -3046,6 +3056,10 @@ const remappedGeometryTarget = (
   nextCompiled: CompiledDslDocument,
   mapping: OwnerMapping
 ): ScalarExpressionResolvedGeometryTarget => {
+  if (target.kind === "forGroupOccurrence") {
+    const templateElementId = mapping.bodyStatementIds.get(target.templateElementId) ?? target.templateElementId;
+    return { ...target, templateElementId };
+  }
   const statementId = mapping.bodyStatementIds.get(target.statementId) ?? target.statementId;
   const statementIndex = statementIndexForId(nextCompiled, statementId) ?? target.statementIndex;
   return { ...target, statementId, statementIndex };

@@ -108,6 +108,8 @@ fn state_with_element(id: &str, element: Value) -> EvaluationState {
         geometry_input_targets: HashMap::new(),
         geometry_collection_nodes: HashMap::new(),
         geometry_value_binders: HashMap::new(),
+        for_group_generated_rows: Vec::new(),
+        for_group_expected_occurrence_count_by_template_id: HashMap::new(),
         elements: vec![element],
         elements_by_id: HashMap::from([(id.to_owned(), 0)]),
         drawing_modifiers: json!([]),

@@ -1952,7 +1952,7 @@ describe("DrawingCanvas point dragging", () => {
     });
     act(() => { dispatchCommand("finishPickMode"); });
     expect(useCadStore.getState().elements.find((element) => element.id === "endpoint-target"))
-      .toMatchObject({ endpoint: { lineId: "loop-line", endpointKey: "end" } });
+      .toMatchObject({ endpoint: { lineId: 'Loop::"Loop line"[1].end', endpointKey: "end" } });
   });
 
   it("shows generated forGroup lines in the shared overlay and accepts their hit-test result", () => {

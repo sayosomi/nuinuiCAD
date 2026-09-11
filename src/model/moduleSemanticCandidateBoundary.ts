@@ -9,6 +9,10 @@ import type { CadElement, ElementId, PointAnchor } from "../types/geometry";
 export type CanonicalGeometrySourceReference = {
   /** Canonical authored reference without a derived-point accessor. */
   base: string;
+  /** Zero-based occurrence ordinal for an explicitly selected statement-for
+   * drawable. This is evaluator-owned provenance, never parsed from a
+   * generated runtime element id. */
+  occurrenceIndex?: number | string;
   /** Structured accessor; never recovered by splitting the formatted token. */
   pointKey?: string;
 };
@@ -220,12 +224,14 @@ export const sourceReferenceForRuntimeElement = ({
   runtimeElementId,
   targetElementId,
   context,
-  pointKey
+  pointKey,
+  occurrenceIndex
 }: {
   runtimeElementId: ElementId;
   targetElementId: ElementId;
   context: ModuleSemanticCandidateContext;
   pointKey?: string;
+  occurrenceIndex?: number;
 }): CanonicalGeometrySourceReference | null => {
   const origin = originFor(runtimeElementId, context);
   if (!origin || origin.kind !== "moduleBody") return null;
@@ -239,7 +245,11 @@ export const sourceReferenceForRuntimeElement = ({
       : undefined;
     if (!instanceName) return null;
     const base = formatDslReferencePath({ segments: [instanceName, exported.name], absolute: false });
-    return pointKey ? { base, pointKey } : { base };
+    return {
+      base,
+      ...(occurrenceIndex === undefined ? {} : { occurrenceIndex }),
+      ...(pointKey ? { pointKey } : {})
+    };
   }
 
   // Private source names come from the stable source statement identity, not
@@ -247,23 +257,50 @@ export const sourceReferenceForRuntimeElement = ({
   const sourceName = sourceNameForOrigin(origin, context);
   if (!sourceName) return null;
   const base = formatDslReferencePath({ segments: [sourceName], absolute: false });
-  return pointKey ? { base, pointKey } : { base };
+  return {
+    base,
+    ...(occurrenceIndex === undefined ? {} : { occurrenceIndex }),
+    ...(pointKey ? { pointKey } : {})
+  };
+};
+
+/** Builds the authored root-document spelling for a generated row. Root
+ * templates have no Module origin, so the source name comes from the template
+ * declaration while the ordinal comes from evaluator-owned row order. */
+export const sourceReferenceForRootTemplate = ({
+  templatePath,
+  occurrenceIndex,
+  pointKey
+}: {
+  templatePath: readonly string[];
+  occurrenceIndex: number;
+  pointKey?: string;
+}): CanonicalGeometrySourceReference | null => {
+  if (templatePath.length === 0 || templatePath.some((part) => !part.trim())) return null;
+  return {
+    base: formatDslReferencePath({ segments: [...templatePath], absolute: false }),
+    occurrenceIndex,
+    ...(pointKey ? { pointKey } : {})
+  };
 };
 
 export const sourceReferenceForAnchor = ({
   anchor,
   targetElementId,
-  context
+  context,
+  occurrenceIndex
 }: {
   anchor: PointAnchor;
   targetElementId: ElementId;
   context: ModuleSemanticCandidateContext;
+  occurrenceIndex?: number;
 }): CanonicalGeometrySourceReference | null => {
   if (anchor.mode === "reference") {
     return sourceReferenceForRuntimeElement({
       runtimeElementId: anchor.pointId,
       targetElementId,
-      context
+      context,
+      occurrenceIndex
     });
   }
   if (anchor.mode === "derived") {
@@ -271,7 +308,8 @@ export const sourceReferenceForAnchor = ({
       runtimeElementId: anchor.elementId,
       targetElementId,
       context,
-      pointKey: anchor.pointKey
+      pointKey: anchor.pointKey,
+      occurrenceIndex
     });
   }
   return null;
@@ -279,31 +317,37 @@ export const sourceReferenceForAnchor = ({
 
 export const pointAnchorForSourceReference = (
   sourceReference: CanonicalGeometrySourceReference
-): PointAnchor => sourceReference.pointKey
-  ? derivedAnchor(sourceReference.base, sourceReference.pointKey)
-  : referenceAnchor(sourceReference.base);
+): PointAnchor => {
+  const sourceToken = `${sourceReference.base}${sourceReference.occurrenceIndex === undefined ? "" : `[${sourceReference.occurrenceIndex}]`}`;
+  return sourceReference.pointKey
+    ? derivedAnchor(sourceToken, sourceReference.pointKey)
+    : referenceAnchor(sourceToken);
+};
 
 export const sourceReferenceText = (
   sourceReference: CanonicalGeometrySourceReference | null
 ) => sourceReference
-  ? `@${sourceReference.base}${sourceReference.pointKey ? `.${sourceReference.pointKey}` : ""}`
+  ? `@${sourceReference.base}${sourceReference.occurrenceIndex === undefined ? "" : `[${sourceReference.occurrenceIndex}]`}${sourceReference.pointKey ? `.${sourceReference.pointKey}` : ""}`
   : null;
 
 export const sourceReferenceForElement = ({
   element,
   targetElementId,
   context,
-  property
+  property,
+  occurrenceIndex
 }: {
   element: CadElement;
   targetElementId: ElementId;
   context: ModuleSemanticCandidateContext;
   property?: string;
+  occurrenceIndex?: number;
 }) => {
   const base = sourceReferenceForRuntimeElement({
     runtimeElementId: element.id,
     targetElementId,
-    context
+    context,
+    occurrenceIndex
   });
   const text = sourceReferenceText(base);
   return text && property ? `${text}.${property}` : text;

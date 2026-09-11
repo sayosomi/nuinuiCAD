@@ -1283,6 +1283,7 @@ fn point_from_input_target(
                 .map(|point| (point.x, point.y))
                 .or_else(|| point_from_geometry(geometry).map(|point| (point.x, point.y)))
         }
+        GeometryInputTarget::ForGroupOccurrence { .. } => None,
         GeometryInputTarget::GeometryValue { occurrence, .. } => {
             let geometry = state.computed_geometry_values.get(occurrence)?;
             point_key
@@ -1322,7 +1323,10 @@ fn target_geometry<'a>(
             GeometryInputTarget::Coordinate { .. }
             | GeometryInputTarget::CollectionValue { .. }
             | GeometryInputTarget::GeometryValueMap { .. }
-            | GeometryInputTarget::CollectionIndex { .. } => state.computed_geometry.get(binder_id),
+            | GeometryInputTarget::CollectionIndex { .. }
+            | GeometryInputTarget::ForGroupOccurrence { .. } => {
+                state.computed_geometry.get(binder_id)
+            }
         };
     }
     if let Some(occurrence) = &target.geometry_value_occurrence {
