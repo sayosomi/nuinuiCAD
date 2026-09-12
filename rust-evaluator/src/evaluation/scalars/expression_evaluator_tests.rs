@@ -248,7 +248,9 @@ fn builtin_call(
         target: TypedScalarCallTarget::Builtin(name),
         args: args
             .into_iter()
-            .map(|expression| TypedBuiltinArgument::Scalar { expression: Box::new(expression) })
+            .map(|expression| TypedBuiltinArgument::Scalar {
+                expression: Box::new(expression),
+            })
             .collect(),
         r#type: Some(r#type),
     }

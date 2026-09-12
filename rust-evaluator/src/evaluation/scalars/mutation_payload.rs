@@ -367,9 +367,9 @@ fn decode_version(
                 ));
             }
             if let Some(expression) = initializer.as_ref() {
-                if expression_type(expression)
-                    .map_or(true, |actual| !scalar_type_assignable(actual, &declared_type))
-                {
+                if expression_type(expression).map_or(true, |actual| {
+                    !scalar_type_assignable(actual, &declared_type)
+                }) {
                     return Err(issue(
                         Code::LiteralTypeMismatch,
                         "declaration initializer type must match declaredType",
@@ -402,9 +402,9 @@ fn decode_version(
                 "expression",
                 "set binding version",
             )?)?;
-            if expression_type(&expression)
-                .map_or(true, |actual| !scalar_type_assignable(actual, &declared_type))
-            {
+            if expression_type(&expression).map_or(true, |actual| {
+                !scalar_type_assignable(actual, &declared_type)
+            }) {
                 return Err(issue(
                     Code::LiteralTypeMismatch,
                     "set expression type must match declaredType",
