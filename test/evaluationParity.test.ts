@@ -1802,6 +1802,23 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
   }, 30000);
 
+  it("matches optional value-if, optional match, coalescing, and choice control flow", () => {
+    const fixture = readParityFixture(repoRoot, "nui1-optional-value-control-flow.nui");
+    const options = optionsFor(fixture);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustFixture(repoRoot, fixture);
+
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    for (const payload of [tsPayload, rustPayload]) {
+      expect(scalarBindingFor(fixture, payload, "missing")).toMatchObject({ status: "ok", value: { kind: "none" } });
+      expect(scalarBindingFor(fixture, payload, "selected")).toMatchObject({ status: "ok", value: { kind: "string", value: "hello" } });
+      expect(scalarBindingFor(fixture, payload, "resolved")).toMatchObject({ status: "ok", value: { kind: "string", value: "fallback" } });
+      expect(scalarBindingFor(fixture, payload, "matched")).toMatchObject({ status: "ok", value: { kind: "string", value: "hello" } });
+      expect(scalarBindingFor(fixture, payload, "choiceResult")).toMatchObject({ status: "ok", value: { kind: "string", value: "left" } });
+    }
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+  }, 30000);
+
   it("asserts module geometry builtin lowering values and parity through both evaluators", () => {
     const fixture = readParityFixture(repoRoot, "nui1-module-geometry-builtin-functions.nui");
     const options = optionsFor(fixture);

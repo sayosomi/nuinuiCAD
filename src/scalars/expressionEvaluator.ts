@@ -20,7 +20,7 @@ import type { ScalarExpressionResolvedGeometryTarget, TypedBuiltinArgument } fro
 import { evaluateBuiltinFunction } from "./builtinFunctionSemantics";
 import { atan2Degrees360, radiansToDegrees } from "./angleMath";
 import { scalarTypesEqual, scalarValueMatchesType, type ScalarEvaluation, type ScalarExpressionType, type ScalarType, type ScalarValue } from "./types";
-import { scalarExpressionTypesEqual } from "./scalarAssignability";
+import { isScalarExpressionTypeAssignable, scalarExpressionTypesEqual } from "./scalarAssignability";
 import { isDslOptionalValueType } from "../../packages/nui-language/src/dsl/dslValueTypes";
 import type { ComputedGeometry } from "../types/geometry";
 import type { ComputedGeometryValue } from "../geometry/evaluationTypes";
@@ -533,8 +533,8 @@ const evaluateValueIf = (
   }
   const selected = evaluateTypedExpression(condition.value.value ? node.thenBranch : node.elseBranch, environment);
   if (selected.status === "error") return propagateError(type, selected);
-  return scalarExpressionTypesEqual(type, selected.type) && scalarValueMatchesType(selected.type, selected.value)
-    ? selected
+  return isScalarExpressionTypeAssignable(selected.type, type) && scalarValueMatchesType(type, selected.value)
+    ? { ...selected, type }
     : { status: "error", type, issueCode: "evaluation-runtime-value-type-mismatch" };
 };
 
@@ -545,25 +545,34 @@ const evaluateValueMatch = (
   const type = node.type;
   if (type === null) return staticTypeNullError();
   const scrutineeType = node.scrutinee.type;
-  if (scrutineeType === null || scrutineeType.kind !== "choice") {
+  if (scrutineeType === null || (scrutineeType.kind !== "choice" && scrutineeType.kind !== "optional")) {
     return { status: "error", type, issueCode: "evaluation-runtime-value-type-mismatch" };
   }
   const scrutinee = evaluateTypedExpression(node.scrutinee, environment);
   if (scrutinee.status === "error") return propagateError(type, scrutinee);
   if (
     !scalarExpressionTypesEqual(scrutineeType, scrutinee.type) ||
-    !scalarValueMatchesType(scrutineeType, scrutinee.value) ||
-    scrutinee.value.kind !== "choice"
+    !scalarValueMatchesType(scrutineeType, scrutinee.value)
   ) {
     return { status: "error", type, issueCode: "evaluation-runtime-value-type-mismatch" };
   }
   const scrutineeValue = scrutinee.value;
-  const selected = node.arms.find((arm) => arm.label === scrutineeValue.value);
+  const selected = scrutineeType.kind === "optional"
+    ? node.arms.find((arm) => arm.label === (scrutineeValue.kind === "none" ? "none" : "some"))
+    : scrutineeValue.kind === "choice" ? node.arms.find((arm) => arm.label === scrutineeValue.value) : undefined;
   if (!selected) return { status: "error", type, issueCode: "evaluation-runtime-value-type-mismatch" };
-  const result = evaluateTypedExpression(selected.expression, environment);
+  const selectedEnvironment = scrutineeType.kind === "optional" && selected.label === "some" && selected.binderId && selected.binderType && scrutineeValue.kind !== "none"
+    ? {
+        ...environment,
+        lookupBinding: (bindingId: string): ScalarEvaluation => bindingId === selected.binderId
+          ? { status: "ok", type: selected.binderType!, value: scrutineeValue }
+          : environment.lookupBinding(bindingId)
+      }
+    : environment;
+  const result = evaluateTypedExpression(selected.expression, selectedEnvironment);
   if (result.status === "error") return propagateError(type, result);
-  return scalarExpressionTypesEqual(type, result.type) && scalarValueMatchesType(result.type, result.value)
-    ? result
+  return isScalarExpressionTypeAssignable(result.type, type) && scalarValueMatchesType(type, result.value)
+    ? { ...result, type }
     : { status: "error", type, issueCode: "evaluation-runtime-value-type-mismatch" };
 };
 

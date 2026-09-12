@@ -11,15 +11,15 @@ import type { RecordFieldIdentity } from "../dsl/recordSemanticAnalysis";
 export type ScalarProgramRecordField = {
   recordStatementId: string;
   fieldIndex: number;
-  type: ScalarType;
+  type: ScalarExpressionType;
   bindingId: BindingId;
   /** Full path for a scalar leaf nested inside nominal record fields. */
   fieldPath?: readonly RecordFieldIdentity[];
 };
 
 export type ScalarProgramCollectionMember =
-  | { kind: "literal"; type: ScalarType; value: ScalarValue }
-  | { kind: "binding"; type: ScalarType; bindingId: BindingId }
+  | { kind: "literal"; type: ScalarExpressionType; value: ScalarValue }
+  | { kind: "binding"; type: ScalarExpressionType; bindingId: BindingId }
   | { kind: "record"; typeIdentity: string; fields: readonly ScalarProgramRecordField[] };
 
 export type ScalarProgramCollection =
@@ -47,7 +47,7 @@ export type ScalarProgramCollection =
       fields: readonly {
         recordStatementId: string;
         fieldIndex: number;
-        type: ScalarType;
+        type: ScalarExpressionType;
         body: TypedScalarExpression;
         fieldPath?: readonly RecordFieldIdentity[];
       }[];
@@ -57,7 +57,7 @@ export type ScalarProgramCollection =
       valueId: string;
       kind: "recordField";
       sourceValueId: string;
-      field: { recordStatementId: string; fieldIndex: number; type: ScalarType; fieldPath?: readonly RecordFieldIdentity[] };
+      field: { recordStatementId: string; fieldIndex: number; type: ScalarExpressionType; fieldPath?: readonly RecordFieldIdentity[] };
       sourceOrder: number;
     }
   | {

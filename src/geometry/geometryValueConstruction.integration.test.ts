@@ -44,6 +44,21 @@ describe("pure geometry construction runtime", () => {
     expect(result.geometryValueErrors).toEqual([]);
   });
 
+  it("supports optional geometry results from omitted-else if and optional match", () => {
+    const { compiled, result } = evaluate([
+      "nui 1",
+      "const note: string? = \"hello\"",
+      "point A = coordinate(x: 1, y: 2)",
+      "const maybePoint: point? = if (false) { @A }",
+      "const selected: point? = match @note { none => none some value => @A }"
+    ].join("\n"));
+
+    expect(compiled.diagnostics).toEqual([]);
+    expect(result.geometryValueErrors).toEqual([]);
+    expect(result.computedGeometryValues?.size).toBe(1);
+    expect([...result.computedGeometryValues?.values() ?? []][0]?.value).toEqual({ kind: "point", x: 1, y: 2 });
+  });
+
   it("evaluates a root geometry value-if condition from an actual scalar reference", () => {
     const { compiled, result } = evaluate([
       "nui 1",

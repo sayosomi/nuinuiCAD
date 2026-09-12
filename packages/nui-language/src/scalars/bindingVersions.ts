@@ -2,11 +2,11 @@
 // products only; it never parses source || resolves a target/reference.
 import type { BindingAnalysis, BindingAnalysisEntry } from "./bindingAnalysis";
 import { bindingIdForStableStatementId, type BindingId } from "./bindingCatalog";
-import { scalarTypeOfDslValueType } from "../dsl/dslValueTypes";
+import { scalarExpressionTypeOfDslValueType } from "../dsl/dslValueTypes";
 import type { ScopeId, LexicalScopeIndex } from "./lexicalScopeIndex";
 import type { ScalarProgram, ScalarProgramStatement } from "./scalarProgram";
 import type { SetStatementAnalysis } from "./setStatementCompiler";
-import type { ScalarType } from "./types";
+import type { ScalarExpressionType } from "./types";
 import type { TypedScalarExpression } from "./typedExpressionAst";
 
 export type BindingVersionId = string;
@@ -46,7 +46,7 @@ export type BindingVersionState =
 type BindingVersionBase = {
   id: BindingVersionId;
   bindingId: BindingId;
-  declaredType: ScalarType;
+  declaredType: ScalarExpressionType;
   sourceOrder: number;
   scopeId: ScopeId;
   scopeExitSourceOrder: number;
@@ -240,7 +240,7 @@ export const buildBindingVersionGraph = ({
 
   const declarations: DeclarationBindingVersion[] = [];
   for (const binding of bindingAnalysis.catalog.bindings) {
-    const declaredType = scalarTypeOfDslValueType(binding.declaredType);
+    const declaredType = scalarExpressionTypeOfDslValueType(binding.declaredType);
     if (binding.kind !== "typed" || declaredType === null) continue;
     const entry = bindingAnalysis.entriesById.get(binding.id);
     if (!entry) throw new Error(`bindingVersions: missing analysis entry for ${binding.id}`);
@@ -298,7 +298,7 @@ export const buildBindingVersionGraph = ({
       continue;
     }
     const target = bindingAnalysis.catalog.bindingsById.get(set.targetBindingId);
-    const declaredType = target ? scalarTypeOfDslValueType(target.declaredType) : null;
+    const declaredType = target ? scalarExpressionTypeOfDslValueType(target.declaredType) : null;
     if (!target || target.kind !== "typed" || target.mutability !== "let" || declaredType === null) {
       throw new Error(`bindingVersions: resolved set ${set.statementId} has no typed let target`);
     }

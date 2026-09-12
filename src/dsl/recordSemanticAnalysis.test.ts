@@ -39,6 +39,35 @@ describe("record nominal semantic analysis", () => {
     expect(value?.constructor?.fields.map((field) => field.expectedType.kind)).toEqual(["number", "string"]);
   });
 
+  it("materializes omitted optional constructor fields as ordinary none values", () => {
+    const { records, namespace } = analyze([
+      "nui 1",
+      "record Piece(name: string, note: string?, outline: path?, marks: number[]?)",
+      'const a: Piece = Piece(name: "body")',
+      'const b: Piece = Piece(name: "body", note: none)'
+    ].join("\n"));
+    expect(namespace.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const omitted = records.valuesByStatementId.get("stable-2")?.constructor;
+    const explicit = records.valuesByStatementId.get("stable-3")?.constructor;
+    expect(omitted?.fields.map((field) => [field.fieldName, field.value])).toEqual([
+      ["name", '"body"'],
+      ["note", "none"],
+      ["outline", "none"],
+      ["marks", "none"]
+    ]);
+    expect(explicit?.fields.find((field) => field.fieldName === "note")?.value).toBe("none");
+    expect(namespace.diagnostics.some((diagnostic) => diagnostic.code === "record-constructor-missing-field")).toBe(false);
+  });
+
+  it("still requires omitted non-optional fields", () => {
+    const { namespace } = analyze([
+      "nui 1",
+      "record Piece(name: string, note: string?)",
+      'const bad: Piece = Piece(note: "hello")'
+    ].join("\n"));
+    expect(namespace.diagnostics.map((diagnostic) => diagnostic.code)).toContain("record-constructor-missing-field");
+  });
+
   it("keeps geometry, collection, and nested record field identities nominal", () => {
     const { records, namespace } = analyze([
       "nui 1",

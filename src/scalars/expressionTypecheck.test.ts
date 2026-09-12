@@ -894,6 +894,41 @@ describe("typecheckScalarExpression / optional values and coalescing", () => {
     expect(result.diagnostics).toEqual([]);
   });
 
+  it("allows an omitted value-if else only for an optional expected result", () => {
+    const result = check("if (true) { 10 }", optionalNumber);
+    expect(result.type).toEqual(optionalNumber);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.typed).toMatchObject({ kind: "valueIf", elseBranch: { kind: "noneLiteral", type: optionalNumber } });
+    const invalid = check("if (true) { 10 }", { kind: "number" });
+    expect(invalid.type).toBeNull();
+    expect(invalid.diagnostics).toEqual([expect.objectContaining({ code: "scalar-type-mismatch" })]);
+  });
+
+  it("typechecks optional match arms with an arbitrary branch-local non-optional binder", () => {
+    const optionalString: ScalarExpressionType = { kind: "optional", valueType: { kind: "string" } };
+    const result = check(
+      "match @note { none => \"no\" some value => @value }",
+      { kind: "string" },
+      [{ kind: "resolvedType", bindingId: "binding:note", type: optionalString }]
+    );
+    expect(result.type).toEqual({ kind: "string" });
+    expect(result.diagnostics).toEqual([]);
+    expect(result.typed).toMatchObject({ kind: "valueMatch" });
+    expect((result.typed as Extract<typeof result.typed, { kind: "valueMatch" }>).arms[1]).toMatchObject({
+      label: "some", binder: "value", binderType: { kind: "string" }, expression: { type: { kind: "string" } }
+    });
+    const someExpression = (result.typed as Extract<typeof result.typed, { kind: "valueMatch" }>).arms[1]!.expression;
+    expect(someExpression).toMatchObject({ kind: "reference", bindingId: expect.stringContaining("optional-match-binder:") });
+  });
+
+  it("rejects incomplete optional match coverage and non-optional scrutinees", () => {
+    const optionalNumber: ScalarExpressionType = { kind: "optional", valueType: { kind: "number" } };
+    const missing = check("match @value { some x => @x }", { kind: "number" }, [{ kind: "resolvedType", bindingId: "binding:value", type: optionalNumber }]);
+    expect(missing.diagnostics.some((diagnostic) => diagnostic.code === "optional-match-missing-none")).toBe(true);
+    const plain = check("match @value { none => 0 some => 1 }", { kind: "number" }, [{ kind: "resolvedType", bindingId: "binding:value", type: { kind: "number" } }]);
+    expect(plain.diagnostics.some((diagnostic) => diagnostic.code === "non-choice-match-scrutinee")).toBe(true);
+  });
+
   it("unwraps an optional left side and types ?? as its non-optional value", () => {
     const result = check("@value ?? 10", null, [
       { kind: "resolvedType", bindingId: "binding:value", type: optionalNumber }

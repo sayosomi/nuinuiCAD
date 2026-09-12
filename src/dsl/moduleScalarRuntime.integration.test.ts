@@ -1522,6 +1522,57 @@ describe("module scalar runtime integration", () => {
     expect(result.computedScalarBindings?.get(first!.id)).toMatchObject({ status: "ok", value: { kind: "number", value: expected } });
   });
 
+  it("evaluates optional nominal-record if and match results lazily", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "record Pair(x: number, label: string)",
+      "const flag: boolean = false",
+      'const note: string? = "present"',
+      'const fallback: Pair = Pair(x: 9, label: "fallback")',
+      'const fromIf: Pair? = if (@flag) { Pair(x: 1, label: "if") }',
+      'const fromMatch: Pair? = match @note { none => none some value => @fallback }',
+      "const resolvedIf: Pair = @fromIf ?? @fallback",
+      "const resolvedMatch: Pair = @fromMatch ?? @fallback",
+      "const ifX: number = @resolvedIf.x",
+      "const matchX: number = @resolvedMatch.x"
+    ].join("\n"), "optional-record-if-match");
+    expectValid(compiled);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const valueFor = (name: string) => {
+      const binding = compiled.bindingAnalysis?.catalog.bindings.find((candidate) => candidate.kind === "typed" && candidate.name === name);
+      return binding ? result.computedScalarBindings?.get(binding.id) : undefined;
+    };
+    expect(valueFor("ifX")).toMatchObject({ status: "ok", value: { kind: "number", value: 9 } });
+    expect(valueFor("matchX")).toMatchObject({ status: "ok", value: { kind: "number", value: 9 } });
+  });
+
+  it("evaluates optional scalar-collection if and match results lazily", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "const flag: boolean = false",
+      'const note: string? = "present"',
+      "const fallback: number[] = [9, 10]",
+      "const fromIf: number[]? = if (@flag) { [1, 2] }",
+      "const fromMatch: number[]? = match @note { none => none some value => [3, 4] }",
+      "const resolvedIf: number[] = @fromIf ?? @fallback",
+      "const resolvedMatch: number[] = @fromMatch ?? @fallback",
+      "const ifFirst: number = @resolvedIf[0]",
+      "const matchFirst: number = @resolvedMatch[0]"
+    ].join("\n"), "optional-collection-if-match");
+    expectValid(compiled);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const valueFor = (name: string) => {
+      const binding = compiled.bindingAnalysis?.catalog.bindings.find((candidate) => candidate.kind === "typed" && candidate.name === name);
+      return binding ? result.computedScalarBindings?.get(binding.id) : undefined;
+    };
+    expect(valueFor("ifFirst")).toMatchObject({ status: "ok", value: { kind: "number", value: 9 } });
+    expect(valueFor("matchFirst")).toMatchObject({ status: "ok", value: { kind: "number", value: 3 } });
+  });
+
   it.each([
     [
       "geometry",

@@ -228,7 +228,7 @@ const offsetExpression = (expression: GeometryArrayExpression, offset: number): 
           span: { start: expression.span.start + offset, end: expression.span.end + offset },
           conditionSpan: { start: expression.conditionSpan.start + offset, end: expression.conditionSpan.end + offset },
           thenBranch: offsetExpression(expression.thenBranch, offset),
-          elseBranch: offsetExpression(expression.elseBranch, offset)
+          elseBranch: expression.elseBranch ? offsetExpression(expression.elseBranch, offset) : null
         }
       : expression.kind === "match"
         ? {

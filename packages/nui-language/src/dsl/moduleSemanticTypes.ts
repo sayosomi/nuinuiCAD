@@ -2,7 +2,7 @@ import type { DslGeometryDeclarationCategory } from "./dslConstructions";
 import type { DslDiagnostic, DslModuleParameterType, DslSpan, DslStatement } from "./dslTypes";
 import type { DslArrayValueType, DslValueType } from "./dslValueTypes";
 import type { ScalarExpressionAst } from "../scalars/expressionAst";
-import type { ScalarType } from "../scalars/types";
+import type { ScalarExpressionType, ScalarType } from "../scalars/types";
 import type { BindingId } from "../scalars/bindingCatalog";
 import type { StatementIdentity } from "../document/statementIdentity";
 import type { ScopeId } from "../scalars/lexicalScopeIndex";
@@ -97,7 +97,7 @@ export type ModuleRecordFieldSourceTarget = {
   fieldName: string;
   /** Canonical immutable field type; scalar consumers use `type` below. */
   valueType: DslValueType;
-  type: ScalarType | null;
+  type: ScalarExpressionType | null;
   /** Intermediate record fields when a member access is nested. */
   fieldPath?: readonly RecordFieldIdentity[];
   collectionIndex?: number;
@@ -388,12 +388,12 @@ export type ModuleScalarReference = {
   collectionValueId?: string | null;
   collectionLength?: number | null;
   targetSourceOrder?: number | null;
-  collectionElementType?: ScalarType | null;
+  collectionElementType?: ScalarExpressionType | null;
 };
 
 export type ModuleScalarExpressionSemantic = {
   ast: ScalarExpressionAst;
-  type: ScalarType | null;
+  type: ScalarExpressionType | null;
   references: readonly ModuleScalarReference[];
   geometryProperties: readonly ModuleGeometryPropertyReference[];
   geometryBuiltinArguments: readonly ModuleGeometryBuiltinArgumentSemantic[];
@@ -480,6 +480,8 @@ export type ModuleRecordValueExpressionSemantic =
       arms: readonly {
         label: string;
         labelSpan: DslSpan;
+        binder?: string;
+        binderSpan?: DslSpan;
         expression: ModuleRecordValueExpressionSemantic | null;
       }[];
       valueType?: DslValueType;
@@ -501,7 +503,7 @@ export type ModuleGeometryPropertyReference = {
   propertySpan: DslSpan;
   span: DslSpan;
   target: ModuleGeometryPropertySourceTarget | null;
-  type: ScalarType | null;
+  type: ScalarExpressionType | null;
   resolution: "resolved" | "undefined" | "forward" | "outerCapture" | "invalid" | "deferred";
 };
 
@@ -746,6 +748,8 @@ export type ModuleGeometryValueExpressionSemantic =
       arms: readonly {
         label: string;
         labelSpan: DslSpan;
+        binder?: string;
+        binderSpan?: DslSpan;
         expression: ModuleGeometryValueExpressionSemantic | null;
       }[];
       valueType?: DslValueType;

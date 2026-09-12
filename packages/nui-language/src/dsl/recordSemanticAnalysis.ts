@@ -6,7 +6,7 @@ import type { SourceLexicalLookup } from "./sourceLexicalNamespaceIndex";
 import { isBareDslIdentifierChar } from "./dslTokens";
 import type { ScalarExpressionAst } from "../scalars/expressionAst";
 import type { DslValueType } from "./dslValueTypes";
-import { dslCoalesceResultType, dslRequiredValueTypeOf, isDslArrayValueType, nominalRecordTypeOfDslValueType } from "./dslValueTypes";
+import { dslCoalesceResultType, dslRequiredValueTypeOf, isDslArrayValueType, isDslOptionalValueType, nominalRecordTypeOfDslValueType } from "./dslValueTypes";
 import { parseScalarExpression } from "../scalars/expressionParser";
 
 export type RecordTypeIdentity = string;
@@ -132,6 +132,8 @@ export type RecordValueExpressionSemantic =
       arms: readonly {
         label: string;
         labelSpan: DslSpan;
+        binder?: string;
+        binderSpan?: DslSpan;
         expression: RecordValueExpressionSemantic | null;
       }[];
       valueType?: DslValueType;
@@ -365,6 +367,7 @@ export const parseRecordConstructorFields = ({
   }
   for (const field of definition.fields) {
     if (!firstLabel.has(field.name)) {
+      if (isDslOptionalValueType(field.type)) continue;
       issues.push({
         code: "record-constructor-missing-field",
         span: candidate.nameSpan,
@@ -377,7 +380,19 @@ export const parseRecordConstructorFields = ({
     name: candidate.name,
     nameSpan: candidate.nameSpan,
     argsSpan: candidate.argsSpan,
-    fields: definition.fields.flatMap((field) => fields.filter((entry) => entry.field.fieldIndex === field.fieldIndex)),
+    fields: definition.fields.flatMap((field) => {
+      const supplied = fields.find((entry) => entry.field.fieldIndex === field.fieldIndex);
+      if (supplied) return [supplied];
+      if (!isDslOptionalValueType(field.type)) return [];
+      return [{
+        field: field.identity,
+        fieldName: field.name,
+        labelSpan: field.nameSpan,
+        value: "none",
+        valueSpan: field.nameSpan,
+        expectedType: field.type
+      }];
+    }),
     issues
   };
 };
@@ -577,6 +592,7 @@ const analyzeRecordValueLeaf = ({
   if (targetDefinition) {
     for (const field of targetDefinition.fields) {
       if (!firstLabel.has(field.name)) {
+        if (isDslOptionalValueType(field.type)) continue;
         diagnostics.push(diagnostic(statement, candidate.nameSpan, "record-constructor-missing-field", `record constructor「${targetDefinition.name}」に必須 field「${field.name}」がありません。`, { record: targetDefinition.name, field: field.name }));
       }
     }
@@ -587,7 +603,19 @@ const analyzeRecordValueLeaf = ({
       nameSpan: candidate.nameSpan,
       targetTypeIdentity: targetDefinition?.statementId ?? null,
       fields: targetDefinition
-        ? targetDefinition.fields.flatMap((field) => fields.filter((entry) => entry.field.fieldIndex === field.fieldIndex))
+        ? targetDefinition.fields.flatMap((field) => {
+            const supplied = fields.find((entry) => entry.field.fieldIndex === field.fieldIndex);
+            if (supplied) return [supplied];
+            if (!isDslOptionalValueType(field.type)) return [];
+            return [{
+              field: field.identity,
+              fieldName: field.name,
+              labelSpan: field.nameSpan,
+              value: "none",
+              valueSpan: field.nameSpan,
+              expectedType: field.type
+            }];
+          })
         : fields
     },
     reference: null,
@@ -728,7 +756,8 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
               span: node.span,
               condition: node.condition,
               thenBranch: parseExpression(node.thenBranch),
-              elseBranch: parseExpression(node.elseBranch)
+              elseBranch: node.elseBranch ? parseExpression(node.elseBranch) : null,
+              ...(statement.valueType ? { valueType: statement.valueType } : {})
             };
           }
           if (node.kind === "valueMatch") {
@@ -739,8 +768,11 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
               arms: node.arms.map((arm) => ({
                 label: arm.label,
                 labelSpan: arm.labelSpan,
+                binder: arm.binder,
+                binderSpan: arm.binderSpan,
                 expression: parseExpression(arm.expression)
-              }))
+              })),
+              ...(statement.valueType ? { valueType: statement.valueType } : {})
             };
           }
           if (node.kind === "noneLiteral") {

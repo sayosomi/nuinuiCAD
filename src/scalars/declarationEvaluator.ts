@@ -80,6 +80,12 @@ export const createScalarProgramCollectionResolver = (
   if (!program.collectionValues?.length) return undefined;
   const valuesById = new Map(program.collectionValues.map((value) => [value.valueId, value] as const));
 
+  const matchLabelFor = (scrutinee: ScalarEvaluation): string | undefined => {
+    if (scrutinee.status !== "ok") return undefined;
+    if (scrutinee.type.kind === "optional") return scrutinee.value.kind === "none" ? "none" : "some";
+    return scrutinee.value.kind === "choice" ? scrutinee.value.value : undefined;
+  };
+
   const presentFor = (collectionValueId: string, sourceOrder: number, seen: ReadonlySet<string> = new Set()): boolean | undefined => {
     if (seen.has(collectionValueId)) return undefined;
     const collection = valuesById.get(collectionValueId);
@@ -100,9 +106,9 @@ export const createScalarProgramCollectionResolver = (
       return presentFor(condition.value.value ? collection.thenValueId : collection.elseValueId, sourceOrder, nextSeen);
     }
     const scrutinee = evaluateTypedExpression(collection.scrutinee, environmentFor(collection.sourceOrder));
-    const scrutineeValue = scrutinee.status === "ok" ? scrutinee.value : null;
-    if (scrutineeValue === null || scrutineeValue.kind !== "choice") return undefined;
-    const arm = collection.arms.find((candidate) => candidate.label === scrutineeValue.value);
+    const label = matchLabelFor(scrutinee);
+    if (label === undefined) return undefined;
+    const arm = collection.arms.find((candidate) => candidate.label === label);
     return arm ? presentFor(arm.valueId, sourceOrder, nextSeen) : undefined;
   };
 
@@ -132,16 +138,16 @@ export const createScalarProgramCollectionResolver = (
     }
     const environment = environmentFor(collection.sourceOrder);
     const scrutinee = evaluateTypedExpression(collection.scrutinee, environment);
-    const scrutineeValue = scrutinee.status === "ok" ? scrutinee.value : null;
-    if (scrutineeValue === null || scrutineeValue.kind !== "choice") return undefined;
-    const arm = collection.arms.find((candidate) => candidate.label === scrutineeValue.value);
+    const label = matchLabelFor(scrutinee);
+    if (label === undefined) return undefined;
+    const arm = collection.arms.find((candidate) => candidate.label === label);
     return arm ? lengthFor(arm.valueId, sourceOrder, nextSeen) : undefined;
   };
 
   const recordFieldFor = (
     collectionValueId: string,
     index: number,
-    field: { recordStatementId: string; fieldIndex: number; type: ScalarType },
+    field: { recordStatementId: string; fieldIndex: number; type: ScalarExpressionType },
     sourceOrder: number,
     seen: ReadonlySet<string> = new Set()
   ): ScalarEvaluation => {
@@ -158,9 +164,9 @@ export const createScalarProgramCollectionResolver = (
     }
     if (collection.kind === "match") {
       const scrutinee = evaluateTypedExpression(collection.scrutinee, environmentFor(collection.sourceOrder));
-      const scrutineeValue = scrutinee.status === "ok" ? scrutinee.value : null;
-      if (scrutineeValue === null || scrutineeValue.kind !== "choice") return { status: "error", type: field.type, issueCode: scrutinee.status === "error" ? scrutinee.issueCode : "evaluation-runtime-value-type-mismatch" };
-      const arm = collection.arms.find((candidate) => candidate.label === scrutineeValue.value);
+      const label = matchLabelFor(scrutinee);
+      if (label === undefined) return { status: "error", type: field.type, issueCode: scrutinee.status === "error" ? scrutinee.issueCode : "evaluation-runtime-value-type-mismatch" };
+      const arm = collection.arms.find((candidate) => candidate.label === label);
       return arm ? recordFieldFor(arm.valueId, index, field, sourceOrder, nextSeen) : { status: "error", type: field.type, issueCode: "evaluation-runtime-value-type-mismatch" };
     }
     if (collection.kind === "coalesce") {
@@ -231,9 +237,9 @@ export const createScalarProgramCollectionResolver = (
     if (collection.kind === "match") {
       const scrutinee = evaluateTypedExpression(collection.scrutinee, environmentFor(collection.sourceOrder));
       if (scrutinee.status === "error") return scrutinee;
-      const scrutineeValue = scrutinee.value;
-      if (scrutineeValue.kind !== "choice") return { status: "error", type: elementType, issueCode: "evaluation-runtime-value-type-mismatch" };
-      const arm = collection.arms.find((candidate) => candidate.label === scrutineeValue.value);
+      const label = matchLabelFor(scrutinee);
+      if (label === undefined) return { status: "error", type: elementType, issueCode: "evaluation-runtime-value-type-mismatch" };
+      const arm = collection.arms.find((candidate) => candidate.label === label);
       return arm
         ? indexFor(arm.valueId, index, elementType, collectionLength, targetSourceOrder, sourceOrder, nextSeen)
         : { status: "error", type: elementType, issueCode: "evaluation-runtime-value-type-mismatch" };

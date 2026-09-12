@@ -429,24 +429,26 @@ The constraints are:
 
 ### Scalar, geometry, and nominal-record value control flow
 
-Scalar and geometry value expressions may use a required-`else` conditional:
+Scalar, geometry, nominal-record, and collection value expressions may use a
+conditional. An `else` branch may be omitted only when the expected result type
+is optional; the omitted branch is the ordinary `none` value of that type:
 
 ```nui
 if (@enabled) { @leftPoint } else { coordinate(x: 0, y: 0) }
 ```
 
 The condition is a typed boolean expression. A geometry-valued conditional must
-have the declared geometry interface type in both branches. Each branch may be
+have the declared geometry interface type in each present branch. Each branch may be
 an existing legal `@` geometry reference or one of the implemented pure
 geometry value constructions. A nominal-record conditional must have the exact
 declared record-definition identity in both branches; its leaves may be a
 constructor, whole-record reference, or supported statically indexed member of
 a record collection. A collection-valued conditional must have the same
-declared one-dimensional collection type in both branches; each branch is
+  declared one-dimensional collection type in each present branch; each branch is
 recursively resolved as a collection expression. Both branches are resolved
 and checked at compile time, but runtime evaluates the condition before
-evaluating only the selected branch. Optional-match binder semantics and an
-implicit optional result branch remain outside this slice.
+evaluating only the selected branch. A non-optional value-producing conditional
+still requires an explicit `else`.
 
 A scalar, geometry, or nominal-record value expression may use the following exhaustive
 choice-match form:
@@ -472,8 +474,23 @@ indexed member of a record collection. Collection results must share the
 declared one-dimensional collection type, and each arm is recursively resolved
 as a collection expression. At runtime the scrutinee is evaluated first and
 only the arm whose label equals the selected choice value is evaluated.
-Optional `none`/`some` match-binder semantics remain outside this slice. The
-standalone `none` literal is available only in an expected optional value type.
+An optional scrutinee uses the corresponding `none`/`some` form:
+
+```nui
+match @piece.note {
+  none => "no note"
+  some note => @note
+}
+```
+
+The scrutinee must have type `T?`, and exactly one `none` arm and one
+`some <binder>` arm are required. The binder spelling is authored, is visible
+only in its own arm, and has the non-optional type `T`. Optional match uses the
+same scalar, geometry, nominal-record, and one-dimensional collection result
+families as choice match. Only the selected arm is evaluated at runtime; a
+present value is bound without introducing a second absence representation.
+The standalone `none` literal is available only in an expected optional value
+type.
 
 Named scalar function calls use the following syntax:
 
@@ -635,7 +652,9 @@ record Pair(
 )
 ```
 
-Record fields are required and named. Each field uses the shared immutable value
+Record fields are named. Each non-optional field is required; an optional field
+of type `T?` may be omitted and omission materializes the ordinary `none` value
+of that type. Each field uses the shared immutable value
 type vocabulary: scalar types (`number`, `string`, `boolean`, and
 `choice(...)`), `point`, `line`, `path`, a supported one-dimensional `T[]`
 collection whose element type is not an array, one optional wrapper around any
@@ -643,9 +662,9 @@ of those, or another named record type.
 Record type identity is the identity of the record definition statement; two
 definitions with the same field names and types are still different types.
 Definitions and values obey the normal non-hoisted source order. Nested arrays
-and field defaults are not part of nui1 v1. Optional field omission and
-field-specific presence/default semantics remain deferred; the generic `T?`
-value type and `none` rules above are nevertheless the shared foundation.
+and field defaults are not part of nui1 v1. Optional field omission does not
+create field-specific presence state or defaults; it uses the generic `T?` value
+type and `none` rules above.
 
 A record value is declared with `const` and either a named-field constructor or
 a whole-record reference:
@@ -677,9 +696,11 @@ selected record leaf. A record leaf may be a constructor, a whole-record
 reference, or a supported statically indexed member of a record collection.
 Record values also support the collection value-producing `for` form described
 below when the source and result element types are exact nominal record
-identities. Optional values remain outside this slice.
+identities. Optional record fields and optional result values use the same
+immutable value model described above.
 
-Constructors are named-only and must provide every field exactly once. The
+Constructors are named-only and must provide every non-optional field exactly
+once; optional fields may be supplied at most once or omitted. The
 constructor name and the declared type must identify the same record definition;
 record values cannot be declared with `let`. A record value can be referenced
 as a whole with `@name` or read through a scalar field such as `@first.x`.
@@ -1582,8 +1603,9 @@ at the consuming geometry operation. Nominal-record value-producing collection
 `for` uses the same pure, lazy, one-result-per-input shape. Its source and
 result element types must be exact nominal record identities; the body is a
 record value expression checked against the result identity, and a requested
-record member evaluates only the corresponding scalar field body. This does
-not add optional-match binder semantics or implicit optional result branches.
+record member evaluates only the corresponding scalar field body. Optional
+match arms and omitted optional-result `else` branches use the same lazy
+immutable collection model.
 
 For example:
 

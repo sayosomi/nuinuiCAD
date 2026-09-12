@@ -100,7 +100,7 @@ export type GeometryArrayConditionalValue<TTarget> =
       scrutineeText: string;
       scrutineeSpan: DslSpan;
       scrutinee?: ModuleScalarExpressionSemantic;
-      arms: readonly { label: string; labelSpan: DslSpan; value: GeometryArraySemanticValue<TTarget> }[];
+      arms: readonly { label: string; labelSpan: DslSpan; binder?: string; binderSpan?: DslSpan; value: GeometryArraySemanticValue<TTarget> }[];
     };
 
 export type GeometryArrayCoalesceValue<TTarget> = {
@@ -181,7 +181,7 @@ export type DslArrayConditionalValue<TTarget> =
       scrutineeText: string;
       scrutineeSpan: DslSpan;
       scrutinee?: ModuleScalarExpressionSemantic;
-      arms: readonly { label: string; labelSpan: DslSpan; value: DslArraySemanticValue<TTarget> }[];
+      arms: readonly { label: string; labelSpan: DslSpan; binder?: string; binderSpan?: DslSpan; value: DslArraySemanticValue<TTarget> }[];
     };
 
 export type DslArrayCoalesceValue<TTarget> = {
@@ -304,7 +304,11 @@ export const resolveDslArrayExpression = <TTarget>(
   }
   if (input.expression.kind === "if") {
     const thenResult = resolveDslArrayExpression({ ...input, expression: input.expression.thenBranch });
-    const elseResult = resolveDslArrayExpression({ ...input, expression: input.expression.elseBranch });
+    const elseResult = input.expression.elseBranch
+      ? resolveDslArrayExpression({ ...input, expression: input.expression.elseBranch })
+      : isDslOptionalValueType(expectedValueType)
+        ? { value: { kind: "none", valueType: input.expectedType } as DslArrayNoneValue, valueType: expectedValueType, diagnostics: [] }
+        : { value: null, valueType: null, diagnostics: [{ code: "value-if-missing-else", message: "else を省略できる value-if の結果型は optional collection である必要があります。", span: input.expression.span }] };
     const diagnostics = [...thenResult.diagnostics, ...elseResult.diagnostics];
     return thenResult.value && elseResult.value
       ? {
@@ -323,12 +327,12 @@ export const resolveDslArrayExpression = <TTarget>(
       : { value: null, valueType: null, diagnostics };
   }
   if (input.expression.kind === "match") {
-    const values: { label: string; labelSpan: DslSpan; value: DslArraySemanticValue<TTarget> }[] = [];
+    const values: { label: string; labelSpan: DslSpan; binder?: string; binderSpan?: DslSpan; value: DslArraySemanticValue<TTarget> }[] = [];
     const diagnostics: GeometryArraySemanticDiagnostic[] = [];
     for (const arm of input.expression.arms) {
       const result = resolveDslArrayExpression({ ...input, expression: arm.expression });
       diagnostics.push(...result.diagnostics);
-      if (result.value) values.push({ label: arm.label, labelSpan: arm.labelSpan, value: result.value });
+      if (result.value) values.push({ label: arm.label, labelSpan: arm.labelSpan, ...(arm.binder ? { binder: arm.binder, binderSpan: arm.binderSpan } : {}), value: result.value });
     }
     return values.length === input.expression.arms.length && diagnostics.length === 0
       ? { value: { kind: "match", span: input.expression.span, valueType: input.expectedType, scrutineeText: input.expression.scrutineeText, scrutineeSpan: input.expression.scrutineeSpan, arms: values }, valueType: input.expectedType, diagnostics }
@@ -471,7 +475,11 @@ export const resolveGeometryArrayExpression = <TTarget>(
   }
   if (input.expression.kind === "if") {
     const thenResult = resolveGeometryArrayExpression({ ...input, expression: input.expression.thenBranch });
-    const elseResult = resolveGeometryArrayExpression({ ...input, expression: input.expression.elseBranch });
+    const elseResult = input.expression.elseBranch
+      ? resolveGeometryArrayExpression({ ...input, expression: input.expression.elseBranch })
+      : isDslOptionalValueType(expectedValueType)
+        ? { value: { kind: "none", type: input.expectedType } as GeometryArrayNoneValue, valueType: expectedValueType, diagnostics: [] }
+        : { value: null, valueType: null, diagnostics: [{ code: "value-if-missing-else", message: "else を省略できる value-if の結果型は optional geometry array である必要があります。", span: input.expression.span }] };
     const branchDiagnostics = [...thenResult.diagnostics, ...elseResult.diagnostics];
     return thenResult.value && elseResult.value
       ? {
@@ -490,11 +498,11 @@ export const resolveGeometryArrayExpression = <TTarget>(
       : { value: null, valueType: null, diagnostics: branchDiagnostics };
   }
   if (input.expression.kind === "match") {
-    const values: { label: string; labelSpan: DslSpan; value: GeometryArraySemanticValue<TTarget> }[] = [];
+    const values: { label: string; labelSpan: DslSpan; binder?: string; binderSpan?: DslSpan; value: GeometryArraySemanticValue<TTarget> }[] = [];
     for (const arm of input.expression.arms) {
       const result = resolveGeometryArrayExpression({ ...input, expression: arm.expression });
       diagnostics.push(...result.diagnostics);
-      if (result.value) values.push({ label: arm.label, labelSpan: arm.labelSpan, value: result.value });
+      if (result.value) values.push({ label: arm.label, labelSpan: arm.labelSpan, ...(arm.binder ? { binder: arm.binder, binderSpan: arm.binderSpan } : {}), value: result.value });
     }
     return values.length === input.expression.arms.length && diagnostics.length === 0
       ? { value: { kind: "match", span: input.expression.span, type: input.expectedType, scrutineeText: input.expression.scrutineeText, scrutineeSpan: input.expression.scrutineeSpan, arms: values }, valueType: expectedValueType, diagnostics }

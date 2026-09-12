@@ -51,6 +51,7 @@ interface TraversalState {
   cursor: number;
   readonly diagnostics: ScalarExpressionTypecheckDiagnostic[];
   readonly resolveChoiceLiteral?: ScalarExpressionTypecheckContext["resolveChoiceLiteral"];
+  readonly localBindings: Map<string, { id: string; type: ScalarType }>;
 }
 
 type ScalarCallArgumentStyle = "positional" | "named" | "mixed";
@@ -147,6 +148,76 @@ export const validateChoiceMatchExhaustiveness = ({
     });
   }
   return { scrutineeIsChoice: true, exhaustive: missing.length === 0 };
+};
+
+export const validateOptionalMatchExhaustiveness = ({
+  scrutineeType,
+  scrutineeSpan,
+  matchSpan,
+  arms,
+  addDiagnostic: emit
+}: {
+  scrutineeType: ScalarExpressionType | null;
+  scrutineeSpan: ScalarSpan;
+  matchSpan: ScalarSpan;
+  arms: readonly { label: string; labelSpan: ScalarSpan; binder?: string; binderSpan?: ScalarSpan }[];
+  addDiagnostic: (diagnostic: ScalarExpressionTypecheckDiagnostic) => void;
+}): { scrutineeIsOptional: boolean; exhaustive: boolean; underlyingType: ScalarType | null } => {
+  const underlyingType = scrutineeType && isDslOptionalValueType(scrutineeType)
+    ? scalarTypeOfDslValueType(scrutineeType.valueType)
+    : null;
+  if (!underlyingType) {
+    if (scrutineeType !== null) {
+      emit({
+        code: "optional-match-non-optional-scrutinee",
+        span: scrutineeSpan,
+        message: `optional match のscrutineeは T? 型である必要があります(実際: ${describeScalarType(scrutineeType)})。`,
+        presentation: { key: "diagnostic.optional-match-non-optional-scrutinee", parameters: { actual: describeScalarType(scrutineeType) } },
+        ...(plainScalarType(scrutineeType) ? { actualType: plainScalarType(scrutineeType) } : {})
+      });
+    }
+    return { scrutineeIsOptional: false, exhaustive: false, underlyingType: null };
+  }
+  let noneCount = 0;
+  let someCount = 0;
+  let valid = true;
+  for (const arm of arms) {
+    if (arm.label === "none") {
+      noneCount += 1;
+      if (arm.binder !== undefined) {
+        valid = false;
+        emit({ code: "optional-match-unexpected-binder", span: arm.binderSpan ?? arm.labelSpan, message: "none arm には binder を指定できません。", presentation: { key: "diagnostic.optional-match-unexpected-binder" } });
+      }
+      if (noneCount > 1) {
+        valid = false;
+        emit({ code: "optional-match-duplicate-none", span: arm.labelSpan, message: "optional match の none arm が重複しています。", presentation: { key: "diagnostic.optional-match-duplicate-none" } });
+      }
+      continue;
+    }
+    if (arm.label === "some") {
+      someCount += 1;
+      if (!arm.binder) {
+        valid = false;
+        emit({ code: "optional-match-missing-binder", span: arm.labelSpan, message: "some arm には binder 名が必要です。", presentation: { key: "diagnostic.optional-match-missing-binder" } });
+      }
+      if (someCount > 1) {
+        valid = false;
+        emit({ code: "optional-match-duplicate-some", span: arm.labelSpan, message: "optional match の some arm が重複しています。", presentation: { key: "diagnostic.optional-match-duplicate-some" } });
+      }
+      continue;
+    }
+    valid = false;
+    emit({ code: "optional-match-impossible-case", span: arm.labelSpan, message: `optional match にケース「${arm.label}」は指定できません。none または some を指定してください。`, presentation: { key: "diagnostic.optional-match-impossible-case", parameters: { option: arm.label } } });
+  }
+  if (noneCount === 0) {
+    valid = false;
+    emit({ code: "optional-match-missing-none", span: matchSpan, message: "optional match に none arm がありません。", presentation: { key: "diagnostic.optional-match-missing-none" } });
+  }
+  if (someCount === 0) {
+    valid = false;
+    emit({ code: "optional-match-missing-some", span: matchSpan, message: "optional match に some arm がありません。", presentation: { key: "diagnostic.optional-match-missing-some" } });
+  }
+  return { scrutineeIsOptional: true, exhaustive: valid, underlyingType };
 };
 
 const addDiagnostic = (state: TraversalState, diagnostic: ScalarExpressionTypecheckDiagnostic): void => {
@@ -371,6 +442,10 @@ const checkNode = (
     }
 
     case "reference": {
+      const local = state.localBindings.get(node.name);
+      if (local) {
+        return { kind: "reference", span: node.span, nameSpan: node.nameSpan, name: node.name, bindingId: local.id, type: local.type };
+      }
       const resolution = nextReferenceResolution(state, node.name, node.span.start);
       if (resolution.kind === "resolvedGeometry") {
         return { kind: "reference", span: node.span, nameSpan: node.nameSpan, name: node.name, bindingId: null, type: null };
@@ -499,12 +574,26 @@ const checkNode = (
       const condition = checkNode(node.condition, BOOLEAN_TYPE, state);
       const conditionOk = checkOperandType(state, condition, BOOLEAN_TYPE);
       const thenBranch = checkNode(node.thenBranch, expectedType, state);
-      const elseBranch = checkNode(node.elseBranch, expectedType, state);
+      const elseBranch = node.elseBranch === null
+        ? (expectedType && isDslOptionalValueType(expectedType)
+          ? checkNode({ kind: "noneLiteral", span: { start: node.span.end, end: node.span.end } }, expectedType, state)
+          : { kind: "noneLiteral" as const, span: { start: node.span.end, end: node.span.end }, type: null })
+        : checkNode(node.elseBranch, expectedType, state);
       let type: ScalarExpressionType | null = null;
+      const implicitElse = node.elseBranch === null;
       if (expectedType !== null) {
         const thenOk = checkExpressionOperandType(state, thenBranch, expectedType);
         const elseOk = checkExpressionOperandType(state, elseBranch, expectedType);
-        if (conditionOk && thenOk && elseOk) type = expectedType;
+        if (implicitElse && !isDslOptionalValueType(expectedType)) {
+          addDiagnostic(state, {
+            code: "scalar-type-mismatch",
+            span: node.span,
+            message: "else を省略できる value-if の結果型は optional である必要があります。",
+            presentation: { key: "diagnostic.value-if-missing-else" },
+            ...(plainScalarType(expectedType) ? { expectedType: plainScalarType(expectedType) } : {})
+          });
+        }
+        if (conditionOk && thenOk && elseOk && (!implicitElse || isDslOptionalValueType(expectedType))) type = expectedType;
       } else if (thenBranch.type !== null && elseBranch.type !== null) {
         if (isScalarExpressionTypeAssignable(thenBranch.type, elseBranch.type)) type = thenBranch.type;
         else {
@@ -526,7 +615,16 @@ const checkNode = (
 
     case "valueMatch": {
       const scrutinee = checkNode(node.scrutinee, null, state);
-      const { scrutineeIsChoice, exhaustive } = validateChoiceMatchExhaustiveness({
+      const optional = scrutinee.type && isDslOptionalValueType(scrutinee.type)
+        ? validateOptionalMatchExhaustiveness({
+            scrutineeType: scrutinee.type,
+            scrutineeSpan: node.scrutinee.span,
+            matchSpan: node.span,
+            arms: node.arms,
+            addDiagnostic: (diagnostic) => addDiagnostic(state, diagnostic)
+          })
+        : { scrutineeIsOptional: false, exhaustive: false, underlyingType: null };
+      const choice = optional.scrutineeIsOptional ? { scrutineeIsChoice: false, exhaustive: false } : validateChoiceMatchExhaustiveness({
         scrutineeType: plainScalarType(scrutinee.type) ?? null,
         scrutineeSpan: node.scrutinee.span,
         matchSpan: node.span,
@@ -534,10 +632,16 @@ const checkNode = (
         addDiagnostic: (diagnostic) => addDiagnostic(state, diagnostic)
       });
 
-      const armResults = node.arms.map((arm) => ({
-        arm,
-        expression: checkNode(arm.expression, expectedType, state)
-      }));
+      const armResults = node.arms.map((arm) => {
+        const binderType = optional.scrutineeIsOptional && arm.label === "some" && arm.binder ? optional.underlyingType : null;
+        const binderId = binderType && arm.binder
+          ? `optional-match-binder:${node.span.start}:${arm.labelSpan.start}:${arm.binderSpan?.start ?? arm.labelSpan.end}`
+          : undefined;
+        if (binderType && arm.binder && binderId) state.localBindings.set(arm.binder, { id: binderId, type: binderType });
+        const expression = checkNode(arm.expression, expectedType, state);
+        if (binderType && arm.binder) state.localBindings.delete(arm.binder);
+        return { arm, expression, ...(binderId ? { binderId, binderType } : {}) };
+      });
       let armResultsValid = armResults.every(({ expression }) => expression.type !== null);
       let type: ScalarExpressionType | null = null;
       if (expectedType !== null) {
@@ -573,12 +677,12 @@ const checkNode = (
           armResultsValid = false;
         }
       }
-      if (!scrutineeIsChoice || !exhaustive || !armResultsValid || scrutinee.type === null) type = null;
+      if (!(optional.scrutineeIsOptional ? optional.exhaustive : choice.scrutineeIsChoice && choice.exhaustive) || !armResultsValid || scrutinee.type === null) type = null;
       return {
         kind: "valueMatch",
         span: node.span,
         scrutinee,
-        arms: armResults.map(({ arm, expression }) => ({ ...arm, expression })),
+        arms: armResults.map(({ arm, expression, binderId, binderType }) => ({ ...arm, ...(binderId && binderType ? { binderId, binderType } : {}), expression })),
         type
       };
     }
@@ -815,7 +919,8 @@ export const typecheckScalarExpression = (
     geometryPropertyReferences: context.geometryPropertyReferences,
     cursor: 0,
     diagnostics: [],
-    resolveChoiceLiteral: context.resolveChoiceLiteral
+    resolveChoiceLiteral: context.resolveChoiceLiteral,
+    localBindings: new Map()
   };
   const typed = checkNode(ast, context.expectedType, state);
   if (state.cursor !== state.references.length) {

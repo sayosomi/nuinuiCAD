@@ -39,7 +39,7 @@ import type { GeometryArrayValueSemantic } from "./geometryArraySemanticAnalysis
 import type { BindingAnalysis } from "../scalars/bindingAnalysis";
 import type { BindingId } from "../scalars/bindingCatalog";
 import type { ScalarExpressionAst } from "../scalars/expressionAst";
-import { isDslArrayValueType, isDslGeometryValueType, scalarTypeOfDslValueType } from "./dslValueTypes";
+import { isDslArrayValueType, isDslGeometryValueType, scalarExpressionTypeOfDslValueType } from "./dslValueTypes";
 import { geometryPropertiesIn, referencesIn } from "../scalars/typedDependencyGraph";
 import { parsePropertyBindingOccurrenceKey } from "../scalars/propertyBindingCompiler";
 import type { CompiledNumericBinding } from "../scalars/numericBindingCompiler";
@@ -241,7 +241,7 @@ const addTypedOccurrences = (
   for (const binding of analysis.catalog.bindings) {
     const isNonGeometryArray = isDslArrayValueType(binding.declaredType) && !isDslGeometryValueType(binding.declaredType.elementType);
     if (binding.kind !== "typed" || !binding.nameSpan ||
-        (scalarTypeOfDslValueType(binding.declaredType) === null && !isNonGeometryArray)) continue;
+        (scalarExpressionTypeOfDslValueType(binding.declaredType) === null && !isNonGeometryArray)) continue;
     addPhysicalOccurrence(add, compiled, binding.statementIndex, binding.nameSpan, { kind: "typed", bindingId: binding.id }, "declaration");
   }
   const addExpression = (statementIndex: number, expression: TypedScalarExpression) => {

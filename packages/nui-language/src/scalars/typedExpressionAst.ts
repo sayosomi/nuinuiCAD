@@ -149,7 +149,7 @@ export type ScalarExpressionResolvedGeometryProperty = {
   readonly elementId: ElementId;
   readonly property: string;
   readonly targetSourceOrder: number;
-  readonly type: ScalarType;
+  readonly type: ScalarExpressionType;
 } | {
   readonly kind: "forGroupOccurrence";
   readonly templateElementId: ElementId;
@@ -157,21 +157,21 @@ export type ScalarExpressionResolvedGeometryProperty = {
   readonly targetSourceOrder: number;
   readonly index: TypedScalarExpression | null;
   readonly pointKey?: string;
-  readonly type: ScalarType;
+  readonly type: ScalarExpressionType;
 } | {
   readonly kind: "geometryValueForBinder";
   readonly binderId: BindingId;
   readonly property: string;
   readonly pointKey?: string;
   readonly targetSourceOrder: number;
-  readonly type: ScalarType;
+  readonly type: ScalarExpressionType;
 } | {
   readonly kind: "geometryValue";
   readonly occurrence: GeometryValueOccurrence;
   readonly property: string;
   readonly pointKey?: string;
   readonly targetSourceOrder: number;
-  readonly type: ScalarType;
+  readonly type: ScalarExpressionType;
 } | {
   readonly kind: "collection";
   readonly collectionValueId: string;
@@ -266,6 +266,11 @@ export interface TypedScalarValueIfExpressionNode {
 export interface TypedScalarValueMatchArmNode {
   readonly label: string;
   readonly labelSpan: ScalarSpan;
+  readonly binder?: string;
+  readonly binderSpan?: ScalarSpan;
+  /** Stable local identity used by the evaluator; it is not an ordinary source binding. */
+  readonly binderId?: BindingId;
+  readonly binderType?: ScalarType;
   readonly expression: TypedScalarExpression;
 }
 
@@ -302,6 +307,22 @@ export type ScalarExpressionTypecheckIssueCode =
   | "impossible-match-case"
   | "duplicate-match-case"
   | "missing-match-case"
+  | "optional-match-non-optional-scrutinee"
+  | "optional-match-missing-none"
+  | "optional-match-missing-some"
+  | "optional-match-duplicate-none"
+  | "optional-match-duplicate-some"
+  | "optional-match-impossible-case"
+  | "optional-match-missing-binder"
+  | "optional-match-unexpected-binder"
+  | "optional-match-non-optional-scrutinee"
+  | "optional-match-missing-none"
+  | "optional-match-missing-some"
+  | "optional-match-duplicate-none"
+  | "optional-match-duplicate-some"
+  | "optional-match-impossible-case"
+  | "optional-match-missing-binder"
+  | "optional-match-unexpected-binder"
   | "invalid-choice-literal"
   | "unknown-function"
   | "function-arity-mismatch"

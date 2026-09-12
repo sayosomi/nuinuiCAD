@@ -443,6 +443,47 @@ describe("planInlineModule Checkpoint 1", () => {
     expect(nextSource.slice(nextSource.indexOf("group Present {"))).not.toContain("hasValue(@value)");
   });
 
+  it("specializes optional-result scalar value-if expressions with omitted and explicit else branches", () => {
+    const source = [
+      "nui 1",
+      "const Enabled: boolean = true",
+      "module Dynamic(value?: number, enabled: boolean) {",
+      "  const selected: number? = if (hasValue(@value) and @enabled) { 1 }",
+      "}",
+      "module Presence(value?: number) {",
+      "  const selected: number? = if (hasValue(@value)) { 1 }",
+      "}",
+      "module Explicit(value?: number) {",
+      "  const selected: number? = if (hasValue(@value)) { 1 } else { 2 }",
+      "}",
+      "instance DynamicUse = Dynamic(value: 12, enabled: @Enabled)",
+      "instance DynamicAbsent = Dynamic(enabled: @Enabled)",
+      "instance Present = Presence(value: 12)",
+      "instance Absent = Presence()",
+      "instance ExplicitPresent = Explicit(value: 12)",
+      "instance ExplicitAbsent = Explicit()"
+    ].join("\n");
+    const { result } = plan(source, ["DynamicUse", "DynamicAbsent", "Present", "Absent", "ExplicitPresent", "ExplicitAbsent"]);
+
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    const nextSource = applyLineSplices(source, result.splices);
+    const dynamic = nextSource.slice(nextSource.indexOf("group DynamicUse {"), nextSource.indexOf("group DynamicAbsent {"));
+    const dynamicAbsent = nextSource.slice(nextSource.indexOf("group DynamicAbsent {"), nextSource.indexOf("group Present {"));
+    const present = nextSource.slice(nextSource.indexOf("group Present {"), nextSource.indexOf("group Absent {"));
+    const absent = nextSource.slice(nextSource.indexOf("group Absent {"), nextSource.indexOf("group ExplicitPresent {"));
+    const explicitPresent = nextSource.slice(nextSource.indexOf("group ExplicitPresent {"), nextSource.indexOf("group ExplicitAbsent {"));
+    const explicitAbsent = nextSource.slice(nextSource.indexOf("group ExplicitAbsent {"));
+
+    expect(dynamic).toContain("const selected: number? = if (@enabled) { 1 }");
+    expect(dynamicAbsent).toContain("const selected: number? = none");
+    expect(present).toContain("const selected: number? = 1");
+    expect(absent).toContain("const selected: number? = none");
+    expect(explicitPresent).toContain("const selected: number? = 1");
+    expect(explicitAbsent).toContain("const selected: number? = 2");
+    expect(compileCurrent(nextSource, "inline-optional-result-if-next").diagnostics).toEqual([]);
+  });
+
   it("uses validated presence metadata instead of a boolean placeholder in the semantic AST", () => {
     const source = [
       "nui 1",

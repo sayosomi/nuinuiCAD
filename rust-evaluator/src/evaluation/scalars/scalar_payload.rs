@@ -129,6 +129,18 @@ pub(crate) fn scalar_value_matches_type(scalar_type: &ScalarType, value: &Scalar
     }
 }
 
+pub(crate) fn scalar_type_assignable(actual: &ScalarType, expected: &ScalarType) -> bool {
+    if let ScalarType::Optional { value_type } = expected {
+        return match actual {
+            ScalarType::Optional {
+                value_type: actual_value_type,
+            } => scalar_type_assignable(actual_value_type, value_type),
+            _ => scalar_type_assignable(actual, value_type),
+        };
+    }
+    !matches!(actual, ScalarType::Optional { .. }) && actual == expected
+}
+
 fn decode_scalar_evaluation_error_context(
     json: &Value,
 ) -> Result<ScalarEvaluationErrorContext, ScalarPayloadIssue> {
