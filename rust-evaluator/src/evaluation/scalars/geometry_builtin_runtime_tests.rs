@@ -176,9 +176,9 @@ fn modifier_disabled_geometry_target_has_a_distinct_runtime_failure() {
     state.elements = vec![json!({
         "id": "point-id",
         "type": "freePoint",
-        "modifierNames": ["Disable"]
+        "enabled": false,
+        "visible": true
     })];
-    state.drawing_modifiers = json!([{ "name": "Disable", "state": "disabled" }]);
 
     let expected_target = target("point-id", 1, GeometryInterfaceType::Point);
     assert_eq!(

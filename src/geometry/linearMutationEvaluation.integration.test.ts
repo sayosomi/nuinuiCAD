@@ -185,7 +185,7 @@ describe("Task 31 linear mutation production wiring", () => {
     const compiled = compileCanonical([
       "nui 1",
       "let total: number = 0",
-      "for i in range(min: 0, max: 1, step: 1, state: disabled) {",
+      "for i in range(min: 0, max: 1, step: 1, enabled: false) {",
       "  set total = @total + 1",
       "  point P = coordinate(x: @total, y: 0)",
       "}"
@@ -395,7 +395,7 @@ describe("Task 31 linear mutation production wiring", () => {
       "nui 1",
       "point P = coordinate(x: 0, y: 0)",
       "point Q = coordinate(x: 3, y: 4)",
-      "line D = segment(start: @P, end: @Q, state: hidden)",
+      "line D = segment(start: @P, end: @Q, visible: false)",
       "let value: number = @D.length",
       'text A = label(text: "A=${@value}", anchor: none, size: 3)',
       "set value = @D.length + 1",
@@ -501,7 +501,7 @@ describe("Task 31 linear mutation production wiring", () => {
       "nui 1",
       "point P = coordinate(x: 0, y: 0)",
       "point Q = coordinate(x: 3, y: 4)",
-      "line D = segment(start: @P, end: @Q, state: hidden)",
+      "line D = segment(start: @P, end: @Q, visible: false)",
       "let flag: boolean = false",
       "let result: number = 0",
       "set flag = @D.length == 5",

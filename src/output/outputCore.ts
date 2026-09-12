@@ -319,7 +319,7 @@ const pointOf = (point: ComputedPoint): OutputPoint => ({ x: finite(point.x, "ge
 const strokeColor = (stroke: DrawingModifierStroke): string => {
   if (stroke.color.kind === "fixed") {
     if (!/^#[0-9A-Fa-f]{6}$/.test(stroke.color.hex)) {
-      throw new OutputPlanError(`Invalid fixed modifier color: ${stroke.color.hex}`);
+      throw new OutputPlanError(`Invalid fixed style color: ${stroke.color.hex}`);
     }
     return stroke.color.hex;
   }
@@ -332,7 +332,7 @@ const strokeFor = (
 ): OutputStroke => {
   const resolved = evaluation.effectiveDrawingModifierStrokes?.get(elementId);
   if (!resolved) return { widthMm: PX_TO_MM, style: "solid", colorHex: OUTPUT_PALETTE.foreground };
-  finitePositive(resolved.widthPx, `modifier width for ${elementId}`);
+  finitePositive(resolved.widthPx, `style width for ${elementId}`);
   return {
     widthMm: resolved.widthPx * PX_TO_MM,
     style: resolved.style,

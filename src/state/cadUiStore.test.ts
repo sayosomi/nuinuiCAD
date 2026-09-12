@@ -471,11 +471,11 @@ describe("cadUiStore published Canvas eligibility selection", () => {
     });
   });
 
-  it("uses Drawing Modifier state as selection activity", () => {
+  it("uses Style visibility as selection presentation", () => {
     useCadDocumentStore.setState({
       modifiers: [
-        { name: "hide", state: "hidden" },
-        { name: "disable", state: "disabled" }
+        { name: "hide", visible: false },
+        { name: "disable", visible: false }
       ]
     });
     useCadUiStore.getState().setCanvasSelectionEligibility(elements, new Set(["visible", "visible-second"]));
@@ -611,7 +611,7 @@ describe("cadUiStore Canvas eligibility freshness", () => {
 
   it("invalidates the snapshot when a document presentation input changes", () => {
     useCadUiStore.getState().setCanvasSelectionEligibility(elements, new Set(["a"]));
-    useCadDocumentStore.setState({ modifiers: [{ name: "hide", state: "hidden" }] });
+    useCadDocumentStore.setState({ modifiers: [{ name: "hide", visible: false }] });
     expect(useCadUiStore.getState().canvasSelectionEligibleElementIds).toBeNull();
   });
 });

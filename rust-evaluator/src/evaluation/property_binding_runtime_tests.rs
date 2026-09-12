@@ -93,6 +93,56 @@ fn line(id: &str, start: &str, end: &str) -> Value {
     })
 }
 
+#[test]
+fn direct_enabled_and_visible_bindings_are_resolved_before_construction_inputs() {
+    let elements = vec![
+        json!({
+            "id": "disabled-line", "name": "Disabled line", "type": "line",
+            "enabled": true, "visible": true,
+            "startPoint": {"mode": "reference", "pointId": "missing-start"},
+            "endPoint": {"mode": "reference", "pointId": "missing-end"}
+        }),
+        point("hidden-point", 1.0, 2.0),
+    ];
+    let scalar_program = program(vec![statement(
+        "binding:off",
+        0,
+        "const",
+        json!({"kind": "boolean"}),
+        boolean_literal(false),
+    )]);
+    let property_bindings = json!([
+        property_binding(
+            "disabled-line",
+            "enabled",
+            "binding:off",
+            json!({"kind": "boolean"})
+        ),
+        property_binding(
+            "hidden-point",
+            "visible",
+            "binding:off",
+            json!({"kind": "boolean"})
+        )
+    ]);
+
+    let result = evaluate_document_input(input(
+        elements,
+        Some(scalar_program),
+        Some(property_bindings),
+    ));
+
+    assert!(geometry(&result, "disabled-line").is_none());
+    assert!(result.errors.is_empty());
+    assert!(geometry(&result, "hidden-point").is_some());
+    assert!(!result
+        .effective_visible_element_ids
+        .contains(&"hidden-point".to_owned()));
+    assert!(result
+        .effective_enabled_element_ids
+        .contains(&"hidden-point".to_owned()));
+}
+
 fn arc(id: &str, start_angle_deg: f64, end_angle_deg: f64, direction: Option<&str>) -> Value {
     let mut element = json!({
         "id": id, "name": id, "type": "arcLine", "activity": "visible",

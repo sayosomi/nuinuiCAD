@@ -18,8 +18,8 @@ vi.mock("./VSCodeBenchmarkCaptureRunner", () => ({
 
 const source = [
   "nui 1",
-  "modifier Guide {",
-  "  state: visible,",
+  "style Guide {",
+  "  visible: true,",
   "}",
   "point A = coordinate(x: 0, y: 0)",
   "point B = coordinate(x: 100, y: 0)",

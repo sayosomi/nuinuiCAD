@@ -1,5 +1,4 @@
 import type { CadElementType } from "../types/geometry";
-import { elementTypeSupportsHiddenActivity } from "../model/elementActivity";
 import {
   bareConstructionFor,
   categoriesForConstruction,
@@ -239,16 +238,16 @@ const parseNameWithModifiers = (
 
   const nameSpan = trimSpan(source, span.start, listOpen);
   if (nameSpan.start === nameSpan.end) {
-    diagnostic(diagnostics, "modifier参照は名前付きのgeometry / groupにのみ指定できます。", { start: listOpen, end: listOpen + 1 });
+    diagnostic(diagnostics, "style参照は名前付きのgeometry / groupにのみ指定できます。", { start: listOpen, end: listOpen + 1 });
   }
   const close = matchingSquareClose(source, listOpen);
   if (close < 0 || close > span.end) {
-    diagnostic(diagnostics, "modifier参照リストの「[」が閉じられていません。", { start: listOpen, end: listOpen + 1 });
+    diagnostic(diagnostics, "style参照リストの「[」が閉じられていません。", { start: listOpen, end: listOpen + 1 });
     return { ...parseName(source, nameSpan), modifierNames: [], modifierNameSpans: [] };
   }
   const tail = trimSpan(source, close + 1, span.end);
   if (tail.start < tail.end) {
-    diagnostic(diagnostics, "modifier参照リストの後に余分なトークンがあります。", tail);
+    diagnostic(diagnostics, "style参照リストの後に余分なトークンがあります。", tail);
   }
 
   const scanned = scanCallArgs(source, { start: listOpen + 1, end: close });
@@ -257,17 +256,17 @@ const parseNameWithModifiers = (
   const modifierNameSpans: DslSpan[] = [];
   for (const arg of scanned.args) {
     if (arg.key !== null) {
-      diagnostic(diagnostics, "modifier参照リストには名前だけを書いてください。", arg.keySpan ?? arg.valueSpan);
+      diagnostic(diagnostics, "style参照リストには名前だけを書いてください。", arg.keySpan ?? arg.valueSpan);
       continue;
     }
     const raw = source.slice(arg.valueSpan.start, arg.valueSpan.end);
     const name = unquoteDslString(arg.value).trim();
     if (!name || name.startsWith("@")) {
-      diagnostic(diagnostics, "modifier参照名が空、または不正です。", arg.valueSpan);
+      diagnostic(diagnostics, "style参照名が空、または不正です。", arg.valueSpan);
       continue;
     }
     if (!raw.startsWith("\"") && /\s/.test(raw)) {
-      diagnostic(diagnostics, "modifier参照名に空白を含める場合は引用符で囲んでください。", arg.valueSpan);
+      diagnostic(diagnostics, "style参照名に空白を含める場合は引用符で囲んでください。", arg.valueSpan);
       continue;
     }
     modifierNames.push(name);
@@ -372,16 +371,6 @@ const validateArgs = (
     }
     if (seen.has(arg.key)) {
       diagnostic(diagnostics, `引数「${arg.key}」が重複しています。`, arg.keySpan!);
-      continue;
-    }
-    if (arg.key === "state" && !elementTypeSupportsHiddenActivity(spec.elementType) && unquoteDslString(arg.value) === "hidden") {
-      diagnostic(
-        diagnostics,
-        `${construction} は自身の図形を持たないため state: hidden を指定できません。visible か disabled を使ってください。`,
-        arg.valueSpan,
-        "state-hidden-unsupported",
-        { key: "diagnostic.state-hidden-unsupported", parameters: { construction } }
-      );
       continue;
     }
     if (arg.key === "color" && category === MUTATION_CATEGORY) {

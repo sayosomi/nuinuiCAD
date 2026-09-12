@@ -134,8 +134,8 @@ describe("planInlineModule Checkpoint 1", () => {
       "module Stamp() {",
       "  point Anchor = coordinate(x: 0, y: 0)",
       "}",
-      "instance Hidden(state: hidden) = Stamp()",
-      "instance Disabled(state: disabled) = Stamp()"
+      "instance Hidden(visible: false) = Stamp()",
+      "instance Disabled(enabled: false) = Stamp()"
     ].join("\n");
 
     const excluded = plan(source, ["Hidden", "Disabled"]).result;
@@ -154,8 +154,8 @@ describe("planInlineModule Checkpoint 1", () => {
     if (included.status !== "planned") return;
     expect(included.splices).toHaveLength(2);
     const next = applyLineSplices(source, included.splices);
-    expect(next).toContain("group Hidden(state: hidden) {");
-    expect(next).toContain("group Disabled(state: disabled) {");
+    expect(next).toContain("group Hidden(visible: false) {");
+    expect(next).toContain("group Disabled(enabled: false) {");
   });
 
   it("deduplicates targets and reports in deterministic authored order", () => {

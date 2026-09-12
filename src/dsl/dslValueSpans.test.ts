@@ -14,15 +14,15 @@ const textOf = (source: string, span: { start: number; end: number }) => source.
 
 describe("dslLineValueSpans", () => {
   it("keeps the legacy projection while exposing payload and attribute labels", () => {
-    const source = "point A = coordinate(x: 0,y: 10,state: hidden)";
+    const source = "point A = coordinate(x: 0,y: 10,visible: false)";
     const labeled = dslLineLabeledValueSpans(source);
     const xStart = source.indexOf("x: 0") + "x: ".length;
     const yStart = source.indexOf("y: 10") + "y: ".length;
-    const stateStart = source.indexOf("state: hidden") + "state: ".length;
+    const visibleStart = source.indexOf("visible: false") + "visible: ".length;
     expect(labeled).toEqual([
       { start: xStart, end: xStart + 1, source: "attr", key: "x" },
       { start: yStart, end: yStart + 2, source: "attr", key: "y" },
-      { start: stateStart, end: stateStart + 6, source: "attr", key: "state" }
+      { start: visibleStart, end: visibleStart + 5, source: "attr", key: "visible" }
     ]);
     expect(labeled.map(({ start, end }) => ({ start, end }))).toEqual(dslLineValueSpans(source));
   });
@@ -187,9 +187,9 @@ describe("adjacentDslValueSpan", () => {
   });
 
   it("walks a mixed payload/attribute line in source order", () => {
-    const source = "line AB = segment(start: A, end: B, state: hidden)";
+    const source = "line AB = segment(start: A, end: B, visible: false)";
     const spans = dslLineValueSpans(source);
-    expect(spans.map((span) => textOf(source, span))).toEqual(["A", "B", "hidden"]);
+    expect(spans.map((span) => textOf(source, span))).toEqual(["A", "B", "false"]);
 
     let current = spans[0].start;
     const order: string[] = [];
@@ -198,7 +198,7 @@ describe("adjacentDslValueSpan", () => {
       order.push(textOf(source, next));
       current = next.start;
     }
-    expect(order).toEqual(["B", "hidden", "A", "B"]);
+    expect(order).toEqual(["B", "false", "A", "B"]);
   });
 
   it("resolves from a caret inside a value, an exact-match selection, and a caret outside every value", () => {

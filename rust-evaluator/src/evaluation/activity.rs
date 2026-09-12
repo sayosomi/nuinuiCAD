@@ -52,9 +52,9 @@ struct ModifierPropertyContribution {
 
 #[derive(Clone, Debug, Default)]
 struct DrawingModifierContribution {
-    state: Option<ModifierPropertyContribution>,
+    visible: Option<ModifierPropertyContribution>,
     width_px: Option<ModifierPropertyContribution>,
-    style: Option<ModifierPropertyContribution>,
+    line_type: Option<ModifierPropertyContribution>,
     color: Option<ModifierPropertyContribution>,
 }
 
@@ -67,6 +67,12 @@ pub(crate) struct EffectiveDrawingModifierRuntime {
 }
 
 pub(crate) fn activity_from_element(element: &Value) -> ElementActivity {
+    if element.get("enabled").and_then(Value::as_bool) == Some(false) {
+        return ElementActivity::Disabled;
+    }
+    if element.get("visible").and_then(Value::as_bool) == Some(false) {
+        return ElementActivity::Hidden;
+    }
     match element.get("activity").and_then(Value::as_str) {
         Some("hidden") => ElementActivity::Hidden,
         Some("disabled") => ElementActivity::Disabled,
@@ -80,14 +86,6 @@ pub(crate) fn activity_allows_evaluation(activity: ElementActivity) -> bool {
 
 pub(crate) fn activity_allows_drawing(activity: ElementActivity) -> bool {
     activity == ElementActivity::Visible
-}
-
-fn activity_name(activity: ElementActivity) -> &'static str {
-    match activity {
-        ElementActivity::Visible => "visible",
-        ElementActivity::Hidden => "hidden",
-        ElementActivity::Disabled => "disabled",
-    }
 }
 
 fn is_activity_container(element: &Value) -> bool {
@@ -148,14 +146,24 @@ fn drawing_modifier_contributions(
             Some((
                 name,
                 DrawingModifierContribution {
-                    state: property_contribution(modifier, delta, delta_identity.as_ref(), "state"),
+                    visible: property_contribution(
+                        modifier,
+                        delta,
+                        delta_identity.as_ref(),
+                        "visible",
+                    ),
                     width_px: property_contribution(
                         modifier,
                         delta,
                         delta_identity.as_ref(),
                         "widthPx",
                     ),
-                    style: property_contribution(modifier, delta, delta_identity.as_ref(), "style"),
+                    line_type: property_contribution(
+                        modifier,
+                        delta,
+                        delta_identity.as_ref(),
+                        "lineType",
+                    ),
                     color: property_contribution(modifier, delta, delta_identity.as_ref(), "color"),
                 },
             ))
@@ -224,8 +232,8 @@ pub(crate) fn effective_drawing_modifier_runtime_by_element_id_with_profile(
             continue;
         };
         let mut has_modifier = false;
-        let mut modifier_state = ElementActivity::Visible;
-        let mut state_winner: Option<DrawingModifierPropertyWinner> = None;
+        let mut style_visible = true;
+        let mut visible_winner: Option<DrawingModifierPropertyWinner> = None;
         let mut width = Value::from(1.0);
         let mut width_winner: Option<DrawingModifierPropertyWinner> = None;
         let mut style = Value::from("solid");
@@ -246,23 +254,17 @@ pub(crate) fn effective_drawing_modifier_runtime_by_element_id_with_profile(
                     continue;
                 };
                 has_modifier = true;
-                if let Some(property) = contribution.state.as_ref() {
-                    let parsed_state = match property.value.as_str() {
-                        Some("hidden") => Some(ElementActivity::Hidden),
-                        Some("disabled") => Some(ElementActivity::Disabled),
-                        Some("visible") => Some(ElementActivity::Visible),
-                        _ => None,
-                    };
-                    if let Some(parsed_state) = parsed_state {
-                        modifier_state = parsed_state;
-                        state_winner = Some(winner_for(&owner_id, modifier_name, property));
+                if let Some(property) = contribution.visible.as_ref() {
+                    if let Some(value) = property.value.as_bool() {
+                        style_visible = value;
+                        visible_winner = Some(winner_for(&owner_id, modifier_name, property));
                     }
                 }
                 if let Some(property) = contribution.width_px.as_ref() {
                     width = property.value.clone();
                     width_winner = Some(winner_for(&owner_id, modifier_name, property));
                 }
-                if let Some(property) = contribution.style.as_ref() {
+                if let Some(property) = contribution.line_type.as_ref() {
                     style = property.value.clone();
                     style_winner = Some(winner_for(&owner_id, modifier_name, property));
                 }
@@ -280,30 +282,23 @@ pub(crate) fn effective_drawing_modifier_runtime_by_element_id_with_profile(
             &mut direct_cache,
             &mut HashSet::new(),
         );
-        let modifier_can_win_state = direct_activity.activity == ElementActivity::Visible;
-        let activity = if !modifier_can_win_state {
+        let style_can_win_visibility = direct_activity.activity == ElementActivity::Visible;
+        let effective_visible = style_can_win_visibility && style_visible;
+        let activity = if !style_can_win_visibility {
             direct_activity
+        } else if effective_visible {
+            EffectiveElementActivity::default()
         } else {
-            match modifier_state {
-                ElementActivity::Disabled => EffectiveElementActivity {
-                    activity: ElementActivity::Disabled,
-                    hidden_by_element_id: None,
-                    disabled_by_element_id: state_winner
-                        .as_ref()
-                        .map(|winner| winner.owner_element_id.clone()),
-                },
-                ElementActivity::Hidden => EffectiveElementActivity {
-                    activity: ElementActivity::Hidden,
-                    hidden_by_element_id: state_winner
-                        .as_ref()
-                        .map(|winner| winner.owner_element_id.clone()),
-                    disabled_by_element_id: None,
-                },
-                ElementActivity::Visible => EffectiveElementActivity::default(),
+            EffectiveElementActivity {
+                activity: ElementActivity::Hidden,
+                hidden_by_element_id: visible_winner
+                    .as_ref()
+                    .map(|winner| winner.owner_element_id.clone()),
+                disabled_by_element_id: None,
             }
         };
-        let final_state_winner = if modifier_can_win_state {
-            state_winner
+        let final_visible_winner = if style_can_win_visibility {
+            visible_winner
         } else {
             None
         };
@@ -313,15 +308,15 @@ pub(crate) fn effective_drawing_modifier_runtime_by_element_id_with_profile(
             "color": color.clone(),
         });
         let resolution = serde_json::json!({
-            "state": {
-                "value": activity_name(activity.activity),
-                "winner": final_state_winner,
+            "visible": {
+                "value": effective_visible,
+                "winner": final_visible_winner,
             },
             "widthPx": {
                 "value": width,
                 "winner": width_winner,
             },
-            "style": {
+            "lineType": {
                 "value": style,
                 "winner": style_winner,
             },
@@ -477,13 +472,14 @@ mod provenance_tests {
         let elements = vec![serde_json::json!({
             "id": "line",
             "type": "line",
-            "activity": "visible",
+            "enabled": true,
+            "visible": true,
             "modifierNames": ["seam"]
         })];
         let modifiers = serde_json::json!([{
             "name": "seam",
             "widthPx": 2.0,
-            "style": "dashed",
+            "lineType": "dashed",
             "profileDeltas": [{
                 "profileId": "profile-print",
                 "profileName": "print",
@@ -502,8 +498,8 @@ mod provenance_tests {
             resolution["widthPx"]["winner"]["selectedProfileDelta"]["profileId"],
             Value::from("profile-print")
         );
-        assert_eq!(resolution["style"]["value"], Value::from("dashed"));
-        assert!(resolution["style"]["winner"]["selectedProfileDelta"].is_null());
+        assert_eq!(resolution["lineType"]["value"], Value::from("dashed"));
+        assert!(resolution["lineType"]["winner"]["selectedProfileDelta"].is_null());
     }
 
     #[test]
@@ -512,7 +508,8 @@ mod provenance_tests {
             serde_json::json!({
                 "id": "group",
                 "type": "group",
-                "activity": "hidden"
+                "enabled": true,
+                "visible": false
             }),
             serde_json::json!({
                 "id": "line",
@@ -522,7 +519,7 @@ mod provenance_tests {
                 "modifierNames": ["off"]
             }),
         ];
-        let modifiers = serde_json::json!([{ "name": "off", "state": "disabled" }]);
+        let modifiers = serde_json::json!([{ "name": "off", "visible": false }]);
         let runtime = effective_drawing_modifier_runtime_by_element_id_with_profile(
             &elements,
             Some(&modifiers),
@@ -532,8 +529,8 @@ mod provenance_tests {
 
         assert_eq!(line.activity.activity, ElementActivity::Hidden);
         assert_eq!(line.activity.hidden_by_element_id.as_deref(), Some("group"));
-        assert_eq!(line.resolution["state"]["value"], Value::from("hidden"));
-        assert!(line.resolution["state"]["winner"].is_null());
+        assert_eq!(line.resolution["visible"]["value"], Value::from(false));
+        assert!(line.resolution["visible"]["winner"].is_null());
     }
 
     #[test]

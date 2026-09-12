@@ -22,7 +22,8 @@ interpreted, and where its restrictions matter.
 | --- | --- | --- | --- | --- |
 | `x` | number | no | no | — |
 | `y` | number | no | no | — |
-| `state` | — | no | no | — |
+| `enabled` | boolean | no | no | — |
+| `visible` | boolean | no | no | — |
 | `steps` | — | no | no | steps |
 | `id` | — | no | no | id |
 | `roles` | — | no | no | roles |
@@ -43,7 +44,8 @@ interpreted, and where its restrictions matter.
 | `from` | reference | yes | no | — |
 | `dx` | number | no | no | — |
 | `dy` | number | no | no | — |
-| `state` | — | no | no | — |
+| `enabled` | boolean | no | no | — |
+| `visible` | boolean | no | no | — |
 | `steps` | — | no | no | steps |
 | `id` | — | no | no | id |
 | `roles` | — | no | no | roles |
@@ -64,7 +66,8 @@ interpreted, and where its restrictions matter.
 | `from` | reference | yes | no | — |
 | `angle` | number; steps: 0.1, 1, 15, 60, 90 | no | no | — |
 | `distance` | number | no | no | — |
-| `state` | — | no | no | — |
+| `enabled` | boolean | no | no | — |
+| `visible` | boolean | no | no | — |
 | `steps` | — | no | no | steps |
 | `id` | — | no | no | id |
 | `roles` | — | no | no | roles |
@@ -86,7 +89,8 @@ interpreted, and where its restrictions matter.
 | `end` | reference | yes | no | — |
 | `distance` | number | no | no | — |
 | `ratio` | number; steps: 0.01, 0.1, 1, 10 | no | no | — |
-| `state` | — | no | no | — |
+| `enabled` | boolean | no | no | — |
+| `visible` | boolean | no | no | — |
 | `steps` | — | no | no | steps |
 | `id` | — | no | no | id |
 | `roles` | — | no | no | roles |
@@ -107,7 +111,8 @@ interpreted, and where its restrictions matter.
 | `from` | lineEndpointReference | yes | no | — |
 | `distance` | number | no | no | — |
 | `ratio` | number; steps: 0.01, 0.1, 1, 10 | no | no | — |
-| `state` | — | no | no | — |
+| `enabled` | boolean | no | no | — |
+| `visible` | boolean | no | no | — |
 | `steps` | — | no | no | steps |
 | `id` | — | no | no | id |
 | `roles` | — | no | no | roles |
@@ -129,7 +134,8 @@ interpreted, and where its restrictions matter.
 | `line2` | lineReference | yes | no | — |
 | `index` | number | no | no | — |
 | `extensions` | boolean | no | no | — |
-| `state` | — | no | no | — |
+| `enabled` | boolean | no | no | — |
+| `visible` | boolean | no | no | — |
 | `steps` | — | no | no | steps |
 | `id` | — | no | no | id |
 | `roles` | — | no | no | roles |
@@ -152,7 +158,8 @@ interpreted, and where its restrictions matter.
 | `angle` | number; steps: 0.1, 1, 15, 60, 90 | no | no | — |
 | `curveSide` | choice; choices: convex, concave | no | no | — |
 | `distance` | number | no | no | — |
-| `state` | — | no | no | — |
+| `enabled` | boolean | no | no | — |
+| `visible` | boolean | no | no | — |
 | `steps` | — | no | no | steps |
 | `id` | — | no | no | id |
 | `roles` | — | no | no | roles |
@@ -173,7 +180,8 @@ interpreted, and where its restrictions matter.
 | `source` | lineReference | yes | no | — |
 | `segmentIndex` | number | no | no | — |
 | `direction` | number; steps: 0.1, 1, 15, 60, 90 | yes | no | — |
-| `state` | — | no | no | — |
+| `enabled` | boolean | no | no | — |
+| `visible` | boolean | no | no | — |
 | `steps` | — | no | no | steps |
 | `id` | — | no | no | id |
 | `roles` | — | no | no | roles |
@@ -193,7 +201,8 @@ interpreted, and where its restrictions matter.
 | --- | --- | --- | --- | --- |
 | `source` | lineReference | yes | no | — |
 | `segmentIndex` | number | no | no | — |
-| `state` | — | no | no | — |
+| `enabled` | boolean | no | no | — |
+| `visible` | boolean | no | no | — |
 | `steps` | — | no | no | steps |
 | `id` | — | no | no | id |
 | `roles` | — | no | no | roles |
@@ -213,7 +222,8 @@ interpreted, and where its restrictions matter.
 | --- | --- | --- | --- | --- |
 | `start` | reference; coordinates allowed | yes | no | — |
 | `end` | reference; coordinates allowed | yes | no | — |
-| `state` | — | no | no | — |
+| `enabled` | boolean | no | no | — |
+| `visible` | boolean | no | no | — |
 | `steps` | — | no | no | steps |
 | `id` | — | no | no | id |
 | `roles` | — | no | no | roles |
@@ -234,7 +244,8 @@ interpreted, and where its restrictions matter.
 | `start` | reference; coordinates allowed | yes | no | — |
 | `angle` | number; steps: 0.1, 1, 15, 60, 90 | no | no | — |
 | `length` | number | no | no | — |
-| `state` | — | no | no | — |
+| `enabled` | boolean | no | no | — |
+| `visible` | boolean | no | no | — |
 | `steps` | — | no | no | steps |
 | `id` | — | no | no | id |
 | `roles` | — | no | no | roles |
@@ -256,7 +267,8 @@ interpreted, and where its restrictions matter.
 | `second` | lineReference | yes | no | — |
 | `kind` | choice; choices: external, internal | yes | no | — |
 | `side` | choice; choices: left, right | yes | no | — |
-| `state` | — | no | no | — |
+| `enabled` | boolean | no | no | — |
+| `visible` | boolean | no | no | — |
 | `steps` | — | no | no | steps |
 | `id` | — | no | no | id |
 | `roles` | — | no | no | roles |
@@ -279,7 +291,8 @@ interpreted, and where its restrictions matter.
 | `side` | choice; choices: right, left | no | no | — |
 | `closed` | boolean | no | no | — |
 | `suppressTrimWarnings` | boolean | no | no | — |
-| `state` | — | no | no | — |
+| `enabled` | boolean | no | no | — |
+| `visible` | boolean | no | no | — |
 | `steps` | — | no | no | steps |
 | `id` | — | no | no | id |
 | `roles` | — | no | no | roles |
@@ -299,7 +312,8 @@ interpreted, and where its restrictions matter.
 | --- | --- | --- | --- | --- |
 | `paths` | lineReferenceList | yes | no | — |
 | `closed` | boolean | no | no | — |
-| `state` | — | no | no | — |
+| `enabled` | boolean | no | no | — |
+| `visible` | boolean | no | no | — |
 | `steps` | — | no | no | steps |
 | `id` | — | no | no | id |
 | `roles` | — | no | no | roles |
@@ -319,7 +333,8 @@ interpreted, and where its restrictions matter.
 | --- | --- | --- | --- | --- |
 | `points` | — | yes | no | points |
 | `closed` | boolean | no | no | — |
-| `state` | — | no | no | — |
+| `enabled` | boolean | no | no | — |
+| `visible` | boolean | no | no | — |
 | `steps` | — | no | no | steps |
 | `id` | — | no | no | id |
 | `roles` | — | no | no | roles |
@@ -337,7 +352,8 @@ interpreted, and where its restrictions matter.
 | --- | --- | --- | --- | --- |
 | `source` | lineReference | yes | no | — |
 | `at` | reference | yes | no | — |
-| `state` | — | no | no | — |
+| `enabled` | boolean | no | no | — |
+| `visible` | boolean | no | no | — |
 | `steps` | — | no | no | steps |
 | `id` | — | no | no | id |
 | `roles` | — | no | no | roles |
@@ -361,7 +377,8 @@ interpreted, and where its restrictions matter.
 | `angleDeg` | number; steps: 0.1, 1, 15, 60, 90 | no | no | — |
 | `mirrorX` | boolean | no | no | — |
 | `baseLines` | lineReferenceList | yes | no | — |
-| `state` | — | no | no | — |
+| `enabled` | boolean | no | no | — |
+| `visible` | boolean | no | no | — |
 | `steps` | — | no | no | steps |
 | `id` | — | no | no | id |
 | `roles` | — | no | no | roles |
@@ -382,7 +399,8 @@ interpreted, and where its restrictions matter.
 | `axis1` | reference | yes | no | — |
 | `axis2` | reference | yes | no | — |
 | `baseLines` | lineReferenceList | yes | no | — |
-| `state` | — | no | no | — |
+| `enabled` | boolean | no | no | — |
+| `visible` | boolean | no | no | — |
 | `steps` | — | no | no | steps |
 | `id` | — | no | no | id |
 | `roles` | — | no | no | roles |
@@ -407,7 +425,8 @@ interpreted, and where its restrictions matter.
 | `endAngle` | number; steps: 0.1, 1, 15, 60, 90 | no | no | — |
 | `endLength` | number | no | no | — |
 | `intermediates` | — | no | no | intermediates |
-| `state` | — | no | no | — |
+| `enabled` | boolean | no | no | — |
+| `visible` | boolean | no | no | — |
 | `steps` | — | no | no | steps |
 | `id` | — | no | no | id |
 | `roles` | — | no | no | roles |
@@ -430,7 +449,8 @@ interpreted, and where its restrictions matter.
 | `start` | number; steps: 0.1, 1, 15, 60, 90 | no | no | — |
 | `end` | number; steps: 0.1, 1, 15, 60, 90 | no | no | — |
 | `direction` | choice; choices: counterclockwise, clockwise | no | no | — |
-| `state` | — | no | no | — |
+| `enabled` | boolean | no | no | — |
+| `visible` | boolean | no | no | — |
 | `steps` | — | no | no | steps |
 | `id` | — | no | no | id |
 | `roles` | — | no | no | roles |
@@ -453,7 +473,8 @@ interpreted, and where its restrictions matter.
 | `point3` | reference; coordinates allowed | yes | no | — |
 | `start` | number; steps: 0.1, 1, 15, 60, 90 | no | no | — |
 | `end` | number; steps: 0.1, 1, 15, 60, 90 | no | no | — |
-| `state` | — | no | no | — |
+| `enabled` | boolean | no | no | — |
+| `visible` | boolean | no | no | — |
 | `steps` | — | no | no | steps |
 | `id` | — | no | no | id |
 | `roles` | — | no | no | roles |
@@ -473,7 +494,8 @@ interpreted, and where its restrictions matter.
 | `end2` | lineEndpointReference | yes | no | — |
 | `radius` | number | no | no | — |
 | `index` | number | no | no | — |
-| `state` | — | no | no | — |
+| `enabled` | boolean | no | no | — |
+| `visible` | boolean | no | no | — |
 | `steps` | — | no | no | steps |
 | `id` | — | no | no | id |
 | `roles` | — | no | no | roles |
@@ -492,7 +514,8 @@ interpreted, and where its restrictions matter.
 | `text` | text | yes | no | — |
 | `anchor` | reference; coordinates allowed; none allowed | no | no | — |
 | `size` | number | no | no | — |
-| `state` | — | no | no | — |
+| `enabled` | boolean | no | no | — |
+| `visible` | boolean | no | no | — |
 | `steps` | — | no | no | steps |
 | `id` | — | no | no | id |
 | `roles` | — | no | no | roles |
@@ -517,7 +540,8 @@ interpreted, and where its restrictions matter.
 | `scale` | number; steps: 0.01, 0.1, 1, 10 | no | no | — |
 | `angleDeg` | number; steps: 0.1, 1, 15, 60, 90 | no | no | — |
 | `mirrorX` | boolean | no | no | — |
-| `state` | — | no | no | — |
+| `enabled` | boolean | no | no | — |
+| `visible` | boolean | no | no | — |
 | `steps` | — | no | no | steps |
 | `id` | — | no | no | id |
 | `roles` | — | no | no | roles |
@@ -597,8 +621,8 @@ construction's parameter list) for one construction. The following sections
 supply the user-facing **Description**, **Example**, and **Notes** without
 repeating generated signatures or editor-owned parameter metadata.
 Construction arguments are
-named unless the catalog marks a positional argument. Common `state` and
-drawing metadata are described in [Modifiers](modifiers.md).
+named unless the catalog marks a positional argument. Common `enabled`/`visible`
+gates and Style metadata are described in [Styles](modifiers.md).
 
 ## Points
 

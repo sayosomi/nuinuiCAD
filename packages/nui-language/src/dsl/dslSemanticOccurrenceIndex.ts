@@ -1449,7 +1449,7 @@ const addDrawingProfileOccurrences = (compiled: CompiledDslDocument, add: AddOcc
   }
 };
 
-/** Document-global modifier names deliberately stay outside lexical namespaces. */
+/** Document-global style names deliberately stay outside lexical namespaces. */
 const addDrawingModifierOccurrences = (compiled: CompiledDslDocument, add: AddOccurrence) => {
   const index = createModifierAuthoringIndex(compiled);
   for (const definition of index.definitions) {

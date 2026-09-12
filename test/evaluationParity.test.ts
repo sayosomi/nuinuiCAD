@@ -1351,7 +1351,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
-  it("matches TS/Rust for selected Drawing Profile modifier deltas and disabled state", () => {
+  it("matches TS/Rust for selected Drawing Profile style deltas and disabled state", () => {
     const fixture = readParityFixture(repoRoot, "nui1-drawing-modifier-profiles.nui");
     const profile = fixture.compiled?.doc.document.drawingProfiles?.find((candidate) => candidate.name === "Print");
     if (!profile) throw new Error("Print Drawing Profile was not compiled");

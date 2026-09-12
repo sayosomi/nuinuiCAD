@@ -560,7 +560,8 @@ export const createCadElement = (
   // symmetricMove/pathReverse); createCadElement guarantees name === "" for
   // these types at return, rather than relying on a later caller
   // (emitCreationRecipe / dslCompiler) to reset it.
-  return elementTypesWithoutOwnDrawableGeometry.has(type)
+  const normalized = elementTypesWithoutOwnDrawableGeometry.has(type)
     ? { ...element, name: "" }
     : withCreatedElementName(element, elements, referenceElements);
+  return { ...normalized, enabled: normalized.enabled ?? true, visible: normalized.visible ?? true };
 };

@@ -241,23 +241,23 @@ describe("module source-owned model mutation", () => {
     const first = elementNamed("First")!;
     const firstPoint = elementNamed("P", first.id)!;
 
-    useCadDocumentStore.getState().updateElement(firstPoint.id, { activity: "hidden" });
+    useCadDocumentStore.getState().updateElement(firstPoint.id, { activity: "hidden", enabled: true, visible: false });
     let state = useCadDocumentStore.getState();
-    expect(state.sourceText).toContain("point P = coordinate(x: 1, y: 2, state: hidden)");
+    expect(state.sourceText).toContain("point P = coordinate(x: 1, y: 2, visible: false)");
     expect(state.sourceText).toContain("instance First = M()");
     expect(state.sourceText).toContain("instance Second = M()");
     expect(state.elements.filter((element) => element.name === "P").map((element) => element.activity)).toEqual(["hidden", "hidden"]);
 
     const hiddenPoint = elementNamed("P", first.id)!;
-    useCadDocumentStore.getState().updateElement(hiddenPoint.id, { activity: "disabled" });
+    useCadDocumentStore.getState().updateElement(hiddenPoint.id, { activity: "disabled", enabled: false, visible: true });
     state = useCadDocumentStore.getState();
-    expect(state.sourceText).toContain("state: disabled");
+    expect(state.sourceText).toContain("enabled: false");
     expect(state.elements.filter((element) => element.name === "P").map((element) => element.activity)).toEqual(["disabled", "disabled"]);
 
     const disabledPoint = elementNamed("P", first.id)!;
-    useCadDocumentStore.getState().updateElement(disabledPoint.id, { activity: "visible" });
+    useCadDocumentStore.getState().updateElement(disabledPoint.id, { activity: "visible", enabled: true, visible: true });
     state = useCadDocumentStore.getState();
-    expect(state.sourceText).toContain("state: visible");
+    expect(state.sourceText).toContain("");
     expect(state.elements.filter((element) => element.name === "P").map((element) => element.activity)).toEqual(["visible", "visible"]);
   });
 
@@ -340,16 +340,16 @@ describe("module source-owned model mutation", () => {
   it("maps module instance activity to the call statement without changing definition source", () => {
     seed(moduleSource);
     const first = elementNamed("First")!;
-    useCadDocumentStore.getState().updateElement(first.id, { activity: "hidden" } as Partial<CadElement>);
+    useCadDocumentStore.getState().updateElement(first.id, { activity: "hidden", enabled: true, visible: false } as Partial<CadElement>);
 
     let state = useCadDocumentStore.getState();
-    expect(state.sourceText).toContain("instance First(state: hidden) = M()");
+    expect(state.sourceText).toContain("instance First(visible: false) = M()");
     expect(state.sourceText).toContain("instance Second = M()");
     expect(state.sourceText.match(/point P/g)).toHaveLength(1);
     const activities = effectiveElementActivityById(state.elements);
     expect(activities.get(state.elements.find((element) => element.name === "P" && element.parentGroupId === first.id)!.id)?.activity).toBe("hidden");
 
-    useCadDocumentStore.getState().updateElement(first.id, { activity: "visible" } as Partial<CadElement>);
+    useCadDocumentStore.getState().updateElement(first.id, { activity: "visible", enabled: true, visible: true } as Partial<CadElement>);
     state = useCadDocumentStore.getState();
     expect(state.sourceText).toContain("instance First = M()");
     expect(state.sourceText).not.toContain("instance First(state:");

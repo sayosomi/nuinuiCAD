@@ -11,7 +11,7 @@ describe("compact named arguments", () => {
   it("compiles compact nui1 element arguments without whitespace diagnostics", () => {
     const source = [
       "nui 1",
-      "point A = coordinate(x:10,y:-20,state:hidden)"
+      "point A = coordinate(x:10,y:-20,visible: false)"
     ].join("\n");
     const compiled = compileDslDocument(source);
 
@@ -37,7 +37,7 @@ describe("compact named arguments", () => {
       "nui 1",
       "module M(value?:number, flag:boolean = false) {",
       "}",
-      "instance X(state:hidden) = M(value:1,flag:true)"
+      "instance X(visible: false) = M(value:1,flag:true)"
     ].join("\n");
     const parsed = parseDsl(source);
 
@@ -51,7 +51,7 @@ describe("compact named arguments", () => {
     });
     expect(parsed.statements[3]).toMatchObject({
       kind: "moduleInstance",
-      options: [{ name: "state", value: "hidden" }],
+      options: [{ name: "visible", value: "false" }],
       arguments: [
         { label: "value", value: "1" },
         { label: "flag", value: "true" }
@@ -60,18 +60,18 @@ describe("compact named arguments", () => {
   });
 
   it("keeps editor value spans exact for compact named values", () => {
-    const source = "point A = coordinate(x:0,y:10,state:hidden)";
+    const source = "point A = coordinate(x:0,y:10,visible: false)";
     const spans = dslLineLabeledValueSpans(source);
-    const state = spans.find((span) => span.key === "state");
-    const valueStart = source.indexOf("hidden");
+    const visible = spans.find((span) => span.key === "visible");
+    const valueStart = source.indexOf("false");
 
-    expect(state).toMatchObject({
+    expect(visible).toMatchObject({
       source: "attr",
-      key: "state",
+      key: "visible",
       start: valueStart,
-      end: valueStart + "hidden".length
+      end: valueStart + "false".length
     });
-    expect(source.slice(state!.start, state!.end)).toBe("hidden");
+    expect(source.slice(visible!.start, visible!.end)).toBe("false");
   });
 
   it("replaces only the compact value token during completion", () => {

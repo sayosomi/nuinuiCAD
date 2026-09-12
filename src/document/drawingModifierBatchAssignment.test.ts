@@ -53,12 +53,12 @@ const modifierNamesFor = (source: string, name: string) => {
   return parsed.statements.find((statement) => statement.name === name)?.modifierNames;
 };
 
-describe("drawing modifier batch assignment", () => {
-  it("adds one quoted modifier reference using existing DSL name formatting", () => {
+describe("drawing style batch assignment", () => {
+  it("adds one quoted style reference using existing DSL name formatting", () => {
     const source = sourceLines(
       "nui 1",
-      "modifier \"review guide\" {",
-      "  state: visible,",
+      "style \"review guide\" {",
+      "  ",
       "}",
       "point A = coordinate(x: 0, y: 0)"
     );
@@ -78,11 +78,11 @@ describe("drawing modifier batch assignment", () => {
   it("batch-adds geometry and group targets, preserves order, dedupes targets, and is idempotent", () => {
     const source = sourceLines(
       "nui 1",
-      "modifier Base {",
-      "  state: visible,",
+      "style Base {",
+      "  ",
       "}",
-      "modifier Guide {",
-      "  state: hidden,",
+      "style Guide {",
+      "  visible: false,",
       "}",
       "point A [Base] = coordinate(x: 0, y: 0)",
       "line L [Base, Guide] = segment(start: @A, end: @A)",
@@ -104,17 +104,17 @@ describe("drawing modifier batch assignment", () => {
     expect(applied.result.plan.changedTargetCount).toBe(2);
   });
 
-  it("removes every duplicate direct reference while preserving other modifier order", () => {
+  it("removes every duplicate direct reference while preserving other style order", () => {
     const source = sourceLines(
       "nui 1",
-      "modifier A {",
-      "  state: visible,",
+      "style A {",
+      "  ",
       "}",
-      "modifier B {",
-      "  state: visible,",
+      "style B {",
+      "  ",
       "}",
-      "modifier C {",
-      "  state: visible,",
+      "style C {",
+      "  ",
       "}",
       "point P [A, B, A, C] = coordinate(x: 0, y: 0)"
     );
@@ -129,11 +129,11 @@ describe("drawing modifier batch assignment", () => {
     expect(modifierNamesFor(applied.source, "P")).toEqual(["B", "C"]);
   });
 
-  it("removes undefined direct references without requiring a modifier definition", () => {
+  it("removes undefined direct references without requiring a style definition", () => {
     const source = sourceLines(
       "nui 1",
-      "modifier Keep {",
-      "  state: visible,",
+      "style Keep {",
+      "  ",
       "}",
       "point A = coordinate(x: 0, y: 0)",
       "group G [Missing, Keep] {",
@@ -153,8 +153,8 @@ describe("drawing modifier batch assignment", () => {
   it("supports authored Module-body geometry without materialization semantics", () => {
     const source = sourceLines(
       "nui 1",
-      "modifier Guide {",
-      "  state: visible,",
+      "style Guide {",
+      "  ",
       "}",
       "module M() {",
       "  point Internal = coordinate(x: 0, y: 0)",
@@ -172,21 +172,21 @@ describe("drawing modifier batch assignment", () => {
     expect(modifierNamesFor(applied.source, "Internal")).toEqual(["Guide"]);
   });
 
-  it("preserves multiline layout and comments while editing only modifier tokens and delimiters", () => {
+  it("preserves multiline layout and comments while editing only style tokens and delimiters", () => {
     const source = sourceLines(
       "nui 1",
-      "modifier A {",
-      "  state: visible,",
+      "style A {",
+      "  ",
       "}",
-      "modifier B {",
-      "  state: visible,",
+      "style B {",
+      "  ",
       "}",
-      "modifier C {",
-      "  state: visible,",
+      "style C {",
+      "  ",
       "}",
       "point P = coordinate(x: 0, y: 0)",
       "line L [",
-      "  A, /* keep modifier comment */",
+      "  A, /* keep style comment */",
       "  B",
       "] = segment(",
       "  start: @P, // keep argument comment",
@@ -201,7 +201,7 @@ describe("drawing modifier batch assignment", () => {
       operation: { kind: "add", modifierName: "C" }
     }).source;
 
-    expect(withC).toContain("  A, /* keep modifier comment */\n  B, C\n] = segment(");
+    expect(withC).toContain("  A, /* keep style comment */\n  B, C\n] = segment(");
     expect(withC).toContain("  start: @P, // keep argument comment\n  end: @P");
 
     const afterAdd = setup(withC, 18);
@@ -211,7 +211,7 @@ describe("drawing modifier batch assignment", () => {
       targets: [afterAdd.target("L")],
       operation: { kind: "remove", modifierName: "A" }
     }).source;
-    expect(withoutA).toContain("   /* keep modifier comment */\n  B, C\n] = segment(");
+    expect(withoutA).toContain("   /* keep style comment */\n  B, C\n] = segment(");
     expect(withoutA).toContain("  start: @P, // keep argument comment\n  end: @P");
     expect(modifierNamesFor(withoutA, "L")).toEqual(["B", "C"]);
   });
@@ -219,8 +219,8 @@ describe("drawing modifier batch assignment", () => {
   it("returns no mutation for an all-noop batch", () => {
     const source = sourceLines(
       "nui 1",
-      "modifier Guide {",
-      "  state: visible,",
+      "style Guide {",
+      "  ",
       "}",
       "point A [Guide] = coordinate(x: 0, y: 0)",
       "group G [Guide] {",
@@ -254,11 +254,11 @@ describe("drawing modifier batch assignment", () => {
 
     const ambiguousSource = sourceLines(
       "nui 1",
-      "modifier Guide {",
-      "  state: visible,",
+      "style Guide {",
+      "  ",
       "}",
-      "modifier Guide {",
-      "  state: hidden,",
+      "style Guide {",
+      "  visible: false,",
       "}",
       "point A = coordinate(x: 0, y: 0)"
     );
@@ -271,12 +271,12 @@ describe("drawing modifier batch assignment", () => {
     })).toEqual({ ok: false, reason: "modifier-ambiguous" });
   });
 
-  it("does not treat a nested modifier definition as a document-level add target", () => {
+  it("does not treat a nested style definition as a document-level add target", () => {
     const source = sourceLines(
       "nui 1",
       "group Outer {",
-      "  modifier Nested {",
-      "    state: visible,",
+      "  style Nested {",
+      "    ",
       "  }",
       "}",
       "point A = coordinate(x: 0, y: 0)"
@@ -293,8 +293,8 @@ describe("drawing modifier batch assignment", () => {
   it("fails closed for an ineligible target without committing an earlier eligible edit", () => {
     const source = sourceLines(
       "nui 1",
-      "modifier Guide {",
-      "  state: visible,",
+      "style Guide {",
+      "  ",
       "}",
       "point A = coordinate(x: 0, y: 0)",
       "const width: number = 10"
@@ -317,8 +317,8 @@ describe("drawing modifier batch assignment", () => {
   it("fails closed for stale target identity or mismatched current parse", () => {
     const source = sourceLines(
       "nui 1",
-      "modifier Guide {",
-      "  state: visible,",
+      "style Guide {",
+      "  ",
       "}",
       "point A = coordinate(x: 0, y: 0)"
     );
@@ -342,8 +342,8 @@ describe("drawing modifier batch assignment", () => {
   it("applies one multi-target batch through exactly one source transaction callback", () => {
     const source = sourceLines(
       "nui 1",
-      "modifier Guide {",
-      "  state: visible,",
+      "style Guide {",
+      "  ",
       "}",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 1, y: 1)"

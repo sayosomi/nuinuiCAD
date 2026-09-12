@@ -58,6 +58,8 @@ export const angleNumericParameterStepLevels = [0.1, 1, 15, 60, 90] as const;
 
 const commonParameters: ParameterDefinition[] = [
   { key: "name", label: "名前", kind: "text" },
+  { key: "enabled", label: "有効", kind: "boolean" },
+  { key: "visible", label: "表示", kind: "boolean" },
 ];
 
 const pointAnchorParameters = ({
@@ -115,7 +117,7 @@ const parameterDefinitionsForElement = (
         { key: "showGenerated", label: "生成結果を表示", kind: "boolean" },
       ];
     case "moduleInstance":
-      return [];
+      return [...commonParameters];
     case "text":
       return [
         ...commonParameters,

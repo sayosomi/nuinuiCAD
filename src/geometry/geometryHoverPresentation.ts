@@ -284,7 +284,7 @@ export const geometryHoverPresentation = (
   const inactive = evaluation.conditionInactiveElementIds?.has(element.id) ?? false;
   const enabled = evaluation.effectiveEnabledElementIds
     ? evaluation.effectiveEnabledElementIds.has(element.id)
-    : element.activity !== "disabled";
+    : element.enabled !== false && element.activity !== "disabled";
   const evaluated = evaluation.evaluatedElementIds
     ? evaluation.evaluatedElementIds.has(element.id)
     : true;

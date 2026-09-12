@@ -29,8 +29,8 @@ describe("DSL document symbol query", () => {
       "const fixed: number = 1",
       "let changing: number = 2",
       "profile Print",
-      "modifier Seam {",
-      "  state: visible,",
+      "style Seam {",
+      "  ",
       "}",
       "point A [Seam, Cutting] = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
@@ -58,12 +58,12 @@ describe("DSL document symbol query", () => {
     expect(symbolNamed(symbols, "A").selectionRange).toEqual({ from: nameStart, to: nameStart + 1 });
   });
 
-  it("excludes modifier profile blocks, modifier properties, anonymous geometry, mutations, and settings", () => {
+  it("excludes style profile blocks, style properties, anonymous geometry, mutations, and settings", () => {
     const source = [
       "nui 1",
       "profile Print",
-      "modifier Seam {",
-      "  state: visible,",
+      "style Seam {",
+      "  ",
       "  for @Print {",
       "    color: accent,",
       "  }",
@@ -86,11 +86,11 @@ describe("DSL document symbol query", () => {
     expect(symbols.some((symbol) => symbol.name === "Draft")).toBe(false);
   });
 
-  it("uses the matching closing brace for modifier ranges and excludes override rows", () => {
+  it("uses the matching closing brace for style ranges and excludes override rows", () => {
     const source = [
       "nui 1",
-      "modifier Seam {",
-      "  state: visible,",
+      "style Seam {",
+      "  ",
       "  for @Print {",
       "    width: 1px,",
       "  }",
@@ -98,31 +98,31 @@ describe("DSL document symbol query", () => {
     ].join("\n");
 
     const symbols = symbolsFor(source);
-    const modifier = symbolNamed(symbols, "Seam");
+    const style = symbolNamed(symbols, "Seam");
     const closeStart = source.lastIndexOf("}");
 
-    expect(modifier.range).toEqual({ from: source.indexOf("modifier Seam"), to: closeStart + 1 });
-    expect(modifier.children).toEqual([]);
+    expect(style.range).toEqual({ from: source.indexOf("style Seam"), to: closeStart + 1 });
+    expect(style.children).toEqual([]);
     expect(symbols.map((symbol) => symbol.name)).toEqual(["Seam"]);
   });
 
-  it("extends an unclosed modifier range to the current EOF", () => {
+  it("extends an unclosed style range to the current EOF", () => {
     const source = [
       "nui 1",
-      "modifier Seam {",
-      "  state: visible,",
+      "style Seam {",
+      "  ",
     ].join("\n");
 
-    const modifier = symbolNamed(symbolsFor(source), "Seam");
+    const style = symbolNamed(symbolsFor(source), "Seam");
 
-    expect(modifier.range).toEqual({ from: source.indexOf("modifier Seam"), to: source.length });
+    expect(style.range).toEqual({ from: source.indexOf("style Seam"), to: source.length });
   });
 
-  it("never treats modifier profile `for @Profile` as an iteration namespace", () => {
+  it("never treats style profile `for @Profile` as an iteration namespace", () => {
     const source = [
       "nui 1",
       "profile Print",
-      "modifier Seam {",
+      "style Seam {",
       "  for @Print {",
       "    width: 1px,",
       "  }",

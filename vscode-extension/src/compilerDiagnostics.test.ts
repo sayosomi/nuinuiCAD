@@ -33,20 +33,20 @@ describe("VS Code compiler diagnostics adapter", () => {
     ]);
   });
 
-  it("flows an unused Drawing Modifier warning through the production diagnostic adapter", () => {
-    const source = "nui 1\nmodifier Unused {\n  state: visible,\n}\n";
+  it("flows an unused Style warning through the production diagnostic adapter", () => {
+    const source = "nui 1\nstyle Unused {\n  visible: true,\n}\n";
     const document = AutomationDocument.fromSource(source);
 
     expect(compilerDiagnosticsForState(document.getSource(), document.getState())).toEqual([
       {
         severity: "warning",
-        message: "Drawing Modifier「Unused」はどこからも使用されていません。",
-        presentation: { key: "diagnostic.unused-drawing-modifier", parameters: { name: "Unused" } },
-        code: "unused-drawing-modifier",
+        message: "Style「Unused」はどこからも使用されていません。",
+        presentation: { key: "diagnostic.unused-drawing-style", parameters: { name: "Unused" } },
+        code: "unused-drawing-style",
         source: "nuinuiCAD",
         range: {
-          start: { line: 1, character: 9 },
-          end: { line: 1, character: 15 }
+          start: { line: 1, character: 6 },
+          end: { line: 1, character: 12 }
         }
       }
     ]);

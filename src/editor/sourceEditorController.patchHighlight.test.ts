@@ -39,7 +39,7 @@ describe("SourceEditorController patch-change highlight", () => {
   const patchElement = (name: string) => {
     const elements = useCadDocumentStore.getState().elements;
     return useCadDocumentStore.getState().commitDocumentChange({
-      elements: elements.map((element) => (element.name === name ? { ...element, activity: "disabled" } : element))
+      elements: elements.map((element) => (element.name === name ? { ...element, activity: "disabled", enabled: false, visible: true } : element))
     });
   };
 

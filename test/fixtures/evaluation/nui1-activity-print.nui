@@ -5,10 +5,10 @@ let printHidden: boolean = false
 group Visible {
   point A = coordinate(x: 0, y: 0)
 }
-group Hidden (state: hidden) {
+group Hidden (visible: false) {
   point B = coordinate(x: 10, y: 0)
 }
-group Disabled (state: disabled) {
+group Disabled (enabled: false) {
   point C = coordinate(x: 20, y: 0)
 }
 group NotPrinted {

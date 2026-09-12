@@ -90,8 +90,8 @@ describe("Bake geometry", () => {
   it.skipIf(!existsSync(productionRustBinary))("bakes a division point through the production Rust evaluation path", () => {
     const compiled = compile([
       "nui 1",
-      "modifier Guide {",
-      "  state: visible,",
+      "style Guide {",
+      "  visible: true,",
       "}",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 100, y: 0)",
@@ -160,8 +160,8 @@ describe("Bake geometry", () => {
   it("treats a reusable module body as a hard Source Bake boundary", () => {
     const compiled = compile([
       "nui 1",
-      "modifier Guide {",
-      "  state: visible,",
+      "style Guide {",
+      "  visible: true,",
       "}",
       "module Reusable() {",
       "  point P0 = coordinate(x: 0, y: 0)",
@@ -338,7 +338,7 @@ describe("Bake geometry", () => {
     const compiled = compile([
       "nui 1",
       "module Reusable() {",
-      "  line Disabled = segment(start: (0, 0), end: (10, 0), state: disabled)",
+      "  line Disabled = segment(start: (0, 0), end: (10, 0), enabled: false)",
       "}",
       "instance Call = Reusable()"
     ].join("\n"));
@@ -540,11 +540,11 @@ describe("Bake geometry", () => {
     expect(plan!.splices[0].startLine).toBeLessThan(plan!.splices[1].startLine);
   });
 
-  it("copies modifier references to every generated declaration", () => {
+  it("copies style references to every generated declaration", () => {
     const compiled = compile([
       "nui 1",
-      "modifier Basic {",
-      "  state: visible,",
+      "style Basic {",
+      "  visible: true,",
       "}",
       "point A [Basic] = coordinate(x: 1, y: 2)"
     ].join("\n"));
@@ -559,13 +559,13 @@ describe("Bake geometry", () => {
     });
     const patched = applyLineSplices(compiled.sourceText, plan!.splices);
     expect(patched).toContain("point A_bake [Basic] = coordinate(x: 1, y: 2)");
-    expect(patched).not.toContain("modifier Basic_bake");
+    expect(patched).not.toContain("style Basic_bake");
   });
 
   it("silently filters hidden geometry when hidden inclusion is off", () => {
     const compiled = compile([
       "nui 1",
-      "point Hidden = coordinate(x: 1, y: 2, state: hidden)"
+      "point Hidden = coordinate(x: 1, y: 2, visible: false)"
     ].join("\n"));
     const evaluation = evaluate(compiled);
     const hidden = compiled.doc.document.elements.find((element) => element.name === "Hidden")!;
@@ -584,10 +584,10 @@ describe("Bake geometry", () => {
   it("bakes hidden geometry when enabled and preserves its modifier/activity semantics", () => {
     const compiled = compile([
       "nui 1",
-      "modifier Hide {",
-      "  state: hidden,",
+      "style Hide {",
+      "  visible: false,",
       "}",
-      "point Hidden [Hide] = coordinate(x: 1, y: 2, state: hidden)"
+      "point Hidden [Hide] = coordinate(x: 1, y: 2, visible: false)"
     ].join("\n"));
     const evaluation = evaluate(compiled);
     const hidden = compiled.doc.document.elements.find((element) => element.name === "Hidden")!;
@@ -601,13 +601,13 @@ describe("Bake geometry", () => {
     });
     expect(plan?.generatedElementIds).toHaveLength(1);
     const patched = applyLineSplices(compiled.sourceText, plan!.splices);
-    expect(patched).toContain("point Hidden_bake [Hide] = coordinate(x: 1, y: 2, state: hidden)");
+    expect(patched).toContain("point Hidden_bake [Hide] = coordinate(x: 1, y: 2, visible: false)");
   });
 
   it("silently filters disabled geometry by default and bakes it only through the sandbox", () => {
     const compiled = compile([
       "nui 1",
-      "point Disabled = coordinate(x: 3, y: 4, state: disabled)"
+      "point Disabled = coordinate(x: 3, y: 4, enabled: false)"
     ].join("\n"));
     const disabled = compiled.doc.document.elements.find((element) => element.name === "Disabled")!;
     const evaluation = evaluate(compiled);
@@ -639,7 +639,7 @@ describe("Bake geometry", () => {
     expect(baked?.generatedElementIds).toHaveLength(1);
     expect(baked?.skippedComments).toBe(0);
     expect(applyLineSplices(compiled.sourceText, baked!.splices)).toContain(
-      "point Disabled_bake = coordinate(x: 3, y: 4, state: disabled)"
+      "point Disabled_bake = coordinate(x: 3, y: 4, enabled: false)"
     );
     expect(evaluation.computedGeometry.has(disabled.id)).toBe(false);
     expect(evaluation.effectiveEnabledElementIds?.has(disabled.id)).toBe(false);
@@ -648,8 +648,8 @@ describe("Bake geometry", () => {
   it("emits or suppresses a skip when disabled sandbox evaluation genuinely fails", () => {
     const compiled = compile([
       "nui 1",
-      "point Dependency = coordinate(x: 0, y: 0, state: disabled)",
-      "line Broken = segment(start: @Dependency, end: (10, 0), state: disabled)"
+      "point Dependency = coordinate(x: 0, y: 0, enabled: false)",
+      "line Broken = segment(start: @Dependency, end: (10, 0), enabled: false)"
     ].join("\n"));
     const evaluation = evaluate(compiled);
     const broken = compiled.doc.document.elements.find((element) => element.name === "Broken")!;
@@ -685,8 +685,8 @@ describe("Bake geometry", () => {
   it("resolves only attempted disabled targets and fails closed without their sandbox", () => {
     const compiled = compile([
       "nui 1",
-      "point Dependency = coordinate(x: 0, y: 0, state: disabled)",
-      "line Broken = segment(start: @Dependency, end: (10, 0), state: disabled)"
+      "point Dependency = coordinate(x: 0, y: 0, enabled: false)",
+      "line Broken = segment(start: @Dependency, end: (10, 0), enabled: false)"
     ].join("\n"));
     const dependency = compiled.doc.document.elements.find((element) => element.name === "Dependency")!;
     const broken = compiled.doc.document.elements.find((element) => element.name === "Broken")!;
@@ -743,19 +743,19 @@ describe("Bake geometry", () => {
   it("bakes materialized geometry descendants, applies activity per descendant, and includes internal moves in Instance Base", () => {
     const compiled = compile([
       "nui 1",
-      "modifier Hide {",
-      "  state: hidden,",
+      "style Hide {",
+      "  visible: false,",
       "}",
-      "modifier Disable {",
-      "  state: disabled,",
+      "style Disable {",
+      "  visible: false,",
       "}",
       "module M() {",
       "  point P0 = coordinate(x: 0, y: 0)",
       "  point Shift = coordinate(x: 10, y: 10)",
       "  export line L = segment(start: (0, 0), end: (3, 0))",
       "  line Private = segment(start: (0, 0), end: (0, 3))",
-      "  line Hidden [Hide] = segment(start: (0, 0), end: (3, 0), state: hidden)",
-      "  line Disabled [Disable] = segment(start: (0, 0), end: (0, 3), state: disabled)",
+      "  line Hidden [Hide] = segment(start: (0, 0), end: (3, 0), visible: false)",
+      "  line Disabled [Disable] = segment(start: (0, 0), end: (0, 3), enabled: false)",
       "  text Memo = label(text: \"memo\", anchor: none, size: 3)",
       "}",
       "instance Call = M()",
@@ -809,9 +809,9 @@ describe("Bake geometry", () => {
     expect(included?.skippedComments).toBe(1);
     const includedPatched = applyLineSplices(compiled.sourceText, included!.splices);
     expect(includedPatched).toContain("line Hidden_bake [Hide]");
-    expect(includedPatched).toContain("state: hidden");
+    expect(includedPatched).toContain("visible: false");
     expect(includedPatched).toContain("line Disabled_bake [Disable]");
-    expect(includedPatched).toContain("state: disabled");
+    expect(includedPatched).toContain("enabled: false");
     expect(includedPatched).not.toContain("Bake skipped: move");
   });
 

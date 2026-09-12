@@ -58,7 +58,7 @@ export const generateDocumentSource = (params: GeneratedDocParams): GeneratedDoc
     elementLines.push("point PC = coordinate(");
     elementLines.push("  x: 5,");
     elementLines.push("  y: 5,");
-    elementLines.push("  state: hidden");
+    elementLines.push("  visible: false");
     elementLines.push(")");
   }
   for (let index = 0; index < params.groupCount; index += 1) {
@@ -264,12 +264,18 @@ export const applyRandomOp = (document: DslDocumentData, op: RandomOp): AppliedO
     // can round-trip through the final syntax.
     const target = pick(document.elements.filter((element) => !["conditionalGroup", "forGroup"].includes(element.type)), op.a);
     if (!target) return { document, insertedIds: [], description: "noop" };
+    const nextActivity = target.activity === "disabled" ? "visible" : "disabled";
     return {
       document: {
         ...document,
         elements: document.elements.map((element) =>
           element.id === target.id
-            ? ({ ...element, activity: element.activity === "disabled" ? "visible" : "disabled" } as CadElement)
+            ? ({
+              ...element,
+              activity: nextActivity,
+              enabled: nextActivity !== "disabled",
+              visible: nextActivity === "disabled" || nextActivity === "visible"
+            } as CadElement)
             : element
         )
       },

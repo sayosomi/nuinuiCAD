@@ -109,7 +109,7 @@ export type DslDocumentData = {
   elements: CadElement[];
   /** Declarative transformation clauses kept separate from drawable elements. */
   transformationRecipes?: import("./transformationRecipes").TransformationRecipe[];
-  /** Document-level source definitions; runtime modifier resolution is deferred. */
+  /** Document-level source definitions; runtime style resolution is deferred. */
   modifiers?: DrawingModifierDefinition[];
   /** Document-level drawing profile declarations, in source order. */
   drawingProfiles?: DrawingProfile[];
@@ -169,15 +169,15 @@ export type StatementMap = {
   statements: StatementInfo[];
   byElementId: Map<ElementId, StatementInfo>;
   elementIdByStatementIndex: Map<number, ElementId>;
-  /** Stable source ownership for document-level modifier definitions. */
+  /** Stable source ownership for document-level style definitions. */
   byModifierName: Map<string, StatementInfo>;
-  /** Definition ranges keyed by the source modifier name. */
+  /** Definition ranges keyed by the source style name. */
   modifierDefinitionRangeByName: Map<string, LineRange>;
   /** Stable source ownership for document-level drawing profile declarations. */
   byDrawingProfileName: Map<string, StatementInfo>;
   /** Declaration ranges keyed by the source drawing profile name. */
   drawingProfileDeclarationRangeByName: Map<string, LineRange>;
-  /** Profile override block ranges keyed by modifier and profile name. */
+  /** Profile override block ranges keyed by style and profile name. */
   modifierProfileBlockRangeByModifierAndProfile: Map<string, LineRange>;
   /** Reconciler-owned identities, present only when typed declarations need them. */
   statementIdByStatementIndex?: Map<number, string>;
@@ -351,16 +351,16 @@ export const serializeDrawingProfileLines = (
 
 const serializeDrawingModifierProperties = (
   properties: {
-    state?: string;
+    visible?: boolean;
     widthPx?: number;
-    style?: string;
+    lineType?: string;
     color?: { kind: "themeRole"; role: string } | { kind: "fixed"; hex: string };
   }
 ): string[] => {
   const lines: string[] = [];
-  if (properties.state) lines.push(`${DSL_INDENT}state: ${properties.state},`);
+  if (properties.visible !== undefined) lines.push(`${DSL_INDENT}visible: ${properties.visible},`);
   if (properties.widthPx !== undefined) lines.push(`${DSL_INDENT}width: ${properties.widthPx}px,`);
-  if (properties.style) lines.push(`${DSL_INDENT}style: ${properties.style},`);
+  if (properties.lineType) lines.push(`${DSL_INDENT}lineType: ${properties.lineType},`);
   if (properties.color) {
     const color = properties.color.kind === "themeRole"
       ? properties.color.role
@@ -373,14 +373,14 @@ const serializeDrawingModifierProperties = (
 export const serializeDrawingModifierLines = (
   modifiers: readonly DrawingModifierDefinition[]
 ): string[] => modifiers.flatMap((modifier) => {
-  const lines = [`modifier ${formatDslName(modifier.name)} {`];
+  const lines = [`style ${formatDslName(modifier.name)} {`];
   lines.push(...serializeDrawingModifierProperties(modifier));
   for (const delta of modifier.profileDeltas ?? []) {
     lines.push(`${DSL_INDENT}for @${formatDslName(delta.profileName)} {`);
     lines.push(...serializeDrawingModifierProperties({
-      state: delta.state,
+      visible: delta.visible,
       widthPx: delta.widthPx,
-      style: delta.style,
+      lineType: delta.lineType,
       color: delta.color
     }).map((line) => `${DSL_INDENT}${line}`));
     lines.push(`${DSL_INDENT}}`);
@@ -2348,7 +2348,7 @@ export const compileDslDocument = (
     ...versionValidation.diagnostics,
     ...sourceOutputPlacementDiagnostics,
     ...compiled.diagnostics.map((diagnostic) =>
-      (diagnostic.code === "undefined-geometry-reference" || diagnostic.code === "unused-drawing-modifier")
+      (diagnostic.code === "undefined-geometry-reference" || diagnostic.code === "unused-drawing-style")
         ? projectCompilerDiagnostic(diagnostic)
         : diagnostic
     ),
@@ -2365,10 +2365,15 @@ export const compileDslDocument = (
   // Task 22: property binding compile/typecheck. Only meaningful once typed
   // declarations exist to reference (nui1 + at least one binding) - a
   // document with none can never contain a valid `@name` property source.
+  const propertyBindingElementIds = compiled.elementIdsByStatementIndex && compiled.elementIdsByStatementIndex.size > 0
+    ? compiled.elementIdsByStatementIndex
+    : new Map(
+        compiled.moduleMaterialization?.executionStatements.map((entry) => [entry.sourceStatementIndex, entry.runtimeElementId] as const)
+      );
   const propertyBindingCompilation = scalarAnalysis
     ? compilePropertyBindings({
         statements: parsed.statements,
-        elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map(),
+        elementIdByStatementIndex: propertyBindingElementIds,
         elements: compiled.elements,
         bindingAnalysis: scalarAnalysis.bindingAnalysis,
         spans,

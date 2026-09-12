@@ -125,10 +125,10 @@ describe("DSL nui 1 call parser", () => {
     );
   });
 
-  it("rejects the removed visible/enabled flags as unknown arguments; state alone never conflicts", () => {
-    expect(messages("point A = coordinate(x: 0, y: 0, state: hidden)")).toEqual([]);
-    expect(messages("point A = coordinate(x: 0, y: 0, visible: false)").join("\n")).toContain("引数「visible」");
-    expect(messages("point A = coordinate(x: 0, y: 0, enabled: false)").join("\n")).toContain("引数「enabled」");
+  it("accepts direct visible/enabled gates and rejects the removed state argument", () => {
+    expect(messages("point A = coordinate(x: 0, y: 0, visible: false)")).toEqual([]);
+    expect(messages("point A = coordinate(x: 0, y: 0, enabled: false)")).toEqual([]);
+    expect(messages("point A = coordinate(x: 0, y: 0, state: hidden)").join("\n")).toContain("引数「state」");
   });
 
   it("rejects the removed common color argument on mutations and drawable elements", () => {

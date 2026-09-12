@@ -8,10 +8,10 @@ import { createModifierAuthoringIndex } from "./dslModifierAuthoringIndex";
 
 const source = [
   "nui 1",
-  'modifier "Guide Line" {',
-  "  state: visible,",
+  'style "Guide Line" {',
+  "  ",
   "  width: 1.5px,",
-  "  style: dotted,",
+  "  lineType: dotted,",
   "  color: accent,",
   "}",
   "profile Print",
@@ -39,7 +39,7 @@ const completionAt = (text: string, position: number) => queryDslCompletion({
   semantic: { sourceRevision: 1, compiled: compiled(text) }
 });
 
-describe("modifier authoring semantics", () => {
+describe("style authoring semantics", () => {
   it("keeps exact parser-owned width/unit and color sub-token spans", () => {
     const result = compiled();
     const property = result.statements.find((statement) => statement.kind === "modifierProperty" && statement.property.key === "width");
@@ -55,7 +55,7 @@ describe("modifier authoring semantics", () => {
     ]);
   });
 
-  it("provides modifier reference, partial property, and value completion from shared metadata", () => {
+  it("provides style reference, partial property, and value completion from shared metadata", () => {
     const referenceSource = source.replace('"Guide Line"]', 'Gui]');
     const reference = completionAt(referenceSource, referenceSource.lastIndexOf("Gui") + 3);
     expect(reference?.category).toBe("modifierReference");
@@ -63,14 +63,14 @@ describe("modifier authoring semantics", () => {
       expect.objectContaining({ label: "Guide Line", sourceText: '"Guide Line"' })
     ]));
 
-    const propertySource = source.replace("  style: dotted,", "  str");
+    const propertySource = source.replace("  lineType: dotted,", "  str");
     const property = completion(propertySource, "str");
     expect(property?.category).toBe("modifierProperty");
-    expect(property?.candidates.map((candidate) => candidate.label)).toContain("style");
+    expect(property?.candidates.map((candidate) => candidate.label)).toContain("lineType");
     expect(property?.candidates.map((candidate) => candidate.label)).not.toContain("state");
 
-    const valueSource = source.replace("style: dotted", "style: d");
-    const value = completion(valueSource, "style: d");
+    const valueSource = source.replace("lineType: dotted", "lineType: d");
+    const value = completion(valueSource, "lineType: d");
     expect(value?.category).toBe("modifierValue");
     expect(value?.candidates.map((candidate) => candidate.label)).toEqual(["solid", "dashed", "dotted"]);
 
@@ -85,7 +85,7 @@ describe("modifier authoring semantics", () => {
     expect(fixedColor).toBeNull();
   });
 
-  it("navigates and renames only exact document-global modifier semantics", () => {
+  it("navigates and renames only exact document-global style semantics", () => {
     const result = compiled();
     const reference = source.lastIndexOf('"Guide Line"');
     const definition = queryDslDefinition({

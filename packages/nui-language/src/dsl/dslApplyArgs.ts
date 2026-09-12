@@ -7,7 +7,6 @@ import {
 import { parseScalarExpression } from "../scalars/expressionParser";
 import { typecheckScalarExpression } from "../scalars/expressionTypecheck";
 import { createCadElementId } from "../model/cadIds";
-import { elementTypeSupportsHiddenActivity } from "../model/elementActivity";
 import { isLineLikeElement, referenceAnchor } from "../model/pointAnchors";
 import type { ElementNameContext } from "../model/elementNames";
 import { findParameterDefinition } from "../parameters/parameterDefinitions";
@@ -25,7 +24,6 @@ import type { DslDiagnostic, DslSpan } from "./dslTypes";
 import type { ScannedArg } from "./dslArgScanner";
 import { commonArgSpecs, type DslArgSpec, type DslConstructionSpec } from "./dslConstructions";
 import type { DslMajorVersion } from "./dslVersion";
-import { invalidElementActivityMessage, parseElementActivityLiteral } from "./dslActivity";
 import { lowerSourceGeometryArrayLineReferenceList, lowerSourceGeometryArrayPointReferenceList } from "./geometryArrayRuntimeLowering";
 import { parseGeometryArrayExpression } from "./geometryArrayExpression";
 
@@ -414,21 +412,6 @@ export const applyArgs = (
     const parameterKey = definition.parameterKey ?? definition.arg;
     const parameter = findParameterDefinition(next, parameterKey);
     const value = scanned.value;
-    if (parameterKey === "state") {
-      const activity = parseElementActivityLiteral(value);
-      if (activity === null) {
-        // Fail-closed: an invalid literal must not fall back to any activity value —
-        // lowering to the ElementActivity converter only happens for a valid one.
-        diagnostics.push(diagnostic(resolvers.line, invalidElementActivityMessage));
-        continue;
-      }
-      // Defence in depth: dslCallParser.ts's validateArgs already rejects this
-      // at parse time with a spanned diagnostic (state-hidden-unsupported);
-      // this guard only matters for a caller that skips that parse-time gate.
-      if (activity === "hidden" && !elementTypeSupportsHiddenActivity(next.type)) continue;
-      next = { ...next, activity } as CadElement;
-      continue;
-    }
     if (!parameter) continue;
     switch (parameter.kind) {
       case "boolean": {
@@ -443,6 +426,16 @@ export const applyArgs = (
           diagnostics.push(diagnostic(resolvers.line, `${parameterKey} は true/false で指定してください。`));
         }
         next = setParameterValue(next, parameterKey, parsed ?? false);
+        if (parameterKey === "enabled" || parameterKey === "visible") {
+          const enabled = parameterKey === "enabled" ? parsed ?? false : next.enabled !== false;
+          const visible = parameterKey === "visible" ? parsed ?? false : next.visible !== false;
+          next = {
+            ...next,
+            enabled,
+            visible,
+            activity: !enabled ? "disabled" : !visible ? "hidden" : "visible"
+          } as CadElement;
+        }
         break;
       }
       case "number":

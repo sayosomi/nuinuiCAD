@@ -598,29 +598,28 @@ describe("dslDocument golden fixture", () => {
   });
 });
 
-describe("nui 1 state syntax wiring", () => {
-  it("accepts state: visible/hidden/disabled and lowers to ElementActivity", () => {
+describe("nui 1 enabled/visible syntax wiring", () => {
+  it("accepts direct gates and derives the status projection", () => {
     const parsed = parseDslDocument([
       "nui 1",
-      "point A = coordinate(x: 0, y: 0, state: hidden)",
-      "point B = coordinate(x: 1, y: 0, state: disabled)",
+      "point A = coordinate(x: 0, y: 0, visible: false)",
+      "point B = coordinate(x: 1, y: 0, enabled: false)",
       "point C = coordinate(x: 2, y: 0)"
     ].join("\n"));
     expect(parsed.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
     expect(parsed.document!.elements).toMatchObject([
-      { name: "A", activity: "hidden" },
-      { name: "B", activity: "disabled" },
+      { name: "A", visible: false, enabled: true },
+      { name: "B", enabled: false },
       { name: "C", activity: "visible" }
     ]);
   });
 
-  it("regenerates canonical output as state: only", () => {
-    const compiled = compileDslDocument("nui 1\npoint A = coordinate(x: 0, y: 0, state: hidden)");
+  it("regenerates canonical output with direct gates", () => {
+    const compiled = compileDslDocument("nui 1\npoint A = coordinate(x: 0, y: 0, visible: false)");
     expect(compiled.majorVersion).toBe(1);
     const regenerated = serializeDocumentToDsl(compiled.document!, compiled.majorVersion!);
-    expect(regenerated).toContain("state: hidden");
-    expect(regenerated).not.toContain("visible:");
-    expect(regenerated).not.toContain("enabled:");
+    expect(regenerated).toContain("visible: false");
+    expect(regenerated).not.toContain("state:");
     expect(regenerated.startsWith("nui 1")).toBe(true);
   });
 });

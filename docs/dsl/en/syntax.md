@@ -81,8 +81,8 @@ reference rather than a second place to edit parser behavior.
 | `module` | `dsl-ref:statement:module` |
 <!-- dsl-ref:statement:record -->
 | `record` | `dsl-ref:statement:record` |
-<!-- dsl-ref:statement:modifier -->
-| `modifier` | `dsl-ref:statement:modifier` |
+<!-- dsl-ref:statement:style -->
+| `style` | `dsl-ref:statement:style` |
 <!-- dsl-ref:statement:instance -->
 | `instance` | `dsl-ref:statement:instance` |
 <!-- dsl-ref:statement:import -->

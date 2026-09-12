@@ -46,9 +46,10 @@ Module bodies can export geometry, collections, scalar values, and records.
 Exports are private to the instance until explicitly declared with `export`.
 An external reference uses `@instance::export`; an exported record field can
 then be read with `.`, for example `@front::measure.height`. A module instance
-has its own `state` option: visible content evaluates and draws, hidden content
-evaluates without drawing, and disabled content does not evaluate or provide
-exports to later references.
+may carry direct `enabled` and `visible` options. `enabled: false` prevents
+the instance body from evaluating/materializing; `visible: false` evaluates the
+instance and its exports but hides its presentation. Both options accept
+boolean literals or shared boolean references.
 
 Module locals and exports may use the scalar, choice, geometry, and nominal-record
 collection value-for form.

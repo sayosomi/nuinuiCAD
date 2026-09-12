@@ -469,6 +469,8 @@ const primitiveToElement = (
     id,
     name,
     activity: source?.activity ?? "visible",
+    ...(source?.enabled !== undefined ? { enabled: source.enabled } : {}),
+    ...(source?.visible !== undefined ? { visible: source.visible } : {}),
     ...(source?.modifierNames ? { modifierNames: [...source.modifierNames] } : {}),
     ...(parentGroupId ? { parentGroupId } : {})
   };

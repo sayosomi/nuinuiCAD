@@ -214,7 +214,6 @@ const applyCharacterEdits = (
 };
 
 const sourceArgumentName = (element: CadElement, parameterKey: string) => {
-  if (parameterKey === "activity") return "state";
   const coordinate = parameterKey.match(/^(.+):(x|y)$/);
   return argNameForParameter(element.type, coordinate?.[1] ?? parameterKey);
 };
@@ -298,16 +297,6 @@ const parameterEditFor = (
   const physical = attribute?.physicalSpan;
   const segment = singlePhysicalSegment(physical);
 
-  if (parameterKey === "activity") {
-    if (!attribute || !physical || !segment || physical.sourceRevision !== source.sourceRevision) {
-      return insertArgumentEdit(sourceLines, source, argumentName, after.activity);
-    }
-    if (!/^(?:visible|hidden|disabled)$/.test(attribute.value)) {
-      return { status: "unapplied", reason: `要素 ${after.name || after.id} のstateはsource-owned expressionです。` };
-    }
-    return { status: "ready", edit: { from: segment.from, to: segment.to, replacement: after.activity } };
-  }
-
   const coordinate = parameterKey.match(/^(.+):(x|y)$/);
   if (coordinate) {
     if (!attribute || !physical || !segment || physical.sourceRevision !== source.sourceRevision) {
@@ -390,7 +379,6 @@ export const serializeOwnedElement = (
     return !nextAnchor || typeof nextAnchor !== "object" || !("mode" in nextAnchor) ||
       (nextAnchor as { mode?: unknown }).mode === "coordinate";
   });
-  if (before.activity !== after.activity) changedKeys.push("activity");
   if (changedKeys.length === 0) {
     if (!sameParameterValue(before, after)) {
       return { status: "unapplied", reason: `要素 ${after.name || after.id} の未対応model差分をsourceへ適用できません。` };
@@ -462,38 +450,39 @@ export const buildModuleOwnerElementPatch = (
   return { status: "ready", splices: [result.splice] };
 };
 
-const moduleInstanceActivitySplice = (
+const moduleInstanceGateSplice = (
   compiled: CompiledDslDocument,
   owner: SourceOwner,
   before: CadElement,
   after: CadElement
 ) => {
-  if (owner.kind !== "moduleInstance" || before.activity === after.activity) return { status: "noop" as const };
+  if (owner.kind !== "moduleInstance") return { status: "noop" as const };
   const source = compiled.statements[owner.sourceStatementIndex];
   if (!source || source.kind !== "moduleInstance") return statementUnapplied("module instanceのcall statementが見つかりません。");
-  const option = source.options.find((candidate) => candidate.name === "state");
-  const nextActivity = after.activity;
-  if (option) {
-    const value = singlePhysicalSegment(option.valuePhysicalSpan);
-    if (!value) return statementUnapplied("module instance stateのsource spanを解決できません。");
-    if (nextActivity !== "visible") {
-      return applyCharacterEdits(compiled.sourceLines, owner.statement, [{ from: value.from, to: value.to, replacement: nextActivity }]);
+  const enabled = after.enabled ?? after.activity !== "disabled";
+  const visible = after.visible ?? after.activity === "visible";
+  const nextOptions = [
+    ...(enabled ? [] : ["enabled: false"]),
+    ...(visible ? [] : ["visible: false"])
+  ].join(", ");
+  const options = singlePhysicalSegment(source.payloadPhysicalSpans?.options);
+  if (options) {
+    if (!nextOptions) {
+      const sourceText = compiled.sourceLines.join("\n");
+      const open = options.from > 0 && sourceText[options.from - 1] === "(" ? options.from - 1 : -1;
+      const close = sourceText[options.to] === ")" ? options.to + 1 : -1;
+      if (open < 0 || close < 0) return statementUnapplied("module instance option listの括弧を解決できません。");
+      return applyCharacterEdits(compiled.sourceLines, owner.statement, [{ from: open, to: close, replacement: "" }]);
     }
-    const options = singlePhysicalSegment(source.payloadPhysicalSpans?.options);
-    if (!options) return statementUnapplied("module instance option listのsource spanを解決できません。");
-    const sourceText = compiled.sourceLines.join("\n");
-    const open = options.from > 0 && sourceText[options.from - 1] === "(" ? options.from - 1 : -1;
-    const close = sourceText[options.to] === ")" ? options.to + 1 : -1;
-    if (open < 0 || close < 0) return statementUnapplied("module instance option listの括弧を解決できません。");
-    return applyCharacterEdits(compiled.sourceLines, owner.statement, [{ from: open, to: close, replacement: "" }]);
+    return applyCharacterEdits(compiled.sourceLines, owner.statement, [{ from: options.from, to: options.to, replacement: nextOptions }]);
   }
-  if (nextActivity === "visible") return { status: "noop" as const };
+  if (!nextOptions) return { status: "noop" as const };
   const name = singlePhysicalSegment(source.namePhysicalSpan);
   if (!name) return statementUnapplied("module instance nameのsource spanを解決できません。");
   return applyCharacterEdits(compiled.sourceLines, owner.statement, [{
     from: name.to,
     to: name.to,
-    replacement: `(state: ${nextActivity})`
+    replacement: `(${nextOptions})`
   }]);
 };
 
@@ -532,7 +521,7 @@ export const buildModuleModelPatch = (
   const elementBySourceStatementId = new Map<string, ChangedElement>();
   for (const entry of changed) {
     if (entry.owner.kind === "moduleInstance") {
-      const result = moduleInstanceActivitySplice(compiled, entry.owner, entry.before, entry.after);
+      const result = moduleInstanceGateSplice(compiled, entry.owner, entry.before, entry.after);
       if (result.status === "unapplied") return result;
       if (result.status === "ready") splices.push(result.splice);
       continue;

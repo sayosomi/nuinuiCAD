@@ -113,7 +113,7 @@ describe("English DSL reference generator", () => {
     if (!coordinate) throw new Error("coordinate construction is missing");
 
     expect(coordinate.arguments.map((argument) => argument.arg)).toEqual([
-      "x", "y", "state", "steps", "id", "roles", "parent", "branch",
+      "x", "y", "enabled", "visible", "steps", "id", "roles", "parent", "branch",
     ]);
     expect(coordinate.arguments.find((argument) => argument.arg === "x")?.parameter).toMatchObject({
       key: "x",
@@ -199,22 +199,22 @@ describe("English DSL reference examples", () => {
 
   it("matches expected diagnostics across severities through the production compiler", () => {
     const warningExample = extractNuiExamples("fixture.md", [
-      "<!-- dsl-example: expected-diagnostic code=unused-drawing-modifier -->",
+      "<!-- dsl-example: expected-diagnostic code=unused-drawing-style -->",
       "```nui",
       "nui 1",
-      "modifier Unused {",
-      "  state: visible,",
+      "style Unused {",
+      "  visible: true,",
       "}",
       "```",
     ].join("\n"));
     expect(validateDslExamples(warningExample)).toEqual([]);
 
     const warningAndUnrelatedError = extractNuiExamples("fixture.md", [
-      "<!-- dsl-example: expected-diagnostic code=unused-drawing-modifier -->",
+      "<!-- dsl-example: expected-diagnostic code=unused-drawing-style -->",
       "```nui",
       "nui 1",
-      "modifier Unused {",
-      "  state: visible,",
+      "style Unused {",
+      "  visible: true,",
       "}",
       "point Broken = unknown()",
       "```",

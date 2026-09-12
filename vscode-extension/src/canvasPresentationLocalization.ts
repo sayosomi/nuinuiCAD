@@ -39,8 +39,8 @@ export const canvasPresentationTranslationCatalog = {
     ja: "nuinuiCAD: 実行する前に .nui Text Editor または Output Preview をアクティブにしてください。"
   },
   "canvas.fixedColorContrastWarning": {
-    en: "Fixed modifier color {color} has low contrast against the current Canvas background.",
-    ja: "固定modifier色 {color} は現在のCanvas背景とのコントラストが低くなっています。"
+    en: "Fixed style color {color} has low contrast against the current Canvas background.",
+    ja: "固定Style色 {color} は現在のCanvas背景とのコントラストが低くなっています。"
   }
 } satisfies TranslationCatalog;
 

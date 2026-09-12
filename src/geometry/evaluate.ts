@@ -98,9 +98,9 @@ export type EvaluateElementsOptions = {
   transformationRecipes?: readonly TransformationRecipe[];
   /** Bake-only evaluation escape hatch; normal evaluation leaves disabled elements unevaluated. */
   allowDisabledElementIds?: ReadonlySet<ElementId>;
-  /** Compiled document-level drawing modifier definitions. */
+  /** Compiled document-level drawing style definitions. */
   drawingModifiers?: readonly DrawingModifierDefinition[];
-  /** Optional selected Drawing Profile; omitted means common modifier properties only. */
+  /** Optional selected Drawing Profile; omitted means common style properties only. */
   selectedDrawingProfileId?: string;
   /**
    * Task 19's compiled declaration program. Task 20 evaluates it (via
@@ -257,30 +257,27 @@ export const evaluateElements = (
   const elementsById = new Map(elements.map((element) => [element.id, element]));
   const runtimeElementsById = new Map(elementsById);
   const runtimeElements = [...evaluatedElements];
-  const drawingModifierRuntime = effectiveDrawingModifierRuntimeById(
+  let drawingModifierRuntime = effectiveDrawingModifierRuntimeById(
     elements,
     options.drawingModifiers,
     options.selectedDrawingProfileId
   );
-  const activities = effectiveElementActivityByRuntime(drawingModifierRuntime);
-  const effectiveDrawingModifierResolutions = new Map(
+  let activities = effectiveElementActivityByRuntime(drawingModifierRuntime);
+  let effectiveDrawingModifierResolutions = new Map(
     effectiveDrawingModifierResolutionsByRuntime(drawingModifierRuntime)
   );
-  const effectiveDrawingModifierStrokes = new Map(
-    effectiveDrawingModifierStrokeByRuntime(drawingModifierRuntime)
-  );
-  const effectiveVisibleIds = new Set(elements
+  let effectiveVisibleIds = new Set(elements
     .filter((element) => evaluatedElementIds.has(element.id) &&
       activityAllowsDrawing(effectiveElementActivity(element, activities).activity))
     .map((element) => element.id));
-  const baseEffectiveEnabledIds = new Set(elements
+  let baseEffectiveEnabledIds = new Set(elements
     .filter((element) => evaluatedElementIds.has(element.id) &&
       activityAllowsEvaluation(effectiveElementActivity(element, activities).activity))
     .map((element) => element.id));
   for (const elementId of options.allowDisabledElementIds ?? []) {
     if (evaluatedElementIds.has(elementId)) baseEffectiveEnabledIds.add(elementId);
   }
-  const disabledByGroupId = new Map<ElementId, ElementId>(
+  let disabledByGroupId = new Map<ElementId, ElementId>(
     elements.flatMap((element) => {
       const disabledBy = effectiveElementActivity(element, activities).disabledByElementId;
       const disabledByElement = disabledBy ? elementsById.get(disabledBy) : undefined;
@@ -342,6 +339,62 @@ export const evaluateElements = (
     ? groupPropertyBindingRuntimeEntriesByElement(options.textPropertyBindingEntries)
     : undefined;
   const textTemplateEntriesByElementId = options.textTemplateEntriesByElementId;
+
+  // Direct computation/presentation gates are resolved before any other
+  // element input. Property bindings are the only runtime source that can
+  // replace a literal gate, so materialize just these two keys first. This
+  // keeps a disabled element from evaluating construction parameters while
+  // still allowing shared boolean references such as `enabled: @heavy`.
+  const gateValueFor = (element: CadElement, key: "enabled" | "visible"): boolean | undefined => {
+    const entry = propertyBindingEntriesByElementId?.get(element.id)?.find((candidate) => candidate.parameterKey === key);
+    if (!entry || !scalarBindingResolver) return element[key];
+    const evaluation = entry.expression
+      ? evaluateTypedExpression(entry.expression, { lookupBinding: scalarBindingResolver.resolveBinding })
+      : entry.bindingId
+        ? scalarBindingResolver.resolveBinding(entry.bindingId)
+        : null;
+    return evaluation?.status === "ok" && evaluation.value.kind === "boolean"
+      ? evaluation.value.value
+      : element[key];
+  };
+  const gateElements = elements.map((element) => ({
+    ...element,
+    enabled: gateValueFor(element, "enabled") ?? (element.enabled ?? element.activity !== "disabled"),
+    visible: gateValueFor(element, "visible") ?? (element.visible ?? element.activity === "visible")
+  }));
+  drawingModifierRuntime = effectiveDrawingModifierRuntimeById(
+    gateElements,
+    options.drawingModifiers,
+    options.selectedDrawingProfileId
+  );
+  activities = effectiveElementActivityByRuntime(drawingModifierRuntime);
+  effectiveDrawingModifierResolutions = new Map(
+    effectiveDrawingModifierResolutionsByRuntime(drawingModifierRuntime)
+  );
+  const effectiveDrawingModifierStrokes = new Map(
+    effectiveDrawingModifierStrokeByRuntime(drawingModifierRuntime)
+  );
+  effectiveVisibleIds = new Set(elements
+    .filter((element) => evaluatedElementIds.has(element.id) &&
+      activityAllowsDrawing(effectiveElementActivity(element, activities).activity) &&
+      effectiveDrawingModifierResolutions.get(element.id)?.visible.value !== false)
+    .map((element) => element.id));
+  baseEffectiveEnabledIds = new Set(elements
+    .filter((element) => evaluatedElementIds.has(element.id) &&
+      activityAllowsEvaluation(effectiveElementActivity(element, activities).activity))
+    .map((element) => element.id));
+  for (const elementId of options.allowDisabledElementIds ?? []) {
+    if (evaluatedElementIds.has(elementId)) baseEffectiveEnabledIds.add(elementId);
+  }
+  disabledByGroupId = new Map<ElementId, ElementId>(
+    elements.flatMap((element) => {
+      const disabledBy = effectiveElementActivity(element, activities).disabledByElementId;
+      const disabledByElement = disabledBy ? elementsById.get(disabledBy) : undefined;
+      return disabledBy && disabledByElement && isContainerElement(disabledByElement)
+        ? [[element.id, disabledBy] as const]
+        : [];
+    })
+  );
   /**
    * A typed text hole can only exist when a typed declaration exists, which
    * implies `scalarProgram` exists (see EvaluateElementsOptions's doc
@@ -2174,7 +2227,7 @@ export const evaluateElements = (
     : undefined;
   const computedScalarBindings = linearFinal?.resultsByBindingId ?? declarationResolver?.finalize().resultsByBindingId;
 
-  // Generated ids are runtime identities. Their modifier semantics belong to
+  // Generated ids are runtime identities. Their style semantics belong to
   // the source template, so use the evaluator-owned structured relationship
   // instead of inferring a template from the generated id string.
   for (const row of forGroupGeneratedRows) {

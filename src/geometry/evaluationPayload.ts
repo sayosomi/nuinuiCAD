@@ -166,9 +166,9 @@ const parseModifierProperty = (
   };
 };
 
-const parseModifierState = (value: unknown, path: string) => {
-  if (value !== "visible" && value !== "hidden" && value !== "disabled") {
-    return failModifierInspection(`${path}.value is not an activity state`);
+const parseModifierVisible = (value: unknown, path: string) => {
+  if (typeof value !== "boolean") {
+    return failModifierInspection(`${path}.value is not a boolean visibility value`);
   }
   return value;
 };
@@ -217,25 +217,25 @@ const parseEffectiveDrawingModifierResolutions = (
     }
     const resolution = entry.resolution;
     if (!isPlainObject(resolution) || Object.keys(resolution).length !== 4 ||
-      !("state" in resolution) || !("widthPx" in resolution) || !("style" in resolution) || !("color" in resolution)) {
+      !("visible" in resolution) || !("widthPx" in resolution) || !("lineType" in resolution) || !("color" in resolution)) {
       return failModifierInspection(`entry at index ${index} has a malformed resolution`);
     }
     resolutions.set(entry.elementId, {
-      state: parseModifierProperty(
-        resolution.state,
-        `entry at index ${index}.resolution.state`,
-        (nested) => parseModifierState(nested, `entry at index ${index}.resolution.state`)
-      ) as EffectiveDrawingModifierResolution["state"],
+      visible: parseModifierProperty(
+        resolution.visible,
+        `entry at index ${index}.resolution.visible`,
+        (nested) => parseModifierVisible(nested, `entry at index ${index}.resolution.visible`)
+      ) as EffectiveDrawingModifierResolution["visible"],
       widthPx: parseModifierProperty(
         resolution.widthPx,
         `entry at index ${index}.resolution.widthPx`,
         (nested) => parseModifierWidth(nested, `entry at index ${index}.resolution.widthPx`)
       ) as EffectiveDrawingModifierResolution["widthPx"],
-      style: parseModifierProperty(
-        resolution.style,
-        `entry at index ${index}.resolution.style`,
-        (nested) => parseModifierStyle(nested, `entry at index ${index}.resolution.style`)
-      ) as EffectiveDrawingModifierResolution["style"],
+      lineType: parseModifierProperty(
+        resolution.lineType,
+        `entry at index ${index}.resolution.lineType`,
+        (nested) => parseModifierStyle(nested, `entry at index ${index}.resolution.lineType`)
+      ) as EffectiveDrawingModifierResolution["lineType"],
       color: parseModifierProperty(
         resolution.color,
         `entry at index ${index}.resolution.color`,

@@ -129,16 +129,17 @@ const commonArgs = (
   refs: DslSerializerRefs,
   constructionArgNames: ReadonlySet<string> = new Set()
 ) => {
-  const activity = element.activity;
+  const enabled = element.enabled ?? element.activity !== "disabled";
+  const visible = element.visible ?? element.activity === "visible";
   return commonArgSpecs
     .filter((arg) => {
       if (constructionArgNames.has(arg.arg)) return false;
       if (arg.special) return specialArgText(element, arg, refs) !== null;
       const key = arg.parameterKey ?? arg.arg;
-      return key === "state" && activity !== "visible";
+      return (key === "enabled" && !enabled) ||
+        (key === "visible" && enabled && !visible);
     })
-    // `state` is model activity rather than an editable parameter.
-    .map((arg) => (arg.arg === "state" ? { key: "state", text: `state: ${activity}` } : serializeArg(element, arg, refs)))
+    .map((arg) => serializeArg(element, arg, refs))
     .filter((arg): arg is { key: string; text: string } => arg !== null);
 };
 
@@ -154,7 +155,9 @@ const containerStatement = (element: CadElement, spec: DslConstructionSpec, refs
   const name = refs.name(element);
   if (spec.category === "if") {
     const condition = positionalText(element, spec.args.find((arg) => arg.arg === "condition")!, refs);
-    return { header: `if (${condition})`, args: [], close: null };
+    const gates = commonArgs(element, refs, new Set(spec.args.map((arg) => arg.arg)))
+      .filter((arg) => arg.key === "enabled" || arg.key === "visible");
+    return { header: `if (${[condition, ...gates.map((arg) => arg.text)].join(", ")})`, args: [], close: null };
   }
   if (spec.category === "for" && element.type === "forGroup") {
     const rangeArgs = ["min", "max", "step", ...(element.showGenerated ? ["showGenerated"] : [])]
@@ -162,8 +165,10 @@ const containerStatement = (element: CadElement, spec: DslConstructionSpec, refs
       .filter((arg): arg is DslArgSpec => Boolean(arg))
       .map((arg) => serializeArg(element, arg, refs))
       .filter((arg): arg is { key: string; text: string } => arg !== null);
+    const gates = commonArgs(element, refs, new Set(spec.args.map((arg) => arg.arg)))
+      .filter((arg) => arg.key === "enabled" || arg.key === "visible");
     return {
-      header: `for ${formatDslName(element.variableName)} in range(${rangeArgs.map((arg) => arg.text).join(", ")})`,
+      header: `for ${formatDslName(element.variableName)} in range(${[...rangeArgs.map((arg) => arg.text), ...gates.map((arg) => arg.text)].join(", ")})`,
       args: [],
       close: null
     };

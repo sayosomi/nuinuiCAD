@@ -125,10 +125,16 @@ Elements with dependency errors should be visibly marked in the UI. Invalid
 geometry should not be drawn as normal valid geometry; either omit it or render
 a clear warning marker.
 
-Each element has a single `activity` state: `visible`, `hidden`, or `disabled`.
-`visible` evaluates and draws normally. `hidden` still evaluates and may be
-referenced, but is not drawn. `disabled` is not evaluated and must not produce
-computed geometry or be referenced by later elements.
+Direct `enabled: boolean` is the computation gate. It is evaluated before the
+remaining evaluation-driving inputs; `enabled: false` does not materialize the
+declaration, and later references use the existing unavailable-dependency
+classification. Direct `visible: boolean` is the presentation gate;
+`visible: false` still evaluates and remains referenceable but is not drawn.
+Ancestor `enabled: false` disables descendants and ancestor `visible: false`
+hides descendants; children cannot override either direct ancestor gate.
+Style `visible` is presentation-only and cannot override a direct or ancestor
+`visible: false`. Existing UI/status `activity` values may remain as derived
+projections, but are not a language-level computation model.
 
 For now, document order can continue to serve as both evaluation order and
 display order unless a change explicitly introduces separate visual layering.
@@ -144,7 +150,7 @@ the TypeScript reference. Treat mismatches as implementation bugs unless a
 deliberate Rust-first behavior change is being made and covered by updated
 tests. Do not make a user-facing element type or dependency form production
 ready until its Rust behavior, geometry output, errors, warnings, and
-per-activity-state evaluation/draw behavior are covered by focused fixtures.
+per-gate computation/draw behavior are covered by focused fixtures.
 
 Keep the Rust evaluation boundary stable. The public Rust evaluator entry point
 for document evaluation should remain `evaluate_document(input)` unless a
@@ -360,7 +366,7 @@ Important scenarios include:
 
 * valid evaluation order
 * missing, disabled, invalid, or too-late dependencies
-* visible/hidden/disabled activity behavior
+* direct/ancestor enabled and visible gate behavior
 * command dispatch behavior
 * keyboard shortcut mapping and form-input exclusion
 * parameter definition and keyboard edit behavior

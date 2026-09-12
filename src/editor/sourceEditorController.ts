@@ -1376,7 +1376,7 @@ export class SourceEditorController implements SourceEditorHandle {
    * Selects the whole editable value under a plain click that ended without a drag.
    * Runs on `mouseup` so CodeMirror's own pointer handling (drag-select, Mod-click
    * multi-selection) has already resolved `view.state.selection`; this only acts when
-   * that outcome is a single collapsed cursor with no modifier keys held, otherwise it
+   * that outcome is a single collapsed cursor with no style keys held, otherwise it
    * defers entirely.
    *
    * A click on a typed property binding (Task 22's `@name` value) resolves solely

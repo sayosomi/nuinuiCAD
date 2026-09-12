@@ -94,7 +94,7 @@ export type DslCompletionCandidateKind =
   | "builtin"
   | "literal"
   | "operator"
-  | "modifier";
+  | "style";
 
 /** Host-neutral semantic completion data. `label` is a semantic name or
  * spelling; adapters decide whether to add `@`, `: `, `(`, or any other host
@@ -1030,12 +1030,12 @@ const queryCandidates = (
   }
   if (context.kind === "modifierReference") {
     return (compiled ? createModifierAuthoringIndex(compiled).definitions : []).map((definition) =>
-      ({ kind: "modifier" as const, label: definition.name, sourceText: formatDslName(definition.name) })
+      ({ kind: "style" as const, label: definition.name, sourceText: formatDslName(definition.name) })
     );
   }
   if (context.kind === "modifierProfile") {
     return (compiled?.statements ?? []).flatMap((statement) => statement.kind === "profileDeclaration" && statement.name
-      ? [{ kind: "modifier" as const, label: statement.name, sourceText: formatDslName(statement.name) }]
+      ? [{ kind: "style" as const, label: statement.name, sourceText: formatDslName(statement.name) }]
       : []);
   }
   if (context.kind === "construction") return constructionCompletionCandidates(context.category).map((candidate) => ({ kind: "construction" as const, label: candidate.label, detail: candidate.detail, identity: candidate.label }));

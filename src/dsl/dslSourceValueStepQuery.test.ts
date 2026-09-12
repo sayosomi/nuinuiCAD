@@ -74,20 +74,19 @@ describe("DSL Source Value Step query", () => {
     expect(query(source, "2.00")).toMatchObject({ edit: { newText: "2.5" } });
   });
 
-  it("steps only current split modifier tokens and leaves fixed colors non-steppable", () => {
+  it("steps only current split style tokens and leaves fixed colors non-steppable", () => {
     const source = [
       "nui 1",
-      "modifier Guide {",
-      "  state: visible,",
+      "style Guide {",
+      "  ",
       "  width: 1.5px,",
-      "  style: solid,",
+      "  lineType: solid,",
       "  color: foreground",
       "}",
-      "modifier Fixed {",
+      "style Fixed {",
       "  color: #336699",
       "}"
     ].join("\n");
-    expect(query(source, "visible")).toMatchObject({ edit: { newText: "hidden" } });
     expect(query(source, "1.5")).toMatchObject({ edit: { expectedText: "1.5", newText: "1.6" } });
     expect(query(source, "solid", -1)).toMatchObject({ edit: { newText: "dotted" } });
     expect(query(source, "foreground", -1)).toMatchObject({ edit: { newText: "error" } });
@@ -118,8 +117,8 @@ describe("DSL Source Value Step query", () => {
   it("fails closed for stale semantics but not for an unrelated current diagnostic", () => {
     const source = [
       "nui 1",
-      "modifier Guide {",
-      "  style: solid",
+      "style Guide {",
+      "  lineType: solid",
       "}",
       "point Broken = coordinate(x: nope, y: 0)"
     ].join("\n");

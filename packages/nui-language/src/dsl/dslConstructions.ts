@@ -83,7 +83,8 @@ const special = (argName: string, value: DslArgSpecial, required = false): DslAr
 });
 
 export const commonArgSpecs: DslArgSpec[] = [
-  arg("state"),
+  arg("enabled"),
+  arg("visible"),
   special("steps", "steps"),
   special("id", "id"),
   special("roles", "roles"),

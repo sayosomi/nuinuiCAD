@@ -32,7 +32,7 @@ const physicalRange = (compiled: CompiledDslDocument, statementIndex: number, sp
   return physical?.segments.length === 1 ? physical.segments[0] ?? null : null;
 };
 
-/** Exact-current, source-only modifier semantics. It has no runtime identities or host state. */
+/** Exact-current, source-only style semantics. It has no runtime identities or host state. */
 export const createModifierAuthoringIndex = (compiled: CompiledDslDocument): ModifierAuthoringIndex => {
   const definitions = compiled.statements.flatMap((statement, statementIndex) => {
     if (statement.kind !== "modifierDefinition" || !statement.name || !statement.nameSpan) return [];

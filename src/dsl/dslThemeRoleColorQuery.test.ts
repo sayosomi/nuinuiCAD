@@ -20,12 +20,12 @@ const queryFor = (source: string, sourceRevision = 1) => {
 };
 
 describe("DSL theme-role color query", () => {
-  it("returns all six parser-owned modifier theme roles with normalized token ranges", () => {
+  it("returns all six parser-owned style theme roles with normalized token ranges", () => {
     const roles = ["foreground", "muted", "accent", "info", "warning", "error"] as const;
     const source = [
       "nui 1",
       ...roles.flatMap((role) => [
-        `modifier ${role}Modifier {`,
+        `style ${role}Modifier {`,
         `  color: ${role},`,
         "}"
       ])
@@ -34,7 +34,7 @@ describe("DSL theme-role color query", () => {
 
     expect(queryFor(source)).toEqual(roles.map((role) => {
       const colorValue = `color: ${role}`;
-      const from = normalizedSource.indexOf(colorValue, normalizedSource.indexOf(`modifier ${role}Modifier`)) + "color: ".length;
+      const from = normalizedSource.indexOf(colorValue, normalizedSource.indexOf(`style ${role}Modifier`)) + "color: ".length;
       return { role, range: { from, to: from + role.length } };
     }));
   });
@@ -43,19 +43,19 @@ describe("DSL theme-role color query", () => {
     const source = [
       "nui 1",
       "// color: accent",
-      'modifier "accent" {',
+      'style "accent" {',
       "  color: \"accent\",",
       "}",
-      "modifier Fixed {",
+      "style Fixed {",
       "  color: #112233,",
       "}",
-      "modifier ShortHex {",
+      "style ShortHex {",
       "  color: #123,",
       "}",
-      "modifier Lookalike {",
+      "style Lookalike {",
       "  color: primary,",
       "}",
-      "modifier Actual {",
+      "style Actual {",
       "  color: accent,",
       "}"
     ].join("\n");
@@ -68,7 +68,7 @@ describe("DSL theme-role color query", () => {
   });
 
   it("fails closed for stale source revisions and source text", () => {
-    const source = "nui 1\nmodifier Guide {\n  color: accent,\n}";
+    const source = "nui 1\nstyle Guide {\n  color: accent,\n}";
     const compiled = compiledFor(source);
 
     expect(queryDslThemeRoleColors({

@@ -878,30 +878,38 @@ flows. They use the same segment validation, direction normalization, candidate
 selection, and degenerate-chord rules described above; pure failures are stored
 on the value occurrence and do not allocate a drawable identity.
 
-## Groups and activity
+## Groups and computation/presentation gates
 
 `group` combines four roles:
 
 - UI hierarchy
 - lexical scope
 - namespace/container
-- activity container
+- computation and presentation container
 
 Nested groups may contain members with names that exist in an outer group. The
 same source-order, non-hoisted resolution rules apply in every group.
 
-Each element or activity container has exactly one activity state:
+Every geometry declaration and container may have independent direct gates:
 
-- `visible`: evaluates and draws normally.
-- `hidden`: evaluates and may be referenced, but is not drawn.
-- `disabled`: is not evaluated, produces no computed geometry, and cannot be
-  referenced by later statements.
+- `enabled: boolean` is the computation gate. `false` is evaluated before the
+  declaration's remaining evaluation-driving inputs; the declaration is not
+  materialized and later references see the existing unavailable-dependency
+  class.
+- `visible: boolean` is the presentation gate. `false` still evaluates and may
+  be referenced, but is not drawn.
+
+An ancestor's `enabled: false` disables its descendants and an ancestor's
+`visible: false` hides its descendants. A child cannot override either direct
+ancestor gate. The same rules apply to groups, `if`, `for`, text, image, and
+Module instances. Transformation-clause `enabled` remains a stage-local
+computation gate.
 
 An invalid dependency is not drawn as normal valid geometry. The application
 reports the dependency error and either omits the geometry or displays a clear
 warning marker.
 
-## Drawing modifier profiles and style properties
+## Style declarations, profiles, and presentation properties
 
 Drawing Profiles are top-level, source-ordered declarations in the ordinary
 lexical namespace. A profile is referenced with `@name`; references are not
@@ -911,10 +919,10 @@ hoisted, so a declaration must appear before its use.
 profile 印刷用
 profile SVG用
 
-modifier 型紙線 {
-  state: visible,
+style 型紙線 {
+  visible: true,
   width: 1px,
-  style: solid,
+  lineType: solid,
   color: foreground,
 
   for @印刷用 {
@@ -923,25 +931,24 @@ modifier 型紙線 {
 }
 ```
 
-The supported modifier properties are independent: `state` is `visible`,
-`hidden`, or `disabled`; `width` is a positive finite decimal pixel literal;
-`style` is `solid`, `dashed`, or `dotted`; and `color` is a theme role
+The supported Style properties are independent: `visible` is a boolean;
+`width` is a positive finite decimal pixel literal; `lineType` is `solid`,
+`dashed`, or `dotted`; and `color` is a theme role
 (`foreground`, `muted`, `accent`, `info`, `warning`, or `error`) or `#RRGGBB`.
-The former compound `stroke:` property is invalid. A modifier may contain only
+The former compound `stroke:` property is invalid. A Style may contain only
 these properties and `for @profile { ... }` blocks; profile blocks may contain
-only the same four properties. A modifier may be profile-only. Duplicate
+only the same four properties. A Style may be profile-only. Duplicate
 properties and duplicate overrides for the same resolved profile are errors.
 
 Effective properties cascade from outer group to inner group to element. Within
-each owner, modifier lists are applied left to right. The cascade merges each
+each owner, assigned Styles are applied left to right. The cascade merges each
 property independently and starts from `1px solid foreground`. A selected
 Drawing Profile overlays the common properties with its matching delta.
 
-Direct element activity is a hard gate: modifier state is applied only after
-direct and ancestor activity resolves to `visible`. `hidden` elements still
-evaluate and may be referenced; `disabled` elements do not evaluate and cannot
-be referenced by later elements. Canvas evaluation omits a selected Drawing
-Profile unless a host explicitly supplies one.
+Style `visible` is presentation-only. It cannot override a direct or ancestor
+`visible: false` gate, and profile selection never changes computation or
+materialization. Canvas evaluation omits a selected Drawing Profile unless a
+host explicitly supplies one.
 
 ## Conditional and iteration control
 
@@ -1076,19 +1083,19 @@ The existing Module v1 evaluation-limit atomicity is retained: an instance is
 evaluated as an atomic module operation within its evaluation limit, and a
 failed instance does not leak partially valid materialization as normal output.
 
-### Instance activity
+### Instance computation and presentation gates
 
-An instance may carry its own activity option:
+An instance may carry its own direct gates:
 
 ```text
-instance foo(state: hidden) = Foo(
+instance foo(enabled: true, visible: false) = Foo(
   base: @A,
   seam: @seam,
 )
 ```
 
-`state` is an option on the instance, not a callee parameter. Its value is one
-of the activity choices `visible`, `hidden`, or `disabled`.
+`enabled` and `visible` are options on the instance, not callee parameters.
+They accept boolean literals or shared boolean references.
 
 ### Visibility and exports
 
@@ -1714,7 +1721,7 @@ module Panel(
   reverse detail ()
 }
 
-instance front(state: hidden) = Panel(
+instance front(visible: false) = Panel(
   base: @A,
   seamLine: @AB,
   seam: @seam,

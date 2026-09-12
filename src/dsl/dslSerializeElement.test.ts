@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createCadElement } from "../model/elementFactory";
 import { referenceAnchor } from "../model/pointAnchors";
 import type { CadElement, CadElementType } from "../types/geometry";
-import { commonArgSpecs, constructionForElementType } from "./dslConstructions";
+import { constructionForElementType } from "./dslConstructions";
 import { documentDslRefs, flatRefs } from "./dslSerializer";
 import {
   serializeElementStatementBlock,
@@ -96,7 +96,7 @@ describe("DSL nui 1 element serializer", () => {
       name: "前 身",
       x: { kind: "expression" as const, expression: "-(bust / 4)" },
       y: -2,
-      activity: "disabled" as const,
+      activity: "disabled" as const, enabled: false, visible: true,
       numericParameterSteps: { x: 0.1 },
     };
     const refs = documentDslRefs([...referenceElements, point]);
@@ -105,14 +105,14 @@ describe("DSL nui 1 element serializer", () => {
       header: 'point "前 身" = coordinate(',
       args: [
         { key: "x", text: "x: -(bust / 4)" }, { key: "y", text: "y: -2" },
-        { key: "state", text: "state: disabled" },
+        { key: "enabled", text: "enabled: false" },
         { key: "steps", text: "steps: [x: 0.1]" },
       ],
       close: ")",
       argumentSeparator: "comma",
     });
     expect(serializeElementStatementLogical(point, refs)).toBe(
-      'point "前 身" = coordinate(x: -(bust / 4), y: -2, state: disabled, steps: [x: 0.1])',
+      'point "前 身" = coordinate(x: -(bust / 4), y: -2, enabled: false, steps: [x: 0.1])',
     );
 
     const curve = {
@@ -130,16 +130,14 @@ describe("DSL nui 1 element serializer", () => {
   it("uses only the active exclusive placement argument and canonical common-argument order", () => {
     const division = {
       ...minimal("divisionPoint"), placement: { kind: "distance" as const, value: 24 },
-      activity: "disabled" as const, colorId: "red",
+      activity: "disabled" as const, enabled: false, visible: true, colorId: "red",
       numericParameterSteps: { distance: 1 },
       parentGroupId: "g1", conditionalBranch: "else" as const,
     };
     const args = serializeElementStatementBlock(division, flatRefs()).args;
     expect(args.map((arg) => arg.key)).toEqual([
       "start", "end", "distance",
-      ...commonArgSpecs
-        .filter((arg) => arg.arg !== "roles")
-        .map((arg) => arg.arg),
+      "enabled", "steps", "id", "parent", "branch",
     ]);
     expect(args.map((arg) => arg.text)).toContain("parent: @g1");
     expect(args.map((arg) => arg.text)).toContain("branch: else");
@@ -192,19 +190,19 @@ describe("nui 1 activity serialization", () => {
   const argTexts = (element: CadElement) =>
     serializeElementStatementBlock(element, flatRefs()).args.map((arg) => arg.text);
 
-  it("omits state for visible and never emits legacy visible/enabled flags", () => {
+  it("omits direct gates for the default visible element", () => {
     const visible = minimal("freePoint");
     expect(argTexts(visible).some((text) => text.startsWith("state:"))).toBe(false);
     expect(argTexts(visible).some((text) => text.startsWith("visible:") || text.startsWith("enabled:"))).toBe(false);
   });
 
-  it("emits state: hidden / state: disabled and never legacy flags", () => {
-    const hidden = { ...minimal("freePoint"), activity: "hidden" as const };
-    expect(argTexts(hidden)).toContain("state: hidden");
-    expect(argTexts(hidden).some((text) => text.startsWith("visible:") || text.startsWith("enabled:"))).toBe(false);
+  it("emits visible: false / enabled: false and never legacy flags", () => {
+    const hidden = { ...minimal("freePoint"), activity: "hidden" as const, enabled: true, visible: false };
+    expect(argTexts(hidden)).toContain("visible: false");
+    expect(argTexts(hidden).some((text) => text.startsWith("visible:") || text.startsWith("enabled:"))).toBe(true);
 
-    const disabled = { ...minimal("freePoint"), activity: "disabled" as const };
-    expect(argTexts(disabled)).toContain("state: disabled");
-    expect(argTexts(disabled).some((text) => text.startsWith("visible:") || text.startsWith("enabled:"))).toBe(false);
+    const disabled = { ...minimal("freePoint"), activity: "disabled" as const, enabled: false, visible: true };
+    expect(argTexts(disabled)).toContain("enabled: false");
+    expect(argTexts(disabled).some((text) => text.startsWith("visible:") || text.startsWith("enabled:"))).toBe(true);
   });
 });

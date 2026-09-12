@@ -66,16 +66,16 @@ const documentFor = (initialSource: string, fileName = "/tmp/guide.nui") => {
 };
 
 describe("VS Code fixed-color provider", () => {
-  it("projects independent exact modifier fixed colors through CRLF source offsets", () => {
+  it("projects independent exact style fixed colors through CRLF source offsets", () => {
     const source = [
       "nui 1",
-      "modifier Guide {",
+      "style Guide {",
       "  color: #0a10ff",
       "}",
-      "modifier Accent {",
+      "style Accent {",
       "  color: #ff8000",
       "}",
-      "modifier Theme {",
+      "style Theme {",
       "  color: accent",
       "}"
     ].join("\r\n");
@@ -104,25 +104,25 @@ describe("VS Code fixed-color provider", () => {
   it("keeps fixed colors without a current Canvas theme and appends all current theme roles when available", () => {
     const source = [
       "nui 1",
-      "modifier Fixed {",
+      "style Fixed {",
       "  color: #0a10ff",
       "}",
-      "modifier Foreground {",
+      "style Foreground {",
       "  color: foreground",
       "}",
-      "modifier Muted {",
+      "style Muted {",
       "  color: muted",
       "}",
-      "modifier Accent {",
+      "style Accent {",
       "  color: accent",
       "}",
-      "modifier Info {",
+      "style Info {",
       "  color: info",
       "}",
-      "modifier Warning {",
+      "style Warning {",
       "  color: warning",
       "}",
-      "modifier Error {",
+      "style Error {",
       "  color: error",
       "}"
     ].join("\n");
@@ -159,7 +159,7 @@ describe("VS Code fixed-color provider", () => {
   });
 
   it("converts the exact current theme-role color to a canonical fixed-color edit", () => {
-    const source = ["nui 1", "modifier Guide {", "  color: accent", "}"].join("\n");
+    const source = ["nui 1", "style Guide {", "  color: accent", "}"].join("\n");
     const document = documentFor(source);
     const session = createLanguageAnalysisSession(source);
     const provider = createNuiColorProvider(() => session, () => ({
@@ -181,7 +181,7 @@ describe("VS Code fixed-color provider", () => {
   });
 
   it("uses the picker-selected RGB as the authored fixed color on every presentation", () => {
-    const source = ["nui 1", "modifier Guide {", "  color: accent", "}"].join("\n");
+    const source = ["nui 1", "style Guide {", "  color: accent", "}"].join("\n");
     const document = documentFor(source);
     const session = createLanguageAnalysisSession(source);
     const provider = createNuiColorProvider(() => session);
@@ -204,7 +204,7 @@ describe("VS Code fixed-color provider", () => {
   });
 
   it("uses the same canonical fixed-color serialization for semantic picker edits", () => {
-    const source = ["nui 1", "modifier Guide {", "  color: accent", "}"].join("\n");
+    const source = ["nui 1", "style Guide {", "  color: accent", "}"].join("\n");
     const document = documentFor(source);
     const session = createLanguageAnalysisSession(source);
     const provider = createNuiColorProvider(() => session);
@@ -224,7 +224,7 @@ describe("VS Code fixed-color provider", () => {
   });
 
   it("fails closed for a missing current theme, stale range, and source mutation", () => {
-    const source = ["nui 1", "modifier Guide {", "  color: accent", "}"].join("\n");
+    const source = ["nui 1", "style Guide {", "  color: accent", "}"].join("\n");
     const document = documentFor(source);
     const session = createLanguageAnalysisSession(source);
     let theme: typeof LEGACY_CANVAS_THEME | null = null;
@@ -255,7 +255,7 @@ describe("VS Code fixed-color provider", () => {
   });
 
   it("offers one canonical token-only edit after revalidating the exact current range", () => {
-    const source = ["nui 1", "modifier Guide {", "  color: #0a10ff", "}"].join("\n");
+    const source = ["nui 1", "style Guide {", "  color: #0a10ff", "}"].join("\n");
     const document = documentFor(source);
     const provider = createNuiColorProvider(() => createLanguageAnalysisSession(source));
     const start = source.indexOf("#0a10ff");
@@ -273,7 +273,7 @@ describe("VS Code fixed-color provider", () => {
   });
 
   it("rejects a stale presentation range, source change, and unsupported document", () => {
-    const source = ["nui 1", "modifier Guide {", "  color: #0a10ff", "}"].join("\n");
+    const source = ["nui 1", "style Guide {", "  color: #0a10ff", "}"].join("\n");
     const document = documentFor(source);
     const session = createLanguageAnalysisSession(source);
     const provider = createNuiColorProvider(() => session);

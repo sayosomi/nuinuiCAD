@@ -81,7 +81,7 @@ describe("cadDocumentStore 影テキスト: 代表的なコミット経路", () 
   it("updateElementで影が更新され警告が出ない", () => {
     const id = useCadDocumentStore.getState().elements[0].id;
     useCadDocumentStore.getState().updateElement(id, { activity: "disabled" });
-    expect(useCadDocumentStore.getState().sourceText).toContain("state: disabled");
+    expect(useCadDocumentStore.getState().sourceText).toContain("enabled: false");
     expectShadowConsistent();
     expectNoShadowWarnings();
   });
@@ -180,11 +180,11 @@ describe("cadDocumentStore 影テキスト: undo/redo/replaceDocument の全体�
   it("undoは影を巻き戻し先のモデルへ全体再生成する", () => {
     const id = useCadDocumentStore.getState().elements[0].id;
     useCadDocumentStore.getState().updateElement(id, { activity: "disabled" });
-    expect(useCadDocumentStore.getState().sourceText).toContain("state: disabled");
+    expect(useCadDocumentStore.getState().sourceText).toContain("enabled: false");
 
     useCadDocumentStore.getState().undo();
 
-    expect(useCadDocumentStore.getState().sourceText).not.toContain("state: disabled");
+    expect(useCadDocumentStore.getState().sourceText).not.toContain("enabled: false");
     expectShadowConsistent();
     expectNoShadowWarnings();
   });
@@ -195,7 +195,7 @@ describe("cadDocumentStore 影テキスト: undo/redo/replaceDocument の全体�
     useCadDocumentStore.getState().undo();
     useCadDocumentStore.getState().redo();
 
-    expect(useCadDocumentStore.getState().sourceText).toContain("state: disabled");
+    expect(useCadDocumentStore.getState().sourceText).toContain("enabled: false");
     expectShadowConsistent();
     expectNoShadowWarnings();
   });

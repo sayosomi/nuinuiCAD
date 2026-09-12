@@ -5,7 +5,7 @@ import { scanDslSource } from "./dslTokens";
 export type DslModifierCompletionContext =
   | { kind: "modifierReference"; from: number; to: number }
   | { kind: "modifierProperty"; from: number; to: number; options: readonly string[] }
-  | { kind: "modifierValue"; from: number; to: number; property: "state" | "width" | "style" | "color" }
+  | { kind: "modifierValue"; from: number; to: number; property: "visible" | "width" | "lineType" | "color" }
   | { kind: "modifierProfile"; from: number; to: number };
 
 const lineAt = (source: string, offset: number) => {
@@ -42,7 +42,7 @@ const modifierFrameAt = (source: string, offset: number): number | null => {
       if (character === '"' || character === "'") { quote = character; continue; }
       if (character === "{") {
         const before = code.slice(0, index);
-        if (/^\s*modifier\b/.test(before)) frames.push(lineIndex + 1);
+        if (/^\s*style\b/.test(before)) frames.push(lineIndex + 1);
       } else if (character === "}" && frames.length > 0) {
         frames.pop();
       }
@@ -99,7 +99,7 @@ export const dslModifierCompletionContextAt = (
   if (colon >= 0 && current.local >= colon + 1 && modifierPropertyMetadata(key)) {
     const range = tokenRange(code, current.local, /[^\s,]/);
     if (key === "color" && code.slice(range.from, range.to).startsWith("#")) return null;
-    return { kind: "modifierValue", from: current.start + range.from, to: current.start + range.to, property: key as "state" | "width" | "style" | "color" };
+    return { kind: "modifierValue", from: current.start + range.from, to: current.start + range.to, property: key as "visible" | "width" | "lineType" | "color" };
   }
   if (colon < 0) {
     const range = tokenRange(code, current.local, /[A-Za-z0-9_]/);

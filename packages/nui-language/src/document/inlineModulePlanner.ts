@@ -8,7 +8,6 @@ import {
   type DslSemanticOccurrence,
   type DslSemanticOccurrenceIndex
 } from "../dsl/dslSemanticOccurrenceIndex";
-import { parseElementActivityLiteral } from "../dsl/dslActivity";
 import { commonArgSpecs, constructionFor } from "../dsl/dslConstructions";
 import { exactPhysicalSpan } from "../dsl/dslDiagnosticSpan";
 import { parseGeometryArrayExpression } from "../dsl/geometryArrayExpression";
@@ -2166,9 +2165,18 @@ const trailingSourceSuffix = (
 const instanceActivity = (
   statement: Extract<DslStatement, { kind: "moduleInstance" }>
 ): Activity | null => {
-  const option = statement.options.find((candidate) => candidate.name === "state");
-  if (!option) return "visible";
-  return parseElementActivityLiteral(option.value) as Activity | null;
+  const enabled = statement.options.find((candidate) => candidate.name === "enabled");
+  const visible = statement.options.find((candidate) => candidate.name === "visible");
+  const literal = (option: typeof enabled) => {
+    if (!option) return true;
+    const value = option.value.trim().toLowerCase();
+    return value === "true" ? true : value === "false" ? false : null;
+  };
+  const enabledValue = literal(enabled);
+  const visibleValue = literal(visible);
+  if (enabledValue === null || visibleValue === null) return null;
+  if (!enabledValue) return "disabled";
+  return visibleValue ? "visible" : "hidden";
 };
 
 const semanticAnalysisFor = (compiled: CompiledDslDocument) =>
@@ -3541,7 +3549,11 @@ const replacementFor = (
   if (suffix === null) {
     return reject("unsafe-source-span", "Inline target の exact-current source range を解決できません。", entry.target);
   }
-  const activityText = entry.activity === "visible" ? "" : `(state: ${entry.activity})`;
+  const gateText = entry.activity === "disabled"
+    ? "(enabled: false)"
+    : entry.activity === "hidden"
+      ? "(visible: false)"
+      : "";
   const localParameterLines = localParameterLoweringsFor(entry).map(({ parameter }) =>
       `${instanceIndent}${DSL_INDENT}const ${parameter.nameSource}: ${parameter.typeSource} = ${parameter.initializerSource}`
     );
@@ -3549,7 +3561,7 @@ const replacementFor = (
     startLine: entry.statementInfo.range.startLine,
     endLine: entry.statementInfo.range.endLine,
     replacementLines: [
-      `${instanceIndent}group ${formatDslName(entry.statement.name)}${activityText} {${suffix}`,
+      `${instanceIndent}group ${formatDslName(entry.statement.name)}${gateText} {${suffix}`,
       ...localParameterLines,
       ...rebaseBodyLines(entry.bodyTransformation.bodyLines, body.definitionIndent, instanceIndent),
       `${instanceIndent}}`

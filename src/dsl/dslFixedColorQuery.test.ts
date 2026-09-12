@@ -17,19 +17,19 @@ const query = (source: string, revision = 1) => queryDslFixedColors({
 });
 
 describe("DSL fixed-color query", () => {
-  it("returns exact modifier fixed-color ranges and normalized RGB values", () => {
+  it("returns exact style fixed-color ranges and normalized RGB values", () => {
     const source = [
       "nui 1",
-      "modifier Guide {",
+      "style Guide {",
       "  width: 1.5px,",
-      "  style: dotted,",
+      "  lineType: dotted,",
       "  color: #Ab10fF,",
       "}",
       "// #abcdef must not be a color token",
-      'modifier "#112233" {',
+      'style "#112233" {',
       "  color: #Ab10fF",
       "}",
-      "modifier Theme {",
+      "style Theme {",
       "  color: accent",
       "}"
     ].join("\n");
@@ -48,7 +48,7 @@ describe("DSL fixed-color query", () => {
   it("fails closed for stale source semantics and incomplete fixed-color authoring", () => {
     const source = [
       "nui 1",
-      "modifier Guide {",
+      "style Guide {",
       "  color: #123456",
       "}"
     ].join("\n");
@@ -63,7 +63,7 @@ describe("DSL fixed-color query", () => {
   it("keeps exact fixed colors available from the current partial source", () => {
     const source = [
       "nui 1",
-      "modifier Guide {",
+      "style Guide {",
       "  color: #123456",
       "}",
       "point Broken = coordinate(x: nope, y: 0)"

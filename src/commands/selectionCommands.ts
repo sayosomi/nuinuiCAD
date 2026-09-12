@@ -48,9 +48,11 @@ const applyActivityToTargets = (
   const nextElements = elements.map((element) => {
     if (!targetIds.has(element.id)) return element;
     if (activity === "hidden" && !elementTypeSupportsHiddenActivity(element.type)) return element;
-    if (element.activity === activity) return element;
+    const enabled = activity !== "disabled";
+    const visible = activity === "disabled" ? true : activity === "visible";
+    if (element.activity === activity && element.enabled === enabled && element.visible === visible) return element;
     changed = true;
-    return { ...element, activity };
+    return { ...element, activity, enabled, visible };
   });
   return changed ? nextElements : null;
 };
@@ -63,7 +65,9 @@ export const cycleElementActivity = (elementId: ElementId | undefined) => {
   const next = nextElementActivity(target.activity, target.type);
   useCadDocumentStore.getState().commitDocumentChange({
     elements: elements.map((element) =>
-      element.id === elementId ? { ...element, activity: next } : element
+      element.id === elementId
+        ? { ...element, activity: next, enabled: next !== "disabled", visible: next === "disabled" || next === "visible" }
+        : element
     )
   });
 };

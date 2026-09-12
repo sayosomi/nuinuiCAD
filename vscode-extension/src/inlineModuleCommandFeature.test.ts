@@ -470,8 +470,8 @@ describe("VS Code Inline Module command feature", () => {
       "module Stamp() {",
       "  point Anchor = coordinate(x: 0, y: 0)",
       "}",
-      "instance Hidden(state: hidden) = Stamp()",
-      "instance Disabled(state: disabled) = Stamp()"
+      "instance Hidden(visible: false) = Stamp()",
+      "instance Disabled(enabled: false) = Stamp()"
     ].join("\n");
     const hiddenOffset = policySource.indexOf("instance Hidden");
     const editor = editorFor(policySource, { start: hiddenOffset, end: policySource.length, active: hiddenOffset });

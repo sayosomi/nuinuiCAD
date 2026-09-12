@@ -593,7 +593,12 @@ describe("SourceEditorController commit and history boundaries", () => {
 
       // Canvas-equivalent model patch on the clean editor
       const patched = useCadDocumentStore.getState().elements.map((element) =>
-        element.name === "A" ? { ...element, activity: cycle % 2 === 0 ? "visible" as const : "disabled" as const } : element
+        element.name === "A" ? {
+          ...element,
+          activity: cycle % 2 === 0 ? "visible" as const : "disabled" as const,
+          enabled: cycle % 2 === 0,
+          visible: cycle % 2 === 0
+        } : element
       );
       const result = useCadDocumentStore.getState().commitDocumentChange({ elements: patched });
       expect(result).toEqual({ status: "applied" });

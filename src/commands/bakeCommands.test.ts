@@ -7,8 +7,8 @@ import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 
 const source = [
   "nui 1",
-  "point Dependency = coordinate(x: 0, y: 0, state: disabled)",
-  "line Broken = segment(start: @Dependency, end: (10, 0), state: disabled)"
+  "point Dependency = coordinate(x: 0, y: 0, enabled: false)",
+  "line Broken = segment(start: @Dependency, end: (10, 0), enabled: false)"
 ].join("\n");
 
 describe("Bake command sandbox boundary", () => {
