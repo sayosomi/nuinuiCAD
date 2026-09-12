@@ -180,6 +180,41 @@ export type ScalarExpressionResolvedGeometryProperty = {
   readonly type: Extract<ScalarType, { kind: "number" }>;
 };
 
+/** Compiler-resolved target for a general optional member read. Runtime code
+ * consumes only these stable identities; it never re-resolves source names. */
+export type ScalarExpressionResolvedOptionalMemberTarget =
+  | {
+      readonly kind: "collectionLength";
+      readonly collectionValueId: string;
+      readonly collectionLength: number | null;
+      readonly targetSourceOrder: number;
+    }
+  | {
+      readonly kind: "recordField";
+      readonly collectionValueId: string;
+      readonly collectionLength: number | null;
+      readonly targetSourceOrder: number;
+      readonly field: {
+        readonly recordStatementId: string;
+        readonly fieldIndex: number;
+        readonly type: ScalarExpressionType;
+        readonly fieldPath?: readonly { recordStatementId: string; fieldIndex: number }[];
+      };
+    }
+  | {
+      readonly kind: "geometryProperty";
+      readonly reference: ScalarExpressionResolvedGeometryProperty;
+      readonly receiver: {
+        readonly kind: "geometryValue";
+        readonly target: ScalarExpressionResolvedGeometryTarget;
+      } | {
+        readonly kind: "collection";
+        readonly collectionValueId: string;
+        readonly collectionLength: number | null;
+        readonly targetSourceOrder: number;
+      };
+    };
+
 /** Resolved at compile time. `elementId` is never re-resolved by a runtime. */
 export interface TypedScalarGeometryPropertyReferenceNode {
   readonly kind: "geometryProperty";
@@ -200,6 +235,17 @@ export interface TypedScalarGeometryPropertyReferenceNode {
   readonly forGroupOccurrencePointKey?: string;
   readonly property: string;
   readonly targetSourceOrder: number | null;
+  readonly type: ScalarExpressionType | null;
+}
+
+export interface TypedScalarOptionalMemberExpressionNode {
+  readonly kind: "optionalMember";
+  readonly span: ScalarSpan;
+  readonly receiverSpan: ScalarSpan;
+  readonly operatorSpan: ScalarSpan;
+  readonly memberSpan: ScalarSpan;
+  readonly member: string;
+  readonly target: ScalarExpressionResolvedOptionalMemberTarget | null;
   readonly type: ScalarExpressionType | null;
 }
 
@@ -291,6 +337,7 @@ export type TypedScalarExpression =
   | TypedScalarReferenceNode
   | TypedScalarCollectionIndexNode
   | TypedScalarGeometryPropertyReferenceNode
+  | TypedScalarOptionalMemberExpressionNode
   | TypedScalarUnaryExpressionNode
   | TypedScalarBinaryExpressionNode
   | TypedScalarGroupExpressionNode
@@ -329,7 +376,8 @@ export type ScalarExpressionTypecheckIssueCode =
   | "function-call-style-mismatch"
   | "unknown-function-argument"
   | "duplicate-function-argument"
-  | "missing-function-argument";
+  | "missing-function-argument"
+  | "optional-member-non-optional-receiver";
 
 export interface ScalarExpressionTypecheckDiagnostic {
   readonly code: ScalarExpressionTypecheckIssueCode;
@@ -360,6 +408,8 @@ export interface ScalarExpressionTypecheckContext {
    * parser-owned node span. A null entry is an explicit failed resolution and
    * must remain type-null rather than falling back to number. */
   readonly geometryPropertyReferences?: ReadonlyMap<number, ScalarExpressionResolvedGeometryProperty | null>;
+  /** Closed frontend metadata for `receiver?.member`. */
+  readonly optionalMemberReferences?: ReadonlyMap<number, ScalarExpressionResolvedOptionalMember | null>;
   /** Optional closed-frontend hook for bare choice tokens that are actually
    * local semantic values (for example a legacy Module iteration value). */
   readonly resolveChoiceLiteral?: (
@@ -368,6 +418,13 @@ export interface ScalarExpressionTypecheckContext {
     span: ScalarSpan
   ) => ScalarType | null | undefined;
 }
+
+export type ScalarExpressionResolvedOptionalMember = {
+  readonly receiverType: import("../dsl/dslValueTypes").DslValueType | null;
+  /** The ordinary member result before optional propagation. */
+  readonly memberType: ScalarExpressionType | null;
+  readonly target: ScalarExpressionResolvedOptionalMemberTarget | null;
+};
 
 /**
  * Invariant (one-way implications, not "iff"):

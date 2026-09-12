@@ -25,6 +25,7 @@ fn node_kind(node: &TypedScalarExpression) -> &'static str {
         TypedScalarExpression::Reference { .. } => "reference",
         TypedScalarExpression::CollectionIndex { .. } => "collectionIndex",
         TypedScalarExpression::GeometryProperty { .. } => "geometryProperty",
+        TypedScalarExpression::OptionalMember { .. } => "optionalMember",
         TypedScalarExpression::Unary { .. } => "unary",
         TypedScalarExpression::Binary { .. } => "binary",
         TypedScalarExpression::Group { .. } => "group",
@@ -44,6 +45,7 @@ fn node_span(node: &TypedScalarExpression) -> (usize, usize) {
         | TypedScalarExpression::Reference { span, .. }
         | TypedScalarExpression::CollectionIndex { span, .. }
         | TypedScalarExpression::GeometryProperty { span, .. }
+        | TypedScalarExpression::OptionalMember { span, .. }
         | TypedScalarExpression::Unary { span, .. }
         | TypedScalarExpression::Binary { span, .. }
         | TypedScalarExpression::Group { span, .. }

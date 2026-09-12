@@ -396,6 +396,7 @@ export type ModuleScalarExpressionSemantic = {
   type: ScalarExpressionType | null;
   references: readonly ModuleScalarReference[];
   geometryProperties: readonly ModuleGeometryPropertyReference[];
+  optionalMembers?: readonly ModuleOptionalMemberReference[];
   geometryBuiltinArguments: readonly ModuleGeometryBuiltinArgumentSemantic[];
   /** Validated `hasValue(@parameter)` facts, keyed by intrinsic call span. */
   hasValueParameters: readonly {
@@ -404,6 +405,17 @@ export type ModuleScalarExpressionSemantic = {
     parameterIndex: number;
     definitionIdentity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
   }[];
+};
+
+export type ModuleOptionalMemberReference = {
+  span: DslSpan;
+  receiverSpan: DslSpan;
+  member: string;
+  memberSpan: DslSpan;
+  receiverType: DslValueType | null;
+  memberType: ScalarExpressionType | null;
+  target: ModuleGeometryPropertySourceTarget | ModuleRecordFieldSourceTarget | null;
+  resolution: ModuleGeometryPropertyReference["resolution"];
 };
 
 export type ModuleRecordConstructorFieldSemantic = RecordConstructorFieldSemantic & {

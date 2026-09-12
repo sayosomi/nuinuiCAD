@@ -172,6 +172,8 @@ const constantNumericAst = (ast: ScalarExpressionAst): boolean => {
       return false;
     case "valueMatch":
       return false;
+    case "optionalMember":
+      return false;
     case "call": {
       const definition = getBuiltinFunctionDefinition(ast.name);
       if (!definition || !definition.signatures.every((signature) =>

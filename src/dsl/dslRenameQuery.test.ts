@@ -556,6 +556,21 @@ describe("host-neutral DSL rename query", () => {
     });
   });
 
+  it("renames an optional record member without touching the optional chaining operator", () => {
+    const source = [
+      "nui 1",
+      "record Pair(label: string)",
+      "const input: Pair? = none",
+      "const output: string? = @input?.label"
+    ].join("\n");
+    const plan = planDslRenameEdits(snapshot(source), at(source, "@input?.label") + "@input?.".length, "caption");
+
+    expect(plan).not.toBeNull();
+    expect(plan?.edits.map((edit) => source.slice(edit.from, edit.to))).toEqual(["label", "label"]);
+    expect(plan?.edits.every((edit) => edit.newText === "caption")).toBe(true);
+    expect(plan?.edits.some((edit) => source.slice(edit.from, edit.to).includes("?."))).toBe(false);
+  });
+
   it("fails closed for stale, fatal, unresolved, and module-iteration snapshots", () => {
     const source = ["nui 1", "point A = coordinate(x: 0, y: 0)"].join("\n");
     const stale = snapshot(source, 7);

@@ -30,6 +30,7 @@ import type {
   ModuleRecordFieldSourceTarget,
   ModuleRecordValueExpressionSemantic,
   ModuleRecordSourceTarget,
+  ModuleOptionalMemberReference,
   ModuleScalarExpressionSemantic,
   ModuleSourceTarget,
   ResolvedModuleRecordExport
@@ -1234,6 +1235,46 @@ const addModuleSemanticPathOccurrences = (compiled: CompiledDslDocument, add: Ad
       add("reference", range.start, range.end, recordFieldIdentityOccurrence(identity));
     }
   };
+  const addOptionalMember = (statementIndex: number, reference: ModuleOptionalMemberReference) => {
+    const target = reference.target;
+    if (!target) return;
+    const receiverNameSpan = {
+      start: reference.receiverSpan.start + 1,
+      end: reference.receiverSpan.end
+    };
+    if (target.kind === "recordField") {
+      addModuleRecordTarget(compiled, add, statementIndex, target.record, receiverNameSpan ?? undefined);
+      addPhysicalOccurrence(add, compiled, statementIndex, reference.memberSpan, recordFieldIdentityOccurrence(target.field), "reference");
+      return;
+    }
+    if (target.kind === "deferredModuleCollectionExportLength") {
+      addPhysicalOccurrence(add, compiled, statementIndex, target.instanceSpan, {
+        kind: "module",
+        target: { kind: "moduleInstance", statementId: target.instanceStatementId }
+      }, "reference");
+      addPhysicalOccurrence(add, compiled, statementIndex, target.memberSpan, {
+        kind: "module",
+        target: { kind: "moduleSource", statementId: target.exportedStatementId }
+      }, "reference");
+      return;
+    }
+    if (target.kind === "deferredModuleExportProperty") {
+      addPhysicalOccurrence(add, compiled, statementIndex, target.instanceSpan, {
+        kind: "module",
+        target: { kind: "moduleInstance", statementId: target.instanceStatementId }
+      }, "reference");
+      return;
+    }
+    let identity: DslSemanticIdentity | null = null;
+    if (target.kind === "geometryValueForBinder") {
+      identity = { kind: "typed", bindingId: target.binderId };
+    } else if (target.kind === "collectionParameterLength" || target.kind === "parameterProperty") {
+      identity = moduleParameterIdentity(target);
+    } else if ("statementId" in target) {
+      identity = semanticIdentityForModuleTarget(compiled, { kind: "moduleSource", statementId: target.statementId });
+    }
+    if (identity && receiverNameSpan) addPhysicalOccurrence(add, compiled, statementIndex, receiverNameSpan, identity, "reference");
+  };
   const addRecordMapScalarExpression = (statementIndex: number, expression: ModuleScalarExpressionSemantic) => {
     for (const reference of expression.references) {
       const target = reference.target;
@@ -1251,6 +1292,7 @@ const addModuleSemanticPathOccurrences = (compiled: CompiledDslDocument, add: Ad
       }
     }
     for (const reference of expression.geometryProperties) addGeometry(statementIndex, reference);
+    for (const reference of expression.optionalMembers ?? []) addOptionalMember(statementIndex, reference);
   };
   const addCollectionIndexBase = (statementIndex: number, reference: ModuleScalarExpressionSemantic["references"][number]) => {
     const target = reference.target;
@@ -1460,6 +1502,7 @@ const addModuleSemanticPathOccurrences = (compiled: CompiledDslDocument, add: Ad
       }
     }
     for (const reference of site.expression.geometryProperties) addGeometry(statementIndex, reference);
+    for (const reference of site.expression.optionalMembers ?? []) addOptionalMember(statementIndex, reference);
   }
   for (const recordValue of analysis.rootRecordValuesByStatementId.values()) {
     if (recordValue.valueExpression) addRecordValueExpression(recordValue.value.statementIndex, recordValue.valueExpression);
@@ -1479,10 +1522,12 @@ const addModuleSemanticPathOccurrences = (compiled: CompiledDslDocument, add: Ad
       for (const site of body.scalarExpressions) {
         for (const reference of site.expression.references) addCollectionIndexBase(body.statementIndex, reference);
         for (const reference of site.expression.geometryProperties) addGeometry(body.statementIndex, reference);
+        for (const reference of site.expression.optionalMembers ?? []) addOptionalMember(body.statementIndex, reference);
       }
       for (const site of body.textTemplateHoles) {
         for (const reference of site.expression.references) addCollectionIndexBase(body.statementIndex, reference);
         for (const reference of site.expression.geometryProperties) addGeometry(body.statementIndex, reference);
+        for (const reference of site.expression.optionalMembers ?? []) addOptionalMember(body.statementIndex, reference);
       }
     }
     for (const mapped of definition.mappedGeometryCollectionBodies ?? []) {
@@ -1502,6 +1547,7 @@ const addModuleSemanticPathOccurrences = (compiled: CompiledDslDocument, add: Ad
       if (recordValue.valueExpression) addRecordValueExpression(recordValue.value.statementIndex, recordValue.valueExpression);
       for (const field of recordValue.fields) {
         for (const reference of field.expression?.geometryProperties ?? []) addGeometry(recordValue.value.statementIndex, reference);
+        for (const reference of field.expression?.optionalMembers ?? []) addOptionalMember(recordValue.value.statementIndex, reference);
       }
       for (const field of recordValue.fieldExpressions) {
         for (const reference of field.expression?.references ?? []) {
@@ -1512,6 +1558,7 @@ const addModuleSemanticPathOccurrences = (compiled: CompiledDslDocument, add: Ad
           addCollectionIndexBase(recordValue.value.statementIndex, reference);
         }
         for (const reference of field.expression?.geometryProperties ?? []) addGeometry(recordValue.value.statementIndex, reference);
+        for (const reference of field.expression?.optionalMembers ?? []) addOptionalMember(recordValue.value.statementIndex, reference);
       }
     }
   }

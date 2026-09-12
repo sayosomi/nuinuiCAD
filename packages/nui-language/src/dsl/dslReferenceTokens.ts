@@ -59,7 +59,7 @@ const isEscaped = (source: string, index: number) => {
 };
 
 const isPathSegmentChar = (value: string) =>
-  value.length > 0 && !/\s/.test(value) && !"'\"#=()[]{},;:.".includes(value);
+  value.length > 0 && !/\s/.test(value) && !"'\"#=()[]{},;:.?".includes(value);
 
 /**
  * Reads a path without deciding whether it is a source reference. The path
@@ -190,7 +190,7 @@ export const formatDslReferenceToken = (token: string) =>
 /** Boundary characters shared by strict source-reference properties and the
  * scalar tokenizer's postfix-property form. */
 export const isDslReferencePropertyBoundary = (value: string) =>
-  /\s/.test(value) || "()+*/<>!=&|,[]{};:'\"".includes(value);
+  /\s/.test(value) || "()+*/<>!=&|,[]{};:'\"?".includes(value);
 
 const readProperty = (source: string, start: number, end: number) => {
   let cursor = start;

@@ -104,6 +104,16 @@ export interface ScalarGeometryPropertyReferenceNode {
   readonly occurrenceRange?: ScalarSpan;
 }
 
+/** A first-class optional member/property access (`receiver?.member`). */
+export interface ScalarOptionalMemberExpressionNode {
+  readonly kind: "optionalMember";
+  readonly span: ScalarSpan;
+  readonly receiver: ScalarExpressionAst;
+  readonly operatorSpan: ScalarSpan;
+  readonly memberSpan: ScalarSpan;
+  readonly member: string;
+}
+
 export interface ScalarUnaryExpressionNode {
   readonly kind: "unary";
   readonly span: ScalarSpan;
@@ -188,6 +198,7 @@ export type ScalarExpressionAst =
   | ScalarReferenceNode
   | ScalarCollectionIndexNode
   | ScalarGeometryPropertyReferenceNode
+  | ScalarOptionalMemberExpressionNode
   | ScalarUnaryExpressionNode
   | ScalarBinaryExpressionNode
   | ScalarGroupExpressionNode

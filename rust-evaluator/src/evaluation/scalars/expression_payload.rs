@@ -43,9 +43,10 @@ use super::expression_leaf_payload::{
     decode_string_literal,
 };
 use super::expression_shape_payload::{
-    decode_call_argument_shape, validate_binary_shape, validate_call_argument_shapes,
-    validate_call_shape, validate_group_shape, validate_unary_shape, validate_value_if_shape,
-    validate_value_match_arm_shape, validate_value_match_shape, CallArgumentShape,
+    decode_call_argument_shape, decode_optional_member, validate_binary_shape,
+    validate_call_argument_shapes, validate_call_shape, validate_group_shape, validate_unary_shape,
+    validate_value_if_shape, validate_value_match_arm_shape, validate_value_match_shape,
+    CallArgumentShape,
 };
 use super::issue::{ScalarPayloadIssue, ScalarPayloadIssueCode as Code};
 use super::json_helpers::{as_object, issue, require_field};
@@ -320,6 +321,7 @@ fn visit_node<'a>(
             });
         }
         "geometryProperty" => output.push(decode_geometry_property(object)?),
+        "optionalMember" => output.push(decode_optional_member(object)?),
         "unary" => {
             let shape = validate_unary_shape(object)?;
             work.push(WorkItem::BuildUnary {

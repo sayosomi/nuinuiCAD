@@ -1156,6 +1156,24 @@ export const compileDslDocument = (
       isDslRecordValueType(requiredType);
     return Boolean(isNonScalar && (statement.valueType?.kind === "optional" || statement.initializer.includes("??")));
   });
+  const containsOptionalMember = (ast: ScalarExpressionAst | null): boolean => {
+    if (!ast) return false;
+    switch (ast.kind) {
+      case "optionalMember": return true;
+      case "unary": return containsOptionalMember(ast.operand);
+      case "binary": return containsOptionalMember(ast.left) || containsOptionalMember(ast.right);
+      case "group": return containsOptionalMember(ast.expression);
+      case "valueIf": return containsOptionalMember(ast.condition) || containsOptionalMember(ast.thenBranch) || containsOptionalMember(ast.elseBranch);
+      case "valueMatch": return containsOptionalMember(ast.scrutinee) || ast.arms.some((arm) => containsOptionalMember(arm.expression));
+      case "collectionIndex": return containsOptionalMember(ast.index);
+      case "geometryProperty": return Boolean(ast.occurrenceIndex && containsOptionalMember(ast.occurrenceIndex));
+      case "call": return ast.args.some((argument) => containsOptionalMember(argument.expression));
+      default: return false;
+    }
+  };
+  const hasOptionalMemberStatements = parsed.statements.some((statement) =>
+    statement.kind === "typedDeclaration" && containsOptionalMember(parseScalarExpression(statement.initializer, { start: 0, end: statement.initializer.length }).ast)
+  );
   const containsCollectionIndex = (ast: ScalarExpressionAst | null): boolean => {
     if (!ast) return false;
     switch (ast.kind) {
@@ -1912,7 +1930,7 @@ export const compileDslDocument = (
   // The source semantic projection is also useful for Definition Query in a
   // document without Modules. Geometry values also need this path so their
   // source-only aliases can be lowered at existing geometry consumers.
-  const moduleSemanticCompilation = hasModuleStatements || hasGeometryValueStatements || hasRecordValueControlFlowStatements || hasGeneralizedRecordFields || hasNonScalarOptionalOrCoalescingStatements || hasGenericCollectionIndexStatements || hasGeometryCollectionIndexStatements || hasCollectionControlFlowStatements || hasNominalRecordCollectionValueFor ? sourceSemanticCompilation : undefined;
+  const moduleSemanticCompilation = hasModuleStatements || hasGeometryValueStatements || hasRecordValueControlFlowStatements || hasGeneralizedRecordFields || hasNonScalarOptionalOrCoalescingStatements || hasGenericCollectionIndexStatements || hasGeometryCollectionIndexStatements || hasCollectionControlFlowStatements || hasNominalRecordCollectionValueFor || hasOptionalMemberStatements ? sourceSemanticCompilation : undefined;
   let moduleGeometryPropertyResolver: ((input: {
     statementIndex: number;
     node: Extract<ScalarExpressionAst, { kind: "geometryProperty" }>;
@@ -1943,11 +1961,14 @@ export const compileDslDocument = (
       ));
     const hasRootCollectionIndexOccurrences = [...moduleSemanticCompilation.rootScalarExpressionsByStatementId.values()]
       .some((site) => site.expression.ast.kind === "collectionIndex" || site.expression.references.some((reference) => reference.collectionValueId !== undefined));
+    const hasRootOptionalMemberOccurrences = [...moduleSemanticCompilation.rootScalarExpressionsByStatementId.values()]
+      .some((site) => (site.expression.optionalMembers?.length ?? 0) > 0);
     if (
       usableExportBindingSeeds.length > 0 ||
       hasRootGeometryRuntimeOccurrences ||
       hasRootCollectionLengthOccurrences ||
       hasRootCollectionIndexOccurrences ||
+      hasRootOptionalMemberOccurrences ||
       moduleSemanticCompilation.rootRecordValuesByStatementId.size > 0 ||
       hasCollectionControlFlowStatements
     ) {

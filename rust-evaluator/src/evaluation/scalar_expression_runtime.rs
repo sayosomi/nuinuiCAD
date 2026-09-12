@@ -7,7 +7,9 @@ use super::numeric_expression::computed_reference_value;
 use super::numeric_expression::parameter_value;
 use super::scalars::{
     evaluate_typed_expression, ScalarDocumentBindingResolver, ScalarEvaluation,
-    ScalarEvaluationEnvironment, ScalarType, ScalarValue, TypedScalarExpression,
+    ScalarEvaluationEnvironment, ScalarExpressionOptionalMemberReceiver,
+    ScalarExpressionResolvedGeometryProperty, ScalarExpressionResolvedOptionalMemberTarget,
+    ScalarType, ScalarValue, TypedScalarExpression,
 };
 use super::scalars::{GeometryBuiltinRuntimeError, GeometryBuiltinRuntimeTarget};
 use super::types::{
@@ -430,6 +432,220 @@ pub(crate) fn lookup_geometry_property(
     }
 }
 
+pub(crate) fn lookup_optional_geometry_property(
+    state: &EvaluationState,
+    resolver: &dyn ScalarDocumentBindingResolver,
+    target: &ScalarExpressionResolvedOptionalMemberTarget,
+    r#type: &ScalarType,
+    current_source_order: Option<f64>,
+) -> ScalarEvaluation {
+    let ScalarExpressionResolvedOptionalMemberTarget::GeometryProperty {
+        reference,
+        receiver,
+    } = target
+    else {
+        return ScalarEvaluation::Error {
+            r#type: r#type.clone(),
+            issue_code: "evaluation-optional-member-unavailable".to_owned(),
+            binding_id: None,
+            context: None,
+        };
+    };
+    let Some(current_source_order) = current_source_order else {
+        return ScalarEvaluation::Error {
+            r#type: r#type.clone(),
+            issue_code: "evaluation-geometry-property-unavailable".to_owned(),
+            binding_id: None,
+            context: None,
+        };
+    };
+    let receiver_present = match receiver {
+        ScalarExpressionOptionalMemberReceiver::Collection {
+            collection_value_id,
+            ..
+        } => resolver
+            .resolve_collection_length(collection_value_id, state, &mut HashSet::new())
+            .is_some(),
+        ScalarExpressionOptionalMemberReceiver::GeometryValue(target) => {
+            match optional_geometry_target_present(state, resolver, current_source_order, target) {
+                Ok(present) => present,
+                Err(_) => {
+                    return ScalarEvaluation::Error {
+                        r#type: r#type.clone(),
+                        issue_code: "evaluation-geometry-property-unavailable".to_owned(),
+                        binding_id: None,
+                        context: None,
+                    }
+                }
+            }
+        }
+    };
+    if !receiver_present {
+        return ScalarEvaluation::Ok {
+            r#type: r#type.clone(),
+            value: ScalarValue::None,
+        };
+    }
+
+    let result = match reference {
+        ScalarExpressionResolvedGeometryProperty::Drawable {
+            element_id,
+            property,
+            target_source_order,
+            r#type: property_type,
+        } => lookup_geometry_property(
+            state,
+            element_id,
+            property,
+            *target_source_order,
+            Some(current_source_order),
+            property_type,
+        ),
+        ScalarExpressionResolvedGeometryProperty::ForGroupOccurrence {
+            template_element_id,
+            property,
+            target_source_order,
+            point_key,
+            r#type: property_type,
+        } => lookup_for_group_geometry_property(
+            state,
+            resolver,
+            ForGroupGeometryPropertyRequest {
+                template_element_id,
+                index: None,
+                point_key: point_key.as_deref(),
+                property,
+                target_source_order: *target_source_order,
+                current_source_order: Some(current_source_order),
+                property_type,
+            },
+        ),
+        ScalarExpressionResolvedGeometryProperty::GeometryValue {
+            occurrence,
+            property,
+            point_key,
+            target_source_order,
+            r#type: property_type,
+        } => lookup_geometry_value_property(
+            state,
+            occurrence,
+            point_key.as_deref(),
+            property,
+            *target_source_order,
+            Some(current_source_order),
+            property_type,
+        ),
+        ScalarExpressionResolvedGeometryProperty::GeometryValueForBinder {
+            binder_id,
+            property,
+            point_key,
+            target_source_order,
+            r#type: property_type,
+        } => lookup_geometry_value_binder_property(
+            state,
+            binder_id,
+            point_key.as_deref(),
+            property,
+            *target_source_order,
+            Some(current_source_order),
+            property_type,
+        ),
+        ScalarExpressionResolvedGeometryProperty::Collection {
+            collection_value_id,
+            collection_length,
+            r#type: property_type,
+            ..
+        } => resolver
+            .resolve_collection_length(collection_value_id, state, &mut HashSet::new())
+            .or(*collection_length)
+            .map(|length| ScalarEvaluation::Ok {
+                r#type: property_type.clone(),
+                value: ScalarValue::Number(length),
+            })
+            .unwrap_or_else(|| unavailable_geometry_property(property_type)),
+    };
+    match result {
+        ScalarEvaluation::Ok { value, .. }
+            if super::scalars::scalar_value_matches_type(r#type, &value) =>
+        {
+            ScalarEvaluation::Ok {
+                r#type: r#type.clone(),
+                value,
+            }
+        }
+        ScalarEvaluation::Ok { .. } => ScalarEvaluation::Error {
+            r#type: r#type.clone(),
+            issue_code: "evaluation-runtime-value-type-mismatch".to_owned(),
+            binding_id: None,
+            context: None,
+        },
+        ScalarEvaluation::Error { issue_code, .. } => ScalarEvaluation::Error {
+            r#type: r#type.clone(),
+            issue_code,
+            binding_id: None,
+            context: None,
+        },
+    }
+}
+
+/// Optional member access only needs the receiver's presence. It must not use
+/// the ordinary geometry-builtin validator here: a `path` receiver and a
+/// zero-length line are both valid values for property reads even though they
+/// are not valid arguments for every geometry builtin.
+fn optional_geometry_target_present(
+    state: &EvaluationState,
+    resolver: &dyn ScalarDocumentBindingResolver,
+    current_source_order: f64,
+    target: &super::scalars::ScalarExpressionResolvedGeometryTarget,
+) -> Result<bool, GeometryBuiltinRuntimeError> {
+    if let Some(binder_id) = &target.geometry_value_binder_id {
+        let Some(source) = state.geometry_value_binders.get(binder_id) else {
+            return Ok(false);
+        };
+        return match source {
+            GeometryInputTarget::Drawable { element_id, .. } => {
+                let mut bound = target.clone();
+                bound.geometry_value_binder_id = None;
+                bound.geometry_value_occurrence = None;
+                bound.statement_id = element_id.clone();
+                bound.statement_index = -1.0;
+                optional_geometry_target_present(state, resolver, current_source_order, &bound)
+            }
+            GeometryInputTarget::GeometryValue { occurrence, .. }
+            | GeometryInputTarget::GeometryValueMap { occurrence, .. } => {
+                Ok(state.computed_geometry_values.contains_key(occurrence))
+            }
+            GeometryInputTarget::Coordinate { .. } => Ok(true),
+            GeometryInputTarget::ForGroupOccurrence { .. }
+            | GeometryInputTarget::CollectionValue { .. }
+            | GeometryInputTarget::CollectionIndex { .. } => Ok(false),
+        };
+    }
+    if let Some(occurrence) = &target.geometry_value_occurrence {
+        return Ok(state.computed_geometry_values.contains_key(occurrence));
+    }
+    if let Some(template_element_id) = target.for_group_template_element_id.as_deref() {
+        let generated_id = for_group_occurrence_element_id(
+            state,
+            resolver,
+            template_element_id,
+            target.for_group_index.as_deref(),
+            target
+                .for_group_target_source_order
+                .unwrap_or(target.statement_index),
+            Some(current_source_order),
+        )
+        .map_err(GeometryBuiltinRuntimeError::EvaluationIssue)?;
+        return Ok(state.computed_geometry.contains_key(&generated_id));
+    }
+    if target.statement_index >= current_source_order
+        || !state.elements_by_id.contains_key(&target.statement_id)
+    {
+        return Ok(false);
+    }
+    Ok(state.computed_geometry.contains_key(&target.statement_id))
+}
+
 impl ScalarEvaluationEnvironment for ResolverEnvironment<'_> {
     fn lookup_binding(&self, binding_id: &str) -> ScalarEvaluation {
         self.resolver.resolve_binding(binding_id, self.state)
@@ -549,6 +765,46 @@ impl ScalarEvaluationEnvironment for ResolverEnvironment<'_> {
             self.state,
             &mut HashSet::new(),
         )
+    }
+
+    fn lookup_optional_member(
+        &self,
+        target: &ScalarExpressionResolvedOptionalMemberTarget,
+        r#type: &ScalarType,
+    ) -> ScalarEvaluation {
+        match target {
+            ScalarExpressionResolvedOptionalMemberTarget::CollectionLength {
+                target_source_order,
+                ..
+            }
+            | ScalarExpressionResolvedOptionalMemberTarget::RecordField {
+                target_source_order,
+                ..
+            } => {
+                if self
+                    .current_source_order
+                    .is_some_and(|source_order| *target_source_order >= source_order)
+                {
+                    return ScalarEvaluation::Error {
+                        r#type: r#type.clone(),
+                        issue_code: "evaluation-collection-index-unavailable".to_owned(),
+                        binding_id: None,
+                        context: None,
+                    };
+                }
+                self.resolver
+                    .resolve_optional_collection_member(target, r#type, self.state)
+            }
+            ScalarExpressionResolvedOptionalMemberTarget::GeometryProperty { .. } => {
+                lookup_optional_geometry_property(
+                    self.state,
+                    self.resolver,
+                    target,
+                    r#type,
+                    self.current_source_order,
+                )
+            }
+        }
     }
 
     fn lookup_geometry_builtin_target(

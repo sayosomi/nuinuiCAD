@@ -29,6 +29,7 @@ import type {
   ScalarExpressionResolvedGeometryTarget,
   ScalarExpressionResolvedGeometryProperty,
   ScalarExpressionResolvedCollectionIndex,
+  ScalarExpressionResolvedOptionalMember,
   ScalarExpressionResolvedReference,
   ScalarExpressionTypecheckContext,
   ScalarExpressionTypecheckDiagnostic,
@@ -37,7 +38,7 @@ import type {
   TypedScalarExpression
 } from "./typedExpressionAst";
 import { isChoiceOptionMember, isScalarExpressionTypeAssignable } from "./scalarAssignability";
-import { dslCoalesceResultType, dslRequiredValueTypeOf, isDslOptionalValueType, scalarExpressionTypeOfDslValueType, scalarTypeOfDslValueType } from "../dsl/dslValueTypes";
+import { dslCoalesceResultType, dslRequiredValueTypeOf, dslValueTypeName, isDslOptionalValueType, scalarExpressionTypeOfDslValueType, scalarTypeOfDslValueType } from "../dsl/dslValueTypes";
 import { isChoiceScalarType, type ChoiceScalarType, type ScalarExpressionType, type ScalarType } from "./types";
 import { isModuleGeometryInterfaceAssignable } from "../dsl/moduleGeometryInterfaces";
 
@@ -48,6 +49,7 @@ interface TraversalState {
   readonly references: readonly (BindingResolution | ScalarExpressionResolvedReference)[];
   readonly geometryBuiltinArguments?: ReadonlyMap<number, ScalarExpressionResolvedGeometryTarget | null>;
   readonly geometryPropertyReferences?: ReadonlyMap<number, ScalarExpressionResolvedGeometryProperty | null>;
+  readonly optionalMemberReferences?: ReadonlyMap<number, ScalarExpressionResolvedOptionalMember | null>;
   cursor: number;
   readonly diagnostics: ScalarExpressionTypecheckDiagnostic[];
   readonly resolveChoiceLiteral?: ScalarExpressionTypecheckContext["resolveChoiceLiteral"];
@@ -329,6 +331,15 @@ const choiceHint = (type: ScalarExpressionType | null): ChoiceScalarType | null 
 const plainScalarType = (type: ScalarExpressionType | null | undefined): ScalarType | undefined =>
   type && !isDslOptionalValueType(type) ? type : undefined;
 
+const describeValueType = (type: import("../dsl/dslValueTypes").DslValueType): string => dslValueTypeName(type);
+
+const optionalResultType = (memberType: ScalarExpressionType | null): ScalarExpressionType | null => {
+  if (!memberType) return null;
+  return isDslOptionalValueType(memberType)
+    ? memberType
+    : { kind: "optional", valueType: memberType };
+};
+
 /**
  * `==`/`!=` typecheck. When exactly one side is a bare (unresolved) choice
  * literal, the *other* side is checked first so its resolved type can hint
@@ -510,6 +521,31 @@ const checkNode = (
         property: resolved?.kind === "collection" ? node.property : resolved?.property ?? node.property,
         targetSourceOrder: resolved?.targetSourceOrder ?? null,
         type: occurrenceIndexOk ? resolved?.type ?? null : null
+      };
+    }
+
+    case "optionalMember": {
+      const resolved = state.optionalMemberReferences?.get(node.span.start) ?? null;
+      const receiverType = resolved?.receiverType ?? null;
+      const receiverIsOptional = receiverType !== null && isDslOptionalValueType(receiverType);
+      if (receiverType !== null && !receiverIsOptional) {
+        addDiagnostic(state, {
+          code: "optional-member-non-optional-receiver",
+          span: node.receiver.span,
+          message: `optional member access の receiver は T? 型である必要があります(実際: ${describeValueType(receiverType)})。`,
+          presentation: { key: "diagnostic.optional-member-non-optional-receiver", parameters: { actual: describeValueType(receiverType) } }
+        });
+      }
+      const type = receiverIsOptional ? optionalResultType(resolved?.memberType ?? null) : null;
+      return {
+        kind: "optionalMember",
+        span: node.span,
+        receiverSpan: node.receiver.span,
+        operatorSpan: node.operatorSpan,
+        memberSpan: node.memberSpan,
+        member: node.member,
+        target: receiverIsOptional ? resolved?.target ?? null : null,
+        type
       };
     }
 
@@ -917,6 +953,7 @@ export const typecheckScalarExpression = (
     references: context.references,
     geometryBuiltinArguments: context.geometryBuiltinArguments,
     geometryPropertyReferences: context.geometryPropertyReferences,
+    optionalMemberReferences: context.optionalMemberReferences,
     cursor: 0,
     diagnostics: [],
     resolveChoiceLiteral: context.resolveChoiceLiteral,

@@ -416,6 +416,27 @@ describe("queryDslReferences", () => {
     expect(slices(source, moduleParameter!.referenceRanges)).toEqual(expect.arrayContaining(["input", "input"]));
   });
 
+  it("indexes optional record receivers and member identities with exact spans", () => {
+    const source = [
+      "nui 1",
+      "record Pair(label: string)",
+      "const input: Pair? = none",
+      "const output: string? = @input?.label"
+    ].join("\n");
+    const field = queryAt(source, "label");
+    const receiver = queryAt(source, "input", 1);
+
+    expect(field).not.toBeNull();
+    expect(slices(source, field!.declarationRange)).toEqual(["label"]);
+    expect(field!.referenceRanges).toEqual([{
+      from: source.indexOf("@input?.label") + "@input?.".length,
+      to: source.indexOf("@input?.label") + "@input?.label".length
+    }]);
+    expect(receiver).not.toBeNull();
+    expect(slices(source, receiver!.declarationRange)).toEqual(["input"]);
+    expect(slices(source, receiver!.referenceRanges)).toEqual(["input"]);
+  });
+
   it("keeps nested record field identities through generalized constructors and member access", () => {
     const source = [
       "nui 1",

@@ -684,6 +684,22 @@ describe("queryDslCompletion", () => {
     expect(labels(property)).toEqual(["x", "label"]);
   });
 
+  it("keeps optional member completion on the existing member-property path", () => {
+    const source = [
+      "nui 1",
+      "const values: number[]? = [1, 2]",
+      "const count: number? = @values?.le"
+    ].join("\n");
+    const property = exactQuery(source, "@values?.le");
+
+    expect(property?.category).toBe("elementParameter");
+    expect(labels(property)).toEqual(["length"]);
+    expect(property?.replacementRange).toEqual({
+      from: source.indexOf("@values?.") + "@values?.".length,
+      to: source.indexOf("@values?.le") + "@values?.le".length
+    });
+  });
+
   it("completes Module record parameters, guarded optional records, inline constructors, and exports", () => {
     const source = [
       "nui 1",

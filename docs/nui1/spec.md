@@ -422,6 +422,19 @@ The constraints are:
   `lhs` is `none`, and produces the non-optional type `T`. The right side must
   be assignable to `T`; a present left value is returned without evaluating the
   right side.
+- Optional member access uses `?.` and requires an optional receiver. If the
+  ordinary member/property result for the underlying value is `U`, then
+  `T?.member -> U?`. A `none` receiver produces `none` without evaluating or
+  requiring the underlying member read; a present receiver reads the same
+  member/property as ordinary access and lifts that result into the general
+  optional value model. If the ordinary result is already optional, the result
+  remains one optional layer rather than becoming an optional of an optional.
+  Optional chaining does not implicitly unwrap values for ordinary `.` access.
+  It applies only to existing member/property authorities, including nominal
+  record fields, geometry properties, and collection properties such as
+  `length` (for example, `@piece.outline?.length` when `outline` is an
+  existing optional field); it does not introduce members for other value
+  families.
 - Division by zero and other invalid runtime operations are explicit evaluation
   diagnostics. `5 % 0` produces `evaluation-remainder-by-zero`. A non-finite
   power result such as `(-1) ^ 0.5`, `0 ^ -1`, or `10 ^ 10000` produces

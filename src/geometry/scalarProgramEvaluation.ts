@@ -346,7 +346,8 @@ export const createDocumentLinearScalarBindingResolver = (
     { collectionValues },
     evaluator.resolveCurrent,
     resolveGeometryProperty,
-    resolveGeometryTarget
+    resolveGeometryTarget,
+    resolveGeometryCollectionLength
   );
   const evaluateOccurrenceIndex: OccurrenceIndexResolver = (expression, sourceOrder) => evaluateTypedExpression(expression, {
     lookupBinding: evaluator.resolveCurrent,

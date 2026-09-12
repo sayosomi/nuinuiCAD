@@ -109,6 +109,38 @@ export const collectReferences = (ast: ScalarExpressionAst): readonly { name: st
   return collectScalarExpressionReferences(ast);
 };
 
+const collectTypedDeclarationReferences = (ast: ScalarExpressionAst): readonly { name: string; span: { start: number; end: number } }[] => {
+  const optionalReceiverSpans: DslSpan[] = [];
+  const visit = (node: ScalarExpressionAst): void => {
+    switch (node.kind) {
+      case "optionalMember":
+        optionalReceiverSpans.push(node.receiver.span);
+        visit(node.receiver);
+        return;
+      case "collectionIndex": visit(node.index); return;
+      case "geometryProperty": if (node.occurrenceIndex) visit(node.occurrenceIndex); return;
+      case "unary": visit(node.operand); return;
+      case "binary": visit(node.left); visit(node.right); return;
+      case "group": visit(node.expression); return;
+      case "valueIf":
+        visit(node.condition);
+        visit(node.thenBranch);
+        if (node.elseBranch) visit(node.elseBranch);
+        return;
+      case "valueMatch":
+        visit(node.scrutinee);
+        node.arms.forEach((arm) => visit(arm.expression));
+        return;
+      case "call": node.args.forEach((argument) => visit(argument.expression)); return;
+      default: return;
+    }
+  };
+  visit(ast);
+  return collectScalarExpressionReferences(ast).filter((reference) => !optionalReceiverSpans.some((span) =>
+    reference.span.start >= span.start && reference.span.end <= span.end
+  ));
+};
+
 /** Whether an expression needs scalar-only syntax rather than the separate
  * numeric expression evaluator used by geometry and text interpolation. */
 export const containsNonNumericScalarSyntax = (ast: ScalarExpressionAst): boolean => {
@@ -141,6 +173,8 @@ export const containsNonNumericScalarSyntax = (ast: ScalarExpressionAst): boolea
       return true;
     case "collectionIndex":
       return containsNonNumericScalarSyntax(ast.index);
+    case "optionalMember":
+      return true;
     case "call":
       return getBuiltinFunctionDefinition(ast.name)?.signatures.some((signature) => signature.returnType.kind === "boolean") ?? false;
     default:
@@ -189,6 +223,7 @@ const collectionIndexResolutionsFor = (
       visit(node.index);
       return;
     }
+    if (node.kind === "optionalMember") return;
     if (node.kind === "unary") return visit(node.operand);
     if (node.kind === "binary") { visit(node.left); visit(node.right); return; }
     if (node.kind === "group") return visit(node.expression);
@@ -208,6 +243,7 @@ const collectionIndexBaseStartsFor = (ast: ScalarExpressionAst): ReadonlySet<num
       visit(node.index);
       return;
     }
+    if (node.kind === "optionalMember") return;
     if (node.kind === "unary") return visit(node.operand);
     if (node.kind === "binary") { visit(node.left); visit(node.right); return; }
     if (node.kind === "group") return visit(node.expression);
@@ -239,6 +275,7 @@ const referenceResolutionsForAst = (
       if (node.occurrenceIndex) visit(node.occurrenceIndex);
       return;
     }
+    if (node.kind === "optionalMember") return;
     if (node.kind === "unary") return visit(node.operand);
     if (node.kind === "binary") { visit(node.left); visit(node.right); return; }
     if (node.kind === "group") return visit(node.expression);
@@ -358,7 +395,7 @@ const parseInitializerSource = (
       )
     };
   }
-  return { ok: true, value: { ast: parsed.ast, references: collectReferences(parsed.ast) } };
+  return { ok: true, value: { ast: parsed.ast, references: collectTypedDeclarationReferences(parsed.ast) } };
 };
 
 const parseInitializer = (
@@ -583,7 +620,7 @@ export const analyzeTypedDeclarations = ({
     if (!statement) throw new Error(`typedDeclarationAnalysis: typed binding ${binding.id} has no owner statement`);
     const additional = additionalInitializerByBindingId.get(binding.id);
     const parsed = additional?.ast
-      ? { ok: true as const, value: { ast: additional.ast, references: collectReferences(additional.ast) } }
+      ? { ok: true as const, value: { ast: additional.ast, references: collectTypedDeclarationReferences(additional.ast) } }
       : additional
       ? parseInitializerSource(spans, statement, binding.id, additional.raw, additional.span)
       : statement.kind === "typedDeclaration"

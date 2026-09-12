@@ -46,6 +46,80 @@ pub(crate) struct ScalarExpressionResolvedGeometryTarget {
     pub(crate) for_group_index: Option<Arc<TypedScalarExpression>>,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct ScalarExpressionRecordFieldTarget {
+    pub(crate) record_statement_id: String,
+    pub(crate) field_index: usize,
+    pub(crate) r#type: ScalarType,
+    pub(crate) field_path: Vec<(String, usize)>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) enum ScalarExpressionResolvedGeometryProperty {
+    Drawable {
+        element_id: String,
+        property: String,
+        target_source_order: f64,
+        r#type: ScalarType,
+    },
+    ForGroupOccurrence {
+        template_element_id: String,
+        property: String,
+        target_source_order: f64,
+        point_key: Option<String>,
+        r#type: ScalarType,
+    },
+    GeometryValue {
+        occurrence: GeometryValueOccurrence,
+        property: String,
+        point_key: Option<String>,
+        target_source_order: f64,
+        r#type: ScalarType,
+    },
+    GeometryValueForBinder {
+        binder_id: String,
+        property: String,
+        point_key: Option<String>,
+        target_source_order: f64,
+        r#type: ScalarType,
+    },
+    Collection {
+        collection_value_id: String,
+        collection_length: Option<f64>,
+        target_source_order: f64,
+        r#type: ScalarType,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) enum ScalarExpressionOptionalMemberReceiver {
+    GeometryValue(ScalarExpressionResolvedGeometryTarget),
+    Collection {
+        collection_value_id: String,
+        collection_length: Option<f64>,
+        target_source_order: f64,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) enum ScalarExpressionResolvedOptionalMemberTarget {
+    CollectionLength {
+        collection_value_id: String,
+        collection_length: Option<f64>,
+        target_source_order: f64,
+    },
+    RecordField {
+        collection_value_id: String,
+        collection_length: Option<f64>,
+        target_source_order: f64,
+        field: ScalarExpressionRecordFieldTarget,
+    },
+    GeometryProperty {
+        reference: ScalarExpressionResolvedGeometryProperty,
+        receiver: ScalarExpressionOptionalMemberReceiver,
+    },
+}
+
 /// A source-text offset range, `[start, end)`. Never read for evaluation
 /// (the evaluators don't use spans - source-span re-association is a
 /// TypeScript-adapter responsibility, but the
@@ -332,6 +406,15 @@ pub(crate) enum TypedScalarExpression {
         target_source_order: f64,
         r#type: ScalarType,
     },
+    OptionalMember {
+        span: ScalarSpan,
+        receiver_span: ScalarSpan,
+        operator_span: ScalarSpan,
+        member_span: ScalarSpan,
+        member: String,
+        target: Option<ScalarExpressionResolvedOptionalMemberTarget>,
+        r#type: Option<ScalarType>,
+    },
     Unary {
         span: ScalarSpan,
         operator: ScalarUnaryOperator,
@@ -475,7 +558,8 @@ fn detach_children(node: &mut TypedScalarExpression) -> Vec<TypedScalarExpressio
         | TypedScalarExpression::NoneLiteral { .. }
         | TypedScalarExpression::ChoiceLiteral { .. }
         | TypedScalarExpression::Reference { .. }
-        | TypedScalarExpression::GeometryProperty { .. } => Vec::new(),
+        | TypedScalarExpression::GeometryProperty { .. }
+        | TypedScalarExpression::OptionalMember { .. } => Vec::new(),
         TypedScalarExpression::CollectionIndex { index, .. } => {
             vec![std::mem::replace(index.as_mut(), childless_placeholder())]
         }
