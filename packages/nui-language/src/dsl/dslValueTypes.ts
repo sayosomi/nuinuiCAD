@@ -38,6 +38,10 @@ export type DslArrayValueType = {
   readonly elementType: DslNonArrayValueType;
 };
 
+/** A value after the explicit optional wrapper has been removed. This is a
+ * projection only; the declaration type remains the canonical DslValueType. */
+export type DslRequiredValueType = DslRequiredNonArrayValueType | DslArrayValueType;
+
 /** Canonical host-neutral source-level immutable declaration value type. */
 export type DslValueType = DslNonArrayValueType | DslArrayValueType;
 
@@ -62,6 +66,27 @@ export const isDslArrayValueType = (
 export const isDslOptionalValueType = (
   valueType: DslValueType | null | undefined
 ): valueType is DslOptionalValueType => valueType?.kind === "optional";
+
+/** Project the required value carried by an optional type. */
+export const dslRequiredValueTypeOf = (
+  valueType: DslValueType | null | undefined
+): DslRequiredValueType | null => {
+  if (!valueType) return null;
+  return isDslOptionalValueType(valueType) ? valueType.valueType : valueType;
+};
+
+/**
+ * Canonical type rule for the host-neutral `??` operator. The left operand
+ * must be optional, while the right operand may only provide its underlying
+ * value. The returned type is therefore always non-optional.
+ */
+export const dslCoalesceResultType = (
+  left: DslValueType | null | undefined,
+  right: DslValueType | null | undefined
+): DslRequiredValueType | null => {
+  if (!left || !right || !isDslOptionalValueType(left)) return null;
+  return isDslValueTypeAssignable(right, left.valueType) ? left.valueType : null;
+};
 
 /** Project the scalar portion of a source value type for scalar consumers. */
 export const scalarTypeOfDslValueType = (

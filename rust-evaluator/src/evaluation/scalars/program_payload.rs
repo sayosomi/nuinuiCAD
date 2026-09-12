@@ -28,8 +28,13 @@ pub(crate) struct ValidatedScalarProgramCollection {
 
 #[derive(Debug)]
 pub(crate) enum ValidatedScalarProgramCollectionValue {
+    None,
     Literal(Vec<ValidatedScalarProgramCollectionMember>),
     Alias(String),
+    Coalesce {
+        left_value_id: String,
+        right_value_id: String,
+    },
     Map {
         source_value_id: String,
         source_element_type: ScalarType,
@@ -157,6 +162,8 @@ pub(crate) fn decode_collection_values(
                 "elseValueId",
                 "scrutinee",
                 "arms",
+                "leftValueId",
+                "rightValueId",
             ],
             "scalar program collection value",
         )?;
@@ -176,6 +183,14 @@ pub(crate) fn decode_collection_values(
             "scalar program collection value kind",
         )?;
         let decoded_value = match kind {
+            "none" => {
+                reject_unexpected_fields(
+                    entry,
+                    &["valueId", "kind"],
+                    "scalar program collection none",
+                )?;
+                ValidatedScalarProgramCollectionValue::None
+            }
             "alias" => {
                 reject_unexpected_fields(
                     entry,
@@ -189,6 +204,37 @@ pub(crate) fn decode_collection_values(
                     )?
                     .to_owned(),
                 )
+            }
+            "coalesce" => {
+                reject_unexpected_fields(
+                    entry,
+                    &[
+                        "valueId",
+                        "kind",
+                        "leftValueId",
+                        "rightValueId",
+                        "sourceOrder",
+                    ],
+                    "scalar program collection coalesce",
+                )?;
+                let left_value_id = non_empty_string(
+                    require_field(entry, "leftValueId", "scalar program collection coalesce")?,
+                    "scalar program collection coalesce leftValueId",
+                )?
+                .to_owned();
+                let right_value_id = non_empty_string(
+                    require_field(entry, "rightValueId", "scalar program collection coalesce")?,
+                    "scalar program collection coalesce rightValueId",
+                )?
+                .to_owned();
+                let _source_order = require_field(entry, "sourceOrder", "scalar program collection coalesce")?
+                    .as_f64()
+                    .filter(|value| value.is_finite() && *value >= 0.0)
+                    .ok_or_else(|| issue(Code::InvalidFieldType, "scalar program collection coalesce sourceOrder must be a non-negative number"))?;
+                ValidatedScalarProgramCollectionValue::Coalesce {
+                    left_value_id,
+                    right_value_id,
+                }
             }
             "literal" => {
                 reject_unexpected_fields(

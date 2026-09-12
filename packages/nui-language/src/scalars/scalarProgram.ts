@@ -23,6 +23,7 @@ export type ScalarProgramCollectionMember =
   | { kind: "record"; typeIdentity: string; fields: readonly ScalarProgramRecordField[] };
 
 export type ScalarProgramCollection =
+  | { valueId: string; kind: "none" }
   | { valueId: string; kind: "literal"; members: readonly ScalarProgramCollectionMember[] }
   | { valueId: string; kind: "alias"; targetValueId: string }
   | {
@@ -72,6 +73,13 @@ export type ScalarProgramCollection =
       kind: "match";
       scrutinee: TypedScalarExpression;
       arms: readonly { label: string; valueId: string }[];
+      sourceOrder: number;
+    }
+  | {
+      valueId: string;
+      kind: "coalesce";
+      leftValueId: string;
+      rightValueId: string;
       sourceOrder: number;
     };
 

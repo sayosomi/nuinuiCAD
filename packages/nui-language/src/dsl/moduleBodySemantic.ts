@@ -5,7 +5,7 @@ import {
   geometryArrayTypeOfTypedDeclaration
 } from "./geometryArraySourceAnnotations";
 import { resolveSourceLexicalPath } from "./sourceLexicalNamespaceIndex";
-import { nominalRecordTypeOfDslValueType } from "./dslValueTypes";
+import { dslRequiredValueTypeOf, nominalRecordTypeOfDslValueType } from "./dslValueTypes";
 import { isDslArrayValueType, isDslGeometryValueType } from "./dslValueTypes";
 import { moduleParameterPresenceKey, type ModuleScalarLocalDiagnostic } from "./moduleScalarExpression";
 import * as core from "./moduleBodySemanticCore";
@@ -26,7 +26,7 @@ const moduleOwnerIndexOf = (statements: readonly DslStatement[], statementIndex:
 
 const isSourceOnlyTypedDeclaration = (
   statement: Extract<DslStatement, { kind: "typedDeclaration" }>
-) => Boolean(nominalRecordTypeOfDslValueType(statement.valueType) || isDslArrayValueType(statement.valueType) || geometryArrayTypeOfTypedDeclaration(statement));
+) => Boolean(nominalRecordTypeOfDslValueType(dslRequiredValueTypeOf(statement.valueType)) || isDslArrayValueType(statement.valueType) || geometryArrayTypeOfTypedDeclaration(statement));
 
 const isCollectionModuleParameter = (
   parameter: Extract<DslStatement, { kind: "moduleDefinition" }>['parameters'][number]

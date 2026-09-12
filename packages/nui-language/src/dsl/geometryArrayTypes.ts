@@ -4,6 +4,7 @@ import {
 } from "./moduleGeometryInterfaces";
 import {
   geometryArrayValueTypeOfDslValueType,
+  dslRequiredValueTypeOf,
   isDslValueTypeAssignable,
   type DslArrayValueType,
   type DslNonArrayValueType,
@@ -35,7 +36,7 @@ export const dslValueTypeOfGeometryArrayType = (type: GeometryArrayType): DslArr
 
 /** Convert the canonical geometry array subset into the existing compatibility shape. */
 export const geometryArrayTypeOfDslValueType = (valueType: DslValueType | null | undefined): GeometryArrayType | null => {
-  const arrayValueType = geometryArrayValueTypeOfDslValueType(valueType);
+  const arrayValueType = geometryArrayValueTypeOfDslValueType(dslRequiredValueTypeOf(valueType));
   if (!arrayValueType) return null;
   const elementType = arrayValueType.elementType.kind;
   return elementType === "point" || elementType === "line" || elementType === "path"

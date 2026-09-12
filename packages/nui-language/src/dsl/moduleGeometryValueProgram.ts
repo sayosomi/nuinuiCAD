@@ -176,9 +176,15 @@ export type GeometryValueProgramConstruction =
 
 export type GeometryValueProgramNode =
   | GeometryValueProgramConstruction
+  | { kind: "none" }
   | {
       kind: "reference";
       target: ScalarExpressionResolvedGeometryTarget;
+    }
+  | {
+      kind: "coalesce";
+      left: GeometryValueProgramNode;
+      right: GeometryValueProgramNode;
     }
   | {
       kind: "if";
@@ -547,6 +553,12 @@ export const buildRootGeometryValueProgram = ({
     if (expression.kind === "reference") {
       const target = targetForReference(expression.reference);
       return target ? { kind: "reference", target } : null;
+    }
+    if (expression.kind === "none") return { kind: "none" };
+    if (expression.kind === "coalesce") {
+      const left = lowerExpression(sourceValue, expression.left);
+      const right = lowerExpression(sourceValue, expression.right);
+      return left && right ? { kind: "coalesce", left, right } : null;
     }
     if (expression.kind === "construction") return lowerConstruction(sourceValue, expression.construction);
     if (expression.kind === "if") {

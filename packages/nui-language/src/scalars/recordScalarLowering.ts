@@ -164,6 +164,24 @@ export const recordScalarBindingIdForPath = (
       ...path.flatMap((field) => [field.recordStatementId, String(field.fieldIndex)])
     ])}`;
 
+/** Stable collection-runtime identity for a whole nominal record value. */
+export const recordValueCollectionIdFor = (path: readonly string[], statementId: string): string =>
+  `record-value:${JSON.stringify([path, statementId])}`;
+
+/** Stable collection-runtime identity for a scalar field projected from a
+ * whole nominal record value. */
+export const recordFieldCollectionValueIdFor = (
+  collectionValueId: string,
+  field: Pick<RecordFieldIdentity, "recordStatementId" | "fieldIndex">,
+  fieldPath: readonly RecordFieldIdentity[] = [field]
+) => fieldPath.length === 1
+  ? `record-field-collection:${JSON.stringify([collectionValueId, field.recordStatementId, field.fieldIndex])}`
+  : `record-field-collection:${JSON.stringify([
+      collectionValueId,
+      "path",
+      fieldPath.map((candidate) => [candidate.recordStatementId, candidate.fieldIndex])
+    ])}`;
+
 const recordFieldPathKey = (path: readonly RecordFieldIdentity[]) => JSON.stringify(
   path.map((field) => [field.recordStatementId, field.fieldIndex])
 );
@@ -268,6 +286,7 @@ const projectRecordFieldExpression = (
         }
       : null;
   }
+  if (expression.kind === "none" || expression.kind === "coalesce") return null;
   const scrutinee = expression.scrutinee;
   const arms = expression.arms.map((arm) => ({
     label: arm.label,
@@ -366,6 +385,14 @@ export const planRecordScalarLowering = ({
     const scopeId = sourceNamespace.scopeIndex.scopeOfStatement.get(value.statementIndex);
     if (!scopeId || !value.typeIdentity) {
       unresolvedValueStatementIds.push(value.statementId);
+      continue;
+    }
+
+    // A generic optional/`??` record is represented by the shared record
+    // collection runtime. It has no scalar field backing until a selected
+    // record member is projected, so do not seed field bindings that cannot
+    // have scalar declarations (and would otherwise poison bindingVersions).
+    if (value.valueExpression?.kind === "none" || value.valueExpression?.kind === "coalesce") {
       continue;
     }
 
@@ -718,6 +745,25 @@ export const resolveRecordScalarProperties = ({
     if (member.kind === "nonScalar") return;
     const expectedType = member.type;
 
+    // A coalesced whole-record value is present by construction, but its
+    // scalar fields do not have independent backing bindings. Project the
+    // field through the existing record collection runtime so the selected
+    // branch remains lazy and no optional record is implicitly unwrapped.
+    if (value.valueExpression?.kind === "coalesce") {
+      referencesBySpanStart.set(node.span.start, {
+        kind: "resolvedCollectionIndex",
+        collectionValueId: recordFieldCollectionValueIdFor(
+          recordValueCollectionIdFor([], value.statementId),
+          member.field,
+          member.fieldPath
+        ),
+        collectionLength: 1,
+        targetSourceOrder: value.statementIndex,
+        type: expectedType
+      });
+      return;
+    }
+
     const bindingId = plan.fieldBindingIdsByAccessPathByValueStatementId.get(value.statementId)?.get(recordFieldPathKey(member.fieldPath))
       ?? (member.fieldPath.length === 1 ? plan.fieldBindingIdsByValueStatementId.get(value.statementId)?.get(member.field.fieldIndex) : undefined);
     if (!bindingId) {
@@ -1028,14 +1074,15 @@ export const prepareRecordScalarExpression = ({
         const additional = resolveAdditionalProperty(node);
         const resolution = additional?.resolution ?? propertyResolution.referencesBySpanStart.get(node.span.start);
         if (resolution?.kind === "resolvedCollectionIndex") {
-          if (!node.occurrenceIndex) return node;
           references.push(resolution);
           return {
             kind: "collectionIndex",
             span: node.span,
             nameSpan: { start: node.elementNameSpan.start, end: node.propertySpan.end },
             name: node.elementName,
-            index: rewrite(node.occurrenceIndex)
+            index: node.occurrenceIndex
+              ? rewrite(node.occurrenceIndex)
+              : { kind: "numberLiteral", span: node.span, value: 0 }
           };
         }
         if (!resolution || resolution.kind !== "resolvedType") return node;

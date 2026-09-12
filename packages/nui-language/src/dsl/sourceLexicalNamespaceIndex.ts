@@ -6,7 +6,7 @@ import type { DslDiagnostic, DslSpan, DslStatement } from "./dslTypes";
 import { analyzeRecordSemantics, type RecordSemanticAnalysis } from "./recordSemanticAnalysis";
 import { analyzeGeometryArraySemantics, type GeometryArraySemanticAnalysis } from "./geometryArraySemanticAnalysis";
 import { scopeChain, type IncludeStatement, type LexicalScopeIndex, type ScopeId } from "../scalars/lexicalScopeIndex";
-import { isDslArrayValueType, isDslGeometryValueType, nominalRecordTypeOfDslValueType, scalarTypeOfDslValueType } from "./dslValueTypes";
+import { dslRequiredValueTypeOf, isDslArrayValueType, isDslGeometryValueType, nominalRecordTypeOfDslValueType, scalarTypeOfDslValueType } from "./dslValueTypes";
 
 /** Named declarations that participate in the source-level lexical namespace. */
 export type SourceLexicalDeclarationKind =
@@ -112,7 +112,7 @@ const declarationKindOf = (statement: DslStatement): SourceLexicalDeclarationKin
   if (statement.kind === "recordDefinition") return "recordDefinition";
   if (statement.kind === "group") return "group";
   if (statement.kind === "typedDeclaration") {
-    return nominalRecordTypeOfDslValueType(statement.valueType) ? "recordValue" : "typedDeclaration";
+    return nominalRecordTypeOfDslValueType(dslRequiredValueTypeOf(statement.valueType)) ? "recordValue" : "typedDeclaration";
   }
   if (statement.kind === "layout") return "layout";
   if (statement.kind === "print") return "print";

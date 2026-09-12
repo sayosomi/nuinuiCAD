@@ -37,7 +37,7 @@ import type {
   TypedScalarExpression
 } from "./typedExpressionAst";
 import { isChoiceOptionMember, isScalarExpressionTypeAssignable } from "./scalarAssignability";
-import { isDslOptionalValueType, scalarExpressionTypeOfDslValueType, scalarTypeOfDslValueType } from "../dsl/dslValueTypes";
+import { dslCoalesceResultType, dslRequiredValueTypeOf, isDslOptionalValueType, scalarExpressionTypeOfDslValueType, scalarTypeOfDslValueType } from "../dsl/dslValueTypes";
 import { isChoiceScalarType, type ChoiceScalarType, type ScalarExpressionType, type ScalarType } from "./types";
 import { isModuleGeometryInterfaceAssignable } from "../dsl/moduleGeometryInterfaces";
 
@@ -449,8 +449,8 @@ const checkNode = (
       if (node.operator === "==" || node.operator === "!=") return checkEqualityBinary(node, state, checkNode);
       if (node.operator === "??") {
         const left = checkNode(node.left, null, state);
-        const underlying = left.type && isDslOptionalValueType(left.type)
-          ? scalarTypeOfDslValueType(left.type.valueType)
+        const underlying = isDslOptionalValueType(left.type)
+          ? scalarTypeOfDslValueType(dslRequiredValueTypeOf(left.type))
           : null;
         if (!underlying) {
           if (left.type !== null) {
@@ -466,7 +466,7 @@ const checkNode = (
           return { kind: "binary", span: node.span, operator: node.operator, left, right, type: null };
         }
         const right = checkNode(node.right, underlying, state);
-        const rightOk = right.type !== null && isScalarExpressionTypeAssignable(right.type, underlying);
+        const rightOk = right.type !== null && dslCoalesceResultType(left.type, right.type) !== null;
         if (right.type !== null && !rightOk) {
           addDiagnostic(state, {
             code: "coalesce-rhs-type-mismatch",

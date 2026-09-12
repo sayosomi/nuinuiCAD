@@ -35,9 +35,11 @@ export type GeometryAlias =
   | { kind: "collectionIndex"; target: Extract<ModuleGeometrySourceTarget, { kind: "collectionIndex" }>; members: readonly GeometryAlias[]; value?: RuntimeGeometryCollectionNode };
 
 export type RuntimeGeometryCollectionNode =
+  | { kind: "none" }
   | { kind: "leaf"; aliases: readonly Exclude<GeometryAlias, { kind: "collectionIndex" }>[] }
   | { kind: "if"; condition: ModuleScalarExpressionSemantic; sourceOrder: number; sourcePath: readonly string[]; thenBranch: RuntimeGeometryCollectionNode; elseBranch: RuntimeGeometryCollectionNode }
-  | { kind: "match"; scrutinee: ModuleScalarExpressionSemantic; sourceOrder: number; sourcePath: readonly string[]; arms: readonly { label: string; value: RuntimeGeometryCollectionNode }[] };
+  | { kind: "match"; scrutinee: ModuleScalarExpressionSemantic; sourceOrder: number; sourcePath: readonly string[]; arms: readonly { label: string; value: RuntimeGeometryCollectionNode }[] }
+  | { kind: "coalesce"; leftBranch: RuntimeGeometryCollectionNode; rightBranch: RuntimeGeometryCollectionNode };
 
 export type GeometryValueMapPendingTarget = {
   kind: "geometryValueMapPending";

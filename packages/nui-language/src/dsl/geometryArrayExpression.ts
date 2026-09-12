@@ -18,6 +18,7 @@ export type GeometryArrayLiteralMember = {
 };
 
 export type GeometryArrayExpression =
+  | { kind: "none"; span: DslSpan }
   | {
       kind: "literal";
       span: DslSpan;
@@ -54,8 +55,14 @@ export type GeometryArrayExpression =
         label: string;
         labelSpan: DslSpan;
         expression: GeometryArrayExpression;
-      }[];
-    };
+        }[];
+    }
+  | {
+      kind: "coalesce";
+      span: DslSpan;
+      left: GeometryArrayExpression;
+      right: GeometryArrayExpression;
+    }
 
 export type GeometryArrayExpressionParseResult = {
   expression: GeometryArrayExpression | null;
@@ -200,6 +207,32 @@ const firstTopLevelBrace = (source: string, start: number, end: number) => {
     else if (character === "[") squareDepth += 1;
     else if (character === "]") squareDepth = Math.max(0, squareDepth - 1);
     else if (character === "{" && parenDepth === 0 && squareDepth === 0) return index;
+  }
+  return -1;
+};
+
+const topLevelCoalesceOperator = (source: string, span: DslSpan): number => {
+  let quote: string | null = null;
+  let squareDepth = 0;
+  let parenDepth = 0;
+  let braceDepth = 0;
+  for (let index = span.start; index < span.end - 1; index += 1) {
+    const character = source[index]!;
+    if (quote) {
+      if (character === quote && !escaped(source, index)) quote = null;
+      continue;
+    }
+    if ((character === "\"" || character === "'") && !escaped(source, index)) {
+      quote = character;
+      continue;
+    }
+    if (character === "[") squareDepth += 1;
+    else if (character === "]") squareDepth = Math.max(0, squareDepth - 1);
+    else if (character === "(") parenDepth += 1;
+    else if (character === ")") parenDepth = Math.max(0, parenDepth - 1);
+    else if (character === "{") braceDepth += 1;
+    else if (character === "}") braceDepth = Math.max(0, braceDepth - 1);
+    else if (character === "?" && source[index + 1] === "?" && squareDepth === 0 && parenDepth === 0 && braceDepth === 0) return index;
   }
   return -1;
 };
@@ -469,6 +502,26 @@ export const parseGeometryArrayExpression = (
     };
   }
 
+  const coalesceIndex = topLevelCoalesceOperator(source, span);
+  if (coalesceIndex >= 0) {
+    const leftSpan = trimSpan(source, span.start, coalesceIndex);
+    const rightSpan = trimSpan(source, coalesceIndex + 2, span.end);
+    const diagnostics: GeometryArrayExpressionDiagnostic[] = [];
+    if (leftSpan.start === leftSpan.end) {
+      diagnostics.push({ code: "coalesce-missing-left", message: "?? には左辺の collection 値が必要です。", span: { start: coalesceIndex, end: coalesceIndex + 2 } });
+    }
+    if (rightSpan.start === rightSpan.end) {
+      diagnostics.push({ code: "coalesce-missing-right", message: "?? には右辺の collection 値が必要です。", span: { start: coalesceIndex, end: coalesceIndex + 2 } });
+    }
+    const left = leftSpan.start === leftSpan.end ? null : parseNested(source, leftSpan);
+    const right = rightSpan.start === rightSpan.end ? null : parseNested(source, rightSpan);
+    if (left) diagnostics.push(...left.diagnostics);
+    if (right) diagnostics.push(...right.diagnostics);
+    return left?.expression && right?.expression && diagnostics.length === 0
+      ? { expression: { kind: "coalesce", span, left: left.expression, right: right.expression }, diagnostics }
+      : { expression: null, diagnostics };
+  }
+
   if (source[span.start] === "[") {
     const close = matchingSquareClose(source, span.start, span.end);
     if (close < 0) {
@@ -508,6 +561,7 @@ export const parseGeometryArrayExpression = (
   if (keywordAt(source, span, "match")) return parseValueMatch(source, span);
 
   const text = source.slice(span.start, span.end);
+  if (text.trim() === "none") return { expression: { kind: "none", span: trimSpan(source, span.start, span.end) }, diagnostics: [] };
   const reference = parseDslSourceReference(text);
   if (reference.kind === "valid") {
     return { expression: { kind: "reference", span, text }, diagnostics: [] };

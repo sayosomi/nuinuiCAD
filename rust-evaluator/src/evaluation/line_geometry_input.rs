@@ -140,6 +140,10 @@ fn decode_collection_node(
         .ok_or_else(|| invalid(format!("{context} must be an object")))?;
     let kind = non_empty_string(object, "kind", context)?;
     match kind.as_str() {
+        "none" => {
+            reject_unexpected_fields(object, &["kind"], context)?;
+            Ok(GeometryInputCollectionNode::None)
+        }
         "leaf" => {
             reject_unexpected_fields(object, &["kind", "targets"], context)?;
             let targets = object
@@ -263,6 +267,25 @@ fn decode_collection_node(
                 scrutinee,
                 source_order,
                 arms,
+            })
+        }
+        "coalesce" => {
+            reject_unexpected_fields(object, &["kind", "leftBranch", "rightBranch"], context)?;
+            let left_branch = decode_collection_node(
+                object
+                    .get("leftBranch")
+                    .ok_or_else(|| invalid(format!("{context}.leftBranch is required")))?,
+                &format!("{context}.leftBranch"),
+            )?;
+            let right_branch = decode_collection_node(
+                object
+                    .get("rightBranch")
+                    .ok_or_else(|| invalid(format!("{context}.rightBranch is required")))?,
+                &format!("{context}.rightBranch"),
+            )?;
+            Ok(GeometryInputCollectionNode::Coalesce {
+                left_branch: Box::new(left_branch),
+                right_branch: Box::new(right_branch),
             })
         }
         _ => Err(invalid(format!("{context}.kind is unsupported"))),
@@ -691,6 +714,9 @@ fn materialize_collection_node(
     current_source_order: Option<f64>,
 ) -> Result<Vec<GeometryInputTarget>, String> {
     match node {
+        GeometryInputCollectionNode::None => {
+            Err("evaluation-collection-index-unavailable".to_owned())
+        }
         GeometryInputCollectionNode::Leaf { targets } => targets
             .into_iter()
             .map(|target| materialize_target(target, resolver, state, current_source_order))
@@ -749,6 +775,16 @@ fn materialize_collection_node(
                 .ok_or_else(|| "evaluation-runtime-value-type-mismatch".to_owned())?;
             materialize_collection_node(branch, Some(resolver), state, current_source_order)
         }
+        GeometryInputCollectionNode::Coalesce {
+            left_branch,
+            right_branch,
+        } => match materialize_collection_node(*left_branch, resolver, state, current_source_order)
+        {
+            Ok(value) => Ok(value),
+            Err(_) => {
+                materialize_collection_node(*right_branch, resolver, state, current_source_order)
+            }
+        },
     }
 }
 

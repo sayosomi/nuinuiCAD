@@ -1061,6 +1061,66 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("matches optional coalescing for geometry, nominal records, and scalar collections", () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "point presentPoint = coordinate(x: 1, y: 2)",
+      "point fallbackPoint = coordinate(x: 10, y: 20)",
+      "const maybePoint: point? = @presentPoint",
+      "const fallbackPointValue: point = @fallbackPoint",
+      "const resolvedPoint: point = @maybePoint ?? @fallbackPointValue",
+      "const nonePoint: point? = none",
+      "const resolvedNonePoint: point = @nonePoint ?? @fallbackPointValue",
+      "line selectedPresentPoint = segment(start: @resolvedPoint, end: @fallbackPoint)",
+      "line selectedNonePoint = segment(start: @resolvedNonePoint, end: @fallbackPoint)",
+      "record Pair(x: number)",
+      "const presentPair: Pair = Pair(x: 7)",
+      "const fallbackPair: Pair = Pair(x: 11)",
+      "const maybePair: Pair? = @presentPair",
+      "const resolvedPair: Pair = @maybePair ?? @fallbackPair",
+      "const nonePair: Pair? = none",
+      "const resolvedNonePair: Pair = @nonePair ?? @fallbackPair",
+      "const resolvedPairX: number = @resolvedPair.x",
+      "const resolvedNonePairX: number = @resolvedNonePair.x",
+      "const presentNumbers: number[]? = [1, 2]",
+      "const fallbackNumbers: number[] = [10, 20]",
+      "const resolvedNumbers: number[] = @presentNumbers ?? @fallbackNumbers",
+      "const noneNumbers: number[]? = none",
+      "const resolvedNoneNumbers: number[] = @noneNumbers ?? @fallbackNumbers",
+      "const resolvedNumber: number = @resolvedNumbers[0]",
+      "const resolvedNoneNumber: number = @resolvedNoneNumbers[0]"
+    ].join("\n"));
+    const options = optionsFor(fixture);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustOptions(repoRoot, fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+
+    const ts = evaluationPayloadToResult(tsPayload);
+    const rust = evaluationPayloadToResult(rustPayload);
+    for (const result of [ts, rust]) {
+      expect(result.errors).toEqual([]);
+      expect(result.computedGeometry.get(fixture.elements.find((element) => element.name === "selectedPresentPoint")!.id)).toMatchObject({
+        kind: "line",
+        start: { x: 1, y: 2 },
+        end: { x: 10, y: 20 }
+      });
+      expect(result.computedGeometry.get(fixture.elements.find((element) => element.name === "selectedNonePoint")!.id)).toMatchObject({
+        kind: "line",
+        start: { x: 10, y: 20 },
+        end: { x: 10, y: 20 }
+      });
+    }
+    expectScalarNumberClose(scalarBindingFor(fixture, tsPayload, "resolvedPairX"), 7);
+    expectScalarNumberClose(scalarBindingFor(fixture, rustPayload, "resolvedPairX"), 7);
+    expectScalarNumberClose(scalarBindingFor(fixture, tsPayload, "resolvedNonePairX"), 11);
+    expectScalarNumberClose(scalarBindingFor(fixture, rustPayload, "resolvedNonePairX"), 11);
+    expectScalarNumberClose(scalarBindingFor(fixture, tsPayload, "resolvedNumber"), 1);
+    expectScalarNumberClose(scalarBindingFor(fixture, rustPayload, "resolvedNumber"), 1);
+    expectScalarNumberClose(scalarBindingFor(fixture, tsPayload, "resolvedNoneNumber"), 10);
+    expectScalarNumberClose(scalarBindingFor(fixture, rustPayload, "resolvedNoneNumber"), 10);
+  }, 30000);
+
   it("matches generalized record geometry and collection projections across TypeScript and Rust", () => {
     const fixture = fixtureFromSource([
       "nui 1",

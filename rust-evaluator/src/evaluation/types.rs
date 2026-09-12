@@ -7,6 +7,7 @@ use super::scalars::TypedScalarExpression;
 
 #[derive(Debug)]
 pub(crate) enum GeometryInputCollectionNode {
+    None,
     Leaf {
         targets: Vec<GeometryInputTarget>,
     },
@@ -20,6 +21,10 @@ pub(crate) enum GeometryInputCollectionNode {
         scrutinee: TypedScalarExpression,
         source_order: f64,
         arms: Vec<(String, GeometryInputCollectionNode)>,
+    },
+    Coalesce {
+        left_branch: Box<GeometryInputCollectionNode>,
+        right_branch: Box<GeometryInputCollectionNode>,
     },
 }
 

@@ -80,11 +80,38 @@ export const createScalarProgramCollectionResolver = (
   if (!program.collectionValues?.length) return undefined;
   const valuesById = new Map(program.collectionValues.map((value) => [value.valueId, value] as const));
 
+  const presentFor = (collectionValueId: string, sourceOrder: number, seen: ReadonlySet<string> = new Set()): boolean | undefined => {
+    if (seen.has(collectionValueId)) return undefined;
+    const collection = valuesById.get(collectionValueId);
+    if (!collection) return undefined;
+    const nextSeen = new Set([...seen, collectionValueId]);
+    if (collection.kind === "none") return false;
+    if (collection.kind === "literal") return true;
+    if (collection.kind === "alias" || collection.kind === "map" || collection.kind === "recordMap" || collection.kind === "recordField") {
+      return presentFor(collection.kind === "alias" ? collection.targetValueId : collection.sourceValueId, sourceOrder, nextSeen);
+    }
+    if (collection.kind === "coalesce") {
+      const leftPresent = presentFor(collection.leftValueId, sourceOrder, nextSeen);
+      return leftPresent === true ? true : presentFor(collection.rightValueId, sourceOrder, nextSeen);
+    }
+    if (collection.kind === "if") {
+      const condition = evaluateTypedExpression(collection.condition, environmentFor(collection.sourceOrder));
+      if (condition.status !== "ok" || condition.value.kind !== "boolean") return undefined;
+      return presentFor(condition.value.value ? collection.thenValueId : collection.elseValueId, sourceOrder, nextSeen);
+    }
+    const scrutinee = evaluateTypedExpression(collection.scrutinee, environmentFor(collection.sourceOrder));
+    const scrutineeValue = scrutinee.status === "ok" ? scrutinee.value : null;
+    if (scrutineeValue === null || scrutineeValue.kind !== "choice") return undefined;
+    const arm = collection.arms.find((candidate) => candidate.label === scrutineeValue.value);
+    return arm ? presentFor(arm.valueId, sourceOrder, nextSeen) : undefined;
+  };
+
   const lengthFor = (collectionValueId: string, sourceOrder: number, seen: ReadonlySet<string> = new Set()): number | undefined => {
     if (seen.has(collectionValueId)) return undefined;
     const collection = valuesById.get(collectionValueId);
     if (!collection) return undefined;
     const nextSeen = new Set([...seen, collectionValueId]);
+    if (collection.kind === "none") return undefined;
     if (collection.kind === "literal") return collection.members.length;
     if (collection.kind === "alias" || collection.kind === "map" || collection.kind === "recordMap" || collection.kind === "recordField") {
       return lengthFor(collection.kind === "alias" ? collection.targetValueId : collection.sourceValueId, sourceOrder, nextSeen);
@@ -94,6 +121,14 @@ export const createScalarProgramCollectionResolver = (
       const condition = evaluateTypedExpression(collection.condition, environment);
       if (condition.status !== "ok" || condition.value.kind !== "boolean") return undefined;
       return lengthFor(condition.value.value ? collection.thenValueId : collection.elseValueId, sourceOrder, nextSeen);
+    }
+    if (collection.kind === "coalesce") {
+      const leftPresent = presentFor(collection.leftValueId, sourceOrder, nextSeen);
+      return leftPresent === true
+        ? lengthFor(collection.leftValueId, sourceOrder, nextSeen)
+        : leftPresent === false
+          ? lengthFor(collection.rightValueId, sourceOrder, nextSeen)
+          : undefined;
     }
     const environment = environmentFor(collection.sourceOrder);
     const scrutinee = evaluateTypedExpression(collection.scrutinee, environment);
@@ -114,6 +149,7 @@ export const createScalarProgramCollectionResolver = (
     const collection = valuesById.get(collectionValueId);
     if (!collection) return { status: "error", type: field.type, issueCode: "evaluation-collection-index-unavailable" };
     const nextSeen = new Set([...seen, collectionValueId]);
+    if (collection.kind === "none") return { status: "error", type: field.type, issueCode: "evaluation-collection-index-unavailable" };
     if (collection.kind === "alias") return recordFieldFor(collection.targetValueId, index, field, sourceOrder, nextSeen);
     if (collection.kind === "if") {
       const condition = evaluateTypedExpression(collection.condition, environmentFor(collection.sourceOrder));
@@ -126,6 +162,14 @@ export const createScalarProgramCollectionResolver = (
       if (scrutineeValue === null || scrutineeValue.kind !== "choice") return { status: "error", type: field.type, issueCode: scrutinee.status === "error" ? scrutinee.issueCode : "evaluation-runtime-value-type-mismatch" };
       const arm = collection.arms.find((candidate) => candidate.label === scrutineeValue.value);
       return arm ? recordFieldFor(arm.valueId, index, field, sourceOrder, nextSeen) : { status: "error", type: field.type, issueCode: "evaluation-runtime-value-type-mismatch" };
+    }
+    if (collection.kind === "coalesce") {
+      const leftPresent = presentFor(collection.leftValueId, sourceOrder, nextSeen);
+      return leftPresent === true
+        ? recordFieldFor(collection.leftValueId, index, field, sourceOrder, nextSeen)
+        : leftPresent === false
+          ? recordFieldFor(collection.rightValueId, index, field, sourceOrder, nextSeen)
+          : { status: "error", type: field.type, issueCode: "evaluation-collection-index-unavailable" };
     }
     if (collection.kind === "recordField") return recordFieldFor(collection.sourceValueId, index, collection.field, sourceOrder, nextSeen);
     if (collection.kind === "recordMap") {
@@ -176,6 +220,7 @@ export const createScalarProgramCollectionResolver = (
     const collection = valuesById.get(collectionValueId);
     if (!collection) return { status: "error", type: elementType, issueCode: "evaluation-collection-index-unavailable" };
     const nextSeen = new Set([...seen, collectionValueId]);
+    if (collection.kind === "none") return { status: "error", type: elementType, issueCode: "evaluation-collection-index-unavailable" };
     if (collection.kind === "alias") return indexFor(collection.targetValueId, index, elementType, collectionLength, targetSourceOrder, sourceOrder, nextSeen);
     if (collection.kind === "if") {
       const condition = evaluateTypedExpression(collection.condition, environmentFor(collection.sourceOrder));
@@ -192,6 +237,14 @@ export const createScalarProgramCollectionResolver = (
       return arm
         ? indexFor(arm.valueId, index, elementType, collectionLength, targetSourceOrder, sourceOrder, nextSeen)
         : { status: "error", type: elementType, issueCode: "evaluation-runtime-value-type-mismatch" };
+    }
+    if (collection.kind === "coalesce") {
+      const leftPresent = presentFor(collection.leftValueId, sourceOrder, nextSeen);
+      return leftPresent === true
+        ? indexFor(collection.leftValueId, index, elementType, collectionLength, targetSourceOrder, sourceOrder, nextSeen)
+        : leftPresent === false
+          ? indexFor(collection.rightValueId, index, elementType, collectionLength, targetSourceOrder, sourceOrder, nextSeen)
+          : { status: "error", type: elementType, issueCode: "evaluation-collection-index-unavailable" };
     }
     if (collection.kind === "map") {
       const source = indexFor(collection.sourceValueId, index, collection.sourceElementType, null, -1, sourceOrder, nextSeen);
