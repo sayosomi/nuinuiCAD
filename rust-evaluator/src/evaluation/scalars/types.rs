@@ -116,7 +116,7 @@ pub(crate) enum ScalarExpressionResolvedOptionalMemberTarget {
     },
     GeometryProperty {
         reference: ScalarExpressionResolvedGeometryProperty,
-        receiver: ScalarExpressionOptionalMemberReceiver,
+        receiver: Box<ScalarExpressionOptionalMemberReceiver>,
     },
 }
 

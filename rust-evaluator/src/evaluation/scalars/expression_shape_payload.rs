@@ -959,7 +959,7 @@ fn decode_optional_member_target(
                         "reference",
                         "optional geometry-property target",
                     )?)?,
-                    receiver,
+                    receiver: Box::new(receiver),
                 },
             )
         }

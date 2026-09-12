@@ -459,7 +459,7 @@ pub(crate) fn lookup_optional_geometry_property(
             context: None,
         };
     };
-    let receiver_present = match receiver {
+    let receiver_present = match receiver.as_ref() {
         ScalarExpressionOptionalMemberReceiver::Collection {
             collection_value_id,
             ..
