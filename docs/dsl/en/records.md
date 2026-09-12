@@ -17,8 +17,9 @@ Record constructors are named-only. Every declared field must be supplied
 exactly once, with the declared type. Fields may be scalar or `choice(...)`,
 `point`, `line`, `path`, a supported one-dimensional collection such as
 `number[]`, `point[]`, or `Metadata[]`, or another named record type. Collection
-element types cannot themselves be arrays. Optional fields, omitted fields,
-and field defaults are not supported. A record definition's name is its type
+element types cannot themselves be arrays. Optional field omission,
+field-specific presence semantics, and field defaults are not supported. A
+record definition's name is its type
 identity: two definitions with the same fields are still different types, and
 definitions are not hoisted.
 
@@ -103,7 +104,7 @@ analyzer. Both record branches are resolved and typechecked, while runtime
 evaluates the condition or scrutinee first and evaluates only the selected
 record leaf. Record leaves may be constructors, whole-record references, or
 supported statically indexed members of a nominal record collection. Collection
-values and optional values are not introduced by these forms.
+values and optional-match binder semantics are not introduced by these forms.
 
 ## Collection value-for
 

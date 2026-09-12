@@ -25,7 +25,7 @@ import { resolveGeometryPropertyMetadata } from "./typedGeometryPropertyResoluti
 import { findParameterDefinition, scalarTypeForParameterDefinition } from "../parameters/parameterDefinitions";
 import { createElementNameContext } from "../model/elementNames";
 import { parseDslReferenceToken } from "../dsl/dslReferenceTokens";
-import { isDslScalarValueType, scalarTypeOfDslValueType } from "../dsl/dslValueTypes";
+import { scalarExpressionTypeOfDslValueType } from "../dsl/dslValueTypes";
 import { scanExpressionReferences } from "../dsl/expressionReferenceToken";
 import {
   resolveSourceLexicalPath,
@@ -115,6 +115,7 @@ export const containsNonNumericScalarSyntax = (ast: ScalarExpressionAst): boolea
   switch (ast.kind) {
     case "booleanLiteral":
     case "stringLiteral":
+    case "noneLiteral":
     case "unresolvedChoiceLiteral":
       return true;
     case "unary":
@@ -277,7 +278,7 @@ const sourceNamespaceBindingResolverFor = (
       lookup.declaration.kind === "typedDeclaration" &&
       typedStatementIndexes.has(lookup.declaration.statementIndex) &&
       lookup.declaration.statement.kind === "typedDeclaration" &&
-      isDslScalarValueType(lookup.declaration.statement.valueType)
+      scalarExpressionTypeOfDslValueType(lookup.declaration.statement.valueType) !== null
     ) {
       const bindingId = bindingIdForStableStatementId(lookup.declaration.statementId);
       return { kind: "resolved", bindingId };
@@ -304,7 +305,7 @@ const sourceNamespaceBindingResolverFor = (
       declaration.kind === "typedDeclaration" &&
       typedStatementIndexes.has(declaration.statementIndex) &&
       declaration.statement.kind === "typedDeclaration" &&
-      isDslScalarValueType(declaration.statement.valueType)
+      scalarExpressionTypeOfDslValueType(declaration.statement.valueType) !== null
     )
   ) return null;
   return { kind: "blocked", reason: lookup.kind };
@@ -553,7 +554,7 @@ export const analyzeTypedDeclarations = ({
   const adapter = buildDslBindingAdapterSeeds({ statements, scopeIndex, stableStatementIdByIndex, reconciledContainers });
   const scalarTypedStatementIndexes = new Set(
     typedStatements
-      .filter(({ statement }) => isDslScalarValueType(statement.valueType))
+      .filter(({ statement }) => scalarExpressionTypeOfDslValueType(statement.valueType) !== null)
       .map(({ statementIndex }) => statementIndex)
   );
   const catalog = buildBindingCatalog({
@@ -572,7 +573,7 @@ export const analyzeTypedDeclarations = ({
   const analyzesInitializer = (bindingId: BindingId, resolutionMode: string | undefined) =>
     resolutionMode !== "preResolvedOnly" || additionalInitializerByBindingId.has(bindingId);
   const isScalarTypedBinding = (binding: Binding): boolean =>
-    binding.kind === "typed" && scalarTypeOfDslValueType(binding.declaredType) !== null;
+    binding.kind === "typed" && scalarExpressionTypeOfDslValueType(binding.declaredType) !== null;
 
   const parsedByBindingId = new Map<BindingId, ParsedInitializer>();
   const diagnostics: DslDiagnostic[] = [];
@@ -810,7 +811,7 @@ export const analyzeTypedDeclarations = ({
       }
     );
     const checked = typecheckScalarExpression(prepared?.ast ?? parsed.ast, {
-      expectedType: additional?.expectedType ?? scalarTypeOfDslValueType(binding.declaredType),
+      expectedType: additional?.expectedType ?? scalarExpressionTypeOfDslValueType(binding.declaredType),
       references: prepared?.references ?? referenceResolutionsForAst(
         parsed.ast,
         collectionIndexResolutionByBindingId.get(binding.id) ?? new Map(),

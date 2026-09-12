@@ -185,6 +185,7 @@ fn validate_typed_expression_runtime_targets(
             TypedScalarExpression::NumberLiteral { .. }
             | TypedScalarExpression::StringLiteral { .. }
             | TypedScalarExpression::BooleanLiteral { .. }
+            | TypedScalarExpression::NoneLiteral { .. }
             | TypedScalarExpression::ChoiceLiteral { .. } => {}
         }
     }

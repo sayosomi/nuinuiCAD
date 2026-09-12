@@ -67,6 +67,7 @@ fn root_type(expression: &TypedScalarExpression) -> Option<ScalarType> {
         TypedScalarExpression::NumberLiteral { r#type, .. } => Some(r#type.clone()),
         TypedScalarExpression::StringLiteral { r#type, .. } => Some(r#type.clone()),
         TypedScalarExpression::BooleanLiteral { r#type, .. } => Some(r#type.clone()),
+        TypedScalarExpression::NoneLiteral { r#type, .. } => Some(r#type.clone()),
         TypedScalarExpression::ChoiceLiteral { r#type, .. } => r#type.clone(),
         TypedScalarExpression::Reference { r#type, .. } => r#type.clone(),
         TypedScalarExpression::CollectionIndex { r#type, .. } => r#type.clone(),
@@ -130,6 +131,7 @@ fn requires_scalar_runtime(expression: &TypedScalarExpression) -> bool {
             TypedScalarExpression::NumberLiteral { .. }
             | TypedScalarExpression::StringLiteral { .. }
             | TypedScalarExpression::BooleanLiteral { .. }
+            | TypedScalarExpression::NoneLiteral { .. }
             | TypedScalarExpression::ChoiceLiteral { .. }
             | TypedScalarExpression::Reference { .. }
             | TypedScalarExpression::GeometryProperty { .. } => {}

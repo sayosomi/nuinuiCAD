@@ -89,6 +89,7 @@ fn expression_type(expression: &TypedScalarExpression) -> Option<&ScalarType> {
         TypedScalarExpression::NumberLiteral { r#type, .. }
         | TypedScalarExpression::StringLiteral { r#type, .. }
         | TypedScalarExpression::BooleanLiteral { r#type, .. }
+        | TypedScalarExpression::NoneLiteral { r#type, .. }
         | TypedScalarExpression::GeometryProperty { r#type, .. } => Some(r#type),
         TypedScalarExpression::ChoiceLiteral { r#type, .. }
         | TypedScalarExpression::Reference { r#type, .. }

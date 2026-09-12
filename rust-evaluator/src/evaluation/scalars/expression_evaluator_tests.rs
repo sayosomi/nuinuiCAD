@@ -32,10 +32,11 @@ const FIXTURE_JSON: &str = include_str!(concat!(
     "/../test/fixtures/typed-expressions.json"
 ));
 
-const AST_NODE_KINDS: [&str; 11] = [
+const AST_NODE_KINDS: [&str; 12] = [
     "numberLiteral",
     "stringLiteral",
     "booleanLiteral",
+    "noneLiteral",
     "choiceLiteral",
     "reference",
     "unary",
@@ -189,6 +190,27 @@ fn boolean_literal(value: bool) -> TypedScalarExpression {
     }
 }
 
+fn none_literal(r#type: ScalarType) -> TypedScalarExpression {
+    TypedScalarExpression::NoneLiteral {
+        span: span(),
+        r#type,
+    }
+}
+
+fn coalesce(
+    left: TypedScalarExpression,
+    right: TypedScalarExpression,
+    r#type: ScalarType,
+) -> TypedScalarExpression {
+    TypedScalarExpression::Binary {
+        span: span(),
+        operator: ScalarBinaryOperator::Coalesce,
+        left: Box::new(left),
+        right: Box::new(right),
+        r#type: Some(r#type),
+    }
+}
+
 fn value_if(
     condition: bool,
     then_branch: TypedScalarExpression,
@@ -275,6 +297,78 @@ impl ScalarEvaluationEnvironment for PanicEnvironment {
     fn lookup_binding(&self, binding_id: &str) -> ScalarEvaluation {
         panic!("must not look up {binding_id} - short-circuit tripwire");
     }
+}
+
+struct CountingEnvironment {
+    calls: RefCell<usize>,
+}
+
+impl ScalarEvaluationEnvironment for CountingEnvironment {
+    fn lookup_binding(&self, _binding_id: &str) -> ScalarEvaluation {
+        *self.calls.borrow_mut() += 1;
+        ScalarEvaluation::Ok {
+            r#type: ScalarType::Number,
+            value: ScalarValue::Number(9.0),
+        }
+    }
+}
+
+#[test]
+fn coalesce_returns_present_value_without_evaluating_its_rhs() {
+    let optional_number = ScalarType::Optional {
+        value_type: Box::new(ScalarType::Number),
+    };
+    let node = coalesce(
+        reference("value", "binding:value", optional_number.clone()),
+        reference("rhs", "binding:rhs", ScalarType::Number),
+        ScalarType::Number,
+    );
+    struct PresentEnvironment;
+    impl ScalarEvaluationEnvironment for PresentEnvironment {
+        fn lookup_binding(&self, binding_id: &str) -> ScalarEvaluation {
+            assert_eq!(binding_id, "binding:value");
+            ScalarEvaluation::Ok {
+                r#type: optional_number_type(),
+                value: ScalarValue::Number(7.0),
+            }
+        }
+    }
+    fn optional_number_type() -> ScalarType {
+        ScalarType::Optional {
+            value_type: Box::new(ScalarType::Number),
+        }
+    }
+
+    assert_eq!(
+        evaluate_typed_expression(&node, &PresentEnvironment),
+        ScalarEvaluation::Ok {
+            r#type: ScalarType::Number,
+            value: ScalarValue::Number(7.0),
+        }
+    );
+}
+
+#[test]
+fn coalesce_evaluates_rhs_only_for_none() {
+    let optional_number = ScalarType::Optional {
+        value_type: Box::new(ScalarType::Number),
+    };
+    let node = coalesce(
+        none_literal(optional_number),
+        reference("rhs", "binding:rhs", ScalarType::Number),
+        ScalarType::Number,
+    );
+    let environment = CountingEnvironment {
+        calls: RefCell::new(0),
+    };
+    assert_eq!(
+        evaluate_typed_expression(&node, &environment),
+        ScalarEvaluation::Ok {
+            r#type: ScalarType::Number,
+            value: ScalarValue::Number(9.0),
+        }
+    );
+    assert_eq!(*environment.calls.borrow(), 1);
 }
 
 #[test]

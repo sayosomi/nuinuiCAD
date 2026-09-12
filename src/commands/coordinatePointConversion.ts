@@ -159,6 +159,8 @@ const constantNumericAst = (ast: ScalarExpressionAst): boolean => {
   switch (ast.kind) {
     case "numberLiteral":
       return true;
+    case "noneLiteral":
+      return false;
     case "unary":
       return (ast.operator === "+" || ast.operator === "-") && constantNumericAst(ast.operand);
     case "binary":

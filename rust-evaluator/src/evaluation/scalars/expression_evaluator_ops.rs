@@ -644,6 +644,62 @@ pub(crate) fn finish_logical_right(r#type: ScalarType, output: &mut Vec<ScalarEv
     });
 }
 
+/// `??` evaluates its right child only after the left result is confirmed to
+/// be the canonical `None` value. A present optional value is unwrapped at
+/// this boundary and returned with the non-optional result type.
+pub(crate) fn continue_coalesce<'a>(
+    r#type: ScalarType,
+    right: &'a TypedScalarExpression,
+    work: &mut Vec<EvalWork<'a>>,
+    output: &mut Vec<ScalarEvaluation>,
+) {
+    let left = output
+        .pop()
+        .expect("coalesce left must already be resolved (post-order evaluation invariant)");
+    let ScalarEvaluation::Ok {
+        r#type: left_type,
+        value,
+    } = left
+    else {
+        output.push(propagate_error(r#type, left));
+        return;
+    };
+    let expected_type = ScalarType::Optional {
+        value_type: Box::new(r#type.clone()),
+    };
+    if left_type != expected_type || !scalar_value_matches_type(&expected_type, &value) {
+        output.push(runtime_value_type_mismatch(r#type));
+        return;
+    }
+    if !matches!(value, ScalarValue::None) {
+        output.push(ScalarEvaluation::Ok { r#type, value });
+        return;
+    }
+    work.push(EvalWork::FinishCoalesce {
+        r#type: r#type.clone(),
+    });
+    work.push(EvalWork::Eval(right));
+}
+
+pub(crate) fn finish_coalesce(r#type: ScalarType, output: &mut Vec<ScalarEvaluation>) {
+    let right = output
+        .pop()
+        .expect("coalesce right must already be resolved (post-order evaluation invariant)");
+    let ScalarEvaluation::Ok {
+        r#type: right_type,
+        value,
+    } = right
+    else {
+        output.push(propagate_error(r#type, right));
+        return;
+    };
+    if right_type == r#type && scalar_value_matches_type(&r#type, &value) {
+        output.push(ScalarEvaluation::Ok { r#type, value });
+    } else {
+        output.push(runtime_value_type_mismatch(r#type));
+    }
+}
+
 /// Combines the two already-resolved, unconditionally-evaluated operands of
 /// every non-short-circuiting binary operator (`==`/`!=` and the 8
 /// arithmetic/comparison operators). Pops `right` then `left` (`right` was
@@ -756,6 +812,9 @@ pub(crate) fn finish_eager_binary(
         }
         ScalarBinaryOperator::Or | ScalarBinaryOperator::And => {
             unreachable!("Or/And never reach finish_eager_binary")
+        }
+        ScalarBinaryOperator::Coalesce => {
+            unreachable!("Coalesce never reaches finish_eager_binary")
         }
     };
     output.push(result);

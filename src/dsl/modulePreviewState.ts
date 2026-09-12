@@ -216,6 +216,7 @@ const scalarLiteralForEvaluation = (evaluation: ScalarEvaluation): string | null
     case "string": return stringLiteralForExpression(value.value);
     case "boolean": return value.value ? "true" : "false";
     case "choice": return choiceLiteralForExpression(value.value);
+    case "none": return "none";
   }
 };
 

@@ -354,6 +354,20 @@ Every expression has a static and runtime type. nui1 has these scalar types:
 - `boolean`
 - `choice(...)`
 
+Every immutable value type `T` also has one canonical optional form, `T?`.
+An optional value is either a value of `T` or the absence value `none`; the
+optional wrapper is part of the value type and is not Module-specific metadata.
+The underlying type is established by the expected type, so `none` is legal in
+`const note: string? = none` but is an error in `const x: number = none`.
+`none` is reserved and cannot be authored as a `choice(...)` option. Repeated
+optional suffixes such as `T??` are invalid. A `T` is assignable to `T?`, but a
+`T?` is never implicitly assignable to `T`.
+
+Optionality composes with the existing one-dimensional collection form without
+creating nested arrays: `T?[]` is a collection whose members are optional `T?`
+values, while `T[]?` is one optional collection value. The same assignability
+rule applies to scalar, geometry, nominal-record, and collection value types.
+
 The initial geometry interface types are `point`, `line`, and `path` (see
 [Geometry types](#geometry-types)). There is no implicit type conversion. A
 number is not silently converted to a string or boolean, a choice is not silently
@@ -382,6 +396,7 @@ The formal operator set is:
 ```text
 +  -  *  /  %  ^
 <  <=  >  >=  ==  !=
+??
 and
 or
 not
@@ -403,6 +418,10 @@ The constraints are:
   `boolean`; there is no coercive equality.
 - `and` and `or` require `boolean` operands and produce `boolean`.
 - `not` requires a `boolean` operand and produces `boolean`.
+- `lhs ?? rhs` requires `lhs` to have type `T?`, evaluates `rhs` only when
+  `lhs` is `none`, and produces the non-optional type `T`. The right side must
+  be assignable to `T`; a present left value is returned without evaluating the
+  right side.
 - Division by zero and other invalid runtime operations are explicit evaluation
   diagnostics. `5 % 0` produces `evaluation-remainder-by-zero`. A non-finite
   power result such as `(-1) ^ 0.5`, `0 ^ -1`, or `10 ^ 10000` produces
@@ -426,8 +445,8 @@ a record collection. A collection-valued conditional must have the same
 declared one-dimensional collection type in both branches; each branch is
 recursively resolved as a collection expression. Both branches are resolved
 and checked at compile time, but runtime evaluates the condition before
-evaluating only the selected branch. Optional result values are not part of
-nui1.
+evaluating only the selected branch. Optional-match binder semantics and an
+implicit optional result branch remain outside this slice.
 
 A scalar, geometry, or nominal-record value expression may use the following exhaustive
 choice-match form:
@@ -453,7 +472,8 @@ indexed member of a record collection. Collection results must share the
 declared one-dimensional collection type, and each arm is recursively resolved
 as a collection expression. At runtime the scrutinee is evaluated first and
 only the arm whose label equals the selected choice value is evaluated.
-Optional `none`/`some` values remain outside this slice.
+Optional `none`/`some` match-binder semantics remain outside this slice. The
+standalone `none` literal is available only in an expected optional value type.
 
 Named scalar function calls use the following syntax:
 
@@ -618,11 +638,14 @@ record Pair(
 Record fields are required and named. Each field uses the shared immutable value
 type vocabulary: scalar types (`number`, `string`, `boolean`, and
 `choice(...)`), `point`, `line`, `path`, a supported one-dimensional `T[]`
-collection whose element type is not an array, or another named record type.
+collection whose element type is not an array, one optional wrapper around any
+of those, or another named record type.
 Record type identity is the identity of the record definition statement; two
 definitions with the same field names and types are still different types.
-Definitions and values obey the normal non-hoisted source order. Nested arrays,
-field defaults, and optional fields are not part of nui1 v1.
+Definitions and values obey the normal non-hoisted source order. Nested arrays
+and field defaults are not part of nui1 v1. Optional field omission and
+field-specific presence/default semantics remain deferred; the generic `T?`
+value type and `none` rules above are nevertheless the shared foundation.
 
 A record value is declared with `const` and either a named-field constructor or
 a whole-record reference:
@@ -1065,6 +1088,11 @@ omitted scalar has no eager initializer or binding. Required, defaulted, and
 optional parameters retain their source-order slots; named instance arguments
 may be written in any order.
 
+The existing Module `name?: type` and `hasValue(...)` model remains a separate
+intermediate feature in this slice. This slice does not migrate Module
+parameters to the generic `name: type?` spelling or change their omission
+semantics.
+
 Only non-optional scalar parameters may have defaults. A scalar default may
 reference only earlier parameters in the same signature, and an optional
 parameter cannot be read directly from a default. `hasValue(@parameter)` is
@@ -1461,6 +1489,11 @@ Literal scales must be finite and positive. Literal angles are normalized to
 
 ## Choice literals and arrays
 
+`none` is the one reserved absence literal. It is type-directed and is accepted
+only where an expected optional type establishes its underlying value type; it
+does not have an unrelated scalar or choice type. Consequently, `none` cannot
+be a `choice(...)` option.
+
 Bare identifiers such as `left`, `right`, `visible`, `hidden`, and `disabled`
 are choice literals when the surrounding typed position expects the
 corresponding `choice(...)` type. They are not references. The builtin numeric
@@ -1474,6 +1507,11 @@ The element type `T` may be any currently valid non-array value type:
 already-valid nominal record type. Named arrays are `const` only, and the
 declaration type annotation is mandatory. Nested arrays such as `T[][]` are
 rejected; the type model is intentionally one-dimensional.
+
+Optional suffixes compose with collections by precedence: `T?[]` means each
+member has optional type `T?`, whereas `T[]?` means the whole `T[]` value is
+optional. `T??` is rejected. These forms use the same canonical assignability
+rule as their scalar, geometry, and nominal-record counterparts.
 
 ```text
 const points: point[] = [@A, @B]
@@ -1545,7 +1583,7 @@ at the consuming geometry operation. Nominal-record value-producing collection
 result element types must be exact nominal record identities; the body is a
 record value expression checked against the result identity, and a requested
 record member evaluates only the corresponding scalar field body. This does
-not change optional-value semantics or add `none`/`some` values.
+not add optional-match binder semantics or implicit optional result branches.
 
 For example:
 

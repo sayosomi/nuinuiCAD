@@ -12,7 +12,7 @@ import {
   type DslRecordParseResult
 } from "./dslRecordParser";
 import { annotateGeometryArraySourceTypes } from "./geometryArraySourceAnnotations";
-import { nominalRecordTypeOfDslValueType } from "./dslValueTypes";
+import { dslRequiredValueTypeOf, nominalRecordTypeOfDslValueType } from "./dslValueTypes";
 import * as core from "./dslParserCore";
 
 export {
@@ -176,7 +176,7 @@ const unknownRecordTypeDiagnostics = (
 
   for (const statement of base.statements) {
     const recordType = statement.kind === "typedDeclaration"
-      ? nominalRecordTypeOfDslValueType(statement.valueType)
+      ? nominalRecordTypeOfDslValueType(dslRequiredValueTypeOf(statement.valueType))
       : null;
     if (recordType) {
       const span = statement.payloadSpans.type;

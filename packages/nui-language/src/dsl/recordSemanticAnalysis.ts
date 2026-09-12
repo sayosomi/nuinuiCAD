@@ -6,7 +6,7 @@ import type { SourceLexicalLookup } from "./sourceLexicalNamespaceIndex";
 import { isBareDslIdentifierChar } from "./dslTokens";
 import type { ScalarExpressionAst } from "../scalars/expressionAst";
 import type { DslValueType } from "./dslValueTypes";
-import { isDslArrayValueType, nominalRecordTypeOfDslValueType } from "./dslValueTypes";
+import { dslCoalesceResultType, dslRequiredValueTypeOf, isDslArrayValueType, nominalRecordTypeOfDslValueType } from "./dslValueTypes";
 import { parseScalarExpression } from "../scalars/expressionParser";
 
 export type RecordTypeIdentity = string;
@@ -81,6 +81,7 @@ export type RecordValueReferenceSemantic = {
   name: string;
   span: DslSpan;
   targetTypeIdentity: RecordTypeIdentity | null;
+  valueType?: DslValueType;
 };
 
 /** Record-valued control flow keeps its scalar condition/scrutinee AST, while
@@ -90,16 +91,31 @@ export type RecordValueExpressionSemantic =
       kind: "constructor";
       span: DslSpan;
       constructor: RecordConstructorSemantic;
+      valueType?: DslValueType;
     }
   | {
       kind: "reference";
       span: DslSpan;
       reference: RecordValueReferenceSemantic;
+      valueType?: DslValueType;
+    }
+  | {
+      kind: "none";
+      span: DslSpan;
+      valueType?: DslValueType;
+    }
+  | {
+      kind: "coalesce";
+      span: DslSpan;
+      left: RecordValueExpressionSemantic | null;
+      right: RecordValueExpressionSemantic | null;
+      valueType?: DslValueType;
     }
   | {
       kind: "collectionIndex";
       span: DslSpan;
       expression: Extract<ScalarExpressionAst, { kind: "collectionIndex" }>;
+      valueType?: DslValueType;
   }
   | {
       kind: "if";
@@ -107,6 +123,7 @@ export type RecordValueExpressionSemantic =
       condition: ScalarExpressionAst;
       thenBranch: RecordValueExpressionSemantic | null;
       elseBranch: RecordValueExpressionSemantic | null;
+      valueType?: DslValueType;
   }
   | {
       kind: "match";
@@ -117,6 +134,7 @@ export type RecordValueExpressionSemantic =
         labelSpan: DslSpan;
         expression: RecordValueExpressionSemantic | null;
       }[];
+      valueType?: DslValueType;
     };
 
 export type RecordValueSemantic = {
@@ -128,6 +146,7 @@ export type RecordValueSemantic = {
   constructor: RecordConstructorSemantic | null;
   reference: RecordValueReferenceSemantic | null;
   valueExpression: RecordValueExpressionSemantic | null;
+  declaredValueType?: DslValueType;
 };
 
 export type RecordModuleParameterSemantic = {
@@ -454,6 +473,7 @@ const analyzeRecordValueLeaf = ({
     }
     const name = parsedReference.reference.pathText;
     let targetTypeIdentity: RecordTypeIdentity | null = null;
+    let targetValueType: DslValueType | undefined;
     const lookup = parsedReference.reference.path.segments.length === 1
       ? input.resolveDeclaration(statementIndex, name)
       : null;
@@ -468,7 +488,9 @@ const analyzeRecordValueLeaf = ({
         );
     if (lookup !== null && lookup.kind === "resolved") {
       if (lookup.declaration.kind === "recordValue") {
-        targetTypeIdentity = valuesByStatementIndex.get(lookup.declaration.statementIndex)?.typeIdentity ?? null;
+        const target = valuesByStatementIndex.get(lookup.declaration.statementIndex);
+        targetTypeIdentity = target?.typeIdentity ?? null;
+        targetValueType = target?.declaredValueType;
       } else {
         diagnostics.push(diagnostic(statement, span, "record-reference-not-record", `参照「@${name}」は利用可能な record 値または record Module parameter ではありません。`, { name }));
       }
@@ -486,7 +508,7 @@ const analyzeRecordValueLeaf = ({
     }
     return {
       constructor: null,
-      reference: { name, span, targetTypeIdentity },
+      reference: { name, span, targetTypeIdentity, ...(targetValueType ? { valueType: targetValueType } : {}) },
       collectionIndex: null
     };
   }
@@ -668,7 +690,7 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
 
   for (const [statementIndex, statement] of statements.entries()) {
     const recordTypeReference = statement.kind === "typedDeclaration"
-      ? nominalRecordTypeOfDslValueType(statement.valueType)
+      ? nominalRecordTypeOfDslValueType(dslRequiredValueTypeOf(statement.valueType))
       : null;
     if (statement.kind !== "typedDeclaration" || !recordTypeReference) continue;
     const statementId = definitionIdAt(stableStatementIdByIndex, statementIndex, "record value");
@@ -693,7 +715,7 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
     if (initializerSpan) {
       const paddedInitializer = `${" ".repeat(initializerSpan.start)}${statement.initializer}`;
       const parsed = parseScalarExpression(paddedInitializer, initializerSpan);
-      const dynamicCandidate = /^(?:if\s*\(|match\b)/.test(statement.initializer.trim());
+      const dynamicCandidate = /^(?:if\s*\(|match\b|none\s*$)/.test(statement.initializer.trim()) || parsed.ast?.kind === "binary" && parsed.ast.operator === "??";
       if (dynamicCandidate) {
         for (const parseDiagnostic of parsed.diagnostics) {
           diagnostics.push(diagnostic(statement, parseDiagnostic.span, parseDiagnostic.code, parseDiagnostic.message));
@@ -721,6 +743,25 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
               }))
             };
           }
+          if (node.kind === "noneLiteral") {
+            return { kind: "none", span: node.span, ...(statement.valueType ? { valueType: statement.valueType } : {}) };
+          }
+          if (node.kind === "binary" && node.operator === "??") {
+            const left = parseExpression(node.left);
+            const right = parseExpression(node.right);
+            const resultType = dslCoalesceResultType(left?.valueType ?? (left?.kind === "reference" ? left.reference.valueType : undefined), right?.valueType ?? (right?.kind === "reference" ? right.reference.valueType : undefined));
+            if (!resultType) {
+              diagnostics.push(diagnostic(statement, node.span, "coalesce-type-mismatch", "?? の record operands は optional な同一 nominal record 型と、その underlying record 型である必要があります。"));
+              return null;
+            }
+            return {
+              kind: "coalesce",
+              span: node.span,
+              left,
+              right,
+              valueType: resultType
+            };
+          }
           const leaf = analyzeRecordValueLeaf({
             statements,
             stableStatementIdByIndex,
@@ -735,12 +776,12 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
             expectedTypeReference: typeReference,
             diagnostics
           });
-          if (leaf.collectionIndex) return { kind: "collectionIndex", span: node.span, expression: leaf.collectionIndex };
-          if (leaf.constructor) return { kind: "constructor", span: node.span, constructor: leaf.constructor };
-          if (leaf.reference) return { kind: "reference", span: node.span, reference: leaf.reference };
+          if (leaf.collectionIndex) return { kind: "collectionIndex", span: node.span, expression: leaf.collectionIndex, valueType: dslRequiredValueTypeOf(statement.valueType) ?? undefined };
+          if (leaf.constructor) return { kind: "constructor", span: node.span, constructor: leaf.constructor, valueType: dslRequiredValueTypeOf(statement.valueType) ?? undefined };
+          if (leaf.reference) return { kind: "reference", span: node.span, reference: leaf.reference, valueType: leaf.reference.valueType };
           return null;
         };
-        valueExpression = parsed.ast?.kind === "valueIf" || parsed.ast?.kind === "valueMatch"
+        valueExpression = parsed.ast?.kind === "valueIf" || parsed.ast?.kind === "valueMatch" || parsed.ast?.kind === "binary" && parsed.ast.operator === "??" || parsed.ast?.kind === "noneLiteral"
           ? parseExpression(parsed.ast)
           : null;
       } else {
@@ -775,7 +816,8 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
       typeIdentity: typeReference.typeIdentity,
       constructor,
       reference,
-      valueExpression
+      valueExpression,
+      ...(statement.valueType ? { declaredValueType: statement.valueType } : {})
     };
     valuesByStatementId.set(statementId, value);
     valuesByStatementIndex.set(statementIndex, value);

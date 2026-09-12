@@ -6,7 +6,8 @@ import type { ScalarSpan, ScalarUnaryOperator, ScalarBinaryOperator } from "./ex
 import type { BindingId } from "./bindingCatalog";
 import type { BindingResolution } from "./bindingResolution";
 import type { BuiltinFunctionName } from "./builtinFunctions";
-import type { ChoiceScalarType, ScalarType } from "./types";
+import type { ChoiceScalarType, ScalarExpressionType, ScalarType } from "./types";
+import type { DslOptionalValueType } from "../dsl/dslValueTypes";
 import type { ModuleGeometryInterfaceType } from "../dsl/moduleGeometryInterfaces";
 import type { ElementId } from "../types/geometry";
 import type { GeometryValueOccurrence } from "../types/geometry";
@@ -31,6 +32,12 @@ export interface TypedScalarBooleanLiteralNode {
   readonly span: ScalarSpan;
   readonly value: boolean;
   readonly type: Extract<ScalarType, { kind: "boolean" }>;
+}
+
+export interface TypedScalarNoneLiteralNode {
+  readonly kind: "noneLiteral";
+  readonly span: ScalarSpan;
+  readonly type: DslOptionalValueType | null;
 }
 
 /**
@@ -60,7 +67,7 @@ export interface TypedScalarReferenceNode {
   readonly nameSpan: ScalarSpan;
   readonly name: string;
   readonly bindingId: BindingId | null;
-  readonly type: ScalarType | null;
+  readonly type: ScalarExpressionType | null;
 }
 
 export type ScalarExpressionResolvedCollectionIndex = {
@@ -68,7 +75,7 @@ export type ScalarExpressionResolvedCollectionIndex = {
   readonly collectionValueId: string;
   readonly collectionLength: number | null;
   readonly targetSourceOrder: number;
-  readonly type: ScalarType | null;
+  readonly type: ScalarExpressionType | null;
 };
 
 export interface TypedScalarCollectionIndexNode {
@@ -80,7 +87,7 @@ export interface TypedScalarCollectionIndexNode {
   readonly collectionLength: number | null;
   readonly targetSourceOrder: number | null;
   readonly index: TypedScalarExpression;
-  readonly type: ScalarType | null;
+  readonly type: ScalarExpressionType | null;
 }
 
 /**
@@ -126,7 +133,7 @@ export type ScalarExpressionResolvedReference =
   | {
       readonly kind: "resolvedType";
       readonly bindingId: BindingId | null;
-      readonly type: ScalarType | null;
+      readonly type: ScalarExpressionType | null;
     }
   | {
       readonly kind: "resolvedGeometry";
@@ -193,7 +200,7 @@ export interface TypedScalarGeometryPropertyReferenceNode {
   readonly forGroupOccurrencePointKey?: string;
   readonly property: string;
   readonly targetSourceOrder: number | null;
-  readonly type: ScalarType | null;
+  readonly type: ScalarExpressionType | null;
 }
 
 export interface TypedScalarUnaryExpressionNode {
@@ -201,7 +208,7 @@ export interface TypedScalarUnaryExpressionNode {
   readonly span: ScalarSpan;
   readonly operator: ScalarUnaryOperator;
   readonly operand: TypedScalarExpression;
-  readonly type: ScalarType | null;
+  readonly type: ScalarExpressionType | null;
 }
 
 export interface TypedScalarBinaryExpressionNode {
@@ -210,7 +217,7 @@ export interface TypedScalarBinaryExpressionNode {
   readonly operator: ScalarBinaryOperator;
   readonly left: TypedScalarExpression;
   readonly right: TypedScalarExpression;
-  readonly type: ScalarType | null;
+  readonly type: ScalarExpressionType | null;
 }
 
 /** `span` includes both parenthesis characters (mirrors the source node). */
@@ -218,7 +225,7 @@ export interface TypedScalarGroupExpressionNode {
   readonly kind: "group";
   readonly span: ScalarSpan;
   readonly expression: TypedScalarExpression;
-  readonly type: ScalarType | null;
+  readonly type: ScalarExpressionType | null;
 }
 
 export type TypedScalarCallTarget = {
@@ -244,7 +251,7 @@ export interface TypedScalarCallExpressionNode {
   readonly name: string;
   readonly target: TypedScalarCallTarget | null;
   readonly args: readonly TypedBuiltinArgument[];
-  readonly type: ScalarType | null;
+  readonly type: ScalarExpressionType | null;
 }
 
 export interface TypedScalarValueIfExpressionNode {
@@ -253,7 +260,7 @@ export interface TypedScalarValueIfExpressionNode {
   readonly condition: TypedScalarExpression;
   readonly thenBranch: TypedScalarExpression;
   readonly elseBranch: TypedScalarExpression;
-  readonly type: ScalarType | null;
+  readonly type: ScalarExpressionType | null;
 }
 
 export interface TypedScalarValueMatchArmNode {
@@ -267,13 +274,14 @@ export interface TypedScalarValueMatchExpressionNode {
   readonly span: ScalarSpan;
   readonly scrutinee: TypedScalarExpression;
   readonly arms: readonly TypedScalarValueMatchArmNode[];
-  readonly type: ScalarType | null;
+  readonly type: ScalarExpressionType | null;
 }
 
 export type TypedScalarExpression =
   | TypedScalarNumberLiteralNode
   | TypedScalarStringLiteralNode
   | TypedScalarBooleanLiteralNode
+  | TypedScalarNoneLiteralNode
   | TypedScalarChoiceLiteralNode
   | TypedScalarReferenceNode
   | TypedScalarCollectionIndexNode
@@ -287,6 +295,9 @@ export type TypedScalarExpression =
 
 export type ScalarExpressionTypecheckIssueCode =
   | "scalar-type-mismatch"
+  | "none-requires-optional-type"
+  | "coalesce-left-not-optional"
+  | "coalesce-rhs-type-mismatch"
   | "non-choice-match-scrutinee"
   | "impossible-match-case"
   | "duplicate-match-case"
@@ -318,7 +329,7 @@ export interface ScalarExpressionTypecheckDiagnostic {
  * resolver itself.
  */
 export interface ScalarExpressionTypecheckContext {
-  readonly expectedType: ScalarType | null;
+  readonly expectedType: ScalarExpressionType | null;
   readonly references: readonly (BindingResolution | ScalarExpressionResolvedReference)[];
   /** Narrow sidecar for geometryProperty nodes used as point builtin
    * operands. It is keyed by the parser-owned node span and never enters the
@@ -332,7 +343,7 @@ export interface ScalarExpressionTypecheckContext {
    * local semantic values (for example a legacy Module iteration value). */
   readonly resolveChoiceLiteral?: (
     raw: string,
-    expectedType: ScalarType | null,
+    expectedType: ScalarExpressionType | null,
     span: ScalarSpan
   ) => ScalarType | null | undefined;
 }
@@ -349,5 +360,5 @@ export interface ScalarExpressionTypecheckContext {
 export interface ScalarExpressionTypecheckResult {
   readonly typed: TypedScalarExpression;
   readonly diagnostics: readonly ScalarExpressionTypecheckDiagnostic[];
-  readonly type: ScalarType | null;
+  readonly type: ScalarExpressionType | null;
 }

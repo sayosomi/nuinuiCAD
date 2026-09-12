@@ -38,7 +38,7 @@
 use serde_json::Value;
 
 use super::expression_leaf_payload::{
-    decode_boolean_literal, decode_choice_literal, decode_geometry_property,
+    decode_boolean_literal, decode_choice_literal, decode_geometry_property, decode_none_literal,
     decode_nullable_scalar_type, decode_number_literal, decode_reference, decode_span,
     decode_string_literal,
 };
@@ -282,6 +282,7 @@ fn visit_node<'a>(
         "numberLiteral" => output.push(decode_number_literal(object)?),
         "stringLiteral" => output.push(decode_string_literal(object)?),
         "booleanLiteral" => output.push(decode_boolean_literal(object)?),
+        "noneLiteral" => output.push(decode_none_literal(object)?),
         "choiceLiteral" => output.push(decode_choice_literal(object)?),
         "reference" => output.push(decode_reference(object)?),
         "collectionIndex" => {

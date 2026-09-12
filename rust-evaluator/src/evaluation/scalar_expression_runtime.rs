@@ -197,6 +197,7 @@ fn geometry_collection_length_for_node(
     state: &EvaluationState,
 ) -> Option<f64> {
     match node {
+        GeometryInputCollectionNode::None => None,
         GeometryInputCollectionNode::Leaf { targets } => Some(targets.len() as f64),
         GeometryInputCollectionNode::If {
             condition,
@@ -237,6 +238,11 @@ fn geometry_collection_length_for_node(
                     geometry_collection_length_for_node(branch, resolver, state)
                 })
         }
+        GeometryInputCollectionNode::Coalesce {
+            left_branch,
+            right_branch,
+        } => geometry_collection_length_for_node(left_branch, resolver, state)
+            .or_else(|| geometry_collection_length_for_node(right_branch, resolver, state)),
     }
 }
 
@@ -418,7 +424,9 @@ pub(crate) fn lookup_geometry_property(
                 unavailable_geometry_property(property_type)
             }
         }
-        ScalarType::String | ScalarType::Boolean => unavailable_geometry_property(property_type),
+        ScalarType::String | ScalarType::Boolean | ScalarType::Optional { .. } => {
+            unavailable_geometry_property(property_type)
+        }
     }
 }
 

@@ -354,6 +354,12 @@ export const createModuleSemanticRangeIndex = (compiled: CompiledDslDocument): M
       if (expression.elseBranch) addRecordValueExpression(statementIndex, expression.elseBranch);
       return;
     }
+    if (expression.kind === "none") return;
+    if (expression.kind === "coalesce") {
+      if (expression.left) addRecordValueExpression(statementIndex, expression.left);
+      if (expression.right) addRecordValueExpression(statementIndex, expression.right);
+      return;
+    }
     addScalarExpression(statementIndex, expression.scrutinee);
     for (const arm of expression.arms) if (arm.expression) addRecordValueExpression(statementIndex, arm.expression);
   };

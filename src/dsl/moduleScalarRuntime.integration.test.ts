@@ -1424,6 +1424,148 @@ describe("module scalar runtime integration", () => {
     expect(result.computedGeometry.get(elementNamed(compiled, "MatchResult").id)).toMatchObject({ kind: "point", x: 2, y: 0 });
   });
 
+  it.each([
+    ["present", 'const maybe: Pair? = @present', "present", 7],
+    ["none", "const maybe: Pair? = none", "fallback", 11]
+  ] as const)("coalesces a %s optional nominal record through the shared collection runtime", (_caseName, maybeInitializer, expectedLabel, expectedX) => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "record Pair(x: number, label: string)",
+      'const present: Pair = Pair(x: 7, label: "present")',
+      'const fallback: Pair = Pair(x: 11, label: "fallback")',
+      maybeInitializer,
+      "const resolved: Pair = @maybe ?? @fallback",
+      "const resolvedX: number = @resolved.x",
+      "const resolvedLabel: string = @resolved.label"
+    ].join("\n"), "optional-record-coalesce");
+    expectValid(compiled);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const resolvedX = compiled.bindingAnalysis!.catalog.bindings.find((binding) => binding.kind === "typed" && binding.name === "resolvedX");
+    const resolvedLabel = compiled.bindingAnalysis!.catalog.bindings.find((binding) => binding.kind === "typed" && binding.name === "resolvedLabel");
+    expect(resolvedX).toBeDefined();
+    expect(resolvedLabel).toBeDefined();
+    expect(result.computedScalarBindings?.get(resolvedX!.id)).toMatchObject({ status: "ok", value: { kind: "number", value: expectedX } });
+    expect(result.computedScalarBindings?.get(resolvedLabel!.id)).toMatchObject({ status: "ok", value: { kind: "string", value: expectedLabel } });
+  });
+
+  it.each([
+    ["present", "const maybe: point? = @left", 1, 2, 30, 40],
+    ["none", "const maybe: point? = none", 10, 20, 30, 40]
+  ] as const)("coalesces a %s optional geometry value lazily", (_caseName, maybeInitializer, startX, startY, endX, endY) => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "point left = coordinate(x: 1, y: 2)",
+      "point leftEnd = coordinate(x: 3, y: 4)",
+      "point fallback = coordinate(x: 10, y: 20)",
+      "point fallbackEnd = coordinate(x: 30, y: 40)",
+      maybeInitializer,
+      "const fallbackValue: point = @fallback",
+      "const resolved: point = @maybe ?? @fallbackValue",
+      "line selected = segment(start: @resolved, end: @fallbackEnd)"
+    ].join("\n"), "optional-geometry-coalesce");
+    expectValid(compiled);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometry.get(elementNamed(compiled, "selected").id)).toMatchObject({
+      kind: "line",
+      start: { x: startX, y: startY },
+      end: { x: endX, y: endY }
+    });
+  });
+
+  it.each([
+    ["present", "const maybe: point[]? = [@left, @leftEnd]", 1, 2, 3, 4],
+    ["none", "const maybe: point[]? = none", 10, 20, 30, 40]
+  ] as const)("coalesces a %s optional geometry collection lazily", (_caseName, maybeInitializer, startX, startY, endX, endY) => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "point left = coordinate(x: 1, y: 2)",
+      "point leftEnd = coordinate(x: 3, y: 4)",
+      "point fallback = coordinate(x: 10, y: 20)",
+      "point fallbackEnd = coordinate(x: 30, y: 40)",
+      maybeInitializer,
+      "const fallbackValue: point[] = [@fallback, @fallbackEnd]",
+      "const resolved: point[] = @maybe ?? @fallbackValue",
+      "line selected = segment(start: @resolved[0], end: @resolved[1])"
+    ].join("\n"), "optional-geometry-collection-coalesce");
+    expectValid(compiled);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometry.get(elementNamed(compiled, "selected").id)).toMatchObject({
+      kind: "line",
+      start: { x: startX, y: startY },
+      end: { x: endX, y: endY }
+    });
+  });
+
+  it.each([
+    ["present", "const maybe: number[]? = [1, 2]", 1],
+    ["none", "const maybe: number[]? = none", 10]
+  ] as const)("coalesces a %s optional scalar collection lazily", (_caseName, maybeInitializer, expected) => {
+    const compiled = compileWithIds([
+      "nui 1",
+      maybeInitializer,
+      "const fallback: number[] = [10, 20]",
+      "const resolved: number[] = @maybe ?? @fallback",
+      "const first: number = @resolved[0]"
+    ].join("\n"), "optional-scalar-collection-coalesce");
+    expectValid(compiled);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const first = compiled.bindingAnalysis!.catalog.bindings.find((binding) => binding.kind === "typed" && binding.name === "first");
+    expect(first).toBeDefined();
+    expect(result.computedScalarBindings?.get(first!.id)).toMatchObject({ status: "ok", value: { kind: "number", value: expected } });
+  });
+
+  it.each([
+    [
+      "geometry",
+      [
+        "nui 1",
+        "point pointValue = coordinate(x: 1, y: 2)",
+        "line lineValue = segment(start: @pointValue, end: @pointValue)",
+        "const maybe: point? = @pointValue",
+        "const bad: point = @maybe ?? @lineValue"
+      ].join("\n"),
+      "module-geometry-type-mismatch"
+    ],
+    [
+      "collection",
+      [
+        "nui 1",
+        "point pointValue = coordinate(x: 1, y: 2)",
+        "line lineValue = segment(start: @pointValue, end: @pointValue)",
+        "const points: point[] = [@pointValue]",
+        "const lines: line[] = [@lineValue]",
+        "const maybe: point[]? = @points",
+        "const bad: point[] = @maybe ?? @lines"
+      ].join("\n"),
+      "geometry-array-assignability-mismatch"
+    ],
+    [
+      "record",
+      [
+        "nui 1",
+        "record Pair(x: number)",
+        "record Other(x: number)",
+        "const pair: Pair = Pair(x: 1)",
+        "const other: Other = Other(x: 2)",
+        "const maybe: Pair? = @pair",
+        "const bad: Pair = @maybe ?? @other"
+      ].join("\n"),
+      "coalesce-type-mismatch"
+    ]
+  ] as const)("rejects %s coalescing RHS values with the wrong immutable type", (_family, source, code) => {
+    const compiled = compileWithIds(source, "optional-coalesce-invalid");
+    expect(compiled.diagnostics.some((diagnostic) => diagnostic.code === code)).toBe(true);
+    expect(compiled.document).toBeNull();
+  });
+
   it("statically analyzes an unselected record branch without evaluating it", () => {
     const compiled = compileWithIds([
       "nui 1",

@@ -480,6 +480,27 @@ impl<'a> ScalarMutationResolver<'a> {
                 };
                 self.resolve_record_field(selected, index, field, state, seen)
             }
+            ValidatedScalarProgramCollectionValue::Coalesce {
+                left_value_id,
+                right_value_id,
+                ..
+            } => {
+                let left_present =
+                    self.resolve_collection_presence(left_value_id, state, &mut seen.clone());
+                let selected = match left_present {
+                    Some(true) => left_value_id,
+                    Some(false) => right_value_id,
+                    None => {
+                        return ScalarEvaluation::Error {
+                            r#type: field.r#type.clone(),
+                            issue_code: "evaluation-collection-index-unavailable".to_owned(),
+                            binding_id: None,
+                            context: None,
+                        }
+                    }
+                };
+                self.resolve_record_field(selected, index, field, state, seen)
+            }
             ValidatedScalarProgramCollectionValue::Match {
                 scrutinee,
                 arms,
@@ -557,6 +578,98 @@ impl<'a> ScalarMutationResolver<'a> {
         }
     }
 
+    fn resolve_collection_presence(
+        &self,
+        collection_value_id: &str,
+        state: &EvaluationState,
+        seen: &mut HashSet<String>,
+    ) -> Option<bool> {
+        if !seen.insert(collection_value_id.to_owned()) {
+            return None;
+        }
+        let value = self
+            .program
+            .collection_values
+            .iter()
+            .find(|candidate| candidate.value_id == collection_value_id)?;
+        match &value.value {
+            ValidatedScalarProgramCollectionValue::None => Some(false),
+            ValidatedScalarProgramCollectionValue::Literal(_) => Some(true),
+            ValidatedScalarProgramCollectionValue::Alias(target) => {
+                self.resolve_collection_presence(target, state, seen)
+            }
+            ValidatedScalarProgramCollectionValue::Map {
+                source_value_id, ..
+            }
+            | ValidatedScalarProgramCollectionValue::RecordMap {
+                source_value_id, ..
+            }
+            | ValidatedScalarProgramCollectionValue::RecordField {
+                source_value_id, ..
+            } => self.resolve_collection_presence(source_value_id, state, seen),
+            ValidatedScalarProgramCollectionValue::If {
+                condition,
+                then_value_id,
+                else_value_id,
+                source_order,
+            } => {
+                let environment = MutationEnvironment {
+                    resolver: self,
+                    state,
+                    source_order: *source_order,
+                    local_binding_id: None,
+                    local_binding: None,
+                    local_bindings: None,
+                    record_map_context: None,
+                };
+                match evaluate_typed_expression(condition, &environment) {
+                    ScalarEvaluation::Ok {
+                        value: ScalarValue::Boolean(value),
+                        ..
+                    } => self.resolve_collection_presence(
+                        if value { then_value_id } else { else_value_id },
+                        state,
+                        seen,
+                    ),
+                    _ => None,
+                }
+            }
+            ValidatedScalarProgramCollectionValue::Match {
+                scrutinee,
+                arms,
+                source_order,
+            } => {
+                let environment = MutationEnvironment {
+                    resolver: self,
+                    state,
+                    source_order: *source_order,
+                    local_binding_id: None,
+                    local_binding: None,
+                    local_bindings: None,
+                    record_map_context: None,
+                };
+                let ScalarEvaluation::Ok {
+                    value: ScalarValue::Choice { value, .. },
+                    ..
+                } = evaluate_typed_expression(scrutinee, &environment)
+                else {
+                    return None;
+                };
+                let (_, selected) = arms.iter().find(|(label, _)| label == &value)?;
+                self.resolve_collection_presence(selected, state, seen)
+            }
+            ValidatedScalarProgramCollectionValue::Coalesce {
+                left_value_id,
+                right_value_id,
+                ..
+            } => match self.resolve_collection_presence(left_value_id, state, seen) {
+                Some(true) => Some(true),
+                Some(false) => self.resolve_collection_presence(right_value_id, state, seen),
+                None => None,
+            },
+        }
+    }
+
     fn resolve_collection_index(
         &self,
         collection_value_id: &str,
@@ -603,6 +716,14 @@ impl<'a> ScalarMutationResolver<'a> {
                 };
             };
             match &value.value {
+                ValidatedScalarProgramCollectionValue::None => {
+                    return ScalarEvaluation::Error {
+                        r#type: element_type.clone(),
+                        issue_code: "evaluation-collection-index-unavailable".to_owned(),
+                        binding_id: None,
+                        context: None,
+                    };
+                }
                 ValidatedScalarProgramCollectionValue::Alias(target) => current = target,
                 ValidatedScalarProgramCollectionValue::Literal(members) => {
                     break members.get(index as usize)
@@ -780,6 +901,34 @@ impl<'a> ScalarMutationResolver<'a> {
                         state,
                     );
                 }
+                ValidatedScalarProgramCollectionValue::Coalesce {
+                    left_value_id,
+                    right_value_id,
+                    ..
+                } => {
+                    let left_present =
+                        self.resolve_collection_presence(left_value_id, state, &mut seen.clone());
+                    let selected = match left_present {
+                        Some(true) => left_value_id,
+                        Some(false) => right_value_id,
+                        None => {
+                            return ScalarEvaluation::Error {
+                                r#type: element_type.clone(),
+                                issue_code: "evaluation-collection-index-unavailable".to_owned(),
+                                binding_id: None,
+                                context: None,
+                            };
+                        }
+                    };
+                    return self.resolve_collection_index(
+                        selected,
+                        index,
+                        element_type,
+                        None,
+                        -1.0,
+                        state,
+                    );
+                }
             }
         };
         let Some(member) = member else {
@@ -857,6 +1006,7 @@ impl<'a> ScalarMutationResolver<'a> {
             return None;
         }
         let result = match &value.value {
+            ValidatedScalarProgramCollectionValue::None => None,
             ValidatedScalarProgramCollectionValue::Alias(target) => {
                 self.resolve_collection_length(target, state, seen)
             }
@@ -927,6 +1077,19 @@ impl<'a> ScalarMutationResolver<'a> {
                 };
                 let (_, selected_value_id) = arms.iter().find(|(label, _)| label == &selected)?;
                 self.resolve_collection_length(selected_value_id, state, seen)
+            }
+            ValidatedScalarProgramCollectionValue::Coalesce {
+                left_value_id,
+                right_value_id,
+                ..
+            } => {
+                let left_present =
+                    self.resolve_collection_presence(left_value_id, state, &mut seen.clone());
+                match left_present {
+                    Some(true) => self.resolve_collection_length(left_value_id, state, seen),
+                    Some(false) => self.resolve_collection_length(right_value_id, state, seen),
+                    None => None,
+                }
             }
         };
         seen.remove(collection_value_id);

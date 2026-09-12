@@ -560,6 +560,7 @@ export const evaluateElements = (
       } : {})
     });
     const materializeCollectionNode = (node: import("../types/geometry").GeometryInputCollectionNode): GeometryInputTarget[] | null => {
+      if (node.kind === "none") return null;
       if (node.kind === "leaf") {
         const targets = node.targets.map(materialize);
         return targets.some((target) => target === null) ? null : targets as GeometryInputTarget[];
@@ -570,9 +571,14 @@ export const evaluateElements = (
         if (condition.status !== "ok" || condition.value.kind !== "boolean") return null;
         return materializeCollectionNode(condition.value.value ? node.thenBranch : node.elseBranch);
       }
+      if (node.kind === "coalesce") {
+        const left = materializeCollectionNode(node.leftBranch);
+        return left ?? materializeCollectionNode(node.rightBranch);
+      }
       const scrutinee = evaluateTypedExpression(node.scrutinee, scalarEnvironmentFor(node.sourceOrder));
-      if (scrutinee.status !== "ok" || scrutinee.value.kind !== "choice") return null;
-      const arm = node.arms.find((candidate) => candidate.label === scrutinee.value.value);
+      const scrutineeValue = scrutinee.status === "ok" ? scrutinee.value : null;
+      if (scrutineeValue === null || scrutineeValue.kind !== "choice") return null;
+      const arm = node.arms.find((candidate) => candidate.label === scrutineeValue.value);
       return arm ? materializeCollectionNode(arm.value) : null;
     };
     const materialize = (target: GeometryInputTarget): GeometryInputTarget | null => {
@@ -913,6 +919,16 @@ export const evaluateElements = (
     const sourceOrder = entry.executionPosition;
     if (linearMutationResolver) {
       linearMutationResolver.advanceTo({ kind: "beforeStatement", sourceOrder });
+    }
+    if (entry.construction.kind === "none") {
+      computedGeometryValues.delete(geometryValueOccurrenceKey(entry.occurrence));
+      return;
+    }
+    if (entry.construction.kind === "coalesce") {
+      evaluateGeometryValueEntry({ ...entry, construction: entry.construction.left });
+      if (computedGeometryValues.has(geometryValueOccurrenceKey(entry.occurrence))) return;
+      evaluateGeometryValueEntry({ ...entry, construction: entry.construction.right });
+      return;
     }
     if (entry.construction.kind === "reference") {
       const geometry = resolveGeometryTargetForEvaluation(entry.construction.target, sourceOrder);

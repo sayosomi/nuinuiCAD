@@ -207,15 +207,21 @@ const geometryCollectionLengthForNode = (
   node: GeometryInputCollectionNode,
   environmentFor: (sourceOrder: number) => ScalarEvaluationEnvironment
 ): number | undefined => {
+  if (node.kind === "none") return undefined;
   if (node.kind === "leaf") return node.targets.length;
   if (node.kind === "if") {
     const condition = evaluateTypedExpression(node.condition, environmentFor(node.sourceOrder));
     if (condition.status !== "ok" || condition.value.kind !== "boolean") return undefined;
     return geometryCollectionLengthForNode(condition.value.value ? node.thenBranch : node.elseBranch, environmentFor);
   }
+  if (node.kind === "coalesce") {
+    return geometryCollectionLengthForNode(node.leftBranch, environmentFor) ??
+      geometryCollectionLengthForNode(node.rightBranch, environmentFor);
+  }
   const scrutinee = evaluateTypedExpression(node.scrutinee, environmentFor(node.sourceOrder));
-  if (scrutinee.status !== "ok" || scrutinee.value.kind !== "choice") return undefined;
-  const arm = node.arms.find((candidate) => candidate.label === scrutinee.value.value);
+  const scrutineeValue = scrutinee.status === "ok" ? scrutinee.value : null;
+  if (scrutineeValue === null || scrutineeValue.kind !== "choice") return undefined;
+  const arm = node.arms.find((candidate) => candidate.label === scrutineeValue.value);
   return arm ? geometryCollectionLengthForNode(arm.value, environmentFor) : undefined;
 };
 

@@ -9,8 +9,9 @@
 // invalid (`type: null`) without adding a new diagnostic when that
 // resolution isn't "resolved", || when it resolves to a typed binding whose
 // declaredType is itself null (a malformed type annotation already diagnosed).
-// Every other type-vs-type comparison goes through isScalarTypeAssignable - an
-// exact match - never the property choice-subset rule used by property binding.
+// Every other type-vs-type comparison goes through the shared value-type
+// boundary; optional widening is allowed only where the expected type is
+// optional, never the property choice-subset rule used by property binding.
 
 import {
   type ScalarBinaryExpressionNode,
@@ -35,9 +36,9 @@ import type {
   TypedBuiltinArgument,
   TypedScalarExpression
 } from "./typedExpressionAst";
-import { isChoiceOptionMember, isScalarTypeAssignable } from "./scalarAssignability";
-import { scalarTypeOfDslValueType } from "../dsl/dslValueTypes";
-import { isChoiceScalarType, type ChoiceScalarType, type ScalarType } from "./types";
+import { isChoiceOptionMember, isScalarExpressionTypeAssignable } from "./scalarAssignability";
+import { dslCoalesceResultType, dslRequiredValueTypeOf, isDslOptionalValueType, scalarExpressionTypeOfDslValueType, scalarTypeOfDslValueType } from "../dsl/dslValueTypes";
+import { isChoiceScalarType, type ChoiceScalarType, type ScalarExpressionType, type ScalarType } from "./types";
 import { isModuleGeometryInterfaceAssignable } from "../dsl/moduleGeometryInterfaces";
 
 const NUMBER_TYPE: Extract<ScalarType, { kind: "number" }> = { kind: "number" };
@@ -63,8 +64,10 @@ const scalarCallArgumentStyle = (args: readonly { kind: "positional" | "named" }
 /** Exported for reuse by other diagnostic-message producers (e.g. the
  * property binding compiler) that need the same type description text -
  * kept as one implementation rather than a duplicated formatter. */
-export const describeScalarType = (type: ScalarType): string =>
-  type.kind === "choice" ? `choice(${type.options.join(", ")})` : type.kind;
+export const describeScalarType = (type: ScalarExpressionType): string =>
+  type.kind === "optional"
+    ? `${describeScalarType(type.valueType as ScalarType)}?`
+    : type.kind === "choice" ? `choice(${type.options.join(", ")})` : type.kind;
 
 /**
  * Validate the closed-world cases of a choice match without depending on the
@@ -172,7 +175,7 @@ const nextReferenceResolution = (
  */
 const checkOperandType = (state: TraversalState, operand: TypedScalarExpression, requiredType: ScalarType): boolean => {
   if (operand.type === null) return false;
-  if (isScalarTypeAssignable(operand.type, requiredType)) return true;
+  if (isScalarExpressionTypeAssignable(operand.type, requiredType)) return true;
   addDiagnostic(state, {
     code: "scalar-type-mismatch",
     span: operand.span,
@@ -182,7 +185,28 @@ const checkOperandType = (state: TraversalState, operand: TypedScalarExpression,
       parameters: { expected: describeScalarType(requiredType), actual: describeScalarType(operand.type) }
     },
     expectedType: requiredType,
-    actualType: operand.type
+    ...(plainScalarType(operand.type) ? { actualType: plainScalarType(operand.type) } : {})
+  });
+  return false;
+};
+
+const checkExpressionOperandType = (
+  state: TraversalState,
+  operand: TypedScalarExpression,
+  requiredType: ScalarExpressionType
+): boolean => {
+  if (operand.type === null) return false;
+  if (isScalarExpressionTypeAssignable(operand.type, requiredType)) return true;
+  addDiagnostic(state, {
+    code: "scalar-type-mismatch",
+    span: operand.span,
+    message: `型が一致しません(期待: ${describeScalarType(requiredType)}, 実際: ${describeScalarType(operand.type)})。`,
+    presentation: {
+      key: "diagnostic.scalar-type-mismatch",
+      parameters: { expected: describeScalarType(requiredType), actual: describeScalarType(operand.type) }
+    },
+    ...(plainScalarType(requiredType) ? { expectedType: plainScalarType(requiredType) } : {}),
+    ...(plainScalarType(operand.type) ? { actualType: plainScalarType(operand.type) } : {})
   });
   return false;
 };
@@ -204,12 +228,12 @@ const checkBuiltinOperandType = (
       key: "diagnostic.scalar-type-mismatch",
       parameters: { expected: "choice(...)" , actual: describeScalarType(operand.type) }
     },
-    actualType: operand.type
+    ...(plainScalarType(operand.type) ? { actualType: plainScalarType(operand.type) } : {})
   });
   return false;
 };
 
-type SimpleBinaryOperator = Exclude<ScalarBinaryExpressionNode["operator"], "==" | "!=">;
+type SimpleBinaryOperator = Exclude<ScalarBinaryExpressionNode["operator"], "==" | "!=" | "??">;
 
 const SIMPLE_BINARY_RULES: Record<SimpleBinaryOperator, { requiredType: ScalarType; resultType: ScalarType }> = {
   "+": { requiredType: NUMBER_TYPE, resultType: NUMBER_TYPE },
@@ -228,7 +252,11 @@ const SIMPLE_BINARY_RULES: Record<SimpleBinaryOperator, { requiredType: ScalarTy
 
 /** Non-null only when `type` is a concrete choice type - used as an
  * equality-operand hint for a bare choice literal on the opposite side. */
-const choiceHint = (type: ScalarType | null): ScalarType | null => (type !== null && isChoiceScalarType(type) ? type : null);
+const choiceHint = (type: ScalarExpressionType | null): ChoiceScalarType | null =>
+  type !== null && !isDslOptionalValueType(type) && isChoiceScalarType(type) ? type : null;
+
+const plainScalarType = (type: ScalarExpressionType | null | undefined): ScalarType | undefined =>
+  type && !isDslOptionalValueType(type) ? type : undefined;
 
 /**
  * `==`/`!=` typecheck. When exactly one side is a bare (unresolved) choice
@@ -241,7 +269,7 @@ const choiceHint = (type: ScalarType | null): ScalarType | null => (type !== nul
 const checkEqualityBinary = (
   node: ScalarBinaryExpressionNode,
   state: TraversalState,
-  checkNode: (node: ScalarExpressionAst, expectedType: ScalarType | null, state: TraversalState) => TypedScalarExpression
+  checkNode: (node: ScalarExpressionAst, expectedType: ScalarExpressionType | null, state: TraversalState) => TypedScalarExpression
 ): TypedScalarExpression => {
   const leftIsBareChoice = node.left.kind === "unresolvedChoiceLiteral";
   const rightIsBareChoice = node.right.kind === "unresolvedChoiceLiteral";
@@ -261,7 +289,7 @@ const checkEqualityBinary = (
 
   let type: ScalarType | null = null;
   if (left.type !== null && right.type !== null) {
-    if (isScalarTypeAssignable(left.type, right.type)) {
+    if (isScalarExpressionTypeAssignable(left.type, right.type)) {
       type = BOOLEAN_TYPE;
     } else {
       addDiagnostic(state, {
@@ -272,8 +300,8 @@ const checkEqualityBinary = (
           key: "diagnostic.scalar-type-mismatch",
           parameters: { expected: describeScalarType(left.type), actual: describeScalarType(right.type) }
         },
-        expectedType: left.type,
-        actualType: right.type
+        ...(plainScalarType(left.type) ? { expectedType: plainScalarType(left.type) } : {}),
+        ...(plainScalarType(right.type) ? { actualType: plainScalarType(right.type) } : {})
       });
     }
   }
@@ -282,7 +310,7 @@ const checkEqualityBinary = (
 
 const checkNode = (
   node: ScalarExpressionAst,
-  expectedType: ScalarType | null,
+  expectedType: ScalarExpressionType | null,
   state: TraversalState
 ): TypedScalarExpression => {
   switch (node.kind) {
@@ -295,19 +323,37 @@ const checkNode = (
     case "booleanLiteral":
       return { kind: "booleanLiteral", span: node.span, value: node.value, type: BOOLEAN_TYPE };
 
+    case "noneLiteral": {
+      const optionalType = expectedType && isDslOptionalValueType(expectedType) && scalarTypeOfDslValueType(expectedType.valueType)
+        ? expectedType
+        : null;
+      if (optionalType) return { kind: "noneLiteral", span: node.span, type: optionalType };
+      addDiagnostic(state, {
+        code: "none-requires-optional-type",
+        span: node.span,
+        message: "none は基底型が確定した optional 型の文脈でのみ使用できます。",
+        presentation: { key: "diagnostic.none-requires-optional-type" }
+      });
+      return { kind: "noneLiteral", span: node.span, type: null };
+    }
+
     case "unresolvedChoiceLiteral": {
-      const resolvedByFrontend = state.resolveChoiceLiteral?.(node.raw, expectedType, node.span);
+      const resolvedByFrontend = state.resolveChoiceLiteral?.(
+        node.raw,
+        expectedType && !isDslOptionalValueType(expectedType) ? expectedType : null,
+        node.span
+      );
       if (resolvedByFrontend !== undefined) {
         if (resolvedByFrontend !== null) {
           return { kind: "choiceLiteral", span: node.span, value: node.raw, type: resolvedByFrontend.kind === "choice" ? resolvedByFrontend : null };
         }
         return { kind: "choiceLiteral", span: node.span, value: node.raw, type: null };
       }
-      if (expectedType !== null && isChoiceScalarType(expectedType) && isChoiceOptionMember(expectedType, node.raw)) {
-        return { kind: "choiceLiteral", span: node.span, value: node.raw, type: expectedType };
+      const expectedChoice = choiceHint(expectedType);
+      if (expectedChoice !== null && isChoiceScalarType(expectedChoice) && isChoiceOptionMember(expectedChoice, node.raw)) {
+        return { kind: "choiceLiteral", span: node.span, value: node.raw, type: expectedChoice };
       }
-      const choiceHintType: ChoiceScalarType | null =
-        expectedType !== null && isChoiceScalarType(expectedType) ? expectedType : null;
+      const choiceHintType: ChoiceScalarType | null = expectedChoice;
       addDiagnostic(state, {
         code: "invalid-choice-literal",
         span: node.span,
@@ -336,7 +382,7 @@ const checkNode = (
         return { kind: "reference", span: node.span, nameSpan: node.nameSpan, name: node.name, bindingId: null, type: null };
       }
       const binding = resolution.binding;
-      const declaredType = scalarTypeOfDslValueType(binding.declaredType);
+      const declaredType = scalarExpressionTypeOfDslValueType(binding.declaredType);
       const type = binding.kind === "typed" ? declaredType : (declaredType ?? NUMBER_TYPE);
       return { kind: "reference", span: node.span, nameSpan: node.nameSpan, name: node.name, bindingId: binding.id, type };
     }
@@ -401,6 +447,41 @@ const checkNode = (
 
     case "binary": {
       if (node.operator === "==" || node.operator === "!=") return checkEqualityBinary(node, state, checkNode);
+      if (node.operator === "??") {
+        const left = checkNode(node.left, null, state);
+        const underlying = isDslOptionalValueType(left.type)
+          ? scalarTypeOfDslValueType(dslRequiredValueTypeOf(left.type))
+          : null;
+        if (!underlying) {
+          if (left.type !== null) {
+            addDiagnostic(state, {
+              code: "coalesce-left-not-optional",
+              span: left.span,
+              message: `?? の左辺は基底型が確定した optional 型である必要があります(実際: ${describeScalarType(left.type)})。`,
+              presentation: { key: "diagnostic.coalesce-left-not-optional", parameters: { actual: describeScalarType(left.type) } },
+              ...(plainScalarType(left.type) ? { actualType: plainScalarType(left.type) } : {})
+            });
+          }
+          const right = checkNode(node.right, null, state);
+          return { kind: "binary", span: node.span, operator: node.operator, left, right, type: null };
+        }
+        const right = checkNode(node.right, underlying, state);
+        const rightOk = right.type !== null && dslCoalesceResultType(left.type, right.type) !== null;
+        if (right.type !== null && !rightOk) {
+          addDiagnostic(state, {
+            code: "coalesce-rhs-type-mismatch",
+            span: right.span,
+            message: `?? の右辺の型が一致しません(期待: ${describeScalarType(underlying)}, 実際: ${describeScalarType(right.type)})。`,
+            presentation: {
+              key: "diagnostic.coalesce-rhs-type-mismatch",
+              parameters: { expected: describeScalarType(underlying), actual: describeScalarType(right.type) }
+            },
+            expectedType: underlying,
+            ...(plainScalarType(right.type) ? { actualType: plainScalarType(right.type) } : {})
+          });
+        }
+        return { kind: "binary", span: node.span, operator: node.operator, left, right, type: rightOk ? underlying : null };
+      }
       const rule = SIMPLE_BINARY_RULES[node.operator as SimpleBinaryOperator];
       const left = checkNode(node.left, null, state);
       const right = checkNode(node.right, null, state);
@@ -419,13 +500,13 @@ const checkNode = (
       const conditionOk = checkOperandType(state, condition, BOOLEAN_TYPE);
       const thenBranch = checkNode(node.thenBranch, expectedType, state);
       const elseBranch = checkNode(node.elseBranch, expectedType, state);
-      let type: ScalarType | null = null;
+      let type: ScalarExpressionType | null = null;
       if (expectedType !== null) {
-        const thenOk = checkOperandType(state, thenBranch, expectedType);
-        const elseOk = checkOperandType(state, elseBranch, expectedType);
+        const thenOk = checkExpressionOperandType(state, thenBranch, expectedType);
+        const elseOk = checkExpressionOperandType(state, elseBranch, expectedType);
         if (conditionOk && thenOk && elseOk) type = expectedType;
       } else if (thenBranch.type !== null && elseBranch.type !== null) {
-        if (isScalarTypeAssignable(thenBranch.type, elseBranch.type)) type = thenBranch.type;
+        if (isScalarExpressionTypeAssignable(thenBranch.type, elseBranch.type)) type = thenBranch.type;
         else {
           addDiagnostic(state, {
             code: "scalar-type-mismatch",
@@ -435,8 +516,8 @@ const checkNode = (
               key: "diagnostic.scalar-type-mismatch",
               parameters: { expected: describeScalarType(thenBranch.type), actual: describeScalarType(elseBranch.type) }
             },
-            expectedType: thenBranch.type,
-            actualType: elseBranch.type
+            ...(plainScalarType(thenBranch.type) ? { expectedType: plainScalarType(thenBranch.type) } : {}),
+            ...(plainScalarType(elseBranch.type) ? { actualType: plainScalarType(elseBranch.type) } : {})
           });
         }
       }
@@ -446,7 +527,7 @@ const checkNode = (
     case "valueMatch": {
       const scrutinee = checkNode(node.scrutinee, null, state);
       const { scrutineeIsChoice, exhaustive } = validateChoiceMatchExhaustiveness({
-        scrutineeType: scrutinee.type,
+        scrutineeType: plainScalarType(scrutinee.type) ?? null,
         scrutineeSpan: node.scrutinee.span,
         matchSpan: node.span,
         arms: node.arms,
@@ -458,10 +539,10 @@ const checkNode = (
         expression: checkNode(arm.expression, expectedType, state)
       }));
       let armResultsValid = armResults.every(({ expression }) => expression.type !== null);
-      let type: ScalarType | null = null;
+      let type: ScalarExpressionType | null = null;
       if (expectedType !== null) {
         for (const { expression } of armResults) {
-          if (!checkOperandType(state, expression, expectedType)) armResultsValid = false;
+          if (!checkExpressionOperandType(state, expression, expectedType)) armResultsValid = false;
         }
         if (armResultsValid) type = expectedType;
       } else {
@@ -473,7 +554,7 @@ const checkNode = (
               armResultsValid = false;
               continue;
             }
-            if (!isScalarTypeAssignable(expression.type, firstTyped)) {
+            if (!isScalarExpressionTypeAssignable(expression.type, firstTyped)) {
               armResultsValid = false;
               addDiagnostic(state, {
                 code: "scalar-type-mismatch",
@@ -483,8 +564,8 @@ const checkNode = (
                   key: "diagnostic.scalar-type-mismatch",
                   parameters: { expected: describeScalarType(firstTyped), actual: describeScalarType(expression.type) }
                 },
-                expectedType: firstTyped,
-                actualType: expression.type
+                ...(plainScalarType(firstTyped) ? { expectedType: plainScalarType(firstTyped) } : {}),
+                ...(plainScalarType(expression.type) ? { actualType: plainScalarType(expression.type) } : {})
               });
             }
           }
@@ -744,7 +825,7 @@ export const typecheckScalarExpression = (
   }
 
   let type = typed.type;
-  if (type !== null && context.expectedType !== null && !isScalarTypeAssignable(type, context.expectedType)) {
+  if (type !== null && context.expectedType !== null && !isScalarExpressionTypeAssignable(type, context.expectedType)) {
     state.diagnostics.push({
       code: "scalar-type-mismatch",
       span: ast.span,
@@ -753,8 +834,8 @@ export const typecheckScalarExpression = (
         key: "diagnostic.scalar-type-mismatch",
         parameters: { expected: describeScalarType(context.expectedType), actual: describeScalarType(type) }
       },
-      expectedType: context.expectedType,
-      actualType: type
+      ...(plainScalarType(context.expectedType) ? { expectedType: plainScalarType(context.expectedType) } : {}),
+      ...(plainScalarType(type) ? { actualType: plainScalarType(type) } : {})
     });
     type = null;
   }

@@ -538,6 +538,46 @@
       "bindings": {},
       "tripwireBindingIds": ["binding:unreachable"],
       "expected": { "status": "ok", "type": { "kind": "number" }, "value": { "kind": "number", "value": 5 } }
+    },
+    {
+      "name": "coalesce-present-does-not-evaluate-rhs",
+      "description": "an optional number containing 7 returns 7 and leaves the RHS tripwire untouched",
+      "ast": {
+        "kind": "binary", "operator": "??", "type": { "kind": "number" },
+        "left": { "kind": "reference", "name": "present", "bindingId": "binding:present", "type": { "kind": "optional", "valueType": { "kind": "number" } } },
+        "right": { "kind": "reference", "name": "rhs", "bindingId": "binding:rhs", "type": { "kind": "number" } }
+      },
+      "bindings": {
+        "binding:present": { "status": "ok", "type": { "kind": "optional", "valueType": { "kind": "number" } }, "value": { "kind": "number", "value": 7 } }
+      },
+      "tripwireBindingIds": ["binding:rhs"],
+      "expected": { "status": "ok", "type": { "kind": "number" }, "value": { "kind": "number", "value": 7 } }
+    },
+    {
+      "name": "coalesce-none-evaluates-rhs",
+      "description": "a canonical none optional value evaluates and returns its numeric RHS",
+      "ast": {
+        "kind": "binary", "operator": "??", "type": { "kind": "number" },
+        "left": { "kind": "noneLiteral", "type": { "kind": "optional", "valueType": { "kind": "number" } } },
+        "right": { "kind": "reference", "name": "fallback", "bindingId": "binding:fallback", "type": { "kind": "number" } }
+      },
+      "bindings": {
+        "binding:fallback": { "status": "ok", "type": { "kind": "number" }, "value": { "kind": "number", "value": 9 } }
+      },
+      "expected": { "status": "ok", "type": { "kind": "number" }, "value": { "kind": "number", "value": 9 } }
+    },
+    {
+      "name": "coalesce-rejects-wrong-underlying-type-at-runtime",
+      "description": "a left optional string cannot satisfy a numeric coalesce node",
+      "ast": {
+        "kind": "binary", "operator": "??", "type": { "kind": "number" },
+        "left": { "kind": "reference", "name": "text", "bindingId": "binding:text", "type": { "kind": "optional", "valueType": { "kind": "string" } } },
+        "right": { "kind": "numberLiteral", "value": 1, "type": { "kind": "number" } }
+      },
+      "bindings": {
+        "binding:text": { "status": "ok", "type": { "kind": "optional", "valueType": { "kind": "string" } }, "value": { "kind": "string", "value": "text" } }
+      },
+      "expected": { "status": "error", "type": { "kind": "number" }, "issueCode": "evaluation-runtime-value-type-mismatch" }
     }
   ]
 }

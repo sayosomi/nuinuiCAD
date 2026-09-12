@@ -1,11 +1,11 @@
 // Task 19 lowering only. Parsing, name resolution, graph analysis, &&
 // typechecking happen once in typedDeclarationAnalysis before this boundary.
 import { selectCompiledProgramBindings } from "./bindingAnalysis";
-import { scalarTypeOfDslValueType } from "../dsl/dslValueTypes";
+import { scalarExpressionTypeOfDslValueType } from "../dsl/dslValueTypes";
 import type { BindingId } from "./bindingCatalog";
 import type { TypedDeclarationAnalysis } from "./typedDeclarationAnalysis";
 import type { TypedScalarExpression } from "./typedExpressionAst";
-import type { ScalarType, ScalarValue } from "./types";
+import type { ScalarExpressionType, ScalarType, ScalarValue } from "./types";
 import type { RecordFieldIdentity } from "../dsl/recordSemanticAnalysis";
 
 export type ScalarProgramRecordField = {
@@ -23,6 +23,7 @@ export type ScalarProgramCollectionMember =
   | { kind: "record"; typeIdentity: string; fields: readonly ScalarProgramRecordField[] };
 
 export type ScalarProgramCollection =
+  | { valueId: string; kind: "none" }
   | { valueId: string; kind: "literal"; members: readonly ScalarProgramCollectionMember[] }
   | { valueId: string; kind: "alias"; targetValueId: string }
   | {
@@ -73,11 +74,18 @@ export type ScalarProgramCollection =
       scrutinee: TypedScalarExpression;
       arms: readonly { label: string; valueId: string }[];
       sourceOrder: number;
+    }
+  | {
+      valueId: string;
+      kind: "coalesce";
+      leftValueId: string;
+      rightValueId: string;
+      sourceOrder: number;
     };
 
 export type ScalarProgramDeclaration = {
   bindingKind: "const" | "let";
-  declaredType: ScalarType;
+  declaredType: ScalarExpressionType;
   initializer: TypedScalarExpression;
 };
 
@@ -122,7 +130,7 @@ export const lowerScalarProgram = ({
     // Program eligibility has one shared owner (Task 13R). This type filter
     // keeps only scalar typed declarations in the scalar program.
     if (!binding || binding.kind !== "typed") continue;
-    const declaredType = scalarTypeOfDslValueType(binding.declaredType);
+    const declaredType = scalarExpressionTypeOfDslValueType(binding.declaredType);
     if (declaredType === null) continue;
     if (binding.resolutionMode === "preResolvedOnly" && !typedInitializerByBindingId.has(bindingId)) continue;
     const initializer = typedInitializerByBindingId.get(bindingId);

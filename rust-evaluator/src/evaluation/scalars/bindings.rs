@@ -73,9 +73,13 @@ pub(crate) fn result_for_declared_type(
     match &result {
         ScalarEvaluation::Error { .. } => result,
         ScalarEvaluation::Ok { r#type, value }
-            if r#type == declared_type && scalar_value_matches_type(r#type, value) =>
+            if scalar_type_assignable(r#type, declared_type)
+                && scalar_value_matches_type(declared_type, value) =>
         {
-            result
+            ScalarEvaluation::Ok {
+                r#type: declared_type.clone(),
+                value: value.clone(),
+            }
         }
         ScalarEvaluation::Ok { .. } => ScalarEvaluation::Error {
             r#type: declared_type.clone(),
@@ -84,6 +88,18 @@ pub(crate) fn result_for_declared_type(
             context: None,
         },
     }
+}
+
+fn scalar_type_assignable(actual: &ScalarType, expected: &ScalarType) -> bool {
+    if let ScalarType::Optional { value_type } = expected {
+        return match actual {
+            ScalarType::Optional {
+                value_type: actual_value_type,
+            } => scalar_type_assignable(actual_value_type, value_type),
+            _ => scalar_type_assignable(actual, value_type),
+        };
+    }
+    !matches!(actual, ScalarType::Optional { .. }) && actual == expected
 }
 
 fn record_field_result(
@@ -275,6 +291,98 @@ impl<'a> ScalarBindingResolver<'a> {
         evaluation
     }
 
+    fn resolve_collection_presence(
+        &self,
+        collection_value_id: &str,
+        state: &EvaluationState,
+        seen: &mut HashSet<String>,
+    ) -> Option<bool> {
+        if !seen.insert(collection_value_id.to_owned()) {
+            return None;
+        }
+        let value = self
+            .program
+            .collection_values
+            .iter()
+            .find(|candidate| candidate.value_id == collection_value_id)?;
+        match &value.value {
+            ValidatedScalarProgramCollectionValue::None => Some(false),
+            ValidatedScalarProgramCollectionValue::Literal(_) => Some(true),
+            ValidatedScalarProgramCollectionValue::Alias(target) => {
+                self.resolve_collection_presence(target, state, seen)
+            }
+            ValidatedScalarProgramCollectionValue::Map {
+                source_value_id, ..
+            }
+            | ValidatedScalarProgramCollectionValue::RecordMap {
+                source_value_id, ..
+            }
+            | ValidatedScalarProgramCollectionValue::RecordField {
+                source_value_id, ..
+            } => self.resolve_collection_presence(source_value_id, state, seen),
+            ValidatedScalarProgramCollectionValue::If {
+                condition,
+                then_value_id,
+                else_value_id,
+                source_order,
+            } => {
+                let environment = ResolvingEnvironment {
+                    resolver: self,
+                    state,
+                    source_order: *source_order,
+                    local_binding_id: None,
+                    local_binding: None,
+                    local_bindings: None,
+                    record_map_context: None,
+                };
+                match evaluate_typed_expression(condition, &environment) {
+                    ScalarEvaluation::Ok {
+                        value: ScalarValue::Boolean(value),
+                        ..
+                    } => self.resolve_collection_presence(
+                        if value { then_value_id } else { else_value_id },
+                        state,
+                        seen,
+                    ),
+                    _ => None,
+                }
+            }
+            ValidatedScalarProgramCollectionValue::Match {
+                scrutinee,
+                arms,
+                source_order,
+            } => {
+                let environment = ResolvingEnvironment {
+                    resolver: self,
+                    state,
+                    source_order: *source_order,
+                    local_binding_id: None,
+                    local_binding: None,
+                    local_bindings: None,
+                    record_map_context: None,
+                };
+                let ScalarEvaluation::Ok {
+                    value: ScalarValue::Choice { value, .. },
+                    ..
+                } = evaluate_typed_expression(scrutinee, &environment)
+                else {
+                    return None;
+                };
+                let (_, selected) = arms.iter().find(|(label, _)| label == &value)?;
+                self.resolve_collection_presence(selected, state, seen)
+            }
+            ValidatedScalarProgramCollectionValue::Coalesce {
+                left_value_id,
+                right_value_id,
+                ..
+            } => match self.resolve_collection_presence(left_value_id, state, seen) {
+                Some(true) => Some(true),
+                Some(false) => self.resolve_collection_presence(right_value_id, state, seen),
+                None => None,
+            },
+        }
+    }
+
     /// Walks `program.statements` in array order and pulls each value from
     /// the (memoized, so free after the first ask) resolver, producing the
     /// same `computed_scalar_bindings` shape/order the original one-shot
@@ -366,6 +474,9 @@ impl<'a> ScalarBindingResolver<'a> {
             }
             match &value.value {
                 ValidatedScalarProgramCollectionValue::Alias(target) => current = target,
+                ValidatedScalarProgramCollectionValue::None => {
+                    return unavailable_binding(current);
+                }
                 ValidatedScalarProgramCollectionValue::Literal(members) => {
                     let Some(ValidatedScalarProgramCollectionMember::Record {
                         type_identity,
@@ -515,6 +626,19 @@ impl<'a> ScalarBindingResolver<'a> {
                 | ValidatedScalarProgramCollectionValue::Map { .. } => {
                     return unavailable_binding(current);
                 }
+                ValidatedScalarProgramCollectionValue::Coalesce {
+                    left_value_id,
+                    right_value_id,
+                    ..
+                } => {
+                    let left_present =
+                        self.resolve_collection_presence(left_value_id, state, &mut seen.clone());
+                    current = match left_present {
+                        Some(true) => left_value_id,
+                        Some(false) => right_value_id,
+                        None => return unavailable_binding(current),
+                    };
+                }
             }
         }
     }
@@ -565,6 +689,14 @@ impl<'a> ScalarBindingResolver<'a> {
                 };
             };
             match &value.value {
+                ValidatedScalarProgramCollectionValue::None => {
+                    return ScalarEvaluation::Error {
+                        r#type: element_type.clone(),
+                        issue_code: "evaluation-collection-index-unavailable".to_owned(),
+                        binding_id: None,
+                        context: None,
+                    };
+                }
                 ValidatedScalarProgramCollectionValue::Alias(target) => current = target,
                 ValidatedScalarProgramCollectionValue::Literal(members) => {
                     break members.get(index as usize)
@@ -742,6 +874,34 @@ impl<'a> ScalarBindingResolver<'a> {
                         state,
                     );
                 }
+                ValidatedScalarProgramCollectionValue::Coalesce {
+                    left_value_id,
+                    right_value_id,
+                    ..
+                } => {
+                    let left_present =
+                        self.resolve_collection_presence(left_value_id, state, &mut seen.clone());
+                    let selected = match left_present {
+                        Some(true) => left_value_id,
+                        Some(false) => right_value_id,
+                        None => {
+                            return ScalarEvaluation::Error {
+                                r#type: element_type.clone(),
+                                issue_code: "evaluation-collection-index-unavailable".to_owned(),
+                                binding_id: None,
+                                context: None,
+                            };
+                        }
+                    };
+                    return self.resolve_collection_index(
+                        selected,
+                        index,
+                        element_type,
+                        None,
+                        -1.0,
+                        state,
+                    );
+                }
             }
         };
         let Some(member) = member else {
@@ -819,6 +979,7 @@ impl<'a> ScalarBindingResolver<'a> {
             return None;
         }
         match &value.value {
+            ValidatedScalarProgramCollectionValue::None => None,
             ValidatedScalarProgramCollectionValue::Literal(members) => Some(members.len() as f64),
             ValidatedScalarProgramCollectionValue::Alias(target) => {
                 self.resolve_collection_length(target, state, seen)
@@ -882,6 +1043,19 @@ impl<'a> ScalarBindingResolver<'a> {
                 };
                 let (_, target) = arms.iter().find(|(label, _)| label == &value)?;
                 self.resolve_collection_length(target, state, seen)
+            }
+            ValidatedScalarProgramCollectionValue::Coalesce {
+                left_value_id,
+                right_value_id,
+                ..
+            } => {
+                let left_present =
+                    self.resolve_collection_presence(left_value_id, state, &mut seen.clone());
+                match left_present {
+                    Some(true) => self.resolve_collection_length(left_value_id, state, seen),
+                    Some(false) => self.resolve_collection_length(right_value_id, state, seen),
+                    None => None,
+                }
             }
         }
     }
@@ -1084,6 +1258,9 @@ fn scalar_type_json(scalar_type: &ScalarType) -> Value {
         ScalarType::String => json!({ "kind": "string" }),
         ScalarType::Boolean => json!({ "kind": "boolean" }),
         ScalarType::Choice { options } => json!({ "kind": "choice", "options": options }),
+        ScalarType::Optional { value_type } => {
+            json!({ "kind": "optional", "valueType": scalar_type_json(value_type) })
+        }
     }
 }
 
@@ -1095,6 +1272,7 @@ fn scalar_value_json(value: &ScalarValue) -> Value {
         ScalarValue::Choice { value, options } => {
             json!({ "kind": "choice", "value": value, "options": options })
         }
+        ScalarValue::None => json!({ "kind": "none" }),
     }
 }
 

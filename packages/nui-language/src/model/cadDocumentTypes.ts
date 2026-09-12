@@ -184,9 +184,11 @@ export type GeometryValueOccurrence = {
 /** Runtime-only input for a read-only geometry consumer. This is deliberately
  * separate from persisted ElementId fields and is never a drawable identity. */
 export type GeometryInputCollectionNode =
+  | { kind: "none" }
   | { kind: "leaf"; targets: readonly Exclude<GeometryInputTarget, { kind: "collectionIndex" } | { kind: "collectionValue" }>[] }
   | { kind: "if"; condition: TypedScalarExpression; sourceOrder: number; thenBranch: GeometryInputCollectionNode; elseBranch: GeometryInputCollectionNode }
-  | { kind: "match"; scrutinee: TypedScalarExpression; sourceOrder: number; arms: readonly { label: string; value: GeometryInputCollectionNode }[] };
+  | { kind: "match"; scrutinee: TypedScalarExpression; sourceOrder: number; arms: readonly { label: string; value: GeometryInputCollectionNode }[] }
+  | { kind: "coalesce"; leftBranch: GeometryInputCollectionNode; rightBranch: GeometryInputCollectionNode };
 
 export type GeometryInputTarget =
   | { kind: "drawable"; elementId: ElementId; geometryType: "point" | "line" | "path"; pointKey?: string }

@@ -43,7 +43,7 @@ import { isCompilableDslStatement, isCanonicalValueBindingDeclaration, type DslS
 import { compilePropertyReferenceSyntax } from "./dslPropertyReferenceSyntax";
 import { buildPlacementRefsByStatementIndex } from "./dslPrintLayoutPlacementIndex";
 import { isGeometryDeclarationCategory } from "./dslConstructions";
-import { isDslGeometryValueType, isDslRecordValueType, nominalRecordTypeOfDslValueType, scalarTypeOfDslValueType } from "./dslValueTypes";
+import { dslRequiredValueTypeOf, isDslGeometryValueType, isDslRecordValueType, nominalRecordTypeOfDslValueType, scalarTypeOfDslValueType } from "./dslValueTypes";
 import { collectionLengthForValueId, collectionValueSemanticForStatement, geometryArrayDeferredModuleExportId } from "./geometryArraySemanticAnalysis";
 import type { GenericArraySourceTarget } from "./geometryArraySemanticAnalysis";
 import type { DslArrayMappedValue, DslArraySemanticValue } from "./geometryArraySemantics";
@@ -60,7 +60,12 @@ import { geometryAliasForSourceElement, geometryValueOccurrenceForRecordField, p
 import { parseGeometryArrayExpression } from "./geometryArrayExpression";
 import { buildRootGeometryValueProgram } from "./moduleGeometryValueProgram";
 import { compileModuleScalarRuntime, lowerExpression, moduleRecordExportFieldBindingIdFor, moduleScalarBindingIdFor, moduleScalarExportBindingSeeds, type ModuleScalarRuntimeCompilation } from "../scalars/moduleScalarRuntime";
-import { recordScalarBindingIdFor, recordScalarBindingIdForPath } from "../scalars/recordScalarLowering";
+import {
+  recordFieldCollectionValueIdFor,
+  recordScalarBindingIdFor,
+  recordScalarBindingIdForPath,
+  recordValueCollectionIdFor
+} from "../scalars/recordScalarLowering";
 import { MISSING_ATTRIBUTE_VALUE_CODE } from "./dslArgScanner";
 import { isElementDslStatement, parseDsl, parseDslSnapshot } from "./dslParser";
 import type { SourceRevision } from "./logicalStatementSourceMap";
@@ -1134,16 +1139,23 @@ export const compileDslDocument = (
     (statement) => statement.kind === "moduleDefinition" || statement.kind === "moduleInstance"
   );
   const hasGeometryValueStatements = parsed.statements.some(
-    (statement) => statement.kind === "typedDeclaration" && statement.valueType?.kind !== "array" &&
-      (statement.valueType?.kind === "point" || statement.valueType?.kind === "line" || statement.valueType?.kind === "path")
+    (statement) => statement.kind === "typedDeclaration" && isDslGeometryValueType(dslRequiredValueTypeOf(statement.valueType))
   );
   const hasRecordValueControlFlowStatements = parsed.statements.some(
-    (statement) => statement.kind === "typedDeclaration" && nominalRecordTypeOfDslValueType(statement.valueType) !== null &&
+    (statement) => statement.kind === "typedDeclaration" && nominalRecordTypeOfDslValueType(dslRequiredValueTypeOf(statement.valueType)) !== null &&
       /^(?:if\s*\(|match\b)/.test(statement.initializer.trim())
   );
   const hasGeneralizedRecordFields = parsed.statements.some((statement) =>
     statement.kind === "recordDefinition" && statement.fields.some((field) => field.type !== null && scalarTypeOfDslValueType(field.type) === null)
   );
+  const hasNonScalarOptionalOrCoalescingStatements = parsed.statements.some((statement) => {
+    if (statement.kind !== "typedDeclaration") return false;
+    const requiredType = dslRequiredValueTypeOf(statement.valueType);
+    const isNonScalar = requiredType?.kind === "array" ||
+      isDslGeometryValueType(requiredType) ||
+      isDslRecordValueType(requiredType);
+    return Boolean(isNonScalar && (statement.valueType?.kind === "optional" || statement.initializer.includes("??")));
+  });
   const containsCollectionIndex = (ast: ScalarExpressionAst | null): boolean => {
     if (!ast) return false;
     switch (ast.kind) {
@@ -1456,7 +1468,7 @@ export const compileDslDocument = (
           lookup.kind !== "resolved" ||
           lookup.declaration.kind !== "typedDeclaration" ||
           lookup.declaration.statement.kind !== "typedDeclaration" ||
-          !isDslRecordValueType(lookup.declaration.statement.valueType)
+          !isDslRecordValueType(dslRequiredValueTypeOf(lookup.declaration.statement.valueType))
         ) return undefined;
         const recordAnalysis = sourceLexicalNamespace.recordSemanticAnalysis;
         const recordValue = recordAnalysis?.valuesByStatementId.get(lookup.declaration.statementId);
@@ -1684,6 +1696,14 @@ export const compileDslDocument = (
     if (!collectionAnalysis || !stableStatementIdByIndex) return [];
     const values: ScalarProgramCollection[] = [];
     const append = (valueId: string, collectionValue: NonNullable<typeof collectionAnalysis.genericValues[number]["value"]>, sourceStatementId: string, sourceOrder: number): void => {
+      if (collectionValue.kind === "coalesce") {
+        const leftValueId = `${valueId}:left`;
+        const rightValueId = `${valueId}:right`;
+        append(leftValueId, collectionValue.left as NonNullable<typeof collectionAnalysis.genericValues[number]["value"]>, sourceStatementId, sourceOrder);
+        append(rightValueId, collectionValue.right as NonNullable<typeof collectionAnalysis.genericValues[number]["value"]>, sourceStatementId, sourceOrder);
+        values.push({ valueId, kind: "coalesce", leftValueId, rightValueId, sourceOrder });
+        return;
+      }
       if (collectionValue.kind === "if") {
         const thenValueId = `${valueId}:then`;
         const elseValueId = `${valueId}:else`;
@@ -1725,6 +1745,7 @@ export const compileDslDocument = (
         values.push({ valueId, kind: "match", scrutinee, arms, sourceOrder });
         return;
       }
+      if (collectionValue.kind === "none") return;
       if (collectionValue.valueType.elementType.kind === "record") return;
       const elementType = scalarTypeOfDslValueType(collectionValue.valueType.elementType);
       if (!elementType) return;
@@ -1771,6 +1792,10 @@ export const compileDslDocument = (
         if (moduleAnalysis) append(value.statementId, collectionValue, value.statementId, value.statementIndex);
         continue;
       }
+      if (collectionValue.kind === "coalesce") {
+        if (moduleAnalysis) append(value.statementId, collectionValue, value.statementId, value.statementIndex);
+        continue;
+      }
       if (collectionValue.kind === "map" && collectionValue.body) {
         if (collectionValue.sourceElementType.kind === "record" || collectionValue.resultElementType.kind === "record") continue;
         const sourceElementType = scalarTypeOfDslValueType(collectionValue.sourceElementType);
@@ -1791,6 +1816,10 @@ export const compileDslDocument = (
       if (collectionValue.kind === "map") continue;
       if (collectionValue.kind === "alias") {
         values.push({ valueId: value.statementId, kind: "alias", targetValueId: collectionValue.targetValueId });
+        continue;
+      }
+      if (collectionValue.kind === "none") {
+        values.push({ valueId: value.statementId, kind: "none" });
         continue;
       }
       const members: ScalarProgramCollectionMember[] = [];
@@ -1880,7 +1909,7 @@ export const compileDslDocument = (
   // The source semantic projection is also useful for Definition Query in a
   // document without Modules. Geometry values also need this path so their
   // source-only aliases can be lowered at existing geometry consumers.
-  const moduleSemanticCompilation = hasModuleStatements || hasGeometryValueStatements || hasRecordValueControlFlowStatements || hasGeneralizedRecordFields || hasGenericCollectionIndexStatements || hasGeometryCollectionIndexStatements || hasCollectionControlFlowStatements || hasNominalRecordCollectionValueFor ? sourceSemanticCompilation : undefined;
+  const moduleSemanticCompilation = hasModuleStatements || hasGeometryValueStatements || hasRecordValueControlFlowStatements || hasGeneralizedRecordFields || hasNonScalarOptionalOrCoalescingStatements || hasGenericCollectionIndexStatements || hasGeometryCollectionIndexStatements || hasCollectionControlFlowStatements || hasNominalRecordCollectionValueFor ? sourceSemanticCompilation : undefined;
   let moduleGeometryPropertyResolver: ((input: {
     statementIndex: number;
     node: Extract<ScalarExpressionAst, { kind: "geometryProperty" }>;
@@ -2221,6 +2250,25 @@ export const compileDslDocument = (
           const property = candidates.find((candidate) => candidate.span.start === node.span.start) ?? (candidates.length === 1 ? candidates[0] : undefined);
           if (property?.target?.kind !== "recordField" || !property.type) return null;
           if (scalarTypeOfDslValueType(property.target.valueType) === null) return null;
+          if (property.target.record.kind === "recordValue") {
+            const recordValue = sourceLexicalNamespace.recordSemanticAnalysis?.valuesByStatementId.get(property.target.record.statementId);
+            if (recordValue?.valueExpression?.kind === "coalesce") {
+              const fieldPath = property.target.fieldPath ?? [property.target.field];
+              return {
+                resolution: {
+                  kind: "resolvedCollectionIndex" as const,
+                  collectionValueId: recordFieldCollectionValueIdFor(
+                    recordValueCollectionIdFor([], property.target.record.statementId),
+                    property.target.field,
+                    fieldPath
+                  ),
+                  collectionLength: 1,
+                  targetSourceOrder: property.target.record.statementIndex,
+                  type: property.type
+                }
+              };
+            }
+          }
           const recordFieldBindingIdForTarget = (target: ModuleScalarSourceTarget): BindingId | null => {
             if (target.kind !== "recordField") return null;
             if (target.record.kind === "recordValue") {

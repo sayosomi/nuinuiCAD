@@ -497,6 +497,12 @@ const addRootRecordValueExpressionOccurrences = (
     if (expression.elseBranch) addRootRecordValueExpressionOccurrences(compiled, add, statementIndex, expression.elseBranch, expectedTypeIdentity);
     return;
   }
+  if (expression.kind === "none") return;
+  if (expression.kind === "coalesce") {
+    if (expression.left) addRootRecordValueExpressionOccurrences(compiled, add, statementIndex, expression.left, expectedTypeIdentity);
+    if (expression.right) addRootRecordValueExpressionOccurrences(compiled, add, statementIndex, expression.right, expectedTypeIdentity);
+    return;
+  }
   for (const arm of expression.arms) {
     if (arm.expression) addRootRecordValueExpressionOccurrences(compiled, add, statementIndex, arm.expression, expectedTypeIdentity);
   }
@@ -808,6 +814,12 @@ const addModuleGeometryValueExpressionOccurrences = (
       if (current.elseBranch) visit(current.elseBranch);
       return;
     }
+    if (current.kind === "none") return;
+    if (current.kind === "coalesce") {
+      visit(current.left);
+      visit(current.right);
+      return;
+    }
     addScalar(current.scrutinee);
     for (const arm of current.arms) if (arm.expression) visit(arm.expression);
   };
@@ -900,6 +912,12 @@ const addGeometryArrayOccurrences = (compiled: CompiledDslDocument, add: AddOccu
       for (const arm of value.arms) visitNestedGeometryArrayValue(statementIndex, arm.value);
       return;
     }
+    if (value.kind === "coalesce") {
+      visitNestedGeometryArrayValue(statementIndex, value.left);
+      visitNestedGeometryArrayValue(statementIndex, value.right);
+      return;
+    }
+    if (value.kind === "none") return;
     if (value.kind === "literal") {
       for (const member of value.members) {
         if (member.target.kind === "coordinate") continue;
@@ -1041,6 +1059,12 @@ const addGeometryArrayOccurrences = (compiled: CompiledDslDocument, add: AddOccu
       visitNestedGeometryArrayValue(value.statementIndex, value.value);
       continue;
     }
+    if (value.value.kind === "coalesce") {
+      visitNestedGeometryArrayValue(value.statementIndex, value.value.left);
+      visitNestedGeometryArrayValue(value.statementIndex, value.value.right);
+      continue;
+    }
+    if (value.value.kind === "none") continue;
     const targetValue = analysis.valuesByStatementId.get(value.value.targetValueId);
     if (targetValue) {
       addReference(value.statementIndex, value.value.sourceSpan, geometryArrayValueIdentity(compiled, targetValue.statementId));
@@ -1291,6 +1315,12 @@ const addModuleSemanticPathOccurrences = (compiled: CompiledDslDocument, add: Ad
       for (const reference of expression.condition?.geometryProperties ?? []) addGeometry(statementIndex, reference);
       if (expression.thenBranch) addRecordValueExpression(statementIndex, expression.thenBranch);
       if (expression.elseBranch) addRecordValueExpression(statementIndex, expression.elseBranch);
+      return;
+    }
+    if (expression.kind === "none") return;
+    if (expression.kind === "coalesce") {
+      if (expression.left) addRecordValueExpression(statementIndex, expression.left);
+      if (expression.right) addRecordValueExpression(statementIndex, expression.right);
       return;
     }
     for (const reference of expression.scrutinee?.references ?? []) addCollectionIndexBase(statementIndex, reference);

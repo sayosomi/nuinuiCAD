@@ -77,8 +77,13 @@ pub(crate) struct GeometryValueMatchArm {
 
 #[derive(Debug)]
 pub(crate) enum GeometryValueConstruction {
+    None,
     Reference {
         target: super::scalars::ScalarExpressionResolvedGeometryTarget,
+    },
+    Coalesce {
+        left: Box<GeometryValueConstruction>,
+        right: Box<GeometryValueConstruction>,
     },
     If {
         condition: Box<TypedScalarExpression>,
@@ -465,6 +470,7 @@ fn decode_entry(value: &Value) -> Result<GeometryValueProgramEntry, String> {
     )?;
     let construction =
         match string_field(construction_object, "kind", "geometry value construction")?.as_str() {
+            "none" => GeometryValueConstruction::None,
             "reference" => GeometryValueConstruction::Reference {
                 target: super::scalars::decode_geometry_target_payload(
                     construction_object
@@ -473,6 +479,18 @@ fn decode_entry(value: &Value) -> Result<GeometryValueProgramEntry, String> {
                 )
                 .map_err(|error| format!("{error:?}"))?
                 .ok_or_else(|| "geometry value reference target cannot be null".to_owned())?,
+            },
+            "coalesce" => GeometryValueConstruction::Coalesce {
+                left: Box::new(decode_nested_construction(
+                    construction_object
+                        .get("left")
+                        .ok_or_else(|| "geometry value coalesce is missing left".to_owned())?,
+                )?),
+                right: Box::new(decode_nested_construction(
+                    construction_object
+                        .get("right")
+                        .ok_or_else(|| "geometry value coalesce is missing right".to_owned())?,
+                )?),
             },
             "if" => GeometryValueConstruction::If {
                 condition: Box::new(decode_typed_field(
@@ -1713,6 +1731,9 @@ fn evaluate_geometry_value_node(
     source_order: f64,
 ) {
     match construction {
+        GeometryValueConstruction::None => {
+            state.computed_geometry_values.remove(&entry.occurrence);
+        }
         GeometryValueConstruction::Reference { target } => {
             let Some(geometry) = target_geometry(target, state) else {
                 append_geometry_value_error(
@@ -1737,6 +1758,16 @@ fn evaluate_geometry_value_node(
             state
                 .computed_geometry_values
                 .insert(entry.occurrence.clone(), value);
+        }
+        GeometryValueConstruction::Coalesce { left, right } => {
+            evaluate_geometry_value_node(left, entry, resolver, state, source_order);
+            if state
+                .computed_geometry_values
+                .contains_key(&entry.occurrence)
+            {
+                return;
+            }
+            evaluate_geometry_value_node(right, entry, resolver, state, source_order);
         }
         GeometryValueConstruction::If {
             condition,

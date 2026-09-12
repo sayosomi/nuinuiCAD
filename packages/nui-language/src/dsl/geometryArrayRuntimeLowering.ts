@@ -25,6 +25,7 @@ const lowerValue = (
   visited: ReadonlySet<string>
 ): readonly ElementId[] | null => {
   if (value.type.elementType === "point") return null;
+  if (value.kind === "none") return null;
   if (value.kind === "alias") {
     if (visited.has(value.targetValueId)) return null;
     const target = valueForId(analysis, value.targetValueId);
@@ -38,7 +39,7 @@ const lowerValue = (
     );
   }
   if (value.kind === "map") return null;
-  if (value.kind === "if" || value.kind === "match") return null;
+  if (value.kind === "if" || value.kind === "match" || value.kind === "coalesce") return null;
 
   const ids: ElementId[] = [];
   for (const member of value.members) {
@@ -73,6 +74,7 @@ const lowerPointValue = (
   visited: ReadonlySet<string>
 ): readonly PointAnchor[] | null => {
   if (value.type.elementType !== "point") return null;
+  if (value.kind === "none") return null;
   if (value.kind === "alias") {
     if (visited.has(value.targetValueId)) return null;
     const target = valueForId(analysis, value.targetValueId);
@@ -80,7 +82,7 @@ const lowerPointValue = (
     return lowerPointValue(analysis, target.value, elementIdByStatementIndex, geometryValueByStatementIndex, new Set([...visited, value.targetValueId]));
   }
   if (value.kind === "map") return null;
-  if (value.kind === "if" || value.kind === "match") return null;
+  if (value.kind === "if" || value.kind === "match" || value.kind === "coalesce") return null;
 
   const anchors: PointAnchor[] = [];
   for (const member of value.members) {

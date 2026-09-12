@@ -3,7 +3,7 @@
 // @name tokens).
 //
 // Fixed precedence, loosest to tightest:
-// || &&   ==/!=  </<=/>/>=  +/-  * / %   unary (!, -, +),
+// ?? || &&   ==/!=  </<=/>/>=  +/-  * / %   unary (!, -, +),
 // then power (^), then primary. Power is right-associative and deliberately
 // sits above unary so `-2 ^ 2` parses as `-(2 ^ 2)`.
 // (including named calls).
@@ -68,7 +68,7 @@ export const isScalarExpressionCandidateSource = (source: string): boolean => {
   if (/^if\s*\(/.test(trimmed)) return true;
   if (/^match\b/.test(trimmed)) return trimmed !== "match";
   if (isScalarNamedCallCandidateSource(trimmed)) return true;
-  return containsScalarWordOperator(trimmed) || /&&|\|\||==|!=|<=|>=|[<>]/.test(trimmed);
+  return containsScalarWordOperator(trimmed) || /\?\?|&&|\|\||==|!=|<=|>=|[<>]/.test(trimmed);
 };
 
 /** Syntax-only guard for consumers that still own legacy named-call syntax. */
@@ -109,6 +109,7 @@ const literalToNode = (literal: ScalarLiteralToken): ScalarExpressionAst => {
   if (literal.kind === "number") return { kind: "numberLiteral", span: literal.span, value: literal.value };
   if (literal.kind === "string") return { kind: "stringLiteral", span: literal.span, value: literal.cooked };
   if (literal.kind === "boolean") return { kind: "booleanLiteral", span: literal.span, value: literal.value };
+  if (literal.kind === "choice" && literal.raw === "none") return { kind: "noneLiteral", span: literal.span };
   return { kind: "unresolvedChoiceLiteral", span: literal.span, raw: literal.raw };
 };
 
@@ -128,6 +129,7 @@ interface BinaryTier {
 }
 
 const BINARY_PRECEDENCE_TIERS: readonly BinaryTier[] = [
+  { operators: ["??"], chain: true },
   { operators: ["||"], chain: true },
   { operators: ["&&"], chain: true },
   { operators: ["==", "!="], chain: false },

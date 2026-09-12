@@ -82,6 +82,7 @@ pub(crate) fn decode_binary_operator(
     context: &str,
 ) -> Result<ScalarBinaryOperator, ScalarPayloadIssue> {
     match json.as_str() {
+        Some("??") => Ok(ScalarBinaryOperator::Coalesce),
         Some("||") => Ok(ScalarBinaryOperator::Or),
         Some("&&") => Ok(ScalarBinaryOperator::And),
         Some("==") => Ok(ScalarBinaryOperator::Eq),
@@ -101,6 +102,27 @@ pub(crate) fn decode_binary_operator(
             format!("{context} has an invalid binary operator"),
         )),
     }
+}
+
+pub(crate) fn decode_none_literal(
+    object: &Map<String, Value>,
+) -> Result<TypedScalarExpression, ScalarPayloadIssue> {
+    reject_unexpected_fields(object, &["kind", "span", "type"], "noneLiteral node")?;
+    let span = decode_span(
+        require_field(object, "span", "noneLiteral node")?,
+        "noneLiteral node span",
+    )?;
+    let scalar_type = decode_scalar_type(require_field(object, "type", "noneLiteral node")?)?;
+    if !matches!(scalar_type, ScalarType::Optional { .. }) {
+        return Err(issue(
+            Code::LiteralTypeMismatch,
+            "noneLiteral node \"type\" must be an optional scalar type",
+        ));
+    }
+    Ok(TypedScalarExpression::NoneLiteral {
+        span,
+        r#type: scalar_type,
+    })
 }
 
 pub(crate) fn decode_number_literal(

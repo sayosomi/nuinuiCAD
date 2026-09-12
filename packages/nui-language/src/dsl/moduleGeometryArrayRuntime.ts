@@ -780,6 +780,36 @@ export const buildModuleGeometryArrayRuntime = ({
       return value;
     }
 
+    if (semantic.value.kind === "none") {
+      const value = {
+        type: semantic.type,
+        members: [],
+        collection: { kind: "none" as const }
+      };
+      sourceValueCache.set(key, value);
+      return value;
+    }
+
+    if (semantic.value.kind === "coalesce") {
+      const leftValue = lowerSemantic({ ...semantic, value: semantic.value.left }, currentPath, visited, `${cacheKeySuffix}:left`);
+      const rightValue = lowerSemantic({ ...semantic, value: semantic.value.right }, currentPath, visited, `${cacheKeySuffix}:right`);
+      const leftCollection = leftValue ? collectionNodeForValue(leftValue) : null;
+      const rightCollection = rightValue ? collectionNodeForValue(rightValue) : null;
+      const value = leftCollection && rightCollection
+        ? {
+            type: semantic.type,
+            members: [],
+            collection: {
+              kind: "coalesce" as const,
+              leftBranch: leftCollection,
+              rightBranch: rightCollection
+            }
+          }
+        : null;
+      sourceValueCache.set(key, value);
+      return value;
+    }
+
     const currentSource = sourceForPath(currentPath);
     const currentAnalysis = currentSource.analysis;
     if (!currentAnalysis) {

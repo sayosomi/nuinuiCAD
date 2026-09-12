@@ -48,6 +48,7 @@ fn scalar_value_to_json(value: &ScalarValue) -> Value {
         ScalarValue::String(value) => Value::String(value.clone()),
         ScalarValue::Boolean(value) => Value::Bool(*value),
         ScalarValue::Choice { value, .. } => Value::String(value.clone()),
+        ScalarValue::None => Value::Null,
     }
 }
 

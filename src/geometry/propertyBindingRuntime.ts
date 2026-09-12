@@ -12,7 +12,7 @@
 import type { CadElement, DependencyError, ElementId } from "../types/geometry";
 import type { BindingId } from "../scalars/bindingCatalog";
 import type { ScalarValueSource } from "../scalars/propertyBindingCompiler";
-import { isScalarTypeAssignable } from "../scalars/scalarAssignability";
+import { isScalarExpressionTypeAssignable } from "../scalars/scalarAssignability";
 import type { ScalarEvaluation, ScalarType } from "../scalars/types";
 import { findParameterDefinition, scalarTypeForParameterDefinition } from "../parameters/parameterDefinitions";
 import type { TypedScalarExpression } from "../scalars/typedExpressionAst";
@@ -119,7 +119,8 @@ const propertyBindingFailureMessage = (
   if (evaluation.status === "error") {
     return `"${element.name}" の "${parameterKey}" に紐づく変数の評価に失敗しました。`;
   }
-  return `"${element.name}" の "${parameterKey}" に紐づく変数の値 "${String(evaluation.value.value)}" は許可された選択肢または型と一致しません。`;
+  const value = evaluation.value;
+  return `"${element.name}" の "${parameterKey}" に紐づく変数の値 "${value.kind === "none" ? "none" : String(value.value)}" は許可された選択肢または型と一致しません。`;
 };
 
 /**
@@ -148,8 +149,8 @@ export const materializePropertyBoundElement = (
       : entry.bindingId
         ? resolveBinding(entry.bindingId)
         : { status: "error", type: entry.expectedType, issueCode: "property-binding-missing-source" } as ScalarEvaluation;
-    const satisfies = evaluation.status === "ok" && isScalarTypeAssignable(evaluation.type, entry.expectedType);
-    if (!satisfies) {
+    if (evaluation.status !== "ok" || evaluation.value.kind === "none" ||
+      !isScalarExpressionTypeAssignable(evaluation.type, entry.expectedType)) {
       return { ok: false, error: geometryError(element, propertyBindingFailureMessage(element, entry.parameterKey, evaluation)) };
     }
     overrides[entry.parameterKey] = evaluation.value.value;

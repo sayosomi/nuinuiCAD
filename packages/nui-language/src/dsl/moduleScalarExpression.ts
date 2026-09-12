@@ -280,6 +280,7 @@ const resolveAndTypecheck = ({
       case "numberLiteral":
       case "stringLiteral":
       case "booleanLiteral":
+      case "noneLiteral":
         return node;
       case "unresolvedChoiceLiteral": {
         const bareReference = resolveBareReference?.({ name: node.raw, span: node.span });
@@ -533,7 +534,7 @@ const resolveAndTypecheck = ({
       }
     ));
   }
-  const type = diagnostics.length === 0 && !invalidGeometryProperty ? checked.type : null;
+  const type = diagnostics.length === 0 && !invalidGeometryProperty && checked.type?.kind !== "optional" ? checked.type : null;
   return { semantic: { ast, type, references: resolvedReferences, geometryProperties, geometryBuiltinArguments, hasValueParameters }, diagnostics };
 };
 

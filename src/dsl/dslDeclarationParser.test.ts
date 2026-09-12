@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { parseDslTypedDeclarationStatement } from "./dslDeclarationParser";
 import { parseDslSnapshot } from "./dslParser";
 import { geometryArrayTypeOfTypedDeclaration } from "./geometryArraySourceAnnotations";
+import { dslValueTypeName, isDslValueTypeAssignable } from "../../packages/nui-language/src/dsl/dslValueTypes";
 
 const parse = (source: string) => parseDslTypedDeclarationStatement(source);
 const messages = (source: string) => parse(source).diagnostics.map((diagnostic) => diagnostic.message);
@@ -72,6 +73,55 @@ describe("DSL typed declaration parser", () => {
       kind: "array",
       elementType: { kind: "record", name: "Measurements" }
     });
+  });
+
+  it("parses optional values and preserves array suffix precedence", () => {
+    expect(parse("const note: string? = none").statement?.valueType).toEqual({
+      kind: "optional",
+      valueType: { kind: "string" }
+    });
+    expect(parse("const members: number?[] = []").statement?.valueType).toEqual({
+      kind: "array",
+      elementType: { kind: "optional", valueType: { kind: "number" } }
+    });
+    expect(parse("const maybe: number[]? = []").statement?.valueType).toEqual({
+      kind: "optional",
+      valueType: { kind: "array", elementType: { kind: "number" } }
+    });
+    expect(dslValueTypeName(parse("const members: number?[] = []").statement!.valueType!)).toBe("number?[]");
+    expect(dslValueTypeName(parse("const maybe: number[]? = []").statement!.valueType!)).toBe("number[]?");
+  });
+
+  it("rejects repeated optional suffixes at the extra question mark", () => {
+    const result = parse("const x: number?? = none");
+    expect(result.statement?.valueType).toBeNull();
+    expect(result.diagnostics).toContainEqual(expect.objectContaining({
+      code: "repeated-optional-type",
+      span: { start: "const x: number??".indexOf("??"), end: "const x: number??".indexOf("??") + 1 }
+    }));
+    expect(parse("const x: number?[]? = []").diagnostics).toContainEqual(
+      expect.objectContaining({ code: "repeated-optional-type" })
+    );
+  });
+
+  it("uses one assignability rule for optional scalars, geometry, records, and arrays", () => {
+    const number = { kind: "number" } as const;
+    const optionalNumber = { kind: "optional", valueType: number } as const;
+    const point = { kind: "point" } as const;
+    const optionalPoint = { kind: "optional", valueType: point } as const;
+    const record = { kind: "record", name: "Measurement" } as const;
+    const optionalRecord = { kind: "optional", valueType: record } as const;
+    const numbers = { kind: "array", elementType: number } as const;
+    const optionalNumbers = { kind: "optional", valueType: numbers } as const;
+    const optionalMembers = { kind: "array", elementType: optionalNumber } as const;
+
+    expect(isDslValueTypeAssignable(number, optionalNumber)).toBe(true);
+    expect(isDslValueTypeAssignable(optionalNumber, number)).toBe(false);
+    expect(isDslValueTypeAssignable(point, optionalPoint)).toBe(true);
+    expect(isDslValueTypeAssignable(record, optionalRecord)).toBe(true);
+    expect(isDslValueTypeAssignable(numbers, optionalNumbers)).toBe(true);
+    expect(isDslValueTypeAssignable(optionalMembers, optionalMembers)).toBe(true);
+    expect(isDslValueTypeAssignable(optionalMembers, numbers)).toBe(false);
   });
 
   it("parses a choice declaration and records per-option spans in order", () => {
@@ -175,6 +225,9 @@ describe("DSL typed declaration parser", () => {
     expect(messages("const c: choice(1) = a").some((m) => m.includes("裸の識別子"))).toBe(true);
     expect(messages("const c: choice(a, a) = a").some((m) => m.includes("重複"))).toBe(true);
     expect(messages("const c: choice(pi, left) = left").some((m) => m.includes("裸の識別子"))).toBe(true);
+    expect(parse("const c: choice(none, left) = left").diagnostics).toContainEqual(
+      expect.objectContaining({ code: "reserved-none-choice-option" })
+    );
     expect(messages("const c: choice() = a").some((m) => m.includes("少なくとも1つ"))).toBe(true);
     // A valid bare Unicode identifier is accepted, matching scanScalarLiteral's
     // own Unicode-aware IDENTIFIER_PATTERN.

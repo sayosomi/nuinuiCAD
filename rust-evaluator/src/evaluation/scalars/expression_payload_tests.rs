@@ -26,10 +26,11 @@ const FIXTURE_JSON: &str = include_str!(concat!(
     "/../test/fixtures/typed-expressions.json"
 ));
 
-const AST_NODE_KINDS: [&str; 11] = [
+const AST_NODE_KINDS: [&str; 12] = [
     "numberLiteral",
     "stringLiteral",
     "booleanLiteral",
+    "noneLiteral",
     "choiceLiteral",
     "reference",
     "unary",
