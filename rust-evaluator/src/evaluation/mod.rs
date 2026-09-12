@@ -174,7 +174,7 @@ use point_evaluators::{
     evaluate_division_point, evaluate_free_point, evaluate_offset_point,
     evaluate_polar_offset_point,
 };
-use property_binding_runtime::apply_property_bindings;
+use property_binding_runtime::{apply_gate_bindings, apply_property_bindings};
 use scalars::{
     validate_binding_versions_payload, validate_condition_expressions_payload,
     validate_control_boolean_bindings_payload, validate_property_bindings_payload,
@@ -1202,7 +1202,7 @@ fn evaluate_document_input_with_scalar_program(
         .unwrap_or_default();
     let evaluated_ids: HashSet<ElementId> =
         evaluated_elements.iter().filter_map(element_id).collect();
-    let source_effective_drawing_modifier_runtime =
+    let mut source_effective_drawing_modifier_runtime =
         effective_drawing_modifier_runtime_by_element_id_with_profile(
             &input.elements,
             Some(&drawing_modifiers),
@@ -1210,25 +1210,6 @@ fn evaluate_document_input_with_scalar_program(
         );
     let activities = effective_activity_by_runtime(&source_effective_drawing_modifier_runtime);
     let group_states = group_state_by_element_id(&input.elements, &activities);
-    let mut effective_visible_element_ids =
-        effective_element_ids(&input.elements, &activities, true)
-            .into_iter()
-            .filter(|id| evaluated_ids.contains(id))
-            .collect::<Vec<_>>();
-    let mut base_effective_enabled_ids = effective_element_ids(&input.elements, &activities, false)
-        .into_iter()
-        .filter(|id| evaluated_ids.contains(id))
-        .collect::<HashSet<_>>();
-    base_effective_enabled_ids.extend(
-        input
-            .allow_disabled_element_ids
-            .as_deref()
-            .unwrap_or_default()
-            .iter()
-            .filter(|id| evaluated_ids.contains(*id))
-            .cloned(),
-    );
-
     let mut state = EvaluationState {
         elements_by_id: input
             .elements
@@ -1263,13 +1244,6 @@ fn evaluate_document_input_with_scalar_program(
     let mut effective_enabled_ids = HashSet::<ElementId>::new();
     let mut effective_enabled_order = Vec::<ElementId>::new();
     let template_descendant_ids = for_group_template_descendant_ids(&state.elements);
-    let original_elements = state.elements.clone();
-    let source_effective_drawing_modifier_strokes =
-        effective_drawing_modifier_stroke_by_runtime(&source_effective_drawing_modifier_runtime);
-    let source_effective_drawing_modifier_resolutions =
-        effective_drawing_modifier_resolution_by_runtime(
-            &source_effective_drawing_modifier_runtime,
-        );
     let mut for_group_effective_show_generated_ids = Vec::<ElementId>::new();
     let capture_completed_instances = |completed_index: usize, state: &mut EvaluationState| {
         for snapshot in instance_snapshots
@@ -1328,6 +1302,78 @@ fn evaluate_document_input_with_scalar_program(
         .flatten()
         .map(|template| (template.element_id.clone(), template))
         .collect();
+
+    // Direct enabled/visible bindings are a separate first pass. Only these
+    // two gate inputs may be resolved here; construction properties and
+    // control inputs remain deferred until the normal document-order loop.
+    if let Some(gate_resolver) = scalar_mutation_resolver
+        .as_ref()
+        .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
+        .or_else(|| {
+            scalar_binding_resolver
+                .as_ref()
+                .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
+        })
+    {
+        for index in 0..evaluation_limit_index {
+            let Some(id) = element_id(&state.elements[index]) else {
+                continue;
+            };
+            let source_order = source_statement_indices.get(&id).copied();
+            match apply_gate_bindings(
+                &state.elements[index],
+                entries_by_element_id.get(&id),
+                gate_resolver,
+                &state,
+                source_order,
+            ) {
+                Ok(gated) => state.elements[index] = gated,
+                Err(_) => {
+                    if let Some(object) = state.elements[index].as_object_mut() {
+                        object.insert("enabled".to_owned(), Value::Bool(false));
+                    }
+                }
+            }
+        }
+    }
+
+    // Rebuild direct/ancestor activity after the gate pass. This keeps the
+    // production Rust path aligned with the TypeScript reference evaluator.
+    source_effective_drawing_modifier_runtime =
+        effective_drawing_modifier_runtime_by_element_id_with_profile(
+            &state.elements,
+            Some(&state.drawing_modifiers),
+            state.selected_drawing_profile_id.as_deref(),
+        );
+    let gated_activities =
+        effective_activity_by_runtime(&source_effective_drawing_modifier_runtime);
+    state.group_states = group_state_by_element_id(&state.elements, &gated_activities);
+    let mut effective_visible_element_ids =
+        effective_element_ids(&state.elements, &gated_activities, true)
+            .into_iter()
+            .filter(|id| evaluated_ids.contains(id))
+            .collect();
+    let mut base_effective_enabled_ids: HashSet<ElementId> =
+        effective_element_ids(&state.elements, &gated_activities, false)
+            .into_iter()
+            .filter(|id| evaluated_ids.contains(id))
+            .collect();
+    base_effective_enabled_ids.extend(
+        input
+            .allow_disabled_element_ids
+            .as_deref()
+            .unwrap_or_default()
+            .iter()
+            .filter(|id| evaluated_ids.contains(*id))
+            .cloned(),
+    );
+    let original_elements = state.elements.clone();
+    let source_effective_drawing_modifier_strokes =
+        effective_drawing_modifier_stroke_by_runtime(&source_effective_drawing_modifier_runtime);
+    let source_effective_drawing_modifier_resolutions =
+        effective_drawing_modifier_resolution_by_runtime(
+            &source_effective_drawing_modifier_runtime,
+        );
 
     let mut next_geometry_value_index = 0usize;
     let mut next_transformation_recipe_index = 0usize;

@@ -11,7 +11,11 @@ describe("parameterDefinitions", () => {
       activity: "visible"
     };
 
-    expect(getParameterDefinitions(moduleInstance)).toEqual([]);
+    expect(getParameterDefinitions(moduleInstance)).toEqual([
+      { key: "name", label: "名前", kind: "text" },
+      { key: "enabled", label: "有効", kind: "boolean" },
+      { key: "visible", label: "表示", kind: "boolean" }
+    ]);
   });
 
   it("derives scalar property types from the parameter schema", () => {

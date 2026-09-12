@@ -12,7 +12,7 @@ export const LOW_CONTRAST_FIXED_COLOR_RATIO = 3;
 export type CanvasThemeWarning = {
   severity: "warning";
   message: string;
-  code: "modifier-fixed-color-low-contrast";
+  code: "style-fixed-color-low-contrast";
   source: "nuinuiCAD";
   range: { from: number; to: number };
 };
@@ -25,7 +25,7 @@ export type FixedColorContrastWarningsInput = {
   displayLanguage?: string;
 };
 
-/** Produces Source warnings from exact-current fixed modifier colors only. */
+/** Produces Source warnings from exact-current fixed style colors only. */
 export const fixedColorContrastWarningsFor = ({
   fixedColors,
   background,
@@ -46,7 +46,7 @@ export const fixedColorContrastWarningsFor = ({
         displayLanguage ?? "en",
         { color: fixedColor.hex }
       ),
-      code: "modifier-fixed-color-low-contrast",
+      code: "style-fixed-color-low-contrast",
       source: "nuinuiCAD",
       range: fixedColor.range
     }];

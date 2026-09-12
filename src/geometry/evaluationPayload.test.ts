@@ -118,8 +118,8 @@ describe("evaluation payload conversion", () => {
       { id: "role", name: "Role", type: "freePoint", activity: "visible", modifierNames: ["Role"], x: 1, y: 0 }
     ], {
       drawingModifiers: [
-        { name: "Fixed", widthPx: 2, style: "solid", color: { kind: "fixed", hex: "#123456" } },
-        { name: "Role", widthPx: 3, style: "dotted", color: { kind: "themeRole", role: "warning" } }
+        { name: "Fixed", widthPx: 2, lineType: "solid", color: { kind: "fixed", hex: "#123456" } },
+        { name: "Role", widthPx: 3, lineType: "dotted", color: { kind: "themeRole", role: "warning" } }
       ]
     });
     const payload = evaluationResultToPayload(evaluation);
@@ -145,7 +145,7 @@ describe("evaluation payload conversion", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 3, y: 4)",
-      "line AB = segment(start: @A, end: @B, state: disabled)",
+      "line AB = segment(start: @A, end: @B, enabled: false)",
       "const dist: number = @AB.length",
       "const label: string = \"seam\""
     ].join("\n")).doc;

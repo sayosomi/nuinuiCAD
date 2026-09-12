@@ -11,6 +11,8 @@ const element = (
   options: {
     type?: string;
     activity?: "visible" | "hidden" | "disabled";
+    enabled?: boolean;
+    visible?: boolean;
     modifierNames?: string[];
     parentGroupId?: string;
   } = {}
@@ -18,16 +20,18 @@ const element = (
   id,
   type: options.type ?? "line",
   activity: options.activity ?? "visible",
+  enabled: options.enabled ?? options.activity !== "disabled",
+  visible: options.visible ?? (options.activity === undefined || options.activity === "visible"),
   ...(options.modifierNames ? { modifierNames: options.modifierNames } : {}),
   ...(options.parentGroupId ? { parentGroupId: options.parentGroupId } : {})
 });
 
 describe("Drawing Modifier winner provenance", () => {
-  it("reports the direct element modifier winner for each authored property", () => {
+  it("reports the direct element style winner for each authored property", () => {
     const modifiers: DrawingModifierDefinition[] = [{
       name: "detail",
       widthPx: 2,
-      style: "dashed",
+      lineType: "dashed",
       color: { kind: "themeRole", role: "accent" }
     }];
     const resolution = effectiveDrawingModifierResolutionById([
@@ -38,14 +42,14 @@ describe("Drawing Modifier winner provenance", () => {
       value: 2,
       winner: { ownerElementId: "line", modifierName: "detail", selectedProfileDelta: null }
     });
-    expect(resolution.style.winner?.modifierName).toBe("detail");
+    expect(resolution.lineType.winner?.modifierName).toBe("detail");
     expect(resolution.color.winner?.ownerElementId).toBe("line");
-    expect(resolution.state).toEqual({ value: "visible", winner: null });
+    expect(resolution.visible).toEqual({ value: true, winner: null });
   });
 
   it("preserves outer -> inner -> element precedence while keeping property-specific winners", () => {
     const modifiers: DrawingModifierDefinition[] = [
-      { name: "outer", widthPx: 2, style: "dotted" },
+      { name: "outer", widthPx: 2, lineType: "dotted" },
       { name: "inner", widthPx: 3 },
       { name: "local", color: { kind: "themeRole", role: "warning" } }
     ];
@@ -57,13 +61,13 @@ describe("Drawing Modifier winner provenance", () => {
 
     expect(resolution.widthPx.value).toBe(3);
     expect(resolution.widthPx.winner).toMatchObject({ ownerElementId: "innerGroup", modifierName: "inner" });
-    expect(resolution.style.value).toBe("dotted");
-    expect(resolution.style.winner).toMatchObject({ ownerElementId: "outerGroup", modifierName: "outer" });
+    expect(resolution.lineType.value).toBe("dotted");
+    expect(resolution.lineType.winner).toMatchObject({ ownerElementId: "outerGroup", modifierName: "outer" });
     expect(resolution.color.value).toEqual({ kind: "themeRole", role: "warning" });
     expect(resolution.color.winner).toMatchObject({ ownerElementId: "line", modifierName: "local" });
   });
 
-  it("uses left-to-right modifier order on the same owner", () => {
+  it("uses left-to-right style order on the same owner", () => {
     const modifiers: DrawingModifierDefinition[] = [
       { name: "first", widthPx: 2 },
       { name: "second", widthPx: 4 }
@@ -80,7 +84,7 @@ describe("Drawing Modifier winner provenance", () => {
     const modifiers: DrawingModifierDefinition[] = [{
       name: "seam",
       widthPx: 2,
-      style: "dashed",
+      lineType: "dashed",
       color: { kind: "themeRole", role: "muted" },
       profileDeltas: [{
         profileId: "profile-print",
@@ -105,8 +109,8 @@ describe("Drawing Modifier winner provenance", () => {
       profileId: "profile-print",
       profileName: "print"
     });
-    expect(selected.style.value).toBe("dashed");
-    expect(selected.style.winner?.selectedProfileDelta).toBeNull();
+    expect(selected.lineType.value).toBe("dashed");
+    expect(selected.lineType.winner?.selectedProfileDelta).toBeNull();
 
     const common = effectiveDrawingModifierResolutionById([
       element("line", { modifierNames: ["seam"] })
@@ -115,16 +119,16 @@ describe("Drawing Modifier winner provenance", () => {
     expect(common.widthPx.winner?.selectedProfileDelta).toBeNull();
   });
 
-  it("keeps direct activity as the hard gate and does not fabricate a modifier state winner", () => {
-    const modifiers: DrawingModifierDefinition[] = [{ name: "off", state: "disabled" }];
+  it("keeps direct activity as the hard gate and does not fabricate a style state winner", () => {
+    const modifiers: DrawingModifierDefinition[] = [{ name: "off", visible: false }];
     const runtime = effectiveDrawingModifierRuntimeById([
-      element("group", { type: "group", activity: "hidden" }),
+      element("group", { type: "group", visible: false }),
       element("line", { parentGroupId: "group", modifierNames: ["off"] })
     ], modifiers);
     const line = runtime.get("line")!;
 
     expect(line.activity).toEqual({ activity: "hidden", hiddenByElementId: "group" });
-    expect(line.resolution.state).toEqual({ value: "hidden", winner: null });
+    expect(line.resolution.visible).toEqual({ value: false, winner: null });
   });
 
   it("represents built-in defaults with no authored winner", () => {
@@ -133,9 +137,9 @@ describe("Drawing Modifier winner provenance", () => {
 
     expect(line.hasModifier).toBe(false);
     expect(line.resolution).toEqual({
-      state: { value: "visible", winner: null },
+      visible: { value: true, winner: null },
       widthPx: { value: 1, winner: null },
-      style: { value: "solid", winner: null },
+      lineType: { value: "solid", winner: null },
       color: { value: { kind: "themeRole", role: "foreground" }, winner: null }
     });
   });
@@ -157,10 +161,10 @@ describe("Drawing Modifier winner provenance", () => {
     });
   });
 
-  it("preserves the legacy explicit-stroke map even for a state-only modifier", () => {
+  it("preserves the explicit stroke map even for a visibility-only Style", () => {
     const runtime = effectiveDrawingModifierRuntimeById([
       element("line", { modifierNames: ["hidden"] })
-    ], [{ name: "hidden", state: "hidden" }]);
+    ], [{ name: "hidden", visible: false }]);
 
     expect(effectiveDrawingModifierStrokeByRuntime(runtime).get("line")).toEqual({
       widthPx: 1,

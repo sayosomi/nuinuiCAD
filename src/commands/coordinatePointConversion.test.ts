@@ -32,7 +32,7 @@ describe("coordinate point conversion", () => {
   it("finds a shared legal base and preserves the target source identity when converting XY", () => {
     const source = [
       "nui 1",
-      "point Base = coordinate(x: 10, y: 20, state: hidden)",
+      "point Base = coordinate(x: 10, y: 20, visible: false)",
       "point Target = coordinate(x: 30, y: 5)",
       "line Use = segment(start: @Target, end: @Base)"
     ].join("\n");
@@ -167,12 +167,12 @@ describe("coordinate point conversion", () => {
   it("preserves modifiers, common attributes, explicit ids, and existing references", () => {
     const document = compile([
       "nui 1",
-      "modifier Guide {",
-      "  state: visible,",
+      "style Guide {",
+      "  visible: true,",
       "}",
       "point Base = coordinate(x: 10, y: 20)",
       "group G {",
-      "  point Target [Guide] = coordinate(x: 30, y: 5, state: hidden, id: \"target-fixed\")",
+      "  point Target [Guide] = coordinate(x: 30, y: 5, visible: false, id: \"target-fixed\")",
       "  line Use = segment(start: @Target, end: @Base)",
       "}"
     ].join("\n"));
@@ -190,7 +190,7 @@ describe("coordinate point conversion", () => {
     expect(applied.status).toBe("applied");
     if (applied.status !== "applied") return;
     expect(applied.document.sourceText).toContain("point Target [Guide] = offset(");
-    expect(applied.document.sourceText).toContain("state: hidden");
+    expect(applied.document.sourceText).toContain("visible: false");
     expect(applied.document.sourceText).toContain("id: \"target-fixed\"");
     expect(applied.document.sourceText).toContain("  line Use = segment(start: @Target, end: @Base)");
     expect(applied.document.doc.document.elements.find((element) => element.id === targetId)?.name).toBe("Target");

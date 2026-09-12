@@ -9,7 +9,7 @@ import type { ScalarType } from "../scalars/types";
 import type { DslStatement } from "./dslTypes";
 
 const attrValue = (statement: DslStatement, key: string) => statement.attrs.find((attr) => attr.key === key)?.value;
-const isStatementDisabled = (statement: DslStatement) => attrValue(statement, "state")?.toLowerCase() === "disabled";
+const isStatementDisabled = (statement: DslStatement) => attrValue(statement, "enabled")?.toLowerCase() === "false";
 
 /**
  * Live-buffer candidates for `ElementName.parameterKey` completion, reparsing
@@ -22,8 +22,8 @@ const isStatementDisabled = (statement: DslStatement) => attrValue(statement, "s
  * Live/compiled matching guard: liveElementsBeforeLine already excludes a
  * statement whose live type no longer matches the compiled element's type.
  * On top of that, this module additionally excludes a statement whose live
- * `state:` attribute no longer agrees with the compiled element's own
- * activity - dirty-editing a statement's state must never keep
+ * `enabled:` gate no longer agrees with the compiled element's own
+ * computation status - dirty-editing a statement's gate must never keep
  * showing candidates derived from the previous (now stale) evaluation.
  */
 export const dslElementParameterCompletionOptions = ({
@@ -82,7 +82,7 @@ export const dslElementParameterCompletionOptions = ({
   }
   const trustworthyLive = live.filter((element) => {
     const statement = statementByElementId.get(element.id);
-    return statement !== undefined && isStatementDisabled(statement) === (element.activity === "disabled");
+    return statement !== undefined && isStatementDisabled(statement) === (element.enabled === false);
   });
 
   return elementParameterReferenceOptionsForPosition({

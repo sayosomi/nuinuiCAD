@@ -97,28 +97,28 @@ describe("evaluateElements", () => {
     expect(result.computedGeometry.get("child")).toMatchObject({ kind: "point", x: 10, y: 20 });
   });
 
-  it("applies modifier hidden/disabled state to evaluation and drawing eligibility", () => {
+  it("applies Style visibility and direct enabled gates to evaluation and drawing eligibility", () => {
     const result = evaluateElements([
       { id: "hidden", name: "Hidden", type: "freePoint", activity: "visible", modifierNames: ["hide"], x: 0, y: 0 },
       { id: "disabled", name: "Disabled", type: "freePoint", activity: "visible", modifierNames: ["disable"], x: 1, y: 0 },
       { id: "shown", name: "Shown", type: "freePoint", activity: "visible", modifierNames: ["show"], x: 2, y: 0 }
     ], {
       drawingModifiers: [
-        { name: "hide", state: "hidden" },
-        { name: "disable", state: "disabled" },
-        { name: "show", state: "visible" }
+        { name: "hide", visible: false },
+        { name: "disable", visible: false },
+        { name: "show", visible: true }
       ]
     });
 
     expect(result.computedGeometry.has("hidden")).toBe(true);
     expect(result.effectiveVisibleElementIds).not.toContain("hidden");
-    expect(result.computedGeometry.has("disabled")).toBe(false);
-    expect(result.effectiveEnabledElementIds).not.toContain("disabled");
+    expect(result.computedGeometry.has("disabled")).toBe(true);
+    expect(result.effectiveEnabledElementIds).toContain("disabled");
     expect(result.computedGeometry.has("shown")).toBe(true);
     expect(result.effectiveVisibleElementIds).toContain("shown");
   });
 
-  it("resolves atomic strokes outer-to-inner-to-element while merging state independently", () => {
+  it("resolves atomic strokes outer-to-inner-to-element while merging visibility independently", () => {
     const outerStroke = {
       widthPx: 1,
       style: "solid" as const,
@@ -140,11 +140,11 @@ describe("evaluateElements", () => {
       { id: "point", name: "Point", type: "freePoint", activity: "visible", parentGroupId: "inner", modifierNames: ["element", "stateOnly", "elementLater"], x: 0, y: 0 }
     ], {
       drawingModifiers: [
-        { name: "outer", ...outerStroke },
-        { name: "inner", ...innerStroke },
-        { name: "element", widthPx: 4, style: "solid", color: { kind: "fixed", hex: "#444444" } },
-        { name: "stateOnly", state: "hidden" },
-        { name: "elementLater", ...elementStroke }
+        { name: "outer", widthPx: outerStroke.widthPx, lineType: outerStroke.style, color: outerStroke.color },
+        { name: "inner", widthPx: innerStroke.widthPx, lineType: innerStroke.style, color: innerStroke.color },
+        { name: "element", widthPx: 4, lineType: "solid", color: { kind: "fixed", hex: "#444444" } },
+        { name: "stateOnly", visible: false },
+        { name: "elementLater", widthPx: elementStroke.widthPx, lineType: elementStroke.style, color: elementStroke.color }
       ]
     });
 
@@ -155,12 +155,12 @@ describe("evaluateElements", () => {
     expect(result.computedGeometry.get("point")).toMatchObject({ kind: "point" });
   });
 
-  it("uses the normal modifier resolver for module-materialized elements", () => {
+  it("uses the normal style resolver for module-materialized elements", () => {
     const source = [
       "nui 1",
-      "modifier Guide {",
+      "style Guide {",
       "  width: 1.5px,",
-      "  style: dashed,",
+      "  lineType: dashed,",
       "  color: #abcdef,",
       "}",
       "module M() {",
@@ -706,7 +706,7 @@ describe("evaluateElements", () => {
         x: 0,
         y: 0
       }
-    ], { drawingModifiers: [{ name: "Guide", ...stroke }] });
+    ], { drawingModifiers: [{ name: "Guide", widthPx: stroke.widthPx, lineType: stroke.style, color: stroke.color }] });
 
     expect(result.forGroupGeneratedRows).toHaveLength(2);
     expect(result.effectiveDrawingModifierStrokes?.get("p@loop:0")).toEqual(stroke);

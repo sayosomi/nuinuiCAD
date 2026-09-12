@@ -34,7 +34,7 @@ const completionItemKindFor: Record<DslCompletionCandidateKind, vscode.Completio
   operator: vscode.CompletionItemKind.Operator,
   record: vscode.CompletionItemKind.Struct,
   recordConstructor: vscode.CompletionItemKind.Constructor,
-  modifier: vscode.CompletionItemKind.Reference
+  style: vscode.CompletionItemKind.Reference
 };
 
 const normalizedSourceFor = (sourceText: string): string => sourceText.replace(/\r\n/g, "\n");

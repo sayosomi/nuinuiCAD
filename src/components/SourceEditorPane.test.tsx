@@ -20,14 +20,14 @@ describe("SourceEditorPane", () => {
     const ref = createRef<SourceEditorHandle>();
     const screen = render(<SourceEditorPane ref={ref} />);
     const changed = useCadDocumentStore.getState().elements.map((element) =>
-      element.name === "A" ? ({ ...element, activity: "disabled" } as CadElement) : element
+      element.name === "A" ? ({ ...element, activity: "disabled", enabled: false, visible: true } as CadElement) : element
     );
     act(() => {
       useCadDocumentStore.getState().commitDocumentChange({ elements: changed });
     });
 
     expect(ref.current?.getText()).toBe(
-      "nui 1\npoint A = coordinate(\n  x: 0,\n  y: 0,\n  state: disabled,\n)\npoint B = coordinate(x: 1, y: 1)"
+      "nui 1\npoint A = coordinate(\n  x: 0,\n  y: 0,\n  enabled: false,\n)\npoint B = coordinate(x: 1, y: 1)"
     );
     screen.unmount();
   });
@@ -41,7 +41,7 @@ describe("SourceEditorPane", () => {
     fireEvent.compositionStart(content!);
 
     const changed = useCadDocumentStore.getState().elements.map((element) =>
-      element.name === "A" ? ({ ...element, activity: "disabled" } as CadElement) : element
+      element.name === "A" ? ({ ...element, activity: "disabled", enabled: false, visible: true } as CadElement) : element
     );
     let result: DocumentMutationResult | undefined;
     act(() => {

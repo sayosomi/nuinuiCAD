@@ -55,7 +55,7 @@ describe("statementRangeIndex", () => {
   it("anchors an inline brace on the final row of a handwritten multiline header", () => {
     const source = [
       "nui 1",
-      "group Multi (state: visible",
+      "group Multi (",
       ") {",
       "  point A = coordinate(x: 0, y: 0)",
       "}"

@@ -2,8 +2,6 @@ import type { TypedScalarExpression } from "../scalars/typedExpressionAst";
 
 export type ElementId = string;
 
-export type DrawingModifierState = "visible" | "hidden" | "disabled";
-
 export type DrawingModifierStrokeStyle = "solid" | "dashed" | "dotted";
 
 export type DrawingModifierThemeRole =
@@ -20,6 +18,7 @@ export type DrawingModifierStrokeColor =
 
 export type DrawingModifierStroke = {
   widthPx: number;
+  /** Runtime renderer spelling; the DSL source property is `lineType`. */
   style: DrawingModifierStrokeStyle;
   color: DrawingModifierStrokeColor;
 };
@@ -31,9 +30,10 @@ export type DrawingProfile = {
 };
 
 export type DrawingModifierProperties = {
-  state?: DrawingModifierState;
+  /** Presentation-only Style visibility. It never disables evaluation. */
+  visible?: boolean;
   widthPx?: number;
-  style?: DrawingModifierStrokeStyle;
+  lineType?: DrawingModifierStrokeStyle;
   color?: DrawingModifierStrokeColor;
 };
 
@@ -53,6 +53,11 @@ export type DrawingModifierDefinition = {
 export type CadElementBase = {
   id: ElementId;
   name: string;
+  /** Computation gate. Omitted legacy model values mean enabled. */
+  enabled?: boolean;
+  /** Presentation gate. Omitted legacy model values mean visible. */
+  visible?: boolean;
+  /** User-facing status projection retained for existing outline affordances. */
   activity: "visible" | "hidden" | "disabled";
   /** Source-owned, ordered references to document-level drawing modifiers. */
   modifierNames?: string[];

@@ -65,16 +65,25 @@ fn property_binding_failure_message(element: &Value, parameter_key: &str) -> Str
 /// eval failure/poison, runtime type mismatch, or choice-option mismatch: the
 /// caller must not evaluate or draw the element in that case. Returns a
 /// clone of `element` unchanged when `entries` is `None`/empty.
-pub(crate) fn apply_property_bindings(
+fn apply_property_bindings_filtered(
     element: &Value,
     entries: Option<&Vec<ValidatedPropertyBinding>>,
     resolver: &dyn ScalarDocumentBindingResolver,
     state: &EvaluationState,
     current_source_order: Option<usize>,
+    allowed_keys: Option<&[&str]>,
 ) -> Result<Value, DependencyError> {
     let Some(entries) = entries else {
         return Ok(element.clone());
     };
+    let entries = entries
+        .iter()
+        .filter(|entry| {
+            allowed_keys
+                .map(|keys| keys.iter().any(|key| *key == entry.parameter_key))
+                .unwrap_or(true)
+        })
+        .collect::<Vec<_>>();
     if entries.is_empty() {
         return Ok(element.clone());
     }
@@ -118,4 +127,41 @@ pub(crate) fn apply_property_bindings(
     }
 
     Ok(materialized)
+}
+
+pub(crate) fn apply_property_bindings(
+    element: &Value,
+    entries: Option<&Vec<ValidatedPropertyBinding>>,
+    resolver: &dyn ScalarDocumentBindingResolver,
+    state: &EvaluationState,
+    current_source_order: Option<usize>,
+) -> Result<Value, DependencyError> {
+    apply_property_bindings_filtered(
+        element,
+        entries,
+        resolver,
+        state,
+        current_source_order,
+        None,
+    )
+}
+
+/// Resolves only the direct computation/presentation gates. This pass runs
+/// before the normal property-binding materialization so a false gate cannot
+/// cause construction parameters, conditions, or iteration inputs to run.
+pub(crate) fn apply_gate_bindings(
+    element: &Value,
+    entries: Option<&Vec<ValidatedPropertyBinding>>,
+    resolver: &dyn ScalarDocumentBindingResolver,
+    state: &EvaluationState,
+    current_source_order: Option<usize>,
+) -> Result<Value, DependencyError> {
+    apply_property_bindings_filtered(
+        element,
+        entries,
+        resolver,
+        state,
+        current_source_order,
+        Some(&["enabled", "visible"]),
+    )
 }

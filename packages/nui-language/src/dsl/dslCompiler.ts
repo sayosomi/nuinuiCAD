@@ -77,9 +77,9 @@ const warning = (line: number, message: string): DslDiagnostic => ({
 const modifierPropertiesFrom = (
   statement: Extract<DslStatement, { kind: "modifierDefinition" }> | DslModifierProfileBlock
 ): DrawingModifierProperties => ({
-  ...(statement.state ? { state: statement.state } : {}),
+  ...(statement.visible !== null ? { visible: statement.visible } : {}),
   ...(statement.widthPx !== null ? { widthPx: statement.widthPx } : {}),
-  ...(statement.style ? { style: statement.style } : {}),
+  ...(statement.lineType ? { lineType: statement.lineType } : {}),
   ...(statement.color ? { color: statement.color } : {})
 });
 
@@ -138,7 +138,7 @@ const modifierDefinitionsFromStatements = (
         line: blockStatement?.line ?? statement.line,
         column: 1,
         code: "duplicate-drawing-profile-override",
-        message: `modifier の Drawing Profile「${lookup.declaration.name}」は1つだけ指定できます。`,
+        message: `style の Drawing Profile「${lookup.declaration.name}」は1つだけ指定できます。`,
         presentation: {
           key: "diagnostic.duplicate-drawing-profile-override",
           parameters: { profile: lookup.declaration.name }
@@ -1301,7 +1301,7 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
   const moduleAwareCompilation = documentMode && context.moduleSemanticAnalysis && context.stableStatementIdByIndex;
   // Drawing Modifier references belong to the source document, not to the
   // materialized runtime element list. Validate every geometry/group
-  // declaration against the document-level modifier definitions before the
+  // declaration against the document-level style definitions before the
   // selected compilation path continues. The module-aware call sees the full
   // source AST, including declarations inside Module bodies; the ordinary
   // preflight retains its existing module-subtree exclusion.
@@ -1315,7 +1315,7 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
     for (const modifierName of statement.modifierNames ?? []) {
       referencedModifierNames.add(modifierName);
       if (!modifierNames.has(modifierName)) {
-        diagnostics.push(diagnostic(statement.line, `未定義の modifier です: ${modifierName}`));
+        diagnostics.push(diagnostic(statement.line, `未定義の style です: ${modifierName}`));
       }
     }
   }
@@ -1326,10 +1326,10 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
       severity: "warning",
       line: statement.line,
       column: statement.nameSpan.start + 1,
-      code: "unused-drawing-modifier",
-      message: `Drawing Modifier「${statement.name}」はどこからも使用されていません。`,
+      code: "unused-drawing-style",
+      message: `Style「${statement.name}」はどこからも使用されていません。`,
       presentation: {
-        key: "diagnostic.unused-drawing-modifier",
+        key: "diagnostic.unused-drawing-style",
         parameters: { name: statement.name }
       },
       logicalSpan: statement.nameSpan,

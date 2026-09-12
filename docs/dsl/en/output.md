@@ -11,8 +11,8 @@ refer to an earlier layout.
 The defaults are layout scale `1`, the selected group's local origin, place
 scale inherited from the layout, angle `0`, and `mirror: false`. Literal scales
 must be finite and positive. Literal angles are normalized to `[0, 360)`.
-Placement activity and drawing modifiers still apply to the placed group; see
-[Modifiers](modifiers.md).
+Placement `enabled`/`visible` gates and drawing Styles still apply to the placed
+group; see [Styles](modifiers.md).
 
 ## Print and SVG
 

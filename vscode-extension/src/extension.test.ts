@@ -1947,8 +1947,8 @@ describe("VS Code production document lifecycle", () => {
   it("routes Case K through Source when Palette focus leaves a stale Canvas tab input", async () => {
     const source = [
       "nui 1",
-      "modifier Guide {",
-      "  state: visible,",
+      "style Guide {",
+      "  visible: true,",
       "}",
       "module Reusable() {",
       "  point P0 = coordinate(x: 0, y: 0)",
@@ -4909,7 +4909,7 @@ describe("VS Code compiler diagnostics lifecycle", () => {
 describe("VS Code Canvas theme warning lifecycle", () => {
   const sourceFor = (color: string): string => [
     "nui 1",
-    "modifier Guide {",
+    "style Guide {",
     `  color: ${color},`,
     "}"
   ].join("\n");
@@ -4937,23 +4937,23 @@ describe("VS Code Canvas theme warning lifecycle", () => {
     setup(false, editor, [document]);
     const collection = mocks.diagnosticCollections[0]!;
 
-    expect(warningCodesFor(collection)).not.toContain("modifier-fixed-color-low-contrast");
+    expect(warningCodesFor(collection)).not.toContain("style-fixed-color-low-contrast");
     const panel = openPanelFor(editor);
     await messageHandlerFor(panel)({ type: "webviewReady" });
     await synchronizeCanvasTheme(panel, document.version, "#ffffff");
 
-    expect(warningCodesFor(collection)).toContain("modifier-fixed-color-low-contrast");
+    expect(warningCodesFor(collection)).toContain("style-fixed-color-low-contrast");
     const warning = (collection.set.mock.calls.at(-1)?.[1] as Array<{
       code?: string | number;
       message: string;
       range: { start: MockPosition; end: MockPosition };
       severity: number;
       source?: string;
-    }>).find((diagnostic) => diagnostic.code === "modifier-fixed-color-low-contrast");
+    }>).find((diagnostic) => diagnostic.code === "style-fixed-color-low-contrast");
     expect(warning).toMatchObject({
       severity: 1,
       source: "nuinuiCAD",
-      message: "Fixed modifier color #999999 has low contrast against the current Canvas background.",
+      message: "Fixed style color #999999 has low contrast against the current Canvas background.",
       range: {
         start: { line: 2, character: "  color: ".length },
         end: { line: 2, character: "  color: #999999".length }
@@ -4975,7 +4975,7 @@ describe("VS Code Canvas theme warning lifecycle", () => {
       code?: string | number;
       range: { start: MockPosition; end: MockPosition };
     }>;
-    expect(diagnostics.find((diagnostic) => diagnostic.code === "modifier-fixed-color-low-contrast")?.range).toEqual({
+    expect(diagnostics.find((diagnostic) => diagnostic.code === "style-fixed-color-low-contrast")?.range).toEqual({
       start: { line: 2, character: "  color: ".length },
       end: { line: 2, character: "  color: #999999".length }
     });
@@ -4993,21 +4993,21 @@ describe("VS Code Canvas theme warning lifecycle", () => {
     await messageHandlerFor(panel)({ type: "webviewReady" });
     await synchronizeCanvasTheme(panel, 1, "#ffffff");
     const collection = mocks.diagnosticCollections[0]!;
-    expect(warningCodesFor(collection)).toContain("modifier-fixed-color-low-contrast");
+    expect(warningCodesFor(collection)).toContain("style-fixed-color-low-contrast");
 
     document.version = 2;
     document.setSourceText(sourceFor("#0000ff"));
     emitDocumentChange(document);
-    expect(warningCodesFor(collection)).not.toContain("modifier-fixed-color-low-contrast");
+    expect(warningCodesFor(collection)).not.toContain("style-fixed-color-low-contrast");
     await synchronizeCanvasTheme(panel, 2, "#ffffff");
-    expect(warningCodesFor(collection)).not.toContain("modifier-fixed-color-low-contrast");
+    expect(warningCodesFor(collection)).not.toContain("style-fixed-color-low-contrast");
 
     document.version = 3;
     document.setSourceText(sourceFor("#999999"));
     emitDocumentChange(document);
-    expect(warningCodesFor(collection)).not.toContain("modifier-fixed-color-low-contrast");
+    expect(warningCodesFor(collection)).not.toContain("style-fixed-color-low-contrast");
     await synchronizeCanvasTheme(panel, 3, "#ffffff");
-    expect(warningCodesFor(collection)).toContain("modifier-fixed-color-low-contrast");
+    expect(warningCodesFor(collection)).toContain("style-fixed-color-low-contrast");
   });
 
   it("rejects stale and wrong-session background publications", async () => {
@@ -5035,7 +5035,7 @@ describe("VS Code Canvas theme warning lifecycle", () => {
       generation: 0,
       theme: { ...LEGACY_CANVAS_THEME, background: "#ffffff" }
     });
-    expect(warningCodesFor(collection)).not.toContain("modifier-fixed-color-low-contrast");
+    expect(warningCodesFor(collection)).not.toContain("style-fixed-color-low-contrast");
   });
 
   it("invalidates on theme change before refresh and clears on Canvas close", async () => {
@@ -5046,17 +5046,17 @@ describe("VS Code Canvas theme warning lifecycle", () => {
     await messageHandlerFor(panel)({ type: "webviewReady" });
     await synchronizeCanvasTheme(panel, 1, "#ffffff");
     const collection = mocks.diagnosticCollections[0]!;
-    expect(warningCodesFor(collection)).toContain("modifier-fixed-color-low-contrast");
+    expect(warningCodesFor(collection)).toContain("style-fixed-color-low-contrast");
 
     mocks.activeColorThemeListeners[0]!();
-    expect(warningCodesFor(collection)).not.toContain("modifier-fixed-color-low-contrast");
+    expect(warningCodesFor(collection)).not.toContain("style-fixed-color-low-contrast");
     expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasThemeChanged", generation: 1 });
 
     await publishCanvasTheme(panel, 1, "#000000", 0);
-    expect(warningCodesFor(collection)).not.toContain("modifier-fixed-color-low-contrast");
+    expect(warningCodesFor(collection)).not.toContain("style-fixed-color-low-contrast");
 
     panel.dispose();
-    expect(warningCodesFor(collection)).not.toContain("modifier-fixed-color-low-contrast");
+    expect(warningCodesFor(collection)).not.toContain("style-fixed-color-low-contrast");
   });
 
   it("does not guess a warning before Canvas is opened", () => {
@@ -5064,7 +5064,7 @@ describe("VS Code Canvas theme warning lifecycle", () => {
     setup(false, null, [document]);
 
     expect(mocks.createWebviewPanel).not.toHaveBeenCalled();
-    expect(warningCodesFor(mocks.diagnosticCollections[0]!)).not.toContain("modifier-fixed-color-low-contrast");
+    expect(warningCodesFor(mocks.diagnosticCollections[0]!)).not.toContain("style-fixed-color-low-contrast");
   });
 });
 
@@ -5192,7 +5192,7 @@ describe("VS Code native fixed-color lifecycle", () => {
   });
 
   it("refreshes one current registration as Canvas theme availability changes", async () => {
-    const source = ["nui 1", "modifier Guide {", "  color: accent", "}"].join("\n");
+    const source = ["nui 1", "style Guide {", "  color: accent", "}"].join("\n");
     const document = documentFor("/tmp/colors.nui", "file:///tmp/colors.nui", source);
     const editor = editorFor(document);
     setup(false, editor, [document]);
@@ -5220,7 +5220,7 @@ describe("VS Code native fixed-color lifecycle", () => {
   });
 
   it("converts semantic color edits without wiring an error notification", async () => {
-    const source = ["nui 1", "modifier Guide {", "  color: accent", "}"].join("\n");
+    const source = ["nui 1", "style Guide {", "  color: accent", "}"].join("\n");
     const document = documentFor("/tmp/colors.nui", "file:///tmp/colors.nui", source);
     const editor = editorFor(document);
     setup(false, editor, [document]);
@@ -5511,7 +5511,7 @@ describe("SAY-81 Module instance Reveal feedback", () => {
     const source = [
       "nui 1",
       "module M() {",
-      "  point P = coordinate(x: 0, y: 0, state: hidden)",
+      "  point P = coordinate(x: 0, y: 0, visible: false)",
       "}",
       "instance A = M()"
     ].join("\n");

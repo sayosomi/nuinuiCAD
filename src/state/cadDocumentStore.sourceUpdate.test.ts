@@ -13,7 +13,7 @@ const twoPointSource = () => dslTextForElements([
 ]);
 
 const disabledA = dslTextForElements([
-  { id: "a", name: "A", type: "freePoint", activity: "disabled", x: 0, y: 0 }
+  { id: "a", name: "A", type: "freePoint", activity: "disabled", enabled: false, visible: true, x: 0, y: 0 }
 ]);
 // commitDocumentChangeが発行する差し替え行は、その文単独のシリアライズ結果と
 // 一致するはず(要素の並び全体を書き直すわけではないため)。v2正準形の
@@ -39,7 +39,7 @@ describe("cadDocumentStore source updates", () => {
 
     useCadDocumentStore.getState().commitText(onePointSource(), "editor");
     const changed = useCadDocumentStore.getState().elements.map((element) =>
-      element.name === "A" ? ({ ...element, activity: "disabled" } as CadElement) : element
+      element.name === "A" ? ({ ...element, activity: "disabled", enabled: false, visible: true } as CadElement) : element
     );
     useCadDocumentStore.getState().commitDocumentChange({ elements: changed });
     useCadDocumentStore.getState().undo();
@@ -55,7 +55,7 @@ describe("cadDocumentStore source updates", () => {
   it("publishes the actual model bridge LineSplice rather than a full source replacement", () => {
     useCadDocumentStore.getState().commitText(twoPointSource(), "test");
     const changed = useCadDocumentStore.getState().elements.map((element) =>
-      element.name === "A" ? ({ ...element, activity: "disabled" } as CadElement) : element
+      element.name === "A" ? ({ ...element, activity: "disabled", enabled: false, visible: true } as CadElement) : element
     );
     useCadDocumentStore.getState().commitDocumentChange({ elements: changed });
     const update = useCadDocumentStore.getState().sourceUpdate;

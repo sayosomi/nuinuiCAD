@@ -39,8 +39,8 @@ export const pureGeometryValueConstructionCandidates = (
 };
 
 const userFacingCommonArgumentNames = new Set([
-  "state",
-  "color",
+  "enabled",
+  "visible",
   "steps",
 ]);
 

@@ -11,8 +11,8 @@ describe("createElementPresentationStatusIndex", () => {
   it("exposes hidden and disabled activity without requiring legacy print fields", () => {
     useCadDocumentStore.getState().commitText([
       "nui 1",
-      "point Hidden = coordinate(x: 0, y: 0, state: hidden)",
-      "point Disabled = coordinate(x: 1, y: 0, state: disabled)"
+      "point Hidden = coordinate(x: 0, y: 0, visible: false)",
+      "point Disabled = coordinate(x: 1, y: 0, enabled: false)"
     ].join("\n"), "test");
     const state = useCadDocumentStore.getState();
     const status = createElementPresentationStatusIndex({

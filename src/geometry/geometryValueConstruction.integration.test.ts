@@ -1494,7 +1494,7 @@ describe("pure geometry construction runtime", () => {
     expect(unknown.diagnostics.filter((diagnostic) => diagnostic.code === "unknown-construction-argument")).toHaveLength(1);
     expect(unknown.diagnostics.filter((diagnostic) => diagnostic.code === "geometry-value-drawable-metadata")).toHaveLength(0);
 
-    const metadata = compile(["nui 1", "const P: point = coordinate(x: 1, id: p1, state: disabled, roles: [draft], parent: @G, branch: then)"].join("\n"));
+    const metadata = compile(["nui 1", "const P: point = coordinate(x: 1, id: p1, enabled: false, roles: [draft], parent: @G, branch: then)"].join("\n"));
     expect(metadata.diagnostics.filter((diagnostic) => diagnostic.code === "geometry-value-drawable-metadata")).toHaveLength(5);
   });
 

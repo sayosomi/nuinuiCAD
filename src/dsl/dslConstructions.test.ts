@@ -120,9 +120,6 @@ describe("DSL nui 1 construction registry", () => {
     const commonSample = sampleFor("freePoint");
     for (const definition of commonArgSpecs) {
       if (definition.special) continue;
-      // `state` (ElementActivity sugar) is derived, not a CadElement field, so
-      // it deliberately has no ParameterDefinition of its own.
-      if (definition.arg === "state") continue;
       expect(findParameterDefinition(commonSample, definition.parameterKey ?? definition.arg)).toBeDefined();
     }
   });

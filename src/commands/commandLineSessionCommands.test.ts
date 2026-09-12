@@ -1060,7 +1060,7 @@ describe("command-line session commands", () => {
 
   it("confirms a step edit inside a disabled group where no ghost can exist", () => {
     useCadDocumentStore.getState().commitText(
-      ["nui 1", "group G (state: disabled) {", "point A = coordinate(x: 0, y: 0)", "}"].join("\n"),
+      ["nui 1", "group G (enabled: false) {", "point A = coordinate(x: 0, y: 0)", "}"].join("\n"),
       "test"
     );
     const group = useCadDocumentStore.getState().elements.find((element) => element.type === "group")!;

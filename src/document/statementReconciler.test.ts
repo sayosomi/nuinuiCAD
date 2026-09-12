@@ -419,7 +419,7 @@ describe("statementReconciler 複数行statement(縦型call)", () => {
       "point A = coordinate(",
       "  x: 0,",
       "  y: 0,",
-      "  state: hidden",
+      "  visible: false",
       ")",
       "point B = coordinate(x: 1, y: 1)"
     ].join("\n");
@@ -428,7 +428,7 @@ describe("statementReconciler 複数行statement(縦型call)", () => {
       "point A = coordinate(",
       "  x: 0,",
       "  y: 0,",
-      "  state: disabled",
+      "  enabled: false",
       ")",
       "point B = coordinate(x: 1, y: 1)"
     ].join("\n");
@@ -450,7 +450,7 @@ describe("statementReconciler 複数行statement(縦型call)", () => {
       "point A = coordinate(",
       "  x: 0,",
       "  y: 0,",
-      "  state: hidden",
+      "  visible: false",
       ")",
       "point B = coordinate(x: 1, y: 1)"
     ].join("\n");
@@ -459,7 +459,7 @@ describe("statementReconciler 複数行statement(縦型call)", () => {
       "point A = coordinate(",
       "  x: 0,",
       "  y: 0,",
-      "  state: hidden",
+      "  visible: false",
       ")",
       "point B = coordinate(x: 2, y: 2)"
     ].join("\n");
@@ -477,7 +477,7 @@ describe("statementReconciler 複数行statement(縦型call)", () => {
       "point A = coordinate(",
       "  x: 0,",
       "  y: 0,",
-      "  state: hidden",
+      "  visible: false",
       ")",
       "point B = coordinate(x: 1, y: 1)",
       "point C = coordinate(x: 2, y: 2)"
@@ -489,7 +489,7 @@ describe("statementReconciler 複数行statement(縦型call)", () => {
       "point A = coordinate(",
       "  x: 0,",
       "  y: 0,",
-      "  state: hidden",
+      "  visible: false",
       ")"
     ].join("\n");
     const { old, next, result } = reconcileSources(oldSource, newSource);
@@ -511,7 +511,7 @@ describe("statementReconciler 複数行statement(縦型call)", () => {
       "point A = coordinate(",
       "  x: 0,",
       "  y: 0,",
-      "  state: hidden",
+      "  visible: false",
       ")",
       "point B = coordinate(x: 1, y: 1)"
     ].join("\n");
@@ -520,7 +520,7 @@ describe("statementReconciler 複数行statement(縦型call)", () => {
       "point Arenamed = coordinate(",
       "  x: 0,",
       "  y: 0,",
-      "  state: hidden",
+      "  visible: false",
       ")",
       "point B = coordinate(x: 1, y: 1)"
     ].join("\n");

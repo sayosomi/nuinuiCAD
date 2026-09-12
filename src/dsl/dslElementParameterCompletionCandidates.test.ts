@@ -363,7 +363,7 @@ describe("dslElementParameterCompletionOptions", () => {
     // add enabled=false - the compiled element (elements array) && the
     // computedGeometry/effectiveEnabledElementIds snapshot both still reflect
     // the previous (enabled) evaluation.
-    const dirtySource = ["nui 1", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)", "line AB = segment(start: @A, end: @B, state: disabled)", "point Target = coordinate(x: 5, y: 5)"].join("\n");
+    const dirtySource = ["nui 1", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)", "line AB = segment(start: @A, end: @B, enabled: false)", "point Target = coordinate(x: 5, y: 5)"].join("\n");
     const options = dslElementParameterCompletionOptions({
       source: dirtySource,
       cursorLine: 5,

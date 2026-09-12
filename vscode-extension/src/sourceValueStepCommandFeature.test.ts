@@ -236,7 +236,7 @@ describe("VS Code Source Value Step feature", () => {
   });
 
   it("silently no-ops for a fixed color and for read-only Source", async () => {
-    const source = ["nui 1", "modifier Fixed {", "  color: #336699", "}"].join("\n");
+    const source = ["nui 1", "style Fixed {", "  color: #336699", "}"].join("\n");
     const { editor } = createEditor(source, source.indexOf("#336699"));
     mocks.activeTextEditor = editor;
     const session = createLanguageAnalysisSession(source);

@@ -44,17 +44,17 @@ describe("module definition compilation guard", () => {
       "nui 1",
       "module M(state: boolean) {",
       "}",
-      "instance X(state: hidden) = M(state: true)",
+      "instance X(visible: false) = M(state: true)",
       "point Root = coordinate(x: 1, y: 2)"
     ].join("\n");
     const { parsed, compiled } = compileWithStableIds(source);
 
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     expect(compiled.document?.elements.map((element) => element.name)).toEqual(["X", "Root"]);
-    expect(compiled.document?.elements[0]).toMatchObject({ type: "moduleInstance", activity: "hidden" });
+    expect(compiled.document?.elements[0]).toMatchObject({ type: "moduleInstance", visible: false });
     expect(parsed.statements.find((statement) => statement.kind === "moduleInstance")).toMatchObject({
       kind: "moduleInstance",
-      options: [{ name: "state", value: "hidden" }],
+      options: [{ name: "visible", value: "false" }],
       arguments: [{ label: "state", value: "true" }]
     });
   });

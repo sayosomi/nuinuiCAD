@@ -39,7 +39,8 @@ export const dependencyError = (
   const dependencyLabel = missingDependencyName ?? missingDependencyId;
   const disabledGroupId = disabledByGroupId.get(missingDependencyId);
   const disabledGroupName = disabledGroupId ? findElementName(elementsById, disabledGroupId) : null;
-  const dependencyDirectlyDisabled = elementsById.get(missingDependencyId)?.activity === "disabled";
+  const dependencyElement = elementsById.get(missingDependencyId);
+  const dependencyDirectlyDisabled = dependencyElement?.enabled === false || dependencyElement?.activity === "disabled";
   const dependencyEvaluationFailed =
     !disabledGroupName &&
     !dependencyDirectlyDisabled &&

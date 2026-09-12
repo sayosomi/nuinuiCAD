@@ -106,11 +106,11 @@ const editsAt = (
 ) as TestWorkspaceEdit | undefined;
 
 describe("VS Code native nui rename provider", () => {
-  it("projects modifier declaration and reference edits as one WorkspaceEdit", () => {
+  it("projects style declaration and reference edits as one WorkspaceEdit", () => {
     const source = [
       "nui 1",
-      'modifier "Guide Line" {',
-      "  state: visible,",
+      'style "Guide Line" {',
+      "  visible: true,",
       "}",
       "point A = coordinate(x: 0, y: 0)",
       'line L ["Guide Line"] = segment(start: @A, end: @A)'

@@ -45,10 +45,10 @@ describe("module source-owned container argument insertion", () => {
     const first = elementNamed("First")!;
     const group = elementNamed("G", first.id)!;
 
-    useCadDocumentStore.getState().updateElement(group.id, { activity: "hidden" });
+    useCadDocumentStore.getState().updateElement(group.id, { activity: "hidden", enabled: true, visible: false });
 
     const state = useCadDocumentStore.getState();
-    expect(state.sourceText).toContain("group G (state: hidden) {");
+    expect(state.sourceText).toContain("group G (visible: false) {");
     expect(state.sourceText).toContain("point P = coordinate(x: 0, y: 0)");
     expect(state.sourceText).toContain("instance First = M()");
     expect(state.sourceText).toContain("instance Second = M()");
@@ -56,15 +56,15 @@ describe("module source-owned container argument insertion", () => {
     expect(state.elements.filter((element) => element.name === "G").map((element) => element.activity)).toEqual(["hidden", "hidden"]);
 
     const hiddenGroup = elementNamed("G", first.id)!;
-    useCadDocumentStore.getState().updateElement(hiddenGroup.id, { activity: "disabled" });
+    useCadDocumentStore.getState().updateElement(hiddenGroup.id, { activity: "disabled", enabled: false, visible: true });
     let next = useCadDocumentStore.getState();
-    expect(next.sourceText).toContain("group G (state: disabled) {");
+    expect(next.sourceText).toContain("group G (visible: true, enabled: false) {");
     expect(next.elements.filter((element) => element.name === "G").map((element) => element.activity)).toEqual(["disabled", "disabled"]);
 
     const disabledGroup = elementNamed("G", first.id)!;
-    useCadDocumentStore.getState().updateElement(disabledGroup.id, { activity: "visible" });
+    useCadDocumentStore.getState().updateElement(disabledGroup.id, { activity: "visible", enabled: true, visible: true });
     next = useCadDocumentStore.getState();
-    expect(next.sourceText).toContain("group G (state: visible) {");
+    expect(next.sourceText).toContain("group G (visible: true, enabled: true) {");
     expect(next.elements.filter((element) => element.name === "G").map((element) => element.activity)).toEqual(["visible", "visible"]);
   });
 

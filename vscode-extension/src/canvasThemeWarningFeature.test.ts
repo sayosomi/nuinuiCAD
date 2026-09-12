@@ -16,10 +16,10 @@ const warningsFor = (source: string, background: string, displayLanguage = "en")
   });
 };
 
-const modifierSource = (colors: readonly string[]): string => [
+const styleSource = (colors: readonly string[]): string => [
   "nui 1",
   ...colors.flatMap((color, index) => [
-    `modifier M${index} {`,
+    `style M${index} {`,
     `  color: ${color},`,
     "}"
   ])
@@ -27,15 +27,15 @@ const modifierSource = (colors: readonly string[]): string => [
 
 describe("fixed-color Canvas contrast warnings", () => {
   it("localizes the warning presentation without changing its range or severity", () => {
-    const source = modifierSource(["#999999"]);
+    const source = styleSource(["#999999"]);
     const english = warningsFor(source, "#ffffff", "en")[0];
     const japanese = warningsFor(source, "#ffffff", "ja-JP")[0];
 
-    expect(english?.message).toBe("Fixed modifier color #999999 has low contrast against the current Canvas background.");
-    expect(japanese?.message).toBe("固定modifier色 #999999 は現在のCanvas背景とのコントラストが低くなっています。");
+    expect(english?.message).toBe("Fixed style color #999999 has low contrast against the current Canvas background.");
+    expect(japanese?.message).toBe("固定Style色 #999999 は現在のCanvas背景とのコントラストが低くなっています。");
     expect(japanese).toMatchObject({
       severity: "warning",
-      code: "modifier-fixed-color-low-contrast",
+      code: "style-fixed-color-low-contrast",
       range: english?.range
     });
   });
@@ -46,50 +46,50 @@ describe("fixed-color Canvas contrast warnings", () => {
     if (!foreground || !background) throw new Error("Expected test colors to parse");
     expect(contrastRatio(foreground, background)).toBe(21);
 
-    expect(warningsFor(modifierSource(["#999999"]), "#ffffff")).toHaveLength(1);
+    expect(warningsFor(styleSource(["#999999"]), "#ffffff")).toHaveLength(1);
     const thresholdBackgroundValue = "rgb(148.87702996536567, 148.87702996536567, 148.87702996536567)";
     const thresholdBackground = parseCssColor(thresholdBackgroundValue);
     if (!thresholdBackground) throw new Error("Expected threshold background to parse");
     expect(contrastRatio(foreground, thresholdBackground)).toBeCloseTo(3, 12);
-    expect(warningsFor(modifierSource(["#ffffff"]), thresholdBackgroundValue)).toEqual([]);
-    expect(warningsFor(modifierSource(["#000000"]), "#ffffff")).toEqual([]);
+    expect(warningsFor(styleSource(["#ffffff"]), thresholdBackgroundValue)).toEqual([]);
+    expect(warningsFor(styleSource(["#000000"]), "#ffffff")).toEqual([]);
   });
 
   it("evaluates fixed colors independently and excludes roles, lookalikes, malformed values, and comments", () => {
     const source = [
       "nui 1",
       "// color: #999999",
-      "modifier Low {",
+      "style Low {",
       "  color: #999999,",
       "}",
-      "modifier High {",
+      "style High {",
       "  color: #0000ff,",
       "}",
-      "modifier Role {",
+      "style Role {",
       "  color: accent,",
       "}",
-      'modifier "#999999" {',
+      'style "#999999" {',
       "  color: #12345,",
       "}",
-      "modifier Medium {",
+      "style Medium {",
       "  color: #aaaaaa,",
       "}"
     ].join("\n");
 
     const warnings = warningsFor(source, "#ffffff");
     expect(warnings).toHaveLength(2);
-    const lowColorStart = source.indexOf("#999999", source.indexOf("modifier Low"));
+    const lowColorStart = source.indexOf("#999999", source.indexOf("style Low"));
     expect(warnings.map((warning) => warning.range)).toEqual([
       { from: lowColorStart, to: lowColorStart + "#999999".length },
       { from: source.indexOf("#aaaaaa"), to: source.indexOf("#aaaaaa") + "#aaaaaa".length }
     ]);
     expect(warnings.every((warning) => warning.severity === "warning")).toBe(true);
-    expect(warnings.every((warning) => warning.code === "modifier-fixed-color-low-contrast")).toBe(true);
+    expect(warnings.every((warning) => warning.code === "style-fixed-color-low-contrast")).toBe(true);
     expect(warnings.every((warning) => warning.source === "nuinuiCAD")).toBe(true);
   });
 
   it("uses already-resolved fixed colors and fails closed for unparseable backgrounds", () => {
-    const source = modifierSource(["#999999"]);
+    const source = styleSource(["#999999"]);
     const session = createNuiLanguageSession(source);
     const fixedColors = session.fixedColors();
     expect(fixedColorContrastWarningsFor({
@@ -115,7 +115,7 @@ describe("Canvas theme warning observation lifecycle", () => {
     });
     const sessionToken = {};
     const otherSessionToken = {};
-    const source = modifierSource(["#999999"]);
+    const source = styleSource(["#999999"]);
     const session = createNuiLanguageSession(source);
     const fixedColors = session.fixedColors();
     const publication = {

@@ -43,7 +43,7 @@ const emptyEvaluation = (): EvaluationResult => ({
 
 const source = [
   "nui 1",
-  "modifier Guide {",
+  "style Guide {",
   "  color: #999999,",
   "}"
 ].join("\n");

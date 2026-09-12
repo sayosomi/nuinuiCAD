@@ -54,9 +54,9 @@ describe("SAY-64 output core", () => {
   it("evaluates an output profile separately from common Canvas evaluation", async () => {
     const doc = simpleSource([
       "profile Print",
-      "modifier PrintOnly {",
+      "style PrintOnly {",
       "  for @Print {",
-      "    state: hidden,",
+      "    visible: false,",
       "  }",
       "}"
     ]);
@@ -97,9 +97,9 @@ describe("SAY-64 output core", () => {
   it("omits a drawable hidden by the selected output profile", async () => {
     const doc = simpleSource([
       "profile Print",
-      "modifier PrintOnly {",
+      "style PrintOnly {",
       "  for @Print {",
-      "    state: hidden,",
+      "    visible: false,",
       "  }",
       "}"
     ]);
@@ -116,13 +116,13 @@ describe("SAY-64 output core", () => {
     expect(plan.drawables.some((drawable) => drawable.kind === "text")).toBe(true);
   });
 
-  it("fails output closed when the selected profile disables geometry", () => {
+  it("keeps geometry computable when a selected profile changes presentation", () => {
     const doc = sourceFor([
       "nui 1",
       "profile Print",
-      "modifier DisableInPrint {",
+      "style DisableInPrint {",
       "  for @Print {",
-      "    state: disabled,",
+      "    visible: false,",
       "  }",
       "}",
       "group G {",
@@ -139,8 +139,8 @@ describe("SAY-64 output core", () => {
     const line = doc.document.elements.find((element) => element.name === "AB")!;
     const evaluation = evaluationFor(doc, profile.id);
 
-    expect(evaluation.computedGeometry.has(line.id)).toBe(false);
-    expect(evaluation.effectiveEnabledElementIds).not.toContain(line.id);
+    expect(evaluation.computedGeometry.has(line.id)).toBe(true);
+    expect(evaluation.effectiveEnabledElementIds).toContain(line.id);
     expect(() => buildOutputPlan({
       compiledDocument: doc,
       output: { ...doc.document.svgOutputs[0], profileId: profile.id },
@@ -148,13 +148,13 @@ describe("SAY-64 output core", () => {
     })).toThrow(OutputPlanError);
   });
 
-  it("fails output closed when a selected profile disables a geometry dependency", () => {
+  it("keeps geometry dependencies available when a selected profile changes presentation", () => {
     const doc = sourceFor([
       "nui 1",
       "profile Print",
-      "modifier DisableInPrint {",
+      "style DisableInPrint {",
       "  for @Print {",
-      "    state: disabled,",
+      "    visible: false,",
       "  }",
       "}",
       "group G {",
@@ -167,17 +167,16 @@ describe("SAY-64 output core", () => {
       "svg S(layout: @L)"
     ]);
     const profile = doc.document.drawingProfiles!.find((candidate) => candidate.name === "Print")!;
-    const dependency = doc.document.elements.find((element) => element.name === "Base")!;
     const line = doc.document.elements.find((element) => element.name === "AB")!;
     const evaluation = evaluationFor(doc, profile.id);
     const error = evaluation.errors.find((candidate) => candidate.elementId === line.id);
 
-    expect(error).toMatchObject({ missingDependencyId: dependency.id });
+    expect(error).toBeUndefined();
     expect(() => buildOutputPlan({
       compiledDocument: doc,
       output: { ...doc.document.svgOutputs[0], profileId: profile.id },
       evaluation
-    })).toThrow(/Output evaluation failed/);
+    })).not.toThrow();
   });
 
   it("uses mirror, scale, rotation, and translation in a stable transform order", () => {
@@ -338,7 +337,7 @@ describe("SAY-64 output core", () => {
   });
 
   it("includes final stroke width and deterministic text bounds", () => {
-    const doc = simpleSource(["modifier Heavy {", "  width: 4px,", "  color: #FF3355,", "}"]);
+    const doc = simpleSource(["style Heavy {", "  width: 4px,", "  color: #FF3355,", "}"]);
     const line = doc.document.elements.find((element) => element.name === "AB")!;
     line.modifierNames = ["Heavy"];
     const plan = buildOutputPlan({ compiledDocument: doc, output: output(doc, "S"), evaluation: evaluationFor(doc) });
@@ -381,7 +380,7 @@ describe("SAY-64 output core", () => {
   it("keeps a styled stroke physical across placement scales while transforming geometry", () => {
     const doc = sourceFor([
       "nui 1",
-      "modifier Styled {",
+      "style Styled {",
       "  width: 1px,",
       "}",
       "group G {",
@@ -680,7 +679,7 @@ describe("SAY-64 output core", () => {
     expect(plan.print!.pages.every((page) => page.guides.length === 0)).toBe(true);
   });
 
-  it("owns the fixed output palette and preserves fixed modifier colors", () => {
+  it("owns the fixed output palette and preserves fixed style colors", () => {
     expect(OUTPUT_PALETTE).toEqual({
       foreground: "#31322f",
       muted: "#53564f",
@@ -689,7 +688,7 @@ describe("SAY-64 output core", () => {
       warning: "#73320d",
       error: "#b91c1c"
     });
-    const doc = simpleSource(["modifier Fixed {", "  color: #Ab12Ef,", "}"]);
+    const doc = simpleSource(["style Fixed {", "  color: #Ab12Ef,", "}"]);
     const line = doc.document.elements.find((element) => element.name === "AB")!;
     line.modifierNames = ["Fixed"];
     const plan = buildOutputPlan({ compiledDocument: doc, output: output(doc, "S"), evaluation: evaluationFor(doc) });

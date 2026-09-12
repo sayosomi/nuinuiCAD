@@ -39,7 +39,7 @@ describe("activity commands", () => {
 
   // A "legacy hidden state" recovery scenario (forcing `activity: "hidden"`
   // onto a non-drawable element via a raw setState, then cycling it forward)
-  // used to be covered here too. It no longer applies: `state: hidden` on a
+  // used to be covered here too. It no longer applies: `visible: false` on a
   // bare mutation-statement type (edge/extendTrim/move/symmetricMove/
   // pathReverse) is now a hard parse-time diagnostic (dslCallParser.ts's
   // validateArgs), so there is no legal DSL text this in-memory state could
@@ -158,7 +158,7 @@ describe("activity commands", () => {
     });
   });
 
-  it("reconciles selection when a Drawing Modifier changes effective activity", () => {
+  it("reconciles selection when a Style changes effective visibility", () => {
     const pointA = elementNamed("A");
     useCadUiStore.getState().setSelectedElementId(pointA.id);
     const elements = useCadDocumentStore.getState().elements.map((element) =>
@@ -167,7 +167,7 @@ describe("activity commands", () => {
 
     const result = useCadDocumentStore.getState().commitDocumentChange({
       elements,
-      modifiers: [{ name: "hide", state: "hidden" }]
+      modifiers: [{ name: "hide", visible: false }]
     });
 
     expect(result.status).toBe("applied");

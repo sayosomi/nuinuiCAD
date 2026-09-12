@@ -8,7 +8,6 @@ import type {
   DslModuleParameter,
   DslSpan
 } from "./dslTypes";
-import { invalidElementActivityMessage, parseElementActivityLiteral } from "./dslActivity";
 import { unquoteDslString } from "./dslTokens";
 import { parseDslSourceReference } from "./dslReferenceTokens";
 import { isDslGeometryValueType, nominalRecordTypeOfDslValueType, scalarTypeOfDslValueType } from "./dslValueTypes";
@@ -240,14 +239,15 @@ const instanceOptionFromArg = (
   const name = arg.key ?? "";
   if (arg.key === null) {
     diagnostic(diagnostics, "module instance option は名前付き引数で指定してください。", arg.valueSpan);
-  } else if (arg.key !== "state") {
-    diagnostic(diagnostics, `module instance option「${arg.key}」はありません。使用できるoption: state。`, arg.keySpan!);
+  } else if (arg.key !== "enabled" && arg.key !== "visible") {
+    diagnostic(diagnostics, `module instance option「${arg.key}」はありません。使用できるoption: enabled, visible。`, arg.keySpan!);
   } else if (seen.has(arg.key)) {
     diagnostic(diagnostics, `引数「${arg.key}」が重複しています。`, arg.keySpan!);
   } else {
     seen.add(arg.key);
-    if (arg.valueSpan.start !== arg.valueSpan.end && parseElementActivityLiteral(arg.value) === null) {
-      diagnostic(diagnostics, invalidElementActivityMessage, arg.valueSpan, "invalid-module-instance-state");
+    const literal = unquoteDslString(arg.value).toLowerCase();
+    if (arg.valueSpan.start !== arg.valueSpan.end && literal !== "true" && literal !== "false" && !literal.startsWith("@")) {
+      diagnostic(diagnostics, `${arg.key} は true/false または共有 boolean 参照で指定してください。`, arg.valueSpan, "invalid-module-instance-gate");
     }
   }
   return {

@@ -226,7 +226,7 @@ describe("Task 23 standard property runtime, end-to-end through the real compile
       "nui 1",
       "point Z1 = coordinate(x: 0, y: 0)",
       "point Z2 = coordinate(x: 3, y: 4)",
-      "line D = segment(start: @Z1, end: @Z2, state: disabled)",
+      "line D = segment(start: @Z1, end: @Z2, enabled: false)",
       "let 有効: boolean = @D.length > 0",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",

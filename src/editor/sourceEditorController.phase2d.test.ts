@@ -218,7 +218,7 @@ describe("SourceEditorController evaluation revision gating", () => {
     expect(beforeIds).toHaveLength(2);
 
     const updatedElements = before.elements.map((element) =>
-      element.name === "B" ? { ...element, activity: "disabled" as const } : element
+      element.name === "B" ? { ...element, activity: "disabled" as const, enabled: false, visible: true } : element
     );
     expect(useCadDocumentStore.getState().commitDocumentChange({ elements: updatedElements }).status).toBe("applied");
 
@@ -263,7 +263,7 @@ describe("SourceEditorController evaluation revision gating", () => {
     expect(parent.querySelectorAll(".cm-generated-rows-widget")).toHaveLength(1);
 
     const updatedElements = before.elements.map((element) =>
-      element.id === child.id ? { ...element, activity: "disabled" as const } : element
+      element.id === child.id ? { ...element, activity: "disabled" as const, enabled: false, visible: true } : element
     );
     expect(useCadDocumentStore.getState().commitDocumentChange({ elements: updatedElements }).status).toBe("applied");
     expect(internals.decorationIndex.generatedWidgets).toHaveLength(1);

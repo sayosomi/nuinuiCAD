@@ -1,7 +1,6 @@
 import { createCadElement } from "../model/elementFactory";
 import { createNameIndex, resolveId } from "./dslReferences";
 import { isCompilableDslStatement } from "./dslCompilationGuard";
-import { parseElementActivityLiteral } from "./dslActivity";
 import type {
   ElementNameContext } from "../model/elementNames";
 import type { NameIndex } from "./dslReferences";
@@ -73,10 +72,16 @@ const warning = (line: number, message: string): DslDiagnostic => ({
   message
 });
 
-const moduleInstanceActivity = (entry: MaterializedExecutionStatement) => {
-  if (entry.statement.kind !== "moduleInstance") return undefined;
-  const state = entry.statement.options.find((option) => option.name === "state");
-  return state ? parseElementActivityLiteral(state.value) ?? "visible" : "visible";
+const moduleInstanceGates = (entry: MaterializedExecutionStatement) => {
+  const statement = entry.statement;
+  if (statement.kind !== "moduleInstance") return undefined;
+  const valueFor = (name: string) => statement.options.find((option) => option.name === name)?.value.toLowerCase();
+  const enabled = valueFor("enabled");
+  const visible = valueFor("visible");
+  return {
+    ...(enabled === "true" || enabled === "false" ? { enabled: enabled === "true" } : {}),
+    ...(visible === "true" || visible === "false" ? { visible: visible === "true" } : {})
+  };
 };
 
 /** Compile a materialized execution plan through the ordinary element path. */
@@ -110,7 +115,7 @@ export const compileMaterializedExecution = ({
       name,
       ...(entry.parentGroupId ? { parentGroupId: entry.parentGroupId } : {}),
       ...(entry.conditionalBranch ? { conditionalBranch: entry.conditionalBranch } : {}),
-      ...(entry.type === "moduleInstance" ? { activity: moduleInstanceActivity(entry) ?? base.activity } : {})
+      ...(entry.type === "moduleInstance" ? moduleInstanceGates(entry) : {})
     } as CadElement;
   };
 

@@ -4,7 +4,6 @@ import type {
   DrawingModifierStrokeColor,
   DrawingModifierStrokeStyle,
   DrawingModifierDefinition,
-  DrawingModifierState,
   DrawingProfile,
   ElementId,
   Layout,
@@ -187,7 +186,7 @@ export type DslModifierProperty = {
   keySpan: DslSpan;
   valueSpan: DslSpan;
   hasTrailingComma: boolean;
-  /** Parser-owned exact logical tokens for modifier authoring. */
+  /** Parser-owned exact logical tokens for style authoring. */
   authoringTokens?: readonly { kind: "value" | "width" | "unit" | "style" | "themeRole" | "fixedColor"; span: DslSpan }[];
   keyPhysicalSpan?: DslPhysicalSpan | null;
   valuePhysicalSpan?: DslPhysicalSpan | null;
@@ -198,9 +197,9 @@ export type DslModifierProfileBlock = {
   profileNameSpan: DslSpan;
   profileNamePhysicalSpan?: DslPhysicalSpan | null;
   properties: readonly DslModifierProperty[];
-  state: DrawingModifierState | null;
+  visible: boolean | null;
   widthPx: number | null;
-  style: DrawingModifierStrokeStyle | null;
+  lineType: DrawingModifierStrokeStyle | null;
   color: DrawingModifierStrokeColor | null;
 };
 
@@ -224,7 +223,7 @@ export type DslStatementBase = {
   payloadPhysicalSpans?: Record<string, DslPhysicalSpan | null>;
   targetPhysicalSpans?: readonly (DslPhysicalSpan | null)[];
   stageNamePhysicalSpan?: DslPhysicalSpan | null;
-  /** Source-owned ordered drawing-modifier references on geometry declarations. */
+  /** Source-owned ordered drawing-style references on geometry declarations. */
   modifierNames?: readonly string[];
   modifierNameSpans?: readonly DslSpan[];
   modifierNamePhysicalSpans?: readonly (DslPhysicalSpan | null)[];
@@ -271,9 +270,9 @@ export type DslStatement =
     })
   | (DslStatementBase & {
       kind: "modifierDefinition";
-      state: DrawingModifierState | null;
+      visible: boolean | null;
       widthPx: number | null;
-      style: DrawingModifierStrokeStyle | null;
+      lineType: DrawingModifierStrokeStyle | null;
       color: DrawingModifierStrokeColor | null;
       properties: readonly DslModifierProperty[];
       profileBlocks: readonly DslModifierProfileBlock[];
@@ -329,7 +328,7 @@ export type DslStatement =
       numericTypeOptions?: DslNumericTypeOptions;
       /** Raw, unparsed initializer source text - never evaluated || re-quoted (Task 14 owns that). */
       initializer: string;
-      /** Export is a modifier on the declaration, not an alias statement. */
+      /** Export is a style on the declaration, not an alias statement. */
       exported: boolean;
       exportSpan: DslSpan | null;
       exportPhysicalSpan?: DslPhysicalSpan | null;

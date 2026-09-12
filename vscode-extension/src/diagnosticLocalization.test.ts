@@ -56,19 +56,19 @@ describe("diagnostic presentation localization", () => {
     expect(diagnosticTextFor(diagnostic, "ja-JP")).toBe("import先「./tailored.nui」が見つかりません。");
   });
 
-  it("keeps a producer-owned Drawing Modifier name in translated Problems text", () => {
-    const source = "nui 1\nmodifier TailoredModifier {\n  state: visible,\n}\n";
+  it("keeps a producer-owned Style name in translated Problems text", () => {
+    const source = "nui 1\nstyle TailoredStyle {\n  visible: true,\n}\n";
     const document = AutomationDocument.fromSource(source);
     const diagnostic = compilerDiagnosticsForState(document.getSource(), document.getState()).find(
-      (candidate) => candidate.code === "unused-drawing-modifier"
+      (candidate) => candidate.code === "unused-drawing-style"
     );
-    if (!diagnostic) throw new Error("missing production Drawing Modifier diagnostic");
+    if (!diagnostic) throw new Error("missing production Style diagnostic");
     expect(diagnostic.presentation).toEqual({
-      key: "diagnostic.unused-drawing-modifier",
-      parameters: { name: "TailoredModifier" }
+      key: "diagnostic.unused-drawing-style",
+      parameters: { name: "TailoredStyle" }
     });
-    expect(diagnosticTextFor(diagnostic, "en")).toBe("Drawing Modifier 'TailoredModifier' is not used anywhere.");
-    expect(diagnosticTextFor(diagnostic, "ja-JP")).toBe("Drawing Modifier「TailoredModifier」はどこからも使用されていません。");
+    expect(diagnosticTextFor(diagnostic, "en")).toBe("Style 'TailoredStyle' is not used anywhere.");
+    expect(diagnosticTextFor(diagnostic, "ja-JP")).toBe("Style「TailoredStyle」はどこからも使用されていません。");
   });
 
   it("keeps a Module parameter name through semantic projection in both display languages", () => {

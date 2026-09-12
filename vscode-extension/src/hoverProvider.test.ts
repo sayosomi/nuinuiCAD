@@ -218,7 +218,7 @@ describe("VS Code native nui Hover provider", () => {
   });
 
   it("returns exact semantic theme-role Hover text without runtime evaluation", async () => {
-    const source = ["nui 1", "modifier Guide {", "  color: accent,", "}"].join("\n");
+    const source = ["nui 1", "style Guide {", "  color: accent,", "}"].join("\n");
     const document = documentFor(source);
     const session = createLanguageAnalysisSession(source);
     const evaluateCurrent = vi.fn();
@@ -248,16 +248,16 @@ describe("VS Code native nui Hover provider", () => {
     const source = [
       "nui 1",
       "// color: accent",
-      'modifier "accent" {',
+      'style "accent" {',
       '  color: "accent",',
       "}",
-      "modifier Fixed {",
+      "style Fixed {",
       "  color: #112233,",
       "}",
-      "modifier Lookalike {",
+      "style Lookalike {",
       "  color: primary,",
       "}",
-      "modifier Actual {",
+      "style Actual {",
       "  color: accent,",
       "}"
     ].join("\n");

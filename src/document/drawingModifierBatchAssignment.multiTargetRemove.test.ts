@@ -20,15 +20,15 @@ const applyLineSplices = (source: string, splices: readonly LineSplice[]) => {
   return lines.join("\n");
 };
 
-describe("drawing modifier batch assignment multi-target remove", () => {
-  it("removes the requested direct modifier from multiple targets in one batch", () => {
+describe("drawing style batch assignment multi-target remove", () => {
+  it("removes the requested direct style from multiple targets in one batch", () => {
     const sourceText = sourceLines(
       "nui 1",
-      "modifier Guide {",
-      "  state: visible,",
+      "style Guide {",
+      "  ",
       "}",
-      "modifier Keep {",
-      "  state: visible,",
+      "style Keep {",
+      "  ",
       "}",
       "point A [Guide, Keep] = coordinate(x: 0, y: 0)",
       "group G [Keep, Guide] {",

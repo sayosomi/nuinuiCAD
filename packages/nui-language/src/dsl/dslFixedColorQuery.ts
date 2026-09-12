@@ -40,7 +40,7 @@ const parseFixedColor = (value: string): DslFixedColor | null => {
   };
 };
 
-/** Exact-current fixed modifier colors only. Theme-role colors intentionally remain host-owned. */
+/** Exact-current fixed style colors only. Theme-role colors intentionally remain host-owned. */
 export const queryDslFixedColors = ({ source, semantic }: DslFixedColorQueryInput): readonly DslFixedColorResult[] => {
   if (!semantic?.compiled || !semanticIsExact(source, semantic)) return [];
   const index = createModifierAuthoringIndex(semantic.compiled);

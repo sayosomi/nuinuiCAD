@@ -335,11 +335,11 @@ describe("VS Code native nui completion provider", () => {
     expect(items.map((item) => item.label)).toContain("abs");
   });
 
-  it("projects modifier authoring candidates through the native provider", () => {
+  it("projects style authoring candidates through the native provider", () => {
     const source = [
       "nui 1",
-      'modifier "Guide Line" {',
-      "  state: visible,",
+      'style "Guide Line" {',
+      "  ",
       "}",
       "point A = coordinate(x: 0, y: 0)",
       "line L [Gui] = segment(start: @A, end: @A)"

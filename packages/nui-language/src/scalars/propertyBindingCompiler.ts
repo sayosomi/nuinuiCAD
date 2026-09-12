@@ -191,16 +191,26 @@ export const compilePropertyBindings = ({
   statements.forEach((statement, statementIndex) => {
     if (includeStatement && !includeStatement(statement, statementIndex)) return;
     // "group" is its own DslStatement kind (elementType is implicitly
-    // "group", never stored on the statement); every other element type,
-    // including forGroup/conditionalGroup, parses as "element" with `.type`
-    // set. Both carry `.attrs` via DslStatementBase.
-    if (statement.kind !== "element" && statement.kind !== "group") return;
+    // "group", never stored on the statement); every other drawable element
+    // parses as "element". Module instance gates are stored in their
+    // dedicated option list, but use the same schema/typecheck/runtime path.
+    if (statement.kind !== "element" && statement.kind !== "group" && statement.kind !== "moduleInstance") return;
     const elementId = elementIdByStatementIndex.get(statementIndex);
     const element = elementId ? elementsById.get(elementId) : undefined;
     if (!element) return;
 
-    for (const attr of statement.attrs) {
-      const parameterKey = parameterKeyForArg(element.type, attr.key);
+    const attributes = statement.kind === "moduleInstance"
+      ? statement.options.map((option) => ({
+          key: option.name,
+          value: option.value,
+          valueStart: option.valueSpan.start,
+          valueEnd: option.valueSpan.end
+        }))
+      : statement.attrs;
+    for (const attr of attributes) {
+      const parameterKey = statement.kind === "moduleInstance"
+        ? attr.key
+        : parameterKeyForArg(element.type, attr.key);
       const definition = findParameterDefinition(element, parameterKey);
       const expectedType = scalarTypeForParameterDefinition(definition);
       if (!definition || !expectedType || expectedType.kind === "number") continue;
