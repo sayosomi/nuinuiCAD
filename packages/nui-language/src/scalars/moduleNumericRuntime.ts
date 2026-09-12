@@ -59,7 +59,7 @@ const occurrenceIndexMatchesIn = (
     if (node.kind === "valueIf") {
       visitIndex(node.condition);
       visitIndex(node.thenBranch);
-      visitIndex(node.elseBranch);
+      if (node.elseBranch) visitIndex(node.elseBranch);
       return;
     }
     if (node.kind === "valueMatch") {
@@ -85,7 +85,7 @@ const occurrenceIndexMatchesIn = (
     if (node.kind === "valueIf") {
       visit(node.condition);
       visit(node.thenBranch);
-      visit(node.elseBranch);
+      if (node.elseBranch) visit(node.elseBranch);
       return;
     }
     if (node.kind === "valueMatch") {

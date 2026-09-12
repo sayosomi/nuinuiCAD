@@ -9,7 +9,7 @@ import type {
   ScalarExpressionResolvedReference,
   ScalarExpressionResolvedCollectionIndex
 } from "../scalars/typedExpressionAst";
-import type { ScalarType } from "../scalars/types";
+import type { ScalarExpressionType, ScalarType } from "../scalars/types";
 import type { DslDiagnosticPresentation } from "./dslTypes";
 import type { ModuleGeometryInterfaceType } from "./moduleGeometryInterfaces";
 import type {
@@ -119,7 +119,7 @@ export type ModuleScalarLocalDiagnostic = {
 
 export type ModuleScalarReferenceResolution = {
   target: ModuleSourceTarget | null;
-  type: ScalarType | null;
+  type: ScalarExpressionType | null;
   resolution: ModuleScalarReference["resolution"];
   diagnostic?: ModuleScalarLocalDiagnostic;
 };
@@ -132,7 +132,7 @@ export type ModuleCollectionIndexReferenceResolution = ModuleScalarReferenceReso
 
 export type ModuleGeometryPropertyReferenceResolution = {
   target: ModuleGeometryPropertySourceTarget | ModuleRecordFieldSourceTarget | null;
-  type: ScalarType | null;
+  type: ScalarExpressionType | null;
   resolution: ModuleGeometryPropertyReference["resolution"];
   diagnostic?: ModuleScalarLocalDiagnostic;
 };
@@ -158,14 +158,14 @@ const localIssue = (code: string, span: DslSpan, message: string, extra: Partial
   ...extra
 });
 
-const scalarTypeFromTarget = (target: ModuleSourceTarget, resolution: ModuleScalarReferenceResolution): ScalarType | null => {
+const scalarTypeFromTarget = (target: ModuleSourceTarget, resolution: ModuleScalarReferenceResolution): ScalarExpressionType | null => {
   if (target.kind === "parameter") return resolution.type;
   return resolution.type;
 };
 
 const geometryPropertyMetadataFor = (
   target: ModuleGeometryPropertySourceTarget,
-  type: ScalarType
+  type: ScalarExpressionType
 ): ScalarExpressionResolvedGeometryProperty => {
   if (target.kind === "collectionValueLength" || target.kind === "collectionParameterLength" || target.kind === "deferredModuleCollectionExportLength") {
     return {
@@ -237,7 +237,7 @@ const resolveAndTypecheck = ({
 }: {
   ast: ScalarExpressionAst;
   sourceText?: string;
-  expectedType: ScalarType | null;
+  expectedType: ScalarExpressionType | null;
   resolveReference: (reference: { name: string; span: DslSpan }, presenceFacts?: ReadonlySet<string>) => ModuleScalarReferenceResolution;
   resolveCollectionIndex?: (reference: { name: string; span: DslSpan }, presenceFacts?: ReadonlySet<string>) => ModuleCollectionIndexReferenceResolution;
   resolveHasValue?: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution;
@@ -263,7 +263,7 @@ const resolveAndTypecheck = ({
   const hasValueParameters: { span: DslSpan; definitionStatementId: string; parameterIndex: number }[] = [];
   let invalidGeometryProperty = false;
 
-  const resolveNodeReference = (node: Extract<ScalarExpressionAst, { kind: "reference" }>, presenceFacts: ReadonlySet<string>): ScalarType | null => {
+  const resolveNodeReference = (node: Extract<ScalarExpressionAst, { kind: "reference" }>, presenceFacts: ReadonlySet<string>): ScalarExpressionType | null => {
     const found = { name: node.name, span: node.span };
     const resolution = resolveReference(found, presenceFacts);
     resolvedReferences.push({ ...found, nameSpan: node.nameSpan, target: resolution.target, resolution: resolution.resolution });
@@ -275,7 +275,7 @@ const resolveAndTypecheck = ({
   const presenceFactsFor = (node: ScalarExpressionAst, branch: "truth" | "false"): ReadonlySet<string> =>
     presenceFactsForResolvedAst(node, new Map(hasValueParameters.map((entry) => [entry.span.start, moduleParameterPresenceKey(entry.definitionStatementId, entry.parameterIndex)])), branch);
 
-  const resolve = (node: ScalarExpressionAst, presenceFacts: ReadonlySet<string> = new Set()): ScalarExpressionAst => {
+  const resolve = (node: ScalarExpressionAst, presenceFacts: ReadonlySet<string> = new Set(), boundNames: ReadonlySet<string> = new Set()): ScalarExpressionAst => {
     switch (node.kind) {
       case "numberLiteral":
       case "stringLiteral":
@@ -287,7 +287,7 @@ const resolveAndTypecheck = ({
         if (bareReference?.diagnostic) diagnostics.push(bareReference.diagnostic);
         if (bareReference?.target && bareReference.type) {
           resolvedReferences.push({ name: node.raw, nameSpan: node.span, span: node.span, target: bareReference.target, resolution: bareReference.resolution });
-          resolvedChoiceTypes.set(node.span.start, bareReference.type);
+          if (bareReference.type.kind !== "optional") resolvedChoiceTypes.set(node.span.start, bareReference.type);
           if (bareReference.type.kind === "number") return { kind: "numberLiteral", span: node.span, value: 0 };
           if (bareReference.type.kind === "string") return { kind: "stringLiteral", span: node.span, value: "" };
           if (bareReference.type.kind === "boolean") return { kind: "booleanLiteral", span: node.span, value: false };
@@ -304,9 +304,10 @@ const resolveAndTypecheck = ({
         return node;
       }
       case "reference":
-        resolveNodeReference(node, presenceFacts);
+        if (!boundNames.has(node.name)) resolveNodeReference(node, presenceFacts);
         return node;
       case "collectionIndex": {
+        if (boundNames.has(node.name)) return { ...node, index: resolve(node.index, presenceFacts, boundNames) };
         const base = { name: node.name, span: { start: node.span.start, end: node.nameSpan.end + 1 } };
         const resolution = resolveCollectionIndex
           ? resolveCollectionIndex(base, presenceFacts)
@@ -335,7 +336,7 @@ const resolveAndTypecheck = ({
           type: resolution.type
         };
         resolvedTypes.push(resolvedIndex);
-        resolve(node.index, presenceFacts);
+        resolve(node.index, presenceFacts, boundNames);
         return node;
       }
       case "call": {
@@ -392,8 +393,8 @@ const resolveAndTypecheck = ({
                 expectedGeometryType: parameterType,
                 reference
               });
-              if (sourceArgument.kind === "collectionIndex") resolve(sourceArgument.index, presenceFacts);
-              if (sourceArgument.kind === "geometryProperty" && sourceArgument.occurrenceIndex) resolve(sourceArgument.occurrenceIndex, presenceFacts);
+              if (sourceArgument.kind === "collectionIndex") resolve(sourceArgument.index, presenceFacts, boundNames);
+              if (sourceArgument.kind === "geometryProperty" && sourceArgument.occurrenceIndex) resolve(sourceArgument.occurrenceIndex, presenceFacts, boundNames);
               if (sourceArgument.kind === "reference" || sourceArgument.kind === "collectionIndex") {
                 resolvedTypes.push({
                   kind: "resolvedGeometry",
@@ -402,7 +403,7 @@ const resolveAndTypecheck = ({
               }
               return argument;
             }
-            return { ...argument, expression: resolve(sourceArgument, presenceFacts) };
+            return { ...argument, expression: resolve(sourceArgument, presenceFacts, boundNames) };
           })
         };
       }
@@ -426,7 +427,7 @@ const resolveAndTypecheck = ({
             ...(node.occurrenceRange ? { occurrenceRange: node.occurrenceRange } : {}),
             presenceFacts
           });
-          if (node.occurrenceIndex) resolve(node.occurrenceIndex, presenceFacts);
+          if (node.occurrenceIndex) resolve(node.occurrenceIndex, presenceFacts, boundNames);
           geometryProperties.push({
             geometryName: node.elementName,
             property: node.property,
@@ -465,29 +466,29 @@ const resolveAndTypecheck = ({
           if (!resolution.target) invalidGeometryProperty = true;
           return node;
         }
-      case "group": return { ...node, expression: resolve(node.expression, presenceFacts) };
-      case "unary": return { ...node, operand: resolve(node.operand, presenceFacts) };
+      case "group": return { ...node, expression: resolve(node.expression, presenceFacts, boundNames) };
+      case "unary": return { ...node, operand: resolve(node.operand, presenceFacts, boundNames) };
       case "valueIf": {
-        const condition = resolve(node.condition, presenceFacts);
+        const condition = resolve(node.condition, presenceFacts, boundNames);
         const thenFacts = presenceFactsFor(condition, "truth");
         const elseFacts = presenceFactsFor(condition, "false");
         return {
           ...node,
           condition,
-          thenBranch: resolve(node.thenBranch, new Set([...presenceFacts, ...thenFacts])),
-          elseBranch: resolve(node.elseBranch, new Set([...presenceFacts, ...elseFacts]))
+          thenBranch: resolve(node.thenBranch, new Set([...presenceFacts, ...thenFacts]), boundNames),
+          elseBranch: node.elseBranch ? resolve(node.elseBranch, new Set([...presenceFacts, ...elseFacts]), boundNames) : null
         };
       }
       case "valueMatch":
         return {
           ...node,
-          scrutinee: resolve(node.scrutinee, presenceFacts),
-          arms: node.arms.map((arm) => ({ ...arm, expression: resolve(arm.expression, presenceFacts) }))
+          scrutinee: resolve(node.scrutinee, presenceFacts, boundNames),
+          arms: node.arms.map((arm) => ({ ...arm, expression: resolve(arm.expression, presenceFacts, arm.binder ? new Set([...boundNames, arm.binder]) : boundNames) }))
         };
       case "binary": {
-        const left = resolve(node.left, presenceFacts);
+        const left = resolve(node.left, presenceFacts, boundNames);
         const leftFacts = node.operator === "&&" ? presenceFactsFor(left, "truth") : node.operator === "||" ? presenceFactsFor(left, "false") : new Set<string>();
-        return { ...node, left, right: resolve(node.right, new Set([...presenceFacts, ...leftFacts])) };
+        return { ...node, left, right: resolve(node.right, new Set([...presenceFacts, ...leftFacts]), boundNames) };
       }
     }
   };
@@ -534,7 +535,7 @@ const resolveAndTypecheck = ({
       }
     ));
   }
-  const type = diagnostics.length === 0 && !invalidGeometryProperty && checked.type?.kind !== "optional" ? checked.type : null;
+  const type = diagnostics.length === 0 && !invalidGeometryProperty ? checked.type : null;
   return { semantic: { ast, type, references: resolvedReferences, geometryProperties, geometryBuiltinArguments, hasValueParameters }, diagnostics };
 };
 
@@ -661,7 +662,7 @@ export const parseAndCheckModuleScalarExpression = ({
 }: {
   raw: string;
   span: DslSpan;
-  expectedType: ScalarType | null;
+  expectedType: ScalarExpressionType | null;
   resolveReference: (reference: { name: string; span: DslSpan }, presenceFacts?: ReadonlySet<string>) => ModuleScalarReferenceResolution;
   resolveCollectionIndex?: (reference: { name: string; span: DslSpan }, presenceFacts?: ReadonlySet<string>) => ModuleCollectionIndexReferenceResolution;
   resolveHasValue?: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution;

@@ -137,6 +137,21 @@ describe("record source-semantic document integration", () => {
     )).toBe(true);
   });
 
+  it("supports optional nominal-record results for omitted-else if and optional match", () => {
+    const compiled = compile([
+      "nui 1",
+      "record Pair(x: number)",
+      "const note: string? = \"present\"",
+      "const fallback: Pair = Pair(x: 0)",
+      "const maybe: Pair? = if (false) { Pair(x: 1) }",
+      "const selected: Pair? = match @note { none => none some value => @fallback }"
+    ].join("\n"));
+
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(compiled.sourceLexicalNamespace?.recordSemanticAnalysis?.valuesByStatementId.get("stable-4")?.valueExpression?.kind).toBe("if");
+    expect(compiled.sourceLexicalNamespace?.recordSemanticAnalysis?.valuesByStatementId.get("stable-5")?.valueExpression?.kind).toBe("match");
+  });
+
   it("accepts a statically indexed record collection member in a record branch", () => {
     const compiled = compile([
       "nui 1",

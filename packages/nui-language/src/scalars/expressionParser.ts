@@ -87,7 +87,7 @@ export const containsScalarNamedCall = (ast: ScalarExpressionAst): boolean => {
     case "geometryProperty":
       return ast.occurrenceIndex ? containsScalarNamedCall(ast.occurrenceIndex) : false;
     case "valueIf":
-      return containsScalarNamedCall(ast.condition) || containsScalarNamedCall(ast.thenBranch) || containsScalarNamedCall(ast.elseBranch);
+      return containsScalarNamedCall(ast.condition) || containsScalarNamedCall(ast.thenBranch) || (ast.elseBranch ? containsScalarNamedCall(ast.elseBranch) : false);
     case "valueMatch":
       return containsScalarNamedCall(ast.scrutinee) || ast.arms.some((arm) => containsScalarNamedCall(arm.expression));
     default:
@@ -315,7 +315,7 @@ class Parser {
 
       const elseKeyword = this.peek();
       if (!elseKeyword || elseKeyword.kind !== "literal" || elseKeyword.literal.kind !== "choice" || elseKeyword.literal.raw !== "else") {
-        return fail("value-if-missing-else", elseKeyword ? tokenSpan(elseKeyword) : { start: this.boundaryEnd, end: this.boundaryEnd }, "value-if には else ブランチが必要です。");
+        return { kind: "valueIf", span: { start: keyword.span.start, end: thenClosing.span.end }, condition, thenBranch, elseBranch: null };
       }
       this.consume();
       const elseOpening = this.peek();
@@ -371,18 +371,26 @@ class Parser {
         if (label.kind !== "literal" || label.literal.kind !== "choice") {
           return fail("value-match-malformed-arm", tokenSpan(label), "match ケースはchoice optionラベルで始めてください。");
         }
-        const arrow = this.peek(1);
+        const binderToken = label.literal.raw === "some" ? this.peek(1) : null;
+        const hasBinder = !!binderToken && binderToken.kind === "literal" && binderToken.literal.kind === "choice" && this.peek(2)?.kind === "arrow";
+        const arrow = hasBinder ? this.peek(2) : this.peek(1);
         if (!arrow || arrow.kind !== "arrow") {
           return fail("value-match-missing-arrow", arrow ? tokenSpan(arrow) : { start: this.boundaryEnd, end: this.boundaryEnd }, "match ケースには「=>」が必要です。");
         }
         this.consume();
+        if (hasBinder) this.consume();
         this.consume();
         const expression = this.parseTier(0);
-        arms.push({ label: label.literal.raw, labelSpan: label.literal.span, expression });
+        arms.push({
+          label: label.literal.raw,
+          labelSpan: label.literal.span,
+          ...(hasBinder && binderToken?.kind === "literal" ? { binder: binderToken.literal.raw, binderSpan: binderToken.literal.span } : {}),
+          expression
+        });
         const next = this.peek();
         if (!next) return fail("value-match-missing-closing-brace", opening.span, "match を閉じる「}」がありません。");
         if (next.kind === "rightBrace") continue;
-        if (next.kind === "literal" && next.literal.kind === "choice" && this.peek(1)?.kind === "arrow") continue;
+        if (next.kind === "literal" && next.literal.kind === "choice" && (this.peek(1)?.kind === "arrow" || (next.literal.raw === "some" && this.peek(2)?.kind === "arrow"))) continue;
         return fail("value-match-malformed-arm", tokenSpan(next), "match ケースの式の後に次のchoice optionと「=>」または「}」が必要です。");
       }
     } finally {

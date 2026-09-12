@@ -120,7 +120,14 @@ enum WorkItem<'a> {
     },
     BuildValueMatch {
         span: ScalarSpan,
-        arms: Vec<(String, ScalarSpan)>,
+        arms: Vec<(
+            String,
+            ScalarSpan,
+            Option<String>,
+            Option<ScalarSpan>,
+            Option<String>,
+            Option<ScalarType>,
+        )>,
         r#type: Option<ScalarType>,
     },
     BuildCall {
@@ -378,7 +385,16 @@ fn visit_node<'a>(
                 .collect::<Result<Vec<_>, _>>()?;
             let arms = arm_shapes
                 .iter()
-                .map(|arm| (arm.label.clone(), arm.label_span))
+                .map(|arm| {
+                    (
+                        arm.label.clone(),
+                        arm.label_span,
+                        arm.binder.clone(),
+                        arm.binder_span,
+                        arm.binder_id.clone(),
+                        arm.binder_type.clone(),
+                    )
+                })
                 .collect();
             work.push(WorkItem::BuildValueMatch {
                 span: shape.span,
@@ -560,13 +576,22 @@ pub(crate) fn validate_typed_expression_payload(
                 let arms = arms
                     .into_iter()
                     .zip(expressions)
-                    .map(|((label, label_span), expression)| {
-                        super::types::TypedScalarValueMatchArm {
-                            label,
-                            label_span,
+                    .map(
+                        |(
+                            (label, label_span, binder, binder_span, binder_id, binder_type),
                             expression,
-                        }
-                    })
+                        )| {
+                            super::types::TypedScalarValueMatchArm {
+                                label,
+                                label_span,
+                                binder,
+                                binder_span,
+                                binder_id,
+                                binder_type,
+                                expression,
+                            }
+                        },
+                    )
                     .collect();
                 output.push(TypedScalarExpression::ValueMatch {
                     span,

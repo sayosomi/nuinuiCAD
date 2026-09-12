@@ -132,7 +132,7 @@ const recordScalarPropertySpanStarts = (
       case "unary": visit(node.operand); return;
       case "binary": visit(node.left); visit(node.right); return;
       case "group": visit(node.expression); return;
-      case "valueIf": visit(node.condition); visit(node.thenBranch); visit(node.elseBranch); return;
+      case "valueIf": visit(node.condition); visit(node.thenBranch); if (node.elseBranch) visit(node.elseBranch); return;
       case "valueMatch": visit(node.scrutinee); node.arms.forEach((arm) => visit(arm.expression)); return;
       case "call": node.args.forEach((argument) => visit(argument.expression)); return;
       default: return;

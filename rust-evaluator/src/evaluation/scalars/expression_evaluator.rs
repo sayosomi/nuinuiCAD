@@ -142,6 +142,109 @@ pub(crate) trait ScalarEvaluationEnvironment {
     }
 }
 
+struct LocalBindingEnvironment<'a, E: ScalarEvaluationEnvironment + ?Sized> {
+    base: &'a E,
+    binding_id: &'a str,
+    binding: ScalarEvaluation,
+}
+
+impl<E: ScalarEvaluationEnvironment + ?Sized> ScalarEvaluationEnvironment
+    for LocalBindingEnvironment<'_, E>
+{
+    fn lookup_binding(&self, binding_id: &str) -> ScalarEvaluation {
+        if binding_id == self.binding_id {
+            self.binding.clone()
+        } else {
+            self.base.lookup_binding(binding_id)
+        }
+    }
+    fn lookup_geometry_property(
+        &self,
+        element_id: &str,
+        property: &str,
+        target_source_order: f64,
+        property_type: &ScalarType,
+    ) -> ScalarEvaluation {
+        self.base
+            .lookup_geometry_property(element_id, property, target_source_order, property_type)
+    }
+    fn lookup_geometry_value_property(
+        &self,
+        occurrence: &GeometryValueOccurrence,
+        point_key: Option<&str>,
+        property: &str,
+        target_source_order: f64,
+        property_type: &ScalarType,
+    ) -> ScalarEvaluation {
+        self.base.lookup_geometry_value_property(
+            occurrence,
+            point_key,
+            property,
+            target_source_order,
+            property_type,
+        )
+    }
+    fn lookup_geometry_value_binder_property(
+        &self,
+        binder_id: &str,
+        point_key: Option<&str>,
+        property: &str,
+        target_source_order: f64,
+        property_type: &ScalarType,
+    ) -> ScalarEvaluation {
+        self.base.lookup_geometry_value_binder_property(
+            binder_id,
+            point_key,
+            property,
+            target_source_order,
+            property_type,
+        )
+    }
+    fn lookup_for_group_geometry_property(
+        &self,
+        template_element_id: &str,
+        index: Option<&TypedScalarExpression>,
+        point_key: Option<&str>,
+        property: &str,
+        target_source_order: f64,
+        property_type: &ScalarType,
+    ) -> ScalarEvaluation {
+        self.base.lookup_for_group_geometry_property(
+            template_element_id,
+            index,
+            point_key,
+            property,
+            target_source_order,
+            property_type,
+        )
+    }
+    fn lookup_geometry_builtin_target(
+        &self,
+        target: &ScalarExpressionResolvedGeometryTarget,
+    ) -> Result<GeometryBuiltinRuntimeTarget, GeometryBuiltinRuntimeError> {
+        self.base.lookup_geometry_builtin_target(target)
+    }
+    fn lookup_collection_index(
+        &self,
+        collection_value_id: &str,
+        index: f64,
+        element_type: &ScalarType,
+        collection_length: Option<f64>,
+        target_source_order: f64,
+    ) -> ScalarEvaluation {
+        self.base.lookup_collection_index(
+            collection_value_id,
+            index,
+            element_type,
+            collection_length,
+            target_source_order,
+        )
+    }
+    fn lookup_collection_length(&self, collection_value_id: &str) -> Option<f64> {
+        self.base.lookup_collection_length(collection_value_id)
+    }
+}
+
 /// One entry in the explicit work stack. `Eval` still needs evaluating;
 /// `Finish*`/`ContinueLogical` mean the node's own fields have already been
 /// captured and it's ready to combine already-resolved child result(s) that
@@ -240,9 +343,29 @@ where
     evaluate_typed_expression_internal(node, environment, Some(observer))
 }
 
+pub(super) fn evaluate_typed_expression_with_local_binding(
+    node: &TypedScalarExpression,
+    environment: &(impl ScalarEvaluationEnvironment + ?Sized),
+    binding_id: &str,
+    binding_type: ScalarType,
+    value: ScalarValue,
+) -> ScalarEvaluation {
+    let local = LocalBindingEnvironment {
+        base: environment,
+        binding_id,
+        binding: ScalarEvaluation::Ok {
+            r#type: binding_type,
+            value,
+        },
+    };
+    evaluate_typed_expression_internal::<fn(&TypedScalarExpression, &ScalarEvaluation)>(
+        node, &local, None,
+    )
+}
+
 fn evaluate_typed_expression_internal<F>(
     node: &TypedScalarExpression,
-    environment: &impl ScalarEvaluationEnvironment,
+    environment: &dyn ScalarEvaluationEnvironment,
     mut observer: Option<&mut F>,
 ) -> ScalarEvaluation
 where
@@ -350,7 +473,14 @@ where
                 r#type,
                 scrutinee_type,
                 arms,
-            } => continue_value_match(r#type, scrutinee_type, arms, &mut work, &mut output),
+            } => continue_value_match(
+                r#type,
+                scrutinee_type,
+                arms,
+                environment,
+                &mut work,
+                &mut output,
+            ),
             EvalWork::FinishValueMatch { r#type } => finish_value_match(r#type, &mut output),
             EvalWork::FinishLogicalRight { r#type } => finish_logical_right(r#type, &mut output),
             EvalWork::ContinueCoalesce { r#type, right } => {
@@ -395,7 +525,7 @@ where
 /// *is* the group's result, unmodified.
 fn eval_node<'a>(
     node: &'a TypedScalarExpression,
-    environment: &impl ScalarEvaluationEnvironment,
+    environment: &dyn ScalarEvaluationEnvironment,
     work: &mut Vec<EvalWork<'a>>,
     output: &mut Vec<ScalarEvaluation>,
 ) {
@@ -604,7 +734,10 @@ fn eval_node<'a>(
                     );
                     return;
                 };
-                if !matches!(&scrutinee_type, ScalarType::Choice { .. }) {
+                if !matches!(
+                    &scrutinee_type,
+                    ScalarType::Choice { .. } | ScalarType::Optional { .. }
+                ) {
                     output.push(
                         super::expression_evaluator_ops::runtime_value_type_mismatch(
                             concrete_type.clone(),

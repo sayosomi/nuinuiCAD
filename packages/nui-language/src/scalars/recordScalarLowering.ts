@@ -27,8 +27,8 @@ import type { BindingResolution } from "./bindingResolution";
 import type { ScalarExpressionAst } from "./expressionAst";
 import { parseScalarExpression } from "./expressionParser";
 import type { ScalarExpressionResolvedReference } from "./typedExpressionAst";
-import type { ScalarType } from "./types";
-import { isDslRecordValueType, scalarTypeOfDslValueType } from "../dsl/dslValueTypes";
+import type { ScalarExpressionType } from "./types";
+import { isDslOptionalValueType, isDslRecordValueType, scalarExpressionTypeOfDslValueType } from "../dsl/dslValueTypes";
 
 export type RecordScalarFieldInitializer = {
   bindingId: BindingId;
@@ -40,7 +40,7 @@ export type RecordScalarFieldInitializer = {
   sourceOrder: number;
   raw: string;
   span: DslSpan;
-  expectedType: ScalarType;
+  expectedType: ScalarExpressionType;
   /** Projected scalar AST for a record-valued control-flow initializer. */
   ast?: ScalarExpressionAst;
   /** Compiler-only metadata for suppressing repeated diagnostics from the
@@ -187,7 +187,7 @@ const recordFieldPathKey = (path: readonly RecordFieldIdentity[]) => JSON.string
 );
 
 type ScalarRecordMemberResolution =
-  | { kind: "resolved"; field: RecordFieldIdentity; fieldName: string; fieldPath: readonly RecordFieldIdentity[]; type: ScalarType }
+  | { kind: "resolved"; field: RecordFieldIdentity; fieldName: string; fieldPath: readonly RecordFieldIdentity[]; type: ScalarExpressionType }
   | { kind: "unknown" }
   | { kind: "invalidTraversal" }
   | { kind: "nonScalar" };
@@ -219,9 +219,9 @@ const scalarRecordMemberFor = (
     // semantic owners; the scalar record adapter must not steal them. A
     // scalar followed by another member is instead an invalid record
     // traversal and must remain owned by the record diagnostic path.
-    return scalarTypeOfDslValueType(type) ? { kind: "invalidTraversal" } : { kind: "nonScalar" };
+    return scalarExpressionTypeOfDslValueType(type) ? { kind: "invalidTraversal" } : { kind: "nonScalar" };
   }
-  const scalar = scalarTypeOfDslValueType(type);
+  const scalar = scalarExpressionTypeOfDslValueType(type);
   return scalar && field ? { kind: "resolved", field: field.identity, fieldName: field.name, fieldPath, type: scalar } : { kind: "nonScalar" };
 };
 
@@ -351,9 +351,9 @@ export const planRecordScalarLowering = ({
   const scalarFieldPathsFor = (
     definition: NonNullable<ReturnType<RecordSemanticAnalysis["definitionsByStatementId"]["get"]>>,
     prefix: readonly RecordFieldIdentity[] = []
-  ): { field: Extract<typeof definition.fields[number], { type: unknown }>; path: readonly RecordFieldIdentity[]; type: ScalarType }[] => definition.fields.flatMap((field) => {
+  ): { field: Extract<typeof definition.fields[number], { type: unknown }>; path: readonly RecordFieldIdentity[]; type: ScalarExpressionType }[] => definition.fields.flatMap((field) => {
     const path = [...prefix, field.identity];
-    const scalar = scalarTypeOfDslValueType(field.type);
+    const scalar = scalarExpressionTypeOfDslValueType(field.type);
     if (scalar) return [{ field, path, type: scalar }];
     if (!isDslRecordValueType(field.type)) return [];
     const nested = analysis.definitionsByStatementId.get(field.type.identity ?? "");
@@ -392,7 +392,7 @@ export const planRecordScalarLowering = ({
     // collection runtime. It has no scalar field backing until a selected
     // record member is projected, so do not seed field bindings that cannot
     // have scalar declarations (and would otherwise poison bindingVersions).
-    if (value.valueExpression?.kind === "none" || value.valueExpression?.kind === "coalesce") {
+    if (value.valueExpression?.kind === "none" || value.valueExpression?.kind === "coalesce" || isDslOptionalValueType(value.valueExpression?.valueType)) {
       continue;
     }
 
@@ -818,7 +818,7 @@ export const resolveRecordScalarProperties = ({
       case "valueIf":
         visit(node.condition);
         visit(node.thenBranch);
-        visit(node.elseBranch);
+        if (node.elseBranch) visit(node.elseBranch);
         return;
       case "valueMatch":
         visit(node.scrutinee);
@@ -922,7 +922,7 @@ export const prepareRecordScalarExpressionFromCatalog = ({
       referencesBySpanStart.set(node.span.start, {
         kind: "resolvedType",
         bindingId: binding.id,
-        type: scalarTypeOfDslValueType(binding.declaredType)
+        type: scalarExpressionTypeOfDslValueType(binding.declaredType)
       });
       dependencies.push({ bindingId: binding.id, name: `${node.elementName}.${node.property}`, span: node.span });
       return;
@@ -942,7 +942,7 @@ export const prepareRecordScalarExpressionFromCatalog = ({
       case "unary": classify(node.operand); return;
       case "binary": classify(node.left); classify(node.right); return;
       case "group": classify(node.expression); return;
-      case "valueIf": classify(node.condition); classify(node.thenBranch); classify(node.elseBranch); return;
+      case "valueIf": classify(node.condition); classify(node.thenBranch); if (node.elseBranch) classify(node.elseBranch); return;
       case "valueMatch": classify(node.scrutinee); node.arms.forEach((arm) => classify(arm.expression)); return;
       case "collectionIndex": classify(node.index); return;
       case "call": node.args.forEach((argument) => classify(argument.expression)); return;
@@ -953,9 +953,10 @@ export const prepareRecordScalarExpressionFromCatalog = ({
 
   const references: (BindingResolution | ScalarExpressionResolvedReference)[] = [];
   let referenceCursor = 0;
-  const rewrite = (node: ScalarExpressionAst): ScalarExpressionAst => {
+  const rewrite = (node: ScalarExpressionAst, boundNames: ReadonlySet<string> = new Set()): ScalarExpressionAst => {
     switch (node.kind) {
       case "reference": {
+        if (boundNames.has(node.name)) return node;
         const resolution = referenceResolutions[referenceCursor];
         if (!resolution) throw new Error(`recordScalarLowering: no resolution supplied for @${node.name} at ${node.span.start}`);
         referenceCursor += 1;
@@ -989,7 +990,7 @@ export const prepareRecordScalarExpressionFromCatalog = ({
         ...node,
         condition: rewrite(node.condition),
         thenBranch: rewrite(node.thenBranch),
-        elseBranch: rewrite(node.elseBranch)
+        elseBranch: node.elseBranch ? rewrite(node.elseBranch) : null
       };
       case "valueMatch": return {
         ...node,
@@ -1059,9 +1060,10 @@ export const prepareRecordScalarExpression = ({
   const references: (BindingResolution | ScalarExpressionResolvedReference)[] = [];
   let referenceCursor = 0;
 
-  const rewrite = (node: ScalarExpressionAst): ScalarExpressionAst => {
+  const rewrite = (node: ScalarExpressionAst, boundNames: ReadonlySet<string> = new Set()): ScalarExpressionAst => {
     switch (node.kind) {
       case "reference": {
+        if (boundNames.has(node.name)) return node;
         const resolution = referenceResolutions[referenceCursor];
         if (!resolution) {
           throw new Error(`recordScalarLowering: no resolution supplied for @${node.name} at ${node.span.start}`);
@@ -1095,35 +1097,39 @@ export const prepareRecordScalarExpression = ({
         };
       }
       case "unary":
-        return { ...node, operand: rewrite(node.operand) };
+        return { ...node, operand: rewrite(node.operand, boundNames) };
       case "binary":
-        return { ...node, left: rewrite(node.left), right: rewrite(node.right) };
+        return { ...node, left: rewrite(node.left, boundNames), right: rewrite(node.right, boundNames) };
       case "group":
-        return { ...node, expression: rewrite(node.expression) };
+        return { ...node, expression: rewrite(node.expression, boundNames) };
       case "valueIf":
         return {
           ...node,
-          condition: rewrite(node.condition),
-          thenBranch: rewrite(node.thenBranch),
-          elseBranch: rewrite(node.elseBranch)
+          condition: rewrite(node.condition, boundNames),
+          thenBranch: rewrite(node.thenBranch, boundNames),
+          elseBranch: node.elseBranch ? rewrite(node.elseBranch, boundNames) : null
         };
       case "valueMatch":
         return {
           ...node,
-          scrutinee: rewrite(node.scrutinee),
-          arms: node.arms.map((arm) => ({ ...arm, expression: rewrite(arm.expression) }))
+          scrutinee: rewrite(node.scrutinee, boundNames),
+          arms: node.arms.map((arm) => ({
+            ...arm,
+            expression: rewrite(arm.expression, arm.binder ? new Set([...boundNames, arm.binder]) : boundNames)
+          }))
         };
       case "collectionIndex": {
+        if (boundNames.has(node.name)) return { ...node, index: rewrite(node.index, boundNames) };
         const resolution = referenceResolutions[referenceCursor];
         if (!resolution) throw new Error(`recordScalarLowering: no resolution supplied for collection index at ${node.span.start}`);
         referenceCursor += 1;
         references.push(resolution);
-        return { ...node, index: rewrite(node.index) };
+        return { ...node, index: rewrite(node.index, boundNames) };
       }
       case "call":
         return {
           ...node,
-          args: node.args.map((argument) => ({ ...argument, expression: rewrite(argument.expression) }))
+          args: node.args.map((argument) => ({ ...argument, expression: rewrite(argument.expression, boundNames) }))
         };
       default:
         return node;

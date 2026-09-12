@@ -119,12 +119,12 @@ invalid, and these pure forms allocate no drawable identity. `corner` and other
 deferred constructions remain unsupported.
 
 Geometry values also support expression-local value control flow. `if` requires
-a boolean condition, an `else` branch, and a geometry-compatible result in
-both branches. `match` requires an exhaustive `choice(...)` scrutinee; every
-case is resolved and checked, while only the selected branch is evaluated at
-runtime. Branches may use existing `@` geometry references or the pure
-construction forms listed above. Records, collections, and optional values are
-not supported as geometry-valued results in nui1.
+a boolean condition and geometry-compatible present branches; an omitted `else`
+is legal only for an optional geometry result. `match` accepts an exhaustive
+`choice(...)` or optional scrutinee; optional matches use `none` and
+`some <binder>` arms. Every arm is resolved and checked, while only the selected
+branch is evaluated at runtime. Branches may use existing `@` geometry
+references or the pure construction forms listed above.
 
 Pure `intersection(line1: ..., line2: ..., index: ..., extensions: ...)` is an
 identity-free `point` initializer accepting line-like `line` or `path` inputs.
@@ -221,14 +221,14 @@ identity. Optional Module collection parameters require a preceding
 and less than the collection length; invalid dynamic indexes are evaluation
 errors and are never clamped or wrapped.
 
-Collection-valued `if` and exhaustive choice `match` are lazy value expressions.
+Collection-valued `if` and exhaustive choice/optional `match` are lazy value expressions.
 All branches or arms must resolve to the same declared one-dimensional
 collection type, while cardinalities may differ. The selected branch determines
 `.length` and indexed members, and an unselected branch is not evaluated.
 Collection values retain their scalar, choice, geometry, or nominal-record
 element identity, so assignable `point[]`, `line[]`, and `path[]` values can be
-passed to existing geometry consumers. Implicit optional-result branches and
-nested arrays remain deferred or unsupported.
+passed to existing geometry consumers. Omitted optional-result branches use
+ordinary `none`; nested arrays remain deferred or unsupported.
 
 ## Records
 

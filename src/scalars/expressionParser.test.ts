@@ -129,8 +129,8 @@ describe("parseScalarExpression / scalar value-if", () => {
     expect(ast.elseBranch).toMatchObject({ kind: "numberLiteral", value: 3 });
   });
 
-  it("requires else and brace-delimited branches", () => {
-    expect(parseErr("if (true) { 10 }").code).toBe("value-if-missing-else");
+  it("represents an omitted else while retaining malformed branch diagnostics", () => {
+    expect(parseOk("if (true) { 10 }")).toMatchObject({ kind: "valueIf", elseBranch: null });
     expect(parseErr("if (true) 10 else { 20 }").code).toBe("value-if-malformed-branch");
   });
 
@@ -140,6 +140,15 @@ describe("parseScalarExpression / scalar value-if", () => {
 });
 
 describe("parseScalarExpression / exhaustive choice value-match", () => {
+  it("parses an authored optional some binder", () => {
+    expect(parseOk("match @note { none => 0 some note => @note }")).toMatchObject({
+      kind: "valueMatch",
+      arms: [
+        { label: "none" },
+        { label: "some", binder: "note", expression: { kind: "reference", name: "note" } }
+      ]
+    });
+  });
   it("parses an inline match with exact scrutinee, arm-label, and result spans", () => {
     const source = "match @size { small => 5 large => 10 }";
     expect(parseOk(source)).toEqual({

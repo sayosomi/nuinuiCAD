@@ -13,12 +13,14 @@ record Name(
 
 ## Parameters and fields
 
-Record constructors are named-only. Every declared field must be supplied
-exactly once, with the declared type. Fields may be scalar or `choice(...)`,
+Record constructors are named-only. Every non-optional field must be supplied
+exactly once, with the declared type. An optional field may be supplied once or
+omitted; omission materializes ordinary `none` of that field's `T?` type. Fields
+may be scalar or `choice(...)`,
 `point`, `line`, `path`, a supported one-dimensional collection such as
 `number[]`, `point[]`, or `Metadata[]`, or another named record type. Collection
-element types cannot themselves be arrays. Optional field omission,
-field-specific presence semantics, and field defaults are not supported. A
+element types cannot themselves be arrays. Field defaults are not supported,
+and omission does not create field-specific presence state. A
 record definition's name is its type
 identity: two definitions with the same fields are still different types, and
 definitions are not hoisted.
@@ -103,8 +105,9 @@ The condition or scrutinee is checked by the ordinary scalar expression
 analyzer. Both record branches are resolved and typechecked, while runtime
 evaluates the condition or scrutinee first and evaluates only the selected
 record leaf. Record leaves may be constructors, whole-record references, or
-supported statically indexed members of a nominal record collection. Collection
-values and optional-match binder semantics are not introduced by these forms.
+supported statically indexed members of a nominal record collection. Optional
+values use the same immutable value model, including branch-local
+`none`/`some <binder>` matches.
 
 ## Collection value-for
 
@@ -133,8 +136,8 @@ const selectedLabel: string = @selected.label
 
 The map preserves source order, duplicates, and empty-source cardinality.
 Record collection `.length` does not evaluate field bodies, and indexing is
-zero-based with the normal runtime bounds checks. Nested arrays and optional
-result values remain unsupported.
+zero-based with the normal runtime bounds checks. Nested arrays remain
+unsupported.
 
 ## Notes
 

@@ -500,7 +500,7 @@ const specializeInlineScalarExpression = (
     if (node.kind === "valueIf") {
       visitAst(node.condition);
       visitAst(node.thenBranch);
-      visitAst(node.elseBranch);
+      if (node.elseBranch) visitAst(node.elseBranch);
       return;
     }
     if (node.kind === "valueMatch") {
@@ -678,7 +678,7 @@ const specializeInlineScalarExpression = (
     if (node.kind === "valueIf") {
       const condition = specialize(node.condition);
       const thenBranch = specialize(node.thenBranch);
-      const elseBranch = specialize(node.elseBranch);
+      const elseBranch = node.elseBranch ? specialize(node.elseBranch) : null;
       if (!condition || !thenBranch || !elseBranch) return null;
       if (condition.known?.presenceDerived) {
         const selected = condition.known.value ? thenBranch : elseBranch;

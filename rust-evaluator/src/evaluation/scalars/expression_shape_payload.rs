@@ -15,12 +15,36 @@ use super::expression_leaf_payload::{
 use super::issue::ScalarPayloadIssue;
 use super::issue::ScalarPayloadIssueCode as Code;
 use super::json_helpers::{as_object, issue, reject_unexpected_fields, require_field};
+use super::scalar_payload::decode_scalar_type;
 use super::types::{
     BuiltinArgumentType, BuiltinFunctionName, GeometryInterfaceType, ScalarBinaryOperator,
     ScalarExpressionResolvedGeometryTarget, ScalarSpan, ScalarType, ScalarUnaryOperator,
     TypedScalarCallTarget,
 };
 use crate::evaluation::types::GeometryValueOccurrence;
+
+fn optional_field<'a>(object: &'a Map<String, Value>, name: &str) -> Option<&'a Value> {
+    object.get(name)
+}
+
+fn optional_string_field(
+    object: &Map<String, Value>,
+    name: &str,
+    context: &str,
+) -> Result<Option<String>, ScalarPayloadIssue> {
+    match object.get(name) {
+        None => Ok(None),
+        Some(value) => value
+            .as_str()
+            .map(|text| Some(text.to_owned()))
+            .ok_or_else(|| {
+                issue(
+                    Code::InvalidFieldType,
+                    format!("{context} must be a string"),
+                )
+            }),
+    }
+}
 
 /// A `unary` node's own fields, validated - `operand` is a borrowed
 /// reference to its still-undecoded child JSON.
@@ -169,6 +193,10 @@ pub(crate) fn validate_value_if_shape(
 pub(crate) struct ValueMatchArmShape<'a> {
     pub(crate) label: String,
     pub(crate) label_span: ScalarSpan,
+    pub(crate) binder: Option<String>,
+    pub(crate) binder_span: Option<ScalarSpan>,
+    pub(crate) binder_id: Option<String>,
+    pub(crate) binder_type: Option<ScalarType>,
     pub(crate) expression: &'a Value,
 }
 
@@ -215,7 +243,15 @@ pub(crate) fn validate_value_match_arm_shape(
     let object = as_object(json, "value-match arm")?;
     reject_unexpected_fields(
         object,
-        &["label", "labelSpan", "expression"],
+        &[
+            "label",
+            "labelSpan",
+            "binder",
+            "binderSpan",
+            "binderId",
+            "binderType",
+            "expression",
+        ],
         "value-match arm",
     )?;
     let label = require_field(object, "label", "value-match arm")?
@@ -232,10 +268,22 @@ pub(crate) fn validate_value_match_arm_shape(
         require_field(object, "labelSpan", "value-match arm")?,
         "value-match arm labelSpan",
     )?;
+    let binder = optional_string_field(object, "binder", "value-match arm binder")?;
+    let binder_span = optional_field(object, "binderSpan")
+        .map(|value| decode_span(value, "value-match arm binderSpan"))
+        .transpose()?;
+    let binder_id = optional_string_field(object, "binderId", "value-match arm binderId")?;
+    let binder_type = optional_field(object, "binderType")
+        .map(|value| decode_scalar_type(value))
+        .transpose()?;
     let expression = require_field(object, "expression", "value-match arm")?;
     Ok(ValueMatchArmShape {
         label,
         label_span,
+        binder,
+        binder_span,
+        binder_id,
+        binder_type,
         expression,
     })
 }

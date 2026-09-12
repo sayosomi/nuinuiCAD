@@ -16,7 +16,7 @@ use super::program_payload::{
     ValidatedScalarProgramCollectionValue, ValidatedScalarProgramRecordField,
     ValidatedScalarProgramRecordFieldIdentity, ValidatedScalarProgramStatement,
 };
-use super::scalar_payload::scalar_value_matches_type;
+use super::scalar_payload::{scalar_type_assignable, scalar_value_matches_type};
 use super::types::{
     BindingId, ScalarEvaluation, ScalarEvaluationErrorContext, ScalarType, ScalarValue,
 };
@@ -88,18 +88,6 @@ pub(crate) fn result_for_declared_type(
             context: None,
         },
     }
-}
-
-fn scalar_type_assignable(actual: &ScalarType, expected: &ScalarType) -> bool {
-    if let ScalarType::Optional { value_type } = expected {
-        return match actual {
-            ScalarType::Optional {
-                value_type: actual_value_type,
-            } => scalar_type_assignable(actual_value_type, value_type),
-            _ => scalar_type_assignable(actual, value_type),
-        };
-    }
-    !matches!(actual, ScalarType::Optional { .. }) && actual == expected
 }
 
 fn record_field_result(

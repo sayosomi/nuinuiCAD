@@ -151,18 +151,23 @@ export interface ScalarCallExpressionNode {
   readonly args: readonly ScalarCallArgumentNode[];
 }
 
-/** A value-producing scalar `if (condition) { then } else { otherwise }`. */
+/** A value-producing scalar `if (condition) { then } else { otherwise }`.
+ * `elseBranch === null` is the authored omitted-else form; semantic checking
+ * may legalize it only in an optional result context. */
 export interface ScalarValueIfExpressionNode {
   readonly kind: "valueIf";
   readonly span: ScalarSpan;
   readonly condition: ScalarExpressionAst;
   readonly thenBranch: ScalarExpressionAst;
-  readonly elseBranch: ScalarExpressionAst;
+  readonly elseBranch: ScalarExpressionAst | null;
 }
 
 export interface ScalarValueMatchArmNode {
   readonly label: string;
   readonly labelSpan: ScalarSpan;
+  /** Present only for the optional `some <binder> =>` arm form. */
+  readonly binder?: string;
+  readonly binderSpan?: ScalarSpan;
   readonly expression: ScalarExpressionAst;
 }
 

@@ -165,7 +165,7 @@ const occurrenceIndexReferencesIn = (ast: ScalarExpressionAst, outer: DslSpan): 
     if (node.kind === "unary") return visitIndex(node.operand);
     if (node.kind === "binary") { visitIndex(node.left); visitIndex(node.right); return; }
     if (node.kind === "group") return visitIndex(node.expression);
-    if (node.kind === "valueIf") { visitIndex(node.condition); visitIndex(node.thenBranch); visitIndex(node.elseBranch); return; }
+    if (node.kind === "valueIf") { visitIndex(node.condition); visitIndex(node.thenBranch); if (node.elseBranch) visitIndex(node.elseBranch); return; }
     if (node.kind === "valueMatch") { visitIndex(node.scrutinee); node.arms.forEach((arm) => visitIndex(arm.expression)); return; }
     if (node.kind === "call") node.args.forEach((argument) => visitIndex(argument.expression));
   };
@@ -177,7 +177,7 @@ const occurrenceIndexReferencesIn = (ast: ScalarExpressionAst, outer: DslSpan): 
     if (node.kind === "unary") return visit(node.operand);
     if (node.kind === "binary") { visit(node.left); visit(node.right); return; }
     if (node.kind === "group") return visit(node.expression);
-    if (node.kind === "valueIf") { visit(node.condition); visit(node.thenBranch); visit(node.elseBranch); return; }
+    if (node.kind === "valueIf") { visit(node.condition); visit(node.thenBranch); if (node.elseBranch) visit(node.elseBranch); return; }
     if (node.kind === "valueMatch") { visit(node.scrutinee); node.arms.forEach((arm) => visit(arm.expression)); return; }
     if (node.kind === "collectionIndex") { visit(node.index); return; }
     if (node.kind === "call") node.args.forEach((argument) => visit(argument.expression));
@@ -252,7 +252,7 @@ const bareReferencesIn = (ast: ScalarExpressionAst | null, outer: DslSpan): Bare
       case "valueIf":
         visit(node.condition, false);
         visit(node.thenBranch, numericValuePosition);
-        visit(node.elseBranch, numericValuePosition);
+        if (node.elseBranch) visit(node.elseBranch, numericValuePosition);
         return;
       case "valueMatch":
         visit(node.scrutinee, false);

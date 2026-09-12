@@ -303,16 +303,16 @@ export const resolveBuiltinGeometryArguments = ({
     });
   };
 
-  const visit = (node: ScalarExpressionAst): void => {
+  const visit = (node: ScalarExpressionAst, boundNames: ReadonlySet<string> = new Set()): void => {
     switch (node.kind) {
       case "reference":
-        nextReference(node.name, node.span);
+        if (!boundNames.has(node.name)) nextReference(node.name, node.span);
         return;
       case "collectionIndex":
-        if (collectionIndexBaseReferenceOccurrenceIndexes?.has(referenceCursor)) {
+        if (!boundNames.has(node.name) && collectionIndexBaseReferenceOccurrenceIndexes?.has(referenceCursor)) {
           nextReference(node.name, node.span);
         }
-        visit(node.index);
+        visit(node.index, boundNames);
         return;
       case "geometryProperty":
       case "numberLiteral":
@@ -321,23 +321,23 @@ export const resolveBuiltinGeometryArguments = ({
       case "unresolvedChoiceLiteral":
         return;
       case "unary":
-        visit(node.operand);
+        visit(node.operand, boundNames);
         return;
       case "binary":
-        visit(node.left);
-        visit(node.right);
+        visit(node.left, boundNames);
+        visit(node.right, boundNames);
         return;
       case "group":
-        visit(node.expression);
+        visit(node.expression, boundNames);
         return;
       case "valueIf":
-        visit(node.condition);
-        visit(node.thenBranch);
-        visit(node.elseBranch);
+        visit(node.condition, boundNames);
+        visit(node.thenBranch, boundNames);
+        if (node.elseBranch) visit(node.elseBranch, boundNames);
         return;
       case "valueMatch":
-        visit(node.scrutinee);
-        node.arms.forEach((arm) => visit(arm.expression));
+        visit(node.scrutinee, boundNames);
+        node.arms.forEach((arm) => visit(arm.expression, arm.binder ? new Set([...boundNames, arm.binder]) : boundNames));
         return;
       case "call": {
         const definition = getBuiltinFunctionDefinition(node.name);
@@ -359,11 +359,11 @@ export const resolveBuiltinGeometryArguments = ({
                 resolveDirectGeometryReference(nodeArgument, parameterType);
               } else if (nodeArgument.kind === "collectionIndex") {
                 resolveDirectGeometryCollectionIndex(nodeArgument, parameterType);
-                visit(nodeArgument.index);
+                visit(nodeArgument.index, boundNames);
               } else if (nodeArgument.kind === "geometryProperty") {
                 resolveGeometryPropertyArgument(nodeArgument, parameterType);
               } else {
-                visit(nodeArgument);
+                visit(nodeArgument, boundNames);
                 issues.push({
                   code: "builtin-geometry-argument-invalid",
                   span: nodeArgument.span,
@@ -374,7 +374,7 @@ export const resolveBuiltinGeometryArguments = ({
               }
               return;
             }
-            visit(nodeArgument);
+            visit(nodeArgument, boundNames);
           });
           return;
         }
@@ -386,11 +386,11 @@ export const resolveBuiltinGeometryArguments = ({
               resolveDirectGeometryReference(nodeArgument, parameterType);
             } else if (nodeArgument.kind === "collectionIndex") {
               resolveDirectGeometryCollectionIndex(nodeArgument, parameterType);
-              visit(nodeArgument.index);
+              visit(nodeArgument.index, boundNames);
             } else if (nodeArgument.kind === "geometryProperty") {
               resolveGeometryPropertyArgument(nodeArgument, parameterType);
             } else {
-              visit(nodeArgument);
+              visit(nodeArgument, boundNames);
               issues.push({
                 code: "builtin-geometry-argument-invalid",
                 span: nodeArgument.span,
@@ -401,7 +401,7 @@ export const resolveBuiltinGeometryArguments = ({
             }
             return;
           }
-          visit(nodeArgument);
+          visit(nodeArgument, boundNames);
         });
         return;
       }

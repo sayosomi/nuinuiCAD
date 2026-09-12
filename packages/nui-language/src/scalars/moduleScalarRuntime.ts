@@ -83,7 +83,7 @@ import {
   recordFieldCollectionValueIdFor
 } from "./recordScalarLowering";
 import { analyzeTypedDeclarations, type TypedDeclarationAnalysis } from "./typedDeclarationAnalysis";
-import { isDslGeometryValueType, isDslRecordValueType, scalarTypeOfDslValueType, type DslValueType } from "../dsl/dslValueTypes";
+import { isDslGeometryValueType, isDslRecordValueType, scalarExpressionTypeOfDslValueType, scalarTypeOfDslValueType, type DslValueType } from "../dsl/dslValueTypes";
 import { collectionLengthForValueId, geometryArrayDeferredModuleExportId, parseGeometryArrayDeferredModuleExportId } from "../dsl/geometryArraySemanticAnalysis";
 import type { GeometryArraySemanticAnalysis } from "../dsl/geometryArraySemanticAnalysis";
 import { scanScalarLiteral } from "./literalScanner";
@@ -127,7 +127,7 @@ type BindingInfo = {
   id: BindingId;
   declarationVersionId: string;
   name: string;
-  type: ScalarType;
+  type: import("./types").ScalarExpressionType;
   bindingKind: "const" | "let";
   scopeId: string;
   sourceScopeId: string;
@@ -800,7 +800,7 @@ const semanticReferencesUsedByAst = (semantic: ModuleScalarExpressionSemantic, a
     else if (node.kind === "valueIf") {
       collectCollectionBases(node.condition);
       collectCollectionBases(node.thenBranch);
-      collectCollectionBases(node.elseBranch);
+      if (node.elseBranch) collectCollectionBases(node.elseBranch);
     }
     else if (node.kind === "valueMatch") {
       collectCollectionBases(node.scrutinee);
@@ -865,7 +865,7 @@ const lowerRecordPropertyAst = (
         ...node,
         condition: visit(node.condition),
         thenBranch: visit(node.thenBranch),
-        elseBranch: visit(node.elseBranch)
+        elseBranch: node.elseBranch ? visit(node.elseBranch) : null
       };
       case "valueMatch": return {
         ...node,
@@ -913,9 +913,9 @@ const materializeHasValueAst = (
     case "valueIf": {
       const condition = materializeHasValueAst(ast.condition, semantic, hasValueForParameter);
       const thenBranch = materializeHasValueAst(ast.thenBranch, semantic, hasValueForParameter);
-      const elseBranch = materializeHasValueAst(ast.elseBranch, semantic, hasValueForParameter);
+      const elseBranch = ast.elseBranch ? materializeHasValueAst(ast.elseBranch, semantic, hasValueForParameter) : null;
       return condition.kind === "booleanLiteral"
-        ? condition.value ? thenBranch : elseBranch
+        ? condition.value ? thenBranch : (elseBranch ?? { kind: "noneLiteral", span: { start: ast.span.end, end: ast.span.end } })
         : { ...ast, condition, thenBranch, elseBranch };
     }
     case "valueMatch": return {
@@ -1271,7 +1271,7 @@ export const lowerExpression = (
       case "valueIf":
         collectTypecheckResolutions(node.condition);
         collectTypecheckResolutions(node.thenBranch);
-        collectTypecheckResolutions(node.elseBranch);
+        if (node.elseBranch) collectTypecheckResolutions(node.elseBranch);
         return;
       case "valueMatch":
         collectTypecheckResolutions(node.scrutinee);
@@ -1611,9 +1611,9 @@ export const compileModuleScalarRuntime = ({
     recordDefinition: import("../dsl/recordSemanticAnalysis").RecordDefinitionSemantic,
     prefix: readonly RecordFieldIdentity[] = [],
     recordAnalysis = sourceNamespace?.recordSemanticAnalysis
-  ): readonly { field: RecordFieldIdentity; path: readonly RecordFieldIdentity[]; type: ScalarType }[] => recordDefinition.fields.flatMap((field) => {
+  ): readonly { field: RecordFieldIdentity; path: readonly RecordFieldIdentity[]; type: import("./types").ScalarExpressionType }[] => recordDefinition.fields.flatMap((field) => {
     const path = [...prefix, field.identity];
-    const scalar = scalarTypeOfDslValueType(field.type);
+    const scalar = scalarExpressionTypeOfDslValueType(field.type);
     if (scalar) return [{ field: field.identity, path, type: scalar }];
     if (field.type.kind !== "record") return [];
     const nested = recordAnalysis?.definitionsByStatementId.get(field.type.identity ?? "");
@@ -2573,6 +2573,59 @@ export const compileModuleScalarRuntime = ({
           : executionPositionForValue([], target.statementIndex) });
         return;
       }
+      const lowerControlExpression = (semantic: ModuleScalarExpressionSemantic | null) => {
+        if (!semantic) return null;
+        return context
+          ? lowerExpression(
+              semantic,
+              (sourceTarget) => resolvedBindingForContext(sourceTarget, context),
+              bindingsById,
+              (sourceTarget) => resolvedGeometryPropertyForContext(sourceTarget, context),
+              (sourceTarget) => collectionLengthForTargetContext(sourceTarget, context),
+              (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context),
+              (definitionStatementId, parameterIndex, definitionDocumentId) => hasValueForParameter(context, definitionStatementId, parameterIndex, definitionDocumentId),
+              (id) => collectionValueIdFor(id, context),
+              (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder
+            ).expression
+          : lowerExpression(
+              semantic,
+              (sourceTarget) => rootBindingForTarget(sourceTarget, semantic.ast.span.start),
+              bindingsById,
+              rootGeometryPropertyFor,
+              rootCollectionLengthFor,
+              resolvedGeometryBuiltinForRoot,
+              undefined,
+              (id) => collectionValueIdFor(id, null),
+              (sourceOrder) => sourceOrder
+            ).expression;
+      };
+      if (expression.kind === "if") {
+        const thenValueId = `${valueId}:then`;
+        const elseValueId = `${valueId}:else`;
+        if (expression.thenBranch) appendRecordValueExpression(expression.thenBranch, thenValueId, target, typeIdentity, context);
+        else moduleCollectionValues.push({ valueId: thenValueId, kind: "none" });
+        if (expression.elseBranch) appendRecordValueExpression(expression.elseBranch, elseValueId, target, typeIdentity, context);
+        else moduleCollectionValues.push({ valueId: elseValueId, kind: "none" });
+        const condition = lowerControlExpression(expression.condition);
+        if (condition) moduleCollectionValues.push({ valueId, kind: "if", condition, thenValueId, elseValueId, sourceOrder: context
+          ? executionPositionForValue(context.path, target.statementIndex)
+          : executionPositionForValue([], target.statementIndex) });
+        return;
+      }
+      if (expression.kind === "match") {
+        const arms: { label: string; valueId: string }[] = [];
+        for (const arm of expression.arms) {
+          const armValueId = `${valueId}:arm:${arm.label}`;
+          if (arm.expression) appendRecordValueExpression(arm.expression, armValueId, target, typeIdentity, context);
+          else moduleCollectionValues.push({ valueId: armValueId, kind: "none" });
+          arms.push({ label: arm.label, valueId: armValueId });
+        }
+        const scrutinee = lowerControlExpression(expression.scrutinee);
+        if (scrutinee) moduleCollectionValues.push({ valueId, kind: "match", scrutinee, arms, sourceOrder: context
+          ? executionPositionForValue(context.path, target.statementIndex)
+          : executionPositionForValue([], target.statementIndex) });
+        return;
+      }
       if (expression.kind === "reference") {
         const targetValueId = expression.reference.target
           ? recordTargetValueIdFor(expression.reference.target, context)
@@ -2862,7 +2915,10 @@ export const compileModuleScalarRuntime = ({
         moduleCollectionValues.push({ valueId, kind: "map", sourceValueId: collectionValueIdFor(value.sourceValueId, context), sourceElementType: value.sourceElementType, resultElementType: value.resultElementType, binderId: runtimeBinderId, body: value.body, sourceOrder: value.sourceOrder });
         return;
       }
-      if (value.kind === "none") return;
+      if (value.kind === "none") {
+        moduleCollectionValues.push({ valueId, kind: "none" });
+        return;
+      }
       const elementType = scalarTypeOfDslValueType(value.valueType.elementType);
       if (value.valueType.elementType.kind === "record") {
         const members = value.members.flatMap((member) => {
@@ -3050,7 +3106,10 @@ export const compileModuleScalarRuntime = ({
         moduleCollectionValues.push({ valueId, kind: "alias", targetValueId: collectionValueIdFor(value.targetValueId, null) });
         return;
       }
-      if (value.kind === "none") return;
+      if (value.kind === "none") {
+        moduleCollectionValues.push({ valueId, kind: "none" });
+        return;
+      }
       if (value.valueType.elementType.kind !== "record") return;
       const members = value.members.flatMap((member) => {
         const record = recordCollectionMemberForTarget(member.target, value.valueType.elementType.kind === "record" ? value.valueType.elementType.identity ?? "" : "", null);
@@ -3202,7 +3261,10 @@ export const compileModuleScalarRuntime = ({
         foreignCollectionValues.push({ valueId, kind: "coalesce", leftValueId, rightValueId, sourceOrder: foreignSourceOrderFor(sourceOrder) });
         return;
       }
-      if (value.kind === "none") return;
+      if (value.kind === "none") {
+        foreignCollectionValues.push({ valueId, kind: "none" });
+        return;
+      }
       const elementType = scalarTypeOfDslValueType(value.valueType.elementType);
       if (!elementType) return;
       const members: ScalarProgramCollectionMember[] = [];
@@ -4412,10 +4474,10 @@ export const compileModuleScalarRuntime = ({
       const thenBranch = expression.thenBranch
         ? lowerGeometryValueExpression(value, expression.thenBranch, context, executionPosition)
         : undefined;
-      const elseBranch = expression.elseBranch
-        ? lowerGeometryValueExpression(value, expression.elseBranch, context, executionPosition)
-        : undefined;
-      return condition && thenBranch && elseBranch
+      const elseBranch: GeometryValueProgramNode = expression.elseBranch
+        ? lowerGeometryValueExpression(value, expression.elseBranch, context, executionPosition) ?? { kind: "none" as const }
+        : { kind: "none" as const };
+      return condition && thenBranch
         ? { kind: "if", condition, thenBranch, elseBranch }
         : undefined;
     }

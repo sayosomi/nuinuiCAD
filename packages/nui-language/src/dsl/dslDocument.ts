@@ -1745,7 +1745,10 @@ export const compileDslDocument = (
         values.push({ valueId, kind: "match", scrutinee, arms, sourceOrder });
         return;
       }
-      if (collectionValue.kind === "none") return;
+      if (collectionValue.kind === "none") {
+        values.push({ valueId, kind: "none" });
+        return;
+      }
       if (collectionValue.valueType.elementType.kind === "record") return;
       const elementType = scalarTypeOfDslValueType(collectionValue.valueType.elementType);
       if (!elementType) return;

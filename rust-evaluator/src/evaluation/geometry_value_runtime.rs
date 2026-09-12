@@ -1798,10 +1798,12 @@ fn evaluate_geometry_value_node(
                 state,
                 Some(source_order),
             ) {
-                ScalarEvaluation::Ok {
-                    r#type: ScalarType::Choice { .. },
-                    value: ScalarValue::Choice { value, .. },
-                } => Some(value),
+                ScalarEvaluation::Ok { r#type, value } => match (r#type, value) {
+                    (ScalarType::Choice { .. }, ScalarValue::Choice { value, .. }) => Some(value),
+                    (ScalarType::Optional { .. }, ScalarValue::None) => Some("none".to_owned()),
+                    (ScalarType::Optional { .. }, _) => Some("some".to_owned()),
+                    _ => None,
+                },
                 _ => None,
             };
             let Some(label) = label else {

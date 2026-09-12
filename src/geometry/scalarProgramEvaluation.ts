@@ -219,9 +219,12 @@ const geometryCollectionLengthForNode = (
       geometryCollectionLengthForNode(node.rightBranch, environmentFor);
   }
   const scrutinee = evaluateTypedExpression(node.scrutinee, environmentFor(node.sourceOrder));
-  const scrutineeValue = scrutinee.status === "ok" ? scrutinee.value : null;
-  if (scrutineeValue === null || scrutineeValue.kind !== "choice") return undefined;
-  const arm = node.arms.find((candidate) => candidate.label === scrutineeValue.value);
+  if (scrutinee.status !== "ok") return undefined;
+  const label = scrutinee.type.kind === "optional"
+    ? scrutinee.value.kind === "none" ? "none" : "some"
+    : scrutinee.value.kind === "choice" ? scrutinee.value.value : undefined;
+  if (label === undefined) return undefined;
+  const arm = node.arms.find((candidate) => candidate.label === label);
   return arm ? geometryCollectionLengthForNode(arm.value, environmentFor) : undefined;
 };
 

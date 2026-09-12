@@ -576,9 +576,12 @@ export const evaluateElements = (
         return left ?? materializeCollectionNode(node.rightBranch);
       }
       const scrutinee = evaluateTypedExpression(node.scrutinee, scalarEnvironmentFor(node.sourceOrder));
-      const scrutineeValue = scrutinee.status === "ok" ? scrutinee.value : null;
-      if (scrutineeValue === null || scrutineeValue.kind !== "choice") return null;
-      const arm = node.arms.find((candidate) => candidate.label === scrutineeValue.value);
+      if (scrutinee.status !== "ok") return null;
+      const label = scrutinee.type.kind === "optional"
+        ? scrutinee.value.kind === "none" ? "none" : "some"
+        : scrutinee.value.kind === "choice" ? scrutinee.value.value : undefined;
+      if (label === undefined) return null;
+      const arm = node.arms.find((candidate) => candidate.label === label);
       return arm ? materializeCollectionNode(arm.value) : null;
     };
     const materialize = (target: GeometryInputTarget): GeometryInputTarget | null => {
@@ -960,7 +963,11 @@ export const evaluateElements = (
         lookupGeometryProperty: (reference) => resolveGeometryPropertyForEvaluation(reference, sourceOrder),
         lookupGeometryTarget: (target) => resolveGeometryTargetForEvaluation(target, sourceOrder)
       });
-      const label = evaluation.status === "ok" && evaluation.value.kind === "choice" ? evaluation.value.value : undefined;
+      const label = evaluation.status === "ok"
+        ? evaluation.type.kind === "optional"
+          ? evaluation.value.kind === "none" ? "none" : "some"
+          : evaluation.value.kind === "choice" ? evaluation.value.value : undefined
+        : undefined;
       const arm = label === undefined ? undefined : entry.construction.arms.find((candidate) => candidate.label === label);
       if (!arm) {
         appendGeometryValueError(entry, "Geometry value match scrutinee is unavailable or has no matching case.");

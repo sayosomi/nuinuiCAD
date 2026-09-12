@@ -516,7 +516,7 @@ export const analyzeModuleBody = ({
           const containsConstruction = (node: ScalarExpressionAst): boolean => {
             switch (node.kind) {
               case "call": return true;
-              case "valueIf": return containsConstruction(node.thenBranch) || containsConstruction(node.elseBranch);
+              case "valueIf": return containsConstruction(node.thenBranch) || (node.elseBranch ? containsConstruction(node.elseBranch) : false);
               case "valueMatch": return node.arms.some((arm) => containsConstruction(arm.expression));
               default: return false;
             }
@@ -829,7 +829,7 @@ export const analyzeModuleBody = ({
         definition.statementIndex,
         statement.expression,
         expressionSpan,
-        target.type,
+        target.type?.kind === "optional" ? null : target.type,
         (reference, presenceFacts) => resolveBodyScalar(statementIndex, reference, presenceFacts),
         undefined,
         (reference) => resolveBodyGeometryProperty(statementIndex, reference),

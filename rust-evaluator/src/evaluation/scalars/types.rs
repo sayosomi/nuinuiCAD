@@ -251,6 +251,10 @@ pub(crate) enum TypedScalarCallTarget {
 pub(crate) struct TypedScalarValueMatchArm {
     pub(crate) label: String,
     pub(crate) label_span: ScalarSpan,
+    pub(crate) binder: Option<String>,
+    pub(crate) binder_span: Option<ScalarSpan>,
+    pub(crate) binder_id: Option<String>,
+    pub(crate) binder_type: Option<ScalarType>,
     pub(crate) expression: TypedScalarExpression,
 }
 

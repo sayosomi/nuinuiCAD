@@ -89,6 +89,20 @@ describe("geometry array source semantic integration", () => {
     ]));
   });
 
+  it("supports optional collection results for omitted-else if and optional match", () => {
+    const compiled = compile([
+      "nui 1",
+      "const note: string? = \"present\"",
+      "const maybe: number[]? = if (false) { [1, 2] }",
+      "const selected: number[]? = match @note { none => none some value => [3] }",
+      "const count: number = @selected.length"
+    ].join("\n"));
+
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(compiled.sourceLexicalNamespace?.geometryArraySemanticAnalysis?.genericValues.find((value) => value.name === "maybe")?.value).toMatchObject({ kind: "if" });
+    expect(compiled.sourceLexicalNamespace?.geometryArraySemanticAnalysis?.genericValues.find((value) => value.name === "selected")?.value).toMatchObject({ kind: "match" });
+  });
+
   it("keeps collection member and whole-value assignment fail-closed", () => {
     const { namespace } = analyze([
       "nui 1",

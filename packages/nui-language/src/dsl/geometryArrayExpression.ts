@@ -44,7 +44,7 @@ export type GeometryArrayExpression =
       conditionText: string;
       conditionSpan: DslSpan;
       thenBranch: GeometryArrayExpression;
-      elseBranch: GeometryArrayExpression;
+      elseBranch: GeometryArrayExpression | null;
     }
   | {
       kind: "match";
@@ -54,6 +54,8 @@ export type GeometryArrayExpression =
       arms: readonly {
         label: string;
         labelSpan: DslSpan;
+        binder?: string;
+        binderSpan?: DslSpan;
         expression: GeometryArrayExpression;
         }[];
     }
@@ -273,7 +275,13 @@ const parseValueIf = (source: string, span: DslSpan): GeometryArrayExpressionPar
   while (cursor < span.end && whitespace.test(source[cursor]!)) cursor += 1;
   const elseSpan = { start: cursor, end: Math.min(span.end, cursor + 4) };
   if (!keywordAt(source, elseSpan, "else")) {
-    return { expression: null, diagnostics: [{ code: "value-if-missing-else", message: "value-if には else ブランチが必要です。", span: elseSpan }] };
+    const trailing = trimSpan(source, thenClose + 1, span.end);
+    if (trailing.start !== trailing.end) return { expression: null, diagnostics: [{ code: "geometry-array-trailing-token", message: "value-if の後に余分なトークンがあります。", span: trailing }] };
+    if (!thenResult.expression) return { expression: null, diagnostics: thenResult.diagnostics };
+    return {
+      expression: { kind: "if", span, conditionText: source.slice(conditionSpan.start, conditionSpan.end), conditionSpan, thenBranch: thenResult.expression, elseBranch: null },
+      diagnostics: thenResult.diagnostics
+    };
   }
   cursor += 4;
   while (cursor < span.end && whitespace.test(source[cursor]!)) cursor += 1;
@@ -328,6 +336,13 @@ const nextMatchArm = (source: string, start: number, end: number) => {
       let arrow = cursor;
       while (arrow < end && whitespace.test(source[arrow]!)) arrow += 1;
       if (source.slice(arrow, arrow + 2) === "=>") return index;
+      if (source.slice(index, cursor) === "some" && identifierStartAt(source, arrow)) {
+        let binderEnd = arrow + codePointWidthAt(source, arrow);
+        while (binderEnd < end && identifierPartAt(source, binderEnd)) binderEnd += codePointWidthAt(source, binderEnd);
+        let binderArrow = binderEnd;
+        while (binderArrow < end && whitespace.test(source[binderArrow]!)) binderArrow += 1;
+        if (source.slice(binderArrow, binderArrow + 2) === "=>") return index;
+      }
       index = cursor - 1;
     }
   }
@@ -345,7 +360,7 @@ const parseValueMatch = (source: string, span: DslSpan): GeometryArrayExpression
   if (scrutineeDiagnostics.length > 0) return { expression: null, diagnostics: scrutineeDiagnostics };
   const close = matchingDelimiter(source, open, span.end, "{", "}");
   if (close < 0) return { expression: null, diagnostics: [{ code: "value-match-missing-closing-brace", message: "match を閉じる「}」がありません。", span: { start: open, end: open + 1 } }] };
-  const arms: { label: string; labelSpan: DslSpan; expression: GeometryArrayExpression }[] = [];
+  const arms: { label: string; labelSpan: DslSpan; binder?: string; binderSpan?: DslSpan; expression: GeometryArrayExpression }[] = [];
   const diagnostics: GeometryArrayExpressionDiagnostic[] = [];
   cursor = open + 1;
   while (true) {
@@ -360,6 +375,22 @@ const parseValueMatch = (source: string, span: DslSpan): GeometryArrayExpression
     while (cursor < close && identifierPartAt(source, cursor)) cursor += codePointWidthAt(source, cursor);
     const labelSpan = { start: labelStart, end: cursor };
     while (cursor < close && whitespace.test(source[cursor]!)) cursor += 1;
+    let binder: string | undefined;
+    let binderSpan: DslSpan | undefined;
+    if (source.slice(labelStart, cursor).trim() === "some") {
+      const candidateStart = cursor;
+      if (identifierStartAt(source, candidateStart)) {
+        let candidateEnd = candidateStart + codePointWidthAt(source, candidateStart);
+        while (candidateEnd < close && identifierPartAt(source, candidateEnd)) candidateEnd += codePointWidthAt(source, candidateEnd);
+        let arrow = candidateEnd;
+        while (arrow < close && whitespace.test(source[arrow]!)) arrow += 1;
+        if (source.slice(arrow, arrow + 2) === "=>") {
+          binder = source.slice(candidateStart, candidateEnd);
+          binderSpan = { start: candidateStart, end: candidateEnd };
+          cursor = arrow;
+        }
+      }
+    }
     if (source.slice(cursor, cursor + 2) !== "=>") {
       diagnostics.push({ code: "value-match-missing-arrow", message: "match ケースには「=>」が必要です。", span: { start: cursor, end: Math.min(close, cursor + 2) } });
       break;
@@ -370,7 +401,7 @@ const parseValueMatch = (source: string, span: DslSpan): GeometryArrayExpression
     const bodySpan = trimSpan(source, bodyStart, bodyEnd);
     const body = parseNested(source, bodySpan);
     diagnostics.push(...body.diagnostics);
-    if (body.expression) arms.push({ label: source.slice(labelSpan.start, labelSpan.end), labelSpan, expression: body.expression });
+    if (body.expression) arms.push({ label: source.slice(labelSpan.start, labelSpan.end), labelSpan, ...(binder ? { binder, binderSpan } : {}), expression: body.expression });
     cursor = bodyEnd;
   }
   const trailing = trimSpan(source, close + 1, span.end);

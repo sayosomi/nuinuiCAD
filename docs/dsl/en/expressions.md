@@ -30,6 +30,23 @@ The reserved `none` literal is legal only in an expected optional type, such as
 cannot be authored as a `choice(...)` option. Repeated optional suffixes such as
 `T??` are invalid.
 
+Value-producing `if` expressions may omit `else` only when the expected result
+type is optional. The omitted branch is the ordinary `none` value of that type;
+a non-optional value-producing `if` still requires an explicit `else`.
+
+An optional value uses an exhaustive `none`/`some <binder>` match:
+
+<!-- dsl-example: compile-success -->
+```nui
+nui 1
+const label: string? = "front"
+const text: string = match @label { none => "no label" some value => @value }
+```
+
+The binder is branch-local and has the underlying non-optional type. Optional
+matches use the same lazy result families as choice matches, including scalar,
+geometry, nominal-record, and one-dimensional collection values.
+
 The canonical lowercase numeric constant `pi` is available wherever a number
 operand is valid. It follows the ordinary number-literal path; `PI` is not an
 alias, `pi()` is not a function call, and `@pi` refers only to a user binding.
@@ -101,7 +118,7 @@ collection length. Negative, fractional, non-finite, or out-of-range indexes
 are evaluation errors. Runtime validation is authoritative for dynamic
 indexes, and never clamps, wraps, coerces, or fabricates a value.
 
-An `if` or exhaustive choice `match` can produce a collection value when all
+An `if`, exhaustive choice `match`, or exhaustive optional `match` can produce a collection value when all
 branches or arms have the same declared one-dimensional collection type. The
 selected branch determines `.length` and indexed values; different branches
 may have different cardinalities. The condition or scrutinee is evaluated

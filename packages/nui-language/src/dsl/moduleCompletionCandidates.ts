@@ -1085,7 +1085,7 @@ const qualifiedMemberContextAt = (
       return {
         instanceStatementId,
         memberKind: "scalar",
-        expectedScalarType: site.expression.ast.kind === "reference" ? site.expression.type : null
+        expectedScalarType: site.expression.ast.kind === "reference" && site.expression.type?.kind !== "optional" ? site.expression.type : null
       };
     }
   }
@@ -1093,7 +1093,7 @@ const qualifiedMemberContextAt = (
     for (const reference of site.expression.references) {
       const instanceStatementId = deferredInstanceIdOf(reference.target);
       if (!instanceStatementId || !containsLogicalPosition(logicalPosition, reference.span)) continue;
-      return { instanceStatementId, memberKind: "scalar", expectedScalarType: site.expression.ast.kind === "reference" ? site.expression.type : null };
+      return { instanceStatementId, memberKind: "scalar", expectedScalarType: site.expression.ast.kind === "reference" && site.expression.type?.kind !== "optional" ? site.expression.type : null };
     }
   }
   for (const site of body?.geometryReferences ?? []) {
@@ -1113,7 +1113,7 @@ const qualifiedMemberContextAt = (
   const rootScalarSite = compiled.moduleSemanticAnalysis?.rootScalarExpressionsByStatementId.get(
     compiled.statementMap?.statementIdByStatementIndex?.get(statementIndex) ?? ""
   );
-  const rootScalarExpectedType = rootScalarSite?.expression.ast.kind === "reference" ? rootScalarSite.expression.type : null;
+  const rootScalarExpectedType = rootScalarSite?.expression.ast.kind === "reference" && rootScalarSite.expression.type?.kind !== "optional" ? rootScalarSite.expression.type : null;
   for (const reference of rootScalarSite?.expression.references ?? []) {
     const instanceStatementId = deferredInstanceIdOf(reference.target);
     if (!instanceStatementId || !containsLogicalPosition(logicalPosition, reference.span)) continue;

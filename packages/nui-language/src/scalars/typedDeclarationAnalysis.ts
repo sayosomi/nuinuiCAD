@@ -182,7 +182,7 @@ const collectionIndexResolutionsFor = (
   resolver: CollectionIndexResolver | undefined
 ): ReadonlyMap<number, ScalarExpressionResolvedCollectionIndex> => {
   const resolutions = new Map<number, ScalarExpressionResolvedCollectionIndex>();
-  const visit = (node: ScalarExpressionAst): void => {
+  const visit = (node: ScalarExpressionAst, boundNames: ReadonlySet<string> = new Set()): void => {
     if (node.kind === "collectionIndex") {
       const resolution = resolver?.({ statementIndex, node });
       if (resolution) resolutions.set(node.span.start, resolution);
@@ -192,8 +192,8 @@ const collectionIndexResolutionsFor = (
     if (node.kind === "unary") return visit(node.operand);
     if (node.kind === "binary") { visit(node.left); visit(node.right); return; }
     if (node.kind === "group") return visit(node.expression);
-    if (node.kind === "valueIf") { visit(node.condition); visit(node.thenBranch); visit(node.elseBranch); return; }
-    if (node.kind === "valueMatch") { visit(node.scrutinee); node.arms.forEach((arm) => visit(arm.expression)); return; }
+    if (node.kind === "valueIf") { visit(node.condition); visit(node.thenBranch); if (node.elseBranch) visit(node.elseBranch); return; }
+    if (node.kind === "valueMatch") { visit(node.scrutinee, boundNames); node.arms.forEach((arm) => visit(arm.expression, arm.binder ? new Set([...boundNames, arm.binder]) : boundNames)); return; }
     if (node.kind === "call") node.args.forEach((argument) => visit(argument.expression));
   };
   visit(ast);
@@ -202,7 +202,7 @@ const collectionIndexResolutionsFor = (
 
 const collectionIndexBaseStartsFor = (ast: ScalarExpressionAst): ReadonlySet<number> => {
   const starts = new Set<number>();
-  const visit = (node: ScalarExpressionAst): void => {
+  const visit = (node: ScalarExpressionAst, boundNames: ReadonlySet<string> = new Set()): void => {
     if (node.kind === "collectionIndex") {
       starts.add(node.span.start);
       visit(node.index);
@@ -211,8 +211,8 @@ const collectionIndexBaseStartsFor = (ast: ScalarExpressionAst): ReadonlySet<num
     if (node.kind === "unary") return visit(node.operand);
     if (node.kind === "binary") { visit(node.left); visit(node.right); return; }
     if (node.kind === "group") return visit(node.expression);
-    if (node.kind === "valueIf") { visit(node.condition); visit(node.thenBranch); visit(node.elseBranch); return; }
-    if (node.kind === "valueMatch") { visit(node.scrutinee); node.arms.forEach((arm) => visit(arm.expression)); return; }
+    if (node.kind === "valueIf") { visit(node.condition); visit(node.thenBranch); if (node.elseBranch) visit(node.elseBranch); return; }
+    if (node.kind === "valueMatch") { visit(node.scrutinee, boundNames); node.arms.forEach((arm) => visit(arm.expression, arm.binder ? new Set([...boundNames, arm.binder]) : boundNames)); return; }
     if (node.kind === "call") node.args.forEach((argument) => visit(argument.expression));
   };
   visit(ast);
@@ -226,8 +226,8 @@ const referenceResolutionsForAst = (
 ): readonly (BindingResolution | ScalarExpressionResolvedReference)[] => {
   const output: (BindingResolution | ScalarExpressionResolvedReference)[] = [];
   let cursor = 0;
-  const visit = (node: ScalarExpressionAst): void => {
-    if (node.kind === "reference") { output.push(ordinary[cursor++]!); return; }
+  const visit = (node: ScalarExpressionAst, boundNames: ReadonlySet<string> = new Set()): void => {
+    if (node.kind === "reference") { if (!boundNames.has(node.name)) output.push(ordinary[cursor++]!); return; }
     if (node.kind === "collectionIndex") {
       const resolved = collectionResolutions.get(node.span.start);
       if (resolved) output.push(resolved);
@@ -242,8 +242,8 @@ const referenceResolutionsForAst = (
     if (node.kind === "unary") return visit(node.operand);
     if (node.kind === "binary") { visit(node.left); visit(node.right); return; }
     if (node.kind === "group") return visit(node.expression);
-    if (node.kind === "valueIf") { visit(node.condition); visit(node.thenBranch); visit(node.elseBranch); return; }
-    if (node.kind === "valueMatch") { visit(node.scrutinee); node.arms.forEach((arm) => visit(arm.expression)); return; }
+    if (node.kind === "valueIf") { visit(node.condition); visit(node.thenBranch); if (node.elseBranch) visit(node.elseBranch); return; }
+    if (node.kind === "valueMatch") { visit(node.scrutinee, boundNames); node.arms.forEach((arm) => visit(arm.expression, arm.binder ? new Set([...boundNames, arm.binder]) : boundNames)); return; }
     if (node.kind === "call") node.args.forEach((argument) => visit(argument.expression));
   };
   visit(ast);
