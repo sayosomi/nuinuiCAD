@@ -679,10 +679,28 @@ const specializeInlineScalarExpression = (
       const condition = specialize(node.condition);
       const thenBranch = specialize(node.thenBranch);
       const elseBranch = node.elseBranch ? specialize(node.elseBranch) : null;
-      if (!condition || !thenBranch || !elseBranch) return null;
+      if (!condition || !thenBranch || (node.elseBranch && !elseBranch)) return null;
       if (condition.known?.presenceDerived) {
-        const selected = condition.known.value ? thenBranch : elseBranch;
-        const eliminated = condition.known.value ? elseBranch : thenBranch;
+        if (condition.known.value) {
+          return {
+            text: thenBranch.text,
+            range,
+            changed: true,
+            known: thenBranch.known,
+            eliminatedSourceRanges: [condition.range, ...thenBranch.eliminatedSourceRanges]
+          };
+        }
+        if (!elseBranch) {
+          return {
+            text: "none",
+            range,
+            changed: true,
+            known: null,
+            eliminatedSourceRanges: [condition.range, thenBranch.range, ...thenBranch.eliminatedSourceRanges]
+          };
+        }
+        const selected = elseBranch;
+        const eliminated = thenBranch;
         return {
           text: selected.text,
           range,
@@ -691,18 +709,23 @@ const specializeInlineScalarExpression = (
           eliminatedSourceRanges: [condition.range, eliminated.range, ...selected.eliminatedSourceRanges]
         };
       }
-      const text = replaceNestedExpressionText(source, range, [
+      const childRanges = [
         { range: condition.range, text: condition.text },
-        { range: thenBranch.range, text: thenBranch.text },
-        { range: elseBranch.range, text: elseBranch.text }
-      ]);
+        { range: thenBranch.range, text: thenBranch.text }
+      ];
+      if (elseBranch) childRanges.push({ range: elseBranch.range, text: elseBranch.text });
+      const text = replaceNestedExpressionText(source, range, childRanges);
       if (text === null) return null;
       return {
         text,
         range,
-        changed: condition.changed || thenBranch.changed || elseBranch.changed,
+        changed: condition.changed || thenBranch.changed || (elseBranch?.changed ?? false),
         known: null,
-        eliminatedSourceRanges: eliminatedSourceRangesForChildren([condition, thenBranch, elseBranch])
+        eliminatedSourceRanges: eliminatedSourceRangesForChildren([
+          condition,
+          thenBranch,
+          ...(elseBranch ? [elseBranch] : [])
+        ])
       };
     }
     if (node.kind === "valueMatch") {
