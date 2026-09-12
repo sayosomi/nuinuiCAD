@@ -368,7 +368,7 @@ fn decode_version(
             }
             if let Some(expression) = initializer.as_ref() {
                 if expression_type(expression)
-                    .is_none_or(|actual| !scalar_type_assignable(actual, &declared_type))
+                    .map_or(true, |actual| !scalar_type_assignable(actual, &declared_type))
                 {
                     return Err(issue(
                         Code::LiteralTypeMismatch,
@@ -403,7 +403,7 @@ fn decode_version(
                 "set binding version",
             )?)?;
             if expression_type(&expression)
-                .is_none_or(|actual| !scalar_type_assignable(actual, &declared_type))
+                .map_or(true, |actual| !scalar_type_assignable(actual, &declared_type))
             {
                 return Err(issue(
                     Code::LiteralTypeMismatch,
