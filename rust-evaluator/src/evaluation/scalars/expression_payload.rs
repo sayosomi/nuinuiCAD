@@ -617,9 +617,9 @@ pub(crate) fn validate_typed_expression_payload(
                     match argument {
                         CallArgumentShape::Scalar { .. } => {
                             args.push(TypedBuiltinArgument::Scalar {
-                                expression: output.pop().expect(
+                                expression: Box::new(output.pop().expect(
                                     "scalar call argument must already be decoded (post-order build invariant)",
-                                ),
+                                )),
                             });
                         }
                         CallArgumentShape::GeometryReference {

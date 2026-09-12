@@ -459,7 +459,7 @@ pub(crate) enum TypedScalarExpression {
 #[derive(Debug, PartialEq)]
 pub(crate) enum TypedBuiltinArgument {
     Scalar {
-        expression: TypedScalarExpression,
+        expression: Box<TypedScalarExpression>,
     },
     GeometryReference {
         expected_geometry_type: GeometryInterfaceType,
@@ -548,7 +548,7 @@ fn detach_children(node: &mut TypedScalarExpression) -> Vec<TypedScalarExpressio
         TypedScalarExpression::Call { args, .. } => std::mem::take(args)
             .into_iter()
             .filter_map(|argument| match argument {
-                TypedBuiltinArgument::Scalar { expression } => Some(expression),
+                TypedBuiltinArgument::Scalar { expression } => Some(*expression),
                 TypedBuiltinArgument::GeometryReference { .. } => None,
             })
             .collect(),
