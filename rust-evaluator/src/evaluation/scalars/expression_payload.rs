@@ -86,6 +86,15 @@ pub(crate) const MAX_TYPED_EXPRESSION_NODE_COUNT: usize = 20_000;
 /// `Build*` means its child/children have already been decoded and pushed
 /// onto the output stack, and are ready to be assembled into the parent
 /// node.
+type ValueMatchArmPayload = (
+    String,
+    ScalarSpan,
+    Option<String>,
+    Option<ScalarSpan>,
+    Option<String>,
+    Option<ScalarType>,
+);
+
 enum WorkItem<'a> {
     Visit {
         json: &'a Value,
@@ -120,14 +129,7 @@ enum WorkItem<'a> {
     },
     BuildValueMatch {
         span: ScalarSpan,
-        arms: Vec<(
-            String,
-            ScalarSpan,
-            Option<String>,
-            Option<ScalarSpan>,
-            Option<String>,
-            Option<ScalarType>,
-        )>,
+        arms: Vec<ValueMatchArmPayload>,
         r#type: Option<ScalarType>,
     },
     BuildCall {

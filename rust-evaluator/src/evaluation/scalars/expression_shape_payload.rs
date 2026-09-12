@@ -274,7 +274,7 @@ pub(crate) fn validate_value_match_arm_shape(
         .transpose()?;
     let binder_id = optional_string_field(object, "binderId", "value-match arm binderId")?;
     let binder_type = optional_field(object, "binderType")
-        .map(|value| decode_scalar_type(value))
+        .map(decode_scalar_type)
         .transpose()?;
     let expression = require_field(object, "expression", "value-match arm")?;
     Ok(ValueMatchArmShape {
