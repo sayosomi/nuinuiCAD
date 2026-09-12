@@ -95,13 +95,13 @@ fn evaluator_fails_closed_when_runtime_reference_kind_mismatches_static_choice()
         name: "string".to_owned(),
         target: TypedScalarCallTarget::Builtin(BuiltinFunctionName::String),
         args: vec![TypedBuiltinArgument::Scalar {
-            expression: TypedScalarExpression::Reference {
+            expression: Box::new(TypedScalarExpression::Reference {
                 span: span(),
                 name_span: span(),
                 name: "side".to_owned(),
                 binding_id: Some("binding:side".to_owned()),
                 r#type: Some(choice_type),
-            },
+            }),
         }],
         r#type: Some(ScalarType::String),
     };

@@ -248,7 +248,7 @@ fn builtin_call(
         target: TypedScalarCallTarget::Builtin(name),
         args: args
             .into_iter()
-            .map(|expression| TypedBuiltinArgument::Scalar { expression })
+            .map(|expression| TypedBuiltinArgument::Scalar { expression: Box::new(expression) })
             .collect(),
         r#type: Some(r#type),
     }
@@ -803,7 +803,7 @@ fn uses_static_type_null_error_for_an_untyped_call() {
         name: "abs".to_owned(),
         target: TypedScalarCallTarget::Builtin(BuiltinFunctionName::Abs),
         args: vec![TypedBuiltinArgument::Scalar {
-            expression: number_literal(1.0),
+            expression: Box::new(number_literal(1.0)),
         }],
         r#type: None,
     };
