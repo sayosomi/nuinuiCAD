@@ -998,9 +998,15 @@ fn execute_transformation_recipes_through(
     while *next_recipe_index < recipes.len() {
         let recipe = &recipes[*next_recipe_index];
         let recipe_order = recipe
-            .get("sourceStatementIndex")
-            .and_then(Value::as_u64)
-            .unwrap_or(usize::MAX as u64) as f64;
+            .get("runtimeSourceOrder")
+            .and_then(Value::as_f64)
+            .or_else(|| {
+                recipe
+                    .get("sourceStatementIndex")
+                    .and_then(Value::as_u64)
+                    .map(|value| value as f64)
+            })
+            .unwrap_or(f64::MAX);
         if recipe_order > source_order {
             break;
         }
@@ -1149,15 +1155,29 @@ fn evaluate_document_input_with_scalar_program(
         .and_then(|value| value.as_array().cloned())
         .unwrap_or_default();
     transformation_recipes.sort_by(|left, right| {
-        left.get("sourceStatementIndex")
-            .and_then(Value::as_u64)
-            .unwrap_or(usize::MAX as u64)
-            .cmp(
-                &right
-                    .get("sourceStatementIndex")
-                    .and_then(Value::as_u64)
-                    .unwrap_or(usize::MAX as u64),
-            )
+        let order = |recipe: &Value| {
+            recipe
+                .get("runtimeSourceOrder")
+                .and_then(Value::as_f64)
+                .or_else(|| {
+                    recipe
+                        .get("sourceStatementIndex")
+                        .and_then(Value::as_u64)
+                        .map(|value| value as f64)
+                })
+                .unwrap_or(f64::MAX)
+        };
+        order(left).total_cmp(&order(right)).then_with(|| {
+            left.get("sourceStatementIndex")
+                .and_then(Value::as_u64)
+                .unwrap_or(usize::MAX as u64)
+                .cmp(
+                    &right
+                        .get("sourceStatementIndex")
+                        .and_then(Value::as_u64)
+                        .unwrap_or(usize::MAX as u64),
+                )
+        })
     });
     let source_statement_indices = input
         .source_statement_indices

@@ -62,8 +62,12 @@ export type DslCompletionContext =
   | { kind: "moduleParameterType"; from: number; to: number }
   | { kind: "moduleArgumentLabel"; from: number; to: number; argumentIndex: number }
   | { kind: "moduleArgumentValue"; from: number; to: number; argumentIndex: number }
-  | { kind: "moduleQualifiedMember"; from: number; to: number; qualifiedInstanceName: string; argumentIndex?: number; expectedScalarType?: ScalarType; expectedRecordTypeName?: string; expectedGeometryKind?: DslGeometryReferenceKind; geometryArrayContext?: GeometryArrayCompletionContext }
+  | { kind: "moduleQualifiedMember"; from: number; to: number; qualifiedInstanceName: string; argumentIndex?: number; expectedScalarType?: ScalarType; expectedRecordTypeName?: string; expectedGeometryKind?: DslGeometryReferenceKind; geometryArrayContext?: GeometryArrayCompletionContext; targetSyntax?: boolean }
   | { kind: "moduleReference"; from: number; to: number }
+  | { kind: "transformationTarget"; from: number; to: number; operation: string; targetList: boolean }
+  | { kind: "transformationAs"; from: number; to: number; operation: string }
+  | { kind: "transformationStageName"; from: number; to: number; operation: string }
+  | { kind: "transformationStageReference"; from: number; to: number; base: string }
   | DslModifierCompletionContext
   | null;
 
@@ -332,6 +336,15 @@ const lineHeadContext = (code: string, pos: number): DslCompletionContext | null
   return null;
 };
 
+const transformationStageReferenceContextAt = (code: string, pos: number): DslCompletionContext => {
+  if (!/^\s*(?:edge|extend|move|mirrorMove|reverse)\b/.test(code)) return null;
+  const prefix = code.slice(0, pos);
+  const match = /@([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*(?:\[[0-9]+\])?)\.([A-Za-z_][A-Za-z0-9_.]*)?$/.exec(prefix);
+  if (!match) return null;
+  const stageStart = pos - (match[2]?.length ?? 0);
+  return { kind: "transformationStageReference", from: stageStart, to: pos, base: match[1]! };
+};
+
 const referenceCompletionSpan = (
   code: string,
   pos: number,
@@ -444,7 +457,8 @@ export const dslCompletionContextAt = (
       ...(typedDeclarationContext ? { expectedScalarType: typedDeclarationContext.declaredType } : {}),
       ...(recordDeclarationContext ? { expectedRecordTypeName: recordDeclarationContext.recordTypeName } : {}),
       ...(expectedGeometryKind ? { expectedGeometryKind } : {}),
-      ...(geometryArrayContext ? { geometryArrayContext } : {})
+      ...(geometryArrayContext ? { geometryArrayContext } : {}),
+      ...( /^\s*(?:edge|extend|move|mirrorMove|reverse)\b/.test(code) ? { targetSyntax: true } : {})
     };
   }
 
@@ -453,6 +467,9 @@ export const dslCompletionContextAt = (
 
   const conditionContext = conditionalExpressionCompletionContextAt(code, pos);
   if (conditionContext) return conditionContext;
+
+  const transformationStageReference = transformationStageReferenceContextAt(code, pos);
+  if (transformationStageReference) return transformationStageReference;
 
   const callContext = dslCallCompletionContextAt(code, pos);
   if (callContext) return callContext;

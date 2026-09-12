@@ -403,6 +403,10 @@ export type CompileDslResult = {
   elements: CadElement[];
   /** Host-neutral declarative transformation recipes, in authored order. */
   transformationRecipes?: import("./transformationRecipes").TransformationRecipe[];
+  /** Source recipes that belong in the root document serializer. */
+  documentTransformationRecipes?: import("./transformationRecipes").TransformationRecipe[];
+  /** Runtime-expanded recipes for concrete Module instances. */
+  runtimeTransformationRecipes?: import("./transformationRecipes").TransformationRecipe[];
   modifiers?: DrawingModifierDefinition[];
   drawingProfiles?: DrawingProfile[];
   selectedElementId: ElementId | null;

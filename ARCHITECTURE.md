@@ -421,11 +421,15 @@ Declarative geometry transformations are a separate parser/compiler product:
 source ranges, `transformationRecipes.ts` owns the host-neutral target/stage/
 operation representation, and `dslCompiler.ts` resolves targets and arguments
 without adding a drawable element for the clause. `DslDocumentData` carries the
-ordered recipes alongside drawable declarations. Root-level recipes are applied
-by the shared TS/Rust evaluators after base geometry is available; named stage
-snapshots remain evaluator value data and are not materialized Canvas elements.
-Module-body transformation lowering is not part of this current module
-materialization boundary.
+root source recipes alongside drawable declarations. Module-body semantic
+analysis accepts the same recipe statements; `dslCompiler.ts` compiles
+source-stage templates for language tooling and expands them per concrete
+`moduleMaterialization` instance into runtime-only recipes. The shared TS/Rust
+evaluators consume that runtime list, while named stage snapshots remain
+evaluator value data and are not materialized Canvas elements. Module-local
+ownership and stage locality remain inside the existing module
+semantic/materialization boundary; module parameters are not mutable
+transformation owners.
 
 ### Multi-document import graph / public API
 

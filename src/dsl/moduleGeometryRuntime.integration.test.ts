@@ -473,14 +473,14 @@ describe("module geometry runtime", () => {
     expect(errorsOf(mismatch).some((diagnostic) => diagnostic.code === "module-geometry-type-mismatch")).toBe(true);
   });
 
-  it("keeps declarative transformations out of the source-only module body path", () => {
+  it("allows module-local recipes without making geometry parameters mutable owners", () => {
     const uninstantiated = compileWithIds([
       "nui 1",
       "module DefinitionOnly(path: line) {",
       "  reverse path ()",
       "}"
     ].join("\n"));
-    expect(errorsOf(uninstantiated).some((diagnostic) => diagnostic.code === "module-forbidden-body-statement")).toBe(true);
+    expect(errorsOf(uninstantiated).some((diagnostic) => diagnostic.code === "module-geometry-parameter-mutation")).toBe(true);
 
     for (const mutation of [
       "edge [path.start, path.end] ()",
@@ -498,7 +498,7 @@ describe("module geometry runtime", () => {
         "line Base = segment(start: (0, 0), end: (10, 0))",
         "instance X = M(path: @Base, input: @Input)"
       ].join("\n"));
-      expect(errorsOf(compiled).some((diagnostic) => diagnostic.code === "module-forbidden-body-statement")).toBe(true);
+      expect(errorsOf(compiled).some((diagnostic) => diagnostic.code === "module-geometry-parameter-mutation")).toBe(true);
     }
 
     const allowed = compileWithIds([

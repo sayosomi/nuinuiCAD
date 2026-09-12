@@ -176,6 +176,16 @@ const callEnvelopesFor = (logicalText: string): LogicalCallEnvelope[] => {
     }));
   return [...matched, ...unmatched]
     .map((candidate) => {
+      const transformation = /^\s*(edge|extend|move|mirrorMove|reverse)\b/.exec(logicalText.slice(0, candidate.open));
+      if (transformation && candidate.open === logicalText.indexOf("(")) {
+        const from = transformation.index + logicalText.slice(0, candidate.open).indexOf(transformation[1]!);
+        const to = from + transformation[1]!.length;
+        return {
+          ...candidate,
+          callee: { from, to },
+          name: transformation[1]!
+        };
+      }
       const callee = calleeSpanAt(logicalText, candidate.open);
       return callee
         ? { ...candidate, callee, name: logicalText.slice(callee.from, callee.to) }

@@ -46,6 +46,9 @@ export type TransformationRecipe = {
   stageName: string | null;
   enabled: boolean;
   operation: TransformationOperation;
+  /** Runtime-only ordering for a concrete Module instance. Authored source
+   * order remains sourceStatementIndex; this field is never serialized. */
+  runtimeSourceOrder?: number;
 };
 
 export const transformationStageKey = (

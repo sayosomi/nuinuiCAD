@@ -322,6 +322,7 @@ const semanticOwnerKey = (compiled: CompiledDslDocument, identity: DslSemanticId
   }
   if (identity.kind === "source") return `statement:${identity.statementId}`;
   if (identity.kind === "modifier") return dslSemanticIdentityKey(identity);
+  if (identity.kind === "transformationStage") return `transformation:${identity.recipeId}`;
   if (identity.kind === "recordType" || identity.kind === "recordValue") return `statement:${identity.statementId}`;
   if (identity.kind === "recordField") return `record-field:${identity.field.recordStatementId}:${identity.field.fieldIndex}`;
 

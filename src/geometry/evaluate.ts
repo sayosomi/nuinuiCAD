@@ -1918,7 +1918,9 @@ export const evaluateElements = (
   };
 
   const recipeList = [...(options.transformationRecipes ?? [])].sort(
-    (left, right) => left.sourceStatementIndex - right.sourceStatementIndex
+    (left, right) =>
+      (left.runtimeSourceOrder ?? left.sourceStatementIndex) -
+      (right.runtimeSourceOrder ?? right.sourceStatementIndex)
   );
   let nextTransformationRecipeIndex = 0;
   const generatedOwnerIds = new Set(
@@ -2129,7 +2131,7 @@ export const evaluateElements = (
 
   const evaluateTransformationRecipesThrough = (sourceOrder: number) => {
     while (nextTransformationRecipeIndex < recipeList.length &&
-      recipeList[nextTransformationRecipeIndex]!.sourceStatementIndex <= sourceOrder) {
+      (recipeList[nextTransformationRecipeIndex]!.runtimeSourceOrder ?? recipeList[nextTransformationRecipeIndex]!.sourceStatementIndex) <= sourceOrder) {
       executeTransformationRecipe(recipeList[nextTransformationRecipeIndex]!);
       nextTransformationRecipeIndex += 1;
     }

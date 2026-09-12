@@ -59,6 +59,8 @@ export type DslReferencePickTarget = {
   /** Operation activation span; numeric-property targets may edit only a sub-span. */
   activationRange?: DslReferencePickRange;
   numericProperty?: DslReferencePickNumericPropertyTarget;
+  /** Source insertion spelling owned by the Source adapter. */
+  syntax?: "reference" | "transformationTarget";
 };
 
 export type DslReferencePickSemanticSnapshot = {
@@ -180,6 +182,7 @@ const sourceAnchorFor = (
   if (!compiledStatement) return null;
 
   const namespace = compiled.sourceLexicalNamespace;
+  const transformationId = compiled.transformationRecipes?.find((recipe) => recipe.sourceStatementIndex === statementIndex)?.id;
   const namespaceDeclaration = namespace?.allDeclarations.find((candidate) =>
     candidate.statementIndex === statementIndex
   );
@@ -187,12 +190,13 @@ const sourceAnchorFor = (
   const statementId = oneExactString([
     compiled.statementMap?.statementIdByStatementIndex?.get(statementIndex),
     namespaceDeclaration?.statementId,
-    setAnalysis?.statementId
+    setAnalysis?.statementId,
+    transformationId
   ]);
   const scopeId = oneExactString([
     namespace?.scopeIndex.scopeOfStatement.get(statementIndex),
     setAnalysis?.scopeId
-  ]);
+  ]) ?? namespace?.scopeIndex.rootScopeId ?? null;
   if (!statementId || !scopeId) return null;
 
   return {
@@ -547,6 +551,33 @@ const targetForCall = (
     : null;
 };
 
+const transformationTargetFor = (
+  source: SourceSnapshot,
+  position: number,
+  exact: ExactPosition,
+  compiled: CompiledDslDocument,
+  anchor: DslReferencePickSourceAnchor
+): DslReferencePickTarget | null => {
+  const statement = compiled.statements[anchor.statementIndex];
+  if (statement?.kind !== "transformation") return null;
+  const targetIndex = statement.targets.findIndex((target) =>
+    exact.logicalPosition >= target.span.start && exact.logicalPosition <= target.span.end
+  );
+  if (targetIndex < 0) return null;
+  const target = statement.targets[targetIndex]!;
+  const range = physicalRangeForLogical(exact, target.span, position);
+  if (!range) return null;
+  const endpoint = statement.construction === "edge" || statement.construction === "extend";
+  return {
+    sourceAnchor: anchor,
+    expectedGeometryInterface: endpoint ? "point" : "path",
+    role: endpoint ? "endpoint" : "geometry",
+    multiplicity: statement.targets.length > 1 ? "multiple" : "single",
+    range,
+    syntax: "transformationTarget"
+  };
+};
+
 const emptyConstructionTarget = (
   position: number,
   exact: ExactPosition,
@@ -691,6 +722,12 @@ const targetCandidateAt = (
   if (!exact) return null;
   const anchor = sourceAnchorFor(compiled, exact);
   if (!anchor) return null;
+
+  const transformationTarget = transformationTargetFor(source, position, exact, compiled, anchor);
+  if (transformationTarget) {
+    const candidateLine = lineRangeAt(source.normalizedSource, position);
+    return { target: transformationTarget, region: candidateLine };
+  }
 
   const primary = dslCallAuthoringContextAt(source, position);
   for (const call of [primary]) {

@@ -111,6 +111,7 @@ export type ModuleBodySemanticResult = {
 const isAllowedModuleBodyStatement = (statement: DslStatement): boolean => {
   if (statement.kind === "typedDeclaration" || statement.kind === "set" || statement.kind === "group") return true;
   if (statement.kind === "moduleDefinition" || statement.kind === "moduleInstance") return true;
+  if (statement.kind === "transformation") return true;
   if (!isElementDslStatement(statement) || statement.kind !== "element") return false;
   if (isGeometryDeclarationCategory(statement.category)) return true;
   if (statement.type === "conditionalGroup" || statement.type === "forGroup") return true;

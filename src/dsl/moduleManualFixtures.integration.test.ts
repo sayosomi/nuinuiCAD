@@ -325,7 +325,7 @@ describe("Module v1 manual fixtures", () => {
       "line Base = segment(start: (0, 0), end: (10, 0))",
       "instance Call = M(path: @Base)"
     ].join("\n"));
-    expect(errorsOf(mutation).some((diagnostic) => diagnostic.code === "module-forbidden-body-statement")).toBe(true);
+    expect(errorsOf(mutation).some((diagnostic) => diagnostic.code === "module-geometry-parameter-mutation")).toBe(true);
 
     const privateReference = compileSource([
       "nui 1",

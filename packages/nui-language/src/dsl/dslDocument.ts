@@ -218,6 +218,10 @@ export type CompiledDslDocument = {
   /** 改行正規化済みソースの行配列。 */
   sourceLines: string[];
   diagnostics: DslDiagnostic[];
+  /** Host-neutral transformation recipes retained even when another source diagnostic makes the document facade unavailable. */
+  transformationRecipes?: import("./transformationRecipes").TransformationRecipe[];
+  /** Runtime-expanded recipes retained for production evaluation; source text never serializes this list. */
+  runtimeTransformationRecipes?: import("./transformationRecipes").TransformationRecipe[];
   /** Task 48: this exact compile's span-projection context, so a later
    * diagnostic producer working from this compiled document (e.g.
    * runtimeScalarDiagnostics.ts, once an evaluation result arrives) can
@@ -1337,7 +1341,8 @@ export const compileDslDocument = (
   if (baseDiagnostics.some((item) =>
     item.severity === "error" &&
     item.code !== MISSING_ATTRIBUTE_VALUE_CODE &&
-    item.code !== "record-constructor-missing-field"
+    item.code !== "record-constructor-missing-field" &&
+    !(hasModuleStatements && item.code?.includes("transformation"))
   )) {
     return {
       document: null,
@@ -1348,6 +1353,8 @@ export const compileDslDocument = (
       diagnostics: baseDiagnostics,
       spans,
       sourceElementsByStatementIndex: sourceElementsFor(compiled),
+      ...(compiled.transformationRecipes ? { transformationRecipes: compiled.transformationRecipes } : {}),
+      ...(compiled.runtimeTransformationRecipes ? { runtimeTransformationRecipes: compiled.runtimeTransformationRecipes } : {}),
       ...(sourceLexicalNamespace ? { sourceLexicalNamespace } : {})
     };
   }
@@ -2516,6 +2523,8 @@ export const compileDslDocument = (
       diagnostics: finalDiagnostics,
       spans,
       sourceElementsByStatementIndex: sourceElementsFor(compiled),
+      ...(compiled.transformationRecipes ? { transformationRecipes: compiled.transformationRecipes } : {}),
+      ...(compiled.runtimeTransformationRecipes ? { runtimeTransformationRecipes: compiled.runtimeTransformationRecipes } : {}),
       ...(scalarProgram ? { scalarProgram } : {}),
       ...(scalarAnalysis ? { bindingAnalysis: scalarAnalysis.bindingAnalysis } : {}),
       ...(documentScalarAnalysis ? { scalarProgramPositionMap: documentScalarAnalysis.positionMap } : {}),
@@ -2569,7 +2578,7 @@ export const compileDslDocument = (
 
   const document: DslDocumentData = {
     elements: compiled.elements,
-    transformationRecipes: compiled.transformationRecipes ?? [],
+    transformationRecipes: compiled.documentTransformationRecipes ?? compiled.transformationRecipes ?? [],
     modifiers: compiled.modifiers ?? [],
     ...(compiled.drawingProfiles?.length ? { drawingProfiles: compiled.drawingProfiles } : {}),
     visibilityRoles: compiled.visibilityRoles ?? [],
@@ -2601,6 +2610,8 @@ export const compileDslDocument = (
     diagnostics: finalDiagnostics,
     spans,
     sourceElementsByStatementIndex: sourceElementsFor(compiled),
+    ...(compiled.transformationRecipes ? { transformationRecipes: compiled.transformationRecipes } : {}),
+    ...(compiled.runtimeTransformationRecipes ? { runtimeTransformationRecipes: compiled.runtimeTransformationRecipes } : {}),
     ...(scalarProgram ? { scalarProgram } : {}),
     ...(scalarAnalysis ? { bindingAnalysis: scalarAnalysis.bindingAnalysis } : {}),
     ...(documentScalarAnalysis ? { scalarProgramPositionMap: documentScalarAnalysis.positionMap } : {}),
