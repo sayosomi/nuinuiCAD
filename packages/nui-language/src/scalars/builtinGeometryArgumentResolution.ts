@@ -226,8 +226,9 @@ export const resolveBuiltinGeometryArguments = ({
     }
   };
 
-  const resolveDerivedPointGeometryProperty = (
-    node: Extract<ScalarExpressionAst, { kind: "geometryProperty" }>
+  const resolveGeometryPropertyArgument = (
+    node: Extract<ScalarExpressionAst, { kind: "geometryProperty" }>,
+    expectedGeometryType: Extract<ModuleGeometryInterfaceType, "point" | "line">
   ): void => {
     const issue = (message: string, presentation: DslDiagnosticPresentation): void => {
       geometryPropertyTargets.set(node.span.start, null);
@@ -239,15 +240,30 @@ export const resolveBuiltinGeometryArguments = ({
         presentation
       });
     };
-    const additionalTarget = additionalGeometryResolver?.({ node, occurrenceIndex: null, expectedGeometryType: "point" });
+    const additionalTarget = additionalGeometryResolver?.({ node, occurrenceIndex: null, expectedGeometryType });
     if (additionalTarget !== undefined) {
-      if (additionalTarget.pointKey) {
+      // The shared parser represents both a derived geometry property
+      // (`@line.start`) and a direct member reference (`@record.edge`) as a
+      // geometryProperty node. A closed semantic owner may claim the latter
+      // without a pointKey; preserve the existing pointKey requirement for
+      // ordinary geometry-derived point accessors below.
+      if (
+        isModuleGeometryInterfaceAssignable(additionalTarget.geometryType, expectedGeometryType) &&
+        (additionalTarget.pointKey || additionalTarget.geometryType === expectedGeometryType)
+      ) {
         geometryPropertyTargets.set(node.span.start, additionalTarget);
         return;
       }
       issue(
         invalidGeometryPropertyMessage(node.elementName, node.property, "point"),
         invalidGeometryPropertyPresentation(node.elementName, node.property, "point")
+      );
+      return;
+    }
+    if (expectedGeometryType !== "point") {
+      issue(
+        invalidGeometryPropertyMessage(node.elementName, node.property, expectedGeometryType),
+        invalidGeometryPropertyPresentation(node.elementName, node.property, expectedGeometryType)
       );
       return;
     }
@@ -344,8 +360,8 @@ export const resolveBuiltinGeometryArguments = ({
               } else if (nodeArgument.kind === "collectionIndex") {
                 resolveDirectGeometryCollectionIndex(nodeArgument, parameterType);
                 visit(nodeArgument.index);
-              } else if (nodeArgument.kind === "geometryProperty" && parameterType === "point") {
-                resolveDerivedPointGeometryProperty(nodeArgument);
+              } else if (nodeArgument.kind === "geometryProperty") {
+                resolveGeometryPropertyArgument(nodeArgument, parameterType);
               } else {
                 visit(nodeArgument);
                 issues.push({
@@ -371,8 +387,8 @@ export const resolveBuiltinGeometryArguments = ({
             } else if (nodeArgument.kind === "collectionIndex") {
               resolveDirectGeometryCollectionIndex(nodeArgument, parameterType);
               visit(nodeArgument.index);
-            } else if (nodeArgument.kind === "geometryProperty" && parameterType === "point") {
-              resolveDerivedPointGeometryProperty(nodeArgument);
+            } else if (nodeArgument.kind === "geometryProperty") {
+              resolveGeometryPropertyArgument(nodeArgument, parameterType);
             } else {
               visit(nodeArgument);
               issues.push({

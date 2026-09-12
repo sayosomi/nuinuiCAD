@@ -4,9 +4,9 @@ import type { DslPhysicalSpan } from "./logicalStatementSourceMap";
 import { parseDslSourceReference } from "./dslReferenceTokens";
 import type { SourceLexicalLookup } from "./sourceLexicalNamespaceIndex";
 import { isBareDslIdentifierChar } from "./dslTokens";
-import type { ScalarType } from "../scalars/types";
 import type { ScalarExpressionAst } from "../scalars/expressionAst";
-import { nominalRecordTypeOfDslValueType } from "./dslValueTypes";
+import type { DslValueType } from "./dslValueTypes";
+import { isDslArrayValueType, nominalRecordTypeOfDslValueType } from "./dslValueTypes";
 import { parseScalarExpression } from "../scalars/expressionParser";
 
 export type RecordTypeIdentity = string;
@@ -21,7 +21,7 @@ export type RecordFieldSemantic = {
   identity: RecordFieldIdentity;
   fieldIndex: number;
   name: string;
-  type: ScalarType;
+  type: DslValueType;
   nameSpan: DslSpan;
   typeSpan: DslSpan;
 };
@@ -46,7 +46,7 @@ export type RecordConstructorFieldSemantic = {
   labelSpan: DslSpan;
   value: string;
   valueSpan: DslSpan;
-  expectedType: ScalarType;
+  expectedType: DslValueType;
 };
 
 export type RecordConstructorSemantic = {
@@ -603,6 +603,40 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
     if (statement.enclosing) {
       diagnostics.push(diagnostic(statement, statement.keywordSpan, "record-definition-not-top-level", "record definition はトップレベルにのみ宣言できます。"));
     }
+  }
+
+  // Declaration parsing intentionally leaves nominal record references
+  // unresolved. Enrich every record field (including record elements inside a
+  // collection) with the same stable definition identity used by record
+  // values and Module parameters before downstream member resolution runs.
+  for (const definition of definitionsByStatementIndex.values()) {
+    const statement = statements[definition.statementIndex];
+    if (!statement || statement.kind !== "recordDefinition") continue;
+    const resolveFieldType = (type: DslValueType, span: DslSpan): DslValueType => {
+      if (type.kind === "record") {
+        const lookup = input.resolveDeclaration(definition.statementIndex, type.name);
+        if (lookup.kind === "resolved" && lookup.declaration.kind === "recordDefinition") {
+          const target = definitionsByStatementIndex.get(lookup.declaration.statementIndex);
+          if (target) return { ...type, identity: target.statementId };
+        }
+        // The declaration-level type resolver below owns the user-facing
+        // diagnostic. Keep the unresolved source name here so it can still be
+        // reported with the original field span.
+        return type;
+      }
+      if (isDslArrayValueType(type) && type.elementType.kind === "record") {
+        const element = resolveFieldType(type.elementType, span);
+        return element === type.elementType ? type : { ...type, elementType: element as typeof type.elementType };
+      }
+      return type;
+    };
+    const fields = definition.fields.map((field) => ({
+      ...field,
+      type: resolveFieldType(field.type, field.typeSpan)
+    }));
+    const enriched = { ...definition, fields };
+    definitionsByStatementIndex.set(definition.statementIndex, enriched);
+    definitionsByStatementId.set(definition.statementId, enriched);
   }
 
   const moduleParameterTypeByDefinitionAndIndex = new Map<string, RecordModuleParameterSemantic>();

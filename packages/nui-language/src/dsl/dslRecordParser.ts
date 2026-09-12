@@ -1,7 +1,7 @@
 import { matchingDslDelimiter, scanCallArgs, scanDslNesting, type ScannedArg } from "./dslArgScanner";
 import type { DslRecordField, DslSpan } from "./dslTypes";
 import { isBareDslIdentifierChar } from "./dslTokens";
-import { parseDslScalarType, type DslTypeDiagnostic } from "./dslTypeParser";
+import { parseDslDeclaredValueType, type DslTypeDiagnostic } from "./dslTypeParser";
 
 export type DslRecordDiagnostic = DslTypeDiagnostic;
 
@@ -45,36 +45,8 @@ const fieldType = (
   diagnostics: DslRecordDiagnostic[]
 ): Pick<DslRecordField, "type" | "choiceOptionSpans" | "numericTypeOptions"> => {
   const text = source.slice(typeSpan.start, typeSpan.end);
-  if (text === "point" || text === "line" || text === "path") {
-    diagnostics.push({
-      message: `record field に geometry 型「${text}」は使用できません。v1 field は scalar 型のみです。`,
-      span: typeSpan,
-      code: "record-field-geometry-unsupported",
-      presentation: { key: "diagnostic.record-field-geometry-unsupported", parameters: { type: text } }
-    });
-    return { type: null, choiceOptionSpans: [] };
-  }
-  if (text.includes("[") || text.includes("]")) {
-    diagnostics.push({
-      message: "record field の array 型は v1 では使用できません。",
-      span: typeSpan,
-      code: "record-field-array-unsupported"
-    });
-    return { type: null, choiceOptionSpans: [] };
-  }
-  if (isBareIdentifier(text) && !["number", "string", "boolean", "choice"].includes(text)) {
-    diagnostics.push({
-      message: `record field に nested record 型「${text}」は使用できません。v1 field は scalar 型のみです。`,
-      span: typeSpan,
-      code: "record-field-nested-unsupported",
-      presentation: { key: "diagnostic.record-field-nested-unsupported", parameters: { type: text } }
-    });
-    return { type: null, choiceOptionSpans: [] };
-  }
   const before = diagnostics.length;
-  const parsed = parseDslScalarType(source, typeSpan, diagnostics, {
-    acceptedTypeDescription: "number/string/boolean/choice(...)"
-  });
+  const parsed = parseDslDeclaredValueType(source, typeSpan, diagnostics);
   for (let index = before; index < diagnostics.length; index += 1) {
     if (diagnostics[index]?.code === "unknown-type") {
       diagnostics[index] = {
@@ -85,7 +57,7 @@ const fieldType = (
     }
   }
   return {
-    type: parsed.declaredType,
+    type: parsed.valueType,
     choiceOptionSpans: parsed.choiceOptionSpans,
     ...(parsed.numericTypeOptions ? { numericTypeOptions: parsed.numericTypeOptions } : {})
   };
@@ -124,7 +96,7 @@ const fieldFromArg = (
   }
   if (typeSpan.start === typeSpan.end) {
     diagnostics.push({
-      message: "record field には scalar 型注釈が必要です。",
+      message: "record field には immutable value 型注釈が必要です。",
       span: arg.valueSpan,
       code: "record-field-missing-type"
     });

@@ -23,6 +23,7 @@ import type {
   ModuleSourceTarget
 } from "./moduleSemanticTypes";
 import { unwrapModuleGeometrySourceTarget } from "./moduleSemanticTypes";
+import { isDslGeometryValueType } from "./dslValueTypes";
 
 export const moduleParameterPresenceKey = (definitionStatementId: string, parameterIndex: number) =>
   `${definitionStatementId}:${parameterIndex}`;
@@ -582,6 +583,56 @@ const typecheckGeometryTarget = (
       targetSourceOrder: target.statementIndex,
       index: null,
       geometryType: expectedGeometryType,
+      ...(pointKey ? { pointKey } : {})
+    };
+  }
+  if (target.kind === "recordFieldValue") {
+    if (target.record.kind === "recordValue") {
+      return {
+        statementId: target.record.statementId,
+        statementIndex: target.record.statementIndex,
+        geometryType: isDslGeometryValueType(target.valueType)
+          ? target.valueType.kind
+          : expectedGeometryType,
+        ...(pointKey ? { pointKey } : {})
+      };
+    }
+    if (target.record.kind === "recordParameter") {
+      return {
+        statementId: target.record.definitionStatementId,
+        statementIndex: -1,
+        geometryType: isDslGeometryValueType(target.valueType)
+          ? target.valueType.kind
+          : expectedGeometryType,
+        ...(pointKey ? { pointKey } : {})
+      };
+    }
+    if (target.record.kind === "recordCollectionIndex") {
+      return {
+        statementId: target.record.collectionValueId,
+        statementIndex: target.record.targetSourceOrder,
+        geometryType: isDslGeometryValueType(target.valueType)
+          ? target.valueType.kind
+          : expectedGeometryType,
+        ...(pointKey ? { pointKey } : {})
+      };
+    }
+    if (target.record.kind === "recordValueForBinder") {
+      return {
+        statementId: target.record.statementId,
+        statementIndex: target.record.statementIndex,
+        geometryType: isDslGeometryValueType(target.valueType)
+          ? target.valueType.kind
+          : expectedGeometryType,
+        ...(pointKey ? { pointKey } : {})
+      };
+    }
+    return {
+      statementId: target.record.instanceStatementId,
+      statementIndex: target.record.instanceStatementIndex,
+      geometryType: isDslGeometryValueType(target.valueType)
+        ? target.valueType.kind
+        : expectedGeometryType,
       ...(pointKey ? { pointKey } : {})
     };
   }

@@ -1061,6 +1061,32 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("matches generalized record geometry and collection projections across TypeScript and Rust", () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "point P = coordinate(x: 3, y: 4)",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line Baseline = segment(start: @A, end: @B)",
+      "record Piece(outline: path, edge: line, points: point[])",
+      "const piece: Piece = Piece(outline: polyline(points: [@A, @B], closed: false), edge: segment(start: @A, end: @B), points: [@A, @B])",
+      "const outlineLength: number = @piece.outline.length",
+      "const distance: number = lineDistance(@P, @piece.edge)",
+      "const selectedX: number = @piece.points[1].x"
+    ].join("\n"));
+    const options = optionsFor(fixture);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustOptions(repoRoot, fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+    expectScalarNumberClose(scalarBindingFor(fixture, tsPayload, "distance"), 4);
+    expectScalarNumberClose(scalarBindingFor(fixture, rustPayload, "distance"), 4);
+    expectScalarNumberClose(scalarBindingFor(fixture, tsPayload, "outlineLength"), 10);
+    expectScalarNumberClose(scalarBindingFor(fixture, rustPayload, "outlineLength"), 10);
+    expectScalarNumberClose(scalarBindingFor(fixture, tsPayload, "selectedX"), 10);
+    expectScalarNumberClose(scalarBindingFor(fixture, rustPayload, "selectedX"), 10);
+  }, 30000);
+
   it("matches lazy unrequested mapped record field failures across TypeScript and Rust", () => {
     const fixture = fixtureFromSource([
       "nui 1",

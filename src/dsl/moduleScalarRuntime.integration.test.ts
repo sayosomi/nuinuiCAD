@@ -30,6 +30,7 @@ const evaluateCompiled = (compiled: ReturnType<typeof compileWithIds>) => {
     bindingVersions: compiled.bindingVersions,
     geometryInputTargetsByElementId: compiled.moduleGeometryRuntime?.geometryInputTargetsByRuntimeElementId,
     geometryCollectionNodesByValueId: compiled.moduleGeometryRuntime?.geometryCollectionNodesByValueId,
+    geometryValueProgram: compiled.geometryValueProgram,
     statementInfoByElementId: compiled.statementMap.byElementId,
     statementIdByStatementIndex: compiled.statementMap.statementIdByStatementIndex,
     sourceExecutionPositionByElementId: compiled.moduleMaterialization?.sourceExecutionPositionByRuntimeElementId,
@@ -765,6 +766,215 @@ describe("module scalar runtime integration", () => {
       type: { kind: "number" },
       value: { kind: "number", value: 0 }
     });
+  });
+
+  it("evaluates a geometry builtin operand projected from a root record field", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "point P = coordinate(x: 3, y: 4)",
+      "line Baseline = segment(start: (0, 0), end: (10, 0))",
+      "record Piece(edge: line)",
+      "const piece: Piece = Piece(edge: @Baseline)",
+      "const distanceFromEdge: number = lineDistance(@P, @piece.edge)"
+    ].join("\n"), "record-geometry-builtin");
+    expectValid(compiled);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const binding = compiled.bindingAnalysis!.catalog.bindings.find((candidate) =>
+      candidate.kind === "typed" && candidate.name === "distanceFromEdge"
+    );
+    expect(binding).toBeDefined();
+    expect(result.computedScalarBindings?.get(binding!.id)).toEqual({
+      status: "ok",
+      type: { kind: "number" },
+      value: { kind: "number", value: 4 }
+    });
+  });
+
+  it("evaluates geometry record fields in a Module-local record value", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "point P = coordinate(x: 3, y: 4)",
+      "line Baseline = segment(start: (0, 0), end: (10, 0))",
+      "record Piece(edge: line)",
+      "module Example(p: point, edge: line) {",
+      "  const piece: Piece = Piece(edge: @edge)",
+      "  const distanceFromEdge: number = lineDistance(@p, @piece.edge)",
+      "}",
+      "instance Use = Example(p: @P, edge: @Baseline)"
+    ].join("\n"), "record-module-geometry");
+    expectValid(compiled);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const binding = compiled.bindingAnalysis!.catalog.bindings.find((candidate) =>
+      candidate.kind === "typed" && candidate.name === "distanceFromEdge"
+    );
+    expect(binding).toBeDefined();
+    expect(result.computedScalarBindings?.get(binding!.id)).toEqual({
+      status: "ok",
+      type: { kind: "number" },
+      value: { kind: "number", value: 4 }
+    });
+  });
+
+  it("evaluates nested record members and record collection length/index", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "record Metadata(label: string)",
+      "record Piece(x: number, metadata: Metadata)",
+      'const first: Piece = Piece(x: 1, metadata: Metadata(label: "first"))',
+      'const second: Piece = Piece(x: 2, metadata: Metadata(label: "second"))',
+      "const pieces: Piece[] = [@first, @second]",
+      "const count: number = @pieces.length",
+      "const selectedX: number = @pieces[1].x",
+      "const selectedLabel: string = @pieces[1].metadata.label"
+    ].join("\n"), "record-collection-runtime");
+    expectValid(compiled);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const scalarValue = (name: string) => {
+      const binding = compiled.bindingAnalysis!.catalog.bindings.find((candidate) =>
+        candidate.kind === "typed" && candidate.name === name
+      );
+      expect(binding).toBeDefined();
+      return result.computedScalarBindings?.get(binding!.id);
+    };
+    expect(scalarValue("count")).toMatchObject({ status: "ok", value: { kind: "number", value: 2 } });
+    expect(scalarValue("selectedX")).toMatchObject({ status: "ok", value: { kind: "number", value: 2 } });
+    expect(scalarValue("selectedLabel")).toMatchObject({ status: "ok", value: { kind: "string", value: "second" } });
+  });
+
+  it("evaluates nested fields in mapped record collections", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "record Metadata(label: string)",
+      "record Piece(x: number, metadata: Metadata)",
+      'const first: Piece = Piece(x: 1, metadata: Metadata(label: "first"))',
+      'const second: Piece = Piece(x: 2, metadata: Metadata(label: "second"))',
+      "const pieces: Piece[] = [@first, @second]",
+      'const mapped: Piece[] = for item in @pieces { Piece(x: @item.x + 10, metadata: Metadata(label: @item.metadata.label)) }',
+      "const selectedX: number = @mapped[1].x",
+      "const selectedLabel: string = @mapped[1].metadata.label"
+    ].join("\n"), "record-mapped-nested");
+    expectValid(compiled);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const scalarValue = (name: string) => {
+      const binding = compiled.bindingAnalysis!.catalog.bindings.find((candidate) =>
+        candidate.kind === "typed" && candidate.name === name
+      );
+      expect(binding).toBeDefined();
+      return result.computedScalarBindings?.get(binding!.id);
+    };
+    expect(scalarValue("selectedX")).toMatchObject({ status: "ok", value: { kind: "number", value: 12 } });
+    expect(scalarValue("selectedLabel")).toMatchObject({ status: "ok", value: { kind: "string", value: "second" } });
+  });
+
+  it("resolves geometry-valued record fields and collection members through existing geometry consumers", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line Baseline = segment(start: @A, end: @B)",
+      "record Piece(outline: path, edge: line, points: point[])",
+      "const piece: Piece = Piece(outline: @Baseline, edge: @Baseline, points: [@A, @B])",
+      "const outlineLength: number = @piece.outline.length",
+      "const firstPointX: number = @piece.points[1].x",
+      "const height: number = lineDistance(@B, @piece.edge)"
+    ].join("\n"), "record-geometry-collection-runtime");
+    expectValid(compiled);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const scalarValue = (name: string) => {
+      const binding = compiled.bindingAnalysis!.catalog.bindings.find((candidate) =>
+        candidate.kind === "typed" && candidate.name === name
+      );
+      expect(binding).toBeDefined();
+      return result.computedScalarBindings?.get(binding!.id);
+    };
+    expect(scalarValue("outlineLength")).toMatchObject({ status: "ok", value: { kind: "number", value: 10 } });
+    expect(scalarValue("firstPointX")).toMatchObject({ status: "ok", value: { kind: "number", value: 10 } });
+    expect(scalarValue("height")).toMatchObject({ status: "ok", value: { kind: "number", value: 0 } });
+  });
+
+  it("evaluates a pure geometry construction projected from a record field", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "record Piece(outline: path)",
+      "const piece: Piece = Piece(outline: polyline(points: [(0, 0), (10, 0)], closed: false))",
+      "const outlineLength: number = @piece.outline.length"
+    ].join("\n"), "record-geometry-construction-runtime");
+    expectValid(compiled);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const binding = compiled.bindingAnalysis!.catalog.bindings.find((candidate) =>
+      candidate.kind === "typed" && candidate.name === "outlineLength"
+    );
+    expect(binding).toBeDefined();
+    expect(result.computedScalarBindings?.get(binding!.id)).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 10 }
+    });
+  });
+
+  it("evaluates constructed geometry record fields through a Module parameter", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "record Piece(outline: path)",
+      "module Consumer(input: Piece) {",
+      "  const outlineLength: number = @input.outline.length",
+      "}",
+      "instance Use = Consumer(input: Piece(outline: polyline(points: [(0, 0), (10, 0)], closed: false)))"
+    ].join("\n"), "record-geometry-construction-parameter-runtime");
+    expectValid(compiled);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const binding = compiled.bindingAnalysis!.catalog.bindings.find((candidate) =>
+      candidate.kind === "typed" && candidate.name === "outlineLength"
+    );
+    expect(binding).toBeDefined();
+    expect(result.computedScalarBindings?.get(binding!.id)).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 10 }
+    });
+  });
+
+  it("passes nested record values through Module parameters and exports", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "record Metadata(label: string)",
+      "record Piece(x: number, metadata: Metadata)",
+      "module Provider() {",
+      '  export const output: Piece = Piece(x: 7, metadata: Metadata(label: "provided"))',
+      "}",
+      "module Consumer(input: Piece) {",
+      "  const copy: Piece = @input",
+      "  const x: number = @copy.x",
+      "  const label: string = @copy.metadata.label",
+      "}",
+      "instance Source = Provider()",
+      "instance Use = Consumer(input: @Source::output)"
+    ].join("\n"), "record-module-nested");
+    expectValid(compiled);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const value = (name: string) => {
+      const binding = compiled.bindingAnalysis!.catalog.bindings.find((candidate) =>
+        candidate.kind === "typed" && candidate.name === name
+      );
+      expect(binding).toBeDefined();
+      return result.computedScalarBindings?.get(binding!.id);
+    };
+    expect(value("x")).toMatchObject({ status: "ok", value: { kind: "number", value: 7 } });
+    expect(value("label")).toMatchObject({ status: "ok", value: { kind: "string", value: "provided" } });
   });
 
   it("lowers module geometry builtin operands to each materialized runtime target", () => {

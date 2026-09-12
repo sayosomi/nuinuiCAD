@@ -92,7 +92,28 @@ export type ModuleRecordFieldSourceTarget = {
   record: ModuleRecordSourceTarget;
   field: RecordFieldIdentity;
   fieldName: string;
-  type: ScalarType;
+  /** Canonical immutable field type; scalar consumers use `type` below. */
+  valueType: DslValueType;
+  type: ScalarType | null;
+  /** Intermediate record fields when a member access is nested. */
+  fieldPath?: readonly RecordFieldIdentity[];
+  collectionIndex?: number;
+  /** Geometry property after the field has yielded a geometry value. */
+  property?: string;
+};
+
+/** Geometry/record/collection projection of a record field. It is kept
+ * separate from `recordField` because scalar expression consumers require a
+ * scalar `type`, while geometry references require the immutable field value. */
+export type ModuleRecordFieldValueSourceTarget = {
+  kind: "recordFieldValue";
+  record: ModuleRecordSourceTarget;
+  field: RecordFieldIdentity;
+  fieldName: string;
+  valueType: DslValueType;
+  fieldPath?: readonly RecordFieldIdentity[];
+  collectionIndex?: number;
+  pointKey?: string;
 };
 
 export type ModuleScalarSourceTarget =
@@ -146,6 +167,7 @@ export type ModuleScalarSourceTarget =
     };
 
 export type ModuleGeometrySourceTarget =
+  | ModuleRecordFieldValueSourceTarget
   | (ModuleParameterSlot & { kind: "parameter"; geometryKind: "point" | "line"; pointKey?: string })
   | {
       /** Immutable geometry binder owned by a geometry collection map. It is
@@ -383,7 +405,16 @@ export type ModuleScalarExpressionSemantic = {
 
 export type ModuleRecordConstructorFieldSemantic = RecordConstructorFieldSemantic & {
   expression: ModuleScalarExpressionSemantic | null;
+  /** Generalized immutable field initializer. `expression` above is retained
+   * as the scalar compatibility projection for existing lowering clients. */
+  valueExpression?: ModuleRecordFieldValueExpressionSemantic | null;
 };
+
+export type ModuleRecordFieldValueExpressionSemantic =
+  | { kind: "scalar"; expression: ModuleScalarExpressionSemantic }
+  | { kind: "geometry"; expression: ModuleGeometryValueExpressionSemantic | null }
+  | { kind: "record"; expression: ModuleRecordValueExpressionSemantic | null }
+  | { kind: "collection"; valueType: DslArrayValueType; value: unknown };
 
 export type ModuleRecordReferenceSemantic = {
   source: string;
@@ -784,6 +815,7 @@ export type ModuleRecordValueSemantic = {
   fieldExpressions: readonly {
     field: RecordFieldIdentity;
     expression: ModuleScalarExpressionSemantic | null;
+    valueExpression?: ModuleRecordFieldValueExpressionSemantic | null;
   }[];
   /** Optional Module parameters proven present at this declaration site. */
   presenceParameterKeys: readonly string[];
@@ -899,12 +931,14 @@ export type ModuleDefinitionSemantic = {
       field: RecordFieldIdentity;
       fieldName: string;
       type: ScalarType;
+      fieldPath?: readonly RecordFieldIdentity[];
     }[];
     fields: readonly {
       field: RecordFieldIdentity;
       fieldName: string;
       type: ScalarType;
       body: ModuleScalarExpressionSemantic;
+      fieldPath?: readonly RecordFieldIdentity[];
     }[];
   }[];
   /** Geometry-valued value-for bodies use the existing geometry-value semantic

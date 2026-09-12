@@ -8,7 +8,8 @@ use super::super::scalar_expression_runtime::{
 };
 use super::bindings::ScalarDocumentBindingResolver;
 use super::bindings::{
-    result_for_declared_type, scalar_evaluation_json, ScalarRecordMapBinderContext,
+    record_field_path_matches, result_for_declared_type, scalar_evaluation_json,
+    ScalarRecordMapBinderContext,
 };
 use super::expression_evaluator::{evaluate_typed_expression, ScalarEvaluationEnvironment};
 use super::mutation_payload::{
@@ -388,8 +389,12 @@ impl<'a> ScalarMutationResolver<'a> {
                 source_value_id,
                 field: source_field,
                 ..
-            } if source_field.record_statement_id == field.record_statement_id
-                && source_field.field_index == field.field_index =>
+            } if record_field_path_matches(
+                &source_field.record_statement_id,
+                source_field.field_index,
+                source_field.field_path.as_deref(),
+                field,
+            ) =>
             {
                 self.resolve_record_field(source_value_id, index, field, state, seen)
             }
@@ -401,8 +406,12 @@ impl<'a> ScalarMutationResolver<'a> {
                 ..
             } => {
                 let Some(mapped_field) = fields.iter().find(|candidate| {
-                    candidate.record_statement_id == field.record_statement_id
-                        && candidate.field_index == field.field_index
+                    record_field_path_matches(
+                        &candidate.record_statement_id,
+                        candidate.field_index,
+                        candidate.field_path.as_deref(),
+                        field,
+                    )
                 }) else {
                     return ScalarEvaluation::Error {
                         r#type: field.r#type.clone(),
@@ -508,7 +517,7 @@ impl<'a> ScalarMutationResolver<'a> {
                 self.resolve_record_field(selected, index, field, state, seen)
             }
             ValidatedScalarProgramCollectionValue::Literal(members) => {
-                let Some(ValidatedScalarProgramCollectionMember::Record { fields }) =
+                let Some(ValidatedScalarProgramCollectionMember::Record { fields, .. }) =
                     members.get(index as usize)
                 else {
                     return ScalarEvaluation::Error {
@@ -519,8 +528,12 @@ impl<'a> ScalarMutationResolver<'a> {
                     };
                 };
                 let Some(member_field) = fields.iter().find(|candidate| {
-                    candidate.record_statement_id == field.record_statement_id
-                        && candidate.field_index == field.field_index
+                    record_field_path_matches(
+                        &candidate.record_statement_id,
+                        candidate.field_index,
+                        candidate.field_path.as_deref(),
+                        field,
+                    )
                 }) else {
                     return ScalarEvaluation::Error {
                         r#type: field.r#type.clone(),
@@ -941,6 +954,7 @@ impl ScalarEvaluationEnvironment for MutationEnvironment<'_, '_, '_> {
                     record_statement_id: binder_field.record_statement_id.clone(),
                     field_index: binder_field.field_index,
                     r#type: binder_field.r#type.clone(),
+                    field_path: binder_field.field_path.clone(),
                 };
                 let mut seen = context.seen.clone();
                 return self.resolver.resolve_record_field(

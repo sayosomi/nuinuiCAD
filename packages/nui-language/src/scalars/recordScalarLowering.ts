@@ -1,6 +1,8 @@
 import { encodeIdentityTuple } from "../document/identityTuple";
 import { parseDslReferenceToken } from "../dsl/dslReferenceTokens";
 import type {
+  RecordDefinitionSemantic,
+  RecordFieldSemantic,
   RecordFieldIdentity,
   RecordSemanticAnalysis,
   RecordTypeIdentity,
@@ -13,6 +15,7 @@ import {
   resolveSourceLexicalPath,
   type SourceLexicalNamespaceIndex
 } from "../dsl/sourceLexicalNamespaceIndex";
+import { parseRecordConstructorFields } from "../dsl/recordSemanticAnalysis";
 import type { DslDiagnosticPresentation, DslSpan } from "../dsl/dslTypes";
 import type {
   BindingCatalog,
@@ -25,12 +28,13 @@ import type { ScalarExpressionAst } from "./expressionAst";
 import { parseScalarExpression } from "./expressionParser";
 import type { ScalarExpressionResolvedReference } from "./typedExpressionAst";
 import type { ScalarType } from "./types";
-import { scalarTypeOfDslValueType } from "../dsl/dslValueTypes";
+import { isDslRecordValueType, scalarTypeOfDslValueType } from "../dsl/dslValueTypes";
 
 export type RecordScalarFieldInitializer = {
   bindingId: BindingId;
   recordValueStatementId: RecordValueIdentity;
   field: RecordFieldIdentity;
+  fieldPath?: readonly RecordFieldIdentity[];
   fieldName: string;
   statementIndex: number;
   sourceOrder: number;
@@ -70,6 +74,8 @@ export type RecordScalarLoweringPlan = {
   initializers: readonly RecordScalarFieldInitializer[];
   /** Every lowerable record value, including aliases, mapped to its backing scalar slots. */
   fieldBindingIdsByValueStatementId: ReadonlyMap<RecordValueIdentity, ReadonlyMap<number, BindingId>>;
+  /** Scalar backing for nested record member paths. */
+  fieldBindingIdsByAccessPathByValueStatementId: ReadonlyMap<RecordValueIdentity, ReadonlyMap<string, BindingId>>;
   /** Values that are semantically present but cannot be lowered by this leaf. */
   unresolvedValueStatementIds: readonly RecordValueIdentity[];
 };
@@ -98,6 +104,7 @@ export type RecordScalarPropertyIssue = {
 export type RecordScalarFieldAccess = {
   recordValueStatementId: RecordValueIdentity;
   field: RecordFieldIdentity;
+  fieldPath?: readonly RecordFieldIdentity[];
   fieldName: string;
   bindingId: BindingId;
   span: DslSpan;
@@ -146,6 +153,59 @@ export const recordScalarBindingIdFor = (
   recordValueStatementId,
   ...fieldIdentityTuple(field)
 ])}`;
+
+export const recordScalarBindingIdForPath = (
+  recordValueStatementId: RecordValueIdentity,
+  path: readonly RecordFieldIdentity[]
+): BindingId => path.length === 1
+  ? recordScalarBindingIdFor(recordValueStatementId, path[0]!)
+  : `record-field-binding-path:${encodeIdentityTuple([
+      recordValueStatementId,
+      ...path.flatMap((field) => [field.recordStatementId, String(field.fieldIndex)])
+    ])}`;
+
+const recordFieldPathKey = (path: readonly RecordFieldIdentity[]) => JSON.stringify(
+  path.map((field) => [field.recordStatementId, field.fieldIndex])
+);
+
+type ScalarRecordMemberResolution =
+  | { kind: "resolved"; field: RecordFieldIdentity; fieldName: string; fieldPath: readonly RecordFieldIdentity[]; type: ScalarType }
+  | { kind: "unknown" }
+  | { kind: "invalidTraversal" }
+  | { kind: "nonScalar" };
+
+const scalarRecordMemberFor = (
+  analysis: RecordSemanticAnalysis,
+  typeIdentity: RecordTypeIdentity,
+  property: string
+): ScalarRecordMemberResolution => {
+  const parts = property.split(".").map((part) => /^([A-Za-z_][A-Za-z0-9_]*)(?:\[(\d+)\])?$/.exec(part));
+  if (!parts.length || parts.some((part) => !part)) return { kind: "unknown" };
+  let type: import("../dsl/dslValueTypes").DslValueType = { kind: "record", name: "", identity: typeIdentity };
+  const fieldPath: RecordFieldIdentity[] = [];
+  let field: RecordFieldSemantic | null = null;
+  for (const part of parts) {
+    if (type.kind === "record") {
+      const definition: RecordDefinitionSemantic | null = analysis.definitionsByStatementId.get(type.identity ?? "") ?? null;
+      field = definition?.fields.find((candidate) => candidate.name === part![1]) ?? null;
+      if (!field) return { kind: "unknown" };
+      fieldPath.push(field.identity);
+      type = field.type;
+      if (part![2] !== undefined) {
+        if (type.kind !== "array") return { kind: "unknown" };
+        type = type.elementType;
+      }
+      continue;
+    }
+    // Geometry properties and collection length belong to their existing
+    // semantic owners; the scalar record adapter must not steal them. A
+    // scalar followed by another member is instead an invalid record
+    // traversal and must remain owned by the record diagnostic path.
+    return scalarTypeOfDslValueType(type) ? { kind: "invalidTraversal" } : { kind: "nonScalar" };
+  }
+  const scalar = scalarTypeOfDslValueType(type);
+  return scalar && field ? { kind: "resolved", field: field.identity, fieldName: field.name, fieldPath, type: scalar } : { kind: "nonScalar" };
+};
 
 export const recordScalarDeclarationVersionIdFor = (
   recordValueStatementId: RecordValueIdentity,
@@ -262,11 +322,45 @@ export const planRecordScalarLowering = ({
   const bindingSeeds: BindingSeed[] = [];
   const initializers: RecordScalarFieldInitializer[] = [];
   const fieldBindingIdsByValueStatementId = new Map<RecordValueIdentity, ReadonlyMap<number, BindingId>>();
+  const fieldBindingIdsByAccessPathByValueStatementId = new Map<RecordValueIdentity, ReadonlyMap<string, BindingId>>();
   const unresolvedValueStatementIds: RecordValueIdentity[] = [];
 
   const values = [...analysis.valuesByStatementId.values()]
     .filter(includeValue)
     .sort((left, right) => left.statementIndex - right.statementIndex);
+
+  const scalarFieldPathsFor = (
+    definition: NonNullable<ReturnType<RecordSemanticAnalysis["definitionsByStatementId"]["get"]>>,
+    prefix: readonly RecordFieldIdentity[] = []
+  ): { field: Extract<typeof definition.fields[number], { type: unknown }>; path: readonly RecordFieldIdentity[]; type: ScalarType }[] => definition.fields.flatMap((field) => {
+    const path = [...prefix, field.identity];
+    const scalar = scalarTypeOfDslValueType(field.type);
+    if (scalar) return [{ field, path, type: scalar }];
+    if (!isDslRecordValueType(field.type)) return [];
+    const nested = analysis.definitionsByStatementId.get(field.type.identity ?? "");
+    return nested ? scalarFieldPathsFor(nested, path) : [];
+  });
+
+  const constructorFieldAtPath = (
+    constructorFields: readonly { field: RecordFieldIdentity; value: string; valueSpan: DslSpan; expectedType: import("../dsl/dslValueTypes").DslValueType }[],
+    path: readonly RecordFieldIdentity[]
+  ): { field: { field: RecordFieldIdentity; value: string; valueSpan: DslSpan; expectedType: import("../dsl/dslValueTypes").DslValueType }; path: readonly RecordFieldIdentity[] } | null => {
+    let fields = constructorFields;
+    let current: { field: RecordFieldIdentity; value: string; valueSpan: DslSpan; expectedType: import("../dsl/dslValueTypes").DslValueType } | null = null;
+    for (const [index, wanted] of path.entries()) {
+      current = fields.find((candidate) => candidate.field.fieldIndex === wanted.fieldIndex) ?? null;
+      if (!current) return null;
+      if (index === path.length - 1) return { field: current, path };
+      const definition = current.expectedType.kind === "record"
+        ? analysis.definitionsByStatementId.get(current.expectedType.identity ?? "")
+        : null;
+      if (!definition) return null;
+      const nested = parseRecordConstructorFields({ initializer: current.value, initializerSpan: current.valueSpan, definition });
+      if (!nested) return null;
+      fields = nested.fields;
+    }
+    return current ? { field: current, path } : null;
+  };
 
   for (const value of values) {
     const scopeId = sourceNamespace.scopeIndex.scopeOfStatement.get(value.statementIndex);
@@ -282,27 +376,30 @@ export const planRecordScalarLowering = ({
         continue;
       }
       const fieldBindings = new Map<number, BindingId>();
+      const pathBindings = new Map<string, BindingId>();
       let complete = true;
       let diagnosticOwnerAssigned = false;
-      for (const field of definition.fields) {
-        const bindingId = recordScalarBindingIdFor(value.statementId, field.identity);
-        fieldBindings.set(field.fieldIndex, bindingId);
+      let seedOrder = 0;
+      for (const { field, path, type: expectedType } of scalarFieldPathsFor(definition)) {
+        const bindingId = recordScalarBindingIdForPath(value.statementId, path);
+        if (path.length === 1) fieldBindings.set(field.fieldIndex, bindingId);
+        pathBindings.set(recordFieldPathKey(path), bindingId);
         bindingSeeds.push({
           id: bindingId,
           kind: "typed",
-          name: `${value.name}.${field.name}`,
+          name: `${value.name}.${path.map((candidate) => analysis.definitionsByStatementId.get(candidate.recordStatementId)?.fields.find((field) => field.identity.fieldIndex === candidate.fieldIndex)?.name ?? "").join(".")}`,
           nameSpan: null,
           statementIndex: value.statementIndex,
-          sourceOrder: field.fieldIndex,
+          sourceOrder: seedOrder++,
           effectiveScopeId: scopeId,
           visibility: { kind: "typed", scopeId },
           mutability: "const",
-          declaredType: scalarTypeOfDslValueType(field.type),
+          declaredType: expectedType,
           declarationVersionId: recordScalarDeclarationVersionIdFor(value.statementId, field.identity),
           resolutionMode: "preResolvedOnly",
           catalogOrder: "source"
         });
-        const ast = projectRecordFieldExpression(value.valueExpression, field);
+        const ast = path.length === 1 ? projectRecordFieldExpression(value.valueExpression, field) : null;
         if (!ast) {
           complete = false;
           continue;
@@ -313,12 +410,13 @@ export const planRecordScalarLowering = ({
           bindingId,
           recordValueStatementId: value.statementId,
           field: field.identity,
+          fieldPath: path,
           fieldName: field.name,
           statementIndex: value.statementIndex,
           sourceOrder: field.fieldIndex,
           raw: "",
           span: value.valueExpression.span,
-          expectedType: field.type,
+          expectedType,
           ast,
           recordControlFlowProjection: {
             recordValueStatementId: value.statementId,
@@ -328,45 +426,60 @@ export const planRecordScalarLowering = ({
         });
       }
       if (complete) fieldBindingIdsByValueStatementId.set(value.statementId, fieldBindings);
+      if (complete) fieldBindingIdsByAccessPathByValueStatementId.set(value.statementId, pathBindings);
       else unresolvedValueStatementIds.push(value.statementId);
       continue;
     }
 
     if (value.constructor?.targetTypeIdentity === value.typeIdentity) {
       const fieldBindings = new Map<number, BindingId>();
-      const fields = [...value.constructor.fields].sort((left, right) => left.field.fieldIndex - right.field.fieldIndex);
-      for (const field of fields) {
-        if (field.field.recordStatementId !== value.typeIdentity) continue;
-        const bindingId = recordScalarBindingIdFor(value.statementId, field.field);
-        fieldBindings.set(field.field.fieldIndex, bindingId);
+      const pathBindings = new Map<string, BindingId>();
+      const fields = scalarFieldPathsFor(analysis.definitionsByStatementId.get(value.typeIdentity)!);
+      let complete = true;
+      let seedOrder = 0;
+      for (const { field, path, type: expectedType } of fields) {
+        const constructorField = constructorFieldAtPath(value.constructor.fields, path);
+        if (!constructorField) {
+          complete = false;
+          continue;
+        }
+        const bindingId = recordScalarBindingIdForPath(value.statementId, path);
+        if (path.length === 1) fieldBindings.set(field.fieldIndex, bindingId);
+        pathBindings.set(recordFieldPathKey(path), bindingId);
         bindingSeeds.push({
           id: bindingId,
           kind: "typed",
-          name: `${value.name}.${field.fieldName}`,
+          name: `${value.name}.${path.map((candidate) => analysis.definitionsByStatementId.get(candidate.recordStatementId)?.fields.find((field) => field.identity.fieldIndex === candidate.fieldIndex)?.name ?? "").join(".")}`,
           nameSpan: null,
           statementIndex: value.statementIndex,
-          sourceOrder: field.field.fieldIndex,
+          sourceOrder: seedOrder++,
           effectiveScopeId: scopeId,
           visibility: { kind: "typed", scopeId },
           mutability: "const",
-          declaredType: field.expectedType,
-          declarationVersionId: recordScalarDeclarationVersionIdFor(value.statementId, field.field),
+          declaredType: expectedType,
+          declarationVersionId: recordScalarDeclarationVersionIdFor(value.statementId, path[path.length - 1]!),
           resolutionMode: "preResolvedOnly",
           catalogOrder: "source"
         });
         initializers.push({
           bindingId,
           recordValueStatementId: value.statementId,
-          field: field.field,
-          fieldName: field.fieldName,
+          field: field.identity,
+          fieldPath: path,
+          fieldName: field.name,
           statementIndex: value.statementIndex,
-          sourceOrder: field.field.fieldIndex,
-          raw: field.value,
-          span: field.valueSpan,
-          expectedType: field.expectedType
+          sourceOrder: field.fieldIndex,
+          raw: constructorField.field.value,
+          span: constructorField.field.valueSpan,
+          expectedType
         });
       }
-      fieldBindingIdsByValueStatementId.set(value.statementId, fieldBindings);
+      if (complete) {
+        fieldBindingIdsByValueStatementId.set(value.statementId, fieldBindings);
+        fieldBindingIdsByAccessPathByValueStatementId.set(value.statementId, pathBindings);
+      } else {
+        unresolvedValueStatementIds.push(value.statementId);
+      }
       continue;
     }
 
@@ -377,6 +490,8 @@ export const planRecordScalarLowering = ({
         const targetBindings = target ? fieldBindingIdsByValueStatementId.get(target.statementId) : undefined;
         if (target?.typeIdentity === value.typeIdentity && targetBindings) {
           fieldBindingIdsByValueStatementId.set(value.statementId, targetBindings);
+          const targetPathBindings = fieldBindingIdsByAccessPathByValueStatementId.get(target.statementId);
+          if (targetPathBindings) fieldBindingIdsByAccessPathByValueStatementId.set(value.statementId, targetPathBindings);
           continue;
         }
       }
@@ -401,6 +516,7 @@ export const planRecordScalarLowering = ({
     bindingSeeds,
     initializers,
     fieldBindingIdsByValueStatementId,
+    fieldBindingIdsByAccessPathByValueStatementId,
     unresolvedValueStatementIds
   };
 };
@@ -423,26 +539,6 @@ export const recordScalarSourceBindingResolverFor = ({
   if (dot <= 0 || dot === name.length - 1) return null;
   const baseName = name.slice(0, dot);
   const property = name.slice(dot + 1);
-  // A second property separator means chained record access, which v1 does
-  // not support. Claim it only if the first base is itself a record value.
-  const firstDot = baseName.indexOf(".");
-  if (firstDot >= 0) {
-    const firstBase = baseName.slice(0, firstDot);
-    const firstLookup = resolveSourceLexicalPath(
-      sourceNamespace,
-      statementIndex,
-      parseDslReferenceToken(firstBase)
-    );
-    if (firstLookup.kind === "resolved" && firstLookup.declaration.kind === "recordValue") {
-      return {
-        kind: "blocked",
-        reason: "invalidTraversal",
-        declarationKind: "recordValue",
-        statementId: firstLookup.declaration.statementId
-      };
-    }
-    return null;
-  }
 
   const lookup = resolveSourceLexicalPath(
     sourceNamespace,
@@ -487,8 +583,8 @@ export const recordScalarSourceBindingResolverFor = ({
   const definition = value?.typeIdentity
     ? analysis.definitionsByStatementId.get(value.typeIdentity)
     : undefined;
-  const field = definition?.fields.find((item) => item.name === property);
-  if (!value || !definition || !field) {
+  const member = value?.typeIdentity ? scalarRecordMemberFor(analysis, value.typeIdentity, property) : { kind: "unknown" as const };
+  if (!value || !definition || member.kind === "unknown") {
     return {
       kind: "blocked",
       reason: "incompatible",
@@ -496,7 +592,17 @@ export const recordScalarSourceBindingResolverFor = ({
       statementId: lookup.declaration.statementId
     };
   }
-  const bindingId = plan.fieldBindingIdsByValueStatementId.get(value.statementId)?.get(field.fieldIndex);
+  if (member.kind === "invalidTraversal") {
+    return {
+      kind: "blocked",
+      reason: "invalidTraversal",
+      declarationKind: "recordValue",
+      statementId: lookup.declaration.statementId
+    };
+  }
+  if (member.kind === "nonScalar") return null;
+  const bindingId = plan.fieldBindingIdsByAccessPathByValueStatementId.get(value.statementId)?.get(recordFieldPathKey(member.fieldPath))
+    ?? (member.fieldPath.length === 1 ? plan.fieldBindingIdsByValueStatementId.get(value.statementId)?.get(member.field.fieldIndex) : undefined);
   return bindingId
     ? { kind: "resolved", bindingId }
     : {
@@ -505,7 +611,7 @@ export const recordScalarSourceBindingResolverFor = ({
         declarationKind: "recordValue",
         statementId: lookup.declaration.statementId
       };
-};
+  };
 
 /**
  * Classifies source-level dotted property nodes that are actually record fields.
@@ -587,8 +693,8 @@ export const resolveRecordScalarProperties = ({
     const definition = value?.typeIdentity
       ? analysis.definitionsByStatementId.get(value.typeIdentity)
       : undefined;
-    const field = definition?.fields.find((item) => item.name === node.property);
-    if (!value || !definition || !field) {
+    const member = value?.typeIdentity ? scalarRecordMemberFor(analysis, value.typeIdentity, node.property) : { kind: "unknown" as const };
+    if (!value || !definition || member.kind === "unknown") {
       claimInvalid(node, {
         code: "record-field-unknown",
         span: node.propertySpan,
@@ -600,8 +706,20 @@ export const resolveRecordScalarProperties = ({
       });
       return;
     }
+    if (member.kind === "invalidTraversal") {
+      claimInvalid(node, {
+        code: "record-field-invalid-traversal",
+        span: node.propertySpan,
+        message: `record field「${node.elementName}.${node.property}」の traversal は無効です。`,
+        presentation: { key: "diagnostic.record-field-invalid-traversal", parameters: { target: `${node.elementName}.${node.property}` } }
+      });
+      return;
+    }
+    if (member.kind === "nonScalar") return;
+    const expectedType = member.type;
 
-    const bindingId = plan.fieldBindingIdsByValueStatementId.get(value.statementId)?.get(field.fieldIndex);
+    const bindingId = plan.fieldBindingIdsByAccessPathByValueStatementId.get(value.statementId)?.get(recordFieldPathKey(member.fieldPath))
+      ?? (member.fieldPath.length === 1 ? plan.fieldBindingIdsByValueStatementId.get(value.statementId)?.get(member.field.fieldIndex) : undefined);
     if (!bindingId) {
       claimInvalid(node, {
         code: "record-field-unavailable",
@@ -614,8 +732,9 @@ export const resolveRecordScalarProperties = ({
 
     const access: RecordScalarFieldAccess = {
       recordValueStatementId: value.statementId,
-      field: field.identity,
-      fieldName: field.name,
+      field: member.field,
+      ...(member.fieldPath.length > 1 ? { fieldPath: member.fieldPath } : {}),
+      fieldName: member.fieldName,
       bindingId,
       span: node.span,
       baseSpan: node.elementNameSpan,
@@ -624,7 +743,7 @@ export const resolveRecordScalarProperties = ({
     referencesBySpanStart.set(node.span.start, {
       kind: "resolvedType",
       bindingId,
-      type: field.type
+      type: expectedType
     });
     accesses.push(access);
     dependencies.push({
@@ -906,8 +1025,19 @@ export const prepareRecordScalarExpression = ({
         return node;
       }
       case "geometryProperty": {
-        const additional = propertyResolution.referencesBySpanStart.has(node.span.start) ? null : resolveAdditionalProperty(node);
-        const resolution = propertyResolution.referencesBySpanStart.get(node.span.start) ?? additional?.resolution;
+        const additional = resolveAdditionalProperty(node);
+        const resolution = additional?.resolution ?? propertyResolution.referencesBySpanStart.get(node.span.start);
+        if (resolution?.kind === "resolvedCollectionIndex") {
+          if (!node.occurrenceIndex) return node;
+          references.push(resolution);
+          return {
+            kind: "collectionIndex",
+            span: node.span,
+            nameSpan: { start: node.elementNameSpan.start, end: node.propertySpan.end },
+            name: node.elementName,
+            index: rewrite(node.occurrenceIndex)
+          };
+        }
         if (!resolution || resolution.kind !== "resolvedType") return node;
         references.push(resolution);
         return {

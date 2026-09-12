@@ -6,12 +6,15 @@ import type { BindingId } from "./bindingCatalog";
 import type { TypedDeclarationAnalysis } from "./typedDeclarationAnalysis";
 import type { TypedScalarExpression } from "./typedExpressionAst";
 import type { ScalarType, ScalarValue } from "./types";
+import type { RecordFieldIdentity } from "../dsl/recordSemanticAnalysis";
 
 export type ScalarProgramRecordField = {
   recordStatementId: string;
   fieldIndex: number;
   type: ScalarType;
   bindingId: BindingId;
+  /** Full path for a scalar leaf nested inside nominal record fields. */
+  fieldPath?: readonly RecordFieldIdentity[];
 };
 
 export type ScalarProgramCollectionMember =
@@ -45,6 +48,7 @@ export type ScalarProgramCollection =
         fieldIndex: number;
         type: ScalarType;
         body: TypedScalarExpression;
+        fieldPath?: readonly RecordFieldIdentity[];
       }[];
       sourceOrder: number;
     }
@@ -52,7 +56,7 @@ export type ScalarProgramCollection =
       valueId: string;
       kind: "recordField";
       sourceValueId: string;
-      field: { recordStatementId: string; fieldIndex: number; type: ScalarType };
+      field: { recordStatementId: string; fieldIndex: number; type: ScalarType; fieldPath?: readonly RecordFieldIdentity[] };
       sourceOrder: number;
     }
   | {
