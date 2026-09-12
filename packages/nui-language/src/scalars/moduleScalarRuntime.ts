@@ -30,6 +30,7 @@ import type {
 } from "../dsl/moduleGeometryValueProgram";
 import { buildLexicalScopeIndexFromStatements } from "../dsl/lexicalScopeIndexAdapter";
 import { moduleParameterPresenceKey } from "../dsl/moduleScalarExpression";
+import { isDslOptionalValueType } from "../dsl/dslValueTypes";
 import type { CadElement, DrawingModifierDefinition, ElementId, GeometryInputCollectionNode, GeometryInputTarget, PointAnchor } from "../types/geometry";
 import { findParameterDefinition, scalarTypeForParameterDefinition } from "../parameters/parameterDefinitions";
 import type { BindingAnalysis, InitializerReference } from "./bindingAnalysis";
@@ -1408,20 +1409,21 @@ const propertySourceFor = (
   if (semantic.references.length === 0) return undefined;
   const parameter = findParameterDefinition(element, parameterKey);
   const expectedType = scalarTypeForParameterDefinition(parameter);
-  if (!expectedType || expectedType.kind === "number" || !loweredExpression.type ||
-      !isScalarTypeAssignable(loweredExpression.type, expectedType)) return undefined;
+  const loweredType = loweredExpression.type && !isDslOptionalValueType(loweredExpression.type) ? loweredExpression.type : null;
+  if (!expectedType || expectedType.kind === "number" || !loweredType ||
+      !isScalarTypeAssignable(loweredType, expectedType)) return undefined;
   if (loweredExpression.kind === "reference" && loweredExpression.bindingId !== null && semantic.references.length === 1) {
     const reference = semantic.references[0];
     return {
       kind: "binding",
       bindingId: loweredExpression.bindingId,
-      type: loweredExpression.type,
+      type: loweredType,
       span: reference.span,
       nameSpan: { start: reference.span.start + 1, end: reference.span.end },
       name: reference.name
     };
   }
-  return { kind: "expression", expression: loweredExpression, type: loweredExpression.type, span: semantic.ast.span };
+  return { kind: "expression", expression: loweredExpression, type: loweredType, span: semantic.ast.span };
 };
 
 /**

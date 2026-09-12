@@ -196,4 +196,34 @@ describe("compiled scalar program", () => {
       value: { kind: "choice", value: "match", options: ["match", "other"] }
     });
   });
+
+  it("compiles and evaluates optional declarations, none, and both coalescing branches", () => {
+    const compiled = compileCanonical([
+      "nui 1",
+      "const present: number? = 10",
+      "const missing: string? = none",
+      "const presentResult: number = @present ?? 20",
+      "const missingResult: string = @missing ?? \"fallback\""
+    ].join("\n"));
+
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const scalarProgram = compiled.scalarProgram!;
+    const byName = new Map(scalarProgram.statements.map((statement) => [
+      compiled.bindingAnalysis!.catalog.bindingsById.get(statement.bindingId)!.name,
+      statement.bindingId
+    ]));
+    const evaluated = evaluateScalarProgram(scalarProgram).resultsByBindingId;
+    expect(evaluated.get(byName.get("present")!)).toEqual({
+      status: "ok",
+      type: { kind: "optional", valueType: { kind: "number" } },
+      value: { kind: "number", value: 10 }
+    });
+    expect(evaluated.get(byName.get("missing")!)).toEqual({
+      status: "ok",
+      type: { kind: "optional", valueType: { kind: "string" } },
+      value: { kind: "none" }
+    });
+    expect(evaluated.get(byName.get("presentResult")!)).toMatchObject({ status: "ok", type: { kind: "number" }, value: { value: 10 } });
+    expect(evaluated.get(byName.get("missingResult")!)).toMatchObject({ status: "ok", type: { kind: "string" }, value: { value: "fallback" } });
+  });
 });

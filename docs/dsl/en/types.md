@@ -20,6 +20,26 @@ have at least one unique, unquoted option identifier; option order is part of
 the type identity, so `choice(left, right)` and `choice(right, left)` are
 different types.
 
+## Optional values
+
+Every immutable value type can use one postfix optional suffix: `T?` means a
+value of `T` or the reserved absence value `none`. `none` is accepted only when
+an expected optional type establishes its underlying type, for example:
+
+<!-- dsl-example: syntax-fragment -->
+```nui
+const note: string? = none
+const count: number? = 10
+```
+
+`T` is assignable to `T?`, but `T?` is not implicitly assignable to `T`.
+Repeated suffixes such as `T??` are rejected, and `none` cannot be a
+`choice(...)` option. Optionality uses the same canonical value-type rule for
+scalars, geometry, nominal records, and collections. With one-dimensional
+arrays, `T?[]` is an array whose members are optional, while `T[]?` is one
+optional array value. Module `name?: type` parameters and their existing
+`hasValue(...)` behavior remain a separate intermediate feature.
+
 ## Geometry types
 
 The module geometry interfaces are `point`, `line`, and `path`. A `line` is a
@@ -207,8 +227,8 @@ collection type, while cardinalities may differ. The selected branch determines
 `.length` and indexed members, and an unselected branch is not evaluated.
 Collection values retain their scalar, choice, geometry, or nominal-record
 element identity, so assignable `point[]`, `line[]`, and `path[]` values can be
-passed to existing geometry consumers. Optional result values and nested arrays
-remain deferred.
+passed to existing geometry consumers. Implicit optional-result branches and
+nested arrays remain deferred or unsupported.
 
 ## Records
 

@@ -10,7 +10,7 @@ import type {
 } from "./dslTypes";
 import { unquoteDslString } from "./dslTokens";
 import { parseDslSourceReference } from "./dslReferenceTokens";
-import { isDslGeometryValueType, nominalRecordTypeOfDslValueType, scalarTypeOfDslValueType } from "./dslValueTypes";
+import { isDslGeometryValueType, isDslOptionalValueType, nominalRecordTypeOfDslValueType, scalarTypeOfDslValueType } from "./dslValueTypes";
 
 export type DslModuleDiagnostic = { message: string; span: DslSpan; code?: string; presentation?: DslDiagnosticPresentation };
 
@@ -143,6 +143,10 @@ const moduleParameterType = (
   const parsedDiagnostics: DslModuleDiagnostic[] = [];
   const parsed = parseDslDeclaredValueType(source, typeSpan, parsedDiagnostics);
   diagnostics.push(...parsedDiagnostics);
+  if (isDslOptionalValueType(parsed.valueType)) {
+    diagnostic(diagnostics, "Module parameter の optional 型はこの Slice では未対応です。", typeSpan, "module-optional-type-unsupported");
+    return { type: null, valueType: null, recordTypeReference: null, choiceOptionSpans: [] };
+  }
   const geometryType = isDslGeometryValueType(parsed.valueType) ? parsed.valueType : null;
   return {
     type: geometryType ?? scalarTypeOfDslValueType(parsed.valueType),

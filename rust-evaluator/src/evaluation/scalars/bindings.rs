@@ -73,9 +73,13 @@ pub(crate) fn result_for_declared_type(
     match &result {
         ScalarEvaluation::Error { .. } => result,
         ScalarEvaluation::Ok { r#type, value }
-            if r#type == declared_type && scalar_value_matches_type(r#type, value) =>
+            if scalar_type_assignable(r#type, declared_type)
+                && scalar_value_matches_type(declared_type, value) =>
         {
-            result
+            ScalarEvaluation::Ok {
+                r#type: declared_type.clone(),
+                value: value.clone(),
+            }
         }
         ScalarEvaluation::Ok { .. } => ScalarEvaluation::Error {
             r#type: declared_type.clone(),
@@ -84,6 +88,18 @@ pub(crate) fn result_for_declared_type(
             context: None,
         },
     }
+}
+
+fn scalar_type_assignable(actual: &ScalarType, expected: &ScalarType) -> bool {
+    if let ScalarType::Optional { value_type } = expected {
+        return match actual {
+            ScalarType::Optional {
+                value_type: actual_value_type,
+            } => scalar_type_assignable(actual_value_type, value_type),
+            _ => scalar_type_assignable(actual, value_type),
+        };
+    }
+    !matches!(actual, ScalarType::Optional { .. }) && actual == expected
 }
 
 fn record_field_result(
@@ -1084,6 +1100,9 @@ fn scalar_type_json(scalar_type: &ScalarType) -> Value {
         ScalarType::String => json!({ "kind": "string" }),
         ScalarType::Boolean => json!({ "kind": "boolean" }),
         ScalarType::Choice { options } => json!({ "kind": "choice", "options": options }),
+        ScalarType::Optional { value_type } => {
+            json!({ "kind": "optional", "valueType": scalar_type_json(value_type) })
+        }
     }
 }
 
@@ -1095,6 +1114,7 @@ fn scalar_value_json(value: &ScalarValue) -> Value {
         ScalarValue::Choice { value, options } => {
             json!({ "kind": "choice", "value": value, "options": options })
         }
+        ScalarValue::None => json!({ "kind": "none" }),
     }
 }
 

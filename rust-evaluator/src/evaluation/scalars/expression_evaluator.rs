@@ -28,9 +28,10 @@
 //! the decode side.
 
 use super::expression_evaluator_ops::{
-    continue_builtin_call, continue_logical, continue_value_if, continue_value_match,
-    evaluate_geometry_builtin_call, evaluate_reference, finish_eager_binary, finish_logical_right,
-    finish_unary, finish_value_if, finish_value_match, static_type_null_error,
+    continue_builtin_call, continue_coalesce, continue_logical, continue_value_if,
+    continue_value_match, evaluate_geometry_builtin_call, evaluate_reference, finish_coalesce,
+    finish_eager_binary, finish_logical_right, finish_unary, finish_value_if, finish_value_match,
+    static_type_null_error,
 };
 use super::geometry_builtin_runtime::{GeometryBuiltinRuntimeError, GeometryBuiltinRuntimeTarget};
 use super::scalar_payload::scalar_value_matches_type;
@@ -191,6 +192,13 @@ pub(super) enum EvalWork<'a> {
     FinishLogicalRight {
         r#type: ScalarType,
     },
+    ContinueCoalesce {
+        r#type: ScalarType,
+        right: &'a TypedScalarExpression,
+    },
+    FinishCoalesce {
+        r#type: ScalarType,
+    },
     FinishEagerBinary {
         operator: ScalarBinaryOperator,
         r#type: ScalarType,
@@ -345,6 +353,10 @@ where
             } => continue_value_match(r#type, scrutinee_type, arms, &mut work, &mut output),
             EvalWork::FinishValueMatch { r#type } => finish_value_match(r#type, &mut output),
             EvalWork::FinishLogicalRight { r#type } => finish_logical_right(r#type, &mut output),
+            EvalWork::ContinueCoalesce { r#type, right } => {
+                continue_coalesce(r#type, right, &mut work, &mut output)
+            }
+            EvalWork::FinishCoalesce { r#type } => finish_coalesce(r#type, &mut output),
             EvalWork::FinishEagerBinary { operator, r#type } => {
                 finish_eager_binary(operator, r#type, &mut output)
             }
@@ -404,6 +416,12 @@ fn eval_node<'a>(
             output.push(ScalarEvaluation::Ok {
                 r#type: r#type.clone(),
                 value: ScalarValue::Boolean(*value),
+            });
+        }
+        TypedScalarExpression::NoneLiteral { r#type, .. } => {
+            output.push(ScalarEvaluation::Ok {
+                r#type: r#type.clone(),
+                value: ScalarValue::None,
             });
         }
         TypedScalarExpression::ChoiceLiteral { value, r#type, .. } => match r#type {
@@ -611,6 +629,13 @@ fn eval_node<'a>(
         } => match r#type {
             None => output.push(static_type_null_error(None)),
             Some(concrete_type) => match operator {
+                ScalarBinaryOperator::Coalesce => {
+                    work.push(EvalWork::ContinueCoalesce {
+                        r#type: concrete_type.clone(),
+                        right,
+                    });
+                    work.push(EvalWork::Eval(left));
+                }
                 ScalarBinaryOperator::Or | ScalarBinaryOperator::And => {
                     work.push(EvalWork::ContinueLogical {
                         operator: *operator,
@@ -676,6 +701,7 @@ fn static_expression_type(expression: &TypedScalarExpression) -> Option<ScalarTy
         TypedScalarExpression::NumberLiteral { r#type, .. }
         | TypedScalarExpression::StringLiteral { r#type, .. }
         | TypedScalarExpression::BooleanLiteral { r#type, .. }
+        | TypedScalarExpression::NoneLiteral { r#type, .. }
         | TypedScalarExpression::GeometryProperty { r#type, .. } => Some(r#type.clone()),
         TypedScalarExpression::ChoiceLiteral { r#type, .. }
         | TypedScalarExpression::Reference { r#type, .. }

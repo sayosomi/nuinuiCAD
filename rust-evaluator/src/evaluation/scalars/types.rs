@@ -65,6 +65,7 @@ pub(crate) enum ScalarType {
     String,
     Boolean,
     Choice { options: Vec<String> },
+    Optional { value_type: Box<ScalarType> },
 }
 
 /// Mirrors `src/scalars/types.ts`'s `ScalarValue`.
@@ -74,6 +75,7 @@ pub(crate) enum ScalarValue {
     String(String),
     Boolean(bool),
     Choice { value: String, options: Vec<String> },
+    None,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -114,6 +116,7 @@ pub(crate) enum ScalarUnaryOperator {
 /// Mirrors `src/scalars/expressionAst.ts`'s `ScalarBinaryOperator`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ScalarBinaryOperator {
+    Coalesce,
     Or,
     And,
     Eq,
@@ -279,6 +282,10 @@ pub(crate) enum TypedScalarExpression {
     BooleanLiteral {
         span: ScalarSpan,
         value: bool,
+        r#type: ScalarType,
+    },
+    NoneLiteral {
+        span: ScalarSpan,
         r#type: ScalarType,
     },
     ChoiceLiteral {
@@ -461,6 +468,7 @@ fn detach_children(node: &mut TypedScalarExpression) -> Vec<TypedScalarExpressio
         TypedScalarExpression::NumberLiteral { .. }
         | TypedScalarExpression::StringLiteral { .. }
         | TypedScalarExpression::BooleanLiteral { .. }
+        | TypedScalarExpression::NoneLiteral { .. }
         | TypedScalarExpression::ChoiceLiteral { .. }
         | TypedScalarExpression::Reference { .. }
         | TypedScalarExpression::GeometryProperty { .. } => Vec::new(),

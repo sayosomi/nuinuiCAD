@@ -14,6 +14,7 @@ export type { ScalarSpan };
 export type ScalarUnaryOperator = "!" | "-" | "+";
 
 export type ScalarBinaryOperator =
+  | "??"
   | "||"
   | "&&"
   | "=="
@@ -45,6 +46,12 @@ export interface ScalarBooleanLiteralNode {
   readonly kind: "booleanLiteral";
   readonly span: ScalarSpan;
   readonly value: boolean;
+}
+
+/** A first-class absence literal; its type is established by context. */
+export interface ScalarNoneLiteralNode {
+  readonly kind: "noneLiteral";
+  readonly span: ScalarSpan;
 }
 
 /**
@@ -171,6 +178,7 @@ export type ScalarExpressionAst =
   | ScalarNumberLiteralNode
   | ScalarStringLiteralNode
   | ScalarBooleanLiteralNode
+  | ScalarNoneLiteralNode
   | ScalarUnresolvedChoiceLiteralNode
   | ScalarReferenceNode
   | ScalarCollectionIndexNode

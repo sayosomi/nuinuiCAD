@@ -9,11 +9,11 @@ import type { ScalarBinaryOperator, ScalarUnaryOperator } from "../expressionAst
 import type { ScalarEvaluationEnvironment } from "../expressionEvaluator";
 import { parseScalarEvaluationJson, parseScalarTypeJson } from "../scalarJson";
 import type { TypedScalarExpression } from "../typedExpressionAst";
-import type { ChoiceScalarType, ScalarEvaluation, ScalarType } from "../types";
+import type { ChoiceScalarType, ScalarEvaluation, ScalarExpressionType, ScalarType } from "../types";
 
 const DUMMY_SPAN = { start: 0, end: 0 };
 
-const decodeNullableScalarType = (json: unknown): ScalarType | null => (json === null ? null : parseScalarTypeJson(json));
+const decodeNullableScalarType = (json: unknown): ScalarExpressionType | null => (json === null ? null : parseScalarTypeJson(json));
 
 const fail = (message: string): never => {
   throw new Error(`typedExpressionVectorFixture: ${message}`);
@@ -48,6 +48,12 @@ export const decodeTypedExpressionNode = (json: unknown): TypedScalarExpression 
         span: DUMMY_SPAN,
         value: json.value as boolean,
         type: parseScalarTypeJson(json.type) as Extract<ScalarType, { kind: "boolean" }>
+      };
+    case "noneLiteral":
+      return {
+        kind: "noneLiteral",
+        span: DUMMY_SPAN,
+        type: parseScalarTypeJson(json.type) as Extract<ScalarExpressionType, { kind: "optional" }>
       };
     case "choiceLiteral":
       return {

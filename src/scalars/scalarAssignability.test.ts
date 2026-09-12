@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { isChoiceOptionMember, isScalarTypeAssignable } from "./scalarAssignability";
-import type { ChoiceScalarType, ScalarType } from "./types";
+import { isChoiceOptionMember, isScalarExpressionTypeAssignable, isScalarTypeAssignable } from "./scalarAssignability";
+import type { ChoiceScalarType, ScalarExpressionType, ScalarType } from "./types";
 
 describe("isScalarTypeAssignable", () => {
   it("allows only exact structural matches", () => {
@@ -20,5 +20,14 @@ describe("isChoiceOptionMember", () => {
     const type: ChoiceScalarType = { kind: "choice", options: ["right", "left"] };
     expect(isChoiceOptionMember(type, "right")).toBe(true);
     expect(isChoiceOptionMember(type, "center")).toBe(false);
+  });
+});
+
+describe("isScalarExpressionTypeAssignable", () => {
+  it("widens to optional but never unwraps implicitly", () => {
+    const number: ScalarExpressionType = { kind: "number" };
+    const optionalNumber: ScalarExpressionType = { kind: "optional", valueType: { kind: "number" } };
+    expect(isScalarExpressionTypeAssignable(number, optionalNumber)).toBe(true);
+    expect(isScalarExpressionTypeAssignable(optionalNumber, number)).toBe(false);
   });
 });

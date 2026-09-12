@@ -98,7 +98,17 @@ describe("createDslCompletionSource", () => {
 
     const result = await Promise.resolve(completionSource({ state, pos: source.length, explicit: false } as never));
     expect(result).toMatchObject({ from: source.indexOf("cho"), to: source.length });
-    expect(result?.options.map((option) => option.label)).toEqual(["number", "string", "boolean", "choice", "number[]", "string[]", "boolean[]", "point", "line", "path", "point[]", "line[]", "path[]"]);
+    expect(result?.options.map((option) => option.label)).toEqual([
+      "number", "string", "boolean", "choice",
+      "number?", "string?", "boolean?",
+      "number[]", "string[]", "boolean[]",
+      "number?[]", "string?[]", "boolean?[]",
+      "number[]?", "string[]?", "boolean[]?",
+      "point", "line", "path", "point?", "line?", "path?",
+      "point?[]", "line?[]", "path?[]",
+      "point[]?", "line[]?", "path[]?",
+      "point[]", "line[]", "path[]"
+    ]);
     if (!result || result.from === undefined || result.to === undefined) {
       throw new Error("declaration type completion must include a replacement range");
     }

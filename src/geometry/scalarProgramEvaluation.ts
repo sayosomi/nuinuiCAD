@@ -214,8 +214,9 @@ const geometryCollectionLengthForNode = (
     return geometryCollectionLengthForNode(condition.value.value ? node.thenBranch : node.elseBranch, environmentFor);
   }
   const scrutinee = evaluateTypedExpression(node.scrutinee, environmentFor(node.sourceOrder));
-  if (scrutinee.status !== "ok" || scrutinee.value.kind !== "choice") return undefined;
-  const arm = node.arms.find((candidate) => candidate.label === scrutinee.value.value);
+  const scrutineeValue = scrutinee.status === "ok" ? scrutinee.value : null;
+  if (scrutineeValue === null || scrutineeValue.kind !== "choice") return undefined;
+  const arm = node.arms.find((candidate) => candidate.label === scrutineeValue.value);
   return arm ? geometryCollectionLengthForNode(arm.value, environmentFor) : undefined;
 };
 

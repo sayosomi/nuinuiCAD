@@ -96,6 +96,8 @@ const formatScalarValue = (value: ScalarValue): string => {
       return displayInspectorValue(value.value);
     case "choice":
       return value.value;
+    case "none":
+      return "none";
   }
 };
 

@@ -58,8 +58,30 @@ describe("parseScalarExpression / literal nodes", () => {
     expect(parseOk("false")).toEqual({ kind: "booleanLiteral", span: { start: 0, end: 5 }, value: false });
   });
 
+  it("parses none as the first-class absence node", () => {
+    expect(parseOk("none")).toEqual({ kind: "noneLiteral", span: { start: 0, end: 4 } });
+  });
+
   it("parses a bare choice token as an unresolved node, guessing no type", () => {
     expect(parseOk("right")).toEqual({ kind: "unresolvedChoiceLiteral", span: { start: 0, end: 5 }, raw: "right" });
+  });
+
+  it("parses ?? at the loosest binary precedence with exact source spans", () => {
+    const source = "@value ?? 10 + 2";
+    expect(parseOk(source)).toEqual({
+      kind: "binary",
+      operator: "??",
+      span: { start: 0, end: source.length },
+      left: { kind: "reference", span: { start: 0, end: 6 }, nameSpan: { start: 1, end: 6 }, name: "value" },
+      right: {
+        kind: "binary",
+        operator: "+",
+        span: { start: 10, end: source.length },
+        left: { kind: "numberLiteral", span: { start: 10, end: 12 }, value: 10 },
+        right: { kind: "numberLiteral", span: { start: 15, end: 16 }, value: 2 }
+      }
+    });
+    expect(isScalarExpressionCandidateSource(source)).toBe(true);
   });
 
   describe("string escapes (Task 09 delegation)", () => {

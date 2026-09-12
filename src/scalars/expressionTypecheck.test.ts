@@ -15,7 +15,7 @@ import type {
   ScalarExpressionResolvedReference,
   ScalarExpressionTypecheckResult
 } from "./typedExpressionAst";
-import type { ScalarType } from "./types";
+import type { ScalarExpressionType, ScalarType } from "./types";
 import * as builtinFunctions from "../../packages/nui-language/src/scalars/builtinFunctions";
 import type { BuiltinFunctionDefinition, BuiltinFunctionName } from "../../packages/nui-language/src/scalars/builtinFunctions";
 
@@ -31,7 +31,7 @@ const astFor = (expr: string): ScalarExpressionAst => {
 
 const check = (
   expr: string,
-  expectedType: ScalarType | null = null,
+  expectedType: ScalarExpressionType | null = null,
   references: readonly (BindingResolution | ScalarExpressionResolvedReference)[] = []
 ): ScalarExpressionTypecheckResult => typecheckScalarExpression(astFor(expr), { expectedType, references });
 
@@ -871,6 +871,54 @@ describe("typecheckScalarExpression / declaration expected type", () => {
     );
     expect(result.type).toEqual({ kind: "number" });
     expect(result.diagnostics).toEqual([]);
+  });
+});
+
+describe("typecheckScalarExpression / optional values and coalescing", () => {
+  const optionalNumber: ScalarExpressionType = { kind: "optional", valueType: { kind: "number" } };
+
+  it("accepts none only when an expected optional scalar establishes its type", () => {
+    const valid = check("none", optionalNumber);
+    expect(valid.type).toEqual(optionalNumber);
+    expect(valid.diagnostics).toEqual([]);
+    expect(valid.typed).toMatchObject({ kind: "noneLiteral", type: optionalNumber });
+
+    const invalid = check("none", { kind: "number" });
+    expect(invalid.type).toBeNull();
+    expect(invalid.diagnostics).toEqual([expect.objectContaining({ code: "none-requires-optional-type", span: fullSpan("none") })]);
+  });
+
+  it("widens a present value to an optional declaration type", () => {
+    const result = check("10", optionalNumber);
+    expect(result.type).toEqual({ kind: "number" });
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("unwraps an optional left side and types ?? as its non-optional value", () => {
+    const result = check("@value ?? 10", null, [
+      { kind: "resolvedType", bindingId: "binding:value", type: optionalNumber }
+    ]);
+    expect(result.type).toEqual({ kind: "number" });
+    expect(result.diagnostics).toEqual([]);
+    expect(result.typed).toMatchObject({
+      kind: "binary",
+      operator: "??",
+      type: { kind: "number" },
+      left: { kind: "reference", type: optionalNumber },
+      right: { kind: "numberLiteral", type: { kind: "number" } }
+    });
+  });
+
+  it("rejects plain left operands and mismatched RHS values for ??", () => {
+    const plain = check("10 ?? 20");
+    expect(plain.type).toBeNull();
+    expect(plain.diagnostics).toContainEqual(expect.objectContaining({ code: "coalesce-left-not-optional" }));
+
+    const mismatch = check("@value ?? \"text\"", null, [
+      { kind: "resolvedType", bindingId: "binding:value", type: optionalNumber }
+    ]);
+    expect(mismatch.type).toBeNull();
+    expect(mismatch.diagnostics).toContainEqual(expect.objectContaining({ code: "coalesce-rhs-type-mismatch" }));
   });
 });
 

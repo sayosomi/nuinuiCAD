@@ -571,8 +571,9 @@ export const evaluateElements = (
         return materializeCollectionNode(condition.value.value ? node.thenBranch : node.elseBranch);
       }
       const scrutinee = evaluateTypedExpression(node.scrutinee, scalarEnvironmentFor(node.sourceOrder));
-      if (scrutinee.status !== "ok" || scrutinee.value.kind !== "choice") return null;
-      const arm = node.arms.find((candidate) => candidate.label === scrutinee.value.value);
+      const scrutineeValue = scrutinee.status === "ok" ? scrutinee.value : null;
+      if (scrutineeValue === null || scrutineeValue.kind !== "choice") return null;
+      const arm = node.arms.find((candidate) => candidate.label === scrutineeValue.value);
       return arm ? materializeCollectionNode(arm.value) : null;
     };
     const materialize = (target: GeometryInputTarget): GeometryInputTarget | null => {

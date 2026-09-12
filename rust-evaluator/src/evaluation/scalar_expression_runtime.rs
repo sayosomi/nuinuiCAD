@@ -418,7 +418,9 @@ pub(crate) fn lookup_geometry_property(
                 unavailable_geometry_property(property_type)
             }
         }
-        ScalarType::String | ScalarType::Boolean => unavailable_geometry_property(property_type),
+        ScalarType::String | ScalarType::Boolean | ScalarType::Optional { .. } => {
+            unavailable_geometry_property(property_type)
+        }
     }
 }
 

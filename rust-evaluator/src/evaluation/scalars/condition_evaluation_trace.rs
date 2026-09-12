@@ -20,6 +20,7 @@ fn node_kind(node: &TypedScalarExpression) -> &'static str {
         TypedScalarExpression::NumberLiteral { .. } => "numberLiteral",
         TypedScalarExpression::StringLiteral { .. } => "stringLiteral",
         TypedScalarExpression::BooleanLiteral { .. } => "booleanLiteral",
+        TypedScalarExpression::NoneLiteral { .. } => "noneLiteral",
         TypedScalarExpression::ChoiceLiteral { .. } => "choiceLiteral",
         TypedScalarExpression::Reference { .. } => "reference",
         TypedScalarExpression::CollectionIndex { .. } => "collectionIndex",
@@ -38,6 +39,7 @@ fn node_span(node: &TypedScalarExpression) -> (usize, usize) {
         TypedScalarExpression::NumberLiteral { span, .. }
         | TypedScalarExpression::StringLiteral { span, .. }
         | TypedScalarExpression::BooleanLiteral { span, .. }
+        | TypedScalarExpression::NoneLiteral { span, .. }
         | TypedScalarExpression::ChoiceLiteral { span, .. }
         | TypedScalarExpression::Reference { span, .. }
         | TypedScalarExpression::CollectionIndex { span, .. }
@@ -61,6 +63,7 @@ fn unary_operator_wire(operator: ScalarUnaryOperator) -> &'static str {
 
 fn binary_operator_wire(operator: ScalarBinaryOperator) -> &'static str {
     match operator {
+        ScalarBinaryOperator::Coalesce => "??",
         ScalarBinaryOperator::Or => "||",
         ScalarBinaryOperator::And => "&&",
         ScalarBinaryOperator::Eq => "==",

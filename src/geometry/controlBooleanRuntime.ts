@@ -135,6 +135,7 @@ export const resolveForGroupEffectiveShowGenerated = (
   return (
     evaluation.status === "ok" &&
     evaluation.type.kind === "boolean" &&
+    evaluation.value.kind === "boolean" &&
     evaluation.value.value === true
   );
 };

@@ -19,7 +19,9 @@ import type {
 import type { ScalarExpressionResolvedGeometryTarget, TypedBuiltinArgument } from "./typedExpressionAst";
 import { evaluateBuiltinFunction } from "./builtinFunctionSemantics";
 import { atan2Degrees360, radiansToDegrees } from "./angleMath";
-import { scalarTypesEqual, scalarValueMatchesType, type ScalarEvaluation, type ScalarType, type ScalarValue } from "./types";
+import { scalarTypesEqual, scalarValueMatchesType, type ScalarEvaluation, type ScalarExpressionType, type ScalarType, type ScalarValue } from "./types";
+import { scalarExpressionTypesEqual } from "./scalarAssignability";
+import { isDslOptionalValueType } from "../../packages/nui-language/src/dsl/dslValueTypes";
 import type { ComputedGeometry } from "../types/geometry";
 import type { ComputedGeometryValue } from "../geometry/evaluationTypes";
 
@@ -123,7 +125,7 @@ const geometryArgument = (
 };
 
 /** Re-stamps an already-produced error to `type`, keeping issueCode/bindingId verbatim. */
-const propagateError = (type: ScalarType, source: Extract<ScalarEvaluation, { status: "error" }>): ScalarEvaluation => ({
+const propagateError = (type: ScalarExpressionType, source: Extract<ScalarEvaluation, { status: "error" }>): ScalarEvaluation => ({
   status: "error",
   type,
   issueCode: source.issueCode,
@@ -157,10 +159,14 @@ const booleanValueOf = (value: ScalarValue): boolean => {
  */
 const scalarValuesEqual = (a: ScalarValue, b: ScalarValue): boolean => {
   if (a.kind !== b.kind) return false;
+  if (a.kind === "none") return true;
   if (a.kind === "choice" && b.kind === "choice") {
     return a.value === b.value && scalarTypesEqual({ kind: "choice", options: a.options }, { kind: "choice", options: b.options });
   }
-  return a.value === b.value;
+  if (a.kind === "number" && b.kind === "number") return a.value === b.value;
+  if (a.kind === "string" && b.kind === "string") return a.value === b.value;
+  if (a.kind === "boolean" && b.kind === "boolean") return a.value === b.value;
+  return false;
 };
 
 /**
@@ -179,7 +185,7 @@ const evaluateReference = (node: TypedScalarReferenceNode, environment: ScalarEv
   const result = environment.lookupBinding(node.bindingId);
   if (result.status === "error") return result;
 
-  if (!scalarTypesEqual(type, result.type) || !scalarValueMatchesType(result.type, result.value)) {
+  if (!scalarExpressionTypesEqual(type, result.type) || !scalarValueMatchesType(result.type, result.value)) {
     return { status: "error", type, issueCode: "evaluation-runtime-value-type-mismatch", bindingId: node.bindingId };
   }
   return result;
@@ -190,6 +196,7 @@ const evaluateGeometryProperty = (
   environment: ScalarEvaluationEnvironment
 ): ScalarEvaluation => {
   if (node.type === null) return staticTypeNullError();
+  if (isDslOptionalValueType(node.type)) return { status: "error", type: node.type, issueCode: "evaluation-geometry-property-unavailable" };
   if (node.collectionValueId !== undefined) {
     const length = node.collectionLength ?? environment.lookupCollectionLength?.(node.collectionValueId);
     if (length === undefined) {
@@ -208,7 +215,7 @@ const evaluateGeometryProperty = (
   }
   const result = environment.lookupGeometryProperty(node);
   if (result.status === "error") return result;
-  if (!scalarTypesEqual(node.type, result.type) || !scalarValueMatchesType(result.type, result.value)) {
+  if (!scalarExpressionTypesEqual(node.type, result.type) || !scalarValueMatchesType(result.type, result.value)) {
     return { status: "error", type: node.type, issueCode: "evaluation-runtime-value-type-mismatch" };
   }
   return result;
@@ -219,6 +226,7 @@ const evaluateCollectionIndex = (
   environment: ScalarEvaluationEnvironment
 ): ScalarEvaluation => {
   if (node.type === null || node.collectionValueId === null || node.targetSourceOrder === null) return staticTypeNullError();
+  if (isDslOptionalValueType(node.type)) return { status: "error", type: node.type, issueCode: "evaluation-collection-index-unavailable" };
   const index = evaluateTypedExpression(node.index, environment);
   if (index.status === "error") return propagateError(node.type, index);
   if (
@@ -239,7 +247,7 @@ const evaluateCollectionIndex = (
     node.targetSourceOrder
   );
   if (result.status === "error") return result;
-  return scalarTypesEqual(node.type, result.type) && scalarValueMatchesType(result.type, result.value)
+  return scalarExpressionTypesEqual(node.type, result.type) && scalarValueMatchesType(result.type, result.value)
     ? result
     : { status: "error", type: node.type, issueCode: "evaluation-runtime-value-type-mismatch" };
 };
@@ -295,6 +303,29 @@ const evaluateEqualityOperator = (
   return { status: "ok", type, value: { kind: "boolean", value: operator === "==" ? equal : !equal } };
 };
 
+const evaluateCoalesceOperator = (
+  node: TypedScalarBinaryExpressionNode,
+  environment: ScalarEvaluationEnvironment
+): ScalarEvaluation => {
+  const type = node.type;
+  if (type === null || isDslOptionalValueType(type)) return staticTypeNullError();
+  const left = evaluateTypedExpression(node.left, environment);
+  if (left.status === "error") return propagateError(type, left);
+  const optionalType = { kind: "optional", valueType: type } as const;
+  if (!scalarExpressionTypesEqual(left.type, optionalType) || !scalarValueMatchesType(optionalType, left.value)) {
+    return { status: "error", type, issueCode: "evaluation-runtime-value-type-mismatch" };
+  }
+  if (left.value.kind !== "none") {
+    return { status: "ok", type, value: left.value };
+  }
+  const right = evaluateTypedExpression(node.right, environment);
+  if (right.status === "error") return propagateError(type, right);
+  if (!scalarExpressionTypesEqual(type, right.type) || !scalarValueMatchesType(type, right.value)) {
+    return { status: "error", type, issueCode: "evaluation-runtime-value-type-mismatch" };
+  }
+  return right;
+};
+
 const evaluateArithmeticOrComparisonOperator = (
   operator: "+" | "-" | "*" | "/" | "%" | "^" | "<" | "<=" | ">" | ">=",
   leftNode: TypedScalarExpression,
@@ -343,6 +374,7 @@ const evaluateArithmeticOrComparisonOperator = (
 const evaluateBinary = (node: TypedScalarBinaryExpressionNode, environment: ScalarEvaluationEnvironment): ScalarEvaluation => {
   const type = node.type;
   if (type === null) return staticTypeNullError();
+  if (isDslOptionalValueType(type)) return staticTypeNullError();
 
   if (node.operator === "&&" || node.operator === "||") {
     return evaluateLogicalOperator(node.operator, node.left, node.right, type, environment);
@@ -350,6 +382,7 @@ const evaluateBinary = (node: TypedScalarBinaryExpressionNode, environment: Scal
   if (node.operator === "==" || node.operator === "!=") {
     return evaluateEqualityOperator(node.operator, node.left, node.right, type, environment);
   }
+  if (node.operator === "??") return evaluateCoalesceOperator(node, environment);
   return evaluateArithmeticOrComparisonOperator(node.operator, node.left, node.right, type, environment);
 };
 
@@ -358,7 +391,8 @@ const evaluateGeometryBuiltin = (
   environment: ScalarEvaluationEnvironment,
   name: GeometryBuiltinName
 ): ScalarEvaluation => {
-  const type = node.type!;
+  const type = node.type;
+  if (type === null || isDslOptionalValueType(type)) return staticTypeNullError();
   const expectedTypes: readonly ("point" | "line")[] = name === "lineDistance"
     ? ["point", "line"]
     : name === "lineAngle"
@@ -457,6 +491,7 @@ const evaluateStringBuiltin = (
 const evaluateCall = (node: TypedScalarCallExpressionNode, environment: ScalarEvaluationEnvironment): ScalarEvaluation => {
   const type = node.type;
   if (type === null || node.target === null) return staticTypeNullError();
+  if (isDslOptionalValueType(type)) return staticTypeNullError();
 
   if (isGeometryBuiltin(node.target.name)) return evaluateGeometryBuiltin(node, environment, node.target.name);
   if (node.target.name === "string") return evaluateStringBuiltin(node, environment, type);
@@ -498,7 +533,7 @@ const evaluateValueIf = (
   }
   const selected = evaluateTypedExpression(condition.value.value ? node.thenBranch : node.elseBranch, environment);
   if (selected.status === "error") return propagateError(type, selected);
-  return scalarTypesEqual(type, selected.type) && scalarValueMatchesType(selected.type, selected.value)
+  return scalarExpressionTypesEqual(type, selected.type) && scalarValueMatchesType(selected.type, selected.value)
     ? selected
     : { status: "error", type, issueCode: "evaluation-runtime-value-type-mismatch" };
 };
@@ -516,17 +551,18 @@ const evaluateValueMatch = (
   const scrutinee = evaluateTypedExpression(node.scrutinee, environment);
   if (scrutinee.status === "error") return propagateError(type, scrutinee);
   if (
-    !scalarTypesEqual(scrutineeType, scrutinee.type) ||
+    !scalarExpressionTypesEqual(scrutineeType, scrutinee.type) ||
     !scalarValueMatchesType(scrutineeType, scrutinee.value) ||
     scrutinee.value.kind !== "choice"
   ) {
     return { status: "error", type, issueCode: "evaluation-runtime-value-type-mismatch" };
   }
-  const selected = node.arms.find((arm) => arm.label === scrutinee.value.value);
+  const scrutineeValue = scrutinee.value;
+  const selected = node.arms.find((arm) => arm.label === scrutineeValue.value);
   if (!selected) return { status: "error", type, issueCode: "evaluation-runtime-value-type-mismatch" };
   const result = evaluateTypedExpression(selected.expression, environment);
   if (result.status === "error") return propagateError(type, result);
-  return scalarTypesEqual(type, result.type) && scalarValueMatchesType(result.type, result.value)
+  return scalarExpressionTypesEqual(type, result.type) && scalarValueMatchesType(result.type, result.value)
     ? result
     : { status: "error", type, issueCode: "evaluation-runtime-value-type-mismatch" };
 };
@@ -542,6 +578,9 @@ const evaluateTypedExpressionNode = (
       return { status: "ok", type: node.type, value: { kind: "string", value: node.value } };
     case "booleanLiteral":
       return { status: "ok", type: node.type, value: { kind: "boolean", value: node.value } };
+    case "noneLiteral":
+      if (node.type === null) return staticTypeNullError();
+      return { status: "ok", type: node.type, value: { kind: "none" } };
     case "choiceLiteral": {
       const type = node.type;
       if (type === null) return staticTypeNullError();

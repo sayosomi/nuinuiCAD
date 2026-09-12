@@ -18,6 +18,18 @@ left-associative, and is a remainder rather than a percentage. Exponentiation
 `^` is right-associative and binds more tightly than unary signs. Thus
 `2 ^ 3 ^ 2` is `512`, `-2 ^ 2` is `-4`, and `-5 % 3` is `-2`.
 
+The coalescing operator `lhs ?? rhs` has the loosest binary precedence. The
+left side must have type `T?`; a present value is returned without evaluating
+the right side, while `none` evaluates the right side. The right side must be
+assignable to `T`, and the result type is `T`. Optionality is the canonical
+immutable value type used by scalar expressions; it is not a Module-only slot
+flag.
+
+The reserved `none` literal is legal only in an expected optional type, such as
+`const note: string? = none`. It has no independent scalar or choice type and
+cannot be authored as a `choice(...)` option. Repeated optional suffixes such as
+`T??` are invalid.
+
 The canonical lowercase numeric constant `pi` is available wherever a number
 operand is valid. It follows the ordinary number-literal path; `PI` is not an
 alias, `pi()` is not a function call, and `@pi` refers only to a user binding.

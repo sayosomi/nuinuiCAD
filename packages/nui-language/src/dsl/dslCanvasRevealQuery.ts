@@ -10,6 +10,7 @@ import type {
   ModuleScalarExpressionSemantic,
   ModuleSemanticAnalysis
 } from "./moduleSemanticTypes";
+import { isDslOptionalValueType } from "./dslValueTypes";
 
 export type DslCanvasRevealFailureReason =
   | "source-mismatch"
@@ -181,7 +182,7 @@ const addRootCompiledGeometryPropertyCandidates = (
         category: targetStatement.category,
         property: occurrence.property
       },
-      type: occurrence.type,
+      type: isDslOptionalValueType(occurrence.type) ? null : occurrence.type,
       resolution: "resolved"
     };
     const range = exactRange(source, compiled, occurrence.statementIndex, reference.span);

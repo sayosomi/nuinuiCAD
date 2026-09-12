@@ -31,7 +31,8 @@ import type { BindingId } from "./bindingCatalog";
 import { evaluateTypedExpression, type GeometryBuiltinTargetLookupResult, type ScalarEvaluationEnvironment } from "./expressionEvaluator";
 import type { ScalarProgram, ScalarProgramStatement } from "./scalarProgram";
 import type { ScalarEvaluation } from "./types";
-import { scalarTypesEqual, scalarValueMatchesType, type ScalarType } from "./types";
+import { scalarValueMatchesType, type ScalarExpressionType, type ScalarType } from "./types";
+import { isScalarExpressionTypeAssignable, scalarExpressionTypesEqual } from "./scalarAssignability";
 import type {
   ScalarExpressionResolvedGeometryTarget,
   TypedScalarGeometryPropertyReferenceNode
@@ -54,6 +55,14 @@ export type LazyScalarProgramEvaluator = {
 
 export type ScalarProgramCollectionResolver = {
   environmentFor: (sourceOrder: number) => Pick<ScalarEvaluationEnvironment, "lookupCollectionIndex" | "lookupCollectionLength">;
+};
+
+const resultForDeclaredType = (evaluation: ScalarEvaluation, declaredType: ScalarExpressionType): ScalarEvaluation => {
+  if (evaluation.status === "error") return { ...evaluation, type: declaredType };
+  if (isScalarExpressionTypeAssignable(evaluation.type, declaredType) && scalarValueMatchesType(declaredType, evaluation.value)) {
+    return { ...evaluation, type: declaredType };
+  }
+  return { status: "error", type: declaredType, issueCode: "evaluation-runtime-value-type-mismatch" };
 };
 
 /**
@@ -88,8 +97,9 @@ export const createScalarProgramCollectionResolver = (
     }
     const environment = environmentFor(collection.sourceOrder);
     const scrutinee = evaluateTypedExpression(collection.scrutinee, environment);
-    if (scrutinee.status !== "ok" || scrutinee.value.kind !== "choice") return undefined;
-    const arm = collection.arms.find((candidate) => candidate.label === scrutinee.value.value);
+    const scrutineeValue = scrutinee.status === "ok" ? scrutinee.value : null;
+    if (scrutineeValue === null || scrutineeValue.kind !== "choice") return undefined;
+    const arm = collection.arms.find((candidate) => candidate.label === scrutineeValue.value);
     return arm ? lengthFor(arm.valueId, sourceOrder, nextSeen) : undefined;
   };
 
@@ -112,8 +122,9 @@ export const createScalarProgramCollectionResolver = (
     }
     if (collection.kind === "match") {
       const scrutinee = evaluateTypedExpression(collection.scrutinee, environmentFor(collection.sourceOrder));
-      if (scrutinee.status !== "ok" || scrutinee.value.kind !== "choice") return { status: "error", type: field.type, issueCode: scrutinee.status === "error" ? scrutinee.issueCode : "evaluation-runtime-value-type-mismatch" };
-      const arm = collection.arms.find((candidate) => candidate.label === scrutinee.value.value);
+      const scrutineeValue = scrutinee.status === "ok" ? scrutinee.value : null;
+      if (scrutineeValue === null || scrutineeValue.kind !== "choice") return { status: "error", type: field.type, issueCode: scrutinee.status === "error" ? scrutinee.issueCode : "evaluation-runtime-value-type-mismatch" };
+      const arm = collection.arms.find((candidate) => candidate.label === scrutineeValue.value);
       return arm ? recordFieldFor(arm.valueId, index, field, sourceOrder, nextSeen) : { status: "error", type: field.type, issueCode: "evaluation-runtime-value-type-mismatch" };
     }
     if (collection.kind === "recordField") return recordFieldFor(collection.sourceValueId, index, collection.field, sourceOrder, nextSeen);
@@ -131,7 +142,7 @@ export const createScalarProgramCollectionResolver = (
         }
       });
       if (mapped.status === "error") return mapped;
-      return scalarTypesEqual(mapped.type, mappedField.type) && scalarValueMatchesType(mapped.type, mapped.value)
+      return scalarExpressionTypesEqual(mapped.type, mappedField.type) && scalarValueMatchesType(mapped.type, mapped.value)
         ? mapped
         : { status: "error", type: mappedField.type, issueCode: "evaluation-runtime-value-type-mismatch" };
     }
@@ -142,7 +153,7 @@ export const createScalarProgramCollectionResolver = (
     if (!memberField) return { status: "error", type: field.type, issueCode: "evaluation-runtime-value-type-mismatch" };
     const value = resolveBinding(memberField.bindingId);
     if (value.status === "error") return value;
-    return scalarTypesEqual(value.type, field.type) && scalarValueMatchesType(value.type, value.value)
+    return scalarExpressionTypesEqual(value.type, field.type) && scalarValueMatchesType(value.type, value.value)
       ? value
       : { status: "error", type: field.type, issueCode: "evaluation-runtime-value-type-mismatch" };
   };
@@ -175,8 +186,9 @@ export const createScalarProgramCollectionResolver = (
     if (collection.kind === "match") {
       const scrutinee = evaluateTypedExpression(collection.scrutinee, environmentFor(collection.sourceOrder));
       if (scrutinee.status === "error") return scrutinee;
-      if (scrutinee.value.kind !== "choice") return { status: "error", type: elementType, issueCode: "evaluation-runtime-value-type-mismatch" };
-      const arm = collection.arms.find((candidate) => candidate.label === scrutinee.value.value);
+      const scrutineeValue = scrutinee.value;
+      if (scrutineeValue.kind !== "choice") return { status: "error", type: elementType, issueCode: "evaluation-runtime-value-type-mismatch" };
+      const arm = collection.arms.find((candidate) => candidate.label === scrutineeValue.value);
       return arm
         ? indexFor(arm.valueId, index, elementType, collectionLength, targetSourceOrder, sourceOrder, nextSeen)
         : { status: "error", type: elementType, issueCode: "evaluation-runtime-value-type-mismatch" };
@@ -189,7 +201,7 @@ export const createScalarProgramCollectionResolver = (
         lookupBinding: (bindingId) => bindingId === collection.binderId ? source : resolveBinding(bindingId)
       });
       if (mapped.status === "error") return mapped;
-      return scalarTypesEqual(mapped.type, collection.resultElementType) && scalarValueMatchesType(mapped.type, mapped.value)
+      return scalarExpressionTypesEqual(mapped.type, collection.resultElementType) && scalarValueMatchesType(mapped.type, mapped.value)
         ? mapped
         : { status: "error", type: collection.resultElementType, issueCode: "evaluation-runtime-value-type-mismatch" };
     }
@@ -204,7 +216,7 @@ export const createScalarProgramCollectionResolver = (
     if (member.kind === "record") return { status: "error", type: elementType, issueCode: "evaluation-runtime-value-type-mismatch" };
     const value = member.kind === "literal" ? { status: "ok" as const, type: member.type, value: member.value } : resolveBinding(member.bindingId);
     if (value.status === "error") return value;
-    return scalarTypesEqual(value.type, elementType) && scalarValueMatchesType(value.type, value.value)
+    return scalarExpressionTypesEqual(value.type, elementType) && scalarValueMatchesType(value.type, value.value)
       ? value
       : { status: "error", type: elementType, issueCode: "evaluation-runtime-value-type-mismatch" };
   };
@@ -288,7 +300,10 @@ export const createLazyScalarProgramEvaluator = (
             collectionResolver?.environmentFor(statement.sourceOrder).lookupCollectionLength?.(collectionValueId)
         } : {})
       };
-      const evaluation = evaluateTypedExpression(statement.declaration.initializer, environment);
+      const evaluation = resultForDeclaredType(
+        evaluateTypedExpression(statement.declaration.initializer, environment),
+        statement.declaration.declaredType
+      );
       cache.set(bindingId, evaluation);
       return evaluation;
     } finally {

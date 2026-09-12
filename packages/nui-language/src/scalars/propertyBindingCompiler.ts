@@ -21,7 +21,7 @@ import { describeScalarType, typecheckScalarExpression } from "./expressionTypec
 import { isScalarExpressionCandidateSource, parseScalarExpression } from "./expressionParser";
 import { collectScalarExpressionReferences } from "./expressionReferenceCollector";
 import { isScalarTypeAssignable } from "./scalarAssignability";
-import { scalarTypeOfDslValueType } from "../dsl/dslValueTypes";
+import { isDslOptionalValueType, scalarTypeOfDslValueType } from "../dsl/dslValueTypes";
 import type { ScalarType } from "./types";
 import type { TypedScalarExpression } from "./typedExpressionAst";
 import { resolveGeometryPropertyMetadata } from "./typedGeometryPropertyResolution";
@@ -371,7 +371,16 @@ export const compilePropertyBindings = ({
         name: candidate.ast.name
       });
     } else {
-      sourcesByOccurrenceKey.set(candidate.key, { kind: "expression", expression: checked.typed, type: checked.type, span: candidate.span });
+      // Property schemas remain non-optional in this slice; typecheck has
+      // already rejected an optional expression, so this is only a defensive
+      // guard at the legacy property-binding boundary.
+      if (isDslOptionalValueType(checked.type)) continue;
+      sourcesByOccurrenceKey.set(candidate.key, {
+        kind: "expression",
+        expression: checked.typed,
+        type: checked.type,
+        span: candidate.span
+      });
     }
   }
 
