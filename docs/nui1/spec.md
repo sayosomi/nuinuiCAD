@@ -1332,8 +1332,9 @@ each occurrence. A bulk target with zero occurrences is a no-op; an explicit
 occurrence that is unavailable is an error.
 
 Each owner and branch may have at most one sibling stage with a given name.
-`enabled: false` bypasses the recipe: it produces no resulting geometry or
-stage snapshot and does not make its target unavailable to later valid recipes.
+`enabled: false` bypasses only that transformation. The target geometry remains
+available, and when the clause declares `as stage`, that stage still exists and
+contains the unchanged input geometry. Later transformations continue normally.
 The transformation target ownership, module qualification, and visibility
 rules remain those of the existing declaration and instance model; module
 geometry parameters are not made mutable transformation owners.
