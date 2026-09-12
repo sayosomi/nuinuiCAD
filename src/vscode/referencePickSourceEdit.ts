@@ -98,7 +98,7 @@ export const planVscodeReferencePickSourceEdit = ({
   ].map(referencePickReferenceKey));
   if (references.some((reference) => !allowedKeys.has(referencePickReferenceKey(reference)))) return null;
 
-  const replacement = referencePickReplacementText(target.multiplicity, references);
+  const replacement = referencePickReplacementText(target.multiplicity, references, target.syntax ?? "reference");
   if (replacement === null) return null;
   return {
     range: { ...target.range },

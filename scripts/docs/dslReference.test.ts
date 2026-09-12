@@ -131,7 +131,9 @@ describe("English DSL reference generator", () => {
     expect(rendered).not.toContain("fromPoint");
     expect(rendered).not.toContain("placementMode");
     expect(rendered).not.toContain("condition");
-    expect(rendered.match(/\| `roles` \|/g)?.length).toBe(facts.constructions.length);
+    expect(rendered.match(/\| `roles` \|/g)?.length).toBe(
+      facts.constructions.filter((fact) => fact.arguments.some((argument) => argument.arg === "roles")).length
+    );
   });
 
   it("keeps empty-construction statements in statement facts exactly once", () => {

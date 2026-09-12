@@ -56,6 +56,8 @@ fn evaluates_three_point_arc_line() {
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
         elements: base_three_point_arc(),
         evaluation_limit_index: None,
         allow_disabled_element_ids: None,
@@ -97,6 +99,8 @@ fn evaluates_three_point_arc_wrap_and_measurement_reference() {
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
         elements: vec![
             free_point("p1", "点1", 20.0, 0.0),
             free_point("p2", "点2", 0.0, -20.0),
@@ -151,6 +155,8 @@ fn reports_three_point_arc_dependency_that_appears_too_late() {
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
         elements: vec![
             free_point("p1", "点1", 10.0, 0.0),
             element(json!({
@@ -195,6 +201,8 @@ fn reports_three_point_arc_geometry_error_for_collinear_points() {
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
         elements: vec![
             free_point("p1", "点1", 0.0, 0.0),
             free_point("p2", "点2", 10.0, 10.0),
@@ -243,6 +251,8 @@ fn evaluates_three_point_arc_numeric_parameters() {
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
         elements: vec![
             free_point("p1", "点1", 10.0, 0.0),
             free_point("p2", "点2", 0.0, -10.0),
@@ -342,6 +352,8 @@ fn allows_supported_point_elements_to_reference_three_point_arc() {
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
         elements,
         evaluation_limit_index: None,
         allow_disabled_element_ids: None,

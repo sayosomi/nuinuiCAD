@@ -45,6 +45,8 @@ fn state_with_geometry(
         selected_drawing_profile_id: None,
         group_states: HashMap::new(),
         computed_geometry: HashMap::from([(id.to_owned(), geometry)]),
+        base_transformation_geometry: HashMap::new(),
+        transformation_stage_geometry: HashMap::new(),
         computed_geometry_values: HashMap::new(),
         computed_geometry_order: vec![id.to_owned()],
         pre_mutation_geometry: HashMap::new(),

@@ -8,6 +8,7 @@ import {
 import {
   parseDslReferenceToken,
   parseDslSourceReference,
+  parseDslSourceReferenceAt,
   readDslReferencePathSegments
 } from "./dslReferenceTokens";
 import { parseGeometryArrayDeferredModuleExportId } from "./geometryArraySemanticAnalysis";
@@ -54,6 +55,7 @@ export type DslSemanticIdentity =
   | { kind: "module"; target: ModuleSemanticTarget }
   | { kind: "element"; elementId: ElementId }
   | { kind: "modifier"; name: string }
+  | { kind: "transformationStage"; recipeId: string }
   | { kind: "source"; statementId: string };
 
 export type DslSemanticOccurrence = {
@@ -88,6 +90,7 @@ export const dslSemanticIdentityKey = (identity: DslSemanticIdentity): string =>
   if (identity.kind === "recordField") return `recordField:${identity.field.recordStatementId}:${identity.field.fieldIndex}`;
   if (identity.kind === "element") return `element:${identity.elementId}`;
   if (identity.kind === "modifier") return `modifier:${identity.name}`;
+  if (identity.kind === "transformationStage") return `transformationStage:${identity.recipeId}`;
   if (identity.kind === "source") return `source:${identity.statementId}`;
   return `module:${moduleSemanticTargetKey(identity.target)}`;
 };
@@ -1477,6 +1480,236 @@ const addSourceOutputOccurrences = (compiled: CompiledDslDocument, add: AddOccur
   }
 };
 
+const transformationRecipesBefore = (compiled: CompiledDslDocument, statementIndex: number) =>
+  (compiled.transformationRecipes ?? compiled.document?.transformationRecipes ?? []).filter((recipe) => recipe.sourceStatementIndex < statementIndex);
+
+const transformationStageIdentityFor = (
+  compiled: CompiledDslDocument,
+  statementIndex: number,
+  ownerId: ElementId,
+  occurrenceIndex: string | undefined,
+  stagePath: readonly string[]
+): DslSemanticIdentity | null => {
+  if (stagePath.length === 0 || stagePath[0] === "base" || stagePath[0] === "final") return null;
+  const occurrenceKey = occurrenceIndex ?? "*";
+  for (const recipe of [...transformationRecipesBefore(compiled, statementIndex)].reverse()) {
+    if (!recipe.stageName) continue;
+    for (const target of recipe.targets) {
+      const targetOccurrenceKey = target.occurrenceIndex ?? "*";
+      if (target.ownerId !== ownerId ||
+          (targetOccurrenceKey !== occurrenceKey && targetOccurrenceKey !== "*" && occurrenceKey !== "*")) continue;
+      const declaredPath = [...target.stagePath, recipe.stageName];
+      if (declaredPath.length === stagePath.length && declaredPath.every((part, index) => part === stagePath[index])) {
+        return { kind: "transformationStage", recipeId: recipe.id };
+      }
+    }
+  }
+  return null;
+};
+
+const addTransformationPropertyOccurrences = (
+  compiled: CompiledDslDocument,
+  add: AddOccurrence,
+  statementIndex: number,
+  span: { start: number; end: number },
+  ownerId: ElementId,
+  occurrenceIndex: string | undefined,
+  stagePath: readonly string[]
+) => {
+  if (stagePath.length === 0) return;
+  const statement = compiled.statements[statementIndex];
+  const physical = physicalRange(compiled, statementIndex, span);
+  if (!statement || !physical) return;
+  const raw = compiled.spans.sourceMap.source.slice(physical.from, physical.to);
+  const parsed = parseDslSourceReference(raw.startsWith("@") ? raw : `@${raw}`);
+  if (parsed.kind !== "valid" || parsed.reference.propertyRange === null) return;
+  const propertyOffset = raw.startsWith("@") ? 0 : -1;
+  const propertyStart = span.start + parsed.reference.propertyRange.start + propertyOffset;
+  const logicalStatement = compiled.spans.logicalStatementByRangeFrom.get(statement.documentRange.from);
+  if (!logicalStatement) return;
+  const propertyText = logicalStatement.logicalText.slice(propertyStart, span.end);
+  const parts = propertyText.split(".");
+  const stageCount = Math.min(stagePath.length, parts.length);
+  let cursor = propertyStart;
+  for (let index = 0; index < stageCount; index += 1) {
+    const part = parts[index]!;
+    const partSpan = { start: cursor, end: cursor + part.length };
+    const identity = transformationStageIdentityFor(
+      compiled,
+      statementIndex,
+      ownerId,
+      occurrenceIndex,
+      stagePath.slice(0, index + 1)
+    );
+    if (identity) addPhysicalOccurrence(add, compiled, statementIndex, partSpan, identity, "reference");
+    cursor += part.length + 1;
+  }
+};
+
+const addTransformationReference = (
+  compiled: CompiledDslDocument,
+  add: AddOccurrence,
+  statementIndex: number,
+  span: { start: number; end: number }
+) => {
+  const statement = compiled.statements[statementIndex];
+  const namespace = compiled.sourceLexicalNamespace;
+  if (!statement || !namespace) return;
+  const logicalStatement = compiled.spans.logicalStatementByRangeFrom.get(statement.documentRange.from);
+  if (!logicalStatement) return;
+  const logical = logicalStatement.logicalText.slice(span.start, span.end);
+  const parsed = parseDslSourceReference(logical);
+  if (parsed.kind !== "valid") return;
+  if (parsed.reference.path.segments.length === 2) {
+    const instanceLookup = resolveSourceLexicalDeclaration(namespace, statementIndex, parsed.reference.path.segments[0]!);
+    if (instanceLookup.kind === "resolved" && instanceLookup.declaration.kind === "moduleInstance") {
+      const instance = compiled.moduleSemanticAnalysis?.instancesByStatementId.get(instanceLookup.declaration.statementId);
+      const definition = instance?.callee
+        ? compiled.moduleRuntimeContext?.definitionFor(instance.callee.definitionIdentity)
+          ?? compiled.moduleSemanticAnalysis?.definitionsByStatementId.get(instance.callee.definitionStatementId)
+        : undefined;
+      const exported = definition?.exports.find((candidate) => candidate.kind === "geometry" && candidate.name === parsed.reference.path.segments[1]);
+      const physical = physicalRange(compiled, statementIndex, span);
+      const ranges = physical
+        ? readDslReferencePathSegments(compiled.spans.sourceMap.source, physical.from, physical.to)
+        : null;
+      if (instance && exported && ranges?.kind === "valid" && ranges.segments.length === 2) {
+        const instanceRange = ranges.segments[0];
+        const memberRange = ranges.segments[1];
+        if (instanceRange) add("reference", instanceRange.start, instanceRange.end, {
+          kind: "module",
+          target: { kind: "moduleInstance", statementId: instance.statementId }
+        });
+        const identity = semanticIdentityForModuleTarget(compiled, {
+          kind: "moduleSource",
+          statementId: exported.exportedStatementId
+        });
+        if (memberRange) add("reference", memberRange.start, memberRange.end, identity);
+        const stagePath = parsed.reference.property?.split(".").filter((part) => part !== "start" && part !== "end") ?? [];
+        addTransformationPropertyOccurrences(
+          compiled,
+          add,
+          statementIndex,
+          span,
+          exported.exportedStatementId,
+          parsed.reference.occurrenceIndex ?? undefined,
+          stagePath
+        );
+        return;
+      }
+    }
+  }
+  const lookup = resolveSourceLexicalPathSegments(namespace, statementIndex, parsed.reference.path);
+  if (lookup.lookup.kind !== "resolved" || lookup.lookup.declaration.kind !== "geometry") return;
+  const identity = declarationIdentity(compiled, lookup.lookup.declaration);
+  const pathSpan = {
+    start: span.start + parsed.reference.pathRange.start,
+    end: span.start + parsed.reference.pathRange.end
+  };
+  addQualifiedPathOccurrences(compiled, add, statementIndex, pathSpan, identity);
+  if (identity?.kind === "element") {
+    const property = parsed.reference.property;
+    const stagePath = property?.split(".").filter((part) => part !== "start" && part !== "end") ?? [];
+    addTransformationPropertyOccurrences(
+      compiled,
+      add,
+      statementIndex,
+      span,
+      identity.elementId,
+      parsed.reference.occurrenceIndex ?? undefined,
+      stagePath
+    );
+  }
+};
+
+const addTransformationOccurrences = (compiled: CompiledDslDocument, add: AddOccurrence) => {
+  const recipes = compiled.transformationRecipes ?? compiled.document?.transformationRecipes ?? [];
+  for (const [statementIndex, statement] of compiled.statements.entries()) {
+    if (statement.kind !== "transformation") continue;
+    const recipe = recipes.find((candidate) => candidate.sourceStatementIndex === statementIndex);
+    if (!recipe) continue;
+    if (statement.stageNameSpan && statement.stageName) {
+      const identity: DslSemanticIdentity = { kind: "transformationStage", recipeId: recipe.id };
+      addPhysicalOccurrence(add, compiled, statementIndex, statement.stageNameSpan, identity, "declaration");
+    }
+    let recipeTargetCursor = 0;
+    for (const targetSyntax of statement.targets) {
+      const targetIndex = recipe.targets.findIndex((candidate, index) => index >= recipeTargetCursor && candidate.source === targetSyntax.source);
+      const target = targetIndex >= 0 ? recipe.targets[targetIndex] : undefined;
+      if (!target) continue;
+      recipeTargetCursor = targetIndex + 1;
+      const ownerIdentity = elementIdentity(compiled, target.ownerId) ?? semanticIdentityForModuleTarget(compiled, {
+        kind: "moduleSource",
+        statementId: target.ownerId
+      });
+      const parsed = parseDslSourceReference(`@${targetSyntax.source}`);
+      if (parsed.kind === "valid") {
+        const moduleInstanceLookup = parsed.reference.path.segments.length === 2 && compiled.sourceLexicalNamespace
+          ? resolveSourceLexicalDeclaration(compiled.sourceLexicalNamespace, statementIndex, parsed.reference.path.segments[0]!)
+          : null;
+        const moduleInstance = moduleInstanceLookup?.kind === "resolved" && moduleInstanceLookup.declaration.kind === "moduleInstance"
+          ? compiled.moduleSemanticAnalysis?.instancesByStatementId.get(moduleInstanceLookup.declaration.statementId)
+          : undefined;
+        const definition = moduleInstance?.callee
+          ? compiled.moduleRuntimeContext?.definitionFor(moduleInstance.callee.definitionIdentity)
+            ?? compiled.moduleSemanticAnalysis?.definitionsByStatementId.get(moduleInstance.callee.definitionStatementId)
+          : undefined;
+        const exported = definition?.exports.find((candidate) => candidate.kind === "geometry" && candidate.name === parsed.reference.path.segments[1]);
+        const physical = physicalRange(compiled, statementIndex, targetSyntax.span);
+        const ranges = physical
+          ? readDslReferencePathSegments(compiled.spans.sourceMap.source, physical.from, physical.to)
+          : null;
+        if (moduleInstance && exported && ranges?.kind === "valid" && ranges.segments.length === 2) {
+          const instanceRange = ranges.segments[0];
+          const memberRange = ranges.segments[1];
+          if (instanceRange) add("reference", instanceRange.start, instanceRange.end, {
+            kind: "module",
+            target: { kind: "moduleInstance", statementId: moduleInstance.statementId }
+          });
+          if (memberRange) add("reference", memberRange.start, memberRange.end, semanticIdentityForModuleTarget(compiled, {
+            kind: "moduleSource",
+            statementId: exported.exportedStatementId
+          }));
+        } else {
+          addQualifiedPathOccurrences(
+            compiled,
+            add,
+            statementIndex,
+            {
+              start: targetSyntax.span.start + parsed.reference.pathRange.start - 1,
+              end: targetSyntax.span.start + parsed.reference.pathRange.end - 1
+            },
+            ownerIdentity
+          );
+        }
+        addTransformationPropertyOccurrences(
+          compiled,
+          add,
+          statementIndex,
+          targetSyntax.span,
+          target.ownerId,
+          target.occurrenceIndex,
+          target.stagePath
+        );
+      }
+    }
+    for (const attr of statement.attrs) {
+      if (!attr.value.includes("@")) continue;
+      const valueStart = attr.valueStart;
+      for (let cursor = attr.value.indexOf("@"); cursor >= 0; cursor = attr.value.indexOf("@", cursor + 1)) {
+        const logicalStatement = compiled.spans.logicalStatementByRangeFrom.get(statement.documentRange.from);
+        if (!logicalStatement) continue;
+        const parsed = parseDslSourceReferenceAt(logicalStatement.logicalText, valueStart + cursor, attr.valueEnd);
+        if (parsed.kind !== "valid") continue;
+        addTransformationReference(compiled, add, statementIndex, {
+          start: valueStart + cursor,
+          end: parsed.end
+        });
+      }
+    }
+  }
+};
+
 /** Build exact, compiler-resolved declaration/reference occurrences in source order. */
 export const createDslSemanticOccurrenceIndex = (
   compiled: CompiledDslDocument,
@@ -1506,6 +1739,7 @@ export const createDslSemanticOccurrenceIndex = (
   addGeometryArrayOccurrences(compiled, add);
   addGeometryArrayConsumerOccurrences(compiled, add);
   addSourceOutputOccurrences(compiled, add);
+  addTransformationOccurrences(compiled, add);
   addDrawingProfileOccurrences(compiled, add);
   addDrawingModifierOccurrences(compiled, add);
 

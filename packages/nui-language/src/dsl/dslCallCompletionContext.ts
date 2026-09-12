@@ -10,6 +10,9 @@ import {
 export type DslCallCompletionContext =
   | { kind: "construction"; from: number; to: number; category: DslConstructionCategory }
   | { kind: "argument"; from: number; to: number; spec: DslConstructionSpec; usedArgumentNames: ReadonlySet<string> }
+  | { kind: "transformationTarget"; from: number; to: number; operation: string; targetList: boolean }
+  | { kind: "transformationAs"; from: number; to: number; operation: string }
+  | { kind: "transformationStageName"; from: number; to: number; operation: string }
   | null;
 
 const identifierStart = /[A-Za-z_]/;
@@ -199,7 +202,66 @@ const constructionContextAt = (
  */
 const leadingIdentifierAt = (source: string): string | null => source.match(/^[A-Za-z_][A-Za-z0-9_]*/)?.[0] ?? null;
 
+const transformationHeaderContextAt = (
+  source: string,
+  pos: number,
+  operation: string,
+  open: number
+): DslCallCompletionContext => {
+  const keywordEnd = operation.length;
+  const headerEnd = open >= 0 ? open : source.length;
+  if (pos < keywordEnd || pos > headerEnd) return null;
+  const headerStart = trimStart(source, keywordEnd, headerEnd);
+  const header = source.slice(headerStart, headerEnd);
+  const asMatch = /(?:^|\s)as(?:\s|$)/.exec(header);
+  if (asMatch) {
+    const asStart = headerStart + asMatch.index + (asMatch[0].startsWith(" ") ? 1 : 0);
+    const stageStart = trimStart(source, asStart + 2, headerEnd);
+    if (pos >= stageStart) {
+      const from = tokenStartAt(source, pos, stageStart);
+      return { kind: "transformationStageName", from, to: pos, operation };
+    }
+    if (pos >= asStart && pos <= asStart + 2) {
+      return { kind: "transformationAs", from: asStart, to: pos, operation };
+    }
+    return null;
+  }
+
+  const trimmedEnd = (() => {
+    let end = headerEnd;
+    while (end > headerStart && /\s/.test(source[end - 1]!)) end -= 1;
+    return end;
+  })();
+  if (pos > trimmedEnd) {
+    return { kind: "transformationAs", from: trimmedEnd, to: pos, operation };
+  }
+  const list = source[headerStart] === "[";
+  const contentStart = list ? headerStart + 1 : headerStart;
+  const contentEnd = list ? Math.max(contentStart, trimmedEnd - (source[trimmedEnd - 1] === "]" ? 1 : 0)) : trimmedEnd;
+  if (pos < contentStart || pos > contentEnd) return null;
+  const commas: number[] = [];
+  let depth = 0;
+  for (let index = contentStart; index < pos; index += 1) {
+    if (source[index] === "[") depth += 1;
+    else if (source[index] === "]") depth -= 1;
+    else if (source[index] === "," && depth === 0) commas.push(index);
+  }
+  const floor = (commas.at(-1) ?? contentStart - 1) + 1;
+  const from = tokenStartAt(source, pos, floor);
+  return { kind: "transformationTarget", from, to: pos, operation, targetList: list };
+};
+
 export const dslCallCompletionContextAt = (source: string, pos: number): DslCallCompletionContext => {
+  const transformationSpec = constructionFor("transformation", leadingIdentifierAt(source) ?? "");
+  if (transformationSpec) {
+    const open = topLevelOpenParen(source);
+    const headerContext = transformationHeaderContextAt(source, pos, transformationSpec.construction, open);
+    if (headerContext) return headerContext;
+    if (open < 0) return null;
+    const close = matchingParen(source, open);
+    return argumentContextAt(source, pos, transformationSpec, open, close >= 0 ? close : source.length);
+  }
+
   const bareSpec = bareConstructionFor(leadingIdentifierAt(source) ?? "");
   if (bareSpec) {
     const open = topLevelOpenParen(source);

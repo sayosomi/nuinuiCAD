@@ -248,6 +248,7 @@ const parseEffectiveDrawingModifierResolutions = (
 
 export type EvaluationPayload = {
   computedGeometry: ComputedGeometry[];
+  transformationStageGeometry?: Array<{ key: string; geometry: ComputedGeometry }>;
   computedGeometryValues?: ComputedGeometryValueEntry[];
   geometryValueErrors?: GeometryValueEvaluationError[];
   preMutationGeometry?: ComputedGeometry[];
@@ -278,6 +279,10 @@ export const evaluationResultToPayload = (result: EvaluationResult): EvaluationP
   const modifierResolutions = effectiveDrawingModifierResolutionsFromResult(result);
   return {
     computedGeometry: Array.from(result.computedGeometry.values()),
+    transformationStageGeometry: result.transformationStageGeometry?.size
+      ? Array.from(result.transformationStageGeometry, ([key, geometry]) => ({ key, geometry }))
+        .sort((left, right) => left.key.localeCompare(right.key))
+      : undefined,
     computedGeometryValues: result.computedGeometryValues?.size
       ? Array.from(result.computedGeometryValues.values())
       : undefined,
@@ -326,6 +331,9 @@ export const evaluationPayloadToResult = (
   payload: EvaluationPayload
 ): EvaluationResultWithDrawingModifierInspection => ({
   computedGeometry: new Map(payload.computedGeometry.map((geometry) => [geometry.elementId, geometry])),
+  transformationStageGeometry: new Map(
+    (payload.transformationStageGeometry ?? []).map(({ key, geometry }) => [key, geometry])
+  ),
   computedGeometryValues: new Map(
     (payload.computedGeometryValues ?? []).map((entry) => [geometryValueOccurrenceKey(entry.occurrence), entry])
   ),

@@ -77,12 +77,12 @@ export const referencePickModeStatusModelFor = ({
 }): PickModeStatusModel => {
   const numericDraft = session.draft.numericProperty?.draft;
   const draftReferences = session.draft.draftReferences;
-  const references = draftReferences.map(referencePickSourceForReference);
+  const references = draftReferences.map((reference) => referencePickSourceForReference(reference, session.target.syntax ?? "reference"));
   const orderedDraft = session.draft.multiplicity === "multiple" && session.target.role !== "numericPropertyBase"
     ? {
         entries: draftReferences.map((reference) => ({
           key: referencePickReferenceKey(reference),
-          label: referencePickSourceForReference(reference)
+          label: referencePickSourceForReference(reference, session.target.syntax ?? "reference")
         })),
         count: draftReferences.length,
         onMove: onMoveDraftEntry,

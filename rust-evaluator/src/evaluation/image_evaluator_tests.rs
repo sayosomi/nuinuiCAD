@@ -30,6 +30,8 @@ fn evaluate_image(target_pixels_per_mm: Value) -> EvaluationPayload {
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
         elements: vec![image_element(target_pixels_per_mm)],
         evaluation_limit_index: None,
         allow_disabled_element_ids: None,

@@ -57,21 +57,21 @@ describe("geometry source flow", () => {
     const compiled = compileWithIds([
       "nui 1",
       "line AB = segment(start: (0, 0), end: (10, 0))",
-      "reverse(target: @AB)",
-      "reverse(target: @AB)"
+      "reverse AB ()",
+      "reverse AB ()"
     ].join("\n"));
     const evaluation = evaluateCompiled(compiled);
     const line = named(compiled, "AB");
     const flow = buildGeometrySourceFlowByRuntimeElementId(compiled, evaluation).get(line.id);
     const reverseStatements = compiled.statements.filter(
-      (statement) => statement.kind === "element" && statement.construction === "reverse"
+      (statement) => statement.kind === "transformation" && statement.construction === "reverse"
     );
 
     expect(evaluation.errors).toEqual([]);
     expect(flow?.steps.map((step) => [step.kind, step.operation])).toEqual([
       ["construction", "segment"],
-      ["mutation", "reverse"],
-      ["mutation", "reverse"]
+      ["transformation", "reverse"],
+      ["transformation", "reverse"]
     ]);
     expect(flow?.steps[1].sourceSpan).toEqual(reverseStatements[0]?.physicalSpan);
     expect(flow?.steps[2].sourceSpan).toEqual(reverseStatements[1]?.physicalSpan);
@@ -117,30 +117,27 @@ describe("geometry source flow", () => {
       "point B = coordinate(x: 10, y: 0)",
       "for i in range(min: 0, max: 1, step: 1) {",
       "  line AB = segment(start: @A, end: @B)",
-      "  reverse(target: @AB)",
+      "  reverse AB ()",
       "}"
     ].join("\n"));
     const evaluation = evaluateCompiled(compiled);
     const lineRows = (evaluation.forGroupGeneratedRows ?? []).filter((row) => row.elementType === "line");
-    const reverseRows = (evaluation.forGroupGeneratedRows ?? []).filter((row) => row.elementType === "pathReverse");
     const flows = buildGeometrySourceFlowByRuntimeElementId(compiled, evaluation);
 
     expect(lineRows).toHaveLength(2);
-    expect(reverseRows).toHaveLength(2);
-    for (const [index, row] of lineRows.entries()) {
+    for (const row of lineRows) {
       const flow = flows.get(row.generatedElementId);
       expect(flow?.steps.map((step) => step.operation)).toEqual(["segment", "reverse"]);
       expect(flow?.steps[0].runtimeOperationElementId).toBe(row.generatedElementId);
-      expect(flow?.steps[1].runtimeOperationElementId).toBe(reverseRows[index]?.generatedElementId);
+      expect(flow?.steps[1].runtimeOperationElementId).toBe("flow:5");
     }
   });
 
-  it("maps separate module runtime occurrences to the same authoritative authored operations", () => {
+  it("maps separate module runtime occurrences to the same authoritative authored declarations", () => {
     const compiled = compileWithIds([
       "nui 1",
       "module M() {",
       "  export line L = segment(start: (0, 0), end: (10, 0))",
-      "  reverse(target: @L)",
       "}",
       "instance First = M()",
       "instance Second = M()"
@@ -152,11 +149,8 @@ describe("geometry source flow", () => {
     expect(lines).toHaveLength(2);
     const first = flows.get(lines[0].id);
     const second = flows.get(lines[1].id);
-    expect(first?.steps.map((step) => step.operation)).toEqual(["segment", "reverse"]);
-    expect(second?.steps.map((step) => step.operation)).toEqual(["segment", "reverse"]);
-    expect(first?.steps.map((step) => step.sourceStatementId)).toEqual(
-      second?.steps.map((step) => step.sourceStatementId)
-    );
+    expect(first?.steps.map((step) => step.operation)).toEqual(["segment"]);
+    expect(second?.steps.map((step) => step.operation)).toEqual(["segment"]);
     expect(first?.steps.map((step) => step.runtimeOperationElementId)).not.toEqual(
       second?.steps.map((step) => step.runtimeOperationElementId)
     );

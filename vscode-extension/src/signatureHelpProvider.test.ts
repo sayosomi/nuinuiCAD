@@ -216,11 +216,11 @@ describe("VS Code native nui Signature Help provider", () => {
     expect(construction?.signatures[0]?.label).not.toContain("id");
     expect(construction?.activeParameter).toBe(0);
 
-    const mutation = helpFor("nui 1\nmove(targets: @P, ");
-    expect(mutation?.signatures[0]?.label).toContain("targets:");
-    expect(mutation?.signatures[0]?.label).not.toContain("targets: line");
-    expect(mutation?.signatures[0]?.label).not.toContain("parent");
-    expect(mutation?.activeParameter).toBe(mutation?.signatures[0]?.parameters.length);
+    const transformation = helpFor("nui 1\nmove P (");
+    expect(transformation?.signatures[0]?.label).not.toContain("targets:");
+    expect(transformation?.signatures[0]?.label).toContain("from:");
+    expect(transformation?.signatures[0]?.label).not.toContain("parent");
+    expect(transformation?.activeParameter).toBe(transformation?.signatures[0]?.parameters.length);
   });
 
   it("projects exact Module defaults, optionality, and choices", () => {

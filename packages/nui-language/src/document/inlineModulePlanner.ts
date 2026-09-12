@@ -2223,6 +2223,7 @@ const ownerStatementIdForIdentity = (
     return identity.statementId;
   }
   if (identity.kind === "modifier") return null;
+  if (identity.kind === "transformationStage") return null;
   if (identity.kind === "recordField") return identity.field.recordStatementId;
   if (identity.kind === "typed") {
     const statementIndex = compiled.bindingAnalysis?.catalog.bindingsById.get(identity.bindingId)?.statementIndex;

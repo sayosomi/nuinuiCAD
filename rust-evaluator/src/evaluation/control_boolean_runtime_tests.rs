@@ -33,6 +33,8 @@ fn input(
         condition_expressions,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
     }
 }
 

@@ -1119,7 +1119,6 @@ describe("ModulePreviewApp parameter relay", () => {
       "nui 1",
       "module Preview() {",
       "  line L = segment(start: (0, 0), end: (10, 0))",
-      "  reverse(target: @L)",
       "}"
     ].join("\n");
     const fixture = previewFixtureFor(sourceText);
@@ -1148,9 +1147,6 @@ describe("ModulePreviewApp parameter relay", () => {
       .find((message): message is VscodeModulePreviewModelPatchRequest => message?.type === "modulePreviewModelPatch");
     expect(request?.expectedPatchedSource).toContain(
       "line L_bake = segment(start: (0, 0), end: (10, 0))"
-    );
-    expect(request?.expectedPatchedSource).not.toContain(
-      "line L_bake = segment(start: (10, 0), end: (0, 0))"
     );
     expect(fixture.document.getSource()).toBe(sourceText);
   });

@@ -24,7 +24,7 @@ const standardPropertiesSource = [
   "line Off = offset(sources: [@AB], distance: 3, side: @side, closed: @enabled, suppressTrimWarnings: @enabled)",
   "point Cross = intersection(line1: @AB, line2: @CD, index: 0, extensions: @enabled)",
   "line Copy = transformCopy(startPoint: @A, endPoint: @B, scale: 1, angleDeg: 0, mirrorX: @mirrored, baseLines: [@AB])",
-  "move(targets: [@AB], from: @A, to: @B, scale: 1, angleDeg: 0, mirrorX: @mirrored)",
+  "move AB (from: @A, to: @B, scale: 1, angleDeg: 0, mirrorX: @mirrored)",
   "image Guide = image(source: \"guide.png\", origin: (0, 0), scale: 1, angleDeg: 0, mirrorX: @mirrored)"
 ].join("\n");
 
@@ -134,7 +134,6 @@ describe("buildEvaluationOptions", () => {
       "Off:suppressTrimWarnings",
       "Cross:useExtensions",
       "Copy:mirrorX",
-      ":mirrorX",
       "Guide:mirrorX"
     ]));
 

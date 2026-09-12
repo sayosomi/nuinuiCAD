@@ -320,7 +320,7 @@ describe("Module v1 manual fixtures", () => {
     const mutation = compileSource([
       "nui 1",
       "module M(path: line) {",
-      "  move(targets: [@path], from: @path.start, to: @path.end, scale: 1, angleDeg: 0, mirrorX: false)",
+      "  move path (from: @path.start, to: @path.end, scale: 1, angleDeg: 0, mirrorX: false)",
       "}",
       "line Base = segment(start: (0, 0), end: (10, 0))",
       "instance Call = M(path: @Base)"

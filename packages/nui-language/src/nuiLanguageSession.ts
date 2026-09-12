@@ -27,8 +27,10 @@ import { queryDslFolding, type DslFoldingRange } from "./dsl/dslFoldingQuery";
 import {
   queryDslGeometryHoverDeclarationRange,
   queryDslGeometryHoverTarget,
+  queryDslTransformationHoverTarget,
   type DslGeometryHoverRange,
   type DslGeometryHoverTarget,
+  type DslTransformationHoverTarget,
   type DslHoverSemanticSnapshot
 } from "./dsl/dslHoverQuery";
 import {
@@ -324,6 +326,13 @@ export class NuiLanguageSession {
     const source = exactSourceFor(this.getSource(), this.getSourceRevision());
     const semantic = completionSemanticFor(state, source) as DslHoverSemanticSnapshot | null;
     return queryDslGeometryHoverTarget({ source, position: offset, ...(semantic ? { semantic } : {}) });
+  }
+
+  transformationHover(offset: number): DslTransformationHoverTarget | null {
+    const state = this.document.getState();
+    const source = exactSourceFor(this.getSource(), this.getSourceRevision());
+    const semantic = completionSemanticFor(state, source) as DslHoverSemanticSnapshot | null;
+    return queryDslTransformationHoverTarget({ source, position: offset, ...(semantic ? { semantic } : {}) });
   }
 
   hoverDeclarationRange(elementId: string): DslGeometryHoverRange | null {

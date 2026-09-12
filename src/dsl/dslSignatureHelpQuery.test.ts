@@ -56,21 +56,21 @@ describe("DSL Signature Help query", () => {
     expect(typo?.activeParameter).toBeUndefined();
   });
 
-  it("projects construction and mutation arguments through the completion-owned projection", () => {
+  it("projects construction and transformation arguments through the completion-owned projection", () => {
     const construction = queryAt("nui 1\npoint P = coordinate(y: ");
-    const mutation = queryAt("nui 1\nmove(targets: @P, ");
+    const transformation = queryAt("nui 1\nmove A (from: @P, ");
 
     expect(construction?.signatures[0]?.parameters.map((parameter) => parameter.name)).toEqual([
       "x", "y", "state", "steps"
     ]);
     expect(construction?.activeParameter).toBe(1);
     expect(construction?.signatures[0]?.parameters.some((parameter) => ["id", "roles", "parent", "branch"].includes(parameter.name))).toBe(false);
-    expect(mutation?.signatures[0]?.parameters.map((parameter) => parameter.name)).toEqual([
-      "targets", "from", "to", "scale", "angleDeg", "mirrorX", "state", "steps"
+    expect(transformation?.signatures[0]?.parameters.map((parameter) => parameter.name)).toEqual([
+      "from", "to", "scale", "angleDeg", "mirrorX", "enabled"
     ]);
-    expect(mutation?.signatures[0]?.parameters[0]).toMatchObject({
-      type: undefined,
-      documentation: { key: "signatureHelp.parameter.lineReferenceList" }
+    expect(transformation?.signatures[0]?.parameters[0]).toMatchObject({
+      type: "point",
+      documentation: { key: "signatureHelp.parameter.pointReference" }
     });
   });
 

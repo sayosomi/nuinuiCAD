@@ -25,8 +25,6 @@ const sourceWithAllDanglingKinds = [
   "point AnchorUser = offset(from: @MissingPoint, dx: 1, dy: 2)",
   'point DotAnchorUser = offset(from: @"Missing.Point", dx: 1, dy: 2)',
   'line DerivedAnchorUser = segment(start: @"Outer group"::"Missing shape#1".pivot, end: @A)',
-  'extend(end: @"Outer group"::"Missing line#1".end, to: @A, id: EndpointUser)',
-  'extend(end: @"Missing.Line".end, to: @A, id: EndpointDotUser)',
   'point NormalRefUser = intersection(line1: @MissingLine, line2: @"Missing line 2", index: 0, extensions: false)',
   'line ListRefUser = transformCopy(startPoint: @A, endPoint: @A, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@MissingLine, @"Missing line 2", @"Outer group"::"Missing#line"])',
   'point ParentUser = coordinate(x: 1, y: 1, parent: @"Outer group"::"Missing parent#1")',
@@ -37,8 +35,6 @@ describe("dangling reference diagnostics and retention", () => {
     const compiled = compileRecoverable(sourceWithAllDanglingKinds);
     const document = compiled.document!;
     const byName = new Map(document.elements.map((element) => [element.name, element]));
-    const byId = new Map(document.elements.map((element) => [element.id, element]));
-
     expect(compiled.diagnostics.every((item) => item.severity === "warning")).toBe(true);
     expect(compiled.diagnostics.every((item) => item.line > 0 && item.message.length > 0)).toBe(true);
     expect((byName.get("AnchorUser") as Extract<CadElement, { type: "offsetPoint" }>).fromPoint)
@@ -47,10 +43,6 @@ describe("dangling reference diagnostics and retention", () => {
       .toEqual({ mode: "reference", pointId: '@"Missing.Point"' });
     expect((byName.get("DerivedAnchorUser") as Extract<CadElement, { type: "line" }>).startPoint)
       .toEqual({ mode: "derived", elementId: '@"Outer group"::"Missing shape#1"', pointKey: "pivot" });
-    expect((byId.get("EndpointUser") as Extract<CadElement, { type: "extendTrim" }>).endpoint)
-      .toEqual({ lineId: '@"Outer group"::"Missing line#1"', endpointKey: "end" });
-    expect((byId.get("EndpointDotUser") as Extract<CadElement, { type: "extendTrim" }>).endpoint)
-      .toEqual({ lineId: '@"Missing.Line"', endpointKey: "end" });
     expect((byName.get("NormalRefUser") as Extract<CadElement, { type: "intersectionPoint" }>).line1Id)
       .toBe("@MissingLine");
     expect((byName.get("ListRefUser") as Extract<CadElement, { type: "copyLine" }>).baseLineIds)
@@ -68,8 +60,6 @@ describe("dangling reference diagnostics and retention", () => {
 
     expect(serialized).toContain('@"Outer group"::"Missing shape#1".pivot');
     expect(serialized).toContain('from: @"Missing.Point"');
-    expect(serialized).toContain('@"Outer group"::"Missing line#1".end');
-    expect(serialized).toContain('@"Missing.Line".end');
     expect(serialized).toContain('baseLines: [@MissingLine, @"Missing line 2", @"Outer group"::"Missing#line"]');
     expect(serialized).not.toContain('"Outer group::Missing');
     expect(serializeDocumentToDsl(second.document!, 1)).toBe(serialized);

@@ -12,6 +12,8 @@ fn evaluate_text(font_size: f64) -> EvaluationPayload {
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
         elements: vec![json!({
             "id": "text",
             "name": "注記",

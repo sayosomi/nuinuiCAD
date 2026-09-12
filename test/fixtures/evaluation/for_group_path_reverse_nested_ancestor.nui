@@ -4,6 +4,6 @@ point P2 = coordinate(x: 10, y: 0)
 for i in range(min: 0, max: 1, step: 1) {
   line AB = segment(start: @P1, end: @P2)
   for j in range(min: 0, max: 1, step: 1) {
-    reverse(target: @AB)
+    reverse AB ()
   }
 }

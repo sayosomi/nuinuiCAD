@@ -124,6 +124,7 @@ const nonElementKinds = new Set<DslStatement["kind"]>([
   "modifierProfileBlock",
   "moduleInstance",
   "typedDeclaration",
+  "transformation",
   "set",
   "blockEnd",
   "blockElse"
@@ -224,6 +225,16 @@ const callStatementToDslStatement = (
   const base = withSyntheticPositionalAttr(call, baseFrom(call, line, endLine));
   if (call.category === "group") {
     return { ...base, kind: "group" };
+  }
+  if (call.category === "transformation") {
+    return {
+      ...base,
+      kind: "transformation",
+      construction: call.construction as "edge" | "extend" | "move" | "mirrorMove" | "reverse",
+      targets: call.transformationTargets ?? [],
+      stageName: call.stageName ?? null,
+      stageNameSpan: call.stageNameSpan ?? null
+    };
   }
   return {
     ...base,
@@ -858,6 +869,7 @@ export const blockFrameKind = (statement: DslStatement): BlockFrame["kind"] | nu
     if (statement.type === "conditionalGroup") return "conditionalGroup";
     if (statement.type === "forGroup") return "forGroup";
   }
+  if (statement.kind === "transformation") return null;
   return null;
 };
 
@@ -1107,6 +1119,9 @@ const decorateStatement = (statement: DslStatement, logical: LogicalStatement, s
   if (statement.kind === "element" || statement.kind === "group") {
     if (statement.kind === "element") statement.exportPhysicalSpan = statement.exportSpan ? project(statement.exportSpan) : null;
     statement.modifierNamePhysicalSpans = (statement.modifierNameSpans ?? []).map((span) => project(span));
+  } else if (statement.kind === "transformation") {
+    statement.targetPhysicalSpans = statement.targets.map((target) => project(target.span));
+    statement.stageNamePhysicalSpan = statement.stageNameSpan ? project(statement.stageNameSpan) : null;
   } else if (statement.kind === "moduleDefinition") {
     statement.exportPhysicalSpan = statement.exportSpan ? project(statement.exportSpan) : null;
     for (const parameter of statement.parameters) {

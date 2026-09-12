@@ -5,9 +5,9 @@ import { isDslGeometryValueType } from "./dslValueTypes";
 export type DslStatementInclusion = (statement: DslStatement, statementIndex: number) => boolean;
 
 /**
- * Task 1 module definitions are source-AST-only. Until module lowering exists,
- * every statement whose enclosing chain reaches a module definition must stay
- * out of the existing geometry/scalar compilation paths.
+ * Module definitions stay out of the ordinary root geometry/scalar paths.
+ * Their concrete geometry and declarative transformation recipes are lowered
+ * by the dedicated module materialization/compiler boundary.
  */
 export const isInUnloweredModuleSubtree = (
   statements: readonly DslStatement[],

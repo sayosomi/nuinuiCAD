@@ -35,6 +35,7 @@ export const DSL_CONTAINER_CATEGORIES = ["group", "if", "for"] as const;
 export type DslConstructionCategory =
   | DslGeometryDeclarationCategory
   | typeof DSL_CONTAINER_CATEGORIES[number]
+  | "transformation"
   | typeof MUTATION_CATEGORY;
 
 export const isGeometryDeclarationCategory = (category: string): category is DslGeometryDeclarationCategory =>
@@ -185,6 +186,43 @@ const constructionSpecs: DslConstructionSpec[] = [
     args: [required("axis1", "axisPoint1"), required("axis2", "axisPoint2"), required("baseLines", "baseLineIds")],
   },
   {
+    category: "transformation",
+    construction: "edge",
+    elementType: "edge",
+    args: [arg("index", "intersectionIndex"), arg("enabled")],
+  },
+  {
+    category: "transformation",
+    construction: "extend",
+    elementType: "extendTrim",
+    args: [required("to", "point"), arg("enabled")],
+  },
+  {
+    category: "transformation",
+    construction: "move",
+    elementType: "move",
+    args: [
+      required("from", "startPoint"),
+      required("to", "endPoint"),
+      arg("scale"),
+      arg("angleDeg"),
+      arg("mirrorX"),
+      arg("enabled"),
+    ],
+  },
+  {
+    category: "transformation",
+    construction: "mirrorMove",
+    elementType: "symmetricMove",
+    args: [required("axis1", "axisPoint1"), required("axis2", "axisPoint2"), arg("enabled")],
+  },
+  {
+    category: "transformation",
+    construction: "reverse",
+    elementType: "pathReverse",
+    args: [arg("enabled")],
+  },
+  {
     category: MUTATION_CATEGORY,
     construction: "edge",
     elementType: "edge",
@@ -270,7 +308,13 @@ const specsByCall = new Map(constructionSpecs.map((spec) => [`${spec.category}\u
 const specsByElementType = new Map<CadElementType, DslConstructionSpec>();
 
 for (const spec of constructionSpecs) {
-  if (!specsByElementType.has(spec.elementType)) specsByElementType.set(spec.elementType, spec);
+  const existing = specsByElementType.get(spec.elementType);
+  // Transformation clauses and legacy CadElement serializers share runtime
+  // element types, but the latter must retain the mutation-shaped parameter
+  // schema for internal construction of synthetic evaluator elements.
+  if (!existing || (existing.category === "transformation" && spec.category === MUTATION_CATEGORY)) {
+    specsByElementType.set(spec.elementType, spec);
+  }
 }
 
 export const constructionFor = (category: string, construction: string): DslConstructionSpec | null =>

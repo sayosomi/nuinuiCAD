@@ -1,9 +1,11 @@
 import type { BindingAnalysis } from "../scalars/bindingAnalysis";
 import { elementTypeCategories, type CadElement, type ElementId } from "../types/geometry";
 import type { CompiledDslDocument } from "./dslDocument";
+import type { DslStatement } from "./dslTypes";
 import {
   createDslSemanticOccurrenceIndex,
-  dslSemanticOccurrenceAt
+  dslSemanticOccurrenceAt,
+  type DslSemanticOccurrence
 } from "./dslSemanticOccurrenceIndex";
 import type { SourceRevision, SourceSnapshot } from "./logicalStatementSourceMap";
 import { sourceOwnerByRuntimeElementId, type SourceOwner } from "./sourceOwnership";
@@ -22,6 +24,12 @@ export type DslGeometryHoverTarget = {
   elementId: ElementId;
 };
 
+export type DslTransformationHoverTarget = {
+  kind: "transformationTarget" | "transformationStage";
+  range: DslGeometryHoverRange;
+  markdown: string;
+};
+
 export type DslGeometryHoverQueryInput = {
   source: SourceSnapshot;
   position: number;
@@ -33,6 +41,8 @@ export type DslGeometryHoverDeclarationQueryInput = {
   elementId: ElementId;
   semantic?: DslHoverSemanticSnapshot;
 };
+
+export type DslTransformationHoverQueryInput = DslGeometryHoverQueryInput;
 
 const semanticSourceText = (semantic: DslHoverSemanticSnapshot) =>
   semantic.sourceText ?? semantic.compiled?.spans.sourceMap.source;
@@ -54,6 +64,47 @@ const isSupportedNamedGeometry = (element: CadElement | undefined): element is C
     element.name.trim().length > 0 &&
     (elementTypeCategories[element.type] === "point" || elementTypeCategories[element.type] === "line")
   );
+
+const transformationOccurrenceStatement = (
+  compiled: CompiledDslDocument,
+  occurrence: DslSemanticOccurrence
+): Extract<DslStatement, { kind: "transformation" }> | undefined => compiled.statements.find((statement): statement is Extract<DslStatement, { kind: "transformation" }> =>
+  statement.kind === "transformation" && statement.physicalSpan.segments.some((segment) =>
+    occurrence.from >= segment.from && occurrence.to <= segment.to
+  )
+);
+
+export const queryDslTransformationHoverTarget = ({
+  source,
+  position,
+  semantic
+}: DslTransformationHoverQueryInput): DslTransformationHoverTarget | null => {
+  if (!Number.isInteger(position) || position < 0 || position > source.normalizedSource.length || !semanticIsExact(source, semantic)) return null;
+  const compiled = semantic.compiled;
+  const occurrenceIndex = createDslSemanticOccurrenceIndex(compiled, semantic.bindingAnalysis ?? compiled.bindingAnalysis);
+  const occurrence = dslSemanticOccurrenceAt(occurrenceIndex, position);
+  if (!occurrence) return null;
+  const identity = occurrence.identity;
+  const statement = transformationOccurrenceStatement(compiled, occurrence);
+  if (!statement) return null;
+  if (identity.kind === "transformationStage") {
+    const recipe = (compiled.transformationRecipes ?? compiled.document?.transformationRecipes ?? [])
+      .find((candidate) => candidate.id === identity.recipeId);
+    if (!recipe?.stageName) return null;
+    return {
+      kind: "transformationStage",
+      range: { from: occurrence.from, to: occurrence.to },
+      markdown: `**Stage** \`${recipe.stageName}\`\n\nImmutable geometry checkpoint produced by \`${recipe.construction}\`.`,
+    };
+  }
+  if (identity.kind !== "element" && identity.kind !== "module") return null;
+  const text = source.normalizedSource.slice(occurrence.from, occurrence.to);
+  return {
+    kind: "transformationTarget",
+    range: { from: occurrence.from, to: occurrence.to },
+    markdown: `**Transformation target** \`${text}\`\n\nBare geometry owner selector used by \`${statement.construction}\`.`,
+  };
+};
 
 const isInsideGeneratedForGroup = (
   compiled: CompiledDslDocument,

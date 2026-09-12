@@ -416,6 +416,21 @@ profile resolution comes from `sourceLexicalNamespaceIndex`; numeric fields use
 the shared scalar binding compiler. `DslDocumentData` stores these three source
 models and does not own an active output selection or an export/preview runtime.
 
+Declarative geometry transformations are a separate parser/compiler product:
+`dslCallParser.ts` owns the `operation target [as stage] (...)` header and its
+source ranges, `transformationRecipes.ts` owns the host-neutral target/stage/
+operation representation, and `dslCompiler.ts` resolves targets and arguments
+without adding a drawable element for the clause. `DslDocumentData` carries the
+root source recipes alongside drawable declarations. Module-body semantic
+analysis accepts the same recipe statements; `dslCompiler.ts` compiles
+source-stage templates for language tooling and expands them per concrete
+`moduleMaterialization` instance into runtime-only recipes. The shared TS/Rust
+evaluators consume that runtime list, while named stage snapshots remain
+evaluator value data and are not materialized Canvas elements. Module-local
+ownership and stage locality remain inside the existing module
+semantic/materialization boundary; module parameters are not mutable
+transformation owners.
+
 ### Multi-document import graph / public API
 
 Primary:
@@ -625,7 +640,17 @@ production evaluator input としてそのまま評価される。
 
 ### TypeScript evaluation
 
-`EvaluationResult.geometryMutationExecutions` is the production/reference parity fact for successful in-place geometry mutations. It contains only the runtime mutation occurrence ID and the target geometry IDs, in actual execution order; disabled, inactive, skipped, or failed mutations are absent. Rust emits the same JSON-friendly field through the ordinary evaluation payload.
+`EvaluationResult.transformationStageGeometry` is the production/reference
+parity fact for immutable named checkpoints produced by declarative
+transformation recipes. `src/geometry/evaluate.ts` applies each compiled recipe
+in authored source order, keeps branch snapshots separate from the drawable
+owner's final geometry, and expands generated bulk/indexed selectors through the
+existing occurrence rows. Rust consumes the same JSON-shaped recipe product at
+the stable `evaluate_document(input)` boundary and returns the same stage map.
+
+`EvaluationResult.geometryMutationExecutions` remains a compatibility fact for
+pre-existing programmatic runtime element inputs; the nui1 source compiler no
+longer emits those mutation-shaped elements for the five declarative operations.
 
 `src/geometry/geometrySourceFlow.ts` joins those runtime facts with the exact-current `CompiledDslDocument`. Construction and mutation steps resolve through `sourceOwnership`; `forGroupGeneratedRows` maps generated runtime occurrences back to their source templates. The resulting host-neutral steps carry reconciler-owned source statement identity and exact physical source span. Consumers must use this structured join rather than parsing runtime IDs, searching source text, or reconstructing evaluator semantics.
 

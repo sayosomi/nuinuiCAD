@@ -20,6 +20,8 @@ fn input(elements: Vec<Value>, scalar_program: Option<Value>) -> EvaluationInput
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
     }
 }
 

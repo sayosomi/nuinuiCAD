@@ -33,7 +33,7 @@ reads an exported module value, and `@value.property` reads a property that
 the referenced value publishes. Collection values expose the read-only numeric
 property `length`; it counts authored members, including duplicates, after
 whole-value aliases are resolved. Reads happen at the source position: a
-later mutation does not change an earlier scalar read. Hidden geometry remains
+later transformation does not change an earlier scalar read. Hidden geometry remains
 readable; disabled, failed, or not-yet-evaluated geometry is unavailable.
 
 Generated drawable occurrences from a `for` statement use an explicit

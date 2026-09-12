@@ -1044,7 +1044,7 @@ A parameter may be `point`, `line`, `path`, `number`, `string`, `boolean`,
 `choice(...)`, a nominal record type, or a one-dimensional `T[]` whose element
 type is one of those non-array value types. Singular geometry
 parameters are resolved external targets exposed inside the module as read-only
-aliases. A singular geometry parameter cannot be a mutation target. Geometry-array
+aliases. A singular geometry parameter cannot be a transformation target. Geometry-array
 parameters are immutable ordered values; they may be passed as inline literals or
 named array references and do not have defaults.
 
@@ -1278,20 +1278,18 @@ with this local `const` alias syntax; a parameter whose interface is `point`,
 side. An exported alias is referenced through its instance with the ordinary
 qualified form, for example `@front::outline`.
 
-## Mutations
+## Declarative transformation recipes
 
-The existing mutation concepts remain available: `edge`, `extend`, `move`,
-`mirrorMove`, and `reverse`, among others already supported by the construction
-model. Every target and source operand is a nui1 reference using `@`:
+Transformations are immutable declarative recipes. Their canonical form is an
+operation followed by a bare target, an optional named checkpoint, and the
+operation arguments:
 
 ```text
-extend(
-  end: @AB.start,
+extend AB.end as extended(
   to: @A,
 )
 
-move(
-  targets: [@AB],
+move [AB, C] as moved(
   from: @A,
   to: @B,
   scale: 1,
@@ -1299,16 +1297,52 @@ move(
   mirrorX: false,
 )
 
-reverse(
-  target: @AB,
-)
+reverse AB as reversed()
 ```
 
-A mutation cannot target an element that appears later in document order. A
-module geometry parameter alias cannot be a mutation target. After an instance
-has completed, its exported, module-owned geometry may be a mutation target;
-private members and read-only external aliases remain protected by visibility
-and mutability diagnostics.
+The target slot is not a nui1 value/reference slot. A target is written bare,
+for example `A`, `[A, B]`, `A.end`, or `A.moved.end`; it is never written with
+`@`. The `@` sigil remains the value/reference syntax, including operation
+arguments such as `from: @A` and stage references such as `from:
+@A.moved.start`. Endpoint targets use `.start` or `.end`. Module-qualified
+targets use their qualified bare path, for example `front::outline`.
+
+At the root, `base` denotes the owner's original geometry and `final` denotes
+the owner's resulting geometry. An optional `as name` clause creates an
+immutable named checkpoint. A checkpoint is a semantic geometry snapshot, not
+an independent drawable Canvas element. `base` is a valid branch target;
+`final` is reference-only and is invalid as a transformation target. A stage
+name may not be `base` or `final`, and a stage name may not collide with a
+geometry property name of its owner.
+
+Recipes are evaluated in root source order. A named stage owns a recursive
+branch: a later recipe targeting `A.stage` reads and extends that branch. When
+the target is already a stage, the resulting checkpoint remains in that branch;
+an empty branch has the implicit `.final` result. The first recipe in a branch
+reads the branch's `base` snapshot. Transformation targets must refer to
+available geometry in the settled source order; SAY-291's general
+forward-reference/global scheduling semantics are not part of this contract.
+
+An operation may target one owner or several coupled owners. Coupled operations
+produce independent resulting checkpoints for each owner. Generated geometry
+supports both bulk and indexed occurrence targets. An occurrence-first stage
+spelling such as `@Mark[2].shifted` is a value/reference to the named stage of
+that occurrence. Bulk and indexed matching clauses merge in source order for
+each occurrence. A bulk target with zero occurrences is a no-op; an explicit
+occurrence that is unavailable is an error.
+
+Each owner and branch may have at most one sibling stage with a given name.
+`enabled: false` bypasses only that transformation. The target geometry remains
+available, and when the clause declares `as stage`, that stage still exists and
+contains the unchanged input geometry. Later transformations continue normally.
+The transformation target ownership, module qualification, and visibility
+rules remain those of the existing declaration and instance model; module
+geometry parameters are not made mutable transformation owners.
+
+The old call-shaped mutation syntax is not accepted and has no compatibility
+layer. Forms such as `move(targets: [@AB], ...)`, `extend(end: ..., to: ...)`,
+and `reverse(target: @AB)` are invalid nui1. SAY-294's drawable materialization
+from stage values is not part of this contract.
 
 ## Text interpolation
 
@@ -1522,25 +1556,18 @@ const selectedX: number = @selected.x
 ```
 
 Existing broad line-list consumers treat their list value as `path[]`. This
-includes `offset.sources`, `transformCopy.baseLines`, `mirrorCopy.baseLines`,
-`move.targets`, and `mirrorMove.targets`. An inline literal and a named `path[]`
+includes `offset.sources`, `transformCopy.baseLines`, and `mirrorCopy.baseLines`.
+These are value/reference list slots, so an inline literal and a named `path[]`
 value are semantically equivalent at these sites:
 
 ```text
-const targets: path[] = [@肩線, @脇線]
-
-move(
-  targets: @targets,
-  from: @A,
-  to: @B,
-  scale: 1,
-  angleDeg: 0,
-  mirrorX: false,
-)
+const sources: path[] = [@肩線, @脇線]
 ```
 
 A named array reference remains a named reference in source; canonical
-formatting does not flatten it into an inline literal. Runtime lowering feeds
+formatting does not flatten it into an inline literal. Transformation target
+lists are separate bare selectors, as specified above, and do not accept a
+named `path[]` value. Runtime lowering feeds
 the resolved ordered geometry members into the existing geometry-list paths;
 scalar and nominal-record collections remain source-semantic values until a
 later collection-consumer slice.
@@ -1684,9 +1711,7 @@ module Panel(
     )
   }
 
-  reverse(
-    target: @detail,
-  )
+  reverse detail ()
 }
 
 instance front(state: hidden) = Panel(
@@ -1695,9 +1720,7 @@ instance front(state: hidden) = Panel(
   seam: @seam,
 )
 
-reverse(
-  target: @front::outline,
-)
+reverse front::outline ()
 
 group 前身頃 {
   line stitching = segment(
@@ -1720,8 +1743,7 @@ group 前身頃 {
     )
   }
 
-  mirrorMove(
-    targets: [@stitching],
+  mirrorMove stitching(
     axis1: @A,
     axis2: @B,
   )
@@ -1739,7 +1761,7 @@ stop
 
 The example also demonstrates that `front` is defined before it is referenced,
 that the module's `seamLine` is a read-only external geometry alias, and that
-the post-instance mutation targets exported, module-owned geometry.
+the post-instance transformation targets exported, module-owned geometry.
 
 ## nui3 to nui1 mapping
 

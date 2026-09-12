@@ -164,6 +164,14 @@ export const createNuiHoverProvider = (
       );
     }
 
+    const transformation = session.transformationHover(normalizedOffset);
+    if (transformation) {
+      return new vscode.Hover(
+        new vscode.MarkdownString(transformation.markdown),
+        vscodeRangeForNormalized(document, rawSource, transformation.range)
+      );
+    }
+
     const current = currentTargetFor(rawSource, session, normalizedOffset);
     if (!current) return undefined;
 

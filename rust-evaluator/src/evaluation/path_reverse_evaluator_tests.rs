@@ -24,6 +24,8 @@ fn path_reverse_flips_target_line_in_place_without_own_geometry() {
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 100.0, 0.0),
@@ -67,6 +69,8 @@ fn path_reverse_reports_dependency_error_for_missing_target() {
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
         elements: vec![path_reverse("reverse", "", "missing-line")],
         evaluation_limit_index: None,
         allow_disabled_element_ids: None,
@@ -104,6 +108,8 @@ fn path_reverse_does_not_apply_inside_a_disabled_group() {
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 100.0, 0.0),
@@ -154,6 +160,8 @@ fn path_reverse_only_applies_in_the_active_conditional_branch() {
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
         elements: elements_for(1, "else"),
         evaluation_limit_index: None,
         allow_disabled_element_ids: None,
@@ -178,6 +186,8 @@ fn path_reverse_only_applies_in_the_active_conditional_branch() {
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
         elements: elements_for(1, "then"),
         evaluation_limit_index: None,
         allow_disabled_element_ids: None,
@@ -216,6 +226,8 @@ fn path_reverse_allows_target_declared_in_the_same_for_loop() {
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 100.0, 0.0),
@@ -261,6 +273,8 @@ fn path_reverse_generated_clone_keeps_model_name_empty_but_reports_display_name_
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 100.0, 0.0),
@@ -316,6 +330,8 @@ fn path_reverse_rejects_target_declared_outside_its_for_loop() {
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 100.0, 0.0),
@@ -357,6 +373,8 @@ fn path_reverse_rejects_nested_inner_loop_reverse_targeting_outer_loop_only_elem
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 100.0, 0.0),
@@ -401,6 +419,8 @@ fn path_reverse_allows_nested_inner_loop_reverse_targeting_same_inner_loop_eleme
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 100.0, 0.0),
@@ -441,6 +461,8 @@ fn path_reverse_reports_geometry_error_for_non_line_target() {
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             path_reverse("reverse", "", "a"),

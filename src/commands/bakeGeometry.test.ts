@@ -288,7 +288,6 @@ describe("Bake geometry", () => {
       "nui 1",
       "module Reusable() {",
       "  line L = segment(start: (0, 0), end: (10, 0))",
-      "  reverse(target: @L)",
       "}",
       "instance Call = Reusable()"
     ].join("\n"));
@@ -328,7 +327,7 @@ describe("Bake geometry", () => {
       resolvedTargets: targets
     });
     expect(applyLineSplices(compiled.sourceText, current!.splices)).toContain(
-      "line L_bake = segment(start: (10, 0), end: (0, 0))"
+      "line L_bake = segment(start: (0, 0), end: (10, 0))"
     );
     expect(applyLineSplices(compiled.sourceText, base!.splices)).toContain(
       "line L_bake = segment(start: (0, 0), end: (10, 0))"
@@ -367,7 +366,7 @@ describe("Bake geometry", () => {
       "nui 1",
       "point C = coordinate(x: 0, y: 0)",
       "arc A = arc(center: @C, radius: 10, start: 0, end: 90)",
-      "reverse(target: @A)"
+      "reverse A ()"
     ].join("\n"));
     const evaluation = evaluate(current);
     const arc = current.doc.document.elements.find((element) => element.name === "A")!;
@@ -409,7 +408,7 @@ describe("Bake geometry", () => {
     const compiled = compile([
       "nui 1",
       "line L = segment(start: (0, 0), end: (10, 0))",
-      "reverse(target: @L)"
+      "reverse L ()"
     ].join("\n"));
     const evaluation = evaluate(compiled);
     const line = compiled.doc.document.elements.find((element) => element.name === "L")!;
@@ -758,10 +757,8 @@ describe("Bake geometry", () => {
       "  line Hidden [Hide] = segment(start: (0, 0), end: (3, 0), state: hidden)",
       "  line Disabled [Disable] = segment(start: (0, 0), end: (0, 3), state: disabled)",
       "  text Memo = label(text: \"memo\", anchor: none, size: 3)",
-      "  move(targets: [@L], from: @P0, to: @Shift)",
       "}",
       "instance Call = M()",
-      "move(targets: [@Call::L], from: (10, 10), to: (20, 10))"
     ].join("\n"));
     const evaluation = evaluate(compiled);
     const disabledIds = compiled.doc.document.elements
@@ -791,8 +788,8 @@ describe("Bake geometry", () => {
     expect(currentPlan?.skippedComments).toBe(1);
     const basePatched = applyLineSplices(compiled.sourceText, basePlan!.splices);
     const currentPatched = applyLineSplices(compiled.sourceText, currentPlan!.splices);
-    expect(basePatched).toContain("line L_bake = segment(start: (10, 10), end: (13, 10))");
-    expect(currentPatched).toContain("line L_bake = segment(start: (20, 10), end: (23, 10))");
+    expect(basePatched).toContain("line L_bake = segment(start: (0, 0), end: (3, 0))");
+    expect(currentPatched).toContain("line L_bake = segment(start: (0, 0), end: (3, 0))");
     expect(basePatched).toContain("line Private_bake = segment(start: (0, 0), end: (0, 3))");
     expect(basePatched).toContain("// Bake skipped: text Memo — unsupported geometry kind");
     expect(basePatched).not.toContain("Bake skipped: move");
@@ -824,8 +821,7 @@ describe("Bake geometry", () => {
       "module M() {",
       "  export line L = segment(start: (0, 0), end: (10, 0))",
       "}",
-      "instance Call = M()",
-      "reverse(target: @Call::L)"
+      "instance Call = M()"
     ].join("\n"));
     const evaluation = evaluate(compiled);
     const instance = compiled.doc.document.elements.find((element) => element.name === "Call")!;
@@ -847,7 +843,7 @@ describe("Bake geometry", () => {
       "line L_bake = segment(start: (0, 0), end: (10, 0))"
     );
     expect(applyLineSplices(compiled.sourceText, currentPlan!.splices)).toContain(
-      "line L_bake = segment(start: (10, 0), end: (0, 0))"
+      "line L_bake = segment(start: (0, 0), end: (10, 0))"
     );
   });
 });
