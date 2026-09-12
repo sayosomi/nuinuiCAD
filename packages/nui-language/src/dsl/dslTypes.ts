@@ -119,7 +119,7 @@ export type DslRecordField = {
   kind: "recordField";
   name: string;
   nameSpan: DslSpan;
-  type: ScalarType | null;
+  type: DslValueType | null;
   typeSpan: DslSpan | null;
   choiceOptionSpans: readonly DslSpan[];
   numericTypeOptions?: DslNumericTypeOptions;

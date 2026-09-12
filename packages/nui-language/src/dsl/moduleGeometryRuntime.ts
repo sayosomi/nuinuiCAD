@@ -95,7 +95,8 @@ export const buildModuleGeometryRuntime = ({
   moduleSemanticAnalysis,
   moduleMaterialization,
   moduleRuntimeContext,
-  sourceNamespace
+  sourceNamespace,
+  rootRecordValuesByStatementId = moduleSemanticAnalysis.rootRecordValuesByStatementId
 }: {
   statements: readonly DslStatement[];
   stableStatementIdByIndex: ReadonlyMap<number, string>;
@@ -103,6 +104,7 @@ export const buildModuleGeometryRuntime = ({
   moduleMaterialization: ModuleMaterialization;
   moduleRuntimeContext?: ModuleRuntimeContext;
   sourceNamespace?: SourceLexicalNamespaceIndex;
+  rootRecordValuesByStatementId?: ReadonlyMap<string, import("./moduleSemanticTypes").ModuleRecordValueSemantic>;
 }): ModuleGeometryRuntimeCompilation => {
   const diagnostics: DslDiagnostic[] = [];
   const contextsByPath = new Map<string, InstanceContext>();
@@ -114,7 +116,7 @@ export const buildModuleGeometryRuntime = ({
 
   const exportAliasFor = (path: readonly string[], exported: Extract<ResolvedModuleExport, { kind: "geometry" }>): GeometryAlias | undefined => {
     if (exported.backingTarget) {
-      return sourceAliasForTarget(exported.backingTarget, path, contextsByPath, moduleMaterialization, exportsByPath);
+      return sourceAliasForTarget(exported.backingTarget, path, contextsByPath, moduleMaterialization, exportsByPath, rootRecordValuesByStatementId);
     }
     if (!exported.category && (exported.interfaceType === "point" || exported.interfaceType === "line" || exported.interfaceType === "path")) {
       return {
@@ -152,6 +154,7 @@ export const buildModuleGeometryRuntime = ({
       instanceDocumentId,
       definitionStatementId: definition.statementId,
       definitionDocumentId,
+      instance,
       definition,
       aliases: new Map()
     };
@@ -172,7 +175,7 @@ export const buildModuleGeometryRuntime = ({
       const binding = instance.parameterBindings.find((candidate) => candidate.parameterIndex === parameter.parameterIndex);
       if (binding?.value?.kind !== "geometry") continue;
       const instanceStatement = moduleRuntimeContext?.documentFor(instanceDocumentId)?.statements[instance.statementIndex] ?? statements[instance.statementIndex];
-      const alias = lowerReference(binding.value.reference, parentPath, instanceStatement, contextsByPath, moduleMaterialization, exportsByPath);
+      const alias = lowerReference(binding.value.reference, parentPath, instanceStatement, contextsByPath, moduleMaterialization, exportsByPath, rootRecordValuesByStatementId);
       if (alias) (context.aliases as Map<number, GeometryAlias>).set(parameter.parameterIndex, alias);
     }
     for (const body of definition.bodyStatements) {
@@ -379,8 +382,9 @@ export const buildModuleGeometryRuntime = ({
       statementIndex: entry.sourceStatementIndex,
       contextsByPath,
       materialization: moduleMaterialization,
-      exportsByPath,
-      resolveLineReferenceTargetAt: geometryArrayRuntime.resolveLineReferenceTargetAt,
+    exportsByPath,
+    rootRecordValuesByStatementId,
+    resolveLineReferenceTargetAt: geometryArrayRuntime.resolveLineReferenceTargetAt,
       resolvePointReferenceAt: geometryArrayRuntime.resolvePointReferenceAt
     });
     const targetsForElement = new Map<string, RuntimeGeometryInputTarget | readonly RuntimeGeometryInputTarget[]>();
@@ -427,8 +431,21 @@ export const buildModuleGeometryRuntime = ({
     instancePath: readonly string[],
     elementsById: ReadonlyMap<ElementId, CadElement>
   ): ModuleGeometryPropertyRuntimeTarget | undefined => {
+    if (target.kind === "recordField") {
+      if (!target.property) return undefined;
+      const fieldTarget: ModuleGeometrySourceTarget = {
+        kind: "recordFieldValue",
+        record: target.record,
+        field: target.field,
+        fieldName: target.fieldName,
+        valueType: target.valueType,
+        ...(target.fieldPath ? { fieldPath: target.fieldPath } : {}),
+        ...(target.collectionIndex !== undefined ? { collectionIndex: target.collectionIndex } : {})
+      };
+      const alias = sourceAliasForTarget(fieldTarget, instancePath, contextsByPath, moduleMaterialization, exportsByPath, rootRecordValuesByStatementId);
+      return alias ? propertyForAlias(alias, target.property, elementsById) : undefined;
+    }
     if (
-      target.kind === "recordField" ||
       target.kind === "collectionValueLength" ||
       target.kind === "collectionParameterLength" ||
       target.kind === "deferredModuleCollectionExportLength"
@@ -454,7 +471,7 @@ export const buildModuleGeometryRuntime = ({
         ...(target.pointKey ? { pointKey: target.pointKey } : {}),
         ...(target.identity ? { identity: target.identity } : {})
       };
-      const alias = sourceAliasForTarget(baseTarget, instancePath, contextsByPath, moduleMaterialization, exportsByPath);
+      const alias = sourceAliasForTarget(baseTarget, instancePath, contextsByPath, moduleMaterialization, exportsByPath, rootRecordValuesByStatementId);
       return alias ? propertyForAlias(alias, target.property, elementsById) : undefined;
     }
     const baseTarget: ModuleGeometrySourceTarget = target.kind === "parameterProperty"
@@ -474,14 +491,14 @@ export const buildModuleGeometryRuntime = ({
               ...(target.identity ? { identity: target.identity } : {})
             }
         : { ...target, kind: "deferredModuleExport", expectedGeometryKind: "line" };
-    const alias = sourceAliasForTarget(baseTarget, instancePath, contextsByPath, moduleMaterialization, exportsByPath);
+    const alias = sourceAliasForTarget(baseTarget, instancePath, contextsByPath, moduleMaterialization, exportsByPath, rootRecordValuesByStatementId);
     return alias ? propertyForAlias(alias, target.property, elementsById) : undefined;
   };
 
   const coordinateForReference = (reference: ModuleGeometryReferenceSemantic, instancePath: readonly string[]) => {
     if (reference.coordinate) return reference.coordinate;
     if (!reference.target) return undefined;
-    const alias = sourceAliasForTarget(reference.target, instancePath, contextsByPath, moduleMaterialization, exportsByPath);
+    const alias = sourceAliasForTarget(reference.target, instancePath, contextsByPath, moduleMaterialization, exportsByPath, rootRecordValuesByStatementId);
     return alias?.kind === "point" ? alias.coordinate : undefined;
   };
 
@@ -490,7 +507,7 @@ export const buildModuleGeometryRuntime = ({
     instancePath: readonly string[],
     expectedGeometryType: Extract<ModuleGeometryInterfaceType, "point" | "line">
   ): ModuleGeometryBuiltinRuntimeTarget | undefined => {
-    const alias = sourceAliasForTarget(target, instancePath, contextsByPath, moduleMaterialization, exportsByPath);
+    const alias = sourceAliasForTarget(target, instancePath, contextsByPath, moduleMaterialization, exportsByPath, rootRecordValuesByStatementId);
     if (!alias) return undefined;
     if (alias.kind === "forGroupOccurrence") {
       return {

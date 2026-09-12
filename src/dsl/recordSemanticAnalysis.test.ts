@@ -39,6 +39,23 @@ describe("record nominal semantic analysis", () => {
     expect(value?.constructor?.fields.map((field) => field.expectedType.kind)).toEqual(["number", "string"]);
   });
 
+  it("keeps geometry, collection, and nested record field identities nominal", () => {
+    const { records, namespace } = analyze([
+      "nui 1",
+      "record Metadata(label: string)",
+      "record Piece(outline: path, points: point[], metadata: Metadata)",
+      'const piece: Piece = Piece(outline: @outline, points: [@origin], metadata: Metadata(label: "body"))'
+    ].join("\n"));
+
+    expect(namespace.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const piece = records.definitionsByStatementId.get("stable-2")!;
+    expect(piece.fields.map((field) => field.type)).toEqual([
+      { kind: "path" },
+      { kind: "array", elementType: { kind: "point" } },
+      { kind: "record", name: "Metadata", identity: "stable-1" }
+    ]);
+  });
+
   it("is non-hoisted for record type and constructor names", () => {
     const { namespace } = analyze([
       "nui 1",

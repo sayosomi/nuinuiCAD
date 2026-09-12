@@ -38,6 +38,8 @@ import { validateChoiceMatchExhaustiveness } from "../scalars/expressionTypechec
 import { parseDslConstructionInvocation } from "./dslCallParser";
 import { parseGeometryArrayExpression } from "./geometryArrayExpression";
 import { splitDslList } from "./dslTokens";
+import { scanScalarLiteral } from "../scalars/literalScanner";
+import { isChoiceOptionMember } from "../scalars/scalarAssignability";
 import { getParameterDefinitions, scalarTypeForParameterDefinition } from "../parameters/parameterDefinitions";
 import type { BindingId } from "../scalars/bindingCatalog";
 import {
@@ -54,7 +56,7 @@ import {
   resolveModuleLexicalPath as resolveSharedModuleLexicalPath
 } from "./moduleLexicalResolution";
 import type { ScalarType } from "../scalars/types";
-import { isDslArrayValueType, isDslGeometryValueType, scalarTypeOfDslValueType } from "./dslValueTypes";
+import { isDslArrayValueType, isDslGeometryValueType, isDslRecordValueType, isDslScalarValueType, scalarTypeOfDslValueType } from "./dslValueTypes";
 import { isDslNonArrayValueTypeAssignable } from "./geometryArrayTypes";
 import type {
   DslArrayMappedValue,
@@ -69,6 +71,7 @@ import {
   moduleParameterByName
 } from "./geometryArraySemanticAnalysis";
 import type { GenericArraySourceTarget, GeometryArraySourceTarget } from "./geometryArraySemanticAnalysis";
+import { resolveDslArrayExpression } from "./geometryArraySemantics";
 import type { StatementIdentity } from "../document/statementIdentity";
 import type {
   ModuleArgumentSemantic,
@@ -84,6 +87,7 @@ import type {
   ModuleParentReferenceSite,
   ModuleParentSourceTarget,
   ModuleRecordConstructorFieldSemantic,
+  ModuleRecordFieldValueExpressionSemantic,
   ModuleInstanceSemantic,
   ModuleGeometryReferenceRole,
   ModuleGeometryConstructionSemantic,
@@ -107,6 +111,7 @@ import { unwrapModuleGeometrySourceTarget } from "./moduleSemanticTypes";
 import type {
   RecordConstructorFieldSemantic,
   RecordDefinitionSemantic,
+  RecordFieldSemantic,
   RecordFieldIdentity,
   RecordTypeIdentity,
   RecordValueExpressionSemantic
@@ -454,6 +459,11 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
   const diagnostics: DslDiagnostic[] = [];
   const localDiagnosticsByStatement = new Map<number, LocalDiagnostic[]>();
   let suppressLocalDiagnostics = false;
+  // Root record scalar fields are also projected through the shared scalar
+  // lowering owner. When generalized fields are validated here, keep scalar
+  // diagnostics on that existing owner while allowing geometry/collection/
+  // nested-record validation to report from this semantic pass.
+  let suppressScalarRecordFieldDiagnostics = false;
   const addLocal = (statementIndex: number, local: LocalDiagnostic) => {
     if (suppressLocalDiagnostics) return;
     const bucket = localDiagnosticsByStatement.get(statementIndex) ?? [];
@@ -1699,18 +1709,101 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     return { kind: "notRecord" };
   }
 
+  type RecordMemberResolution = {
+    field: RecordFieldSemantic;
+    fieldPath: readonly RecordFieldIdentity[];
+    valueType: import("./dslValueTypes").DslValueType;
+    property?: string;
+    collectionIndex?: number;
+    type: ScalarType | null;
+  };
+
+  const recordPropertyParts = (property: string): { name: string; index: number | null }[] | null => {
+    if (!property) return null;
+    const parts = property.split(".");
+    const parsed = parts.map((part) => {
+      const match = /^([A-Za-z_][A-Za-z0-9_]*)(?:\[(\d+)\])?$/.exec(part);
+      return match
+        ? { name: match[1]!, index: match[2] === undefined ? null : Number(match[2]) }
+        : null;
+    });
+    return parsed.every((part): part is { name: string; index: number | null } => part !== null) ? parsed : null;
+  };
+
+  const recordMemberFor = (
+    record: Extract<RecordSourceLookup, { kind: "record" }>,
+    property: string
+  ): RecordMemberResolution | null => {
+    const parts = recordPropertyParts(property);
+    if (!parts) return null;
+    let definition: RecordDefinitionSemantic | null = record.definition;
+    let valueType: import("./dslValueTypes").DslValueType = { kind: "record", name: definition.name, identity: definition.statementId };
+    const fieldPath: RecordFieldIdentity[] = [];
+    let field: RecordFieldSemantic | null = null;
+    let collectionIndex: number | undefined;
+    for (const [partIndex, part] of parts.entries()) {
+      if (isDslRecordValueType(valueType)) {
+        definition = partIndex === 0
+          ? record.definition
+          : recordDefinitionFor(valueType.identity ?? null);
+        if (!definition) return null;
+        field = definition.fields.find((candidate) => candidate.name === part.name) ?? null;
+        if (!field) return null;
+        fieldPath.push(field.identity);
+        valueType = field.type;
+        if (part.index !== null) {
+          if (!isDslArrayValueType(valueType)) return null;
+          valueType = valueType.elementType;
+          collectionIndex = part.index;
+        }
+      } else if (isDslArrayValueType(valueType)) {
+        if (part.name !== "length" || part.index !== null || partIndex !== parts.length - 1) return null;
+        return field
+          ? { field, fieldPath, valueType, property: "length", type: { kind: "number" } }
+          : null;
+      } else if (isDslGeometryValueType(valueType)) {
+        const geometryProperty = parts.slice(partIndex).map((candidate) => candidate.name + (candidate.index === null ? "" : `[${candidate.index}]`)).join(".");
+        const type = numericGeometryPropertySupportedByStaticTarget(
+          numericGeometryStaticTargetForModuleInterface(valueType.kind),
+          geometryProperty
+        ) ? { kind: "number" as const } : null;
+        return field && type ? {
+          field,
+          fieldPath,
+          valueType,
+          property: geometryProperty,
+          type,
+          ...(collectionIndex !== undefined ? { collectionIndex } : {})
+        } : null;
+      } else {
+        return null;
+      }
+    }
+    return field ? {
+      field,
+      fieldPath,
+      valueType,
+      type: scalarTypeOfDslValueType(valueType),
+      ...(collectionIndex !== undefined ? { collectionIndex } : {})
+    } : null;
+  };
+
   const recordFieldTargetFor = (
     record: Extract<RecordSourceLookup, { kind: "record" }>,
     reference: ModuleGeometryPropertyReferenceInput
   ): ModuleRecordFieldSourceTarget | null => {
-    const field = record.definition.fields.find((candidate) => candidate.name === reference.property);
-    if (!field) return null;
+    const member = recordMemberFor(record, reference.property);
+    if (!member) return null;
     return {
       kind: "recordField",
       record: record.target,
-      field: field.identity,
-      fieldName: field.name,
-      type: field.type
+      field: member.field.identity,
+      fieldName: member.field.name,
+      valueType: member.valueType,
+      type: member.type,
+      ...(member.fieldPath.length > 1 ? { fieldPath: member.fieldPath } : {}),
+      ...(member.collectionIndex !== undefined ? { collectionIndex: member.collectionIndex } : {}),
+      ...(member.property ? { property: member.property } : {})
     };
   };
 
@@ -2069,6 +2162,47 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       end: semanticSpan.start + reference.pathRange.end
     };
     referenceNameSpan = baseSpan;
+    const record = recordSourceLookup(statementIndex, ownerIndex, base, baseSpan);
+    if (record.kind === "record") {
+      const member = recordMemberFor(record, reference.property ?? "");
+      if (member && isDslGeometryValueType(member.valueType)) {
+        const pointKey = member.property;
+        const expectedInterfaceType = options.expectedInterfaceType ?? (expected === "point" ? "point" : "path");
+        const compatible = isModuleGeometryInterfaceAssignable(member.valueType.kind, expectedInterfaceType) &&
+          (!pointKey || (expected === "point" && isKnownDerivedPointKey(pointKey)));
+        if (!compatible) {
+          addLocal(statementIndex, issue(
+            "module-geometry-type-mismatch",
+            reference.propertyRange ? { start: semanticSpan.start + reference.propertyRange.start, end: semanticSpan.start + reference.propertyRange.end } : baseSpan,
+            `record field「${base}.${reference.property ?? ""}」の geometry 型が一致しません。`,
+            { presentation: { key: "diagnostic.module-geometry-type-mismatch", parameters: { target: base } } }
+          ));
+          return semantic(null, "invalid", null, role);
+        }
+        const target: Extract<ModuleGeometrySourceTarget, { kind: "recordFieldValue" }> = {
+          kind: "recordFieldValue",
+          record: record.target,
+          field: member.field.identity,
+          fieldName: member.field.name,
+          valueType: member.valueType,
+          ...(member.fieldPath.length > 1 ? { fieldPath: member.fieldPath } : {}),
+          ...(member.collectionIndex !== undefined ? { collectionIndex: member.collectionIndex } : {}),
+          ...(pointKey ? { pointKey } : {})
+        };
+        return semantic(target, "resolved", null, pointKey ? "derivedPoint" : role);
+      }
+      addLocal(statementIndex, issue(
+        "module-record-value-in-geometry",
+        baseSpan,
+        `record member「${base}.${reference.property ?? ""}」は geometry ではありません。`,
+        { presentation: { key: "diagnostic.module-record-value-in-geometry", parameters: { name: reference.property ?? base } } }
+      ));
+      return semantic(null, "invalid", null, role);
+    }
+    if (record.kind === "blocked") {
+      if (record.diagnostic) addLocal(statementIndex, { ...record.diagnostic, span: baseSpan });
+      return semantic(null, record.resolution === "ambiguous" ? "invalid" : record.resolution, null, role);
+    }
     const derivedRole: ModuleGeometryReferenceRole = pointKey
       ? role === "lineEndpointReference" ? "lineEndpointReference" : "derivedPoint"
       : role;
@@ -2099,20 +2233,6 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     if (qualified) {
       qualifiedDiagnostic(statementIndex, semanticSpan, qualified, expectedDiagnosticType);
       return semantic(null, qualified.kind === "forward" ? "forward" : qualified.kind === "undefined" ? "undefined" : qualified.kind === "outerCapture" ? "outerCapture" : "invalid", null, derivedRole);
-    }
-    const record = recordSourceLookup(statementIndex, ownerIndex, base, baseSpan);
-    if (record.kind === "record") {
-      addLocal(statementIndex, issue(
-        "module-record-value-in-geometry",
-        baseSpan,
-        `record 値「${base}」は geometry reference では使用できません。`,
-        { presentation: { key: "diagnostic.module-record-value-in-geometry", parameters: { name: base } } }
-      ));
-      return semantic(null, "invalid", null, derivedRole);
-    }
-    if (record.kind === "blocked") {
-      if (record.diagnostic) addLocal(statementIndex, { ...record.diagnostic, span: baseSpan });
-      return semantic(null, record.resolution === "ambiguous" ? "invalid" : record.resolution, null, derivedRole);
     }
     const path = parseDslReferenceToken(base);
     const lookup = ownerIndex === null
@@ -3490,6 +3610,73 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         }
       }
     }
+
+    // The scalar expression parser represents `@records[0].field` as a
+    // geometry-property node because the same syntax is used for geometry
+    // collection members. Resolve nominal-record collections through the
+    // existing record reference/member owners before the ordinary geometry
+    // property fallback gets a chance to report a misleading element error.
+    if (reference.occurrenceIndex && collectionAnalysis) {
+      const collectionPath = parseDslReferenceToken(reference.elementName);
+      const qualified = collectionPath.segments.length > 1
+        ? resolveQualifiedModuleExport(statementIndex, ownerIndex, reference.elementName, reference.elementNameSpan)
+        : null;
+      const qualifiedCollection = qualified?.kind === "deferred" ? qualifiedCollectionExportFor(qualified) : null;
+      const lookup = !qualified
+        ? ownerIndex === null
+          ? qualifiedSourceDeclarationResolution(sourceNamespace, statementIndex, collectionPath) ?? sourceDeclarationResolution(sourceNamespace, statementIndex, reference.elementName)
+          : resolveModuleLexicalPath(statementIndex, ownerIndex, collectionPath)
+        : null;
+      const collectionValue = lookup?.kind === "resolved" && lookup.declaration.kind === "typedDeclaration"
+        ? collectionValueSemanticForStatement(collectionAnalysis, lookup.declaration.statementIndex)
+        : null;
+      const collectionType = qualifiedCollection?.kind === "collection"
+        ? qualifiedCollection.valueType
+        : lookup?.kind === "parameter"
+          ? collectionAnalysis.genericModuleParametersBySlot.get(`${lookup.definition.statementId}:${lookup.parameter.index}`)?.valueType ?? null
+          : collectionValue && "valueType" in collectionValue
+            ? collectionValue.valueType
+            : null;
+      const elementType = collectionType?.elementType;
+      if (elementType?.kind === "record" && elementType.identity) {
+        const source = input.logicalTextByStatementIndex?.get(statementIndex);
+        const indexEnd = reference.occurrenceRange?.end ?? reference.occurrenceIndexSpan?.end;
+        const indexedSpan = indexEnd !== undefined
+          ? { start: reference.span.start, end: indexEnd }
+          : null;
+        const indexedSource = source && indexedSpan ? source.slice(indexedSpan.start, indexedSpan.end) : null;
+        if (indexedSource && indexedSource.length > 0 && indexedSpan) {
+          const recordReference = recordReferenceSemantic(
+            statementIndex,
+            ownerIndex,
+            indexedSource,
+            indexedSpan,
+            elementType.identity,
+            reference.presenceFacts ?? new Set()
+          );
+          if (recordReference.target?.kind === "recordCollectionIndex") {
+            const definition = recordDefinitionFor(elementType.identity);
+            const member = definition
+              ? recordMemberFor({
+                  kind: "record",
+                  target: recordReference.target,
+                  typeIdentity: elementType.identity,
+                  definition
+                }, reference.property)
+              : null;
+            if (definition && member) {
+              const fieldTarget = recordFieldTargetFor({
+                kind: "record",
+                target: recordReference.target,
+                typeIdentity: elementType.identity,
+                definition
+              }, reference);
+              if (fieldTarget) return { target: fieldTarget, type: fieldTarget.type, resolution: fieldTarget.type ? "resolved" : "invalid" };
+            }
+          }
+        }
+      }
+    }
     const record = recordSourceLookup(statementIndex, ownerIndex, reference.elementName, reference.elementNameSpan);
     if (record.kind === "record") {
       const fieldTarget = recordFieldTargetFor(record, reference);
@@ -3530,7 +3717,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           )
         };
       }
-      return { target: fieldTarget, type: fieldTarget.type, resolution: "resolved" };
+      return { target: fieldTarget, type: fieldTarget.type, resolution: fieldTarget.type ? "resolved" : "invalid" };
     }
     if (record.kind === "blocked") {
       return {
@@ -3768,40 +3955,21 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     return { target: { ...geometryTarget, kind: "sourceGeometryProperty", property: reference.property }, type, resolution: "resolved" };
   };
 
-  const analyzeRecordConstructorFields = (
+  function analyzeRecordConstructorFields(
     statementIndex: number,
     ownerIndex: number | null,
     fields: readonly RecordConstructorFieldSemantic[],
     presenceFacts: ReadonlySet<string>
-  ): ModuleRecordConstructorFieldSemantic[] => fields.map((field) => ({
-    ...field,
-    expression: analyzeExpression(
-      statementIndex,
-      ownerIndex,
-      field.value,
-      field.valueSpan,
-      field.expectedType,
-      (reference, facts) => ownerIndex === null
-        ? resolveSourceScalar(statementIndex, null, reference.name, null, reference.span, facts)
-        : resolveBodyScalar(statementIndex, ownerIndex, reference, facts),
-      undefined,
-      (reference) => resolveGeometryProperty(statementIndex, ownerIndex, reference),
-      (reference) => resolveGeometry(
-        statementIndex,
-        ownerIndex,
-        reference.name.startsWith("@") ? reference.name : `@${reference.name}`,
-        reference.span,
-        reference.expectedGeometryType,
-        {
-          expectedInterfaceType: reference.expectedGeometryType,
-          role: reference.expectedGeometryType === "point" ? "pointReference" : "lineReference",
-          presenceFacts
-        }
-      ),
-      (reference) => resolveHasValue(statementIndex, ownerIndex, reference),
-      presenceFacts
-    )
-  }));
+  ): ModuleRecordConstructorFieldSemantic[] {
+    return fields.map((field) => {
+      const valueExpression = analyzeRecordFieldValue(statementIndex, ownerIndex, field.expectedType, field.value, field.valueSpan, presenceFacts);
+      return {
+        ...field,
+        expression: valueExpression?.kind === "scalar" ? valueExpression.expression : null,
+        valueExpression
+      };
+    });
+  }
 
   const recordReferenceSemantic = (
     statementIndex: number,
@@ -4068,6 +4236,254 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     };
   };
 
+  const arrayValueReferenceForRecordField = (
+    statementIndex: number,
+    ownerIndex: number | null,
+    sourceText: string,
+    sourceSpan: DslSpan
+  ): { targetValueId: string; valueType: import("./dslValueTypes").DslArrayValueType } | null => {
+    const parsed = parseDslSourceReference(sourceText.trim());
+    if (parsed.kind !== "valid" || parsed.reference.property !== null) return null;
+    const path = parsed.reference.path;
+    const qualified = path.segments.length > 1
+      ? resolveQualifiedModuleExport(statementIndex, ownerIndex, parsed.reference.pathText, sourceSpan)
+      : null;
+    const deferred = qualified?.kind === "deferred" ? qualified : null;
+    const exported = deferred ? qualifiedCollectionExportFor(deferred) : null;
+    if (exported?.kind === "collection") {
+      return {
+        targetValueId: geometryArrayDeferredModuleExportId(deferred!.instance.statementId, deferred!.exportName),
+        valueType: exported.valueType
+      };
+    }
+    if (path.segments.length === 1 && !path.absolute) {
+      const parameter = moduleParameterByName(statements, stableStatementIdByIndex, statementIndex, path.segments[0]!);
+      const parameterValue = parameter
+        ? sourceNamespace.geometryArraySemanticAnalysis?.genericModuleParametersBySlot.get(`${parameter.definitionStatementId}:${parameter.parameterIndex}`)?.valueType
+        : null;
+      if (parameter && parameterValue) {
+        return {
+          targetValueId: `${parameter.definitionStatementId}:parameter:${parameter.parameterIndex}`,
+          valueType: parameterValue
+        };
+      }
+    }
+    const lookup = ownerIndex === null
+      ? qualifiedSourceDeclarationResolution(sourceNamespace, statementIndex, path) ?? sourceDeclarationResolution(sourceNamespace, statementIndex, parsed.reference.pathText)
+      : resolveModuleLexicalPath(statementIndex, ownerIndex, path);
+    if (lookup.kind !== "resolved" || lookup.declaration.kind !== "typedDeclaration") return null;
+    const value = sourceNamespace.geometryArraySemanticAnalysis
+      ? collectionValueSemanticForStatement(sourceNamespace.geometryArraySemanticAnalysis, lookup.declaration.statementIndex)
+      : null;
+    if (!value || !("valueType" in value)) return null;
+    return { targetValueId: value.statementId, valueType: value.valueType };
+  };
+
+  function analyzeRecordFieldValue(
+    statementIndex: number,
+    ownerIndex: number | null,
+    expectedType: import("./dslValueTypes").DslValueType,
+    rawValue: string,
+    valueSpan: DslSpan,
+    presenceFacts: ReadonlySet<string>
+  ): ModuleRecordFieldValueExpressionSemantic | null {
+    const scalarType = scalarTypeOfDslValueType(expectedType);
+    if (scalarType) {
+      const previousSuppressLocalDiagnostics = suppressLocalDiagnostics;
+      if (suppressScalarRecordFieldDiagnostics) suppressLocalDiagnostics = true;
+      const expression = analyzeExpression(
+          statementIndex,
+          ownerIndex,
+          rawValue,
+          valueSpan,
+          scalarType,
+          (reference, facts) => ownerIndex === null
+            ? resolveSourceScalar(statementIndex, null, reference.name, null, reference.span, facts)
+            : resolveBodyScalar(statementIndex, ownerIndex, reference, facts),
+          undefined,
+          (reference) => resolveGeometryProperty(statementIndex, ownerIndex, reference),
+          (reference) => resolveGeometry(
+            statementIndex,
+            ownerIndex,
+            reference.name.startsWith("@") ? reference.name : `@${reference.name}`,
+            reference.span,
+            reference.expectedGeometryType,
+            {
+              expectedInterfaceType: reference.expectedGeometryType,
+              role: reference.expectedGeometryType === "point" ? "pointReference" : "lineReference",
+              presenceFacts
+            }
+          ),
+          (reference) => resolveHasValue(statementIndex, ownerIndex, reference),
+          presenceFacts
+        );
+      suppressLocalDiagnostics = previousSuppressLocalDiagnostics;
+      return expression ? { kind: "scalar", expression } : null;
+    }
+
+    if (isDslGeometryValueType(expectedType)) {
+      const source = input.logicalTextByStatementIndex?.get(statementIndex);
+      const parsed = source
+        ? parseScalarExpression(source, valueSpan, { allowOpaqueNamedCalls: true })
+        : parseScalarExpression(rawValue, { start: 0, end: rawValue.length }, { allowOpaqueNamedCalls: true });
+      const geometryType = expectedType.kind === "point" ? "point" : "line";
+      const expectedInterfaceType = expectedType.kind;
+      const geometryExpression = parsed.ast && (parsed.ast.kind === "valueIf" || parsed.ast.kind === "valueMatch")
+        ? parseGeometryValueExpression({
+            statementIndex,
+            ownerIndex,
+            source: source ?? rawValue,
+            node: parsed.ast,
+            expectedInterfaceType,
+            analyzeScalar: (raw, span, type) => analyzeExpression(
+              statementIndex,
+              ownerIndex,
+              raw,
+              span,
+              type,
+              (reference, facts) => ownerIndex === null
+                ? resolveSourceScalar(statementIndex, null, reference.name, null, reference.span, facts)
+                : resolveBodyScalar(statementIndex, ownerIndex, reference, facts),
+              undefined,
+              (reference) => resolveGeometryProperty(statementIndex, ownerIndex, reference),
+              undefined,
+              (reference) => resolveHasValue(statementIndex, ownerIndex, reference),
+              presenceFacts
+            ),
+            resolveReference: (raw, span) => resolveGeometry(statementIndex, ownerIndex, raw, span, geometryType, {
+              expectedInterfaceType,
+              allowCoordinate: false,
+              role: geometryType === "point" ? "pointReference" : "lineReference",
+              presenceFacts
+            }),
+            parseConstruction: (raw, span, type) => parseGeometryValueConstruction(statementIndex, ownerIndex, raw, span, type, { presenceFacts }),
+            addDiagnostic: (diagnostic) => addLocal(statementIndex, diagnostic)
+          })
+        : parsed.ast?.kind === "call"
+          ? (() => {
+              const construction = parseGeometryValueConstruction(statementIndex, ownerIndex, rawValue, valueSpan, expectedInterfaceType, { presenceFacts });
+              return construction ? { kind: "construction" as const, span: valueSpan, construction } : null;
+            })()
+          : (() => {
+              const reference = resolveGeometry(
+                statementIndex,
+                ownerIndex,
+                rawValue,
+                valueSpan,
+                geometryType,
+                {
+                  expectedInterfaceType,
+                  allowCoordinate: false,
+                  role: geometryType === "point" ? "pointReference" : "lineReference",
+                  presenceFacts
+                }
+              );
+              return reference.resolution === "resolved" ? { kind: "reference" as const, span: valueSpan, reference } : null;
+            })();
+      return { kind: "geometry", expression: geometryExpression };
+    }
+
+    if (isDslRecordValueType(expectedType)) {
+      const reference = recordReferenceSemantic(
+        statementIndex,
+        ownerIndex,
+        rawValue,
+        valueSpan,
+        expectedType.identity ?? null,
+        presenceFacts
+      );
+      if (reference.constructor) return { kind: "record", expression: { kind: "constructor", span: valueSpan, constructor: reference.constructor } };
+      return reference.target
+        ? { kind: "record", expression: { kind: "reference", span: valueSpan, reference } }
+        : { kind: "record", expression: null };
+    }
+
+    if (isDslArrayValueType(expectedType)) {
+      const logicalSource = input.logicalTextByStatementIndex?.get(statementIndex);
+      const source = logicalSource ?? rawValue;
+      const span = logicalSource ? valueSpan : { start: 0, end: rawValue.length };
+      const parsed = parseGeometryArrayExpression(source, span);
+      for (const diagnostic of parsed.diagnostics) {
+        addLocal(statementIndex, issue(diagnostic.code, diagnostic.span, diagnostic.message));
+      }
+      if (!parsed.expression || parsed.diagnostics.length > 0) return { kind: "collection", valueType: expectedType, value: null };
+      const resolved = resolveDslArrayExpression<GenericArraySourceTarget>({
+        expectedType,
+        expression: parsed.expression,
+        resolveArrayReference: (sourceText, sourceSpan) => {
+          const target = arrayValueReferenceForRecordField(statementIndex, ownerIndex, sourceText, sourceSpan);
+          return target
+            ? { kind: "resolved", targetValueId: target.targetValueId, valueType: target.valueType }
+            : { kind: "invalid", diagnostic: { code: "array-reference-invalid", message: `未解決の array 参照です: ${sourceText}`, span: sourceSpan } };
+        },
+        resolveMember: (member) => {
+          const elementType = expectedType.elementType;
+          const literal = scanScalarLiteral(member.text, { start: 0, end: member.text.length });
+          if (literal.kind !== "error" && literal.span.start === 0 && literal.span.end === member.text.length) {
+          if (elementType.kind === "choice" && literal.kind === "choice" && isChoiceOptionMember(elementType, literal.raw)) {
+              return { kind: "resolved", value: { elementType, target: { kind: "scalarValue", statementId: `record-field:${valueSpan.start}`, statementIndex } } };
+            }
+            if (isDslScalarValueType(elementType) && literal.kind === elementType.kind) {
+              return { kind: "resolved", value: { elementType, target: { kind: "scalarValue", statementId: `record-field:${valueSpan.start}`, statementIndex } } };
+            }
+            return { kind: "invalid", diagnostic: { code: "array-member-type-mismatch", message: `array member「${member.text}」の型が宣言型と一致しません。`, span: member.span } };
+          }
+          if (elementType.kind === "record") {
+            const record = recordReferenceSemantic(statementIndex, ownerIndex, member.text, member.span, elementType.identity ?? null, presenceFacts);
+            return record.resolution === "resolved" && (record.target || record.constructor)
+              ? { kind: "resolved", value: { elementType, target: { kind: "recordValue", statementId: `record-field:${member.span.start}`, statementIndex } } }
+              : { kind: "invalid", diagnostic: { code: "array-member-record-mismatch", message: `array member「${member.text}」の nominal record 型が一致しません。`, span: member.span } };
+          }
+          const parsedReference = parseDslSourceReference(member.text);
+          if (parsedReference.kind !== "valid" || parsedReference.reference.property !== null) {
+            return { kind: "invalid", diagnostic: { code: "array-invalid-member", message: "array member は immutable value reference で指定してください。", span: member.span } };
+          }
+          if (isDslGeometryValueType(elementType)) {
+            const geometry = resolveGeometry(statementIndex, ownerIndex, member.text, member.span, elementType.kind === "point" ? "point" : "line", {
+              expectedInterfaceType: elementType.kind,
+              allowCoordinate: false,
+              role: elementType.kind === "point" ? "pointReference" : "lineReference",
+              presenceFacts
+            });
+            return geometry.target && geometry.resolution === "resolved"
+              ? { kind: "resolved", value: { elementType, target: geometry.target as unknown as GenericArraySourceTarget } }
+              : { kind: "invalid", diagnostic: { code: "array-member-geometry-mismatch", message: `array member「${member.text}」の geometry 型が一致しません。`, span: member.span } };
+          }
+          const scalar = scalarTypeOfDslValueType(elementType);
+          if (!scalar) return { kind: "invalid", diagnostic: { code: "array-invalid-member", message: "array member は immutable value reference で指定してください。", span: member.span } };
+          const expression = analyzeExpression(
+            statementIndex,
+            ownerIndex,
+            member.text,
+            member.span,
+            scalar,
+            (reference, facts) => ownerIndex === null
+              ? resolveSourceScalar(statementIndex, null, reference.name, null, reference.span, facts)
+              : resolveBodyScalar(statementIndex, ownerIndex, reference, facts),
+            undefined,
+            (reference) => resolveGeometryProperty(statementIndex, ownerIndex, reference),
+            undefined,
+            (reference) => resolveHasValue(statementIndex, ownerIndex, reference),
+            presenceFacts
+          );
+          return expression
+            ? { kind: "resolved", value: { elementType, target: { kind: "scalarValue", statementId: `record-field:${member.span.start}`, statementIndex } } }
+            : { kind: "invalid", diagnostic: { code: "array-member-type-mismatch", message: `array member「${member.text}」の型が宣言型と一致しません。`, span: member.span } };
+        }
+      });
+      for (const diagnostic of resolved.diagnostics) {
+        addLocal(statementIndex, issue(
+          diagnostic.code,
+          diagnostic.span,
+          diagnostic.message,
+          { presentation: diagnostic.presentation }
+        ));
+      }
+      return { kind: "collection", valueType: expectedType, value: resolved.value };
+    }
+    return null;
+  }
+
   const moduleRecordValueExpressionFor = ({
     statementIndex,
     ownerIndex,
@@ -4172,22 +4588,51 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     };
   };
 
+  const scalarRecordFieldPathsFor = (
+    definition: RecordDefinitionSemantic,
+    prefix: readonly RecordFieldIdentity[] = []
+  ): readonly { field: RecordFieldSemantic; path: readonly RecordFieldIdentity[]; type: ScalarType }[] => definition.fields.flatMap((field) => {
+    const path = [...prefix, field.identity];
+    const type = scalarTypeOfDslValueType(field.type);
+    if (type) return [{ field, path, type }];
+    if (field.type.kind !== "record") return [];
+    const nested = recordDefinitionFor(field.type.identity ?? null);
+    return nested ? scalarRecordFieldPathsFor(nested, path) : [];
+  });
+
   const moduleRecordFieldExpressionFor = (
     expression: ModuleRecordValueExpressionSemantic,
-    field: { identity: RecordFieldIdentity; name: string; type: ScalarType }
+    field: { identity: RecordFieldIdentity; name: string; type: ScalarType; fieldPath?: readonly RecordFieldIdentity[] }
   ): ModuleScalarExpressionSemantic | null => {
+    const fieldPath = field.fieldPath ?? [field.identity];
+    const constructorFieldAtPath = (
+      fields: readonly ModuleRecordConstructorFieldSemantic[],
+      path: readonly RecordFieldIdentity[]
+    ): ModuleRecordConstructorFieldSemantic | null => {
+      let currentFields = fields;
+      for (const [index, identity] of path.entries()) {
+        const current = currentFields.find((candidate) => candidate.field.fieldIndex === identity.fieldIndex);
+        if (!current) return null;
+        if (index === path.length - 1) return current;
+        if (current.valueExpression?.kind !== "record" || !current.valueExpression.expression) return null;
+        const nested = current.valueExpression.expression;
+        if (nested.kind !== "constructor") return null;
+        currentFields = nested.constructor.fields;
+      }
+      return null;
+    };
     if (expression.kind === "constructor") {
-      return expression.constructor.fields.find((candidate) => candidate.field.fieldIndex === field.identity.fieldIndex)?.expression ?? null;
+      return constructorFieldAtPath(expression.constructor.fields, fieldPath)?.expression ?? null;
     }
     if (expression.kind === "reference" || expression.kind === "collectionIndex") {
       const reference = expression.reference;
       if (!reference.target) return null;
       if (reference.target.kind === "recordCollectionIndex" && !reference.target.members) {
-        const collectionValueId = `record-field-collection:${JSON.stringify([
-          reference.target.collectionValueId,
-          field.identity.recordStatementId,
-          field.identity.fieldIndex
-        ])}`;
+        const collectionValueId = `record-field-collection:${JSON.stringify(
+          fieldPath.length === 1
+            ? [reference.target.collectionValueId, field.identity.recordStatementId, field.identity.fieldIndex]
+            : [reference.target.collectionValueId, "path", fieldPath.map((candidate) => [candidate.recordStatementId, candidate.fieldIndex])]
+        )}`;
         const baseName = reference.source.trim().replace(/^@/, "");
         return {
           ast: {
@@ -4220,7 +4665,9 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         record: reference.target,
         field: field.identity,
         fieldName: field.name,
-        type: field.type
+        valueType: field.type,
+        type: field.type,
+        ...(fieldPath.length > 1 ? { fieldPath } : {})
       };
       return {
         ast: {
@@ -4233,7 +4680,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         },
         type: field.type,
         references: [{
-          name: `${baseName}.${field.name}`,
+            name: `${baseName}.${field.name}`,
           nameSpan: reference.span,
           span: reference.span,
           target,
@@ -4457,21 +4904,28 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         presenceFacts: new Set()
       });
       if (!expression) return null;
-      const fields = resultDefinition.fields.map((field) => ({
+      const fields = scalarRecordFieldPathsFor(resultDefinition).map(({ field, path: fieldPath, type }) => ({
         field: field.identity,
         fieldName: field.name,
-        type: field.type,
-        body: moduleRecordFieldExpressionFor(expression, field)
+        type,
+        fieldPath,
+        body: moduleRecordFieldExpressionFor(expression, { ...field, type, fieldPath })
       }));
       if (fields.some((field) => !field.body)) return null;
+      const fieldsWithBodies = fields.map((field) => ({ ...field, body: field.body! }));
       return {
         statementId: value.statementId,
         statementIndex: value.statementIndex,
         binderId: mapped.binderId,
         sourceTypeIdentity,
         resultTypeIdentity,
-        binderFields: sourceDefinition.fields.map((field) => ({ field: field.identity, fieldName: field.name, type: field.type })),
-        fields: fields as { field: RecordFieldIdentity; fieldName: string; type: ScalarType; body: ModuleScalarExpressionSemantic }[]
+        binderFields: scalarRecordFieldPathsFor(sourceDefinition).map(({ field, path: fieldPath, type }) => ({
+          field: field.identity,
+          fieldName: field.name,
+          type,
+          fieldPath
+        })),
+        fields: fieldsWithBodies
       };
     } finally {
       activeRecordValueBinder = previousBinder;
@@ -4497,31 +4951,52 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
   const rootRecordValuesByStatementId = new Map<StatementIdentity, ModuleRecordValueSemantic>();
   const rootMappedRecordCollectionBodies: ModuleSemanticAnalysis["mappedRecordCollectionBodies"][number][] = [];
   for (const value of recordAnalysis?.valuesByStatementId.values() ?? []) {
-    if (moduleOwnerIndexOf(statements, value.statementIndex) !== null || !value.valueExpression || !value.typeIdentity) continue;
+    if (moduleOwnerIndexOf(statements, value.statementIndex) !== null || !value.typeIdentity) continue;
     const statement = statements[value.statementIndex];
     const initializerSpan = statement?.kind === "typedDeclaration" ? statement.payloadSpans.initializer : undefined;
     if (!initializerSpan || statement?.kind !== "typedDeclaration") continue;
     const source = input.logicalTextByStatementIndex?.get(value.statementIndex) ?? `${" ".repeat(initializerSpan.start)}${statement.initializer}`;
+    const definition = recordDefinitionFor(value.typeIdentity);
+    const hasGeneralizedFields = Boolean(definition?.fields.some((field) => scalarTypeOfDslValueType(field.type) === null));
     const previous: boolean = suppressLocalDiagnostics;
-    suppressLocalDiagnostics = true;
+    const previousSuppressScalarRecordFieldDiagnostics: boolean = suppressScalarRecordFieldDiagnostics;
+    suppressLocalDiagnostics = !hasGeneralizedFields;
+    suppressScalarRecordFieldDiagnostics = hasGeneralizedFields;
     let valueExpression: ModuleRecordValueExpressionSemantic | null = null;
     try {
-      valueExpression = moduleRecordValueExpressionFor({
-        statementIndex: value.statementIndex,
-        ownerIndex: null,
-        source,
-        expression: value.valueExpression,
-        expectedTypeIdentity: value.typeIdentity,
-        presenceFacts: new Set()
-      });
+      if (value.valueExpression) {
+        valueExpression = moduleRecordValueExpressionFor({
+          statementIndex: value.statementIndex,
+          ownerIndex: null,
+          source,
+          expression: value.valueExpression,
+          expectedTypeIdentity: value.typeIdentity,
+          presenceFacts: new Set()
+        });
+      } else if (value.constructor) {
+        const reference = recordReferenceSemantic(value.statementIndex, null, statement.initializer, initializerSpan, value.typeIdentity, new Set());
+        valueExpression = reference.constructor
+          ? { kind: "constructor", span: initializerSpan, constructor: reference.constructor }
+          : null;
+      } else if (value.reference) {
+        const reference = recordReferenceSemantic(value.statementIndex, null, `@${value.reference.name}`, value.reference.span, value.typeIdentity, new Set());
+        valueExpression = reference.target
+          ? { kind: "reference", span: value.reference.span, reference }
+          : null;
+      }
     } finally {
       suppressLocalDiagnostics = previous;
+      suppressScalarRecordFieldDiagnostics = previousSuppressScalarRecordFieldDiagnostics;
     }
-    const definition = recordDefinitionFor(value.typeIdentity);
     if (!valueExpression || !definition) continue;
     const fieldExpressions = definition.fields.map((field) => ({
       field: field.identity,
-      expression: moduleRecordFieldExpressionFor(valueExpression!, field)
+      expression: scalarTypeOfDslValueType(field.type)
+        ? moduleRecordFieldExpressionFor(valueExpression!, { ...field, type: scalarTypeOfDslValueType(field.type)! })
+        : null,
+      valueExpression: valueExpression.kind === "constructor"
+        ? valueExpression.constructor.fields.find((candidate) => candidate.field.fieldIndex === field.fieldIndex)?.valueExpression ?? null
+        : null
     }));
     const target: ModuleRecordSourceTarget = {
       kind: "recordValue",
@@ -4532,7 +5007,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     rootRecordValuesByStatementId.set(value.statementId, {
       value,
       target,
-      fields: [],
+      fields: valueExpression.kind === "constructor" ? valueExpression.constructor.fields : [],
       valueExpression,
       fieldExpressions,
       presenceParameterKeys: []
@@ -5898,7 +6373,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         const recordSource = initializerSpan
           ? input.logicalTextByStatementIndex?.get(value.statementIndex) ?? `${" ".repeat(initializerSpan.start)}${statement?.kind === "typedDeclaration" ? statement.initializer : ""}`
           : "";
-        const valueExpression = value.valueExpression
+      const valueExpression = value.valueExpression
           ? moduleRecordValueExpressionFor({
               statementIndex: value.statementIndex,
               ownerIndex: definition.statementIndex,
@@ -5907,7 +6382,14 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
               expectedTypeIdentity: value.typeIdentity,
               presenceFacts
             })
-          : null;
+          : value.constructor
+            ? (() => {
+                const reference = recordReferenceSemantic(value.statementIndex, definition.statementIndex, statement?.kind === "typedDeclaration" ? statement.initializer : "", initializerSpan ?? statement?.keywordSpan ?? { start: 0, end: 0 }, value.typeIdentity, presenceFacts);
+                return reference.constructor
+                  ? { kind: "constructor" as const, span: initializerSpan ?? statement?.keywordSpan ?? { start: 0, end: 0 }, constructor: reference.constructor }
+                  : null;
+              })()
+            : null;
         let target = value.typeIdentity
           ? valueExpression
             ? {
@@ -5963,9 +6445,20 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         const fieldExpressions = valueExpression && recordDefinitionFor(value.typeIdentity)
           ? recordDefinitionFor(value.typeIdentity)!.fields.map((field) => ({
               field: field.identity,
-              expression: moduleRecordFieldExpressionFor(valueExpression, field)
+              expression: scalarTypeOfDslValueType(field.type)
+                ? moduleRecordFieldExpressionFor(valueExpression, { ...field, type: scalarTypeOfDslValueType(field.type)! })
+                : null,
+              valueExpression: valueExpression.kind === "constructor"
+                ? valueExpression.constructor.fields.find((candidate) => candidate.field.fieldIndex === field.fieldIndex)?.valueExpression ?? null
+                : null
             }))
-          : [];
+          : value.constructor
+            ? fields.map((field) => ({
+                field: field.field,
+                expression: field.expression,
+                valueExpression: field.valueExpression ?? null
+              }))
+            : [];
         const result: ModuleRecordValueSemantic = {
           value,
           target,
@@ -6254,11 +6747,42 @@ export const decorateDocumentQualifiedModuleSemantics = (
           ...reference.constructor,
           fields: reference.constructor.fields.map((field) => ({
             ...field,
-            expression: field.expression ? mapExpression(field.expression) : null
+            expression: field.expression ? mapExpression(field.expression) : null,
+            valueExpression: field.valueExpression ? mapRecordFieldValueExpression(field.valueExpression) : null
           }))
         }
       : null
   });
+  const mapRecordFieldValue = (value: unknown): unknown => {
+    if (value === null || typeof value !== "object") return value;
+    if (Array.isArray(value)) return value.map(mapRecordFieldValue);
+    if ("expectedGeometryKind" in value && "resolution" in value && "span" in value) {
+      return mapGeometryReference(value as ModuleGeometryReferenceSemantic);
+    }
+    if ("ast" in value && "type" in value) return mapExpression(value as ModuleScalarExpressionSemantic);
+    return Object.fromEntries(Object.entries(value).map(([key, child]) => [
+      key,
+      key === "target" ? mapTarget(child) : mapRecordFieldValue(child)
+    ]));
+  };
+  const mapRecordFieldValueExpression = (
+    expression: ModuleRecordFieldValueExpressionSemantic
+  ): ModuleRecordFieldValueExpressionSemantic => {
+    if (expression.kind === "scalar") return { ...expression, expression: mapExpression(expression.expression) };
+    if (expression.kind === "geometry") {
+      return {
+        ...expression,
+        expression: expression.expression ? mapGeometryValueExpression(expression.expression) : null
+      };
+    }
+    if (expression.kind === "record") {
+      return {
+        ...expression,
+        expression: expression.expression ? mapRecordValueExpression(expression.expression) : null
+      };
+    }
+    return { ...expression, value: mapRecordFieldValue(expression.value) };
+  };
   const mapRecordValueExpression = (expression: ModuleRecordValueExpressionSemantic): ModuleRecordValueExpressionSemantic => {
     if (expression.kind === "constructor") {
       return {
@@ -6267,7 +6791,8 @@ export const decorateDocumentQualifiedModuleSemantics = (
           ...expression.constructor,
           fields: expression.constructor.fields.map((field) => ({
             ...field,
-            expression: field.expression ? mapExpression(field.expression) : null
+            expression: field.expression ? mapExpression(field.expression) : null,
+            valueExpression: field.valueExpression ? mapRecordFieldValueExpression(field.valueExpression) : null
           }))
         }
       };
@@ -6338,12 +6863,14 @@ export const decorateDocumentQualifiedModuleSemantics = (
       target: mapTarget(value.target) as ModuleRecordSourceTarget | null,
       fields: value.fields.map((field) => ({
         ...field,
-        expression: field.expression ? mapExpression(field.expression) : null
+        expression: field.expression ? mapExpression(field.expression) : null,
+        valueExpression: field.valueExpression ? mapRecordFieldValueExpression(field.valueExpression) : null
       })),
       valueExpression: value.valueExpression ? mapRecordValueExpression(value.valueExpression) : null,
       fieldExpressions: value.fieldExpressions.map((field) => ({
         ...field,
-        expression: field.expression ? mapExpression(field.expression) : null
+        expression: field.expression ? mapExpression(field.expression) : null,
+        valueExpression: field.valueExpression ? mapRecordFieldValueExpression(field.valueExpression) : null
       }))
     })),
     bodyStatements: definition.bodyStatements.map((statement) => ({
@@ -6415,11 +6942,13 @@ export const decorateDocumentQualifiedModuleSemantics = (
         valueExpression: value.valueExpression ? mapRecordValueExpression(value.valueExpression) : null,
         fields: value.fields.map((field) => ({
           ...field,
-          expression: field.expression ? mapExpression(field.expression) : null
+          expression: field.expression ? mapExpression(field.expression) : null,
+          valueExpression: field.valueExpression ? mapRecordFieldValueExpression(field.valueExpression) : null
         })),
         fieldExpressions: value.fieldExpressions.map((field) => ({
           ...field,
-          expression: field.expression ? mapExpression(field.expression) : null
+          expression: field.expression ? mapExpression(field.expression) : null,
+          valueExpression: field.valueExpression ? mapRecordFieldValueExpression(field.valueExpression) : null
         }))
       }
     ] as const)

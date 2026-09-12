@@ -605,8 +605,8 @@ programming language.
 
 ## Records
 
-Records are source-only nominal value types for grouping scalar fields. A record
-definition is top-level and uses a named field list:
+Records are immutable, source-only nominal value types for grouping supported
+immutable values. A record definition is top-level and uses a named field list:
 
 ```nui
 record Pair(
@@ -615,11 +615,14 @@ record Pair(
 )
 ```
 
-Record fields are required, named, and scalar-only. Geometry fields, arrays,
-nested record fields, field defaults, and optional fields are not part of nui1
-v1. Record type identity is the identity of the record definition statement;
-two definitions with the same field names and scalar types are still different
-types. Definitions and values obey the normal non-hoisted source order.
+Record fields are required and named. Each field uses the shared immutable value
+type vocabulary: scalar types (`number`, `string`, `boolean`, and
+`choice(...)`), `point`, `line`, `path`, a supported one-dimensional `T[]`
+collection whose element type is not an array, or another named record type.
+Record type identity is the identity of the record definition statement; two
+definitions with the same field names and types are still different types.
+Definitions and values obey the normal non-hoisted source order. Nested arrays,
+field defaults, and optional fields are not part of nui1 v1.
 
 A record value is declared with `const` and either a named-field constructor or
 a whole-record reference:

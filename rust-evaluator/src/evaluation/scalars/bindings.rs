@@ -106,6 +106,56 @@ fn record_field_result(
     }
 }
 
+pub(super) fn record_field_path_matches(
+    record_statement_id: &str,
+    field_index: usize,
+    field_path: Option<&[super::program_payload::ValidatedScalarProgramRecordFieldPathEntry]>,
+    expected: &ValidatedScalarProgramRecordFieldIdentity,
+) -> bool {
+    let candidate_path = field_path
+        .map(|path| {
+            path.iter()
+                .map(|entry| (entry.record_statement_id.as_str(), entry.field_index))
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_else(|| vec![(record_statement_id, field_index)]);
+    let expected_path = expected
+        .field_path
+        .as_deref()
+        .map(|path| {
+            path.iter()
+                .map(|entry| (entry.record_statement_id.as_str(), entry.field_index))
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_else(|| vec![(expected.record_statement_id.as_str(), expected.field_index)]);
+    candidate_path == expected_path
+}
+
+fn record_field_matches(
+    candidate: &ValidatedScalarProgramRecordField,
+    expected: &ValidatedScalarProgramRecordFieldIdentity,
+) -> bool {
+    record_field_path_matches(
+        &candidate.record_statement_id,
+        candidate.field_index,
+        candidate.field_path.as_deref(),
+        expected,
+    )
+}
+
+fn record_type_identity_matches(
+    type_identity: &str,
+    field: &ValidatedScalarProgramRecordFieldIdentity,
+) -> bool {
+    field
+        .field_path
+        .as_deref()
+        .and_then(|path| path.first())
+        .map(|entry| entry.record_statement_id.as_str())
+        .unwrap_or(field.record_statement_id.as_str())
+        == type_identity
+}
+
 fn is_within_evaluation_limit(
     program: &ValidatedScalarProgram,
     statement: &ValidatedScalarProgramStatement,
@@ -303,9 +353,12 @@ impl<'a> ScalarBindingResolver<'a> {
                 ..
             } = &value.value
             {
-                if source_field.record_statement_id != field.record_statement_id
-                    || source_field.field_index != field.field_index
-                {
+                if !record_field_path_matches(
+                    &source_field.record_statement_id,
+                    source_field.field_index,
+                    source_field.field_path.as_deref(),
+                    field,
+                ) {
                     return unavailable_binding(current);
                 }
                 current = source_value_id;
@@ -314,15 +367,20 @@ impl<'a> ScalarBindingResolver<'a> {
             match &value.value {
                 ValidatedScalarProgramCollectionValue::Alias(target) => current = target,
                 ValidatedScalarProgramCollectionValue::Literal(members) => {
-                    let Some(ValidatedScalarProgramCollectionMember::Record { fields }) =
-                        members.get(index as usize)
+                    let Some(ValidatedScalarProgramCollectionMember::Record {
+                        type_identity,
+                        fields,
+                    }) = members.get(index as usize)
                     else {
                         return unavailable_binding(current);
                     };
-                    let Some(member_field) = fields.iter().find(|candidate| {
-                        candidate.record_statement_id == field.record_statement_id
-                            && candidate.field_index == field.field_index
-                    }) else {
+                    if !record_type_identity_matches(type_identity, field) {
+                        return unavailable_binding(current);
+                    }
+                    let Some(member_field) = fields
+                        .iter()
+                        .find(|candidate| record_field_matches(candidate, field))
+                    else {
                         return unavailable_binding(current);
                     };
                     let result = result_for_declared_type(
@@ -337,11 +395,36 @@ impl<'a> ScalarBindingResolver<'a> {
                     binder_fields,
                     fields,
                     source_order,
-                    ..
+                    source_type_identity,
+                    result_type_identity,
                 } => {
+                    if !binder_fields.iter().all(|candidate| {
+                        let root = candidate
+                            .field_path
+                            .as_deref()
+                            .and_then(|path| path.first())
+                            .map(|entry| entry.record_statement_id.as_str())
+                            .unwrap_or(candidate.record_statement_id.as_str());
+                        root == source_type_identity
+                    }) || !fields.iter().all(|candidate| {
+                        let root = candidate
+                            .field_path
+                            .as_deref()
+                            .and_then(|path| path.first())
+                            .map(|entry| entry.record_statement_id.as_str())
+                            .unwrap_or(candidate.record_statement_id.as_str());
+                        root == result_type_identity
+                    }) || !record_type_identity_matches(result_type_identity, field)
+                    {
+                        return unavailable_binding(current);
+                    }
                     let Some(mapped_field) = fields.iter().find(|candidate| {
-                        candidate.record_statement_id == field.record_statement_id
-                            && candidate.field_index == field.field_index
+                        record_field_path_matches(
+                            &candidate.record_statement_id,
+                            candidate.field_index,
+                            candidate.field_path.as_deref(),
+                            field,
+                        )
                     }) else {
                         return unavailable_binding(current);
                     };
@@ -860,6 +943,7 @@ impl ScalarEvaluationEnvironment for ResolvingEnvironment<'_, '_, '_> {
                     record_statement_id: binder_field.record_statement_id.clone(),
                     field_index: binder_field.field_index,
                     r#type: binder_field.r#type.clone(),
+                    field_path: binder_field.field_path.clone(),
                 };
                 let mut seen = context.seen.clone();
                 return self.resolver.resolve_record_field_with_seen(

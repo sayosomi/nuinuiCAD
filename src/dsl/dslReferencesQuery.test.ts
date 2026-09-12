@@ -416,6 +416,21 @@ describe("queryDslReferences", () => {
     expect(slices(source, moduleParameter!.referenceRanges)).toEqual(expect.arrayContaining(["input", "input"]));
   });
 
+  it("keeps nested record field identities through generalized constructors and member access", () => {
+    const source = [
+      "nui 1",
+      "record Metadata(label: string)",
+      "record Piece(metadata: Metadata)",
+      'const piece: Piece = Piece(metadata: Metadata(label: "body"))',
+      "const label: string = @piece.metadata.label"
+    ].join("\n");
+    const result = queryAt(source, "label");
+
+    expect(result).not.toBeNull();
+    expect(slices(source, result!.declarationRange)).toEqual(["label"]);
+    expect(slices(source, result!.referenceRanges)).toEqual(["label", "label"]);
+  });
+
   it("projects qualified whole-record aliases to the exact Module instance and export owners", () => {
     const source = [
       "nui 1",

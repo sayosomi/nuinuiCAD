@@ -11,7 +11,7 @@ const physicalText = (
 ) => span ? span.segments.map((segment) => source.slice(segment.from, segment.to)).join("") : null;
 
 describe("record definition parser", () => {
-  it("parses scalar-only required fields with exact logical spans", () => {
+  it("parses required immutable value fields with exact logical spans", () => {
     const source = "record Measurements(bust: number, note: string, active: boolean)";
     const parsed = parseDslRecordDefinitionStatement(source);
 
@@ -30,7 +30,7 @@ describe("record definition parser", () => {
     ]);
   });
 
-  it("rejects v1 optional/default/geometry/nested/array fields and duplicates", () => {
+  it("accepts immutable geometry, collection, and nested-record fields while retaining optional/default/duplicate rejection", () => {
     const parsed = parseDslRecordDefinitionStatement(
       "record Invalid(a?: number, b: number = 1, p: point, nested: Other, values: number[], a: string)"
     );
@@ -39,11 +39,28 @@ describe("record definition parser", () => {
     expect(codes).toEqual(expect.arrayContaining([
       "record-field-optional-unsupported",
       "record-field-default-unsupported",
-      "record-field-geometry-unsupported",
-      "record-field-nested-unsupported",
-      "record-field-array-unsupported",
       "record-field-duplicate"
     ]));
+    expect(parsed.statement?.fields.filter((field) => field.type).map((field) => [field.name, field.type?.kind])).toEqual([
+      ["a", "number"],
+      ["b", "number"],
+      ["p", "point"],
+      ["nested", "record"],
+      ["values", "array"],
+      ["a", "string"]
+    ]);
+  });
+
+  it("preserves the canonical nested immutable value type shape", () => {
+    const parsed = parseDslRecordDefinitionStatement(
+      "record Piece(outline: path, points: point[], metadata: Metadata)"
+    );
+    expect(parsed.diagnostics).toEqual([]);
+    expect(parsed.statement?.fields.map((field) => field.type)).toEqual([
+      { kind: "path" },
+      { kind: "array", elementType: { kind: "point" } },
+      { kind: "record", name: "Metadata" }
+    ]);
   });
 
   it("projects multiline record name/field/type spans back to exact physical source", () => {
