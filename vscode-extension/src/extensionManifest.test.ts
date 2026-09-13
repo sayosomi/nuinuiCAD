@@ -161,11 +161,15 @@ const canonicalCommandShortTitles: Partial<Record<(typeof commandIds)[number], s
   "nuinuiCAD.extractModule": "Extract Module",
   "nuinuiCAD.goToSourceDefinition": "Go to Source Definition",
   "nuinuiCAD.selectInstance": "Select Instance",
+  "nuinuiCAD.resetCanvasView": "Reset View",
+  "nuinuiCAD.fitDrawing": "Fit Drawing",
   "nuinuiCAD.resetOutputPreviewView": "Reset View",
   "nuinuiCAD.fitOutputPreview": "Fit Preview",
   "nuinuiCAD.clearOutputPreviewFocus": "Clear Focus",
   "nuinuiCAD.bakeCurrentShape": "Current Shape",
   "nuinuiCAD.bakeBaseShape": "Base Shape",
+  "nuinuiCAD.editCanvasRibbon": "Edit Ribbon",
+  "nuinuiCAD.clearCanvasSelection": "Clear Selection",
   "nuinuiCAD.modulePreview.clearSelection": "Clear Selection",
   "nuinuiCAD.modulePreview.resetView": "Reset View",
   "nuinuiCAD.modulePreview.fitDrawing": "Fit Drawing",
@@ -471,6 +475,10 @@ describe("VS Code extension manifest command contributions", () => {
     const english = JSON.parse(await readFile(packageNlsPath, "utf8")) as Record<string, unknown>;
     const japanese = JSON.parse(await readFile(packageNlsJaPath, "utf8")) as Record<string, unknown>;
     const expected = [
+      ["nuinuiCAD.fitDrawing", "Fit Drawing", "図面をフィット"],
+      ["nuinuiCAD.resetCanvasView", "Reset View", "表示をリセット"],
+      ["nuinuiCAD.editCanvasRibbon", "Edit Ribbon", "リボンを編集"],
+      ["nuinuiCAD.clearCanvasSelection", "Clear Selection", "選択を解除"],
       ["nuinuiCAD.convertPointToXYOffset", "XY Offset…", "XYオフセット…"],
       ["nuinuiCAD.convertPointToAngleDistanceOffset", "Angle-Distance Offset…", "角度と距離のオフセット…"],
       ["nuinuiCAD.selectParentGroup", "Select Parent Group", "親グループを選択"],

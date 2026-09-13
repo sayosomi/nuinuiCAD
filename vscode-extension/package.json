@@ -912,6 +912,7 @@
       {
         "command": "nuinuiCAD.clearCanvasSelection",
         "title": "%command.clearCanvasSelection.title%",
+        "shortTitle": "%command.clearCanvasSelection.shortTitle%",
         "enablement": "activeWebviewPanelId == 'nuinuiCAD.canvas' && nuinuiCAD.canvasHasSelection"
       },
       {
@@ -928,11 +929,13 @@
       },
       {
         "command": "nuinuiCAD.resetCanvasView",
-        "title": "%command.resetCanvasView.title%"
+        "title": "%command.resetCanvasView.title%",
+        "shortTitle": "%command.resetCanvasView.shortTitle%"
       },
       {
         "command": "nuinuiCAD.fitDrawing",
-        "title": "%command.fitDrawing.title%"
+        "title": "%command.fitDrawing.title%",
+        "shortTitle": "%command.fitDrawing.shortTitle%"
       },
       {
         "command": "nuinuiCAD.resetOutputPreviewView",
@@ -983,7 +986,8 @@
       },
       {
         "command": "nuinuiCAD.editCanvasRibbon",
-        "title": "%command.editCanvasRibbon.title%"
+        "title": "%command.editCanvasRibbon.title%",
+        "shortTitle": "%command.editCanvasRibbon.shortTitle%"
       },
       {
         "command": "nuinuiCAD.modulePreview.clearSelection",
