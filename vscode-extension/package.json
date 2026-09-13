@@ -116,8 +116,164 @@
       {
         "command": "nuinuiCAD.createGeometry",
         "key": "ctrl+shift+alt+n",
-        "mac": "ctrl+shift+n",
+        "mac": "shift+alt+n",
         "when": "editorTextFocus && editorLangId == nui && resourceScheme == file && resourceExtname == .nui && !editorReadonly"
+      },
+      {
+        "command": "nuinuiCAD.createFreePointAtPointer",
+        "key": "ctrl+shift+alt+n",
+        "mac": "shift+alt+n",
+        "when": "activeWebviewPanelId == 'nuinuiCAD.canvas' && !inputFocus"
+      },
+      {
+        "command": "nuinuiCAD.revealInCanvas",
+        "key": "ctrl+shift+alt+c",
+        "mac": "shift+alt+c",
+        "when": "editorTextFocus && editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.revealInCanvasSourceTarget"
+      },
+      {
+        "command": "nuinuiCAD.openCanvas",
+        "key": "ctrl+shift+alt+c",
+        "mac": "shift+alt+c",
+        "when": "(editorTextFocus && editorLangId == nui && resourceScheme == file && resourceExtname == .nui && !nuinuiCAD.revealInCanvasSourceTarget) || (activeWebviewPanelId == 'nuinuiCAD.outputPreview' && !inputFocus)"
+      },
+      {
+        "command": "nuinuiCAD.revealInOutputPreview",
+        "key": "ctrl+shift+alt+o",
+        "mac": "shift+alt+o",
+        "when": "editorTextFocus && editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.revealInOutputPreviewSourceTarget"
+      },
+      {
+        "command": "nuinuiCAD.openOutputPreview",
+        "key": "ctrl+shift+alt+o",
+        "mac": "shift+alt+o",
+        "when": "(editorTextFocus && editorLangId == nui && resourceScheme == file && resourceExtname == .nui && !nuinuiCAD.revealInOutputPreviewSourceTarget) || (activeWebviewPanelId == 'nuinuiCAD.canvas' && !inputFocus)"
+      },
+      {
+        "command": "nuinuiCAD.openModulePreview",
+        "key": "ctrl+shift+alt+m",
+        "mac": "shift+alt+m",
+        "when": "editorTextFocus && editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.modulePreviewSourceTarget"
+      },
+      {
+        "command": "nuinuiCAD.inlineModuleInstance",
+        "key": "ctrl+shift+alt+l",
+        "mac": "shift+alt+l",
+        "when": "(editorTextFocus && editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.inlineModuleSourceTarget) || (activeWebviewPanelId == 'nuinuiCAD.canvas' && nuinuiCAD.inlineModuleCanvasTarget && !inputFocus)"
+      },
+      {
+        "command": "nuinuiCAD.extractModule",
+        "key": "ctrl+shift+alt+x",
+        "mac": "shift+alt+x",
+        "when": "(editorTextFocus && editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.extractModuleSourceTarget) || (activeWebviewPanelId == 'nuinuiCAD.canvas' && nuinuiCAD.extractModuleCanvasTarget && !inputFocus)"
+      },
+      {
+        "command": "nuinuiCAD.selectInstance",
+        "key": "ctrl+shift+alt+i",
+        "mac": "shift+alt+i",
+        "when": "activeWebviewPanelId == 'nuinuiCAD.canvas' && nuinuiCAD.canvasCanSelectInstance && !inputFocus"
+      },
+      {
+        "command": "nuinuiCAD.selectParentGroup",
+        "key": "ctrl+shift+alt+u",
+        "mac": "shift+alt+u",
+        "when": "activeWebviewPanelId == 'nuinuiCAD.canvas' && nuinuiCAD.canvasHasSelection && !inputFocus"
+      },
+      {
+        "command": "nuinuiCAD.clearCanvasSelection",
+        "key": "ctrl+shift+alt+d",
+        "mac": "shift+alt+d",
+        "when": "activeWebviewPanelId == 'nuinuiCAD.canvas' && nuinuiCAD.canvasHasSelection && !inputFocus"
+      },
+      {
+        "command": "nuinuiCAD.modulePreview.clearSelection",
+        "key": "ctrl+shift+alt+d",
+        "mac": "shift+alt+d",
+        "when": "activeWebviewPanelId == 'nuinuiCAD.modulePreview' && nuinuiCAD.canvasHasSelection && !inputFocus"
+      },
+      {
+        "command": "nuinuiCAD.clearOutputPreviewFocus",
+        "key": "ctrl+shift+alt+d",
+        "mac": "shift+alt+d",
+        "when": "activeWebviewPanelId == 'nuinuiCAD.outputPreview' && !inputFocus"
+      },
+      {
+        "command": "nuinuiCAD.fitDrawing",
+        "key": "ctrl+shift+alt+f",
+        "mac": "shift+alt+f",
+        "when": "activeWebviewPanelId == 'nuinuiCAD.canvas' && !inputFocus"
+      },
+      {
+        "command": "nuinuiCAD.modulePreview.fitDrawing",
+        "key": "ctrl+shift+alt+f",
+        "mac": "shift+alt+f",
+        "when": "activeWebviewPanelId == 'nuinuiCAD.modulePreview' && !inputFocus"
+      },
+      {
+        "command": "nuinuiCAD.fitOutputPreview",
+        "key": "ctrl+shift+alt+f",
+        "mac": "shift+alt+f",
+        "when": "activeWebviewPanelId == 'nuinuiCAD.outputPreview' && !inputFocus"
+      },
+      {
+        "command": "nuinuiCAD.resetCanvasView",
+        "key": "ctrl+shift+alt+r",
+        "mac": "shift+alt+r",
+        "when": "activeWebviewPanelId == 'nuinuiCAD.canvas' && !inputFocus"
+      },
+      {
+        "command": "nuinuiCAD.modulePreview.resetView",
+        "key": "ctrl+shift+alt+r",
+        "mac": "shift+alt+r",
+        "when": "activeWebviewPanelId == 'nuinuiCAD.modulePreview' && !inputFocus"
+      },
+      {
+        "command": "nuinuiCAD.resetOutputPreviewView",
+        "key": "ctrl+shift+alt+r",
+        "mac": "shift+alt+r",
+        "when": "activeWebviewPanelId == 'nuinuiCAD.outputPreview' && !inputFocus"
+      },
+      {
+        "command": "nuinuiCAD.editCanvasRibbon",
+        "key": "ctrl+shift+alt+e",
+        "mac": "shift+alt+e",
+        "when": "activeWebviewPanelId == 'nuinuiCAD.canvas' && !inputFocus"
+      },
+      {
+        "command": "nuinuiCAD.exportCurrentOutput",
+        "key": "ctrl+shift+alt+e",
+        "mac": "shift+alt+e",
+        "when": "activeWebviewPanelId == 'nuinuiCAD.outputPreview' && !inputFocus"
+      },
+      {
+        "command": "nuinuiCAD.convertPointToXYOffset",
+        "key": "ctrl+shift+alt+y",
+        "mac": "shift+alt+y",
+        "when": "(editorTextFocus && editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.coordinatePointConversionSourceTarget) || (activeWebviewPanelId == 'nuinuiCAD.canvas' && nuinuiCAD.canvasHasCoordinatePointConversionTarget && !inputFocus)"
+      },
+      {
+        "command": "nuinuiCAD.convertPointToAngleDistanceOffset",
+        "key": "ctrl+shift+alt+p",
+        "mac": "shift+alt+p",
+        "when": "(editorTextFocus && editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.coordinatePointConversionSourceTarget) || (activeWebviewPanelId == 'nuinuiCAD.canvas' && nuinuiCAD.canvasHasCoordinatePointConversionTarget && !inputFocus)"
+      },
+      {
+        "command": "nuinuiCAD.replaceGeometryReferences",
+        "key": "ctrl+shift+alt+t",
+        "mac": "shift+alt+t",
+        "when": "editorTextFocus && editorLangId == nui && resourceScheme == file && resourceExtname == .nui && !editorReadonly && nuinuiCAD.geometryReferenceRetargetSourceTarget"
+      },
+      {
+        "command": "nuinuiCAD.bakeCurrentShape",
+        "key": "ctrl+shift+alt+s",
+        "mac": "shift+alt+s",
+        "when": "(editorTextFocus && editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.bakeSourceTarget) || ((activeWebviewPanelId == 'nuinuiCAD.canvas' || activeWebviewPanelId == 'nuinuiCAD.modulePreview') && nuinuiCAD.canvasHasSelection && !inputFocus)"
+      },
+      {
+        "command": "nuinuiCAD.bakeBaseShape",
+        "key": "ctrl+shift+alt+b",
+        "mac": "shift+alt+b",
+        "when": "(editorTextFocus && editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.bakeSourceTarget) || ((activeWebviewPanelId == 'nuinuiCAD.canvas' || activeWebviewPanelId == 'nuinuiCAD.modulePreview') && nuinuiCAD.canvasHasSelection && !inputFocus)"
       },
       {
         "command": "nuinuiCAD.pickReferenceFromCanvas",
@@ -126,34 +282,10 @@
         "when": "editorTextFocus && editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.referencePickSourceTarget"
       },
       {
-        "command": "nuinuiCAD.revealInCanvas",
-        "key": "ctrl+shift+alt+c",
-        "mac": "ctrl+shift+c",
-        "when": "editorTextFocus && editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.revealInCanvasSourceTarget"
-      },
-      {
         "command": "nuinuiCAD.goToSourceDefinition",
         "key": "f12",
         "mac": "f12",
         "when": "activeWebviewPanelId == 'nuinuiCAD.canvas' && nuinuiCAD.canvasHasSelection && !inputFocus"
-      },
-      {
-        "command": "nuinuiCAD.inlineModuleInstance",
-        "key": "ctrl+shift+alt+m",
-        "mac": "ctrl+shift+l",
-        "when": "(editorTextFocus && editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.inlineModuleSourceTarget) || (activeWebviewPanelId == 'nuinuiCAD.canvas' && nuinuiCAD.inlineModuleCanvasTarget && !inputFocus)"
-      },
-      {
-        "command": "nuinuiCAD.extractModule",
-        "key": "ctrl+shift+alt+x",
-        "mac": "ctrl+shift+x",
-        "when": "(editorTextFocus && editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.extractModuleSourceTarget) || (activeWebviewPanelId == 'nuinuiCAD.canvas' && nuinuiCAD.extractModuleCanvasTarget && !inputFocus)"
-      },
-      {
-        "command": "nuinuiCAD.selectInstance",
-        "key": "ctrl+shift+alt+i",
-        "mac": "ctrl+shift+i",
-        "when": "activeWebviewPanelId == 'nuinuiCAD.canvas' && nuinuiCAD.canvasCanSelectInstance && !inputFocus"
       }
     ],
     "menus": {
@@ -327,18 +459,6 @@
           "when": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
         },
         {
-          "command": "nuinuiCAD.webview.createFreePointAtPointer",
-          "when": "false"
-        },
-        {
-          "command": "nuinuiCAD.webview.fitDrawing",
-          "when": "false"
-        },
-        {
-          "command": "nuinuiCAD.webview.resetCanvasView",
-          "when": "false"
-        },
-        {
           "command": "nuinuiCAD.webview.showCanvasPointNames",
           "when": "false"
         },
@@ -360,14 +480,6 @@
         },
         {
           "command": "nuinuiCAD.webview.hideCanvasPoints",
-          "when": "false"
-        },
-        {
-          "command": "nuinuiCAD.webview.editCanvasRibbon",
-          "when": "false"
-        },
-        {
-          "command": "nuinuiCAD.webview.clearCanvasSelection",
           "when": "false"
         },
         {
@@ -478,17 +590,17 @@
       ],
       "webview/context": [
         {
-          "command": "nuinuiCAD.webview.createFreePointAtPointer",
+          "command": "nuinuiCAD.createFreePointAtPointer",
           "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank'",
           "group": "1_create@0"
         },
         {
-          "command": "nuinuiCAD.webview.fitDrawing",
+          "command": "nuinuiCAD.fitDrawing",
           "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank'",
           "group": "2_view@1"
         },
         {
-          "command": "nuinuiCAD.webview.resetCanvasView",
+          "command": "nuinuiCAD.resetCanvasView",
           "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank'",
           "group": "2_view@2"
         },
@@ -498,12 +610,12 @@
           "group": "2_view@3"
         },
         {
-          "command": "nuinuiCAD.webview.editCanvasRibbon",
+          "command": "nuinuiCAD.editCanvasRibbon",
           "when": "(webviewId == 'nuinuiCAD.canvas' || webviewId == 'nuinuiCAD.modulePreview') && (webviewSection == 'blank' || webviewSection == 'ribbon')",
           "group": "3_edit@1"
         },
         {
-          "command": "nuinuiCAD.webview.clearCanvasSelection",
+          "command": "nuinuiCAD.clearCanvasSelection",
           "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank' && nuinuiCAD.canvasHasSelection",
           "group": "4_selection@1"
         },
@@ -946,18 +1058,6 @@
         "enablement": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
       },
       {
-        "command": "nuinuiCAD.webview.createFreePointAtPointer",
-        "title": "%command.webview.createFreePointAtPointer.title%"
-      },
-      {
-        "command": "nuinuiCAD.webview.fitDrawing",
-        "title": "%command.webview.fitDrawing.title%"
-      },
-      {
-        "command": "nuinuiCAD.webview.resetCanvasView",
-        "title": "%command.webview.resetCanvasView.title%"
-      },
-      {
         "command": "nuinuiCAD.webview.showCanvasPointNames",
         "title": "%command.webview.showCanvasPointNames.title%"
       },
@@ -980,14 +1080,6 @@
       {
         "command": "nuinuiCAD.webview.hideCanvasPoints",
         "title": "%command.webview.hideCanvasPoints.title%"
-      },
-      {
-        "command": "nuinuiCAD.webview.editCanvasRibbon",
-        "title": "%command.webview.editCanvasRibbon.title%"
-      },
-      {
-        "command": "nuinuiCAD.webview.clearCanvasSelection",
-        "title": "%command.webview.clearCanvasSelection.title%"
       },
       {
         "command": "nuinuiCAD.webview.convertPointToXYOffset",

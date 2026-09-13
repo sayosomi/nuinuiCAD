@@ -34,17 +34,12 @@ describe("Webview context command aliases", () => {
 
   it("defines the exact unique alias-to-canonical command set", () => {
     expect(WEBVIEW_CONTEXT_COMMAND_ALIASES).toEqual([
-      ["nuinuiCAD.webview.createFreePointAtPointer", "nuinuiCAD.createFreePointAtPointer"],
-      ["nuinuiCAD.webview.fitDrawing", "nuinuiCAD.fitDrawing"],
-      ["nuinuiCAD.webview.resetCanvasView", "nuinuiCAD.resetCanvasView"],
       ["nuinuiCAD.webview.showCanvasPointNames", "nuinuiCAD.toggleCanvasPointNames"],
       ["nuinuiCAD.webview.hideCanvasPointNames", "nuinuiCAD.toggleCanvasPointNames"],
       ["nuinuiCAD.webview.showCanvasGeometryNames", "nuinuiCAD.toggleCanvasGeometryNames"],
       ["nuinuiCAD.webview.hideCanvasGeometryNames", "nuinuiCAD.toggleCanvasGeometryNames"],
       ["nuinuiCAD.webview.showCanvasPoints", "nuinuiCAD.toggleCanvasPoints"],
       ["nuinuiCAD.webview.hideCanvasPoints", "nuinuiCAD.toggleCanvasPoints"],
-      ["nuinuiCAD.webview.editCanvasRibbon", "nuinuiCAD.editCanvasRibbon"],
-      ["nuinuiCAD.webview.clearCanvasSelection", "nuinuiCAD.clearCanvasSelection"],
       ["nuinuiCAD.webview.convertPointToXYOffset", "nuinuiCAD.convertPointToXYOffset"],
       ["nuinuiCAD.webview.convertPointToAngleDistanceOffset", "nuinuiCAD.convertPointToAngleDistanceOffset"],
       ["nuinuiCAD.webview.selectParentGroup", "nuinuiCAD.selectParentGroup"],
