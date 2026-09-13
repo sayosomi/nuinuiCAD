@@ -204,7 +204,7 @@ describe("DSL compiler", () => {
     const result = compileDslToElements("point A = coordinate(x: 0, y: 0, locked: true)", { elements: [] });
 
     expect(result.diagnostics.map((item) => item.message)).toContain(
-      "construction「coordinate」に引数「locked」はありません。候補: x、y、state、steps、id、roles、parent、branch。"
+      "construction「coordinate」に引数「locked」はありません。候補: x、y、enabled、visible、steps、id、roles、parent、branch。"
     );
     expect(result.elements).toHaveLength(0);
   });
@@ -213,7 +213,7 @@ describe("DSL compiler", () => {
     const result = compileDslToElements("point A = coordinate(x: 0, y: 0, vars: 1)", { elements: [] });
 
     expect(result.diagnostics.map((item) => item.message)).toContain(
-      "construction「coordinate」に引数「vars」はありません。候補: x、y、state、steps、id、roles、parent、branch。"
+      "construction「coordinate」に引数「vars」はありません。候補: x、y、enabled、visible、steps、id、roles、parent、branch。"
     );
     expect(result.elements).toHaveLength(0);
   });
@@ -222,7 +222,7 @@ describe("DSL compiler", () => {
     const result = compileDslToElements("point A = coordinate(x: 0, y: 0, varIds: 1)", { elements: [] });
 
     expect(result.diagnostics.map((item) => item.message)).toContain(
-      "construction「coordinate」に引数「varIds」はありません。候補: x、y、state、steps、id、roles、parent、branch。"
+      "construction「coordinate」に引数「varIds」はありません。候補: x、y、enabled、visible、steps、id、roles、parent、branch。"
     );
     expect(result.elements).toHaveLength(0);
   });
@@ -304,7 +304,7 @@ describe("DSL compiler", () => {
         "line AB = segment(start: @A, end: @B)",
         "curve curveAB = bezier(start: @A, end: @B, startAngle: 0, startLength: 25, endAngle: 180, endLength: 25, intermediates: [@C:45:10:20:mid-1])",
         "line splitAB = split(source: @AB, at: @C)",
-        "extend(end: @AB.end, to: @C)",
+        "extend AB.end as extended (to: @C)",
         "line offsetAB = offset(sources: [@AB, @curveAB], distance: 10, side: left, closed: false)"
       ].join("\n"),
       { elements: [] }
@@ -327,8 +327,13 @@ describe("DSL compiler", () => {
       ]
     });
     expect(result.elements[5]).toMatchObject({ type: "splitLine", baseLineId: result.elements[3].id });
-    expect(result.elements[6]).toMatchObject({ type: "extendTrim", endpoint: { lineId: result.elements[3].id, endpointKey: "end" } });
-    expect(result.elements[7]).toMatchObject({
+    expect(result.transformationRecipes).toHaveLength(1);
+    expect(result.transformationRecipes?.[0]).toMatchObject({
+      construction: "extend",
+      stageName: "extended",
+      targets: [{ ownerId: result.elements[3].id, endpointKey: "end" }]
+    });
+    expect(result.elements[6]).toMatchObject({
       type: "offsetLine",
       baseLineIds: [result.elements[3].id, result.elements[4].id],
       offset: 10,

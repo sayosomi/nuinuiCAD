@@ -76,6 +76,14 @@ describe("geometry array expected-type completion", () => {
     expect(labels(result)).not.toContain("points");
   });
 
+  it("projects an optional geometry-array declaration to its underlying completion shape", () => {
+    const source = [
+      ...geometryBase,
+      "const paths: path[]? = [@]"
+    ].join("\n");
+    expect(labels(queryAt(source, "const paths: path[]? = [@"))).toEqual(expect.arrayContaining(["L", "Curve"]));
+  });
+
   it("uses the Module parameter array type for inline and named arguments", () => {
     const named = [
       ...geometryBase,

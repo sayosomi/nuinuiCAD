@@ -67,7 +67,7 @@ describe("cadDocumentStore canonical text", () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
 
     useCadDocumentStore.getState().commitDocumentChange({
-      elements: fatalState.elements.map((element) => ({ ...element, activity: "disabled" }) as CadElement)
+      elements: fatalState.elements.map((element) => ({ ...element, activity: "disabled", enabled: false, visible: true }) as CadElement)
     });
 
     expect(useCadDocumentStore.getState().sourceText).toBe(fatalText);
@@ -114,7 +114,7 @@ describe("cadDocumentStore canonical text", () => {
     );
     const renamedId = pointId("Renamed");
     const changed = useCadDocumentStore.getState().elements.map((element) =>
-      element.name === "B" ? ({ ...element, activity: "disabled" } as CadElement) : element
+      element.name === "B" ? ({ ...element, activity: "disabled", enabled: false, visible: true } as CadElement) : element
     );
     useCadDocumentStore.getState().commitDocumentChange({ elements: changed });
     expect(useCadDocumentStore.getState().past).toHaveLength(2);
@@ -141,7 +141,7 @@ describe("cadDocumentStore canonical text", () => {
       "point B = coordinate(x: 10, y: 0)"
     ].join("\n"));
     const nextElements = useCadDocumentStore.getState().elements.map((element) =>
-      element.name === "B" ? ({ ...element, activity: "disabled" } as CadElement) : element
+      element.name === "B" ? ({ ...element, activity: "disabled", enabled: false, visible: true } as CadElement) : element
     );
     useCadDocumentStore.getState().commitDocumentChange({ elements: nextElements });
     expect(useCadDocumentStore.getState().sourceText).toContain("// keep this comment");
@@ -200,7 +200,7 @@ describe("cadDocumentStore canonical text", () => {
   it("keeps bridge element object identity and ignores preview/snapshot state", () => {
     seedText(twoPointSource());
     const before = useCadDocumentStore.getState();
-    const changedA = { ...before.elements[0], activity: "disabled" } as CadElement;
+    const changedA = { ...before.elements[0], activity: "disabled", enabled: false, visible: true } as CadElement;
     const nextElements = [changedA, before.elements[1]];
     useCadDocumentStore.getState().previewDocumentChange({
       elements: before.elements.map((element) => ({ ...element }) as CadElement)

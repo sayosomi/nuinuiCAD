@@ -1,0 +1,9 @@
+nui 1
+const flag: boolean = false
+const note: string? = "hello"
+const missing: string? = if (@flag) { "unselected" }
+const selected: string? = match @note { none => none some value => @value }
+const resolved: string = @missing ?? "fallback"
+const matched: string = @selected ?? "no note"
+const side: choice(left, right) = left
+const choiceResult: string = match @side { left => "left" right => "right" }

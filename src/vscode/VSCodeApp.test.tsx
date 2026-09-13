@@ -2040,8 +2040,8 @@ describe("VSCodeApp Canvas history coordinator", () => {
   });
 
   it.each([
-    ["hidden", "nui 1\npoint A = coordinate(x: 0, y: 0, state: hidden)", "A", false],
-    ["disabled", "nui 1\npoint A = coordinate(x: 0, y: 0, state: disabled)", "A", false],
+    ["hidden", "nui 1\npoint A = coordinate(x: 0, y: 0, visible: false)", "A", false],
+    ["disabled", "nui 1\npoint A = coordinate(x: 0, y: 0, enabled: false)", "A", false],
     ["non-renderable", "nui 1\nmodule M() {\n  point P = coordinate(x: 0, y: 0)\n}\ninstance A = M()", "A", false]
   ] as const)("handles a %s primary without changing activity or viewport", async (_label, source, token, shouldSelect) => {
     const api = { postMessage: vi.fn() };
@@ -2089,7 +2089,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
     const source = [
       "nui 1",
       "module M() {",
-      "  point Broken = coordinate(x: 0, y: 0, state: disabled)",
+      "  point Broken = coordinate(x: 0, y: 0, enabled: false)",
       "}",
       "instance A = M()"
     ].join("\n");
@@ -2123,8 +2123,8 @@ describe("VSCodeApp Canvas history coordinator", () => {
   it("uses the resolved Source Bake target for a target-scoped sandbox", async () => {
     const source = [
       "nui 1",
-      "point Dependency = coordinate(x: 0, y: 0, state: disabled)",
-      "line Broken = segment(start: @Dependency, end: (10, 0), state: disabled)"
+      "point Dependency = coordinate(x: 0, y: 0, enabled: false)",
+      "line Broken = segment(start: @Dependency, end: (10, 0), enabled: false)"
     ].join("\n");
     const api = { postMessage: vi.fn() };
     render(<VSCodeAppForTest api={api} />);
@@ -2163,8 +2163,8 @@ describe("VSCodeApp Canvas history coordinator", () => {
   it("rejects a stale Source Bake sandbox without mutating the newer document", async () => {
     const source = [
       "nui 1",
-      "point Dependency = coordinate(x: 0, y: 0, state: disabled)",
-      "line Broken = segment(start: @Dependency, end: (10, 0), state: disabled)"
+      "point Dependency = coordinate(x: 0, y: 0, enabled: false)",
+      "line Broken = segment(start: @Dependency, end: (10, 0), enabled: false)"
     ].join("\n");
     let resolveSandbox!: (value: unknown) => void;
     drawingCanvasProps.bakeSandboxPromise = new Promise((resolve) => {
@@ -2277,7 +2277,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
       "nui 1",
       "point Existing = coordinate(x: 0, y: 0)",
       "module M() {",
-      "  point P = coordinate(x: 80, y: 0, state: hidden)",
+      "  point P = coordinate(x: 80, y: 0, visible: false)",
       "}",
       "instance A = M()"
     ].join("\n");
@@ -2378,7 +2378,6 @@ describe("VSCodeApp Canvas history coordinator", () => {
       compiled: before.doc,
       targets: childTargets.map((target) => ({ documentKey: null, statementId: target.statementId! })),
       policy: {
-        emitOmittedBranchComments: true,
         includeHiddenInstances: false,
         includeDisabledInstances: false
       }

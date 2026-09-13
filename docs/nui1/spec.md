@@ -214,13 +214,22 @@ The conceptual reference grammar is:
 
 ```text
 @qualifiedName
+@qualifiedName[index]
 @qualifiedName.property
+@qualifiedName[index].property
 ```
 
 `::` is namespace/container traversal. It moves from one resolved named
 container to a named member, such as `@前身頃::肩線` or
 `@foo::頂点`. `.` is property access after the name has been resolved, such as
-`@AB.length` or `@写し::縫い線.end`.
+`@AB.length` or `@写し::縫い線.end`. For a drawable declaration materialized
+by a statement-for, `[index]` is an explicit zero-based occurrence selector
+after the resolved qualified name; it is not a qualified-path segment. The
+index is a typed numeric expression and must evaluate to a finite, integral,
+non-negative, in-range occurrence that is available at the reference position.
+The optional property is applied after the occurrence selector. Generated
+runtime identifiers are not source references and must never be parsed to
+recover an occurrence index.
 
 Every value reference, including scalar references, geometry references, derived
 points, endpoints, and property references, uses this same `@` form. There is
@@ -345,6 +354,20 @@ Every expression has a static and runtime type. nui1 has these scalar types:
 - `boolean`
 - `choice(...)`
 
+Every immutable value type `T` also has one canonical optional form, `T?`.
+An optional value is either a value of `T` or the absence value `none`; the
+optional wrapper is part of the value type and is not Module-specific metadata.
+The underlying type is established by the expected type, so `none` is legal in
+`const note: string? = none` but is an error in `const x: number = none`.
+`none` is reserved and cannot be authored as a `choice(...)` option. Repeated
+optional suffixes such as `T??` are invalid. A `T` is assignable to `T?`, but a
+`T?` is never implicitly assignable to `T`.
+
+Optionality composes with the existing one-dimensional collection form without
+creating nested arrays: `T?[]` is a collection whose members are optional `T?`
+values, while `T[]?` is one optional collection value. The same assignability
+rule applies to scalar, geometry, nominal-record, and collection value types.
+
 The initial geometry interface types are `point`, `line`, and `path` (see
 [Geometry types](#geometry-types)). There is no implicit type conversion. A
 number is not silently converted to a string or boolean, a choice is not silently
@@ -373,6 +396,7 @@ The formal operator set is:
 ```text
 +  -  *  /  %  ^
 <  <=  >  >=  ==  !=
+??
 and
 or
 not
@@ -394,6 +418,23 @@ The constraints are:
   `boolean`; there is no coercive equality.
 - `and` and `or` require `boolean` operands and produce `boolean`.
 - `not` requires a `boolean` operand and produces `boolean`.
+- `lhs ?? rhs` requires `lhs` to have type `T?`, evaluates `rhs` only when
+  `lhs` is `none`, and produces the non-optional type `T`. The right side must
+  be assignable to `T`; a present left value is returned without evaluating the
+  right side.
+- Optional member access uses `?.` and requires an optional receiver. If the
+  ordinary member/property result for the underlying value is `U`, then
+  `T?.member -> U?`. A `none` receiver produces `none` without evaluating or
+  requiring the underlying member read; a present receiver reads the same
+  member/property as ordinary access and lifts that result into the general
+  optional value model. If the ordinary result is already optional, the result
+  remains one optional layer rather than becoming an optional of an optional.
+  Optional chaining does not implicitly unwrap values for ordinary `.` access.
+  It applies only to existing member/property authorities, including nominal
+  record fields, geometry properties, and collection properties such as
+  `length` (for example, `@piece.outline?.length` when `outline` is an
+  existing optional field); it does not introduce members for other value
+  families.
 - Division by zero and other invalid runtime operations are explicit evaluation
   diagnostics. `5 % 0` produces `evaluation-remainder-by-zero`. A non-finite
   power result such as `(-1) ^ 0.5`, `0 ^ -1`, or `10 ^ 10000` produces
@@ -401,24 +442,26 @@ The constraints are:
 
 ### Scalar, geometry, and nominal-record value control flow
 
-Scalar and geometry value expressions may use a required-`else` conditional:
+Scalar, geometry, nominal-record, and collection value expressions may use a
+conditional. An `else` branch may be omitted only when the expected result type
+is optional; the omitted branch is the ordinary `none` value of that type:
 
 ```nui
 if (@enabled) { @leftPoint } else { coordinate(x: 0, y: 0) }
 ```
 
 The condition is a typed boolean expression. A geometry-valued conditional must
-have the declared geometry interface type in both branches. Each branch may be
+have the declared geometry interface type in each present branch. Each branch may be
 an existing legal `@` geometry reference or one of the implemented pure
 geometry value constructions. A nominal-record conditional must have the exact
 declared record-definition identity in both branches; its leaves may be a
 constructor, whole-record reference, or supported statically indexed member of
 a record collection. A collection-valued conditional must have the same
-declared one-dimensional collection type in both branches; each branch is
+  declared one-dimensional collection type in each present branch; each branch is
 recursively resolved as a collection expression. Both branches are resolved
 and checked at compile time, but runtime evaluates the condition before
-evaluating only the selected branch. Optional result values are not part of
-nui1.
+evaluating only the selected branch. A non-optional value-producing conditional
+still requires an explicit `else`.
 
 A scalar, geometry, or nominal-record value expression may use the following exhaustive
 choice-match form:
@@ -444,7 +487,23 @@ indexed member of a record collection. Collection results must share the
 declared one-dimensional collection type, and each arm is recursively resolved
 as a collection expression. At runtime the scrutinee is evaluated first and
 only the arm whose label equals the selected choice value is evaluated.
-Optional `none`/`some` values remain outside this slice.
+An optional scrutinee uses the corresponding `none`/`some` form:
+
+```nui
+match @piece.note {
+  none => "no note"
+  some note => @note
+}
+```
+
+The scrutinee must have type `T?`, and exactly one `none` arm and one
+`some <binder>` arm are required. The binder spelling is authored, is visible
+only in its own arm, and has the non-optional type `T`. Optional match uses the
+same scalar, geometry, nominal-record, and one-dimensional collection result
+families as choice match. Only the selected arm is evaluated at runtime; a
+present value is bound without introducing a second absence representation.
+The standalone `none` literal is available only in an expected optional value
+type.
 
 Named scalar function calls use the following syntax:
 
@@ -596,8 +655,8 @@ programming language.
 
 ## Records
 
-Records are source-only nominal value types for grouping scalar fields. A record
-definition is top-level and uses a named field list:
+Records are immutable, source-only nominal value types for grouping supported
+immutable values. A record definition is top-level and uses a named field list:
 
 ```nui
 record Pair(
@@ -606,11 +665,19 @@ record Pair(
 )
 ```
 
-Record fields are required, named, and scalar-only. Geometry fields, arrays,
-nested record fields, field defaults, and optional fields are not part of nui1
-v1. Record type identity is the identity of the record definition statement;
-two definitions with the same field names and scalar types are still different
-types. Definitions and values obey the normal non-hoisted source order.
+Record fields are named. Each non-optional field is required; an optional field
+of type `T?` may be omitted and omission materializes the ordinary `none` value
+of that type. Each field uses the shared immutable value
+type vocabulary: scalar types (`number`, `string`, `boolean`, and
+`choice(...)`), `point`, `line`, `path`, a supported one-dimensional `T[]`
+collection whose element type is not an array, one optional wrapper around any
+of those, or another named record type.
+Record type identity is the identity of the record definition statement; two
+definitions with the same field names and types are still different types.
+Definitions and values obey the normal non-hoisted source order. Nested arrays
+and field defaults are not part of nui1 v1. Optional field omission does not
+create field-specific presence state or defaults; it uses the generic `T?` value
+type and `none` rules above.
 
 A record value is declared with `const` and either a named-field constructor or
 a whole-record reference:
@@ -642,9 +709,11 @@ selected record leaf. A record leaf may be a constructor, a whole-record
 reference, or a supported statically indexed member of a record collection.
 Record values also support the collection value-producing `for` form described
 below when the source and result element types are exact nominal record
-identities. Optional values remain outside this slice.
+identities. Optional record fields and optional result values use the same
+immutable value model described above.
 
-Constructors are named-only and must provide every field exactly once. The
+Constructors are named-only and must provide every non-optional field exactly
+once; optional fields may be supplied at most once or omitted. The
 constructor name and the declared type must identify the same record definition;
 record values cannot be declared with `let`. A record value can be referenced
 as a whole with `@name` or read through a scalar field such as `@first.x`.
@@ -654,8 +723,9 @@ geometry elements.
 Module parameters may use a record type, and Module locals and exports may use
 record values. Module record parameters and record values are read-only. A
 record value passed to another Module must have the exact nominal type expected
-by that parameter. Optional record parameters use the existing `hasValue`
-presence proof before they are read; omitted optional records remain absent.
+by that parameter. Optional record parameters use the ordinary `T?` value model;
+omission without a default and explicit `none` produce `none`, and a required
+record read must resolve the optional value first.
 Exported record values can be read from an instance with a qualified reference,
 for example `@front::output.x`.
 
@@ -869,30 +939,38 @@ flows. They use the same segment validation, direction normalization, candidate
 selection, and degenerate-chord rules described above; pure failures are stored
 on the value occurrence and do not allocate a drawable identity.
 
-## Groups and activity
+## Groups and computation/presentation gates
 
 `group` combines four roles:
 
 - UI hierarchy
 - lexical scope
 - namespace/container
-- activity container
+- computation and presentation container
 
 Nested groups may contain members with names that exist in an outer group. The
 same source-order, non-hoisted resolution rules apply in every group.
 
-Each element or activity container has exactly one activity state:
+Every geometry declaration and container may have independent direct gates:
 
-- `visible`: evaluates and draws normally.
-- `hidden`: evaluates and may be referenced, but is not drawn.
-- `disabled`: is not evaluated, produces no computed geometry, and cannot be
-  referenced by later statements.
+- `enabled: boolean` is the computation gate. `false` is evaluated before the
+  declaration's remaining evaluation-driving inputs; the declaration is not
+  materialized and later references see the existing unavailable-dependency
+  class.
+- `visible: boolean` is the presentation gate. `false` still evaluates and may
+  be referenced, but is not drawn.
+
+An ancestor's `enabled: false` disables its descendants and an ancestor's
+`visible: false` hides its descendants. A child cannot override either direct
+ancestor gate. The same rules apply to groups, `if`, `for`, text, image, and
+Module instances. Transformation-clause `enabled` remains a stage-local
+computation gate.
 
 An invalid dependency is not drawn as normal valid geometry. The application
 reports the dependency error and either omits the geometry or displays a clear
 warning marker.
 
-## Drawing modifier profiles and style properties
+## Style declarations, profiles, and presentation properties
 
 Drawing Profiles are top-level, source-ordered declarations in the ordinary
 lexical namespace. A profile is referenced with `@name`; references are not
@@ -902,10 +980,10 @@ hoisted, so a declaration must appear before its use.
 profile 印刷用
 profile SVG用
 
-modifier 型紙線 {
-  state: visible,
+style 型紙線 {
+  visible: true,
   width: 1px,
-  style: solid,
+  lineType: solid,
   color: foreground,
 
   for @印刷用 {
@@ -914,25 +992,24 @@ modifier 型紙線 {
 }
 ```
 
-The supported modifier properties are independent: `state` is `visible`,
-`hidden`, or `disabled`; `width` is a positive finite decimal pixel literal;
-`style` is `solid`, `dashed`, or `dotted`; and `color` is a theme role
+The supported Style properties are independent: `visible` is a boolean;
+`width` is a positive finite decimal pixel literal; `lineType` is `solid`,
+`dashed`, or `dotted`; and `color` is a theme role
 (`foreground`, `muted`, `accent`, `info`, `warning`, or `error`) or `#RRGGBB`.
-The former compound `stroke:` property is invalid. A modifier may contain only
+The former compound `stroke:` property is invalid. A Style may contain only
 these properties and `for @profile { ... }` blocks; profile blocks may contain
-only the same four properties. A modifier may be profile-only. Duplicate
+only the same four properties. A Style may be profile-only. Duplicate
 properties and duplicate overrides for the same resolved profile are errors.
 
 Effective properties cascade from outer group to inner group to element. Within
-each owner, modifier lists are applied left to right. The cascade merges each
+each owner, assigned Styles are applied left to right. The cascade merges each
 property independently and starts from `1px solid foreground`. A selected
 Drawing Profile overlays the common properties with its matching delta.
 
-Direct element activity is a hard gate: modifier state is applied only after
-direct and ancestor activity resolves to `visible`. `hidden` elements still
-evaluate and may be referenced; `disabled` elements do not evaluate and cannot
-be referenced by later elements. Canvas evaluation omits a selected Drawing
-Profile unless a host explicitly supplies one.
+Style `visible` is presentation-only. It cannot override a direct or ancestor
+`visible: false` gate, and profile selection never changes computation or
+materialization. Canvas evaluation omits a selected Drawing Profile unless a
+host explicitly supplies one.
 
 ## Conditional and iteration control
 
@@ -969,7 +1046,12 @@ iteration at `min`. The canonical source spelling uses the exact spacing
 statement-for header as a control option and does not change range values.
 Non-finite operands, descending bounds, non-positive steps, and ranges that
 would generate more than 1000 values are evaluation diagnostics. A loop does
-not create an implicit outer binding.
+not create an implicit outer binding. Each drawable declaration in a
+statement-for has one deterministic, ordered zero-based occurrence collection
+across its materialized instances; nested loops retain each occurrence path.
+`@Name[index]` addresses one occurrence, while bare `@Name` is valid only when
+exactly one occurrence is available and otherwise reports the existing
+collection-index-unavailable diagnostic rather than selecting zero.
 
 ## Modules
 
@@ -1030,51 +1112,44 @@ A parameter may be `point`, `line`, `path`, `number`, `string`, `boolean`,
 `choice(...)`, a nominal record type, or a one-dimensional `T[]` whose element
 type is one of those non-array value types. Singular geometry
 parameters are resolved external targets exposed inside the module as read-only
-aliases. A singular geometry parameter cannot be a mutation target. Geometry-array
+aliases. A singular geometry parameter cannot be a transformation target. Geometry-array
 parameters are immutable ordered values; they may be passed as inline literals or
 named array references and do not have defaults.
 
 Any scalar, geometry, record, or collection parameter may be optional by writing
-`name?: type`. Optional parameters cannot also have a default. Omission is an
-intentional absent value: it is not `none`, `null`, or a runtime value, and an
-omitted scalar has no eager initializer or binding. Required, defaulted, and
-optional parameters retain their source-order slots; named instance arguments
-may be written in any order.
+`name: type?`. The older `name?: type` spelling is rejected. The parameter value
+is the ordinary immutable optional value: omission without a default and
+explicit `none` both produce `none`, while a supplied `type` value is assignable
+to `type?`. Required consumers must resolve the value explicitly with `??`, an
+optional `match` using `none` and `some <binder>`, an optional-result `if`, or
+`?.` where the result family supports it. There is no implicit optional
+unwrapping.
 
-Only non-optional scalar parameters may have defaults. A scalar default may
-reference only earlier parameters in the same signature, and an optional
-parameter cannot be read directly from a default. `hasValue(@parameter)` is
-valid in a boolean default and is the only presence test for an optional
-parameter.
-
-Inside a module body, `hasValue(@parameter)` accepts exactly one optional scalar,
-geometry, record, or collection parameter and returns `boolean`. Its result may
-narrow presence in the same lexical descendant: a true `if` branch, the
-right-hand side of `and`, and the false branch of `or` prove presence. `not`
-reverses the fact. Facts do not escape the branch, do not flow through boolean
-aliases, and do not prove presence in the other branch. Scalar reads, geometry
-reads and properties, geometry-array reads, builtin operands, construction
-values, templates, and passing an optional value to another module require such
-proof. Supplying an optional argument materializes the ordinary value with its
-declared type; omitting it remains absent.
+Defaults are orthogonal to optionality. Existing default-eligibility rules are
+unchanged: optionality does not make geometry, collection, or record parameters
+default-eligible. An eligible optional scalar such as
+`height: number? = 10` uses `10` when omitted, preserves `none` for explicit
+`none`, and uses a supplied number otherwise. Scalar defaults are evaluated in
+source order in the module's parameter context and do not capture values from
+the module's caller.
 
 The existing Module v1 evaluation-limit atomicity is retained: an instance is
 evaluated as an atomic module operation within its evaluation limit, and a
 failed instance does not leak partially valid materialization as normal output.
 
-### Instance activity
+### Instance computation and presentation gates
 
-An instance may carry its own activity option:
+An instance may carry its own direct gates:
 
 ```text
-instance foo(state: hidden) = Foo(
+instance foo(enabled: true, visible: false) = Foo(
   base: @A,
   seam: @seam,
 )
 ```
 
-`state` is an option on the instance, not a callee parameter. Its value is one
-of the activity choices `visible`, `hidden`, or `disabled`.
+`enabled` and `visible` are options on the instance, not callee parameters.
+They accept boolean literals or shared boolean references.
 
 ### Visibility and exports
 
@@ -1264,20 +1339,18 @@ with this local `const` alias syntax; a parameter whose interface is `point`,
 side. An exported alias is referenced through its instance with the ordinary
 qualified form, for example `@front::outline`.
 
-## Mutations
+## Declarative transformation recipes
 
-The existing mutation concepts remain available: `edge`, `extend`, `move`,
-`mirrorMove`, and `reverse`, among others already supported by the construction
-model. Every target and source operand is a nui1 reference using `@`:
+Transformations are immutable declarative recipes. Their canonical form is an
+operation followed by a bare target, an optional named checkpoint, and the
+operation arguments:
 
 ```text
-extend(
-  end: @AB.start,
+extend AB.end as extended(
   to: @A,
 )
 
-move(
-  targets: [@AB],
+move [AB, C] as moved(
   from: @A,
   to: @B,
   scale: 1,
@@ -1285,16 +1358,52 @@ move(
   mirrorX: false,
 )
 
-reverse(
-  target: @AB,
-)
+reverse AB as reversed()
 ```
 
-A mutation cannot target an element that appears later in document order. A
-module geometry parameter alias cannot be a mutation target. After an instance
-has completed, its exported, module-owned geometry may be a mutation target;
-private members and read-only external aliases remain protected by visibility
-and mutability diagnostics.
+The target slot is not a nui1 value/reference slot. A target is written bare,
+for example `A`, `[A, B]`, `A.end`, or `A.moved.end`; it is never written with
+`@`. The `@` sigil remains the value/reference syntax, including operation
+arguments such as `from: @A` and stage references such as `from:
+@A.moved.start`. Endpoint targets use `.start` or `.end`. Module-qualified
+targets use their qualified bare path, for example `front::outline`.
+
+At the root, `base` denotes the owner's original geometry and `final` denotes
+the owner's resulting geometry. An optional `as name` clause creates an
+immutable named checkpoint. A checkpoint is a semantic geometry snapshot, not
+an independent drawable Canvas element. `base` is a valid branch target;
+`final` is reference-only and is invalid as a transformation target. A stage
+name may not be `base` or `final`, and a stage name may not collide with a
+geometry property name of its owner.
+
+Recipes are evaluated in root source order. A named stage owns a recursive
+branch: a later recipe targeting `A.stage` reads and extends that branch. When
+the target is already a stage, the resulting checkpoint remains in that branch;
+an empty branch has the implicit `.final` result. The first recipe in a branch
+reads the branch's `base` snapshot. Transformation targets must refer to
+available geometry in the settled source order; SAY-291's general
+forward-reference/global scheduling semantics are not part of this contract.
+
+An operation may target one owner or several coupled owners. Coupled operations
+produce independent resulting checkpoints for each owner. Generated geometry
+supports both bulk and indexed occurrence targets. An occurrence-first stage
+spelling such as `@Mark[2].shifted` is a value/reference to the named stage of
+that occurrence. Bulk and indexed matching clauses merge in source order for
+each occurrence. A bulk target with zero occurrences is a no-op; an explicit
+occurrence that is unavailable is an error.
+
+Each owner and branch may have at most one sibling stage with a given name.
+`enabled: false` bypasses only that transformation. The target geometry remains
+available, and when the clause declares `as stage`, that stage still exists and
+contains the unchanged input geometry. Later transformations continue normally.
+The transformation target ownership, module qualification, and visibility
+rules remain those of the existing declaration and instance model; module
+geometry parameters are not made mutable transformation owners.
+
+The old call-shaped mutation syntax is not accepted and has no compatibility
+layer. Forms such as `move(targets: [@AB], ...)`, `extend(end: ..., to: ...)`,
+and `reverse(target: @AB)` are invalid nui1. SAY-294's drawable materialization
+from stage values is not part of this contract.
 
 ## Text interpolation
 
@@ -1403,6 +1512,11 @@ Literal scales must be finite and positive. Literal angles are normalized to
 
 ## Choice literals and arrays
 
+`none` is the one reserved absence literal. It is type-directed and is accepted
+only where an expected optional type establishes its underlying value type; it
+does not have an unrelated scalar or choice type. Consequently, `none` cannot
+be a `choice(...)` option.
+
 Bare identifiers such as `left`, `right`, `visible`, `hidden`, and `disabled`
 are choice literals when the surrounding typed position expects the
 corresponding `choice(...)` type. They are not references. The builtin numeric
@@ -1416,6 +1530,11 @@ The element type `T` may be any currently valid non-array value type:
 already-valid nominal record type. Named arrays are `const` only, and the
 declaration type annotation is mandatory. Nested arrays such as `T[][]` are
 rejected; the type model is intentionally one-dimensional.
+
+Optional suffixes compose with collections by precedence: `T?[]` means each
+member has optional type `T?`, whereas `T[]?` means the whole `T[]` value is
+optional. `T??` is rejected. These forms use the same canonical assignability
+rule as their scalar, geometry, and nominal-record counterparts.
 
 ```text
 const points: point[] = [@A, @B]
@@ -1444,8 +1563,8 @@ reverse `path[] -> line[]`, point/non-point conversions, and implicit untyped
 conversion are invalid.
 
 Module signatures may declare required or optional collection parameters.
-They have no defaults. Optional arrays use the same `hasValue(@parameter)`
-presence narrowing as other optional Module parameters. Module bodies may
+They have no defaults under the existing eligibility rules; optionality does not
+change those rules. Module bodies may
 create local immutable arrays and may export them with `export const`; private,
 source-order, and instance-member visibility rules are unchanged. Collection
 members remain values: pure geometry members are not converted into drawable
@@ -1486,8 +1605,9 @@ at the consuming geometry operation. Nominal-record value-producing collection
 `for` uses the same pure, lazy, one-result-per-input shape. Its source and
 result element types must be exact nominal record identities; the body is a
 record value expression checked against the result identity, and a requested
-record member evaluates only the corresponding scalar field body. This does
-not change optional-value semantics or add `none`/`some` values.
+record member evaluates only the corresponding scalar field body. Optional
+match arms and omitted optional-result `else` branches use the same lazy
+immutable collection model.
 
 For example:
 
@@ -1508,25 +1628,18 @@ const selectedX: number = @selected.x
 ```
 
 Existing broad line-list consumers treat their list value as `path[]`. This
-includes `offset.sources`, `transformCopy.baseLines`, `mirrorCopy.baseLines`,
-`move.targets`, and `mirrorMove.targets`. An inline literal and a named `path[]`
+includes `offset.sources`, `transformCopy.baseLines`, and `mirrorCopy.baseLines`.
+These are value/reference list slots, so an inline literal and a named `path[]`
 value are semantically equivalent at these sites:
 
 ```text
-const targets: path[] = [@肩線, @脇線]
-
-move(
-  targets: @targets,
-  from: @A,
-  to: @B,
-  scale: 1,
-  angleDeg: 0,
-  mirrorX: false,
-)
+const sources: path[] = [@肩線, @脇線]
 ```
 
 A named array reference remains a named reference in source; canonical
-formatting does not flatten it into an inline literal. Runtime lowering feeds
+formatting does not flatten it into an inline literal. Transformation target
+lists are separate bare selectors, as specified above, and do not accept a
+named `path[]` value. Runtime lowering feeds
 the resolved ordered geometry members into the existing geometry-list paths;
 scalar and nominal-record collections remain source-semantic values until a
 later collection-consumer slice.
@@ -1537,8 +1650,8 @@ cardinality: an empty literal is `0`, a literal counts every authored member
 including duplicates, and whole-value aliases preserve the target cardinality.
 The property is available for root declarations, Module parameters, locals,
 and exports wherever the underlying collection reference is valid. Optional
-collection parameters require an established `hasValue(@parameter)` presence
-proof before `.length` access. `.length` does not select or materialize a
+collection parameters must be resolved through the general optional-value
+operations before `.length` access. `.length` does not select or materialize a
 collection member and does not create a declaration identity.
 
 A declared collection value may also be indexed with a first-class, read-only
@@ -1551,7 +1664,7 @@ does not create a drawable `ElementId`, and nested arrays are not supported.
 The form is available for root collections and through the same lexical,
 Module-parameter, local, export, qualified, and cross-document paths as a
 whole collection reference. An optional Module collection parameter must first
-be proven present with `hasValue(@parameter)`.
+be resolved through the general optional-value operations.
 
 The index must evaluate to a finite integer in the inclusive lower bound `0`
 and exclusive upper bound `@collection.length`. Negative, fractional,
@@ -1670,20 +1783,16 @@ module Panel(
     )
   }
 
-  reverse(
-    target: @detail,
-  )
+  reverse detail ()
 }
 
-instance front(state: hidden) = Panel(
+instance front(visible: false) = Panel(
   base: @A,
   seamLine: @AB,
   seam: @seam,
 )
 
-reverse(
-  target: @front::outline,
-)
+reverse front::outline ()
 
 group 前身頃 {
   line stitching = segment(
@@ -1706,8 +1815,7 @@ group 前身頃 {
     )
   }
 
-  mirrorMove(
-    targets: [@stitching],
+  mirrorMove stitching(
     axis1: @A,
     axis2: @B,
   )
@@ -1725,7 +1833,7 @@ stop
 
 The example also demonstrates that `front` is defined before it is referenced,
 that the module's `seamLine` is a read-only external geometry alias, and that
-the post-instance mutation targets exported, module-owned geometry.
+the post-instance transformation targets exported, module-owned geometry.
 
 ## nui3 to nui1 mapping
 

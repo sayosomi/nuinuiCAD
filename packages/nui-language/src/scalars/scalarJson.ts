@@ -7,9 +7,10 @@ import {
   scalarValueMatchesType,
   type ScalarEvaluation,
   type ScalarEvaluationErrorContext,
-  type ScalarType,
+  type ScalarExpressionType,
   type ScalarValue
 } from "./types";
+import type { DslRequiredNonArrayValueType } from "../dsl/dslValueTypes";
 
 const fail = (message: string): never => {
   throw new Error(`invalid scalar JSON payload: ${message}`);
@@ -28,7 +29,7 @@ const parseOptionsArray = (json: unknown): readonly string[] => {
   });
 };
 
-export const parseScalarTypeJson = (json: unknown): ScalarType => {
+export const parseScalarTypeJson = (json: unknown): ScalarExpressionType => {
   if (!isPlainObject(json)) return fail("scalar type must be a plain object");
   switch (json.kind) {
     case "number":
@@ -39,6 +40,11 @@ export const parseScalarTypeJson = (json: unknown): ScalarType => {
       return { kind: "boolean" };
     case "choice":
       return { kind: "choice", options: parseOptionsArray(json.options) };
+    case "optional": {
+      const valueType = parseScalarTypeJson(json.valueType);
+      if ((valueType as { kind: string }).kind === "optional") return fail("optional type cannot wrap an optional type");
+      return { kind: "optional", valueType: valueType as DslRequiredNonArrayValueType };
+    }
     default:
       return fail(`unknown scalar type kind: ${String(json.kind)}`);
   }
@@ -69,6 +75,8 @@ export const parseScalarValueJson = (json: unknown): ScalarValue => {
       if (!options.includes(value)) return fail(`choice value "${value}" is not a member of its declared options`);
       return { kind: "choice", value, options };
     }
+    case "none":
+      return { kind: "none" };
     default:
       return fail(`unknown scalar value kind: ${String(json.kind)}`);
   }

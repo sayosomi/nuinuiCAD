@@ -16,23 +16,31 @@ for literals and whole-value references; geometry arrays can be forwarded to
 the existing list-taking constructions. See [Types](types.md).
 
 Collection parameters, locals, and exports support the read-only numeric
-property `.length`. An optional collection parameter must first be narrowed by
-`hasValue(@parameter)` before its length is read.
+property `.length`. An optional collection parameter must first be resolved
+through the general optional-value operations before its length is read.
 
 Collection parameters, locals, and exports can be indexed with the same
 zero-based `@collection[index]` expression as root collections. The index is a
 normal typed number expression, and the result keeps the declared element type
-and value identity. Optional collection parameters require
-`hasValue(@parameter)` proof before indexing. A non-finite, fractional,
+and value identity. Optional collection parameters require optional-value
+resolution before indexing. A non-finite, fractional,
 negative, or out-of-range index is an evaluation error.
 
-Append `?` to make a parameter optional. An optional parameter has no value
-until supplied and cannot also have a default. Only non-optional scalar
-parameters (`number`, `boolean`, `string`, or `choice(...)`) may declare a
-default with `=`. Geometry parameters, collection parameters, and record
-parameters do not gain default-value support. Scalar defaults are evaluated in
-source order in the module's parameter context and do not capture values from
-the module's caller.
+Module parameters use the general optional-value syntax `name: T?`. The older
+`name?: T` spelling is rejected. `T?` is an ordinary immutable value of either
+`T` or `none`: omission of a parameter without a default produces `none`, an
+explicit `none` also produces `none`, and a supplied `T` is assignable to `T?`.
+Resolve an optional value with `??`, an optional `match` using `none` and
+`some <binder>`, an optional-result `if`, or `?.` where the result family
+supports it. A direct use of `T?` where `T` is required is an error.
+
+Defaults remain orthogonal to optionality. Existing default-eligibility rules
+are unchanged: optionality does not make geometry, collection, or record
+parameters default-eligible. For an eligible optional scalar such as
+`height: number? = 10`, omission evaluates the default, explicit `none`
+preserves `none`, and an explicit number is used as supplied. Scalar defaults
+are evaluated in source order in the module's parameter context and do not
+capture values from the module's caller.
 
 ## Arguments and exports
 
@@ -46,9 +54,10 @@ Module bodies can export geometry, collections, scalar values, and records.
 Exports are private to the instance until explicitly declared with `export`.
 An external reference uses `@instance::export`; an exported record field can
 then be read with `.`, for example `@front::measure.height`. A module instance
-has its own `state` option: visible content evaluates and draws, hidden content
-evaluates without drawing, and disabled content does not evaluate or provide
-exports to later references.
+may carry direct `enabled` and `visible` options. `enabled: false` prevents
+the instance body from evaluating/materializing; `visible: false` evaluates the
+instance and its exports but hides its presentation. Both options accept
+boolean literals or shared boolean references.
 
 Module locals and exports may use the scalar, choice, geometry, and nominal-record
 collection value-for form.
@@ -101,13 +110,6 @@ targets fail closed. Imported Module arguments are checked in the caller's
 lexical context, while defaults, body names, private helpers, exports, and
 nested calls remain owned by the defining document.
 
-For an optional parameter, `hasValue(@parameter)` returns whether the caller
-supplied a value. The optional value itself may be read only in a branch whose
-condition proves presence. The proof is available in the true branch of
-`if (hasValue(...))`, in the right-hand side of `and`, and in the false branch
-of `or`. `not` reverses the presence fact. Facts do not flow through an
-arbitrary boolean alias or into the opposite branch.
-
 ## Documentation comments
 
 A `///` documentation group can document the following module definition, the
@@ -142,7 +144,7 @@ module Marker(
   origin: point,
   /// @ja
   /// 表示用ラベル。
-  label?: string
+  label: string?
 ) {
   /// @en
   /// The exported **tip** point.
@@ -155,7 +157,7 @@ instance Front = Marker(origin: @A)
 ```nui
 nui 1
 point A = coordinate(x: 0, y: 0)
-module Marker(origin: point, label?: string) {
+module Marker(origin: point, label: string?) {
   export point Tip = offset(from: @origin, dx: 10, dy: 0)
 }
 instance Front = Marker(origin: @A)
@@ -165,7 +167,7 @@ instance Front = Marker(origin: @A)
 ```nui
 module Name(
   required: type,
-  optional?: type,
+  optional: type?,
   defaulted: type = value,
 ) {
   export declaration

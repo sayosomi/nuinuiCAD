@@ -13,6 +13,8 @@ fn generated_copy_reports_its_incomplete_numeric_expression_as_the_dependency_id
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
         elements: vec![
             json!({
                 "id": "a", "name": "A", "type": "freePoint", "activity": "visible",

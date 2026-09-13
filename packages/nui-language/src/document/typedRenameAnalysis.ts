@@ -93,6 +93,7 @@ const shorthandTypedRenameSpan = (
     parsed.kind !== "valid" ||
     parsed.reference.path.absolute ||
     parsed.reference.path.segments.length !== 1 ||
+    parsed.reference.occurrenceIndex !== null ||
     parsed.reference.property !== null ||
     parsed.reference.path.segments[0] !== argument.label
   ) return null;

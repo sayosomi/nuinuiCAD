@@ -100,9 +100,9 @@ describe("NuiLanguageSession", () => {
   it("projects folding, document symbols, fixed/theme colors, and source value steps", () => {
     const source = [
       "nui 1",
-      "modifier Guide {",
+      "style Guide {",
       "  color: #336699,",
-      "  state: visible,",
+      "  ",
       "}",
       "point Count = coordinate(x: 1.50, y: 0)"
     ].join("\n");

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parseScalarEvaluationJson, parseScalarTypeJson, parseScalarValueJson } from "./scalarJson";
-import type { ScalarEvaluation, ScalarType, ScalarValue } from "./types";
+import type { ScalarEvaluation, ScalarExpressionType, ScalarType, ScalarValue } from "./types";
 
 describe("parseScalarTypeJson", () => {
   it("round-trips valid payloads for every kind", () => {
@@ -24,6 +24,12 @@ describe("parseScalarTypeJson", () => {
     expect(() => parseScalarTypeJson({ kind: "choice", options: "right,left" })).toThrow();
     expect(() => parseScalarTypeJson({ kind: "choice", options: ["right", 1] })).toThrow();
     expect(() => parseScalarTypeJson({ kind: "choice", options: ["right", ""] })).toThrow();
+    expect(() => parseScalarTypeJson({ kind: "optional", valueType: { kind: "optional", valueType: { kind: "number" } } })).toThrow();
+  });
+
+  it("round-trips the canonical optional scalar type", () => {
+    const type: ScalarExpressionType = { kind: "optional", valueType: { kind: "number" } };
+    expect(parseScalarTypeJson(JSON.parse(JSON.stringify(type)))).toEqual(type);
   });
 });
 
@@ -51,6 +57,10 @@ describe("parseScalarValueJson", () => {
     expect(() => parseScalarValueJson({ kind: "unknown", value: 1 })).toThrow();
     expect(() => parseScalarValueJson(undefined)).toThrow();
   });
+
+  it("accepts none as the canonical absence value without inventing a scalar payload", () => {
+    expect(parseScalarValueJson({ kind: "none" })).toEqual({ kind: "none" });
+  });
 });
 
 describe("parseScalarEvaluationJson", () => {
@@ -61,6 +71,27 @@ describe("parseScalarEvaluationJson", () => {
       value: { kind: "choice", value: "left", options: ["right", "left"] }
     };
     expect(parseScalarEvaluationJson(JSON.parse(JSON.stringify(evaluation)))).toEqual(evaluation);
+  });
+
+  it("accepts present and none values under an optional type", () => {
+    expect(parseScalarEvaluationJson({
+      status: "ok",
+      type: { kind: "optional", valueType: { kind: "number" } },
+      value: { kind: "number", value: 4 }
+    })).toEqual({
+      status: "ok",
+      type: { kind: "optional", valueType: { kind: "number" } },
+      value: { kind: "number", value: 4 }
+    });
+    expect(parseScalarEvaluationJson({
+      status: "ok",
+      type: { kind: "optional", valueType: { kind: "number" } },
+      value: { kind: "none" }
+    })).toEqual({
+      status: "ok",
+      type: { kind: "optional", valueType: { kind: "number" } },
+      value: { kind: "none" }
+    });
   });
 
   it("round-trips an error evaluation with and without bindingId", () => {

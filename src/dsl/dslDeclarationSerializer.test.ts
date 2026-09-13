@@ -31,7 +31,7 @@ describe("serializeTypedDeclaration", () => {
     expect(serializeTypedDeclaration(declarationOf(source))).toBe("const x: number = 12   +   3");
   });
 
-  it("preserves the export modifier on typed scalar declarations", () => {
+  it("preserves the export style on typed scalar declarations", () => {
     expect(serializeTypedDeclaration(declarationOf("export const x: number = 12"))).toBe("export const x: number = 12");
   });
 

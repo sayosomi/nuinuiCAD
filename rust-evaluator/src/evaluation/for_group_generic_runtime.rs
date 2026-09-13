@@ -11,8 +11,10 @@
 use super::*;
 use crate::evaluation::for_group::{
     expand_for_group_iteration_from_template, for_group_loop_values, for_group_owned_template_ids,
-    iteration_local_variables,
+    iteration_local_variables, record_for_group_expected_occurrences,
+    IterationScalarBindingResolver,
 };
+use crate::evaluation::types::element_name;
 
 pub(super) struct GenericForGroupRuntime<'a> {
     original_elements: &'a [Value],
@@ -28,7 +30,6 @@ pub(super) struct GenericForGroupRuntime<'a> {
     effective_enabled_order: &'a mut Vec<ElementId>,
     conditional_group_states: &'a mut HashMap<ElementId, Option<&'static str>>,
     condition_inactive_ids: &'a mut HashSet<ElementId>,
-    for_group_generated_rows: &'a mut Vec<types::ForGroupGeneratedRow>,
     for_group_effective_show_generated_ids: &'a mut Vec<ElementId>,
 }
 
@@ -48,7 +49,6 @@ impl<'a> GenericForGroupRuntime<'a> {
         effective_enabled_order: &'a mut Vec<ElementId>,
         conditional_group_states: &'a mut HashMap<ElementId, Option<&'static str>>,
         condition_inactive_ids: &'a mut HashSet<ElementId>,
-        for_group_generated_rows: &'a mut Vec<types::ForGroupGeneratedRow>,
         for_group_effective_show_generated_ids: &'a mut Vec<ElementId>,
     ) -> Self {
         Self {
@@ -65,7 +65,6 @@ impl<'a> GenericForGroupRuntime<'a> {
             effective_enabled_order,
             conditional_group_states,
             condition_inactive_ids,
-            for_group_generated_rows,
             for_group_effective_show_generated_ids,
         }
     }
@@ -84,6 +83,12 @@ impl<'a> GenericForGroupRuntime<'a> {
     ) {
         let template_for_group_id = element_id(template_for_group)
             .expect("forGroup template must have a validated element id");
+        record_for_group_expected_occurrences(
+            self.original_elements,
+            &template_for_group_id,
+            iteration_values.len(),
+            state,
+        );
         let owned_template_ids: HashSet<ElementId> =
             for_group_owned_template_ids(self.original_elements, &template_for_group_id)
                 .into_iter()
@@ -106,7 +111,7 @@ impl<'a> GenericForGroupRuntime<'a> {
                 .into_iter()
                 .filter(|row| owned_template_ids.contains(&row.template_element_id))
             {
-                self.for_group_generated_rows.push(row);
+                state.for_group_generated_rows.push(row);
             }
             let mut child_ancestor_iteration_variables = ancestor_iteration_variables.to_vec();
             child_ancestor_iteration_variables.push(iteration_variable);
@@ -179,9 +184,17 @@ impl<'a> GenericForGroupRuntime<'a> {
         if self.effective_enabled_ids.insert(generated_id.clone()) {
             self.effective_enabled_order.push(generated_id.clone());
         }
+        let local_variables = iteration_local_variables(ancestor_iteration_variables);
+        let local_binding_resolver = self.active_scalar_binding_resolver.map(|resolver| {
+            IterationScalarBindingResolver::new(resolver, ancestor_iteration_variables)
+        });
+        let active_resolver: Option<&dyn ScalarDocumentBindingResolver> = local_binding_resolver
+            .as_ref()
+            .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
+            .or(self.active_scalar_binding_resolver);
+
         if let Some(entries) = self.numeric_entries_by_element_id.get(&template_id) {
-            let resolver = self
-                .active_scalar_binding_resolver
+            let resolver = active_resolver
                 .expect("scalar_binding_resolver must exist when numeric bindings exist");
             match apply_numeric_bindings(&generated_element, Some(entries), resolver, None, state) {
                 Ok(materialized) => generated_element = materialized,
@@ -193,7 +206,6 @@ impl<'a> GenericForGroupRuntime<'a> {
         }
         let generated_index = state.elements_by_id[&generated_id];
         state.elements[generated_index] = generated_element.clone();
-        let local_variables = iteration_local_variables(ancestor_iteration_variables);
 
         if element_type(&generated_element) == Some("forGroup") {
             let nested_template = self
@@ -221,6 +233,27 @@ impl<'a> GenericForGroupRuntime<'a> {
             return;
         }
 
+        if let Some(resolver) = active_resolver {
+            if let Err(error) = materialize_geometry_input_targets_for_runtime(
+                state,
+                &mut generated_element,
+                &template_id,
+                &generated_id,
+                Some(resolver),
+                None,
+            ) {
+                state.errors.push(geometry_error(
+                    &generated_element,
+                    format!(
+                        "{} の geometry collection index を評価できません。({error})",
+                        element_name(&generated_element)
+                    ),
+                ));
+                return;
+            }
+            state.elements[generated_index] = generated_element.clone();
+        }
+
         // Bound properties live on the template statement/element, not on a
         // forGroup-generated clone's own synthetic id - look up by
         // template_id, so every iteration sees the same resolved value
@@ -228,8 +261,7 @@ impl<'a> GenericForGroupRuntime<'a> {
         // is loop-mutation territory, out of scope here).
         match self.entries_by_element_id.get(&template_id) {
             Some(entries) if !entries.is_empty() => {
-                let resolver = self
-                    .active_scalar_binding_resolver
+                let resolver = active_resolver
                     .expect("scalar_binding_resolver must exist when property bindings exist");
                 match apply_property_bindings(
                     &generated_element,
@@ -248,12 +280,12 @@ impl<'a> GenericForGroupRuntime<'a> {
                             ConditionalGroupContext {
                                 lookup_id: &template_id,
                                 by_element_id: self.condition_by_element_id,
-                                scalar_binding_resolver: self.active_scalar_binding_resolver,
+                                scalar_binding_resolver: active_resolver,
                             },
                             TextTemplateContext {
                                 lookup_id: &template_id,
                                 by_element_id: self.text_templates_by_element_id,
-                                scalar_binding_resolver: self.active_scalar_binding_resolver,
+                                scalar_binding_resolver: active_resolver,
                             },
                             state,
                         )
@@ -269,12 +301,12 @@ impl<'a> GenericForGroupRuntime<'a> {
                 ConditionalGroupContext {
                     lookup_id: &template_id,
                     by_element_id: self.condition_by_element_id,
-                    scalar_binding_resolver: self.active_scalar_binding_resolver,
+                    scalar_binding_resolver: active_resolver,
                 },
                 TextTemplateContext {
                     lookup_id: &template_id,
                     by_element_id: self.text_templates_by_element_id,
-                    scalar_binding_resolver: self.active_scalar_binding_resolver,
+                    scalar_binding_resolver: active_resolver,
                 },
                 state,
             ),

@@ -8,7 +8,6 @@ import {
   type DslSemanticOccurrence,
   type DslSemanticOccurrenceIndex
 } from "../dsl/dslSemanticOccurrenceIndex";
-import { parseElementActivityLiteral } from "../dsl/dslActivity";
 import { commonArgSpecs, constructionFor } from "../dsl/dslConstructions";
 import { exactPhysicalSpan } from "../dsl/dslDiagnosticSpan";
 import { parseGeometryArrayExpression } from "../dsl/geometryArrayExpression";
@@ -22,14 +21,14 @@ import {
 } from "../dsl/geometryArrayTypes";
 import { parseDslSnapshot } from "../dsl/dslParser";
 import {
-  formatDslReferencePath,
+  formatDslSourceReference,
   parseDslSourceReference,
   parseDslSourceReferenceAt,
   readDslReferencePathSegments
 } from "../dsl/dslReferenceTokens";
 import { resolveModuleLexicalPath } from "../dsl/moduleLexicalResolution";
 import type { DslModuleParameter, DslStatement } from "../dsl/dslTypes";
-import { nominalRecordTypeOfDslValueType, scalarTypeOfDslValueType } from "../dsl/dslValueTypes";
+import { dslRequiredValueTypeOf, isDslGeometryValueType, isDslOptionalValueType, nominalRecordTypeOfDslValueType, scalarTypeOfDslValueType, scalarExpressionTypeOfDslValueType } from "../dsl/dslValueTypes";
 import type { SourceSnapshot } from "../dsl/logicalStatementSourceMap";
 import type {
   ModuleDefinitionSemantic,
@@ -56,8 +55,6 @@ export type InlineModuleTargetIdentity = {
 };
 
 export type InlineModulePolicy = {
-  /** Preserve source for branches removed by presence-specialized conditionals as comments. */
-  emitOmittedBranchComments: boolean;
   includeHiddenInstances: boolean;
   includeDisabledInstances: boolean;
 };
@@ -145,12 +142,11 @@ type ScalarParameterLowering = {
   parameterIndex: number;
   parameterName: string;
   parameter: DslModuleParameter;
-  state: "requiredSupplied" | "defaultedOmitted" | "optionalSupplied" | "optionalOmitted";
+  state: "supplied" | "defaulted" | "omitted";
   nameSource: string;
   typeSource: string;
   initializerSource: string | null;
   originalExpressionRange: { from: number; to: number } | null;
-  eliminatedSourceRanges: readonly ExactSourceRange[];
 };
 
 type GeometryArrayParameterLowering = {
@@ -158,7 +154,7 @@ type GeometryArrayParameterLowering = {
   parameterName: string;
   parameter: DslModuleParameter;
   arrayType: GeometryArrayType;
-  state: "requiredSupplied" | "optionalSupplied" | "optionalOmitted";
+  state: "supplied" | "omitted";
   nameSource: string;
   typeSource: string;
   initializerSource: string | null;
@@ -170,7 +166,7 @@ type RecordParameterLowering = {
   parameterName: string;
   parameter: DslModuleParameter;
   recordTypeIdentity: string;
-  state: "requiredSupplied" | "optionalSupplied" | "optionalOmitted";
+  state: "supplied" | "omitted";
   nameSource: string;
   typeSource: string;
   initializerSource: string | null;
@@ -198,11 +194,15 @@ type GeometryParameterSubstitution = {
   parameterName: string;
   parameter: DslModuleParameter;
   interfaceType: "point" | "line" | "path";
-  state: "requiredSupplied" | "optionalSupplied" | "optionalOmitted";
+  state: "supplied" | "omitted";
   argumentSource: string | null;
   argumentRange: ExactSourceRange | null;
   argumentReference: ModuleGeometryReferenceSemantic | null;
   expectedOwner: GeometryParameterOwner | null;
+  nameSource: string | null;
+  typeSource: string | null;
+  initializerSource: string | null;
+  originalExpressionRange: { from: number; to: number } | null;
 };
 
 type GeometrySubstitutionProvenance = {
@@ -275,6 +275,9 @@ type OccurrenceSlot = {
   owners: readonly string[];
 };
 
+const isTransientOptionalMatchBinderOccurrence = (occurrence: DslSemanticOccurrence): boolean =>
+  occurrence.identity.kind === "typed" && occurrence.identity.bindingId.startsWith("optional-match-binder:");
+
 type ReferenceOccurrence = DslSemanticOccurrence & {
   sourceFrom: number;
   sourceTo: number;
@@ -297,7 +300,6 @@ type BodyStatementProvenance = {
   outputLineIndex: number;
   originalParentStatementId: StatementIdentity | null;
   originalBranch: "then" | "else" | null;
-  eliminatedSourceRanges: readonly ExactSourceRange[];
 };
 
 type BodyTransformation = {
@@ -360,7 +362,7 @@ const isSupportedScalarParameterType = (
   type?.kind === "boolean" ||
   type?.kind === "choice";
 
-const localParameterLoweringsFor = (entry: Pick<InlineEntry, "scalarParameters" | "geometryArrayParameters" | "recordParameters">) => [
+const localParameterLoweringsFor = (entry: Pick<InlineEntry, "scalarParameters" | "geometryArrayParameters" | "recordParameters" | "geometryParameters">) => [
   ...entry.scalarParameters
     .filter((parameter) => parameter.initializerSource !== null)
     .map((parameter) => ({ kind: "scalar" as const, parameter })),
@@ -369,7 +371,10 @@ const localParameterLoweringsFor = (entry: Pick<InlineEntry, "scalarParameters" 
     .map((parameter) => ({ kind: "geometryArray" as const, parameter })),
   ...entry.recordParameters
     .filter((parameter) => parameter.initializerSource !== null)
-    .map((parameter) => ({ kind: "record" as const, parameter }))
+    .map((parameter) => ({ kind: "record" as const, parameter })),
+  ...entry.geometryParameters
+    .filter((parameter) => parameter.initializerSource !== null && parameter.nameSource !== null && parameter.typeSource !== null)
+    .map((parameter) => ({ kind: "geometry" as const, parameter }))
 ].sort((left, right) => left.parameter.parameterIndex - right.parameter.parameterIndex);
 
 const directChildEntriesForGroup = (
@@ -390,18 +395,10 @@ const directChildEntriesForGroup = (
   }))
   .filter((entry): entry is StatementEntry => entry.statementId !== null);
 
-type InlinePresenceValue = {
-  value: boolean;
-  /** True only when the value is known because an optional-presence fact was specialized. */
-  presenceDerived: boolean;
-};
-
 type SpecializedExpressionNode = {
   text: string;
   range: ExactSourceRange;
   changed: boolean;
-  known: InlinePresenceValue | null;
-  eliminatedSourceRanges: readonly ExactSourceRange[];
 };
 
 type ExpressionSpecializationResult =
@@ -409,8 +406,6 @@ type ExpressionSpecializationResult =
       kind: "ok";
       text: string;
       changed: boolean;
-      known: InlinePresenceValue | null;
-      eliminatedSourceRanges: readonly ExactSourceRange[];
     }
   | { kind: "unsafe"; message: string };
 
@@ -452,30 +447,13 @@ const replaceNestedExpressionText = (
   return text;
 };
 
-const eliminatedSourceRangesForChildren = (
-  children: readonly SpecializedExpressionNode[]
-): readonly ExactSourceRange[] => children.flatMap((child) => child.eliminatedSourceRanges);
-
 const specializeInlineScalarExpression = (
   source: string,
   compiled: CompiledDslDocument,
   statement: DslStatement,
   semantic: ModuleScalarExpressionSemantic,
-  presenceByParameter: ReadonlyMap<string, boolean>,
   geometryReplacements: ReadonlyMap<string, InlineGeometryExpressionReplacement> = new Map()
 ): ExpressionSpecializationResult => {
-  const metadataBySpan = new Map<string, { definitionStatementId: StatementIdentity; parameterIndex: number }>();
-  for (const metadata of semantic.hasValueParameters) {
-    const key = semanticSpanKey(metadata.span);
-    if (metadataBySpan.has(key)) {
-      return { kind: "unsafe", message: "validated hasValue metadata に重複した semantic span があります。" };
-    }
-    if (!presenceByParameter.has(parameterSlotKey(metadata.definitionStatementId, metadata.parameterIndex))) {
-      return { kind: "unsafe", message: "validated hasValue の optional parameter presence を target-local に解決できません。" };
-    }
-    metadataBySpan.set(key, metadata);
-  }
-
   const nodeRanges = new Map<ScalarExpressionAst, { from: number; to: number }>();
   const rangeFor = (node: ScalarExpressionAst): { from: number; to: number } | null => {
     const existing = nodeRanges.get(node);
@@ -484,45 +462,6 @@ const specializeInlineScalarExpression = (
     if (range) nodeRanges.set(node, range);
     return range;
   };
-  const astSpanKeys = new Set<string>();
-  const astHasValueCallSpans = new Set<string>();
-  const visitAst = (node: ScalarExpressionAst): void => {
-    astSpanKeys.add(semanticSpanKey(node.span));
-    if (node.kind === "call" && node.name === "hasValue") astHasValueCallSpans.add(semanticSpanKey(node.span));
-    if (node.kind === "group" || node.kind === "unary") {
-      visitAst(node.kind === "group" ? node.expression : node.operand);
-      return;
-    }
-    if (node.kind === "binary") {
-      visitAst(node.left);
-      visitAst(node.right);
-      return;
-    }
-    if (node.kind === "valueIf") {
-      visitAst(node.condition);
-      visitAst(node.thenBranch);
-      visitAst(node.elseBranch);
-      return;
-    }
-    if (node.kind === "valueMatch") {
-      visitAst(node.scrutinee);
-      node.arms.forEach((arm) => visitAst(arm.expression));
-      return;
-    }
-    if (node.kind === "call") for (const argument of node.args) visitAst(argument.expression);
-  };
-  visitAst(semantic.ast);
-  for (const key of astHasValueCallSpans) {
-    if (!metadataBySpan.has(key)) {
-      return { kind: "unsafe", message: "Module-only hasValue occurrence が compiler metadata と一致しません。" };
-    }
-  }
-  for (const key of metadataBySpan.keys()) {
-    if (!astSpanKeys.has(key)) {
-      return { kind: "unsafe", message: "validated hasValue metadata の exact semantic span が AST にありません。" };
-    }
-  }
-
   const specialize = (node: ScalarExpressionAst): SpecializedExpressionNode | null => {
     const range = rangeFor(node);
     if (!range) return null;
@@ -531,18 +470,6 @@ const specializeInlineScalarExpression = (
       const result = nodes.map(specialize);
       return result.some((item) => item === null) ? null : result as SpecializedExpressionNode[];
     };
-    const metadata = metadataBySpan.get(semanticSpanKey(node.span));
-    if (metadata) {
-      const value = presenceByParameter.get(parameterSlotKey(metadata.definitionStatementId, metadata.parameterIndex));
-      if (value === undefined) return null;
-      return {
-        text: value ? "true" : "false",
-        range,
-        changed: true,
-        known: { value, presenceDerived: true },
-        eliminatedSourceRanges: [range]
-      };
-    }
     const geometryReplacement = geometryReplacements.get(semanticSpanKey(node.span));
     if (geometryReplacement && (
       geometryReplacement.range.from !== range.from ||
@@ -552,9 +479,7 @@ const specializeInlineScalarExpression = (
       return {
         text: original,
         range,
-        changed: false,
-        known: { value: node.value, presenceDerived: false },
-        eliminatedSourceRanges: []
+        changed: false
       };
     }
     if (node.kind === "group") {
@@ -565,31 +490,39 @@ const specializeInlineScalarExpression = (
       return {
         text,
         range,
-        changed: expression.changed,
-        known: expression.known,
-        eliminatedSourceRanges: expression.eliminatedSourceRanges
+        changed: expression.changed
       };
+    }
+    if (node.kind === "collectionIndex") {
+      const index = specialize(node.index);
+      if (!index) return null;
+      const text = replaceNestedExpressionText(source, range, [{ range: index.range, text: index.text }]);
+      if (text === null) return null;
+      return { text, range, changed: index.changed };
+    }
+    if (node.kind === "geometryProperty" && node.occurrenceIndex) {
+      const occurrenceIndex = specialize(node.occurrenceIndex);
+      if (!occurrenceIndex) return null;
+      const text = replaceNestedExpressionText(source, range, [{ range: occurrenceIndex.range, text: occurrenceIndex.text }]);
+      if (text === null) return null;
+      return { text, range, changed: occurrenceIndex.changed };
+    }
+    if (node.kind === "optionalMember") {
+      const receiver = specialize(node.receiver);
+      if (!receiver) return null;
+      const text = replaceNestedExpressionText(source, range, [{ range: receiver.range, text: receiver.text }]);
+      if (text === null) return null;
+      return { text, range, changed: receiver.changed };
     }
     if (node.kind === "unary") {
       const operand = specialize(node.operand);
       if (!operand) return null;
-      if (node.operator === "!" && operand.known?.presenceDerived) {
-        return {
-          text: operand.known.value ? "false" : "true",
-          range,
-          changed: true,
-          known: { value: !operand.known.value, presenceDerived: true },
-          eliminatedSourceRanges: [range]
-        };
-      }
       const text = replaceNestedExpressionText(source, range, [{ range: operand.range, text: operand.text }]);
       if (text === null) return null;
       return {
         text,
         range,
-        changed: operand.changed,
-        known: operand.known,
-        eliminatedSourceRanges: operand.eliminatedSourceRanges
+        changed: operand.changed
       };
     }
     if (node.kind === "binary") {
@@ -597,72 +530,6 @@ const specializeInlineScalarExpression = (
       if (!operands) return null;
       const left = operands[0]!;
       const right = operands[1]!;
-      const leftPresence = left.known?.presenceDerived === true;
-      const rightPresence = right.known?.presenceDerived === true;
-      const identityResult = (
-        selected: SpecializedExpressionNode,
-        eliminated: SpecializedExpressionNode
-      ): SpecializedExpressionNode => ({
-        text: selected.text,
-        range,
-        changed: true,
-        known: selected.known
-          ? { value: selected.known.value, presenceDerived: true }
-          : null,
-        eliminatedSourceRanges: [eliminated.range, ...selected.eliminatedSourceRanges]
-      });
-      if (node.operator === "&&") {
-        if (leftPresence) {
-          if (!left.known!.value) {
-            return {
-              text: "false",
-              range,
-              changed: true,
-              known: { value: false, presenceDerived: true },
-              eliminatedSourceRanges: [range]
-            };
-          }
-          return identityResult(right, left);
-        }
-        if (rightPresence) {
-          if (!right.known!.value) {
-            return {
-              text: "false",
-              range,
-              changed: true,
-              known: { value: false, presenceDerived: true },
-              eliminatedSourceRanges: [range]
-            };
-          }
-          return identityResult(left, right);
-        }
-      }
-      if (node.operator === "||") {
-        if (leftPresence) {
-          if (left.known!.value) {
-            return {
-              text: "true",
-              range,
-              changed: true,
-              known: { value: true, presenceDerived: true },
-              eliminatedSourceRanges: [range]
-            };
-          }
-          return identityResult(right, left);
-        }
-        if (rightPresence) {
-          if (right.known!.value) {
-            return {
-              text: "true",
-              range,
-              changed: true,
-              known: { value: true, presenceDerived: true },
-              eliminatedSourceRanges: [range]
-            };
-          }
-          return identityResult(left, right);
-        }
-      }
       const text = replaceNestedExpressionText(source, range, [
         { range: left.range, text: left.text },
         { range: right.range, text: right.text }
@@ -671,39 +538,25 @@ const specializeInlineScalarExpression = (
       return {
         text,
         range,
-        changed: left.changed || right.changed,
-        known: null,
-        eliminatedSourceRanges: eliminatedSourceRangesForChildren([left, right])
+        changed: left.changed || right.changed
       };
     }
     if (node.kind === "valueIf") {
       const condition = specialize(node.condition);
       const thenBranch = specialize(node.thenBranch);
-      const elseBranch = specialize(node.elseBranch);
-      if (!condition || !thenBranch || !elseBranch) return null;
-      if (condition.known?.presenceDerived) {
-        const selected = condition.known.value ? thenBranch : elseBranch;
-        const eliminated = condition.known.value ? elseBranch : thenBranch;
-        return {
-          text: selected.text,
-          range,
-          changed: true,
-          known: selected.known,
-          eliminatedSourceRanges: [condition.range, eliminated.range, ...selected.eliminatedSourceRanges]
-        };
-      }
-      const text = replaceNestedExpressionText(source, range, [
+      const elseBranch = node.elseBranch ? specialize(node.elseBranch) : null;
+      if (!condition || !thenBranch || (node.elseBranch && !elseBranch)) return null;
+      const childRanges = [
         { range: condition.range, text: condition.text },
-        { range: thenBranch.range, text: thenBranch.text },
-        { range: elseBranch.range, text: elseBranch.text }
-      ]);
+        { range: thenBranch.range, text: thenBranch.text }
+      ];
+      if (elseBranch) childRanges.push({ range: elseBranch.range, text: elseBranch.text });
+      const text = replaceNestedExpressionText(source, range, childRanges);
       if (text === null) return null;
       return {
         text,
         range,
-        changed: condition.changed || thenBranch.changed || elseBranch.changed,
-        known: null,
-        eliminatedSourceRanges: eliminatedSourceRangesForChildren([condition, thenBranch, elseBranch])
+        changed: condition.changed || thenBranch.changed || (elseBranch?.changed ?? false)
       };
     }
     if (node.kind === "valueMatch") {
@@ -719,12 +572,7 @@ const specializeInlineScalarExpression = (
       return {
         text,
         range,
-        changed: scrutinee.changed || arms.some(({ result }) => result!.changed),
-        known: null,
-        eliminatedSourceRanges: eliminatedSourceRangesForChildren([
-          scrutinee,
-          ...arms.map(({ result }) => result!)
-        ])
+        changed: scrutinee.changed || arms.some(({ result }) => result!.changed)
       };
     }
     if (node.kind === "call") {
@@ -739,28 +587,22 @@ const specializeInlineScalarExpression = (
       return {
         text,
         range,
-        changed: argumentsResult.some((argument) => argument.changed),
-        known: null,
-        eliminatedSourceRanges: eliminatedSourceRangesForChildren(argumentsResult)
+        changed: argumentsResult.some((argument) => argument.changed)
       };
     }
     return {
       text: geometryReplacement?.text ?? original,
       range,
-      changed: geometryReplacement !== undefined,
-      known: null,
-      eliminatedSourceRanges: []
+      changed: geometryReplacement !== undefined
     };
   };
 
   const result = specialize(semantic.ast);
-  if (!result) return { kind: "unsafe", message: "hasValue specialization の exact physical source span を解決できません。" };
+  if (!result) return { kind: "unsafe", message: "Module scalar expression の exact physical source span を解決できません。" };
   return {
     kind: "ok",
     text: result.text,
-    changed: result.changed,
-    known: result.known,
-    eliminatedSourceRanges: result.eliminatedSourceRanges
+    changed: result.changed
   };
 };
 
@@ -812,6 +654,10 @@ const prepareScalarParameterLowering = (
   const geometryArrayParameters: GeometryArrayParameterLowering[] = [];
   const recordParameters: RecordParameterLowering[] = [];
   const geometryParameters: GeometryParameterSubstitution[] = [];
+  const omittedValueIsNone = (value: ResolvedModuleParameterBinding["value"]): boolean =>
+    value === null ||
+    value.kind === "none" ||
+    value.kind === "scalar" && value.expression.ast.kind === "noneLiteral";
   for (const resolvedParameter of entry.definition.parameters) {
     const parameterIndex = resolvedParameter.parameterIndex;
     const parameter = definitionStatement.parameters[parameterIndex];
@@ -824,7 +670,7 @@ const prepareScalarParameterLowering = (
       };
     }
     const parameterType = parameter.type;
-    const optional = parameter.optional || resolvedParameter.optional;
+    const optional = isDslOptionalValueType(parameter.valueType) || resolvedParameter.optional;
     const geometryArrayType = geometryArrayTypeOfModuleParameter(parameter);
     const geometryInterfaceType = parameterType?.kind === "point" || parameterType?.kind === "line" || parameterType?.kind === "path"
       ? parameterType.kind
@@ -859,14 +705,14 @@ const prepareScalarParameterLowering = (
         message: `record Module parameter「${resolvedParameter.name}」の compiler-owned nominal type identity を解決できません。`
       };
     }
-    if (optional && binding.state !== "optionalSupplied" && binding.state !== "optionalOmitted") {
+    if (optional && binding.state !== "supplied" && binding.state !== "omitted" && binding.state !== "defaulted") {
       return {
         kind: "unsafe",
         code: "unsafe-rewrite",
         message: `optional Module parameter「${resolvedParameter.name}」の compiler binding state が一致しません。`
       };
     }
-    if (!optional && binding.state !== "requiredSupplied" && binding.state !== "defaultedOmitted") {
+    if (!optional && binding.state !== "supplied" && binding.state !== "defaulted") {
       return {
         kind: "unsafe",
         code: "unsafe-rewrite",
@@ -891,8 +737,8 @@ const prepareScalarParameterLowering = (
           reason: "record Module parameter の default はこの Inline slice では lowering しません。"
         };
       }
-      if (binding.state === "optionalOmitted") {
-        if (binding.argumentIndex !== null || binding.argumentSpan !== null || binding.usesDefault || binding.value !== null) {
+      if (binding.state === "omitted") {
+        if (binding.argumentIndex !== null || binding.argumentSpan !== null || binding.usesDefault || !omittedValueIsNone(binding.value)) {
           return {
             kind: "unsafe",
             code: "unsafe-rewrite",
@@ -904,16 +750,16 @@ const prepareScalarParameterLowering = (
           parameterName: resolvedParameter.name,
           parameter,
           recordTypeIdentity: recordTypeIdentity!,
-          state: "optionalOmitted",
+          state: "omitted",
           nameSource: source.slice(nameRange.from, nameRange.to),
           typeSource: source.slice(typeRange.from, typeRange.to),
-          initializerSource: null,
+          initializerSource: "none",
           originalExpressionRange: null,
           reference: null
         });
         continue;
       }
-      if (binding.state !== "requiredSupplied" && binding.state !== "optionalSupplied") {
+      if (binding.state !== "supplied") {
         return {
           kind: "unsafe",
           code: "unsafe-rewrite",
@@ -931,6 +777,37 @@ const prepareScalarParameterLowering = (
       const argumentRange = argument
         ? singlePhysicalRange(argument.valuePhysicalSpan, sourceRevision)
         : null;
+      if (binding.value?.kind === "none") {
+        if (
+          !optional ||
+          !argument ||
+          !binding.argumentSpan ||
+          binding.argumentSpan.start !== argument.valueSpan.start ||
+          binding.argumentSpan.end !== argument.valueSpan.end ||
+          !argumentRange ||
+          argumentRange.from >= argumentRange.to ||
+          source.slice(argumentRange.from, argumentRange.to) !== argument.value
+        ) {
+          return {
+            kind: "unsafe",
+            code: "unsafe-rewrite",
+            message: `optional none record Module parameter「${resolvedParameter.name}」の compiler argument binding を証明できません。`
+          };
+        }
+        recordParameters.push({
+          parameterIndex,
+          parameterName: resolvedParameter.name,
+          parameter,
+          recordTypeIdentity: recordTypeIdentity!,
+          state: "supplied",
+          nameSource: source.slice(nameRange.from, nameRange.to),
+          typeSource: source.slice(typeRange.from, typeRange.to),
+          initializerSource: source.slice(argumentRange.from, argumentRange.to),
+          originalExpressionRange: argumentRange,
+          reference: null
+        });
+        continue;
+      }
       const reference = binding.value?.kind === "record" ? binding.value.reference : null;
       const targetTypeIdentity = reference?.target?.typeIdentity ?? reference?.constructor?.targetTypeIdentity ?? null;
       if (
@@ -961,7 +838,7 @@ const prepareScalarParameterLowering = (
         parameterName: resolvedParameter.name,
         parameter,
         recordTypeIdentity: recordTypeIdentity!,
-        state: binding.state === "optionalSupplied" ? "optionalSupplied" : "requiredSupplied",
+        state: "supplied",
         nameSource: source.slice(nameRange.from, nameRange.to),
         typeSource: source.slice(typeRange.from, typeRange.to),
         initializerSource: source.slice(argumentRange.from, argumentRange.to),
@@ -985,16 +862,16 @@ const prepareScalarParameterLowering = (
         parameter.defaultValue !== null ||
         resolvedParameter.defaultValue !== null ||
         binding.usesDefault ||
-        binding.state === "defaultedOmitted" ||
-        binding.state === "requiredOmitted"
+        binding.state === "defaulted" ||
+        (!optional && binding.state === "omitted")
       ) {
         return {
           kind: "unsupported",
           reason: "required omitted / defaulted geometry-array parameter はこの Checkpoint では lowering しません。"
         };
       }
-      if (binding.state === "optionalOmitted") {
-        if (binding.argumentIndex !== null || binding.argumentSpan !== null || binding.usesDefault || binding.value !== null) {
+      if (binding.state === "omitted") {
+        if (binding.argumentIndex !== null || binding.argumentSpan !== null || binding.usesDefault || !omittedValueIsNone(binding.value)) {
           return {
             kind: "unsafe",
             code: "unsafe-rewrite",
@@ -1006,15 +883,15 @@ const prepareScalarParameterLowering = (
           parameterName: resolvedParameter.name,
           parameter,
           arrayType: geometryArrayType,
-          state: "optionalOmitted",
+          state: "omitted",
           nameSource: source.slice(nameRange.from, nameRange.to),
           typeSource: source.slice(typeRange.from, typeRange.to),
-          initializerSource: null,
+          initializerSource: "none",
           originalExpressionRange: null
         });
         continue;
       }
-      if (binding.state !== "requiredSupplied" && binding.state !== "optionalSupplied") {
+      if (binding.state !== "supplied") {
         return {
           kind: "unsafe",
           code: "unsafe-rewrite",
@@ -1060,21 +937,21 @@ const prepareScalarParameterLowering = (
       continue;
     }
     if (geometryInterfaceType !== null) {
-      if (binding.state === "requiredOmitted" || binding.state === "defaultedOmitted") {
+      if (!optional && (binding.state === "omitted" || binding.state === "defaulted")) {
         return {
           kind: "unsupported",
           reason: "required omitted / defaulted geometry parameter はこの Checkpoint では lowering しません。"
         };
       }
-      if (!optional && binding.state !== "requiredSupplied") {
+      if (!optional && binding.state !== "supplied") {
         return {
           kind: "unsafe",
           code: "unsafe-rewrite",
           message: `required geometry Module parameter「${resolvedParameter.name}」の compiler binding state が一致しません。`
         };
       }
-      if (binding.state === "optionalOmitted") {
-        if (binding.argumentIndex !== null || binding.argumentSpan !== null || binding.usesDefault || binding.value !== null) {
+      if (binding.state === "omitted") {
+        if (binding.argumentIndex !== null || binding.argumentSpan !== null || binding.usesDefault || !omittedValueIsNone(binding.value)) {
           return {
             kind: "unsafe",
             code: "unsafe-rewrite",
@@ -1086,11 +963,15 @@ const prepareScalarParameterLowering = (
           parameterName: resolvedParameter.name,
           parameter,
           interfaceType: geometryInterfaceType,
-          state: "optionalOmitted",
+          state: "omitted",
           argumentSource: null,
           argumentRange: null,
           argumentReference: null,
-          expectedOwner: null
+          expectedOwner: null,
+          nameSource: optional ? source.slice(nameRange.from, nameRange.to) : null,
+          typeSource: optional ? source.slice(typeRange.from, typeRange.to) : null,
+          initializerSource: optional ? "none" : null,
+          originalExpressionRange: null
         });
         continue;
       }
@@ -1142,17 +1023,21 @@ const prepareScalarParameterLowering = (
         parameterName: resolvedParameter.name,
         parameter,
         interfaceType: geometryInterfaceType,
-        state: binding.state === "optionalSupplied" ? "optionalSupplied" : "requiredSupplied",
+        state: "supplied",
         argumentSource: source.slice(argumentRange.from, argumentRange.to),
         argumentRange,
         argumentReference,
-        expectedOwner
+        expectedOwner,
+        nameSource: optional ? source.slice(nameRange.from, nameRange.to) : null,
+        typeSource: optional ? source.slice(typeRange.from, typeRange.to) : null,
+        initializerSource: optional ? source.slice(argumentRange.from, argumentRange.to) : null,
+        originalExpressionRange: optional ? argumentRange : null
       });
       continue;
     }
 
     let initializerRange: { from: number; to: number } | null = null;
-    if (binding.state === "requiredSupplied" || binding.state === "optionalSupplied") {
+    if (binding.state === "supplied") {
       if (binding.argumentIndex === null || binding.argumentIndex < 0) {
         return {
           kind: "unsafe",
@@ -1169,7 +1054,7 @@ const prepareScalarParameterLowering = (
         };
       }
       initializerRange = singlePhysicalRange(argument.valuePhysicalSpan, sourceRevision);
-    } else if (binding.state === "defaultedOmitted") {
+    } else if (binding.state === "defaulted") {
       if (
         binding.argumentIndex !== null ||
         parameter.defaultValue === null ||
@@ -1184,8 +1069,8 @@ const prepareScalarParameterLowering = (
         };
       }
       initializerRange = singlePhysicalRange(parameter.defaultPhysicalSpan, sourceRevision);
-    } else if (binding.state === "optionalOmitted") {
-      if (binding.argumentIndex !== null || binding.usesDefault || binding.value !== null) {
+    } else if (binding.state === "omitted") {
+      if (binding.argumentIndex !== null || binding.usesDefault || !omittedValueIsNone(binding.value)) {
         return {
           kind: "unsafe",
           code: "unsafe-rewrite",
@@ -1212,53 +1097,23 @@ const prepareScalarParameterLowering = (
       state: binding.state,
       nameSource: source.slice(nameRange.from, nameRange.to),
       typeSource: source.slice(typeRange.from, typeRange.to),
-      initializerSource: initializerRange ? source.slice(initializerRange.from, initializerRange.to) : null,
-      originalExpressionRange: initializerRange,
-      eliminatedSourceRanges: []
+    initializerSource: initializerRange
+        ? source.slice(initializerRange.from, initializerRange.to)
+        : optional && binding.state === "omitted"
+          ? "none"
+          : null,
+      originalExpressionRange: initializerRange
     });
   }
   return { kind: "supported", scalarParameters, geometryArrayParameters, recordParameters, geometryParameters };
 };
 
 const specializeDefaultInitializersFor = (
-  source: string,
-  compiled: CompiledDslDocument,
-  entry: InlineEntry,
-  presenceByParameter: ReadonlyMap<string, boolean>
-): { kind: "ok"; parameters: readonly ScalarParameterLowering[] } | { kind: "unsafe"; message: string } => {
-  const definitionStatement = compiled.statements[entry.definition.statementIndex];
-  if (definitionStatement?.kind !== "moduleDefinition") {
-    return { kind: "unsafe", message: "Module default initializer の authored definition source を取得できません。" };
-  }
-  const parameters: ScalarParameterLowering[] = [];
-  for (const parameter of entry.scalarParameters) {
-    if (parameter.state !== "defaultedOmitted" || parameter.initializerSource === null) {
-      parameters.push(parameter);
-      continue;
-    }
-    const resolved = entry.definition.parameters[parameter.parameterIndex];
-    if (!resolved?.defaultExpression || resolved.defaultExpression.hasValueParameters.length === 0) {
-      parameters.push(parameter);
-      continue;
-    }
-    const specialized = specializeInlineScalarExpression(
-      source,
-      compiled,
-      definitionStatement,
-      resolved.defaultExpression,
-      presenceByParameter
-    );
-    if (specialized.kind === "unsafe") return specialized;
-    parameters.push(specialized.changed
-      ? {
-          ...parameter,
-          initializerSource: specialized.text,
-          eliminatedSourceRanges: specialized.eliminatedSourceRanges
-        }
-      : parameter);
-  }
-  return { kind: "ok", parameters };
-};
+  entry: InlineEntry
+): { kind: "ok"; parameters: readonly ScalarParameterLowering[] } => ({
+  kind: "ok",
+  parameters: entry.scalarParameters
+});
 
 const applyAbsoluteReplacements = (
   source: string,
@@ -1355,13 +1210,6 @@ const bodyEntriesForDefinition = (
   return entries.sort((left, right) => left.statementIndex - right.statementIndex);
 };
 
-const bodyRequiresUnsupportedTypedLowering = (
-  entries: readonly StatementEntry[]
-): boolean => entries.some(({ statement }) =>
-  statement.kind === "typedDeclaration" &&
-  (nominalRecordTypeOfDslValueType(statement.valueType) !== null || geometryArrayTypeOfTypedDeclaration(statement) !== null)
-);
-
 const bodyRangeForDefinition = (
   source: string,
   starts: readonly number[],
@@ -1421,20 +1269,6 @@ const sourceRangeForLines = (
   const from = lineStartFor(starts, startLine);
   const to = lineEndOffset(source, starts, endLine);
   return from === null || from > to ? null : { from, to };
-};
-
-const commentSourceLine = (line: string, baseIndent: string): string => {
-  if (line.trim().length === 0) return `${baseIndent}//`;
-  const relative = line.startsWith(baseIndent) ? line.slice(baseIndent.length) : line.trimStart();
-  return `${baseIndent}// ${relative}`;
-};
-
-const liftConditionalBranchLines = (
-  lines: readonly string[],
-  conditionalIndent: string
-): string[] => {
-  const branchIndent = `${conditionalIndent}${DSL_INDENT}`;
-  return lines.map((line) => line.startsWith(branchIndent) ? `${conditionalIndent}${line.slice(branchIndent.length)}` : line);
 };
 
 const bodyStatementSemanticFor = (
@@ -1525,7 +1359,7 @@ const geometrySubstitutionFor = (
     }
     return { kind: "none" };
   }
-  if (parameter.state === "optionalOmitted") return { kind: "none" };
+  if (parameter.state === "omitted") return { kind: "none" };
   if (
     parameter.argumentSource === null ||
     parameter.argumentRange === null ||
@@ -1580,9 +1414,7 @@ const buildBodyTransformation = (
   source: string,
   starts: readonly number[],
   compiled: CompiledDslDocument,
-  entry: InlineEntry,
-  presenceByParameter: ReadonlyMap<string, boolean>,
-  emitOmittedBranchComments: boolean
+  entry: InlineEntry
 ): BodyTransformationResult => {
   const bodyInfo = compiled.statementMap?.statements[entry.definition.statementIndex];
   const definitionStatement = compiled.statements[entry.definition.statementIndex];
@@ -1594,20 +1426,9 @@ const buildBodyTransformation = (
   }
   const exportReplacements = exportedTokenReplacements(source, compiled, entry.body);
   if (!exportReplacements) return { kind: "unsafe", message: "Module export marker の exact-current source span を解決できません。" };
-  const eliminatedSourceRangesByStatement = new Map<StatementIdentity, ExactSourceRange[]>();
   const geometrySubstitutions: GeometrySubstitutionProvenance[] = [];
   const geometryArrayReferences: GeometryArrayParameterReferenceProvenance[] = [];
   const recordReferences: RecordReferenceProvenance[] = [];
-  const rememberEliminatedSourceRanges = (
-    statementId: StatementIdentity,
-    ranges: readonly ExactSourceRange[]
-  ): void => {
-    if (ranges.length === 0) return;
-    const existing = eliminatedSourceRangesByStatement.get(statementId) ?? [];
-    eliminatedSourceRangesByStatement.set(statementId, [...existing, ...ranges]);
-  };
-  const eliminatedSourceRangesFor = (statementId: StatementIdentity): readonly ExactSourceRange[] =>
-    eliminatedSourceRangesByStatement.get(statementId) ?? [];
   const replacementsByStatement = new Map<StatementIdentity, AbsoluteReplacement[]>();
   const replacementsForEntry = (
     bodyEntry: StatementEntry,
@@ -1623,6 +1444,14 @@ const buildBodyTransformation = (
       // copied as authored source; descendants are visited through their own
       // compiler-owned ModuleDefinitionSemantic below.
       if (bodyEntry.statement.kind === "moduleDefinition") return { kind: "ok", replacements: [], geometrySubstitutions: [] };
+      if (
+        bodyEntry.statement.kind === "typedDeclaration" &&
+        (nominalRecordTypeOfDslValueType(bodyEntry.statement.valueType) !== null ||
+          geometryArrayTypeOfTypedDeclaration(bodyEntry.statement) !== null)
+      ) {
+        geometryArrayReferences.push(...geometryArrayParameterReferencesForStatement(source, compiled, entry, bodyEntry));
+        return { kind: "ok", replacements: [], geometrySubstitutions: [] };
+      }
       return { kind: "unsafe", message: "Module body statement の semantic owner がありません。" };
     }
     geometryArrayReferences.push(...geometryArrayParameterReferencesForStatement(source, compiled, entry, bodyEntry));
@@ -1646,7 +1475,6 @@ const buildBodyTransformation = (
       return { kind: "ok" };
     };
     const replacements: AbsoluteReplacement[] = [];
-    const eliminatedSourceRanges: ExactSourceRange[] = [];
     const substitutions: GeometrySubstitutionProvenance[] = [];
     const geometryReplacements = new Map<string, InlineGeometryExpressionReplacement>();
     const addGeometryReplacement = (
@@ -1710,10 +1538,7 @@ const buildBodyTransformation = (
         const added = addGeometryReplacement(result, builtin.reference.span);
         if (added.kind === "unsafe") return added;
       }
-      const hasInlinePresenceFact = site.expression.hasValueParameters.some((metadata) =>
-        presenceByParameter.has(parameterSlotKey(metadata.definitionStatementId, metadata.parameterIndex))
-      );
-      if (!hasInlinePresenceFact && geometryReplacements.size === 0) continue;
+      if (geometryReplacements.size === 0) continue;
       const range = physicalRangeForLogicalSpan(compiled, bodyEntry.statement, site.span);
       if (!range) return { kind: "unsafe", message: "Module body scalar expression の exact physical source span を解決できません。" };
       const specialized = specializeInlineScalarExpression(
@@ -1721,11 +1546,9 @@ const buildBodyTransformation = (
         compiled,
         bodyEntry.statement,
         site.expression,
-        presenceByParameter,
         geometryReplacements
       );
       if (specialized.kind === "unsafe") return specialized;
-      eliminatedSourceRanges.push(...specialized.eliminatedSourceRanges);
       if (specialized.changed) replacements.push({ from: range.from, to: range.to, text: specialized.text });
     }
     for (const site of semantic.textTemplateHoles) {
@@ -1754,10 +1577,7 @@ const buildBodyTransformation = (
         const added = addGeometryReplacement(result, builtin.reference.span);
         if (added.kind === "unsafe") return added;
       }
-      const hasInlinePresenceFact = site.expression.hasValueParameters.some((metadata) =>
-        presenceByParameter.has(parameterSlotKey(metadata.definitionStatementId, metadata.parameterIndex))
-      );
-      if (!hasInlinePresenceFact && geometryReplacements.size === 0) continue;
+      if (geometryReplacements.size === 0) continue;
       const range = physicalRangeForLogicalSpan(compiled, bodyEntry.statement, site.contentSpan);
       if (!range) return { kind: "unsafe", message: "Module text-template hole の exact physical source span を解決できません。" };
       const specialized = specializeInlineScalarExpression(
@@ -1765,22 +1585,15 @@ const buildBodyTransformation = (
         compiled,
         bodyEntry.statement,
         site.expression,
-        presenceByParameter,
         geometryReplacements
       );
       if (specialized.kind === "unsafe") return specialized;
-      eliminatedSourceRanges.push(...specialized.eliminatedSourceRanges);
       if (specialized.changed) replacements.push({ from: range.from, to: range.to, text: specialized.text });
     }
-    rememberEliminatedSourceRanges(bodyEntry.statementId, eliminatedSourceRanges);
-    const retainedSubstitutions = substitutions.filter((substitution) => !eliminatedSourceRanges.some((range) =>
-      substitution.bodySourceRange.from >= range.from && substitution.bodySourceRange.to <= range.to
-    ));
-    geometrySubstitutions.push(...retainedSubstitutions);
-    return { kind: "ok", replacements, geometrySubstitutions: retainedSubstitutions };
+    geometrySubstitutions.push(...substitutions);
+    return { kind: "ok", replacements, geometrySubstitutions: substitutions };
   };
 
-  const conditionalStates = new Map<StatementIdentity, InlinePresenceValue | null>();
   for (const bodyEntry of entry.body.entries) {
     const result = replacementsForEntry(bodyEntry, false);
     if (result.kind === "unsafe") return result;
@@ -1796,7 +1609,6 @@ const buildBodyTransformation = (
     const conditionRange = physicalRangeForLogicalSpan(compiled, bodyEntry.statement, conditionSite.span);
     if (!conditionRange) return { kind: "unsafe", message: "conditional condition の exact physical source span を解決できません。" };
     let conditionText = source.slice(conditionRange.from, conditionRange.to);
-    let conditionKnown: InlinePresenceValue | null = null;
     const conditionGeometryReplacements = new Map<string, InlineGeometryExpressionReplacement>();
     const conditionSubstitutions: GeometrySubstitutionProvenance[] = [];
     const addConditionGeometryReplacement = (
@@ -1844,27 +1656,18 @@ const buildBodyTransformation = (
       const added = addConditionGeometryReplacement(result, builtin.reference.span);
       if (added.kind === "unsafe") return added;
     }
-    const hasInlinePresenceFact = conditionSite.expression.hasValueParameters.some((metadata) =>
-      presenceByParameter.has(parameterSlotKey(metadata.definitionStatementId, metadata.parameterIndex))
-    );
-    if (hasInlinePresenceFact || conditionGeometryReplacements.size > 0) {
+    if (conditionGeometryReplacements.size > 0) {
       const specialized = specializeInlineScalarExpression(
         source,
         compiled,
         bodyEntry.statement,
         conditionSite.expression,
-        presenceByParameter,
         conditionGeometryReplacements
       );
       if (specialized.kind === "unsafe") return specialized;
       conditionText = specialized.text;
-      conditionKnown = specialized.known?.presenceDerived ? specialized.known : null;
-      rememberEliminatedSourceRanges(bodyEntry.statementId, specialized.eliminatedSourceRanges);
-      geometrySubstitutions.push(...conditionSubstitutions.filter((substitution) => !specialized.eliminatedSourceRanges.some((range) =>
-        substitution.bodySourceRange.from >= range.from && substitution.bodySourceRange.to <= range.to
-      )));
+      geometrySubstitutions.push(...conditionSubstitutions);
     }
-    conditionalStates.set(bodyEntry.statementId, conditionKnown);
     const conditionReplacement = conditionText === source.slice(conditionRange.from, conditionRange.to)
       ? null
       : { from: conditionRange.from, to: conditionRange.to, text: conditionText };
@@ -1894,8 +1697,7 @@ const buildBodyTransformation = (
     originalStatementId: bodyEntry.statementId,
     outputLineIndex,
     originalParentStatementId: parent.statementId,
-    originalBranch: parent.branch,
-    eliminatedSourceRanges: eliminatedSourceRangesFor(bodyEntry.statementId)
+    originalBranch: parent.branch
   });
   const replacementsInRange = (range: { from: number; to: number }): AbsoluteReplacement[] => allReplacements.filter((replacement) =>
     replacement.from >= range.from && replacement.to <= range.to
@@ -1945,10 +1747,6 @@ const buildBodyTransformation = (
   const renderConditional = (bodyEntry: StatementEntry, parent: OutputParent): Rendered | null => {
     const info = compiled.statementMap?.statements[bodyEntry.statementIndex];
     if (!info || info.closeBraceLine === undefined) return null;
-    const conditionalIndent = leadingWhitespace(source.slice(
-      lineStartFor(starts, info.range.startLine) ?? 0,
-      lineEndOffset(source, starts, info.range.startLine)
-    ));
     const conditionalOpenLine = info.openBraceLine ?? inlineOpenBraceLine(source, starts, bodyEntry.statement);
     const openLine = conditionalOpenLine ?? info.range.startLine;
     const thenStartLine = openLine + 1;
@@ -1956,7 +1754,6 @@ const buildBodyTransformation = (
     const elseStartLine = info.elseLine === undefined ? info.closeBraceLine : info.elseLine + 1;
     const elseEndLine = info.closeBraceLine - 1;
     const header = rawLinesFor(info.range.startLine, openLine, true);
-    const originalHeader = rawLinesFor(info.range.startLine, openLine, false);
     const then = renderSequence(thenStartLine, thenEndLine, bodyEntry.statementIndex, "then", {
       statementId: bodyEntry.statementId,
       branch: "then"
@@ -1969,81 +1766,17 @@ const buildBodyTransformation = (
         });
     const close = rawLinesFor(info.closeBraceLine, info.closeBraceLine, true);
     const elseMarker = info.elseLine === undefined ? [] : rawLinesFor(info.elseLine, info.elseLine, true);
-    if (!header || !originalHeader || !then || !elseRendered || !close || !elseMarker) return null;
-    const known = conditionalStates.get(bodyEntry.statementId) ?? null;
-    const conditionKnown = known !== null;
-    const thenLines = conditionKnown ? liftConditionalBranchLines(then.lines, conditionalIndent) : then.lines;
-    const elseLines = conditionKnown ? liftConditionalBranchLines(elseRendered.lines, conditionalIndent) : elseRendered.lines;
-    if (!conditionKnown) {
-      const headerLength = header.length;
-      const thenOffset = headerLength;
-      const elseOffset = thenOffset + thenLines.length + elseMarker.length;
-      return {
-        lines: [...header, ...thenLines, ...elseMarker, ...elseLines, ...close],
-        provenance: [
-          provenanceFor(bodyEntry, 0, parent),
-          ...then.provenance.map((item) => ({ ...item, outputLineIndex: item.outputLineIndex + thenOffset })),
-          ...elseRendered.provenance.map((item) => ({ ...item, outputLineIndex: item.outputLineIndex + elseOffset }))
-        ]
-      };
-    }
-    if (known.value) {
-      const lines = [...thenLines];
-      const provenance = then.provenance.map((item) => ({
-        ...item,
-        originalParentStatementId: parent.statementId,
-        originalBranch: parent.branch
-      }));
-      if (info.elseLine !== undefined && emitOmittedBranchComments) {
-        lines.push(`${conditionalIndent}// Inline omitted: condition resolved to true`);
-        const omitted = [
-          ...elseMarker,
-          ...(rawLinesFor(elseStartLine, elseEndLine, false) ?? []),
-          ...close
-        ].map((line) => commentSourceLine(line, conditionalIndent));
-        lines.push(...omitted);
-      }
-      return { lines, provenance };
-    }
-    if (info.elseLine === undefined) {
-      if (!emitOmittedBranchComments) return { lines: [], provenance: [] };
-      return {
-        lines: [
-          `${conditionalIndent}// Inline omitted: condition resolved to false`,
-          ...[
-            ...originalHeader,
-            ...(rawLinesFor(thenStartLine, thenEndLine, false) ?? []),
-            ...close
-          ].map((line) => commentSourceLine(line, conditionalIndent))
-        ],
-        provenance: []
-      };
-    }
-    if (!emitOmittedBranchComments) {
-      return {
-        lines: elseLines,
-        provenance: elseRendered.provenance.map((item) => ({
-          ...item,
-          originalParentStatementId: parent.statementId,
-          originalBranch: parent.branch
-        }))
-      };
-    }
-    const omitted = [
-      ...originalHeader,
-      ...(rawLinesFor(thenStartLine, thenEndLine, false) ?? []),
-      ...elseMarker
-    ].map((line) => commentSourceLine(line, conditionalIndent));
+    if (!header || !then || !elseRendered || !close || !elseMarker) return null;
+    const headerLength = header.length;
+    const thenOffset = headerLength;
+    const elseOffset = thenOffset + then.lines.length + elseMarker.length;
     return {
-      lines: [
-        `${conditionalIndent}// Inline omitted: condition resolved to false`,
-        ...omitted,
-        ...elseLines
-      ],
-      provenance: elseRendered.provenance.map((item) => ({
-        ...item,
-        outputLineIndex: item.outputLineIndex + omitted.length + 1
-      }))
+      lines: [...header, ...then.lines, ...elseMarker, ...elseRendered.lines, ...close],
+      provenance: [
+        provenanceFor(bodyEntry, 0, parent),
+        ...then.provenance.map((item) => ({ ...item, outputLineIndex: item.outputLineIndex + thenOffset })),
+        ...elseRendered.provenance.map((item) => ({ ...item, outputLineIndex: item.outputLineIndex + elseOffset }))
+      ]
     };
   };
 
@@ -2166,9 +1899,18 @@ const trailingSourceSuffix = (
 const instanceActivity = (
   statement: Extract<DslStatement, { kind: "moduleInstance" }>
 ): Activity | null => {
-  const option = statement.options.find((candidate) => candidate.name === "state");
-  if (!option) return "visible";
-  return parseElementActivityLiteral(option.value) as Activity | null;
+  const enabled = statement.options.find((candidate) => candidate.name === "enabled");
+  const visible = statement.options.find((candidate) => candidate.name === "visible");
+  const literal = (option: typeof enabled) => {
+    if (!option) return true;
+    const value = option.value.trim().toLowerCase();
+    return value === "true" ? true : value === "false" ? false : null;
+  };
+  const enabledValue = literal(enabled);
+  const visibleValue = literal(visible);
+  if (enabledValue === null || visibleValue === null) return null;
+  if (!enabledValue) return "disabled";
+  return visibleValue ? "visible" : "hidden";
 };
 
 const semanticAnalysisFor = (compiled: CompiledDslDocument) =>
@@ -2223,6 +1965,7 @@ const ownerStatementIdForIdentity = (
     return identity.statementId;
   }
   if (identity.kind === "modifier") return null;
+  if (identity.kind === "transformationStage") return null;
   if (identity.kind === "recordField") return identity.field.recordStatementId;
   if (identity.kind === "typed") {
     const statementIndex = compiled.bindingAnalysis?.catalog.bindingsById.get(identity.bindingId)?.statementIndex;
@@ -2263,14 +2006,15 @@ const remappedOwnerTokenForIdentity = (
     [...mappingsByTarget.values()].map((mapping) => mapping.bodyStatementIds.get(statementId)).find(Boolean);
   if (identity.kind === "module") {
     if (identity.target.kind === "moduleParameter") {
+      const moduleParameter = identity.target;
       const generated = currentMapping.parameterBindings.get(
         parameterSlotKey(
-          identity.target.slot.definitionStatementId,
-          identity.target.slot.parameterIndex
+          moduleParameter.slot.definitionStatementId,
+          moduleParameter.slot.parameterIndex
         )
       );
       if (generated) return `statement:${generated.statementId}`;
-      const copiedDefinition = copiedStatementIdFor(identity.target.slot.definitionStatementId);
+      const copiedDefinition = copiedStatementIdFor(moduleParameter.slot.definitionStatementId);
       if (copiedDefinition) return `statement:${copiedDefinition}`;
     } else if (identity.target.kind === "moduleInstance") {
       const mapping = mappingsByTarget.get(identity.target.statementId);
@@ -2422,17 +2166,25 @@ const canonicalSourceReferenceFor = (
     parsed.reference.path.segments.length > 1
   ) {
     const absolutePath = { absolute: true, segments: parsed.reference.path.segments };
-    const absoluteSource = `@${formatDslReferencePath(absolutePath)}`;
+    const absoluteSource = formatDslSourceReference({
+      path: absolutePath,
+      occurrenceIndex: parsed.reference.occurrenceIndex,
+      property: parsed.reference.property
+    });
     const absoluteIdentity = moduleSourceIdentityForReference(compiled, referenceStatementIndex, absoluteSource);
     if (absoluteIdentity && dslSemanticIdentityKey(absoluteIdentity) === dslSemanticIdentityKey(identity)) {
-      return `${absoluteSource}${parsed.reference.property ? `.${parsed.reference.property}` : ""}`;
+      return absoluteSource;
     }
   }
   const declaration = sourceDeclarationForIdentity(compiled, identity);
   if (!declaration) return null;
   const path = canonicalPathForDeclaration(compiled, declaration, referenceStatementIndex);
   if (!path) return null;
-  return `@${formatDslReferencePath(path)}${parsed.reference.property ? `.${parsed.reference.property}` : ""}`;
+  return formatDslSourceReference({
+    path,
+    occurrenceIndex: parsed.reference.occurrenceIndex,
+    property: parsed.reference.property
+  });
 };
 
 const occurrenceSlotsForStatement = (
@@ -2625,7 +2377,13 @@ const verifyPreservedSemanticOwners = (
     if (nextIndex === undefined) return false;
     const nextStatement = nextCompiled.statements[nextIndex];
     if (!nextStatement || nextStatement.kind !== statement.kind || nextStatement.name !== statement.name) return false;
-    const expected = occurrenceSlotsForStatement(source, compiled, beforeIndex, statementIndex).map((slot) => {
+    const expected = occurrenceSlotsForStatement(
+      source,
+      compiled,
+      beforeIndex,
+      statementIndex,
+      (occurrence) => !isTransientOptionalMatchBinderOccurrence(occurrence)
+    ).map((slot) => {
       const owners = new Set<string>();
       const candidates = statementOccurrences.filter((candidate) =>
         candidate.kind === slot.kind && source.slice(candidate.from, candidate.to) === slot.token
@@ -2636,7 +2394,13 @@ const verifyPreservedSemanticOwners = (
       if (candidate) owners.add(expectedOwnerToken(source, compiled, candidate, statementOccurrences, mappingsByTarget));
       return { ...slot, owners: [...owners].sort() };
     });
-    const actual = occurrenceSlotsForStatement(nextCompiled.spans.sourceMap.source, nextCompiled, afterIndex, nextIndex);
+    const actual = occurrenceSlotsForStatement(
+      nextCompiled.spans.sourceMap.source,
+      nextCompiled,
+      afterIndex,
+      nextIndex,
+      (occurrence) => !isTransientOptionalMatchBinderOccurrence(occurrence)
+    );
     if (!compareSlots(expected, actual)) return false;
   }
   return true;
@@ -2725,9 +2489,11 @@ const sameGeometryTarget = (
   right: ScalarExpressionResolvedGeometryTarget | null
 ): boolean => Boolean(
   left && right &&
-  left.statementId === right.statementId &&
-  left.geometryType === right.geometryType &&
-  left.pointKey === right.pointKey
+  left.kind === right.kind &&
+  (left.kind === "forGroupOccurrence" && right.kind === "forGroupOccurrence"
+    ? left.templateElementId === right.templateElementId && left.targetSourceOrder === right.targetSourceOrder
+    : left.kind !== "forGroupOccurrence" && right.kind !== "forGroupOccurrence" &&
+      left.statementId === right.statementId && left.geometryType === right.geometryType && left.pointKey === right.pointKey)
 );
 
 const geometryTargetsInTypedExpression = (
@@ -2932,6 +2698,7 @@ const geometryArrayInitializerOccurrencesFor = (
   const parsed = parseGeometryArrayExpression(source.slice(range.from, range.to));
   if (!parsed.expression || parsed.diagnostics.length > 0) return null;
   const references: ReferenceOccurrence[] = [];
+  if (parsed.expression.kind === "none") return references;
   const addReference = (
     text: string,
     relativeFrom: number,
@@ -3046,6 +2813,10 @@ const remappedGeometryTarget = (
   nextCompiled: CompiledDslDocument,
   mapping: OwnerMapping
 ): ScalarExpressionResolvedGeometryTarget => {
+  if (target.kind === "forGroupOccurrence") {
+    const templateElementId = mapping.bodyStatementIds.get(target.templateElementId) ?? target.templateElementId;
+    return { ...target, templateElementId };
+  }
   const statementId = mapping.bodyStatementIds.get(target.statementId) ?? target.statementId;
   const statementIndex = statementIndexForId(nextCompiled, statementId) ?? target.statementIndex;
   return { ...target, statementId, statementIndex };
@@ -3149,7 +2920,6 @@ const geometryRewritesFor = (
       const nextBodyIndex = nextBodyId ? statementIndexForId(nextCompiled, nextBodyId) : null;
       if (nextBodyIndex === null || nextBodyId === undefined) return { kind: "invalid", message: "generated Module body statement がありません。", target: entry.target };
       actualBuiltins.push(...typedExpressionsForStatement(nextCompiled, nextBodyIndex).flatMap(geometryTargetsInTypedExpression));
-      const eliminated = entry.bodyTransformation.provenance.find((provenance) => provenance.originalStatementId === body.statementId)?.eliminatedSourceRanges ?? [];
       const sites = [
         ...body.scalarExpressions.map((site) => ({ span: site.span, expression: site.expression })),
         ...body.textTemplateHoles.map((site) => ({ span: site.span, expression: site.expression }))
@@ -3158,7 +2928,6 @@ const geometryRewritesFor = (
         for (const builtin of site.expression.geometryBuiltinArguments) {
           const referenceRange = physicalRangeForLogicalSpan(compiled, oldStatement, builtin.reference.span);
           if (!referenceRange) return { kind: "invalid", message: "geometry builtin の exact physical source span を解決できません。", target: entry.target };
-          if (eliminated.some((range) => referenceRange.from >= range.from && referenceRange.to <= range.to)) continue;
           const target = builtin.reference.target;
           if (target?.kind === "parameter" && target.definitionStatementId === entry.definition.statementId) {
             const substitution = entry.bodyTransformation.geometrySubstitutions.find((candidate) =>
@@ -3306,9 +3075,6 @@ const verifyCopiedBodyOwners = (
     if (oldBodyIndex === null || nextBodyIndex === null) return false;
     const oldBodyStatement = compiled.statements[oldBodyIndex];
     if (!oldBodyStatement) return false;
-    const eliminatedSourceRanges = entry.bodyTransformation.provenance.find((provenance) =>
-      provenance.originalStatementId === oldBodyId
-    )?.eliminatedSourceRanges ?? [];
     const geometrySubstitutions = entry.bodyTransformation.geometrySubstitutions.filter((substitution) =>
       substitution.originalStatementId === oldBodyId
     );
@@ -3319,7 +3085,6 @@ const verifyCopiedBodyOwners = (
         ? sourceReferenceRangeForOccurrence(source, beforeIndex.occurrences, occurrence, statement.documentRange) ?? { from: occurrence.from, to: occurrence.to }
         : { from: occurrence.from, to: occurrence.to };
       if (!occurrenceRange) return false;
-      if (eliminatedSourceRanges.some((range) => occurrenceRange.from >= range.from && occurrenceRange.to <= range.to)) return false;
       return !geometrySubstitutions.some((substitution) =>
         occurrenceRange.from >= substitution.bodySourceRange.from && occurrenceRange.to <= substitution.bodySourceRange.to
       );
@@ -3330,7 +3095,7 @@ const verifyCopiedBodyOwners = (
       compiled,
       beforeIndex,
       oldBodyIndex,
-      oldOccurrenceIsRetained
+      (occurrence) => oldOccurrenceIsRetained(occurrence) && !isTransientOptionalMatchBinderOccurrence(occurrence)
     ).map((slot) => ({
       ...slot,
       owners: (() => {
@@ -3343,6 +3108,16 @@ const verifyCopiedBodyOwners = (
         // identity and maps it to the generated const.
         const candidate = candidates.find((occurrence) => occurrence.identity.kind === "module") ?? candidates[slot.ordinal];
         if (!candidate) return [];
+        if (candidate.identity.kind === "module" && candidate.identity.target.kind === "moduleParameter") {
+          const moduleParameter = candidate.identity.target;
+          const geometryParameter = entry.geometryParameters.find((parameter) =>
+            parameter.parameterIndex === moduleParameter.slot.parameterIndex &&
+            isDslOptionalValueType(parameter.parameter.valueType)
+          );
+          if (geometryParameter?.state === "supplied" && geometryParameter.expectedOwner?.kind === "source") {
+            return [`statement:${geometryParameter.expectedOwner.statementId}`];
+          }
+        }
         return [remappedOwnerTokenForIdentity(compiled, candidate.identity, mapping, mappingsByTarget)];
       })().sort()
     }));
@@ -3358,10 +3133,7 @@ const verifyCopiedBodyOwners = (
       for (const occurrence of generated) generatedGeometryRanges.add(`${occurrence.sourceFrom}:${occurrence.sourceTo}`);
     }
     const recordReferences = entry.bodyTransformation.recordReferences.filter((reference) => {
-      if (reference.originalStatementId !== oldBodyId) return false;
-      return !eliminatedSourceRanges.some((range) =>
-        reference.bodySourceRange.from >= range.from && reference.bodySourceRange.to <= range.to
-      );
+      return reference.originalStatementId === oldBodyId;
     });
     const copiedRecordOccurrences = recordOccurrencesForCopiedBody(
       nextCompiled.spans.sourceMap.source,
@@ -3378,6 +3150,7 @@ const verifyCopiedBodyOwners = (
       afterIndex,
       nextBodyIndex,
       (occurrence) => {
+        if (isTransientOptionalMatchBinderOccurrence(occurrence)) return false;
         if (occurrence.kind !== "reference") return true;
         const range = sourceReferenceRangeForOccurrence(
           nextCompiled.spans.sourceMap.source,
@@ -3391,7 +3164,17 @@ const verifyCopiedBodyOwners = (
         ...iterationOccurrencesForStatement(nextCompiled.spans.sourceMap.source, nextCompiled, nextBodyIndex),
         ...copiedRecordOccurrences
       ]
-    );
+    ).map((slot) => {
+      const ownerByGeneratedParameterElementId = new Map<string, string>();
+      for (const generated of mapping.parameterBindings.values()) {
+        const elementId = nextCompiled.statementMap?.elementIdByStatementIndex.get(generated.statementIndex);
+        if (elementId) ownerByGeneratedParameterElementId.set(`statement:${elementId}`, `statement:${generated.statementId}`);
+      }
+      return {
+        ...slot,
+        owners: slot.owners.map((owner) => ownerByGeneratedParameterElementId.get(owner) ?? owner)
+      };
+    });
     if (!compareSlots(expected, actual)) return false;
 
     const oldArrayReferences = entry.bodyTransformation.geometryArrayReferences.filter((reference) =>
@@ -3470,11 +3253,17 @@ const generatedParameterMappingsFor = (
       child.statement.bindingKind !== "const" ||
       child.statement.name !== parameter.parameterName
     ) return null;
-    const childScalarType = scalarTypeOfDslValueType(child.statement.valueType);
-    const childRecordType = nominalRecordTypeOfDslValueType(child.statement.valueType);
-    const scalarTypeMatches = local.kind === "scalar" && childScalarType?.kind === local.parameter.parameter.type?.kind;
+    const childScalarType = scalarTypeOfDslValueType(dslRequiredValueTypeOf(child.statement.valueType));
+    const childScalarExpressionType = scalarExpressionTypeOfDslValueType(child.statement.valueType);
+    const childRecordType = nominalRecordTypeOfDslValueType(dslRequiredValueTypeOf(child.statement.valueType));
+    const childGeometryType = dslRequiredValueTypeOf(child.statement.valueType);
+    const scalarTypeMatches = local.kind === "scalar" &&
+      (childScalarType?.kind === local.parameter.parameter.type?.kind ||
+        childScalarExpressionType?.kind === local.parameter.parameter.type?.kind);
     const arrayType = local.kind === "geometryArray" ? geometryArrayTypeOfTypedDeclaration(child.statement) : null;
     const arrayTypeMatches = local.kind === "geometryArray" && arrayType?.elementType === local.parameter.arrayType.elementType;
+    const geometryTypeMatches = local.kind === "geometry" &&
+      isDslGeometryValueType(childGeometryType) && childGeometryType.kind === local.parameter.interfaceType;
     const recordValue = local.kind === "record"
       ? nextCompiled.sourceLexicalNamespace?.recordSemanticAnalysis?.valuesByStatementIndex.get(child.statementIndex)
       : null;
@@ -3483,7 +3272,7 @@ const generatedParameterMappingsFor = (
       geometryArrayTypeOfTypedDeclaration(child.statement) === null &&
       childRecordType?.name === local.parameter.parameter.recordTypeReference?.name &&
       recordValue?.typeIdentity === local.parameter.recordTypeIdentity;
-    if ((!scalarTypeMatches && !arrayTypeMatches && !recordTypeMatches) || (local.kind === "scalar" && arrayType !== null)) return null;
+    if ((!scalarTypeMatches && !arrayTypeMatches && !recordTypeMatches && !geometryTypeMatches) || (local.kind === "scalar" && arrayType !== null)) return null;
     const bindingCandidates = local.kind === "scalar"
       ? [...(nextCompiled.bindingAnalysis?.catalog.bindings.values() ?? [])]
         .filter((binding) => binding.kind === "typed" && binding.statementIndex === child.statementIndex)
@@ -3526,7 +3315,11 @@ const replacementFor = (
   if (suffix === null) {
     return reject("unsafe-source-span", "Inline target の exact-current source range を解決できません。", entry.target);
   }
-  const activityText = entry.activity === "visible" ? "" : `(state: ${entry.activity})`;
+  const gateText = entry.activity === "disabled"
+    ? "(enabled: false)"
+    : entry.activity === "hidden"
+      ? "(visible: false)"
+      : "";
   const localParameterLines = localParameterLoweringsFor(entry).map(({ parameter }) =>
       `${instanceIndent}${DSL_INDENT}const ${parameter.nameSource}: ${parameter.typeSource} = ${parameter.initializerSource}`
     );
@@ -3534,7 +3327,7 @@ const replacementFor = (
     startLine: entry.statementInfo.range.startLine,
     endLine: entry.statementInfo.range.endLine,
     replacementLines: [
-      `${instanceIndent}group ${formatDslName(entry.statement.name)}${activityText} {${suffix}`,
+      `${instanceIndent}group ${formatDslName(entry.statement.name)}${gateText} {${suffix}`,
       ...localParameterLines,
       ...rebaseBodyLines(entry.bodyTransformation.bodyLines, body.definitionIndent, instanceIndent),
       `${instanceIndent}}`
@@ -3583,14 +3376,19 @@ const initializerRewritesFor = (
         parameterName: string;
         initializerSource: string | null;
         originalExpressionRange: ExactSourceRange | null;
-        eliminatedSourceRanges?: readonly ExactSourceRange[];
       },
       before: ReferenceOccurrence[] | null,
       kind: "scalar" | "geometry-array" | "record"
     ): InitializerRewriteResult | null => {
-      if (parameter.initializerSource === null || parameter.originalExpressionRange === null) {
+      if (parameter.initializerSource === null) {
         if (mapping.parameterBindings.has(parameterSlotKey(entry.definition.statementId, parameter.parameterIndex))) {
           return { kind: "invalid", message: "optional omitted parameter に生成 const mapping があります。", target: entry.target };
+        }
+        return null;
+      }
+      if (parameter.originalExpressionRange === null) {
+        if (!mapping.parameterBindings.has(parameterSlotKey(entry.definition.statementId, parameter.parameterIndex))) {
+          return { kind: "invalid", message: `生成した ${kind} parameter const の semantic mapping がありません。`, target: entry.target };
         }
         return null;
       }
@@ -3616,10 +3414,7 @@ const initializerRewritesFor = (
           target: entry.target
         };
       }
-      const retainedBefore = before.filter((original) => !(parameter.eliminatedSourceRanges ?? []).some((range) =>
-        original.sourceFrom >= range.from &&
-        original.sourceTo <= range.to
-      ));
+      const retainedBefore = before;
       if (retainedBefore.length !== after.length) {
         return {
           kind: "invalid",
@@ -3786,8 +3581,7 @@ const entriesWithGeometryRewrites = (
   starts: readonly number[],
   compiled: CompiledDslDocument,
   entries: readonly InlineEntry[],
-  rewrites: readonly GeometryArgumentRewrite[],
-  emitOmittedBranchComments: boolean
+  rewrites: readonly GeometryArgumentRewrite[]
 ): readonly InlineEntry[] | null => {
   const rewrittenEntries: (InlineEntry | null)[] = entries.map((entry) => {
     let changed = false;
@@ -3813,22 +3607,11 @@ const entriesWithGeometryRewrites = (
     if (geometryParameters.some((parameter) => parameter === null)) return null;
     const nextGeometryParameters = geometryParameters as readonly GeometryParameterSubstitution[];
     if (!changed) return entry;
-    const presenceByParameter = new Map<string, boolean>();
-    for (const parameter of [...entry.scalarParameters, ...entry.geometryArrayParameters, ...entry.recordParameters, ...nextGeometryParameters]) {
-      if (parameter.state === "optionalSupplied" || parameter.state === "optionalOmitted") {
-        presenceByParameter.set(
-          parameterSlotKey(entry.definition.statementId, parameter.parameterIndex),
-          parameter.state === "optionalSupplied"
-        );
-      }
-    }
     const bodyTransformation = buildBodyTransformation(
       source,
       starts,
       compiled,
-      { ...entry, geometryParameters: nextGeometryParameters },
-      presenceByParameter,
-      emitOmittedBranchComments
+      { ...entry, geometryParameters: nextGeometryParameters }
     );
     return bodyTransformation.kind === "unsafe"
       ? null
@@ -4004,17 +3787,6 @@ export const planInlineModule = (input: InlineModulePlanInput): InlineModulePlan
     if (!body) {
       return reject("unsafe-source-span", "Module body の exact-current source range を解決できません。", target);
     }
-    if (bodyRequiresUnsupportedTypedLowering(body.entries)) {
-      results.push(skip(
-        target,
-        statementIndex,
-        statement.name,
-        "parameter-lowering-required",
-        "Module body の record / geometry-array local はこの Inline slice では lowering しません。"
-      ));
-      continue;
-    }
-
     const info = statementMap.statements[statementIndex];
     const targetPhysical = singlePhysicalRange(statement.physicalSpan, snapshot.sourceRevision);
     if (
@@ -4036,42 +3808,7 @@ export const planInlineModule = (input: InlineModulePlanInput): InlineModulePlan
       statementInfo: info,
       body,
     };
-    const presenceByParameter = new Map<string, boolean>();
-    for (const parameter of scalarParameterPreparation.scalarParameters) {
-      if (parameter.state === "optionalSupplied" || parameter.state === "optionalOmitted") {
-        presenceByParameter.set(
-          parameterSlotKey(definition.statementId, parameter.parameterIndex),
-          parameter.state === "optionalSupplied"
-        );
-      }
-    }
-    for (const parameter of scalarParameterPreparation.geometryArrayParameters) {
-      if (parameter.state === "optionalSupplied" || parameter.state === "optionalOmitted") {
-        presenceByParameter.set(
-          parameterSlotKey(definition.statementId, parameter.parameterIndex),
-          parameter.state === "optionalSupplied"
-        );
-      }
-    }
-    for (const parameter of scalarParameterPreparation.recordParameters) {
-      if (parameter.state === "optionalSupplied" || parameter.state === "optionalOmitted") {
-        presenceByParameter.set(
-          parameterSlotKey(definition.statementId, parameter.parameterIndex),
-          parameter.state === "optionalSupplied"
-        );
-      }
-    }
-    for (const parameter of scalarParameterPreparation.geometryParameters) {
-      if (parameter.state === "optionalSupplied" || parameter.state === "optionalOmitted") {
-        presenceByParameter.set(
-          parameterSlotKey(definition.statementId, parameter.parameterIndex),
-          parameter.state === "optionalSupplied"
-        );
-      }
-    }
     const defaultParameters = specializeDefaultInitializersFor(
-      source,
-      compiled,
       {
         ...inlineEntryBase,
         scalarParameters: scalarParameterPreparation.scalarParameters,
@@ -4079,10 +3816,8 @@ export const planInlineModule = (input: InlineModulePlanInput): InlineModulePlan
         geometryArrayParameters: scalarParameterPreparation.geometryArrayParameters,
         recordParameters: scalarParameterPreparation.recordParameters,
         bodyTransformation: { bodyLines: [], provenance: [], geometrySubstitutions: [], geometryArrayReferences: [], recordReferences: [] }
-      },
-      presenceByParameter
+      }
     );
-    if (defaultParameters.kind === "unsafe") return reject("unsafe-rewrite", defaultParameters.message, target);
     const bodyTransformation = buildBodyTransformation(
       source,
       starts,
@@ -4094,9 +3829,7 @@ export const planInlineModule = (input: InlineModulePlanInput): InlineModulePlan
         geometryArrayParameters: scalarParameterPreparation.geometryArrayParameters,
         recordParameters: scalarParameterPreparation.recordParameters,
         bodyTransformation: { bodyLines: [], provenance: [], geometrySubstitutions: [], geometryArrayReferences: [], recordReferences: [] }
-      },
-      presenceByParameter,
-      policy.emitOmittedBranchComments
+      }
     );
     if (bodyTransformation.kind === "unsafe") return reject("unsafe-rewrite", bodyTransformation.message, target);
     const inlineEntry: InlineEntry = {
@@ -4202,8 +3935,7 @@ export const planInlineModule = (input: InlineModulePlanInput): InlineModulePlan
         starts,
         compiled,
         rewrittenEntries,
-        geometryRewriteResult.rewrites,
-        policy.emitOmittedBranchComments
+        geometryRewriteResult.rewrites
       );
       if (!entries) return reject("unsafe-rewrite", "caller geometry の atomic source rewrite を構成できません。");
       rewrittenEntries = entries;

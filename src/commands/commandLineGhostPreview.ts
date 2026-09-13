@@ -4,7 +4,11 @@ import {
   creationPlacementForTarget
 } from "../model/elementCreationPlacement";
 import { adjustEvaluationLimitForInsertion } from "../model/evaluationDivider";
-import { findParameterDefinition } from "../parameters/parameterDefinitions";
+import {
+  dslValueTypeForParameterDefinition,
+  findParameterDefinition
+} from "../parameters/parameterDefinitions";
+import { isDslOptionalValueType } from "../../packages/nui-language/src/dsl/dslValueTypes";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import type { CadElement } from "../types/geometry";
 import { emitCreationRecipe } from "./creationRecipes";
@@ -70,7 +74,8 @@ const missingRequiredStepIndexesFor = (session: CommandLineSession, emitted: Cad
     if (!isReferenceStep(step.kind)) return [];
     // Allow omission only when the element's actual parameter definition says
     // it is optional; absent/unknown definitions are deliberately required.
-    return findParameterDefinition(emitted, step.key)?.allowNone !== true ? [index] : [];
+    const parameter = findParameterDefinition(emitted, step.key);
+    return !isDslOptionalValueType(dslValueTypeForParameterDefinition(parameter)) ? [index] : [];
   });
 };
 

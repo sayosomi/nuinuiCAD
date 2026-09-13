@@ -120,6 +120,25 @@ describe("queryDslOutputPreviewRevealSourceTarget", () => {
     });
   });
 
+  it("keeps Output Preview owner targeting unchanged at final-line whitespace and EOL", () => {
+    const { source, compiled, snapshot } = compileSource([
+      "nui 1",
+      "point P = coordinate(x: 10, y: 20)   "
+    ]);
+    const lineEnd = source.length;
+
+    expect(queryDslOutputPreviewRevealSourceTarget({
+      source: snapshot,
+      compiled,
+      position: lineEnd - 1
+    })).toEqual({ status: "failed", reason: "no-target" });
+    expect(queryDslOutputPreviewRevealSourceTarget({
+      source: snapshot,
+      compiled,
+      position: lineEnd
+    })).toEqual({ status: "failed", reason: "no-target" });
+  });
+
   it("projects structural availability from current authored output ownership", () => {
     const { source, compiled, snapshot } = compileSource([
       "nui 1",

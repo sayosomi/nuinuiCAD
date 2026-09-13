@@ -6,7 +6,8 @@ import type { ScalarSpan, ScalarUnaryOperator, ScalarBinaryOperator } from "./ex
 import type { BindingId } from "./bindingCatalog";
 import type { BindingResolution } from "./bindingResolution";
 import type { BuiltinFunctionName } from "./builtinFunctions";
-import type { ChoiceScalarType, ScalarType } from "./types";
+import type { ChoiceScalarType, ScalarExpressionType, ScalarType } from "./types";
+import type { DslOptionalValueType } from "../dsl/dslValueTypes";
 import type { ModuleGeometryInterfaceType } from "../dsl/moduleGeometryInterfaces";
 import type { ElementId } from "../types/geometry";
 import type { GeometryValueOccurrence } from "../types/geometry";
@@ -31,6 +32,12 @@ export interface TypedScalarBooleanLiteralNode {
   readonly span: ScalarSpan;
   readonly value: boolean;
   readonly type: Extract<ScalarType, { kind: "boolean" }>;
+}
+
+export interface TypedScalarNoneLiteralNode {
+  readonly kind: "noneLiteral";
+  readonly span: ScalarSpan;
+  readonly type: DslOptionalValueType | null;
 }
 
 /**
@@ -60,7 +67,7 @@ export interface TypedScalarReferenceNode {
   readonly nameSpan: ScalarSpan;
   readonly name: string;
   readonly bindingId: BindingId | null;
-  readonly type: ScalarType | null;
+  readonly type: ScalarExpressionType | null;
 }
 
 export type ScalarExpressionResolvedCollectionIndex = {
@@ -68,7 +75,7 @@ export type ScalarExpressionResolvedCollectionIndex = {
   readonly collectionValueId: string;
   readonly collectionLength: number | null;
   readonly targetSourceOrder: number;
-  readonly type: ScalarType | null;
+  readonly type: ScalarExpressionType | null;
 };
 
 export interface TypedScalarCollectionIndexNode {
@@ -80,7 +87,7 @@ export interface TypedScalarCollectionIndexNode {
   readonly collectionLength: number | null;
   readonly targetSourceOrder: number | null;
   readonly index: TypedScalarExpression;
-  readonly type: ScalarType | null;
+  readonly type: ScalarExpressionType | null;
 }
 
 /**
@@ -93,6 +100,17 @@ export type ScalarExpressionResolvedGeometryTarget = {
   readonly kind?: "drawable";
   readonly statementId: string;
   readonly statementIndex: number;
+  readonly geometryType: ModuleGeometryInterfaceType;
+  readonly pointKey?: string;
+} | {
+  readonly kind: "forGroupOccurrence";
+  readonly templateElementId: ElementId;
+  /** Compatibility projection for consumers that only understand authored
+   * drawable targets; runtime resolution uses the explicit template field. */
+  readonly statementId: ElementId;
+  readonly statementIndex: number;
+  readonly targetSourceOrder: number;
+  readonly index: TypedScalarExpression | null;
   readonly geometryType: ModuleGeometryInterfaceType;
   readonly pointKey?: string;
 } | {
@@ -115,7 +133,7 @@ export type ScalarExpressionResolvedReference =
   | {
       readonly kind: "resolvedType";
       readonly bindingId: BindingId | null;
-      readonly type: ScalarType | null;
+      readonly type: ScalarExpressionType | null;
     }
   | {
       readonly kind: "resolvedGeometry";
@@ -131,21 +149,29 @@ export type ScalarExpressionResolvedGeometryProperty = {
   readonly elementId: ElementId;
   readonly property: string;
   readonly targetSourceOrder: number;
-  readonly type: ScalarType;
+  readonly type: ScalarExpressionType;
+} | {
+  readonly kind: "forGroupOccurrence";
+  readonly templateElementId: ElementId;
+  readonly property: string;
+  readonly targetSourceOrder: number;
+  readonly index: TypedScalarExpression | null;
+  readonly pointKey?: string;
+  readonly type: ScalarExpressionType;
 } | {
   readonly kind: "geometryValueForBinder";
   readonly binderId: BindingId;
   readonly property: string;
   readonly pointKey?: string;
   readonly targetSourceOrder: number;
-  readonly type: ScalarType;
+  readonly type: ScalarExpressionType;
 } | {
   readonly kind: "geometryValue";
   readonly occurrence: GeometryValueOccurrence;
   readonly property: string;
   readonly pointKey?: string;
   readonly targetSourceOrder: number;
-  readonly type: ScalarType;
+  readonly type: ScalarExpressionType;
 } | {
   readonly kind: "collection";
   readonly collectionValueId: string;
@@ -153,6 +179,41 @@ export type ScalarExpressionResolvedGeometryProperty = {
   readonly targetSourceOrder: number;
   readonly type: Extract<ScalarType, { kind: "number" }>;
 };
+
+/** Compiler-resolved target for a general optional member read. Runtime code
+ * consumes only these stable identities; it never re-resolves source names. */
+export type ScalarExpressionResolvedOptionalMemberTarget =
+  | {
+      readonly kind: "collectionLength";
+      readonly collectionValueId: string;
+      readonly collectionLength: number | null;
+      readonly targetSourceOrder: number;
+    }
+  | {
+      readonly kind: "recordField";
+      readonly collectionValueId: string;
+      readonly collectionLength: number | null;
+      readonly targetSourceOrder: number;
+      readonly field: {
+        readonly recordStatementId: string;
+        readonly fieldIndex: number;
+        readonly type: ScalarExpressionType;
+        readonly fieldPath?: readonly { recordStatementId: string; fieldIndex: number }[];
+      };
+    }
+  | {
+      readonly kind: "geometryProperty";
+      readonly reference: ScalarExpressionResolvedGeometryProperty;
+      readonly receiver: {
+        readonly kind: "geometryValue";
+        readonly target: ScalarExpressionResolvedGeometryTarget;
+      } | {
+        readonly kind: "collection";
+        readonly collectionValueId: string;
+        readonly collectionLength: number | null;
+        readonly targetSourceOrder: number;
+      };
+    };
 
 /** Resolved at compile time. `elementId` is never re-resolved by a runtime. */
 export interface TypedScalarGeometryPropertyReferenceNode {
@@ -169,9 +230,23 @@ export interface TypedScalarGeometryPropertyReferenceNode {
   readonly geometryValueOccurrence?: GeometryValueOccurrence;
   readonly geometryValuePointKey?: string;
   readonly geometryValueBinderId?: BindingId;
+  readonly forGroupOccurrenceTemplateElementId?: ElementId;
+  readonly forGroupOccurrenceIndex?: TypedScalarExpression | null;
+  readonly forGroupOccurrencePointKey?: string;
   readonly property: string;
   readonly targetSourceOrder: number | null;
-  readonly type: ScalarType | null;
+  readonly type: ScalarExpressionType | null;
+}
+
+export interface TypedScalarOptionalMemberExpressionNode {
+  readonly kind: "optionalMember";
+  readonly span: ScalarSpan;
+  readonly receiverSpan: ScalarSpan;
+  readonly operatorSpan: ScalarSpan;
+  readonly memberSpan: ScalarSpan;
+  readonly member: string;
+  readonly target: ScalarExpressionResolvedOptionalMemberTarget | null;
+  readonly type: ScalarExpressionType | null;
 }
 
 export interface TypedScalarUnaryExpressionNode {
@@ -179,7 +254,7 @@ export interface TypedScalarUnaryExpressionNode {
   readonly span: ScalarSpan;
   readonly operator: ScalarUnaryOperator;
   readonly operand: TypedScalarExpression;
-  readonly type: ScalarType | null;
+  readonly type: ScalarExpressionType | null;
 }
 
 export interface TypedScalarBinaryExpressionNode {
@@ -188,7 +263,7 @@ export interface TypedScalarBinaryExpressionNode {
   readonly operator: ScalarBinaryOperator;
   readonly left: TypedScalarExpression;
   readonly right: TypedScalarExpression;
-  readonly type: ScalarType | null;
+  readonly type: ScalarExpressionType | null;
 }
 
 /** `span` includes both parenthesis characters (mirrors the source node). */
@@ -196,7 +271,7 @@ export interface TypedScalarGroupExpressionNode {
   readonly kind: "group";
   readonly span: ScalarSpan;
   readonly expression: TypedScalarExpression;
-  readonly type: ScalarType | null;
+  readonly type: ScalarExpressionType | null;
 }
 
 export type TypedScalarCallTarget = {
@@ -222,7 +297,7 @@ export interface TypedScalarCallExpressionNode {
   readonly name: string;
   readonly target: TypedScalarCallTarget | null;
   readonly args: readonly TypedBuiltinArgument[];
-  readonly type: ScalarType | null;
+  readonly type: ScalarExpressionType | null;
 }
 
 export interface TypedScalarValueIfExpressionNode {
@@ -231,12 +306,17 @@ export interface TypedScalarValueIfExpressionNode {
   readonly condition: TypedScalarExpression;
   readonly thenBranch: TypedScalarExpression;
   readonly elseBranch: TypedScalarExpression;
-  readonly type: ScalarType | null;
+  readonly type: ScalarExpressionType | null;
 }
 
 export interface TypedScalarValueMatchArmNode {
   readonly label: string;
   readonly labelSpan: ScalarSpan;
+  readonly binder?: string;
+  readonly binderSpan?: ScalarSpan;
+  /** Stable local identity used by the evaluator; it is not an ordinary source binding. */
+  readonly binderId?: BindingId;
+  readonly binderType?: ScalarType;
   readonly expression: TypedScalarExpression;
 }
 
@@ -245,17 +325,19 @@ export interface TypedScalarValueMatchExpressionNode {
   readonly span: ScalarSpan;
   readonly scrutinee: TypedScalarExpression;
   readonly arms: readonly TypedScalarValueMatchArmNode[];
-  readonly type: ScalarType | null;
+  readonly type: ScalarExpressionType | null;
 }
 
 export type TypedScalarExpression =
   | TypedScalarNumberLiteralNode
   | TypedScalarStringLiteralNode
   | TypedScalarBooleanLiteralNode
+  | TypedScalarNoneLiteralNode
   | TypedScalarChoiceLiteralNode
   | TypedScalarReferenceNode
   | TypedScalarCollectionIndexNode
   | TypedScalarGeometryPropertyReferenceNode
+  | TypedScalarOptionalMemberExpressionNode
   | TypedScalarUnaryExpressionNode
   | TypedScalarBinaryExpressionNode
   | TypedScalarGroupExpressionNode
@@ -265,17 +347,37 @@ export type TypedScalarExpression =
 
 export type ScalarExpressionTypecheckIssueCode =
   | "scalar-type-mismatch"
+  | "none-requires-optional-type"
+  | "coalesce-left-not-optional"
+  | "coalesce-rhs-type-mismatch"
   | "non-choice-match-scrutinee"
   | "impossible-match-case"
   | "duplicate-match-case"
   | "missing-match-case"
+  | "optional-match-non-optional-scrutinee"
+  | "optional-match-missing-none"
+  | "optional-match-missing-some"
+  | "optional-match-duplicate-none"
+  | "optional-match-duplicate-some"
+  | "optional-match-impossible-case"
+  | "optional-match-missing-binder"
+  | "optional-match-unexpected-binder"
+  | "optional-match-non-optional-scrutinee"
+  | "optional-match-missing-none"
+  | "optional-match-missing-some"
+  | "optional-match-duplicate-none"
+  | "optional-match-duplicate-some"
+  | "optional-match-impossible-case"
+  | "optional-match-missing-binder"
+  | "optional-match-unexpected-binder"
   | "invalid-choice-literal"
   | "unknown-function"
   | "function-arity-mismatch"
   | "function-call-style-mismatch"
   | "unknown-function-argument"
   | "duplicate-function-argument"
-  | "missing-function-argument";
+  | "missing-function-argument"
+  | "optional-member-non-optional-receiver";
 
 export interface ScalarExpressionTypecheckDiagnostic {
   readonly code: ScalarExpressionTypecheckIssueCode;
@@ -296,7 +398,7 @@ export interface ScalarExpressionTypecheckDiagnostic {
  * resolver itself.
  */
 export interface ScalarExpressionTypecheckContext {
-  readonly expectedType: ScalarType | null;
+  readonly expectedType: ScalarExpressionType | null;
   readonly references: readonly (BindingResolution | ScalarExpressionResolvedReference)[];
   /** Narrow sidecar for geometryProperty nodes used as point builtin
    * operands. It is keyed by the parser-owned node span and never enters the
@@ -306,14 +408,23 @@ export interface ScalarExpressionTypecheckContext {
    * parser-owned node span. A null entry is an explicit failed resolution and
    * must remain type-null rather than falling back to number. */
   readonly geometryPropertyReferences?: ReadonlyMap<number, ScalarExpressionResolvedGeometryProperty | null>;
+  /** Closed frontend metadata for `receiver?.member`. */
+  readonly optionalMemberReferences?: ReadonlyMap<number, ScalarExpressionResolvedOptionalMember | null>;
   /** Optional closed-frontend hook for bare choice tokens that are actually
    * local semantic values (for example a legacy Module iteration value). */
   readonly resolveChoiceLiteral?: (
     raw: string,
-    expectedType: ScalarType | null,
+    expectedType: ScalarExpressionType | null,
     span: ScalarSpan
   ) => ScalarType | null | undefined;
 }
+
+export type ScalarExpressionResolvedOptionalMember = {
+  readonly receiverType: import("../dsl/dslValueTypes").DslValueType | null;
+  /** The ordinary member result before optional propagation. */
+  readonly memberType: ScalarExpressionType | null;
+  readonly target: ScalarExpressionResolvedOptionalMemberTarget | null;
+};
 
 /**
  * Invariant (one-way implications, not "iff"):
@@ -327,5 +438,5 @@ export interface ScalarExpressionTypecheckContext {
 export interface ScalarExpressionTypecheckResult {
   readonly typed: TypedScalarExpression;
   readonly diagnostics: readonly ScalarExpressionTypecheckDiagnostic[];
-  readonly type: ScalarType | null;
+  readonly type: ScalarExpressionType | null;
 }

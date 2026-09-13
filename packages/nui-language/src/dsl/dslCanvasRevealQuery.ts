@@ -10,6 +10,7 @@ import type {
   ModuleScalarExpressionSemantic,
   ModuleSemanticAnalysis
 } from "./moduleSemanticTypes";
+import { isDslOptionalValueType } from "./dslValueTypes";
 
 export type DslCanvasRevealFailureReason =
   | "source-mismatch"
@@ -85,6 +86,9 @@ export type DslCanvasRevealSourceQueryInput = {
   source: SourceSnapshot;
   compiled: CompiledDslDocument;
   position: number;
+  /** Output Preview retains its existing authored-code owner envelope while
+   * Canvas Reveal includes the final physical line through EOL. */
+  statementOwnerEnvelope?: "physical-line" | "authored-code";
 };
 
 type SourceRange = { from: number; to: number };
@@ -181,7 +185,7 @@ const addRootCompiledGeometryPropertyCandidates = (
         category: targetStatement.category,
         property: occurrence.property
       },
-      type: occurrence.type,
+      type: isDslOptionalValueType(occurrence.type) ? null : occurrence.type,
       resolution: "resolved"
     };
     const range = exactRange(source, compiled, occurrence.statementIndex, reference.span);
@@ -253,7 +257,8 @@ const semanticCandidates = (
 const ownerAt = (
   source: SourceSnapshot,
   compiled: CompiledDslDocument,
-  position: number
+  position: number,
+  statementOwnerEnvelope: DslCanvasRevealSourceQueryInput["statementOwnerEnvelope"] = "physical-line"
 ): number | null => {
   if (!compiled.statementMap) return null;
   const owners = sourceOwnerByRuntimeElementId({
@@ -285,8 +290,12 @@ const ownerAt = (
     if (!runtimeStatementIndexes.has(statementIndex) || statement.sourceRevision !== source.sourceRevision) continue;
     const logical = compiled.spans.logicalStatementByRangeFrom.get(statement.documentRange.from);
     const finalCodeEnd = logical?.segments.at(-1)?.to;
-    if (finalCodeEnd === undefined) continue;
-    if (statement.documentRange.from <= position && position < finalCodeEnd) return statementIndex;
+    const finalPhysicalLineEnd = logical?.range.to;
+    if (finalCodeEnd === undefined || finalPhysicalLineEnd === undefined) continue;
+    const ownsPosition = statementOwnerEnvelope === "authored-code"
+      ? statement.documentRange.from <= position && position < finalCodeEnd
+      : statement.documentRange.from <= position && position <= finalPhysicalLineEnd;
+    if (ownsPosition) return statementIndex;
   }
   return null;
 };
@@ -300,14 +309,15 @@ const ownerAt = (
 export const queryDslCanvasRevealSourceTarget = ({
   source,
   compiled,
-  position
+  position,
+  statementOwnerEnvelope
 }: DslCanvasRevealSourceQueryInput): DslCanvasRevealSourceQueryResult => {
   if (!sourceAndCompiledMatch(source, compiled)) return { status: "failed", reason: "source-mismatch" };
   if (!Number.isInteger(position) || position < 0 || position > source.normalizedSource.length) {
     return { status: "failed", reason: "invalid-position" };
   }
 
-  const ownerSourceStatementIndex = ownerAt(source, compiled, position);
+  const ownerSourceStatementIndex = ownerAt(source, compiled, position, statementOwnerEnvelope);
   const analysis = compiled.moduleSemanticAnalysis ?? compiled.sourceSemanticAnalysis;
   if (analysis) {
     const matches = semanticCandidates(source, compiled, analysis)

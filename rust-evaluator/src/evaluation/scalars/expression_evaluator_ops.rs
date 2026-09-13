@@ -13,11 +13,13 @@ use super::angle_math::{atan2_degrees_360, radians_to_degrees};
 use super::builtin_function_semantics::{
     evaluate_builtin_function, BuiltinFunctionError, BuiltinFunctionValue,
 };
-use super::expression_evaluator::{EvalWork, ScalarEvaluationEnvironment};
+use super::expression_evaluator::{
+    evaluate_typed_expression_with_local_binding, EvalWork, ScalarEvaluationEnvironment,
+};
 use super::geometry_builtin_runtime::{
     validate_geometry_builtin_arguments, GeometryBuiltinRuntimeError, GeometryBuiltinRuntimeTarget,
 };
-use super::scalar_payload::scalar_value_matches_type;
+use super::scalar_payload::{scalar_type_assignable, scalar_value_matches_type};
 use super::types::{
     BindingId, BuiltinFunctionName, ScalarBinaryOperator, ScalarEvaluation,
     ScalarEvaluationErrorContext, ScalarType, ScalarUnaryOperator, ScalarValue,
@@ -247,7 +249,7 @@ pub(crate) fn evaluate_geometry_builtin_call(
     name: BuiltinFunctionName,
     r#type: ScalarType,
     arguments: &[TypedBuiltinArgument],
-    environment: &impl ScalarEvaluationEnvironment,
+    environment: &(impl ScalarEvaluationEnvironment + ?Sized),
 ) -> ScalarEvaluation {
     match validate_geometry_builtin_arguments(name, arguments, |target| {
         environment.lookup_geometry_builtin_target(target)
@@ -314,6 +316,24 @@ pub(crate) fn evaluate_geometry_builtin_call(
             binding_id: None,
             context: None,
         },
+        Err(GeometryBuiltinRuntimeError::CollectionIndexInvalid) => ScalarEvaluation::Error {
+            r#type,
+            issue_code: "evaluation-collection-index-invalid".to_owned(),
+            binding_id: None,
+            context: None,
+        },
+        Err(GeometryBuiltinRuntimeError::CollectionIndexUnavailable) => ScalarEvaluation::Error {
+            r#type,
+            issue_code: "evaluation-collection-index-unavailable".to_owned(),
+            binding_id: None,
+            context: None,
+        },
+        Err(GeometryBuiltinRuntimeError::EvaluationIssue(issue_code)) => ScalarEvaluation::Error {
+            r#type,
+            issue_code,
+            binding_id: None,
+            context: None,
+        },
         Err(GeometryBuiltinRuntimeError::Disabled(target)) => ScalarEvaluation::Error {
             r#type,
             issue_code: "evaluation-geometry-builtin-disabled".to_owned(),
@@ -362,7 +382,7 @@ fn line_xy(target: &GeometryBuiltinRuntimeTarget) -> Option<((f64, f64), (f64, f
 pub(crate) fn evaluate_reference(
     node_type: &Option<ScalarType>,
     binding_id: &Option<BindingId>,
-    environment: &impl ScalarEvaluationEnvironment,
+    environment: &(impl ScalarEvaluationEnvironment + ?Sized),
 ) -> ScalarEvaluation {
     let (Some(declared_type), Some(id)) = (node_type, binding_id) else {
         return static_type_null_error(binding_id.clone());
@@ -523,11 +543,10 @@ pub(crate) fn finish_value_if(r#type: ScalarType, output: &mut Vec<ScalarEvaluat
         ScalarEvaluation::Ok {
             r#type: result_type,
             value,
-        } if result_type == r#type && scalar_value_matches_type(&result_type, &value) => {
-            output.push(ScalarEvaluation::Ok {
-                r#type: result_type,
-                value,
-            });
+        } if scalar_type_assignable(&result_type, &r#type)
+            && scalar_value_matches_type(&r#type, &value) =>
+        {
+            output.push(ScalarEvaluation::Ok { r#type, value });
         }
         ScalarEvaluation::Ok { .. } => output.push(runtime_value_type_mismatch(r#type)),
     }
@@ -541,6 +560,7 @@ pub(crate) fn continue_value_match<'a>(
     r#type: ScalarType,
     scrutinee_type: ScalarType,
     arms: &'a [super::types::TypedScalarValueMatchArm],
+    environment: &(impl ScalarEvaluationEnvironment + ?Sized),
     work: &mut Vec<EvalWork<'a>>,
     output: &mut Vec<ScalarEvaluation>,
 ) {
@@ -559,14 +579,33 @@ pub(crate) fn continue_value_match<'a>(
         output.push(runtime_value_type_mismatch(r#type));
         return;
     }
-    let ScalarValue::Choice { value, .. } = value else {
+    let (label, present_value) = match (&scrutinee_type, &value) {
+        (ScalarType::Choice { .. }, ScalarValue::Choice { value, .. }) => (value.as_str(), None),
+        (ScalarType::Optional { .. }, ScalarValue::None) => ("none", None),
+        (ScalarType::Optional { .. }, value) => ("some", Some(value.clone())),
+        _ => {
+            output.push(runtime_value_type_mismatch(r#type));
+            return;
+        }
+    };
+    let Some(arm) = arms.iter().find(|arm| arm.label == label) else {
         output.push(runtime_value_type_mismatch(r#type));
         return;
     };
-    let Some(arm) = arms.iter().find(|arm| arm.label == value) else {
-        output.push(runtime_value_type_mismatch(r#type));
+    if let (Some(binder_id), Some(binder_type), Some(present_value)) =
+        (&arm.binder_id, &arm.binder_type, present_value)
+    {
+        let selected = evaluate_typed_expression_with_local_binding(
+            &arm.expression,
+            environment,
+            binder_id,
+            binder_type.clone(),
+            present_value,
+        );
+        output.push(selected);
+        finish_value_match(r#type, output);
         return;
-    };
+    }
     work.push(EvalWork::FinishValueMatch {
         r#type: r#type.clone(),
     });
@@ -595,11 +634,10 @@ pub(crate) fn finish_value_match(r#type: ScalarType, output: &mut Vec<ScalarEval
         ScalarEvaluation::Ok {
             r#type: result_type,
             value,
-        } if result_type == r#type && scalar_value_matches_type(&result_type, &value) => {
-            output.push(ScalarEvaluation::Ok {
-                r#type: result_type,
-                value,
-            });
+        } if scalar_type_assignable(&result_type, &r#type)
+            && scalar_value_matches_type(&r#type, &value) =>
+        {
+            output.push(ScalarEvaluation::Ok { r#type, value });
         }
         ScalarEvaluation::Ok { .. } => output.push(runtime_value_type_mismatch(r#type)),
     }
@@ -624,6 +662,62 @@ pub(crate) fn finish_logical_right(r#type: ScalarType, output: &mut Vec<ScalarEv
         },
         None => runtime_value_type_mismatch(r#type),
     });
+}
+
+/// `??` evaluates its right child only after the left result is confirmed to
+/// be the canonical `None` value. A present optional value is unwrapped at
+/// this boundary and returned with the non-optional result type.
+pub(crate) fn continue_coalesce<'a>(
+    r#type: ScalarType,
+    right: &'a TypedScalarExpression,
+    work: &mut Vec<EvalWork<'a>>,
+    output: &mut Vec<ScalarEvaluation>,
+) {
+    let left = output
+        .pop()
+        .expect("coalesce left must already be resolved (post-order evaluation invariant)");
+    let ScalarEvaluation::Ok {
+        r#type: left_type,
+        value,
+    } = left
+    else {
+        output.push(propagate_error(r#type, left));
+        return;
+    };
+    let expected_type = ScalarType::Optional {
+        value_type: Box::new(r#type.clone()),
+    };
+    if left_type != expected_type || !scalar_value_matches_type(&expected_type, &value) {
+        output.push(runtime_value_type_mismatch(r#type));
+        return;
+    }
+    if !matches!(value, ScalarValue::None) {
+        output.push(ScalarEvaluation::Ok { r#type, value });
+        return;
+    }
+    work.push(EvalWork::FinishCoalesce {
+        r#type: r#type.clone(),
+    });
+    work.push(EvalWork::Eval(right));
+}
+
+pub(crate) fn finish_coalesce(r#type: ScalarType, output: &mut Vec<ScalarEvaluation>) {
+    let right = output
+        .pop()
+        .expect("coalesce right must already be resolved (post-order evaluation invariant)");
+    let ScalarEvaluation::Ok {
+        r#type: right_type,
+        value,
+    } = right
+    else {
+        output.push(propagate_error(r#type, right));
+        return;
+    };
+    if right_type == r#type && scalar_value_matches_type(&r#type, &value) {
+        output.push(ScalarEvaluation::Ok { r#type, value });
+    } else {
+        output.push(runtime_value_type_mismatch(r#type));
+    }
 }
 
 /// Combines the two already-resolved, unconditionally-evaluated operands of
@@ -738,6 +832,9 @@ pub(crate) fn finish_eager_binary(
         }
         ScalarBinaryOperator::Or | ScalarBinaryOperator::And => {
             unreachable!("Or/And never reach finish_eager_binary")
+        }
+        ScalarBinaryOperator::Coalesce => {
+            unreachable!("Coalesce never reaches finish_eager_binary")
         }
     };
     output.push(result);

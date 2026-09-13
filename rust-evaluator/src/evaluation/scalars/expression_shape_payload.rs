@@ -15,12 +15,38 @@ use super::expression_leaf_payload::{
 use super::issue::ScalarPayloadIssue;
 use super::issue::ScalarPayloadIssueCode as Code;
 use super::json_helpers::{as_object, issue, reject_unexpected_fields, require_field};
+use super::scalar_payload::decode_scalar_type;
 use super::types::{
     BuiltinArgumentType, BuiltinFunctionName, GeometryInterfaceType, ScalarBinaryOperator,
-    ScalarExpressionResolvedGeometryTarget, ScalarSpan, ScalarType, ScalarUnaryOperator,
-    TypedScalarCallTarget,
+    ScalarExpressionOptionalMemberReceiver, ScalarExpressionRecordFieldTarget,
+    ScalarExpressionResolvedGeometryProperty, ScalarExpressionResolvedGeometryTarget,
+    ScalarExpressionResolvedOptionalMemberTarget, ScalarSpan, ScalarType, ScalarUnaryOperator,
+    TypedScalarCallTarget, TypedScalarExpression,
 };
 use crate::evaluation::types::GeometryValueOccurrence;
+
+fn optional_field<'a>(object: &'a Map<String, Value>, name: &str) -> Option<&'a Value> {
+    object.get(name)
+}
+
+fn optional_string_field(
+    object: &Map<String, Value>,
+    name: &str,
+    context: &str,
+) -> Result<Option<String>, ScalarPayloadIssue> {
+    match object.get(name) {
+        None => Ok(None),
+        Some(value) => value
+            .as_str()
+            .map(|text| Some(text.to_owned()))
+            .ok_or_else(|| {
+                issue(
+                    Code::InvalidFieldType,
+                    format!("{context} must be a string"),
+                )
+            }),
+    }
+}
 
 /// A `unary` node's own fields, validated - `operand` is a borrowed
 /// reference to its still-undecoded child JSON.
@@ -169,6 +195,10 @@ pub(crate) fn validate_value_if_shape(
 pub(crate) struct ValueMatchArmShape<'a> {
     pub(crate) label: String,
     pub(crate) label_span: ScalarSpan,
+    pub(crate) binder: Option<String>,
+    pub(crate) binder_span: Option<ScalarSpan>,
+    pub(crate) binder_id: Option<String>,
+    pub(crate) binder_type: Option<ScalarType>,
     pub(crate) expression: &'a Value,
 }
 
@@ -215,7 +245,15 @@ pub(crate) fn validate_value_match_arm_shape(
     let object = as_object(json, "value-match arm")?;
     reject_unexpected_fields(
         object,
-        &["label", "labelSpan", "expression"],
+        &[
+            "label",
+            "labelSpan",
+            "binder",
+            "binderSpan",
+            "binderId",
+            "binderType",
+            "expression",
+        ],
         "value-match arm",
     )?;
     let label = require_field(object, "label", "value-match arm")?
@@ -232,10 +270,22 @@ pub(crate) fn validate_value_match_arm_shape(
         require_field(object, "labelSpan", "value-match arm")?,
         "value-match arm labelSpan",
     )?;
+    let binder = optional_string_field(object, "binder", "value-match arm binder")?;
+    let binder_span = optional_field(object, "binderSpan")
+        .map(|value| decode_span(value, "value-match arm binderSpan"))
+        .transpose()?;
+    let binder_id = optional_string_field(object, "binderId", "value-match arm binderId")?;
+    let binder_type = optional_field(object, "binderType")
+        .map(decode_scalar_type)
+        .transpose()?;
     let expression = require_field(object, "expression", "value-match arm")?;
     Ok(ValueMatchArmShape {
         label,
         label_span,
+        binder,
+        binder_span,
+        binder_id,
+        binder_type,
         expression,
     })
 }
@@ -322,6 +372,9 @@ pub(crate) fn decode_geometry_target_payload(
             "pointKey",
             "occurrence",
             "binderId",
+            "templateElementId",
+            "targetSourceOrder",
+            "index",
         ],
         "geometry reference target",
     )?;
@@ -384,6 +437,7 @@ pub(crate) fn decode_geometry_target_payload(
     let geometry_value_binder_id = match kind {
         "drawable" => None,
         "geometryValue" => None,
+        "forGroupOccurrence" => None,
         "geometryValueForBinder" => Some(
             require_field(object, "binderId", "geometry reference target")?
                 .as_str()
@@ -403,6 +457,64 @@ pub(crate) fn decode_geometry_target_payload(
             ))
         }
     };
+    let for_group_template_element_id = match object.get("templateElementId") {
+        None | Some(Value::Null) => None,
+        Some(value) => Some(
+            value
+                .as_str()
+                .filter(|value| !value.is_empty())
+                .ok_or_else(|| {
+                    issue(
+                        Code::InvalidFieldType,
+                        "geometry reference target templateElementId must be a non-empty string",
+                    )
+                })?
+                .to_owned(),
+        ),
+    };
+    let for_group_target_source_order = match object.get("targetSourceOrder") {
+        None | Some(Value::Null) => None,
+        Some(value) => Some(
+            value
+                .as_f64()
+                .filter(|value| value.is_finite())
+                .ok_or_else(|| {
+                    issue(
+                        Code::InvalidFieldType,
+                        "geometry reference target targetSourceOrder must be a finite number",
+                    )
+                })?,
+        ),
+    };
+    let for_group_index = match object.get("index") {
+        None | Some(Value::Null) => None,
+        Some(value) => Some(std::sync::Arc::new(
+            super::expression_payload::validate_typed_expression_payload(value).map_err(
+                |payload_issue| {
+                    issue(
+                        Code::InvalidFieldType,
+                        format!("geometry reference target index is invalid: {payload_issue:?}"),
+                    )
+                },
+            )?,
+        )),
+    };
+    if kind != "forGroupOccurrence" {
+        if for_group_template_element_id.is_some()
+            || for_group_target_source_order.is_some()
+            || for_group_index.is_some()
+        {
+            return Err(issue(
+                Code::LiteralTypeMismatch,
+                "forGroup occurrence fields require a forGroupOccurrence target",
+            ));
+        }
+    } else if for_group_template_element_id.is_none() || for_group_target_source_order.is_none() {
+        return Err(issue(
+            Code::InvalidFieldType,
+            "forGroupOccurrence target requires templateElementId and targetSourceOrder",
+        ));
+    }
     let statement_id = require_field(object, "statementId", "geometry reference target")?
         .as_str()
         .filter(|value| !value.is_empty())
@@ -454,7 +566,465 @@ pub(crate) fn decode_geometry_target_payload(
         point_key,
         geometry_value_occurrence,
         geometry_value_binder_id,
+        for_group_template_element_id,
+        for_group_target_source_order,
+        for_group_index,
     }))
+}
+
+fn decode_optional_length(
+    object: &Map<String, Value>,
+    name: &str,
+    context: &str,
+) -> Result<Option<f64>, ScalarPayloadIssue> {
+    match object.get(name) {
+        None | Some(Value::Null) => Ok(None),
+        Some(value) => value
+            .as_f64()
+            .filter(|value| value.is_finite() && value.fract() == 0.0 && *value >= 0.0)
+            .map(Some)
+            .ok_or_else(|| {
+                issue(
+                    Code::InvalidFieldType,
+                    format!("{context} must be a finite non-negative integer or null"),
+                )
+            }),
+    }
+}
+
+fn decode_optional_order(
+    object: &Map<String, Value>,
+    name: &str,
+    context: &str,
+) -> Result<f64, ScalarPayloadIssue> {
+    require_field(object, name, context)?
+        .as_f64()
+        .filter(|value| value.is_finite())
+        .ok_or_else(|| {
+            issue(
+                Code::InvalidFieldType,
+                format!("{context} must be a finite number"),
+            )
+        })
+}
+
+fn decode_occurrence(
+    value: &Value,
+    context: &str,
+) -> Result<GeometryValueOccurrence, ScalarPayloadIssue> {
+    let object = as_object(value, context)?;
+    reject_unexpected_fields(
+        object,
+        &["sourceStatementId", "instancePath", "mappedMemberIndex"],
+        context,
+    )?;
+    let source_statement_id = require_field(object, "sourceStatementId", context)?
+        .as_str()
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| {
+            issue(
+                Code::InvalidFieldType,
+                format!("{context} sourceStatementId must be a non-empty string"),
+            )
+        })?
+        .to_owned();
+    let instance_path = require_field(object, "instancePath", context)?
+        .as_array()
+        .ok_or_else(|| {
+            issue(
+                Code::InvalidFieldType,
+                format!("{context} instancePath must be an array"),
+            )
+        })?
+        .iter()
+        .map(|item| {
+            item.as_str()
+                .filter(|value| !value.is_empty())
+                .map(ToOwned::to_owned)
+                .ok_or_else(|| {
+                    issue(
+                        Code::InvalidFieldType,
+                        format!("{context} instancePath must contain non-empty strings"),
+                    )
+                })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let mapped_member_index = object
+        .get("mappedMemberIndex")
+        .and_then(Value::as_u64)
+        .map(|value| {
+            usize::try_from(value).map_err(|_| {
+                issue(
+                    Code::InvalidFieldType,
+                    format!("{context} mappedMemberIndex is too large"),
+                )
+            })
+        })
+        .transpose()?;
+    Ok(GeometryValueOccurrence {
+        source_statement_id,
+        instance_path,
+        mapped_member_index,
+    })
+}
+
+fn decode_optional_geometry_property_reference(
+    value: &Value,
+) -> Result<ScalarExpressionResolvedGeometryProperty, ScalarPayloadIssue> {
+    let object = as_object(value, "optional member geometry-property reference")?;
+    reject_unexpected_fields(
+        object,
+        &[
+            "kind",
+            "elementId",
+            "property",
+            "targetSourceOrder",
+            "templateElementId",
+            "index",
+            "pointKey",
+            "occurrence",
+            "binderId",
+            "collectionValueId",
+            "collectionLength",
+            "type",
+        ],
+        "optional member geometry-property reference",
+    )?;
+    let kind = object
+        .get("kind")
+        .and_then(Value::as_str)
+        .unwrap_or("drawable");
+    let property = require_field(
+        object,
+        "property",
+        "optional member geometry-property reference",
+    )?
+    .as_str()
+    .filter(|value| !value.is_empty())
+    .ok_or_else(|| {
+        issue(
+            Code::InvalidFieldType,
+            "optional member geometry-property reference property must be a non-empty string",
+        )
+    })?
+    .to_owned();
+    let r#type = decode_scalar_type(require_field(
+        object,
+        "type",
+        "optional member geometry-property reference",
+    )?)?;
+    let point_key = match object.get("pointKey") {
+        None | Some(Value::Null) => None,
+        Some(value) => Some(
+            value
+                .as_str()
+                .filter(|value| !value.is_empty())
+                .ok_or_else(|| issue(Code::InvalidFieldType, "optional member geometry-property reference pointKey must be a non-empty string"))?
+                .to_owned(),
+        ),
+    };
+    match kind {
+        "drawable" => Ok(ScalarExpressionResolvedGeometryProperty::Drawable {
+            element_id: require_field(object, "elementId", "optional member drawable reference")?
+                .as_str()
+                .filter(|value| !value.is_empty())
+                .ok_or_else(|| issue(Code::InvalidFieldType, "optional member drawable reference elementId must be a non-empty string"))?
+                .to_owned(),
+            property,
+            target_source_order: decode_optional_order(object, "targetSourceOrder", "optional member drawable reference targetSourceOrder")?,
+            r#type,
+        }),
+        "forGroupOccurrence" => Ok(ScalarExpressionResolvedGeometryProperty::ForGroupOccurrence {
+            template_element_id: require_field(object, "templateElementId", "optional member forGroup reference")?
+                .as_str()
+                .filter(|value| !value.is_empty())
+                .ok_or_else(|| issue(Code::InvalidFieldType, "optional member forGroup reference templateElementId must be a non-empty string"))?
+                .to_owned(),
+            property,
+            target_source_order: decode_optional_order(object, "targetSourceOrder", "optional member forGroup reference targetSourceOrder")?,
+            point_key,
+            r#type,
+        }),
+        "geometryValue" => Ok(ScalarExpressionResolvedGeometryProperty::GeometryValue {
+            occurrence: decode_occurrence(
+                require_field(object, "occurrence", "optional member geometry-value reference")?,
+                "optional member geometry-value occurrence",
+            )?,
+            property,
+            point_key,
+            target_source_order: decode_optional_order(object, "targetSourceOrder", "optional member geometry-value reference targetSourceOrder")?,
+            r#type,
+        }),
+        "geometryValueForBinder" => Ok(ScalarExpressionResolvedGeometryProperty::GeometryValueForBinder {
+            binder_id: require_field(object, "binderId", "optional member binder reference")?
+                .as_str()
+                .filter(|value| !value.is_empty())
+                .ok_or_else(|| issue(Code::InvalidFieldType, "optional member binder reference binderId must be a non-empty string"))?
+                .to_owned(),
+            property,
+            point_key,
+            target_source_order: decode_optional_order(object, "targetSourceOrder", "optional member binder reference targetSourceOrder")?,
+            r#type,
+        }),
+        "collection" => Ok(ScalarExpressionResolvedGeometryProperty::Collection {
+            collection_value_id: require_field(object, "collectionValueId", "optional member collection reference")?
+                .as_str()
+                .filter(|value| !value.is_empty())
+                .ok_or_else(|| issue(Code::InvalidFieldType, "optional member collection reference collectionValueId must be a non-empty string"))?
+                .to_owned(),
+            collection_length: decode_optional_length(object, "collectionLength", "optional member collection reference collectionLength")?,
+            target_source_order: decode_optional_order(object, "targetSourceOrder", "optional member collection reference targetSourceOrder")?,
+            r#type,
+        }),
+        other => Err(issue(Code::UnknownKind, format!("unknown optional member geometry-property reference kind \"{other}\""))),
+    }
+}
+
+fn decode_optional_member_target(
+    value: &Value,
+) -> Result<ScalarExpressionResolvedOptionalMemberTarget, ScalarPayloadIssue> {
+    let object = as_object(value, "optional member target")?;
+    let kind = require_field(object, "kind", "optional member target")?
+        .as_str()
+        .ok_or_else(|| {
+            issue(
+                Code::InvalidFieldType,
+                "optional member target kind must be a string",
+            )
+        })?;
+    match kind {
+        "collectionLength" => {
+            reject_unexpected_fields(
+                object,
+                &[
+                    "kind",
+                    "collectionValueId",
+                    "collectionLength",
+                    "targetSourceOrder",
+                ],
+                "optional collection-length target",
+            )?;
+            Ok(ScalarExpressionResolvedOptionalMemberTarget::CollectionLength {
+                collection_value_id: require_field(object, "collectionValueId", "optional collection-length target")?
+                    .as_str()
+                    .filter(|value| !value.is_empty())
+                    .ok_or_else(|| issue(Code::InvalidFieldType, "optional collection-length target collectionValueId must be a non-empty string"))?
+                    .to_owned(),
+                collection_length: decode_optional_length(object, "collectionLength", "optional collection-length target collectionLength")?,
+                target_source_order: decode_optional_order(object, "targetSourceOrder", "optional collection-length target targetSourceOrder")?,
+            })
+        }
+        "recordField" => {
+            reject_unexpected_fields(
+                object,
+                &[
+                    "kind",
+                    "collectionValueId",
+                    "collectionLength",
+                    "targetSourceOrder",
+                    "field",
+                ],
+                "optional record-field target",
+            )?;
+            let field_object = as_object(
+                require_field(object, "field", "optional record-field target")?,
+                "optional record-field identity",
+            )?;
+            reject_unexpected_fields(
+                field_object,
+                &["recordStatementId", "fieldIndex", "type", "fieldPath"],
+                "optional record-field identity",
+            )?;
+            let field_path = field_object
+                .get("fieldPath")
+                .map(|value| {
+                    value.as_array()
+                        .ok_or_else(|| issue(Code::InvalidFieldType, "optional record-field identity fieldPath must be an array"))?
+                        .iter()
+                        .map(|entry| {
+                            let entry = as_object(entry, "optional record-field path entry")?;
+                            reject_unexpected_fields(entry, &["recordStatementId", "fieldIndex"], "optional record-field path entry")?;
+                            let statement_id = require_field(entry, "recordStatementId", "optional record-field path entry")?
+                                .as_str()
+                                .filter(|value| !value.is_empty())
+                                .ok_or_else(|| issue(Code::InvalidFieldType, "optional record-field path recordStatementId must be a non-empty string"))?
+                                .to_owned();
+                            let field_index = require_field(entry, "fieldIndex", "optional record-field path entry")?
+                                .as_u64()
+                                .ok_or_else(|| issue(Code::InvalidFieldType, "optional record-field path fieldIndex must be an unsigned integer"))?;
+                            Ok((statement_id, usize::try_from(field_index).map_err(|_| issue(Code::InvalidFieldType, "optional record-field path fieldIndex is too large"))?))
+                        })
+                        .collect::<Result<Vec<_>, ScalarPayloadIssue>>()
+                })
+                .transpose()?
+                .unwrap_or_default();
+            Ok(ScalarExpressionResolvedOptionalMemberTarget::RecordField {
+                collection_value_id: require_field(object, "collectionValueId", "optional record-field target")?
+                    .as_str()
+                    .filter(|value| !value.is_empty())
+                    .ok_or_else(|| issue(Code::InvalidFieldType, "optional record-field target collectionValueId must be a non-empty string"))?
+                    .to_owned(),
+                collection_length: decode_optional_length(object, "collectionLength", "optional record-field target collectionLength")?,
+                target_source_order: decode_optional_order(object, "targetSourceOrder", "optional record-field target targetSourceOrder")?,
+                field: ScalarExpressionRecordFieldTarget {
+                    record_statement_id: require_field(field_object, "recordStatementId", "optional record-field identity")?
+                        .as_str()
+                        .filter(|value| !value.is_empty())
+                        .ok_or_else(|| issue(Code::InvalidFieldType, "optional record-field identity recordStatementId must be a non-empty string"))?
+                        .to_owned(),
+                    field_index: usize::try_from(require_field(field_object, "fieldIndex", "optional record-field identity")?
+                        .as_u64()
+                        .ok_or_else(|| issue(Code::InvalidFieldType, "optional record-field identity fieldIndex must be an unsigned integer"))?)
+                        .map_err(|_| issue(Code::InvalidFieldType, "optional record-field identity fieldIndex is too large"))?,
+                    r#type: decode_scalar_type(require_field(field_object, "type", "optional record-field identity")?)?,
+                    field_path,
+                },
+            })
+        }
+        "geometryProperty" => {
+            reject_unexpected_fields(
+                object,
+                &["kind", "reference", "receiver"],
+                "optional geometry-property target",
+            )?;
+            let receiver_object = as_object(
+                require_field(object, "receiver", "optional geometry-property target")?,
+                "optional geometry-property receiver",
+            )?;
+            let receiver_kind = require_field(
+                receiver_object,
+                "kind",
+                "optional geometry-property receiver",
+            )?
+            .as_str()
+            .ok_or_else(|| {
+                issue(
+                    Code::InvalidFieldType,
+                    "optional geometry-property receiver kind must be a string",
+                )
+            })?;
+            let receiver = match receiver_kind {
+                "collection" => {
+                    reject_unexpected_fields(
+                        receiver_object,
+                        &[
+                            "kind",
+                            "collectionValueId",
+                            "collectionLength",
+                            "targetSourceOrder",
+                        ],
+                        "optional geometry-property collection receiver",
+                    )?;
+                    ScalarExpressionOptionalMemberReceiver::Collection {
+                        collection_value_id: require_field(receiver_object, "collectionValueId", "optional geometry-property collection receiver")?
+                            .as_str()
+                            .filter(|value| !value.is_empty())
+                            .ok_or_else(|| issue(Code::InvalidFieldType, "optional geometry-property collection receiver collectionValueId must be a non-empty string"))?
+                            .to_owned(),
+                        collection_length: decode_optional_length(receiver_object, "collectionLength", "optional geometry-property collection receiver collectionLength")?,
+                        target_source_order: decode_optional_order(receiver_object, "targetSourceOrder", "optional geometry-property collection receiver targetSourceOrder")?,
+                    }
+                }
+                "geometryValue" => {
+                    reject_unexpected_fields(
+                        receiver_object,
+                        &["kind", "target"],
+                        "optional geometry-value receiver",
+                    )?;
+                    ScalarExpressionOptionalMemberReceiver::GeometryValue(
+                        decode_geometry_target_payload(require_field(
+                            receiver_object,
+                            "target",
+                            "optional geometry-value receiver",
+                        )?)?
+                        .ok_or_else(|| {
+                            issue(
+                                Code::InvalidFieldType,
+                                "optional geometry-value receiver target must not be null",
+                            )
+                        })?,
+                    )
+                }
+                other => {
+                    return Err(issue(
+                        Code::UnknownKind,
+                        format!("unknown optional geometry-property receiver kind \"{other}\""),
+                    ))
+                }
+            };
+            Ok(
+                ScalarExpressionResolvedOptionalMemberTarget::GeometryProperty {
+                    reference: decode_optional_geometry_property_reference(require_field(
+                        object,
+                        "reference",
+                        "optional geometry-property target",
+                    )?)?,
+                    receiver: Box::new(receiver),
+                },
+            )
+        }
+        other => Err(issue(
+            Code::UnknownKind,
+            format!("unknown optional member target kind \"{other}\""),
+        )),
+    }
+}
+
+pub(crate) fn decode_optional_member(
+    object: &Map<String, Value>,
+) -> Result<TypedScalarExpression, ScalarPayloadIssue> {
+    reject_unexpected_fields(
+        object,
+        &[
+            "kind",
+            "span",
+            "receiverSpan",
+            "operatorSpan",
+            "memberSpan",
+            "member",
+            "target",
+            "type",
+        ],
+        "optional member node",
+    )?;
+    let target = match object.get("target") {
+        None | Some(Value::Null) => None,
+        Some(value) => Some(decode_optional_member_target(value)?),
+    };
+    Ok(TypedScalarExpression::OptionalMember {
+        span: decode_span(
+            require_field(object, "span", "optional member node")?,
+            "optional member node span",
+        )?,
+        receiver_span: decode_span(
+            require_field(object, "receiverSpan", "optional member node")?,
+            "optional member node receiverSpan",
+        )?,
+        operator_span: decode_span(
+            require_field(object, "operatorSpan", "optional member node")?,
+            "optional member node operatorSpan",
+        )?,
+        member_span: decode_span(
+            require_field(object, "memberSpan", "optional member node")?,
+            "optional member node memberSpan",
+        )?,
+        member: require_field(object, "member", "optional member node")?
+            .as_str()
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| {
+                issue(
+                    Code::InvalidFieldType,
+                    "optional member node member must be a non-empty string",
+                )
+            })?
+            .to_owned(),
+        target,
+        r#type: decode_nullable_scalar_type(require_field(
+            object,
+            "type",
+            "optional member node",
+        )?)?,
+    })
 }
 
 pub(crate) fn decode_call_argument_shape(

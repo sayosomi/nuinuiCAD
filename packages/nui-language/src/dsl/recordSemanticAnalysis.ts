@@ -4,9 +4,9 @@ import type { DslPhysicalSpan } from "./logicalStatementSourceMap";
 import { parseDslSourceReference } from "./dslReferenceTokens";
 import type { SourceLexicalLookup } from "./sourceLexicalNamespaceIndex";
 import { isBareDslIdentifierChar } from "./dslTokens";
-import type { ScalarType } from "../scalars/types";
 import type { ScalarExpressionAst } from "../scalars/expressionAst";
-import { nominalRecordTypeOfDslValueType } from "./dslValueTypes";
+import type { DslValueType } from "./dslValueTypes";
+import { dslCoalesceResultType, dslRequiredValueTypeOf, isDslArrayValueType, isDslOptionalValueType, nominalRecordTypeOfDslValueType } from "./dslValueTypes";
 import { parseScalarExpression } from "../scalars/expressionParser";
 
 export type RecordTypeIdentity = string;
@@ -21,7 +21,7 @@ export type RecordFieldSemantic = {
   identity: RecordFieldIdentity;
   fieldIndex: number;
   name: string;
-  type: ScalarType;
+  type: DslValueType;
   nameSpan: DslSpan;
   typeSpan: DslSpan;
 };
@@ -46,7 +46,7 @@ export type RecordConstructorFieldSemantic = {
   labelSpan: DslSpan;
   value: string;
   valueSpan: DslSpan;
-  expectedType: ScalarType;
+  expectedType: DslValueType;
 };
 
 export type RecordConstructorSemantic = {
@@ -81,6 +81,7 @@ export type RecordValueReferenceSemantic = {
   name: string;
   span: DslSpan;
   targetTypeIdentity: RecordTypeIdentity | null;
+  valueType?: DslValueType;
 };
 
 /** Record-valued control flow keeps its scalar condition/scrutinee AST, while
@@ -90,16 +91,31 @@ export type RecordValueExpressionSemantic =
       kind: "constructor";
       span: DslSpan;
       constructor: RecordConstructorSemantic;
+      valueType?: DslValueType;
     }
   | {
       kind: "reference";
       span: DslSpan;
       reference: RecordValueReferenceSemantic;
+      valueType?: DslValueType;
+    }
+  | {
+      kind: "none";
+      span: DslSpan;
+      valueType?: DslValueType;
+    }
+  | {
+      kind: "coalesce";
+      span: DslSpan;
+      left: RecordValueExpressionSemantic | null;
+      right: RecordValueExpressionSemantic | null;
+      valueType?: DslValueType;
     }
   | {
       kind: "collectionIndex";
       span: DslSpan;
       expression: Extract<ScalarExpressionAst, { kind: "collectionIndex" }>;
+      valueType?: DslValueType;
   }
   | {
       kind: "if";
@@ -107,6 +123,7 @@ export type RecordValueExpressionSemantic =
       condition: ScalarExpressionAst;
       thenBranch: RecordValueExpressionSemantic | null;
       elseBranch: RecordValueExpressionSemantic | null;
+      valueType?: DslValueType;
   }
   | {
       kind: "match";
@@ -115,8 +132,11 @@ export type RecordValueExpressionSemantic =
       arms: readonly {
         label: string;
         labelSpan: DslSpan;
+        binder?: string;
+        binderSpan?: DslSpan;
         expression: RecordValueExpressionSemantic | null;
       }[];
+      valueType?: DslValueType;
     };
 
 export type RecordValueSemantic = {
@@ -128,6 +148,7 @@ export type RecordValueSemantic = {
   constructor: RecordConstructorSemantic | null;
   reference: RecordValueReferenceSemantic | null;
   valueExpression: RecordValueExpressionSemantic | null;
+  declaredValueType?: DslValueType;
 };
 
 export type RecordModuleParameterSemantic = {
@@ -136,6 +157,7 @@ export type RecordModuleParameterSemantic = {
   name: string;
   typeReference: RecordTypeReferenceSemantic;
   typeIdentity: RecordTypeIdentity | null;
+  valueType?: DslValueType;
 };
 
 export type RecordSemanticAnalysis = {
@@ -346,6 +368,7 @@ export const parseRecordConstructorFields = ({
   }
   for (const field of definition.fields) {
     if (!firstLabel.has(field.name)) {
+      if (isDslOptionalValueType(field.type)) continue;
       issues.push({
         code: "record-constructor-missing-field",
         span: candidate.nameSpan,
@@ -358,7 +381,19 @@ export const parseRecordConstructorFields = ({
     name: candidate.name,
     nameSpan: candidate.nameSpan,
     argsSpan: candidate.argsSpan,
-    fields: definition.fields.flatMap((field) => fields.filter((entry) => entry.field.fieldIndex === field.fieldIndex)),
+    fields: definition.fields.flatMap((field) => {
+      const supplied = fields.find((entry) => entry.field.fieldIndex === field.fieldIndex);
+      if (supplied) return [supplied];
+      if (!isDslOptionalValueType(field.type)) return [];
+      return [{
+        field: field.identity,
+        fieldName: field.name,
+        labelSpan: field.nameSpan,
+        value: "none",
+        valueSpan: field.nameSpan,
+        expectedType: field.type
+      }];
+    }),
     issues
   };
 };
@@ -454,6 +489,7 @@ const analyzeRecordValueLeaf = ({
     }
     const name = parsedReference.reference.pathText;
     let targetTypeIdentity: RecordTypeIdentity | null = null;
+    let targetValueType: DslValueType | undefined;
     const lookup = parsedReference.reference.path.segments.length === 1
       ? input.resolveDeclaration(statementIndex, name)
       : null;
@@ -468,7 +504,9 @@ const analyzeRecordValueLeaf = ({
         );
     if (lookup !== null && lookup.kind === "resolved") {
       if (lookup.declaration.kind === "recordValue") {
-        targetTypeIdentity = valuesByStatementIndex.get(lookup.declaration.statementIndex)?.typeIdentity ?? null;
+        const target = valuesByStatementIndex.get(lookup.declaration.statementIndex);
+        targetTypeIdentity = target?.typeIdentity ?? null;
+        targetValueType = target?.declaredValueType;
       } else {
         diagnostics.push(diagnostic(statement, span, "record-reference-not-record", `参照「@${name}」は利用可能な record 値または record Module parameter ではありません。`, { name }));
       }
@@ -476,6 +514,7 @@ const analyzeRecordValueLeaf = ({
       diagnostics.push(diagnostic(statement, span, "record-value-ambiguous", `record 値「${name}」は複数の宣言と一致するため一意に解決できません。`, { name }));
     } else if (lookup !== null && parameterSemantic) {
       targetTypeIdentity = parameterSemantic.typeIdentity;
+      targetValueType = parameterSemantic.valueType;
     } else if (lookup !== null && lookup.kind === "forward" && lookup.declarations.some((declaration) => declaration.kind === "recordValue")) {
       diagnostics.push(diagnostic(statement, span, "record-value-forward-reference", `record 値「${name}」はこの位置より後で宣言されているため、まだ参照できません。`, { name }));
     } else if (lookup !== null) {
@@ -486,7 +525,7 @@ const analyzeRecordValueLeaf = ({
     }
     return {
       constructor: null,
-      reference: { name, span, targetTypeIdentity },
+      reference: { name, span, targetTypeIdentity, ...(targetValueType ? { valueType: targetValueType } : {}) },
       collectionIndex: null
     };
   }
@@ -555,6 +594,7 @@ const analyzeRecordValueLeaf = ({
   if (targetDefinition) {
     for (const field of targetDefinition.fields) {
       if (!firstLabel.has(field.name)) {
+        if (isDslOptionalValueType(field.type)) continue;
         diagnostics.push(diagnostic(statement, candidate.nameSpan, "record-constructor-missing-field", `record constructor「${targetDefinition.name}」に必須 field「${field.name}」がありません。`, { record: targetDefinition.name, field: field.name }));
       }
     }
@@ -565,7 +605,19 @@ const analyzeRecordValueLeaf = ({
       nameSpan: candidate.nameSpan,
       targetTypeIdentity: targetDefinition?.statementId ?? null,
       fields: targetDefinition
-        ? targetDefinition.fields.flatMap((field) => fields.filter((entry) => entry.field.fieldIndex === field.fieldIndex))
+        ? targetDefinition.fields.flatMap((field) => {
+            const supplied = fields.find((entry) => entry.field.fieldIndex === field.fieldIndex);
+            if (supplied) return [supplied];
+            if (!isDslOptionalValueType(field.type)) return [];
+            return [{
+              field: field.identity,
+              fieldName: field.name,
+              labelSpan: field.nameSpan,
+              value: "none",
+              valueSpan: field.nameSpan,
+              expectedType: field.type
+            }];
+          })
         : fields
     },
     reference: null,
@@ -605,6 +657,40 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
     }
   }
 
+  // Declaration parsing intentionally leaves nominal record references
+  // unresolved. Enrich every record field (including record elements inside a
+  // collection) with the same stable definition identity used by record
+  // values and Module parameters before downstream member resolution runs.
+  for (const definition of definitionsByStatementIndex.values()) {
+    const statement = statements[definition.statementIndex];
+    if (!statement || statement.kind !== "recordDefinition") continue;
+    const resolveFieldType = (type: DslValueType, span: DslSpan): DslValueType => {
+      if (type.kind === "record") {
+        const lookup = input.resolveDeclaration(definition.statementIndex, type.name);
+        if (lookup.kind === "resolved" && lookup.declaration.kind === "recordDefinition") {
+          const target = definitionsByStatementIndex.get(lookup.declaration.statementIndex);
+          if (target) return { ...type, identity: target.statementId };
+        }
+        // The declaration-level type resolver below owns the user-facing
+        // diagnostic. Keep the unresolved source name here so it can still be
+        // reported with the original field span.
+        return type;
+      }
+      if (isDslArrayValueType(type) && type.elementType.kind === "record") {
+        const element = resolveFieldType(type.elementType, span);
+        return element === type.elementType ? type : { ...type, elementType: element as typeof type.elementType };
+      }
+      return type;
+    };
+    const fields = definition.fields.map((field) => ({
+      ...field,
+      type: resolveFieldType(field.type, field.typeSpan)
+    }));
+    const enriched = { ...definition, fields };
+    definitionsByStatementIndex.set(definition.statementIndex, enriched);
+    definitionsByStatementId.set(definition.statementId, enriched);
+  }
+
   const moduleParameterTypeByDefinitionAndIndex = new Map<string, RecordModuleParameterSemantic>();
   for (const [statementIndex, statement] of statements.entries()) {
     if (statement.kind !== "moduleDefinition") continue;
@@ -625,7 +711,8 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
         parameterIndex,
         name: parameter.name,
         typeReference,
-        typeIdentity: typeReference.typeIdentity
+        typeIdentity: typeReference.typeIdentity,
+        ...(parameter.valueType ? { valueType: parameter.valueType } : {})
       };
       moduleParameters.push(semantic);
       moduleParameterTypeByDefinitionAndIndex.set(`${definitionStatementId}:${parameterIndex}`, semantic);
@@ -634,7 +721,7 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
 
   for (const [statementIndex, statement] of statements.entries()) {
     const recordTypeReference = statement.kind === "typedDeclaration"
-      ? nominalRecordTypeOfDslValueType(statement.valueType)
+      ? nominalRecordTypeOfDslValueType(dslRequiredValueTypeOf(statement.valueType))
       : null;
     if (statement.kind !== "typedDeclaration" || !recordTypeReference) continue;
     const statementId = definitionIdAt(stableStatementIdByIndex, statementIndex, "record value");
@@ -659,7 +746,7 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
     if (initializerSpan) {
       const paddedInitializer = `${" ".repeat(initializerSpan.start)}${statement.initializer}`;
       const parsed = parseScalarExpression(paddedInitializer, initializerSpan);
-      const dynamicCandidate = /^(?:if\s*\(|match\b)/.test(statement.initializer.trim());
+      const dynamicCandidate = /^(?:if\s*\(|match\b|none\s*$)/.test(statement.initializer.trim()) || parsed.ast?.kind === "binary" && parsed.ast.operator === "??";
       if (dynamicCandidate) {
         for (const parseDiagnostic of parsed.diagnostics) {
           diagnostics.push(diagnostic(statement, parseDiagnostic.span, parseDiagnostic.code, parseDiagnostic.message));
@@ -672,7 +759,8 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
               span: node.span,
               condition: node.condition,
               thenBranch: parseExpression(node.thenBranch),
-              elseBranch: parseExpression(node.elseBranch)
+              elseBranch: node.elseBranch ? parseExpression(node.elseBranch) : null,
+              ...(statement.valueType ? { valueType: statement.valueType } : {})
             };
           }
           if (node.kind === "valueMatch") {
@@ -683,8 +771,30 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
               arms: node.arms.map((arm) => ({
                 label: arm.label,
                 labelSpan: arm.labelSpan,
+                binder: arm.binder,
+                binderSpan: arm.binderSpan,
                 expression: parseExpression(arm.expression)
-              }))
+              })),
+              ...(statement.valueType ? { valueType: statement.valueType } : {})
+            };
+          }
+          if (node.kind === "noneLiteral") {
+            return { kind: "none", span: node.span, ...(statement.valueType ? { valueType: statement.valueType } : {}) };
+          }
+          if (node.kind === "binary" && node.operator === "??") {
+            const left = parseExpression(node.left);
+            const right = parseExpression(node.right);
+            const resultType = dslCoalesceResultType(left?.valueType ?? (left?.kind === "reference" ? left.reference.valueType : undefined), right?.valueType ?? (right?.kind === "reference" ? right.reference.valueType : undefined));
+            if (!resultType) {
+              diagnostics.push(diagnostic(statement, node.span, "coalesce-type-mismatch", "?? の record operands は optional な同一 nominal record 型と、その underlying record 型である必要があります。"));
+              return null;
+            }
+            return {
+              kind: "coalesce",
+              span: node.span,
+              left,
+              right,
+              valueType: resultType
             };
           }
           const leaf = analyzeRecordValueLeaf({
@@ -701,12 +811,12 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
             expectedTypeReference: typeReference,
             diagnostics
           });
-          if (leaf.collectionIndex) return { kind: "collectionIndex", span: node.span, expression: leaf.collectionIndex };
-          if (leaf.constructor) return { kind: "constructor", span: node.span, constructor: leaf.constructor };
-          if (leaf.reference) return { kind: "reference", span: node.span, reference: leaf.reference };
+          if (leaf.collectionIndex) return { kind: "collectionIndex", span: node.span, expression: leaf.collectionIndex, valueType: dslRequiredValueTypeOf(statement.valueType) ?? undefined };
+          if (leaf.constructor) return { kind: "constructor", span: node.span, constructor: leaf.constructor, valueType: dslRequiredValueTypeOf(statement.valueType) ?? undefined };
+          if (leaf.reference) return { kind: "reference", span: node.span, reference: leaf.reference, valueType: leaf.reference.valueType };
           return null;
         };
-        valueExpression = parsed.ast?.kind === "valueIf" || parsed.ast?.kind === "valueMatch"
+        valueExpression = parsed.ast?.kind === "valueIf" || parsed.ast?.kind === "valueMatch" || parsed.ast?.kind === "binary" && parsed.ast.operator === "??" || parsed.ast?.kind === "noneLiteral"
           ? parseExpression(parsed.ast)
           : null;
       } else {
@@ -741,7 +851,8 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
       typeIdentity: typeReference.typeIdentity,
       constructor,
       reference,
-      valueExpression
+      valueExpression,
+      ...(statement.valueType ? { declaredValueType: statement.valueType } : {})
     };
     valuesByStatementId.set(statementId, value);
     valuesByStatementIndex.set(statementIndex, value);

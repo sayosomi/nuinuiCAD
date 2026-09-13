@@ -149,6 +149,31 @@ export const resolveGeometryPropertyMetadata = (
         });
         return;
       }
+      const isForGroupTemplate = (() => {
+        let parentId = targetElement?.parentGroupId;
+        const visited = new Set<ElementId>();
+        while (parentId && !visited.has(parentId)) {
+          visited.add(parentId);
+          const parent = elementsById.get(parentId);
+          if (!parent) return false;
+          if (parent.type === "forGroup") return true;
+          parentId = parent.parentGroupId;
+        }
+        return false;
+      })();
+      if (isForGroupTemplate && targetElement) {
+        const pointPath = /^(start|end)\.(x|y)$/.exec(reference.property);
+        geometryPropertyReferences.set(node.span.start, {
+          kind: "forGroupOccurrence",
+          templateElementId: targetElementId,
+          property: pointPath ? pointPath[2]! : reference.property,
+          targetSourceOrder,
+          index: null,
+          ...(pointPath ? { pointKey: pointPath[1] } : {}),
+          type
+        });
+        return;
+      }
       geometryPropertyReferences.set(node.span.start, {
         elementId: targetElementId,
         property: reference.property,
@@ -160,7 +185,7 @@ export const resolveGeometryPropertyMetadata = (
     if (node.kind === "unary") { visit(node.operand); return; }
     if (node.kind === "binary") { visit(node.left); visit(node.right); return; }
     if (node.kind === "group") { visit(node.expression); return; }
-    if (node.kind === "valueIf") { visit(node.condition); visit(node.thenBranch); visit(node.elseBranch); return; }
+    if (node.kind === "valueIf") { visit(node.condition); visit(node.thenBranch); if (node.elseBranch) visit(node.elseBranch); return; }
     if (node.kind === "valueMatch") { visit(node.scrutinee); node.arms.forEach((arm) => visit(arm.expression)); return; }
     if (node.kind === "call") {
       node.args.forEach((argument) => visit(argument.expression));

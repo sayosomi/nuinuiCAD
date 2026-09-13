@@ -361,6 +361,8 @@ export type GeometryMutationExecution = {
 
 export type EvaluationResult = {
   computedGeometry: Map<ElementId, ComputedGeometry>;
+  /** Immutable snapshots keyed by runtime owner and recipe stage path. */
+  transformationStageGeometry?: Map<string, ComputedGeometry>;
   /** Immutable construction results, deliberately separate from drawable geometry. */
   computedGeometryValues?: Map<GeometryValueOccurrenceKey, ComputedGeometryValueEntry>;
   /** Runtime failures owned by immutable geometry-value occurrences, never drawable elements. */
@@ -377,7 +379,7 @@ export type EvaluationResult = {
   evaluationLimitIndex?: number;
   effectiveVisibleElementIds?: Set<ElementId>;
   effectiveEnabledElementIds?: Set<ElementId>;
-  /** Explicitly resolved drawing modifier strokes, keyed by runtime element id. */
+  /** Explicitly resolved drawing style strokes, keyed by runtime element id. */
   effectiveDrawingModifierStrokes?: Map<ElementId, DrawingModifierStroke>;
   conditionInactiveElementIds?: Set<ElementId>;
   /** Exact reached-node trace for each typed conditionalGroup evaluated in this runtime revision. */

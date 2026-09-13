@@ -19,6 +19,8 @@ type ActivityElement = {
   id: ElementId;
   type: string;
   activity: ElementActivity;
+  enabled?: boolean;
+  visible?: boolean;
   modifierNames?: readonly string[];
   parentGroupId?: ElementId;
 };
@@ -76,9 +78,9 @@ type ModifierPropertyContribution<K extends keyof DrawingModifierProperties> = {
 };
 
 type ModifierContribution = {
-  state?: ModifierPropertyContribution<"state">;
+  visible?: ModifierPropertyContribution<"visible">;
   widthPx?: ModifierPropertyContribution<"widthPx">;
-  style?: ModifierPropertyContribution<"style">;
+  lineType?: ModifierPropertyContribution<"lineType">;
   color?: ModifierPropertyContribution<"color">;
 };
 
@@ -110,9 +112,9 @@ const modifierContributionFor = (
     };
   };
   return {
-    state: property("state"),
+    visible: property("visible"),
     widthPx: property("widthPx"),
-    style: property("style"),
+    lineType: property("lineType"),
     color: property("color")
   };
 };
@@ -149,21 +151,22 @@ export const effectiveDrawingModifierRuntimeById = <T extends ActivityElement>(
     if (cached) return cached;
 
     if (!visiting.add(element.id)) return { activity: "visible" };
-    const ownActivity = element.activity;
+    const ownEnabled = element.enabled ?? element.activity !== "disabled";
+    const ownVisible = element.visible ?? element.activity === "visible";
     const parent = element.parentGroupId ? byId.get(element.parentGroupId) : undefined;
     const parentActivity = parent && isContainerElementType(parent.type)
       ? resolveDirectActivity(parent, visiting)
       : undefined;
 
-    // An ancestor disabled state wins over a child's own state. This preserves
-    // the source of the effective disabled state for dependency diagnostics.
+    // Direct computation gates are resolved before presentation. An ancestor
+    // hard gate wins and a child cannot override it.
     const resolved = parentActivity?.activity === "disabled"
       ? { activity: "disabled" as const, disabledByElementId: parentActivity.disabledByElementId }
-      : ownActivity === "disabled"
+      : !ownEnabled
         ? { activity: "disabled" as const, disabledByElementId: element.id }
         : parentActivity?.activity === "hidden"
           ? { activity: "hidden" as const, hiddenByElementId: parentActivity.hiddenByElementId }
-          : ownActivity === "hidden"
+          : !ownVisible
             ? { activity: "hidden" as const, hiddenByElementId: element.id }
             : { activity: "visible" as const };
     visiting.delete(element.id);
@@ -173,8 +176,8 @@ export const effectiveDrawingModifierRuntimeById = <T extends ActivityElement>(
 
   for (const element of elements) {
     let hasModifier = false;
-    let modifierState: ElementActivity = "visible";
-    let stateWinner: DrawingModifierPropertyWinner | null = null;
+    let styleVisible = true;
+    let visibleWinner: DrawingModifierPropertyWinner | null = null;
     let widthPx = defaultDrawingModifierProperties.widthPx;
     let widthPxWinner: DrawingModifierPropertyWinner | null = null;
     let style = defaultDrawingModifierProperties.style;
@@ -188,17 +191,17 @@ export const effectiveDrawingModifierRuntimeById = <T extends ActivityElement>(
         if (!modifier) continue;
         hasModifier = true;
         const contribution = modifierContributionFor(modifier, selectedDrawingProfileId);
-        if (contribution.state) {
-          modifierState = contribution.state.value;
-          stateWinner = winnerFor(owner.id, modifier.name, contribution.state);
+        if (contribution.visible) {
+          styleVisible = contribution.visible.value;
+          visibleWinner = winnerFor(owner.id, modifier.name, contribution.visible);
         }
         if (contribution.widthPx) {
           widthPx = contribution.widthPx.value;
           widthPxWinner = winnerFor(owner.id, modifier.name, contribution.widthPx);
         }
-        if (contribution.style) {
-          style = contribution.style.value;
-          styleWinner = winnerFor(owner.id, modifier.name, contribution.style);
+        if (contribution.lineType) {
+          style = contribution.lineType.value;
+          styleWinner = winnerFor(owner.id, modifier.name, contribution.lineType);
         }
         if (contribution.color) {
           color = { ...contribution.color.value };
@@ -208,25 +211,17 @@ export const effectiveDrawingModifierRuntimeById = <T extends ActivityElement>(
     }
 
     const directActivity = resolveDirectActivity(element);
-    const modifierCanWinState = directActivity.activity === "visible";
-    const activity = !modifierCanWinState
-      ? directActivity
-      : modifierState === "disabled"
-        ? { activity: "disabled" as const, disabledByElementId: stateWinner?.ownerElementId }
-        : modifierState === "hidden"
-          ? { activity: "hidden" as const, hiddenByElementId: stateWinner?.ownerElementId }
-          : { activity: "visible" as const };
+    const activity = directActivity;
+    const styleCanWinVisibility = directActivity.activity === "visible";
+    const effectiveVisible = styleCanWinVisibility ? styleVisible : false;
 
     runtime.set(element.id, {
       hasModifier,
       activity,
       resolution: {
-        state: {
-          value: activity.activity,
-          winner: modifierCanWinState ? stateWinner : null
-        },
+        visible: { value: effectiveVisible, winner: styleCanWinVisibility ? visibleWinner : null },
         widthPx: { value: widthPx, winner: widthPxWinner },
-        style: { value: style, winner: styleWinner },
+        lineType: { value: style, winner: styleWinner },
         color: { value: { ...color }, winner: colorWinner }
       }
     });
@@ -257,7 +252,7 @@ export const effectiveDrawingModifierStrokeByRuntime = (
     if (!resolved.hasModifier) continue;
     effectiveStrokes.set(elementId, copyDrawingModifierStroke({
       widthPx: resolved.resolution.widthPx.value,
-      style: resolved.resolution.style.value,
+      style: resolved.resolution.lineType.value,
       color: resolved.resolution.color.value
     }));
   }
@@ -265,9 +260,9 @@ export const effectiveDrawingModifierStrokeByRuntime = (
 };
 
 /**
- * Resolves the split drawing properties through the same owner and modifier
- * cascade used by activity. State and style properties remain independent: a
- * state-only contribution does not clear width/style/color inherited earlier.
+ * Resolves the split drawing properties through the same owner and Style
+ * cascade used by presentation. Visibility is independent: a visible-only
+ * contribution does not clear width/lineType/color inherited earlier.
  */
 export const effectiveDrawingModifierStrokeById = <T extends ActivityElement>(
   elements: readonly T[],

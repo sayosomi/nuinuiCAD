@@ -58,8 +58,55 @@ describe("parseScalarExpression / literal nodes", () => {
     expect(parseOk("false")).toEqual({ kind: "booleanLiteral", span: { start: 0, end: 5 }, value: false });
   });
 
+  it("parses none as the first-class absence node", () => {
+    expect(parseOk("none")).toEqual({ kind: "noneLiteral", span: { start: 0, end: 4 } });
+  });
+
   it("parses a bare choice token as an unresolved node, guessing no type", () => {
     expect(parseOk("right")).toEqual({ kind: "unresolvedChoiceLiteral", span: { start: 0, end: 5 }, raw: "right" });
+  });
+
+  it("parses ?? at the loosest binary precedence with exact source spans", () => {
+    const source = "@value ?? 10 + 2";
+    expect(parseOk(source)).toEqual({
+      kind: "binary",
+      operator: "??",
+      span: { start: 0, end: source.length },
+      left: { kind: "reference", span: { start: 0, end: 6 }, nameSpan: { start: 1, end: 6 }, name: "value" },
+      right: {
+        kind: "binary",
+        operator: "+",
+        span: { start: 10, end: source.length },
+        left: { kind: "numberLiteral", span: { start: 10, end: 12 }, value: 10 },
+        right: { kind: "numberLiteral", span: { start: 15, end: 16 }, value: 2 }
+      }
+    });
+    expect(isScalarExpressionCandidateSource(source)).toBe(true);
+  });
+
+  it("parses optional member access as a first-class node without consuming ??", () => {
+    const source = "@piece.outline?.length ?? 0";
+    expect(parseOk(source)).toEqual({
+      kind: "binary",
+      operator: "??",
+      span: fullSpan(source),
+      left: {
+        kind: "optionalMember",
+        span: { start: 0, end: 22 },
+        receiver: {
+          kind: "geometryProperty",
+          span: { start: 0, end: 14 },
+          elementNameSpan: { start: 1, end: 6 },
+          propertySpan: { start: 7, end: 14 },
+          elementName: "piece",
+          property: "outline"
+        },
+        operatorSpan: { start: 14, end: 16 },
+        memberSpan: { start: 16, end: 22 },
+        member: "length"
+      },
+      right: { kind: "numberLiteral", span: { start: 26, end: 27 }, value: 0 }
+    });
   });
 
   describe("string escapes (Task 09 delegation)", () => {
@@ -107,8 +154,8 @@ describe("parseScalarExpression / scalar value-if", () => {
     expect(ast.elseBranch).toMatchObject({ kind: "numberLiteral", value: 3 });
   });
 
-  it("requires else and brace-delimited branches", () => {
-    expect(parseErr("if (true) { 10 }").code).toBe("value-if-missing-else");
+  it("represents an omitted else while retaining malformed branch diagnostics", () => {
+    expect(parseOk("if (true) { 10 }")).toMatchObject({ kind: "valueIf", elseBranch: null });
     expect(parseErr("if (true) 10 else { 20 }").code).toBe("value-if-malformed-branch");
   });
 
@@ -118,6 +165,15 @@ describe("parseScalarExpression / scalar value-if", () => {
 });
 
 describe("parseScalarExpression / exhaustive choice value-match", () => {
+  it("parses an authored optional some binder", () => {
+    expect(parseOk("match @note { none => 0 some note => @note }")).toMatchObject({
+      kind: "valueMatch",
+      arms: [
+        { label: "none" },
+        { label: "some", binder: "note", expression: { kind: "reference", name: "note" } }
+      ]
+    });
+  });
   it("parses an inline match with exact scrutinee, arm-label, and result spans", () => {
     const source = "match @size { small => 5 large => 10 }";
     expect(parseOk(source)).toEqual({
@@ -227,6 +283,24 @@ describe("parseScalarExpression / @qualifiedName reference", () => {
         },
         right: { kind: "numberLiteral", span: { start: 16, end: 17 }, value: 1 }
       }
+    });
+  });
+
+  it.each([
+    ["@Mark[0].length+1", "+", { kind: "numberLiteral", value: 1 }],
+    ["@Mark[0].length==1", "==", { kind: "numberLiteral", value: 1 }],
+    ["@Mark[0].length&&@flag", "&&", { kind: "reference", name: "flag" }]
+  ] as const)("keeps an indexed geometry property separate from the immediate %s operator", (source, operator, right) => {
+    expect(parseOk(source)).toMatchObject({
+      kind: "binary",
+      operator,
+      left: {
+        kind: "geometryProperty",
+        elementName: "Mark",
+        property: "length",
+        occurrenceIndex: { kind: "numberLiteral", value: 0 }
+      },
+      right
     });
   });
 

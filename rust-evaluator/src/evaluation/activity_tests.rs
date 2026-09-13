@@ -76,6 +76,8 @@ fn module_instance_is_an_activity_container_and_a_geometry_noop() {
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
     });
     assert!(result.errors.is_empty(), "errors: {:?}", result.errors);
     assert!(result
@@ -131,6 +133,8 @@ fn bake_sandbox_can_evaluate_disabled_geometry_without_changing_normal_evaluatio
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
     });
     let sandbox = evaluate_document_input(super::types::EvaluationInput {
         geometry_input_targets: None,
@@ -150,6 +154,8 @@ fn bake_sandbox_can_evaluate_disabled_geometry_without_changing_normal_evaluatio
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
     });
 
     assert!(normal.computed_geometry.is_empty());
@@ -195,6 +201,8 @@ fn bake_sandbox_does_not_enable_a_disabled_dependency_that_is_not_a_target() {
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
     });
 
     assert!(result.computed_geometry.is_empty());
@@ -209,9 +217,9 @@ fn bake_sandbox_does_not_enable_a_disabled_dependency_that_is_not_a_target() {
 #[test]
 fn drawing_modifiers_resolve_outer_to_inner_to_element_with_last_wins() {
     let modifiers = json!([
-        { "name": "Hide", "state": "hidden" },
-        { "name": "Disable", "state": "disabled" },
-        { "name": "Show", "state": "visible" }
+        { "name": "Hide", "visible": false },
+        { "name": "Disable", "visible": false },
+        { "name": "Show", "visible": true }
     ]);
     let elements = vec![
         json!({ "id": "outer", "type": "group", "activity": "visible", "modifierNames": ["Hide"] }),
@@ -225,7 +233,7 @@ fn drawing_modifiers_resolve_outer_to_inner_to_element_with_last_wins() {
     assert_eq!(activities["child"].disabled_by_element_id, None);
 
     let mut direct_gate_elements = elements;
-    direct_gate_elements[0]["activity"] = json!("hidden");
+    direct_gate_elements[0]["visible"] = json!(false);
     direct_gate_elements[2]["modifierNames"] = json!(["Show"]);
     let gated = effective_activity_by_element_id(&direct_gate_elements, Some(&modifiers));
     assert_eq!(gated["child"].activity, ElementActivity::Hidden);
@@ -234,7 +242,7 @@ fn drawing_modifiers_resolve_outer_to_inner_to_element_with_last_wins() {
         Some("outer")
     );
 
-    direct_gate_elements[0]["activity"] = json!("disabled");
+    direct_gate_elements[0]["enabled"] = json!(false);
     let disabled = effective_activity_by_element_id(&direct_gate_elements, Some(&modifiers));
     assert_eq!(disabled["child"].activity, ElementActivity::Disabled);
     assert_eq!(
@@ -249,12 +257,12 @@ fn selected_drawing_profile_overlays_common_properties_by_field() {
         {
             "name": "Guide",
             "widthPx": 2.0,
-            "style": "solid",
+            "lineType": "solid",
             "profileDeltas": [{
                 "profileId": "print-id",
                 "profileName": "Print",
                 "color": { "kind": "fixed", "hex": "#123456" },
-                "state": "disabled"
+                "visible": false
             }]
         }
     ]);
@@ -272,7 +280,7 @@ fn selected_drawing_profile_overlays_common_properties_by_field() {
             Some("print-id")
         )["point"]
             .activity,
-        ElementActivity::Disabled
+        ElementActivity::Hidden
     );
     assert_eq!(
         effective_drawing_modifier_stroke_by_element_id_with_profile(
@@ -291,15 +299,15 @@ fn selected_drawing_profile_overlays_common_properties_by_field() {
 #[test]
 fn drawing_modifier_strokes_resolve_properties_and_defaults_independently_from_state() {
     let modifiers = json!([
-        { "name": "Outer", "widthPx": 1.0, "style": "solid", "color": { "kind": "fixed", "hex": "#111111" } },
-        { "name": "Inner", "widthPx": 2.0, "style": "dashed", "color": { "kind": "fixed", "hex": "#222222" } },
-        { "name": "StateOnly", "state": "hidden" },
-        { "name": "Later", "widthPx": 3.0, "style": "dotted", "color": { "kind": "themeRole", "role": "accent" } }
+        { "name": "Outer", "widthPx": 1.0, "lineType": "solid", "color": { "kind": "fixed", "hex": "#111111" } },
+        { "name": "Inner", "widthPx": 2.0, "lineType": "dashed", "color": { "kind": "fixed", "hex": "#222222" } },
+        { "name": "StyleOnly", "visible": false },
+        { "name": "Later", "widthPx": 3.0, "lineType": "dotted", "color": { "kind": "themeRole", "role": "accent" } }
     ]);
     let elements = vec![
         json!({ "id": "outer", "type": "group", "activity": "visible", "modifierNames": ["Outer"] }),
         json!({ "id": "inner", "type": "group", "parentGroupId": "outer", "activity": "visible", "modifierNames": ["Inner"] }),
-        json!({ "id": "child", "type": "freePoint", "parentGroupId": "inner", "activity": "visible", "modifierNames": ["StateOnly", "Later"], "x": 0, "y": 0 }),
+        json!({ "id": "child", "type": "freePoint", "parentGroupId": "inner", "activity": "visible", "modifierNames": ["StyleOnly", "Later"], "x": 0, "y": 0 }),
     ];
 
     let strokes = effective_drawing_modifier_stroke_by_element_id(&elements, Some(&modifiers));
@@ -341,7 +349,7 @@ fn generated_rows_receive_the_template_stroke_without_id_parsing() {
         evaluation_limit_index: None,
         allow_disabled_element_ids: None,
         drawing_modifiers: Some(json!([
-            { "name": "Guide", "widthPx": 1.25, "style": "dashed", "color": { "kind": "themeRole", "role": "info" } }
+            { "name": "Guide", "widthPx": 1.25, "lineType": "dashed", "color": { "kind": "themeRole", "role": "info" } }
         ])),
         selected_drawing_profile_id: None,
         scalar_expression_payload: None,
@@ -352,6 +360,8 @@ fn generated_rows_receive_the_template_stroke_without_id_parsing() {
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
     });
 
     assert_eq!(result.for_group_generated_rows.len(), 2);
@@ -376,15 +386,15 @@ fn drawing_modifier_activity_uses_compiled_definitions_for_evaluation() {
         module_materialization: None,
         elements: vec![
             json!({ "id": "hidden", "type": "freePoint", "activity": "visible", "modifierNames": ["Hide"], "x": 0, "y": 0 }),
-            json!({ "id": "disabled", "type": "freePoint", "activity": "visible", "modifierNames": ["Disable"], "x": 1, "y": 0 }),
+            json!({ "id": "disabled", "type": "freePoint", "enabled": false, "visible": true, "activity": "disabled", "modifierNames": ["Disable"], "x": 1, "y": 0 }),
             json!({ "id": "shown", "type": "freePoint", "activity": "visible", "modifierNames": ["Show"], "x": 2, "y": 0 }),
         ],
         evaluation_limit_index: None,
         allow_disabled_element_ids: None,
         drawing_modifiers: Some(json!([
-            { "name": "Hide", "state": "hidden" },
-            { "name": "Disable", "state": "disabled" },
-            { "name": "Show", "state": "visible" }
+            { "name": "Hide", "visible": false },
+            { "name": "Disable", "visible": true },
+            { "name": "Show", "visible": true }
         ])),
         selected_drawing_profile_id: None,
         scalar_expression_payload: None,
@@ -395,6 +405,8 @@ fn drawing_modifier_activity_uses_compiled_definitions_for_evaluation() {
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
     });
 
     assert!(result
@@ -451,6 +463,8 @@ fn directly_disabled_dependency_reports_evaluation_off() {
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
     });
 
     assert!(result

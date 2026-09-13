@@ -188,6 +188,42 @@ describe("tokenizeScalarExpression / @qualifiedName references", () => {
     expect(result.tokens).toHaveLength(3);
     expect(result.tokens[2]).toMatchObject({ kind: "geometryProperty", span: { start: 4, end: source.length } });
   });
+
+  it("tokenizes optional member access with exact operator and member spans", () => {
+    const source = "@piece.outline?.length ?? 0";
+    const result = tokenizeScalarExpression(source, fullSpan(source));
+    expect(result.error).toBeNull();
+    expect(result.tokens).toEqual([
+      {
+        kind: "geometryProperty",
+        elementName: "piece",
+        elementNameSpan: { start: 1, end: 6 },
+        property: "outline",
+        propertySpan: { start: 7, end: 14 },
+        span: { start: 0, end: 14 }
+      },
+      {
+        kind: "optionalPostfixProperty",
+        property: "length",
+        propertySpan: { start: 16, end: 22 },
+        operatorSpan: { start: 14, end: 16 },
+        span: { start: 14, end: 22 }
+      },
+      { kind: "operator", value: "??", span: { start: 23, end: 25 } },
+      { kind: "literal", literal: { kind: "number", span: { start: 26, end: 27 }, raw: "0", value: 0 } }
+    ]);
+  });
+
+  it.each([
+    ["@Mark[0].length+1", "+"],
+    ["@Mark[0].length==1", "=="],
+    ["@Mark[0].length&&@flag", "&&"]
+  ] as const)("terminates an indexed postfix property before the %s operator", (source, operator) => {
+    const result = tokenizeScalarExpression(source, fullSpan(source));
+    expect(result.error).toBeNull();
+    expect(result.tokens.find((token) => token.kind === "postfixProperty")).toMatchObject({ property: "length" });
+    expect(result.tokens.find((token) => token.kind === "operator")).toMatchObject({ value: operator });
+  });
 });
 
 describe("tokenizeScalarExpression / literal delegation", () => {

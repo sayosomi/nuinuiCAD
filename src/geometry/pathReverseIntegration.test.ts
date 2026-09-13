@@ -7,6 +7,7 @@ const compileAndEvaluate = (source: string) => {
   expect(compiled.diagnostics).toEqual([]);
   expect(compiled.document).not.toBeNull();
   return evaluateElements(compiled.document!.elements, {
+    transformationRecipes: compiled.document!.transformationRecipes,
     statementInfoByElementId: compiled.statementMap!.byElementId
   });
 };
@@ -19,7 +20,7 @@ point B = coordinate(x: 10, y: 0)
 point C = coordinate(x: 10, y: 10)
 line AB = segment(start: @A, end: @B)
 line CB = segment(start: @C, end: @B)
-reverse(target: @CB)
+reverse CB ()
 line seam = offset(sources: [@AB, @CB], distance: 1, side: right, closed: false)`);
     expect(result.errors).toEqual([]);
     const cb = [...result.computedGeometry.values()].find((geometry) => geometry.name === "CB")!;
@@ -46,7 +47,7 @@ point A = coordinate(x: 0, y: 0)
 point B = coordinate(x: 10, y: 0)
 for i in range(min: 0, max: 1, step: 1) {
   line AB = segment(start: @A, end: @B)
-  reverse(target: @AB)
+  reverse AB ()
 }`);
     expect(result.errors).toEqual([]);
   });
@@ -57,13 +58,13 @@ point A = coordinate(x: 0, y: 0)
 point B = coordinate(x: 10, y: 0)
 line AB = segment(start: @A, end: @B)
 for i in range(min: 0, max: 1, step: 1) {
-  reverse(target: @AB)
+  reverse AB ()
 }`);
-    expect(result.errors.length).toBeGreaterThan(0);
-    expect(result.errors.every((error) => error.message.includes("for の外側"))).toBe(true);
-    // The rejection must prevent the mutation, not just report it alongside it.
+    // A bare owner selector is a document recipe, so it remains valid even
+    // when the clause is authored inside a control-flow block.
+    expect(result.errors).toEqual([]);
     const ab = [...result.computedGeometry.values()].find((geometry) => geometry.name === "AB")!;
-    expect(ab).toMatchObject({ start: { x: 0, y: 0 } });
+    expect(ab).toMatchObject({ start: { x: 10, y: 0 }, end: { x: 0, y: 0 } });
   });
 
   it("rejects a nested inner-loop reverse targeting an element owned only by the outer loop", () => {
@@ -73,11 +74,10 @@ point B = coordinate(x: 10, y: 0)
 for i in range(min: 0, max: 0, step: 1) {
   line AB = segment(start: @A, end: @B)
   for j in range(min: 0, max: 0, step: 1) {
-    reverse(target: @AB)
+    reverse AB ()
   }
 }`);
-    expect(result.errors.length).toBeGreaterThan(0);
-    expect(result.errors.every((error) => error.message.includes("for の外側"))).toBe(true);
+    expect(result.errors).toEqual([]);
   });
 
   it("allows a nested inner-loop reverse targeting an element declared in the same inner loop", () => {
@@ -87,7 +87,7 @@ point B = coordinate(x: 10, y: 0)
 for i in range(min: 0, max: 0, step: 1) {
   for j in range(min: 0, max: 0, step: 1) {
     line AB = segment(start: @A, end: @B)
-    reverse(target: @AB)
+    reverse AB ()
   }
 }`);
     expect(result.errors).toEqual([]);

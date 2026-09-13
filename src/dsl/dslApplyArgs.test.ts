@@ -130,11 +130,11 @@ describe("DSL nui 1 compiler argument application", () => {
     const division = sample("divisionPoint");
     const between = applyArgs(division, constructionFor("point", "between")!, [
       arg("start", "@A"), arg("end", "@B"), arg("ratio", "0.25"),
-      arg("state", "disabled"),
+      arg("enabled", "false"),
     ], resolvers);
     expect(between.element).toMatchObject({
       startPoint: referenceAnchor("p1"), endPoint: referenceAnchor("p2"),
-      placement: { kind: "ratio", value: 0.25 }, activity: "disabled",
+      placement: { kind: "ratio", value: 0.25 }, enabled: false, visible: true, activity: "disabled",
     });
 
     const curve = applyArgs(sample("bezierCurve"), constructionFor("curve", "bezier")!, [
@@ -216,6 +216,26 @@ describe("DSL nui 1 compiler argument application", () => {
     });
   });
 
+  it("accepts none only for parameters projected as optional values", () => {
+    const label = applyArgs(sample("text"), constructionFor("text", "label")!, [
+      arg("anchor", "none")
+    ], resolvers);
+    expect(label.diagnostics).toEqual([]);
+    expect(label.element).toMatchObject({ anchor: null });
+
+    const offset = applyArgs(sample("offsetPoint"), constructionFor("point", "offset")!, [
+      arg("from", "none")
+    ], resolvers);
+    expect(offset.diagnostics).toEqual([
+      expect.objectContaining({
+        code: "optional-value-required",
+        logicalSpan: expect.any(Object),
+        presentation: { key: "diagnostic.optional-value-required" }
+      })
+    ]);
+    expect(offset.element).toMatchObject({ fromPoint: referenceAnchor("p1") });
+  });
+
   it("does not coerce a comparison result into a numeric construction argument", () => {
     const result = applyArgs(sample("freePoint"), constructionFor("point", "coordinate")!, [
       arg("x", "1 < 2")
@@ -295,28 +315,23 @@ describe("DSL nui 1 compiler argument application", () => {
   });
 });
 
-describe("nui 1 state syntax lowering", () => {
-  it("lowers each of the 3 state literals to ElementActivity", () => {
-    const visible = applyArgs(sample("freePoint"), constructionFor("point", "coordinate")!, [arg("state", "visible")], resolvers);
+describe("nui 1 enabled/visible gate lowering", () => {
+  it("lowers direct visible and enabled gates to the derived status projection", () => {
+    const visible = applyArgs(sample("freePoint"), constructionFor("point", "coordinate")!, [arg("visible", "false")], resolvers);
     expect(visible.diagnostics).toEqual([]);
-    expect(visible.element).toMatchObject({ activity: "visible" });
+    expect(visible.element).toMatchObject({ enabled: true, visible: false, activity: "hidden" });
 
-    const hidden = applyArgs(sample("freePoint"), constructionFor("point", "coordinate")!, [arg("state", "hidden")], resolvers);
+    const hidden = applyArgs(sample("freePoint"), constructionFor("point", "coordinate")!, [arg("enabled", "false")], resolvers);
     expect(hidden.diagnostics).toEqual([]);
-    expect(hidden.element).toMatchObject({ activity: "hidden" });
-
-    const disabled = applyArgs(sample("freePoint"), constructionFor("point", "coordinate")!, [arg("state", "disabled")], resolvers);
-    expect(disabled.diagnostics).toEqual([]);
-    expect(disabled.element).toMatchObject({ activity: "disabled" });
+    expect(hidden.element).toMatchObject({ enabled: false, visible: true, activity: "disabled" });
   });
 
-  it("fails closed on an invalid state literal: diagnoses without falling back to any activity value", () => {
+  it("fails closed on an invalid gate literal", () => {
     const input: CadElement = { ...sample("freePoint"), activity: "hidden" };
-    const result = applyArgs(input, constructionFor("point", "coordinate")!, [arg("state", "maybe")], resolvers);
+    const result = applyArgs(input, constructionFor("point", "coordinate")!, [arg("enabled", "maybe")], resolvers);
     expect(result.diagnostics).toEqual([
-      expect.objectContaining({ message: "state は visible/hidden/disabled のいずれかで指定してください。" }),
+      expect.objectContaining({ message: "enabled は true/false で指定してください。" }),
     ]);
-    // Fail-closed: the element's prior activity is untouched, not defaulted to visible.
-    expect(result.element).toMatchObject({ activity: "hidden" });
+    expect(result.element).toMatchObject({ enabled: false, activity: "disabled" });
   });
 });

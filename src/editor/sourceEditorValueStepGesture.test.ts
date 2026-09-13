@@ -23,7 +23,7 @@ describe("Source Editor value-step gesture boundaries", () => {
     expect(valueStepDirectionForCommand("saveDocument")).toBeNull();
   });
 
-  it("groups repeats by physical trigger and closes on trigger or required modifier release", () => {
+  it("groups repeats by physical trigger and closes on trigger or required style release", () => {
     const gesture = valueStepGestureForKeyboardEvent(1, keyboardEvent());
     expect(sameValueStepGesture(gesture, valueStepGestureForKeyboardEvent(1, keyboardEvent()))).toBe(true);
     expect(sameValueStepGesture(gesture, valueStepGestureForKeyboardEvent(-1, keyboardEvent()))).toBe(false);

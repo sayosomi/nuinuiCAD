@@ -25,11 +25,11 @@ const calls = [
   ["line", "split", "line L = split(source: AB, at: A)"],
   ["line", "transformCopy", "line L = transformCopy(startPoint: A, endPoint: B, baseLines: [AB])"],
   ["line", "mirrorCopy", "line L = mirrorCopy(axis1: A, axis2: B, baseLines: [AB])"],
-  ["mutation", "edge", "edge(end1: AB.end, end2: CD.start)"],
-  ["mutation", "extend", "extend(end: AB.end, to: A)"],
-  ["mutation", "move", "move(targets: [AB], from: A, to: B)"],
-  ["mutation", "mirrorMove", "mirrorMove(targets: [AB], axis1: A, axis2: B)"],
-  ["mutation", "reverse", "reverse(target: AB)"],
+  ["transformation", "edge", "edge [AB.end, CD.start] (index: 0)"],
+  ["transformation", "extend", "extend AB.end (to: A)"],
+  ["transformation", "move", "move [AB] (from: A, to: B)"],
+  ["transformation", "mirrorMove", "mirrorMove [AB] (axis1: A, axis2: B)"],
+  ["transformation", "reverse", "reverse AB ()"],
   ["curve", "bezier", "curve C = bezier(start: A, end: B)"],
   ["arc", "arc", "arc A = arc(center: O, radius: 1)"],
   ["arc", "through", "arc A = through(point1: A, point2: B, point3: C)"],
@@ -125,10 +125,10 @@ describe("DSL nui 1 call parser", () => {
     );
   });
 
-  it("rejects the removed visible/enabled flags as unknown arguments; state alone never conflicts", () => {
-    expect(messages("point A = coordinate(x: 0, y: 0, state: hidden)")).toEqual([]);
-    expect(messages("point A = coordinate(x: 0, y: 0, visible: false)").join("\n")).toContain("引数「visible」");
-    expect(messages("point A = coordinate(x: 0, y: 0, enabled: false)").join("\n")).toContain("引数「enabled」");
+  it("accepts direct visible/enabled gates and rejects the removed state argument", () => {
+    expect(messages("point A = coordinate(x: 0, y: 0, visible: false)")).toEqual([]);
+    expect(messages("point A = coordinate(x: 0, y: 0, enabled: false)")).toEqual([]);
+    expect(messages("point A = coordinate(x: 0, y: 0, state: hidden)").join("\n")).toContain("引数「state」");
   });
 
   it("rejects the removed common color argument on mutations and drawable elements", () => {

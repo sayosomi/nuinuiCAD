@@ -416,6 +416,42 @@ describe("queryDslReferences", () => {
     expect(slices(source, moduleParameter!.referenceRanges)).toEqual(expect.arrayContaining(["input", "input"]));
   });
 
+  it("indexes optional record receivers and member identities with exact spans", () => {
+    const source = [
+      "nui 1",
+      "record Pair(label: string)",
+      "const input: Pair? = none",
+      "const output: string? = @input?.label"
+    ].join("\n");
+    const field = queryAt(source, "label");
+    const receiver = queryAt(source, "input", 1);
+
+    expect(field).not.toBeNull();
+    expect(slices(source, field!.declarationRange)).toEqual(["label"]);
+    expect(field!.referenceRanges).toEqual([{
+      from: source.indexOf("@input?.label") + "@input?.".length,
+      to: source.indexOf("@input?.label") + "@input?.label".length
+    }]);
+    expect(receiver).not.toBeNull();
+    expect(slices(source, receiver!.declarationRange)).toEqual(["input"]);
+    expect(slices(source, receiver!.referenceRanges)).toEqual(["input"]);
+  });
+
+  it("keeps nested record field identities through generalized constructors and member access", () => {
+    const source = [
+      "nui 1",
+      "record Metadata(label: string)",
+      "record Piece(metadata: Metadata)",
+      'const piece: Piece = Piece(metadata: Metadata(label: "body"))',
+      "const label: string = @piece.metadata.label"
+    ].join("\n");
+    const result = queryAt(source, "label");
+
+    expect(result).not.toBeNull();
+    expect(slices(source, result!.declarationRange)).toEqual(["label"]);
+    expect(slices(source, result!.referenceRanges)).toEqual(["label", "label"]);
+  });
+
   it("projects qualified whole-record aliases to the exact Module instance and export owners", () => {
     const source = [
       "nui 1",
@@ -521,6 +557,24 @@ describe("queryDslReferences", () => {
     expect(valueReference?.identity).toEqual(valueDeclaration?.identity);
     expect(indexReference?.identity.kind).toBe("typed");
     expect(indexReference?.identity).not.toEqual(valueDeclaration?.identity);
+  });
+
+  it("keeps an indexed geometry-property index binding in the semantic rename pipeline", () => {
+    const source = [
+      "nui 1",
+      "const i: number = 0",
+      "for j in range(min: 0, max: 1, step: 1) {",
+      "  line Mark = segment(start: (0, 0), end: (10, 0))",
+      "  line Out = offset(sources: [@Mark[0]], distance: 1, side: left, closed: @Mark[@i].length > 0, suppressTrimWarnings: false)",
+      "}"
+    ].join("\n");
+    const compiled = compile(source);
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+
+    const result = queryAt(source, "@i");
+    expect(result).not.toBeNull();
+    expect(slices(source, result!.declarationRange)).toEqual(["i"]);
+    expect(slices(source, result!.referenceRanges)).toEqual(["i"]);
   });
 
   it("does not match comments, literals, punctuation, or unresolved and ambiguous references", () => {

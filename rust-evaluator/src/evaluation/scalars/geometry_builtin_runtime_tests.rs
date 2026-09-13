@@ -33,6 +33,8 @@ fn state_with_geometry(
         geometry_input_targets: HashMap::new(),
         geometry_collection_nodes: HashMap::new(),
         geometry_value_binders: HashMap::new(),
+        for_group_generated_rows: Vec::new(),
+        for_group_expected_occurrence_count_by_template_id: HashMap::new(),
         elements: if include_element {
             vec![json!({"id": id})]
         } else {
@@ -43,6 +45,8 @@ fn state_with_geometry(
         selected_drawing_profile_id: None,
         group_states: HashMap::new(),
         computed_geometry: HashMap::from([(id.to_owned(), geometry)]),
+        base_transformation_geometry: HashMap::new(),
+        transformation_stage_geometry: HashMap::new(),
         computed_geometry_values: HashMap::new(),
         computed_geometry_order: vec![id.to_owned()],
         pre_mutation_geometry: HashMap::new(),
@@ -73,6 +77,9 @@ fn target(
         point_key: None,
         geometry_value_occurrence: None,
         geometry_value_binder_id: None,
+        for_group_template_element_id: None,
+        for_group_target_source_order: None,
+        for_group_index: None,
     }
 }
 
@@ -88,6 +95,9 @@ fn derived_target(
         point_key: Some(point_key.to_owned()),
         geometry_value_occurrence: None,
         geometry_value_binder_id: None,
+        for_group_template_element_id: None,
+        for_group_target_source_order: None,
+        for_group_index: None,
     }
 }
 
@@ -166,9 +176,9 @@ fn modifier_disabled_geometry_target_has_a_distinct_runtime_failure() {
     state.elements = vec![json!({
         "id": "point-id",
         "type": "freePoint",
-        "modifierNames": ["Disable"]
+        "enabled": false,
+        "visible": true
     })];
-    state.drawing_modifiers = json!([{ "name": "Disable", "state": "disabled" }]);
 
     let expected_target = target("point-id", 1, GeometryInterfaceType::Point);
     assert_eq!(

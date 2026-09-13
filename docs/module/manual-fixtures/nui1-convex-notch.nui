@@ -89,15 +89,6 @@ module 凸ノッチ(凸ノッチ高さ: number, 縫い線: path, 縫い代線: p
     extensions: false
   )
 
-  extend(
-    end: @サイド1.end,
-    to: @交点1
-  )
-
-  extend(
-    end: @サイド2.end,
-    to: @交点2
-  )
 }
 
 instance ノッチ通常 = 凸ノッチ(

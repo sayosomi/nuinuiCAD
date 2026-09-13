@@ -14,6 +14,9 @@ export type PickCandidateGeometry = {
   geometry: ComputedGeometry;
   /** Present only when this geometry is a forGroup runtime instance. */
   referenceElementId?: ElementId;
+  /** Zero-based ordinal within the evaluator-owned occurrence collection for
+   * `templateElement`. Never inferred from the generated element id. */
+  generatedOccurrenceIndex?: number;
 };
 
 /**
@@ -36,21 +39,26 @@ export const pickCandidateGeometries = ({
     .filter((templateElement) => !runtimeOnlyElementTypes.has(templateElement.type))
     .flatMap((templateElement) => {
       const direct = evaluation.computedGeometry.get(templateElement.id);
-      const generated = (evaluation.forGroupGeneratedRows ?? [])
+      const generatedRows = (evaluation.forGroupGeneratedRows ?? [])
         // `forGroupGeneratedRows` is evaluator-owned metadata, not a traversal
-        // of `computedGeometry`; iterationIndex is the explicit runtime order.
-        // A template belongs to one forGroup, so equal iteration indexes cannot
-        // occur for this filtered source.
+        // of `computedGeometry`. Its array order is the deterministic
+        // materialization order, including nested occurrence paths.
         .filter((row) => row.templateElementId === templateElement.id)
         .filter((row) => generatedElementIdForTargetForGroup({
           elements,
           targetElementId: normalizationTargetElementId,
           pickedElementId: row.generatedElementId
-        }) === templateElement.id)
-        .sort((left, right) => left.iterationIndex - right.iterationIndex)
-        .flatMap((row) => {
+        }) === templateElement.id);
+      const generated = generatedRows.flatMap((row, generatedOccurrenceIndex) => {
           const geometry = evaluation.computedGeometry.get(row.generatedElementId);
-          return geometry ? [{ templateElement, geometry, referenceElementId: templateElement.id }] : [];
+          return geometry
+            ? [{
+                templateElement,
+                geometry,
+                referenceElementId: templateElement.id,
+                generatedOccurrenceIndex
+              }]
+            : [];
         });
 
       return [

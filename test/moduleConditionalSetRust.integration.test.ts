@@ -44,13 +44,12 @@ const independentInstancesSource = [
 const optionalModuleBodySource = [
   "nui 1",
   "",
-  "module M(value?: number) {",
-  "  if (hasValue(@value) and @value > 0) {",
-  "    point P = coordinate(",
-  "      x: @value,",
-  "      y: 10,",
-  "    )",
-  "  }",
+  "module M(value: number?) {",
+  "  const resolved: number = @value ?? 0",
+  "  point P = coordinate(",
+  "    x: @resolved,",
+  "    y: 10,",
+  "  )",
   "}",
   "",
   "instance Absent = M()",
@@ -138,14 +137,13 @@ describe("Rust-first Module conditional set runtime", () => {
     expect(fixture.compiled?.diagnostics).toEqual([]);
     expect(fixture.compiled?.bindingIssueDiagnostics ?? []).toEqual([]);
     expect(input.bindingVersions).toBeDefined();
-    expect(input.conditionExpressions).toBeDefined();
     expect(rustPayload.errors).toEqual([]);
     expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
 
     const result = evaluationPayloadToResult(rustPayload);
     const points = fixture.elements.filter((element) => element.name === "P");
     expect(points).toHaveLength(2);
-    expect(result.computedGeometry.get(points[0].id)).toBeUndefined();
+    expect(result.computedGeometry.get(points[0].id)).toMatchObject({ kind: "point", x: 0, y: 10 });
     expect(result.computedGeometry.get(points[1].id)).toMatchObject({ kind: "point", x: 30, y: 10 });
   }, 30000);
 

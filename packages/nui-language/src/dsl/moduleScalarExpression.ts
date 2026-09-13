@@ -7,9 +7,10 @@ import type {
   ScalarExpressionResolvedGeometryProperty,
   ScalarExpressionResolvedGeometryTarget,
   ScalarExpressionResolvedReference,
-  ScalarExpressionResolvedCollectionIndex
+  ScalarExpressionResolvedCollectionIndex,
+  ScalarExpressionResolvedOptionalMember
 } from "../scalars/typedExpressionAst";
-import type { ScalarType } from "../scalars/types";
+import type { ScalarExpressionType, ScalarType } from "../scalars/types";
 import type { DslDiagnosticPresentation } from "./dslTypes";
 import type { ModuleGeometryInterfaceType } from "./moduleGeometryInterfaces";
 import type {
@@ -19,81 +20,12 @@ import type {
   ModuleGeometryReferenceSemantic,
   ModuleRecordFieldSourceTarget,
   ModuleScalarExpressionSemantic,
+  ModuleOptionalMemberReference,
   ModuleScalarReference,
   ModuleSourceTarget
 } from "./moduleSemanticTypes";
 import { unwrapModuleGeometrySourceTarget } from "./moduleSemanticTypes";
-
-export const moduleParameterPresenceKey = (definitionStatementId: string, parameterIndex: number) =>
-  `${definitionStatementId}:${parameterIndex}`;
-
-type PresenceFactBranch = "truth" | "false";
-
-const unionPresenceFacts = (...factSets: readonly ReadonlySet<string>[]): ReadonlySet<string> =>
-  new Set(factSets.flatMap((facts) => [...facts]));
-
-const intersectPresenceFacts = (left: ReadonlySet<string>, right: ReadonlySet<string>): ReadonlySet<string> =>
-  new Set([...left].filter((fact) => right.has(fact)));
-
-const presenceFactsForResolvedAst = (
-  ast: ScalarExpressionAst,
-  hasValueKeyBySpan: ReadonlyMap<number, string>,
-  branch: PresenceFactBranch
-): ReadonlySet<string> => {
-  const intrinsicKey = (ast.kind === "booleanLiteral" || (ast.kind === "call" && ast.name === "hasValue"))
-    ? hasValueKeyBySpan.get(ast.span.start)
-    : undefined;
-  if (intrinsicKey) return branch === "truth" ? new Set([intrinsicKey]) : new Set();
-  if (ast.kind === "group") return presenceFactsForResolvedAst(ast.expression, hasValueKeyBySpan, branch);
-  if (ast.kind === "call" && ast.name === "hasValue") {
-    const key = hasValueKeyBySpan.get(ast.span.start);
-    return key && branch === "truth" ? new Set([key]) : new Set();
-  }
-  if (ast.kind === "unary" && ast.operator === "!") {
-    return presenceFactsForResolvedAst(ast.operand, hasValueKeyBySpan, branch === "truth" ? "false" : "truth");
-  }
-  if (ast.kind === "binary" && ast.operator === "&&") {
-    const leftTruth = presenceFactsForResolvedAst(ast.left, hasValueKeyBySpan, "truth");
-    const leftFalse = presenceFactsForResolvedAst(ast.left, hasValueKeyBySpan, "false");
-    const rightTruth = presenceFactsForResolvedAst(ast.right, hasValueKeyBySpan, "truth");
-    const rightFalse = presenceFactsForResolvedAst(ast.right, hasValueKeyBySpan, "false");
-    return branch === "truth"
-      ? unionPresenceFacts(leftTruth, rightTruth)
-      : intersectPresenceFacts(leftFalse, unionPresenceFacts(leftTruth, rightFalse));
-  }
-  if (ast.kind === "binary" && ast.operator === "||") {
-    const leftTruth = presenceFactsForResolvedAst(ast.left, hasValueKeyBySpan, "truth");
-    const leftFalse = presenceFactsForResolvedAst(ast.left, hasValueKeyBySpan, "false");
-    const rightTruth = presenceFactsForResolvedAst(ast.right, hasValueKeyBySpan, "truth");
-    const rightFalse = presenceFactsForResolvedAst(ast.right, hasValueKeyBySpan, "false");
-    return branch === "false"
-      ? unionPresenceFacts(leftFalse, rightFalse)
-      : intersectPresenceFacts(leftTruth, unionPresenceFacts(leftFalse, rightTruth));
-  }
-  return new Set();
-};
-
-const emptyPresenceFactKeys = new Map<number, string>();
-
-export const presenceFactsForTruth = (ast: ScalarExpressionAst): ReadonlySet<string> =>
-  presenceFactsForResolvedAst(ast, emptyPresenceFactKeys, "truth");
-
-export const presenceFactsForFalse = (ast: ScalarExpressionAst): ReadonlySet<string> =>
-  presenceFactsForResolvedAst(ast, emptyPresenceFactKeys, "false");
-
-export const presenceFactsForSemanticTruth = (semantic: ModuleScalarExpressionSemantic): ReadonlySet<string> =>
-  presenceFactsForResolvedAst(
-    semantic.ast,
-    new Map(semantic.hasValueParameters.map((entry) => [entry.span.start, moduleParameterPresenceKey(entry.definitionStatementId, entry.parameterIndex)])),
-    "truth"
-  );
-
-export const presenceFactsForSemanticFalse = (semantic: ModuleScalarExpressionSemantic): ReadonlySet<string> =>
-  presenceFactsForResolvedAst(
-    semantic.ast,
-    new Map(semantic.hasValueParameters.map((entry) => [entry.span.start, moduleParameterPresenceKey(entry.definitionStatementId, entry.parameterIndex)])),
-    "false"
-  );
+import { isDslGeometryValueType } from "./dslValueTypes";
 
 export type ModuleGeometryPropertyReferenceInput = {
   elementName: string;
@@ -101,7 +33,20 @@ export type ModuleGeometryPropertyReferenceInput = {
   elementNameSpan: DslSpan;
   propertySpan: DslSpan;
   span: DslSpan;
-  presenceFacts?: ReadonlySet<string>;
+  occurrenceIndex?: ScalarExpressionAst;
+  occurrenceIndexSpan?: DslSpan;
+  occurrenceRange?: DslSpan;
+  /** Optional chaining may traverse the one general optional wrapper while
+   * ordinary `.` access remains non-unwrapping. */
+  allowOptionalTraversal?: boolean;
+};
+
+export type ModuleOptionalMemberReferenceInput = {
+  member: string;
+  receiver: ScalarExpressionAst;
+  span: DslSpan;
+  receiverSpan: DslSpan;
+  memberSpan: DslSpan;
 };
 
 export type ModuleScalarLocalDiagnostic = {
@@ -115,7 +60,7 @@ export type ModuleScalarLocalDiagnostic = {
 
 export type ModuleScalarReferenceResolution = {
   target: ModuleSourceTarget | null;
-  type: ScalarType | null;
+  type: ScalarExpressionType | null;
   resolution: ModuleScalarReference["resolution"];
   diagnostic?: ModuleScalarLocalDiagnostic;
 };
@@ -128,7 +73,7 @@ export type ModuleCollectionIndexReferenceResolution = ModuleScalarReferenceReso
 
 export type ModuleGeometryPropertyReferenceResolution = {
   target: ModuleGeometryPropertySourceTarget | ModuleRecordFieldSourceTarget | null;
-  type: ScalarType | null;
+  type: ScalarExpressionType | null;
   resolution: ModuleGeometryPropertyReference["resolution"];
   diagnostic?: ModuleScalarLocalDiagnostic;
 };
@@ -139,7 +84,6 @@ export type ModuleGeometryBuiltinReferenceInput = {
   name: string;
   span: DslSpan;
   expectedGeometryType: Extract<ModuleGeometryInterfaceType, "point" | "line">;
-  presenceFacts?: ReadonlySet<string>;
 };
 
 export type ModuleGeometryBuiltinReferenceResolver = (
@@ -154,14 +98,14 @@ const localIssue = (code: string, span: DslSpan, message: string, extra: Partial
   ...extra
 });
 
-const scalarTypeFromTarget = (target: ModuleSourceTarget, resolution: ModuleScalarReferenceResolution): ScalarType | null => {
+const scalarTypeFromTarget = (target: ModuleSourceTarget, resolution: ModuleScalarReferenceResolution): ScalarExpressionType | null => {
   if (target.kind === "parameter") return resolution.type;
   return resolution.type;
 };
 
 const geometryPropertyMetadataFor = (
   target: ModuleGeometryPropertySourceTarget,
-  type: ScalarType
+  type: ScalarExpressionType
 ): ScalarExpressionResolvedGeometryProperty => {
   if (target.kind === "collectionValueLength" || target.kind === "collectionParameterLength" || target.kind === "deferredModuleCollectionExportLength") {
     return {
@@ -198,6 +142,17 @@ const geometryPropertyMetadataFor = (
   if (target.kind === "geometryValueForBinder") {
     return { kind: "geometryValueForBinder", binderId: target.binderId, property: target.property, ...(target.pointKey ? { pointKey: target.pointKey } : {}), targetSourceOrder: target.statementIndex, type };
   }
+  if (target.kind === "forGroupOccurrenceProperty") {
+    return {
+      kind: "forGroupOccurrence",
+      templateElementId: target.statementId,
+      property: target.property,
+      targetSourceOrder: target.statementIndex,
+      index: null,
+      ...(target.pointKey ? { pointKey: target.pointKey } : {}),
+      type
+    };
+  }
   if (target.kind === "recordField") {
     throw new Error("moduleScalarExpression: record field properties are lowered as scalar references");
   }
@@ -210,20 +165,20 @@ const isBuiltinGeometryParameterType = (
 
 const resolveAndTypecheck = ({
   ast,
+  sourceText,
   expectedType,
   resolveReference,
   resolveCollectionIndex,
-  resolveHasValue,
   resolveBareReference,
   resolveGeometryProperty,
-  resolveGeometryBuiltin,
-  presenceFacts: initialPresenceFacts = new Set()
+  resolveOptionalMember,
+  resolveGeometryBuiltin
 }: {
   ast: ScalarExpressionAst;
-  expectedType: ScalarType | null;
-  resolveReference: (reference: { name: string; span: DslSpan }, presenceFacts?: ReadonlySet<string>) => ModuleScalarReferenceResolution;
-  resolveCollectionIndex?: (reference: { name: string; span: DslSpan }, presenceFacts?: ReadonlySet<string>) => ModuleCollectionIndexReferenceResolution;
-  resolveHasValue?: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution;
+  sourceText?: string;
+  expectedType: ScalarExpressionType | null;
+  resolveReference: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution;
+  resolveCollectionIndex?: (reference: { name: string; span: DslSpan }) => ModuleCollectionIndexReferenceResolution;
   resolveBareReference?: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution | null;
   resolveGeometryProperty?: (reference: {
     elementName: string;
@@ -231,45 +186,43 @@ const resolveAndTypecheck = ({
     elementNameSpan: DslSpan;
     propertySpan: DslSpan;
     span: DslSpan;
-    presenceFacts?: ReadonlySet<string>;
   }) => ModuleGeometryPropertyReferenceResolution;
+  resolveOptionalMember?: (reference: ModuleOptionalMemberReferenceInput) => ModuleOptionalMemberReference;
   resolveGeometryBuiltin?: ModuleGeometryBuiltinReferenceResolver;
-  presenceFacts?: ReadonlySet<string>;
 }): { semantic: ModuleScalarExpressionSemantic; diagnostics: ModuleScalarLocalDiagnostic[] } => {
   const diagnostics: ModuleScalarLocalDiagnostic[] = [];
   const resolvedReferences: ModuleScalarReference[] = [];
   const geometryProperties: ModuleGeometryPropertyReference[] = [];
   const geometryBuiltinArguments: ModuleGeometryBuiltinArgumentSemantic[] = [];
   const geometryPropertyReferences = new Map<number, ScalarExpressionResolvedGeometryProperty | null>();
+  const optionalMemberReferences = new Map<number, ScalarExpressionResolvedOptionalMember | null>();
+  const optionalMembers: ModuleOptionalMemberReference[] = [];
   const resolvedTypes: ScalarExpressionResolvedReference[] = [];
   const resolvedChoiceTypes = new Map<number, ScalarType>();
-  const hasValueParameters: { span: DslSpan; definitionStatementId: string; parameterIndex: number }[] = [];
   let invalidGeometryProperty = false;
 
-  const resolveNodeReference = (node: Extract<ScalarExpressionAst, { kind: "reference" }>, presenceFacts: ReadonlySet<string>): ScalarType | null => {
+  const resolveNodeReference = (node: Extract<ScalarExpressionAst, { kind: "reference" }>): ScalarExpressionType | null => {
     const found = { name: node.name, span: node.span };
-    const resolution = resolveReference(found, presenceFacts);
+    const resolution = resolveReference(found);
     resolvedReferences.push({ ...found, nameSpan: node.nameSpan, target: resolution.target, resolution: resolution.resolution });
     if (resolution.diagnostic) diagnostics.push(resolution.diagnostic);
     resolvedTypes.push({ kind: "resolvedType", bindingId: null, type: resolution.target ? scalarTypeFromTarget(resolution.target, resolution) : null });
     return resolution.target ? scalarTypeFromTarget(resolution.target, resolution) : null;
   };
 
-  const presenceFactsFor = (node: ScalarExpressionAst, branch: "truth" | "false"): ReadonlySet<string> =>
-    presenceFactsForResolvedAst(node, new Map(hasValueParameters.map((entry) => [entry.span.start, moduleParameterPresenceKey(entry.definitionStatementId, entry.parameterIndex)])), branch);
-
-  const resolve = (node: ScalarExpressionAst, presenceFacts: ReadonlySet<string> = new Set()): ScalarExpressionAst => {
+  const resolve = (node: ScalarExpressionAst, boundNames: ReadonlySet<string> = new Set()): ScalarExpressionAst => {
     switch (node.kind) {
       case "numberLiteral":
       case "stringLiteral":
       case "booleanLiteral":
+      case "noneLiteral":
         return node;
       case "unresolvedChoiceLiteral": {
         const bareReference = resolveBareReference?.({ name: node.raw, span: node.span });
         if (bareReference?.diagnostic) diagnostics.push(bareReference.diagnostic);
         if (bareReference?.target && bareReference.type) {
           resolvedReferences.push({ name: node.raw, nameSpan: node.span, span: node.span, target: bareReference.target, resolution: bareReference.resolution });
-          resolvedChoiceTypes.set(node.span.start, bareReference.type);
+          if (bareReference.type.kind !== "optional") resolvedChoiceTypes.set(node.span.start, bareReference.type);
           if (bareReference.type.kind === "number") return { kind: "numberLiteral", span: node.span, value: 0 };
           if (bareReference.type.kind === "string") return { kind: "stringLiteral", span: node.span, value: "" };
           if (bareReference.type.kind === "boolean") return { kind: "booleanLiteral", span: node.span, value: false };
@@ -280,20 +233,22 @@ const resolveAndTypecheck = ({
         // normal typed scalar initializer. This keeps choice identity/order
         // in the common Module scalar owner without inventing a binder target
         // for a literal.
-        if (expectedType?.kind === "choice" && expectedType.options.includes(node.raw)) {
-          resolvedChoiceTypes.set(node.span.start, expectedType);
+        const expectedChoiceType = expectedType?.kind === "optional" ? expectedType.valueType : expectedType;
+        if (expectedChoiceType?.kind === "choice" && expectedChoiceType.options.includes(node.raw)) {
+          resolvedChoiceTypes.set(node.span.start, expectedChoiceType);
         }
         return node;
       }
       case "reference":
-        resolveNodeReference(node, presenceFacts);
+        if (!boundNames.has(node.name)) resolveNodeReference(node);
         return node;
       case "collectionIndex": {
+        if (boundNames.has(node.name)) return { ...node, index: resolve(node.index, boundNames) };
         const base = { name: node.name, span: { start: node.span.start, end: node.nameSpan.end + 1 } };
         const resolution = resolveCollectionIndex
-          ? resolveCollectionIndex(base, presenceFacts)
+          ? resolveCollectionIndex(base)
           : {
-              ...resolveReference(base, presenceFacts),
+              ...resolveReference(base),
               collectionValueId: null,
               collectionLength: null,
               targetSourceOrder: null
@@ -317,27 +272,10 @@ const resolveAndTypecheck = ({
           type: resolution.type
         };
         resolvedTypes.push(resolvedIndex);
-        resolve(node.index, presenceFacts);
+        resolve(node.index, boundNames);
         return node;
       }
       case "call": {
-        if (node.name === "hasValue" && resolveHasValue) {
-          const argument = node.args.length === 1 && node.args[0]?.kind === "positional" ? node.args[0].expression : null;
-          if (argument?.kind === "reference") {
-            const resolution = resolveHasValue({ name: argument.name, span: argument.span });
-            resolvedReferences.push({ name: argument.name, span: argument.span, nameSpan: argument.nameSpan, target: resolution.target, resolution: resolution.resolution });
-            if (resolution.diagnostic) diagnostics.push(resolution.diagnostic);
-            const target = resolution.target;
-            if (target?.kind === "parameter" && !resolution.diagnostic) {
-              hasValueParameters.push({ span: node.span, definitionStatementId: target.definitionStatementId, parameterIndex: target.parameterIndex });
-              return { kind: "booleanLiteral", span: node.span, value: false };
-            }
-            return { kind: "booleanLiteral", span: node.span, value: false };
-          } else {
-            diagnostics.push(localIssue("module-has-value-argument", node.span, "hasValue は optional module parameter の参照を1つだけ受け取ります。"));
-            return { kind: "booleanLiteral", span: node.span, value: false };
-          }
-        }
         const definition = getBuiltinFunctionDefinition(node.name);
         const signature = definition?.signatures.find((candidate) =>
           candidate.callingStyle === "positional" &&
@@ -354,16 +292,17 @@ const resolveAndTypecheck = ({
               signature &&
               parameterType !== undefined &&
               isBuiltinGeometryParameterType(parameterType) &&
-              (sourceArgument.kind === "reference" || sourceArgument.kind === "geometryProperty") &&
+              (sourceArgument.kind === "reference" || sourceArgument.kind === "collectionIndex" || sourceArgument.kind === "geometryProperty") &&
               resolveGeometryBuiltin
             ) {
               const reference = resolveGeometryBuiltin({
                 builtinName: definition.name,
                 argumentIndex,
-                name: sourceArgument.kind === "reference" ? sourceArgument.name : `${sourceArgument.elementName}.${sourceArgument.property}`,
+                name: sourceArgument.kind === "reference"
+                  ? sourceArgument.name
+                  : sourceText?.slice(sourceArgument.span.start, sourceArgument.span.end) ?? (sourceArgument.kind === "collectionIndex" ? sourceArgument.name : `${sourceArgument.elementName}.${sourceArgument.property}`),
                 span: sourceArgument.span,
-                expectedGeometryType: parameterType,
-                presenceFacts
+                expectedGeometryType: parameterType
               });
               geometryBuiltinArguments.push({
                 builtinName: definition.name,
@@ -372,7 +311,9 @@ const resolveAndTypecheck = ({
                 expectedGeometryType: parameterType,
                 reference
               });
-              if (sourceArgument.kind === "reference") {
+              if (sourceArgument.kind === "collectionIndex") resolve(sourceArgument.index, boundNames);
+              if (sourceArgument.kind === "geometryProperty" && sourceArgument.occurrenceIndex) resolve(sourceArgument.occurrenceIndex, boundNames);
+              if (sourceArgument.kind === "reference" || sourceArgument.kind === "collectionIndex") {
                 resolvedTypes.push({
                   kind: "resolvedGeometry",
                   target: typecheckGeometryTarget(reference, parameterType)
@@ -380,9 +321,27 @@ const resolveAndTypecheck = ({
               }
               return argument;
             }
-            return { ...argument, expression: resolve(sourceArgument, presenceFacts) };
+            return { ...argument, expression: resolve(sourceArgument, boundNames) };
           })
         };
+      }
+      case "optionalMember": {
+        const resolution = resolveOptionalMember?.({
+          member: node.member,
+          receiver: node.receiver,
+          span: node.span,
+          receiverSpan: node.receiver.span,
+          memberSpan: node.memberSpan
+        });
+        if (resolution) {
+          optionalMembers.push(resolution);
+          optionalMemberReferences.set(node.span.start, {
+            receiverType: resolution.receiverType,
+            memberType: resolution.memberType,
+            target: null
+          });
+        }
+        return node;
       }
       case "geometryProperty":
         if (!resolveGeometryProperty) {
@@ -399,8 +358,11 @@ const resolveAndTypecheck = ({
             elementNameSpan: node.elementNameSpan,
             propertySpan: node.propertySpan,
             span: node.span,
-            presenceFacts
+            ...(node.occurrenceIndex ? { occurrenceIndex: node.occurrenceIndex } : {}),
+            ...(node.occurrenceIndexSpan ? { occurrenceIndexSpan: node.occurrenceIndexSpan } : {}),
+            ...(node.occurrenceRange ? { occurrenceRange: node.occurrenceRange } : {})
           });
+          if (node.occurrenceIndex) resolve(node.occurrenceIndex, boundNames);
           geometryProperties.push({
             geometryName: node.elementName,
             property: node.property,
@@ -439,34 +401,31 @@ const resolveAndTypecheck = ({
           if (!resolution.target) invalidGeometryProperty = true;
           return node;
         }
-      case "group": return { ...node, expression: resolve(node.expression, presenceFacts) };
-      case "unary": return { ...node, operand: resolve(node.operand, presenceFacts) };
+      case "group": return { ...node, expression: resolve(node.expression, boundNames) };
+      case "unary": return { ...node, operand: resolve(node.operand, boundNames) };
       case "valueIf": {
-        const condition = resolve(node.condition, presenceFacts);
-        const thenFacts = presenceFactsFor(condition, "truth");
-        const elseFacts = presenceFactsFor(condition, "false");
+        const condition = resolve(node.condition, boundNames);
         return {
           ...node,
           condition,
-          thenBranch: resolve(node.thenBranch, new Set([...presenceFacts, ...thenFacts])),
-          elseBranch: resolve(node.elseBranch, new Set([...presenceFacts, ...elseFacts]))
+          thenBranch: resolve(node.thenBranch, boundNames),
+          elseBranch: node.elseBranch ? resolve(node.elseBranch, boundNames) : null
         };
       }
       case "valueMatch":
         return {
           ...node,
-          scrutinee: resolve(node.scrutinee, presenceFacts),
-          arms: node.arms.map((arm) => ({ ...arm, expression: resolve(arm.expression, presenceFacts) }))
+          scrutinee: resolve(node.scrutinee, boundNames),
+          arms: node.arms.map((arm) => ({ ...arm, expression: resolve(arm.expression, arm.binder ? new Set([...boundNames, arm.binder]) : boundNames) }))
         };
       case "binary": {
-        const left = resolve(node.left, presenceFacts);
-        const leftFacts = node.operator === "&&" ? presenceFactsFor(left, "truth") : node.operator === "||" ? presenceFactsFor(left, "false") : new Set<string>();
-        return { ...node, left, right: resolve(node.right, new Set([...presenceFacts, ...leftFacts])) };
+        const left = resolve(node.left, boundNames);
+        return { ...node, left, right: resolve(node.right, boundNames) };
       }
     }
   };
 
-  const resolvedAst = resolve(ast, initialPresenceFacts);
+  const resolvedAst = resolve(ast);
   const geometryBuiltinArgumentTargets = new Map<number, ScalarExpressionResolvedGeometryTarget | null>();
   for (const occurrence of geometryBuiltinArguments) {
     geometryBuiltinArgumentTargets.set(
@@ -479,6 +438,7 @@ const resolveAndTypecheck = ({
     references: resolvedTypes,
     geometryBuiltinArguments: geometryBuiltinArgumentTargets,
     geometryPropertyReferences,
+    optionalMemberReferences,
     resolveChoiceLiteral: (_raw, _expected, span) => resolvedChoiceTypes.get(span.start)
   });
   for (const diagnostic of checked.diagnostics) {
@@ -509,7 +469,7 @@ const resolveAndTypecheck = ({
     ));
   }
   const type = diagnostics.length === 0 && !invalidGeometryProperty ? checked.type : null;
-  return { semantic: { ast, type, references: resolvedReferences, geometryProperties, geometryBuiltinArguments, hasValueParameters }, diagnostics };
+  return { semantic: { ast, type, references: resolvedReferences, geometryProperties, optionalMembers, geometryBuiltinArguments }, diagnostics };
 };
 
 const typecheckGeometryTarget = (
@@ -549,6 +509,68 @@ const typecheckGeometryTarget = (
   if (target.kind === "geometryValueForBinder") {
     return { kind: "geometryValueForBinder", binderId: target.binderId, statementId: target.statementId, statementIndex: target.statementIndex, geometryType: expectedGeometryType, ...(pointKey ? { pointKey } : {}) };
   }
+  if (target.kind === "forGroupOccurrence") {
+    return {
+      kind: "forGroupOccurrence",
+      templateElementId: target.statementId,
+      statementId: target.statementId,
+      statementIndex: target.statementIndex,
+      targetSourceOrder: target.statementIndex,
+      index: null,
+      geometryType: expectedGeometryType,
+      ...(pointKey ? { pointKey } : {})
+    };
+  }
+  if (target.kind === "recordFieldValue") {
+    if (target.record.kind === "recordValue") {
+      return {
+        statementId: target.record.statementId,
+        statementIndex: target.record.statementIndex,
+        geometryType: isDslGeometryValueType(target.valueType)
+          ? target.valueType.kind
+          : expectedGeometryType,
+        ...(pointKey ? { pointKey } : {})
+      };
+    }
+    if (target.record.kind === "recordParameter") {
+      return {
+        statementId: target.record.definitionStatementId,
+        statementIndex: -1,
+        geometryType: isDslGeometryValueType(target.valueType)
+          ? target.valueType.kind
+          : expectedGeometryType,
+        ...(pointKey ? { pointKey } : {})
+      };
+    }
+    if (target.record.kind === "recordCollectionIndex") {
+      return {
+        statementId: target.record.collectionValueId,
+        statementIndex: target.record.targetSourceOrder,
+        geometryType: isDslGeometryValueType(target.valueType)
+          ? target.valueType.kind
+          : expectedGeometryType,
+        ...(pointKey ? { pointKey } : {})
+      };
+    }
+    if (target.record.kind === "recordValueForBinder") {
+      return {
+        statementId: target.record.statementId,
+        statementIndex: target.record.statementIndex,
+        geometryType: isDslGeometryValueType(target.valueType)
+          ? target.valueType.kind
+          : expectedGeometryType,
+        ...(pointKey ? { pointKey } : {})
+      };
+    }
+    return {
+      statementId: target.record.instanceStatementId,
+      statementIndex: target.record.instanceStatementIndex,
+      geometryType: isDslGeometryValueType(target.valueType)
+        ? target.valueType.kind
+        : expectedGeometryType,
+      ...(pointKey ? { pointKey } : {})
+    };
+  }
   if (target.kind === "collectionIndex") return null;
   return {
     statementId: target.instanceStatementId,
@@ -564,40 +586,39 @@ export const parseAndCheckModuleScalarExpression = ({
   expectedType,
   resolveReference,
   resolveCollectionIndex,
-  resolveHasValue,
   resolveBareReference,
   resolveGeometryProperty,
+  resolveOptionalMember,
   resolveGeometryBuiltin,
-  presenceFacts,
   diagnostics
 }: {
   raw: string;
   span: DslSpan;
-  expectedType: ScalarType | null;
-  resolveReference: (reference: { name: string; span: DslSpan }, presenceFacts?: ReadonlySet<string>) => ModuleScalarReferenceResolution;
-  resolveCollectionIndex?: (reference: { name: string; span: DslSpan }, presenceFacts?: ReadonlySet<string>) => ModuleCollectionIndexReferenceResolution;
-  resolveHasValue?: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution;
+  expectedType: ScalarExpressionType | null;
+  resolveReference: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution;
+  resolveCollectionIndex?: (reference: { name: string; span: DslSpan }) => ModuleCollectionIndexReferenceResolution;
   resolveBareReference?: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution | null;
   resolveGeometryProperty?: (reference: ModuleGeometryPropertyReferenceInput) => ModuleGeometryPropertyReferenceResolution;
+  resolveOptionalMember?: (reference: ModuleOptionalMemberReferenceInput) => ModuleOptionalMemberReference;
   resolveGeometryBuiltin?: ModuleGeometryBuiltinReferenceResolver;
-  presenceFacts?: ReadonlySet<string>;
   diagnostics: ModuleScalarLocalDiagnostic[];
 }): ModuleScalarExpressionSemantic | null => {
-  const parsed = parseScalarExpression(`${" ".repeat(span.start)}${raw}`, span);
+  const sourceText = `${" ".repeat(span.start)}${raw}`;
+  const parsed = parseScalarExpression(sourceText, span);
   if (!parsed.ast) {
     diagnostics.push(...parsed.diagnostics.map((item) => localIssue(`module-${item.code}`, item.span, item.message)));
     return null;
   }
   const checked = resolveAndTypecheck({
     ast: parsed.ast,
+    sourceText,
     expectedType,
     resolveReference,
     resolveCollectionIndex,
-    resolveHasValue,
     resolveBareReference,
     resolveGeometryProperty,
-    resolveGeometryBuiltin,
-    presenceFacts
+    resolveOptionalMember,
+    resolveGeometryBuiltin
   });
   diagnostics.push(...checked.diagnostics);
   return checked.semantic;

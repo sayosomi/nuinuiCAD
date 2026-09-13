@@ -26,10 +26,11 @@ const FIXTURE_JSON: &str = include_str!(concat!(
     "/../test/fixtures/typed-expressions.json"
 ));
 
-const AST_NODE_KINDS: [&str; 11] = [
+const AST_NODE_KINDS: [&str; 12] = [
     "numberLiteral",
     "stringLiteral",
     "booleanLiteral",
+    "noneLiteral",
     "choiceLiteral",
     "reference",
     "unary",
@@ -474,12 +475,12 @@ fn decodes_builtin_call_and_preserves_nested_argument_order_and_references() {
             assert!(matches!(
                 &args[0],
                 TypedBuiltinArgument::Scalar { expression }
-                    if matches!(expression, TypedScalarExpression::Call { .. })
+                    if matches!(&**expression, TypedScalarExpression::Call { .. })
             ));
             assert!(matches!(
                 &args[1],
                 TypedBuiltinArgument::Scalar { expression }
-                    if matches!(expression, TypedScalarExpression::GeometryProperty { .. })
+                    if matches!(&**expression, TypedScalarExpression::GeometryProperty { .. })
             ));
         }
         other => panic!("expected a call node, got {other:?}"),
@@ -564,7 +565,7 @@ fn decodes_scalar_wrapper_arguments() {
     assert!(matches!(
         &args[0],
         TypedBuiltinArgument::Scalar { expression }
-            if matches!(expression, TypedScalarExpression::NumberLiteral { .. })
+            if matches!(&**expression, TypedScalarExpression::NumberLiteral { .. })
     ));
 }
 

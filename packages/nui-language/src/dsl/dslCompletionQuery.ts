@@ -6,6 +6,7 @@ import {
   type DslCompletionContext,
   type DslGeometryReferenceKind
 } from "./dslCompletionContext";
+import { isDslOptionalValueType } from "./dslValueTypes";
 import { dslStatementElementType } from "./dslCompletionMetadata";
 import {
   dslCallAuthoringContextAt,
@@ -78,6 +79,7 @@ import { formatDslName } from "./dslTokens";
 import { createModifierAuthoringIndex } from "./dslModifierAuthoringIndex";
 import { collectionValueSemanticForStatement } from "./geometryArraySemanticAnalysis";
 import { exactPhysicalSpan } from "./dslDiagnosticSpan";
+import type { TransformationRecipe } from "./transformationRecipes";
 
 export type DslCompletionCandidateKind =
   | "keyword"
@@ -93,7 +95,7 @@ export type DslCompletionCandidateKind =
   | "builtin"
   | "literal"
   | "operator"
-  | "modifier";
+  | "style";
 
 /** Host-neutral semantic completion data. `label` is a semantic name or
  * spelling; adapters decide whether to add `@`, `: `, `(`, or any other host
@@ -238,7 +240,7 @@ const recoveredModuleStatementAt = (
     name: parameter.name,
     type: parameter.type,
     recordTypeIdentity: recovery.lastGoodCompiled.moduleSemanticAnalysis?.definitionsByStatementId.get(definitionStatementId)?.parameters[parameterIndex]?.recordTypeIdentity ?? null,
-    optional: parameter.optional,
+    optional: isDslOptionalValueType(parameter.valueType),
     definitionStatementId: liveCallee.declaration.statementId,
     parameterIndex,
     ...(lastGoodDefinition?.identity ? { definitionIdentity: lastGoodDefinition.identity } : {})
@@ -274,7 +276,7 @@ const currentModuleDefinitionParametersAt = (
       name: parameter.name,
       type: parameter.type,
       recordTypeIdentity: parameter.recordTypeIdentity,
-      optional: parameter.optional,
+      optional: isDslOptionalValueType(parameter.valueType),
       definitionStatementId: parameter.definitionStatementId,
       parameterIndex: parameter.parameterIndex,
       ...(parameter.definitionIdentity ? { definitionIdentity: parameter.definitionIdentity } : {})
@@ -301,7 +303,7 @@ const currentModuleDefinitionParametersAt = (
     recordTypeIdentity: definition.kind === "moduleDefinition"
       ? compiled.moduleSemanticAnalysis?.definitionsByStatementId.get(lookup.declaration.statementId)?.parameters[parameterIndex]?.recordTypeIdentity ?? null
       : null,
-    optional: parameter.optional,
+    optional: isDslOptionalValueType(parameter.valueType),
     definitionStatementId: lookup.declaration.statementId,
     parameterIndex
   }));
@@ -466,6 +468,74 @@ const sourceGeometryQualifiedMembers = (
       declaration.statement,
       expectedGeometryKind
     ));
+};
+
+const transformationRecipesFor = (
+  compiled: CompiledDslDocument,
+  statementIndex: number
+): readonly TransformationRecipe[] => (compiled.transformationRecipes ?? compiled.document?.transformationRecipes ?? [])
+  .filter((recipe) => recipe.sourceStatementIndex < statementIndex);
+
+const targetBaseForStage = (target: TransformationRecipe["targets"][number]): string => {
+  const source = target.canonical.slice(1);
+  return target.endpointKey ? source.slice(0, source.length - target.endpointKey.length - 1) : source;
+};
+
+const transformationStageCandidates = (
+  compiled: CompiledDslDocument,
+  statementIndex: number,
+  base: string | null,
+  suffixOnly: boolean
+): DslCompletionCandidate[] => {
+  const candidates: DslCompletionCandidate[] = [];
+  const add = (label: string, identity: string) => {
+    if (!label) return;
+    candidates.push({ kind: "geometry", label, identity, sourceText: label });
+  };
+  for (const recipe of transformationRecipesFor(compiled, statementIndex)) {
+    for (const target of recipe.targets) {
+      const targetBase = targetBaseForStage(target);
+      const branch = target.stagePath.length > 0 ? `${targetBase}.${target.stagePath.join(".")}` : targetBase;
+      if (recipe.stageName) {
+        const full = `${branch}.${recipe.stageName}`;
+        if (base === null || full.startsWith(base)) {
+          add(suffixOnly && full.startsWith(`${base ?? ""}.`) ? full.slice((base ?? "").length + 1) : full,
+            `${recipe.id}:stage:${full}`);
+        }
+      }
+      if (base === null || branch === base || branch.startsWith(`${base ?? ""}.`)) {
+        add(suffixOnly && base !== null && branch.startsWith(`${base}.`) ? branch.slice(base.length + 1) : branch,
+          `${recipe.id}:branch:${branch}`);
+        add("final", `${recipe.id}:final:${branch}`);
+      }
+    }
+  }
+  if (base !== null) {
+    add("base", `base:${base}`);
+    add("final", `final:${base}`);
+  }
+  return uniqueCandidates(candidates);
+};
+
+const transformationTargetCandidates = (
+  compiled: CompiledDslDocument,
+  statementIndex: number,
+  operation: string,
+  sourcePrefix: string
+): DslCompletionCandidate[] => {
+  const kind: DslGeometryReferenceKind = operation === "edge" || operation === "extend"
+    ? "lineEndpointReference"
+    : "lineReference";
+  const suffixOnly = /\.$/.test(sourcePrefix);
+  const basePrefix = suffixOnly ? sourcePrefix.slice(0, -1) : sourcePrefix;
+  const geometry = sourceGeometryDeclarations(compiled, statementIndex, kind).map((candidate) => {
+    const label = suffixOnly && candidate.label.startsWith(`${basePrefix}.`)
+      ? candidate.label.slice(basePrefix.length + 1)
+      : candidate.label;
+    return { ...candidate, label, sourceText: label };
+  });
+  const stages = transformationStageCandidates(compiled, statementIndex, suffixOnly ? basePrefix : null, suffixOnly);
+  return uniqueCandidates([...geometry, ...stages]);
 };
 
 const sourceGeometryPropertyCandidates = (
@@ -961,17 +1031,32 @@ const queryCandidates = (
   }
   if (context.kind === "modifierReference") {
     return (compiled ? createModifierAuthoringIndex(compiled).definitions : []).map((definition) =>
-      ({ kind: "modifier" as const, label: definition.name, sourceText: formatDslName(definition.name) })
+      ({ kind: "style" as const, label: definition.name, sourceText: formatDslName(definition.name) })
     );
   }
   if (context.kind === "modifierProfile") {
     return (compiled?.statements ?? []).flatMap((statement) => statement.kind === "profileDeclaration" && statement.name
-      ? [{ kind: "modifier" as const, label: statement.name, sourceText: formatDslName(statement.name) }]
+      ? [{ kind: "style" as const, label: statement.name, sourceText: formatDslName(statement.name) }]
       : []);
   }
   if (context.kind === "construction") return constructionCompletionCandidates(context.category).map((candidate) => ({ kind: "construction" as const, label: candidate.label, detail: candidate.detail, identity: candidate.label }));
   if (context.kind === "geometryValueInitializer") return pureGeometryValueConstructionCandidates(context.declaredType).map((candidate) => ({ kind: "construction" as const, label: candidate.label, detail: candidate.detail, identity: candidate.label }));
   if (context.kind === "argument") return argumentCompletionCandidates(context.spec, context.usedArgumentNames).map((candidate) => ({ kind: "argumentName" as const, label: candidate.label, detail: candidate.detail, identity: candidate.label }));
+  if (context.kind === "transformationAs") return [{ kind: "keyword" as const, label: "as", identity: "as", sourceText: "as" }];
+  if (context.kind === "transformationStageName") {
+    if (!compiled || !exact || statementIndex < 0) return [];
+    return transformationStageCandidates(compiled, statementIndex, null, false)
+      .map((candidate) => ({ ...candidate, label: candidate.label.split(".").at(-1) ?? candidate.label, sourceText: candidate.label.split(".").at(-1) ?? candidate.label }));
+  }
+  if (context.kind === "transformationTarget") {
+    if (!compiled || !exact || statementIndex < 0) return [];
+    const sourcePrefix = input.lineText.slice(context.operation.length, context.from).trimStart();
+    return transformationTargetCandidates(compiled, statementIndex, context.operation, sourcePrefix);
+  }
+  if (context.kind === "transformationStageReference") {
+    if (!compiled || !exact || statementIndex < 0) return [];
+    return transformationStageCandidates(compiled, statementIndex, context.base, true);
+  }
   if (context.kind === "declaredType") {
     const names = context.bindingKind === "const"
       ? dslTypedDeclarationTypeNames
@@ -1033,18 +1118,27 @@ const queryCandidates = (
     if (qualifiedRecordCandidates.length > 0) return qualifiedRecordCandidates.map(moduleCandidate);
     if (isInsideModuleSemanticStatement(compiled, position)) {
       const moduleRecordCandidates = moduleRecordFieldCompletions(compiled, statementIndex, context.elementToken, {
+        compiled,
+        cursorPosition: position,
+        kind: "qualifiedMember",
         sourceOrderIndex: statementIndex,
         liveStatementText: input.lineText,
         logicalCursorPosition: input.localPosition
       });
       if (moduleRecordCandidates.length > 0) return moduleRecordCandidates.map(moduleCandidate);
       const moduleCollectionCandidates = moduleCollectionLengthCandidates(compiled, statementIndex, context.elementToken, {
+        compiled,
+        cursorPosition: position,
+        kind: "qualifiedMember",
         sourceOrderIndex: statementIndex,
         liveStatementText: input.lineText,
         logicalCursorPosition: input.localPosition
       });
       if (moduleCollectionCandidates.length > 0) return moduleCollectionCandidates.map(moduleCandidate);
       const moduleGeometryCandidates = moduleGeometryPropertyCandidates(compiled, statementIndex, context.elementToken, {
+        compiled,
+        cursorPosition: position,
+        kind: "qualifiedMember",
         sourceOrderIndex: statementIndex,
         liveStatementText: input.lineText,
         logicalCursorPosition: input.localPosition

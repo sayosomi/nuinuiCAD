@@ -26,10 +26,10 @@ describe("DSL structural folding query", () => {
     ]);
   });
 
-  it("folds modifier blocks through generic opensBlock semantics", () => {
+  it("folds style blocks through generic opensBlock semantics", () => {
     expect(syntaxFoldsFor([
-      "modifier 元袖ぐり {",
-      "  state: hidden,",
+      "style 元袖ぐり {",
+      "  visible: false,",
       "}"
     ].join("\n"))).toEqual([
       { kind: "syntax", startLine: 1, endLine: 3 }

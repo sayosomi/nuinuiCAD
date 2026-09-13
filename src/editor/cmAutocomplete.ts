@@ -252,6 +252,15 @@ const asQueryCompletions = (
           : { label: candidate.label, apply: `@${candidate.label}`, type: "constant" };
     }
     if (candidate.kind === "geometry") {
+      if (result.context.kind === "transformationTarget") {
+        return { label: candidate.label, apply: candidate.sourceText ?? candidate.label, type: "constant" };
+      }
+      if (result.context.kind === "transformationStageReference") {
+        return { label: candidate.label, apply: candidate.sourceText ?? candidate.label, type: "constant" };
+      }
+      if (result.context.kind === "moduleQualifiedMember" && result.context.targetSyntax) {
+        return { label: candidate.label, apply: candidate.label, type: "constant" };
+      }
       return bareReferences
         ? { label: candidate.label, type: "constant" }
         : { label: candidate.label, apply: `@${candidate.label}`, type: "constant" };
@@ -1084,7 +1093,16 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
           return mergeCompletionCandidates(asScalarCompletions(existing), normalizeModuleScalarCompletions(module.candidates));
         })();
     }
-  } else if (completionContext.parameter.definition.kind === "choice") {
+  } else if (
+    completionContext.kind === "transformationTarget" ||
+    completionContext.kind === "transformationAs" ||
+    completionContext.kind === "transformationStageName" ||
+    completionContext.kind === "transformationStageReference"
+  ) {
+    completions = neutralCompletions;
+    usesNeutralQuery = neutralQuery !== null;
+    disablesCompletionFiltering = true;
+  } else if (completionContext.kind === "parameter" && completionContext.parameter.definition.kind === "choice") {
     // `sortText` only breaks ties among equally-scored matches (CodeMirror's
     // default compareCompletions falls back to alphabetical-by-label
     // otherwise, e.g. "left" before "right"), so declared order wins
@@ -1095,11 +1113,11 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
       type: "enum",
       sortText: String(index).padStart(4, "0")
     }));
-  } else if (completionContext.parameter.key === dslIntermediatesAttributeParameterKey) {
+  } else if (completionContext.kind === "parameter" && completionContext.parameter.key === dslIntermediatesAttributeParameterKey) {
     // Intermediates use the shared typed numeric source; do not offer
     // element-specific completion candidates here.
     completions = [];
-  } else if (completionContext.parameter.definition.kind === "number") {
+  } else if (completionContext.kind === "parameter" && completionContext.parameter.definition.kind === "number") {
     if (neutralQuery && neutralCompletions.length > 0 &&
       (!semanticInput.semantic || neutralSemanticIsCurrent || neutralHasSourceCandidates)) {
       completions = neutralCompletions;

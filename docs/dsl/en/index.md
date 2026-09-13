@@ -32,13 +32,14 @@ and the geometry and output declarations that are currently available. The
 - [Expressions](expressions.md) — literals, operators, references, and
   interpolation.
 - [Declarations](declarations.md) — `const`, `let`, and `set`.
-- [Constructions](constructions.md) — geometry constructions, mutations, and
+- [Constructions](constructions.md) — geometry constructions, transformation
+  recipes, and
   their argument behavior.
 - [Control flow](control-flow.md) — groups, conditions, and ranges.
 - [Modules](modules.md) — module definitions, instances, parameters, and
   exports.
 - [Records](records.md) — nominal source-only record values.
-- [Modifiers](modifiers.md) — drawing modifiers and profiles.
+- [Styles](modifiers.md) — drawing Styles and profiles.
 - [Output](output.md) — layouts, print output, SVG output, and `stop`.
 - [Builtins](builtins.md) — scalar and geometry measurement functions.
 

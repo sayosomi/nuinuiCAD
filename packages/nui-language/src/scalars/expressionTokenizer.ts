@@ -9,9 +9,10 @@
 
 import { isScalarIdentifierCharacterAt, scanScalarLiteral, type ScalarLiteralToken, type ScalarSpan } from "./literalScanner";
 import type { ScalarExpressionIssueCode } from "./expressionAst";
-import { parseDslSourceReferenceAt } from "../dsl/dslReferenceTokens";
+import { isDslReferencePropertyBoundary, parseDslSourceReferenceAt } from "../dsl/dslReferenceTokens";
 
 export type ScalarExpressionOperatorSymbol =
+  | "??"
   | "||"
   | "&&"
   | "=="
@@ -41,6 +42,8 @@ export type ScalarExpressionToken =
   | { readonly kind: "operator"; readonly value: ScalarExpressionOperatorSymbol; readonly span: ScalarSpan }
   | { readonly kind: "reference"; readonly name: string; readonly nameSpan: ScalarSpan; readonly span: ScalarSpan }
   | { readonly kind: "geometryProperty"; readonly elementName: string; readonly elementNameSpan: ScalarSpan; readonly property: string; readonly propertySpan: ScalarSpan; readonly span: ScalarSpan }
+  | { readonly kind: "postfixProperty"; readonly property: string; readonly propertySpan: ScalarSpan; readonly span: ScalarSpan }
+  | { readonly kind: "optionalPostfixProperty"; readonly property: string; readonly propertySpan: ScalarSpan; readonly operatorSpan: ScalarSpan; readonly span: ScalarSpan }
   | { readonly kind: "literal"; readonly literal: ScalarLiteralToken };
 
 export interface ScalarExpressionTokenizeError {
@@ -56,7 +59,7 @@ export interface ScalarExpressionTokenizeResult {
 
 // Checked before 1-char operators so ` && `/` || `/`==`/`!=`/`>=`/`<=` never
 // tokenize as two separate single-char operators.
-const TWO_CHAR_OPERATORS = new Set(["&&", "||", "==", "!=", ">=", "<="]);
+const TWO_CHAR_OPERATORS = new Set(["??", "&&", "||", "==", "!=", ">=", "<="]);
 const ONE_CHAR_OPERATORS = new Set(["+", "-", "*", "/", "%", "^", "<", ">", "!"]);
 const WORD_OPERATORS: Readonly<Record<string, ScalarExpressionOperatorSymbol>> = {
   and: "&&",
@@ -134,6 +137,35 @@ export const tokenizeScalarExpression = (source: string, span: ScalarSpan): Scal
       index += 1;
       continue;
     }
+    if (source.slice(index, index + 2) === "?.") {
+      let propertyEnd = index + 2;
+      while (propertyEnd < end && !isDslReferencePropertyBoundary(source[propertyEnd]!)) propertyEnd += 1;
+      if (propertyEnd > index + 2) {
+        tokens.push({
+          kind: "optionalPostfixProperty",
+          property: source.slice(index + 2, propertyEnd),
+          propertySpan: { start: index + 2, end: propertyEnd },
+          operatorSpan: { start: index, end: index + 2 },
+          span: { start: index, end: propertyEnd }
+        });
+        index = propertyEnd;
+        continue;
+      }
+    }
+    if (char === "." && index + 1 < end && !/[0-9]/.test(source[index + 1]!)) {
+      let propertyEnd = index + 1;
+      while (propertyEnd < end && !isDslReferencePropertyBoundary(source[propertyEnd]!)) propertyEnd += 1;
+      if (propertyEnd > index + 1) {
+        tokens.push({
+          kind: "postfixProperty",
+          property: source.slice(index + 1, propertyEnd),
+          propertySpan: { start: index + 1, end: propertyEnd },
+          span: { start: index, end: propertyEnd }
+        });
+        index = propertyEnd;
+        continue;
+      }
+    }
     if (char === ",") {
       tokens.push({ kind: "comma", span: { start: index, end: index + 1 } });
       index += 1;
@@ -175,7 +207,7 @@ export const tokenizeScalarExpression = (source: string, span: ScalarSpan): Scal
     }
 
     if (char === "@") {
-      const parsed = parseDslSourceReferenceAt(source, index, end);
+      const parsed = parseDslSourceReferenceAt(source, index, end, { parseOccurrenceIndex: false });
       if (parsed.kind === "invalid") {
         return {
           tokens,

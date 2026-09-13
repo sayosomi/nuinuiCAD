@@ -125,11 +125,15 @@ const referencesRustSupportedLineTargetValue = (
 const referencesRustSupportedLineCollectionNode = (
   node: import("../types/geometry").GeometryInputCollectionNode,
   elementsById: ReadonlyMap<ElementId, CadElement>
-): boolean => node.kind === "leaf"
-  ? node.targets.every((target) => referencesRustSupportedLineTargetValue(target, elementsById))
-  : node.kind === "if"
-    ? referencesRustSupportedLineCollectionNode(node.thenBranch, elementsById) && referencesRustSupportedLineCollectionNode(node.elseBranch, elementsById)
-    : node.arms.every((arm) => referencesRustSupportedLineCollectionNode(arm.value, elementsById));
+): boolean => node.kind === "none"
+  ? true
+  : node.kind === "leaf"
+    ? node.targets.every((target) => referencesRustSupportedLineTargetValue(target, elementsById))
+    : node.kind === "if"
+      ? referencesRustSupportedLineCollectionNode(node.thenBranch, elementsById) && referencesRustSupportedLineCollectionNode(node.elseBranch, elementsById)
+      : node.kind === "coalesce"
+        ? referencesRustSupportedLineCollectionNode(node.leftBranch, elementsById) && referencesRustSupportedLineCollectionNode(node.rightBranch, elementsById)
+        : node.arms.every((arm) => referencesRustSupportedLineCollectionNode(arm.value, elementsById));
 
 const referencesRustSupportedLineTarget = (
   fallbackId: string,
@@ -191,11 +195,15 @@ const referencesRustSupportedPointTargetValue = (
 const referencesRustSupportedPointCollectionNode = (
   node: import("../types/geometry").GeometryInputCollectionNode,
   elementsById: ReadonlyMap<ElementId, CadElement>
-): boolean => node.kind === "leaf"
-  ? node.targets.every((target) => referencesRustSupportedPointTargetValue(target, elementsById))
-  : node.kind === "if"
-    ? referencesRustSupportedPointCollectionNode(node.thenBranch, elementsById) && referencesRustSupportedPointCollectionNode(node.elseBranch, elementsById)
-    : node.arms.every((arm) => referencesRustSupportedPointCollectionNode(arm.value, elementsById));
+): boolean => node.kind === "none"
+  ? true
+  : node.kind === "leaf"
+    ? node.targets.every((target) => referencesRustSupportedPointTargetValue(target, elementsById))
+    : node.kind === "if"
+      ? referencesRustSupportedPointCollectionNode(node.thenBranch, elementsById) && referencesRustSupportedPointCollectionNode(node.elseBranch, elementsById)
+      : node.kind === "coalesce"
+        ? referencesRustSupportedPointCollectionNode(node.leftBranch, elementsById) && referencesRustSupportedPointCollectionNode(node.rightBranch, elementsById)
+        : node.arms.every((arm) => referencesRustSupportedPointCollectionNode(arm.value, elementsById));
 
 const hasRustSupportedDeferredPointTarget = (
   element: CadElement,

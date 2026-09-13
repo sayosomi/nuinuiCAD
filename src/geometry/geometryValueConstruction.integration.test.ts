@@ -44,6 +44,21 @@ describe("pure geometry construction runtime", () => {
     expect(result.geometryValueErrors).toEqual([]);
   });
 
+  it("supports optional geometry results from omitted-else if and optional match", () => {
+    const { compiled, result } = evaluate([
+      "nui 1",
+      "const note: string? = \"hello\"",
+      "point A = coordinate(x: 1, y: 2)",
+      "const maybePoint: point? = if (false) { @A }",
+      "const selected: point? = match @note { none => none some value => @A }"
+    ].join("\n"));
+
+    expect(compiled.diagnostics).toEqual([]);
+    expect(result.geometryValueErrors).toEqual([]);
+    expect(result.computedGeometryValues?.size).toBe(1);
+    expect([...result.computedGeometryValues?.values() ?? []][0]?.value).toEqual({ kind: "point", x: 1, y: 2 });
+  });
+
   it("evaluates a root geometry value-if condition from an actual scalar reference", () => {
     const { compiled, result } = evaluate([
       "nui 1",
@@ -1465,24 +1480,22 @@ describe("pure geometry construction runtime", () => {
     expect([...result.computedGeometryValues!.values()].every(({ value }) => !("elementId" in value))).toBe(true);
   });
 
-  it("rejects immutable geometry values in mutation target roles", () => {
-    for (const [mutation, expectedCount] of [
-      ["line Split = split(source: @L, at: @A)", 1],
-      ["arc Corner = corner(end1: @L.start, end2: @L.end, radius: 1, index: 0)", 2],
-      ["edge(end1: @L.start, end2: @L.end)", 2],
-      ["extend(end: @L.start, to: (3, 0))", 1],
-      ["move(targets: [@L], from: (0, 0), to: (1, 0))", 1],
-      ["mirrorMove(targets: [@L], axis1: (0, 0), axis2: (0, 1))", 1],
-      ["reverse(target: @L)", 1]
+  it("rejects point targets in transformation target roles", () => {
+    for (const [transformation, expectedCount] of [
+      ["edge [A.end, B.end] (index: 0)", 1],
+      ["extend A.end (to: (3, 0))", 1],
+      ["move A (from: (0, 0), to: (1, 0))", 1],
+      ["mirrorMove A (axis1: (0, 0), axis2: (0, 1))", 1],
+      ["reverse A ()", 1]
     ] as const) {
       const compiled = compile([
         "nui 1",
         "const A: point = coordinate(x: 0, y: 0)",
         "const B: point = coordinate(x: 10, y: 0)",
         "const L: line = segment(start: @A, end: @B)",
-        mutation
+        transformation
       ].join("\n"));
-      expect(compiled.diagnostics.filter((diagnostic) => diagnostic.code === "geometry-value-mutation-target-unsupported")).toHaveLength(expectedCount);
+      expect(compiled.diagnostics.filter((diagnostic) => diagnostic.code === "transformation-target-kind-incompatible")).toHaveLength(expectedCount);
       expect(compiled.document).toBeNull();
     }
   });
@@ -1496,7 +1509,7 @@ describe("pure geometry construction runtime", () => {
     expect(unknown.diagnostics.filter((diagnostic) => diagnostic.code === "unknown-construction-argument")).toHaveLength(1);
     expect(unknown.diagnostics.filter((diagnostic) => diagnostic.code === "geometry-value-drawable-metadata")).toHaveLength(0);
 
-    const metadata = compile(["nui 1", "const P: point = coordinate(x: 1, id: p1, state: disabled, roles: [draft], parent: @G, branch: then)"].join("\n"));
+    const metadata = compile(["nui 1", "const P: point = coordinate(x: 1, id: p1, enabled: false, roles: [draft], parent: @G, branch: then)"].join("\n"));
     expect(metadata.diagnostics.filter((diagnostic) => diagnostic.code === "geometry-value-drawable-metadata")).toHaveLength(5);
   });
 

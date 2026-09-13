@@ -6,26 +6,26 @@ import { buildEvaluationOptions } from "./productionEvaluationContext";
 const source = [
   "nui 1",
   "profile Print",
-  "modifier HideInPrint {",
+  "style HideInPrint {",
   "  for @Print {",
-  "    state: hidden,",
+  "    visible: false,",
   "  }",
   "}",
-  "modifier DisableInPrint {",
+  "style DisableInPrint {",
   "  for @Print {",
-  "    state: disabled,",
+  "    visible: false,",
   "  }",
   "}",
-  "modifier ReenableInPrint {",
-  "  for @Print {",
-  "    state: visible,",
+"style ReenableInPrint {",
+"  for @Print {",
+"    visible: true,",
   "  }",
   "}",
   "point ProfileHidden [HideInPrint] = coordinate(x: 0, y: 0)",
   "point ProfileDisabled [DisableInPrint] = coordinate(x: 10, y: 0)",
   "point Dependent = offset(from: @ProfileDisabled, dx: 1, dy: 0)",
-  "point DirectHidden [ReenableInPrint] = coordinate(x: 20, y: 0, state: hidden)",
-  "point DirectDisabled [ReenableInPrint] = coordinate(x: 30, y: 0, state: disabled)"
+  "point DirectHidden [ReenableInPrint] = coordinate(x: 20, y: 0, visible: false)",
+  "point DirectDisabled [ReenableInPrint] = coordinate(x: 30, y: 0, enabled: false)"
 ].join("\n");
 
 describe("Drawing Profile evaluator integration", () => {
@@ -57,13 +57,13 @@ describe("Drawing Profile evaluator integration", () => {
 
     const profileDisabled = element("ProfileDisabled");
     expect(evaluation.evaluatedElementIds).toContain(profileDisabled.id);
-    expect(evaluation.computedGeometry.has(profileDisabled.id)).toBe(false);
+    expect(evaluation.computedGeometry.has(profileDisabled.id)).toBe(true);
     expect(evaluation.effectiveVisibleElementIds).not.toContain(profileDisabled.id);
-    expect(evaluation.effectiveEnabledElementIds).not.toContain(profileDisabled.id);
+    expect(evaluation.effectiveEnabledElementIds).toContain(profileDisabled.id);
 
     const dependent = element("Dependent");
     expect(evaluation.effectiveEnabledElementIds).toContain(dependent.id);
-    expect(evaluation.errors).toEqual(expect.arrayContaining([
+    expect(evaluation.errors).not.toEqual(expect.arrayContaining([
       expect.objectContaining({
         elementId: dependent.id,
         missingDependencyId: profileDisabled.id

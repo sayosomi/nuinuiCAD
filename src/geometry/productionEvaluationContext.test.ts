@@ -24,7 +24,7 @@ const standardPropertiesSource = [
   "line Off = offset(sources: [@AB], distance: 3, side: @side, closed: @enabled, suppressTrimWarnings: @enabled)",
   "point Cross = intersection(line1: @AB, line2: @CD, index: 0, extensions: @enabled)",
   "line Copy = transformCopy(startPoint: @A, endPoint: @B, scale: 1, angleDeg: 0, mirrorX: @mirrored, baseLines: [@AB])",
-  "move(targets: [@AB], from: @A, to: @B, scale: 1, angleDeg: 0, mirrorX: @mirrored)",
+  "move AB (from: @A, to: @B, scale: 1, angleDeg: 0, mirrorX: @mirrored)",
   "image Guide = image(source: \"guide.png\", origin: (0, 0), scale: 1, angleDeg: 0, mirrorX: @mirrored)"
 ].join("\n");
 
@@ -113,16 +113,16 @@ describe("buildEvaluationOptions", () => {
     expect(options).not.toHaveProperty("scalarProgram");
   });
 
-  it("lowers compiled document-level drawing modifier definitions", () => {
+  it("lowers compiled document-level drawing style definitions", () => {
     const compiled = compile([
       "nui 1",
-      "modifier Hide {",
-      "  state: hidden,",
+      "style Hide {",
+      "  visible: false,",
       "}",
       "point P [Hide] = coordinate(x: 1, y: 2)"
     ].join("\n"));
 
-    expect(optionsFor(compiled).drawingModifiers).toEqual([{ name: "Hide", state: "hidden" }]);
+    expect(optionsFor(compiled).drawingModifiers).toEqual([{ name: "Hide", visible: false }]);
   });
 
   it("builds source property, numeric, control, condition, and text runtime metadata", () => {
@@ -134,7 +134,6 @@ describe("buildEvaluationOptions", () => {
       "Off:suppressTrimWarnings",
       "Cross:useExtensions",
       "Copy:mirrorX",
-      ":mirrorX",
       "Guide:mirrorX"
     ]));
 

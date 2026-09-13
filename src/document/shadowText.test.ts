@@ -83,13 +83,13 @@ describe("generateShadowFromModel / advanceShadow 基本往復", () => {
     const afterDoc: DslDocumentData = {
       ...before,
       elements: before.elements.map((element) =>
-        element.name === "B" ? ({ ...element, activity: "disabled" } as CadElement) : element
+        element.name === "B" ? ({ ...element, enabled: false, visible: true, activity: "disabled" } as CadElement) : element
       )
     };
     const next = advanceShadow(prev, afterDoc, 1);
     expect(next.compiled.document).not.toBeNull();
     expect(next.compiled.document!.elements.map((e) => e.id)).toEqual(afterDoc.elements.map((e) => e.id));
-    expect(next.text).toContain("state: disabled");
+    expect(next.text).toContain("enabled: false");
     expect(next.text).toContain("point A = coordinate(x: 0, y: 0)");
   });
 
@@ -223,13 +223,13 @@ describe("advanceShadow 構造ケース(group入れ子・if/else・for・無名�
     const afterDoc: DslDocumentData = {
       ...before,
       elements: before.elements.map((element) =>
-        element.name === "B" ? ({ ...element, activity: "disabled" } as CadElement) : element
+        element.name === "B" ? ({ ...element, enabled: false, visible: true, activity: "disabled" } as CadElement) : element
       )
     };
     const next = advanceShadow(prev, afterDoc, 1);
     expect(next.compiled.document!.elements.map((e) => e.id)).toEqual(afterDoc.elements.map((e) => e.id));
     expect(next.text).toContain("group G {");
-    expect(next.text).toContain("state: disabled");
+    expect(next.text).toContain("enabled: false");
   });
 
   it("if/elseブロックへの挿入は同一IDのまま反映される", () => {
@@ -272,7 +272,7 @@ describe("advanceShadow 構造ケース(group入れ子・if/else・for・無名�
     const afterDoc: DslDocumentData = {
       ...before,
       elements: before.elements.map((element) =>
-        element.name === "P" ? ({ ...element, activity: "disabled" } as CadElement) : element
+        element.name === "P" ? ({ ...element, enabled: false, visible: true, activity: "disabled" } as CadElement) : element
       )
     };
     const next = advanceShadow(prev, afterDoc, 1);

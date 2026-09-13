@@ -43,6 +43,8 @@ fn corner_radius_trims_two_lines_and_creates_arc() {
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 100.0, 0.0),
@@ -87,6 +89,8 @@ fn corner_radius_trims_bezier_and_offset_line_to_polylines() {
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 100.0, 0.0),
@@ -118,6 +122,8 @@ fn corner_radius_trims_bezier_and_offset_line_to_polylines() {
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 100.0, 0.0),
@@ -169,6 +175,8 @@ fn corner_radius_can_feed_downstream_line_elements() {
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 100.0, 0.0),
@@ -210,6 +218,8 @@ fn corner_radius_reports_geometry_and_dependency_errors() {
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 100.0, 0.0),
@@ -236,6 +246,8 @@ fn corner_radius_reports_geometry_and_dependency_errors() {
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 100.0, 0.0),
@@ -264,6 +276,8 @@ fn corner_radius_reports_geometry_and_dependency_errors() {
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
         elements: vec![corner("missing", "late", json!(10))],
         evaluation_limit_index: None,
         allow_disabled_element_ids: None,

@@ -36,7 +36,7 @@ import { typecheckScalarExpression } from "./expressionTypecheck";
 import { getBuiltinFunctionDefinition, isScalarBuiltinParameterType, type BuiltinParameterType } from "./builtinFunctions";
 import { resolveGeometryPropertyMetadata } from "./typedGeometryPropertyResolution";
 import { createElementNameContext } from "../model/elementNames";
-import type { ScalarCallArgumentNode, ScalarExpressionAst } from "./expressionAst";
+import type { ScalarCallArgumentNode, ScalarExpressionAst, ScalarReferenceNode } from "./expressionAst";
 import type { ScalarExpressionResolvedReference, TypedScalarExpression } from "./typedExpressionAst";
 import { prepareRecordScalarExpressionFromCatalog } from "./recordScalarLowering";
 import { scalarTypeOfDslValueType } from "../dsl/dslValueTypes";
@@ -139,6 +139,53 @@ const referencesIn = (source: string, outer: DslSpan): CandidateReference[] => {
     }));
 };
 
+/** The numeric surface scanner intentionally treats `@Name[index].property`
+ * as one geometry-property token.  Its index is nevertheless a normal scalar
+ * expression and must contribute binding-resolution requests in AST order. */
+const occurrenceIndexReferencesIn = (ast: ScalarExpressionAst, outer: DslSpan): CandidateReference[] => {
+  const references: CandidateReference[] = [];
+  const visitIndex = (node: ScalarExpressionAst): void => {
+    if (node.kind === "reference") {
+      const reference = node as ScalarReferenceNode;
+      references.push({
+        name: reference.name,
+        span: { start: outer.start + reference.span.start, end: outer.start + reference.span.end },
+        nameSpan: { start: outer.start + reference.nameSpan.start, end: outer.start + reference.nameSpan.end }
+      });
+      return;
+    }
+    if (node.kind === "collectionIndex") {
+      visitIndex(node.index);
+      return;
+    }
+    if (node.kind === "geometryProperty") {
+      if (node.occurrenceIndex) visitIndex(node.occurrenceIndex);
+      return;
+    }
+    if (node.kind === "unary") return visitIndex(node.operand);
+    if (node.kind === "binary") { visitIndex(node.left); visitIndex(node.right); return; }
+    if (node.kind === "group") return visitIndex(node.expression);
+    if (node.kind === "valueIf") { visitIndex(node.condition); visitIndex(node.thenBranch); if (node.elseBranch) visitIndex(node.elseBranch); return; }
+    if (node.kind === "valueMatch") { visitIndex(node.scrutinee); node.arms.forEach((arm) => visitIndex(arm.expression)); return; }
+    if (node.kind === "call") node.args.forEach((argument) => visitIndex(argument.expression));
+  };
+  const visit = (node: ScalarExpressionAst): void => {
+    if (node.kind === "geometryProperty") {
+      if (node.occurrenceIndex) visitIndex(node.occurrenceIndex);
+      return;
+    }
+    if (node.kind === "unary") return visit(node.operand);
+    if (node.kind === "binary") { visit(node.left); visit(node.right); return; }
+    if (node.kind === "group") return visit(node.expression);
+    if (node.kind === "valueIf") { visit(node.condition); visit(node.thenBranch); if (node.elseBranch) visit(node.elseBranch); return; }
+    if (node.kind === "valueMatch") { visit(node.scrutinee); node.arms.forEach((arm) => visit(arm.expression)); return; }
+    if (node.kind === "collectionIndex") { visit(node.index); return; }
+    if (node.kind === "call") node.args.forEach((argument) => visit(argument.expression));
+  };
+  visit(ast);
+  return references;
+};
+
 const LEGACY_GEOMETRY_FUNCTION_NAMES = new Set([
   "distance", "距離", "angle", "角度", "lineDistance", "点線距離", "lineAngle"
 ]);
@@ -205,7 +252,7 @@ const bareReferencesIn = (ast: ScalarExpressionAst | null, outer: DslSpan): Bare
       case "valueIf":
         visit(node.condition, false);
         visit(node.thenBranch, numericValuePosition);
-        visit(node.elseBranch, numericValuePosition);
+        if (node.elseBranch) visit(node.elseBranch, numericValuePosition);
         return;
       case "valueMatch":
         visit(node.scrutinee, false);
@@ -236,7 +283,7 @@ const attributeValueSpan = (statement: DslStatement, attrKey: string): DslSpan |
 
 export const compileNumericBindings = ({
   statements, elementIdByStatementIndex, elements, bindingAnalysis, spans,
-  layouts, layoutIdsByStatementIndex, includeStatement
+  layouts, layoutIdsByStatementIndex, includeStatement, additionalGeometryPropertyResolver
 }: {
   statements: readonly DslStatement[];
   elementIdByStatementIndex: ReadonlyMap<number, ElementId>;
@@ -247,6 +294,10 @@ export const compileNumericBindings = ({
   layouts?: readonly Layout[];
   layoutIdsByStatementIndex?: ReadonlyMap<number, string>;
   includeStatement?: DslStatementInclusion;
+  additionalGeometryPropertyResolver?: (input: {
+    statementIndex: number;
+    node: Extract<ScalarExpressionAst, { kind: "geometryProperty" }>;
+  }) => import("./typedExpressionAst").ScalarExpressionResolvedGeometryProperty | null;
 }): NumericBindingCompilation => {
   const byId = new Map(elements.map((element) => [element.id, element]));
   const sourceOrderByElementId = new Map<ElementId, number>();
@@ -269,13 +320,20 @@ export const compileNumericBindings = ({
     if (!value || !isNumericExpression(value) || !valueSpan) return;
     const source = logicalText.slice(valueSpan.start, valueSpan.end);
     const scannedReferences = scanExpressionReferences(source);
-    const refs = referencesIn(source, valueSpan);
+    const scalarParseResult = parseScalarExpression(source, { start: 0, end: source.length });
+    const refs = [
+      ...referencesIn(source, valueSpan),
+      ...(scalarParseResult.ast ? occurrenceIndexReferencesIn(scalarParseResult.ast, valueSpan) : [])
+    ].sort((left, right) => left.span.start - right.span.start)
+      .filter((reference, index, all) => index === 0 ||
+        reference.span.start !== all[index - 1]!.span.start ||
+        reference.span.end !== all[index - 1]!.span.end ||
+        reference.name !== all[index - 1]!.name);
     const hasGeometryProperty = scannedReferences.some((match) => match.kind === "elementProperty" && match.sigil);
     // Qualified frontend references are not typed scalar bindings. They stay
     // on their existing owner; unlike a genuinely ref-free expression, they
     // must not be offered to the typed checker without a resolution entry.
     if (!elementId && scannedReferences.length > 0 && !refs.length && !hasGeometryProperty) return;
-    const scalarParseResult = parseScalarExpression(source, { start: 0, end: source.length });
     const bareReferences = bareReferencesIn(scalarParseResult.ast, valueSpan);
     candidates.push({
       key,
@@ -522,7 +580,10 @@ export const compileNumericBindings = ({
           {
             currentElement: candidate.elementId ? byId.get(candidate.elementId) : undefined,
             nameContext,
-            currentSourceOrder: candidate.statementIndex
+            currentSourceOrder: candidate.statementIndex,
+            additionalGeometryPropertyResolver: additionalGeometryPropertyResolver
+              ? ({ node }) => additionalGeometryPropertyResolver({ statementIndex: candidate.statementIndex, node })
+              : undefined
           }
         );
         const hasGeometryProperty = geometryPropertyResolution.geometryPropertyReferences.size > 0;
@@ -562,7 +623,11 @@ export const compileNumericBindings = ({
           }
           typedRefs.sort((left, right) => left.reference.span.start - right.reference.span.start);
         }
-        if (!hasLegacyOwnedReference && geometryPropertyResolution.issues.length === 0 && typedChecked.type?.kind === "number") {
+        if (
+          (hasGeometryProperty || !hasLegacyOwnedReference) &&
+          geometryPropertyResolution.issues.length === 0 &&
+          typedChecked.type?.kind === "number"
+        ) {
           typedExpression = typedChecked.typed;
         }
       }

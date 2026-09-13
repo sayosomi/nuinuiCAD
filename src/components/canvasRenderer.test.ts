@@ -379,7 +379,7 @@ describe("renderCanvasGeometry", () => {
     expect(ctx.arc).toHaveBeenCalledWith(250, 200, 10, -Math.PI / 2, -0, false);
   });
 
-  it("applies fixed and temporary theme-role modifier strokes to supported geometry", () => {
+  it("applies fixed and temporary theme-role style strokes to supported geometry", () => {
     const start = point("start", 0, 0);
     const end = point("end", 100, 0);
     const fixed = renderWithStroke({
@@ -395,7 +395,7 @@ describe("renderCanvasGeometry", () => {
     expect(role).toEqual({ lineWidth: 1.5, strokeStyle: "#73320d", lineDash: [] });
   });
 
-  it("resolves semantic modifier roles from CanvasTheme while preserving fixed colors", () => {
+  it("resolves semantic style roles from CanvasTheme while preserving fixed colors", () => {
     const start = point("start", 0, 0);
     const end = point("end", 100, 0);
     const theme = { ...LEGACY_CANVAS_THEME, warning: "#custom-warning", foreground: "#custom-foreground" };
@@ -477,7 +477,7 @@ describe("renderCanvasGeometry", () => {
     }
   });
 
-  it("applies modifier strokes to line, arc, Bezier, offset line, and normal point outline", () => {
+  it("applies style strokes to line, arc, Bezier, offset line, and normal point outline", () => {
     const start = point("start", 0, 0);
     const end = point("end", 10, 0);
     const center = point("center", 0, 0);
@@ -518,7 +518,7 @@ describe("renderCanvasGeometry", () => {
     }
   });
 
-  it("keeps interaction emphasis above, but never below, modifier width and preserves dash", () => {
+  it("keeps interaction emphasis above, but never below, style width and preserves dash", () => {
     const start = point("start", 0, 0);
     const end = point("end", 100, 0);
     expect(renderWithStroke({

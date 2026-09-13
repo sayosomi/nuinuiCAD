@@ -8,7 +8,7 @@ curve Curve = bezier(start: @A, end: @B, startAngle: 90, startLength: 10, endAng
 point Convex = tangentOffset(line: @Curve, base: @Base, curveSide: convex, distance: 1)
 point Concave = tangentOffset(line: @Curve, base: @Base, curveSide: concave, distance: 1)
 point Bound = tangentOffset(line: @Curve, base: @Base, curveSide: @Side, distance: 1)
-reverse(target: @Curve)
+reverse Curve ()
 point ReverseConvex = tangentOffset(line: @Curve, base: @Base, curveSide: convex, distance: 1)
 
 point SplitA = coordinate(x: 0, y: 0)
@@ -36,7 +36,7 @@ curve TrimCurve = bezier(
   endAngle: 270,
   endLength: 10,
 )
-extend(end: @TrimCurve.end, to: @TrimBase)
+extend TrimCurve.end (to: @TrimBase)
 point TrimOffset = tangentOffset(line: @TrimCurve, base: @TrimBase, curveSide: convex, distance: 1)
 
 point ExtendA = coordinate(x: 0, y: 0)
@@ -50,5 +50,5 @@ curve ExtendCurve = bezier(
   endAngle: 270,
   endLength: 10,
 )
-extend(end: @ExtendCurve.start, to: @ExtendBase)
+extend ExtendCurve.start (to: @ExtendBase)
 point ExtendOffset = tangentOffset(line: @ExtendCurve, base: @ExtendBase, curveSide: convex, distance: 1)

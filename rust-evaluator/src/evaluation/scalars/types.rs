@@ -13,6 +13,7 @@
 pub(crate) type BindingId = String;
 
 use crate::evaluation::types::GeometryValueOccurrence;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum GeometryInterfaceType {
@@ -40,6 +41,83 @@ pub(crate) struct ScalarExpressionResolvedGeometryTarget {
     pub(crate) point_key: Option<String>,
     pub(crate) geometry_value_occurrence: Option<GeometryValueOccurrence>,
     pub(crate) geometry_value_binder_id: Option<String>,
+    pub(crate) for_group_template_element_id: Option<String>,
+    pub(crate) for_group_target_source_order: Option<f64>,
+    pub(crate) for_group_index: Option<Arc<TypedScalarExpression>>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct ScalarExpressionRecordFieldTarget {
+    pub(crate) record_statement_id: String,
+    pub(crate) field_index: usize,
+    pub(crate) r#type: ScalarType,
+    pub(crate) field_path: Vec<(String, usize)>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) enum ScalarExpressionResolvedGeometryProperty {
+    Drawable {
+        element_id: String,
+        property: String,
+        target_source_order: f64,
+        r#type: ScalarType,
+    },
+    ForGroupOccurrence {
+        template_element_id: String,
+        property: String,
+        target_source_order: f64,
+        point_key: Option<String>,
+        r#type: ScalarType,
+    },
+    GeometryValue {
+        occurrence: GeometryValueOccurrence,
+        property: String,
+        point_key: Option<String>,
+        target_source_order: f64,
+        r#type: ScalarType,
+    },
+    GeometryValueForBinder {
+        binder_id: String,
+        property: String,
+        point_key: Option<String>,
+        target_source_order: f64,
+        r#type: ScalarType,
+    },
+    Collection {
+        collection_value_id: String,
+        collection_length: Option<f64>,
+        target_source_order: f64,
+        r#type: ScalarType,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) enum ScalarExpressionOptionalMemberReceiver {
+    GeometryValue(ScalarExpressionResolvedGeometryTarget),
+    Collection {
+        collection_value_id: String,
+        collection_length: Option<f64>,
+        target_source_order: f64,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) enum ScalarExpressionResolvedOptionalMemberTarget {
+    CollectionLength {
+        collection_value_id: String,
+        collection_length: Option<f64>,
+        target_source_order: f64,
+    },
+    RecordField {
+        collection_value_id: String,
+        collection_length: Option<f64>,
+        target_source_order: f64,
+        field: ScalarExpressionRecordFieldTarget,
+    },
+    GeometryProperty {
+        reference: ScalarExpressionResolvedGeometryProperty,
+        receiver: Box<ScalarExpressionOptionalMemberReceiver>,
+    },
 }
 
 /// A source-text offset range, `[start, end)`. Never read for evaluation
@@ -61,6 +139,7 @@ pub(crate) enum ScalarType {
     String,
     Boolean,
     Choice { options: Vec<String> },
+    Optional { value_type: Box<ScalarType> },
 }
 
 /// Mirrors `src/scalars/types.ts`'s `ScalarValue`.
@@ -70,6 +149,7 @@ pub(crate) enum ScalarValue {
     String(String),
     Boolean(bool),
     Choice { value: String, options: Vec<String> },
+    None,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -110,6 +190,7 @@ pub(crate) enum ScalarUnaryOperator {
 /// Mirrors `src/scalars/expressionAst.ts`'s `ScalarBinaryOperator`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ScalarBinaryOperator {
+    Coalesce,
     Or,
     And,
     Eq,
@@ -244,6 +325,10 @@ pub(crate) enum TypedScalarCallTarget {
 pub(crate) struct TypedScalarValueMatchArm {
     pub(crate) label: String,
     pub(crate) label_span: ScalarSpan,
+    pub(crate) binder: Option<String>,
+    pub(crate) binder_span: Option<ScalarSpan>,
+    pub(crate) binder_id: Option<String>,
+    pub(crate) binder_type: Option<ScalarType>,
     pub(crate) expression: TypedScalarExpression,
 }
 
@@ -277,6 +362,10 @@ pub(crate) enum TypedScalarExpression {
         value: bool,
         r#type: ScalarType,
     },
+    NoneLiteral {
+        span: ScalarSpan,
+        r#type: ScalarType,
+    },
     ChoiceLiteral {
         span: ScalarSpan,
         value: String,
@@ -307,12 +396,24 @@ pub(crate) enum TypedScalarExpression {
         element_id: String,
         collection_value_id: Option<String>,
         collection_length: Option<f64>,
-        geometry_value_occurrence: Option<GeometryValueOccurrence>,
+        geometry_value_occurrence: Option<Box<GeometryValueOccurrence>>,
         geometry_value_binder_id: Option<String>,
         geometry_value_point_key: Option<String>,
+        for_group_template_element_id: Option<String>,
+        for_group_target_source_order: Option<f64>,
+        for_group_index: Option<Box<TypedScalarExpression>>,
         property: String,
         target_source_order: f64,
         r#type: ScalarType,
+    },
+    OptionalMember {
+        span: ScalarSpan,
+        receiver_span: ScalarSpan,
+        operator_span: ScalarSpan,
+        member_span: ScalarSpan,
+        member: String,
+        target: Option<ScalarExpressionResolvedOptionalMemberTarget>,
+        r#type: Option<ScalarType>,
     },
     Unary {
         span: ScalarSpan,
@@ -358,7 +459,7 @@ pub(crate) enum TypedScalarExpression {
 #[derive(Debug, PartialEq)]
 pub(crate) enum TypedBuiltinArgument {
     Scalar {
-        expression: TypedScalarExpression,
+        expression: Box<TypedScalarExpression>,
     },
     GeometryReference {
         expected_geometry_type: GeometryInterfaceType,
@@ -447,16 +548,18 @@ fn detach_children(node: &mut TypedScalarExpression) -> Vec<TypedScalarExpressio
         TypedScalarExpression::Call { args, .. } => std::mem::take(args)
             .into_iter()
             .filter_map(|argument| match argument {
-                TypedBuiltinArgument::Scalar { expression } => Some(expression),
+                TypedBuiltinArgument::Scalar { expression } => Some(*expression),
                 TypedBuiltinArgument::GeometryReference { .. } => None,
             })
             .collect(),
         TypedScalarExpression::NumberLiteral { .. }
         | TypedScalarExpression::StringLiteral { .. }
         | TypedScalarExpression::BooleanLiteral { .. }
+        | TypedScalarExpression::NoneLiteral { .. }
         | TypedScalarExpression::ChoiceLiteral { .. }
         | TypedScalarExpression::Reference { .. }
-        | TypedScalarExpression::GeometryProperty { .. } => Vec::new(),
+        | TypedScalarExpression::GeometryProperty { .. }
+        | TypedScalarExpression::OptionalMember { .. } => Vec::new(),
         TypedScalarExpression::CollectionIndex { index, .. } => {
             vec![std::mem::replace(index.as_mut(), childless_placeholder())]
         }

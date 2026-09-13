@@ -123,6 +123,9 @@ const sourceTarget = (target: ModuleSourceTarget | ModuleRecordSourceTarget | nu
   if (target.kind === "sourceGeometry" || target.kind === "sourceGeometryProperty" || target.kind === "moduleLocal") {
     return { kind: "moduleSource", statementId: target.statementId };
   }
+  if (target.kind === "forGroupOccurrence" || target.kind === "forGroupOccurrenceProperty") {
+    return { kind: "moduleSource", statementId: target.statementId };
+  }
   if (target.kind === "iteration") return { kind: "moduleIteration", statementId: target.statementId };
   if (target.kind === "documentBinding") return { kind: "documentBinding", bindingId: target.bindingId };
   return null;
@@ -349,6 +352,12 @@ export const createModuleSemanticRangeIndex = (compiled: CompiledDslDocument): M
       addScalarExpression(statementIndex, expression.condition);
       if (expression.thenBranch) addRecordValueExpression(statementIndex, expression.thenBranch);
       if (expression.elseBranch) addRecordValueExpression(statementIndex, expression.elseBranch);
+      return;
+    }
+    if (expression.kind === "none") return;
+    if (expression.kind === "coalesce") {
+      if (expression.left) addRecordValueExpression(statementIndex, expression.left);
+      if (expression.right) addRecordValueExpression(statementIndex, expression.right);
       return;
     }
     addScalarExpression(statementIndex, expression.scrutinee);

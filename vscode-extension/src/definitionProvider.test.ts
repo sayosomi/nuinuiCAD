@@ -73,11 +73,11 @@ const definitionFor = (source: string, line: number, character: number, document
 };
 
 describe("VS Code native nui definition provider", () => {
-  it("projects a modifier reference to its exact quoted declaration token", () => {
+  it("projects a style reference to its exact quoted declaration token", () => {
     const source = [
       "nui 1",
-      'modifier "Guide Line" {',
-      "  state: visible,",
+      'style "Guide Line" {',
+      "  ",
       "}",
       "point A = coordinate(x: 0, y: 0)",
       'line L ["Guide Line"] = segment(start: @A, end: @A)'
@@ -89,8 +89,8 @@ describe("VS Code native nui definition provider", () => {
       end: { line: 5, character: line.indexOf('"Guide Line"') + '"Guide Line"'.length }
     });
     expect(links?.[0]?.targetSelectionRange).toMatchObject({
-      start: { line: 1, character: "modifier ".length },
-      end: { line: 1, character: "modifier ".length + '"Guide Line"'.length }
+      start: { line: 1, character: "style ".length },
+      end: { line: 1, character: "style ".length + '"Guide Line"'.length }
     });
   });
 

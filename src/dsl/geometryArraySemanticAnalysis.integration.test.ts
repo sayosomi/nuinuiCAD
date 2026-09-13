@@ -89,6 +89,20 @@ describe("geometry array source semantic integration", () => {
     ]));
   });
 
+  it("supports optional collection results for omitted-else if and optional match", () => {
+    const compiled = compile([
+      "nui 1",
+      "const note: string? = \"present\"",
+      "const maybe: number[]? = if (false) { [1, 2] }",
+      "const selected: number[]? = match @note { none => none some value => [3] }",
+      "const count: number = @selected.length"
+    ].join("\n"));
+
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(compiled.sourceLexicalNamespace?.geometryArraySemanticAnalysis?.genericValues.find((value) => value.name === "maybe")?.value).toMatchObject({ kind: "if" });
+    expect(compiled.sourceLexicalNamespace?.geometryArraySemanticAnalysis?.genericValues.find((value) => value.name === "selected")?.value).toMatchObject({ kind: "match" });
+  });
+
   it("keeps collection member and whole-value assignment fail-closed", () => {
     const { namespace } = analyze([
       "nui 1",
@@ -105,7 +119,7 @@ describe("geometry array source semantic integration", () => {
     ]));
   });
 
-  it("shares collection parameter semantics and Module presence proofs", () => {
+  it("shares collection parameter semantics and general optional resolution", () => {
     const required = compile([
       "nui 1",
       "const values: number[] = [1, 2]",
@@ -118,76 +132,73 @@ describe("geometry array source semantic integration", () => {
 
     const unguardedAlias = compile([
       "nui 1",
-      "module M(labels?: string[]) {",
+      "module M(labels: string[]?) {",
       "  export const out: string[] = @labels",
       "}",
       "instance Use = M()"
     ].join("\n"));
     expect(unguardedAlias.diagnostics).toContainEqual(expect.objectContaining({
-      code: "module-optional-value-required",
-      presentation: { key: "diagnostic.module-optional-value-required", parameters: { name: "labels" } }
+      code: "array-assignability-mismatch",
+      presentation: { key: "diagnostic.array-assignability-mismatch", parameters: { actual: "string[]", expected: "string[]" } }
     }));
 
-    const guardedAlias = compile([
+    const coalescedAlias = compile([
       "nui 1",
-      "module M(labels?: string[]) {",
-      "  if (hasValue(@labels)) {",
-      "    const out: string[] = @labels",
-      "  }",
+      "module M(labels: string[]?) {",
+      "  const out: string[] = @labels ?? []",
       "}",
       "instance Use = M()"
     ].join("\n"));
-    expect(guardedAlias.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(coalescedAlias.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
 
     const unguardedMember = compile([
       "nui 1",
-      "module M(label?: string) {",
+      "module M(label: string?) {",
       "  const out: string[] = [@label]",
       "}",
       "instance Use = M()"
     ].join("\n"));
-    expect(unguardedMember.diagnostics).toContainEqual(expect.objectContaining({ code: "module-optional-value-required" }));
+    expect(unguardedMember.diagnostics).toContainEqual(expect.objectContaining({ code: "array-member-type-mismatch" }));
 
-    const guardedMember = compile([
+    const coalescedMember = compile([
       "nui 1",
-      "module M(label?: string) {",
-      "  if (hasValue(@label)) {",
-      "    const out: string[] = [@label]",
-      "  }",
+      "module M(label: string?) {",
+      "  const resolved: string = @label ?? \"\"",
+      "  const out: string[] = [@resolved]",
       "}",
       "instance Use = M()"
     ].join("\n"));
-    expect(guardedMember.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(coalescedMember.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
 
     const unguardedArgument = compile([
       "nui 1",
       "module Inner(items: string[]) {",
       "}",
-      "module Outer(labels?: string[]) {",
+      "module Outer(labels: string[]?) {",
       "  instance child = Inner(items: @labels)",
       "}",
       "instance Use = Outer()"
     ].join("\n"));
     expect(unguardedArgument.diagnostics).toContainEqual(expect.objectContaining({ code: "module-optional-value-required" }));
 
-    const guardedArgument = compile([
+    const coalescedArgument = compile([
       "nui 1",
       "module Inner(items: string[]) {",
       "}",
-      "module Outer(labels?: string[]) {",
-      "  if (hasValue(@labels)) {",
-      "    instance child = Inner(items: @labels)",
-      "  }",
+      "module Outer(labels: string[]?) {",
+      "  const resolved: string[] = @labels ?? []",
+      "  instance child = Inner(items: @resolved)",
       "}",
       "instance Use = Outer()"
     ].join("\n"));
-    expect(guardedArgument.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(coalescedArgument.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
 
     const { namespace, analysis } = analyze([
       "nui 1",
-      "module M(values: number[], labels?: string[]) {",
+      "module M(values: number[], labels: string[]?) {",
       "  const local: number[] = @values",
-      "  export const out: string[] = @labels",
+      "  const resolved: string[] = @labels ?? []",
+      "  export const out: string[] = @resolved",
       "}"
     ].join("\n"));
 
@@ -407,33 +418,20 @@ describe("geometry array source semantic integration", () => {
     });
   });
 
-  it("supports Module collection length, aliases, exports, and optional presence narrowing", () => {
-    const guarded = compile([
+  it("supports Module collection length, aliases, exports, and optional resolution", () => {
+    const resolved = compile([
       "nui 1",
       "const values: number[] = [1, 2, 2]",
-      "module M(items: number[], labels?: string[]) {",
+      "module M(items: number[], labels: string[]?) {",
       "  const local: number[] = @items",
       "  const required: number = @local.length",
-      "  if (hasValue(@labels)) {",
-      "    const optional: number = @labels.length",
-      "  }",
+      "  const resolvedLabels: string[] = @labels ?? []",
+      "  const optional: number = @resolvedLabels.length",
       "  export const out: number = @items.length",
       "}",
       "instance Use = M(items: @values)"
     ].join("\n"));
-    expect(guarded.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
-
-    const unguarded = compile([
-      "nui 1",
-      "module M(labels?: string[]) {",
-      "  const count: number = @labels.length",
-      "}",
-      "instance Use = M()"
-    ].join("\n"));
-    expect(unguarded.diagnostics).toContainEqual(expect.objectContaining({
-      code: "module-optional-value-required",
-      presentation: { key: "diagnostic.module-optional-value-required", parameters: { name: "labels" } }
-    }));
+    expect(resolved.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
 
     const exported = compile([
       "nui 1",
@@ -523,12 +521,12 @@ describe("geometry array source semantic integration", () => {
     });
   });
 
-  it("resolves module array parameters as read-only local aliases", () => {
+  it("resolves module array parameters as read-only local aliases and coalescing", () => {
     const { namespace, analysis } = analyze([
       "nui 1",
-      "module M(edges: line[], anchors?: point[]) {",
+      "module M(edges: line[], anchors: point[]?) {",
       "  const paths: path[] = @edges",
-      "  const points: point[] = @anchors",
+      "  const points: point[] = @anchors ?? []",
       "}"
     ].join("\n"));
 
@@ -541,6 +539,10 @@ describe("geometry array source semantic integration", () => {
       kind: "alias",
       targetValueId: "statement:1:parameter:0",
       type: { elementType: "path" }
+    });
+    expect(analysis.values.find((value) => value.name === "points")?.value).toMatchObject({
+      kind: "coalesce",
+      type: { elementType: "point" }
     });
   });
 

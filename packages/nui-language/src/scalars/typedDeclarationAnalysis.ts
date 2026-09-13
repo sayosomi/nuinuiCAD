@@ -25,7 +25,7 @@ import { resolveGeometryPropertyMetadata } from "./typedGeometryPropertyResoluti
 import { findParameterDefinition, scalarTypeForParameterDefinition } from "../parameters/parameterDefinitions";
 import { createElementNameContext } from "../model/elementNames";
 import { parseDslReferenceToken } from "../dsl/dslReferenceTokens";
-import { isDslScalarValueType, scalarTypeOfDslValueType } from "../dsl/dslValueTypes";
+import { scalarExpressionTypeOfDslValueType } from "../dsl/dslValueTypes";
 import { scanExpressionReferences } from "../dsl/expressionReferenceToken";
 import {
   resolveSourceLexicalPath,
@@ -109,12 +109,45 @@ export const collectReferences = (ast: ScalarExpressionAst): readonly { name: st
   return collectScalarExpressionReferences(ast);
 };
 
+const collectTypedDeclarationReferences = (ast: ScalarExpressionAst): readonly { name: string; span: { start: number; end: number } }[] => {
+  const optionalReceiverSpans: DslSpan[] = [];
+  const visit = (node: ScalarExpressionAst): void => {
+    switch (node.kind) {
+      case "optionalMember":
+        optionalReceiverSpans.push(node.receiver.span);
+        visit(node.receiver);
+        return;
+      case "collectionIndex": visit(node.index); return;
+      case "geometryProperty": if (node.occurrenceIndex) visit(node.occurrenceIndex); return;
+      case "unary": visit(node.operand); return;
+      case "binary": visit(node.left); visit(node.right); return;
+      case "group": visit(node.expression); return;
+      case "valueIf":
+        visit(node.condition);
+        visit(node.thenBranch);
+        if (node.elseBranch) visit(node.elseBranch);
+        return;
+      case "valueMatch":
+        visit(node.scrutinee);
+        node.arms.forEach((arm) => visit(arm.expression));
+        return;
+      case "call": node.args.forEach((argument) => visit(argument.expression)); return;
+      default: return;
+    }
+  };
+  visit(ast);
+  return collectScalarExpressionReferences(ast).filter((reference) => !optionalReceiverSpans.some((span) =>
+    reference.span.start >= span.start && reference.span.end <= span.end
+  ));
+};
+
 /** Whether an expression needs scalar-only syntax rather than the separate
  * numeric expression evaluator used by geometry and text interpolation. */
 export const containsNonNumericScalarSyntax = (ast: ScalarExpressionAst): boolean => {
   switch (ast.kind) {
     case "booleanLiteral":
     case "stringLiteral":
+    case "noneLiteral":
     case "unresolvedChoiceLiteral":
       return true;
     case "unary":
@@ -140,6 +173,8 @@ export const containsNonNumericScalarSyntax = (ast: ScalarExpressionAst): boolea
       return true;
     case "collectionIndex":
       return containsNonNumericScalarSyntax(ast.index);
+    case "optionalMember":
+      return true;
     case "call":
       return getBuiltinFunctionDefinition(ast.name)?.signatures.some((signature) => signature.returnType.kind === "boolean") ?? false;
     default:
@@ -181,18 +216,19 @@ const collectionIndexResolutionsFor = (
   resolver: CollectionIndexResolver | undefined
 ): ReadonlyMap<number, ScalarExpressionResolvedCollectionIndex> => {
   const resolutions = new Map<number, ScalarExpressionResolvedCollectionIndex>();
-  const visit = (node: ScalarExpressionAst): void => {
+  const visit = (node: ScalarExpressionAst, boundNames: ReadonlySet<string> = new Set()): void => {
     if (node.kind === "collectionIndex") {
       const resolution = resolver?.({ statementIndex, node });
       if (resolution) resolutions.set(node.span.start, resolution);
       visit(node.index);
       return;
     }
+    if (node.kind === "optionalMember") return;
     if (node.kind === "unary") return visit(node.operand);
     if (node.kind === "binary") { visit(node.left); visit(node.right); return; }
     if (node.kind === "group") return visit(node.expression);
-    if (node.kind === "valueIf") { visit(node.condition); visit(node.thenBranch); visit(node.elseBranch); return; }
-    if (node.kind === "valueMatch") { visit(node.scrutinee); node.arms.forEach((arm) => visit(arm.expression)); return; }
+    if (node.kind === "valueIf") { visit(node.condition); visit(node.thenBranch); if (node.elseBranch) visit(node.elseBranch); return; }
+    if (node.kind === "valueMatch") { visit(node.scrutinee, boundNames); node.arms.forEach((arm) => visit(arm.expression, arm.binder ? new Set([...boundNames, arm.binder]) : boundNames)); return; }
     if (node.kind === "call") node.args.forEach((argument) => visit(argument.expression));
   };
   visit(ast);
@@ -201,17 +237,18 @@ const collectionIndexResolutionsFor = (
 
 const collectionIndexBaseStartsFor = (ast: ScalarExpressionAst): ReadonlySet<number> => {
   const starts = new Set<number>();
-  const visit = (node: ScalarExpressionAst): void => {
+  const visit = (node: ScalarExpressionAst, boundNames: ReadonlySet<string> = new Set()): void => {
     if (node.kind === "collectionIndex") {
       starts.add(node.span.start);
       visit(node.index);
       return;
     }
+    if (node.kind === "optionalMember") return;
     if (node.kind === "unary") return visit(node.operand);
     if (node.kind === "binary") { visit(node.left); visit(node.right); return; }
     if (node.kind === "group") return visit(node.expression);
-    if (node.kind === "valueIf") { visit(node.condition); visit(node.thenBranch); visit(node.elseBranch); return; }
-    if (node.kind === "valueMatch") { visit(node.scrutinee); node.arms.forEach((arm) => visit(arm.expression)); return; }
+    if (node.kind === "valueIf") { visit(node.condition); visit(node.thenBranch); if (node.elseBranch) visit(node.elseBranch); return; }
+    if (node.kind === "valueMatch") { visit(node.scrutinee, boundNames); node.arms.forEach((arm) => visit(arm.expression, arm.binder ? new Set([...boundNames, arm.binder]) : boundNames)); return; }
     if (node.kind === "call") node.args.forEach((argument) => visit(argument.expression));
   };
   visit(ast);
@@ -225,8 +262,8 @@ const referenceResolutionsForAst = (
 ): readonly (BindingResolution | ScalarExpressionResolvedReference)[] => {
   const output: (BindingResolution | ScalarExpressionResolvedReference)[] = [];
   let cursor = 0;
-  const visit = (node: ScalarExpressionAst): void => {
-    if (node.kind === "reference") { output.push(ordinary[cursor++]!); return; }
+  const visit = (node: ScalarExpressionAst, boundNames: ReadonlySet<string> = new Set()): void => {
+    if (node.kind === "reference") { if (!boundNames.has(node.name)) output.push(ordinary[cursor++]!); return; }
     if (node.kind === "collectionIndex") {
       const resolved = collectionResolutions.get(node.span.start);
       if (resolved) output.push(resolved);
@@ -234,11 +271,16 @@ const referenceResolutionsForAst = (
       visit(node.index);
       return;
     }
+    if (node.kind === "geometryProperty") {
+      if (node.occurrenceIndex) visit(node.occurrenceIndex);
+      return;
+    }
+    if (node.kind === "optionalMember") return;
     if (node.kind === "unary") return visit(node.operand);
     if (node.kind === "binary") { visit(node.left); visit(node.right); return; }
     if (node.kind === "group") return visit(node.expression);
-    if (node.kind === "valueIf") { visit(node.condition); visit(node.thenBranch); visit(node.elseBranch); return; }
-    if (node.kind === "valueMatch") { visit(node.scrutinee); node.arms.forEach((arm) => visit(arm.expression)); return; }
+    if (node.kind === "valueIf") { visit(node.condition); visit(node.thenBranch); if (node.elseBranch) visit(node.elseBranch); return; }
+    if (node.kind === "valueMatch") { visit(node.scrutinee, boundNames); node.arms.forEach((arm) => visit(arm.expression, arm.binder ? new Set([...boundNames, arm.binder]) : boundNames)); return; }
     if (node.kind === "call") node.args.forEach((argument) => visit(argument.expression));
   };
   visit(ast);
@@ -273,7 +315,7 @@ const sourceNamespaceBindingResolverFor = (
       lookup.declaration.kind === "typedDeclaration" &&
       typedStatementIndexes.has(lookup.declaration.statementIndex) &&
       lookup.declaration.statement.kind === "typedDeclaration" &&
-      isDslScalarValueType(lookup.declaration.statement.valueType)
+      scalarExpressionTypeOfDslValueType(lookup.declaration.statement.valueType) !== null
     ) {
       const bindingId = bindingIdForStableStatementId(lookup.declaration.statementId);
       return { kind: "resolved", bindingId };
@@ -300,7 +342,7 @@ const sourceNamespaceBindingResolverFor = (
       declaration.kind === "typedDeclaration" &&
       typedStatementIndexes.has(declaration.statementIndex) &&
       declaration.statement.kind === "typedDeclaration" &&
-      isDslScalarValueType(declaration.statement.valueType)
+      scalarExpressionTypeOfDslValueType(declaration.statement.valueType) !== null
     )
   ) return null;
   return { kind: "blocked", reason: lookup.kind };
@@ -353,7 +395,7 @@ const parseInitializerSource = (
       )
     };
   }
-  return { ok: true, value: { ast: parsed.ast, references: collectReferences(parsed.ast) } };
+  return { ok: true, value: { ast: parsed.ast, references: collectTypedDeclarationReferences(parsed.ast) } };
 };
 
 const parseInitializer = (
@@ -417,7 +459,7 @@ export const analyzeTypedDeclarations = ({
   additionalBindingResolver?: SourceNamespaceBindingResolver;
   additionalGeometryResolver?: (input: {
     readonly statementIndex: number;
-    readonly node: Extract<import("./expressionAst").ScalarExpressionAst, { kind: "reference" | "geometryProperty" }>;
+    readonly node: Extract<import("./expressionAst").ScalarExpressionAst, { kind: "reference" | "collectionIndex" | "geometryProperty" }>;
     readonly occurrenceIndex: number | null;
     readonly expectedGeometryType: Extract<import("../dsl/moduleGeometryInterfaces").ModuleGeometryInterfaceType, "point" | "line">;
   }) => import("./typedExpressionAst").ScalarExpressionResolvedGeometryTarget | undefined;
@@ -549,7 +591,7 @@ export const analyzeTypedDeclarations = ({
   const adapter = buildDslBindingAdapterSeeds({ statements, scopeIndex, stableStatementIdByIndex, reconciledContainers });
   const scalarTypedStatementIndexes = new Set(
     typedStatements
-      .filter(({ statement }) => isDslScalarValueType(statement.valueType))
+      .filter(({ statement }) => scalarExpressionTypeOfDslValueType(statement.valueType) !== null)
       .map(({ statementIndex }) => statementIndex)
   );
   const catalog = buildBindingCatalog({
@@ -568,7 +610,7 @@ export const analyzeTypedDeclarations = ({
   const analyzesInitializer = (bindingId: BindingId, resolutionMode: string | undefined) =>
     resolutionMode !== "preResolvedOnly" || additionalInitializerByBindingId.has(bindingId);
   const isScalarTypedBinding = (binding: Binding): boolean =>
-    binding.kind === "typed" && scalarTypeOfDslValueType(binding.declaredType) !== null;
+    binding.kind === "typed" && scalarExpressionTypeOfDslValueType(binding.declaredType) !== null;
 
   const parsedByBindingId = new Map<BindingId, ParsedInitializer>();
   const diagnostics: DslDiagnostic[] = [];
@@ -578,7 +620,7 @@ export const analyzeTypedDeclarations = ({
     if (!statement) throw new Error(`typedDeclarationAnalysis: typed binding ${binding.id} has no owner statement`);
     const additional = additionalInitializerByBindingId.get(binding.id);
     const parsed = additional?.ast
-      ? { ok: true as const, value: { ast: additional.ast, references: collectReferences(additional.ast) } }
+      ? { ok: true as const, value: { ast: additional.ast, references: collectTypedDeclarationReferences(additional.ast) } }
       : additional
       ? parseInitializerSource(spans, statement, binding.id, additional.raw, additional.span)
       : statement.kind === "typedDeclaration"
@@ -806,7 +848,7 @@ export const analyzeTypedDeclarations = ({
       }
     );
     const checked = typecheckScalarExpression(prepared?.ast ?? parsed.ast, {
-      expectedType: additional?.expectedType ?? scalarTypeOfDslValueType(binding.declaredType),
+      expectedType: additional?.expectedType ?? scalarExpressionTypeOfDslValueType(binding.declaredType),
       references: prepared?.references ?? referenceResolutionsForAst(
         parsed.ast,
         collectionIndexResolutionByBindingId.get(binding.id) ?? new Map(),

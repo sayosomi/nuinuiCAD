@@ -7,7 +7,15 @@ import {
   isGeometryArrayTypeAssignable,
   type GeometryArrayType
 } from "./geometryArrayTypes";
-import type { DslArrayValueType, DslNonArrayValueType } from "./dslValueTypes";
+import {
+  dslCoalesceResultType,
+  dslRequiredValueTypeOf,
+  isDslOptionalValueType,
+  isDslValueTypeAssignable,
+  type DslArrayValueType,
+  type DslNonArrayValueType,
+  type DslValueType
+} from "./dslValueTypes";
 import type { TypedScalarExpression } from "../scalars/typedExpressionAst";
 import type { ScalarType } from "../scalars/types";
 import type { ModuleGeometryValueExpressionSemantic } from "./moduleSemanticTypes";
@@ -41,6 +49,7 @@ export type GeometryArrayLiteralValue<TTarget> = {
   type: GeometryArrayType;
   members: readonly GeometryArrayMemberSemantic<TTarget>[];
 };
+export type GeometryArrayNoneValue = { kind: "none"; type: GeometryArrayType };
 
 /**
  * Whole-array aliases retain the target value identity instead of copying its
@@ -91,10 +100,17 @@ export type GeometryArrayConditionalValue<TTarget> =
       scrutineeText: string;
       scrutineeSpan: DslSpan;
       scrutinee?: ModuleScalarExpressionSemantic;
-      arms: readonly { label: string; labelSpan: DslSpan; value: GeometryArraySemanticValue<TTarget> }[];
+      arms: readonly { label: string; labelSpan: DslSpan; binder?: string; binderSpan?: DslSpan; value: GeometryArraySemanticValue<TTarget> }[];
     };
 
-export type GeometryArraySemanticValue<TTarget> = GeometryArrayLiteralValue<TTarget> | GeometryArrayAliasValue | GeometryArrayMappedValue | GeometryArrayConditionalValue<TTarget>;
+export type GeometryArrayCoalesceValue<TTarget> = {
+  kind: "coalesce";
+  type: GeometryArrayType;
+  left: GeometryArraySemanticValue<TTarget>;
+  right: GeometryArraySemanticValue<TTarget>;
+};
+
+export type GeometryArraySemanticValue<TTarget> = GeometryArrayLiteralValue<TTarget> | GeometryArrayNoneValue | GeometryArrayAliasValue | GeometryArrayMappedValue | GeometryArrayConditionalValue<TTarget> | GeometryArrayCoalesceValue<TTarget>;
 
 /** Generalized one-dimensional collection semantic value. Kept beside the
  * historical geometry projection so all collection resolution still has one
@@ -111,6 +127,7 @@ export type DslArrayLiteralValue<TTarget> = {
   valueType: DslArrayValueType;
   members: readonly DslArrayMemberSemantic<TTarget>[];
 };
+export type DslArrayNoneValue = { kind: "none"; valueType: DslArrayValueType };
 
 export type DslArrayAliasValue = {
   kind: "alias";
@@ -164,17 +181,24 @@ export type DslArrayConditionalValue<TTarget> =
       scrutineeText: string;
       scrutineeSpan: DslSpan;
       scrutinee?: ModuleScalarExpressionSemantic;
-      arms: readonly { label: string; labelSpan: DslSpan; value: DslArraySemanticValue<TTarget> }[];
+      arms: readonly { label: string; labelSpan: DslSpan; binder?: string; binderSpan?: DslSpan; value: DslArraySemanticValue<TTarget> }[];
     };
 
-export type DslArraySemanticValue<TTarget> = DslArrayLiteralValue<TTarget> | DslArrayAliasValue | DslArrayMappedValue | DslArrayConditionalValue<TTarget>;
+export type DslArrayCoalesceValue<TTarget> = {
+  kind: "coalesce";
+  valueType: DslArrayValueType;
+  left: DslArraySemanticValue<TTarget>;
+  right: DslArraySemanticValue<TTarget>;
+};
+
+export type DslArraySemanticValue<TTarget> = DslArrayLiteralValue<TTarget> | DslArrayNoneValue | DslArrayAliasValue | DslArrayMappedValue | DslArrayConditionalValue<TTarget> | DslArrayCoalesceValue<TTarget>;
 
 export type GeometryArrayMemberResolution<TTarget> =
   | { kind: "resolved"; value: GeometryArrayResolvedMember<TTarget> }
   | { kind: "invalid"; diagnostic: GeometryArraySemanticDiagnostic };
 
 export type GeometryArrayReferenceResolution =
-  | { kind: "resolved"; targetValueId: string; type: GeometryArrayType }
+  | { kind: "resolved"; targetValueId: string; type: GeometryArrayType; valueType?: DslValueType }
   /**
    * Module instance export namespaces are owned by the Module semantic pass,
    * which runs after the ordinary source namespace. Preserve only the
@@ -186,6 +210,8 @@ export type GeometryArrayReferenceResolution =
 
 export type ResolveGeometryArrayExpressionInput<TTarget> = {
   expectedType: GeometryArrayType;
+  expectedValueType?: DslValueType;
+  requireOptional?: boolean;
   expression: GeometryArrayExpression;
   resolveMember: (member: GeometryArrayLiteralMember) => GeometryArrayMemberResolution<TTarget>;
   resolveArrayReference: (sourceText: string, sourceSpan: DslSpan) => GeometryArrayReferenceResolution;
@@ -196,6 +222,7 @@ export type ResolveGeometryArrayExpressionInput<TTarget> = {
 
 export type ResolveGeometryArrayExpressionResult<TTarget> = {
   value: GeometryArraySemanticValue<TTarget> | null;
+  valueType: DslValueType | null;
   diagnostics: readonly GeometryArraySemanticDiagnostic[];
 };
 
@@ -204,12 +231,14 @@ export type DslArrayMemberResolution<TTarget> =
   | { kind: "invalid"; diagnostic: GeometryArraySemanticDiagnostic };
 
 export type DslArrayReferenceResolution =
-  | { kind: "resolved"; targetValueId: string; valueType: DslArrayValueType }
+  | { kind: "resolved"; targetValueId: string; valueType: DslValueType }
   | { kind: "deferred"; targetValueId: string }
   | { kind: "invalid"; diagnostic: GeometryArraySemanticDiagnostic };
 
 export type ResolveDslArrayExpressionInput<TTarget> = {
   expectedType: DslArrayValueType;
+  expectedValueType?: DslValueType;
+  requireOptional?: boolean;
   expression: GeometryArrayExpression;
   resolveMember: (member: GeometryArrayLiteralMember) => DslArrayMemberResolution<TTarget>;
   resolveArrayReference: (sourceText: string, sourceSpan: DslSpan) => DslArrayReferenceResolution;
@@ -220,6 +249,7 @@ export type ResolveDslArrayExpressionInput<TTarget> = {
 
 export type ResolveDslArrayExpressionResult<TTarget> = {
   value: DslArraySemanticValue<TTarget> | null;
+  valueType: DslValueType | null;
   diagnostics: readonly GeometryArraySemanticDiagnostic[];
 };
 
@@ -246,9 +276,39 @@ const dslArrayMemberTypeMismatch = (
 export const resolveDslArrayExpression = <TTarget>(
   input: ResolveDslArrayExpressionInput<TTarget>
 ): ResolveDslArrayExpressionResult<TTarget> => {
+  const expectedValueType = input.expectedValueType ?? input.expectedType;
+  if (input.expression.kind === "none") {
+    if (!isDslOptionalValueType(expectedValueType)) {
+      return { value: null, valueType: null, diagnostics: [{ code: "optional-value-required", message: "none は optional collection 値にのみ指定できます。", span: input.expression.span }] };
+    }
+    return { value: { kind: "none", valueType: input.expectedType }, valueType: expectedValueType, diagnostics: [] };
+  }
+  if (input.expression.kind === "coalesce") {
+    const leftResult = resolveDslArrayExpression({
+      ...input,
+      expression: input.expression.left,
+      expectedValueType: { kind: "optional", valueType: input.expectedType },
+      requireOptional: true
+    });
+    const rightResult = resolveDslArrayExpression({
+      ...input,
+      expression: input.expression.right,
+      expectedValueType: input.expectedType,
+      requireOptional: false
+    });
+    const diagnostics = [...leftResult.diagnostics, ...rightResult.diagnostics];
+    const resultType = dslCoalesceResultType(leftResult.valueType, rightResult.valueType);
+    return leftResult.value && rightResult.value && resultType?.kind === "array"
+      ? { value: { kind: "coalesce", valueType: input.expectedType, left: leftResult.value, right: rightResult.value }, valueType: input.expectedType, diagnostics }
+      : { value: null, valueType: null, diagnostics };
+  }
   if (input.expression.kind === "if") {
     const thenResult = resolveDslArrayExpression({ ...input, expression: input.expression.thenBranch });
-    const elseResult = resolveDslArrayExpression({ ...input, expression: input.expression.elseBranch });
+    const elseResult = input.expression.elseBranch
+      ? resolveDslArrayExpression({ ...input, expression: input.expression.elseBranch })
+      : isDslOptionalValueType(expectedValueType)
+        ? { value: { kind: "none", valueType: input.expectedType } as DslArrayNoneValue, valueType: expectedValueType, diagnostics: [] }
+        : { value: null, valueType: null, diagnostics: [{ code: "value-if-missing-else", message: "else を省略できる value-if の結果型は optional collection である必要があります。", span: input.expression.span }] };
     const diagnostics = [...thenResult.diagnostics, ...elseResult.diagnostics];
     return thenResult.value && elseResult.value
       ? {
@@ -261,47 +321,59 @@ export const resolveDslArrayExpression = <TTarget>(
             thenValue: thenResult.value,
             elseValue: elseResult.value
           },
+          valueType: input.expectedType,
           diagnostics
         }
-      : { value: null, diagnostics };
+      : { value: null, valueType: null, diagnostics };
   }
   if (input.expression.kind === "match") {
-    const values: { label: string; labelSpan: DslSpan; value: DslArraySemanticValue<TTarget> }[] = [];
+    const values: { label: string; labelSpan: DslSpan; binder?: string; binderSpan?: DslSpan; value: DslArraySemanticValue<TTarget> }[] = [];
     const diagnostics: GeometryArraySemanticDiagnostic[] = [];
     for (const arm of input.expression.arms) {
       const result = resolveDslArrayExpression({ ...input, expression: arm.expression });
       diagnostics.push(...result.diagnostics);
-      if (result.value) values.push({ label: arm.label, labelSpan: arm.labelSpan, value: result.value });
+      if (result.value) values.push({ label: arm.label, labelSpan: arm.labelSpan, ...(arm.binder ? { binder: arm.binder, binderSpan: arm.binderSpan } : {}), value: result.value });
     }
     return values.length === input.expression.arms.length && diagnostics.length === 0
-      ? { value: { kind: "match", span: input.expression.span, valueType: input.expectedType, scrutineeText: input.expression.scrutineeText, scrutineeSpan: input.expression.scrutineeSpan, arms: values }, diagnostics }
-      : { value: null, diagnostics };
+      ? { value: { kind: "match", span: input.expression.span, valueType: input.expectedType, scrutineeText: input.expression.scrutineeText, scrutineeSpan: input.expression.scrutineeSpan, arms: values }, valueType: input.expectedType, diagnostics }
+      : { value: null, valueType: null, diagnostics };
   }
   if (input.expression.kind === "valueFor") {
     const resolution = input.resolveValueFor?.(input.expression);
     if (!resolution) {
       return {
         value: null,
+        valueType: null,
         diagnostics: [{ code: "array-value-for-unsupported", message: "この collection では value-for を使用できません。", span: input.expression.span }]
       };
     }
     return resolution.kind === "resolved"
-      ? { value: resolution.value, diagnostics: [] }
-      : { value: null, diagnostics: [resolution.diagnostic] };
+      ? { value: resolution.value, valueType: resolution.value.valueType, diagnostics: [] }
+      : { value: null, valueType: null, diagnostics: [resolution.diagnostic] };
   }
   if (input.expression.kind === "reference") {
     const resolution = input.resolveArrayReference(input.expression.text, input.expression.span);
-    if (resolution.kind === "invalid") return { value: null, diagnostics: [resolution.diagnostic] };
-    if (resolution.kind === "resolved" && !isDslNonArrayValueTypeAssignable(resolution.valueType.elementType, input.expectedType.elementType)) {
+    if (resolution.kind === "invalid") return { value: null, valueType: null, diagnostics: [resolution.diagnostic] };
+    const requiredValueType = dslRequiredValueTypeOf(resolution.kind === "resolved" ? resolution.valueType : null);
+    if (resolution.kind === "resolved" && input.requireOptional && !isDslOptionalValueType(resolution.valueType)) {
       return {
         value: null,
+        valueType: null,
+        diagnostics: [{ code: "coalesce-left-not-optional", message: "?? の左辺は optional collection 値である必要があります。", span: input.expression.span }]
+      };
+    }
+    const assignabilityActual = input.requireOptional ? requiredValueType : resolution.kind === "resolved" ? resolution.valueType : null;
+    if (resolution.kind === "resolved" && (!requiredValueType || requiredValueType.kind !== "array" || !assignabilityActual || !isDslValueTypeAssignable(assignabilityActual, expectedValueType))) {
+      return {
+        value: null,
+        valueType: null,
         diagnostics: [{
           code: "array-assignability-mismatch",
-          message: `array の型が一致しません: ${dslArrayTypeName(resolution.valueType)} は ${dslArrayTypeName(input.expectedType)} に代入できません。`,
+          message: `array の型が一致しません: ${dslArrayTypeName(requiredValueType && requiredValueType.kind === "array" ? requiredValueType : input.expectedType)} は ${dslArrayTypeName(input.expectedType)} に代入できません。`,
           span: input.expression.span,
           presentation: {
             key: "diagnostic.array-assignability-mismatch",
-            parameters: { actual: dslArrayTypeName(resolution.valueType), expected: dslArrayTypeName(input.expectedType) }
+            parameters: { actual: dslArrayTypeName(requiredValueType && requiredValueType.kind === "array" ? requiredValueType : input.expectedType), expected: dslArrayTypeName(input.expectedType) }
           }
         }]
       };
@@ -313,6 +385,7 @@ export const resolveDslArrayExpression = <TTarget>(
         targetValueId: resolution.targetValueId,
         sourceSpan: input.expression.span
       },
+      valueType: resolution.kind === "resolved" ? resolution.valueType : expectedValueType,
       diagnostics: []
     };
   }
@@ -338,6 +411,7 @@ export const resolveDslArrayExpression = <TTarget>(
   }
   return {
     value: diagnostics.length === 0 ? { kind: "literal", valueType: input.expectedType, members } : null,
+    valueType: diagnostics.length === 0 ? input.expectedType : null,
     diagnostics
   };
 };
@@ -365,9 +439,48 @@ export const resolveGeometryArrayExpression = <TTarget>(
   input: ResolveGeometryArrayExpressionInput<TTarget>
 ): ResolveGeometryArrayExpressionResult<TTarget> => {
   const diagnostics: GeometryArraySemanticDiagnostic[] = [];
+  const fallbackValueType: DslArrayValueType = { kind: "array", elementType: { kind: input.expectedType.elementType } };
+  const expectedValueType = input.expectedValueType ?? fallbackValueType;
+  const expectedRequiredValueType = dslRequiredValueTypeOf(expectedValueType);
+  if (!expectedRequiredValueType || expectedRequiredValueType.kind !== "array") {
+    return {
+      value: null,
+      valueType: null,
+      diagnostics: [{ code: "geometry-array-expected-array", message: "geometry array の期待型が不正です。", span: input.expression.span }]
+    };
+  }
+  if (input.expression.kind === "none") {
+    if (!isDslOptionalValueType(expectedValueType)) {
+      return { value: null, valueType: null, diagnostics: [{ code: "optional-value-required", message: "none は optional geometry array 値にのみ指定できます。", span: input.expression.span }] };
+    }
+    return { value: { kind: "none", type: input.expectedType }, valueType: expectedValueType, diagnostics: [] };
+  }
+  if (input.expression.kind === "coalesce") {
+    const leftResult = resolveGeometryArrayExpression({
+      ...input,
+      expression: input.expression.left,
+      expectedValueType: { kind: "optional", valueType: expectedRequiredValueType },
+      requireOptional: true
+    });
+    const rightResult = resolveGeometryArrayExpression({
+      ...input,
+      expression: input.expression.right,
+      expectedValueType: expectedRequiredValueType,
+      requireOptional: false
+    });
+    const branchDiagnostics = [...leftResult.diagnostics, ...rightResult.diagnostics];
+    const resultType = dslCoalesceResultType(leftResult.valueType, rightResult.valueType);
+    return leftResult.value && rightResult.value && resultType?.kind === "array"
+      ? { value: { kind: "coalesce", type: input.expectedType, left: leftResult.value, right: rightResult.value }, valueType: expectedRequiredValueType, diagnostics: branchDiagnostics }
+      : { value: null, valueType: null, diagnostics: branchDiagnostics };
+  }
   if (input.expression.kind === "if") {
     const thenResult = resolveGeometryArrayExpression({ ...input, expression: input.expression.thenBranch });
-    const elseResult = resolveGeometryArrayExpression({ ...input, expression: input.expression.elseBranch });
+    const elseResult = input.expression.elseBranch
+      ? resolveGeometryArrayExpression({ ...input, expression: input.expression.elseBranch })
+      : isDslOptionalValueType(expectedValueType)
+        ? { value: { kind: "none", type: input.expectedType } as GeometryArrayNoneValue, valueType: expectedValueType, diagnostics: [] }
+        : { value: null, valueType: null, diagnostics: [{ code: "value-if-missing-else", message: "else を省略できる value-if の結果型は optional geometry array である必要があります。", span: input.expression.span }] };
     const branchDiagnostics = [...thenResult.diagnostics, ...elseResult.diagnostics];
     return thenResult.value && elseResult.value
       ? {
@@ -380,39 +493,54 @@ export const resolveGeometryArrayExpression = <TTarget>(
             thenValue: thenResult.value,
             elseValue: elseResult.value
           },
+          valueType: expectedValueType,
           diagnostics: branchDiagnostics
         }
-      : { value: null, diagnostics: branchDiagnostics };
+      : { value: null, valueType: null, diagnostics: branchDiagnostics };
   }
   if (input.expression.kind === "match") {
-    const values: { label: string; labelSpan: DslSpan; value: GeometryArraySemanticValue<TTarget> }[] = [];
+    const values: { label: string; labelSpan: DslSpan; binder?: string; binderSpan?: DslSpan; value: GeometryArraySemanticValue<TTarget> }[] = [];
     for (const arm of input.expression.arms) {
       const result = resolveGeometryArrayExpression({ ...input, expression: arm.expression });
       diagnostics.push(...result.diagnostics);
-      if (result.value) values.push({ label: arm.label, labelSpan: arm.labelSpan, value: result.value });
+      if (result.value) values.push({ label: arm.label, labelSpan: arm.labelSpan, ...(arm.binder ? { binder: arm.binder, binderSpan: arm.binderSpan } : {}), value: result.value });
     }
     return values.length === input.expression.arms.length && diagnostics.length === 0
-      ? { value: { kind: "match", span: input.expression.span, type: input.expectedType, scrutineeText: input.expression.scrutineeText, scrutineeSpan: input.expression.scrutineeSpan, arms: values }, diagnostics }
-      : { value: null, diagnostics };
+      ? { value: { kind: "match", span: input.expression.span, type: input.expectedType, scrutineeText: input.expression.scrutineeText, scrutineeSpan: input.expression.scrutineeSpan, arms: values }, valueType: expectedValueType, diagnostics }
+      : { value: null, valueType: null, diagnostics };
   }
   if (input.expression.kind === "valueFor") {
     const resolution = input.resolveValueFor?.(input.expression);
     if (!resolution) {
       return {
         value: null,
+        valueType: null,
         diagnostics: [{ code: "geometry-array-value-for-unsupported", message: "geometry array value-for を使用できません。", span: input.expression.span }]
       };
     }
     return resolution.kind === "resolved"
-      ? { value: resolution.value, diagnostics: [] }
-      : { value: null, diagnostics: [resolution.diagnostic] };
+      ? { value: resolution.value, valueType: expectedValueType, diagnostics: [] }
+      : { value: null, valueType: null, diagnostics: [resolution.diagnostic] };
   }
   if (input.expression.kind === "reference") {
     const resolution = input.resolveArrayReference(input.expression.text, input.expression.span);
-    if (resolution.kind === "invalid") return { value: null, diagnostics: [resolution.diagnostic] };
-    if (resolution.kind === "resolved" && !isGeometryArrayTypeAssignable(resolution.type, input.expectedType)) {
+    if (resolution.kind === "invalid") return { value: null, valueType: null, diagnostics: [resolution.diagnostic] };
+    const actualValueType = resolution.kind === "resolved"
+      ? resolution.valueType ?? { kind: "array", elementType: { kind: resolution.type.elementType } } satisfies DslArrayValueType
+      : null;
+    const requiredValueType = dslRequiredValueTypeOf(actualValueType);
+    if (resolution.kind === "resolved" && input.requireOptional && !isDslOptionalValueType(actualValueType)) {
       return {
         value: null,
+        valueType: null,
+        diagnostics: [{ code: "coalesce-left-not-optional", message: "?? の左辺は optional geometry array 値である必要があります。", span: input.expression.span }]
+      };
+    }
+    const assignabilityActual = input.requireOptional ? requiredValueType : actualValueType;
+    if (resolution.kind === "resolved" && (!actualValueType || !requiredValueType || requiredValueType.kind !== "array" || !assignabilityActual || !isDslValueTypeAssignable(assignabilityActual, expectedValueType))) {
+      return {
+        value: null,
+        valueType: null,
         diagnostics: [{
           code: "geometry-array-assignability-mismatch",
           message: `geometry array の型が一致しません: ${geometryArrayTypeName(resolution.type)} は ${geometryArrayTypeName(input.expectedType)} に代入できません。`,
@@ -431,6 +559,7 @@ export const resolveGeometryArrayExpression = <TTarget>(
         targetValueId: resolution.targetValueId,
         sourceSpan: input.expression.span
       },
+      valueType: actualValueType,
       diagnostics
     };
   }
@@ -457,6 +586,7 @@ export const resolveGeometryArrayExpression = <TTarget>(
 
   return {
     value: diagnostics.length === 0 ? { kind: "literal", type: input.expectedType, members } : null,
+    valueType: diagnostics.length === 0 ? expectedValueType : null,
     diagnostics
   };
 };

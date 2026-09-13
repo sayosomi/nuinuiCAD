@@ -59,4 +59,14 @@ describe("typedDeclarationInitializerCompletionContext", () => {
     const context = typedDeclarationInitializerCompletionContext(line, line.length);
     expect(context?.declaredType).toEqual({ kind: "choice", options: ["right", "left"] });
   });
+
+  it("projects an optional scalar declaration to its underlying completion type", () => {
+    const line = "const note: string? = ";
+    const context = typedDeclarationInitializerCompletionContext(line, line.length);
+    expect(context?.declaredType).toEqual({ kind: "string" });
+    expect(context?.positionContext.kind).toBe("operand");
+    if (context?.positionContext.kind === "operand") {
+      expect(context.positionContext.expectedType).toEqual({ kind: "string" });
+    }
+  });
 });

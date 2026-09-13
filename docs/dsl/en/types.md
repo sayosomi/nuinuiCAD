@@ -20,6 +20,37 @@ have at least one unique, unquoted option identifier; option order is part of
 the type identity, so `choice(left, right)` and `choice(right, left)` are
 different types.
 
+## Optional values
+
+Every immutable value type can use one postfix optional suffix: `T?` means a
+value of `T` or the reserved absence value `none`. `none` is accepted only when
+an expected optional type establishes its underlying type, for example:
+
+<!-- dsl-example: syntax-fragment -->
+```nui
+const note: string? = none
+const count: number? = 10
+```
+
+`T` is assignable to `T?`, but `T?` is not implicitly assignable to `T`.
+Repeated suffixes such as `T??` are rejected, and `none` cannot be a
+`choice(...)` option. Optionality uses the same canonical value-type rule for
+scalars, geometry, nominal records, and collections. With one-dimensional
+arrays, `T?[]` is an array whose members are optional, while `T[]?` is one
+optional array value. Module parameters use this same model: write
+`name: T?`; the retired `name?: T` spelling is rejected. Omission without a
+default and explicit `none` both produce the ordinary `none` value, while a
+supplied `T` widens to `T?`. Defaults remain governed by the existing
+parameter-kind eligibility rules, so optionality does not grant defaults to
+ineligible parameter families.
+
+Optional member access uses `?.`: for a value of type `T?`, `value?.member`
+with an ordinary member result `U` produces `U?`. `none` propagates as
+`none`, a present receiver reads the ordinary member, and an already-optional
+member result stays one optional layer. There is no implicit unwrapping for
+ordinary `.` access. See [Expressions](expressions.md) for the supported
+member/property families.
+
 ## Geometry types
 
 The module geometry interfaces are `point`, `line`, and `path`. A `line` is a
@@ -99,12 +130,12 @@ invalid, and these pure forms allocate no drawable identity. `corner` and other
 deferred constructions remain unsupported.
 
 Geometry values also support expression-local value control flow. `if` requires
-a boolean condition, an `else` branch, and a geometry-compatible result in
-both branches. `match` requires an exhaustive `choice(...)` scrutinee; every
-case is resolved and checked, while only the selected branch is evaluated at
-runtime. Branches may use existing `@` geometry references or the pure
-construction forms listed above. Records, collections, and optional values are
-not supported as geometry-valued results in nui1.
+a boolean condition and geometry-compatible present branches; an omitted `else`
+is legal only for an optional geometry result. `match` accepts an exhaustive
+`choice(...)` or optional scrutinee; optional matches use `none` and
+`some <binder>` arms. Every arm is resolved and checked, while only the selected
+branch is evaluated at runtime. Branches may use existing `@` geometry
+references or the pure construction forms listed above.
 
 Pure `intersection(line1: ..., line2: ..., index: ..., extensions: ...)` is an
 identity-free `point` initializer accepting line-like `line` or `path` inputs.
@@ -196,19 +227,19 @@ The index is a normal typed `number` expression, for example
 `@marks[0]` or `@marks[@index + 1]`, and the result has the collection's exact
 element type. This preserves order, duplicates, aliases, nominal record
 identity, and pure geometry value identity without creating a drawable element
-identity. Optional Module collection parameters require a preceding
-`hasValue(@parameter)` proof. The index must be finite, integral, at least `0`,
+identity. Optional Module collection parameters must be resolved through the
+general optional-value operations. The index must be finite, integral, at least `0`,
 and less than the collection length; invalid dynamic indexes are evaluation
 errors and are never clamped or wrapped.
 
-Collection-valued `if` and exhaustive choice `match` are lazy value expressions.
+Collection-valued `if` and exhaustive choice/optional `match` are lazy value expressions.
 All branches or arms must resolve to the same declared one-dimensional
 collection type, while cardinalities may differ. The selected branch determines
 `.length` and indexed members, and an unselected branch is not evaluated.
 Collection values retain their scalar, choice, geometry, or nominal-record
 element identity, so assignable `point[]`, `line[]`, and `path[]` values can be
-passed to existing geometry consumers. Optional result values and nested arrays
-remain deferred.
+passed to existing geometry consumers. Omitted optional-result branches use
+ordinary `none`; nested arrays remain deferred or unsupported.
 
 ## Records
 

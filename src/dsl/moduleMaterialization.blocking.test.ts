@@ -168,8 +168,8 @@ describe("module materialization blocking regressions", () => {
       "  point P = coordinate(x: 1, y: 2)",
       "}",
       "instance Default = M()",
-      "instance Hidden(state: hidden) = M()",
-      "instance Disabled(state: disabled) = M()"
+      "instance Hidden(visible: false) = M()",
+      "instance Disabled(enabled: false) = M()"
     ].join("\n"));
     const elements = compiled.document!.elements;
     const instanceNamed = (name: string) => elements.find((element) => element.name === name && element.type === "moduleInstance")!;
@@ -192,14 +192,14 @@ describe("module materialization blocking regressions", () => {
   it("resolves document modifiers through materialized nested module groups", () => {
     const compiled = runtimeNames([
       "nui 1",
-      "modifier Hide {",
-      "  state: hidden,",
+      "style Hide {",
+      "  visible: false,",
       "}",
-      "modifier Disable {",
-      "  state: disabled,",
+      "style Disable {",
+      "  visible: false,",
       "}",
-      "modifier Show {",
-      "  state: visible,",
+      "style Show {",
+      "  visible: true,",
       "}",
       "module M() {",
       "  group Inner [Disable] {",
@@ -220,9 +220,9 @@ describe("module materialization blocking regressions", () => {
     expect(point.parentGroupId).toBe(inner.id);
     const result = evaluateCompiled(compiled);
     expect(result.errors).toEqual([]);
-    expect(result.computedGeometry.has(point.id)).toBe(false);
+    expect(result.computedGeometry.has(point.id)).toBe(true);
     expect(result.effectiveVisibleElementIds).not.toContain(point.id);
-    expect(result.effectiveEnabledElementIds).not.toContain(point.id);
+    expect(result.effectiveEnabledElementIds).toContain(point.id);
     expect(result.effectiveVisibleElementIds).not.toContain(outer.id);
     expect(result.computedGeometry.has(visible.id)).toBe(true);
   });

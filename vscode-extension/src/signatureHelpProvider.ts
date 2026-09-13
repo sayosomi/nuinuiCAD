@@ -40,7 +40,8 @@ const parameterLabel = (
   signature: DslSignatureHelpSignature
 ): string => {
   const type = parameter.type ?? "";
-  const optional = parameter.optional ? "?" : "";
+  const moduleOptional = signature.callingStyle === "module" && parameter.optional;
+  const optional = parameter.optional && !moduleOptional ? "?" : "";
   const prefix = signature.callingStyle === "positional"
     ? optional
     : `${parameter.name}${optional}:`;
@@ -49,7 +50,7 @@ const parameterLabel = (
     ? ` [${parameter.allowedValues.join(" / ")}]`
     : "";
   const renderedType = type
-    ? signature.callingStyle === "positional" ? type : ` ${type}`
+    ? signature.callingStyle === "positional" ? type : ` ${type}${moduleOptional ? "?" : ""}`
     : "";
   return `${prefix}${renderedType}${defaultValue}${allowedValues}`;
 };

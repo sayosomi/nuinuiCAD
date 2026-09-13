@@ -46,7 +46,7 @@ export type ResolveBuiltinGeometryArgumentsInput = {
   /** Module semantic analysis may claim an already-resolved qualified geometry
    * occurrence before the ordinary source namespace lookup runs. */
   readonly additionalGeometryResolver?: (input: {
-    readonly node: Extract<ScalarExpressionAst, { kind: "reference" | "geometryProperty" }>;
+      readonly node: Extract<ScalarExpressionAst, { kind: "reference" | "collectionIndex" | "geometryProperty" }>;
     readonly occurrenceIndex: number | null;
     readonly expectedGeometryType: Extract<ModuleGeometryInterfaceType, "point" | "line">;
   }) => ScalarExpressionResolvedGeometryTarget | undefined;
@@ -188,8 +188,47 @@ export const resolveBuiltinGeometryArguments = ({
     }
   };
 
-  const resolveDerivedPointGeometryProperty = (
-    node: Extract<ScalarExpressionAst, { kind: "geometryProperty" }>
+  const resolveDirectGeometryCollectionIndex = (
+    node: Extract<ScalarExpressionAst, { kind: "collectionIndex" }>,
+    expectedGeometryType: Extract<ModuleGeometryInterfaceType, "point" | "line">
+  ): void => {
+    const { occurrenceIndex, resolution } = nextReference(node.name, node.span);
+    claimedReferenceOccurrenceIndexes.add(occurrenceIndex);
+    const target = additionalGeometryResolver?.({
+      node,
+      occurrenceIndex,
+      expectedGeometryType
+    }) ?? null;
+    references[occurrenceIndex] = { kind: "resolvedGeometry", target };
+    if (target === null) {
+      issues.push({
+        code: "builtin-geometry-argument-invalid",
+        span: node.span,
+        message: invalidReferenceMessage(node.name, resolution),
+        occurrenceIndex,
+        presentation: invalidReferencePresentation(node.name)
+      });
+      return;
+    }
+    if (!isModuleGeometryInterfaceAssignable(target.geometryType, expectedGeometryType)) {
+      issues.push({
+        code: "builtin-geometry-type-mismatch",
+        span: node.span,
+        message: typeMismatchMessage(expectedGeometryType, target.geometryType),
+        occurrenceIndex,
+        expectedGeometryType,
+        actualGeometryType: target.geometryType,
+        presentation: {
+          key: "diagnostic.builtin-geometry-type-mismatch",
+          parameters: { expected: expectedGeometryType, actual: target.geometryType }
+        }
+      });
+    }
+  };
+
+  const resolveGeometryPropertyArgument = (
+    node: Extract<ScalarExpressionAst, { kind: "geometryProperty" }>,
+    expectedGeometryType: Extract<ModuleGeometryInterfaceType, "point" | "line">
   ): void => {
     const issue = (message: string, presentation: DslDiagnosticPresentation): void => {
       geometryPropertyTargets.set(node.span.start, null);
@@ -201,15 +240,30 @@ export const resolveBuiltinGeometryArguments = ({
         presentation
       });
     };
-    const additionalTarget = additionalGeometryResolver?.({ node, occurrenceIndex: null, expectedGeometryType: "point" });
+    const additionalTarget = additionalGeometryResolver?.({ node, occurrenceIndex: null, expectedGeometryType });
     if (additionalTarget !== undefined) {
-      if (additionalTarget.pointKey) {
+      // The shared parser represents both a derived geometry property
+      // (`@line.start`) and a direct member reference (`@record.edge`) as a
+      // geometryProperty node. A closed semantic owner may claim the latter
+      // without a pointKey; preserve the existing pointKey requirement for
+      // ordinary geometry-derived point accessors below.
+      if (
+        isModuleGeometryInterfaceAssignable(additionalTarget.geometryType, expectedGeometryType) &&
+        (additionalTarget.pointKey || additionalTarget.geometryType === expectedGeometryType)
+      ) {
         geometryPropertyTargets.set(node.span.start, additionalTarget);
         return;
       }
       issue(
         invalidGeometryPropertyMessage(node.elementName, node.property, "point"),
         invalidGeometryPropertyPresentation(node.elementName, node.property, "point")
+      );
+      return;
+    }
+    if (expectedGeometryType !== "point") {
+      issue(
+        invalidGeometryPropertyMessage(node.elementName, node.property, expectedGeometryType),
+        invalidGeometryPropertyPresentation(node.elementName, node.property, expectedGeometryType)
       );
       return;
     }
@@ -249,16 +303,16 @@ export const resolveBuiltinGeometryArguments = ({
     });
   };
 
-  const visit = (node: ScalarExpressionAst): void => {
+  const visit = (node: ScalarExpressionAst, boundNames: ReadonlySet<string> = new Set()): void => {
     switch (node.kind) {
       case "reference":
-        nextReference(node.name, node.span);
+        if (!boundNames.has(node.name)) nextReference(node.name, node.span);
         return;
       case "collectionIndex":
-        if (collectionIndexBaseReferenceOccurrenceIndexes?.has(referenceCursor)) {
+        if (!boundNames.has(node.name) && collectionIndexBaseReferenceOccurrenceIndexes?.has(referenceCursor)) {
           nextReference(node.name, node.span);
         }
-        visit(node.index);
+        visit(node.index, boundNames);
         return;
       case "geometryProperty":
       case "numberLiteral":
@@ -266,24 +320,26 @@ export const resolveBuiltinGeometryArguments = ({
       case "booleanLiteral":
       case "unresolvedChoiceLiteral":
         return;
+      case "optionalMember":
+        return;
       case "unary":
-        visit(node.operand);
+        visit(node.operand, boundNames);
         return;
       case "binary":
-        visit(node.left);
-        visit(node.right);
+        visit(node.left, boundNames);
+        visit(node.right, boundNames);
         return;
       case "group":
-        visit(node.expression);
+        visit(node.expression, boundNames);
         return;
       case "valueIf":
-        visit(node.condition);
-        visit(node.thenBranch);
-        visit(node.elseBranch);
+        visit(node.condition, boundNames);
+        visit(node.thenBranch, boundNames);
+        if (node.elseBranch) visit(node.elseBranch, boundNames);
         return;
       case "valueMatch":
-        visit(node.scrutinee);
-        node.arms.forEach((arm) => visit(arm.expression));
+        visit(node.scrutinee, boundNames);
+        node.arms.forEach((arm) => visit(arm.expression, arm.binder ? new Set([...boundNames, arm.binder]) : boundNames));
         return;
       case "call": {
         const definition = getBuiltinFunctionDefinition(node.name);
@@ -303,10 +359,13 @@ export const resolveBuiltinGeometryArguments = ({
             ) {
               if (nodeArgument.kind === "reference") {
                 resolveDirectGeometryReference(nodeArgument, parameterType);
-              } else if (nodeArgument.kind === "geometryProperty" && parameterType === "point") {
-                resolveDerivedPointGeometryProperty(nodeArgument);
+              } else if (nodeArgument.kind === "collectionIndex") {
+                resolveDirectGeometryCollectionIndex(nodeArgument, parameterType);
+                visit(nodeArgument.index, boundNames);
+              } else if (nodeArgument.kind === "geometryProperty") {
+                resolveGeometryPropertyArgument(nodeArgument, parameterType);
               } else {
-                visit(nodeArgument);
+                visit(nodeArgument, boundNames);
                 issues.push({
                   code: "builtin-geometry-argument-invalid",
                   span: nodeArgument.span,
@@ -317,7 +376,7 @@ export const resolveBuiltinGeometryArguments = ({
               }
               return;
             }
-            visit(nodeArgument);
+            visit(nodeArgument, boundNames);
           });
           return;
         }
@@ -327,10 +386,13 @@ export const resolveBuiltinGeometryArguments = ({
           if (parameterType === "point" || parameterType === "line") {
             if (nodeArgument.kind === "reference") {
               resolveDirectGeometryReference(nodeArgument, parameterType);
-            } else if (nodeArgument.kind === "geometryProperty" && parameterType === "point") {
-              resolveDerivedPointGeometryProperty(nodeArgument);
+            } else if (nodeArgument.kind === "collectionIndex") {
+              resolveDirectGeometryCollectionIndex(nodeArgument, parameterType);
+              visit(nodeArgument.index, boundNames);
+            } else if (nodeArgument.kind === "geometryProperty") {
+              resolveGeometryPropertyArgument(nodeArgument, parameterType);
             } else {
-              visit(nodeArgument);
+              visit(nodeArgument, boundNames);
               issues.push({
                 code: "builtin-geometry-argument-invalid",
                 span: nodeArgument.span,
@@ -341,7 +403,7 @@ export const resolveBuiltinGeometryArguments = ({
             }
             return;
           }
-          visit(nodeArgument);
+          visit(nodeArgument, boundNames);
         });
         return;
       }

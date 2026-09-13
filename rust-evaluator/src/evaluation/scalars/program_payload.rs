@@ -28,8 +28,13 @@ pub(crate) struct ValidatedScalarProgramCollection {
 
 #[derive(Debug)]
 pub(crate) enum ValidatedScalarProgramCollectionValue {
+    None,
     Literal(Vec<ValidatedScalarProgramCollectionMember>),
     Alias(String),
+    Coalesce {
+        left_value_id: String,
+        right_value_id: String,
+    },
     Map {
         source_value_id: String,
         source_element_type: ScalarType,
@@ -40,6 +45,8 @@ pub(crate) enum ValidatedScalarProgramCollectionValue {
     },
     RecordMap {
         source_value_id: String,
+        source_type_identity: String,
+        result_type_identity: String,
         binder_fields: Vec<ValidatedScalarProgramRecordField>,
         fields: Vec<ValidatedScalarProgramRecordFieldBody>,
         source_order: usize,
@@ -61,11 +68,18 @@ pub(crate) enum ValidatedScalarProgramCollectionValue {
     },
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ValidatedScalarProgramRecordFieldPathEntry {
+    pub(crate) record_statement_id: String,
+    pub(crate) field_index: usize,
+}
+
 #[derive(Debug, Clone)]
 pub(crate) struct ValidatedScalarProgramRecordFieldIdentity {
     pub(crate) record_statement_id: String,
     pub(crate) field_index: usize,
     pub(crate) r#type: ScalarType,
+    pub(crate) field_path: Option<Vec<ValidatedScalarProgramRecordFieldPathEntry>>,
 }
 
 #[derive(Debug, Clone)]
@@ -74,6 +88,7 @@ pub(crate) struct ValidatedScalarProgramRecordField {
     pub(crate) field_index: usize,
     pub(crate) r#type: ScalarType,
     pub(crate) binding_id: BindingId,
+    pub(crate) field_path: Option<Vec<ValidatedScalarProgramRecordFieldPathEntry>>,
 }
 
 #[derive(Debug)]
@@ -82,6 +97,7 @@ pub(crate) struct ValidatedScalarProgramRecordFieldBody {
     pub(crate) field_index: usize,
     pub(crate) r#type: ScalarType,
     pub(crate) body: Box<TypedScalarExpression>,
+    pub(crate) field_path: Option<Vec<ValidatedScalarProgramRecordFieldPathEntry>>,
 }
 
 #[derive(Debug)]
@@ -95,6 +111,7 @@ pub(crate) enum ValidatedScalarProgramCollectionMember {
         binding_id: BindingId,
     },
     Record {
+        type_identity: String,
         fields: Vec<ValidatedScalarProgramRecordField>,
     },
 }
@@ -145,6 +162,8 @@ pub(crate) fn decode_collection_values(
                 "elseValueId",
                 "scrutinee",
                 "arms",
+                "leftValueId",
+                "rightValueId",
             ],
             "scalar program collection value",
         )?;
@@ -164,6 +183,14 @@ pub(crate) fn decode_collection_values(
             "scalar program collection value kind",
         )?;
         let decoded_value = match kind {
+            "none" => {
+                reject_unexpected_fields(
+                    entry,
+                    &["valueId", "kind"],
+                    "scalar program collection none",
+                )?;
+                ValidatedScalarProgramCollectionValue::None
+            }
             "alias" => {
                 reject_unexpected_fields(
                     entry,
@@ -177,6 +204,37 @@ pub(crate) fn decode_collection_values(
                     )?
                     .to_owned(),
                 )
+            }
+            "coalesce" => {
+                reject_unexpected_fields(
+                    entry,
+                    &[
+                        "valueId",
+                        "kind",
+                        "leftValueId",
+                        "rightValueId",
+                        "sourceOrder",
+                    ],
+                    "scalar program collection coalesce",
+                )?;
+                let left_value_id = non_empty_string(
+                    require_field(entry, "leftValueId", "scalar program collection coalesce")?,
+                    "scalar program collection coalesce leftValueId",
+                )?
+                .to_owned();
+                let right_value_id = non_empty_string(
+                    require_field(entry, "rightValueId", "scalar program collection coalesce")?,
+                    "scalar program collection coalesce rightValueId",
+                )?
+                .to_owned();
+                let _source_order = require_field(entry, "sourceOrder", "scalar program collection coalesce")?
+                    .as_f64()
+                    .filter(|value| value.is_finite() && *value >= 0.0)
+                    .ok_or_else(|| issue(Code::InvalidFieldType, "scalar program collection coalesce sourceOrder must be a non-negative number"))?;
+                ValidatedScalarProgramCollectionValue::Coalesce {
+                    left_value_id,
+                    right_value_id,
+                }
             }
             "literal" => {
                 reject_unexpected_fields(
@@ -267,20 +325,23 @@ pub(crate) fn decode_collection_values(
                                 &["kind", "typeIdentity", "fields"],
                                 "scalar program record member",
                             )?;
-                            let _type_identity = non_empty_string(
+                            let type_identity = non_empty_string(
                                 require_field(
                                     member,
                                     "typeIdentity",
                                     "scalar program record member",
                                 )?,
                                 "scalar program record member typeIdentity",
-                            )?;
+                            )?
+                            .to_owned();
                             let fields = decode_record_fields(
                                 require_field(member, "fields", "scalar program record member")?,
                                 true,
                             )?;
-                            decoded_members
-                                .push(ValidatedScalarProgramCollectionMember::Record { fields });
+                            decoded_members.push(ValidatedScalarProgramCollectionMember::Record {
+                                type_identity,
+                                fields,
+                            });
                         }
                         _ => {
                             return Err(issue(
@@ -370,12 +431,12 @@ pub(crate) fn decode_collection_values(
                     "scalar program record map sourceValueId",
                 )?
                 .to_owned();
-                let _source_type_identity = non_empty_string(
+                let source_type_identity = non_empty_string(
                     require_field(entry, "sourceTypeIdentity", "scalar program record map")?,
                     "scalar program record map sourceTypeIdentity",
                 )?
                 .to_owned();
-                let _result_type_identity = non_empty_string(
+                let result_type_identity = non_empty_string(
                     require_field(entry, "resultTypeIdentity", "scalar program record map")?,
                     "scalar program record map resultTypeIdentity",
                 )?
@@ -400,6 +461,8 @@ pub(crate) fn decode_collection_values(
                 )?;
                 ValidatedScalarProgramCollectionValue::RecordMap {
                     source_value_id,
+                    source_type_identity,
+                    result_type_identity,
                     binder_fields,
                     fields,
                     source_order,
@@ -565,13 +628,59 @@ fn require_non_negative_usize(json: &Value, context: &str) -> Result<usize, Scal
     })
 }
 
+fn decode_record_field_path(
+    json: Option<&Value>,
+    context: &str,
+) -> Result<Option<Vec<ValidatedScalarProgramRecordFieldPathEntry>>, ScalarPayloadIssue> {
+    let Some(json) = json else {
+        return Ok(None);
+    };
+    let entries = json.as_array().ok_or_else(|| {
+        issue(
+            Code::InvalidFieldType,
+            format!("{context} fieldPath must be an array"),
+        )
+    })?;
+    let mut decoded = Vec::with_capacity(entries.len());
+    for entry in entries {
+        let object = as_object(entry, &format!("{context} fieldPath entry"))?;
+        reject_unexpected_fields(
+            object,
+            &["recordStatementId", "fieldIndex"],
+            &format!("{context} fieldPath entry"),
+        )?;
+        decoded.push(ValidatedScalarProgramRecordFieldPathEntry {
+            record_statement_id: non_empty_string(
+                require_field(
+                    object,
+                    "recordStatementId",
+                    &format!("{context} fieldPath entry"),
+                )?,
+                &format!("{context} fieldPath entry recordStatementId"),
+            )?
+            .to_owned(),
+            field_index: require_non_negative_usize(
+                require_field(object, "fieldIndex", &format!("{context} fieldPath entry"))?,
+                &format!("{context} fieldPath entry fieldIndex"),
+            )?,
+        });
+    }
+    if decoded.is_empty() {
+        return Err(issue(
+            Code::InvalidFieldType,
+            format!("{context} fieldPath must not be empty"),
+        ));
+    }
+    Ok(Some(decoded))
+}
+
 fn decode_record_field_identity(
     json: &Value,
 ) -> Result<ValidatedScalarProgramRecordFieldIdentity, ScalarPayloadIssue> {
     let object = as_object(json, "scalar program record field identity")?;
     reject_unexpected_fields(
         object,
-        &["recordStatementId", "fieldIndex", "type"],
+        &["recordStatementId", "fieldIndex", "type", "fieldPath"],
         "scalar program record field identity",
     )?;
     Ok(ValidatedScalarProgramRecordFieldIdentity {
@@ -593,6 +702,10 @@ fn decode_record_field_identity(
             "type",
             "scalar program record field identity",
         )?)?,
+        field_path: decode_record_field_path(
+            object.get("fieldPath"),
+            "scalar program record field identity",
+        )?,
     })
 }
 
@@ -610,9 +723,15 @@ fn decode_record_fields(
     for field in fields {
         let object = as_object(field, "scalar program record field")?;
         let allowed = if with_binding_id {
-            &["recordStatementId", "fieldIndex", "type", "bindingId"][..]
+            &[
+                "recordStatementId",
+                "fieldIndex",
+                "type",
+                "bindingId",
+                "fieldPath",
+            ][..]
         } else {
-            &["recordStatementId", "fieldIndex", "type"][..]
+            &["recordStatementId", "fieldIndex", "type", "fieldPath"][..]
         };
         reject_unexpected_fields(object, allowed, "scalar program record field")?;
         let binding_id = if with_binding_id {
@@ -642,6 +761,10 @@ fn decode_record_fields(
                 "scalar program record field",
             )?)?,
             binding_id: binding_id.unwrap_or_default(),
+            field_path: decode_record_field_path(
+                object.get("fieldPath"),
+                "scalar program record field",
+            )?,
         });
     }
     Ok(decoded)
@@ -661,7 +784,13 @@ fn decode_record_field_bodies(
         let object = as_object(field, "scalar program record map field")?;
         reject_unexpected_fields(
             object,
-            &["recordStatementId", "fieldIndex", "type", "body"],
+            &[
+                "recordStatementId",
+                "fieldIndex",
+                "type",
+                "body",
+                "fieldPath",
+            ],
             "scalar program record map field",
         )?;
         decoded.push(ValidatedScalarProgramRecordFieldBody {
@@ -688,6 +817,10 @@ fn decode_record_field_bodies(
                 "body",
                 "scalar program record map field",
             )?)?),
+            field_path: decode_record_field_path(
+                object.get("fieldPath"),
+                "scalar program record map field",
+            )?,
         });
     }
     Ok(decoded)

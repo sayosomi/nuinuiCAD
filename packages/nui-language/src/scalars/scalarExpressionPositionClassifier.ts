@@ -61,6 +61,8 @@ export const expectedOperandType = (precedingToken: ScalarExpressionToken | null
   if (precedingToken.kind !== "operator") return null;
   const operator: ScalarExpressionOperatorSymbol = precedingToken.value;
   switch (operator) {
+    case "??":
+      return rootType;
     case "&&":
     case "||":
     case "!":

@@ -2,7 +2,7 @@ import type { DslGeometryDeclarationCategory } from "./dslConstructions";
 import type { DslDiagnostic, DslModuleParameterType, DslSpan, DslStatement } from "./dslTypes";
 import type { DslArrayValueType, DslValueType } from "./dslValueTypes";
 import type { ScalarExpressionAst } from "../scalars/expressionAst";
-import type { ScalarType } from "../scalars/types";
+import type { ScalarExpressionType, ScalarType } from "../scalars/types";
 import type { BindingId } from "../scalars/bindingCatalog";
 import type { StatementIdentity } from "../document/statementIdentity";
 import type { ScopeId } from "../scalars/lexicalScopeIndex";
@@ -57,6 +57,9 @@ export type ModuleRecordSourceTarget =
       statementIndex: number;
       typeIdentity: RecordTypeIdentity;
       identity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
+      /** Keeps the established whole-record target aware of the one
+       * coalescing shape that needs collection-backed field projection. */
+      valueExpressionKind?: "coalesce";
     }
   | {
       /** Immutable nominal-record binder owned by a record collection map. */
@@ -92,7 +95,28 @@ export type ModuleRecordFieldSourceTarget = {
   record: ModuleRecordSourceTarget;
   field: RecordFieldIdentity;
   fieldName: string;
-  type: ScalarType;
+  /** Canonical immutable field type; scalar consumers use `type` below. */
+  valueType: DslValueType;
+  type: ScalarExpressionType | null;
+  /** Intermediate record fields when a member access is nested. */
+  fieldPath?: readonly RecordFieldIdentity[];
+  collectionIndex?: number;
+  /** Geometry property after the field has yielded a geometry value. */
+  property?: string;
+};
+
+/** Geometry/record/collection projection of a record field. It is kept
+ * separate from `recordField` because scalar expression consumers require a
+ * scalar `type`, while geometry references require the immutable field value. */
+export type ModuleRecordFieldValueSourceTarget = {
+  kind: "recordFieldValue";
+  record: ModuleRecordSourceTarget;
+  field: RecordFieldIdentity;
+  fieldName: string;
+  valueType: DslValueType;
+  fieldPath?: readonly RecordFieldIdentity[];
+  collectionIndex?: number;
+  pointKey?: string;
 };
 
 export type ModuleScalarSourceTarget =
@@ -146,6 +170,7 @@ export type ModuleScalarSourceTarget =
     };
 
 export type ModuleGeometrySourceTarget =
+  | ModuleRecordFieldValueSourceTarget
   | (ModuleParameterSlot & { kind: "parameter"; geometryKind: "point" | "line"; pointKey?: string })
   | {
       /** Immutable geometry binder owned by a geometry collection map. It is
@@ -171,6 +196,25 @@ export type ModuleGeometrySourceTarget =
       referenceSpan: DslSpan;
       nameSpan: DslSpan;
       pointKey?: string;
+    }
+  | {
+      /** A drawable declaration whose runtime materialization is owned by a
+       * statement-for occurrence collection. */
+      kind: "forGroupOccurrence";
+      statementId: StatementIdentity;
+      statementIndex: number;
+      category: DslGeometryDeclarationCategory;
+      geometryKind: "point" | "line";
+      expectedGeometryKind: "point" | "line";
+      expectedInterfaceType?: ModuleGeometryInterfaceType;
+      index: ModuleScalarExpressionSemantic | null;
+      source: string;
+      referenceSpan: DslSpan;
+      nameSpan: DslSpan;
+      occurrenceIndexSpan?: DslSpan;
+      occurrenceRange?: DslSpan;
+      pointKey?: string;
+      identity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
     }
   | {
       kind: "sourceGeometry";
@@ -305,6 +349,18 @@ export type ModuleGeometryPropertySourceTarget =
       identity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
     }
   | {
+      kind: "forGroupOccurrenceProperty";
+      statementId: StatementIdentity;
+      statementIndex: number;
+      category: DslGeometryDeclarationCategory;
+      property: string;
+      index: ModuleScalarExpressionSemantic | null;
+      occurrenceIndexSpan?: DslSpan;
+      occurrenceRange?: DslSpan;
+      pointKey?: string;
+      identity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
+    }
+  | {
       kind: "deferredModuleExportProperty";
       instanceStatementId: StatementIdentity;
       instanceStatementIndex: number;
@@ -332,27 +388,41 @@ export type ModuleScalarReference = {
   collectionValueId?: string | null;
   collectionLength?: number | null;
   targetSourceOrder?: number | null;
-  collectionElementType?: ScalarType | null;
+  collectionElementType?: ScalarExpressionType | null;
 };
 
 export type ModuleScalarExpressionSemantic = {
   ast: ScalarExpressionAst;
-  type: ScalarType | null;
+  type: ScalarExpressionType | null;
   references: readonly ModuleScalarReference[];
   geometryProperties: readonly ModuleGeometryPropertyReference[];
+  optionalMembers?: readonly ModuleOptionalMemberReference[];
   geometryBuiltinArguments: readonly ModuleGeometryBuiltinArgumentSemantic[];
-  /** Validated `hasValue(@parameter)` facts, keyed by intrinsic call span. */
-  hasValueParameters: readonly {
-    span: DslSpan;
-    definitionStatementId: StatementIdentity;
-    parameterIndex: number;
-    definitionIdentity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
-  }[];
+};
+
+export type ModuleOptionalMemberReference = {
+  span: DslSpan;
+  receiverSpan: DslSpan;
+  member: string;
+  memberSpan: DslSpan;
+  receiverType: DslValueType | null;
+  memberType: ScalarExpressionType | null;
+  target: ModuleGeometryPropertySourceTarget | ModuleRecordFieldSourceTarget | null;
+  resolution: ModuleGeometryPropertyReference["resolution"];
 };
 
 export type ModuleRecordConstructorFieldSemantic = RecordConstructorFieldSemantic & {
   expression: ModuleScalarExpressionSemantic | null;
+  /** Generalized immutable field initializer. `expression` above is retained
+   * as the scalar compatibility projection for existing lowering clients. */
+  valueExpression?: ModuleRecordFieldValueExpressionSemantic | null;
 };
+
+export type ModuleRecordFieldValueExpressionSemantic =
+  | { kind: "scalar"; expression: ModuleScalarExpressionSemantic }
+  | { kind: "geometry"; expression: ModuleGeometryValueExpressionSemantic | null }
+  | { kind: "record"; expression: ModuleRecordValueExpressionSemantic | null }
+  | { kind: "collection"; valueType: DslArrayValueType; value: unknown };
 
 export type ModuleRecordReferenceSemantic = {
   source: string;
@@ -366,6 +436,7 @@ export type ModuleRecordReferenceSemantic = {
     fields: readonly ModuleRecordConstructorFieldSemantic[];
   } | null;
   resolution: "resolved" | "undefined" | "forward" | "ambiguous" | "invalid" | "outerCapture";
+  valueType?: DslValueType;
 };
 
 export type ModuleRecordValueExpressionSemantic =
@@ -373,16 +444,31 @@ export type ModuleRecordValueExpressionSemantic =
       kind: "constructor";
       span: DslSpan;
       constructor: NonNullable<ModuleRecordReferenceSemantic["constructor"]>;
+      valueType?: DslValueType;
     }
   | {
       kind: "reference";
       span: DslSpan;
       reference: ModuleRecordReferenceSemantic;
+      valueType?: DslValueType;
     }
   | {
       kind: "collectionIndex";
       span: DslSpan;
       reference: ModuleRecordReferenceSemantic;
+      valueType?: DslValueType;
+    }
+  | {
+      kind: "none";
+      span: DslSpan;
+      valueType?: DslValueType;
+    }
+  | {
+      kind: "coalesce";
+      span: DslSpan;
+      left: ModuleRecordValueExpressionSemantic | null;
+      right: ModuleRecordValueExpressionSemantic | null;
+      valueType?: DslValueType;
     }
   | {
       kind: "if";
@@ -390,6 +476,7 @@ export type ModuleRecordValueExpressionSemantic =
       condition: ModuleScalarExpressionSemantic | null;
       thenBranch: ModuleRecordValueExpressionSemantic | null;
       elseBranch: ModuleRecordValueExpressionSemantic | null;
+      valueType?: DslValueType;
     }
   | {
       kind: "match";
@@ -398,8 +485,11 @@ export type ModuleRecordValueExpressionSemantic =
       arms: readonly {
         label: string;
         labelSpan: DslSpan;
+        binder?: string;
+        binderSpan?: DslSpan;
         expression: ModuleRecordValueExpressionSemantic | null;
       }[];
+      valueType?: DslValueType;
     };
 
 export type ModuleGeometryBuiltinArgumentSemantic = {
@@ -418,7 +508,7 @@ export type ModuleGeometryPropertyReference = {
   propertySpan: DslSpan;
   span: DslSpan;
   target: ModuleGeometryPropertySourceTarget | null;
-  type: ScalarType | null;
+  type: ScalarExpressionType | null;
   resolution: "resolved" | "undefined" | "forward" | "outerCapture" | "invalid" | "deferred";
 };
 
@@ -444,6 +534,9 @@ export type ModuleGeometryReferenceSemantic = {
   expectedGeometryKind: "point" | "line";
   role: ModuleGeometryReferenceRole;
   target: ModuleGeometrySourceTarget | null;
+  /** Canonical immutable value type of the referenced declaration, when it is
+   * a typed value. Geometry consumers project this to the interface kind. */
+  valueType?: DslValueType;
   coordinate: ModulePointCoordinateSemantic | null;
   resolution: "resolved" | "undefined" | "forward" | "outerCapture" | "invalid" | "deferred";
 };
@@ -625,11 +718,25 @@ export type ModuleGeometryValueExpressionSemantic =
       kind: "reference";
       span: DslSpan;
       reference: ModuleGeometryReferenceSemantic;
+      valueType?: DslValueType;
     }
   | {
       kind: "construction";
       span: DslSpan;
       construction: ModuleGeometryConstructionSemantic;
+      valueType?: DslValueType;
+    }
+  | {
+      kind: "none";
+      span: DslSpan;
+      valueType?: DslValueType;
+    }
+  | {
+      kind: "coalesce";
+      span: DslSpan;
+      left: ModuleGeometryValueExpressionSemantic;
+      right: ModuleGeometryValueExpressionSemantic;
+      valueType?: DslValueType;
     }
   | {
       kind: "if";
@@ -637,6 +744,7 @@ export type ModuleGeometryValueExpressionSemantic =
       condition: ModuleScalarExpressionSemantic | null;
       thenBranch: ModuleGeometryValueExpressionSemantic | null;
       elseBranch: ModuleGeometryValueExpressionSemantic | null;
+      valueType?: DslValueType;
     }
   | {
       kind: "match";
@@ -645,8 +753,11 @@ export type ModuleGeometryValueExpressionSemantic =
       arms: readonly {
         label: string;
         labelSpan: DslSpan;
+        binder?: string;
+        binderSpan?: DslSpan;
         expression: ModuleGeometryValueExpressionSemantic | null;
       }[];
+      valueType?: DslValueType;
     };
 
 export type ModuleGeometryValueSemantic = {
@@ -655,6 +766,8 @@ export type ModuleGeometryValueSemantic = {
   identity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
   name: string;
   declaredInterfaceType: ModuleGeometryInterfaceType;
+  /** Full canonical declaration type, including the optional wrapper. */
+  declaredValueType?: DslValueType;
   ownerModuleDefinitionStatementId: StatementIdentity | null;
   ownerModuleDefinitionStatementIndex: number | null;
   exported: boolean;
@@ -684,6 +797,7 @@ export type ModuleArgumentSemantic =
   | { kind: "scalar"; expression: ModuleScalarExpressionSemantic }
   | { kind: "geometry"; reference: ModuleGeometryReferenceSemantic }
   | { kind: "record"; reference: ModuleRecordReferenceSemantic }
+  | { kind: "none"; span: DslSpan; valueType: DslValueType }
   | {
       kind: "collection";
       source: string;
@@ -702,7 +816,8 @@ export type ResolvedModuleParameterBinding = {
   argumentLabel: string | null;
   argumentSpan: DslSpan | null;
   usesDefault: boolean;
-  state: "requiredSupplied" | "requiredOmitted" | "defaultedOmitted" | "optionalSupplied" | "optionalOmitted";
+  /** Binding lifecycle only; optionality is carried by `parameterValueType`. */
+  state: "supplied" | "omitted" | "defaulted";
   value: ModuleArgumentSemantic | null;
 };
 
@@ -753,9 +868,9 @@ export type ModuleRecordValueSemantic = {
   fieldExpressions: readonly {
     field: RecordFieldIdentity;
     expression: ModuleScalarExpressionSemantic | null;
+    valueExpression?: ModuleRecordFieldValueExpressionSemantic | null;
   }[];
-  /** Optional Module parameters proven present at this declaration site. */
-  presenceParameterKeys: readonly string[];
+  declaredValueType?: DslValueType;
 };
 
 export type ModuleScalarExpressionSite = {
@@ -792,8 +907,6 @@ export type ModuleBodyStatementSemantic = {
   geometryReferences: readonly ModuleGeometryReferenceSite[];
   textTemplateHoles: readonly ModuleTextTemplateHoleSite[];
   scalarTarget: ModuleScalarSourceTarget | null;
-  /** Optional module parameters proven present at this statement's lexical site. */
-  presenceParameterKeys: readonly string[];
 };
 
 export type ResolvedModuleCallee = {
@@ -842,7 +955,7 @@ export type ModuleDefinitionSemantic = {
     statementIndex: number;
     identity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
     name: string;
-    type: ScalarType | null;
+    type: ScalarExpressionType | null;
     bindingKind: "const" | "let";
     initializer: ModuleScalarExpressionSemantic | null;
   }[];
@@ -868,12 +981,14 @@ export type ModuleDefinitionSemantic = {
       field: RecordFieldIdentity;
       fieldName: string;
       type: ScalarType;
+      fieldPath?: readonly RecordFieldIdentity[];
     }[];
     fields: readonly {
       field: RecordFieldIdentity;
       fieldName: string;
       type: ScalarType;
       body: ModuleScalarExpressionSemantic;
+      fieldPath?: readonly RecordFieldIdentity[];
     }[];
   }[];
   /** Geometry-valued value-for bodies use the existing geometry-value semantic

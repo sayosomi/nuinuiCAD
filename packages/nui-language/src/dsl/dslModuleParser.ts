@@ -8,10 +8,9 @@ import type {
   DslModuleParameter,
   DslSpan
 } from "./dslTypes";
-import { invalidElementActivityMessage, parseElementActivityLiteral } from "./dslActivity";
 import { unquoteDslString } from "./dslTokens";
 import { parseDslSourceReference } from "./dslReferenceTokens";
-import { isDslGeometryValueType, nominalRecordTypeOfDslValueType, scalarTypeOfDslValueType } from "./dslValueTypes";
+import { dslRequiredValueTypeOf, isDslGeometryValueType, nominalRecordTypeOfDslValueType, scalarTypeOfDslValueType } from "./dslValueTypes";
 
 export type DslModuleDiagnostic = { message: string; span: DslSpan; code?: string; presentation?: DslDiagnosticPresentation };
 
@@ -144,11 +143,12 @@ const moduleParameterType = (
   const parsedDiagnostics: DslModuleDiagnostic[] = [];
   const parsed = parseDslDeclaredValueType(source, typeSpan, parsedDiagnostics);
   diagnostics.push(...parsedDiagnostics);
-  const geometryType = isDslGeometryValueType(parsed.valueType) ? parsed.valueType : null;
+  const requiredValueType = dslRequiredValueTypeOf(parsed.valueType);
+  const geometryType = isDslGeometryValueType(requiredValueType) ? requiredValueType : null;
   return {
-    type: geometryType ?? scalarTypeOfDslValueType(parsed.valueType),
+    type: geometryType ?? scalarTypeOfDslValueType(requiredValueType),
     valueType: parsed.valueType,
-    recordTypeReference: nominalRecordTypeOfDslValueType(parsed.valueType),
+    recordTypeReference: nominalRecordTypeOfDslValueType(requiredValueType),
     choiceOptionSpans: parsed.choiceOptionSpans,
     ...(parsed.numericTypeOptions ? { numericTypeOptions: parsed.numericTypeOptions } : {})
   };
@@ -173,24 +173,12 @@ const parameterFromArg = (source: string, arg: ScannedArg, diagnostics: DslModul
   if (defaultSpan && defaultSpan.start === defaultSpan.end) {
     diagnostic(diagnostics, "module parameter の default には `=` の後に値が必要です。", defaultSpan);
   }
-  if (arg.optionalSpan && equals >= 0) {
-    diagnostic(
-      diagnostics,
-      "optional module parameter には default を指定できません。",
-      defaultSpan ?? arg.valueSpan,
-      "module-optional-default-conflict",
-      { key: "diagnostic.module-optional-default-conflict", parameters: { parameter: arg.key ?? "" } }
-    );
-  }
-
   const parsedType = typeSpan.start === typeSpan.end
     ? { type: null, valueType: null, recordTypeReference: null, choiceOptionSpans: [] as DslSpan[] }
     : moduleParameterType(source, typeSpan, diagnostics);
   return {
     kind: "moduleParameter",
     ...name,
-    optional: Boolean(arg.optionalSpan),
-    optionalSpan: arg.optionalSpan ?? null,
     type: parsedType.type,
     valueType: parsedType.valueType,
     recordTypeReference: parsedType.recordTypeReference,
@@ -240,14 +228,15 @@ const instanceOptionFromArg = (
   const name = arg.key ?? "";
   if (arg.key === null) {
     diagnostic(diagnostics, "module instance option は名前付き引数で指定してください。", arg.valueSpan);
-  } else if (arg.key !== "state") {
-    diagnostic(diagnostics, `module instance option「${arg.key}」はありません。使用できるoption: state。`, arg.keySpan!);
+  } else if (arg.key !== "enabled" && arg.key !== "visible") {
+    diagnostic(diagnostics, `module instance option「${arg.key}」はありません。使用できるoption: enabled, visible。`, arg.keySpan!);
   } else if (seen.has(arg.key)) {
     diagnostic(diagnostics, `引数「${arg.key}」が重複しています。`, arg.keySpan!);
   } else {
     seen.add(arg.key);
-    if (arg.valueSpan.start !== arg.valueSpan.end && parseElementActivityLiteral(arg.value) === null) {
-      diagnostic(diagnostics, invalidElementActivityMessage, arg.valueSpan, "invalid-module-instance-state");
+    const literal = unquoteDslString(arg.value).toLowerCase();
+    if (arg.valueSpan.start !== arg.valueSpan.end && literal !== "true" && literal !== "false" && !literal.startsWith("@")) {
+      diagnostic(diagnostics, `${arg.key} は true/false または共有 boolean 参照で指定してください。`, arg.valueSpan, "invalid-module-instance-gate");
     }
   }
   return {
@@ -313,7 +302,7 @@ const definition = (logicalText: string, options: ParseDslModuleOptions): DslMod
     logicalText,
     parameterSpan,
     (arg, listDiagnostics) => parameterFromArg(logicalText, arg, listDiagnostics),
-    { allowOptionalKeys: true }
+    {}
   );
   diagnostics.push(...parsed.diagnostics);
   const opensBlock = Boolean(options.opensBlock || inlineBlock);

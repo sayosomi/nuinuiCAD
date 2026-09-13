@@ -5,9 +5,9 @@ import {
   geometryArrayTypeOfTypedDeclaration
 } from "./geometryArraySourceAnnotations";
 import { resolveSourceLexicalPath } from "./sourceLexicalNamespaceIndex";
-import { nominalRecordTypeOfDslValueType } from "./dslValueTypes";
-import { isDslArrayValueType, isDslGeometryValueType } from "./dslValueTypes";
-import { moduleParameterPresenceKey, type ModuleScalarLocalDiagnostic } from "./moduleScalarExpression";
+import { dslRequiredValueTypeOf, isDslOptionalValueType, nominalRecordTypeOfDslValueType } from "./dslValueTypes";
+import { isDslArrayValueType } from "./dslValueTypes";
+import type { ModuleScalarLocalDiagnostic } from "./moduleScalarExpression";
 import * as core from "./moduleBodySemanticCore";
 
 export type { ModuleBodyDefinition, ModuleBodySemanticResult } from "./moduleBodySemanticCore";
@@ -26,14 +26,7 @@ const moduleOwnerIndexOf = (statements: readonly DslStatement[], statementIndex:
 
 const isSourceOnlyTypedDeclaration = (
   statement: Extract<DslStatement, { kind: "typedDeclaration" }>
-) => Boolean(nominalRecordTypeOfDslValueType(statement.valueType) || isDslArrayValueType(statement.valueType) || geometryArrayTypeOfTypedDeclaration(statement));
-
-const isCollectionModuleParameter = (
-  parameter: Extract<DslStatement, { kind: "moduleDefinition" }>['parameters'][number]
-) => Boolean(
-  geometryArrayTypeOfModuleParameter(parameter) ||
-  (isDslArrayValueType(parameter.valueType) && !isDslGeometryValueType(parameter.valueType.elementType))
-);
+) => Boolean(nominalRecordTypeOfDslValueType(dslRequiredValueTypeOf(statement.valueType)) || isDslArrayValueType(dslRequiredValueTypeOf(statement.valueType)) || geometryArrayTypeOfTypedDeclaration(statement));
 
 type GeometryArrayWholeReference =
   | {
@@ -80,7 +73,7 @@ const geometryArrayWholeReference = (
           parameterIndex,
           parameterName: parameter.name,
           parameterNameSpan: parameter.nameSpan,
-          optional: parameter.optional
+          optional: isDslOptionalValueType(parameter.valueType)
         };
       }
     }
@@ -119,7 +112,6 @@ export const analyzeModuleBody = (
     return !(statement?.kind === "typedDeclaration" && isSourceOnlyTypedDeclaration(statement));
   });
   const capturedDiagnostics: { statementIndex: number; diagnostic: ModuleScalarLocalDiagnostic }[] = [];
-  const originalResolveBodyHasValue = input.resolveBodyHasValue;
   const originalResolveGeometry = input.resolveGeometry;
 
   const result = core.analyzeModuleBody({
@@ -151,25 +143,6 @@ export const analyzeModuleBody = (
       }
       return originalResolveGeometry(statementIndex, ownerIndex, rawValue, span, expected, options);
     },
-    resolveBodyHasValue: (statementIndex, reference) => {
-      const existing = originalResolveBodyHasValue(statementIndex, reference);
-      if (!existing.diagnostic) return existing;
-      const ownerIndex = moduleOwnerIndexOf(input.statements, statementIndex);
-      const owner = ownerIndex === null ? null : input.statements[ownerIndex];
-      if (owner?.kind !== "moduleDefinition") return existing;
-      const parameterIndex = owner.parameters.findIndex((parameter) => parameter.name === reference.name);
-      const parameter = parameterIndex >= 0 ? owner.parameters[parameterIndex] : undefined;
-      if (!parameter?.optional || !isCollectionModuleParameter(parameter)) return existing;
-      return {
-        target: {
-          kind: "parameter" as const,
-          definitionStatementId: input.definition.statementId,
-          parameterIndex
-        },
-        type: null,
-        resolution: "resolved" as const
-      };
-    },
     definition: {
       ...input.definition,
       bodyStatementIndexes
@@ -192,15 +165,14 @@ export const analyzeModuleBody = (
       });
       if (
         arrayReference.kind === "parameter" &&
-        arrayReference.optional &&
-        !body.presenceParameterKeys.includes(moduleParameterPresenceKey(arrayReference.definitionStatementId, arrayReference.parameterIndex))
+        arrayReference.optional
       ) {
         arrayDiagnostics.push({
           statementIndex: body.statementIndex,
           diagnostic: {
             code: "module-optional-value-required",
             span: site.reference.nameSpan ?? site.reference.span,
-            message: `optional module parameter「${arrayReference.parameterName}」は hasValue(@${arrayReference.parameterName}) で存在を確認してから参照してください。`,
+            message: `optional module parameter「${arrayReference.parameterName}」は optional value を解決してから参照してください。`,
             presentation: {
               key: "diagnostic.module-optional-value-required",
               parameters: { name: arrayReference.parameterName }

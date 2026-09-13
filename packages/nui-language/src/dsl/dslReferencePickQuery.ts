@@ -31,6 +31,7 @@ import { resolveSourceLexicalDeclaration } from "./sourceLexicalNamespaceIndex";
 import {
   isNumericComputedGeometryProperty
 } from "../geometry/numericExpressions";
+import { parseDslSourceReferenceAt } from "./dslReferenceTokens";
 
 export type DslReferencePickRange = { from: number; to: number };
 
@@ -58,6 +59,8 @@ export type DslReferencePickTarget = {
   /** Operation activation span; numeric-property targets may edit only a sub-span. */
   activationRange?: DslReferencePickRange;
   numericProperty?: DslReferencePickNumericPropertyTarget;
+  /** Source insertion spelling owned by the Source adapter. */
+  syntax?: "reference" | "transformationTarget";
 };
 
 export type DslReferencePickSemanticSnapshot = {
@@ -179,6 +182,7 @@ const sourceAnchorFor = (
   if (!compiledStatement) return null;
 
   const namespace = compiled.sourceLexicalNamespace;
+  const transformationId = compiled.transformationRecipes?.find((recipe) => recipe.sourceStatementIndex === statementIndex)?.id;
   const namespaceDeclaration = namespace?.allDeclarations.find((candidate) =>
     candidate.statementIndex === statementIndex
   );
@@ -186,12 +190,13 @@ const sourceAnchorFor = (
   const statementId = oneExactString([
     compiled.statementMap?.statementIdByStatementIndex?.get(statementIndex),
     namespaceDeclaration?.statementId,
-    setAnalysis?.statementId
+    setAnalysis?.statementId,
+    transformationId
   ]);
   const scopeId = oneExactString([
     namespace?.scopeIndex.scopeOfStatement.get(statementIndex),
     setAnalysis?.scopeId
-  ]);
+  ]) ?? namespace?.scopeIndex.rootScopeId ?? null;
   if (!statementId || !scopeId) return null;
 
   return {
@@ -339,15 +344,36 @@ const numericOperandTarget = (
   expressionSpan: DslSpan
 ): NumericOperandTarget | null => {
   if (logicalPosition < expressionSpan.start || logicalPosition > expressionSpan.end) return null;
-  const tokenized = tokenizeScalarExpression(source, expressionSpan);
-  if (tokenized.error) return null;
-  const token = tokenized.tokens.find((candidate) => tokenOwnsCaret(source, expressionSpan, candidate, logicalPosition));
   const expectation: PickExpectation = {
     expectedGeometryInterface: "path",
     role: "numericPropertyBase",
     multiplicity: "single"
   };
-
+  const tokenized = tokenizeScalarExpression(source, expressionSpan);
+  if (tokenized.error) return null;
+  const indexedReference = tokenized.tokens.find((candidate) => candidate.kind === "reference" &&
+    source[candidate.span.start] === "@");
+  if (indexedReference?.kind === "reference") {
+    const parsed = parseDslSourceReferenceAt(source, indexedReference.span.start, expressionSpan.end);
+    if (parsed.kind === "valid" && parsed.reference.occurrenceIndex !== null &&
+        logicalPosition >= parsed.reference.fullRange.start && logicalPosition <= parsed.reference.fullRange.end) {
+      if (parsed.reference.property !== null) {
+        return isNumericComputedGeometryProperty(parsed.reference.property)
+          ? {
+              expectation,
+              range: parsed.reference.fullRange,
+              numericProperty: { kind: "propertySelectionRequired" }
+            }
+          : null;
+      }
+      return {
+        expectation,
+        range: parsed.reference.fullRange,
+        numericProperty: { kind: "propertySelectionRequired" }
+      };
+    }
+  }
+  const token = tokenized.tokens.find((candidate) => tokenOwnsCaret(source, expressionSpan, candidate, logicalPosition));
   if (token?.kind === "geometryProperty") {
     if (!isNumericComputedGeometryProperty(token.property)) return null;
     return logicalPosition >= token.span.start && logicalPosition <= token.span.end
@@ -525,6 +551,33 @@ const targetForCall = (
     : null;
 };
 
+const transformationTargetFor = (
+  source: SourceSnapshot,
+  position: number,
+  exact: ExactPosition,
+  compiled: CompiledDslDocument,
+  anchor: DslReferencePickSourceAnchor
+): DslReferencePickTarget | null => {
+  const statement = compiled.statements[anchor.statementIndex];
+  if (statement?.kind !== "transformation") return null;
+  const targetIndex = statement.targets.findIndex((target) =>
+    exact.logicalPosition >= target.span.start && exact.logicalPosition <= target.span.end
+  );
+  if (targetIndex < 0) return null;
+  const target = statement.targets[targetIndex]!;
+  const range = physicalRangeForLogical(exact, target.span, position);
+  if (!range) return null;
+  const endpoint = statement.construction === "edge" || statement.construction === "extend";
+  return {
+    sourceAnchor: anchor,
+    expectedGeometryInterface: endpoint ? "point" : "path",
+    role: endpoint ? "endpoint" : "geometry",
+    multiplicity: statement.targets.length > 1 ? "multiple" : "single",
+    range,
+    syntax: "transformationTarget"
+  };
+};
+
 const emptyConstructionTarget = (
   position: number,
   exact: ExactPosition,
@@ -669,6 +722,12 @@ const targetCandidateAt = (
   if (!exact) return null;
   const anchor = sourceAnchorFor(compiled, exact);
   if (!anchor) return null;
+
+  const transformationTarget = transformationTargetFor(source, position, exact, compiled, anchor);
+  if (transformationTarget) {
+    const candidateLine = lineRangeAt(source.normalizedSource, position);
+    return { target: transformationTarget, region: candidateLine };
+  }
 
   const primary = dslCallAuthoringContextAt(source, position);
   for (const call of [primary]) {

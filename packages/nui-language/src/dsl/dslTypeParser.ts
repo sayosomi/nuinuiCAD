@@ -1,7 +1,7 @@
 import type { ScalarType } from "../scalars/types";
 import { scanScalarLiteral } from "../scalars/literalScanner";
 import type { DslDiagnosticPresentation, DslSpan } from "./dslTypes";
-import type { DslValueType } from "./dslValueTypes";
+import type { DslNonArrayValueType, DslRequiredNonArrayValueType, DslValueType } from "./dslValueTypes";
 import { isBareDslIdentifierChar } from "./dslTokens";
 import { parseDslNumericTypeOptions, type DslNumericTypeOptions } from "./dslNumericTypeOptions";
 import {
@@ -40,11 +40,22 @@ export const dslTypedDeclarationTypeNames: readonly string[] = [
   NUMBER_TYPE_NAME,
   ...Object.keys(KNOWN_SIMPLE_TYPES),
   dslChoiceTypeName,
+  `${NUMBER_TYPE_NAME}?`,
+  ...Object.keys(KNOWN_SIMPLE_TYPES).map((name) => `${name}?`),
   `${NUMBER_TYPE_NAME}[]`,
   ...Object.keys(KNOWN_SIMPLE_TYPES).map((name) => `${name}[]`),
+  `${NUMBER_TYPE_NAME}?[]`,
+  ...Object.keys(KNOWN_SIMPLE_TYPES).map((name) => `${name}?[]`),
+  `${NUMBER_TYPE_NAME}[]?`,
+  ...Object.keys(KNOWN_SIMPLE_TYPES).map((name) => `${name}[]?`),
   "point",
   "line",
   "path",
+  "point?",
+  "line?",
+  "path?",
+  ...dslGeometryArrayTypeNames.map((name) => name.replace("[]", "?[]")),
+  ...dslGeometryArrayTypeNames.map((name) => name.replace("[]", "[]?")),
   ...dslGeometryArrayTypeNames
 ];
 
@@ -52,11 +63,19 @@ export const dslModuleParameterTypeNames: readonly string[] = [
   NUMBER_TYPE_NAME,
   ...Object.keys(KNOWN_SIMPLE_TYPES),
   dslChoiceTypeName,
+  `${NUMBER_TYPE_NAME}?`,
+  ...Object.keys(KNOWN_SIMPLE_TYPES).map((name) => `${name}?`),
   `${NUMBER_TYPE_NAME}[]`,
   ...Object.keys(KNOWN_SIMPLE_TYPES).map((name) => `${name}[]`),
+  `${NUMBER_TYPE_NAME}[]?`,
+  ...Object.keys(KNOWN_SIMPLE_TYPES).map((name) => `${name}[]?`),
   "point",
   "line",
   "path",
+  "point?",
+  "line?",
+  "path?",
+  ...dslGeometryArrayTypeNames.map((name) => name.replace("[]", "[]?")),
   ...dslGeometryArrayTypeNames
 ];
 
@@ -200,6 +219,15 @@ export const parseDslScalarType = (
     }
     const token = scanScalarLiteral(source, span);
     if (token.kind === "choice" && token.span.end === span.end) {
+      if (token.raw === "none") {
+        diagnostics.push({
+          message: "予約語 none は choice option に使用できません。",
+          span: token.span,
+          code: "reserved-none-choice-option"
+        });
+        hasError = true;
+        continue;
+      }
       if (seen.has(token.raw)) {
         diagnostics.push({
           message: `choice option が重複しています: ${token.raw}`,
@@ -251,26 +279,77 @@ export const parseDslDeclaredValueType = (
   diagnostics: DslTypeDiagnostic[]
 ): DslDeclaredValueTypeParseResult => {
   const text = source.slice(typeSpan.start, typeSpan.end);
-  const trimmedText = text.trimEnd();
-  const arraySuffix = trimmedText.endsWith("[]");
-  const nestedArray = arraySuffix && trimmedText.slice(0, -2).trimEnd().endsWith("[]");
-  const elementTypeSpan = arraySuffix
-    ? trimSpan(source, typeSpan.start, typeSpan.end - (text.length - trimmedText.length) - 2)
-    : typeSpan;
-  if (nestedArray) {
-    const suffixStart = typeSpan.start + text.lastIndexOf("[]");
+  let suffixEnd = typeSpan.start + text.length - (text.length - text.trimEnd().length);
+  let arraySuffix = false;
+  let outerOptional = false;
+  let memberOptional = false;
+
+  const stripSuffix = (suffix: "?" | "[]"): DslSpan | null => {
+    while (suffixEnd > typeSpan.start && whitespace.test(source[suffixEnd - 1]!)) suffixEnd -= 1;
+    const width = suffix.length;
+    if (suffixEnd < typeSpan.start + width || source.slice(suffixEnd - width, suffixEnd) !== suffix) return null;
+    const span = { start: suffixEnd - width, end: suffixEnd };
+    suffixEnd = span.start;
+    while (suffixEnd > typeSpan.start && whitespace.test(source[suffixEnd - 1]!)) suffixEnd -= 1;
+    return span;
+  };
+
+  const outerOptionalSpan = stripSuffix("?");
+  if (outerOptionalSpan) outerOptional = true;
+  const arraySpan = stripSuffix("[]");
+  if (arraySpan) arraySuffix = true;
+  const memberOptionalSpan = stripSuffix("?");
+  if (memberOptionalSpan) memberOptional = true;
+
+  if (outerOptional && memberOptional) {
     diagnostics.push({
-      message: "配列は1次元のみ対応しています。T[][] は使用できません。",
-      span: { start: suffixStart, end: suffixStart + 2 },
-      code: "nested-array-type",
-      presentation: { key: "diagnostic.nested-array-type" }
+      message: "optional 型の ? は1つだけ指定できます。T?? は使用できません。",
+      span: memberOptionalSpan!,
+      code: "repeated-optional-type",
+      presentation: { key: "diagnostic.repeated-optional-type" }
     });
     return { valueType: null, choiceOptionSpans: [] };
   }
 
+  const elementTypeSpan = trimSpan(source, typeSpan.start, suffixEnd);
   const elementText = source.slice(elementTypeSpan.start, elementTypeSpan.end);
+  const residualTrimmed = elementText.trimEnd();
+  const residualQuestion = residualTrimmed.endsWith("?");
+  const residualArray = residualTrimmed.endsWith("[]");
+  if (memberOptional && !arraySuffix) {
+    diagnostics.push({
+      message: "optional 型の ? は1つだけ指定できます。T?? は使用できません。",
+      span: memberOptionalSpan!,
+      code: "repeated-optional-type",
+      presentation: { key: "diagnostic.repeated-optional-type" }
+    });
+    return { valueType: null, choiceOptionSpans: [] };
+  }
+  if (residualQuestion || residualArray) {
+    const suffixStart = residualQuestion
+      ? elementTypeSpan.start + residualTrimmed.lastIndexOf("?")
+      : elementTypeSpan.start + residualTrimmed.lastIndexOf("[]");
+    diagnostics.push({
+      message: residualQuestion
+        ? "optional 型の ? は1つだけ指定できます。T?? は使用できません。"
+        : "配列は1次元のみ対応しています。T[][] は使用できません。",
+      span: { start: suffixStart, end: suffixStart + (residualQuestion ? 1 : 2) },
+      code: residualQuestion ? "repeated-optional-type" : "nested-array-type",
+      presentation: { key: residualQuestion ? "diagnostic.repeated-optional-type" : "diagnostic.nested-array-type" }
+    });
+    return { valueType: null, choiceOptionSpans: [] };
+  }
+
+  const composeValueType = (base: DslRequiredNonArrayValueType): DslValueType => {
+    const valueType: DslNonArrayValueType = memberOptional ? { kind: "optional", valueType: base } : base;
+    if (arraySuffix) return outerOptional
+      ? { kind: "optional", valueType: { kind: "array", elementType: valueType } }
+      : { kind: "array", elementType: valueType };
+    return outerOptional ? { kind: "optional", valueType: base } : valueType;
+  };
+
   if (elementText === "point" || elementText === "line" || elementText === "path") {
-    return { valueType: arraySuffix ? { kind: "array", elementType: { kind: elementText } } : { kind: elementText }, choiceOptionSpans: [] };
+    return { valueType: composeValueType({ kind: elementText }), choiceOptionSpans: [] };
   }
   const geometryValueType = dslValueTypeOfGeometryArrayTypeName(elementText);
   if (geometryValueType) {
@@ -295,14 +374,14 @@ export const parseDslDeclaredValueType = (
     });
     return {
       valueType: parsed.declaredType
-        ? arraySuffix ? { kind: "array", elementType: parsed.declaredType } : parsed.declaredType
+        ? composeValueType(parsed.declaredType)
         : null,
       choiceOptionSpans: parsed.choiceOptionSpans,
       ...(parsed.numericTypeOptions ? { numericTypeOptions: parsed.numericTypeOptions } : {})
     };
   }
   return {
-    valueType: arraySuffix ? { kind: "array", elementType: { kind: "record", name: elementText } } : { kind: "record", name: elementText },
+    valueType: composeValueType({ kind: "record", name: elementText }),
     choiceOptionSpans: []
   };
 };

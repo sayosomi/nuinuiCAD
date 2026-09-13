@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { reconcileStatements } from "../document/statementReconciler";
-import { effectiveElementActivityById } from "../model/elementActivity";
+import { evaluateElements } from "../geometry/evaluate";
 import { compileDslDocument } from "./dslDocument";
 import { parseDsl } from "./dslParser";
 
@@ -16,6 +16,17 @@ const runtimeNames = (source: string) => {
   expect(compiled.document).not.toBeNull();
   return compiled;
 };
+
+const evaluateCompiled = (compiled: ReturnType<typeof runtimeNames>) =>
+  evaluateElements(compiled.document!.elements, {
+    evaluationLimitIndex: compiled.document!.evaluationLimitIndex,
+    drawingModifiers: compiled.document!.modifiers ?? [],
+    scalarProgram: compiled.scalarProgram,
+    bindingVersions: compiled.bindingVersions,
+    statementInfoByElementId: compiled.statementMap?.byElementId,
+    statementIdByStatementIndex: compiled.statementMap?.statementIdByStatementIndex,
+    sourceExecutionPositionByElementId: compiled.moduleMaterialization?.sourceExecutionPositionByRuntimeElementId,
+  });
 
 describe("module materialization", () => {
   it("keeps a module definition inert without an instance", () => {
@@ -187,20 +198,22 @@ describe("module materialization", () => {
       "module M(state: boolean = true) {",
       "  point P = coordinate(x: 1, y: 2)",
       "}",
-      "instance Hidden(state: hidden) = M()",
-      "instance Disabled(state: disabled) = M()"
+      "instance Hidden(visible: false) = M()",
+      "instance Disabled(enabled: false) = M()"
     ].join("\n"));
     const elements = compiled.document!.elements;
     const hidden = elements.find((element) => element.name === "Hidden")!;
     const hiddenPoint = elements.find((element) => element.name === "P" && element.parentGroupId === hidden.id)!;
     const disabled = elements.find((element) => element.name === "Disabled")!;
     const disabledPoint = elements.find((element) => element.name === "P" && element.parentGroupId === disabled.id)!;
-    const activities = effectiveElementActivityById(elements);
-
-    expect(hidden.activity).toBe("hidden");
-    expect(activities.get(hiddenPoint.id)?.activity).toBe("hidden");
-    expect(disabled.activity).toBe("disabled");
-    expect(activities.get(disabledPoint.id)?.activity).toBe("disabled");
+    expect(hidden.visible).toBe(false);
+    expect(disabled.enabled).toBe(false);
+    const result = evaluateCompiled(compiled);
+    expect(result.computedGeometry.has(hiddenPoint.id)).toBe(true);
+    expect(result.effectiveVisibleElementIds).not.toContain(hiddenPoint.id);
+    expect(result.effectiveEnabledElementIds).toContain(hiddenPoint.id);
+    expect(result.computedGeometry.has(disabledPoint.id)).toBe(false);
+    expect(result.effectiveEnabledElementIds).not.toContain(disabledPoint.id);
   });
 
   it("preserves ordinary source order and stop behavior when no module is present", () => {

@@ -18,11 +18,10 @@ describe("DSL highlighting", () => {
     );
   });
 
-  it("highlights optional module parameter punctuation separately from its name", () => {
-    expect(highlightDslLine("module M(value?: number) {" )).toEqual(
+  it("highlights canonical optional module parameter syntax separately from its name", () => {
+    expect(highlightDslLine("module M(value: number?) {" )).toEqual(
       expect.arrayContaining([
         { kind: "attributeKey", text: "value" },
-        { kind: "operator", text: "?" },
         { kind: "reference", text: "number" }
       ])
     );

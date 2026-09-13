@@ -21,7 +21,6 @@ import { createModuleRuntimeContext } from "./moduleRuntimeContext";
 import { sourceOwnerForRuntimeElementId } from "./sourceOwnership";
 import { queryDslCanvasRevealSourceTarget } from "./dslCanvasRevealQuery";
 import { queryDslCanvasSourceDefinitionQualified } from "./dslNavigationQuery";
-import { effectiveElementActivityById } from "../model/elementActivity";
 import { projectVscodeMultiDocumentCanvasRuntime } from "../vscode/multiDocumentRuntimeTransport";
 
 const rootSource = (id: string, normalizedSource: string): RootCurrentSourceSnapshot => ({
@@ -342,13 +341,13 @@ describe("multi-document module runtime", () => {
     });
   });
 
-  it("evaluates imported optional hasValue guards per repeated and colliding instance identity", async () => {
+  it("evaluates imported optional coalescing per repeated and colliding instance identity", async () => {
     const optionalModuleSource = [
       "nui 1",
-      "export module Optional(value?: number) {",
+      "export module Optional(value: number?) {",
       "  let marker: number = 0",
-      "  if (hasValue(@value)) {",
-      "    set marker = @value + 1",
+      "  if ((@value ?? 0) > 0) {",
+      "    set marker = (@value ?? 0) + 1",
       "    point P = coordinate(x: @marker, y: 0)",
       "  }",
       "}"
@@ -1083,8 +1082,8 @@ describe("multi-document module runtime", () => {
       "nui 1",
       "import \"./activity-library.nui\" as lib",
       "instance shown = lib::Shape()",
-      "instance hidden(state: hidden) = lib::Shape()",
-      "instance disabled(state: disabled) = lib::Shape()"
+      "instance hidden(visible: false) = lib::Shape()",
+      "instance disabled(enabled: false) = lib::Shape()"
     ].join("\n"));
     const graph = await buildMultiDocumentImportGraph({
       root,
@@ -1111,11 +1110,18 @@ describe("multi-document module runtime", () => {
       })
     );
     expect(result.errors).toEqual([]);
-    const activities = effectiveElementActivityById(compiled.document.elements);
     for (const name of ["shown", "hidden", "disabled"]) {
       const instance = compiled.document.elements.find((element) => element.name === name)!;
       const point = compiled.document.elements.find((element) => element.name === "P" && element.parentGroupId === instance.id)!;
-      expect(activities.get(point.id)?.activity).toBe(instance.activity);
+      if (name === "shown") {
+        expect(result.computedGeometry.has(point.id)).toBe(true);
+        expect(result.effectiveVisibleElementIds).toContain(point.id);
+      } else if (name === "hidden") {
+        expect(result.computedGeometry.has(point.id)).toBe(true);
+        expect(result.effectiveVisibleElementIds).not.toContain(point.id);
+      } else {
+        expect(result.computedGeometry.has(point.id)).toBe(false);
+      }
     }
     const disabled = compiled.document.elements.find((element) => element.name === "disabled")!;
     const disabledPoint = compiled.document.elements.find((element) => element.name === "P" && element.parentGroupId === disabled.id)!;

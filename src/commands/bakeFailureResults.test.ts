@@ -149,7 +149,7 @@ describe("Bake structured failure results", () => {
       "nui 1",
       "point C = coordinate(x: 0, y: 0)",
       "arc A = arc(center: @C, radius: 10, start: 0, end: 90)",
-      "reverse(target: @A)"
+      "reverse A ()"
     ].join("\n"));
     const arc = compiled.doc.document.elements.find((element) => element.name === "A")!;
     const evaluation = evaluate(compiled);
@@ -212,8 +212,8 @@ describe("Bake structured failure results", () => {
   it("does not report intentional hidden or disabled filtering as failures", () => {
     const compiled = compile([
       "nui 1",
-      "point Hidden = coordinate(x: 1, y: 2, state: hidden)",
-      "point Disabled = coordinate(x: 3, y: 4, state: disabled)"
+      "point Hidden = coordinate(x: 1, y: 2, visible: false)",
+      "point Disabled = coordinate(x: 3, y: 4, enabled: false)"
     ].join("\n"));
     const hidden = compiled.doc.document.elements.find((element) => element.name === "Hidden")!;
     const disabled = compiled.doc.document.elements.find((element) => element.name === "Disabled")!;

@@ -4,12 +4,13 @@ import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import { publishTestCanvasSelectionEligibility } from "../test/canvasSelectionTestUtils";
 import { cycleElementActivity, setElementActivity, setElementsActivity } from "./selectionCommands";
 
-const twoPointsAndVariableSource = [
+const twoPointsAndGroupSource = [
   "nui 1",
   "point A = coordinate(x: 0, y: 0)",
   "point B = coordinate(x: 1, y: 1)",
   "line AB = segment(start: @A, end: @B)",
-  "extend(end: @AB.start, to: @A, id: W)"
+  "group W (id: W) {",
+  "}"
 ].join("\n");
 
 const elementNamed = (name: string) => useCadDocumentStore.getState().elements.find((element) => element.name === name)!;
@@ -19,7 +20,7 @@ describe("activity commands", () => {
   beforeEach(() => {
     useCadDocumentStore.setState(initialCadDocumentState());
     useCadUiStore.setState(initialCadUiState());
-    useCadDocumentStore.getState().commitText(twoPointsAndVariableSource, "test");
+    useCadDocumentStore.getState().commitText(twoPointsAndGroupSource, "test");
     publishTestCanvasSelectionEligibility();
   });
 
@@ -38,7 +39,7 @@ describe("activity commands", () => {
 
   // A "legacy hidden state" recovery scenario (forcing `activity: "hidden"`
   // onto a non-drawable element via a raw setState, then cycling it forward)
-  // used to be covered here too. It no longer applies: `state: hidden` on a
+  // used to be covered here too. It no longer applies: `visible: false` on a
   // bare mutation-statement type (edge/extendTrim/move/symmetricMove/
   // pathReverse) is now a hard parse-time diagnostic (dslCallParser.ts's
   // validateArgs), so there is no legal DSL text this in-memory state could
@@ -49,14 +50,14 @@ describe("activity commands", () => {
   // hidden -> disabled skip is still covered at the elementActivity.ts unit
   // level (see nextElementActivity("hidden", "extendTrim") in
   // elementActivity.test.ts).
-  it("skips hidden when cycling a non-drawable element", () => {
+  it("cycles a non-drawable group through normal activity states", () => {
     const variable = elementById("W");
 
     cycleElementActivity(variable.id);
-    expect(elementById("W")).toMatchObject({ activity: "disabled" });
+    expect(elementById("W")).toMatchObject({ activity: "hidden" });
 
     cycleElementActivity(variable.id);
-    expect(elementById("W")).toMatchObject({ activity: "visible" });
+    expect(elementById("W")).toMatchObject({ activity: "disabled" });
   });
 
   it("applies a single-element direct-set through setElementActivity", () => {
@@ -157,7 +158,7 @@ describe("activity commands", () => {
     });
   });
 
-  it("reconciles selection when a Drawing Modifier changes effective activity", () => {
+  it("reconciles selection when a Style changes effective visibility", () => {
     const pointA = elementNamed("A");
     useCadUiStore.getState().setSelectedElementId(pointA.id);
     const elements = useCadDocumentStore.getState().elements.map((element) =>
@@ -166,7 +167,7 @@ describe("activity commands", () => {
 
     const result = useCadDocumentStore.getState().commitDocumentChange({
       elements,
-      modifiers: [{ name: "hide", state: "hidden" }]
+      modifiers: [{ name: "hide", visible: false }]
     });
 
     expect(result.status).toBe("applied");

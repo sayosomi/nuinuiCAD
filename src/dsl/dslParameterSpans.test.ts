@@ -132,7 +132,7 @@ const checkFixtureSpans = (fixture: Nui1CanonicalElementStatement, text: string)
 };
 
 describe("DSL nui 1 P9 parameter value span resolution", () => {
-  describe("全27要素型の populated/minimal 網羅", () => {
+  describe("全22 drawable element type の populated/minimal 網羅", () => {
     for (const fixture of nui1CanonicalElementStatements) {
       it(`resolves ${fixture.key} (populated)`, () => checkFixtureSpans(fixture, fixture.populated));
       it(`resolves ${fixture.key} (minimal)`, () => checkFixtureSpans(fixture, fixture.minimal));

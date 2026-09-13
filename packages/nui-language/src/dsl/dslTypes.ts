@@ -4,7 +4,6 @@ import type {
   DrawingModifierStrokeColor,
   DrawingModifierStrokeStyle,
   DrawingModifierDefinition,
-  DrawingModifierState,
   DrawingProfile,
   ElementId,
   Layout,
@@ -120,7 +119,7 @@ export type DslRecordField = {
   kind: "recordField";
   name: string;
   nameSpan: DslSpan;
-  type: ScalarType | null;
+  type: DslValueType | null;
   typeSpan: DslSpan | null;
   choiceOptionSpans: readonly DslSpan[];
   numericTypeOptions?: DslNumericTypeOptions;
@@ -138,9 +137,6 @@ export type DslModuleParameter = {
   kind: "moduleParameter";
   name: string;
   nameSpan: DslSpan | null;
-  /** True only when `?` was written after the parameter identifier. */
-  optional: boolean;
-  optionalSpan: DslSpan | null;
   type: DslModuleParameterType | null;
   /** Canonical source-level type, including the generalized immutable T[] form. */
   valueType: DslValueType | null;
@@ -154,7 +150,6 @@ export type DslModuleParameter = {
   /** Empty when `=` was present without a default value. */
   defaultSpan: DslSpan | null;
   namePhysicalSpan?: DslPhysicalSpan | null;
-  optionalPhysicalSpan?: DslPhysicalSpan | null;
   typePhysicalSpan?: DslPhysicalSpan | null;
   defaultPhysicalSpan?: DslPhysicalSpan | null;
 };
@@ -187,7 +182,7 @@ export type DslModifierProperty = {
   keySpan: DslSpan;
   valueSpan: DslSpan;
   hasTrailingComma: boolean;
-  /** Parser-owned exact logical tokens for modifier authoring. */
+  /** Parser-owned exact logical tokens for style authoring. */
   authoringTokens?: readonly { kind: "value" | "width" | "unit" | "style" | "themeRole" | "fixedColor"; span: DslSpan }[];
   keyPhysicalSpan?: DslPhysicalSpan | null;
   valuePhysicalSpan?: DslPhysicalSpan | null;
@@ -198,9 +193,9 @@ export type DslModifierProfileBlock = {
   profileNameSpan: DslSpan;
   profileNamePhysicalSpan?: DslPhysicalSpan | null;
   properties: readonly DslModifierProperty[];
-  state: DrawingModifierState | null;
+  visible: boolean | null;
   widthPx: number | null;
-  style: DrawingModifierStrokeStyle | null;
+  lineType: DrawingModifierStrokeStyle | null;
   color: DrawingModifierStrokeColor | null;
 };
 
@@ -222,7 +217,9 @@ export type DslStatementBase = {
   namePhysicalSpan?: DslPhysicalSpan | null;
   keywordPhysicalSpan?: DslPhysicalSpan | null;
   payloadPhysicalSpans?: Record<string, DslPhysicalSpan | null>;
-  /** Source-owned ordered drawing-modifier references on geometry declarations. */
+  targetPhysicalSpans?: readonly (DslPhysicalSpan | null)[];
+  stageNamePhysicalSpan?: DslPhysicalSpan | null;
+  /** Source-owned ordered drawing-style references on geometry declarations. */
   modifierNames?: readonly string[];
   modifierNameSpans?: readonly DslSpan[];
   modifierNamePhysicalSpans?: readonly (DslPhysicalSpan | null)[];
@@ -269,9 +266,9 @@ export type DslStatement =
     })
   | (DslStatementBase & {
       kind: "modifierDefinition";
-      state: DrawingModifierState | null;
+      visible: boolean | null;
       widthPx: number | null;
-      style: DrawingModifierStrokeStyle | null;
+      lineType: DrawingModifierStrokeStyle | null;
       color: DrawingModifierStrokeColor | null;
       properties: readonly DslModifierProperty[];
       profileBlocks: readonly DslModifierProfileBlock[];
@@ -305,6 +302,14 @@ export type DslStatement =
       exportSpan?: DslSpan | null;
       exportPhysicalSpan?: DslPhysicalSpan | null;
     })
+  | (DslStatementBase & {
+      kind: "transformation";
+      construction: "edge" | "extend" | "move" | "mirrorMove" | "reverse";
+      /** Header-owned target selectors; these are not ordinary call args. */
+      targets: readonly { source: string; span: DslSpan }[];
+      stageName: string | null;
+      stageNameSpan: DslSpan | null;
+    })
   | (DslStatementBase & { kind: "version"; value: string })
   | (DslStatementBase & { kind: "atStop" })
   | (DslStatementBase & { kind: "place"; group: string })
@@ -319,7 +324,7 @@ export type DslStatement =
       numericTypeOptions?: DslNumericTypeOptions;
       /** Raw, unparsed initializer source text - never evaluated || re-quoted (Task 14 owns that). */
       initializer: string;
-      /** Export is a modifier on the declaration, not an alias statement. */
+      /** Export is a style on the declaration, not an alias statement. */
       exported: boolean;
       exportSpan: DslSpan | null;
       exportPhysicalSpan?: DslPhysicalSpan | null;
@@ -391,6 +396,12 @@ export type CompileDslContext = {
 
 export type CompileDslResult = {
   elements: CadElement[];
+  /** Host-neutral declarative transformation recipes, in authored order. */
+  transformationRecipes?: import("./transformationRecipes").TransformationRecipe[];
+  /** Source recipes that belong in the root document serializer. */
+  documentTransformationRecipes?: import("./transformationRecipes").TransformationRecipe[];
+  /** Runtime-expanded recipes for concrete Module instances. */
+  runtimeTransformationRecipes?: import("./transformationRecipes").TransformationRecipe[];
   modifiers?: DrawingModifierDefinition[];
   drawingProfiles?: DrawingProfile[];
   selectedElementId: ElementId | null;

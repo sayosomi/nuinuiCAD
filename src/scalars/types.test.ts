@@ -68,4 +68,11 @@ describe("scalarValueMatchesType", () => {
     expect(scalarValueMatchesType(type, { kind: "choice", value: "center", options: ["right", "left"] })).toBe(false);
     expect(scalarValueMatchesType(type, { kind: "choice", value: "right", options: ["left", "right"] })).toBe(false);
   });
+
+  it("accepts both a present underlying value and none under an optional type", () => {
+    const type = { kind: "optional", valueType: { kind: "number" } } as const;
+    expect(scalarValueMatchesType(type, { kind: "number", value: 12 })).toBe(true);
+    expect(scalarValueMatchesType(type, { kind: "none" })).toBe(true);
+    expect(scalarValueMatchesType({ kind: "number" }, { kind: "none" })).toBe(false);
+  });
 });

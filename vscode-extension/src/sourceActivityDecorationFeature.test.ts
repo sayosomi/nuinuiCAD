@@ -89,12 +89,12 @@ const activitySource = sourceFor([
   "role seam (name: \"seam\")",
   "view Draft (default: false, seam: false)",
   "activeView Draft",
-  "point HiddenSelf = coordinate(x: 0, y: 0, state: hidden)",
-  "point DisabledSelf = coordinate(x: 1, y: 1, state: disabled)",
-  "group HiddenGroup (state: hidden) {",
+  "point HiddenSelf = coordinate(x: 0, y: 0, visible: false)",
+  "point DisabledSelf = coordinate(x: 1, y: 1, enabled: false)",
+  "group HiddenGroup (visible: false) {",
   "  point HiddenByGroup = coordinate(x: 2, y: 2)",
   "}",
-  "group DisabledGroup (state: disabled) {",
+  "group DisabledGroup (enabled: false) {",
   "  point DisabledByGroup = coordinate(x: 3, y: 3)",
   "}",
   "group ProfileGroup (roles: [seam]) {",
@@ -106,7 +106,7 @@ const activitySource = sourceFor([
   "point MultiHidden = coordinate(",
   "  x: 0,",
   "  y: 0,",
-  "  state: hidden",
+  "  visible: false",
   ")"
 ]);
 
@@ -253,7 +253,7 @@ describe("VS Code native Source activity decorations", () => {
   });
 
   it("applies only exact-current matching document results to all visible editors", async () => {
-    const source = "nui 1\npoint Hidden = coordinate(x: 0, y: 0, state: hidden)";
+    const source = "nui 1\npoint Hidden = coordinate(x: 0, y: 0, visible: false)";
     const documentA = documentFor(source, 1, "/tmp/a.nui");
     const documentB = documentFor(source, 1, "/tmp/b.nui");
     const editorA1 = editorFor(documentA);
@@ -280,7 +280,7 @@ describe("VS Code native Source activity decorations", () => {
   });
 
   it("clears changed/closed documents and discards stale completion", async () => {
-    const source = "nui 1\npoint Hidden = coordinate(x: 0, y: 0, state: hidden)";
+    const source = "nui 1\npoint Hidden = coordinate(x: 0, y: 0, visible: false)";
     let currentSource = source;
     const document = {
       ...documentFor(source),
@@ -316,7 +316,7 @@ describe("VS Code native Source activity decorations", () => {
   });
 
   it("refreshes a reopened visible editor and keeps diagnostics outside the adapter", async () => {
-    const source = "nui 1\npoint Hidden = coordinate(x: 0, y: 0, state: hidden)";
+    const source = "nui 1\npoint Hidden = coordinate(x: 0, y: 0, visible: false)";
     const document = documentFor(source);
     const firstEditor = editorFor(document);
     mocks.textDocuments.push(document);

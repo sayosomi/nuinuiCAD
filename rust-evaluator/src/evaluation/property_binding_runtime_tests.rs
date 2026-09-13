@@ -35,6 +35,8 @@ fn input(
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
     }
 }
 
@@ -91,6 +93,56 @@ fn line(id: &str, start: &str, end: &str) -> Value {
     })
 }
 
+#[test]
+fn direct_enabled_and_visible_bindings_are_resolved_before_construction_inputs() {
+    let elements = vec![
+        json!({
+            "id": "disabled-line", "name": "Disabled line", "type": "line",
+            "enabled": true, "visible": true,
+            "startPoint": {"mode": "reference", "pointId": "missing-start"},
+            "endPoint": {"mode": "reference", "pointId": "missing-end"}
+        }),
+        point("hidden-point", 1.0, 2.0),
+    ];
+    let scalar_program = program(vec![statement(
+        "binding:off",
+        0,
+        "const",
+        json!({"kind": "boolean"}),
+        boolean_literal(false),
+    )]);
+    let property_bindings = json!([
+        property_binding(
+            "disabled-line",
+            "enabled",
+            "binding:off",
+            json!({"kind": "boolean"})
+        ),
+        property_binding(
+            "hidden-point",
+            "visible",
+            "binding:off",
+            json!({"kind": "boolean"})
+        )
+    ]);
+
+    let result = evaluate_document_input(input(
+        elements,
+        Some(scalar_program),
+        Some(property_bindings),
+    ));
+
+    assert!(geometry(&result, "disabled-line").is_none());
+    assert!(result.errors.is_empty());
+    assert!(geometry(&result, "hidden-point").is_some());
+    assert!(!result
+        .effective_visible_element_ids
+        .contains(&"hidden-point".to_owned()));
+    assert!(result
+        .effective_enabled_element_ids
+        .contains(&"hidden-point".to_owned()));
+}
+
 fn arc(id: &str, start_angle_deg: f64, end_angle_deg: f64, direction: Option<&str>) -> Value {
     let mut element = json!({
         "id": id, "name": id, "type": "arcLine", "activity": "visible",
@@ -108,12 +160,16 @@ fn state_with_element(id: &str, element: Value) -> EvaluationState {
         geometry_input_targets: HashMap::new(),
         geometry_collection_nodes: HashMap::new(),
         geometry_value_binders: HashMap::new(),
+        for_group_generated_rows: Vec::new(),
+        for_group_expected_occurrence_count_by_template_id: HashMap::new(),
         elements: vec![element],
         elements_by_id: HashMap::from([(id.to_owned(), 0)]),
         drawing_modifiers: json!([]),
         selected_drawing_profile_id: None,
         group_states: HashMap::new(),
         computed_geometry: HashMap::new(),
+        base_transformation_geometry: HashMap::new(),
+        transformation_stage_geometry: HashMap::new(),
         computed_geometry_values: HashMap::new(),
         computed_geometry_order: Vec::new(),
         pre_mutation_geometry: HashMap::new(),

@@ -16,7 +16,7 @@ describe("nui 1 cutover", () => {
     expect(canonical.sourceText.startsWith("nui 1\n")).toBe(true);
     expect(canonical.doc.majorVersion).toBe(1);
     expect(canonical.sourceText).not.toContain("nui 4");
-    const compiled = compileDslDocument("nui 1\npoint A = coordinate(x: 0, y: 0, state: hidden)");
+    const compiled = compileDslDocument("nui 1\npoint A = coordinate(x: 0, y: 0, visible: false)");
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     expect(compiled.document?.elements[0]).toMatchObject({ activity: "hidden" });
   });

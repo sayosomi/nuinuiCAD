@@ -28,16 +28,17 @@
 //! the decode side.
 
 use super::expression_evaluator_ops::{
-    continue_builtin_call, continue_logical, continue_value_if, continue_value_match,
-    evaluate_geometry_builtin_call, evaluate_reference, finish_eager_binary, finish_logical_right,
-    finish_unary, finish_value_if, finish_value_match, static_type_null_error,
+    continue_builtin_call, continue_coalesce, continue_logical, continue_value_if,
+    continue_value_match, evaluate_geometry_builtin_call, evaluate_reference, finish_coalesce,
+    finish_eager_binary, finish_logical_right, finish_unary, finish_value_if, finish_value_match,
+    static_type_null_error,
 };
 use super::geometry_builtin_runtime::{GeometryBuiltinRuntimeError, GeometryBuiltinRuntimeTarget};
 use super::scalar_payload::scalar_value_matches_type;
 use super::types::{
-    ScalarBinaryOperator, ScalarEvaluation, ScalarExpressionResolvedGeometryTarget, ScalarType,
-    ScalarUnaryOperator, ScalarValue, TypedBuiltinArgument, TypedScalarCallTarget,
-    TypedScalarExpression,
+    ScalarBinaryOperator, ScalarEvaluation, ScalarExpressionResolvedGeometryTarget,
+    ScalarExpressionResolvedOptionalMemberTarget, ScalarType, ScalarUnaryOperator, ScalarValue,
+    TypedBuiltinArgument, TypedScalarCallTarget, TypedScalarExpression,
 };
 use crate::evaluation::types::GeometryValueOccurrence;
 
@@ -96,6 +97,23 @@ pub(crate) trait ScalarEvaluationEnvironment {
         }
     }
 
+    fn lookup_for_group_geometry_property(
+        &self,
+        _template_element_id: &str,
+        _index: Option<&TypedScalarExpression>,
+        _point_key: Option<&str>,
+        _property: &str,
+        _target_source_order: f64,
+        property_type: &ScalarType,
+    ) -> ScalarEvaluation {
+        ScalarEvaluation::Error {
+            r#type: property_type.clone(),
+            issue_code: "evaluation-geometry-property-unavailable".to_owned(),
+            binding_id: None,
+            context: None,
+        }
+    }
+
     fn lookup_geometry_builtin_target(
         &self,
         _target: &ScalarExpressionResolvedGeometryTarget,
@@ -121,6 +139,130 @@ pub(crate) trait ScalarEvaluationEnvironment {
 
     fn lookup_collection_length(&self, _collection_value_id: &str) -> Option<f64> {
         None
+    }
+
+    fn lookup_optional_member(
+        &self,
+        _target: &ScalarExpressionResolvedOptionalMemberTarget,
+        r#type: &ScalarType,
+    ) -> ScalarEvaluation {
+        ScalarEvaluation::Error {
+            r#type: r#type.clone(),
+            issue_code: "evaluation-optional-member-unavailable".to_owned(),
+            binding_id: None,
+            context: None,
+        }
+    }
+}
+
+struct LocalBindingEnvironment<'a, E: ScalarEvaluationEnvironment + ?Sized> {
+    base: &'a E,
+    binding_id: &'a str,
+    binding: ScalarEvaluation,
+}
+
+impl<E: ScalarEvaluationEnvironment + ?Sized> ScalarEvaluationEnvironment
+    for LocalBindingEnvironment<'_, E>
+{
+    fn lookup_binding(&self, binding_id: &str) -> ScalarEvaluation {
+        if binding_id == self.binding_id {
+            self.binding.clone()
+        } else {
+            self.base.lookup_binding(binding_id)
+        }
+    }
+    fn lookup_geometry_property(
+        &self,
+        element_id: &str,
+        property: &str,
+        target_source_order: f64,
+        property_type: &ScalarType,
+    ) -> ScalarEvaluation {
+        self.base
+            .lookup_geometry_property(element_id, property, target_source_order, property_type)
+    }
+    fn lookup_geometry_value_property(
+        &self,
+        occurrence: &GeometryValueOccurrence,
+        point_key: Option<&str>,
+        property: &str,
+        target_source_order: f64,
+        property_type: &ScalarType,
+    ) -> ScalarEvaluation {
+        self.base.lookup_geometry_value_property(
+            occurrence,
+            point_key,
+            property,
+            target_source_order,
+            property_type,
+        )
+    }
+    fn lookup_geometry_value_binder_property(
+        &self,
+        binder_id: &str,
+        point_key: Option<&str>,
+        property: &str,
+        target_source_order: f64,
+        property_type: &ScalarType,
+    ) -> ScalarEvaluation {
+        self.base.lookup_geometry_value_binder_property(
+            binder_id,
+            point_key,
+            property,
+            target_source_order,
+            property_type,
+        )
+    }
+    fn lookup_for_group_geometry_property(
+        &self,
+        template_element_id: &str,
+        index: Option<&TypedScalarExpression>,
+        point_key: Option<&str>,
+        property: &str,
+        target_source_order: f64,
+        property_type: &ScalarType,
+    ) -> ScalarEvaluation {
+        self.base.lookup_for_group_geometry_property(
+            template_element_id,
+            index,
+            point_key,
+            property,
+            target_source_order,
+            property_type,
+        )
+    }
+    fn lookup_geometry_builtin_target(
+        &self,
+        target: &ScalarExpressionResolvedGeometryTarget,
+    ) -> Result<GeometryBuiltinRuntimeTarget, GeometryBuiltinRuntimeError> {
+        self.base.lookup_geometry_builtin_target(target)
+    }
+    fn lookup_collection_index(
+        &self,
+        collection_value_id: &str,
+        index: f64,
+        element_type: &ScalarType,
+        collection_length: Option<f64>,
+        target_source_order: f64,
+    ) -> ScalarEvaluation {
+        self.base.lookup_collection_index(
+            collection_value_id,
+            index,
+            element_type,
+            collection_length,
+            target_source_order,
+        )
+    }
+    fn lookup_collection_length(&self, collection_value_id: &str) -> Option<f64> {
+        self.base.lookup_collection_length(collection_value_id)
+    }
+
+    fn lookup_optional_member(
+        &self,
+        target: &ScalarExpressionResolvedOptionalMemberTarget,
+        r#type: &ScalarType,
+    ) -> ScalarEvaluation {
+        self.base.lookup_optional_member(target, r#type)
     }
 }
 
@@ -174,6 +316,13 @@ pub(super) enum EvalWork<'a> {
     FinishLogicalRight {
         r#type: ScalarType,
     },
+    ContinueCoalesce {
+        r#type: ScalarType,
+        right: &'a TypedScalarExpression,
+    },
+    FinishCoalesce {
+        r#type: ScalarType,
+    },
     FinishEagerBinary {
         operator: ScalarBinaryOperator,
         r#type: ScalarType,
@@ -215,9 +364,29 @@ where
     evaluate_typed_expression_internal(node, environment, Some(observer))
 }
 
+pub(super) fn evaluate_typed_expression_with_local_binding(
+    node: &TypedScalarExpression,
+    environment: &(impl ScalarEvaluationEnvironment + ?Sized),
+    binding_id: &str,
+    binding_type: ScalarType,
+    value: ScalarValue,
+) -> ScalarEvaluation {
+    let local = LocalBindingEnvironment {
+        base: environment,
+        binding_id,
+        binding: ScalarEvaluation::Ok {
+            r#type: binding_type,
+            value,
+        },
+    };
+    evaluate_typed_expression_internal::<fn(&TypedScalarExpression, &ScalarEvaluation)>(
+        node, &local, None,
+    )
+}
+
 fn evaluate_typed_expression_internal<F>(
     node: &TypedScalarExpression,
-    environment: &impl ScalarEvaluationEnvironment,
+    environment: &dyn ScalarEvaluationEnvironment,
     mut observer: Option<&mut F>,
 ) -> ScalarEvaluation
 where
@@ -325,9 +494,20 @@ where
                 r#type,
                 scrutinee_type,
                 arms,
-            } => continue_value_match(r#type, scrutinee_type, arms, &mut work, &mut output),
+            } => continue_value_match(
+                r#type,
+                scrutinee_type,
+                arms,
+                environment,
+                &mut work,
+                &mut output,
+            ),
             EvalWork::FinishValueMatch { r#type } => finish_value_match(r#type, &mut output),
             EvalWork::FinishLogicalRight { r#type } => finish_logical_right(r#type, &mut output),
+            EvalWork::ContinueCoalesce { r#type, right } => {
+                continue_coalesce(r#type, right, &mut work, &mut output)
+            }
+            EvalWork::FinishCoalesce { r#type } => finish_coalesce(r#type, &mut output),
             EvalWork::FinishEagerBinary { operator, r#type } => {
                 finish_eager_binary(operator, r#type, &mut output)
             }
@@ -366,7 +546,7 @@ where
 /// *is* the group's result, unmodified.
 fn eval_node<'a>(
     node: &'a TypedScalarExpression,
-    environment: &impl ScalarEvaluationEnvironment,
+    environment: &dyn ScalarEvaluationEnvironment,
     work: &mut Vec<EvalWork<'a>>,
     output: &mut Vec<ScalarEvaluation>,
 ) {
@@ -387,6 +567,12 @@ fn eval_node<'a>(
             output.push(ScalarEvaluation::Ok {
                 r#type: r#type.clone(),
                 value: ScalarValue::Boolean(*value),
+            });
+        }
+        TypedScalarExpression::NoneLiteral { r#type, .. } => {
+            output.push(ScalarEvaluation::Ok {
+                r#type: r#type.clone(),
+                value: ScalarValue::None,
             });
         }
         TypedScalarExpression::ChoiceLiteral { value, r#type, .. } => match r#type {
@@ -437,6 +623,9 @@ fn eval_node<'a>(
             geometry_value_occurrence,
             geometry_value_binder_id,
             geometry_value_point_key,
+            for_group_template_element_id,
+            for_group_target_source_order,
+            for_group_index,
             property,
             target_source_order,
             r#type,
@@ -460,6 +649,15 @@ fn eval_node<'a>(
                         context: None,
                     },
                 }
+            } else if let Some(template_element_id) = for_group_template_element_id {
+                environment.lookup_for_group_geometry_property(
+                    template_element_id,
+                    for_group_index.as_deref(),
+                    geometry_value_point_key.as_deref(),
+                    property,
+                    for_group_target_source_order.unwrap_or(*target_source_order),
+                    r#type,
+                )
             } else if let Some(binder_id) = geometry_value_binder_id {
                 environment.lookup_geometry_value_binder_property(
                     binder_id,
@@ -496,6 +694,38 @@ fn eval_node<'a>(
                 }
                 ScalarEvaluation::Ok { .. } => ScalarEvaluation::Error {
                     r#type: r#type.clone(),
+                    issue_code: "evaluation-runtime-value-type-mismatch".to_owned(),
+                    binding_id: None,
+                    context: None,
+                },
+                error @ ScalarEvaluation::Error { .. } => error,
+            });
+        }
+        TypedScalarExpression::OptionalMember { target, r#type, .. } => {
+            let result = match (target, r#type) {
+                (Some(target), Some(concrete_type)) => {
+                    environment.lookup_optional_member(target, concrete_type)
+                }
+                _ => static_type_null_error(None),
+            };
+            output.push(match result {
+                ScalarEvaluation::Ok {
+                    r#type: result_type,
+                    value,
+                } if r#type
+                    .as_ref()
+                    .is_some_and(|expected| *expected == result_type)
+                    && r#type
+                        .as_ref()
+                        .is_some_and(|expected| scalar_value_matches_type(expected, &value)) =>
+                {
+                    ScalarEvaluation::Ok {
+                        r#type: result_type,
+                        value,
+                    }
+                }
+                ScalarEvaluation::Ok { .. } => ScalarEvaluation::Error {
+                    r#type: r#type.clone().unwrap_or(ScalarType::Number),
                     issue_code: "evaluation-runtime-value-type-mismatch".to_owned(),
                     binding_id: None,
                     context: None,
@@ -557,7 +787,10 @@ fn eval_node<'a>(
                     );
                     return;
                 };
-                if !matches!(&scrutinee_type, ScalarType::Choice { .. }) {
+                if !matches!(
+                    &scrutinee_type,
+                    ScalarType::Choice { .. } | ScalarType::Optional { .. }
+                ) {
                     output.push(
                         super::expression_evaluator_ops::runtime_value_type_mismatch(
                             concrete_type.clone(),
@@ -582,6 +815,13 @@ fn eval_node<'a>(
         } => match r#type {
             None => output.push(static_type_null_error(None)),
             Some(concrete_type) => match operator {
+                ScalarBinaryOperator::Coalesce => {
+                    work.push(EvalWork::ContinueCoalesce {
+                        r#type: concrete_type.clone(),
+                        right,
+                    });
+                    work.push(EvalWork::Eval(left));
+                }
                 ScalarBinaryOperator::Or | ScalarBinaryOperator::And => {
                     work.push(EvalWork::ContinueLogical {
                         operator: *operator,
@@ -647,10 +887,12 @@ fn static_expression_type(expression: &TypedScalarExpression) -> Option<ScalarTy
         TypedScalarExpression::NumberLiteral { r#type, .. }
         | TypedScalarExpression::StringLiteral { r#type, .. }
         | TypedScalarExpression::BooleanLiteral { r#type, .. }
+        | TypedScalarExpression::NoneLiteral { r#type, .. }
         | TypedScalarExpression::GeometryProperty { r#type, .. } => Some(r#type.clone()),
         TypedScalarExpression::ChoiceLiteral { r#type, .. }
         | TypedScalarExpression::Reference { r#type, .. }
         | TypedScalarExpression::CollectionIndex { r#type, .. }
+        | TypedScalarExpression::OptionalMember { r#type, .. }
         | TypedScalarExpression::Unary { r#type, .. }
         | TypedScalarExpression::Binary { r#type, .. }
         | TypedScalarExpression::Group { r#type, .. }

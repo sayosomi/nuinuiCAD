@@ -1,5 +1,4 @@
 import type {
-  DrawingModifierState,
   DrawingModifierStrokeColor,
   DrawingModifierStrokeStyle,
   ElementId
@@ -8,8 +7,8 @@ import type {
 /**
  * Exact-current authored winner for one effective Drawing Modifier property.
  *
- * `modifierName` is the current document's canonical modifier identity: the
- * compiler and StatementMap both key top-level modifier source ownership by
+ * `modifierName` is the current document's canonical style identity: the
+ * compiler and StatementMap both key top-level style source ownership by
  * this unique name. A selected profile override additionally carries the
  * compiler-resolved profile declaration id so later source navigation never
  * needs to parse a runtime id or search source text.
@@ -29,15 +28,14 @@ export type DrawingModifierPropertyResolution<T> = {
 };
 
 /**
- * Winner-only Drawing Modifier/Profile inspection for one runtime element.
+ * Winner-only Style/Profile inspection for one runtime element.
  * Built-in defaults deliberately use `winner: null` rather than inventing a
- * source location. `state` is the final effective activity after the existing
- * direct element/group hard gate; when that hard gate wins, its modifier
- * winner is likewise null and existing activity ownership remains authoritative.
+ * source location. Style visibility is presentation-only and cannot disable
+ * computation or override a direct/ancestor visible:false hard gate.
  */
 export type EffectiveDrawingModifierResolution = {
-  state: DrawingModifierPropertyResolution<DrawingModifierState>;
+  visible: DrawingModifierPropertyResolution<boolean>;
   widthPx: DrawingModifierPropertyResolution<number>;
-  style: DrawingModifierPropertyResolution<DrawingModifierStrokeStyle>;
+  lineType: DrawingModifierPropertyResolution<DrawingModifierStrokeStyle>;
   color: DrawingModifierPropertyResolution<DrawingModifierStrokeColor>;
 };

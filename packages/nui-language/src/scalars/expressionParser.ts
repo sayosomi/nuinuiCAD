@@ -3,7 +3,7 @@
 // @name tokens).
 //
 // Fixed precedence, loosest to tightest:
-// || &&   ==/!=  </<=/>/>=  +/-  * / %   unary (!, -, +),
+// ?? || &&   ==/!=  </<=/>/>=  +/-  * / %   unary (!, -, +),
 // then power (^), then primary. Power is right-associative and deliberately
 // sits above unary so `-2 ^ 2` parses as `-(2 ^ 2)`.
 // (including named calls).
@@ -68,7 +68,7 @@ export const isScalarExpressionCandidateSource = (source: string): boolean => {
   if (/^if\s*\(/.test(trimmed)) return true;
   if (/^match\b/.test(trimmed)) return trimmed !== "match";
   if (isScalarNamedCallCandidateSource(trimmed)) return true;
-  return containsScalarWordOperator(trimmed) || /&&|\|\||==|!=|<=|>=|[<>]/.test(trimmed);
+  return containsScalarWordOperator(trimmed) || /\?\.|\?\?|&&|\|\||==|!=|<=|>=|[<>]/.test(trimmed);
 };
 
 /** Syntax-only guard for consumers that still own legacy named-call syntax. */
@@ -84,8 +84,12 @@ export const containsScalarNamedCall = (ast: ScalarExpressionAst): boolean => {
       return containsScalarNamedCall(ast.expression);
     case "collectionIndex":
       return containsScalarNamedCall(ast.index);
+    case "geometryProperty":
+      return ast.occurrenceIndex ? containsScalarNamedCall(ast.occurrenceIndex) : false;
+    case "optionalMember":
+      return containsScalarNamedCall(ast.receiver);
     case "valueIf":
-      return containsScalarNamedCall(ast.condition) || containsScalarNamedCall(ast.thenBranch) || containsScalarNamedCall(ast.elseBranch);
+      return containsScalarNamedCall(ast.condition) || containsScalarNamedCall(ast.thenBranch) || (ast.elseBranch ? containsScalarNamedCall(ast.elseBranch) : false);
     case "valueMatch":
       return containsScalarNamedCall(ast.scrutinee) || ast.arms.some((arm) => containsScalarNamedCall(arm.expression));
     default:
@@ -107,6 +111,7 @@ const literalToNode = (literal: ScalarLiteralToken): ScalarExpressionAst => {
   if (literal.kind === "number") return { kind: "numberLiteral", span: literal.span, value: literal.value };
   if (literal.kind === "string") return { kind: "stringLiteral", span: literal.span, value: literal.cooked };
   if (literal.kind === "boolean") return { kind: "booleanLiteral", span: literal.span, value: literal.value };
+  if (literal.kind === "choice" && literal.raw === "none") return { kind: "noneLiteral", span: literal.span };
   return { kind: "unresolvedChoiceLiteral", span: literal.span, raw: literal.raw };
 };
 
@@ -126,6 +131,7 @@ interface BinaryTier {
 }
 
 const BINARY_PRECEDENCE_TIERS: readonly BinaryTier[] = [
+  { operators: ["??"], chain: true },
   { operators: ["||"], chain: true },
   { operators: ["&&"], chain: true },
   { operators: ["==", "!="], chain: false },
@@ -214,7 +220,7 @@ class Parser {
   }
 
   private parsePower(): ScalarExpressionAst {
-    const left = this.parsePrimary();
+    const left = this.parsePostfix(this.parsePrimary());
     const token = this.peek();
     if (token?.kind !== "operator" || token.value !== "^") return left;
 
@@ -234,6 +240,23 @@ class Parser {
     }
   }
 
+  private parsePostfix(base: ScalarExpressionAst): ScalarExpressionAst {
+    let expression = base;
+    for (;;) {
+      const property = this.peek();
+      if (property?.kind !== "optionalPostfixProperty") return expression;
+      this.consume();
+      expression = {
+        kind: "optionalMember",
+        span: { start: expression.span.start, end: property.span.end },
+        receiver: expression,
+        operatorSpan: property.operatorSpan,
+        memberSpan: property.propertySpan,
+        member: property.property
+      };
+    }
+  }
+
   private parsePrimary(): ScalarExpressionAst {
     const token = this.peek();
     if (!token) return fail("missing-operand", { start: this.boundaryEnd, end: this.boundaryEnd }, "式が必要です。");
@@ -242,7 +265,7 @@ class Parser {
       if (token.literal.kind === "choice" && token.literal.raw === "if" && this.peek(1)?.kind === "leftParen") {
         return this.parseValueIf(token);
       }
-      if (token.literal.kind === "choice" && token.literal.raw === "match" && this.hasValueMatchBody()) {
+      if (token.literal.kind === "choice" && token.literal.raw === "match" && this.hasMatchBody()) {
         return this.parseValueMatch(token);
       }
       if (token.literal.kind === "choice" && this.peek(1)?.kind === "leftParen") {
@@ -311,7 +334,7 @@ class Parser {
 
       const elseKeyword = this.peek();
       if (!elseKeyword || elseKeyword.kind !== "literal" || elseKeyword.literal.kind !== "choice" || elseKeyword.literal.raw !== "else") {
-        return fail("value-if-missing-else", elseKeyword ? tokenSpan(elseKeyword) : { start: this.boundaryEnd, end: this.boundaryEnd }, "value-if には else ブランチが必要です。");
+        return { kind: "valueIf", span: { start: keyword.span.start, end: thenClosing.span.end }, condition, thenBranch, elseBranch: null };
       }
       this.consume();
       const elseOpening = this.peek();
@@ -367,18 +390,26 @@ class Parser {
         if (label.kind !== "literal" || label.literal.kind !== "choice") {
           return fail("value-match-malformed-arm", tokenSpan(label), "match ケースはchoice optionラベルで始めてください。");
         }
-        const arrow = this.peek(1);
+        const binderToken = label.literal.raw === "some" ? this.peek(1) : null;
+        const hasBinder = !!binderToken && binderToken.kind === "literal" && binderToken.literal.kind === "choice" && this.peek(2)?.kind === "arrow";
+        const arrow = hasBinder ? this.peek(2) : this.peek(1);
         if (!arrow || arrow.kind !== "arrow") {
           return fail("value-match-missing-arrow", arrow ? tokenSpan(arrow) : { start: this.boundaryEnd, end: this.boundaryEnd }, "match ケースには「=>」が必要です。");
         }
         this.consume();
+        if (hasBinder) this.consume();
         this.consume();
         const expression = this.parseTier(0);
-        arms.push({ label: label.literal.raw, labelSpan: label.literal.span, expression });
+        arms.push({
+          label: label.literal.raw,
+          labelSpan: label.literal.span,
+          ...(hasBinder && binderToken?.kind === "literal" ? { binder: binderToken.literal.raw, binderSpan: binderToken.literal.span } : {}),
+          expression
+        });
         const next = this.peek();
         if (!next) return fail("value-match-missing-closing-brace", opening.span, "match を閉じる「}」がありません。");
         if (next.kind === "rightBrace") continue;
-        if (next.kind === "literal" && next.literal.kind === "choice" && this.peek(1)?.kind === "arrow") continue;
+        if (next.kind === "literal" && next.literal.kind === "choice" && (this.peek(1)?.kind === "arrow" || (next.literal.raw === "some" && this.peek(2)?.kind === "arrow"))) continue;
         return fail("value-match-malformed-arm", tokenSpan(next), "match ケースの式の後に次のchoice optionと「=>」または「}」が必要です。");
       }
     } finally {
@@ -386,7 +417,7 @@ class Parser {
     }
   }
 
-  private hasValueMatchBody(): boolean {
+  private hasMatchBody(): boolean {
     let parenthesisDepth = 0;
     let bracketDepth = 0;
     for (const token of this.tokens.slice(this.index + 1)) {
@@ -423,6 +454,21 @@ class Parser {
     const closing = this.peek();
     if (!closing || closing.kind !== "rightBracket") return fail("unterminated-index", tokenSpan(opening), "閉じ括弧 ']' がありません。");
     this.consume();
+    const property = this.peek();
+    if (property?.kind === "postfixProperty") {
+      this.consume();
+      return {
+        kind: "geometryProperty",
+        span: { start: reference.span.start, end: property.span.end },
+        elementNameSpan: reference.nameSpan,
+        propertySpan: property.propertySpan,
+        elementName: reference.name,
+        property: property.property,
+        occurrenceIndex: index,
+        occurrenceIndexSpan: index.span,
+        occurrenceRange: { start: tokenSpan(opening).start, end: tokenSpan(closing).end }
+      };
+    }
     return {
       kind: "collectionIndex",
       span: { start: reference.span.start, end: closing.span.end },

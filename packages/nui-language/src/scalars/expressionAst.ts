@@ -14,6 +14,7 @@ export type { ScalarSpan };
 export type ScalarUnaryOperator = "!" | "-" | "+";
 
 export type ScalarBinaryOperator =
+  | "??"
   | "||"
   | "&&"
   | "=="
@@ -45,6 +46,12 @@ export interface ScalarBooleanLiteralNode {
   readonly kind: "booleanLiteral";
   readonly span: ScalarSpan;
   readonly value: boolean;
+}
+
+/** A first-class absence literal; its type is established by context. */
+export interface ScalarNoneLiteralNode {
+  readonly kind: "noneLiteral";
+  readonly span: ScalarSpan;
 }
 
 /**
@@ -90,6 +97,21 @@ export interface ScalarGeometryPropertyReferenceNode {
   readonly propertySpan: ScalarSpan;
   readonly elementName: string;
   readonly property: string;
+  /** Present for `@Name[index].property`; the index remains an ordinary
+   * scalar expression and is typechecked by the shared expression path. */
+  readonly occurrenceIndex?: ScalarExpressionAst;
+  readonly occurrenceIndexSpan?: ScalarSpan;
+  readonly occurrenceRange?: ScalarSpan;
+}
+
+/** A first-class optional member/property access (`receiver?.member`). */
+export interface ScalarOptionalMemberExpressionNode {
+  readonly kind: "optionalMember";
+  readonly span: ScalarSpan;
+  readonly receiver: ScalarExpressionAst;
+  readonly operatorSpan: ScalarSpan;
+  readonly memberSpan: ScalarSpan;
+  readonly member: string;
 }
 
 export interface ScalarUnaryExpressionNode {
@@ -139,18 +161,23 @@ export interface ScalarCallExpressionNode {
   readonly args: readonly ScalarCallArgumentNode[];
 }
 
-/** A value-producing scalar `if (condition) { then } else { otherwise }`. */
+/** A value-producing scalar `if (condition) { then } else { otherwise }`.
+ * `elseBranch === null` is the authored omitted-else form; semantic checking
+ * may legalize it only in an optional result context. */
 export interface ScalarValueIfExpressionNode {
   readonly kind: "valueIf";
   readonly span: ScalarSpan;
   readonly condition: ScalarExpressionAst;
   readonly thenBranch: ScalarExpressionAst;
-  readonly elseBranch: ScalarExpressionAst;
+  readonly elseBranch: ScalarExpressionAst | null;
 }
 
 export interface ScalarValueMatchArmNode {
   readonly label: string;
   readonly labelSpan: ScalarSpan;
+  /** Present only for the optional `some <binder> =>` arm form. */
+  readonly binder?: string;
+  readonly binderSpan?: ScalarSpan;
   readonly expression: ScalarExpressionAst;
 }
 
@@ -166,10 +193,12 @@ export type ScalarExpressionAst =
   | ScalarNumberLiteralNode
   | ScalarStringLiteralNode
   | ScalarBooleanLiteralNode
+  | ScalarNoneLiteralNode
   | ScalarUnresolvedChoiceLiteralNode
   | ScalarReferenceNode
   | ScalarCollectionIndexNode
   | ScalarGeometryPropertyReferenceNode
+  | ScalarOptionalMemberExpressionNode
   | ScalarUnaryExpressionNode
   | ScalarBinaryExpressionNode
   | ScalarGroupExpressionNode

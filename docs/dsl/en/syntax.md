@@ -9,9 +9,9 @@ use `/* ... */`. The `#` character does not start a comment.
 The first meaningful statement must be `nui 1`; comments and blank lines may
 come before it. Names follow the DSL identifier grammar, including non-ASCII
 names. A reference always has an `@` sigil: `@Front` names a declaration,
-`@Front::Hem` selects a module export, and `@Line.length` reads an available
-numeric property. See [Expressions](expressions.md) for the rules that make a
-reference available.
+`@Front::Hem` selects a module export, `@Line[0]` selects an explicit generated
+occurrence, and `@Line[0].length` reads a property from that occurrence. See
+[Expressions](expressions.md) for the rules that make a reference available.
 
 ## Statement spellings
 
@@ -81,8 +81,8 @@ reference rather than a second place to edit parser behavior.
 | `module` | `dsl-ref:statement:module` |
 <!-- dsl-ref:statement:record -->
 | `record` | `dsl-ref:statement:record` |
-<!-- dsl-ref:statement:modifier -->
-| `modifier` | `dsl-ref:statement:modifier` |
+<!-- dsl-ref:statement:style -->
+| `style` | `dsl-ref:statement:style` |
 <!-- dsl-ref:statement:instance -->
 | `instance` | `dsl-ref:statement:instance` |
 <!-- dsl-ref:statement:import -->
@@ -101,8 +101,10 @@ expressions; the construction determines how the value is computed:
 point Name = coordinate(x: 0, y: 0)
 ```
 
-Bare mutation statements such as `move(...)` have no declared name. A `group`
-has a name and contains declarations; `if`, `for`, `module`, and `layout`
+Transformation clauses such as `move A as shifted (...)` select an existing
+design object without `@`; their target selectors are part of the clause
+header, not ordinary call arguments. A `group` has a name and contains
+declarations; `if`, `for`, `module`, and `layout`
 introduce their own block rules. Blocks use braces and preserve source order.
 Declarations are not hoisted: a later statement cannot be referenced from an
 earlier one, even when both statements are in the same block.

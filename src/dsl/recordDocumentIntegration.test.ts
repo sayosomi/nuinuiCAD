@@ -39,7 +39,51 @@ describe("record source-semantic document integration", () => {
     });
   });
 
-  it("keeps record Module parameters source-semantic-only without enabling runtime pass-through", () => {
+  it("validates generalized immutable record fields and composes nested geometry members", () => {
+    const compiled = compile([
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "line AB = segment(start: (0, 0), end: (10, 0))",
+      "record Metadata(label: string)",
+      "record Piece(outline: path, points: point[], tags: string[], related: Metadata[], metadata: Metadata)",
+      'const piece: Piece = Piece(outline: @AB, points: [@A], tags: ["body"], related: [Metadata(label: "related")], metadata: Metadata(label: "body"))',
+      "const length: number = @piece.outline.length",
+      "const startX: number = @piece.outline.startPoint.x",
+      "const firstX: number = @piece.points[0].x",
+      "const label: string = @piece.metadata.label"
+    ].join("\n"));
+
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const value = compiled.moduleSemanticAnalysis?.rootRecordValuesByStatementId.get("stable-5");
+    expect(value?.fields.map((field) => [field.fieldName, field.valueExpression?.kind])).toEqual([
+      ["outline", "geometry"],
+      ["points", "collection"],
+      ["tags", "collection"],
+      ["related", "collection"],
+      ["metadata", "record"]
+    ]);
+    expect(compiled.moduleSemanticAnalysis?.rootScalarExpressionsByStatementId.size).toBeGreaterThan(0);
+  });
+
+  it("reports generalized record constructor mismatches at their authored fields", () => {
+    const compiled = compile([
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "line AB = segment(start: (0, 0), end: (10, 0))",
+      "record Metadata(label: string)",
+      "record Other(label: string)",
+      "record Piece(edge: line, points: point[], metadata: Metadata)",
+      'const broken: Piece = Piece(edge: @A, points: [@AB], metadata: Other(label: "wrong"))'
+    ].join("\n"));
+
+    const codes = compiled.diagnostics.map((diagnostic) => diagnostic.code);
+    expect(codes).toContain("module-geometry-type-mismatch");
+    expect(codes).toContain("array-member-geometry-mismatch");
+    expect(codes).toContain("module-record-reference-invalid");
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error").every((diagnostic) => diagnostic.physicalSpan)).toBe(true);
+  });
+
+  it("keeps record Module parameters in the shared semantic model", () => {
     const compiled = compile([
       "nui 1",
       "record Pair(x: number)",
@@ -56,6 +100,10 @@ describe("record source-semantic document integration", () => {
         typeIdentity: "stable-1"
       })
     ]);
+    expect(compiled.moduleSemanticAnalysis?.definitionsByStatementId.get("stable-2")?.parameters[0]).toMatchObject({
+      name: "input",
+      recordTypeIdentity: "stable-1"
+    });
     expect(compiled.document?.elements).toEqual([]);
     expect(compiled.moduleMaterialization?.executionStatements).toEqual([]);
     expect(compiled.moduleMaterialization?.sourceExecutionUnits).toEqual([]);
@@ -87,6 +135,21 @@ describe("record source-semantic document integration", () => {
     expect(compiled.scalarProgram?.statements.some((statement) =>
       statement.declaration.initializer.kind === "valueIf"
     )).toBe(true);
+  });
+
+  it("supports optional nominal-record results for omitted-else if and optional match", () => {
+    const compiled = compile([
+      "nui 1",
+      "record Pair(x: number)",
+      "const note: string? = \"present\"",
+      "const fallback: Pair = Pair(x: 0)",
+      "const maybe: Pair? = if (false) { Pair(x: 1) }",
+      "const selected: Pair? = match @note { none => none some value => @fallback }"
+    ].join("\n"));
+
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(compiled.sourceLexicalNamespace?.recordSemanticAnalysis?.valuesByStatementId.get("stable-4")?.valueExpression?.kind).toBe("if");
+    expect(compiled.sourceLexicalNamespace?.recordSemanticAnalysis?.valuesByStatementId.get("stable-5")?.valueExpression?.kind).toBe("match");
   });
 
   it("accepts a statically indexed record collection member in a record branch", () => {

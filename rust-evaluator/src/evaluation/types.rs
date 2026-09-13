@@ -7,6 +7,7 @@ use super::scalars::TypedScalarExpression;
 
 #[derive(Debug)]
 pub(crate) enum GeometryInputCollectionNode {
+    None,
     Leaf {
         targets: Vec<GeometryInputTarget>,
     },
@@ -20,6 +21,10 @@ pub(crate) enum GeometryInputCollectionNode {
         scrutinee: TypedScalarExpression,
         source_order: f64,
         arms: Vec<(String, GeometryInputCollectionNode)>,
+    },
+    Coalesce {
+        left_branch: Box<GeometryInputCollectionNode>,
+        right_branch: Box<GeometryInputCollectionNode>,
     },
 }
 
@@ -40,6 +45,13 @@ pub(crate) enum GeometryInputTarget {
         element_id: ElementId,
         geometry_type: String,
         point_key: Option<String>,
+    },
+    ForGroupOccurrence {
+        template_element_id: ElementId,
+        geometry_type: String,
+        point_key: Option<String>,
+        target_source_order: f64,
+        index: Option<Box<TypedScalarExpression>>,
     },
     GeometryValue {
         occurrence: GeometryValueOccurrence,
@@ -143,6 +155,14 @@ pub struct EvaluationInput {
     /// reads as well as geometry-input materialization.
     #[serde(default)]
     pub(crate) geometry_collection_nodes: Option<Value>,
+    /// Compiled declarative transformation clauses. Targets are resolved by
+    /// the host-neutral compiler; Rust only evaluates this JSON-shaped model.
+    #[serde(default)]
+    pub(crate) transformation_recipes: Option<Value>,
+    /// Source statement positions for drawable element ids when no scalar
+    /// mutation payload supplies the same ordering metadata.
+    #[serde(default)]
+    pub(crate) source_statement_indices: Option<Value>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -240,6 +260,8 @@ pub(crate) struct EffectiveDrawingModifierStroke {
 pub struct EvaluationPayload {
     pub(crate) computed_geometry: Vec<Value>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub(crate) transformation_stage_geometry: Vec<Value>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub(crate) computed_geometry_values: Vec<Value>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub(crate) pre_mutation_geometry: Vec<Value>,
@@ -321,12 +343,16 @@ pub(crate) struct EvaluationState {
     pub(crate) selected_drawing_profile_id: Option<String>,
     pub(crate) group_states: HashMap<ElementId, GroupState>,
     pub(crate) computed_geometry: HashMap<ElementId, Value>,
+    pub(crate) base_transformation_geometry: HashMap<ElementId, Value>,
+    pub(crate) transformation_stage_geometry: HashMap<String, Value>,
     pub(crate) computed_geometry_order: Vec<ElementId>,
     pub(crate) computed_geometry_values: HashMap<GeometryValueOccurrence, Value>,
     pub(crate) geometry_input_targets:
         HashMap<ElementId, HashMap<String, Vec<GeometryInputTarget>>>,
     pub(crate) geometry_collection_nodes: HashMap<String, GeometryInputCollectionNode>,
     pub(crate) geometry_value_binders: HashMap<String, GeometryInputTarget>,
+    pub(crate) for_group_generated_rows: Vec<ForGroupGeneratedRow>,
+    pub(crate) for_group_expected_occurrence_count_by_template_id: HashMap<ElementId, usize>,
     pub(crate) pre_mutation_geometry: HashMap<ElementId, Value>,
     pub(crate) geometry_mutation_executions: Vec<GeometryMutationExecution>,
     pub(crate) condition_evaluation_traces: Vec<Value>,

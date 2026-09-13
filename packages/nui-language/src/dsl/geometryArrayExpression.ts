@@ -18,6 +18,7 @@ export type GeometryArrayLiteralMember = {
 };
 
 export type GeometryArrayExpression =
+  | { kind: "none"; span: DslSpan }
   | {
       kind: "literal";
       span: DslSpan;
@@ -43,7 +44,7 @@ export type GeometryArrayExpression =
       conditionText: string;
       conditionSpan: DslSpan;
       thenBranch: GeometryArrayExpression;
-      elseBranch: GeometryArrayExpression;
+      elseBranch: GeometryArrayExpression | null;
     }
   | {
       kind: "match";
@@ -53,9 +54,17 @@ export type GeometryArrayExpression =
       arms: readonly {
         label: string;
         labelSpan: DslSpan;
+        binder?: string;
+        binderSpan?: DslSpan;
         expression: GeometryArrayExpression;
-      }[];
-    };
+        }[];
+    }
+  | {
+      kind: "coalesce";
+      span: DslSpan;
+      left: GeometryArrayExpression;
+      right: GeometryArrayExpression;
+    }
 
 export type GeometryArrayExpressionParseResult = {
   expression: GeometryArrayExpression | null;
@@ -204,6 +213,32 @@ const firstTopLevelBrace = (source: string, start: number, end: number) => {
   return -1;
 };
 
+const topLevelCoalesceOperator = (source: string, span: DslSpan): number => {
+  let quote: string | null = null;
+  let squareDepth = 0;
+  let parenDepth = 0;
+  let braceDepth = 0;
+  for (let index = span.start; index < span.end - 1; index += 1) {
+    const character = source[index]!;
+    if (quote) {
+      if (character === quote && !escaped(source, index)) quote = null;
+      continue;
+    }
+    if ((character === "\"" || character === "'") && !escaped(source, index)) {
+      quote = character;
+      continue;
+    }
+    if (character === "[") squareDepth += 1;
+    else if (character === "]") squareDepth = Math.max(0, squareDepth - 1);
+    else if (character === "(") parenDepth += 1;
+    else if (character === ")") parenDepth = Math.max(0, parenDepth - 1);
+    else if (character === "{") braceDepth += 1;
+    else if (character === "}") braceDepth = Math.max(0, braceDepth - 1);
+    else if (character === "?" && source[index + 1] === "?" && squareDepth === 0 && parenDepth === 0 && braceDepth === 0) return index;
+  }
+  return -1;
+};
+
 const parseNested = (source: string, span: DslSpan): GeometryArrayExpressionParseResult => parseGeometryArrayExpression(source, span);
 
 const scalarSyntaxDiagnostics = (source: string, span: DslSpan): GeometryArrayExpressionDiagnostic[] =>
@@ -240,7 +275,13 @@ const parseValueIf = (source: string, span: DslSpan): GeometryArrayExpressionPar
   while (cursor < span.end && whitespace.test(source[cursor]!)) cursor += 1;
   const elseSpan = { start: cursor, end: Math.min(span.end, cursor + 4) };
   if (!keywordAt(source, elseSpan, "else")) {
-    return { expression: null, diagnostics: [{ code: "value-if-missing-else", message: "value-if には else ブランチが必要です。", span: elseSpan }] };
+    const trailing = trimSpan(source, thenClose + 1, span.end);
+    if (trailing.start !== trailing.end) return { expression: null, diagnostics: [{ code: "geometry-array-trailing-token", message: "value-if の後に余分なトークンがあります。", span: trailing }] };
+    if (!thenResult.expression) return { expression: null, diagnostics: thenResult.diagnostics };
+    return {
+      expression: { kind: "if", span, conditionText: source.slice(conditionSpan.start, conditionSpan.end), conditionSpan, thenBranch: thenResult.expression, elseBranch: null },
+      diagnostics: thenResult.diagnostics
+    };
   }
   cursor += 4;
   while (cursor < span.end && whitespace.test(source[cursor]!)) cursor += 1;
@@ -295,6 +336,13 @@ const nextMatchArm = (source: string, start: number, end: number) => {
       let arrow = cursor;
       while (arrow < end && whitespace.test(source[arrow]!)) arrow += 1;
       if (source.slice(arrow, arrow + 2) === "=>") return index;
+      if (source.slice(index, cursor) === "some" && identifierStartAt(source, arrow)) {
+        let binderEnd = arrow + codePointWidthAt(source, arrow);
+        while (binderEnd < end && identifierPartAt(source, binderEnd)) binderEnd += codePointWidthAt(source, binderEnd);
+        let binderArrow = binderEnd;
+        while (binderArrow < end && whitespace.test(source[binderArrow]!)) binderArrow += 1;
+        if (source.slice(binderArrow, binderArrow + 2) === "=>") return index;
+      }
       index = cursor - 1;
     }
   }
@@ -312,7 +360,7 @@ const parseValueMatch = (source: string, span: DslSpan): GeometryArrayExpression
   if (scrutineeDiagnostics.length > 0) return { expression: null, diagnostics: scrutineeDiagnostics };
   const close = matchingDelimiter(source, open, span.end, "{", "}");
   if (close < 0) return { expression: null, diagnostics: [{ code: "value-match-missing-closing-brace", message: "match を閉じる「}」がありません。", span: { start: open, end: open + 1 } }] };
-  const arms: { label: string; labelSpan: DslSpan; expression: GeometryArrayExpression }[] = [];
+  const arms: { label: string; labelSpan: DslSpan; binder?: string; binderSpan?: DslSpan; expression: GeometryArrayExpression }[] = [];
   const diagnostics: GeometryArrayExpressionDiagnostic[] = [];
   cursor = open + 1;
   while (true) {
@@ -327,6 +375,22 @@ const parseValueMatch = (source: string, span: DslSpan): GeometryArrayExpression
     while (cursor < close && identifierPartAt(source, cursor)) cursor += codePointWidthAt(source, cursor);
     const labelSpan = { start: labelStart, end: cursor };
     while (cursor < close && whitespace.test(source[cursor]!)) cursor += 1;
+    let binder: string | undefined;
+    let binderSpan: DslSpan | undefined;
+    if (source.slice(labelStart, cursor).trim() === "some") {
+      const candidateStart = cursor;
+      if (identifierStartAt(source, candidateStart)) {
+        let candidateEnd = candidateStart + codePointWidthAt(source, candidateStart);
+        while (candidateEnd < close && identifierPartAt(source, candidateEnd)) candidateEnd += codePointWidthAt(source, candidateEnd);
+        let arrow = candidateEnd;
+        while (arrow < close && whitespace.test(source[arrow]!)) arrow += 1;
+        if (source.slice(arrow, arrow + 2) === "=>") {
+          binder = source.slice(candidateStart, candidateEnd);
+          binderSpan = { start: candidateStart, end: candidateEnd };
+          cursor = arrow;
+        }
+      }
+    }
     if (source.slice(cursor, cursor + 2) !== "=>") {
       diagnostics.push({ code: "value-match-missing-arrow", message: "match ケースには「=>」が必要です。", span: { start: cursor, end: Math.min(close, cursor + 2) } });
       break;
@@ -337,7 +401,7 @@ const parseValueMatch = (source: string, span: DslSpan): GeometryArrayExpression
     const bodySpan = trimSpan(source, bodyStart, bodyEnd);
     const body = parseNested(source, bodySpan);
     diagnostics.push(...body.diagnostics);
-    if (body.expression) arms.push({ label: source.slice(labelSpan.start, labelSpan.end), labelSpan, expression: body.expression });
+    if (body.expression) arms.push({ label: source.slice(labelSpan.start, labelSpan.end), labelSpan, ...(binder ? { binder, binderSpan } : {}), expression: body.expression });
     cursor = bodyEnd;
   }
   const trailing = trimSpan(source, close + 1, span.end);
@@ -469,6 +533,26 @@ export const parseGeometryArrayExpression = (
     };
   }
 
+  const coalesceIndex = topLevelCoalesceOperator(source, span);
+  if (coalesceIndex >= 0) {
+    const leftSpan = trimSpan(source, span.start, coalesceIndex);
+    const rightSpan = trimSpan(source, coalesceIndex + 2, span.end);
+    const diagnostics: GeometryArrayExpressionDiagnostic[] = [];
+    if (leftSpan.start === leftSpan.end) {
+      diagnostics.push({ code: "coalesce-missing-left", message: "?? には左辺の collection 値が必要です。", span: { start: coalesceIndex, end: coalesceIndex + 2 } });
+    }
+    if (rightSpan.start === rightSpan.end) {
+      diagnostics.push({ code: "coalesce-missing-right", message: "?? には右辺の collection 値が必要です。", span: { start: coalesceIndex, end: coalesceIndex + 2 } });
+    }
+    const left = leftSpan.start === leftSpan.end ? null : parseNested(source, leftSpan);
+    const right = rightSpan.start === rightSpan.end ? null : parseNested(source, rightSpan);
+    if (left) diagnostics.push(...left.diagnostics);
+    if (right) diagnostics.push(...right.diagnostics);
+    return left?.expression && right?.expression && diagnostics.length === 0
+      ? { expression: { kind: "coalesce", span, left: left.expression, right: right.expression }, diagnostics }
+      : { expression: null, diagnostics };
+  }
+
   if (source[span.start] === "[") {
     const close = matchingSquareClose(source, span.start, span.end);
     if (close < 0) {
@@ -508,6 +592,7 @@ export const parseGeometryArrayExpression = (
   if (keywordAt(source, span, "match")) return parseValueMatch(source, span);
 
   const text = source.slice(span.start, span.end);
+  if (text.trim() === "none") return { expression: { kind: "none", span: trimSpan(source, span.start, span.end) }, diagnostics: [] };
   const reference = parseDslSourceReference(text);
   if (reference.kind === "valid") {
     return { expression: { kind: "reference", span, text }, diagnostics: [] };

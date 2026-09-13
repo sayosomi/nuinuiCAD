@@ -21,16 +21,16 @@ describe("DSL parser spans", () => {
   });
 
   it("records keyword, name, and attribute spans", () => {
-    const source = "point A = coordinate(x: 10, y: 20, state: hidden)";
+    const source = "point A = coordinate(x: 10, y: 20, visible: false)";
     const statement = single(source);
     expect(statement.kind).toBe("element");
     expect(statement.keywordSpan).toEqual({ start: 0, end: 5 });
     expect(statement.nameSpan).toEqual({ start: 6, end: 7 });
-    const stateAttr = statement.attrs.find((attr) => attr.key === "state");
-    const keyStart = source.indexOf("state:");
-    const valueStart = source.indexOf("hidden");
-    expect(stateAttr).toMatchObject({ keyStart, valueStart, valueEnd: valueStart + "hidden".length });
-    expect(source.slice(stateAttr!.valueStart, stateAttr!.valueEnd)).toBe("hidden");
+    const visibleAttr = statement.attrs.find((attr) => attr.key === "visible");
+    const keyStart = source.indexOf("visible:");
+    const valueStart = source.indexOf("false");
+    expect(visibleAttr).toMatchObject({ keyStart, valueStart, valueEnd: valueStart + "false".length });
+    expect(source.slice(visibleAttr!.valueStart, visibleAttr!.valueEnd)).toBe("false");
   });
 
   it("records coordinate payload spans", () => {

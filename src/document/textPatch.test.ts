@@ -233,13 +233,13 @@ describe("textPatch 要素の更新", () => {
     const result = commitModelBridge(current, {
       ...current.doc.document,
       elements: current.doc.document.elements.map((element) =>
-        element.id === offset.id ? { ...element, activity: "hidden" } as CadElement : element
+        element.id === offset.id ? { ...element, enabled: true, visible: false, activity: "hidden" } as CadElement : element
       )
     });
     expect(result.status).toBe("committed");
     if (result.status !== "committed") return;
     expect(result.value.sourceText).toContain(`closed: ${expression}`);
-    expect(result.value.sourceText).toContain("state: hidden");
+    expect(result.value.sourceText).toContain("visible: false");
     expect(result.value.sourceText).toContain("point A = coordinate(x: 0, y: 0)");
   });
 
@@ -251,11 +251,11 @@ describe("textPatch 要素の更新", () => {
     const { splices, patched } = applyChange(BASE_SOURCE, (document) => ({
       ...document,
       elements: document.elements.map((element) =>
-        element.name === "B" ? ({ ...element, activity: "disabled" } as CadElement) : element
+        element.name === "B" ? ({ ...element, enabled: false, visible: true, activity: "disabled" } as CadElement) : element
       )
     }));
     expectLinesUntouched(splices, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 15, 16]);
-    expect(patched).toContain("state: disabled");
+    expect(patched).toContain("enabled: false");
     expect(patched).toContain("point A = coordinate(x: 0, y: 0)  // Aの注釈");
     expect(patched).toContain("// グループ末尾コメント");
     expect(patched).toContain("// 本体");
@@ -265,24 +265,24 @@ describe("textPatch 要素の更新", () => {
     const { patched } = applyChange(BASE_SOURCE, (document) => ({
       ...document,
       elements: document.elements.map((element) =>
-        element.name === "A" ? ({ ...element, activity: "disabled" } as CadElement) : element
+        element.name === "A" ? ({ ...element, enabled: false, visible: true, activity: "disabled" } as CadElement) : element
       )
     }));
     // 旧statementが単一物理行だった場合、行末コメントはヘッダ行に付く
     // (mergeFromSingleLineOld)。
     expect(patched).toContain("point A = coordinate(  // Aの注釈");
-    expect(patched).toContain("state: disabled");
+    expect(patched).toContain("enabled: false");
   });
 
   it("コンテナの属性編集は開き行の末尾 `{` を保つ", () => {
     const { patched } = applyChange(BASE_SOURCE, (document) => ({
       ...document,
       elements: document.elements.map((element) =>
-        element.name === "G" ? ({ ...element, activity: "disabled" } as CadElement) : element
+        element.name === "G" ? ({ ...element, enabled: false, visible: true, activity: "disabled" } as CadElement) : element
       )
     }));
     const groupLine = patched.split("\n").find((line) => line.startsWith("group G"));
-    expect(groupLine).toContain("state: disabled");
+    expect(groupLine).toContain("enabled: false");
     expect(groupLine!.endsWith("{")).toBe(true);
   });
 });
@@ -532,7 +532,7 @@ describe("textPatch 複数行statement(括弧継続)", () => {
     "point A = coordinate(",
     "  x: 0,",
     "  y: 0,",
-    "  state: hidden  // 継続コメント",
+    "  visible: false  // 継続コメント",
     ")",
     "point B = coordinate(x: 1, y: 1)"
   ].join("\n");
@@ -541,17 +541,17 @@ describe("textPatch 複数行statement(括弧継続)", () => {
     const { patched } = applyChange(CONTINUATION_SOURCE, (document) => ({
       ...document,
       elements: document.elements.map((element) =>
-        element.name === "A" ? ({ ...element, activity: "disabled" } as CadElement) : element
+        element.name === "A" ? ({ ...element, enabled: false, visible: true, activity: "disabled" } as CadElement) : element
       )
     }));
     const lines = patched.split("\n");
-    expect(lines).toContain("  state: disabled,  // 継続コメント");
-    expect(lines).not.toContain("  state: hidden  // 継続コメント");
+    expect(lines).toContain("  // 継続コメント");
+    expect(lines).not.toContain("  visible: false  // 継続コメント");
     expect(patched).toContain("point B = coordinate(x: 1, y: 1)");
   });
 
   it("内容変更のない継続statementの移動(既存groupへのdepth変更)も全範囲を置換する", () => {
-    const source = ["nui 1", "group G {", "}", "point A = coordinate(", "  x: 0,", "  y: 0,", "  state: hidden", ")"].join("\n");
+    const source = ["nui 1", "group G {", "}", "point A = coordinate(", "  x: 0,", "  y: 0,", "  visible: false", ")"].join("\n");
     const { patched } = applyChange(source, (document) => {
       const group = elementByName(document, "G");
       return {
@@ -563,9 +563,9 @@ describe("textPatch 複数行statement(括弧継続)", () => {
     });
     const lines = patched.split("\n");
     expect(lines).toContain("  point A = coordinate(");
-    expect(lines).toContain("    state: hidden,");
-    // 旧・継続行の残骸(トップレベルの"  state: hidden"単独行)が残っていないこと。
-    expect(lines.filter((line) => line.includes("state: hidden"))).toHaveLength(1);
+    expect(lines).toContain("    visible: false,");
+    // 旧・継続行の残骸(トップレベルの"  visible: false"単独行)が残っていないこと。
+    expect(lines.filter((line) => line.includes("visible: false"))).toHaveLength(1);
   });
 
   it("削除された継続statementは継続行を含めて全行が消える", () => {
@@ -575,7 +575,7 @@ describe("textPatch 複数行statement(括弧継続)", () => {
       evaluationLimitIndex: document.evaluationLimitIndex
     }));
     expect(patched).not.toContain("point A");
-    expect(patched).not.toContain("state: hidden");
+    expect(patched).not.toContain("visible: false");
     expect(patched).toContain("point B = coordinate(x: 1, y: 1)");
   });
 
@@ -583,7 +583,7 @@ describe("textPatch 複数行statement(括弧継続)", () => {
     const { splices } = applyChange(CONTINUATION_SOURCE, (document) => ({
       ...document,
       elements: document.elements.map((element) =>
-        element.name === "B" ? ({ ...element, activity: "disabled" } as CadElement) : element
+        element.name === "B" ? ({ ...element, enabled: false, visible: true, activity: "disabled" } as CadElement) : element
       )
     }));
     expectLinesUntouched(splices, [2, 3, 4, 5, 6]);
@@ -594,7 +594,7 @@ describe("textPatch 複数行statement(括弧継続)", () => {
     // だけを見ていると、無変更の複数行文が文書末尾にあるとき、新規要素が
     // ヘッダ行と継続行の間に挟まってしまい継続が壊れる回帰があった
     // (property testで発見・修正)。
-    const source = ["nui 1", "point B = coordinate(x: 1, y: 1)", "point A = coordinate(", "  x: 0,", "  y: 0,", "  state: hidden", ")"].join("\n");
+    const source = ["nui 1", "point B = coordinate(x: 1, y: 1)", "point A = coordinate(", "  x: 0,", "  y: 0,", "  visible: false", ")"].join("\n");
     const { patched } = applyChange(source, (document) => ({
       ...document,
       elements: [...document.elements, makeElement("point Z = coordinate(x: 9, y: 9)")],
@@ -603,7 +603,7 @@ describe("textPatch 複数行statement(括弧継続)", () => {
     const reparsed = compileDslDocument(patched);
     expect(reparsed.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
     const lines = patched.split("\n");
-    const continuationIndex = lines.findIndex((line) => line.includes("state: hidden"));
+    const continuationIndex = lines.findIndex((line) => line.includes("visible: false"));
     const zIndex = lines.findIndex((line) => line.includes("point Z"));
     expect(zIndex).toBeGreaterThan(continuationIndex);
   });
@@ -732,7 +732,7 @@ describe("diffDocuments", () => {
         ...document.elements
           .filter((element) => element.name !== "C")
           .map((element) =>
-            element.name === "B" ? ({ ...element, activity: "disabled" } as CadElement) : element
+            element.name === "B" ? ({ ...element, enabled: false, visible: true, activity: "disabled" } as CadElement) : element
           ),
         inserted
       ],
@@ -799,7 +799,7 @@ describe("elementUpdateSet 高速経路とfull比較の等価性", () => {
     const next: DslDocumentData = {
       ...document,
       elements: document.elements.map((element) =>
-        element.name === "P2" ? ({ ...element, activity: "disabled" } as CadElement) : element
+        element.name === "P2" ? ({ ...element, enabled: false, visible: true, activity: "disabled" } as CadElement) : element
       )
     };
     const updates = expectFastMatchesFull(document, next);
@@ -901,7 +901,7 @@ describe("elementUpdateSet 高速経路とfull比較の等価性", () => {
     const next: DslDocumentData = {
       ...danglingDoc,
       elements: danglingDoc.elements.map((element) =>
-        element.name === "P2" ? ({ ...element, activity: "disabled" } as CadElement) : element
+        element.name === "P2" ? ({ ...element, enabled: false, visible: true, activity: "disabled" } as CadElement) : element
       )
     };
     const updates = expectFastMatchesFull(danglingDoc, next);

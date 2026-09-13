@@ -136,6 +136,8 @@ fn input(scalar_program: Option<Value>, binding_versions: Option<Value>) -> Eval
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
     }
 }
 

@@ -80,11 +80,11 @@ describe("element activity", () => {
     ]).get("child")).toMatchObject({ activity: "disabled", disabledByElementId: "module" });
   });
 
-  it("resolves modifier state outer-to-inner-to-element with left-to-right last-wins", () => {
+  it("resolves Style visibility outer-to-inner-to-element with left-to-right last-wins", () => {
     const definitions = [
-      { name: "hide", state: "hidden" },
-      { name: "disable", state: "disabled" },
-      { name: "show", state: "visible" }
+      { name: "hide", visible: false },
+      { name: "hideAgain", visible: false },
+      { name: "show", visible: true }
     ] as const;
     const outer = { id: "outer", type: "group", activity: "visible" as const, modifierNames: ["hide"] };
     const inner = {
@@ -92,7 +92,7 @@ describe("element activity", () => {
       type: "group",
       activity: "visible" as const,
       parentGroupId: "outer",
-      modifierNames: ["disable", "show"]
+      modifierNames: ["hideAgain", "show"]
     };
 
     expect(effectiveElementActivityById([outer, inner, {
@@ -107,25 +107,25 @@ describe("element activity", () => {
       type: "freePoint",
       activity: "visible",
       parentGroupId: "inner",
-      modifierNames: ["disable"]
-    }], definitions).get("child")).toEqual({ activity: "disabled", disabledByElementId: "child" });
+      modifierNames: ["hideAgain"]
+    }], definitions).get("child")).toEqual({ activity: "visible" });
 
     expect(effectiveElementActivityById([{ ...outer, modifierNames: ["hide"] }, {
       ...inner,
-      modifierNames: ["disable"]
+      modifierNames: ["hideAgain"]
     }, {
       id: "child",
       type: "freePoint",
       activity: "visible",
       parentGroupId: "inner"
-    }], definitions).get("child")).toEqual({ activity: "disabled", disabledByElementId: "inner" });
+    }], definitions).get("child")).toEqual({ activity: "visible" });
   });
 
-  it("lets modifier visible clear an earlier modifier state but not a direct hard gate", () => {
+  it("lets Style visible clear an earlier Style visibility but not a direct hard gate", () => {
     const definitions = [
-      { name: "hide", state: "hidden" },
-      { name: "disable", state: "disabled" },
-      { name: "show", state: "visible" }
+      { name: "hide", visible: false },
+      { name: "disable", visible: false },
+      { name: "show", visible: true }
     ] as const;
 
     expect(effectiveElementActivityById([
@@ -152,7 +152,7 @@ describe("element activity", () => {
       { name: "outer", widthPx: 2 },
       {
         name: "inner",
-        style: "dashed" as const,
+        lineType: "dashed" as const,
         profileDeltas: [{ profileId: "print", profileName: "Print", color: { kind: "fixed" as const, hex: "#123456" } }]
       }
     ];
@@ -171,8 +171,8 @@ describe("element activity", () => {
       { id: "point", type: "freePoint", activity: "visible", modifierNames: ["inner"] }
     ], [{
       name: "inner",
-      profileDeltas: [{ profileId: "print", profileName: "Print", state: "disabled" as const }]
-    }], "print").get("point")).toEqual({ activity: "disabled", disabledByElementId: "point" });
+      profileDeltas: [{ profileId: "print", profileName: "Print", visible: false }]
+    }], "print").get("point")).toEqual({ activity: "visible" });
   });
 
   it.each([

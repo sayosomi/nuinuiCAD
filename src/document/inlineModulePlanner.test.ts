@@ -15,7 +15,6 @@ import {
 
 const REVISION = 167;
 const DEFAULT_POLICY: InlineModulePolicy = {
-  emitOmittedBranchComments: false,
   includeHiddenInstances: false,
   includeDisabledInstances: false
 };
@@ -134,8 +133,8 @@ describe("planInlineModule Checkpoint 1", () => {
       "module Stamp() {",
       "  point Anchor = coordinate(x: 0, y: 0)",
       "}",
-      "instance Hidden(state: hidden) = Stamp()",
-      "instance Disabled(state: disabled) = Stamp()"
+      "instance Hidden(visible: false) = Stamp()",
+      "instance Disabled(enabled: false) = Stamp()"
     ].join("\n");
 
     const excluded = plan(source, ["Hidden", "Disabled"]).result;
@@ -154,8 +153,8 @@ describe("planInlineModule Checkpoint 1", () => {
     if (included.status !== "planned") return;
     expect(included.splices).toHaveLength(2);
     const next = applyLineSplices(source, included.splices);
-    expect(next).toContain("group Hidden(state: hidden) {");
-    expect(next).toContain("group Disabled(state: disabled) {");
+    expect(next).toContain("group Hidden(visible: false) {");
+    expect(next).toContain("group Disabled(enabled: false) {");
   });
 
   it("deduplicates targets and reports in deterministic authored order", () => {
@@ -416,333 +415,105 @@ describe("planInlineModule Checkpoint 1", () => {
     )).toBe(true);
   });
 
-  it("specializes optional presence independently for multiple targets and lowers only supplied values", () => {
+  it("inlines omitted, explicit-none, supplied, and defaulted optional scalar values", () => {
     const source = [
       "nui 1",
-      "module Presence(value?: number, enabled: boolean = hasValue(@value)) {",
-      "  const present: boolean = hasValue(@value)",
-      "  point P = coordinate(x: 0, y: 0)",
+      "module Values(value: number?, fallback: number? = 10) {",
+      "  const valueOrZero: number = @value ?? 0",
+      "  const fallbackValue: number = @fallback ?? 0",
+      "  point P = coordinate(x: @valueOrZero, y: @fallbackValue)",
       "}",
-      "instance Present = Presence(value: 12)",
-      "instance Absent = Presence()"
+      "instance Supplied = Values(value: 4, fallback: 6)",
+      "instance ExplicitNone = Values(value: none, fallback: none)",
+      "instance Omitted = Values()"
     ].join("\n");
-    const { result } = plan(source, ["Present", "Absent"]);
+    const { result } = plan(source, ["Supplied", "ExplicitNone", "Omitted"]);
 
     expect(result.status).toBe("planned");
     if (result.status !== "planned") return;
     const nextSource = applyLineSplices(source, result.splices);
-    expect(nextSource).toContain("group Present {");
-    expect(nextSource).toContain("const value: number = 12");
-    expect(nextSource).toContain("const enabled: boolean = true");
-    expect(nextSource).toContain("const present: boolean = true");
-    expect(nextSource).toContain("group Absent {");
-    const absent = nextSource.slice(nextSource.indexOf("group Absent {"));
-    expect(absent).not.toContain("const value: number");
-    expect(nextSource).toContain("const enabled: boolean = false");
-    expect(nextSource).toContain("const present: boolean = false");
-    expect(nextSource.slice(nextSource.indexOf("group Present {"))).not.toContain("hasValue(@value)");
+    expect(nextSource).toContain("const value: number? = 4");
+    expect(nextSource).toContain("const fallback: number? = 6");
+    expect(nextSource).toContain("const value: number? = none");
+    expect(nextSource).toContain("const fallback: number? = none");
+    expect(nextSource).toContain("const fallback: number? = 10");
+    expect(compileCurrent(nextSource, "inline-optional-values-next").diagnostics).toEqual([]);
   });
 
-  it("uses validated presence metadata instead of a boolean placeholder in the semantic AST", () => {
+  it("preserves optional match semantics through inline expansion", () => {
     const source = [
       "nui 1",
-      "module Presence(value?: number) {",
-      "  const present: boolean = hasValue(@value)",
+      "module Match(value: number?) {",
+      "  const selected: number = match @value { none => 0 some present => @present }",
+      "  point P = coordinate(x: @selected, y: 0)",
       "}",
-      "instance Present = Presence(value: 12)",
-      "instance Absent = Presence()"
+      "instance Omitted = Match()",
+      "instance ExplicitNone = Match(value: none)",
+      "instance Supplied = Match(value: 8)"
     ].join("\n");
-    const compiled = compileCurrent(source);
-    const analysis = compiled.moduleSemanticAnalysis!;
-    const definition = analysis.definitions[0]!;
-    const body = definition.bodyStatements[0]!;
-    const site = body.scalarExpressions[0];
-    expect(site).toBeDefined();
-    if (!site) return;
-    const placeholder = { kind: "booleanLiteral" as const, span: site.expression.ast.span, value: false };
-    const updatedBody = {
-      ...body,
-      scalarExpressions: body.scalarExpressions.map((candidate) => candidate === site
-        ? { ...candidate, expression: { ...candidate.expression, ast: placeholder } }
-        : candidate)
-    };
-    const updatedDefinition = {
-      ...definition,
-      bodyStatements: definition.bodyStatements.map((candidate) => candidate === body ? updatedBody : candidate)
-    };
-    const definitionsByStatementId = new Map(analysis.definitionsByStatementId);
-    definitionsByStatementId.set(updatedDefinition.statementId, updatedDefinition);
-    const modifiedCompiled: CompiledDslDocument = {
-      ...compiled,
-      moduleSemanticAnalysis: {
-        ...analysis,
-        definitions: analysis.definitions.map((candidate) => candidate === definition ? updatedDefinition : candidate),
-        definitionsByStatementId
-      }
-    };
-    const result = planInlineModule({
-      source: { normalizedSource: source, sourceRevision: REVISION },
-      compiled: modifiedCompiled,
-      targets: ["Present", "Absent"].map((name) => targetFor(modifiedCompiled, name)),
-      policy: DEFAULT_POLICY
-    });
+    const { result } = plan(source, ["Omitted", "ExplicitNone", "Supplied"]);
 
     expect(result.status).toBe("planned");
     if (result.status !== "planned") return;
     const nextSource = applyLineSplices(source, result.splices);
-    expect(nextSource).toContain("const present: boolean = true");
-    expect(nextSource).toContain("const present: boolean = false");
+    expect(nextSource).toContain("match @value { none => 0 some present => @present }");
+    expect(compileCurrent(nextSource, "inline-optional-match-next").diagnostics).toEqual([]);
   });
 
-  it("proves references eliminated by a false guarded body expression", () => {
+  it("preserves optional geometry member access through inline expansion", () => {
     const source = [
       "nui 1",
-      "module M(value?: number) {",
-      "  const positive: boolean = hasValue(@value) and @value > 0",
+      "point SourceAnchor = coordinate(x: 7, y: 3)",
+      "module Geometry(inputPoint: point?) {",
+      "  const x: number = @inputPoint?.x ?? 0",
+      "  point P = coordinate(x: @x, y: 0)",
       "}",
-      "instance Use = M()"
+      "instance Omitted = Geometry()",
+      "instance Supplied = Geometry(inputPoint: @SourceAnchor)"
     ].join("\n");
-    const { result } = plan(source, ["Use"]);
+    const { result } = plan(source, ["Omitted", "Supplied"]);
 
     expect(result.status).toBe("planned");
     if (result.status !== "planned") return;
     const nextSource = applyLineSplices(source, result.splices);
-    const generated = nextSource.slice(nextSource.indexOf("group Use {"));
-    expect(generated).toContain("const positive: boolean = false");
-    expect(generated).not.toContain("hasValue(@value)");
-    expect(generated).not.toContain("@value");
-    expect(compileCurrent(nextSource, "inline-guarded-body-next").diagnostics).toEqual([]);
+    expect(nextSource).toContain("const inputPoint: point? = none");
+    expect(nextSource).toContain("const inputPoint: point? = @SourceAnchor");
+    expect(compileCurrent(nextSource, "inline-optional-geometry-next").diagnostics).toEqual([]);
   });
 
-  it("proves references eliminated by a false guarded default initializer", () => {
+  it("preserves optional record and collection coalescing through inline expansion", () => {
     const source = [
       "nui 1",
-      "module M(value?: number, enabled: number, positive: boolean = hasValue(@value) and @enabled > 0) {",
-      "  point P = coordinate(x: 0, y: 0)",
+      "record Pair(x: number)",
+      "const sourcePair: Pair = Pair(x: 7)",
+      "const sourcePoints: point[] = [(1, 2)]",
+      "module Mixed(settings: Pair?, points: point[]?) {",
+      "  const x: number = @settings?.x ?? 0",
+      "  const resolved: Pair = @settings ?? Pair(x: 0)",
+      "  const selected: point[] = @points ?? []",
+      "  point P = coordinate(x: @x, y: 0)",
       "}",
-      "instance Use = M(enabled: 1)"
+      "instance Omitted = Mixed()",
+      "instance ExplicitNone = Mixed(settings: none, points: none)",
+      "instance Supplied = Mixed(settings: @sourcePair, points: @sourcePoints)"
     ].join("\n");
-    const { result } = plan(source, ["Use"]);
+    const { result } = plan(source, ["Omitted", "ExplicitNone", "Supplied"]);
 
     expect(result.status).toBe("planned");
     if (result.status !== "planned") return;
     const nextSource = applyLineSplices(source, result.splices);
-    const generated = nextSource.slice(nextSource.indexOf("group Use {"));
-    expect(generated).not.toContain("const value: number");
-    expect(generated).toContain("const positive: boolean = false");
-    expect(generated).not.toContain("hasValue(@value)");
-    expect(generated).not.toContain("@value");
-    expect(compileCurrent(nextSource, "inline-guarded-default-next").diagnostics).toEqual([]);
-  });
-
-  it("supports optional number, string, boolean, and choice parameters", () => {
-    const source = [
-      "nui 1",
-      "module Scalars(n?: number, text?: string, flag?: boolean, side?: choice(right, left)) {",
-      "  point P = coordinate(x: 0, y: 0)",
-      "}",
-      "instance Present = Scalars(n: 1, text: \"front\", flag: true, side: left)",
-      "instance Absent = Scalars()"
-    ].join("\n");
-    const { result } = plan(source, ["Present", "Absent"]);
-
-    expect(result.status).toBe("planned");
-    if (result.status !== "planned") return;
-    const nextSource = applyLineSplices(source, result.splices);
-    expect(nextSource).toContain("const n: number = 1");
-    expect(nextSource).toContain("const text: string = \"front\"");
-    expect(nextSource).toContain("const flag: boolean = true");
-    expect(nextSource).toContain("const side: choice(right, left) = left");
-    const absent = nextSource.slice(nextSource.indexOf("group Absent {"));
-    expect(absent).not.toContain("const n:");
-    expect(absent).not.toContain("const text:");
-    expect(absent).not.toContain("const flag:");
-    expect(absent).not.toContain("const side:");
-  });
-
-  it("partially simplifies presence conditions while preserving the dynamic operand owner", () => {
-    const source = [
-      "nui 1",
-      "module Conditional(value?: number, enabled: boolean) {",
-      "  if (hasValue(@value) and @enabled) {",
-      "    point P = coordinate(x: 0, y: 0)",
-      "  }",
-      "}",
-      "instance Present = Conditional(value: 2, enabled: true)",
-      "instance Absent = Conditional(enabled: true)"
-    ].join("\n");
-    const { result } = plan(source, ["Present", "Absent"]);
-
-    expect(result.status).toBe("planned");
-    if (result.status !== "planned") return;
-    const nextSource = applyLineSplices(source, result.splices);
-    const present = nextSource.slice(nextSource.indexOf("group Present {"));
-    expect(present).toContain("if (@enabled) {");
-    expect(present).not.toContain("if (hasValue(@value)");
-    const absent = nextSource.slice(nextSource.indexOf("group Absent {"));
-    expect(absent).not.toContain("if (");
-    expect(absent).not.toContain("point P");
-
-    const next = compileCurrent(nextSource, "inline-presence-condition-next");
-    const nextIndex = createDslSemanticOccurrenceIndex(next);
-    const presentGroup = next.statements.findIndex((statement) => statement.kind === "group" && statement.name === "Present");
-    const enabled = next.statements.find((statement) =>
-      statement.kind === "typedDeclaration" && statement.name === "enabled" && statement.enclosing?.statementIndex === presentGroup
-    );
-    const conditional = next.statements.find((statement) =>
-      statement.kind === "element" && statement.type === "conditionalGroup" && statement.enclosing?.statementIndex === presentGroup
-    );
-    expect(enabled).toBeDefined();
-    expect(conditional).toBeDefined();
-    if (!enabled || !conditional) return;
-    const enabledDeclaration = nextIndex.occurrences.find((occurrence) =>
-      occurrence.kind === "declaration" && occurrence.from >= enabled.documentRange.from && occurrence.to <= enabled.documentRange.to
-    );
-    const conditionReferences = nextIndex.occurrences.filter((occurrence) =>
-      occurrence.kind === "reference" && occurrence.from >= conditional.documentRange.from && occurrence.to <= conditional.documentRange.to
-    );
-    expect(enabledDeclaration).toBeDefined();
-    expect(conditionReferences.some((occurrence) =>
-      enabledDeclaration && dslSemanticIdentityKey(occurrence.identity) === dslSemanticIdentityKey(enabledDeclaration.identity)
-    )).toBe(true);
-  });
-
-  it("lifts the branch selected by negated optional presence and remaps supplied references", () => {
-    const source = [
-      "nui 1",
-      "module Conditional(value?: number) {",
-      "  if (not hasValue(@value)) {",
-      "    point Missing = coordinate(x: 0, y: 0)",
-      "  } else {",
-      "    point Present = coordinate(x: @value, y: 0)",
-      "  }",
-      "}",
-      "instance Supplied = Conditional(value: 4)",
-      "instance Omitted = Conditional()"
-    ].join("\n");
-    const { result } = plan(source, ["Supplied", "Omitted"]);
-
-    expect(result.status).toBe("planned");
-    if (result.status !== "planned") return;
-    const nextSource = applyLineSplices(source, result.splices);
-    expect(nextSource).toContain("group Supplied {\n  const value: number = 4\n  point Present = coordinate(x: @value, y: 0)\n}");
-    expect(nextSource).toContain("group Omitted {\n  point Missing = coordinate(x: 0, y: 0)\n}");
-    expect(nextSource.slice(nextSource.indexOf("group Supplied {"))).not.toContain("if (not hasValue");
-
-    const next = compileCurrent(nextSource, "inline-negated-presence-next");
-    const nextIndex = createDslSemanticOccurrenceIndex(next);
-    const groupIndex = next.statements.findIndex((statement) => statement.kind === "group" && statement.name === "Supplied");
-    const value = next.statements.find((statement) =>
-      statement.kind === "typedDeclaration" && statement.name === "value" && statement.enclosing?.statementIndex === groupIndex
-    );
-    const point = next.statements.find((statement) =>
-      statement.kind === "element" && statement.name === "Present" && statement.enclosing?.statementIndex === groupIndex
-    );
-    expect(value).toBeDefined();
-    expect(point).toBeDefined();
-    if (!value || !point) return;
-    const valueDeclaration = nextIndex.occurrences.find((occurrence) =>
-      occurrence.kind === "declaration" && occurrence.from >= value.documentRange.from && occurrence.to <= value.documentRange.to
-    );
-    const pointReferences = nextIndex.occurrences.filter((occurrence) =>
-      occurrence.kind === "reference" && occurrence.from >= point.documentRange.from && occurrence.to <= point.documentRange.to
-    );
-    expect(valueDeclaration).toBeDefined();
-    expect(pointReferences.some((occurrence) =>
-      valueDeclaration && dslSemanticIdentityKey(occurrence.identity) === dslSemanticIdentityKey(valueDeclaration.identity)
-    )).toBe(true);
-  });
-
-  it("comments omitted branch source only when the policy enables it", () => {
-    const source = [
-      "nui 1",
-      "module Conditional(value?: number) {",
-      "  if (hasValue(@value)) {",
-      "    point P = coordinate(x: @value, y: 0)",
-      "  }",
-      "}",
-      "instance Omitted = Conditional()"
-    ].join("\n");
-    const off = plan(source, ["Omitted"]).result;
-    expect(off.status).toBe("planned");
-    if (off.status !== "planned") return;
-    const offSource = applyLineSplices(source, off.splices);
-    expect(offSource).toContain("group Omitted {\n}");
-    const offGenerated = offSource.slice(offSource.indexOf("group Omitted {"));
-    expect(offGenerated).not.toContain("Inline omitted");
-    expect(offGenerated).not.toContain("hasValue(@value)");
-
-    const on = plan(source, ["Omitted"], { emitOmittedBranchComments: true }).result;
-    expect(on.status).toBe("planned");
-    if (on.status !== "planned") return;
-    const onSource = applyLineSplices(source, on.splices);
-    expect(onSource).toContain("// Inline omitted: condition resolved to false");
-    expect(onSource).toContain("// if (hasValue(@value)) {");
-    expect(onSource).toContain("//   point P = coordinate(x: @value, y: 0)");
-    const next = compileCurrent(onSource, "inline-omitted-comments-next");
-    const group = next.statements.find((statement) => statement.kind === "group" && statement.name === "Omitted");
-    expect(group).toBeDefined();
-    if (!group) return;
-    const index = createDslSemanticOccurrenceIndex(next);
-    expect(index.occurrences.some((occurrence) =>
-      occurrence.from >= group.documentRange.from && occurrence.to <= group.documentRange.to &&
-      occurrence.identity.kind === "module" && occurrence.identity.target.kind === "moduleParameter"
-    )).toBe(false);
-  });
-
-  it("comments the complete omitted else branch, including its closing brace", () => {
-    const source = [
-      "nui 1",
-      "module Conditional(value?: number) {",
-      "  if (hasValue(@value)) {",
-      "    point Kept = coordinate(x: 0, y: 0)",
-      "  } else {",
-      "    point Removed = coordinate(x: 1, y: 0)",
-      "  }",
-      "}",
-      "instance Use = Conditional(value: 1)"
-    ].join("\n");
-    const { result } = plan(source, ["Use"], { emitOmittedBranchComments: true });
-
-    expect(result.status).toBe("planned");
-    if (result.status !== "planned") return;
-    const nextSource = applyLineSplices(source, result.splices);
-    const generated = nextSource.slice(nextSource.indexOf("group Use {"));
-    expect(generated).toContain("point Kept = coordinate(x: 0, y: 0)");
-    expect(generated).toContain("// Inline omitted: condition resolved to true");
-    expect(generated).toContain("// } else {");
-    expect(generated).toContain("//   point Removed = coordinate(x: 1, y: 0)");
-    expect(generated).toContain("// }");
-    expect(generated).not.toContain("\n  point Removed =");
-    expect(generated.trimEnd().endsWith("}")).toBe(true);
-    expect(compileCurrent(nextSource, "inline-true-else-comments-next").diagnostics).toEqual([]);
-  });
-
-  it("specializes hasValue inside a text-template scalar hole", () => {
-    const source = [
-      "nui 1",
-      "module Label(value?: number) {",
-      "  text Label = label(text: \"present=${hasValue(@value)}\", anchor: none, size: 3)",
-      "}",
-      "instance Supplied = Label(value: 1)",
-      "instance Omitted = Label()"
-    ].join("\n");
-    const { result } = plan(source, ["Supplied", "Omitted"]);
-
-    expect(result.status).toBe("planned");
-    if (result.status !== "planned") return;
-    const nextSource = applyLineSplices(source, result.splices);
-    const generated = nextSource.slice(nextSource.indexOf("group Supplied {"));
-    expect(generated).toContain("text Label = label(text: \"present=${true}\"");
-    expect(generated).toContain("text Label = label(text: \"present=${false}\"");
-    expect(generated).not.toContain("hasValue(@value)");
+    expect(nextSource).toContain("const settings: Pair? = none");
+    expect(nextSource).toContain("const points: point[]? = none");
+    expect(nextSource).toContain("const settings: Pair? = @sourcePair");
+    expect(nextSource).toContain("const points: point[]? = @sourcePoints");
+    expect(compileCurrent(nextSource, "inline-optional-immutable-next").diagnostics).toEqual([]);
   });
 
   it("rejects an omitted optional reference that could otherwise capture an outer same-name binding", () => {
     const source = [
       "nui 1",
       "const value: number = 99",
-      "module Unsafe(value?: number) {",
+      "module Unsafe(value: number?) {",
       "  point P = coordinate(x: @value, y: 0)",
       "}",
       "instance Omitted = Unsafe()"
@@ -1158,31 +929,6 @@ describe("planInlineModule Checkpoint 1", () => {
     ];
     expect(generated.every((line, index) => next.indexOf(line, groupStart) < next.indexOf(generated[index + 1] ?? "point P", groupStart))).toBe(true);
     expect(compileCurrent(next, "inline-record-composition-next").diagnostics).toEqual([]);
-  });
-
-  it("uses normal presence specialization for optional record parameters", () => {
-    const source = [
-      "nui 1",
-      "record Pair(x: number)",
-      "module Conditional(settings?: Pair) {",
-      "  if (hasValue(@settings)) {",
-      "    point Present = coordinate(x: @settings.x, y: 0)",
-      "  } else {",
-      "    point Missing = coordinate(x: 0, y: 0)",
-      "  }",
-      "}",
-      "instance Supplied = Conditional(settings: Pair(x: 4))",
-      "instance Omitted = Conditional()"
-    ].join("\n");
-    const { result } = plan(source, ["Supplied", "Omitted"]);
-    expect(result.status).toBe("planned");
-    if (result.status !== "planned") return;
-    const next = applyLineSplices(source, result.splices);
-    expect(next).toContain("group Supplied {\n  const settings: Pair = Pair(x: 4)\n  point Present = coordinate(x: @settings.x, y: 0)\n}");
-    expect(next).toContain("group Omitted {\n  point Missing = coordinate(x: 0, y: 0)\n}");
-    expect(next).not.toContain("group Omitted {\n  const settings");
-    expect(next.slice(next.indexOf("group Omitted {"))).not.toContain("@settings");
-    expect(compileCurrent(next, "inline-record-optional-next").diagnostics).toEqual([]);
   });
 
   it("fails closed for a tampered nominal record owner", () => {
@@ -1941,56 +1687,6 @@ describe("planInlineModule Checkpoint 1", () => {
     expect(compileCurrent(nextSource, "inline-capture-next").diagnostics).toEqual([]);
   });
 
-  it("specializes supplied optional geometry presence and substitutes its body use", () => {
-    const source = [
-      "nui 1",
-      "point Input = coordinate(x: 1, y: 2)",
-      "module Optional(anchor?: point) {",
-      "  if (hasValue(@anchor)) {",
-      "    point P = offset(from: @anchor, dx: 1, dy: 0)",
-      "  }",
-      "}",
-      "instance Use = Optional(anchor: @Input)"
-    ].join("\n");
-    const { result } = plan(source, ["Use"]);
-    expect(result.status).toBe("planned");
-    if (result.status !== "planned") return;
-    const nextSource = applyLineSplices(source, result.splices);
-    const generated = nextSource.slice(nextSource.indexOf("group Use {"));
-    expect(generated).toContain("point P = offset(from: @Input, dx: 1, dy: 0)");
-    expect(generated).not.toContain("hasValue(@anchor)");
-    expect(generated).not.toContain("const anchor");
-  });
-
-  it("removes omitted optional geometry only through guarded-source provenance", () => {
-    const source = [
-      "nui 1",
-      "point Input = coordinate(x: 1, y: 2)",
-      "module Optional(anchor?: point) {",
-      "  if (hasValue(@anchor)) {",
-      "    point P = offset(from: @anchor, dx: 1, dy: 0)",
-      "  }",
-      "}",
-      "instance Omitted = Optional()"
-    ].join("\n");
-    const off = plan(source, ["Omitted"]).result;
-    expect(off.status).toBe("planned");
-    if (off.status !== "planned") return;
-    const offSource = applyLineSplices(source, off.splices);
-    const offGenerated = offSource.slice(offSource.indexOf("group Omitted {"));
-    expect(offGenerated).not.toContain("@anchor");
-    expect(offGenerated).not.toContain("point P");
-
-    const on = plan(source, ["Omitted"], { emitOmittedBranchComments: true }).result;
-    expect(on.status).toBe("planned");
-    if (on.status !== "planned") return;
-    const onSource = applyLineSplices(source, on.splices);
-    const onGenerated = onSource.slice(onSource.indexOf("group Omitted {"));
-    expect(onGenerated).toContain("// if (hasValue(@anchor)) {");
-    expect(onGenerated).toContain("//   point P = offset(from: @anchor, dx: 1, dy: 0)");
-    expect(compileCurrent(onSource, "inline-optional-geometry-comments-next").diagnostics).toEqual([]);
-  });
-
   it("preserves a coordinate geometry argument in a supported direct geometry role", () => {
     const source = [
       "nui 1",
@@ -2203,59 +1899,6 @@ describe("planInlineModule Checkpoint 5 geometry-array parameters", () => {
       : undefined;
     expect(resolvedExport?.statementId).toBeDefined();
     expect(resolvedExport?.type.elementType).toBe("path");
-  });
-
-  it("specializes supplied optional geometry-array presence and emits one local const", () => {
-    const source = [
-      "nui 1",
-      "point A = coordinate(x: 0, y: 0)",
-      "module Optional(points?: point[]) {",
-      "  if (hasValue(@points)) {",
-      "    line P = polyline(points: @points, closed: false)",
-      "  }",
-      "}",
-      "instance Use = Optional(points: [@A])"
-    ].join("\n");
-    const { result } = plan(source, ["Use"]);
-    expect(result.status).toBe("planned");
-    if (result.status !== "planned") return;
-    const next = applyLineSplices(source, result.splices);
-    const generated = next.slice(next.indexOf("group Use {"));
-    expect(generated).toContain("const points: point[] = [@A]");
-    expect(generated.match(/const points: point\[\]/g)).toHaveLength(1);
-    expect(generated).toContain("line P = polyline(points: @points, closed: false)");
-    expect(generated).not.toContain("hasValue(@points)");
-    expect(compileCurrent(next, "inline-array-optional-present-next").diagnostics).toEqual([]);
-  });
-
-  it("omits an optional geometry-array const and prunes its unreachable body reference", () => {
-    const source = [
-      "nui 1",
-      "module Optional(points?: point[]) {",
-      "  if (hasValue(@points)) {",
-      "    line P = polyline(points: @points, closed: false)",
-      "  }",
-      "}",
-      "instance Omitted = Optional()"
-    ].join("\n");
-    const off = plan(source, ["Omitted"]).result;
-    expect(off.status).toBe("planned");
-    if (off.status !== "planned") return;
-    const offSource = applyLineSplices(source, off.splices);
-    const offGenerated = offSource.slice(offSource.indexOf("group Omitted {"));
-    expect(offGenerated).not.toContain("const points: point[]");
-    expect(offGenerated).not.toContain("line P = polyline");
-    expect(offGenerated).not.toContain("@points");
-
-    const on = plan(source, ["Omitted"], { emitOmittedBranchComments: true }).result;
-    expect(on.status).toBe("planned");
-    if (on.status !== "planned") return;
-    const onSource = applyLineSplices(source, on.splices);
-    const onGenerated = onSource.slice(onSource.indexOf("group Omitted {"));
-    expect(onGenerated).not.toContain("const points: point[]");
-    expect(onGenerated).toContain("// if (hasValue(@points)) {");
-    expect(onGenerated).toContain("//   line P = polyline(points: @points, closed: false)");
-    expect(compileCurrent(onSource, "inline-array-optional-omitted-next").diagnostics).toEqual([]);
   });
 
   it("canonicalizes only a capture-changing source-array reference", () => {

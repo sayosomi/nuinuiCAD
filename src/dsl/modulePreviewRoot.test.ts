@@ -57,7 +57,7 @@ describe("compileModulePreviewRoot", () => {
   it("materializes and evaluates a top-level preview through the existing runtime with omission semantics and provenance", () => {
     const source = [
       "nui 1",
-      "module Pocket(base: number, width: number = @base * 2, note?: string) {",
+      "module Pocket(base: number, width: number = @base * 2, note: string?) {",
       "  point P = coordinate(x: @width, y: 0)",
       "}",
       "point Outside = coordinate(x: 100, y: 100)"
@@ -85,9 +85,9 @@ describe("compileModulePreviewRoot", () => {
       `module-preview-call:${target.definitionStatementId}:0`
     );
     expect(previewInstance?.parameterBindings.map((binding) => [binding.parameterName, binding.state])).toEqual([
-      ["base", "requiredSupplied"],
-      ["width", "defaultedOmitted"],
-      ["note", "optionalOmitted"]
+      ["base", "supplied"],
+      ["width", "defaulted"],
+      ["note", "omitted"]
     ]);
 
     const bodyEntry = result.moduleMaterialization.executionStatements.find((entry) =>
@@ -140,7 +140,7 @@ describe("compileModulePreviewRoot", () => {
     expect(previewInstance?.parameterBindings).toEqual([
       expect.objectContaining({
         parameterName: "size",
-        state: "defaultedOmitted",
+        state: "defaulted",
         argumentIndex: null
       })
     ]);
@@ -188,8 +188,8 @@ describe("compileModulePreviewRoot", () => {
       binding.state,
       binding.argumentIndex
     ])).toEqual([
-      ["size", "defaultedOmitted", null],
-      ["rise", "defaultedOmitted", null]
+      ["size", "defaulted", null],
+      ["rise", "defaulted", null]
     ]);
     const syntheticCall = result.candidateCompiledDocument.statements.find(
       (statement) => statement.kind === "moduleInstance" && statement.name === "__module_preview_0"

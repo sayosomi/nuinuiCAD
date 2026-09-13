@@ -23,7 +23,7 @@ describe("Drawing Modifier inspection evaluation payload", () => {
       drawingModifiers: [{
         name: "detail",
         widthPx: 2,
-        style: "dashed",
+        lineType: "dashed",
         profileDeltas: [{
           profileId: "profile-print",
           profileName: "print",
@@ -48,7 +48,7 @@ describe("Drawing Modifier inspection evaluation payload", () => {
             }
           }
         },
-        style: {
+        lineType: {
           value: "dashed",
           winner: {
             ownerElementId: "group",
@@ -85,7 +85,7 @@ describe("Drawing Modifier inspection evaluation payload", () => {
       effectiveDrawingModifierResolutions: [{
         elementId: "group",
         resolution: {
-          state: { value: "visible", winner: null },
+          visible: { value: true, winner: null },
           widthPx: {
             value: 2,
             winner: {
@@ -94,7 +94,7 @@ describe("Drawing Modifier inspection evaluation payload", () => {
               selectedProfileDelta: { profileId: "profile-print" }
             }
           },
-          style: { value: "solid", winner: null },
+          lineType: { value: "solid", winner: null },
           color: { value: { kind: "themeRole", role: "foreground" }, winner: null }
         }
       } as never]

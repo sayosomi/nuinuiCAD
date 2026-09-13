@@ -83,6 +83,20 @@ pub(crate) fn decode_scalar_type(json: &Value) -> Result<ScalarType, ScalarPaylo
             )?;
             Ok(ScalarType::Choice { options })
         }
+        "optional" => {
+            reject_unexpected_fields(object, &["kind", "valueType"], "optional scalar type")?;
+            let value_type =
+                decode_scalar_type(require_field(object, "valueType", "optional scalar type")?)?;
+            if matches!(value_type, ScalarType::Optional { .. }) {
+                return Err(issue(
+                    Code::LiteralTypeMismatch,
+                    "optional scalar type cannot wrap another optional type",
+                ));
+            }
+            Ok(ScalarType::Optional {
+                value_type: Box::new(value_type),
+            })
+        }
         other => Err(issue(
             Code::UnknownKind,
             format!("unknown scalar type kind \"{other}\""),
@@ -107,8 +121,24 @@ pub(crate) fn scalar_value_matches_type(scalar_type: &ScalarType, value: &Scalar
                 options: value_options,
             },
         ) => type_options == value_options && value_options.contains(value),
+        (ScalarType::Optional { .. }, ScalarValue::None) => true,
+        (ScalarType::Optional { value_type }, value) => {
+            scalar_value_matches_type(value_type, value)
+        }
         _ => false,
     }
+}
+
+pub(crate) fn scalar_type_assignable(actual: &ScalarType, expected: &ScalarType) -> bool {
+    if let ScalarType::Optional { value_type } = expected {
+        return match actual {
+            ScalarType::Optional {
+                value_type: actual_value_type,
+            } => scalar_type_assignable(actual_value_type, value_type),
+            _ => scalar_type_assignable(actual, value_type),
+        };
+    }
+    !matches!(actual, ScalarType::Optional { .. }) && actual == expected
 }
 
 fn decode_scalar_evaluation_error_context(
@@ -244,6 +274,10 @@ pub(crate) fn decode_scalar_value(json: &Value) -> Result<ScalarValue, ScalarPay
                 ));
             }
             Ok(ScalarValue::Choice { value, options })
+        }
+        "none" => {
+            reject_unexpected_fields(object, &["kind"], "none scalar value")?;
+            Ok(ScalarValue::None)
         }
         other => Err(issue(
             Code::UnknownKind,

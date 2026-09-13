@@ -235,7 +235,7 @@ describe("queryDslGeometryReferenceRetargetTarget", () => {
     const source = [
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
-      "point B = coordinate(x: 10, y: 0, state: disabled)",
+      "point B = coordinate(x: 10, y: 0, enabled: false)",
       "point C = coordinate(x: 20, y: 0)",
       "point Use = offset(from: @A, dx: 1, dy: 0)"
     ].join("\n");

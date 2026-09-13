@@ -2,8 +2,6 @@ import type { TypedScalarExpression } from "../scalars/typedExpressionAst";
 
 export type ElementId = string;
 
-export type DrawingModifierState = "visible" | "hidden" | "disabled";
-
 export type DrawingModifierStrokeStyle = "solid" | "dashed" | "dotted";
 
 export type DrawingModifierThemeRole =
@@ -20,6 +18,7 @@ export type DrawingModifierStrokeColor =
 
 export type DrawingModifierStroke = {
   widthPx: number;
+  /** Runtime renderer spelling; the DSL source property is `lineType`. */
   style: DrawingModifierStrokeStyle;
   color: DrawingModifierStrokeColor;
 };
@@ -31,9 +30,10 @@ export type DrawingProfile = {
 };
 
 export type DrawingModifierProperties = {
-  state?: DrawingModifierState;
+  /** Presentation-only Style visibility. It never disables evaluation. */
+  visible?: boolean;
   widthPx?: number;
-  style?: DrawingModifierStrokeStyle;
+  lineType?: DrawingModifierStrokeStyle;
   color?: DrawingModifierStrokeColor;
 };
 
@@ -53,6 +53,11 @@ export type DrawingModifierDefinition = {
 export type CadElementBase = {
   id: ElementId;
   name: string;
+  /** Computation gate. Omitted legacy model values mean enabled. */
+  enabled?: boolean;
+  /** Presentation gate. Omitted legacy model values mean visible. */
+  visible?: boolean;
+  /** User-facing status projection retained for existing outline affordances. */
   activity: "visible" | "hidden" | "disabled";
   /** Source-owned, ordered references to document-level drawing modifiers. */
   modifierNames?: string[];
@@ -179,12 +184,25 @@ export type GeometryValueOccurrence = {
 /** Runtime-only input for a read-only geometry consumer. This is deliberately
  * separate from persisted ElementId fields and is never a drawable identity. */
 export type GeometryInputCollectionNode =
+  | { kind: "none" }
   | { kind: "leaf"; targets: readonly Exclude<GeometryInputTarget, { kind: "collectionIndex" } | { kind: "collectionValue" }>[] }
   | { kind: "if"; condition: TypedScalarExpression; sourceOrder: number; thenBranch: GeometryInputCollectionNode; elseBranch: GeometryInputCollectionNode }
-  | { kind: "match"; scrutinee: TypedScalarExpression; sourceOrder: number; arms: readonly { label: string; value: GeometryInputCollectionNode }[] };
+  | { kind: "match"; scrutinee: TypedScalarExpression; sourceOrder: number; arms: readonly { label: string; value: GeometryInputCollectionNode }[] }
+  | { kind: "coalesce"; leftBranch: GeometryInputCollectionNode; rightBranch: GeometryInputCollectionNode };
 
 export type GeometryInputTarget =
   | { kind: "drawable"; elementId: ElementId; geometryType: "point" | "line" | "path"; pointKey?: string }
+  | {
+      /** A source/template drawable materialized by statement-for. The
+       * evaluator resolves the ordinal against explicit provenance rows; it
+       * never parses a generated element id. */
+      kind: "forGroupOccurrence";
+      templateElementId: ElementId;
+      geometryType: "point" | "line" | "path";
+      pointKey?: string;
+      targetSourceOrder: number;
+      index: TypedScalarExpression | null;
+    }
   | { kind: "geometryValue"; occurrence: GeometryValueOccurrence; geometryType: "point" | "line" | "path"; pointKey?: string }
   | {
       kind: "geometryValueMap";

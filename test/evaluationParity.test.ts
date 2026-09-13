@@ -42,6 +42,32 @@ const expectScalarNumberClose = (
 };
 
 describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", () => {
+  it("matches a declarative transformation recipe chain and its immutable stage snapshots", () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "line A = segment(start: (0, 0), end: (10, 0))",
+      "move A as moved (from: (0, 0), to: (10, 0))",
+      "reverse A ()",
+      "extend A.moved.end as extended (to: (30, 0))"
+    ].join("\n"));
+    const options = optionsFor(fixture);
+    const owner = fixture.elements.find((element) => element.name === "A");
+    if (!owner) throw new Error("expected line A");
+    expect(options.transformationRecipes).toHaveLength(3);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustOptions(repoRoot, fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+
+    for (const result of [evaluationPayloadToResult(tsPayload), evaluationPayloadToResult(rustPayload)]) {
+      expect(result.errors).toEqual([]);
+      expect(result.transformationStageGeometry?.get(`${owner.id}\u0000*\u0000moved`)).toBeDefined();
+      expect(result.transformationStageGeometry?.get(`${owner.id}\u0000*\u0000moved.extended`)).toBeDefined();
+      expect(result.computedGeometry.get(owner.id)).toBeDefined();
+    }
+  }, 30000);
+
   it("keeps incompatible geometry-value construction in the occurrence-owned error channel", () => {
     const fixture = fixtureFromSource([
       "nui 1",
@@ -1035,6 +1061,135 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("matches optional coalescing for geometry, nominal records, and scalar collections", () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "point presentPoint = coordinate(x: 1, y: 2)",
+      "point fallbackPoint = coordinate(x: 10, y: 20)",
+      "const maybePoint: point? = @presentPoint",
+      "const fallbackPointValue: point = @fallbackPoint",
+      "const resolvedPoint: point = @maybePoint ?? @fallbackPointValue",
+      "const nonePoint: point? = none",
+      "const resolvedNonePoint: point = @nonePoint ?? @fallbackPointValue",
+      "line selectedPresentPoint = segment(start: @resolvedPoint, end: @fallbackPoint)",
+      "line selectedNonePoint = segment(start: @resolvedNonePoint, end: @fallbackPoint)",
+      "record Pair(x: number)",
+      "const presentPair: Pair = Pair(x: 7)",
+      "const fallbackPair: Pair = Pair(x: 11)",
+      "const maybePair: Pair? = @presentPair",
+      "const resolvedPair: Pair = @maybePair ?? @fallbackPair",
+      "const nonePair: Pair? = none",
+      "const resolvedNonePair: Pair = @nonePair ?? @fallbackPair",
+      "const resolvedPairX: number = @resolvedPair.x",
+      "const resolvedNonePairX: number = @resolvedNonePair.x",
+      "const presentNumbers: number[]? = [1, 2]",
+      "const fallbackNumbers: number[] = [10, 20]",
+      "const resolvedNumbers: number[] = @presentNumbers ?? @fallbackNumbers",
+      "const noneNumbers: number[]? = none",
+      "const resolvedNoneNumbers: number[] = @noneNumbers ?? @fallbackNumbers",
+      "const resolvedNumber: number = @resolvedNumbers[0]",
+      "const resolvedNoneNumber: number = @resolvedNoneNumbers[0]"
+    ].join("\n"));
+    const options = optionsFor(fixture);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustOptions(repoRoot, fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+
+    const ts = evaluationPayloadToResult(tsPayload);
+    const rust = evaluationPayloadToResult(rustPayload);
+    for (const result of [ts, rust]) {
+      expect(result.errors).toEqual([]);
+      expect(result.computedGeometry.get(fixture.elements.find((element) => element.name === "selectedPresentPoint")!.id)).toMatchObject({
+        kind: "line",
+        start: { x: 1, y: 2 },
+        end: { x: 10, y: 20 }
+      });
+      expect(result.computedGeometry.get(fixture.elements.find((element) => element.name === "selectedNonePoint")!.id)).toMatchObject({
+        kind: "line",
+        start: { x: 10, y: 20 },
+        end: { x: 10, y: 20 }
+      });
+    }
+    expectScalarNumberClose(scalarBindingFor(fixture, tsPayload, "resolvedPairX"), 7);
+    expectScalarNumberClose(scalarBindingFor(fixture, rustPayload, "resolvedPairX"), 7);
+    expectScalarNumberClose(scalarBindingFor(fixture, tsPayload, "resolvedNonePairX"), 11);
+    expectScalarNumberClose(scalarBindingFor(fixture, rustPayload, "resolvedNonePairX"), 11);
+    expectScalarNumberClose(scalarBindingFor(fixture, tsPayload, "resolvedNumber"), 1);
+    expectScalarNumberClose(scalarBindingFor(fixture, rustPayload, "resolvedNumber"), 1);
+    expectScalarNumberClose(scalarBindingFor(fixture, tsPayload, "resolvedNoneNumber"), 10);
+    expectScalarNumberClose(scalarBindingFor(fixture, rustPayload, "resolvedNoneNumber"), 10);
+  }, 30000);
+
+  it("matches general optional member chaining for geometry, records, and collections", () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line Baseline = segment(start: @A, end: @B)",
+      "const presentPath: path? = @Baseline",
+      "const absentPath: path? = none",
+      "const presentLength: number? = @presentPath?.length",
+      "const absentLength: number? = @absentPath?.length",
+      "record Piece(note: string?, outline: path?)",
+      'const presentPiece: Piece? = Piece(note: "present", outline: @Baseline)',
+      "const absentPiece: Piece? = none",
+      "const presentNote: string? = @presentPiece?.note",
+      "const absentNote: string? = @absentPiece?.note",
+      'const presentRecord: Piece = Piece(note: "record", outline: @Baseline)',
+      'const absentRecord: Piece = Piece(note: "record", outline: none)',
+      "const presentRecordLength: number? = @presentRecord.outline?.length",
+      "const absentRecordLength: number? = @absentRecord.outline?.length",
+      "const presentNumbers: number[]? = [1, 2, 3]",
+      "const absentNumbers: number[]? = none",
+      "const presentCount: number? = @presentNumbers?.length",
+      "const absentCount: number? = @absentNumbers?.length"
+    ].join("\n"));
+    const options = optionsFor(fixture);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustFixture(repoRoot, fixture);
+
+    for (const payload of [tsPayload, rustPayload]) {
+      expect(evaluationPayloadToResult(payload).errors).toEqual([]);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "presentLength"), 10);
+      expect(scalarBindingFor(fixture, payload, "absentLength")).toMatchObject({ status: "ok", value: { kind: "none" } });
+      expect(scalarBindingFor(fixture, payload, "presentNote")).toMatchObject({ status: "ok", value: { kind: "string", value: "present" } });
+      expect(scalarBindingFor(fixture, payload, "absentNote")).toMatchObject({ status: "ok", value: { kind: "none" } });
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "presentRecordLength"), 10);
+      expect(scalarBindingFor(fixture, payload, "absentRecordLength")).toMatchObject({ status: "ok", value: { kind: "none" } });
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "presentCount"), 3);
+      expect(scalarBindingFor(fixture, payload, "absentCount")).toMatchObject({ status: "ok", value: { kind: "none" } });
+    }
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+  }, 30000);
+
+  it("matches generalized record geometry and collection projections across TypeScript and Rust", () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "point P = coordinate(x: 3, y: 4)",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line Baseline = segment(start: @A, end: @B)",
+      "record Piece(outline: path, edge: line, points: point[])",
+      "const piece: Piece = Piece(outline: polyline(points: [@A, @B], closed: false), edge: segment(start: @A, end: @B), points: [@A, @B])",
+      "const outlineLength: number = @piece.outline.length",
+      "const distance: number = lineDistance(@P, @piece.edge)",
+      "const selectedX: number = @piece.points[1].x"
+    ].join("\n"));
+    const options = optionsFor(fixture);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustOptions(repoRoot, fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+    expectScalarNumberClose(scalarBindingFor(fixture, tsPayload, "distance"), 4);
+    expectScalarNumberClose(scalarBindingFor(fixture, rustPayload, "distance"), 4);
+    expectScalarNumberClose(scalarBindingFor(fixture, tsPayload, "outlineLength"), 10);
+    expectScalarNumberClose(scalarBindingFor(fixture, rustPayload, "outlineLength"), 10);
+    expectScalarNumberClose(scalarBindingFor(fixture, tsPayload, "selectedX"), 10);
+    expectScalarNumberClose(scalarBindingFor(fixture, rustPayload, "selectedX"), 10);
+  }, 30000);
+
   it("matches lazy unrequested mapped record field failures across TypeScript and Rust", () => {
     const fixture = fixtureFromSource([
       "nui 1",
@@ -1325,7 +1480,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
-  it("matches TS/Rust for selected Drawing Profile modifier deltas and disabled state", () => {
+  it("matches TS/Rust for selected Drawing Profile style deltas and disabled state", () => {
     const fixture = readParityFixture(repoRoot, "nui1-drawing-modifier-profiles.nui");
     const profile = fixture.compiled?.doc.document.drawingProfiles?.find((candidate) => candidate.name === "Print");
     if (!profile) throw new Error("Print Drawing Profile was not compiled");
@@ -1687,6 +1842,23 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       });
     }
 
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+  }, 30000);
+
+  it("matches optional value-if, optional match, coalescing, and choice control flow", () => {
+    const fixture = readParityFixture(repoRoot, "nui1-optional-value-control-flow.nui");
+    const options = optionsFor(fixture);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustFixture(repoRoot, fixture);
+
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    for (const payload of [tsPayload, rustPayload]) {
+      expect(scalarBindingFor(fixture, payload, "missing")).toMatchObject({ status: "ok", value: { kind: "none" } });
+      expect(scalarBindingFor(fixture, payload, "selected")).toMatchObject({ status: "ok", value: { kind: "string", value: "hello" } });
+      expect(scalarBindingFor(fixture, payload, "resolved")).toMatchObject({ status: "ok", value: { kind: "string", value: "fallback" } });
+      expect(scalarBindingFor(fixture, payload, "matched")).toMatchObject({ status: "ok", value: { kind: "string", value: "hello" } });
+      expect(scalarBindingFor(fixture, payload, "choiceResult")).toMatchObject({ status: "ok", value: { kind: "string", value: "left" } });
+    }
     expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
   }, 30000);
 

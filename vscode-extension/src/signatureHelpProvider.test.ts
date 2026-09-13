@@ -144,7 +144,7 @@ describe("VS Code native nui Signature Help provider", () => {
     ].join("\n");
     const snapshot = await importedModuleSnapshotFor(source, [
       "nui 1",
-      "export module Panel(value: number, side?: choice(left, right)) {",
+      "export module Panel(value: number, side: choice(left, right)?) {",
       "}"
     ].join("\n"));
     const host = {
@@ -162,7 +162,7 @@ describe("VS Code native nui Signature Help provider", () => {
     ) as vscode.SignatureHelp | undefined;
 
     expect(host.languageSemanticSnapshotFor).toHaveBeenCalledWith(document);
-    expect(help?.signatures[0]?.label).toContain("Panel(value: number, side?: choice(left, right) [left / right])");
+    expect(help?.signatures[0]?.label).toContain("Panel(value: number, side: choice(left, right)? [left / right])");
     expect(help?.activeParameter).toBe(0);
   });
 
@@ -216,17 +216,17 @@ describe("VS Code native nui Signature Help provider", () => {
     expect(construction?.signatures[0]?.label).not.toContain("id");
     expect(construction?.activeParameter).toBe(0);
 
-    const mutation = helpFor("nui 1\nmove(targets: @P, ");
-    expect(mutation?.signatures[0]?.label).toContain("targets:");
-    expect(mutation?.signatures[0]?.label).not.toContain("targets: line");
-    expect(mutation?.signatures[0]?.label).not.toContain("parent");
-    expect(mutation?.activeParameter).toBe(mutation?.signatures[0]?.parameters.length);
+    const transformation = helpFor("nui 1\nmove P (");
+    expect(transformation?.signatures[0]?.label).not.toContain("targets:");
+    expect(transformation?.signatures[0]?.label).toContain("from:");
+    expect(transformation?.signatures[0]?.label).not.toContain("parent");
+    expect(transformation?.activeParameter).toBe(transformation?.signatures[0]?.parameters.length);
   });
 
   it("projects exact Module defaults, optionality, and choices", () => {
     const source = [
       "nui 1",
-      "module M(value: number, side?: choice(left, right), count: number = 2) {",
+      "module M(value: number, side: choice(left, right)?, count: number = 2) {",
       "}",
       "instance Use = M(value: 1, ",
       ")"
@@ -234,7 +234,7 @@ describe("VS Code native nui Signature Help provider", () => {
     const help = helpForAt(source, 3, source.split("\n")[3]!.length);
 
     expect(help?.signatures[0]?.label).toContain("value: number");
-    expect(help?.signatures[0]?.label).toContain("side?: choice(left, right)");
+    expect(help?.signatures[0]?.label).toContain("side: choice(left, right)?");
     expect(help?.signatures[0]?.label).toContain("count: number = 2");
     expect(help?.activeParameter).toBe(help?.signatures[0]?.parameters.length);
   });

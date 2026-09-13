@@ -95,12 +95,15 @@ pub(crate) use property_binding_payload::{
     declared_type as declared_scalar_expression_type, validate_property_bindings_payload,
     ValidatedPropertyBinding,
 };
+pub(crate) use scalar_payload::scalar_value_matches_type;
 pub(crate) use text::{
     evaluate_text_template_segments, NumericExpressionHoleEvaluator, TextTemplateHoleOrigin,
 };
 pub(crate) use text_property_binding_payload::validate_text_property_bindings_payload;
 pub(crate) use text_template_payload::{validate_text_templates_payload, ValidatedTextTemplate};
 pub(crate) use types::{
-    GeometryInterfaceType, ScalarEvaluation, ScalarExpressionResolvedGeometryTarget, ScalarType,
-    ScalarValue, TypedBuiltinArgument, TypedScalarExpression,
+    GeometryInterfaceType, ScalarEvaluation, ScalarExpressionOptionalMemberReceiver,
+    ScalarExpressionResolvedGeometryProperty, ScalarExpressionResolvedGeometryTarget,
+    ScalarExpressionResolvedOptionalMemberTarget, ScalarType, ScalarValue, TypedBuiltinArgument,
+    TypedScalarExpression,
 };

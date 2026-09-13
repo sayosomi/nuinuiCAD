@@ -158,17 +158,6 @@
               "end": "\\)",
               "patterns": [
                 {
-                  "captures": {
-                    "1": {
-                      "name": "variable.parameter.nui"
-                    },
-                    "2": {
-                      "name": "keyword.operator.optional.nui"
-                    }
-                  },
-                  "match": "([\\p{L}\\p{N}_](?:[\\p{L}\\p{N}_-]*[\\p{L}\\p{N}_])?)(\\?)(?=\\s*:)"
-                },
-                {
                   "include": "#expression"
                 },
                 {
@@ -423,9 +412,12 @@
           "captures": {
             "2": {
               "name": "storage.type.nui"
+            },
+            "3": {
+              "name": "keyword.operator.optional.nui"
             }
           },
-          "match": "(:\\s*)(number|string|boolean|choice|point|line|path)(?=\\s*(?:[,)]|=|$))"
+          "match": "(:\\s*)(number|string|boolean|choice|point|line|path)(\\?)?(?=\\s*(?:[,)]|=|$))"
         }
       ]
     },

@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { CadElement } from "../types/geometry";
-import { getParameterDefinitions, scalarTypeForParameterDefinition } from "./parameterDefinitions";
+import {
+  dslValueTypeForParameterDefinition,
+  getParameterDefinitions,
+  scalarTypeForParameterDefinition
+} from "./parameterDefinitions";
 
 describe("parameterDefinitions", () => {
   it("does not expose generic inspector parameters for a runtime-only moduleInstance", () => {
@@ -11,7 +15,11 @@ describe("parameterDefinitions", () => {
       activity: "visible"
     };
 
-    expect(getParameterDefinitions(moduleInstance)).toEqual([]);
+    expect(getParameterDefinitions(moduleInstance)).toEqual([
+      { key: "name", label: "名前", kind: "text" },
+      { key: "enabled", label: "有効", kind: "boolean" },
+      { key: "visible", label: "表示", kind: "boolean" }
+    ]);
   });
 
   it("derives scalar property types from the parameter schema", () => {
@@ -28,6 +36,27 @@ describe("parameterDefinitions", () => {
     expect(scalarTypeForParameterDefinition({ key: "side", label: "側", kind: "choice", choiceOptions: ["right", "left"] })).toEqual({
       kind: "choice",
       options: ["right", "left"]
+    });
+  });
+
+  it("projects the text anchor through the canonical optional value type", () => {
+    const text: CadElement = {
+      id: "text",
+      name: "text",
+      type: "text",
+      activity: "visible",
+      text: "label",
+      anchor: null,
+      fontSize: 3
+    };
+    const definitions = getParameterDefinitions(text);
+
+    expect(dslValueTypeForParameterDefinition(definitions.find((definition) => definition.key === "anchor"))).toEqual({
+      kind: "optional",
+      valueType: { kind: "point" }
+    });
+    expect(dslValueTypeForParameterDefinition(definitions.find((definition) => definition.key === "fontSize"))).toEqual({
+      kind: "number"
     });
   });
 

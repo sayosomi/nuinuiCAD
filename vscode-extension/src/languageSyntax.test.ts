@@ -344,8 +344,8 @@ describe("nui VS Code language foundation", () => {
     await expectScope("-2 ^ 2", "2", "constant.numeric.nui");
   });
 
-  it("highlights optional Module parameters without broadening ?", async () => {
-    const optionalModule = "module M(value?: number) {";
+  it("highlights canonical optional Module parameter types", async () => {
+    const optionalModule = "module M(value: number?) {";
     await expectScope(optionalModule, "value", "variable.parameter.nui");
     await expectScope(
       optionalModule,

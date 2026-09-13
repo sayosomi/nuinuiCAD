@@ -63,7 +63,7 @@ describe("createModulePreviewSession", () => {
     expect(state?.preview.kind).toBe("current");
     expect(targetParameter(state!, "size")?.value).toBe("");
     expect(previewBindingStates(state!, target.definitionStatementId)).toEqual([
-      ["size", "defaultedOmitted"]
+      ["size", "defaulted"]
     ]);
     expect(source).toBe([
       "nui 1",
@@ -101,7 +101,7 @@ describe("createModulePreviewSession", () => {
   it("restores expression text per exact Module definition and keeps last-good data across invalid input", () => {
     const source = [
       "nui 1",
-      "module A(width: number, doubled: number = @width * 2, note?: string) {",
+      "module A(width: number, doubled: number = @width * 2, note: string?) {",
       "  point PA = coordinate(x: @doubled, y: 0)",
       "}",
       "module B(size: number) {",
@@ -135,9 +135,9 @@ describe("createModulePreviewSession", () => {
     expect(targetParameter(state!, "doubled")).toMatchObject({ value: "", defaultSourceText: "@width * 2" });
     expect(targetParameter(state!, "note")?.value).toBe("");
     expect(previewBindingStates(state!, targetA.definitionStatementId)).toEqual([
-      ["width", "requiredSupplied"],
-      ["doubled", "defaultedOmitted"],
-      ["note", "optionalOmitted"]
+      ["width", "supplied"],
+      ["doubled", "defaulted"],
+      ["note", "omitted"]
     ]);
 
     session.setValue(targetA.definitionStatementId, 1, "8");
@@ -147,9 +147,9 @@ describe("createModulePreviewSession", () => {
     state = session.setValue(targetA.definitionStatementId, 2, "");
     expect(state?.preview.kind).toBe("current");
     expect(previewBindingStates(state!, targetA.definitionStatementId)).toEqual([
-      ["width", "requiredSupplied"],
-      ["doubled", "defaultedOmitted"],
-      ["note", "optionalOmitted"]
+      ["width", "supplied"],
+      ["doubled", "defaulted"],
+      ["note", "omitted"]
     ]);
 
     state = session.activate({

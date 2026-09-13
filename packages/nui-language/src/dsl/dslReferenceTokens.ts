@@ -16,6 +16,11 @@ export type DslSourceReference = {
   /** `@` is deliberately not part of the path text || path span. */
   path: DslReferencePath;
   pathText: string;
+  /** Raw scalar expression inside the optional occurrence brackets. */
+  occurrenceIndex: string | null;
+  occurrenceIndexRange: DslReferenceRange | null;
+  /** The complete `[index]` span, including both brackets. */
+  occurrenceRange: DslReferenceRange | null;
   property: string | null;
   fullRange: DslReferenceRange;
   pathRange: DslReferenceRange;
@@ -24,7 +29,7 @@ export type DslSourceReference = {
 
 export type DslSourceReferenceParseError = {
   kind: "invalid";
-  code: "missing-sigil" | "missing-path" | "malformed-path" | "missing-property" | "trailing-junk";
+  code: "missing-sigil" | "missing-path" | "malformed-path" | "missing-index" | "unterminated-index" | "missing-property" | "trailing-junk";
   range: DslReferenceRange;
   message: string;
 };
@@ -54,7 +59,7 @@ const isEscaped = (source: string, index: number) => {
 };
 
 const isPathSegmentChar = (value: string) =>
-  value.length > 0 && !/\s/.test(value) && !"'\"#=()[]{},;:.".includes(value);
+  value.length > 0 && !/\s/.test(value) && !"'\"#=()[]{},;:.?".includes(value);
 
 /**
  * Reads a path without deciding whether it is a source reference. The path
@@ -182,8 +187,10 @@ export const formatDslReferencePath = ({ absolute, segments }: DslReferencePath)
 export const formatDslReferenceToken = (token: string) =>
   formatDslReferencePath(parseDslReferenceToken(token));
 
-const propertyBoundary = (value: string) =>
-  /\s/.test(value) || "()+*/<>!=&|,[]{};:'\"".includes(value);
+/** Boundary characters shared by strict source-reference properties and the
+ * scalar tokenizer's postfix-property form. */
+export const isDslReferencePropertyBoundary = (value: string) =>
+  /\s/.test(value) || "()+*/<>!=&|,[]{};:'\"?".includes(value);
 
 const readProperty = (source: string, start: number, end: number) => {
   let cursor = start;
@@ -202,11 +209,50 @@ const readProperty = (source: string, start: number, end: number) => {
       segmentStart = cursor;
       continue;
     }
-    if (propertyBoundary(char)) break;
+    if (isDslReferencePropertyBoundary(char)) break;
     cursor += 1;
   }
   if (cursor === segmentStart) return { end: cursor, invalidAt: start, value: "" };
   return { end: cursor, invalidAt: -1, value: source.slice(start, cursor) };
+};
+
+const readOccurrenceIndex = (source: string, start: number, end: number) => {
+  let cursor = start + 1;
+  let depth = 1;
+  let quote: string | null = null;
+  while (cursor < end) {
+    const character = source[cursor]!;
+    if (quote) {
+      if (character === quote && !isEscaped(source, cursor)) quote = null;
+      cursor += 1;
+      continue;
+    }
+    if (character === '"' || character === "'") {
+      quote = character;
+      cursor += 1;
+      continue;
+    }
+    if (character === "[") depth += 1;
+    if (character === "]") {
+      depth -= 1;
+      if (depth === 0) {
+        const indexStart = start + 1;
+        const indexEnd = cursor;
+        let trimmedIndexStart = indexStart;
+        let trimmedIndexEnd = indexEnd;
+        while (trimmedIndexStart < trimmedIndexEnd && /\s/.test(source[trimmedIndexStart]!)) trimmedIndexStart += 1;
+        while (trimmedIndexEnd > trimmedIndexStart && /\s/.test(source[trimmedIndexEnd - 1]!)) trimmedIndexEnd -= 1;
+        return {
+          end: cursor + 1,
+          indexStart: trimmedIndexStart,
+          indexEnd: trimmedIndexEnd,
+          value: source.slice(indexStart, indexEnd).trim()
+        };
+      }
+    }
+    cursor += 1;
+  }
+  return null;
 };
 
 const sourceReferenceError = (
@@ -238,7 +284,8 @@ export const parseDslSourceReference = (source: string): DslSourceReferenceParse
 export const parseDslSourceReferenceAt = (
   source: string,
   start: number,
-  end = source.length
+  end = source.length,
+  options: { parseOccurrenceIndex?: boolean } = {}
 ): { kind: "valid"; reference: DslSourceReference; end: number } | { kind: "invalid"; error: DslSourceReferenceParseError; end: number } => {
   if (source[start] !== "@") {
     return { kind: "invalid", end: start + 1, error: sourceReferenceError("missing-sigil", { start, end: start + 1 }, "参照には先頭の「@」が必要です。") };
@@ -262,6 +309,30 @@ export const parseDslSourceReferenceAt = (
     };
   }
   let cursor = path.end;
+  let occurrenceIndex: string | null = null;
+  let occurrenceIndexRange: DslReferenceRange | null = null;
+  let occurrenceRange: DslReferenceRange | null = null;
+  if (options.parseOccurrenceIndex !== false && source[cursor] === "[") {
+    const occurrence = readOccurrenceIndex(source, cursor, end);
+    if (!occurrence) {
+      return {
+        kind: "invalid",
+        end,
+        error: sourceReferenceError("unterminated-index", { start: cursor, end }, "occurrence index を閉じる「]」がありません。")
+      };
+    }
+    if (!occurrence.value) {
+      return {
+        kind: "invalid",
+        end: occurrence.end,
+        error: sourceReferenceError("missing-index", { start: cursor, end: occurrence.end }, "occurrence index の式が必要です。")
+      };
+    }
+    occurrenceIndex = occurrence.value;
+    occurrenceIndexRange = { start: occurrence.indexStart, end: occurrence.indexEnd };
+    occurrenceRange = { start: cursor, end: occurrence.end };
+    cursor = occurrence.end;
+  }
   let property: string | null = null;
   let propertyRange: DslReferenceRange | null = null;
   if (source[cursor] === ".") {
@@ -282,6 +353,9 @@ export const parseDslSourceReferenceAt = (
     source: source.slice(start, cursor),
     path: path.path,
     pathText: source.slice(pathStart, path.end),
+    occurrenceIndex,
+    occurrenceIndexRange,
+    occurrenceRange,
     property,
     fullRange: { start, end: cursor },
     pathRange: { start: pathStart, end: path.end },
@@ -292,5 +366,5 @@ export const parseDslSourceReferenceAt = (
 
 /** Formats the canonical source spelling while keeping semantic candidate
  * tokens free of the source-only `@` marker. */
-export const formatDslSourceReference = (reference: Pick<DslSourceReference, "path" | "property">) =>
-  `@${formatDslReferencePath(reference.path)}${reference.property ? `.${reference.property}` : ""}`;
+export const formatDslSourceReference = (reference: Pick<DslSourceReference, "path" | "property"> & Partial<Pick<DslSourceReference, "occurrenceIndex">>) =>
+  `@${formatDslReferencePath(reference.path)}${reference.occurrenceIndex !== null && reference.occurrenceIndex !== undefined ? `[${reference.occurrenceIndex}]` : ""}${reference.property ? `.${reference.property}` : ""}`;

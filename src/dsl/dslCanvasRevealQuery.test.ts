@@ -265,6 +265,50 @@ describe("queryDslCanvasRevealSourceTarget", () => {
     }
   });
 
+  it("owns same-line whitespace and EOL without inheriting across a newline", () => {
+    const source = [
+      "nui 1",
+      "point Spaces = coordinate(x: 10, y: 20)   ",
+      "point Tabs = coordinate(x: 30, y: 40)\t\t",
+      "",
+      "point Next = coordinate(x: 50, y: 60)   "
+    ].join("\n");
+    const compiled = compileWithIds(source);
+    const snapshot = { normalizedSource: source, sourceRevision: 11 };
+    const spacesLineStart = source.indexOf("point Spaces");
+    const tabsLineStart = source.indexOf("point Tabs");
+    const blankLineStart = source.indexOf("\n\n") + 1;
+    const nextLineStart = source.indexOf("point Next");
+    const spacesEol = source.indexOf("\n", spacesLineStart);
+    const tabsEol = source.indexOf("\n", tabsLineStart);
+
+    for (const position of [spacesEol - 1, spacesEol]) {
+      expect(queryDslCanvasRevealSourceTarget({ source: snapshot, compiled, position })).toEqual({
+        status: "resolved",
+        target: { kind: "statement-owner", sourceStatementIndex: 1 }
+      });
+    }
+    for (const position of [tabsEol - 1, tabsEol]) {
+      expect(queryDslCanvasRevealSourceTarget({ source: snapshot, compiled, position })).toEqual({
+        status: "resolved",
+        target: { kind: "statement-owner", sourceStatementIndex: 2 }
+      });
+    }
+
+    expect(queryDslCanvasRevealSourceTarget({ source: snapshot, compiled, position: tabsLineStart })).toEqual({
+      status: "resolved",
+      target: { kind: "statement-owner", sourceStatementIndex: 2 }
+    });
+    expect(queryDslCanvasRevealSourceTarget({ source: snapshot, compiled, position: blankLineStart })).toEqual({
+      status: "failed",
+      reason: "no-target"
+    });
+    expect(queryDslCanvasRevealSourceTarget({ source: snapshot, compiled, position: nextLineStart })).toEqual({
+      status: "resolved",
+      target: { kind: "statement-owner", sourceStatementIndex: 3 }
+    });
+  });
+
   it("recognizes a choice-valued geometry property in a compiled property binding", () => {
     const source = [
       "nui 1",
@@ -355,7 +399,9 @@ describe("queryDslCanvasRevealSourceTarget", () => {
 
     const trailingWhitespace = source.lastIndexOf("   ") + 1;
     expect(queryDslCanvasRevealSourceTarget({ source: snapshot, compiled, position: trailingWhitespace }))
-      .toEqual({ status: "failed", reason: "no-target" });
+      .toEqual({ status: "resolved", target: { kind: "statement-owner", sourceStatementIndex: 2 } });
+    expect(queryDslCanvasRevealSourceTarget({ source: snapshot, compiled, position: source.length }))
+      .toEqual({ status: "resolved", target: { kind: "statement-owner", sourceStatementIndex: 2 } });
   });
 
   it("fails closed for a stale revision or same-revision source mismatch", () => {

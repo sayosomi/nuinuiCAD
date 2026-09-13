@@ -1,26 +1,25 @@
 nui 1
-modifier Hide {
-  state: hidden,
+style Hide {
+  visible: false,
   width: 1px,
-  style: dashed,
+  lineType: dashed,
   color: #aa0000,
 }
-modifier Disable {
-  state: disabled,
+style Disable {
   width: 2px,
-  style: solid,
+  lineType: solid,
   color: #0000aa,
 }
-modifier Show {
-  state: visible,
+style Show {
+  visible: true,
 }
-modifier Guide {
+style Guide {
   width: 1.5px,
-  style: dotted,
+  lineType: dotted,
   color: accent,
 }
 module M() {
-  group Inner [Disable] {
+  group Inner [Disable] (enabled: false) {
     point P = coordinate(x: 1, y: 2)
   }
 }

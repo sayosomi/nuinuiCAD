@@ -37,7 +37,7 @@ const exactSemantic = (
 
 const isThemeRoleToken = (kind: ModifierAuthoringTokenKind): kind is "themeRole" => kind === "themeRole";
 
-/** Exact-current modifier theme-role color tokens. Invalid and fixed colors fail closed. */
+/** Exact-current style theme-role color tokens. Invalid and fixed colors fail closed. */
 export const queryDslThemeRoleColors = ({
   source,
   semantic

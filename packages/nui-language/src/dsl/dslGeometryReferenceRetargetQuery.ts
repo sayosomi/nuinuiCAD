@@ -615,7 +615,7 @@ const compilerGeometryIdentityIsUsable = (
 ) => {
   if (identity.kind !== "element") return true;
   const element = compiled.document?.elements.find((candidate) => candidate.id === identity.elementId);
-  return element !== undefined && element.activity !== "disabled";
+  return element !== undefined && element.enabled !== false && element.activity !== "disabled";
 };
 
 const targetFor = (

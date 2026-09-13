@@ -1,25 +1,29 @@
 // Task 19 lowering only. Parsing, name resolution, graph analysis, &&
 // typechecking happen once in typedDeclarationAnalysis before this boundary.
 import { selectCompiledProgramBindings } from "./bindingAnalysis";
-import { scalarTypeOfDslValueType } from "../dsl/dslValueTypes";
+import { scalarExpressionTypeOfDslValueType } from "../dsl/dslValueTypes";
 import type { BindingId } from "./bindingCatalog";
 import type { TypedDeclarationAnalysis } from "./typedDeclarationAnalysis";
 import type { TypedScalarExpression } from "./typedExpressionAst";
-import type { ScalarType, ScalarValue } from "./types";
+import type { ScalarExpressionType, ScalarType, ScalarValue } from "./types";
+import type { RecordFieldIdentity } from "../dsl/recordSemanticAnalysis";
 
 export type ScalarProgramRecordField = {
   recordStatementId: string;
   fieldIndex: number;
-  type: ScalarType;
+  type: ScalarExpressionType;
   bindingId: BindingId;
+  /** Full path for a scalar leaf nested inside nominal record fields. */
+  fieldPath?: readonly RecordFieldIdentity[];
 };
 
 export type ScalarProgramCollectionMember =
-  | { kind: "literal"; type: ScalarType; value: ScalarValue }
-  | { kind: "binding"; type: ScalarType; bindingId: BindingId }
+  | { kind: "literal"; type: ScalarExpressionType; value: ScalarValue }
+  | { kind: "binding"; type: ScalarExpressionType; bindingId: BindingId }
   | { kind: "record"; typeIdentity: string; fields: readonly ScalarProgramRecordField[] };
 
 export type ScalarProgramCollection =
+  | { valueId: string; kind: "none" }
   | { valueId: string; kind: "literal"; members: readonly ScalarProgramCollectionMember[] }
   | { valueId: string; kind: "alias"; targetValueId: string }
   | {
@@ -43,8 +47,9 @@ export type ScalarProgramCollection =
       fields: readonly {
         recordStatementId: string;
         fieldIndex: number;
-        type: ScalarType;
+        type: ScalarExpressionType;
         body: TypedScalarExpression;
+        fieldPath?: readonly RecordFieldIdentity[];
       }[];
       sourceOrder: number;
     }
@@ -52,7 +57,7 @@ export type ScalarProgramCollection =
       valueId: string;
       kind: "recordField";
       sourceValueId: string;
-      field: { recordStatementId: string; fieldIndex: number; type: ScalarType };
+      field: { recordStatementId: string; fieldIndex: number; type: ScalarExpressionType; fieldPath?: readonly RecordFieldIdentity[] };
       sourceOrder: number;
     }
   | {
@@ -69,11 +74,18 @@ export type ScalarProgramCollection =
       scrutinee: TypedScalarExpression;
       arms: readonly { label: string; valueId: string }[];
       sourceOrder: number;
+    }
+  | {
+      valueId: string;
+      kind: "coalesce";
+      leftValueId: string;
+      rightValueId: string;
+      sourceOrder: number;
     };
 
 export type ScalarProgramDeclaration = {
   bindingKind: "const" | "let";
-  declaredType: ScalarType;
+  declaredType: ScalarExpressionType;
   initializer: TypedScalarExpression;
 };
 
@@ -118,7 +130,7 @@ export const lowerScalarProgram = ({
     // Program eligibility has one shared owner (Task 13R). This type filter
     // keeps only scalar typed declarations in the scalar program.
     if (!binding || binding.kind !== "typed") continue;
-    const declaredType = scalarTypeOfDslValueType(binding.declaredType);
+    const declaredType = scalarExpressionTypeOfDslValueType(binding.declaredType);
     if (declaredType === null) continue;
     if (binding.resolutionMode === "preResolvedOnly" && !typedInitializerByBindingId.has(bindingId)) continue;
     const initializer = typedInitializerByBindingId.get(bindingId);

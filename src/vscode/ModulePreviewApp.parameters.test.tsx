@@ -1119,7 +1119,6 @@ describe("ModulePreviewApp parameter relay", () => {
       "nui 1",
       "module Preview() {",
       "  line L = segment(start: (0, 0), end: (10, 0))",
-      "  reverse(target: @L)",
       "}"
     ].join("\n");
     const fixture = previewFixtureFor(sourceText);
@@ -1149,9 +1148,6 @@ describe("ModulePreviewApp parameter relay", () => {
     expect(request?.expectedPatchedSource).toContain(
       "line L_bake = segment(start: (0, 0), end: (10, 0))"
     );
-    expect(request?.expectedPatchedSource).not.toContain(
-      "line L_bake = segment(start: (10, 0), end: (0, 0))"
-    );
     expect(fixture.document.getSource()).toBe(sourceText);
   });
 
@@ -1159,7 +1155,7 @@ describe("ModulePreviewApp parameter relay", () => {
     const sourceText = [
       "nui 1",
       "module Preview() {",
-      "  point Disabled = coordinate(x: 3, y: 4, state: disabled)",
+      "  point Disabled = coordinate(x: 3, y: 4, enabled: false)",
       "}"
     ].join("\n");
     const fixture = previewFixtureFor(sourceText);
@@ -1206,7 +1202,7 @@ describe("ModulePreviewApp parameter relay", () => {
     const sourceText = [
       "nui 1",
       "module Preview() {",
-      "  point Disabled = coordinate(x: 3, y: 4, state: disabled)",
+      "  point Disabled = coordinate(x: 3, y: 4, enabled: false)",
       "}"
     ].join("\n");
     const fixture = previewFixtureFor(sourceText);
@@ -1241,7 +1237,7 @@ describe("ModulePreviewApp parameter relay", () => {
       .map(([message]) => message)
       .find((message): message is VscodeModulePreviewModelPatchRequest => message?.type === "modulePreviewModelPatch");
     expect(request?.expectedPatchedSource).toContain(
-      "point Disabled_bake = coordinate(x: 3, y: 4, state: disabled)"
+      "point Disabled_bake = coordinate(x: 3, y: 4, enabled: false)"
     );
     expect(fixture.document.getSource()).toBe(sourceText);
   });

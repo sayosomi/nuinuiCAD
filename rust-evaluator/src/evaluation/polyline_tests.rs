@@ -14,6 +14,8 @@ fn evaluates_ordered_open_and_closed_polylines_with_duplicate_segments() {
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 10.0, 0.0),
@@ -81,6 +83,8 @@ fn rejects_polyline_cardinality_without_computed_geometry() {
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             element(json!({
@@ -117,6 +121,8 @@ fn suppressed_closed_closure_still_reports_the_first_point_as_end() {
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 10.0, 0.0),
@@ -161,6 +167,8 @@ fn splits_a_polyline_through_the_existing_broad_path_consumer() {
         condition_expressions: None,
         text_templates: None,
         text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
         elements: vec![
             free_point("a", "A", 0.0, 0.0),
             free_point("b", "B", 10.0, 0.0),

@@ -2,14 +2,16 @@
 //! by Task 25's Rust runtime; this module never parses or evaluates a branch.
 mod for_group_scheduler;
 use super::super::scalar_expression_runtime::{
-    lookup_geometry_collection_length, lookup_geometry_property, lookup_geometry_value_property,
+    lookup_for_group_geometry_property, lookup_geometry_collection_length,
+    lookup_geometry_property, lookup_geometry_value_property, lookup_optional_geometry_property,
+    resolve_for_group_geometry_builtin_target, ForGroupGeometryPropertyRequest,
 };
 use super::bindings::ScalarDocumentBindingResolver;
 use super::bindings::{
-    result_for_declared_type, scalar_evaluation_json, ScalarRecordMapBinderContext,
+    record_field_path_matches, result_for_declared_type, scalar_evaluation_json,
+    ScalarRecordMapBinderContext,
 };
 use super::expression_evaluator::{evaluate_typed_expression, ScalarEvaluationEnvironment};
-use super::geometry_builtin_runtime::resolve_geometry_builtin_target;
 use super::mutation_payload::{
     InitialState, ValidatedBindingVersion, ValidatedBindingVersionKind, ValidatedBindingVersions,
 };
@@ -18,7 +20,10 @@ use super::program_payload::{
     ValidatedScalarProgramRecordFieldIdentity,
 };
 use super::scalar_payload::scalar_value_matches_type;
-use super::types::{BindingId, ScalarEvaluation, ScalarType, ScalarValue};
+use super::types::{
+    BindingId, ScalarEvaluation, ScalarExpressionResolvedOptionalMemberTarget, ScalarType,
+    ScalarValue,
+};
 use crate::evaluation::geometry_value_runtime::{
     evaluate_geometry_value_entry, GeometryValueProgramEntry,
 };
@@ -387,8 +392,12 @@ impl<'a> ScalarMutationResolver<'a> {
                 source_value_id,
                 field: source_field,
                 ..
-            } if source_field.record_statement_id == field.record_statement_id
-                && source_field.field_index == field.field_index =>
+            } if record_field_path_matches(
+                &source_field.record_statement_id,
+                source_field.field_index,
+                source_field.field_path.as_deref(),
+                field,
+            ) =>
             {
                 self.resolve_record_field(source_value_id, index, field, state, seen)
             }
@@ -400,8 +409,12 @@ impl<'a> ScalarMutationResolver<'a> {
                 ..
             } => {
                 let Some(mapped_field) = fields.iter().find(|candidate| {
-                    candidate.record_statement_id == field.record_statement_id
-                        && candidate.field_index == field.field_index
+                    record_field_path_matches(
+                        &candidate.record_statement_id,
+                        candidate.field_index,
+                        candidate.field_path.as_deref(),
+                        field,
+                    )
                 }) else {
                     return ScalarEvaluation::Error {
                         r#type: field.r#type.clone(),
@@ -470,6 +483,27 @@ impl<'a> ScalarMutationResolver<'a> {
                 };
                 self.resolve_record_field(selected, index, field, state, seen)
             }
+            ValidatedScalarProgramCollectionValue::Coalesce {
+                left_value_id,
+                right_value_id,
+                ..
+            } => {
+                let left_present =
+                    self.resolve_collection_presence(left_value_id, state, &mut seen.clone());
+                let selected = match left_present {
+                    Some(true) => left_value_id,
+                    Some(false) => right_value_id,
+                    None => {
+                        return ScalarEvaluation::Error {
+                            r#type: field.r#type.clone(),
+                            issue_code: "evaluation-collection-index-unavailable".to_owned(),
+                            binding_id: None,
+                            context: None,
+                        }
+                    }
+                };
+                self.resolve_record_field(selected, index, field, state, seen)
+            }
             ValidatedScalarProgramCollectionValue::Match {
                 scrutinee,
                 arms,
@@ -507,7 +541,7 @@ impl<'a> ScalarMutationResolver<'a> {
                 self.resolve_record_field(selected, index, field, state, seen)
             }
             ValidatedScalarProgramCollectionValue::Literal(members) => {
-                let Some(ValidatedScalarProgramCollectionMember::Record { fields }) =
+                let Some(ValidatedScalarProgramCollectionMember::Record { fields, .. }) =
                     members.get(index as usize)
                 else {
                     return ScalarEvaluation::Error {
@@ -518,8 +552,12 @@ impl<'a> ScalarMutationResolver<'a> {
                     };
                 };
                 let Some(member_field) = fields.iter().find(|candidate| {
-                    candidate.record_statement_id == field.record_statement_id
-                        && candidate.field_index == field.field_index
+                    record_field_path_matches(
+                        &candidate.record_statement_id,
+                        candidate.field_index,
+                        candidate.field_path.as_deref(),
+                        field,
+                    )
                 }) else {
                     return ScalarEvaluation::Error {
                         r#type: field.r#type.clone(),
@@ -539,6 +577,98 @@ impl<'a> ScalarMutationResolver<'a> {
                 issue_code: "evaluation-collection-index-unavailable".to_owned(),
                 binding_id: None,
                 context: None,
+            },
+        }
+    }
+
+    fn resolve_collection_presence(
+        &self,
+        collection_value_id: &str,
+        state: &EvaluationState,
+        seen: &mut HashSet<String>,
+    ) -> Option<bool> {
+        if !seen.insert(collection_value_id.to_owned()) {
+            return None;
+        }
+        let value = self
+            .program
+            .collection_values
+            .iter()
+            .find(|candidate| candidate.value_id == collection_value_id)?;
+        match &value.value {
+            ValidatedScalarProgramCollectionValue::None => Some(false),
+            ValidatedScalarProgramCollectionValue::Literal(_) => Some(true),
+            ValidatedScalarProgramCollectionValue::Alias(target) => {
+                self.resolve_collection_presence(target, state, seen)
+            }
+            ValidatedScalarProgramCollectionValue::Map {
+                source_value_id, ..
+            }
+            | ValidatedScalarProgramCollectionValue::RecordMap {
+                source_value_id, ..
+            }
+            | ValidatedScalarProgramCollectionValue::RecordField {
+                source_value_id, ..
+            } => self.resolve_collection_presence(source_value_id, state, seen),
+            ValidatedScalarProgramCollectionValue::If {
+                condition,
+                then_value_id,
+                else_value_id,
+                source_order,
+            } => {
+                let environment = MutationEnvironment {
+                    resolver: self,
+                    state,
+                    source_order: *source_order,
+                    local_binding_id: None,
+                    local_binding: None,
+                    local_bindings: None,
+                    record_map_context: None,
+                };
+                match evaluate_typed_expression(condition, &environment) {
+                    ScalarEvaluation::Ok {
+                        value: ScalarValue::Boolean(value),
+                        ..
+                    } => self.resolve_collection_presence(
+                        if value { then_value_id } else { else_value_id },
+                        state,
+                        seen,
+                    ),
+                    _ => None,
+                }
+            }
+            ValidatedScalarProgramCollectionValue::Match {
+                scrutinee,
+                arms,
+                source_order,
+            } => {
+                let environment = MutationEnvironment {
+                    resolver: self,
+                    state,
+                    source_order: *source_order,
+                    local_binding_id: None,
+                    local_binding: None,
+                    local_bindings: None,
+                    record_map_context: None,
+                };
+                let ScalarEvaluation::Ok {
+                    value: ScalarValue::Choice { value, .. },
+                    ..
+                } = evaluate_typed_expression(scrutinee, &environment)
+                else {
+                    return None;
+                };
+                let (_, selected) = arms.iter().find(|(label, _)| label == &value)?;
+                self.resolve_collection_presence(selected, state, seen)
+            }
+            ValidatedScalarProgramCollectionValue::Coalesce {
+                left_value_id,
+                right_value_id,
+                ..
+            } => match self.resolve_collection_presence(left_value_id, state, seen) {
+                Some(true) => Some(true),
+                Some(false) => self.resolve_collection_presence(right_value_id, state, seen),
+                None => None,
             },
         }
     }
@@ -589,6 +719,14 @@ impl<'a> ScalarMutationResolver<'a> {
                 };
             };
             match &value.value {
+                ValidatedScalarProgramCollectionValue::None => {
+                    return ScalarEvaluation::Error {
+                        r#type: element_type.clone(),
+                        issue_code: "evaluation-collection-index-unavailable".to_owned(),
+                        binding_id: None,
+                        context: None,
+                    };
+                }
                 ValidatedScalarProgramCollectionValue::Alias(target) => current = target,
                 ValidatedScalarProgramCollectionValue::Literal(members) => {
                     break members.get(index as usize)
@@ -766,6 +904,34 @@ impl<'a> ScalarMutationResolver<'a> {
                         state,
                     );
                 }
+                ValidatedScalarProgramCollectionValue::Coalesce {
+                    left_value_id,
+                    right_value_id,
+                    ..
+                } => {
+                    let left_present =
+                        self.resolve_collection_presence(left_value_id, state, &mut seen.clone());
+                    let selected = match left_present {
+                        Some(true) => left_value_id,
+                        Some(false) => right_value_id,
+                        None => {
+                            return ScalarEvaluation::Error {
+                                r#type: element_type.clone(),
+                                issue_code: "evaluation-collection-index-unavailable".to_owned(),
+                                binding_id: None,
+                                context: None,
+                            };
+                        }
+                    };
+                    return self.resolve_collection_index(
+                        selected,
+                        index,
+                        element_type,
+                        None,
+                        -1.0,
+                        state,
+                    );
+                }
             }
         };
         let Some(member) = member else {
@@ -843,6 +1009,7 @@ impl<'a> ScalarMutationResolver<'a> {
             return None;
         }
         let result = match &value.value {
+            ValidatedScalarProgramCollectionValue::None => None,
             ValidatedScalarProgramCollectionValue::Alias(target) => {
                 self.resolve_collection_length(target, state, seen)
             }
@@ -914,6 +1081,19 @@ impl<'a> ScalarMutationResolver<'a> {
                 let (_, selected_value_id) = arms.iter().find(|(label, _)| label == &selected)?;
                 self.resolve_collection_length(selected_value_id, state, seen)
             }
+            ValidatedScalarProgramCollectionValue::Coalesce {
+                left_value_id,
+                right_value_id,
+                ..
+            } => {
+                let left_present =
+                    self.resolve_collection_presence(left_value_id, state, &mut seen.clone());
+                match left_present {
+                    Some(true) => self.resolve_collection_length(left_value_id, state, seen),
+                    Some(false) => self.resolve_collection_length(right_value_id, state, seen),
+                    None => None,
+                }
+            }
         };
         seen.remove(collection_value_id);
         result
@@ -940,6 +1120,7 @@ impl ScalarEvaluationEnvironment for MutationEnvironment<'_, '_, '_> {
                     record_statement_id: binder_field.record_statement_id.clone(),
                     field_index: binder_field.field_index,
                     r#type: binder_field.r#type.clone(),
+                    field_path: binder_field.field_path.clone(),
                 };
                 let mut seen = context.seen.clone();
                 return self.resolver.resolve_record_field(
@@ -999,6 +1180,30 @@ impl ScalarEvaluationEnvironment for MutationEnvironment<'_, '_, '_> {
         )
     }
 
+    fn lookup_for_group_geometry_property(
+        &self,
+        template_element_id: &str,
+        index: Option<&super::types::TypedScalarExpression>,
+        point_key: Option<&str>,
+        property: &str,
+        target_source_order: f64,
+        property_type: &ScalarType,
+    ) -> ScalarEvaluation {
+        lookup_for_group_geometry_property(
+            self.state,
+            self.resolver,
+            ForGroupGeometryPropertyRequest {
+                template_element_id,
+                index,
+                point_key,
+                property,
+                target_source_order,
+                current_source_order: Some(self.source_order),
+                property_type,
+            },
+        )
+    }
+
     fn lookup_geometry_builtin_target(
         &self,
         target: &super::types::ScalarExpressionResolvedGeometryTarget,
@@ -1006,7 +1211,12 @@ impl ScalarEvaluationEnvironment for MutationEnvironment<'_, '_, '_> {
         super::geometry_builtin_runtime::GeometryBuiltinRuntimeTarget,
         super::geometry_builtin_runtime::GeometryBuiltinRuntimeError,
     > {
-        resolve_geometry_builtin_target(self.state, self.source_order, target)
+        resolve_for_group_geometry_builtin_target(
+            self.state,
+            self.resolver,
+            self.source_order,
+            target,
+        )
     }
 
     fn lookup_collection_index(
@@ -1042,6 +1252,43 @@ impl ScalarEvaluationEnvironment for MutationEnvironment<'_, '_, '_> {
             &mut HashSet::new(),
         )
     }
+
+    fn lookup_optional_member(
+        &self,
+        target: &ScalarExpressionResolvedOptionalMemberTarget,
+        r#type: &ScalarType,
+    ) -> ScalarEvaluation {
+        match target {
+            ScalarExpressionResolvedOptionalMemberTarget::CollectionLength {
+                target_source_order,
+                ..
+            }
+            | ScalarExpressionResolvedOptionalMemberTarget::RecordField {
+                target_source_order,
+                ..
+            } => {
+                if *target_source_order >= self.source_order {
+                    return ScalarEvaluation::Error {
+                        r#type: r#type.clone(),
+                        issue_code: "evaluation-collection-index-unavailable".to_owned(),
+                        binding_id: None,
+                        context: None,
+                    };
+                }
+                self.resolver
+                    .resolve_optional_collection_member(target, r#type, self.state)
+            }
+            ScalarExpressionResolvedOptionalMemberTarget::GeometryProperty { .. } => {
+                lookup_optional_geometry_property(
+                    self.state,
+                    self.resolver,
+                    target,
+                    r#type,
+                    Some(self.source_order),
+                )
+            }
+        }
+    }
 }
 impl ScalarDocumentBindingResolver for ScalarMutationResolver<'_> {
     fn resolve_binding(&self, binding_id: &str, state: &EvaluationState) -> ScalarEvaluation {
@@ -1074,5 +1321,120 @@ impl ScalarDocumentBindingResolver for ScalarMutationResolver<'_> {
         seen: &mut HashSet<String>,
     ) -> Option<f64> {
         self.resolve_collection_length(collection_value_id, state, seen)
+    }
+
+    fn resolve_optional_collection_member(
+        &self,
+        target: &ScalarExpressionResolvedOptionalMemberTarget,
+        r#type: &ScalarType,
+        state: &EvaluationState,
+    ) -> ScalarEvaluation {
+        let none = || ScalarEvaluation::Ok {
+            r#type: r#type.clone(),
+            value: ScalarValue::None,
+        };
+        match target {
+            ScalarExpressionResolvedOptionalMemberTarget::CollectionLength {
+                collection_value_id,
+                ..
+            } => match self.resolve_collection_presence(
+                collection_value_id,
+                state,
+                &mut HashSet::new(),
+            ) {
+                Some(false) => none(),
+                Some(true) => self
+                    .resolve_collection_length(collection_value_id, state, &mut HashSet::new())
+                    .map(|length| ScalarEvaluation::Ok {
+                        r#type: r#type.clone(),
+                        value: ScalarValue::Number(length),
+                    })
+                    .unwrap_or_else(|| ScalarEvaluation::Error {
+                        r#type: r#type.clone(),
+                        issue_code: "evaluation-collection-property-unavailable".to_owned(),
+                        binding_id: None,
+                        context: None,
+                    }),
+                None => ScalarEvaluation::Error {
+                    r#type: r#type.clone(),
+                    issue_code: "evaluation-collection-property-unavailable".to_owned(),
+                    binding_id: None,
+                    context: None,
+                },
+            },
+            ScalarExpressionResolvedOptionalMemberTarget::RecordField {
+                collection_value_id,
+                collection_length: _,
+                field,
+                ..
+            } => match self.resolve_collection_presence(
+                collection_value_id,
+                state,
+                &mut HashSet::new(),
+            ) {
+                Some(false) => none(),
+                Some(true) => {
+                    let field = ValidatedScalarProgramRecordFieldIdentity {
+                        record_statement_id: field.record_statement_id.clone(),
+                        field_index: field.field_index,
+                        r#type: field.r#type.clone(),
+                        field_path: (!field.field_path.is_empty()).then(|| {
+                            field
+                                .field_path
+                                .iter()
+                                .map(|(statement_id, field_index)| {
+                                    super::program_payload::ValidatedScalarProgramRecordFieldPathEntry {
+                                        record_statement_id: statement_id.clone(),
+                                        field_index: *field_index,
+                                    }
+                                })
+                                .collect()
+                        }),
+                    };
+                    match self.resolve_record_field(
+                        collection_value_id,
+                        0.0,
+                        &field,
+                        state,
+                        &mut HashSet::new(),
+                    ) {
+                        ScalarEvaluation::Ok { value, .. }
+                            if scalar_value_matches_type(r#type, &value) =>
+                        {
+                            ScalarEvaluation::Ok {
+                                r#type: r#type.clone(),
+                                value,
+                            }
+                        }
+                        ScalarEvaluation::Ok { .. } => ScalarEvaluation::Error {
+                            r#type: r#type.clone(),
+                            issue_code: RUNTIME_VALUE_TYPE_MISMATCH.to_owned(),
+                            binding_id: None,
+                            context: None,
+                        },
+                        ScalarEvaluation::Error { issue_code, .. } => ScalarEvaluation::Error {
+                            r#type: r#type.clone(),
+                            issue_code,
+                            binding_id: None,
+                            context: None,
+                        },
+                    }
+                }
+                None => ScalarEvaluation::Error {
+                    r#type: r#type.clone(),
+                    issue_code: "evaluation-collection-index-unavailable".to_owned(),
+                    binding_id: None,
+                    context: None,
+                },
+            },
+            ScalarExpressionResolvedOptionalMemberTarget::GeometryProperty { .. } => {
+                ScalarEvaluation::Error {
+                    r#type: r#type.clone(),
+                    issue_code: "evaluation-optional-member-unavailable".to_owned(),
+                    binding_id: None,
+                    context: None,
+                }
+            }
+        }
     }
 }

@@ -113,7 +113,7 @@ describe("English DSL reference generator", () => {
     if (!coordinate) throw new Error("coordinate construction is missing");
 
     expect(coordinate.arguments.map((argument) => argument.arg)).toEqual([
-      "x", "y", "state", "steps", "id", "roles", "parent", "branch",
+      "x", "y", "enabled", "visible", "steps", "id", "roles", "parent", "branch",
     ]);
     expect(coordinate.arguments.find((argument) => argument.arg === "x")?.parameter).toMatchObject({
       key: "x",
@@ -123,15 +123,24 @@ describe("English DSL reference generator", () => {
       key: "y",
       kind: "number",
     });
+    const label = facts.constructions.find((fact) => fact.category === "text" && fact.construction === "label");
+    expect(label?.arguments.find((argument) => argument.arg === "anchor")?.parameter).toMatchObject({
+      key: "anchor",
+      valueType: "point?",
+    });
     expect(facts.constructions.some((fact) => fact.construction === "")).toBe(false);
 
     const rendered = renderConstructionRegion(facts);
+    expect(rendered).toContain("| `anchor` | point?; coordinates allowed |");
+    expect(rendered).not.toContain("none allowed");
     expect(rendered).not.toContain("dsl-ref:construction:group");
     expect(rendered).not.toContain("| `name` |");
     expect(rendered).not.toContain("fromPoint");
     expect(rendered).not.toContain("placementMode");
     expect(rendered).not.toContain("condition");
-    expect(rendered.match(/\| `roles` \|/g)?.length).toBe(facts.constructions.length);
+    expect(rendered.match(/\| `roles` \|/g)?.length).toBe(
+      facts.constructions.filter((fact) => fact.arguments.some((argument) => argument.arg === "roles")).length
+    );
   });
 
   it("keeps empty-construction statements in statement facts exactly once", () => {
@@ -197,22 +206,22 @@ describe("English DSL reference examples", () => {
 
   it("matches expected diagnostics across severities through the production compiler", () => {
     const warningExample = extractNuiExamples("fixture.md", [
-      "<!-- dsl-example: expected-diagnostic code=unused-drawing-modifier -->",
+      "<!-- dsl-example: expected-diagnostic code=unused-drawing-style -->",
       "```nui",
       "nui 1",
-      "modifier Unused {",
-      "  state: visible,",
+      "style Unused {",
+      "  visible: true,",
       "}",
       "```",
     ].join("\n"));
     expect(validateDslExamples(warningExample)).toEqual([]);
 
     const warningAndUnrelatedError = extractNuiExamples("fixture.md", [
-      "<!-- dsl-example: expected-diagnostic code=unused-drawing-modifier -->",
+      "<!-- dsl-example: expected-diagnostic code=unused-drawing-style -->",
       "```nui",
       "nui 1",
-      "modifier Unused {",
-      "  state: visible,",
+      "style Unused {",
+      "  visible: true,",
       "}",
       "point Broken = unknown()",
       "```",

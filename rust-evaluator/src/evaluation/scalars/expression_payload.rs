@@ -38,14 +38,15 @@
 use serde_json::Value;
 
 use super::expression_leaf_payload::{
-    decode_boolean_literal, decode_choice_literal, decode_geometry_property,
+    decode_boolean_literal, decode_choice_literal, decode_geometry_property, decode_none_literal,
     decode_nullable_scalar_type, decode_number_literal, decode_reference, decode_span,
     decode_string_literal,
 };
 use super::expression_shape_payload::{
-    decode_call_argument_shape, validate_binary_shape, validate_call_argument_shapes,
-    validate_call_shape, validate_group_shape, validate_unary_shape, validate_value_if_shape,
-    validate_value_match_arm_shape, validate_value_match_shape, CallArgumentShape,
+    decode_call_argument_shape, decode_optional_member, validate_binary_shape,
+    validate_call_argument_shapes, validate_call_shape, validate_group_shape, validate_unary_shape,
+    validate_value_if_shape, validate_value_match_arm_shape, validate_value_match_shape,
+    CallArgumentShape,
 };
 use super::issue::{ScalarPayloadIssue, ScalarPayloadIssueCode as Code};
 use super::json_helpers::{as_object, issue, require_field};
@@ -86,6 +87,15 @@ pub(crate) const MAX_TYPED_EXPRESSION_NODE_COUNT: usize = 20_000;
 /// `Build*` means its child/children have already been decoded and pushed
 /// onto the output stack, and are ready to be assembled into the parent
 /// node.
+type ValueMatchArmPayload = (
+    String,
+    ScalarSpan,
+    Option<String>,
+    Option<ScalarSpan>,
+    Option<String>,
+    Option<ScalarType>,
+);
+
 enum WorkItem<'a> {
     Visit {
         json: &'a Value,
@@ -120,7 +130,7 @@ enum WorkItem<'a> {
     },
     BuildValueMatch {
         span: ScalarSpan,
-        arms: Vec<(String, ScalarSpan)>,
+        arms: Vec<ValueMatchArmPayload>,
         r#type: Option<ScalarType>,
     },
     BuildCall {
@@ -282,6 +292,7 @@ fn visit_node<'a>(
         "numberLiteral" => output.push(decode_number_literal(object)?),
         "stringLiteral" => output.push(decode_string_literal(object)?),
         "booleanLiteral" => output.push(decode_boolean_literal(object)?),
+        "noneLiteral" => output.push(decode_none_literal(object)?),
         "choiceLiteral" => output.push(decode_choice_literal(object)?),
         "reference" => output.push(decode_reference(object)?),
         "collectionIndex" => {
@@ -310,6 +321,7 @@ fn visit_node<'a>(
             });
         }
         "geometryProperty" => output.push(decode_geometry_property(object)?),
+        "optionalMember" => output.push(decode_optional_member(object)?),
         "unary" => {
             let shape = validate_unary_shape(object)?;
             work.push(WorkItem::BuildUnary {
@@ -377,7 +389,16 @@ fn visit_node<'a>(
                 .collect::<Result<Vec<_>, _>>()?;
             let arms = arm_shapes
                 .iter()
-                .map(|arm| (arm.label.clone(), arm.label_span))
+                .map(|arm| {
+                    (
+                        arm.label.clone(),
+                        arm.label_span,
+                        arm.binder.clone(),
+                        arm.binder_span,
+                        arm.binder_id.clone(),
+                        arm.binder_type.clone(),
+                    )
+                })
                 .collect();
             work.push(WorkItem::BuildValueMatch {
                 span: shape.span,
@@ -559,13 +580,22 @@ pub(crate) fn validate_typed_expression_payload(
                 let arms = arms
                     .into_iter()
                     .zip(expressions)
-                    .map(|((label, label_span), expression)| {
-                        super::types::TypedScalarValueMatchArm {
-                            label,
-                            label_span,
+                    .map(
+                        |(
+                            (label, label_span, binder, binder_span, binder_id, binder_type),
                             expression,
-                        }
-                    })
+                        )| {
+                            super::types::TypedScalarValueMatchArm {
+                                label,
+                                label_span,
+                                binder,
+                                binder_span,
+                                binder_id,
+                                binder_type,
+                                expression,
+                            }
+                        },
+                    )
                     .collect();
                 output.push(TypedScalarExpression::ValueMatch {
                     span,
@@ -587,9 +617,9 @@ pub(crate) fn validate_typed_expression_payload(
                     match argument {
                         CallArgumentShape::Scalar { .. } => {
                             args.push(TypedBuiltinArgument::Scalar {
-                                expression: output.pop().expect(
+                                expression: Box::new(output.pop().expect(
                                     "scalar call argument must already be decoded (post-order build invariant)",
-                                ),
+                                )),
                             });
                         }
                         CallArgumentShape::GeometryReference {

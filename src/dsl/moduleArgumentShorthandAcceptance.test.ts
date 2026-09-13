@@ -65,7 +65,7 @@ describe("Module same-name shorthand acceptance coverage", () => {
       "const required: number = 1",
       "const defaulted: number = 2",
       "const optional: number = 3",
-      "module M(required: number, defaulted: number = 10, optional?: number) {",
+      "module M(required: number, defaulted: number = 10, optional: number?) {",
       "}",
       "instance X = M(@required, @defaulted, @optional)"
     ].join("\n");
@@ -119,7 +119,7 @@ describe("Module same-name shorthand acceptance coverage", () => {
       "nui 1",
       "const width: number = 10",
       "point origin = coordinate(x: 0, y: 0)",
-      "module M(width: number = 5, origin?: point) {",
+      "module M(width: number = 5, origin: point?) {",
       "}",
       "instance X = M()"
     ].join("\n");

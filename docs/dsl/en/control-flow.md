@@ -42,10 +42,17 @@ step: ...)`. The variable is not added to the surrounding scope.
 `showGenerated` remains a for-control option; it controls whether generated
 rows are shown and does not change the range values.
 
-Containers inherit their ancestors' activity and drawing modifiers. A visible
-container evaluates and draws eligible children, a hidden container evaluates
-children without drawing them, and a disabled container prevents child
-evaluation and later references. See [Modifiers](modifiers.md).
+Drawable declarations inside a `for` create ordered runtime occurrences under
+their source/template declaration. Use `@Name[index]` to address one
+occurrence, where `index` is a finite, integral, non-negative numeric
+expression; `@Name[index].property` reads a property from that occurrence.
+Nested statement-for expansions preserve the complete occurrence path. A bare
+`@Name` is accepted only when exactly one occurrence is available and otherwise
+reports an unavailable/ambiguous occurrence rather than choosing zero.
+
+Containers inherit their ancestors' `enabled`/`visible` gates and Styles. A
+disabled container prevents child evaluation and later references; a hidden
+container still evaluates children but does not draw them. See [Styles](modifiers.md).
 
 <!-- dsl-example: compile-success -->
 ```nui

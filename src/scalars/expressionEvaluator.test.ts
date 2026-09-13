@@ -268,6 +268,47 @@ describe("evaluateTypedExpression / exhaustive choice value-match", () => {
       lookupBinding: () => { throw new Error("no binding lookup expected"); }
     })).toEqual({ status: "ok", type: { kind: "number" }, value: { kind: "number", value: 10 } });
   });
+
+  it("selects optional none/some arms and resolves the binder without evaluating the other arm", () => {
+    const optionalString = { kind: "optional", valueType: { kind: "string" } } as const;
+    const scrutinee: TypedScalarExpression = {
+      kind: "reference",
+      span: { start: 0, end: 0 },
+      nameSpan: { start: 0, end: 0 },
+      name: "note",
+      bindingId: "binding:note",
+      type: optionalString
+    };
+    const expression: TypedScalarExpression = {
+      kind: "valueMatch",
+      span: { start: 0, end: 0 },
+      scrutinee,
+      arms: [
+        { label: "none", labelSpan: { start: 0, end: 0 }, expression: { kind: "stringLiteral", span: { start: 0, end: 0 }, value: "no", type: { kind: "string" } } },
+        {
+          label: "some",
+          binder: "note",
+          binderId: "optional-match-binder:0:0:0",
+          binderType: { kind: "string" },
+          labelSpan: { start: 0, end: 0 },
+          expression: {
+            kind: "reference",
+            span: { start: 0, end: 0 },
+            nameSpan: { start: 0, end: 0 },
+            name: "note",
+            bindingId: "optional-match-binder:0:0:0",
+            type: { kind: "string" }
+          }
+        }
+      ],
+      type: { kind: "string" }
+    };
+    expect(evaluateTypedExpression(expression, {
+      lookupBinding: (bindingId) => bindingId === "binding:note"
+        ? { status: "ok", type: optionalString, value: { kind: "string", value: "hello" } }
+        : (() => { throw new Error("unexpected unselected/local binding lookup"); })()
+    })).toEqual({ status: "ok", type: { kind: "string" }, value: { kind: "string", value: "hello" } });
+  });
 });
 
 describe("evaluateTypedExpression / collection index", () => {

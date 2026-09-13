@@ -1,5 +1,4 @@
 import type { CadElementType } from "../types/geometry";
-import { elementTypeSupportsHiddenActivity } from "../model/elementActivity";
 import {
   bareConstructionFor,
   categoriesForConstruction,
@@ -29,6 +28,16 @@ export type DslCallStatement = {
   modifierNames: string[];
   modifierNameSpans: DslSpan[];
   opensBlock: boolean;
+  /** Header-owned target selectors for a declarative transformation clause. */
+  transformationTargets?: DslTransformationTargetSyntax[];
+  /** Optional immutable checkpoint declared by `as`. */
+  stageName?: string | null;
+  stageNameSpan?: DslSpan | null;
+};
+
+export type DslTransformationTargetSyntax = {
+  source: string;
+  span: DslSpan;
 };
 
 export type DslCallParseResult = {
@@ -183,6 +192,35 @@ const matchingSquareClose = (source: string, open: number) => {
   return -1;
 };
 
+const topLevelWordIndex = (source: string, word: string, start = 0, end = source.length) => {
+  let quote: string | null = null;
+  let depth = 0;
+  for (let index = start; index < end; index += 1) {
+    const character = source[index];
+    if (quote) {
+      if (character === quote && !escaped(source, index)) quote = null;
+      continue;
+    }
+    if ((character === "\"" || character === "'") && !escaped(source, index)) {
+      quote = character;
+      continue;
+    }
+    if (character === "[" || character === "(") {
+      depth += 1;
+      continue;
+    }
+    if (character === "]" || character === ")") {
+      depth -= 1;
+      continue;
+    }
+    if (depth !== 0 || source.slice(index, index + word.length) !== word) continue;
+    const before = source[index - 1];
+    const after = source[index + word.length];
+    if ((before === undefined || whitespace.test(before)) && (after === undefined || whitespace.test(after))) return index;
+  }
+  return -1;
+};
+
 type ParsedNameWithModifiers = ReturnType<typeof parseName> & {
   modifierNames: string[];
   modifierNameSpans: DslSpan[];
@@ -200,16 +238,16 @@ const parseNameWithModifiers = (
 
   const nameSpan = trimSpan(source, span.start, listOpen);
   if (nameSpan.start === nameSpan.end) {
-    diagnostic(diagnostics, "modifier参照は名前付きのgeometry / groupにのみ指定できます。", { start: listOpen, end: listOpen + 1 });
+    diagnostic(diagnostics, "style参照は名前付きのgeometry / groupにのみ指定できます。", { start: listOpen, end: listOpen + 1 });
   }
   const close = matchingSquareClose(source, listOpen);
   if (close < 0 || close > span.end) {
-    diagnostic(diagnostics, "modifier参照リストの「[」が閉じられていません。", { start: listOpen, end: listOpen + 1 });
+    diagnostic(diagnostics, "style参照リストの「[」が閉じられていません。", { start: listOpen, end: listOpen + 1 });
     return { ...parseName(source, nameSpan), modifierNames: [], modifierNameSpans: [] };
   }
   const tail = trimSpan(source, close + 1, span.end);
   if (tail.start < tail.end) {
-    diagnostic(diagnostics, "modifier参照リストの後に余分なトークンがあります。", tail);
+    diagnostic(diagnostics, "style参照リストの後に余分なトークンがあります。", tail);
   }
 
   const scanned = scanCallArgs(source, { start: listOpen + 1, end: close });
@@ -218,17 +256,17 @@ const parseNameWithModifiers = (
   const modifierNameSpans: DslSpan[] = [];
   for (const arg of scanned.args) {
     if (arg.key !== null) {
-      diagnostic(diagnostics, "modifier参照リストには名前だけを書いてください。", arg.keySpan ?? arg.valueSpan);
+      diagnostic(diagnostics, "style参照リストには名前だけを書いてください。", arg.keySpan ?? arg.valueSpan);
       continue;
     }
     const raw = source.slice(arg.valueSpan.start, arg.valueSpan.end);
     const name = unquoteDslString(arg.value).trim();
     if (!name || name.startsWith("@")) {
-      diagnostic(diagnostics, "modifier参照名が空、または不正です。", arg.valueSpan);
+      diagnostic(diagnostics, "style参照名が空、または不正です。", arg.valueSpan);
       continue;
     }
     if (!raw.startsWith("\"") && /\s/.test(raw)) {
-      diagnostic(diagnostics, "modifier参照名に空白を含める場合は引用符で囲んでください。", arg.valueSpan);
+      diagnostic(diagnostics, "style参照名に空白を含める場合は引用符で囲んでください。", arg.valueSpan);
       continue;
     }
     modifierNames.push(name);
@@ -293,7 +331,10 @@ const validateArgs = (
   }
 
   const positional = spec.args.find((arg) => arg.positional);
-  const allowed = new Map<string, DslArgSpec>([...spec.args, ...commonArgSpecs].map((arg) => [arg.arg, arg]));
+  const allowed = new Map<string, DslArgSpec>(
+    (category === "transformation" ? spec.args : [...spec.args, ...commonArgSpecs])
+      .map((arg) => [arg.arg, arg])
+  );
   const seen = new Set<string>();
   for (const arg of args) {
     if (arg.key === null) {
@@ -330,16 +371,6 @@ const validateArgs = (
     }
     if (seen.has(arg.key)) {
       diagnostic(diagnostics, `引数「${arg.key}」が重複しています。`, arg.keySpan!);
-      continue;
-    }
-    if (arg.key === "state" && !elementTypeSupportsHiddenActivity(spec.elementType) && unquoteDslString(arg.value) === "hidden") {
-      diagnostic(
-        diagnostics,
-        `${construction} は自身の図形を持たないため state: hidden を指定できません。visible か disabled を使ってください。`,
-        arg.valueSpan,
-        "state-hidden-unsupported",
-        { key: "diagnostic.state-hidden-unsupported", parameters: { construction } }
-      );
       continue;
     }
     if (arg.key === "color" && category === MUTATION_CATEGORY) {
@@ -468,6 +499,114 @@ const callStatement = (
   } satisfies DslCallStatement;
 };
 
+const transformationCallStatement = (
+  source: string,
+  keywordSpan: DslSpan,
+  construction: string,
+  constructionSpan: DslSpan,
+  callSpan: DslSpan,
+  targets: DslTransformationTargetSyntax[],
+  stageName: string | null,
+  stageNameSpan: DslSpan | null,
+  diagnostics: DslCallDiagnostic[]
+) => ({
+  ...callStatement(
+    source,
+    "transformation",
+    keywordSpan,
+    { name: "", nameSpan: null, modifierNames: [], modifierNameSpans: [] },
+    construction,
+    constructionSpan,
+    callSpan,
+    false,
+    diagnostics
+  ),
+  transformationTargets: targets,
+  stageName,
+  stageNameSpan
+} satisfies DslCallStatement);
+
+const parseTransformationStatement = (
+  logicalText: string,
+  keywordSpan: DslSpan,
+  operation: string,
+  options: ParseDslCallOptions,
+  diagnostics: DslCallDiagnostic[]
+): DslCallStatement | null => {
+  let open = keywordSpan.end;
+  while (whitespace.test(logicalText[open] ?? "")) open += 1;
+  const headerEnd = topLevelIndex(logicalText, "(", open);
+  const header = trimSpan(logicalText, open, headerEnd >= 0 ? headerEnd : logicalText.length);
+  const asAt = topLevelWordIndex(logicalText, "as", header.start, header.end);
+  const targetEnd = asAt >= 0 ? asAt : header.end;
+  const targetSpan = trimSpan(logicalText, header.start, targetEnd);
+  const targets: DslTransformationTargetSyntax[] = [];
+
+  if (targetSpan.start >= targetSpan.end) {
+    diagnostic(diagnostics, `${operation} には transformation target が必要です。`, keywordSpan, "malformed-transformation-target");
+  } else if (logicalText[targetSpan.start] === "[") {
+    const closeTarget = matchingSquareClose(logicalText, targetSpan.start);
+    if (closeTarget < 0 || closeTarget >= targetSpan.end) {
+      diagnostic(diagnostics, "transformation target list の「[」が閉じられていません。", targetSpan, "malformed-transformation-target");
+    } else {
+      const tail = trimSpan(logicalText, closeTarget + 1, targetSpan.end);
+      if (tail.start < tail.end) diagnostic(diagnostics, "transformation target list の後に余分なトークンがあります。", tail, "malformed-transformation-target");
+      const scannedTargets = scanCallArgs(logicalText, { start: targetSpan.start + 1, end: closeTarget });
+      diagnostics.push(...scannedTargets.errors);
+      for (const target of scannedTargets.args) {
+        if (target.key !== null) {
+          diagnostic(diagnostics, "transformation target list には名前なしの target だけを書いてください。", target.keySpan ?? target.valueSpan, "malformed-transformation-target");
+          continue;
+        }
+        const span = trimSpan(logicalText, target.valueSpan.start, target.valueSpan.end);
+        if (span.start === span.end) {
+          diagnostic(diagnostics, "空の transformation target は指定できません。", target.valueSpan, "malformed-transformation-target");
+          continue;
+        }
+        targets.push({ source: logicalText.slice(span.start, span.end), span });
+      }
+    }
+  } else {
+    const rawTarget = logicalText.slice(targetSpan.start, targetSpan.end);
+    const quotedTarget = /^(?:"(?:[^"]|\\.)*"|'(?:[^']|\\.)*')$/.test(rawTarget);
+    if (/\s/.test(rawTarget) && !quotedTarget) {
+      diagnostic(diagnostics, "transformation target は1つの selector で指定してください。複数指定には `[A, B]` を使います。", targetSpan, "malformed-transformation-target");
+    }
+    targets.push({ source: rawTarget, span: targetSpan });
+  }
+
+  let stageName: string | null = null;
+  let stageNameSpan: DslSpan | null = null;
+  if (asAt >= 0) {
+    const stageSpan = trimSpan(logicalText, asAt + 2, header.end);
+    if (stageSpan.start === stageSpan.end) {
+      diagnostic(diagnostics, "`as` の後に stage name が必要です。", { start: asAt, end: asAt + 2 }, "malformed-transformation-target");
+    } else {
+      const raw = logicalText.slice(stageSpan.start, stageSpan.end);
+      if (!/^(?:[A-Za-z_][A-Za-z0-9_]*|(?:"(?:[^"]|\\.)*"|'(?:[^']|\\.)*'))$/.test(raw)) {
+        diagnostic(diagnostics, "stage name が不正です。", stageSpan, "malformed-transformation-target");
+      } else {
+        stageName = unquoteDslString(raw);
+        stageNameSpan = stageSpan;
+      }
+    }
+  }
+
+  if (headerEnd < 0) {
+    diagnostic(diagnostics, `${operation} には引数括弧が必要です。`, keywordSpan);
+    return transformationCallStatement(logicalText, keywordSpan, operation, keywordSpan, { start: logicalText.length, end: logicalText.length }, targets, stageName, stageNameSpan, diagnostics);
+  }
+  const close = matchingClose(logicalText, headerEnd);
+  if (close < 0) {
+    diagnostic(diagnostics, "呼び出しの「(」が閉じられていません。", { start: headerEnd, end: headerEnd + 1 }, UNCLOSED_CALL_CODE);
+    return transformationCallStatement(logicalText, keywordSpan, operation, keywordSpan, { start: headerEnd + 1, end: logicalText.length }, targets, stageName, stageNameSpan, diagnostics);
+  }
+  const tail = trimSpan(logicalText, close + 1, logicalText.length);
+  if (tail.start < tail.end) diagnostic(diagnostics, "呼び出しの「)」の後に余分なトークンがあります。", tail);
+  if (options.opensBlock) diagnostic(diagnostics, `${operation} の呼び出しはブロックを開けません。`, keywordSpan);
+  return transformationCallStatement(logicalText, keywordSpan, operation, keywordSpan, { start: headerEnd + 1, end: close }, targets, stageName, stageNameSpan, diagnostics);
+};
+
 export const parseDslCallStatement = (
   logicalText: string,
   options: ParseDslCallOptions = {},
@@ -570,6 +709,10 @@ export const parseDslCallStatement = (
     if (open >= 0 && close < 0) diagnostic(diagnostics, "呼び出しの「(」が閉じられていません。", { start: open, end: open + 1 });
     const callSpan = { start: open >= 0 ? open + 1 : logicalText.length, end: close >= 0 ? close : logicalText.length };
     return { statement: callStatement(logicalText, category, keywordSpan, name, "", null, callSpan, opensBlock, diagnostics), diagnostics };
+  }
+
+  if (constructionFor("transformation", category)) {
+    return { statement: parseTransformationStatement(logicalText, keywordSpan, category, options, diagnostics), diagnostics };
   }
 
   // A mutation statement (edge/extend/move/mirrorMove/reverse) rewrites an

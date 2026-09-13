@@ -144,13 +144,14 @@ export const materializeNumericBindingElement = (
     let expression = value.expression;
     for (const reference of [...entry.references].reverse()) {
       const evaluation = resolveBinding(reference.bindingId);
-      if (evaluation.status !== "ok" || evaluation.type.kind !== "number" || typeof evaluation.value.value !== "number" || !Number.isFinite(evaluation.value.value)) {
+      const evaluatedValue = evaluation.status === "ok" ? evaluation.value : null;
+      if (evaluation.status !== "ok" || evaluation.type.kind !== "number" || evaluatedValue?.kind !== "number" || !Number.isFinite(evaluatedValue.value)) {
         return { ok: false, error: numericBindingFailure(materialized, entry.parameterKey) };
       }
       if (expression.slice(reference.expressionStart, reference.expressionEnd) !== `@${reference.name}`) {
         return { ok: false, error: mappingFailure(materialized, entry.parameterKey) };
       }
-      const literal = numericLiteralForExpression(evaluation.value.value);
+      const literal = numericLiteralForExpression(evaluatedValue.value);
       if (literal === null) return { ok: false, error: numericBindingFailure(materialized, entry.parameterKey) };
       expression = `${expression.slice(0, reference.expressionStart)}${literal}${expression.slice(reference.expressionEnd)}`;
     }

@@ -152,6 +152,7 @@ export const roundTrip = (source: string) => {
   expect(first.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
   const document: DslDocumentData = {
     elements: first.elements,
+    transformationRecipes: first.transformationRecipes ?? [],
     modifiers: first.modifiers ?? [],
     visibilityRoles: first.visibilityRoles ?? [],
     visibilityProfiles: first.visibilityProfiles?.length ? first.visibilityProfiles : [defaultVisibilityProfile()],

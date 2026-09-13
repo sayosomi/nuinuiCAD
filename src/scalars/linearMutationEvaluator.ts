@@ -16,7 +16,8 @@ import {
   type ForGroupMutationFrame,
   type ForGroupMutationRunOutcome
 } from "./forGroupMutationCore";
-import type { ScalarEvaluation } from "./types";
+import { scalarValueMatchesType, type ScalarEvaluation, type ScalarExpressionType } from "./types";
+import { isScalarExpressionTypeAssignable } from "./scalarAssignability";
 import type { ScalarProgramCollection } from "./scalarProgram";
 import type {
   ScalarExpressionResolvedGeometryTarget,
@@ -73,6 +74,14 @@ const unavailable = (bindingId: BindingId): ScalarEvaluation => ({
 const poisoned = (version: BindingVersion): ScalarEvaluation => ({
   status: "error", type: version.declaredType, issueCode: "poisoned-binding", bindingId: version.bindingId
 });
+
+const resultForDeclaredType = (evaluation: ScalarEvaluation, declaredType: ScalarExpressionType): ScalarEvaluation => {
+  if (evaluation.status === "error") return { ...evaluation, type: declaredType };
+  if (isScalarExpressionTypeAssignable(evaluation.type, declaredType) && scalarValueMatchesType(declaredType, evaluation.value)) {
+    return { ...evaluation, type: declaredType };
+  }
+  return { status: "error", type: declaredType, issueCode: "evaluation-runtime-value-type-mismatch" };
+};
 
 const isBeforeOrAt = (version: BindingVersion, position: BindingReadPosition): boolean =>
   position.kind === "beforeStatement" ? version.sourceOrder < position.sourceOrder : version.sourceOrder <= position.sourceOrder;
@@ -159,7 +168,8 @@ export const createIncrementalLinearMutationEvaluator = (
     { collectionValues },
     resolveCurrent,
     resolveGeometryProperty,
-    resolveGeometryTarget
+    resolveGeometryTarget,
+    resolveCollectionLength
   );
 
   const retireFramesBefore = (sourceOrder: number) => {
@@ -199,7 +209,7 @@ export const createIncrementalLinearMutationEvaluator = (
     }
     const evaluation = version.initialState.kind === "poisoned" || (version.kind === "declare" && !version.initializer)
       ? poisoned(version)
-      : evaluateTypedExpression(version.kind === "declare" ? version.initializer! : version.expression, {
+      : resultForDeclaredType(evaluateTypedExpression(version.kind === "declare" ? version.initializer! : version.expression, {
         lookupBinding: resolveCurrent,
         ...(collectionResolver ? collectionResolver.environmentFor(version.sourceOrder) : {}),
         ...(resolveCollectionLength ? {
@@ -209,7 +219,7 @@ export const createIncrementalLinearMutationEvaluator = (
         } : {}),
         ...(resolveGeometryProperty ? { lookupGeometryProperty: (reference) => resolveGeometryProperty(reference, version.sourceOrder) } : {}),
         ...(resolveGeometryTarget ? { lookupGeometryTarget: (target) => resolveGeometryTarget(target, version.sourceOrder) } : {})
-      });
+      }), version.declaredType);
     currentByBindingId.set(version.bindingId, evaluation);
     if (version.kind === "declare" && version.control.ownerChain.length) {
       const scopeId = version.control.ownerChain.at(-1)!.scopeId;
@@ -243,7 +253,7 @@ export const createIncrementalLinearMutationEvaluator = (
     }
     const evaluation = version.initialState.kind === "poisoned" || (version.kind === "declare" && !version.initializer)
       ? poisoned(version)
-      : evaluateTypedExpression(version.kind === "declare" ? version.initializer! : version.expression, {
+      : resultForDeclaredType(evaluateTypedExpression(version.kind === "declare" ? version.initializer! : version.expression, {
         lookupBinding: resolveCurrent,
         ...(collectionResolver ? collectionResolver.environmentFor(version.sourceOrder) : {}),
         ...(resolveCollectionLength ? {
@@ -253,7 +263,7 @@ export const createIncrementalLinearMutationEvaluator = (
         } : {}),
         ...(resolveGeometryProperty ? { lookupGeometryProperty: (reference) => resolveGeometryProperty(reference, version.sourceOrder) } : {}),
         ...(resolveGeometryTarget ? { lookupGeometryTarget: (target) => resolveGeometryTarget(target, version.sourceOrder) } : {})
-      });
+      }), version.declaredType);
     const isLoopLocal = version.kind === "declare" && version.control.ownerChain.length > 0;
     if (isLoopLocal) frame.declareLocal(version.bindingId, evaluation);
     else frame.set(version.bindingId, evaluation);

@@ -2,12 +2,10 @@ import {
   isModuleGeometryInterfaceAssignable,
   type ModuleGeometryInterfaceType
 } from "./moduleGeometryInterfaces";
-import { isScalarTypeAssignable } from "../scalars/scalarAssignability";
 import {
   geometryArrayValueTypeOfDslValueType,
-  isDslGeometryValueType,
-  isDslRecordValueType,
-  isDslScalarValueType,
+  dslRequiredValueTypeOf,
+  isDslValueTypeAssignable,
   type DslArrayValueType,
   type DslNonArrayValueType,
   type DslValueType
@@ -38,7 +36,7 @@ export const dslValueTypeOfGeometryArrayType = (type: GeometryArrayType): DslArr
 
 /** Convert the canonical geometry array subset into the existing compatibility shape. */
 export const geometryArrayTypeOfDslValueType = (valueType: DslValueType | null | undefined): GeometryArrayType | null => {
-  const arrayValueType = geometryArrayValueTypeOfDslValueType(valueType);
+  const arrayValueType = geometryArrayValueTypeOfDslValueType(dslRequiredValueTypeOf(valueType));
   if (!arrayValueType) return null;
   const elementType = arrayValueType.elementType.kind;
   return elementType === "point" || elementType === "line" || elementType === "path"
@@ -72,33 +70,21 @@ export const isGeometryArrayTypeAssignable = (
 export const isDslNonArrayValueTypeAssignable = (
   actual: DslNonArrayValueType | null | undefined,
   expected: DslNonArrayValueType | null | undefined
-): boolean => {
-  if (!actual || !expected || actual.kind !== expected.kind) {
-    // Geometry keeps its existing directional line -> path rule.
-    return !!actual && !!expected && isDslGeometryValueType(actual) && isDslGeometryValueType(expected)
-      ? isModuleGeometryInterfaceAssignable(actual.kind, expected.kind)
-      : false;
-  }
-  if (isDslScalarValueType(actual) && isDslScalarValueType(expected)) return isScalarTypeAssignable(actual, expected);
-  if (isDslGeometryValueType(actual) && isDslGeometryValueType(expected)) {
-    return isModuleGeometryInterfaceAssignable(actual.kind, expected.kind);
-  }
-  if (isDslRecordValueType(actual) && isDslRecordValueType(expected)) {
-    return actual.identity !== undefined && expected.identity !== undefined
-      ? actual.identity === expected.identity
-      : actual.name === expected.name;
-  }
-  return false;
-};
+): boolean => !!actual && !!expected && isDslValueTypeAssignable(actual, expected);
 
 /** Array assignability is the existing element contract lifted one level. */
 export const isDslArrayValueTypeAssignable = (
   actual: DslArrayValueType | null | undefined,
   expected: DslArrayValueType | null | undefined
-): boolean => !!actual && !!expected && isDslNonArrayValueTypeAssignable(actual.elementType, expected.elementType);
+): boolean => !!actual && !!expected && isDslValueTypeAssignable(actual, expected);
 
 export const dslArrayValueTypeName = (type: DslArrayValueType): string => {
   const element = type.elementType;
   if (element.kind === "choice") return `choice(${element.options.join(", ")})[]`;
+  if (element.kind === "optional") {
+    const underlying = element.valueType;
+    if (underlying.kind === "choice") return `choice(${underlying.options.join(", ")})?[]`;
+    return `${underlying.kind === "record" ? underlying.name : underlying.kind}?[]`;
+  }
   return `${element.kind === "record" ? element.name : element.kind}[]`;
 };

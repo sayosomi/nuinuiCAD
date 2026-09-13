@@ -37,6 +37,21 @@ Typed scalar declarations use an explicit type annotation and initializer:
 - `set name = expression` creates a new source-order version of an existing
   `let` binding.
 
+An immutable declaration may use one postfix optional type suffix. `T?` is a
+value of `T` or `none`; `T` is assignable to `T?`, but optional values are not
+implicitly unwrapped. `none` requires the declaration's expected optional type:
+
+<!-- dsl-example: syntax-fragment -->
+```nui
+const note: string? = none
+const maybeWidth: number? = 10
+```
+
+`T?[]` means optional collection members and `T[]?` means an optional whole
+collection. `T??` is rejected, and `none` is reserved from `choice(...)`
+options. Module parameters use the same postfix form, such as
+`height: number?`; the retired `height?: number` spelling is rejected.
+
 Geometry declarations have their own category-and-construction form and are
 described in [Constructions](constructions.md). Records are also `const`-only;
 see [Records](records.md). A declaration is visible only after its source
@@ -133,13 +148,14 @@ reference, or supported indexed record-collection member of the same nominal
 type. At runtime the condition is evaluated first and only the selected branch
 is evaluated. Geometry branches may be existing `@` references or implemented
 pure geometry constructions. Collection-valued `if` and exhaustive `match` are
-supported; optional result values remain deferred.
+supported. An omitted `else` is legal only when the expected declaration type
+is optional and contributes ordinary `none`.
 
-### Exhaustive choice value-match
+### Exhaustive value-match
 
 Scalar, choice, geometry, and nominal-record declarations may also select a
 value with an exhaustive
-`match` over a concrete `choice(...)` expression:
+`match` over a concrete `choice(...)` or optional expression:
 
 <!-- dsl-example: syntax-fragment -->
 ```nui
@@ -159,7 +175,7 @@ const selectedPair: Pair = match @side {
 }
 ```
 
-The scrutinee must have a concrete `choice(...)` type. Each declared option
+For a concrete `choice(...)` scrutinee, each declared option
 must appear exactly once as a bare case label: impossible labels, duplicate
 labels, and missing labels are deterministic diagnostics. There is no wildcard
 or default arm. Every arm result is parsed and typechecked; results may be
@@ -171,11 +187,13 @@ evaluated. Geometry arms must share the declaration's `point`, `line`, or
 constructions. Record arms must share the declared record definition's exact
 nominal identity and may use constructors, whole-record references, or
 supported indexed record-collection members. Collection match values are
-supported recursively; optional `none`/`some` match values remain deferred.
+supported recursively. An optional scrutinee instead uses exactly one `none`
+arm and one `some <binder>` arm; the binder is branch-local and has the
+underlying non-optional type.
 
 ### Collection value-if and value-match
 
-An `if` or exhaustive choice `match` may produce a one-dimensional collection
+An `if` or exhaustive choice/optional `match` may produce a one-dimensional collection
 when every branch or arm has the same declared collection type:
 
 <!-- dsl-example: syntax-fragment -->
@@ -192,8 +210,7 @@ conditional collection may feed existing point, line, or path consumers when
 its element type is assignable to the required geometry interface. Nominal
 record collections preserve their declared record identity and indexed field
 consumption. Collection control flow is lazy: the unselected branch or arm is
-not evaluated. Nested arrays and optional result values remain outside the
-current language surface.
+not evaluated. Nested arrays remain outside the current language surface.
 
 ### Collection value-for
 

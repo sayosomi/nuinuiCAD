@@ -61,28 +61,38 @@ describe("DSL module source AST", () => {
     expect(parsed.statements[3].enclosing).toEqual({ statementIndex: 2, branch: "then" });
   });
 
-  it("parses optional module parameter markers without including `?` in the name span", () => {
+  it("parses optional module parameter types and keeps `?` in the type span", () => {
     const source = [
       "nui 1",
-      "module M(value?: number, anchor?: point) {",
+      "module M(value: number?, anchor: point?) {",
       "}"
     ].join("\n");
     const parsed = parseDslSnapshot({ normalizedSource: source, sourceRevision: 9 });
     expect(parsed.diagnostics).toEqual([]);
     const definition = moduleDefinition(parsed.statements)!;
     expect(definition.parameters).toMatchObject([
-      { name: "value", optional: true, type: { kind: "number" } },
-      { name: "anchor", optional: true, type: { kind: "point" } }
+      { name: "value", valueType: { kind: "optional", valueType: { kind: "number" } }, type: { kind: "number" } },
+      { name: "anchor", valueType: { kind: "optional", valueType: { kind: "point" } }, type: { kind: "point" } }
     ]);
     const value = definition.parameters[0];
     expect(source.slice(value.namePhysicalSpan!.segments[0].from, value.namePhysicalSpan!.segments[0].to)).toBe("value");
-    expect(source.slice(value.optionalPhysicalSpan!.segments[0].from, value.optionalPhysicalSpan!.segments[0].to)).toBe("?");
+    expect(source.slice(value.typePhysicalSpan!.segments[0].from, value.typePhysicalSpan!.segments[0].to)).toBe("number?");
   });
 
-  it("rejects optional parameters with defaults", () => {
-    const parsed = parseDsl("nui 1\nmodule M(value?: number = 1) {\n}");
+  it("accepts defaults independently of optionality", () => {
+    const parsed = parseDsl("nui 1\nmodule M(value: number? = 1) {\n}");
+    expect(parsed.diagnostics).toEqual([]);
+    expect(moduleDefinition(parsed.statements)?.parameters[0]).toMatchObject({
+      valueType: { kind: "optional", valueType: { kind: "number" } },
+      defaultValue: "1"
+    });
+  });
+
+  it("rejects the retired name?: type module syntax", () => {
+    const parsed = parseDsl("nui 1\nmodule M(value?: number) {\n}");
     expect(parsed.diagnostics).toEqual(expect.arrayContaining([
-      expect.objectContaining({ code: "module-optional-default-conflict" })
+      expect.objectContaining({ code: "unknown-type" }),
+      expect.objectContaining({ message: expect.stringContaining("名前: 型") })
     ]));
   });
 
@@ -183,32 +193,32 @@ describe("DSL module source AST", () => {
     ]);
   });
 
-  it.each(["visible", "hidden", "disabled"] as const)("parses nui1 instance state option: %s", (state) => {
-    const parsed = parseDsl(`nui 1\ninstance foo(state: ${state}) = M(value: 1)`);
+  it.each([["visible", "false"], ["visible", "true"], ["enabled", "false"], ["enabled", "true"]] as const)("parses nui1 instance gate option: %s=%s", (name, value) => {
+    const parsed = parseDsl(`nui 1\ninstance foo(${name}: ${value}) = M(value: 1)`);
     expect(parsed.diagnostics).toEqual([]);
     expect(parsed.statements[1]).toMatchObject({
       kind: "moduleInstance",
-      options: [{ name: "state", value: state }],
+      options: [{ name, value }],
       arguments: [{ label: "value", value: "1" }]
     });
   });
 
-  it.each(["visible", "hidden", "disabled"] as const)("parses module instance state option: %s", (state) => {
-    const parsed = parseDsl(`nui 1\ninstance X(state: ${state}) = M(state: true)`);
+  it.each([["visible", "false"], ["enabled", "false"]] as const)("parses module instance gate option: %s=%s", (name, value) => {
+    const parsed = parseDsl(`nui 1\ninstance X(${name}: ${value}) = M(state: true)`);
     expect(parsed.diagnostics).toEqual([]);
     const instance = parsed.statements[1];
     expect(instance).toMatchObject({ kind: "moduleInstance", name: "X", moduleName: "M" });
     if (instance.kind !== "moduleInstance") return;
-    const logicalText = `instance X(state: ${state}) = M(state: true)`;
+    const logicalText = `instance X(${name}: ${value}) = M(state: true)`;
     expect(instance.options).toMatchObject([
-      { kind: "moduleInstanceOption", name: "state", value: state }
+      { kind: "moduleInstanceOption", name, value }
     ]);
     expect(instance.arguments).toMatchObject([
       { kind: "moduleArgument", label: "state", value: "true" }
     ]);
     expect(instance.payloadSpans.options).toBeDefined();
     expect(instance.payloadSpans.arguments).toBeDefined();
-    expect(logicalText.slice(instance.payloadSpans.options!.start, instance.payloadSpans.options!.end)).toBe(`state: ${state}`);
+    expect(logicalText.slice(instance.payloadSpans.options!.start, instance.payloadSpans.options!.end)).toBe(`${name}: ${value}`);
     expect(logicalText.slice(instance.payloadSpans.arguments!.start, instance.payloadSpans.arguments!.end)).toBe("state: true");
   });
 
@@ -222,7 +232,7 @@ describe("DSL module source AST", () => {
       "nui 1",
       "module M(state: boolean) {",
       "}",
-      "instance X(state: hidden) = M(state: true)"
+      "instance X(visible: false) = M(state: true)"
     ].join("\n"));
     expect(parsed.diagnostics).toEqual([]);
     expect(parsed.statements[1]).toMatchObject({
@@ -231,7 +241,7 @@ describe("DSL module source AST", () => {
     });
     expect(parsed.statements[3]).toMatchObject({
       kind: "moduleInstance",
-      options: [{ name: "state", value: "hidden" }],
+      options: [{ name: "visible", value: "false" }],
       arguments: [{ label: "state", value: "true" }]
     });
   });
@@ -240,7 +250,7 @@ describe("DSL module source AST", () => {
     const source = [
       "nui 1",
       "instance X(",
-      "  state: hidden",
+      "  visible: false",
       ") = M(",
       "  state: true",
       ")"
@@ -256,14 +266,14 @@ describe("DSL module source AST", () => {
     expect(source.slice(
       option.namePhysicalSpan!.segments[0].from,
       option.namePhysicalSpan!.segments[0].to
-    )).toBe("state");
+    )).toBe("visible");
     expect(source.slice(
       option.valuePhysicalSpan!.segments[0].from,
       option.valuePhysicalSpan!.segments[0].to
-    )).toBe("hidden");
+    )).toBe("false");
     expect(instance.payloadSpans.options).toBeDefined();
     expect(instance.payloadPhysicalSpans?.options?.segments.map((segment) => source.slice(segment.from, segment.to)).join(""))
-      .toContain("state: hidden");
+      .toContain("visible: false");
     expect(instance.payloadPhysicalSpans?.arguments?.segments.map((segment) => source.slice(segment.from, segment.to)).join(""))
       .toContain("state: true");
     expect(option.namePhysicalSpan?.sourceRevision).toBe(31);
@@ -315,7 +325,7 @@ describe("DSL module syntax diagnostics", () => {
     { source: "instance X = M(A: 1", label: "unclosed argument list", message: "module argument list の「(」が閉じられていません。", spanText: "(" },
     { source: "instance X = M(10)", label: "argument label", message: "module argument は名前付き引数で指定してください。", spanText: "10" },
     { source: "instance X = M(A:)", label: "argument value", message: "引数「A」の値がありません。", code: "missing-attribute-value", spanText: "" },
-    { source: "instance X(state: nope) = M()", label: "nui1 invalid instance state", message: "state は visible/hidden/disabled のいずれかで指定してください。", spanText: "nope" },
+    { source: "instance X(enabled: nope) = M()", label: "nui1 invalid instance gate", message: "enabled は true/false または共有 boolean 参照で指定してください。", spanText: "nope" },
     { source: "instance X(foo: hidden) = M()", label: "nui1 invalid instance option", message: "module instance option「foo」", spanText: "foo" },
   ] as const;
 
@@ -350,7 +360,7 @@ describe("DSL module syntax diagnostics", () => {
     expect(parsed.diagnostics.filter((diagnostic) => diagnostic.code === "missing-argument-comma")).toHaveLength(2);
   });
 
-  it("applies named-only, duplicate, unknown, and state-literal validation to instance options", () => {
+  it("applies named-only, duplicate, unknown, and gate-literal validation to instance options", () => {
     const cases = [
       {
         source: "instance X(hidden) = M()",
@@ -361,16 +371,16 @@ describe("DSL module syntax diagnostics", () => {
         message: "module instance option「foo」"
       },
       {
-        source: "instance X(state: nope) = M()",
-        message: "state は visible/hidden/disabled のいずれかで指定してください。"
+        source: "instance X(enabled: nope) = M()",
+        message: "enabled は true/false または共有 boolean 参照で指定してください。"
       },
       {
-        source: "instance X(state:) = M()",
-        message: "引数「state」の値がありません。"
+        source: "instance X(enabled:) = M()",
+        message: "引数「enabled」の値がありません。"
       },
       {
-        source: "instance X(state: hidden, state: visible) = M()",
-        message: "引数「state」が重複しています。"
+        source: "instance X(enabled: false, enabled: true) = M()",
+        message: "引数「enabled」が重複しています。"
       }
     ] as const;
 
@@ -381,11 +391,11 @@ describe("DSL module syntax diagnostics", () => {
   });
 
   it("requires commas between instance options", () => {
-    const parsed = parseDsl("nui 1\ninstance X(state: hidden foo: visible) = M()");
+    const parsed = parseDsl("nui 1\ninstance X(visible: false foo: visible) = M()");
     expect(parsed.diagnostics.filter((diagnostic) => diagnostic.code === "missing-argument-comma")).toHaveLength(1);
   });
 
-  it("accepts export as a modifier on a typed scalar declaration", () => {
+  it("accepts export as a style on a typed scalar declaration", () => {
     const source = "nui 1\nexport const length: number = 1";
     const parsed = parseDslSnapshot({ normalizedSource: source, sourceRevision: 9 });
     expect(parsed.diagnostics).toEqual([]);

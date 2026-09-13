@@ -11,6 +11,7 @@ import { buildForGroupMutationOwners, forGroupMutationOwnerByElementId } from ".
 import { compileDslDocument } from "./dslDocument";
 import { parseDsl } from "./dslParser";
 import { moduleRecordExportFieldBindingIdFor } from "../scalars/moduleScalarRuntime";
+import { pickCandidates } from "../model/pickCandidates";
 
 const compileWithIds = (source: string, prefix = "task6") => {
   const parsed = parseDsl(source);
@@ -29,6 +30,7 @@ const evaluateCompiled = (compiled: ReturnType<typeof compileWithIds>) => {
     bindingVersions: compiled.bindingVersions,
     geometryInputTargetsByElementId: compiled.moduleGeometryRuntime?.geometryInputTargetsByRuntimeElementId,
     geometryCollectionNodesByValueId: compiled.moduleGeometryRuntime?.geometryCollectionNodesByValueId,
+    geometryValueProgram: compiled.geometryValueProgram,
     statementInfoByElementId: compiled.statementMap.byElementId,
     statementIdByStatementIndex: compiled.statementMap.statementIdByStatementIndex,
     sourceExecutionPositionByElementId: compiled.moduleMaterialization?.sourceExecutionPositionByRuntimeElementId,
@@ -117,6 +119,138 @@ const expectValid = (compiled: ReturnType<typeof compileWithIds>) => {
 };
 
 describe("module scalar runtime integration", () => {
+  it("resolves generated drawable occurrences by explicit and loop-variable index", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 100, y: 0)",
+      "for i in range(min: 0, max: 1, step: 1) {",
+      "  line Mark = segment(start: @A, end: @B)",
+      "  line Out = offset(sources: [@Mark[@i]], distance: @Mark[@i].length, side: left, closed: false, suppressTrimWarnings: false)",
+      "}"
+    ].join("\n"), "for-group-occurrence-index");
+    expectValid(compiled);
+    const evaluated = evaluateCompiled(compiled);
+    expect(evaluated.errors).toEqual([]);
+    const outputs = [...evaluated.computedGeometry.entries()]
+      .filter(([id, geometry]) => id.includes("@for-group-occurrence-index:") && geometry.kind === "offsetLine")
+      .map(([, geometry]) => geometry);
+    expect(outputs).toHaveLength(2);
+    expect(outputs.every((geometry) => geometry.kind === "offsetLine" && geometry.length === 100)).toBe(true);
+  });
+
+  it("resolves occurrence targets in a materialized module body", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "module M() {",
+      "  point A = coordinate(x: 0, y: 0)",
+      "  point B = coordinate(x: 100, y: 0)",
+      "  for i in range(min: 0, max: 1, step: 1) {",
+      "    line Mark = segment(start: @A, end: @B)",
+      "    line Out = offset(sources: [@Mark[@i]], distance: @Mark[@i].length, side: left, closed: false, suppressTrimWarnings: false)",
+      "  }",
+      "}",
+      "instance One = M()"
+    ].join("\n"), "module-for-group-occurrence-index");
+    expectValid(compiled);
+    const evaluated = evaluateCompiled(compiled);
+    expect(evaluated.errors).toEqual([]);
+    expect([...evaluated.computedGeometry.values()].filter((geometry) => geometry.kind === "offsetLine")).toHaveLength(2);
+  });
+
+  it("serializes materialized module forGroup picks with authored occurrence ordinals", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "module M() {",
+      "  point A = coordinate(x: 0, y: 0)",
+      "  point B = coordinate(x: 100, y: 0)",
+      "  for i in range(min: 0, max: 1, step: 1) {",
+      "    line Mark = segment(start: @A, end: @B)",
+      "    line Target = segment(start: (0, 0), end: (1, 0))",
+      "  }",
+      "}",
+      "instance One = M()",
+      "line RootTarget = segment(start: (0, 0), end: (1, 0))"
+    ].join("\n"), "module-for-group-pick");
+    expectValid(compiled);
+    const evaluated = evaluateCompiled(compiled);
+    expect(evaluated.errors).toEqual([]);
+    const instance = elementNamed(compiled, "One");
+    const target = compiled.document!.elements.find((element) =>
+      element.name === "Target" &&
+      element.parentGroupId !== undefined &&
+      compiled.document!.elements.find((parent) => parent.id === element.parentGroupId)?.parentGroupId === instance.id
+    );
+    const mark = compiled.document!.elements.find((element) =>
+      element.name === "Mark" &&
+      element.parentGroupId !== undefined &&
+      compiled.document!.elements.find((parent) => parent.id === element.parentGroupId)?.parentGroupId === instance.id
+    );
+    expect(target).toBeDefined();
+    expect(mark).toBeDefined();
+    if (!target || !mark) return;
+    const candidates = pickCandidates(compiled.document!.elements, evaluated, {
+      activePointPickTarget: null,
+      activeLinePickTarget: { elementId: target.id, parameterKey: "baseLineIds" },
+      activeNumericReferencePickTarget: null,
+      moduleSemanticContext: {
+        moduleMaterialization: compiled.moduleMaterialization,
+        moduleSemanticAnalysis: compiled.moduleSemanticAnalysis,
+        sourceLexicalNamespace: compiled.sourceLexicalNamespace,
+        statementInfoByElementId: compiled.statementMap!.byElementId
+      }
+    });
+    const generated = candidates
+      .filter((candidate) => candidate.referenceElementId === mark.id)
+      .flatMap((candidate) => candidate.options.flatMap((option) =>
+        option.kind === "point" || option.kind === "line" ? [option.sourceReference] : []
+      ));
+    expect(generated).toEqual([
+      { base: "Mark", occurrenceIndex: 0 },
+      { base: "Mark", occurrenceIndex: 1 }
+    ]);
+  });
+
+  it("retains nested forGroup occurrence paths while resolving the inner drawable", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 100, y: 0)",
+      "for i in range(min: 0, max: 1, step: 1) {",
+      "  for j in range(min: 0, max: 1, step: 1) {",
+      "    line Mark = segment(start: @A, end: @B)",
+      "    line Out = offset(sources: [@Mark[0]], distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
+      "  }",
+      "}"
+    ].join("\n"), "nested-for-group-occurrence-index");
+    expectValid(compiled);
+    const evaluated = evaluateCompiled(compiled);
+    expect(evaluated.errors).toEqual([]);
+    const rows = (evaluated.forGroupGeneratedRows ?? []).filter((row) => row.elementName.includes("Out"));
+    expect(rows).toHaveLength(4);
+    expect(rows.every((row) => row.occurrencePath.length > 0)).toBe(true);
+    expect(rows.every((row) => row.occurrencePath.length === 2)).toBe(true);
+  });
+
+  it("reports invalid, out-of-range, and ambiguous generated occurrence references", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "const negative: number = -1",
+      "for i in range(min: 0, max: 1, step: 1) {",
+      "  line Mark = segment(start: (0, 0), end: (100, 0))",
+      "  line BadNegative = offset(sources: [@Mark[@negative]], distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
+      "  line BadFractional = offset(sources: [@Mark[0.5]], distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
+      "  line BadRange = offset(sources: [@Mark[9]], distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
+      "  line Ambiguous = offset(sources: [@Mark], distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
+      "}"
+    ].join("\n"), "for-group-occurrence-errors");
+    expectValid(compiled);
+    const result = evaluateCompiled(compiled);
+    expect(result.errors.filter((error) => error.message.includes("evaluation-collection-index-invalid"))).not.toHaveLength(0);
+    expect(result.errors.filter((error) => error.message.includes("evaluation-collection-index-unavailable"))).not.toHaveLength(0);
+    expect([...result.computedGeometry.values()].filter((geometry) => geometry.kind === "offsetLine")).toHaveLength(0);
+  });
+
   it("evaluates conditional collection length and index for both selected branches", () => {
     for (const [flag, expectedLength, expectedItem] of [
       [true, 1, 1],
@@ -145,12 +279,13 @@ describe("module scalar runtime integration", () => {
   it("short-circuits omitted optional collection values before an unsafe RHS", () => {
     const compiled = compileWithIds([
       "nui 1",
-      "module M(optional?: number) {",
-      "  const selected: number[] = if (hasValue(@optional) and @optional > 0) { [@optional, @optional] } else { [42] }",
+      "const supplied: number[] = [7, 8]",
+      "module M(optional: number[]?) {",
+      "  const selected: number[] = @optional ?? [42]",
       "  const count: number = @selected.length",
       "}",
       "instance Absent = M()",
-      "instance Present = M(optional: 7)"
+      "instance Present = M(optional: @supplied)"
     ].join("\n"), "optional-collection-short-circuit");
     expectValid(compiled);
     const evaluated = evaluateCompiled(compiled);
@@ -417,10 +552,10 @@ describe("module scalar runtime integration", () => {
       "nui 1",
       "",
       "module M(",
-      "  value?: number,",
+      "  value: number?,",
       ") {",
-      "  if (hasValue(@value) and @value > 0) {",
-      "    const okay: number = @value",
+      "  if ((@value ?? 0) > 0) {",
+      "    const okay: number = @value ?? 0",
       "  }",
       "}",
       "",
@@ -434,9 +569,9 @@ describe("module scalar runtime integration", () => {
   it("keeps omitted optional scalars absent and materializes supplied values", () => {
     const compiled = compileWithIds([
       "nui 1",
-      "module M(value?: number) {",
-      "  if (hasValue(@value) and @value > 0) {",
-      "    const okay: number = @value",
+      "module M(value: number?) {",
+      "  if ((@value ?? 0) > 0) {",
+      "    const okay: number = @value ?? 0",
       "    point P = coordinate(x: @okay, y: 0)",
       "  }",
       "}",
@@ -454,17 +589,17 @@ describe("module scalar runtime integration", () => {
       expect.objectContaining({ kind: "point", x: 4, y: 0 })
     ]);
     const parameterBindings = compiled.bindingAnalysis!.catalog.bindings.filter((binding) => binding.name === "value");
-    expect(parameterBindings).toHaveLength(1);
+    expect(parameterBindings).toHaveLength(2);
   });
 
   it("keeps omitted optional module placeholders monotonic in the Rust mutation payload", () => {
     const compiled = compileWithIds([
       "nui 1",
       "",
-      "module M(value?: number) {",
-      "  if (hasValue(@value) and @value > 0) {",
+      "module M(value: number?) {",
+      "  if ((@value ?? 0) > 0) {",
       "    point P = coordinate(",
-      "      x: @value,",
+      "      x: @value ?? 0,",
       "      y: 10,",
       "    )",
       "  }",
@@ -494,7 +629,7 @@ describe("module scalar runtime integration", () => {
 
     const sourceOrders = input.bindingVersions!.elementSourceOrders;
     expect(sourceOrders).toHaveLength(document.elements.length);
-    expect(sourceOrders.map((entry) => entry.sourceOrder)).toEqual([0, 1, 1, 2, 4, 5]);
+    expect(sourceOrders.map((entry) => entry.sourceOrder)).toEqual([0, 2, 3, 4, 6, 7]);
     for (let index = 1; index < sourceOrders.length; index += 1) {
       expect(sourceOrders[index].sourceOrder).toBeGreaterThanOrEqual(sourceOrders[index - 1].sourceOrder);
     }
@@ -522,10 +657,10 @@ describe("module scalar runtime integration", () => {
   it("does not lower an else-local when a negated optional presence guard is false", () => {
     const compiled = compileWithIds([
       "nui 1",
-      "module M(value?: number) {",
-      "  if (not hasValue(@value)) {",
+      "module M(value: number?) {",
+      "  if ((@value ?? 0) > 0) {",
       "  } else {",
-      "    const okay: number = @value",
+      "    const okay: number = @value ?? 0",
       "  }",
       "}",
       "instance Use = M()"
@@ -535,26 +670,25 @@ describe("module scalar runtime integration", () => {
     expect(evaluateCompiled(compiled).errors).toEqual([]);
   });
 
-  it("evaluates hasValue in a boolean default per concrete module instance", () => {
+  it("keeps defaulted optional Module values distinct from explicit none", () => {
     const compiled = compileWithIds([
       "nui 1",
-      "module M(value?: number, enabled: boolean = hasValue(@value)) {",
-      "  let marker: number = 0",
-      "  if (@enabled) {",
-      "    set marker = 1",
-      "    point P = coordinate(x: @marker, y: 0)",
-      "  }",
+      "module M(value: number?, fallback: number? = 10) {",
+      "  const selected: number = @fallback ?? 0",
+      "  point P = coordinate(x: @selected, y: 0)",
       "}",
-      "instance Absent = M()",
-      "instance Present = M(value: 4)"
+      "instance Omitted = M()",
+      "instance ExplicitNone = M(fallback: none)",
+      "instance Present = M(fallback: 4)"
     ].join("\n"));
     expectValid(compiled);
     const result = evaluateCompiled(compiled);
     expect(result.errors).toEqual([]);
     const points = compiled.document!.elements.filter((element) => element.name === "P");
     expect(points.map((point) => result.computedGeometry.get(point.id))).toEqual([
-      undefined,
-      expect.objectContaining({ kind: "point", x: 1, y: 0 })
+      expect.objectContaining({ kind: "point", x: 10, y: 0 }),
+      expect.objectContaining({ kind: "point", x: 0, y: 0 }),
+      expect.objectContaining({ kind: "point", x: 4, y: 0 })
     ]);
   });
 
@@ -632,6 +766,303 @@ describe("module scalar runtime integration", () => {
       type: { kind: "number" },
       value: { kind: "number", value: 0 }
     });
+  });
+
+  it("evaluates a geometry builtin operand projected from a root record field", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "point P = coordinate(x: 3, y: 4)",
+      "line Baseline = segment(start: (0, 0), end: (10, 0))",
+      "record Piece(edge: line)",
+      "const piece: Piece = Piece(edge: @Baseline)",
+      "const distanceFromEdge: number = lineDistance(@P, @piece.edge)"
+    ].join("\n"), "record-geometry-builtin");
+    expectValid(compiled);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const binding = compiled.bindingAnalysis!.catalog.bindings.find((candidate) =>
+      candidate.kind === "typed" && candidate.name === "distanceFromEdge"
+    );
+    expect(binding).toBeDefined();
+    expect(result.computedScalarBindings?.get(binding!.id)).toEqual({
+      status: "ok",
+      type: { kind: "number" },
+      value: { kind: "number", value: 4 }
+    });
+  });
+
+  it("evaluates geometry record fields in a Module-local record value", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "point P = coordinate(x: 3, y: 4)",
+      "line Baseline = segment(start: (0, 0), end: (10, 0))",
+      "record Piece(edge: line)",
+      "module Example(p: point, edge: line) {",
+      "  const piece: Piece = Piece(edge: @edge)",
+      "  const distanceFromEdge: number = lineDistance(@p, @piece.edge)",
+      "}",
+      "instance Use = Example(p: @P, edge: @Baseline)"
+    ].join("\n"), "record-module-geometry");
+    expectValid(compiled);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const binding = compiled.bindingAnalysis!.catalog.bindings.find((candidate) =>
+      candidate.kind === "typed" && candidate.name === "distanceFromEdge"
+    );
+    expect(binding).toBeDefined();
+    expect(result.computedScalarBindings?.get(binding!.id)).toEqual({
+      status: "ok",
+      type: { kind: "number" },
+      value: { kind: "number", value: 4 }
+    });
+  });
+
+  it("evaluates nested record members and record collection length/index", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "record Metadata(label: string)",
+      "record Piece(x: number, metadata: Metadata)",
+      'const first: Piece = Piece(x: 1, metadata: Metadata(label: "first"))',
+      'const second: Piece = Piece(x: 2, metadata: Metadata(label: "second"))',
+      "const pieces: Piece[] = [@first, @second]",
+      "const count: number = @pieces.length",
+      "const selectedX: number = @pieces[1].x",
+      "const selectedLabel: string = @pieces[1].metadata.label"
+    ].join("\n"), "record-collection-runtime");
+    expectValid(compiled);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const scalarValue = (name: string) => {
+      const binding = compiled.bindingAnalysis!.catalog.bindings.find((candidate) =>
+        candidate.kind === "typed" && candidate.name === name
+      );
+      expect(binding).toBeDefined();
+      return result.computedScalarBindings?.get(binding!.id);
+    };
+    expect(scalarValue("count")).toMatchObject({ status: "ok", value: { kind: "number", value: 2 } });
+    expect(scalarValue("selectedX")).toMatchObject({ status: "ok", value: { kind: "number", value: 2 } });
+    expect(scalarValue("selectedLabel")).toMatchObject({ status: "ok", value: { kind: "string", value: "second" } });
+  });
+
+  it("evaluates nested fields in mapped record collections", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "record Metadata(label: string)",
+      "record Piece(x: number, metadata: Metadata)",
+      'const first: Piece = Piece(x: 1, metadata: Metadata(label: "first"))',
+      'const second: Piece = Piece(x: 2, metadata: Metadata(label: "second"))',
+      "const pieces: Piece[] = [@first, @second]",
+      'const mapped: Piece[] = for item in @pieces { Piece(x: @item.x + 10, metadata: Metadata(label: @item.metadata.label)) }',
+      "const selectedX: number = @mapped[1].x",
+      "const selectedLabel: string = @mapped[1].metadata.label"
+    ].join("\n"), "record-mapped-nested");
+    expectValid(compiled);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const scalarValue = (name: string) => {
+      const binding = compiled.bindingAnalysis!.catalog.bindings.find((candidate) =>
+        candidate.kind === "typed" && candidate.name === name
+      );
+      expect(binding).toBeDefined();
+      return result.computedScalarBindings?.get(binding!.id);
+    };
+    expect(scalarValue("selectedX")).toMatchObject({ status: "ok", value: { kind: "number", value: 12 } });
+    expect(scalarValue("selectedLabel")).toMatchObject({ status: "ok", value: { kind: "string", value: "second" } });
+  });
+
+  it("resolves geometry-valued record fields and collection members through existing geometry consumers", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line Baseline = segment(start: @A, end: @B)",
+      "record Piece(outline: path, edge: line, points: point[])",
+      "const piece: Piece = Piece(outline: @Baseline, edge: @Baseline, points: [@A, @B])",
+      "const outlineLength: number = @piece.outline.length",
+      "const firstPointX: number = @piece.points[1].x",
+      "const height: number = lineDistance(@B, @piece.edge)"
+    ].join("\n"), "record-geometry-collection-runtime");
+    expectValid(compiled);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const scalarValue = (name: string) => {
+      const binding = compiled.bindingAnalysis!.catalog.bindings.find((candidate) =>
+        candidate.kind === "typed" && candidate.name === name
+      );
+      expect(binding).toBeDefined();
+      return result.computedScalarBindings?.get(binding!.id);
+    };
+    expect(scalarValue("outlineLength")).toMatchObject({ status: "ok", value: { kind: "number", value: 10 } });
+    expect(scalarValue("firstPointX")).toMatchObject({ status: "ok", value: { kind: "number", value: 10 } });
+    expect(scalarValue("height")).toMatchObject({ status: "ok", value: { kind: "number", value: 0 } });
+  });
+
+  it("evaluates a pure geometry construction projected from a record field", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "record Piece(outline: path)",
+      "const piece: Piece = Piece(outline: polyline(points: [(0, 0), (10, 0)], closed: false))",
+      "const outlineLength: number = @piece.outline.length"
+    ].join("\n"), "record-geometry-construction-runtime");
+    expectValid(compiled);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const binding = compiled.bindingAnalysis!.catalog.bindings.find((candidate) =>
+      candidate.kind === "typed" && candidate.name === "outlineLength"
+    );
+    expect(binding).toBeDefined();
+    expect(result.computedScalarBindings?.get(binding!.id)).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 10 }
+    });
+  });
+
+  it("short-circuits optional record-field geometry access and preserves present values", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line Baseline = segment(start: @A, end: @B)",
+      "record Piece(note: string?, outline: path?)",
+      "const present: Piece? = Piece(note: \"present\", outline: @Baseline)",
+      "const absent: Piece? = none",
+      "const presentNote: string? = @present?.note",
+      "const absentNote: string? = @absent?.note",
+      "const absentRecord: Piece = Piece(note: \"record\", outline: none)",
+      "const presentRecordLength: number? = @present.outline?.length",
+      "const absentRecordLength: number? = @absentRecord.outline?.length",
+      "const presentOutline: path? = @Baseline",
+      "const absentOutline: path? = none",
+      "const presentLength: number? = @presentOutline?.length",
+      "const absentLength: number? = @absentOutline?.length"
+    ].join("\n"), "optional-record-geometry-runtime");
+    expectValid(compiled);
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const scalarValue = (name: string) => {
+      const binding = compiled.bindingAnalysis!.catalog.bindings.find((candidate) =>
+        candidate.kind === "typed" && candidate.name === name
+      );
+      expect(binding).toBeDefined();
+      return result.computedScalarBindings?.get(binding!.id);
+    };
+    expect(scalarValue("presentNote")).toMatchObject({ status: "ok", value: { kind: "string", value: "present" } });
+    expect(scalarValue("absentNote")).toMatchObject({ status: "ok", value: { kind: "none" } });
+    expect(scalarValue("presentRecordLength")).toMatchObject({ status: "ok", value: { kind: "number", value: 10 } });
+    expect(scalarValue("absentRecordLength")).toMatchObject({ status: "ok", value: { kind: "none" } });
+    expect(scalarValue("presentLength")).toMatchObject({ status: "ok", value: { kind: "number", value: 10 } });
+    expect(scalarValue("absentLength")).toMatchObject({ status: "ok", value: { kind: "none" } });
+    const presentNoteBinding = compiled.bindingAnalysis!.catalog.bindings.find((candidate) =>
+      candidate.kind === "typed" && candidate.name === "presentNote"
+    );
+    const presentNoteInitializer = compiled.scalarProgram?.statements.find((statement) =>
+      statement.bindingId === presentNoteBinding?.id
+    )?.declaration.initializer;
+    expect(presentNoteInitializer).toMatchObject({
+      kind: "optionalMember",
+      type: { kind: "optional", valueType: { kind: "string" } }
+    });
+  });
+
+  it("evaluates optional collection cardinality for present and none collections", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "const present: number[]? = [1, 2, 3]",
+      "const absent: number[]? = none",
+      "const presentCount: number? = @present?.length",
+      "const absentCount: number? = @absent?.length"
+    ].join("\n"), "optional-collection-runtime");
+    expectValid(compiled);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const scalarValue = (name: string) => {
+      const binding = compiled.bindingAnalysis!.catalog.bindings.find((candidate) =>
+        candidate.kind === "typed" && candidate.name === name
+      );
+      expect(binding).toBeDefined();
+      return result.computedScalarBindings?.get(binding!.id);
+    };
+    expect(scalarValue("presentCount")).toMatchObject({ status: "ok", value: { kind: "number", value: 3 } });
+    expect(scalarValue("absentCount")).toMatchObject({ status: "ok", value: { kind: "none" } });
+  });
+
+  it("rejects optional member access on a non-optional receiver", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "const present: number[] = [1, 2]",
+      "const invalid: number? = @present?.length"
+    ].join("\n"), "optional-member-non-optional-receiver");
+    expect(compiled.diagnostics.some((diagnostic) => diagnostic.code === "module-optional-member-non-optional-receiver" || diagnostic.code === "module-scalar-type-mismatch")).toBe(true);
+  });
+
+  it("keeps unknown optional members as diagnostics", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "const present: number[]? = [1, 2]",
+      "const invalid: number? = @present?.missing"
+    ].join("\n"), "optional-member-invalid");
+    expect(compiled.diagnostics.some((diagnostic) => diagnostic.severity === "error")).toBe(true);
+  });
+
+  it("evaluates constructed geometry record fields through a Module parameter", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "record Piece(outline: path)",
+      "module Consumer(input: Piece) {",
+      "  const outlineLength: number = @input.outline.length",
+      "}",
+      "instance Use = Consumer(input: Piece(outline: polyline(points: [(0, 0), (10, 0)], closed: false)))"
+    ].join("\n"), "record-geometry-construction-parameter-runtime");
+    expectValid(compiled);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const binding = compiled.bindingAnalysis!.catalog.bindings.find((candidate) =>
+      candidate.kind === "typed" && candidate.name === "outlineLength"
+    );
+    expect(binding).toBeDefined();
+    expect(result.computedScalarBindings?.get(binding!.id)).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 10 }
+    });
+  });
+
+  it("passes nested record values through Module parameters and exports", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "record Metadata(label: string)",
+      "record Piece(x: number, metadata: Metadata)",
+      "module Provider() {",
+      '  export const output: Piece = Piece(x: 7, metadata: Metadata(label: "provided"))',
+      "}",
+      "module Consumer(input: Piece) {",
+      "  const copy: Piece = @input",
+      "  const x: number = @copy.x",
+      "  const label: string = @copy.metadata.label",
+      "}",
+      "instance Source = Provider()",
+      "instance Use = Consumer(input: @Source::output)"
+    ].join("\n"), "record-module-nested");
+    expectValid(compiled);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const value = (name: string) => {
+      const binding = compiled.bindingAnalysis!.catalog.bindings.find((candidate) =>
+        candidate.kind === "typed" && candidate.name === name
+      );
+      expect(binding).toBeDefined();
+      return result.computedScalarBindings?.get(binding!.id);
+    };
+    expect(value("x")).toMatchObject({ status: "ok", value: { kind: "number", value: 7 } });
+    expect(value("label")).toMatchObject({ status: "ok", value: { kind: "string", value: "provided" } });
   });
 
   it("lowers module geometry builtin operands to each materialized runtime target", () => {
@@ -954,7 +1385,7 @@ describe("module scalar runtime integration", () => {
     const unguardedOptional = compileWithIds([
       "nui 1",
       "record Config(amount: number)",
-      "module Extracted(config?: Config) {",
+      "module Extracted(config: Config?) {",
       "const inside: number = @config.amount",
       "}",
       "instance Part = Extracted()"
@@ -1081,6 +1512,199 @@ describe("module scalar runtime integration", () => {
     expect(result.computedGeometry.get(elementNamed(compiled, "MatchResult").id)).toMatchObject({ kind: "point", x: 2, y: 0 });
   });
 
+  it.each([
+    ["present", 'const maybe: Pair? = @present', "present", 7],
+    ["none", "const maybe: Pair? = none", "fallback", 11]
+  ] as const)("coalesces a %s optional nominal record through the shared collection runtime", (_caseName, maybeInitializer, expectedLabel, expectedX) => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "record Pair(x: number, label: string)",
+      'const present: Pair = Pair(x: 7, label: "present")',
+      'const fallback: Pair = Pair(x: 11, label: "fallback")',
+      maybeInitializer,
+      "const resolved: Pair = @maybe ?? @fallback",
+      "const resolvedX: number = @resolved.x",
+      "const resolvedLabel: string = @resolved.label"
+    ].join("\n"), "optional-record-coalesce");
+    expectValid(compiled);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const resolvedX = compiled.bindingAnalysis!.catalog.bindings.find((binding) => binding.kind === "typed" && binding.name === "resolvedX");
+    const resolvedLabel = compiled.bindingAnalysis!.catalog.bindings.find((binding) => binding.kind === "typed" && binding.name === "resolvedLabel");
+    expect(resolvedX).toBeDefined();
+    expect(resolvedLabel).toBeDefined();
+    expect(result.computedScalarBindings?.get(resolvedX!.id)).toMatchObject({ status: "ok", value: { kind: "number", value: expectedX } });
+    expect(result.computedScalarBindings?.get(resolvedLabel!.id)).toMatchObject({ status: "ok", value: { kind: "string", value: expectedLabel } });
+  });
+
+  it.each([
+    ["present", "const maybe: point? = @left", 1, 2, 30, 40],
+    ["none", "const maybe: point? = none", 10, 20, 30, 40]
+  ] as const)("coalesces a %s optional geometry value lazily", (_caseName, maybeInitializer, startX, startY, endX, endY) => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "point left = coordinate(x: 1, y: 2)",
+      "point leftEnd = coordinate(x: 3, y: 4)",
+      "point fallback = coordinate(x: 10, y: 20)",
+      "point fallbackEnd = coordinate(x: 30, y: 40)",
+      maybeInitializer,
+      "const fallbackValue: point = @fallback",
+      "const resolved: point = @maybe ?? @fallbackValue",
+      "line selected = segment(start: @resolved, end: @fallbackEnd)"
+    ].join("\n"), "optional-geometry-coalesce");
+    expectValid(compiled);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometry.get(elementNamed(compiled, "selected").id)).toMatchObject({
+      kind: "line",
+      start: { x: startX, y: startY },
+      end: { x: endX, y: endY }
+    });
+  });
+
+  it.each([
+    ["present", "const maybe: point[]? = [@left, @leftEnd]", 1, 2, 3, 4],
+    ["none", "const maybe: point[]? = none", 10, 20, 30, 40]
+  ] as const)("coalesces a %s optional geometry collection lazily", (_caseName, maybeInitializer, startX, startY, endX, endY) => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "point left = coordinate(x: 1, y: 2)",
+      "point leftEnd = coordinate(x: 3, y: 4)",
+      "point fallback = coordinate(x: 10, y: 20)",
+      "point fallbackEnd = coordinate(x: 30, y: 40)",
+      maybeInitializer,
+      "const fallbackValue: point[] = [@fallback, @fallbackEnd]",
+      "const resolved: point[] = @maybe ?? @fallbackValue",
+      "line selected = segment(start: @resolved[0], end: @resolved[1])"
+    ].join("\n"), "optional-geometry-collection-coalesce");
+    expectValid(compiled);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometry.get(elementNamed(compiled, "selected").id)).toMatchObject({
+      kind: "line",
+      start: { x: startX, y: startY },
+      end: { x: endX, y: endY }
+    });
+  });
+
+  it.each([
+    ["present", "const maybe: number[]? = [1, 2]", 1],
+    ["none", "const maybe: number[]? = none", 10]
+  ] as const)("coalesces a %s optional scalar collection lazily", (_caseName, maybeInitializer, expected) => {
+    const compiled = compileWithIds([
+      "nui 1",
+      maybeInitializer,
+      "const fallback: number[] = [10, 20]",
+      "const resolved: number[] = @maybe ?? @fallback",
+      "const first: number = @resolved[0]"
+    ].join("\n"), "optional-scalar-collection-coalesce");
+    expectValid(compiled);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const first = compiled.bindingAnalysis!.catalog.bindings.find((binding) => binding.kind === "typed" && binding.name === "first");
+    expect(first).toBeDefined();
+    expect(result.computedScalarBindings?.get(first!.id)).toMatchObject({ status: "ok", value: { kind: "number", value: expected } });
+  });
+
+  it("evaluates optional nominal-record if and match results lazily", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "record Pair(x: number, label: string)",
+      "const flag: boolean = false",
+      'const note: string? = "present"',
+      'const fallback: Pair = Pair(x: 9, label: "fallback")',
+      'const fromIf: Pair? = if (@flag) { Pair(x: 1, label: "if") }',
+      'const fromMatch: Pair? = match @note { none => none some value => @fallback }',
+      "const resolvedIf: Pair = @fromIf ?? @fallback",
+      "const resolvedMatch: Pair = @fromMatch ?? @fallback",
+      "const ifX: number = @resolvedIf.x",
+      "const matchX: number = @resolvedMatch.x"
+    ].join("\n"), "optional-record-if-match");
+    expectValid(compiled);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const valueFor = (name: string) => {
+      const binding = compiled.bindingAnalysis?.catalog.bindings.find((candidate) => candidate.kind === "typed" && candidate.name === name);
+      return binding ? result.computedScalarBindings?.get(binding.id) : undefined;
+    };
+    expect(valueFor("ifX")).toMatchObject({ status: "ok", value: { kind: "number", value: 9 } });
+    expect(valueFor("matchX")).toMatchObject({ status: "ok", value: { kind: "number", value: 9 } });
+  });
+
+  it("evaluates optional scalar-collection if and match results lazily", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "const flag: boolean = false",
+      'const note: string? = "present"',
+      "const fallback: number[] = [9, 10]",
+      "const fromIf: number[]? = if (@flag) { [1, 2] }",
+      "const fromMatch: number[]? = match @note { none => none some value => [3, 4] }",
+      "const resolvedIf: number[] = @fromIf ?? @fallback",
+      "const resolvedMatch: number[] = @fromMatch ?? @fallback",
+      "const ifFirst: number = @resolvedIf[0]",
+      "const matchFirst: number = @resolvedMatch[0]"
+    ].join("\n"), "optional-collection-if-match");
+    expectValid(compiled);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const valueFor = (name: string) => {
+      const binding = compiled.bindingAnalysis?.catalog.bindings.find((candidate) => candidate.kind === "typed" && candidate.name === name);
+      return binding ? result.computedScalarBindings?.get(binding.id) : undefined;
+    };
+    expect(valueFor("ifFirst")).toMatchObject({ status: "ok", value: { kind: "number", value: 9 } });
+    expect(valueFor("matchFirst")).toMatchObject({ status: "ok", value: { kind: "number", value: 3 } });
+  });
+
+  it.each([
+    [
+      "geometry",
+      [
+        "nui 1",
+        "point pointValue = coordinate(x: 1, y: 2)",
+        "line lineValue = segment(start: @pointValue, end: @pointValue)",
+        "const maybe: point? = @pointValue",
+        "const bad: point = @maybe ?? @lineValue"
+      ].join("\n"),
+      "module-geometry-type-mismatch"
+    ],
+    [
+      "collection",
+      [
+        "nui 1",
+        "point pointValue = coordinate(x: 1, y: 2)",
+        "line lineValue = segment(start: @pointValue, end: @pointValue)",
+        "const points: point[] = [@pointValue]",
+        "const lines: line[] = [@lineValue]",
+        "const maybe: point[]? = @points",
+        "const bad: point[] = @maybe ?? @lines"
+      ].join("\n"),
+      "geometry-array-assignability-mismatch"
+    ],
+    [
+      "record",
+      [
+        "nui 1",
+        "record Pair(x: number)",
+        "record Other(x: number)",
+        "const pair: Pair = Pair(x: 1)",
+        "const other: Other = Other(x: 2)",
+        "const maybe: Pair? = @pair",
+        "const bad: Pair = @maybe ?? @other"
+      ].join("\n"),
+      "coalesce-type-mismatch"
+    ]
+  ] as const)("rejects %s coalescing RHS values with the wrong immutable type", (_family, source, code) => {
+    const compiled = compileWithIds(source, "optional-coalesce-invalid");
+    expect(compiled.diagnostics.some((diagnostic) => diagnostic.code === code)).toBe(true);
+    expect(compiled.document).toBeNull();
+  });
+
   it("statically analyzes an unselected record branch without evaluating it", () => {
     const compiled = compileWithIds([
       "nui 1",
@@ -1109,12 +1733,10 @@ describe("module scalar runtime integration", () => {
       "module Inner(input: Pair) {",
       "  export const output: Pair = @input",
       "}",
-      "module Consumer(settings?: Pair) {",
-      "  if (hasValue(@settings)) {",
-      "    const copy: Pair = @settings",
-      "    const x: number = @settings.x",
-      "    point OptionalResult = coordinate(x: @x, y: 0)",
-      "  }",
+      "module Consumer(settings: Pair?) {",
+      "  const selected: Pair = @settings ?? Pair(x: 0)",
+      "  const x: number = @selected.x",
+      "  point OptionalResult = coordinate(x: @x, y: 0)",
       "}",
       "module Parent(input: Pair) {",
       "  instance child = Inner(input: @input)",
@@ -1143,23 +1765,19 @@ describe("module scalar runtime integration", () => {
     expect(result.errors).toEqual([]);
     const points = compiled.document!.elements.filter((element) => ["OptionalResult", "NestedResult", "RootResult"].includes(element.name));
     expect(points.map((element) => result.computedGeometry.get(element.id))).toEqual([
-      undefined,
+      expect.objectContaining({ kind: "point", x: 0, y: 0 }),
       expect.objectContaining({ kind: "point", x: 8, y: 0 }),
       expect.objectContaining({ kind: "point", x: 7, y: 0 }),
       expect.objectContaining({ kind: "point", x: 7, y: 0 })
     ]);
   });
 
-  it("narrows optional scalar parameters through nested record value-if branches per instance", () => {
+  it("resolves optional scalar parameters in record values per instance", () => {
     const compiled = compileWithIds([
       "nui 1",
       "record Pair(x: number)",
-      "module Choose(value?: number) {",
-      "  const selected: Pair = if (hasValue(@value)) {",
-      "    if (@value > 0) { Pair(x: @value) } else { Pair(x: 0) }",
-      "  } else {",
-      "    Pair(x: 0)",
-      "  }",
+      "module Choose(value: number?) {",
+      "  const selected: Pair = Pair(x: @value ?? 0)",
       "  const x: number = @selected.x",
       "  point Result = coordinate(x: @x, y: 0)",
       "}",
@@ -1184,12 +1802,8 @@ describe("module scalar runtime integration", () => {
     const compiled = compileWithIds([
       "nui 1",
       "record Pair(x: number)",
-      "module Choose(input?: Pair) {",
-      "  const selected: Pair = if (hasValue(@input)) {",
-      "    @input",
-      "  } else {",
-      "    Pair(x: 0)",
-      "  }",
+      "module Choose(input: Pair?) {",
+      "  const selected: Pair = @input ?? Pair(x: 0)",
       "  const x: number = @selected.x",
       "  point Result = coordinate(x: @x, y: 0)",
       "}",
@@ -1399,8 +2013,8 @@ describe("module scalar runtime integration", () => {
       "  export point P = coordinate(x: @value, y: 0)",
       "}",
       "instance Default = M(input: 3)",
-      "instance Hidden(state: hidden) = M(input: 4)",
-      "instance Disabled(state: disabled) = M(input: 5)",
+      "instance Hidden(visible: false) = M(input: 4)",
+      "instance Disabled(enabled: false) = M(input: 5)",
       "const defaultValue: number = @Default::value",
       "const hiddenValue: number = @Hidden::value",
       "const disabledValue: number = @Disabled::value",
@@ -1907,13 +2521,12 @@ describe("module scalar runtime integration", () => {
       "const labels: string[] = [\"a\", \"a\"]",
       "const rootAlias: number[] = @values",
       "const rootLength: number = @rootAlias.length",
-      "module M(items: number[], optional?: string[]) {",
+      "module M(items: number[], optional: string[]?) {",
       "  const local: number[] = @items",
       "  const localLength: number = @local.length",
-      "  if (hasValue(@optional)) {",
-      "    const optionalLength: number = @optional.length",
-      "    point OptionalLength = coordinate(x: @optionalLength, y: 0)",
-      "  }",
+      "  const resolved: string[] = @optional ?? [\"fallback\"]",
+      "  const optionalLength: number = @resolved.length",
+      "  point OptionalLength = coordinate(x: @optionalLength, y: 0)",
       "  export const output: number[] = @local",
       "}",
       "instance Use = M(items: @values, optional: @labels)",
@@ -1935,7 +2548,7 @@ describe("module scalar runtime integration", () => {
       .filter((initializer) => initializer.kind === "geometryProperty" && initializer.collectionValueId !== undefined);
     expect(collectionInitializers).toHaveLength(4);
     expect(collectionInitializers.filter((initializer) => initializer.kind === "geometryProperty" && initializer.collectionLength === 3)).toHaveLength(3);
-    expect(collectionInitializers.filter((initializer) => initializer.kind === "geometryProperty" && initializer.collectionLength === 2)).toHaveLength(1);
+    expect(collectionInitializers.filter((initializer) => initializer.kind === "geometryProperty" && initializer.collectionLength === null)).toHaveLength(1);
   });
 
   it("evaluates indexed scalar and choice members through aliases while preserving duplicates", () => {
@@ -2284,17 +2897,16 @@ describe("module scalar runtime integration", () => {
     expect(wrongType.diagnostics.some((diagnostic) => diagnostic.severity === "error")).toBe(true);
   });
 
-  it("indexes required, local, exported, qualified, and guarded optional Module collections", () => {
+  it("indexes required, local, exported, qualified, and resolved optional Module collections", () => {
     const compiled = compileWithIds([
       "nui 1",
       "const values: number[] = [4, 8]",
-      "module M(items: number[], optional?: number[]) {",
+      "module M(items: number[], optional: number[]?) {",
       "  const local: number[] = @items",
       "  const required: number = @items[0]",
       "  const localValue: number = @local[1]",
-      "  if (hasValue(@optional)) {",
-      "    const optionalValue: number = @optional[0]",
-      "  }",
+      "  const resolvedOptional: number[] = @optional ?? []",
+      "  const optionalValue: number = @resolvedOptional[0]",
       "  export const output: number[] = @local",
       "  export const selected: number = @local[0]",
       "}",
@@ -2313,7 +2925,7 @@ describe("module scalar runtime integration", () => {
 
     const unguarded = compileWithIds([
       "nui 1",
-      "module M(optional?: number[]) {",
+      "module M(optional: number[]?) {",
       "  const selected: number = @optional[0]",
       "}",
       "instance Use = M()"

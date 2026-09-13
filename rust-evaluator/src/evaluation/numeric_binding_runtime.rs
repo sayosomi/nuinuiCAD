@@ -119,8 +119,15 @@ fn validate_typed_expression_runtime_targets(
                     }
                 }
             }
-            TypedScalarExpression::GeometryProperty { element_id, .. } => {
-                if !elements_by_id.contains_key(element_id.as_str()) {
+            TypedScalarExpression::GeometryProperty {
+                element_id,
+                for_group_template_element_id,
+                ..
+            } => {
+                let target_element_id = for_group_template_element_id
+                    .as_deref()
+                    .unwrap_or(element_id.as_str());
+                if !elements_by_id.contains_key(target_element_id) {
                     return Err(payload_error(
                         "numeric binding typedExpression geometry target does not match an element",
                     ));
@@ -163,7 +170,11 @@ fn validate_typed_expression_runtime_targets(
                         ..
                     } = argument
                     {
-                        if !elements_by_id.contains_key(target.statement_id.as_str()) {
+                        let target_element_id = target
+                            .for_group_template_element_id
+                            .as_deref()
+                            .unwrap_or(target.statement_id.as_str());
+                        if !elements_by_id.contains_key(target_element_id) {
                             return Err(payload_error(
                                 "numeric binding typedExpression geometry target does not match an element",
                             ));
@@ -174,7 +185,9 @@ fn validate_typed_expression_runtime_targets(
             TypedScalarExpression::NumberLiteral { .. }
             | TypedScalarExpression::StringLiteral { .. }
             | TypedScalarExpression::BooleanLiteral { .. }
-            | TypedScalarExpression::ChoiceLiteral { .. } => {}
+            | TypedScalarExpression::NoneLiteral { .. }
+            | TypedScalarExpression::ChoiceLiteral { .. }
+            | TypedScalarExpression::OptionalMember { .. } => {}
         }
     }
     Ok(())
@@ -569,6 +582,8 @@ mod tests {
             geometry_input_targets: HashMap::new(),
             geometry_collection_nodes: HashMap::new(),
             geometry_value_binders: HashMap::new(),
+            for_group_generated_rows: Vec::new(),
+            for_group_expected_occurrence_count_by_template_id: HashMap::new(),
             elements: vec![
                 json!({
                     "id": "baseline",
@@ -602,6 +617,8 @@ mod tests {
                     }),
                 ),
             ]),
+            base_transformation_geometry: HashMap::new(),
+            transformation_stage_geometry: HashMap::new(),
             computed_geometry_values: HashMap::new(),
             computed_geometry_order: vec![String::from("baseline"), String::from("p")],
             pre_mutation_geometry: HashMap::new(),
@@ -619,12 +636,16 @@ mod tests {
             geometry_input_targets: HashMap::new(),
             geometry_collection_nodes: HashMap::new(),
             geometry_value_binders: HashMap::new(),
+            for_group_generated_rows: Vec::new(),
+            for_group_expected_occurrence_count_by_template_id: HashMap::new(),
             elements: vec![element],
             elements_by_id: HashMap::from([(String::from("p"), 0)]),
             drawing_modifiers: serde_json::json!([]),
             selected_drawing_profile_id: None,
             group_states: HashMap::new(),
             computed_geometry: HashMap::new(),
+            base_transformation_geometry: HashMap::new(),
+            transformation_stage_geometry: HashMap::new(),
             computed_geometry_values: HashMap::new(),
             computed_geometry_order: Vec::new(),
             pre_mutation_geometry: HashMap::new(),

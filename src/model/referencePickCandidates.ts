@@ -193,6 +193,7 @@ export const referencePickCandidateOptionKey = (
 ) => JSON.stringify([
   option.kind,
   option.reference.base,
+  option.reference.occurrenceIndex ?? null,
   option.reference.pointKey ?? null,
   option.kind === "numericProperty" ? referencePickNumericSubgeometryKey(option.subgeometry) : null
 ]);
@@ -313,7 +314,7 @@ const referenceWithPointKey = (
 ): CanonicalGeometrySourceReference | null => {
   if (anchor.mode === "reference") return reference;
   if (anchor.mode !== "derived") return null;
-  return { base: reference.base, pointKey: anchor.pointKey };
+  return { ...reference, pointKey: anchor.pointKey };
 };
 
 export const referencePickCandidates = ({

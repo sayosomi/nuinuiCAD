@@ -8,7 +8,7 @@ import { parseDslTypedDeclarationStatement } from "./dslDeclarationParser";
 import type { DslSpan } from "./dslTypes";
 import { scalarExpressionCompletionContextAt, type ScalarExpressionCompletionContext } from "../scalars/scalarExpressionPositionClassifier";
 import type { ScalarType } from "../scalars/types";
-import { isDslArrayValueType, isDslGeometryValueType, nominalRecordTypeOfDslValueType, scalarTypeOfDslValueType } from "./dslValueTypes";
+import { dslRequiredValueTypeOf, isDslArrayValueType, isDslGeometryValueType, nominalRecordTypeOfDslValueType, scalarTypeOfDslValueType } from "./dslValueTypes";
 import { parseGeometryArrayExpression } from "./geometryArrayExpression";
 import {
   typedGeometryPropertyCompletionContextAt,
@@ -66,8 +66,9 @@ export const typedDeclarationInitializerCompletionContext = (
 ): TypedDeclarationInitializerCompletionContext | null => {
   const { statement } = parseDslTypedDeclarationStatement(logicalText);
   const valueSpan = initializerSpanIncludingEmpty(logicalText, statement?.payloadSpans.initializer);
+  const requiredType = dslRequiredValueTypeOf(statement?.valueType);
   const arrayElementType = scalarTypeOfDslValueType(
-    isDslArrayValueType(statement?.valueType) ? statement.valueType.elementType : null
+    isDslArrayValueType(requiredType) ? dslRequiredValueTypeOf(requiredType.elementType) : null
   );
   if (statement && valueSpan && arrayElementType) {
     const parsed = parseGeometryArrayExpression(logicalText.slice(valueSpan.start, valueSpan.end));
@@ -82,7 +83,7 @@ export const typedDeclarationInitializerCompletionContext = (
       }
     }
   }
-  const declaredType = scalarTypeOfDslValueType(statement?.valueType);
+  const declaredType = scalarTypeOfDslValueType(requiredType);
   if (!statement || declaredType === null) return null;
   const span = valueSpan;
   if (!span || pos < span.start || pos > span.end) return null;
@@ -111,7 +112,8 @@ export const geometryValueInitializerCompletionContextAt = (
   pos: number
 ): { from: number; to: number; declaredType: "point" | "line" | "path" } | null => {
   const { statement } = parseDslTypedDeclarationStatement(logicalText);
-  const declaredType = isDslGeometryValueType(statement?.valueType) ? statement.valueType.kind : null;
+  const requiredType = dslRequiredValueTypeOf(statement?.valueType);
+  const declaredType = isDslGeometryValueType(requiredType) ? requiredType.kind : null;
   if (!statement || !declaredType) return null;
   const span = initializerSpanIncludingEmpty(logicalText, statement.payloadSpans.initializer);
   if (!span || pos < span.start || pos > span.end) return null;
@@ -166,9 +168,10 @@ export const recordDeclarationInitializerCompletionContextAt = (
   pos: number
 ): RecordDeclarationInitializerCompletionContext | null => {
   const { statement } = parseDslTypedDeclarationStatement(logicalText);
-  const recordTypeName = nominalRecordTypeOfDslValueType(statement?.valueType)?.name ??
-    (isDslArrayValueType(statement?.valueType)
-      ? nominalRecordTypeOfDslValueType(statement.valueType.elementType)?.name
+  const requiredType = dslRequiredValueTypeOf(statement?.valueType);
+  const recordTypeName = nominalRecordTypeOfDslValueType(requiredType)?.name ??
+    (isDslArrayValueType(requiredType)
+      ? nominalRecordTypeOfDslValueType(dslRequiredValueTypeOf(requiredType.elementType))?.name
       : undefined);
   if (!statement || !recordTypeName) return null;
   const span = initializerSpanIncludingEmpty(logicalText, statement.payloadSpans.initializer);

@@ -27,7 +27,7 @@ describe("dslCompletionContextAt", () => {
       to: line.length,
       argumentIndex: 1
     });
-    const withState = "instance foo(state: hidden) = Foo(ba";
+    const withState = "instance foo(visible: false) = Foo(ba";
     expect(dslCompletionContextAt(withState, withState.length)).toMatchObject({
       kind: "moduleArgumentLabel",
       from: withState.indexOf("ba"),

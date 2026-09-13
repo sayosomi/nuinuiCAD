@@ -18,6 +18,57 @@ left-associative, and is a remainder rather than a percentage. Exponentiation
 `^` is right-associative and binds more tightly than unary signs. Thus
 `2 ^ 3 ^ 2` is `512`, `-2 ^ 2` is `-4`, and `-5 % 3` is `-2`.
 
+The coalescing operator `lhs ?? rhs` has the loosest binary precedence. The
+left side must have type `T?`; a present value is returned without evaluating
+the right side, while `none` evaluates the right side. The right side must be
+assignable to `T`, and the result type is `T`. Optionality is the canonical
+immutable value type used by scalar expressions; it is not a Module-only slot
+flag.
+
+The reserved `none` literal is legal only in an expected optional type, such as
+`const note: string? = none`. It has no independent scalar or choice type and
+cannot be authored as a `choice(...)` option. Repeated optional suffixes such as
+`T??` are invalid.
+
+Value-producing `if` expressions may omit `else` only when the expected result
+type is optional. The omitted branch is the ordinary `none` value of that type;
+a non-optional value-producing `if` still requires an explicit `else`.
+
+An optional value uses an exhaustive `none`/`some <binder>` match:
+
+<!-- dsl-example: compile-success -->
+```nui
+nui 1
+const label: string? = "front"
+const text: string = match @label { none => "no label" some value => @value }
+```
+
+The binder is branch-local and has the underlying non-optional type. Optional
+matches use the same lazy result families as choice matches, including scalar,
+geometry, nominal-record, and one-dimensional collection values.
+
+### Optional member access
+
+Use `?.` to read an existing member or property through an optional value:
+
+<!-- dsl-example: compile-success -->
+```nui
+nui 1
+const present: path = polyline(points: [(0, 0), (10, 0)], closed: false)
+const outline: path? = @present
+const outlineLength: number? = @outline?.length
+```
+
+For an optional receiver `T?` and an ordinary member result `U`, the result is
+`U?`. A `none` receiver produces `none` and does not evaluate the underlying
+member read; a present receiver reads the same member or property as ordinary
+access. If that result is already optional, propagation is flattened to the
+same single `U?` layer. Optional chaining does not unwrap a value for ordinary
+`.` access, and it does not create members that the underlying value does not
+already expose. This includes existing nominal record fields, geometry
+properties, and collection properties such as `length`; for example,
+`@piece.outline?.length` chains through an optional `outline` field.
+
 The canonical lowercase numeric constant `pi` is available wherever a number
 operand is valid. It follows the ordinary number-literal path; `PI` is not an
 alias, `pi()` is not a function call, and `@pi` refers only to a user binding.
@@ -33,8 +84,22 @@ reads an exported module value, and `@value.property` reads a property that
 the referenced value publishes. Collection values expose the read-only numeric
 property `length`; it counts authored members, including duplicates, after
 whole-value aliases are resolved. Reads happen at the source position: a
-later mutation does not change an earlier scalar read. Hidden geometry remains
+later transformation does not change an earlier scalar read. Hidden geometry remains
 readable; disabled, failed, or not-yet-evaluated geometry is unavailable.
+
+Generated drawable occurrences from a `for` statement use an explicit
+zero-based occurrence suffix after the resolved source reference:
+`@Mark[0]` or `@Mark[@i]`. The bracket expression is a typed numeric scalar;
+it must be finite, integral, non-negative, in range, and available at the
+reference position. A property follows the occurrence suffix, for example
+`@Mark[1].length`. The brackets are not part of a qualified `::` path and are
+never recovered from a generated runtime id. A source/template drawable has
+one ordered occurrence collection across its materialized loop instances;
+nested loops retain their occurrence paths. Bare `@Mark` is valid only when
+exactly one occurrence is available, so it cannot silently select occurrence
+zero when several exist. The same authored occurrence spelling is used for
+geometry targets, scalar geometry-property reads, and generated-candidate
+insertion.
 
 ## Geometry and collection properties
 
@@ -56,8 +121,8 @@ For every implemented one-dimensional collection type (`number[]`, `string[]`,
 arrays), `.length` is a read-only `number`. Empty literals have length `0`; a
 non-empty literal counts every authored member in order, including duplicates.
 Whole-value aliases and Module collection parameters/exports preserve the same
-cardinality. Optional Module parameters require the established
-`hasValue(@parameter)` presence proof before `.length` is read.
+cardinality. Optional Module parameters must be resolved through the general
+optional-value operations before `.length` is read.
 
 Declared collections also support first-class zero-based indexing:
 `@collection[index]`. The index is a normal typed numeric expression, so both
@@ -67,15 +132,15 @@ aliases, and pure geometry value identity are preserved; indexing does not
 create a drawable element identity, and nested arrays remain unsupported.
 Root values, aliases, Module parameters, locals, exports, qualified exports,
 and cross-document exports use the same lexical and source-order rules as
-whole collection references. An optional collection parameter needs a proven
-`hasValue(@parameter)` guard before indexing.
+whole collection references. An optional collection parameter needs
+optional-value resolution before indexing.
 
 The index must evaluate to a finite integer from `0` through one less than the
 collection length. Negative, fractional, non-finite, or out-of-range indexes
 are evaluation errors. Runtime validation is authoritative for dynamic
 indexes, and never clamps, wraps, coerces, or fabricates a value.
 
-An `if` or exhaustive choice `match` can produce a collection value when all
+An `if`, exhaustive choice `match`, or exhaustive optional `match` can produce a collection value when all
 branches or arms have the same declared one-dimensional collection type. The
 selected branch determines `.length` and indexed values; different branches
 may have different cardinalities. The condition or scrutinee is evaluated

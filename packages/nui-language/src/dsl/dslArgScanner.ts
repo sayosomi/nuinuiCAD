@@ -6,7 +6,7 @@ export type ScannedArg = {
   key: string | null;
   /** The bare key, without its trailing colon. */
   keySpan: DslSpan | null;
-  /** Module-definition-only optional marker after the key. */
+  /** Record-field optional marker retained for its dedicated diagnostics. */
   optionalSpan?: DslSpan;
   value: string;
   valueSpan: DslSpan;

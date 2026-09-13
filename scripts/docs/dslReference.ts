@@ -4,7 +4,6 @@ import { fileURLToPath } from "node:url";
 import {
   DSL_CONTAINER_CATEGORIES,
   DSL_GEOMETRY_DECLARATION_CATEGORIES,
-  MUTATION_CATEGORY,
   commonArgSpecs,
   constructionCandidatesFor,
   type DslConstructionCategory,
@@ -14,7 +13,11 @@ import { compileDslDocument } from "../../src/dsl/dslDocument";
 import { dslStatementKeywords } from "../../src/dsl/dslStatementKeywords";
 import type { DslDiagnostic } from "../../src/dsl/dslTypes";
 import { createCadElement } from "../../src/model/elementFactory";
-import { getParameterDefinitions, type ParameterDefinition } from "../../src/parameters/parameterDefinitions";
+import {
+  dslValueTypeForParameterDefinition,
+  getParameterDefinitions,
+  type ParameterDefinition
+} from "../../src/parameters/parameterDefinitions";
 import {
   BUILTIN_FUNCTION_DEFINITIONS,
   formatBuiltinFunctionSignatures,
@@ -23,6 +26,7 @@ import {
 } from "../../src/scalars/builtinFunctions";
 import { BUILTIN_CONSTANT_DEFINITIONS } from "../../src/scalars/builtinConstants";
 import type { CadElement, CadElementType } from "../../src/types/geometry";
+import { dslValueTypeName } from "../../packages/nui-language/src/dsl/dslValueTypes";
 
 export const REPOSITORY_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
@@ -47,8 +51,8 @@ const generatedRegionEnd = (name: string) => `<!-- dsl-ref:generated:end ${name}
 export type ParameterFact = {
   key: string;
   kind: ParameterDefinition["kind"];
+  valueType: string | null;
   allowCoordinate: boolean;
-  allowNone: boolean;
   choiceOptions: readonly string[];
   stepLevels: readonly number[];
 };
@@ -126,7 +130,7 @@ export type DslReferenceIssue = {
 const allConstructionCategories: readonly DslConstructionCategory[] = [
   ...DSL_GEOMETRY_DECLARATION_CATEGORIES,
   ...DSL_CONTAINER_CATEGORIES,
-  MUTATION_CATEGORY,
+  "transformation",
 ];
 
 const sampleElements = new Map<CadElementType, CadElement>();
@@ -141,16 +145,20 @@ const sampleElementFor = (type: CadElementType): CadElement => {
   return sample;
 };
 
-const parameterFactFor = (definition: ParameterDefinition): ParameterFact => ({
-  key: definition.key,
-  kind: definition.kind,
-  allowCoordinate: definition.allowCoordinate === true,
-  allowNone: definition.allowNone === true,
-  choiceOptions: definition.choiceOptions ?? [],
-  stepLevels: definition.stepLevels ?? [],
-});
+const parameterFactFor = (definition: ParameterDefinition): ParameterFact => {
+  const valueType = dslValueTypeForParameterDefinition(definition);
+  return {
+    key: definition.key,
+    kind: definition.kind,
+    valueType: valueType ? dslValueTypeName(valueType) : null,
+    allowCoordinate: definition.allowCoordinate === true,
+    choiceOptions: definition.choiceOptions ?? [],
+    stepLevels: definition.stepLevels ?? [],
+  };
+};
 
 const effectiveArgsFor = (spec: DslConstructionSpec): readonly DslConstructionSpec["args"][number][] => {
+  if (spec.category === "transformation") return spec.args;
   const seen = new Set<string>();
   return [...spec.args, ...commonArgSpecs].filter((argument) => {
     if (seen.has(argument.arg)) return false;
@@ -252,15 +260,16 @@ const constructionSyntax = (fact: ConstructionFact): string => {
   if (fact.category === "group") return "group Name { … }";
   if (fact.category === "if") return "if (condition) { … }";
   if (fact.category === "for") return "for variable in range(...) { … }";
-  if (fact.category === MUTATION_CATEGORY) return `${fact.construction}(...)`;
+  if (fact.category === "transformation") return `${fact.construction} target [as stage] (...)`;
   return `${fact.category} Name = ${fact.construction}(...)`;
 };
 
 const parameterSummary = (parameter: ParameterFact): string => {
-  const details: string[] = [parameter.kind];
-  if (parameter.choiceOptions.length > 0) details.push(`choices: ${parameter.choiceOptions.join(", ")}`);
+  const details: string[] = [parameter.valueType ?? parameter.kind];
+  if (parameter.choiceOptions.length > 0 && !parameter.valueType?.startsWith("choice(")) {
+    details.push(`choices: ${parameter.choiceOptions.join(", ")}`);
+  }
   if (parameter.allowCoordinate) details.push("coordinates allowed");
-  if (parameter.allowNone) details.push("none allowed");
   if (parameter.stepLevels.length > 0) details.push(`steps: ${parameter.stepLevels.join(", ")}`);
   return details.join("; ");
 };

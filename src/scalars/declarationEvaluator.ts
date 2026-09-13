@@ -31,9 +31,11 @@ import type { BindingId } from "./bindingCatalog";
 import { evaluateTypedExpression, type GeometryBuiltinTargetLookupResult, type ScalarEvaluationEnvironment } from "./expressionEvaluator";
 import type { ScalarProgram, ScalarProgramStatement } from "./scalarProgram";
 import type { ScalarEvaluation } from "./types";
-import { scalarTypesEqual, scalarValueMatchesType, type ScalarType } from "./types";
+import { scalarValueMatchesType, type ScalarExpressionType, type ScalarType } from "./types";
+import { isScalarExpressionTypeAssignable, scalarExpressionTypesEqual } from "./scalarAssignability";
 import type {
   ScalarExpressionResolvedGeometryTarget,
+  ScalarExpressionResolvedOptionalMemberTarget,
   TypedScalarGeometryPropertyReferenceNode
 } from "./typedExpressionAst";
 
@@ -53,7 +55,15 @@ export type LazyScalarProgramEvaluator = {
 };
 
 export type ScalarProgramCollectionResolver = {
-  environmentFor: (sourceOrder: number) => Pick<ScalarEvaluationEnvironment, "lookupCollectionIndex" | "lookupCollectionLength">;
+  environmentFor: (sourceOrder: number) => Pick<ScalarEvaluationEnvironment, "lookupCollectionIndex" | "lookupCollectionLength" | "lookupOptionalMember">;
+};
+
+const resultForDeclaredType = (evaluation: ScalarEvaluation, declaredType: ScalarExpressionType): ScalarEvaluation => {
+  if (evaluation.status === "error") return { ...evaluation, type: declaredType };
+  if (isScalarExpressionTypeAssignable(evaluation.type, declaredType) && scalarValueMatchesType(declaredType, evaluation.value)) {
+    return { ...evaluation, type: declaredType };
+  }
+  return { status: "error", type: declaredType, issueCode: "evaluation-runtime-value-type-mismatch" };
 };
 
 /**
@@ -66,16 +76,50 @@ export const createScalarProgramCollectionResolver = (
   program: Pick<ScalarProgram, "collectionValues">,
   resolveBinding: (bindingId: BindingId) => ScalarEvaluation,
   resolveGeometryProperty?: (reference: TypedScalarGeometryPropertyReferenceNode, sourceOrder: number) => ScalarEvaluation,
-  resolveGeometryTarget?: (target: ScalarExpressionResolvedGeometryTarget, sourceOrder: number) => GeometryBuiltinTargetLookupResult | undefined
+  resolveGeometryTarget?: (target: ScalarExpressionResolvedGeometryTarget, sourceOrder: number) => GeometryBuiltinTargetLookupResult | undefined,
+  resolveExternalCollectionLength?: (collectionValueId: string, sourceOrder: number) => number | undefined
 ): ScalarProgramCollectionResolver | undefined => {
-  if (!program.collectionValues?.length) return undefined;
-  const valuesById = new Map(program.collectionValues.map((value) => [value.valueId, value] as const));
+  if (!program.collectionValues?.length && !resolveGeometryProperty && !resolveGeometryTarget) return undefined;
+  const valuesById = new Map((program.collectionValues ?? []).map((value) => [value.valueId, value] as const));
+
+  const matchLabelFor = (scrutinee: ScalarEvaluation): string | undefined => {
+    if (scrutinee.status !== "ok") return undefined;
+    if (scrutinee.type.kind === "optional") return scrutinee.value.kind === "none" ? "none" : "some";
+    return scrutinee.value.kind === "choice" ? scrutinee.value.value : undefined;
+  };
+
+  const presentFor = (collectionValueId: string, sourceOrder: number, seen: ReadonlySet<string> = new Set()): boolean | undefined => {
+    if (seen.has(collectionValueId)) return undefined;
+    const collection = valuesById.get(collectionValueId);
+    if (!collection) return undefined;
+    const nextSeen = new Set([...seen, collectionValueId]);
+    if (collection.kind === "none") return false;
+    if (collection.kind === "literal") return true;
+    if (collection.kind === "alias" || collection.kind === "map" || collection.kind === "recordMap" || collection.kind === "recordField") {
+      return presentFor(collection.kind === "alias" ? collection.targetValueId : collection.sourceValueId, sourceOrder, nextSeen);
+    }
+    if (collection.kind === "coalesce") {
+      const leftPresent = presentFor(collection.leftValueId, sourceOrder, nextSeen);
+      return leftPresent === true ? true : presentFor(collection.rightValueId, sourceOrder, nextSeen);
+    }
+    if (collection.kind === "if") {
+      const condition = evaluateTypedExpression(collection.condition, environmentFor(collection.sourceOrder));
+      if (condition.status !== "ok" || condition.value.kind !== "boolean") return undefined;
+      return presentFor(condition.value.value ? collection.thenValueId : collection.elseValueId, sourceOrder, nextSeen);
+    }
+    const scrutinee = evaluateTypedExpression(collection.scrutinee, environmentFor(collection.sourceOrder));
+    const label = matchLabelFor(scrutinee);
+    if (label === undefined) return undefined;
+    const arm = collection.arms.find((candidate) => candidate.label === label);
+    return arm ? presentFor(arm.valueId, sourceOrder, nextSeen) : undefined;
+  };
 
   const lengthFor = (collectionValueId: string, sourceOrder: number, seen: ReadonlySet<string> = new Set()): number | undefined => {
     if (seen.has(collectionValueId)) return undefined;
     const collection = valuesById.get(collectionValueId);
     if (!collection) return undefined;
     const nextSeen = new Set([...seen, collectionValueId]);
+    if (collection.kind === "none") return undefined;
     if (collection.kind === "literal") return collection.members.length;
     if (collection.kind === "alias" || collection.kind === "map" || collection.kind === "recordMap" || collection.kind === "recordField") {
       return lengthFor(collection.kind === "alias" ? collection.targetValueId : collection.sourceValueId, sourceOrder, nextSeen);
@@ -86,17 +130,26 @@ export const createScalarProgramCollectionResolver = (
       if (condition.status !== "ok" || condition.value.kind !== "boolean") return undefined;
       return lengthFor(condition.value.value ? collection.thenValueId : collection.elseValueId, sourceOrder, nextSeen);
     }
+    if (collection.kind === "coalesce") {
+      const leftPresent = presentFor(collection.leftValueId, sourceOrder, nextSeen);
+      return leftPresent === true
+        ? lengthFor(collection.leftValueId, sourceOrder, nextSeen)
+        : leftPresent === false
+          ? lengthFor(collection.rightValueId, sourceOrder, nextSeen)
+          : undefined;
+    }
     const environment = environmentFor(collection.sourceOrder);
     const scrutinee = evaluateTypedExpression(collection.scrutinee, environment);
-    if (scrutinee.status !== "ok" || scrutinee.value.kind !== "choice") return undefined;
-    const arm = collection.arms.find((candidate) => candidate.label === scrutinee.value.value);
+    const label = matchLabelFor(scrutinee);
+    if (label === undefined) return undefined;
+    const arm = collection.arms.find((candidate) => candidate.label === label);
     return arm ? lengthFor(arm.valueId, sourceOrder, nextSeen) : undefined;
   };
 
   const recordFieldFor = (
     collectionValueId: string,
     index: number,
-    field: { recordStatementId: string; fieldIndex: number; type: ScalarType },
+    field: { recordStatementId: string; fieldIndex: number; type: ScalarExpressionType },
     sourceOrder: number,
     seen: ReadonlySet<string> = new Set()
   ): ScalarEvaluation => {
@@ -104,6 +157,7 @@ export const createScalarProgramCollectionResolver = (
     const collection = valuesById.get(collectionValueId);
     if (!collection) return { status: "error", type: field.type, issueCode: "evaluation-collection-index-unavailable" };
     const nextSeen = new Set([...seen, collectionValueId]);
+    if (collection.kind === "none") return { status: "error", type: field.type, issueCode: "evaluation-collection-index-unavailable" };
     if (collection.kind === "alias") return recordFieldFor(collection.targetValueId, index, field, sourceOrder, nextSeen);
     if (collection.kind === "if") {
       const condition = evaluateTypedExpression(collection.condition, environmentFor(collection.sourceOrder));
@@ -112,9 +166,18 @@ export const createScalarProgramCollectionResolver = (
     }
     if (collection.kind === "match") {
       const scrutinee = evaluateTypedExpression(collection.scrutinee, environmentFor(collection.sourceOrder));
-      if (scrutinee.status !== "ok" || scrutinee.value.kind !== "choice") return { status: "error", type: field.type, issueCode: scrutinee.status === "error" ? scrutinee.issueCode : "evaluation-runtime-value-type-mismatch" };
-      const arm = collection.arms.find((candidate) => candidate.label === scrutinee.value.value);
+      const label = matchLabelFor(scrutinee);
+      if (label === undefined) return { status: "error", type: field.type, issueCode: scrutinee.status === "error" ? scrutinee.issueCode : "evaluation-runtime-value-type-mismatch" };
+      const arm = collection.arms.find((candidate) => candidate.label === label);
       return arm ? recordFieldFor(arm.valueId, index, field, sourceOrder, nextSeen) : { status: "error", type: field.type, issueCode: "evaluation-runtime-value-type-mismatch" };
+    }
+    if (collection.kind === "coalesce") {
+      const leftPresent = presentFor(collection.leftValueId, sourceOrder, nextSeen);
+      return leftPresent === true
+        ? recordFieldFor(collection.leftValueId, index, field, sourceOrder, nextSeen)
+        : leftPresent === false
+          ? recordFieldFor(collection.rightValueId, index, field, sourceOrder, nextSeen)
+          : { status: "error", type: field.type, issueCode: "evaluation-collection-index-unavailable" };
     }
     if (collection.kind === "recordField") return recordFieldFor(collection.sourceValueId, index, collection.field, sourceOrder, nextSeen);
     if (collection.kind === "recordMap") {
@@ -131,7 +194,7 @@ export const createScalarProgramCollectionResolver = (
         }
       });
       if (mapped.status === "error") return mapped;
-      return scalarTypesEqual(mapped.type, mappedField.type) && scalarValueMatchesType(mapped.type, mapped.value)
+      return scalarExpressionTypesEqual(mapped.type, mappedField.type) && scalarValueMatchesType(mapped.type, mapped.value)
         ? mapped
         : { status: "error", type: mappedField.type, issueCode: "evaluation-runtime-value-type-mismatch" };
     }
@@ -142,9 +205,95 @@ export const createScalarProgramCollectionResolver = (
     if (!memberField) return { status: "error", type: field.type, issueCode: "evaluation-runtime-value-type-mismatch" };
     const value = resolveBinding(memberField.bindingId);
     if (value.status === "error") return value;
-    return scalarTypesEqual(value.type, field.type) && scalarValueMatchesType(value.type, value.value)
+    return scalarExpressionTypesEqual(value.type, field.type) && scalarValueMatchesType(value.type, value.value)
       ? value
       : { status: "error", type: field.type, issueCode: "evaluation-runtime-value-type-mismatch" };
+  };
+
+  const typedGeometryPropertyFor = (
+    reference: Extract<ScalarExpressionResolvedOptionalMemberTarget, { kind: "geometryProperty" }>["reference"]
+  ): TypedScalarGeometryPropertyReferenceNode | null => {
+    if (reference.kind === "collection") return null;
+    return {
+      kind: "geometryProperty",
+      span: { start: 0, end: 0 },
+      elementNameSpan: { start: 0, end: 0 },
+      propertySpan: { start: 0, end: 0 },
+      elementName: "",
+      elementId: "elementId" in reference ? reference.elementId : null,
+      ...(reference.kind === "geometryValue" ? { geometryValueOccurrence: reference.occurrence } : {}),
+      ...(reference.kind === "geometryValue" && reference.pointKey ? { geometryValuePointKey: reference.pointKey } : {}),
+      ...(reference.kind === "geometryValueForBinder" ? { geometryValueBinderId: reference.binderId } : {}),
+      ...(reference.kind === "forGroupOccurrence" ? {
+        forGroupOccurrenceTemplateElementId: reference.templateElementId,
+        forGroupOccurrenceIndex: reference.index,
+        ...(reference.pointKey ? { forGroupOccurrencePointKey: reference.pointKey } : {})
+      } : {}),
+      property: reference.property,
+      targetSourceOrder: reference.targetSourceOrder,
+      type: reference.type
+    };
+  };
+
+  const evaluateOptionalMember = (
+    target: ScalarExpressionResolvedOptionalMemberTarget,
+    type: ScalarExpressionType,
+    sourceOrder: number
+  ): ScalarEvaluation => {
+    const none = (): ScalarEvaluation => ({ status: "ok", type, value: { kind: "none" } });
+    if (target.kind === "collectionLength") {
+      const present = presentFor(target.collectionValueId, sourceOrder);
+      if (present === false) return none();
+      const externalLength = resolveExternalCollectionLength?.(target.collectionValueId, sourceOrder);
+      if (present !== true && externalLength === undefined) {
+        // An external geometry collection has no ScalarProgram descriptor. Its
+        // length resolver is the established presence/value authority.
+        if (present === undefined && resolveExternalCollectionLength) return none();
+        return { status: "error", type, issueCode: "evaluation-collection-property-unavailable" };
+      }
+      const length = target.collectionLength ?? externalLength ?? lengthFor(target.collectionValueId, sourceOrder);
+      return typeof length === "number" && Number.isInteger(length) && length >= 0
+        ? { status: "ok", type, value: { kind: "number", value: length } }
+        : { status: "error", type, issueCode: "evaluation-collection-property-unavailable" };
+    }
+    if (target.kind === "recordField") {
+      const present = presentFor(target.collectionValueId, sourceOrder);
+      if (present === false) return none();
+      if (present !== true) return { status: "error", type, issueCode: "evaluation-collection-index-unavailable" };
+      const result = recordFieldFor(
+        target.collectionValueId,
+        0,
+        target.field,
+        sourceOrder
+      );
+      if (result.status === "error") return { ...result, type };
+      return scalarValueMatchesType(type, result.value)
+        ? { status: "ok", type, value: result.value }
+        : { status: "error", type, issueCode: "evaluation-runtime-value-type-mismatch" };
+    }
+
+    const receiverPresent = target.receiver.kind === "collection"
+      ? presentFor(target.receiver.collectionValueId, sourceOrder)
+      : resolveGeometryTarget?.(target.receiver.target, sourceOrder) === undefined
+        ? false
+        : true;
+    if (receiverPresent === false) return none();
+    const receiverRuntime = target.receiver.kind === "geometryValue"
+      ? resolveGeometryTarget?.(target.receiver.target, sourceOrder)
+      : undefined;
+    if (receiverRuntime && receiverRuntime.kind === "unavailable") {
+      return { status: "error", type, issueCode: "evaluation-geometry-property-unavailable" };
+    }
+    if (receiverPresent !== true || !resolveGeometryProperty) {
+      return { status: "error", type, issueCode: "evaluation-geometry-property-unavailable" };
+    }
+    const reference = typedGeometryPropertyFor(target.reference);
+    if (!reference) return { status: "error", type, issueCode: "evaluation-geometry-property-unavailable" };
+    const result = resolveGeometryProperty(reference, sourceOrder);
+    if (result.status === "error") return { ...result, type };
+    return scalarValueMatchesType(type, result.value)
+      ? { status: "ok", type, value: result.value }
+      : { status: "error", type, issueCode: "evaluation-runtime-value-type-mismatch" };
   };
 
   const indexFor = (
@@ -165,6 +314,7 @@ export const createScalarProgramCollectionResolver = (
     const collection = valuesById.get(collectionValueId);
     if (!collection) return { status: "error", type: elementType, issueCode: "evaluation-collection-index-unavailable" };
     const nextSeen = new Set([...seen, collectionValueId]);
+    if (collection.kind === "none") return { status: "error", type: elementType, issueCode: "evaluation-collection-index-unavailable" };
     if (collection.kind === "alias") return indexFor(collection.targetValueId, index, elementType, collectionLength, targetSourceOrder, sourceOrder, nextSeen);
     if (collection.kind === "if") {
       const condition = evaluateTypedExpression(collection.condition, environmentFor(collection.sourceOrder));
@@ -175,11 +325,20 @@ export const createScalarProgramCollectionResolver = (
     if (collection.kind === "match") {
       const scrutinee = evaluateTypedExpression(collection.scrutinee, environmentFor(collection.sourceOrder));
       if (scrutinee.status === "error") return scrutinee;
-      if (scrutinee.value.kind !== "choice") return { status: "error", type: elementType, issueCode: "evaluation-runtime-value-type-mismatch" };
-      const arm = collection.arms.find((candidate) => candidate.label === scrutinee.value.value);
+      const label = matchLabelFor(scrutinee);
+      if (label === undefined) return { status: "error", type: elementType, issueCode: "evaluation-runtime-value-type-mismatch" };
+      const arm = collection.arms.find((candidate) => candidate.label === label);
       return arm
         ? indexFor(arm.valueId, index, elementType, collectionLength, targetSourceOrder, sourceOrder, nextSeen)
         : { status: "error", type: elementType, issueCode: "evaluation-runtime-value-type-mismatch" };
+    }
+    if (collection.kind === "coalesce") {
+      const leftPresent = presentFor(collection.leftValueId, sourceOrder, nextSeen);
+      return leftPresent === true
+        ? indexFor(collection.leftValueId, index, elementType, collectionLength, targetSourceOrder, sourceOrder, nextSeen)
+        : leftPresent === false
+          ? indexFor(collection.rightValueId, index, elementType, collectionLength, targetSourceOrder, sourceOrder, nextSeen)
+          : { status: "error", type: elementType, issueCode: "evaluation-collection-index-unavailable" };
     }
     if (collection.kind === "map") {
       const source = indexFor(collection.sourceValueId, index, collection.sourceElementType, null, -1, sourceOrder, nextSeen);
@@ -189,7 +348,7 @@ export const createScalarProgramCollectionResolver = (
         lookupBinding: (bindingId) => bindingId === collection.binderId ? source : resolveBinding(bindingId)
       });
       if (mapped.status === "error") return mapped;
-      return scalarTypesEqual(mapped.type, collection.resultElementType) && scalarValueMatchesType(mapped.type, mapped.value)
+      return scalarExpressionTypesEqual(mapped.type, collection.resultElementType) && scalarValueMatchesType(mapped.type, mapped.value)
         ? mapped
         : { status: "error", type: collection.resultElementType, issueCode: "evaluation-runtime-value-type-mismatch" };
     }
@@ -204,7 +363,7 @@ export const createScalarProgramCollectionResolver = (
     if (member.kind === "record") return { status: "error", type: elementType, issueCode: "evaluation-runtime-value-type-mismatch" };
     const value = member.kind === "literal" ? { status: "ok" as const, type: member.type, value: member.value } : resolveBinding(member.bindingId);
     if (value.status === "error") return value;
-    return scalarTypesEqual(value.type, elementType) && scalarValueMatchesType(value.type, value.value)
+    return scalarExpressionTypesEqual(value.type, elementType) && scalarValueMatchesType(value.type, value.value)
       ? value
       : { status: "error", type: elementType, issueCode: "evaluation-runtime-value-type-mismatch" };
   };
@@ -216,7 +375,8 @@ export const createScalarProgramCollectionResolver = (
       ...(resolveGeometryTarget ? { lookupGeometryTarget: (target) => resolveGeometryTarget(target, sourceOrder) } : {}),
       lookupCollectionLength: (collectionValueId) => lengthFor(collectionValueId, sourceOrder),
       lookupCollectionIndex: (collectionValueId, index, elementType, collectionLength, targetSourceOrder) =>
-        indexFor(collectionValueId, index, elementType, collectionLength, targetSourceOrder, sourceOrder)
+        indexFor(collectionValueId, index, elementType, collectionLength, targetSourceOrder, sourceOrder),
+      lookupOptionalMember: (target, type) => evaluateOptionalMember(target, type, sourceOrder)
     };
   }
 
@@ -288,7 +448,10 @@ export const createLazyScalarProgramEvaluator = (
             collectionResolver?.environmentFor(statement.sourceOrder).lookupCollectionLength?.(collectionValueId)
         } : {})
       };
-      const evaluation = evaluateTypedExpression(statement.declaration.initializer, environment);
+      const evaluation = resultForDeclaredType(
+        evaluateTypedExpression(statement.declaration.initializer, environment),
+        statement.declaration.declaredType
+      );
       cache.set(bindingId, evaluation);
       return evaluation;
     } finally {
@@ -300,7 +463,8 @@ export const createLazyScalarProgramEvaluator = (
     program,
     resolve,
     resolveGeometryProperty,
-    resolveGeometryTarget
+    resolveGeometryTarget,
+    resolveCollectionLength
   );
 
   return { resolve, ...(collectionResolver ? { collectionResolver } : {}) };

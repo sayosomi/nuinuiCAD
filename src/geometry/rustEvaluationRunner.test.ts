@@ -70,13 +70,13 @@ describe("rustEvaluationRunner", () => {
     expect(prepared.input).not.toHaveProperty("bindingVersions");
   });
 
-  it("preserves compiled drawing modifier definitions in the Rust input", () => {
+  it("preserves compiled drawing style definitions in the Rust input", () => {
     const options = {
       drawingModifiers: [{
         name: "Guide",
-        state: "visible" as const,
+        visible: true,
         widthPx: 1.25,
-        style: "dashed" as const,
+        lineType: "dashed" as const,
         color: { kind: "themeRole" as const, role: "accent" as const }
       }]
     };
