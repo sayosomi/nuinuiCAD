@@ -443,7 +443,12 @@ export const queryDslOutputPreviewRevealSourceTarget = ({
     return { status: "failed", reason: "invalid-position" };
   }
 
-  const canvasResult = queryDslCanvasRevealSourceTarget({ source, compiled, position });
+  const canvasResult = queryDslCanvasRevealSourceTarget({
+    source,
+    compiled,
+    position,
+    statementOwnerEnvelope: "authored-code"
+  });
   const canvasFailure = sourceFailureFromCanvas(canvasResult);
   if (canvasFailure) return canvasFailure;
   if (canvasResult.status === "resolved" && canvasResult.target.kind === "semantic") {

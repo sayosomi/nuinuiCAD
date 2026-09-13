@@ -113,6 +113,7 @@ vi.mock("./multiDocumentHost", () => ({
 import {
   registerVscodeReferencePickFeature,
   revealInCanvasSourceTargetForEditor,
+  sourceTargetAvailabilityForEditor,
   sourceTargetAvailabilityForEditorAsync,
   VSCODE_REFERENCE_PICK_COMMAND_ID,
   VSCODE_REFERENCE_PICK_CONTEXT_KEY
@@ -308,6 +309,19 @@ beforeEach(() => {
 });
 
 describe("registerVscodeReferencePickFeature", () => {
+  it("projects Reveal availability at a completed statement's physical EOL", () => {
+    const eolSource = [
+      "nui 1",
+      "point P = coordinate(x: 10, y: 20)   "
+    ].join("\n");
+    const editor = createEditorForSource(eolSource, eolSource.length);
+    const languageSession = createLanguageAnalysisSession(eolSource);
+
+    expect(sourceTargetAvailabilityForEditor(editor, languageSession)).toMatchObject({
+      revealInCanvas: true
+    });
+  });
+
   it("publishes Reveal availability from the exact graph semantic snapshot for an imported caller", async () => {
     const moduleSource = [
       "nui 1",
