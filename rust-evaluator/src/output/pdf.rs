@@ -231,31 +231,35 @@ fn fill_state_name(opacity: f64) -> String {
 fn push_filled_segmented_path(
     content: &mut String,
     segments: &[OutputPathSegment],
-    stroke: &OutputStroke,
     fill: &OutputFill,
     origin: OutputPoint,
 ) {
     content.push_str("q\n");
     content.push_str(&format!(
-        "{} rg\n",
+        "{}\n",
         non_stroking_color_operator(&fill.color_hex)
     ));
     if fill.opacity != 1.0 {
         content.push_str(&format!("/{} gs\n", fill_state_name(fill.opacity)));
     }
-    content.push_str(&format!(
-        "{} 1 J 1 j {} w {}\n",
-        color_operator(&stroke.color_hex),
-        pdf_number(pt(stroke.width_mm)),
-        dash_operator(stroke)
-    ));
     if let Some((first, rest)) = segments.split_first() {
         push_segment(content, first, origin);
         for segment in rest {
             push_segment_continuation(content, segment, origin);
         }
     }
-    content.push_str("h\nB\nQ\n");
+    content.push_str("h\nf\nQ\n");
+}
+
+fn push_segmented_stroked_paths(
+    content: &mut String,
+    segments: &[OutputPathSegment],
+    stroke: &OutputStroke,
+    origin: OutputPoint,
+) {
+    for segment in segments {
+        push_presented_stroked_path(content, segment, stroke, None, origin);
+    }
 }
 
 fn push_presented_stroked_path(
@@ -270,7 +274,7 @@ fn push_presented_stroked_path(
     }
     if let Some(fill) = fill {
         content.push_str(&format!(
-            "{} rg\n",
+            "{}\n",
             non_stroking_color_operator(&fill.color_hex)
         ));
         if fill.opacity != 1.0 {
@@ -303,7 +307,7 @@ fn push_presented_polyline(
     }
     if let Some(fill) = fill {
         content.push_str(&format!(
-            "{} rg\n",
+            "{}\n",
             non_stroking_color_operator(&fill.color_hex)
         ));
         if fill.opacity != 1.0 {
@@ -530,12 +534,9 @@ fn push_drawable(
             ..
         } => {
             if let Some(fill) = fill {
-                push_filled_segmented_path(content, segments, stroke, fill, origin);
-            } else {
-                for segment in segments {
-                    push_presented_stroked_path(content, segment, stroke, None, origin);
-                }
+                push_filled_segmented_path(content, segments, fill, origin);
             }
+            push_segmented_stroked_paths(content, segments, stroke, origin);
             Ok(())
         }
         OutputDrawable::Polyline {
@@ -934,6 +935,7 @@ mod tests {
         let pdf = encode_pdf(&polyline).expect("polyline PDF should build");
         let text = String::from_utf8_lossy(&pdf);
         assert!(text.contains("0.071 0.204 0.337 rg"));
+        assert!(!text.contains("rg rg"));
         assert!(text.contains("/GSFill0_25 gs"));
         assert!(text.contains("28.346 28.346 m 56.693 28.346 l\n56.693 56.693 l\nh\nB\nQ"));
         assert!(text.contains("0.192 0.196 0.184 RG"));
@@ -968,7 +970,115 @@ mod tests {
         }];
         let pdf = encode_pdf(&joined).expect("segmented filled PDF should build");
         let text = String::from_utf8_lossy(&pdf);
-        assert!(text.contains("28.346 28.346 m 56.693 28.346 l\n56.693 56.693 l\nh\nB\nQ"));
+        assert!(text.contains("28.346 28.346 m 56.693 28.346 l\n56.693 56.693 l\nh\nf\nQ"));
+        assert!(!text.contains("28.346 28.346 m 56.693 28.346 l\n56.693 56.693 l\nh\nB\nQ"));
+        assert!(text.contains("28.346 28.346 m 56.693 28.346 l\nS\n"));
+        assert!(text.contains("56.693 28.346 m 56.693 56.693 l\nS\n"));
+        assert!(!text.contains("56.693 56.693 l\nh\nS\n"));
+        assert!(!text.contains("rg rg"));
+        let fill_position = text
+            .find("28.346 28.346 m 56.693 28.346 l\n56.693 56.693 l\nh\nf\nQ")
+            .expect("fill contour should be emitted");
+        let first_stroke_position = text
+            .find("28.346 28.346 m 56.693 28.346 l\nS\n")
+            .expect("first segment stroke should be emitted");
+        let second_stroke_position = text
+            .find("56.693 28.346 m 56.693 56.693 l\nS\n")
+            .expect("second segment stroke should be emitted");
+        assert!(fill_position < first_stroke_position);
+        assert!(first_stroke_position < second_stroke_position);
+    }
+
+    #[test]
+    fn emits_each_pdf_fill_color_operator_once_without_a_duplicate_rg_operator() {
+        let mut polyline = payload();
+        polyline.pages.truncate(1);
+        for guide in &mut polyline.pages[0].guides {
+            guide.label = None;
+        }
+        polyline.drawables = vec![OutputDrawable::Polyline {
+            element_id: "outline".to_owned(),
+            name: "outline".to_owned(),
+            segments: vec![
+                OutputPathSegment::Line {
+                    start: OutputPoint { x: 0.0, y: 0.0 },
+                    end: OutputPoint { x: 10.0, y: 0.0 },
+                },
+                OutputPathSegment::Line {
+                    start: OutputPoint { x: 10.0, y: 0.0 },
+                    end: OutputPoint { x: 10.0, y: 10.0 },
+                },
+            ],
+            closed: true,
+            stroke: OutputStroke {
+                width_mm: 0.18,
+                style: "solid".to_owned(),
+                color_hex: "#31322f".to_owned(),
+            },
+            fill: Some(OutputFill {
+                color_hex: "#123456".to_owned(),
+                opacity: 0.25,
+            }),
+        }];
+        let pdf = encode_pdf(&polyline).expect("filled PDF should build");
+        let text = String::from_utf8_lossy(&pdf);
+        assert_eq!(text.matches("0.071 0.204 0.337 rg").count(), 1);
+        assert!(!text.contains("rg rg"));
+    }
+
+    #[test]
+    fn preserves_segmented_stroke_topology_and_dash_operators_with_fill() {
+        for (style, dash_operator) in [
+            ("dashed", "[11.339 8.504] 0 d"),
+            ("dotted", "[2.835 5.669] 0 d"),
+        ] {
+            let mut unfilled = payload();
+            unfilled.pages.truncate(1);
+            for guide in &mut unfilled.pages[0].guides {
+                guide.label = None;
+            }
+            unfilled.drawables = vec![OutputDrawable::JoinedPath {
+                element_id: "joined".to_owned(),
+                name: "joined".to_owned(),
+                segments: vec![
+                    OutputPathSegment::Line {
+                        start: OutputPoint { x: 0.0, y: 0.0 },
+                        end: OutputPoint { x: 10.0, y: 0.0 },
+                    },
+                    OutputPathSegment::Line {
+                        start: OutputPoint { x: 10.0, y: 0.0 },
+                        end: OutputPoint { x: 10.0, y: 10.0 },
+                    },
+                ],
+                stroke: OutputStroke {
+                    width_mm: 0.18,
+                    style: style.to_owned(),
+                    color_hex: "#31322f".to_owned(),
+                },
+                fill: None,
+            }];
+            let mut filled = unfilled.clone();
+            if let OutputDrawable::JoinedPath { fill, .. } = &mut filled.drawables[0] {
+                *fill = Some(OutputFill {
+                    color_hex: "#123456".to_owned(),
+                    opacity: 0.25,
+                });
+            }
+            let unfilled_text =
+                String::from_utf8_lossy(&encode_pdf(&unfilled).expect("unfilled PDF should build"))
+                    .into_owned();
+            let filled_text =
+                String::from_utf8_lossy(&encode_pdf(&filled).expect("filled PDF should build"))
+                    .into_owned();
+            let stroke_operator = format!("0.192 0.196 0.184 RG 1 J 1 j 0.51 w {dash_operator}");
+            assert_eq!(unfilled_text.matches(&stroke_operator).count(), 2);
+            assert_eq!(filled_text.matches(&stroke_operator).count(), 2);
+            assert_eq!(unfilled_text.matches("\nS\n").count(), 2);
+            assert_eq!(filled_text.matches("\nS\n").count(), 2);
+            assert!(filled_text.contains("h\nf\nQ\n"));
+            assert!(!filled_text.contains("h\nB\nQ\n"));
+            assert!(!filled_text.contains("h\nS\n"));
+        }
     }
 
     fn stroke_content(style: &str) -> String {

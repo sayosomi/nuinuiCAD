@@ -141,6 +141,14 @@ fn push_path_data(svg: &mut String, data: &str, stroke: &OutputStroke, fill: Opt
     svg.push('\n');
 }
 
+fn push_fill_path_data(svg: &mut String, data: &str, fill: &OutputFill) {
+    svg.push_str(&format!(
+        r##"    <path d="{data}" {} stroke="none" />"##,
+        fill_attributes(Some(fill))
+    ));
+    svg.push('\n');
+}
+
 fn push_path(
     svg: &mut String,
     segment: &OutputPathSegment,
@@ -250,12 +258,11 @@ fn push_drawable(svg: &mut String, drawable: &OutputDrawable, payload: &Resolved
         } => {
             if let Some(fill) = fill {
                 if let Some(data) = closed_segmented_path_data(segments, payload) {
-                    push_path_data(svg, &data, stroke, Some(fill));
+                    push_fill_path_data(svg, &data, fill);
                 }
-            } else {
-                for segment in segments {
-                    push_path(svg, segment, stroke, None, payload);
-                }
+            }
+            for segment in segments {
+                push_path(svg, segment, stroke, None, payload);
             }
         }
         OutputDrawable::Polyline {
@@ -448,10 +455,83 @@ mod tests {
             }),
         }];
         let svg = encode_svg(&filled).expect("segmented filled SVG should build");
-        assert_eq!(svg.matches("<path ").count(), 1);
-        assert!(
-            svg.contains(r##"d="M 0 80 L 10 80 L 10 70 Z" fill="#123456" fill-opacity="0.25""##)
-        );
+        assert_eq!(svg.matches("<path ").count(), 3);
+        assert!(svg.contains(
+            r##"d="M 0 80 L 10 80 L 10 70 Z" fill="#123456" fill-opacity="0.25" stroke="none""##
+        ));
+        assert!(svg.contains(
+            r##"d="M 0 80 L 10 80" fill="none" stroke="#31322f" stroke-width="0.18" stroke-linecap="round" stroke-linejoin="round""##
+        ));
+        assert!(svg.contains(
+            r##"d="M 10 80 L 10 70" fill="none" stroke="#31322f" stroke-width="0.18" stroke-linecap="round" stroke-linejoin="round""##
+        ));
+        let fill_position = svg
+            .find(r##"fill="#123456" fill-opacity="0.25" stroke="none""##)
+            .expect("fill contour should be emitted");
+        let first_stroke_position = svg
+            .find(r##"d="M 0 80 L 10 80" fill="none" stroke="#31322f""##)
+            .expect("first segment stroke should be emitted");
+        let second_stroke_position = svg
+            .find(r##"d="M 10 80 L 10 70" fill="none" stroke="#31322f""##)
+            .expect("second segment stroke should be emitted");
+        assert!(fill_position < first_stroke_position);
+        assert!(first_stroke_position < second_stroke_position);
+        assert!(svg
+            .lines()
+            .filter(|line| line.contains(r##"stroke="#31322f""##))
+            .all(|line| !line.contains(" Z")));
+    }
+
+    #[test]
+    fn preserves_segmented_stroke_topology_and_dash_attributes_with_fill() {
+        for (style, dash_attribute) in [
+            ("dashed", r##"stroke-dasharray="4 3""##),
+            ("dotted", r##"stroke-dasharray="1 2""##),
+        ] {
+            let mut unfilled = payload();
+            unfilled.drawables = vec![OutputDrawable::JoinedPath {
+                element_id: "joined".to_owned(),
+                name: "joined".to_owned(),
+                segments: vec![
+                    OutputPathSegment::Line {
+                        start: OutputPoint { x: 0.0, y: 0.0 },
+                        end: OutputPoint { x: 10.0, y: 0.0 },
+                    },
+                    OutputPathSegment::Line {
+                        start: OutputPoint { x: 10.0, y: 0.0 },
+                        end: OutputPoint { x: 10.0, y: 10.0 },
+                    },
+                ],
+                stroke: OutputStroke {
+                    style: style.to_owned(),
+                    ..stroke()
+                },
+                fill: None,
+            }];
+            let mut filled = unfilled.clone();
+            if let OutputDrawable::JoinedPath { fill, .. } = &mut filled.drawables[0] {
+                *fill = Some(OutputFill {
+                    color_hex: "#123456".to_owned(),
+                    opacity: 0.25,
+                });
+            }
+            let unfilled_svg = encode_svg(&unfilled).expect("unfilled SVG should build");
+            let filled_svg = encode_svg(&filled).expect("filled SVG should build");
+            let unfilled_strokes: Vec<_> = unfilled_svg
+                .lines()
+                .filter(|line| line.contains(r##"fill="none" stroke="#31322f""##))
+                .collect();
+            let filled_strokes: Vec<_> = filled_svg
+                .lines()
+                .filter(|line| line.contains(r##"fill="none" stroke="#31322f""##))
+                .collect();
+            assert_eq!(unfilled_strokes, filled_strokes);
+            assert_eq!(filled_svg.matches(dash_attribute).count(), 2);
+            assert!(filled_svg
+                .lines()
+                .filter(|line| line.contains(r##"stroke="#31322f""##))
+                .all(|line| !line.contains(" Z")));
+        }
     }
 
     #[test]
