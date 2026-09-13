@@ -265,7 +265,7 @@ class Parser {
       if (token.literal.kind === "choice" && token.literal.raw === "if" && this.peek(1)?.kind === "leftParen") {
         return this.parseValueIf(token);
       }
-      if (token.literal.kind === "choice" && token.literal.raw === "match" && this.hasValueMatchBody()) {
+      if (token.literal.kind === "choice" && token.literal.raw === "match" && this.hasMatchBody()) {
         return this.parseValueMatch(token);
       }
       if (token.literal.kind === "choice" && this.peek(1)?.kind === "leftParen") {
@@ -417,7 +417,7 @@ class Parser {
     }
   }
 
-  private hasValueMatchBody(): boolean {
+  private hasMatchBody(): boolean {
     let parenthesisDepth = 0;
     let bracketDepth = 0;
     for (const token of this.tokens.slice(this.index + 1)) {

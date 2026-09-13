@@ -14,14 +14,13 @@ const errorsOf = (compiled: ReturnType<typeof compileWithIds>) =>
   compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error");
 
 describe("module geometry array presence", () => {
-  it("allows an optional path[] consumer after hasValue proves presence", () => {
+  it("allows an optional path[] consumer after general coalescing", () => {
     const compiled = compileWithIds([
       "nui 1",
       "line A = segment(start: (0, 0), end: (10, 0))",
-      "module M(paths?: path[]) {",
-      "  if (hasValue(@paths)) {",
-      "    line Copy = offset(sources: @paths, distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
-      "  }",
+      "module M(paths: path[]?) {",
+      "  const resolved: path[] = @paths ?? []",
+      "  line Copy = offset(sources: @resolved, distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
       "}",
       "instance Omitted = M()",
       "instance Supplied = M(paths: [@A])"
@@ -33,7 +32,7 @@ describe("module geometry array presence", () => {
   it("rejects an optional path[] consumer without a presence guard", () => {
     const compiled = compileWithIds([
       "nui 1",
-      "module M(paths?: path[]) {",
+      "module M(paths: path[]?) {",
       "  line Copy = offset(sources: @paths, distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
       "}"
     ].join("\n"));

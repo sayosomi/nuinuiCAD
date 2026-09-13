@@ -30,7 +30,6 @@ import type {
   GeometryValueProgramPoint
 } from "../dsl/moduleGeometryValueProgram";
 import { buildLexicalScopeIndexFromStatements } from "../dsl/lexicalScopeIndexAdapter";
-import { moduleParameterPresenceKey } from "../dsl/moduleScalarExpression";
 import { isDslOptionalValueType } from "../dsl/dslValueTypes";
 import type { CadElement, DrawingModifierDefinition, ElementId, GeometryInputCollectionNode, GeometryInputTarget, PointAnchor } from "../types/geometry";
 import { findParameterDefinition, scalarTypeForParameterDefinition } from "../parameters/parameterDefinitions";
@@ -215,6 +214,11 @@ const scalarTypeOf = (type: ModuleDefinitionSemantic["parameters"][number]["type
 const pathKey = (path: readonly string[]) => encodeIdentityTuple(["instance", ...path]);
 const moduleCollectionValueIdFor = (path: readonly string[], valueId: string) =>
   `module-collection:${encodeIdentityTuple([...path, valueId])}`;
+const moduleRecordParameterCollectionValueIdFor = (
+  path: readonly string[],
+  definitionStatementId: string,
+  parameterIndex: number
+) => `module-record-parameter:${encodeIdentityTuple([...path, definitionStatementId, String(parameterIndex)])}`;
 
 type ForeignSourceScalars = {
   documentId: import("../document/multiDocumentPrimitives").DocumentId;
@@ -951,59 +955,6 @@ const lowerRecordPropertyAst = (
   return visit(ast);
 };
 
-const materializeHasValueAst = (
-  ast: ModuleScalarExpressionSemantic["ast"],
-  semantic: ModuleScalarExpressionSemantic,
-  hasValueForParameter: (definitionStatementId: string, parameterIndex: number, definitionDocumentId?: DocumentId) => boolean
-): ModuleScalarExpressionSemantic["ast"] => {
-  const intrinsic = ast.kind === "call" && ast.name === "hasValue"
-    ? semantic.hasValueParameters.find((entry) => entry.span.start === ast.span.start)
-    : undefined;
-  if (intrinsic) {
-    return {
-      kind: "booleanLiteral",
-      span: ast.span,
-      value: hasValueForParameter(intrinsic.definitionStatementId, intrinsic.parameterIndex, intrinsic.definitionIdentity?.documentId)
-    };
-  }
-  switch (ast.kind) {
-    case "unary": return { ...ast, operand: materializeHasValueAst(ast.operand, semantic, hasValueForParameter) };
-    case "binary": {
-      const left = materializeHasValueAst(ast.left, semantic, hasValueForParameter);
-      const right = materializeHasValueAst(ast.right, semantic, hasValueForParameter);
-      if (ast.operator === "&&" && left.kind === "booleanLiteral") {
-        if (!left.value) return { kind: "booleanLiteral", span: ast.span, value: false };
-        return right;
-      }
-      if (ast.operator === "||" && left.kind === "booleanLiteral") {
-        if (left.value) return { kind: "booleanLiteral", span: ast.span, value: true };
-        return right;
-      }
-      return { ...ast, left, right };
-    }
-    case "group": return { ...ast, expression: materializeHasValueAst(ast.expression, semantic, hasValueForParameter) };
-    case "valueIf": {
-      const condition = materializeHasValueAst(ast.condition, semantic, hasValueForParameter);
-      const thenBranch = materializeHasValueAst(ast.thenBranch, semantic, hasValueForParameter);
-      const elseBranch = ast.elseBranch ? materializeHasValueAst(ast.elseBranch, semantic, hasValueForParameter) : null;
-      return condition.kind === "booleanLiteral"
-        ? condition.value ? thenBranch : (elseBranch ?? { kind: "noneLiteral", span: { start: ast.span.end, end: ast.span.end } })
-        : { ...ast, condition, thenBranch, elseBranch };
-    }
-    case "valueMatch": return {
-      ...ast,
-      scrutinee: materializeHasValueAst(ast.scrutinee, semantic, hasValueForParameter),
-      arms: ast.arms.map((arm) => ({ ...arm, expression: materializeHasValueAst(arm.expression, semantic, hasValueForParameter) }))
-    };
-    case "collectionIndex": return { ...ast, index: materializeHasValueAst(ast.index, semantic, hasValueForParameter) };
-    case "call": return {
-      ...ast,
-      args: ast.args.map((argument) => ({ ...argument, expression: materializeHasValueAst(argument.expression, semantic, hasValueForParameter) }))
-    };
-    default: return ast;
-  }
-};
-
 const typecheckGeometryTargetFor = (
   occurrence: ModuleGeometryBuiltinArgumentSemantic
 ): ScalarExpressionResolvedGeometryTarget | null => {
@@ -1125,11 +1076,10 @@ export const lowerExpression = (
   geometryPropertyForTarget?: (target: ModuleGeometryPropertySourceTarget) => ModuleGeometryPropertyRuntimeTarget | undefined,
   collectionLengthForTarget?: (target: Extract<ModuleGeometryPropertySourceTarget, { kind: "collectionValueLength" | "collectionParameterLength" | "deferredModuleCollectionExportLength" }>) => number | undefined,
   geometryBuiltinForTarget?: (occurrence: ModuleGeometryBuiltinArgumentSemantic) => ScalarExpressionResolvedGeometryTarget | undefined,
-  hasValueForParameter: (definitionStatementId: string, parameterIndex: number, definitionDocumentId?: DocumentId) => boolean = () => false,
   collectionValueIdFor: (valueId: string) => string = (valueId: string) => valueId,
   collectionSourceOrderFor: (sourceOrder: number) => number = (sourceOrder: number) => sourceOrder
 ): { expression: TypedScalarExpression; references: InitializerReference[] } => {
-  const runtimeAst = materializeHasValueAst(lowerRecordPropertyAst(semantic.ast, semantic), semantic, hasValueForParameter);
+  const runtimeAst = lowerRecordPropertyAst(semantic.ast, semantic);
   const references = semanticReferencesUsedByAst(semantic, runtimeAst);
   const typecheckResolutions: (BindingResolution | ScalarExpressionResolvedReference)[] = [];
   // Collection-index base references are intentionally omitted from the
@@ -1457,9 +1407,13 @@ export const lowerExpression = (
       occurrence.span.start >= call.span.start &&
       occurrence.span.end <= call.span.end
     );
-  const collectTypecheckResolutions = (node: ModuleScalarExpressionSemantic["ast"]): void => {
+  const collectTypecheckResolutions = (
+    node: ModuleScalarExpressionSemantic["ast"],
+    boundNames: ReadonlySet<string> = new Set()
+  ): void => {
     switch (node.kind) {
       case "reference": {
+        if (boundNames.has(node.name)) return;
         const reference = semanticReferenceFor(node.span.start);
         typecheckResolutions.push(bindingResolutionFor(
           reference?.target && ["parameter", "recordField", "moduleLocal", "documentBinding", "iteration", "valueForBinder", "deferredModuleScalarExport"].includes(reference.target.kind)
@@ -1471,6 +1425,10 @@ export const lowerExpression = (
         return;
       }
       case "collectionIndex": {
+        if (boundNames.has(node.name)) {
+          collectTypecheckResolutions(node.index, boundNames);
+          return;
+        }
         const reference = semanticReferenceFor(node.span.start);
         const recordFieldTarget = reference?.target?.kind === "recordField" ? reference.target : null;
         const recordValueTarget = recordFieldTarget?.record.kind === "recordValue"
@@ -1505,7 +1463,7 @@ export const lowerExpression = (
           })(),
           type: recordFieldTarget?.type ?? reference?.collectionElementType ?? null
         });
-        collectTypecheckResolutions(node.index);
+        collectTypecheckResolutions(node.index, boundNames);
         return;
       }
       case "geometryProperty":
@@ -1528,32 +1486,35 @@ export const lowerExpression = (
             if (sourceArgument.kind === "reference" || sourceArgument.kind === "collectionIndex") {
               typecheckResolutions.push({ kind: "resolvedGeometry", target: typecheckGeometryTargetFor(occurrence) });
             }
-            if (sourceArgument.kind === "collectionIndex") collectTypecheckResolutions(sourceArgument.index);
-            if (sourceArgument.kind === "geometryProperty" && sourceArgument.occurrenceIndex) collectTypecheckResolutions(sourceArgument.occurrenceIndex);
+            if (sourceArgument.kind === "collectionIndex") collectTypecheckResolutions(sourceArgument.index, boundNames);
+            if (sourceArgument.kind === "geometryProperty" && sourceArgument.occurrenceIndex) collectTypecheckResolutions(sourceArgument.occurrenceIndex, boundNames);
           } else {
-            collectTypecheckResolutions(sourceArgument);
+            collectTypecheckResolutions(sourceArgument, boundNames);
           }
         });
         return;
       }
       case "unary":
-        collectTypecheckResolutions(node.operand);
+        collectTypecheckResolutions(node.operand, boundNames);
         return;
       case "binary":
-        collectTypecheckResolutions(node.left);
-        collectTypecheckResolutions(node.right);
+        collectTypecheckResolutions(node.left, boundNames);
+        collectTypecheckResolutions(node.right, boundNames);
         return;
       case "group":
-        collectTypecheckResolutions(node.expression);
+        collectTypecheckResolutions(node.expression, boundNames);
         return;
       case "valueIf":
-        collectTypecheckResolutions(node.condition);
-        collectTypecheckResolutions(node.thenBranch);
-        if (node.elseBranch) collectTypecheckResolutions(node.elseBranch);
+        collectTypecheckResolutions(node.condition, boundNames);
+        collectTypecheckResolutions(node.thenBranch, boundNames);
+        if (node.elseBranch) collectTypecheckResolutions(node.elseBranch, boundNames);
         return;
       case "valueMatch":
-        collectTypecheckResolutions(node.scrutinee);
-        node.arms.forEach((arm) => collectTypecheckResolutions(arm.expression));
+        collectTypecheckResolutions(node.scrutinee, boundNames);
+        node.arms.forEach((arm) => collectTypecheckResolutions(
+          arm.expression,
+          arm.binder ? new Set([...boundNames, arm.binder]) : boundNames
+        ));
         return;
       default:
         return;
@@ -1581,11 +1542,11 @@ export const lowerExpression = (
       const resolved = semanticProperty?.target && geometryPropertyForTarget?.(semanticProperty.target);
       if (!resolved) return { node, references: [] };
       if (resolved.kind === "expression") {
-        const lowered = lowerExpression(resolved.expression, bindingForTarget, catalogBindings, geometryPropertyForTarget, collectionLengthForTarget, geometryBuiltinForTarget, hasValueForParameter, collectionValueIdFor, collectionSourceOrderFor);
+        const lowered = lowerExpression(resolved.expression, bindingForTarget, catalogBindings, geometryPropertyForTarget, collectionLengthForTarget, geometryBuiltinForTarget, collectionValueIdFor, collectionSourceOrderFor);
         return { node: lowered.expression, references: lowered.references };
       }
       const loweredOccurrenceIndex = resolved.kind === "forGroupOccurrence" && resolved.index
-        ? lowerExpression(resolved.index, bindingForTarget, catalogBindings, geometryPropertyForTarget, collectionLengthForTarget, geometryBuiltinForTarget, hasValueForParameter, collectionValueIdFor, collectionSourceOrderFor)
+        ? lowerExpression(resolved.index, bindingForTarget, catalogBindings, geometryPropertyForTarget, collectionLengthForTarget, geometryBuiltinForTarget, collectionValueIdFor, collectionSourceOrderFor)
         : undefined;
       return {
         node: {
@@ -2072,9 +2033,7 @@ export const compileModuleScalarRuntime = ({
       definitionSourceNamespace?.recordSemanticAnalysis?.definitionsByStatementId.get(field.recordStatementId)?.fields.find((candidate) => candidate.fieldIndex === field.fieldIndex)?.name ?? ""
     ).join(".");
     for (const parameter of definition.parameters) {
-      const parameterBinding = instance.parameterBindings.find((candidate) => candidate.parameterIndex === parameter.parameterIndex);
-      if (parameter.optional && parameterBinding?.state === "optionalOmitted") continue;
-      const type = scalarTypeOf(parameter.type);
+      const type = scalarExpressionTypeOfDslValueType(parameter.valueType) ?? scalarTypeOf(parameter.type);
       if (!type) continue;
       const id = bindingIdFor("parameter", context, String(parameter.parameterIndex));
       const info: BindingInfo = {
@@ -2098,7 +2057,7 @@ export const compileModuleScalarRuntime = ({
       );
       if (!recordParameter?.typeIdentity) continue;
       const parameterBinding = instance.parameterBindings.find((candidate) => candidate.parameterIndex === parameter.parameterIndex);
-      if (!parameterBinding || parameterBinding.state === "optionalOmitted" || parameterBinding.value?.kind !== "record") continue;
+      if (!parameterBinding || parameterBinding.state === "omitted" || parameterBinding.value?.kind !== "record") continue;
       const recordDefinition = definitionSourceNamespace?.recordSemanticAnalysis?.definitionsByStatementId.get(recordParameter.typeIdentity);
       if (!recordDefinition) continue;
       const fieldBindings = new Map<number, { id: BindingId }>();
@@ -2186,10 +2145,38 @@ export const compileModuleScalarRuntime = ({
           if (fieldPath.length === 1) fieldBindings.set(field.fieldIndex, info);
           allBindingInfos.push(info);
         }
-      } else if (recordValue.valueExpression?.kind === "none" || recordValue.valueExpression?.kind === "coalesce") {
-        // Optional/`??` nominal records are materialized through the shared
-        // record collection descriptor below; they intentionally have no
-        // scalar backing slots of their own.
+      } else if (recordValue.valueExpression?.kind === "coalesce") {
+        // A coalesced record still needs scalar bindings for constructor
+        // fields on its present RHS. The collection descriptor below selects
+        // those fields lazily after resolving the optional LHS.
+        const constructor = recordValue.valueExpression.right?.kind === "constructor"
+          ? recordValue.valueExpression.right.constructor
+          : null;
+        if (constructor) {
+          for (const { field, path: fieldPath, type } of scalarFieldPathsFor(recordDefinition, [], definitionSourceNamespace?.recordSemanticAnalysis)) {
+            const constructorField = constructorFieldAtPath(constructor.fields, fieldPath);
+            if (!constructorField) continue;
+            const bindingId = moduleRecordScalarBindingIdForPath(path, recordValue.value.statementId, fieldPath);
+            const info: BindingInfo = {
+              id: bindingId,
+              declarationVersionId: moduleRecordScalarDeclarationVersionIdForPath(path, recordValue.value.statementId, fieldPath),
+              name: `${recordValue.value.name}.${fieldNameForPath(fieldPath)}`,
+              type,
+              bindingKind: "const",
+              scopeId: moduleScopeIdFor(path, definitionSourceScopeIndex?.scopeOfStatement.get(recordValue.value.statementIndex) ?? bodyScopeId),
+              sourceScopeId: definitionSourceScopeIndex?.scopeOfStatement.get(recordValue.value.statementIndex) ?? bodyScopeId,
+              contextKey: key,
+              statementId: recordValue.value.statementId,
+              statementIndex: recordValue.value.statementIndex
+            };
+            fieldBindingsByPath.set(recordFieldPathKey(fieldPath), info);
+            if (fieldPath.length === 1) fieldBindings.set(field.fieldIndex, info);
+            allBindingInfos.push(info);
+          }
+        }
+      } else if (recordValue.valueExpression?.kind === "none") {
+        // The ordinary none descriptor below represents an optional record
+        // with no present branch and needs no scalar field bindings.
       } else if (recordValue.valueExpression) {
         for (const { field, path: fieldPath, type } of scalarFieldPathsFor(recordDefinition, [], definitionSourceNamespace?.recordSemanticAnalysis)) {
           const bindingId = moduleRecordScalarBindingIdForPath(path, recordValue.value.statementId, fieldPath);
@@ -2320,36 +2307,10 @@ export const compileModuleScalarRuntime = ({
     return undefined;
   };
 
-  const hasValueForParameter = (current: InstanceContext, definitionStatementId: string, parameterIndex: number, definitionDocumentId?: DocumentId): boolean => {
-    let cursor: InstanceContext | undefined = current;
-    while (cursor) {
-      if (cursor.definition.statementId === definitionStatementId &&
-        (!definitionDocumentId || cursor.definitionDocumentId === definitionDocumentId)) {
-        return cursor.instance.parameterBindings.find((binding) => binding.parameterIndex === parameterIndex)?.state === "optionalSupplied";
-      }
-      cursor = cursor.parentKey ? contextsByKey.get(cursor.parentKey) : undefined;
-    }
-    return false;
+  const moduleBodyStatementIsReachable = (...args: readonly unknown[]): boolean => {
+    void args;
+    return true;
   };
-
-  const presenceKeysSatisfied = (context: InstanceContext, keys: readonly string[]): boolean => {
-    if (keys.length === 0) return true;
-    const satisfiedPresenceKeys = new Set<string>();
-    let cursor: InstanceContext | undefined = context;
-    while (cursor) {
-      for (const parameter of cursor.definition.parameters) {
-        const binding = cursor.instance.parameterBindings.find((candidate) => candidate.parameterIndex === parameter.parameterIndex);
-        if (parameter.optional && binding?.state === "optionalSupplied") {
-          satisfiedPresenceKeys.add(moduleParameterPresenceKey(parameter.definitionStatementId, parameter.parameterIndex));
-        }
-      }
-      cursor = cursor.parentKey ? contextsByKey.get(cursor.parentKey) : undefined;
-    }
-    return keys.every((key) => satisfiedPresenceKeys.has(key));
-  };
-
-  const moduleBodyStatementIsReachable = (context: InstanceContext, body: ModuleBodyStatementSemantic): boolean =>
-    presenceKeysSatisfied(context, body.presenceParameterKeys);
 
   const contextIsReachable = (context: InstanceContext): boolean => {
     if (!context.parentKey) return true;
@@ -2422,7 +2383,6 @@ export const compileModuleScalarRuntime = ({
       for (const recordValue of pendingRecordValues) {
         if (emittedRecordValues.has(recordValue.value.statementId) || recordValue.value.statementIndex > statementIndex) continue;
         emittedRecordValues.add(recordValue.value.statementId);
-        if (!presenceKeysSatisfied(context, recordValue.presenceParameterKeys)) continue;
         // Aliases and pass-through values reuse the source field bindings;
         // only a constructor introduces new runtime binding events.
         if (!recordValue.value.constructor && !recordValue.valueExpression) continue;
@@ -2803,7 +2763,7 @@ export const compileModuleScalarRuntime = ({
     const registeredRecordFieldProjectionIds = new Set<string>();
 
     const recordMemberForValueTarget = (
-      target: Extract<ModuleRecordSourceTarget, { kind: "recordValue" }>,
+      target: ModuleRecordSourceTarget,
       typeIdentity: string,
       context: InstanceContext | null
     ): ScalarProgramCollectionMember | null => {
@@ -2830,9 +2790,32 @@ export const compileModuleScalarRuntime = ({
     const recordTargetValueIdFor = (
       target: ModuleRecordSourceTarget,
       context: InstanceContext | null
-    ): string | null => target.kind === "recordValue"
-      ? collectionValueIdFor(recordValueCollectionIdFor([], target.statementId), context)
-      : null;
+    ): string | null => {
+      if (target.kind === "recordValue") {
+        return collectionValueIdFor(recordValueCollectionIdFor([], target.statementId), context);
+      }
+      if (target.kind === "recordParameter") {
+        const owner = context
+          ? contextCandidatesFor(context).find((candidate) => candidate.definition.statementId === target.definitionStatementId)
+          : null;
+        return owner
+          ? moduleRecordParameterCollectionValueIdFor(owner.path, target.definitionStatementId, target.parameterIndex)
+          : null;
+      }
+      if (target.kind === "recordCollectionIndex") {
+        return collectionValueIdFor(target.collectionValueId, context);
+      }
+      if (target.kind === "deferredModuleRecordExport") {
+        const child = runtimeContextForSourceInstance(context, target.instanceStatementId, target.instanceIdentity?.documentId);
+        const exported = child?.definition.exports.find((candidate) =>
+          candidate.kind === "record" && candidate.name === target.exportName && candidate.exportedStatementId === target.exportedStatementId
+        );
+        return child && exported?.kind === "record"
+          ? recordTargetValueIdFor(exported.backingTarget, child)
+          : null;
+      }
+      return null;
+    };
 
     const appendRecordValueExpression = (
       expression: ModuleRecordValueExpressionSemantic,
@@ -2868,7 +2851,6 @@ export const compileModuleScalarRuntime = ({
               (sourceTarget) => resolvedGeometryPropertyForContext(sourceTarget, context),
               (sourceTarget) => collectionLengthForTargetContext(sourceTarget, context),
               (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context),
-              (definitionStatementId, parameterIndex, definitionDocumentId) => hasValueForParameter(context, definitionStatementId, parameterIndex, definitionDocumentId),
               (id) => collectionValueIdFor(id, context),
               (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder
             ).expression
@@ -2879,7 +2861,6 @@ export const compileModuleScalarRuntime = ({
               rootGeometryPropertyFor,
               rootCollectionLengthFor,
               resolvedGeometryBuiltinForRoot,
-              undefined,
               (id) => collectionValueIdFor(id, null),
               (sourceOrder) => sourceOrder
             ).expression;
@@ -2953,6 +2934,42 @@ export const compileModuleScalarRuntime = ({
       );
     };
 
+    for (const context of contextsByKey.values()) {
+      const recordAnalysis = sourceNamespaceForContext(context)?.recordSemanticAnalysis;
+      for (const parameter of context.definition.parameters) {
+        const recordParameter = recordAnalysis?.moduleParameters.find((candidate) =>
+          candidate.definitionStatementId === context.definition.statementId && candidate.parameterIndex === parameter.parameterIndex
+        );
+        if (!recordParameter?.typeIdentity) continue;
+        const valueId = moduleRecordParameterCollectionValueIdFor(
+          context.path,
+          parameter.definitionStatementId,
+          parameter.parameterIndex
+        );
+        const binding = context.instance.parameterBindings.find((candidate) => candidate.parameterIndex === parameter.parameterIndex);
+        if (binding?.value?.kind !== "record") {
+          moduleCollectionValues.push({ valueId, kind: "none" });
+          continue;
+        }
+        if (binding.value.reference.target) {
+          const targetValueId = recordTargetValueIdFor(binding.value.reference.target, context);
+          if (targetValueId) moduleCollectionValues.push({ valueId, kind: "alias", targetValueId });
+          else moduleCollectionValues.push({ valueId, kind: "none" });
+          continue;
+        }
+        const target: ModuleRecordSourceTarget = {
+          kind: "recordParameter",
+          definitionStatementId: parameter.definitionStatementId,
+          parameterIndex: parameter.parameterIndex,
+          typeIdentity: recordParameter.typeIdentity,
+          ...(parameter.definitionIdentity ? { definitionIdentity: parameter.definitionIdentity } : {})
+        };
+        const member = recordMemberForValueTarget(target, recordParameter.typeIdentity, context);
+        if (member) moduleCollectionValues.push({ valueId, kind: "literal", members: [member] });
+        else moduleCollectionValues.push({ valueId, kind: "none" });
+      }
+    }
+
     for (const recordValue of moduleSemanticAnalysis.rootRecordValuesByStatementId.values()) {
       appendRecordValue(recordValue, null);
     }
@@ -3004,7 +3021,6 @@ export const compileModuleScalarRuntime = ({
               (target) => resolvedGeometryPropertyForContext(target, context),
               (target) => collectionLengthForTargetContext(target, context),
               (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context),
-              (definitionStatementId, parameterIndex, definitionDocumentId) => hasValueForParameter(context, definitionStatementId, parameterIndex, definitionDocumentId),
               (id) => collectionValueIdFor(id, context),
               (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder
             ).expression
@@ -3015,7 +3031,6 @@ export const compileModuleScalarRuntime = ({
               rootGeometryPropertyFor,
               rootCollectionLengthFor,
               resolvedGeometryBuiltinForRoot,
-              undefined,
               (id) => collectionValueIdFor(id, null),
               (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue([], sourceOrder) : sourceOrder
             ).expression;
@@ -3183,7 +3198,6 @@ export const compileModuleScalarRuntime = ({
           (target) => resolvedGeometryPropertyForContext(target, context),
           (target) => collectionLengthForTargetContext(target, context),
           (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context),
-          (definitionStatementId, parameterIndex, definitionDocumentId) => hasValueForParameter(context, definitionStatementId, parameterIndex, definitionDocumentId),
           (id) => collectionValueIdFor(id, context),
           (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder
         ).expression;
@@ -3205,7 +3219,6 @@ export const compileModuleScalarRuntime = ({
           (target) => resolvedGeometryPropertyForContext(target, context),
           (target) => collectionLengthForTargetContext(target, context),
           (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context),
-          (definitionStatementId, parameterIndex, definitionDocumentId) => hasValueForParameter(context, definitionStatementId, parameterIndex, definitionDocumentId),
           (id) => collectionValueIdFor(id, context),
           (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder
         ).expression;
@@ -3299,7 +3312,6 @@ export const compileModuleScalarRuntime = ({
           (target) => resolvedGeometryPropertyForContext(target, context),
           (target) => collectionLengthForTargetContext(target, context),
           (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context),
-          (definitionStatementId, parameterIndex, definitionDocumentId) => hasValueForParameter(context, definitionStatementId, parameterIndex, definitionDocumentId),
           (valueId) => collectionValueIdFor(valueId, context),
           (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder
         );
@@ -3356,14 +3368,18 @@ export const compileModuleScalarRuntime = ({
     }
     for (const parameter of contextAnalysis.genericModuleParameters.filter((candidate) => candidate.definitionStatementId === context.definition.statementId)) {
       const binding = context.instance.parameterBindings.find((candidate) => candidate.parameterIndex === parameter.parameterIndex);
-      const targetValueId = binding?.value?.kind === "collection"
-        ? collectionValueIdFor(binding.value.targetValueId, context.parentKey ? contextsByKey.get(context.parentKey) ?? null : null)
-        : "";
-      moduleCollectionValues.push({
-        valueId: moduleCollectionValueIdFor(context.path, `${parameter.definitionStatementId}:parameter:${parameter.parameterIndex}`),
-        kind: "alias",
-        targetValueId
-      });
+      const valueId = moduleCollectionValueIdFor(context.path, `${parameter.definitionStatementId}:parameter:${parameter.parameterIndex}`);
+      if (binding?.value?.kind === "collection") {
+        moduleCollectionValues.push({
+          valueId,
+          kind: "alias",
+          targetValueId: collectionValueIdFor(binding.value.targetValueId, context.parentKey ? contextsByKey.get(context.parentKey) ?? null : null)
+        });
+      } else {
+        // An omitted or explicit-none optional collection is the ordinary
+        // shared none value, not a missing alias target.
+        moduleCollectionValues.push({ valueId, kind: "none" });
+      }
     }
     for (const recordValue of context.definition.recordValues) {
       for (const field of recordValue.fieldExpressions) {
@@ -3396,7 +3412,6 @@ export const compileModuleScalarRuntime = ({
           rootGeometryPropertyFor,
           rootCollectionLengthFor,
           resolvedGeometryBuiltinForRoot,
-          undefined,
           (id) => collectionValueIdFor(id, null),
           (order) => order
         ).expression;
@@ -3417,7 +3432,6 @@ export const compileModuleScalarRuntime = ({
           rootGeometryPropertyFor,
           rootCollectionLengthFor,
           resolvedGeometryBuiltinForRoot,
-          undefined,
           (id) => collectionValueIdFor(id, null),
           (order) => order
         ).expression;
@@ -3541,7 +3555,6 @@ export const compileModuleScalarRuntime = ({
             ? target.length ?? collectionLengthForValueId(collectionAnalysis, target.valueId) ?? undefined
             : undefined,
           undefined,
-          undefined,
           foreignValueIdFor,
           foreignSourceOrderFor
         ).expression;
@@ -3564,7 +3577,6 @@ export const compileModuleScalarRuntime = ({
           (target) => target.kind === "collectionValueLength"
             ? target.length ?? collectionLengthForValueId(collectionAnalysis, target.valueId) ?? undefined
             : undefined,
-          undefined,
           undefined,
           foreignValueIdFor,
           foreignSourceOrderFor
@@ -3842,7 +3854,6 @@ export const compileModuleScalarRuntime = ({
             (target) => resolvedGeometryPropertyForContext(target, context),
             (target) => collectionLengthForTargetContext(target, context),
             (candidate) => resolvedGeometryBuiltinForContext(candidate, context),
-            (definitionStatementId, parameterIndex, definitionDocumentId) => hasValueForParameter(context, definitionStatementId, parameterIndex, definitionDocumentId),
             (valueId) => collectionValueIdFor(valueId, context),
             (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder
           ).expression
@@ -3894,7 +3905,6 @@ export const compileModuleScalarRuntime = ({
             rootGeometryPropertyFor,
             rootCollectionLengthFor,
             resolvedGeometryBuiltinForRoot,
-            undefined,
             (valueId) => collectionValueIdFor(valueId, null),
             (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue([], sourceOrder) : sourceOrder
           ).expression
@@ -3926,7 +3936,6 @@ export const compileModuleScalarRuntime = ({
       (target) => resolvedGeometryPropertyForContext(target, context),
       (target) => collectionLengthForTargetContext(target, context),
       (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context),
-      (definitionStatementId, parameterIndex, definitionDocumentId) => hasValueForParameter(context, definitionStatementId, parameterIndex, definitionDocumentId),
       (valueId) => collectionValueIdFor(valueId, context),
       (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder
     );
@@ -3977,10 +3986,18 @@ export const compileModuleScalarRuntime = ({
       }
     }
     for (const recordValue of context.definition.recordValues) {
-      if (!presenceKeysSatisfied(context, recordValue.presenceParameterKeys)) continue;
       if (recordValue.value.constructor) {
         lowerRecordConstructorFields(
           recordValue.fields,
+          [],
+          (fieldPath) => fieldPath.length === 1
+            ? context.recordValues.get(recordValue.value.statementId)?.get(fieldPath[0]!.fieldIndex)?.id
+            : context.recordValueFieldBindingsByPath.get(recordValue.value.statementId)?.get(recordFieldPathKey(fieldPath))?.id,
+          context
+        );
+      } else if (recordValue.valueExpression?.kind === "coalesce" && recordValue.valueExpression.right?.kind === "constructor") {
+        lowerRecordConstructorFields(
+          recordValue.valueExpression.right.constructor.fields,
           [],
           (fieldPath) => fieldPath.length === 1
             ? context.recordValues.get(recordValue.value.statementId)?.get(fieldPath[0]!.fieldIndex)?.id
@@ -4041,7 +4058,6 @@ export const compileModuleScalarRuntime = ({
         (target) => resolvedGeometryPropertyForContext(target, context),
         (target) => collectionLengthForTargetContext(target, context),
         (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context),
-        (definitionStatementId, parameterIndex, definitionDocumentId) => hasValueForParameter(context, definitionStatementId, parameterIndex, definitionDocumentId),
         (valueId) => collectionValueIdFor(valueId, context),
         (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder
       );
@@ -4091,7 +4107,6 @@ export const compileModuleScalarRuntime = ({
             (target) => resolvedGeometryPropertyForContext(target, context),
             (target) => collectionLengthForTargetContext(target, context),
             (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context),
-            (definitionStatementId, parameterIndex, definitionDocumentId) => hasValueForParameter(context, definitionStatementId, parameterIndex, definitionDocumentId),
             (valueId) => collectionValueIdFor(valueId, context),
             (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder
           );
@@ -4125,7 +4140,6 @@ export const compileModuleScalarRuntime = ({
           (target) => resolvedGeometryPropertyForContext(target, context),
           (target) => collectionLengthForTargetContext(target, context),
           (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context),
-          (definitionStatementId, parameterIndex, definitionDocumentId) => hasValueForParameter(context, definitionStatementId, parameterIndex, definitionDocumentId),
           (valueId) => collectionValueIdFor(valueId, context),
           (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder
         );
@@ -4330,7 +4344,6 @@ export const compileModuleScalarRuntime = ({
         (target) => resolvedGeometryPropertyForContext(target, context),
         (target) => collectionLengthForTargetContext(target, context),
         (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context),
-        (definitionStatementId, parameterIndex, definitionDocumentId) => hasValueForParameter(context, definitionStatementId, parameterIndex, definitionDocumentId),
         (valueId) => collectionValueIdFor(valueId, context),
         (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder
       ).expression
@@ -4341,7 +4354,6 @@ export const compileModuleScalarRuntime = ({
         rootGeometryPropertyFor,
         rootCollectionLengthFor,
         resolvedGeometryBuiltinForRoot,
-        undefined,
         (valueId) => collectionValueIdFor(valueId, null),
         (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue([], sourceOrder) : sourceOrder
       ).expression;
@@ -4450,7 +4462,6 @@ export const compileModuleScalarRuntime = ({
               (target) => resolvedGeometryPropertyForContext(target, context),
               (target) => collectionLengthForTargetContext(target, context),
               (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context),
-              (definitionStatementId, parameterIndex, definitionDocumentId) => hasValueForParameter(context, definitionStatementId, parameterIndex, definitionDocumentId),
               (valueId) => collectionValueIdFor(valueId, context),
               (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder
             ).expression
@@ -4461,7 +4472,6 @@ export const compileModuleScalarRuntime = ({
               rootGeometryPropertyFor,
               rootCollectionLengthFor,
               resolvedGeometryBuiltinForRoot,
-              undefined,
               (valueId) => collectionValueIdFor(valueId, null),
               (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue([], sourceOrder) : sourceOrder
             ).expression
@@ -4488,7 +4498,6 @@ export const compileModuleScalarRuntime = ({
           (target) => resolvedGeometryPropertyForContext(target, context),
           (target) => collectionLengthForTargetContext(target, context),
           (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context),
-          (definitionStatementId, parameterIndex, definitionDocumentId) => hasValueForParameter(context, definitionStatementId, parameterIndex, definitionDocumentId),
           (valueId) => collectionValueIdFor(valueId, context),
           (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder
         )
@@ -4499,7 +4508,6 @@ export const compileModuleScalarRuntime = ({
           rootGeometryPropertyFor,
           rootCollectionLengthFor,
           resolvedGeometryBuiltinForRoot,
-          undefined,
           (valueId) => collectionValueIdFor(valueId, null),
           (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue([], sourceOrder) : sourceOrder
         );
@@ -4599,7 +4607,6 @@ export const compileModuleScalarRuntime = ({
           rootGeometryPropertyFor,
           rootCollectionLengthFor,
           resolvedGeometryBuiltinForRoot,
-          undefined,
           (valueId) => collectionValueIdFor(valueId, null),
           (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue([], sourceOrder) : sourceOrder
         );
@@ -4622,7 +4629,6 @@ export const compileModuleScalarRuntime = ({
           (target) => resolvedGeometryPropertyForContext(target, context),
           (target) => collectionLengthForTargetContext(target, context),
           (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context),
-          (definitionStatementId, parameterIndex, definitionDocumentId) => hasValueForParameter(context, definitionStatementId, parameterIndex, definitionDocumentId),
           (valueId) => collectionValueIdFor(valueId, context),
           (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder
         )
@@ -4633,7 +4639,6 @@ export const compileModuleScalarRuntime = ({
           rootGeometryPropertyFor,
           rootCollectionLengthFor,
           resolvedGeometryBuiltinForRoot,
-          undefined,
           (valueId) => collectionValueIdFor(valueId, null),
           (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue([], sourceOrder) : sourceOrder
         );

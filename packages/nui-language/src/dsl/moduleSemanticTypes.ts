@@ -398,13 +398,6 @@ export type ModuleScalarExpressionSemantic = {
   geometryProperties: readonly ModuleGeometryPropertyReference[];
   optionalMembers?: readonly ModuleOptionalMemberReference[];
   geometryBuiltinArguments: readonly ModuleGeometryBuiltinArgumentSemantic[];
-  /** Validated `hasValue(@parameter)` facts, keyed by intrinsic call span. */
-  hasValueParameters: readonly {
-    span: DslSpan;
-    definitionStatementId: StatementIdentity;
-    parameterIndex: number;
-    definitionIdentity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
-  }[];
 };
 
 export type ModuleOptionalMemberReference = {
@@ -804,6 +797,7 @@ export type ModuleArgumentSemantic =
   | { kind: "scalar"; expression: ModuleScalarExpressionSemantic }
   | { kind: "geometry"; reference: ModuleGeometryReferenceSemantic }
   | { kind: "record"; reference: ModuleRecordReferenceSemantic }
+  | { kind: "none"; span: DslSpan; valueType: DslValueType }
   | {
       kind: "collection";
       source: string;
@@ -822,7 +816,8 @@ export type ResolvedModuleParameterBinding = {
   argumentLabel: string | null;
   argumentSpan: DslSpan | null;
   usesDefault: boolean;
-  state: "requiredSupplied" | "requiredOmitted" | "defaultedOmitted" | "optionalSupplied" | "optionalOmitted";
+  /** Binding lifecycle only; optionality is carried by `parameterValueType`. */
+  state: "supplied" | "omitted" | "defaulted";
   value: ModuleArgumentSemantic | null;
 };
 
@@ -875,8 +870,6 @@ export type ModuleRecordValueSemantic = {
     expression: ModuleScalarExpressionSemantic | null;
     valueExpression?: ModuleRecordFieldValueExpressionSemantic | null;
   }[];
-  /** Optional Module parameters proven present at this declaration site. */
-  presenceParameterKeys: readonly string[];
   declaredValueType?: DslValueType;
 };
 
@@ -914,8 +907,6 @@ export type ModuleBodyStatementSemantic = {
   geometryReferences: readonly ModuleGeometryReferenceSite[];
   textTemplateHoles: readonly ModuleTextTemplateHoleSite[];
   scalarTarget: ModuleScalarSourceTarget | null;
-  /** Optional module parameters proven present at this statement's lexical site. */
-  presenceParameterKeys: readonly string[];
 };
 
 export type ResolvedModuleCallee = {
@@ -964,7 +955,7 @@ export type ModuleDefinitionSemantic = {
     statementIndex: number;
     identity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
     name: string;
-    type: ScalarType | null;
+    type: ScalarExpressionType | null;
     bindingKind: "const" | "let";
     initializer: ModuleScalarExpressionSemantic | null;
   }[];

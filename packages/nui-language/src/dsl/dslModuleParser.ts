@@ -10,7 +10,7 @@ import type {
 } from "./dslTypes";
 import { unquoteDslString } from "./dslTokens";
 import { parseDslSourceReference } from "./dslReferenceTokens";
-import { isDslGeometryValueType, isDslOptionalValueType, nominalRecordTypeOfDslValueType, scalarTypeOfDslValueType } from "./dslValueTypes";
+import { dslRequiredValueTypeOf, isDslGeometryValueType, nominalRecordTypeOfDslValueType, scalarTypeOfDslValueType } from "./dslValueTypes";
 
 export type DslModuleDiagnostic = { message: string; span: DslSpan; code?: string; presentation?: DslDiagnosticPresentation };
 
@@ -143,15 +143,12 @@ const moduleParameterType = (
   const parsedDiagnostics: DslModuleDiagnostic[] = [];
   const parsed = parseDslDeclaredValueType(source, typeSpan, parsedDiagnostics);
   diagnostics.push(...parsedDiagnostics);
-  if (isDslOptionalValueType(parsed.valueType)) {
-    diagnostic(diagnostics, "Module parameter の optional 型はこの Slice では未対応です。", typeSpan, "module-optional-type-unsupported");
-    return { type: null, valueType: null, recordTypeReference: null, choiceOptionSpans: [] };
-  }
-  const geometryType = isDslGeometryValueType(parsed.valueType) ? parsed.valueType : null;
+  const requiredValueType = dslRequiredValueTypeOf(parsed.valueType);
+  const geometryType = isDslGeometryValueType(requiredValueType) ? requiredValueType : null;
   return {
-    type: geometryType ?? scalarTypeOfDslValueType(parsed.valueType),
+    type: geometryType ?? scalarTypeOfDslValueType(requiredValueType),
     valueType: parsed.valueType,
-    recordTypeReference: nominalRecordTypeOfDslValueType(parsed.valueType),
+    recordTypeReference: nominalRecordTypeOfDslValueType(requiredValueType),
     choiceOptionSpans: parsed.choiceOptionSpans,
     ...(parsed.numericTypeOptions ? { numericTypeOptions: parsed.numericTypeOptions } : {})
   };
@@ -176,24 +173,12 @@ const parameterFromArg = (source: string, arg: ScannedArg, diagnostics: DslModul
   if (defaultSpan && defaultSpan.start === defaultSpan.end) {
     diagnostic(diagnostics, "module parameter の default には `=` の後に値が必要です。", defaultSpan);
   }
-  if (arg.optionalSpan && equals >= 0) {
-    diagnostic(
-      diagnostics,
-      "optional module parameter には default を指定できません。",
-      defaultSpan ?? arg.valueSpan,
-      "module-optional-default-conflict",
-      { key: "diagnostic.module-optional-default-conflict", parameters: { parameter: arg.key ?? "" } }
-    );
-  }
-
   const parsedType = typeSpan.start === typeSpan.end
     ? { type: null, valueType: null, recordTypeReference: null, choiceOptionSpans: [] as DslSpan[] }
     : moduleParameterType(source, typeSpan, diagnostics);
   return {
     kind: "moduleParameter",
     ...name,
-    optional: Boolean(arg.optionalSpan),
-    optionalSpan: arg.optionalSpan ?? null,
     type: parsedType.type,
     valueType: parsedType.valueType,
     recordTypeReference: parsedType.recordTypeReference,
@@ -317,7 +302,7 @@ const definition = (logicalText: string, options: ParseDslModuleOptions): DslMod
     logicalText,
     parameterSpan,
     (arg, listDiagnostics) => parameterFromArg(logicalText, arg, listDiagnostics),
-    { allowOptionalKeys: true }
+    {}
   );
   diagnostics.push(...parsed.diagnostics);
   const opensBlock = Boolean(options.opensBlock || inlineBlock);

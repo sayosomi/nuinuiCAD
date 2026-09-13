@@ -279,12 +279,13 @@ describe("module scalar runtime integration", () => {
   it("short-circuits omitted optional collection values before an unsafe RHS", () => {
     const compiled = compileWithIds([
       "nui 1",
-      "module M(optional?: number) {",
-      "  const selected: number[] = if (hasValue(@optional) and @optional > 0) { [@optional, @optional] } else { [42] }",
+      "const supplied: number[] = [7, 8]",
+      "module M(optional: number[]?) {",
+      "  const selected: number[] = @optional ?? [42]",
       "  const count: number = @selected.length",
       "}",
       "instance Absent = M()",
-      "instance Present = M(optional: 7)"
+      "instance Present = M(optional: @supplied)"
     ].join("\n"), "optional-collection-short-circuit");
     expectValid(compiled);
     const evaluated = evaluateCompiled(compiled);
@@ -551,10 +552,10 @@ describe("module scalar runtime integration", () => {
       "nui 1",
       "",
       "module M(",
-      "  value?: number,",
+      "  value: number?,",
       ") {",
-      "  if (hasValue(@value) and @value > 0) {",
-      "    const okay: number = @value",
+      "  if ((@value ?? 0) > 0) {",
+      "    const okay: number = @value ?? 0",
       "  }",
       "}",
       "",
@@ -568,9 +569,9 @@ describe("module scalar runtime integration", () => {
   it("keeps omitted optional scalars absent and materializes supplied values", () => {
     const compiled = compileWithIds([
       "nui 1",
-      "module M(value?: number) {",
-      "  if (hasValue(@value) and @value > 0) {",
-      "    const okay: number = @value",
+      "module M(value: number?) {",
+      "  if ((@value ?? 0) > 0) {",
+      "    const okay: number = @value ?? 0",
       "    point P = coordinate(x: @okay, y: 0)",
       "  }",
       "}",
@@ -588,17 +589,17 @@ describe("module scalar runtime integration", () => {
       expect.objectContaining({ kind: "point", x: 4, y: 0 })
     ]);
     const parameterBindings = compiled.bindingAnalysis!.catalog.bindings.filter((binding) => binding.name === "value");
-    expect(parameterBindings).toHaveLength(1);
+    expect(parameterBindings).toHaveLength(2);
   });
 
   it("keeps omitted optional module placeholders monotonic in the Rust mutation payload", () => {
     const compiled = compileWithIds([
       "nui 1",
       "",
-      "module M(value?: number) {",
-      "  if (hasValue(@value) and @value > 0) {",
+      "module M(value: number?) {",
+      "  if ((@value ?? 0) > 0) {",
       "    point P = coordinate(",
-      "      x: @value,",
+      "      x: @value ?? 0,",
       "      y: 10,",
       "    )",
       "  }",
@@ -628,7 +629,7 @@ describe("module scalar runtime integration", () => {
 
     const sourceOrders = input.bindingVersions!.elementSourceOrders;
     expect(sourceOrders).toHaveLength(document.elements.length);
-    expect(sourceOrders.map((entry) => entry.sourceOrder)).toEqual([0, 1, 1, 2, 4, 5]);
+    expect(sourceOrders.map((entry) => entry.sourceOrder)).toEqual([0, 2, 3, 4, 6, 7]);
     for (let index = 1; index < sourceOrders.length; index += 1) {
       expect(sourceOrders[index].sourceOrder).toBeGreaterThanOrEqual(sourceOrders[index - 1].sourceOrder);
     }
@@ -656,10 +657,10 @@ describe("module scalar runtime integration", () => {
   it("does not lower an else-local when a negated optional presence guard is false", () => {
     const compiled = compileWithIds([
       "nui 1",
-      "module M(value?: number) {",
-      "  if (not hasValue(@value)) {",
+      "module M(value: number?) {",
+      "  if ((@value ?? 0) > 0) {",
       "  } else {",
-      "    const okay: number = @value",
+      "    const okay: number = @value ?? 0",
       "  }",
       "}",
       "instance Use = M()"
@@ -669,26 +670,25 @@ describe("module scalar runtime integration", () => {
     expect(evaluateCompiled(compiled).errors).toEqual([]);
   });
 
-  it("evaluates hasValue in a boolean default per concrete module instance", () => {
+  it("keeps defaulted optional Module values distinct from explicit none", () => {
     const compiled = compileWithIds([
       "nui 1",
-      "module M(value?: number, enabled: boolean = hasValue(@value)) {",
-      "  let marker: number = 0",
-      "  if (@enabled) {",
-      "    set marker = 1",
-      "    point P = coordinate(x: @marker, y: 0)",
-      "  }",
+      "module M(value: number?, fallback: number? = 10) {",
+      "  const selected: number = @fallback ?? 0",
+      "  point P = coordinate(x: @selected, y: 0)",
       "}",
-      "instance Absent = M()",
-      "instance Present = M(value: 4)"
+      "instance Omitted = M()",
+      "instance ExplicitNone = M(fallback: none)",
+      "instance Present = M(fallback: 4)"
     ].join("\n"));
     expectValid(compiled);
     const result = evaluateCompiled(compiled);
     expect(result.errors).toEqual([]);
     const points = compiled.document!.elements.filter((element) => element.name === "P");
     expect(points.map((point) => result.computedGeometry.get(point.id))).toEqual([
-      undefined,
-      expect.objectContaining({ kind: "point", x: 1, y: 0 })
+      expect.objectContaining({ kind: "point", x: 10, y: 0 }),
+      expect.objectContaining({ kind: "point", x: 0, y: 0 }),
+      expect.objectContaining({ kind: "point", x: 4, y: 0 })
     ]);
   });
 
@@ -1385,7 +1385,7 @@ describe("module scalar runtime integration", () => {
     const unguardedOptional = compileWithIds([
       "nui 1",
       "record Config(amount: number)",
-      "module Extracted(config?: Config) {",
+      "module Extracted(config: Config?) {",
       "const inside: number = @config.amount",
       "}",
       "instance Part = Extracted()"
@@ -1733,12 +1733,10 @@ describe("module scalar runtime integration", () => {
       "module Inner(input: Pair) {",
       "  export const output: Pair = @input",
       "}",
-      "module Consumer(settings?: Pair) {",
-      "  if (hasValue(@settings)) {",
-      "    const copy: Pair = @settings",
-      "    const x: number = @settings.x",
-      "    point OptionalResult = coordinate(x: @x, y: 0)",
-      "  }",
+      "module Consumer(settings: Pair?) {",
+      "  const selected: Pair = @settings ?? Pair(x: 0)",
+      "  const x: number = @selected.x",
+      "  point OptionalResult = coordinate(x: @x, y: 0)",
       "}",
       "module Parent(input: Pair) {",
       "  instance child = Inner(input: @input)",
@@ -1767,23 +1765,19 @@ describe("module scalar runtime integration", () => {
     expect(result.errors).toEqual([]);
     const points = compiled.document!.elements.filter((element) => ["OptionalResult", "NestedResult", "RootResult"].includes(element.name));
     expect(points.map((element) => result.computedGeometry.get(element.id))).toEqual([
-      undefined,
+      expect.objectContaining({ kind: "point", x: 0, y: 0 }),
       expect.objectContaining({ kind: "point", x: 8, y: 0 }),
       expect.objectContaining({ kind: "point", x: 7, y: 0 }),
       expect.objectContaining({ kind: "point", x: 7, y: 0 })
     ]);
   });
 
-  it("narrows optional scalar parameters through nested record value-if branches per instance", () => {
+  it("resolves optional scalar parameters in record values per instance", () => {
     const compiled = compileWithIds([
       "nui 1",
       "record Pair(x: number)",
-      "module Choose(value?: number) {",
-      "  const selected: Pair = if (hasValue(@value)) {",
-      "    if (@value > 0) { Pair(x: @value) } else { Pair(x: 0) }",
-      "  } else {",
-      "    Pair(x: 0)",
-      "  }",
+      "module Choose(value: number?) {",
+      "  const selected: Pair = Pair(x: @value ?? 0)",
       "  const x: number = @selected.x",
       "  point Result = coordinate(x: @x, y: 0)",
       "}",
@@ -1808,12 +1802,8 @@ describe("module scalar runtime integration", () => {
     const compiled = compileWithIds([
       "nui 1",
       "record Pair(x: number)",
-      "module Choose(input?: Pair) {",
-      "  const selected: Pair = if (hasValue(@input)) {",
-      "    @input",
-      "  } else {",
-      "    Pair(x: 0)",
-      "  }",
+      "module Choose(input: Pair?) {",
+      "  const selected: Pair = @input ?? Pair(x: 0)",
       "  const x: number = @selected.x",
       "  point Result = coordinate(x: @x, y: 0)",
       "}",
@@ -2531,13 +2521,12 @@ describe("module scalar runtime integration", () => {
       "const labels: string[] = [\"a\", \"a\"]",
       "const rootAlias: number[] = @values",
       "const rootLength: number = @rootAlias.length",
-      "module M(items: number[], optional?: string[]) {",
+      "module M(items: number[], optional: string[]?) {",
       "  const local: number[] = @items",
       "  const localLength: number = @local.length",
-      "  if (hasValue(@optional)) {",
-      "    const optionalLength: number = @optional.length",
-      "    point OptionalLength = coordinate(x: @optionalLength, y: 0)",
-      "  }",
+      "  const resolved: string[] = @optional ?? [\"fallback\"]",
+      "  const optionalLength: number = @resolved.length",
+      "  point OptionalLength = coordinate(x: @optionalLength, y: 0)",
       "  export const output: number[] = @local",
       "}",
       "instance Use = M(items: @values, optional: @labels)",
@@ -2559,7 +2548,7 @@ describe("module scalar runtime integration", () => {
       .filter((initializer) => initializer.kind === "geometryProperty" && initializer.collectionValueId !== undefined);
     expect(collectionInitializers).toHaveLength(4);
     expect(collectionInitializers.filter((initializer) => initializer.kind === "geometryProperty" && initializer.collectionLength === 3)).toHaveLength(3);
-    expect(collectionInitializers.filter((initializer) => initializer.kind === "geometryProperty" && initializer.collectionLength === 2)).toHaveLength(1);
+    expect(collectionInitializers.filter((initializer) => initializer.kind === "geometryProperty" && initializer.collectionLength === null)).toHaveLength(1);
   });
 
   it("evaluates indexed scalar and choice members through aliases while preserving duplicates", () => {
@@ -2908,17 +2897,16 @@ describe("module scalar runtime integration", () => {
     expect(wrongType.diagnostics.some((diagnostic) => diagnostic.severity === "error")).toBe(true);
   });
 
-  it("indexes required, local, exported, qualified, and guarded optional Module collections", () => {
+  it("indexes required, local, exported, qualified, and resolved optional Module collections", () => {
     const compiled = compileWithIds([
       "nui 1",
       "const values: number[] = [4, 8]",
-      "module M(items: number[], optional?: number[]) {",
+      "module M(items: number[], optional: number[]?) {",
       "  const local: number[] = @items",
       "  const required: number = @items[0]",
       "  const localValue: number = @local[1]",
-      "  if (hasValue(@optional)) {",
-      "    const optionalValue: number = @optional[0]",
-      "  }",
+      "  const resolvedOptional: number[] = @optional ?? []",
+      "  const optionalValue: number = @resolvedOptional[0]",
       "  export const output: number[] = @local",
       "  export const selected: number = @local[0]",
       "}",
@@ -2937,7 +2925,7 @@ describe("module scalar runtime integration", () => {
 
     const unguarded = compileWithIds([
       "nui 1",
-      "module M(optional?: number[]) {",
+      "module M(optional: number[]?) {",
       "  const selected: number = @optional[0]",
       "}",
       "instance Use = M()"

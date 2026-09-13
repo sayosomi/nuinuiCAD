@@ -137,9 +137,6 @@ export type DslModuleParameter = {
   kind: "moduleParameter";
   name: string;
   nameSpan: DslSpan | null;
-  /** True only when `?` was written after the parameter identifier. */
-  optional: boolean;
-  optionalSpan: DslSpan | null;
   type: DslModuleParameterType | null;
   /** Canonical source-level type, including the generalized immutable T[] form. */
   valueType: DslValueType | null;
@@ -153,7 +150,6 @@ export type DslModuleParameter = {
   /** Empty when `=` was present without a default value. */
   defaultSpan: DslSpan | null;
   namePhysicalSpan?: DslPhysicalSpan | null;
-  optionalPhysicalSpan?: DslPhysicalSpan | null;
   typePhysicalSpan?: DslPhysicalSpan | null;
   defaultPhysicalSpan?: DslPhysicalSpan | null;
 };

@@ -22,6 +22,7 @@ import {
   isDslArrayValueType,
   dslRequiredValueTypeOf,
   isDslGeometryValueType,
+  isDslOptionalValueType,
   isDslScalarValueType,
   recordTypeReferenceOfDslValueType,
   scalarTypeOfDslValueType,
@@ -319,7 +320,9 @@ const collectionMemberDiagnostic = (code: string, message: string, span: DslSpan
 });
 
 const arrayValueTypeOfParameter = (parameter: Extract<DslStatement, { kind: "moduleDefinition" }>["parameters"][number]): DslArrayValueType | null =>
-  isDslArrayValueType(parameter.valueType) && !isDslGeometryValueType(parameter.valueType.elementType) ? parameter.valueType : null;
+  isDslArrayValueType(dslRequiredValueTypeOf(parameter.valueType)) && !isDslGeometryValueType((dslRequiredValueTypeOf(parameter.valueType) as DslArrayValueType).elementType)
+    ? dslRequiredValueTypeOf(parameter.valueType) as DslArrayValueType
+    : null;
 
 export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalysisInput): GeometryArraySemanticAnalysis => {
   const { statements, stableStatementIdByIndex } = input;
@@ -387,7 +390,7 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
         parameterIndex,
         name: parameter.name,
         valueType: enrichedValueType,
-        optional: parameter.optional
+        optional: isDslOptionalValueType(parameter.valueType)
       };
       genericModuleParameters.push(semantic);
       genericModuleParametersBySlot.set(`${definitionStatementId}:${parameterIndex}`, semantic);
@@ -445,7 +448,7 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
         parameterIndex,
         name: parameter.name,
         type,
-        optional: parameter.optional
+        optional: isDslOptionalValueType(parameter.valueType)
       };
       moduleParameters.push(semantic);
       moduleParametersBySlot.set(`${definitionStatementId}:${parameterIndex}`, semantic);
@@ -722,10 +725,14 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
           if (moduleParameter) {
             const parameterType = geometryArrayTypeOfModuleParameter(moduleParameter.parameter);
             if (parameterType) {
+              const valueType = { kind: "array" as const, elementType: { kind: parameterType.elementType as "point" | "line" | "path" } };
               return {
                 kind: "resolved",
                 targetValueId: `${moduleParameter.definitionStatementId}:parameter:${moduleParameter.parameterIndex}`,
-                type: parameterType
+                type: parameterType,
+                valueType: isDslOptionalValueType(moduleParameter.parameter.valueType)
+                  ? { kind: "optional", valueType }
+                  : valueType
               };
             }
           }
@@ -936,7 +943,12 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
           const parameterType = parameter
             ? genericModuleParametersBySlot.get(`${parameter.definitionStatementId}:${parameter.parameterIndex}`)?.valueType ?? null
             : null;
-          if (parameter && parameterType) return { kind: "resolved", targetValueId: `${parameter.definitionStatementId}:parameter:${parameter.parameterIndex}`, valueType: parameterType };
+          if (parameter && parameterType) {
+            const valueType = isDslOptionalValueType(parameter.parameter.valueType)
+              ? { kind: "optional" as const, valueType: parameterType }
+              : parameterType;
+            return { kind: "resolved", targetValueId: `${parameter.definitionStatementId}:parameter:${parameter.parameterIndex}`, valueType };
+          }
         }
         const lookup = input.resolvePath(semantic.statementIndex, path);
         if (lookup.kind === "invalidTraversal" && lookup.declaration.kind === "moduleInstance" && path.segments.length === 2 && lookup.segmentIndex === 1) {

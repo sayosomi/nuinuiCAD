@@ -401,7 +401,7 @@ export const buildModuleGeometryArrayRuntime = ({
     const instance = instanceSource.moduleSemanticAnalysis.instancesByStatementId.get(context.instanceStatementId);
     const binding = instance?.parameterBindings.find((candidate) => candidate.parameterIndex === parameterIndex);
     const parameter = definitionSource.analysis?.moduleParametersBySlot.get(`${definitionStatementId}:${parameterIndex}`);
-    if (!instance || !binding || !parameter || binding.argumentIndex === null || binding.state === "optionalOmitted" || binding.state === "requiredOmitted") {
+    if (!instance || !binding || !parameter || binding.argumentIndex === null || binding.state === "omitted" || binding.value?.kind === "none") {
       parameterValueCache.set(key, null);
       return null;
     }

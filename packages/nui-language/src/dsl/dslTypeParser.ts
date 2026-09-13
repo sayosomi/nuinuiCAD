@@ -63,11 +63,19 @@ export const dslModuleParameterTypeNames: readonly string[] = [
   NUMBER_TYPE_NAME,
   ...Object.keys(KNOWN_SIMPLE_TYPES),
   dslChoiceTypeName,
+  `${NUMBER_TYPE_NAME}?`,
+  ...Object.keys(KNOWN_SIMPLE_TYPES).map((name) => `${name}?`),
   `${NUMBER_TYPE_NAME}[]`,
   ...Object.keys(KNOWN_SIMPLE_TYPES).map((name) => `${name}[]`),
+  `${NUMBER_TYPE_NAME}[]?`,
+  ...Object.keys(KNOWN_SIMPLE_TYPES).map((name) => `${name}[]?`),
   "point",
   "line",
   "path",
+  "point?",
+  "line?",
+  "path?",
+  ...dslGeometryArrayTypeNames.map((name) => name.replace("[]", "[]?")),
   ...dslGeometryArrayTypeNames
 ];
 

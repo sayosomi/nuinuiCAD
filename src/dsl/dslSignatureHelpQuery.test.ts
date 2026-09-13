@@ -145,7 +145,7 @@ describe("DSL Signature Help query", () => {
   it("uses exact current Module semantics for names, defaults, optionality, and choices", () => {
     const source = [
       "nui 1",
-      "module M(value: number, side?: choice(left, right), count: number = 2) {",
+      "module M(value: number, side: choice(left, right)?, count: number = 2) {",
       "}",
       "instance Use = M(value: 1, ",
       ")"

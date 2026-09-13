@@ -341,13 +341,13 @@ describe("multi-document module runtime", () => {
     });
   });
 
-  it("evaluates imported optional hasValue guards per repeated and colliding instance identity", async () => {
+  it("evaluates imported optional coalescing per repeated and colliding instance identity", async () => {
     const optionalModuleSource = [
       "nui 1",
-      "export module Optional(value?: number) {",
+      "export module Optional(value: number?) {",
       "  let marker: number = 0",
-      "  if (hasValue(@value)) {",
-      "    set marker = @value + 1",
+      "  if ((@value ?? 0) > 0) {",
+      "    set marker = (@value ?? 0) + 1",
       "    point P = coordinate(x: @marker, y: 0)",
       "  }",
       "}"

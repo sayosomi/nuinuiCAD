@@ -142,5 +142,6 @@ unsupported.
 ## Notes
 
 Record values group immutable data; they do not become geometry elements or a
-general-purpose object type. Optional record parameters use the same
-`hasValue(...)` presence rules as other optional module parameters.
+general-purpose object type. Optional record Module parameters use the same
+ordinary `T?` value model as other Module parameters and must be resolved
+before a required record value is read.

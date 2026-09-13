@@ -37,8 +37,12 @@ Repeated suffixes such as `T??` are rejected, and `none` cannot be a
 `choice(...)` option. Optionality uses the same canonical value-type rule for
 scalars, geometry, nominal records, and collections. With one-dimensional
 arrays, `T?[]` is an array whose members are optional, while `T[]?` is one
-optional array value. Module `name?: type` parameters and their existing
-`hasValue(...)` behavior remain a separate intermediate feature.
+optional array value. Module parameters use this same model: write
+`name: T?`; the retired `name?: T` spelling is rejected. Omission without a
+default and explicit `none` both produce the ordinary `none` value, while a
+supplied `T` widens to `T?`. Defaults remain governed by the existing
+parameter-kind eligibility rules, so optionality does not grant defaults to
+ineligible parameter families.
 
 Optional member access uses `?.`: for a value of type `T?`, `value?.member`
 with an ordinary member result `U` produces `U?`. `none` propagates as
@@ -223,8 +227,8 @@ The index is a normal typed `number` expression, for example
 `@marks[0]` or `@marks[@index + 1]`, and the result has the collection's exact
 element type. This preserves order, duplicates, aliases, nominal record
 identity, and pure geometry value identity without creating a drawable element
-identity. Optional Module collection parameters require a preceding
-`hasValue(@parameter)` proof. The index must be finite, integral, at least `0`,
+identity. Optional Module collection parameters must be resolved through the
+general optional-value operations. The index must be finite, integral, at least `0`,
 and less than the collection length; invalid dynamic indexes are evaluation
 errors and are never clamped or wrapped.
 

@@ -2378,7 +2378,6 @@ describe("VSCodeApp Canvas history coordinator", () => {
       compiled: before.doc,
       targets: childTargets.map((target) => ({ documentKey: null, statementId: target.statementId! })),
       policy: {
-        emitOmittedBranchComments: true,
         includeHiddenInstances: false,
         includeDisabledInstances: false
       }
