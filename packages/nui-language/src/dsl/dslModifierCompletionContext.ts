@@ -5,7 +5,7 @@ import { scanDslSource } from "./dslTokens";
 export type DslModifierCompletionContext =
   | { kind: "modifierReference"; from: number; to: number }
   | { kind: "modifierProperty"; from: number; to: number; options: readonly string[] }
-  | { kind: "modifierValue"; from: number; to: number; property: "visible" | "width" | "lineType" | "color" }
+  | { kind: "modifierValue"; from: number; to: number; property: "visible" | "width" | "lineType" | "color" | "fill" | "fillOpacity" }
   | { kind: "modifierProfile"; from: number; to: number };
 
 const lineAt = (source: string, offset: number) => {
@@ -98,8 +98,8 @@ export const dslModifierCompletionContextAt = (
   const colon = code.indexOf(":");
   if (colon >= 0 && current.local >= colon + 1 && modifierPropertyMetadata(key)) {
     const range = tokenRange(code, current.local, /[^\s,]/);
-    if (key === "color" && code.slice(range.from, range.to).startsWith("#")) return null;
-    return { kind: "modifierValue", from: current.start + range.from, to: current.start + range.to, property: key as "visible" | "width" | "lineType" | "color" };
+    if ((key === "color" || key === "fill") && code.slice(range.from, range.to).startsWith("#")) return null;
+    return { kind: "modifierValue", from: current.start + range.from, to: current.start + range.to, property: key as "visible" | "width" | "lineType" | "color" | "fill" | "fillOpacity" };
   }
   if (colon < 0) {
     const range = tokenRange(code, current.local, /[A-Za-z0-9_]/);

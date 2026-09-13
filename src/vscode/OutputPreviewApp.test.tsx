@@ -80,7 +80,7 @@ type TestOutput = {
   overlap?: number | { kind: "expression"; expression: string };
 };
 
-const planFor = (output: TestOutput): OutputPlan => {
+const planFor = (output: TestOutput, fill?: { colorHex: string; opacity: number }): OutputPlan => {
   const isPrint = output.paper !== undefined;
   const overlap = isPrint && typeof output.overlap === "number" ? output.overlap : 0;
   const paperWidthMm = 60;
@@ -102,7 +102,8 @@ const planFor = (output: TestOutput): OutputPlan => {
     name: "AB",
     start: { x: 0, y: 0 },
     end: { x: 10, y: 0 },
-    stroke: { widthMm: 1, style: "solid" as const, colorHex: "#123456" }
+    stroke: { widthMm: 1, style: "solid" as const, colorHex: "#123456" },
+    ...(fill ? { fill } : {})
   };
   const pages = [
     {
@@ -1031,6 +1032,25 @@ describe("Output Preview application", () => {
       "overlap-guide",
       "overlap-guide"
     ]);
+  });
+
+  it("renders OutputFill below the stroke without moving the interaction overlay above geometry", async () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(viewportRect);
+    mocks.evaluateOutputPlan.mockImplementation(async ({ output }: { output: TestOutput }) =>
+      planFor(output, { colorHex: "#abcdef", opacity: 0.25 })
+    );
+    renderFixture();
+
+    await waitFor(() => expect(screen.getByLabelText("Output preview").querySelector('[data-output-preview-layer="geometry"]')).not.toBeNull());
+    const geometry = screen.getByLabelText("Output preview").querySelector('[data-output-preview-layer="geometry"]');
+    expect(geometry).toHaveAttribute("fill", "#abcdef");
+    expect(geometry).toHaveAttribute("fill-opacity", "0.25");
+    expect(geometry).toHaveAttribute("stroke", "#123456");
+    const plane = screen.getByLabelText("Output preview");
+    expect(plane.querySelector('[data-output-preview-layer="geometry"]')).toBeTruthy();
+    expect(document.querySelector('[data-output-preview-layer="place-overlay"]')).toBeTruthy();
+    expect(plane.compareDocumentPosition(document.querySelector('[data-output-preview-layer="place-overlay"]')!))
+      .toBe(Node.DOCUMENT_POSITION_FOLLOWING);
   });
 
   it("accepts exact physical spans for semantic diagnostic targets and fails closed otherwise", () => {

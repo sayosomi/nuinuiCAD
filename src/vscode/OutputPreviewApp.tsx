@@ -197,7 +197,8 @@ const drawableSvg = (
       key={`${drawable.elementId}-${drawable.kind}-${path}`}
       d={path}
       data-output-preview-layer="geometry"
-      fill="none"
+      fill={drawable.fill?.colorHex ?? "none"}
+      fillOpacity={drawable.fill?.opacity}
       stroke={drawable.stroke.colorHex}
       strokeWidth={drawable.stroke.widthMm * viewport.zoom}
       strokeDasharray={drawable.stroke.style === "dashed" ? "6 4" : drawable.stroke.style === "dotted" ? "1 3" : undefined}

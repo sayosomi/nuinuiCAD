@@ -994,12 +994,15 @@ style 型紙線 {
 
 The supported Style properties are independent: `visible` is a boolean;
 `width` is a positive finite decimal pixel literal; `lineType` is `solid`,
-`dashed`, or `dotted`; and `color` is a theme role
-(`foreground`, `muted`, `accent`, `info`, `warning`, or `error`) or `#RRGGBB`.
-The former compound `stroke:` property is invalid. A Style may contain only
-these properties and `for @profile { ... }` blocks; profile blocks may contain
-only the same four properties. A Style may be profile-only. Duplicate
-properties and duplicate overrides for the same resolved profile are errors.
+`dashed`, or `dotted`; `color` is a theme role (`foreground`, `muted`,
+`accent`, `info`, `warning`, or `error`) or `#RRGGBB`; `fill` is one of those
+same theme roles, `#RRGGBB`, or `none`; and `fillOpacity` is a finite number in
+the inclusive range `0..1`. `none` is valid only for `fill` and explicitly
+clears an inherited or effective fill; omission contributes no value. The
+former compound `stroke:` property is invalid. A Style may contain only these
+properties and `for @profile { ... }` blocks; profile blocks may contain only
+the same six properties. A Style may be profile-only. Duplicate properties
+and duplicate overrides for the same resolved profile are errors.
 
 Effective properties cascade from outer group to inner group to element. Within
 each owner, assigned Styles are applied left to right. The cascade merges each
@@ -1009,7 +1012,11 @@ Drawing Profile overlays the common properties with its matching delta.
 Style `visible` is presentation-only. It cannot override a direct or ancestor
 `visible: false` gate, and profile selection never changes computation or
 materialization. Canvas evaluation omits a selected Drawing Profile unless a
-host explicitly supplies one.
+host explicitly supplies one. Fill is presentation-only as well: eligible
+semantically closed paths use the resolved fill below their stroke in Output
+Preview, SVG, and print/PDF output; open paths, non-fillable targets, and
+self-intersecting paths remain unfilled according to the existing evaluation
+diagnostics. The construction Canvas remains unfilled.
 
 ## Conditional and iteration control
 
