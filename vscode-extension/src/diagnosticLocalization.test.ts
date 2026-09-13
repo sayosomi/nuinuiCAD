@@ -92,6 +92,20 @@ describe("diagnostic presentation localization", () => {
     expect(diagnosticTextFor(diagnostic, "ja-JP")).toBe("optional Module value「value」を解決してから使用してください。");
   });
 
+  it("localizes construction none rejection through the general optional diagnostic", () => {
+    const document = AutomationDocument.fromSource([
+      "nui 1",
+      "point Rejected = offset(from: none, dx: 1, dy: 1)"
+    ].join("\n"));
+    const diagnostic = compilerDiagnosticsForState(document.getSource(), document.getState()).find(
+      (candidate) => candidate.code === "optional-value-required"
+    );
+    if (!diagnostic) throw new Error("missing construction optional diagnostic");
+    expect(diagnostic.presentation).toEqual({ key: "diagnostic.optional-value-required" });
+    expect(diagnosticTextFor(diagnostic, "en")).toBe("The absence literal 'none' is only valid where an optional value is expected.");
+    expect(diagnosticTextFor(diagnostic, "ja-JP")).toBe("absence値「none」はoptional valueが期待される場所でのみ使用できます。");
+  });
+
   it("localizes exhaustive match diagnostics through the production compiler path", () => {
     const invalidMatch = AutomationDocument.fromSource([
       "nui 1",

@@ -216,6 +216,26 @@ describe("DSL nui 1 compiler argument application", () => {
     });
   });
 
+  it("accepts none only for parameters projected as optional values", () => {
+    const label = applyArgs(sample("text"), constructionFor("text", "label")!, [
+      arg("anchor", "none")
+    ], resolvers);
+    expect(label.diagnostics).toEqual([]);
+    expect(label.element).toMatchObject({ anchor: null });
+
+    const offset = applyArgs(sample("offsetPoint"), constructionFor("point", "offset")!, [
+      arg("from", "none")
+    ], resolvers);
+    expect(offset.diagnostics).toEqual([
+      expect.objectContaining({
+        code: "optional-value-required",
+        logicalSpan: expect.any(Object),
+        presentation: { key: "diagnostic.optional-value-required" }
+      })
+    ]);
+    expect(offset.element).toMatchObject({ fromPoint: referenceAnchor("p1") });
+  });
+
   it("does not coerce a comparison result into a numeric construction argument", () => {
     const result = applyArgs(sample("freePoint"), constructionFor("point", "coordinate")!, [
       arg("x", "1 < 2")

@@ -123,9 +123,16 @@ describe("English DSL reference generator", () => {
       key: "y",
       kind: "number",
     });
+    const label = facts.constructions.find((fact) => fact.category === "text" && fact.construction === "label");
+    expect(label?.arguments.find((argument) => argument.arg === "anchor")?.parameter).toMatchObject({
+      key: "anchor",
+      valueType: "point?",
+    });
     expect(facts.constructions.some((fact) => fact.construction === "")).toBe(false);
 
     const rendered = renderConstructionRegion(facts);
+    expect(rendered).toContain("| `anchor` | point?; coordinates allowed |");
+    expect(rendered).not.toContain("none allowed");
     expect(rendered).not.toContain("dsl-ref:construction:group");
     expect(rendered).not.toContain("| `name` |");
     expect(rendered).not.toContain("fromPoint");

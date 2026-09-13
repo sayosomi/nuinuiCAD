@@ -9,7 +9,7 @@ import { typecheckScalarExpression } from "../scalars/expressionTypecheck";
 import { createCadElementId } from "../model/cadIds";
 import { isLineLikeElement, referenceAnchor } from "../model/pointAnchors";
 import type { ElementNameContext } from "../model/elementNames";
-import { findParameterDefinition } from "../parameters/parameterDefinitions";
+import { dslValueTypeForParameterDefinition, findParameterDefinition } from "../parameters/parameterDefinitions";
 import { setParameterValue } from "../parameters/parameterAccess";
 import type { CadElement, ElementId, NumericValue, VisibilityRole } from "../types/geometry";
 import {
@@ -26,6 +26,7 @@ import { commonArgSpecs, type DslArgSpec, type DslConstructionSpec } from "./dsl
 import type { DslMajorVersion } from "./dslVersion";
 import { lowerSourceGeometryArrayLineReferenceList, lowerSourceGeometryArrayPointReferenceList } from "./geometryArrayRuntimeLowering";
 import { parseGeometryArrayExpression } from "./geometryArrayExpression";
+import { isDslOptionalValueType } from "./dslValueTypes";
 
 export type DslApplyArgsMetadata = {
   id?: string;
@@ -413,6 +414,29 @@ export const applyArgs = (
     const parameter = findParameterDefinition(next, parameterKey);
     const value = scanned.value;
     if (!parameter) continue;
+    if (
+      value.trim() === "none" &&
+      ["reference", "lineEndpointReference", "lineReference", "lineReferenceList", "pointReferenceList"].includes(parameter.kind)
+    ) {
+      const valueType = dslValueTypeForParameterDefinition(parameter);
+      if (!isDslOptionalValueType(valueType)) {
+        diagnostics.push({
+          severity: "error",
+          line: resolvers.line,
+          column: scanned.valueSpan.start + 1,
+          code: "optional-value-required",
+          message: "none は expected optional value type がある場合にのみ使用できます。",
+          presentation: { key: "diagnostic.optional-value-required" },
+          logicalSpan: scanned.valueSpan
+        });
+      }
+      next = setParameterValue(
+        next,
+        parameterKey,
+        parameter.kind === "lineReferenceList" || parameter.kind === "pointReferenceList" ? [] : null
+      );
+      continue;
+    }
     switch (parameter.kind) {
       case "boolean": {
         const parsed = booleanValue(value);

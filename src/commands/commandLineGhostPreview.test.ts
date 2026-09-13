@@ -61,7 +61,7 @@ describe("command-line ghost preview", () => {
     expect(session.args).not.toHaveProperty("ratio");
   });
 
-  it("permits an omitted reference only when its parameter definition explicitly allows none", () => {
+  it("permits an omitted reference only when its parameter definition projects to an optional value", () => {
     const recipe = creationRecipeForType("text")!;
     const session = startSession(recipe, { insertionIndex: 0, revision: 1, elements: [] });
 

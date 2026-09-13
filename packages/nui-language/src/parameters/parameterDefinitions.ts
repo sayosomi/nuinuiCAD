@@ -1,6 +1,7 @@
 import type { CadElement, PointAnchor } from "../types/geometry";
 import type { ScalarType } from "../scalars/types";
 import type { GeometryArrayType } from "../dsl/geometryArrayTypes";
+import type { DslValueType } from "../dsl/dslValueTypes";
 
 export type ParameterValueKind =
   | "text"
@@ -20,7 +21,8 @@ export type ParameterDefinition = {
   label: string;
   kind: ParameterValueKind;
   allowCoordinate?: boolean;
-  allowNone?: boolean;
+  /** Canonical source-level value type when it differs from the UI kind. */
+  valueType?: DslValueType;
   emptyInputDefaultValue?: number;
   stepLevels?: readonly number[];
   choiceOptions?: readonly string[];
@@ -51,6 +53,37 @@ export const scalarTypeForParameterDefinition = (
   }
 };
 
+/**
+ * Projects the parameter schema into the canonical source-level value model.
+ * `kind` remains the editor/runtime input kind; `valueType` is the semantic
+ * override used for cases such as the optional text anchor.
+ */
+export const dslValueTypeForParameterDefinition = (
+  definition: ParameterDefinition | undefined
+): DslValueType | null => {
+  if (!definition) return null;
+  if (definition.valueType) return definition.valueType;
+  switch (definition.kind) {
+    case "number":
+      return { kind: "number" };
+    case "boolean":
+      return { kind: "boolean" };
+    case "text":
+      return { kind: "string" };
+    case "choice":
+      return { kind: "choice", options: definition.choiceOptions ?? [] };
+    case "reference":
+    case "lineEndpointReference":
+      return { kind: "point" };
+    case "lineReference":
+      return { kind: "path" };
+    case "lineReferenceList":
+      return { kind: "array", elementType: { kind: "path" } };
+    case "pointReferenceList":
+      return { kind: "array", elementType: { kind: "point" } };
+  }
+};
+
 export const defaultNumericParameterStep = 1;
 export const defaultNumericParameterStepLevels = [0.1, 1, 10, 100] as const;
 export const ratioNumericParameterStepLevels = [0.01, 0.1, 1, 10] as const;
@@ -67,15 +100,15 @@ const pointAnchorParameters = ({
   key,
   label,
   allowCoordinate,
-  allowNone = false,
+  valueType,
 }: {
   anchor: PointAnchor | null;
   key: string;
   label: string;
   allowCoordinate: boolean;
-  allowNone?: boolean;
+  valueType?: DslValueType;
 }): ParameterDefinition[] => [
-  { key, label, kind: "reference", allowCoordinate, allowNone },
+  { key, label, kind: "reference", allowCoordinate, ...(valueType ? { valueType } : {}) },
   ...(anchor?.mode === "coordinate"
     ? [
         { key: `${key}:x`, label: `${label} x`, kind: "number" as const },
@@ -127,7 +160,7 @@ const parameterDefinitionsForElement = (
           key: "anchor",
           label: "基準点",
           allowCoordinate: true,
-          allowNone: true,
+          valueType: { kind: "optional", valueType: { kind: "point" } },
         }),
         { key: "fontSize", label: "文字サイズ", kind: "number" },
       ];

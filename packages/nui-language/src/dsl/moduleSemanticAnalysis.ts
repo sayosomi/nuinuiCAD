@@ -38,7 +38,11 @@ import { parseGeometryArrayExpression } from "./geometryArrayExpression";
 import { splitDslList } from "./dslTokens";
 import { scanScalarLiteral } from "../scalars/literalScanner";
 import { isChoiceOptionMember } from "../scalars/scalarAssignability";
-import { getParameterDefinitions, scalarTypeForParameterDefinition } from "../parameters/parameterDefinitions";
+import {
+  dslValueTypeForParameterDefinition,
+  getParameterDefinitions,
+  scalarTypeForParameterDefinition
+} from "../parameters/parameterDefinitions";
 import type { BindingId } from "../scalars/bindingCatalog";
 import {
   numericGeometryPropertySupportedByStaticTarget,
@@ -1896,7 +1900,6 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     options: {
       expectedInterfaceType?: ModuleGeometryInterfaceType;
       allowCoordinate?: boolean;
-      allowNone?: boolean;
       role?: ModuleGeometryReferenceRole;
       scalarResolver?: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution;
       bareScalarResolver?: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution | null;
@@ -1927,8 +1930,20 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     ) => geometryReference(rawValue, semanticSpan, expected, target, resolution, coordinate, referenceRole, referenceNameSpan, valueType);
     if (!trimmed) return semantic(null, "undefined");
     if (trimmed === "none") {
-      if (options.allowNone) return semantic(null, "resolved");
-      addLocal(statementIndex, issue("module-geometry-none", semanticSpan, `geometry ${expectedDiagnosticType} reference に none は指定できません。`, { presentation: { key: "diagnostic.module-geometry-none", parameters: { expected: expectedDiagnosticType } } }));
+      const expectedRequiredValueType = dslRequiredValueTypeOf(options.expectedValueType);
+      if (
+        isDslOptionalValueType(options.expectedValueType) &&
+        isDslGeometryValueType(expectedRequiredValueType) &&
+        isModuleGeometryInterfaceAssignable(expectedRequiredValueType.kind, options.expectedInterfaceType ?? expected)
+      ) {
+        return semantic(null, "resolved", null, role, options.expectedValueType);
+      }
+      addLocal(statementIndex, issue(
+        "optional-value-required",
+        semanticSpan,
+        "none は expected optional geometry value type がある場合にのみ使用できます。",
+        { presentation: { key: "diagnostic.optional-value-required" } }
+      ));
       return semantic(null, "invalid");
     }
     if (activeGeometryValueBinder) {
@@ -5630,6 +5645,18 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       const valueSpan = statement.payloadSpans[arg.arg] ?? statement.payloadSpans[parameterKey];
       if (!parameter || !valueSpan || !["reference", "lineEndpointReference", "lineReference", "lineReferenceList"].includes(parameter.kind)) continue;
       const raw = input.logicalTextByStatementIndex?.get(statementIndex)?.slice(valueSpan.start, valueSpan.end) ?? statement.attrs.find((attr) => attr.key === arg.arg)?.value ?? "";
+      const expectedValueType = dslValueTypeForParameterDefinition(parameter);
+      if (raw.trim() === "none") {
+        if (!isDslOptionalValueType(expectedValueType)) {
+          addLocal(statementIndex, issue(
+            "optional-value-required",
+            valueSpan,
+            "none は expected optional value type がある場合にのみ使用できます。",
+            { presentation: { key: "diagnostic.optional-value-required" } }
+          ));
+        }
+        continue;
+      }
       const expected = parameter.kind === "reference" || parameter.kind === "lineEndpointReference" ? "point" : "line";
       const sitesFor = (reference: ModuleGeometryReferenceSemantic, parameterKey: string | null, span: DslSpan) => sites.push({ parameterKey, span, reference });
       const referenceKind = (value: string): "module" | "ordinary" | "skip" => {
@@ -5648,22 +5675,25 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         return "skip";
       };
       if (parameter.kind === "lineReferenceList") {
+        const memberValueType = isDslArrayValueType(expectedValueType) ? expectedValueType.elementType : expectedValueType;
         let cursor = 0;
         for (const token of splitDslList(raw)) {
           const offset = raw.indexOf(token, cursor);
           cursor = offset + token.length;
           const tokenSpan = { start: valueSpan.start + Math.max(0, offset), end: valueSpan.start + Math.max(0, offset) + token.length };
           const kind = referenceKind(token);
-          if (kind === "module") sitesFor(resolveGeometry(statementIndex, null, token, tokenSpan, expected, { role: "lineReferenceList" }), parameterKey, tokenSpan);
+          if (kind === "module") sitesFor(resolveGeometry(statementIndex, null, token, tokenSpan, expected, { expectedValueType: memberValueType ?? undefined, role: "lineReferenceList" }), parameterKey, tokenSpan);
           else if (kind === "ordinary") sitesFor(resolveRootGeometry(statementIndex, token, tokenSpan, expected, { role: "lineReferenceList" }), parameterKey, tokenSpan);
         }
       } else if (referenceKind(raw) === "module") {
         const reference = resolveGeometry(statementIndex, null, raw, valueSpan, expected, {
+          expectedValueType: expectedValueType ?? undefined,
           role: parameter.kind === "reference" ? "pointReference" : parameter.kind === "lineEndpointReference" ? "lineEndpointReference" : "lineReference"
         });
         sitesFor(reference, parameterKey, valueSpan);
       } else if (referenceKind(raw) === "ordinary") {
         const reference = resolveRootGeometry(statementIndex, raw, valueSpan, expected, {
+          expectedValueType: expectedValueType ?? undefined,
           role: parameter.kind === "reference" ? "pointReference" : parameter.kind === "lineEndpointReference" ? "lineEndpointReference" : "lineReference"
         });
         sitesFor(reference, parameterKey, valueSpan);
@@ -5929,7 +5959,6 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
                   parameterGeometryKind,
                   {
                     expectedInterfaceType: parameterInterfaceType,
-                    allowNone: isDslOptionalValueType(parameter.valueType),
                     expectedValueType: parameter.valueType ?? undefined,
                     typeMismatchRelatedSources: parameterTypeRelated
                   }
