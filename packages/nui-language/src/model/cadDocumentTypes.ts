@@ -16,6 +16,14 @@ export type DrawingModifierStrokeColor =
   | { kind: "themeRole"; role: DrawingModifierThemeRole }
   | { kind: "fixed"; hex: string };
 
+/** Internal presentation value for a fill contribution. `none` is distinct
+ * from omission so a later modifier can explicitly clear an inherited fill. */
+export type DrawingModifierFillColor =
+  | DrawingModifierStrokeColor
+  | { kind: "none" };
+
+export type DrawingModifierFill = DrawingModifierFillColor;
+
 export type DrawingModifierStroke = {
   widthPx: number;
   /** Runtime renderer spelling; the DSL source property is `lineType`. */
@@ -35,6 +43,10 @@ export type DrawingModifierProperties = {
   widthPx?: number;
   lineType?: DrawingModifierStrokeStyle;
   color?: DrawingModifierStrokeColor;
+  /** Internal presentation-only fill contribution. Omission means no contribution. */
+  fill?: DrawingModifierFill;
+  /** Internal presentation-only fill opacity contribution, valid in [0, 1]. */
+  fillOpacity?: number;
 };
 
 export type DrawingModifierProfileDelta = DrawingModifierProperties & {

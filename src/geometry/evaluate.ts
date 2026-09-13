@@ -83,12 +83,12 @@ import type {
 } from "./evaluationTypes";
 import { arcGeometryKernel, bezierBulgePointGeometryKernel, bezierExtremePointGeometryKernel, bezierGeometryKernel, commonTangentGeometryKernel, coordinateGeometryKernel, divisionPointGeometryKernel, offsetLineGeometryValueKernel, offsetPointGeometryKernel, polarLineGeometryKernel, polarPointGeometryKernel, polylineGeometryKernel, segmentGeometryKernel, tangentOffsetPointGeometryKernel, throughArcGeometryKernel, type StructuralPoint } from "./geometryValueKernels";
 import { buildOffsetLineGeometry } from "./offsetPaths";
-import { isLineLikeGeometryInput, pointAtDistanceFromEndpoint } from "./linePaths";
+import { isFillEligibleClosedPath, isLineLikeGeometryInput, pointAtDistanceFromEndpoint } from "./linePaths";
 import { copyPathGeometry } from "./copyPathGeometry";
 import { connectSourceSegmentGroups, sourceSegmentsForGeometry } from "./offsetSourceSegments";
 import { joinedPathGeometryValueKernel } from "./joinedPathGeometryValue";
 import { lineLength } from "./offsetPathMath";
-import { findLineIntersections } from "./lineIntersections";
+import { findLineIntersections, isSelfIntersectingClosedPath } from "./lineIntersections";
 import { evaluateTypedExpression } from "../scalars/expressionEvaluator";
 import { setParameterValue } from "../parameters/parameterAccess";
 
@@ -2258,6 +2258,20 @@ export const evaluateElements = (
     if (stroke) effectiveDrawingModifierStrokes.set(row.generatedElementId, { ...stroke, color: { ...stroke.color } });
     const resolution = effectiveDrawingModifierResolutions.get(row.templateElementId);
     if (resolution) effectiveDrawingModifierResolutions.set(row.generatedElementId, structuredClone(resolution));
+  }
+
+  // A self-intersecting closed path remains valid geometry and keeps its
+  // stroke, but an active fill is suppressed. The evaluator owns warnings,
+  // so record this semantic once per runtime geometry for later hosts.
+  for (const [elementId, geometry] of computedGeometry) {
+    const resolution = effectiveDrawingModifierResolutions.get(elementId);
+    if (!resolution?.fill.value || resolution.fill.value.kind === "none") continue;
+    if (!isFillEligibleClosedPath(geometry) || !isSelfIntersectingClosedPath(geometry)) continue;
+    warnings.push({
+      elementId,
+      elementName: geometry.name,
+      message: `${geometry.name} の塗りつぶしは自己交差する閉じたパスでは表示されません。`
+    });
   }
 
   return {

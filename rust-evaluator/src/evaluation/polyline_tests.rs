@@ -3,6 +3,107 @@ use super::*;
 use serde_json::json;
 
 #[test]
+fn closed_path_self_intersection_matches_fill_boundary_semantics() {
+    let path = |points: &[(f64, f64)]| {
+        json!({
+            "kind": "polyline",
+            "closed": true,
+            "segments": points.windows(2).map(|pair| json!({
+                "kind": "line",
+                "start": { "x": pair[0].0, "y": pair[0].1 },
+                "end": { "x": pair[1].0, "y": pair[1].1 }
+            })).collect::<Vec<_>>()
+        })
+    };
+
+    assert!(
+        !super::line_intersections::is_self_intersecting_closed_path(&path(&[
+            (0.0, 0.0),
+            (10.0, 0.0),
+            (10.0, 10.0),
+            (0.0, 10.0),
+        ]))
+    );
+    assert!(super::line_intersections::is_self_intersecting_closed_path(
+        &path(&[(0.0, 0.0), (10.0, 10.0), (0.0, 10.0), (10.0, 0.0),])
+    ));
+    assert!(super::line_intersections::is_self_intersecting_closed_path(
+        &path(&[
+            (0.0, 0.0),
+            (10.0, 0.0),
+            (10.0, 10.0),
+            (5.0, 0.0),
+            (0.0, 10.0),
+        ])
+    ));
+    assert!(super::line_intersections::is_self_intersecting_closed_path(
+        &path(&[(0.0, 0.0), (10.0, 0.0), (5.0, 0.0), (0.0, 10.0),])
+    ));
+}
+
+#[test]
+fn self_intersecting_filled_polyline_warns_without_invalidating_stroke_geometry() {
+    let result = evaluate_document_input(EvaluationInput {
+        geometry_input_targets: None,
+        geometry_collection_nodes: None,
+        geometry_value_program: None,
+        module_materialization: None,
+        property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
+        elements: vec![
+            free_point("a", "A", 0.0, 0.0),
+            free_point("b", "B", 10.0, 10.0),
+            free_point("c", "C", 0.0, 10.0),
+            free_point("d", "D", 10.0, 0.0),
+            element(json!({
+                "id": "crossing",
+                "name": "Crossing",
+                "type": "polyline",
+                "activity": "visible",
+                "points": [
+                    { "mode": "reference", "pointId": "a" },
+                    { "mode": "reference", "pointId": "b" },
+                    { "mode": "reference", "pointId": "c" },
+                    { "mode": "reference", "pointId": "d" }
+                ],
+                "closed": true,
+                "modifierNames": ["fill"]
+            })),
+        ],
+        evaluation_limit_index: None,
+        allow_disabled_element_ids: None,
+        drawing_modifiers: Some(json!([{
+            "name": "fill",
+            "fill": { "kind": "fixed", "hex": "#123456" },
+            "fillOpacity": 0.5
+        }])),
+        selected_drawing_profile_id: None,
+        scalar_expression_payload: None,
+        scalar_program: None,
+        binding_versions: None,
+    });
+
+    assert!(
+        result.errors.is_empty(),
+        "unexpected errors: {:?}",
+        result.errors
+    );
+    assert_eq!(geometry(&result, "crossing")["kind"], json!("polyline"));
+    assert!(result
+        .effective_drawing_modifier_strokes
+        .iter()
+        .any(|entry| entry.element_id == "crossing"));
+    assert_eq!(result.warnings.len(), 1);
+    assert_eq!(result.warnings[0].element_id, "crossing");
+    assert!(result.warnings[0].message.contains("自己交差"));
+}
+
+#[test]
 fn evaluates_ordered_open_and_closed_polylines_with_duplicate_segments() {
     let result = evaluate_document_input(EvaluationInput {
         geometry_input_targets: None,

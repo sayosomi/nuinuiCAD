@@ -140,7 +140,9 @@ describe("Drawing Modifier winner provenance", () => {
       visible: { value: true, winner: null },
       widthPx: { value: 1, winner: null },
       lineType: { value: "solid", winner: null },
-      color: { value: { kind: "themeRole", role: "foreground" }, winner: null }
+      color: { value: { kind: "themeRole", role: "foreground" }, winner: null },
+      fill: { value: null, winner: null },
+      fillOpacity: { value: 1, winner: null }
     });
   });
 
@@ -171,5 +173,81 @@ describe("Drawing Modifier winner provenance", () => {
       style: "solid",
       color: { kind: "themeRole", role: "foreground" }
     });
+  });
+
+  it("cascades fill and opacity independently, including profile winners", () => {
+    const modifiers: DrawingModifierDefinition[] = [
+      {
+        name: "outerFill",
+        fill: { kind: "fixed", hex: "#112233" },
+        fillOpacity: 0,
+        profileDeltas: [{
+          profileId: "print",
+          profileName: "Print",
+          fillOpacity: 1
+        }]
+      },
+      {
+        name: "innerOpacity",
+        fillOpacity: 0.5,
+        profileDeltas: [{ profileId: "print", profileName: "Print", fillOpacity: 0.75 }]
+      },
+      { name: "localFill", fill: { kind: "themeRole", role: "accent" } }
+    ];
+    const elements = [
+      element("outer", { type: "group", modifierNames: ["outerFill"] }),
+      element("inner", { type: "group", parentGroupId: "outer", modifierNames: ["innerOpacity"] }),
+      element("path", { parentGroupId: "inner", modifierNames: ["localFill"] })
+    ];
+
+    const common = effectiveDrawingModifierResolutionById(elements, modifiers).get("path")!;
+    expect(common.fill).toEqual({
+      value: { kind: "themeRole", role: "accent" },
+      winner: { ownerElementId: "path", modifierName: "localFill", selectedProfileDelta: null }
+    });
+    expect(common.fillOpacity).toEqual({
+      value: 0.5,
+      winner: { ownerElementId: "inner", modifierName: "innerOpacity", selectedProfileDelta: null }
+    });
+
+    const selected = effectiveDrawingModifierResolutionById(elements, modifiers, "print").get("path")!;
+    expect(selected.fill.value).toEqual({ kind: "themeRole", role: "accent" });
+    expect(selected.fillOpacity).toEqual({
+      value: 0.75,
+      winner: { ownerElementId: "inner", modifierName: "innerOpacity", selectedProfileDelta: { profileId: "print", profileName: "Print" } }
+    });
+  });
+
+  it("allows an explicit no-fill contribution to clear an inherited fill", () => {
+    const resolution = effectiveDrawingModifierResolutionById([
+      element("group", { type: "group", modifierNames: ["base"] }),
+      element("path", { parentGroupId: "group", modifierNames: ["clear"] })
+    ], [
+      { name: "base", fill: { kind: "fixed", hex: "#445566" }, fillOpacity: 0.25 },
+      { name: "clear", fill: { kind: "none" } }
+    ]).get("path")!;
+
+    expect(resolution.fill).toEqual({
+      value: { kind: "none" },
+      winner: { ownerElementId: "path", modifierName: "clear", selectedProfileDelta: null }
+    });
+    expect(resolution.fillOpacity.value).toBe(0.25);
+    expect(resolution.fillOpacity.winner?.modifierName).toBe("base");
+  });
+
+  it("uses opacity 1 as the authored-winner-free default and preserves valid endpoints", () => {
+    const defaults = effectiveDrawingModifierResolutionById([element("path")]).get("path")!;
+    expect(defaults.fill).toEqual({ value: null, winner: null });
+    expect(defaults.fillOpacity).toEqual({ value: 1, winner: null });
+
+    const endpoints = effectiveDrawingModifierResolutionById([
+      element("zero", { modifierNames: ["zero"] }),
+      element("one", { modifierNames: ["one"] })
+    ], [
+      { name: "zero", fill: { kind: "fixed", hex: "#000000" }, fillOpacity: 0 },
+      { name: "one", fill: { kind: "fixed", hex: "#ffffff" }, fillOpacity: 1 }
+    ]);
+    expect(endpoints.get("zero")?.fillOpacity.value).toBe(0);
+    expect(endpoints.get("one")?.fillOpacity.value).toBe(1);
   });
 });

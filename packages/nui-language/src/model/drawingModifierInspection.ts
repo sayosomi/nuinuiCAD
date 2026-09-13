@@ -1,4 +1,5 @@
 import type {
+  DrawingModifierFill,
   DrawingModifierStrokeColor,
   DrawingModifierStrokeStyle,
   ElementId
@@ -38,4 +39,6 @@ export type EffectiveDrawingModifierResolution = {
   widthPx: DrawingModifierPropertyResolution<number>;
   lineType: DrawingModifierPropertyResolution<DrawingModifierStrokeStyle>;
   color: DrawingModifierPropertyResolution<DrawingModifierStrokeColor>;
+  fill: DrawingModifierPropertyResolution<DrawingModifierFill | null>;
+  fillOpacity: DrawingModifierPropertyResolution<number>;
 };

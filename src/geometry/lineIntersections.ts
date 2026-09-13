@@ -1,4 +1,4 @@
-import type { ComputedGeometryValueOffsetLine, ComputedOffsetLineSegment } from "../types/geometry";
+import type { ComputedGeometry, ComputedGeometryValueOffsetLine, ComputedOffsetLineSegment } from "../types/geometry";
 import type { LineLikeGeometryInput } from "./linePaths";
 import { cubicDerivativeAt, cubicPointAt, type BezierLikeSegment } from "./bezierMath";
 
@@ -944,6 +944,64 @@ const refineIntersection = (
 
 const samePoint = (a: LineIntersection, b: LineIntersection) =>
   Math.hypot(a.x - b.x, a.y - b.y) <= DEDUPE_EPSILON;
+
+type FillEligiblePathGeometry = Extract<ComputedGeometry, { kind: "polyline" | "offsetLine" | "joinedPath" }>;
+
+const boxesOverlap = (a: IntersectionSegment, b: IntersectionSegment) =>
+  Math.max(Math.min(a.start.x, a.end.x), Math.min(b.start.x, b.end.x)) <=
+    Math.min(Math.max(a.start.x, a.end.x), Math.max(b.start.x, b.end.x)) + DEDUPE_EPSILON &&
+  Math.max(Math.min(a.start.y, a.end.y), Math.min(b.start.y, b.end.y)) <=
+    Math.min(Math.max(a.start.y, a.end.y), Math.max(b.start.y, b.end.y)) + DEDUPE_EPSILON;
+
+const pointNear = (left: Point, right: Point) => distance(left, right) <= DEDUPE_EPSILON;
+
+/**
+ * The existing intersection engine works on analytic primitives through
+ * chord seeds. This companion uses the same traversal for a single closed
+ * contour, ignoring only its intended consecutive and first/last joins.
+ */
+export const isSelfIntersectingClosedPath = (geometry: FillEligiblePathGeometry): boolean => {
+  if (!geometry.closed) return false;
+  const segments = pathSegmentsForLine(geometry);
+  const lastIndex = segments.length - 1;
+  if (lastIndex < 1) return false;
+
+  const onlyIntendedJoin = (
+    first: IntersectionSegment,
+    second: IntersectionSegment,
+    intersection: { point: Point; overlap: boolean },
+    closure: boolean
+  ) => {
+    const join = closure ? first.start : first.end;
+    if (!pointNear(intersection.point, join)) return false;
+    if (!intersection.overlap) return true;
+
+    const firstAway = closure
+      ? { x: first.end.x - join.x, y: first.end.y - join.y }
+      : { x: first.start.x - join.x, y: first.start.y - join.y };
+    const secondAway = closure
+      ? { x: second.start.x - join.x, y: second.start.y - join.y }
+      : { x: second.end.x - join.x, y: second.end.y - join.y };
+    return Math.abs(cross(firstAway, secondAway)) <= DEDUPE_EPSILON &&
+      firstAway.x * secondAway.x + firstAway.y * secondAway.y < 0;
+  };
+
+  for (let firstIndex = 0; firstIndex <= lastIndex; firstIndex += 1) {
+    for (let secondIndex = firstIndex + 1; secondIndex <= lastIndex; secondIndex += 1) {
+      const first = segments[firstIndex]!;
+      const second = segments[secondIndex]!;
+      if (!boxesOverlap(first, second)) continue;
+      const rough = segmentIntersection(first, second);
+      if (!rough) continue;
+      const intersection = refineIntersection(first, second, rough) ?? rough;
+      const closure = firstIndex === 0 && secondIndex === lastIndex;
+      const consecutive = secondIndex === firstIndex + 1;
+      if ((consecutive || closure) && onlyIntendedJoin(first, second, intersection, closure)) continue;
+      return true;
+    }
+  }
+  return false;
+};
 
 export const findLineIntersections = (
   line1: LineLikeGeometryInput,
