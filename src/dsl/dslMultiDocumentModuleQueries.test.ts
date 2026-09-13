@@ -113,7 +113,7 @@ const signatureAt = (
 
 const panelSource = [
   "nui 1",
-  "export module Panel(value: number, side?: choice(left, right), count: number = 2) {",
+  "export module Panel(value: number, side: choice(left, right)?, count: number = 2) {",
   "  export point Public = coordinate(x: @value, y: 0)",
   "  export const amount: number = @value",
   "}"
@@ -135,7 +135,7 @@ const documentedPanelSource = [
   "  /// 側。",
   "  /// @en",
   "  /// Panel side.",
-  "  side?: choice(left, right),",
+  "  side: choice(left, right)?,",
   "  count: number = 2",
   ") {",
   "  /// @ja",

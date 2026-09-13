@@ -99,11 +99,9 @@ const itemsFor = (source: string, line = source.split(/\r?\n/).length - 1, chara
 const optionalModuleSource = [
   "nui 1",
   "module M(",
-  "  value?: number,",
+  "  value: number?,",
   ") {",
-  "  if (hasValue(@value)) {",
-  "    const probe: number = @value",
-  "  }",
+  "  const probe: number = @value ?? 0",
   "}",
   "instance Use = M()"
 ].join("\n");
@@ -434,9 +432,10 @@ describe("VS Code native nui completion provider", () => {
     const session = createLanguageAnalysisSession(optionalModuleSource);
     const provider = createNuiCompletionProvider(() => session);
     session.replaceSource(liveSource);
+    const argumentLine = liveSource.split("\n").findIndex((line) => line === "  ");
     const moduleItems = provider.provideCompletionItems(
       documentFor(liveSource) as vscode.TextDocument,
-      new vscode.Position(9, 2),
+      new vscode.Position(argumentLine, 2),
       undefined as never,
       undefined as never
     ) as vscode.CompletionItem[];
@@ -444,8 +443,8 @@ describe("VS Code native nui completion provider", () => {
     expect(moduleItems.map((item) => item.label)).toContain("value");
     expect(value.insertText).toBe("value: ");
     expect(value.range).toMatchObject({
-      start: { line: 9, character: 2 },
-      end: { line: 9, character: 2 }
+      start: { line: argumentLine, character: 2 },
+      end: { line: argumentLine, character: 2 }
     });
   });
 
@@ -455,7 +454,7 @@ describe("VS Code native nui completion provider", () => {
       "",
       "module M(",
       "value: number,",
-      "optional?: number,",
+      "optional: number?,",
       ") {",
       "}",
       "",
@@ -737,10 +736,11 @@ describe("VS Code native nui completion provider", () => {
     const session = createLanguageAnalysisSession(optionalModuleSource);
     const provider = createNuiCompletionProvider(() => session);
     session.replaceSource(transientOptionalModuleSource);
+    const argumentLine = transientOptionalModuleSource.split("\n").findIndex((line) => line === "  v");
 
     const items = provider.provideCompletionItems(
       documentFor(transientOptionalModuleSource) as vscode.TextDocument,
-      new vscode.Position(9, 3),
+      new vscode.Position(argumentLine, 3),
       undefined as never,
       undefined as never
     ) as vscode.CompletionItem[];
@@ -749,8 +749,8 @@ describe("VS Code native nui completion provider", () => {
     expect(items.map((item) => item.label)).toContain("value");
     expect(value.insertText).toBe("value: ");
     expect(value.range).toMatchObject({
-      start: { line: 9, character: 2 },
-      end: { line: 9, character: 3 }
+      start: { line: argumentLine, character: 2 },
+      end: { line: argumentLine, character: 3 }
     });
   });
 

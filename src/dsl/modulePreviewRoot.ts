@@ -214,9 +214,8 @@ const recordReferenceIsResolved = (reference: ModuleRecordReferenceSemantic): bo
   reference.resolution === "resolved" && (reference.target !== null || reference.constructor !== null);
 
 const bindingIsResolved = (binding: ResolvedModuleParameterBinding): boolean => {
-  if (binding.state === "requiredOmitted") return false;
-  if (binding.state === "optionalOmitted") return true;
-  if (binding.state === "defaultedOmitted") return binding.value?.kind === "scalar" && expressionIsResolved(binding.value.expression);
+  if (binding.state === "omitted") return true;
+  if (binding.state === "defaulted") return binding.value?.kind === "scalar" && expressionIsResolved(binding.value.expression);
   if (!binding.value) return false;
   return binding.value.kind === "scalar"
     ? expressionIsResolved(binding.value.expression)
@@ -340,8 +339,8 @@ const parameterBindingIsSafe = (
   statements: readonly DslStatement[]
 ): boolean => {
   if (!bindingIsResolved(binding)) return false;
-  if (!binding.value) return binding.state === "optionalOmitted";
-  const allowedParameterDefinitionIds = binding.state === "defaultedOmitted"
+  if (!binding.value) return binding.state === "omitted";
+  const allowedParameterDefinitionIds = binding.state === "defaulted"
     ? new Set<StatementIdentity>([currentDefinitionStatementId])
     : callerParameterDefinitionIds;
   return binding.value.kind === "scalar"

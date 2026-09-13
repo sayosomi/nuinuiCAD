@@ -1130,7 +1130,6 @@ const decorateStatement = (statement: DslStatement, logical: LogicalStatement, s
     statement.exportPhysicalSpan = statement.exportSpan ? project(statement.exportSpan) : null;
     for (const parameter of statement.parameters) {
       parameter.namePhysicalSpan = parameter.nameSpan ? project(parameter.nameSpan) : null;
-      parameter.optionalPhysicalSpan = parameter.optionalSpan ? project(parameter.optionalSpan) : null;
       parameter.typePhysicalSpan = parameter.typeSpan ? project(parameter.typeSpan) : null;
       parameter.defaultPhysicalSpan = parameter.defaultSpan ? project(parameter.defaultSpan) : null;
     }

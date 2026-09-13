@@ -93,13 +93,13 @@ describe("Module diagnostic related source information", () => {
   it("points optional-value errors and parameter collisions to the parameter declaration", () => {
     const optionalSource = [
       "nui 1",
-      "module M(value?: number) {",
+      "module M(value: number?) {",
       "  const copy: number = @value",
       "}",
       "instance Use = M()"
     ].join("\n");
-    const optional = byCode(compileWithIds(optionalSource).diagnostics, "module-optional-value-required");
-    expect(relatedTexts(optionalSource, optional)).toEqual(["value"]);
+    const optional = byCode(compileWithIds(optionalSource).diagnostics, "module-scalar-type-mismatch");
+    expect(relatedTexts(optionalSource, optional)).toEqual(["number"]);
 
     const collisionSource = [
       "nui 1",
@@ -114,7 +114,7 @@ describe("Module diagnostic related source information", () => {
   it("points an optional path[] list-consumer error to the parameter declaration", () => {
     const source = [
       "nui 1",
-      "module M(paths?: path[]) {",
+      "module M(paths: path[]?) {",
       "  line Copy = offset(sources: @paths, distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
       "}"
     ].join("\n");
@@ -125,7 +125,7 @@ describe("Module diagnostic related source information", () => {
     const diagnostic = matches[0]!;
     expect(spanText(source, diagnostic)).toBe("paths");
     expect(diagnostic.code).toBe("module-optional-value-required");
-    expect(diagnostic.message).toBe("optional module parameter「paths」は hasValue(@paths) で存在を確認してから参照してください。");
+    expect(diagnostic.message).toBe("optional module parameter「paths」は optional value を解決してから参照してください。");
     expect(diagnostic.severity).toBe("error");
     expect(relatedTexts(source, diagnostic)).toEqual(["paths"]);
     expect(diagnostic.relatedInformation?.map((related) => related.message)).toEqual(["Related parameter declaration"]);

@@ -234,9 +234,9 @@ describe("multi-document Module semantics", () => {
       "nui 1",
       "const libraryDefault: number = 41",
       "export module Panel(",
-      "  optional?: number,",
+      "  optional: number?,",
       "  width: number = @libraryDefault,",
-      "  hasOptional: boolean = hasValue(@optional),",
+      "  hasOptional: boolean = match @optional { none => false some present => true },",
       ") {",
       "}"
     ].join("\n"));
@@ -268,7 +268,7 @@ describe("multi-document Module semantics", () => {
 
     const widthBinding = rootInstance.parameterBindings.find((binding) => binding.parameterName === "width");
     expect(widthBinding).toMatchObject({
-      state: "defaultedOmitted",
+      state: "defaulted",
       value: {
         kind: "scalar",
         expression: {
@@ -284,15 +284,8 @@ describe("multi-document Module semantics", () => {
 
     const hasOptionalBinding = rootInstance.parameterBindings.find((binding) => binding.parameterName === "hasOptional");
     expect(hasOptionalBinding).toMatchObject({
-      state: "defaultedOmitted",
-      value: {
-        kind: "scalar",
-        expression: {
-          hasValueParameters: [{
-            definitionIdentity: { documentId: library.documentId }
-          }]
-        }
-      }
+      state: "defaulted",
+      value: { kind: "scalar", expression: { ast: { kind: "valueMatch" } } }
     });
   });
 

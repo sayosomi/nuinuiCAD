@@ -157,6 +157,7 @@ export type RecordModuleParameterSemantic = {
   name: string;
   typeReference: RecordTypeReferenceSemantic;
   typeIdentity: RecordTypeIdentity | null;
+  valueType?: DslValueType;
 };
 
 export type RecordSemanticAnalysis = {
@@ -513,6 +514,7 @@ const analyzeRecordValueLeaf = ({
       diagnostics.push(diagnostic(statement, span, "record-value-ambiguous", `record 値「${name}」は複数の宣言と一致するため一意に解決できません。`, { name }));
     } else if (lookup !== null && parameterSemantic) {
       targetTypeIdentity = parameterSemantic.typeIdentity;
+      targetValueType = parameterSemantic.valueType;
     } else if (lookup !== null && lookup.kind === "forward" && lookup.declarations.some((declaration) => declaration.kind === "recordValue")) {
       diagnostics.push(diagnostic(statement, span, "record-value-forward-reference", `record 値「${name}」はこの位置より後で宣言されているため、まだ参照できません。`, { name }));
     } else if (lookup !== null) {
@@ -709,7 +711,8 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
         parameterIndex,
         name: parameter.name,
         typeReference,
-        typeIdentity: typeReference.typeIdentity
+        typeIdentity: typeReference.typeIdentity,
+        ...(parameter.valueType ? { valueType: parameter.valueType } : {})
       };
       moduleParameters.push(semantic);
       moduleParameterTypeByDefinitionAndIndex.set(`${definitionStatementId}:${parameterIndex}`, semantic);

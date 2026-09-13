@@ -1735,7 +1735,6 @@ export const compileDslDocument = (
           undefined,
           undefined,
           undefined,
-          () => false,
           (id) => id,
           (order) => order
         ).expression;
@@ -1756,7 +1755,6 @@ export const compileDslDocument = (
           undefined,
           undefined,
           undefined,
-          () => false,
           (id) => id,
           (order) => order
         ).expression;

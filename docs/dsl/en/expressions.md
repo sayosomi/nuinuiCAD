@@ -121,8 +121,8 @@ For every implemented one-dimensional collection type (`number[]`, `string[]`,
 arrays), `.length` is a read-only `number`. Empty literals have length `0`; a
 non-empty literal counts every authored member in order, including duplicates.
 Whole-value aliases and Module collection parameters/exports preserve the same
-cardinality. Optional Module parameters require the established
-`hasValue(@parameter)` presence proof before `.length` is read.
+cardinality. Optional Module parameters must be resolved through the general
+optional-value operations before `.length` is read.
 
 Declared collections also support first-class zero-based indexing:
 `@collection[index]`. The index is a normal typed numeric expression, so both
@@ -132,8 +132,8 @@ aliases, and pure geometry value identity are preserved; indexing does not
 create a drawable element identity, and nested arrays remain unsupported.
 Root values, aliases, Module parameters, locals, exports, qualified exports,
 and cross-document exports use the same lexical and source-order rules as
-whole collection references. An optional collection parameter needs a proven
-`hasValue(@parameter)` guard before indexing.
+whole collection references. An optional collection parameter needs
+optional-value resolution before indexing.
 
 The index must evaluate to a finite integer from `0` through one less than the
 collection length. Negative, fractional, non-finite, or out-of-range indexes

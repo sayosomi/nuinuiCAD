@@ -74,8 +74,9 @@ describe("diagnostic presentation localization", () => {
   it("keeps a Module parameter name through semantic projection in both display languages", () => {
     const source = [
       "nui 1",
-      "module TailoredModule(value?: number) {",
-      "  const copy: number = @value",
+      "record TailoredRecord(amount: number)",
+      "module TailoredModule(value: TailoredRecord?) {",
+      "  const copy: number = @value.amount",
       "}"
     ].join("\n");
     const document = AutomationDocument.fromSource(source);
@@ -87,8 +88,8 @@ describe("diagnostic presentation localization", () => {
       key: "diagnostic.module-optional-value-required",
       parameters: { name: "value" }
     });
-    expect(diagnosticTextFor(diagnostic, "en")).toBe("Check optional Module parameter 'value' before using it.");
-    expect(diagnosticTextFor(diagnostic, "ja-JP")).toBe("optional Module parameter「value」を確認してから使用してください。");
+    expect(diagnosticTextFor(diagnostic, "en")).toBe("Resolve optional Module value 'value' before using it.");
+    expect(diagnosticTextFor(diagnostic, "ja-JP")).toBe("optional Module value「value」を解決してから使用してください。");
   });
 
   it("localizes exhaustive match diagnostics through the production compiler path", () => {

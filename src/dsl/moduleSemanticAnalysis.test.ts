@@ -89,254 +89,71 @@ describe("module semantic analysis", () => {
     expect(linePolar.diagnostics).toEqual([]);
   });
 
-  it("requires optional scalar presence proof and narrows a guarded branch", () => {
-    const unguarded = compileWithIds([
+  it("uses the general optional value model in Module bodies", () => {
+    const compiled = compileWithIds([
       "nui 1",
-      "module M(value?: number) {",
+      "module M(value: number?) {",
+      "  const fallback: number = @value ?? 4",
+      "  const matched: number = match @value { none => 0 some present => @present }",
+      "}",
+      "instance Use = M()"
+    ].join("\n"));
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(compiled.moduleSemanticAnalysis!.definitions[0].bodyStatements
+      .filter((statement) => statement.scalarExpressions.length > 0)
+      .flatMap((statement) => statement.scalarExpressions.map((site) => site.expression.type?.kind)))
+      .toEqual(expect.arrayContaining(["number"]));
+  });
+
+  it("rejects direct use of an unresolved optional Module value", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "module M(value: number?) {",
       "  const copy: number = @value",
       "}",
       "instance Use = M()"
     ].join("\n"));
-    expect(unguarded.diagnostics).toEqual(expect.arrayContaining([
-      expect.objectContaining({ code: "module-optional-value-required" })
+    expect(compiled.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "module-scalar-type-mismatch" })
     ]));
-
-    const guarded = compileWithIds([
-      "nui 1",
-      "module M(value?: number) {",
-      "  if (hasValue(@value)) {",
-      "    const copy: number = @value",
-      "  } else {",
-      "    const fallback: number = 0",
-      "  }",
-      "}",
-      "instance Use = M()"
-    ].join("\n"));
-    expect(guarded.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
-    expect(guarded.moduleSemanticAnalysis!.definitions[0].bodyStatements.find((statement) => statement.statementIndex === 3)?.presenceParameterKeys).toEqual(["statement:test:1:0"]);
   });
 
-  it("supports hasValue flow for boolean operators without leaking facts", () => {
+  it("rejects hasValue instead of creating a Module presence proof", () => {
     const compiled = compileWithIds([
       "nui 1",
-      "module M(value?: number) {",
-      "  if (hasValue(@value) and @value > 0) {",
-      "    const okay: number = @value",
-      "  }",
-      "  if (hasValue(@value) or true) {",
-      "    const notOkay: number = @value",
-      "  }",
+      "module M(value: number?) {",
+      "  const flag: boolean = hasValue(@value)",
       "}",
       "instance Use = M()"
     ].join("\n"));
     expect(compiled.diagnostics).toEqual(expect.arrayContaining([
-      expect.objectContaining({ code: "module-optional-value-required" })
-    ]));
-    expect(compiled.moduleSemanticAnalysis!.definitions[0].bodyStatements.find((statement) => statement.statementIndex === 3)?.presenceParameterKeys).toEqual(["statement:test:1:0"]);
-    expect(compiled.moduleSemanticAnalysis!.definitions[0].bodyStatements.find((statement) => statement.statementIndex === 6)?.presenceParameterKeys).toEqual([]);
-  });
-
-  it("does not narrow an unsafe compound AND false branch", () => {
-    const compiled = compileWithIds([
-      "nui 1",
-      "module M(value?: number) {",
-      "  if (not hasValue(@value) and false) {",
-      "  } else {",
-      "    const bad: number = @value",
-      "  }",
-      "}",
-      "instance Use = M()"
-    ].join("\n"));
-
-    expect(compiled.diagnostics).toEqual(expect.arrayContaining([
-      expect.objectContaining({ code: "module-optional-value-required" })
+      expect.objectContaining({ code: "module-unknown-function" })
     ]));
   });
 
-  it("keeps direct negated hasValue guards narrowing the else branch", () => {
+  it("uses optional member access for geometry Module values", () => {
     const compiled = compileWithIds([
       "nui 1",
-      "module M(value?: number) {",
-      "  if (not hasValue(@value)) {",
-      "  } else {",
-      "    const okay: number = @value",
-      "  }",
-      "}",
-      "instance Use = M()"
-    ].join("\n"));
-
-    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
-  });
-
-  it("keeps OR RHS short-circuit presence proof and rejects the unsafe direction", () => {
-    const valid = compileWithIds([
-      "nui 1",
-      "module M(value?: number) {",
-      "  if (not hasValue(@value) or @value > 0) {",
-      "  }",
-      "}",
-      "instance Use = M()"
-    ].join("\n"));
-    expect(valid.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
-
-    const invalid = compileWithIds([
-      "nui 1",
-      "module M(value?: number) {",
-      "  if (hasValue(@value) or @value > 0) {",
-      "  }",
-      "}",
-      "instance Use = M()"
-    ].join("\n"));
-    expect(invalid.diagnostics).toEqual(expect.arrayContaining([
-      expect.objectContaining({ code: "module-optional-value-required" })
-    ]));
-  });
-
-  it("keeps AND RHS short-circuit presence proof valid", () => {
-    const compiled = compileWithIds([
-      "nui 1",
-      "module M(value?: number) {",
-      "  if (hasValue(@value) and @value > 0) {",
-      "  }",
-      "}",
-      "instance Use = M()"
-    ].join("\n"));
-
-    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
-  });
-
-  it("retains a presence fact shared by every compound OR true path", () => {
-    const compiled = compileWithIds([
-      "nui 1",
-      "module M(value?: number) {",
-      "  if (hasValue(@value) or hasValue(@value)) {",
-      "    const okay: number = @value",
-      "  }",
-      "}",
-      "instance Use = M()"
-    ].join("\n"));
-
-    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
-  });
-
-  it("requires presence when forwarding an optional value to another module", () => {
-    const guarded = compileWithIds([
-      "nui 1",
-      "module Inner(value?: number) {",
-      "}",
-      "module Outer(value?: number) {",
-      "  if (hasValue(@value)) {",
-      "    instance child = Inner(value: @value)",
-      "  }",
-      "}",
-      "instance Use = Outer()"
-    ].join("\n"));
-    expect(guarded.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
-
-    const unguarded = compileWithIds([
-      "nui 1",
-      "module Inner(value?: number) {",
-      "}",
-      "module Outer(value?: number) {",
-      "  instance child = Inner(value: @value)",
-      "}",
-      "instance Use = Outer()"
-    ].join("\n"));
-    expect(unguarded.diagnostics).toEqual(expect.arrayContaining([
-      expect.objectContaining({ code: "module-optional-value-required" })
-    ]));
-  });
-
-  it("applies the same proof rule to optional geometry properties", () => {
-    const compiled = compileWithIds([
-      "nui 1",
-      "point Input = coordinate(x: 3, y: 4)",
-      "module M(anchor?: point) {",
-      "  if (hasValue(@anchor)) {",
-      "    const x: number = @anchor.x",
-      "  }",
+      "module M(anchor: point?) {",
+      "  const x: number = @anchor?.x ?? 0",
       "}",
       "instance Use = M()"
     ].join("\n"));
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
-
-    const invalid = compileWithIds([
-      "nui 1",
-      "module M(anchor?: point) {",
-      "  const x: number = @anchor.x",
-      "}",
-      "instance Use = M()"
-    ].join("\n"));
-    expect(invalid.diagnostics).toEqual(expect.arrayContaining([
-      expect.objectContaining({ code: "module-optional-value-required" })
-    ]));
-  });
-
-  it("applies optional geometry presence proofs to immutable local aliases", () => {
-    const guarded = compileWithIds([
-      "nui 1",
-      "module M(anchor?: point) {",
-      "  if (hasValue(@anchor)) {",
-      "    const P: point = @anchor",
-      "    line Use = segment(start: @P, end: (10, 0))",
-      "  }",
-      "}",
-      "instance I = M()"
-    ].join("\n"));
-    expect(guarded.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
-    const definition = guarded.moduleSemanticAnalysis!.definitions.find((candidate) => candidate.name === "M")!;
-    const aliasBody = definition.bodyStatements.find((body) => guarded.statements[body.statementIndex]?.name === "P");
-    expect(aliasBody?.geometryReferences).toHaveLength(1);
-    expect(aliasBody?.geometryReferences[0]?.parameterKey).toBeNull();
-
-    const unguarded = compileWithIds([
-      "nui 1",
-      "module M(anchor?: point) {",
-      "  const P: point = @anchor",
-      "}",
-      "instance I = M()"
-    ].join("\n"));
-    expect(unguarded.diagnostics).toEqual(expect.arrayContaining([
-      expect.objectContaining({ code: "module-optional-value-required" })
-    ]));
-  });
-
-  it("allows hasValue in boolean defaults while rejecting direct optional default reads", () => {
-    const compiled = compileWithIds([
-      "nui 1",
-      "module M(value?: number, flag: boolean = hasValue(@value)) {",
-      "}",
-      "instance Use = M()"
-    ].join("\n"));
-    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
-    expect(compiled.moduleSemanticAnalysis!.definitions[0].parameters[1].defaultExpression).toMatchObject({
-      type: { kind: "boolean" },
-      hasValueParameters: [{ parameterIndex: 0 }]
-    });
-
-    const invalid = compileWithIds([
-      "nui 1",
-      "module M(value?: number, flag: boolean = @value) {",
-      "}",
-      "instance Use = M()"
-    ].join("\n"));
-    expect(invalid.diagnostics).toEqual(expect.arrayContaining([
-      expect.objectContaining({ code: "module-optional-value-required" })
-    ]));
   });
 
   it("records required, defaulted, and optional argument states in parameter order", () => {
     const compiled = compileWithIds([
       "nui 1",
-      "module M(required: number, fallback: number = 2, optional?: number) {",
+      "module M(required: number, fallback: number = 2, optional: number?) {",
       "}",
       "instance Use = M(required: 1)"
     ].join("\n"));
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     expect(compiled.moduleSemanticAnalysis!.instances[0].parameterBindings.map((binding) => [binding.parameterName, binding.state, binding.usesDefault])).toEqual([
-      ["required", "requiredSupplied", false],
-      ["fallback", "defaultedOmitted", true],
-      ["optional", "optionalOmitted", false]
+      ["required", "supplied", false],
+      ["fallback", "defaulted", true],
+      ["optional", "omitted", false]
     ]);
   });
 
@@ -387,9 +204,9 @@ describe("module semantic analysis", () => {
       analysis.definitions.find((definition) => definition.name === "WrongOuter")?.parameters[0]?.recordTypeIdentity
     );
     for (const name of ["Root", "Inline", "Parent"]) {
-      expect(instanceByName.get(name)?.parameterBindings[0]?.state).toBe("requiredSupplied");
+      expect(instanceByName.get(name)?.parameterBindings[0]?.state).toBe("supplied");
     }
-    expect(instanceByName.get("Wrong")?.parameterBindings[0]?.state).toBe("requiredOmitted");
+    expect(instanceByName.get("Wrong")?.parameterBindings[0]?.state).toBe("omitted");
     expect(instanceByName.get("bad")?.parameterBindings[0]?.value).toMatchObject({
       kind: "record",
       reference: { resolution: "invalid", typeIdentity: null }
@@ -411,31 +228,29 @@ describe("module semantic analysis", () => {
     ]));
   });
 
-  it("shares optional record presence proof across whole and field access", () => {
-    const guarded = compileWithIds([
+  it("resolves optional record values through coalescing and member access", () => {
+    const compiled = compileWithIds([
       "nui 1",
       "record Pair(x: number)",
-      "module M(settings?: Pair) {",
-      "  if (hasValue(@settings)) {",
-      "    const copy: Pair = @settings",
-      "    const x: number = @settings.x",
-      "  }",
+      "module M(settings: Pair?) {",
+      "  const copy: Pair = @settings ?? Pair(x: 0)",
+      "  const x: number = @settings?.x ?? 0",
       "}",
       "instance Absent = M()",
       "instance Present = M(settings: Pair(x: 6))"
     ].join("\n"));
-    expect(guarded.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
-    expect(guarded.moduleSemanticAnalysis!.instances.map((instance) => instance.parameterBindings[0]?.state)).toEqual([
-      "optionalOmitted",
-      "optionalSupplied"
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(compiled.moduleSemanticAnalysis!.instances.map((instance) => instance.parameterBindings[0]?.state)).toEqual([
+      "omitted",
+      "supplied"
     ]);
-    expect(guarded.moduleSemanticAnalysis!.definitions[0].recordValues[0]?.presenceParameterKeys).toEqual(["statement:test:2:0"]);
+  });
 
+  it("rejects direct optional record member use without resolution", () => {
     const unguarded = compileWithIds([
       "nui 1",
       "record Pair(x: number)",
-      "module M(settings?: Pair) {",
-      "  const copy: Pair = @settings",
+      "module M(settings: Pair?) {",
       "  const x: number = @settings.x",
       "}",
       "instance Use = M()"

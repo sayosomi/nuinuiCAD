@@ -113,7 +113,6 @@ const shiftedModuleStatement = (
         parameters: statement.parameters.map((parameter) => ({
           ...parameter,
           nameSpan: shiftedSpan(parameter.nameSpan, offset),
-          optionalSpan: shiftedSpan(parameter.optionalSpan, offset),
           typeSpan: shiftedSpan(parameter.typeSpan, offset),
           defaultSpan: shiftedSpan(parameter.defaultSpan, offset),
           choiceOptionSpans: parameter.choiceOptionSpans.map((span) => ({ start: span.start + offset, end: span.end + offset }))

@@ -49,8 +49,8 @@ const maybeWidth: number? = 10
 
 `T?[]` means optional collection members and `T[]?` means an optional whole
 collection. `T??` is rejected, and `none` is reserved from `choice(...)`
-options. Module `name?: type` parameters remain on their existing intermediate
-presence model in this slice.
+options. Module parameters use the same postfix form, such as
+`height: number?`; the retired `height?: number` spelling is rejected.
 
 Geometry declarations have their own category-and-construction form and are
 described in [Constructions](constructions.md). Records are also `const`-only;

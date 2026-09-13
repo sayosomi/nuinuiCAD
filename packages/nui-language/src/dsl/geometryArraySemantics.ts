@@ -362,7 +362,8 @@ export const resolveDslArrayExpression = <TTarget>(
         diagnostics: [{ code: "coalesce-left-not-optional", message: "?? の左辺は optional collection 値である必要があります。", span: input.expression.span }]
       };
     }
-    if (resolution.kind === "resolved" && (!requiredValueType || requiredValueType.kind !== "array" || !isDslValueTypeAssignable(resolution.valueType, expectedValueType))) {
+    const assignabilityActual = input.requireOptional ? requiredValueType : resolution.kind === "resolved" ? resolution.valueType : null;
+    if (resolution.kind === "resolved" && (!requiredValueType || requiredValueType.kind !== "array" || !assignabilityActual || !isDslValueTypeAssignable(assignabilityActual, expectedValueType))) {
       return {
         value: null,
         valueType: null,
@@ -535,7 +536,8 @@ export const resolveGeometryArrayExpression = <TTarget>(
         diagnostics: [{ code: "coalesce-left-not-optional", message: "?? の左辺は optional geometry array 値である必要があります。", span: input.expression.span }]
       };
     }
-    if (resolution.kind === "resolved" && (!actualValueType || !requiredValueType || requiredValueType.kind !== "array" || !isDslValueTypeAssignable(actualValueType, expectedValueType))) {
+    const assignabilityActual = input.requireOptional ? requiredValueType : actualValueType;
+    if (resolution.kind === "resolved" && (!actualValueType || !requiredValueType || requiredValueType.kind !== "array" || !assignabilityActual || !isDslValueTypeAssignable(assignabilityActual, expectedValueType))) {
       return {
         value: null,
         valueType: null,

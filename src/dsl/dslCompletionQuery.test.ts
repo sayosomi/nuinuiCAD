@@ -190,11 +190,9 @@ describe("queryDslCompletion", () => {
       "nui 1",
       "module M(",
       "  value: number,",
-      "  optional?: number,",
+      "  optional: number?,",
       ") {",
-      "  if (hasValue(@optional)) {",
-      "    const probe: number = @optional",
-      "  }",
+      "  const probe: number = @optional ?? 0",
       "}",
       "instance Use = M(value: 1)"
     ].join("\n");
@@ -220,7 +218,7 @@ describe("queryDslCompletion", () => {
       "",
       "module M(",
       "value: number,",
-      "optional?: number,",
+      "optional: number?,",
       ") {",
       "}",
       "",
@@ -705,13 +703,11 @@ describe("queryDslCompletion", () => {
       "nui 1",
       "record Pair(x: number, label: string)",
       'const input: Pair = Pair(x: 1, label: "root")',
-      "module Inner(input: Pair, optional?: Pair) {",
+      "module Inner(input: Pair, optional: Pair?) {",
       "  const copy: Pair = @input",
       "  const member: number = @input.x",
-      "  if (hasValue(@optional)) {",
-      "    const guarded: Pair = @optional",
-      "    const guardedField: number = @optional.x",
-      "  }",
+      "  const guarded: Pair = @optional ?? Pair(x: 0, label: \"fallback\")",
+      "  const guardedField: number = @optional?.x ?? 0",
       '  export const output: Pair = @copy',
       "}",
       'instance Use = Inner(input: Pair(x: 5, label: "inline"))',
@@ -728,7 +724,7 @@ describe("queryDslCompletion", () => {
 
     const optionalValue = exactQuery(source, "const guarded: Pair = @optional", "const guarded: Pair = @".length);
     expect(labels(optionalValue)).toContain("optional");
-    const optionalField = exactQuery(source, "@optional.x");
+    const optionalField = exactQuery(source, "@optional?.x");
     expect(labels(optionalField)).toEqual(["x", "label"]);
 
     const inlineFields = exactQuery(source, 'input: Pair(x: 5, label: "inline")', "input: Pair(x: 5, ".length);
@@ -740,15 +736,13 @@ describe("queryDslCompletion", () => {
     expect(labels(exportedField)).toEqual(["x", "label"]);
   });
 
-  it("applies the existing Module optional-presence proof to record fields", () => {
+  it("completes optional record fields through the general optional-member path", () => {
     const source = [
       "nui 1",
       "record Pair(x: number, label: string)",
       'const root: Pair = Pair(x: 1, label: "root")',
-      "module Inner(required: Pair, optional?: Pair) {",
-      "  if (hasValue(@optional)) {",
-      "    const guarded: number = @optional.x",
-      "  }",
+      "module Inner(required: Pair, optional: Pair?) {",
+      "  const guarded: number = @optional?.x ?? 0",
       "  const requiredField: number = @required.x",
       "  export const output: Pair = @required",
       "}",
@@ -760,16 +754,16 @@ describe("queryDslCompletion", () => {
     const unguardedSource = [
       "nui 1",
       "record Pair(x: number, label: string)",
-      "module Inner(optional?: Pair) {",
-      "  const unguarded: number = @optional.x",
+      "module Inner(optional: Pair?) {",
+      "  const unguarded: number = @optional?.x ?? 0",
       "}",
       "instance Use = Inner()"
     ].join("\n");
-    const unguarded = exactQuery(unguardedSource, "const unguarded: number = @optional.x", "const unguarded: number = @optional.".length);
+    const unguarded = exactQuery(unguardedSource, "const unguarded: number = @optional?.x", "const unguarded: number = @optional?.".length);
     expect(unguarded?.category).toBe("elementParameter");
-    expect(labels(unguarded)).toEqual([]);
+    expect(labels(unguarded)).toEqual(["x", "label"]);
 
-    const guarded = exactQuery(source, "const guarded: number = @optional.x", "const guarded: number = @optional.".length);
+    const guarded = exactQuery(source, "const guarded: number = @optional?.x", "const guarded: number = @optional?.".length);
     expect(labels(guarded)).toEqual(["x", "label"]);
 
     const required = exactQuery(source, "const requiredField: number = @required.x", "const requiredField: number = @required.".length);

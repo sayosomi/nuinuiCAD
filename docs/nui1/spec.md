@@ -723,8 +723,9 @@ geometry elements.
 Module parameters may use a record type, and Module locals and exports may use
 record values. Module record parameters and record values are read-only. A
 record value passed to another Module must have the exact nominal type expected
-by that parameter. Optional record parameters use the existing `hasValue`
-presence proof before they are read; omitted optional records remain absent.
+by that parameter. Optional record parameters use the ordinary `T?` value model;
+omission without a default and explicit `none` produce `none`, and a required
+record read must resolve the optional value first.
 Exported record values can be read from an instance with a qualified reference,
 for example `@front::output.x`.
 
@@ -1116,33 +1117,21 @@ parameters are immutable ordered values; they may be passed as inline literals o
 named array references and do not have defaults.
 
 Any scalar, geometry, record, or collection parameter may be optional by writing
-`name?: type`. Optional parameters cannot also have a default. Omission is an
-intentional absent value: it is not `none`, `null`, or a runtime value, and an
-omitted scalar has no eager initializer or binding. Required, defaulted, and
-optional parameters retain their source-order slots; named instance arguments
-may be written in any order.
+`name: type?`. The older `name?: type` spelling is rejected. The parameter value
+is the ordinary immutable optional value: omission without a default and
+explicit `none` both produce `none`, while a supplied `type` value is assignable
+to `type?`. Required consumers must resolve the value explicitly with `??`, an
+optional `match` using `none` and `some <binder>`, an optional-result `if`, or
+`?.` where the result family supports it. There is no implicit optional
+unwrapping.
 
-The existing Module `name?: type` and `hasValue(...)` model remains a separate
-intermediate feature in this slice. This slice does not migrate Module
-parameters to the generic `name: type?` spelling or change their omission
-semantics.
-
-Only non-optional scalar parameters may have defaults. A scalar default may
-reference only earlier parameters in the same signature, and an optional
-parameter cannot be read directly from a default. `hasValue(@parameter)` is
-valid in a boolean default and is the only presence test for an optional
-parameter.
-
-Inside a module body, `hasValue(@parameter)` accepts exactly one optional scalar,
-geometry, record, or collection parameter and returns `boolean`. Its result may
-narrow presence in the same lexical descendant: a true `if` branch, the
-right-hand side of `and`, and the false branch of `or` prove presence. `not`
-reverses the fact. Facts do not escape the branch, do not flow through boolean
-aliases, and do not prove presence in the other branch. Scalar reads, geometry
-reads and properties, geometry-array reads, builtin operands, construction
-values, templates, and passing an optional value to another module require such
-proof. Supplying an optional argument materializes the ordinary value with its
-declared type; omitting it remains absent.
+Defaults are orthogonal to optionality. Existing default-eligibility rules are
+unchanged: optionality does not make geometry, collection, or record parameters
+default-eligible. An eligible optional scalar such as
+`height: number? = 10` uses `10` when omitted, preserves `none` for explicit
+`none`, and uses a supplied number otherwise. Scalar defaults are evaluated in
+source order in the module's parameter context and do not capture values from
+the module's caller.
 
 The existing Module v1 evaluation-limit atomicity is retained: an instance is
 evaluated as an atomic module operation within its evaluation limit, and a
@@ -1574,8 +1563,8 @@ reverse `path[] -> line[]`, point/non-point conversions, and implicit untyped
 conversion are invalid.
 
 Module signatures may declare required or optional collection parameters.
-They have no defaults. Optional arrays use the same `hasValue(@parameter)`
-presence narrowing as other optional Module parameters. Module bodies may
+They have no defaults under the existing eligibility rules; optionality does not
+change those rules. Module bodies may
 create local immutable arrays and may export them with `export const`; private,
 source-order, and instance-member visibility rules are unchanged. Collection
 members remain values: pure geometry members are not converted into drawable
@@ -1661,8 +1650,8 @@ cardinality: an empty literal is `0`, a literal counts every authored member
 including duplicates, and whole-value aliases preserve the target cardinality.
 The property is available for root declarations, Module parameters, locals,
 and exports wherever the underlying collection reference is valid. Optional
-collection parameters require an established `hasValue(@parameter)` presence
-proof before `.length` access. `.length` does not select or materialize a
+collection parameters must be resolved through the general optional-value
+operations before `.length` access. `.length` does not select or materialize a
 collection member and does not create a declaration identity.
 
 A declared collection value may also be indexed with a first-class, read-only
@@ -1675,7 +1664,7 @@ does not create a drawable `ElementId`, and nested arrays are not supported.
 The form is available for root collections and through the same lexical,
 Module-parameter, local, export, qualified, and cross-document paths as a
 whole collection reference. An optional Module collection parameter must first
-be proven present with `hasValue(@parameter)`.
+be resolved through the general optional-value operations.
 
 The index must evaluate to a finite integer in the inclusive lower bound `0`
 and exclusive upper bound `@collection.length`. Negative, fractional,

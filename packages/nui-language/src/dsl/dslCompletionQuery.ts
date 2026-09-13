@@ -6,6 +6,7 @@ import {
   type DslCompletionContext,
   type DslGeometryReferenceKind
 } from "./dslCompletionContext";
+import { isDslOptionalValueType } from "./dslValueTypes";
 import { dslStatementElementType } from "./dslCompletionMetadata";
 import {
   dslCallAuthoringContextAt,
@@ -239,7 +240,7 @@ const recoveredModuleStatementAt = (
     name: parameter.name,
     type: parameter.type,
     recordTypeIdentity: recovery.lastGoodCompiled.moduleSemanticAnalysis?.definitionsByStatementId.get(definitionStatementId)?.parameters[parameterIndex]?.recordTypeIdentity ?? null,
-    optional: parameter.optional,
+    optional: isDslOptionalValueType(parameter.valueType),
     definitionStatementId: liveCallee.declaration.statementId,
     parameterIndex,
     ...(lastGoodDefinition?.identity ? { definitionIdentity: lastGoodDefinition.identity } : {})
@@ -275,7 +276,7 @@ const currentModuleDefinitionParametersAt = (
       name: parameter.name,
       type: parameter.type,
       recordTypeIdentity: parameter.recordTypeIdentity,
-      optional: parameter.optional,
+      optional: isDslOptionalValueType(parameter.valueType),
       definitionStatementId: parameter.definitionStatementId,
       parameterIndex: parameter.parameterIndex,
       ...(parameter.definitionIdentity ? { definitionIdentity: parameter.definitionIdentity } : {})
@@ -302,7 +303,7 @@ const currentModuleDefinitionParametersAt = (
     recordTypeIdentity: definition.kind === "moduleDefinition"
       ? compiled.moduleSemanticAnalysis?.definitionsByStatementId.get(lookup.declaration.statementId)?.parameters[parameterIndex]?.recordTypeIdentity ?? null
       : null,
-    optional: parameter.optional,
+    optional: isDslOptionalValueType(parameter.valueType),
     definitionStatementId: lookup.declaration.statementId,
     parameterIndex
   }));
@@ -1117,18 +1118,27 @@ const queryCandidates = (
     if (qualifiedRecordCandidates.length > 0) return qualifiedRecordCandidates.map(moduleCandidate);
     if (isInsideModuleSemanticStatement(compiled, position)) {
       const moduleRecordCandidates = moduleRecordFieldCompletions(compiled, statementIndex, context.elementToken, {
+        compiled,
+        cursorPosition: position,
+        kind: "qualifiedMember",
         sourceOrderIndex: statementIndex,
         liveStatementText: input.lineText,
         logicalCursorPosition: input.localPosition
       });
       if (moduleRecordCandidates.length > 0) return moduleRecordCandidates.map(moduleCandidate);
       const moduleCollectionCandidates = moduleCollectionLengthCandidates(compiled, statementIndex, context.elementToken, {
+        compiled,
+        cursorPosition: position,
+        kind: "qualifiedMember",
         sourceOrderIndex: statementIndex,
         liveStatementText: input.lineText,
         logicalCursorPosition: input.localPosition
       });
       if (moduleCollectionCandidates.length > 0) return moduleCollectionCandidates.map(moduleCandidate);
       const moduleGeometryCandidates = moduleGeometryPropertyCandidates(compiled, statementIndex, context.elementToken, {
+        compiled,
+        cursorPosition: position,
+        kind: "qualifiedMember",
         sourceOrderIndex: statementIndex,
         liveStatementText: input.lineText,
         logicalCursorPosition: input.localPosition

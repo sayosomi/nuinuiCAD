@@ -35,7 +35,7 @@ describe("compact named arguments", () => {
   it("parses compact module parameters, instance options, and instance arguments", () => {
     const source = [
       "nui 1",
-      "module M(value?:number, flag:boolean = false) {",
+      "module M(value: number?, flag:boolean = false) {",
       "}",
       "instance X(visible: false) = M(value:1,flag:true)"
     ].join("\n");
@@ -45,8 +45,8 @@ describe("compact named arguments", () => {
     expect(parsed.statements[1]).toMatchObject({
       kind: "moduleDefinition",
       parameters: [
-        { name: "value", optional: true, type: { kind: "number" } },
-        { name: "flag", optional: false, type: { kind: "boolean" }, defaultValue: "false" }
+        { name: "value", valueType: { kind: "optional", valueType: { kind: "number" } }, type: { kind: "number" } },
+        { name: "flag", valueType: { kind: "boolean" }, type: { kind: "boolean" }, defaultValue: "false" }
       ]
     });
     expect(parsed.statements[3]).toMatchObject({

@@ -61,28 +61,38 @@ describe("DSL module source AST", () => {
     expect(parsed.statements[3].enclosing).toEqual({ statementIndex: 2, branch: "then" });
   });
 
-  it("parses optional module parameter markers without including `?` in the name span", () => {
+  it("parses optional module parameter types and keeps `?` in the type span", () => {
     const source = [
       "nui 1",
-      "module M(value?: number, anchor?: point) {",
+      "module M(value: number?, anchor: point?) {",
       "}"
     ].join("\n");
     const parsed = parseDslSnapshot({ normalizedSource: source, sourceRevision: 9 });
     expect(parsed.diagnostics).toEqual([]);
     const definition = moduleDefinition(parsed.statements)!;
     expect(definition.parameters).toMatchObject([
-      { name: "value", optional: true, type: { kind: "number" } },
-      { name: "anchor", optional: true, type: { kind: "point" } }
+      { name: "value", valueType: { kind: "optional", valueType: { kind: "number" } }, type: { kind: "number" } },
+      { name: "anchor", valueType: { kind: "optional", valueType: { kind: "point" } }, type: { kind: "point" } }
     ]);
     const value = definition.parameters[0];
     expect(source.slice(value.namePhysicalSpan!.segments[0].from, value.namePhysicalSpan!.segments[0].to)).toBe("value");
-    expect(source.slice(value.optionalPhysicalSpan!.segments[0].from, value.optionalPhysicalSpan!.segments[0].to)).toBe("?");
+    expect(source.slice(value.typePhysicalSpan!.segments[0].from, value.typePhysicalSpan!.segments[0].to)).toBe("number?");
   });
 
-  it("rejects optional parameters with defaults", () => {
-    const parsed = parseDsl("nui 1\nmodule M(value?: number = 1) {\n}");
+  it("accepts defaults independently of optionality", () => {
+    const parsed = parseDsl("nui 1\nmodule M(value: number? = 1) {\n}");
+    expect(parsed.diagnostics).toEqual([]);
+    expect(moduleDefinition(parsed.statements)?.parameters[0]).toMatchObject({
+      valueType: { kind: "optional", valueType: { kind: "number" } },
+      defaultValue: "1"
+    });
+  });
+
+  it("rejects the retired name?: type module syntax", () => {
+    const parsed = parseDsl("nui 1\nmodule M(value?: number) {\n}");
     expect(parsed.diagnostics).toEqual(expect.arrayContaining([
-      expect.objectContaining({ code: "module-optional-default-conflict" })
+      expect.objectContaining({ code: "unknown-type" }),
+      expect.objectContaining({ message: expect.stringContaining("名前: 型") })
     ]));
   });
 
