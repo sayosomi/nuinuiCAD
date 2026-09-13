@@ -80,7 +80,9 @@ const modifierPropertiesFrom = (
   ...(statement.visible !== null ? { visible: statement.visible } : {}),
   ...(statement.widthPx !== null ? { widthPx: statement.widthPx } : {}),
   ...(statement.lineType ? { lineType: statement.lineType } : {}),
-  ...(statement.color ? { color: statement.color } : {})
+  ...(statement.color ? { color: statement.color } : {}),
+  ...(statement.fill ? { fill: statement.fill } : {}),
+  ...(statement.fillOpacity !== null ? { fillOpacity: statement.fillOpacity } : {})
 });
 
 const isTopLevelModifierDefinition = (

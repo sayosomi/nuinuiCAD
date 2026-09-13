@@ -1,6 +1,7 @@
 import type {
   CadElement,
   CadElementType,
+  DrawingModifierFill,
   DrawingModifierStrokeColor,
   DrawingModifierStrokeStyle,
   DrawingModifierDefinition,
@@ -197,6 +198,8 @@ export type DslModifierProfileBlock = {
   widthPx: number | null;
   lineType: DrawingModifierStrokeStyle | null;
   color: DrawingModifierStrokeColor | null;
+  fill: DrawingModifierFill | null;
+  fillOpacity: number | null;
 };
 
 export type DslStatementBase = {
@@ -270,6 +273,8 @@ export type DslStatement =
       widthPx: number | null;
       lineType: DrawingModifierStrokeStyle | null;
       color: DrawingModifierStrokeColor | null;
+      fill: DrawingModifierFill | null;
+      fillOpacity: number | null;
       properties: readonly DslModifierProperty[];
       profileBlocks: readonly DslModifierProfileBlock[];
     })

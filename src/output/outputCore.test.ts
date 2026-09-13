@@ -263,27 +263,22 @@ describe("SAY-64 output core", () => {
   it("carries fill and opacity on the same closed-path drawable while preserving stroke and placement", () => {
     const doc = sourceFor([
       "nui 1",
+      "style Fill {",
+      "  color: warning,",
+      "  width: 2px,",
+      "  fill: #123456,",
+      "  fillOpacity: 0.25,",
+      "}",
       "group G {",
-      "  line Outline = polyline(points: [(0, 0), (10, 0), (10, 10)], closed: true)",
-      "  line Open = polyline(points: [(20, 0), (30, 0), (20, 0)], closed: false)",
-      "  line StrokeOnly = segment(start: (40, 0), end: (50, 0))",
+      "  line Outline [Fill] = polyline(points: [(0, 0), (10, 0), (10, 10)], closed: true)",
+      "  line Open [Fill] = polyline(points: [(20, 0), (30, 0), (20, 0)], closed: false)",
+      "  line StrokeOnly [Fill] = segment(start: (40, 0), end: (50, 0))",
       "}",
       "layout L {",
       "  place @G(at: (100, 20), scale: 2, angle: 90, mirror: true)",
       "}",
       "svg S(layout: @L, margin: 0)"
     ]);
-    doc.document.modifiers = [{
-      name: "Fill",
-      widthPx: 2,
-      color: { kind: "themeRole", role: "warning" },
-      fill: { kind: "fixed", hex: "#123456" },
-      fillOpacity: 0.25
-    }];
-    for (const name of ["Outline", "Open", "StrokeOnly"]) {
-      doc.document.elements.find((element) => element.name === name)!.modifierNames = ["Fill"];
-    }
-
     const plan = buildOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0], evaluation: evaluationFor(doc) });
     const outline = plan.drawables.find((drawable) => drawable.name === "Outline");
     const open = plan.drawables.find((drawable) => drawable.name === "Open");
@@ -299,6 +294,10 @@ describe("SAY-64 output core", () => {
     expect(outline?.elementId).toBe(doc.document.elements.find((element) => element.name === "Outline")?.id);
     expect(plan.placements[0]?.drawables).toContain(outline);
     expect(plan.placements[0]?.at).toEqual({ x: 100, y: 20 });
+    expect(plan.rustPayload.drawables.find((drawable) => drawable.name === "Outline")).toMatchObject({
+      fill: { colorHex: "#123456", opacity: 0.25 },
+      stroke: { colorHex: "#73320d" }
+    });
   });
 
   it("carries fill on closed joined and offset paths and suppresses it for self-intersection", () => {

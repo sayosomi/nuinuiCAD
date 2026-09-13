@@ -8,6 +8,7 @@ import { DEFAULT_VISIBILITY_PROFILE_ID, defaultVisibilityProfile } from "../mode
 import type {
   CadElement,
   CadElementType,
+  DrawingModifierFill,
   DrawingModifierDefinition,
   DrawingProfile,
   ElementId,
@@ -361,6 +362,8 @@ const serializeDrawingModifierProperties = (
     widthPx?: number;
     lineType?: string;
     color?: { kind: "themeRole"; role: string } | { kind: "fixed"; hex: string };
+    fill?: DrawingModifierFill;
+    fillOpacity?: number;
   }
 ): string[] => {
   const lines: string[] = [];
@@ -373,6 +376,15 @@ const serializeDrawingModifierProperties = (
       : properties.color.hex.toLowerCase();
     lines.push(`${DSL_INDENT}color: ${color},`);
   }
+  if (properties.fill) {
+    const fill = properties.fill.kind === "themeRole"
+      ? properties.fill.role
+      : properties.fill.kind === "fixed"
+        ? properties.fill.hex.toLowerCase()
+        : "none";
+    lines.push(`${DSL_INDENT}fill: ${fill},`);
+  }
+  if (properties.fillOpacity !== undefined) lines.push(`${DSL_INDENT}fillOpacity: ${properties.fillOpacity},`);
   return lines;
 };
 
@@ -387,7 +399,9 @@ export const serializeDrawingModifierLines = (
       visible: delta.visible,
       widthPx: delta.widthPx,
       lineType: delta.lineType,
-      color: delta.color
+      color: delta.color,
+      fill: delta.fill,
+      fillOpacity: delta.fillOpacity
     }).map((line) => `${DSL_INDENT}${line}`));
     lines.push(`${DSL_INDENT}}`);
   }

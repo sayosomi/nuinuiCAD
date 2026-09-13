@@ -8,6 +8,7 @@ import type {
   ParseDslResult
 } from "./dslTypes";
 import type {
+  DrawingModifierFill,
   DrawingModifierStrokeStyle,
   DrawingModifierStrokeColor
 } from "../types/geometry";
@@ -51,6 +52,8 @@ import { parseDslSourceReference } from "./dslReferenceTokens";
 import {
   modifierPropertyAuthoringTokens,
   parseModifierColorValue,
+  parseModifierFillOpacityValue,
+  parseModifierFillValue,
   parseModifierLineTypeValue,
   parseModifierVisibleValue,
   parseModifierWidthValue
@@ -356,6 +359,8 @@ type ParsedModifierDefinition = StatementCommonFields & {
   widthPx: number | null;
   lineType: DrawingModifierStrokeStyle | null;
   color: DrawingModifierStrokeColor | null;
+  fill: DrawingModifierFill | null;
+  fillOpacity: number | null;
 };
 
 type ParsedModifierProfileBlock = StatementCommonFields & {
@@ -418,7 +423,9 @@ const parseModifierDefinition = (
     visible: null,
     widthPx: null,
     lineType: null,
-    color: null
+    color: null,
+    fill: null,
+    fillOpacity: null
   };
 };
 
@@ -541,6 +548,32 @@ const parseModifierVisible = (
   return parsed.value;
 };
 
+const parseModifierFill = (
+  value: string,
+  diagnostics: DslDiagnostic[],
+  line: number
+): DrawingModifierFill | null => {
+  const parsed = parseModifierFillValue(value);
+  if ("message" in parsed) {
+    diagnostics.push(diagnostic(line, parsed.message));
+    return null;
+  }
+  return parsed.value;
+};
+
+const parseModifierFillOpacity = (
+  value: string,
+  diagnostics: DslDiagnostic[],
+  line: number
+): number | null => {
+  const parsed = parseModifierFillOpacityValue(value);
+  if ("message" in parsed) {
+    diagnostics.push(diagnostic(line, parsed.message));
+    return null;
+  }
+  return parsed.value;
+};
+
 const parseModifierProfileBlock = (
   logicalText: string,
   opensOnNextLine: boolean,
@@ -598,6 +631,8 @@ const modifierDefinitionToDslStatement = (
   widthPx: parsed.widthPx,
   lineType: parsed.lineType,
   color: parsed.color,
+  fill: parsed.fill,
+  fillOpacity: parsed.fillOpacity,
   properties: [],
   profileBlocks: []
 });
@@ -938,7 +973,7 @@ const applyBlockStructure = (statements: DslStatement[], diagnostics: DslDiagnos
     } else if (modifierAncestor && statement.kind === "modifierDefinition") {
       diagnostics.push(diagnostic(statement.line, "style 定義を別のブロック内にネストできません。"));
     } else if (modifierAncestor && statement.kind !== "modifierProperty" && statement.kind !== "modifierProfileBlock") {
-      diagnostics.push(diagnostic(statement.line, "style ブロック内には visible / width / lineType / color または for @profile だけを書けます。"));
+      diagnostics.push(diagnostic(statement.line, "style ブロック内には visible / width / lineType / color / fill / fillOpacity または for @profile だけを書けます。"));
     }
     if (
       top?.kind === "layout" &&
@@ -1006,7 +1041,9 @@ const finalizeModifierStatements = (statements: DslStatement[], diagnostics: Dsl
       visible: null,
       widthPx: null,
       lineType: null,
-      color: null
+      color: null,
+      fill: null,
+      fillOpacity: null
     }));
     const propertiesByKey = new Map<string, DslModifierProperty[]>();
     for (const property of properties) {
@@ -1019,7 +1056,7 @@ const finalizeModifierStatements = (statements: DslStatement[], diagnostics: Dsl
         diagnostics.push(diagnostic(definition.line, `style の ${key} プロパティは1つだけ指定できます。`));
       }
     }
-    const supportedPropertyKeys = new Set(["visible", "width", "lineType", "color"]);
+    const supportedPropertyKeys = new Set(["visible", "width", "lineType", "color", "fill", "fillOpacity"]);
     if (properties.some((property) => !supportedPropertyKeys.has(property.key))) {
       for (const property of properties.filter((item) => !supportedPropertyKeys.has(item.key))) {
         diagnostics.push(diagnostic(definition.line, `style に未知のプロパティ「${property.key}」があります。`));
@@ -1063,19 +1100,29 @@ const finalizeModifierStatements = (statements: DslStatement[], diagnostics: Dsl
         blockEntry.color = propertiesByBlockKey.get("color")?.[0]
           ? parseModifierColor(propertiesByBlockKey.get("color")![0]!.value, diagnostics, block.line)
           : null;
+        blockEntry.fill = propertiesByBlockKey.get("fill")?.[0]
+          ? parseModifierFill(propertiesByBlockKey.get("fill")![0]!.value, diagnostics, block.line)
+          : null;
+        blockEntry.fillOpacity = propertiesByBlockKey.get("fillOpacity")?.[0]
+          ? parseModifierFillOpacity(propertiesByBlockKey.get("fillOpacity")![0]!.value, diagnostics, block.line)
+          : null;
       }
     }
     const visibleProperties = propertiesByKey.get("visible") ?? [];
     const widthProperties = propertiesByKey.get("width") ?? [];
     const lineTypeProperties = propertiesByKey.get("lineType") ?? [];
     const colorProperties = propertiesByKey.get("color") ?? [];
-    if (visibleProperties.length === 0 && widthProperties.length === 0 && lineTypeProperties.length === 0 && colorProperties.length === 0 && profileBlocks.length === 0) {
-      diagnostics.push(diagnostic(definition.line, "style には visible / width / lineType / color または for @profile が1つ以上必要です。"));
+    const fillProperties = propertiesByKey.get("fill") ?? [];
+    const fillOpacityProperties = propertiesByKey.get("fillOpacity") ?? [];
+    if (visibleProperties.length === 0 && widthProperties.length === 0 && lineTypeProperties.length === 0 && colorProperties.length === 0 && fillProperties.length === 0 && fillOpacityProperties.length === 0 && profileBlocks.length === 0) {
+      diagnostics.push(diagnostic(definition.line, "style には visible / width / lineType / color / fill / fillOpacity または for @profile が1つ以上必要です。"));
     }
     definition.visible = visibleProperties[0] ? parseModifierVisible(visibleProperties[0].value, diagnostics, definition.line) : null;
     definition.widthPx = widthProperties[0] ? parseModifierWidth(widthProperties[0].value, diagnostics, definition.line) : null;
     definition.lineType = lineTypeProperties[0] ? parseModifierLineType(lineTypeProperties[0].value, diagnostics, definition.line) : null;
     definition.color = colorProperties[0] ? parseModifierColor(colorProperties[0].value, diagnostics, definition.line) : null;
+    definition.fill = fillProperties[0] ? parseModifierFill(fillProperties[0].value, diagnostics, definition.line) : null;
+    definition.fillOpacity = fillOpacityProperties[0] ? parseModifierFillOpacity(fillOpacityProperties[0].value, diagnostics, definition.line) : null;
   }
 };
 

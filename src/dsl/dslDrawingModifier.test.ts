@@ -414,8 +414,63 @@ describe("nui1 drawing style source model", () => {
     ]);
   });
 
+  it("accepts public fill values, opacity bounds, and independently overridden profile deltas", () => {
+    const source = sourceLines(
+      "nui 1",
+      "profile Print",
+      "style Common {",
+      "  fill: accent,",
+      "  fillOpacity: 0.25,",
+      "}",
+      "style Profiled {",
+      "  fill: muted,",
+      "  fillOpacity: 0,",
+      "  for @Print {",
+      "    fill: #123456,",
+      "    fillOpacity: 1,",
+      "  }",
+      "}",
+      "style Clear {",
+      "  fill: none,",
+      "}",
+      "line Outline [Common, Profiled, Clear] = polyline(points: [(0, 0), (10, 0), (0, 10)], closed: true)"
+    );
+    const compiled = asLastGoodDocument(compileDslDocument(source));
+    const profile = compiled.document.drawingProfiles?.find((candidate) => candidate.name === "Print");
+    const outline = compiled.document.elements.find((element) => element.name === "Outline");
+    expect(profile).toBeDefined();
+    expect(outline).toBeDefined();
+    expect(compiled.document.modifiers).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: "Common", fill: { kind: "themeRole", role: "accent" }, fillOpacity: 0.25 }),
+      expect.objectContaining({
+        name: "Profiled",
+        fill: { kind: "themeRole", role: "muted" },
+        fillOpacity: 0,
+        profileDeltas: [expect.objectContaining({
+          profileName: "Print",
+          fill: { kind: "fixed", hex: "#123456" },
+          fillOpacity: 1
+        })]
+      }),
+      expect.objectContaining({ name: "Clear", fill: { kind: "none" } })
+    ]));
+
+    const evaluation = evaluateElementsReference(compiled.document.elements, buildEvaluationOptions({
+      compiledDocument: compiled,
+      evaluationLimitIndex: compiled.document.evaluationLimitIndex,
+      selectedDrawingProfileId: profile?.id
+    }));
+    expect(evaluation.effectiveDrawingModifierResolutions?.get(outline!.id)).toMatchObject({
+      fill: { value: { kind: "none" } },
+      fillOpacity: { value: 1 }
+    });
+  });
+
   it("accepts every theme role and rejects malformed independent values", () => {
     const roles = ["foreground", "muted", "accent", "info", "warning", "error"];
+    for (const role of roles) {
+      expect(errors(sourceLines("nui 1", "style Fill {", "  fill: " + role + ",", "}"))).toEqual([]);
+    }
     for (const [index, role] of roles.entries()) {
       const source = sourceLines("nui 1", `style M${index} {`, `  color: ${role},`, "}");
       expect(errors(source)).toEqual([]);
@@ -426,8 +481,16 @@ describe("nui1 drawing style source model", () => {
       ["width: 1em,", "正の有限な10進数"],
       ["lineType: zigzag,", "solid / dashed / dotted"],
       ["color: primary,", "foreground / muted / accent"],
+      ["color: none,", "foreground / muted / accent"],
       ["color: #fff,", "#RRGGBB"],
-      ["color: #gg3355,", "#RRGGBB"]
+      ["color: #gg3355,", "#RRGGBB"],
+      ["fill: red,", "fill は foreground"],
+      ["fill: #fff,", "#RRGGBB"],
+      ["fill: #gg3355,", "#RRGGBB"],
+      ["fillOpacity: -0.1,", "0 以上 1 以下"],
+      ["fillOpacity: 1.1,", "0 以上 1 以下"],
+      ["fillOpacity: Infinity,", "有限な数値"],
+      ["fillOpacity: NaN,", "有限な数値"]
     ] as const;
     for (const [property, message] of invalidCases) {
       const source = sourceLines("nui 1", "style Broken {", `  ${property}`, "}");
@@ -513,7 +576,21 @@ describe("nui1 drawing style source model", () => {
 
     const second = compileDslDocument(canonical);
     expect(second.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
-    expect(second.document?.modifiers).toEqual(first.document?.modifiers);
+    expect(second.document?.modifiers?.map(({ profileDeltas, ...modifier }) => ({
+      ...modifier,
+      profileDeltas: profileDeltas?.map((delta) => {
+        const { profileId, ...rest } = delta;
+        void profileId;
+        return rest;
+      })
+    }))).toEqual(first.document?.modifiers?.map(({ profileDeltas, ...modifier }) => ({
+      ...modifier,
+      profileDeltas: profileDeltas?.map((delta) => {
+        const { profileId, ...rest } = delta;
+        void profileId;
+        return rest;
+      })
+    })));
     expect(second.document?.elements.at(-1)?.modifierNames).toEqual(["基本線", "元袖ぐり"]);
   });
 
@@ -551,6 +628,40 @@ describe("nui1 drawing style source model", () => {
       color: { kind: "themeRole", role: "warning" }
     });
     expect(secondDelta?.profileId).toBe(secondProfile?.id);
+  });
+
+  it("round-trips fill and fillOpacity in canonical common and profile properties", () => {
+    const source = sourceLines(
+      "nui 1",
+      "profile Print",
+      "style Fill {",
+      "  fill: #FF3355,",
+      "  fillOpacity: 0.25,",
+      "  for @Print {",
+      "    fill: none,",
+      "    fillOpacity: 1,",
+      "  }",
+      "}"
+    );
+    const first = compileDslDocument(source);
+    expect(first.document).not.toBeNull();
+    const canonical = serializeDocumentToDsl(first.document!, first.majorVersion!);
+    expect(canonical).toContain("fill: #ff3355,");
+    expect(canonical).toContain("fillOpacity: 0.25,");
+    expect(canonical).toContain("fill: none,");
+    expect(canonical).toContain("fillOpacity: 1,");
+
+    const second = compileDslDocument(canonical);
+    expect(second.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
+    const withoutGeneratedProfileIds = (modifiers: NonNullable<typeof first.document>["modifiers"] | undefined) => modifiers?.map(({ profileDeltas, ...modifier }) => ({
+      ...modifier,
+      profileDeltas: profileDeltas?.map((delta) => {
+        const { profileId, ...rest } = delta;
+        void profileId;
+        return rest;
+      })
+    }));
+    expect(withoutGeneratedProfileIds(second.document?.modifiers)).toEqual(withoutGeneratedProfileIds(first.document?.modifiers));
   });
 
   it("serializes style properties in canonical order and lowercases fixed colors", () => {

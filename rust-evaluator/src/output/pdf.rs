@@ -1,6 +1,7 @@
 use super::payload::{
-    text_bounds_relative, validate_print_payload, OutputDrawable, OutputGuide, OutputPathSegment,
-    OutputPoint, OutputStroke, ResolvedPrintOutputPayload, OUTPUT_TEXT_LINE_HEIGHT,
+    text_bounds_relative, validate_print_payload, OutputDrawable, OutputFill, OutputGuide,
+    OutputPathSegment, OutputPoint, OutputStroke, ResolvedPrintOutputPayload,
+    OUTPUT_TEXT_LINE_HEIGHT,
 };
 use std::f64::consts::PI;
 
@@ -181,12 +182,101 @@ fn push_segment(content: &mut String, segment: &OutputPathSegment, origin: Outpu
     }
 }
 
-fn push_stroked_path(
+fn push_segment_continuation(
+    content: &mut String,
+    segment: &OutputPathSegment,
+    origin: OutputPoint,
+) {
+    match segment {
+        OutputPathSegment::Line { end, .. } => {
+            let (x, y) = page_point(*end, origin);
+            content.push_str(&format!("{x} {y} l\n"));
+        }
+        OutputPathSegment::Bezier {
+            control1,
+            control2,
+            end,
+            ..
+        } => {
+            let (c1x, c1y) = page_point(*control1, origin);
+            let (c2x, c2y) = page_point(*control2, origin);
+            let (x, y) = page_point(*end, origin);
+            content.push_str(&format!("{c1x} {c1y} {c2x} {c2y} {x} {y} c\n"));
+        }
+        OutputPathSegment::Arc {
+            center,
+            radius,
+            start_angle_deg,
+            sweep_angle_deg,
+        } => {
+            for (_, control1, control2, end) in
+                arc_cubic_segments(*center, *radius, *start_angle_deg, *sweep_angle_deg)
+            {
+                let (c1x, c1y) = page_point(control1, origin);
+                let (c2x, c2y) = page_point(control2, origin);
+                let (x, y) = page_point(end, origin);
+                content.push_str(&format!("{c1x} {c1y} {c2x} {c2y} {x} {y} c\n"));
+            }
+        }
+    }
+}
+
+fn fill_state_name(opacity: f64) -> String {
+    format!(
+        "GSFill{}",
+        pdf_number(opacity).replace('.', "_").replace('-', "m")
+    )
+}
+
+fn push_filled_segmented_path(
+    content: &mut String,
+    segments: &[OutputPathSegment],
+    stroke: &OutputStroke,
+    fill: &OutputFill,
+    origin: OutputPoint,
+) {
+    content.push_str("q\n");
+    content.push_str(&format!(
+        "{} rg\n",
+        non_stroking_color_operator(&fill.color_hex)
+    ));
+    if fill.opacity != 1.0 {
+        content.push_str(&format!("/{} gs\n", fill_state_name(fill.opacity)));
+    }
+    content.push_str(&format!(
+        "{} 1 J 1 j {} w {}\n",
+        color_operator(&stroke.color_hex),
+        pdf_number(pt(stroke.width_mm)),
+        dash_operator(stroke)
+    ));
+    if let Some((first, rest)) = segments.split_first() {
+        push_segment(content, first, origin);
+        for segment in rest {
+            push_segment_continuation(content, segment, origin);
+        }
+    }
+    content.push_str("h\nB\nQ\n");
+}
+
+fn push_presented_stroked_path(
     content: &mut String,
     segment: &OutputPathSegment,
     stroke: &OutputStroke,
+    fill: Option<&OutputFill>,
     origin: OutputPoint,
 ) {
+    if fill.is_some() {
+        content.push_str("q\n");
+    }
+    if let Some(fill) = fill {
+        content.push_str(&format!(
+            "{} rg\n",
+            non_stroking_color_operator(&fill.color_hex)
+        ));
+        if fill.opacity != 1.0 {
+            content.push_str(&format!("/{} gs\n", fill_state_name(fill.opacity)));
+        }
+    }
     content.push_str(&format!(
         "{} 1 J 1 j {} w {}\n",
         color_operator(&stroke.color_hex),
@@ -194,16 +284,32 @@ fn push_stroked_path(
         dash_operator(stroke)
     ));
     push_segment(content, segment, origin);
-    content.push_str("S\n");
+    content.push_str(if fill.is_some() { "B\n" } else { "S\n" });
+    if fill.is_some() {
+        content.push_str("Q\n");
+    }
 }
 
-fn push_polyline(
+fn push_presented_polyline(
     content: &mut String,
     segments: &[OutputPathSegment],
     closed: bool,
     stroke: &OutputStroke,
+    fill: Option<&OutputFill>,
     origin: OutputPoint,
 ) -> Result<(), String> {
+    if fill.is_some() {
+        content.push_str("q\n");
+    }
+    if let Some(fill) = fill {
+        content.push_str(&format!(
+            "{} rg\n",
+            non_stroking_color_operator(&fill.color_hex)
+        ));
+        if fill.opacity != 1.0 {
+            content.push_str(&format!("/{} gs\n", fill_state_name(fill.opacity)));
+        }
+    }
     content.push_str(&format!(
         "{} 1 J 1 j {} w {}\n",
         color_operator(&stroke.color_hex),
@@ -224,7 +330,10 @@ fn push_polyline(
     if closed {
         content.push_str("h\n");
     }
-    content.push_str("S\n");
+    content.push_str(if fill.is_some() { "B\n" } else { "S\n" });
+    if fill.is_some() {
+        content.push_str("Q\n");
+    }
     Ok(())
 }
 
@@ -344,15 +453,20 @@ fn push_drawable(
 ) -> Result<(), String> {
     match drawable {
         OutputDrawable::Line {
-            start, end, stroke, ..
+            start,
+            end,
+            stroke,
+            fill,
+            ..
         } => {
-            push_stroked_path(
+            push_presented_stroked_path(
                 content,
                 &OutputPathSegment::Line {
                     start: *start,
                     end: *end,
                 },
                 stroke,
+                fill.as_ref(),
                 origin,
             );
             Ok(())
@@ -363,9 +477,10 @@ fn push_drawable(
             control2,
             end,
             stroke,
+            fill,
             ..
         } => {
-            push_stroked_path(
+            push_presented_stroked_path(
                 content,
                 &OutputPathSegment::Bezier {
                     start: *start,
@@ -374,6 +489,7 @@ fn push_drawable(
                     end: *end,
                 },
                 stroke,
+                fill.as_ref(),
                 origin,
             );
             Ok(())
@@ -384,9 +500,10 @@ fn push_drawable(
             start_angle_deg,
             sweep_angle_deg,
             stroke,
+            fill,
             ..
         } => {
-            push_stroked_path(
+            push_presented_stroked_path(
                 content,
                 &OutputPathSegment::Arc {
                     center: *center,
@@ -395,15 +512,29 @@ fn push_drawable(
                     sweep_angle_deg: *sweep_angle_deg,
                 },
                 stroke,
+                fill.as_ref(),
                 origin,
             );
             Ok(())
         }
         OutputDrawable::OffsetLine {
-            segments, stroke, ..
+            segments,
+            stroke,
+            fill,
+            ..
+        }
+        | OutputDrawable::JoinedPath {
+            segments,
+            stroke,
+            fill,
+            ..
         } => {
-            for segment in segments {
-                push_stroked_path(content, segment, stroke, origin);
+            if let Some(fill) = fill {
+                push_filled_segmented_path(content, segments, stroke, fill, origin);
+            } else {
+                for segment in segments {
+                    push_presented_stroked_path(content, segment, stroke, None, origin);
+                }
             }
             Ok(())
         }
@@ -411,8 +542,9 @@ fn push_drawable(
             segments,
             closed,
             stroke,
+            fill,
             ..
-        } => push_polyline(content, segments, *closed, stroke, origin),
+        } => push_presented_polyline(content, segments, *closed, stroke, fill.as_ref(), origin),
         OutputDrawable::Text {
             text,
             anchor,
@@ -526,6 +658,28 @@ fn page_content(payload: &ResolvedPrintOutputPayload, page_index: usize) -> Resu
     Ok(content)
 }
 
+fn fill_opacities(payload: &ResolvedPrintOutputPayload) -> Vec<f64> {
+    let mut opacities = payload
+        .drawables
+        .iter()
+        .filter_map(|drawable| match drawable {
+            OutputDrawable::Line { fill, .. }
+            | OutputDrawable::Bezier { fill, .. }
+            | OutputDrawable::Arc { fill, .. }
+            | OutputDrawable::OffsetLine { fill, .. }
+            | OutputDrawable::JoinedPath { fill, .. }
+            | OutputDrawable::Polyline { fill, .. } => fill
+                .as_ref()
+                .filter(|fill| fill.opacity != 1.0)
+                .map(|fill| fill.opacity),
+            OutputDrawable::Text { .. } => None,
+        })
+        .collect::<Vec<_>>();
+    opacities.sort_by(|left, right| left.partial_cmp(right).expect("validated fill opacity"));
+    opacities.dedup_by(|left, right| left == right);
+    opacities
+}
+
 fn pdf_object(body: &str) -> Vec<u8> {
     body.as_bytes().to_vec()
 }
@@ -548,6 +702,8 @@ pub fn encode_pdf(payload: &ResolvedPrintOutputPayload) -> Result<Vec<u8>, Strin
     let font_id = first_page_id + page_count;
     let cid_font_id = font_id + 1;
     let first_content_id = cid_font_id + 1;
+    let fill_opacities = fill_opacities(payload);
+    let first_fill_state_id = first_content_id + page_count;
     let mut objects = Vec::<Vec<u8>>::new();
     objects.push(pdf_object("<< /Type /Catalog /Pages 2 0 R >>"));
     let kids = (0..page_count)
@@ -561,8 +717,25 @@ pub fn encode_pdf(payload: &ResolvedPrintOutputPayload) -> Result<Vec<u8>, Strin
     let media_height = pdf_number(pt(payload.paper.height_mm));
     for index in 0..page_count {
         let content_id = first_content_id + index;
+        let fill_resources = fill_opacities
+            .iter()
+            .enumerate()
+            .map(|(index, opacity)| {
+                format!(
+                    "/{} {} 0 R",
+                    fill_state_name(*opacity),
+                    first_fill_state_id + index
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(" ");
+        let ext_gstate_resources = if fill_resources.is_empty() {
+            String::new()
+        } else {
+            format!(" /ExtGState << {fill_resources} >>")
+        };
         objects.push(pdf_object(&format!(
-            "<< /Type /Page /Parent {pages_id} 0 R /MediaBox [0 0 {media_width} {media_height}] /Resources << /Font << /F1 {font_id} 0 R >> >> /Contents {content_id} 0 R >>"
+            "<< /Type /Page /Parent {pages_id} 0 R /MediaBox [0 0 {media_width} {media_height}] /Resources << /Font << /F1 {font_id} 0 R >>{ext_gstate_resources} >> /Contents {content_id} 0 R >>"
         )));
     }
     objects.push(pdf_object(&format!(
@@ -573,6 +746,12 @@ pub fn encode_pdf(payload: &ResolvedPrintOutputPayload) -> Result<Vec<u8>, Strin
     ));
     for page_index in 0..page_count {
         objects.push(stream_object(&page_content(payload, page_index)?));
+    }
+    for opacity in fill_opacities {
+        objects.push(pdf_object(&format!(
+            "<< /Type /ExtGState /ca {} /CA 1 >>",
+            pdf_number(opacity)
+        )));
     }
     let mut pdf = Vec::<u8>::new();
     pdf.extend_from_slice(b"%PDF-1.4\n%\xE2\xE3\xCF\xD3\n");
@@ -667,6 +846,7 @@ mod tests {
                     style: "solid".to_owned(),
                     color_hex: "#31322f".to_owned(),
                 },
+                fill: None,
             }],
             paper: crate::output::payload::PaperSize {
                 width_mm: 210.0,
@@ -746,15 +926,54 @@ mod tests {
                 style: "solid".to_owned(),
                 color_hex: "#31322f".to_owned(),
             },
+            fill: Some(OutputFill {
+                color_hex: "#123456".to_owned(),
+                opacity: 0.25,
+            }),
         }];
         let pdf = encode_pdf(&polyline).expect("polyline PDF should build");
         let text = String::from_utf8_lossy(&pdf);
-        assert!(text.contains("28.346 28.346 m 56.693 28.346 l\n56.693 56.693 l\nh\nS"));
+        assert!(text.contains("0.071 0.204 0.337 rg"));
+        assert!(text.contains("/GSFill0_25 gs"));
+        assert!(text.contains("28.346 28.346 m 56.693 28.346 l\n56.693 56.693 l\nh\nB\nQ"));
+        assert!(text.contains("0.192 0.196 0.184 RG"));
+        assert!(text.contains("/ExtGState << /GSFill0_25"));
+    }
+
+    #[test]
+    fn emits_a_segmented_fill_as_one_closed_pdf_path() {
+        let mut joined = payload();
+        joined.drawables = vec![OutputDrawable::JoinedPath {
+            element_id: "joined".to_owned(),
+            name: "joined".to_owned(),
+            segments: vec![
+                OutputPathSegment::Line {
+                    start: OutputPoint { x: 0.0, y: 0.0 },
+                    end: OutputPoint { x: 10.0, y: 0.0 },
+                },
+                OutputPathSegment::Line {
+                    start: OutputPoint { x: 10.0, y: 0.0 },
+                    end: OutputPoint { x: 10.0, y: 10.0 },
+                },
+            ],
+            stroke: OutputStroke {
+                width_mm: 0.18,
+                style: "solid".to_owned(),
+                color_hex: "#31322f".to_owned(),
+            },
+            fill: Some(OutputFill {
+                color_hex: "#123456".to_owned(),
+                opacity: 0.25,
+            }),
+        }];
+        let pdf = encode_pdf(&joined).expect("segmented filled PDF should build");
+        let text = String::from_utf8_lossy(&pdf);
+        assert!(text.contains("28.346 28.346 m 56.693 28.346 l\n56.693 56.693 l\nh\nB\nQ"));
     }
 
     fn stroke_content(style: &str) -> String {
         let mut content = String::new();
-        push_stroked_path(
+        push_presented_stroked_path(
             &mut content,
             &OutputPathSegment::Line {
                 start: OutputPoint { x: 0.0, y: 0.0 },
@@ -765,6 +984,7 @@ mod tests {
                 style: style.to_owned(),
                 color_hex: "#31322f".to_owned(),
             },
+            None,
             OutputPoint { x: 0.0, y: 0.0 },
         );
         content

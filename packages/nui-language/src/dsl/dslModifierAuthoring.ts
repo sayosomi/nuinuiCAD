@@ -1,4 +1,8 @@
-import type { DrawingModifierStrokeColor, DrawingModifierStrokeStyle } from "../types/geometry";
+import type {
+  DrawingModifierFill,
+  DrawingModifierStrokeColor,
+  DrawingModifierStrokeStyle
+} from "../types/geometry";
 import type { DslSpan } from "./dslTypes";
 import { choiceAfterStep, stepDslNumericLiteral, type DslValueStepDirection } from "./dslValueStep";
 
@@ -6,7 +10,9 @@ export const modifierPropertySchema = [
   { key: "visible", kind: "choice", options: ["true", "false"] },
   { key: "width", kind: "numeric", unit: "px", step: 0.1, options: ["0.5px", "1px", "1.5px", "2px"] },
   { key: "lineType", kind: "choice", options: ["solid", "dashed", "dotted"] },
-  { key: "color", kind: "color", options: ["foreground", "muted", "accent", "info", "warning", "error"] }
+  { key: "color", kind: "color", options: ["foreground", "muted", "accent", "info", "warning", "error"] },
+  { key: "fill", kind: "color", options: ["foreground", "muted", "accent", "info", "warning", "error", "none"] },
+  { key: "fillOpacity", kind: "numeric", step: 0.1, options: ["0", "0.25", "0.5", "0.75", "1"] }
 ] as const;
 
 export type ModifierPropertyKey = (typeof modifierPropertySchema)[number]["key"];
@@ -48,6 +54,28 @@ export const parseModifierColorValue = (value: string): { value: DrawingModifier
   return { message: "style の color は foreground / muted / accent / info / warning / error または #RRGGBB で指定してください。" };
 };
 
+export const parseModifierFillValue = (value: string): { value: DrawingModifierFill } | { message: string } => {
+  if (value === "none") return { value: { kind: "none" } };
+  const parsed = parseModifierColorValue(value);
+  return "message" in parsed
+    ? { message: "style の fill は foreground / muted / accent / info / warning / error、#RRGGBB、または none で指定してください。" }
+    : { value: parsed.value };
+};
+
+const decimalNumber = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/;
+
+export const parseModifierFillOpacityValue = (value: string): { value: number } | { message: string } => {
+  const text = value.trim();
+  const opacity = Number(text);
+  if (!decimalNumber.test(text) || !Number.isFinite(opacity)) {
+    return { message: "style の fillOpacity は有限な数値で指定してください。" };
+  }
+  if (opacity < 0 || opacity > 1) {
+    return { message: "style の fillOpacity は 0 以上 1 以下で指定してください。" };
+  }
+  return { value: opacity };
+};
+
 /** Exact logical sub-token spans; the strict parser and editor queries share this owner. */
 export const modifierPropertyAuthoringTokens = (key: string, value: string, valueSpan: DslSpan): readonly ModifierAuthoringToken[] => {
   const leading = value.search(/\S/);
@@ -62,8 +90,11 @@ export const modifierPropertyAuthoringTokens = (key: string, value: string, valu
     ] : [];
   }
   if (key === "lineType") return [{ kind: "style", span: { start, end: start + trimmed.length } }];
-  if (key === "color") return [{ kind: trimmed.startsWith("#") ? "fixedColor" : "themeRole", span: { start, end: start + trimmed.length } }];
+  if (key === "color" || key === "fill") {
+    return [{ kind: trimmed.startsWith("#") ? "fixedColor" : trimmed === "none" ? "value" : "themeRole", span: { start, end: start + trimmed.length } }];
+  }
   if (key === "visible") return [{ kind: "value", span: { start, end: start + trimmed.length } }];
+  if (key === "fillOpacity") return [{ kind: "value", span: { start, end: start + trimmed.length } }];
   return [];
 };
 
@@ -83,7 +114,13 @@ export const resolveModifierValueStep = (
 
   if (key === "width" && metadata.kind === "numeric" && tokenKind === "width") {
     const insert = stepDslNumericLiteral(value, metadata.step, direction);
-    if (insert === null || insert === value || "message" in parseModifierWidthValue(`${insert}${metadata.unit}`)) return null;
+    if (insert === null || insert === value || "message" in parseModifierWidthValue(`${insert}px`)) return null;
+    return { insert };
+  }
+
+  if (key === "fillOpacity" && metadata.kind === "numeric" && tokenKind === "value") {
+    const insert = stepDslNumericLiteral(value, metadata.step, direction);
+    if (insert === null || insert === value || "message" in parseModifierFillOpacityValue(insert)) return null;
     return { insert };
   }
 
@@ -95,7 +132,7 @@ export const resolveModifierValueStep = (
     return insert && insert !== value ? { insert } : null;
   }
 
-  if (key === "color" && metadata.kind === "color" && tokenKind === "themeRole") {
+  if ((key === "color" || key === "fill") && metadata.kind === "color" && tokenKind === "themeRole") {
     const insert = choiceAfterStep(value, metadata.options, direction);
     return insert && insert !== value ? { insert } : null;
   }

@@ -19,6 +19,13 @@ pub struct OutputStroke {
 }
 
 #[derive(Debug, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct OutputFill {
+    pub color_hex: String,
+    pub opacity: f64,
+}
+
+#[derive(Debug, Deserialize, Clone)]
 #[serde(
     tag = "kind",
     rename_all = "camelCase",
@@ -56,6 +63,7 @@ pub enum OutputDrawable {
         start: OutputPoint,
         end: OutputPoint,
         stroke: OutputStroke,
+        fill: Option<OutputFill>,
     },
     Bezier {
         element_id: String,
@@ -65,6 +73,7 @@ pub enum OutputDrawable {
         control2: OutputPoint,
         end: OutputPoint,
         stroke: OutputStroke,
+        fill: Option<OutputFill>,
     },
     Arc {
         element_id: String,
@@ -74,12 +83,21 @@ pub enum OutputDrawable {
         start_angle_deg: f64,
         sweep_angle_deg: f64,
         stroke: OutputStroke,
+        fill: Option<OutputFill>,
     },
     OffsetLine {
         element_id: String,
         name: String,
         segments: Vec<OutputPathSegment>,
         stroke: OutputStroke,
+        fill: Option<OutputFill>,
+    },
+    JoinedPath {
+        element_id: String,
+        name: String,
+        segments: Vec<OutputPathSegment>,
+        stroke: OutputStroke,
+        fill: Option<OutputFill>,
     },
     Polyline {
         element_id: String,
@@ -87,6 +105,7 @@ pub enum OutputDrawable {
         segments: Vec<OutputPathSegment>,
         closed: bool,
         stroke: OutputStroke,
+        fill: Option<OutputFill>,
     },
     Text {
         element_id: String,
@@ -314,6 +333,20 @@ fn validate_stroke(stroke: &OutputStroke) -> Result<(), String> {
     Ok(())
 }
 
+fn validate_fill(fill: &Option<OutputFill>) -> Result<(), String> {
+    let Some(fill) = fill else {
+        return Ok(());
+    };
+    if !valid_hex(&fill.color_hex) {
+        return Err(format!("invalid fill color: {}", fill.color_hex));
+    }
+    finite(fill.opacity, "fill opacity")?;
+    if !(0.0..=1.0).contains(&fill.opacity) {
+        return Err("fill opacity must be in the range 0..1".to_owned());
+    }
+    Ok(())
+}
+
 fn validate_segment(segment: &OutputPathSegment) -> Result<(), String> {
     match segment {
         OutputPathSegment::Line { start, end } => {
@@ -349,11 +382,16 @@ fn validate_segment(segment: &OutputPathSegment) -> Result<(), String> {
 fn validate_drawable(drawable: &OutputDrawable) -> Result<(), String> {
     match drawable {
         OutputDrawable::Line {
-            start, end, stroke, ..
+            start,
+            end,
+            stroke,
+            fill,
+            ..
         } => {
             validate_point(*start, "line.start")?;
             validate_point(*end, "line.end")?;
             validate_stroke(stroke)?;
+            validate_fill(fill)?;
         }
         OutputDrawable::Bezier {
             start,
@@ -361,6 +399,7 @@ fn validate_drawable(drawable: &OutputDrawable) -> Result<(), String> {
             control2,
             end,
             stroke,
+            fill,
             ..
         } => {
             validate_point(*start, "bezier.start")?;
@@ -368,6 +407,7 @@ fn validate_drawable(drawable: &OutputDrawable) -> Result<(), String> {
             validate_point(*control2, "bezier.control2")?;
             validate_point(*end, "bezier.end")?;
             validate_stroke(stroke)?;
+            validate_fill(fill)?;
         }
         OutputDrawable::Arc {
             center,
@@ -375,6 +415,7 @@ fn validate_drawable(drawable: &OutputDrawable) -> Result<(), String> {
             start_angle_deg,
             sweep_angle_deg,
             stroke,
+            fill,
             ..
         } => {
             validate_point(*center, "arc.center")?;
@@ -382,9 +423,19 @@ fn validate_drawable(drawable: &OutputDrawable) -> Result<(), String> {
             finite(*start_angle_deg, "arc start angle")?;
             finite(*sweep_angle_deg, "arc sweep")?;
             validate_stroke(stroke)?;
+            validate_fill(fill)?;
         }
         OutputDrawable::OffsetLine {
-            segments, stroke, ..
+            segments,
+            stroke,
+            fill,
+            ..
+        }
+        | OutputDrawable::JoinedPath {
+            segments,
+            stroke,
+            fill,
+            ..
         } => {
             if segments.is_empty() {
                 return Err("offsetLine must contain at least one segment".to_owned());
@@ -393,9 +444,13 @@ fn validate_drawable(drawable: &OutputDrawable) -> Result<(), String> {
                 validate_segment(segment)?;
             }
             validate_stroke(stroke)?;
+            validate_fill(fill)?;
         }
         OutputDrawable::Polyline {
-            segments, stroke, ..
+            segments,
+            stroke,
+            fill,
+            ..
         } => {
             if segments.is_empty() {
                 return Err("polyline must contain at least one segment".to_owned());
@@ -414,6 +469,7 @@ fn validate_drawable(drawable: &OutputDrawable) -> Result<(), String> {
                 previous_end = Some(*end);
             }
             validate_stroke(stroke)?;
+            validate_fill(fill)?;
         }
         OutputDrawable::Text {
             text,
@@ -867,6 +923,7 @@ mod tests {
                 start: OutputPoint { x: 0.0, y: 0.0 },
                 end: OutputPoint { x: 10.0, y: 0.0 },
                 stroke,
+                fill: None,
             }],
             paper: PaperSize {
                 width_mm: 210.0,
@@ -931,7 +988,26 @@ mod tests {
                 "width": 100.0,
                 "height": 80.0
             },
-            "drawables": [],
+            "drawables": [{
+                "kind": "line",
+                "elementId": "line",
+                "name": "line",
+                "start": { "x": 0.0, "y": 0.0 },
+                "end": { "x": 10.0, "y": 0.0 },
+                "stroke": { "widthMm": 0.18, "style": "solid", "colorHex": "#31322f" },
+                "fill": { "colorHex": "#123456", "opacity": 0.25 }
+            }, {
+                "kind": "joinedPath",
+                "elementId": "joined",
+                "name": "joined",
+                "segments": [{
+                    "kind": "line",
+                    "start": { "x": 0.0, "y": 0.0 },
+                    "end": { "x": 10.0, "y": 0.0 }
+                }],
+                "stroke": { "widthMm": 0.18, "style": "solid", "colorHex": "#31322f" },
+                "fill": null
+            }],
             "paper": { "widthMm": 210.0, "heightMm": 297.0 },
             "overlapMm": 10.0,
             "stride": { "x": 190.0, "y": 277.0 },
@@ -958,6 +1034,16 @@ mod tests {
 
         assert_eq!(payload.stride.x, 190.0);
         assert_eq!(payload.stride.y, 277.0);
+        let line = match &payload.drawables[0] {
+            OutputDrawable::Line { fill, .. } => fill.as_ref().expect("fill should deserialize"),
+            _ => panic!("expected line drawable"),
+        };
+        assert_eq!(line.color_hex, "#123456");
+        assert_eq!(line.opacity, 0.25);
+        assert!(matches!(
+            &payload.drawables[1],
+            OutputDrawable::JoinedPath { fill: None, .. }
+        ));
         let label = payload.pages[0].guides[0]
             .label
             .as_ref()

@@ -67,12 +67,25 @@ describe("style authoring semantics", () => {
     const property = completion(propertySource, "str");
     expect(property?.category).toBe("modifierProperty");
     expect(property?.candidates.map((candidate) => candidate.label)).toContain("lineType");
+    expect(property?.candidates.map((candidate) => candidate.label)).toEqual(expect.arrayContaining(["fill", "fillOpacity"]));
     expect(property?.candidates.map((candidate) => candidate.label)).not.toContain("state");
 
     const valueSource = source.replace("lineType: dotted", "lineType: d");
     const value = completion(valueSource, "lineType: d");
     expect(value?.category).toBe("modifierValue");
     expect(value?.candidates.map((candidate) => candidate.label)).toEqual(["solid", "dashed", "dotted"]);
+
+    const fillValue = completion(source.replace("  color: accent,", "  fill: a,"), "fill: a");
+    expect(fillValue?.category).toBe("modifierValue");
+    expect(fillValue?.candidates.map((candidate) => candidate.label)).toEqual([
+      "foreground", "muted", "accent", "info", "warning", "error", "none"
+    ]);
+    const colorValue = completion(source.replace("  color: accent,", "  color: n"), "color: n");
+    expect(colorValue?.candidates.map((candidate) => candidate.label)).not.toContain("none");
+
+    const fillOpacityValue = completion(source.replace("  color: accent,", "  fillOpacity: 0."), "fillOpacity: 0.");
+    expect(fillOpacityValue?.category).toBe("modifierValue");
+    expect(fillOpacityValue?.candidates.map((candidate) => candidate.label)).toEqual(["0", "0.25", "0.5", "0.75", "1"]);
 
     const profileSource = source.replace("  color: accent,", "  for @Pri");
     const profile = completion(profileSource, "Pri");
