@@ -462,6 +462,26 @@ describe("queryDslDefinition", () => {
     expect(qualifiedField?.declarationRange.from).toBe(source.indexOf("x: number"));
   });
 
+  it("resolves optional record receivers and members through their existing identities", () => {
+    const source = [
+      "nui 1",
+      "record Pair(label: string)",
+      "const input: Pair? = none",
+      "const output: string? = @input?.label"
+    ].join("\n");
+    const member = exactQuery(source, "@input?.label", 7, "@input?.".length + 1);
+    const receiver = exactQuery(source, "@input?.label", 7, "@input".length - 1);
+
+    expect(member && sourceSlice(source, member.referenceRange)).toBe("label");
+    expect(member && sourceSlice(source, member.declarationRange)).toBe("label");
+    expect(member?.referenceRange).toEqual({
+      from: source.indexOf("@input?.label") + "@input?.".length,
+      to: source.indexOf("@input?.label") + "@input?.label".length
+    });
+    expect(receiver && sourceSlice(source, receiver.referenceRange)).toBe("input");
+    expect(receiver && sourceSlice(source, receiver.declarationRange)).toBe("input");
+  });
+
   it("resolves Module body source references by StatementIdentity", () => {
     const source = [
       "nui 1",

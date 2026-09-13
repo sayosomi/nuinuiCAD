@@ -16,7 +16,7 @@ import type {
   TypedScalarReferenceNode,
   TypedScalarUnaryExpressionNode
 } from "./typedExpressionAst";
-import type { ScalarExpressionResolvedGeometryTarget, TypedBuiltinArgument } from "./typedExpressionAst";
+import type { ScalarExpressionResolvedGeometryTarget, ScalarExpressionResolvedOptionalMemberTarget, TypedBuiltinArgument } from "./typedExpressionAst";
 import { evaluateBuiltinFunction } from "./builtinFunctionSemantics";
 import { atan2Degrees360, radiansToDegrees } from "./angleMath";
 import { scalarTypesEqual, scalarValueMatchesType, type ScalarEvaluation, type ScalarExpressionType, type ScalarType, type ScalarValue } from "./types";
@@ -58,6 +58,13 @@ export interface ScalarEvaluationEnvironment {
 
   /** Resolves the selected cardinality of a runtime-dependent collection. */
   lookupCollectionLength?: (collectionValueId: string) => number | undefined;
+
+  /** Resolves a compiler-resolved general optional member. The callback owns
+   * the receiver-family runtime adapter and must return the lifted result. */
+  lookupOptionalMember?: (
+    target: ScalarExpressionResolvedOptionalMemberTarget,
+    type: ScalarExpressionType
+  ) => ScalarEvaluation;
 
   /** Optional inspection hook. Called once after each expression node actually reached by production evaluation. */
   onExpressionEvaluated?: (node: TypedScalarExpression, evaluation: ScalarEvaluation) => void;
@@ -219,6 +226,18 @@ const evaluateGeometryProperty = (
     return { status: "error", type: node.type, issueCode: "evaluation-runtime-value-type-mismatch" };
   }
   return result;
+};
+
+const evaluateOptionalMember = (
+  node: Extract<TypedScalarExpression, { kind: "optionalMember" }>,
+  environment: ScalarEvaluationEnvironment
+): ScalarEvaluation => {
+  if (node.type === null || !node.target || !environment.lookupOptionalMember) return staticTypeNullError();
+  const result = environment.lookupOptionalMember(node.target, node.type);
+  if (result.status === "error") return result;
+  return scalarExpressionTypesEqual(result.type, node.type) && scalarValueMatchesType(node.type, result.value)
+    ? result
+    : { status: "error", type: node.type, issueCode: "evaluation-runtime-value-type-mismatch" };
 };
 
 const evaluateCollectionIndex = (
@@ -601,6 +620,8 @@ const evaluateTypedExpressionNode = (
       return evaluateCollectionIndex(node, environment);
     case "geometryProperty":
       return evaluateGeometryProperty(node, environment);
+    case "optionalMember":
+      return evaluateOptionalMember(node, environment);
     case "unary":
       return evaluateUnary(node, environment);
     case "binary":

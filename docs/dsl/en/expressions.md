@@ -47,6 +47,28 @@ The binder is branch-local and has the underlying non-optional type. Optional
 matches use the same lazy result families as choice matches, including scalar,
 geometry, nominal-record, and one-dimensional collection values.
 
+### Optional member access
+
+Use `?.` to read an existing member or property through an optional value:
+
+<!-- dsl-example: compile-success -->
+```nui
+nui 1
+const present: path = polyline(points: [(0, 0), (10, 0)], closed: false)
+const outline: path? = @present
+const outlineLength: number? = @outline?.length
+```
+
+For an optional receiver `T?` and an ordinary member result `U`, the result is
+`U?`. A `none` receiver produces `none` and does not evaluate the underlying
+member read; a present receiver reads the same member or property as ordinary
+access. If that result is already optional, propagation is flattened to the
+same single `U?` layer. Optional chaining does not unwrap a value for ordinary
+`.` access, and it does not create members that the underlying value does not
+already expose. This includes existing nominal record fields, geometry
+properties, and collection properties such as `length`; for example,
+`@piece.outline?.length` chains through an optional `outline` field.
+
 The canonical lowercase numeric constant `pi` is available wherever a number
 operand is valid. It follows the ordinary number-literal path; `PI` is not an
 alias, `pi()` is not a function call, and `@pi` refers only to a user binding.

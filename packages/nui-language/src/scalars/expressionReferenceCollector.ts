@@ -22,6 +22,9 @@ export const collectScalarExpressionReferences = (
       case "geometryProperty":
         if (node.occurrenceIndex) visit(node.occurrenceIndex, boundNames);
         return;
+      case "optionalMember":
+        visit(node.receiver, boundNames);
+        return;
       case "unary":
         visit(node.operand, boundNames);
         return;

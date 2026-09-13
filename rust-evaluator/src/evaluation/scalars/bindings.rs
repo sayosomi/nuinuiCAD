@@ -14,11 +14,13 @@ use super::expression_evaluator::{evaluate_typed_expression, ScalarEvaluationEnv
 use super::program_payload::{
     ValidatedScalarProgram, ValidatedScalarProgramCollectionMember,
     ValidatedScalarProgramCollectionValue, ValidatedScalarProgramRecordField,
-    ValidatedScalarProgramRecordFieldIdentity, ValidatedScalarProgramStatement,
+    ValidatedScalarProgramRecordFieldIdentity, ValidatedScalarProgramRecordFieldPathEntry,
+    ValidatedScalarProgramStatement,
 };
 use super::scalar_payload::{scalar_type_assignable, scalar_value_matches_type};
 use super::types::{
-    BindingId, ScalarEvaluation, ScalarEvaluationErrorContext, ScalarType, ScalarValue,
+    BindingId, ScalarEvaluation, ScalarEvaluationErrorContext,
+    ScalarExpressionResolvedOptionalMemberTarget, ScalarType, ScalarValue,
 };
 use crate::evaluation::types::EvaluationState;
 
@@ -53,6 +55,20 @@ pub(crate) trait ScalarDocumentBindingResolver {
         _seen: &mut HashSet<String>,
     ) -> Option<f64> {
         None
+    }
+
+    fn resolve_optional_collection_member(
+        &self,
+        _target: &ScalarExpressionResolvedOptionalMemberTarget,
+        r#type: &ScalarType,
+        _state: &EvaluationState,
+    ) -> ScalarEvaluation {
+        ScalarEvaluation::Error {
+            r#type: r#type.clone(),
+            issue_code: "evaluation-optional-member-unavailable".to_owned(),
+            binding_id: None,
+            context: None,
+        }
     }
 }
 
@@ -1080,6 +1096,122 @@ impl ScalarDocumentBindingResolver for ScalarBindingResolver<'_> {
         seen: &mut HashSet<String>,
     ) -> Option<f64> {
         self.resolve_collection_length(collection_value_id, state, seen)
+    }
+
+    fn resolve_optional_collection_member(
+        &self,
+        target: &ScalarExpressionResolvedOptionalMemberTarget,
+        r#type: &ScalarType,
+        state: &EvaluationState,
+    ) -> ScalarEvaluation {
+        let none = || ScalarEvaluation::Ok {
+            r#type: r#type.clone(),
+            value: ScalarValue::None,
+        };
+        match target {
+            ScalarExpressionResolvedOptionalMemberTarget::CollectionLength {
+                collection_value_id,
+                ..
+            } => match self.resolve_collection_presence(
+                collection_value_id,
+                state,
+                &mut HashSet::new(),
+            ) {
+                Some(false) => none(),
+                Some(true) => self
+                    .resolve_collection_length(collection_value_id, state, &mut HashSet::new())
+                    .map(|length| ScalarEvaluation::Ok {
+                        r#type: r#type.clone(),
+                        value: ScalarValue::Number(length),
+                    })
+                    .unwrap_or_else(|| ScalarEvaluation::Error {
+                        r#type: r#type.clone(),
+                        issue_code: "evaluation-collection-property-unavailable".to_owned(),
+                        binding_id: None,
+                        context: None,
+                    }),
+                None => ScalarEvaluation::Error {
+                    r#type: r#type.clone(),
+                    issue_code: "evaluation-collection-property-unavailable".to_owned(),
+                    binding_id: None,
+                    context: None,
+                },
+            },
+            ScalarExpressionResolvedOptionalMemberTarget::RecordField {
+                collection_value_id,
+                collection_length,
+                field,
+                ..
+            } => match self.resolve_collection_presence(
+                collection_value_id,
+                state,
+                &mut HashSet::new(),
+            ) {
+                Some(false) => none(),
+                Some(true) => {
+                    let field = ValidatedScalarProgramRecordFieldIdentity {
+                        record_statement_id: field.record_statement_id.clone(),
+                        field_index: field.field_index,
+                        r#type: field.r#type.clone(),
+                        field_path: (!field.field_path.is_empty()).then(|| {
+                            field
+                                .field_path
+                                .iter()
+                                .map(|(statement_id, field_index)| {
+                                    ValidatedScalarProgramRecordFieldPathEntry {
+                                        record_statement_id: statement_id.clone(),
+                                        field_index: *field_index,
+                                    }
+                                })
+                                .collect()
+                        }),
+                    };
+                    let result = self.resolve_record_field(
+                        collection_value_id,
+                        0.0,
+                        &field,
+                        *collection_length,
+                        state,
+                    );
+                    match result {
+                        ScalarEvaluation::Ok { value, .. }
+                            if scalar_value_matches_type(r#type, &value) =>
+                        {
+                            ScalarEvaluation::Ok {
+                                r#type: r#type.clone(),
+                                value,
+                            }
+                        }
+                        ScalarEvaluation::Ok { .. } => ScalarEvaluation::Error {
+                            r#type: r#type.clone(),
+                            issue_code: RUNTIME_VALUE_TYPE_MISMATCH.to_owned(),
+                            binding_id: None,
+                            context: None,
+                        },
+                        ScalarEvaluation::Error { issue_code, .. } => ScalarEvaluation::Error {
+                            r#type: r#type.clone(),
+                            issue_code,
+                            binding_id: None,
+                            context: None,
+                        },
+                    }
+                }
+                None => ScalarEvaluation::Error {
+                    r#type: r#type.clone(),
+                    issue_code: "evaluation-collection-index-unavailable".to_owned(),
+                    binding_id: None,
+                    context: None,
+                },
+            },
+            ScalarExpressionResolvedOptionalMemberTarget::GeometryProperty { .. } => {
+                ScalarEvaluation::Error {
+                    r#type: r#type.clone(),
+                    issue_code: "evaluation-optional-member-unavailable".to_owned(),
+                    binding_id: None,
+                    context: None,
+                }
+            }
+        }
     }
 }
 

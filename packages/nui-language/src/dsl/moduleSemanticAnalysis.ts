@@ -26,7 +26,8 @@ import {
   type ModuleGeometryPropertyReferenceResolution,
   type ModuleCollectionIndexReferenceResolution,
   type ModuleScalarLocalDiagnostic,
-  type ModuleScalarReferenceResolution
+  type ModuleScalarReferenceResolution,
+  type ModuleOptionalMemberReferenceInput
 } from "./moduleScalarExpression";
 import { moduleCallEdges, moduleRecursionCycles } from "./moduleCallGraph";
 import { analyzeModuleBody } from "./moduleBodySemantic";
@@ -55,7 +56,7 @@ import {
   resolveModuleLexicalDeclaration as resolveSharedModuleLexicalDeclaration,
   resolveModuleLexicalPath as resolveSharedModuleLexicalPath
 } from "./moduleLexicalResolution";
-import type { ScalarType } from "../scalars/types";
+import type { ScalarExpressionType, ScalarType } from "../scalars/types";
 import {
   dslCoalesceResultType,
   dslRequiredValueTypeOf,
@@ -109,6 +110,7 @@ import type {
   ModuleRecordValueSemantic,
   ModuleRecordValueExpressionSemantic,
   ModuleScalarExpressionSemantic,
+  ModuleOptionalMemberReference,
   ModuleScalarExpressionSite,
   ModuleScalarSourceTarget,
   ModuleSourceTarget,
@@ -1333,6 +1335,12 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     return { target: { ...lookup }, type: { kind: "number" }, resolution: "resolved" };
   };
 
+  const optionalMemberResolver: { current?: (
+    statementIndex: number,
+    ownerIndex: number | null,
+    reference: ModuleOptionalMemberReferenceInput
+  ) => ModuleOptionalMemberReference } = {};
+
   const analyzeExpression = (
     statementIndex: number,
     ownerIndex: number | null,
@@ -1367,6 +1375,9 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       ),
       resolveBareReference: bareResolver,
       resolveGeometryProperty: geometryPropertyResolver,
+      resolveOptionalMember: optionalMemberResolver.current
+        ? (reference) => optionalMemberResolver.current!(statementIndex, ownerIndex, reference)
+        : undefined,
       resolveGeometryBuiltin: geometryBuiltinResolver,
       presenceFacts,
       diagnostics: local
@@ -1730,7 +1741,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     valueType: import("./dslValueTypes").DslValueType;
     property?: string;
     collectionIndex?: number;
-    type: ScalarType | null;
+    type: ScalarExpressionType | null;
   };
 
   const recordPropertyParts = (property: string): { name: string; index: number | null }[] | null => {
@@ -1747,7 +1758,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
 
   const recordMemberFor = (
     record: Extract<RecordSourceLookup, { kind: "record" }>,
-    property: string
+    property: string,
+    allowOptionalTraversal = false
   ): RecordMemberResolution | null => {
     const parts = recordPropertyParts(property);
     if (!parts) return null;
@@ -1757,6 +1769,11 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     let field: RecordFieldSemantic | null = null;
     let collectionIndex: number | undefined;
     for (const [partIndex, part] of parts.entries()) {
+      const optionalValueType = valueType as import("./dslValueTypes").DslValueType;
+      if (isDslOptionalValueType(optionalValueType)) {
+        if (!allowOptionalTraversal) return null;
+        valueType = optionalValueType.valueType;
+      }
       if (isDslRecordValueType(valueType)) {
         definition = partIndex === 0
           ? record.definition
@@ -1798,16 +1815,17 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       field,
       fieldPath,
       valueType,
-      type: scalarTypeOfDslValueType(valueType),
+      type: scalarExpressionTypeOfDslValueType(valueType),
       ...(collectionIndex !== undefined ? { collectionIndex } : {})
     } : null;
   };
 
   const recordFieldTargetFor = (
     record: Extract<RecordSourceLookup, { kind: "record" }>,
-    reference: ModuleGeometryPropertyReferenceInput
+    reference: ModuleGeometryPropertyReferenceInput,
+    allowOptionalTraversal = reference.allowOptionalTraversal ?? false
   ): ModuleRecordFieldSourceTarget | null => {
-    const member = recordMemberFor(record, reference.property);
+    const member = recordMemberFor(record, reference.property, allowOptionalTraversal);
     if (!member) return null;
     return {
       kind: "recordField",
@@ -4022,7 +4040,17 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         resolution: "resolved"
       };
     }
-    if (lookup.declaration.kind === "typedDeclaration" && lookup.declaration.statement.kind === "typedDeclaration" && isDslGeometryValueType(lookup.declaration.statement.valueType)) {
+    if (
+      lookup.declaration.kind === "typedDeclaration" &&
+      lookup.declaration.statement.kind === "typedDeclaration" &&
+      (isDslGeometryValueType(lookup.declaration.statement.valueType) ||
+        (reference.allowOptionalTraversal && isDslOptionalValueType(lookup.declaration.statement.valueType) && isDslGeometryValueType(lookup.declaration.statement.valueType.valueType)))
+    ) {
+      const declaredGeometryValueType = isDslGeometryValueType(lookup.declaration.statement.valueType)
+        ? lookup.declaration.statement.valueType
+        : isDslOptionalValueType(lookup.declaration.statement.valueType) && isDslGeometryValueType(lookup.declaration.statement.valueType.valueType)
+          ? lookup.declaration.statement.valueType.valueType
+          : null;
       const declarationOwner = moduleOwnerIndexOf(statements, lookup.declaration.statementIndex);
       if (ownerIndex !== null && declarationOwner !== ownerIndex) {
         return { target: null, type: null, resolution: "outerCapture", diagnostic: issue("module-outer-capture", reference.span, `module body から outer geometry「${reference.elementName}」を暗黙 capture できません。`, { relatedSources: declarationRelated, presentation: { key: "diagnostic.module-outer-capture", parameters: { name: reference.elementName } } }) };
@@ -4045,8 +4073,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         : null;
       const type = pointPath
         ? { kind: "number" as const }
-        : numericGeometryPropertySupportedByStaticTarget(
-            numericGeometryStaticTargetForModuleInterface(value?.declaredInterfaceType ?? lookup.declaration.statement.valueType.kind),
+          : numericGeometryPropertySupportedByStaticTarget(
+            numericGeometryStaticTargetForModuleInterface(value?.declaredInterfaceType ?? declaredGeometryValueType!.kind),
             reference.property
           )
         ? { kind: "number" as const }
@@ -4072,6 +4100,139 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       : choiceGeometryPropertyTypeForStatement(lookup.declaration.statement, reference.property);
     if (!type) return unknownProperty();
     return { target: { ...geometryTarget, kind: "sourceGeometryProperty", property: reference.property }, type, resolution: "resolved" };
+  };
+
+  optionalMemberResolver.current = (statementIndex, ownerIndex, reference) => {
+    const valueTypeForName = (name: string, span: DslSpan): DslValueType | null => {
+      const record = recordSourceLookup(statementIndex, ownerIndex, name, span);
+      if (record.kind === "record") {
+        const recordTarget = record.target;
+        if (recordTarget.kind === "recordValue") {
+          return recordAnalysis?.valuesByStatementId.get(recordTarget.statementId)?.declaredValueType
+            ?? { kind: "record", name: record.definition.name, identity: record.typeIdentity };
+        }
+        if (recordTarget.kind === "recordParameter") {
+          const definition = definitionStates.find((candidate) => candidate.statementId === recordTarget.definitionStatementId);
+          return definition?.parameters[recordTarget.parameterIndex]?.valueType ?? null;
+        }
+        return { kind: "record", name: record.definition.name, identity: record.typeIdentity };
+      }
+      const path = parseDslReferenceToken(name);
+      const lookup = path.segments.length > 1
+        ? resolveModuleLexicalPath(statementIndex, ownerIndex, path)
+        : resolveModuleLexicalDeclaration(statementIndex, ownerIndex, name);
+      if (lookup.kind === "parameter") return lookup.parameter.parameter.valueType;
+      if (lookup.kind === "resolved" && lookup.declaration.kind === "typedDeclaration" && lookup.declaration.statement.kind === "typedDeclaration") {
+        return lookup.declaration.statement.valueType;
+      }
+      return null;
+    };
+
+    const receiverType = reference.receiver.kind === "geometryProperty"
+      ? (() => {
+          const base = resolveGeometryProperty(statementIndex, ownerIndex, {
+            elementName: reference.receiver.elementName,
+            property: reference.receiver.property,
+            elementNameSpan: reference.receiver.elementNameSpan,
+            propertySpan: reference.receiver.propertySpan,
+            span: reference.receiver.span,
+            presenceFacts: reference.presenceFacts
+          });
+          return base.target?.kind === "recordField"
+            ? base.target.valueType
+            : valueTypeForName(reference.receiver.elementName, reference.receiver.elementNameSpan);
+        })()
+      : reference.receiver.kind === "reference"
+        ? valueTypeForName(reference.receiver.name, reference.receiver.nameSpan)
+        : reference.receiver.kind === "collectionIndex"
+          ? (() => {
+              const type = valueTypeForName(reference.receiver.name, reference.receiver.nameSpan);
+              return type && isDslArrayValueType(type) ? type.elementType : null;
+          })()
+          : null;
+
+    if (receiverType !== null && !isDslOptionalValueType(receiverType)) {
+      addLocal(statementIndex, issue(
+        "module-optional-member-non-optional-receiver",
+        reference.receiverSpan,
+        "optional member access の receiver は optional value (T?) である必要があります。",
+        { presentation: { key: "diagnostic.optional-member-non-optional-receiver" } }
+      ));
+    }
+
+    const memberInput = reference.receiver.kind === "reference"
+      ? {
+          elementName: reference.receiver.name,
+          property: reference.member,
+          elementNameSpan: reference.receiver.nameSpan,
+          propertySpan: reference.memberSpan,
+          span: reference.span,
+          allowOptionalTraversal: true
+        }
+      : reference.receiver.kind === "geometryProperty"
+        ? {
+            elementName: reference.receiver.elementName,
+            property: `${reference.receiver.property}.${reference.member}`,
+            elementNameSpan: reference.receiver.elementNameSpan,
+            propertySpan: { start: reference.receiver.propertySpan.start, end: reference.memberSpan.end },
+            span: reference.span,
+            allowOptionalTraversal: true
+          }
+        : reference.receiver.kind === "collectionIndex"
+          ? {
+              elementName: reference.receiver.name,
+              property: reference.member,
+              elementNameSpan: reference.receiver.nameSpan,
+              propertySpan: reference.memberSpan,
+              span: reference.span,
+              occurrenceIndex: reference.receiver.index,
+              occurrenceIndexSpan: reference.receiver.index.span,
+              occurrenceRange: { start: reference.receiver.index.span.start - 1, end: reference.receiver.span.end },
+              allowOptionalTraversal: true
+            }
+          : null;
+
+    if (!memberInput) {
+      addLocal(statementIndex, issue("module-optional-member-reference", reference.span, "optional member access の receiver は参照可能な value である必要があります。", { presentation: { key: "diagnostic.module-optional-member-reference" } }));
+      return {
+        span: reference.span,
+        receiverSpan: reference.receiverSpan,
+        member: reference.member,
+        memberSpan: reference.memberSpan,
+        receiverType: null,
+        memberType: null,
+        target: null,
+        resolution: "invalid"
+      };
+    }
+
+    const resolved = resolveGeometryProperty(statementIndex, ownerIndex, {
+      ...memberInput,
+      presenceFacts: reference.presenceFacts
+    });
+    const memberType = resolved.target?.kind === "recordField" ? resolved.target.type : resolved.type;
+    if (resolved.diagnostic) addLocal(statementIndex, resolved.diagnostic);
+    if (receiverType === null && !resolved.diagnostic) {
+      addLocal(statementIndex, issue(
+        "module-optional-member-reference",
+        reference.receiverSpan,
+        "optional member access の receiver を解決できません。",
+        { presentation: { key: "diagnostic.module-optional-member-reference" } }
+      ));
+    }
+    if (memberType === null && resolved.resolution === "resolved") {
+      addLocal(statementIndex, issue("module-optional-member-type", reference.memberSpan, `optional member「${reference.member}」の結果はscalar valueとして利用できません。`, { presentation: { key: "diagnostic.module-optional-member-type", parameters: { member: reference.member } } }));
+    }
+    return {
+      span: reference.span,
+      receiverSpan: reference.receiverSpan,
+      member: reference.member,
+      memberSpan: reference.memberSpan,
+      receiverType,
+      memberType,
+      target: resolved.target,
+      resolution: resolved.resolution
+    };
   };
 
   function analyzeRecordConstructorFields(
@@ -5995,7 +6156,9 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     // bindings before the canonical binding diagnostics are reported.
     const diagnostics = localDiagnosticsByStatement.get(statementIndex);
     if (diagnostics && diagnostics.length > diagnosticsBefore) {
-      diagnostics.splice(diagnosticsBefore);
+      const added = diagnostics.splice(diagnosticsBefore);
+      const retained = expression?.optionalMembers?.length ? added : [];
+      if (retained.length > 0) diagnostics.push(...retained);
       if (diagnostics.length === 0) localDiagnosticsByStatement.delete(statementIndex);
     }
     if (expression) {
@@ -6063,7 +6226,9 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     // pass contributes only the resolved Module source projection.
     const diagnostics = localDiagnosticsByStatement.get(value.statementIndex);
     if (diagnostics && diagnostics.length > diagnosticsBefore) {
-      diagnostics.splice(diagnosticsBefore);
+      const added = diagnostics.splice(diagnosticsBefore);
+      const retained = expression?.optionalMembers?.length ? added : [];
+      if (retained.length > 0) diagnostics.push(...retained);
       if (diagnostics.length === 0) localDiagnosticsByStatement.delete(value.statementIndex);
     }
     if (expression) {
@@ -6920,6 +7085,10 @@ export const decorateDocumentQualifiedModuleSemantics = (
     ...expression,
     references: expression.references.map((reference) => ({ ...reference, target: mapTarget(reference.target) as ModuleSourceTarget | null })),
     geometryProperties: expression.geometryProperties.map((property) => ({ ...property, target: mapTarget(property.target) as ModuleGeometryPropertySourceTarget | null })),
+    optionalMembers: expression.optionalMembers?.map((member) => ({
+      ...member,
+      target: mapTarget(member.target) as ModuleGeometryPropertySourceTarget | ModuleRecordFieldSourceTarget | null
+    })),
     geometryBuiltinArguments: expression.geometryBuiltinArguments.map((argument) => ({
       ...argument,
       reference: mapGeometryReference(argument.reference)

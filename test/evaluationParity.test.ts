@@ -1121,6 +1121,49 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     expectScalarNumberClose(scalarBindingFor(fixture, rustPayload, "resolvedNoneNumber"), 10);
   }, 30000);
 
+  it("matches general optional member chaining for geometry, records, and collections", () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line Baseline = segment(start: @A, end: @B)",
+      "const presentPath: path? = @Baseline",
+      "const absentPath: path? = none",
+      "const presentLength: number? = @presentPath?.length",
+      "const absentLength: number? = @absentPath?.length",
+      "record Piece(note: string?, outline: path?)",
+      'const presentPiece: Piece? = Piece(note: "present", outline: @Baseline)',
+      "const absentPiece: Piece? = none",
+      "const presentNote: string? = @presentPiece?.note",
+      "const absentNote: string? = @absentPiece?.note",
+      'const presentRecord: Piece = Piece(note: "record", outline: @Baseline)',
+      'const absentRecord: Piece = Piece(note: "record", outline: none)',
+      "const presentRecordLength: number? = @presentRecord.outline?.length",
+      "const absentRecordLength: number? = @absentRecord.outline?.length",
+      "const presentNumbers: number[]? = [1, 2, 3]",
+      "const absentNumbers: number[]? = none",
+      "const presentCount: number? = @presentNumbers?.length",
+      "const absentCount: number? = @absentNumbers?.length"
+    ].join("\n"));
+    const options = optionsFor(fixture);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustFixture(repoRoot, fixture);
+
+    for (const payload of [tsPayload, rustPayload]) {
+      expect(evaluationPayloadToResult(payload).errors).toEqual([]);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "presentLength"), 10);
+      expect(scalarBindingFor(fixture, payload, "absentLength")).toMatchObject({ status: "ok", value: { kind: "none" } });
+      expect(scalarBindingFor(fixture, payload, "presentNote")).toMatchObject({ status: "ok", value: { kind: "string", value: "present" } });
+      expect(scalarBindingFor(fixture, payload, "absentNote")).toMatchObject({ status: "ok", value: { kind: "none" } });
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "presentRecordLength"), 10);
+      expect(scalarBindingFor(fixture, payload, "absentRecordLength")).toMatchObject({ status: "ok", value: { kind: "none" } });
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "presentCount"), 3);
+      expect(scalarBindingFor(fixture, payload, "absentCount")).toMatchObject({ status: "ok", value: { kind: "none" } });
+    }
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+  }, 30000);
+
   it("matches generalized record geometry and collection projections across TypeScript and Rust", () => {
     const fixture = fixtureFromSource([
       "nui 1",

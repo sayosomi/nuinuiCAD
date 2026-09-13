@@ -68,7 +68,7 @@ export const isScalarExpressionCandidateSource = (source: string): boolean => {
   if (/^if\s*\(/.test(trimmed)) return true;
   if (/^match\b/.test(trimmed)) return trimmed !== "match";
   if (isScalarNamedCallCandidateSource(trimmed)) return true;
-  return containsScalarWordOperator(trimmed) || /\?\?|&&|\|\||==|!=|<=|>=|[<>]/.test(trimmed);
+  return containsScalarWordOperator(trimmed) || /\?\.|\?\?|&&|\|\||==|!=|<=|>=|[<>]/.test(trimmed);
 };
 
 /** Syntax-only guard for consumers that still own legacy named-call syntax. */
@@ -86,6 +86,8 @@ export const containsScalarNamedCall = (ast: ScalarExpressionAst): boolean => {
       return containsScalarNamedCall(ast.index);
     case "geometryProperty":
       return ast.occurrenceIndex ? containsScalarNamedCall(ast.occurrenceIndex) : false;
+    case "optionalMember":
+      return containsScalarNamedCall(ast.receiver);
     case "valueIf":
       return containsScalarNamedCall(ast.condition) || containsScalarNamedCall(ast.thenBranch) || (ast.elseBranch ? containsScalarNamedCall(ast.elseBranch) : false);
     case "valueMatch":
@@ -218,7 +220,7 @@ class Parser {
   }
 
   private parsePower(): ScalarExpressionAst {
-    const left = this.parsePrimary();
+    const left = this.parsePostfix(this.parsePrimary());
     const token = this.peek();
     if (token?.kind !== "operator" || token.value !== "^") return left;
 
@@ -235,6 +237,23 @@ class Parser {
       };
     } finally {
       this.depth -= 1;
+    }
+  }
+
+  private parsePostfix(base: ScalarExpressionAst): ScalarExpressionAst {
+    let expression = base;
+    for (;;) {
+      const property = this.peek();
+      if (property?.kind !== "optionalPostfixProperty") return expression;
+      this.consume();
+      expression = {
+        kind: "optionalMember",
+        span: { start: expression.span.start, end: property.span.end },
+        receiver: expression,
+        operatorSpan: property.operatorSpan,
+        memberSpan: property.propertySpan,
+        member: property.property
+      };
     }
   }
 

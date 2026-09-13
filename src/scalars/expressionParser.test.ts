@@ -84,6 +84,31 @@ describe("parseScalarExpression / literal nodes", () => {
     expect(isScalarExpressionCandidateSource(source)).toBe(true);
   });
 
+  it("parses optional member access as a first-class node without consuming ??", () => {
+    const source = "@piece.outline?.length ?? 0";
+    expect(parseOk(source)).toEqual({
+      kind: "binary",
+      operator: "??",
+      span: fullSpan(source),
+      left: {
+        kind: "optionalMember",
+        span: { start: 0, end: 22 },
+        receiver: {
+          kind: "geometryProperty",
+          span: { start: 0, end: 14 },
+          elementNameSpan: { start: 1, end: 6 },
+          propertySpan: { start: 7, end: 14 },
+          elementName: "piece",
+          property: "outline"
+        },
+        operatorSpan: { start: 14, end: 16 },
+        memberSpan: { start: 16, end: 22 },
+        member: "length"
+      },
+      right: { kind: "numberLiteral", span: { start: 26, end: 27 }, value: 0 }
+    });
+  });
+
   describe("string escapes (Task 09 delegation)", () => {
     const cases: Array<[string, string]> = [
       ["\\\\", "\\"],

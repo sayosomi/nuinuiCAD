@@ -35,6 +35,7 @@ import { scalarValueMatchesType, type ScalarExpressionType, type ScalarType } fr
 import { isScalarExpressionTypeAssignable, scalarExpressionTypesEqual } from "./scalarAssignability";
 import type {
   ScalarExpressionResolvedGeometryTarget,
+  ScalarExpressionResolvedOptionalMemberTarget,
   TypedScalarGeometryPropertyReferenceNode
 } from "./typedExpressionAst";
 
@@ -54,7 +55,7 @@ export type LazyScalarProgramEvaluator = {
 };
 
 export type ScalarProgramCollectionResolver = {
-  environmentFor: (sourceOrder: number) => Pick<ScalarEvaluationEnvironment, "lookupCollectionIndex" | "lookupCollectionLength">;
+  environmentFor: (sourceOrder: number) => Pick<ScalarEvaluationEnvironment, "lookupCollectionIndex" | "lookupCollectionLength" | "lookupOptionalMember">;
 };
 
 const resultForDeclaredType = (evaluation: ScalarEvaluation, declaredType: ScalarExpressionType): ScalarEvaluation => {
@@ -75,10 +76,11 @@ export const createScalarProgramCollectionResolver = (
   program: Pick<ScalarProgram, "collectionValues">,
   resolveBinding: (bindingId: BindingId) => ScalarEvaluation,
   resolveGeometryProperty?: (reference: TypedScalarGeometryPropertyReferenceNode, sourceOrder: number) => ScalarEvaluation,
-  resolveGeometryTarget?: (target: ScalarExpressionResolvedGeometryTarget, sourceOrder: number) => GeometryBuiltinTargetLookupResult | undefined
+  resolveGeometryTarget?: (target: ScalarExpressionResolvedGeometryTarget, sourceOrder: number) => GeometryBuiltinTargetLookupResult | undefined,
+  resolveExternalCollectionLength?: (collectionValueId: string, sourceOrder: number) => number | undefined
 ): ScalarProgramCollectionResolver | undefined => {
-  if (!program.collectionValues?.length) return undefined;
-  const valuesById = new Map(program.collectionValues.map((value) => [value.valueId, value] as const));
+  if (!program.collectionValues?.length && !resolveGeometryProperty && !resolveGeometryTarget) return undefined;
+  const valuesById = new Map((program.collectionValues ?? []).map((value) => [value.valueId, value] as const));
 
   const matchLabelFor = (scrutinee: ScalarEvaluation): string | undefined => {
     if (scrutinee.status !== "ok") return undefined;
@@ -208,6 +210,92 @@ export const createScalarProgramCollectionResolver = (
       : { status: "error", type: field.type, issueCode: "evaluation-runtime-value-type-mismatch" };
   };
 
+  const typedGeometryPropertyFor = (
+    reference: Extract<ScalarExpressionResolvedOptionalMemberTarget, { kind: "geometryProperty" }>["reference"]
+  ): TypedScalarGeometryPropertyReferenceNode | null => {
+    if (reference.kind === "collection") return null;
+    return {
+      kind: "geometryProperty",
+      span: { start: 0, end: 0 },
+      elementNameSpan: { start: 0, end: 0 },
+      propertySpan: { start: 0, end: 0 },
+      elementName: "",
+      elementId: "elementId" in reference ? reference.elementId : null,
+      ...(reference.kind === "geometryValue" ? { geometryValueOccurrence: reference.occurrence } : {}),
+      ...(reference.kind === "geometryValue" && reference.pointKey ? { geometryValuePointKey: reference.pointKey } : {}),
+      ...(reference.kind === "geometryValueForBinder" ? { geometryValueBinderId: reference.binderId } : {}),
+      ...(reference.kind === "forGroupOccurrence" ? {
+        forGroupOccurrenceTemplateElementId: reference.templateElementId,
+        forGroupOccurrenceIndex: reference.index,
+        ...(reference.pointKey ? { forGroupOccurrencePointKey: reference.pointKey } : {})
+      } : {}),
+      property: reference.property,
+      targetSourceOrder: reference.targetSourceOrder,
+      type: reference.type
+    };
+  };
+
+  const evaluateOptionalMember = (
+    target: ScalarExpressionResolvedOptionalMemberTarget,
+    type: ScalarExpressionType,
+    sourceOrder: number
+  ): ScalarEvaluation => {
+    const none = (): ScalarEvaluation => ({ status: "ok", type, value: { kind: "none" } });
+    if (target.kind === "collectionLength") {
+      const present = presentFor(target.collectionValueId, sourceOrder);
+      if (present === false) return none();
+      const externalLength = resolveExternalCollectionLength?.(target.collectionValueId, sourceOrder);
+      if (present !== true && externalLength === undefined) {
+        // An external geometry collection has no ScalarProgram descriptor. Its
+        // length resolver is the established presence/value authority.
+        if (present === undefined && resolveExternalCollectionLength) return none();
+        return { status: "error", type, issueCode: "evaluation-collection-property-unavailable" };
+      }
+      const length = target.collectionLength ?? externalLength ?? lengthFor(target.collectionValueId, sourceOrder);
+      return typeof length === "number" && Number.isInteger(length) && length >= 0
+        ? { status: "ok", type, value: { kind: "number", value: length } }
+        : { status: "error", type, issueCode: "evaluation-collection-property-unavailable" };
+    }
+    if (target.kind === "recordField") {
+      const present = presentFor(target.collectionValueId, sourceOrder);
+      if (present === false) return none();
+      if (present !== true) return { status: "error", type, issueCode: "evaluation-collection-index-unavailable" };
+      const result = recordFieldFor(
+        target.collectionValueId,
+        0,
+        target.field,
+        sourceOrder
+      );
+      if (result.status === "error") return { ...result, type };
+      return scalarValueMatchesType(type, result.value)
+        ? { status: "ok", type, value: result.value }
+        : { status: "error", type, issueCode: "evaluation-runtime-value-type-mismatch" };
+    }
+
+    const receiverPresent = target.receiver.kind === "collection"
+      ? presentFor(target.receiver.collectionValueId, sourceOrder)
+      : resolveGeometryTarget?.(target.receiver.target, sourceOrder) === undefined
+        ? false
+        : true;
+    if (receiverPresent === false) return none();
+    const receiverRuntime = target.receiver.kind === "geometryValue"
+      ? resolveGeometryTarget?.(target.receiver.target, sourceOrder)
+      : undefined;
+    if (receiverRuntime && receiverRuntime.kind === "unavailable") {
+      return { status: "error", type, issueCode: "evaluation-geometry-property-unavailable" };
+    }
+    if (receiverPresent !== true || !resolveGeometryProperty) {
+      return { status: "error", type, issueCode: "evaluation-geometry-property-unavailable" };
+    }
+    const reference = typedGeometryPropertyFor(target.reference);
+    if (!reference) return { status: "error", type, issueCode: "evaluation-geometry-property-unavailable" };
+    const result = resolveGeometryProperty(reference, sourceOrder);
+    if (result.status === "error") return { ...result, type };
+    return scalarValueMatchesType(type, result.value)
+      ? { status: "ok", type, value: result.value }
+      : { status: "error", type, issueCode: "evaluation-runtime-value-type-mismatch" };
+  };
+
   const indexFor = (
     collectionValueId: string,
     index: number,
@@ -287,7 +375,8 @@ export const createScalarProgramCollectionResolver = (
       ...(resolveGeometryTarget ? { lookupGeometryTarget: (target) => resolveGeometryTarget(target, sourceOrder) } : {}),
       lookupCollectionLength: (collectionValueId) => lengthFor(collectionValueId, sourceOrder),
       lookupCollectionIndex: (collectionValueId, index, elementType, collectionLength, targetSourceOrder) =>
-        indexFor(collectionValueId, index, elementType, collectionLength, targetSourceOrder, sourceOrder)
+        indexFor(collectionValueId, index, elementType, collectionLength, targetSourceOrder, sourceOrder),
+      lookupOptionalMember: (target, type) => evaluateOptionalMember(target, type, sourceOrder)
     };
   }
 
@@ -374,7 +463,8 @@ export const createLazyScalarProgramEvaluator = (
     program,
     resolve,
     resolveGeometryProperty,
-    resolveGeometryTarget
+    resolveGeometryTarget,
+    resolveCollectionLength
   );
 
   return { resolve, ...(collectionResolver ? { collectionResolver } : {}) };

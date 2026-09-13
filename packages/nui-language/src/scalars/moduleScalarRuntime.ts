@@ -52,11 +52,12 @@ import {
   type ScalarProgramCollectionMember,
   type ScalarProgramRecordField
 } from "./scalarProgram";
-import type { ScalarType } from "./types";
+import type { ScalarExpressionType, ScalarType } from "./types";
 import type { ScalarValue } from "./types";
 import type {
   ScalarExpressionResolvedGeometryProperty,
   ScalarExpressionResolvedGeometryTarget,
+  ScalarExpressionResolvedOptionalMemberTarget,
   ScalarExpressionResolvedReference,
   TypedScalarExpression
 } from "./typedExpressionAst";
@@ -240,6 +241,23 @@ const remapTypedExpressionBindingIds = (
           ? { forGroupOccurrenceIndex: remapTypedExpressionBindingIds(expression.forGroupOccurrenceIndex, bindingIdByLocalId) }
           : {})
       };
+    case "optionalMember":
+      return {
+        ...expression,
+        target: expression.target?.kind === "geometryProperty"
+          ? {
+              ...expression.target,
+              receiver: expression.target.receiver.kind === "geometryValue"
+                ? {
+                    ...expression.target.receiver,
+                    target: expression.target.receiver.target.kind === "forGroupOccurrence" && expression.target.receiver.target.index
+                      ? { ...expression.target.receiver.target, index: remapTypedExpressionBindingIds(expression.target.receiver.target.index, bindingIdByLocalId) }
+                      : expression.target.receiver.target
+                  }
+                : expression.target.receiver
+            }
+          : expression.target
+      };
     case "unary": return { ...expression, operand: remapTypedExpressionBindingIds(expression.operand, bindingIdByLocalId) };
     case "binary": return {
       ...expression,
@@ -291,6 +309,25 @@ const remapTypedExpressionCollectionValueIds = (
         ...(expression.forGroupOccurrenceIndex
           ? { forGroupOccurrenceIndex: remapTypedExpressionCollectionValueIds(expression.forGroupOccurrenceIndex, collectionValueIdFor) }
           : {})
+      };
+    case "optionalMember":
+      return {
+        ...expression,
+        target: expression.target?.kind === "recordField"
+          ? { ...expression.target, collectionValueId: collectionValueIdFor(expression.target.collectionValueId) }
+          : expression.target?.kind === "collectionLength"
+            ? { ...expression.target, collectionValueId: collectionValueIdFor(expression.target.collectionValueId) }
+            : expression.target?.kind === "geometryProperty"
+              ? {
+                  ...expression.target,
+                  reference: expression.target.reference.kind === "collection"
+                    ? { ...expression.target.reference, collectionValueId: collectionValueIdFor(expression.target.reference.collectionValueId) }
+                    : expression.target.reference,
+                  receiver: expression.target.receiver.kind === "collection"
+                    ? { ...expression.target.receiver, collectionValueId: collectionValueIdFor(expression.target.receiver.collectionValueId) }
+                    : expression.target.receiver
+                }
+              : expression.target
       };
     case "unary": return {
       ...expression,
@@ -363,6 +400,41 @@ const remapTypedExpressionSourceOrders = (
           ? { forGroupOccurrenceIndex: remapTypedExpressionSourceOrders(expression.forGroupOccurrenceIndex, sourceOrderFor) }
           : {})
       };
+    case "optionalMember": {
+      const target = expression.target;
+      const remapReference = (reference: ScalarExpressionResolvedGeometryProperty): ScalarExpressionResolvedGeometryProperty => ({
+        ...reference,
+        targetSourceOrder: reference.targetSourceOrder >= 0 ? sourceOrderFor(reference.targetSourceOrder) : reference.targetSourceOrder
+      });
+      const receiverTarget = target?.kind === "geometryProperty" && target.receiver.kind === "geometryValue"
+        ? target.receiver.target
+        : null;
+      return {
+        ...expression,
+        target: target?.kind === "collectionLength"
+          ? { ...target, targetSourceOrder: target.targetSourceOrder >= 0 ? sourceOrderFor(target.targetSourceOrder) : target.targetSourceOrder }
+          : target?.kind === "recordField"
+            ? { ...target, targetSourceOrder: target.targetSourceOrder >= 0 ? sourceOrderFor(target.targetSourceOrder) : target.targetSourceOrder }
+            : target?.kind === "geometryProperty"
+              ? {
+                  ...target,
+                  reference: remapReference(target.reference),
+                  receiver: target.receiver.kind === "collection"
+                    ? { ...target.receiver, targetSourceOrder: target.receiver.targetSourceOrder >= 0 ? sourceOrderFor(target.receiver.targetSourceOrder) : target.receiver.targetSourceOrder }
+                    : {
+                        ...target.receiver,
+                        target: receiverTarget?.kind === "forGroupOccurrence"
+                          ? {
+                              ...receiverTarget,
+                              targetSourceOrder: receiverTarget.targetSourceOrder >= 0 ? sourceOrderFor(receiverTarget.targetSourceOrder) : receiverTarget.targetSourceOrder,
+                              statementIndex: receiverTarget.statementIndex >= 0 ? sourceOrderFor(receiverTarget.statementIndex) : receiverTarget.statementIndex
+                            }
+                          : receiverTarget ?? target.receiver.target
+                      }
+                }
+              : target
+      };
+    }
     case "unary": return { ...expression, operand: remapTypedExpressionSourceOrders(expression.operand, sourceOrderFor) };
     case "binary": return {
       ...expression,
@@ -1069,6 +1141,212 @@ export const lowerExpression = (
     semantic.geometryBuiltinArguments.map((occurrence) => [occurrence.span.start, typecheckGeometryTargetFor(occurrence)])
   );
   const geometryPropertyReferences = new Map<number, ScalarExpressionResolvedGeometryProperty | null>();
+  const recordCollectionTargetFor = (target: import("../dsl/moduleSemanticTypes").ModuleRecordFieldSourceTarget) => {
+    const fieldPath = target.fieldPath ?? [target.field];
+    if (target.record.kind === "recordValue") {
+      return {
+        collectionValueId: collectionValueIdFor(recordValueCollectionIdFor([], target.record.statementId)),
+        collectionLength: 1,
+        targetSourceOrder: collectionSourceOrderFor(target.record.statementIndex),
+        fieldPath
+      };
+    }
+    if (target.record.kind === "recordCollectionIndex") {
+      return {
+        collectionValueId: collectionValueIdFor(target.record.collectionValueId),
+        collectionLength: target.record.collectionLength,
+        targetSourceOrder: collectionSourceOrderFor(target.record.targetSourceOrder),
+        fieldPath
+      };
+    }
+    return null;
+  };
+  const recordFieldSourceOrderFor = (target: ModuleGeometryPropertySourceTarget) =>
+    target.kind === "recordField" ? recordCollectionTargetFor(target)?.targetSourceOrder : undefined;
+  const geometryPropertyReferenceForRuntimeTarget = (
+    target: ModuleGeometryPropertySourceTarget,
+    runtimeTarget: ModuleGeometryPropertyRuntimeTarget,
+    type: ScalarExpressionType
+  ): ScalarExpressionResolvedGeometryProperty | null => {
+    if (runtimeTarget.kind === "expression") return null;
+    if (runtimeTarget.kind === "forGroupOccurrence") {
+      return {
+        kind: "forGroupOccurrence",
+        templateElementId: runtimeTarget.templateElementId,
+        property: runtimeTarget.property,
+        targetSourceOrder: runtimeTarget.targetSourceOrder,
+        index: null,
+        ...(runtimeTarget.pointKey ? { pointKey: runtimeTarget.pointKey } : {}),
+        type
+      };
+    }
+    if (runtimeTarget.kind === "value") {
+      const runtimeSourceOrder = runtimeTarget.targetSourceOrder !== undefined && runtimeTarget.targetSourceOrder >= 0
+        ? runtimeTarget.targetSourceOrder
+        : undefined;
+      return {
+        kind: "geometryValue",
+        occurrence: runtimeTarget.occurrence,
+        property: runtimeTarget.property,
+        ...(runtimeTarget.pointKey ? { pointKey: runtimeTarget.pointKey } : {}),
+        targetSourceOrder: runtimeSourceOrder ?? (
+          target.kind === "recordField"
+            ? recordFieldSourceOrderFor(target)
+            : target.kind === "sourceGeometryProperty" || target.kind === "geometryValueProperty"
+              ? collectionSourceOrderFor(target.statementIndex)
+              : -1
+        ) ?? -1,
+        type
+      };
+    }
+    if (runtimeTarget.kind === "binder") {
+      const runtimeSourceOrder = runtimeTarget.targetSourceOrder !== undefined && runtimeTarget.targetSourceOrder >= 0
+        ? runtimeTarget.targetSourceOrder
+        : undefined;
+      return {
+        kind: "geometryValueForBinder",
+        binderId: runtimeTarget.binderId,
+        property: runtimeTarget.property,
+        ...(runtimeTarget.pointKey ? { pointKey: runtimeTarget.pointKey } : {}),
+        targetSourceOrder: runtimeSourceOrder ?? (
+          target.kind === "geometryValueForBinder" ? collectionSourceOrderFor(target.statementIndex) : -1
+        ),
+        type
+      };
+    }
+    const runtimeSourceOrder = runtimeTarget.targetSourceOrder !== undefined && runtimeTarget.targetSourceOrder >= 0
+      ? runtimeTarget.targetSourceOrder
+      : undefined;
+    return {
+      elementId: runtimeTarget.elementId,
+      property: runtimeTarget.property,
+      targetSourceOrder: runtimeSourceOrder ?? (
+        target.kind === "recordField"
+          ? recordFieldSourceOrderFor(target)
+          : target.kind === "sourceGeometryProperty"
+            ? collectionSourceOrderFor(target.statementIndex)
+            : target.kind === "deferredModuleExportProperty"
+              ? collectionSourceOrderFor(target.instanceStatementIndex)
+              : -1
+      ) ?? -1,
+      type
+    };
+  };
+  const geometryTargetForRuntimeTarget = (
+    runtimeTarget: ModuleGeometryPropertyRuntimeTarget,
+    receiverType: import("../dsl/dslValueTypes").DslValueType | null
+  ): ScalarExpressionResolvedGeometryTarget | null => {
+    if (runtimeTarget.kind === "expression") return null;
+    const unwrappedReceiverType = receiverType?.kind === "optional" ? receiverType.valueType : receiverType;
+    const geometryType = isDslGeometryValueType(unwrappedReceiverType) ? unwrappedReceiverType.kind : "line";
+    if (runtimeTarget.kind === "forGroupOccurrence") {
+      return {
+        kind: "forGroupOccurrence",
+        templateElementId: runtimeTarget.templateElementId,
+        statementId: runtimeTarget.templateElementId,
+        statementIndex: runtimeTarget.targetSourceOrder,
+        targetSourceOrder: runtimeTarget.targetSourceOrder,
+        index: null,
+        geometryType,
+        ...(runtimeTarget.pointKey ? { pointKey: runtimeTarget.pointKey } : {})
+      };
+    }
+    if (runtimeTarget.kind === "value") {
+      return {
+        kind: "geometryValue",
+        occurrence: runtimeTarget.occurrence,
+        statementId: runtimeTarget.occurrence.sourceStatementId,
+        statementIndex: runtimeTarget.targetSourceOrder ?? -1,
+        geometryType,
+        ...(runtimeTarget.pointKey ? { pointKey: runtimeTarget.pointKey } : {})
+      };
+    }
+    if (runtimeTarget.kind === "binder") {
+      return {
+        kind: "geometryValueForBinder",
+        binderId: runtimeTarget.binderId,
+        statementId: runtimeTarget.binderId,
+        statementIndex: runtimeTarget.targetSourceOrder ?? -1,
+        geometryType,
+        ...(runtimeTarget.pointKey ? { pointKey: runtimeTarget.pointKey } : {})
+      };
+    }
+    return {
+      statementId: runtimeTarget.elementId,
+      statementIndex: runtimeTarget.targetSourceOrder ?? -1,
+      geometryType,
+      ...(runtimeTarget.property ? {} : {})
+    };
+  };
+  const optionalMemberReferences = new Map<number, import("./typedExpressionAst").ScalarExpressionResolvedOptionalMember | null>();
+  for (const optionalMember of semantic.optionalMembers ?? []) {
+    const memberType = optionalMember.memberType;
+    const target = optionalMember.target;
+    let optionalTarget: ScalarExpressionResolvedOptionalMemberTarget | null = null;
+    if (memberType && target) {
+      if (target.kind === "collectionValueLength" || target.kind === "collectionParameterLength" || target.kind === "deferredModuleCollectionExportLength") {
+        optionalTarget = {
+          kind: "collectionLength",
+          collectionValueId: collectionValueIdFor(target.kind === "collectionValueLength"
+            ? target.valueId
+            : target.kind === "collectionParameterLength"
+              ? `${target.definitionStatementId}:parameter:${target.parameterIndex}`
+              : geometryArrayDeferredModuleExportId(target.instanceStatementId, target.exportName)),
+          collectionLength: target.kind === "collectionValueLength" && target.length !== null
+            ? target.length
+            : collectionLengthForTarget?.(target) ?? null,
+          targetSourceOrder: target.kind === "collectionValueLength"
+            ? collectionSourceOrderFor(target.statementIndex)
+            : target.kind === "deferredModuleCollectionExportLength"
+              ? collectionSourceOrderFor(target.instanceStatementIndex)
+              : -1
+        };
+      } else if (target.kind === "recordField" && !target.property && target.type) {
+        const recordCollection = recordCollectionTargetFor(target);
+        if (recordCollection) {
+          const fieldPath = recordCollection.fieldPath;
+          const field = fieldPath[fieldPath.length - 1]!;
+          optionalTarget = {
+            kind: "recordField",
+            collectionValueId: collectionValueIdFor(recordFieldCollectionValueIdFor(recordCollection.collectionValueId, field, fieldPath)),
+            collectionLength: recordCollection.collectionLength,
+            targetSourceOrder: recordCollection.targetSourceOrder,
+            field: {
+              recordStatementId: field.recordStatementId,
+              fieldIndex: field.fieldIndex,
+              type: target.type,
+              ...(fieldPath.length > 1 ? { fieldPath } : {})
+            }
+          };
+        }
+      } else {
+        const runtimeTarget = geometryPropertyForTarget?.(target);
+        const reference = runtimeTarget ? geometryPropertyReferenceForRuntimeTarget(target, runtimeTarget, memberType) : null;
+        const collectionReceiver = target.kind === "recordField" && !target.property ? recordCollectionTargetFor(target) : null;
+        const geometryReceiver = runtimeTarget
+          ? geometryTargetForRuntimeTarget(runtimeTarget, optionalMember.receiverType)
+          : null;
+        if (reference && collectionReceiver) {
+          optionalTarget = {
+            kind: "geometryProperty",
+            reference,
+            receiver: { kind: "collection", ...collectionReceiver }
+          };
+        } else if (reference && geometryReceiver) {
+          optionalTarget = {
+            kind: "geometryProperty",
+            reference,
+            receiver: { kind: "geometryValue", target: geometryReceiver }
+          };
+        }
+      }
+    }
+    optionalMemberReferences.set(optionalMember.span.start, {
+      receiverType: optionalMember.receiverType,
+      memberType,
+      target: optionalTarget
+    });
+  }
   for (const property of semantic.geometryProperties) {
     if (property.target?.kind === "recordField" && !property.target.property) continue;
     if (!property.target || !property.type) {
@@ -1286,9 +1564,15 @@ export const lowerExpression = (
     expectedType: semantic.type,
     references: typecheckResolutions,
     geometryBuiltinArguments: geometryBuiltinArgumentTargets,
-    geometryPropertyReferences
+    geometryPropertyReferences,
+    optionalMemberReferences
   });
   const lowerGeometryProperties = (node: TypedScalarExpression): { node: TypedScalarExpression; references: InitializerReference[] } => {
+    if (node.kind === "optionalMember") {
+      const optionalMember = semantic.optionalMembers?.find((candidate) => candidate.span.start === node.span.start);
+      const resolved = optionalMember ? optionalMemberReferences.get(optionalMember.span.start) : undefined;
+      return { node: { ...node, target: resolved?.target ?? null }, references: [] };
+    }
     if (node.kind === "geometryProperty") {
       if (node.collectionValueId) {
         return { node: { ...node, collectionValueId: collectionValueIdFor(node.collectionValueId) }, references: [] };
@@ -2516,6 +2800,7 @@ export const compileModuleScalarRuntime = ({
   const buildModuleCollectionValues = (): ScalarProgramCollection[] => {
     const moduleCollectionValues: ScalarProgramCollection[] = [];
     const registeredRecordValueIds = new Set<string>();
+    const registeredRecordFieldProjectionIds = new Set<string>();
 
     const recordMemberForValueTarget = (
       target: Extract<ModuleRecordSourceTarget, { kind: "recordValue" }>,
@@ -2838,6 +3123,46 @@ export const compileModuleScalarRuntime = ({
         // malformed value defensively at this runtime boundary.
       }
     };
+    const appendOptionalMemberProjection = (
+      expression: ModuleScalarExpressionSemantic | null,
+      context: InstanceContext | null
+    ): void => {
+      for (const optionalMember of expression?.optionalMembers ?? []) {
+        const target = optionalMember.target;
+        if (target?.kind !== "recordField" || target.property || !target.type) continue;
+        const fieldPath = target.fieldPath ?? [target.field];
+        let sourceValueId: string | null = null;
+        let sourceOrder: number | null = null;
+        if (target.record.kind === "recordValue") {
+          sourceValueId = collectionValueIdFor(recordValueCollectionIdFor([], target.record.statementId), context);
+          sourceOrder = context
+            ? Math.max(0, Math.floor(executionPositionForValue(context.path, target.record.statementIndex)))
+            : Math.max(0, Math.floor(executionPositionForValue([], target.record.statementIndex)));
+        } else if (target.record.kind === "recordCollectionIndex") {
+          sourceValueId = collectionValueIdFor(target.record.collectionValueId, context);
+          sourceOrder = context
+            ? Math.max(0, Math.floor(executionPositionForValue(context.path, target.record.targetSourceOrder)))
+            : target.record.targetSourceOrder;
+        }
+        if (!sourceValueId || sourceOrder === null) continue;
+        const field = fieldPath[fieldPath.length - 1]!;
+        const valueId = recordFieldCollectionValueIdFor(sourceValueId, field, fieldPath);
+        if (registeredRecordFieldProjectionIds.has(valueId)) continue;
+        registeredRecordFieldProjectionIds.add(valueId);
+        moduleCollectionValues.push({
+          valueId,
+          kind: "recordField",
+          sourceValueId,
+          field: {
+            recordStatementId: field.recordStatementId,
+            fieldIndex: field.fieldIndex,
+            type: optionalMember.memberType!,
+            ...(fieldPath.length > 1 ? { fieldPath } : {})
+          },
+          sourceOrder
+        });
+      }
+    };
     const appendConditional = (
       value: import("../dsl/geometryArraySemantics").DslArraySemanticValue<import("../dsl/geometryArraySemanticAnalysis").GenericArraySourceTarget>,
       valueId: string,
@@ -3002,7 +3327,10 @@ export const compileModuleScalarRuntime = ({
         moduleCollectionValues.push({ valueId, kind: "coalesce", leftValueId, rightValueId, sourceOrder: executionPositionForValue(context.path, value.statementIndex) });
         continue;
       }
-      if (value.value.kind === "none") continue;
+      if (value.value.kind === "none") {
+        moduleCollectionValues.push({ valueId, kind: "none" });
+        continue;
+      }
       const elementType = scalarTypeOfDslValueType(value.valueType.elementType);
       if (value.valueType.elementType.kind === "record") {
         const members = value.value.members.flatMap((member) => {
@@ -3038,10 +3366,16 @@ export const compileModuleScalarRuntime = ({
       });
     }
     for (const recordValue of context.definition.recordValues) {
-      for (const field of recordValue.fieldExpressions) appendRecordFieldProjection(field.expression, context);
+      for (const field of recordValue.fieldExpressions) {
+        appendRecordFieldProjection(field.expression, context);
+        appendOptionalMemberProjection(field.expression, context);
+      }
     }
     for (const body of context.definition.bodyStatements) {
-      for (const site of body.scalarExpressions) appendRecordFieldProjection(site.expression, context);
+      for (const site of body.scalarExpressions) {
+        appendRecordFieldProjection(site.expression, context);
+        appendOptionalMemberProjection(site.expression, context);
+      }
     }
     }
     const appendRootConditional = (
@@ -3122,6 +3456,9 @@ export const compileModuleScalarRuntime = ({
     for (const value of sourceNamespace?.geometryArraySemanticAnalysis?.genericValues ?? []) {
       if (value.ownerModuleDefinitionStatementIndex !== null || !value.value) continue;
       const valueId = value.statementId;
+      // Root scalar collections are already owned by documentScalarProgram;
+      // only nominal-record collections need the module runtime projection.
+      if (value.value.kind === "none") continue;
       if (value.value.kind === "if" || value.value.kind === "match") {
         if (value.valueType.elementType.kind === "record") {
           appendRootConditional(value.value, valueId, value.statementIndex);
@@ -3145,10 +3482,14 @@ export const compileModuleScalarRuntime = ({
       if (members.length === value.value.members.length) moduleCollectionValues.push({ valueId, kind: "literal", members });
     }
     for (const recordValue of moduleSemanticAnalysis.rootRecordValuesByStatementId.values()) {
-      for (const field of recordValue.fieldExpressions) appendRecordFieldProjection(field.expression, null);
+      for (const field of recordValue.fieldExpressions) {
+        appendRecordFieldProjection(field.expression, null);
+        appendOptionalMemberProjection(field.expression, null);
+      }
     }
     for (const site of moduleSemanticAnalysis.rootScalarExpressionsByStatementId.values()) {
       appendRecordFieldProjection(site.expression, null);
+      appendOptionalMemberProjection(site.expression, null);
     }
     return moduleCollectionValues;
   };
@@ -3329,6 +3670,30 @@ export const compileModuleScalarRuntime = ({
       firstAvailableAfterScalars
     );
   };
+  const recordFieldSourceOrderForContext = (
+    target: Extract<ModuleGeometryPropertySourceTarget, { kind: "recordField" }>,
+    path: readonly string[]
+  ): number | undefined => {
+    switch (target.record.kind) {
+      case "recordValue":
+      case "recordValueForBinder":
+        return executionPositionForValue(path, target.record.statementIndex);
+      case "recordCollectionIndex":
+        return target.record.targetSourceOrder >= 0
+          ? executionPositionForValue(path, target.record.targetSourceOrder)
+          : target.record.targetSourceOrder;
+      case "deferredModuleRecordExport":
+        return executionPositionForValue(path, target.record.instanceStatementIndex);
+      case "recordParameter": {
+        const context = contextsByKey.get(pathKey(path));
+        const fieldBindings = context?.recordParameters.get(target.record.parameterIndex);
+        const orders = [...(fieldBindings?.values() ?? [])]
+          .map((binding) => eventOrderByBindingId.get(binding.id))
+          .filter((order): order is number => order !== undefined);
+        return orders.length > 0 ? Math.min(...orders) : undefined;
+      }
+    }
+  };
   const resolvedGeometryPropertyForContext = (
     target: ModuleGeometryPropertySourceTarget,
     context: InstanceContext
@@ -3338,9 +3703,15 @@ export const compileModuleScalarRuntime = ({
       if (!lowered) return undefined;
       if (lowered.kind === "expression") return lowered;
       if (lowered.kind === "value") {
+        const recordSourceOrder = target.kind === "recordField"
+          ? recordFieldSourceOrderForContext(target, context.path)
+          : undefined;
+        const loweredSourceOrder = lowered.targetSourceOrder !== undefined && lowered.targetSourceOrder >= 0
+          ? lowered.targetSourceOrder
+          : undefined;
         return {
           ...lowered,
-          targetSourceOrder: lowered.targetSourceOrder ?? (
+          targetSourceOrder: loweredSourceOrder ?? recordSourceOrder ?? (
             target.kind === "sourceGeometryProperty" || target.kind === "geometryValueProperty"
               ? executionPositionForValue(context.path, target.statementIndex)
               : -1
@@ -3823,9 +4194,15 @@ export const compileModuleScalarRuntime = ({
     );
     if (!lowered || lowered.kind === "expression") return lowered;
     if (lowered.kind === "value") {
+      const recordSourceOrder = target.kind === "recordField"
+        ? recordFieldSourceOrderForContext(target, [])
+        : undefined;
+      const loweredSourceOrder = lowered.targetSourceOrder !== undefined && lowered.targetSourceOrder >= 0
+        ? lowered.targetSourceOrder
+        : undefined;
       return {
         ...lowered,
-        targetSourceOrder: lowered.targetSourceOrder ?? (
+        targetSourceOrder: loweredSourceOrder ?? recordSourceOrder ?? (
           target.kind === "sourceGeometryProperty" || target.kind === "geometryValueProperty"
             ? executionPositionForValue([], target.statementIndex)
             : -1

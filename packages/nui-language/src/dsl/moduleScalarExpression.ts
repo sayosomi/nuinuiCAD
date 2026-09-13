@@ -7,7 +7,8 @@ import type {
   ScalarExpressionResolvedGeometryProperty,
   ScalarExpressionResolvedGeometryTarget,
   ScalarExpressionResolvedReference,
-  ScalarExpressionResolvedCollectionIndex
+  ScalarExpressionResolvedCollectionIndex,
+  ScalarExpressionResolvedOptionalMember
 } from "../scalars/typedExpressionAst";
 import type { ScalarExpressionType, ScalarType } from "../scalars/types";
 import type { DslDiagnosticPresentation } from "./dslTypes";
@@ -19,6 +20,7 @@ import type {
   ModuleGeometryReferenceSemantic,
   ModuleRecordFieldSourceTarget,
   ModuleScalarExpressionSemantic,
+  ModuleOptionalMemberReference,
   ModuleScalarReference,
   ModuleSourceTarget
 } from "./moduleSemanticTypes";
@@ -105,6 +107,18 @@ export type ModuleGeometryPropertyReferenceInput = {
   occurrenceIndex?: ScalarExpressionAst;
   occurrenceIndexSpan?: DslSpan;
   occurrenceRange?: DslSpan;
+  presenceFacts?: ReadonlySet<string>;
+  /** Optional chaining may traverse the one general optional wrapper while
+   * ordinary `.` access remains non-unwrapping. */
+  allowOptionalTraversal?: boolean;
+};
+
+export type ModuleOptionalMemberReferenceInput = {
+  member: string;
+  receiver: ScalarExpressionAst;
+  span: DslSpan;
+  receiverSpan: DslSpan;
+  memberSpan: DslSpan;
   presenceFacts?: ReadonlySet<string>;
 };
 
@@ -232,6 +246,7 @@ const resolveAndTypecheck = ({
   resolveHasValue,
   resolveBareReference,
   resolveGeometryProperty,
+  resolveOptionalMember,
   resolveGeometryBuiltin,
   presenceFacts: initialPresenceFacts = new Set()
 }: {
@@ -250,6 +265,7 @@ const resolveAndTypecheck = ({
     span: DslSpan;
     presenceFacts?: ReadonlySet<string>;
   }) => ModuleGeometryPropertyReferenceResolution;
+  resolveOptionalMember?: (reference: ModuleOptionalMemberReferenceInput) => ModuleOptionalMemberReference;
   resolveGeometryBuiltin?: ModuleGeometryBuiltinReferenceResolver;
   presenceFacts?: ReadonlySet<string>;
 }): { semantic: ModuleScalarExpressionSemantic; diagnostics: ModuleScalarLocalDiagnostic[] } => {
@@ -258,6 +274,8 @@ const resolveAndTypecheck = ({
   const geometryProperties: ModuleGeometryPropertyReference[] = [];
   const geometryBuiltinArguments: ModuleGeometryBuiltinArgumentSemantic[] = [];
   const geometryPropertyReferences = new Map<number, ScalarExpressionResolvedGeometryProperty | null>();
+  const optionalMemberReferences = new Map<number, ScalarExpressionResolvedOptionalMember | null>();
+  const optionalMembers: ModuleOptionalMemberReference[] = [];
   const resolvedTypes: ScalarExpressionResolvedReference[] = [];
   const resolvedChoiceTypes = new Map<number, ScalarType>();
   const hasValueParameters: { span: DslSpan; definitionStatementId: string; parameterIndex: number }[] = [];
@@ -407,6 +425,25 @@ const resolveAndTypecheck = ({
           })
         };
       }
+      case "optionalMember": {
+        const resolution = resolveOptionalMember?.({
+          member: node.member,
+          receiver: node.receiver,
+          span: node.span,
+          receiverSpan: node.receiver.span,
+          memberSpan: node.memberSpan,
+          presenceFacts
+        });
+        if (resolution) {
+          optionalMembers.push(resolution);
+          optionalMemberReferences.set(node.span.start, {
+            receiverType: resolution.receiverType,
+            memberType: resolution.memberType,
+            target: null
+          });
+        }
+        return node;
+      }
       case "geometryProperty":
         if (!resolveGeometryProperty) {
           diagnostics.push(localIssue("module-geometry-property-reference", node.span, "module の scalar expression では geometry property を解決できません。"));
@@ -506,6 +543,7 @@ const resolveAndTypecheck = ({
     references: resolvedTypes,
     geometryBuiltinArguments: geometryBuiltinArgumentTargets,
     geometryPropertyReferences,
+    optionalMemberReferences,
     resolveChoiceLiteral: (_raw, _expected, span) => resolvedChoiceTypes.get(span.start)
   });
   for (const diagnostic of checked.diagnostics) {
@@ -536,7 +574,7 @@ const resolveAndTypecheck = ({
     ));
   }
   const type = diagnostics.length === 0 && !invalidGeometryProperty ? checked.type : null;
-  return { semantic: { ast, type, references: resolvedReferences, geometryProperties, geometryBuiltinArguments, hasValueParameters }, diagnostics };
+  return { semantic: { ast, type, references: resolvedReferences, geometryProperties, optionalMembers, geometryBuiltinArguments, hasValueParameters }, diagnostics };
 };
 
 const typecheckGeometryTarget = (
@@ -656,6 +694,7 @@ export const parseAndCheckModuleScalarExpression = ({
   resolveHasValue,
   resolveBareReference,
   resolveGeometryProperty,
+  resolveOptionalMember,
   resolveGeometryBuiltin,
   presenceFacts,
   diagnostics
@@ -668,6 +707,7 @@ export const parseAndCheckModuleScalarExpression = ({
   resolveHasValue?: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution;
   resolveBareReference?: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution | null;
   resolveGeometryProperty?: (reference: ModuleGeometryPropertyReferenceInput) => ModuleGeometryPropertyReferenceResolution;
+  resolveOptionalMember?: (reference: ModuleOptionalMemberReferenceInput) => ModuleOptionalMemberReference;
   resolveGeometryBuiltin?: ModuleGeometryBuiltinReferenceResolver;
   presenceFacts?: ReadonlySet<string>;
   diagnostics: ModuleScalarLocalDiagnostic[];
@@ -687,6 +727,7 @@ export const parseAndCheckModuleScalarExpression = ({
     resolveHasValue,
     resolveBareReference,
     resolveGeometryProperty,
+    resolveOptionalMember,
     resolveGeometryBuiltin,
     presenceFacts
   });

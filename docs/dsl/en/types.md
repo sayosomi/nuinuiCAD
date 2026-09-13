@@ -40,6 +40,13 @@ arrays, `T?[]` is an array whose members are optional, while `T[]?` is one
 optional array value. Module `name?: type` parameters and their existing
 `hasValue(...)` behavior remain a separate intermediate feature.
 
+Optional member access uses `?.`: for a value of type `T?`, `value?.member`
+with an ordinary member result `U` produces `U?`. `none` propagates as
+`none`, a present receiver reads the ordinary member, and an already-optional
+member result stays one optional layer. There is no implicit unwrapping for
+ordinary `.` access. See [Expressions](expressions.md) for the supported
+member/property families.
+
 ## Geometry types
 
 The module geometry interfaces are `point`, `line`, and `path`. A `line` is a

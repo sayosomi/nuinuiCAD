@@ -320,6 +320,8 @@ export const resolveBuiltinGeometryArguments = ({
       case "booleanLiteral":
       case "unresolvedChoiceLiteral":
         return;
+      case "optionalMember":
+        return;
       case "unary":
         visit(node.operand, boundNames);
         return;

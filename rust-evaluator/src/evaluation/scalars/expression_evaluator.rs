@@ -36,9 +36,9 @@ use super::expression_evaluator_ops::{
 use super::geometry_builtin_runtime::{GeometryBuiltinRuntimeError, GeometryBuiltinRuntimeTarget};
 use super::scalar_payload::scalar_value_matches_type;
 use super::types::{
-    ScalarBinaryOperator, ScalarEvaluation, ScalarExpressionResolvedGeometryTarget, ScalarType,
-    ScalarUnaryOperator, ScalarValue, TypedBuiltinArgument, TypedScalarCallTarget,
-    TypedScalarExpression,
+    ScalarBinaryOperator, ScalarEvaluation, ScalarExpressionResolvedGeometryTarget,
+    ScalarExpressionResolvedOptionalMemberTarget, ScalarType, ScalarUnaryOperator, ScalarValue,
+    TypedBuiltinArgument, TypedScalarCallTarget, TypedScalarExpression,
 };
 use crate::evaluation::types::GeometryValueOccurrence;
 
@@ -139,6 +139,19 @@ pub(crate) trait ScalarEvaluationEnvironment {
 
     fn lookup_collection_length(&self, _collection_value_id: &str) -> Option<f64> {
         None
+    }
+
+    fn lookup_optional_member(
+        &self,
+        _target: &ScalarExpressionResolvedOptionalMemberTarget,
+        r#type: &ScalarType,
+    ) -> ScalarEvaluation {
+        ScalarEvaluation::Error {
+            r#type: r#type.clone(),
+            issue_code: "evaluation-optional-member-unavailable".to_owned(),
+            binding_id: None,
+            context: None,
+        }
     }
 }
 
@@ -242,6 +255,14 @@ impl<E: ScalarEvaluationEnvironment + ?Sized> ScalarEvaluationEnvironment
     }
     fn lookup_collection_length(&self, collection_value_id: &str) -> Option<f64> {
         self.base.lookup_collection_length(collection_value_id)
+    }
+
+    fn lookup_optional_member(
+        &self,
+        target: &ScalarExpressionResolvedOptionalMemberTarget,
+        r#type: &ScalarType,
+    ) -> ScalarEvaluation {
+        self.base.lookup_optional_member(target, r#type)
     }
 }
 
@@ -680,6 +701,38 @@ fn eval_node<'a>(
                 error @ ScalarEvaluation::Error { .. } => error,
             });
         }
+        TypedScalarExpression::OptionalMember { target, r#type, .. } => {
+            let result = match (target, r#type) {
+                (Some(target), Some(concrete_type)) => {
+                    environment.lookup_optional_member(target, concrete_type)
+                }
+                _ => static_type_null_error(None),
+            };
+            output.push(match result {
+                ScalarEvaluation::Ok {
+                    r#type: result_type,
+                    value,
+                } if r#type
+                    .as_ref()
+                    .is_some_and(|expected| *expected == result_type)
+                    && r#type
+                        .as_ref()
+                        .is_some_and(|expected| scalar_value_matches_type(expected, &value)) =>
+                {
+                    ScalarEvaluation::Ok {
+                        r#type: result_type,
+                        value,
+                    }
+                }
+                ScalarEvaluation::Ok { .. } => ScalarEvaluation::Error {
+                    r#type: r#type.clone().unwrap_or(ScalarType::Number),
+                    issue_code: "evaluation-runtime-value-type-mismatch".to_owned(),
+                    binding_id: None,
+                    context: None,
+                },
+                error @ ScalarEvaluation::Error { .. } => error,
+            });
+        }
         TypedScalarExpression::Unary {
             operator,
             operand,
@@ -839,6 +892,7 @@ fn static_expression_type(expression: &TypedScalarExpression) -> Option<ScalarTy
         TypedScalarExpression::ChoiceLiteral { r#type, .. }
         | TypedScalarExpression::Reference { r#type, .. }
         | TypedScalarExpression::CollectionIndex { r#type, .. }
+        | TypedScalarExpression::OptionalMember { r#type, .. }
         | TypedScalarExpression::Unary { r#type, .. }
         | TypedScalarExpression::Binary { r#type, .. }
         | TypedScalarExpression::Group { r#type, .. }

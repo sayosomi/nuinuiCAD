@@ -49,6 +49,8 @@ export type ExpressionReferenceTokenMatch =
       readonly elementFrom: number;
       readonly elementTo: number;
       readonly query: string;
+      /** True when the property follows the nui1 optional member operator. */
+      readonly optional?: true;
     };
 
 // Boundary characters identical to the two patterns this module replaces, so
@@ -58,8 +60,8 @@ const BOUNDARY_PREFIX = "(?:^|[\\s()+*/<>=!&|,-])";
 // Character classes mirror numericExpressionParser.ts's tokenizer exactly:
 // the element/binding head excludes `.`, the member/query run allows further
 // `.` (so a nested path like `startPoint.` still matches as one query).
-const HEAD_CHAR_CLASS = "[^\\s()+*/.<>!=&|]";
-const QUERY_CHAR_CLASS = "[^\\s()+*/<>!=&|]";
+const HEAD_CHAR_CLASS = "[^\\s()+*/.<>!=&|?]";
+const QUERY_CHAR_CLASS = "[^\\s()+*/<>!=&|?]";
 
 const referenceTokenPattern = new RegExp(
   // The head group is `*` (not `+`) so a bare `@` with nothing typed after it
@@ -133,11 +135,12 @@ export const expressionReferenceTokenEndingAt = (
       };
     }
     const path = readDslReferencePath(text, sigilAt + 1, pos);
-    if (path.kind === "valid" && text[path.end] === "." && path.end + 1 <= pos) {
-      const propertyStart = path.end + 1;
+    const optionalProperty = path.kind === "valid" && text.slice(path.end, path.end + 2) === "?.";
+    if (path.kind === "valid" && (text[path.end] === "." || optionalProperty) && path.end + 1 <= pos) {
+      const propertyStart = path.end + (optionalProperty ? 2 : 1);
       const property = text.slice(propertyStart, pos);
       const invalidProperty = [...property].some((char) =>
-        /\s/.test(char) || "()+*/<>!=&|,[]{};:'\"".includes(char)
+        /\s/.test(char) || "()+*/<>!=&|,[]{};:'\"?".includes(char)
       );
       if (!invalidProperty) {
         return {
@@ -150,7 +153,8 @@ export const expressionReferenceTokenEndingAt = (
           elementToken: path.name,
           elementFrom: sigilAt + 1,
           elementTo: path.end,
-          query: property
+          query: property,
+          ...(optionalProperty ? { optional: true as const } : {})
         };
       }
     }
@@ -265,12 +269,37 @@ export const scanExpressionReferences = (
             offset + indexStart
           ));
         }
-        index = parsed.end;
+        if (text.slice(parsed.end, parsed.end + 2) === "?.") {
+          const propertyStart = parsed.end + 2;
+          let propertyEnd = propertyStart;
+          while (
+            propertyEnd < text.length &&
+            !/\s/.test(text[propertyEnd]!) &&
+            !"()+*/<>!=&|,[]{};:'\"?".includes(text[propertyEnd]!)
+          ) propertyEnd += 1;
+          results.push({
+            kind: "elementProperty",
+            tokenStart: offset + reference.fullRange.start,
+            tokenEnd: offset + propertyEnd,
+            from: offset + propertyStart,
+            to: offset + propertyEnd,
+            sigil: true,
+            elementToken: reference.pathText,
+            elementFrom: offset + reference.pathRange.start,
+            elementTo: offset + reference.pathRange.end,
+            query: text.slice(propertyStart, propertyEnd),
+            optional: true
+          });
+          index = propertyEnd;
+        } else {
+          index = parsed.end;
+        }
         continue;
       }
       const path = readDslReferencePath(text, index + 1, text.length);
-      if (path.kind === "valid" && text[path.end] === ".") {
-        const propertyStart = path.end + 1;
+      const optionalProperty = path.kind === "valid" && text.slice(path.end, path.end + 2) === "?.";
+      if (path.kind === "valid" && (text[path.end] === "." || optionalProperty)) {
+        const propertyStart = path.end + (optionalProperty ? 2 : 1);
         let propertyEnd = propertyStart;
         while (
           propertyEnd < text.length &&
@@ -287,7 +316,8 @@ export const scanExpressionReferences = (
           elementToken: path.name,
           elementFrom: offset + index + 1,
           elementTo: offset + path.end,
-          query: text.slice(propertyStart, propertyEnd)
+          query: text.slice(propertyStart, propertyEnd),
+          ...(optionalProperty ? { optional: true as const } : {})
         });
         index = propertyEnd;
         continue;

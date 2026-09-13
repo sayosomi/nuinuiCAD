@@ -168,7 +168,8 @@ export const createIncrementalLinearMutationEvaluator = (
     { collectionValues },
     resolveCurrent,
     resolveGeometryProperty,
-    resolveGeometryTarget
+    resolveGeometryTarget,
+    resolveCollectionLength
   );
 
   const retireFramesBefore = (sourceOrder: number) => {

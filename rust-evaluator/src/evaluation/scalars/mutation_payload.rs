@@ -12,7 +12,7 @@ use super::program_payload::{
     decode_collection_values, ValidatedScalarProgramCollection,
     ValidatedScalarProgramCollectionMember,
 };
-use super::scalar_payload::decode_scalar_type;
+use super::scalar_payload::{decode_scalar_type, scalar_type_assignable};
 use super::types::{BindingId, ScalarType, TypedBuiltinArgument, TypedScalarExpression};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -91,6 +91,7 @@ fn expression_type(expression: &TypedScalarExpression) -> Option<&ScalarType> {
         | TypedScalarExpression::BooleanLiteral { r#type, .. }
         | TypedScalarExpression::NoneLiteral { r#type, .. }
         | TypedScalarExpression::GeometryProperty { r#type, .. } => Some(r#type),
+        TypedScalarExpression::OptionalMember { r#type, .. } => r#type.as_ref(),
         TypedScalarExpression::ChoiceLiteral { r#type, .. }
         | TypedScalarExpression::Reference { r#type, .. }
         | TypedScalarExpression::CollectionIndex { r#type, .. }
@@ -366,7 +367,9 @@ fn decode_version(
                 ));
             }
             if let Some(expression) = initializer.as_ref() {
-                if expression_type(expression) != Some(&declared_type) {
+                if expression_type(expression).map_or(true, |actual| {
+                    !scalar_type_assignable(actual, &declared_type)
+                }) {
                     return Err(issue(
                         Code::LiteralTypeMismatch,
                         "declaration initializer type must match declaredType",
@@ -399,7 +402,9 @@ fn decode_version(
                 "expression",
                 "set binding version",
             )?)?;
-            if expression_type(&expression) != Some(&declared_type) {
+            if expression_type(&expression).map_or(true, |actual| {
+                !scalar_type_assignable(actual, &declared_type)
+            }) {
                 return Err(issue(
                     Code::LiteralTypeMismatch,
                     "set expression type must match declaredType",

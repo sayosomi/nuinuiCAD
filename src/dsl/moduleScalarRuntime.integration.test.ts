@@ -923,6 +923,94 @@ describe("module scalar runtime integration", () => {
     });
   });
 
+  it("short-circuits optional record-field geometry access and preserves present values", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line Baseline = segment(start: @A, end: @B)",
+      "record Piece(note: string?, outline: path?)",
+      "const present: Piece? = Piece(note: \"present\", outline: @Baseline)",
+      "const absent: Piece? = none",
+      "const presentNote: string? = @present?.note",
+      "const absentNote: string? = @absent?.note",
+      "const absentRecord: Piece = Piece(note: \"record\", outline: none)",
+      "const presentRecordLength: number? = @present.outline?.length",
+      "const absentRecordLength: number? = @absentRecord.outline?.length",
+      "const presentOutline: path? = @Baseline",
+      "const absentOutline: path? = none",
+      "const presentLength: number? = @presentOutline?.length",
+      "const absentLength: number? = @absentOutline?.length"
+    ].join("\n"), "optional-record-geometry-runtime");
+    expectValid(compiled);
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const scalarValue = (name: string) => {
+      const binding = compiled.bindingAnalysis!.catalog.bindings.find((candidate) =>
+        candidate.kind === "typed" && candidate.name === name
+      );
+      expect(binding).toBeDefined();
+      return result.computedScalarBindings?.get(binding!.id);
+    };
+    expect(scalarValue("presentNote")).toMatchObject({ status: "ok", value: { kind: "string", value: "present" } });
+    expect(scalarValue("absentNote")).toMatchObject({ status: "ok", value: { kind: "none" } });
+    expect(scalarValue("presentRecordLength")).toMatchObject({ status: "ok", value: { kind: "number", value: 10 } });
+    expect(scalarValue("absentRecordLength")).toMatchObject({ status: "ok", value: { kind: "none" } });
+    expect(scalarValue("presentLength")).toMatchObject({ status: "ok", value: { kind: "number", value: 10 } });
+    expect(scalarValue("absentLength")).toMatchObject({ status: "ok", value: { kind: "none" } });
+    const presentNoteBinding = compiled.bindingAnalysis!.catalog.bindings.find((candidate) =>
+      candidate.kind === "typed" && candidate.name === "presentNote"
+    );
+    const presentNoteInitializer = compiled.scalarProgram?.statements.find((statement) =>
+      statement.bindingId === presentNoteBinding?.id
+    )?.declaration.initializer;
+    expect(presentNoteInitializer).toMatchObject({
+      kind: "optionalMember",
+      type: { kind: "optional", valueType: { kind: "string" } }
+    });
+  });
+
+  it("evaluates optional collection cardinality for present and none collections", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "const present: number[]? = [1, 2, 3]",
+      "const absent: number[]? = none",
+      "const presentCount: number? = @present?.length",
+      "const absentCount: number? = @absent?.length"
+    ].join("\n"), "optional-collection-runtime");
+    expectValid(compiled);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const scalarValue = (name: string) => {
+      const binding = compiled.bindingAnalysis!.catalog.bindings.find((candidate) =>
+        candidate.kind === "typed" && candidate.name === name
+      );
+      expect(binding).toBeDefined();
+      return result.computedScalarBindings?.get(binding!.id);
+    };
+    expect(scalarValue("presentCount")).toMatchObject({ status: "ok", value: { kind: "number", value: 3 } });
+    expect(scalarValue("absentCount")).toMatchObject({ status: "ok", value: { kind: "none" } });
+  });
+
+  it("rejects optional member access on a non-optional receiver", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "const present: number[] = [1, 2]",
+      "const invalid: number? = @present?.length"
+    ].join("\n"), "optional-member-non-optional-receiver");
+    expect(compiled.diagnostics.some((diagnostic) => diagnostic.code === "module-optional-member-non-optional-receiver" || diagnostic.code === "module-scalar-type-mismatch")).toBe(true);
+  });
+
+  it("keeps unknown optional members as diagnostics", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "const present: number[]? = [1, 2]",
+      "const invalid: number? = @present?.missing"
+    ].join("\n"), "optional-member-invalid");
+    expect(compiled.diagnostics.some((diagnostic) => diagnostic.severity === "error")).toBe(true);
+  });
+
   it("evaluates constructed geometry record fields through a Module parameter", () => {
     const compiled = compileWithIds([
       "nui 1",
