@@ -1,4 +1,5 @@
 import type {
+  DrawingModifierFill,
   ComputedGeometry,
   DependencyError,
   DrawingModifierStroke,
@@ -202,6 +203,33 @@ const parseModifierColor = (value: unknown, path: string) => {
   return failModifierInspection(`${path}.value is not a supported stroke color`);
 };
 
+const parseModifierFill = (value: unknown, path: string): DrawingModifierFill | null => {
+  if (value === null) return null;
+  if (!isPlainObject(value) || typeof value.kind !== "string") {
+    return failModifierInspection(`${path}.value is not a fill color`);
+  }
+  if (value.kind === "none" && Object.keys(value).length === 1) {
+    return { kind: "none" };
+  }
+  if (value.kind === "fixed" && Object.keys(value).length === 2 &&
+    typeof value.hex === "string" && /^#[0-9A-Fa-f]{6}$/.test(value.hex)) {
+    return { kind: "fixed", hex: value.hex };
+  }
+  if (value.kind === "themeRole" && Object.keys(value).length === 2 &&
+    (value.role === "foreground" || value.role === "muted" || value.role === "accent" ||
+      value.role === "info" || value.role === "warning" || value.role === "error")) {
+    return { kind: "themeRole", role: value.role };
+  }
+  return failModifierInspection(`${path}.value is not a supported fill color`);
+};
+
+const parseModifierFillOpacity = (value: unknown, path: string) => {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > 1) {
+    return failModifierInspection(`${path}.value is not a finite fill opacity in the range 0..1`);
+  }
+  return value;
+};
+
 const parseEffectiveDrawingModifierResolutions = (
   value: unknown
 ): Map<ElementId, EffectiveDrawingModifierResolution> => {
@@ -216,8 +244,9 @@ const parseEffectiveDrawingModifierResolutions = (
       return failModifierInspection(`entry at index ${index} duplicates elementId ${entry.elementId}`);
     }
     const resolution = entry.resolution;
-    if (!isPlainObject(resolution) || Object.keys(resolution).length !== 4 ||
-      !("visible" in resolution) || !("widthPx" in resolution) || !("lineType" in resolution) || !("color" in resolution)) {
+    if (!isPlainObject(resolution) || Object.keys(resolution).length !== 6 ||
+      !("visible" in resolution) || !("widthPx" in resolution) || !("lineType" in resolution) ||
+      !("color" in resolution) || !("fill" in resolution) || !("fillOpacity" in resolution)) {
       return failModifierInspection(`entry at index ${index} has a malformed resolution`);
     }
     resolutions.set(entry.elementId, {
@@ -240,7 +269,17 @@ const parseEffectiveDrawingModifierResolutions = (
         resolution.color,
         `entry at index ${index}.resolution.color`,
         (nested) => parseModifierColor(nested, `entry at index ${index}.resolution.color`)
-      ) as EffectiveDrawingModifierResolution["color"]
+      ) as EffectiveDrawingModifierResolution["color"],
+      fill: parseModifierProperty(
+        resolution.fill,
+        `entry at index ${index}.resolution.fill`,
+        (nested) => parseModifierFill(nested, `entry at index ${index}.resolution.fill`)
+      ) as EffectiveDrawingModifierResolution["fill"],
+      fillOpacity: parseModifierProperty(
+        resolution.fillOpacity,
+        `entry at index ${index}.resolution.fillOpacity`,
+        (nested) => parseModifierFillOpacity(nested, `entry at index ${index}.resolution.fillOpacity`)
+      ) as EffectiveDrawingModifierResolution["fillOpacity"]
     });
   }
   return resolutions;

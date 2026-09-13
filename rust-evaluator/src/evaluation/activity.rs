@@ -56,6 +56,8 @@ struct DrawingModifierContribution {
     width_px: Option<ModifierPropertyContribution>,
     line_type: Option<ModifierPropertyContribution>,
     color: Option<ModifierPropertyContribution>,
+    fill: Option<ModifierPropertyContribution>,
+    fill_opacity: Option<ModifierPropertyContribution>,
 }
 
 #[derive(Clone, Debug)]
@@ -165,6 +167,13 @@ fn drawing_modifier_contributions(
                         "lineType",
                     ),
                     color: property_contribution(modifier, delta, delta_identity.as_ref(), "color"),
+                    fill: property_contribution(modifier, delta, delta_identity.as_ref(), "fill"),
+                    fill_opacity: property_contribution(
+                        modifier,
+                        delta,
+                        delta_identity.as_ref(),
+                        "fillOpacity",
+                    ),
                 },
             ))
         })
@@ -240,6 +249,10 @@ pub(crate) fn effective_drawing_modifier_runtime_by_element_id_with_profile(
         let mut style_winner: Option<DrawingModifierPropertyWinner> = None;
         let mut color = serde_json::json!({ "kind": "themeRole", "role": "foreground" });
         let mut color_winner: Option<DrawingModifierPropertyWinner> = None;
+        let mut fill = Value::Null;
+        let mut fill_winner: Option<DrawingModifierPropertyWinner> = None;
+        let mut fill_opacity = Value::from(1.0);
+        let mut fill_opacity_winner: Option<DrawingModifierPropertyWinner> = None;
 
         for owner_index in modifier_owner_indices(index, elements, &by_id) {
             let owner = &elements[owner_index];
@@ -271,6 +284,14 @@ pub(crate) fn effective_drawing_modifier_runtime_by_element_id_with_profile(
                 if let Some(property) = contribution.color.as_ref() {
                     color = property.value.clone();
                     color_winner = Some(winner_for(&owner_id, modifier_name, property));
+                }
+                if let Some(property) = contribution.fill.as_ref() {
+                    fill = property.value.clone();
+                    fill_winner = Some(winner_for(&owner_id, modifier_name, property));
+                }
+                if let Some(property) = contribution.fill_opacity.as_ref() {
+                    fill_opacity = property.value.clone();
+                    fill_opacity_winner = Some(winner_for(&owner_id, modifier_name, property));
                 }
             }
         }
@@ -323,6 +344,14 @@ pub(crate) fn effective_drawing_modifier_runtime_by_element_id_with_profile(
             "color": {
                 "value": color,
                 "winner": color_winner,
+            },
+            "fill": {
+                "value": fill,
+                "winner": fill_winner,
+            },
+            "fillOpacity": {
+                "value": fill_opacity,
+                "winner": fill_opacity_winner,
             },
         });
         runtime.insert(
@@ -500,6 +529,77 @@ mod provenance_tests {
         );
         assert_eq!(resolution["lineType"]["value"], Value::from("dashed"));
         assert!(resolution["lineType"]["winner"]["selectedProfileDelta"].is_null());
+    }
+
+    #[test]
+    fn resolves_fill_and_opacity_independently_with_explicit_no_fill() {
+        let elements = vec![
+            serde_json::json!({
+                "id": "group",
+                "type": "group",
+                "activity": "visible",
+                "modifierNames": ["base"]
+            }),
+            serde_json::json!({
+                "id": "path",
+                "type": "polyline",
+                "activity": "visible",
+                "parentGroupId": "group",
+                "modifierNames": ["clear"]
+            }),
+        ];
+        let modifiers = serde_json::json!([
+            {
+                "name": "base",
+                "fill": { "kind": "fixed", "hex": "#112233" },
+                "fillOpacity": 0.25,
+                "profileDeltas": [{
+                    "profileId": "print",
+                    "profileName": "Print",
+                    "fillOpacity": 0.75
+                }]
+            },
+            { "name": "clear", "fill": { "kind": "none" } }
+        ]);
+
+        let common = effective_drawing_modifier_runtime_by_element_id_with_profile(
+            &elements,
+            Some(&modifiers),
+            None,
+        );
+        let common_resolution = &common["path"].resolution;
+        assert_eq!(
+            common_resolution["fill"]["value"],
+            serde_json::json!({ "kind": "none" })
+        );
+        assert_eq!(
+            common_resolution["fill"]["winner"]["ownerElementId"],
+            Value::from("path")
+        );
+        assert_eq!(common_resolution["fillOpacity"]["value"], Value::from(0.25));
+        assert_eq!(
+            common_resolution["fillOpacity"]["winner"]["ownerElementId"],
+            Value::from("group")
+        );
+
+        let selected = effective_drawing_modifier_runtime_by_element_id_with_profile(
+            &elements,
+            Some(&modifiers),
+            Some("print"),
+        );
+        let selected_resolution = &selected["path"].resolution;
+        assert_eq!(
+            selected_resolution["fill"]["value"],
+            serde_json::json!({ "kind": "none" })
+        );
+        assert_eq!(
+            selected_resolution["fillOpacity"]["value"],
+            Value::from(0.75)
+        );
+        assert_eq!(
+            selected_resolution["fillOpacity"]["winner"]["selectedProfileDelta"]["profileId"],
+            Value::from("print")
+        );
     }
 
     #[test]

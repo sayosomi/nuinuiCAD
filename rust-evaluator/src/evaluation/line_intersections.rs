@@ -323,7 +323,7 @@ fn path_segments_for_line(geometry: &Value) -> Option<Vec<IntersectionSegment>> 
             ))
         }
         "bezierCurve" => bezier_path_segments(geometry),
-        "offsetLine" => offset_path_segments(geometry),
+        "offsetLine" | "joinedPath" => offset_path_segments(geometry),
         "polyline" => {
             let points = geometry
                 .get("segments")?
@@ -1367,6 +1367,105 @@ fn refine_intersection(
 
 fn same_point(a: &LineIntersection, b: &LineIntersection) -> bool {
     (a.x - b.x).hypot(a.y - b.y) <= DEDUPE_EPSILON
+}
+
+fn boxes_overlap(a: &IntersectionSegment, b: &IntersectionSegment) -> bool {
+    a.start.x.min(a.end.x).max(b.start.x.min(b.end.x))
+        <= a.start.x.max(a.end.x).min(b.start.x.max(b.end.x)) + DEDUPE_EPSILON
+        && a.start.y.min(a.end.y).max(b.start.y.min(b.end.y))
+            <= a.start.y.max(a.end.y).min(b.start.y.max(b.end.y)) + DEDUPE_EPSILON
+}
+
+fn point_near(left: Point, right: Point) -> bool {
+    distance(left, right) <= DEDUPE_EPSILON
+}
+
+/// Checks only the semantic closed-path kinds used by Drawing Modifier fill.
+/// A boundary join is allowed when the two contour portions meet only at their
+/// intended shared endpoint; crossings, touches, and overlaps elsewhere are
+/// self-intersections.
+pub(crate) fn is_self_intersecting_closed_path(geometry: &Value) -> bool {
+    let kind = geometry.get("kind").and_then(Value::as_str);
+    if !matches!(kind, Some("polyline" | "offsetLine" | "joinedPath"))
+        || !geometry
+            .get("closed")
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+    {
+        return false;
+    }
+    let Some(segments) = path_segments_for_line(geometry) else {
+        return false;
+    };
+    let Some(last_index) = segments.len().checked_sub(1) else {
+        return false;
+    };
+    if last_index < 1 {
+        return false;
+    }
+
+    let only_intended_join = |first: &IntersectionSegment,
+                              second: &IntersectionSegment,
+                              intersection: &SegmentIntersection,
+                              closure: bool| {
+        let join = if closure { first.start } else { first.end };
+        if !point_near(intersection.point, join) {
+            return false;
+        }
+        if !intersection.overlap {
+            return true;
+        }
+        let first_away = if closure {
+            Point {
+                x: first.end.x - join.x,
+                y: first.end.y - join.y,
+            }
+        } else {
+            Point {
+                x: first.start.x - join.x,
+                y: first.start.y - join.y,
+            }
+        };
+        let second_away = if closure {
+            Point {
+                x: second.start.x - join.x,
+                y: second.start.y - join.y,
+            }
+        } else {
+            Point {
+                x: second.end.x - join.x,
+                y: second.end.y - join.y,
+            }
+        };
+        cross(first_away, second_away).abs() <= DEDUPE_EPSILON
+            && first_away.x * second_away.x + first_away.y * second_away.y < 0.0
+    };
+
+    for first_index in 0..=last_index {
+        for second_index in (first_index + 1)..=last_index {
+            let first = &segments[first_index];
+            let second = &segments[second_index];
+            if !boxes_overlap(first, second) {
+                continue;
+            }
+            let Some(rough) = segment_intersection(first, second) else {
+                continue;
+            };
+            let intersection = refine_intersection(first, second, rough);
+            let Some(intersection) = intersection.or_else(|| segment_intersection(first, second))
+            else {
+                continue;
+            };
+            let closure = first_index == 0 && second_index == last_index;
+            let consecutive = second_index == first_index + 1;
+            if (consecutive || closure) && only_intended_join(first, second, &intersection, closure)
+            {
+                continue;
+            }
+            return true;
+        }
+    }
+    false
 }
 
 pub(crate) fn find_line_intersections(

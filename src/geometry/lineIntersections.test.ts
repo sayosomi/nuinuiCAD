@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { ComputedArcLine, ComputedBezierCurve, ComputedLine, ComputedOffsetLine, ComputedPoint } from "../types/geometry";
-import { findLineIntersections } from "./lineIntersections";
+import type { ComputedArcLine, ComputedBezierCurve, ComputedLine, ComputedOffsetLine, ComputedPoint, ComputedPolyline } from "../types/geometry";
+import { findLineIntersections, isSelfIntersectingClosedPath } from "./lineIntersections";
 
 const point = (x: number, y: number): ComputedPoint => ({
   kind: "point",
@@ -106,6 +106,31 @@ const verticalBezier = (): ComputedBezierCurve => {
     startHandleLength: 67,
     endHandleAngleDeg: 270,
     endHandleLength: 67
+  };
+};
+
+const polyline = (points: Array<[number, number]>, closed = true): ComputedPolyline => {
+  const computedPoints = points.map(([x, y]) => point(x, y));
+  const segments = computedPoints.slice(0, -1).map((start, index) => {
+    const end = computedPoints[index + 1]!;
+    return { kind: "line" as const, start, end, length: Math.hypot(end.x - start.x, end.y - start.y) };
+  });
+  if (closed && Math.hypot(computedPoints.at(-1)!.x - computedPoints[0]!.x, computedPoints.at(-1)!.y - computedPoints[0]!.y) > 1e-9) {
+    const start = computedPoints.at(-1)!;
+    const end = computedPoints[0]!;
+    segments.push({ kind: "line", start, end, length: Math.hypot(end.x - start.x, end.y - start.y) });
+  }
+  return {
+    kind: "polyline",
+    elementId: "polyline",
+    name: "polyline",
+    segments,
+    closed,
+    start: computedPoints[0]!,
+    end: closed ? computedPoints[0]! : computedPoints.at(-1)!,
+    length: segments.reduce((sum, segment) => sum + segment.length, 0),
+    startTangentAngleDeg: null,
+    endTangentAngleDeg: null
   };
 };
 
@@ -585,5 +610,23 @@ describe("findLineIntersections", () => {
       x: 10,
       y: 0
     });
+  });
+});
+
+describe("closed path self-intersection", () => {
+  it("allows consecutive joins and the intended closure join", () => {
+    expect(isSelfIntersectingClosedPath(polyline([[0, 0], [10, 0], [10, 10], [0, 10]]))).toBe(false);
+  });
+
+  it.each([
+    ["crossing", [[0, 0], [10, 10], [0, 10], [10, 0]]],
+    ["touch", [[0, 0], [10, 0], [10, 10], [5, 0], [0, 10]]],
+    ["overlap", [[0, 0], [10, 0], [5, 0], [0, 10]]]
+  ])("suppresses %s between non-adjacent contour portions", (_name, points) => {
+    expect(isSelfIntersectingClosedPath(polyline(points as Array<[number, number]>))).toBe(true);
+  });
+
+  it("does not infer a closed fill from endpoint coincidence", () => {
+    expect(isSelfIntersectingClosedPath(polyline([[0, 0], [10, 0], [0, 0]], false))).toBe(false);
   });
 });

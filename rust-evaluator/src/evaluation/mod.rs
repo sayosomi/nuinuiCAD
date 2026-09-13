@@ -163,6 +163,7 @@ use line_geometry_input::{
     materialize_geometry_input_targets, materialize_geometry_input_targets_for_runtime,
     GeometryInputTargets,
 };
+use line_intersections::is_self_intersecting_closed_path;
 use line_tangent_offset_point_evaluator::evaluate_line_tangent_offset_point;
 use numeric_binding_runtime::{
     apply_numeric_bindings, validate_numeric_bindings_payload, ValidatedNumericBinding,
@@ -189,7 +190,7 @@ use split_line_evaluator::evaluate_split_line;
 use text_evaluator::{evaluate_text, TextTemplateContext};
 use types::{
     element_id, element_type, DependencyError, EffectiveDrawingModifierStroke, ElementId,
-    EvaluationState, GeometryMutationExecution,
+    EvaluationState, EvaluationWarning, GeometryMutationExecution,
 };
 pub use types::{EvaluationCommandError, EvaluationInput, EvaluationPayload};
 
@@ -1893,6 +1894,55 @@ fn evaluate_document_input_with_scalar_program(
             }));
         }
     }
+
+    // Self-intersection suppresses only fill presentation. Keep the geometry
+    // and stroke intact, while using the evaluator's existing warning channel
+    // so host adapters can surface the contract-required warning later.
+    let generated_source_by_id = state
+        .for_group_generated_rows
+        .iter()
+        .map(|row| {
+            (
+                row.generated_element_id.clone(),
+                row.template_element_id.clone(),
+            )
+        })
+        .collect::<HashMap<_, _>>();
+    let fill_warnings = state
+        .computed_geometry_order
+        .iter()
+        .filter_map(|id| {
+            let geometry = state.computed_geometry.get(id)?;
+            let source_id = generated_source_by_id.get(id).unwrap_or(id);
+            let resolution = source_effective_drawing_modifier_resolutions.get(source_id)?;
+            let active_fill = resolution
+                .get("fill")
+                .and_then(|property| property.get("value"))
+                .and_then(Value::as_object)
+                .and_then(|fill| fill.get("kind"))
+                .and_then(Value::as_str)
+                .is_some_and(|kind| kind != "none");
+            if !active_fill || !is_self_intersecting_closed_path(geometry) {
+                return None;
+            }
+            Some(EvaluationWarning {
+                element_id: id.clone(),
+                element_name: geometry
+                    .get("name")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_owned(),
+                message: format!(
+                    "{} の塗りつぶしは自己交差する閉じたパスでは表示されません。",
+                    geometry
+                        .get("name")
+                        .and_then(Value::as_str)
+                        .unwrap_or_default()
+                ),
+            })
+        })
+        .collect::<Vec<_>>();
+    state.warnings.extend(fill_warnings);
 
     let mut transformation_stage_geometry = state
         .transformation_stage_geometry

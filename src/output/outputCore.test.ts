@@ -260,6 +260,79 @@ describe("SAY-64 output core", () => {
     expect(drawable.segments.at(-1)).toMatchObject({ start: { x: 10, y: 10 }, end: { x: 0, y: 0 } });
   });
 
+  it("carries fill and opacity on the same closed-path drawable while preserving stroke and placement", () => {
+    const doc = sourceFor([
+      "nui 1",
+      "group G {",
+      "  line Outline = polyline(points: [(0, 0), (10, 0), (10, 10)], closed: true)",
+      "  line Open = polyline(points: [(20, 0), (30, 0), (20, 0)], closed: false)",
+      "  line StrokeOnly = segment(start: (40, 0), end: (50, 0))",
+      "}",
+      "layout L {",
+      "  place @G(at: (100, 20), scale: 2, angle: 90, mirror: true)",
+      "}",
+      "svg S(layout: @L, margin: 0)"
+    ]);
+    doc.document.modifiers = [{
+      name: "Fill",
+      widthPx: 2,
+      color: { kind: "themeRole", role: "warning" },
+      fill: { kind: "fixed", hex: "#123456" },
+      fillOpacity: 0.25
+    }];
+    for (const name of ["Outline", "Open", "StrokeOnly"]) {
+      doc.document.elements.find((element) => element.name === name)!.modifierNames = ["Fill"];
+    }
+
+    const plan = buildOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0], evaluation: evaluationFor(doc) });
+    const outline = plan.drawables.find((drawable) => drawable.name === "Outline");
+    const open = plan.drawables.find((drawable) => drawable.name === "Open");
+    const strokeOnly = plan.drawables.find((drawable) => drawable.name === "StrokeOnly");
+
+    expect(outline).toMatchObject({
+      kind: "polyline",
+      stroke: { widthMm: 2 * PX_TO_MM, colorHex: "#73320d" },
+      fill: { colorHex: "#123456", opacity: 0.25 }
+    });
+    expect(open).not.toHaveProperty("fill");
+    expect(strokeOnly).not.toHaveProperty("fill");
+    expect(outline?.elementId).toBe(doc.document.elements.find((element) => element.name === "Outline")?.id);
+    expect(plan.placements[0]?.drawables).toContain(outline);
+    expect(plan.placements[0]?.at).toEqual({ x: 100, y: 20 });
+  });
+
+  it("carries fill on closed joined and offset paths and suppresses it for self-intersection", () => {
+    const doc = sourceFor([
+      "nui 1",
+      "group G {",
+      "  line Base = polyline(points: [(0, 0), (10, 0), (10, 10), (0, 10)], closed: true)",
+      "  line Offset = offset(sources: [@Base], distance: 1, side: left, closed: true, suppressTrimWarnings: false)",
+      "  line A = segment(start: (20, 0), end: (30, 10))",
+      "  line B = segment(start: (30, 10), end: (20, 10))",
+      "  line C = segment(start: (20, 10), end: (30, 0))",
+      "  line D = segment(start: (30, 0), end: (20, 0))",
+      "  line Crossing = join(paths: [@A, @B, @C, @D], closed: true)",
+      "}",
+      "layout L {",
+      "  place @G(at: (0, 0))",
+      "}",
+      "svg S(layout: @L, margin: 0)"
+    ]);
+    doc.document.modifiers = [{ name: "Fill", fill: { kind: "themeRole", role: "accent" }, fillOpacity: 0.5 }];
+    for (const name of ["Base", "Offset", "Crossing"]) {
+      doc.document.elements.find((element) => element.name === name)!.modifierNames = ["Fill"];
+    }
+
+    const evaluation = evaluationFor(doc);
+    const plan = buildOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0], evaluation });
+    expect(plan.drawables.find((drawable) => drawable.name === "Base")).toMatchObject({ fill: { colorHex: "#0f766e", opacity: 0.5 } });
+    expect(plan.drawables.find((drawable) => drawable.name === "Offset")).toMatchObject({ fill: { colorHex: "#0f766e", opacity: 0.5 } });
+    expect(plan.drawables.find((drawable) => drawable.name === "Crossing")).not.toHaveProperty("fill");
+    expect(evaluation.warnings).toEqual(expect.arrayContaining([
+      expect.objectContaining({ elementId: expect.any(String), message: expect.stringContaining("自己交差") })
+    ]));
+  });
+
   it("supports nested targets and repeated independent placements", () => {
     const doc = sourceFor([
       "nui 1",

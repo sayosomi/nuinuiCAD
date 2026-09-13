@@ -14,6 +14,7 @@ import type {
   ComputedOffsetLine,
   ComputedPolyline,
   ComputedPoint,
+  DrawingModifierFillColor,
   DrawingModifierStroke,
   ElementId,
   EvaluationResult,
@@ -24,6 +25,9 @@ import type {
   SvgOutput,
   DrawingModifierThemeRole
 } from "../types/geometry";
+import { effectiveDrawingModifierResolutionsFromResult } from "../model/drawingModifierInspection";
+import { isFillEligibleClosedPath } from "../geometry/linePaths";
+import { isSelfIntersectingClosedPath } from "../geometry/lineIntersections";
 
 export const PX_TO_MM = 25.4 / 96;
 export const OUTPUT_TEXT_NOMINAL_FONT_SIZE_MM = 3;
@@ -66,6 +70,11 @@ export type OutputStroke = {
   colorHex: string;
 };
 
+export type OutputFill = {
+  colorHex: string;
+  opacity: number;
+};
+
 export type OutputPathSegment =
   | { kind: "line"; start: OutputPoint; end: OutputPoint }
   | {
@@ -87,6 +96,7 @@ export type OutputPath = OutputPathSegment & {
   elementId: ElementId;
   name: string;
   stroke: OutputStroke;
+  fill?: OutputFill;
 };
 
 export type OutputOffsetLine = {
@@ -95,6 +105,7 @@ export type OutputOffsetLine = {
   name: string;
   segments: OutputPathSegment[];
   stroke: OutputStroke;
+  fill?: OutputFill;
 };
 
 export type OutputJoinedPath = {
@@ -103,6 +114,7 @@ export type OutputJoinedPath = {
   name: string;
   segments: OutputPathSegment[];
   stroke: OutputStroke;
+  fill?: OutputFill;
 };
 
 export type OutputPolyline = {
@@ -112,6 +124,7 @@ export type OutputPolyline = {
   segments: OutputPathSegment[];
   closed: boolean;
   stroke: OutputStroke;
+  fill?: OutputFill;
 };
 
 export type OutputText = {
@@ -326,6 +339,33 @@ const strokeColor = (stroke: DrawingModifierStroke): string => {
   return outputPaletteColorForRole(stroke.color.role);
 };
 
+const fillColor = (fill: Exclude<DrawingModifierFillColor, { kind: "none" }>): string => {
+  if (fill.kind === "fixed") {
+    if (!/^#[0-9A-Fa-f]{6}$/.test(fill.hex)) {
+      throw new OutputPlanError(`Invalid fixed fill color: ${fill.hex}`);
+    }
+    return fill.hex;
+  }
+  return outputPaletteColorForRole(fill.role);
+};
+
+const fillFor = (
+  geometry: ComputedGeometry,
+  elementId: ElementId,
+  evaluation: EvaluationResult
+): OutputFill | undefined => {
+  if (!isFillEligibleClosedPath(geometry)) return undefined;
+  if (isSelfIntersectingClosedPath(geometry)) return undefined;
+  const resolution = effectiveDrawingModifierResolutionsFromResult(evaluation).get(elementId);
+  const fill = resolution?.fill.value;
+  if (!fill || fill.kind === "none") return undefined;
+  const opacity = resolution?.fillOpacity.value ?? 1;
+  if (!Number.isFinite(opacity) || opacity < 0 || opacity > 1) {
+    throw new OutputPlanError(`Invalid fill opacity for ${elementId}: expected a finite value in the range 0..1.`);
+  }
+  return { colorHex: fillColor(fill), opacity };
+};
+
 const strokeFor = (
   elementId: ElementId,
   evaluation: EvaluationResult
@@ -536,29 +576,31 @@ const outputGeometryFor = (
   elementId: ElementId,
   name: string,
   stroke: OutputStroke,
+  fill: OutputFill | undefined,
   transform: { origin: OutputPoint; at: OutputPoint; scale: number; angleDeg: number; mirror: boolean }
 ): OutputDrawable[] => {
   const finalStroke = { ...stroke };
+  const presentation = fill ? { fill } : {};
   if (geometry.kind === "line" || geometry.kind === "arcLine") {
     const path = geometryPath(geometry);
     if (!path) return [];
-    return [{ ...transformSegment(path, transform.origin, transform.at, transform.scale, transform.angleDeg, transform.mirror), elementId, name, stroke: finalStroke } as OutputPath];
+    return [{ ...transformSegment(path, transform.origin, transform.at, transform.scale, transform.angleDeg, transform.mirror), elementId, name, stroke: finalStroke, ...presentation } as OutputPath];
   }
   if (geometry.kind === "bezierCurve") {
     const segments = bezierSegments(geometry).map((segment) => transformSegment(segment, transform.origin, transform.at, transform.scale, transform.angleDeg, transform.mirror));
-    return segments.map((segment) => ({ ...segment, elementId, name, stroke: finalStroke } as OutputPath));
+    return segments.map((segment) => ({ ...segment, elementId, name, stroke: finalStroke, ...presentation } as OutputPath));
   }
   if (geometry.kind === "offsetLine") {
     const segments = offsetSegments(geometry).map((segment) => transformSegment(segment, transform.origin, transform.at, transform.scale, transform.angleDeg, transform.mirror));
-    return segments.length ? [{ kind: "offsetLine", elementId, name, segments, stroke: finalStroke }] : [];
+    return segments.length ? [{ kind: "offsetLine", elementId, name, segments, stroke: finalStroke, ...presentation }] : [];
   }
   if (geometry.kind === "joinedPath") {
     const segments = offsetSegments(geometry).map((segment) => transformSegment(segment, transform.origin, transform.at, transform.scale, transform.angleDeg, transform.mirror));
-    return segments.length ? [{ kind: "joinedPath", elementId, name, segments, stroke: finalStroke }] : [];
+    return segments.length ? [{ kind: "joinedPath", elementId, name, segments, stroke: finalStroke, ...presentation }] : [];
   }
   if (geometry.kind === "polyline") {
     const segments = polylineSegments(geometry).map((segment) => transformSegment(segment, transform.origin, transform.at, transform.scale, transform.angleDeg, transform.mirror));
-    return segments.length ? [{ kind: "polyline", elementId, name, segments, closed: geometry.closed, stroke: finalStroke }] : [];
+    return segments.length ? [{ kind: "polyline", elementId, name, segments, closed: geometry.closed, stroke: finalStroke, ...presentation }] : [];
   }
   if (geometry.kind === "text" && geometry.anchor) {
     const fontSizeMm = finitePositive(geometry.fontSize, `font size for ${elementId}`) * transform.scale;
@@ -708,7 +750,14 @@ const resolvedPlacement = (
     if (geometry.kind !== "line" && geometry.kind !== "arcLine" && geometry.kind !== "bezierCurve" && geometry.kind !== "offsetLine" && geometry.kind !== "joinedPath" && geometry.kind !== "polyline" && geometry.kind !== "text") continue;
     const sourceElement = sourceElementsById.get(sourceId);
     const name = sourceElement?.name ?? geometry.name;
-    drawables.push(...outputGeometryFor(geometry, geometry.elementId, name, strokeFor(geometry.elementId, evaluation), { origin, at, scale, angleDeg, mirror: placement.mirror }));
+    drawables.push(...outputGeometryFor(
+      geometry,
+      geometry.elementId,
+      name,
+      strokeFor(geometry.elementId, evaluation),
+      fillFor(geometry, geometry.elementId, evaluation),
+      { origin, at, scale, angleDeg, mirror: placement.mirror }
+    ));
   }
   return { id: placement.id, groupId: placement.groupId, origin, at, scale, angleDeg, mirror: placement.mirror, drawables };
 };

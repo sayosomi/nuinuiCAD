@@ -1,6 +1,7 @@
 import type {
   CadElementType,
   DrawingModifierDefinition,
+  DrawingModifierFill,
   DrawingModifierProperties,
   DrawingModifierStroke,
   ElementId
@@ -82,6 +83,8 @@ type ModifierContribution = {
   widthPx?: ModifierPropertyContribution<"widthPx">;
   lineType?: ModifierPropertyContribution<"lineType">;
   color?: ModifierPropertyContribution<"color">;
+  fill?: ModifierPropertyContribution<"fill">;
+  fillOpacity?: ModifierPropertyContribution<"fillOpacity">;
 };
 
 const modifierContributionFor = (
@@ -115,7 +118,9 @@ const modifierContributionFor = (
     visible: property("visible"),
     widthPx: property("widthPx"),
     lineType: property("lineType"),
-    color: property("color")
+    color: property("color"),
+    fill: property("fill"),
+    fillOpacity: property("fillOpacity")
   };
 };
 
@@ -184,6 +189,10 @@ export const effectiveDrawingModifierRuntimeById = <T extends ActivityElement>(
     let styleWinner: DrawingModifierPropertyWinner | null = null;
     let color = { ...defaultDrawingModifierProperties.color };
     let colorWinner: DrawingModifierPropertyWinner | null = null;
+    let fill: DrawingModifierFill | null = null;
+    let fillWinner: DrawingModifierPropertyWinner | null = null;
+    let fillOpacity = 1;
+    let fillOpacityWinner: DrawingModifierPropertyWinner | null = null;
 
     for (const owner of modifierOwnersFor(element, byId)) {
       for (const modifierName of owner.modifierNames ?? []) {
@@ -207,6 +216,14 @@ export const effectiveDrawingModifierRuntimeById = <T extends ActivityElement>(
           color = { ...contribution.color.value };
           colorWinner = winnerFor(owner.id, modifier.name, contribution.color);
         }
+        if (contribution.fill) {
+          fill = contribution.fill.value;
+          fillWinner = winnerFor(owner.id, modifier.name, contribution.fill);
+        }
+        if (contribution.fillOpacity) {
+          fillOpacity = contribution.fillOpacity.value;
+          fillOpacityWinner = winnerFor(owner.id, modifier.name, contribution.fillOpacity);
+        }
       }
     }
 
@@ -222,7 +239,9 @@ export const effectiveDrawingModifierRuntimeById = <T extends ActivityElement>(
         visible: { value: effectiveVisible, winner: styleCanWinVisibility ? visibleWinner : null },
         widthPx: { value: widthPx, winner: widthPxWinner },
         lineType: { value: style, winner: styleWinner },
-        color: { value: { ...color }, winner: colorWinner }
+        color: { value: { ...color }, winner: colorWinner },
+        fill: { value: fill ? { ...fill } : null, winner: fillWinner },
+        fillOpacity: { value: fillOpacity, winner: fillOpacityWinner }
       }
     });
   }

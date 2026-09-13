@@ -16,6 +16,7 @@ type Point = { x: number; y: number };
 
 export type LineLikeGeometry = ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine | ComputedPolyline | ComputedJoinedPath;
 export type LineLikeGeometryInput = LineLikeGeometry | Extract<ComputedGeometryValue, { kind: "line" | "arcLine" | "bezierCurve" | "offsetLine" | "joinedPath" | "polyline" }>;
+export type FillEligiblePathGeometry = ComputedOffsetLine | ComputedJoinedPath | ComputedPolyline;
 
 type PathSegment = {
   start: Point;
@@ -241,6 +242,13 @@ export const isLineLikeGeometryInput = (
   geometry?.kind === "offsetLine" ||
   geometry?.kind === "polyline" ||
   geometry?.kind === "joinedPath";
+
+/** Fill is a semantic property of the currently supported closed path kinds.
+ * Endpoint coincidence is deliberately not consulted here. */
+export const isFillEligibleClosedPath = (
+  geometry: ComputedGeometry | undefined
+): geometry is FillEligiblePathGeometry =>
+  (geometry?.kind === "polyline" || geometry?.kind === "offsetLine" || geometry?.kind === "joinedPath") && geometry.closed;
 
 const segmentsForLineLikeGeometry = (geometry: LineLikeGeometryInput): PathSegment[] => {
   if (geometry.kind === "line") {
