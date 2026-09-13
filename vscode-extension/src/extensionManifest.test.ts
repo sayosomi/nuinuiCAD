@@ -119,6 +119,19 @@ const webviewContextAliasIds = [
   "nuinuiCAD.webview.hideCanvasGeometryNames",
   "nuinuiCAD.webview.showCanvasPoints",
   "nuinuiCAD.webview.hideCanvasPoints",
+  "nuinuiCAD.webview.modulePreview.showPointNames",
+  "nuinuiCAD.webview.modulePreview.hidePointNames",
+  "nuinuiCAD.webview.modulePreview.showGeometryNames",
+  "nuinuiCAD.webview.modulePreview.hideGeometryNames",
+  "nuinuiCAD.webview.modulePreview.showPoints",
+  "nuinuiCAD.webview.modulePreview.hidePoints"
+] as const;
+const removedStaticWebviewAliasIds = [
+  "nuinuiCAD.webview.createFreePointAtPointer",
+  "nuinuiCAD.webview.fitDrawing",
+  "nuinuiCAD.webview.resetCanvasView",
+  "nuinuiCAD.webview.editCanvasRibbon",
+  "nuinuiCAD.webview.clearCanvasSelection",
   "nuinuiCAD.webview.convertPointToXYOffset",
   "nuinuiCAD.webview.convertPointToAngleDistanceOffset",
   "nuinuiCAD.webview.selectParentGroup",
@@ -126,23 +139,12 @@ const webviewContextAliasIds = [
   "nuinuiCAD.webview.bakeBaseShape",
   "nuinuiCAD.webview.modulePreview.fitDrawing",
   "nuinuiCAD.webview.modulePreview.resetView",
-  "nuinuiCAD.webview.modulePreview.showPointNames",
-  "nuinuiCAD.webview.modulePreview.hidePointNames",
-  "nuinuiCAD.webview.modulePreview.showGeometryNames",
-  "nuinuiCAD.webview.modulePreview.hideGeometryNames",
-  "nuinuiCAD.webview.modulePreview.showPoints",
-  "nuinuiCAD.webview.modulePreview.hidePoints",
   "nuinuiCAD.webview.modulePreview.clearSelection",
   "nuinuiCAD.webview.resetOutputPreviewView",
   "nuinuiCAD.webview.fitOutputPreview",
   "nuinuiCAD.webview.clearOutputPreviewFocus"
 ] as const;
 const obsoleteWebviewContextAliasIds = [
-  "nuinuiCAD.webview.createFreePointAtPointer",
-  "nuinuiCAD.webview.fitDrawing",
-  "nuinuiCAD.webview.resetCanvasView",
-  "nuinuiCAD.webview.editCanvasRibbon",
-  "nuinuiCAD.webview.clearCanvasSelection",
   "nuinuiCAD.webview.selectInstance",
   "nuinuiCAD.webview.goToSourceDefinition",
   "nuinuiCAD.webview.inlineModuleInstance",
@@ -154,10 +156,19 @@ const canonicalCommandShortTitles: Partial<Record<(typeof commandIds)[number], s
   "nuinuiCAD.openModulePreview": "Open Module Preview",
   "nuinuiCAD.convertPointToXYOffset": "XY Offset…",
   "nuinuiCAD.convertPointToAngleDistanceOffset": "Angle-Distance Offset…",
+  "nuinuiCAD.selectParentGroup": "Select Parent Group",
   "nuinuiCAD.inlineModuleInstance": "Inline Module Instance",
   "nuinuiCAD.extractModule": "Extract Module",
   "nuinuiCAD.goToSourceDefinition": "Go to Source Definition",
   "nuinuiCAD.selectInstance": "Select Instance",
+  "nuinuiCAD.resetOutputPreviewView": "Reset View",
+  "nuinuiCAD.fitOutputPreview": "Fit Preview",
+  "nuinuiCAD.clearOutputPreviewFocus": "Clear Focus",
+  "nuinuiCAD.bakeCurrentShape": "Current Shape",
+  "nuinuiCAD.bakeBaseShape": "Base Shape",
+  "nuinuiCAD.modulePreview.clearSelection": "Clear Selection",
+  "nuinuiCAD.modulePreview.resetView": "Reset View",
+  "nuinuiCAD.modulePreview.fitDrawing": "Fit Drawing",
   "nuinuiCAD.createFreePointAtPointer": "Create Free Point at Pointer"
 };
 const sourcePaletteWhen = "editorLangId == nui && resourceScheme == file && resourceExtname == .nui";
@@ -376,6 +387,11 @@ describe("VS Code extension manifest command contributions", () => {
     const commandPalette = manifest.contributes?.menus?.commandPalette ?? [];
     const keybindings = manifest.contributes?.keybindings ?? [];
     const webviewContext = manifest.contributes?.menus?.["webview/context"] ?? [];
+    const ownedWebviewMenuCommands = [
+      ...webviewContext,
+      ...(manifest.contributes?.menus?.["nuinuiCAD.webview.convertPoint"] ?? []),
+      ...(manifest.contributes?.menus?.["nuinuiCAD.webview.bake"] ?? [])
+    ].map(({ command }) => command);
 
     expect(aliases.map(({ command }) => command)).toEqual(webviewContextAliasIds);
     expect(aliases.every(({ title, shortTitle, enablement }) =>
@@ -390,23 +406,12 @@ describe("VS Code extension manifest command contributions", () => {
       "Hide Geometry Names",
       "Show Points",
       "Hide Points",
-      "XY Offset…",
-      "Angle-Distance Offset…",
-      "Select Parent Group",
-      "Current Shape",
-      "Base Shape",
-      "Fit Drawing",
-      "Reset View",
       "Show Point Names",
       "Hide Point Names",
       "Show Geometry Names",
       "Hide Geometry Names",
       "Show Points",
-      "Hide Points",
-      "Clear Selection",
-      "Reset View",
-      "Fit Preview",
-      "Clear Focus"
+      "Hide Points"
     ]);
     expect(aliases.map(({ title }) => resolveNlsToken(title, japanese))).toEqual([
       "点名を表示",
@@ -415,49 +420,39 @@ describe("VS Code extension manifest command contributions", () => {
       "ジオメトリ名を非表示",
       "点を表示",
       "点を非表示",
-      "XYオフセット…",
-      "角度と距離のオフセット…",
-      "親グループを選択",
-      "現在の形状",
-      "ベース形状",
-      "図面をフィット",
-      "表示をリセット",
       "点名を表示",
       "点名を非表示",
       "ジオメトリ名を表示",
       "ジオメトリ名を非表示",
       "点を表示",
-      "点を非表示",
-      "選択を解除",
-      "表示をリセット",
-      "プレビューをフィット",
-      "フォーカスを解除"
+      "点を非表示"
     ]);
     expect(commandPalette.filter(({ command }) => webviewContextAliasIds.some((id) => id === command))).toEqual(
       webviewContextAliasIds.map((command) => ({ command, when: "false" }))
     );
     expect(keybindings.filter(({ command }) => webviewContextAliasIds.some((id) => id === command))).toEqual([]);
-    for (const obsoleteAlias of obsoleteWebviewContextAliasIds) {
+    for (const obsoleteAlias of [...removedStaticWebviewAliasIds, ...obsoleteWebviewContextAliasIds]) {
       expect(commands.some(({ command }) => command === obsoleteAlias)).toBe(false);
       expect(commandPalette.some(({ command }) => command === obsoleteAlias)).toBe(false);
-      expect(webviewContext.some(({ command }) => command === obsoleteAlias)).toBe(false);
+      expect(ownedWebviewMenuCommands).not.toContain(obsoleteAlias);
       expect(keybindings.some(({ command }) => command === obsoleteAlias)).toBe(false);
     }
   });
 
-  it("keeps Reset Output Preview Pan and Zoom canonical while using its Webview alias", async () => {
+  it("keeps Reset Output Preview canonical with its concise Webview label", async () => {
     const manifest = await readManifest();
     const command = manifest.contributes?.commands?.find(({ command }) => command === "nuinuiCAD.resetOutputPreviewView");
     expect(command).toEqual({
       command: "nuinuiCAD.resetOutputPreviewView",
-      title: "%command.resetOutputPreviewView.title%"
+      title: "%command.resetOutputPreviewView.title%",
+      shortTitle: "%command.resetOutputPreviewView.shortTitle%"
     });
     expect(manifest.contributes?.menus?.commandPalette).toContainEqual({
       command: "nuinuiCAD.resetOutputPreviewView",
       when: "activeWebviewPanelId == 'nuinuiCAD.outputPreview'"
     });
     expect(manifest.contributes?.menus?.["webview/context"]).toContainEqual({
-      command: "nuinuiCAD.webview.resetOutputPreviewView",
+      command: "nuinuiCAD.resetOutputPreviewView",
       when: "webviewId == 'nuinuiCAD.outputPreview' && webviewSection == 'blank'",
       group: "2_view@1"
     });
@@ -469,6 +464,33 @@ describe("VS Code extension manifest command contributions", () => {
     const command = manifest.contributes?.commands?.find(({ command }) => command === "nuinuiCAD.createFreePointAtPointer");
 
     expect(command?.shortTitle).toBe("%command.createFreePointAtPointer.shortTitle%");
+  });
+
+  it("preserves concise English and Japanese labels on canonical static Webview commands", async () => {
+    const manifest = await readManifest();
+    const english = JSON.parse(await readFile(packageNlsPath, "utf8")) as Record<string, unknown>;
+    const japanese = JSON.parse(await readFile(packageNlsJaPath, "utf8")) as Record<string, unknown>;
+    const expected = [
+      ["nuinuiCAD.convertPointToXYOffset", "XY Offset…", "XYオフセット…"],
+      ["nuinuiCAD.convertPointToAngleDistanceOffset", "Angle-Distance Offset…", "角度と距離のオフセット…"],
+      ["nuinuiCAD.selectParentGroup", "Select Parent Group", "親グループを選択"],
+      ["nuinuiCAD.bakeCurrentShape", "Current Shape", "現在の形状"],
+      ["nuinuiCAD.bakeBaseShape", "Base Shape", "ベース形状"],
+      ["nuinuiCAD.modulePreview.fitDrawing", "Fit Drawing", "図面をフィット"],
+      ["nuinuiCAD.modulePreview.resetView", "Reset View", "表示をリセット"],
+      ["nuinuiCAD.modulePreview.clearSelection", "Clear Selection", "選択を解除"],
+      ["nuinuiCAD.resetOutputPreviewView", "Reset View", "表示をリセット"],
+      ["nuinuiCAD.fitOutputPreview", "Fit Preview", "プレビューをフィット"],
+      ["nuinuiCAD.clearOutputPreviewFocus", "Clear Focus", "フォーカスを解除"]
+    ] as const;
+
+    for (const [commandId, englishShortTitle, japaneseShortTitle] of expected) {
+      const command = manifest.contributes?.commands?.find(({ command }) => command === commandId);
+      const shortTitle = command?.shortTitle;
+      expect(shortTitle).toBe(`%command.${commandId.replace("nuinuiCAD.", "")}.shortTitle%`);
+      expect(resolveNlsToken(shortTitle!, english)).toBe(englishShortTitle);
+      expect(resolveNlsToken(shortTitle!, japanese)).toBe(japaneseShortTitle);
+    }
   });
 
   it("uses localized canonical short titles for fixed Canvas shortcut rows", async () => {
@@ -579,11 +601,11 @@ describe("VS Code extension manifest command contributions", () => {
     ]);
     expect(manifest.contributes?.menus?.["nuinuiCAD.webview.convertPoint"]).toEqual([
       {
-        command: "nuinuiCAD.webview.convertPointToXYOffset",
+        command: "nuinuiCAD.convertPointToXYOffset",
         when: coordinatePointConversionCanvasContextWhen
       },
       {
-        command: "nuinuiCAD.webview.convertPointToAngleDistanceOffset",
+        command: "nuinuiCAD.convertPointToAngleDistanceOffset",
         when: coordinatePointConversionCanvasContextWhen
       }
     ]);
@@ -677,19 +699,19 @@ describe("VS Code extension manifest command contributions", () => {
       { command: "nuinuiCAD.editCanvasRibbon", when: canvasOrModulePreviewRibbonWhen, group: "3_edit@1" },
       { command: "nuinuiCAD.clearCanvasSelection", when: `${canvasBlankWhen} && nuinuiCAD.canvasHasSelection`, group: "4_selection@1" },
       { submenu: "nuinuiCAD.webview.convertPoint", when: coordinatePointConversionCanvasContextWhen, group: "1_modification@1" },
-      { command: "nuinuiCAD.webview.selectParentGroup", when: canvasElementWhen, group: "1_modification@2" },
+      { command: "nuinuiCAD.selectParentGroup", when: canvasElementWhen, group: "1_modification@2" },
       { command: "nuinuiCAD.selectInstance", when: "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'element' && nuinuiCAD.canvasCanSelectInstance", group: "1_modification@3" },
       { command: "nuinuiCAD.goToSourceDefinition", when: canvasElementWhen, group: "1_modification@4" },
       { command: "nuinuiCAD.inlineModuleInstance", when: inlineModuleCanvasContextWhen, group: "1_modification@7" },
       { command: "nuinuiCAD.extractModule", when: extractModuleCanvasContextWhen, group: "1_modification@8" },
       { submenu: "nuinuiCAD.webview.bake", when: canvasOrModulePreviewElementWhen, group: "1_modification@9" },
-      { command: "nuinuiCAD.webview.resetOutputPreviewView", when: "webviewId == 'nuinuiCAD.outputPreview' && webviewSection == 'blank'", group: "2_view@1" },
-      { command: "nuinuiCAD.webview.fitOutputPreview", when: "webviewId == 'nuinuiCAD.outputPreview' && webviewSection == 'blank'", group: "2_view@2" },
-      { command: "nuinuiCAD.webview.clearOutputPreviewFocus", when: "webviewId == 'nuinuiCAD.outputPreview' && (webviewSection == 'blank' || webviewSection == 'place')", group: "4_selection@1" },
-      { command: "nuinuiCAD.webview.modulePreview.fitDrawing", when: modulePreviewBlankWhen, group: "2_view@1" },
-      { command: "nuinuiCAD.webview.modulePreview.resetView", when: modulePreviewBlankWhen, group: "2_view@2" },
+      { command: "nuinuiCAD.resetOutputPreviewView", when: "webviewId == 'nuinuiCAD.outputPreview' && webviewSection == 'blank'", group: "2_view@1" },
+      { command: "nuinuiCAD.fitOutputPreview", when: "webviewId == 'nuinuiCAD.outputPreview' && webviewSection == 'blank'", group: "2_view@2" },
+      { command: "nuinuiCAD.clearOutputPreviewFocus", when: "webviewId == 'nuinuiCAD.outputPreview' && (webviewSection == 'blank' || webviewSection == 'place')", group: "4_selection@1" },
+      { command: "nuinuiCAD.modulePreview.fitDrawing", when: modulePreviewBlankWhen, group: "2_view@1" },
+      { command: "nuinuiCAD.modulePreview.resetView", when: modulePreviewBlankWhen, group: "2_view@2" },
       { submenu: "nuinuiCAD.webview.modulePreviewDisplay", when: modulePreviewBlankWhen, group: "2_view@3" },
-      { command: "nuinuiCAD.webview.modulePreview.clearSelection", when: `${modulePreviewBlankWhen} && nuinuiCAD.canvasHasSelection`, group: "4_selection@1" }
+      { command: "nuinuiCAD.modulePreview.clearSelection", when: `${modulePreviewBlankWhen} && nuinuiCAD.canvasHasSelection`, group: "4_selection@1" }
     ]);
     expect(manifest.contributes?.menus?.["nuinuiCAD.webview.canvasDisplay"]).toEqual([
       { command: "nuinuiCAD.webview.showCanvasPointNames", when: `${canvasBlankWhen} && !nuinuiCAD.showCanvasPointNames`, group: "1_display@1" },
@@ -708,12 +730,12 @@ describe("VS Code extension manifest command contributions", () => {
       { command: "nuinuiCAD.webview.modulePreview.hidePoints", when: `${modulePreviewBlankWhen} && nuinuiCAD.showCanvasPoints`, group: "1_display@3" }
     ]);
     expect(manifest.contributes?.menus?.["nuinuiCAD.webview.convertPoint"]).toEqual([
-      { command: "nuinuiCAD.webview.convertPointToXYOffset", when: coordinatePointConversionCanvasContextWhen },
-      { command: "nuinuiCAD.webview.convertPointToAngleDistanceOffset", when: coordinatePointConversionCanvasContextWhen }
+      { command: "nuinuiCAD.convertPointToXYOffset", when: coordinatePointConversionCanvasContextWhen },
+      { command: "nuinuiCAD.convertPointToAngleDistanceOffset", when: coordinatePointConversionCanvasContextWhen }
     ]);
     expect(manifest.contributes?.menus?.["nuinuiCAD.webview.bake"]).toEqual([
-      { command: "nuinuiCAD.webview.bakeCurrentShape", when: canvasOrModulePreviewElementWhen },
-      { command: "nuinuiCAD.webview.bakeBaseShape", when: canvasOrModulePreviewElementWhen }
+      { command: "nuinuiCAD.bakeCurrentShape", when: canvasOrModulePreviewElementWhen },
+      { command: "nuinuiCAD.bakeBaseShape", when: canvasOrModulePreviewElementWhen }
     ]);
     const editorContextCommands = (manifest.contributes?.menus?.["editor/context"] ?? []).map(({ command, submenu }) => command ?? submenu);
     expect(editorContextCommands).toEqual([

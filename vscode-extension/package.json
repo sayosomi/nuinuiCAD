@@ -483,34 +483,6 @@
           "when": "false"
         },
         {
-          "command": "nuinuiCAD.webview.convertPointToXYOffset",
-          "when": "false"
-        },
-        {
-          "command": "nuinuiCAD.webview.convertPointToAngleDistanceOffset",
-          "when": "false"
-        },
-        {
-          "command": "nuinuiCAD.webview.selectParentGroup",
-          "when": "false"
-        },
-        {
-          "command": "nuinuiCAD.webview.bakeCurrentShape",
-          "when": "false"
-        },
-        {
-          "command": "nuinuiCAD.webview.bakeBaseShape",
-          "when": "false"
-        },
-        {
-          "command": "nuinuiCAD.webview.modulePreview.fitDrawing",
-          "when": "false"
-        },
-        {
-          "command": "nuinuiCAD.webview.modulePreview.resetView",
-          "when": "false"
-        },
-        {
           "command": "nuinuiCAD.webview.modulePreview.showPointNames",
           "when": "false"
         },
@@ -532,22 +504,6 @@
         },
         {
           "command": "nuinuiCAD.webview.modulePreview.hidePoints",
-          "when": "false"
-        },
-        {
-          "command": "nuinuiCAD.webview.modulePreview.clearSelection",
-          "when": "false"
-        },
-        {
-          "command": "nuinuiCAD.webview.resetOutputPreviewView",
-          "when": "false"
-        },
-        {
-          "command": "nuinuiCAD.webview.fitOutputPreview",
-          "when": "false"
-        },
-        {
-          "command": "nuinuiCAD.webview.clearOutputPreviewFocus",
           "when": "false"
         }
       ],
@@ -625,7 +581,7 @@
           "group": "1_modification@1"
         },
         {
-          "command": "nuinuiCAD.webview.selectParentGroup",
+          "command": "nuinuiCAD.selectParentGroup",
           "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'element' && nuinuiCAD.canvasHasSelection",
           "group": "1_modification@2"
         },
@@ -655,27 +611,27 @@
           "group": "1_modification@9"
         },
         {
-          "command": "nuinuiCAD.webview.resetOutputPreviewView",
+          "command": "nuinuiCAD.resetOutputPreviewView",
           "when": "webviewId == 'nuinuiCAD.outputPreview' && webviewSection == 'blank'",
           "group": "2_view@1"
         },
         {
-          "command": "nuinuiCAD.webview.fitOutputPreview",
+          "command": "nuinuiCAD.fitOutputPreview",
           "when": "webviewId == 'nuinuiCAD.outputPreview' && webviewSection == 'blank'",
           "group": "2_view@2"
         },
         {
-          "command": "nuinuiCAD.webview.clearOutputPreviewFocus",
+          "command": "nuinuiCAD.clearOutputPreviewFocus",
           "when": "webviewId == 'nuinuiCAD.outputPreview' && (webviewSection == 'blank' || webviewSection == 'place')",
           "group": "4_selection@1"
         },
         {
-          "command": "nuinuiCAD.webview.modulePreview.fitDrawing",
+          "command": "nuinuiCAD.modulePreview.fitDrawing",
           "when": "webviewId == 'nuinuiCAD.modulePreview' && webviewSection == 'blank'",
           "group": "2_view@1"
         },
         {
-          "command": "nuinuiCAD.webview.modulePreview.resetView",
+          "command": "nuinuiCAD.modulePreview.resetView",
           "when": "webviewId == 'nuinuiCAD.modulePreview' && webviewSection == 'blank'",
           "group": "2_view@2"
         },
@@ -685,7 +641,7 @@
           "group": "2_view@3"
         },
         {
-          "command": "nuinuiCAD.webview.modulePreview.clearSelection",
+          "command": "nuinuiCAD.modulePreview.clearSelection",
           "when": "webviewId == 'nuinuiCAD.modulePreview' && webviewSection == 'blank' && nuinuiCAD.canvasHasSelection",
           "group": "4_selection@1"
         }
@@ -756,21 +712,21 @@
       ],
       "nuinuiCAD.webview.convertPoint": [
         {
-          "command": "nuinuiCAD.webview.convertPointToXYOffset",
+          "command": "nuinuiCAD.convertPointToXYOffset",
           "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'element' && nuinuiCAD.canvasHasCoordinatePointConversionTarget"
         },
         {
-          "command": "nuinuiCAD.webview.convertPointToAngleDistanceOffset",
+          "command": "nuinuiCAD.convertPointToAngleDistanceOffset",
           "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'element' && nuinuiCAD.canvasHasCoordinatePointConversionTarget"
         }
       ],
       "nuinuiCAD.webview.bake": [
         {
-          "command": "nuinuiCAD.webview.bakeCurrentShape",
+          "command": "nuinuiCAD.bakeCurrentShape",
           "when": "(webviewId == 'nuinuiCAD.canvas' || webviewId == 'nuinuiCAD.modulePreview') && webviewSection == 'element' && nuinuiCAD.canvasHasSelection"
         },
         {
-          "command": "nuinuiCAD.webview.bakeBaseShape",
+          "command": "nuinuiCAD.bakeBaseShape",
           "when": "(webviewId == 'nuinuiCAD.canvas' || webviewId == 'nuinuiCAD.modulePreview') && webviewSection == 'element' && nuinuiCAD.canvasHasSelection"
         }
       ],
@@ -961,6 +917,7 @@
       {
         "command": "nuinuiCAD.selectParentGroup",
         "title": "%command.selectParentGroup.title%",
+        "shortTitle": "%command.selectParentGroup.shortTitle%",
         "enablement": "activeWebviewPanelId == 'nuinuiCAD.canvas' && nuinuiCAD.canvasHasSelection"
       },
       {
@@ -979,15 +936,18 @@
       },
       {
         "command": "nuinuiCAD.resetOutputPreviewView",
-        "title": "%command.resetOutputPreviewView.title%"
+        "title": "%command.resetOutputPreviewView.title%",
+        "shortTitle": "%command.resetOutputPreviewView.shortTitle%"
       },
       {
         "command": "nuinuiCAD.fitOutputPreview",
-        "title": "%command.fitOutputPreview.title%"
+        "title": "%command.fitOutputPreview.title%",
+        "shortTitle": "%command.fitOutputPreview.shortTitle%"
       },
       {
         "command": "nuinuiCAD.clearOutputPreviewFocus",
-        "title": "%command.clearOutputPreviewFocus.title%"
+        "title": "%command.clearOutputPreviewFocus.title%",
+        "shortTitle": "%command.clearOutputPreviewFocus.shortTitle%"
       },
       {
         "command": "nuinuiCAD.exportCurrentOutput",
@@ -1012,11 +972,13 @@
       {
         "command": "nuinuiCAD.bakeCurrentShape",
         "title": "%command.bakeCurrentShape.title%",
+        "shortTitle": "%command.bakeCurrentShape.shortTitle%",
         "enablement": "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.bakeSourceTarget) || ((activeWebviewPanelId == 'nuinuiCAD.canvas' || activeWebviewPanelId == 'nuinuiCAD.modulePreview') && nuinuiCAD.canvasHasSelection)"
       },
       {
         "command": "nuinuiCAD.bakeBaseShape",
         "title": "%command.bakeBaseShape.title%",
+        "shortTitle": "%command.bakeBaseShape.shortTitle%",
         "enablement": "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.bakeSourceTarget) || ((activeWebviewPanelId == 'nuinuiCAD.canvas' || activeWebviewPanelId == 'nuinuiCAD.modulePreview') && nuinuiCAD.canvasHasSelection)"
       },
       {
@@ -1025,15 +987,18 @@
       },
       {
         "command": "nuinuiCAD.modulePreview.clearSelection",
-        "title": "%command.modulePreview.clearSelection.title%"
+        "title": "%command.modulePreview.clearSelection.title%",
+        "shortTitle": "%command.modulePreview.clearSelection.shortTitle%"
       },
       {
         "command": "nuinuiCAD.modulePreview.resetView",
-        "title": "%command.modulePreview.resetView.title%"
+        "title": "%command.modulePreview.resetView.title%",
+        "shortTitle": "%command.modulePreview.resetView.shortTitle%"
       },
       {
         "command": "nuinuiCAD.modulePreview.fitDrawing",
-        "title": "%command.modulePreview.fitDrawing.title%"
+        "title": "%command.modulePreview.fitDrawing.title%",
+        "shortTitle": "%command.modulePreview.fitDrawing.shortTitle%"
       },
       {
         "command": "nuinuiCAD.modulePreview.togglePointNames",
@@ -1082,34 +1047,6 @@
         "title": "%command.webview.hideCanvasPoints.title%"
       },
       {
-        "command": "nuinuiCAD.webview.convertPointToXYOffset",
-        "title": "%command.webview.convertPointToXYOffset.title%"
-      },
-      {
-        "command": "nuinuiCAD.webview.convertPointToAngleDistanceOffset",
-        "title": "%command.webview.convertPointToAngleDistanceOffset.title%"
-      },
-      {
-        "command": "nuinuiCAD.webview.selectParentGroup",
-        "title": "%command.webview.selectParentGroup.title%"
-      },
-      {
-        "command": "nuinuiCAD.webview.bakeCurrentShape",
-        "title": "%command.webview.bakeCurrentShape.title%"
-      },
-      {
-        "command": "nuinuiCAD.webview.bakeBaseShape",
-        "title": "%command.webview.bakeBaseShape.title%"
-      },
-      {
-        "command": "nuinuiCAD.webview.modulePreview.fitDrawing",
-        "title": "%command.webview.modulePreview.fitDrawing.title%"
-      },
-      {
-        "command": "nuinuiCAD.webview.modulePreview.resetView",
-        "title": "%command.webview.modulePreview.resetView.title%"
-      },
-      {
         "command": "nuinuiCAD.webview.modulePreview.showPointNames",
         "title": "%command.webview.modulePreview.showPointNames.title%"
       },
@@ -1132,22 +1069,6 @@
       {
         "command": "nuinuiCAD.webview.modulePreview.hidePoints",
         "title": "%command.webview.modulePreview.hidePoints.title%"
-      },
-      {
-        "command": "nuinuiCAD.webview.modulePreview.clearSelection",
-        "title": "%command.webview.modulePreview.clearSelection.title%"
-      },
-      {
-        "command": "nuinuiCAD.webview.resetOutputPreviewView",
-        "title": "%command.webview.resetOutputPreviewView.title%"
-      },
-      {
-        "command": "nuinuiCAD.webview.fitOutputPreview",
-        "title": "%command.webview.fitOutputPreview.title%"
-      },
-      {
-        "command": "nuinuiCAD.webview.clearOutputPreviewFocus",
-        "title": "%command.webview.clearOutputPreviewFocus.title%"
       }
     ],
     "configuration": {

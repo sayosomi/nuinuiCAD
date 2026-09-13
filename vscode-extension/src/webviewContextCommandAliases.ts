@@ -7,23 +7,12 @@ export const WEBVIEW_CONTEXT_COMMAND_ALIASES = [
   ["nuinuiCAD.webview.hideCanvasGeometryNames", "nuinuiCAD.toggleCanvasGeometryNames"],
   ["nuinuiCAD.webview.showCanvasPoints", "nuinuiCAD.toggleCanvasPoints"],
   ["nuinuiCAD.webview.hideCanvasPoints", "nuinuiCAD.toggleCanvasPoints"],
-  ["nuinuiCAD.webview.convertPointToXYOffset", "nuinuiCAD.convertPointToXYOffset"],
-  ["nuinuiCAD.webview.convertPointToAngleDistanceOffset", "nuinuiCAD.convertPointToAngleDistanceOffset"],
-  ["nuinuiCAD.webview.selectParentGroup", "nuinuiCAD.selectParentGroup"],
-  ["nuinuiCAD.webview.bakeCurrentShape", "nuinuiCAD.bakeCurrentShape"],
-  ["nuinuiCAD.webview.bakeBaseShape", "nuinuiCAD.bakeBaseShape"],
-  ["nuinuiCAD.webview.modulePreview.fitDrawing", "nuinuiCAD.modulePreview.fitDrawing"],
-  ["nuinuiCAD.webview.modulePreview.resetView", "nuinuiCAD.modulePreview.resetView"],
   ["nuinuiCAD.webview.modulePreview.showPointNames", "nuinuiCAD.modulePreview.togglePointNames"],
   ["nuinuiCAD.webview.modulePreview.hidePointNames", "nuinuiCAD.modulePreview.togglePointNames"],
   ["nuinuiCAD.webview.modulePreview.showGeometryNames", "nuinuiCAD.modulePreview.toggleGeometryNames"],
   ["nuinuiCAD.webview.modulePreview.hideGeometryNames", "nuinuiCAD.modulePreview.toggleGeometryNames"],
   ["nuinuiCAD.webview.modulePreview.showPoints", "nuinuiCAD.modulePreview.togglePoints"],
-  ["nuinuiCAD.webview.modulePreview.hidePoints", "nuinuiCAD.modulePreview.togglePoints"],
-  ["nuinuiCAD.webview.modulePreview.clearSelection", "nuinuiCAD.modulePreview.clearSelection"],
-  ["nuinuiCAD.webview.resetOutputPreviewView", "nuinuiCAD.resetOutputPreviewView"],
-  ["nuinuiCAD.webview.fitOutputPreview", "nuinuiCAD.fitOutputPreview"],
-  ["nuinuiCAD.webview.clearOutputPreviewFocus", "nuinuiCAD.clearOutputPreviewFocus"]
+  ["nuinuiCAD.webview.modulePreview.hidePoints", "nuinuiCAD.modulePreview.togglePoints"]
 ] as const;
 
 export const registerWebviewContextCommandAliases = (): vscode.Disposable => {
