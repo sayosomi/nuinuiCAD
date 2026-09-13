@@ -13,7 +13,11 @@ import { scanTextTemplateLiteral } from "../scalars/textTemplateScan";
 import { isScalarExpressionCandidateSource, parseScalarExpression } from "../scalars/expressionParser";
 import type { ScalarExpressionAst } from "../scalars/expressionAst";
 import type { DslSpan, DslStatement } from "./dslTypes";
-import { getParameterDefinitions, scalarTypeForParameterDefinition } from "../parameters/parameterDefinitions";
+import {
+  dslValueTypeForParameterDefinition,
+  getParameterDefinitions,
+  scalarTypeForParameterDefinition
+} from "../parameters/parameterDefinitions";
 import type { ScalarExpressionType, ScalarType } from "../scalars/types";
 import type { StatementIdentity } from "../document/statementIdentity";
 import type {
@@ -71,7 +75,6 @@ type ResolveGeometry = (
   expected: "point" | "line",
   options?: {
     allowCoordinate?: boolean;
-    allowNone?: boolean;
     expectedInterfaceType?: import("./moduleGeometryInterfaces").ModuleGeometryInterfaceType;
     role?: ModuleGeometryReferenceRole;
     scalarResolver?: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution;
@@ -533,7 +536,6 @@ export const analyzeModuleBody = ({
                   {
                     expectedInterfaceType: geometryInterfaceType,
                     allowCoordinate: false,
-                    allowNone: optionalGeometry,
                     expectedValueType: statement.valueType ?? undefined,
                     requireOptional: referenceOptions?.requireOptional,
                     role: geometryInterfaceType === "point" ? "pointReference" : "lineReference"
@@ -596,7 +598,6 @@ export const analyzeModuleBody = ({
                 {
                   expectedInterfaceType: geometryInterfaceType,
                   allowCoordinate: false,
-                  allowNone: optionalGeometry,
                   expectedValueType: statement.valueType ?? undefined,
                   role: geometryInterfaceType === "point" ? "pointReference" : "lineReference"
                 }
@@ -865,6 +866,8 @@ export const analyzeModuleBody = ({
           if (["reference", "lineEndpointReference", "lineReference", "lineReferenceList"].includes(parameter.kind)) {
             const expected = parameter.kind === "reference" || parameter.kind === "lineEndpointReference" ? "point" : "line";
             if (parameter.kind === "lineReferenceList") {
+              const listValueType = dslValueTypeForParameterDefinition(parameter);
+              const memberValueType = isDslArrayValueType(listValueType) ? listValueType.elementType : listValueType;
               let cursor = 0;
               for (const token of splitDslList(value)) {
                 const offset = value.indexOf(token, cursor);
@@ -875,14 +878,18 @@ export const analyzeModuleBody = ({
                   token,
                   { start: valueSpan.start + Math.max(0, offset), end: valueSpan.start + Math.max(0, offset) + token.length },
                   "line",
-                  { allowCoordinate: parameter.allowCoordinate === true, role: "lineReferenceList" }
+                  {
+                    allowCoordinate: parameter.allowCoordinate === true,
+                    expectedValueType: memberValueType ?? undefined,
+                    role: "lineReferenceList"
+                  }
                 );
                 addGeometry(bodySemantic, parameterKey, reference.span, reference);
               }
             } else {
                 const reference = resolveGeometry(statementIndex, definition.statementIndex, value, valueSpan, expected, {
                 allowCoordinate: parameter.allowCoordinate === true,
-                allowNone: parameter.allowNone,
+                expectedValueType: dslValueTypeForParameterDefinition(parameter) ?? undefined,
                 role: parameter.kind === "reference" ? "pointReference" : parameter.kind === "lineEndpointReference" ? "lineEndpointReference" : "lineReference",
                 scalarResolver: (reference) => resolveBodyScalar(statementIndex, reference),
                 bareScalarResolver: (reference) => resolveBodyBareScalar(statementIndex, reference),

@@ -13,7 +13,11 @@ import { compileDslDocument } from "../../src/dsl/dslDocument";
 import { dslStatementKeywords } from "../../src/dsl/dslStatementKeywords";
 import type { DslDiagnostic } from "../../src/dsl/dslTypes";
 import { createCadElement } from "../../src/model/elementFactory";
-import { getParameterDefinitions, type ParameterDefinition } from "../../src/parameters/parameterDefinitions";
+import {
+  dslValueTypeForParameterDefinition,
+  getParameterDefinitions,
+  type ParameterDefinition
+} from "../../src/parameters/parameterDefinitions";
 import {
   BUILTIN_FUNCTION_DEFINITIONS,
   formatBuiltinFunctionSignatures,
@@ -22,6 +26,7 @@ import {
 } from "../../src/scalars/builtinFunctions";
 import { BUILTIN_CONSTANT_DEFINITIONS } from "../../src/scalars/builtinConstants";
 import type { CadElement, CadElementType } from "../../src/types/geometry";
+import { dslValueTypeName } from "../../packages/nui-language/src/dsl/dslValueTypes";
 
 export const REPOSITORY_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
@@ -46,8 +51,8 @@ const generatedRegionEnd = (name: string) => `<!-- dsl-ref:generated:end ${name}
 export type ParameterFact = {
   key: string;
   kind: ParameterDefinition["kind"];
+  valueType: string | null;
   allowCoordinate: boolean;
-  allowNone: boolean;
   choiceOptions: readonly string[];
   stepLevels: readonly number[];
 };
@@ -140,14 +145,17 @@ const sampleElementFor = (type: CadElementType): CadElement => {
   return sample;
 };
 
-const parameterFactFor = (definition: ParameterDefinition): ParameterFact => ({
-  key: definition.key,
-  kind: definition.kind,
-  allowCoordinate: definition.allowCoordinate === true,
-  allowNone: definition.allowNone === true,
-  choiceOptions: definition.choiceOptions ?? [],
-  stepLevels: definition.stepLevels ?? [],
-});
+const parameterFactFor = (definition: ParameterDefinition): ParameterFact => {
+  const valueType = dslValueTypeForParameterDefinition(definition);
+  return {
+    key: definition.key,
+    kind: definition.kind,
+    valueType: valueType ? dslValueTypeName(valueType) : null,
+    allowCoordinate: definition.allowCoordinate === true,
+    choiceOptions: definition.choiceOptions ?? [],
+    stepLevels: definition.stepLevels ?? [],
+  };
+};
 
 const effectiveArgsFor = (spec: DslConstructionSpec): readonly DslConstructionSpec["args"][number][] => {
   if (spec.category === "transformation") return spec.args;
@@ -257,10 +265,11 @@ const constructionSyntax = (fact: ConstructionFact): string => {
 };
 
 const parameterSummary = (parameter: ParameterFact): string => {
-  const details: string[] = [parameter.kind];
-  if (parameter.choiceOptions.length > 0) details.push(`choices: ${parameter.choiceOptions.join(", ")}`);
+  const details: string[] = [parameter.valueType ?? parameter.kind];
+  if (parameter.choiceOptions.length > 0 && !parameter.valueType?.startsWith("choice(")) {
+    details.push(`choices: ${parameter.choiceOptions.join(", ")}`);
+  }
   if (parameter.allowCoordinate) details.push("coordinates allowed");
-  if (parameter.allowNone) details.push("none allowed");
   if (parameter.stepLevels.length > 0) details.push(`steps: ${parameter.stepLevels.join(", ")}`);
   return details.join("; ");
 };

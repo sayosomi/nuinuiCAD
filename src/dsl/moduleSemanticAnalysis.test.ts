@@ -996,7 +996,7 @@ describe("module semantic analysis", () => {
     expect(reference).toMatchObject({ resolution: "undefined", target: null });
   });
 
-  it("honors allowCoordinate and preserves allowNone behavior from parameter definitions", () => {
+  it("honors coordinate policy and canonical optional anchor types", () => {
     const compiled = compileWithIds([
       "nui 1",
       "module M(dx: number) {",
@@ -1019,6 +1019,31 @@ describe("module semantic analysis", () => {
     expect(compiled.diagnostics).toEqual(expect.arrayContaining([
       expect.objectContaining({ code: "module-geometry-type-mismatch" })
     ]));
+  });
+
+  it("uses the canonical optional value expectation for root and Module construction arguments", () => {
+    const rootOptional = compileWithIds([
+      "nui 1",
+      "text Label = label(text: \"ok\", anchor: none, size: 3)"
+    ].join("\n"));
+    expect(rootOptional.diagnostics).toEqual([]);
+
+    const rootRequired = compileWithIds([
+      "nui 1",
+      "point Rejected = offset(from: none, dx: 1, dy: 1)"
+    ].join("\n"));
+    expect(rootRequired.diagnostics.filter((diagnostic) => diagnostic.code === "optional-value-required")).toHaveLength(1);
+
+    const module = compileWithIds([
+      "nui 1",
+      "module M() {",
+      "  text Label = label(text: \"ok\", anchor: none, size: 3)",
+      "  point Rejected = offset(from: none, dx: 1, dy: 1)",
+      "}",
+      "instance Use = M()"
+    ].join("\n"));
+    expect(moduleBodyAt(module, 2).geometryReferences[0].reference).toMatchObject({ resolution: "resolved", valueType: { kind: "optional", valueType: { kind: "point" } } });
+    expect(module.diagnostics.filter((diagnostic) => diagnostic.code === "optional-value-required")).toHaveLength(1);
   });
 
   it("distinguishes point, line endpoint, plain line, and derived point references", () => {

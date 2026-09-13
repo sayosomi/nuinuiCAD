@@ -41,7 +41,7 @@ interpreted, and where its restrictions matter.
 
 | Spelling | Kind and constraints | Required | Positional | Special |
 | --- | --- | --- | --- | --- |
-| `from` | reference | yes | no | — |
+| `from` | point | yes | no | — |
 | `dx` | number | no | no | — |
 | `dy` | number | no | no | — |
 | `enabled` | boolean | no | no | — |
@@ -63,7 +63,7 @@ interpreted, and where its restrictions matter.
 
 | Spelling | Kind and constraints | Required | Positional | Special |
 | --- | --- | --- | --- | --- |
-| `from` | reference | yes | no | — |
+| `from` | point | yes | no | — |
 | `angle` | number; steps: 0.1, 1, 15, 60, 90 | no | no | — |
 | `distance` | number | no | no | — |
 | `enabled` | boolean | no | no | — |
@@ -85,8 +85,8 @@ interpreted, and where its restrictions matter.
 
 | Spelling | Kind and constraints | Required | Positional | Special |
 | --- | --- | --- | --- | --- |
-| `start` | reference | yes | no | — |
-| `end` | reference | yes | no | — |
+| `start` | point | yes | no | — |
+| `end` | point | yes | no | — |
 | `distance` | number | no | no | — |
 | `ratio` | number; steps: 0.01, 0.1, 1, 10 | no | no | — |
 | `enabled` | boolean | no | no | — |
@@ -108,7 +108,7 @@ interpreted, and where its restrictions matter.
 
 | Spelling | Kind and constraints | Required | Positional | Special |
 | --- | --- | --- | --- | --- |
-| `from` | lineEndpointReference | yes | no | — |
+| `from` | point | yes | no | — |
 | `distance` | number | no | no | — |
 | `ratio` | number; steps: 0.01, 0.1, 1, 10 | no | no | — |
 | `enabled` | boolean | no | no | — |
@@ -130,8 +130,8 @@ interpreted, and where its restrictions matter.
 
 | Spelling | Kind and constraints | Required | Positional | Special |
 | --- | --- | --- | --- | --- |
-| `line1` | lineReference | yes | no | — |
-| `line2` | lineReference | yes | no | — |
+| `line1` | path | yes | no | — |
+| `line2` | path | yes | no | — |
 | `index` | number | no | no | — |
 | `extensions` | boolean | no | no | — |
 | `enabled` | boolean | no | no | — |
@@ -153,10 +153,10 @@ interpreted, and where its restrictions matter.
 
 | Spelling | Kind and constraints | Required | Positional | Special |
 | --- | --- | --- | --- | --- |
-| `line` | lineReference | yes | no | — |
-| `base` | reference | yes | no | — |
+| `line` | path | yes | no | — |
+| `base` | point | yes | no | — |
 | `angle` | number; steps: 0.1, 1, 15, 60, 90 | no | no | — |
-| `curveSide` | choice; choices: convex, concave | no | no | — |
+| `curveSide` | choice(convex, concave) | no | no | — |
 | `distance` | number | no | no | — |
 | `enabled` | boolean | no | no | — |
 | `visible` | boolean | no | no | — |
@@ -177,7 +177,7 @@ interpreted, and where its restrictions matter.
 
 | Spelling | Kind and constraints | Required | Positional | Special |
 | --- | --- | --- | --- | --- |
-| `source` | lineReference | yes | no | — |
+| `source` | path | yes | no | — |
 | `segmentIndex` | number | no | no | — |
 | `direction` | number; steps: 0.1, 1, 15, 60, 90 | yes | no | — |
 | `enabled` | boolean | no | no | — |
@@ -199,7 +199,7 @@ interpreted, and where its restrictions matter.
 
 | Spelling | Kind and constraints | Required | Positional | Special |
 | --- | --- | --- | --- | --- |
-| `source` | lineReference | yes | no | — |
+| `source` | path | yes | no | — |
 | `segmentIndex` | number | no | no | — |
 | `enabled` | boolean | no | no | — |
 | `visible` | boolean | no | no | — |
@@ -220,8 +220,8 @@ interpreted, and where its restrictions matter.
 
 | Spelling | Kind and constraints | Required | Positional | Special |
 | --- | --- | --- | --- | --- |
-| `start` | reference; coordinates allowed | yes | no | — |
-| `end` | reference; coordinates allowed | yes | no | — |
+| `start` | point; coordinates allowed | yes | no | — |
+| `end` | point; coordinates allowed | yes | no | — |
 | `enabled` | boolean | no | no | — |
 | `visible` | boolean | no | no | — |
 | `steps` | — | no | no | steps |
@@ -241,7 +241,7 @@ interpreted, and where its restrictions matter.
 
 | Spelling | Kind and constraints | Required | Positional | Special |
 | --- | --- | --- | --- | --- |
-| `start` | reference; coordinates allowed | yes | no | — |
+| `start` | point; coordinates allowed | yes | no | — |
 | `angle` | number; steps: 0.1, 1, 15, 60, 90 | no | no | — |
 | `length` | number | no | no | — |
 | `enabled` | boolean | no | no | — |
@@ -263,10 +263,10 @@ interpreted, and where its restrictions matter.
 
 | Spelling | Kind and constraints | Required | Positional | Special |
 | --- | --- | --- | --- | --- |
-| `first` | lineReference | yes | no | — |
-| `second` | lineReference | yes | no | — |
-| `kind` | choice; choices: external, internal | yes | no | — |
-| `side` | choice; choices: left, right | yes | no | — |
+| `first` | path | yes | no | — |
+| `second` | path | yes | no | — |
+| `kind` | choice(external, internal) | yes | no | — |
+| `side` | choice(left, right) | yes | no | — |
 | `enabled` | boolean | no | no | — |
 | `visible` | boolean | no | no | — |
 | `steps` | — | no | no | steps |
@@ -286,9 +286,9 @@ interpreted, and where its restrictions matter.
 
 | Spelling | Kind and constraints | Required | Positional | Special |
 | --- | --- | --- | --- | --- |
-| `sources` | lineReferenceList | yes | no | — |
+| `sources` | path[] | yes | no | — |
 | `distance` | number | no | no | — |
-| `side` | choice; choices: right, left | no | no | — |
+| `side` | choice(right, left) | no | no | — |
 | `closed` | boolean | no | no | — |
 | `suppressTrimWarnings` | boolean | no | no | — |
 | `enabled` | boolean | no | no | — |
@@ -310,7 +310,7 @@ interpreted, and where its restrictions matter.
 
 | Spelling | Kind and constraints | Required | Positional | Special |
 | --- | --- | --- | --- | --- |
-| `paths` | lineReferenceList | yes | no | — |
+| `paths` | path[] | yes | no | — |
 | `closed` | boolean | no | no | — |
 | `enabled` | boolean | no | no | — |
 | `visible` | boolean | no | no | — |
@@ -350,8 +350,8 @@ interpreted, and where its restrictions matter.
 
 | Spelling | Kind and constraints | Required | Positional | Special |
 | --- | --- | --- | --- | --- |
-| `source` | lineReference | yes | no | — |
-| `at` | reference | yes | no | — |
+| `source` | path | yes | no | — |
+| `at` | point | yes | no | — |
 | `enabled` | boolean | no | no | — |
 | `visible` | boolean | no | no | — |
 | `steps` | — | no | no | steps |
@@ -371,12 +371,12 @@ interpreted, and where its restrictions matter.
 
 | Spelling | Kind and constraints | Required | Positional | Special |
 | --- | --- | --- | --- | --- |
-| `startPoint` | reference | yes | no | — |
-| `endPoint` | reference | yes | no | — |
+| `startPoint` | point | yes | no | — |
+| `endPoint` | point | yes | no | — |
 | `scale` | number; steps: 0.01, 0.1, 1, 10 | no | no | — |
 | `angleDeg` | number; steps: 0.1, 1, 15, 60, 90 | no | no | — |
 | `mirrorX` | boolean | no | no | — |
-| `baseLines` | lineReferenceList | yes | no | — |
+| `baseLines` | path[] | yes | no | — |
 | `enabled` | boolean | no | no | — |
 | `visible` | boolean | no | no | — |
 | `steps` | — | no | no | steps |
@@ -396,9 +396,9 @@ interpreted, and where its restrictions matter.
 
 | Spelling | Kind and constraints | Required | Positional | Special |
 | --- | --- | --- | --- | --- |
-| `axis1` | reference | yes | no | — |
-| `axis2` | reference | yes | no | — |
-| `baseLines` | lineReferenceList | yes | no | — |
+| `axis1` | point | yes | no | — |
+| `axis2` | point | yes | no | — |
+| `baseLines` | path[] | yes | no | — |
 | `enabled` | boolean | no | no | — |
 | `visible` | boolean | no | no | — |
 | `steps` | — | no | no | steps |
@@ -418,8 +418,8 @@ interpreted, and where its restrictions matter.
 
 | Spelling | Kind and constraints | Required | Positional | Special |
 | --- | --- | --- | --- | --- |
-| `start` | reference; coordinates allowed | yes | no | — |
-| `end` | reference; coordinates allowed | yes | no | — |
+| `start` | point; coordinates allowed | yes | no | — |
+| `end` | point; coordinates allowed | yes | no | — |
 | `startAngle` | number; steps: 0.1, 1, 15, 60, 90 | no | no | — |
 | `startLength` | number | no | no | — |
 | `endAngle` | number; steps: 0.1, 1, 15, 60, 90 | no | no | — |
@@ -444,11 +444,11 @@ interpreted, and where its restrictions matter.
 
 | Spelling | Kind and constraints | Required | Positional | Special |
 | --- | --- | --- | --- | --- |
-| `center` | reference; coordinates allowed | yes | no | — |
+| `center` | point; coordinates allowed | yes | no | — |
 | `radius` | number | no | no | — |
 | `start` | number; steps: 0.1, 1, 15, 60, 90 | no | no | — |
 | `end` | number; steps: 0.1, 1, 15, 60, 90 | no | no | — |
-| `direction` | choice; choices: counterclockwise, clockwise | no | no | — |
+| `direction` | choice(counterclockwise, clockwise) | no | no | — |
 | `enabled` | boolean | no | no | — |
 | `visible` | boolean | no | no | — |
 | `steps` | — | no | no | steps |
@@ -468,9 +468,9 @@ interpreted, and where its restrictions matter.
 
 | Spelling | Kind and constraints | Required | Positional | Special |
 | --- | --- | --- | --- | --- |
-| `point1` | reference; coordinates allowed | yes | no | — |
-| `point2` | reference; coordinates allowed | yes | no | — |
-| `point3` | reference; coordinates allowed | yes | no | — |
+| `point1` | point; coordinates allowed | yes | no | — |
+| `point2` | point; coordinates allowed | yes | no | — |
+| `point3` | point; coordinates allowed | yes | no | — |
 | `start` | number; steps: 0.1, 1, 15, 60, 90 | no | no | — |
 | `end` | number; steps: 0.1, 1, 15, 60, 90 | no | no | — |
 | `enabled` | boolean | no | no | — |
@@ -490,8 +490,8 @@ interpreted, and where its restrictions matter.
 
 | Spelling | Kind and constraints | Required | Positional | Special |
 | --- | --- | --- | --- | --- |
-| `end1` | lineEndpointReference | yes | no | — |
-| `end2` | lineEndpointReference | yes | no | — |
+| `end1` | point | yes | no | — |
+| `end2` | point | yes | no | — |
 | `radius` | number | no | no | — |
 | `index` | number | no | no | — |
 | `enabled` | boolean | no | no | — |
@@ -511,8 +511,8 @@ interpreted, and where its restrictions matter.
 
 | Spelling | Kind and constraints | Required | Positional | Special |
 | --- | --- | --- | --- | --- |
-| `text` | text | yes | no | — |
-| `anchor` | reference; coordinates allowed; none allowed | no | no | — |
+| `text` | string | yes | no | — |
+| `anchor` | point?; coordinates allowed | no | no | — |
 | `size` | number | no | no | — |
 | `enabled` | boolean | no | no | — |
 | `visible` | boolean | no | no | — |
@@ -531,8 +531,8 @@ interpreted, and where its restrictions matter.
 
 | Spelling | Kind and constraints | Required | Positional | Special |
 | --- | --- | --- | --- | --- |
-| `source` | text | yes | no | — |
-| `origin` | reference; coordinates allowed | yes | no | — |
+| `source` | string | yes | no | — |
+| `origin` | point; coordinates allowed | yes | no | — |
 | `naturalWidthPx` | number | no | no | — |
 | `naturalHeightPx` | number | no | no | — |
 | `sourceDpi` | number | no | no | — |
@@ -569,7 +569,7 @@ interpreted, and where its restrictions matter.
 
 | Spelling | Kind and constraints | Required | Positional | Special |
 | --- | --- | --- | --- | --- |
-| `to` | reference | yes | no | — |
+| `to` | point | yes | no | — |
 | `enabled` | — | no | no | — |
 
 <!-- dsl-ref:construction:transformation/move -->
@@ -581,8 +581,8 @@ interpreted, and where its restrictions matter.
 
 | Spelling | Kind and constraints | Required | Positional | Special |
 | --- | --- | --- | --- | --- |
-| `from` | reference | yes | no | — |
-| `to` | reference | yes | no | — |
+| `from` | point | yes | no | — |
+| `to` | point | yes | no | — |
 | `scale` | number; steps: 0.01, 0.1, 1, 10 | no | no | — |
 | `angleDeg` | number; steps: 0.1, 1, 15, 60, 90 | no | no | — |
 | `mirrorX` | boolean | no | no | — |
@@ -597,8 +597,8 @@ interpreted, and where its restrictions matter.
 
 | Spelling | Kind and constraints | Required | Positional | Special |
 | --- | --- | --- | --- | --- |
-| `axis1` | reference | yes | no | — |
-| `axis2` | reference | yes | no | — |
+| `axis1` | point | yes | no | — |
+| `axis2` | point | yes | no | — |
 | `enabled` | — | no | no | — |
 
 <!-- dsl-ref:construction:transformation/reverse -->
@@ -899,8 +899,9 @@ line Mirror = mirrorCopy(axis1: @A, axis2: @D, baseLines: [@Bottom])
 ### `label`
 
 **Description:** `label` creates a text element. Its `text` may be a literal
-or a template using `${...}` holes. `anchor` may be an available point or
-`none`; `size` is the font size used for drawing.
+or a template using `${...}` holes. `anchor` has the optional `point?` type, so
+it may be an available point or the ordinary absence value `none`; `size` is
+the font size used for drawing.
 
 **Notes:** A template hole accepts a string, number, or boolean. Choices must
 be made explicit with `string(...)`; see [Expressions](expressions.md).
