@@ -34,35 +34,43 @@ describe("selectParentGroup", () => {
       ]
     });
     useCadUiStore.setState(initialCadUiState());
-    publishTestCanvasSelectionEligibility(useCadDocumentStore.getState().elements);
+    publishTestCanvasSelectionEligibility(
+      useCadDocumentStore.getState().elements,
+      new Set(["outer", "inner", "child"])
+    );
   });
 
-  it("selects one parent identity at a time without expanding descendants", () => {
+  it("selects the direct parent group and moves the anchor to that identity", () => {
     selectElement("child");
     selectParentGroup();
 
     expect(useCadUiStore.getState()).toMatchObject({
-      selectedElementId: "child",
-      selectedElementIds: ["child"],
-      selectionAnchorElementId: "child"
-    });
-
-    selectParentGroup();
-    expect(useCadUiStore.getState()).toMatchObject({
-      selectedElementId: "child",
-      selectedElementIds: ["child"],
-      selectionAnchorElementId: "child"
+      selectedElementId: "inner",
+      selectedElementIds: ["inner"],
+      selectionAnchorElementId: "inner"
     });
   });
 
-  it("does not admit a structural parent identity", () => {
+  it("climbs nested groups exactly one direct-parent level per invocation", () => {
+    selectElement("child");
+    selectParentGroup();
+    selectParentGroup();
+
+    expect(useCadUiStore.getState()).toMatchObject({
+      selectedElementId: "outer",
+      selectedElementIds: ["outer"],
+      selectionAnchorElementId: "outer"
+    });
+  });
+
+  it("keeps a top-level group selected when it has no parent", () => {
     selectElement("outer");
     selectParentGroup();
 
     expect(useCadUiStore.getState()).toMatchObject({
-      selectedElementId: null,
-      selectedElementIds: [],
-      selectionAnchorElementId: null
+      selectedElementId: "outer",
+      selectedElementIds: ["outer"],
+      selectionAnchorElementId: "outer"
     });
   });
 });

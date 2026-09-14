@@ -185,7 +185,7 @@ describe("VSCodeApp Reveal viewport fitting", () => {
     });
   });
 
-  it("fails a group Reveal even when aggregate descendant bounds are available", async () => {
+  it("fits and selects a group from aggregate descendant bounds", async () => {
     const source = [
       "nui 1",
       "group G {",
@@ -228,17 +228,19 @@ describe("VSCodeApp Reveal viewport fitting", () => {
       }));
     });
 
-    expect(useCadUiStore.getState().selectedElementId).toBeNull();
+    expect(useCadUiStore.getState().selectedElementId).toBe(group.id);
+    expect(useCadUiStore.getState().selectedElementIds).toEqual([group.id]);
+    expect(useCadUiStore.getState().selectionAnchorElementId).toBe(group.id);
     expect(useCadUiStore.getState().canvasViewport).toEqual({
-      zoom: 2,
-      panX: 30,
-      panY: 10
+      zoom: 3.36,
+      panX: -168,
+      panY: 84
     });
     expect(api.postMessage).toHaveBeenCalledWith({
       type: "canvasNavigationResult",
       requestId: 541,
-      status: "failed",
-      reason: "no-revealable-runtime-target"
+      status: "resolved",
+      degradations: []
     });
   });
 
