@@ -207,7 +207,8 @@ export const registerVscodeSourceAuthoringPositionFeature = ({
     clearCommandOwnedAnchorHistory(documentUri);
     queueMicrotask(() => {
       const editor = vscode.window.activeTextEditor;
-      if (!editor || editor.document !== event.document || editor.document.version !== event.document.version) return;
+      if (!editor || sourceDocumentKey(editor.document) !== documentUri ||
+        editor.document.version !== event.document.version) return;
       const position = sourcePositionForEditor(editor);
       if (position) sourceAnchors.set(sourceDocumentKey(editor.document), position);
     });

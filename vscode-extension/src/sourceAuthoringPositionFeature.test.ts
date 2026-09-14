@@ -135,4 +135,30 @@ describe("shared VS Code Source authoring position owner", () => {
     expect(feature.sourceAuthoringPositionFor(document)).toEqual({ documentVersion: 1, line: 2, character: 1 });
     feature.dispose();
   });
+
+  it("refreshes after an ordinary edit when the current editor exposes a URI-equivalent document object", async () => {
+    const document = documentFor();
+    const currentDocument = documentFor(2);
+    const feature = registerVscodeSourceAuthoringPositionFeature();
+    mocks.selectionListeners[0]?.({
+      textEditor: { document, selection: { active: { line: 2, character: 1 } } },
+      kind: 1
+    });
+
+    const activeTextEditor = (await import("vscode")).window as unknown as { activeTextEditor: TestEditor | null };
+    activeTextEditor.activeTextEditor = {
+      document: currentDocument,
+      selection: { active: { line: 7, character: 8 } }
+    };
+    document.version = 2;
+    mocks.documentChangeListeners[0]?.({ document, contentChanges: [{}] });
+    await Promise.resolve();
+
+    expect(feature.sourceAuthoringPositionFor(document)).toEqual({
+      documentVersion: 2,
+      line: 7,
+      character: 8
+    });
+    feature.dispose();
+  });
 });
