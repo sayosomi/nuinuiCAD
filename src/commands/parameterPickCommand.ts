@@ -1,4 +1,4 @@
-import type { ParameterValueKind } from "../parameters/parameterDefinitions";
+import type { ParameterValueKind } from "@nuinuicad/nui-language";
 
 export type ParameterPickCommandId =
   | "startPointPick"

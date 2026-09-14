@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { queryDslCompletion } from "./dslCompletionQuery";
-import { compileDslDocument } from "./dslDocument";
-import { parseDsl } from "./dslParser";
-import { dslLineLabeledValueSpans } from "./dslValueSpans";
+import { queryDslCompletion } from "@nuinuicad/nui-language";
+import { compileDslDocument } from "@nuinuicad/nui-language";
+import { parseDsl } from "@nuinuicad/nui-language";
+import { dslLineLabeledValueSpans } from "@nuinuicad/nui-language";
 
 const errors = (source: string) =>
   parseDsl(source).diagnostics.filter((diagnostic) => diagnostic.severity === "error");

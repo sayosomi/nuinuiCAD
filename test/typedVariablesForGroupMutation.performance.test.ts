@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createForGroupMutationEnvironment } from "../src/scalars/forGroupMutationCore";
+import { createForGroupMutationEnvironment } from "@nuinuicad/nui-language";
 import { expectFiniteMeasurement, logBaselineMeasurement, measureWorkerCpuScaling, type FixtureCounts } from "./typedVariablesPerformanceMeasurement";
 
 const counts = (iterationCount: number): FixtureCounts => ({

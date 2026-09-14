@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument } from "./dslDocument";
-import { parseDsl } from "./dslParser";
+import { compileDslDocument } from "@nuinuicad/nui-language";
+import { parseDsl } from "@nuinuicad/nui-language";
 import { evaluateElements } from "../geometry/evaluate";
 import { buildEvaluationOptions } from "../geometry/productionEvaluationContext";
 import {
@@ -9,18 +9,18 @@ import {
   SavedDocumentArtifactCache,
   type MultiDocumentSavedSourceLoader,
   type SavedDependencyLoadResult
-} from "../document/multiDocumentImportGraph";
-import { analyzeMultiDocumentModuleSemantics, moduleDeclarationContributor } from "../document/multiDocumentModuleSemantics";
+} from "@nuinuicad/nui-language/workspace";
+import { analyzeMultiDocumentModuleSemantics, moduleDeclarationContributor } from "@nuinuicad/nui-language/workspace";
 import {
   documentIdFromHost,
   savedSourceFingerprintFromHost,
   type DependencySavedSourceSnapshot,
   type RootCurrentSourceSnapshot
-} from "../document/multiDocumentPrimitives";
-import { createModuleRuntimeContext } from "./moduleRuntimeContext";
-import { sourceOwnerForRuntimeElementId } from "./sourceOwnership";
-import { queryDslCanvasRevealSourceTarget } from "./dslCanvasRevealQuery";
-import { queryDslCanvasSourceDefinitionQualified } from "./dslNavigationQuery";
+} from "@nuinuicad/nui-language/workspace";
+import { createModuleRuntimeContext } from "@nuinuicad/nui-language";
+import { sourceOwnerForRuntimeElementId } from "@nuinuicad/nui-language";
+import { queryDslCanvasRevealSourceTarget } from "@nuinuicad/nui-language";
+import { queryDslCanvasSourceDefinitionQualified } from "@nuinuicad/nui-language";
 import { projectVscodeMultiDocumentCanvasRuntime } from "../vscode/multiDocumentRuntimeTransport";
 
 const rootSource = (id: string, normalizedSource: string): RootCurrentSourceSnapshot => ({

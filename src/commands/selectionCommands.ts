@@ -6,14 +6,14 @@ import {
 import {
   materializedRuntimeElementId,
   type CanvasModuleMaterialization
-} from "../dsl/moduleMaterialization";
+} from "@nuinuicad/nui-language";
 import { moveElementsToInsertionIndex as moveDocumentElementsToInsertionIndex } from "../model/documentOrder";
 import {
   elementTypeSupportsHiddenActivity,
   nextElementActivity,
   type ElementActivity
-} from "../model/elementActivity";
-import { createCadElement } from "../model/elementFactory";
+} from "@nuinuicad/nui-language";
+import { createCadElement } from "@nuinuicad/nui-language";
 import {
   adjustEvaluationLimitForDeletion,
   adjustEvaluationLimitForInsertion,
@@ -26,7 +26,7 @@ import {
   nearestPreviousGroup,
   subtreeIdsForElement,
   visibleOutlineElements
-} from "../model/groups";
+} from "@nuinuicad/nui-language";
 import { useCadDocumentStore, type SelectionSnapshot } from "../state/cadDocumentStore";
 import {
   selectionEligibleElementIds,

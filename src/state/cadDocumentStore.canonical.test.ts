@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CadElement } from "../types/geometry";
-import { dslTextForElements } from "../dsl/dslDocumentTestUtils";
+import { dslTextForElements } from "@nuinuicad/nui-language";
 import { initialCadDocumentState, useCadDocumentStore } from "./cadDocumentStore";
 
 const seedText = (text: string) => {

@@ -1,6 +1,6 @@
 import type { EvaluationResult, CadElement, ElementId } from "../types/geometry";
-import { getDirectParentIds } from "../model/dependencies";
-import { descendantIdsForGroup, groupStateByElementId, isGroupElement } from "../model/groups";
+import { getDirectParentIds } from "@nuinuicad/nui-language";
+import { descendantIdsForGroup, groupStateByElementId, isGroupElement } from "@nuinuicad/nui-language";
 
 export type DslExportOrigin = "selected" | "group-content" | "parent" | "dependency";
 export type DslExportWarningKind = "disabled" | "invalid" | "too-late";

@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { Binding, BindingCatalog } from "./bindingCatalog";
-import type { BindingAnalysis } from "./bindingAnalysis";
-import { setRhsScalarCandidates, setTargetCandidates, type SetCompletionSiteDeps } from "./setCompletionCandidates";
+import type { Binding, BindingCatalog } from "@nuinuicad/nui-language";
+import type { BindingAnalysis } from "@nuinuicad/nui-language";
+import { setRhsScalarCandidates, setTargetCandidates, type SetCompletionSiteDeps } from "@nuinuicad/nui-language";
 import { typedDeclarationAnalysisFor } from "./testSupport/typedDeclarationAnalysisFixture";
-import * as builtinFunctions from "../../packages/nui-language/src/scalars/builtinFunctions";
-import type { BuiltinFunctionDefinition, BuiltinFunctionName } from "../../packages/nui-language/src/scalars/builtinFunctions";
+import { builtinFunctions } from "@nuinuicad/nui-language";
+import type { BuiltinFunctionDefinition, BuiltinFunctionName } from "@nuinuicad/nui-language";
 
 const namedDefinition: BuiltinFunctionDefinition = {
   name: "someNamedFunction" as BuiltinFunctionName,

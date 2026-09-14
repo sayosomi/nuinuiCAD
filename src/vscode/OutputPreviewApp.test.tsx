@@ -5,7 +5,7 @@ import type { OutputPlan } from "../output/outputCore";
 import { evaluateElementsReferencePayload } from "../geometry/evaluationEngine";
 import { OutputPreviewApp } from "./OutputPreviewApp";
 import { outputPreviewDiagnosticSourceRangeFor } from "./outputPreviewDiagnostics";
-import type { DslDiagnostic } from "../dsl/dslTypes";
+import type { DslDiagnostic } from "@nuinuicad/nui-language";
 import type { VscodeToExtensionMessage, VscodeWebviewApi } from "./protocol";
 import { outputPreviewManualE2eSource } from "./outputPreviewManualFixture";
 import * as vscodeCanvasRibbonIcons from "./vscodeCanvasRibbonIcons";

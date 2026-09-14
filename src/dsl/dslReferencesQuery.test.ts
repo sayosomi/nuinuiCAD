@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument, type CompiledDslDocument } from "./dslDocument";
-import { parseDslSnapshot } from "./dslParser";
+import { compileDslDocument, type CompiledDslDocument } from "@nuinuicad/nui-language";
+import { parseDslSnapshot } from "@nuinuicad/nui-language";
 import {
   queryDslReferences,
   type DslReferencesQueryResult,
   type DslReferencesSemanticSnapshot
-} from "./dslReferencesQuery";
-import { createDslSemanticOccurrenceIndex, dslSemanticIdentityKey } from "./dslSemanticOccurrenceIndex";
+} from "@nuinuicad/nui-language";
+import { createDslSemanticOccurrenceIndex, dslSemanticIdentityKey } from "@nuinuicad/nui-language";
 
 const compile = (source: string, sourceRevision = 7): CompiledDslDocument => {
   const parsed = parseDslSnapshot({ normalizedSource: source, sourceRevision });

@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { moveBezierHandleByDelta } from "../commands/geometryEditCommands";
 import type { CadElement } from "../types/geometry";
-import { effectiveElementActivityById } from "../model/elementActivity";
-import { setParameterValue } from "../parameters/parameterAccess";
+import { effectiveElementActivityById } from "@nuinuicad/nui-language";
+import { setParameterValue } from "@nuinuicad/nui-language";
 import { initialCadDocumentState, useCadDocumentStore } from "./cadDocumentStore";
 
 const moduleSource = [

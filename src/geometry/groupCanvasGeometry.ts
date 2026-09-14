@@ -1,4 +1,4 @@
-import { descendantIdsForGroup, isGroupElement } from "../model/groups";
+import { descendantIdsForGroup, isGroupElement } from "@nuinuicad/nui-language";
 import type {
   CadElement,
   ElementId,

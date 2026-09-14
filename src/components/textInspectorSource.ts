@@ -1,7 +1,7 @@
-import type { StatementMap } from "../dsl/dslDocument";
-import type { SourceOwner } from "../dsl/sourceOwnership";
-import { propertyBindingOccurrenceKey } from "../scalars/propertyBindingCompiler";
-import type { TextTemplateAst } from "../scalars/textTemplate";
+import type { StatementMap } from "@nuinuicad/nui-language";
+import type { SourceOwner } from "@nuinuicad/nui-language";
+import { propertyBindingOccurrenceKey } from "@nuinuicad/nui-language";
+import type { TextTemplateAst } from "@nuinuicad/nui-language";
 import type { CadElement, EvaluationResult } from "../types/geometry";
 
 /**

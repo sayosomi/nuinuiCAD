@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument } from "../dsl/dslDocument";
-import { parseDsl } from "../dsl/dslParser";
+import { compileDslDocument } from "@nuinuicad/nui-language";
+import { parseDsl } from "@nuinuicad/nui-language";
 import { textInspectorPresentation, textInspectorSource } from "./textInspectorSource";
 
 const compileFor = (source: string) => {

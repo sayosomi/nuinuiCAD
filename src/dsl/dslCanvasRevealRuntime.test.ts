@@ -1,19 +1,19 @@
 import { describe, expect, it } from "vitest";
 import type { CadElement, ElementId } from "../types/geometry";
-import type { CompiledDslDocument, StatementMap } from "./dslDocument";
-import type { MaterializedExecutionStatement, ModuleMaterialization } from "./moduleMaterialization";
-import type { ModuleGeometryRuntimeCompilation } from "./moduleGeometryRuntime";
+import type { CompiledDslDocument, StatementMap } from "@nuinuicad/nui-language";
+import type { MaterializedExecutionStatement, ModuleMaterialization } from "@nuinuicad/nui-language";
+import type { ModuleGeometryRuntimeCompilation } from "@nuinuicad/nui-language";
 import type {
   ModuleGeometryPropertySourceTarget,
   ModuleGeometrySourceTarget,
   ModuleSemanticAnalysis
-} from "./moduleSemanticTypes";
-import type { DslCanvasRevealSourceTarget } from "./dslCanvasRevealQuery";
+} from "@nuinuicad/nui-language";
+import type { DslCanvasRevealSourceTarget } from "@nuinuicad/nui-language";
 import {
   queryDslCanvasRevealRuntimeStatementOwner,
   queryDslCanvasRevealRuntimeTarget
 } from "./dslCanvasRevealRuntime";
-import { projectDslRevealRuntimeStatementOwner } from "./dslRevealRuntimeProjection";
+import { projectDslRevealRuntimeStatementOwner } from "@nuinuicad/nui-language";
 
 const element = (id: ElementId): CadElement => ({ id } as unknown as CadElement);
 

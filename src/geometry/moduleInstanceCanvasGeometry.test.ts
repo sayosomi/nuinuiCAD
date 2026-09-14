@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { ModuleMaterialization, ModuleMaterializationSnapshot } from "../dsl/moduleMaterialization";
-import { defaultVisibilityProfile } from "../model/visibilityProfiles";
+import type { ModuleMaterialization, ModuleMaterializationSnapshot } from "@nuinuicad/nui-language";
+import { defaultVisibilityProfile } from "@nuinuicad/nui-language";
 import type { CadElement, ComputedGeometry, EvaluationResult } from "../types/geometry";
 import { moduleInstanceCanvasGeometry } from "./moduleInstanceCanvasGeometry";
 

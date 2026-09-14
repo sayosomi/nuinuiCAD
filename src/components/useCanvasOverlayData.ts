@@ -19,7 +19,7 @@ import type { VisibilityProfile } from "../types/geometry";
 import { effectiveCanvasVisibleElementIds } from "../geometry/canvasDrawingBounds";
 import { canvasSelectionEligibleElementIds } from "../geometry/canvasSelectionEligibility";
 import { imageWorldCorners } from "../geometry/imageGeometry";
-import type { ModuleMaterialization } from "../dsl/moduleMaterialization";
+import type { ModuleMaterialization } from "@nuinuicad/nui-language";
 import {
   selectablePointsForGeometry
 } from "../model/pointAnchors";

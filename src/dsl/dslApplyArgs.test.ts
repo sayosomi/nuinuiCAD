@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { createElementNameContext } from "../model/elementNames";
-import { createCadElement } from "../model/elementFactory";
+import { createElementNameContext } from "@nuinuicad/nui-language";
+import { createCadElement } from "@nuinuicad/nui-language";
 import { derivedAnchor, referenceAnchor } from "../model/pointAnchors";
-import { getParameterValue } from "../parameters/parameterAccess";
-import { findParameterDefinition } from "../parameters/parameterDefinitions";
+import { getParameterValue } from "@nuinuicad/nui-language";
+import { findParameterDefinition } from "@nuinuicad/nui-language";
 import type { CadElement, CadElementType } from "../types/geometry";
-import { scanCallArgs, type ScannedArg } from "./dslArgScanner";
-import { applyArgs, geometryLineConsumerPolicyFor, type DslApplyArgsResolvers } from "./dslApplyArgs";
-import { constructionFor, type DslConstructionSpec } from "./dslConstructions";
-import { createNameIndex } from "./dslReferences";
+import { scanCallArgs, type ScannedArg } from "@nuinuicad/nui-language";
+import { applyArgs, geometryLineConsumerPolicyFor, type DslApplyArgsResolvers } from "@nuinuicad/nui-language";
+import { constructionFor, type DslConstructionSpec } from "@nuinuicad/nui-language";
+import { createNameIndex } from "@nuinuicad/nui-language";
 
 const references: CadElement[] = [
   { id: "p1", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 },

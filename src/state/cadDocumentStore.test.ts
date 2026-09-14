@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { sampleElements } from "../sampleData";
-import { dslTextForElements } from "../dsl/dslDocumentTestUtils";
+import { dslTextForElements } from "@nuinuicad/nui-language";
 import { commitDocumentChangeAndSelect } from "../commands/commitDocumentChangeAndSelect";
-import { defaultVisibilityProfile } from "../model/visibilityProfiles";
-import { isGroupElement, isGroupExpanded } from "../model/groups";
+import { defaultVisibilityProfile } from "@nuinuicad/nui-language";
+import { isGroupElement, isGroupExpanded } from "@nuinuicad/nui-language";
 import {
   effectiveCompiledDocument,
   effectiveElements,

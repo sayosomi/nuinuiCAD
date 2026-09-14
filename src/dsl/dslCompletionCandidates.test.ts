@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument, type DslDocumentData } from "./dslDocument";
-import { dslLinesForElements, dslTextForElements } from "./dslDocumentTestUtils";
+import { compileDslDocument, type DslDocumentData } from "@nuinuicad/nui-language";
+import { dslLinesForElements, dslTextForElements } from "@nuinuicad/nui-language";
 import { dslReferenceCompletionOptions } from "./dslCompletionCandidates";
 import { evaluateElements } from "../geometry/evaluate";
 

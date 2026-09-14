@@ -1,15 +1,15 @@
-import type { StatementIdentity } from "../document/statementIdentity";
-import type { BindingId } from "../scalars/bindingCatalog";
-import { compileModuleScalarRuntime, type ModuleScalarRuntimeCompilation } from "../scalars/moduleScalarRuntime";
+import type { StatementIdentity } from "@nuinuicad/nui-language/document";
+import type { BindingId } from "@nuinuicad/nui-language";
+import { compileModuleScalarRuntime, type ModuleScalarRuntimeCompilation } from "@nuinuicad/nui-language";
 import type { ElementId } from "../types/geometry";
-import { applyStatement } from "./dslCompiler";
-import { buildStatementMap, type CompiledDslDocument } from "./dslDocument";
-import { isCompilableDslStatement } from "./dslCompilationGuard";
-import { parseDslSnapshot } from "./dslParser";
-import { buildModuleGeometryRuntime, type ModuleGeometryRuntimeCompilation } from "./moduleGeometryRuntime";
-import { compileMaterializedExecution } from "./moduleExecutionCompiler";
-import { materializeModuleExecution, materializedRuntimeElementId, type ModuleMaterialization } from "./moduleMaterialization";
-import { analyzeModuleSemantics } from "./moduleSemanticAnalysis";
+import { applyStatement } from "@nuinuicad/nui-language";
+import { buildStatementMap, type CompiledDslDocument } from "@nuinuicad/nui-language";
+import { isCompilableDslStatement } from "@nuinuicad/nui-language";
+import { parseDslSnapshot } from "@nuinuicad/nui-language";
+import { buildModuleGeometryRuntime, type ModuleGeometryRuntimeCompilation } from "@nuinuicad/nui-language";
+import { compileMaterializedExecution } from "@nuinuicad/nui-language";
+import { materializeModuleExecution, materializedRuntimeElementId, type ModuleMaterialization } from "@nuinuicad/nui-language";
+import { analyzeModuleSemantics } from "@nuinuicad/nui-language";
 import type {
   ModuleDefinitionSemantic,
   ModuleGeometryReferenceSemantic,
@@ -17,11 +17,11 @@ import type {
   ModuleScalarExpressionSemantic,
   ModuleSemanticAnalysis,
   ResolvedModuleParameterBinding
-} from "./moduleSemanticTypes";
-import { buildSourceLexicalNamespaceIndex, type SourceLexicalNamespaceIndex } from "./sourceLexicalNamespaceIndex";
-import { formatDslName } from "./dslTokens";
-import type { CompileDslResult, DslDiagnostic, DslStatement } from "./dslTypes";
-import { NEW_DOCUMENT_DSL_MAJOR_VERSION } from "./dslVersion";
+} from "@nuinuicad/nui-language";
+import { buildSourceLexicalNamespaceIndex, type SourceLexicalNamespaceIndex } from "@nuinuicad/nui-language";
+import { formatDslName } from "@nuinuicad/nui-language";
+import type { CompileDslResult, DslDiagnostic, DslStatement } from "@nuinuicad/nui-language";
+import { NEW_DOCUMENT_DSL_MAJOR_VERSION } from "@nuinuicad/nui-language";
 import type {
   ModulePreviewTarget,
   ModulePreviewTargetSemanticSnapshot,

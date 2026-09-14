@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument, planSourceOutputSection, serializeDocumentToDsl } from "./dslDocument";
-import { parseDsl } from "./dslParser";
+import { compileDslDocument, planSourceOutputSection, serializeDocumentToDsl } from "@nuinuicad/nui-language";
+import { parseDsl } from "@nuinuicad/nui-language";
 
 const validSource = [
   "nui 1",

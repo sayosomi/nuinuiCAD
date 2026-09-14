@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bindingIssuesToDiagnostics } from "./bindingIssueDiagnostics";
+import { bindingIssuesToDiagnostics } from "@nuinuicad/nui-language";
 import { typedDeclarationAnalysisFor } from "./testSupport/typedDeclarationAnalysisFixture";
 
 // typedDeclarationAnalysisFor asserts analyzeTypedDeclarations itself produced

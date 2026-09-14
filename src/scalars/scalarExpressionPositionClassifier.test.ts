@@ -1,13 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { tokenizeScalarExpression, type ScalarExpressionToken } from "./expressionTokenizer";
+import { tokenizeScalarExpression, type ScalarExpressionToken } from "@nuinuicad/nui-language";
 import {
   classifyScalarExpressionPosition,
   expectedOperandType,
   scalarExpressionCompletionContextAt,
   scalarOperandWordEndingAt
-} from "./scalarExpressionPositionClassifier";
-import * as builtinFunctions from "../../packages/nui-language/src/scalars/builtinFunctions";
-import type { BuiltinFunctionDefinition, BuiltinFunctionName } from "../../packages/nui-language/src/scalars/builtinFunctions";
+} from "@nuinuicad/nui-language";
+import { builtinFunctions } from "@nuinuicad/nui-language";
+import type { BuiltinFunctionDefinition, BuiltinFunctionName } from "@nuinuicad/nui-language";
 
 const fullSpan = (source: string) => ({ start: 0, end: source.length });
 const tokenizeOk = (source: string): readonly ScalarExpressionToken[] => {

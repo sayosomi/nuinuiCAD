@@ -6,9 +6,9 @@ import {
   effectiveElementActivityById,
   elementTypeSupportsHiddenActivity,
   nextElementActivity
-} from "./elementActivity";
-import { isContainerElement } from "./containers";
-import { isGroupElement } from "./groups";
+} from "@nuinuicad/nui-language";
+import { isContainerElement } from "@nuinuicad/nui-language";
+import { isGroupElement } from "@nuinuicad/nui-language";
 import type { CadElement } from "../types/geometry";
 
 describe("element activity", () => {

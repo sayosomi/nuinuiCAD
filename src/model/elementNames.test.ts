@@ -8,7 +8,7 @@ import {
   formatReferenceOptionLabel,
   makeUniqueElementName,
   resolveElementName
-} from "./elementNames";
+} from "@nuinuicad/nui-language";
 import type { CadElement } from "../types/geometry";
 
 const elements: CadElement[] = [

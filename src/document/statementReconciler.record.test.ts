@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { parseDsl } from "../dsl/dslParser";
-import { reconcileStatements } from "./statementReconciler";
+import { parseDsl } from "@nuinuicad/nui-language";
+import { reconcileStatements } from "@nuinuicad/nui-language/document";
 
 const recordIndex = (source: string) => {
   const parsed = parseDsl(source);

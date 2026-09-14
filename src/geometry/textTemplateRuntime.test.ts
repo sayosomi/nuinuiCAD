@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { CadElement } from "../types/geometry";
-import type { ScalarValueSource } from "../scalars/propertyBindingCompiler";
-import type { TextTemplateAst, TextTemplateSegment } from "../scalars/textTemplate";
-import type { ScalarEvaluation } from "../scalars/types";
-import type { TypedScalarExpression } from "../scalars/typedExpressionAst";
+import type { ScalarValueSource } from "@nuinuicad/nui-language";
+import type { TextTemplateAst, TextTemplateSegment } from "@nuinuicad/nui-language";
+import type { ScalarEvaluation } from "@nuinuicad/nui-language";
+import type { TypedScalarExpression } from "@nuinuicad/nui-language";
 import { evaluateElements } from "./evaluate";
 import {
   buildTextPropertyBindingRuntimeEntries,

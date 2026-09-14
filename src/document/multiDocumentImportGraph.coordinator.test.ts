@@ -3,14 +3,14 @@ import {
   MultiDocumentGraphCoordinator,
   type MultiDocumentDeclarationContributor,
   type MultiDocumentSavedSourceLoader
-} from "./multiDocumentImportGraph";
-import { moduleDeclarationContributor } from "./multiDocumentModuleSemantics";
+} from "@nuinuicad/nui-language/workspace";
+import { moduleDeclarationContributor } from "@nuinuicad/nui-language/workspace";
 import {
   documentIdFromHost,
   savedSourceFingerprintFromHost,
   type DependencySavedSourceSnapshot,
   type RootCurrentSourceSnapshot
-} from "./multiDocumentPrimitives";
+} from "@nuinuicad/nui-language/workspace";
 
 const rootSource = (id: string): RootCurrentSourceSnapshot => ({
   kind: "root-current",

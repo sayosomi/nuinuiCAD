@@ -17,7 +17,7 @@ import {
   isConditionalGroupElement,
   isForGroupElement,
   isContainerElement
-} from "../model/groups";
+} from "@nuinuicad/nui-language";
 import {
   activityAllowsEvaluation,
   activityAllowsDrawing,
@@ -26,7 +26,7 @@ import {
   effectiveDrawingModifierResolutionsByRuntime,
   effectiveDrawingModifierRuntimeById,
   effectiveDrawingModifierStrokeByRuntime
-} from "../model/elementActivity";
+} from "@nuinuicad/nui-language";
 import type { EvaluationResultWithDrawingModifierInspection } from "../model/drawingModifierInspection";
 import { geometryError, numericError } from "./evaluationContext";
 import { evaluateElement } from "./elementEvaluators";
@@ -37,8 +37,8 @@ import {
   forGroupTemplateDescendantIds,
   type ForGroupIterationBinding
 } from "./forGroupExpansion";
-import type { ScalarProgram } from "../scalars/scalarProgram";
-import type { BindingVersionGraph } from "../scalars/bindingVersions";
+import type { ScalarProgram } from "@nuinuicad/nui-language";
+import type { BindingVersionGraph } from "@nuinuicad/nui-language";
 import { hasSetVersions } from "../scalars/linearMutationEvaluator";
 import {
   createDocumentLinearScalarBindingResolver,
@@ -60,22 +60,22 @@ import {
   resolveConditionalGroupCondition,
   resolveForGroupEffectiveShowGenerated
 } from "./controlBooleanRuntime";
-import type { TypedScalarExpression } from "../scalars/typedExpressionAst";
+import type { TypedScalarExpression } from "@nuinuicad/nui-language";
 import type { ConditionEvaluationTrace } from "../scalars/conditionEvaluationTrace";
-import type { ScalarEvaluation } from "../scalars/types";
-import type { TextTemplateAst } from "../scalars/textTemplate";
-import type { BindingId } from "../scalars/bindingCatalog";
+import type { ScalarEvaluation } from "@nuinuicad/nui-language";
+import type { TextTemplateAst } from "@nuinuicad/nui-language";
+import type { BindingId } from "@nuinuicad/nui-language";
 import type { ForGroupMutationOwner } from "../scalars/forGroupMutationControl";
 import type { ForGroupMutationStatement } from "../scalars/linearMutationEvaluator";
-import { degreesToRadians, normalizeDegrees360 } from "../scalars/angleMath";
-import type { ModuleMaterialization } from "../dsl/moduleMaterialization";
-import type { GeometryValueProgram } from "../dsl/moduleGeometryValueProgram";
+import { degreesToRadians, normalizeDegrees360 } from "@nuinuicad/nui-language";
+import type { ModuleMaterialization } from "@nuinuicad/nui-language";
+import type { GeometryValueProgram } from "@nuinuicad/nui-language";
 import {
   transformationStageKey,
   type TransformationRecipe,
   type TransformationTargetSelector
-} from "../../packages/nui-language/src/dsl/transformationRecipes";
-import { geometryValueOccurrenceKey } from "../model/geometryValueOccurrence";
+} from "@nuinuicad/nui-language";
+import { geometryValueOccurrenceKey } from "@nuinuicad/nui-language";
 import type {
   ComputedGeometryValue,
   ComputedGeometryValueEntry,
@@ -90,7 +90,7 @@ import { joinedPathGeometryValueKernel } from "./joinedPathGeometryValue";
 import { lineLength } from "./offsetPathMath";
 import { findLineIntersections, isSelfIntersectingClosedPath } from "./lineIntersections";
 import { evaluateTypedExpression } from "../scalars/expressionEvaluator";
-import { setParameterValue } from "../parameters/parameterAccess";
+import { setParameterValue } from "@nuinuicad/nui-language";
 
 export type EvaluateElementsOptions = {
   evaluationLimitIndex?: number;
@@ -235,7 +235,7 @@ export const evaluateElements = (
   const evaluatedElements = elements.slice(0, evaluationLimitIndex);
   const evaluatedElementIds = new Set(evaluatedElements.map((element) => element.id));
   const computedGeometry = new Map<ElementId, ComputedGeometry>();
-  const computedGeometryValues = new Map<import("../model/geometryValueOccurrence").GeometryValueOccurrenceKey, ComputedGeometryValueEntry>();
+  const computedGeometryValues = new Map<import("@nuinuicad/nui-language").GeometryValueOccurrenceKey, ComputedGeometryValueEntry>();
   const geometryValueErrors: GeometryValueEvaluationError[] = [];
   const preMutationGeometry = new Map<ElementId, ComputedGeometry>();
   const baseTransformationGeometry = new Map<ElementId, ComputedGeometry>();
@@ -499,7 +499,7 @@ export const evaluateElements = (
       lookupGeometryProperty: (reference) => resolveGeometryPropertyForEvaluation(reference, sourceOrder, lookupBinding),
       lookupGeometryTarget: (target) => resolveGeometryTargetForEvaluation(target, sourceOrder, lookupBinding),
       ...(scalarBindingResolver?.resolveCollectionIndex ? {
-        lookupCollectionIndex: (collectionValueId: string, index: number, elementType: import("../scalars/types").ScalarType, collectionLength: number | null, targetSourceOrder: number) =>
+        lookupCollectionIndex: (collectionValueId: string, index: number, elementType: import("@nuinuicad/nui-language").ScalarType, collectionLength: number | null, targetSourceOrder: number) =>
           scalarBindingResolver.resolveCollectionIndex!(collectionValueId, index, elementType, collectionLength, targetSourceOrder, sourceOrder)
       } : {}),
       ...(scalarBindingResolver?.resolveCollectionLength ? {
@@ -552,7 +552,7 @@ export const evaluateElements = (
       lookupGeometryProperty: (reference: Parameters<typeof resolveDocumentGeometryProperty>[1]) => resolveGeometryPropertyForEvaluation(reference, evaluationSourceOrder, lookupBinding),
       lookupGeometryTarget: (target: Parameters<typeof resolveDocumentGeometryTarget>[1]) => resolveGeometryTargetForEvaluation(target, evaluationSourceOrder, lookupBinding),
       ...(scalarBindingResolver?.resolveCollectionIndex ? {
-        lookupCollectionIndex: (collectionValueId: string, index: number, elementType: import("../scalars/types").ScalarType, collectionLength: number | null, targetSourceOrder: number) =>
+        lookupCollectionIndex: (collectionValueId: string, index: number, elementType: import("@nuinuicad/nui-language").ScalarType, collectionLength: number | null, targetSourceOrder: number) =>
           scalarBindingResolver.resolveCollectionIndex!(collectionValueId, index, elementType, collectionLength, targetSourceOrder, evaluationSourceOrder)
       } : {}),
       ...(scalarBindingResolver?.resolveCollectionLength ? {
@@ -588,7 +588,7 @@ export const evaluateElements = (
       if (target.kind === "geometryValueMap") {
         const previousBinder = activeGeometryMapBinder;
         activeGeometryMapBinder = target.source;
-        const entry: import("../dsl/moduleGeometryValueProgram").GeometryValueProgramEntry = {
+        const entry: import("@nuinuicad/nui-language").GeometryValueProgramEntry = {
           sourceStatementId: target.occurrence.sourceStatementId,
           sourceStatementIndex: target.executionPosition,
           declaredInterfaceType: target.declaredInterfaceType,
@@ -787,7 +787,7 @@ export const evaluateElements = (
   };
 
   const appendGeometryValueError = (
-    entry: import("../dsl/moduleGeometryValueProgram").GeometryValueProgramEntry,
+    entry: import("@nuinuicad/nui-language").GeometryValueProgramEntry,
     message: string
   ) => {
     geometryValueErrors.push({
@@ -907,7 +907,7 @@ export const evaluateElements = (
   };
 
   const structuralPointForProgramPoint = (
-    point: import("../dsl/moduleGeometryValueProgram").GeometryValueProgramPoint,
+    point: import("@nuinuicad/nui-language").GeometryValueProgramPoint,
     sourceOrder: number
   ): StructuralPoint | undefined => {
     if (point.kind === "coordinate") {
@@ -918,7 +918,7 @@ export const evaluateElements = (
     return structuralPointForValueTarget(point.target, sourceOrder);
   };
 
-  const evaluateGeometryValueEntry = (entry: import("../dsl/moduleGeometryValueProgram").GeometryValueProgramEntry) => {
+  const evaluateGeometryValueEntry = (entry: import("@nuinuicad/nui-language").GeometryValueProgramEntry) => {
     const sourceOrder = entry.executionPosition;
     if (linearMutationResolver) {
       linearMutationResolver.advanceTo({ kind: "beforeStatement", sourceOrder });

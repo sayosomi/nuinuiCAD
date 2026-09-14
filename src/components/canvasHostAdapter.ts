@@ -25,7 +25,7 @@ import type { ViewportSize } from "./canvasViewport";
 import type { CanvasTheme } from "./canvasTheme";
 import type { PickCandidate } from "../model/pickCandidates";
 import type { PickModeSession } from "../model/pickModeSession";
-import type { CanvasModuleMaterialization } from "../dsl/moduleMaterialization";
+import type { CanvasModuleMaterialization } from "@nuinuicad/nui-language";
 import type { CommandId } from "../commands/commandTypes";
 import type { CanvasPresentation } from "./canvasPresentation";
 

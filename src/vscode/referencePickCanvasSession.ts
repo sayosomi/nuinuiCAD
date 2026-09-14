@@ -1,9 +1,9 @@
-import type { CompiledDslDocument } from "../dsl/dslDocument";
+import type { CompiledDslDocument } from "@nuinuicad/nui-language";
 import {
   queryDslReferencePickTarget,
   type DslReferencePickTarget,
   type SourceSnapshot
-} from "../dsl/dslReferencePickQuery";
+} from "@nuinuicad/nui-language";
 import {
   referencePickCandidates,
   referencePickNumericSubgeometryKey,

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument, type DslDocumentData } from "../dsl/dslDocument";
-import { parseDsl } from "../dsl/dslParser";
-import { expectSemanticallyEqualDocuments } from "../dsl/dslDocumentTestUtils";
+import { compileDslDocument, type DslDocumentData } from "@nuinuicad/nui-language";
+import { parseDsl } from "@nuinuicad/nui-language";
+import { expectSemanticallyEqualDocuments } from "@nuinuicad/nui-language";
 import type { CadElement } from "../types/geometry";
 import {
   applyLineSplices,
@@ -10,8 +10,8 @@ import {
   elementUpdateSetForTesting,
   elementUpdateSetFullComparisonForTesting,
   type LineSplice
-} from "./textPatch";
-import { commitModelBridge, type CanonicalDocumentValue, type LastGoodDslDocument } from "./canonicalDocument";
+} from "@nuinuicad/nui-language/document";
+import { commitModelBridge, type CanonicalDocumentValue, type LastGoodDslDocument } from "@nuinuicad/nui-language/document";
 
 const elementByName = (document: DslDocumentData, name: string): CadElement => {
   const element = document.elements.find((item) => item.name === name)

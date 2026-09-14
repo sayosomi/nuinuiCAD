@@ -1,14 +1,14 @@
-import type { LastGoodDslDocument } from "../document/canonicalDocument";
-import { exactPhysicalSpan } from "../dsl/dslDiagnosticSpan";
-import type { NormalizedSourceRange } from "../dsl/dslNavigationQuery";
-import { coordinateComponent } from "../dsl/dslParameterSpanScanner";
+import type { LastGoodDslDocument } from "@nuinuicad/nui-language/document";
+import { exactPhysicalSpan } from "@nuinuicad/nui-language";
+import type { NormalizedSourceRange } from "@nuinuicad/nui-language";
+import { coordinateComponent } from "@nuinuicad/nui-language";
 import {
   createDslSemanticOccurrenceIndex,
   dslSemanticDeclarationRange,
   type DslSemanticOccurrenceIndex
-} from "../dsl/dslSemanticOccurrenceIndex";
-import type { DslPhysicalSpan, LogicalStatement } from "../dsl/logicalStatementSourceMap";
-import type { DslSpan, DslStatement } from "../dsl/dslTypes";
+} from "@nuinuicad/nui-language";
+import type { DslPhysicalSpan, LogicalStatement } from "@nuinuicad/nui-language";
+import type { DslSpan, DslStatement } from "@nuinuicad/nui-language";
 import type { OutputDrawable, OutputPlan, OutputPoint } from "./outputCore";
 
 export type OutputPlaceReferenceNavigation = {

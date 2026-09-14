@@ -1,18 +1,18 @@
 import { MapMode, Text, type ChangeDesc } from "@codemirror/state";
-import type { StatementInfo, StatementMap } from "../dsl/dslDocument";
-import type { SourceOwner } from "../dsl/sourceOwnership";
-import { argNameForParameter } from "../dsl/dslConstructions";
-import type { DslPhysicalSegment } from "../dsl/logicalStatementSourceMap";
-import type { DslStatement } from "../dsl/dslTypes";
-import type { FoldTarget } from "../model/groups";
+import type { StatementInfo, StatementMap } from "@nuinuicad/nui-language";
+import type { SourceOwner } from "@nuinuicad/nui-language";
+import { argNameForParameter } from "@nuinuicad/nui-language";
+import type { DslPhysicalSegment } from "@nuinuicad/nui-language";
+import type { DslStatement } from "@nuinuicad/nui-language";
+import type { FoldTarget } from "@nuinuicad/nui-language";
 import type { ElementId } from "../types/geometry";
-import { bindingIdForStableStatementId, type BindingId } from "../scalars/bindingCatalog";
-import type { LexicalScopeIndex, ScopeId } from "../scalars/lexicalScopeIndex";
-import type { ScalarValueSource } from "../scalars/propertyBindingCompiler";
-import type { TextTemplateAst } from "../scalars/textTemplate";
-import type { ModuleDefinitionFoldRange, ModuleSemanticRangeIndex } from "../dsl/moduleSemanticEditor";
-import { moduleSemanticTargetKey } from "../dsl/moduleSemanticEditor";
-import type { StatementIdentity } from "../document/statementIdentity";
+import { bindingIdForStableStatementId, type BindingId } from "@nuinuicad/nui-language";
+import type { LexicalScopeIndex, ScopeId } from "@nuinuicad/nui-language";
+import type { ScalarValueSource } from "@nuinuicad/nui-language";
+import type { TextTemplateAst } from "@nuinuicad/nui-language";
+import type { ModuleDefinitionFoldRange, ModuleSemanticRangeIndex } from "@nuinuicad/nui-language";
+import { moduleSemanticTargetKey } from "@nuinuicad/nui-language";
+import type { StatementIdentity } from "@nuinuicad/nui-language/document";
 
 type FoldAnchor = { from: number; to: number };
 

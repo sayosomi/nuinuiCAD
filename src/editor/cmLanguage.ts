@@ -1,8 +1,8 @@
 import { HighlightStyle, StreamLanguage, syntaxHighlighting } from "@codemirror/language";
 import type { StringStream } from "@codemirror/language";
 import { tags } from "@lezer/highlight";
-import { highlightDslLineWithState } from "../dsl/dslHighlight";
-import type { DslHighlightToken } from "../dsl/dslTypes";
+import { highlightDslLineWithState } from "@nuinuicad/nui-language";
+import type { DslHighlightToken } from "@nuinuicad/nui-language";
 
 type StreamState = { tokens: DslHighlightToken[]; tokenIndex: number; inBlockComment: boolean };
 

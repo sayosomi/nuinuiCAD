@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CadElement } from "../types/geometry";
-import type { DslOutputPreviewRevealRuntimeTarget } from "../dsl/dslOutputPreviewRevealQuery";
+import type { DslOutputPreviewRevealRuntimeTarget } from "@nuinuicad/nui-language";
 import type { OutputDrawable, OutputPlan } from "./outputCore";
 import {
   outputPreviewRevealOutputKeyFor,

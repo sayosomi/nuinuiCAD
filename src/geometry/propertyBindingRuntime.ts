@@ -10,12 +10,12 @@
 // scalarProgramEvaluation.ts) - it never evaluates a scalar program itself.
 
 import type { CadElement, DependencyError, ElementId } from "../types/geometry";
-import type { BindingId } from "../scalars/bindingCatalog";
-import type { ScalarValueSource } from "../scalars/propertyBindingCompiler";
-import { isScalarExpressionTypeAssignable } from "../scalars/scalarAssignability";
-import type { ScalarEvaluation, ScalarType } from "../scalars/types";
-import { findParameterDefinition, scalarTypeForParameterDefinition } from "../parameters/parameterDefinitions";
-import type { TypedScalarExpression } from "../scalars/typedExpressionAst";
+import type { BindingId } from "@nuinuicad/nui-language";
+import type { ScalarValueSource } from "@nuinuicad/nui-language";
+import { isScalarExpressionTypeAssignable } from "@nuinuicad/nui-language";
+import type { ScalarEvaluation, ScalarType } from "@nuinuicad/nui-language";
+import { findParameterDefinition, scalarTypeForParameterDefinition } from "@nuinuicad/nui-language";
+import type { TypedScalarExpression } from "@nuinuicad/nui-language";
 import { evaluateTypedExpression } from "../scalars/expressionEvaluator";
 import { geometryError } from "./evaluationContext";
 

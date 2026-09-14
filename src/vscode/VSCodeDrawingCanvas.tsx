@@ -15,7 +15,7 @@ import {
   evaluationStateIsCurrentFor,
   type EvaluationEngineState
 } from "../geometry/useEvaluationEngine";
-import { compileCanonicalText } from "../document/canonicalDocument";
+import { compileCanonicalText } from "@nuinuicad/nui-language/document";
 import {
   effectiveCompiledDocument,
   effectiveElements,

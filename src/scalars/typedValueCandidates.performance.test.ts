@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument } from "../dsl/dslDocument";
-import { typedBindingReferenceCandidates } from "./typedValueCandidates";
+import { compileDslDocument } from "@nuinuicad/nui-language";
+import { typedBindingReferenceCandidates } from "@nuinuicad/nui-language";
 
 type Measurement = { medianMs: number; p95Ms: number };
 

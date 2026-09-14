@@ -86,7 +86,7 @@ vi.mock("../dsl/modulePreviewTarget", async () => {
 });
 
 import { ModulePreviewApp } from "./ModulePreviewApp";
-import { AutomationDocument } from "../document/automationDocument";
+import { AutomationDocument } from "@nuinuicad/nui-language/document";
 import { compileModulePreviewRoot } from "../dsl/modulePreviewRoot";
 import { evaluateElements } from "../geometry/evaluate";
 import { buildModulePreviewEvaluationOptions } from "./modulePreviewEvaluation";
@@ -94,7 +94,7 @@ import type { CanvasHostAdapter } from "../components/canvasHostAdapter";
 import type { CadElement } from "../types/geometry";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
-import { sourceOwnerForRuntimeElementId } from "../dsl/sourceOwnership";
+import { sourceOwnerForRuntimeElementId } from "@nuinuicad/nui-language";
 
 const target: ModulePreviewTarget = {
   definitionStatementId: "module:preview",

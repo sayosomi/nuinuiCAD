@@ -1,11 +1,11 @@
 import type { CadElement, ComputedGeometry, ElementId } from "../types/geometry";
 import type { ComputedGeometryValue } from "./evaluationTypes";
-import { geometryValueOccurrenceKey } from "../model/geometryValueOccurrence";
-import type { GeometryValueOccurrenceKey } from "../model/geometryValueOccurrence";
+import { geometryValueOccurrenceKey } from "@nuinuicad/nui-language";
+import type { GeometryValueOccurrenceKey } from "@nuinuicad/nui-language";
 import { computedReferencePathValue } from "./numericExpressions";
 import { resolveDerivedPoint } from "../model/pointAnchors";
-import { getParameterValue } from "../parameters/parameterAccess";
-import type { BindingReadPosition, BindingVersionGraph } from "../scalars/bindingVersions";
+import { getParameterValue } from "@nuinuicad/nui-language";
+import type { BindingReadPosition, BindingVersionGraph } from "@nuinuicad/nui-language";
 import {
   createLazyScalarProgramEvaluator,
   finalizeScalarProgramEvaluation,
@@ -19,13 +19,13 @@ import {
   type ForGroupMutationStatement,
   type LinearMutationEvaluation
 } from "../scalars/linearMutationEvaluator";
-import type { ForGroupMutationRunOutcome } from "../scalars/forGroupMutationCore";
-import type { ScalarProgram, ScalarProgramCollection } from "../scalars/scalarProgram";
-import type { BindingId } from "../scalars/bindingCatalog";
-import type { ScalarEvaluation, ScalarType } from "../scalars/types";
-import type { ScalarExpressionResolvedGeometryTarget, TypedScalarGeometryPropertyReferenceNode, TypedScalarExpression } from "../scalars/typedExpressionAst";
+import type { ForGroupMutationRunOutcome } from "@nuinuicad/nui-language";
+import type { ScalarProgram, ScalarProgramCollection } from "@nuinuicad/nui-language";
+import type { BindingId } from "@nuinuicad/nui-language";
+import type { ScalarEvaluation, ScalarType } from "@nuinuicad/nui-language";
+import type { ScalarExpressionResolvedGeometryTarget, TypedScalarGeometryPropertyReferenceNode, TypedScalarExpression } from "@nuinuicad/nui-language";
 import { evaluateTypedExpression, type GeometryBuiltinTargetLookupResult, type ScalarEvaluationEnvironment } from "../scalars/expressionEvaluator";
-import type { EffectiveElementActivity } from "../model/elementActivity";
+import type { EffectiveElementActivity } from "@nuinuicad/nui-language";
 import type { GeometryInputCollectionNode } from "../types/geometry";
 
 /**

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument } from "../src/dsl/dslDocument";
+import { compileDslDocument } from "@nuinuicad/nui-language";
 import { PURE_TYPED_BINDING_SIZES, buildPureTypedBindingSource } from "./pureTypedBindingFixtures";
 import {
   expectPerformanceRegressionGate,

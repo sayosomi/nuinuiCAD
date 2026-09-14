@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { DslSpan } from "./dslTypes";
-import { EMPTY_ARGUMENT_CODE, MISSING_ARGUMENT_COMMA_CODE, scanCallArgs } from "./dslArgScanner";
+import type { DslSpan } from "@nuinuicad/nui-language";
+import { EMPTY_ARGUMENT_CODE, MISSING_ARGUMENT_COMMA_CODE, scanCallArgs } from "@nuinuicad/nui-language";
 
 const spanOf = (source: string, text: string, from = 0): DslSpan => {
   const start = source.indexOf(text, from);

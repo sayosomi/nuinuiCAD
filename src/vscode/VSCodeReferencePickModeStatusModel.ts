@@ -1,6 +1,6 @@
-import { dslDocumentValueSpansAt } from "../dsl/dslValueSpans";
-import type { CompiledDslDocument } from "../dsl/dslDocument";
-import type { SourceSnapshot } from "../dsl/logicalStatementSourceMap";
+import { dslDocumentValueSpansAt } from "@nuinuicad/nui-language";
+import type { CompiledDslDocument } from "@nuinuicad/nui-language";
+import type { SourceSnapshot } from "@nuinuicad/nui-language";
 import type { PickModeStatusModel } from "../components/PickModeStatus";
 import {
   referencePickReferenceKey,

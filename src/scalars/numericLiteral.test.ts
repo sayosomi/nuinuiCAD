@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { tokenize } from "../geometry/numericExpressionParser";
-import { numericLiteralForExpression } from "./numericLiteral";
+import { tokenize } from "@nuinuicad/nui-language";
+import { numericLiteralForExpression } from "@nuinuicad/nui-language";
 
 describe("numericLiteralForExpression", () => {
   it.each([0, -0, Number.MIN_VALUE, Number.MAX_VALUE, 1e-7, -1e-7, 1e20, -42, 12.3456])(

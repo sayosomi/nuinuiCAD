@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { elementTypesWithoutOwnDrawableGeometry } from "../model/elementActivity";
-import { createCadElement } from "../model/elementFactory";
+import { elementTypesWithoutOwnDrawableGeometry } from "@nuinuicad/nui-language";
+import { createCadElement } from "@nuinuicad/nui-language";
 import { referenceAnchor } from "../model/pointAnchors";
-import { getParameterDefinitions } from "../parameters/parameterDefinitions";
-import { compileDslToElements } from "../dsl/dslCompiler";
-import { normalizeForComparison } from "../dsl/dslDocumentTestUtils";
-import { parseDsl } from "../dsl/dslParser";
-import { documentDslRefs, serializeElementsToDsl } from "../dsl/dslSerializer";
-import { serializeElementStatementLogical } from "../dsl/dslSerializeElement";
+import { getParameterDefinitions } from "@nuinuicad/nui-language";
+import { compileDslToElements } from "@nuinuicad/nui-language";
+import { normalizeForComparison } from "@nuinuicad/nui-language";
+import { parseDsl } from "@nuinuicad/nui-language";
+import { documentDslRefs, serializeElementsToDsl } from "@nuinuicad/nui-language";
+import { serializeElementStatementLogical } from "@nuinuicad/nui-language";
 import { elementTypeLabels, type CadElementType } from "../types/geometry";
 import { creationCommandDefinitions } from "./creationCommandDefinitions";
 import {

@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import type { LastGoodDslDocument } from "../document/canonicalDocument";
+import type { LastGoodDslDocument } from "@nuinuicad/nui-language/document";
 import { evaluateElementsReference } from "../geometry/evaluationEngine";
 import { buildEvaluationOptions } from "../geometry/productionEvaluationContext";
-import { compileDslDocument, serializeDocumentToDsl } from "./dslDocument";
-import { parseDsl } from "./dslParser";
+import { compileDslDocument, serializeDocumentToDsl } from "@nuinuicad/nui-language";
+import { parseDsl } from "@nuinuicad/nui-language";
 
 const sourceLines = (...lines: string[]) => lines.join("\n");
 const errors = (source: string) => compileDslDocument(source).diagnostics.filter((item) => item.severity === "error");

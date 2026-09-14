@@ -1,28 +1,28 @@
 import { describe, expect, it } from "vitest";
 import type { CadElement } from "../types/geometry";
-import { compileDslToElements } from "./dslCompiler";
+import { compileDslToElements } from "@nuinuicad/nui-language";
 import {
   compileDslDocument,
   layoutElementTree,
   parseDslDocument,
   serializeDocumentToDsl,
   type DslDocumentData
-} from "./dslDocument";
+} from "@nuinuicad/nui-language";
 import {
   propertyBindingOccurrenceKey
-} from "../scalars/propertyBindingCompiler";
-import { TEXT_TEMPLATE_HOLE_TYPE_MISMATCH_CODE } from "../scalars/textTemplate";
+} from "@nuinuicad/nui-language";
+import { TEXT_TEMPLATE_HOLE_TYPE_MISMATCH_CODE } from "@nuinuicad/nui-language";
 import {
   CONST_ASSIGNMENT_CODE,
   INVALID_SET_TARGET_CODE,
   MISSING_SET_STATEMENT_IDENTITY_CODE
-} from "../scalars/setStatementCompiler";
+} from "@nuinuicad/nui-language";
 import {
   emptyDocument,
   expectSemanticallyEqualDocuments,
   roundTrip
-} from "./dslDocumentTestUtils";
-import { documentDslRefs } from "./dslSerializer";
+} from "@nuinuicad/nui-language";
+import { documentDslRefs } from "@nuinuicad/nui-language";
 import sampleFixture from "./__fixtures__/sample.nui?raw";
 
 describe("dslDocument round-trip matrix", () => {

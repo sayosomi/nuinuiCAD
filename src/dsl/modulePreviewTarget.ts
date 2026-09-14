@@ -1,7 +1,7 @@
-import type { StatementIdentity } from "../document/statementIdentity";
-import type { CompiledDslDocument, StatementInfo } from "./dslDocument";
-import type { SourceRevision, SourceSnapshot } from "./logicalStatementSourceMap";
-import type { DslStatement } from "./dslTypes";
+import type { StatementIdentity } from "@nuinuicad/nui-language/document";
+import type { CompiledDslDocument, StatementInfo } from "@nuinuicad/nui-language";
+import type { SourceRevision, SourceSnapshot } from "@nuinuicad/nui-language";
+import type { DslStatement } from "@nuinuicad/nui-language";
 
 export type ModulePreviewTargetSemanticSnapshot = {
   sourceRevision: SourceRevision;
@@ -183,4 +183,4 @@ export const queryModulePreviewTarget = ({
   return definition;
 };
 
-export type { SourceRevision, SourceSnapshot } from "./logicalStatementSourceMap";
+export type { SourceRevision, SourceSnapshot } from "@nuinuicad/nui-language";

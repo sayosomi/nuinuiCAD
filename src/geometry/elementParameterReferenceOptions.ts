@@ -1,9 +1,9 @@
-import { resolveElementName } from "../model/elementNames";
+import { resolveElementName } from "@nuinuicad/nui-language";
 import { runtimeOnlyElementTypes, type CadElement, type ElementId, type EvaluationResult } from "../types/geometry";
-import { getParameterDefinitions, scalarTypeForParameterDefinition } from "../parameters/parameterDefinitions";
-import { getParameterValue } from "../parameters/parameterAccess";
-import { isScalarTypeAssignable } from "../scalars/scalarAssignability";
-import type { ScalarType } from "../scalars/types";
+import { getParameterDefinitions, scalarTypeForParameterDefinition } from "@nuinuicad/nui-language";
+import { getParameterValue } from "@nuinuicad/nui-language";
+import { isScalarTypeAssignable } from "@nuinuicad/nui-language";
+import type { ScalarType } from "@nuinuicad/nui-language";
 import {
   computedPathsForGeometry,
   formatValue,

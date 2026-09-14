@@ -6,7 +6,7 @@ import {
   type ScalarLiteralScanError,
   type ScalarNumberLiteralToken,
   type ScalarStringLiteralToken
-} from "./literalScanner";
+} from "@nuinuicad/nui-language";
 
 const fullSpan = (source: string) => ({ start: 0, end: source.length });
 

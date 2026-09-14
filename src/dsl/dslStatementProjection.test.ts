@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { dslDocumentValueSpansAt } from "./dslValueSpans";
-import { singlePhysicalSegment, statementProjectionAt } from "./dslStatementProjection";
+import { dslDocumentValueSpansAt } from "@nuinuicad/nui-language";
+import { singlePhysicalSegment, statementProjectionAt } from "@nuinuicad/nui-language";
 
 describe("statement source projection", () => {
   it("projects second-line values to their physical positions", () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument } from "../dsl/dslDocument";
-import { analyzeTypedBindingRenameInDocument } from "../document/typedRenameAnalysis";
+import { compileDslDocument } from "@nuinuicad/nui-language";
+import { analyzeTypedBindingRenameInDocument } from "@nuinuicad/nui-language/document";
 
 type Measurement = { medianMs: number; p95Ms: number };
 const runPerformanceGates = (globalThis as {

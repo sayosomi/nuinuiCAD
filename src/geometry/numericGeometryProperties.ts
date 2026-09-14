@@ -1,2 +1,2 @@
-export * from "../../packages/nui-language/src/geometry/numericGeometryProperties";
+export * from "@nuinuicad/nui-language";
 export * from "./numericGeometryPropertiesRuntime";

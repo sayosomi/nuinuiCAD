@@ -1,11 +1,11 @@
-import type { ModuleMaterialization } from "../dsl/moduleMaterialization";
+import type { ModuleMaterialization } from "@nuinuicad/nui-language";
 import type {
   CanvasDrawingBounds,
   CanvasTextWidthMeasurer
 } from "../geometry/canvasDrawingBounds";
 import { groupCanvasGeometry } from "../geometry/groupCanvasGeometry";
 import { moduleInstanceCanvasGeometry } from "../geometry/moduleInstanceCanvasGeometry";
-import { isGroupElement } from "../model/groups";
+import { isGroupElement } from "@nuinuicad/nui-language";
 import type {
   CadElement,
   ElementId,

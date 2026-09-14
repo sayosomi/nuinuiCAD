@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { parseDsl } from "./dslParser";
-import { buildSourceLexicalNamespaceIndex } from "./sourceLexicalNamespaceIndex";
+import { parseDsl } from "@nuinuicad/nui-language";
+import { buildSourceLexicalNamespaceIndex } from "@nuinuicad/nui-language";
 
 const analyze = (source: string) => {
   const parsed = parseDsl(source);

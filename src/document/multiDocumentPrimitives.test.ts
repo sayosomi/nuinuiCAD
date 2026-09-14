@@ -7,7 +7,7 @@ import {
   sourceIdentityOf,
   type DependencySavedSourceSnapshot,
   type RootCurrentSourceSnapshot
-} from "./multiDocumentPrimitives";
+} from "@nuinuicad/nui-language/workspace";
 
 describe("multi-document identity primitives", () => {
   it("keeps host-supplied DocumentId opaque and verbatim", () => {

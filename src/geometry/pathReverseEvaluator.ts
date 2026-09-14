@@ -1,6 +1,6 @@
 import type { CadElement } from "../types/geometry";
-import { elementDisplayName } from "../model/elementNames";
-import { forGroupAncestorIds } from "../model/groups";
+import { elementDisplayName } from "@nuinuicad/nui-language";
+import { forGroupAncestorIds } from "@nuinuicad/nui-language";
 import { dependencyError, forGroupAncestorError, geometryError } from "./evaluationContext";
 import type { ElementEvaluationContext } from "./elementEvaluatorTypes";
 import { reverseComputedPathGeometry } from "./reversePathGeometry";

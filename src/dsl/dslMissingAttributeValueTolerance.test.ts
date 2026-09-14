@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { compileDslToElements } from "./dslCompiler";
-import { compileDslDocument } from "./dslDocument";
+import { compileDslToElements } from "@nuinuicad/nui-language";
+import { compileDslDocument } from "@nuinuicad/nui-language";
 
 /**
  * missing-attribute-value ("well-formed but currently-empty named value" -

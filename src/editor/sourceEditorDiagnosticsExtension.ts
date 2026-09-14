@@ -1,9 +1,9 @@
 import { linter, type Diagnostic } from "@codemirror/lint";
 import type { Extension } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
-import { parseDsl } from "../dsl/dslParser";
-import type { DslDiagnostic } from "../dsl/dslTypes";
-import { typedVariableQuickFixes } from "../scalars/typedVariableQuickFixes";
+import { parseDsl } from "@nuinuicad/nui-language";
+import type { DslDiagnostic } from "@nuinuicad/nui-language";
+import { typedVariableQuickFixes } from "@nuinuicad/nui-language";
 import { buildTypedVariableLintActions } from "./typedVariableQuickFixActions";
 import {
   mergeDiagnosticLayers,

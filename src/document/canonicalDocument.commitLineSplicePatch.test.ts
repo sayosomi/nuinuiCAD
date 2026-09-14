@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument } from "../dsl/dslDocument";
-import { parseDsl } from "../dsl/dslParser";
-import { commitLineSplicePatch, type CanonicalDocumentValue, type LastGoodDslDocument } from "./canonicalDocument";
+import { compileDslDocument } from "@nuinuicad/nui-language";
+import { parseDsl } from "@nuinuicad/nui-language";
+import { commitLineSplicePatch, type CanonicalDocumentValue, type LastGoodDslDocument } from "@nuinuicad/nui-language/document";
 
 const canonicalFrom = (source: string): CanonicalDocumentValue => {
   const parsed = parseDsl(source);

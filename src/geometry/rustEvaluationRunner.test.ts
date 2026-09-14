@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { CadElement } from "../types/geometry";
-import type { BindingVersionGraph } from "../scalars/bindingVersions";
+import type { BindingVersionGraph } from "@nuinuicad/nui-language";
 import {
   evaluationPayloadToResult,
   type EvaluationPayload

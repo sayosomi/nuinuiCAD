@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { compileDslToElements } from "../dsl/dslCompiler";
-import { dslLinesForElements } from "../dsl/dslDocumentTestUtils";
-import { createLogicalStatementSourceMap } from "../dsl/logicalStatementSourceMap";
+import { compileDslToElements } from "@nuinuicad/nui-language";
+import { dslLinesForElements } from "@nuinuicad/nui-language";
+import { createLogicalStatementSourceMap } from "@nuinuicad/nui-language";
 import { resolveSourceEditorPickSelection } from "./sourceEditorPickSelection";
 
 const docLines = dslLinesForElements([

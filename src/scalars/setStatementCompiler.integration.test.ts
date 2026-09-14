@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument } from "../dsl/dslDocument";
-import { emptyDocument } from "../dsl/dslDocumentTestUtils";
-import { compileCanonicalText, regenerateCanonicalFromModel } from "../document/canonicalDocument";
-import { MISSING_SET_STATEMENT_IDENTITY_CODE } from "./setStatementCompiler";
-import type { TypedScalarExpression } from "./typedExpressionAst";
+import { compileDslDocument } from "@nuinuicad/nui-language";
+import { emptyDocument } from "@nuinuicad/nui-language";
+import { compileCanonicalText, regenerateCanonicalFromModel } from "@nuinuicad/nui-language/document";
+import { MISSING_SET_STATEMENT_IDENTITY_CODE } from "@nuinuicad/nui-language";
+import type { TypedScalarExpression } from "@nuinuicad/nui-language";
 
 // Mirrors scalarProgram.integration.test.ts's own pattern exactly: this is
 // the canonical production entry point (compileCanonicalText always runs

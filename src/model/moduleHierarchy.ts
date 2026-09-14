@@ -1,6 +1,6 @@
-import type { ModuleMaterialization, ModuleOrigin } from "../dsl/moduleMaterialization";
-import type { ModuleSemanticAnalysis } from "../dsl/moduleSemanticTypes";
-import { elementDisplayName } from "./elementNames";
+import type { ModuleMaterialization, ModuleOrigin } from "@nuinuicad/nui-language";
+import type { ModuleSemanticAnalysis } from "@nuinuicad/nui-language";
+import { elementDisplayName } from "@nuinuicad/nui-language";
 import type { CadElement, ElementId } from "../types/geometry";
 import { elementTypeLabels } from "../types/geometry";
 

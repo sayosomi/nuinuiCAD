@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { CadElement } from "../types/geometry";
-import type { ScalarEvaluation, ScalarType } from "../scalars/types";
-import type { ScalarValueSource } from "../scalars/propertyBindingCompiler";
+import type { ScalarEvaluation, ScalarType } from "@nuinuicad/nui-language";
+import type { ScalarValueSource } from "@nuinuicad/nui-language";
 import {
   buildPropertyBindingRuntimeEntries,
   groupPropertyBindingRuntimeEntriesByElement,

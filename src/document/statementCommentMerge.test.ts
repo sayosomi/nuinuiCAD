@@ -1,7 +1,7 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import type { SerializedStatement } from "../dsl/dslSerializeElement";
-import { mergeStatementComments } from "./statementCommentMerge";
+import type { SerializedStatement } from "@nuinuicad/nui-language";
+import { mergeStatementComments } from "@nuinuicad/nui-language/document";
 
 const callStatement = (header: string, args: Array<[string, string]>, close: ")" | null = ")"): SerializedStatement => ({
   header,

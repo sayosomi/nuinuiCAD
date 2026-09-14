@@ -4,7 +4,7 @@ import {
   dslTypoDistanceLimit,
   matchDslTypoCandidate,
   rankDslTypoCandidates
-} from "./dslTypoMatcher";
+} from "@nuinuicad/nui-language";
 
 describe("dslTypoMatcher", () => {
   it("counts insertion, deletion, substitution, and adjacent transposition as one edit", () => {

@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument } from "../dsl/dslDocument";
-import { parseDslSnapshot } from "../dsl/dslParser";
-import { createModuleSemanticRangeIndex, moduleSemanticDeclarationRange, moduleSemanticTargetAt } from "../dsl/moduleSemanticEditor";
-import { analyzeModuleSemanticRename } from "../document/moduleSemanticRenameAnalysis";
+import { compileDslDocument } from "@nuinuicad/nui-language";
+import { parseDslSnapshot } from "@nuinuicad/nui-language";
+import { createModuleSemanticRangeIndex, moduleSemanticDeclarationRange, moduleSemanticTargetAt } from "@nuinuicad/nui-language";
+import { analyzeModuleSemanticRename } from "@nuinuicad/nui-language/document";
 
 const source = [
   "nui 1",

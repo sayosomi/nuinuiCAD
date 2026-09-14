@@ -1,10 +1,10 @@
 import type { CadElement, ElementId, GeometryInputTarget, PointAnchor } from "../types/geometry";
 import { anchorReferenceElementId, pointAnchorForElement } from "../model/pointAnchors";
-import { getDirectParentIds } from "../model/dependencies";
+import { getDirectParentIds } from "@nuinuicad/nui-language";
 import type { EvaluateElementsOptions } from "./evaluate";
 import { hasSetVersions, isRustLinearMutationEligible } from "../scalars/linearMutationEvaluator";
 import { hasCanonicalForGroupMutationOwners } from "../scalars/forGroupMutationControl";
-import { referencesIn } from "../scalars/typedDependencyGraph";
+import { referencesIn } from "@nuinuicad/nui-language";
 
 const rustSupportedElementTypes = new Set<CadElement["type"]>([
   "group",

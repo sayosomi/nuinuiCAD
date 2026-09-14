@@ -3,7 +3,7 @@ import { evaluateElementsReferencePayload } from "../src/geometry/evaluationEngi
 import { evaluationPayloadToResult } from "../src/geometry/evaluationPayload";
 import { buildRustEvaluationInput } from "../src/geometry/rustEvaluationInput";
 import { forGroupGeneratedElementId } from "../src/geometry/forGroupExpansion";
-import { propertyBindingOccurrenceKey } from "../src/scalars/propertyBindingCompiler";
+import { propertyBindingOccurrenceKey } from "@nuinuicad/nui-language";
 import {
   evaluateWithRustFixture,
   fixtureFromSource,

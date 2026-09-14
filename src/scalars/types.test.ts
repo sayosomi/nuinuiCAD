@@ -7,7 +7,7 @@ import {
   scalarTypesEqual,
   scalarValueMatchesType,
   type ScalarType
-} from "./types";
+} from "@nuinuicad/nui-language";
 
 describe("scalar type guards", () => {
   it("narrows each kind independently", () => {

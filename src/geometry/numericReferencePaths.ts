@@ -1,5 +1,5 @@
-import { createDependencyIndex } from "../model/dependencies";
-import { getParameterValue } from "../parameters/parameterAccess";
+import { createDependencyIndex } from "@nuinuicad/nui-language";
+import { getParameterValue } from "@nuinuicad/nui-language";
 import {
   runtimeOnlyElementTypes,
   type CadElement,
@@ -26,7 +26,7 @@ import {
   sourceReferenceForElement,
   type ModuleSemanticCandidateContext
 } from "../model/moduleSemanticCandidateBoundary";
-import { getBuiltinConstantDefinition } from "../scalars/builtinConstants";
+import { getBuiltinConstantDefinition } from "@nuinuicad/nui-language";
 
 export type NumericReferenceCandidate = {
   id: string;

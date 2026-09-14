@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument } from "../dsl/dslDocument";
-import { parseDsl } from "../dsl/dslParser";
-import { emptyDocument } from "../dsl/dslDocumentTestUtils";
-import { compileCanonicalText, regenerateCanonicalFromModel } from "../document/canonicalDocument";
+import { compileDslDocument } from "@nuinuicad/nui-language";
+import { parseDsl } from "@nuinuicad/nui-language";
+import { emptyDocument } from "@nuinuicad/nui-language";
+import { compileCanonicalText, regenerateCanonicalFromModel } from "@nuinuicad/nui-language/document";
 import {
   afterStatement,
   beforeStatement,
   readBindingVersionAtPosition
-} from "./bindingVersions";
+} from "@nuinuicad/nui-language";
 
 const compileWithStableIds = (source: string, stableIds?: ReadonlyMap<number, string>) => {
   const parsed = parseDsl(source);

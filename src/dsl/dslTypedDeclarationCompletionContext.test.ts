@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { typedDeclarationInitializerCompletionContext } from "./dslTypedDeclarationCompletionContext";
+import { typedDeclarationInitializerCompletionContext } from "@nuinuicad/nui-language";
 
 describe("typedDeclarationInitializerCompletionContext", () => {
   it("returns null for a non-declaration statement", () => {

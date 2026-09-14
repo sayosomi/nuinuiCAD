@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument } from "../dsl/dslDocument";
-import { parseDsl } from "../dsl/dslParser";
-import { collectInitializerOccurrences, collectSiteBatchOccurrences } from "./typedRenameOccurrences";
+import { compileDslDocument } from "@nuinuicad/nui-language";
+import { parseDsl } from "@nuinuicad/nui-language";
+import { collectInitializerOccurrences, collectSiteBatchOccurrences } from "@nuinuicad/nui-language";
 
 // Task 37's completion condition requires that every reference Task 36's
 // typedDependencyGraph already knows about has a matching rename occurrence

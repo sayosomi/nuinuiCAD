@@ -1,8 +1,8 @@
-import type { CompiledDslDocument } from "../dsl/dslDocument";
-import type { CanonicalDocumentValue } from "../document/canonicalDocument";
-import { materializedRuntimeElementId } from "../dsl/moduleMaterialization";
-import type { CanvasModuleMaterialization } from "../dsl/moduleMaterialization";
-import { sourceOwnerByRuntimeElementId } from "../dsl/sourceOwnership";
+import type { CompiledDslDocument } from "@nuinuicad/nui-language";
+import type { CanonicalDocumentValue } from "@nuinuicad/nui-language/document";
+import { materializedRuntimeElementId } from "@nuinuicad/nui-language";
+import type { CanvasModuleMaterialization } from "@nuinuicad/nui-language";
+import { sourceOwnerByRuntimeElementId } from "@nuinuicad/nui-language";
 import { evaluationStateIsCurrentFor, type EvaluationEngineState } from "../geometry/useEvaluationEngine";
 import { resolveOwningModuleInstanceId } from "../commands/selectionCommands";
 import { coordinatePointConversionTargetEligibility } from "../commands/coordinatePointConversion";

@@ -1,17 +1,17 @@
 import { describe, expect, it, vi } from "vitest";
-import * as dslDocument from "../../packages/nui-language/src/dsl/dslDocument";
-import { compileDslDocument, type CompiledDslDocument } from "../../packages/nui-language/src/dsl/dslDocument";
-import { parseDslSnapshot } from "../dsl/dslParser";
-import { createDslSemanticOccurrenceIndex, dslSemanticIdentityKey } from "../dsl/dslSemanticOccurrenceIndex";
-import { resolveSourceLexicalPath } from "../dsl/sourceLexicalNamespaceIndex";
-import { resolveModuleLexicalPath } from "../dsl/moduleLexicalResolution";
-import type { TypedScalarExpression } from "../scalars/typedExpressionAst";
-import { applyLineSplices } from "./textPatch";
+import { dslDocument } from "@nuinuicad/nui-language";
+import { compileDslDocument, type CompiledDslDocument } from "@nuinuicad/nui-language";
+import { parseDslSnapshot } from "@nuinuicad/nui-language";
+import { createDslSemanticOccurrenceIndex, dslSemanticIdentityKey } from "@nuinuicad/nui-language";
+import { resolveSourceLexicalPath } from "@nuinuicad/nui-language";
+import { resolveModuleLexicalPath } from "@nuinuicad/nui-language";
+import type { TypedScalarExpression } from "@nuinuicad/nui-language";
+import { applyLineSplices } from "@nuinuicad/nui-language/document";
 import {
   planInlineModule,
   type InlineModulePolicy,
   type InlineModuleTargetIdentity
-} from "../../packages/nui-language/src/document/inlineModulePlanner";
+} from "@nuinuicad/nui-language/document";
 
 const REVISION = 167;
 const DEFAULT_POLICY: InlineModulePolicy = {

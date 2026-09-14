@@ -3,7 +3,7 @@ import {
   buildMultiDocumentImportGraph,
   type MultiDocumentDeclarationContributor,
   type MultiDocumentSavedSourceLoader
-} from "../document/multiDocumentImportGraph";
+} from "@nuinuicad/nui-language/workspace";
 import {
   documentIdFromHost,
   qualifySemanticIdentity,
@@ -12,7 +12,7 @@ import {
   sourceIdentityOf,
   type DependencySavedSourceSnapshot,
   type RootCurrentSourceSnapshot
-} from "../document/multiDocumentPrimitives";
+} from "@nuinuicad/nui-language/workspace";
 import { vscodeMultiDocumentGraphSnapshot } from "./multiDocumentGraphTransport";
 
 const contributor: MultiDocumentDeclarationContributor = ({ source, parsed }) =>

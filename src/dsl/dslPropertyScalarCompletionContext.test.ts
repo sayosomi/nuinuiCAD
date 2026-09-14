@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { ParameterDefinition } from "../parameters/parameterDefinitions";
-import { propertyScalarValueCompletionContext } from "./dslPropertyScalarCompletionContext";
+import type { ParameterDefinition } from "@nuinuicad/nui-language";
+import { propertyScalarValueCompletionContext } from "@nuinuicad/nui-language";
 
 const textCapabilityDefinition: ParameterDefinition = {
   key: "text",

@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { compileFreshCanonicalText } from "../document/canonicalDocument";
+import { compileFreshCanonicalText } from "@nuinuicad/nui-language/document";
 import { evaluateElements } from "../geometry/evaluate";
 import { buildEvaluationOptions } from "../geometry/productionEvaluationContext";
 import { startCoordinatePointConversionSession } from "../commands/coordinatePointConversionSession";

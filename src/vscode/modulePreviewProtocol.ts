@@ -1,9 +1,9 @@
-import type { StatementIdentity } from "../document/statementIdentity";
-import type { DslModuleParameterType } from "../dsl/dslTypes";
-import type { DslDiagnosticPresentation } from "../dsl/dslTypes";
-import type { DslNumericTypeOptions } from "../dsl/dslNumericTypeOptions";
+import type { StatementIdentity } from "@nuinuicad/nui-language/document";
+import type { DslModuleParameterType } from "@nuinuicad/nui-language";
+import type { DslDiagnosticPresentation } from "@nuinuicad/nui-language";
+import type { DslNumericTypeOptions } from "@nuinuicad/nui-language";
 import type { CanonicalGeometrySourceReference } from "../model/moduleSemanticCandidateBoundary";
-import type { LineSplice } from "../document/textPatch";
+import type { LineSplice } from "@nuinuicad/nui-language/document";
 
 export type VscodeModulePreviewTarget = {
   type: "modulePreviewTarget";

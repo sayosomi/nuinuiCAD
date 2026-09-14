@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { CommandRibbonView } from "../components/CommandRibbonView";
 import { canvasThemeCssVariables, LEGACY_CANVAS_THEME } from "../components/canvasTheme";
-import { compileCanonicalText, type LastGoodDslDocument } from "../document/canonicalDocument";
+import { compileCanonicalText, type LastGoodDslDocument } from "@nuinuicad/nui-language/document";
 import { evaluateElementsWithRust } from "../geometry/evaluationEngine";
 import { evaluateOutputPlan, type OutputDrawable, type OutputPlan, type OutputText } from "../output/outputCore";
 import { projectOutputPlaces } from "../output/outputPlaceProjection";
@@ -9,7 +9,7 @@ import {
   projectDslOutputPreviewRevealRuntimeTarget,
   queryDslOutputPreviewRevealSourceTarget,
   type DslOutputPreviewRevealRuntimeTarget
-} from "../dsl/dslOutputPreviewRevealQuery";
+} from "@nuinuicad/nui-language";
 import {
   resolveOutputPreviewReveal,
   type OutputPreviewRevealTarget

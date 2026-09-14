@@ -6,7 +6,7 @@ import {
   isGroupElement,
   isContainerElement,
   visibleOutlineElements
-} from "./groups";
+} from "@nuinuicad/nui-language";
 
 const hierarchy = (outerActivity: CadElement["activity"] = "visible"): CadElement[] => [
   { id: "outer", name: "outer", type: "group", activity: outerActivity },

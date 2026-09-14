@@ -1,6 +1,6 @@
-import type { CompiledDslDocument } from "../dsl/dslDocument";
-import { sourceOwnerForRuntimeElementId } from "../dsl/sourceOwnership";
-import type { DslDiagnostic } from "../dsl/dslTypes";
+import type { CompiledDslDocument } from "@nuinuicad/nui-language";
+import { sourceOwnerForRuntimeElementId } from "@nuinuicad/nui-language";
+import type { DslDiagnostic } from "@nuinuicad/nui-language";
 import type {
   DependencyError,
   ElementId,

@@ -3,8 +3,8 @@ import {
   numericReferenceGeometrySupportsProperty,
   type NumericReferenceGeometry
 } from "../geometry/numericReferenceProperties";
-import { getParameterDefinitions } from "../parameters/parameterDefinitions";
-import { getParameterValue } from "../parameters/parameterAccess";
+import { getParameterDefinitions } from "@nuinuicad/nui-language";
+import { getParameterValue } from "@nuinuicad/nui-language";
 import {
   runtimeOnlyElementTypes,
   type CadElement,
@@ -50,12 +50,12 @@ import {
   type CanonicalGeometrySourceReference,
   type ModuleSemanticCandidateContext
 } from "./moduleSemanticCandidateBoundary";
-import { elementQualifiedNameParts } from "./elementNames";
+import { elementQualifiedNameParts } from "@nuinuicad/nui-language";
 import {
   numericGeometryStaticTargetForElementInDocument,
   numericGeometryStaticTargetForModuleInterface
 } from "../geometry/numericGeometryProperties";
-import { moduleGeometryInterfaceTypeOfElement } from "../dsl/moduleGeometryInterfaces";
+import { moduleGeometryInterfaceTypeOfElement } from "@nuinuicad/nui-language";
 
 export type PickOption =
   | {

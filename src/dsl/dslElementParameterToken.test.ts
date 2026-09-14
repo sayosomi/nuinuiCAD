@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dslElementParameterTokenEndingAt } from "./dslElementParameterToken";
+import { dslElementParameterTokenEndingAt } from "@nuinuicad/nui-language";
 
 describe("dslElementParameterTokenEndingAt", () => {
   it("finds the ElementName.query token, spanning only the member token after the dot", () => {

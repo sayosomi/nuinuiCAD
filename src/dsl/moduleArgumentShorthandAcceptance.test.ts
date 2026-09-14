@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { evaluateElements } from "../geometry/evaluate";
 import { buildEvaluationOptions } from "../geometry/productionEvaluationContext";
-import { compileDslDocument } from "./dslDocument";
-import { parseDslSnapshot } from "./dslParser";
-import { queryDslReferences } from "./dslReferencesQuery";
-import { moduleCompletionCandidates } from "./moduleCompletionCandidates";
+import { compileDslDocument } from "@nuinuicad/nui-language";
+import { parseDslSnapshot } from "@nuinuicad/nui-language";
+import { queryDslReferences } from "@nuinuicad/nui-language";
+import { moduleCompletionCandidates } from "@nuinuicad/nui-language";
 
 const compileWithIds = (source: string) => {
   const parsed = parseDslSnapshot({ normalizedSource: source, sourceRevision: 0 });

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument, serializeDocumentToDsl } from "./dslDocument";
+import { compileDslDocument, serializeDocumentToDsl } from "@nuinuicad/nui-language";
 import { dslReferenceCompletionOptions } from "./dslCompletionCandidates";
-import { parseScalarExpression } from "../scalars/expressionParser";
+import { parseScalarExpression } from "@nuinuicad/nui-language";
 
 describe("unified @ source-reference frontend", () => {
   it("accepts every ordinary geometry reference role through the shared syntax", () => {

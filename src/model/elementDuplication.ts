@@ -1,5 +1,5 @@
 import { isNumericExpression } from "../geometry/numericExpressions";
-import { tokenize, type Token } from "../geometry/numericExpressionParser";
+import { tokenize, type Token } from "@nuinuicad/nui-language";
 import type {
   CadElement,
   ElementId,
@@ -7,11 +7,11 @@ import type {
   NumericValue,
   PointAnchor
 } from "../types/geometry";
-import { createCadElementId } from "./cadIds";
+import { createCadElementId } from "@nuinuicad/nui-language";
 import { elementIdsInDocumentOrder, selectedIndexes } from "./documentSelection";
-import { elementTypesWithoutOwnDrawableGeometry } from "./elementActivity";
-import { fallbackElementName, makeUniqueElementName } from "./elementNames";
-import { subtreeIdsForElement } from "./groups";
+import { elementTypesWithoutOwnDrawableGeometry } from "@nuinuicad/nui-language";
+import { fallbackElementName, makeUniqueElementName } from "@nuinuicad/nui-language";
+import { subtreeIdsForElement } from "@nuinuicad/nui-language";
 
 type DuplicateElementsOptions = {
   createId?: (type: CadElement["type"]) => ElementId;

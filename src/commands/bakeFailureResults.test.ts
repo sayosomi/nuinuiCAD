@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { compileFreshCanonicalText } from "../document/canonicalDocument";
-import { applyLineSplices } from "../document/textPatch";
+import { compileFreshCanonicalText } from "@nuinuicad/nui-language/document";
+import { applyLineSplices } from "@nuinuicad/nui-language/document";
 import { evaluateElements } from "../geometry/evaluate";
 import { buildEvaluationOptions } from "../geometry/productionEvaluationContext";
 import type { ComputedGeometry, EvaluationResult } from "../types/geometry";

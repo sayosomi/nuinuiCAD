@@ -18,8 +18,8 @@ import { isStaleHostDocumentVersion } from "./hostDocumentVersion";
 import { LEGACY_CANVAS_THEME, type CanvasTheme } from "../components/canvasTheme";
 import { parseCssColor, readVSCodeCanvasTheme } from "./vscodeCanvasTheme";
 import { createCanvasTextWidthMeasurer } from "../components/canvasTextMeasurement";
-import { queryDslCanvasSourceDefinition, queryDslCanvasSourceTarget } from "../dsl/dslNavigationQuery";
-import { queryDslCanvasRevealSourceTarget } from "../dsl/dslCanvasRevealQuery";
+import { queryDslCanvasSourceDefinition, queryDslCanvasSourceTarget } from "@nuinuicad/nui-language";
+import { queryDslCanvasRevealSourceTarget } from "@nuinuicad/nui-language";
 import {
   queryDslCanvasRevealRuntimeStatementOwner,
   queryDslCanvasRevealRuntimeTarget
@@ -46,8 +46,8 @@ import {
   pickModeCanvasCommandAllowedForActive,
   pickModeCanvasOperationAllowedForActive
 } from "./pickModeCanvasPolicy";
-import { effectiveDrawElementIds, effectiveEvaluationElementIds } from "../model/elementActivity";
-import { effectiveVisibleElementIdsForProfile, visibilityProfileById } from "../model/visibilityProfiles";
+import { effectiveDrawElementIds, effectiveEvaluationElementIds } from "@nuinuicad/nui-language";
+import { effectiveVisibleElementIdsForProfile, visibilityProfileById } from "@nuinuicad/nui-language";
 import { creationPlacementForTarget, applyCreationPlacement } from "../model/elementCreationPlacement";
 import { emitCreationRecipe, creationRecipeForType } from "../commands/creationRecipes";
 import { commitSourceCreationInsertion } from "../commands/sourceCreationCommit";
@@ -57,7 +57,7 @@ import {
   type SourceCreationCursor
 } from "../commands/sourceCreationInsertion";
 import type { SelectionSnapshot } from "../state/cadDocumentStore";
-import type { StatementMap } from "../dsl/dslDocument";
+import type { StatementMap } from "@nuinuicad/nui-language";
 import type { ElementId } from "../types/geometry";
 import type {
   ExtensionToVscodeMessage,

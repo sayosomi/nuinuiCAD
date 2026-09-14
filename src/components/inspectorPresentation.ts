@@ -3,12 +3,12 @@ import {
   numericValueExpression,
 } from "../geometry/numericExpressions";
 import { computedNumericReferenceValue } from "../geometry/numericReferencePaths";
-import type { DependencySummary } from "../model/dependencies";
+import type { DependencySummary } from "@nuinuicad/nui-language";
 import {
   getParameterValue,
   parseAnchorCoordinateParameterKey,
-} from "../parameters/parameterAccess";
-import { getParameterDefinitions, type ParameterDefinition } from "../parameters/parameterDefinitions";
+} from "@nuinuicad/nui-language";
+import { getParameterDefinitions, type ParameterDefinition } from "@nuinuicad/nui-language";
 import type {
   CadElement,
   ElementId,

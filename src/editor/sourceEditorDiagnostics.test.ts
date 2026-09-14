@@ -1,6 +1,6 @@
 import { ChangeSet, Text } from "@codemirror/state";
 import { describe, expect, it } from "vitest";
-import type { DslDiagnostic } from "../dsl/dslTypes";
+import type { DslDiagnostic } from "@nuinuicad/nui-language";
 import {
   diagnosticColumnSpan,
   mapPositionedDiagnostics,

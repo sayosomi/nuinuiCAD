@@ -1,16 +1,16 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { compileDslDocument, type CompiledDslDocument, type DslDocumentData } from "../dsl/dslDocument";
-import { parseDsl } from "../dsl/dslParser";
-import { dslFlatTextForElements, dslTextForElements } from "../dsl/dslDocumentTestUtils";
-import { reconcileStatements } from "./statementReconciler";
-import { applyLineSplices, buildTextPatch } from "./textPatch";
+import { compileDslDocument, type CompiledDslDocument, type DslDocumentData } from "@nuinuicad/nui-language";
+import { parseDsl } from "@nuinuicad/nui-language";
+import { dslFlatTextForElements, dslTextForElements } from "@nuinuicad/nui-language";
+import { reconcileStatements } from "@nuinuicad/nui-language/document";
+import { applyLineSplices, buildTextPatch } from "@nuinuicad/nui-language/document";
 import {
   analyzeRename,
   validateElementRenameRequest,
   validateRenameReferenceStability
-} from "./renameAnalysis";
-import { collectRenameReferenceCatalog } from "./renameReferenceCatalog";
+} from "@nuinuicad/nui-language/document";
+import { collectRenameReferenceCatalog } from "@nuinuicad/nui-language/document";
 
 const complete = (source: string) => {
   const compiled = compileDslDocument(source);

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { dispatchCommand } from "../commands/commands";
 import { clearCanvasSelection, replaceCanvasSelection, selectElement } from "../commands/selectionCommands";
-import { dslTextForElements } from "../dsl/dslDocumentTestUtils";
+import { dslTextForElements } from "@nuinuicad/nui-language";
 import { initialCadUiState, useCadUiStore } from "./cadUiStore";
 import { publishTestCanvasSelectionEligibility } from "../test/canvasSelectionTestUtils";
 import {

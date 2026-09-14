@@ -16,13 +16,13 @@
 // caller-supplied resolver.
 
 import type { CadElement, CadElementType, ElementId } from "../types/geometry";
-import type { BindingId } from "../scalars/bindingCatalog";
-import { propertyBindingOccurrenceKey, type ScalarValueSource } from "../scalars/propertyBindingCompiler";
-import type { TypedScalarExpression } from "../scalars/typedExpressionAst";
+import type { BindingId } from "@nuinuicad/nui-language";
+import { propertyBindingOccurrenceKey, type ScalarValueSource } from "@nuinuicad/nui-language";
+import type { TypedScalarExpression } from "@nuinuicad/nui-language";
 import { evaluateTypedExpression } from "../scalars/expressionEvaluator";
 import { evaluateConditionExpressionWithTrace, type ConditionEvaluationTrace } from "../scalars/conditionEvaluationTrace";
-import type { ScalarEvaluation } from "../scalars/types";
-import { findParameterDefinition, scalarTypeForParameterDefinition } from "../parameters/parameterDefinitions";
+import type { ScalarEvaluation } from "@nuinuicad/nui-language";
+import { findParameterDefinition, scalarTypeForParameterDefinition } from "@nuinuicad/nui-language";
 import type { PropertyBindingRuntimeEntry } from "./propertyBindingRuntime";
 
 /** Legacy physical route for `showGenerated`'s presentation-only behavior. */

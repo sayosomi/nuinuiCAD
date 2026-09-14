@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { compileDslToElements } from "./dslCompiler";
-import { documentDslRefs, serializeElementsToDsl } from "./dslSerializer";
-import { serializeElementStatementLogical } from "./dslSerializeElement";
-import { createCadElement } from "../model/elementFactory";
+import { compileDslToElements } from "@nuinuicad/nui-language";
+import { documentDslRefs, serializeElementsToDsl } from "@nuinuicad/nui-language";
+import { serializeElementStatementLogical } from "@nuinuicad/nui-language";
+import { createCadElement } from "@nuinuicad/nui-language";
 import { referenceAnchor } from "../model/pointAnchors";
 
 // 決定論的なIDを明示して要素を組み立て、フラット出力のバイト列を固定する。

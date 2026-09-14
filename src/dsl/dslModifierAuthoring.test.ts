@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument } from "./dslDocument";
-import { queryDslCompletion } from "./dslCompletionQuery";
-import { queryDslDefinition } from "./dslDefinitionQuery";
-import { planDslRenameEditsResult } from "./dslRenameQuery";
-import { parseDslSnapshot } from "./dslParser";
-import { createModifierAuthoringIndex } from "./dslModifierAuthoringIndex";
+import { compileDslDocument } from "@nuinuicad/nui-language";
+import { queryDslCompletion } from "@nuinuicad/nui-language";
+import { queryDslDefinition } from "@nuinuicad/nui-language";
+import { planDslRenameEditsResult } from "@nuinuicad/nui-language";
+import { parseDslSnapshot } from "@nuinuicad/nui-language";
+import { createModifierAuthoringIndex } from "@nuinuicad/nui-language";
 
 const source = [
   "nui 1",

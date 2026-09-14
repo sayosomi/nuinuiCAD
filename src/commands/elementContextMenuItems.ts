@@ -1,11 +1,11 @@
 import { type CommandContext, type CommandId } from "./commands";
-import { isForGroupElement, isGroupElement, isGroupExpanded } from "../model/groups";
+import { isForGroupElement, isGroupElement, isGroupExpanded } from "@nuinuicad/nui-language";
 import {
   elementTypeSupportsHiddenActivity,
   type ElementActivity
-} from "../model/elementActivity";
+} from "@nuinuicad/nui-language";
 import type { CadElement } from "../types/geometry";
-import type { GroupFoldById } from "../model/groups";
+import type { GroupFoldById } from "@nuinuicad/nui-language";
 
 export type MenuCommandItem = {
   kind: "command";

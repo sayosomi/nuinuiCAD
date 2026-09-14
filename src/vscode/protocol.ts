@@ -1,14 +1,14 @@
 import type { BakeOperationSummary } from "../commands/bakeOperationResult";
 import type { BenchmarkFixtureManifestEntry } from "../performance/benchmarkFixtureManifest";
 import type { BenchmarkMachine, BenchmarkRenderSurface } from "../performance/benchmarkResultSchema";
-import type { LineSplice } from "../document/textPatch";
-import type { NormalizedSourceRange } from "../dsl/dslNavigationQuery";
+import type { LineSplice } from "@nuinuicad/nui-language/document";
+import type { NormalizedSourceRange } from "@nuinuicad/nui-language";
 import type {
   DslCanvasRevealDegradation,
   DslCanvasRevealFailureReason,
   DslCanvasRevealSourceTarget
-} from "../dsl/dslCanvasRevealQuery";
-import type { DslRevealRuntimeStatementOwnerProjection } from "../dsl/dslRevealRuntimeProjection";
+} from "@nuinuicad/nui-language";
+import type { DslRevealRuntimeStatementOwnerProjection } from "@nuinuicad/nui-language";
 import type { VscodeCanvasRibbon } from "./vscodeCanvasRibbonConfig";
 import type { VscodeCanvasObservationToExtensionMessage } from "./canvasObservationProtocol";
 import type { VscodeCanvasThemeToExtensionMessage } from "./vscodeCanvasThemeProtocol";

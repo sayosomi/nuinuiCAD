@@ -1,6 +1,6 @@
 import type { NumericMeasurementKey } from "./numericExpressions";
 import { computedReferencePathValue } from "./numericExpressions";
-import { propertyLabels } from "./numericExpressionProperties";
+import { propertyLabels } from "@nuinuicad/nui-language";
 import {
   numericReferencePropertiesForGeometry,
   type NumericReferenceGeometry

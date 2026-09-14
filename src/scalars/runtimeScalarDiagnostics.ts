@@ -12,16 +12,16 @@
 // exactPhysicalSpan against the already-compiled statements/span index, &&
 // every consumer occurrence comes from the compile-owned property/numeric
 // consumer indexes (built once per compile, O(1) get per binding here).
-import { exactPhysicalSpan, type DiagnosticSpanContext } from "../dsl/dslDiagnosticSpan";
-import type { DslDiagnostic, DslDiagnosticPresentation, DslSpan, DslStatement } from "../dsl/dslTypes";
+import { exactPhysicalSpan, type DiagnosticSpanContext } from "@nuinuicad/nui-language";
+import type { DslDiagnostic, DslDiagnosticPresentation, DslSpan, DslStatement } from "@nuinuicad/nui-language";
 import { isRuntimeBindingDisplayFresh, type RuntimeBindingFreshnessInput } from "../model/runtimeBindingFreshness";
 import type { CadElement, ElementId, EvaluationResult } from "../types/geometry";
-import type { BindingAnalysis } from "./bindingAnalysis";
-import type { BindingId } from "./bindingCatalog";
-import type { NumericBindingConsumerReference } from "./numericBindingCompiler";
-import { parsePropertyBindingOccurrenceKey, type ScalarValueSource } from "./propertyBindingCompiler";
+import type { BindingAnalysis } from "@nuinuicad/nui-language";
+import type { BindingId } from "@nuinuicad/nui-language";
+import type { NumericBindingConsumerReference } from "@nuinuicad/nui-language";
+import { parsePropertyBindingOccurrenceKey, type ScalarValueSource } from "@nuinuicad/nui-language";
 import { runtimeIssueMessage } from "./runtimeIssueMessages";
-import type { ScalarEvaluationErrorContext } from "./types";
+import type { ScalarEvaluationErrorContext } from "@nuinuicad/nui-language";
 
 export type RuntimeScalarDiagnosticsInput = {
   computedScalarBindings: EvaluationResult["computedScalarBindings"];

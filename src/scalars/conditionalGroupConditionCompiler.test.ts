@@ -1,19 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { compileCanonicalText, regenerateCanonicalFromModel } from "../document/canonicalDocument";
-import { compileDslToElements } from "../dsl/dslCompiler";
-import { emptyDocument } from "../dsl/dslDocumentTestUtils";
-import { parseDsl } from "../dsl/dslParser";
-import type { DiagnosticSpanContext } from "../dsl/dslDiagnosticSpan";
+import { compileCanonicalText, regenerateCanonicalFromModel } from "@nuinuicad/nui-language/document";
+import { compileDslToElements } from "@nuinuicad/nui-language";
+import { emptyDocument } from "@nuinuicad/nui-language";
+import { parseDsl } from "@nuinuicad/nui-language";
+import type { DiagnosticSpanContext } from "@nuinuicad/nui-language";
 import type { CadElement, ElementId } from "../types/geometry";
-import type { BindingAnalysis } from "./bindingAnalysis";
+import type { BindingAnalysis } from "@nuinuicad/nui-language";
 import {
   compileConditionalGroupConditions,
   CONDITIONAL_GROUP_CONDITION_INVALID_CODE,
   CONDITIONAL_GROUP_CONDITION_TYPE_MISMATCH_CODE,
   CONDITIONAL_GROUP_CONDITION_UNRESOLVED_CODE
-} from "./conditionalGroupConditionCompiler";
-import { propertyBindingOccurrenceKey } from "./propertyBindingCompiler";
-import { analyzeTypedDeclarations } from "./typedDeclarationAnalysis";
+} from "@nuinuicad/nui-language";
+import { propertyBindingOccurrenceKey } from "@nuinuicad/nui-language";
+import { analyzeTypedDeclarations } from "@nuinuicad/nui-language";
 
 /** Mirrors propertyBindingCompiler.test.ts's own harness - the same shapes
  * production actually produces, not a lighter reinvented one. */

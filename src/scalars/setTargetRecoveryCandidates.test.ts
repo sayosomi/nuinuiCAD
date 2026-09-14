@@ -3,7 +3,7 @@ import {
   mergeSetTargetCandidates,
   recoverLiveSetTargetCandidates,
   type SetTargetCompletionCandidate
-} from "./setTargetRecoveryCandidates";
+} from "@nuinuicad/nui-language";
 
 const cursorAfter = (source: string, text: string) => {
   const start = source.lastIndexOf(text);

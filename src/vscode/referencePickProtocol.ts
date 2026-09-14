@@ -1,14 +1,14 @@
 import type {
   DslReferencePickSourceAnchor,
   DslReferencePickTarget
-} from "../dsl/dslReferencePickQuery";
+} from "@nuinuicad/nui-language";
 import {
   formatDslReferencePath,
   parseDslSourceReference,
   parseDslSourceReferenceAt,
   type DslSourceReference
-} from "../dsl/dslReferenceTokens";
-import type { ModuleGeometryInterfaceType } from "../dsl/moduleGeometryInterfaces";
+} from "@nuinuicad/nui-language";
+import type { ModuleGeometryInterfaceType } from "@nuinuicad/nui-language";
 import type { CanonicalGeometrySourceReference } from "../model/moduleSemanticCandidateBoundary";
 import {
   isNumericComputedGeometryProperty,

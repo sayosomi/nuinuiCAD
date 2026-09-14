@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { isLastGoodDslDocument } from "../document/canonicalDocument";
-import { compileDslDocument, type CompiledDslDocument } from "../dsl/dslDocument";
-import { parseDsl } from "../dsl/dslParser";
+import { isLastGoodDslDocument } from "@nuinuicad/nui-language/document";
+import { compileDslDocument, type CompiledDslDocument } from "@nuinuicad/nui-language";
+import { parseDsl } from "@nuinuicad/nui-language";
 import type { CadElement } from "../types/geometry";
 import { evaluateElements } from "./evaluate";
 import { buildGeometrySourceFlowByRuntimeElementId } from "./geometrySourceFlow";

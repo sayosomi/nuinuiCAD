@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { buildDslBindingAdapterSeeds } from "../dsl/bindingCatalogAdapter";
-import { compileDslToElements } from "../dsl/dslCompiler";
-import { parseDsl } from "../dsl/dslParser";
-import type { DslStatement } from "../dsl/dslTypes";
-import { analyzeBindings, type InitializerReference } from "./bindingAnalysis";
-import { buildBindingCatalog } from "./bindingCatalog";
-import { buildBindingDiagnosticMessages, formatBindingIssue } from "./bindingDiagnostics";
-import { buildLexicalScopeIndex } from "./lexicalScopeIndex";
-import { resolveBindingReferenceForTests } from "./bindingResolution";
+import { buildDslBindingAdapterSeeds } from "@nuinuicad/nui-language";
+import { compileDslToElements } from "@nuinuicad/nui-language";
+import { parseDsl } from "@nuinuicad/nui-language";
+import type { DslStatement } from "@nuinuicad/nui-language";
+import { analyzeBindings, type InitializerReference } from "@nuinuicad/nui-language";
+import { buildBindingCatalog } from "@nuinuicad/nui-language";
+import { buildBindingDiagnosticMessages, formatBindingIssue } from "@nuinuicad/nui-language";
+import { buildLexicalScopeIndex } from "@nuinuicad/nui-language";
+import { resolveBindingReferenceForTests } from "@nuinuicad/nui-language";
 
 const parsedStatements = (source: string): readonly DslStatement[] => {
   const parsed = parseDsl(source);

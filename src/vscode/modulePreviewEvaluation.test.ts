@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { evaluateElements } from "../geometry/evaluate";
-import { compileDslDocument, type CompiledDslDocument } from "../dsl/dslDocument";
-import { parseDslSnapshot } from "../dsl/dslParser";
+import { compileDslDocument, type CompiledDslDocument } from "@nuinuicad/nui-language";
+import { parseDslSnapshot } from "@nuinuicad/nui-language";
 import { compileModulePreviewRoot } from "../dsl/modulePreviewRoot";
 import { queryModulePreviewTarget } from "../dsl/modulePreviewTarget";
 import { buildModulePreviewEvaluationOptions } from "./modulePreviewEvaluation";

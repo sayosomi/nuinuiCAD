@@ -1,5 +1,5 @@
-import type { StatementInfo, StatementMap } from "../dsl/dslDocument";
-import { isGroupElement } from "../model/groups";
+import type { StatementInfo, StatementMap } from "@nuinuicad/nui-language";
+import { isGroupElement } from "@nuinuicad/nui-language";
 import type { ElementCreationTarget } from "../model/elementCreationPlacement";
 import type { CadElement, ElementId } from "../types/geometry";
 import { insertionAnchorForCommandLineCreation, resolveCommandLineInsertionAnchor } from "./commandLineInsertionAnchor";

@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { parseDsl } from "../dsl/dslParser";
-import { buildSourceLexicalNamespaceIndex } from "../dsl/sourceLexicalNamespaceIndex";
-import { parseScalarExpression } from "./expressionParser";
+import { parseDsl } from "@nuinuicad/nui-language";
+import { buildSourceLexicalNamespaceIndex } from "@nuinuicad/nui-language";
+import { parseScalarExpression } from "@nuinuicad/nui-language";
 import {
   planRecordScalarLowering,
   prepareRecordScalarExpression,
   recordScalarBindingIdFor,
   recordScalarDeclarationVersionIdFor
-} from "./recordScalarLowering";
+} from "@nuinuicad/nui-language";
 
 const analyze = (source: string) => {
   const parsed = parseDsl(source);

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { parseDslReferenceToken } from "../dsl/dslReferenceTokens";
-import { resolveSourceLexicalPath } from "../dsl/sourceLexicalNamespaceIndex";
+import { parseDslReferenceToken } from "@nuinuicad/nui-language";
+import { resolveSourceLexicalPath } from "@nuinuicad/nui-language";
 import {
   buildMultiDocumentImportGraph,
   createGraphExternalNamespaceResolver,
@@ -9,15 +9,15 @@ import {
   type MultiDocumentDeclarationContributor,
   type MultiDocumentSavedSourceLoader,
   type SavedDependencyLoadResult
-} from "./multiDocumentImportGraph";
-import { moduleDeclarationContributor } from "./multiDocumentModuleSemantics";
-import type { ModuleDocumentationMetadata } from "../dsl/moduleDocumentation";
+} from "@nuinuicad/nui-language/workspace";
+import { moduleDeclarationContributor } from "@nuinuicad/nui-language/workspace";
+import type { ModuleDocumentationMetadata } from "@nuinuicad/nui-language";
 import {
   documentIdFromHost,
   savedSourceFingerprintFromHost,
   type DependencySavedSourceSnapshot,
   type RootCurrentSourceSnapshot
-} from "./multiDocumentPrimitives";
+} from "@nuinuicad/nui-language/workspace";
 
 const rootSource = (id: string, source: string, sourceRevision = 1): RootCurrentSourceSnapshot => ({
   kind: "root-current",

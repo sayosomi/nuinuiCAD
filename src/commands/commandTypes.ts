@@ -1,14 +1,14 @@
 import type { BezierHandleRole } from "../model/elementDragTransforms";
-import type { ElementActivity } from "../model/elementActivity";
+import type { ElementActivity } from "@nuinuicad/nui-language";
 import type { DocumentMutationResult } from "../state/cadDocumentStore";
 import type {
   MeasurementInsertMode,
   MeasurementPointSlot
 } from "../state/cadUiStore";
-import type { NumericMeasurementKey } from "../geometry/numericExpressionTypes";
+import type { NumericMeasurementKey } from "@nuinuicad/nui-language";
 import type { CanvasTextWidthMeasurer } from "../geometry/canvasDrawingBounds";
-import type { BindingId } from "../scalars/bindingCatalog";
-import type { ModuleSemanticTarget } from "../dsl/moduleSemanticEditor";
+import type { BindingId } from "@nuinuicad/nui-language";
+import type { ModuleSemanticTarget } from "@nuinuicad/nui-language";
 import type { ModuleSemanticCursorResolution } from "../editor/sourceEditorTypes";
 import type { CadElement, ElementId, EvaluationResult, PointAnchor } from "../types/geometry";
 import type { NumericValue } from "../types/geometry";

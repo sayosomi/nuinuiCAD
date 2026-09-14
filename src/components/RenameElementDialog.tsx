@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { renameElementWithPropagation } from "../commands/renameElementWithPropagation";
 import { getSelectedElementIds } from "../commands/commandRuntime";
-import { elementQualifiedName } from "../model/elementNames";
+import { elementQualifiedName } from "@nuinuicad/nui-language";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import type { ElementId } from "../types/geometry";

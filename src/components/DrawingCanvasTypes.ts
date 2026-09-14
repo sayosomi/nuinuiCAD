@@ -1,7 +1,7 @@
 import type { BezierHandleRole as CommandBezierHandleRole } from "../commands/commands";
 import type { CanvasSelectionMode } from "../commands/selectionCommands";
 import type { CanonicalGeometrySourceReference } from "../model/moduleSemanticCandidateBoundary";
-import type { ParameterKey } from "../parameters/parameterDefinitions";
+import type { ParameterKey } from "@nuinuicad/nui-language";
 import type {
   ComputedArcLine,
   ComputedBezierCurve,

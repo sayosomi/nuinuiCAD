@@ -1,8 +1,8 @@
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { compileDslDocument, type CompiledDslDocument } from "../dsl/dslDocument";
-import { queryDslReferencePickTarget } from "../dsl/dslReferencePickQuery";
-import { parseDslSnapshot } from "../dsl/dslParser";
+import { compileDslDocument, type CompiledDslDocument } from "@nuinuicad/nui-language";
+import { queryDslReferencePickTarget } from "@nuinuicad/nui-language";
+import { parseDslSnapshot } from "@nuinuicad/nui-language";
 import { evaluateElements } from "../geometry/evaluate";
 import type { EvaluationResult } from "../types/geometry";
 import type {

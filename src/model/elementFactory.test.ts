@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { sampleElements } from "../sampleData";
 import type { CadElementType } from "../types/geometry";
-import { createCadElement } from "./elementFactory";
+import { createCadElement } from "@nuinuicad/nui-language";
 
 const createTestId = (type: CadElementType) => `${type}-test-id`;
 

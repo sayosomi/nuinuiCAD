@@ -1,5 +1,5 @@
-import type { LastGoodDslDocument } from "../document/canonicalDocument";
-import type { MultiDocumentImportGraph } from "../document/multiDocumentImportGraph";
+import type { LastGoodDslDocument } from "@nuinuicad/nui-language/document";
+import type { MultiDocumentImportGraph } from "@nuinuicad/nui-language/workspace";
 import { buildEvaluationOptions } from "../geometry/productionEvaluationContext";
 import {
   prepareRustEvaluation,
@@ -8,7 +8,7 @@ import {
 import {
   NEW_DOCUMENT_DSL_MAJOR_VERSION,
   type CompiledDslDocument
-} from "../dsl/dslDocument";
+} from "@nuinuicad/nui-language";
 import type {
   CanvasModuleOrigin,
   MaterializedExecutionStatement,
@@ -17,9 +17,9 @@ import type {
   ModuleMaterializationSnapshot,
   ModuleOrigin,
   SourceExecutionUnit
-} from "../dsl/moduleMaterialization";
+} from "@nuinuicad/nui-language";
 import type { VisibilityProfile, CadElement, ElementId } from "../types/geometry";
-import type { CanvasModuleMaterialization } from "../dsl/moduleMaterialization";
+import type { CanvasModuleMaterialization } from "@nuinuicad/nui-language";
 
 export type VscodeMultiDocumentCanvasRuntimeSnapshot = {
   graphRevision: number;

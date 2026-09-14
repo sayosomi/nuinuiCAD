@@ -1,7 +1,7 @@
 import fc from "fast-check";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { compileDslDocument, serializeDocumentToDsl, type DslDocumentData } from "../dsl/dslDocument";
-import { applyRandomOp, generateDocumentSource, type RandomOp } from "../document/documentTestGenerators";
+import { compileDslDocument, serializeDocumentToDsl, type DslDocumentData } from "@nuinuicad/nui-language";
+import { applyRandomOp, generateDocumentSource, type RandomOp } from "@nuinuicad/nui-language/document";
 import {
   initialCadDocumentState,
   useCadDocumentStore

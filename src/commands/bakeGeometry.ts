@@ -1,9 +1,9 @@
-import type { LastGoodDslDocument } from "../document/canonicalDocument";
-import { sourceOwnerForRuntimeElementId, type SourceOwnershipDocument } from "../dsl/sourceOwnership";
-import type { ModuleMaterialization } from "../dsl/moduleMaterialization";
-import { serializeElementStatementLogical } from "../dsl/dslSerializeElement";
-import type { DslSerializerRefs } from "../dsl/dslSerializer";
-import { createCadElementId } from "../model/cadIds";
+import type { LastGoodDslDocument } from "@nuinuicad/nui-language/document";
+import { sourceOwnerForRuntimeElementId, type SourceOwnershipDocument } from "@nuinuicad/nui-language";
+import type { ModuleMaterialization } from "@nuinuicad/nui-language";
+import { serializeElementStatementLogical } from "@nuinuicad/nui-language";
+import type { DslSerializerRefs } from "@nuinuicad/nui-language";
+import { createCadElementId } from "@nuinuicad/nui-language";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import type { DocumentMutationResult } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
@@ -11,7 +11,7 @@ import {
   effectiveElementActivity,
   effectiveElementActivityById,
   elementTypesWithoutOwnDrawableGeometry
-} from "../model/elementActivity";
+} from "@nuinuicad/nui-language";
 import type {
   CadElement,
   ComputedGeometry,
@@ -20,9 +20,9 @@ import type {
   EvaluationResult,
   PointAnchor
 } from "../types/geometry";
-import type { LineSplice } from "../document/textPatch";
-import { makeUniqueElementName as uniqueNameInNamespace } from "../model/elementNames";
-import { constructionForElementType, MUTATION_CATEGORY } from "../dsl/dslConstructions";
+import type { LineSplice } from "@nuinuicad/nui-language/document";
+import { makeUniqueElementName as uniqueNameInNamespace } from "@nuinuicad/nui-language";
+import { constructionForElementType, MUTATION_CATEGORY } from "@nuinuicad/nui-language";
 import { directedSweepDegrees } from "../geometry/evaluateGeometryPrimitives";
 
 export type BakeMode = "current" | "base";

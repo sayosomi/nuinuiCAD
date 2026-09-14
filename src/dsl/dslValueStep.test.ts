@@ -1,7 +1,7 @@
 // 数値ステップ入力の文字位置解決そのものが検証対象(v2の単一行呼び出し構文上で)。
 import { describe, expect, it } from "vitest";
-import { compileDslToElements } from "./dslCompiler";
-import { resolveDslValueStep, stepDslNumericLiteral } from "./dslValueStep";
+import { compileDslToElements } from "@nuinuicad/nui-language";
+import { resolveDslValueStep, stepDslNumericLiteral } from "@nuinuicad/nui-language";
 import type { CadElement } from "../types/geometry";
 
 const compileElement = (source: string) => compileDslToElements(source, { elements: [] }).elements.at(-1)!;

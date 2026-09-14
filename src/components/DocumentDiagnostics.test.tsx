@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { DslDiagnostic } from "../dsl/dslTypes";
+import type { DslDiagnostic } from "@nuinuicad/nui-language";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { DocumentDiagnostics } from "./DocumentDiagnostics";
 

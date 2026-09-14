@@ -1,9 +1,9 @@
-import { subtreeIdsForElement } from "../model/groups";
+import { subtreeIdsForElement } from "@nuinuicad/nui-language";
 import type { CadElement, ElementId } from "../types/geometry";
 import type {
   DslOutputPreviewRevealRuntimeTarget,
   DslOutputPreviewRevealSourceTarget
-} from "../dsl/dslOutputPreviewRevealQuery";
+} from "@nuinuicad/nui-language";
 import type { OutputDrawable, OutputPlan } from "./outputCore";
 
 export type OutputPreviewRevealTarget =

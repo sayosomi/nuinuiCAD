@@ -1,5 +1,5 @@
 import { extractNumericExpressionReferences } from "../geometry/numericExpressions";
-import { fallbackElementName, makeUniqueElementName } from "../model/elementNames";
+import { fallbackElementName, makeUniqueElementName } from "@nuinuicad/nui-language";
 import { anchorReferenceElementId } from "../model/pointAnchors";
 import type {
   CadElement,

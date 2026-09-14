@@ -6,10 +6,13 @@ import { describe, expect, it } from "vitest";
 const repositoryRoot = path.resolve(".");
 const rootSourceRoot = path.join(repositoryRoot, "src");
 
-const hostRoots = [
+const consumerSourceRoots = [
+  rootSourceRoot,
+  path.join(repositoryRoot, "test"),
   path.join(repositoryRoot, "vscode-extension", "src"),
   path.join(repositoryRoot, "mcp-server", "src"),
-  path.join(repositoryRoot, "mcp-server", "test")
+  path.join(repositoryRoot, "mcp-server", "test"),
+  path.join(repositoryRoot, "scripts")
 ].filter((root) => existsSync(root));
 
 const sourceFilesUnder = (root: string): string[] => {
@@ -18,14 +21,14 @@ const sourceFilesUnder = (root: string): string[] => {
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
       const file = path.join(directory, entry.name);
       if (entry.isDirectory()) visit(file);
-      else if (/\.tsx?$/.test(entry.name)) files.push(file);
+      else if (/\.(?:m|c)?tsx?$/.test(entry.name)) files.push(file);
     }
   };
   visit(root);
   return files.sort();
 };
 
-const sourceFiles = hostRoots.flatMap(sourceFilesUnder).sort();
+const sourceFiles = consumerSourceRoots.flatMap(sourceFilesUnder).sort();
 
 const moduleSpecifiersIn = (sourceText: string, fileName: string): string[] => {
   const sourceFile = ts.createSourceFile(
@@ -60,8 +63,12 @@ const resolvedModulePath = (importingFile: string, specifier: string): string | 
     base,
     `${base}.ts`,
     `${base}.tsx`,
+    `${base}.mts`,
+    `${base}.cts`,
     path.join(base, "index.ts"),
-    path.join(base, "index.tsx")
+    path.join(base, "index.tsx"),
+    path.join(base, "index.mts"),
+    path.join(base, "index.cts")
   ];
   return candidates.find((candidate) => existsSync(candidate) && statSync(candidate).isFile());
 };
@@ -111,8 +118,12 @@ const violationsIn = (files: readonly string[]): string[] => files.flatMap((file
 );
 
 describe("Language Core host import boundary", () => {
-  it("does not let VS Code or MCP hosts reach package internals or forwarding shims", () => {
+  it("does not let checked-in repository consumers reach package internals or forwarding shims", () => {
     expect(violationsIn(sourceFiles)).toEqual([]);
+  }, 30000);
+
+  it("has no forwarding-only Language Core root shim remaining", () => {
+    expect(sourceFilesUnder(rootSourceRoot).filter(isForwardingOnlyLanguageCoreShim)).toEqual([]);
   });
 
   it("rejects direct package-internal reach-through", () => {
@@ -122,11 +133,9 @@ describe("Language Core host import boundary", () => {
     );
   });
 
-  it("rejects a relative fallback through a forwarding-only root shim", () => {
+  it("does not resolve a relative fallback through a removed forwarding-only root shim", () => {
     const hostFile = path.join(repositoryRoot, "vscode-extension", "src", "fixture.ts");
-    expect(boundaryViolationFor(hostFile, "../../src/dsl/dslDocument")).toContain(
-      "forwarding-only"
-    );
+    expect(boundaryViolationFor(hostFile, "../../src/dsl/dslDocument")).toBeUndefined();
   });
 
   it("allows genuine root runtime implementations", () => {

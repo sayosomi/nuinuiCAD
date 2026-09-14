@@ -1,7 +1,7 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { CadElement } from "../types/geometry";
-import type { ScalarProgram } from "../scalars/scalarProgram";
+import type { ScalarProgram } from "@nuinuicad/nui-language";
 import {
   abortBenchmarkSample,
   beginBenchmarkSample,

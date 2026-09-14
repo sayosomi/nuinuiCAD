@@ -1,23 +1,23 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { buildDslBindingAdapterSeeds } from "../dsl/bindingCatalogAdapter";
-import { compileDslToElements } from "../dsl/dslCompiler";
-import { parseDsl } from "../dsl/dslParser";
-import type { DslStatement } from "../dsl/dslTypes";
-import { buildBindingCatalog, type Binding, type BindingCatalog } from "./bindingCatalog";
-import { resolveBindingReferenceForTests, type BindingResolution } from "./bindingResolution";
-import { parseScalarExpression } from "./expressionParser";
-import type { ScalarExpressionAst } from "./expressionAst";
-import { collectScalarExpressionReferences } from "./expressionReferenceCollector";
-import { typecheckScalarExpression } from "../../packages/nui-language/src/scalars/expressionTypecheck";
-import { buildLexicalScopeIndex } from "./lexicalScopeIndex";
+import { buildDslBindingAdapterSeeds } from "@nuinuicad/nui-language";
+import { compileDslToElements } from "@nuinuicad/nui-language";
+import { parseDsl } from "@nuinuicad/nui-language";
+import type { DslStatement } from "@nuinuicad/nui-language";
+import { buildBindingCatalog, type Binding, type BindingCatalog } from "@nuinuicad/nui-language";
+import { resolveBindingReferenceForTests, type BindingResolution } from "@nuinuicad/nui-language";
+import { parseScalarExpression } from "@nuinuicad/nui-language";
+import type { ScalarExpressionAst } from "@nuinuicad/nui-language";
+import { collectScalarExpressionReferences } from "@nuinuicad/nui-language";
+import { typecheckScalarExpression } from "@nuinuicad/nui-language";
+import { buildLexicalScopeIndex } from "@nuinuicad/nui-language";
 import type {
   ScalarExpressionResolvedGeometryProperty,
   ScalarExpressionResolvedReference,
   ScalarExpressionTypecheckResult
-} from "./typedExpressionAst";
-import type { ScalarExpressionType, ScalarType } from "./types";
-import * as builtinFunctions from "../../packages/nui-language/src/scalars/builtinFunctions";
-import type { BuiltinFunctionDefinition, BuiltinFunctionName } from "../../packages/nui-language/src/scalars/builtinFunctions";
+} from "@nuinuicad/nui-language";
+import type { ScalarExpressionType, ScalarType } from "@nuinuicad/nui-language";
+import { builtinFunctions } from "@nuinuicad/nui-language";
+import type { BuiltinFunctionDefinition, BuiltinFunctionName } from "@nuinuicad/nui-language";
 
 // --- shared fixtures -------------------------------------------------------
 

@@ -4,7 +4,7 @@ import {
   effectiveDrawingModifierResolutionById,
   effectiveDrawingModifierRuntimeById,
   effectiveDrawingModifierStrokeByRuntime
-} from "./elementActivity";
+} from "@nuinuicad/nui-language";
 
 const element = (
   id: string,

@@ -3,7 +3,7 @@ import type {
   OutputPlaceProjection,
   OutputPlaceReferenceNavigation
 } from "../output/outputPlaceProjection";
-import type { NormalizedSourceRange } from "../dsl/dslNavigationQuery";
+import type { NormalizedSourceRange } from "@nuinuicad/nui-language";
 import type { CanvasPresentation } from "../components/canvasPresentation";
 import {
   outputPreviewWorldToScreen,

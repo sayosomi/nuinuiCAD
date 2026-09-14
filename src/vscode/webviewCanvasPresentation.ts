@@ -1,6 +1,6 @@
 import type { CanvasPresentation } from "../components/canvasPresentation";
-import { propertyLabels } from "../geometry/numericExpressionProperties";
-import type { NumericMeasurementKey } from "../geometry/numericExpressionTypes";
+import { propertyLabels } from "@nuinuicad/nui-language";
+import type { NumericMeasurementKey } from "@nuinuicad/nui-language";
 import {
   webviewPresentationTextFor,
   type VscodeWebviewPresentation

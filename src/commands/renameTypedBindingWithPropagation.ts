@@ -1,7 +1,7 @@
-import { analyzeTypedBindingRenameInDocument, type TypedRenameAnalysisRejected } from "../document/typedRenameAnalysis";
-import { buildTypedRenameSplices, type TypedRenameSpliceEntry } from "../document/typedRenameSplice";
+import { analyzeTypedBindingRenameInDocument, type TypedRenameAnalysisRejected } from "@nuinuicad/nui-language/document";
+import { buildTypedRenameSplices, type TypedRenameSpliceEntry } from "@nuinuicad/nui-language/document";
 import { sourceEditSession } from "../editor/sourceEditSession";
-import type { BindingId } from "../scalars/bindingCatalog";
+import type { BindingId } from "@nuinuicad/nui-language";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 

@@ -1,12 +1,12 @@
-import { blockFrameKind, dslScopeBeforeParsedLine, parseDsl } from "./dslParser";
+import { blockFrameKind, dslScopeBeforeParsedLine, parseDsl } from "@nuinuicad/nui-language";
 import { liveElementsBeforeLine, type DslLiveStatementIdentity } from "./dslCompletionCandidates";
 import {
   elementParameterReferenceOptionsForPosition,
   type ElementParameterReferenceOption
 } from "../geometry/elementParameterReferenceOptions";
 import type { CadElement, ComputedGeometry, DependencyError, ElementId } from "../types/geometry";
-import type { ScalarType } from "../scalars/types";
-import type { DslStatement } from "./dslTypes";
+import type { ScalarType } from "@nuinuicad/nui-language";
+import type { DslStatement } from "@nuinuicad/nui-language";
 
 const attrValue = (statement: DslStatement, key: string) => statement.attrs.find((attr) => attr.key === key)?.value;
 const isStatementDisabled = (statement: DslStatement) => attrValue(statement, "enabled")?.toLowerCase() === "false";

@@ -1,8 +1,8 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { compileDslDocument } from "../dsl/dslDocument";
-import { parseDsl } from "../dsl/dslParser";
-import { analyzeTypedBindingRenameInDocument } from "../document/typedRenameAnalysis";
+import { compileDslDocument } from "@nuinuicad/nui-language";
+import { parseDsl } from "@nuinuicad/nui-language";
+import { analyzeTypedBindingRenameInDocument } from "@nuinuicad/nui-language/document";
 
 // Dense fan-out: `count` distinct `let` declarations each directly
 // referencing one shared binding by `name` - this is the shape most

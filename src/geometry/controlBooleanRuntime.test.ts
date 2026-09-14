@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { ScalarEvaluation } from "../scalars/types";
-import type { TypedScalarExpression } from "../scalars/typedExpressionAst";
+import type { ScalarEvaluation } from "@nuinuicad/nui-language";
+import type { TypedScalarExpression } from "@nuinuicad/nui-language";
 import type { PropertyBindingRuntimeEntry } from "./propertyBindingRuntime";
 import {
   resolveConditionalGroupBranch,

@@ -3,11 +3,11 @@ import {
   effectiveVisibleElementIds,
   groupStateByElementId,
   type GroupFoldById
-} from "./groups";
+} from "@nuinuicad/nui-language";
 import {
   effectiveVisibleElementIdsForProfile,
   visibilityProfileById
-} from "./visibilityProfiles";
+} from "@nuinuicad/nui-language";
 import type {
   CadElement,
   ElementId,

@@ -1,8 +1,8 @@
 import { create } from "zustand";
-import { NEW_DOCUMENT_DSL_MAJOR_VERSION, type DslDocumentData } from "../dsl/dslDocument";
+import { NEW_DOCUMENT_DSL_MAJOR_VERSION, type DslDocumentData } from "@nuinuicad/nui-language";
 import type {
-  DslDiagnostic } from "../dsl/dslTypes";
-import type { TypedDependencyGraph } from "../scalars/typedDependencyGraph";
+  DslDiagnostic } from "@nuinuicad/nui-language";
+import type { TypedDependencyGraph } from "@nuinuicad/nui-language";
 import {
   commitLineSplicePatch,
   commitModelBridge,
@@ -12,15 +12,15 @@ import {
   type CanonicalDocumentValue,
   type LastGoodDslDocument,
   type TextCompileResult
-} from "../document/canonicalDocument";
+} from "@nuinuicad/nui-language/document";
 import { assertReconcileSane,
   assertShadowEquivalent,
   shadowAssertEnabled } from "../document/shadowTextAssert";
-import { initialGroupFoldForLoadedDocument } from "../model/groups";
+import { initialGroupFoldForLoadedDocument } from "@nuinuicad/nui-language";
 import { defaultVisibilityProfile,
-  visibilityIdFromName } from "../model/visibilityProfiles";
+  visibilityIdFromName } from "@nuinuicad/nui-language";
 import { sampleElements } from "../sampleData";
-import type { LineSplice } from "../document/textPatch";
+import type { LineSplice } from "@nuinuicad/nui-language/document";
 import type { SourceUpdate } from "../editor/sourceEditorTypes";
 import { sourceEditSession } from "../editor/sourceEditSession";
 import {

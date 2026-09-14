@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { highlightDslLine, highlightDslLineWithState, highlightDslSource } from "./dslHighlight";
+import { highlightDslLine, highlightDslLineWithState, highlightDslSource } from "@nuinuicad/nui-language";
 
 const tokenKinds = (line: string) => highlightDslLine(line).map((token) => token.kind);
 

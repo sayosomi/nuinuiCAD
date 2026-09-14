@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { dslTypedDeclarationTypeNames } from "./dslDeclarationParser";
-import { declaredTypeCompletionContextAt } from "./dslDeclaredTypeCompletionContext";
-import { dslCompletionContextAt } from "./dslCompletionContext";
+import { dslTypedDeclarationTypeNames } from "@nuinuicad/nui-language";
+import { declaredTypeCompletionContextAt } from "@nuinuicad/nui-language";
+import { dslCompletionContextAt } from "@nuinuicad/nui-language";
 
 describe("declaredTypeCompletionContextAt", () => {
   it.each([

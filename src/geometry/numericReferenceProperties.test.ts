@@ -11,7 +11,7 @@ import type {
 import {
   angleNumericParameterStepLevels,
   ratioNumericParameterStepLevels
-} from "../parameters/parameterDefinitions";
+} from "@nuinuicad/nui-language";
 import {
   initialNumericReferencePickProperty,
   numericReferenceGeometrySupportsProperty,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { effectiveElementActivityById } from "../src/model/elementActivity";
+import { effectiveElementActivityById } from "@nuinuicad/nui-language";
 import type { CadElement } from "../src/types/geometry";
 import {
   expectFiniteMeasurement,

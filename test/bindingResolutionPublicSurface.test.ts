@@ -1,4 +1,4 @@
-// Locks the production-facing surface of src/scalars/bindingResolution.ts:
+// Locks the production-facing surface of the Language Core binding resolver:
 // only resolveInitializerReferences (initializer-owner-bound) &&
 // visibleBindingsAt (bulk visibility) may be used outside tests.
 // resolveBindingReferenceForTests exposes exact duplicate/forward/undefined
@@ -6,7 +6,7 @@
 // solely so tests can assert it directly. Production expression parsing and
 // typechecking must use the production-facing resolution surface instead.
 //
-// This file lives under test/, not src/, following this repo's existing
+// This file lives under test/, not Language Core, following this repo's existing
 // pattern for vitest-only files that use Node built-ins (see
 // commandIdMap.test.ts, evaluationParity.test.ts): tsc -b's project
 // references only type-check src/, so a src/-included file importing
@@ -15,8 +15,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
-const SRC_ROOT = path.resolve(process.cwd(), "src");
-const DEFINITION_FILE = path.join(SRC_ROOT, "scalars", "bindingResolution.ts");
+const LANGUAGE_CORE_ROOT = path.resolve(process.cwd(), "packages", "nui-language", "src");
+const DEFINITION_FILE = path.join(LANGUAGE_CORE_ROOT, "scalars", "bindingResolution.ts");
 const TEST_ONLY_SYMBOLS = [
   "resolveBindingReferenceForTests",
   "resolveInitializerReferencesWithTraceForTests",
@@ -34,11 +34,11 @@ const collectSourceFiles = (dir: string, out: string[] = []): string[] => {
 
 describe("bindingResolution public surface", () => {
   it("never references test-only resolver helpers from non-test source", () => {
-    const offenders = collectSourceFiles(SRC_ROOT)
+    const offenders = collectSourceFiles(LANGUAGE_CORE_ROOT)
       .filter((file) => file !== DEFINITION_FILE)
       .filter((file) => !file.endsWith(".test.ts") && !file.endsWith(".test.tsx"))
       .filter((file) => TEST_ONLY_SYMBOLS.some((symbol) => fs.readFileSync(file, "utf8").includes(symbol)))
-      .map((file) => path.relative(SRC_ROOT, file));
+      .map((file) => path.relative(LANGUAGE_CORE_ROOT, file));
 
     expect(offenders).toEqual([]);
   });

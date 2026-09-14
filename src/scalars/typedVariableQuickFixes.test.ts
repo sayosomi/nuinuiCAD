@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument } from "../dsl/dslDocument";
-import { parseDsl } from "../dsl/dslParser";
-import type { DslDiagnostic } from "../dsl/dslTypes";
-import { typedVariableQuickFixes, type TypedVariableQuickFixDescriptor } from "./typedVariableQuickFixes";
+import { compileDslDocument } from "@nuinuicad/nui-language";
+import { parseDsl } from "@nuinuicad/nui-language";
+import type { DslDiagnostic } from "@nuinuicad/nui-language";
+import { typedVariableQuickFixes, type TypedVariableQuickFixDescriptor } from "@nuinuicad/nui-language";
 
 const compile = (source: string) => {
   const parsed = parseDsl(source);

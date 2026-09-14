@@ -6,11 +6,11 @@ import type {
   EvaluationWarning
 } from "../types/geometry";
 import type { GeometryInputTarget } from "../types/geometry";
-import type { BindingId } from "../scalars/bindingCatalog";
-import type { ScalarEvaluation } from "../scalars/types";
-import type { TextTemplateAst } from "../scalars/textTemplate";
+import type { BindingId } from "@nuinuicad/nui-language";
+import type { ScalarEvaluation } from "@nuinuicad/nui-language";
+import type { TextTemplateAst } from "@nuinuicad/nui-language";
 import type { ComputedGeometryValueEntry } from "./evaluationTypes";
-import type { GeometryValueOccurrenceKey } from "../model/geometryValueOccurrence";
+import type { GeometryValueOccurrenceKey } from "@nuinuicad/nui-language";
 
 export type LocalVariableEvaluation = {
   localVariableValues: Map<string, number>;

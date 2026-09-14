@@ -1,28 +1,28 @@
 // Incremental Task 31/33 mutation evaluator. It consumes Task 30's completed
 // graph && runtime Task 25 branch results only; source parsing/resolution &&
 // branch-expression evaluation remain outside this module.
-import type { BindingId } from "./bindingCatalog";
+import type { BindingId } from "@nuinuicad/nui-language";
 import type {
   BindingControlOwner,
   BindingReadPosition,
   BindingVersion,
   BindingVersionGraph,
   BindingVersionId
-} from "./bindingVersions";
+} from "@nuinuicad/nui-language";
 import { evaluateTypedExpression, type GeometryBuiltinTargetLookupResult } from "./expressionEvaluator";
 import { createScalarProgramCollectionResolver } from "./declarationEvaluator";
 import {
   createForGroupMutationEnvironment,
   type ForGroupMutationFrame,
   type ForGroupMutationRunOutcome
-} from "./forGroupMutationCore";
-import { scalarValueMatchesType, type ScalarEvaluation, type ScalarExpressionType } from "./types";
-import { isScalarExpressionTypeAssignable } from "./scalarAssignability";
-import type { ScalarProgramCollection } from "./scalarProgram";
+} from "@nuinuicad/nui-language";
+import { scalarValueMatchesType, type ScalarEvaluation, type ScalarExpressionType } from "@nuinuicad/nui-language";
+import { isScalarExpressionTypeAssignable } from "@nuinuicad/nui-language";
+import type { ScalarProgramCollection } from "@nuinuicad/nui-language";
 import type {
   ScalarExpressionResolvedGeometryTarget,
   TypedScalarGeometryPropertyReferenceNode
-} from "./typedExpressionAst";
+} from "@nuinuicad/nui-language";
 
 export type BindingVersionRuntimeHistory = {
   versionId: BindingVersionId;

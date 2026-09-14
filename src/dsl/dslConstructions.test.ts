@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { createCadElement } from "../model/elementFactory";
-import { findParameterDefinition } from "../parameters/parameterDefinitions";
+import { createCadElement } from "@nuinuicad/nui-language";
+import { findParameterDefinition } from "@nuinuicad/nui-language";
 import {
   elementTypeLabels,
   runtimeOnlyElementTypes,
@@ -11,8 +11,8 @@ import {
   argNameForParameter,
   commonArgSpecs,
   constructionFor,
-} from "./dslConstructions";
-import { settingsSpecFor } from "./dslConstructionsSettings";
+} from "@nuinuicad/nui-language";
+import { settingsSpecFor } from "@nuinuicad/nui-language";
 
 const calls = [
   ["point", "coordinate", "freePoint"],

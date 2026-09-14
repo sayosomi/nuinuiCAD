@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { categoriesForConstruction, constructionCandidatesFor, constructionFor } from "./dslConstructions";
+import { categoriesForConstruction, constructionCandidatesFor, constructionFor } from "@nuinuicad/nui-language";
 import {
   CONSTRUCTION_CATEGORY_MISMATCH_CODE,
   UNCLOSED_CALL_CODE,
   parseDslCallStatement,
   parseDslConstructionInvocation
-} from "./dslCallParser";
-import { parseDsl } from "./dslParser";
+} from "@nuinuicad/nui-language";
+import { parseDsl } from "@nuinuicad/nui-language";
 
 const parse = (source: string, opensBlock = false) => parseDslCallStatement(source, { opensBlock });
 const messages = (source: string) => parse(source).diagnostics.map((diagnostic) => diagnostic.message);

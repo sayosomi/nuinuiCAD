@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument } from "../dsl/dslDocument";
+import { compileDslDocument } from "@nuinuicad/nui-language";
 
 type Measurement = { medianMs: number; p95Ms: number };
 const runPerformanceGates = (globalThis as {

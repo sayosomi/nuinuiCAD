@@ -2,9 +2,9 @@ import type {
   DslReferencePickMultiplicity,
   DslReferencePickRole,
   DslReferencePickNumericPropertyTarget
-} from "../dsl/dslReferencePickQuery";
+} from "@nuinuicad/nui-language";
 import type { NumericComputedGeometryProperty } from "../geometry/numericExpressions";
-import type { ModuleGeometryInterfaceType } from "../dsl/moduleGeometryInterfaces";
+import type { ModuleGeometryInterfaceType } from "@nuinuicad/nui-language";
 import type { ElementId } from "../types/geometry";
 import type { CanonicalGeometrySourceReference } from "./moduleSemanticCandidateBoundary";
 import {

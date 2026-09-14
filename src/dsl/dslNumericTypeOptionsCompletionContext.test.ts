@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { numericTypeOptionCompletionContextAt } from "./dslNumericTypeOptionsCompletionContext";
-import { dslCompletionContextAt } from "./dslCompletionContext";
+import { numericTypeOptionCompletionContextAt } from "@nuinuicad/nui-language";
+import { dslCompletionContextAt } from "@nuinuicad/nui-language";
 
 const atEnd = (source: string) => numericTypeOptionCompletionContextAt(source, source.length);
 

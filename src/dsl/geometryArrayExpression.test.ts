@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseGeometryArrayExpression } from "./geometryArrayExpression";
+import { parseGeometryArrayExpression } from "@nuinuicad/nui-language";
 
 describe("geometry array expression parser", () => {
   it("preserves empty literals, source order, duplicates, and exact member spans", () => {

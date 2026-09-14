@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AutomationDocument } from "../document/automationDocument";
+import { AutomationDocument } from "@nuinuicad/nui-language/document";
 import {
   canvasSelectionForElement,
   canvasSelectionSnapshot
@@ -16,12 +16,12 @@ import { LEGACY_CANVAS_THEME } from "../components/canvasTheme";
 import { createCanvasTextWidthMeasurer } from "../components/canvasTextMeasurement";
 import type { ModulePreviewRootResult } from "../dsl/modulePreviewRoot";
 import { createModulePreviewSession, type ModulePreviewInputDiagnostic, type ModulePreviewSessionSnapshot } from "../dsl/modulePreviewState";
-import type { DslDiagnosticPresentation } from "../dsl/dslTypes";
+import type { DslDiagnosticPresentation } from "@nuinuicad/nui-language";
 import { queryModulePreviewTarget } from "../dsl/modulePreviewTarget";
 import { useEvaluationEngine } from "../geometry/useEvaluationEngine";
 import { evaluationStateIsCurrentFor } from "../geometry/useEvaluationEngine";
 import { evaluateElementsWithRust } from "../geometry/evaluationEngine";
-import { applyLineSplices } from "../document/textPatch";
+import { applyLineSplices } from "@nuinuicad/nui-language/document";
 import {
   planBakeGeometry,
   resolveDisabledBakeTargetIds,
@@ -29,9 +29,9 @@ import {
   type BakeResolvedTarget
 } from "../commands/bakeGeometry";
 import { bakeOperationSummaryForPlan } from "../commands/bakeOperationResult";
-import { buildModuleOwnerElementPatch } from "../document/moduleModelBridge";
+import { buildModuleOwnerElementPatch } from "@nuinuicad/nui-language/document";
 import { moveBezierHandleByDeltaInElements, movePointElementByDeltaInElements } from "../model/elementDragTransforms";
-import { sourceOwnerForRuntimeElementId } from "../dsl/sourceOwnership";
+import { sourceOwnerForRuntimeElementId } from "@nuinuicad/nui-language";
 import { useCadUiStore } from "../state/cadUiStore";
 import type { CadElement, EvaluationResult } from "../types/geometry";
 import { buildModulePreviewEvaluationOptions } from "./modulePreviewEvaluation";

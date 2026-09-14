@@ -1,23 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { recursiveDocumentQualifiedModuleInstanceIds } from "../dsl/moduleCallGraph";
-import type { ModuleDefinitionSemantic } from "../dsl/moduleSemanticTypes";
+import { recursiveDocumentQualifiedModuleInstanceIds } from "@nuinuicad/nui-language";
+import type { ModuleDefinitionSemantic } from "@nuinuicad/nui-language";
 import {
   buildMultiDocumentImportGraph,
   type MultiDocumentDeclarationContributor,
   type MultiDocumentSavedSourceLoader,
   type SavedDependencyLoadResult
-} from "./multiDocumentImportGraph";
+} from "@nuinuicad/nui-language/workspace";
 import {
   analyzeMultiDocumentModuleSemantics,
   moduleDeclarationContributor
-} from "./multiDocumentModuleSemantics";
+} from "@nuinuicad/nui-language/workspace";
 import {
   documentIdFromHost,
   savedSourceFingerprintFromHost,
   qualifySemanticIdentity,
   type DependencySavedSourceSnapshot,
   type RootCurrentSourceSnapshot
-} from "./multiDocumentPrimitives";
+} from "@nuinuicad/nui-language/workspace";
 
 const rootSource = (id: string, source: string): RootCurrentSourceSnapshot => ({
   kind: "root-current",

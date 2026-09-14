@@ -1,2 +1,2 @@
-export * from "../../packages/nui-language/src/model/pointAnchors";
+export * from "@nuinuicad/nui-language";
 export * from "./pointAnchorsRuntime";

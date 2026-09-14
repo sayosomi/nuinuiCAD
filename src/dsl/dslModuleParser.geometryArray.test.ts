@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseDslModuleStatement } from "./dslModuleParser";
+import { parseDslModuleStatement } from "@nuinuicad/nui-language";
 
 describe("Module geometry-array argument parsing", () => {
   it("keeps coordinate tuples nested inside an array argument", () => {

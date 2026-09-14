@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument } from "../dsl/dslDocument";
-import { emptyDocument } from "../dsl/dslDocumentTestUtils";
-import { compileCanonicalText, regenerateCanonicalFromModel } from "../document/canonicalDocument";
+import { compileDslDocument } from "@nuinuicad/nui-language";
+import { emptyDocument } from "@nuinuicad/nui-language";
+import { compileCanonicalText, regenerateCanonicalFromModel } from "@nuinuicad/nui-language/document";
 import { evaluateScalarProgram } from "./declarationEvaluator";
 
 const compileCanonical = (source: string) => {

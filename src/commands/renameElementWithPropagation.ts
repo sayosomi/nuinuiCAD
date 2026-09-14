@@ -1,4 +1,4 @@
-import { analyzeRename, type RenameAnalysisRejected } from "../document/renameAnalysis";
+import { analyzeRename, type RenameAnalysisRejected } from "@nuinuicad/nui-language/document";
 import { shadowAssertEnabled } from "../document/shadowTextAssert";
 import { sourceEditSession } from "../editor/sourceEditSession";
 import { useCadDocumentStore } from "../state/cadDocumentStore";

@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument } from "../dsl/dslDocument";
-import { parseDsl } from "../dsl/dslParser";
-import { applyLineSplices } from "./textPatch";
-import { analyzeTypedBindingRenameInDocument } from "./typedRenameAnalysis";
-import { buildTypedRenameSplices, type TypedRenameSpliceEntry } from "./typedRenameSplice";
-import type { BindingId } from "../scalars/bindingCatalog";
+import { compileDslDocument } from "@nuinuicad/nui-language";
+import { parseDsl } from "@nuinuicad/nui-language";
+import { applyLineSplices } from "@nuinuicad/nui-language/document";
+import { analyzeTypedBindingRenameInDocument } from "@nuinuicad/nui-language/document";
+import { buildTypedRenameSplices, type TypedRenameSpliceEntry } from "@nuinuicad/nui-language/document";
+import type { BindingId } from "@nuinuicad/nui-language";
 
 const compile = (source: string) => {
   const parsed = parseDsl(source);

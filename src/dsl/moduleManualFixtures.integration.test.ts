@@ -21,8 +21,8 @@ import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocume
 import { DEFAULT_CANVAS_VIEWPORT, initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import { hitTestCanvasGeometry } from "../components/DrawingCanvasHitTest";
 import { useCanvasOverlayData } from "../components/useCanvasOverlayData";
-import { compileDslDocument } from "./dslDocument";
-import { parseDsl } from "./dslParser";
+import { compileDslDocument } from "@nuinuicad/nui-language";
+import { parseDsl } from "@nuinuicad/nui-language";
 
 const compileSource = (source: string) => {
   const parsed = parseDsl(source);

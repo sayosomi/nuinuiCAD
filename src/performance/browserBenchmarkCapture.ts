@@ -28,7 +28,7 @@ import type {
 } from "./benchmarkResultSchema";
 import { evaluationStateIsCurrentFor, type EvaluationEngineState } from "../geometry/useEvaluationEngine";
 import { isPointElement } from "../model/pointAnchors";
-import { resolveElementNamePath } from "../model/elementNames";
+import { resolveElementNamePath } from "@nuinuicad/nui-language";
 import { worldToScreen } from "../components/canvasViewport";
 import type { CanvasViewport } from "../state/cadUiStore";
 import type { CadElement, EvaluationResult } from "../types/geometry";

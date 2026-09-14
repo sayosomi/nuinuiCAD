@@ -1,9 +1,9 @@
-import type { StatementIdentity } from "../document/statementIdentity";
-import type { CompiledDslDocument } from "../dsl/dslDocument";
-import type { DslPhysicalSpan } from "../dsl/logicalStatementSourceMap";
-import { sourceOwnerForRuntimeElementId, type SourceOwner } from "../dsl/sourceOwnership";
+import type { StatementIdentity } from "@nuinuicad/nui-language/document";
+import type { CompiledDslDocument } from "@nuinuicad/nui-language";
+import type { DslPhysicalSpan } from "@nuinuicad/nui-language";
+import { sourceOwnerForRuntimeElementId, type SourceOwner } from "@nuinuicad/nui-language";
 import type { CadElementType, ElementId, EvaluationResult } from "../types/geometry";
-import { transformationElementType, type TransformationRecipe } from "../../packages/nui-language/src/dsl/transformationRecipes";
+import { transformationElementType, type TransformationRecipe } from "@nuinuicad/nui-language";
 
 export type GeometrySourceFlowStep = {
   kind: "construction" | "mutation" | "transformation";

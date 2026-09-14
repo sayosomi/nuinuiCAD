@@ -1,8 +1,8 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { compileDslDocument } from "../dsl/dslDocument";
-import { expectSemanticallyEqualDocuments } from "../dsl/dslDocumentTestUtils";
-import { parseDsl } from "../dsl/dslParser";
+import { compileDslDocument } from "@nuinuicad/nui-language";
+import { expectSemanticallyEqualDocuments } from "@nuinuicad/nui-language";
+import { parseDsl } from "@nuinuicad/nui-language";
 import type { CadElementType } from "../types/geometry";
 import {
   applyRandomOp,
@@ -10,9 +10,9 @@ import {
   generateDocumentSource,
   type GeneratedDocParams,
   type RandomOp
-} from "./documentTestGenerators";
-import { reconcileStatements } from "./statementReconciler";
-import { applyLineSplices, buildTextPatch } from "./textPatch";
+} from "@nuinuicad/nui-language/document";
+import { reconcileStatements } from "@nuinuicad/nui-language/document";
+import { applyLineSplices, buildTextPatch } from "@nuinuicad/nui-language/document";
 
 const paramsArb: fc.Arbitrary<GeneratedDocParams> = fc.record({
   pointCount: fc.integer({ min: 2, max: 6 }),

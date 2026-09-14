@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { parseDslSnapshot } from "./dslParser";
-import { queryDslDocumentSymbols, type DslDocumentSymbol } from "./dslDocumentSymbolQuery";
+import { parseDslSnapshot } from "@nuinuicad/nui-language";
+import { queryDslDocumentSymbols, type DslDocumentSymbol } from "@nuinuicad/nui-language";
 
 const symbolsFor = (source: string, sourceRevision = 1): DslDocumentSymbol[] => {
   const snapshot = {

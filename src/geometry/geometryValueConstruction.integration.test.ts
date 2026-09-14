@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument } from "../../packages/nui-language/src/dsl/dslDocument";
-import { parseDslSnapshot } from "../../packages/nui-language/src/dsl/dslParser";
+import { compileDslDocument } from "@nuinuicad/nui-language";
+import { parseDslSnapshot } from "@nuinuicad/nui-language";
 import { buildEvaluationOptions } from "./productionEvaluationContext";
 import { evaluateElements } from "./evaluate";
 import { runtimeGeometryDiagnostics } from "./runtimeGeometryDiagnostics";
-import type { LastGoodDslDocument } from "../document/canonicalDocument";
+import type { LastGoodDslDocument } from "@nuinuicad/nui-language/document";
 
 const compile = (source: string) => {
   const parsed = parseDslSnapshot({ normalizedSource: source, sourceRevision: 0 });

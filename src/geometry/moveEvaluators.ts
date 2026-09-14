@@ -8,7 +8,7 @@ import type {
   ComputedPoint,
   ElementId
 } from "../types/geometry";
-import { elementDisplayName } from "../model/elementNames";
+import { elementDisplayName } from "@nuinuicad/nui-language";
 import { dependencyError, geometryError, getPointAnchorOrError, numericError } from "./evaluationContext";
 import { approximateBezierSegmentLength } from "./evaluateGeometryPrimitives";
 import type { ElementEvaluationContext } from "./elementEvaluatorTypes";

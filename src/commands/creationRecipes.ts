@@ -1,12 +1,12 @@
-import { elementTypesWithoutOwnDrawableGeometry } from "../model/elementActivity";
-import { createCadElement } from "../model/elementFactory";
+import { elementTypesWithoutOwnDrawableGeometry } from "@nuinuicad/nui-language";
+import { createCadElement } from "@nuinuicad/nui-language";
 import { referenceAnchor } from "../model/pointAnchors";
-import { getParameterValue, setParameterValue } from "../parameters/parameterAccess";
+import { getParameterValue, setParameterValue } from "@nuinuicad/nui-language";
 import {
   getParameterDefinitions,
   type ParameterDefinition,
   type ParameterKey
-} from "../parameters/parameterDefinitions";
+} from "@nuinuicad/nui-language";
 import type {
   CadElement,
   CadElementType,

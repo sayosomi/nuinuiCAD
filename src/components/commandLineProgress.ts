@@ -1,5 +1,5 @@
 import { numericValueExpression } from "../geometry/numericExpressions";
-import { elementQualifiedName } from "../model/elementNames";
+import { elementQualifiedName } from "@nuinuicad/nui-language";
 import { derivedPointLabel } from "../model/pointAnchors";
 import { isEditingCommandLineStep, type CommandLineSession } from "../commands/commandLineSession";
 import type { CreationArgumentValue, CreationStep } from "../commands/creationRecipes";

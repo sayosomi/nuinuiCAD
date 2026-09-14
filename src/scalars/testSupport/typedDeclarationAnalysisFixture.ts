@@ -6,13 +6,13 @@
 // fixture convention.
 
 import { expect } from "vitest";
-import { compileDslToElements } from "../../dsl/dslCompiler";
-import { parseDsl } from "../../dsl/dslParser";
-import type { DiagnosticSpanContext } from "../../dsl/dslDiagnosticSpan";
-import type { DslDiagnostic } from "../../dsl/dslTypes";
+import { compileDslToElements } from "@nuinuicad/nui-language";
+import { parseDsl } from "@nuinuicad/nui-language";
+import type { DiagnosticSpanContext } from "@nuinuicad/nui-language";
+import type { DslDiagnostic } from "@nuinuicad/nui-language";
 import type { CadElement, ElementId } from "../../types/geometry";
-import { buildSourceLexicalNamespaceIndex } from "../../dsl/sourceLexicalNamespaceIndex";
-import { analyzeTypedDeclarations, type TypedDeclarationAnalysis } from "../typedDeclarationAnalysis";
+import { buildSourceLexicalNamespaceIndex } from "@nuinuicad/nui-language";
+import { analyzeTypedDeclarations, type TypedDeclarationAnalysis } from "@nuinuicad/nui-language";
 
 export type TypedDeclarationAnalysisFixture = {
   statements: ReturnType<typeof parseDsl>["statements"];

@@ -1,5 +1,5 @@
 import { evaluateElements } from "../geometry/evaluate";
-import { resolveElementNamePath } from "../model/elementNames";
+import { resolveElementNamePath } from "@nuinuicad/nui-language";
 import { pickCandidates } from "../model/pickCandidates";
 import type { PickRef } from "../model/pickReferences";
 import { rankedReferenceSuggestions, referenceSuggestions } from "../model/referenceSuggestions";
@@ -10,13 +10,13 @@ import type {
   ElementId,
   EvaluationResult
 } from "../types/geometry";
-import { dslScopeBeforeParsedLine, isElementDslStatement, parseDsl } from "./dslParser";
-import type { ParseDslResult } from "./dslTypes";
-import type { ParameterValueKind } from "../parameters/parameterDefinitions";
-import { argNameForParameter } from "./dslConstructions";
-import { dslStatementElementType } from "./dslCompletionMetadata";
-import { splitDslTopLevelSpans } from "./dslParameterSpanScanner";
-import { parseDslSourceReference } from "./dslReferenceTokens";
+import { dslScopeBeforeParsedLine, isElementDslStatement, parseDsl } from "@nuinuicad/nui-language";
+import type { ParseDslResult } from "@nuinuicad/nui-language";
+import type { ParameterValueKind } from "@nuinuicad/nui-language";
+import { argNameForParameter } from "@nuinuicad/nui-language";
+import { dslStatementElementType } from "@nuinuicad/nui-language";
+import { splitDslTopLevelSpans } from "@nuinuicad/nui-language";
+import { parseDslSourceReference } from "@nuinuicad/nui-language";
 
 export type DslReferenceCompletionOption = {
   label: string;

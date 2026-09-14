@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { reconcileStatements } from "../document/statementReconciler";
+import { reconcileStatements } from "@nuinuicad/nui-language/document";
 import { buildNumericBindingRuntimeEntries } from "../geometry/numericBindingRuntime";
 import { buildPropertyBindingRuntimeEntries } from "../geometry/propertyBindingRuntime";
 import { buildTextPropertyBindingRuntimeEntries, buildTextTemplateEntriesByElementId } from "../geometry/textTemplateRuntime";
@@ -8,9 +8,9 @@ import { buildEvaluationOptions } from "../geometry/productionEvaluationContext"
 import { buildRustEvaluationInput } from "../geometry/rustEvaluationInput";
 import { buildConditionalMutationOwners, conditionalOwnerIdByElementId } from "../scalars/conditionalMutationControl";
 import { buildForGroupMutationOwners, forGroupMutationOwnerByElementId } from "../scalars/forGroupMutationControl";
-import { compileDslDocument } from "./dslDocument";
-import { parseDsl } from "./dslParser";
-import { moduleRecordExportFieldBindingIdFor } from "../scalars/moduleScalarRuntime";
+import { compileDslDocument } from "@nuinuicad/nui-language";
+import { parseDsl } from "@nuinuicad/nui-language";
+import { moduleRecordExportFieldBindingIdFor } from "@nuinuicad/nui-language";
 import { pickCandidates } from "../model/pickCandidates";
 
 const compileWithIds = (source: string, prefix = "task6") => {

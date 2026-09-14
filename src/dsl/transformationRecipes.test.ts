@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { compileDslToElements } from "../../packages/nui-language/src/dsl/dslCompiler";
-import { parseDslCallStatement } from "../../packages/nui-language/src/dsl/dslCallParser";
-import { compileDslDocument, serializeDocumentToDsl } from "../../packages/nui-language/src/dsl/dslDocument";
-import { serializeTransformationRecipeLines } from "../../packages/nui-language/src/dsl/dslSerializer";
+import { compileDslToElements } from "@nuinuicad/nui-language";
+import { parseDslCallStatement } from "@nuinuicad/nui-language";
+import { compileDslDocument, serializeDocumentToDsl } from "@nuinuicad/nui-language";
+import { serializeTransformationRecipeLines } from "@nuinuicad/nui-language";
 
 const compile = (source: string) => compileDslToElements(source, { elements: [], mode: "document" });
 const errors = (result: ReturnType<typeof compile>) => result.diagnostics.filter((diagnostic) => diagnostic.severity === "error");

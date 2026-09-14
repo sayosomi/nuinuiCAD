@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { createCadElement } from "../model/elementFactory";
+import { createCadElement } from "@nuinuicad/nui-language";
 import { referenceAnchor } from "../model/pointAnchors";
 import type { CadElement, CadElementType } from "../types/geometry";
-import { constructionForElementType } from "./dslConstructions";
-import { documentDslRefs, flatRefs } from "./dslSerializer";
+import { constructionForElementType } from "@nuinuicad/nui-language";
+import { documentDslRefs, flatRefs } from "@nuinuicad/nui-language";
 import {
   serializeElementStatementBlock,
   serializeElementStatementLogical,
-} from "./dslSerializeElement";
+} from "@nuinuicad/nui-language";
 
 const referenceElements: CadElement[] = [
   { id: "p1", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 },

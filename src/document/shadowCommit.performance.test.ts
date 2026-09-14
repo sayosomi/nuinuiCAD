@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument, serializeDocumentToDsl, type DslDocumentData } from "../dsl/dslDocument";
-import { advanceShadow, type ShadowState } from "./shadowText";
+import { compileDslDocument, serializeDocumentToDsl, type DslDocumentData } from "@nuinuicad/nui-language";
+import { advanceShadow, type ShadowState } from "@nuinuicad/nui-language/document";
 import { assertReconcileSane, assertShadowEquivalent } from "./shadowTextAssert";
 
 // O(n^3)退行検出用の緩い性能ガード。細かい性能目標ではなく、

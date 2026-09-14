@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { initialCadUiState, useCadUiStore } from "./cadUiStore";
-import { isElseExpanded, isFoldTargetExpanded, isGroupExpanded, isStatementExpanded } from "../model/groups";
+import { isElseExpanded, isFoldTargetExpanded, isGroupExpanded, isStatementExpanded } from "@nuinuicad/nui-language";
 import { initialCadDocumentState, useCadDocumentStore } from "./cadDocumentStore";
 import { startSession } from "../commands/commandLineSession";
 import type { CreationRecipe } from "../commands/creationRecipes";

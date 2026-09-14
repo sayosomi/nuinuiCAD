@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { compileFreshCanonicalText, type LastGoodDslDocument } from "../document/canonicalDocument";
-import { sourceOwnerByRuntimeElementId } from "./sourceOwnership";
+import { compileFreshCanonicalText, type LastGoodDslDocument } from "@nuinuicad/nui-language/document";
+import { sourceOwnerByRuntimeElementId } from "@nuinuicad/nui-language";
 import {
   queryDslCanvasSourceDefinition,
   queryDslCanvasSourceTarget
-} from "./dslNavigationQuery";
-import type { CompiledDslDocument } from "./dslDocument";
+} from "@nuinuicad/nui-language";
+import type { CompiledDslDocument } from "@nuinuicad/nui-language";
 
 const compiledFor = (sourceText: string): LastGoodDslDocument => {
   const result = compileFreshCanonicalText(sourceText);

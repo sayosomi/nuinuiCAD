@@ -27,17 +27,17 @@
 // `set`, control-flow mutation, && Rust evaluation are handled by their
 // respective compilation/runtime paths rather than this declaration evaluator.
 
-import type { BindingId } from "./bindingCatalog";
+import type { BindingId } from "@nuinuicad/nui-language";
 import { evaluateTypedExpression, type GeometryBuiltinTargetLookupResult, type ScalarEvaluationEnvironment } from "./expressionEvaluator";
-import type { ScalarProgram, ScalarProgramStatement } from "./scalarProgram";
-import type { ScalarEvaluation } from "./types";
-import { scalarValueMatchesType, type ScalarExpressionType, type ScalarType } from "./types";
-import { isScalarExpressionTypeAssignable, scalarExpressionTypesEqual } from "./scalarAssignability";
+import type { ScalarProgram, ScalarProgramStatement } from "@nuinuicad/nui-language";
+import type { ScalarEvaluation } from "@nuinuicad/nui-language";
+import { scalarValueMatchesType, type ScalarExpressionType, type ScalarType } from "@nuinuicad/nui-language";
+import { isScalarExpressionTypeAssignable, scalarExpressionTypesEqual } from "@nuinuicad/nui-language";
 import type {
   ScalarExpressionResolvedGeometryTarget,
   ScalarExpressionResolvedOptionalMemberTarget,
   TypedScalarGeometryPropertyReferenceNode
-} from "./typedExpressionAst";
+} from "@nuinuicad/nui-language";
 
 export type ScalarProgramEvaluation = {
   /** One entry per evaluated `declare` statement, keyed by its bindingId. */

@@ -1,6 +1,6 @@
 import { AlertTriangle } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import type { DslDiagnostic, DslDiagnosticNavigationTarget } from "../dsl/dslTypes";
+import type { DslDiagnostic, DslDiagnosticNavigationTarget } from "@nuinuicad/nui-language";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 
 export type DocumentDiagnosticsProps = {

@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { buildDslBindingAdapterSeeds } from "../dsl/bindingCatalogAdapter";
-import { compileDslToElements } from "../dsl/dslCompiler";
-import { parseDsl } from "../dsl/dslParser";
-import { buildBindingCatalog } from "./bindingCatalog";
-import { buildLexicalScopeIndex } from "./lexicalScopeIndex";
+import { buildDslBindingAdapterSeeds } from "@nuinuicad/nui-language";
+import { compileDslToElements } from "@nuinuicad/nui-language";
+import { parseDsl } from "@nuinuicad/nui-language";
+import { buildBindingCatalog } from "@nuinuicad/nui-language";
+import { buildLexicalScopeIndex } from "@nuinuicad/nui-language";
 import {
   resolveBindingReferenceForTests
-} from "./bindingResolution";
+} from "@nuinuicad/nui-language";
 
 const catalogFor = (source: string) => {
   const parsed = parseDsl(source);

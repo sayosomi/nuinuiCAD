@@ -5,7 +5,7 @@ import {
   type TypedDependencyEdge,
   type TypedDependencyEndpoint,
   type TypedDependencyGraph
-} from "../scalars/typedDependencyGraph";
+} from "@nuinuicad/nui-language";
 
 export const directTypedDependencies = (
   graph: TypedDependencyGraph | undefined,

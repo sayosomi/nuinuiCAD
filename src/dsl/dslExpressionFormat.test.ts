@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { normalizeNumericExpressionInput } from "../geometry/numericExpressions";
-import { createElementNameContext } from "../model/elementNames";
-import { compileDslToElements } from "./dslCompiler";
-import { formatNumericValueForDsl } from "./dslExpressionFormat";
+import { createElementNameContext } from "@nuinuicad/nui-language";
+import { compileDslToElements } from "@nuinuicad/nui-language";
+import { formatNumericValueForDsl } from "@nuinuicad/nui-language";
 
 const buildElements = () => {
   const result = compileDslToElements(

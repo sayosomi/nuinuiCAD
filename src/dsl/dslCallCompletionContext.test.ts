@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { argumentCompletionCandidates } from "./dslCallCompletionCandidates";
-import { dslCallCompletionContextAt } from "./dslCallCompletionContext";
-import { constructionFor } from "./dslConstructions";
+import { argumentCompletionCandidates } from "@nuinuicad/nui-language";
+import { dslCallCompletionContextAt } from "@nuinuicad/nui-language";
+import { constructionFor } from "@nuinuicad/nui-language";
 
 const atEnd = (source: string) => dslCallCompletionContextAt(source, source.length);
 

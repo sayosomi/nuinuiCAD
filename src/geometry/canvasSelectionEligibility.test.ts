@@ -5,8 +5,8 @@ import type {
   EvaluationResult,
   VisibilityProfile
 } from "../types/geometry";
-import { defaultVisibilityProfile } from "../model/visibilityProfiles";
-import type { ModuleMaterialization } from "../dsl/moduleMaterialization";
+import { defaultVisibilityProfile } from "@nuinuicad/nui-language";
+import type { ModuleMaterialization } from "@nuinuicad/nui-language";
 import { canvasPresentationEligibleElementIds } from "./canvasDrawingBounds";
 import { canvasSelectionEligibleElementIds } from "./canvasSelectionEligibility";
 

@@ -1,5 +1,5 @@
-import type { CompiledDslDocument } from "../dsl/dslDocument";
-import type { NormalizedSourceRange } from "../dsl/dslNavigationQuery";
+import type { CompiledDslDocument } from "@nuinuicad/nui-language";
+import type { NormalizedSourceRange } from "@nuinuicad/nui-language";
 import type { PrintOutput, SvgOutput } from "../types/geometry";
 
 export type OutputPreviewCandidate = {

@@ -1,11 +1,11 @@
 import { foldEffect, foldedRanges, unfoldEffect } from "@codemirror/language";
 import type { EditorState, TransactionSpec } from "@codemirror/state";
 import type { ElementId } from "../types/geometry";
-import { isFoldTargetExpanded, type FoldTargetBranch, type GroupFoldById } from "../model/groups";
+import { isFoldTargetExpanded, type FoldTargetBranch, type GroupFoldById } from "@nuinuicad/nui-language";
 import type { CadElement } from "../types/geometry";
 import type { StatementRangeIndex } from "./statementRangeIndex";
-import type { ModuleSemanticRangeIndex, ModuleDefinitionFoldRange } from "../dsl/moduleSemanticEditor";
-import type { StatementIdentity } from "../document/statementIdentity";
+import type { ModuleSemanticRangeIndex, ModuleDefinitionFoldRange } from "@nuinuicad/nui-language";
+import type { StatementIdentity } from "@nuinuicad/nui-language/document";
 
 export type FoldTarget = {
   elementId: ElementId;

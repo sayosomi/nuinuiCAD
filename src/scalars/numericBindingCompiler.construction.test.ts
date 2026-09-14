@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { compileCanonicalText, regenerateCanonicalFromModel, type TextCompileResult } from "../document/canonicalDocument";
-import { emptyDocument } from "../dsl/dslDocumentTestUtils";
+import { compileCanonicalText, regenerateCanonicalFromModel, type TextCompileResult } from "@nuinuicad/nui-language/document";
+import { emptyDocument } from "@nuinuicad/nui-language";
 
 const compile = (source: string): TextCompileResult =>
   compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), source);

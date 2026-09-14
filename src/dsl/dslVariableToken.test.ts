@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dslVariableTokenEndingAt } from "./dslVariableToken";
+import { dslVariableTokenEndingAt } from "@nuinuicad/nui-language";
 
 describe("dslVariableTokenEndingAt", () => {
   it("finds the @query token ending exactly at pos", () => {

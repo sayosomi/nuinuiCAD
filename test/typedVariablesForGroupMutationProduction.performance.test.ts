@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { compileCanonicalText, regenerateCanonicalFromModel } from "../src/document/canonicalDocument";
-import { emptyDocument } from "../src/dsl/dslDocumentTestUtils";
+import { compileCanonicalText, regenerateCanonicalFromModel } from "@nuinuicad/nui-language/document";
+import { emptyDocument } from "@nuinuicad/nui-language";
 import { evaluateElements } from "../src/geometry/evaluate";
 import { buildForGroupMutationOwners, forGroupMutationOwnerByElementId } from "../src/scalars/forGroupMutationControl";
 import {

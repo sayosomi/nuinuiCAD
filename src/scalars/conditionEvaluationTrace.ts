@@ -1,8 +1,8 @@
-import type { ScalarBinaryOperator, ScalarSpan, ScalarUnaryOperator } from "./expressionAst";
+import type { ScalarBinaryOperator, ScalarSpan, ScalarUnaryOperator } from "@nuinuicad/nui-language";
 import { evaluateTypedExpression, type ScalarEvaluationEnvironment } from "./expressionEvaluator";
-import { parseScalarEvaluationJson, parseScalarValueJson } from "./scalarJson";
-import type { ScalarEvaluation, ScalarValue } from "./types";
-import type { TypedScalarExpression } from "./typedExpressionAst";
+import { parseScalarEvaluationJson, parseScalarValueJson } from "@nuinuicad/nui-language";
+import type { ScalarEvaluation, ScalarValue } from "@nuinuicad/nui-language";
+import type { TypedScalarExpression } from "@nuinuicad/nui-language";
 
 export type ConditionEvaluationTraceChildRole = "operand" | "left" | "right" | "expression" | "argument" | "condition" | "then" | "else" | "scrutinee" | "arm";
 

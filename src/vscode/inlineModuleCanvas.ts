@@ -1,15 +1,15 @@
-import type { CompiledDslDocument } from "../dsl/dslDocument";
+import type { CompiledDslDocument } from "@nuinuicad/nui-language";
 import {
   sourceOwnerForRuntimeElementId,
   type SourceOwner
-} from "../dsl/sourceOwnership";
+} from "@nuinuicad/nui-language";
 import type {
   MaterializedRuntimeIdentity,
   ModuleMaterialization,
   ModuleOrigin
-} from "../dsl/moduleMaterialization";
+} from "@nuinuicad/nui-language";
 import type { ElementId } from "../types/geometry";
-import type { SourceSnapshot } from "../dsl/logicalStatementSourceMap";
+import type { SourceSnapshot } from "@nuinuicad/nui-language";
 import type { CadElement } from "../types/geometry";
 import type { VscodeInlineModuleCanvasTargetProof } from "./inlineModuleProtocol";
 

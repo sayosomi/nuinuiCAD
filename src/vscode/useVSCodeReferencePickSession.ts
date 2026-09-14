@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { CompiledDslDocument } from "../dsl/dslDocument";
-import type { SourceSnapshot } from "../dsl/logicalStatementSourceMap";
+import type { CompiledDslDocument } from "@nuinuicad/nui-language";
+import type { SourceSnapshot } from "@nuinuicad/nui-language";
 import type { ReferencePickHover } from "../model/referencePickSession";
 import type { NumericComputedGeometryProperty } from "../geometry/numericExpressions";
 import type { EvaluationResult } from "../types/geometry";

@@ -3,7 +3,7 @@ import { placeCanvasPopup } from "../components/canvasPopupPlacement";
 import { candidateWheelDeltaFor } from "../components/canvasCandidateWheel";
 import { CanvasOverlapCandidateMenu } from "../components/CanvasOverlapCandidateMenu";
 import type { AxisLockKeys } from "../components/canvasViewport";
-import type { NormalizedSourceRange } from "../dsl/dslNavigationQuery";
+import type { NormalizedSourceRange } from "@nuinuicad/nui-language";
 import type { OutputPlaceProjection } from "../output/outputPlaceProjection";
 import {
   outputPreviewPlaceCandidatesAtScreen,

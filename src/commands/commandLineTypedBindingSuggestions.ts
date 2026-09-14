@@ -1,12 +1,12 @@
-import type { StatementInfo, StatementMap } from "../dsl/dslDocument";
+import type { StatementInfo, StatementMap } from "@nuinuicad/nui-language";
 import type { NumericReferenceOption } from "../geometry/numericReferenceOptions";
-import { isGroupElement } from "../model/groups";
+import { isGroupElement } from "@nuinuicad/nui-language";
 import type { CadElement } from "../types/geometry";
-import type { BindingAnalysis } from "../scalars/bindingAnalysis";
-import { bindingIdForStableStatementId } from "../scalars/bindingCatalog";
-import type { ScopeId } from "../scalars/lexicalScopeIndex";
-import { visibleTypedBindingsAtLivePosition } from "../scalars/liveTypedBindingVisibility";
-import { typedBindingReferenceCandidates } from "../scalars/typedValueCandidates";
+import type { BindingAnalysis } from "@nuinuicad/nui-language";
+import { bindingIdForStableStatementId } from "@nuinuicad/nui-language";
+import type { ScopeId } from "@nuinuicad/nui-language";
+import { visibleTypedBindingsAtLivePosition } from "@nuinuicad/nui-language";
+import { typedBindingReferenceCandidates } from "@nuinuicad/nui-language";
 import type { CommandLineSession } from "./commandLineSession";
 import { resolveCommandLineInsertionAnchor } from "./commandLineInsertionAnchor";
 

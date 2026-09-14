@@ -8,12 +8,12 @@ import type {
   NumericValue,
   PointAnchor
 } from "../types/geometry";
-import { elementDisplayName } from "../model/elementNames";
+import { elementDisplayName } from "@nuinuicad/nui-language";
 import { resolveDerivedPoint } from "../model/pointAnchors";
 import { evaluateNumericValue } from "./numericExpressions";
 import type { ComputedGeometryValueEntry } from "./evaluationTypes";
-import { geometryValueOccurrenceKey } from "../model/geometryValueOccurrence";
-import type { GeometryValueOccurrenceKey } from "../model/geometryValueOccurrence";
+import { geometryValueOccurrenceKey } from "@nuinuicad/nui-language";
+import type { GeometryValueOccurrenceKey } from "@nuinuicad/nui-language";
 
 export const isPoint = (
   geometry: ComputedGeometry | undefined

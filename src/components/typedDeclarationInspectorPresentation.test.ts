@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { compileCanonicalText, regenerateCanonicalFromModel } from "../document/canonicalDocument";
-import { emptyDocument } from "../dsl/dslDocumentTestUtils";
-import type { BindingId } from "../scalars/bindingCatalog";
+import { compileCanonicalText, regenerateCanonicalFromModel } from "@nuinuicad/nui-language/document";
+import { emptyDocument } from "@nuinuicad/nui-language";
+import type { BindingId } from "@nuinuicad/nui-language";
 import { typedDeclarationInspectorPresentation } from "./typedDeclarationInspectorPresentation";
 
 const compileCanonical = (source: string) => {

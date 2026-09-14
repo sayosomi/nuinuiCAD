@@ -1,15 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { buildSourceLexicalNamespaceIndex } from "../dsl/sourceLexicalNamespaceIndex";
-import { parseDsl } from "../dsl/dslParser";
-import type { SourceLexicalNamespaceIndex } from "../dsl/sourceLexicalNamespaceIndex";
-import { resolveSourceLexicalPath } from "../dsl/sourceLexicalNamespaceIndex";
-import type { BindingResolution } from "./bindingResolution";
-import { parseScalarExpression } from "./expressionParser";
-import { parseDslReferenceToken } from "../dsl/dslReferenceTokens";
+import { buildSourceLexicalNamespaceIndex } from "@nuinuicad/nui-language";
+import { parseDsl } from "@nuinuicad/nui-language";
+import type { SourceLexicalNamespaceIndex } from "@nuinuicad/nui-language";
+import { resolveSourceLexicalPath } from "@nuinuicad/nui-language";
+import type { BindingResolution } from "@nuinuicad/nui-language";
+import { parseScalarExpression } from "@nuinuicad/nui-language";
+import { parseDslReferenceToken } from "@nuinuicad/nui-language";
 import {
   resolveBuiltinGeometryArguments,
   type ResolveBuiltinGeometryArgumentsResult
-} from "./builtinGeometryArgumentResolution";
+} from "@nuinuicad/nui-language";
 
 const documentSource = [
   "nui 1",

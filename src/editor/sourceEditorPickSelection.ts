@@ -1,6 +1,6 @@
 import { parameterPickCommandId, type ParameterPickCommandId } from "../commands/parameterPickCommand";
-import { getParameterDefinitions } from "../parameters/parameterDefinitions";
-import { resolveParameterValueSpan } from "../dsl/dslParameterSpans";
+import { getParameterDefinitions } from "@nuinuicad/nui-language";
+import { resolveParameterValueSpan } from "@nuinuicad/nui-language";
 import type { CadElement } from "../types/geometry";
 
 export type SourceEditorPickSelection = {

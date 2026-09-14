@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { evaluateElements } from "./evaluate";
 import { computedReferencePathValue, makeNumericExpression, normalizeNumericExpressionInput } from "./numericExpressions";
 import { forGroupGeneratedElementId } from "./forGroupExpansion";
-import { compileDslDocument } from "../dsl/dslDocument";
-import { parseDsl } from "../dsl/dslParser";
+import { compileDslDocument } from "@nuinuicad/nui-language";
+import { parseDsl } from "@nuinuicad/nui-language";
 import { cubicDerivativeAt, cubicPointAt } from "./bezierMath";
 import type { BezierCurveElement, CadElement, ImageElement } from "../types/geometry";
 

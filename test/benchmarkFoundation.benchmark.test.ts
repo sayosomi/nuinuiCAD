@@ -16,16 +16,16 @@ import {
   assertBenchmarkFixtureManifest,
   parseBenchmarkFixtureManifest
 } from "../src/performance/benchmarkFixtureManifest";
-import { compileCanonicalText, regenerateCanonicalFromModel } from "../src/document/canonicalDocument";
+import { compileCanonicalText, regenerateCanonicalFromModel } from "@nuinuicad/nui-language/document";
 import { evaluateElementsReference, evaluateElementsReferencePayload } from "../src/geometry/evaluationEngine";
 import { evaluationPayloadToResult } from "../src/geometry/evaluationPayload";
 import { forGroupGeneratedElementId } from "../src/geometry/forGroupExpansion";
 import { buildEvaluationOptions } from "../src/geometry/productionEvaluationContext";
 import { canUseRustEvaluationForElements } from "../src/geometry/rustEvaluationEligibility";
-import { getDirectParentIds } from "../src/model/dependencies";
+import { getDirectParentIds } from "@nuinuicad/nui-language";
 import { pointAnchorForElement } from "../src/model/pointAnchors";
-import { resolveElementNamePath } from "../src/model/elementNames";
-import { geometryPropertiesIn, referencesIn } from "../src/scalars/typedDependencyGraph";
+import { resolveElementNamePath } from "@nuinuicad/nui-language";
+import { geometryPropertiesIn, referencesIn } from "@nuinuicad/nui-language";
 import {
   assertBenchmarkResult,
   validateBenchmarkResult,
@@ -36,9 +36,9 @@ import {
   readBenchmarkResultFile,
   writeBenchmarkResultFile
 } from "../scripts/performance/benchmarkResultIo";
-import { compileDslDocument } from "../src/dsl/dslDocument";
-import { emptyDocument } from "../src/dsl/dslDocumentTestUtils";
-import { parseDslSnapshot } from "../src/dsl/dslParser";
+import { compileDslDocument } from "@nuinuicad/nui-language";
+import { emptyDocument } from "@nuinuicad/nui-language";
+import { parseDslSnapshot } from "@nuinuicad/nui-language";
 import {
   evaluateWithRustFixture,
   normalizeParityPayload

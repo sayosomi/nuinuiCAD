@@ -1,8 +1,8 @@
 import { axisLockedWorldDelta, type AxisLockKeys } from "../components/canvasViewport";
-import type { NormalizedSourceRange } from "../dsl/dslNavigationQuery";
+import type { NormalizedSourceRange } from "@nuinuicad/nui-language";
 import type { OutputPlan } from "../output/outputCore";
 import type { OutputPlaceProjection } from "../output/outputPlaceProjection";
-import { numericLiteralForExpression } from "../scalars/numericLiteral";
+import { numericLiteralForExpression } from "@nuinuicad/nui-language";
 import { normalizedRangeForOutputPlaceValue } from "./outputPreviewPlaceInteraction";
 
 export type OutputPreviewPlaceDragPlanIdentity = Pick<OutputPlan, "kind" | "outputId" | "layoutId">;

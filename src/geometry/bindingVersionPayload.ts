@@ -2,8 +2,8 @@
 // verbatim enough for Rust to validate/evaluate it, but never reparses source,
 // resolves names, || synthesizes any identity.
 import type { CadElement, ElementId } from "../types/geometry";
-import type { BindingVersion, BindingVersionGraph } from "../scalars/bindingVersions";
-import type { ScalarProgramCollection } from "../scalars/scalarProgram";
+import type { BindingVersion, BindingVersionGraph } from "@nuinuicad/nui-language";
+import type { ScalarProgramCollection } from "@nuinuicad/nui-language";
 import { buildConditionalMutationOwners } from "../scalars/conditionalMutationControl";
 import { buildForGroupMutationOwners } from "../scalars/forGroupMutationControl";
 
@@ -64,7 +64,7 @@ export const buildRustBindingMutationPayload = (
   sourceExecutionPositionByElementId?: ReadonlyMap<ElementId, number>,
   scalarExecutionPositionByElementId?: ReadonlyMap<ElementId, number>,
   moduleConditionalOwners?: ReadonlyMap<ElementId, string>,
-  moduleForGroupOwners?: ReadonlyMap<ElementId, Extract<import("../scalars/bindingVersions").BindingControlOwner, { kind: "forGroup" }> & { elementId: ElementId }>,
+  moduleForGroupOwners?: ReadonlyMap<ElementId, Extract<import("@nuinuicad/nui-language").BindingControlOwner, { kind: "forGroup" }> & { elementId: ElementId }>,
   collectionValues?: readonly ScalarProgramCollection[]
 ): RustBindingMutationPayload => {
   if (!statementInfoByElementId && !sourceExecutionPositionByElementId && !scalarExecutionPositionByElementId) {

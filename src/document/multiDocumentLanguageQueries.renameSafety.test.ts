@@ -1,16 +1,16 @@
 import { describe, expect, it } from "vitest";
-import type { MultiDocumentImportGraph } from "./multiDocumentImportGraph";
+import type { MultiDocumentImportGraph } from "@nuinuicad/nui-language/workspace";
 import {
   planMultiDocumentRename,
   type MultiDocumentSemanticOccurrenceIndex
-} from "./multiDocumentLanguageQueries";
+} from "@nuinuicad/nui-language/workspace";
 import {
   documentIdFromHost,
   qualifySemanticIdentity,
   qualifySourceLocation,
   sourceIdentityOf,
   type RootCurrentSourceSnapshot
-} from "./multiDocumentPrimitives";
+} from "@nuinuicad/nui-language/workspace";
 
 const source: RootCurrentSourceSnapshot = {
   kind: "root-current",

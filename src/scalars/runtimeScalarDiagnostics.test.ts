@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument } from "../dsl/dslDocument";
-import { parseDsl } from "../dsl/dslParser";
-import type { BindingId } from "./bindingCatalog";
+import { compileDslDocument } from "@nuinuicad/nui-language";
+import { parseDsl } from "@nuinuicad/nui-language";
+import type { BindingId } from "@nuinuicad/nui-language";
 import { runtimeScalarDiagnostics, type RuntimeScalarDiagnosticsInput } from "./runtimeScalarDiagnostics";
 import type { CadElement } from "../types/geometry";
-import type { ScalarEvaluation } from "./types";
+import type { ScalarEvaluation } from "@nuinuicad/nui-language";
 
 const compile = (source: string) => {
   const parsed = parseDsl(source);

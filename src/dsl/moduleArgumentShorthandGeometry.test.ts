@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument } from "./dslDocument";
-import { queryDslDefinition } from "./dslDefinitionQuery";
-import { parseDslSnapshot } from "./dslParser";
-import { planDslRenameEditsResult } from "./dslRenameQuery";
+import { compileDslDocument } from "@nuinuicad/nui-language";
+import { queryDslDefinition } from "@nuinuicad/nui-language";
+import { parseDslSnapshot } from "@nuinuicad/nui-language";
+import { planDslRenameEditsResult } from "@nuinuicad/nui-language";
 
 const source = [
   "nui 1",

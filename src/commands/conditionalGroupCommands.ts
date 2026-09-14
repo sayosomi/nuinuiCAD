@@ -1,6 +1,6 @@
 import { adjustEvaluationLimitForInsertion } from "../model/evaluationDivider";
-import { createCadElement } from "../model/elementFactory";
-import { isConditionalGroupElement } from "../model/groups";
+import { createCadElement } from "@nuinuicad/nui-language";
+import { isConditionalGroupElement } from "@nuinuicad/nui-language";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import type { CadElement, ElementId } from "../types/geometry";

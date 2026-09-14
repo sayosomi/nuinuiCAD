@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import fixtures from "../../test/fixtures/scalars/for_group_mutation_core.json";
-import { createForGroupMutationEnvironment, ForGroupMutationError, type ForGroupMutationFrame } from "./forGroupMutationCore";
+import { createForGroupMutationEnvironment, ForGroupMutationError, type ForGroupMutationFrame } from "@nuinuicad/nui-language";
 
 type Fixture = { name: string; iterations: number[]; initial: Record<string, number>; expected: Record<string, number> };
 

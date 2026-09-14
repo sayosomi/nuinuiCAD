@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { buildDslBindingAdapterSeeds } from "../src/dsl/bindingCatalogAdapter";
-import { compileDslToElements } from "../src/dsl/dslCompiler";
-import { parseDsl } from "../src/dsl/dslParser";
-import { buildLexicalScopeIndexFromStatements } from "../src/dsl/lexicalScopeIndexAdapter";
-import { analyzeBindings, type InitializerReference } from "../src/scalars/bindingAnalysis";
-import { buildBindingCatalog, type BindingId } from "../src/scalars/bindingCatalog";
-import { resolveInitializerReferences, type BindingResolution } from "../src/scalars/bindingResolution";
-import { parseScalarExpression } from "../src/scalars/expressionParser";
-import { typecheckScalarExpression } from "../src/scalars/expressionTypecheck";
-import { collectReferences } from "../src/scalars/typedDeclarationAnalysis";
+import { buildDslBindingAdapterSeeds } from "@nuinuicad/nui-language";
+import { compileDslToElements } from "@nuinuicad/nui-language";
+import { parseDsl } from "@nuinuicad/nui-language";
+import { buildLexicalScopeIndexFromStatements } from "@nuinuicad/nui-language";
+import { analyzeBindings, type InitializerReference } from "@nuinuicad/nui-language";
+import { buildBindingCatalog, type BindingId } from "@nuinuicad/nui-language";
+import { resolveInitializerReferences, type BindingResolution } from "@nuinuicad/nui-language";
+import { parseScalarExpression } from "@nuinuicad/nui-language";
+import { typecheckScalarExpression } from "@nuinuicad/nui-language";
+import { collectReferences } from "@nuinuicad/nui-language";
 import { PURE_TYPED_BINDING_SIZES, buildPureTypedBindingSource } from "./pureTypedBindingFixtures";
 
 type Stage = "compiler" | "scope" | "adapter" | "catalog" | "resolver" | "analysis" | "typecheck";

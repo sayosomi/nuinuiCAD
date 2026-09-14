@@ -1,7 +1,7 @@
-import type { DslNumericTypeOptions } from "./dslNumericTypeOptions";
-import { resolveTypedValueStep, typedNumericStepOptions } from "./dslTypedValueStep";
-import type { DslValueStepDirection } from "./dslValueStep";
-import type { DslModuleParameterType, DslSpan } from "./dslTypes";
+import type { DslNumericTypeOptions } from "@nuinuicad/nui-language";
+import { resolveTypedValueStep, typedNumericStepOptions } from "@nuinuicad/nui-language";
+import type { DslValueStepDirection } from "@nuinuicad/nui-language";
+import type { DslModuleParameterType, DslSpan } from "@nuinuicad/nui-language";
 
 export type ModulePreviewValueStepResult = {
   expression: string;

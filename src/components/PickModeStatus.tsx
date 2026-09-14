@@ -4,7 +4,7 @@ import {
   movePickModeDraftEntryInSession,
   removePickModeDraftEntryFromSession
 } from "../commands/pickCommands";
-import { findParameterDefinition } from "../parameters/parameterDefinitions";
+import { findParameterDefinition } from "@nuinuicad/nui-language";
 import { effectiveElements, useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import {
