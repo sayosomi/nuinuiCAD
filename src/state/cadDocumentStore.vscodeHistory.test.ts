@@ -15,6 +15,12 @@ const sourceFor = (x: number) => dslTextForElements([
   { id: "c", name: "C", type: "freePoint", activity: "visible", x: 20, y: 0 }
 ]);
 
+const stableSourceFor = (x: number) => [
+  "nui 1",
+  `point A = coordinate(x: ${x}, y: 0, id: a)`,
+  `point B = coordinate(x: ${x + 10}, y: 0, id: b)`
+].join("\n");
+
 const sourceWithLine = [
   "nui 1",
   "point A = coordinate(x: 0, y: 0)",
@@ -133,6 +139,39 @@ describe("VS Code Canvas selection history", () => {
 
     expect(useCadDocumentStore.getState().future).toEqual([]);
     expect(useCadDocumentStore.getState().sourceText).toBe(sourceFor(2));
+  });
+
+  it("can preserve the current Canvas selection while restoring adjacent selection chronology", () => {
+    const oldSource = stableSourceFor(0);
+    const newSource = stableSourceFor(1);
+    useCadDocumentStore.getState().replaceTextDocument(oldSource, {
+      currentFilePath: "/tmp/history.nui",
+      dirtySinceSave: false
+    });
+    publishTestCanvasSelectionEligibility();
+    const [a, b] = ids();
+    selectElement(a!, "replace", true);
+    useCadDocumentStore.getState().commitText(newSource, "command");
+    publishTestCanvasSelectionEligibility();
+    replaceCanvasSelection([b!], b!, false);
+
+    expect(useCadDocumentStore.getState().reconcileAuthoritativeHistory(
+      oldSource,
+      "undo",
+      "preserve-current"
+    )).toBe("reconciled");
+    expect(useCadDocumentStore.getState().sourceText).toBe(oldSource);
+    expect(useCadUiStore.getState()).toMatchObject({
+      selectedElementId: b,
+      selectedElementIds: [b],
+      selectionAnchorElementId: b
+    });
+    expect(useCadDocumentStore.getState().selectionPast).toMatchObject([{
+      selectedElementId: null,
+      selectedElementIds: [],
+      selectionAnchorElementId: null
+    }]);
+    expect(useCadDocumentStore.getState().selectionFuture).toEqual([]);
   });
 });
 

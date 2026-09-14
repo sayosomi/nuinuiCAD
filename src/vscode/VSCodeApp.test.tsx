@@ -2,7 +2,7 @@ import { act, render, screen } from "@testing-library/react";
 import type { RefObject } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { projectDslRevealRuntimeStatementOwner } from "@nuinuicad/nui-language";
-import { selectElement } from "../commands/selectionCommands";
+import { replaceCanvasSelection, selectElement } from "../commands/selectionCommands";
 import * as commandRegistry from "../commands/commands";
 import { planInlineModule } from "@nuinuicad/nui-language/document";
 import { applyLineSplices } from "@nuinuicad/nui-language/document";
@@ -105,6 +105,12 @@ const sourceForSelectionChronology = (x: number) => dslTextForElements([
   { id: "a", name: "A", type: "freePoint", activity: "visible", x, y: 0 },
   { id: "b", name: "B", type: "freePoint", activity: "visible", x: x + 10, y: 0 }
 ]);
+
+const stableSourceForSelectionChronology = (x: number) => [
+  "nui 1",
+  `point A = coordinate(x: ${x}, y: 0, id: a)`,
+  `point B = coordinate(x: ${x + 10}, y: 0, id: b)`
+].join("\n");
 
 const h3Source = [
   "nui 1",
@@ -1364,8 +1370,8 @@ describe("VSCodeApp Canvas history coordinator", () => {
   });
 
   it("orders an accepted Canvas Source commit after older selection history", async () => {
-    const oldSource = sourceForSelectionChronology(0);
-    const newSource = sourceForSelectionChronology(40);
+    const oldSource = stableSourceForSelectionChronology(0);
+    const newSource = stableSourceForSelectionChronology(40);
     const api = { postMessage: vi.fn() };
     render(<VSCodeAppForTest api={api} />);
 
@@ -1376,13 +1382,24 @@ describe("VSCodeApp Canvas history coordinator", () => {
       publishAllCurrentElementsAsPresented();
     });
     const [a, b] = useCadDocumentStore.getState().elements.map((element) => element.id);
-    useCadUiStore.getState().setSelectedElementId(a!);
-    selectElement(b!, "replace", true);
+    selectElement(a!, "replace", true);
     publishAllCurrentElementsAsPresented();
     expect(useCadDocumentStore.getState().selectionPast).toHaveLength(1);
 
     useCadDocumentStore.getState().commitText(newSource, "command");
     expect(useCadDocumentStore.getState().selectionPast).toHaveLength(0);
+    publishAllCurrentElementsAsPresented();
+    replaceCanvasSelection([b!], b!, false);
+    expect(useCadDocumentStore.getState().past.at(-1)?.selection).toMatchObject({
+      selectedElementId: a,
+      selectedElementIds: [a],
+      selectionAnchorElementId: a
+    });
+    expect(useCadUiStore.getState()).toMatchObject({
+      selectedElementId: b,
+      selectedElementIds: [b],
+      selectionAnchorElementId: b
+    });
     drawingCanvasProps.postCanvasCommit!(315);
 
     await act(async () => {
@@ -1393,6 +1410,13 @@ describe("VSCodeApp Canvas history coordinator", () => {
         data: { type: "commitText", sourceText: newSource, documentVersion: 2, reason: "edit" }
       }));
     });
+
+    expect(useCadDocumentStore.getState().past.at(-1)?.selection).toMatchObject({
+      selectedElementId: a,
+      selectedElementIds: [a],
+      selectionAnchorElementId: a
+    });
+    expect(useCadUiStore.getState().selectedElementId).toBe(b);
 
     const canvasHistoryRequests = () => api.postMessage.mock.calls.filter(
       ([message]) => message?.type === "canvasHistoryRequest"
@@ -1407,12 +1431,30 @@ describe("VSCodeApp Canvas history coordinator", () => {
 
     await requestCanvasCommand("undo");
     expect(canvasHistoryRequests()).toHaveLength(1);
+    expect(canvasHistoryRequests()[0]?.[0]).toEqual({
+      type: "canvasHistoryRequest",
+      direction: "undo",
+      expectedDocumentVersion: 2
+    });
     expect(useCadDocumentStore.getState().sourceText).toBe(newSource);
     expect(useCadUiStore.getState().selectedElementId).toBe(b);
 
-    await requestCanvasCommand("undo");
-    expect(canvasHistoryRequests()).toHaveLength(1);
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "commitText", sourceText: oldSource, documentVersion: 3, reason: "undo" }
+      }));
+      expect(useCadUiStore.getState().selectedElementId).toBe(b);
+      publishAllCurrentElementsAsPresented();
+      await Promise.resolve();
+    });
+    expect(useCadDocumentStore.getState().sourceText).toBe(oldSource);
     expect(useCadUiStore.getState().selectedElementId).toBe(b);
+    expect(useCadDocumentStore.getState().selectionPast).toHaveLength(1);
+    expect(canvasHistoryRequests()).toHaveLength(1);
+
+    await requestCanvasCommand("undo");
+    expect(useCadUiStore.getState().selectedElementId).toBe(b);
+    expect(canvasHistoryRequests()).toHaveLength(1);
 
     await act(async () => {
       window.dispatchEvent(new MessageEvent("message", {
@@ -1420,21 +1462,13 @@ describe("VSCodeApp Canvas history coordinator", () => {
       }));
       await Promise.resolve();
     });
-    expect(canvasHistoryRequests()).toHaveLength(1);
-
-    await act(async () => {
-      window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "commitText", sourceText: oldSource, documentVersion: 3, reason: "undo" }
-      }));
-      publishAllCurrentElementsAsPresented();
-      await Promise.resolve();
-    });
-    expect(useCadDocumentStore.getState().sourceText).toBe(oldSource);
-    expect(useCadUiStore.getState().selectedElementId).toBe(a);
+    expect(useCadUiStore.getState().selectedElementId).toBeNull();
+    expect(useCadDocumentStore.getState().selectionPast).toHaveLength(0);
     expect(canvasHistoryRequests()).toHaveLength(1);
 
     await requestCanvasCommand("redo");
     expect(useCadUiStore.getState().selectedElementId).toBe(b);
+    expect(useCadDocumentStore.getState().selectionPast).toHaveLength(1);
     expect(canvasHistoryRequests()).toHaveLength(1);
 
     await requestCanvasCommand("redo");
