@@ -143,6 +143,11 @@ type PendingCoordinatePointConversionSelection = {
   expectedDocumentGeneration: number;
 };
 
+type DeferredSourceBakeRequest = {
+  message: Extract<ExtensionToVscodeMessage, { type: "bakeSourceRequest" }>;
+  compiledDocumentRevision: number;
+};
+
 export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   const webviewPresentation = useVscodeWebviewPresentation();
   const staleSourceAnchorError = webviewPresentationTextFor(
@@ -189,6 +194,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   const deferredInlineModuleSelectionRequestRef = useRef<
     Extract<ExtensionToVscodeMessage, { type: "inlineModuleSelectionRequest" }> | null
   >(null);
+  const deferredSourceBakeRequestRef = useRef<DeferredSourceBakeRequest | null>(null);
   const pendingCanvasFocusRequestRef = useRef<number | null>(null);
   const pendingCanvasFreePointCommitRef = useRef<PendingCanvasFreePointCommit | null>(null);
   const pendingCanvasFreePointSelectionRef = useRef<PendingCanvasFreePointSelection | null>(null);
@@ -403,6 +409,30 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       }
     };
   }, [currentHostSourceAuthorityFor]);
+
+  const discardDeferredSourceBake = useCallback(() => {
+    const deferred = deferredSourceBakeRequestRef.current;
+    if (!deferred) return;
+    deferredSourceBakeRequestRef.current = null;
+    api.postMessage({
+      type: "bakeSourceResult",
+      requestId: deferred.message.requestId,
+      status: "stale"
+    });
+  }, [api]);
+
+  useEffect(() => {
+    const deferred = deferredSourceBakeRequestRef.current;
+    if (!deferred) return;
+    const current = currentAuthoritativeDocument(deferred.message.documentVersion);
+    if (!current || current.state.compiledDocumentRevision !== deferred.compiledDocumentRevision) {
+      discardDeferredSourceBake();
+      return;
+    }
+    if (!evaluationStateIsCurrentFor(evaluationState, deferred.compiledDocumentRevision)) return;
+    deferredSourceBakeRequestRef.current = null;
+    window.dispatchEvent(new MessageEvent("message", { data: deferred.message }));
+  }, [currentAuthoritativeDocument, discardDeferredSourceBake, evaluationState]);
 
   const currentReferencePickAuthorityFor = useCallback((expectedDocumentVersion: number) => {
     const currentHostSource = currentHostSourceAuthorityFor(expectedDocumentVersion);
@@ -731,6 +761,15 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       }
       hostDocumentGenerationRef.current = nextGeneration;
     };
+    const isDuplicateHostSourceMessage = (
+      message: Extract<ExtensionToVscodeMessage, { type: "replaceTextDocument" | "commitText" }>
+    ): boolean => {
+      const authoritative = lastAuthoritativeHostSourceSnapshotRef.current;
+      return latestHostDocumentVersionRef.current === message.documentVersion &&
+        authoritative?.documentVersion === message.documentVersion &&
+        authoritative.normalizedSource === normalizedSourceFor(message.sourceText) &&
+        normalizedSourceFor(useCadDocumentStore.getState().sourceText) === authoritative.normalizedSource;
+    };
 
     const runCanvasBake = async (
       message: Extract<ExtensionToVscodeMessage, { type: "canvasCommand" }>
@@ -837,8 +876,23 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
             position: message.normalizedSourceOffset
           })
         : null;
-      if (!current || !currentEvaluationIsCurrent || !target) {
-        api.postMessage({ type: "bakeSourceResult", requestId: message.requestId, status: !current || !currentEvaluationIsCurrent ? "stale" : "rejected" });
+      if (!current) {
+        api.postMessage({ type: "bakeSourceResult", requestId: message.requestId, status: "stale" });
+        return;
+      }
+      if (!target) {
+        api.postMessage({ type: "bakeSourceResult", requestId: message.requestId, status: "rejected" });
+        return;
+      }
+      if (!currentEvaluationIsCurrent) {
+        const deferred = deferredSourceBakeRequestRef.current;
+        if (deferred && deferred.message.requestId !== message.requestId) {
+          api.postMessage({ type: "bakeSourceResult", requestId: deferred.message.requestId, status: "stale" });
+        }
+        deferredSourceBakeRequestRef.current = {
+          message,
+          compiledDocumentRevision: current.state.compiledDocumentRevision
+        };
         return;
       }
       const initialCompiledDocumentRevision = current.state.compiledDocumentRevision;
@@ -1596,11 +1650,16 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         tryCompleteCanvasFocus(message.requestId);
       } else if (message.type === "replaceTextDocument") {
         if (isStaleHostDocumentVersion(latestHostDocumentVersionRef.current, message.documentVersion)) return;
+        if (isDuplicateHostSourceMessage(message)) {
+          api.postMessage({ type: "webviewAuthoritativeDocumentReady", documentVersion: message.documentVersion });
+          return;
+        }
         observeHostSourceMessage(message);
         pendingCanvasFocusRequestRef.current = null;
         latestCanvasNavigationRequestRef.current = null;
         deferredCanvasNavigationRequestRef.current = null;
         deferredInlineModuleSelectionRequestRef.current = null;
+        discardDeferredSourceBake();
         latestHostDocumentVersionRef.current = message.documentVersion;
         setLatestHostDocumentVersion(message.documentVersion);
         multiDocumentGraphPublicationRef.current = null;
@@ -1623,11 +1682,16 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         applyPendingCoordinatePointConversionSelection();
       } else if (message.type === "commitText") {
         if (isStaleHostDocumentVersion(latestHostDocumentVersionRef.current, message.documentVersion)) return;
+        if (isDuplicateHostSourceMessage(message)) {
+          api.postMessage({ type: "webviewAuthoritativeDocumentReady", documentVersion: message.documentVersion });
+          return;
+        }
         observeHostSourceMessage(message);
         pendingCanvasFocusRequestRef.current = null;
         latestCanvasNavigationRequestRef.current = null;
         deferredCanvasNavigationRequestRef.current = null;
         deferredInlineModuleSelectionRequestRef.current = null;
+        discardDeferredSourceBake();
         latestHostDocumentVersionRef.current = message.documentVersion;
         setLatestHostDocumentVersion(message.documentVersion);
         multiDocumentGraphPublicationRef.current = null;
@@ -1660,7 +1724,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     return () => {
       window.removeEventListener("message", onMessage);
     };
-  }, [api, applyPendingCoordinatePointConversionSelection, canvasPickModeActive, currentAuthoritativeDocument, currentHostSourceAuthorityFor, deferCoordinatePointConversionSelection, measureCanvasTextWidth, postCanvasCommit, publishCanvasObservation, publishCanonicalRuntimeDiagnostics, publishCurrentCanvasTheme, publishInlineModuleCanvasTargets, pumpCanvasHistory, refreshCanvasTheme, requestCanvasHistory, restoreCanvasFocus, rustTransport, selectActiveCanvasInstance, setMultiDocumentGraphPublication, sourceInsertionError, staleSourceAnchorError, canvasPointerError, tryApplyPendingCanvasFreePointSelection, tryCompleteCanvasFocus]);
+  }, [api, applyPendingCoordinatePointConversionSelection, canvasPickModeActive, currentAuthoritativeDocument, currentHostSourceAuthorityFor, deferCoordinatePointConversionSelection, discardDeferredSourceBake, measureCanvasTextWidth, postCanvasCommit, publishCanvasObservation, publishCanonicalRuntimeDiagnostics, publishCurrentCanvasTheme, publishInlineModuleCanvasTargets, pumpCanvasHistory, refreshCanvasTheme, requestCanvasHistory, restoreCanvasFocus, rustTransport, selectActiveCanvasInstance, setMultiDocumentGraphPublication, sourceInsertionError, staleSourceAnchorError, canvasPointerError, tryApplyPendingCanvasFreePointSelection, tryCompleteCanvasFocus]);
 
   const surfaceStyle = benchmarkConfig?.expectedRenderSurface
     ? {

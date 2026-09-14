@@ -178,6 +178,7 @@ type DocumentSession = VscodeWebviewSessionBase & {
     emitSkippedComments: boolean;
     includeHiddenGeometry: boolean;
     includeDisabledGeometry: boolean;
+    delivery: "pending" | "delivered";
   } | null;
   inFlightCanvasNavigation: {
     requestId: number;
@@ -1179,14 +1180,22 @@ export const activate = (context: vscode.ExtensionContext): void => {
     const pending = session.pendingBake;
     if (
       !pending ||
+      pending.delivery !== "pending" ||
       !session.webviewReady ||
       session.authoritativeDocumentVersion !== session.document.version ||
       session.inFlightCanvasHistory !== null ||
       canvasHistoryHandoffSession !== null
     ) return;
+    pending.delivery = "delivered";
     void session.panel.webview.postMessage({
       type: "bakeSourceRequest",
-      ...pending
+      requestId: pending.requestId,
+      documentVersion: pending.documentVersion,
+      normalizedSourceOffset: pending.normalizedSourceOffset,
+      mode: pending.mode,
+      emitSkippedComments: pending.emitSkippedComments,
+      includeHiddenGeometry: pending.includeHiddenGeometry,
+      includeDisabledGeometry: pending.includeDisabledGeometry
     } satisfies ExtensionToVscodeMessage);
   };
 
@@ -2168,6 +2177,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
     const key = documentKey(document);
     let session = sessions.get(key, "canvas");
     if (canvasHistoryHandoffSession !== null || (session !== undefined && session.inFlightCanvasHistory !== null)) return;
+    if (session?.pendingBake?.delivery === "delivered") return;
     if (!session) session = createCanvasPanel(editor.document, true);
     if (!session) return;
     session.pendingBake = {
@@ -2175,7 +2185,8 @@ export const activate = (context: vscode.ExtensionContext): void => {
       documentVersion: document.version,
       normalizedSourceOffset,
       mode,
-      ...settings
+      ...settings,
+      delivery: "pending"
     };
     session.panel.reveal(vscode.ViewColumn.Beside, true);
     deliverPendingBake(session);

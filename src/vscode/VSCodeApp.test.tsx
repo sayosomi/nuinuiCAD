@@ -39,6 +39,8 @@ const drawingCanvasProps = vi.hoisted(() => ({
   evaluation: { computedGeometry: new Map(), errors: [], warnings: [] } as EvaluationResult
 }));
 
+const evaluationStateControl = vi.hoisted(() => ({ isCurrent: true }));
+
 vi.mock("../geometry/productionEvaluationContext", () => ({
   buildEvaluationOptions: () => ({})
 }));
@@ -52,7 +54,7 @@ vi.mock("../geometry/evaluationEngine", () => ({
 }));
 
 vi.mock("../geometry/useEvaluationEngine", () => ({
-  evaluationStateIsCurrentFor: () => true,
+  evaluationStateIsCurrentFor: () => evaluationStateControl.isCurrent,
   useEvaluationEngine: () => ({
     evaluation: drawingCanvasProps.evaluation
   })
@@ -195,6 +197,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
     drawingCanvasProps.bakeSandboxPromise = null;
     drawingCanvasProps.multiDocumentRuntimePresentation = null;
     drawingCanvasProps.evaluation = { computedGeometry: new Map(), errors: [], warnings: [] };
+    evaluationStateControl.isCurrent = true;
   });
 
   afterEach(() => vi.restoreAllMocks());
@@ -2158,6 +2161,117 @@ describe("VSCodeApp Canvas history coordinator", () => {
       requestId: 20,
       status: "nothing"
     });
+  });
+
+  it.each(["current", "base"] as const)(
+    "retains an exact Source Bake %s request while its evaluation is not current",
+    async (mode) => {
+      const source = [
+        "nui 1",
+        "point A = coordinate(x: 0, y: 0)"
+      ].join("\n");
+      const api = { postMessage: vi.fn() };
+      const dispatchBake = vi.spyOn(commandRegistry, "dispatchCommand").mockReturnValue(false);
+      evaluationStateControl.isCurrent = false;
+      const view = render(<VSCodeAppForTest api={api} />);
+
+      await act(async () => {
+        window.dispatchEvent(new MessageEvent("message", {
+          data: { type: "replaceTextDocument", sourceText: source, documentVersion: 1 }
+        }));
+        window.dispatchEvent(new MessageEvent("message", {
+          data: {
+            type: "bakeSourceRequest",
+            requestId: mode === "current" ? 31 : 32,
+            documentVersion: 1,
+            normalizedSourceOffset: source.indexOf("A"),
+            mode,
+            emitSkippedComments: true,
+            includeHiddenGeometry: false,
+            includeDisabledGeometry: false
+          }
+        }));
+      });
+
+      const requestId = mode === "current" ? 31 : 32;
+      expect(api.postMessage).not.toHaveBeenCalledWith({
+        type: "bakeSourceResult",
+        requestId,
+        status: "stale"
+      });
+
+      await act(async () => {
+        window.dispatchEvent(new MessageEvent("message", {
+          data: { type: "replaceTextDocument", sourceText: source, documentVersion: 1 }
+        }));
+      });
+      expect(api.postMessage).not.toHaveBeenCalledWith({
+        type: "bakeSourceResult",
+        requestId,
+        status: "stale"
+      });
+
+      evaluationStateControl.isCurrent = true;
+      await act(async () => {
+        view.rerender(<VSCodeAppForTest api={api} />);
+        await Promise.resolve();
+      });
+
+      expect(api.postMessage.mock.calls.filter(([message]) =>
+        message?.type === "bakeSourceResult" && message.requestId === requestId
+      )).toHaveLength(1);
+      expect(dispatchBake).toHaveBeenCalledTimes(1);
+      expect(dispatchBake).toHaveBeenCalledWith(
+        mode === "current" ? "bakeCurrentShape" : "bakeBaseShape",
+        expect.objectContaining({ sourceStatementIndex: expect.any(Number) })
+      );
+      view.unmount();
+    }
+  );
+
+  it("fails closed when a deferred Source Bake loses document authority before evaluation is current", async () => {
+    const source = "nui 1\npoint A = coordinate(x: 0, y: 0)";
+    const newerSource = "nui 1\npoint Later = coordinate(x: 100, y: 0)";
+    const api = { postMessage: vi.fn() };
+    evaluationStateControl.isCurrent = false;
+    const view = render(<VSCodeAppForTest api={api} />);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText: source, documentVersion: 1 }
+      }));
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "bakeSourceRequest",
+          requestId: 33,
+          documentVersion: 1,
+          normalizedSourceOffset: source.indexOf("A"),
+          mode: "current",
+          emitSkippedComments: true,
+          includeHiddenGeometry: false,
+          includeDisabledGeometry: false
+        }
+      }));
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "commitText", sourceText: newerSource, documentVersion: 2, reason: "edit" }
+      }));
+    });
+
+    evaluationStateControl.isCurrent = true;
+    await act(async () => {
+      view.rerender(<VSCodeAppForTest api={api} />);
+      await Promise.resolve();
+    });
+
+    expect(api.postMessage).toHaveBeenCalledWith({
+      type: "bakeSourceResult",
+      requestId: 33,
+      status: "stale"
+    });
+    expect(api.postMessage.mock.calls.filter(([message]) =>
+      message?.type === "bakeOperationResult" && message.surface === "source" && message.requestId === 33
+    )).toHaveLength(0);
+    view.unmount();
   });
 
   it("rejects a stale Source Bake sandbox without mutating the newer document", async () => {
