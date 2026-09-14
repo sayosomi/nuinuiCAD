@@ -248,6 +248,7 @@ export type VscodeCanvasNavigationRequest =
 
 export type VscodeToExtensionMessage =
   | { type: "webviewReady" }
+  | { type: "webviewEditableFocus"; focused: boolean }
   | { type: "canvasRibbonPositionCommit"; ribbonId: string; x: number; y: number }
   | { type: "editCanvasRibbon" }
   | { type: "webviewAuthoritativeDocumentReady"; documentVersion: number }

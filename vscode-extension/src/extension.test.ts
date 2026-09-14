@@ -27,6 +27,7 @@ import {
 import type { NuiElementsTreeNode } from "./elementsTreeProvider";
 import type { VscodeMultiDocumentDiagnosticsState } from "./multiDocumentHost";
 import { publishVscodeMultiDocumentGraphPublication } from "../../src/vscode/vscodeWebviewSession";
+import type { WebviewEditableFocusContext } from "./webviewEditableFocusContext";
 
 type MockPosition = { line: number; character: number };
 type MockSelection = {
@@ -558,7 +559,8 @@ const commandHandlerFor = (command: string): ((...args: unknown[]) => unknown) |
 const setup = (
   benchmark = false,
   activeEditor: TestEditor | null = editorFor(),
-  openDocuments?: TestDocument[]
+  openDocuments?: TestDocument[],
+  webviewEditableFocusContext?: WebviewEditableFocusContext
 ) => {
   if (benchmark) process.env.NUINUICAD_VSCODE_BENCHMARK_CONFIG = JSON.stringify({ runId: "run-1", resultPath: "/tmp/result.json" });
   else delete process.env.NUINUICAD_VSCODE_BENCHMARK_CONFIG;
@@ -696,7 +698,7 @@ const setup = (
     mocks.configurationChangeListeners.push(listener);
     return disposable();
   });
-  activate(context as unknown as Parameters<typeof activate>[0]);
+  activate(context as unknown as Parameters<typeof activate>[0], webviewEditableFocusContext);
   return context;
 };
 
@@ -1723,6 +1725,20 @@ describe("VS Code production document lifecycle", () => {
 
     expect(panel.webview.html).toContain('<body class="vscode-canvas-webview">');
     expect(panel.webview.html).toContain('<html lang="en" data-nuinui-surface="canvas">');
+  });
+
+  it("attaches the production Canvas Webview to the shared editable-focus owner", () => {
+    const attachment = disposable();
+    const webviewEditableFocusContext = {
+      attach: vi.fn(() => ({ ...attachment, setHostFocused: vi.fn() })),
+      dispose: vi.fn()
+    } satisfies WebviewEditableFocusContext;
+    setup(false, editorFor(), undefined, webviewEditableFocusContext);
+    const panel = openPanelFor();
+
+    expect(webviewEditableFocusContext.attach).toHaveBeenCalledWith(panel.webview);
+    panel.dispose();
+    expect(attachment.dispose).toHaveBeenCalledTimes(1);
   });
 
   it("reuses and reveals the existing panel when the same document command runs twice", () => {

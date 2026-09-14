@@ -226,18 +226,20 @@ const canvasPaletteWhen = "activeWebviewPanelId == 'nuinuiCAD.canvas'";
 const sourceKeybindingWhen = `editorTextFocus && ${sourcePaletteWhen}`;
 const sourceCreationKeybindingWhen = `${sourceKeybindingWhen} && !editorReadonly`;
 const canvasKeybindingWhen = `${canvasPaletteWhen}`;
-const canvasFocusKeybindingWhen = `${canvasKeybindingWhen} && !inputFocus`;
-const modulePreviewKeybindingWhen = "activeWebviewPanelId == 'nuinuiCAD.modulePreview' && !inputFocus";
-const modulePreviewSelectionKeybindingWhen = "activeWebviewPanelId == 'nuinuiCAD.modulePreview' && nuinuiCAD.canvasHasSelection && !inputFocus";
-const outputPreviewKeybindingWhen = "activeWebviewPanelId == 'nuinuiCAD.outputPreview' && !inputFocus";
-const canvasSelectionKeybindingWhen = `${canvasKeybindingWhen} && nuinuiCAD.canvasHasSelection && !inputFocus`;
-const inlineModuleKeybindingWhen = `(${sourceKeybindingWhen} && nuinuiCAD.inlineModuleSourceTarget) || (${canvasKeybindingWhen} && nuinuiCAD.inlineModuleCanvasTarget && !inputFocus)`;
-const extractModuleKeybindingWhen = `(${sourceKeybindingWhen} && nuinuiCAD.extractModuleSourceTarget) || (${canvasKeybindingWhen} && nuinuiCAD.extractModuleCanvasTarget && !inputFocus)`;
+const webviewEditableFocusGuard = "!inputFocus && !nuinuiCAD.webviewEditableFocus";
+const canvasFocusKeybindingWhen = `${canvasKeybindingWhen} && ${webviewEditableFocusGuard}`;
+const modulePreviewKeybindingWhen = `activeWebviewPanelId == 'nuinuiCAD.modulePreview' && ${webviewEditableFocusGuard}`;
+const modulePreviewSelectionKeybindingWhen = `activeWebviewPanelId == 'nuinuiCAD.modulePreview' && nuinuiCAD.canvasHasSelection && ${webviewEditableFocusGuard}`;
+const outputPreviewKeybindingWhen = `activeWebviewPanelId == 'nuinuiCAD.outputPreview' && ${webviewEditableFocusGuard}`;
+const canvasSelectionKeybindingWhen = `${canvasKeybindingWhen} && nuinuiCAD.canvasHasSelection && ${webviewEditableFocusGuard}`;
+const canvasSelectionWithoutEditableFocusKeybindingWhen = `${canvasKeybindingWhen} && nuinuiCAD.canvasHasSelection && !inputFocus`;
+const inlineModuleKeybindingWhen = `(${sourceKeybindingWhen} && nuinuiCAD.inlineModuleSourceTarget) || (${canvasKeybindingWhen} && nuinuiCAD.inlineModuleCanvasTarget && ${webviewEditableFocusGuard})`;
+const extractModuleKeybindingWhen = `(${sourceKeybindingWhen} && nuinuiCAD.extractModuleSourceTarget) || (${canvasKeybindingWhen} && nuinuiCAD.extractModuleCanvasTarget && ${webviewEditableFocusGuard})`;
 const openCanvasKeybindingWhen = `(${sourceKeybindingWhen} && !nuinuiCAD.revealInCanvasSourceTarget) || (${outputPreviewKeybindingWhen})`;
 const openOutputPreviewKeybindingWhen = `(${sourceKeybindingWhen} && !nuinuiCAD.revealInOutputPreviewSourceTarget) || (${canvasFocusKeybindingWhen})`;
-const coordinatePointConversionKeybindingWhen = `(${sourceKeybindingWhen} && nuinuiCAD.coordinatePointConversionSourceTarget) || (${canvasKeybindingWhen} && nuinuiCAD.canvasHasCoordinatePointConversionTarget && !inputFocus)`;
+const coordinatePointConversionKeybindingWhen = `(${sourceKeybindingWhen} && nuinuiCAD.coordinatePointConversionSourceTarget) || (${canvasKeybindingWhen} && nuinuiCAD.canvasHasCoordinatePointConversionTarget && ${webviewEditableFocusGuard})`;
 const geometryReferenceRetargetKeybindingWhen = `${sourceKeybindingWhen} && !editorReadonly && nuinuiCAD.geometryReferenceRetargetSourceTarget`;
-const bakeKeybindingWhen = `(${sourceKeybindingWhen} && nuinuiCAD.bakeSourceTarget) || ((activeWebviewPanelId == 'nuinuiCAD.canvas' || activeWebviewPanelId == 'nuinuiCAD.modulePreview') && nuinuiCAD.canvasHasSelection && !inputFocus)`;
+const bakeKeybindingWhen = `(${sourceKeybindingWhen} && nuinuiCAD.bakeSourceTarget) || ((activeWebviewPanelId == 'nuinuiCAD.canvas' || activeWebviewPanelId == 'nuinuiCAD.modulePreview') && nuinuiCAD.canvasHasSelection && ${webviewEditableFocusGuard})`;
 const bakePaletteWhen = "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui) || activeWebviewPanelId == 'nuinuiCAD.canvas'";
 const canvasHistoryWhen = "activeWebviewPanelId == 'nuinuiCAD.canvas' || activeWebviewPanelId == 'nuinuiCAD.modulePreview' || (editorTextFocus && nuinuiCAD.canvasHistoryHandoff)";
 const outputPreviewHistoryWhen = "activeWebviewPanelId == 'nuinuiCAD.outputPreview'";
@@ -1031,7 +1033,7 @@ describe("VS Code extension manifest keybindings", () => {
         command: "nuinuiCAD.selectInstance",
         key: "ctrl+shift+alt+i",
         mac: "ctrl+shift+i",
-        when: `${canvasKeybindingWhen} && nuinuiCAD.canvasCanSelectInstance && !inputFocus`
+        when: `${canvasKeybindingWhen} && nuinuiCAD.canvasCanSelectInstance && ${webviewEditableFocusGuard}`
       },
       {
         command: "nuinuiCAD.selectParentGroup",
@@ -1145,7 +1147,7 @@ describe("VS Code extension manifest keybindings", () => {
         command: "nuinuiCAD.goToSourceDefinition",
         key: "f12",
         mac: "f12",
-        when: canvasSelectionKeybindingWhen
+        when: canvasSelectionWithoutEditableFocusKeybindingWhen
       }
     ];
     const newBindingCommands = expectedNewBindings.map(({ command }) => command);
@@ -1182,7 +1184,15 @@ describe("VS Code extension manifest keybindings", () => {
     )).toBe(true);
     expect(keybindings.some(({ command }) => command.includes("toggle"))).toBe(false);
     expect(denseLetterBindings.filter(({ when }) => when.includes("activeWebviewPanelId"))
-      .every(({ when }) => when.includes("!inputFocus"))).toBe(true);
+      .every(({ when }) => when.includes("!inputFocus") && when.includes("!nuinuiCAD.webviewEditableFocus"))).toBe(true);
+    for (const command of ["nuinuiCAD.openCanvas", "nuinuiCAD.openOutputPreview", "nuinuiCAD.inlineModuleInstance", "nuinuiCAD.extractModule"]) {
+      const when = expectedNewBindings.find((binding) => binding.command === command)?.when;
+      expect(when).toContain("editorTextFocus");
+      expect(when).toContain("!nuinuiCAD.webviewEditableFocus");
+      expect(when?.split(" || ")[0]).not.toContain("webviewEditableFocus");
+    }
+    expect(expectedNewBindings.find(({ command }) => command === "nuinuiCAD.goToSourceDefinition")?.when)
+      .toBe(canvasSelectionWithoutEditableFocusKeybindingWhen);
 
     for (const platform of ["key", "mac"] as const) {
       const seen = new Set<string>();

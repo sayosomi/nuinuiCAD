@@ -140,6 +140,7 @@ import {
   NUI_MODULE_PREVIEW_VIEW_TYPE,
   registerModulePreviewFeature
 } from "./modulePreviewFeature";
+import { createWebviewEditableFocusContext, NUI_WEBVIEW_EDITABLE_FOCUS_CONTEXT } from "./webviewEditableFocusContext";
 
 const offsetAt = (source: string, position: { line: number; character: number }): number => {
   const lines = source.split("\n");
@@ -199,12 +200,12 @@ const createPanel = (options: { eagerWebviewReady?: boolean } = {}): TestPanel &
   fireDispose: () => void;
   fireViewState: (state?: { active?: boolean; visible?: boolean }) => void;
 } => {
-  let receiveHandler: ((message: unknown) => unknown) | null = null;
+  const receiveHandlers: Array<(message: unknown) => unknown> = [];
   let disposeHandler: (() => void) | null = null;
   let viewStateHandler: ((event: { webviewPanel: TestPanel }) => void) | null = null;
   let html = "";
   const receive = async (message: unknown): Promise<void> => {
-    await receiveHandler?.(message);
+    for (const handler of [...receiveHandlers]) await handler(message);
   };
   const panel = {
     title: "",
@@ -220,7 +221,7 @@ const createPanel = (options: { eagerWebviewReady?: boolean } = {}): TestPanel &
       },
       postMessage: vi.fn(async () => true),
       onDidReceiveMessage: vi.fn((handler: (message: unknown) => unknown) => {
-        receiveHandler = handler;
+        receiveHandlers.push(handler);
         return { dispose: () => undefined };
       })
     },
@@ -250,15 +251,18 @@ const createPanel = (options: { eagerWebviewReady?: boolean } = {}): TestPanel &
 };
 
 const createParameterWebview = (): TestParameterWebview => {
-  let receiveHandler: ((message: unknown) => unknown) | null = null;
+  const receiveHandlers: Array<(message: unknown) => unknown> = [];
   return {
     postMessage: vi.fn(async () => true),
     onDidReceiveMessage: vi.fn((handler: (message: unknown) => unknown) => {
-      receiveHandler = handler;
-      return { dispose: () => undefined };
+      receiveHandlers.push(handler);
+      return { dispose: () => {
+        const index = receiveHandlers.indexOf(handler);
+        if (index >= 0) receiveHandlers.splice(index, 1);
+      } };
     }),
     receive: async (message) => {
-      await receiveHandler?.(message);
+      for (const handler of [...receiveHandlers]) await handler(message);
     }
   };
 };
@@ -1554,6 +1558,94 @@ describe("registerModulePreviewFeature", () => {
       true
     );
 
+    feature.dispose();
+  });
+
+  it("projects accepted Parameter View focus into the generic context and releases it on invalidation and disposal", async () => {
+    const source = [
+      "nui 1",
+      "module Pocket(width: number(step: 2, min: 0, max: 10)) {",
+      "  point P = coordinate(x: @width, y: 0)",
+      "}"
+    ].join("\n");
+    const document = createDocument(source);
+    const panel = createPanel();
+    mocks.createWebviewPanel.mockReturnValue(panel);
+    const analysis = createLanguageAnalysisSession(source);
+    mocks.activeTextEditor = {
+      document,
+      selection: { active: positionAt(source, source.indexOf("point P")) }
+    };
+    mocks.textDocuments = [document];
+    mocks.visibleTextEditors = [{ document, edit: vi.fn() }];
+    const focusContext = createWebviewEditableFocusContext(
+      (key, value) => mocks.executeCommand("setContext", key, value)
+    );
+    const feature = registerModulePreviewFeature({
+      languageAnalysisSessionFor: (() => analysis) as never,
+      canvasThemeGeneration: () => 0,
+      webviewHtml: () => "<html />",
+      canvasRibbons: () => [],
+      updateCanvasRibbonPosition: () => undefined,
+      editCanvasRibbon: () => undefined,
+      evaluateWithRust: async () => ({}),
+      attachWebviewEditableFocus: focusContext.attach
+    });
+    const parameterView = createParameterWebview();
+    const parameterAttachment = feature.attachParameterView(parameterView as never);
+    await parameterView.receive({ type: "modulePreviewParametersViewReady" });
+    mocks.commandHandlers.get("nuinuiCAD.openModulePreview")!();
+    await panel.receive({ type: "webviewReady" });
+    await panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    const sessionId = panel.webview.postMessage.mock.calls
+      .map(([message]) => message as { type?: string; sessionId?: string })
+      .find((message) => message.type === "modulePreviewSession")?.sessionId;
+    const target = currentCompiledSemanticSnapshotFor(analysis, {
+      normalizedSource: source,
+      sourceRevision: analysis.getSourceRevision()
+    })?.compiled?.moduleSemanticAnalysis?.definitions.find((definition) => definition.name === "Pocket");
+    if (!sessionId || !target) throw new Error("expected exact Preview session");
+    const snapshot = parameterSnapshotFor({
+      sessionId,
+      document,
+      target,
+      sourceRevision: analysis.getSourceRevision(),
+      numericTypeOptions: { step: 2, min: 0, max: 10 }
+    });
+    await panel.receive(snapshot);
+    const focus = parameterValueFocusFor(snapshot, { selectionStart: 0, selectionEnd: 1 });
+    await parameterView.receive(focus);
+    await flushContext();
+    expect(mocks.executeCommand).toHaveBeenCalledWith(
+      "setContext",
+      NUI_WEBVIEW_EDITABLE_FOCUS_CONTEXT,
+      true
+    );
+    expect(mocks.executeCommand).toHaveBeenCalledWith(
+      "setContext",
+      NUI_MODULE_PREVIEW_VALUE_INPUT_FOCUS_CONTEXT,
+      true
+    );
+
+    document.setSource(source.replace("y: 0", "y: 1"));
+    for (const listener of mocks.documentChangeListeners) {
+      listener({ document, contentChanges: [{}] });
+    }
+    await flushContext();
+    await flushContext();
+    expect(mocks.executeCommand).toHaveBeenCalledWith(
+      "setContext",
+      NUI_WEBVIEW_EDITABLE_FOCUS_CONTEXT,
+      false
+    );
+    expect(mocks.executeCommand).toHaveBeenCalledWith(
+      "setContext",
+      NUI_MODULE_PREVIEW_VALUE_INPUT_FOCUS_CONTEXT,
+      false
+    );
+
+    parameterAttachment.dispose();
+    panel.fireDispose();
     feature.dispose();
   });
 
