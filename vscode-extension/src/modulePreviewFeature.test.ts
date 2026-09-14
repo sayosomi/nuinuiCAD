@@ -194,7 +194,7 @@ const createEditor = (document: TestDocument): TestEditor => {
   return { document, edit };
 };
 
-const createPanel = (): TestPanel & {
+const createPanel = (options: { eagerWebviewReady?: boolean } = {}): TestPanel & {
   receive: (message: unknown) => Promise<void>;
   fireDispose: () => void;
   fireViewState: (state?: { active?: boolean; visible?: boolean }) => void;
@@ -202,12 +202,22 @@ const createPanel = (): TestPanel & {
   let receiveHandler: ((message: unknown) => unknown) | null = null;
   let disposeHandler: (() => void) | null = null;
   let viewStateHandler: ((event: { webviewPanel: TestPanel }) => void) | null = null;
+  let html = "";
+  const receive = async (message: unknown): Promise<void> => {
+    await receiveHandler?.(message);
+  };
   const panel = {
     title: "",
     active: true,
     visible: true,
     webview: {
-      html: "",
+      get html() {
+        return html;
+      },
+      set html(value: string) {
+        html = value;
+        if (options.eagerWebviewReady) void receive({ type: "webviewReady" });
+      },
       postMessage: vi.fn(async () => true),
       onDidReceiveMessage: vi.fn((handler: (message: unknown) => unknown) => {
         receiveHandler = handler;
@@ -224,9 +234,7 @@ const createPanel = (): TestPanel & {
       disposeHandler = handler;
       return { dispose: () => undefined };
     }),
-    receive: async (message: unknown) => {
-      await receiveHandler?.(message);
-    },
+    receive,
     fireDispose: () => disposeHandler?.(),
     fireViewState: (state = {}) => {
       panel.active = state.active ?? panel.active;
@@ -1178,6 +1186,70 @@ describe("registerModulePreviewFeature", () => {
       documentVersion: 2
     }));
 
+    feature.dispose();
+  });
+
+  it("delivers a parameterless target after an eager fresh Webview handshake", async () => {
+    const source = [
+      "nui 1",
+      "module Preview() {",
+      "  point P0 = coordinate(x: 0, y: 0)",
+      "  point P1 = coordinate(x: 40, y: 0)",
+      "  line Edge = segment(start: @P0, end: @P1)",
+      "}"
+    ].join("\n");
+    const document = createDocument(source);
+    const panel = createPanel({ eagerWebviewReady: true });
+    mocks.createWebviewPanel.mockReturnValue(panel);
+    const analysis = createLanguageAnalysisSession(source);
+    mocks.activeTextEditor = {
+      document,
+      selection: { active: positionAt(source, source.indexOf("module Preview")) }
+    };
+    mocks.textDocuments = [document];
+    mocks.visibleTextEditors = [createEditor(document)];
+    const feature = registerModulePreviewFeature({
+      languageAnalysisSessionFor: (() => analysis) as never,
+      canvasThemeGeneration: () => 0,
+      webviewHtml: () => "<html />",
+      canvasRibbons: () => [],
+      updateCanvasRibbonPosition: () => undefined,
+      editCanvasRibbon: () => undefined,
+      evaluateWithRust: async () => ({})
+    });
+    const open = mocks.commandHandlers.get("nuinuiCAD.openModulePreview");
+    if (!open) throw new Error("expected open Module Preview command");
+
+    open();
+    await panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+
+    const expectedTarget = source.indexOf("module Preview");
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({
+      type: "modulePreviewTarget",
+      documentVersion: 1,
+      normalizedSourceOffset: expectedTarget
+    });
+    expect(panel.webview.postMessage.mock.calls.filter(([message]) =>
+      (message as { type?: string }).type === "modulePreviewTarget"
+    )).toHaveLength(1);
+
+    const childPosition = positionAt(source, source.indexOf("point P0"));
+    mocks.activeTextEditor.selection.active = childPosition;
+    open();
+    expect(mocks.createWebviewPanel).toHaveBeenCalledTimes(1);
+    expect(panel.webview.postMessage.mock.calls.filter(([message]) =>
+      (message as { type?: string }).type === "modulePreviewTarget"
+    )).toHaveLength(2);
+    expect(panel.webview.postMessage).toHaveBeenLastCalledWith({
+      type: "modulePreviewTarget",
+      documentVersion: 1,
+      normalizedSourceOffset: expectedTarget
+    });
+
+    await panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    expect(panel.webview.postMessage.mock.calls.filter(([message]) =>
+      (message as { type?: string }).type === "modulePreviewTarget"
+    )).toHaveLength(2);
     feature.dispose();
   });
 
