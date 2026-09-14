@@ -139,9 +139,10 @@ type PendingCanvasFreePointSelection = {
   status: "pending" | "applied" | "undone";
 };
 
-type PendingCanvasFreePointSelectionRestore = {
+type PendingCanvasSelectionRestore = {
   sourceText: string;
   sourceRevision: number;
+  hostDocumentGeneration: number;
   selection: SelectionSnapshot;
 };
 
@@ -188,6 +189,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   const evaluationDocument = useCadDocumentStore(effectiveCompiledDocument);
   const compiledDocumentRevision = useCadDocumentStore((state) => state.compiledDocumentRevision);
   const sourceText = useCadDocumentStore((state) => state.sourceText);
+  const sourceRevision = useCadDocumentStore((state) => state.sourceRevision);
   const previewActive = useCadDocumentStore((state) => state.previewElements !== null);
   const observationSelectionSubject = useCadUiStore((state) => state.selectionSubject);
   const observationSelectedElementIds = useCadUiStore((state) => state.selectedElementIds);
@@ -216,7 +218,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   const pendingCanvasFocusRequestRef = useRef<number | null>(null);
   const pendingCanvasFreePointCommitRef = useRef<PendingCanvasFreePointCommit | null>(null);
   const pendingCanvasFreePointSelectionRef = useRef<PendingCanvasFreePointSelection | null>(null);
-  const pendingCanvasFreePointSelectionRestoreRef = useRef<PendingCanvasFreePointSelectionRestore | null>(null);
+  const pendingCanvasSelectionRestoreRef = useRef<PendingCanvasSelectionRestore | null>(null);
   const pendingCoordinatePointConversionSelectionRef = useRef<PendingCoordinatePointConversionSelection | null>(null);
   const pendingCanvasSourceCommitRef = useRef<PendingCanvasSourceCommit | null>(null);
   const lastCanvasSourceHistoryCommitRef = useRef<{
@@ -616,7 +618,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       : false;
   }, []);
 
-  const tryApplyPendingCanvasFreePointSelection = useCallback(() => {
+  const tryApplyPendingCanvasSelectionRestore = useCallback(() => {
     const pending = pendingCanvasFreePointSelectionRef.current;
     if (pending) {
       const documentState = useCadDocumentStore.getState();
@@ -651,25 +653,26 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       }
     }
 
-    const restore = pendingCanvasFreePointSelectionRestoreRef.current;
+    const restore = pendingCanvasSelectionRestoreRef.current;
     if (!restore) return;
     const documentState = useCadDocumentStore.getState();
     if (
       normalizedSourceFor(documentState.sourceText) !== restore.sourceText ||
-      documentState.sourceRevision !== restore.sourceRevision
+      documentState.sourceRevision !== restore.sourceRevision ||
+      hostDocumentGenerationRef.current !== restore.hostDocumentGeneration
     ) {
-      pendingCanvasFreePointSelectionRestoreRef.current = null;
+      pendingCanvasSelectionRestoreRef.current = null;
       return;
     }
     const hasSelection = restore.selection.selectedElementId !== null || restore.selection.selectedElementIds.length > 0;
     if (hasSelection && useCadUiStore.getState().canvasSelectionEligibleElementIds === null) return;
-    pendingCanvasFreePointSelectionRestoreRef.current = null;
+    pendingCanvasSelectionRestoreRef.current = null;
     useCadUiStore.getState().applySelection(documentState.elements, restore.selection);
   }, []);
 
   useEffect(() => {
-    tryApplyPendingCanvasFreePointSelection();
-  }, [canvasSelectionEligibleElementIds, elements, compiledDocumentRevision, tryApplyPendingCanvasFreePointSelection]);
+    tryApplyPendingCanvasSelectionRestore();
+  }, [canvasSelectionEligibleElementIds, compiledDocumentRevision, elements, sourceRevision, sourceText, tryApplyPendingCanvasSelectionRestore]);
 
   const publishCanvasObservation = useCallback((documentVersion: number) => {
     const current = currentAuthoritativeDocument(documentVersion);
@@ -861,6 +864,10 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       message: Extract<ExtensionToVscodeMessage, { type: "replaceTextDocument" | "commitText" }>
     ): void => {
       const nextGeneration = hostDocumentGenerationRef.current + 1;
+      const pendingSelectionRestore = pendingCanvasSelectionRestoreRef.current;
+      if (pendingSelectionRestore && pendingSelectionRestore.hostDocumentGeneration !== nextGeneration) {
+        pendingCanvasSelectionRestoreRef.current = null;
+      }
       const pendingCoordinateSelection = pendingCoordinatePointConversionSelectionRef.current;
       if (pendingCoordinateSelection && (
         message.documentVersion !== pendingCoordinateSelection.documentVersion ||
@@ -1470,12 +1477,13 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
             currentFilePath: null,
             dirtySinceSave: false
           });
-          pendingCanvasFreePointSelectionRestoreRef.current = {
+          pendingCanvasSelectionRestoreRef.current = {
             sourceText: normalizedSourceFor(pending.previousSourceText),
             sourceRevision: useCadDocumentStore.getState().sourceRevision,
+            hostDocumentGeneration: hostDocumentGenerationRef.current,
             selection: pending.previousSelection
           };
-          tryApplyPendingCanvasFreePointSelection();
+          tryApplyPendingCanvasSelectionRestore();
           useCadUiStore.getState().setCommandErrorMessage(staleSourceAnchorError);
           api.postMessage({
             type: "canvasFreePointAtPointerResult",
@@ -1492,7 +1500,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         ) {
           pending.selectionIntent.acceptedDocumentVersion = message.documentVersion;
           pending.selectionIntent.lastDocumentVersion = message.documentVersion;
-          tryApplyPendingCanvasFreePointSelection();
+          tryApplyPendingCanvasSelectionRestore();
         }
         api.postMessage({
           type: "canvasFreePointAtPointerResult",
@@ -1869,6 +1877,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         publishCanonicalRuntimeDiagnostics(message.documentVersion);
         publishCanvasObservation(message.documentVersion);
         publishInlineModuleCanvasTargets(message.documentVersion);
+        tryApplyPendingCanvasSelectionRestore();
         applyPendingCoordinatePointConversionSelection();
       } else if (message.type === "commitText") {
         if (isStaleHostDocumentVersion(latestHostDocumentVersionRef.current, message.documentVersion)) return;
@@ -1896,21 +1905,43 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         if (message.reason === "undo" || message.reason === "redo") {
           const sourceBeforeHistory = useCadDocumentStore.getState().sourceText;
           const inFlightBeforeHistory = canvasHistoryInFlightRef.current;
-          const preserveCurrentSelection =
+          const trackedSourceHistoryTransition =
             inFlightBeforeHistory?.entry === "source" &&
             inFlightBeforeHistory.direction === message.reason &&
             message.documentVersion > inFlightBeforeHistory.expectedDocumentVersion &&
             normalizedSourceFor(sourceBeforeHistory) !== normalizedSourceFor(message.sourceText);
+          const adjacentCheckpoint = trackedSourceHistoryTransition
+            ? message.reason === "undo"
+              ? useCadDocumentStore.getState().past.at(-1)
+              : useCadDocumentStore.getState().future[0]
+            : null;
+          const adjacentSelection = adjacentCheckpoint &&
+            normalizedSourceFor(adjacentCheckpoint.text) === normalizedSourceFor(message.sourceText)
+            ? {
+                selectedElementId: adjacentCheckpoint.selection.selectedElementId,
+                selectedElementIds: [...adjacentCheckpoint.selection.selectedElementIds],
+                selectionAnchorElementId: adjacentCheckpoint.selection.selectionAnchorElementId
+              }
+            : null;
           canvasHistoryStoreMutationRef.current = true;
           let historyOutcome: "reconciled" | "reset";
           try {
             historyOutcome = useCadDocumentStore.getState().reconcileAuthoritativeHistory(
               message.sourceText,
-              message.reason,
-              preserveCurrentSelection ? "preserve-current" : "restore-adjacent"
+              message.reason
             );
           } finally {
             canvasHistoryStoreMutationRef.current = false;
+          }
+          if (historyOutcome === "reconciled" && trackedSourceHistoryTransition && adjacentSelection) {
+            const reconciledState = useCadDocumentStore.getState();
+            pendingCanvasSelectionRestoreRef.current = {
+              sourceText: normalizedSourceFor(reconciledState.sourceText),
+              sourceRevision: reconciledState.sourceRevision,
+              hostDocumentGeneration: hostDocumentGenerationRef.current,
+              selection: adjacentSelection
+            };
+            tryApplyPendingCanvasSelectionRestore();
           }
           const inFlight = canvasHistoryInFlightRef.current;
           const sourceTransitionObserved =
@@ -1949,7 +1980,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         publishCanonicalRuntimeDiagnostics(message.documentVersion);
         publishCanvasObservation(message.documentVersion);
         publishInlineModuleCanvasTargets(message.documentVersion);
-        tryApplyPendingCanvasFreePointSelection();
+        tryApplyPendingCanvasSelectionRestore();
         applyPendingCoordinatePointConversionSelection();
       } else if (message.type === "benchmarkConfig") {
         setBenchmarkConfig(message.config);
@@ -1959,7 +1990,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     return () => {
       window.removeEventListener("message", onMessage);
     };
-  }, [api, applyPendingCoordinatePointConversionSelection, canvasPickModeActive, completeCanvasHistoryResult, completePendingCanvasSourceCommit, currentAuthoritativeDocument, currentHostSourceAuthorityFor, deferCoordinatePointConversionSelection, discardDeferredSourceBake, measureCanvasTextWidth, moveCanvasSourceHistory, postCanvasCommit, publishCanvasObservation, publishCanonicalRuntimeDiagnostics, publishCurrentCanvasTheme, publishInlineModuleCanvasTargets, pumpCanvasHistory, refreshCanvasTheme, requestCanvasHistory, resetCanvasHistoryChronology, restoreCanvasFocus, rustTransport, selectActiveCanvasInstance, setMultiDocumentGraphPublication, sourceInsertionError, staleSourceAnchorError, syncCanvasHistoryChronologyToSelection, canvasPointerError, tryApplyPendingCanvasFreePointSelection, tryCompleteCanvasFocus]);
+  }, [api, applyPendingCoordinatePointConversionSelection, canvasPickModeActive, completeCanvasHistoryResult, completePendingCanvasSourceCommit, currentAuthoritativeDocument, currentHostSourceAuthorityFor, deferCoordinatePointConversionSelection, discardDeferredSourceBake, measureCanvasTextWidth, moveCanvasSourceHistory, postCanvasCommit, publishCanvasObservation, publishCanonicalRuntimeDiagnostics, publishCurrentCanvasTheme, publishInlineModuleCanvasTargets, pumpCanvasHistory, refreshCanvasTheme, requestCanvasHistory, resetCanvasHistoryChronology, restoreCanvasFocus, rustTransport, selectActiveCanvasInstance, setMultiDocumentGraphPublication, sourceInsertionError, staleSourceAnchorError, syncCanvasHistoryChronologyToSelection, canvasPointerError, tryApplyPendingCanvasSelectionRestore, tryCompleteCanvasFocus]);
 
   const surfaceStyle = benchmarkConfig?.expectedRenderSurface
     ? {
