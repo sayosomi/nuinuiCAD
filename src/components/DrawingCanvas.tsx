@@ -454,6 +454,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     activeVisibilityProfileId,
     moduleMaterialization: canvasModuleMaterialization ?? moduleSemanticContext.moduleMaterialization,
     showCanvasPoints,
+    measureCanvasTextWidth: hostAdapter.measureCanvasTextWidth,
     resolveImageSourceUrl: hostAdapter.resolveImageSourceUrl
   });
   const moduleInstanceSelectionFrames = useMemo(() => moduleInstanceSelectionFrameOverlays({

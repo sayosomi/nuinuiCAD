@@ -1,3 +1,4 @@
+import { isGroupElement } from "@nuinuicad/nui-language";
 import type { ModuleMaterialization } from "@nuinuicad/nui-language";
 import type {
   CadElement,
@@ -6,12 +7,16 @@ import type {
   VisibilityProfile
 } from "../types/geometry";
 import { canvasPresentationEligibleElementIds } from "./canvasDrawingBounds";
+import type { CanvasTextWidthMeasurer } from "./canvasDrawingBounds";
+import { groupCanvasGeometry } from "./groupCanvasGeometry";
 import { moduleInstanceCanvasGeometry } from "./moduleInstanceCanvasGeometry";
 
 /**
  * Resolves the current Canvas identities that may be selected explicitly.
  * Ordinary drawable elements use the normal presentation boundary. Concrete
- * Module instances additionally qualify when their materialized descendant set
+ * authored group-like containers additionally qualify when their shared group
+ * presentation geometry has a renderable descendant and safe aggregate bounds.
+ * Concrete Module instances qualify when their materialized descendant set
  * contains at least one ordinary drawable presentation.
  *
  * Module instances are identities only: this set does not create overlay or
@@ -23,7 +28,8 @@ export const canvasSelectionEligibleElementIds = ({
   moduleMaterialization,
   visibilityProfiles,
   activeVisibilityProfileId,
-  showCanvasPoints
+  showCanvasPoints,
+  measureCanvasTextWidth
 }: {
   elements: readonly CadElement[];
   evaluation: EvaluationResult;
@@ -31,6 +37,7 @@ export const canvasSelectionEligibleElementIds = ({
   visibilityProfiles: readonly VisibilityProfile[];
   activeVisibilityProfileId: string | null;
   showCanvasPoints: boolean;
+  measureCanvasTextWidth?: CanvasTextWidthMeasurer;
 }): Set<ElementId> => {
   const ordinaryIds = canvasPresentationEligibleElementIds({
     elements,
@@ -39,9 +46,24 @@ export const canvasSelectionEligibleElementIds = ({
     activeVisibilityProfileId,
     showCanvasPoints
   });
-  if (!moduleMaterialization || ordinaryIds.size === 0) return ordinaryIds;
-
   const eligibleIds = new Set(ordinaryIds);
+  for (const element of elements) {
+    if (!isGroupElement(element)) continue;
+    const geometry = groupCanvasGeometry({
+      groupId: element.id,
+      elements,
+      evaluation,
+      visibilityProfiles: [...visibilityProfiles],
+      activeVisibilityProfileId,
+      measureCanvasTextWidth
+    });
+    if (geometry?.renderableDescendantIds.length && geometry.bounds) {
+      eligibleIds.add(element.id);
+    }
+  }
+
+  if (!moduleMaterialization || ordinaryIds.size === 0) return eligibleIds;
+
   const moduleInstanceIds = elements
     .filter((element) => element.type === "moduleInstance")
     .map((element) => element.id);

@@ -239,6 +239,45 @@ describe("useCanvasOverlayData", () => {
     })).toBe(child.id);
   });
 
+  it("publishes a qualifying authored group identity without making it an overlay or hit target", () => {
+    const group: CadElement = {
+      id: "group",
+      name: "Group",
+      type: "group",
+      activity: "visible"
+    };
+    const child: CadElement = {
+      id: "child",
+      name: "Child",
+      type: "line",
+      activity: "visible",
+      parentGroupId: group.id,
+      startPoint: { mode: "coordinate", x: 0, y: 0 },
+      endPoint: { mode: "coordinate", x: 30, y: 0 }
+    };
+    const elements = [group, child];
+    const evaluation = evaluateElements(elements);
+    const { result } = renderHook(() => useCanvasOverlayData({
+      evaluation,
+      elements,
+      selectedElementId: null,
+      pointPickCandidates: [],
+      viewportSize: { width: 500, height: 400 },
+      canvasViewport: DEFAULT_CANVAS_VIEWPORT,
+      visibilityProfiles: [],
+      activeVisibilityProfileId: null,
+      resolveImageSourceUrl: (sourcePath) => sourcePath
+    }));
+
+    expect(result.current.selectionEligibleElementIds).toEqual(new Set([child.id, group.id]));
+    expect(result.current.overlayIdentityCandidates.map((candidate) => candidate.elementId)).toEqual([child.id]);
+    expect(hitTestCanvasGeometry({
+      screen: result.current.overlayLines[0].start,
+      lines: result.current.overlayLines,
+      points: []
+    })).toBe(child.id);
+  });
+
   it("keeps materialized private geometry in normal Canvas drawing and hit testing", () => {
     const privateId = "module-runtime:private-line";
     const elements: CadElement[] = [{

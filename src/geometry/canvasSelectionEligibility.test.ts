@@ -96,7 +96,7 @@ const sharedEligibilityFor = ({
 }: {
   elements: readonly CadElement[];
   geometry: readonly ComputedGeometry[];
-  materialization: Pick<ModuleMaterialization, "instanceBaseGeometrySnapshots">;
+  materialization?: Pick<ModuleMaterialization, "instanceBaseGeometrySnapshots">;
   visible?: readonly string[];
   enabled?: readonly string[];
   conditionInactive?: readonly string[];
@@ -114,8 +114,11 @@ const sharedEligibilityFor = ({
 });
 
 describe("canvasSelectionEligibleElementIds", () => {
-  it("keeps ordinary presentation eligibility unchanged", () => {
-    const elements = [element("point", "freePoint")];
+  it("keeps ordinary presentation eligibility geometry-driven", () => {
+    const elements = [
+      element("group", "group"),
+      element("point", "freePoint", { parentGroupId: "group" })
+    ];
     const evaluation = evaluationFor([point("point")]);
     const base = canvasPresentationEligibleElementIds({
       elements,
@@ -131,7 +134,59 @@ describe("canvasSelectionEligibleElementIds", () => {
       visibilityProfiles: profiles,
       activeVisibilityProfileId: profiles[0]!.id,
       showCanvasPoints: true
-    })).toEqual(base);
+    })).toEqual(new Set(["point", "group"]));
+    expect(base).toEqual(new Set(["point"]));
+    expect(base).not.toContain("group");
+  });
+
+  it("adds qualifying authored group-like identities without requiring Module materialization", () => {
+    const elements = [
+      element("group", "group"),
+      element("group-child", "freePoint", { parentGroupId: "group" }),
+      element("conditional", "conditionalGroup"),
+      element("conditional-child", "freePoint", { parentGroupId: "conditional" }),
+      element("for", "forGroup"),
+      element("for-child", "freePoint", { parentGroupId: "for" })
+    ];
+
+    expect(sharedEligibilityFor({
+      elements,
+      geometry: [
+        point("group-child"),
+        point("conditional-child"),
+        point("for-child")
+      ]
+    })).toEqual(new Set([
+      "group-child",
+      "group",
+      "conditional-child",
+      "conditional",
+      "for-child",
+      "for"
+    ]));
+  });
+
+  it("does not qualify groups without a renderable descendant or safe aggregate bounds", () => {
+    const elements = [
+      element("empty", "group"),
+      element("missing", "group"),
+      element("missing-child", "freePoint", { parentGroupId: "missing" }),
+      element("unsafe", "group"),
+      element("unsafe-text", "text", { parentGroupId: "unsafe" })
+    ];
+    const unsafeText: ComputedGeometry = {
+      kind: "text",
+      elementId: "unsafe-text",
+      name: "unsafe-text",
+      text: "label",
+      anchor: { kind: "point", elementId: "anchor", name: "anchor", x: 1, y: 2 },
+      fontSize: 5
+    };
+
+    expect(sharedEligibilityFor({
+      elements,
+      geometry: [unsafeText]
+    })).toEqual(new Set(["unsafe-text"]));
   });
 
   it("adds a qualifying concrete Module instance while keeping it out of base presentation eligibility", () => {

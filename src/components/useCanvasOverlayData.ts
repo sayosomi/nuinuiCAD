@@ -17,6 +17,7 @@ import type {
 } from "../types/geometry";
 import type { VisibilityProfile } from "../types/geometry";
 import { effectiveCanvasVisibleElementIds } from "../geometry/canvasDrawingBounds";
+import type { CanvasTextWidthMeasurer } from "../geometry/canvasDrawingBounds";
 import { canvasSelectionEligibleElementIds } from "../geometry/canvasSelectionEligibility";
 import { imageWorldCorners } from "../geometry/imageGeometry";
 import type { ModuleMaterialization } from "@nuinuicad/nui-language";
@@ -97,6 +98,7 @@ export const useCanvasOverlayData = ({
   activeVisibilityProfileId,
   moduleMaterialization,
   showCanvasPoints = true,
+  measureCanvasTextWidth,
   resolveImageSourceUrl
 }: {
   evaluation: EvaluationResult;
@@ -110,6 +112,7 @@ export const useCanvasOverlayData = ({
   activeVisibilityProfileId: string | null;
   moduleMaterialization?: Pick<ModuleMaterialization, "instanceBaseGeometrySnapshots">;
   showCanvasPoints?: boolean;
+  measureCanvasTextWidth?: CanvasTextWidthMeasurer;
   resolveImageSourceUrl: (sourcePath: string) => string;
 }): CanvasOverlayData => {
   const visibleElementIds = useMemo(
@@ -135,13 +138,15 @@ export const useCanvasOverlayData = ({
       moduleMaterialization,
       visibilityProfiles,
       activeVisibilityProfileId,
-      showCanvasPoints
+      showCanvasPoints,
+      measureCanvasTextWidth
     }),
     [
       activeVisibilityProfileId,
       elements,
       evaluation,
       moduleMaterialization,
+      measureCanvasTextWidth,
       showCanvasPoints,
       visibilityProfiles
     ]
