@@ -27,6 +27,7 @@ import {
 } from "./outputPreviewHistory";
 import { outputPreviewTranslatorFor } from "./outputPreviewLocalization";
 import { webviewPresentationFor } from "./webviewPresentationLocalization";
+import type { WebviewEditableFocusAttachment, WebviewEditableFocusWebview } from "./webviewEditableFocusContext";
 
 export type OutputPreviewSession = VscodeWebviewSessionBase & {
   surfaceKind: "outputPreview";
@@ -85,6 +86,7 @@ export type OutputPreviewFeatureHost = {
   ) => VscodeOutputPreviewRevealSourceTargetResult;
   activeCanvasDocumentForOpenCommand: () => vscode.TextDocument | null;
   isOutputPreviewTabActive: () => boolean;
+  attachWebviewEditableFocus?: (webview: WebviewEditableFocusWebview) => WebviewEditableFocusAttachment;
   displayLanguageFor?: () => string;
 };
 
@@ -443,6 +445,8 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
       }
       if (message.type === "rustEvaluationRequest") await handleRustEvaluationRequest(session, message);
     }));
+    const editableFocusAttachment = host.attachWebviewEditableFocus?.(panel.webview);
+    if (editableFocusAttachment) session.disposables.push(editableFocusAttachment);
     panel.onDidDispose(() => disposeSession(session));
     return session;
   };

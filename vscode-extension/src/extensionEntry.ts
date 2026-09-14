@@ -31,6 +31,7 @@ import { activeRustEvaluationProcessOwner } from "./rustEvaluationProcessOwner";
 import { vscodeObservationState } from "./vscodeObservationState";
 import { registerExplorerMockFeature } from "./explorerMockFeature";
 import { registerModulePreviewParametersFeature } from "./modulePreviewParametersFeature";
+import { createWebviewEditableFocusContext } from "./webviewEditableFocusContext";
 
 const observationSnapshot = (includeSourceText: boolean): unknown => {
   const snapshot = vscodeObservationState.snapshot();
@@ -114,7 +115,10 @@ const registerModulePreviewCommands = (
   );
 };
 
-const registerModulePreview = (context: vscode.ExtensionContext): void => {
+const registerModulePreview = (
+  context: vscode.ExtensionContext,
+  webviewEditableFocusContext: ReturnType<typeof createWebviewEditableFocusContext>
+): void => {
   const rustProcessOwner = activeRustEvaluationProcessOwner();
   if (!rustProcessOwner) {
     throw new Error("nuinuiCAD Module Preview requires the active VS Code Rust evaluation process owner.");
@@ -140,7 +144,8 @@ const registerModulePreview = (context: vscode.ExtensionContext): void => {
       void vscode.commands.executeCommand("workbench.action.openSettings", VSCODE_CANVAS_RIBBON_SETTING);
     },
     evaluateWithRust: (input) => rustProcessOwner.get().request(input),
-    presentBakeOperationResult: presentModulePreviewBakeOperationResult
+    presentBakeOperationResult: presentModulePreviewBakeOperationResult,
+    attachWebviewEditableFocus: webviewEditableFocusContext.attach
   });
   const closeListener = vscode.workspace.onDidCloseTextDocument((document) => {
     analysisSessions.delete(document.uri.toString());
@@ -163,13 +168,16 @@ const registerModulePreview = (context: vscode.ExtensionContext): void => {
 };
 
 export const activate = (context: vscode.ExtensionContext): void => {
+  const webviewEditableFocusContext = createWebviewEditableFocusContext(
+    (key, value) => vscode.commands.executeCommand("setContext", key, value)
+  );
   const multiDocumentHost = createVscodeModuleMultiDocumentHost();
   multiDocumentHost.start();
   context.subscriptions.push(multiDocumentHost);
 
-  activateExtension(context);
+  activateExtension(context, webviewEditableFocusContext);
   context.subscriptions.push(registerExplorerMockFeature(context));
-  registerModulePreview(context);
+  registerModulePreview(context, webviewEditableFocusContext);
 
   const bridge = createMcpObservationBridge({
     configured: vscode.workspace.getConfiguration("nuinuiCAD").get<boolean>(NUI_MCP_OBSERVATION_SETTING, false),

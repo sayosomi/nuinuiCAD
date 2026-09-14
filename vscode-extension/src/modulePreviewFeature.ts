@@ -43,6 +43,10 @@ import {
 } from "./outputPreviewHistory";
 import { applySourceLineSplices } from "./textDocumentLineSplices";
 import { webviewPresentationFor } from "./webviewPresentationLocalization";
+import type {
+  WebviewEditableFocusAttachment,
+  WebviewEditableFocusWebview
+} from "./webviewEditableFocusContext";
 
 export const NUI_MODULE_PREVIEW_VIEW_TYPE = "nuinuiCAD.modulePreview";
 export const NUI_MODULE_PREVIEW_SOURCE_TARGET_CONTEXT = "nuinuiCAD.modulePreviewSourceTarget";
@@ -105,6 +109,7 @@ export type RegisterModulePreviewFeatureOptions = {
   updateCanvasRibbonPosition: (ribbonId: string, x: number, y: number) => Promise<void> | void;
   editCanvasRibbon: () => void;
   evaluateWithRust: (input: unknown) => Promise<unknown>;
+  attachWebviewEditableFocus?: (webview: WebviewEditableFocusWebview) => WebviewEditableFocusAttachment;
   presentBakeOperationResult?: (
     message: Extract<VscodeToExtensionMessage, { type: "bakeOperationResult" }>
   ) => Promise<void> | void;
@@ -389,6 +394,7 @@ export const registerModulePreviewFeature = ({
   updateCanvasRibbonPosition,
   editCanvasRibbon,
   evaluateWithRust,
+  attachWebviewEditableFocus,
   presentBakeOperationResult,
   displayLanguageFor = vscodeDisplayLanguage
 }: RegisterModulePreviewFeatureOptions): ModulePreviewFeature => {
@@ -399,8 +405,10 @@ export const registerModulePreviewFeature = ({
   let nextReferencePickRequestId = 1;
   let parameterWebview: vscode.Webview | null = null;
   let parameterWebviewDisposable: vscode.Disposable | null = null;
+  let parameterEditableFocusAttachment: WebviewEditableFocusAttachment | null = null;
   let boundParameterSession: ModulePreviewSession | null = null;
   let focusedPreviewValue: VscodeModulePreviewParameterValueFocus | null = null;
+  let focusedPreviewContextOwned = false;
   let pendingSelectionRestoration: {
     sessionId: string;
     documentUri: string;
@@ -444,10 +452,12 @@ export const registerModulePreviewFeature = ({
   };
 
   const clearFocusedPreviewValue = (): void => {
-    const wasOwned = focusedPreviewValue !== null;
+    const wasOwned = focusedPreviewValue !== null || focusedPreviewContextOwned;
     focusedPreviewValue = null;
+    focusedPreviewContextOwned = false;
     pendingSelectionRestoration = null;
     if (wasOwned) setContext(NUI_MODULE_PREVIEW_VALUE_INPUT_FOCUS_CONTEXT, false);
+    parameterEditableFocusAttachment?.setHostFocused(false);
   };
 
   const postParameterMessage = (
@@ -475,7 +485,19 @@ export const registerModulePreviewFeature = ({
         focusedPreviewValue.documentVersion !== message.documentVersion ||
         focusedPreviewValue.sourceRevision !== message.sourceRevision ||
         focusedPreviewValue.targetDefinitionStatementId !== message.target.definitionStatementId)
-    ) setContext(NUI_MODULE_PREVIEW_VALUE_INPUT_FOCUS_CONTEXT, false);
+    ) {
+      focusedPreviewContextOwned = false;
+      setContext(NUI_MODULE_PREVIEW_VALUE_INPUT_FOCUS_CONTEXT, false);
+    }
+    if (
+      message.type === "modulePreviewParameterSnapshot" &&
+      focusedPreviewValue &&
+      (focusedPreviewValue.sessionId !== message.sessionId ||
+        focusedPreviewValue.documentUri !== message.documentUri ||
+        focusedPreviewValue.documentVersion !== message.documentVersion ||
+        focusedPreviewValue.sourceRevision !== message.sourceRevision ||
+        focusedPreviewValue.targetDefinitionStatementId !== message.target.definitionStatementId)
+    ) parameterEditableFocusAttachment?.setHostFocused(false);
     if (boundParameterSession === session) postParameterMessage(message);
     maybeRestorePendingSelection(session, message);
   };
@@ -810,7 +832,9 @@ export const registerModulePreviewFeature = ({
       (message.value !== pendingSelectionRestoration.previousValue && message.value !== pendingSelectionRestoration.expectedValue))
     ) pendingSelectionRestoration = null;
     focusedPreviewValue = message;
+    focusedPreviewContextOwned = true;
     setContext(NUI_MODULE_PREVIEW_VALUE_INPUT_FOCUS_CONTEXT, true);
+    parameterEditableFocusAttachment?.setHostFocused(true);
     maybeRestorePendingSelection(session, snapshot);
     return true;
   };
@@ -1424,6 +1448,8 @@ export const registerModulePreviewFeature = ({
       if (webviewPanel !== panel || (!webviewPanel.active && !webviewPanel.visible)) return;
       bindParameterSession(session);
     }));
+    const editableFocusAttachment = attachWebviewEditableFocus?.(panel.webview);
+    if (editableFocusAttachment) session.disposables.push(editableFocusAttachment);
     session.disposables.push(panel.onDidDispose(() => disposeSession(session)));
     panel.webview.html = webviewHtml(panel);
     return session;
@@ -1516,6 +1542,7 @@ export const registerModulePreviewFeature = ({
     attachParameterView: (webview) => {
       parameterWebviewDisposable?.dispose();
       parameterWebview = webview;
+      parameterEditableFocusAttachment = attachWebviewEditableFocus?.(webview) ?? null;
       if (boundParameterSession) {
         const retained = boundParameterSession.retainedParameterMessage;
         if (retained && isCurrentParameterMessage(boundParameterSession, retained)) {
@@ -1560,12 +1587,15 @@ export const registerModulePreviewFeature = ({
           acceptParameterValueBlur(message);
         }
       });
+      const focusAttachment = parameterEditableFocusAttachment;
       const attached = {
         dispose: () => {
+          if (parameterEditableFocusAttachment === focusAttachment) clearFocusedPreviewValue();
           messageDisposable.dispose();
           if (boundParameterSession) cancelActiveReferencePick(boundParameterSession);
-          clearFocusedPreviewValue();
+          focusAttachment?.dispose();
           if (parameterWebview === webview) parameterWebview = null;
+          if (parameterEditableFocusAttachment === focusAttachment) parameterEditableFocusAttachment = null;
           if (parameterWebviewDisposable === attached) parameterWebviewDisposable = null;
         }
       } satisfies vscode.Disposable;

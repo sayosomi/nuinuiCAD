@@ -154,6 +154,7 @@ import {
   type OutputPreviewSession
 } from "./outputPreviewFeature";
 import { applySourceLineSplices, textEditForLineSplice } from "./textDocumentLineSplices";
+import type { WebviewEditableFocusContext } from "./webviewEditableFocusContext";
 
 type DocumentSession = VscodeWebviewSessionBase & {
   surfaceKind: "canvas";
@@ -473,7 +474,10 @@ export const registerModulePreviewBakeFallback = (
   };
 };
 
-export const activate = (context: vscode.ExtensionContext): void => {
+export const activate = (
+  context: vscode.ExtensionContext,
+  webviewEditableFocusContext?: WebviewEditableFocusContext
+): void => {
   activeCanvasThemeGeneration = 0;
   const sessions = new VscodeWebviewSessionRegistry<WebviewSession>();
   const languageAnalysisSessions = new Map<string, NuiLanguageAnalysisSession>();
@@ -652,7 +656,8 @@ export const activate = (context: vscode.ExtensionContext): void => {
       languageAnalysisSessionFor(editor.document)
     ),
     activeCanvasDocumentForOpenCommand: () => activeCanvasSessionForOpenCommand()?.document ?? null,
-    isOutputPreviewTabActive: () => isNuiOutputPreviewTab(activeEditorTabInput())
+    isOutputPreviewTabActive: () => isNuiOutputPreviewTab(activeEditorTabInput()),
+    attachWebviewEditableFocus: webviewEditableFocusContext?.attach
   });
 
   const activeOutputPreviewSessionForOpenCommand = (): OutputPreviewSession | null =>
@@ -1879,6 +1884,8 @@ export const activate = (context: vscode.ExtensionContext): void => {
         writeFileSync(`${benchmarkConfig.resultPath}.error.json`, JSON.stringify({ runId: benchmarkConfig.runId, error: message.error }, null, 2), "utf8");
       }
     }));
+    const editableFocusAttachment = webviewEditableFocusContext?.attach(panel.webview);
+    if (editableFocusAttachment) session.disposables.push(editableFocusAttachment);
 
     panel.onDidDispose(() => {
       disposeSession(session);
@@ -2391,6 +2398,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
     disposeAllSessions,
     disposeRustProcess
   );
+  if (webviewEditableFocusContext) context.subscriptions.push(webviewEditableFocusContext);
 
   if (benchmarkConfig) {
     const startWhenEditorIsReady = () => {
