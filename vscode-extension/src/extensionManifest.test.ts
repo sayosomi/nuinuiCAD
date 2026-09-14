@@ -14,6 +14,7 @@ type Command = {
   command: string;
   title: string;
   shortTitle?: string;
+  category?: string;
   enablement?: string;
 };
 
@@ -149,6 +150,28 @@ const obsoleteWebviewContextAliasIds = [
   "nuinuiCAD.webview.goToSourceDefinition",
   "nuinuiCAD.webview.inlineModuleInstance",
   "nuinuiCAD.webview.extractModule"
+] as const;
+const staticWebviewCanonicalCommandIds = [
+  "nuinuiCAD.createFreePointAtPointer",
+  "nuinuiCAD.fitDrawing",
+  "nuinuiCAD.resetCanvasView",
+  "nuinuiCAD.editCanvasRibbon",
+  "nuinuiCAD.clearCanvasSelection",
+  "nuinuiCAD.convertPointToXYOffset",
+  "nuinuiCAD.convertPointToAngleDistanceOffset",
+  "nuinuiCAD.selectParentGroup",
+  "nuinuiCAD.bakeCurrentShape",
+  "nuinuiCAD.bakeBaseShape",
+  "nuinuiCAD.modulePreview.fitDrawing",
+  "nuinuiCAD.modulePreview.resetView",
+  "nuinuiCAD.modulePreview.clearSelection",
+  "nuinuiCAD.resetOutputPreviewView",
+  "nuinuiCAD.fitOutputPreview",
+  "nuinuiCAD.clearOutputPreviewFocus",
+  "nuinuiCAD.selectInstance",
+  "nuinuiCAD.goToSourceDefinition",
+  "nuinuiCAD.inlineModuleInstance",
+  "nuinuiCAD.extractModule"
 ] as const;
 const canonicalCommandShortTitles: Partial<Record<(typeof commandIds)[number], string>> = {
   "nuinuiCAD.openCanvas": "Open Canvas",
@@ -299,7 +322,12 @@ describe("VS Code extension manifest command contributions", () => {
     for (const command of commands) {
       const titleKey = command.title.slice(1, -1);
       expect(japanese[titleKey]).not.toBe(english[titleKey]);
-      expect(japanese[titleKey]).toMatch(/^nuinuiCAD: /);
+      if (staticWebviewCanonicalCommandIds.some((id) => id === command.command)) {
+        expect(command.category).toBe("nuinuiCAD");
+        expect(japanese[titleKey]).not.toMatch(/^nuinuiCAD: /);
+      } else {
+        expect(japanese[titleKey]).toMatch(/^nuinuiCAD: /);
+      }
       if (command.shortTitle !== undefined) {
         const shortTitleKey = command.shortTitle.slice(1, -1);
         expect(japanese[shortTitleKey]).not.toBe(english[shortTitleKey]);
@@ -336,14 +364,14 @@ describe("VS Code extension manifest command contributions", () => {
       "nuinuiCAD: Open Canvas",
       "nuinuiCAD: Open Output Preview",
       "nuinuiCAD: Open Module Preview",
-      "nuinuiCAD: Inline Module Instance",
-      "nuinuiCAD: Extract Module",
-      "nuinuiCAD: Go to Source Definition",
+      "Inline Module Instance",
+      "Extract Module",
+      "Go to Source Definition",
       "nuinuiCAD: Reveal in Canvas",
       "nuinuiCAD: Reveal in Output Preview",
       "nuinuiCAD: Pick from Canvas",
-      "nuinuiCAD: Convert Point to XY Offset",
-      "nuinuiCAD: Convert Point to Angle-Distance Offset",
+      "XY Offset…",
+      "Angle-Distance Offset…",
       "nuinuiCAD: Replace Geometry References",
       "nuinuiCAD: Step Source Value Forward",
       "nuinuiCAD: Step Source Value Backward",
@@ -351,31 +379,35 @@ describe("VS Code extension manifest command contributions", () => {
       "nuinuiCAD: Redo Canvas Transition",
       "nuinuiCAD: Undo Output Preview Source Edit",
       "nuinuiCAD: Redo Output Preview Source Edit",
-      "nuinuiCAD: Clear Canvas Selection",
-      "nuinuiCAD: Select Parent Group",
-      "nuinuiCAD: Select Instance",
-      "nuinuiCAD: Reset Canvas View",
-      "nuinuiCAD: Fit Drawing",
-      "nuinuiCAD: Reset Output Preview Pan and Zoom",
-      "nuinuiCAD: Fit Output Preview",
-      "nuinuiCAD: Clear Output Preview Focus",
+      "Clear Selection",
+      "Select Parent Group",
+      "Select Instance",
+      "Reset View",
+      "Fit Drawing",
+      "Reset View",
+      "Fit Preview",
+      "Clear Focus",
       "nuinuiCAD: Export Current Output",
       "nuinuiCAD: Toggle Point Names",
       "nuinuiCAD: Toggle Geometry Names",
       "nuinuiCAD: Toggle Canvas Element Names (Legacy)",
       "nuinuiCAD: Toggle Canvas Points",
-      "nuinuiCAD: Bake Current Shape",
-      "nuinuiCAD: Bake Base Shape",
-      "nuinuiCAD: Edit Canvas Ribbon",
-      "nuinuiCAD: Clear Module Preview Selection",
-      "nuinuiCAD: Reset Module Preview View",
-      "nuinuiCAD: Fit Module Preview Drawing",
+      "Current Shape",
+      "Base Shape",
+      "Edit Ribbon",
+      "Clear Selection",
+      "Reset View",
+      "Fit Drawing",
       "nuinuiCAD: Toggle Module Preview Point Names",
       "nuinuiCAD: Toggle Module Preview Geometry Names",
       "nuinuiCAD: Toggle Module Preview Points",
       "nuinuiCAD: Create Geometry…",
-      "nuinuiCAD: Create Free Point at Pointer"
+      "Create Free Point at Pointer"
     ]);
+    expect(commands.map(({ command, category }) => ({ command, category }))).toEqual(commandIds.map((command) => ({
+      command,
+      category: staticWebviewCanonicalCommandIds.some((id) => id === command) ? "nuinuiCAD" : undefined
+    })));
     expect(commands.map(({ command, shortTitle }) => ({
       command,
       shortTitle: shortTitle === undefined ? undefined : resolveNlsToken(shortTitle, english)
@@ -449,7 +481,8 @@ describe("VS Code extension manifest command contributions", () => {
     expect(command).toEqual({
       command: "nuinuiCAD.resetOutputPreviewView",
       title: "%command.resetOutputPreviewView.title%",
-      shortTitle: "%command.resetOutputPreviewView.shortTitle%"
+      shortTitle: "%command.resetOutputPreviewView.shortTitle%",
+      category: "nuinuiCAD"
     });
     expect(manifest.contributes?.menus?.commandPalette).toContainEqual({
       command: "nuinuiCAD.resetOutputPreviewView",
@@ -470,11 +503,12 @@ describe("VS Code extension manifest command contributions", () => {
     expect(command?.shortTitle).toBe("%command.createFreePointAtPointer.shortTitle%");
   });
 
-  it("preserves concise English and Japanese labels on canonical static Webview commands", async () => {
+  it("preserves concise canonical English and Japanese labels on static Webview commands", async () => {
     const manifest = await readManifest();
     const english = JSON.parse(await readFile(packageNlsPath, "utf8")) as Record<string, unknown>;
     const japanese = JSON.parse(await readFile(packageNlsJaPath, "utf8")) as Record<string, unknown>;
     const expected = [
+      ["nuinuiCAD.createFreePointAtPointer", "Create Free Point at Pointer", "ポインター位置に自由点を作成"],
       ["nuinuiCAD.fitDrawing", "Fit Drawing", "図面をフィット"],
       ["nuinuiCAD.resetCanvasView", "Reset View", "表示をリセット"],
       ["nuinuiCAD.editCanvasRibbon", "Edit Ribbon", "リボンを編集"],
@@ -489,12 +523,21 @@ describe("VS Code extension manifest command contributions", () => {
       ["nuinuiCAD.modulePreview.clearSelection", "Clear Selection", "選択を解除"],
       ["nuinuiCAD.resetOutputPreviewView", "Reset View", "表示をリセット"],
       ["nuinuiCAD.fitOutputPreview", "Fit Preview", "プレビューをフィット"],
-      ["nuinuiCAD.clearOutputPreviewFocus", "Clear Focus", "フォーカスを解除"]
+      ["nuinuiCAD.clearOutputPreviewFocus", "Clear Focus", "フォーカスを解除"],
+      ["nuinuiCAD.selectInstance", "Select Instance", "インスタンスを選択"],
+      ["nuinuiCAD.goToSourceDefinition", "Go to Source Definition", "ソース定義へ移動"],
+      ["nuinuiCAD.inlineModuleInstance", "Inline Module Instance", "Module instanceをインライン化"],
+      ["nuinuiCAD.extractModule", "Extract Module", "Moduleを抽出"]
     ] as const;
 
     for (const [commandId, englishShortTitle, japaneseShortTitle] of expected) {
       const command = manifest.contributes?.commands?.find(({ command }) => command === commandId);
       const shortTitle = command?.shortTitle;
+      expect(command?.category).toBe("nuinuiCAD");
+      expect(resolveNlsToken(command!.title, english)).toBe(englishShortTitle);
+      expect(resolveNlsToken(command!.title, japanese)).toBe(japaneseShortTitle);
+      expect(`${command!.category}: ${resolveNlsToken(command!.title, english)}`).toBe(`nuinuiCAD: ${englishShortTitle}`);
+      expect(`${command!.category}: ${resolveNlsToken(command!.title, japanese)}`).toBe(`nuinuiCAD: ${japaneseShortTitle}`);
       expect(shortTitle).toBe(`%command.${commandId.replace("nuinuiCAD.", "")}.shortTitle%`);
       expect(resolveNlsToken(shortTitle!, english)).toBe(englishShortTitle);
       expect(resolveNlsToken(shortTitle!, japanese)).toBe(japaneseShortTitle);
@@ -898,19 +941,19 @@ describe("VS Code extension manifest keybindings", () => {
       {
         command: "nuinuiCAD.modulePreview.clearSelection",
         key: "ctrl+shift+alt+d",
-        mac: "shift+alt+d",
+        mac: "ctrl+shift+d",
         when: modulePreviewSelectionKeybindingWhen
       },
       {
         command: "nuinuiCAD.modulePreview.fitDrawing",
         key: "ctrl+shift+alt+f",
-        mac: "shift+alt+f",
+        mac: "ctrl+shift+f",
         when: modulePreviewKeybindingWhen
       },
       {
         command: "nuinuiCAD.modulePreview.resetView",
         key: "ctrl+shift+alt+r",
-        mac: "shift+alt+r",
+        mac: "ctrl+shift+r",
         when: modulePreviewKeybindingWhen
       }
     ]);
@@ -933,163 +976,163 @@ describe("VS Code extension manifest keybindings", () => {
       {
         command: "nuinuiCAD.createGeometry",
         key: "ctrl+shift+alt+n",
-        mac: "shift+alt+n",
+        mac: "ctrl+shift+n",
         when: sourceCreationKeybindingWhen
       },
       {
         command: "nuinuiCAD.createFreePointAtPointer",
         key: "ctrl+shift+alt+n",
-        mac: "shift+alt+n",
+        mac: "ctrl+shift+n",
         when: canvasFocusKeybindingWhen
       },
       {
         command: "nuinuiCAD.revealInCanvas",
         key: "ctrl+shift+alt+c",
-        mac: "shift+alt+c",
+        mac: "ctrl+shift+c",
         when: `${sourceKeybindingWhen} && nuinuiCAD.revealInCanvasSourceTarget`
       },
       {
         command: "nuinuiCAD.openCanvas",
         key: "ctrl+shift+alt+c",
-        mac: "shift+alt+c",
+        mac: "ctrl+shift+c",
         when: openCanvasKeybindingWhen
       },
       {
         command: "nuinuiCAD.revealInOutputPreview",
         key: "ctrl+shift+alt+o",
-        mac: "shift+alt+o",
+        mac: "ctrl+shift+o",
         when: `${sourceKeybindingWhen} && nuinuiCAD.revealInOutputPreviewSourceTarget`
       },
       {
         command: "nuinuiCAD.openOutputPreview",
         key: "ctrl+shift+alt+o",
-        mac: "shift+alt+o",
+        mac: "ctrl+shift+o",
         when: openOutputPreviewKeybindingWhen
       },
       {
         command: "nuinuiCAD.openModulePreview",
-        key: "ctrl+shift+alt+m",
-        mac: "shift+alt+m",
+        key: "ctrl+shift+alt+v",
+        mac: "ctrl+shift+v",
         when: `${sourceKeybindingWhen} && nuinuiCAD.modulePreviewSourceTarget`
       },
       {
         command: "nuinuiCAD.inlineModuleInstance",
         key: "ctrl+shift+alt+l",
-        mac: "shift+alt+l",
+        mac: "ctrl+shift+l",
         when: inlineModuleKeybindingWhen
       },
       {
         command: "nuinuiCAD.extractModule",
         key: "ctrl+shift+alt+x",
-        mac: "shift+alt+x",
+        mac: "ctrl+shift+x",
         when: extractModuleKeybindingWhen
       },
       {
         command: "nuinuiCAD.selectInstance",
         key: "ctrl+shift+alt+i",
-        mac: "shift+alt+i",
+        mac: "ctrl+shift+i",
         when: `${canvasKeybindingWhen} && nuinuiCAD.canvasCanSelectInstance && !inputFocus`
       },
       {
         command: "nuinuiCAD.selectParentGroup",
         key: "ctrl+shift+alt+u",
-        mac: "shift+alt+u",
+        mac: "ctrl+shift+u",
         when: canvasSelectionKeybindingWhen
       },
       {
         command: "nuinuiCAD.clearCanvasSelection",
         key: "ctrl+shift+alt+d",
-        mac: "shift+alt+d",
+        mac: "ctrl+shift+d",
         when: canvasSelectionKeybindingWhen
       },
       {
         command: "nuinuiCAD.modulePreview.clearSelection",
         key: "ctrl+shift+alt+d",
-        mac: "shift+alt+d",
+        mac: "ctrl+shift+d",
         when: modulePreviewSelectionKeybindingWhen
       },
       {
         command: "nuinuiCAD.clearOutputPreviewFocus",
         key: "ctrl+shift+alt+d",
-        mac: "shift+alt+d",
+        mac: "ctrl+shift+d",
         when: outputPreviewKeybindingWhen
       },
       {
         command: "nuinuiCAD.fitDrawing",
         key: "ctrl+shift+alt+f",
-        mac: "shift+alt+f",
+        mac: "ctrl+shift+f",
         when: canvasFocusKeybindingWhen
       },
       {
         command: "nuinuiCAD.modulePreview.fitDrawing",
         key: "ctrl+shift+alt+f",
-        mac: "shift+alt+f",
+        mac: "ctrl+shift+f",
         when: modulePreviewKeybindingWhen
       },
       {
         command: "nuinuiCAD.fitOutputPreview",
         key: "ctrl+shift+alt+f",
-        mac: "shift+alt+f",
+        mac: "ctrl+shift+f",
         when: outputPreviewKeybindingWhen
       },
       {
         command: "nuinuiCAD.resetCanvasView",
         key: "ctrl+shift+alt+r",
-        mac: "shift+alt+r",
+        mac: "ctrl+shift+r",
         when: canvasFocusKeybindingWhen
       },
       {
         command: "nuinuiCAD.modulePreview.resetView",
         key: "ctrl+shift+alt+r",
-        mac: "shift+alt+r",
+        mac: "ctrl+shift+r",
         when: modulePreviewKeybindingWhen
       },
       {
         command: "nuinuiCAD.resetOutputPreviewView",
         key: "ctrl+shift+alt+r",
-        mac: "shift+alt+r",
+        mac: "ctrl+shift+r",
         when: outputPreviewKeybindingWhen
       },
       {
         command: "nuinuiCAD.editCanvasRibbon",
         key: "ctrl+shift+alt+e",
-        mac: "shift+alt+e",
+        mac: "ctrl+shift+e",
         when: canvasFocusKeybindingWhen
       },
       {
         command: "nuinuiCAD.exportCurrentOutput",
         key: "ctrl+shift+alt+e",
-        mac: "shift+alt+e",
+        mac: "ctrl+shift+e",
         when: outputPreviewKeybindingWhen
       },
       {
         command: "nuinuiCAD.convertPointToXYOffset",
         key: "ctrl+shift+alt+y",
-        mac: "shift+alt+y",
+        mac: "ctrl+shift+y",
         when: coordinatePointConversionKeybindingWhen
       },
       {
         command: "nuinuiCAD.convertPointToAngleDistanceOffset",
         key: "ctrl+shift+alt+p",
-        mac: "shift+alt+p",
+        mac: "ctrl+shift+p",
         when: coordinatePointConversionKeybindingWhen
       },
       {
         command: "nuinuiCAD.replaceGeometryReferences",
         key: "ctrl+shift+alt+t",
-        mac: "shift+alt+t",
+        mac: "ctrl+shift+t",
         when: geometryReferenceRetargetKeybindingWhen
       },
       {
         command: "nuinuiCAD.bakeCurrentShape",
         key: "ctrl+shift+alt+s",
-        mac: "shift+alt+s",
+        mac: "ctrl+shift+s",
         when: bakeKeybindingWhen
       },
       {
         command: "nuinuiCAD.bakeBaseShape",
         key: "ctrl+shift+alt+b",
-        mac: "shift+alt+b",
+        mac: "ctrl+shift+b",
         when: bakeKeybindingWhen
       },
       {
@@ -1123,6 +1166,32 @@ describe("VS Code extension manifest keybindings", () => {
       existingBindingCommands.includes(command) || newBindingCommands.includes(command))).toBe(true);
     expect(expectedNewBindings.flatMap(({ key, mac }) => [key, mac]).every((shortcut) => !shortcut.includes(" "))).toBe(true);
     expect(new Set(newBindingCommands).size).toBe(expectedNewBindings.length);
+
+    const denseLetterBindings = expectedNewBindings.filter(({ command }) =>
+      command !== "nuinuiCAD.pickReferenceFromCanvas" && command !== "nuinuiCAD.goToSourceDefinition"
+    );
+    expect(denseLetterBindings.every(({ key, mac }) =>
+      key.split("+").length === 4 && mac.split("+").length === 3
+    )).toBe(true);
+    expect(denseLetterBindings.some(({ mac }) => /^shift\+alt\+[a-z]$/.test(mac))).toBe(false);
+    expect(keybindings.some(({ command, key, mac }) =>
+      command === "nuinuiCAD.openModulePreview" && (key === "ctrl+shift+alt+m" || mac === "shift+alt+m")
+    )).toBe(false);
+    expect(keybindings.some(({ command, key, mac }) =>
+      command === "nuinuiCAD.openModulePreview" && (key === "ctrl+shift+alt+v" || mac === "ctrl+shift+v")
+    )).toBe(true);
+    expect(keybindings.some(({ command }) => command.includes("toggle"))).toBe(false);
+    expect(denseLetterBindings.filter(({ when }) => when.includes("activeWebviewPanelId"))
+      .every(({ when }) => when.includes("!inputFocus"))).toBe(true);
+
+    for (const platform of ["key", "mac"] as const) {
+      const seen = new Set<string>();
+      for (const binding of keybindings) {
+        const signature = `${binding[platform]}::${binding.when}`;
+        expect(seen.has(signature), `${platform} duplicate: ${signature}`).toBe(false);
+        seen.add(signature);
+      }
+    }
   });
 });
 
