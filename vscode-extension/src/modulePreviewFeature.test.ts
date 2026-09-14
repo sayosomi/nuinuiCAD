@@ -195,7 +195,10 @@ const createEditor = (document: TestDocument): TestEditor => {
   return { document, edit };
 };
 
-const createPanel = (options: { eagerWebviewReady?: boolean } = {}): TestPanel & {
+const createPanel = (options: {
+  eagerWebviewReady?: boolean;
+  startupMessages?: readonly unknown[];
+} = {}): TestPanel & {
   receive: (message: unknown) => Promise<void>;
   fireDispose: () => void;
   fireViewState: (state?: { active?: boolean; visible?: boolean }) => void;
@@ -204,8 +207,22 @@ const createPanel = (options: { eagerWebviewReady?: boolean } = {}): TestPanel &
   let disposeHandler: (() => void) | null = null;
   let viewStateHandler: ((event: { webviewPanel: TestPanel }) => void) | null = null;
   let html = "";
+  // Keep eager startup callback dispatch synchronous, while allowing the test
+  // to await only handler work that actually crosses an async boundary.
+  const dispatch = (message: unknown): Promise<void> | undefined => {
+    const pending: Array<PromiseLike<unknown>> = [];
+    for (const handler of [...receiveHandlers]) {
+      const result = handler(message);
+      if (result && typeof result === "object" && "then" in result) {
+        pending.push(result as PromiseLike<unknown>);
+      }
+    }
+    return pending.length > 0
+      ? Promise.all(pending).then(() => undefined)
+      : undefined;
+  };
   const receive = async (message: unknown): Promise<void> => {
-    for (const handler of [...receiveHandlers]) await handler(message);
+    await dispatch(message);
   };
   const panel = {
     title: "",
@@ -217,7 +234,17 @@ const createPanel = (options: { eagerWebviewReady?: boolean } = {}): TestPanel &
       },
       set html(value: string) {
         html = value;
-        if (options.eagerWebviewReady) void receive({ type: "webviewReady" });
+        const startupMessages = options.startupMessages ?? (
+          options.eagerWebviewReady ? [{ type: "webviewReady" }] : []
+        );
+        if (startupMessages.length > 0) {
+          void (async () => {
+            for (const message of startupMessages) {
+              const completion = dispatch(message);
+              if (completion) await completion;
+            }
+          })();
+        }
       },
       postMessage: vi.fn(async () => true),
       onDidReceiveMessage: vi.fn((handler: (message: unknown) => unknown) => {
@@ -1193,7 +1220,7 @@ describe("registerModulePreviewFeature", () => {
     feature.dispose();
   });
 
-  it("delivers a parameterless target after an eager fresh Webview handshake", async () => {
+  it("delivers a parameterless target after eager editable-focus and Webview handshakes", async () => {
     const source = [
       "nui 1",
       "module Preview() {",
@@ -1203,7 +1230,12 @@ describe("registerModulePreviewFeature", () => {
       "}"
     ].join("\n");
     const document = createDocument(source);
-    const panel = createPanel({ eagerWebviewReady: true });
+    const panel = createPanel({
+      startupMessages: [
+        { type: "webviewEditableFocus", focused: false },
+        { type: "webviewReady" }
+      ]
+    });
     mocks.createWebviewPanel.mockReturnValue(panel);
     const analysis = createLanguageAnalysisSession(source);
     mocks.activeTextEditor = {
@@ -1212,6 +1244,9 @@ describe("registerModulePreviewFeature", () => {
     };
     mocks.textDocuments = [document];
     mocks.visibleTextEditors = [createEditor(document)];
+    const focusContext = createWebviewEditableFocusContext(
+      (key, value) => mocks.executeCommand("setContext", key, value)
+    );
     const feature = registerModulePreviewFeature({
       languageAnalysisSessionFor: (() => analysis) as never,
       canvasThemeGeneration: () => 0,
@@ -1219,7 +1254,8 @@ describe("registerModulePreviewFeature", () => {
       canvasRibbons: () => [],
       updateCanvasRibbonPosition: () => undefined,
       editCanvasRibbon: () => undefined,
-      evaluateWithRust: async () => ({})
+      evaluateWithRust: async () => ({}),
+      attachWebviewEditableFocus: focusContext.attach
     });
     const open = mocks.commandHandlers.get("nuinuiCAD.openModulePreview");
     if (!open) throw new Error("expected open Module Preview command");
@@ -1255,6 +1291,7 @@ describe("registerModulePreviewFeature", () => {
       (message as { type?: string }).type === "modulePreviewTarget"
     )).toHaveLength(2);
     feature.dispose();
+    focusContext.dispose();
   });
 
   it("fails closed when the open target identity disappears instead of rebinding to its ancestor", async () => {

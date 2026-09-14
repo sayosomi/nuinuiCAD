@@ -1371,14 +1371,14 @@ export const registerModulePreviewFeature = ({
       } satisfies ExtensionToVscodeMessage);
     }));
 
-    session.disposables.push(panel.webview.onDidReceiveMessage(async (message: VscodeToExtensionMessage) => {
+    // Keep lifecycle messages synchronous: an eager Webview publishes editable
+    // focus before webviewReady, and a no-op Promise here can delay hydration.
+    session.disposables.push(panel.webview.onDidReceiveMessage((message: VscodeToExtensionMessage) => {
       if (message.type === "bakeOperationResult") {
-        await presentBakeOperationResult?.(message);
-        return;
+        return presentBakeOperationResult?.(message);
       }
       if (isModulePreviewModelPatchRequest(message)) {
-        await applyModulePreviewModelPatch(session, message);
-        return;
+        return applyModulePreviewModelPatch(session, message);
       }
       if (typeof message === "object" && message !== null &&
         (message as { type?: unknown }).type === "modulePreviewModelPatch") {
@@ -1420,28 +1420,29 @@ export const registerModulePreviewFeature = ({
       }
       if (message.type === "canvasRibbonPositionCommit") {
         if (!message.ribbonId || !Number.isFinite(message.x) || !Number.isFinite(message.y)) return;
-        await updateCanvasRibbonPosition(message.ribbonId, message.x, message.y);
-        return;
+        return updateCanvasRibbonPosition(message.ribbonId, message.x, message.y);
       }
       if (message.type === "editCanvasRibbon") {
         editCanvasRibbon();
         return;
       }
       if (message.type === "rustEvaluationRequest") {
-        try {
-          const payload = await evaluateWithRust(message.input);
-          void panel.webview.postMessage({
-            type: "rustEvaluationResponse",
-            id: message.id,
-            payload
-          } satisfies ExtensionToVscodeMessage);
-        } catch (error) {
-          void panel.webview.postMessage({
-            type: "rustEvaluationError",
-            id: message.id,
-            error: error instanceof Error ? error.message : String(error)
-          } satisfies ExtensionToVscodeMessage);
-        }
+        return (async () => {
+          try {
+            const payload = await evaluateWithRust(message.input);
+            void panel.webview.postMessage({
+              type: "rustEvaluationResponse",
+              id: message.id,
+              payload
+            } satisfies ExtensionToVscodeMessage);
+          } catch (error) {
+            void panel.webview.postMessage({
+              type: "rustEvaluationError",
+              id: message.id,
+              error: error instanceof Error ? error.message : String(error)
+            } satisfies ExtensionToVscodeMessage);
+          }
+        })();
       }
     }));
     session.disposables.push(panel.onDidChangeViewState(({ webviewPanel }) => {
