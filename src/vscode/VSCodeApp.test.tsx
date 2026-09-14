@@ -19,6 +19,7 @@ import type {
   VscodeMultiDocumentRevealMaterialization
 } from "./multiDocumentRuntimeTransport";
 import type { VscodeReferencePickAuthorityFor } from "./useVSCodeReferencePickSession";
+import type { VscodeWebviewApi } from "./protocol";
 import { VscodeRustTransport } from "./vscodeRustTransport";
 import { webviewPresentationFor } from "../../vscode-extension/src/webviewPresentationLocalization";
 import {
@@ -106,10 +107,12 @@ const sourceForSelectionChronology = (x: number) => dslTextForElements([
   { id: "b", name: "B", type: "freePoint", activity: "visible", x: x + 10, y: 0 }
 ]);
 
-const stableSourceForSelectionChronology = (x: number) => [
+const coordinateOffsetSourceForSelectionChronology = (target: "coordinate" | "offset") => [
   "nui 1",
-  `point A = coordinate(x: ${x}, y: 0, id: a)`,
-  `point B = coordinate(x: ${x + 10}, y: 0, id: b)`
+  "point A = coordinate(x: 0, y: 0)",
+  target === "coordinate"
+    ? "point B = coordinate(x: 10, y: 0)"
+    : "point B = offset(from: @A, dx: 10, dy: 0)"
 ].join("\n");
 
 const h3Source = [
@@ -172,6 +175,47 @@ const publishAllCurrentElementsAsPresented = () => {
     elements,
     new Set(elements.map((element) => element.id))
   );
+};
+
+const establishPendingCoordinateOffsetHistoryRestore = async (api: VscodeWebviewApi) => {
+  const oldSource = coordinateOffsetSourceForSelectionChronology("coordinate");
+  const newSource = coordinateOffsetSourceForSelectionChronology("offset");
+  render(<VSCodeAppForTest api={api} />);
+
+  await act(async () => {
+    window.dispatchEvent(new MessageEvent("message", {
+      data: { type: "replaceTextDocument", sourceText: oldSource, documentVersion: 1 }
+    }));
+    publishAllCurrentElementsAsPresented();
+  });
+  const oldB = useCadDocumentStore.getState().elements.find((element) => element.name === "B")!;
+  selectElement(oldB.id, "replace", true);
+  useCadDocumentStore.getState().commitText(newSource, "command");
+  publishAllCurrentElementsAsPresented();
+  const newB = useCadDocumentStore.getState().elements.find((element) => element.name === "B")!;
+  expect(newB.id).not.toBe(oldB.id);
+  replaceCanvasSelection([newB.id], newB.id, false);
+  drawingCanvasProps.postCanvasCommit!(315);
+
+  await act(async () => {
+    window.dispatchEvent(new MessageEvent("message", {
+      data: { type: "canvasCommitResult", operationId: 315, status: "accepted", documentVersion: 2 }
+    }));
+    window.dispatchEvent(new MessageEvent("message", {
+      data: { type: "commitText", sourceText: newSource, documentVersion: 2, reason: "edit" }
+    }));
+  });
+  await act(async () => {
+    window.dispatchEvent(new MessageEvent("message", {
+      data: { type: "canvasCommand", commandId: "undo" }
+    }));
+    window.dispatchEvent(new MessageEvent("message", {
+      data: { type: "commitText", sourceText: oldSource, documentVersion: 3, reason: "undo" }
+    }));
+  });
+  expect(useCadUiStore.getState().canvasSelectionEligibleElementIds).toBeNull();
+  expect(useCadUiStore.getState().selectedElementId).toBeNull();
+  return { oldSource, newSource, oldB, newB };
 };
 
 const revealMaterializationFor = (
@@ -1369,9 +1413,9 @@ describe("VSCodeApp Canvas history coordinator", () => {
     expect(canvasHistoryRequests()).toHaveLength(1);
   });
 
-  it("orders an accepted Canvas Source commit after older selection history", async () => {
-    const oldSource = stableSourceForSelectionChronology(0);
-    const newSource = stableSourceForSelectionChronology(40);
+  it("restores an identity-changing Coordinate-to-Offset Source history selection after fresh Canvas presentation", async () => {
+    const oldSource = coordinateOffsetSourceForSelectionChronology("coordinate");
+    const newSource = coordinateOffsetSourceForSelectionChronology("offset");
     const api = { postMessage: vi.fn() };
     render(<VSCodeAppForTest api={api} />);
 
@@ -1381,24 +1425,28 @@ describe("VSCodeApp Canvas history coordinator", () => {
       }));
       publishAllCurrentElementsAsPresented();
     });
-    const [a, b] = useCadDocumentStore.getState().elements.map((element) => element.id);
-    selectElement(a!, "replace", true);
-    publishAllCurrentElementsAsPresented();
+    const preConversionState = useCadDocumentStore.getState();
+    const preConversionB = preConversionState.elements.find((element) => element.name === "B")!;
+    selectElement(preConversionB.id, "replace", true);
     expect(useCadDocumentStore.getState().selectionPast).toHaveLength(1);
 
     useCadDocumentStore.getState().commitText(newSource, "command");
     expect(useCadDocumentStore.getState().selectionPast).toHaveLength(0);
     publishAllCurrentElementsAsPresented();
-    replaceCanvasSelection([b!], b!, false);
+    const postConversionState = useCadDocumentStore.getState();
+    const postConversionB = postConversionState.elements.find((element) => element.name === "B")!;
+    expect(postConversionB.type).toBe("offsetPoint");
+    expect(postConversionB.id).not.toBe(preConversionB.id);
+    replaceCanvasSelection([postConversionB.id], postConversionB.id, false);
     expect(useCadDocumentStore.getState().past.at(-1)?.selection).toMatchObject({
-      selectedElementId: a,
-      selectedElementIds: [a],
-      selectionAnchorElementId: a
+      selectedElementId: preConversionB.id,
+      selectedElementIds: [preConversionB.id],
+      selectionAnchorElementId: preConversionB.id
     });
     expect(useCadUiStore.getState()).toMatchObject({
-      selectedElementId: b,
-      selectedElementIds: [b],
-      selectionAnchorElementId: b
+      selectedElementId: postConversionB.id,
+      selectedElementIds: [postConversionB.id],
+      selectionAnchorElementId: postConversionB.id
     });
     drawingCanvasProps.postCanvasCommit!(315);
 
@@ -1412,11 +1460,11 @@ describe("VSCodeApp Canvas history coordinator", () => {
     });
 
     expect(useCadDocumentStore.getState().past.at(-1)?.selection).toMatchObject({
-      selectedElementId: a,
-      selectedElementIds: [a],
-      selectionAnchorElementId: a
+      selectedElementId: preConversionB.id,
+      selectedElementIds: [preConversionB.id],
+      selectionAnchorElementId: preConversionB.id
     });
-    expect(useCadUiStore.getState().selectedElementId).toBe(b);
+    expect(useCadUiStore.getState().selectedElementId).toBe(postConversionB.id);
 
     const canvasHistoryRequests = () => api.postMessage.mock.calls.filter(
       ([message]) => message?.type === "canvasHistoryRequest"
@@ -1437,23 +1485,29 @@ describe("VSCodeApp Canvas history coordinator", () => {
       expectedDocumentVersion: 2
     });
     expect(useCadDocumentStore.getState().sourceText).toBe(newSource);
-    expect(useCadUiStore.getState().selectedElementId).toBe(b);
+    expect(useCadUiStore.getState().selectedElementId).toBe(postConversionB.id);
 
     await act(async () => {
       window.dispatchEvent(new MessageEvent("message", {
         data: { type: "commitText", sourceText: oldSource, documentVersion: 3, reason: "undo" }
       }));
-      expect(useCadUiStore.getState().selectedElementId).toBe(b);
+      expect(useCadUiStore.getState().canvasSelectionEligibleElementIds).toBeNull();
+      expect(useCadUiStore.getState().selectedElementId).toBeNull();
+    });
+    const undoB = useCadDocumentStore.getState().elements.find((element) => element.name === "B")!;
+    expect(undoB.type).toBe("freePoint");
+    expect(undoB.id).toBe(preConversionB.id);
+    await act(async () => {
       publishAllCurrentElementsAsPresented();
       await Promise.resolve();
     });
     expect(useCadDocumentStore.getState().sourceText).toBe(oldSource);
-    expect(useCadUiStore.getState().selectedElementId).toBe(b);
+    expect(useCadUiStore.getState().selectedElementId).toBe(undoB.id);
     expect(useCadDocumentStore.getState().selectionPast).toHaveLength(1);
     expect(canvasHistoryRequests()).toHaveLength(1);
 
     await requestCanvasCommand("undo");
-    expect(useCadUiStore.getState().selectedElementId).toBe(b);
+    expect(useCadUiStore.getState().selectedElementId).toBe(undoB.id);
     expect(canvasHistoryRequests()).toHaveLength(1);
 
     await act(async () => {
@@ -1467,7 +1521,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
     expect(canvasHistoryRequests()).toHaveLength(1);
 
     await requestCanvasCommand("redo");
-    expect(useCadUiStore.getState().selectedElementId).toBe(b);
+    expect(useCadUiStore.getState().selectedElementId).toBe(undoB.id);
     expect(useCadDocumentStore.getState().selectionPast).toHaveLength(1);
     expect(canvasHistoryRequests()).toHaveLength(1);
 
@@ -1483,6 +1537,13 @@ describe("VSCodeApp Canvas history coordinator", () => {
       window.dispatchEvent(new MessageEvent("message", {
         data: { type: "commitText", sourceText: newSource, documentVersion: 4, reason: "redo" }
       }));
+      expect(useCadUiStore.getState().canvasSelectionEligibleElementIds).toBeNull();
+      expect(useCadUiStore.getState().selectedElementId).toBeNull();
+    });
+    const redoB = useCadDocumentStore.getState().elements.find((element) => element.name === "B")!;
+    expect(redoB.type).toBe("offsetPoint");
+    expect(redoB.id).toBe(postConversionB.id);
+    await act(async () => {
       publishAllCurrentElementsAsPresented();
       window.dispatchEvent(new MessageEvent("message", {
         data: { type: "canvasHistoryResult", direction: "redo", status: "completed", documentVersion: 4 }
@@ -1490,7 +1551,53 @@ describe("VSCodeApp Canvas history coordinator", () => {
       await Promise.resolve();
     });
     expect(useCadDocumentStore.getState().sourceText).toBe(newSource);
-    expect(useCadUiStore.getState().selectedElementId).toBe(b);
+    expect(useCadUiStore.getState().selectedElementId).toBe(redoB.id);
+  });
+
+  it.each(["source drift", "document replacement"] as const)(
+    "invalidates a pending history selection restore after %s",
+    async (invalidatingChange) => {
+      const api = { postMessage: vi.fn() };
+      const { oldSource } = await establishPendingCoordinateOffsetHistoryRestore(api);
+
+      if (invalidatingChange === "source drift") {
+        const driftSource = oldSource.replace("x: 10", "x: 11");
+        await act(async () => {
+          useCadDocumentStore.getState().commitText(driftSource, "test");
+          publishAllCurrentElementsAsPresented();
+          await Promise.resolve();
+        });
+      } else {
+        await act(async () => {
+          window.dispatchEvent(new MessageEvent("message", {
+            data: { type: "replaceTextDocument", sourceText: oldSource, documentVersion: 4 }
+          }));
+          publishAllCurrentElementsAsPresented();
+          await Promise.resolve();
+        });
+      }
+
+      expect(useCadUiStore.getState().selectedElementId).toBeNull();
+      expect(useCadUiStore.getState().selectedElementIds).toEqual([]);
+    }
+  );
+
+  it("normalizes a pending history restore away when fresh Canvas presentation excludes its target", async () => {
+    const api = { postMessage: vi.fn() };
+    const { oldSource, oldB } = await establishPendingCoordinateOffsetHistoryRestore(api);
+    expect(useCadDocumentStore.getState().sourceText).toBe(oldSource);
+
+    await act(async () => {
+      const elements = useCadDocumentStore.getState().elements;
+      useCadUiStore.getState().setCanvasSelectionEligibility(
+        elements,
+        new Set(elements.filter((element) => element.id !== oldB.id).map((element) => element.id))
+      );
+      await Promise.resolve();
+    });
+
+    expect(useCadUiStore.getState().selectedElementId).toBeNull();
+    expect(useCadUiStore.getState().selectedElementIds).toEqual([]);
   });
 
   it("does not create a phantom Source entry when a Canvas commit is rejected", async () => {
