@@ -1895,10 +1895,20 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         setAuthoritativeHostSourceSnapshot(lastAuthoritativeHostSourceSnapshotRef.current);
         if (message.reason === "undo" || message.reason === "redo") {
           const sourceBeforeHistory = useCadDocumentStore.getState().sourceText;
+          const inFlightBeforeHistory = canvasHistoryInFlightRef.current;
+          const preserveCurrentSelection =
+            inFlightBeforeHistory?.entry === "source" &&
+            inFlightBeforeHistory.direction === message.reason &&
+            message.documentVersion > inFlightBeforeHistory.expectedDocumentVersion &&
+            normalizedSourceFor(sourceBeforeHistory) !== normalizedSourceFor(message.sourceText);
           canvasHistoryStoreMutationRef.current = true;
           let historyOutcome: "reconciled" | "reset";
           try {
-            historyOutcome = useCadDocumentStore.getState().reconcileAuthoritativeHistory(message.sourceText, message.reason);
+            historyOutcome = useCadDocumentStore.getState().reconcileAuthoritativeHistory(
+              message.sourceText,
+              message.reason,
+              preserveCurrentSelection ? "preserve-current" : "restore-adjacent"
+            );
           } finally {
             canvasHistoryStoreMutationRef.current = false;
           }

@@ -62,6 +62,8 @@ export type DocumentMutationResult =
 
 export type CommitTextOrigin = "editor" | "file" | "test" | "bridge-internal" | "command";
 
+export type AuthoritativeHistorySelectionMode = "restore-adjacent" | "preserve-current";
+
 export type CadDocumentState = {
   /** The only canonical document value. */
   sourceText: string;
@@ -162,7 +164,11 @@ export type CadDocumentState = {
   recordCanvasSelection: (previousSelection: SelectionSnapshot) => void;
   undoCanvasSelection: () => boolean;
   redoCanvasSelection: () => boolean;
-  reconcileAuthoritativeHistory: (sourceText: string, direction: "undo" | "redo") => "reconciled" | "reset";
+  reconcileAuthoritativeHistory: (
+    sourceText: string,
+    direction: "undo" | "redo",
+    selectionMode?: AuthoritativeHistorySelectionMode
+  ) => "reconciled" | "reset";
   undo: () => void;
   redo: () => void;
 };
@@ -902,7 +908,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
     useCadUiStore.getState().applySelection(useCadDocumentStore.getState().elements, restoredSelection);
     return true;
   },
-  reconcileAuthoritativeHistory: (sourceText, direction) => {
+  reconcileAuthoritativeHistory: (sourceText, direction, selectionMode = "restore-adjacent") => {
     let outcome: "reconciled" | "reset" = "reset";
     const selectionResult: {
       value: {
@@ -949,7 +955,9 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
       });
       selectionResult.value = {
         elements: restored.doc.document.elements,
-        selection: cloneSelection(adjacent.selection),
+        selection: selectionMode === "preserve-current"
+          ? selectionSnapshot(currentSelection)
+          : cloneSelection(adjacent.selection),
         cursorLine: adjacent.cursorLine
       };
       outcome = "reconciled";
