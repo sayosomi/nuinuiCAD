@@ -31,6 +31,7 @@ import {
 import { canvasNavigationFreshnessFor } from "./canvasNavigationFreshness";
 
 const drawingCanvasProps = vi.hoisted(() => ({
+  postCanvasCommit: null as ((operationId?: number, coordinatePointConversionRequestId?: number) => void) | null,
   postCanonicalSourceText: null as ((sourceText: string) => void) | null,
   currentReferencePickAuthorityFor: null as VscodeReferencePickAuthorityFor | null,
   bakeSandboxTargetIds: null as string[] | null,
@@ -63,15 +64,18 @@ vi.mock("../geometry/useEvaluationEngine", () => ({
 vi.mock("./VSCodeDrawingCanvas", () => ({
   VSCodeDrawingCanvas: ({
     canvasFocusRef,
+    postCanvasCommit,
     postCanonicalSourceText,
     currentReferencePickAuthorityFor,
     multiDocumentRuntimePresentation
   }: {
     canvasFocusRef: RefObject<HTMLDivElement | null>;
+    postCanvasCommit: (operationId?: number, coordinatePointConversionRequestId?: number) => void;
     postCanonicalSourceText: (sourceText: string) => void;
     currentReferencePickAuthorityFor: VscodeReferencePickAuthorityFor;
     multiDocumentRuntimePresentation?: VscodeMultiDocumentCanvasRuntimePresentation | null;
   }) => {
+    drawingCanvasProps.postCanvasCommit = postCanvasCommit;
     drawingCanvasProps.postCanonicalSourceText = postCanonicalSourceText;
     drawingCanvasProps.currentReferencePickAuthorityFor = currentReferencePickAuthorityFor;
     drawingCanvasProps.multiDocumentRuntimePresentation = multiDocumentRuntimePresentation ?? null;
@@ -191,6 +195,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
   beforeEach(() => {
     useCadDocumentStore.setState(initialCadDocumentState());
     useCadUiStore.setState(initialCadUiState());
+    drawingCanvasProps.postCanvasCommit = null;
     drawingCanvasProps.postCanonicalSourceText = null;
     drawingCanvasProps.currentReferencePickAuthorityFor = null;
     drawingCanvasProps.bakeSandboxTargetIds = null;
@@ -1356,6 +1361,102 @@ describe("VSCodeApp Canvas history coordinator", () => {
     expect(useCadUiStore.getState().selectedElementId).toBe(a);
     expect(useCadDocumentStore.getState().selectionPast).toHaveLength(0);
     expect(canvasHistoryRequests()).toHaveLength(1);
+  });
+
+  it("orders an accepted Canvas Source commit after older selection history", async () => {
+    const oldSource = sourceForSelectionChronology(0);
+    const newSource = sourceForSelectionChronology(40);
+    const api = { postMessage: vi.fn() };
+    render(<VSCodeAppForTest api={api} />);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText: oldSource, documentVersion: 1 }
+      }));
+      publishAllCurrentElementsAsPresented();
+    });
+    const [a, b] = useCadDocumentStore.getState().elements.map((element) => element.id);
+    useCadUiStore.getState().setSelectedElementId(a!);
+    selectElement(b!, "replace", true);
+    publishAllCurrentElementsAsPresented();
+    expect(useCadDocumentStore.getState().selectionPast).toHaveLength(1);
+
+    useCadDocumentStore.getState().commitText(newSource, "command");
+    expect(useCadDocumentStore.getState().selectionPast).toHaveLength(0);
+    drawingCanvasProps.postCanvasCommit!(315);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "canvasCommitResult", operationId: 315, status: "accepted", documentVersion: 2 }
+      }));
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "commitText", sourceText: newSource, documentVersion: 2, reason: "edit" }
+      }));
+    });
+
+    const canvasHistoryRequests = () => api.postMessage.mock.calls.filter(
+      ([message]) => message?.type === "canvasHistoryRequest"
+    );
+    const requestCanvasCommand = async (commandId: "undo" | "redo") => {
+      await act(async () => {
+        window.dispatchEvent(new MessageEvent("message", {
+          data: { type: "canvasCommand", commandId }
+        }));
+      });
+    };
+
+    await requestCanvasCommand("undo");
+    expect(canvasHistoryRequests()).toHaveLength(1);
+    expect(useCadDocumentStore.getState().sourceText).toBe(newSource);
+    expect(useCadUiStore.getState().selectedElementId).toBe(b);
+
+    await requestCanvasCommand("undo");
+    expect(canvasHistoryRequests()).toHaveLength(1);
+    expect(useCadUiStore.getState().selectedElementId).toBe(b);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "canvasHistoryResult", direction: "undo", status: "completed", documentVersion: 3 }
+      }));
+      await Promise.resolve();
+    });
+    expect(canvasHistoryRequests()).toHaveLength(1);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "commitText", sourceText: oldSource, documentVersion: 3, reason: "undo" }
+      }));
+      publishAllCurrentElementsAsPresented();
+      await Promise.resolve();
+    });
+    expect(useCadDocumentStore.getState().sourceText).toBe(oldSource);
+    expect(useCadUiStore.getState().selectedElementId).toBe(a);
+    expect(canvasHistoryRequests()).toHaveLength(1);
+
+    await requestCanvasCommand("redo");
+    expect(useCadUiStore.getState().selectedElementId).toBe(b);
+    expect(canvasHistoryRequests()).toHaveLength(1);
+
+    await requestCanvasCommand("redo");
+    expect(canvasHistoryRequests()).toHaveLength(2);
+    expect(canvasHistoryRequests()[1]?.[0]).toMatchObject({
+      type: "canvasHistoryRequest",
+      direction: "redo",
+      expectedDocumentVersion: 3
+    });
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "commitText", sourceText: newSource, documentVersion: 4, reason: "redo" }
+      }));
+      publishAllCurrentElementsAsPresented();
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "canvasHistoryResult", direction: "redo", status: "completed", documentVersion: 4 }
+      }));
+      await Promise.resolve();
+    });
+    expect(useCadDocumentStore.getState().sourceText).toBe(newSource);
+    expect(useCadUiStore.getState().selectedElementId).toBe(b);
   });
 
   it.each(["resynced", "failed"] as const)("discards queued Canvas history after a %s result", async (status) => {
