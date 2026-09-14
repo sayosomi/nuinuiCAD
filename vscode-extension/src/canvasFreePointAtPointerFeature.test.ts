@@ -61,6 +61,7 @@ import {
   registerVscodeCanvasFreePointAtPointerFeature,
   VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID
 } from "./canvasFreePointAtPointerFeature";
+import { registerVscodeSourceAuthoringPositionFeature } from "./sourceAuthoringPositionFeature";
 
 const documentFor = (version = 1): TestDocument => ({
   uri: { scheme: "file", toString: () => "file:///pattern.nui" },
@@ -94,6 +95,146 @@ beforeEach(() => {
 });
 
 describe("Canvas free point at pointer feature", () => {
+  it("reconciles an idle stale session after the F12-style explicit Source confirmation", () => {
+    const document = documentFor();
+    const token = {};
+    let authoritativeReady = false;
+    const postFreePointAtPointer = vi.fn();
+    const feature = registerVscodeCanvasFreePointAtPointerFeature({
+      activeCanvasEndpoint: () => ({
+        sessionToken: token,
+        document,
+        isCurrent: () => true,
+        isAuthoritativeReady: () => authoritativeReady,
+        lastCanvasPointer: () => ({ x: 12, y: -8 }),
+        postFreePointAtPointer
+      })
+    });
+
+    void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.();
+    expect(postFreePointAtPointer).not.toHaveBeenCalled();
+    expect(mocks.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining("Source insertion position"));
+
+    document.version = 2;
+    feature.setExplicitSourceAuthoringPosition(document, {
+      documentVersion: 2,
+      line: 6,
+      character: 7
+    });
+    mocks.showErrorMessage.mockClear();
+
+    void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.({
+      webviewSection: "blank",
+      [vscodeCanvasPointerContextKeys.x]: 91,
+      [vscodeCanvasPointerContextKeys.y]: -37
+    });
+
+    expect(postFreePointAtPointer).not.toHaveBeenCalled();
+    expect(mocks.showErrorMessage).not.toHaveBeenCalled();
+    authoritativeReady = true;
+    feature.handleAuthoritativeDocumentReady(token, document, 2);
+
+    expect(postFreePointAtPointer).toHaveBeenCalledTimes(1);
+    expect(postFreePointAtPointer).toHaveBeenCalledWith(expect.objectContaining({
+      documentVersion: 2,
+      pointer: { x: 91, y: -37 },
+      sourcePosition: { documentVersion: 2, line: 6, character: 7 }
+    }));
+    expect(mocks.showErrorMessage).not.toHaveBeenCalled();
+    feature.dispose();
+  });
+
+  it("reconciles an idle stale session after an explicit keyboard or mouse Source selection", () => {
+    const document = documentFor();
+    const editor = editorFor(document, 3, 4);
+    const token = {};
+    const postFreePointAtPointer = vi.fn();
+    const feature = registerVscodeCanvasFreePointAtPointerFeature({
+      activeCanvasEndpoint: () => ({
+        sessionToken: token,
+        document,
+        isCurrent: () => true,
+        isAuthoritativeReady: () => true,
+        lastCanvasPointer: () => ({ x: 12, y: -8 }),
+        postFreePointAtPointer
+      })
+    });
+
+    mocks.selectionListeners[0]?.({ textEditor: editor, kind: 3 });
+    void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.();
+    expect(postFreePointAtPointer).not.toHaveBeenCalled();
+
+    document.version = 2;
+    editor.selection.active = { line: 8, character: 9 };
+    mocks.selectionListeners[0]?.({ textEditor: editor, kind: 1 });
+
+    void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.({
+      webviewSection: "blank",
+      [vscodeCanvasPointerContextKeys.x]: 91,
+      [vscodeCanvasPointerContextKeys.y]: -37
+    });
+
+    expect(postFreePointAtPointer).toHaveBeenCalledTimes(1);
+    expect(postFreePointAtPointer).toHaveBeenCalledWith(expect.objectContaining({
+      documentVersion: 2,
+      pointer: { x: 91, y: -37 },
+      sourcePosition: { documentVersion: 2, line: 8, character: 9 }
+    }));
+    feature.dispose();
+  });
+
+  it("reconciles an idle stale session after an ordinary Source edit and current authoring confirmation", async () => {
+    const document = documentFor();
+    const currentDocument = documentFor(2);
+    const editor = editorFor(currentDocument, 10, 11);
+    const token = {};
+    const postFreePointAtPointer = vi.fn();
+    const sourceAuthoringPosition = registerVscodeSourceAuthoringPositionFeature();
+    const feature = registerVscodeCanvasFreePointAtPointerFeature({
+      sourceAuthoringPosition,
+      activeCanvasEndpoint: () => ({
+        sessionToken: token,
+        document,
+        isCurrent: () => true,
+        isAuthoritativeReady: () => true,
+        lastCanvasPointer: () => ({ x: 12, y: -8 }),
+        postFreePointAtPointer
+      })
+    });
+
+    mocks.selectionListeners[0]?.({ textEditor: editorFor(document), kind: 3 });
+    void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.();
+    expect(postFreePointAtPointer).not.toHaveBeenCalled();
+
+    const activeTextEditor = (await import("vscode")).window as unknown as { activeTextEditor: TestEditor | null };
+    activeTextEditor.activeTextEditor = editor;
+    mocks.documentChangeListeners[0]?.({ document: currentDocument, contentChanges: [{}] });
+    await Promise.resolve();
+    mocks.selectionListeners[0]?.({ textEditor: editor, kind: 2 });
+    document.version = 2;
+
+    expect(sourceAuthoringPosition.sourceAuthoringPositionFor(document)).toEqual({
+      documentVersion: 2,
+      line: 10,
+      character: 11
+    });
+
+    void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.({
+      webviewSection: "blank",
+      [vscodeCanvasPointerContextKeys.x]: 91,
+      [vscodeCanvasPointerContextKeys.y]: -37
+    });
+
+    expect(postFreePointAtPointer).toHaveBeenCalledTimes(1);
+    expect(postFreePointAtPointer).toHaveBeenCalledWith(expect.objectContaining({
+      documentVersion: 2,
+      pointer: { x: 91, y: -37 },
+      sourcePosition: { documentVersion: 2, line: 10, character: 11 }
+    }));
+    feature.dispose();
+    sourceAuthoringPosition.dispose();
+  });
+
   it("retains a pending invocation through authoritative sync with its pointer and current anchor", () => {
     const document = documentFor();
     const initialEditor = editorFor(document, 3, 4);
