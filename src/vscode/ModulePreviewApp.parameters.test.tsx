@@ -461,6 +461,91 @@ describe("ModulePreviewApp parameter relay", () => {
     expect(fixture.document.getSource()).toBe(sourceText);
   });
 
+  it("materializes parameterless Preview geometry after authoritative hydration", async () => {
+    const sourceText = [
+      "nui 1",
+      "module Preview() {",
+      "  point P0 = coordinate(x: 0, y: 0)",
+      "  point P1 = coordinate(x: 40, y: 0)",
+      "  line Edge = segment(start: @P0, end: @P1)",
+      "}"
+    ].join("\n");
+    const actualTargetModule = await vi.importActual<typeof import("../dsl/modulePreviewTarget")>("../dsl/modulePreviewTarget");
+    const actualStateModule = await vi.importActual<typeof import("../dsl/modulePreviewState")>("../dsl/modulePreviewState");
+    const liveSession = actualStateModule.createModulePreviewSession();
+    mocks.queryModulePreviewTarget.mockImplementation(actualTargetModule.queryModulePreviewTarget);
+    mocks.session.activate.mockImplementation((input) => {
+      const snapshot = liveSession.activate(input);
+      if (snapshot?.preview.kind === "current") {
+        mocks.evaluationState = {
+          evaluation: evaluateElements(
+            snapshot.preview.result.compileResult.elements,
+            buildModulePreviewEvaluationOptions(snapshot.preview.result)
+          ),
+          evaluationRevision: 1,
+          evaluationRequestRevision: 1,
+          mode: "reference",
+          source: "reference",
+          status: "ready",
+          rustEligible: false,
+          isStale: false,
+          error: null
+        };
+      }
+      return snapshot;
+    });
+    mocks.session.getState.mockImplementation(() => liveSession.getState());
+    const api = { postMessage: mocks.postMessage };
+    render(<ModulePreviewApp api={api} />);
+
+    act(() => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "modulePreviewSession", sessionId: "module-preview-session:1", documentUri: "file:///pattern.nui" }
+      }));
+    });
+    act(() => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText, documentVersion: 1 }
+      }));
+    });
+
+    expect(mocks.session.activate).not.toHaveBeenCalled();
+    expect(mocks.postMessage).toHaveBeenCalledWith({
+      type: "webviewAuthoritativeDocumentReady",
+      documentVersion: 1
+    });
+
+    act(() => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "modulePreviewTarget",
+          documentVersion: 1,
+          normalizedSourceOffset: sourceText.indexOf("module Preview")
+        }
+      }));
+    });
+
+    expect(mocks.session.activate).toHaveBeenCalledTimes(1);
+    const state = liveSession.getState();
+    expect(state?.preview.kind).toBe("current");
+    if (!state || state.preview.kind !== "current") throw new Error("expected current Module Preview state");
+    const root = state.preview.result;
+    const edge = root.compileResult.elements.find((element) =>
+      element.name === "Edge" && root.targetRuntimeElementIds.includes(element.id)
+    );
+    expect(edge).toBeDefined();
+    const evaluation = (mocks.evaluationState as { evaluation: { computedGeometry: Map<string, unknown> } }).evaluation;
+    expect(evaluation.computedGeometry.get(edge!.id)).toMatchObject({
+      kind: "line",
+      start: { x: 0, y: 0 },
+      end: { x: 40, y: 0 }
+    });
+    expect((mocks.hostAdapter as CanvasHostAdapter | null)?.elements).toEqual(
+      expect.arrayContaining([expect.objectContaining({ name: "Edge" })])
+    );
+    expect(screen.queryByText("No valid Module Preview")).not.toBeInTheDocument();
+  });
+
   it("keeps an omitted required Module parameter invalid at the live session boundary", async () => {
     const sourceText = [
       "nui 1",

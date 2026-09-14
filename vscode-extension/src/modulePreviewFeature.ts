@@ -1313,7 +1313,6 @@ export const registerModulePreviewFeature = ({
       vscode.ViewColumn.Beside,
       { enableScripts: true }
     );
-    panel.webview.html = webviewHtml(panel);
     const session: ModulePreviewSession = {
       documentUri: key,
       document,
@@ -1426,6 +1425,7 @@ export const registerModulePreviewFeature = ({
       bindParameterSession(session);
     }));
     session.disposables.push(panel.onDidDispose(() => disposeSession(session)));
+    panel.webview.html = webviewHtml(panel);
     return session;
   };
 
