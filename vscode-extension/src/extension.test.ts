@@ -1791,6 +1791,76 @@ describe("VS Code production document lifecycle", () => {
     expect(mocks.showErrorMessage).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ["current", "nuinuiCAD.bakeCurrentShape"],
+    ["base", "nuinuiCAD.bakeBaseShape"]
+  ] as const)("completes a cold-start Source Bake %s after one readiness cycle", async (mode, command) => {
+    const source = [
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 100, y: 0)",
+      "point Derived = between(",
+      "  start: @A,",
+      "  end: @B,",
+      "  ratio: 0.25,",
+      ")"
+    ].join("\n");
+    const document = documentFor("/tmp/cold-start-bake.nui", "file:///tmp/cold-start-bake.nui", source);
+    const editor = editorFor(document);
+    editor.selection.active = document.positionAt(source.indexOf("Derived"));
+    setup(false, editor, [document]);
+
+    commandHandlerFor(command)?.();
+
+    expect(mocks.createWebviewPanel).toHaveBeenCalledTimes(1);
+    const panel = mocks.panels[0]!;
+    expect(panel.reveal).toHaveBeenCalledWith(2, true);
+    expect(panel.webview.postMessage.mock.calls.filter(([message]) => message?.type === "bakeSourceRequest")).toHaveLength(0);
+
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    expect(panel.webview.postMessage.mock.calls.filter(([message]) => message?.type === "bakeSourceRequest")).toHaveLength(0);
+
+    await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
+    const requestsAfterReadiness = panel.webview.postMessage.mock.calls
+      .map(([message]) => message)
+      .filter((message) => message?.type === "bakeSourceRequest");
+    expect(requestsAfterReadiness).toHaveLength(1);
+    expect(requestsAfterReadiness[0]).toMatchObject({
+      type: "bakeSourceRequest",
+      documentVersion: document.version,
+      normalizedSourceOffset: source.indexOf("Derived"),
+      mode
+    });
+
+    panel.active = false;
+    mocks.activeTabInput = new mocks.TabInputText(document.uri);
+    commandHandlerFor(command)?.();
+
+    await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
+    expect(panel.webview.postMessage.mock.calls.filter(([message]) => message?.type === "bakeSourceRequest")).toHaveLength(1);
+  });
+
+  it("drops a cold-start Source Bake when the Canvas document becomes stale before readiness", async () => {
+    const source = "nui 1\npoint A = coordinate(x: 0, y: 0)";
+    const document = documentFor("/tmp/stale-cold-start-bake.nui", "file:///tmp/stale-cold-start-bake.nui", source);
+    const editor = editorFor(document);
+    editor.selection.active = document.positionAt(source.indexOf("A"));
+    setup(false, editor, [document]);
+
+    commandHandlerFor("nuinuiCAD.bakeCurrentShape")?.();
+    const panel = mocks.panels[0]!;
+    document.version = 2;
+    document.setSourceText(`${source}\n// newer authoritative text`);
+    emitDocumentChange(document);
+
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
+
+    expect(panel.webview.postMessage.mock.calls.filter(([message]) => message?.type === "bakeSourceRequest")).toHaveLength(0);
+  });
+
   it("routes Go to Source Definition from a dynamic Canvas tab to Canvas", () => {
     setup();
     const panel = openPanelFor();
