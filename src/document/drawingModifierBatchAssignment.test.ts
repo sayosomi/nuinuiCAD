@@ -1,14 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
-import { parseDslSnapshot } from "../dsl/dslParser";
-import type { SourceSnapshot } from "../dsl/logicalStatementSourceMap";
-import type { LineSplice } from "./textPatch";
+import { parseDslSnapshot } from "@nuinuicad/nui-language";
+import type { SourceSnapshot } from "@nuinuicad/nui-language";
+import type { LineSplice } from "@nuinuicad/nui-language/document";
 import {
   analyzeDrawingModifierAssignmentTarget,
   applyDrawingModifierBatchAssignment,
   planDrawingModifierBatchAssignment,
   type DrawingModifierBatchPlanInput,
   type DrawingModifierSourceTarget
-} from "./drawingModifierBatchAssignment";
+} from "@nuinuicad/nui-language/document";
 
 const sourceLines = (...lines: string[]) => lines.join("\n");
 

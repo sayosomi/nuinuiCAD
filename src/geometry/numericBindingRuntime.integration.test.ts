@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { compileCanonicalText, regenerateCanonicalFromModel, type LastGoodDslDocument } from "../document/canonicalDocument";
-import { emptyDocument } from "../dsl/dslDocumentTestUtils";
+import { compileCanonicalText, regenerateCanonicalFromModel, type LastGoodDslDocument } from "@nuinuicad/nui-language/document";
+import { emptyDocument } from "@nuinuicad/nui-language";
 import { buildNumericBindingRuntimeEntries } from "./numericBindingRuntime";
 import { evaluateElements, type EvaluateElementsOptions } from "./evaluate";
 

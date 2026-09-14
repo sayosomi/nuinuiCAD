@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { createNuiLanguageSession } from "@nuinuicad/nui-language";
-import { compileDslDocument } from "./dslDocument";
-import { parseDslSnapshot } from "./dslParser";
-import { queryDslCompletion } from "./dslCompletionQuery";
-import { queryDslTypoSuggestions } from "./dslTypoSuggestionQuery";
-import { queryDslReferencePickTarget } from "./dslReferencePickQuery";
+import { compileDslDocument } from "@nuinuicad/nui-language";
+import { parseDslSnapshot } from "@nuinuicad/nui-language";
+import { queryDslCompletion } from "@nuinuicad/nui-language";
+import { queryDslTypoSuggestions } from "@nuinuicad/nui-language";
+import { queryDslReferencePickTarget } from "@nuinuicad/nui-language";
 import { referencePickSourceForReference } from "../vscode/referencePickProtocol";
 import { evaluateElements } from "../geometry/evaluate";
 

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { renameModuleSemanticWithPropagation } from "../commands/renameModuleSemanticWithPropagation";
-import { createModuleSemanticRangeIndex, moduleSemanticDeclarationRange, type ModuleSemanticTarget } from "../dsl/moduleSemanticEditor";
+import { createModuleSemanticRangeIndex, moduleSemanticDeclarationRange, type ModuleSemanticTarget } from "@nuinuicad/nui-language";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import { isImeComposingKeyEvent } from "./keyboardEventGuards";

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { compileDslToElements } from "../../packages/nui-language/src/dsl/dslCompiler";
-import { transformationStageKey } from "../../packages/nui-language/src/dsl/transformationRecipes";
+import { compileDslToElements } from "@nuinuicad/nui-language";
+import { transformationStageKey } from "@nuinuicad/nui-language";
 import type { ComputedGeometry, ComputedLine } from "../types/geometry";
 import { evaluateElements } from "./evaluate";
 

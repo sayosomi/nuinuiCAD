@@ -1,2 +1,2 @@
-export * from "../../packages/nui-language/src/types/geometry";
+export * from "@nuinuicad/nui-language";
 export * from "../geometry/evaluationTypes";

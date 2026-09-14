@@ -1,5 +1,5 @@
-import type { DslReferencePickTarget } from "../dsl/dslReferencePickQuery";
-import type { CompiledDslDocument } from "../dsl/dslDocument";
+import type { DslReferencePickTarget } from "@nuinuicad/nui-language";
+import type { CompiledDslDocument } from "@nuinuicad/nui-language";
 import {
   numericComputedGeometryPropertiesFor,
   computedReferencePathValue,
@@ -13,16 +13,16 @@ import {
   isModuleGeometryInterfaceAssignable,
   moduleGeometryInterfaceTypeOfElement,
   type ModuleGeometryInterfaceType
-} from "../dsl/moduleGeometryInterfaces";
-import { formatDslReferencePath } from "../dsl/dslReferenceTokens";
+} from "@nuinuicad/nui-language";
+import { formatDslReferencePath } from "@nuinuicad/nui-language";
 import {
   resolveSourceLexicalPath,
   type SourceLexicalNamespaceIndex
-} from "../dsl/sourceLexicalNamespaceIndex";
-import type { MaterializedExecutionStatement } from "../dsl/moduleMaterialization";
+} from "@nuinuicad/nui-language";
+import type { MaterializedExecutionStatement } from "@nuinuicad/nui-language";
 import { effectiveCanvasVisibleElementIds } from "../geometry/canvasDrawingBounds";
-import { effectiveEnabledElementIds } from "./groups";
-import { elementQualifiedNameParts } from "./elementNames";
+import { effectiveEnabledElementIds } from "@nuinuicad/nui-language";
+import { elementQualifiedNameParts } from "@nuinuicad/nui-language";
 import {
   isLineEndpointPointKey,
   selectablePointsForGeometry

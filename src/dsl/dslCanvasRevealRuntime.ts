@@ -1,6 +1,6 @@
-import type { CompiledDslDocument } from "./dslDocument";
-import type { ModuleGeometryRuntimeCompilation } from "./moduleGeometryRuntime";
-import { projectDslRevealRuntimeTarget } from "./dslRevealRuntimeProjection";
+import type { CompiledDslDocument } from "@nuinuicad/nui-language";
+import type { ModuleGeometryRuntimeCompilation } from "@nuinuicad/nui-language";
+import { projectDslRevealRuntimeTarget } from "@nuinuicad/nui-language";
 import type { ElementId, CadElement } from "../types/geometry";
 import type {
   DslCanvasRevealDegradation,
@@ -9,7 +9,7 @@ import type {
   DslCanvasRevealRuntimeOmissionCause,
   DslCanvasRevealSemanticTarget,
   DslCanvasRevealSourceTarget
-} from "./dslCanvasRevealQuery";
+} from "@nuinuicad/nui-language";
 
 export type DslCanvasRevealRuntimeInput = {
   target: DslCanvasRevealSourceTarget;

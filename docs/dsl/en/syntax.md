@@ -20,7 +20,7 @@ language. It is generated from the parser's vocabulary, so it is a spelling
 reference rather than a second place to edit parser behavior.
 
 <!-- dsl-ref:generated:start statements -->
-<!-- This region is generated from src/dsl/dslStatementKeywords.ts. -->
+<!-- This region is generated from packages/nui-language/src/dsl/dslStatementKeywords.ts. -->
 | Parser spelling | Reference identity |
 | --- | --- |
 <!-- dsl-ref:statement:stop -->

@@ -1,9 +1,9 @@
 import { ChangeSet, Text } from "@codemirror/state";
 import { describe, expect, it } from "vitest";
-import { parseDsl } from "../dsl/dslParser";
-import { compileDslDocument } from "../dsl/dslDocument";
-import { createModuleSemanticRangeIndex } from "../dsl/moduleSemanticEditor";
-import { bindingIdForStableStatementId } from "../scalars/bindingCatalog";
+import { parseDsl } from "@nuinuicad/nui-language";
+import { compileDslDocument } from "@nuinuicad/nui-language";
+import { createModuleSemanticRangeIndex } from "@nuinuicad/nui-language";
+import { bindingIdForStableStatementId } from "@nuinuicad/nui-language";
 import {
   createPropertyBindingRangeIndex,
   createScopeBodyRangeIndex,

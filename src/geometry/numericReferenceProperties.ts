@@ -1,4 +1,4 @@
-import { angleNumericParameterStepLevels } from "../parameters/parameterDefinitions";
+import { angleNumericParameterStepLevels } from "@nuinuicad/nui-language";
 import type {
   CadElement,
   ComputedArcLine,
@@ -8,7 +8,7 @@ import type {
   ComputedOffsetLine,
   ComputedPolyline
 } from "../types/geometry";
-import type { NumericMeasurementKey } from "./numericExpressionTypes";
+import type { NumericMeasurementKey } from "@nuinuicad/nui-language";
 import {
   NUMERIC_COMPUTED_GEOMETRY_MEASUREMENT_PROPERTIES,
   numericGeometryMeasurementPropertiesForStaticTarget,

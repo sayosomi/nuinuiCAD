@@ -1,15 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { compileFreshCanonicalText } from "../document/canonicalDocument";
+import { compileFreshCanonicalText } from "@nuinuicad/nui-language/document";
 import type { CadElement, ElementId } from "../types/geometry";
-import type { CompiledDslDocument, StatementMap } from "./dslDocument";
-import type { MaterializedExecutionStatement, ModuleMaterialization } from "./moduleMaterialization";
-import type { ModuleGeometryRuntimeCompilation } from "./moduleGeometryRuntime";
-import type { ModuleSemanticAnalysis, ModuleGeometrySourceTarget } from "./moduleSemanticTypes";
+import type { CompiledDslDocument, StatementMap } from "@nuinuicad/nui-language";
+import type { MaterializedExecutionStatement, ModuleMaterialization } from "@nuinuicad/nui-language";
+import type { ModuleGeometryRuntimeCompilation } from "@nuinuicad/nui-language";
+import type { ModuleSemanticAnalysis, ModuleGeometrySourceTarget } from "@nuinuicad/nui-language";
 import {
   isDslOutputPreviewRevealSourceTargetStructurallyAvailable,
   projectDslOutputPreviewRevealRuntimeTarget,
   queryDslOutputPreviewRevealSourceTarget
-} from "./dslOutputPreviewRevealQuery";
+} from "@nuinuicad/nui-language";
 
 const compileSource = (lines: string[]) => {
   const source = lines.join("\n");

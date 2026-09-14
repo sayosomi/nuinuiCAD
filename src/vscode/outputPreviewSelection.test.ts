@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compileFreshCanonicalText } from "../document/canonicalDocument";
+import { compileFreshCanonicalText } from "@nuinuicad/nui-language/document";
 import {
   outputPreviewCandidatesFor,
   selectOutputPreviewCandidate

@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import { evaluateElements } from "../geometry/evaluate";
-import { compileDslDocument } from "./dslDocument";
-import { parseDsl } from "./dslParser";
+import { compileDslDocument } from "@nuinuicad/nui-language";
+import { parseDsl } from "@nuinuicad/nui-language";
 
 const compile = (source: string) => {
   const parsed = parseDsl(source);

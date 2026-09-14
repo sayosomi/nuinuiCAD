@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { compileDslDocument, serializeDocumentToDsl } from "../dsl/dslDocument";
+import { compileDslDocument, serializeDocumentToDsl } from "@nuinuicad/nui-language";
 import { registerSourceEditSession } from "../editor/sourceEditSession";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";

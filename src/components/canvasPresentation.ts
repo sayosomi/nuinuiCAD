@@ -1,4 +1,4 @@
-import type { NumericMeasurementKey } from "../geometry/numericExpressionTypes";
+import type { NumericMeasurementKey } from "@nuinuicad/nui-language";
 
 export type CanvasPresentationParameters = Readonly<Record<string, string | number | boolean>>;
 

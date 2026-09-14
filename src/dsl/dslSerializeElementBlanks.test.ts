@@ -6,8 +6,8 @@ import {
   materializeCreationRecipeDraft
 } from "../commands/creationRecipes";
 import { elementTypeLabels, type CadElement, type CadElementType } from "../types/geometry";
-import { documentDslRefs, serializedStatementLines } from "./dslSerializer";
-import { serializeElementStatementBlockWithBlanks } from "./dslSerializeElement";
+import { documentDslRefs, serializedStatementLines } from "@nuinuicad/nui-language";
+import { serializeElementStatementBlockWithBlanks } from "@nuinuicad/nui-language";
 
 const emptyContext = { elements: [], referenceElements: [] };
 

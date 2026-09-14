@@ -6,8 +6,8 @@ import {
   getDependencySummary,
   getDirectChildren,
   getDirectParentIds
-} from "./dependencies";
-import { compileDslDocument } from "../dsl/dslDocument";
+} from "@nuinuicad/nui-language";
+import { compileDslDocument } from "@nuinuicad/nui-language";
 import { buildTextTemplateEntriesByElementId } from "../geometry/textTemplateRuntime";
 
 const elements: CadElement[] = [

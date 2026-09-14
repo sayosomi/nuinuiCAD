@@ -1,7 +1,7 @@
 import { RangeSetBuilder, StateEffect, StateField, Transaction, type ChangeSet, type EditorState, type Extension, type Text } from "@codemirror/state";
 import { Decoration, EditorView, WidgetType, type DecorationSet } from "@codemirror/view";
-import { diffTexts } from "../document/statementReconciler";
-import { highlightDslSource } from "../dsl/dslHighlight";
+import { diffTexts } from "@nuinuicad/nui-language/document";
+import { highlightDslSource } from "@nuinuicad/nui-language";
 
 export type PatchHighlightPayload = {
   /** insert.length > 0 splices, in new-document coordinates. */

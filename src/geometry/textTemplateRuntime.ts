@@ -17,14 +17,14 @@
 //   hole rather than a whole-string scan.
 
 import type { CadElement, CadElementType, ComputedGeometry, ElementId } from "../types/geometry";
-import type { BindingId } from "../scalars/bindingCatalog";
-import { propertyBindingOccurrenceKey, type ScalarValueSource } from "../scalars/propertyBindingCompiler";
-import type { TextTemplateAst } from "../scalars/textTemplate";
+import type { BindingId } from "@nuinuicad/nui-language";
+import { propertyBindingOccurrenceKey, type ScalarValueSource } from "@nuinuicad/nui-language";
+import type { TextTemplateAst } from "@nuinuicad/nui-language";
 import { evaluateTextTemplate, type EvaluateNumericExpressionHole } from "../scalars/textTemplateEvaluator";
-import type { ScalarEvaluation } from "../scalars/types";
-import type { TypedScalarExpression } from "../scalars/typedExpressionAst";
-import { findParameterDefinition, scalarTypeForParameterDefinition } from "../parameters/parameterDefinitions";
-import type { NumericExpressionError } from "./numericExpressionTypes";
+import type { ScalarEvaluation } from "@nuinuicad/nui-language";
+import type { TypedScalarExpression } from "@nuinuicad/nui-language";
+import { findParameterDefinition, scalarTypeForParameterDefinition } from "@nuinuicad/nui-language";
+import type { NumericExpressionError } from "@nuinuicad/nui-language";
 import { evaluateNumericValue, normalizeNumericExpressionInput, textNumber } from "./numericExpressions";
 import type { PropertyBindingRuntimeEntry } from "./propertyBindingRuntime";
 

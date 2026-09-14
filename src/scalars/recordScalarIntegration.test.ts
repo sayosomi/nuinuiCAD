@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { compileCanonicalText, regenerateCanonicalFromModel } from "../document/canonicalDocument";
-import { emptyDocument } from "../dsl/dslDocumentTestUtils";
-import { propertyBindingOccurrenceKey } from "./propertyBindingCompiler";
+import { compileCanonicalText, regenerateCanonicalFromModel } from "@nuinuicad/nui-language/document";
+import { emptyDocument } from "@nuinuicad/nui-language";
+import { propertyBindingOccurrenceKey } from "@nuinuicad/nui-language";
 import { evaluateScalarProgram } from "./declarationEvaluator";
 
 const compileCanonical = (source: string) => {

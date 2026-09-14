@@ -1,10 +1,10 @@
-import type { MultiDocumentImportGraph } from "../document/multiDocumentImportGraph";
+import type { MultiDocumentImportGraph } from "@nuinuicad/nui-language/workspace";
 import type { VscodeMultiDocumentCanvasRuntimeSnapshot } from "./multiDocumentRuntimeTransport";
 import type {
   DocumentQualifiedSemanticIdentity,
   DocumentQualifiedSourceLocation,
   MultiDocumentSourceSnapshot
-} from "../document/multiDocumentPrimitives";
+} from "@nuinuicad/nui-language/workspace";
 
 export type VscodeMultiDocumentSemanticIdentity = {
   documentId: string;

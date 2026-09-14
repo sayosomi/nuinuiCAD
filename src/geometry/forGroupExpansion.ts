@@ -1,7 +1,7 @@
-import { elementTypesWithoutOwnDrawableGeometry } from "../model/elementActivity";
+import { elementTypesWithoutOwnDrawableGeometry } from "@nuinuicad/nui-language";
 import { remapElementReferences } from "../model/elementDuplication";
-import { descendantIdsForGroup, isGroupElement } from "../model/groups";
-import { elementDisplayName } from "../model/elementNames";
+import { descendantIdsForGroup, isGroupElement } from "@nuinuicad/nui-language";
+import { elementDisplayName } from "@nuinuicad/nui-language";
 import type {
   CadElement,
   ElementId,

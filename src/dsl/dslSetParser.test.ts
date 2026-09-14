@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseDslSetStatement } from "./dslSetParser";
+import { parseDslSetStatement } from "@nuinuicad/nui-language";
 
 const parse = (source: string) => parseDslSetStatement(source);
 const messages = (source: string) => parse(source).diagnostics.map((diagnostic) => diagnostic.message);

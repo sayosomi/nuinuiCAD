@@ -1,7 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import type { CompiledDslDocument } from "../dsl/dslDocument";
-import type { DslReferencePickTarget } from "../dsl/dslReferencePickQuery";
+import type { CompiledDslDocument } from "@nuinuicad/nui-language";
+import type { DslReferencePickTarget } from "@nuinuicad/nui-language";
 import type { EvaluationResult } from "../types/geometry";
 import type { ReferencePickCandidate } from "../model/referencePickCandidates";
 import { referenceAnchor } from "../model/pointAnchors";

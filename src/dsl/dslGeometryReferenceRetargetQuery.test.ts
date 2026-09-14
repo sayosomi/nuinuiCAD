@@ -1,13 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
-import * as dslDocument from "../../packages/nui-language/src/dsl/dslDocument";
-import { compileDslDocument, type CompiledDslDocument } from "../../packages/nui-language/src/dsl/dslDocument";
-import { parseDslSnapshot } from "./dslParser";
+import { dslDocument } from "@nuinuicad/nui-language";
+import { compileDslDocument, type CompiledDslDocument } from "@nuinuicad/nui-language";
+import { parseDslSnapshot } from "@nuinuicad/nui-language";
 import {
   planDslGeometryReferenceRetargetEditsResult,
   queryDslGeometryReferenceRetargetTarget,
   type DslGeometryReferenceRetargetCandidate,
   type DslGeometryReferenceRetargetSnapshot
-} from "../../packages/nui-language/src/dsl/dslGeometryReferenceRetargetQuery";
+} from "@nuinuicad/nui-language";
 
 const REVISION = 29;
 

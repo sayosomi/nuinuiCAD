@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument, type CompiledDslDocument } from "./dslDocument";
-import { parseDslSnapshot } from "./dslParser";
-import { queryDslDefinition } from "./dslDefinitionQuery";
-import { queryDslReferences } from "./dslReferencesQuery";
-import { planDslRenameEdits } from "./dslRenameQuery";
+import { compileDslDocument, type CompiledDslDocument } from "@nuinuicad/nui-language";
+import { parseDslSnapshot } from "@nuinuicad/nui-language";
+import { queryDslDefinition } from "@nuinuicad/nui-language";
+import { queryDslReferences } from "@nuinuicad/nui-language";
+import { planDslRenameEdits } from "@nuinuicad/nui-language";
 
 const revision = 7;
 

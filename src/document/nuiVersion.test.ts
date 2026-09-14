@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { isSupportedDslMajorVersion } from "../dsl/dslVersion";
-import { unsupportedNuiMajorVersion } from "./nuiVersion";
+import { isSupportedDslMajorVersion } from "@nuinuicad/nui-language";
+import { unsupportedNuiMajorVersion } from "@nuinuicad/nui-language/document";
 
 describe("nui 1 file-open boundary", () => {
   it("accepts the centrally supported nui 1 header", () => {

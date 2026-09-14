@@ -1,7 +1,7 @@
 import {
   validateRenameReferenceStability,
   type RenameReferenceStabilityInput
-} from "../document/renameAnalysis";
+} from "@nuinuicad/nui-language/document";
 import type { SourceUpdate } from "../editor/sourceEditorTypes";
 
 type RenameBridgeDevAssertInput = RenameReferenceStabilityInput & {

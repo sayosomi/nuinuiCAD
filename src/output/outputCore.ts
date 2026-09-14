@@ -1,7 +1,7 @@
-import type { LastGoodDslDocument } from "../document/canonicalDocument";
-import { propertyBindingOccurrenceKey } from "../scalars/propertyBindingCompiler";
+import type { LastGoodDslDocument } from "@nuinuicad/nui-language/document";
+import { propertyBindingOccurrenceKey } from "@nuinuicad/nui-language";
 import { evaluateTypedExpression } from "../scalars/expressionEvaluator";
-import type { ScalarEvaluation } from "../scalars/types";
+import type { ScalarEvaluation } from "@nuinuicad/nui-language";
 import { buildEvaluationOptions } from "../geometry/productionEvaluationContext";
 import { evaluateElementsReference } from "../geometry/evaluationEngine";
 import { evaluateNumericValue, computedReferencePathValue } from "../geometry/numericExpressions";

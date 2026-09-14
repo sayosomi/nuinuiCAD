@@ -2,23 +2,23 @@ import {
   commitLineSplicePatch,
   type CanonicalDocumentValue,
   type LastGoodDslDocument
-} from "../document/canonicalDocument";
-import { mergeStatementComments } from "../document/statementCommentMerge";
-import type { LineSplice } from "../document/textPatch";
-import { matchingDslDelimiter } from "../dsl/dslArgScanner";
-import type { DslReferencePickTarget } from "../dsl/dslReferencePickQuery";
-import type { StatementInfo } from "../dsl/dslDocument";
-import { parseDslCallStatement } from "../dsl/dslCallParser";
-import { sourceOwnerForRuntimeElementId } from "../dsl/sourceOwnership";
+} from "@nuinuicad/nui-language/document";
+import { mergeStatementComments } from "@nuinuicad/nui-language/document";
+import type { LineSplice } from "@nuinuicad/nui-language/document";
+import { matchingDslDelimiter } from "@nuinuicad/nui-language";
+import type { DslReferencePickTarget } from "@nuinuicad/nui-language";
+import type { StatementInfo } from "@nuinuicad/nui-language";
+import { parseDslCallStatement } from "@nuinuicad/nui-language";
+import { sourceOwnerForRuntimeElementId } from "@nuinuicad/nui-language";
 import { referencePickCandidates, type ReferencePickPointOption } from "../model/referencePickCandidates";
 import { anchorReferenceElementId } from "../model/pointAnchors";
 import { sourceReferenceText, type CanonicalGeometrySourceReference } from "../model/moduleSemanticCandidateBoundary";
-import { normalizeDegrees360 } from "../scalars/angleMath";
-import { getBuiltinFunctionDefinition } from "../scalars/builtinFunctions";
+import { normalizeDegrees360 } from "@nuinuicad/nui-language";
+import { getBuiltinFunctionDefinition } from "@nuinuicad/nui-language";
 import { evaluateTypedExpression } from "../scalars/expressionEvaluator";
-import type { ScalarExpressionAst } from "../scalars/expressionAst";
-import { parseScalarExpression } from "../scalars/expressionParser";
-import { typecheckScalarExpression } from "../scalars/expressionTypecheck";
+import type { ScalarExpressionAst } from "@nuinuicad/nui-language";
+import { parseScalarExpression } from "@nuinuicad/nui-language";
+import { typecheckScalarExpression } from "@nuinuicad/nui-language";
 import type { ComputedPoint, ElementId, EvaluationResult, PointAnchor } from "../types/geometry";
 
 /** Host-neutral input for a conversion query or source transformation. */

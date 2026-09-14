@@ -1,12 +1,12 @@
 // Read-only presentation for a single selected typed const/let binding
 // Never receives more than one bindingId at a time && never
 // projects every binding in the document into React rows.
-import type { DslStatement } from "../dsl/dslTypes";
-import type { BindingAnalysis } from "../scalars/bindingAnalysis";
-import { formatBindingIssue } from "../scalars/bindingDiagnostics";
-import type { BindingId } from "../scalars/bindingCatalog";
-import { scalarTypeOfDslValueType } from "../../packages/nui-language/src/dsl/dslValueTypes";
-import { describeScalarType } from "../scalars/expressionTypecheck";
+import type { DslStatement } from "@nuinuicad/nui-language";
+import type { BindingAnalysis } from "@nuinuicad/nui-language";
+import { formatBindingIssue } from "@nuinuicad/nui-language";
+import type { BindingId } from "@nuinuicad/nui-language";
+import { scalarTypeOfDslValueType } from "@nuinuicad/nui-language";
+import { describeScalarType } from "@nuinuicad/nui-language";
 
 export type TypedDeclarationInspectorRow = {
   key: string;

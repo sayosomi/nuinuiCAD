@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument, type CompiledDslDocument } from "./dslDocument";
-import { parseDslSnapshot } from "./dslParser";
+import { compileDslDocument, type CompiledDslDocument } from "@nuinuicad/nui-language";
+import { parseDslSnapshot } from "@nuinuicad/nui-language";
 import {
   queryDslDefinition,
   type DslDefinitionQueryResult
-} from "./dslDefinitionQuery";
+} from "@nuinuicad/nui-language";
 
 const compileWithIds = (source: string, sourceRevision = 7): CompiledDslDocument => {
   const parsed = parseDslSnapshot({ normalizedSource: source, sourceRevision });

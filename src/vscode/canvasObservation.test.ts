@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { compileFreshCanonicalText, type CanonicalDocumentValue } from "../document/canonicalDocument";
-import { compileDslDocument } from "../dsl/dslDocument";
-import { parseDsl } from "../dsl/dslParser";
+import { compileFreshCanonicalText, type CanonicalDocumentValue } from "@nuinuicad/nui-language/document";
+import { compileDslDocument } from "@nuinuicad/nui-language";
+import { parseDsl } from "@nuinuicad/nui-language";
 import { evaluateElements } from "../geometry/evaluate";
 import { buildEvaluationOptions } from "../geometry/productionEvaluationContext";
 import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
-import type { ModuleMaterialization } from "../dsl/moduleMaterialization";
+import type { ModuleMaterialization } from "@nuinuicad/nui-language";
 import type { CadElement } from "../types/geometry";
 import type { VscodeCanvasObservationElementSource } from "./canvasObservationProtocol";
 import {

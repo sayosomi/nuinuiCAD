@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { elementDisplayName } from "../model/elementNames";
+import { elementDisplayName } from "@nuinuicad/nui-language";
 import type { CadElement, ForGroupElement, FreePointElement } from "../types/geometry";
 import { expandForGroupIteration, forGroupGeneratedElementId, forGroupRangeValues } from "./forGroupExpansion";
 import { makeNumericExpression } from "./numericExpressions";

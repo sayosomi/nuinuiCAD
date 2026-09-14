@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { evaluateElements } from "../geometry/evaluate";
 import { canvasSelectionEligibleElementIds } from "../geometry/canvasSelectionEligibility";
-import { materializedRuntimeElementId, type ModuleMaterialization, type ModuleOrigin } from "../dsl/moduleMaterialization";
+import { materializedRuntimeElementId, type ModuleMaterialization, type ModuleOrigin } from "@nuinuicad/nui-language";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import type { CadElement, ElementId } from "../types/geometry";

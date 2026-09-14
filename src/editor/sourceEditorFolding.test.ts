@@ -1,8 +1,8 @@
 import { Text } from "@codemirror/state";
 import { describe, expect, it } from "vitest";
-import { compileDslDocument } from "../dsl/dslDocument";
-import { parseDslSnapshot } from "../dsl/dslParser";
-import { createModuleSemanticRangeIndex } from "../dsl/moduleSemanticEditor";
+import { compileDslDocument } from "@nuinuicad/nui-language";
+import { parseDslSnapshot } from "@nuinuicad/nui-language";
+import { createModuleSemanticRangeIndex } from "@nuinuicad/nui-language";
 import { collapsedFoldTargetAtLine, foldTargetAtLine, foldTargets, moduleDefinitionFoldTargetAtLine, moduleDefinitionFoldTargets } from "./sourceEditorFolding";
 import { createStatementRangeIndex } from "./statementRangeIndex";
 

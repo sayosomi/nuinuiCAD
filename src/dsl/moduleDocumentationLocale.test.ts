@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { selectModuleDocumentationMarkdown } from "./moduleDocumentationLocale";
+import { selectModuleDocumentationMarkdown } from "@nuinuicad/nui-language";
 
 describe("Module documentation locale selection", () => {
   it("prefers the exact requested locale", () => {

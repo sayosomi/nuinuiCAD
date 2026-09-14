@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { isScalarExpressionCandidateSource, MAX_SCALAR_EXPRESSION_DEPTH, parseScalarExpression } from "./expressionParser";
-import type { ScalarExpressionAst, ScalarExpressionDiagnostic } from "./expressionAst";
+import { isScalarExpressionCandidateSource, MAX_SCALAR_EXPRESSION_DEPTH, parseScalarExpression } from "@nuinuicad/nui-language";
+import type { ScalarExpressionAst, ScalarExpressionDiagnostic } from "@nuinuicad/nui-language";
 
 const fullSpan = (source: string) => ({ start: 0, end: source.length });
 

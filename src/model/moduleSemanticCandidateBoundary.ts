@@ -1,8 +1,8 @@
-import type { StatementInfo } from "../dsl/dslDocument";
-import { formatDslReferencePath } from "../dsl/dslReferenceTokens";
-import type { ModuleMaterialization } from "../dsl/moduleMaterialization";
-import type { ModuleSemanticAnalysis } from "../dsl/moduleSemanticTypes";
-import type { SourceLexicalNamespaceIndex } from "../dsl/sourceLexicalNamespaceIndex";
+import type { StatementInfo } from "@nuinuicad/nui-language";
+import { formatDslReferencePath } from "@nuinuicad/nui-language";
+import type { ModuleMaterialization } from "@nuinuicad/nui-language";
+import type { ModuleSemanticAnalysis } from "@nuinuicad/nui-language";
+import type { SourceLexicalNamespaceIndex } from "@nuinuicad/nui-language";
 import { derivedAnchor, referenceAnchor } from "./pointAnchors";
 import type { CadElement, ElementId, PointAnchor } from "../types/geometry";
 

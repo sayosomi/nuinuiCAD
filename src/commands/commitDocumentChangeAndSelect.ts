@@ -1,4 +1,4 @@
-import type { DslDocumentData } from "../dsl/dslDocument";
+import type { DslDocumentData } from "@nuinuicad/nui-language";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore, type CadElementSelection } from "../state/cadUiStore";
 

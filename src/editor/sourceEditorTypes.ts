@@ -1,10 +1,10 @@
-import type { LineSplice } from "../document/textPatch";
-import type { BindingId } from "../scalars/bindingCatalog";
-import type { DslDiagnostic } from "../dsl/dslTypes";
-import type { DslPhysicalSpan } from "../dsl/logicalStatementSourceMap";
+import type { LineSplice } from "@nuinuicad/nui-language/document";
+import type { BindingId } from "@nuinuicad/nui-language";
+import type { DslDiagnostic } from "@nuinuicad/nui-language";
+import type { DslPhysicalSpan } from "@nuinuicad/nui-language";
 import type { ElementId, EvaluationResult } from "../types/geometry";
 import type { SourceCreationCursor } from "../commands/sourceCreationInsertion";
-import type { ModuleSemanticTarget } from "../dsl/moduleSemanticEditor";
+import type { ModuleSemanticTarget } from "@nuinuicad/nui-language";
 
 export type ModuleSemanticCursorResolution =
   | { kind: "none" }

@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { compileDslToElements } from "../dsl/dslCompiler";
-import { parseDsl } from "../dsl/dslParser";
-import type { DiagnosticSpanContext } from "../dsl/dslDiagnosticSpan";
+import { compileDslToElements } from "@nuinuicad/nui-language";
+import { parseDsl } from "@nuinuicad/nui-language";
+import type { DiagnosticSpanContext } from "@nuinuicad/nui-language";
 import type { CadElement, ElementId } from "../types/geometry";
-import type { BindingAnalysis } from "./bindingAnalysis";
-import { propertyBindingOccurrenceKey } from "./propertyBindingCompiler";
-import { compileTextTemplates, TEXT_TEMPLATE_HOLE_TYPE_MISMATCH_CODE } from "./textTemplate";
-import { analyzeTypedDeclarations } from "./typedDeclarationAnalysis";
+import type { BindingAnalysis } from "@nuinuicad/nui-language";
+import { propertyBindingOccurrenceKey } from "@nuinuicad/nui-language";
+import { compileTextTemplates, TEXT_TEMPLATE_HOLE_TYPE_MISMATCH_CODE } from "@nuinuicad/nui-language";
+import { analyzeTypedDeclarations } from "@nuinuicad/nui-language";
 
 const compileFor = (
   source: string

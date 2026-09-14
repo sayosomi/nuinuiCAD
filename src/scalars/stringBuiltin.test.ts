@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { formatBuiltinFunctionSignatures, getBuiltinFunctionDefinition, isBuiltinFunctionName } from "./builtinFunctions";
+import { formatBuiltinFunctionSignatures, getBuiltinFunctionDefinition, isBuiltinFunctionName } from "@nuinuicad/nui-language";
 import { evaluateTypedExpression } from "./expressionEvaluator";
-import { parseScalarExpression } from "./expressionParser";
-import { typecheckScalarExpression } from "./expressionTypecheck";
-import type { BindingId } from "./bindingCatalog";
-import type { ScalarExpressionResolvedReference, TypedScalarExpression } from "./typedExpressionAst";
-import type { ScalarEvaluation, ScalarType } from "./types";
+import { parseScalarExpression } from "@nuinuicad/nui-language";
+import { typecheckScalarExpression } from "@nuinuicad/nui-language";
+import type { BindingId } from "@nuinuicad/nui-language";
+import type { ScalarExpressionResolvedReference, TypedScalarExpression } from "@nuinuicad/nui-language";
+import type { ScalarEvaluation, ScalarType } from "@nuinuicad/nui-language";
 
 const STRING_TYPE: ScalarType = { kind: "string" };
 const choiceType = (options: readonly string[]): ScalarType => ({ kind: "choice", options });

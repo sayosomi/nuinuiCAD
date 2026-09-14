@@ -1,7 +1,7 @@
 import { EditorState } from "@codemirror/state";
 import { describe, expect, it } from "vitest";
-import { compileDslDocument } from "../dsl/dslDocument";
-import { parseDslSnapshot } from "../dsl/dslParser";
+import { compileDslDocument } from "@nuinuicad/nui-language";
+import { parseDslSnapshot } from "@nuinuicad/nui-language";
 import { createDslCompletionSource } from "./cmAutocomplete";
 
 const compileWithIds = (source: string) => {

@@ -7,8 +7,8 @@ import { adjustEvaluationLimitForInsertion } from "../model/evaluationDivider";
 import {
   dslValueTypeForParameterDefinition,
   findParameterDefinition
-} from "../parameters/parameterDefinitions";
-import { isDslOptionalValueType } from "../../packages/nui-language/src/dsl/dslValueTypes";
+} from "@nuinuicad/nui-language";
+import { isDslOptionalValueType } from "@nuinuicad/nui-language";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import type { CadElement } from "../types/geometry";
 import { emitCreationRecipe } from "./creationRecipes";

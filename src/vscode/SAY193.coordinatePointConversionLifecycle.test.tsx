@@ -4,7 +4,7 @@ import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
 import type { ExtensionToVscodeMessage, VscodeToExtensionMessage, VscodeWebviewApi } from "./protocol";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
-import { sourceOwnerByRuntimeElementId } from "../dsl/sourceOwnership";
+import { sourceOwnerByRuntimeElementId } from "@nuinuicad/nui-language";
 import { VSCodeApp } from "./VSCodeApp";
 import { setVscodeWebviewApi } from "./vscodeWebviewApiContext";
 

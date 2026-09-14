@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument } from "../dsl/dslDocument";
-import { parseDsl } from "../dsl/dslParser";
-import { analyzeTypedBindingRenameInDocument } from "../document/typedRenameAnalysis";
-import type { BindingId } from "./bindingCatalog";
+import { compileDslDocument } from "@nuinuicad/nui-language";
+import { parseDsl } from "@nuinuicad/nui-language";
+import { analyzeTypedBindingRenameInDocument } from "@nuinuicad/nui-language/document";
+import type { BindingId } from "@nuinuicad/nui-language";
 
 const compile = (source: string) => {
   const parsed = parseDsl(source);

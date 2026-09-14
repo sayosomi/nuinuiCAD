@@ -1,6 +1,6 @@
-import { effectiveVisibleElementIds } from "../model/groups";
-import { isContainerElement } from "../model/containers";
-import { effectiveVisibleElementIdsForProfile, visibilityProfileById } from "../model/visibilityProfiles";
+import { effectiveVisibleElementIds } from "@nuinuicad/nui-language";
+import { isContainerElement } from "@nuinuicad/nui-language";
+import { effectiveVisibleElementIdsForProfile, visibilityProfileById } from "@nuinuicad/nui-language";
 import { runtimeOnlyElementTypes } from "../types/geometry";
 import type {
   CadElement,

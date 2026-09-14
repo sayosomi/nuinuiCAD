@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import fixtureJson from "../../test/fixtures/typed-expressions.json";
 import { evaluateTypedExpression, type ScalarEvaluationEnvironment } from "./expressionEvaluator";
-import type { BuiltinFunctionName } from "./builtinFunctions";
+import type { BuiltinFunctionName } from "@nuinuicad/nui-language";
 import {
   buildMockEnvironment,
   decodeTypedExpressionNode,
@@ -11,8 +11,8 @@ import type {
   ScalarExpressionResolvedGeometryTarget,
   TypedBuiltinArgument,
   TypedScalarExpression
-} from "./typedExpressionAst";
-import type { ScalarEvaluation, ScalarType } from "./types";
+} from "@nuinuicad/nui-language";
+import type { ScalarEvaluation, ScalarType } from "@nuinuicad/nui-language";
 import type { ComputedGeometry, ComputedLine, ComputedPoint } from "../types/geometry";
 
 type TypedExpressionVector = {

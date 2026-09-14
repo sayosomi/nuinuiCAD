@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { compileDslDocument, type DslDocumentData } from "../dsl/dslDocument";
-import { dslTextForElements } from "../dsl/dslDocumentTestUtils";
-import { analyzeRename, validateRenameReferenceStability } from "../document/renameAnalysis";
+import { compileDslDocument, type DslDocumentData } from "@nuinuicad/nui-language";
+import { dslTextForElements } from "@nuinuicad/nui-language";
+import { analyzeRename, validateRenameReferenceStability } from "@nuinuicad/nui-language/document";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import { publishTestCanvasSelectionEligibility } from "../test/canvasSelectionTestUtils";
-import { isContainerElement } from "../model/containers";
+import { isContainerElement } from "@nuinuicad/nui-language";
 import { renameElementWithPropagation } from "./renameElementWithPropagation";
 
 const seed = (sourceText: string) => {

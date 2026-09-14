@@ -1,6 +1,6 @@
-import { documentDslRefs } from "../dsl/dslSerializer";
-import { layoutElementTree } from "../dsl/dslDocument";
-import { buildTextPatch, type LineSplice } from "../document/textPatch";
+import { documentDslRefs } from "@nuinuicad/nui-language";
+import { layoutElementTree } from "@nuinuicad/nui-language";
+import { buildTextPatch, type LineSplice } from "@nuinuicad/nui-language/document";
 import { useCadDocumentStore, type DocumentMutationResult } from "../state/cadDocumentStore";
 import type { CadElement, ElementId } from "../types/geometry";
 

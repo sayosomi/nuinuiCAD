@@ -1,6 +1,6 @@
 import { adjustEvaluationLimitForInsertion } from "../model/evaluationDivider";
-import { createCadElement } from "../model/elementFactory";
-import { isForGroupElement } from "../model/groups";
+import { createCadElement } from "@nuinuicad/nui-language";
+import { isForGroupElement } from "@nuinuicad/nui-language";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import type { CadElement, ElementId } from "../types/geometry";
 import type { CommandContext } from "./commandTypes";

@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { parseDsl } from "./dslParser";
-import { parseDslReferenceToken } from "./dslReferenceTokens";
+import { parseDsl } from "@nuinuicad/nui-language";
+import { parseDslReferenceToken } from "@nuinuicad/nui-language";
 import {
   buildSourceLexicalNamespaceIndex,
   resolveSourceLexicalPath
-} from "./sourceLexicalNamespaceIndex";
+} from "@nuinuicad/nui-language";
 
 const namespaceFor = (source: string) => {
   const parsed = parseDsl(source);

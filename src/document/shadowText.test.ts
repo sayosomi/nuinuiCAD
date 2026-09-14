@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import { compileDslDocument, type DslDocumentData } from "../dsl/dslDocument";
-import { parseDslSnapshot } from "../dsl/dslParser";
-import { expectSemanticallyEqualDocuments } from "../dsl/dslDocumentTestUtils";
+import { compileDslDocument, type DslDocumentData } from "@nuinuicad/nui-language";
+import { parseDslSnapshot } from "@nuinuicad/nui-language";
+import { expectSemanticallyEqualDocuments } from "@nuinuicad/nui-language";
 import type { CadElement } from "../types/geometry";
 import {
   advanceShadow,
@@ -10,7 +10,7 @@ import {
   snapshotToDslData,
   zipAssignedElementIds,
   type ShadowState
-} from "./shadowText";
+} from "@nuinuicad/nui-language/document";
 
 const compileOrThrow = (source: string): DslDocumentData => {
   const compiled = compileDslDocument(source);

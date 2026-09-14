@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { DslReferencePickTarget } from "../dsl/dslReferencePickQuery";
-import type { SourceSnapshot } from "../dsl/logicalStatementSourceMap";
+import type { DslReferencePickTarget } from "@nuinuicad/nui-language";
+import type { SourceSnapshot } from "@nuinuicad/nui-language";
 import type { ReferencePickHover } from "../model/referencePickSession";
 import {
   confirmReferencePickSession,
@@ -21,7 +21,7 @@ import {
 import {
   isCanonicalReferencePickReference
 } from "./referencePickProtocol";
-import type { CompiledDslDocument } from "../dsl/dslDocument";
+import type { CompiledDslDocument } from "@nuinuicad/nui-language";
 import type { EvaluationResult } from "../types/geometry";
 import type { VscodeWebviewApi } from "./protocol";
 

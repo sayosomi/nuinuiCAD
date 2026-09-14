@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { parseDsl } from "../dsl/dslParser";
-import type { DslStatement } from "../dsl/dslTypes";
-import { buildLexicalScopeIndex, scopeChain, type ResolveStatementId } from "./lexicalScopeIndex";
+import { parseDsl } from "@nuinuicad/nui-language";
+import type { DslStatement } from "@nuinuicad/nui-language";
+import { buildLexicalScopeIndex, scopeChain, type ResolveStatementId } from "@nuinuicad/nui-language";
 
 // Test-local stable id stub: keyed by name (unique across every fixture
 // below), never by statementIndex. This exercises the injection contract -

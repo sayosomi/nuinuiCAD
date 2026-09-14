@@ -1,8 +1,8 @@
 import { create } from "zustand";
 import type { CommandRibbonSettings } from "../commandRibbons/commandRibbonSettings";
-import type { NumericMeasurementKey } from "../geometry/numericExpressionTypes";
+import type { NumericMeasurementKey } from "@nuinuicad/nui-language";
 import type { ShortcutSettings } from "../keyboard/shortcutTypes";
-import type { ParameterKey } from "../parameters/parameterDefinitions";
+import type { ParameterKey } from "@nuinuicad/nui-language";
 import { useCadDocumentStore } from "./cadDocumentStore";
 import { sourceEditSession } from "../editor/sourceEditSession";
 import type { CommandLineSession } from "../commands/commandLineSession";
@@ -12,10 +12,10 @@ import type {
   ElementId,
   PointAnchor
 } from "../types/geometry";
-import { isGroupExpanded } from "../model/groups";
-import type { FoldTarget, GroupFoldById, GroupFoldState } from "../model/groups";
-import type { BindingId } from "../scalars/bindingCatalog";
-import type { ModuleSemanticTarget } from "../dsl/moduleSemanticEditor";
+import { isGroupExpanded } from "@nuinuicad/nui-language";
+import type { FoldTarget, GroupFoldById, GroupFoldState } from "@nuinuicad/nui-language";
+import type { BindingId } from "@nuinuicad/nui-language";
+import type { ModuleSemanticTarget } from "@nuinuicad/nui-language";
 import {
   matchingPickModeSessionForTargets,
   type PickModeSelectionCardinality,

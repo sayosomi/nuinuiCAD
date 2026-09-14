@@ -1,2 +1,2 @@
-export * from "../../packages/nui-language/src/model/drawingModifierInspection";
+export * from "@nuinuicad/nui-language";
 export * from "./drawingModifierInspectionRuntime";

@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { compileDslToElements } from "./dslCompiler";
-import { compileDslDocument } from "./dslDocument";
-import { documentDslRefs, serializeElementsToDsl } from "./dslSerializer";
-import { serializeElementStatementBlock, serializeElementStatementLogical } from "./dslSerializeElement";
-import { UNCLOSED_CALL_CODE } from "./dslCallParser";
+import { compileDslToElements } from "@nuinuicad/nui-language";
+import { compileDslDocument } from "@nuinuicad/nui-language";
+import { documentDslRefs, serializeElementsToDsl } from "@nuinuicad/nui-language";
+import { serializeElementStatementBlock, serializeElementStatementLogical } from "@nuinuicad/nui-language";
+import { UNCLOSED_CALL_CODE } from "@nuinuicad/nui-language";
 
 describe("DSL compiler", () => {
   it("serializes an omitted bezierExtremePoint segmentIndex as canonical zero", () => {

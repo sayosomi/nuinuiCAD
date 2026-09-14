@@ -5,7 +5,7 @@
 
 import type { Action } from "@codemirror/lint";
 import type { EditorView } from "@codemirror/view";
-import type { TypedVariableQuickFixDescriptor } from "../scalars/typedVariableQuickFixes";
+import type { TypedVariableQuickFixDescriptor } from "@nuinuicad/nui-language";
 import { sourceEditSession } from "./sourceEditSession";
 
 export type TypedVariableQuickFixActionDeps = {

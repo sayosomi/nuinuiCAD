@@ -5,7 +5,7 @@ import {
   getParameterValue,
   getPointAnchor,
   setParameterValue
-} from "./parameterAccess";
+} from "@nuinuicad/nui-language";
 
 describe("parameterAccess", () => {
   it("reads and writes free point numeric parameters", () => {

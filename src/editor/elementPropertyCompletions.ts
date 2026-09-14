@@ -2,7 +2,7 @@ import type { Completion } from "@codemirror/autocomplete";
 import { dslElementParameterCompletionOptions } from "../dsl/dslElementParameterCompletionCandidates";
 import type { DslLiveStatementIdentity } from "../dsl/dslCompletionCandidates";
 import type { CadElement, ComputedGeometry, DependencyError, ElementId } from "../types/geometry";
-import type { ScalarType } from "../scalars/types";
+import type { ScalarType } from "@nuinuicad/nui-language";
 
 /** Editor adapter shared by numeric && typed expression property completion. */
 export const elementPropertyCompletions = ({

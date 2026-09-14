@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { compileDslToElements } from "../dsl/dslCompiler";
-import { parseDsl } from "../dsl/dslParser";
-import type { DiagnosticSpanContext } from "../dsl/dslDiagnosticSpan";
-import type { DslStatement } from "../dsl/dslTypes";
-import type { BindingAnalysis } from "./bindingAnalysis";
-import type { Binding, BindingId } from "./bindingCatalog";
+import { compileDslToElements } from "@nuinuicad/nui-language";
+import { parseDsl } from "@nuinuicad/nui-language";
+import type { DiagnosticSpanContext } from "@nuinuicad/nui-language";
+import type { DslStatement } from "@nuinuicad/nui-language";
+import type { BindingAnalysis } from "@nuinuicad/nui-language";
+import type { Binding, BindingId } from "@nuinuicad/nui-language";
 import {
   compileSetStatements,
   CONST_ASSIGNMENT_CODE,
@@ -12,8 +12,8 @@ import {
   MISSING_SET_STATEMENT_IDENTITY_CODE,
   SET_RHS_INVALID_REFERENCE_CODE,
   SET_RHS_UNRESOLVED_CODE
-} from "./setStatementCompiler";
-import { analyzeTypedDeclarations } from "./typedDeclarationAnalysis";
+} from "@nuinuicad/nui-language";
+import { analyzeTypedDeclarations } from "@nuinuicad/nui-language";
 
 /** Mirrors compileDslDocument's own pipeline (dsl/dslDocument.ts) up to the
  * point Task 29 hooks in, so this module is tested against the same shapes

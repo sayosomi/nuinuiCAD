@@ -7,8 +7,8 @@
 import { EditorSelection } from "@codemirror/state";
 import { fireEvent } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { BindingId } from "../scalars/bindingCatalog";
-import { propertyBindingOccurrenceKey } from "../scalars/propertyBindingCompiler";
+import type { BindingId } from "@nuinuicad/nui-language";
+import { propertyBindingOccurrenceKey } from "@nuinuicad/nui-language";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import { SourceEditorController } from "./sourceEditorController";

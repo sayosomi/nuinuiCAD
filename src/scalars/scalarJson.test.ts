@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { parseScalarEvaluationJson, parseScalarTypeJson, parseScalarValueJson } from "./scalarJson";
-import type { ScalarEvaluation, ScalarExpressionType, ScalarType, ScalarValue } from "./types";
+import { parseScalarEvaluationJson, parseScalarTypeJson, parseScalarValueJson } from "@nuinuicad/nui-language";
+import type { ScalarEvaluation, ScalarExpressionType, ScalarType, ScalarValue } from "@nuinuicad/nui-language";
 
 describe("parseScalarTypeJson", () => {
   it("round-trips valid payloads for every kind", () => {

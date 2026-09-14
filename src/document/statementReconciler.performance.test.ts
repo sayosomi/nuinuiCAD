@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { dslTextForElements } from "../dsl/dslDocumentTestUtils";
-import { isElementDslStatement, parseDsl } from "../dsl/dslParser";
+import { dslTextForElements } from "@nuinuicad/nui-language";
+import { isElementDslStatement, parseDsl } from "@nuinuicad/nui-language";
 import type { CadElementType } from "../types/geometry";
-import { reconcileStatements, type ReconcileInput } from "./statementReconciler";
+import { reconcileStatements, type ReconcileInput } from "@nuinuicad/nui-language/document";
 
 /**
  * This guards reconciliation complexity, not end-to-end UI latency. Wall-clock

@@ -7,8 +7,8 @@ import {
   dslLinePrintLayoutValueSpans,
   dslLineValueSpans,
   findDslValueSpanAt
-} from "./dslValueSpans";
-import { parseDsl } from "./dslParser";
+} from "@nuinuicad/nui-language";
+import { parseDsl } from "@nuinuicad/nui-language";
 
 const textOf = (source: string, span: { start: number; end: number }) => source.slice(span.start, span.end);
 

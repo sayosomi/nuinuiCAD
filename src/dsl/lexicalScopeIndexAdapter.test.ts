@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { parseDsl } from "./dslParser";
-import type { DslStatement } from "./dslTypes";
-import { buildLexicalScopeIndexFromStatements } from "./lexicalScopeIndexAdapter";
+import { parseDsl } from "@nuinuicad/nui-language";
+import type { DslStatement } from "@nuinuicad/nui-language";
+import { buildLexicalScopeIndexFromStatements } from "@nuinuicad/nui-language";
 
 // Test-only helper: assigns each statement its own array index as a string.
 // This is NOT a stable identity (it shifts under any edit) && exists only

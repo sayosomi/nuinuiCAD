@@ -28,22 +28,22 @@ import {
 } from "../keyboard/shortcutRegistry";
 import type { KeyChord } from "../keyboard/shortcutTypes";
 import { creationPlacementForTarget } from "../model/elementCreationPlacement";
-import { isConditionalGroupElement, isFoldTargetExpanded, isStatementExpanded } from "../model/groups";
-import { getParameterDefinitions } from "../parameters/parameterDefinitions";
+import { isConditionalGroupElement, isFoldTargetExpanded, isStatementExpanded } from "@nuinuicad/nui-language";
+import { getParameterDefinitions } from "@nuinuicad/nui-language";
 import { parameterPickCommandId } from "../commands/parameterPickCommand";
 import { pickCandidates } from "../model/pickCandidates";
 import { matchingPickModeSessionForTargets } from "../model/pickModeSession";
 import { isRuntimeBindingDisplayFresh } from "../model/runtimeBindingFreshness";
 import { runtimeScalarDiagnostics } from "../scalars/runtimeScalarDiagnostics";
-import type { BindingId } from "../scalars/bindingCatalog";
+import type { BindingId } from "@nuinuicad/nui-language";
 import type { ElementId, EvaluationResult } from "../types/geometry";
-import type { StatementIdentity } from "../document/statementIdentity";
-import { sourceOwnerByRuntimeElementId } from "../dsl/sourceOwnership";
+import type { StatementIdentity } from "@nuinuicad/nui-language/document";
+import { sourceOwnerByRuntimeElementId } from "@nuinuicad/nui-language";
 import { useCadDocumentStore, type CadDocumentState } from "../state/cadDocumentStore";
 import { useCadUiStore, type CadUiState } from "../state/cadUiStore";
 import { dslCmLanguageExtension } from "./cmLanguage";
 import { dslAutocompleteExtension, isElementParameterRetryContext, type DslAutocompleteOptions } from "./cmAutocomplete";
-import type { ModuleCompletionSite } from "../dsl/moduleCompletionCandidates";
+import type { ModuleCompletionSite } from "@nuinuicad/nui-language";
 import {
   captureSourceEditorViewport,
   cursorAtSnapshotLocation,
@@ -114,11 +114,11 @@ import { createDiagnosticsExtension, diagnosticsForCurrentView, type Diagnostics
 import { mapPositionedDiagnostics, toStaleDiagnostics, type PositionedDiagnostic } from "./sourceEditorDiagnostics";
 import { createEvaluationExtension, evaluationChanged } from "./sourceEditorEvaluationExtension";
 import { createEvaluationDecorationIndex, type EvaluationDecorationIndex } from "./sourceEditorEvaluationIndex";
-import { dslDocumentValueSpansAt, type DslValueSpanDirection } from "../dsl/dslValueSpans";
-import type { DslPhysicalSpan } from "../dsl/logicalStatementSourceMap";
-import { resolveParameterValueSpan } from "../dsl/dslParameterSpans";
-import { propertyBindingOccurrenceKey } from "../scalars/propertyBindingCompiler";
-import { logicalOffsetForPhysicalPosition, logicalTextForProjection, physicalSpanForStatementRange, singlePhysicalSegment, statementProjectionAt } from "../dsl/dslStatementProjection";
+import { dslDocumentValueSpansAt, type DslValueSpanDirection } from "@nuinuicad/nui-language";
+import type { DslPhysicalSpan } from "@nuinuicad/nui-language";
+import { resolveParameterValueSpan } from "@nuinuicad/nui-language";
+import { propertyBindingOccurrenceKey } from "@nuinuicad/nui-language";
+import { logicalOffsetForPhysicalPosition, logicalTextForProjection, physicalSpanForStatementRange, singlePhysicalSegment, statementProjectionAt } from "@nuinuicad/nui-language";
 
 const pickModeSessionForUi = (ui: Pick<CadUiState,
   "activePickModeSession" | "activePointPickTarget" | "activeNumericReferencePickTarget" | "activeLinePickTarget"
@@ -131,10 +131,10 @@ const pickModeSessionForUi = (ui: Pick<CadUiState,
 const pickModeIsActive = (ui: Pick<CadUiState,
   "activePickModeSession" | "activePointPickTarget" | "activeNumericReferencePickTarget" | "activeLinePickTarget"
 >) => Boolean(pickModeSessionForUi(ui));
-import { resolveDslValueStep, type DslValueStepDirection } from "../dsl/dslValueStep";
-import { resolveTypedValueStep, typedNumericStepOptions, typedValueStepTargetForBinding, type TypedValueStepOptions } from "../dsl/dslTypedValueStep";
-import { scanDslSource, splitDslTerms } from "../dsl/dslTokens";
-import type { ScalarType } from "../scalars/types";
+import { resolveDslValueStep, type DslValueStepDirection } from "@nuinuicad/nui-language";
+import { resolveTypedValueStep, typedNumericStepOptions, typedValueStepTargetForBinding, type TypedValueStepOptions } from "@nuinuicad/nui-language";
+import { scanDslSource, splitDslTerms } from "@nuinuicad/nui-language";
+import type { ScalarType } from "@nuinuicad/nui-language";
 import {
   sameValueStepGesture,
   valueStepDirectionForCommand,
@@ -149,7 +149,7 @@ import {
   moduleSemanticTargetAt,
   type ModuleSemanticRangeIndex,
   type ModuleSemanticTarget
-} from "../dsl/moduleSemanticEditor";
+} from "@nuinuicad/nui-language";
 
 type SourceStore = {
   getState: () => CadDocumentState;

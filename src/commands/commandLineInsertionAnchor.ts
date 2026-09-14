@@ -1,4 +1,4 @@
-import { descendantIdsForGroup, isGroupElement } from "../model/groups";
+import { descendantIdsForGroup, isGroupElement } from "@nuinuicad/nui-language";
 import type { ElementCreationTarget } from "../model/elementCreationPlacement";
 import type { CadElement, ElementId } from "../types/geometry";
 

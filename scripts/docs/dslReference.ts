@@ -8,25 +8,25 @@ import {
   constructionCandidatesFor,
   type DslConstructionCategory,
   type DslConstructionSpec,
-} from "../../src/dsl/dslConstructions";
-import { compileDslDocument } from "../../src/dsl/dslDocument";
-import { dslStatementKeywords } from "../../src/dsl/dslStatementKeywords";
-import type { DslDiagnostic } from "../../src/dsl/dslTypes";
-import { createCadElement } from "../../src/model/elementFactory";
+} from "@nuinuicad/nui-language";
+import { compileDslDocument } from "@nuinuicad/nui-language";
+import { dslStatementKeywords } from "@nuinuicad/nui-language";
+import type { DslDiagnostic } from "@nuinuicad/nui-language";
+import { createCadElement } from "@nuinuicad/nui-language";
 import {
   dslValueTypeForParameterDefinition,
   getParameterDefinitions,
   type ParameterDefinition
-} from "../../src/parameters/parameterDefinitions";
+} from "@nuinuicad/nui-language";
 import {
   BUILTIN_FUNCTION_DEFINITIONS,
   formatBuiltinFunctionSignatures,
   type BuiltinFunctionDefinition,
   type BuiltinParameterType,
-} from "../../src/scalars/builtinFunctions";
-import { BUILTIN_CONSTANT_DEFINITIONS } from "../../src/scalars/builtinConstants";
+} from "@nuinuicad/nui-language";
+import { BUILTIN_CONSTANT_DEFINITIONS } from "@nuinuicad/nui-language";
 import type { CadElement, CadElementType } from "../../src/types/geometry";
-import { dslValueTypeName } from "../../packages/nui-language/src/dsl/dslValueTypes";
+import { dslValueTypeName } from "@nuinuicad/nui-language";
 
 export const REPOSITORY_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
@@ -277,7 +277,7 @@ const parameterSummary = (parameter: ParameterFact): string => {
 export const renderConstructionRegion = (facts: DslReferenceFacts): string => {
   const lines = [
     generatedRegionStart("constructions"),
-    "<!-- This region is generated from src/dsl/dslConstructions.ts and src/parameters/parameterDefinitions.ts. -->",
+    "<!-- This region is generated from packages/nui-language/src/dsl/dslConstructions.ts and packages/nui-language/src/parameters/parameterDefinitions.ts. -->",
   ];
   for (const fact of facts.constructions) {
     lines.push(
@@ -304,7 +304,7 @@ export const renderConstructionRegion = (facts: DslReferenceFacts): string => {
 export const renderStatementRegion = (facts: DslReferenceFacts): string => {
   const lines = [
     generatedRegionStart("statements"),
-    "<!-- This region is generated from src/dsl/dslStatementKeywords.ts. -->",
+    "<!-- This region is generated from packages/nui-language/src/dsl/dslStatementKeywords.ts. -->",
     "| Parser spelling | Reference identity |",
     "| --- | --- |",
   ];
@@ -318,7 +318,7 @@ export const renderStatementRegion = (facts: DslReferenceFacts): string => {
 export const renderBuiltinRegion = (facts: DslReferenceFacts): string => {
   const lines = [
     generatedRegionStart("builtins"),
-    "<!-- This region is generated from src/scalars/builtinFunctions.ts and src/scalars/builtinConstants.ts. -->",
+    "<!-- This region is generated from packages/nui-language/src/scalars/builtinFunctions.ts and packages/nui-language/src/scalars/builtinConstants.ts. -->",
     "| Builtin | Signatures | Reference identity |",
     "| --- | --- | --- |",
   ];

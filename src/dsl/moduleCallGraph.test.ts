@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { moduleRecursionCycles, recursiveModuleInstanceIds } from "./moduleCallGraph";
-import type { ModuleCallEdge, ModuleDefinitionSemantic } from "./moduleSemanticTypes";
+import { moduleRecursionCycles, recursiveModuleInstanceIds } from "@nuinuicad/nui-language";
+import type { ModuleCallEdge, ModuleDefinitionSemantic } from "@nuinuicad/nui-language";
 
 const edge = (
   callerModuleDefinitionStatementId: string,

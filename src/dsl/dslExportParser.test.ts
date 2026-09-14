@@ -4,9 +4,9 @@ import {
   MUTATION_CATEGORY,
   constructionCandidatesFor,
   isGeometryDeclarationCategory,
-} from "./dslConstructions";
-import { parseDslExportStatement, parseDslExportedGeometryStatement } from "./dslExportParser";
-import { parseDsl } from "./dslParser";
+} from "@nuinuicad/nui-language";
+import { parseDslExportStatement, parseDslExportedGeometryStatement } from "@nuinuicad/nui-language";
+import { parseDsl } from "@nuinuicad/nui-language";
 
 describe("DSL exported geometry parser", () => {
   it.each(DSL_GEOMETRY_DECLARATION_CATEGORIES)("accepts canonical geometry category: %s", (category) => {

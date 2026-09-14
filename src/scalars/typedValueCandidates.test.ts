@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { BindingAnalysis } from "./bindingAnalysis";
-import type { BindingCatalog } from "./bindingCatalog";
-import { isScalarTypeAssignable } from "./scalarAssignability";
+import type { BindingAnalysis } from "@nuinuicad/nui-language";
+import type { BindingCatalog } from "@nuinuicad/nui-language";
+import { isScalarTypeAssignable } from "@nuinuicad/nui-language";
 import { typedDeclarationAnalysisFor } from "./testSupport/typedDeclarationAnalysisFixture";
 import {
   resolvePrecedingOperandType,
@@ -11,11 +11,11 @@ import {
   scalarPrefixOperatorCandidates,
   templateHoleScalarCandidates,
   typedBindingReferenceCandidates
-} from "./typedValueCandidates";
-import { tokenizeScalarExpression } from "./expressionTokenizer";
-import { scalarExpressionCompletionContextAt } from "./scalarExpressionPositionClassifier";
-import * as builtinFunctions from "../../packages/nui-language/src/scalars/builtinFunctions";
-import type { BuiltinFunctionDefinition, BuiltinFunctionName } from "../../packages/nui-language/src/scalars/builtinFunctions";
+} from "@nuinuicad/nui-language";
+import { tokenizeScalarExpression } from "@nuinuicad/nui-language";
+import { scalarExpressionCompletionContextAt } from "@nuinuicad/nui-language";
+import { builtinFunctions } from "@nuinuicad/nui-language";
+import type { BuiltinFunctionDefinition, BuiltinFunctionName } from "@nuinuicad/nui-language";
 
 const compileFor = (source: string): { catalog: BindingCatalog; entriesById: BindingAnalysis["entriesById"] } => {
   const { bindingAnalysis } = typedDeclarationAnalysisFor(source);

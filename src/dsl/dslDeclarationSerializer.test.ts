@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { serializeTypedDeclaration } from "./dslDeclarationSerializer";
-import { parseDsl } from "./dslParser";
-import type { DslStatement } from "./dslTypes";
+import { serializeTypedDeclaration } from "@nuinuicad/nui-language";
+import { parseDsl } from "@nuinuicad/nui-language";
+import type { DslStatement } from "@nuinuicad/nui-language";
 
 const declarationOf = (source: string): Extract<DslStatement, { kind: "typedDeclaration" }> => {
   const parsed = parseDsl(source);

@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { compileFreshCanonicalText } from "../document/canonicalDocument";
-import { constructionFor } from "../dsl/dslConstructions";
-import { documentDslRefs } from "../dsl/dslSerializer";
-import { serializeElementStatementLogical } from "../dsl/dslSerializeElement";
+import { compileFreshCanonicalText } from "@nuinuicad/nui-language/document";
+import { constructionFor } from "@nuinuicad/nui-language";
+import { documentDslRefs } from "@nuinuicad/nui-language";
+import { serializeElementStatementLogical } from "@nuinuicad/nui-language";
 import type { ArcLineElement, EvaluationResult } from "../types/geometry";
 import { evaluateElements } from "./evaluate";
 import { geometryHoverPresentation } from "./geometryHoverPresentation";

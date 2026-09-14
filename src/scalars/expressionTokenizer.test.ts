@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { tokenizeScalarExpression, type ScalarExpressionToken } from "./expressionTokenizer";
+import { tokenizeScalarExpression, type ScalarExpressionToken } from "@nuinuicad/nui-language";
 
 const fullSpan = (source: string) => ({ start: 0, end: source.length });
 

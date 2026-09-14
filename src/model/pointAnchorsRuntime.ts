@@ -8,8 +8,8 @@ import type {
   ComputedPolyline,
   ComputedPoint
 } from "../types/geometry";
-import type { ElementId, PointAnchor } from "../../packages/nui-language/src/model/cadDocumentTypes";
-import { derivedAnchor, referenceAnchor } from "../../packages/nui-language/src/model/pointAnchors";
+import type { ElementId, PointAnchor } from "@nuinuicad/nui-language";
+import { derivedAnchor, referenceAnchor } from "@nuinuicad/nui-language";
 
 export type SelectablePoint = {
   anchor: PointAnchor;

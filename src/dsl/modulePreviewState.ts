@@ -1,10 +1,10 @@
-import type { StatementIdentity } from "../document/statementIdentity";
+import type { StatementIdentity } from "@nuinuicad/nui-language/document";
 import { createLazyScalarProgramEvaluator } from "../scalars/declarationEvaluator";
-import { IDENTIFIER_PATTERN } from "../scalars/literalScanner";
-import { numericLiteralForExpression } from "../scalars/numericLiteral";
-import type { ScalarEvaluation, ScalarValue } from "../scalars/types";
-import type { CompiledDslDocument } from "./dslDocument";
-import type { DslDiagnosticPresentation, DslStatement } from "./dslTypes";
+import { IDENTIFIER_PATTERN } from "@nuinuicad/nui-language";
+import { numericLiteralForExpression } from "@nuinuicad/nui-language";
+import type { ScalarEvaluation, ScalarValue } from "@nuinuicad/nui-language";
+import type { CompiledDslDocument } from "@nuinuicad/nui-language";
+import type { DslDiagnosticPresentation, DslStatement } from "@nuinuicad/nui-language";
 import {
   compileModulePreviewRoot,
   type ModulePreviewArgument,
@@ -14,8 +14,8 @@ import {
 import type {
   ModuleDefinitionSemantic,
   ResolvedModuleParameter
-} from "./moduleSemanticTypes";
-import type { DslNumericTypeOptions } from "./dslNumericTypeOptions";
+} from "@nuinuicad/nui-language";
+import type { DslNumericTypeOptions } from "@nuinuicad/nui-language";
 import type {
   ModulePreviewTarget,
   ModulePreviewTargetSemanticSnapshot,

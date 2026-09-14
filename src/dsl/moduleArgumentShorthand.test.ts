@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument } from "./dslDocument";
-import { queryDslDefinition } from "./dslDefinitionQuery";
-import { parseDslModuleStatement } from "./dslModuleParser";
-import { parseDslSnapshot } from "./dslParser";
-import { queryDslReferences } from "./dslReferencesQuery";
-import { createDslSemanticOccurrenceIndex } from "./dslSemanticOccurrenceIndex";
-import { moduleCompletionCandidates } from "./moduleCompletionCandidates";
-import { moduleSemanticStableFingerprint } from "../document/moduleSemanticRenameAnalysis";
-import { planDslRenameEditsResult } from "./dslRenameQuery";
+import { compileDslDocument } from "@nuinuicad/nui-language";
+import { queryDslDefinition } from "@nuinuicad/nui-language";
+import { parseDslModuleStatement } from "@nuinuicad/nui-language";
+import { parseDslSnapshot } from "@nuinuicad/nui-language";
+import { queryDslReferences } from "@nuinuicad/nui-language";
+import { createDslSemanticOccurrenceIndex } from "@nuinuicad/nui-language";
+import { moduleCompletionCandidates } from "@nuinuicad/nui-language";
+import { moduleSemanticStableFingerprint } from "@nuinuicad/nui-language/document";
+import { planDslRenameEditsResult } from "@nuinuicad/nui-language";
 
 const compileWithIds = (source: string) => {
   const parsed = parseDslSnapshot({ normalizedSource: source, sourceRevision: 0 });

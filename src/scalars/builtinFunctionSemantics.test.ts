@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { evaluateBuiltinFunction } from "./builtinFunctionSemantics";
+import { evaluateBuiltinFunction } from "@nuinuicad/nui-language";
 
 const expectNumberResult = (result: ReturnType<typeof evaluateBuiltinFunction>, expected: number): void => {
   expect(result.status).toBe("ok");

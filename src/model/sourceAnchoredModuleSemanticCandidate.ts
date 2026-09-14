@@ -1,5 +1,5 @@
-import type { DslReferencePickSourceAnchor } from "../dsl/dslReferencePickQuery";
-import type { ModuleOrigin, ModuleMaterialization } from "../dsl/moduleMaterialization";
+import type { DslReferencePickSourceAnchor } from "@nuinuicad/nui-language";
+import type { ModuleOrigin, ModuleMaterialization } from "@nuinuicad/nui-language";
 import type { ElementId } from "../types/geometry";
 import {
   isSemanticGeometryCandidateAllowed,

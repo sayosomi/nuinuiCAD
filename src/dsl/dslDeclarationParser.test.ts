@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { parseDslTypedDeclarationStatement } from "./dslDeclarationParser";
-import { parseDslSnapshot } from "./dslParser";
-import { geometryArrayTypeOfTypedDeclaration } from "./geometryArraySourceAnnotations";
-import { dslValueTypeName, isDslValueTypeAssignable } from "../../packages/nui-language/src/dsl/dslValueTypes";
+import { parseDslTypedDeclarationStatement } from "@nuinuicad/nui-language";
+import { parseDslSnapshot } from "@nuinuicad/nui-language";
+import { geometryArrayTypeOfTypedDeclaration } from "@nuinuicad/nui-language";
+import { dslValueTypeName, isDslValueTypeAssignable } from "@nuinuicad/nui-language";
 
 const parse = (source: string) => parseDslTypedDeclarationStatement(source);
 const messages = (source: string) => parse(source).diagnostics.map((diagnostic) => diagnostic.message);

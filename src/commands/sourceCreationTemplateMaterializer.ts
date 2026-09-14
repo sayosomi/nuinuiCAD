@@ -1,5 +1,5 @@
-import { MUTATION_CATEGORY } from "../dsl/dslConstructions";
-import { DSL_INDENT } from "../dsl/dslTokens";
+import { MUTATION_CATEGORY } from "@nuinuicad/nui-language";
+import { DSL_INDENT } from "@nuinuicad/nui-language";
 import type {
   SourceCreationTemplateArgumentHole,
   SourceCreationTemplateLiteralArgument,

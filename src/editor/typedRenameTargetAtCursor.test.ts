@@ -1,8 +1,8 @@
 import { Text } from "@codemirror/state";
 import { describe, expect, it } from "vitest";
-import { parseDsl } from "../dsl/dslParser";
-import { compileDslDocument, type CompiledDslDocument } from "../dsl/dslDocument";
-import { bindingIdForStableStatementId } from "../scalars/bindingCatalog";
+import { parseDsl } from "@nuinuicad/nui-language";
+import { compileDslDocument, type CompiledDslDocument } from "@nuinuicad/nui-language";
+import { bindingIdForStableStatementId } from "@nuinuicad/nui-language";
 import {
   createPropertyBindingRangeIndex,
   createSetStatementFieldRangeIndex,

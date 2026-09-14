@@ -5,7 +5,7 @@ import {
   formatNumber
 } from "./geometryDisplay";
 import { computedReferencePathValue } from "./numericExpressions";
-import { propertyLabels } from "./numericExpressionProperties";
+import { propertyLabels } from "@nuinuicad/nui-language";
 import {
   elementTypeLabels,
   type CadElement,

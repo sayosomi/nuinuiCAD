@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createNuiLanguageSession } from "@nuinuicad/nui-language";
 import { currentCompiledSemanticSnapshotFor } from "@nuinuicad/nui-language/workspace";
-import { queryDslSignatureHelp } from "./dslSignatureHelpQuery";
+import { queryDslSignatureHelp } from "@nuinuicad/nui-language";
 
 const source = [
   "nui 1",

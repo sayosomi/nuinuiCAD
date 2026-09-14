@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { evaluateElements } from "../geometry/evaluate";
 import { buildNumericBindingRuntimeEntries } from "../geometry/numericBindingRuntime";
-import { buildBindingVersionGraph } from "../scalars/bindingVersions";
-import { compileDslDocument, type CompiledDslDocument } from "./dslDocument";
-import { parseDslSnapshot } from "./dslParser";
+import { buildBindingVersionGraph } from "@nuinuicad/nui-language";
+import { compileDslDocument, type CompiledDslDocument } from "@nuinuicad/nui-language";
+import { parseDslSnapshot } from "@nuinuicad/nui-language";
 import { compileModulePreviewRoot, modulePreviewSyntheticCallSource } from "./modulePreviewRoot";
 import { queryModulePreviewTarget } from "./modulePreviewTarget";
 

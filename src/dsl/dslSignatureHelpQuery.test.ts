@@ -4,7 +4,7 @@ import { currentCompiledSemanticSnapshotFor } from "@nuinuicad/nui-language/work
 import {
   queryDslSignatureHelp,
   type DslSignatureHelpQueryResult
-} from "./dslSignatureHelpQuery";
+} from "@nuinuicad/nui-language";
 
 const snapshotFor = (source: string, sourceRevision = 1) => ({ normalizedSource: source, sourceRevision });
 

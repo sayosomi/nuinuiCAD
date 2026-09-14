@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument } from "../dsl/dslDocument";
-import { parseDslSnapshot } from "../dsl/dslParser";
-import { createModuleSemanticRangeIndex } from "../dsl/moduleSemanticEditor";
-import { analyzeModuleSemanticRename } from "./moduleSemanticRenameAnalysis";
+import { compileDslDocument } from "@nuinuicad/nui-language";
+import { parseDslSnapshot } from "@nuinuicad/nui-language";
+import { createModuleSemanticRangeIndex } from "@nuinuicad/nui-language";
+import { analyzeModuleSemanticRename } from "@nuinuicad/nui-language/document";
 
 const compileWithIds = (source: string) => {
   const parsed = parseDslSnapshot({ normalizedSource: source, sourceRevision: 0 });

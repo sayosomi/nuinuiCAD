@@ -12,11 +12,11 @@ import type {
 } from "../types/geometry";
 import type { BezierLikeSegment } from "./bezierMath";
 import { resolveDerivedPoint } from "../model/pointAnchorsRuntime";
-import { getParameterValue } from "../../packages/nui-language/src/parameters/parameterAccess";
-import { Parser, tokenize } from "../../packages/nui-language/src/geometry/numericExpressionParser";
-import type { NumericExpressionMeasurementFunctionName } from "../../packages/nui-language/src/geometry/numericExpressionParser";
-import { isNumericExpression, normalizeNumericExpressionInput } from "../../packages/nui-language/src/geometry/numericExpressions";
-import type { NumericExpressionError } from "../../packages/nui-language/src/geometry/numericExpressionTypes";
+import { getParameterValue } from "@nuinuicad/nui-language";
+import { Parser, tokenize } from "@nuinuicad/nui-language";
+import type { NumericExpressionMeasurementFunctionName } from "@nuinuicad/nui-language";
+import { isNumericExpression, normalizeNumericExpressionInput } from "@nuinuicad/nui-language";
+import type { NumericExpressionError } from "@nuinuicad/nui-language";
 import {
   isKnownNumericComputedGeometryProperty,
   isNumericComputedGeometryProperty,
@@ -25,7 +25,7 @@ import {
   numericGeometryStaticTargetForElementInDocument,
   type NumericComputedGeometryProperty,
   type NumericGeometryStaticTarget
-} from "../../packages/nui-language/src/geometry/numericGeometryProperties";
+} from "@nuinuicad/nui-language";
 import { numericGeometryStaticTargetForComputedGeometry } from "./numericGeometryPropertiesRuntime";
 
 const EPSILON = 1e-9;

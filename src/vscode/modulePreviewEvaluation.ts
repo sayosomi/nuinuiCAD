@@ -3,7 +3,7 @@ import type { EvaluateElementsOptions } from "../geometry/evaluate";
 import { buildNumericBindingRuntimeEntries } from "../geometry/numericBindingRuntime";
 import { buildPropertyBindingRuntimeEntries } from "../geometry/propertyBindingRuntime";
 import { buildTextPropertyBindingRuntimeEntries, buildTextTemplateEntriesByElementId } from "../geometry/textTemplateRuntime";
-import { buildBindingVersionGraph } from "../scalars/bindingVersions";
+import { buildBindingVersionGraph } from "@nuinuicad/nui-language";
 import type { ModulePreviewRootResult } from "../dsl/modulePreviewRoot";
 
 /**

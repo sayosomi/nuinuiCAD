@@ -1,10 +1,10 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { LEGACY_CANVAS_THEME } from "../components/canvasTheme";
-import { compileDslDocument } from "../dsl/dslDocument";
+import { compileDslDocument } from "@nuinuicad/nui-language";
 import { emptyEvaluationResult } from "../geometry/evaluationEngine";
-import { parseDslSnapshot } from "../dsl/dslParser";
-import { queryDslReferencePickTarget } from "../dsl/dslReferencePickQuery";
+import { parseDslSnapshot } from "@nuinuicad/nui-language";
+import { queryDslReferencePickTarget } from "@nuinuicad/nui-language";
 import type { VscodeReferencePickCanvasSession } from "./referencePickCanvasSession";
 import { VSCodeReferencePickModeStatus } from "./VSCodeReferencePickModeStatus";
 import { VSCodeReferencePickOverlay } from "./VSCodeReferencePickOverlay";

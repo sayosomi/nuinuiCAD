@@ -5,17 +5,17 @@
 // parser runs.  It never inserts a typed value into a name map || resolves a
 // typed name at runtime.
 import type { CadElement, DependencyError, ElementId, NumericValue } from "../types/geometry";
-import type { BindingId } from "../scalars/bindingCatalog";
-import type { CompiledNumericBinding } from "../scalars/numericBindingCompiler";
-import { propertyBindingOccurrenceKey } from "../scalars/propertyBindingCompiler";
-import type { ScalarEvaluation } from "../scalars/types";
+import type { BindingId } from "@nuinuicad/nui-language";
+import type { CompiledNumericBinding } from "@nuinuicad/nui-language";
+import { propertyBindingOccurrenceKey } from "@nuinuicad/nui-language";
+import type { ScalarEvaluation } from "@nuinuicad/nui-language";
 import { evaluateTypedExpression } from "../scalars/expressionEvaluator";
 import type { GeometryBuiltinTargetLookupResult } from "../scalars/expressionEvaluator";
-import type { ScalarExpressionResolvedGeometryTarget, TypedScalarExpression } from "../scalars/typedExpressionAst";
-import { getParameterValue, setParameterValue } from "../parameters/parameterAccess";
+import type { ScalarExpressionResolvedGeometryTarget, TypedScalarExpression } from "@nuinuicad/nui-language";
+import { getParameterValue, setParameterValue } from "@nuinuicad/nui-language";
 import { isNumericExpression } from "./numericExpressions";
 import { geometryError } from "./evaluationContext";
-import { numericLiteralForExpression } from "../scalars/numericLiteral";
+import { numericLiteralForExpression } from "@nuinuicad/nui-language";
 
 export type NumericBindingRuntimeEntry = {
   elementId: ElementId;

@@ -8,7 +8,7 @@
 // sends a code TS doesn't also define. Unknown codes
 // still get a message (fail-closed, never blank) rather than being dropped.
 import type { CadElement } from "../types/geometry";
-import type { ScalarEvaluationErrorContext } from "./types";
+import type { ScalarEvaluationErrorContext } from "@nuinuicad/nui-language";
 
 const RUNTIME_ISSUE_MESSAGES: Readonly<Record<string, string>> = {
   "poisoned-binding": "評価に失敗し無効化されています。",

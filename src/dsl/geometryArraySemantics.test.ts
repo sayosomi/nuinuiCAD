@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { parseGeometryArrayExpression } from "./geometryArrayExpression";
-import { resolveGeometryArrayExpression } from "./geometryArraySemantics";
-import type { GeometryArrayType } from "./geometryArrayTypes";
+import { parseGeometryArrayExpression } from "@nuinuicad/nui-language";
+import { resolveGeometryArrayExpression } from "@nuinuicad/nui-language";
+import type { GeometryArrayType } from "@nuinuicad/nui-language";
 
 const pathArray: GeometryArrayType = { kind: "geometryArray", elementType: "path" };
 const lineArray: GeometryArrayType = { kind: "geometryArray", elementType: "line" };

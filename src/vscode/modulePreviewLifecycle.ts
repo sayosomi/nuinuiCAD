@@ -1,4 +1,4 @@
-import type { StatementIdentity } from "../document/statementIdentity";
+import type { StatementIdentity } from "@nuinuicad/nui-language/document";
 import {
   queryModulePreviewTarget,
   type ModulePreviewTarget,

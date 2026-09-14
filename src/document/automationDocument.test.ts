@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { dslTextForElements } from "../dsl/dslDocumentTestUtils";
-import { AutomationDocument } from "./automationDocument";
+import { dslTextForElements } from "@nuinuicad/nui-language";
+import { AutomationDocument } from "@nuinuicad/nui-language/document";
 
 const pointSource = (name = "A", x = 0) => dslTextForElements([
   { id: "point", name, type: "freePoint", activity: "visible", x, y: 0 }

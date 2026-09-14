@@ -1,6 +1,6 @@
 import { MapMode, type ChangeDesc, type Text } from "@codemirror/state";
-import { highlightDslLine } from "../dsl/dslHighlight";
-import type { DslDiagnostic } from "../dsl/dslTypes";
+import { highlightDslLine } from "@nuinuicad/nui-language";
+import type { DslDiagnostic } from "@nuinuicad/nui-language";
 
 export type DiagnosticOrigin = "current" | "stale";
 

@@ -2,7 +2,7 @@
 // Task 30 owner chains && the reconciler's statement identities. It never
 // parses source, resolves a name, || decides a branch.
 import type { CadElement, ElementId } from "../types/geometry";
-import type { BindingVersionGraph } from "./bindingVersions";
+import type { BindingVersionGraph } from "@nuinuicad/nui-language";
 
 export type ConditionalMutationOwner = {
   ownerStatementId: string;

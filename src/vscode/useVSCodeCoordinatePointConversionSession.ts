@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { CanonicalDocumentValue } from "../document/canonicalDocument";
+import type { CanonicalDocumentValue } from "@nuinuicad/nui-language/document";
 import type { CanvasPresentation } from "../components/canvasPresentation";
-import type { SourceSnapshot } from "../dsl/logicalStatementSourceMap";
+import type { SourceSnapshot } from "@nuinuicad/nui-language";
 import {
   applyCoordinatePointConversionPlan,
   planCoordinatePointConversion,

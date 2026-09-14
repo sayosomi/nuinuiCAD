@@ -1,4 +1,4 @@
-import type { DslDiagnostic } from "../dsl/dslTypes";
+import type { DslDiagnostic } from "@nuinuicad/nui-language";
 
 const normalizedSourceFor = (sourceText: string): string =>
   sourceText.replace(/\r\n/g, "\n");

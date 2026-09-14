@@ -1,15 +1,15 @@
-import type { BindingId } from "../scalars/bindingCatalog";
-import type { BindingVersionId } from "../scalars/bindingVersions";
+import type { BindingId } from "@nuinuicad/nui-language";
+import type { BindingVersionId } from "@nuinuicad/nui-language";
 import type { BindingVersionRuntimeHistory } from "../scalars/linearMutationEvaluator";
-import type { ScalarEvaluation } from "../scalars/types";
+import type { ScalarEvaluation } from "@nuinuicad/nui-language";
 import type { ConditionEvaluationTrace } from "../scalars/conditionEvaluationTrace";
 import type {
   CadElementType,
   DrawingModifierStroke,
   ElementId
-} from "../model/cadDocumentTypes";
-import type { GeometryValueOccurrence } from "../model/cadDocumentTypes";
-import type { GeometryValueOccurrenceKey } from "../model/geometryValueOccurrence";
+} from "@nuinuicad/nui-language";
+import type { GeometryValueOccurrence } from "@nuinuicad/nui-language";
+import type { GeometryValueOccurrenceKey } from "@nuinuicad/nui-language";
 
 export type ComputedGeometryValuePoint = {
   kind: "point";

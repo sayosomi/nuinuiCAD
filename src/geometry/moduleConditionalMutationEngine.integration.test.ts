@@ -1,7 +1,7 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { compileCanonicalText, regenerateCanonicalFromModel } from "../document/canonicalDocument";
-import { emptyDocument } from "../dsl/dslDocumentTestUtils";
+import { compileCanonicalText, regenerateCanonicalFromModel } from "@nuinuicad/nui-language/document";
+import { emptyDocument } from "@nuinuicad/nui-language";
 import { evaluateElementsReferencePayload } from "./evaluationEngine";
 import type { RustEvaluationTransport } from "./rustEvaluationRunner";
 import { useEvaluationEngine } from "./useEvaluationEngine";

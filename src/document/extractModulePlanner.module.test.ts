@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument, type CompiledDslDocument } from "../dsl/dslDocument";
-import { createDslSemanticOccurrenceIndex } from "../dsl/dslSemanticOccurrenceIndex";
-import { parseDslSnapshot } from "../dsl/dslParser";
-import { planExtractModule } from "./extractModulePlanner";
-import { applyLineSplices } from "./textPatch";
+import { compileDslDocument, type CompiledDslDocument } from "@nuinuicad/nui-language";
+import { createDslSemanticOccurrenceIndex } from "@nuinuicad/nui-language";
+import { parseDslSnapshot } from "@nuinuicad/nui-language";
+import { planExtractModule } from "@nuinuicad/nui-language/document";
+import { applyLineSplices } from "@nuinuicad/nui-language/document";
 
 const REVISION = 98;
 

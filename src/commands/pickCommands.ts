@@ -42,8 +42,8 @@ import {
   type PickModeDraftEntry,
   type PickModeSession
 } from "../model/pickModeSession";
-import { findParameterDefinition } from "../parameters/parameterDefinitions";
-import { getParameterValue, setParameterValue } from "../parameters/parameterAccess";
+import { findParameterDefinition } from "@nuinuicad/nui-language";
+import { getParameterValue, setParameterValue } from "@nuinuicad/nui-language";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import { commitDocumentChangeAndSelect } from "./commitDocumentChangeAndSelect";

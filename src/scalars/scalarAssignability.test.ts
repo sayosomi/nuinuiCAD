@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { isChoiceOptionMember, isScalarExpressionTypeAssignable, isScalarTypeAssignable } from "./scalarAssignability";
-import type { ChoiceScalarType, ScalarExpressionType, ScalarType } from "./types";
+import { isChoiceOptionMember, isScalarExpressionTypeAssignable, isScalarTypeAssignable } from "@nuinuicad/nui-language";
+import type { ChoiceScalarType, ScalarExpressionType, ScalarType } from "@nuinuicad/nui-language";
 
 describe("isScalarTypeAssignable", () => {
   it("allows only exact structural matches", () => {

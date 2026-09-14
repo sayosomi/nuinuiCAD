@@ -4,7 +4,7 @@ import {
   expressionReferenceTokenEndingAt,
   scanExpressionReferences,
   stripElementPropertySigils
-} from "./expressionReferenceToken";
+} from "@nuinuicad/nui-language";
 
 describe("expressionReferenceTokenEndingAt", () => {
   it("classifies @AB as a binding token, from includes the @", () => {

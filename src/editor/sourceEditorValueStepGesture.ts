@@ -1,5 +1,5 @@
 import type { CommandId } from "../commands/commands";
-import type { DslValueStepDirection } from "../dsl/dslValueStep";
+import type { DslValueStepDirection } from "@nuinuicad/nui-language";
 
 export type SourceEditorValueStepGesture = {
   direction: DslValueStepDirection;

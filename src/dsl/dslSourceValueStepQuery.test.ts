@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument } from "./dslDocument";
-import { parseDslSnapshot } from "./dslParser";
-import { queryDslSourceValueStep } from "./dslSourceValueStepQuery";
+import { compileDslDocument } from "@nuinuicad/nui-language";
+import { parseDslSnapshot } from "@nuinuicad/nui-language";
+import { queryDslSourceValueStep } from "@nuinuicad/nui-language";
 
 const compile = (source: string, revision = 1) => {
   const parsed = parseDslSnapshot({ normalizedSource: source, sourceRevision: revision });

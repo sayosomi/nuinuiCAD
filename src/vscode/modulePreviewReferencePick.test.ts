@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { buildModulePreviewEvaluationOptions } from "./modulePreviewEvaluation";
 import { modulePreviewReferencePickTargetFor } from "./modulePreviewReferencePick";
-import { compileDslDocument } from "../dsl/dslDocument";
+import { compileDslDocument } from "@nuinuicad/nui-language";
 import { compileModulePreviewRoot } from "../dsl/modulePreviewRoot";
 import { queryModulePreviewTarget } from "../dsl/modulePreviewTarget";
-import { parseDslSnapshot } from "../dsl/dslParser";
+import { parseDslSnapshot } from "@nuinuicad/nui-language";
 import { evaluateElements } from "../geometry/evaluate";
 import { referencePickCandidates } from "../model/referencePickCandidates";
 

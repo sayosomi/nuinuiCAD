@@ -8,20 +8,20 @@
 // wiring, && Rust integration are owned by the surrounding document/runtime
 // layers rather than this expression evaluator.
 
-import type { BindingId } from "./bindingCatalog";
+import type { BindingId } from "@nuinuicad/nui-language";
 import type {
   TypedScalarBinaryExpressionNode,
   TypedScalarCallExpressionNode,
   TypedScalarExpression,
   TypedScalarReferenceNode,
   TypedScalarUnaryExpressionNode
-} from "./typedExpressionAst";
-import type { ScalarExpressionResolvedGeometryTarget, ScalarExpressionResolvedOptionalMemberTarget, TypedBuiltinArgument } from "./typedExpressionAst";
-import { evaluateBuiltinFunction } from "./builtinFunctionSemantics";
-import { atan2Degrees360, radiansToDegrees } from "./angleMath";
-import { scalarTypesEqual, scalarValueMatchesType, type ScalarEvaluation, type ScalarExpressionType, type ScalarType, type ScalarValue } from "./types";
-import { isScalarExpressionTypeAssignable, scalarExpressionTypesEqual } from "./scalarAssignability";
-import { isDslOptionalValueType } from "../../packages/nui-language/src/dsl/dslValueTypes";
+} from "@nuinuicad/nui-language";
+import type { ScalarExpressionResolvedGeometryTarget, ScalarExpressionResolvedOptionalMemberTarget, TypedBuiltinArgument } from "@nuinuicad/nui-language";
+import { evaluateBuiltinFunction } from "@nuinuicad/nui-language";
+import { atan2Degrees360, radiansToDegrees } from "@nuinuicad/nui-language";
+import { scalarTypesEqual, scalarValueMatchesType, type ScalarEvaluation, type ScalarExpressionType, type ScalarType, type ScalarValue } from "@nuinuicad/nui-language";
+import { isScalarExpressionTypeAssignable, scalarExpressionTypesEqual } from "@nuinuicad/nui-language";
+import { isDslOptionalValueType } from "@nuinuicad/nui-language";
 import type { ComputedGeometry } from "../types/geometry";
 import type { ComputedGeometryValue } from "../geometry/evaluationTypes";
 

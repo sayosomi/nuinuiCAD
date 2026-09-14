@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CadElement, VisibilityProfile } from "../types/geometry";
-import { effectiveVisibleElementIdsForProfile } from "./visibilityProfiles";
+import { effectiveVisibleElementIdsForProfile } from "@nuinuicad/nui-language";
 
 const profile = (roleVisibility: Record<string, boolean>): VisibilityProfile => ({
   id: "profile",

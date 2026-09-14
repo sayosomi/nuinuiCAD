@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MUTATION_CATEGORY } from "../dsl/dslConstructions";
+import { MUTATION_CATEGORY } from "@nuinuicad/nui-language";
 import {
   sourceCreationTemplatePlanForLegacyCommand,
   sourceCreationTemplatePlans,

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { queryDslCompletion } from "./dslCompletionQuery";
-import { queryDslSignatureHelp } from "./dslSignatureHelpQuery";
+import { queryDslCompletion } from "@nuinuicad/nui-language";
+import { queryDslSignatureHelp } from "@nuinuicad/nui-language";
 
 const snapshotFor = (source: string) => ({ normalizedSource: source, sourceRevision: 1 });
 

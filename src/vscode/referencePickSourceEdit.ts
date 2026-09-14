@@ -1,8 +1,8 @@
-import type { CompiledDslDocument } from "../dsl/dslDocument";
+import type { CompiledDslDocument } from "@nuinuicad/nui-language";
 import {
   queryDslReferencePickTarget,
   type SourceSnapshot
-} from "../dsl/dslReferencePickQuery";
+} from "@nuinuicad/nui-language";
 import type { CanonicalGeometrySourceReference } from "../model/moduleSemanticCandidateBoundary";
 import { isNumericComputedGeometryProperty } from "../geometry/numericExpressions";
 import {

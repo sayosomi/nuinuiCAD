@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { startSession } from "../commands/commandLineSession";
 import { COMMAND_LINE_PICK_TARGET_ID } from "../commands/commandLinePickRouting";
 import { creationRecipeForType } from "../commands/creationRecipes";
-import type { ModuleMaterialization } from "../dsl/moduleMaterialization";
+import type { ModuleMaterialization } from "@nuinuicad/nui-language";
 import { evaluateElements } from "../geometry/evaluate";
 import { pickCandidates } from "../model/pickCandidates";
 import { DEFAULT_CANVAS_VIEWPORT } from "../state/cadUiStore";

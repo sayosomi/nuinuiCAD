@@ -15,16 +15,16 @@
 // evaluation loop && would be a full-document scan for a single-binding
 // Inspector lookup, unrelated to the current selection.
 
-import type { CompiledDslDocument, StatementMap } from "../dsl/dslDocument";
-import { getParameterDefinitions } from "../parameters/parameterDefinitions";
-import type { BindingAnalysis } from "../scalars/bindingAnalysis";
-import type { BindingId } from "../scalars/bindingCatalog";
-import type { BindingVersionGraph } from "../scalars/bindingVersions";
-import { parsePropertyBindingOccurrenceKey } from "../scalars/propertyBindingCompiler";
+import type { CompiledDslDocument, StatementMap } from "@nuinuicad/nui-language";
+import { getParameterDefinitions } from "@nuinuicad/nui-language";
+import type { BindingAnalysis } from "@nuinuicad/nui-language";
+import type { BindingId } from "@nuinuicad/nui-language";
+import type { BindingVersionGraph } from "@nuinuicad/nui-language";
+import { parsePropertyBindingOccurrenceKey } from "@nuinuicad/nui-language";
 import { runtimeIssueMessage } from "../scalars/runtimeIssueMessages";
-import type { TextTemplateAst, TextTemplateDependency } from "../scalars/textTemplate";
-import { referencesIn } from "../scalars/typedDependencyGraph";
-import type { ScalarValue } from "../scalars/types";
+import type { TextTemplateAst, TextTemplateDependency } from "@nuinuicad/nui-language";
+import { referencesIn } from "@nuinuicad/nui-language";
+import type { ScalarValue } from "@nuinuicad/nui-language";
 import { textNumber } from "../geometry/numericExpressions";
 import type { CadElement, ElementId, EvaluationResult } from "../types/geometry";
 import { elementTypeLabels } from "../types/geometry";

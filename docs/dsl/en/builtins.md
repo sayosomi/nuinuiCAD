@@ -8,7 +8,7 @@ units, and its runtime restrictions. Positional and named-only calling styles ar
 positional.
 
 <!-- dsl-ref:generated:start builtins -->
-<!-- This region is generated from src/scalars/builtinFunctions.ts and src/scalars/builtinConstants.ts. -->
+<!-- This region is generated from packages/nui-language/src/scalars/builtinFunctions.ts and packages/nui-language/src/scalars/builtinConstants.ts. -->
 | Builtin | Signatures | Reference identity |
 | --- | --- | --- |
 <!-- dsl-ref:builtin:abs -->

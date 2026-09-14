@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { bindingIssuesToDiagnostics } from "./bindingIssueDiagnostics";
-import { exactPhysicalSpan } from "../dsl/dslDiagnosticSpan";
-import { lowerScalarProgram } from "./scalarProgram";
+import { bindingIssuesToDiagnostics } from "@nuinuicad/nui-language";
+import { exactPhysicalSpan } from "@nuinuicad/nui-language";
+import { lowerScalarProgram } from "@nuinuicad/nui-language";
 import { typedDeclarationAnalysisFor } from "./testSupport/typedDeclarationAnalysisFixture";
-import { geometryPropertiesIn, referencesIn } from "./typedDependencyGraph";
+import { geometryPropertiesIn, referencesIn } from "@nuinuicad/nui-language";
 
 const bindingIdForName = (fixture: ReturnType<typeof typedDeclarationAnalysisFor>, name: string): string => {
   const binding = fixture.bindingAnalysis.catalog.bindings.find((candidate) => candidate.name === name);

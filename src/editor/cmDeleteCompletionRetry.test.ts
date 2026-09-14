@@ -4,8 +4,8 @@ import { EditorState, Transaction } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { describe, expect, it } from "vitest";
 import { dslAutocompleteExtension } from "./cmAutocomplete";
-import { compileDslDocument } from "../dsl/dslDocument";
-import { parseDsl } from "../dsl/dslParser";
+import { compileDslDocument } from "@nuinuicad/nui-language";
+import { parseDsl } from "@nuinuicad/nui-language";
 import {
   createScopeBodyRangeIndex,
   createTypedDeclarationRangeIndex,

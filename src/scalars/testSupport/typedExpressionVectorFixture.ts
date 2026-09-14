@@ -4,12 +4,12 @@
 // JSON -> Rust-struct decoder via Task 17's payload validator, independent
 // of this file.
 
-import type { BindingId } from "../bindingCatalog";
-import type { ScalarBinaryOperator, ScalarUnaryOperator } from "../expressionAst";
+import type { BindingId } from "@nuinuicad/nui-language";
+import type { ScalarBinaryOperator, ScalarUnaryOperator } from "@nuinuicad/nui-language";
 import type { ScalarEvaluationEnvironment } from "../expressionEvaluator";
-import { parseScalarEvaluationJson, parseScalarTypeJson } from "../scalarJson";
-import type { TypedScalarExpression } from "../typedExpressionAst";
-import type { ChoiceScalarType, ScalarEvaluation, ScalarExpressionType, ScalarType } from "../types";
+import { parseScalarEvaluationJson, parseScalarTypeJson } from "@nuinuicad/nui-language";
+import type { TypedScalarExpression } from "@nuinuicad/nui-language";
+import type { ChoiceScalarType, ScalarEvaluation, ScalarExpressionType, ScalarType } from "@nuinuicad/nui-language";
 
 const DUMMY_SPAN = { start: 0, end: 0 };
 

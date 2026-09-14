@@ -1,9 +1,9 @@
 import { EditorState } from "@codemirror/state";
 import { describe, expect, it } from "vitest";
-import { compileDslDocument } from "../dsl/dslDocument";
-import { parseDslSnapshot } from "../dsl/dslParser";
+import { compileDslDocument } from "@nuinuicad/nui-language";
+import { parseDslSnapshot } from "@nuinuicad/nui-language";
 import { createDslCompletionSource } from "./cmAutocomplete";
-import type { ModuleCompletionSite } from "../dsl/moduleCompletionCandidates";
+import type { ModuleCompletionSite } from "@nuinuicad/nui-language";
 
 const compileWithIds = (source: string) => {
   const parsed = parseDslSnapshot({ normalizedSource: source, sourceRevision: 0 });

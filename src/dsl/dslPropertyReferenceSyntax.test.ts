@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument } from "./dslDocument";
-import { parseDsl } from "./dslParser";
-import { BARE_PROPERTY_REFERENCE_CODE } from "./expressionReferenceToken";
-import { propertyBindingOccurrenceKey } from "../scalars/propertyBindingCompiler";
+import { compileDslDocument } from "@nuinuicad/nui-language";
+import { parseDsl } from "@nuinuicad/nui-language";
+import { BARE_PROPERTY_REFERENCE_CODE } from "@nuinuicad/nui-language";
+import { propertyBindingOccurrenceKey } from "@nuinuicad/nui-language";
 
 const errorsOf = (source: string) =>
   compileDslDocument(source).diagnostics.filter((diagnostic) => diagnostic.severity === "error");

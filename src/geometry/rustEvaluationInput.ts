@@ -1,12 +1,12 @@
 import type { CadElement, DrawingModifierDefinition, ElementId } from "../types/geometry";
 import { isRustLinearMutationEligible } from "../scalars/linearMutationEvaluator";
-import type { TypedScalarExpression } from "../scalars/typedExpressionAst";
+import type { TypedScalarExpression } from "@nuinuicad/nui-language";
 import { buildRustBindingMutationPayload, type RustBindingMutationPayload } from "./bindingVersionPayload";
 import type { EvaluateElementsOptions } from "./evaluate";
 import type { PropertyBindingRuntimeEntry } from "./propertyBindingRuntime";
 import type { NumericBindingRuntimeEntry } from "./numericBindingRuntime";
 import { toRustTextTemplateSegments, type RustTextTemplateSegment } from "./textTemplateRuntime";
-import type { ModuleMaterialization } from "../dsl/moduleMaterialization";
+import type { ModuleMaterialization } from "@nuinuicad/nui-language";
 import type { GeometryInputCollectionNode } from "../types/geometry";
 
 type ConditionExpressionInput = { elementId: ElementId; expression: TypedScalarExpression };
@@ -14,7 +14,7 @@ type TextTemplateInput = { elementId: ElementId; segments: readonly RustTextTemp
 
 export type EvaluateDocumentInput = {
   elements: CadElement[];
-  transformationRecipes?: readonly import("../../packages/nui-language/src/dsl/transformationRecipes").TransformationRecipe[];
+  transformationRecipes?: readonly import("@nuinuicad/nui-language").TransformationRecipe[];
   sourceStatementIndices?: Array<{ elementId: ElementId; statementIndex: number }>;
   evaluationLimitIndex?: number;
   allowDisabledElementIds?: readonly ElementId[];

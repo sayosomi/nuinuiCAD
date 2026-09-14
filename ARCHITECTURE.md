@@ -268,17 +268,15 @@ semantics, and multi-document workspace semantics. The three package entry
 points are the supported internal surfaces; the package is private and has no
 additional public export paths.
 
-Legacy `src/dsl`, `src/document`, `src/scalars`, `src/model`, `src/parameters`,
-and compile-time `src/geometry` paths remain only as transitional forwarding
-shims where still present. They do not retain a second semantic implementation.
-Runtime computed geometry, `EvaluationResult`, Rust payload construction, and
-runtime evaluator orchestration remain outside Language Core. VS Code Extension
-Host language and multi-document consumers use the supported root, document,
-and workspace entries, and Headless MCP document/language consumers use the
-same supported entries. Language Core remains host-neutral; filesystem, URI,
-version, watcher, Node, VS Code, and runtime/evaluation responsibilities remain
-outside the package. Transitional root forwarding shims still exist for
-remaining non-host repository consumers pending repository-wide cleanup.
+All repository consumers use those three supported package surfaces directly:
+the root entry for ordinary language semantics and DTOs, the document entry for
+single-document lifecycle/source editing helpers, and the workspace entry for
+multi-document graph, identity, and cross-document language semantics. No
+forwarding-only Language Core shims remain under root `src/**`. Runtime computed
+geometry, `EvaluationResult`, Rust payload construction, and runtime evaluator
+orchestration remain outside Language Core. Language Core remains host-neutral;
+filesystem, URI, version, watcher, Node, VS Code, and runtime/evaluation
+responsibilities remain outside the package.
 
 ### Headless MCP
 
@@ -397,8 +395,8 @@ Primary:
 - `packages/nui-language/src/dsl/dslDocument.ts`
 - `docs/dsl.md`
 
-The former `src/dsl/` implementation paths are transitional forwarding shims;
-they are not a second parser or compiler owner.
+The Language Core DSL implementation is package-owned and consumed through the
+root package entry; root `src/dsl/` forwarding paths are not retained.
 
 `docs/dsl.md` は current implemented language documentation。Current
 saved-document language は nui1 only。
@@ -905,7 +903,7 @@ Primary:
 - `src/commands/coordinatePointConversion.ts`
 - `src/commands/coordinatePointConversionSession.ts`
 - `src/keyboard/shortcuts.ts`
-- `src/parameters/parameterDefinitions.ts`
+- `packages/nui-language/src/parameters/parameterDefinitions.ts`
 
 Major business operations は command に集約する。Keyboard mapping と editable
 parameter metadata はそれぞれ既存 owner を使う。
@@ -1343,14 +1341,12 @@ choice-replacement descriptors; it does not use the CodeMirror adapter. The
 internal apply command is authoritative only for the current open file
 document/version/source and fails closed before creating a `WorkspaceEdit`.
 
-The single-document, multi-document/workspace, and MCP language migrations use
+The single-document, multi-document/workspace, and MCP language consumers use
 the supported Language Core package entries. Runtime diagnostics and Rust
 runtime evaluation remain host/runtime-owned; the package session is
-evaluator-free. Final repository-wide legacy shim deletion remains deferred
-because non-host consumers, including active creation/parameter owners, still
-depend on the transitional forwarding shims. Host import-boundary enforcement
-rejects direct package-internal imports and forwarding-shim fallbacks while
-allowing genuine root runtime/host implementations.
+evaluator-free. Repository-wide boundary enforcement rejects direct
+package-internal imports and forwarding-shim fallbacks while allowing genuine
+root runtime/host implementations.
 
 `rust-evaluator/src/evaluation/*performance*` は Rust evaluator 単体の既存 performance
 test であり、cross-host UI comparison foundation とは別責務。

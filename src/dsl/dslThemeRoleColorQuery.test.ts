@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument } from "./dslDocument";
-import { queryDslThemeRoleColors } from "./dslThemeRoleColorQuery";
-import { parseDslSnapshot } from "./dslParser";
+import { compileDslDocument } from "@nuinuicad/nui-language";
+import { queryDslThemeRoleColors } from "@nuinuicad/nui-language";
+import { parseDslSnapshot } from "@nuinuicad/nui-language";
 
 const compiledFor = (source: string, sourceRevision = 1) => {
   const parsed = parseDslSnapshot({ normalizedSource: source, sourceRevision });

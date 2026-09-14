@@ -10,10 +10,10 @@ import {
 } from "@codemirror/autocomplete";
 import { Prec, type Extension, type Text } from "@codemirror/state";
 import { keymap, type Command, type EditorView } from "@codemirror/view";
-import { dslCompletionContextAt, dslIntermediatesAttributeParameterKey, type DslCompletionContext } from "../dsl/dslCompletionContext";
-import { scanDslSource } from "../dsl/dslTokens";
-import { dslChoiceTypeName, dslModuleParameterTypeNames, dslTypedDeclarationTypeNames } from "../dsl/dslDeclarationParser";
-import { argumentCompletionCandidates, constructionCompletionCandidates, pureGeometryValueConstructionCandidates } from "../dsl/dslCallCompletionCandidates";
+import { dslCompletionContextAt, dslIntermediatesAttributeParameterKey, type DslCompletionContext } from "@nuinuicad/nui-language";
+import { scanDslSource } from "@nuinuicad/nui-language";
+import { dslChoiceTypeName, dslModuleParameterTypeNames, dslTypedDeclarationTypeNames } from "@nuinuicad/nui-language";
+import { argumentCompletionCandidates, constructionCompletionCandidates, pureGeometryValueConstructionCandidates } from "@nuinuicad/nui-language";
 import { dslReferenceCompletionOptions } from "../dsl/dslCompletionCandidates";
 import {
   createLogicalStatementSourceMap,
@@ -22,14 +22,14 @@ import {
   physicalToLogicalOffset,
   type LogicalStatement,
   type LogicalStatementSourceMap
-} from "../dsl/logicalStatementSourceMap";
+} from "@nuinuicad/nui-language";
 import type { CadElement, ComputedGeometry, DependencyError, ElementId, EvaluationResult } from "../types/geometry";
 import type { ScopeBodyRangeIndex, StatementRangeIndex, TypedDeclarationRangeIndex } from "./statementRangeIndex";
 import { deepestContainingScopeId, typedDeclarationBindingIdAtCursor } from "./statementRangeIndex";
-import type { BindingAnalysis } from "../scalars/bindingAnalysis";
-import type { StatementInfo } from "../dsl/dslDocument";
-import { isScalarTypeAssignable } from "../scalars/scalarAssignability";
-import { formatBuiltinFunctionSignatures, getBuiltinFunctionDefinition } from "../scalars/builtinFunctions";
+import type { BindingAnalysis } from "@nuinuicad/nui-language";
+import type { StatementInfo } from "@nuinuicad/nui-language";
+import { isScalarTypeAssignable } from "@nuinuicad/nui-language";
+import { formatBuiltinFunctionSignatures, getBuiltinFunctionDefinition } from "@nuinuicad/nui-language";
 import {
   scalarExpressionCandidates,
   scalarFunctionCandidates,
@@ -38,24 +38,24 @@ import {
   templateHoleScalarCandidates,
   typedBindingReferenceCandidates,
   type ScalarCompletionCandidate
-} from "../scalars/typedValueCandidates";
-import type { ScalarType } from "../scalars/types";
-import type { ScalarExpressionCompletionContext } from "../scalars/scalarExpressionPositionClassifier";
-import { setRhsScalarCandidates, setTargetCandidates, type SetCompletionSiteDeps, type SetTargetCandidate } from "../scalars/setCompletionCandidates";
-import { mergeSetTargetCandidates, recoverLiveSetTargetCandidates, type SetTargetCompletionCandidate } from "../scalars/setTargetRecoveryCandidates";
-import { visibleTypedBindingsAtLivePosition } from "../scalars/liveTypedBindingVisibility";
+} from "@nuinuicad/nui-language";
+import type { ScalarType } from "@nuinuicad/nui-language";
+import type { ScalarExpressionCompletionContext } from "@nuinuicad/nui-language";
+import { setRhsScalarCandidates, setTargetCandidates, type SetCompletionSiteDeps, type SetTargetCandidate } from "@nuinuicad/nui-language";
+import { mergeSetTargetCandidates, recoverLiveSetTargetCandidates, type SetTargetCompletionCandidate } from "@nuinuicad/nui-language";
+import { visibleTypedBindingsAtLivePosition } from "@nuinuicad/nui-language";
 import { cmCompositionCompletionRetry } from "./cmCompositionCompletionRetry";
 import { cmDeleteCompletionRetry } from "./cmDeleteCompletionRetry";
 import { elementPropertyCompletions } from "./elementPropertyCompletions";
-import { isInsideModuleSemanticStatement, moduleCompletionCandidates, type ModuleCompletionCandidate, type ModuleCompletionSite } from "../dsl/moduleCompletionCandidates";
-import { isScopeWithin } from "../dsl/moduleLexicalResolution";
-import type { CompiledDslDocument } from "../dsl/dslDocument";
+import { isInsideModuleSemanticStatement, moduleCompletionCandidates, type ModuleCompletionCandidate, type ModuleCompletionSite } from "@nuinuicad/nui-language";
+import { isScopeWithin } from "@nuinuicad/nui-language";
+import type { CompiledDslDocument } from "@nuinuicad/nui-language";
 import {
   queryDslCompletion,
   type DslCompletionCandidate,
   type DslCompletionQueryResult,
   type DslCompletionSemanticSnapshot
-} from "../dsl/dslCompletionQuery";
+} from "@nuinuicad/nui-language";
 
 export type DslAutocompleteDocumentInput = {
   source: string;

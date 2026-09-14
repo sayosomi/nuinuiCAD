@@ -1,7 +1,7 @@
 import type { EditorState } from "@codemirror/state";
 import { fireEvent } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
-import type { BindingId } from "../scalars/bindingCatalog";
+import type { BindingId } from "@nuinuicad/nui-language";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import { publishTestCanvasSelectionEligibility } from "../test/canvasSelectionTestUtils";

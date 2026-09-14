@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { evaluateConditionExpressionWithTrace, parseConditionEvaluationTraceJson } from "./conditionEvaluationTrace";
-import type { ScalarEvaluation } from "./types";
-import type { TypedScalarExpression } from "./typedExpressionAst";
+import type { ScalarEvaluation } from "@nuinuicad/nui-language";
+import type { TypedScalarExpression } from "@nuinuicad/nui-language";
 
 const span = (start: number, end = start + 1) => ({ start, end });
 const bool = (value: boolean, at: number): TypedScalarExpression => ({

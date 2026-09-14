@@ -2,7 +2,7 @@ import type { ComputedGeometry } from "../types/geometry";
 import {
   numericGeometryStaticTargetForFamily,
   type NumericGeometryStaticTarget
-} from "../../packages/nui-language/src/geometry/numericGeometryProperties";
+} from "@nuinuicad/nui-language";
 
 export const numericGeometryStaticTargetForComputedGeometry = (
   geometry: ComputedGeometry | undefined

@@ -5,8 +5,8 @@
 // never imports anything geometry-specific, per plan.md's src/scalars/ file
 // organization policy.
 
-import type { ScalarSpan } from "./literalScanner";
-import type { TextTemplateAst } from "./textTemplate";
+import type { ScalarSpan } from "@nuinuicad/nui-language";
+import type { TextTemplateAst } from "@nuinuicad/nui-language";
 import { evaluateTypedExpression, type ScalarEvaluationEnvironment } from "./expressionEvaluator";
 
 export type EvaluateNumericExpressionHoleResult =

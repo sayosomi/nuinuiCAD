@@ -1,7 +1,7 @@
-import { elementNameTokensForContext, elementQualifiedName } from "./elementNames";
+import { elementNameTokensForContext, elementQualifiedName } from "@nuinuicad/nui-language";
 import type { PickCandidate, PickOption } from "./pickCandidates";
 import { pickRefForOption, pickRefKey, type PickRef } from "./pickReferences";
-import { formatDslReferenceToken } from "../dsl/dslReferenceTokens";
+import { formatDslReferenceToken } from "@nuinuicad/nui-language";
 import type { CadElement, ElementId } from "../types/geometry";
 
 export type ReferenceSuggestion = {

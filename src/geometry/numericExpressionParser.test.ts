@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { findNumericExpressionLiteralSpanAt } from "./numericExpressionLiteralSpan";
-import { Parser, tokenize } from "./numericExpressionParser";
+import { findNumericExpressionLiteralSpanAt } from "@nuinuicad/nui-language";
+import { Parser, tokenize } from "@nuinuicad/nui-language";
 
 const evaluate = (expression: string) => new Parser(
   tokenize(expression),

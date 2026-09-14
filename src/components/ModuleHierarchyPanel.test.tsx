@@ -1,8 +1,8 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import seamAllowanceCopySource from "../../docs/module/manual-fixtures/nui1-seam-allowance-copy.nui?raw";
-import { compileDslDocument } from "../dsl/dslDocument";
-import { parseDsl } from "../dsl/dslParser";
+import { compileDslDocument } from "@nuinuicad/nui-language";
+import { parseDsl } from "@nuinuicad/nui-language";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import { ModuleHierarchyPanel } from "./ModuleHierarchyPanel";
 

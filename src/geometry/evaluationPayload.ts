@@ -11,13 +11,13 @@ import type {
   GeometryMutationExecution
 } from "../types/geometry";
 import type { ComputedGeometryValueEntry } from "./evaluationTypes";
-import { geometryValueOccurrenceKey } from "../model/geometryValueOccurrence";
-import type { BindingId } from "../scalars/bindingCatalog";
-import type { BindingVersionId } from "../scalars/bindingVersions";
+import { geometryValueOccurrenceKey } from "@nuinuicad/nui-language";
+import type { BindingId } from "@nuinuicad/nui-language";
+import type { BindingVersionId } from "@nuinuicad/nui-language";
 import type { BindingVersionRuntimeHistory } from "../scalars/linearMutationEvaluator";
-import { parseScalarEvaluationJson } from "../scalars/scalarJson";
+import { parseScalarEvaluationJson } from "@nuinuicad/nui-language";
 import { parseConditionEvaluationTraceJson, type ConditionEvaluationTrace } from "../scalars/conditionEvaluationTrace";
-import type { ScalarEvaluation } from "../scalars/types";
+import type { ScalarEvaluation } from "@nuinuicad/nui-language";
 import {
   effectiveDrawingModifierResolutionsFromResult,
   type DrawingModifierPropertyWinner,

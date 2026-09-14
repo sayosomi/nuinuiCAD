@@ -1,6 +1,6 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { createElementNameContext } from "../model/elementNames";
+import { createElementNameContext } from "@nuinuicad/nui-language";
 import {
   addToNumericValue,
   evaluateNumericValue,
@@ -10,7 +10,7 @@ import {
 } from "./numericExpressions";
 import type { CadElement } from "../types/geometry";
 import { evaluateElements } from "./evaluate";
-import { propertyLabels } from "./numericExpressionProperties";
+import { propertyLabels } from "@nuinuicad/nui-language";
 
 const expression = (value: string) => ({ kind: "expression" as const, expression: value });
 

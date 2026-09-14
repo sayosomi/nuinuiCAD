@@ -4,7 +4,7 @@ import {
   tangentAtPointOnLineLikeGeometry
 } from "../geometry/linePaths";
 import { addToNumericValue } from "../geometry/numericExpressions";
-import { setNumericParameterOrLocalVariable } from "../parameters/parameterAccess";
+import { setNumericParameterOrLocalVariable } from "@nuinuicad/nui-language";
 import type {
   CadElement,
   ComputedBezierCurve,

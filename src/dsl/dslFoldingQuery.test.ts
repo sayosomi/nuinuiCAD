@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { parseDslSnapshot } from "./dslParser";
-import { queryDslFolding, type DslFoldingRange } from "./dslFoldingQuery";
+import { parseDslSnapshot } from "@nuinuicad/nui-language";
+import { queryDslFolding, type DslFoldingRange } from "@nuinuicad/nui-language";
 
 const foldsFor = (source: string): DslFoldingRange[] => {
   const normalizedSource = source.replace(/\r\n/g, "\n");

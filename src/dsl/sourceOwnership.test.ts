@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument } from "./dslDocument";
-import { parseDsl } from "./dslParser";
+import { compileDslDocument } from "@nuinuicad/nui-language";
+import { parseDsl } from "@nuinuicad/nui-language";
 import { compileModulePreviewRoot } from "./modulePreviewRoot";
 import { queryModulePreviewTarget } from "./modulePreviewTarget";
 import {
   sourceOwnerByRuntimeElementId,
   sourceOwnerForRuntimeElementId
-} from "./sourceOwnership";
+} from "@nuinuicad/nui-language";
 
 const compileWithStableIds = (source: string) => {
   const parsed = parseDsl(source);

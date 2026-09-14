@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { UNCLOSED_CALL_CODE } from "./dslCallParser";
-import { parseDsl, parseDslSnapshot } from "./dslParser";
-import { createLogicalStatementSourceMap } from "./logicalStatementSourceMap";
+import { UNCLOSED_CALL_CODE } from "@nuinuicad/nui-language";
+import { parseDsl, parseDslSnapshot } from "@nuinuicad/nui-language";
+import { createLogicalStatementSourceMap } from "@nuinuicad/nui-language";
 
 describe("blank lines inside multiline calls", () => {
   it("parses a balanced construction call with a blank line before the closer", () => {

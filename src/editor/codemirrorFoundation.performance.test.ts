@@ -1,6 +1,6 @@
 import { EditorState } from "@codemirror/state";
 import { describe, expect, it } from "vitest";
-import { compileDslDocument } from "../dsl/dslDocument";
+import { compileDslDocument } from "@nuinuicad/nui-language";
 import { lineSplicesToSourceTextChanges } from "./lineSpliceChanges";
 
 const source = (count: number) => ["nui 1", ...Array.from({ length: count }, (_, index) =>

@@ -4,7 +4,7 @@ import type {
 } from "../types/geometry";
 import type { ElementEvaluationContext } from "./elementEvaluatorTypes";
 import { isLineLikeGeometryInput, type LineLikeGeometryInput } from "./linePaths";
-import { geometryValueOccurrenceKey } from "../model/geometryValueOccurrence";
+import { geometryValueOccurrenceKey } from "@nuinuicad/nui-language";
 
 const valueForOccurrence = (context: ElementEvaluationContext, occurrence: GeometryValueOccurrence) =>
   context.computedGeometryValues?.get(geometryValueOccurrenceKey(occurrence))?.value;

@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument, type CompiledDslDocument } from "./dslDocument";
-import { parseDslSnapshot } from "./dslParser";
+import { compileDslDocument, type CompiledDslDocument } from "@nuinuicad/nui-language";
+import { parseDslSnapshot } from "@nuinuicad/nui-language";
 import {
   queryDslConstructionCategoryQuickFixes
-} from "./dslConstructionCategoryQuickFixQuery";
-import type { DslDiagnostic } from "./dslTypes";
+} from "@nuinuicad/nui-language";
+import type { DslDiagnostic } from "@nuinuicad/nui-language";
 
 const SOURCE_REVISION = 41;
 

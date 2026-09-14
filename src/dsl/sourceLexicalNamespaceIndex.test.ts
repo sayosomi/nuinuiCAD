@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument } from "./dslDocument";
-import { buildSourceLexicalNamespaceIndex } from "./sourceLexicalNamespaceIndex";
-import { resolveSourceLexicalPath } from "./sourceLexicalNamespaceIndex";
-import { parseDslReferenceToken } from "./dslReferenceTokens";
-import { parseDsl } from "./dslParser";
+import { compileDslDocument } from "@nuinuicad/nui-language";
+import { buildSourceLexicalNamespaceIndex } from "@nuinuicad/nui-language";
+import { resolveSourceLexicalPath } from "@nuinuicad/nui-language";
+import { parseDslReferenceToken } from "@nuinuicad/nui-language";
+import { parseDsl } from "@nuinuicad/nui-language";
 
 const parseWithStableIds = (source: string) => {
   const parsed = parseDsl(source);

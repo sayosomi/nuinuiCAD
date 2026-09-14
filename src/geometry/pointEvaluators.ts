@@ -1,6 +1,6 @@
 import type { CadElement, NumericValue } from "../types/geometry";
 import { pointAnchorForElement } from "../model/pointAnchors";
-import { degreesToRadians, normalizeDegrees360 } from "../scalars/angleMath";
+import { degreesToRadians, normalizeDegrees360 } from "@nuinuicad/nui-language";
 import { EPSILON } from "./bezierMath";
 import { dependencyError, geometryError, getComputedPointOrError, getPointAnchorOrError, numericError } from "./evaluationContext";
 import { pointAtDistanceFromEndpoint, isLineLikeGeometryInput, tangentAtPointOnLineLikeGeometry } from "./linePaths";

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument } from "./dslDocument";
-import { parseDslSnapshot } from "./dslParser";
-import type { DslDiagnostic } from "./dslTypes";
+import { compileDslDocument } from "@nuinuicad/nui-language";
+import { parseDslSnapshot } from "@nuinuicad/nui-language";
+import type { DslDiagnostic } from "@nuinuicad/nui-language";
 
 const exactText = (source: string, diagnostic: DslDiagnostic): string => {
   expect(diagnostic.exactSpanOnly).toBe(true);

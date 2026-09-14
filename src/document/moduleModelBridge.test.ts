@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { AutomationDocument } from "./automationDocument";
-import { applyLineSplices } from "./textPatch";
-import { buildModuleOwnerElementPatch } from "./moduleModelBridge";
-import { sourceOwnerForRuntimeElementId } from "../dsl/sourceOwnership";
+import { AutomationDocument } from "@nuinuicad/nui-language/document";
+import { applyLineSplices } from "@nuinuicad/nui-language/document";
+import { buildModuleOwnerElementPatch } from "@nuinuicad/nui-language/document";
+import { sourceOwnerForRuntimeElementId } from "@nuinuicad/nui-language";
 import { moveBezierHandleByDeltaInElements, movePointElementByDeltaInElements } from "../model/elementDragTransforms";
 import type { CadElement } from "../types/geometry";
 

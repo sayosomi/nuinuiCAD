@@ -1,4 +1,4 @@
-import type { NormalizedSourceRange } from "../dsl/dslNavigationQuery";
+import type { NormalizedSourceRange } from "@nuinuicad/nui-language";
 import type { RustPrintOutputPayload, RustSvgOutputPayload } from "../output/outputCore";
 
 export type VscodeOutputPreviewPlaceCoordinatePatch = {

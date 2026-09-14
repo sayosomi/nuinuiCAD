@@ -1,25 +1,25 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument } from "./dslDocument";
-import { queryDslCompletion, type DslCompletionQueryResult } from "./dslCompletionQuery";
-import { queryDslSignatureHelp, type DslSignatureHelpQueryResult } from "./dslSignatureHelpQuery";
-import { parseDslSnapshot } from "./dslParser";
-import { createModuleRuntimeContext } from "./moduleRuntimeContext";
+import { compileDslDocument } from "@nuinuicad/nui-language";
+import { queryDslCompletion, type DslCompletionQueryResult } from "@nuinuicad/nui-language";
+import { queryDslSignatureHelp, type DslSignatureHelpQueryResult } from "@nuinuicad/nui-language";
+import { parseDslSnapshot } from "@nuinuicad/nui-language";
+import { createModuleRuntimeContext } from "@nuinuicad/nui-language";
 import {
   analyzeMultiDocumentModuleSemantics,
   moduleDeclarationContributor
-} from "../document/multiDocumentModuleSemantics";
+} from "@nuinuicad/nui-language/workspace";
 import {
   buildMultiDocumentImportGraph,
   type MultiDocumentSavedSourceLoader,
   type SavedDependencyLoadResult
-} from "../document/multiDocumentImportGraph";
+} from "@nuinuicad/nui-language/workspace";
 import {
   documentIdFromHost,
   savedSourceFingerprintFromHost,
   type DependencySavedSourceSnapshot,
   type RootCurrentSourceSnapshot
-} from "../document/multiDocumentPrimitives";
-import { moduleSemanticIdentityKey } from "./moduleSemanticTypes";
+} from "@nuinuicad/nui-language/workspace";
+import { moduleSemanticIdentityKey } from "@nuinuicad/nui-language";
 
 const rootSource = (source: string): RootCurrentSourceSnapshot => ({
   kind: "root-current",

@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
-import { createCadElement } from "../model/elementFactory";
-import { createElementNameContext } from "../model/elementNames";
+import { createCadElement } from "@nuinuicad/nui-language";
+import { createElementNameContext } from "@nuinuicad/nui-language";
 import { referenceAnchor } from "../model/pointAnchors";
 import type { CadElement } from "../types/geometry";
-import { applyArgs, type DslApplyArgsResolvers } from "./dslApplyArgs";
-import { constructionFor } from "./dslConstructions";
-import { createNameIndex } from "./dslReferences";
-import type { ScannedArg } from "./dslArgScanner";
+import { applyArgs, type DslApplyArgsResolvers } from "@nuinuicad/nui-language";
+import { constructionFor } from "@nuinuicad/nui-language";
+import { createNameIndex } from "@nuinuicad/nui-language";
+import type { ScannedArg } from "@nuinuicad/nui-language";
 
 const references: CadElement[] = [
   { id: "p1", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 },

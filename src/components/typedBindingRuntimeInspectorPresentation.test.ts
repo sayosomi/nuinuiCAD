@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { compileCanonicalText, regenerateCanonicalFromModel, type LastGoodDslDocument } from "../document/canonicalDocument";
-import { emptyDocument } from "../dsl/dslDocumentTestUtils";
+import { compileCanonicalText, regenerateCanonicalFromModel, type LastGoodDslDocument } from "@nuinuicad/nui-language/document";
+import { emptyDocument } from "@nuinuicad/nui-language";
 import { buildConditionalGroupConditionsByElementId } from "../geometry/controlBooleanRuntime";
 import { evaluateElements, type EvaluateElementsOptions } from "../geometry/evaluate";
 import { buildConditionalMutationOwners, conditionalOwnerIdByElementId } from "../scalars/conditionalMutationControl";
 import { buildForGroupMutationOwners, forGroupMutationOwnerByElementId } from "../scalars/forGroupMutationControl";
-import type { BindingId } from "../scalars/bindingCatalog";
-import type { ScalarEvaluation } from "../scalars/types";
+import type { BindingId } from "@nuinuicad/nui-language";
+import type { ScalarEvaluation } from "@nuinuicad/nui-language";
 import type { EvaluationResult } from "../types/geometry";
 import {
   typedBindingRuntimeInspectorPresentation,

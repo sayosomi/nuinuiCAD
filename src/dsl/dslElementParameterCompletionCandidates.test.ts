@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument } from "./dslDocument";
+import { compileDslDocument } from "@nuinuicad/nui-language";
 import { dslElementParameterCompletionOptions } from "./dslElementParameterCompletionCandidates";
 import type { ComputedGeometry, ComputedLine, ComputedPoint, ElementId } from "../types/geometry";
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument } from "../dsl/dslDocument";
-import { afterStatement, beforeStatement } from "./bindingVersions";
+import { compileDslDocument } from "@nuinuicad/nui-language";
+import { afterStatement, beforeStatement } from "@nuinuicad/nui-language";
 import { createIncrementalLinearMutationEvaluator } from "./linearMutationEvaluator";
 
 const compile = (source: string) => {

@@ -6,11 +6,11 @@
 // path works together, not just each piece in isolation.
 
 import { describe, expect, it } from "vitest";
-import { compileCanonicalText, regenerateCanonicalFromModel, type LastGoodDslDocument } from "../document/canonicalDocument";
-import { emptyDocument } from "../dsl/dslDocumentTestUtils";
+import { compileCanonicalText, regenerateCanonicalFromModel, type LastGoodDslDocument } from "@nuinuicad/nui-language/document";
+import { emptyDocument } from "@nuinuicad/nui-language";
 import type { ArcLineElement, CadElement, PathReverseElement } from "../types/geometry";
-import type { ScalarType } from "../scalars/types";
-import type { TypedScalarExpression, TypedScalarGeometryPropertyReferenceNode } from "../scalars/typedExpressionAst";
+import type { ScalarType } from "@nuinuicad/nui-language";
+import type { TypedScalarExpression, TypedScalarGeometryPropertyReferenceNode } from "@nuinuicad/nui-language";
 import { evaluateElements } from "./evaluate";
 import { buildPropertyBindingRuntimeEntries } from "./propertyBindingRuntime";
 import { resolveDocumentGeometryProperty, type DocumentGeometryRuntime } from "./scalarProgramEvaluation";

@@ -1,4 +1,4 @@
-import type { LineSplice } from "../document/textPatch";
+import type { LineSplice } from "@nuinuicad/nui-language/document";
 import type { SourceTextChange } from "./sourceEditorTypes";
 import { normalizeSourceTextForEditor } from "./sourceTextFormat";
 

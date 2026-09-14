@@ -2,7 +2,7 @@ import { redo, undo, history } from "@codemirror/commands";
 import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { afterEach, describe, expect, it } from "vitest";
-import type { TypedVariableQuickFixDescriptor } from "../scalars/typedVariableQuickFixes";
+import type { TypedVariableQuickFixDescriptor } from "@nuinuicad/nui-language";
 import { buildTypedVariableLintActions, type TypedVariableQuickFixActionDeps } from "./typedVariableQuickFixActions";
 
 let liveViews: EditorView[] = [];

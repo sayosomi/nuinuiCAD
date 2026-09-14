@@ -4,16 +4,16 @@ import {
   parameterKeyForArg,
   type DslConstructionCategory,
   type DslConstructionSpec
-} from "../dsl/dslConstructions";
+} from "@nuinuicad/nui-language";
 import { creationParameterDefinitionFor } from "./creationRecipes";
-import type { ParameterDefinition, ParameterKey } from "../parameters/parameterDefinitions";
+import type { ParameterDefinition, ParameterKey } from "@nuinuicad/nui-language";
 import type { CadElementType } from "../types/geometry";
 import {
   creationRecipeForLegacyCommand,
   legacyCreationCommandRecipeMap
 } from "./legacyCreationRecipes";
-import { createCadElement } from "../model/elementFactory";
-import { getParameterValue } from "../parameters/parameterAccess";
+import { createCadElement } from "@nuinuicad/nui-language";
+import { getParameterValue } from "@nuinuicad/nui-language";
 
 export type SourceCreationTemplateCommandId = keyof typeof legacyCreationCommandRecipeMap;
 

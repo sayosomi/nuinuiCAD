@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument, type CompiledDslDocument, type DslDocumentData } from "../dsl/dslDocument";
-import { parseDsl } from "../dsl/dslParser";
-import { dslFlatTextForElements, dslTextForElements } from "../dsl/dslDocumentTestUtils";
-import { getDirectParentIds } from "../model/dependencies";
-import type { RenameAnalysis } from "./renameAnalysis";
-import { analyzeRename } from "./renameAnalysis";
-import { reconcileStatements } from "./statementReconciler";
-import { applyLineSplices, buildTextPatch } from "./textPatch";
+import { compileDslDocument, type CompiledDslDocument, type DslDocumentData } from "@nuinuicad/nui-language";
+import { parseDsl } from "@nuinuicad/nui-language";
+import { dslFlatTextForElements, dslTextForElements } from "@nuinuicad/nui-language";
+import { getDirectParentIds } from "@nuinuicad/nui-language";
+import type { RenameAnalysis } from "@nuinuicad/nui-language/document";
+import { analyzeRename } from "@nuinuicad/nui-language/document";
+import { reconcileStatements } from "@nuinuicad/nui-language/document";
+import { applyLineSplices, buildTextPatch } from "@nuinuicad/nui-language/document";
 
 const complete = (source: string) => {
   const compiled = compileDslDocument(source);

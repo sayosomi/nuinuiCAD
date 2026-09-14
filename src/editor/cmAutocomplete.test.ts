@@ -4,9 +4,9 @@ import { EditorView } from "@codemirror/view";
 import { fireEvent } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { createDslCompletionSource, dslAutocompleteExtension } from "./cmAutocomplete";
-import { compileDslDocument, type DslDocumentData } from "../dsl/dslDocument";
-import { dslLinesForElements, dslTextForElements } from "../dsl/dslDocumentTestUtils";
-import { parseDsl } from "../dsl/dslParser";
+import { compileDslDocument, type DslDocumentData } from "@nuinuicad/nui-language";
+import { dslLinesForElements, dslTextForElements } from "@nuinuicad/nui-language";
+import { parseDsl } from "@nuinuicad/nui-language";
 import {
   createScopeBodyRangeIndex,
   createStatementRangeIndex,

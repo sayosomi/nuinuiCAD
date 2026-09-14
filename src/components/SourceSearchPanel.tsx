@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { KeyboardEvent } from "react";
 import { elementSearchResults } from "../model/elementSearch";
-import { visibilityRoleNamesById } from "../model/visibilityProfiles";
+import { visibilityRoleNamesById } from "@nuinuicad/nui-language";
 import { effectiveElements, useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import type { SourceEditorHandle } from "../editor/sourceEditorTypes";

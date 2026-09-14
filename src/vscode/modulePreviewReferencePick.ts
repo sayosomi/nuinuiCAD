@@ -1,7 +1,7 @@
-import { moduleGeometryInterfaceTypeOf } from "../dsl/moduleGeometryInterfaces";
+import { moduleGeometryInterfaceTypeOf } from "@nuinuicad/nui-language";
 import type { ModulePreviewRootResult } from "../dsl/modulePreviewRoot";
-import type { StatementIdentity } from "../document/statementIdentity";
-import type { DslReferencePickTarget } from "../dsl/dslReferencePickQuery";
+import type { StatementIdentity } from "@nuinuicad/nui-language/document";
+import type { DslReferencePickTarget } from "@nuinuicad/nui-language";
 import type { VscodeModulePreviewReferencePickProof } from "./modulePreviewProtocol";
 
 /**

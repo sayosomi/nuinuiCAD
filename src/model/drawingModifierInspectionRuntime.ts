@@ -1,5 +1,5 @@
 import type { ElementId, EvaluationResult } from "../types/geometry";
-import type { EffectiveDrawingModifierResolution } from "../../packages/nui-language/src/model/drawingModifierInspection";
+import type { EffectiveDrawingModifierResolution } from "@nuinuicad/nui-language";
 
 /**
  * EvaluationResult extension owned by runtime inspection metadata. Keeping

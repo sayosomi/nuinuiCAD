@@ -1,20 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { elementTypesWithoutOwnDrawableGeometry } from "../model/elementActivity";
-import { createCadElement } from "../model/elementFactory";
+import { elementTypesWithoutOwnDrawableGeometry } from "@nuinuicad/nui-language";
+import { createCadElement } from "@nuinuicad/nui-language";
 import { referenceAnchor } from "../model/pointAnchors";
-import { getParameterDefinitions } from "../parameters/parameterDefinitions";
-import { createElementNameContext } from "../model/elementNames";
+import { getParameterDefinitions } from "@nuinuicad/nui-language";
+import { createElementNameContext } from "@nuinuicad/nui-language";
 import type { CadElement } from "../types/geometry";
-import { applyArgs, createDefaultIntermediateId, type DslApplyArgsResolvers } from "./dslApplyArgs";
-import { parseDslCallStatement } from "./dslCallParser";
-import { argNameForParameter, constructionFor } from "./dslConstructions";
-import { createNameIndex } from "./dslReferences";
-import { documentDslRefs } from "./dslSerializer";
+import { applyArgs, createDefaultIntermediateId, type DslApplyArgsResolvers } from "@nuinuicad/nui-language";
+import { parseDslCallStatement } from "@nuinuicad/nui-language";
+import { argNameForParameter, constructionFor } from "@nuinuicad/nui-language";
+import { createNameIndex } from "@nuinuicad/nui-language";
+import { documentDslRefs } from "@nuinuicad/nui-language";
 import {
   resolveParameterKeyForValueSpan,
   resolveParameterTargetAt,
   resolveParameterValueSpan,
-} from "./dslParameterSpans";
+} from "@nuinuicad/nui-language";
 import { nui1CanonicalElementStatements, type Nui1CanonicalElementStatement } from "./__fixtures__/nui1CanonicalStatements";
 
 const refs: CadElement[] = [

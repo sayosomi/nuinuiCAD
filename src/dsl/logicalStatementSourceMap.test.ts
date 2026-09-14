@@ -5,8 +5,8 @@ import {
   logicalOffsetToPhysical,
   physicalSpanForStatement,
   physicalToLogicalOffset
-} from "./logicalStatementSourceMap";
-import { parseDslSnapshot } from "./dslParser";
+} from "@nuinuicad/nui-language";
+import { parseDslSnapshot } from "@nuinuicad/nui-language";
 
 describe("logicalStatementSourceMap", () => {
   it("joins an unclosed-call continuation into one logical statement", () => {

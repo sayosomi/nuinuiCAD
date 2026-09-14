@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument, type CompiledDslDocument, type DslDocumentData } from "../dsl/dslDocument";
-import { dslTextForElements } from "../dsl/dslDocumentTestUtils";
-import { isElementDslStatement, parseDsl } from "../dsl/dslParser";
+import { compileDslDocument, type CompiledDslDocument, type DslDocumentData } from "@nuinuicad/nui-language";
+import { dslTextForElements } from "@nuinuicad/nui-language";
+import { isElementDslStatement, parseDsl } from "@nuinuicad/nui-language";
 import type { CadElementType } from "../types/geometry";
-import { reconcileStatements, type ReconcileResult } from "./statementReconciler";
+import { reconcileStatements, type ReconcileResult } from "@nuinuicad/nui-language/document";
 
 // 決定論的ID生成器(テスト再現性のため createCadElementId は使わない)。
 const testIdFactory = () => {

@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { compileDslToElements } from "../dsl/dslCompiler";
-import { parseDsl } from "../dsl/dslParser";
-import type { DiagnosticSpanContext } from "../dsl/dslDiagnosticSpan";
+import { compileDslToElements } from "@nuinuicad/nui-language";
+import { parseDsl } from "@nuinuicad/nui-language";
+import type { DiagnosticSpanContext } from "@nuinuicad/nui-language";
 import type { CadElement, ElementId } from "../types/geometry";
-import type { BindingAnalysis } from "./bindingAnalysis";
+import type { BindingAnalysis } from "@nuinuicad/nui-language";
 import {
   compilePropertyBindings,
   parsePropertyBindingOccurrenceKey,
@@ -12,8 +12,8 @@ import {
   PROPERTY_BINDING_TYPE_MISMATCH_CODE,
   PROPERTY_BINDING_UNRESOLVED_CODE,
   type ScalarValueSource
-} from "./propertyBindingCompiler";
-import { analyzeTypedDeclarations } from "./typedDeclarationAnalysis";
+} from "@nuinuicad/nui-language";
+import { analyzeTypedDeclarations } from "@nuinuicad/nui-language";
 
 /** Mirrors compileDslDocument's own pipeline (dsl/dslDocument.ts) up to the
  * point Task 22 hooks in, so this module is tested against the same shapes

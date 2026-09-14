@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { compileCanonicalText, regenerateCanonicalFromModel, type LastGoodDslDocument } from "../document/canonicalDocument";
-import { serializeDocumentToDsl } from "./dslDocument";
-import { dslStatementKeywordCompletions, parseDsl } from "./dslParser";
-import { emptyDocument } from "./dslDocumentTestUtils";
-import { scanTextTemplateLiteral } from "../scalars/textTemplateScan";
+import { compileCanonicalText, regenerateCanonicalFromModel, type LastGoodDslDocument } from "@nuinuicad/nui-language/document";
+import { serializeDocumentToDsl } from "@nuinuicad/nui-language";
+import { dslStatementKeywordCompletions, parseDsl } from "@nuinuicad/nui-language";
+import { emptyDocument } from "@nuinuicad/nui-language";
+import { scanTextTemplateLiteral } from "@nuinuicad/nui-language";
 
 const compileValue = (source: string) => {
   const result = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), source);

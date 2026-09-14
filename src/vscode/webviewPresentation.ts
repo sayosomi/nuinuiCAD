@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { DslDiagnosticPresentation } from "../dsl/dslTypes";
+import type { DslDiagnosticPresentation } from "@nuinuicad/nui-language";
 
 export type VscodeWebviewLocale = "ja" | "en";
 

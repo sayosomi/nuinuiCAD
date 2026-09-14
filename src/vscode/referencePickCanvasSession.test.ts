@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument, type CompiledDslDocument } from "../dsl/dslDocument";
-import { parseDslSnapshot } from "../dsl/dslParser";
-import { queryDslReferencePickTarget } from "../dsl/dslReferencePickQuery";
-import { reconcileStatements } from "../document/statementReconciler";
+import { compileDslDocument, type CompiledDslDocument } from "@nuinuicad/nui-language";
+import { parseDslSnapshot } from "@nuinuicad/nui-language";
+import { queryDslReferencePickTarget } from "@nuinuicad/nui-language";
+import { reconcileStatements } from "@nuinuicad/nui-language/document";
 import { evaluateElements } from "../geometry/evaluate";
 import type { EvaluationResult } from "../types/geometry";
 import {

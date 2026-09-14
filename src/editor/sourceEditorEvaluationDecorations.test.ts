@@ -1,6 +1,6 @@
 import { Text } from "@codemirror/state";
 import { describe, expect, it } from "vitest";
-import { compileDslDocument } from "../dsl/dslDocument";
+import { compileDslDocument } from "@nuinuicad/nui-language";
 import { createStatementRangeIndex } from "./statementRangeIndex";
 import { createEvaluationDecorationIndex, entriesInVisibleRanges } from "./sourceEditorEvaluationIndex";
 import type { CadElement, EvaluationResult, ForGroupGeneratedRow } from "../types/geometry";

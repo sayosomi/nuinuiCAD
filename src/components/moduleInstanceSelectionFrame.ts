@@ -1,8 +1,8 @@
-import type { ModuleMaterialization } from "../dsl/moduleMaterialization";
+import type { ModuleMaterialization } from "@nuinuicad/nui-language";
 import type { CanvasTextWidthMeasurer } from "../geometry/canvasDrawingBounds";
 import { groupCanvasGeometry } from "../geometry/groupCanvasGeometry";
 import { moduleInstanceCanvasGeometry } from "../geometry/moduleInstanceCanvasGeometry";
-import { isGroupElement } from "../model/groups";
+import { isGroupElement } from "@nuinuicad/nui-language";
 import type { CanvasViewport } from "../state/cadUiStore";
 import type { CadElement, ElementId, EvaluationResult, VisibilityProfile } from "../types/geometry";
 import { worldToScreen, type ViewportSize } from "./canvasViewport";

@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { evaluateTextTemplate, type EvaluateNumericExpressionHole } from "./textTemplateEvaluator";
 import type { ScalarEvaluationEnvironment } from "./expressionEvaluator";
-import type { TextTemplateAst, TextTemplateSegment } from "./textTemplate";
-import type { ScalarEvaluation } from "./types";
-import type { TypedScalarExpression } from "./typedExpressionAst";
+import type { TextTemplateAst, TextTemplateSegment } from "@nuinuicad/nui-language";
+import type { ScalarEvaluation } from "@nuinuicad/nui-language";
+import type { TypedScalarExpression } from "@nuinuicad/nui-language";
 
 const span = (start: number, end: number) => ({ start, end });
 

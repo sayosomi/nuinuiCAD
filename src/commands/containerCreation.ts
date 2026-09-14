@@ -3,7 +3,7 @@ import {
   creationPlacementForEvaluationLimit,
   creationPlacementForTarget
 } from "../model/elementCreationPlacement";
-import { createCadElement } from "../model/elementFactory";
+import { createCadElement } from "@nuinuicad/nui-language";
 import { adjustEvaluationLimitForInsertion } from "../model/evaluationDivider";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";

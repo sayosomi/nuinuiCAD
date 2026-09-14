@@ -1,4 +1,4 @@
-import { isContainerElement } from "../model/containers";
+import { isContainerElement } from "@nuinuicad/nui-language";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import type { CadElement, ElementId } from "../types/geometry";

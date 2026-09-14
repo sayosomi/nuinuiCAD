@@ -3,7 +3,7 @@ import {
   isGroupExpanded,
   visibleOutlineElements,
   type GroupFoldById
-} from "../model/groups";
+} from "@nuinuicad/nui-language";
 import {
   createElementPresentationStatusIndex,
   type ElementPresentationStatus

@@ -1,7 +1,7 @@
 // Static Task 35 join between Task 30 forGroup owners && compiled elements.
 // It never reconstructs source order || stable identities from element order.
 import type { CadElement, ElementId } from "../types/geometry";
-import type { BindingControlOwner, BindingVersionGraph } from "./bindingVersions";
+import type { BindingControlOwner, BindingVersionGraph } from "@nuinuicad/nui-language";
 
 export type ForGroupMutationOwner = Extract<BindingControlOwner, { kind: "forGroup" }> & {
   elementId: ElementId;

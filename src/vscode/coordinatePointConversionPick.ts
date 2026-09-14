@@ -1,6 +1,6 @@
 import { anchorEquals } from "../model/pointAnchors";
 import type { PointAnchor, ElementId } from "../types/geometry";
-import type { ParameterKey } from "../parameters/parameterDefinitions";
+import type { ParameterKey } from "@nuinuicad/nui-language";
 import { sourceReferenceText, type CanonicalGeometrySourceReference } from "../model/moduleSemanticCandidateBoundary";
 import type { CoordinatePointConversionSession } from "../commands/coordinatePointConversionSession";
 

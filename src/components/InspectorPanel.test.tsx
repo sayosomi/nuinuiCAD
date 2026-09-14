@@ -9,7 +9,7 @@ import { buildConditionalMutationOwners, conditionalOwnerIdByElementId } from ".
 import { buildForGroupMutationOwners, forGroupMutationOwnerByElementId } from "../scalars/forGroupMutationControl";
 import { buildTextTemplateEntriesByElementId } from "../geometry/textTemplateRuntime";
 import { buildNumericBindingRuntimeEntries } from "../geometry/numericBindingRuntime";
-import { createCadElement } from "../model/elementFactory";
+import { createCadElement } from "@nuinuicad/nui-language";
 import { sampleElements } from "../sampleData";
 import { initialCadDocumentState, useCadDocumentStore, type CadDocumentState } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";

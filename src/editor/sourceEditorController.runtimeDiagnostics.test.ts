@@ -6,7 +6,7 @@ import { diagnosticCount, forEachDiagnostic } from "@codemirror/lint";
 import type { EditorState } from "@codemirror/state";
 import { fireEvent } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { BindingId } from "../scalars/bindingCatalog";
+import type { BindingId } from "@nuinuicad/nui-language";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import { SourceEditorController } from "./sourceEditorController";
@@ -335,7 +335,7 @@ describe("SourceEditorController Task 48 correction: end-to-end BindingIssue Pro
   };
 
   it("an undefined-binding Problems row selects exactly the `@missing` reference, using real production diagnostics", async () => {
-    const { bindingIssuesToDiagnostics } = await import("../scalars/bindingIssueDiagnostics");
+    const { bindingIssuesToDiagnostics } = await import("@nuinuicad/nui-language");
     const source = ["nui 1", "const x: number = @missing"].join("\n");
     useCadDocumentStore.getState().commitText(source, "test");
     const parent = document.createElement("div");

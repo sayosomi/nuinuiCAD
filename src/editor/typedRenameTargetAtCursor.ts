@@ -8,16 +8,16 @@
 // identical contract in sourceEditorController.ts for why a stale pairing of
 // live physical spans against a no-longer-matching logical compile cannot be
 // detected from the spans alone.
-import type { BindingId } from "../scalars/bindingCatalog";
-import type { ScalarValueSource } from "../scalars/propertyBindingCompiler";
-import type { ScalarProgram } from "../scalars/scalarProgram";
-import type { SetStatementAnalysis } from "../scalars/setStatementCompiler";
-import type { TextTemplateAst } from "../scalars/textTemplate";
-import type { CompiledNumericBinding } from "../scalars/numericBindingCompiler";
-import { referencesIn } from "../scalars/typedDependencyGraph";
-import type { TypedScalarExpression } from "../scalars/typedExpressionAst";
-import type { DslSpan, DslStatement } from "../dsl/dslTypes";
-import type { DslPhysicalSegment } from "../dsl/logicalStatementSourceMap";
+import type { BindingId } from "@nuinuicad/nui-language";
+import type { ScalarValueSource } from "@nuinuicad/nui-language";
+import type { ScalarProgram } from "@nuinuicad/nui-language";
+import type { SetStatementAnalysis } from "@nuinuicad/nui-language";
+import type { TextTemplateAst } from "@nuinuicad/nui-language";
+import type { CompiledNumericBinding } from "@nuinuicad/nui-language";
+import { referencesIn } from "@nuinuicad/nui-language";
+import type { TypedScalarExpression } from "@nuinuicad/nui-language";
+import type { DslSpan, DslStatement } from "@nuinuicad/nui-language";
+import type { DslPhysicalSegment } from "@nuinuicad/nui-language";
 import {
   setStatementIdAtCursor,
   typedDeclarationBindingIdAtCursor,

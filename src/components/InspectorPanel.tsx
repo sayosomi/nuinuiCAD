@@ -4,7 +4,7 @@ import { dispatchCommand } from "../commands/commands";
 import {
   createDependencyIndex,
   getDependencySummary,
-} from "../model/dependencies";
+} from "@nuinuicad/nui-language";
 import {
   createElementPresentationStatusIndex,
   type ElementPresentationStatus,
@@ -12,10 +12,10 @@ import {
 import { isRuntimeBindingDisplayFresh } from "../model/runtimeBindingFreshness";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
-import { findParameterDefinition } from "../parameters/parameterDefinitions";
-import type { BindingId } from "../scalars/bindingCatalog";
+import { findParameterDefinition } from "@nuinuicad/nui-language";
+import type { BindingId } from "@nuinuicad/nui-language";
 import { buildTextTemplateEntriesByElementId } from "../geometry/textTemplateRuntime";
-import { sourceOwnerByRuntimeElementId, sourceOwnerForRuntimeElementId } from "../dsl/sourceOwnership";
+import { sourceOwnerByRuntimeElementId, sourceOwnerForRuntimeElementId } from "@nuinuicad/nui-language";
 import type { SourceEditorHandle } from "../editor/sourceEditorTypes";
 import type { CadElement, EvaluationResult } from "../types/geometry";
 import { elementTypeLabels } from "../types/geometry";

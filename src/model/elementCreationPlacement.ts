@@ -3,7 +3,7 @@ import { clampEvaluationLimitIndex, evaluatedElements } from "./evaluationDivide
 import {
   isConditionalGroupElement,
   isGroupElement
-} from "./groups";
+} from "@nuinuicad/nui-language";
 
 export type ElementCreationPlacement = {
   insertionIndex: number;

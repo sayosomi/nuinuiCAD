@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   dslCallAuthoringContextAt,
   projectDslCallAuthoringRange
-} from "./dslCallAuthoringContext";
-import { dslStatementKeywordCompletions } from "./dslParser";
+} from "@nuinuicad/nui-language";
+import { dslStatementKeywordCompletions } from "@nuinuicad/nui-language";
 
 const snapshotFor = (source: string) => ({ normalizedSource: source, sourceRevision: 1 });
 

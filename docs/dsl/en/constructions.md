@@ -8,7 +8,7 @@ after the catalog explain what each construction does, how its values are
 interpreted, and where its restrictions matter.
 
 <!-- dsl-ref:generated:start constructions -->
-<!-- This region is generated from src/dsl/dslConstructions.ts and src/parameters/parameterDefinitions.ts. -->
+<!-- This region is generated from packages/nui-language/src/dsl/dslConstructions.ts and packages/nui-language/src/parameters/parameterDefinitions.ts. -->
 <!-- dsl-ref:construction:point/coordinate -->
 ### `point / coordinate`
 

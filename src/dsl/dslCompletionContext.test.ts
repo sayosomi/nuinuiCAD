@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dslCompletionContextAt } from "./dslCompletionContext";
+import { dslCompletionContextAt } from "@nuinuicad/nui-language";
 
 const at = (line: string, token: string) => line.indexOf(token) + token.length;
 

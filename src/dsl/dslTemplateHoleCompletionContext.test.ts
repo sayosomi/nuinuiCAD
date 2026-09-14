@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { templateHoleContentSpanAt } from "./dslTemplateHoleCompletionContext";
+import { templateHoleContentSpanAt } from "@nuinuicad/nui-language";
 
 describe("templateHoleContentSpanAt", () => {
   it("finds the content span of an in-progress hole with nothing typed yet", () => {

@@ -4,7 +4,7 @@ import {
   formatBuiltinFunctionSignatures,
   isBuiltinFunctionName,
   type BuiltinFunctionName
-} from "./builtinFunctions";
+} from "@nuinuicad/nui-language";
 
 const definitionOf = (name: BuiltinFunctionName) =>
   BUILTIN_FUNCTION_DEFINITIONS.find((definition) => definition.name === name);

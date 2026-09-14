@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { compileDslDocument, serializeDocumentToDsl, type CompiledDslDocument, type DslDocumentData } from "../dsl/dslDocument";
-import { parseDslSnapshot } from "../dsl/dslParser";
+import { compileDslDocument, serializeDocumentToDsl, type CompiledDslDocument, type DslDocumentData } from "@nuinuicad/nui-language";
+import { parseDslSnapshot } from "@nuinuicad/nui-language";
 import type { CadElement } from "../types/geometry";
 import { assertReconcileSane, assertShadowEquivalent } from "./shadowTextAssert";
 

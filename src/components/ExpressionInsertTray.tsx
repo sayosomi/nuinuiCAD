@@ -4,7 +4,7 @@ import {
   numericReferenceCandidates,
   type NumericReferenceCandidate
 } from "../geometry/numericReferencePaths";
-import type { ParameterKey } from "../parameters/parameterDefinitions";
+import type { ParameterKey } from "@nuinuicad/nui-language";
 import {
   DEFAULT_REFERENCE_HELPER_POSITION,
   useCadUiStore

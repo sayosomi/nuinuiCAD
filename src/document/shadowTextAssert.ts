@@ -3,11 +3,11 @@ import {
   type CompiledDslDocument,
   type DslDocumentData,
   type DslMajorVersion
-} from "../dsl/dslDocument";
-import { parseDsl } from "../dsl/dslParser";
+} from "@nuinuicad/nui-language";
+import { parseDsl } from "@nuinuicad/nui-language";
 import type { CadElement, ElementId } from "../types/geometry";
-import { reconcileStatements } from "./statementReconciler";
-import { zipAssignedElementIds } from "./shadowText";
+import { reconcileStatements } from "@nuinuicad/nui-language/document";
+import { zipAssignedElementIds } from "@nuinuicad/nui-language/document";
 
 // shadowTextAssert — dev/test 限定で影テキストとモデルの等価性を観測するヘルパ。
 //

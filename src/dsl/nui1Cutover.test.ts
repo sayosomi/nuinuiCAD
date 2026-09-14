@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument } from "./dslDocument";
-import { parseDsl } from "./dslParser";
-import { emptyDocument } from "./dslDocumentTestUtils";
-import { regenerateCanonicalFromModel } from "../document/canonicalDocument";
+import { compileDslDocument } from "@nuinuicad/nui-language";
+import { parseDsl } from "@nuinuicad/nui-language";
+import { emptyDocument } from "@nuinuicad/nui-language";
+import { regenerateCanonicalFromModel } from "@nuinuicad/nui-language/document";
 
 describe("nui 1 cutover", () => {
   it("does not recognize the removed var surface syntax", () => {

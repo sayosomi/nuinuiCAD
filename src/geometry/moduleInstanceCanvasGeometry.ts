@@ -1,4 +1,4 @@
-import type { ModuleMaterialization } from "../dsl/moduleMaterialization";
+import type { ModuleMaterialization } from "@nuinuicad/nui-language";
 import type {
   CadElement,
   ElementId,

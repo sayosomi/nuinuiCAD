@@ -1,6 +1,6 @@
 import type { ElementParameterReferenceOption } from "../geometry/elementParameterReferenceOptions";
 import type { NumericReferenceOption } from "../geometry/numericReferenceOptions";
-import { dslElementParameterTokenEndingAt } from "../dsl/dslElementParameterToken";
+import { dslElementParameterTokenEndingAt } from "@nuinuicad/nui-language";
 
 export type ElementParameterSuggestionMatch = {
   tokenStart: number;

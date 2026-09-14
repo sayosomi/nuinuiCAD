@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { compileFreshCanonicalText } from "../document/canonicalDocument";
-import type { DslPhysicalSpan } from "../dsl/logicalStatementSourceMap";
+import { compileFreshCanonicalText } from "@nuinuicad/nui-language/document";
+import type { DslPhysicalSpan } from "@nuinuicad/nui-language";
 import { evaluateOutputPlan } from "./outputCore";
 import {
   classifyOutputPlaceAtDragability,

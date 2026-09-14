@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { evaluateElements } from "../geometry/evaluate";
 import type { CadElement } from "../types/geometry";
-import { compileDslDocument, serializeDocumentToDsl } from "./dslDocument";
-import { createNameIndex, resolveId } from "./dslReferences";
+import { compileDslDocument, serializeDocumentToDsl } from "@nuinuicad/nui-language";
+import { createNameIndex, resolveId } from "@nuinuicad/nui-language";
 
 const compileRecoverable = (source: string) => {
   const compiled = compileDslDocument(source);

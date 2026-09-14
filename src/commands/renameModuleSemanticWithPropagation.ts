@@ -1,7 +1,7 @@
-import { analyzeModuleSemanticRename, type ModuleRenameAnalysisRejected } from "../document/moduleSemanticRenameAnalysis";
-import { buildSourceSemanticRenameSplices, type SourceSemanticRenameSpliceEntry } from "../document/typedRenameSplice";
+import { analyzeModuleSemanticRename, type ModuleRenameAnalysisRejected } from "@nuinuicad/nui-language/document";
+import { buildSourceSemanticRenameSplices, type SourceSemanticRenameSpliceEntry } from "@nuinuicad/nui-language/document";
 import { sourceEditSession } from "../editor/sourceEditSession";
-import type { ModuleSemanticTarget } from "../dsl/moduleSemanticEditor";
+import type { ModuleSemanticTarget } from "@nuinuicad/nui-language";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 

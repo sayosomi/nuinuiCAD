@@ -1,6 +1,6 @@
-import { documentDslRefs, serializedStatementLines } from "../dsl/dslSerializer";
-import { serializeElementStatementBlockWithBlanks } from "../dsl/dslSerializeElement";
-import { DSL_INDENT } from "../dsl/dslTokens";
+import { documentDslRefs, serializedStatementLines } from "@nuinuicad/nui-language";
+import { serializeElementStatementBlockWithBlanks } from "@nuinuicad/nui-language";
+import { DSL_INDENT } from "@nuinuicad/nui-language";
 import { useCadDocumentStore, type DocumentMutationResult } from "../state/cadDocumentStore";
 import type { CadElement, ElementId } from "../types/geometry";
 import { sourceCreationPromotionSplices } from "./sourceCreationCommit";

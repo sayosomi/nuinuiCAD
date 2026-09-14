@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument } from "../dsl/dslDocument";
-import { parseDslSnapshot } from "../dsl/dslParser";
+import { compileDslDocument } from "@nuinuicad/nui-language";
+import { parseDslSnapshot } from "@nuinuicad/nui-language";
 import { createModulePreviewSession } from "../dsl/modulePreviewState";
 import { queryModulePreviewTarget } from "../dsl/modulePreviewTarget";
 import { modulePreviewParameterSnapshotFor } from "./modulePreviewParameterProjection";

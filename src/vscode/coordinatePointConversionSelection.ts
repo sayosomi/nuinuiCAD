@@ -1,5 +1,5 @@
-import type { CompiledDslDocument } from "../dsl/dslDocument";
-import { sourceOwnerByRuntimeElementId } from "../dsl/sourceOwnership";
+import type { CompiledDslDocument } from "@nuinuicad/nui-language";
+import { sourceOwnerByRuntimeElementId } from "@nuinuicad/nui-language";
 import type { ElementId } from "../types/geometry";
 
 /**

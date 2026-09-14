@@ -4,7 +4,7 @@ import {
   adjustEvaluationLimitForDeletion,
   adjustEvaluationLimitForInsertion
 } from "../model/evaluationDivider";
-import { isConditionalGroupElement, subtreeIdsForElement } from "../model/groups";
+import { isConditionalGroupElement, subtreeIdsForElement } from "@nuinuicad/nui-language";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import { moveBezierHandleByDelta, movePointElementByDelta } from "./geometryEditCommands";
@@ -47,11 +47,11 @@ import {
 import { addContainer } from "./containerCreation";
 import type { Command, CommandContext, CommandId } from "./commandTypes";
 import { applyCreationPlacement, creationPlacementForTarget } from "../model/elementCreationPlacement";
-import { createCadElement } from "../model/elementFactory";
-import { setParameterValue } from "../parameters/parameterAccess";
+import { createCadElement } from "@nuinuicad/nui-language";
+import { setParameterValue } from "@nuinuicad/nui-language";
 import { commitSourceCreationInsertion } from "./sourceCreationCommit";
 import { resolveSourceCreationInsertion } from "./sourceCreationInsertion";
-import { NEW_DOCUMENT_DSL_MAJOR_VERSION } from "../dsl/dslVersion";
+import { NEW_DOCUMENT_DSL_MAJOR_VERSION } from "@nuinuicad/nui-language";
 
 const reverseEligible = () => {
   const selected = getSelectedElement();

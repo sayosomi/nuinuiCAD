@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument } from "./dslDocument";
-import { parseDsl, parseDslSnapshot } from "./dslParser";
-import type { DslStatement } from "./dslTypes";
+import { compileDslDocument } from "@nuinuicad/nui-language";
+import { parseDsl, parseDslSnapshot } from "@nuinuicad/nui-language";
+import type { DslStatement } from "@nuinuicad/nui-language";
 
 const errors = (source: string) => parseDsl(source).diagnostics.filter((item) => item.severity === "error");
 

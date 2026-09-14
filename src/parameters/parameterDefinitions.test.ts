@@ -4,7 +4,7 @@ import {
   dslValueTypeForParameterDefinition,
   getParameterDefinitions,
   scalarTypeForParameterDefinition
-} from "./parameterDefinitions";
+} from "@nuinuicad/nui-language";
 
 describe("parameterDefinitions", () => {
   it("does not expose generic inspector parameters for a runtime-only moduleInstance", () => {

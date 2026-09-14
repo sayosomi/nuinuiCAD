@@ -1,5 +1,5 @@
 import type { NumericReferenceOption } from "../geometry/numericReferenceOptions";
-import { dslVariableTokenEndingAt } from "../dsl/dslVariableToken";
+import { dslVariableTokenEndingAt } from "@nuinuicad/nui-language";
 
 export type NumericVariableSuggestionMatch = {
   tokenStart: number;

@@ -1,10 +1,10 @@
-import type { NumericMeasurementKey } from "../geometry/numericExpressionTypes";
+import type { NumericMeasurementKey } from "@nuinuicad/nui-language";
 import {
   creationPlacementForEvaluationLimit,
   type ElementCreationPlacement,
   type ElementCreationTarget
 } from "../model/elementCreationPlacement";
-import { fallbackElementName, makeUniqueElementName } from "../model/elementNames";
+import { fallbackElementName, makeUniqueElementName } from "@nuinuicad/nui-language";
 import type { CadElement, ElementId, PointAnchor } from "../types/geometry";
 import type {
   CreationArgumentValue,

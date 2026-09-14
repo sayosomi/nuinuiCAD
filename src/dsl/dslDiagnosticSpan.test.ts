@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { exactPhysicalSpan, type DiagnosticSpanContext } from "./dslDiagnosticSpan";
-import { parseDslSnapshot } from "./dslParser";
-import type { DslSpan, DslStatement } from "./dslTypes";
+import { exactPhysicalSpan, type DiagnosticSpanContext } from "@nuinuicad/nui-language";
+import { parseDslSnapshot } from "@nuinuicad/nui-language";
+import type { DslSpan, DslStatement } from "@nuinuicad/nui-language";
 
 const spansFor = (source: string): { spans: DiagnosticSpanContext; statements: readonly DslStatement[] } => {
   const parsed = parseDslSnapshot({ normalizedSource: source, sourceRevision: 0 });

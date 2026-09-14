@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { dslFlatTextForElements } from "../dsl/dslDocumentTestUtils";
+import { dslFlatTextForElements } from "@nuinuicad/nui-language";
 import type { CadElement } from "../types/geometry";
 import { initialCadDocumentState, useCadDocumentStore } from "./cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "./cadUiStore";

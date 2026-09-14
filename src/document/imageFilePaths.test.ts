@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { parseDsl } from "../dsl/dslParser";
-import { rebaseImageSourcePathsInText } from "./imageFilePaths";
+import { parseDsl } from "@nuinuicad/nui-language";
+import { rebaseImageSourcePathsInText } from "@nuinuicad/nui-language/document";
 
 describe("rebaseImageSourcePathsInText", () => {
   it("rewrites only the source value of a vertical (canonical) image statement", () => {

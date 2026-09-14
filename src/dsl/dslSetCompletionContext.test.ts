@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { setCompletionContextAt } from "./dslSetCompletionContext";
+import { setCompletionContextAt } from "@nuinuicad/nui-language";
 
 describe("setCompletionContextAt", () => {
   it("returns null for a non-set statement", () => {

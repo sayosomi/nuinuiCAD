@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { parseDsl } from "./dslParser";
-import { parseDslRecordDefinitionStatement } from "./dslRecordParser";
+import { parseDsl } from "@nuinuicad/nui-language";
+import { parseDslRecordDefinitionStatement } from "@nuinuicad/nui-language";
 
 const spanText = (source: string, span: { start: number; end: number } | null) =>
   span ? source.slice(span.start, span.end) : null;

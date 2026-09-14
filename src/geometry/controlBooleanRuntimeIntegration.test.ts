@@ -5,8 +5,8 @@
 // both conditionalGroup.condition && forGroup.showGenerated.
 
 import { describe, expect, it } from "vitest";
-import { compileCanonicalText, regenerateCanonicalFromModel, type LastGoodDslDocument } from "../document/canonicalDocument";
-import { emptyDocument } from "../dsl/dslDocumentTestUtils";
+import { compileCanonicalText, regenerateCanonicalFromModel, type LastGoodDslDocument } from "@nuinuicad/nui-language/document";
+import { emptyDocument } from "@nuinuicad/nui-language";
 import { evaluateElements } from "./evaluate";
 import {
   buildConditionalGroupConditionsByElementId,

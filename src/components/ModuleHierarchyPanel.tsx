@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { dispatchCommand } from "../commands/commands";
-import type { ModuleMaterialization } from "../dsl/moduleMaterialization";
-import type { ModuleSemanticAnalysis } from "../dsl/moduleSemanticTypes";
+import type { ModuleMaterialization } from "@nuinuicad/nui-language";
+import type { ModuleSemanticAnalysis } from "@nuinuicad/nui-language";
 import {
   buildModuleHierarchy,
   moduleHierarchyMatchCount,

@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { buildNumericBindingRuntimeEntries } from "../geometry/numericBindingRuntime";
 import { evaluateElements } from "../geometry/evaluate";
-import { compileDslDocument } from "./dslDocument";
-import { parseDsl } from "./dslParser";
+import { compileDslDocument } from "@nuinuicad/nui-language";
+import { parseDsl } from "@nuinuicad/nui-language";
 
 const stableIdsFor = (source: string) =>
   new Map(parseDsl(source).statements.map((_, index) => [index, `blocking:${index}`] as const));

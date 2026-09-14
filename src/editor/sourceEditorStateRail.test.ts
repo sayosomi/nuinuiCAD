@@ -4,7 +4,7 @@ import { fireEvent } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
-import { dslTextForElements } from "../dsl/dslDocumentTestUtils";
+import { dslTextForElements } from "@nuinuicad/nui-language";
 import { SourceEditorController } from "./sourceEditorController";
 
 const originalClientWidth = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "clientWidth");

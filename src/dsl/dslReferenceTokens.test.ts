@@ -5,7 +5,7 @@ import {
   formatDslSourceReference,
   parseDslReferenceToken,
   parseDslSourceReference
-} from "./dslReferenceTokens";
+} from "@nuinuicad/nui-language";
 
 describe("DSL reference token formatting", () => {
   it.each([

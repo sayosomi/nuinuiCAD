@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyLineSplices, type LineSplice } from "../document/textPatch";
+import { applyLineSplices, type LineSplice } from "@nuinuicad/nui-language/document";
 import { applySourceTextChanges, lineSplicesToSourceTextChanges } from "./lineSpliceChanges";
 import { normalizeSourceTextForEditor } from "./sourceTextFormat";
 

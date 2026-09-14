@@ -7,7 +7,7 @@ import type {
 import {
   groupStateByElementId,
   isForGroupElement
-} from "./groups";
+} from "@nuinuicad/nui-language";
 import {
   isLineLikeElement,
   isPointElement

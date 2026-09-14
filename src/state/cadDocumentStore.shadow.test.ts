@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { compileDslDocument, serializeDocumentToDsl } from "../dsl/dslDocument";
-import { dslTextForElements } from "../dsl/dslDocumentTestUtils";
+import { compileDslDocument, serializeDocumentToDsl } from "@nuinuicad/nui-language";
+import { dslTextForElements } from "@nuinuicad/nui-language";
 import type { CadElement } from "../types/geometry";
 import {
   initialCadDocumentState,

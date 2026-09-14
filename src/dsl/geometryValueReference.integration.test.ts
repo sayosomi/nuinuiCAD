@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument } from "./dslDocument";
-import { parseDsl } from "./dslParser";
-import { unwrapModuleGeometrySourceTarget } from "./moduleSemanticTypes";
-import { pureGeometryValueConstructionCandidates } from "./dslCallCompletionCandidates";
+import { compileDslDocument } from "@nuinuicad/nui-language";
+import { parseDsl } from "@nuinuicad/nui-language";
+import { unwrapModuleGeometrySourceTarget } from "@nuinuicad/nui-language";
+import { pureGeometryValueConstructionCandidates } from "@nuinuicad/nui-language";
 
 const compile = (source: string, prefix = "geometry-value") => {
   const parsed = parseDsl(source);

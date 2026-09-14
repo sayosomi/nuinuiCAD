@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { defaultVisibilityProfile } from "../model/visibilityProfiles";
+import { defaultVisibilityProfile } from "@nuinuicad/nui-language";
 import type { CadElement, ComputedGeometry, EvaluationResult } from "../types/geometry";
 import { groupCanvasGeometry } from "./groupCanvasGeometry";
 

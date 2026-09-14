@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { resolveTypedValueStep } from "./dslTypedValueStep";
-import type { ScalarType } from "../scalars/types";
-import { findNumericExpressionLiteralSpanAt } from "../geometry/numericExpressionLiteralSpan";
+import { resolveTypedValueStep } from "@nuinuicad/nui-language";
+import type { ScalarType } from "@nuinuicad/nui-language";
+import { findNumericExpressionLiteralSpanAt } from "@nuinuicad/nui-language";
 
 const span = { from: 10, to: 14 };
 const collapsedAt = (pos: number) => ({ start: pos, end: pos });

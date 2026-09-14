@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { quoteDslString, scanDslSource, splitDslTerms, unquoteDslString } from "./dslTokens";
+import { quoteDslString, scanDslSource, splitDslTerms, unquoteDslString } from "@nuinuicad/nui-language";
 
 describe("DSL string escaping", () => {
   it("round-trips newlines and other escaped control characters", () => {

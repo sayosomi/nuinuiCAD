@@ -1,5 +1,5 @@
 import { makeNumericExpression } from "../geometry/numericExpressions";
-import { numericExpressionSyntaxIsValid } from "../geometry/numericExpressionParser";
+import { numericExpressionSyntaxIsValid } from "@nuinuicad/nui-language";
 import {
   applyCreationPlacement,
   creationPlacementForTarget

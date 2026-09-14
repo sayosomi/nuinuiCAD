@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compileFreshCanonicalText, type CanonicalDocumentValue } from "../document/canonicalDocument";
+import { compileFreshCanonicalText, type CanonicalDocumentValue } from "@nuinuicad/nui-language/document";
 import { evaluateElements } from "../geometry/evaluate";
 import { buildEvaluationOptions } from "../geometry/productionEvaluationContext";
 import {

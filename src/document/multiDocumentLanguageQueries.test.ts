@@ -3,13 +3,13 @@ import {
   buildMultiDocumentImportGraph,
   type MultiDocumentSavedSourceLoader,
   type SavedDependencyLoadResult
-} from "./multiDocumentImportGraph";
+} from "@nuinuicad/nui-language/workspace";
 import {
   documentIdFromHost,
   savedSourceFingerprintFromHost,
   type DependencySavedSourceSnapshot,
   type RootCurrentSourceSnapshot
-} from "./multiDocumentPrimitives";
+} from "@nuinuicad/nui-language/workspace";
 import {
   buildMultiDocumentSemanticOccurrenceIndex,
   planMultiDocumentRename,
@@ -17,8 +17,8 @@ import {
   queryMultiDocumentReferences,
   type MultiDocumentRenameDocumentProof,
   type MultiDocumentSemanticDocumentView
-} from "./multiDocumentLanguageQueries";
-import { moduleDeclarationContributor } from "./multiDocumentModuleSemantics";
+} from "@nuinuicad/nui-language/workspace";
+import { moduleDeclarationContributor } from "@nuinuicad/nui-language/workspace";
 
 const rootSource = (id: string, source: string, sourceRevision = 1): RootCurrentSourceSnapshot => ({
   kind: "root-current",

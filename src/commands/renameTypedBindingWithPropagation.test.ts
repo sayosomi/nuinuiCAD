@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { registerSourceEditSession } from "../editor/sourceEditSession";
-import type { BindingId } from "../scalars/bindingCatalog";
+import type { BindingId } from "@nuinuicad/nui-language";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import { renameTypedBindingWithPropagation } from "./renameTypedBindingWithPropagation";

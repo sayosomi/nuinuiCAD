@@ -1,4 +1,4 @@
-import { createCadElementId } from "../model/cadIds";
+import { createCadElementId } from "@nuinuicad/nui-language";
 import { pointAnchorOptions, referenceAnchor } from "../model/pointAnchors";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import type { PointAnchor } from "../types/geometry";

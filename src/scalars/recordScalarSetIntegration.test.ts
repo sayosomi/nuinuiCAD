@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { compileCanonicalText, regenerateCanonicalFromModel } from "../document/canonicalDocument";
-import { emptyDocument } from "../dsl/dslDocumentTestUtils";
+import { compileCanonicalText, regenerateCanonicalFromModel } from "@nuinuicad/nui-language/document";
+import { emptyDocument } from "@nuinuicad/nui-language";
 
 describe("SAY-128 record scalar set integration", () => {
   it("resolves a record scalar field in set RHS to its hidden scalar backing binding", () => {

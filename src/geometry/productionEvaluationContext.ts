@@ -1,4 +1,4 @@
-import type { LastGoodDslDocument } from "../document/canonicalDocument";
+import type { LastGoodDslDocument } from "@nuinuicad/nui-language/document";
 import { buildConditionalGroupConditionsByElementId, buildControlBooleanRuntimeEntries } from "./controlBooleanRuntime";
 import { buildNumericBindingRuntimeEntries } from "./numericBindingRuntime";
 import { buildPropertyBindingRuntimeEntries } from "./propertyBindingRuntime";

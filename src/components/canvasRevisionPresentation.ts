@@ -1,5 +1,5 @@
 import { useLayoutEffect, useState } from "react";
-import type { CompiledDslDocument } from "../dsl/dslDocument";
+import type { CompiledDslDocument } from "@nuinuicad/nui-language";
 import type {
   EvaluationEngineState } from "../geometry/useEvaluationEngine";
 import type { ModuleSemanticCandidateContext } from "../model/moduleSemanticCandidateBoundary";

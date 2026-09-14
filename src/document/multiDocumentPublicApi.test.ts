@@ -6,12 +6,12 @@ import {
   savedSourceFingerprintFromHost,
   sourceIdentityOf,
   type DependencySavedSourceSnapshot
-} from "./multiDocumentPrimitives";
+} from "@nuinuicad/nui-language/workspace";
 import {
   buildMultiDocumentPublicApiCatalog,
   resolveMultiDocumentPublicApiMember,
   type FileExportableDeclarationDescriptor
-} from "./multiDocumentPublicApi";
+} from "@nuinuicad/nui-language/workspace";
 
 const savedSource = (id: string): DependencySavedSourceSnapshot => ({
   kind: "dependency-saved",

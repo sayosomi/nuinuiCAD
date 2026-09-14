@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { compileDslToElements } from "../dsl/dslCompiler";
-import { parseDsl } from "../dsl/dslParser";
-import type { DiagnosticSpanContext } from "../dsl/dslDiagnosticSpan";
+import { compileDslToElements } from "@nuinuicad/nui-language";
+import { parseDsl } from "@nuinuicad/nui-language";
+import type { DiagnosticSpanContext } from "@nuinuicad/nui-language";
 import type { CadElement, ElementId } from "../types/geometry";
-import type { BindingAnalysis } from "./bindingAnalysis";
-import type { ScalarSpan } from "./literalScanner";
-import { scanTextTemplateLiteral } from "./textTemplateScan";
+import type { BindingAnalysis } from "@nuinuicad/nui-language";
+import type { ScalarSpan } from "@nuinuicad/nui-language";
+import { scanTextTemplateLiteral } from "@nuinuicad/nui-language";
 import {
   compileTextTemplates,
   TEXT_TEMPLATE_HOLE_INVALID_CODE,
@@ -13,9 +13,9 @@ import {
   TEXT_TEMPLATE_HOLE_UNRESOLVED_CODE,
   type TextTemplateAst,
   type TextTemplateHoleSegment
-} from "./textTemplate";
-import { propertyBindingOccurrenceKey } from "./propertyBindingCompiler";
-import { analyzeTypedDeclarations } from "./typedDeclarationAnalysis";
+} from "@nuinuicad/nui-language";
+import { propertyBindingOccurrenceKey } from "@nuinuicad/nui-language";
+import { analyzeTypedDeclarations } from "@nuinuicad/nui-language";
 
 const fullSpan = (source: string): ScalarSpan => ({ start: 0, end: source.length });
 

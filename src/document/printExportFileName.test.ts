@@ -3,7 +3,7 @@ import {
   defaultOutputExportFileName,
   defaultOutputExportPath,
   ensureOutputExportExtension
-} from "./printExportFileName";
+} from "@nuinuicad/nui-language/document";
 
 describe("output export file names", () => {
   it("uses the document and selected output names", () => {

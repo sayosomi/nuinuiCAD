@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument } from "../dsl/dslDocument";
-import { roundTrip } from "../dsl/dslDocumentTestUtils";
-import { createCadElement } from "../model/elementFactory";
-import { choiceAfterStep } from "../dsl/dslValueStep";
-import { findParameterDefinition } from "../parameters/parameterDefinitions";
+import { compileDslDocument } from "@nuinuicad/nui-language";
+import { roundTrip } from "@nuinuicad/nui-language";
+import { createCadElement } from "@nuinuicad/nui-language";
+import { choiceAfterStep } from "@nuinuicad/nui-language";
+import { findParameterDefinition } from "@nuinuicad/nui-language";
 import type { CadElement, ComputedLine } from "../types/geometry";
 import { evaluateElements } from "./evaluate";
 

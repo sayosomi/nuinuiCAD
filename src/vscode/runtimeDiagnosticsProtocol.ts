@@ -1,4 +1,4 @@
-import type { DslDiagnostic } from "../dsl/dslTypes";
+import type { DslDiagnostic } from "@nuinuicad/nui-language";
 
 /** JSON-safe runtime layer published only from the current canonical Webview evaluation. */
 export type VscodeRuntimeDiagnosticsPublication = {
