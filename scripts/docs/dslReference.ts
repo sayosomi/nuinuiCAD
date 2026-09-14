@@ -277,7 +277,7 @@ const parameterSummary = (parameter: ParameterFact): string => {
 export const renderConstructionRegion = (facts: DslReferenceFacts): string => {
   const lines = [
     generatedRegionStart("constructions"),
-    "<!-- This region is generated from src/dsl/dslConstructions.ts and src/parameters/parameterDefinitions.ts. -->",
+    "<!-- This region is generated from packages/nui-language/src/dsl/dslConstructions.ts and packages/nui-language/src/parameters/parameterDefinitions.ts. -->",
   ];
   for (const fact of facts.constructions) {
     lines.push(
@@ -304,7 +304,7 @@ export const renderConstructionRegion = (facts: DslReferenceFacts): string => {
 export const renderStatementRegion = (facts: DslReferenceFacts): string => {
   const lines = [
     generatedRegionStart("statements"),
-    "<!-- This region is generated from src/dsl/dslStatementKeywords.ts. -->",
+    "<!-- This region is generated from packages/nui-language/src/dsl/dslStatementKeywords.ts. -->",
     "| Parser spelling | Reference identity |",
     "| --- | --- |",
   ];
@@ -318,7 +318,7 @@ export const renderStatementRegion = (facts: DslReferenceFacts): string => {
 export const renderBuiltinRegion = (facts: DslReferenceFacts): string => {
   const lines = [
     generatedRegionStart("builtins"),
-    "<!-- This region is generated from src/scalars/builtinFunctions.ts and src/scalars/builtinConstants.ts. -->",
+    "<!-- This region is generated from packages/nui-language/src/scalars/builtinFunctions.ts and packages/nui-language/src/scalars/builtinConstants.ts. -->",
     "| Builtin | Signatures | Reference identity |",
     "| --- | --- | --- |",
   ];
