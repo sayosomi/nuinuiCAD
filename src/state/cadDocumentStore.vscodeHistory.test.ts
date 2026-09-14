@@ -141,7 +141,7 @@ describe("VS Code Canvas selection history", () => {
     expect(useCadDocumentStore.getState().sourceText).toBe(sourceFor(2));
   });
 
-  it("can preserve the current Canvas selection while restoring adjacent selection chronology", () => {
+  it("reconciles adjacent Canvas history without a selection override", () => {
     const oldSource = stableSourceFor(0);
     const newSource = stableSourceFor(1);
     useCadDocumentStore.getState().replaceTextDocument(oldSource, {
@@ -155,13 +155,9 @@ describe("VS Code Canvas selection history", () => {
     publishTestCanvasSelectionEligibility();
     replaceCanvasSelection([b!], b!, false);
 
-    expect(useCadDocumentStore.getState().reconcileAuthoritativeHistory(
-      oldSource,
-      "undo",
-      "preserve-current"
-    )).toBe("reconciled");
+    expect(useCadDocumentStore.getState().reconcileAuthoritativeHistory(oldSource, "undo")).toBe("reconciled");
     expect(useCadDocumentStore.getState().sourceText).toBe(oldSource);
-    expect(useCadUiStore.getState()).toMatchObject({
+    expect(useCadDocumentStore.getState().future[0]?.selection).toMatchObject({
       selectedElementId: b,
       selectedElementIds: [b],
       selectionAnchorElementId: b
