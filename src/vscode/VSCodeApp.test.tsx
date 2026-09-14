@@ -1459,6 +1459,43 @@ describe("VSCodeApp Canvas history coordinator", () => {
     expect(useCadUiStore.getState().selectedElementId).toBe(b);
   });
 
+  it("does not create a phantom Source entry when a Canvas commit is rejected", async () => {
+    const oldSource = [
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0, id: a)",
+      "point B = coordinate(x: 20, y: 0, id: b)"
+    ].join("\n");
+    const api = { postMessage: vi.fn() };
+    render(<VSCodeAppForTest api={api} />);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText: oldSource, documentVersion: 1 }
+      }));
+      publishAllCurrentElementsAsPresented();
+    });
+    const [a, b] = useCadDocumentStore.getState().elements.map((element) => element.id);
+    useCadUiStore.getState().setSelectedElementId(a!);
+    selectElement(b!, "replace", true);
+    publishAllCurrentElementsAsPresented();
+    drawingCanvasProps.postCanvasCommit!(316);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "canvasCommitResult", operationId: 316, status: "rejected", documentVersion: 1 }
+      }));
+    });
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "canvasCommand", commandId: "undo" }
+      }));
+    });
+    expect(useCadUiStore.getState().selectedElementId).toBe(a);
+    expect(api.postMessage.mock.calls.filter(
+      ([message]) => message?.type === "canvasHistoryRequest"
+    )).toHaveLength(0);
+  });
+
   it.each(["resynced", "failed"] as const)("discards queued Canvas history after a %s result", async (status) => {
     const oldSource = sourceForSelectionChronology(0);
     const newSource = sourceForSelectionChronology(40);
