@@ -81,6 +81,15 @@ import {
 } from "./webviewPresentation";
 
 type CanvasHistoryDirection = "undo" | "redo";
+type CanvasHistoryEntry = "selection" | "source";
+
+type CanvasHistoryInFlight = {
+  direction: CanvasHistoryDirection;
+  entry: CanvasHistoryEntry | "native";
+  expectedDocumentVersion: number;
+  sourceTransitionObserved: boolean;
+  completedResultObserved: boolean;
+};
 
 type AuthoritativeHostSourceSnapshot = {
   documentVersion: number;
@@ -148,6 +157,15 @@ type DeferredSourceBakeRequest = {
   compiledDocumentRevision: number;
 };
 
+type PendingCanvasSourceCommit = {
+  operationId: number | null;
+  expectedDocumentVersion: number;
+  previousSourceText: string;
+  expectedSourceText: string;
+  accepted: boolean;
+  authoritativeDocumentVersion: number | null;
+};
+
 export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   const webviewPresentation = useVscodeWebviewPresentation();
   const staleSourceAnchorError = webviewPresentationTextFor(
@@ -200,7 +218,15 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   const pendingCanvasFreePointSelectionRef = useRef<PendingCanvasFreePointSelection | null>(null);
   const pendingCanvasFreePointSelectionRestoreRef = useRef<PendingCanvasFreePointSelectionRestore | null>(null);
   const pendingCoordinatePointConversionSelectionRef = useRef<PendingCoordinatePointConversionSelection | null>(null);
-  const canvasHistoryInFlightRef = useRef<CanvasHistoryDirection | null>(null);
+  const pendingCanvasSourceCommitRef = useRef<PendingCanvasSourceCommit | null>(null);
+  const lastCanvasSourceHistoryCommitRef = useRef<{
+    documentVersion: number;
+    normalizedSource: string;
+  } | null>(null);
+  const canvasHistoryPastRef = useRef<CanvasHistoryEntry[]>([]);
+  const canvasHistoryFutureRef = useRef<CanvasHistoryEntry[]>([]);
+  const canvasHistoryStoreMutationRef = useRef(false);
+  const canvasHistoryInFlightRef = useRef<CanvasHistoryInFlight | null>(null);
   const pendingCanvasHistoryRef = useRef<CanvasHistoryDirection[]>([]);
   const canvasFocusRef = useRef<HTMLDivElement>(null);
   const drawingCanvasRef = useRef<VSCodeDrawingCanvasHandle>(null);
@@ -333,23 +359,133 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     };
   }, [tryCompleteCanvasFocus]);
 
+  const resetCanvasHistoryChronology = useCallback((selectionCount = 0) => {
+    canvasHistoryPastRef.current = Array.from({ length: selectionCount }, () => "selection" as const);
+    canvasHistoryFutureRef.current = [];
+  }, []);
+
+  const syncCanvasHistoryChronologyToSelection = useCallback(() => {
+    resetCanvasHistoryChronology(useCadDocumentStore.getState().selectionPast.length);
+  }, [resetCanvasHistoryChronology]);
+
+  const recordAcceptedCanvasSourceHistory = useCallback((documentVersion: number, sourceText: string) => {
+    const normalizedSource = normalizedSourceFor(sourceText);
+    const lastCommit = lastCanvasSourceHistoryCommitRef.current;
+    if (lastCommit?.documentVersion === documentVersion && lastCommit.normalizedSource === normalizedSource) return;
+
+    const documentState = useCadDocumentStore.getState();
+    if (canvasHistoryPastRef.current.length === 0 && documentState.selectionPast.length === 0) {
+      const adjacentSelectionPast = documentState.past.at(-1)?.selectionPast.length ?? 0;
+      if (adjacentSelectionPast > 0) {
+        canvasHistoryPastRef.current = Array.from({ length: adjacentSelectionPast }, () => "selection" as const);
+      }
+    }
+    canvasHistoryFutureRef.current = [];
+    canvasHistoryPastRef.current.push("source");
+    lastCanvasSourceHistoryCommitRef.current = { documentVersion, normalizedSource };
+  }, []);
+
+  const completePendingCanvasSourceCommit = useCallback(() => {
+    const pending = pendingCanvasSourceCommitRef.current;
+    if (!pending || !pending.accepted || pending.authoritativeDocumentVersion === null) return false;
+    recordAcceptedCanvasSourceHistory(
+      pending.authoritativeDocumentVersion,
+      pending.expectedSourceText
+    );
+    pendingCanvasSourceCommitRef.current = null;
+    return true;
+  }, [recordAcceptedCanvasSourceHistory]);
+
+  const moveCanvasSourceHistory = useCallback((direction: CanvasHistoryDirection) => {
+    if (direction === "undo") {
+      if (canvasHistoryPastRef.current.at(-1) !== "source") return false;
+      canvasHistoryPastRef.current.pop();
+      canvasHistoryFutureRef.current.unshift("source");
+      return true;
+    }
+    if (canvasHistoryFutureRef.current[0] !== "source") return false;
+    canvasHistoryFutureRef.current.shift();
+    canvasHistoryPastRef.current.push("source");
+    return true;
+  }, []);
+
+  const applyLocalCanvasHistory = useCallback((direction: CanvasHistoryDirection) => {
+    canvasHistoryStoreMutationRef.current = true;
+    try {
+      const appliedLocally = direction === "undo"
+        ? useCadDocumentStore.getState().undoCanvasSelection()
+        : useCadDocumentStore.getState().redoCanvasSelection();
+      if (!appliedLocally) return false;
+      if (direction === "undo") {
+        if (canvasHistoryPastRef.current.at(-1) === "selection") {
+          canvasHistoryPastRef.current.pop();
+          canvasHistoryFutureRef.current.unshift("selection");
+        }
+      } else if (canvasHistoryFutureRef.current[0] === "selection") {
+        canvasHistoryFutureRef.current.shift();
+        canvasHistoryPastRef.current.push("selection");
+      }
+      return true;
+    } finally {
+      canvasHistoryStoreMutationRef.current = false;
+    }
+  }, []);
+
+  useEffect(() => {
+    resetCanvasHistoryChronology(useCadDocumentStore.getState().selectionPast.length);
+    const unsubscribe = useCadDocumentStore.subscribe((state, previous) => {
+      if (canvasHistoryStoreMutationRef.current) return;
+      if (state.selectionPast.length <= previous.selectionPast.length) return;
+      const added = state.selectionPast.length - previous.selectionPast.length;
+      canvasHistoryPastRef.current.push(...Array.from({ length: added }, () => "selection" as const));
+      canvasHistoryFutureRef.current = [];
+    });
+    return unsubscribe;
+  }, [resetCanvasHistoryChronology]);
+
   const pumpCanvasHistory = useCallback(() => {
     while (
       canvasHistoryInFlightRef.current === null
       && pendingCanvasHistoryRef.current.length > 0
     ) {
       const direction = pendingCanvasHistoryRef.current.shift()!;
-      const appliedLocally = direction === "undo"
-        ? useCadDocumentStore.getState().undoCanvasSelection()
-        : useCadDocumentStore.getState().redoCanvasSelection();
+      const localEntry = direction === "undo"
+        ? canvasHistoryPastRef.current.at(-1)
+        : canvasHistoryFutureRef.current[0];
+      const appliedLocally = localEntry === "selection"
+        ? applyLocalCanvasHistory(direction)
+        : false;
       if (appliedLocally) continue;
 
       const expectedDocumentVersion = latestHostDocumentVersionRef.current;
       if (expectedDocumentVersion === null) return;
-      canvasHistoryInFlightRef.current = direction;
+      canvasHistoryInFlightRef.current = {
+        direction,
+        entry: localEntry === "source" ? "source" : "native",
+        expectedDocumentVersion,
+        sourceTransitionObserved: false,
+        completedResultObserved: false
+      };
       api.postMessage({ type: "canvasHistoryRequest", direction, expectedDocumentVersion });
     }
-  }, [api]);
+  }, [api, applyLocalCanvasHistory]);
+
+  const completeCanvasHistoryResult = useCallback((
+    message: Extract<ExtensionToVscodeMessage, { type: "canvasHistoryResult" }>
+  ) => {
+    const inFlight = canvasHistoryInFlightRef.current;
+    if (!inFlight || inFlight.direction !== message.direction) return;
+    pendingCanvasFocusRequestRef.current = null;
+    latestCanvasNavigationRequestRef.current = null;
+    deferredCanvasNavigationRequestRef.current = null;
+    if (message.status === "completed" && inFlight.entry === "source" && !inFlight.sourceTransitionObserved) {
+      inFlight.completedResultObserved = true;
+      return;
+    }
+    canvasHistoryInFlightRef.current = null;
+    if (message.status !== "completed") pendingCanvasHistoryRef.current = [];
+    restoreCanvasFocus(message.status === "completed" ? pumpCanvasHistory : undefined);
+  }, [pumpCanvasHistory, restoreCanvasFocus]);
 
   const requestCanvasHistory = useCallback((direction: CanvasHistoryDirection) => {
     pendingCanvasFocusRequestRef.current = null;
@@ -360,15 +496,30 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     pumpCanvasHistory();
   }, [pumpCanvasHistory]);
 
-  const postCanvasCommit = useCallback((operationId?: number, coordinatePointConversionRequestId?: number) => {
+  const postCanvasCommit = useCallback((
+    operationId?: number,
+    coordinatePointConversionRequestId?: number,
+    sourceTextOverride?: string
+  ) => {
     if (benchmarkConfig) return;
     const expectedDocumentVersion = latestHostDocumentVersionRef.current;
     if (expectedDocumentVersion === null) return;
+    const sourceText = sourceTextOverride ?? useCadDocumentStore.getState().sourceText;
     const sourceUpdate = useCadDocumentStore.getState().sourceUpdate;
     const mutationKind = sourceUpdate.kind === "model-patch" ? "model-patch" : "reset";
+    const expectedSourceText = normalizedSourceFor(sourceText);
+    const previousSourceText = lastAuthoritativeHostSourceSnapshotRef.current?.normalizedSource ?? "";
+    pendingCanvasSourceCommitRef.current = {
+      operationId: operationId ?? null,
+      expectedDocumentVersion,
+      previousSourceText,
+      expectedSourceText,
+      accepted: operationId === undefined,
+      authoritativeDocumentVersion: null
+    };
     api.postMessage({
       type: "canvasCommit",
-      sourceText: useCadDocumentStore.getState().sourceText,
+      sourceText,
       expectedDocumentVersion,
       mutationKind,
       ...(operationId === undefined ? {} : { operationId }),
@@ -769,6 +920,48 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         authoritative?.documentVersion === message.documentVersion &&
         authoritative.normalizedSource === normalizedSourceFor(message.sourceText) &&
         normalizedSourceFor(useCadDocumentStore.getState().sourceText) === authoritative.normalizedSource;
+    };
+
+    const observePendingCanvasSourceCommit = (
+      message: Extract<ExtensionToVscodeMessage, { type: "replaceTextDocument" | "commitText" }>
+    ): boolean => {
+      const pending = pendingCanvasSourceCommitRef.current;
+      if (
+        !pending ||
+        message.type !== "commitText" ||
+        message.reason !== "edit" ||
+        message.documentVersion <= pending.expectedDocumentVersion ||
+        normalizedSourceFor(message.sourceText) !== pending.expectedSourceText ||
+        pending.previousSourceText === pending.expectedSourceText
+      ) return false;
+      pending.authoritativeDocumentVersion = message.documentVersion;
+      completePendingCanvasSourceCommit();
+      return true;
+    };
+
+    const observeCanvasCommitResult = (
+      message: Extract<ExtensionToVscodeMessage, { type: "canvasCommitResult" }>
+    ): void => {
+      const pending = pendingCanvasSourceCommitRef.current;
+      if (!pending || pending.operationId !== message.operationId) return;
+      if (message.status === "rejected") {
+        pendingCanvasSourceCommitRef.current = null;
+        return;
+      }
+      if (
+        message.documentVersion <= pending.expectedDocumentVersion ||
+        pending.previousSourceText === pending.expectedSourceText
+      ) return;
+      pending.accepted = true;
+      if (
+        pending.authoritativeDocumentVersion === null &&
+        latestHostDocumentVersionRef.current === message.documentVersion &&
+        lastAuthoritativeHostSourceSnapshotRef.current?.documentVersion === message.documentVersion &&
+        lastAuthoritativeHostSourceSnapshotRef.current.normalizedSource === pending.expectedSourceText
+      ) {
+        pending.authoritativeDocumentVersion = message.documentVersion;
+      }
+      completePendingCanvasSourceCommit();
     };
 
     const runCanvasBake = async (
@@ -1251,6 +1444,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         runCanvasFreePointAtPointer(message);
         return;
       } else if (message.type === "canvasCommitResult") {
+        observeCanvasCommitResult(message);
         const pending = pendingCanvasFreePointCommitRef.current;
         if (!pending || pending.requestId !== message.operationId) return;
         pendingCanvasFreePointCommitRef.current = null;
@@ -1359,15 +1553,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         void runSourceBake(message);
         return;
       } else if (message.type === "canvasHistoryResult") {
-        if (canvasHistoryInFlightRef.current !== message.direction) return;
-        pendingCanvasFocusRequestRef.current = null;
-        latestCanvasNavigationRequestRef.current = null;
-        deferredCanvasNavigationRequestRef.current = null;
-        canvasHistoryInFlightRef.current = null;
-        if (message.status !== "completed") {
-          pendingCanvasHistoryRef.current = [];
-        }
-        restoreCanvasFocus(message.status === "completed" ? pumpCanvasHistory : undefined);
+        completeCanvasHistoryResult(message);
       } else if (message.type === "canvasSourceDefinitionRequest") {
         const expectedDocumentVersion = latestHostDocumentVersionRef.current;
         if (expectedDocumentVersion === null || canvasHistoryInFlightRef.current !== null) {
@@ -1650,6 +1836,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         tryCompleteCanvasFocus(message.requestId);
       } else if (message.type === "replaceTextDocument") {
         if (isStaleHostDocumentVersion(latestHostDocumentVersionRef.current, message.documentVersion)) return;
+        observePendingCanvasSourceCommit(message);
         if (isDuplicateHostSourceMessage(message)) {
           api.postMessage({ type: "webviewAuthoritativeDocumentReady", documentVersion: message.documentVersion });
           return;
@@ -1674,6 +1861,9 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           currentFilePath: null,
           dirtySinceSave: false
         });
+        pendingCanvasSourceCommitRef.current = null;
+        lastCanvasSourceHistoryCommitRef.current = null;
+        resetCanvasHistoryChronology();
         api.postMessage({ type: "webviewAuthoritativeDocumentReady", documentVersion: message.documentVersion });
         publishCurrentCanvasTheme(message.documentVersion);
         publishCanonicalRuntimeDiagnostics(message.documentVersion);
@@ -1682,6 +1872,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         applyPendingCoordinatePointConversionSelection();
       } else if (message.type === "commitText") {
         if (isStaleHostDocumentVersion(latestHostDocumentVersionRef.current, message.documentVersion)) return;
+        const pendingCanvasSourceObserved = observePendingCanvasSourceCommit(message);
         if (isDuplicateHostSourceMessage(message)) {
           api.postMessage({ type: "webviewAuthoritativeDocumentReady", documentVersion: message.documentVersion });
           return;
@@ -1703,11 +1894,45 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         };
         setAuthoritativeHostSourceSnapshot(lastAuthoritativeHostSourceSnapshotRef.current);
         if (message.reason === "undo" || message.reason === "redo") {
-          useCadDocumentStore.getState().reconcileAuthoritativeHistory(message.sourceText, message.reason);
+          const sourceBeforeHistory = useCadDocumentStore.getState().sourceText;
+          canvasHistoryStoreMutationRef.current = true;
+          let historyOutcome: "reconciled" | "reset";
+          try {
+            historyOutcome = useCadDocumentStore.getState().reconcileAuthoritativeHistory(message.sourceText, message.reason);
+          } finally {
+            canvasHistoryStoreMutationRef.current = false;
+          }
+          const inFlight = canvasHistoryInFlightRef.current;
+          const sourceTransitionObserved =
+            historyOutcome === "reconciled" &&
+            message.documentVersion > (inFlight?.expectedDocumentVersion ?? -1) &&
+            normalizedSourceFor(sourceBeforeHistory) !== normalizedSourceFor(message.sourceText);
+          if (sourceTransitionObserved && inFlight?.direction === message.reason) {
+            if (inFlight.entry === "source") {
+              inFlight.sourceTransitionObserved = moveCanvasSourceHistory(message.reason);
+              if (inFlight.sourceTransitionObserved && inFlight.completedResultObserved) {
+                completeCanvasHistoryResult({
+                  type: "canvasHistoryResult",
+                  direction: message.reason,
+                  status: "completed",
+                  documentVersion: message.documentVersion
+                });
+              }
+            } else {
+              syncCanvasHistoryChronologyToSelection();
+            }
+          } else if (historyOutcome === "reconciled") {
+            syncCanvasHistoryChronologyToSelection();
+          } else {
+            pendingCanvasSourceCommitRef.current = null;
+            lastCanvasSourceHistoryCommitRef.current = null;
+            resetCanvasHistoryChronology();
+          }
         } else {
           useCadDocumentStore.getState().commitText(message.sourceText, "editor", {
             cursorLineAtBurstStart: null
           });
+          if (!pendingCanvasSourceObserved) resetCanvasHistoryChronology();
         }
         api.postMessage({ type: "webviewAuthoritativeDocumentReady", documentVersion: message.documentVersion });
         publishCurrentCanvasTheme(message.documentVersion);
@@ -1724,7 +1949,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     return () => {
       window.removeEventListener("message", onMessage);
     };
-  }, [api, applyPendingCoordinatePointConversionSelection, canvasPickModeActive, currentAuthoritativeDocument, currentHostSourceAuthorityFor, deferCoordinatePointConversionSelection, discardDeferredSourceBake, measureCanvasTextWidth, postCanvasCommit, publishCanvasObservation, publishCanonicalRuntimeDiagnostics, publishCurrentCanvasTheme, publishInlineModuleCanvasTargets, pumpCanvasHistory, refreshCanvasTheme, requestCanvasHistory, restoreCanvasFocus, rustTransport, selectActiveCanvasInstance, setMultiDocumentGraphPublication, sourceInsertionError, staleSourceAnchorError, canvasPointerError, tryApplyPendingCanvasFreePointSelection, tryCompleteCanvasFocus]);
+  }, [api, applyPendingCoordinatePointConversionSelection, canvasPickModeActive, completeCanvasHistoryResult, completePendingCanvasSourceCommit, currentAuthoritativeDocument, currentHostSourceAuthorityFor, deferCoordinatePointConversionSelection, discardDeferredSourceBake, measureCanvasTextWidth, moveCanvasSourceHistory, postCanvasCommit, publishCanvasObservation, publishCanonicalRuntimeDiagnostics, publishCurrentCanvasTheme, publishInlineModuleCanvasTargets, pumpCanvasHistory, refreshCanvasTheme, requestCanvasHistory, resetCanvasHistoryChronology, restoreCanvasFocus, rustTransport, selectActiveCanvasInstance, setMultiDocumentGraphPublication, sourceInsertionError, staleSourceAnchorError, syncCanvasHistoryChronologyToSelection, canvasPointerError, tryApplyPendingCanvasFreePointSelection, tryCompleteCanvasFocus]);
 
   const surfaceStyle = benchmarkConfig?.expectedRenderSurface
     ? {
@@ -1768,17 +1993,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         postCanvasCommit={postCanvasCommit}
         postCanonicalSourceText={(sourceText) => {
           if (benchmarkConfig) return;
-          const expectedDocumentVersion = latestHostDocumentVersionRef.current;
-          if (expectedDocumentVersion === null) return;
-          const sourceUpdate = useCadDocumentStore.getState().sourceUpdate;
-          const mutationKind = sourceUpdate.kind === "model-patch" ? "model-patch" : "reset";
-          api.postMessage({
-            type: "canvasCommit",
-            sourceText,
-            expectedDocumentVersion,
-            mutationKind,
-            ...(sourceUpdate.kind === "model-patch" ? { splices: sourceUpdate.splices } : {})
-          });
+          postCanvasCommit(undefined, undefined, sourceText);
         }}
       />
       <VSCodeBenchmarkCaptureRunner
