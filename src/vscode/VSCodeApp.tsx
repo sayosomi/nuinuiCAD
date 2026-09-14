@@ -1098,7 +1098,8 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         moduleMaterialization: current.compiled.moduleMaterialization,
         visibilityProfiles: current.state.visibilityProfiles,
         activeVisibilityProfileId: current.state.activeVisibilityProfileId,
-        showCanvasPoints: useCadUiStore.getState().showCanvasPoints
+        showCanvasPoints: useCadUiStore.getState().showCanvasPoints,
+        measureCanvasTextWidth
       });
       const revealEligibleIds = new Set(selectionEligibleIds);
       for (const element of runtimeElements) {
@@ -1482,7 +1483,8 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           moduleMaterialization: runtimeModuleMaterialization,
           visibilityProfiles: presentationVisibilityProfiles,
           activeVisibilityProfileId: presentationActiveVisibilityProfileId,
-          showCanvasPoints: useCadUiStore.getState().showCanvasPoints
+          showCanvasPoints: useCadUiStore.getState().showCanvasPoints,
+          measureCanvasTextWidth
         });
         const revealResult = graphBackedImportedStatementOwnerRequest
           ? queryDslCanvasRevealRuntimeStatementOwner({

@@ -8,6 +8,7 @@ import type {
 import { defaultVisibilityProfile } from "@nuinuicad/nui-language";
 import type { ModuleMaterialization } from "@nuinuicad/nui-language";
 import { canvasPresentationEligibleElementIds } from "./canvasDrawingBounds";
+import type { CanvasTextWidthMeasurer } from "./canvasDrawingBounds";
 import { canvasSelectionEligibleElementIds } from "./canvasSelectionEligibility";
 
 const element = (
@@ -56,6 +57,15 @@ const textWithoutAnchor = (elementId: string): ComputedGeometry => ({
   fontSize: 5
 });
 
+const textWithAnchor = (elementId: string): ComputedGeometry => ({
+  kind: "text",
+  elementId,
+  name: elementId,
+  text: "text",
+  anchor: { kind: "point", elementId: `${elementId}-anchor`, name: "anchor", x: 1, y: 2 },
+  fontSize: 5
+});
+
 const materializationFor = (
   snapshots: ModuleMaterialization["instanceBaseGeometrySnapshots"]
 ): Pick<ModuleMaterialization, "instanceBaseGeometrySnapshots"> => ({
@@ -90,6 +100,7 @@ const sharedEligibilityFor = ({
   geometry,
   materialization,
   showCanvasPoints,
+  measureCanvasTextWidth,
   visibilityProfiles = profiles,
   activeVisibilityProfileId = visibilityProfiles[0]!.id,
   ...evaluationOptions
@@ -102,6 +113,7 @@ const sharedEligibilityFor = ({
   conditionInactive?: readonly string[];
   evaluated?: readonly string[];
   showCanvasPoints?: boolean;
+  measureCanvasTextWidth?: CanvasTextWidthMeasurer;
   visibilityProfiles?: readonly VisibilityProfile[];
   activeVisibilityProfileId?: string | null;
 }) => canvasSelectionEligibleElementIds({
@@ -110,7 +122,8 @@ const sharedEligibilityFor = ({
   moduleMaterialization: materialization,
   visibilityProfiles,
   activeVisibilityProfileId,
-  showCanvasPoints: showCanvasPoints ?? true
+  showCanvasPoints: showCanvasPoints ?? true,
+  measureCanvasTextWidth
 });
 
 describe("canvasSelectionEligibleElementIds", () => {
@@ -187,6 +200,19 @@ describe("canvasSelectionEligibleElementIds", () => {
       elements,
       geometry: [unsafeText]
     })).toEqual(new Set(["unsafe-text"]));
+  });
+
+  it("qualifies a text-only group when text bounds can be measured", () => {
+    const elements = [
+      element("group", "group"),
+      element("text", "text", { parentGroupId: "group" })
+    ];
+
+    expect(sharedEligibilityFor({
+      elements,
+      geometry: [textWithAnchor("text")],
+      measureCanvasTextWidth: () => 5
+    })).toEqual(new Set(["text", "group"]));
   });
 
   it("adds a qualifying concrete Module instance while keeping it out of base presentation eligibility", () => {
