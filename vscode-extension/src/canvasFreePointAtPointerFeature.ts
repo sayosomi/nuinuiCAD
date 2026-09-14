@@ -159,6 +159,22 @@ export const registerVscodeCanvasFreePointAtPointerFeature = ({
     return created;
   };
 
+  const reconcileIdleStateForCurrentAnchor = (
+    state: FreePointSessionState,
+    endpoint: VscodeCanvasFreePointAtPointerEndpoint,
+    anchor: VscodeSourceAuthoringPosition
+  ): void => {
+    if (state.inFlightRequestId !== null || state.queuedInvocations.length > 0 ||
+      state.sessionToken !== endpoint.sessionToken ||
+      state.document !== endpoint.document ||
+      state.documentUri !== endpoint.document.uri.toString() ||
+      !endpoint.isCurrent() ||
+      anchor.documentVersion !== endpoint.document.version ||
+      anchor.documentVersion <= state.expectedDocumentVersion) return;
+    state.expectedDocumentVersion = endpoint.document.version;
+    state.authoritativeReadyVersion = null;
+  };
+
   const dispatchNext = (state: FreePointSessionState, allowEndpointReadiness: boolean): void => {
     if (state.inFlightRequestId !== null) return;
     const invocation = state.queuedInvocations[0];
@@ -247,6 +263,7 @@ export const registerVscodeCanvasFreePointAtPointerFeature = ({
       void vscode.window.showErrorMessage(sourceAnchorError());
       return;
     }
+    reconcileIdleStateForCurrentAnchor(state, endpoint, anchor);
     const anchorAtExpectedVersion = anchor.documentVersion === state.expectedDocumentVersion;
     const anchorAtCurrentVersion = anchor.documentVersion === endpoint.document.version;
     const enqueueBehindProvisionalCommandEdit = state.inFlightRequestId !== null &&
@@ -303,6 +320,12 @@ export const registerVscodeCanvasFreePointAtPointerFeature = ({
       position: VscodeSourceAuthoringPosition
     ): void => {
       ownedSourceAuthoringPosition.setExplicitSourceAuthoringPosition(document, position);
+      const endpoint = activeCanvasEndpoint();
+      if (!endpoint || endpoint.document !== document ||
+        endpoint.document.uri.toString() !== document.uri.toString()) return;
+      const state = sessionStates.get(endpoint.sessionToken);
+      const anchor = ownedSourceAuthoringPosition.sourceAuthoringPositionFor(document);
+      if (state && anchor) reconcileIdleStateForCurrentAnchor(state, endpoint, anchor);
     },
     handleResult: (
       sessionToken: object,
