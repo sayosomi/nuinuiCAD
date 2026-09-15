@@ -146,6 +146,7 @@ const ParameterRow = ({
   const diagnosticId = parameter.diagnostic
     ? `module-preview-parameter-diagnostic-${parameter.definitionStatementId}-${parameter.parameterIndex}`
     : undefined;
+  const isReferencePickable = isReferencePickableParameter(parameter);
   return (
     <tr
       data-module-preview-parameter-row={`${parameter.definitionStatementId}:${parameter.parameterIndex}`}
@@ -159,7 +160,7 @@ const ParameterRow = ({
         {parameter.optional ? <span className="module-preview-parameter-kind">{text("modulePreview.parameters.optional", "optional")}</span> : null}
       </th>
       <td>
-        <div className="module-preview-parameter-input-row">
+        <div className={`module-preview-parameter-input-row${isReferencePickable ? " is-reference-pickable" : ""}`}>
           <input
             ref={inputRef}
             data-module-preview-parameter-identity={rowIdentity}
@@ -179,7 +180,7 @@ const ParameterRow = ({
               onValueInputRefresh(parameter, event.currentTarget);
             }}
           />
-          {isReferencePickableParameter(parameter) ? (
+          {isReferencePickable ? (
             <button
               type="button"
               className="module-preview-parameter-pick-button"

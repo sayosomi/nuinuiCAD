@@ -121,12 +121,21 @@ body.vscode-module-preview-parameters-webview {
   position: relative;
 }
 
+.module-preview-parameter-input-row.is-reference-pickable {
+  --module-preview-parameter-pick-width: 44px;
+}
+
+.module-preview-parameter-input-row.is-reference-pickable .module-preview-parameter-input {
+  box-sizing: border-box;
+}
+
 .module-preview-parameter-pick-button {
   position: absolute;
   z-index: 1;
-  top: 0;
-  right: 0;
-  bottom: 0;
+  inset-block: 0;
+  inset-inline-end: 0;
+  inline-size: var(--module-preview-parameter-pick-width);
+  box-sizing: border-box;
   padding: 3px 6px;
   border: 1px solid var(--vscode-button-border, var(--vscode-panel-border));
   border-radius: 2px;
@@ -143,6 +152,11 @@ body.vscode-module-preview-parameters-webview {
 .module-preview-parameter-pick-button:focus-visible {
   opacity: 1;
   pointer-events: auto;
+}
+
+.module-preview-parameter-group tbody tr:hover .module-preview-parameter-input-row.is-reference-pickable .module-preview-parameter-input,
+.module-preview-parameter-group tbody tr:focus-within .module-preview-parameter-input-row.is-reference-pickable .module-preview-parameter-input {
+  padding-inline-end: calc(var(--module-preview-parameter-pick-width) + 6px);
 }
 
 .module-preview-parameter-pick-button:hover {
