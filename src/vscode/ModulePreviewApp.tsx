@@ -226,6 +226,10 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     []
   );
   const rustTransport = useMemo(() => new VscodeRustTransport(api.postMessage), [api]);
+  useEffect(() => () => rustTransport.dispose(), [rustTransport]);
+  useEffect(() => {
+    api.postMessage({ type: "webviewReady" });
+  }, [api]);
 
   const publishParameterSnapshot = useCallback((snapshot: ModulePreviewSessionSnapshot) => {
     const sessionId = sessionIdRef.current;
@@ -1117,10 +1121,8 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       }
     };
     window.addEventListener("message", onMessage);
-    api.postMessage({ type: "webviewReady" });
     return () => {
       window.removeEventListener("message", onMessage);
-      rustTransport.dispose();
     };
   }, [api, applySessionSnapshot, clearEphemeralPreview, clearPendingModelPatch, compileTargetAt, executeModulePreviewBake, executeSharedCanvasCommand, previewSession, publishParameterSnapshot, publishParameterUnavailable, rustTransport]);
 

@@ -99,6 +99,7 @@ import type { CadElement } from "../types/geometry";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import { sourceOwnerForRuntimeElementId } from "@nuinuicad/nui-language";
+import { VscodeRustTransport } from "./vscodeRustTransport";
 
 const target: ModulePreviewTarget = {
   definitionStatementId: "module:preview",
@@ -329,6 +330,86 @@ afterEach(() => {
 });
 
 describe("ModulePreviewApp parameter relay", () => {
+  it("keeps the transport and readiness handshake alive across Preview transitions and disposes on unmount", () => {
+    const sourceText = [
+      "nui 1",
+      "module First() {",
+      "  point FirstPoint = coordinate(x: 10, y: 10)",
+      "}",
+      "module Second() {",
+      "  point SecondPoint = coordinate(x: 20, y: 20)",
+      "}"
+    ].join("\n");
+    const firstFixture = previewFixtureFor(sourceText, "First");
+    const secondFixture = previewFixtureFor(sourceText, "Second");
+    const dispose = vi.spyOn(VscodeRustTransport.prototype, "dispose");
+    const api = { postMessage: mocks.postMessage };
+    mocks.queryModulePreviewTarget
+      .mockReturnValueOnce(firstFixture.root.target)
+      .mockReturnValueOnce(secondFixture.root.target);
+    mocks.session.activate
+      .mockReturnValueOnce(firstFixture.snapshot)
+      .mockReturnValueOnce(secondFixture.snapshot);
+    mocks.session.getState.mockReturnValue(firstFixture.snapshot);
+    mocks.evaluationState = {
+      evaluation: firstFixture.evaluation,
+      evaluationRevision: 1,
+      evaluationRequestRevision: 1,
+      mode: "reference",
+      source: "reference",
+      status: "ready",
+      rustEligible: false,
+      isStale: false,
+      error: null
+    };
+    vi.spyOn(AutomationDocument, "fromSource").mockReturnValue(firstFixture.document);
+    const view = render(<ModulePreviewApp api={api} />);
+    const readinessMessages = () => api.postMessage.mock.calls.filter(([message]) => message?.type === "webviewReady");
+
+    expect(readinessMessages()).toHaveLength(1);
+
+    act(() => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "modulePreviewSession", sessionId: "module-preview-session:1", documentUri: "file:///pattern.nui" }
+      }));
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText, documentVersion: 1 }
+      }));
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "modulePreviewTarget", documentVersion: 1, normalizedSourceOffset: sourceText.indexOf("module First") }
+      }));
+    });
+
+    expect(readinessMessages()).toHaveLength(1);
+    expect(dispose).not.toHaveBeenCalled();
+
+    mocks.evaluationState = {
+      evaluation: secondFixture.evaluation,
+      evaluationRevision: 2,
+      evaluationRequestRevision: 2,
+      mode: "reference",
+      source: "reference",
+      status: "ready",
+      rustEligible: false,
+      isStale: false,
+      error: null
+    };
+    act(() => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "modulePreviewTarget", documentVersion: 1, normalizedSourceOffset: sourceText.indexOf("module Second") }
+      }));
+    });
+
+    expect(readinessMessages()).toHaveLength(1);
+    expect(dispose).not.toHaveBeenCalled();
+    expect((mocks.hostAdapter as CanvasHostAdapter | null)?.elements).toEqual(
+      expect.arrayContaining([expect.objectContaining({ name: "SecondPoint" })])
+    );
+
+    view.unmount();
+    expect(dispose).toHaveBeenCalledTimes(1);
+  });
+
   it("fits only the current target drawing through the shared Fit Drawing command", () => {
     const sourceText = [
       "nui 1",
@@ -513,12 +594,81 @@ describe("ModulePreviewApp parameter relay", () => {
     expect((mocks.hostAdapter as CanvasHostAdapter | null)?.elements).toEqual(
       expect.arrayContaining([expect.objectContaining({ name: "AltEnd" })])
     );
+    expect(mocks.postMessage.mock.calls.filter(([message]) => message?.type === "webviewReady")).toHaveLength(1);
     const syntheticCall = liveRoot.candidateCompiledDocument.statements.find(
       (statement) => statement.kind === "moduleInstance" && statement.name === "__module_preview_0"
     );
     expect(syntheticCall?.kind).toBe("moduleInstance");
     expect(syntheticCall?.kind === "moduleInstance" ? syntheticCall.arguments : []).toHaveLength(0);
     expect(fixture.document.getSource()).toBe(sourceText);
+  });
+
+  it("reaches current Preview for the exact zero-parameter SmokePreview reproduction", async () => {
+    const sourceText = [
+      "nui 1",
+      "",
+      "module SmokePreview() {",
+      "point SmokePoint = coordinate(x: 10, y: 10)",
+      "}"
+    ].join("\n");
+    const fixture = previewFixtureFor(sourceText, "SmokePreview");
+    const actualTargetModule = await vi.importActual<typeof import("../dsl/modulePreviewTarget")>("../dsl/modulePreviewTarget");
+    const actualStateModule = await vi.importActual<typeof import("../dsl/modulePreviewState")>("../dsl/modulePreviewState");
+    const liveSession = actualStateModule.createModulePreviewSession();
+    const dispose = vi.spyOn(VscodeRustTransport.prototype, "dispose");
+    mocks.queryModulePreviewTarget.mockImplementation(actualTargetModule.queryModulePreviewTarget);
+    mocks.session.activate.mockImplementation((input) => {
+      const snapshot = liveSession.activate(input);
+      if (snapshot?.preview.kind === "current") {
+        const evaluation = evaluateElements(
+          snapshot.preview.result.compileResult.elements,
+          buildModulePreviewEvaluationOptions(snapshot.preview.result)
+        );
+        mocks.evaluationState = {
+          evaluation,
+          evaluationRevision: 1,
+          evaluationRequestRevision: 1,
+          mode: "reference",
+          source: "reference",
+          status: "ready",
+          rustEligible: false,
+          isStale: false,
+          error: null
+        };
+      }
+      return snapshot;
+    });
+    mocks.session.getState.mockImplementation(() => liveSession.getState());
+    vi.spyOn(AutomationDocument, "fromSource").mockReturnValue(fixture.document);
+    const api = { postMessage: mocks.postMessage };
+    render(<ModulePreviewApp api={api} />);
+
+    act(() => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "modulePreviewSession", sessionId: "module-preview-session:1", documentUri: "file:///pattern.nui" }
+      }));
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText, documentVersion: 1 }
+      }));
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "modulePreviewTarget", documentVersion: 1, normalizedSourceOffset: sourceText.indexOf("module SmokePreview") }
+      }));
+    });
+
+    const state = liveSession.getState();
+    expect(state?.preview.kind).toBe("current");
+    expect(screen.queryByText("No valid Module Preview")).not.toBeInTheDocument();
+    expect(screen.queryByText("VS Code Rust transport disposed")).not.toBeInTheDocument();
+    expect(api.postMessage.mock.calls.filter(([message]) => message?.type === "webviewReady")).toHaveLength(1);
+    expect(dispose).not.toHaveBeenCalled();
+    if (!state || state.preview.kind !== "current") throw new Error("expected current Module Preview state");
+    const smokePoint = state.preview.result.compileResult.elements.find((element) => element.name === "SmokePoint");
+    expect(smokePoint).toBeDefined();
+    expect((mocks.evaluationState as { evaluation: { computedGeometry: Map<string, unknown> } }).evaluation.computedGeometry.get(smokePoint!.id)).toMatchObject({
+      kind: "point",
+      x: 10,
+      y: 10
+    });
   });
 
   it("materializes parameterless Preview geometry after authoritative hydration", async () => {
