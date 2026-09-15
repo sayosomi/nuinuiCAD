@@ -1,7 +1,14 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { VscodeModulePreviewParameterSnapshot, VscodeWebviewApi } from "./protocol";
 import { ModulePreviewParametersApp } from "./ModulePreviewParametersApp";
+
+const modulePreviewParametersStylesheet = readFileSync(
+  resolve(process.cwd(), "src/vscode/modulePreviewParameters.css"),
+  "utf8"
+);
 
 const api: VscodeWebviewApi = { postMessage: vi.fn() };
 
@@ -375,12 +382,15 @@ describe("ModulePreviewParametersApp", () => {
     const rows = [...document.querySelectorAll<HTMLTableRowElement>("[data-module-preview-parameter-row]")];
     expect(rows).toHaveLength(5);
     expect(rows.filter((row) => row.querySelector("[data-module-preview-parameter-pick='true']"))).toHaveLength(4);
+    expect(rows.filter((row) => row.querySelector(".module-preview-parameter-input-row.is-reference-pickable"))).toHaveLength(4);
     const countRow = rows.find((row) => row.dataset.modulePreviewParameterRow === "module:inner:3");
     expect(countRow?.querySelector("[data-module-preview-parameter-pick='true']")).toBeNull();
 
     const anchorRow = rows.find((row) => row.dataset.modulePreviewParameterRow === "module:inner:0");
     const anchorInput = within(anchorRow!).getByLabelText("Value for anchor");
     expect(anchorRow).toHaveAttribute("data-module-preview-parameter-row", "module:inner:0");
+    expect(anchorRow?.querySelector(".module-preview-parameter-input-row")).toHaveClass("is-reference-pickable");
+    expect(countRow?.querySelector(".module-preview-parameter-input-row")).not.toHaveClass("is-reference-pickable");
     fireEvent.focus(anchorInput);
     expect(within(anchorRow!).getByRole("button", { name: "Pick reference for anchor" })).toBeInTheDocument();
     fireEvent.click(within(anchorRow!).getByRole("button", { name: "Pick reference for anchor" }));
@@ -409,6 +419,45 @@ describe("ModulePreviewParametersApp", () => {
       definitionStatementId: "module:outer",
       parameterIndex: 0
     });
+  });
+
+  it("keeps contextual Pick layout out of normal flow and clears input content only while visible", () => {
+    expect(modulePreviewParametersStylesheet).toMatch(
+      /\.module-preview-parameter-input-row\s*\{[\s\S]*?position:\s*relative;/
+    );
+    expect(modulePreviewParametersStylesheet).toMatch(
+      /\.module-preview-parameter-pick-button\s*\{[\s\S]*?position:\s*absolute;[\s\S]*?inset-block:\s*0;[\s\S]*?inset-inline-end:\s*0;/
+    );
+    expect(modulePreviewParametersStylesheet).toMatch(
+      /\.module-preview-parameter-input-row\.is-reference-pickable\s*\{[\s\S]*?--module-preview-parameter-pick-width:\s*44px;/
+    );
+    expect(modulePreviewParametersStylesheet).toMatch(
+      /\.module-preview-parameter-input-row\.is-reference-pickable \.module-preview-parameter-input\s*\{[\s\S]*?box-sizing:\s*border-box;/
+    );
+    expect(modulePreviewParametersStylesheet).toMatch(
+      /\.module-preview-parameter-pick-button\s*\{[\s\S]*?inline-size:\s*var\(--module-preview-parameter-pick-width\);/
+    );
+    expect(modulePreviewParametersStylesheet).toMatch(
+      /\.module-preview-parameter-group tbody tr:hover \.module-preview-parameter-input-row\.is-reference-pickable \.module-preview-parameter-input,[\s\S]*?\.module-preview-parameter-group tbody tr:focus-within \.module-preview-parameter-input-row\.is-reference-pickable \.module-preview-parameter-input\s*\{[\s\S]*?padding-inline-end:\s*calc\(var\(--module-preview-parameter-pick-width\) \+ 6px\);/
+    );
+    expect(modulePreviewParametersStylesheet).toMatch(
+      /\.module-preview-parameter-pick-button\s*\{[\s\S]*?opacity:\s*0;[\s\S]*?pointer-events:\s*none;/
+    );
+    expect(modulePreviewParametersStylesheet).toMatch(
+      /\.module-preview-parameter-group tbody tr:hover \.module-preview-parameter-pick-button,[\s\S]*?\.module-preview-parameter-group tbody tr:focus-within \.module-preview-parameter-pick-button,[\s\S]*?\.module-preview-parameter-pick-button:focus-visible\s*\{[\s\S]*?opacity:\s*1;[\s\S]*?pointer-events:\s*auto;/
+    );
+    expect(modulePreviewParametersStylesheet).not.toMatch(
+      /\.module-preview-parameter-pick-button\s*\{[^}]*\b(?:display|visibility):\s*(?:none|hidden)/
+    );
+    expect(modulePreviewParametersStylesheet).not.toMatch(
+      /\.module-preview-parameter-input-row\.is-reference-pickable\s*\{[^}]*padding-inline-end:/
+    );
+    expect(modulePreviewParametersStylesheet).toMatch(
+      /\.module-preview-parameter-input\s*\{[\s\S]*?padding:\s*4px 6px;[\s\S]*?\}/
+    );
+    expect(modulePreviewParametersStylesheet).not.toMatch(
+      /(?:^|\n)\.module-preview-parameter-input\s*\{[^}]*padding-inline-end:/
+    );
   });
 
   it("renders ordered ancestor and target groups with exact values, defaults, and diagnostics", () => {
