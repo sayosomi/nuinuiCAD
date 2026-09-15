@@ -662,16 +662,19 @@ export const registerVscodeExtractModuleCommandFeature = ({
     const pending = pendingCanvasNavigation;
     if (!pending) return;
     const endpoint = activeCanvasEndpoint();
-    if (!endpoint || endpoint.panel !== pending.endpoint.panel || !sameDocument(endpoint.document, pending.document)) {
+    if (!endpoint) return;
+    if (endpoint.panel !== pending.endpoint.panel || !sameDocument(endpoint.document, pending.document)) {
       pendingCanvasNavigation = null;
       return;
     }
     if (
       pending.document.version !== pending.documentVersion ||
-      normalizedSourceFor(pending.document.getText()) !== pending.normalizedSource ||
-      !endpoint.isAuthoritativeReady() ||
-      !canvasObservationFor(endpoint)
-    ) return;
+      normalizedSourceFor(pending.document.getText()) !== pending.normalizedSource
+    ) {
+      pendingCanvasNavigation = null;
+      return;
+    }
+    if (!endpoint.isAuthoritativeReady() || !canvasObservationFor(endpoint)) return;
     const exact = exactSourceStateFor(pending.document, languageAnalysisSessionFor);
     if (!exact) return;
     const offset = generatedInstanceOffsetFor(pending.plan, exact);
@@ -696,7 +699,8 @@ export const registerVscodeExtractModuleCommandFeature = ({
 
   const handleDocumentChange = (document: vscode.TextDocument): void => {
     if (pendingCanvasNavigation && sameDocument(pendingCanvasNavigation.document, document) &&
-        pendingCanvasNavigation.documentVersion !== document.version) pendingCanvasNavigation = null;
+        (pendingCanvasNavigation.documentVersion !== document.version ||
+          normalizedSourceFor(document.getText()) !== pendingCanvasNavigation.normalizedSource)) pendingCanvasNavigation = null;
     refreshContext();
   };
 
@@ -733,6 +737,7 @@ export const registerVscodeExtractModuleCommandFeature = ({
   ) as VscodeExtractModuleCommandFeature;
   disposable.handleCanvasAuthoritativeDocumentReady = handleCanvasAuthoritativeDocumentReady;
   disposable.handleCanvasViewStateChange = (): void => {
+    finishPendingCanvasNavigation();
     refreshContext();
   };
   disposable.handleCanvasObservationPublication = handleCanvasObservationPublication;
