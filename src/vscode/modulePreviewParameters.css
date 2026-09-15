@@ -118,11 +118,15 @@ body.vscode-module-preview-parameters-webview {
   display: flex;
   align-items: flex-start;
   gap: 4px;
+  position: relative;
 }
 
 .module-preview-parameter-pick-button {
-  flex: 0 0 auto;
-  align-self: stretch;
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  right: 0;
+  bottom: 0;
   padding: 3px 6px;
   border: 1px solid var(--vscode-button-border, var(--vscode-panel-border));
   border-radius: 2px;
