@@ -345,8 +345,7 @@ export const useVSCodeCoordinatePointConversionSession = ({
     if (!current) return;
     const next = selectCoordinatePointConversionBase(current, key);
     replaceSession(next);
-    if (canvasBasePickRef.current && next.selectedBaseKey === key) confirm();
-  }, [confirm, replaceSession]);
+  }, [replaceSession]);
 
   const cancel = useCallback(() => replaceSession(null), [replaceSession]);
 
