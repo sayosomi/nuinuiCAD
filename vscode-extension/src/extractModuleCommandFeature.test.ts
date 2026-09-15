@@ -814,20 +814,48 @@ describe("VS Code Extract Module command feature", () => {
     fixture.feature.dispose();
   });
 
-  it("fails closed when a different Canvas endpoint becomes active", async () => {
+  it("clears retained navigation when the originating Canvas session is disposed", async () => {
+    const fixture = postApplyCanvasLifecycleFixtureFor();
+    fixture.setDropEndpointAfterApply(true);
+
+    await mocks.commandHandler?.();
+    await flushCommand();
+    fixture.feature.handleCanvasSessionDispose(fixture.editor.document as never, fixture.endpoint.panel);
+    fixture.setActiveEndpoint(fixture.endpoint);
+    fixture.setAuthoritativeReady(true);
+    fixture.feature.handleCanvasAuthoritativeDocumentReady(fixture.editor.document as never, 2);
+    fixture.feature.handleCanvasObservationPublication(fixture.editor.document as never);
+    fixture.feature.handleCanvasViewStateChange();
+
+    expect(fixture.navigate).not.toHaveBeenCalled();
+    fixture.feature.dispose();
+  });
+
+  it("does not clear retained navigation for an unrelated Canvas session disposal", async () => {
+    const fixture = postApplyCanvasLifecycleFixtureFor();
+    fixture.setDropEndpointAfterApply(true);
+
+    await mocks.commandHandler?.();
+    await flushCommand();
+    const unrelatedPanel = { webview: {} } as never;
+    fixture.feature.handleCanvasSessionDispose(fixture.editor.document as never, unrelatedPanel);
+    fixture.setActiveEndpoint(fixture.endpoint);
+    fixture.setAuthoritativeReady(true);
+    fixture.feature.handleCanvasViewStateChange();
+
+    expect(fixture.navigate).toHaveBeenCalledTimes(1);
+    fixture.feature.dispose();
+  });
+
+  it("fails closed when a replacement Canvas panel becomes active for the same document", async () => {
     const fixture = postApplyCanvasLifecycleFixtureFor();
     fixture.setDropEndpointAfterApply(true);
 
     await mocks.commandHandler?.();
     await flushCommand();
 
-    const otherDocument = editorFor(
-      fixture.currentSource,
-      { start: 0, end: 0, active: 0 },
-      "file:///different-canvas.nui"
-    ).document;
     const otherEndpoint: ExtractModuleCanvasEndpoint = {
-      document: otherDocument as never,
+      document: fixture.editor.document as never,
       panel: { webview: {} } as never,
       isAuthoritativeReady: () => true,
       observation: () => null

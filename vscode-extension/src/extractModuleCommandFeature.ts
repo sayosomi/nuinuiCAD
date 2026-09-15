@@ -67,6 +67,7 @@ export type VscodeExtractModuleCommandFeature = vscode.Disposable & {
   handleCanvasViewStateChange: () => void;
   handleCanvasAuthoritativeDocumentReady: (document: vscode.TextDocument, documentVersion: number) => void;
   handleCanvasObservationPublication: (document: vscode.TextDocument) => void;
+  handleCanvasSessionDispose: (document: vscode.TextDocument, panel: vscode.WebviewPanel) => void;
   handleDocumentChange: (document: vscode.TextDocument) => void;
   handleDocumentClose: (document: vscode.TextDocument) => void;
 };
@@ -697,6 +698,14 @@ export const registerVscodeExtractModuleCommandFeature = ({
     refreshContext();
   };
 
+  const handleCanvasSessionDispose = (document: vscode.TextDocument, panel: vscode.WebviewPanel): void => {
+    if (
+      pendingCanvasNavigation &&
+      sameDocument(pendingCanvasNavigation.document, document) &&
+      pendingCanvasNavigation.endpoint.panel === panel
+    ) pendingCanvasNavigation = null;
+  };
+
   const handleDocumentChange = (document: vscode.TextDocument): void => {
     if (pendingCanvasNavigation && sameDocument(pendingCanvasNavigation.document, document) &&
         (pendingCanvasNavigation.documentVersion !== document.version ||
@@ -741,6 +750,7 @@ export const registerVscodeExtractModuleCommandFeature = ({
     refreshContext();
   };
   disposable.handleCanvasObservationPublication = handleCanvasObservationPublication;
+  disposable.handleCanvasSessionDispose = handleCanvasSessionDispose;
   disposable.handleDocumentChange = handleDocumentChange;
   disposable.handleDocumentClose = handleDocumentClose;
   refreshContext();
