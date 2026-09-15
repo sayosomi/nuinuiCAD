@@ -17,6 +17,10 @@ export const buildModulePreviewEvaluationOptions = (
 ): EvaluateElementsOptions => {
   const runtime = preview.moduleScalarRuntime;
   const elements = preview.compileResult.elements;
+  const statementMap = preview.candidateCompiledDocument.statementMap;
+  if (!statementMap) {
+    throw new Error("buildModulePreviewEvaluationOptions: missing candidate statement map");
+  }
   const elementIdByStatementIndex = preview.moduleMaterialization.elementIdBySourceStatementIndex;
   const propertySource = {
     propertyBindings: new Map(),
@@ -55,6 +59,8 @@ export const buildModulePreviewEvaluationOptions = (
     drawingModifiers: preview.compileResult.modifiers ?? [],
     scalarProgram: runtime.scalarProgram,
     bindingVersions,
+    statementInfoByElementId: statementMap.byElementId,
+    statementIdByStatementIndex: statementMap.statementIdByStatementIndex,
     sourceExecutionPositionByElementId:
       preview.moduleMaterialization.sourceExecutionPositionByRuntimeElementId,
     scalarExecutionPositionByElementId: runtime.scalarExecutionPositionByRuntimeElementId,
