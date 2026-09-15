@@ -49,6 +49,12 @@ export type CanvasContextMenuKind = "blank" | "element";
 
 export type CanvasWorldPoint = { x: number; y: number };
 
+export type CanvasPointPickAction = {
+  pickedPointAnchor: PointAnchor;
+  pickedPointCandidateElementId?: ElementId;
+  pickedPointSourceReference?: CanonicalGeometrySourceReference;
+};
+
 export type CanvasPointDragAction = {
   elementId: ElementId;
   dx: number;
@@ -157,13 +163,12 @@ export type CanvasHostAdapter = {
     pickedLineCandidateElementId?: ElementId;
     pickedLineSourceReference?: CanonicalGeometrySourceReference;
   }) => unknown;
-  applyPickedPoint: (action: {
-    pickedPointAnchor: PointAnchor;
-    pickedPointCandidateElementId?: ElementId;
-    pickedPointSourceReference?: CanonicalGeometrySourceReference;
-  }) => unknown;
+  applyPickedPoint: (action: CanvasPointPickAction) => unknown;
   /** Shared Canvas keyboard boundary for the active pick scope. */
-  dispatchCanvasPickCommand?: (commandId: CanvasPickKeyboardCommandId) => unknown;
+  dispatchCanvasPickCommand?: (
+    commandId: CanvasPickKeyboardCommandId,
+    pointPickAction?: CanvasPointPickAction
+  ) => unknown;
   /** Optional host filter layered over the shared point-pick candidates. */
   filterPointPickCandidates?: (candidates: PickCandidate[]) => PickCandidate[];
   /** Cancels a host-owned Canvas pick flow while Canvas has focus. */

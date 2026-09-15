@@ -11,7 +11,7 @@ import { creationPlacementForTarget } from "../model/elementCreationPlacement";
 import type { CanvasRectangleSelectionUpdateMode } from "../commands/canvasRectangleSelectionCommands";
 import { numericReferencePropertiesForGeometry } from "../geometry/numericReferenceProperties";
 import { numericGeometryStaticTargetForElementInDocument } from "../geometry/numericGeometryProperties";
-import { pickCandidates, pickSourcePrecedesTarget } from "../model/pickCandidates";
+import { pickCandidates, pickSourcePrecedesTarget, selectedPickOption } from "../model/pickCandidates";
 import { isSemanticGeometryCandidateAllowed } from "../model/moduleSemanticCandidateBoundary";
 import { pickRefForOption, pickRefKey } from "../model/pickReferences";
 import { matchingPickModeSessionForTargets } from "../model/pickModeSession";
@@ -1890,7 +1890,23 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
         if (commandId === "cancelPickMode" && hostAdapter.cancelCanvasPickOperation) {
           hostAdapter.cancelCanvasPickOperation();
         } else if (hostAdapter.dispatchCanvasPickCommand) {
-          hostAdapter.dispatchCanvasPickCommand(commandId);
+          const selected = commandId === "applySelectedPickCandidate" && isPointPickActive
+            ? selectedPickOption(pointPickCandidates, useCadUiStore.getState().activePickCursor)
+            : null;
+          const selectedPointPickAction = selected?.option.kind === "point"
+            ? {
+                pickedPointAnchor: selected.option.anchor,
+                pickedPointCandidateElementId: selected.candidate.elementId,
+                ...(selected.option.sourceReference
+                  ? { pickedPointSourceReference: selected.option.sourceReference }
+                  : {})
+              }
+            : null;
+          if (selectedPointPickAction) {
+            hostAdapter.dispatchCanvasPickCommand(commandId, selectedPointPickAction);
+          } else {
+            hostAdapter.dispatchCanvasPickCommand(commandId);
+          }
         } else {
           dispatchCommand(commandId);
         }
