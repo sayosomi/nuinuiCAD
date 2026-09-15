@@ -1424,7 +1424,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       if (selectionIds.length === 0 || !replaceCanvasSelection(
         selectionIds,
         selectionIds[0],
-        true,
+        false,
         "requested",
         selectionEligibleIds
       )) {

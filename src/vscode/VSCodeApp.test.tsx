@@ -2926,4 +2926,249 @@ describe("VSCodeApp Canvas history coordinator", () => {
     });
   });
 
+  it("keeps Canvas-origin Inline reselection out of selection history across Undo and Redo", async () => {
+    const source = [
+      "nui 1",
+      "module Stamp() {",
+      "  point Anchor = coordinate(x: 10, y: 20)",
+      "}",
+      "instance One = Stamp()"
+    ].join("\n");
+    const api = { postMessage: vi.fn() };
+    const send = async (data: unknown) => {
+      await act(async () => {
+        window.dispatchEvent(new MessageEvent("message", { data }));
+      });
+    };
+    const canvasHistoryRequests = () => api.postMessage.mock.calls.filter(
+      ([message]) => message?.type === "canvasHistoryRequest"
+    );
+
+    render(<VSCodeAppForTest api={api} />);
+    await send({ type: "replaceTextDocument", sourceText: source, documentVersion: 1 });
+    publishAllCurrentElementsAsPresented();
+
+    const before = useCadDocumentStore.getState();
+    const one = before.elements.find((element) =>
+      element.type === "moduleInstance" && element.name === "One"
+    );
+    expect(one).toBeDefined();
+    if (!one) return;
+    const oldRuntimeElementIds = new Set(before.elements.map((element) => element.id));
+    selectElement(one.id, "replace", true);
+    expect(useCadDocumentStore.getState().selectionPast).toHaveLength(1);
+
+    const oneStatementIndex = before.doc.statements.findIndex((statement) =>
+      statement.kind === "moduleInstance" && statement.name === "One"
+    );
+    const oneStatementId = before.doc.statementMap?.statementIdByStatementIndex?.get(oneStatementIndex);
+    expect(oneStatementId).toBeDefined();
+    if (!oneStatementId) return;
+    const planned = planInlineModule({
+      source: {
+        normalizedSource: source,
+        sourceRevision: before.currentSourceRevision
+      },
+      compiled: before.doc,
+      targets: [{ documentKey: null, statementId: oneStatementId }],
+      policy: {
+        includeHiddenInstances: false,
+        includeDisabledInstances: false
+      }
+    });
+    expect(planned.status).toBe("planned");
+    if (planned.status !== "planned") return;
+    const nextSource = applyLineSplices(source, planned.splices);
+    expect(nextSource).toContain("group One {");
+
+    // Model the successful Canvas-origin Source mutation through the same
+    // pending commit/authoritative publication boundary used in production.
+    useCadDocumentStore.getState().commitText(nextSource, "command");
+    drawingCanvasProps.postCanvasCommit!(323);
+    await send({
+      type: "canvasCommitResult",
+      operationId: 323,
+      status: "accepted",
+      documentVersion: 2
+    });
+    await send({
+      type: "commitText",
+      sourceText: nextSource,
+      documentVersion: 2,
+      reason: "edit"
+    });
+
+    const after = useCadDocumentStore.getState();
+    const generatedGroupIndex = after.doc.statements.findIndex((statement) =>
+      statement.kind === "group" && statement.name === "One"
+    );
+    expect(generatedGroupIndex).toBeGreaterThanOrEqual(0);
+    if (generatedGroupIndex < 0) return;
+    const generatedGroup = after.doc.statements[generatedGroupIndex];
+    expect(generatedGroup?.kind).toBe("group");
+    if (!generatedGroup || generatedGroup.kind !== "group") return;
+    const generatedGroupRuntimeIds = after.doc.moduleMaterialization!.executionStatements
+      .filter((entry) => entry.sourceStatementIndex === generatedGroupIndex)
+      .map((entry) => entry.runtimeElementId)
+      .filter((id) => after.elements.some((element) => element.id === id));
+    const generatedGeometryIds = generatedGroupRuntimeIds.flatMap((groupId) =>
+      after.elements
+        .filter((element) => element.parentGroupId === groupId && element.name === "Anchor")
+        .map((element) => element.id)
+    );
+    expect(generatedGeometryIds).not.toHaveLength(0);
+    if (generatedGeometryIds.length === 0) return;
+    for (const element of after.elements.filter((element) => element.name === "Anchor")) {
+      drawingCanvasProps.evaluation.computedGeometry.set(element.id, {
+        kind: "point",
+        elementId: element.id,
+        name: element.name,
+        x: 10,
+        y: 20
+      });
+    }
+    publishAllCurrentElementsAsPresented();
+
+    await send({
+      type: "inlineModuleSelectionRequest",
+      requestId: 632,
+      documentVersion: 2,
+      normalizedSource: nextSource,
+      generatedGroups: [{
+        sourceStatementIndex: generatedGroupIndex,
+        sourceRange: {
+          from: generatedGroup.documentRange.from,
+          to: generatedGroup.documentRange.to
+        },
+        generatedGroupName: generatedGroup.name
+      }]
+    });
+
+    expect(useCadDocumentStore.getState().sourceText).toBe(nextSource);
+    expect(useCadUiStore.getState().selectedElementIds).toEqual(generatedGeometryIds);
+    expect(useCadUiStore.getState().selectedElementIds.some((id) => oldRuntimeElementIds.has(id))).toBe(false);
+    expect(useCadDocumentStore.getState().selectionPast).toHaveLength(0);
+    expect(useCadDocumentStore.getState().past.at(-1)?.selection).toMatchObject({
+      selectedElementId: one.id,
+      selectedElementIds: [one.id],
+      selectionAnchorElementId: one.id
+    });
+    expect(api.postMessage).toHaveBeenCalledWith({
+      type: "inlineModuleSelectionResult",
+      requestId: 632,
+      documentVersion: 2,
+      status: "selected",
+      selectedRuntimeElementIds: generatedGeometryIds
+    });
+
+    await send({ type: "canvasCommand", commandId: "undo" });
+    expect(canvasHistoryRequests()).toHaveLength(1);
+    expect(canvasHistoryRequests()[0]?.[0]).toEqual({
+      type: "canvasHistoryRequest",
+      direction: "undo",
+      expectedDocumentVersion: 2
+    });
+    expect(useCadUiStore.getState().selectedElementIds).toEqual(generatedGeometryIds);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "commitText", sourceText: source, documentVersion: 3, reason: "undo" }
+      }));
+    });
+    const undoOne = useCadDocumentStore.getState().elements.find((element) =>
+      element.type === "moduleInstance" && element.name === "One"
+    );
+    expect(undoOne).toBeDefined();
+    if (!undoOne) return;
+    expect(undoOne.id).not.toBe(one.id);
+    expect(useCadDocumentStore.getState().sourceText).toBe(source);
+    await act(async () => {
+      publishAllCurrentElementsAsPresented();
+      await Promise.resolve();
+    });
+    expect(useCadUiStore.getState().selectedElementIds).toEqual([]);
+    expect(useCadDocumentStore.getState().selectionPast).toHaveLength(1);
+    expect(canvasHistoryRequests()).toHaveLength(1);
+
+    await send({ type: "canvasHistoryResult", direction: "undo", status: "completed", documentVersion: 3 });
+    await send({ type: "canvasCommand", commandId: "undo" });
+    expect(useCadUiStore.getState().selectedElementIds).toEqual([]);
+    expect(useCadDocumentStore.getState().selectionPast).toHaveLength(0);
+    expect(canvasHistoryRequests()).toHaveLength(1);
+
+    await send({ type: "canvasCommand", commandId: "redo" });
+    expect(useCadUiStore.getState().selectedElementIds).toEqual([]);
+    expect(useCadDocumentStore.getState().selectionPast).toHaveLength(1);
+    expect(canvasHistoryRequests()).toHaveLength(1);
+
+    await send({ type: "canvasCommand", commandId: "redo" });
+    expect(canvasHistoryRequests()).toHaveLength(2);
+    expect(canvasHistoryRequests()[1]?.[0]).toEqual({
+      type: "canvasHistoryRequest",
+      direction: "redo",
+      expectedDocumentVersion: 3
+    });
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "commitText", sourceText: nextSource, documentVersion: 4, reason: "redo" }
+      }));
+      publishAllCurrentElementsAsPresented();
+      await Promise.resolve();
+    });
+    const redoState = useCadDocumentStore.getState();
+    const redoGroupRuntimeIds = redoState.doc.moduleMaterialization!.executionStatements
+      .filter((entry) => entry.sourceStatementIndex === generatedGroupIndex)
+      .map((entry) => entry.runtimeElementId)
+      .filter((id) => redoState.elements.some((element) => element.id === id));
+    const redoGeneratedGeometryIds = redoGroupRuntimeIds.flatMap((groupId) =>
+      redoState.elements
+        .filter((element) => element.parentGroupId === groupId && element.name === "Anchor")
+        .map((element) => element.id)
+    );
+    expect(redoGeneratedGeometryIds).not.toHaveLength(0);
+    await send({ type: "canvasHistoryResult", direction: "redo", status: "completed", documentVersion: 4 });
+    for (const element of redoState.elements.filter((element) => element.name === "Anchor")) {
+      drawingCanvasProps.evaluation.computedGeometry.set(element.id, {
+        kind: "point",
+        elementId: element.id,
+        name: element.name,
+        x: 10,
+        y: 20
+      });
+    }
+    await act(async () => {
+      publishAllCurrentElementsAsPresented();
+      await Promise.resolve();
+    });
+    const redoGroupStatement = redoState.doc.statements[generatedGroupIndex];
+    expect(redoGroupStatement?.kind).toBe("group");
+    if (!redoGroupStatement || redoGroupStatement.kind !== "group") return;
+    await send({
+      type: "inlineModuleSelectionRequest",
+      requestId: 633,
+      documentVersion: 4,
+      normalizedSource: nextSource,
+      generatedGroups: [{
+        sourceStatementIndex: generatedGroupIndex,
+        sourceRange: {
+          from: redoGroupStatement.documentRange.from,
+          to: redoGroupStatement.documentRange.to
+        },
+        generatedGroupName: redoGroupStatement.name
+      }]
+    });
+    expect(useCadUiStore.getState().selectedElementIds).toEqual(redoGeneratedGeometryIds);
+    expect(useCadUiStore.getState().selectedElementIds.some((id) => oldRuntimeElementIds.has(id))).toBe(false);
+    expect(useCadDocumentStore.getState().selectionPast).toHaveLength(0);
+    expect(api.postMessage).toHaveBeenCalledWith({
+      type: "inlineModuleSelectionResult",
+      requestId: 633,
+      documentVersion: 4,
+      status: "selected",
+      selectedRuntimeElementIds: redoGeneratedGeometryIds
+    });
+    expect(useCadDocumentStore.getState().sourceText).toBe(nextSource);
+  });
+
 });
