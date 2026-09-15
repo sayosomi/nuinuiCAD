@@ -1371,14 +1371,14 @@ export const registerModulePreviewFeature = ({
       } satisfies ExtensionToVscodeMessage);
     }));
 
-    // Keep lifecycle messages synchronous: an eager Webview publishes editable
-    // focus before webviewReady, and a no-op Promise here can delay hydration.
-    session.disposables.push(panel.webview.onDidReceiveMessage((message: VscodeToExtensionMessage) => {
+    session.disposables.push(panel.webview.onDidReceiveMessage(async (message: VscodeToExtensionMessage) => {
       if (message.type === "bakeOperationResult") {
-        return presentBakeOperationResult?.(message);
+        await presentBakeOperationResult?.(message);
+        return;
       }
       if (isModulePreviewModelPatchRequest(message)) {
-        return applyModulePreviewModelPatch(session, message);
+        await applyModulePreviewModelPatch(session, message);
+        return;
       }
       if (typeof message === "object" && message !== null &&
         (message as { type?: unknown }).type === "modulePreviewModelPatch") {
@@ -1420,40 +1420,32 @@ export const registerModulePreviewFeature = ({
       }
       if (message.type === "canvasRibbonPositionCommit") {
         if (!message.ribbonId || !Number.isFinite(message.x) || !Number.isFinite(message.y)) return;
-        return updateCanvasRibbonPosition(message.ribbonId, message.x, message.y);
+        await updateCanvasRibbonPosition(message.ribbonId, message.x, message.y);
+        return;
       }
       if (message.type === "editCanvasRibbon") {
         editCanvasRibbon();
         return;
       }
       if (message.type === "rustEvaluationRequest") {
-        return (async () => {
-          try {
-            const payload = await evaluateWithRust(message.input);
-            void panel.webview.postMessage({
-              type: "rustEvaluationResponse",
-              id: message.id,
-              payload
-            } satisfies ExtensionToVscodeMessage);
-          } catch (error) {
-            void panel.webview.postMessage({
-              type: "rustEvaluationError",
-              id: message.id,
-              error: error instanceof Error ? error.message : String(error)
-            } satisfies ExtensionToVscodeMessage);
-          }
-        })();
+        try {
+          const payload = await evaluateWithRust(message.input);
+          void panel.webview.postMessage({
+            type: "rustEvaluationResponse",
+            id: message.id,
+            payload
+          } satisfies ExtensionToVscodeMessage);
+        } catch (error) {
+          void panel.webview.postMessage({
+            type: "rustEvaluationError",
+            id: message.id,
+            error: error instanceof Error ? error.message : String(error)
+          } satisfies ExtensionToVscodeMessage);
+        }
       }
     }));
     session.disposables.push(panel.onDidChangeViewState(({ webviewPanel }) => {
-      if (webviewPanel !== panel) return;
-      if (!webviewPanel.visible) {
-        session.webviewReady = false;
-        session.authoritativeDocumentVersion = null;
-        refreshExistingTarget(session);
-        return;
-      }
-      if (!webviewPanel.active && !webviewPanel.visible) return;
+      if (webviewPanel !== panel || (!webviewPanel.active && !webviewPanel.visible)) return;
       bindParameterSession(session);
     }));
     const editableFocusAttachment = attachWebviewEditableFocus?.(panel.webview);

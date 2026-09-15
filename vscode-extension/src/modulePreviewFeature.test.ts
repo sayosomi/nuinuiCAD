@@ -1176,9 +1176,7 @@ describe("registerModulePreviewFeature", () => {
     expect(panel.webview.postMessage).toHaveBeenCalledWith(initialTarget);
 
     for (let recreation = 0; recreation < 2; recreation += 1) {
-      panel.fireViewState({ active: false, visible: false });
       panel.webview.postMessage.mockClear();
-      panel.fireViewState({ active: true, visible: true });
       await panel.receive({ type: "webviewReady" });
       expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
         type: "modulePreviewTarget"
@@ -1213,63 +1211,6 @@ describe("registerModulePreviewFeature", () => {
       type: "modulePreviewTarget",
       documentVersion: 2
     }));
-
-    feature.dispose();
-  });
-
-  it("waits for a recreated Webview before delivering a hidden-panel retarget", async () => {
-    const source = [
-      "nui 1",
-      "module Preview() {",
-      "  point P0 = coordinate(x: 0, y: 0)",
-      "  point P1 = coordinate(x: 40, y: 0)",
-      "  line Edge = segment(start: @P0, end: @P1)",
-      "}"
-    ].join("\n");
-    const document = createDocument(source);
-    const panel = createPanel();
-    mocks.createWebviewPanel.mockReturnValue(panel);
-    const analysis = createLanguageAnalysisSession(source);
-    mocks.activeTextEditor = {
-      document,
-      selection: { active: positionAt(source, source.indexOf("module Preview")) }
-    };
-    const feature = registerModulePreviewFeature({
-      languageAnalysisSessionFor: (() => analysis) as never,
-      canvasThemeGeneration: () => 0,
-      webviewHtml: () => "<html />",
-      canvasRibbons: () => [],
-      updateCanvasRibbonPosition: () => undefined,
-      editCanvasRibbon: () => undefined,
-      evaluateWithRust: async () => ({})
-    });
-    const open = mocks.commandHandlers.get("nuinuiCAD.openModulePreview");
-    if (!open) throw new Error("expected open Module Preview command");
-
-    open();
-    await panel.receive({ type: "webviewReady" });
-    await panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
-    panel.webview.postMessage.mockClear();
-
-    panel.fireViewState({ active: false, visible: false });
-    mocks.activeTextEditor.selection.active = positionAt(source, source.indexOf("point P0"));
-    open();
-    expect(panel.reveal).toHaveBeenCalled();
-    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
-      type: "modulePreviewTarget"
-    }));
-
-    panel.fireViewState({ active: true, visible: true });
-    await panel.receive({ type: "webviewReady" });
-    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
-      type: "modulePreviewTarget"
-    }));
-    await panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
-    expect(panel.webview.postMessage).toHaveBeenCalledWith({
-      type: "modulePreviewTarget",
-      documentVersion: 1,
-      normalizedSourceOffset: source.indexOf("module Preview")
-    });
 
     feature.dispose();
   });
