@@ -370,6 +370,12 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     resetCanvasHistoryChronology(useCadDocumentStore.getState().selectionPast.length);
   }, [resetCanvasHistoryChronology]);
 
+  const invalidateCanvasHistory = useCallback(() => {
+    canvasHistoryInFlightRef.current = null;
+    pendingCanvasHistoryRef.current = [];
+    resetCanvasHistoryChronology();
+  }, [resetCanvasHistoryChronology]);
+
   const recordAcceptedCanvasSourceHistory = useCallback((documentVersion: number, sourceText: string) => {
     const normalizedSource = normalizedSourceFor(sourceText);
     const lastCommit = lastCanvasSourceHistoryCommitRef.current;
@@ -1871,7 +1877,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         });
         pendingCanvasSourceCommitRef.current = null;
         lastCanvasSourceHistoryCommitRef.current = null;
-        resetCanvasHistoryChronology();
+        invalidateCanvasHistory();
         api.postMessage({ type: "webviewAuthoritativeDocumentReady", documentVersion: message.documentVersion });
         publishCurrentCanvasTheme(message.documentVersion);
         publishCanonicalRuntimeDiagnostics(message.documentVersion);
@@ -1965,15 +1971,15 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           } else if (historyOutcome === "reconciled") {
             syncCanvasHistoryChronologyToSelection();
           } else {
+            invalidateCanvasHistory();
             pendingCanvasSourceCommitRef.current = null;
             lastCanvasSourceHistoryCommitRef.current = null;
-            resetCanvasHistoryChronology();
           }
         } else {
           useCadDocumentStore.getState().commitText(message.sourceText, "editor", {
             cursorLineAtBurstStart: null
           });
-          if (!pendingCanvasSourceObserved) resetCanvasHistoryChronology();
+          if (!pendingCanvasSourceObserved) invalidateCanvasHistory();
         }
         api.postMessage({ type: "webviewAuthoritativeDocumentReady", documentVersion: message.documentVersion });
         publishCurrentCanvasTheme(message.documentVersion);
@@ -1990,7 +1996,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     return () => {
       window.removeEventListener("message", onMessage);
     };
-  }, [api, applyPendingCoordinatePointConversionSelection, canvasPickModeActive, completeCanvasHistoryResult, completePendingCanvasSourceCommit, currentAuthoritativeDocument, currentHostSourceAuthorityFor, deferCoordinatePointConversionSelection, discardDeferredSourceBake, measureCanvasTextWidth, moveCanvasSourceHistory, postCanvasCommit, publishCanvasObservation, publishCanonicalRuntimeDiagnostics, publishCurrentCanvasTheme, publishInlineModuleCanvasTargets, pumpCanvasHistory, refreshCanvasTheme, requestCanvasHistory, resetCanvasHistoryChronology, restoreCanvasFocus, rustTransport, selectActiveCanvasInstance, setMultiDocumentGraphPublication, sourceInsertionError, staleSourceAnchorError, syncCanvasHistoryChronologyToSelection, canvasPointerError, tryApplyPendingCanvasSelectionRestore, tryCompleteCanvasFocus]);
+  }, [api, applyPendingCoordinatePointConversionSelection, canvasPickModeActive, completeCanvasHistoryResult, completePendingCanvasSourceCommit, currentAuthoritativeDocument, currentHostSourceAuthorityFor, deferCoordinatePointConversionSelection, discardDeferredSourceBake, invalidateCanvasHistory, measureCanvasTextWidth, moveCanvasSourceHistory, postCanvasCommit, publishCanvasObservation, publishCanonicalRuntimeDiagnostics, publishCurrentCanvasTheme, publishInlineModuleCanvasTargets, pumpCanvasHistory, refreshCanvasTheme, requestCanvasHistory, resetCanvasHistoryChronology, restoreCanvasFocus, rustTransport, selectActiveCanvasInstance, setMultiDocumentGraphPublication, sourceInsertionError, staleSourceAnchorError, syncCanvasHistoryChronologyToSelection, canvasPointerError, tryApplyPendingCanvasSelectionRestore, tryCompleteCanvasFocus]);
 
   const surfaceStyle = benchmarkConfig?.expectedRenderSurface
     ? {

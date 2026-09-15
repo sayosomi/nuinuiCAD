@@ -1554,6 +1554,75 @@ describe("VSCodeApp Canvas history coordinator", () => {
     expect(useCadUiStore.getState().selectedElementId).toBe(redoB.id);
   });
 
+  it.each(["edit", "undo"] as const)(
+    "releases stale Canvas Source history before current Source confirmation for free-point creation (%s)",
+    async (invalidationReason) => {
+      const source = h3Source;
+      const canvasSource = `${source}\n// Canvas Source mutation`;
+      const sourceEdit = `${canvasSource}\n// ordinary Source edit`;
+      const api = { postMessage: vi.fn() };
+      render(<VSCodeAppForTest api={api} />);
+
+      const messagesOfType = (type: string) => api.postMessage.mock.calls
+        .map(([message]) => message)
+        .filter((message) => message?.type === type);
+      const send = async (data: unknown) => {
+        await act(async () => {
+          window.dispatchEvent(new MessageEvent("message", { data }));
+        });
+      };
+
+      await send({ type: "replaceTextDocument", sourceText: source, documentVersion: 1 });
+      useCadDocumentStore.getState().commitText(canvasSource, "command");
+      drawingCanvasProps.postCanvasCommit!(315);
+      await send({ type: "canvasCommitResult", operationId: 315, status: "accepted", documentVersion: 2 });
+      await send({ type: "commitText", sourceText: canvasSource, documentVersion: 2, reason: "edit" });
+
+      await send({ type: "canvasCommand", commandId: "undo" });
+      expect(messagesOfType("canvasHistoryRequest")).toEqual([expect.objectContaining({
+        direction: "undo",
+        expectedDocumentVersion: 2
+      })]);
+      await send({ type: "commitText", sourceText: sourceEdit, documentVersion: 3, reason: invalidationReason });
+      publishAllCurrentElementsAsPresented();
+      const guide = useCadDocumentStore.getState().elements.find((element) => element.name === "Guide")!;
+      selectElement(guide.id, "replace", true);
+      await send({ type: "canvasHistoryResult", direction: "undo", status: "completed", documentVersion: 3 });
+
+      await send({
+        type: "canvasSourceDefinitionRequest",
+        requestId: 316
+      });
+
+      expect(messagesOfType("canvasSourceDefinitionResult")).toEqual([expect.objectContaining({
+        requestId: 316,
+        documentVersion: 3,
+        runtimeElementId: guide.id,
+        range: expect.anything()
+      })]);
+
+      await send({
+        type: "canvasFreePointAtPointer",
+        requestId: 317,
+        documentVersion: 3,
+        pointer: { x: 24, y: -13 },
+        sourcePosition: h3GuideSourcePosition
+      });
+      expect(messagesOfType("canvasCommit")).toEqual([expect.objectContaining({
+        operationId: 315,
+        expectedDocumentVersion: 1
+      }), expect.objectContaining({
+        operationId: 317,
+        expectedDocumentVersion: 3,
+        sourceText: expect.stringContaining("point = coordinate(")
+      })]);
+      const freePointCommit = messagesOfType("canvasCommit").find((message) => message.operationId === 317)!;
+      expect(freePointCommit.sourceText.indexOf("point = coordinate(")).toBeGreaterThan(
+        freePointCommit.sourceText.indexOf("line Guide = segment(start: @Left, end: @Right)")
+      );
+    }
+  );
+
   it.each(["source drift", "document replacement"] as const)(
     "invalidates a pending history selection restore after %s",
     async (invalidatingChange) => {
