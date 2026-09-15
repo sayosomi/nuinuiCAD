@@ -189,6 +189,27 @@ describe("SAY-193 coordinate conversion Canvas lifecycle", () => {
       elementId: "__coordinate-point-conversion__",
       parameterKey: "base"
     });
+    viewport.focus();
+    fireEvent.keyDown(viewport, { key: "Enter" });
+    expect(pendingCanvasCommit.value).toBeNull();
+    expect(useCadDocumentStore.getState().sourceText).toBe(source);
+    expect(useCadUiStore.getState().activePickModeSession?.draft).toEqual([]);
+
+    fireEvent.keyDown(viewport, { key: "ArrowDown" });
+    expect(useCadUiStore.getState().activePickCursor).toMatchObject({ elementId: base.id });
+    fireEvent.keyDown(viewport, { key: " " });
+    expect(pendingCanvasCommit.value).toBeNull();
+    expect(useCadDocumentStore.getState().sourceText).toBe(source);
+    expect(useCadUiStore.getState().activePickModeSession?.draft).toHaveLength(1);
+    expect(useCadUiStore.getState().activePickModeSession?.draft[0]).toMatchObject({
+      kind: "point",
+      anchor: { mode: "reference", pointId: base.id }
+    });
+    fireEvent.keyDown(viewport, { key: " " });
+    expect(pendingCanvasCommit.value).toBeNull();
+    expect(useCadDocumentStore.getState().sourceText).toBe(source);
+    expect(useCadUiStore.getState().activePickModeSession?.draft).toEqual([]);
+
     fireEvent.pointerDown(basePoint, {
       button: 0,
       buttons: 1,
@@ -196,7 +217,13 @@ describe("SAY-193 coordinate conversion Canvas lifecycle", () => {
       clientY: 240,
       pointerId: 91
     });
-    expect(pendingCanvasCommit.value).toMatchObject({ coordinatePointConversionRequestId: 901 });
+    expect(pendingCanvasCommit.value).toBeNull();
+    expect(useCadDocumentStore.getState().sourceText).toBe(source);
+    expect(useCadUiStore.getState().activePickModeSession?.draft).toHaveLength(1);
+    expect(useCadUiStore.getState().activePickModeSession?.draft[0]).toMatchObject({
+      kind: "point",
+      anchor: { mode: "reference", pointId: base.id }
+    });
     await flush();
     fireEvent.pointerUp(viewport, {
       buttons: 0,
@@ -204,6 +231,83 @@ describe("SAY-193 coordinate conversion Canvas lifecycle", () => {
       clientY: 240,
       pointerId: 91
     });
+    await flush();
+
+    fireEvent.pointerDown(basePoint, {
+      button: 0,
+      buttons: 1,
+      clientX: 210,
+      clientY: 240,
+      pointerId: 92
+    });
+    expect(pendingCanvasCommit.value).toBeNull();
+    expect(useCadDocumentStore.getState().sourceText).toBe(source);
+    expect(useCadUiStore.getState().activePickModeSession?.draft).toEqual([]);
+    fireEvent.pointerUp(viewport, {
+      buttons: 0,
+      clientX: 210,
+      clientY: 240,
+      pointerId: 92
+    });
+    await flush();
+
+    fireEvent.pointerDown(basePoint, {
+      button: 0,
+      buttons: 1,
+      clientX: 210,
+      clientY: 240,
+      pointerId: 93
+    });
+    expect(pendingCanvasCommit.value).toBeNull();
+    expect(useCadUiStore.getState().activePickModeSession?.draft).toHaveLength(1);
+    fireEvent.pointerUp(viewport, {
+      buttons: 0,
+      clientX: 210,
+      clientY: 240,
+      pointerId: 93
+    });
+    await flush();
+
+    fireEvent.keyDown(viewport, { key: "Escape" });
+    expect(pendingCanvasCommit.value).toBeNull();
+    expect(useCadDocumentStore.getState().sourceText).toBe(source);
+    expect(useCadUiStore.getState().activePointPickTarget).toBeNull();
+    expect(useCadUiStore.getState().activePickModeSession).toBeNull();
+
+    post({
+      type: "coordinatePointConversionStart",
+      requestId: 902,
+      documentUri: "file:///tmp/say-193.nui",
+      documentVersion: 1,
+      mode: "angle-distance",
+      targetIds: [targetA.id, targetB.id, bindingTarget.id],
+      origin: "canvas",
+      canvasBasePick: true
+    });
+    await flush();
+    const restartedBasePoint = [...document.querySelectorAll<SVGCircleElement>(".overlay-draggable-point")]
+      .find((point) => point.getAttribute("cx") === "210" && point.getAttribute("cy") === "240");
+    if (!restartedBasePoint) throw new Error("Expected Canvas Base point after restarting conversion pick");
+    fireEvent.pointerDown(restartedBasePoint, {
+      button: 0,
+      buttons: 1,
+      clientX: 210,
+      clientY: 240,
+      pointerId: 94
+    });
+    expect(pendingCanvasCommit.value).toBeNull();
+    expect(useCadDocumentStore.getState().sourceText).toBe(source);
+    expect(useCadUiStore.getState().activePickModeSession?.draft).toHaveLength(1);
+    fireEvent.pointerUp(viewport, {
+      buttons: 0,
+      clientX: 210,
+      clientY: 240,
+      pointerId: 94
+    });
+    await flush();
+
+    fireEvent.keyDown(viewport, { key: "Enter" });
+    expect(pendingCanvasCommit.value).toMatchObject({ coordinatePointConversionRequestId: 902 });
     await flush();
 
     // Model a late duplicate delivery of the same terminal pointer gesture

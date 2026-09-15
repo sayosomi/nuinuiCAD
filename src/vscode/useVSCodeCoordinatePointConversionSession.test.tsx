@@ -138,7 +138,7 @@ describe("useVSCodeCoordinatePointConversionSession", () => {
     expect(useCadUiStore.getState().activePointPickTarget).toBeNull();
   });
 
-  it("applies a Canvas visual base pick without a second confirmation", () => {
+  it("keeps a Canvas visual base pick active until explicit confirmation", () => {
     const { goodId, baseId } = prepareConversion();
     useCadDocumentStore.setState({
       commitLineSplices: vi.fn(() => ({ status: "applied" as const }))
@@ -159,8 +159,11 @@ describe("useVSCodeCoordinatePointConversionSession", () => {
 
     act(() => hook.result.current.selectBase(base.key));
 
-    expect(postCanvasCommit).toHaveBeenCalledWith(1, request.requestId);
-    expect(hook.result.current.session).toBeNull();
+    expect(postCanvasCommit).not.toHaveBeenCalled();
+    expect(hook.result.current.session).toMatchObject({
+      selectedBaseKey: base.key,
+      status: "active"
+    });
     expect(useCadUiStore.getState().selectedElementIds).toEqual([]);
     expect(api.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
       type: "coordinatePointConversionResult",

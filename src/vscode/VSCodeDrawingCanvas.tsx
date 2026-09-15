@@ -28,7 +28,8 @@ import type { DrawingCanvasHandle } from "../components/DrawingCanvas";
 import type {
   CanvasHostAdapter,
   CanvasPointDragAction,
-  CanvasBezierHandleDragAction
+  CanvasBezierHandleDragAction,
+  CanvasPointPickAction
 } from "../components/canvasHostAdapter";
 import { webviewCanvasPresentationFor } from "./webviewCanvasPresentation";
 import type { VscodeWebviewPresentation } from "./webviewPresentation";
@@ -67,6 +68,10 @@ import {
   pickModeCanvasCommandAllowedForActive,
   pickModeCanvasOperationAllowedForActive
 } from "./pickModeCanvasPolicy";
+import {
+  activatePickModeDraftEntry,
+  pickModeDraftEntryForOption
+} from "../model/pickModeSession";
 
 type VSCodeDrawingCanvasProps = {
   evaluation: EvaluationResult;
@@ -446,6 +451,43 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       }
     }), [dragPreviewScheduler, postCanonicalSourceText, runtimeOnlyElementIds]);
 
+    const applyCoordinatePointConversionBasePick = useCallback((action: CanvasPointPickAction) => {
+      const currentTarget = useCadUiStore.getState().activePointPickTarget;
+      if (!coordinatePointConversionSession || !isCoordinatePointConversionPickTarget(currentTarget)) return false;
+      const baseKey = coordinatePointConversionBaseKeyForPick({
+        session: coordinatePointConversionSession,
+        anchor: action.pickedPointAnchor,
+        ...(action.pickedPointSourceReference
+          ? { sourceReference: action.pickedPointSourceReference }
+          : {})
+      });
+      const base = baseKey
+        ? coordinatePointConversionSession.baseCandidates.find((candidate) => candidate.key === baseKey)
+        : null;
+      const pickModeSession = useCadUiStore.getState().activePickModeSession;
+      if (!base || !pickModeSession || pickModeSession.kind !== "point" ||
+        !isCoordinatePointConversionPickTarget({
+          elementId: pickModeSession.targetElementId,
+          parameterKey: pickModeSession.targetParameterKey
+        })) return false;
+      const draftEntry = pickModeDraftEntryForOption(
+        action.pickedPointCandidateElementId ?? base.sourceElementId,
+        {
+          kind: "point",
+          label: "",
+          anchor: action.pickedPointAnchor,
+          ...(action.pickedPointSourceReference
+            ? { sourceReference: action.pickedPointSourceReference }
+            : {})
+        }
+      );
+      useCadUiStore.setState({
+        activePickModeSession: activatePickModeDraftEntry(pickModeSession, draftEntry),
+        activePickCursor: null
+      });
+      return true;
+    }, [coordinatePointConversionSession]);
+
     const hostAdapter = useMemo<CanvasHostAdapter>(() => ({
       elements: canvasPresentation.elements,
       canonicalElements: canvasPresentation.canonicalElements,
@@ -590,14 +632,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       applyPickedPoint: (action) => {
         const currentTarget = useCadUiStore.getState().activePointPickTarget;
         if (coordinatePointConversionSession && isCoordinatePointConversionPickTarget(currentTarget)) {
-          const baseKey = coordinatePointConversionBaseKeyForPick({
-            session: coordinatePointConversionSession,
-            anchor: action.pickedPointAnchor,
-            ...(action.pickedPointSourceReference
-              ? { sourceReference: action.pickedPointSourceReference }
-              : {})
-          });
-          if (baseKey) selectCoordinatePointConversionBase(baseKey);
+          applyCoordinatePointConversionBasePick(action);
           return;
         }
         return dispatchCommand("applyPickedPoint", {
@@ -605,9 +640,32 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
           ...action
         });
       },
-      dispatchCanvasPickCommand: (commandId) => coordinatePointConversionSession
-        ? false
-        : dispatchCommand(commandId, creationCommandContext),
+      dispatchCanvasPickCommand: (commandId, pointPickAction) => {
+        const currentTarget = useCadUiStore.getState().activePointPickTarget;
+        const coordinatePointConversionCanvasBasePick = coordinatePointConversionSession &&
+          isCoordinatePointConversionPickTarget(currentTarget);
+        if (coordinatePointConversionCanvasBasePick && commandId === "applySelectedPickCandidate" && pointPickAction) {
+          return applyCoordinatePointConversionBasePick(pointPickAction);
+        }
+        if (!coordinatePointConversionCanvasBasePick || commandId !== "finishPickMode") {
+          return dispatchCommand(commandId, creationCommandContext);
+        }
+
+        const draft = useCadUiStore.getState().activePickModeSession?.draft ?? [];
+        const result = dispatchCommand(commandId, creationCommandContext);
+        if (!result) return result;
+        const entry = draft.find((candidate) => candidate.kind === "point");
+        if (!entry || entry.kind !== "point") return result;
+        const baseKey = coordinatePointConversionBaseKeyForPick({
+          session: coordinatePointConversionSession,
+          anchor: entry.anchor,
+          ...(entry.sourceReference ? { sourceReference: entry.sourceReference } : {})
+        });
+        if (!baseKey) return result;
+        selectCoordinatePointConversionBase(baseKey);
+        confirmCoordinatePointConversion();
+        return result;
+      },
       filterPointPickCandidates: coordinatePointConversionSession &&
         isCoordinatePointConversionPickTarget(activePointPickTarget)
         ? (candidates) => candidates
@@ -725,6 +783,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       cancelReferencePick,
       postCanvasPointerPosition,
       coordinatePointConversionSession,
+      applyCoordinatePointConversionBasePick,
       coordinatePointConversionCanvasBasePick,
       setCoordinatePointConversionQuery,
       selectCoordinatePointConversionBase,
