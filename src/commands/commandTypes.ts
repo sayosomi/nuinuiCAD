@@ -10,7 +10,13 @@ import type { CanvasTextWidthMeasurer } from "../geometry/canvasDrawingBounds";
 import type { BindingId } from "@nuinuicad/nui-language";
 import type { ModuleSemanticTarget } from "@nuinuicad/nui-language";
 import type { ModuleSemanticCursorResolution } from "../editor/sourceEditorTypes";
-import type { CadElement, ElementId, EvaluationResult, PointAnchor } from "../types/geometry";
+import type {
+  CadElement,
+  ElementId,
+  EvaluationResult,
+  PointAnchor,
+  VisibilityProfile
+} from "../types/geometry";
 import type { NumericValue } from "../types/geometry";
 import type { SourceCreationCursor } from "./sourceCreationInsertion";
 import type { CanonicalGeometrySourceReference } from "../model/moduleSemanticCandidateBoundary";
@@ -21,6 +27,12 @@ export type BakeSandboxEvaluation = {
   evaluation: EvaluationResult;
   targetIds: readonly ElementId[];
   compiledDocumentRevision: number;
+};
+
+export type CanvasFitDrawingPresentation = {
+  elements: readonly CadElement[];
+  visibilityProfiles: readonly VisibilityProfile[];
+  activeVisibilityProfileId: string | null;
 };
 
 export type CommandId =
@@ -200,6 +212,8 @@ export type CommandContext = {
   clearPendingCanvasPointerIntent?: () => void;
   /** Cancels the deferred Canvas-to-Source-Editor focus handoff before replacement. */
   clearSourceEditorFocusReservation?: () => void;
+  /** Current host-owned Canvas presentation used by Fit Drawing, when the host has one. */
+  getCanvasFitDrawingPresentation?: () => CanvasFitDrawingPresentation | null;
   getCanvasViewportRect?: () => DOMRect | null;
   measureCanvasTextWidth?: CanvasTextWidthMeasurer;
   elementId?: ElementId;

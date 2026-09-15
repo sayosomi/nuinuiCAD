@@ -23,12 +23,15 @@ const fitDrawing = (context?: CommandContext) => {
 
   const documentState = useCadDocumentStore.getState();
   const uiState = useCadUiStore.getState();
-  const elements = effectiveElements(documentState);
+  const presentation = context?.getCanvasFitDrawingPresentation?.();
+  const elements = presentation ? presentation.elements : effectiveElements(documentState);
   const bounds = visibleCanvasDrawingBounds({
     elements,
     evaluation,
-    visibilityProfiles: documentState.visibilityProfiles,
-    activeVisibilityProfileId: documentState.activeVisibilityProfileId,
+    visibilityProfiles: presentation ? presentation.visibilityProfiles : documentState.visibilityProfiles,
+    activeVisibilityProfileId: presentation
+      ? presentation.activeVisibilityProfileId
+      : documentState.activeVisibilityProfileId,
     measureCanvasTextWidth: context?.measureCanvasTextWidth
   });
   if (!bounds) return;
