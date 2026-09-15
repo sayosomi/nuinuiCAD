@@ -1,5 +1,6 @@
 import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { RefObject } from "react";
 import type { ModulePreviewSessionSnapshot } from "../dsl/modulePreviewState";
 import type { ModulePreviewTarget } from "../dsl/modulePreviewTarget";
 import type { VscodeModulePreviewModelPatchRequest } from "./protocol";
@@ -20,9 +21,12 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("../components/DrawingCanvas", () => ({
-  DrawingCanvas: (props: { hostAdapter: unknown }) => {
+  DrawingCanvas: (props: {
+    hostAdapter: unknown;
+    canvasFocusRef: RefObject<HTMLDivElement | null>;
+  }) => {
     mocks.hostAdapter = props.hostAdapter;
-    return null;
+    return <div ref={props.canvasFocusRef} data-canvas-viewport="true" data-testid="module-preview-canvas-viewport" />;
   }
 }));
 
@@ -325,6 +329,62 @@ afterEach(() => {
 });
 
 describe("ModulePreviewApp parameter relay", () => {
+  it("fits only the current target drawing through the shared Fit Drawing command", () => {
+    const sourceText = [
+      "nui 1",
+      "point Outside = coordinate(x: 1000, y: 1000)",
+      "module Preview() {",
+      "  point Start = coordinate(x: 0, y: 0)",
+      "  point End = coordinate(x: 100, y: 50)",
+      "}"
+    ].join("\n");
+    const fixture = previewFixtureFor(sourceText);
+    const previousElements = useCadDocumentStore.getState().elements;
+    const previousViewport = useCadUiStore.getState().canvasViewport;
+    try {
+      useCadDocumentStore.setState({
+        elements: [{
+          id: "global-only",
+          name: "global-only",
+          type: "freePoint",
+          activity: "visible",
+          x: -500,
+          y: -500
+        }]
+      });
+      useCadUiStore.getState().setCanvasViewport({ panX: 240, panY: -120, zoom: 0.75 });
+      renderPreviewFixture(fixture);
+
+      const targetElements = fixture.root.compileResult.elements.filter((element) =>
+        fixture.root.targetRuntimeElementIds.includes(element.id)
+      );
+      const supportElement = fixture.root.compileResult.elements.find((element) => element.name === "Outside");
+      expect(supportElement).toBeDefined();
+      expect(targetElements.map((element) => element.id)).not.toContain(supportElement?.id);
+      const hostAdapter = mocks.hostAdapter as CanvasHostAdapter | null;
+      expect(hostAdapter?.elements.map((element) => element.id)).toEqual(targetElements.map((element) => element.id));
+
+      const viewport = screen.getByTestId("module-preview-canvas-viewport");
+      vi.spyOn(viewport, "getBoundingClientRect").mockReturnValue({
+        width: 400,
+        height: 300
+      } as DOMRect);
+
+      act(() => window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "canvasCommand", commandId: "fitDrawing" }
+      })));
+
+      expect(useCadUiStore.getState().canvasViewport).toEqual({
+        zoom: 3.36,
+        panX: -168,
+        panY: 84
+      });
+    } finally {
+      useCadDocumentStore.setState({ elements: previousElements });
+      useCadUiStore.getState().setCanvasViewport(previousViewport);
+    }
+  });
+
   it("publishes the current display state in a valid Module Preview Canvas context", () => {
     const previousUi = useCadUiStore.getState();
     try {

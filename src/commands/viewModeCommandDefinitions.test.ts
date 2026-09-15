@@ -94,6 +94,34 @@ describe("fitDrawing", () => {
     });
   });
 
+  it("prefers an explicit host presentation over unrelated global document elements", () => {
+    useCadDocumentStore.setState({
+      elements: [pointElement("global-left", -1000, -1000), pointElement("global-right", -900, -950)]
+    });
+    const hostElements = [pointElement("host-left", 0, 0), pointElement("host-right", 100, 50)];
+    const getCanvasFitDrawingPresentation = vi.fn(() => ({
+      elements: hostElements,
+      visibilityProfiles: [],
+      activeVisibilityProfileId: null
+    }));
+
+    viewModeCommandDefinitions.fitDrawing.run({
+      evaluation: evaluationFor([
+        pointGeometry("host-left", 0, 0),
+        pointGeometry("host-right", 100, 50)
+      ], ["host-left", "host-right"]),
+      getCanvasFitDrawingPresentation,
+      getCanvasViewportRect: () => ({ width: 400, height: 300 } as DOMRect)
+    });
+
+    expect(getCanvasFitDrawingPresentation).toHaveBeenCalledOnce();
+    expect(useCadUiStore.getState().canvasViewport).toEqual({
+      zoom: 3.36,
+      panX: -168,
+      panY: 84
+    });
+  });
+
   it("no-ops when there is no visible drawing target or usable viewport", () => {
     const initialViewport = { panX: 12, panY: -8, zoom: 7 };
     useCadUiStore.getState().setCanvasViewport(initialViewport);
