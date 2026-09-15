@@ -941,6 +941,11 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     drawingCanvasRef.current?.finalizeCanvasInteraction();
     dispatchCommand(commandId, {
       evaluation: evaluationRef.current ?? undefined,
+      getCanvasFitDrawingPresentation: () => ({
+        elements: renderElements,
+        visibilityProfiles: preview?.root.compileResult.visibilityProfiles ?? [],
+        activeVisibilityProfileId: preview?.root.compileResult.activeVisibilityProfileId ?? null
+      }),
       getCanvasViewportRect: () => canvasFocusRef.current?.getBoundingClientRect() ?? null,
       measureCanvasTextWidth,
       recordSelectionHistory: false,
@@ -948,7 +953,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       focusCanvas: () => canvasFocusRef.current?.focus()
     });
     canvasFocusRef.current?.focus();
-  }, [measureCanvasTextWidth]);
+  }, [measureCanvasTextWidth, preview, renderElements]);
 
   useEffect(() => {
     const refreshCanvasTheme = () => setCanvasTheme(readVSCodeCanvasTheme());
