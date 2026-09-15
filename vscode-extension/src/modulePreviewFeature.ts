@@ -1446,7 +1446,14 @@ export const registerModulePreviewFeature = ({
       }
     }));
     session.disposables.push(panel.onDidChangeViewState(({ webviewPanel }) => {
-      if (webviewPanel !== panel || (!webviewPanel.active && !webviewPanel.visible)) return;
+      if (webviewPanel !== panel) return;
+      if (!webviewPanel.visible) {
+        session.webviewReady = false;
+        session.authoritativeDocumentVersion = null;
+        refreshExistingTarget(session);
+        return;
+      }
+      if (!webviewPanel.active && !webviewPanel.visible) return;
       bindParameterSession(session);
     }));
     const editableFocusAttachment = attachWebviewEditableFocus?.(panel.webview);
