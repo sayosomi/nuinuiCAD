@@ -517,6 +517,7 @@ export const activate = (
   let handleExtractModuleCanvasAuthoritativeDocumentReady: VscodeExtractModuleCommandFeature["handleCanvasAuthoritativeDocumentReady"] = () => undefined;
   let handleExtractModuleCanvasViewStateChange: VscodeExtractModuleCommandFeature["handleCanvasViewStateChange"] = () => undefined;
   let handleExtractModuleCanvasObservationPublication: VscodeExtractModuleCommandFeature["handleCanvasObservationPublication"] = () => undefined;
+  let handleExtractModuleCanvasSessionDispose: VscodeExtractModuleCommandFeature["handleCanvasSessionDispose"] = () => undefined;
   let handleExtractModuleDocumentChange: VscodeExtractModuleCommandFeature["handleDocumentChange"] = () => undefined;
   let handleExtractModuleDocumentClose: VscodeExtractModuleCommandFeature["handleDocumentClose"] = () => undefined;
   const sourceAuthoringPositionFeature = registerVscodeSourceAuthoringPositionFeature({
@@ -1888,6 +1889,7 @@ export const activate = (
     if (editableFocusAttachment) session.disposables.push(editableFocusAttachment);
 
     panel.onDidDispose(() => {
+      handleExtractModuleCanvasSessionDispose(session.document, session.panel);
       disposeSession(session);
       if (benchmarkConfig && !existsSync(benchmarkConfig.resultPath) && !existsSync(`${benchmarkConfig.resultPath}.error.json`)) {
         writeFileSync(`${benchmarkConfig.resultPath}.error.json`, JSON.stringify({ runId: benchmarkConfig.runId, error: "Performance PoC panel closed before completion" }, null, 2), "utf8");
@@ -1986,6 +1988,7 @@ export const activate = (
   handleExtractModuleCanvasAuthoritativeDocumentReady = extractModuleFeature.handleCanvasAuthoritativeDocumentReady;
   handleExtractModuleCanvasViewStateChange = extractModuleFeature.handleCanvasViewStateChange;
   handleExtractModuleCanvasObservationPublication = extractModuleFeature.handleCanvasObservationPublication;
+  handleExtractModuleCanvasSessionDispose = extractModuleFeature.handleCanvasSessionDispose;
   handleExtractModuleDocumentChange = extractModuleFeature.handleDocumentChange;
   handleExtractModuleDocumentClose = extractModuleFeature.handleDocumentClose;
 

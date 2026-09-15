@@ -188,6 +188,90 @@ const commandFeatureFor = (input: {
   });
 };
 
+const postApplyCanvasLifecycleFixtureFor = () => {
+  let currentSource = moduleSource;
+  const initial = compiledFor(moduleSource);
+  const { session } = initial;
+  const editor = editorFor(() => currentSource, { start: 0, end: 0, active: 0 }, "file:///canvas-extract-lifecycle.nui");
+  editor.document.getText = () => currentSource;
+  const first = initial.compiled.document?.elements.find((element) => element.name === "First");
+  if (!first) throw new Error("expected a concrete Module instance fixture");
+  let currentObservation = observationFor({
+    selectedElementIds: [first.id],
+    selectedElementSources: selectedElementSourcesForCanvasObservation(
+      [first.id],
+      initial.compiled,
+      initial.compiled.document?.elements ?? []
+    )
+  });
+  let authoritativeReady = true;
+  const endpoint: ExtractModuleCanvasEndpoint = {
+    document: editor.document as never,
+    panel: { webview: {} } as never,
+    isAuthoritativeReady: () => authoritativeReady,
+    observation: () => currentObservation as never
+  };
+  let activeEndpoint: ExtractModuleCanvasEndpoint | null = endpoint;
+  let dropEndpointAfterApply = false;
+  const navigate = vi.fn(() => true);
+  mocks.showInputBox.mockResolvedValue("Part");
+  mocks.showQuickPick.mockResolvedValue({ label: "Use module name: PartModule" });
+  mocks.registerCommand.mockImplementation((id: string, handler: () => unknown) => {
+    if (id === VSCODE_EXTRACT_MODULE_COMMAND_ID) mocks.commandHandler = handler;
+    return { dispose: vi.fn() };
+  });
+  const apply = vi.fn(async (_editor, version, expectedSource, splices) => {
+    expect(version).toBe(1);
+    expect(expectedSource).toBe(moduleSource);
+    authoritativeReady = false;
+    currentSource = applyLineSplices(expectedSource, splices);
+    editor.document.version = 2;
+    session.replaceSource(currentSource);
+    const next = currentCompiledSemanticSnapshotFor(session, {
+      normalizedSource: currentSource,
+      sourceRevision: session.getSourceRevision()
+    })?.compiled;
+    if (!next) throw new Error("expected post-edit compilation");
+    const generated = next.document?.elements.find((element) => element.name === "First");
+    if (!generated) throw new Error("expected generated Module instance fixture");
+    currentObservation = observationFor({
+      documentVersion: 2,
+      selectedElementIds: [generated.id],
+      selectedElementSources: selectedElementSourcesForCanvasObservation(
+        [generated.id],
+        next,
+        next.document?.elements ?? []
+      )
+    });
+    if (dropEndpointAfterApply) activeEndpoint = null;
+    return true;
+  });
+  const feature = registerVscodeExtractModuleCommandFeature({
+    languageAnalysisSessionFor: () => session,
+    activeSourceEditor: () => undefined,
+    sourceEditorForDocument: () => editor as never,
+    activeCanvasEndpoint: () => activeEndpoint,
+    navigateCanvasToSourceOffset: navigate,
+    applySourceLineSplices: apply
+  });
+
+  return {
+    apply,
+    currentSource: () => currentSource,
+    editor,
+    endpoint,
+    feature,
+    navigate,
+    setActiveEndpoint: (next: ExtractModuleCanvasEndpoint | null) => { activeEndpoint = next; },
+    setAuthoritativeReady: (next: boolean) => { authoritativeReady = next; },
+    setDropEndpointAfterApply: (next: boolean) => { dropEndpointAfterApply = next; },
+    setSource: (next: string) => {
+      currentSource = next;
+      session.replaceSource(currentSource);
+    }
+  };
+};
+
 const flushCommand = async (): Promise<void> => {
   await new Promise((resolve) => setTimeout(resolve, 0));
 };
@@ -701,6 +785,136 @@ describe("VS Code Extract Module command feature", () => {
     expect(latestContextValueFor("nuinuiCAD.extractModuleSourceTarget")).toBe(true);
     expect(latestContextValueFor("nuinuiCAD.extractModuleCanvasTarget")).toBe(false);
     feature.dispose();
+  });
+
+  it("retains post-apply navigation while Canvas is unavailable and delivers once on view-state reentry", async () => {
+    const fixture = postApplyCanvasLifecycleFixtureFor();
+    fixture.setDropEndpointAfterApply(true);
+
+    await mocks.commandHandler?.();
+    await flushCommand();
+
+    expect(fixture.apply).toHaveBeenCalledTimes(1);
+    expect(fixture.navigate).not.toHaveBeenCalled();
+
+    fixture.setActiveEndpoint(fixture.endpoint);
+    fixture.setAuthoritativeReady(true);
+    fixture.feature.handleCanvasViewStateChange();
+
+    expect(fixture.navigate).toHaveBeenCalledTimes(1);
+    expect(fixture.navigate).toHaveBeenCalledWith(
+      fixture.endpoint,
+      fixture.currentSource().indexOf("instance Part")
+    );
+
+    fixture.feature.handleCanvasAuthoritativeDocumentReady(fixture.editor.document as never, 2);
+    fixture.feature.handleCanvasObservationPublication(fixture.editor.document as never);
+    fixture.feature.handleCanvasViewStateChange();
+    expect(fixture.navigate).toHaveBeenCalledTimes(1);
+    fixture.feature.dispose();
+  });
+
+  it("clears retained navigation when the originating Canvas session is disposed", async () => {
+    const fixture = postApplyCanvasLifecycleFixtureFor();
+    fixture.setDropEndpointAfterApply(true);
+
+    await mocks.commandHandler?.();
+    await flushCommand();
+    fixture.feature.handleCanvasSessionDispose(fixture.editor.document as never, fixture.endpoint.panel);
+    fixture.setActiveEndpoint(fixture.endpoint);
+    fixture.setAuthoritativeReady(true);
+    fixture.feature.handleCanvasAuthoritativeDocumentReady(fixture.editor.document as never, 2);
+    fixture.feature.handleCanvasObservationPublication(fixture.editor.document as never);
+    fixture.feature.handleCanvasViewStateChange();
+
+    expect(fixture.navigate).not.toHaveBeenCalled();
+    fixture.feature.dispose();
+  });
+
+  it("does not clear retained navigation for an unrelated Canvas session disposal", async () => {
+    const fixture = postApplyCanvasLifecycleFixtureFor();
+    fixture.setDropEndpointAfterApply(true);
+
+    await mocks.commandHandler?.();
+    await flushCommand();
+    const unrelatedPanel = { webview: {} } as never;
+    fixture.feature.handleCanvasSessionDispose(fixture.editor.document as never, unrelatedPanel);
+    fixture.setActiveEndpoint(fixture.endpoint);
+    fixture.setAuthoritativeReady(true);
+    fixture.feature.handleCanvasViewStateChange();
+
+    expect(fixture.navigate).toHaveBeenCalledTimes(1);
+    fixture.feature.dispose();
+  });
+
+  it("fails closed when a replacement Canvas panel becomes active for the same document", async () => {
+    const fixture = postApplyCanvasLifecycleFixtureFor();
+    fixture.setDropEndpointAfterApply(true);
+
+    await mocks.commandHandler?.();
+    await flushCommand();
+
+    const otherEndpoint: ExtractModuleCanvasEndpoint = {
+      document: fixture.editor.document as never,
+      panel: { webview: {} } as never,
+      isAuthoritativeReady: () => true,
+      observation: () => null
+    };
+    fixture.setActiveEndpoint(otherEndpoint);
+    fixture.setAuthoritativeReady(true);
+    fixture.feature.handleCanvasViewStateChange();
+    expect(fixture.navigate).not.toHaveBeenCalled();
+
+    fixture.setActiveEndpoint(fixture.endpoint);
+    fixture.feature.handleCanvasViewStateChange();
+    expect(fixture.navigate).not.toHaveBeenCalled();
+    fixture.feature.dispose();
+  });
+
+  it.each(["source", "version"])("clears pending navigation after post-edit %s drift", async (drift) => {
+    const fixture = postApplyCanvasLifecycleFixtureFor();
+
+    await mocks.commandHandler?.();
+    await flushCommand();
+    const appliedSource = fixture.currentSource();
+    if (drift === "source") fixture.setSource(`${appliedSource}\nconst drift: number = 1`);
+    else fixture.editor.document.version = 3;
+    fixture.setAuthoritativeReady(true);
+    fixture.feature.handleCanvasViewStateChange();
+    expect(fixture.navigate).not.toHaveBeenCalled();
+
+    fixture.setSource(appliedSource);
+    fixture.editor.document.version = 2;
+    fixture.feature.handleCanvasViewStateChange();
+    expect(fixture.navigate).not.toHaveBeenCalled();
+    fixture.feature.dispose();
+  });
+
+  it("clears pending navigation when the document closes", async () => {
+    const fixture = postApplyCanvasLifecycleFixtureFor();
+
+    await mocks.commandHandler?.();
+    await flushCommand();
+    fixture.feature.handleDocumentClose(fixture.editor.document as never);
+    fixture.setAuthoritativeReady(true);
+    fixture.feature.handleCanvasViewStateChange();
+
+    expect(fixture.navigate).not.toHaveBeenCalled();
+    fixture.feature.dispose();
+  });
+
+  it("clears pending navigation when the feature is disposed", async () => {
+    const fixture = postApplyCanvasLifecycleFixtureFor();
+
+    await mocks.commandHandler?.();
+    await flushCommand();
+    fixture.feature.dispose();
+    fixture.setAuthoritativeReady(true);
+    fixture.feature.handleCanvasAuthoritativeDocumentReady(fixture.editor.document as never, 2);
+    fixture.feature.handleCanvasObservationPublication(fixture.editor.document as never);
+    fixture.feature.handleCanvasViewStateChange();
+
+    expect(fixture.navigate).not.toHaveBeenCalled();
   });
 
   it("waits for the authoritative new Canvas state, resolves the generated instance, and navigates by new source offset", async () => {
