@@ -1357,7 +1357,7 @@ The native `nuinuiCAD.elements` Tree View is registered and refreshed by
 lifecycle only. `vscode-extension/src/elementsTreeProvider.ts` remains the
 semantic/presentation adapter, projecting the exact-current Document Symbols
 into the tree hierarchy. It is the only view contributed to the
-`nuinuiCAD.explorer` Activity Bar container.
+`nuinuiCAD-explorer` Activity Bar container.
 
 The integrated parameter surface is composed by `src/vscode/ModulePreviewApp.tsx`
 using the reusable presentation in `src/vscode/ModulePreviewParametersApp.tsx`.
