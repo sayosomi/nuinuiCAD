@@ -184,6 +184,13 @@ const mocks = vi.hoisted(() => ({
   asRelativePath: vi.fn()
 }));
 
+const extractModuleHosts = vi.hoisted(() => ({
+  hosts: [] as Array<{
+    activeCanvasEndpoint: () => unknown;
+    navigateCanvasToSourceOffset: (endpoint: unknown, normalizedSourceOffset: number) => unknown;
+  }>
+}));
+
 vi.mock("vscode", () => {
   class Position {
     constructor(public readonly line: number, public readonly character: number) {}
@@ -418,6 +425,22 @@ vi.mock("./elementsTreeFeature", async (importOriginal) => {
   };
 });
 
+vi.mock("./extractModuleCommandFeature", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./extractModuleCommandFeature")>();
+  return {
+    ...actual,
+    registerVscodeExtractModuleCommandFeature: (
+      host: Parameters<typeof actual.registerVscodeExtractModuleCommandFeature>[0]
+    ) => {
+      extractModuleHosts.hosts.push({
+        activeCanvasEndpoint: host.activeCanvasEndpoint,
+        navigateCanvasToSourceOffset: host.navigateCanvasToSourceOffset
+      });
+      return actual.registerVscodeExtractModuleCommandFeature(host);
+    }
+  };
+});
+
 import { activate, registerModulePreviewBakeFallback, registerModulePreviewHistoryFallback } from "./extension";
 
 const disposable = () => ({ dispose: vi.fn() });
@@ -554,6 +577,12 @@ const messageHandlerFor = (panel: TestPanel) =>
 const commandHandlerFor = (command: string): ((...args: unknown[]) => unknown) | undefined => {
   const handler = mocks.commandHandlers.get(command);
   return handler;
+};
+
+const extractModuleHostFor = () => {
+  const host = extractModuleHosts.hosts.at(-1);
+  if (!host) throw new Error("missing Extract Module host");
+  return host;
 };
 
 const setup = (
@@ -898,6 +927,7 @@ afterEach(() => {
   mocks.getConfiguration.mockReset();
   mocks.onDidChangeConfiguration.mockReset();
   mocks.asRelativePath.mockReset();
+  extractModuleHosts.hosts.length = 0;
 });
 
 describe("VS Code production document lifecycle", () => {
@@ -3938,6 +3968,88 @@ describe("VS Code production document lifecycle", () => {
 });
 
 describe("VS Code explicit Canvas navigation lifecycle", () => {
+  const prepareExtractCanvasHost = async () => {
+    const source = [
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)"
+    ].join("\n");
+    const document = documentFor("/tmp/extract-host-navigation.nui", "file:///tmp/extract-host-navigation.nui", source);
+    const editor = editorFor(document);
+    setup(false, editor, [document]);
+    const panel = openPanelFor(editor);
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
+    const host = extractModuleHostFor();
+    const endpoint = host.activeCanvasEndpoint();
+    if (!endpoint) throw new Error("expected an active Canvas endpoint");
+    return { document, editor, panel, host, endpoint };
+  };
+
+  it("classifies loss of Canvas command-active qualification as retryable", async () => {
+    const { document, panel, host, endpoint } = await prepareExtractCanvasHost();
+    mocks.activeTabInput = new mocks.TabInputText(document.uri);
+
+    expect(host.navigateCanvasToSourceOffset(endpoint, 0)).toEqual({ accepted: false, retryable: true });
+
+    mocks.activeTabInput = new mocks.TabInputWebview("nuinuiCAD.canvas");
+    expect(host.navigateCanvasToSourceOffset(endpoint, 0)).toEqual({ accepted: true });
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      requestId: expect.any(Number),
+      normalizedSourceOffset: 0,
+      documentVersion: document.version
+    }));
+  });
+
+  it("classifies Canvas history in flight as retryable", async () => {
+    const { document, editor, panel, host, endpoint } = await prepareExtractCanvasHost();
+    let resolveNativeHistory!: () => void;
+    const nativeHistory = new Promise<void>((resolve) => {
+      resolveNativeHistory = resolve;
+    });
+    mocks.showTextDocument.mockResolvedValue(editor);
+    mocks.executeCommand.mockImplementation((command: string) =>
+      command === "undo" ? nativeHistory : Promise.resolve()
+    );
+    const historyRequest = messageHandlerFor(panel)({
+      type: "canvasHistoryRequest",
+      direction: "undo",
+      expectedDocumentVersion: document.version
+    });
+    await vi.waitFor(() => expect(mocks.executeCommand).toHaveBeenCalledWith(
+      "setContext",
+      "nuinuiCAD.canvasHistoryHandoff",
+      true
+    ));
+
+    expect(host.navigateCanvasToSourceOffset(endpoint, 0)).toEqual({ accepted: false, retryable: true });
+
+    resolveNativeHistory();
+    await historyRequest;
+  });
+
+  it.each(["session", "panel", "open document"] as const)(
+    "classifies an actual invalid Canvas %s condition as terminal",
+    async (condition) => {
+      const { panel, host, endpoint } = await prepareExtractCanvasHost();
+      let invalidEndpoint = endpoint;
+      if (condition === "session") {
+        panel.dispose();
+      } else if (condition === "panel") {
+        invalidEndpoint = {
+          ...(endpoint as Record<string, unknown>),
+          panel: panelFor()
+        };
+      } else {
+        mocks.textDocuments = [];
+      }
+
+      expect(host.navigateCanvasToSourceOffset(invalidEndpoint, 0)).toEqual({
+        accepted: false,
+        retryable: false
+      });
+    }
+  );
+
   it("carries the exact graph-resolved Source target and revision for an imported caller", async () => {
     const librarySource = [
       "nui 1",
