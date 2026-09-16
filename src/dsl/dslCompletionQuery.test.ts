@@ -920,6 +920,29 @@ describe("queryDslModulePreviewParameterValueCompletion", () => {
     expect(result?.candidates.some((candidate) => candidate.label === "Out")).toBe(false);
   });
 
+  it("anchors Preview Value references at the owning Module declaration site", () => {
+    const source = [
+      "nui 1",
+      "point RootA = coordinate(x: 0, y: 0)",
+      "point RootB = coordinate(x: 1, y: 0)",
+      "module Preview(anchor: point, scale: number) {",
+      "}",
+      "point Forward = coordinate(x: 2, y: 0)"
+    ].join("\n");
+    const compiled = compileWithIds(source, 12);
+    const definition = compiled.moduleSemanticAnalysis!.definitions.find((candidate) => candidate.name === "Preview")!;
+    const caller = {
+      statementIndex: definition.statementIndex,
+      scopeId: definition.declarationScopeId,
+      sourceOrderIndex: definition.statementIndex
+    };
+    const result = previewQuery(source, "@R", caller);
+
+    expect(result?.replacementRange).toEqual({ from: 1, to: 2 });
+    expect(result?.candidates.map((candidate) => candidate.label)).toEqual(["RootA", "RootB"]);
+    expect(result?.candidates.some((candidate) => candidate.label === "Forward")).toBe(false);
+  });
+
   it("applies caller order and existing line/path assignability", () => {
     const source = [
       "nui 1",
