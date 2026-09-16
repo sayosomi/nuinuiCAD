@@ -4,6 +4,8 @@ import type {
   VscodeModulePreviewParameter,
   VscodeModulePreviewParameterSnapshot,
   VscodeModulePreviewParameterValueFocus,
+  VscodeModulePreviewParameterValueCompletionCandidate,
+  VscodeModulePreviewParameterValueCompletionResult,
   VscodeModulePreviewParameterReferencePickStartRequest,
   VscodeModulePreviewParametersUnavailable,
   VscodeWebviewApi
@@ -16,6 +18,12 @@ import {
 import "./modulePreviewParameters.css";
 
 type PresentationText = (key: string, fallback: string, parameters?: WebviewPresentationParameters) => string;
+
+type ModulePreviewCompletionState = {
+  rowIdentity: string;
+  result: VscodeModulePreviewParameterValueCompletionResult;
+  activeIndex: number;
+};
 
 const typeLabelFor = (parameter: VscodeModulePreviewParameter, text: PresentationText): string => {
   if (!parameter.type) return text("modulePreview.parameters.unknownType", "unknown");
@@ -71,6 +79,10 @@ const ParameterRow = ({
   onValueInputBlur,
   onValueInputRefresh,
   onReferencePick,
+  completion,
+  onCompletionMove,
+  onCompletionDismiss,
+  onCompletionAccept,
   text
 }: {
   snapshot: VscodeModulePreviewParameterSnapshot;
@@ -80,8 +92,21 @@ const ParameterRow = ({
   onValueInputFocus: (parameter: VscodeModulePreviewParameter, input: HTMLInputElement) => void;
   onValueInputSelection: (parameter: VscodeModulePreviewParameter, input: HTMLInputElement) => void;
   onValueInputBlur: (parameter: VscodeModulePreviewParameter, input: HTMLInputElement) => void;
-  onValueInputRefresh: (parameter: VscodeModulePreviewParameter, input: HTMLInputElement) => void;
+  onValueInputRefresh: (
+    parameter: VscodeModulePreviewParameter,
+    input: HTMLInputElement,
+    requestSuggestions?: boolean
+  ) => void;
   onReferencePick: (parameter: VscodeModulePreviewParameter) => void;
+  completion: ModulePreviewCompletionState | null;
+  onCompletionMove: (delta: 1 | -1) => void;
+  onCompletionDismiss: () => void;
+  onCompletionAccept: (
+    parameter: VscodeModulePreviewParameter,
+    input: HTMLInputElement,
+    result: VscodeModulePreviewParameterValueCompletionResult,
+    candidate: VscodeModulePreviewParameterValueCompletionCandidate
+  ) => boolean;
   text: PresentationText;
 }) => {
   const rowIdentity = `${snapshot.sessionId}:${snapshot.target.definitionStatementId}:${parameter.definitionStatementId}:${parameter.parameterIndex}`;
@@ -132,6 +157,28 @@ const ParameterRow = ({
     ? `module-preview-parameter-diagnostic-${parameter.definitionStatementId}-${parameter.parameterIndex}`
     : undefined;
   const isReferencePickable = isReferencePickableParameter(parameter);
+  const rowCompletion = completion?.rowIdentity === rowIdentity && completion.result.candidates.length > 0
+    ? completion
+    : null;
+  const acceptCompletion = (
+    input: HTMLInputElement,
+    result: VscodeModulePreviewParameterValueCompletionResult,
+    candidate: VscodeModulePreviewParameterValueCompletionCandidate
+  ): void => {
+    const { from, to } = result.replacementRange;
+    if (result.value !== draft || from < 0 || to < from || to > draft.length) return;
+    if (!onCompletionAccept(parameter, input, result, candidate)) return;
+    const expression = `${draft.slice(0, from)}${candidate.insertionText}${draft.slice(to)}`;
+    const caret = from + candidate.insertionText.length;
+    pendingDraftRef.current = expression;
+    setDraft(expression);
+    onValueChange(parameter, expression);
+    queueMicrotask(() => {
+      if (document.activeElement !== input || input.value !== expression) return;
+      input.setSelectionRange(caret, caret);
+      onValueInputRefresh(parameter, input, false);
+    });
+  };
   return (
     <tr
       data-module-preview-parameter-row={`${parameter.definitionStatementId}:${parameter.parameterIndex}`}
@@ -153,10 +200,31 @@ const ParameterRow = ({
             aria-label={text("modulePreview.parameters.valueFor", "Value for {name}", { name: parameter.name })}
             aria-invalid={parameter.diagnostic ? "true" : "false"}
             aria-describedby={diagnosticId}
+            aria-expanded={rowCompletion ? "true" : "false"}
             value={draft}
-            onFocus={(event) => onValueInputFocus(parameter, event.currentTarget)}
+            onFocus={(event) => {
+              shouldRefreshAfterSyncRef.current = false;
+              onValueInputFocus(parameter, event.currentTarget);
+            }}
             onSelect={(event) => onValueInputSelection(parameter, event.currentTarget)}
             onBlur={(event) => onValueInputBlur(parameter, event.currentTarget)}
+            onKeyDown={(event) => {
+              if (!rowCompletion) return;
+              if (event.key === "ArrowDown") {
+                event.preventDefault();
+                onCompletionMove(1);
+              } else if (event.key === "ArrowUp") {
+                event.preventDefault();
+                onCompletionMove(-1);
+              } else if (event.key === "Enter") {
+                event.preventDefault();
+                const candidate = rowCompletion.result.candidates[rowCompletion.activeIndex];
+                if (candidate) acceptCompletion(event.currentTarget, rowCompletion.result, candidate);
+              } else if (event.key === "Escape") {
+                event.preventDefault();
+                onCompletionDismiss();
+              }
+            }}
             onChange={(event) => {
               const expression = event.currentTarget.value;
               pendingDraftRef.current = expression;
@@ -165,6 +233,31 @@ const ParameterRow = ({
               onValueInputRefresh(parameter, event.currentTarget);
             }}
           />
+          {rowCompletion ? (
+            <div
+              className="module-preview-parameter-completion-popup"
+              role="listbox"
+              aria-label={text("modulePreview.parameters.completions", "Completions")}
+            >
+              {rowCompletion.result.candidates.map((candidate, index) => (
+                <button
+                  key={`${candidate.kind}:${candidate.identity ?? candidate.label}`}
+                  type="button"
+                  role="option"
+                  aria-selected={index === rowCompletion.activeIndex}
+                  className="module-preview-parameter-completion-option"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => {
+                    const input = inputRef.current;
+                    if (input) acceptCompletion(input, rowCompletion.result, candidate);
+                  }}
+                >
+                  <span>{candidate.label}</span>
+                  {candidate.detail ? <small>{candidate.detail}</small> : null}
+                </button>
+              ))}
+            </div>
+          ) : null}
           {isReferencePickable ? (
             <button
               type="button"
@@ -215,6 +308,10 @@ const ParameterGroup = ({
   onValueInputBlur,
   onValueInputRefresh,
   onReferencePick,
+  completion,
+  onCompletionMove,
+  onCompletionDismiss,
+  onCompletionAccept,
   text
 }: {
   snapshot: VscodeModulePreviewParameterSnapshot;
@@ -224,8 +321,21 @@ const ParameterGroup = ({
   onValueInputFocus: (parameter: VscodeModulePreviewParameter, input: HTMLInputElement) => void;
   onValueInputSelection: (parameter: VscodeModulePreviewParameter, input: HTMLInputElement) => void;
   onValueInputBlur: (parameter: VscodeModulePreviewParameter, input: HTMLInputElement) => void;
-  onValueInputRefresh: (parameter: VscodeModulePreviewParameter, input: HTMLInputElement) => void;
+  onValueInputRefresh: (
+    parameter: VscodeModulePreviewParameter,
+    input: HTMLInputElement,
+    requestSuggestions?: boolean
+  ) => void;
   onReferencePick: (parameter: VscodeModulePreviewParameter) => void;
+  completion: ModulePreviewCompletionState | null;
+  onCompletionMove: (delta: 1 | -1) => void;
+  onCompletionDismiss: () => void;
+  onCompletionAccept: (
+    parameter: VscodeModulePreviewParameter,
+    input: HTMLInputElement,
+    result: VscodeModulePreviewParameterValueCompletionResult,
+    candidate: VscodeModulePreviewParameterValueCompletionCandidate
+  ) => boolean;
   text: PresentationText;
 }) => (
   <section
@@ -258,6 +368,10 @@ const ParameterGroup = ({
             onValueInputBlur={onValueInputBlur}
             onValueInputRefresh={onValueInputRefresh}
             onReferencePick={onReferencePick}
+            completion={completion}
+            onCompletionMove={onCompletionMove}
+            onCompletionDismiss={onCompletionDismiss}
+            onCompletionAccept={onCompletionAccept}
             text={text}
           />
         ))}
@@ -293,6 +407,31 @@ export const ModulePreviewParametersSurface = ({
     rowIdentity: string;
     message: VscodeModulePreviewParameterValueFocus;
   } | null>(null);
+  const [completion, setCompletion] = useState<ModulePreviewCompletionState | null>(null);
+  const completionRef = useRef<ModulePreviewCompletionState | null>(null);
+  const pendingCompletionRef = useRef<{
+    requestId: number;
+    completionGeneration: number;
+    rowIdentity: string;
+  } | null>(null);
+  const nextCompletionRequestIdRef = useRef(1);
+  const nextCompletionGenerationRef = useRef(1);
+  const completionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const setCompletionState = useCallback((next: ModulePreviewCompletionState | null): void => {
+    completionRef.current = next;
+    setCompletion(next);
+  }, []);
+
+  const closeCompletion = useCallback((): void => {
+    if (completionTimerRef.current !== null) {
+      clearTimeout(completionTimerRef.current);
+      completionTimerRef.current = null;
+    }
+    pendingCompletionRef.current = null;
+    setCompletionState(null);
+  }, [setCompletionState]);
+
   useEffect(() => {
     snapshotRef.current = snapshot;
     unavailableRef.current = unavailable;
@@ -314,6 +453,7 @@ export const ModulePreviewParametersSurface = ({
   const clearValueFocus = useCallback((rowIdentity?: string): void => {
     const focused = valueFocusRef.current;
     if (!focused || (rowIdentity !== undefined && focused.rowIdentity !== rowIdentity)) return;
+    closeCompletion();
     valueFocusRef.current = null;
     api.postMessage({
       type: "modulePreviewParameterValueBlur",
@@ -327,15 +467,17 @@ export const ModulePreviewParametersSurface = ({
       parameterIndex: focused.message.parameterIndex,
       focusGeneration: focused.message.focusGeneration
     });
-  }, [api]);
+  }, [api, closeCompletion]);
 
   const publishValueFocus = useCallback((
     parameter: VscodeModulePreviewParameter,
     input: HTMLInputElement,
     startNewGeneration: boolean
-  ): void => {
-    if (!snapshot || unavailable) return;
-    const rowIdentity = rowIdentityFor(snapshot, parameter);
+  ): VscodeModulePreviewParameterValueFocus | null => {
+    const currentSnapshot = snapshotRef.current ?? snapshot;
+    const currentUnavailable = unavailableRef.current ?? unavailable;
+    if (!currentSnapshot || currentUnavailable) return null;
+    const rowIdentity = rowIdentityFor(currentSnapshot, parameter);
     const previous = valueFocusRef.current;
     if (previous && (previous.rowIdentity !== rowIdentity || startNewGeneration)) clearValueFocus();
     const focusGeneration = nextFocusGenerationRef.current;
@@ -344,12 +486,12 @@ export const ModulePreviewParametersSurface = ({
     const selectionEnd = input.selectionEnd ?? selectionStart;
     const message: VscodeModulePreviewParameterValueFocus = {
       type: "modulePreviewParameterValueFocus",
-      sessionId: snapshot.sessionId,
-      documentUri: snapshot.documentUri,
-      documentVersion: snapshot.documentVersion,
-      sourceRevision: snapshot.sourceRevision,
-      sessionRevision: snapshot.sessionRevision,
-      targetDefinitionStatementId: snapshot.target.definitionStatementId,
+      sessionId: currentSnapshot.sessionId,
+      documentUri: currentSnapshot.documentUri,
+      documentVersion: currentSnapshot.documentVersion,
+      sourceRevision: currentSnapshot.sourceRevision,
+      sessionRevision: currentSnapshot.sessionRevision,
+      targetDefinitionStatementId: currentSnapshot.target.definitionStatementId,
       definitionStatementId: parameter.definitionStatementId,
       parameterIndex: parameter.parameterIndex,
       value: input.value,
@@ -359,28 +501,169 @@ export const ModulePreviewParametersSurface = ({
     };
     valueFocusRef.current = { rowIdentity, message };
     api.postMessage(message);
+    return message;
   }, [api, clearValueFocus, rowIdentityFor, snapshot, unavailable]);
 
+  const requestCompletion = useCallback((
+    parameter: VscodeModulePreviewParameter,
+    input: HTMLInputElement,
+    focusMessage: VscodeModulePreviewParameterValueFocus | null
+  ): void => {
+    const currentSnapshot = snapshotRef.current;
+    if (!currentSnapshot || unavailableRef.current || !focusMessage) return;
+    const rowIdentity = rowIdentityFor(currentSnapshot, parameter);
+    const focused = valueFocusRef.current;
+    const selectionStart = input.selectionStart ?? input.value.length;
+    const selectionEnd = input.selectionEnd ?? selectionStart;
+    if (
+      !focused ||
+      focused.rowIdentity !== rowIdentity ||
+      focused.message !== focusMessage ||
+      input.dataset.modulePreviewParameterIdentity !== rowIdentity ||
+      focusMessage.value !== input.value ||
+      focusMessage.selectionStart !== selectionStart ||
+      focusMessage.selectionEnd !== selectionEnd
+    ) return;
+    const requestId = nextCompletionRequestIdRef.current;
+    nextCompletionRequestIdRef.current += 1;
+    const completionGeneration = nextCompletionGenerationRef.current;
+    nextCompletionGenerationRef.current += 1;
+    pendingCompletionRef.current = { requestId, completionGeneration, rowIdentity };
+    setCompletionState(null);
+    api.postMessage({
+      type: "modulePreviewParameterValueCompletion",
+      requestId,
+      completionGeneration,
+      sessionId: focusMessage.sessionId,
+      documentUri: focusMessage.documentUri,
+      documentVersion: focusMessage.documentVersion,
+      sourceRevision: focusMessage.sourceRevision,
+      sessionRevision: focusMessage.sessionRevision,
+      targetDefinitionStatementId: focusMessage.targetDefinitionStatementId,
+      definitionStatementId: focusMessage.definitionStatementId,
+      parameterIndex: focusMessage.parameterIndex,
+      focusGeneration: focusMessage.focusGeneration,
+      value: input.value,
+      selectionStart,
+      selectionEnd
+    });
+  }, [api, rowIdentityFor, setCompletionState]);
+
+  const scheduleCompletionRequest = useCallback((
+    parameter: VscodeModulePreviewParameter,
+    input: HTMLInputElement
+  ): void => {
+    if (completionTimerRef.current !== null) clearTimeout(completionTimerRef.current);
+    completionTimerRef.current = setTimeout(() => {
+      completionTimerRef.current = null;
+      const focused = valueFocusRef.current;
+      requestCompletion(parameter, input, focused?.message ?? null);
+    }, 0);
+  }, [requestCompletion]);
+
   const onValueInputFocus = useCallback((parameter: VscodeModulePreviewParameter, input: HTMLInputElement) => {
-    publishValueFocus(parameter, input, true);
-  }, [publishValueFocus]);
+    const focusMessage = publishValueFocus(parameter, input, true);
+    requestCompletion(parameter, input, focusMessage);
+  }, [publishValueFocus, requestCompletion]);
 
   const onValueInputSelection = useCallback((parameter: VscodeModulePreviewParameter, input: HTMLInputElement) => {
-    if (document.activeElement === input) publishValueFocus(parameter, input, false);
-  }, [publishValueFocus]);
+    if (document.activeElement === input) {
+      const focused = valueFocusRef.current?.message;
+      const selectionStart = input.selectionStart ?? input.value.length;
+      const selectionEnd = input.selectionEnd ?? selectionStart;
+      if (
+        focused &&
+        focused.value === input.value &&
+        focused.selectionStart === selectionStart &&
+        focused.selectionEnd === selectionEnd
+      ) return;
+      const focusMessage = publishValueFocus(parameter, input, false);
+      requestCompletion(parameter, input, focusMessage);
+    }
+  }, [publishValueFocus, requestCompletion]);
 
   const onValueInputBlur = useCallback((parameter: VscodeModulePreviewParameter, input: HTMLInputElement) => {
     void parameter;
     clearValueFocus(input.dataset.modulePreviewParameterIdentity);
   }, [clearValueFocus]);
 
-  const onValueInputRefresh = useCallback((parameter: VscodeModulePreviewParameter, input: HTMLInputElement) => {
-    if (document.activeElement === input) publishValueFocus(parameter, input, false);
-  }, [publishValueFocus]);
+  const onValueInputRefresh = useCallback((
+    parameter: VscodeModulePreviewParameter,
+    input: HTMLInputElement,
+    requestSuggestions = true
+  ) => {
+    if (document.activeElement === input) {
+      publishValueFocus(parameter, input, false);
+      if (requestSuggestions) scheduleCompletionRequest(parameter, input);
+    }
+  }, [publishValueFocus, scheduleCompletionRequest]);
 
   useEffect(() => {
     const onMessage = (event: MessageEvent<unknown>) => {
       const message = event.data as { type?: unknown };
+      if (message.type === "modulePreviewParameterValueCompletionResult") {
+        const result = event.data as VscodeModulePreviewParameterValueCompletionResult;
+        const pending = pendingCompletionRef.current;
+        const current = valueFocusRef.current;
+        const currentSnapshot = snapshotRef.current;
+        const parameter = currentSnapshot && current
+          ? parameterForRowIdentity(currentSnapshot, current.rowIdentity)
+          : null;
+        const input = document.activeElement;
+        if (
+          !pending ||
+          !current ||
+          !currentSnapshot ||
+          unavailableRef.current ||
+          !parameter ||
+          !(input instanceof HTMLInputElement) ||
+          pending.requestId !== result.requestId ||
+          pending.completionGeneration !== result.completionGeneration ||
+          pending.rowIdentity !== current.rowIdentity ||
+          result.sessionId !== currentSnapshot.sessionId ||
+          result.documentUri !== currentSnapshot.documentUri ||
+          result.documentVersion !== currentSnapshot.documentVersion ||
+          result.sourceRevision !== currentSnapshot.sourceRevision ||
+          result.sessionRevision !== current.message.sessionRevision ||
+          result.targetDefinitionStatementId !== currentSnapshot.target.definitionStatementId ||
+          result.definitionStatementId !== parameter.definitionStatementId ||
+          result.parameterIndex !== parameter.parameterIndex ||
+          result.focusGeneration !== current.message.focusGeneration ||
+          result.value !== input.value ||
+          result.selectionStart !== (input.selectionStart ?? input.value.length) ||
+          result.selectionEnd !== (input.selectionEnd ?? input.value.length) ||
+          !Number.isInteger(result.replacementRange?.from) ||
+          !Number.isInteger(result.replacementRange?.to) ||
+          result.replacementRange.from < 0 ||
+          result.replacementRange.to < result.replacementRange.from ||
+          result.replacementRange.to > result.value.length ||
+          !Array.isArray(result.candidates) ||
+          !result.candidates.every((candidate) =>
+            typeof candidate.label === "string" && typeof candidate.insertionText === "string"
+          )
+        ) return;
+        const prefix = result.value
+          .slice(result.replacementRange.from, result.replacementRange.to)
+          .toLocaleLowerCase();
+        const candidates = result.candidates.filter((candidate) =>
+          candidate.label.toLocaleLowerCase().startsWith(prefix)
+        );
+        if (completionTimerRef.current !== null) {
+          clearTimeout(completionTimerRef.current);
+          completionTimerRef.current = null;
+        }
+        pendingCompletionRef.current = null;
+        if (candidates.length === 0) {
+          setCompletionState(null);
+          return;
+        }
+        setCompletionState({
+          rowIdentity: current.rowIdentity,
+          result: { ...result, candidates },
+          activeIndex: 0
+        });
+        return;
+      }
       if (message.type !== "modulePreviewRestoreParameterValueSelection") return;
       const restore = event.data as Extract<ExtensionToVscodeMessage, {
         type: "modulePreviewRestoreParameterValueSelection"
@@ -417,23 +700,80 @@ export const ModulePreviewParametersSurface = ({
     };
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [parameterForRowIdentity, publishValueFocus]);
+  }, [parameterForRowIdentity, publishValueFocus, setCompletionState]);
+
+  const onCompletionMove = useCallback((delta: 1 | -1): void => {
+    const current = completionRef.current;
+    if (!current || current.result.candidates.length === 0) return;
+    const count = current.result.candidates.length;
+    const activeIndex = (current.activeIndex + delta + count) % count;
+    setCompletionState({ ...current, activeIndex });
+  }, [setCompletionState]);
+
+  const onCompletionDismiss = useCallback((): void => {
+    closeCompletion();
+  }, [closeCompletion]);
+
+  const onCompletionAccept = useCallback((
+    parameter: VscodeModulePreviewParameter,
+    input: HTMLInputElement,
+    result: VscodeModulePreviewParameterValueCompletionResult,
+    candidate: VscodeModulePreviewParameterValueCompletionCandidate
+  ): boolean => {
+    const current = completionRef.current;
+    const currentSnapshot = snapshotRef.current;
+    if (
+      !current ||
+      !currentSnapshot ||
+      unavailableRef.current ||
+      current.result.requestId !== result.requestId ||
+      current.result.completionGeneration !== result.completionGeneration ||
+      current.result.focusGeneration !== result.focusGeneration ||
+      current.rowIdentity !== rowIdentityFor(currentSnapshot, parameter) ||
+      input.dataset.modulePreviewParameterIdentity !== current.rowIdentity ||
+      document.activeElement !== input ||
+      input.value !== result.value ||
+      !current.result.candidates.includes(candidate) ||
+      !Number.isInteger(result.replacementRange.from) ||
+      !Number.isInteger(result.replacementRange.to) ||
+      result.replacementRange.from < 0 ||
+      result.replacementRange.to < result.replacementRange.from ||
+      result.replacementRange.to > input.value.length
+    ) return false;
+    closeCompletion();
+    return true;
+  }, [closeCompletion, rowIdentityFor]);
 
   useEffect(() => {
     const focused = valueFocusRef.current;
-    if (!focused) return;
+    if (!focused) {
+      closeCompletion();
+      return;
+    }
     if (!snapshot || unavailable || !parameterForRowIdentity(snapshot, focused.rowIdentity)) {
       clearValueFocus();
       return;
     }
+    const activeCompletion = completionRef.current;
+    if (
+      activeCompletion &&
+      (activeCompletion.rowIdentity !== focused.rowIdentity ||
+        activeCompletion.result.sessionId !== snapshot.sessionId ||
+        activeCompletion.result.documentVersion !== snapshot.documentVersion ||
+        activeCompletion.result.sourceRevision !== snapshot.sourceRevision ||
+        activeCompletion.result.targetDefinitionStatementId !== snapshot.target.definitionStatementId)
+    ) closeCompletion();
     const input = [...document.querySelectorAll<HTMLInputElement>(".module-preview-parameter-input")]
       .find((candidate) => candidate.dataset.modulePreviewParameterIdentity === focused.rowIdentity);
     if (!input || document.activeElement !== input) {
       clearValueFocus();
     }
-  }, [clearValueFocus, parameterForRowIdentity, snapshot, unavailable]);
+  }, [clearValueFocus, closeCompletion, parameterForRowIdentity, snapshot, unavailable]);
 
-  useEffect(() => () => clearValueFocus(), [clearValueFocus]);
+  useEffect(() => () => {
+    closeCompletion();
+    clearValueFocus();
+  }, [clearValueFocus, closeCompletion]);
 
   const onReferencePick = (parameter: VscodeModulePreviewParameter): void => {
     if (!snapshot || !isReferencePickableParameter(parameter)) return;
@@ -481,6 +821,10 @@ export const ModulePreviewParametersSurface = ({
                 onValueInputBlur={onValueInputBlur}
                 onValueInputRefresh={onValueInputRefresh}
                 onReferencePick={onReferencePick}
+                completion={completion}
+                onCompletionMove={onCompletionMove}
+                onCompletionDismiss={onCompletionDismiss}
+                onCompletionAccept={onCompletionAccept}
                 text={text}
               />
             ))}
@@ -494,6 +838,10 @@ export const ModulePreviewParametersSurface = ({
               onValueInputBlur={onValueInputBlur}
               onValueInputRefresh={onValueInputRefresh}
               onReferencePick={onReferencePick}
+              completion={completion}
+              onCompletionMove={onCompletionMove}
+              onCompletionDismiss={onCompletionDismiss}
+              onCompletionAccept={onCompletionAccept}
               text={text}
             />
           </div>

@@ -518,6 +518,53 @@ const scalarCompletions = (compiled: CompiledDslDocument, statementIndex: number
   return result;
 };
 
+export type ModulePreviewParameterValueCompletionInput = {
+  compiled: CompiledDslDocument;
+  /** The exact source statement at which the ephemeral argument is evaluated. */
+  caller: ModuleCompletionSite;
+  parameterType: DslModuleParameterType | null;
+  recordTypeIdentity?: string | null;
+  /** Expression-position narrowing supplied by the shared scalar classifier. */
+  expectedScalarType?: ScalarType | null;
+};
+
+/**
+ * Reuses the existing Module argument/reference candidate owner for the
+ * ephemeral Value field. The caller site is explicit because the preview call
+ * is not persisted in the source document and must not be reconstructed from
+ * a display name or an editor caret.
+ */
+export const modulePreviewParameterValueCompletionCandidates = ({
+  compiled,
+  caller,
+  parameterType,
+  recordTypeIdentity,
+  expectedScalarType
+}: ModulePreviewParameterValueCompletionInput): ModuleCompletionCandidate[] => {
+  const request: ModuleCompletionRequest = {
+    compiled,
+    cursorPosition: caller.statementIndex,
+    kind: "reference",
+    statementIndex: caller.statementIndex,
+    scopeId: caller.scopeId,
+    sourceOrderIndex: caller.sourceOrderIndex,
+    expectedScalarType: expectedScalarType ?? null,
+    expectedRecordTypeIdentity: recordTypeIdentity ?? null
+  };
+  if (recordTypeIdentity) return recordCompletions(compiled, caller.statementIndex, recordTypeIdentity, request);
+  if (parameterType?.kind === "point") return geometryCompletions(compiled, caller.statementIndex, "point", request);
+  const geometryInterfaceType = moduleGeometryInterfaceTypeOf(parameterType);
+  if (geometryInterfaceType) {
+    return geometryInterfaceCompletions(compiled, caller.statementIndex, geometryInterfaceType, request);
+  }
+  return scalarCompletions(
+    compiled,
+    caller.statementIndex,
+    expectedScalarType ?? scalarTypeOf(parameterType),
+    request
+  );
+};
+
 const geometryCompletions = (compiled: CompiledDslDocument, statementIndex: number, expected: "point" | "line" | null, request?: ModuleCompletionRequest): ModuleCompletionCandidate[] => {
   if (!expected) return [];
   const result: ModuleCompletionCandidate[] = [];

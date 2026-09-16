@@ -2,6 +2,7 @@ import type { StatementIdentity } from "@nuinuicad/nui-language/document";
 import type { DslModuleParameterType } from "@nuinuicad/nui-language";
 import type { DslDiagnosticPresentation } from "@nuinuicad/nui-language";
 import type { DslNumericTypeOptions } from "@nuinuicad/nui-language";
+import type { DslCompletionCandidateKind } from "@nuinuicad/nui-language";
 import type { CanonicalGeometrySourceReference } from "../model/moduleSemanticCandidateBoundary";
 import type { LineSplice } from "@nuinuicad/nui-language/document";
 
@@ -160,6 +161,38 @@ export type VscodeModulePreviewParameterValueBlur =
     focusGeneration: number;
   };
 
+export type VscodeModulePreviewParameterValueCompletionCandidate = {
+  kind: DslCompletionCandidateKind;
+  label: string;
+  detail?: string;
+  identity?: string;
+  insertionText: string;
+};
+
+export type VscodeModulePreviewParameterValueCompletionRequest =
+  VscodeModulePreviewParameterActionProof & {
+    type: "modulePreviewParameterValueCompletion";
+    requestId: number;
+    completionGeneration: number;
+    focusGeneration: number;
+    value: string;
+    selectionStart: number;
+    selectionEnd: number;
+  };
+
+export type VscodeModulePreviewParameterValueCompletionResult =
+  VscodeModulePreviewParameterActionProof & {
+    type: "modulePreviewParameterValueCompletionResult";
+    requestId: number;
+    completionGeneration: number;
+    focusGeneration: number;
+    value: string;
+    selectionStart: number;
+    selectionEnd: number;
+    replacementRange: { from: number; to: number };
+    candidates: readonly VscodeModulePreviewParameterValueCompletionCandidate[];
+  };
+
 export type VscodeModulePreviewParameterValueSelectionRestore =
   VscodeModulePreviewParameterActionProof & {
     type: "modulePreviewRestoreParameterValueSelection";
@@ -218,6 +251,7 @@ export type VscodeExtensionToModulePreviewMessage =
   | VscodeModulePreviewParameterSetValue
   | VscodeModulePreviewParameterUseDefault
   | VscodeModulePreviewParameterValueSelectionRestore
+  | VscodeModulePreviewParameterValueCompletionResult
   | VscodeModulePreviewReferencePickStartRequest
   | VscodeModulePreviewReferencePickCancelRequest
   | VscodeModulePreviewModelPatchResult;
@@ -227,4 +261,5 @@ export type VscodeModulePreviewToExtensionMessage =
   | VscodeModulePreviewParameterReferencePickStartRequest
   | VscodeModulePreviewParameterValueFocus
   | VscodeModulePreviewParameterValueBlur
+  | VscodeModulePreviewParameterValueCompletionRequest
   | VscodeModulePreviewModelPatchRequest;

@@ -3,7 +3,10 @@ import { applyLineSplices, type LineSplice } from "@nuinuicad/nui-language/docum
 import type { StatementIdentity } from "@nuinuicad/nui-language/document";
 import { resolveModulePreviewValueStep } from "../../src/dsl/modulePreviewValueStep";
 import { queryModulePreviewTarget } from "../../src/dsl/modulePreviewTarget";
-import { moduleGeometryInterfaceTypeOf } from "@nuinuicad/nui-language";
+import {
+  moduleGeometryInterfaceTypeOf,
+  queryDslModulePreviewParameterValueCompletion
+} from "@nuinuicad/nui-language";
 import { currentModulePreviewTargetByIdentity } from "../../src/vscode/modulePreviewLifecycle";
 import {
   isCanonicalReferencePickReference,
@@ -17,6 +20,7 @@ import type {
   VscodeModulePreviewParameterSetValue,
   VscodeModulePreviewParameterValueBlur,
   VscodeModulePreviewParameterValueFocus,
+  VscodeModulePreviewParameterValueCompletionRequest,
   VscodeModulePreviewParameterReferencePickStartRequest,
   VscodeModulePreviewModelPatchRequest,
   VscodeModulePreviewModelPatchResult,
@@ -85,6 +89,7 @@ type ModulePreviewSession = {
     request: VscodeModulePreviewReferencePickStartRequest;
     candidateReferenceKeys: Set<string> | null;
   } | null;
+  latestCompletionGeneration: number;
   disposables: vscode.Disposable[];
 };
 
@@ -163,6 +168,31 @@ const isModulePreviewParameterValueBlur = (
     Number.isInteger(candidate.parameterIndex) &&
     Number.isInteger(candidate.focusGeneration) &&
     candidate.focusGeneration > 0;
+};
+
+const isModulePreviewParameterValueCompletionRequest = (
+  message: unknown
+): message is VscodeModulePreviewParameterValueCompletionRequest => {
+  if (typeof message !== "object" || message === null) return false;
+  const candidate = message as Partial<VscodeModulePreviewParameterValueCompletionRequest>;
+  return candidate.type === "modulePreviewParameterValueCompletion" &&
+    Number.isInteger(candidate.requestId) && candidate.requestId > 0 &&
+    Number.isInteger(candidate.completionGeneration) && candidate.completionGeneration > 0 &&
+    typeof candidate.sessionId === "string" &&
+    typeof candidate.documentUri === "string" &&
+    Number.isInteger(candidate.documentVersion) &&
+    Number.isInteger(candidate.sourceRevision) &&
+    Number.isInteger(candidate.sessionRevision) &&
+    typeof candidate.targetDefinitionStatementId === "string" &&
+    typeof candidate.definitionStatementId === "string" &&
+    Number.isInteger(candidate.parameterIndex) &&
+    Number.isInteger(candidate.focusGeneration) && candidate.focusGeneration > 0 &&
+    typeof candidate.value === "string" &&
+    Number.isInteger(candidate.selectionStart) &&
+    Number.isInteger(candidate.selectionEnd) &&
+    candidate.selectionStart >= 0 &&
+    candidate.selectionEnd >= candidate.selectionStart &&
+    candidate.selectionEnd <= candidate.value.length;
 };
 
 const isModulePreviewParameterReferencePickStart = (
@@ -785,6 +815,103 @@ export const registerModulePreviewFeature = ({
     return true;
   };
 
+  const handleParameterValueCompletion = (
+    request: VscodeModulePreviewParameterValueCompletionRequest
+  ): boolean => {
+    const session = boundParameterSession;
+    const snapshot = session ? currentParameterSnapshot(session) : null;
+    const focus = focusedPreviewValue;
+    if (
+      !session ||
+      !snapshot ||
+      !focus ||
+      request.completionGeneration <= session.latestCompletionGeneration ||
+      !focusedPreviewValueMatches(session, snapshot, focus, false) ||
+      !sameFocusedPreviewBinding(focus, request) ||
+      focus.sessionRevision !== request.sessionRevision ||
+      focus.focusGeneration !== request.focusGeneration ||
+      focus.value !== request.value ||
+      focus.selectionStart !== request.selectionStart ||
+      focus.selectionEnd !== request.selectionEnd
+    ) return false;
+
+    const row = parameterRowFor(snapshot, request.definitionStatementId, request.parameterIndex);
+    if (!row || !currentParameterSnapshotIsCurrent(session, snapshot)) return false;
+    const { source, semantic } = sourceContextFor(session);
+    const currentTarget = currentModulePreviewTargetByIdentity({
+      source,
+      semantic,
+      definitionStatementId: session.targetDefinitionStatementId
+    })?.target;
+    const compiled = semantic?.compiled;
+    const parameterDefinition = compiled?.moduleSemanticAnalysis?.definitionsByStatementId.get(
+      request.definitionStatementId
+    );
+    const namespace = compiled?.sourceLexicalNamespace;
+    if (
+      !compiled ||
+      !semantic ||
+      !currentTarget ||
+      currentTarget.definitionStatementId !== request.targetDefinitionStatementId ||
+      currentTarget.definitionStatementIndex !== snapshot.target.definitionStatementIndex ||
+      source.sourceRevision !== request.sourceRevision ||
+      !parameterDefinition ||
+      !namespace
+    ) return false;
+
+    session.latestCompletionGeneration = request.completionGeneration;
+    const callerScopeId = namespace.scopeIndex.scopeOfStatement.get(parameterDefinition.statementIndex) ??
+      namespace.scopeIndex.rootScopeId;
+    const result = queryDslModulePreviewParameterValueCompletion({
+      source,
+      semantic,
+      target: {
+        definitionStatementId: snapshot.target.definitionStatementId,
+        definitionStatementIndex: snapshot.target.definitionStatementIndex
+      },
+      parameter: {
+        definitionStatementId: request.definitionStatementId,
+        parameterIndex: request.parameterIndex,
+        type: row.type
+      },
+      caller: {
+        statementIndex: compiled.statements.length,
+        scopeId: callerScopeId,
+        sourceOrderIndex: compiled.statements.length
+      },
+      value: request.value,
+      selectionStart: request.selectionStart,
+      selectionEnd: request.selectionEnd
+    });
+    if (!result) return false;
+    void session.panel.webview.postMessage({
+      type: "modulePreviewParameterValueCompletionResult",
+      requestId: request.requestId,
+      completionGeneration: request.completionGeneration,
+      focusGeneration: request.focusGeneration,
+      sessionId: request.sessionId,
+      documentUri: request.documentUri,
+      documentVersion: request.documentVersion,
+      sourceRevision: request.sourceRevision,
+      sessionRevision: request.sessionRevision,
+      targetDefinitionStatementId: request.targetDefinitionStatementId,
+      definitionStatementId: request.definitionStatementId,
+      parameterIndex: request.parameterIndex,
+      value: request.value,
+      selectionStart: request.selectionStart,
+      selectionEnd: request.selectionEnd,
+      replacementRange: result.replacementRange,
+      candidates: result.candidates.map((candidate) => ({
+        kind: candidate.kind,
+        label: candidate.label,
+        ...(candidate.detail ? { detail: candidate.detail } : {}),
+        ...(candidate.identity ? { identity: candidate.identity } : {}),
+        insertionText: candidate.insertionText
+      }))
+    });
+    return true;
+  };
+
   const acceptsParameterSnapshot = (
     session: ModulePreviewSession,
     message: VscodeModulePreviewParameterSnapshot
@@ -1200,6 +1327,7 @@ export const registerModulePreviewFeature = ({
       retainedParameterMessage: null,
       editableFocusAttachment: null,
       activeReferencePick: null,
+      latestCompletionGeneration: 0,
       disposables: []
     };
     sessions.set(key, session);
@@ -1247,6 +1375,10 @@ export const registerModulePreviewFeature = ({
       }
       if (isModulePreviewParameterValueBlur(message)) {
         acceptParameterValueBlur(message);
+        return;
+      }
+      if (isModulePreviewParameterValueCompletionRequest(message)) {
+        handleParameterValueCompletion(message);
         return;
       }
       if (message.type === "webviewReady") {
