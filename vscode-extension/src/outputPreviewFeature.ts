@@ -108,6 +108,7 @@ export type OutputPreviewFeature = vscode.Disposable & {
 export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): OutputPreviewFeature => {
   type OutputPreviewViewportAction = "outputPreviewFit" | "outputPreviewResetView";
   let nextRevealRequestId = 1;
+  let lastActiveSession: OutputPreviewSession | null = null;
 
   const displayLanguage = (): string => {
     if (host.displayLanguageFor) return host.displayLanguageFor();
@@ -118,8 +119,20 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
     }
   };
 
-  const activeSession = (): OutputPreviewSession | null =>
-    host.registry.values().find((candidate) => candidate.panel.active) ?? null;
+  const activeSession = (): OutputPreviewSession | null => {
+    if (!host.isOutputPreviewTabActive()) return null;
+    const current = host.registry.values().find((candidate) => candidate.panel.active);
+    if (current) {
+      lastActiveSession = current;
+      return current;
+    }
+    const remembered = lastActiveSession;
+    return remembered &&
+      host.registry.get(remembered.documentUri) === remembered &&
+      remembered.panel.visible
+      ? remembered
+      : null;
+  };
 
   const activeSessionForOpenCommand = (): OutputPreviewSession | null =>
     host.isOutputPreviewTabActive() ? activeSession() : null;
@@ -332,6 +345,7 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
 
   const disposeSession = (session: OutputPreviewSession): void => {
     if (host.registry.get(session.documentUri) !== session) return;
+    if (lastActiveSession === session) lastActiveSession = null;
     session.pendingOpen = null;
     invalidateReveal(session);
     host.registry.delete(session.documentUri);
@@ -380,6 +394,7 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
       inFlightExportRequestId: null
     };
     host.registry.set(session);
+    if (panel.active) lastActiveSession = session;
 
     session.disposables.push(vscode.workspace.onDidChangeTextDocument((event) => {
       if (!host.sameDocument(event.document, session.document) || event.contentChanges.length === 0) return;
@@ -444,6 +459,9 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
         return;
       }
       if (message.type === "rustEvaluationRequest") await handleRustEvaluationRequest(session, message);
+    }));
+    session.disposables.push(panel.onDidChangeViewState(() => {
+      if (panel.active) lastActiveSession = session;
     }));
     const editableFocusAttachment = host.attachWebviewEditableFocus?.(panel.webview);
     if (editableFocusAttachment) session.disposables.push(editableFocusAttachment);
