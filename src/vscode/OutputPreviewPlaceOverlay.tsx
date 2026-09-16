@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { placeCanvasPopup } from "../components/canvasPopupPlacement";
 import { candidateWheelDeltaFor } from "../components/canvasCandidateWheel";
 import { CanvasOverlapCandidateMenu } from "../components/CanvasOverlapCandidateMenu";
-import type { AxisLockKeys } from "../components/canvasViewport";
 import type { NormalizedSourceRange } from "@nuinuicad/nui-language";
 import type { OutputPlaceProjection } from "../output/outputPlaceProjection";
 import {
@@ -59,7 +58,6 @@ type OutputPreviewPlaceOverlayProps = {
 };
 
 const OUTPUT_PREVIEW_PLACE_DRAG_THRESHOLD_PX = 3;
-const releasedAxisLocks = (): AxisLockKeys => ({ x: false, y: false });
 
 export const OutputPreviewPlaceOverlay = ({
   projections,
@@ -89,7 +87,7 @@ export const OutputPreviewPlaceOverlay = ({
   const overlayRootRef = useRef<HTMLDivElement>(null);
   const dragSessionRef = useRef<OutputPreviewPlaceDragSession | null>(null);
   const [reactHandledPointerEvents] = useState(() => new WeakSet<Event>());
-  const axisLockKeysRef = useRef<AxisLockKeys>(releasedAxisLocks());
+  const shiftKeyRef = useRef(false);
   const suppressClickPlaceIdRef = useRef<string | null>(null);
   const candidateWheelDeltaRef = useRef(0);
   const clearInteractionRef = useRef<() => void>(() => {});
@@ -125,7 +123,7 @@ export const OutputPreviewPlaceOverlay = ({
     if (!current) return;
     dragSessionRef.current = null;
     setDragSession(null);
-    axisLockKeysRef.current = releasedAxisLocks();
+    shiftKeyRef.current = false;
     try {
       if (current.captureTarget.hasPointerCapture?.(current.pointerId)) {
         current.captureTarget.releasePointerCapture?.(current.pointerId);
@@ -175,7 +173,7 @@ export const OutputPreviewPlaceOverlay = ({
       screenDx,
       screenDy,
       zoom: current.zoom,
-      axisLockKeys: axisLockKeysRef.current
+      shiftKey: shiftKeyRef.current
     });
     if (!coordinates || dragCallbacksRef.current.onPreviewDrag?.(current.proof, coordinates) === false) {
       finishDragSession(true);
@@ -188,7 +186,7 @@ export const OutputPreviewPlaceOverlay = ({
   }, [finishDragSession]);
 
   useEffect(() => {
-    const setAxisLock = (event: KeyboardEvent, pressed: boolean) => {
+    const setShiftKey = (event: KeyboardEvent, pressed: boolean) => {
       const current = dragSessionRef.current;
       if (event.key === "Escape" && pressed) {
         event.preventDefault();
@@ -197,16 +195,15 @@ export const OutputPreviewPlaceOverlay = ({
         return;
       }
       if (!current) return;
-      const key = event.key.toLowerCase();
-      if (key !== "x" && key !== "y") return;
+      if (event.key.toLowerCase() !== "shift") return;
       event.preventDefault();
       event.stopImmediatePropagation();
-      if (axisLockKeysRef.current[key] === pressed) return;
-      axisLockKeysRef.current = { ...axisLockKeysRef.current, [key]: pressed };
+      if (shiftKeyRef.current === pressed) return;
+      shiftKeyRef.current = pressed;
       if (current.activated) applyDragPreview(current, current.lastClientX, current.lastClientY);
     };
-    const onKeyDown = (event: KeyboardEvent) => setAxisLock(event, true);
-    const onKeyUp = (event: KeyboardEvent) => setAxisLock(event, false);
+    const onKeyDown = (event: KeyboardEvent) => setShiftKey(event, true);
+    const onKeyUp = (event: KeyboardEvent) => setShiftKey(event, false);
     const onBlur = () => finishDragSession(true);
     window.addEventListener("keydown", onKeyDown, { capture: true });
     window.addEventListener("keyup", onKeyUp, { capture: true });
@@ -225,6 +222,7 @@ export const OutputPreviewPlaceOverlay = ({
   useEffect(() => () => {
     const current = dragSessionRef.current;
     dragSessionRef.current = null;
+    shiftKeyRef.current = false;
     if (current) dragCallbacksRef.current.onCancelDrag?.(current.proof);
   }, []);
 
@@ -360,7 +358,7 @@ export const OutputPreviewPlaceOverlay = ({
     setHoveredPlaceId(null);
     setCandidateSession(null);
     setActivePlaceId(handle.placeId);
-    axisLockKeysRef.current = releasedAxisLocks();
+    shiftKeyRef.current = event.shiftKey;
     const session: OutputPreviewPlaceDragSession = {
       pointerId: event.pointerId,
       placeId: handle.placeId,

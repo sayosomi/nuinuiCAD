@@ -6,11 +6,6 @@ export type ViewportSize = {
   height: number;
 };
 
-export type AxisLockKeys = {
-  x: boolean;
-  y: boolean;
-};
-
 export type PointDragAxis = "horizontal" | "vertical";
 
 export const worldToScreen = (
@@ -87,19 +82,3 @@ export const constrainedWorldDelta = ({
     dy: axis === "horizontal" ? 0 : -screenDy / zoom
   };
 };
-
-/** Preserves X/Y axis-lock semantics for Output Preview placement. */
-export const axisLockedWorldDelta = ({
-  screenDx,
-  screenDy,
-  zoom,
-  axisLockKeys
-}: {
-  screenDx: number;
-  screenDy: number;
-  zoom: number;
-  axisLockKeys: AxisLockKeys;
-}) => ({
-  dx: axisLockKeys.y && !axisLockKeys.x ? 0 : screenDx / zoom,
-  dy: axisLockKeys.x ? 0 : -screenDy / zoom
-});
