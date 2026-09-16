@@ -830,8 +830,11 @@ describe("ModulePreviewApp parameter relay", () => {
       }));
     });
 
-    expect(screen.getByRole("status")).toHaveTextContent("Module Preview is unavailable.");
-    expect(screen.getByRole("status").textContent).toBe("Module Preview is unavailable.");
+    const previewStatuses = document.querySelectorAll<HTMLElement>(
+      '[data-module-preview-status="true"][role="status"]'
+    );
+    expect(previewStatuses).toHaveLength(1);
+    expect(previewStatuses[0]?.textContent).toBe("Module Preview is unavailable.");
   });
 
   it("routes accepted value and unavailable-default actions through the live session", () => {

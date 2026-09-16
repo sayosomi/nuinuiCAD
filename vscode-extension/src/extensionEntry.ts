@@ -30,7 +30,6 @@ import { createVscodeModuleMultiDocumentHost } from "./moduleMultiDocumentHost";
 import { activeRustEvaluationProcessOwner } from "./rustEvaluationProcessOwner";
 import { vscodeObservationState } from "./vscodeObservationState";
 import { registerExplorerMockFeature } from "./explorerMockFeature";
-import { registerModulePreviewParametersFeature } from "./modulePreviewParametersFeature";
 import { createWebviewEditableFocusContext } from "./webviewEditableFocusContext";
 
 const observationSnapshot = (includeSourceText: boolean): unknown => {
@@ -160,7 +159,6 @@ const registerModulePreview = (
       settings
     )),
     registerModulePreviewHistoryFallback((direction) => feature.handoffNativeHistoryIfActive(direction)),
-    registerModulePreviewParametersFeature(context, feature, extensionDisplayLanguage),
     ...registerModulePreviewCommands(feature),
     closeListener,
     disposeAnalysisSessions

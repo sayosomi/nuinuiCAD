@@ -160,17 +160,6 @@ export type VscodeModulePreviewParameterValueBlur =
     focusGeneration: number;
   };
 
-export type VscodeModulePreviewParameterSetValueRequest =
-  VscodeModulePreviewParameterActionProof & {
-    type: "modulePreviewParameterSetValue";
-    expression: string;
-  };
-
-export type VscodeModulePreviewParameterUseDefaultRequest =
-  VscodeModulePreviewParameterActionProof & {
-    type: "modulePreviewParameterUseDefault";
-  };
-
 export type VscodeModulePreviewParameterValueSelectionRestore =
   VscodeModulePreviewParameterActionProof & {
     type: "modulePreviewRestoreParameterValueSelection";
@@ -220,14 +209,6 @@ export type VscodeModulePreviewModelPatchResult = {
   reason?: string;
 };
 
-export type VscodeModulePreviewParameterViewMessage =
-  | { type: "modulePreviewParametersViewReady" }
-  | VscodeModulePreviewParameterSetValueRequest
-  | VscodeModulePreviewParameterUseDefaultRequest
-  | VscodeModulePreviewParameterReferencePickStartRequest
-  | VscodeModulePreviewParameterValueFocus
-  | VscodeModulePreviewParameterValueBlur;
-
 export type VscodeExtensionToModulePreviewMessage =
   | VscodeModulePreviewTarget
   | VscodeModulePreviewTargetUnavailable
@@ -243,4 +224,7 @@ export type VscodeExtensionToModulePreviewMessage =
 
 export type VscodeModulePreviewToExtensionMessage =
   | VscodeModulePreviewReferencePickResult
+  | VscodeModulePreviewParameterReferencePickStartRequest
+  | VscodeModulePreviewParameterValueFocus
+  | VscodeModulePreviewParameterValueBlur
   | VscodeModulePreviewModelPatchRequest;

@@ -3,7 +3,6 @@
   "views.explorerContainer": "nuinuiCAD エクスプローラー",
   "views.elements": "要素",
   "views.explorerMock": "エクスプローラー モック",
-  "views.modulePreviewParameters": "Module プレビューのパラメータ",
   "submenu.convert": "変換",
   "submenu.webview.display": "表示",
   "submenu.webview.convertPoint": "変換",
