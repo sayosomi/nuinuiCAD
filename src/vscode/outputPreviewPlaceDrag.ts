@@ -1,4 +1,4 @@
-import { axisLockedWorldDelta, type AxisLockKeys } from "../components/canvasViewport";
+import { constrainedWorldDelta } from "../components/canvasViewport";
 import type { NormalizedSourceRange } from "@nuinuicad/nui-language";
 import type { OutputPlan } from "../output/outputCore";
 import type { OutputPlaceProjection } from "../output/outputPlaceProjection";
@@ -146,13 +146,13 @@ export const outputPreviewPlaceDragCoordinatesFor = ({
   screenDx,
   screenDy,
   zoom,
-  axisLockKeys
+  shiftKey
 }: {
   proof: OutputPreviewPlaceDragProof;
   screenDx: number;
   screenDy: number;
   zoom: number;
-  axisLockKeys: AxisLockKeys;
+  shiftKey: boolean;
 }): { x: number; y: number } | null => {
   if (
     !Number.isFinite(screenDx) ||
@@ -160,7 +160,7 @@ export const outputPreviewPlaceDragCoordinatesFor = ({
     !Number.isFinite(zoom) ||
     zoom <= 0
   ) return null;
-  const delta = axisLockedWorldDelta({ screenDx, screenDy, zoom, axisLockKeys });
+  const delta = constrainedWorldDelta({ screenDx, screenDy, zoom, shiftKey });
   const x = proof.x.literal + delta.dx;
   const y = proof.y.literal + delta.dy;
   return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null;
