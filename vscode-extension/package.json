@@ -34,11 +34,6 @@
           "id": "nuinuiCAD.explorerMock",
           "name": "%views.explorerMock%",
           "type": "webview"
-        },
-        {
-          "id": "nuinuiCAD.modulePreviewParameters",
-          "name": "%views.modulePreviewParameters%",
-          "type": "webview"
         }
       ]
     },
@@ -81,13 +76,13 @@
         "command": "nuinuiCAD.modulePreviewValueStepForward.keybinding",
         "key": "ctrl+shift+.",
         "mac": "shift+cmd+.",
-        "when": "focusedView == 'nuinuiCAD.modulePreviewParameters' && nuinuiCAD.modulePreviewValueInputFocus"
+        "when": "activeWebviewPanelId == 'nuinuiCAD.modulePreview' && nuinuiCAD.modulePreviewValueInputFocus"
       },
       {
         "command": "nuinuiCAD.modulePreviewValueStepBackward.keybinding",
         "key": "ctrl+shift+,",
         "mac": "shift+cmd+,",
-        "when": "focusedView == 'nuinuiCAD.modulePreviewParameters' && nuinuiCAD.modulePreviewValueInputFocus"
+        "when": "activeWebviewPanelId == 'nuinuiCAD.modulePreview' && nuinuiCAD.modulePreviewValueInputFocus"
       },
       {
         "command": "nuinuiCAD.canvasUndo",

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { AutomationDocument } from "@nuinuicad/nui-language/document";
 import {
   canvasSelectionForElement,
@@ -37,13 +37,18 @@ import type { CadElement, EvaluationResult } from "../types/geometry";
 import { buildModulePreviewEvaluationOptions } from "./modulePreviewEvaluation";
 import { modulePreviewParameterSnapshotFor } from "./modulePreviewParameterProjection";
 import { modulePreviewReferencePickTargetFor } from "./modulePreviewReferencePick";
+import {
+  ModulePreviewParametersSurface
+} from "./ModulePreviewParametersApp";
 import type {
   ExtensionToVscodeMessage,
   VscodeCanvasCommandId,
   VscodeBakeOperationResult,
   VscodeBakeSettings,
   VscodeModulePreviewModelPatchRequest,
+  VscodeModulePreviewParameter,
   VscodeModulePreviewParameterSnapshot,
+  VscodeModulePreviewParametersUnavailable,
   VscodeWebviewApi
 } from "./protocol";
 import { vscodeCanvasContextDataFor } from "./protocol";
@@ -170,6 +175,19 @@ const statusInputDiagnostic = (diagnostic: ModulePreviewInputDiagnostic): Module
   ...(diagnostic.presentation ? { presentation: diagnostic.presentation } : {})
 });
 
+const MODULE_PREVIEW_PARAMETER_SPLIT_INITIAL_PERCENT = 35;
+const MODULE_PREVIEW_PARAMETER_SPLIT_STEP_PERCENT = 5;
+const MODULE_PREVIEW_PARAMETER_MIN_HEIGHT = 112;
+const MODULE_PREVIEW_CANVAS_MIN_HEIGHT = 160;
+const MODULE_PREVIEW_SPLITTER_HEIGHT = 8;
+
+const clamp = (value: number, minimum: number, maximum: number): number =>
+  Math.min(Math.max(value, minimum), maximum);
+
+const modulePreviewParameterCountFor = (snapshot: VscodeModulePreviewParameterSnapshot): number =>
+  snapshot.ancestorContexts.reduce((count, group) => count + group.parameters.length, 0) +
+  snapshot.parameters.parameters.length;
+
 const noRootStatusMessagesFor = (
   diagnostics: ModulePreviewStatusMessage[]
 ): ModulePreviewStatusMessage[] => diagnostics.length > 0
@@ -190,6 +208,8 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   const sessionIdRef = useRef<string | null>(null);
   const sessionDocumentUriRef = useRef<string | null>(null);
   const parameterSessionRevisionRef = useRef(0);
+  const modulePreviewLayoutRef = useRef<HTMLElement>(null);
+  const isResizingParameterSplitRef = useRef(false);
   const nextPreviewRevisionRef = useRef(1);
   const canvasFocusRef = useRef<HTMLDivElement>(null);
   const drawingCanvasRef = useRef<DrawingCanvasHandle>(null);
@@ -201,6 +221,9 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     [webviewPresentation]
   );
   const [preview, setPreview] = useState<ValidModulePreview | null>(null);
+  const [parameterSnapshot, setParameterSnapshot] = useState<VscodeModulePreviewParameterSnapshot | null>(null);
+  const [parameterUnavailable, setParameterUnavailable] = useState<VscodeModulePreviewParametersUnavailable | null>(null);
+  const [parameterSplitPercent, setParameterSplitPercent] = useState(MODULE_PREVIEW_PARAMETER_SPLIT_INITIAL_PERCENT);
   const [ephemeralElements, setEphemeralElements] = useState<CadElement[] | null>(null);
   const ephemeralElementsRef = useRef<CadElement[] | null>(null);
   const dragProofRef = useRef<ModulePreviewDragProof | null>(null);
@@ -245,6 +268,8 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       documentVersion,
       sessionRevision
     });
+    setParameterSnapshot(message);
+    setParameterUnavailable(null);
     api.postMessage(message);
   }, [api]);
 
@@ -259,7 +284,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     const state = automationDocumentRef.current?.getState();
     const sessionRevision = parameterSessionRevisionRef.current + 1;
     parameterSessionRevisionRef.current = sessionRevision;
-    api.postMessage({
+    const message: VscodeModulePreviewParametersUnavailable = {
       type: "modulePreviewParametersUnavailable",
       sessionId,
       documentUri,
@@ -268,7 +293,10 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       sessionRevision,
       targetDefinitionStatementId,
       reason
-    });
+    };
+    setParameterSnapshot(null);
+    setParameterUnavailable(message);
+    api.postMessage(message);
   }, [api, previewSession]);
 
   const evaluationElements = useMemo(
@@ -414,6 +442,26 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       statementInfoByElementId: state.currentCompiled.statementMap?.byElementId
     }, nextStatusMessages);
   }, [applyValidPreview, clearEphemeralPreview, publishParameterSnapshot]);
+
+  const applyParameterValue = useCallback((
+    parameter: VscodeModulePreviewParameter,
+    expression: string
+  ): void => {
+    const next = previewSession.setValue(
+      parameter.definitionStatementId,
+      parameter.parameterIndex,
+      expression
+    );
+    if (next) applySessionSnapshot(next);
+  }, [applySessionSnapshot, previewSession]);
+
+  const applyParameterDefault = useCallback((parameter: VscodeModulePreviewParameter): void => {
+    const result = previewSession.useDefaultExplicitly(
+      parameter.definitionStatementId,
+      parameter.parameterIndex
+    );
+    if (result.state) applySessionSnapshot(result.state);
+  }, [applySessionSnapshot, previewSession]);
 
   const compileTargetAt = useCallback((normalizedSourceOffset: number) => {
     clearEphemeralPreview();
@@ -973,6 +1021,8 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
           clearEphemeralPreview();
           previewRef.current = null;
           setPreview(null);
+          setParameterSnapshot(null);
+          setParameterUnavailable(null);
         }
         sessionIdRef.current = message.sessionId;
         sessionDocumentUriRef.current = message.documentUri;
@@ -1125,6 +1175,67 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       window.removeEventListener("message", onMessage);
     };
   }, [api, applySessionSnapshot, clearEphemeralPreview, clearPendingModelPatch, compileTargetAt, executeModulePreviewBake, executeSharedCanvasCommand, previewSession, publishParameterSnapshot, publishParameterUnavailable, rustTransport]);
+
+  const parameterSplitBounds = useCallback((): { minimum: number; maximum: number } => {
+    const layout = modulePreviewLayoutRef.current;
+    const height = layout?.getBoundingClientRect().height ?? 0;
+    if (height <= 0) return { minimum: 10, maximum: 90 };
+    const separatorPercent = MODULE_PREVIEW_SPLITTER_HEIGHT / height * 100;
+    const minimum = Math.min(50, MODULE_PREVIEW_PARAMETER_MIN_HEIGHT / height * 100);
+    const canvasMinimum = Math.min(50, MODULE_PREVIEW_CANVAS_MIN_HEIGHT / height * 100);
+    return {
+      minimum,
+      maximum: Math.max(minimum, 100 - separatorPercent - canvasMinimum)
+    };
+  }, []);
+
+  const setParameterSplitFromClientY = useCallback((clientY: number): void => {
+    const layout = modulePreviewLayoutRef.current;
+    if (!layout) return;
+    const bounds = layout.getBoundingClientRect();
+    if (bounds.height <= 0) return;
+    const limits = parameterSplitBounds();
+    setParameterSplitPercent(clamp(
+      (clientY - bounds.top) / bounds.height * 100,
+      limits.minimum,
+      limits.maximum
+    ));
+  }, [parameterSplitBounds]);
+
+  const onParameterSplitPointerDown = useCallback((event: ReactPointerEvent<HTMLDivElement>): void => {
+    if (event.button !== 0) return;
+    isResizingParameterSplitRef.current = true;
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    event.preventDefault();
+    setParameterSplitFromClientY(event.clientY);
+  }, [setParameterSplitFromClientY]);
+
+  const onParameterSplitPointerMove = useCallback((event: ReactPointerEvent<HTMLDivElement>): void => {
+    if (!isResizingParameterSplitRef.current) return;
+    setParameterSplitFromClientY(event.clientY);
+  }, [setParameterSplitFromClientY]);
+
+  const endParameterSplitPointerDrag = useCallback((event: ReactPointerEvent<HTMLDivElement>): void => {
+    isResizingParameterSplitRef.current = false;
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  }, []);
+
+  const onParameterSplitKeyDown = useCallback((event: ReactKeyboardEvent<HTMLDivElement>): void => {
+    const direction = event.key === "ArrowUp" ? -1 : event.key === "ArrowDown" ? 1 : 0;
+    if (direction === 0) return;
+    event.preventDefault();
+    const limits = parameterSplitBounds();
+    setParameterSplitPercent((current) => clamp(
+      current + direction * MODULE_PREVIEW_PARAMETER_SPLIT_STEP_PERCENT,
+      limits.minimum,
+      limits.maximum
+    ));
+  }, [parameterSplitBounds]);
+
+  const showParameterRegion = parameterUnavailable !== null ||
+    (parameterSnapshot !== null && modulePreviewParameterCountFor(parameterSnapshot) > 0);
 
   const selectElement = useCallback<CanvasHostAdapter["selectElement"]>((elementId, selectionMode) => {
     const before = canvasSelectionSnapshot();
@@ -1320,60 +1431,103 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   ]);
 
   return (
-    <main className="canvas-workspace" style={{ width: "100vw", height: "100vh", position: "relative" }}>
-      {preview ? (
-        <DrawingCanvas
-          ref={drawingCanvasRef}
-          evaluation={evaluationState.evaluation}
-          evaluationState={evaluationState}
-          canvasFocusRef={canvasFocusRef}
-          hostAdapter={hostAdapter}
-        />
+    <main
+      ref={modulePreviewLayoutRef}
+      className="module-preview-workspace"
+      style={{ width: "100vw", height: "100vh" }}
+    >
+      {showParameterRegion ? (
+        <>
+          <section
+            className="module-preview-parameters-region"
+            data-module-preview-parameters-region="true"
+            style={{ flex: `0 0 ${parameterSplitPercent}%` }}
+          >
+            <ModulePreviewParametersSurface
+              api={api}
+              snapshot={parameterSnapshot}
+              unavailable={parameterUnavailable}
+              onValueChange={applyParameterValue}
+              onUseDefault={applyParameterDefault}
+            />
+          </section>
+          <div
+            className="module-preview-parameters-separator"
+            data-module-preview-parameters-separator="true"
+            role="separator"
+            aria-orientation="horizontal"
+            aria-label="Resize Module Preview parameters"
+            aria-valuemin={10}
+            aria-valuemax={90}
+            aria-valuenow={Math.round(parameterSplitPercent)}
+            tabIndex={0}
+            onKeyDown={onParameterSplitKeyDown}
+            onPointerDown={onParameterSplitPointerDown}
+            onPointerMove={onParameterSplitPointerMove}
+            onPointerUp={endParameterSplitPointerDrag}
+            onPointerCancel={endParameterSplitPointerDrag}
+          />
+        </>
       ) : null}
-      {statusMessages.length > 0 ? (
-        <div
-          role="status"
-          data-module-preview-status="true"
-          style={{
-            position: "absolute",
-            left: 12,
-            bottom: 12,
-            maxWidth: "min(560px, calc(100vw - 24px))",
-            padding: "8px 10px",
-            border: "1px solid var(--vscode-panel-border)",
-            borderRadius: 4,
-            background: "var(--vscode-editorWidget-background)",
-            color: "var(--vscode-editorWidget-foreground)",
-            fontSize: 12,
-            pointerEvents: "none"
-          }}
-        >
-          {statusMessages.map((message, index) => {
-            const rendered = message.kind === "text"
-              ? webviewPresentationTextFor(webviewPresentation, message.key, message.fallback)
-              : message.kind === "diagnostic"
-                ? webviewDiagnosticTextFor(webviewPresentation, message)
-                : message.kind === "inputDiagnostic"
-                  ? webviewInputDiagnosticTextFor(webviewPresentation, message)
-                  : message.message;
-            return <div key={`${index}:${rendered}`}>{rendered}</div>;
-          })}
-        </div>
-      ) : null}
-      {!preview ? (
-        <div
-          data-module-preview-empty="true"
-          style={{
-            position: "absolute",
-            inset: 0,
-            display: "grid",
-            placeItems: "center",
-            color: "var(--vscode-descriptionForeground)"
-          }}
-        >
-          {webviewPresentationTextFor(webviewPresentation, "modulePreview.empty", "No valid Module Preview")}
-        </div>
-      ) : null}
+      <section
+        className="module-preview-canvas-region"
+        data-module-preview-canvas-region="true"
+        style={{ flex: showParameterRegion ? `1 1 ${100 - parameterSplitPercent}%` : "1 1 100%" }}
+      >
+        {preview ? (
+          <DrawingCanvas
+            ref={drawingCanvasRef}
+            evaluation={evaluationState.evaluation}
+            evaluationState={evaluationState}
+            canvasFocusRef={canvasFocusRef}
+            hostAdapter={hostAdapter}
+          />
+        ) : null}
+        {statusMessages.length > 0 ? (
+          <div
+            role="status"
+            data-module-preview-status="true"
+            style={{
+              position: "absolute",
+              left: 12,
+              bottom: 12,
+              maxWidth: "min(560px, calc(100% - 24px))",
+              padding: "8px 10px",
+              border: "1px solid var(--vscode-panel-border)",
+              borderRadius: 4,
+              background: "var(--vscode-editorWidget-background)",
+              color: "var(--vscode-editorWidget-foreground)",
+              fontSize: 12,
+              pointerEvents: "none"
+            }}
+          >
+            {statusMessages.map((message, index) => {
+              const rendered = message.kind === "text"
+                ? webviewPresentationTextFor(webviewPresentation, message.key, message.fallback)
+                : message.kind === "diagnostic"
+                  ? webviewDiagnosticTextFor(webviewPresentation, message)
+                  : message.kind === "inputDiagnostic"
+                    ? webviewInputDiagnosticTextFor(webviewPresentation, message)
+                    : message.message;
+              return <div key={`${index}:${rendered}`}>{rendered}</div>;
+            })}
+          </div>
+        ) : null}
+        {!preview ? (
+          <div
+            data-module-preview-empty="true"
+            style={{
+              position: "absolute",
+              inset: 0,
+              display: "grid",
+              placeItems: "center",
+              color: "var(--vscode-descriptionForeground)"
+            }}
+          >
+            {webviewPresentationTextFor(webviewPresentation, "modulePreview.empty", "No valid Module Preview")}
+          </div>
+        ) : null}
+      </section>
     </main>
   );
 };

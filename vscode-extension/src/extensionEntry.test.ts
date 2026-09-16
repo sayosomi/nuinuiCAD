@@ -1,3 +1,5 @@
+import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("vscode", () => ({
@@ -20,7 +22,6 @@ vi.mock("./mcpObservationBridge", () => ({
 vi.mock("./moduleMultiDocumentHost", () => ({ createVscodeModuleMultiDocumentHost: vi.fn() }));
 vi.mock("./rustEvaluationProcessOwner", () => ({ activeRustEvaluationProcessOwner: vi.fn() }));
 vi.mock("./explorerMockFeature", () => ({ registerExplorerMockFeature: vi.fn() }));
-vi.mock("./modulePreviewParametersFeature", () => ({ registerModulePreviewParametersFeature: vi.fn() }));
 
 import { modulePreviewWebviewHtml } from "./extensionEntry";
 
@@ -36,5 +37,11 @@ describe("Module Preview production HTML shell", () => {
     const html = modulePreviewWebviewHtml(panel as never, { extensionUri: { fsPath: "/extension" } } as never);
 
     expect(html).toContain('<html lang="ja" data-nuinui-surface="modulePreview">');
+  });
+
+  it("does not register a separate Explorer parameter Webview View", async () => {
+    const source = await readFile(resolve(process.cwd(), "vscode-extension/src/extensionEntry.ts"), "utf8");
+    expect(source).not.toContain("modulePreviewParametersFeature");
+    expect(source).not.toContain("registerModulePreviewParametersFeature");
   });
 });

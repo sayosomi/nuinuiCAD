@@ -15,9 +15,6 @@ import type {
   VscodeModulePreviewParameterSnapshot,
   VscodeModulePreviewParametersUnavailable,
   VscodeModulePreviewParameterSetValue,
-  VscodeModulePreviewParameterSetValueRequest,
-  VscodeModulePreviewParameterUseDefault,
-  VscodeModulePreviewParameterUseDefaultRequest,
   VscodeModulePreviewParameterValueBlur,
   VscodeModulePreviewParameterValueFocus,
   VscodeModulePreviewParameterReferencePickStartRequest,
@@ -83,6 +80,7 @@ type ModulePreviewSession = {
   authoritativeDocumentVersion: number | null;
   pendingTarget: ModulePreviewPendingTarget | null;
   retainedParameterMessage: VscodeModulePreviewParameterSnapshot | VscodeModulePreviewParametersUnavailable | null;
+  editableFocusAttachment: WebviewEditableFocusAttachment | null;
   activeReferencePick: {
     request: VscodeModulePreviewReferencePickStartRequest;
     candidateReferenceKeys: Set<string> | null;
@@ -98,7 +96,6 @@ export type ModulePreviewFeature = vscode.Disposable & {
   postCanvasCommandIfActive: (commandId: VscodeCanvasCommandId) => boolean;
   postBakeCommandIfActive: (commandId: VscodeCanvasCommandId, settings: VscodeBakeSettings) => boolean;
   handoffNativeHistoryIfActive: (direction: OutputPreviewHistoryDirection) => boolean;
-  attachParameterView: (webview: vscode.Webview) => vscode.Disposable;
 };
 
 export type RegisterModulePreviewFeatureOptions = {
@@ -128,39 +125,6 @@ const isSupportedNuiDocument = (document: vscode.TextDocument): boolean =>
   document.uri.scheme === "file" && document.fileName.endsWith(".nui");
 
 const documentKey = (document: vscode.TextDocument): string => document.uri.toString();
-
-const isModulePreviewParameterSetValueRequest = (
-  message: unknown
-): message is VscodeModulePreviewParameterSetValueRequest => {
-  if (typeof message !== "object" || message === null) return false;
-  const candidate = message as Partial<VscodeModulePreviewParameterSetValueRequest>;
-  return candidate.type === "modulePreviewParameterSetValue" &&
-    typeof candidate.sessionId === "string" &&
-    typeof candidate.documentUri === "string" &&
-    Number.isInteger(candidate.documentVersion) &&
-    Number.isInteger(candidate.sourceRevision) &&
-    Number.isInteger(candidate.sessionRevision) &&
-    typeof candidate.targetDefinitionStatementId === "string" &&
-    typeof candidate.definitionStatementId === "string" &&
-    Number.isInteger(candidate.parameterIndex) &&
-    typeof candidate.expression === "string";
-};
-
-const isModulePreviewParameterUseDefaultRequest = (
-  message: unknown
-): message is VscodeModulePreviewParameterUseDefaultRequest => {
-  if (typeof message !== "object" || message === null) return false;
-  const candidate = message as Partial<VscodeModulePreviewParameterUseDefaultRequest>;
-  return candidate.type === "modulePreviewParameterUseDefault" &&
-    typeof candidate.sessionId === "string" &&
-    typeof candidate.documentUri === "string" &&
-    Number.isInteger(candidate.documentVersion) &&
-    Number.isInteger(candidate.sourceRevision) &&
-    Number.isInteger(candidate.sessionRevision) &&
-    typeof candidate.targetDefinitionStatementId === "string" &&
-    typeof candidate.definitionStatementId === "string" &&
-    Number.isInteger(candidate.parameterIndex);
-};
 
 const isModulePreviewParameterValueFocus = (
   message: unknown
@@ -251,10 +215,6 @@ const isModulePreviewReferencePickResult = (
   }
   return candidate.status === "canceled" || candidate.status === "stale" || candidate.status === "rejected";
 };
-
-const isModulePreviewParameterViewReady = (message: unknown): boolean =>
-  typeof message === "object" && message !== null &&
-  (message as { type?: unknown }).type === "modulePreviewParametersViewReady";
 
 const isModulePreviewParameterSnapshot = (
   message: unknown
@@ -403,9 +363,6 @@ export const registerModulePreviewFeature = ({
   let contextUpdate: Promise<void> = Promise.resolve();
   let nextSessionGeneration = 1;
   let nextReferencePickRequestId = 1;
-  let parameterWebview: vscode.Webview | null = null;
-  let parameterWebviewDisposable: vscode.Disposable | null = null;
-  let parameterEditableFocusAttachment: WebviewEditableFocusAttachment | null = null;
   let boundParameterSession: ModulePreviewSession | null = null;
   let focusedPreviewValue: VscodeModulePreviewParameterValueFocus | null = null;
   let focusedPreviewContextOwned = false;
@@ -457,13 +414,7 @@ export const registerModulePreviewFeature = ({
     focusedPreviewContextOwned = false;
     pendingSelectionRestoration = null;
     if (wasOwned) setContext(NUI_MODULE_PREVIEW_VALUE_INPUT_FOCUS_CONTEXT, false);
-    parameterEditableFocusAttachment?.setHostFocused(false);
-  };
-
-  const postParameterMessage = (
-    message: ModulePreviewParameterMessage
-  ): void => {
-    if (parameterWebview) void parameterWebview.postMessage(message);
+    boundParameterSession?.editableFocusAttachment?.setHostFocused(false);
   };
 
   const retainParameterMessage = (
@@ -489,16 +440,6 @@ export const registerModulePreviewFeature = ({
       focusedPreviewContextOwned = false;
       setContext(NUI_MODULE_PREVIEW_VALUE_INPUT_FOCUS_CONTEXT, false);
     }
-    if (
-      message.type === "modulePreviewParameterSnapshot" &&
-      focusedPreviewValue &&
-      (focusedPreviewValue.sessionId !== message.sessionId ||
-        focusedPreviewValue.documentUri !== message.documentUri ||
-        focusedPreviewValue.documentVersion !== message.documentVersion ||
-        focusedPreviewValue.sourceRevision !== message.sourceRevision ||
-        focusedPreviewValue.targetDefinitionStatementId !== message.target.definitionStatementId)
-    ) parameterEditableFocusAttachment?.setHostFocused(false);
-    if (boundParameterSession === session) postParameterMessage(message);
     maybeRestorePendingSelection(session, message);
   };
 
@@ -608,16 +549,6 @@ export const registerModulePreviewFeature = ({
     boundParameterSession = null;
     clearFocusedPreviewValue();
     for (const session of sessions.values()) cancelActiveReferencePick(session);
-    postParameterMessage({
-      type: "modulePreviewParametersUnavailable",
-      sessionId: null,
-      documentUri: null,
-      documentVersion: null,
-      sourceRevision: null,
-      sessionRevision: 0,
-      targetDefinitionStatementId: null,
-      reason: "no-session"
-    });
   };
 
   const bindParameterSession = (session: ModulePreviewSession): void => {
@@ -625,7 +556,6 @@ export const registerModulePreviewFeature = ({
     boundParameterSession = session;
     const retained = session.retainedParameterMessage;
     if (retained && isCurrentParameterMessage(session, retained)) {
-      postParameterMessage(retained);
       return;
     }
     const current = currentTargetFor(session);
@@ -773,7 +703,7 @@ export const registerModulePreviewFeature = ({
       focus.selectionEnd > row.value.length
     ) return;
     pendingSelectionRestoration = null;
-    postParameterMessage({
+    void session.panel.webview.postMessage({
       type: "modulePreviewRestoreParameterValueSelection",
       sessionId: message.sessionId,
       documentUri: message.documentUri,
@@ -834,7 +764,7 @@ export const registerModulePreviewFeature = ({
     focusedPreviewValue = message;
     focusedPreviewContextOwned = true;
     setContext(NUI_MODULE_PREVIEW_VALUE_INPUT_FOCUS_CONTEXT, true);
-    parameterEditableFocusAttachment?.setHostFocused(true);
+    session.editableFocusAttachment?.setHostFocused(true);
     maybeRestorePendingSelection(session, snapshot);
     return true;
   };
@@ -874,89 +804,6 @@ export const registerModulePreviewFeature = ({
     const latest = session.retainedParameterMessage;
     if (latest && message.sessionRevision <= latest.sessionRevision) return false;
     retainParameterMessage(session, message);
-    return true;
-  };
-
-  const forwardParameterSetValue = (
-    message: VscodeModulePreviewParameterSetValueRequest | VscodeModulePreviewParameterSetValue
-  ): boolean => {
-    const session = boundParameterSession;
-    const snapshot = session ? currentParameterSnapshot(session) : null;
-    if (!session || !snapshot) return false;
-    if (
-      message.sessionId !== session.sessionId ||
-      message.documentUri !== session.documentUri ||
-      message.documentVersion !== session.document.version ||
-      message.sourceRevision !== snapshot.sourceRevision ||
-      !Number.isInteger(message.sessionRevision) ||
-      message.sessionRevision < 1 ||
-      message.sessionRevision > snapshot.sessionRevision ||
-      message.targetDefinitionStatementId !== snapshot.target.definitionStatementId ||
-      session.authoritativeDocumentVersion !== session.document.version
-    ) return false;
-    if (!currentParameterSnapshotIsCurrent(session, snapshot)) return false;
-    if (!parameterRowFor(snapshot, message.definitionStatementId, message.parameterIndex)) return false;
-    void session.panel.webview.postMessage({
-      type: "modulePreviewSetValue",
-      sessionId: message.sessionId,
-      documentUri: message.documentUri,
-      documentVersion: message.documentVersion,
-      sourceRevision: message.sourceRevision,
-      sessionRevision: message.sessionRevision,
-      targetDefinitionStatementId: message.targetDefinitionStatementId,
-      definitionStatementId: message.definitionStatementId,
-      parameterIndex: message.parameterIndex,
-      expression: message.expression
-    } satisfies ExtensionToVscodeMessage);
-    return true;
-  };
-
-  const forwardParameterAction = (
-    message: VscodeModulePreviewParameterSetValueRequest | VscodeModulePreviewParameterUseDefaultRequest
-  ): boolean => {
-    if (message.type === "modulePreviewParameterSetValue") return forwardParameterSetValue(message);
-    const session = boundParameterSession;
-    const snapshot = session ? currentParameterSnapshot(session) : null;
-    if (!session || !snapshot) return false;
-    if (
-      message.sessionId !== session.sessionId ||
-      message.documentUri !== session.documentUri ||
-      message.documentVersion !== session.document.version ||
-      message.sourceRevision !== snapshot.sourceRevision ||
-      !Number.isInteger(message.sessionRevision) ||
-      message.sessionRevision < 1 ||
-      message.sessionRevision > snapshot.sessionRevision ||
-      message.targetDefinitionStatementId !== snapshot.target.definitionStatementId ||
-      session.authoritativeDocumentVersion !== session.document.version
-    ) return false;
-    if (!currentParameterSnapshotIsCurrent(session, snapshot)) return false;
-    const row = parameterRowFor(snapshot, message.definitionStatementId, message.parameterIndex);
-    if (!row || (message.type === "modulePreviewParameterUseDefault" && row.defaultSourceText === null)) return false;
-    const forwarded: VscodeModulePreviewParameterSetValue | VscodeModulePreviewParameterUseDefault = message.type === "modulePreviewParameterSetValue"
-      ? {
-          type: "modulePreviewSetValue",
-          sessionId: message.sessionId,
-          documentUri: message.documentUri,
-          documentVersion: message.documentVersion,
-          sourceRevision: message.sourceRevision,
-          sessionRevision: message.sessionRevision,
-          targetDefinitionStatementId: message.targetDefinitionStatementId,
-          definitionStatementId: message.definitionStatementId,
-          parameterIndex: message.parameterIndex,
-          expression: message.expression
-        }
-      : {
-          type: "modulePreviewUseDefault",
-          sessionId: message.sessionId,
-          documentUri: message.documentUri,
-          documentVersion: message.documentVersion,
-          sourceRevision: message.sourceRevision,
-          sessionRevision: message.sessionRevision,
-          targetDefinitionStatementId: message.targetDefinitionStatementId,
-          definitionStatementId: message.definitionStatementId,
-          parameterIndex: message.parameterIndex
-        };
-    void session.panel.webview.postMessage(forwarded satisfies ExtensionToVscodeMessage);
     return true;
   };
 
@@ -1122,7 +969,7 @@ export const registerModulePreviewFeature = ({
       parameterIndex: focus.parameterIndex,
       expression: result.expression
     };
-    if (!forwardParameterSetValue(forwarded)) pendingSelectionRestoration = null;
+    void session.panel.webview.postMessage(forwarded satisfies ExtensionToVscodeMessage);
     return true;
   };
 
@@ -1351,6 +1198,7 @@ export const registerModulePreviewFeature = ({
         normalizedSourceOffset: target.normalizedSourceOffset
       },
       retainedParameterMessage: null,
+      editableFocusAttachment: null,
       activeReferencePick: null,
       disposables: []
     };
@@ -1387,6 +1235,18 @@ export const registerModulePreviewFeature = ({
       }
       if (isModulePreviewReferencePickResult(message)) {
         handleReferencePickResult(session, message);
+        return;
+      }
+      if (isModulePreviewParameterReferencePickStart(message)) {
+        startParameterReferencePick(message);
+        return;
+      }
+      if (isModulePreviewParameterValueFocus(message)) {
+        acceptParameterValueFocus(message);
+        return;
+      }
+      if (isModulePreviewParameterValueBlur(message)) {
+        acceptParameterValueBlur(message);
         return;
       }
       if (message.type === "webviewReady") {
@@ -1449,6 +1309,7 @@ export const registerModulePreviewFeature = ({
       bindParameterSession(session);
     }));
     const editableFocusAttachment = attachWebviewEditableFocus?.(panel.webview);
+    session.editableFocusAttachment = editableFocusAttachment ?? null;
     if (editableFocusAttachment) session.disposables.push(editableFocusAttachment);
     session.disposables.push(panel.onDidDispose(() => disposeSession(session)));
     panel.webview.html = webviewHtml(panel);
@@ -1539,75 +1400,11 @@ export const registerModulePreviewFeature = ({
       return true;
     },
     handoffNativeHistoryIfActive,
-    attachParameterView: (webview) => {
-      parameterWebviewDisposable?.dispose();
-      parameterWebview = webview;
-      parameterEditableFocusAttachment = attachWebviewEditableFocus?.(webview) ?? null;
-      if (boundParameterSession) {
-        const retained = boundParameterSession.retainedParameterMessage;
-        if (retained && isCurrentParameterMessage(boundParameterSession, retained)) {
-          void webview.postMessage(retained);
-        } else {
-          bindParameterSession(boundParameterSession);
-        }
-      } else {
-        clearParameterBinding();
-      }
-      const messageDisposable = webview.onDidReceiveMessage((message: unknown) => {
-        if (isModulePreviewParameterViewReady(message)) {
-          void webview.postMessage({
-            type: "webviewPresentation",
-            presentation: webviewPresentationFor(displayLanguageFor())
-          } satisfies ExtensionToVscodeMessage);
-          if (boundParameterSession) {
-            const retained = boundParameterSession.retainedParameterMessage;
-            if (retained && isCurrentParameterMessage(boundParameterSession, retained)) {
-              void webview.postMessage(retained);
-            } else {
-              bindParameterSession(boundParameterSession);
-            }
-          } else {
-            clearParameterBinding();
-          }
-          return;
-        }
-        if (isModulePreviewParameterSetValueRequest(message) || isModulePreviewParameterUseDefaultRequest(message)) {
-          forwardParameterAction(message);
-          return;
-        }
-        if (isModulePreviewParameterReferencePickStart(message)) {
-          startParameterReferencePick(message);
-          return;
-        }
-        if (isModulePreviewParameterValueFocus(message)) {
-          acceptParameterValueFocus(message);
-          return;
-        }
-        if (isModulePreviewParameterValueBlur(message)) {
-          acceptParameterValueBlur(message);
-        }
-      });
-      const focusAttachment = parameterEditableFocusAttachment;
-      const attached = {
-        dispose: () => {
-          if (parameterEditableFocusAttachment === focusAttachment) clearFocusedPreviewValue();
-          messageDisposable.dispose();
-          if (boundParameterSession) cancelActiveReferencePick(boundParameterSession);
-          focusAttachment?.dispose();
-          if (parameterWebview === webview) parameterWebview = null;
-          if (parameterEditableFocusAttachment === focusAttachment) parameterEditableFocusAttachment = null;
-          if (parameterWebviewDisposable === attached) parameterWebviewDisposable = null;
-        }
-      } satisfies vscode.Disposable;
-      parameterWebviewDisposable = attached;
-      return attached;
-    },
     dispose: () => {
       setSourceTargetContext(false);
       clearFocusedPreviewValue();
       for (const session of [...sessions.values()]) session.panel.dispose();
       if (boundParameterSession) clearParameterBinding();
-      parameterWebviewDisposable?.dispose();
       for (const disposable of disposables.splice(0)) disposable.dispose();
       sessions.clear();
     }
