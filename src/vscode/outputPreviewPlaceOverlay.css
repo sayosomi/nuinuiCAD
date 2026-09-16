@@ -12,7 +12,7 @@
 }
 
 .output-preview-place-axis-guides line {
-  stroke: var(--canvas-accent, var(--vscode-focusBorder, #0f766e));
+  stroke: var(--canvas-accent);
   stroke-width: 1;
   stroke-dasharray: 7 5;
   opacity: 0.78;
