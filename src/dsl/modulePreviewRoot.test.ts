@@ -6,6 +6,7 @@ import { compileDslDocument, type CompiledDslDocument } from "@nuinuicad/nui-lan
 import { parseDslSnapshot } from "@nuinuicad/nui-language";
 import { compileModulePreviewRoot, modulePreviewSyntheticCallSource } from "./modulePreviewRoot";
 import { queryModulePreviewTarget } from "./modulePreviewTarget";
+import { modulePreviewAggregateSource } from "./__fixtures__/modulePreviewAggregate";
 
 const compileWithIds = (source: string, sourceRevision = 41): CompiledDslDocument => {
   const parsed = parseDslSnapshot({ normalizedSource: source, sourceRevision });
@@ -469,5 +470,89 @@ describe("compileModulePreviewRoot", () => {
     });
     expect(result).not.toBeNull();
     expect(result?.targetRuntimeElementIds.length).toBeGreaterThan(1);
+  });
+
+  it("keeps an aggregate document's Alternate and PreviewTarget roots independent", () => {
+    const source = modulePreviewAggregateSource;
+    const compiled = compileWithIds(source);
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(compiled.document).not.toBeNull();
+    expect(compiled.moduleSemanticAnalysis?.instances.map((instance) => instance.callee?.name)).toEqual([
+      "Inner",
+      "Alternate",
+      "PreviewTarget",
+      "Outer",
+      "Outer"
+    ]);
+
+    const alternateTarget = targetAt(source, compiled, "module Alternate");
+    const previewTarget = targetAt(source, compiled, "module PreviewTarget");
+    expect(alternateTarget?.name).toBe("Alternate");
+    expect(previewTarget?.name).toBe("PreviewTarget");
+    if (!alternateTarget || !previewTarget) throw new Error("expected aggregate preview targets");
+
+    const alternate = compileModulePreviewRoot({
+      source: { normalizedSource: source, sourceRevision: 41 },
+      semantic: { sourceRevision: 41, compiled },
+      target: alternateTarget
+    });
+    expect(alternate).not.toBeNull();
+    if (!alternate) throw new Error("expected aggregate Alternate preview");
+    expect(alternate.moduleSemanticAnalysis.instances.find((instance) =>
+      instance.statementId.startsWith("module-preview-call:")
+    )?.parameterBindings).toEqual([
+      expect.objectContaining({ parameterName: "size", state: "defaulted" })
+    ]);
+    const alternateEnd = alternate.compileResult.elements.find((element) =>
+      element.name === "AltEnd" && alternate.targetRuntimeElementIds.includes(element.id)
+    );
+    expect(alternateEnd).toBeDefined();
+    expect(evaluatePreview(alternate).computedGeometry.get(alternateEnd!.id)).toMatchObject({
+      kind: "point",
+      x: 30,
+      y: 30
+    });
+
+    const explicitAlternate = compileModulePreviewRoot({
+      source: { normalizedSource: source, sourceRevision: 41 },
+      semantic: { sourceRevision: 41, compiled },
+      target: alternateTarget,
+      arguments: [{ name: "size", expression: "30" }]
+    });
+    expect(explicitAlternate).not.toBeNull();
+
+    const preview = compileModulePreviewRoot({
+      source: { normalizedSource: source, sourceRevision: 41 },
+      semantic: { sourceRevision: 41, compiled },
+      target: previewTarget,
+      arguments: [
+        { name: "width", expression: "45" },
+        { name: "anchor", expression: "@RootA" },
+        { name: "edge", expression: "@RootLine" },
+        { name: "guide", expression: "@RootCurve" }
+      ]
+    });
+    expect(preview).not.toBeNull();
+    if (!preview) throw new Error("expected aggregate PreviewTarget preview");
+    const previewInstance = preview.moduleSemanticAnalysis.instances.find((instance) =>
+      instance.statementId.startsWith("module-preview-call:")
+    );
+    expect(previewInstance?.parameterBindings.map((binding) => [binding.parameterName, binding.state])).toEqual([
+      ["width", "supplied"],
+      ["anchor", "supplied"],
+      ["edge", "supplied"],
+      ["guide", "supplied"],
+      ["label", "defaulted"],
+      ["note", "omitted"]
+    ]);
+    const previewPoint = preview.compileResult.elements.find((element) =>
+      element.name === "PreviewPoint" && preview.targetRuntimeElementIds.includes(element.id)
+    );
+    expect(previewPoint).toBeDefined();
+    expect(evaluatePreview(preview).computedGeometry.get(previewPoint!.id)).toMatchObject({
+      kind: "point",
+      x: 60,
+      y: 20
+    });
   });
 });
