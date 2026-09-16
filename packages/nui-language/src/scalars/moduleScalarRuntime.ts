@@ -4181,7 +4181,16 @@ export const compileModuleScalarRuntime = ({
   }
 
   const documentReferences = (documentBindingAnalysis?.initializerReferences ?? []).map((reference) => remapDocumentReference(reference, bindingsById));
-  const combinedReferences = [...documentReferences, ...foreignReferences, ...moduleReferences];
+  // A compiled aggregate document may already include module-runtime references.
+  // Preview lowers those bindings again for its ephemeral synthetic instances;
+  // keep the fresh lowering for any binding it owns rather than adding duplicate
+  // occurrence indexes to the rebuilt graph.
+  const moduleReferenceBindingIds = new Set(moduleReferences.map((reference) => reference.fromBindingId));
+  const combinedReferences = [
+    ...documentReferences.filter((reference) => !moduleReferenceBindingIds.has(reference.fromBindingId)),
+    ...foreignReferences,
+    ...moduleReferences
+  ];
   const combinedAnalysis = analyzeBindings({
     catalog: combinedCatalog,
     initializerReferences: combinedReferences,
