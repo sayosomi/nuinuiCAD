@@ -6,6 +6,7 @@ import {
   type ModulePreviewSessionSnapshot
 } from "./modulePreviewState";
 import { queryModulePreviewTarget } from "./modulePreviewTarget";
+import { modulePreviewAggregateSource } from "./__fixtures__/modulePreviewAggregate";
 
 const compileWithIds = (source: string, sourceRevision = 41): CompiledDslDocument => {
   const parsed = parseDslSnapshot({ normalizedSource: source, sourceRevision });
@@ -39,6 +40,55 @@ const previewBindingStates = (
 };
 
 describe("createModulePreviewSession", () => {
+  it("keeps aggregate Module roots independent across omitted defaults and supplied arguments", () => {
+    const source = modulePreviewAggregateSource;
+    const compiled = compileWithIds(source);
+    const alternateTarget = targetAt(source, compiled, "module Alternate");
+    const previewTarget = targetAt(source, compiled, "module PreviewTarget");
+    expect(alternateTarget?.name).toBe("Alternate");
+    expect(previewTarget?.name).toBe("PreviewTarget");
+    if (!alternateTarget || !previewTarget) throw new Error("expected aggregate preview targets");
+
+    const session = createModulePreviewSession();
+    let state = session.activate({
+      source: { normalizedSource: source, sourceRevision: 41 },
+      semantic: { sourceRevision: 41, compiled },
+      target: alternateTarget
+    });
+    expect(state?.preview.kind).toBe("current");
+    expect(targetParameter(state!, "size")?.value).toBe("");
+    expect(previewBindingStates(state!, alternateTarget.definitionStatementId)).toEqual([
+      ["size", "defaulted"]
+    ]);
+
+    const defaultAction = session.useDefaultExplicitly(alternateTarget.definitionStatementId, 0);
+    expect(defaultAction.applied).toBe(true);
+    expect(targetParameter(defaultAction.state!, "size")?.value).toBe("30");
+
+    state = session.activate({
+      source: { normalizedSource: source, sourceRevision: 41 },
+      semantic: { sourceRevision: 41, compiled },
+      target: previewTarget
+    });
+    expect(state?.preview.kind).toBe("noValidPreview");
+    session.setValue(previewTarget.definitionStatementId, 0, "45");
+    session.setValue(previewTarget.definitionStatementId, 1, "@RootA");
+    session.setValue(previewTarget.definitionStatementId, 2, "@RootLine");
+    state = session.setValue(previewTarget.definitionStatementId, 3, "@RootCurve");
+    expect(state?.preview.kind).toBe("current");
+    expect(previewBindingStates(state!, previewTarget.definitionStatementId)).toEqual([
+      ["width", "supplied"],
+      ["anchor", "supplied"],
+      ["edge", "supplied"],
+      ["guide", "supplied"],
+      ["label", "defaulted"],
+      ["note", "omitted"]
+    ]);
+    expect(targetParameter(state!, "label")?.value).toBe("");
+    expect(targetParameter(state!, "note")?.value).toBe("");
+    expect(source).toBe(modulePreviewAggregateSource);
+  });
+
   it("activates a default-only Module without materializing a Preview value", () => {
     const source = [
       "nui 1",

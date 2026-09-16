@@ -100,6 +100,7 @@ import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import { sourceOwnerForRuntimeElementId } from "@nuinuicad/nui-language";
 import { VscodeRustTransport } from "./vscodeRustTransport";
+import { modulePreviewAggregateSource } from "../dsl/__fixtures__/modulePreviewAggregate";
 
 const target: ModulePreviewTarget = {
   definitionStatementId: "module:preview",
@@ -600,6 +601,77 @@ describe("ModulePreviewApp parameter relay", () => {
     );
     expect(syntheticCall?.kind).toBe("moduleInstance");
     expect(syntheticCall?.kind === "moduleInstance" ? syntheticCall.arguments : []).toHaveLength(0);
+    expect(fixture.document.getSource()).toBe(sourceText);
+  });
+
+  it("renders an aggregate Module Preview root through the live session boundary", async () => {
+    const sourceText = modulePreviewAggregateSource;
+    const fixture = previewFixtureFor(sourceText, "Alternate");
+    const actual = await vi.importActual<typeof import("../dsl/modulePreviewState")>("../dsl/modulePreviewState");
+    const liveSession = actual.createModulePreviewSession();
+    mocks.session.activate.mockImplementation((input) => liveSession.activate(input));
+    mocks.session.getState.mockImplementation(() => liveSession.getState());
+    mocks.queryModulePreviewTarget.mockReturnValue(fixture.root.target);
+    mocks.evaluationState = {
+      evaluation: fixture.evaluation,
+      evaluationRevision: 1,
+      evaluationRequestRevision: 1,
+      mode: "reference",
+      source: "reference",
+      status: "ready",
+      rustEligible: false,
+      isStale: false,
+      error: null
+    };
+    vi.spyOn(AutomationDocument, "fromSource").mockReturnValue(fixture.document);
+    render(<ModulePreviewApp api={{ postMessage: mocks.postMessage }} />);
+
+    act(() => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "modulePreviewSession", sessionId: "module-preview-session:1", documentUri: "file:///pattern.nui" }
+      }));
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText, documentVersion: 1 }
+      }));
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "modulePreviewTarget", documentVersion: 1, normalizedSourceOffset: sourceText.indexOf("module Alternate") }
+      }));
+    });
+
+    const parameterSnapshot = mocks.postMessage.mock.calls
+      .map(([message]) => message)
+      .filter((message) => message?.type === "modulePreviewParameterSnapshot")
+      .at(-1);
+    expect(parameterSnapshot).toMatchObject({
+      previewStatus: "current",
+      parameters: {
+        name: "Alternate",
+        parameters: [expect.objectContaining({
+          name: "size",
+          defaultSourceText: "30",
+          value: "",
+          diagnostic: null
+        })]
+      },
+      inputDiagnostics: []
+    });
+
+    const state = mocks.session.getState() as ModulePreviewSessionSnapshot | null;
+    expect(state?.preview.kind).toBe("current");
+    if (!state || state.preview.kind !== "current") throw new Error("expected current Module Preview state");
+    const liveRoot = state.preview.result;
+    const liveEnd = liveRoot.compileResult.elements.find((element) =>
+      element.name === "AltEnd" && liveRoot.targetRuntimeElementIds.includes(element.id)
+    );
+    expect(liveEnd).toBeDefined();
+    expect(fixture.evaluation.computedGeometry.get(liveEnd!.id)).toMatchObject({
+      kind: "point",
+      x: 30,
+      y: 30
+    });
+    expect((mocks.hostAdapter as CanvasHostAdapter | null)?.elements).toEqual(
+      expect.arrayContaining([expect.objectContaining({ name: "AltEnd" })])
+    );
     expect(fixture.document.getSource()).toBe(sourceText);
   });
 
