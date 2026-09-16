@@ -1528,6 +1528,41 @@ describe("VS Code production document lifecycle", () => {
     expect(panel.webview.postMessage).not.toHaveBeenCalledWith({ type: "outputPreviewFit" });
   });
 
+  it("routes Reset through the last active Output Preview session during a transient inactive panel state", async () => {
+    const documentA = documentFor("/tmp/a.nui", "file:///tmp/a.nui");
+    const documentB = documentFor("/tmp/b.nui", "file:///tmp/b.nui");
+    const editorA = editorFor(documentA);
+    const editorB = editorFor(documentB);
+    setup(false, editorA, [documentA, documentB]);
+    const previewA = openOutputPreviewPanelFor(editorA);
+    const previewB = openOutputPreviewPanelFor(editorB);
+
+    previewA.active = false;
+    previewB.active = true;
+    mocks.activeTabInput = new mocks.TabInputWebview("mainThreadWebview-nuinuiCAD.outputPreview");
+    (previewB as TestPanel & { viewStateHandler: () => void }).viewStateHandler();
+    await messageHandlerFor(previewB)({ type: "webviewReady" });
+    previewB.active = false;
+    previewA.webview.postMessage.mockClear();
+    previewB.webview.postMessage.mockClear();
+
+    commandHandlerFor("nuinuiCAD.resetOutputPreviewView")?.();
+
+    expect(previewB.webview.postMessage).toHaveBeenCalledWith({ type: "outputPreviewResetView" });
+    expect(previewA.webview.postMessage).not.toHaveBeenCalledWith({ type: "outputPreviewResetView" });
+  });
+
+  it("does not route Reset to an inactive session when another surface is active", () => {
+    setup();
+    const panel = openOutputPreviewPanelFor();
+    panel.webview.postMessage.mockClear();
+    mocks.activeTabInput = new mocks.TabInputWebview("unrelated.webview");
+
+    commandHandlerFor("nuinuiCAD.resetOutputPreviewView")?.();
+
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith({ type: "outputPreviewResetView" });
+  });
+
   it("routes Clear Output Preview Focus through the active Preview session", async () => {
     setup();
     const panel = openOutputPreviewPanelFor();

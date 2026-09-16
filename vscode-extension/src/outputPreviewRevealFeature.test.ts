@@ -63,6 +63,7 @@ const source = "nui 1\nline A = segment(start: (0, 0), end: (10, 0))";
 const createPanel = () => {
   const messageListeners: Array<(message: unknown) => void> = [];
   const disposeListeners: Array<() => void> = [];
+  const viewStateListeners: Array<() => void> = [];
   const panel = {
     active: false,
     visible: true,
@@ -74,6 +75,10 @@ const createPanel = () => {
         messageListeners.push(listener);
         return disposableFor(() => removeListener(messageListeners, listener));
       }
+    },
+    onDidChangeViewState: (listener: () => void) => {
+      viewStateListeners.push(listener);
+      return disposableFor(() => removeListener(viewStateListeners, listener));
     },
     onDidDispose: (listener: () => void) => {
       disposeListeners.push(listener);
