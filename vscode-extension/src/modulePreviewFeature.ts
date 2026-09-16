@@ -821,12 +821,15 @@ export const registerModulePreviewFeature = ({
     const session = boundParameterSession;
     const snapshot = session ? currentParameterSnapshot(session) : null;
     const focus = focusedPreviewValue;
+    const focusMatch = session && snapshot && focus
+      ? focusedPreviewValueMatches(session, snapshot, focus, true)
+      : null;
     if (
       !session ||
       !snapshot ||
       !focus ||
+      !focusMatch ||
       request.completionGeneration <= session.latestCompletionGeneration ||
-      !focusedPreviewValueMatches(session, snapshot, focus, false) ||
       !sameFocusedPreviewBinding(focus, request) ||
       focus.sessionRevision !== request.sessionRevision ||
       focus.focusGeneration !== request.focusGeneration ||
@@ -836,7 +839,7 @@ export const registerModulePreviewFeature = ({
     ) return false;
 
     const row = parameterRowFor(snapshot, request.definitionStatementId, request.parameterIndex);
-    if (!row || !currentParameterSnapshotIsCurrent(session, snapshot)) return false;
+    if (!row || row.value !== request.value || !currentParameterSnapshotIsCurrent(session, snapshot)) return false;
     const { source, semantic } = sourceContextFor(session);
     const currentTarget = currentModulePreviewTargetByIdentity({
       source,
