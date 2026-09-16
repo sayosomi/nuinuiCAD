@@ -121,8 +121,7 @@ export type { VscodeWebviewLocale, VscodeWebviewPresentation } from "./webviewPr
 export const vscodeWebviewSurfaceKinds = [
   "canvas",
   "outputPreview",
-  "modulePreview",
-  "explorerMock"
+  "modulePreview"
 ] as const;
 export type VscodeWebviewSurfaceKind = (typeof vscodeWebviewSurfaceKinds)[number];
 

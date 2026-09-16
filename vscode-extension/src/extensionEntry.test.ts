@@ -21,7 +21,6 @@ vi.mock("./mcpObservationBridge", () => ({
 }));
 vi.mock("./moduleMultiDocumentHost", () => ({ createVscodeModuleMultiDocumentHost: vi.fn() }));
 vi.mock("./rustEvaluationProcessOwner", () => ({ activeRustEvaluationProcessOwner: vi.fn() }));
-vi.mock("./explorerMockFeature", () => ({ registerExplorerMockFeature: vi.fn() }));
 
 import { modulePreviewWebviewHtml } from "./extensionEntry";
 
