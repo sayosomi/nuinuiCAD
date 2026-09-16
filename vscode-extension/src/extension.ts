@@ -1977,6 +1977,7 @@ export const activate = (
       ) return { accepted: false, retryable: true } satisfies CanvasNavigationHandoffResult;
       const requestId = nextNavigationRequestId++;
       session.pendingCanvasNavigation = {
+        type: "canvasNavigationRequest",
         requestId,
         documentVersion: session.document.version,
         normalizedSourceOffset
