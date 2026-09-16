@@ -400,6 +400,19 @@ const conflictForDeterministicModuleName = (
     : null;
 };
 
+const initialExtractModuleNamesFor = (
+  exact: ExactSourceState,
+  targets: readonly StatementIdentity[]
+): { instanceName: string; moduleName: string } => {
+  for (let suffix = 1; ; suffix += 1) {
+    const instanceName = suffix === 1 ? "Extracted" : `Extracted${suffix}`;
+    const moduleName = `${instanceName}Module`;
+    if (!conflictForDeterministicModuleName(exact, targets, moduleName, instanceName)) {
+      return { instanceName, moduleName };
+    }
+  }
+};
+
 const presentPlannerRejection = (result: ExtractModulePlanResult, displayLanguage: string): void => {
   if (result.status === "rejected") {
     void vscode.window.showErrorMessage(`nuinuiCAD: ${extractModuleRejectionMessageFor(result, displayLanguage)}`);
@@ -534,9 +547,11 @@ export const registerVscodeExtractModuleCommandFeature = ({
     const capturedVersion = capturedDocument.version;
     const capturedRawSource = capturedDocument.getText();
     const capturedSelection = origin === "source" ? selectionFor(editor) : null;
+    const initialNames = initialExtractModuleNamesFor(exact, targets);
     const acceptedInstanceName = await nativeShowInputBox({
       title: extractModuleTranslatorFor(displayLanguage)("extractModule.input.instanceName"),
       prompt: extractModuleTranslatorFor(displayLanguage)("extractModule.input.instanceName"),
+      value: initialNames.instanceName,
       validateInput: (value) => nameValidationFor(exact, targets, value.trim(), "instance", displayLanguage)
     });
     if (acceptedInstanceName === undefined) return;
