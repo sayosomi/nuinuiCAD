@@ -6,7 +6,6 @@ import {
 import { queryModulePreviewTarget } from "../../src/dsl/modulePreviewTarget";
 import type {
   VscodeModulePreviewModelPatchRequest,
-  VscodeModulePreviewParameterSetValueRequest,
   VscodeModulePreviewParameterSnapshot,
   VscodeModulePreviewParameterValueFocus,
   VscodeToExtensionMessage
@@ -272,22 +271,11 @@ const createPanel = (options: {
   return panel;
 };
 
-const createParameterWebview = (): TestParameterWebview => {
-  const receiveHandlers: Array<(message: unknown) => unknown> = [];
-  return {
-    postMessage: vi.fn(async () => true),
-    onDidReceiveMessage: vi.fn((handler: (message: unknown) => unknown) => {
-      receiveHandlers.push(handler);
-      return { dispose: () => {
-        const index = receiveHandlers.indexOf(handler);
-        if (index >= 0) receiveHandlers.splice(index, 1);
-      } };
-    }),
-    receive: async (message) => {
-      for (const handler of [...receiveHandlers]) await handler(message);
-    }
-  };
-};
+const panelParameterWebview = (panel: TestPanel & { receive: (message: unknown) => Promise<void> }): TestParameterWebview => ({
+  postMessage: panel.webview.postMessage,
+  onDidReceiveMessage: panel.webview.onDidReceiveMessage,
+  receive: panel.receive
+});
 
 const flushContext = async () => {
   await Promise.resolve();
@@ -349,7 +337,18 @@ const parameterSetValueFor = (
   snapshot: VscodeModulePreviewParameterSnapshot,
   expression: string,
   parameterIndex = 0
-): VscodeModulePreviewParameterSetValueRequest => ({
+): {
+  type: "modulePreviewParameterSetValue";
+  sessionId: string;
+  documentUri: string;
+  documentVersion: number;
+  sourceRevision: number;
+  sessionRevision: number;
+  targetDefinitionStatementId: string;
+  definitionStatementId: string;
+  parameterIndex: number;
+  expression: string;
+} => ({
   ...parameterActionProofFor(snapshot, parameterIndex),
   type: "modulePreviewParameterSetValue",
   expression
@@ -745,13 +744,7 @@ describe("registerModulePreviewFeature", () => {
       evaluateWithRust: async () => ({}),
       displayLanguageFor: () => "ja-JP"
     });
-    const parameterView = createParameterWebview();
-    feature.attachParameterView(parameterView as never);
-    await parameterView.receive({ type: "modulePreviewParametersViewReady" });
-    expect(parameterView.postMessage).toHaveBeenCalledWith(expect.objectContaining({
-      type: "webviewPresentation",
-      presentation: expect.objectContaining({ locale: "ja" })
-    }));
+    const parameterView = panelParameterWebview(panel);
     mocks.commandHandlers.get("nuinuiCAD.openModulePreview")!();
     expect(mocks.createWebviewPanel).toHaveBeenCalledWith(
       NUI_MODULE_PREVIEW_VIEW_TYPE,
@@ -873,8 +866,7 @@ describe("registerModulePreviewFeature", () => {
       editCanvasRibbon: () => undefined,
       evaluateWithRust: async () => ({})
     });
-    const parameterView = createParameterWebview();
-    feature.attachParameterView(parameterView as never);
+    const parameterView = panelParameterWebview(panel);
     mocks.commandHandlers.get("nuinuiCAD.openModulePreview")!();
     await panel.receive({ type: "webviewReady" });
     await panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
@@ -982,9 +974,7 @@ describe("registerModulePreviewFeature", () => {
       editCanvasRibbon: () => undefined,
       evaluateWithRust
     });
-    const parameterView = createParameterWebview();
-    feature.attachParameterView(parameterView as never);
-    await parameterView.receive({ type: "modulePreviewParametersViewReady" });
+    const parameterView = panelParameterWebview(panel);
     const open = mocks.commandHandlers.get("nuinuiCAD.openModulePreview");
     expect(open).toBeDefined();
     open!();
@@ -1032,12 +1022,7 @@ describe("registerModulePreviewFeature", () => {
       .find((message) => message.type === "modulePreviewReferencePickStartRequest");
     if (!firstStart?.requestId) throw new Error("expected initial Preview picker");
 
-    const replacementParameterView = createParameterWebview();
-    feature.attachParameterView(replacementParameterView as never);
-    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
-      type: "modulePreviewReferencePickCancelRequest",
-      requestId: firstStart.requestId
-    }));
+    const replacementParameterView = panelParameterWebview(panel);
     await replacementParameterView.receive({
       type: "modulePreviewParameterReferencePickStart",
       sessionId: outerSnapshot.sessionId,
@@ -1049,6 +1034,10 @@ describe("registerModulePreviewFeature", () => {
       definitionStatementId: outerSnapshot.target.definitionStatementId,
       parameterIndex: 0
     });
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewReferencePickCancelRequest",
+      requestId: firstStart.requestId
+    }));
     const secondStart = panel.webview.postMessage.mock.calls
       .map(([message]) => message as { type?: string; requestId?: number })
       .reverse()
@@ -1414,9 +1403,7 @@ describe("registerModulePreviewFeature", () => {
       editCanvasRibbon: () => undefined,
       evaluateWithRust: async () => ({})
     });
-    const parameterView = createParameterWebview();
-    feature.attachParameterView(parameterView as never);
-    await parameterView.receive({ type: "modulePreviewParametersViewReady" });
+    const parameterView = panelParameterWebview(panel);
     mocks.commandHandlers.get("nuinuiCAD.openModulePreview")!();
     await panel.receive({ type: "webviewReady" });
     await panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
@@ -1623,9 +1610,7 @@ describe("registerModulePreviewFeature", () => {
       evaluateWithRust: async () => ({}),
       attachWebviewEditableFocus: focusContext.attach
     });
-    const parameterView = createParameterWebview();
-    const parameterAttachment = feature.attachParameterView(parameterView as never);
-    await parameterView.receive({ type: "modulePreviewParametersViewReady" });
+    const parameterView = panelParameterWebview(panel);
     mocks.commandHandlers.get("nuinuiCAD.openModulePreview")!();
     await panel.receive({ type: "webviewReady" });
     await panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
@@ -1676,12 +1661,11 @@ describe("registerModulePreviewFeature", () => {
       false
     );
 
-    parameterAttachment.dispose();
     panel.fireDispose();
     feature.dispose();
   });
 
-  it("accepts exact-current Parameter View proofs across independent Preview and analysis revisions", async () => {
+  it("accepts exact-current integrated parameter proofs across independent Preview and analysis revisions", async () => {
     const source = [
       "nui 1",
       "point Top = coordinate(x: 0, y: 0)",
@@ -1706,7 +1690,7 @@ describe("registerModulePreviewFeature", () => {
       editCanvasRibbon: () => undefined,
       evaluateWithRust: async () => ({})
     });
-    const parameterView = createParameterWebview();
+    const parameterView = panelParameterWebview(panel);
     const previewSourceRevision = analysis.getSourceRevision();
 
     mocks.commandHandlers.get("nuinuiCAD.openModulePreview")!();
@@ -1768,51 +1752,12 @@ describe("registerModulePreviewFeature", () => {
       inputDiagnostics: [missingDiagnostic],
       previewStatus: "noValidPreview"
     };
-    await panel.receive({
-      type: "modulePreviewParametersUnavailable",
-      sessionId,
-      documentUri: document.uri.toString(),
-      documentVersion: document.version,
-      sourceRevision: previewSourceRevision,
-      sessionRevision: 0,
-      targetDefinitionStatementId: target.statementId,
-      reason: "not-ready"
-    });
     await panel.receive(snapshot);
 
-    feature.attachParameterView(parameterView as never);
-    expect(parameterView.postMessage).toHaveBeenCalledWith(snapshot);
     expect(snapshot.parameters.parameters).toEqual(expect.arrayContaining([
       expect.objectContaining({ name: "anchor", value: "", diagnostic: missingDiagnostic }),
       expect.objectContaining({ name: "width", value: "2", defaultSourceText: "4" })
     ]));
-
-    panel.webview.postMessage.mockClear();
-    await parameterView.receive(parameterSetValueFor(snapshot, "3", 1));
-    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
-      type: "modulePreviewSetValue",
-      sourceRevision: previewSourceRevision,
-      definitionStatementId: target.statementId,
-      parameterIndex: 1,
-      expression: "3"
-    }));
-
-    panel.webview.postMessage.mockClear();
-    const useDefault = {
-      type: "modulePreviewParameterUseDefault" as const,
-      ...parameterActionProofFor(snapshot, 1)
-    };
-    await parameterView.receive(useDefault);
-    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
-      type: "modulePreviewUseDefault",
-      sourceRevision: previewSourceRevision,
-      parameterIndex: 1
-    }));
-    panel.webview.postMessage.mockClear();
-    await parameterView.receive({ ...useDefault, sourceRevision: analysisSourceRevision });
-    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
-      type: "modulePreviewUseDefault"
-    }));
 
     await parameterView.receive(parameterValueFocusFor(snapshot, {
       selectionStart: 0,
@@ -1962,9 +1907,6 @@ describe("registerModulePreviewFeature", () => {
       editCanvasRibbon: () => undefined,
       evaluateWithRust: async () => ({})
     });
-    const parameterView = createParameterWebview();
-    feature.attachParameterView(parameterView as never);
-    await parameterView.receive({ type: "modulePreviewParametersViewReady" });
     mocks.commandHandlers.get("nuinuiCAD.openModulePreview")!();
     await panel.receive({ type: "webviewReady" });
     await panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
@@ -1985,24 +1927,6 @@ describe("registerModulePreviewFeature", () => {
       value: ""
     });
     await panel.receive(snapshot);
-    expect(parameterView.postMessage).toHaveBeenCalledWith(snapshot);
-
-    panel.webview.postMessage.mockClear();
-    await parameterView.receive(parameterSetValueFor(snapshot, "10"));
-    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
-      type: "modulePreviewSetValue",
-      sessionId: snapshot.sessionId,
-      targetDefinitionStatementId: producerTarget.definitionStatementId,
-      definitionStatementId: producerTarget.definitionStatementId,
-      expression: "10"
-    }));
-    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
-      targetDefinitionStatementId: consumerTarget.definitionStatementId
-    }));
-
-    const retainedParameterView = createParameterWebview();
-    feature.attachParameterView(retainedParameterView as never);
-    expect(retainedParameterView.postMessage).toHaveBeenCalledWith(snapshot);
 
     const rejectedSnapshots = [
       { ...snapshot, sessionId: "wrong-session" },
@@ -2014,27 +1938,22 @@ describe("registerModulePreviewFeature", () => {
       { ...snapshot, target: { ...snapshot.target, name: "Other" } }
     ];
     for (const rejected of rejectedSnapshots) {
-      retainedParameterView.postMessage.mockClear();
+      panel.webview.postMessage.mockClear();
       await panel.receive(rejected);
-      expect(retainedParameterView.postMessage).not.toHaveBeenCalled();
+      expect(panel.webview.postMessage).not.toHaveBeenCalled();
     }
 
     const lostHostTargetSession = createLanguageAnalysisSession("nui 1\n");
     lostHostTargetSession.getSource = () => source;
     hostAnalysis = lostHostTargetSession;
-    retainedParameterView.postMessage.mockClear();
-    await panel.receive({ ...snapshot, sessionRevision: snapshot.sessionRevision + 1 });
-    expect(retainedParameterView.postMessage).not.toHaveBeenCalled();
     panel.webview.postMessage.mockClear();
-    await retainedParameterView.receive(parameterSetValueFor(snapshot, "11"));
-    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
-      type: "modulePreviewSetValue"
-    }));
+    await panel.receive({ ...snapshot, sessionRevision: snapshot.sessionRevision + 1 });
+    expect(panel.webview.postMessage).not.toHaveBeenCalled();
 
     feature.dispose();
   });
 
-  it("retains the exact live session projection, relays actions, and rejects stale source/disposal races", async () => {
+  it("keeps the integrated panel on the exact live session and retires parameter-view forwarding", async () => {
     const source = [
       "nui 1",
       "module Outer(scale: number) {",
@@ -2060,9 +1979,6 @@ describe("registerModulePreviewFeature", () => {
       editCanvasRibbon: () => undefined,
       evaluateWithRust: async () => ({})
     });
-    const parameterView = createParameterWebview();
-    feature.attachParameterView(parameterView as never);
-    await parameterView.receive({ type: "modulePreviewParametersViewReady" });
     mocks.commandHandlers.get("nuinuiCAD.openModulePreview")!();
     await panel.receive({ type: "webviewReady" });
     await panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
@@ -2117,36 +2033,7 @@ describe("registerModulePreviewFeature", () => {
       previewStatus: "current" as const
     };
     await panel.receive(snapshot);
-    expect(parameterView.postMessage).toHaveBeenCalledWith(snapshot);
-    const lateParameterView = createParameterWebview();
-    feature.attachParameterView(lateParameterView as never);
-    expect(lateParameterView.postMessage).toHaveBeenCalledWith(snapshot);
-    feature.attachParameterView(parameterView as never);
-    parameterView.postMessage.mockClear();
     panel.webview.postMessage.mockClear();
-
-    const firstAction = {
-      type: "modulePreviewParameterSetValue",
-      sessionId: snapshot.sessionId,
-      documentUri: snapshot.documentUri,
-      documentVersion: snapshot.documentVersion,
-      sourceRevision: snapshot.sourceRevision,
-      sessionRevision: snapshot.sessionRevision,
-      targetDefinitionStatementId: target.statementId,
-      definitionStatementId: target.statementId,
-      parameterIndex: 0,
-      expression: "3"
-    };
-    const secondAction = { ...firstAction, expression: "4" };
-    await parameterView.receive(firstAction);
-    await parameterView.receive(secondAction);
-    expect(panel.webview.postMessage.mock.calls.map(([message]) => {
-      const action = message as { type?: string; sessionId?: string; expression?: string };
-      return { type: action.type, sessionId: action.sessionId, expression: action.expression };
-    })).toEqual([
-      { type: "modulePreviewSetValue", sessionId: snapshot.sessionId, expression: "3" },
-      { type: "modulePreviewSetValue", sessionId: snapshot.sessionId, expression: "4" }
-    ]);
 
     const firstResult = {
       ...snapshot,
@@ -2171,7 +2058,6 @@ describe("registerModulePreviewFeature", () => {
     await panel.receive(firstResult);
     await panel.receive(secondResult);
 
-    parameterView.postMessage.mockClear();
     mocks.activeTextEditor.selection.active = positionAt(source, source.indexOf("module Outer"));
     mocks.commandHandlers.get("nuinuiCAD.openModulePreview")!();
     const retargetedSession = panel.webview.postMessage.mock.calls
@@ -2180,12 +2066,8 @@ describe("registerModulePreviewFeature", () => {
       .find((message) => message.type === "modulePreviewSession");
     expect(retargetedSession?.sessionId).toBeTruthy();
     expect(retargetedSession?.sessionId).not.toBe(snapshot.sessionId);
-    expect(parameterView.postMessage).toHaveBeenCalledWith(expect.objectContaining({
-      type: "modulePreviewParametersUnavailable",
-      reason: "not-ready"
-    }));
     panel.webview.postMessage.mockClear();
-    await parameterView.receive({
+    await panel.receive({
       type: "modulePreviewParameterSetValue",
       sessionId: snapshot.sessionId,
       documentUri: snapshot.documentUri,
@@ -2201,13 +2083,8 @@ describe("registerModulePreviewFeature", () => {
 
     document.setSource(source.replace("y: 0", "y: 1"));
     for (const listener of mocks.documentChangeListeners) listener({ document, contentChanges: [{}] });
-    expect(parameterView.postMessage).toHaveBeenCalledWith(expect.objectContaining({
-      type: "modulePreviewParametersUnavailable",
-      reason: "source-stale",
-      documentVersion: 2
-    }));
     panel.webview.postMessage.mockClear();
-    await parameterView.receive({
+    await panel.receive({
       type: "modulePreviewParameterSetValue",
       sessionId: snapshot.sessionId,
       documentUri: snapshot.documentUri,
@@ -2222,10 +2099,8 @@ describe("registerModulePreviewFeature", () => {
     expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "modulePreviewSetValue" }));
 
     panel.fireDispose();
-    expect(parameterView.postMessage).toHaveBeenCalledWith(expect.objectContaining({
-      type: "modulePreviewParametersUnavailable",
-      sessionId: null,
-      reason: "no-session"
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewParametersUnavailable"
     }));
     feature.dispose();
   });
@@ -2272,9 +2147,6 @@ describe("registerModulePreviewFeature", () => {
       editCanvasRibbon: () => undefined,
       evaluateWithRust: async () => ({})
     });
-    const parameterView = createParameterWebview();
-    feature.attachParameterView(parameterView as never);
-    await parameterView.receive({ type: "modulePreviewParametersViewReady" });
     const open = mocks.commandHandlers.get("nuinuiCAD.openModulePreview");
     if (!open) throw new Error("expected open Module Preview command");
 
@@ -2324,59 +2196,31 @@ describe("registerModulePreviewFeature", () => {
     });
     await panelB.receive(snapshotB);
 
-    parameterView.postMessage.mockClear();
     panelA.fireViewState({ active: true, visible: true });
-    expect(parameterView.postMessage).toHaveBeenCalledWith(snapshotA);
-
-    parameterView.postMessage.mockClear();
     panelB.fireViewState({ active: true, visible: true });
-    expect(parameterView.postMessage).toHaveBeenCalledWith(snapshotB);
-
-    parameterView.postMessage.mockClear();
     mocks.activeTextEditor = null;
     for (const listener of mocks.activeEditorListeners) listener();
-    expect(parameterView.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
-      type: "modulePreviewParametersUnavailable",
-      reason: "no-session"
-    }));
     panelB.webview.postMessage.mockClear();
-    await parameterView.receive(parameterSetValueFor(snapshotB, "5"));
-    expect(panelB.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
-      type: "modulePreviewSetValue",
-      sessionId: snapshotB.sessionId,
-      expression: "5"
+    await panelB.receive(parameterSetValueFor(snapshotB, "5"));
+    expect(panelB.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewSetValue"
     }));
 
     documentA.setSource(source.replace("y: 0", "y: 1"));
     for (const listener of mocks.documentChangeListeners) {
       listener({ document: documentA, contentChanges: [{}] });
     }
-    parameterView.postMessage.mockClear();
     panelA.fireViewState({ active: true, visible: true });
-    expect(parameterView.postMessage).toHaveBeenCalledWith(expect.objectContaining({
-      type: "modulePreviewParametersUnavailable",
-      sessionId: snapshotA.sessionId,
-      documentVersion: 2,
-      reason: "source-stale"
-    }));
-    expect(parameterView.postMessage).not.toHaveBeenCalledWith(snapshotA);
 
     panelB.webview.postMessage.mockClear();
-    await parameterView.receive(parameterSetValueFor(snapshotB, "stale B action"));
+    await panelB.receive(parameterSetValueFor(snapshotB, "stale B action"));
     expect(panelB.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
       type: "modulePreviewSetValue"
     }));
 
-    parameterView.postMessage.mockClear();
     panelB.fireViewState({ active: true, visible: true });
-    expect(parameterView.postMessage).toHaveBeenCalledWith(snapshotB);
 
     panelB.fireDispose();
-    expect(parameterView.postMessage).toHaveBeenCalledWith(expect.objectContaining({
-      type: "modulePreviewParametersUnavailable",
-      sessionId: null,
-      reason: "no-session"
-    }));
     panelA.fireDispose();
     feature.dispose();
   });

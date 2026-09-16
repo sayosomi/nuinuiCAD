@@ -1,9 +1,10 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { useEffect, useRef, useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { VscodeModulePreviewParameterSnapshot, VscodeWebviewApi } from "./protocol";
-import { ModulePreviewParametersApp } from "./ModulePreviewParametersApp";
+import type { VscodeModulePreviewParameterSnapshot, VscodeModulePreviewParametersUnavailable, VscodeWebviewApi } from "./protocol";
+import { ModulePreviewParametersSurface } from "./ModulePreviewParametersApp";
 
 const modulePreviewParametersStylesheet = readFileSync(
   resolve(process.cwd(), "src/vscode/modulePreviewParameters.css"),
@@ -11,6 +12,10 @@ const modulePreviewParametersStylesheet = readFileSync(
 );
 
 const api: VscodeWebviewApi = { postMessage: vi.fn() };
+const surfaceActions = {
+  valueChange: vi.fn(),
+  useDefault: vi.fn()
+};
 
 const snapshot: VscodeModulePreviewParameterSnapshot = {
   type: "modulePreviewParameterSnapshot",
@@ -128,12 +133,69 @@ const geometrySnapshot: VscodeModulePreviewParameterSnapshot = {
   previewStatus: "current"
 };
 
+const parameterMessageIsSuperseded = (
+  current: { sessionId: string | null; documentVersion: number | null; sessionRevision: number } | null,
+  next: { sessionId: string | null; documentVersion: number | null; sessionRevision: number }
+): boolean => {
+  if (!current || current.sessionId !== next.sessionId) return false;
+  if (current.documentVersion === null || next.documentVersion === null) {
+    return next.sessionRevision <= current.sessionRevision;
+  }
+  if (next.documentVersion !== current.documentVersion) {
+    return next.documentVersion < current.documentVersion;
+  }
+  return next.sessionRevision <= current.sessionRevision;
+};
+
+const ModulePreviewParametersTestHarness = () => {
+  const [snapshot, setSnapshot] = useState<VscodeModulePreviewParameterSnapshot | null>(null);
+  const [unavailable, setUnavailable] = useState<VscodeModulePreviewParametersUnavailable | null>(null);
+  const snapshotRef = useRef<VscodeModulePreviewParameterSnapshot | null>(null);
+  const unavailableRef = useRef<VscodeModulePreviewParametersUnavailable | null>(null);
+
+  useEffect(() => {
+    const onMessage = (event: MessageEvent<unknown>) => {
+      if (typeof event.data !== "object" || event.data === null) return;
+      const message = event.data as VscodeModulePreviewParameterSnapshot | VscodeModulePreviewParametersUnavailable;
+      if (message.type === "modulePreviewParameterSnapshot") {
+        const current = snapshotRef.current ?? unavailableRef.current;
+        if (parameterMessageIsSuperseded(current, message)) return;
+        snapshotRef.current = message;
+        unavailableRef.current = null;
+        setSnapshot(message);
+        setUnavailable(null);
+      } else if (message.type === "modulePreviewParametersUnavailable") {
+        const current = snapshotRef.current ?? unavailableRef.current;
+        if (parameterMessageIsSuperseded(current, message)) return;
+        snapshotRef.current = null;
+        unavailableRef.current = message;
+        setSnapshot(null);
+        setUnavailable(message);
+      }
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, []);
+
+  return (
+    <ModulePreviewParametersSurface
+      api={api}
+      snapshot={snapshot}
+      unavailable={unavailable}
+      onValueChange={(parameter, expression) => surfaceActions.valueChange(parameter, expression)}
+      onUseDefault={(parameter) => surfaceActions.useDefault(parameter)}
+    />
+  );
+};
+
 afterEach(() => {
   cleanup();
   vi.mocked(api.postMessage).mockReset();
+  surfaceActions.valueChange.mockReset();
+  surfaceActions.useDefault.mockReset();
 });
 
-describe("ModulePreviewParametersApp", () => {
+describe("ModulePreviewParametersSurface", () => {
   it("keeps exact current rows when an older source-stale message arrives after the snapshot", () => {
     const requiredDiagnostic = {
       code: "required-value-missing" as const,
@@ -164,7 +226,7 @@ describe("ModulePreviewParametersApp", () => {
       targetDefinitionStatementId: currentSnapshot.target.definitionStatementId,
       reason: "source-stale" as const
     };
-    render(<ModulePreviewParametersApp api={api} />);
+    render(<ModulePreviewParametersTestHarness />);
 
     act(() => window.dispatchEvent(new MessageEvent("message", { data: sourceStale })));
     expect(screen.getByText("Module Preview parameters are waiting for the refreshed source.")).toBeInTheDocument();
@@ -197,7 +259,7 @@ describe("ModulePreviewParametersApp", () => {
       }
     };
 
-    render(<ModulePreviewParametersApp api={api} />);
+    render(<ModulePreviewParametersTestHarness />);
     act(() => window.dispatchEvent(new MessageEvent("message", { data: noValidPreviewWithDiagnostic })));
 
     expect(screen.getByRole("alert")).toHaveTextContent("Enter a value.");
@@ -211,7 +273,7 @@ describe("ModulePreviewParametersApp", () => {
     { code: "invalid-expression" as const, locale: "en" as const, expected: "Enter a valid expression." },
     { code: "invalid-expression" as const, locale: "ja" as const, expected: "有効な式を入力してください。" }
   ])("renders the $code row diagnostic in $locale without the parameter name", ({ code, locale, expected }) => {
-    render(<ModulePreviewParametersApp api={api} />);
+    render(<ModulePreviewParametersTestHarness />);
     if (locale === "ja") {
       act(() => window.dispatchEvent(new MessageEvent("message", {
         data: {
@@ -267,7 +329,7 @@ describe("ModulePreviewParametersApp", () => {
       previewStatus: "noValidPreview"
     };
 
-    render(<ModulePreviewParametersApp api={api} />);
+    render(<ModulePreviewParametersTestHarness />);
     act(() => window.dispatchEvent(new MessageEvent("message", { data: noValidPreviewWithoutDiagnostic })));
 
     expect(screen.getByRole("status")).toHaveTextContent("No valid preview for the current inputs.");
@@ -297,7 +359,7 @@ describe("ModulePreviewParametersApp", () => {
       sourceRevision: snapshot.sourceRevision,
       sessionRevision: snapshot.sessionRevision + 2
     };
-    render(<ModulePreviewParametersApp api={api} />);
+    render(<ModulePreviewParametersTestHarness />);
 
     act(() => window.dispatchEvent(new MessageEvent("message", { data: snapshot })));
     expect(screen.getByLabelText("Value for width")).toBeInTheDocument();
@@ -315,7 +377,7 @@ describe("ModulePreviewParametersApp", () => {
   });
 
   it("renders host-published Japanese presentation while preserving authored parameter names", () => {
-    render(<ModulePreviewParametersApp api={api} />);
+    render(<ModulePreviewParametersTestHarness />);
     act(() => {
       window.dispatchEvent(new MessageEvent("message", {
         data: {
@@ -375,7 +437,7 @@ describe("ModulePreviewParametersApp", () => {
   });
 
   it("exposes contextual Pick actions for geometry rows only and routes the exact row proof", () => {
-    render(<ModulePreviewParametersApp api={api} />);
+    render(<ModulePreviewParametersTestHarness />);
     act(() => window.dispatchEvent(new MessageEvent("message", { data: geometrySnapshot })));
 
     expect(screen.getByRole("status")).toHaveTextContent("Current preview");
@@ -423,6 +485,15 @@ describe("ModulePreviewParametersApp", () => {
 
   it("keeps contextual Pick layout out of normal flow and clears input content only while visible", () => {
     expect(modulePreviewParametersStylesheet).toMatch(
+      /\.module-preview-parameters-region\s*\{[\s\S]*?min-width:\s*0;[\s\S]*?min-height:\s*112px;[\s\S]*?overflow:\s*hidden;/
+    );
+    expect(modulePreviewParametersStylesheet).toMatch(
+      /\.module-preview-parameters\s*\{[\s\S]*?min-width:\s*0;[\s\S]*?overflow:\s*auto;/
+    );
+    expect(modulePreviewParametersStylesheet).toMatch(
+      /\.module-preview-canvas-region\s*\{[\s\S]*?min-width:\s*0;[\s\S]*?min-height:\s*160px;[\s\S]*?overflow:\s*hidden;/
+    );
+    expect(modulePreviewParametersStylesheet).toMatch(
       /\.module-preview-parameter-input-row\s*\{[\s\S]*?position:\s*relative;/
     );
     expect(modulePreviewParametersStylesheet).toMatch(
@@ -458,10 +529,13 @@ describe("ModulePreviewParametersApp", () => {
     expect(modulePreviewParametersStylesheet).not.toMatch(
       /(?:^|\n)\.module-preview-parameter-input\s*\{[^}]*padding-inline-end:/
     );
+    expect(modulePreviewParametersStylesheet).toMatch(
+      /\.module-preview-canvas-region > \.canvas-panel\s*\{[\s\S]*?background:\s*var\(--vscode-editor-background\);/
+    );
   });
 
   it("renders ordered ancestor and target groups with exact values, defaults, and diagnostics", () => {
-    render(<ModulePreviewParametersApp api={api} />);
+    render(<ModulePreviewParametersTestHarness />);
     act(() => window.dispatchEvent(new MessageEvent("message", { data: snapshot })));
 
     const groups = [...document.querySelectorAll<HTMLElement>("[data-module-preview-parameter-group-kind]")];
@@ -472,58 +546,32 @@ describe("ModulePreviewParametersApp", () => {
     expect(screen.getByText('"front"')).toBeInTheDocument();
     expect(screen.getByRole("alert")).toHaveTextContent("Enter a valid expression.");
     expect(screen.getByRole("status")).toHaveTextContent("last valid preview");
-    expect(api.postMessage).toHaveBeenCalledWith({ type: "modulePreviewParametersViewReady" });
   });
 
-  it("relays immediate expression edits and explicit default actions with the snapshot proof", () => {
-    render(<ModulePreviewParametersApp api={api} />);
+  it("reports immediate expression edits and explicit default actions to the session owner", () => {
+    render(<ModulePreviewParametersTestHarness />);
     act(() => window.dispatchEvent(new MessageEvent("message", { data: snapshot })));
-    vi.mocked(api.postMessage).mockClear();
 
     fireEvent.change(screen.getByLabelText("Value for width"), { target: { value: "@scale * 5" } });
-    expect(api.postMessage).toHaveBeenCalledWith({
-      type: "modulePreviewParameterSetValue",
-      sessionId: snapshot.sessionId,
-      documentUri: snapshot.documentUri,
-      documentVersion: snapshot.documentVersion,
-      sourceRevision: snapshot.sourceRevision,
-      sessionRevision: snapshot.sessionRevision,
-      targetDefinitionStatementId: snapshot.target.definitionStatementId,
-      definitionStatementId: "module:inner",
-      parameterIndex: 0,
-      expression: "@scale * 5"
-    });
+    expect(surfaceActions.valueChange).toHaveBeenCalledWith(
+      expect.objectContaining({ definitionStatementId: "module:inner", parameterIndex: 0 }),
+      "@scale * 5"
+    );
 
     fireEvent.change(screen.getByLabelText("Value for scale"), { target: { value: "3" } });
-    expect(api.postMessage).toHaveBeenCalledWith({
-      type: "modulePreviewParameterSetValue",
-      sessionId: snapshot.sessionId,
-      documentUri: snapshot.documentUri,
-      documentVersion: snapshot.documentVersion,
-      sourceRevision: snapshot.sourceRevision,
-      sessionRevision: snapshot.sessionRevision,
-      targetDefinitionStatementId: snapshot.target.definitionStatementId,
-      definitionStatementId: "module:outer",
-      parameterIndex: 0,
-      expression: "3"
-    });
+    expect(surfaceActions.valueChange).toHaveBeenCalledWith(
+      expect.objectContaining({ definitionStatementId: "module:outer", parameterIndex: 0 }),
+      "3"
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Use default for label" }));
-    expect(api.postMessage).toHaveBeenCalledWith({
-      type: "modulePreviewParameterUseDefault",
-      sessionId: snapshot.sessionId,
-      documentUri: snapshot.documentUri,
-      documentVersion: snapshot.documentVersion,
-      sourceRevision: snapshot.sourceRevision,
-      sessionRevision: snapshot.sessionRevision,
-      targetDefinitionStatementId: snapshot.target.definitionStatementId,
-      definitionStatementId: "module:inner",
-      parameterIndex: 1
-    });
+    expect(surfaceActions.useDefault).toHaveBeenCalledWith(
+      expect.objectContaining({ definitionStatementId: "module:inner", parameterIndex: 1 })
+    );
   });
 
   it("keeps the value input focused across authoritative revisions and syncs defaults", () => {
-    render(<ModulePreviewParametersApp api={api} />);
+    render(<ModulePreviewParametersTestHarness />);
     act(() => window.dispatchEvent(new MessageEvent("message", { data: snapshot })));
     vi.mocked(api.postMessage).mockClear();
 
@@ -535,18 +583,16 @@ describe("ModulePreviewParametersApp", () => {
       sessionRevision: snapshot.sessionRevision,
       value: "@scale * 4"
     }));
-    expect(api.postMessage).toHaveBeenNthCalledWith(2, expect.objectContaining({
-      type: "modulePreviewParameterSetValue",
-      sessionRevision: snapshot.sessionRevision,
-      expression: "@scale * 5"
-    }));
+    expect(surfaceActions.valueChange).toHaveBeenCalledWith(
+      expect.objectContaining({ definitionStatementId: "module:inner", parameterIndex: 0 }),
+      "@scale * 5"
+    );
     fireEvent.change(input, { target: { value: "@scale * 6" } });
-    expect(api.postMessage).toHaveBeenNthCalledWith(4, expect.objectContaining({
-      type: "modulePreviewParameterSetValue",
-      sessionRevision: snapshot.sessionRevision,
-      expression: "@scale * 6"
-    }));
-    expect(api.postMessage).toHaveBeenNthCalledWith(5, expect.objectContaining({
+    expect(surfaceActions.valueChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ definitionStatementId: "module:inner", parameterIndex: 0 }),
+      "@scale * 6"
+    );
+    expect(api.postMessage).toHaveBeenLastCalledWith(expect.objectContaining({
       type: "modulePreviewParameterValueFocus",
       sessionRevision: snapshot.sessionRevision,
       value: "@scale * 6"
@@ -601,7 +647,7 @@ describe("ModulePreviewParametersApp", () => {
   });
 
   it("publishes a refreshed exact proof after the focused input catches up to a snapshot", () => {
-    render(<ModulePreviewParametersApp api={api} />);
+    render(<ModulePreviewParametersTestHarness />);
     const initialSnapshot = snapshotWithValues(40, { width: "1" });
     act(() => window.dispatchEvent(new MessageEvent("message", { data: initialSnapshot })));
 
@@ -681,7 +727,7 @@ describe("ModulePreviewParametersApp", () => {
   });
 
   it("does not leave repeated Default state that can discard a newer rapid draft", () => {
-    render(<ModulePreviewParametersApp api={api} />);
+    render(<ModulePreviewParametersTestHarness />);
     const defaultValueSnapshot = snapshotWithValues(10, { label: '"front"' });
     act(() => window.dispatchEvent(new MessageEvent("message", { data: defaultValueSnapshot })));
 
@@ -709,7 +755,7 @@ describe("ModulePreviewParametersApp", () => {
   });
 
   it("follows value snapshots before a Default result when Default supersedes the draft", () => {
-    render(<ModulePreviewParametersApp api={api} />);
+    render(<ModulePreviewParametersTestHarness />);
     const initialSnapshot = snapshotWithValues(20, { label: "" });
     act(() => window.dispatchEvent(new MessageEvent("message", { data: initialSnapshot })));
 
@@ -733,7 +779,7 @@ describe("ModulePreviewParametersApp", () => {
   });
 
   it("keeps a new value draft after Default until its authoritative snapshot arrives", () => {
-    render(<ModulePreviewParametersApp api={api} />);
+    render(<ModulePreviewParametersTestHarness />);
     const initialSnapshot = snapshotWithValues(30, { label: "" });
     act(() => window.dispatchEvent(new MessageEvent("message", { data: initialSnapshot })));
 
@@ -755,7 +801,7 @@ describe("ModulePreviewParametersApp", () => {
   });
 
   it("publishes exact Value focus, selection, and local draft freshness", () => {
-    render(<ModulePreviewParametersApp api={api} />);
+    render(<ModulePreviewParametersTestHarness />);
     act(() => window.dispatchEvent(new MessageEvent("message", { data: snapshot })));
     vi.mocked(api.postMessage).mockClear();
 
@@ -790,7 +836,7 @@ describe("ModulePreviewParametersApp", () => {
   });
 
   it("clears exact focus on blur, unavailable state, and row replacement", () => {
-    render(<ModulePreviewParametersApp api={api} />);
+    render(<ModulePreviewParametersTestHarness />);
     act(() => window.dispatchEvent(new MessageEvent("message", { data: snapshot })));
     const input = screen.getByLabelText("Value for width");
     input.focus();
@@ -840,7 +886,7 @@ describe("ModulePreviewParametersApp", () => {
   });
 
   it("restores selection only for the matching live focus generation and value", () => {
-    render(<ModulePreviewParametersApp api={api} />);
+    render(<ModulePreviewParametersTestHarness />);
     act(() => window.dispatchEvent(new MessageEvent("message", { data: snapshot })));
     const input = screen.getByLabelText("Value for width") as HTMLInputElement;
     input.focus();

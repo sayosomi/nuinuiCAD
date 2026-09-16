@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { VSCodeApp } from "./VSCodeApp";
 import { OutputPreviewApp } from "./OutputPreviewApp";
 import { ModulePreviewApp } from "./ModulePreviewApp";
-import { ModulePreviewParametersApp } from "./ModulePreviewParametersApp";
 import { ExplorerMockApp } from "./ExplorerMockApp";
 import { routeVscodeWebviewSurface } from "./webviewSurfaceRouter";
 import type { VscodeWebviewApi } from "./protocol";
@@ -22,8 +21,10 @@ describe("VS Code Webview surface routing", () => {
     expect(routeVscodeWebviewSurface("modulePreview", api).type).toBe(ModulePreviewApp);
   });
 
-  it("routes Module Preview Parameters through the production Explorer View surface", () => {
-    expect(routeVscodeWebviewSurface("modulePreviewParameters", api).type).toBe(ModulePreviewParametersApp);
+  it("fails closed for the retired Module Preview Parameters surface", () => {
+    expect(() => routeVscodeWebviewSurface("modulePreviewParameters", api)).toThrow(
+      "The VS Code Webview surface kind is missing or invalid."
+    );
   });
 
   it("routes the Explorer Mock through the shared Webview bundle", () => {

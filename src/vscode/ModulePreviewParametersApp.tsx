@@ -8,7 +8,6 @@ import type {
   VscodeModulePreviewParametersUnavailable,
   VscodeWebviewApi
 } from "./protocol";
-import { isExtensionToVscodeMessage } from "./vscodeRustTransport";
 import {
   useVscodeWebviewPresentation,
   webviewPresentationTextFor,
@@ -37,20 +36,6 @@ const unavailableMessageFor = (
     case "target-unavailable": return text("modulePreview.parameters.unavailable.target-unavailable", "The Module Preview target is not available in the current source.");
     case "disposed": return text("modulePreview.parameters.unavailable.disposed", "The Module Preview panel is no longer available.");
   }
-};
-
-const parameterMessageIsSuperseded = (
-  current: { sessionId: string | null; documentVersion: number | null; sessionRevision: number } | null,
-  next: { sessionId: string | null; documentVersion: number | null; sessionRevision: number }
-): boolean => {
-  if (!current || current.sessionId !== next.sessionId) return false;
-  if (current.documentVersion === null || next.documentVersion === null) {
-    return next.sessionRevision <= current.sessionRevision;
-  }
-  if (next.documentVersion !== current.documentVersion) {
-    return next.documentVersion < current.documentVersion;
-  }
-  return next.sessionRevision <= current.sessionRevision;
 };
 
 const previewStatusMessageFor = (
@@ -281,14 +266,26 @@ const ParameterGroup = ({
   </section>
 );
 
-export const ModulePreviewParametersApp = ({ api }: { api: VscodeWebviewApi }) => {
+export type ModulePreviewParametersSurfaceProps = {
+  api: VscodeWebviewApi;
+  snapshot: VscodeModulePreviewParameterSnapshot | null;
+  unavailable: VscodeModulePreviewParametersUnavailable | null;
+  onValueChange: (parameter: VscodeModulePreviewParameter, expression: string) => void;
+  onUseDefault: (parameter: VscodeModulePreviewParameter) => void;
+};
+
+export const ModulePreviewParametersSurface = ({
+  api,
+  snapshot,
+  unavailable,
+  onValueChange,
+  onUseDefault
+}: ModulePreviewParametersSurfaceProps) => {
   const webviewPresentation = useVscodeWebviewPresentation();
   const text = useCallback<PresentationText>(
     (key, fallback, parameters) => webviewPresentationTextFor(webviewPresentation, key, fallback, parameters),
     [webviewPresentation]
   );
-  const [snapshot, setSnapshot] = useState<VscodeModulePreviewParameterSnapshot | null>(null);
-  const [unavailable, setUnavailable] = useState<VscodeModulePreviewParametersUnavailable | null>(null);
   const snapshotRef = useRef<VscodeModulePreviewParameterSnapshot | null>(null);
   const unavailableRef = useRef<VscodeModulePreviewParametersUnavailable | null>(null);
   const nextFocusGenerationRef = useRef(1);
@@ -383,62 +380,44 @@ export const ModulePreviewParametersApp = ({ api }: { api: VscodeWebviewApi }) =
 
   useEffect(() => {
     const onMessage = (event: MessageEvent<unknown>) => {
-      if (!isExtensionToVscodeMessage(event.data)) return;
-      const message: ExtensionToVscodeMessage = event.data;
-      if (message.type === "modulePreviewParameterSnapshot") {
-        const current = snapshotRef.current ?? unavailableRef.current;
-        if (parameterMessageIsSuperseded(current, message)) return;
-        snapshotRef.current = message;
-        unavailableRef.current = null;
-        setSnapshot(message);
-        setUnavailable(null);
-        return;
-      }
-      if (message.type === "modulePreviewParametersUnavailable") {
-        const current = snapshotRef.current ?? unavailableRef.current;
-        if (parameterMessageIsSuperseded(current, message)) return;
-        snapshotRef.current = null;
-        unavailableRef.current = message;
-        setUnavailable(message);
-        setSnapshot(null);
-        return;
-      }
-      if (message.type === "modulePreviewRestoreParameterValueSelection") {
-        const current = valueFocusRef.current;
-        const currentSnapshot = snapshotRef.current;
-        const parameter = currentSnapshot && current ? parameterForRowIdentity(currentSnapshot, current.rowIdentity) : null;
-        const input = document.activeElement;
-        if (
-          !currentSnapshot ||
-          unavailableRef.current ||
-          !current ||
-          !parameter ||
-          !(input instanceof HTMLInputElement) ||
-          input.dataset.modulePreviewParameterIdentity !== current.rowIdentity ||
-          current.message.focusGeneration !== message.focusGeneration ||
-          message.sessionId !== currentSnapshot.sessionId ||
-          message.documentUri !== currentSnapshot.documentUri ||
-          message.documentVersion !== currentSnapshot.documentVersion ||
-          message.sourceRevision !== currentSnapshot.sourceRevision ||
-          message.sessionRevision !== currentSnapshot.sessionRevision ||
-          message.targetDefinitionStatementId !== currentSnapshot.target.definitionStatementId ||
-          message.definitionStatementId !== parameter.definitionStatementId ||
-          message.parameterIndex !== parameter.parameterIndex ||
-          input.value !== message.value ||
-          !Number.isInteger(message.selectionStart) ||
-          !Number.isInteger(message.selectionEnd) ||
-          message.selectionStart < 0 ||
-          message.selectionEnd < message.selectionStart ||
-          message.selectionEnd > input.value.length
-        ) return;
-        input.setSelectionRange(message.selectionStart, message.selectionEnd);
-        publishValueFocus(parameter, input, false);
-      }
+      const message = event.data as { type?: unknown };
+      if (message.type !== "modulePreviewRestoreParameterValueSelection") return;
+      const restore = event.data as Extract<ExtensionToVscodeMessage, {
+        type: "modulePreviewRestoreParameterValueSelection"
+      }>;
+      const current = valueFocusRef.current;
+      const currentSnapshot = snapshotRef.current;
+      const parameter = currentSnapshot && current ? parameterForRowIdentity(currentSnapshot, current.rowIdentity) : null;
+      const input = document.activeElement;
+      if (
+        !currentSnapshot ||
+        unavailableRef.current ||
+        !current ||
+        !parameter ||
+        !(input instanceof HTMLInputElement) ||
+        input.dataset.modulePreviewParameterIdentity !== current.rowIdentity ||
+        current.message.focusGeneration !== restore.focusGeneration ||
+        restore.sessionId !== currentSnapshot.sessionId ||
+        restore.documentUri !== currentSnapshot.documentUri ||
+        restore.documentVersion !== currentSnapshot.documentVersion ||
+        restore.sourceRevision !== currentSnapshot.sourceRevision ||
+        restore.sessionRevision !== currentSnapshot.sessionRevision ||
+        restore.targetDefinitionStatementId !== currentSnapshot.target.definitionStatementId ||
+        restore.definitionStatementId !== parameter.definitionStatementId ||
+        restore.parameterIndex !== parameter.parameterIndex ||
+        input.value !== restore.value ||
+        !Number.isInteger(restore.selectionStart) ||
+        !Number.isInteger(restore.selectionEnd) ||
+        restore.selectionStart < 0 ||
+        restore.selectionEnd < restore.selectionStart ||
+        restore.selectionEnd > input.value.length
+      ) return;
+      input.setSelectionRange(restore.selectionStart, restore.selectionEnd);
+      publishValueFocus(parameter, input, false);
     };
     window.addEventListener("message", onMessage);
-    api.postMessage({ type: "modulePreviewParametersViewReady" });
     return () => window.removeEventListener("message", onMessage);
-  }, [api, parameterForRowIdentity, publishValueFocus]);
+  }, [parameterForRowIdentity, publishValueFocus]);
 
   useEffect(() => {
     const focused = valueFocusRef.current;
@@ -455,37 +434,6 @@ export const ModulePreviewParametersApp = ({ api }: { api: VscodeWebviewApi }) =
   }, [clearValueFocus, parameterForRowIdentity, snapshot, unavailable]);
 
   useEffect(() => () => clearValueFocus(), [clearValueFocus]);
-
-  const onValueChange = (parameter: VscodeModulePreviewParameter, expression: string): void => {
-    if (!snapshot) return;
-    api.postMessage({
-      type: "modulePreviewParameterSetValue",
-      sessionId: snapshot.sessionId,
-      documentUri: snapshot.documentUri,
-      documentVersion: snapshot.documentVersion,
-      sourceRevision: snapshot.sourceRevision,
-      sessionRevision: snapshot.sessionRevision,
-      targetDefinitionStatementId: snapshot.target.definitionStatementId,
-      definitionStatementId: parameter.definitionStatementId,
-      parameterIndex: parameter.parameterIndex,
-      expression
-    });
-  };
-
-  const onUseDefault = (parameter: VscodeModulePreviewParameter): void => {
-    if (!snapshot || parameter.defaultSourceText === null) return;
-    api.postMessage({
-      type: "modulePreviewParameterUseDefault",
-      sessionId: snapshot.sessionId,
-      documentUri: snapshot.documentUri,
-      documentVersion: snapshot.documentVersion,
-      sourceRevision: snapshot.sourceRevision,
-      sessionRevision: snapshot.sessionRevision,
-      targetDefinitionStatementId: snapshot.target.definitionStatementId,
-      definitionStatementId: parameter.definitionStatementId,
-      parameterIndex: parameter.parameterIndex
-    });
-  };
 
   const onReferencePick = (parameter: VscodeModulePreviewParameter): void => {
     if (!snapshot || !isReferencePickableParameter(parameter)) return;
@@ -504,7 +452,7 @@ export const ModulePreviewParametersApp = ({ api }: { api: VscodeWebviewApi }) =
   };
 
   return (
-    <main className="module-preview-parameters" data-module-preview-parameter-surface="true">
+    <div className="module-preview-parameters" data-module-preview-parameter-surface="true">
       <header className="module-preview-parameters-header">
         <h1>{text("modulePreview.parameters.title", "Module Preview Parameters")}</h1>
         {snapshot ? <div className="module-preview-parameters-target">{snapshot.target.name}</div> : null}
@@ -557,6 +505,6 @@ export const ModulePreviewParametersApp = ({ api }: { api: VscodeWebviewApi }) =
             : text("modulePreview.parameters.unavailable.no-session", "Open Module Preview to edit its parameters.")}
         </div>
       )}
-    </main>
+    </div>
   );
 };

@@ -3,7 +3,6 @@
   "views.explorerContainer": "nuinuiCAD Explorer",
   "views.elements": "Elements",
   "views.explorerMock": "Explorer Mock",
-  "views.modulePreviewParameters": "Module Preview Parameters",
   "submenu.convert": "Convert",
   "submenu.webview.display": "Display",
   "submenu.webview.convertPoint": "Convert",

@@ -17,7 +17,6 @@ import type {
   VscodeExtensionToModulePreviewMessage,
   VscodeModulePreviewParameterSnapshot,
   VscodeModulePreviewParametersUnavailable,
-  VscodeModulePreviewParameterViewMessage,
   VscodeModulePreviewToExtensionMessage
 } from "./modulePreviewProtocol";
 import type {
@@ -51,7 +50,6 @@ export type {
   VscodeModulePreviewParameterDiagnostic,
   VscodeModulePreviewParameterGroup,
   VscodeModulePreviewParameterSetValue,
-  VscodeModulePreviewParameterSetValueRequest,
   VscodeModulePreviewParameterSnapshot,
   VscodeModulePreviewParameterValueBlur,
   VscodeModulePreviewParameterValueFocus,
@@ -61,9 +59,7 @@ export type {
   VscodeModulePreviewModelPatchResult,
   VscodeModulePreviewParameterReferencePickStartRequest,
   VscodeModulePreviewParameterUseDefault,
-  VscodeModulePreviewParameterUseDefaultRequest,
   VscodeModulePreviewParametersUnavailable,
-  VscodeModulePreviewParameterViewMessage,
   VscodeModulePreviewReferencePickCancelRequest,
   VscodeModulePreviewReferencePickConfirmedResult,
   VscodeModulePreviewReferencePickProof,
@@ -126,7 +122,6 @@ export const vscodeWebviewSurfaceKinds = [
   "canvas",
   "outputPreview",
   "modulePreview",
-  "modulePreviewParameters",
   "explorerMock"
 ] as const;
 export type VscodeWebviewSurfaceKind = (typeof vscodeWebviewSurfaceKinds)[number];
@@ -258,7 +253,6 @@ export type VscodeToExtensionMessage =
   | VscodeInlineModuleSelectionResult
   | VscodeCanvasThemeToExtensionMessage
   | VscodeReferencePickToExtensionMessage
-  | VscodeModulePreviewParameterViewMessage
   | VscodeModulePreviewToExtensionMessage
   | VscodeModulePreviewParameterSnapshot
   | VscodeModulePreviewParametersUnavailable
