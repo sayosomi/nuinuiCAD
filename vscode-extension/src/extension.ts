@@ -71,6 +71,7 @@ import {
 import {
   registerVscodeExtractModuleCommandFeature,
   type ExtractModuleCanvasEndpoint,
+  type CanvasNavigationHandoffResult,
   type VscodeExtractModuleCommandFeature
 } from "./extractModuleCommandFeature";
 import { registerNuiHoverFeature } from "./hoverFeature";
@@ -1964,14 +1965,16 @@ export const activate = (
     },
     navigateCanvasToSourceOffset: (endpoint, normalizedSourceOffset) => {
       const session = sessions.get(documentKey(endpoint.document), "canvas");
+      if (!session || session.panel !== endpoint.panel || !sameDocument(session.document, endpoint.document) ||
+          !isOpenDocument(session.document)) {
+        return { accepted: false, retryable: false } satisfies CanvasNavigationHandoffResult;
+      }
       if (
-        !session ||
-        session.panel !== endpoint.panel ||
         canvasSessionForCommand() !== session ||
+        !session.webviewReady ||
         session.inFlightCanvasHistory !== null ||
-        canvasHistoryHandoffSession !== null ||
-        !isOpenDocument(session.document)
-      ) return false;
+        canvasHistoryHandoffSession !== null
+      ) return { accepted: false, retryable: true } satisfies CanvasNavigationHandoffResult;
       const requestId = nextNavigationRequestId++;
       session.pendingCanvasNavigation = {
         requestId,
@@ -1981,7 +1984,7 @@ export const activate = (
       session.pendingCanvasFocus = null;
       session.panel.reveal(vscode.ViewColumn.Beside, true);
       deliverPendingCanvasNavigation(session);
-      return true;
+      return { accepted: true } satisfies CanvasNavigationHandoffResult;
     },
     applySourceLineSplices
   });

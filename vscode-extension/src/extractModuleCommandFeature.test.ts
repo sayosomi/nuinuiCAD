@@ -50,6 +50,7 @@ import {
   collectExtractModuleSourceTargets,
   registerVscodeExtractModuleCommandFeature,
   VSCODE_EXTRACT_MODULE_COMMAND_ID,
+  type CanvasNavigationHandoffResult,
   type ExtractModuleCanvasEndpoint
 } from "./extractModuleCommandFeature";
 import { extractModuleRejectionMessageFor } from "./extractModuleLocalization";
@@ -165,7 +166,7 @@ const commandFeatureFor = (input: {
   session: ReturnType<typeof createLanguageAnalysisSession>;
   endpoint?: ExtractModuleCanvasEndpoint | null;
   displayLanguage?: string;
-  navigate?: (endpoint: ExtractModuleCanvasEndpoint, sourceOffset: number) => boolean;
+  navigate?: (endpoint: ExtractModuleCanvasEndpoint, sourceOffset: number) => CanvasNavigationHandoffResult;
   apply?: (
     editor: unknown,
     version: number,
@@ -182,7 +183,7 @@ const commandFeatureFor = (input: {
     activeSourceEditor: () => input.editor as never,
     sourceEditorForDocument: () => (input.canvasEditor ?? input.editor) as never,
     activeCanvasEndpoint: () => input.endpoint ?? null,
-    navigateCanvasToSourceOffset: input.navigate ?? vi.fn(() => true),
+    navigateCanvasToSourceOffset: input.navigate ?? vi.fn(() => ({ accepted: true })),
     applySourceLineSplices: input.apply ?? (async () => true),
     displayLanguageFor: () => input.displayLanguage ?? "en"
   });
@@ -213,7 +214,8 @@ const postApplyCanvasLifecycleFixtureFor = () => {
   };
   let activeEndpoint: ExtractModuleCanvasEndpoint | null = endpoint;
   let dropEndpointAfterApply = false;
-  const navigate = vi.fn(() => true);
+  let navigationResult: CanvasNavigationHandoffResult = { accepted: true };
+  const navigate = vi.fn(() => navigationResult);
   mocks.showInputBox.mockResolvedValue("Part");
   mocks.showQuickPick.mockResolvedValue({ label: "Use module name: PartModule" });
   mocks.registerCommand.mockImplementation((id: string, handler: () => unknown) => {
@@ -265,6 +267,7 @@ const postApplyCanvasLifecycleFixtureFor = () => {
     setActiveEndpoint: (next: ExtractModuleCanvasEndpoint | null) => { activeEndpoint = next; },
     setAuthoritativeReady: (next: boolean) => { authoritativeReady = next; },
     setDropEndpointAfterApply: (next: boolean) => { dropEndpointAfterApply = next; },
+    setNavigationResult: (next: CanvasNavigationHandoffResult) => { navigationResult = next; },
     setSource: (next: string) => {
       currentSource = next;
       session.replaceSource(currentSource);
@@ -536,7 +539,7 @@ describe("VS Code Extract Module command feature", () => {
     mocks.showInputBox.mockResolvedValue("Part");
     mocks.showQuickPick.mockResolvedValue({ label: "Use module name: PartModule" });
     const apply = vi.fn(async () => true);
-    const navigate = vi.fn(() => true);
+    const navigate = vi.fn((): CanvasNavigationHandoffResult => ({ accepted: true }));
     const feature = commandFeatureFor({ editor, session, apply, navigate });
 
     await mocks.commandHandler?.();
@@ -738,7 +741,7 @@ describe("VS Code Extract Module command feature", () => {
       activeSourceEditor: () => sourceActive ? sourceEditor as never : undefined,
       sourceEditorForDocument: () => canvasEditor as never,
       activeCanvasEndpoint: () => canvasActive ? endpoint : null,
-      navigateCanvasToSourceOffset: vi.fn(() => true),
+      navigateCanvasToSourceOffset: vi.fn(() => ({ accepted: true })),
       applySourceLineSplices: async () => true
     });
 
@@ -809,6 +812,53 @@ describe("VS Code Extract Module command feature", () => {
 
     fixture.feature.handleCanvasAuthoritativeDocumentReady(fixture.editor.document as never, 2);
     fixture.feature.handleCanvasObservationPublication(fixture.editor.document as never);
+    fixture.feature.handleCanvasViewStateChange();
+    expect(fixture.navigate).toHaveBeenCalledTimes(1);
+    fixture.feature.dispose();
+  });
+
+  it("retains a retryable navigation refusal until an existing Canvas retry signal accepts it", async () => {
+    const fixture = postApplyCanvasLifecycleFixtureFor();
+    fixture.setNavigationResult({ accepted: false, retryable: true });
+
+    await mocks.commandHandler?.();
+    await flushCommand();
+    expect(fixture.apply).toHaveBeenCalledTimes(1);
+    expect(fixture.navigate).not.toHaveBeenCalled();
+
+    fixture.setAuthoritativeReady(true);
+    fixture.feature.handleCanvasViewStateChange();
+    expect(fixture.navigate).toHaveBeenCalledTimes(1);
+
+    fixture.setNavigationResult({ accepted: true });
+    fixture.feature.handleCanvasObservationPublication(fixture.editor.document as never);
+    expect(fixture.navigate).toHaveBeenCalledTimes(2);
+    expect(fixture.navigate).toHaveBeenNthCalledWith(
+      2,
+      fixture.endpoint,
+      fixture.currentSource().indexOf("instance Part")
+    );
+
+    fixture.feature.handleCanvasAuthoritativeDocumentReady(fixture.editor.document as never, 2);
+    fixture.feature.handleCanvasObservationPublication(fixture.editor.document as never);
+    fixture.feature.handleCanvasViewStateChange();
+    expect(fixture.navigate).toHaveBeenCalledTimes(2);
+    fixture.feature.dispose();
+  });
+
+  it("consumes a terminal navigation refusal instead of retaining the handoff", async () => {
+    const fixture = postApplyCanvasLifecycleFixtureFor();
+    fixture.setNavigationResult({ accepted: false, retryable: false });
+
+    await mocks.commandHandler?.();
+    await flushCommand();
+    fixture.setAuthoritativeReady(true);
+    fixture.feature.handleCanvasViewStateChange();
+    expect(fixture.navigate).toHaveBeenCalledTimes(1);
+
+    fixture.setNavigationResult({ accepted: true });
+    fixture.feature.handleCanvasObservationPublication(fixture.editor.document as never);
+    fixture.feature.handleCanvasAuthoritativeDocumentReady(fixture.editor.document as never, 2);
     fixture.feature.handleCanvasViewStateChange();
     expect(fixture.navigate).toHaveBeenCalledTimes(1);
     fixture.feature.dispose();
@@ -935,7 +985,7 @@ describe("VS Code Extract Module command feature", () => {
       isAuthoritativeReady: () => authoritativeReady,
       observation: () => currentObservation as never
     };
-    const navigate = vi.fn(() => true);
+    const navigate = vi.fn((): CanvasNavigationHandoffResult => ({ accepted: true }));
     mocks.showInputBox.mockResolvedValue("Part");
     mocks.showQuickPick.mockResolvedValue({ label: "Use module name: PartModule" });
     mocks.registerCommand.mockImplementation((id: string, handler: () => unknown) => {

@@ -37,6 +37,11 @@ export type ExtractModuleCanvasEndpoint = {
   observation: () => VscodeCanvasObservationSnapshot | null;
 };
 
+export type CanvasNavigationHandoffResult =
+  | { accepted: true }
+  | { accepted: false; retryable: true }
+  | { accepted: false; retryable: false };
+
 export type ExtractModuleCommandFeatureHost = {
   languageAnalysisSessionFor: (document: vscode.TextDocument) => NuiLanguageAnalysisSession;
   activeSourceEditor: () => vscode.TextEditor | undefined;
@@ -45,7 +50,7 @@ export type ExtractModuleCommandFeatureHost = {
   navigateCanvasToSourceOffset: (
     endpoint: ExtractModuleCanvasEndpoint,
     normalizedSourceOffset: number
-  ) => boolean;
+  ) => CanvasNavigationHandoffResult;
   applySourceLineSplices: (
     editor: vscode.TextEditor,
     expectedDocumentVersion: number,
@@ -683,8 +688,8 @@ export const registerVscodeExtractModuleCommandFeature = ({
       pendingCanvasNavigation = null;
       return;
     }
-    pendingCanvasNavigation = null;
-    navigateCanvasToSourceOffset(endpoint, offset);
+    const handoff = navigateCanvasToSourceOffset(endpoint, offset);
+    if (handoff.accepted || !handoff.retryable) pendingCanvasNavigation = null;
   };
 
   const handleCanvasAuthoritativeDocumentReady = (document: vscode.TextDocument, documentVersion: number): void => {
