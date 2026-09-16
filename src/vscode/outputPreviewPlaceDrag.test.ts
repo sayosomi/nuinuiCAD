@@ -127,32 +127,27 @@ describe("Output Preview place drag proof", () => {
     })).toBe(false);
   });
 
-  it("reuses Canvas world-delta X/Y lock semantics", () => {
+  it("reuses Canvas Shift dominant-axis world-delta semantics", () => {
     const proof = begin();
     expect(proof).not.toBeNull();
     if (!proof) return;
 
-    expect(outputPreviewPlaceDragCoordinatesFor({
-      proof,
-      screenDx: 20,
-      screenDy: -10,
-      zoom: 2,
-      axisLockKeys: { x: false, y: false }
-    })).toEqual({ x: 20, y: 25 });
-    expect(outputPreviewPlaceDragCoordinatesFor({
-      proof,
-      screenDx: 20,
-      screenDy: -10,
-      zoom: 2,
-      axisLockKeys: { x: true, y: false }
-    })).toEqual({ x: 20, y: 20 });
-    expect(outputPreviewPlaceDragCoordinatesFor({
-      proof,
-      screenDx: 20,
-      screenDy: -10,
-      zoom: 2,
-      axisLockKeys: { x: false, y: true }
-    })).toEqual({ x: 10, y: 25 });
+    const cases = [
+      { screenDx: 20, screenDy: -10, shiftKey: false, coordinates: { x: 20, y: 25 } },
+      { screenDx: 20, screenDy: -10, shiftKey: true, coordinates: { x: 20, y: 20 } },
+      { screenDx: 10, screenDy: -20, shiftKey: true, coordinates: { x: 10, y: 30 } },
+      { screenDx: 20, screenDy: -20, shiftKey: true, coordinates: { x: 20, y: 20 } }
+    ] as const;
+
+    for (const { screenDx, screenDy, shiftKey, coordinates } of cases) {
+      expect(outputPreviewPlaceDragCoordinatesFor({
+        proof,
+        screenDx,
+        screenDy,
+        zoom: 2,
+        shiftKey
+      })).toEqual(coordinates);
+    }
   });
 
   it("creates transient source and exact coordinate patches without mutating the snapshot", () => {
