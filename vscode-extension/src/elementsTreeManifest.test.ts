@@ -30,12 +30,16 @@ const readManifest = async (): Promise<Manifest> =>
 describe("nuinuiCAD Explorer manifest", () => {
   it("contributes the Activity Bar container and source Elements view", async () => {
     const manifest = await readManifest();
-    expect(manifest.contributes?.viewsContainers?.activitybar).toEqual([{
-      id: "nuinuiCAD.explorer",
+    const activityBarContainers = manifest.contributes?.viewsContainers?.activitybar ?? [];
+    for (const container of activityBarContainers) {
+      expect(container.id).toMatch(/^[A-Za-z0-9_-]+$/);
+    }
+    expect(activityBarContainers).toEqual([{
+      id: "nuinuiCAD-explorer",
       title: "%views.explorerContainer%",
       icon: "media/spline.svg"
     }]);
-    expect(manifest.contributes?.views?.["nuinuiCAD.explorer"]).toEqual([
+    expect(manifest.contributes?.views?.["nuinuiCAD-explorer"]).toEqual([
       {
         id: "nuinuiCAD.elements",
         name: "%views.elements%"

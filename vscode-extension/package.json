@@ -18,14 +18,14 @@
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "nuinuiCAD.explorer",
+          "id": "nuinuiCAD-explorer",
           "title": "%views.explorerContainer%",
           "icon": "media/spline.svg"
         }
       ]
     },
     "views": {
-      "nuinuiCAD.explorer": [
+      "nuinuiCAD-explorer": [
         {
           "id": "nuinuiCAD.elements",
           "name": "%views.elements%"
