@@ -18,6 +18,7 @@ import {
 import type { OutputPreviewViewport, OutputPreviewViewportSize } from "./outputPreviewViewport";
 import { useNativePointerBoundaryFallback } from "../components/nativePointerBoundaryFallback";
 import type { CanvasPresentation } from "../components/canvasPresentation";
+import { pointDragAxisForScreenDelta } from "../components/canvasViewport";
 import "./outputPreviewPlaceOverlay.css";
 
 type OutputPreviewPlaceCandidateSession = {
@@ -31,8 +32,11 @@ type OutputPreviewPlaceDragSession = {
   proof: OutputPreviewPlaceDragProof;
   startClientX: number;
   startClientY: number;
+  originScreenX: number;
+  originScreenY: number;
   lastClientX: number;
   lastClientY: number;
+  shiftKey: boolean;
   zoom: number;
   coordinates: { x: number; y: number };
   activated: boolean;
@@ -200,7 +204,13 @@ export const OutputPreviewPlaceOverlay = ({
       event.stopImmediatePropagation();
       if (shiftKeyRef.current === pressed) return;
       shiftKeyRef.current = pressed;
-      if (current.activated) applyDragPreview(current, current.lastClientX, current.lastClientY);
+      const shifted = { ...current, shiftKey: pressed };
+      if (current.activated) {
+        applyDragPreview(shifted, current.lastClientX, current.lastClientY);
+      } else {
+        dragSessionRef.current = shifted;
+        setDragSession(shifted);
+      }
     };
     const onKeyDown = (event: KeyboardEvent) => setShiftKey(event, true);
     const onKeyUp = (event: KeyboardEvent) => setShiftKey(event, false);
@@ -225,6 +235,15 @@ export const OutputPreviewPlaceOverlay = ({
     shiftKeyRef.current = false;
     if (current) dragCallbacksRef.current.onCancelDrag?.(current.proof);
   }, []);
+
+  const activeDragSession = dragSession?.activated ? dragSession : null;
+  const activeDragAxis = activeDragSession
+    ? pointDragAxisForScreenDelta({
+        screenDx: activeDragSession.lastClientX - activeDragSession.startClientX,
+        screenDy: activeDragSession.lastClientY - activeDragSession.startClientY,
+        shiftKey: activeDragSession.shiftKey
+      })
+    : null;
 
   const candidateHandles = candidateSession
     ? candidateSession.placeIds.flatMap((placeId) => {
@@ -365,8 +384,11 @@ export const OutputPreviewPlaceOverlay = ({
       proof,
       startClientX: event.clientX,
       startClientY: event.clientY,
+      originScreenX: handle.screen.x,
+      originScreenY: handle.screen.y,
       lastClientX: event.clientX,
       lastClientY: event.clientY,
+      shiftKey: event.shiftKey,
       zoom: viewport.zoom,
       coordinates: { x: proof.x.literal, y: proof.y.literal },
       activated: false,
@@ -433,6 +455,35 @@ export const OutputPreviewPlaceOverlay = ({
 
   return (
     <div ref={overlayRootRef} className="output-preview-place-overlay" data-output-preview-layer="place-overlay">
+      {activeDragSession && activeDragAxis ? (
+        <svg
+          className="output-preview-place-axis-guides"
+          width={viewportSize.width}
+          height={viewportSize.height}
+          viewBox={`0 0 ${viewportSize.width} ${viewportSize.height}`}
+          aria-hidden="true"
+          style={{ pointerEvents: "none" }}
+        >
+          {activeDragAxis === "horizontal" ? (
+            <line
+              data-output-preview-place-axis-guide="horizontal"
+              x1={0}
+              y1={activeDragSession.originScreenY}
+              x2={viewportSize.width}
+              y2={activeDragSession.originScreenY}
+            />
+          ) : (
+            <line
+              data-output-preview-place-axis-guide="vertical"
+              x1={activeDragSession.originScreenX}
+              y1={0}
+              x2={activeDragSession.originScreenX}
+              y2={viewportSize.height}
+            />
+          )}
+        </svg>
+      ) : null}
+
       {handles.map((handle) => {
         const isDragging = dragSession?.placeId === handle.placeId;
         return (
