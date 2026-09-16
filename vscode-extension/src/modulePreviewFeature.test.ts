@@ -1585,7 +1585,8 @@ describe("registerModulePreviewFeature", () => {
       "nui 1",
       "point R = coordinate(x: 0, y: 0)",
       "module Preview(input: point) {",
-      "}"
+      "}",
+      "point Forward = coordinate(x: 1, y: 1)"
     ].join("\n");
     const document = createDocument(source);
     const editor = createEditor(document);
@@ -1648,6 +1649,9 @@ describe("registerModulePreviewFeature", () => {
       .find((message) => message.type === "modulePreviewParameterValueCompletionResult");
     expect(result?.candidates).toEqual(expect.arrayContaining([
       expect.objectContaining({ label: "R", insertionText: "R" })
+    ]));
+    expect(result?.candidates).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ label: "Forward" })
     ]));
     expect(document.getText()).toBe(source);
 

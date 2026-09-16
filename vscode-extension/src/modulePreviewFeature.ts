@@ -848,6 +848,9 @@ export const registerModulePreviewFeature = ({
       request.definitionStatementId
     );
     const namespace = compiled?.sourceLexicalNamespace;
+    const callerScopeId = parameterDefinition && namespace
+      ? namespace.scopeIndex.scopeOfStatement.get(parameterDefinition.statementIndex)
+      : undefined;
     if (
       !compiled ||
       !semantic ||
@@ -856,12 +859,11 @@ export const registerModulePreviewFeature = ({
       currentTarget.definitionStatementIndex !== snapshot.target.definitionStatementIndex ||
       source.sourceRevision !== request.sourceRevision ||
       !parameterDefinition ||
-      !namespace
+      !namespace ||
+      callerScopeId !== parameterDefinition.declarationScopeId
     ) return false;
 
     session.latestCompletionGeneration = request.completionGeneration;
-    const callerScopeId = namespace.scopeIndex.scopeOfStatement.get(parameterDefinition.statementIndex) ??
-      namespace.scopeIndex.rootScopeId;
     const result = queryDslModulePreviewParameterValueCompletion({
       source,
       semantic,
@@ -875,9 +877,9 @@ export const registerModulePreviewFeature = ({
         type: row.type
       },
       caller: {
-        statementIndex: compiled.statements.length,
-        scopeId: callerScopeId,
-        sourceOrderIndex: compiled.statements.length
+        statementIndex: parameterDefinition.statementIndex,
+        scopeId: parameterDefinition.declarationScopeId,
+        sourceOrderIndex: parameterDefinition.statementIndex
       },
       value: request.value,
       selectionStart: request.selectionStart,
