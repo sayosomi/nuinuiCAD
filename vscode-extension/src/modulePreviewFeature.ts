@@ -670,6 +670,17 @@ export const registerModulePreviewFeature = ({
     return row ? { row } : null;
   };
 
+  const focusedPreviewValueMatchesForAcceptance = (
+    session: ModulePreviewSession,
+    snapshot: VscodeModulePreviewParameterSnapshot,
+    focus: VscodeModulePreviewParameterValueFocus
+  ) => {
+    const match = focusedPreviewValueMatches(session, snapshot, focus, true);
+    return match && (focus.sessionRevision === snapshot.sessionRevision || match.row.value === focus.value)
+      ? match
+      : null;
+  };
+
   const sameFocusedPreviewIdentity = (
     left: VscodeModulePreviewParameterValueFocus,
     right: VscodeModulePreviewParameterValueFocus
@@ -773,7 +784,7 @@ export const registerModulePreviewFeature = ({
   ): boolean => {
     const session = boundParameterSession;
     const snapshot = session ? currentParameterSnapshot(session) : null;
-    if (!session || !snapshot || !focusedPreviewValueMatches(session, snapshot, message, false)) return false;
+    if (!session || !snapshot || !focusedPreviewValueMatchesForAcceptance(session, snapshot, message)) return false;
     const previous = focusedPreviewValue;
     if (previous) {
       if (message.focusGeneration < previous.focusGeneration) return false;

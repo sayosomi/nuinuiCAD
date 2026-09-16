@@ -226,6 +226,45 @@ describe("ModulePreviewApp integrated parameter composition", () => {
     }));
   });
 
+  it("publishes the edited parameter snapshot before the refreshed focus and completion request", async () => {
+    const initial = snapshotFor();
+    const next = snapshotFor([{ ...parameter, value: "13" }]);
+    mocks.session.setValue.mockReturnValue(next);
+    renderPreview(initial);
+
+    const initialParameterSnapshot = mocks.postMessage.mock.calls
+      .map(([message]) => message as { type?: string; sessionRevision?: number })
+      .filter((message) => message.type === "modulePreviewParameterSnapshot")
+      .at(-1);
+    if (!initialParameterSnapshot?.sessionRevision) throw new Error("expected initial parameter snapshot");
+    const input = screen.getByLabelText("Value for width");
+    input.focus();
+    mocks.postMessage.mockClear();
+
+    fireEvent.change(input, { target: { value: "13" } });
+    await act(async () => {
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    });
+
+    const messages = mocks.postMessage.mock.calls
+      .map(([message]) => message as { type?: string; sessionRevision?: number; value?: string })
+      .filter((message) => [
+        "modulePreviewParameterSnapshot",
+        "modulePreviewParameterValueFocus",
+        "modulePreviewParameterValueCompletion"
+      ].includes(message.type ?? ""));
+    const snapshotIndex = messages.findIndex((message) => message.type === "modulePreviewParameterSnapshot");
+    const focusIndex = messages.findIndex((message) => message.type === "modulePreviewParameterValueFocus");
+    const completionIndex = messages.findIndex((message) => message.type === "modulePreviewParameterValueCompletion");
+
+    expect(snapshotIndex).toBeGreaterThanOrEqual(0);
+    expect(focusIndex).toBeGreaterThan(snapshotIndex);
+    expect(completionIndex).toBeGreaterThan(focusIndex);
+    expect(messages[snapshotIndex]).toMatchObject({ sessionRevision: initialParameterSnapshot.sessionRevision + 1 });
+    expect(messages[focusIndex]).toMatchObject({ sessionRevision: initialParameterSnapshot.sessionRevision, value: "13" });
+    expect(messages[completionIndex]).toMatchObject({ sessionRevision: initialParameterSnapshot.sessionRevision, value: "13" });
+  });
+
   it("keeps the parameter region independently scrollable and the canvas independently sized", () => {
     renderPreview(snapshotFor());
     const parameterRegion = document.querySelector("[data-module-preview-parameters-region='true']")!;
