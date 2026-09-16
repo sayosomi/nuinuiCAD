@@ -2,7 +2,6 @@
   "extension.description": "VS Code で洋裁パターンを製図するための 2D パラメトリック CAD です。",
   "views.explorerContainer": "nuinuiCAD エクスプローラー",
   "views.elements": "要素",
-  "views.explorerMock": "エクスプローラー モック",
   "submenu.convert": "変換",
   "submenu.webview.display": "表示",
   "submenu.webview.convertPoint": "変換",

@@ -1019,8 +1019,7 @@ The production host still ships one `webview.js` bundle. Extension Host HTML
 bootstrap places the surface kind in explicit static metadata, and
 `webviewSurfaceRouter.tsx` validates that value before routing `canvas` to
 `VSCodeApp`, `outputPreview` to `OutputPreviewApp`, `modulePreview` to
-`ModulePreviewApp`, and `explorerMock` to `ExplorerMockApp`. Malformed or unknown
-values fail closed.
+`ModulePreviewApp`. Malformed or unknown values fail closed.
 
 Module Preview command eligibility and execution are exact-current. Command
 Palette visibility is Source-scoped for file-scheme `.nui` documents, while the
@@ -1351,25 +1350,20 @@ root runtime/host implementations.
 `rust-evaluator/src/evaluation/*performance*` は Rust evaluator 単体の既存 performance
 test であり、cross-host UI comparison foundation とは別責務。
 
-### VS Code Explorer mock surface
+### VS Code Explorer surface
 
 The native `nuinuiCAD.elements` Tree View is registered and refreshed by
 `vscode-extension/src/elementsTreeFeature.ts`; it owns the Extension Host
 lifecycle only. `vscode-extension/src/elementsTreeProvider.ts` remains the
 semantic/presentation adapter, projecting the exact-current Document Symbols
-into the tree hierarchy. A sibling
-`nuinuiCAD.explorerMock` Webview View is contributed to the same
-`nuinuiCAD.explorer` View Container. `vscode-extension/src/explorerMockFeature.ts`
-owns only that Webview View's host lifecycle and shared-bundle HTML bootstrap.
-`src/vscode/ExplorerMockApp.tsx` owns static fixture data presentation and
-React-local interaction state. The surface reuses the shared Webview bundle and
-`webviewSurfaceRouter.tsx`; it has no production document, evaluation, runtime,
-navigation, or mutation semantics.
+into the tree hierarchy. It is the only view contributed to the
+`nuinuiCAD.explorer` Activity Bar container.
 
 The integrated parameter surface is composed by `src/vscode/ModulePreviewApp.tsx`
 using the reusable presentation in `src/vscode/ModulePreviewParametersApp.tsx`.
-It is independent of the Explorer Mock surface and the native Elements View; no
-parameter Webview View is contributed to the Explorer container.
+It is independent of the native Elements View; no parameter Webview View is
+contributed to the Explorer container. Shared Webview routing remains owned by
+`webviewSurfaceRouter.tsx` for Canvas, Output Preview, and Module Preview.
 
 ## Core architecture invariants
 

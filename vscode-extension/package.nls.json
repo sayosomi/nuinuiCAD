@@ -2,7 +2,6 @@
   "extension.description": "2D parametric CAD for sewing pattern drafting in VS Code.",
   "views.explorerContainer": "nuinuiCAD Explorer",
   "views.elements": "Elements",
-  "views.explorerMock": "Explorer Mock",
   "submenu.convert": "Convert",
   "submenu.webview.display": "Display",
   "submenu.webview.convertPoint": "Convert",

@@ -29,7 +29,6 @@ import {
 import { createVscodeModuleMultiDocumentHost } from "./moduleMultiDocumentHost";
 import { activeRustEvaluationProcessOwner } from "./rustEvaluationProcessOwner";
 import { vscodeObservationState } from "./vscodeObservationState";
-import { registerExplorerMockFeature } from "./explorerMockFeature";
 import { createWebviewEditableFocusContext } from "./webviewEditableFocusContext";
 
 const observationSnapshot = (includeSourceText: boolean): unknown => {
@@ -174,7 +173,6 @@ export const activate = (context: vscode.ExtensionContext): void => {
   context.subscriptions.push(multiDocumentHost);
 
   activateExtension(context, webviewEditableFocusContext);
-  context.subscriptions.push(registerExplorerMockFeature(context));
   registerModulePreview(context, webviewEditableFocusContext);
 
   const bridge = createMcpObservationBridge({

@@ -39,11 +39,6 @@ describe("nuinuiCAD Explorer manifest", () => {
       {
         id: "nuinuiCAD.elements",
         name: "%views.elements%"
-      },
-      {
-        id: "nuinuiCAD.explorerMock",
-        name: "%views.explorerMock%",
-        type: "webview"
       }
     ]);
   });
