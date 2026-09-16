@@ -545,7 +545,11 @@ describe("VS Code Extract Module command feature", () => {
     await mocks.commandHandler?.();
     await flushCommand();
 
-    expect(mocks.showInputBox).toHaveBeenCalledWith(expect.objectContaining({ title: "Instance name", prompt: "Instance name" }));
+    expect(mocks.showInputBox).toHaveBeenCalledWith(expect.objectContaining({
+      title: "Instance name",
+      prompt: "Instance name",
+      value: "Extracted"
+    }));
     expect(mocks.showQuickPick).toHaveBeenCalledWith([
       { label: "Use module name: PartModule" },
       { label: "Rename module..." }
@@ -554,6 +558,109 @@ describe("VS Code Extract Module command feature", () => {
     const applyCall = apply.mock.calls[0] as unknown as [unknown, number, string, readonly LineSplice[]] | undefined;
     expect(applyCall?.[3].length ?? 0).toBeGreaterThan(0);
     expect(navigate).not.toHaveBeenCalled();
+    feature.dispose();
+  });
+
+  it("prefills Extracted when the preferred pair is unoccupied", async () => {
+    const emptyTargetNamespaceSource = [
+      "nui 1",
+      "const value: number = 1"
+    ].join("\n");
+    const targetOffset = emptyTargetNamespaceSource.indexOf("const value");
+    const editor = editorFor(() => emptyTargetNamespaceSource, { start: targetOffset, end: targetOffset, active: targetOffset });
+    const { session } = compiledFor(emptyTargetNamespaceSource);
+    mocks.showInputBox.mockResolvedValue("Extracted");
+    mocks.showQuickPick.mockResolvedValue({ label: "Use module name: ExtractedModule" });
+    const apply = vi.fn(async () => true);
+    const feature = commandFeatureFor({ editor, session, apply });
+
+    await mocks.commandHandler?.();
+    await flushCommand();
+
+    expect(mocks.showInputBox).toHaveBeenCalledWith(expect.objectContaining({ value: "Extracted" }));
+    expect(mocks.showQuickPick).toHaveBeenCalledWith([
+      { label: "Use module name: ExtractedModule" },
+      { label: "Rename module..." }
+    ], { title: "Module name", ignoreFocusOut: true });
+    expect(apply).toHaveBeenCalledTimes(1);
+    feature.dispose();
+  });
+
+  it.each([
+    ["module", ["module ExtractedModule() {", "}"].join("\n")],
+    ["instance", ["module Stamp() {", "}", "instance Extracted = Stamp()"].join("\n")]
+  ])("advances the initial suggestion when the preferred %s name collides", async (_kind, occupiedSource) => {
+    const collisionSource = ["nui 1", occupiedSource, "const value: number = 1"].join("\n");
+    const targetOffset = collisionSource.indexOf("const value");
+    const editor = editorFor(() => collisionSource, { start: targetOffset, end: targetOffset, active: targetOffset });
+    const { session } = compiledFor(collisionSource);
+    mocks.showInputBox.mockResolvedValue("Extracted2");
+    mocks.showQuickPick.mockResolvedValue({ label: "Use module name: Extracted2Module" });
+    const apply = vi.fn(async () => true);
+    const feature = commandFeatureFor({ editor, session, apply });
+
+    await mocks.commandHandler?.();
+    await flushCommand();
+
+    expect(mocks.showInputBox).toHaveBeenCalledWith(expect.objectContaining({ value: "Extracted2" }));
+    expect(mocks.showQuickPick).toHaveBeenCalledWith([
+      { label: "Use module name: Extracted2Module" },
+      { label: "Rename module..." }
+    ], { title: "Module name", ignoreFocusOut: true });
+    expect(apply).toHaveBeenCalledTimes(1);
+    feature.dispose();
+  });
+
+  it("chooses the smallest available paired suffix and derives its Module candidate", async () => {
+    const occupiedSource = [
+      "nui 1",
+      "module ExtractedModule() {",
+      "}",
+      "module Extracted2Module() {",
+      "}",
+      "const value: number = 1"
+    ].join("\n");
+    const targetOffset = occupiedSource.indexOf("const value");
+    const editor = editorFor(() => occupiedSource, { start: targetOffset, end: targetOffset, active: targetOffset });
+    const { session } = compiledFor(occupiedSource);
+    mocks.showInputBox.mockResolvedValue("Extracted3");
+    mocks.showQuickPick.mockResolvedValue({ label: "Use module name: Extracted3Module" });
+    const apply = vi.fn(async () => true);
+    const feature = commandFeatureFor({ editor, session, apply });
+
+    await mocks.commandHandler?.();
+    await flushCommand();
+
+    expect(mocks.showInputBox).toHaveBeenCalledWith(expect.objectContaining({ value: "Extracted3" }));
+    expect(mocks.showQuickPick).toHaveBeenCalledWith([
+      { label: "Use module name: Extracted3Module" },
+      { label: "Rename module..." }
+    ], { title: "Module name", ignoreFocusOut: true });
+    expect(apply).toHaveBeenCalledTimes(1);
+    feature.dispose();
+  });
+
+  it("keeps a user-edited instance name unsuffixed and derives its Module candidate", async () => {
+    const editor = editorFor(() => source, {
+      start: source.indexOf("const first"),
+      end: source.indexOf("const first") + "const first: number = @width + 1".length,
+      active: source.indexOf("const first")
+    });
+    const { session } = compiledFor(source);
+    mocks.showInputBox.mockResolvedValue("Part");
+    mocks.showQuickPick.mockResolvedValue({ label: "Use module name: PartModule" });
+    const apply = vi.fn(async () => true);
+    const feature = commandFeatureFor({ editor, session, apply });
+
+    await mocks.commandHandler?.();
+    await flushCommand();
+
+    expect(mocks.showInputBox).toHaveBeenCalledWith(expect.objectContaining({ value: "Extracted" }));
+    expect(mocks.showQuickPick).toHaveBeenCalledWith([
+      { label: "Use module name: PartModule" },
+      { label: "Rename module..." }
+    ], { title: "Module name", ignoreFocusOut: true });
+    expect(apply).toHaveBeenCalledTimes(1);
     feature.dispose();
   });
 
@@ -595,8 +702,36 @@ describe("VS Code Extract Module command feature", () => {
     await mocks.commandHandler?.();
     await flushCommand();
 
+    expect(mocks.showInputBox).toHaveBeenCalledWith(expect.objectContaining({ value: "Extracted" }));
     expect(apply).not.toHaveBeenCalled();
     expect(mocks.showErrorMessage.mock.calls.some(([message]) => String(message).includes("already used in this Source scope"))).toBe(true);
+    feature.dispose();
+  });
+
+  it("keeps an edited-name Module collision on the explicit Rename module path", async () => {
+    const collisionSource = [
+      "nui 1",
+      "module PartModule() {",
+      "}",
+      "const value: number = 1"
+    ].join("\n");
+    const targetOffset = collisionSource.indexOf("const value");
+    const editor = editorFor(() => collisionSource, { start: targetOffset, end: targetOffset, active: targetOffset });
+    const { session } = compiledFor(collisionSource);
+    mocks.showInputBox.mockResolvedValueOnce("Part").mockResolvedValueOnce("Custom");
+    mocks.showQuickPick.mockResolvedValue({ label: "Rename module..." });
+    const apply = vi.fn(async () => true);
+    const feature = commandFeatureFor({ editor, session, apply });
+
+    await mocks.commandHandler?.();
+    await flushCommand();
+
+    expect(mocks.showInputBox).toHaveBeenNthCalledWith(1, expect.objectContaining({ value: "Extracted" }));
+    expect(mocks.showInputBox).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      title: "Module name",
+      prompt: "Module name"
+    }));
+    expect(apply).toHaveBeenCalledTimes(1);
     feature.dispose();
   });
 
