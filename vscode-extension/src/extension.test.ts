@@ -3993,11 +3993,12 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
 
     mocks.activeTabInput = new mocks.TabInputWebview("nuinuiCAD.canvas");
     expect(host.navigateCanvasToSourceOffset(endpoint, 0)).toEqual({ accepted: true });
-    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({
+      type: "canvasNavigationRequest",
       requestId: expect.any(Number),
       normalizedSourceOffset: 0,
       documentVersion: document.version
-    }));
+    });
   });
 
   it("classifies Canvas history in flight as retryable", async () => {
