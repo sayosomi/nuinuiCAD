@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import {
   queryDslCompletion,
+  dslCompletionInsertionTextFor,
   type DslCompletionCandidate,
   type DslCompletionCandidateKind,
   type DslCompletionQueryResult
@@ -61,25 +62,20 @@ export const normalizedPositionAt = (normalizedSource: string, offset: number): 
   return new vscode.Position(line, clampedOffset - starts[line]!);
 };
 
-const hasReferencePrefix = (source: string, offset: number): boolean =>
-  source.slice(0, offset).endsWith("@") ||
-  source.slice(0, offset).endsWith("::") ||
-  source.slice(0, offset).endsWith(".");
-
 const insertionFor = (
   candidate: DslCompletionCandidate,
   result: DslCompletionQueryResult,
   normalizedSource: string
 ): string | vscode.SnippetString => {
-  if (candidate.sourceText !== undefined) return candidate.sourceText;
-  if (candidate.kind === "type" && candidate.label === "choice") return new vscode.SnippetString("choice($0)");
-  if (candidate.kind === "argumentName") return `${candidate.label}: `;
-  if (
-    (candidate.kind === "binding" || candidate.kind === "geometry") &&
-    result.category !== "setTarget" &&
-    !hasReferencePrefix(normalizedSource, result.replacementRange.from)
-  ) return `@${candidate.label}`;
-  return candidate.label;
+  const insertionText = dslCompletionInsertionTextFor(
+    candidate,
+    result.category,
+    result.replacementRange,
+    normalizedSource
+  );
+  return candidate.kind === "type" && candidate.label === "choice"
+    ? new vscode.SnippetString(insertionText)
+    : insertionText;
 };
 
 const completionItemFor = (

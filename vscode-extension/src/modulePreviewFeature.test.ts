@@ -1580,6 +1580,92 @@ describe("registerModulePreviewFeature", () => {
     feature.dispose();
   });
 
+  it("answers exact Preview Value completion requests and rejects stale proof", async () => {
+    const source = [
+      "nui 1",
+      "point R = coordinate(x: 0, y: 0)",
+      "module Preview(input: point) {",
+      "}",
+      "point Forward = coordinate(x: 1, y: 1)"
+    ].join("\n");
+    const document = createDocument(source);
+    const editor = createEditor(document);
+    const panel = createPanel();
+    const analysis = createLanguageAnalysisSession(source);
+    mocks.createWebviewPanel.mockReturnValue(panel);
+    mocks.activeTextEditor = {
+      document,
+      selection: { active: positionAt(source, source.indexOf("module Preview")) }
+    };
+    mocks.textDocuments = [document];
+    mocks.visibleTextEditors = [editor];
+    const feature = registerModulePreviewFeature({
+      languageAnalysisSessionFor: (() => analysis) as never,
+      canvasThemeGeneration: () => 0,
+      webviewHtml: () => "<html />",
+      canvasRibbons: () => [],
+      updateCanvasRibbonPosition: () => undefined,
+      editCanvasRibbon: () => undefined,
+      evaluateWithRust: async () => ({})
+    });
+    const parameterView = panelParameterWebview(panel);
+    mocks.commandHandlers.get("nuinuiCAD.openModulePreview")!();
+    await panel.receive({ type: "webviewReady" });
+    await panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
+
+    const sessionId = panel.webview.postMessage.mock.calls
+      .map(([message]) => message as { type?: string; sessionId?: string })
+      .find((message) => message.type === "modulePreviewSession")?.sessionId;
+    const target = currentCompiledSemanticSnapshotFor(analysis, {
+      normalizedSource: source,
+      sourceRevision: analysis.getSourceRevision()
+    })?.compiled?.moduleSemanticAnalysis?.definitions.find((definition) => definition.name === "Preview");
+    if (!sessionId || !target) throw new Error("expected exact Preview completion target");
+    const snapshot = parameterSnapshotFor({
+      sessionId,
+      document,
+      target,
+      sourceRevision: analysis.getSourceRevision(),
+      value: "@",
+      parameterType: { kind: "point" }
+    });
+    await panel.receive(snapshot);
+    const focus = parameterValueFocusFor(snapshot, {
+      value: "@",
+      selectionStart: 0,
+      selectionEnd: 1
+    });
+    await parameterView.receive(focus);
+    const request = {
+      ...focus,
+      type: "modulePreviewParameterValueCompletion" as const,
+      requestId: 1,
+      completionGeneration: 1
+    };
+    panel.webview.postMessage.mockClear();
+    await parameterView.receive(request);
+    const result = panel.webview.postMessage.mock.calls
+      .map(([message]) => message as { type?: string; candidates?: readonly { label: string; insertionText: string }[] })
+      .find((message) => message.type === "modulePreviewParameterValueCompletionResult");
+    expect(result?.candidates).toEqual(expect.arrayContaining([
+      expect.objectContaining({ label: "R", insertionText: "R" })
+    ]));
+    expect(result?.candidates).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ label: "Forward" })
+    ]));
+    expect(document.getText()).toBe(source);
+
+    const resultCount = panel.webview.postMessage.mock.calls.length;
+    await parameterView.receive({ ...request, sessionId: "stale-session" });
+    await parameterView.receive({ ...request, requestId: 2 });
+    expect(panel.webview.postMessage.mock.calls).toHaveLength(resultCount);
+
+    panel.fireDispose();
+    await parameterView.receive({ ...request, requestId: 3, completionGeneration: 2 });
+    expect(panel.webview.postMessage.mock.calls).toHaveLength(resultCount);
+    feature.dispose();
+  });
+
   it("projects accepted Parameter View focus into the generic context and releases it on invalidation and disposal", async () => {
     const source = [
       "nui 1",

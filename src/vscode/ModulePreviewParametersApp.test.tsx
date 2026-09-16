@@ -3,7 +3,13 @@ import { resolve } from "node:path";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { useEffect, useRef, useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { VscodeModulePreviewParameterSnapshot, VscodeModulePreviewParametersUnavailable, VscodeWebviewApi } from "./protocol";
+import type {
+  VscodeModulePreviewParameterSnapshot,
+  VscodeModulePreviewParameterValueCompletionRequest,
+  VscodeModulePreviewParameterValueCompletionResult,
+  VscodeModulePreviewParametersUnavailable,
+  VscodeWebviewApi
+} from "./protocol";
 import { ModulePreviewParametersSurface } from "./ModulePreviewParametersApp";
 
 const modulePreviewParametersStylesheet = readFileSync(
@@ -936,5 +942,82 @@ describe("ModulePreviewParametersSurface", () => {
     })));
     expect(input.selectionStart).toBe(0);
     expect(input.selectionEnd).toBe(0);
+  });
+
+  it("renders exact-row completion, keeps Tab ordinary, and accepts only the returned Value range", async () => {
+    render(<ModulePreviewParametersTestHarness />);
+    const currentSnapshot = snapshotWithValues(50, { width: "1 + @wi" });
+    act(() => window.dispatchEvent(new MessageEvent("message", { data: currentSnapshot })));
+    const input = screen.getByLabelText("Value for width") as HTMLInputElement;
+    input.focus();
+    const firstRequest = vi.mocked(api.postMessage).mock.calls
+      .map(([message]) => message as Partial<VscodeModulePreviewParameterValueCompletionRequest>)
+      .filter((message): message is VscodeModulePreviewParameterValueCompletionRequest =>
+        message.type === "modulePreviewParameterValueCompletion"
+      )
+      .at(-1);
+    if (!firstRequest) throw new Error("expected completion request");
+    const result: VscodeModulePreviewParameterValueCompletionResult = {
+      ...firstRequest,
+      type: "modulePreviewParameterValueCompletionResult",
+      replacementRange: { from: 5, to: 7 },
+      candidates: [
+        { kind: "binding", label: "width", insertionText: "width" },
+        { kind: "binding", label: "window", insertionText: "window" }
+      ]
+    };
+    act(() => window.dispatchEvent(new MessageEvent("message", { data: result })));
+
+    expect(screen.getByRole("listbox")).toBeInTheDocument();
+    const options = screen.getAllByRole("option");
+    expect(options).toHaveLength(2);
+    expect(options[0]).toHaveAttribute("aria-selected", "true");
+    await act(async () => { fireEvent.keyDown(input, { key: "ArrowDown" }); });
+    expect(options[1]).toHaveAttribute("aria-selected", "true");
+    await act(async () => { fireEvent.keyDown(input, { key: "ArrowUp" }); });
+    expect(options[0]).toHaveAttribute("aria-selected", "true");
+    fireEvent.keyDown(input, { key: "Tab" });
+    expect(screen.getByRole("listbox")).toBeInTheDocument();
+    fireEvent.keyDown(input, { key: "Escape" });
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    expect(input).toHaveValue("1 + @wi");
+    expect(surfaceActions.valueChange).not.toHaveBeenCalled();
+
+    fireEvent.blur(input);
+    fireEvent.focus(input);
+    const secondRequest = vi.mocked(api.postMessage).mock.calls
+      .map(([message]) => message as Partial<VscodeModulePreviewParameterValueCompletionRequest>)
+      .find((message): message is VscodeModulePreviewParameterValueCompletionRequest =>
+        message.type === "modulePreviewParameterValueCompletion" && message.requestId !== firstRequest.requestId
+      );
+    if (!secondRequest) throw new Error("expected refreshed completion request");
+    const secondResult: VscodeModulePreviewParameterValueCompletionResult = {
+      ...firstRequest,
+      ...secondRequest,
+      type: "modulePreviewParameterValueCompletionResult",
+      replacementRange: { from: 5, to: 7 },
+      candidates: [{ kind: "binding", label: "width", insertionText: "width" }]
+    };
+    act(() => window.dispatchEvent(new MessageEvent("message", { data: secondResult })));
+    fireEvent.keyDown(input, { key: "Enter" });
+    await act(async () => { await Promise.resolve(); });
+    expect(surfaceActions.valueChange).toHaveBeenCalledWith(
+      expect.objectContaining({ definitionStatementId: "module:inner", parameterIndex: 0 }),
+      "1 + @width"
+    );
+    expect(input).toHaveValue("1 + @width");
+
+    const unavailableMessage: VscodeModulePreviewParametersUnavailable = {
+      type: "modulePreviewParametersUnavailable",
+      sessionId: currentSnapshot.sessionId,
+      documentUri: currentSnapshot.documentUri,
+      documentVersion: currentSnapshot.documentVersion,
+      sourceRevision: currentSnapshot.sourceRevision,
+      sessionRevision: currentSnapshot.sessionRevision + 1,
+      targetDefinitionStatementId: currentSnapshot.target.definitionStatementId,
+      reason: "source-stale"
+    };
+    act(() => window.dispatchEvent(new MessageEvent("message", { data: unavailableMessage })));
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
   });
 });

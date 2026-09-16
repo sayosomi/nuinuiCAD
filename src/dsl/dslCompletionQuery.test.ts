@@ -3,6 +3,7 @@ import { compileDslDocument, type CompiledDslDocument } from "@nuinuicad/nui-lan
 import { parseDslSnapshot } from "@nuinuicad/nui-language";
 import {
   queryDslCompletion,
+  queryDslModulePreviewParameterValueCompletion,
   type DslCompletionQueryResult
 } from "@nuinuicad/nui-language";
 import { createNuiLanguageSession } from "@nuinuicad/nui-language";
@@ -853,5 +854,140 @@ describe("queryDslCompletion", () => {
       source: { normalizedSource: "nui 1\r\npoi", sourceRevision: 1 },
       position: 9
     })).toBeNull();
+  });
+});
+
+describe("queryDslModulePreviewParameterValueCompletion", () => {
+  const previewQuery = (
+    source: string,
+    value: string,
+    caller: { statementIndex: number; scopeId: string; sourceOrderIndex: number },
+    parameterTypeOverride?: "point" | "line" | "path" | "number" | "boolean" | "choice"
+  ) => {
+    const sourceRevision = 12;
+    const compiled = compileWithIds(source, sourceRevision);
+    const definition = compiled.moduleSemanticAnalysis!.definitions.find((candidate) => candidate.name === "Preview")!;
+    const parameter = definition.parameters[0]!;
+    const type = parameterTypeOverride
+      ? parameterTypeOverride === "choice"
+        ? { kind: "choice" as const, options: ["left", "right"] }
+        : { kind: parameterTypeOverride as "point" | "line" | "path" | "number" | "boolean" }
+      : parameter.type;
+    return queryDslModulePreviewParameterValueCompletion({
+      source: { normalizedSource: source, sourceRevision },
+      semantic: { sourceRevision, compiled },
+      target: {
+        definitionStatementId: definition.statementId,
+        definitionStatementIndex: definition.statementIndex
+      },
+      parameter: {
+        definitionStatementId: parameter.definitionStatementId,
+        parameterIndex: parameter.parameterIndex,
+        type,
+        recordTypeIdentity: parameter.recordTypeIdentity
+      },
+      caller,
+      value,
+      selectionStart: value.length,
+      selectionEnd: value.length
+    });
+  };
+
+  it("returns exact caller-scope point candidates and preserves @ insertion spelling", () => {
+    const source = [
+      "nui 1",
+      "point R = coordinate(x: 0, y: 0)",
+      "line L = segment(start: @R, end: @R)",
+      "group Hidden {",
+      "  point Out = coordinate(x: 1, y: 1)",
+      "}",
+      "point Forward = coordinate(x: 2, y: 2)",
+      "module Preview(input: point) {",
+      "}"
+    ].join("\n");
+    const compiled = compileWithIds(source, 12);
+    const rootCaller = {
+      statementIndex: compiled.statements.length,
+      scopeId: compiled.sourceLexicalNamespace!.scopeIndex.rootScopeId,
+      sourceOrderIndex: compiled.statements.length
+    };
+    const result = previewQuery(source, "@R", rootCaller);
+    expect(result?.replacementRange).toEqual({ from: 1, to: 2 });
+    expect(result?.candidates.map((candidate) => candidate.label)).toEqual([
+      "R", "L.start", "L.end", "Forward"
+    ]);
+    expect(result?.candidates.find((candidate) => candidate.label === "R")?.insertionText).toBe("R");
+    expect(result?.candidates.some((candidate) => candidate.label === "Out")).toBe(false);
+  });
+
+  it("applies caller order and existing line/path assignability", () => {
+    const source = [
+      "nui 1",
+      "line L = segment(start: (0, 0), end: (10, 0))",
+      "module Preview(input: path) {",
+      "}"
+    ].join("\n");
+    const compiled = compileWithIds(source, 12);
+    const caller = {
+      statementIndex: compiled.statements.length,
+      scopeId: compiled.sourceLexicalNamespace!.scopeIndex.rootScopeId,
+      sourceOrderIndex: compiled.statements.length
+    };
+    const pathResult = previewQuery(source, "@", caller);
+    expect(pathResult?.candidates.map((candidate) => candidate.label)).toContain("L");
+
+    const lineSource = source.replace("input: path", "input: line");
+    const lineResult = previewQuery(lineSource, "@", {
+      ...caller,
+      statementIndex: compiled.statements.length
+    });
+    expect(lineResult?.candidates.map((candidate) => candidate.label)).toContain("L");
+
+    const forwardOnly = previewQuery(source, "@", {
+      ...caller,
+      sourceOrderIndex: 1
+    });
+    expect(forwardOnly?.candidates.map((candidate) => candidate.label)).not.toContain("L");
+  });
+
+  it("reuses scalar boolean and choice candidates with language-owned ordering", () => {
+    const source = [
+      "nui 1",
+      "const answer: boolean = true",
+      "module Preview(flag: boolean) {",
+      "}"
+    ].join("\n");
+    const compiled = compileWithIds(source, 12);
+    const caller = {
+      statementIndex: compiled.statements.length,
+      scopeId: compiled.sourceLexicalNamespace!.scopeIndex.rootScopeId,
+      sourceOrderIndex: compiled.statements.length
+    };
+    const booleanResult = previewQuery(source, "", caller);
+    expect(booleanResult?.candidates.map((candidate) => candidate.label).slice(0, 2)).toEqual(["true", "false"]);
+    expect(booleanResult?.candidates.map((candidate) => candidate.label)).toEqual(expect.arrayContaining(["isClose", "answer", "!"]));
+
+    const choiceSource = source.replace("flag: boolean", "flag: choice(left, right)");
+    const choiceResult = previewQuery(choiceSource, "", caller, "choice");
+    expect(choiceResult?.candidates.map((candidate) => candidate.label)).toEqual(["left", "right"]);
+  });
+
+  it("returns a Value-local range for partial references in larger expressions", () => {
+    const source = [
+      "nui 1",
+      "const width: number = 10",
+      "module Preview(input: number) {",
+      "}"
+    ].join("\n");
+    const compiled = compileWithIds(source, 12);
+    const caller = {
+      statementIndex: compiled.statements.length,
+      scopeId: compiled.sourceLexicalNamespace!.scopeIndex.rootScopeId,
+      sourceOrderIndex: compiled.statements.length
+    };
+    const value = "1 + @wid";
+    const result = previewQuery(source, value, caller);
+    expect(result?.replacementRange).toEqual({ from: 5, to: 8 });
+    expect(result?.candidates.find((candidate) => candidate.label === "width")?.insertionText).toBe("width");
   });
 });

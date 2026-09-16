@@ -22,6 +22,7 @@ import {
   type SourceSnapshot
 } from "./logicalStatementSourceMap";
 import { parseDslReferenceToken, type DslReferencePath } from "./dslReferenceTokens";
+import type { StatementIdentity } from "../document/statementIdentity";
 import {
   resolveSourceLexicalPath,
   resolveSourceLexicalDeclaration,
@@ -34,6 +35,7 @@ import {
   moduleQualifiedCollectionLengthCandidates,
   moduleRecordFieldCompletions,
   moduleQualifiedRecordFieldCompletions,
+  modulePreviewParameterValueCompletionCandidates,
   isInsideModuleSemanticStatement,
   type ModuleCompletionCandidate,
   type ModuleCompletionParameterMetadata
@@ -62,8 +64,13 @@ import {
 } from "../scalars/typedValueCandidates";
 import { formatBuiltinFunctionSignatures, getBuiltinFunctionDefinition } from "../scalars/builtinFunctions";
 import { isScalarTypeAssignable } from "../scalars/scalarAssignability";
-import type { ScalarExpressionCompletionContext } from "../scalars/scalarExpressionPositionClassifier";
+import {
+  scalarExpressionCompletionContextAt,
+  scalarOperandWordEndingAt,
+  type ScalarExpressionCompletionContext
+} from "../scalars/scalarExpressionPositionClassifier";
 import type { ScalarType } from "../scalars/types";
+import type { DslModuleParameterType } from "./dslTypes";
 import { setRhsScalarCandidates, setTargetCandidates, type SetCompletionSiteDeps } from "../scalars/setCompletionCandidates";
 import {
   numericGeometryPropertiesForStaticTarget,
@@ -146,6 +153,66 @@ export type DslCompletionQueryResult = {
   category: Exclude<DslCompletionContext, null>["kind"];
   replacementRange: DslCompletionRange;
   candidates: readonly DslCompletionCandidate[];
+};
+
+/** Exact source-side lexical site used by an ephemeral Module Preview call. */
+export type DslModulePreviewParameterValueCompletionCaller = {
+  statementIndex: number;
+  scopeId: string;
+  sourceOrderIndex: number;
+};
+
+export type DslModulePreviewParameterValueCompletionQueryInput = {
+  source: SourceSnapshot;
+  semantic: DslCompletionSemanticSnapshot;
+  target: {
+    definitionStatementId: StatementIdentity;
+    definitionStatementIndex: number;
+  };
+  parameter: {
+    definitionStatementId: StatementIdentity;
+    parameterIndex: number;
+    type: DslModuleParameterType | null;
+    recordTypeIdentity?: string | null;
+  };
+  caller: DslModulePreviewParameterValueCompletionCaller;
+  value: string;
+  selectionStart: number;
+  selectionEnd: number;
+};
+
+export type DslModulePreviewParameterValueCompletionCandidate = DslCompletionCandidate & {
+  insertionText: string;
+};
+
+export type DslModulePreviewParameterValueCompletionQueryResult = {
+  replacementRange: DslCompletionRange;
+  candidates: readonly DslModulePreviewParameterValueCompletionCandidate[];
+};
+
+const sameModuleParameterType = (
+  left: DslModuleParameterType | null,
+  right: DslModuleParameterType | null
+): boolean => {
+  if (!left || !right || left.kind !== right.kind) return left === right;
+  if (left.kind !== "choice" || right.kind !== "choice") return true;
+  return left.options.length === right.options.length &&
+    left.options.every((option, index) => option === right.options[index]);
+};
+
+const definitionContains = (
+  compiled: CompiledDslDocument,
+  targetStatementIndex: number,
+  candidateStatementIndex: number
+): boolean => {
+  let current: number | null = targetStatementIndex;
+  const visited = new Set<number>();
+  while (current !== null && !visited.has(current)) {
+    if (current === candidateStatementIndex) return true;
+    visited.add(current);
+    current = compiled.statements[current]?.enclosing?.statementIndex ?? null;
+  }
+  return false;
 };
 
 type LogicalInput = {
@@ -966,25 +1033,57 @@ const moduleBodyReferenceCandidates = (
   }).map(moduleCandidate);
 };
 
-const replacementRangeInLogicalText = (
+const completionCategoriesWithReferencePrefix = new Set([
+  "parameter",
+  "moduleReference",
+  "typedInitializer",
+  "conditionExpression",
+  "propertyScalarValue",
+  "templateHole",
+  "geometryArrayValue",
+  "modulePreviewParameterValue"
+]);
+
+/** Shared Value/source replacement range projection for reference-like lanes. */
+export const dslCompletionReplacementRangeFor = (
   text: string,
-  context: Exclude<DslCompletionContext, null>
+  from: number,
+  to: number,
+  category: string
 ): DslCompletionRange => {
-  let from = context.from;
-  const to = context.to;
   // Source references keep their marker/separator outside the editable member
   // range. Existing classifiers already return the member-only range for
   // `.`/`::`; this handles the `@`-prefixed scalar/reference lanes.
-  if (from < to && text[from] === "@" && (
-    context.kind === "parameter" ||
-    context.kind === "moduleReference" ||
-    context.kind === "typedInitializer" ||
-    context.kind === "conditionExpression" ||
-    context.kind === "propertyScalarValue" ||
-    context.kind === "templateHole" ||
-    context.kind === "geometryArrayValue"
-  )) from += 1;
+  if (from < to && text[from] === "@" && completionCategoriesWithReferencePrefix.has(category)) from += 1;
   return { from, to };
+};
+
+const replacementRangeInLogicalText = (
+  text: string,
+  context: Exclude<DslCompletionContext, null>
+): DslCompletionRange => dslCompletionReplacementRangeFor(text, context.from, context.to, context.kind);
+
+const hasReferencePrefix = (source: string, offset: number): boolean =>
+  source.slice(0, offset).endsWith("@") ||
+  source.slice(0, offset).endsWith("::") ||
+  source.slice(0, offset).endsWith(".");
+
+/** Shared host-neutral insertion spelling consumed by Source and Preview adapters. */
+export const dslCompletionInsertionTextFor = (
+  candidate: DslCompletionCandidate,
+  category: string,
+  replacementRange: DslCompletionRange,
+  normalizedSource: string
+): string => {
+  if (candidate.sourceText !== undefined) return candidate.sourceText;
+  if (candidate.kind === "type" && candidate.label === "choice") return "choice($0)";
+  if (candidate.kind === "argumentName") return `${candidate.label}: `;
+  if (
+    (candidate.kind === "binding" || candidate.kind === "geometry") &&
+    category !== "setTarget" &&
+    !hasReferencePrefix(normalizedSource, replacementRange.from)
+  ) return `@${candidate.label}`;
+  return candidate.label;
 };
 
 const projectReplacementRange = (
@@ -1432,5 +1531,150 @@ export const queryDslCompletion = ({ source, position, semantic, recovery: reque
     candidates: uniqueCandidates(candidates)
   };
 };
+
+const scalarTypeForModuleParameter = (
+  type: DslModuleParameterType | null
+): ScalarType | null => type && (
+  type.kind === "number" || type.kind === "string" || type.kind === "boolean" || type.kind === "choice"
+) ? type : null;
+
+const uniquePreviewCandidates = (
+  candidates: readonly DslCompletionCandidate[]
+): DslCompletionCandidate[] => {
+  const seen = new Set<string>();
+  return candidates.filter((candidate) => {
+    const key = `${candidate.kind}\u0000${candidate.label}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
+/**
+ * Query completion for a Module Preview parameter's ephemeral Value field.
+ * This is exact-or-nothing: the canonical source, semantic snapshot, target,
+ * parameter slot, and caller lexical site all participate in the proof.
+ */
+export const queryDslModulePreviewParameterValueCompletion = ({
+  source,
+  semantic,
+  target,
+  parameter,
+  caller,
+  value,
+  selectionStart,
+  selectionEnd
+}: DslModulePreviewParameterValueCompletionQueryInput): DslModulePreviewParameterValueCompletionQueryResult | null => {
+  if (
+    source.normalizedSource.includes("\r") ||
+    !semanticIsExact(source, semantic) ||
+    !semantic.compiled ||
+    selectionStart < 0 ||
+    selectionEnd < selectionStart ||
+    selectionEnd > value.length ||
+    !Number.isInteger(caller.statementIndex) ||
+    !Number.isInteger(caller.sourceOrderIndex) ||
+    caller.statementIndex < 0 ||
+    caller.statementIndex > semantic.compiled.statements.length ||
+    caller.sourceOrderIndex < 0 ||
+    caller.sourceOrderIndex > semantic.compiled.statements.length
+  ) return null;
+
+  const compiled = semantic.compiled;
+  const namespace = compiled.sourceLexicalNamespace;
+  const analysis = compiled.moduleSemanticAnalysis;
+  if (!namespace || !analysis || !namespace.scopeIndex.scopes.has(caller.scopeId)) return null;
+
+  const targetDefinition = analysis.definitionsByStatementId.get(target.definitionStatementId);
+  const targetStatement = compiled.statements[target.definitionStatementIndex];
+  if (
+    !targetDefinition ||
+    targetDefinition.statementIndex !== target.definitionStatementIndex ||
+    targetStatement?.kind !== "moduleDefinition" ||
+    targetStatement.sourceRevision !== source.sourceRevision
+  ) return null;
+
+  const parameterDefinition = analysis.definitionsByStatementId.get(parameter.definitionStatementId);
+  const parameterSlot = parameterDefinition?.parameters[parameter.parameterIndex];
+  if (
+    !parameterDefinition ||
+    !parameterSlot ||
+    parameterSlot.definitionStatementId !== parameter.definitionStatementId ||
+    parameterSlot.parameterIndex !== parameter.parameterIndex ||
+    !sameModuleParameterType(parameterSlot.type, parameter.type) ||
+    (parameter.recordTypeIdentity ?? null) !== parameterSlot.recordTypeIdentity ||
+    !definitionContains(compiled, target.definitionStatementIndex, parameterDefinition.statementIndex)
+  ) return null;
+
+  const scalarType = scalarTypeForModuleParameter(parameterSlot.type);
+  const word = scalarOperandWordEndingAt(value, selectionEnd, 0);
+  const scalarContext = scalarType
+    ? scalarExpressionCompletionContextAt(value, selectionEnd, { start: 0, end: value.length }, scalarType)
+    : null;
+  const moduleCandidates = scalarContext?.kind === "operator"
+    ? []
+    : modulePreviewParameterValueCompletionCandidates({
+        compiled,
+        caller,
+        parameterType: parameterSlot.type,
+        recordTypeIdentity: parameterSlot.recordTypeIdentity,
+        expectedScalarType: scalarContext?.kind === "operand" ? scalarContext.expectedType : scalarType
+      }).map(moduleCandidate);
+
+  const scalarCandidates = scalarContext && scalarContext.kind !== "argumentName"
+    ? (() => {
+        const bindingAnalysis = semantic.bindingAnalysis ?? compiled.bindingAnalysis;
+        if (!bindingAnalysis) return [];
+        const site = { scopeId: caller.scopeId, statementIndex: caller.statementIndex };
+        return scalarExpressionCandidates(scalarContext, {
+          catalog: bindingAnalysis.catalog,
+          entriesById: bindingAnalysis.entriesById,
+          site,
+          includeOperators: true
+        }).map(scalarCandidate);
+      })()
+    : [];
+
+  const positionCandidates = scalarContext?.kind === "operand"
+    ? uniquePreviewCandidates([
+        ...moduleCandidates,
+        ...scalarCandidates.filter((candidate) =>
+          scalarContext.referenceOnly
+            ? candidate.kind === "binding"
+            : scalarContext.literalOnly
+              ? candidate.kind === "literal"
+              : true
+        )
+      ])
+    : scalarContext?.kind === "operator"
+      ? uniquePreviewCandidates(scalarCandidates)
+      : moduleCandidates;
+
+  const logicalFrom = scalarContext
+    ? scalarContext.from
+    : word?.from ?? selectionEnd;
+  const logicalTo = scalarContext
+    ? scalarContext.to
+    : word?.to ?? selectionEnd;
+  const replacementRange = dslCompletionReplacementRangeFor(
+    value,
+    logicalFrom,
+    logicalTo,
+    "modulePreviewParameterValue"
+  );
+  const candidates = uniquePreviewCandidates(positionCandidates).map((candidate) => ({
+    ...candidate,
+    insertionText: dslCompletionInsertionTextFor(
+      candidate,
+      "modulePreviewParameterValue",
+      replacementRange,
+      value
+    )
+  }));
+  return { replacementRange, candidates };
+};
+
+/** Short alias for host adapters that do not otherwise use the DSL prefix. */
+export const queryModulePreviewParameterValueCompletion = queryDslModulePreviewParameterValueCompletion;
 
 export type { SourceSnapshot } from "./logicalStatementSourceMap";
