@@ -28,6 +28,10 @@ body.vscode-canvas-webview {
   overflow: hidden;
 }
 
+html[data-nuinui-surface="modulePreview"] body.vscode-canvas-webview {
+  background: var(--vscode-editor-background);
+}
+
 button,
 input,
 select,

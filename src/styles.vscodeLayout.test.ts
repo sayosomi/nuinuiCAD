@@ -30,6 +30,16 @@ describe("shared stylesheet host layout ownership", () => {
     expect(vscodeCanvasWebviewBody).toMatch(/overflow:\s*hidden/);
   });
 
+  it("uses the active VS Code editor background only for the Module Preview webview fallback", () => {
+    const modulePreviewWebviewBody = ruleBody(
+      'html[data-nuinui-surface="modulePreview"] body.vscode-canvas-webview'
+    );
+    expect(modulePreviewWebviewBody).toMatch(/background:\s*var\(--vscode-editor-background\)/);
+
+    const genericCanvasWebviewBody = ruleBody("body.vscode-canvas-webview");
+    expect(genericCanvasWebviewBody).not.toMatch(/background:/);
+  });
+
   it("uses inherited VS Code Ribbon colors, active contrast, disabled foreground, and a side handle", () => {
     const vscodeWebview = ruleBody(".vscode-canvas-webview");
     expect(vscodeWebview).toContain("--vscode-canvas-ribbon-foreground:");
