@@ -273,4 +273,36 @@ describe("ModulePreviewInvocationEditorController", () => {
     controller.destroy();
     parent.remove();
   });
+
+  it("does not route Alt+Enter while Reference Pick is unavailable", () => {
+    const parent = document.createElement("div");
+    document.body.append(parent);
+    const block = modulePreviewInvocationFor({ blocks: [geometryInput] }).blocks[0]!;
+    const onReferencePick = vi.fn();
+    const controller = new ModulePreviewInvocationEditorController({
+      parent,
+      block,
+      source: { normalizedSource: "nui 1", sourceRevision: 1 },
+      semantic: { sourceRevision: 1 },
+      target: { definitionStatementId: "module:preview", definitionStatementIndex: 1 },
+      referencePickAvailable: false,
+      onChange: vi.fn(),
+      onReferencePick
+    });
+    const view = controller.getView()!;
+    const value = block.parameters[0]!;
+    view.dispatch({ selection: { anchor: value.valueRange.from + 1 } });
+    view.focus();
+    const event = new KeyboardEvent("keydown", {
+      key: "Enter",
+      altKey: true,
+      bubbles: true,
+      cancelable: true
+    });
+    expect(view.contentDOM.dispatchEvent(event)).toBe(true);
+    expect(event.defaultPrevented).toBe(false);
+    expect(onReferencePick).not.toHaveBeenCalled();
+    controller.destroy();
+    parent.remove();
+  });
 });

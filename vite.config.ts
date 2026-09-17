@@ -51,6 +51,7 @@ export default defineConfig({
     setupFiles: "./src/test/setup.ts",
     exclude: [
       ...configDefaults.exclude,
+      "**/*.browser.test.ts",
       "automation/linear-github-mirror/test/**/*.test.js",
       ...(runPerformanceSuites ? [] : performanceSuiteGlobs),
       ...(runBenchmarkSuites ? [] : benchmarkSuiteGlobs)

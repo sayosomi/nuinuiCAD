@@ -41,7 +41,7 @@ describe("ModulePreviewInvocationEditorApp", () => {
         source={{ normalizedSource: "nui 1", sourceRevision: 1 }}
         semantic={{ sourceRevision: 1 }}
         target={{ definitionStatementId: "module:inner", definitionStatementIndex: 3 }}
-        proof={{ sessionId: "session", documentUri: "file:///x.nui", documentVersion: 1, sourceRevision: 1, sessionRevision: 1, targetDefinitionStatementId: "module:inner" }}
+        proof={{ sessionId: "session", documentUri: "file:///x.nui", documentVersion: 1, normalizedSource: "nui 1", sourceRevision: 1, sessionRevision: 1, targetDefinitionStatementId: "module:inner", targetDefinitionStatementIndex: 3, targetName: "Inner" }}
         onChange={vi.fn()}
         onSiteChange={vi.fn()}
         onValueStep={vi.fn()}
@@ -73,17 +73,18 @@ describe("ModulePreviewInvocationEditorApp", () => {
   });
 
   it("keeps Pick in the block toolbar instead of taking editor width", () => {
+    const onReferencePick = vi.fn();
     render(
       <ModulePreviewInvocationEditorApp
         invocation={invocation}
         source={{ normalizedSource: "nui 1", sourceRevision: 1 }}
         semantic={{ sourceRevision: 1 }}
         target={{ definitionStatementId: "module:inner", definitionStatementIndex: 3 }}
-        proof={{ sessionId: "session", documentUri: "file:///x.nui", documentVersion: 1, sourceRevision: 1, sessionRevision: 1, targetDefinitionStatementId: "module:inner" }}
+        proof={{ sessionId: "session", documentUri: "file:///x.nui", documentVersion: 1, normalizedSource: "nui 1", sourceRevision: 1, sessionRevision: 1, targetDefinitionStatementId: "module:inner", targetDefinitionStatementIndex: 3, targetName: "Inner" }}
         onChange={vi.fn()}
         onSiteChange={vi.fn()}
         onValueStep={vi.fn()}
-        onReferencePick={vi.fn()}
+        onReferencePick={onReferencePick}
       />
     );
     const editor = document.querySelectorAll<HTMLElement>(".cm-editor")[1]!;
@@ -95,5 +96,36 @@ describe("ModulePreviewInvocationEditorApp", () => {
     expect(pick.closest(".module-preview-invocation-block-toolbar")).not.toBeNull();
     expect(pick.closest(".module-preview-invocation-editor-row")).toBeNull();
     expect(pick.closest(".module-preview-invocation-block-target")?.querySelector(".module-preview-invocation-cm")).not.toBeNull();
+    act(() => pick.click());
+    expect(onReferencePick).toHaveBeenCalledWith(expect.objectContaining({
+      block: expect.objectContaining({ kind: "target", definitionStatementIndex: 3 }),
+      parameter: expect.objectContaining({ parameterIndex: 0 })
+    }));
+  });
+
+  it("shows a disabled Pick control when the current Preview has no coherent candidate context", () => {
+    const onReferencePick = vi.fn();
+    render(
+      <ModulePreviewInvocationEditorApp
+        invocation={invocation}
+        source={{ normalizedSource: "nui 1", sourceRevision: 1 }}
+        semantic={{ sourceRevision: 1 }}
+        target={{ definitionStatementId: "module:inner", definitionStatementIndex: 3 }}
+        proof={{ sessionId: "session", documentUri: "file:///x.nui", documentVersion: 1, normalizedSource: "nui 1", sourceRevision: 1, sessionRevision: 1, targetDefinitionStatementId: "module:inner", targetDefinitionStatementIndex: 3, targetName: "Inner" }}
+        referencePickAvailable={false}
+        onChange={vi.fn()}
+        onSiteChange={vi.fn()}
+        onValueStep={vi.fn()}
+        onReferencePick={onReferencePick}
+      />
+    );
+    const editor = document.querySelectorAll<HTMLElement>(".cm-editor")[1]!;
+    const view = EditorView.findFromDOM(editor)!;
+    const value = invocation.blocks[1]!.parameters[0]!;
+    act(() => view.dispatch({ selection: { anchor: value.valueRange.from + 1 } }));
+    const pick = screen.getByRole("button", { name: "Pick" });
+    expect(pick).toBeDisabled();
+    act(() => pick.click());
+    expect(onReferencePick).not.toHaveBeenCalled();
   });
 });

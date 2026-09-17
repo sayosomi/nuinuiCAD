@@ -47,7 +47,8 @@
 .module-preview-invocation-surface {
   box-sizing: border-box;
   height: 100%;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   padding: 10px 12px 18px;
   color: var(--vscode-foreground);
   background: var(--vscode-sideBar-background, var(--vscode-editor-background));
@@ -110,6 +111,11 @@
 
 .module-preview-invocation-pick:hover {
   background: var(--vscode-button-hoverBackground);
+}
+
+.module-preview-invocation-pick:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .module-preview-invocation-unavailable {

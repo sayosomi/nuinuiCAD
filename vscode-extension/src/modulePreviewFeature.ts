@@ -132,10 +132,16 @@ const isInvocationSiteProof = (candidate: Partial<VscodeModulePreviewInvocationS
   typeof candidate.sessionId === "string" &&
   typeof candidate.documentUri === "string" &&
   Number.isInteger(candidate.documentVersion) &&
+  typeof candidate.normalizedSource === "string" &&
   Number.isInteger(candidate.sourceRevision) &&
   Number.isInteger(candidate.sessionRevision) &&
   typeof candidate.targetDefinitionStatementId === "string" &&
+  Number.isInteger(candidate.targetDefinitionStatementIndex) &&
+  typeof candidate.targetName === "string" &&
   typeof candidate.definitionStatementId === "string" &&
+  (candidate.blockKind === "ancestor" || candidate.blockKind === "target") &&
+  Number.isInteger(candidate.blockDefinitionStatementIndex) &&
+  typeof candidate.blockName === "string" &&
   Number.isInteger(candidate.parameterIndex) &&
   typeof candidate.invocationText === "string" &&
   Number.isInteger(candidate.selectionStart) &&
@@ -198,10 +204,16 @@ const isModulePreviewReferencePickResult = (
     typeof candidate.sessionId !== "string" ||
     typeof candidate.documentUri !== "string" ||
     !Number.isInteger(candidate.documentVersion) ||
+    typeof candidate.normalizedSource !== "string" ||
     !Number.isInteger(candidate.sourceRevision) ||
     !Number.isInteger(candidate.sessionRevision) ||
     typeof candidate.targetDefinitionStatementId !== "string" ||
+    !Number.isInteger(candidate.targetDefinitionStatementIndex) ||
+    typeof candidate.targetName !== "string" ||
     typeof candidate.definitionStatementId !== "string" ||
+    (candidate.blockKind !== "ancestor" && candidate.blockKind !== "target") ||
+    !Number.isInteger(candidate.blockDefinitionStatementIndex) ||
+    typeof candidate.blockName !== "string" ||
     !Number.isInteger(candidate.parameterIndex) ||
     typeof candidate.invocationText !== "string" ||
     !Number.isInteger(candidate.selectionStart) ||
@@ -235,6 +247,7 @@ const isModulePreviewInvocationSnapshot = (
     typeof candidate.sessionId === "string" &&
     typeof candidate.documentUri === "string" &&
     Number.isInteger(candidate.documentVersion) &&
+    typeof candidate.normalizedSource === "string" &&
     Number.isInteger(candidate.sourceRevision) &&
     Number.isInteger(candidate.sessionRevision) &&
     typeof target === "object" && target !== null &&
@@ -426,8 +439,10 @@ export const registerModulePreviewFeature = ({
       (focusedInvocationSite.sessionId !== message.sessionId ||
         focusedInvocationSite.documentUri !== message.documentUri ||
         focusedInvocationSite.documentVersion !== message.documentVersion ||
+        focusedInvocationSite.normalizedSource !== message.normalizedSource ||
         focusedInvocationSite.sourceRevision !== message.sourceRevision ||
-        focusedInvocationSite.targetDefinitionStatementId !== message.target.definitionStatementId)
+        focusedInvocationSite.targetDefinitionStatementIndex !== message.target.definitionStatementIndex ||
+        focusedInvocationSite.targetName !== message.target.name)
     ) {
       invocationContextOwned = false;
       setContext(NUI_MODULE_PREVIEW_VALUE_INPUT_FOCUS_CONTEXT, false);
@@ -568,8 +583,12 @@ export const registerModulePreviewFeature = ({
 
   const invocationBlockFor = (
     snapshot: VscodeModulePreviewInvocationSnapshot,
-    definitionStatementId: StatementIdentity
-  ) => snapshot.blocks.find((block) => block.definitionStatementId === definitionStatementId) ?? null;
+    proof: Pick<VscodeModulePreviewInvocationSiteProof, "blockKind" | "blockDefinitionStatementIndex" | "blockName">
+  ) => snapshot.blocks.find((block) =>
+    block.kind === proof.blockKind &&
+    block.definitionStatementIndex === proof.blockDefinitionStatementIndex &&
+    block.name === proof.blockName
+  ) ?? null;
 
   const currentInvocationSnapshot = (session: ModulePreviewSession): VscodeModulePreviewInvocationSnapshot | null =>
     session.retainedInvocationMessage?.type === "modulePreviewInvocationSnapshot"
@@ -584,6 +603,7 @@ export const registerModulePreviewFeature = ({
       snapshot.sessionId !== session.sessionId ||
       snapshot.documentUri !== session.documentUri ||
       snapshot.documentVersion !== session.document.version ||
+      snapshot.normalizedSource !== normalizedSourceFor(session.document.getText()) ||
       sessions.get(session.documentUri) !== session ||
       !isOpenDocument(session.document) ||
       !session.webviewReady ||
@@ -591,7 +611,6 @@ export const registerModulePreviewFeature = ({
     ) return false;
     const current = currentTargetFor(session);
     return Boolean(current.target &&
-      current.target.definitionStatementId === snapshot.target.definitionStatementId &&
       current.target.definitionStatementIndex === snapshot.target.definitionStatementIndex &&
       current.target.name === snapshot.target.name);
   };
@@ -603,10 +622,12 @@ export const registerModulePreviewFeature = ({
     const snapshot = currentInvocationSnapshot(session);
     if (!snapshot || boundInvocationSession !== session || !currentInvocationSnapshotIsCurrent(session, snapshot) ||
       proof.sessionId !== session.sessionId || proof.documentUri !== session.documentUri ||
-      proof.documentVersion !== session.document.version || proof.sourceRevision !== snapshot.sourceRevision ||
-      proof.sessionRevision !== snapshot.sessionRevision || proof.targetDefinitionStatementId !== snapshot.target.definitionStatementId)
+      proof.documentVersion !== session.document.version || proof.normalizedSource !== snapshot.normalizedSource ||
+      proof.sourceRevision !== snapshot.sourceRevision || proof.sessionRevision !== snapshot.sessionRevision ||
+      proof.targetDefinitionStatementIndex !== snapshot.target.definitionStatementIndex ||
+      proof.targetName !== snapshot.target.name)
       return null;
-    const block = invocationBlockFor(snapshot, proof.definitionStatementId);
+    const block = invocationBlockFor(snapshot, proof);
     const parameter = block?.parameters.find((candidate) => candidate.parameterIndex === proof.parameterIndex);
     if (!block || !parameter || block.text !== proof.invocationText ||
       proof.selectionStart < parameter.lineRange.from || proof.selectionEnd > parameter.lineRange.to)
@@ -697,10 +718,16 @@ export const registerModulePreviewFeature = ({
       sessionId: message.sessionId,
       documentUri: message.documentUri,
       documentVersion: message.documentVersion,
+      normalizedSource: message.normalizedSource,
       sourceRevision: message.sourceRevision,
       sessionRevision: message.sessionRevision,
       targetDefinitionStatementId: message.targetDefinitionStatementId,
+      targetDefinitionStatementIndex: message.targetDefinitionStatementIndex,
+      targetName: message.targetName,
       definitionStatementId: message.definitionStatementId,
+      blockKind: message.blockKind,
+      blockDefinitionStatementIndex: message.blockDefinitionStatementIndex,
+      blockName: message.blockName,
       parameterIndex: message.parameterIndex,
       invocationText: message.invocationText,
       selectionStart: message.selectionStart,
@@ -727,11 +754,18 @@ export const registerModulePreviewFeature = ({
       result.sessionId !== request.sessionId ||
       result.documentUri !== request.documentUri ||
       result.documentVersion !== request.documentVersion ||
+      result.normalizedSource !== request.normalizedSource ||
       result.sourceRevision !== request.sourceRevision ||
       result.sessionRevision !== request.sessionRevision ||
-      result.targetDefinitionStatementId !== request.targetDefinitionStatementId ||
-      result.definitionStatementId !== request.definitionStatementId ||
+      result.targetDefinitionStatementIndex !== request.targetDefinitionStatementIndex ||
+      result.targetName !== request.targetName ||
+      result.blockKind !== request.blockKind ||
+      result.blockDefinitionStatementIndex !== request.blockDefinitionStatementIndex ||
+      result.blockName !== request.blockName ||
       result.parameterIndex !== request.parameterIndex ||
+      result.invocationText !== request.invocationText ||
+      result.selectionStart !== request.selectionStart ||
+      result.selectionEnd !== request.selectionEnd ||
       result.expectedGeometryInterface !== request.expectedGeometryInterface ||
       result.role !== request.role ||
       result.multiplicity !== request.multiplicity
@@ -760,10 +794,16 @@ export const registerModulePreviewFeature = ({
       sessionId: request.sessionId,
       documentUri: request.documentUri,
       documentVersion: request.documentVersion,
+      normalizedSource: request.normalizedSource,
       sourceRevision: request.sourceRevision,
       sessionRevision: request.sessionRevision,
       targetDefinitionStatementId: request.targetDefinitionStatementId,
+      targetDefinitionStatementIndex: request.targetDefinitionStatementIndex,
+      targetName: request.targetName,
       definitionStatementId: request.definitionStatementId,
+      blockKind: request.blockKind,
+      blockDefinitionStatementIndex: request.blockDefinitionStatementIndex,
+      blockName: request.blockName,
       parameterIndex: request.parameterIndex,
       invocationText: request.invocationText,
       selectionStart: request.selectionStart,
@@ -801,10 +841,16 @@ export const registerModulePreviewFeature = ({
       sessionId: message.sessionId,
       documentUri: message.documentUri,
       documentVersion: message.documentVersion,
+      normalizedSource: message.normalizedSource,
       sourceRevision: message.sourceRevision,
       sessionRevision: match.snapshot.sessionRevision,
       targetDefinitionStatementId: message.targetDefinitionStatementId,
+      targetDefinitionStatementIndex: message.targetDefinitionStatementIndex,
+      targetName: message.targetName,
       definitionStatementId: message.definitionStatementId,
+      blockKind: message.blockKind,
+      blockDefinitionStatementIndex: message.blockDefinitionStatementIndex,
+      blockName: message.blockName,
       parameterIndex: message.parameterIndex,
       invocationText: message.invocationText,
       selectionStart: message.selectionStart,
