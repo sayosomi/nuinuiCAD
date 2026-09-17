@@ -26,10 +26,16 @@ const REQUEST_BASE = {
   sessionId: "module-preview-session:1",
   documentUri: "file:///preview.nui",
   documentVersion: 3,
+  normalizedSource: "nui 1\nmodule Target(anchor: point) {}",
   sourceRevision: 11,
   sessionRevision: 4,
   targetDefinitionStatementId: "module:target",
+  targetDefinitionStatementIndex: 5,
+  targetName: "Target",
   definitionStatementId: "module:target",
+  blockKind: "target" as const,
+  blockDefinitionStatementIndex: 5,
+  blockName: "Target",
   parameterIndex: 0,
   invocationText: "Target(\n  anchor: @Top\n)",
   selectionStart: 20,
@@ -168,6 +174,72 @@ describe("useVSCodeModulePreviewReferencePickSession", () => {
     expect(previewResultsFor(api)).toEqual([
       expect.objectContaining({ requestId: 7, status: "started" }),
       expect.objectContaining({ requestId: 7, status: "stale" })
+    ]);
+    expect(hook.result.current.session).toBeNull();
+    hook.unmount();
+  });
+
+  it("retains an exact start request while Preview evaluation catches up, then starts it", () => {
+    vi.mocked(referencePickCandidates).mockReturnValue([candidate]);
+    const api = createApi();
+    let currentContext: VscodeModulePreviewReferencePickCurrentContext | { kind: "pending" } = { kind: "pending" };
+    const hook = renderHook(() => useVSCodeModulePreviewReferencePickSession({
+      api,
+      currentContextFor: () => currentContext
+    }));
+
+    dispatch(requestFor(8));
+    expect(previewResultsFor(api)).toEqual([]);
+    expect(hook.result.current.session).toBeNull();
+
+    act(() => {
+      currentContext = context;
+      hook.rerender();
+    });
+
+    expect(previewResultsFor(api)).toEqual([
+      expect.objectContaining({ requestId: 8, status: "started" })
+    ]);
+    expect(hook.result.current.session).not.toBeNull();
+    hook.unmount();
+  });
+
+  it("cancels a prior pending request when a new exact start replaces it", () => {
+    const api = createApi();
+    let currentContext: VscodeModulePreviewReferencePickCurrentContext | { kind: "pending" } = { kind: "pending" };
+    const hook = renderHook(() => useVSCodeModulePreviewReferencePickSession({
+      api,
+      currentContextFor: () => currentContext
+    }));
+
+    dispatch(requestFor(10));
+    dispatch(requestFor(11));
+
+    expect(previewResultsFor(api)).toEqual([
+      expect.objectContaining({ requestId: 10, status: "canceled" })
+    ]);
+    act(() => {
+      currentContext = context;
+      hook.rerender();
+    });
+    expect(previewResultsFor(api)).toEqual([
+      expect.objectContaining({ requestId: 10, status: "canceled" }),
+      expect.objectContaining({ requestId: 11, status: "started" })
+    ]);
+    hook.unmount();
+  });
+
+  it("fails a request closed when the Preview has no coherent candidate context", () => {
+    const api = createApi();
+    const hook = renderHook(() => useVSCodeModulePreviewReferencePickSession({
+      api,
+      currentContextFor: () => ({ kind: "unavailable" })
+    }));
+
+    dispatch(requestFor(9));
+
+    expect(previewResultsFor(api)).toEqual([
+      expect.objectContaining({ requestId: 9, status: "stale" })
     ]);
     expect(hook.result.current.session).toBeNull();
     hook.unmount();

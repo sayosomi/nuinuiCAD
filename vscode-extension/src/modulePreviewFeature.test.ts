@@ -1,3 +1,6 @@
+import { act, cleanup, render } from "@testing-library/react";
+import { EditorView } from "@codemirror/view";
+import { createElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   createLanguageAnalysisSession,
@@ -5,12 +8,22 @@ import {
 } from "./languageAnalysisSession";
 import type {
   VscodeModulePreviewModelPatchRequest,
-  VscodeToExtensionMessage
+  VscodeToExtensionMessage,
+  VscodeWebviewApi
 } from "../../src/vscode/protocol";
 import type {
   VscodeModulePreviewInvocationSnapshot,
   VscodeModulePreviewReferencePickResult
 } from "../../src/vscode/protocol";
+import type { DslReferencePickTarget } from "@nuinuicad/nui-language";
+import { evaluateElements } from "../../src/geometry/evaluate";
+import { modulePreviewInvocationFor } from "../../src/dsl/modulePreviewInvocation";
+import { ModulePreviewInvocationEditorApp } from "../../src/vscode/ModulePreviewInvocationEditorApp";
+import {
+  useVSCodeModulePreviewReferencePickSession,
+  type VscodeModulePreviewReferencePickCurrentContext,
+  type VscodeModulePreviewReferencePickContextLookup
+} from "../../src/vscode/useVSCodeModulePreviewReferencePickSession";
 
 const mocks = vi.hoisted(() => ({
   activeTextEditor: null as null | {
@@ -51,6 +64,19 @@ type TestDocumentChangeEvent = {
   document: TestDocument;
   reason?: number;
   contentChanges: readonly unknown[];
+};
+
+const ModulePreviewReferencePickBridge = ({
+  api,
+  currentContextFor
+}: {
+  api: VscodeWebviewApi;
+  currentContextFor: Parameters<typeof useVSCodeModulePreviewReferencePickSession>[0]["currentContextFor"];
+}) => {
+  const { session } = useVSCodeModulePreviewReferencePickSession({ api, currentContextFor });
+  return createElement("output", {
+    "data-module-preview-reference-pick-session": session ? "active" : "idle"
+  }, session ? "Reference Pick active" : "Reference Pick idle");
 };
 
 type TestPanel = {
@@ -269,6 +295,7 @@ const flushContext = async () => {
 };
 
 afterEach(() => {
+  cleanup();
   mocks.activeTextEditor = null;
   mocks.commandHandlers.clear();
   mocks.activeEditorListeners.length = 0;
@@ -845,10 +872,12 @@ describe("registerModulePreviewFeature", () => {
     feature.dispose();
   });
 
-  const registerInvocationFixture = (source: string) => {
+  const registerInvocationFixture = (
+    source: string,
+    hostAnalysis = createLanguageAnalysisSession(source)
+  ) => {
     const document = createDocument(source);
     const editor = createEditor(document);
-    const analysis = createLanguageAnalysisSession(source);
     const panel = createPanel();
     mocks.createWebviewPanel.mockReturnValue(panel);
     mocks.activeTextEditor = {
@@ -858,7 +887,7 @@ describe("registerModulePreviewFeature", () => {
     mocks.visibleTextEditors = [editor];
     mocks.textDocuments = [document];
     const feature = registerModulePreviewFeature({
-      languageAnalysisSessionFor: () => analysis,
+      languageAnalysisSessionFor: () => hostAnalysis,
       canvasThemeGeneration: () => 0,
       webviewHtml: () => "<html />",
       canvasRibbons: () => [],
@@ -867,22 +896,33 @@ describe("registerModulePreviewFeature", () => {
       evaluateWithRust: async () => ({})
     });
     mocks.commandHandlers.get("nuinuiCAD.openModulePreview")!();
-    return { document, panel, feature, analysis };
+    return { document, panel, feature, analysis: hostAnalysis };
   };
 
   const invocationSnapshotFor = (
     document: TestDocument,
-    analysis: ReturnType<typeof createLanguageAnalysisSession>
+    analysis: ReturnType<typeof createLanguageAnalysisSession>,
+    parameterOverride: Partial<{
+      name: string;
+      type: { kind: "number" | "point" | "line" | "path" };
+      value: string;
+    }> = {}
   ): VscodeModulePreviewInvocationSnapshot => {
     const compiled = analysis.runtimeEvaluationSnapshot()!.compiled;
     const definition = compiled.moduleSemanticAnalysis!.definitions.find((candidate) => candidate.name === "Pocket")!;
-    const text = "Pocket(\n  width: 12\n)";
-    const valueFrom = text.indexOf("12");
+    const parameter = {
+      name: parameterOverride.name ?? "width",
+      type: parameterOverride.type ?? { kind: "number" as const },
+      value: parameterOverride.value ?? "12"
+    };
+    const text = `Pocket(\n  ${parameter.name}: ${parameter.value}\n)`;
+    const valueFrom = text.indexOf(parameter.value);
     return {
       type: "modulePreviewInvocationSnapshot",
       sessionId: "module-preview-session:1",
       documentUri: document.uri.toString(),
       documentVersion: document.version,
+      normalizedSource: document.getText(),
       sourceRevision: analysis.getSourceRevision(),
       sessionRevision: 1,
       target: { definitionStatementId: definition.statementId, definitionStatementIndex: definition.statementIndex, name: "Pocket" },
@@ -896,12 +936,12 @@ describe("registerModulePreviewFeature", () => {
         parameters: [{
           definitionStatementId: definition.statementId,
           parameterIndex: 0,
-          name: "width",
-          type: { kind: "number" },
+          name: parameter.name,
+          type: parameter.type,
           optional: false,
           required: true,
           defaultSourceText: null,
-          value: "12",
+          value: parameter.value,
           active: true,
           diagnostic: null,
           caller: { statementIndex: definition.statementIndex, scopeId: definition.declarationScopeId, sourceOrderIndex: definition.statementIndex },
@@ -928,10 +968,16 @@ describe("registerModulePreviewFeature", () => {
       sessionId: snapshot.sessionId,
       documentUri: snapshot.documentUri,
       documentVersion: snapshot.documentVersion,
+      normalizedSource: snapshot.normalizedSource,
       sourceRevision: snapshot.sourceRevision,
       sessionRevision: snapshot.sessionRevision,
       targetDefinitionStatementId: snapshot.target.definitionStatementId,
+      targetDefinitionStatementIndex: snapshot.target.definitionStatementIndex,
+      targetName: snapshot.target.name,
       definitionStatementId: snapshot.blocks[0]!.definitionStatementId,
+      blockKind: snapshot.blocks[0]!.kind,
+      blockDefinitionStatementIndex: snapshot.blocks[0]!.definitionStatementIndex,
+      blockName: snapshot.blocks[0]!.name,
       parameterIndex: 0,
       invocationText: snapshot.blocks[0]!.text,
       selectionStart: valueFrom,
@@ -943,10 +989,16 @@ describe("registerModulePreviewFeature", () => {
       sessionId: snapshot.sessionId,
       documentUri: snapshot.documentUri,
       documentVersion: snapshot.documentVersion,
+      normalizedSource: snapshot.normalizedSource,
       sourceRevision: snapshot.sourceRevision,
       sessionRevision: snapshot.sessionRevision,
       targetDefinitionStatementId: snapshot.target.definitionStatementId,
+      targetDefinitionStatementIndex: snapshot.target.definitionStatementIndex,
+      targetName: snapshot.target.name,
       definitionStatementId: snapshot.blocks[0]!.definitionStatementId,
+      blockKind: snapshot.blocks[0]!.kind,
+      blockDefinitionStatementIndex: snapshot.blocks[0]!.definitionStatementIndex,
+      blockName: snapshot.blocks[0]!.name,
       parameterIndex: 0,
       invocationText: snapshot.blocks[0]!.text,
       selectionStart: valueFrom,
@@ -960,6 +1012,67 @@ describe("registerModulePreviewFeature", () => {
       resultSelectionEnd: valueFrom + 2
     }));
     expect(document.getText()).toBe(source);
+    feature.dispose();
+  });
+
+  it("proves invocation authority with exact Source coordinates across independently compiled runtimes", async () => {
+    const source = ["nui 1", "module Pocket(width: number) {", "  point P = coordinate(x: @width, y: 0)", "}"].join("\n");
+    const webviewAnalysis = createLanguageAnalysisSession(source);
+    const hostAnalysis = createLanguageAnalysisSession(source);
+    const { document, panel, feature } = registerInvocationFixture(source, hostAnalysis);
+    await panel.receive({ type: "webviewReady" });
+    await panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    const snapshot = invocationSnapshotFor(document, webviewAnalysis);
+    const hostTarget = hostAnalysis.runtimeEvaluationSnapshot()!.compiled.moduleSemanticAnalysis!.definitions
+      .find((definition) => definition.name === "Pocket")!;
+    expect(snapshot.target.definitionStatementId).not.toBe(hostTarget.statementId);
+    await panel.receive(snapshot);
+
+    const block = snapshot.blocks[0]!;
+    const parameter = block.parameters[0]!;
+    const proof = {
+      sessionId: snapshot.sessionId,
+      documentUri: snapshot.documentUri,
+      documentVersion: snapshot.documentVersion,
+      normalizedSource: snapshot.normalizedSource,
+      sourceRevision: snapshot.sourceRevision,
+      sessionRevision: snapshot.sessionRevision,
+      targetDefinitionStatementId: snapshot.target.definitionStatementId,
+      targetDefinitionStatementIndex: snapshot.target.definitionStatementIndex,
+      targetName: snapshot.target.name,
+      definitionStatementId: block.definitionStatementId,
+      blockKind: block.kind,
+      blockDefinitionStatementIndex: block.definitionStatementIndex,
+      blockName: block.name,
+      parameterIndex: parameter.parameterIndex,
+      invocationText: block.text,
+      selectionStart: parameter.valueRange.from,
+      selectionEnd: parameter.valueRange.to
+    };
+    panel.webview.postMessage.mockClear();
+    const invalidProofs = [
+      { ...proof, documentVersion: proof.documentVersion + 1 },
+      { ...proof, normalizedSource: `${proof.normalizedSource}\n` },
+      { ...proof, targetDefinitionStatementIndex: proof.targetDefinitionStatementIndex + 1 },
+      { ...proof, blockDefinitionStatementIndex: proof.blockDefinitionStatementIndex + 1 },
+      { ...proof, invocationText: proof.invocationText.replace("12", "99") },
+      { ...proof, sessionRevision: proof.sessionRevision - 1 }
+    ];
+    for (const invalid of invalidProofs) {
+      await panel.receive({ type: "modulePreviewInvocationValueStep", ...invalid, direction: 1 });
+    }
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewInvocationValueEdit"
+    }));
+
+    await panel.receive({ type: "modulePreviewInvocationValueStep", ...proof, direction: 1 });
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewInvocationValueEdit",
+      expression: "13",
+      normalizedSource: source,
+      blockDefinitionStatementIndex: block.definitionStatementIndex,
+      blockName: block.name
+    }));
     feature.dispose();
   });
 
@@ -985,10 +1098,16 @@ describe("registerModulePreviewFeature", () => {
       sessionId: site.sessionId,
       documentUri: site.documentUri,
       documentVersion: site.documentVersion,
+      normalizedSource: site.normalizedSource,
       sourceRevision: site.sourceRevision,
       sessionRevision: site.sessionRevision,
       targetDefinitionStatementId: site.target.definitionStatementId,
+      targetDefinitionStatementIndex: site.target.definitionStatementIndex,
+      targetName: site.target.name,
       definitionStatementId: definition,
+      blockKind: site.blocks[0]!.kind,
+      blockDefinitionStatementIndex: site.blocks[0]!.definitionStatementIndex,
+      blockName: site.blocks[0]!.name,
       parameterIndex: 0,
       invocationText: text,
       selectionStart: text.indexOf("@Top"),
@@ -1004,10 +1123,16 @@ describe("registerModulePreviewFeature", () => {
       sessionId: site.sessionId,
       documentUri: site.documentUri,
       documentVersion: site.documentVersion,
+      normalizedSource: site.normalizedSource,
       sourceRevision: site.sourceRevision,
       sessionRevision: site.sessionRevision,
       targetDefinitionStatementId: site.target.definitionStatementId,
+      targetDefinitionStatementIndex: site.target.definitionStatementIndex,
+      targetName: site.target.name,
       definitionStatementId: definition,
+      blockKind: site.blocks[0]!.kind,
+      blockDefinitionStatementIndex: site.blocks[0]!.definitionStatementIndex,
+      blockName: site.blocks[0]!.name,
       parameterIndex: 0,
       invocationText: text,
       selectionStart: text.indexOf("@Top"),
@@ -1022,6 +1147,186 @@ describe("registerModulePreviewFeature", () => {
     expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: "modulePreviewInvocationValueEdit", expression: "@Top" }));
     await panel.receive({ ...site, sessionRevision: site.sessionRevision + 1 });
     expect(panel.webview.postMessage.mock.calls.filter(([message]) => (message as { type?: string }).type === "modulePreviewReferencePickStartRequest")).toHaveLength(1);
+    feature.dispose();
+  });
+
+  it("routes the visible Pick button and Alt+Enter through the real Webview-to-Host session", async () => {
+    const source = [
+      "nui 1",
+      "point Top = coordinate(x: 0, y: 0)",
+      "module Pocket(anchor: point) {",
+      "}"
+    ].join("\n");
+    const webviewAnalysis = createLanguageAnalysisSession(source);
+    const hostAnalysis = createLanguageAnalysisSession(source);
+    const { document: hostDocument, panel, feature } = registerInvocationFixture(source, hostAnalysis);
+    const webviewCompiled = webviewAnalysis.runtimeEvaluationSnapshot()!.compiled;
+    if (!webviewCompiled.document || !webviewCompiled.statementMap) throw new Error("expected compiled Webview document");
+    const definition = webviewCompiled.moduleSemanticAnalysis!.definitions.find((candidate) => candidate.name === "Pocket");
+    if (!definition) throw new Error("expected Pocket definition");
+    const definitionStatement = webviewCompiled.statements[definition.statementIndex];
+    if (!definitionStatement) throw new Error("expected Pocket definition statement");
+    const statementRange = definitionStatement.documentRange;
+    const referenceTarget: DslReferencePickTarget = {
+      sourceAnchor: {
+        sourceRevision: webviewAnalysis.getSourceRevision(),
+        statementId: definition.statementId,
+        statementIndex: definition.statementIndex,
+        sourceOrderIndex: definition.statementIndex,
+        scopeId: definition.declarationScopeId,
+        statementRange: {
+          from: statementRange.from,
+          to: statementRange.to,
+          startLine: statementRange.startLine,
+          endLine: statementRange.endLine
+        }
+      },
+      expectedGeometryInterface: "point",
+      role: "geometry",
+      multiplicity: "single",
+      range: { from: statementRange.from, to: statementRange.to }
+    };
+    const evaluation = evaluateElements(webviewCompiled.document.elements, {
+      evaluationLimitIndex: webviewCompiled.document.evaluationLimitIndex,
+      statementInfoByElementId: webviewCompiled.statementMap.byElementId,
+      statementIdByStatementIndex: webviewCompiled.statementMap.statementIdByStatementIndex
+    });
+    const context: VscodeModulePreviewReferencePickCurrentContext = {
+      source: {
+        normalizedSource: source,
+        sourceRevision: webviewAnalysis.getSourceRevision()
+      },
+      compiled: webviewCompiled,
+      evaluation,
+      evaluationIsCurrent: true,
+      target: referenceTarget
+    };
+    const snapshot = invocationSnapshotFor(hostDocument, webviewAnalysis, {
+      name: "anchor",
+      type: { kind: "point" },
+      value: "@Top"
+    });
+    const block = snapshot.blocks[0]!;
+    const invocation = modulePreviewInvocationFor({
+      blocks: [{
+        kind: block.kind,
+        definitionStatementId: block.definitionStatementId,
+        definitionStatementIndex: block.definitionStatementIndex,
+        declarationScopeId: definition.declarationScopeId,
+        name: block.name,
+        parameters: [{
+          definitionStatementId: block.parameters[0]!.definitionStatementId,
+          parameterIndex: 0,
+          name: "anchor",
+          type: { kind: "point" },
+          optional: false,
+          required: true,
+          defaultSourceText: null,
+          active: true,
+          value: "@Top",
+          caller: block.parameters[0]!.caller
+        }]
+      }]
+    });
+    const proof = {
+      sessionId: snapshot.sessionId,
+      documentUri: snapshot.documentUri,
+      documentVersion: snapshot.documentVersion,
+      normalizedSource: snapshot.normalizedSource,
+      sourceRevision: snapshot.sourceRevision,
+      sessionRevision: snapshot.sessionRevision,
+      targetDefinitionStatementId: snapshot.target.definitionStatementId,
+      targetDefinitionStatementIndex: snapshot.target.definitionStatementIndex,
+      targetName: snapshot.target.name
+    };
+    const webviewMessages: VscodeToExtensionMessage[] = [];
+    let webviewActQueue = Promise.resolve();
+    const receiveFromWebview = (message: VscodeToExtensionMessage): void => {
+      webviewActQueue = webviewActQueue.then(async () => {
+        await act(async () => {
+          await panel.receive(message);
+        });
+      });
+    };
+    panel.webview.postMessage.mockImplementation(async (message: VscodeToExtensionMessage) => {
+      window.dispatchEvent(new MessageEvent("message", { data: message }));
+      return true;
+    });
+    const api: VscodeWebviewApi = {
+      postMessage: (message) => {
+        webviewMessages.push(message);
+        receiveFromWebview(message);
+      }
+    };
+    const currentContextFor = (): VscodeModulePreviewReferencePickContextLookup => context;
+    render(createElement(ModulePreviewReferencePickBridge, { api, currentContextFor }));
+    const onReferencePick = vi.fn((site: Parameters<NonNullable<React.ComponentProps<typeof ModulePreviewInvocationEditorApp>["onReferencePick"]>>[0]) => {
+      const parameter = site.parameter;
+      if (!parameter || parameter.type?.kind !== "point") return;
+      receiveFromWebview({
+          type: "modulePreviewInvocationReferencePickStart",
+          ...proof,
+          definitionStatementId: site.block.definitionStatementId,
+          blockKind: site.block.kind,
+          blockDefinitionStatementIndex: site.block.definitionStatementIndex,
+          blockName: site.block.name,
+          parameterIndex: parameter.parameterIndex,
+          invocationText: site.block.text,
+          selectionStart: site.selectionStart,
+          selectionEnd: site.selectionEnd,
+          expectedGeometryInterface: parameter.type.kind
+      });
+    });
+    render(createElement(ModulePreviewInvocationEditorApp, {
+      invocation,
+      source: context.source,
+      semantic: { sourceRevision: context.source.sourceRevision, compiled: webviewCompiled },
+      target: {
+        definitionStatementId: definition.statementId,
+        definitionStatementIndex: definition.statementIndex
+      },
+      proof,
+      referencePickAvailable: true,
+      onChange: vi.fn(),
+      onSiteChange: vi.fn(),
+      onValueStep: vi.fn(),
+      onReferencePick
+    }));
+
+    await panel.receive({ type: "webviewReady" });
+    await panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    await panel.receive(snapshot);
+    const editor = globalThis.document.querySelector<HTMLElement>(".cm-editor");
+    if (!editor) throw new Error("expected invocation CodeMirror editor");
+    const view = EditorView.findFromDOM(editor);
+    if (!view) throw new Error("expected invocation CodeMirror view");
+    const value = invocation.blocks[0]!.parameters[0]!;
+    act(() => view.dispatch({ selection: { anchor: value.valueRange.from + 1 } }));
+    const pick = globalThis.document.querySelector<HTMLButtonElement>("[data-module-preview-invocation-pick='true']");
+    if (!pick) throw new Error("expected visible Reference Pick button");
+    act(() => pick.click());
+    await vi.waitFor(() => expect(onReferencePick).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(globalThis.document.querySelector("[data-module-preview-reference-pick-session='active']")).not.toBeNull());
+    expect(webviewMessages.filter((message) => message.type === "modulePreviewReferencePickResult")).toEqual([
+      expect.objectContaining({ status: "started" })
+    ]);
+
+    const event = new KeyboardEvent("keydown", {
+      key: "Enter",
+      altKey: true,
+      bubbles: true,
+      cancelable: true
+    });
+    act(() => {
+      view.focus();
+      view.contentDOM.dispatchEvent(event);
+    });
+    expect(event.defaultPrevented).toBe(true);
+    await vi.waitFor(() => expect(onReferencePick).toHaveBeenCalledTimes(2));
+    await vi.waitFor(() => expect(panel.webview.postMessage.mock.calls.filter(([message]) =>
+      (message as { type?: string }).type === "modulePreviewReferencePickStartRequest"
+    )).toHaveLength(2));
+    expect(globalThis.document.querySelector("[data-module-preview-reference-pick-session='active']")).not.toBeNull();
     feature.dispose();
   });
 

@@ -33,6 +33,11 @@ export type VscodeModulePreviewReferencePickCurrentContext = {
   target: DslReferencePickTarget | null;
 };
 
+export type VscodeModulePreviewReferencePickContextLookup =
+  | VscodeModulePreviewReferencePickCurrentContext
+  | { kind: "pending" | "unavailable" }
+  | null;
+
 export const useVSCodeModulePreviewReferencePickSession = ({
   api,
   currentContextFor
@@ -40,7 +45,7 @@ export const useVSCodeModulePreviewReferencePickSession = ({
   api: VscodeWebviewApi | null;
   currentContextFor: (
     request: VscodeModulePreviewReferencePickStartRequest
-  ) => VscodeModulePreviewReferencePickCurrentContext | null;
+  ) => VscodeModulePreviewReferencePickContextLookup;
 }) => {
   const [session, setSession] = useState<VscodeReferencePickCanvasSessionLike | null>(null);
   const sessionRef = useRef<VscodeReferencePickCanvasSessionLike | null>(null);
@@ -61,10 +66,16 @@ export const useVSCodeModulePreviewReferencePickSession = ({
       sessionId: request.sessionId,
       documentUri: request.documentUri,
       documentVersion: request.documentVersion,
+      normalizedSource: request.normalizedSource,
       sourceRevision: request.sourceRevision,
       sessionRevision: request.sessionRevision,
       targetDefinitionStatementId: request.targetDefinitionStatementId,
+      targetDefinitionStatementIndex: request.targetDefinitionStatementIndex,
+      targetName: request.targetName,
       definitionStatementId: request.definitionStatementId,
+      blockKind: request.blockKind,
+      blockDefinitionStatementIndex: request.blockDefinitionStatementIndex,
+      blockName: request.blockName,
       parameterIndex: request.parameterIndex,
       invocationText: request.invocationText,
       selectionStart: request.selectionStart,
@@ -78,11 +89,16 @@ export const useVSCodeModulePreviewReferencePickSession = ({
 
   const tryStart = useCallback((request: VscodeModulePreviewReferencePickStartRequest) => {
     if (!api) return;
-    const context = currentContextFor(request);
-    if (
-      !context ||
-      !context.target ||
-      !context.evaluationIsCurrent ||
+    const lookup = currentContextFor(request);
+    if (lookup && "kind" in lookup && lookup.kind === "pending") return;
+    if (lookup && "kind" in lookup) {
+      postTerminal(request, "stale");
+      requestRef.current = null;
+      replaceSession(null);
+      return;
+    }
+    const context = lookup;
+    if (!context || !context.target ||
       context.target.expectedGeometryInterface !== request.expectedGeometryInterface ||
       context.target.role !== request.role ||
       context.target.multiplicity !== request.multiplicity
@@ -92,6 +108,8 @@ export const useVSCodeModulePreviewReferencePickSession = ({
       replaceSession(null);
       return;
     }
+    if (!context.evaluationIsCurrent) return;
+    if (sessionRef.current) return;
     const candidates = referencePickCandidates({
       compiled: context.compiled,
       evaluation: context.evaluation,
@@ -121,10 +139,16 @@ export const useVSCodeModulePreviewReferencePickSession = ({
       sessionId: request.sessionId,
       documentUri: request.documentUri,
       documentVersion: request.documentVersion,
+      normalizedSource: request.normalizedSource,
       sourceRevision: request.sourceRevision,
       sessionRevision: request.sessionRevision,
       targetDefinitionStatementId: request.targetDefinitionStatementId,
+      targetDefinitionStatementIndex: request.targetDefinitionStatementIndex,
+      targetName: request.targetName,
       definitionStatementId: request.definitionStatementId,
+      blockKind: request.blockKind,
+      blockDefinitionStatementIndex: request.blockDefinitionStatementIndex,
+      blockName: request.blockName,
       parameterIndex: request.parameterIndex,
       invocationText: request.invocationText,
       selectionStart: request.selectionStart,
@@ -138,25 +162,6 @@ export const useVSCodeModulePreviewReferencePickSession = ({
   }, [api, currentContextFor, postTerminal, replaceSession]);
 
   useEffect(() => {
-    const current = sessionRef.current;
-    const request = requestRef.current;
-    if (!current || !request) return;
-    const context = currentContextFor(request);
-    if (
-      !context ||
-      !context.target ||
-      !context.evaluationIsCurrent ||
-      context.target.expectedGeometryInterface !== request.expectedGeometryInterface ||
-      context.target.role !== request.role ||
-      context.target.multiplicity !== request.multiplicity
-    ) {
-      postTerminal(request, "stale");
-      requestRef.current = null;
-      replaceSession(null);
-    }
-  }, [currentContextFor, postTerminal, replaceSession]);
-
-  useEffect(() => {
     const onMessage = (event: MessageEvent<unknown>) => {
       const message = event.data as Partial<VscodeModulePreviewReferencePickStartRequest> & {
         type?: string;
@@ -164,11 +169,11 @@ export const useVSCodeModulePreviewReferencePickSession = ({
       if (message.type === "modulePreviewReferencePickStartRequest") {
         if (!api) return;
         const request = event.data as VscodeModulePreviewReferencePickStartRequest;
-        const previous = sessionRef.current;
         const previousRequest = requestRef.current;
-        if (previous && previousRequest) postTerminal(previousRequest, "canceled");
+        if (previousRequest) postTerminal(previousRequest, "canceled");
         requestRef.current = null;
         replaceSession(null);
+        requestRef.current = request;
         tryStart(request);
         return;
       }
@@ -187,6 +192,11 @@ export const useVSCodeModulePreviewReferencePickSession = ({
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
   }, [api, postTerminal, replaceSession, tryStart]);
+
+  useEffect(() => {
+    const request = requestRef.current;
+    if (request) tryStart(request);
+  }, [currentContextFor, tryStart]);
 
   const setHover = useCallback((hover: ReferencePickHover | null) => {
     const current = sessionRef.current;
@@ -211,10 +221,16 @@ export const useVSCodeModulePreviewReferencePickSession = ({
       sessionId: request.sessionId,
       documentUri: request.documentUri,
       documentVersion: request.documentVersion,
+      normalizedSource: request.normalizedSource,
       sourceRevision: request.sourceRevision,
       sessionRevision: request.sessionRevision,
       targetDefinitionStatementId: request.targetDefinitionStatementId,
+      targetDefinitionStatementIndex: request.targetDefinitionStatementIndex,
+      targetName: request.targetName,
       definitionStatementId: request.definitionStatementId,
+      blockKind: request.blockKind,
+      blockDefinitionStatementIndex: request.blockDefinitionStatementIndex,
+      blockName: request.blockName,
       parameterIndex: request.parameterIndex,
       invocationText: request.invocationText,
       selectionStart: request.selectionStart,

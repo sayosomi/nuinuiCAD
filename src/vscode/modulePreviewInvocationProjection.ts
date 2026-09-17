@@ -55,18 +55,21 @@ export const modulePreviewInvocationSnapshotFor = ({
   sessionId,
   documentUri,
   documentVersion,
+  normalizedSource,
   sessionRevision
 }: {
   snapshot: ModulePreviewSessionSnapshot;
   sessionId: string;
   documentUri: string;
   documentVersion: number;
+  normalizedSource: string;
   sessionRevision: number;
 }): VscodeModulePreviewInvocationSnapshot => ({
   type: "modulePreviewInvocationSnapshot",
   sessionId,
   documentUri,
   documentVersion,
+  normalizedSource,
   sourceRevision: snapshot.sourceRevision,
   sessionRevision,
   target: {

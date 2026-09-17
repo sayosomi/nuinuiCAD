@@ -11,9 +11,12 @@ export type ModulePreviewInvocationEditorProof = {
   sessionId: string;
   documentUri: string;
   documentVersion: number;
+  normalizedSource: string;
   sourceRevision: number;
   sessionRevision: number;
   targetDefinitionStatementId: string;
+  targetDefinitionStatementIndex: number;
+  targetName: string;
 };
 
 export type ModulePreviewInvocationEditorAppProps = {
@@ -23,6 +26,7 @@ export type ModulePreviewInvocationEditorAppProps = {
   semantic: DslCompletionSemanticSnapshot | null;
   target: { definitionStatementId: string; definitionStatementIndex: number } | null;
   proof: ModulePreviewInvocationEditorProof | null;
+  referencePickAvailable?: boolean;
   onChange: (block: ModulePreviewInvocationBlock, site: ModulePreviewInvocationEditorSite) => void;
   onSiteChange: (site: ModulePreviewInvocationEditorSite | null) => void;
   onValueStep: (site: ModulePreviewInvocationEditorSite, direction: 1 | -1) => void;
@@ -35,6 +39,9 @@ const geometryParameter = (site: ModulePreviewInvocationEditorSite | null): bool
   return kind === "point" || kind === "line" || kind === "path";
 };
 
+const invocationBlockKeyFor = (block: Pick<ModulePreviewInvocationBlock, "kind" | "definitionStatementIndex" | "name">): string =>
+  `${block.kind}:${block.definitionStatementIndex}:${block.name}`;
+
 const InvocationBlockEditor = ({
   block,
   source,
@@ -44,7 +51,8 @@ const InvocationBlockEditor = ({
   onSiteChange,
   onValueStep,
   onReferencePick,
-  onController
+  onController,
+  referencePickAvailable
 }: {
   block: ModulePreviewInvocationBlock;
   source: { normalizedSource: string; sourceRevision: number };
@@ -55,11 +63,12 @@ const InvocationBlockEditor = ({
   onValueStep: (site: ModulePreviewInvocationEditorSite, direction: 1 | -1) => void;
   onReferencePick: (site: ModulePreviewInvocationEditorSite) => void;
   onController: (controller: ModulePreviewInvocationEditorController | null) => void;
+  referencePickAvailable?: boolean;
 }) => {
   const mountRef = useRef<HTMLDivElement | null>(null);
   const controllerRef = useRef<ModulePreviewInvocationEditorController | null>(null);
   const initialBlockRef = useRef(block);
-  const initialContextRef = useRef({ source, semantic, target });
+  const initialContextRef = useRef({ source, semantic, target, referencePickAvailable });
   const callbacksRef = useRef({ onChange, onSiteChange, onValueStep, onReferencePick, onController });
   useEffect(() => {
     callbacksRef.current = { onChange, onSiteChange, onValueStep, onReferencePick, onController };
@@ -74,6 +83,7 @@ const InvocationBlockEditor = ({
       source: initial.source,
       semantic: initial.semantic,
       target: initial.target,
+      referencePickAvailable: initial.referencePickAvailable,
       onChange: (text, site) => callbacksRef.current.onChange({ ...site.block, text }, site),
       onSiteChange: (site) => callbacksRef.current.onSiteChange(site),
       onValueStep: (site, direction) => callbacksRef.current.onValueStep(site, direction),
@@ -94,8 +104,8 @@ const InvocationBlockEditor = ({
   }, [block]);
 
   useEffect(() => {
-    controllerRef.current?.updateContext({ source, semantic, target });
-  }, [semantic, source, target]);
+    controllerRef.current?.updateContext({ source, semantic, target, referencePickAvailable });
+  }, [referencePickAvailable, semantic, source, target]);
 
   return <div ref={mountRef} className="module-preview-invocation-cm" data-module-preview-invocation-editor="true" />;
 };
@@ -108,6 +118,7 @@ export const ModulePreviewInvocationEditorApp = ({
   semantic,
   target,
   proof,
+  referencePickAvailable = true,
   onChange,
   onSiteChange,
   onValueStep,
@@ -129,19 +140,29 @@ export const ModulePreviewInvocationEditorApp = ({
         message.sessionId !== proof.sessionId ||
         message.documentUri !== proof.documentUri ||
         message.documentVersion !== proof.documentVersion ||
+        message.normalizedSource !== proof.normalizedSource ||
         message.sourceRevision !== proof.sourceRevision ||
         message.sessionRevision !== proof.sessionRevision ||
         message.targetDefinitionStatementId !== proof.targetDefinitionStatementId ||
+        message.targetDefinitionStatementIndex !== proof.targetDefinitionStatementIndex ||
+        message.targetName !== proof.targetName ||
         typeof message.definitionStatementId !== "string" ||
+        (message.blockKind !== "ancestor" && message.blockKind !== "target") ||
+        typeof message.blockDefinitionStatementIndex !== "number" ||
+        typeof message.blockName !== "string" ||
         typeof message.parameterIndex !== "number" ||
         typeof message.expression !== "string" ||
         typeof message.invocationText !== "string" ||
         typeof message.resultSelectionStart !== "number" ||
         typeof message.resultSelectionEnd !== "number"
       ) return;
-      const block = invocation.blocks.find((candidate) => candidate.definitionStatementId === message.definitionStatementId);
+      const block = invocation.blocks.find((candidate) =>
+        candidate.kind === message.blockKind &&
+        candidate.definitionStatementIndex === message.blockDefinitionStatementIndex &&
+        candidate.name === message.blockName
+      );
       if (!block || block.text !== message.invocationText) return;
-      controllersRef.current.get(message.definitionStatementId)?.replaceValueAtSite(
+      controllersRef.current.get(invocationBlockKeyFor(block))?.replaceValueAtSite(
         message.parameterIndex,
         message.expression,
         { start: message.resultSelectionStart, end: message.resultSelectionEnd },
@@ -159,7 +180,7 @@ export const ModulePreviewInvocationEditorApp = ({
   return (
     <div className="module-preview-invocation-surface" data-module-preview-invocation-surface="true">
       {invocation.blocks.map((block) => {
-        const currentSite = activeSite?.block.definitionStatementId === block.definitionStatementId
+        const currentSite = activeSite && invocationBlockKeyFor(activeSite.block) === invocationBlockKeyFor(block)
           ? activeSite
           : null;
         return (
@@ -171,11 +192,12 @@ export const ModulePreviewInvocationEditorApp = ({
           >
             <div className="module-preview-invocation-block-toolbar">
               <h2>{block.kind === "target" ? "Target" : "Context"}: {block.name}</h2>
-              {currentSite && geometryParameter(currentSite) && proof ? (
+              {currentSite && geometryParameter(currentSite) ? (
                 <button
                   type="button"
                   className="module-preview-invocation-pick"
                   data-module-preview-invocation-pick="true"
+                  disabled={!referencePickAvailable || !proof}
                   onMouseDown={(event) => event.preventDefault()}
                   onClick={() => onReferencePick(currentSite)}
                 >Pick</button>
@@ -190,13 +212,15 @@ export const ModulePreviewInvocationEditorApp = ({
                 onChange={(nextBlock, site) => onChange(nextBlock, site)}
                 onValueStep={onValueStep}
                 onReferencePick={onReferencePick}
+                referencePickAvailable={referencePickAvailable}
                 onSiteChange={(site) => {
                   setActiveSite(site);
                   onSiteChange(site);
                 }}
                 onController={(controller) => {
-                  if (controller) controllersRef.current.set(block.definitionStatementId, controller);
-                  else controllersRef.current.delete(block.definitionStatementId);
+                  const key = invocationBlockKeyFor(block);
+                  if (controller) controllersRef.current.set(key, controller);
+                  else controllersRef.current.delete(key);
                 }}
               />
             </div>

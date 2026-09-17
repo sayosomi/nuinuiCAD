@@ -57,7 +57,10 @@ import { VSCodeReferencePickOverlay } from "./VSCodeReferencePickOverlay";
 import { vscodeCanvasRibbonCommandFor } from "./vscodeCanvasRibbonCatalog";
 import type { VscodeCanvasRibbon } from "./vscodeCanvasRibbonConfig";
 import { VscodeRustTransport, isExtensionToVscodeMessage } from "./vscodeRustTransport";
-import { useVSCodeModulePreviewReferencePickSession } from "./useVSCodeModulePreviewReferencePickSession";
+import {
+  useVSCodeModulePreviewReferencePickSession,
+  type VscodeModulePreviewReferencePickContextLookup
+} from "./useVSCodeModulePreviewReferencePickSession";
 import type { VscodeModulePreviewReferencePickStartRequest } from "./modulePreviewProtocol";
 import { webviewCanvasPresentationFor } from "./webviewCanvasPresentation";
 import {
@@ -268,6 +271,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       sessionId,
       documentUri,
       documentVersion,
+      normalizedSource: normalizedSourceFor(automationDocumentRef.current?.getSource() ?? ""),
       sessionRevision
     });
     setInvocationSnapshot(message);
@@ -278,7 +282,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   const publishInvocationUnavailable = useCallback((
     reason: VscodeModulePreviewInvocationUnavailable["reason"],
     targetDefinitionStatementId: string | null = previewSession.getState()?.target.definitionStatementId ?? null
-  ) => {
+  ): void => {
     const sessionId = sessionIdRef.current;
     const documentUri = sessionDocumentUriRef.current;
     const documentVersion = documentVersionRef.current;
@@ -331,38 +335,47 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
 
   const currentModulePreviewReferencePickContext = useCallback((
     request: VscodeModulePreviewReferencePickStartRequest
-  ) => {
+  ): VscodeModulePreviewReferencePickContextLookup => {
     const document = automationDocumentRef.current;
-    const activePreview = previewRef.current;
     const state = previewSession.getState();
     const evaluation = evaluationRef.current;
-    if (!document || !activePreview || !state || state.preview.kind !== "current" ||
-      state.preview.result !== activePreview.root || !evaluation) return null;
+    if (!document || !state ||
+      request.sessionId !== sessionIdRef.current ||
+      request.documentUri !== sessionDocumentUriRef.current ||
+      request.documentVersion !== documentVersionRef.current ||
+      request.sessionRevision !== invocationSessionRevisionRef.current ||
+      request.normalizedSource !== normalizedSourceFor(document.getSource()) ||
+      request.targetDefinitionStatementIndex !== state.target.definitionStatementIndex ||
+      request.targetName !== state.target.name) return null;
+    const block = state.invocation.blocks.find((candidate) =>
+      candidate.kind === request.blockKind &&
+      candidate.definitionStatementIndex === request.blockDefinitionStatementIndex &&
+      candidate.name === request.blockName
+    );
+    const parameter = block?.parameters.find((candidate) => candidate.parameterIndex === request.parameterIndex);
+    if (!block || !parameter || block.text !== request.invocationText ||
+      request.selectionStart < parameter.lineRange.from || request.selectionEnd > parameter.lineRange.to) return null;
+    if (state.preview.kind !== "current") return { kind: "unavailable" };
+    const activePreview = previewRef.current;
+    if (!activePreview || state.preview.result !== activePreview.root) return { kind: "pending" };
     const documentState = document.getState();
     const source = {
       normalizedSource: normalizedSourceFor(document.getSource()),
       sourceRevision: documentState.currentCompiled.spans.sourceMap.sourceRevision
     };
+    if (!evaluation) return { kind: "pending" };
     if (
-      request.sessionId !== sessionIdRef.current ||
-      request.documentUri !== sessionDocumentUriRef.current ||
-      request.documentVersion !== documentVersionRef.current ||
       request.sourceRevision !== state.sourceRevision ||
-      request.sessionRevision !== invocationSessionRevisionRef.current ||
-      request.targetDefinitionStatementId !== state.target.definitionStatementId ||
       source.normalizedSource !== activePreview.root.candidateCompiledDocument.spans.sourceMap.source ||
       source.sourceRevision !== activePreview.root.candidateCompiledDocument.spans.sourceMap.sourceRevision
-    ) return null;
-    const block = state.invocation.blocks.find((candidate) => candidate.definitionStatementId === request.definitionStatementId);
-    const parameter = block?.parameters.find((candidate) => candidate.parameterIndex === request.parameterIndex);
-    if (!block || !parameter || block.text !== request.invocationText) return null;
+    ) return { kind: "pending" };
     const target = modulePreviewReferencePickTargetFor({
       root: activePreview.root,
-      definitionStatementId: request.definitionStatementId,
+      definitionStatementId: block.definitionStatementId,
       parameterIndex: request.parameterIndex,
       expectedGeometryInterface: request.expectedGeometryInterface
     });
-    if (!target) return null;
+    if (!target) return { kind: "unavailable" };
     return {
       source,
       compiled: activePreview.root.candidateCompiledDocument,
@@ -1193,6 +1206,24 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   const currentInvocation = previewSession.getState()?.invocation ?? null;
   const activeInvocation = invocationUnavailable ? null : currentInvocation;
   const showInvocationRegion = invocationUnavailable !== null || activeInvocation !== null;
+  const [activeInvocationSite, setActiveInvocationSite] = useState<ModulePreviewInvocationEditorSite | null>(null);
+  const activePreviewState = previewSession.getState();
+  const referencePickAvailable = Boolean(
+    activeInvocationSite?.parameter &&
+    activePreviewState?.preview.kind === "current" &&
+    preview &&
+    invocationSnapshot &&
+    modulePreviewReferencePickTargetFor({
+      root: preview.root,
+      definitionStatementId: activeInvocationSite.block.definitionStatementId,
+      parameterIndex: activeInvocationSite.parameter.parameterIndex,
+      expectedGeometryInterface: activeInvocationSite.parameter.type?.kind === "point" ||
+        activeInvocationSite.parameter.type?.kind === "line" ||
+        activeInvocationSite.parameter.type?.kind === "path"
+        ? activeInvocationSite.parameter.type.kind
+        : undefined
+    }) !== null
+  );
 
   const invocationSiteProofFor = useCallback((site: ModulePreviewInvocationEditorSite) => {
     const sessionId = sessionIdRef.current;
@@ -1206,10 +1237,16 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       sessionId,
       documentUri,
       documentVersion,
+      normalizedSource: normalizedSourceFor(automationDocumentRef.current?.getSource() ?? ""),
       sourceRevision: snapshot.sourceRevision,
       sessionRevision: invocationSessionRevisionRef.current,
       targetDefinitionStatementId: snapshot.target.definitionStatementId,
+      targetDefinitionStatementIndex: snapshot.target.definitionStatementIndex,
+      targetName: snapshot.target.name,
       definitionStatementId: site.block.definitionStatementId,
+      blockKind: site.block.kind,
+      blockDefinitionStatementIndex: site.block.definitionStatementIndex,
+      blockName: site.block.name,
       parameterIndex: parameter.parameterIndex,
       invocationText: site.block.text,
       selectionStart: site.selectionStart,
@@ -1219,6 +1256,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
 
   const onInvocationSiteChange = useCallback((site: ModulePreviewInvocationEditorSite | null): void => {
     if (!site?.parameter) {
+      setActiveInvocationSite(null);
       const previous = currentInvocationFocusRef.current;
       currentInvocationFocusRef.current = null;
       if (previous) api.postMessage({
@@ -1227,6 +1265,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       });
       return;
     }
+    setActiveInvocationSite(site);
     const proof = invocationSiteProofFor(site);
     if (!proof) return;
     const focus: VscodeModulePreviewInvocationSiteFocus = {
@@ -1486,10 +1525,14 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
                 sessionId: invocationSnapshot.sessionId,
                 documentUri: invocationSnapshot.documentUri,
                 documentVersion: invocationSnapshot.documentVersion,
+                normalizedSource: invocationSnapshot.normalizedSource,
                 sourceRevision: invocationSnapshot.sourceRevision,
                 sessionRevision: invocationSnapshot.sessionRevision,
-                targetDefinitionStatementId: invocationSnapshot.target.definitionStatementId
+                targetDefinitionStatementId: invocationSnapshot.target.definitionStatementId,
+                targetDefinitionStatementIndex: invocationSnapshot.target.definitionStatementIndex,
+                targetName: invocationSnapshot.target.name
               } : null}
+              referencePickAvailable={referencePickAvailable}
               onChange={(_block, site) => applyInvocationBlock(site.block)}
               onSiteChange={onInvocationSiteChange}
               onValueStep={onInvocationValueStep}

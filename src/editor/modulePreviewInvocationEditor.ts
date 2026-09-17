@@ -27,6 +27,7 @@ export type ModulePreviewInvocationEditorOptions = {
   source: { normalizedSource: string; sourceRevision: number };
   semantic: DslCompletionSemanticSnapshot;
   target: { definitionStatementId: string; definitionStatementIndex: number };
+  referencePickAvailable?: boolean;
   onChange: (text: string, site: ModulePreviewInvocationEditorSite) => void;
   onSiteChange?: (site: ModulePreviewInvocationEditorSite) => void;
   onValueStep?: (site: ModulePreviewInvocationEditorSite, direction: 1 | -1) => void;
@@ -35,41 +36,23 @@ export type ModulePreviewInvocationEditorOptions = {
 
 const previewEditorTheme = EditorView.theme({
   "&": {
-    height: "100%",
     color: "var(--vscode-editor-foreground)",
     backgroundColor: "var(--vscode-editor-background)"
   },
   ".cm-scroller": {
-    overflow: "auto",
+    overflow: "visible",
     fontFamily: "var(--vscode-editor-font-family)",
     fontSize: "var(--vscode-editor-font-size)"
   },
-  ".cm-content": { padding: "8px 0", minHeight: "100%" },
+  ".cm-content": { padding: "8px 0" },
   ".cm-line": { padding: "0 12px" },
   ".cm-gutters": { display: "none" },
   ".cm-tooltip-autocomplete": {
     zIndex: "1000",
-    boxSizing: "border-box",
-    maxHeight: "min(320px, calc(100vh - 24px))",
-    overflowY: "auto",
     backgroundColor: "var(--vscode-editorSuggestWidget-background, var(--vscode-editor-background))",
     color: "var(--vscode-editorSuggestWidget-foreground, var(--vscode-editor-foreground))",
     border: "1px solid var(--vscode-editorSuggestWidget-border, var(--vscode-panel-border))",
     boxShadow: "0 2px 8px var(--vscode-widget-shadow, transparent)"
-  },
-  ".cm-tooltip-autocomplete ul": {
-    maxHeight: "inherit",
-    margin: "0",
-    padding: "4px 0"
-  },
-  ".cm-tooltip-autocomplete ul li": {
-    display: "flex",
-    alignItems: "center",
-    gap: "8px",
-    minHeight: "24px",
-    boxSizing: "border-box",
-    padding: "4px 10px",
-    whiteSpace: "nowrap"
   },
   ".cm-tooltip-autocomplete ul li[aria-selected]": {
     backgroundColor: "var(--vscode-editorSuggestWidget-selectedBackground, var(--vscode-list-activeSelectionBackground))",
@@ -185,7 +168,7 @@ export class ModulePreviewInvocationEditorController {
     const site = this.siteFor(this.view.state);
     const parameter = site.parameter;
     const kind = parameter?.type?.kind;
-    if (!this.options.onReferencePick || !parameter?.active ||
+    if (!this.options.onReferencePick || this.options.referencePickAvailable === false || !parameter?.active ||
       (kind !== "point" && kind !== "line" && kind !== "path") ||
       site.selectionStart < parameter.valueRange.from ||
       site.selectionEnd > parameter.valueRange.to) return false;
@@ -210,11 +193,12 @@ export class ModulePreviewInvocationEditorController {
     }
   }
 
-  updateContext(context: Pick<ModulePreviewInvocationEditorOptions, "source" | "semantic" | "target">): void {
+  updateContext(context: Pick<ModulePreviewInvocationEditorOptions, "source" | "semantic" | "target" | "referencePickAvailable">): void {
     if (this.destroyed) return;
     this.options.source = context.source;
     this.options.semantic = context.semantic;
     this.options.target = context.target;
+    this.options.referencePickAvailable = context.referencePickAvailable;
   }
 
   replaceCurrentValue(expression: string, selection?: { start: number; end: number }): boolean {

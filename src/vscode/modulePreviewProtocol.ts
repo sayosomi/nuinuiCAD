@@ -48,6 +48,8 @@ export type VscodeModulePreviewInvocationSnapshot = {
   sessionId: string;
   documentUri: string;
   documentVersion: number;
+  /** Exact normalized Source retained as the cross-runtime proof. */
+  normalizedSource: string;
   sourceRevision: number;
   sessionRevision: number;
   target: { definitionStatementId: StatementIdentity; definitionStatementIndex: number; name: string };
@@ -71,10 +73,17 @@ export type VscodeModulePreviewInvocationSiteProof = {
   sessionId: string;
   documentUri: string;
   documentVersion: number;
+  /** Exact normalized Source from the retained Webview snapshot. */
+  normalizedSource: string;
   sourceRevision: number;
   sessionRevision: number;
   targetDefinitionStatementId: StatementIdentity;
+  targetDefinitionStatementIndex: number;
+  targetName: string;
   definitionStatementId: StatementIdentity;
+  blockKind: "ancestor" | "target";
+  blockDefinitionStatementIndex: number;
+  blockName: string;
   parameterIndex: number;
   invocationText: string;
   selectionStart: number;
