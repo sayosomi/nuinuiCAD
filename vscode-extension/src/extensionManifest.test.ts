@@ -212,7 +212,6 @@ const coordinatePointConversionEnablement = `(${coordinatePointConversionSourceC
 const outputPreviewRevealEnablement = `${sourcePaletteWhen} && nuinuiCAD.revealInOutputPreviewSourceTarget`;
 const geometryReferenceRetargetContextWhen = `${sourcePaletteWhen} && !editorReadonly && nuinuiCAD.geometryReferenceRetargetSourceTarget`;
 const sourceValueStepKeybindingWhen = `editorTextFocus && ${sourcePaletteWhen} && !editorReadonly`;
-const modulePreviewValueStepKeybindingWhen = "activeWebviewPanelId == 'nuinuiCAD.modulePreview' && nuinuiCAD.modulePreviewValueInputFocus";
 const sourceValueStepContextWhen = `${sourcePaletteWhen} && !editorReadonly && nuinuiCAD.sourceValueStepTarget`;
 const bakeSourceContextWhen = `${sourcePaletteWhen} && nuinuiCAD.bakeSourceTarget`;
 const modulePreviewContextWhen = `${sourcePaletteWhen} && nuinuiCAD.modulePreviewSourceTarget`;
@@ -874,7 +873,7 @@ describe("VS Code extension manifest keybindings", () => {
     const manifest = await readManifest();
     const keybindings = manifest.contributes?.keybindings ?? [];
 
-    expect(keybindings).toHaveLength(37);
+    expect(keybindings).toHaveLength(35);
     expect(keybindings).toContainEqual({
       command: "nuinuiCAD.stepSourceValueForward.keybinding",
       key: "ctrl+shift+.",
@@ -886,18 +885,6 @@ describe("VS Code extension manifest keybindings", () => {
       key: "ctrl+shift+,",
       mac: "shift+cmd+,",
       when: sourceValueStepKeybindingWhen
-    });
-    expect(keybindings).toContainEqual({
-      command: "nuinuiCAD.modulePreviewValueStepForward.keybinding",
-      key: "ctrl+shift+.",
-      mac: "shift+cmd+.",
-      when: modulePreviewValueStepKeybindingWhen
-    });
-    expect(keybindings).toContainEqual({
-      command: "nuinuiCAD.modulePreviewValueStepBackward.keybinding",
-      key: "ctrl+shift+,",
-      mac: "shift+cmd+,",
-      when: modulePreviewValueStepKeybindingWhen
     });
     expect(keybindings).toContainEqual({
       command: "nuinuiCAD.canvasUndo",
@@ -928,18 +915,6 @@ describe("VS Code extension manifest keybindings", () => {
     expect(keybindings.some(({ command }) =>
       command === "nuinuiCAD.toggleCanvasPointNames" || command === "nuinuiCAD.toggleCanvasGeometryNames")).toBe(false);
     expect(keybindings.filter(({ command }) => command.includes("modulePreview"))).toEqual([
-      {
-        command: "nuinuiCAD.modulePreviewValueStepForward.keybinding",
-        key: "ctrl+shift+.",
-        mac: "shift+cmd+.",
-        when: modulePreviewValueStepKeybindingWhen
-      },
-      {
-        command: "nuinuiCAD.modulePreviewValueStepBackward.keybinding",
-        key: "ctrl+shift+,",
-        mac: "shift+cmd+,",
-        when: modulePreviewValueStepKeybindingWhen
-      },
       {
         command: "nuinuiCAD.modulePreview.clearSelection",
         key: "ctrl+shift+alt+d",
@@ -1154,8 +1129,6 @@ describe("VS Code extension manifest keybindings", () => {
     const existingBindingCommands = [
       "nuinuiCAD.stepSourceValueForward.keybinding",
       "nuinuiCAD.stepSourceValueBackward.keybinding",
-      "nuinuiCAD.modulePreviewValueStepForward.keybinding",
-      "nuinuiCAD.modulePreviewValueStepBackward.keybinding",
       "nuinuiCAD.canvasUndo",
       "nuinuiCAD.canvasRedo",
       "nuinuiCAD.outputPreviewUndo",

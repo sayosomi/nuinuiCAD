@@ -20,6 +20,7 @@ import type {
   VscodeModulePreviewInvocationSiteFocus,
   VscodeModulePreviewInvocationSiteProof,
   VscodeModulePreviewInvocationReferencePickStart,
+  VscodeModulePreviewInvocationValueStep,
   VscodeModulePreviewInvocationValueEdit,
   VscodeModulePreviewModelPatchRequest,
   VscodeModulePreviewModelPatchResult,
@@ -51,8 +52,6 @@ import type {
 export const NUI_MODULE_PREVIEW_VIEW_TYPE = "nuinuiCAD.modulePreview";
 export const NUI_MODULE_PREVIEW_SOURCE_TARGET_CONTEXT = "nuinuiCAD.modulePreviewSourceTarget";
 export const NUI_MODULE_PREVIEW_VALUE_INPUT_FOCUS_CONTEXT = "nuinuiCAD.modulePreviewValueInputFocus";
-export const NUI_MODULE_PREVIEW_VALUE_STEP_FORWARD_COMMAND_ID = "nuinuiCAD.modulePreviewValueStepForward.keybinding";
-export const NUI_MODULE_PREVIEW_VALUE_STEP_BACKWARD_COMMAND_ID = "nuinuiCAD.modulePreviewValueStepBackward.keybinding";
 
 const nonWritingCanvasCommands = new Set<VscodeCanvasCommandId>([
   "clearCanvasSelection",
@@ -175,6 +174,16 @@ const isModulePreviewInvocationReferencePickStart = (
       candidate.expectedGeometryInterface === "point" ||
       candidate.expectedGeometryInterface === "line" ||
       candidate.expectedGeometryInterface === "path") &&
+    isInvocationSiteProof(candidate);
+};
+
+const isModulePreviewInvocationValueStep = (
+  message: unknown
+): message is VscodeModulePreviewInvocationValueStep => {
+  if (typeof message !== "object" || message === null) return false;
+  const candidate = message as Partial<VscodeModulePreviewInvocationValueStep>;
+  return candidate.type === "modulePreviewInvocationValueStep" &&
+    (candidate.direction === 1 || candidate.direction === -1) &&
     isInvocationSiteProof(candidate);
 };
 
@@ -766,44 +775,40 @@ export const registerModulePreviewFeature = ({
     return true;
   };
 
-  const dispatchPreviewValueStep = (direction: 1 | -1): boolean => {
+  const dispatchPreviewValueStep = (message: VscodeModulePreviewInvocationValueStep): boolean => {
     const session = boundInvocationSession;
-    const focus = focusedInvocationSite;
-    if (!session || !focus) return true;
-    const match = currentInvocationSiteFor(session, focus);
-    if (!match) {
-      clearFocusedInvocationSite();
-      return true;
-    }
-    if (!match.parameter.active || focus.selectionStart < match.parameter.valueRange.from ||
-      focus.selectionEnd > match.parameter.valueRange.to) return true;
-    const value = focus.invocationText.slice(match.parameter.valueRange.from, match.parameter.valueRange.to);
+    if (!session) return false;
+    const match = currentInvocationSiteFor(session, message);
+    if (!match || !match.parameter.active ||
+      message.selectionStart < match.parameter.valueRange.from ||
+      message.selectionEnd > match.parameter.valueRange.to) return false;
+    const value = message.invocationText.slice(match.parameter.valueRange.from, match.parameter.valueRange.to);
     const relativeSelection = {
-      start: focus.selectionStart - match.parameter.valueRange.from,
-      end: focus.selectionEnd - match.parameter.valueRange.from
+      start: message.selectionStart - match.parameter.valueRange.from,
+      end: message.selectionEnd - match.parameter.valueRange.from
     };
     const result = resolveModulePreviewValueStep(
       value,
       match.parameter.type,
       match.parameter.numericTypeOptions,
       relativeSelection,
-      direction
+      message.direction
     );
     if (!result) return true;
     const valueStart = match.parameter.valueRange.from;
     const forwarded: VscodeModulePreviewInvocationValueEdit = {
       type: "modulePreviewInvocationValueEdit",
-      sessionId: focus.sessionId,
-      documentUri: focus.documentUri,
-      documentVersion: focus.documentVersion,
-      sourceRevision: focus.sourceRevision,
+      sessionId: message.sessionId,
+      documentUri: message.documentUri,
+      documentVersion: message.documentVersion,
+      sourceRevision: message.sourceRevision,
       sessionRevision: match.snapshot.sessionRevision,
-      targetDefinitionStatementId: focus.targetDefinitionStatementId,
-      definitionStatementId: focus.definitionStatementId,
-      parameterIndex: focus.parameterIndex,
-      invocationText: focus.invocationText,
-      selectionStart: focus.selectionStart,
-      selectionEnd: focus.selectionEnd,
+      targetDefinitionStatementId: message.targetDefinitionStatementId,
+      definitionStatementId: message.definitionStatementId,
+      parameterIndex: message.parameterIndex,
+      invocationText: message.invocationText,
+      selectionStart: message.selectionStart,
+      selectionEnd: message.selectionEnd,
       expression: result.expression,
       resultSelectionStart: valueStart + result.selection.start,
       resultSelectionEnd: valueStart + result.selection.end
@@ -1076,6 +1081,10 @@ export const registerModulePreviewFeature = ({
         handleReferencePickResult(session, message);
         return;
       }
+      if (isModulePreviewInvocationValueStep(message)) {
+        dispatchPreviewValueStep(message);
+        return;
+      }
       if (isModulePreviewInvocationReferencePickStart(message)) {
         startInvocationReferencePick(message);
         return;
@@ -1172,14 +1181,6 @@ export const registerModulePreviewFeature = ({
     }
     createOrRetargetPanel(editor, target);
   }));
-  disposables.push(vscode.commands.registerCommand(
-    NUI_MODULE_PREVIEW_VALUE_STEP_FORWARD_COMMAND_ID,
-    () => dispatchPreviewValueStep(1)
-  ));
-  disposables.push(vscode.commands.registerCommand(
-    NUI_MODULE_PREVIEW_VALUE_STEP_BACKWARD_COMMAND_ID,
-    () => dispatchPreviewValueStep(-1)
-  ));
 
   disposables.push(vscode.window.onDidChangeActiveTextEditor(() => refreshSourceTargetContext()));
   disposables.push(vscode.window.onDidChangeTextEditorSelection((event) => {

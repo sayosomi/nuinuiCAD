@@ -57,16 +57,28 @@
   margin: 0 0 12px;
   border: 1px solid var(--vscode-panel-border);
   border-radius: 4px;
-  overflow: hidden;
+  overflow: visible;
+}
+
+.module-preview-invocation-block-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0;
+  padding: 7px 10px;
+  color: var(--vscode-titleBar-activeForeground, var(--vscode-foreground));
+  background: var(--vscode-editorGroupHeader-tabsBackground, var(--vscode-editor-background));
 }
 
 .module-preview-invocation-block h2 {
+  min-width: 0;
   margin: 0;
-  padding: 7px 10px;
   font-size: 12px;
   font-weight: 600;
-  color: var(--vscode-titleBar-activeForeground, var(--vscode-foreground));
-  background: var(--vscode-editorGroupHeader-tabsBackground, var(--vscode-editor-background));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .module-preview-invocation-block-target {
@@ -74,19 +86,21 @@
 }
 
 .module-preview-invocation-editor-row {
-  display: flex;
-  min-height: 92px;
+  min-height: 0;
+  padding: 4px 0 6px;
 }
 
 .module-preview-invocation-cm {
-  flex: 1 1 auto;
   min-width: 0;
-  min-height: 92px;
+  min-height: 56px;
+}
+
+.module-preview-invocation-cm .cm-editor {
+  min-height: 56px;
 }
 
 .module-preview-invocation-pick {
-  align-self: flex-start;
-  margin: 8px;
+  flex: 0 0 auto;
   padding: 3px 8px;
   border: 1px solid var(--vscode-button-border, transparent);
   color: var(--vscode-button-foreground);

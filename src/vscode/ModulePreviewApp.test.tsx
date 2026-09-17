@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useEffect, type RefObject } from "react";
+import type { DslReferencePickTarget } from "@nuinuicad/nui-language";
 import type { ModulePreviewSessionSnapshot } from "../dsl/modulePreviewState";
 import { modulePreviewInvocationFor } from "../dsl/modulePreviewInvocation";
 import type { ModulePreviewInvocationEditorAppProps } from "./ModulePreviewInvocationEditorApp";
@@ -33,7 +34,9 @@ const mocks = vi.hoisted(() => ({
     error: null
   },
   canvasMounts: 0,
-  canvasUnmounts: 0
+  canvasUnmounts: 0,
+  referencePickTargetFor: vi.fn(),
+  referencePickCandidates: vi.fn(() => [])
 }));
 
 vi.mock("../components/DrawingCanvas", () => ({
@@ -58,6 +61,13 @@ vi.mock("../dsl/modulePreviewTarget", async () => {
   return { ...actual, queryModulePreviewTarget: mocks.queryModulePreviewTarget };
 });
 vi.mock("./modulePreviewEvaluation", () => ({ buildModulePreviewEvaluationOptions: () => ({}) }));
+vi.mock("./modulePreviewReferencePick", () => ({
+  modulePreviewReferencePickTargetFor: mocks.referencePickTargetFor
+}));
+vi.mock("../model/referencePickCandidates", async () => {
+  const actual = await vi.importActual<typeof import("../model/referencePickCandidates")>("../model/referencePickCandidates");
+  return { ...actual, referencePickCandidates: mocks.referencePickCandidates };
+});
 vi.mock("./ModulePreviewInvocationEditorApp", () => ({
   ModulePreviewInvocationEditorApp: ({ invocation }: ModulePreviewInvocationEditorAppProps) => invocation ? (
     <div data-module-preview-invocation-surface="true">
@@ -69,7 +79,7 @@ vi.mock("./ModulePreviewInvocationEditorApp", () => ({
 import { AutomationDocument } from "@nuinuicad/nui-language/document";
 import { ModulePreviewApp } from "./ModulePreviewApp";
 
-const sourceText = "nui 1\nmodule Preview(width: number) {\n}\n";
+const sourceText = "nui 1\nmodule Preview(anchor: point) {\n}\n";
 const target: ModulePreviewTarget = { definitionStatementId: "module:preview", definitionStatementIndex: 1, name: "Preview" };
 const root = {
   target,
@@ -89,13 +99,13 @@ const invocation = modulePreviewInvocationFor({ blocks: [{
   parameters: [{
     definitionStatementId: target.definitionStatementId,
     parameterIndex: 0,
-    name: "width",
-    type: { kind: "number" },
+    name: "anchor",
+    type: { kind: "point" },
     optional: false,
     required: true,
     defaultSourceText: null,
     active: true,
-    value: "12",
+    value: "@Top",
     caller: { statementIndex: 1, scopeId: "scope:root", sourceOrderIndex: 1 }
   }]
 }]});
@@ -107,6 +117,21 @@ const snapshot: ModulePreviewSessionSnapshot = {
   invocation,
   inputDiagnostics: [],
   preview: { kind: "current", result: root as never }
+};
+
+const referencePickTarget: DslReferencePickTarget = {
+  sourceAnchor: {
+    sourceRevision: 1,
+    statementId: target.definitionStatementId,
+    statementIndex: target.definitionStatementIndex,
+    sourceOrderIndex: target.definitionStatementIndex,
+    scopeId: "scope:root",
+    statementRange: { from: sourceText.indexOf("module Preview"), to: sourceText.length, startLine: 2, endLine: 3 }
+  },
+  expectedGeometryInterface: "point",
+  role: "geometry",
+  multiplicity: "single",
+  range: { from: sourceText.indexOf("module Preview"), to: sourceText.length }
 };
 
 const renderPreview = () => {
@@ -125,6 +150,9 @@ const renderPreview = () => {
 afterEach(() => {
   cleanup();
   mocks.queryModulePreviewTarget.mockReset();
+  mocks.referencePickTargetFor.mockReset();
+  mocks.referencePickCandidates.mockReset();
+  mocks.referencePickCandidates.mockReturnValue([]);
   mocks.session.activate.mockReset();
   mocks.session.getState.mockReset();
   mocks.session.setInvocationText.mockReset();
@@ -159,5 +187,45 @@ describe("ModulePreviewApp invocation composition", () => {
     expect(screen.getByTestId("module-preview-canvas")).toBe(canvas);
     expect(mocks.canvasMounts).toBe(1);
     expect(mocks.canvasUnmounts).toBe(0);
+  });
+
+  it("routes a production Reference Pick request through ModulePreviewApp current context into the Canvas session hook", () => {
+    mocks.referencePickTargetFor.mockReturnValue(referencePickTarget);
+    renderPreview();
+    const parameter = snapshot.invocation.blocks[0]!.parameters[0]!;
+    act(() => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "modulePreviewReferencePickStartRequest",
+          requestId: 1,
+          sessionId: "module-preview-session:1",
+          documentUri: "file:///pattern.nui",
+          documentVersion: 1,
+          sourceRevision: snapshot.sourceRevision,
+          sessionRevision: 2,
+          targetDefinitionStatementId: snapshot.target.definitionStatementId,
+          definitionStatementId: parameter.definitionStatementId,
+          parameterIndex: parameter.parameterIndex,
+          invocationText: snapshot.invocation.blocks[0]!.text,
+          selectionStart: parameter.valueRange.from,
+          selectionEnd: parameter.valueRange.to,
+          expectedGeometryInterface: "point",
+          role: "geometry",
+          multiplicity: "single"
+        }
+      }));
+    });
+
+    expect(mocks.referencePickTargetFor).toHaveBeenCalledWith(expect.objectContaining({
+      root,
+      definitionStatementId: target.definitionStatementId,
+      parameterIndex: 0,
+      expectedGeometryInterface: "point"
+    }));
+    expect(mocks.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewReferencePickResult",
+      requestId: 1,
+      status: "started"
+    }));
   });
 });

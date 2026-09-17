@@ -55,6 +55,7 @@ export type {
   VscodeModulePreviewInvocationSiteFocus,
   VscodeModulePreviewInvocationSiteProof,
   VscodeModulePreviewInvocationReferencePickStart,
+  VscodeModulePreviewInvocationValueStep,
   VscodeModulePreviewInvocationValueEdit,
   VscodeModulePreviewModelPatchRequest,
   VscodeModulePreviewModelPatchResult,
