@@ -34,6 +34,9 @@ const token = (stream: StringStream, state: StreamState) => {
 };
 
 export const dslCmLanguage = StreamLanguage.define<StreamState>({
+  languageData: {
+    commentTokens: { line: "//" }
+  },
   startState: () => ({ tokens: [], tokenIndex: 0, inBlockComment: false }),
   token,
   blankLine: (state) => resetLine(state, ""),
