@@ -31,6 +31,9 @@ const REQUEST_BASE = {
   targetDefinitionStatementId: "module:target",
   definitionStatementId: "module:target",
   parameterIndex: 0,
+  invocationText: "Target(\n  anchor: @Top\n)",
+  selectionStart: 20,
+  selectionEnd: 24,
   expectedGeometryInterface: "point" as const,
   role: "geometry" as const,
   multiplicity: "single" as const

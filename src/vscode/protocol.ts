@@ -15,8 +15,8 @@ import type { VscodeCanvasThemeToExtensionMessage } from "./vscodeCanvasThemePro
 import type { VscodeMultiDocumentGraphPublication } from "./multiDocumentGraphTransport";
 import type {
   VscodeExtensionToModulePreviewMessage,
-  VscodeModulePreviewParameterSnapshot,
-  VscodeModulePreviewParametersUnavailable,
+  VscodeModulePreviewInvocationSnapshot,
+  VscodeModulePreviewInvocationUnavailable,
   VscodeModulePreviewToExtensionMessage
 } from "./modulePreviewProtocol";
 import type {
@@ -46,23 +46,18 @@ export type {
 export type { VscodeCanvasThemePublication } from "./vscodeCanvasThemeProtocol";
 export type {
   VscodeExtensionToModulePreviewMessage,
-  VscodeModulePreviewParameter,
-  VscodeModulePreviewParameterDiagnostic,
-  VscodeModulePreviewParameterGroup,
-  VscodeModulePreviewParameterSetValue,
-  VscodeModulePreviewParameterSnapshot,
-  VscodeModulePreviewParameterValueBlur,
-  VscodeModulePreviewParameterValueCompletionCandidate,
-  VscodeModulePreviewParameterValueCompletionRequest,
-  VscodeModulePreviewParameterValueCompletionResult,
-  VscodeModulePreviewParameterValueFocus,
-  VscodeModulePreviewParameterValueSelectionRestore,
-  VscodeModulePreviewParameterActionProof,
+  VscodeModulePreviewInvocationDiagnostic,
+  VscodeModulePreviewInvocationParameter,
+  VscodeModulePreviewInvocationBlock,
+  VscodeModulePreviewInvocationSnapshot,
+  VscodeModulePreviewInvocationUnavailable,
+  VscodeModulePreviewInvocationSiteBlur,
+  VscodeModulePreviewInvocationSiteFocus,
+  VscodeModulePreviewInvocationSiteProof,
+  VscodeModulePreviewInvocationReferencePickStart,
+  VscodeModulePreviewInvocationValueEdit,
   VscodeModulePreviewModelPatchRequest,
   VscodeModulePreviewModelPatchResult,
-  VscodeModulePreviewParameterReferencePickStartRequest,
-  VscodeModulePreviewParameterUseDefault,
-  VscodeModulePreviewParametersUnavailable,
   VscodeModulePreviewReferencePickCancelRequest,
   VscodeModulePreviewReferencePickConfirmedResult,
   VscodeModulePreviewReferencePickProof,
@@ -256,8 +251,8 @@ export type VscodeToExtensionMessage =
   | VscodeCanvasThemeToExtensionMessage
   | VscodeReferencePickToExtensionMessage
   | VscodeModulePreviewToExtensionMessage
-  | VscodeModulePreviewParameterSnapshot
-  | VscodeModulePreviewParametersUnavailable
+  | VscodeModulePreviewInvocationSnapshot
+  | VscodeModulePreviewInvocationUnavailable
   | {
       type: "canvasSourceDefinitionResult";
       requestId: number;

@@ -1,10 +1,7 @@
 import type { StatementIdentity } from "@nuinuicad/nui-language/document";
-import { createLazyScalarProgramEvaluator } from "../scalars/declarationEvaluator";
-import { IDENTIFIER_PATTERN } from "@nuinuicad/nui-language";
-import { numericLiteralForExpression } from "@nuinuicad/nui-language";
-import type { ScalarEvaluation, ScalarValue } from "@nuinuicad/nui-language";
 import type { CompiledDslDocument } from "@nuinuicad/nui-language";
 import type { DslDiagnosticPresentation, DslStatement } from "@nuinuicad/nui-language";
+import { IDENTIFIER_PATTERN } from "@nuinuicad/nui-language";
 import {
   compileModulePreviewRoot,
   type ModulePreviewArgument,
@@ -21,6 +18,12 @@ import type {
   ModulePreviewTargetSemanticSnapshot,
   SourceSnapshot
 } from "./modulePreviewTarget";
+import {
+  modulePreviewInvocationBlockWithText,
+  modulePreviewInvocationFor,
+  type ModulePreviewInvocation,
+  type ModulePreviewInvocationBlockInput
+} from "./modulePreviewInvocation";
 
 export type ModulePreviewInputDiagnostic = {
   code: "required-value-missing" | "invalid-expression";
@@ -42,6 +45,8 @@ export type ModulePreviewParameterState = {
   defaultSourceText: string | null;
   /** Exact ephemeral caller-side argument expression text. Empty means omitted. */
   value: string;
+  /** Whether the visible invocation line is an active explicit argument. */
+  active: boolean;
   diagnostic: ModulePreviewInputDiagnostic | null;
 };
 
@@ -63,6 +68,8 @@ export type ModulePreviewSessionSnapshot = {
   /** Ancestor Module contexts in outermost-to-innermost order. */
   ancestorContexts: readonly ModulePreviewInputGroup[];
   parameters: ModulePreviewInputGroup;
+  /** The exact ephemeral invocation text and semantic sites shown by Preview. */
+  invocation: ModulePreviewInvocation;
   inputDiagnostics: readonly ModulePreviewInputDiagnostic[];
   preview: ModulePreviewRenderState;
 };
@@ -73,23 +80,14 @@ export type ModulePreviewActivateInput = {
   target: ModulePreviewTarget;
 };
 
-export type ModulePreviewDefaultActionResult = {
-  applied: boolean;
-  state: ModulePreviewSessionSnapshot | null;
-};
-
 export type ModulePreviewSession = {
   getState(): ModulePreviewSessionSnapshot | null;
   activate(input: ModulePreviewActivateInput): ModulePreviewSessionSnapshot | null;
-  setValue(
+  /** Apply one edited call block in one semantic update. */
+  setInvocationText(
     definitionStatementId: StatementIdentity,
-    parameterIndex: number,
-    expression: string
+    text: string
   ): ModulePreviewSessionSnapshot | null;
-  useDefaultExplicitly(
-    definitionStatementId: StatementIdentity,
-    parameterIndex: number
-  ): ModulePreviewDefaultActionResult;
 };
 
 type ActivePreview = {
@@ -109,6 +107,11 @@ type ActiveParameter = {
   definition: ModuleDefinitionSemantic;
   parameter: ResolvedModuleParameter;
   key: string;
+};
+
+type ActiveParameterValue = {
+  value: string;
+  active: boolean;
 };
 
 const exactCompiled = (
@@ -181,58 +184,71 @@ const previewKeyFor = (active: ActivePreview) =>
 
 const isOmitted = (expression: string) => expression.trim().length === 0;
 
-const stringLiteralForExpression = (value: string): string | null => {
-  let result = '"';
-  for (const character of value) {
-    switch (character) {
-      case "\\": result += "\\\\"; break;
-      case '"': result += '\\"'; break;
-      case "\n": result += "\\n"; break;
-      case "\r": result += "\\r"; break;
-      case "\t": result += "\\t"; break;
-      case "{": result += "\\{"; break;
-      case "}": result += "\\}"; break;
-      default: {
-        const codePoint = character.codePointAt(0);
-        if (codePoint !== undefined && codePoint < 0x20) return null;
-        result += character;
-      }
-    }
-  }
-  return `${result}"`;
-};
-
 const choiceLiteralForExpression = (value: string): string | null => {
   if (value === "true" || value === "false") return null;
-  const match = IDENTIFIER_PATTERN.exec(value);
-  return match?.[0] === value ? value : null;
-};
-
-const scalarLiteralForEvaluation = (evaluation: ScalarEvaluation): string | null => {
-  if (evaluation.status !== "ok") return null;
-  const value: ScalarValue = evaluation.value;
-  switch (value.kind) {
-    case "number": return numericLiteralForExpression(value.value);
-    case "string": return stringLiteralForExpression(value.value);
-    case "boolean": return value.value ? "true" : "false";
-    case "choice": return choiceLiteralForExpression(value.value);
-    case "none": return "none";
-  }
+  return IDENTIFIER_PATTERN.exec(value)?.[0] === value ? value : null;
 };
 
 export const createModulePreviewSession = (): ModulePreviewSession => {
-  const valueByInputKey = new Map<string, string>();
+  const valueByInputKey = new Map<string, ActiveParameterValue>();
   const lastGoodByPreviewKey = new Map<string, ModulePreviewRootResult>();
-  const lastGoodValueByInputKey = new Map<string, string>();
+  const lastGoodValueByInputKey = new Map<string, ActiveParameterValue>();
   const invalidDiagnosticByInputKey = new Map<string, ModulePreviewInputDiagnostic>();
+  const invocationTextByPreviewKey = new Map<string, Map<StatementIdentity, string>>();
   let active: ActivePreview | null = null;
   let state: ModulePreviewSessionSnapshot | null = null;
 
   const keyFor = (definition: ModuleDefinitionSemantic, parameter: ResolvedModuleParameter) =>
     active ? inputKeyFor(active.target.definitionStatementId, definition, parameter) : "";
 
+  const inputValueFor = (definition: ModuleDefinitionSemantic, parameter: ResolvedModuleParameter): ActiveParameterValue =>
+    active
+      ? valueByInputKey.get(keyFor(definition, parameter)) ?? {
+          value: "",
+          active: parameter.required && parameter.defaultValue === null
+        }
+      : { value: "", active: false };
+
   const valueFor = (definition: ModuleDefinitionSemantic, parameter: ResolvedModuleParameter) =>
-    active ? valueByInputKey.get(keyFor(definition, parameter)) ?? "" : "";
+    inputValueFor(definition, parameter).value;
+
+  const activeFor = (definition: ModuleDefinitionSemantic, parameter: ResolvedModuleParameter) =>
+    inputValueFor(definition, parameter).active;
+
+  const invocationBlockInputFor = (
+    definition: ModuleDefinitionSemantic,
+    kind: ModulePreviewInvocationBlockInput["kind"]
+  ): ModulePreviewInvocationBlockInput => ({
+    kind,
+    definitionStatementId: definition.statementId,
+    definitionStatementIndex: definition.statementIndex,
+    declarationScopeId: definition.declarationScopeId,
+    name: definition.name,
+    parameters: definition.parameters.map((parameter) => ({
+      definitionStatementId: definition.statementId,
+      parameterIndex: parameter.parameterIndex,
+      name: parameter.name,
+      type: parameter.type,
+      recordTypeIdentity: parameter.recordTypeIdentity,
+      ...(parameter.numericTypeOptions ? { numericTypeOptions: parameter.numericTypeOptions } : {}),
+      optional: parameter.optional,
+      required: parameter.required,
+      defaultSourceText: parameter.defaultValue,
+      active: activeFor(definition, parameter),
+      value: valueFor(definition, parameter),
+      caller: {
+        statementIndex: definition.statementIndex,
+        scopeId: definition.declarationScopeId,
+        sourceOrderIndex: definition.statementIndex
+      }
+    }))
+  });
+
+  const invocationBlockInputsFor = (
+    chain: readonly ModuleDefinitionSemantic[]
+  ): ModulePreviewInvocationBlockInput[] => chain.map((definition, index) =>
+    invocationBlockInputFor(definition, index === chain.length - 1 ? "target" : "ancestor")
+  );
 
   const activeParameters = (): ActiveParameter[] => {
     const currentActive = active;
@@ -263,8 +279,11 @@ export const createModulePreviewSession = (): ModulePreviewSession => {
       omittedInput?.definitionStatementId === definition.statementId &&
       omittedInput.parameterIndex === parameter.parameterIndex
     ) return [];
-    const expression = overrides?.get(keyFor(definition, parameter)) ?? valueFor(definition, parameter);
-    return isOmitted(expression) ? [] : [{ name: parameter.name, expression }];
+    const key = keyFor(definition, parameter);
+    const input = valueByInputKey.get(key) ?? { value: "", active: false };
+    const expression = overrides?.get(key) ?? input.value;
+    if (overrides?.has(key)) return isOmitted(expression) ? [] : [{ name: parameter.name, expression }];
+    return input.active ? [{ name: parameter.name, expression }] : [];
   });
 
   const rootInputFor = (
@@ -289,7 +308,8 @@ export const createModulePreviewSession = (): ModulePreviewSession => {
   const requiredDiagnostics = (): ModulePreviewInputDiagnostic[] => {
     if (!active) return [];
     return active.chain.flatMap((definition) => definition.parameters.flatMap((parameter) => {
-      if (!parameter.required || parameter.defaultValue !== null || !isOmitted(valueFor(definition, parameter))) return [];
+      const input = inputValueFor(definition, parameter);
+      if (!parameter.required || parameter.defaultValue !== null || (input.active && !isOmitted(input.value))) return [];
       return [{
         code: "required-value-missing" as const,
         definitionStatementId: definition.statementId,
@@ -335,6 +355,7 @@ export const createModulePreviewSession = (): ModulePreviewSession => {
       required: parameter.required,
       defaultSourceText: parameter.defaultValue,
       value: valueFor(definition, parameter),
+      active: activeFor(definition, parameter),
       diagnostic: diagnostics.find((candidate) =>
         candidate.definitionStatementId === definition.statementId &&
         candidate.parameterIndex === parameter.parameterIndex
@@ -349,9 +370,9 @@ export const createModulePreviewSession = (): ModulePreviewSession => {
 
   const fallbackExpressionFor = (entry: ActiveParameter): string | null => {
     const lastGood = lastGoodValueByInputKey.get(entry.key);
-    if (lastGood !== undefined) return lastGood;
-    const current = valueFor(entry.definition, entry.parameter);
-    if (isOmitted(current) && (!entry.parameter.required || entry.parameter.defaultValue !== null)) return "";
+    if (lastGood !== undefined) return lastGood.active ? lastGood.value : "";
+    const current = inputValueFor(entry.definition, entry.parameter);
+    if (!current.active && (!entry.parameter.required || entry.parameter.defaultValue !== null)) return "";
     const type = entry.parameter.type;
     if (!type) return null;
     switch (type.kind) {
@@ -376,7 +397,8 @@ export const createModulePreviewSession = (): ModulePreviewSession => {
     if (!edited) return;
     const editedKey = keyFor(edited.definition, edited.parameter);
     invalidDiagnosticByInputKey.delete(editedKey);
-    if (isOmitted(valueFor(edited.definition, edited.parameter))) return;
+    const editedValue = inputValueFor(edited.definition, edited.parameter);
+    if (!editedValue.active) return;
 
     const editedEntry = parameters.find((entry) => entry.key === editedKey);
     if (!editedEntry) return;
@@ -397,7 +419,7 @@ export const createModulePreviewSession = (): ModulePreviewSession => {
     }
   };
 
-  const evaluate = (editedInput?: EditedInput): ModulePreviewSessionSnapshot | null => {
+  const evaluate = (editedInputs: readonly EditedInput[] = []): ModulePreviewSessionSnapshot | null => {
     if (!active) return null;
     const required = requiredDiagnostics();
     const input = rootInputFor();
@@ -407,10 +429,10 @@ export const createModulePreviewSession = (): ModulePreviewSession => {
     if (current) {
       for (const entry of parameters) {
         invalidDiagnosticByInputKey.delete(entry.key);
-        lastGoodValueByInputKey.set(entry.key, valueFor(entry.definition, entry.parameter));
+        lastGoodValueByInputKey.set(entry.key, inputValueFor(entry.definition, entry.parameter));
       }
-    } else if (editedInput) {
-      refreshEditedDiagnostic(editedInput, parameters);
+    } else {
+      for (const editedInput of editedInputs) refreshEditedDiagnostic(editedInput, parameters);
     }
 
     const requiredKeys = new Set(required.flatMap((diagnostic) => {
@@ -433,13 +455,22 @@ export const createModulePreviewSession = (): ModulePreviewSession => {
       : lastGood
         ? { kind: "lastGood", result: lastGood }
         : { kind: "noValidPreview", result: null };
-    const targetDefinition = active.chain[active.chain.length - 1];
+    const chain = active.chain;
+    const targetDefinition = chain[chain.length - 1];
     if (!targetDefinition) return null;
+    const invocationBlocks = invocationBlockInputsFor(chain);
+    const savedTexts = invocationTextByPreviewKey.get(previewKey);
+    const invocation = modulePreviewInvocationFor({ blocks: invocationBlocks }).blocks.map((block) =>
+      savedTexts?.has(block.definitionStatementId)
+        ? modulePreviewInvocationBlockWithText({ blocks: [block] }, block.definitionStatementId, savedTexts.get(block.definitionStatementId) ?? "").blocks[0]!
+        : block
+    );
     state = {
       sourceRevision: active.source.sourceRevision,
       target: active.target,
       ancestorContexts: active.chain.slice(0, -1).map((definition) => buildGroup(definition, "ancestor", diagnostics)),
       parameters: buildGroup(targetDefinition, "target", diagnostics),
+      invocation: { blocks: invocation },
       inputDiagnostics: diagnostics,
       preview
     };
@@ -452,59 +483,61 @@ export const createModulePreviewSession = (): ModulePreviewSession => {
     const chain = definitionChainFor(compiled, input.target);
     if (!chain) return null;
     active = { ...input, compiled, chain };
+    const previewKey = previewKeyFor(active);
+    const savedTexts = invocationTextByPreviewKey.get(previewKey);
+    if (savedTexts) {
+      const blocks = modulePreviewInvocationFor({ blocks: invocationBlockInputsFor(chain) });
+      for (const block of blocks.blocks) {
+        if (!savedTexts.has(block.definitionStatementId)) continue;
+        const text = savedTexts.get(block.definitionStatementId) ?? "";
+        const parsed = modulePreviewInvocationBlockWithText({ blocks: [block] }, block.definitionStatementId, text).blocks[0]!;
+        for (const parameter of parsed.parameters) {
+          const definition = chain.find((candidate) => candidate.statementId === block.definitionStatementId);
+          const resolved = definition?.parameters.find((candidate) => candidate.parameterIndex === parameter.parameterIndex);
+          if (!definition || !resolved) continue;
+          valueByInputKey.set(inputKeyFor(input.target.definitionStatementId, definition, resolved), {
+            value: parameter.value,
+            active: !parameter.omitted
+          });
+        }
+      }
+    }
     return evaluate();
   };
 
-  const setValue = (
+  const setInvocationText = (
     definitionStatementId: StatementIdentity,
-    parameterIndex: number,
-    expression: string
+    text: string
   ): ModulePreviewSessionSnapshot | null => {
-    const resolved = parameterFor(definitionStatementId, parameterIndex);
-    if (!active || !resolved) return state;
-    valueByInputKey.set(keyFor(resolved.definition, resolved.parameter), expression);
-    return evaluate({ definitionStatementId, parameterIndex });
-  };
-
-  const useDefaultExplicitly = (
-    definitionStatementId: StatementIdentity,
-    parameterIndex: number
-  ): ModulePreviewDefaultActionResult => {
-    const resolved = parameterFor(definitionStatementId, parameterIndex);
-    if (!active || !resolved || resolved.parameter.defaultValue === null) return { applied: false, state };
-    const currentActive = active;
-    const type = resolved.parameter.type;
-    if (!type || (type.kind !== "number" && type.kind !== "string" && type.kind !== "boolean" && type.kind !== "choice")) {
-      return { applied: false, state };
+    if (!active) return state;
+    const definition = active.chain.find((candidate) => candidate.statementId === definitionStatementId);
+    if (!definition) return state;
+    const previewKey = previewKeyFor(active);
+    const texts = invocationTextByPreviewKey.get(previewKey) ?? new Map<StatementIdentity, string>();
+    texts.set(definitionStatementId, text);
+    invocationTextByPreviewKey.set(previewKey, texts);
+    const base = modulePreviewInvocationFor({
+      blocks: [invocationBlockInputFor(definition, active.chain.at(-1) === definition ? "target" : "ancestor")]
+    });
+    const parsed = modulePreviewInvocationBlockWithText(base, definitionStatementId, text).blocks[0];
+    if (parsed) {
+      for (const parameter of parsed.parameters) {
+        const resolved = definition.parameters.find((candidate) => candidate.parameterIndex === parameter.parameterIndex);
+        if (!resolved) continue;
+        valueByInputKey.set(keyFor(definition, resolved), { value: parameter.value, active: !parameter.omitted });
+      }
     }
-
-    const input = rootInputFor({ definitionStatementId, parameterIndex });
-    const preview = input ? compileModulePreviewRoot(input) : null;
-    if (!preview) return { applied: false, state };
-
-    const syntheticInstance = preview.moduleSemanticAnalysis.instances.find((instance) =>
-      instance.statementIndex >= currentActive.compiled.statements.length &&
-      instance.callee?.definitionStatementId === definitionStatementId
-    );
-    if (!syntheticInstance) return { applied: false, state };
-    const binding = preview.moduleScalarRuntime.bindingAnalysis.catalog.bindings.find((candidate) =>
-      candidate.kind === "typed" &&
-      candidate.resolutionMode === "preResolvedOnly" &&
-      candidate.statementIndex === syntheticInstance.statementIndex &&
-      candidate.name === resolved.parameter.name
-    );
-    if (!binding) return { applied: false, state };
-
-    const evaluation = createLazyScalarProgramEvaluator(preview.moduleScalarRuntime.scalarProgram).resolve(binding.id);
-    const literal = scalarLiteralForEvaluation(evaluation);
-    if (literal === null) return { applied: false, state };
-    return { applied: true, state: setValue(definitionStatementId, parameterIndex, literal) };
+    // Derived values from every block are visible to one compile. This avoids
+    // exposing a sequence of intermediate row updates to the evaluator.
+    return evaluate(definition.parameters.map((parameter) => ({
+      definitionStatementId,
+      parameterIndex: parameter.parameterIndex
+    })));
   };
 
   return {
     getState: () => state,
     activate,
-    setValue,
-    useDefaultExplicitly
+    setInvocationText
   };
 };

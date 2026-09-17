@@ -7,6 +7,13 @@ import {
   type DslCompletionQueryResult
 } from "@nuinuicad/nui-language";
 import { createNuiLanguageSession } from "@nuinuicad/nui-language";
+import {
+  queryDslModulePreviewInvocationCompletion,
+  type DslModulePreviewInvocationCompletionParameter
+} from "@nuinuicad/nui-language";
+import { createModulePreviewSession } from "./modulePreviewState";
+import { modulePreviewAggregateSource } from "./__fixtures__/modulePreviewAggregate";
+import { queryModulePreviewTarget } from "./modulePreviewTarget";
 
 const compileWithIds = (source: string, sourceRevision = 7): CompiledDslDocument => {
   const parsed = parseDslSnapshot({ normalizedSource: source, sourceRevision });
@@ -1012,5 +1019,97 @@ describe("queryDslModulePreviewParameterValueCompletion", () => {
     const result = previewQuery(source, value, caller);
     expect(result?.replacementRange).toEqual({ from: 5, to: 8 });
     expect(result?.candidates.find((candidate) => candidate.label === "width")?.insertionText).toBe("width");
+  });
+});
+
+describe("queryDslModulePreviewInvocationCompletion", () => {
+  it("offers definition-order argument names without commented or active duplicates", () => {
+    const source = modulePreviewAggregateSource;
+    const sourceRevision = 41;
+    const compiled = compileWithIds(source, sourceRevision);
+    const target = queryModulePreviewTarget({
+      source: { normalizedSource: source, sourceRevision },
+      position: source.indexOf("module PreviewTarget") + 4,
+      semantic: { sourceRevision, compiled }
+    });
+    if (!target) throw new Error("expected target");
+    const state = createModulePreviewSession().activate({
+      source: { normalizedSource: source, sourceRevision },
+      semantic: { sourceRevision, compiled },
+      target
+    });
+    const block = state!.invocation.blocks[0]!;
+    const parameters: DslModulePreviewInvocationCompletionParameter[] = block.parameters.map((parameter) => ({
+      definitionStatementId: parameter.definitionStatementId,
+      parameterIndex: parameter.parameterIndex,
+      name: parameter.name,
+      type: parameter.type,
+      recordTypeIdentity: parameter.recordTypeIdentity,
+      active: parameter.active,
+      valueRange: parameter.valueRange,
+      labelRange: parameter.labelRange,
+      caller: parameter.caller
+    }));
+    const label = parameters.find((parameter) => parameter.name === "label")!;
+    const result = queryDslModulePreviewInvocationCompletion({
+      source: { normalizedSource: source, sourceRevision },
+      semantic: { sourceRevision, sourceText: source, compiled },
+      target: { definitionStatementId: target.definitionStatementId, definitionStatementIndex: target.definitionStatementIndex },
+      invocationText: block.text,
+      definitionStatementId: block.definitionStatementId,
+      parameters,
+      selectionStart: label.labelRange.from,
+      selectionEnd: label.labelRange.to
+    });
+    expect(result?.candidates.map((candidate) => candidate.label)).toEqual(["label", "note"]);
+    expect(result?.replacementRange).toEqual(label.labelRange);
+    expect(result?.candidates[0]?.insertionText).toBe("label: ");
+  });
+
+  it("delegates active Value completion to the existing caller-side typed owners", () => {
+    const source = modulePreviewAggregateSource;
+    const sourceRevision = 41;
+    const compiled = compileWithIds(source, sourceRevision);
+    const target = queryModulePreviewTarget({
+      source: { normalizedSource: source, sourceRevision },
+      position: source.indexOf("module PreviewTarget") + 4,
+      semantic: { sourceRevision, compiled }
+    });
+    if (!target) throw new Error("expected target");
+    const session = createModulePreviewSession();
+    let state = session.activate({ source: { normalizedSource: source, sourceRevision }, semantic: { sourceRevision, compiled }, target });
+    const initial = state!.invocation.blocks[0]!;
+    const text = initial.text
+      .replace("width: ,", "width: 45,")
+      .replace("anchor: ,", "anchor: @R,")
+      .replace("edge: ,", "edge: @RootLine,")
+      .replace("guide: ,", "guide: @RootCurve,");
+    state = session.setInvocationText(target.definitionStatementId, text);
+    const block = state!.invocation.blocks[0]!;
+    const anchor = block.parameters.find((parameter) => parameter.name === "anchor")!;
+    const valueStart = anchor.valueRange.from + anchor.value.length;
+    const parameters: DslModulePreviewInvocationCompletionParameter[] = block.parameters.map((parameter) => ({
+      definitionStatementId: parameter.definitionStatementId,
+      parameterIndex: parameter.parameterIndex,
+      name: parameter.name,
+      type: parameter.type,
+      recordTypeIdentity: parameter.recordTypeIdentity,
+      active: parameter.active,
+      valueRange: parameter.valueRange,
+      labelRange: parameter.labelRange,
+      caller: parameter.caller
+    }));
+    const result = queryDslModulePreviewInvocationCompletion({
+      source: { normalizedSource: source, sourceRevision },
+      semantic: { sourceRevision, sourceText: source, compiled },
+      target: { definitionStatementId: target.definitionStatementId, definitionStatementIndex: target.definitionStatementIndex },
+      invocationText: block.text,
+      definitionStatementId: block.definitionStatementId,
+      parameters,
+      selectionStart: valueStart,
+      selectionEnd: valueStart
+    });
+    expect(result?.replacementRange).toEqual({ from: anchor.valueRange.from + 1, to: valueStart });
+    expect(result?.candidates.some((candidate) => candidate.label === "RootA" && candidate.insertionText === "RootA")).toBe(true);
   });
 });

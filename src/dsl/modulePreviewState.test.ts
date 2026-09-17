@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument, type CompiledDslDocument } from "@nuinuicad/nui-language";
-import { parseDslSnapshot } from "@nuinuicad/nui-language";
-import {
-  createModulePreviewSession,
-  type ModulePreviewSessionSnapshot
-} from "./modulePreviewState";
+import { compileDslDocument, parseDslSnapshot, type CompiledDslDocument } from "@nuinuicad/nui-language";
+import { createModulePreviewSession, type ModulePreviewSessionSnapshot } from "./modulePreviewState";
 import { queryModulePreviewTarget } from "./modulePreviewTarget";
 import { modulePreviewAggregateSource } from "./__fixtures__/modulePreviewAggregate";
 
@@ -27,211 +23,128 @@ const targetAt = (source: string, compiled: CompiledDslDocument, needle: string,
 const targetParameter = (state: ModulePreviewSessionSnapshot, name: string) =>
   state.parameters.parameters.find((parameter) => parameter.name === name);
 
-const previewBindingStates = (
-  state: ModulePreviewSessionSnapshot,
-  definitionStatementId: string
-) => {
-  if (state.preview.kind === "noValidPreview") return null;
-  const instance = state.preview.result.moduleSemanticAnalysis.instances.find((candidate) =>
-    candidate.callee?.definitionStatementId === definitionStatementId &&
-    candidate.statementId.startsWith("module-preview-call:")
-  );
-  return instance?.parameterBindings.map((binding) => [binding.parameterName, binding.state]) ?? null;
-};
+const blockFor = (state: ModulePreviewSessionSnapshot, definitionStatementId: string) =>
+  state.invocation.blocks.find((block) => block.definitionStatementId === definitionStatementId)!;
 
-describe("createModulePreviewSession", () => {
-  it("keeps aggregate Module roots independent across omitted defaults and supplied arguments", () => {
+describe("createModulePreviewSession invocation ownership", () => {
+  it("creates the complete definition-order scaffold with omission and active-state semantics", () => {
     const source = modulePreviewAggregateSource;
     const compiled = compileWithIds(source);
-    const alternateTarget = targetAt(source, compiled, "module Alternate");
-    const previewTarget = targetAt(source, compiled, "module PreviewTarget");
-    expect(alternateTarget?.name).toBe("Alternate");
-    expect(previewTarget?.name).toBe("PreviewTarget");
-    if (!alternateTarget || !previewTarget) throw new Error("expected aggregate preview targets");
-
-    const session = createModulePreviewSession();
-    let state = session.activate({
-      source: { normalizedSource: source, sourceRevision: 41 },
-      semantic: { sourceRevision: 41, compiled },
-      target: alternateTarget
-    });
-    expect(state?.preview.kind).toBe("current");
-    expect(targetParameter(state!, "size")?.value).toBe("");
-    expect(previewBindingStates(state!, alternateTarget.definitionStatementId)).toEqual([
-      ["size", "defaulted"]
-    ]);
-
-    const defaultAction = session.useDefaultExplicitly(alternateTarget.definitionStatementId, 0);
-    expect(defaultAction.applied).toBe(true);
-    expect(targetParameter(defaultAction.state!, "size")?.value).toBe("30");
-
-    state = session.activate({
-      source: { normalizedSource: source, sourceRevision: 41 },
-      semantic: { sourceRevision: 41, compiled },
-      target: previewTarget
-    });
-    expect(state?.preview.kind).toBe("noValidPreview");
-    session.setValue(previewTarget.definitionStatementId, 0, "45");
-    session.setValue(previewTarget.definitionStatementId, 1, "@RootA");
-    session.setValue(previewTarget.definitionStatementId, 2, "@RootLine");
-    state = session.setValue(previewTarget.definitionStatementId, 3, "@RootCurve");
-    expect(state?.preview.kind).toBe("current");
-    expect(previewBindingStates(state!, previewTarget.definitionStatementId)).toEqual([
-      ["width", "supplied"],
-      ["anchor", "supplied"],
-      ["edge", "supplied"],
-      ["guide", "supplied"],
-      ["label", "defaulted"],
-      ["note", "omitted"]
-    ]);
-    expect(targetParameter(state!, "label")?.value).toBe("");
-    expect(targetParameter(state!, "note")?.value).toBe("");
-    expect(source).toBe(modulePreviewAggregateSource);
-  });
-
-  it("activates a default-only Module without materializing a Preview value", () => {
-    const source = [
-      "nui 1",
-      "module Alternate(size: number = 30) {",
-      "  point AltStart = coordinate(x: 0, y: 0)",
-      "  point AltEnd = coordinate(x: @size, y: @size)",
-      "  line AltLine = segment(start: @AltStart, end: @AltEnd)",
-      "}"
-    ].join("\n");
-    const compiled = compileWithIds(source);
-    const target = targetAt(source, compiled, "point AltStart");
+    const target = targetAt(source, compiled, "module PreviewTarget");
     expect(target).not.toBeNull();
-    if (!target) throw new Error("expected preview target");
-
-    const session = createModulePreviewSession();
-    const state = session.activate({
-      source: { normalizedSource: source, sourceRevision: 41 },
-      semantic: { sourceRevision: 41, compiled },
-      target
-    });
-
-    expect(state?.preview.kind).toBe("current");
-    expect(targetParameter(state!, "size")?.value).toBe("");
-    expect(previewBindingStates(state!, target.definitionStatementId)).toEqual([
-      ["size", "defaulted"]
-    ]);
-    expect(source).toBe([
-      "nui 1",
-      "module Alternate(size: number = 30) {",
-      "  point AltStart = coordinate(x: 0, y: 0)",
-      "  point AltEnd = coordinate(x: @size, y: @size)",
-      "  line AltLine = segment(start: @AltStart, end: @AltEnd)",
-      "}"
-    ].join("\n"));
-  });
-
-  it("keeps an omitted required parameter without a default invalid", () => {
-    const source = [
-      "nui 1",
-      "module Required(width: number) {",
-      "  point P = coordinate(x: @width, y: 0)",
-      "}"
-    ].join("\n");
-    const compiled = compileWithIds(source);
-    const target = targetAt(source, compiled, "point P");
-    expect(target).not.toBeNull();
-    if (!target) throw new Error("expected preview target");
+    if (!target) throw new Error("expected PreviewTarget");
 
     const state = createModulePreviewSession().activate({
       source: { normalizedSource: source, sourceRevision: 41 },
       semantic: { sourceRevision: 41, compiled },
       target
     });
-    expect(state?.preview.kind).toBe("noValidPreview");
-    expect(state?.inputDiagnostics).toEqual([
-      expect.objectContaining({ code: "required-value-missing", parameterIndex: 0 })
+    expect(state).not.toBeNull();
+    const block = blockFor(state!, target.definitionStatementId);
+    expect(block.parameters.map((parameter) => parameter.name)).toEqual([
+      "width", "anchor", "edge", "guide", "label", "note"
     ]);
+    expect(block.text).toContain("  width: ,");
+    expect(block.text).toContain("  anchor: ,");
+    expect(block.text).toContain("  edge: ,");
+    expect(block.text).toContain("  guide: ,");
+    expect(block.text).toContain('  // label: "default"');
+    expect(block.text).toContain("  // note:");
+    expect(block.parameters.slice(0, 4).every((parameter) => parameter.active)).toBe(true);
+    expect(block.parameters.slice(4).every((parameter) => parameter.omitted)).toBe(true);
+    expect(state?.preview.kind).toBe("noValidPreview");
+    expect(state?.inputDiagnostics.map((diagnostic) => diagnostic.parameterIndex)).toEqual([0, 1, 2, 3]);
   });
 
-  it("restores expression text per exact Module definition and keeps last-good data across invalid input", () => {
-    const source = [
-      "nui 1",
-      "module A(width: number, doubled: number = @width * 2, note: string?) {",
-      "  point PA = coordinate(x: @doubled, y: 0)",
-      "}",
-      "module B(size: number) {",
-      "  point PB = coordinate(x: @size, y: 0)",
-      "}"
-    ].join("\n");
-    const original = source;
+  it("derives one coherent Module Preview update from active invocation text", () => {
+    const source = modulePreviewAggregateSource;
     const compiled = compileWithIds(source);
-    const targetA = targetAt(source, compiled, "point PA");
-    const targetB = targetAt(source, compiled, "point PB");
-    expect(targetA).not.toBeNull();
-    expect(targetB).not.toBeNull();
-    if (!targetA || !targetB) throw new Error("expected preview targets");
-
+    const target = targetAt(source, compiled, "module PreviewTarget");
+    if (!target) throw new Error("expected PreviewTarget");
     const session = createModulePreviewSession();
     let state = session.activate({
       source: { normalizedSource: source, sourceRevision: 41 },
       semantic: { sourceRevision: 41, compiled },
-      target: targetA
+      target
     });
-    expect(state?.preview.kind).toBe("noValidPreview");
-    expect(state?.inputDiagnostics.map((diagnostic) => diagnostic.code)).toEqual(["required-value-missing"]);
-
-    state = session.setValue(targetA.definitionStatementId, 0, "(");
-    expect(state?.preview.kind).toBe("noValidPreview");
-    expect(state?.inputDiagnostics[0]).toMatchObject({ code: "invalid-expression", parameterIndex: 0 });
-
-    state = session.setValue(targetA.definitionStatementId, 0, "1 + 2");
+    const block = blockFor(state!, target.definitionStatementId);
+    const completeText = block.text
+      .replace("width: ,", "width: 45,")
+      .replace("anchor: ,", "anchor: @RootA,")
+      .replace("edge: ,", "edge: @RootLine,")
+      .replace("guide: ,", "guide: @RootCurve,");
+    state = session.setInvocationText(target.definitionStatementId, completeText);
     expect(state?.preview.kind).toBe("current");
-    expect(targetParameter(state!, "width")?.value).toBe("1 + 2");
-    expect(targetParameter(state!, "doubled")).toMatchObject({ value: "", defaultSourceText: "@width * 2" });
-    expect(targetParameter(state!, "note")?.value).toBe("");
-    expect(previewBindingStates(state!, targetA.definitionStatementId)).toEqual([
-      ["width", "supplied"],
-      ["doubled", "defaulted"],
-      ["note", "omitted"]
-    ]);
+    expect(targetParameter(state!, "width")).toMatchObject({ value: "45", active: true });
+    expect(targetParameter(state!, "label")).toMatchObject({ value: "", active: false });
+    expect(targetParameter(state!, "note")).toMatchObject({ value: "", active: false });
+    expect(state?.preview.kind === "current" &&
+      state.preview.result.moduleSemanticAnalysis.instances.some((instance) =>
+        instance.parameterBindings.some((binding) => binding.parameterName === "label" && binding.state === "defaulted")
+      )).toBe(true);
 
-    session.setValue(targetA.definitionStatementId, 1, "8");
-    state = session.setValue(targetA.definitionStatementId, 2, '"memo"');
-    expect(state?.preview.kind).toBe("current");
-    session.setValue(targetA.definitionStatementId, 1, "");
-    state = session.setValue(targetA.definitionStatementId, 2, "");
-    expect(state?.preview.kind).toBe("current");
-    expect(previewBindingStates(state!, targetA.definitionStatementId)).toEqual([
-      ["width", "supplied"],
-      ["doubled", "defaulted"],
-      ["note", "omitted"]
-    ]);
-
-    state = session.activate({
-      source: { normalizedSource: source, sourceRevision: 41 },
-      semantic: { sourceRevision: 41, compiled },
-      target: targetB
-    });
-    expect(state?.preview.kind).toBe("noValidPreview");
-    state = session.setValue(targetB.definitionStatementId, 0, "9");
-    expect(state?.preview.kind).toBe("current");
-
-    state = session.activate({
-      source: { normalizedSource: source, sourceRevision: 41 },
-      semantic: { sourceRevision: 41, compiled },
-      target: targetA
-    });
-    expect(targetParameter(state!, "width")?.value).toBe("1 + 2");
-    expect(state?.preview.kind).toBe("current");
-
-    state = session.setValue(targetA.definitionStatementId, 0, "(");
-    expect(targetParameter(state!, "width")?.value).toBe("(");
+    const withInvalidExpression = completeText.replace("width: 45", "width: (");
+    state = session.setInvocationText(target.definitionStatementId, withInvalidExpression);
     expect(state?.preview.kind).toBe("lastGood");
-    expect(state?.inputDiagnostics).toHaveLength(1);
-    expect(state?.inputDiagnostics[0]).toMatchObject({ code: "invalid-expression", parameterIndex: 0 });
+    expect(state?.inputDiagnostics).toEqual([expect.objectContaining({ code: "invalid-expression", parameterIndex: 0 })]);
 
-    state = session.setValue(targetA.definitionStatementId, 0, "");
+    const omittedRequired = completeText.replace("  width: 45,", "  // width: 45,");
+    state = session.setInvocationText(target.definitionStatementId, omittedRequired);
     expect(state?.preview.kind).toBe("lastGood");
-    expect(state?.inputDiagnostics[0]?.code).toBe("required-value-missing");
-    expect(source).toBe(original);
+    expect(state?.inputDiagnostics).toEqual([expect.objectContaining({ code: "required-value-missing", parameterIndex: 0 })]);
   });
 
-  it("models nested ancestor contexts outer-to-inner and preserves caller-side expressions", () => {
+  it("treats uncommented authored default text as caller text and commenting it restores omission", () => {
+    const source = [
+      "nui 1",
+      "module Pocket(base: number, width: number = @base * 2, note: string?) {",
+      "  point P = coordinate(x: @width, y: 0)",
+      "}"
+    ].join("\n");
+    const compiled = compileWithIds(source);
+    const target = targetAt(source, compiled, "module Pocket");
+    if (!target) throw new Error("expected Pocket");
+    const session = createModulePreviewSession();
+    let state = session.activate({
+      source: { normalizedSource: source, sourceRevision: 41 },
+      semantic: { sourceRevision: 41, compiled },
+      target
+    });
+    const block = blockFor(state!, target.definitionStatementId);
+    const explicit = block.text.replace("base: ,", "base: 3,").replace("// width: @base * 2", "width: @base * 2");
+    state = session.setInvocationText(target.definitionStatementId, explicit);
+    expect(state?.preview.kind).toBe("noValidPreview");
+    expect(targetParameter(state!, "width")).toMatchObject({ value: "@base * 2", active: true });
+    const omitted = explicit.replace("  width: @base * 2,", "  // width: @base * 2,");
+    state = session.setInvocationText(target.definitionStatementId, omitted);
+    expect(state?.preview.kind).toBe("current");
+    expect(targetParameter(state!, "width")).toMatchObject({ value: "", active: false });
+  });
+
+  it("keeps nested context blocks outermost-to-innermost and restores exact state per target", () => {
+    const source = modulePreviewAggregateSource;
+    const compiled = compileWithIds(source);
+    const alternate = targetAt(source, compiled, "module Alternate");
+    const target = targetAt(source, compiled, "module PreviewTarget");
+    if (!alternate || !target) throw new Error("expected two targets");
+    const session = createModulePreviewSession();
+    let state = session.activate({ source: { normalizedSource: source, sourceRevision: 41 }, semantic: { sourceRevision: 41, compiled }, target });
+    const targetBlock = blockFor(state!, target.definitionStatementId);
+    const edited = targetBlock.text
+      .replace("width: ,", "width: 45,")
+      .replace("anchor: ,", "anchor: @RootA,")
+      .replace("edge: ,", "edge: @RootLine,")
+      .replace("guide: ,", "guide: @RootCurve,");
+    state = session.setInvocationText(target.definitionStatementId, edited);
+    expect(state?.invocation.blocks.at(-1)?.kind).toBe("target");
+    expect(state?.invocation.blocks.map((block) => block.kind)).toEqual(["target"]);
+    state = session.activate({ source: { normalizedSource: source, sourceRevision: 41 }, semantic: { sourceRevision: 41, compiled }, target: alternate });
+    expect(state?.invocation.blocks.at(-1)?.definitionStatementId).toBe(alternate.definitionStatementId);
+    state = session.activate({ source: { normalizedSource: source, sourceRevision: 41 }, semantic: { sourceRevision: 41, compiled }, target });
+    expect(blockFor(state!, target.definitionStatementId).text).toBe(edited);
+  });
+
+  it("represents actual nested module ownership as Context blocks", () => {
     const source = [
       "nui 1",
       "module Outer(scale: number) {",
@@ -244,89 +157,47 @@ describe("createModulePreviewSession", () => {
     ].join("\n");
     const compiled = compileWithIds(source);
     const target = targetAt(source, compiled, "point P");
-    expect(target).not.toBeNull();
-    if (!target) throw new Error("expected preview target");
-    const analysis = compiled.moduleSemanticAnalysis;
-    const outer = analysis?.definitions.find((definition) => definition.name === "Outer");
-    const middle = analysis?.definitions.find((definition) => definition.name === "Middle");
-    expect(outer).toBeDefined();
-    expect(middle).toBeDefined();
-    if (!outer || !middle) throw new Error("expected ancestors");
-
-    const session = createModulePreviewSession();
-    let state = session.activate({
+    if (!target) throw new Error("expected nested target");
+    const state = createModulePreviewSession().activate({
       source: { normalizedSource: source, sourceRevision: 41 },
       semantic: { sourceRevision: 41, compiled },
       target
     });
+    expect(state?.invocation.blocks.map((block) => block.kind)).toEqual(["ancestor", "ancestor", "target"]);
+    expect(state?.invocation.blocks.map((block) => block.name)).toEqual(["Outer", "Middle", "Inner"]);
     expect(state?.ancestorContexts.map((group) => group.name)).toEqual(["Outer", "Middle"]);
-    expect(state?.parameters.name).toBe("Inner");
-
-    session.setValue(outer.statementId, 0, "2");
-    session.setValue(middle.statementId, 0, "@scale + 3");
-    state = session.setValue(target.definitionStatementId, 0, "@offset * 4");
-    expect(state?.preview.kind).toBe("current");
-    expect(state?.ancestorContexts[1]?.parameters[0]?.value).toBe("@scale + 3");
-    expect(state?.parameters.parameters[0]?.value).toBe("@offset * 4");
   });
 
-  it("evaluates dependent defaults through the preview scalar runtime before making them explicit", () => {
+  it("keeps removed required arguments invalid and restores the exact empty buffer", () => {
     const source = [
       "nui 1",
-      "module Pocket(base: number, width: number = @base * 2) {",
+      "module Required(width: number) {",
       "  point P = coordinate(x: @width, y: 0)",
       "}"
     ].join("\n");
-    const compiled = compileWithIds(source);
-    const target = targetAt(source, compiled, "point P");
-    expect(target).not.toBeNull();
-    if (!target) throw new Error("expected preview target");
-
+    const sourceRevision = 41;
+    const compiled = compileWithIds(source, sourceRevision);
+    const target = targetAt(source, compiled, "point P", sourceRevision);
+    if (!target) throw new Error("expected Required target");
     const session = createModulePreviewSession();
     session.activate({
-      source: { normalizedSource: source, sourceRevision: 41 },
-      semantic: { sourceRevision: 41, compiled },
+      source: { normalizedSource: source, sourceRevision },
+      semantic: { sourceRevision, compiled },
       target
     });
-    let state = session.setValue(target.definitionStatementId, 0, "3");
-    expect(state?.preview.kind).toBe("current");
-    expect(targetParameter(state!, "width")?.defaultSourceText).toBe("@base * 2");
-
-    const action = session.useDefaultExplicitly(target.definitionStatementId, 1);
-    expect(action.applied).toBe(true);
-    state = action.state;
-    expect(targetParameter(state!, "width")?.value).toBe("6");
-    expect(state?.preview.kind).toBe("current");
-  });
-
-  it("fails closed when a default cannot be safely evaluated and rejects stale semantic snapshots", () => {
-    const source = [
-      "nui 1",
-      "module Project(x: number = 1 / 0) {",
-      "  point P = coordinate(x: 0, y: 0)",
-      "}"
-    ].join("\n");
-    const compiled = compileWithIds(source);
-    const target = targetAt(source, compiled, "point P");
-    expect(target).not.toBeNull();
-    if (!target) throw new Error("expected preview target");
-
-    const session = createModulePreviewSession();
-    const state = session.activate({
-      source: { normalizedSource: source, sourceRevision: 41 },
-      semantic: { sourceRevision: 41, compiled },
+    let state = session.setInvocationText(target.definitionStatementId, "");
+    expect(state?.invocation.blocks[0]?.text).toBe("");
+    expect(state?.preview.kind).toBe("noValidPreview");
+    expect(state?.inputDiagnostics).toEqual([expect.objectContaining({
+      code: "required-value-missing",
+      parameterIndex: 0
+    })]);
+    state = session.activate({
+      source: { normalizedSource: source, sourceRevision },
+      semantic: { sourceRevision, compiled },
       target
     });
-    expect(state?.preview.kind).toBe("current");
-    const action = session.useDefaultExplicitly(target.definitionStatementId, 0);
-    expect(action.applied).toBe(false);
-    expect(targetParameter(action.state!, "x")?.value).toBe("");
-
-    expect(session.activate({
-      source: { normalizedSource: source, sourceRevision: 42 },
-      semantic: { sourceRevision: 41, compiled },
-      target
-    })).toBeNull();
-    expect(session.getState()).toBe(action.state);
+    expect(state?.invocation.blocks[0]?.text).toBe("");
+    expect(state?.preview.kind).toBe("noValidPreview");
   });
 });

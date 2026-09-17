@@ -1,21 +1,14 @@
 import type { ModulePreviewSessionSnapshot } from "../dsl/modulePreviewState";
 import type {
-  VscodeModulePreviewParameter,
-  VscodeModulePreviewParameterDiagnostic,
-  VscodeModulePreviewParameterGroup,
-  VscodeModulePreviewParameterSnapshot
+  VscodeModulePreviewInvocationBlock,
+  VscodeModulePreviewInvocationDiagnostic,
+  VscodeModulePreviewInvocationParameter,
+  VscodeModulePreviewInvocationSnapshot
 } from "./modulePreviewProtocol";
-
-const parameterTypeFor = (parameter: ModulePreviewSessionSnapshot["parameters"]["parameters"][number]) => {
-  if (!parameter.type) return null;
-  return parameter.type.kind === "choice"
-    ? { kind: "choice" as const, options: [...parameter.type.options] }
-    : { kind: parameter.type.kind };
-};
 
 const diagnosticFor = (
   diagnostic: ModulePreviewSessionSnapshot["inputDiagnostics"][number] | null
-): VscodeModulePreviewParameterDiagnostic | null => diagnostic
+): VscodeModulePreviewInvocationDiagnostic | null => diagnostic
   ? {
       code: diagnostic.code,
       definitionStatementId: diagnostic.definitionStatementId,
@@ -25,27 +18,39 @@ const diagnosticFor = (
     }
   : null;
 
-const groupFor = (
-  group: ModulePreviewSessionSnapshot["parameters"]
-): VscodeModulePreviewParameterGroup => ({
-  kind: group.kind,
-  definitionStatementId: group.definitionStatementId,
-  name: group.name,
-  parameters: group.parameters.map((parameter): VscodeModulePreviewParameter => ({
+const blockFor = (
+  block: ModulePreviewSessionSnapshot["invocation"]["blocks"][number],
+  diagnostics: ModulePreviewSessionSnapshot["inputDiagnostics"]
+): VscodeModulePreviewInvocationBlock => ({
+  kind: block.kind,
+  definitionStatementId: block.definitionStatementId,
+  definitionStatementIndex: block.definitionStatementIndex,
+  name: block.name,
+  text: block.text,
+  callRange: block.callRange,
+  parameters: block.parameters.map((parameter): VscodeModulePreviewInvocationParameter => ({
     definitionStatementId: parameter.definitionStatementId,
     parameterIndex: parameter.parameterIndex,
     name: parameter.name,
-    type: parameterTypeFor(parameter),
+    type: parameter.type,
     ...(parameter.numericTypeOptions ? { numericTypeOptions: { ...parameter.numericTypeOptions } } : {}),
     optional: parameter.optional,
     required: parameter.required,
     defaultSourceText: parameter.defaultSourceText,
     value: parameter.value,
-    diagnostic: diagnosticFor(parameter.diagnostic)
+    active: parameter.active,
+    diagnostic: diagnosticFor(diagnostics.find((candidate) =>
+      candidate.definitionStatementId === parameter.definitionStatementId &&
+      candidate.parameterIndex === parameter.parameterIndex
+    ) ?? null),
+    caller: parameter.caller,
+    lineRange: parameter.lineRange,
+    labelRange: parameter.labelRange,
+    valueRange: parameter.valueRange
   }))
 });
 
-export const modulePreviewParameterSnapshotFor = ({
+export const modulePreviewInvocationSnapshotFor = ({
   snapshot,
   sessionId,
   documentUri,
@@ -57,8 +62,8 @@ export const modulePreviewParameterSnapshotFor = ({
   documentUri: string;
   documentVersion: number;
   sessionRevision: number;
-}): VscodeModulePreviewParameterSnapshot => ({
-  type: "modulePreviewParameterSnapshot",
+}): VscodeModulePreviewInvocationSnapshot => ({
+  type: "modulePreviewInvocationSnapshot",
   sessionId,
   documentUri,
   documentVersion,
@@ -69,8 +74,7 @@ export const modulePreviewParameterSnapshotFor = ({
     definitionStatementIndex: snapshot.target.definitionStatementIndex,
     name: snapshot.target.name
   },
-  ancestorContexts: snapshot.ancestorContexts.map(groupFor),
-  parameters: groupFor(snapshot.parameters),
+  blocks: snapshot.invocation.blocks.map((block) => blockFor(block, snapshot.inputDiagnostics)),
   inputDiagnostics: snapshot.inputDiagnostics.map((diagnostic) => ({
     code: diagnostic.code,
     definitionStatementId: diagnostic.definitionStatementId,
