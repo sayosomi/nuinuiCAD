@@ -6,7 +6,7 @@ import type { VscodeModulePreviewReferencePickProof } from "./modulePreviewProto
 
 /**
  * Derives the shared candidate target from the exact Module definition that
- * owns a Preview row. The anchor is the definition's declaration/caller scope;
+ * owns a Preview invocation argument. The anchor is the definition's declaration/caller scope;
  * it is never obtained from a Source caret or an editable Source range.
  */
 export const modulePreviewReferencePickTargetFor = ({

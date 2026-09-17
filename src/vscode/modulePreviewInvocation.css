@@ -1,0 +1,106 @@
+.module-preview-workspace {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  color: var(--vscode-foreground);
+  background: var(--vscode-editor-background);
+}
+
+.module-preview-invocation-region {
+  min-width: 0;
+  min-height: 112px;
+  overflow: hidden;
+  background: var(--vscode-editor-background);
+}
+
+.module-preview-invocation-separator {
+  flex: 0 0 8px;
+  min-height: 8px;
+  border-block: 1px solid var(--vscode-panel-border);
+  background: var(--vscode-editor-background);
+  cursor: row-resize;
+  touch-action: none;
+}
+
+.module-preview-invocation-separator:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
+}
+
+.module-preview-canvas-region {
+  position: relative;
+  min-width: 0;
+  min-height: 160px;
+  overflow: hidden;
+  background: var(--vscode-editor-background);
+}
+
+.module-preview-canvas-region > .canvas-panel {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  background: var(--vscode-editor-background);
+}
+
+.module-preview-invocation-surface {
+  box-sizing: border-box;
+  height: 100%;
+  overflow: auto;
+  padding: 10px 12px 18px;
+  color: var(--vscode-foreground);
+  background: var(--vscode-sideBar-background, var(--vscode-editor-background));
+}
+
+.module-preview-invocation-block {
+  margin: 0 0 12px;
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.module-preview-invocation-block h2 {
+  margin: 0;
+  padding: 7px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--vscode-titleBar-activeForeground, var(--vscode-foreground));
+  background: var(--vscode-editorGroupHeader-tabsBackground, var(--vscode-editor-background));
+}
+
+.module-preview-invocation-block-target {
+  border-color: var(--vscode-focusBorder, var(--vscode-panel-border));
+}
+
+.module-preview-invocation-editor-row {
+  display: flex;
+  min-height: 92px;
+}
+
+.module-preview-invocation-cm {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 92px;
+}
+
+.module-preview-invocation-pick {
+  align-self: flex-start;
+  margin: 8px;
+  padding: 3px 8px;
+  border: 1px solid var(--vscode-button-border, transparent);
+  color: var(--vscode-button-foreground);
+  background: var(--vscode-button-background);
+  cursor: pointer;
+}
+
+.module-preview-invocation-pick:hover {
+  background: var(--vscode-button-hoverBackground);
+}
+
+.module-preview-invocation-unavailable {
+  height: 100%;
+  box-sizing: border-box;
+  padding: 14px;
+  color: var(--vscode-descriptionForeground);
+}

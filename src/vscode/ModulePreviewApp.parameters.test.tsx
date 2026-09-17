@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { RefObject } from "react";
 import type { ModulePreviewSessionSnapshot } from "../dsl/modulePreviewState";
 import type { ModulePreviewTarget } from "../dsl/modulePreviewTarget";
+import { modulePreviewInvocationFor } from "../dsl/modulePreviewInvocation";
 import type { VscodeModulePreviewModelPatchRequest } from "./protocol";
 
 const mocks = vi.hoisted(() => ({
@@ -10,8 +11,7 @@ const mocks = vi.hoisted(() => ({
   session: {
     activate: vi.fn(),
     getState: vi.fn(),
-    setValue: vi.fn(),
-    useDefaultExplicitly: vi.fn()
+    setInvocationText: vi.fn()
   },
   postMessage: vi.fn(),
   evaluateElementsWithRust: vi.fn(),
@@ -124,6 +124,7 @@ const snapshot = {
       required: true,
       defaultSourceText: null,
       value: "2",
+      active: true,
       diagnostic: null
     }]
   }],
@@ -140,10 +141,48 @@ const snapshot = {
       required: true,
       defaultSourceText: null,
       value: "3",
+      active: true,
       diagnostic: null
     }]
   },
   inputDiagnostics: [],
+  invocation: modulePreviewInvocationFor({ blocks: [{
+    kind: "ancestor",
+    definitionStatementId: "module:outer",
+    definitionStatementIndex: 0,
+    declarationScopeId: "scope:outer",
+    name: "Outer",
+    parameters: [{
+      definitionStatementId: "module:outer",
+      parameterIndex: 0,
+      name: "scale",
+      type: { kind: "number" },
+      optional: false,
+      required: true,
+      defaultSourceText: null,
+      active: true,
+      value: "2",
+      caller: { statementIndex: 0, scopeId: "scope:outer", sourceOrderIndex: 0 }
+    }]
+  }, {
+    kind: "target",
+    definitionStatementId: target.definitionStatementId,
+    definitionStatementIndex: target.definitionStatementIndex,
+    declarationScopeId: "scope:preview",
+    name: target.name,
+    parameters: [{
+      definitionStatementId: target.definitionStatementId,
+      parameterIndex: 0,
+      name: "width",
+      type: { kind: "number" },
+      optional: false,
+      required: true,
+      defaultSourceText: null,
+      active: true,
+      value: "3",
+      caller: { statementIndex: target.definitionStatementIndex, scopeId: "scope:preview", sourceOrderIndex: target.definitionStatementIndex }
+    }]
+  }] }),
   preview: { kind: "noValidPreview" as const, result: null }
 } satisfies ModulePreviewSessionSnapshot;
 
@@ -165,6 +204,31 @@ const previewFixtureFor = (sourceText: string, moduleName = "Preview") => {
     }
   });
   if (!root) throw new Error("expected Preview root");
+  const invocation = modulePreviewInvocationFor({ blocks: [{
+    kind: "target",
+    definitionStatementId: definition.statementId,
+    definitionStatementIndex: definition.statementIndex,
+    declarationScopeId: definition.declarationScopeId,
+    name: definition.name,
+    parameters: definition.parameters.map((parameter) => ({
+      definitionStatementId: definition.statementId,
+      parameterIndex: parameter.parameterIndex,
+      name: parameter.name,
+      type: parameter.type,
+      recordTypeIdentity: parameter.recordTypeIdentity,
+      ...(parameter.numericTypeOptions ? { numericTypeOptions: parameter.numericTypeOptions } : {}),
+      optional: parameter.optional,
+      required: parameter.required,
+      defaultSourceText: parameter.defaultValue,
+      active: parameter.required && parameter.defaultValue === null,
+      value: "",
+      caller: {
+        statementIndex: definition.statementIndex,
+        scopeId: definition.declarationScopeId,
+        sourceOrderIndex: definition.statementIndex
+      }
+    }))
+  }] });
   const evaluationOptions = buildModulePreviewEvaluationOptions(root);
   const evaluation = evaluateElements(root.compileResult.elements, evaluationOptions);
   const snapshot = {
@@ -177,6 +241,7 @@ const previewFixtureFor = (sourceText: string, moduleName = "Preview") => {
       name: root.target.name,
       parameters: []
     },
+    invocation,
     inputDiagnostics: [],
     preview: { kind: "current" as const, result: root }
   } satisfies ModulePreviewSessionSnapshot;
@@ -319,8 +384,7 @@ afterEach(() => {
   mocks.queryModulePreviewTarget.mockReset();
   mocks.session.activate.mockReset();
   mocks.session.getState.mockReset();
-  mocks.session.setValue.mockReset();
-  mocks.session.useDefaultExplicitly.mockReset();
+  mocks.session.setInvocationText.mockReset();
   mocks.postMessage.mockReset();
   mocks.evaluateElementsWithRust.mockReset();
   mocks.hostAdapter = null;
@@ -330,7 +394,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("ModulePreviewApp parameter relay", () => {
+describe("ModulePreviewApp Canvas and Preview boundary", () => {
   it("keeps the transport and readiness handshake alive across Preview transitions and disposes on unmount", () => {
     const sourceText = [
       "nui 1",
@@ -558,21 +622,24 @@ describe("ModulePreviewApp parameter relay", () => {
       }));
     });
 
-    const parameterSnapshot = mocks.postMessage.mock.calls
+    const invocationSnapshot = mocks.postMessage.mock.calls
       .map(([message]) => message)
-      .filter((message) => message?.type === "modulePreviewParameterSnapshot")
+      .filter((message) => message?.type === "modulePreviewInvocationSnapshot")
       .at(-1);
-    expect(parameterSnapshot).toMatchObject({
+    expect(invocationSnapshot).toMatchObject({
       previewStatus: "current",
-      parameters: {
+      blocks: [expect.objectContaining({
+        kind: "target",
         name: "Alternate",
+        text: expect.stringContaining("// size: 30"),
         parameters: [expect.objectContaining({
           name: "size",
           defaultSourceText: "30",
           value: "",
+          active: false,
           diagnostic: null
         })]
-      },
+      })],
       inputDiagnostics: []
     });
     expect(mocks.session.activate).toHaveBeenCalledTimes(1);
@@ -638,21 +705,24 @@ describe("ModulePreviewApp parameter relay", () => {
       }));
     });
 
-    const parameterSnapshot = mocks.postMessage.mock.calls
+    const invocationSnapshot = mocks.postMessage.mock.calls
       .map(([message]) => message)
-      .filter((message) => message?.type === "modulePreviewParameterSnapshot")
+      .filter((message) => message?.type === "modulePreviewInvocationSnapshot")
       .at(-1);
-    expect(parameterSnapshot).toMatchObject({
+    expect(invocationSnapshot).toMatchObject({
       previewStatus: "current",
-      parameters: {
+      blocks: [expect.objectContaining({
+        kind: "target",
         name: "Alternate",
+        text: expect.stringContaining("// size: 30"),
         parameters: [expect.objectContaining({
           name: "size",
           defaultSourceText: "30",
           value: "",
+          active: false,
           diagnostic: null
         })]
-      },
+      })],
       inputDiagnostics: []
     });
 
@@ -864,18 +934,19 @@ describe("ModulePreviewApp parameter relay", () => {
       }));
     });
 
-    const parameterSnapshot = mocks.postMessage.mock.calls
+    const invocationSnapshot = mocks.postMessage.mock.calls
       .map(([message]) => message)
-      .filter((message) => message?.type === "modulePreviewParameterSnapshot")
+      .filter((message) => message?.type === "modulePreviewInvocationSnapshot")
       .at(-1);
-    expect(parameterSnapshot).toMatchObject({
+    expect(invocationSnapshot).toMatchObject({
       previewStatus: "noValidPreview",
-      parameters: {
+      blocks: [expect.objectContaining({
+        kind: "target",
         name: "Required",
-        parameters: [expect.objectContaining({ name: "width", value: "", diagnostic: expect.objectContaining({
+        parameters: [expect.objectContaining({ name: "width", value: "", active: true, diagnostic: expect.objectContaining({
           code: "required-value-missing"
         }) })]
-      },
+      })],
       inputDiagnostics: [expect.objectContaining({ code: "required-value-missing" })]
     });
     expect(screen.getByText("No valid Module Preview")).toBeInTheDocument();
@@ -907,70 +978,6 @@ describe("ModulePreviewApp parameter relay", () => {
     );
     expect(previewStatuses).toHaveLength(1);
     expect(previewStatuses[0]?.textContent).toBe("Module Preview is unavailable.");
-  });
-
-  it("routes accepted value and unavailable-default actions through the live session", () => {
-    mocks.queryModulePreviewTarget.mockReturnValue(target);
-    mocks.session.activate.mockReturnValue(snapshot);
-    mocks.session.getState.mockReturnValue(snapshot);
-    mocks.session.setValue.mockReturnValue(snapshot);
-    mocks.session.useDefaultExplicitly.mockReturnValue({ applied: false, state: snapshot });
-    const api = { postMessage: mocks.postMessage };
-    render(<ModulePreviewApp api={api} />);
-
-    act(() => {
-      window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "modulePreviewSession", sessionId: "module-preview-session:1", documentUri: "file:///pattern.nui" }
-      }));
-      window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "replaceTextDocument", sourceText: source, documentVersion: 1 }
-      }));
-      window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "modulePreviewTarget", documentVersion: 1, normalizedSourceOffset: source.indexOf("module Preview") }
-      }));
-    });
-
-    expect(mocks.session.activate).toHaveBeenCalledWith(expect.objectContaining({ target }));
-    expect(mocks.postMessage).toHaveBeenCalledWith(expect.objectContaining({
-      type: "modulePreviewParameterSnapshot",
-      sessionId: "module-preview-session:1",
-      target
-    }));
-
-    act(() => window.dispatchEvent(new MessageEvent("message", {
-      data: {
-        type: "modulePreviewSetValue",
-        sessionId: "module-preview-session:1",
-        documentUri: "file:///pattern.nui",
-        documentVersion: 1,
-        sourceRevision: 1,
-        sessionRevision: 2,
-        targetDefinitionStatementId: target.definitionStatementId,
-        definitionStatementId: target.definitionStatementId,
-        parameterIndex: 0,
-        expression: "4"
-      }
-    })));
-    expect(mocks.session.setValue).toHaveBeenCalledWith(target.definitionStatementId, 0, "4");
-
-    act(() => window.dispatchEvent(new MessageEvent("message", {
-      data: {
-        type: "modulePreviewUseDefault",
-        sessionId: "module-preview-session:1",
-        documentUri: "file:///pattern.nui",
-        documentVersion: 1,
-        sourceRevision: 1,
-        sessionRevision: 3,
-        targetDefinitionStatementId: target.definitionStatementId,
-        definitionStatementId: target.definitionStatementId,
-        parameterIndex: 0
-      }
-    })));
-    expect(mocks.session.useDefaultExplicitly).toHaveBeenCalledWith(target.definitionStatementId, 0);
-    expect(mocks.postMessage).toHaveBeenCalledWith(expect.objectContaining({
-      type: "modulePreviewParameterSnapshot",
-      sessionRevision: 4
-    }));
   });
 
   it("keeps point drag previews ephemeral until the host accepts a source patch", () => {
@@ -1612,60 +1619,4 @@ describe("ModulePreviewApp parameter relay", () => {
     expect(fixture.document.getSource()).toBe(sourceText);
   });
 
-  it("applies consecutive same-revision value actions in order", () => {
-    mocks.queryModulePreviewTarget.mockReturnValue(target);
-    mocks.session.activate.mockReturnValue(snapshot);
-    mocks.session.getState.mockReturnValue(snapshot);
-    mocks.session.setValue.mockImplementation((_definitionStatementId, _parameterIndex, expression) => ({
-      ...snapshot,
-      parameters: {
-        ...snapshot.parameters,
-        parameters: snapshot.parameters.parameters.map((parameter) =>
-          parameter.parameterIndex === 0 ? { ...parameter, value: expression } : parameter
-        )
-      }
-    }));
-    const api = { postMessage: mocks.postMessage };
-    render(<ModulePreviewApp api={api} />);
-
-    act(() => {
-      window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "modulePreviewSession", sessionId: "module-preview-session:1", documentUri: "file:///pattern.nui" }
-      }));
-      window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "replaceTextDocument", sourceText: source, documentVersion: 1 }
-      }));
-      window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "modulePreviewTarget", documentVersion: 1, normalizedSourceOffset: source.indexOf("module Preview") }
-      }));
-    });
-    mocks.postMessage.mockClear();
-
-    const valueAction = (expression: string) => ({
-      type: "modulePreviewSetValue" as const,
-      sessionId: "module-preview-session:1",
-      documentUri: "file:///pattern.nui",
-      documentVersion: 1,
-      sourceRevision: 1,
-      sessionRevision: 2,
-      targetDefinitionStatementId: target.definitionStatementId,
-      definitionStatementId: target.definitionStatementId,
-      parameterIndex: 0,
-      expression
-    });
-    act(() => {
-      window.dispatchEvent(new MessageEvent("message", { data: valueAction("4") }));
-      window.dispatchEvent(new MessageEvent("message", { data: valueAction("5") }));
-    });
-
-    expect(mocks.session.setValue).toHaveBeenNthCalledWith(1, target.definitionStatementId, 0, "4");
-    expect(mocks.session.setValue).toHaveBeenNthCalledWith(2, target.definitionStatementId, 0, "5");
-    expect(mocks.postMessage).toHaveBeenLastCalledWith(expect.objectContaining({
-      type: "modulePreviewParameterSnapshot",
-      sessionRevision: 4,
-      parameters: expect.objectContaining({
-        parameters: expect.arrayContaining([expect.objectContaining({ value: "5" })])
-      })
-    }));
-  });
 });

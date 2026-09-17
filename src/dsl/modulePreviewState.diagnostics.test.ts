@@ -1,10 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument } from "@nuinuicad/nui-language";
-import { parseDslSnapshot } from "@nuinuicad/nui-language";
+import { compileDslDocument, parseDslSnapshot, type CompiledDslDocument } from "@nuinuicad/nui-language";
 import { createModulePreviewSession } from "./modulePreviewState";
 import { queryModulePreviewTarget } from "./modulePreviewTarget";
 
-const pairFixture = () => {
+const fixture = () => {
   const source = [
     "nui 1",
     "module Pair(a: number, b: number) {",
@@ -13,7 +12,7 @@ const pairFixture = () => {
   ].join("\n");
   const sourceRevision = 23;
   const parsed = parseDslSnapshot({ normalizedSource: source, sourceRevision });
-  const compiled = compileDslDocument(source, {
+  const compiled: CompiledDslDocument = compileDslDocument(source, {
     preparsed: parsed,
     sourceRevision,
     assignedStatementIds: new Map(parsed.statements.map((_, index) => [index, `diagnostic:${index}`]))
@@ -27,62 +26,39 @@ const pairFixture = () => {
   return { source, sourceRevision, compiled, target };
 };
 
-describe("Module Preview input diagnostics", () => {
-  it("does not blame a valid edited field for another field's existing invalid expression", () => {
-    const { source, sourceRevision, compiled, target } = pairFixture();
+const edit = (text: string, name: string, expression: string): string =>
+  text.replace(new RegExp(`  ${name}: [^\\n]*`), `  ${name}: ${expression},`);
+
+describe("Module Preview invocation diagnostics", () => {
+  it("retains diagnostic ownership while other invocation arguments change", () => {
+    const { source, sourceRevision, compiled, target } = fixture();
     const session = createModulePreviewSession();
-    session.activate({
+    let state = session.activate({
       source: { normalizedSource: source, sourceRevision },
       semantic: { sourceRevision, compiled },
       target
     });
-    session.setValue(target.definitionStatementId, 0, "1");
-    let state = session.setValue(target.definitionStatementId, 1, "2");
+    const initial = state!.invocation.blocks[0]!.text;
+    state = session.setInvocationText(target.definitionStatementId, edit(edit(initial, "a", "1"), "b", "2"));
     expect(state?.preview.kind).toBe("current");
 
-    state = session.setValue(target.definitionStatementId, 0, "(");
+    const invalidA = edit(edit(initial, "a", "("), "b", "2");
+    state = session.setInvocationText(target.definitionStatementId, invalidA);
     expect(state?.preview.kind).toBe("lastGood");
     expect(state?.inputDiagnostics.map((diagnostic) => diagnostic.parameterIndex)).toEqual([0]);
 
-    state = session.setValue(target.definitionStatementId, 1, "3");
+    state = session.setInvocationText(target.definitionStatementId, edit(invalidA, "b", "3"));
     expect(state?.preview.kind).toBe("lastGood");
     expect(state?.inputDiagnostics.map((diagnostic) => diagnostic.parameterIndex)).toEqual([0]);
     expect(state?.parameters.parameters[1]?.diagnostic).toBeNull();
 
-    state = session.setValue(target.definitionStatementId, 1, "(");
+    const invalidBoth = edit(invalidA, "b", "(");
+    state = session.setInvocationText(target.definitionStatementId, invalidBoth);
     expect(state?.inputDiagnostics.map((diagnostic) => diagnostic.parameterIndex)).toEqual([0, 1]);
 
-    state = session.setValue(target.definitionStatementId, 0, "4");
+    state = session.setInvocationText(target.definitionStatementId, edit(invalidBoth, "a", "4"));
     expect(state?.inputDiagnostics.map((diagnostic) => diagnostic.parameterIndex)).toEqual([1]);
-    state = session.setValue(target.definitionStatementId, 1, "5");
-    expect(state?.preview.kind).toBe("current");
-    expect(state?.inputDiagnostics).toEqual([]);
-  });
-
-  it("keeps diagnostic ownership when an invalid edit was initially masked by another required empty field", () => {
-    const { source, sourceRevision, compiled, target } = pairFixture();
-    const session = createModulePreviewSession();
-    session.activate({
-      source: { normalizedSource: source, sourceRevision },
-      semantic: { sourceRevision, compiled },
-      target
-    });
-
-    let state = session.setValue(target.definitionStatementId, 0, "(");
-    expect(state?.preview.kind).toBe("noValidPreview");
-    expect(state?.inputDiagnostics.map((diagnostic) => [diagnostic.parameterIndex, diagnostic.code])).toEqual([
-      [1, "required-value-missing"],
-      [0, "invalid-expression"]
-    ]);
-
-    state = session.setValue(target.definitionStatementId, 1, "2");
-    expect(state?.preview.kind).toBe("noValidPreview");
-    expect(state?.inputDiagnostics.map((diagnostic) => [diagnostic.parameterIndex, diagnostic.code])).toEqual([
-      [0, "invalid-expression"]
-    ]);
-    expect(state?.parameters.parameters[1]?.diagnostic).toBeNull();
-
-    state = session.setValue(target.definitionStatementId, 0, "1");
+    state = session.setInvocationText(target.definitionStatementId, edit(invalidBoth, "a", "4").replace("b: (", "b: 5"));
     expect(state?.preview.kind).toBe("current");
     expect(state?.inputDiagnostics).toEqual([]);
   });
