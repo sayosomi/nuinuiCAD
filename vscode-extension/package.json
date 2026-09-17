@@ -68,18 +68,6 @@
         "when": "editorTextFocus && editorLangId == nui && resourceScheme == file && resourceExtname == .nui && !editorReadonly"
       },
       {
-        "command": "nuinuiCAD.modulePreviewValueStepForward.keybinding",
-        "key": "ctrl+shift+.",
-        "mac": "shift+cmd+.",
-        "when": "activeWebviewPanelId == 'nuinuiCAD.modulePreview' && nuinuiCAD.modulePreviewValueInputFocus"
-      },
-      {
-        "command": "nuinuiCAD.modulePreviewValueStepBackward.keybinding",
-        "key": "ctrl+shift+,",
-        "mac": "shift+cmd+,",
-        "when": "activeWebviewPanelId == 'nuinuiCAD.modulePreview' && nuinuiCAD.modulePreviewValueInputFocus"
-      },
-      {
         "command": "nuinuiCAD.canvasUndo",
         "key": "ctrl+z",
         "mac": "cmd+z",

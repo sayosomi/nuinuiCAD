@@ -1,5 +1,6 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { EditorView } from "@codemirror/view";
 import { modulePreviewInvocationFor, type ModulePreviewInvocation } from "../dsl/modulePreviewInvocation";
 import { ModulePreviewInvocationEditorApp } from "./ModulePreviewInvocationEditorApp";
 
@@ -43,6 +44,7 @@ describe("ModulePreviewInvocationEditorApp", () => {
         proof={{ sessionId: "session", documentUri: "file:///x.nui", documentVersion: 1, sourceRevision: 1, sessionRevision: 1, targetDefinitionStatementId: "module:inner" }}
         onChange={vi.fn()}
         onSiteChange={vi.fn()}
+        onValueStep={vi.fn()}
         onReferencePick={vi.fn()}
       />
     );
@@ -62,10 +64,36 @@ describe("ModulePreviewInvocationEditorApp", () => {
         proof={null}
         onChange={vi.fn()}
         onSiteChange={vi.fn()}
+        onValueStep={vi.fn()}
         onReferencePick={vi.fn()}
       />
     );
     expect(document.querySelector("[data-module-preview-invocation-surface='true']")).toHaveClass("module-preview-invocation-surface");
     expect(document.querySelectorAll(".module-preview-invocation-cm")).toHaveLength(2);
+  });
+
+  it("keeps Pick in the block toolbar instead of taking editor width", () => {
+    render(
+      <ModulePreviewInvocationEditorApp
+        invocation={invocation}
+        source={{ normalizedSource: "nui 1", sourceRevision: 1 }}
+        semantic={{ sourceRevision: 1 }}
+        target={{ definitionStatementId: "module:inner", definitionStatementIndex: 3 }}
+        proof={{ sessionId: "session", documentUri: "file:///x.nui", documentVersion: 1, sourceRevision: 1, sessionRevision: 1, targetDefinitionStatementId: "module:inner" }}
+        onChange={vi.fn()}
+        onSiteChange={vi.fn()}
+        onValueStep={vi.fn()}
+        onReferencePick={vi.fn()}
+      />
+    );
+    const editor = document.querySelectorAll<HTMLElement>(".cm-editor")[1]!;
+    const view = EditorView.findFromDOM(editor)!;
+    const value = invocation.blocks[1]!.parameters[0]!;
+    act(() => view.dispatch({ selection: { anchor: value.valueRange.from + 1 } }));
+
+    const pick = screen.getByRole("button", { name: "Pick" });
+    expect(pick.closest(".module-preview-invocation-block-toolbar")).not.toBeNull();
+    expect(pick.closest(".module-preview-invocation-editor-row")).toBeNull();
+    expect(pick.closest(".module-preview-invocation-block-target")?.querySelector(".module-preview-invocation-cm")).not.toBeNull();
   });
 });

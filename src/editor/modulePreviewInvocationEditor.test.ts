@@ -44,6 +44,16 @@ const commentableInput: ModulePreviewInvocationBlockInput = {
   ]
 };
 
+const geometryInput: ModulePreviewInvocationBlockInput = {
+  ...input,
+  parameters: [{
+    ...input.parameters[0]!,
+    name: "anchor",
+    type: { kind: "point" },
+    value: "@Top"
+  }]
+};
+
 describe("ModulePreviewInvocationEditorController", () => {
   it("owns ordinary editing and exact value replacement without a canonical Source callback", () => {
     const parent = document.createElement("div");
@@ -153,6 +163,113 @@ describe("ModulePreviewInvocationEditorController", () => {
     });
     // The controller exposes only ephemeral invocation changes; this test has
     // no canonical Source callback or source mutation path to invoke.
+    controller.destroy();
+    parent.remove();
+  });
+
+  it("routes both Value Step directions from the real CodeMirror keydown surface", () => {
+    const parent = document.createElement("div");
+    document.body.append(parent);
+    const block = modulePreviewInvocationFor({ blocks: [input] }).blocks[0]!;
+    const onValueStep = vi.fn();
+    const controller = new ModulePreviewInvocationEditorController({
+      parent,
+      block,
+      source: { normalizedSource: "nui 1", sourceRevision: 1 },
+      semantic: { sourceRevision: 1 },
+      target: { definitionStatementId: "module:preview", definitionStatementIndex: 1 },
+      onChange: vi.fn(),
+      onValueStep
+    });
+    const view = controller.getView()!;
+    const value = block.parameters[0]!;
+    view.dispatch({ selection: { anchor: value.valueRange.from + 1 } });
+    view.focus();
+
+    const dispatchChord = (key: string) => {
+      const event = new KeyboardEvent("keydown", {
+        key,
+        ctrlKey: true,
+        shiftKey: true,
+        bubbles: true,
+        cancelable: true
+      });
+      expect(view.contentDOM.dispatchEvent(event)).toBe(false);
+      expect(event.defaultPrevented).toBe(true);
+    };
+    dispatchChord(".");
+    dispatchChord(",");
+
+    expect(onValueStep).toHaveBeenCalledTimes(2);
+    expect(onValueStep.mock.calls[0]![0]).toMatchObject({
+      block: expect.objectContaining({ definitionStatementId: "module:preview" }),
+      parameter: expect.objectContaining({ parameterIndex: 0 })
+    });
+    expect(onValueStep.mock.calls.map(([site, direction]) => ({
+      direction,
+      selectionStart: site.selectionStart,
+      selectionEnd: site.selectionEnd
+    }))).toEqual([
+      { direction: 1, selectionStart: value.valueRange.from + 1, selectionEnd: value.valueRange.from + 1 },
+      { direction: -1, selectionStart: value.valueRange.from + 1, selectionEnd: value.valueRange.from + 1 }
+    ]);
+    controller.destroy();
+    parent.remove();
+  });
+
+  it("routes Alt+Enter to Reference Pick only for an eligible geometry value", () => {
+    const parent = document.createElement("div");
+    document.body.append(parent);
+    const block = modulePreviewInvocationFor({ blocks: [geometryInput] }).blocks[0]!;
+    const onReferencePick = vi.fn();
+    const controller = new ModulePreviewInvocationEditorController({
+      parent,
+      block,
+      source: { normalizedSource: "nui 1", sourceRevision: 1 },
+      semantic: { sourceRevision: 1 },
+      target: { definitionStatementId: "module:preview", definitionStatementIndex: 1 },
+      onChange: vi.fn(),
+      onReferencePick
+    });
+    const view = controller.getView()!;
+    const value = block.parameters[0]!;
+    view.dispatch({ selection: { anchor: value.valueRange.from + 1 } });
+    view.focus();
+    const event = new KeyboardEvent("keydown", {
+      key: "Enter",
+      altKey: true,
+      bubbles: true,
+      cancelable: true
+    });
+    expect(view.contentDOM.dispatchEvent(event)).toBe(false);
+    expect(event.defaultPrevented).toBe(true);
+    expect(onReferencePick).toHaveBeenCalledTimes(1);
+    expect(onReferencePick).toHaveBeenCalledWith(expect.objectContaining({
+      parameter: expect.objectContaining({ name: "anchor", type: { kind: "point" } })
+    }));
+
+    const scalarBlock = modulePreviewInvocationFor({ blocks: [input] }).blocks[0]!;
+    controller.updateBlock(scalarBlock);
+    view.dispatch({ selection: { anchor: scalarBlock.parameters[0]!.valueRange.from + 1 } });
+    const scalarEvent = new KeyboardEvent("keydown", {
+      key: "Enter",
+      altKey: true,
+      bubbles: true,
+      cancelable: true
+    });
+    expect(view.contentDOM.dispatchEvent(scalarEvent)).toBe(true);
+    expect(scalarEvent.defaultPrevented).toBe(false);
+    expect(onReferencePick).toHaveBeenCalledTimes(1);
+
+    view.dispatch({ selection: { anchor: 0 } });
+    const offSiteEvent = new KeyboardEvent("keydown", {
+      key: "Enter",
+      altKey: true,
+      bubbles: true,
+      cancelable: true
+    });
+    expect(view.contentDOM.dispatchEvent(offSiteEvent)).toBe(true);
+    expect(onReferencePick).toHaveBeenCalledTimes(1);
     controller.destroy();
     parent.remove();
   });

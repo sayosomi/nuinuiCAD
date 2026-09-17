@@ -1253,6 +1253,16 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     });
   }, [api, invocationSiteProofFor]);
 
+  const onInvocationValueStep = useCallback((site: ModulePreviewInvocationEditorSite, direction: 1 | -1): void => {
+    const proof = invocationSiteProofFor(site);
+    if (!proof) return;
+    api.postMessage({
+      type: "modulePreviewInvocationValueStep",
+      ...proof,
+      direction
+    });
+  }, [api, invocationSiteProofFor]);
+
   const selectElement = useCallback<CanvasHostAdapter["selectElement"]>((elementId, selectionMode) => {
     const before = canvasSelectionSnapshot();
     const selection = canvasSelectionForElement(renderElements, before, elementId, selectionMode);
@@ -1482,6 +1492,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
               } : null}
               onChange={(_block, site) => applyInvocationBlock(site.block)}
               onSiteChange={onInvocationSiteChange}
+              onValueStep={onInvocationValueStep}
               onReferencePick={onInvocationReferencePick}
             />
           </section>

@@ -128,7 +128,6 @@ vi.mock("vscode", () => ({
 
 import {
   NUI_MODULE_PREVIEW_SOURCE_TARGET_CONTEXT,
-  NUI_MODULE_PREVIEW_VALUE_STEP_FORWARD_COMMAND_ID,
   registerModulePreviewFeature
 } from "./modulePreviewFeature";
 import { createWebviewEditableFocusContext } from "./webviewEditableFocusContext";
@@ -939,7 +938,21 @@ describe("registerModulePreviewFeature", () => {
       selectionEnd: valueFrom + 2,
       focusGeneration: 1
     });
-    await mocks.commandHandlers.get(NUI_MODULE_PREVIEW_VALUE_STEP_FORWARD_COMMAND_ID)!();
+    await panel.receive({
+      type: "modulePreviewInvocationValueStep",
+      sessionId: snapshot.sessionId,
+      documentUri: snapshot.documentUri,
+      documentVersion: snapshot.documentVersion,
+      sourceRevision: snapshot.sourceRevision,
+      sessionRevision: snapshot.sessionRevision,
+      targetDefinitionStatementId: snapshot.target.definitionStatementId,
+      definitionStatementId: snapshot.blocks[0]!.definitionStatementId,
+      parameterIndex: 0,
+      invocationText: snapshot.blocks[0]!.text,
+      selectionStart: valueFrom,
+      selectionEnd: valueFrom + 2,
+      direction: 1
+    });
     expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
       type: "modulePreviewInvocationValueEdit",
       expression: "13",

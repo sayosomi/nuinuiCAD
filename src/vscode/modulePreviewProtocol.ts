@@ -94,6 +94,11 @@ export type VscodeModulePreviewInvocationReferencePickStart = VscodeModulePrevie
   expectedGeometryInterface?: "point" | "line" | "path";
 };
 
+export type VscodeModulePreviewInvocationValueStep = VscodeModulePreviewInvocationSiteProof & {
+  type: "modulePreviewInvocationValueStep";
+  direction: 1 | -1;
+};
+
 export type VscodeModulePreviewReferencePickProof = VscodeModulePreviewInvocationSiteProof & {
   expectedGeometryInterface: "point" | "line" | "path";
   role: "geometry";
@@ -152,6 +157,7 @@ export type VscodeExtensionToModulePreviewMessage =
 export type VscodeModulePreviewToExtensionMessage =
   | VscodeModulePreviewReferencePickResult
   | VscodeModulePreviewInvocationReferencePickStart
+  | VscodeModulePreviewInvocationValueStep
   | VscodeModulePreviewInvocationSiteFocus
   | VscodeModulePreviewInvocationSiteBlur
   | VscodeModulePreviewModelPatchRequest;

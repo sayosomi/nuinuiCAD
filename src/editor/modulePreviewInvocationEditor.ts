@@ -29,6 +29,8 @@ export type ModulePreviewInvocationEditorOptions = {
   target: { definitionStatementId: string; definitionStatementIndex: number };
   onChange: (text: string, site: ModulePreviewInvocationEditorSite) => void;
   onSiteChange?: (site: ModulePreviewInvocationEditorSite) => void;
+  onValueStep?: (site: ModulePreviewInvocationEditorSite, direction: 1 | -1) => void;
+  onReferencePick?: (site: ModulePreviewInvocationEditorSite) => void;
 };
 
 const previewEditorTheme = EditorView.theme({
@@ -46,13 +48,32 @@ const previewEditorTheme = EditorView.theme({
   ".cm-line": { padding: "0 12px" },
   ".cm-gutters": { display: "none" },
   ".cm-tooltip-autocomplete": {
-    backgroundColor: "var(--vscode-editorSuggestWidget-background)",
-    color: "var(--vscode-editorSuggestWidget-foreground)",
-    border: "1px solid var(--vscode-editorSuggestWidget-border)"
+    zIndex: "1000",
+    boxSizing: "border-box",
+    maxHeight: "min(320px, calc(100vh - 24px))",
+    overflowY: "auto",
+    backgroundColor: "var(--vscode-editorSuggestWidget-background, var(--vscode-editor-background))",
+    color: "var(--vscode-editorSuggestWidget-foreground, var(--vscode-editor-foreground))",
+    border: "1px solid var(--vscode-editorSuggestWidget-border, var(--vscode-panel-border))",
+    boxShadow: "0 2px 8px var(--vscode-widget-shadow, transparent)"
+  },
+  ".cm-tooltip-autocomplete ul": {
+    maxHeight: "inherit",
+    margin: "0",
+    padding: "4px 0"
+  },
+  ".cm-tooltip-autocomplete ul li": {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    minHeight: "24px",
+    boxSizing: "border-box",
+    padding: "4px 10px",
+    whiteSpace: "nowrap"
   },
   ".cm-tooltip-autocomplete ul li[aria-selected]": {
-    backgroundColor: "var(--vscode-editorSuggestWidget-selectedBackground)",
-    color: "var(--vscode-editorSuggestWidget-foreground)"
+    backgroundColor: "var(--vscode-editorSuggestWidget-selectedBackground, var(--vscode-list-activeSelectionBackground))",
+    color: "var(--vscode-editorSuggestWidget-foreground, var(--vscode-editor-foreground))"
   }
 });
 
@@ -114,6 +135,9 @@ export class ModulePreviewInvocationEditorController {
           autocompletion({ override: [completionSourceFor(options, () => this.currentBlock())] }),
           keymap.of([
             { key: "Mod-/", run: toggleComment },
+            { key: "Mod-Shift-.", run: () => this.routeValueStep(1) },
+            { key: "Mod-Shift-,", run: () => this.routeValueStep(-1) },
+            { key: "Alt-Enter", run: () => this.routeReferencePick() },
             ...historyKeymap
           ]),
           EditorView.updateListener.of((update) => {
@@ -145,6 +169,28 @@ export class ModulePreviewInvocationEditorController {
       selectionStart: selection.from,
       selectionEnd: selection.to
     };
+  }
+
+  private routeValueStep(direction: 1 | -1): boolean {
+    const site = this.siteFor(this.view.state);
+    const parameter = site.parameter;
+    if (!this.options.onValueStep || !parameter?.active ||
+      site.selectionStart < parameter.valueRange.from ||
+      site.selectionEnd > parameter.valueRange.to) return false;
+    this.options.onValueStep(site, direction);
+    return true;
+  }
+
+  private routeReferencePick(): boolean {
+    const site = this.siteFor(this.view.state);
+    const parameter = site.parameter;
+    const kind = parameter?.type?.kind;
+    if (!this.options.onReferencePick || !parameter?.active ||
+      (kind !== "point" && kind !== "line" && kind !== "path") ||
+      site.selectionStart < parameter.valueRange.from ||
+      site.selectionEnd > parameter.valueRange.to) return false;
+    this.options.onReferencePick(site);
+    return true;
   }
 
   updateBlock(block: ModulePreviewInvocationBlock): void {
