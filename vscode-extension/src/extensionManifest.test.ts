@@ -251,6 +251,7 @@ const canvasBlankWhen = "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'b
 const canvasElementWhen = "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'element' && nuinuiCAD.canvasHasSelection";
 const canvasOrModulePreviewElementWhen = "(webviewId == 'nuinuiCAD.canvas' || webviewId == 'nuinuiCAD.modulePreview') && webviewSection == 'element' && nuinuiCAD.canvasHasSelection";
 const canvasOrModulePreviewRibbonWhen = "(webviewId == 'nuinuiCAD.canvas' || webviewId == 'nuinuiCAD.modulePreview') && (webviewSection == 'blank' || webviewSection == 'ribbon')";
+const modulePreviewContextMenuWhen = "webviewId == 'nuinuiCAD.modulePreview'";
 const modulePreviewBlankWhen = "webviewId == 'nuinuiCAD.modulePreview' && webviewSection == 'blank'";
 
 async function readManifest(): Promise<ExtensionManifest> {
@@ -757,7 +758,7 @@ describe("VS Code extension manifest command contributions", () => {
       { command: "nuinuiCAD.resetCanvasView", when: canvasBlankWhen, group: "2_view@2" },
       { submenu: "nuinuiCAD.webview.canvasDisplay", when: canvasBlankWhen, group: "2_view@3" },
       { command: "nuinuiCAD.editCanvasRibbon", when: canvasOrModulePreviewRibbonWhen, group: "3_edit@1" },
-      { command: "nuinuiCAD.editModulePreviewValues", when: modulePreviewBlankWhen, group: "3_edit@2" },
+      { command: "nuinuiCAD.editModulePreviewValues", when: modulePreviewContextMenuWhen, group: "3_edit@2" },
       { command: "nuinuiCAD.clearCanvasSelection", when: `${canvasBlankWhen} && nuinuiCAD.canvasHasSelection`, group: "4_selection@1" },
       { submenu: "nuinuiCAD.webview.convertPoint", when: coordinatePointConversionCanvasContextWhen, group: "1_modification@1" },
       { command: "nuinuiCAD.selectParentGroup", when: canvasElementWhen, group: "1_modification@2" },

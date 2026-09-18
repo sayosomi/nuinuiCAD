@@ -560,7 +560,7 @@
         },
         {
           "command": "nuinuiCAD.editModulePreviewValues",
-          "when": "webviewId == 'nuinuiCAD.modulePreview' && webviewSection == 'blank'",
+          "when": "webviewId == 'nuinuiCAD.modulePreview'",
           "group": "3_edit@2"
         },
         {
