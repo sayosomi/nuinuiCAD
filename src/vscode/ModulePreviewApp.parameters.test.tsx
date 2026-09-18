@@ -3,7 +3,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { RefObject } from "react";
 import type { ModulePreviewSessionSnapshot } from "../dsl/modulePreviewState";
 import type { ModulePreviewTarget } from "../dsl/modulePreviewTarget";
-import { modulePreviewInvocationFor } from "../dsl/modulePreviewInvocation";
 import type { VscodeModulePreviewModelPatchRequest } from "./protocol";
 
 const mocks = vi.hoisted(() => ({
@@ -11,7 +10,7 @@ const mocks = vi.hoisted(() => ({
   session: {
     activate: vi.fn(),
     getState: vi.fn(),
-    setInvocationText: vi.fn()
+    setParameterValue: vi.fn()
   },
   postMessage: vi.fn(),
   evaluateElementsWithRust: vi.fn(),
@@ -114,6 +113,7 @@ const snapshot = {
   ancestorContexts: [{
     kind: "ancestor" as const,
     definitionStatementId: "module:outer",
+    definitionStatementIndex: 0,
     name: "Outer",
     parameters: [{
       definitionStatementId: "module:outer",
@@ -131,6 +131,7 @@ const snapshot = {
   parameters: {
     kind: "target" as const,
     definitionStatementId: target.definitionStatementId,
+    definitionStatementIndex: target.definitionStatementIndex,
     name: target.name,
     parameters: [{
       definitionStatementId: target.definitionStatementId,
@@ -146,43 +147,6 @@ const snapshot = {
     }]
   },
   inputDiagnostics: [],
-  invocation: modulePreviewInvocationFor({ blocks: [{
-    kind: "ancestor",
-    definitionStatementId: "module:outer",
-    definitionStatementIndex: 0,
-    declarationScopeId: "scope:outer",
-    name: "Outer",
-    parameters: [{
-      definitionStatementId: "module:outer",
-      parameterIndex: 0,
-      name: "scale",
-      type: { kind: "number" },
-      optional: false,
-      required: true,
-      defaultSourceText: null,
-      active: true,
-      value: "2",
-      caller: { statementIndex: 0, scopeId: "scope:outer", sourceOrderIndex: 0 }
-    }]
-  }, {
-    kind: "target",
-    definitionStatementId: target.definitionStatementId,
-    definitionStatementIndex: target.definitionStatementIndex,
-    declarationScopeId: "scope:preview",
-    name: target.name,
-    parameters: [{
-      definitionStatementId: target.definitionStatementId,
-      parameterIndex: 0,
-      name: "width",
-      type: { kind: "number" },
-      optional: false,
-      required: true,
-      defaultSourceText: null,
-      active: true,
-      value: "3",
-      caller: { statementIndex: target.definitionStatementIndex, scopeId: "scope:preview", sourceOrderIndex: target.definitionStatementIndex }
-    }]
-  }] }),
   preview: { kind: "noValidPreview" as const, result: null }
 } satisfies ModulePreviewSessionSnapshot;
 
@@ -204,31 +168,6 @@ const previewFixtureFor = (sourceText: string, moduleName = "Preview") => {
     }
   });
   if (!root) throw new Error("expected Preview root");
-  const invocation = modulePreviewInvocationFor({ blocks: [{
-    kind: "target",
-    definitionStatementId: definition.statementId,
-    definitionStatementIndex: definition.statementIndex,
-    declarationScopeId: definition.declarationScopeId,
-    name: definition.name,
-    parameters: definition.parameters.map((parameter) => ({
-      definitionStatementId: definition.statementId,
-      parameterIndex: parameter.parameterIndex,
-      name: parameter.name,
-      type: parameter.type,
-      recordTypeIdentity: parameter.recordTypeIdentity,
-      ...(parameter.numericTypeOptions ? { numericTypeOptions: parameter.numericTypeOptions } : {}),
-      optional: parameter.optional,
-      required: parameter.required,
-      defaultSourceText: parameter.defaultValue,
-      active: parameter.required && parameter.defaultValue === null,
-      value: "",
-      caller: {
-        statementIndex: definition.statementIndex,
-        scopeId: definition.declarationScopeId,
-        sourceOrderIndex: definition.statementIndex
-      }
-    }))
-  }] });
   const evaluationOptions = buildModulePreviewEvaluationOptions(root);
   const evaluation = evaluateElements(root.compileResult.elements, evaluationOptions);
   const snapshot = {
@@ -238,10 +177,22 @@ const previewFixtureFor = (sourceText: string, moduleName = "Preview") => {
     parameters: {
       kind: "target" as const,
       definitionStatementId: root.target.definitionStatementId,
+      definitionStatementIndex: root.target.definitionStatementIndex,
       name: root.target.name,
-      parameters: []
+      parameters: definition.parameters.map((parameter) => ({
+        definitionStatementId: definition.statementId,
+        parameterIndex: parameter.parameterIndex,
+        name: parameter.name,
+        type: parameter.type,
+        ...(parameter.numericTypeOptions ? { numericTypeOptions: parameter.numericTypeOptions } : {}),
+        optional: parameter.optional,
+        required: parameter.required,
+        defaultSourceText: parameter.defaultValue,
+        value: "",
+        active: false,
+        diagnostic: null
+      }))
     },
-    invocation,
     inputDiagnostics: [],
     preview: { kind: "current" as const, result: root }
   } satisfies ModulePreviewSessionSnapshot;
@@ -384,7 +335,7 @@ afterEach(() => {
   mocks.queryModulePreviewTarget.mockReset();
   mocks.session.activate.mockReset();
   mocks.session.getState.mockReset();
-  mocks.session.setInvocationText.mockReset();
+  mocks.session.setParameterValue.mockReset();
   mocks.postMessage.mockReset();
   mocks.evaluateElementsWithRust.mockReset();
   mocks.hostAdapter = null;
@@ -622,21 +573,20 @@ describe("ModulePreviewApp Canvas and Preview boundary", () => {
       }));
     });
 
-    const invocationSnapshot = mocks.postMessage.mock.calls
+    const valueSnapshot = mocks.postMessage.mock.calls
       .map(([message]) => message)
-      .filter((message) => message?.type === "modulePreviewInvocationSnapshot")
+      .filter((message) => message?.type === "modulePreviewValueSnapshot")
       .at(-1);
-    expect(invocationSnapshot).toMatchObject({
+    expect(valueSnapshot).toMatchObject({
       previewStatus: "current",
-      blocks: [expect.objectContaining({
+      groups: [expect.objectContaining({
         kind: "target",
         name: "Alternate",
-        text: expect.stringContaining("// size: 30"),
         parameters: [expect.objectContaining({
           name: "size",
           defaultSourceText: "30",
           value: "",
-          active: false,
+          valueState: "omitted-defaulted",
           diagnostic: null
         })]
       })],
@@ -705,21 +655,20 @@ describe("ModulePreviewApp Canvas and Preview boundary", () => {
       }));
     });
 
-    const invocationSnapshot = mocks.postMessage.mock.calls
+    const valueSnapshot = mocks.postMessage.mock.calls
       .map(([message]) => message)
-      .filter((message) => message?.type === "modulePreviewInvocationSnapshot")
+      .filter((message) => message?.type === "modulePreviewValueSnapshot")
       .at(-1);
-    expect(invocationSnapshot).toMatchObject({
+    expect(valueSnapshot).toMatchObject({
       previewStatus: "current",
-      blocks: [expect.objectContaining({
+      groups: [expect.objectContaining({
         kind: "target",
         name: "Alternate",
-        text: expect.stringContaining("// size: 30"),
         parameters: [expect.objectContaining({
           name: "size",
           defaultSourceText: "30",
           value: "",
-          active: false,
+          valueState: "omitted-defaulted",
           diagnostic: null
         })]
       })],
@@ -934,18 +883,19 @@ describe("ModulePreviewApp Canvas and Preview boundary", () => {
       }));
     });
 
-    const invocationSnapshot = mocks.postMessage.mock.calls
+    const valueSnapshot = mocks.postMessage.mock.calls
       .map(([message]) => message)
-      .filter((message) => message?.type === "modulePreviewInvocationSnapshot")
+      .filter((message) => message?.type === "modulePreviewValueSnapshot")
       .at(-1);
-    expect(invocationSnapshot).toMatchObject({
+    expect(valueSnapshot).toMatchObject({
       previewStatus: "noValidPreview",
-      blocks: [expect.objectContaining({
+      groups: [expect.objectContaining({
         kind: "target",
         name: "Required",
-        parameters: [expect.objectContaining({ name: "width", value: "", active: true, diagnostic: expect.objectContaining({
-          code: "required-value-missing"
-        }) })]
+        parameters: [expect.objectContaining({
+          name: "width", value: "", valueState: "required-missing",
+          diagnostic: expect.objectContaining({ code: "required-value-missing" })
+        })]
       })],
       inputDiagnostics: [expect.objectContaining({ code: "required-value-missing" })]
     });

@@ -19,7 +19,7 @@ const targetAtPoint = (source: string, compiled: CompiledDslDocument, sourceRevi
     semantic: { sourceRevision, compiled }
   });
 
-describe("Module Preview invocation freshness", () => {
+describe("Module Preview value freshness", () => {
   it("retains last-good state across fresh source revisions while identity survives", () => {
     const validSource = [
       "nui 1",
@@ -33,8 +33,7 @@ describe("Module Preview invocation freshness", () => {
     if (!target1) throw new Error("expected initial target");
     const session = createModulePreviewSession();
     session.activate({ source: { normalizedSource: validSource, sourceRevision: 1 }, semantic: { sourceRevision: 1, compiled: compiled1 }, target: target1 });
-    const initial = session.getState()!.invocation.blocks[0]!.text.replace("width: ", "width: 4 + 1");
-    const first = session.setInvocationText(target1.definitionStatementId, initial);
+    const first = session.setParameterValue(target1.definitionStatementId, 0, "4 + 1");
     expect(first?.preview.kind).toBe("current");
 
     const compiled2 = compileWithIds(invalidSource, 2, "stable");

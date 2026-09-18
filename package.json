@@ -13,7 +13,6 @@
     "build:mcp": "tsc -p mcp-server/tsconfig.json && esbuild mcp-server/src/server.ts --bundle --platform=node --format=esm --target=node24 --outfile=mcp-server/dist/server.js",
     "lint": "eslint .",
     "test": "vitest run",
-    "test:browser:module-preview-invocation": "vitest run --config vitest.module-preview-invocation.browser.config.ts",
     "test:stress:lifecycle": "node scripts/ci/runLifecycleStress.mjs",
     "test:performance:element-activity": "VITE_RUN_PERFORMANCE_GATES=1 vitest run test/elementActivity.performance.test.ts --pool=forks --maxWorkers=1 --no-file-parallelism --disableConsoleIntercept",
     "test:performance:reconciler": "VITE_RUN_PERFORMANCE_GATES=1 vitest run src/document/statementReconciler.performance.test.ts --pool=forks --maxWorkers=1 --no-file-parallelism --disableConsoleIntercept",

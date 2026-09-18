@@ -161,8 +161,8 @@ source ownership and insertion lines together with the current Preview
 `moduleMaterialization` and evaluation. Materialized Module-body leaves insert
 beside their real authored body statements; real nested Module instances insert
 beside their authored call sites in the enclosing Module/body scope. Synthetic
-Preview calls and roots are never writable and no synthetic Preview invocation,
-root, or parameter/context state is persisted. Bake splices use the same
+Preview calls and roots are never writable; no visible synthetic argument
+editor or parameter/context state is persisted. Bake splices use the same
 authoritative TextDocument transaction as point/Bezier commits, so native VS Code
 history remains canonical. Normal Canvas Bake retains its module-body to root
 instance redirect semantics.
@@ -839,12 +839,9 @@ Primary:
 
 - `src/vscode/VSCodeDrawingCanvas.tsx`
 - `src/vscode/ModulePreviewApp.tsx`
-- `src/vscode/ModulePreviewInvocationEditorApp.tsx`
-- `src/editor/modulePreviewInvocationEditor.ts`
-- `src/dsl/modulePreviewInvocation.ts`
+- `src/vscode/modulePreviewValueProjection.ts`
 - `src/vscode/multiDocumentRuntimeTransport.ts`
 - `src/vscode/useVscodeMultiDocumentRuntimeEvaluation.ts`
-- `src/vscode/modulePreviewInvocationProjection.ts`
 - `src/components/canvasHostAdapter.ts`
 - `src/components/DrawingCanvas.tsx`
 - `src/components/canvasRenderer.ts`
@@ -1011,8 +1008,9 @@ lifecycle ownership in `modulePreviewFeature.ts`: it keeps one panel per documen
 URI and stores the stable target Module definition identity so a repeated open can
 reveal and retarget the same panel without rebinding an existing panel to another
 document. The semantic Webview surface kinds are `canvas`, `outputPreview`, and
-`modulePreview`; the Module Preview panel composes its ephemeral invocation editor
-above the Preview Canvas in one Webview. The rendering surfaces are independent and may
+`modulePreview`; Module Preview is Canvas-first and contains one minimal
+`Preview Values...` ingress button. The Extension Host owns the native Preview
+Values Quick Input lifecycle; no editor/Canvas split is mounted. The rendering surfaces are independent and may
 coexist for the same document. Closing the source
 `TextDocument` disposes the associated Module Preview panel as well as the
 registry-owned document surfaces.
@@ -1038,23 +1036,20 @@ The same Module Preview lifecycle establishes the active binding for the single
 `nuinuiCAD.modulePreview` panel. `ModulePreviewApp` keeps one
 `createModulePreviewSession()` as the semantic owner of parameter/context values,
 omission/default behavior, diagnostics, last-good state, and Preview compilation.
-`src/dsl/modulePreviewInvocation.ts` derives the exact ephemeral ordinary-call
-text, stable definition/parameter sites, and source ranges for each outermost to
-innermost Context block and the Target block. The session retains that text per
-target/context, so returning to a target restores the invocation editor rather
-than regenerating a table. `ModulePreviewInvocationEditorApp` composes the
-labeled blocks above the Preview Canvas, while the CodeMirror controller in
-`src/editor/modulePreviewInvocationEditor.ts` owns typing, selection, comments,
-native completion, and editor-local history.
+The Webview projects that state through `modulePreviewValueProjection.ts` as an
+outermost-to-innermost group and definition-order parameter snapshot. The
+Extension Host validates the exact document/version/source/target/session proof,
+then owns native QuickPick/InputBox interaction. Direct value edits carry one
+stable definition statement index/name plus parameter index/name and an
+expression or explicit clear operation; they never edit canonical Source or add
+a Source Undo entry.
 
-The Webview publishes only a JSON-safe invocation snapshot and exact invocation
-site proofs. The Extension Host retains those proofs for Value Step and
-Reference Pick freshness validation; it has no completion request/result bridge
-or parameter-table projection. Geometry Pick is available contextually for
-point, line, and path argument sites, reuses the shared Canvas candidate/session
-authority, and confirmed references return through the ephemeral invocation edit
-path only. Invocation editing, completion, Pick, and Value Step never edit
-canonical Source or add a Source Undo entry.
+Point, line, and path values enter the existing shared Canvas Reference Pick
+candidate/session authority through the same exact-current site proof. Confirmed
+references are converted with `referencePickSourceForReference` and sent back to
+the selected ephemeral Preview site only. Independently generated process-local
+statement IDs are not cross-runtime equality authority; exact Source revision,
+definition index/name, parameter index/name, and session proof are.
 
 Inside the Webview, `ModulePreviewApp` owns only surface composition. It uses
 `AutomationDocument` for the authoritative source mirror,
@@ -1063,8 +1058,9 @@ state, `buildModulePreviewEvaluationOptions` plus `VscodeRustTransport` for the
 existing production evaluation path, and the shared `DrawingCanvas` /
 `CanvasHostAdapter` for rendering and Preview-only ephemeral interactions.
 Canonical source mutation for point/Bezier edits is performed only through the
-host-owned source-patch boundary; Preview parameter/context state, synthetic root
-invocation, and Reference Pick remain outside this surface lifecycle.
+host-owned source-patch boundary; Preview parameter/context state and Reference
+Pick remain outside this surface lifecycle. Preview-value edits remain ephemeral
+and do not mutate the canonical `.nui` source.
 
 Explicit VS Code navigation is bidirectional and opt-in: Canvas selection does
 not follow the Editor cursor, and Editor cursor movement does not change Canvas
@@ -1117,7 +1113,7 @@ Canvas interaction owner.
 
 The Preview route uses `modulePreviewProtocol.ts`,
 `useVSCodeModulePreviewReferencePickSession.ts`, and
-`modulePreviewReferencePick.ts` for its exact session/invocation-site proof and Preview
+`modulePreviewReferencePick.ts` for its exact session/value-site proof and Preview
 target adapter. Its candidate input is the compiler-owned ephemeral Preview
 statement map, semantic analysis, and lexical namespace; the route-specific
 adapter shares the Canvas draft, hover, confirm, and cancel behavior without
@@ -1367,12 +1363,11 @@ semantic/presentation adapter, projecting the exact-current Document Symbols
 into the tree hierarchy. It is the only view contributed to the
 `nuinuiCAD-explorer` Activity Bar container.
 
-The invocation editor is composed by `src/vscode/ModulePreviewApp.tsx` using
-`src/vscode/ModulePreviewInvocationEditorApp.tsx` and the host-neutral editor
-adapter. It is independent of the native Elements View; no parameter Webview
-View is contributed to the Explorer container. Shared Webview routing remains
-owned by `webviewSurfaceRouter.tsx` for Canvas, Output Preview, and Module
-Preview.
+Module Preview value editing is composed by the Extension Host using the
+product-owned native Quick Input wrappers in `nativeQuickInput.ts`. It is
+independent of the native Elements View; no parameter Webview View is
+contributed to the Explorer container. Shared Webview routing remains owned by
+`webviewSurfaceRouter.tsx` for Canvas, Output Preview, and Module Preview.
 
 ## Core architecture invariants
 

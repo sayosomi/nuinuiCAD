@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AutomationDocument } from "@nuinuicad/nui-language/document";
 import {
   canvasSelectionForElement,
@@ -35,19 +35,17 @@ import { sourceOwnerForRuntimeElementId } from "@nuinuicad/nui-language";
 import { useCadUiStore } from "../state/cadUiStore";
 import type { CadElement, EvaluationResult } from "../types/geometry";
 import { buildModulePreviewEvaluationOptions } from "./modulePreviewEvaluation";
-import { modulePreviewInvocationSnapshotFor } from "./modulePreviewInvocationProjection";
+import { modulePreviewValueSnapshotFor } from "./modulePreviewValueProjection";
 import { modulePreviewReferencePickTargetFor } from "./modulePreviewReferencePick";
-import { ModulePreviewInvocationEditorApp } from "./ModulePreviewInvocationEditorApp";
-import type { ModulePreviewInvocationEditorSite } from "../editor/modulePreviewInvocationEditor";
 import type {
   ExtensionToVscodeMessage,
   VscodeCanvasCommandId,
   VscodeBakeOperationResult,
   VscodeBakeSettings,
   VscodeModulePreviewModelPatchRequest,
-  VscodeModulePreviewInvocationSnapshot,
-  VscodeModulePreviewInvocationUnavailable,
-  VscodeModulePreviewInvocationSiteFocus,
+  VscodeModulePreviewValueSnapshot,
+  VscodeModulePreviewValueUnavailable,
+  VscodeModulePreviewValueEdit,
   VscodeWebviewApi
 } from "./protocol";
 import { vscodeCanvasContextDataFor } from "./protocol";
@@ -177,15 +175,6 @@ const statusInputDiagnostic = (diagnostic: ModulePreviewInputDiagnostic): Module
   ...(diagnostic.presentation ? { presentation: diagnostic.presentation } : {})
 });
 
-const MODULE_PREVIEW_PARAMETER_SPLIT_INITIAL_PERCENT = 35;
-const MODULE_PREVIEW_PARAMETER_SPLIT_STEP_PERCENT = 5;
-const MODULE_PREVIEW_PARAMETER_MIN_HEIGHT = 112;
-const MODULE_PREVIEW_CANVAS_MIN_HEIGHT = 160;
-const MODULE_PREVIEW_SPLITTER_HEIGHT = 8;
-
-const clamp = (value: number, minimum: number, maximum: number): number =>
-  Math.min(Math.max(value, minimum), maximum);
-
 const noRootStatusMessagesFor = (
   diagnostics: ModulePreviewStatusMessage[]
 ): ModulePreviewStatusMessage[] => diagnostics.length > 0
@@ -205,11 +194,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   const documentVersionRef = useRef<number | null>(null);
   const sessionIdRef = useRef<string | null>(null);
   const sessionDocumentUriRef = useRef<string | null>(null);
-  const invocationSessionRevisionRef = useRef(0);
-  const invocationFocusGenerationRef = useRef(1);
-  const currentInvocationFocusRef = useRef<VscodeModulePreviewInvocationSiteFocus | null>(null);
-  const modulePreviewLayoutRef = useRef<HTMLElement>(null);
-  const isResizingParameterSplitRef = useRef(false);
+  const valueSessionRevisionRef = useRef(0);
   const nextPreviewRevisionRef = useRef(1);
   const canvasFocusRef = useRef<HTMLDivElement>(null);
   const drawingCanvasRef = useRef<DrawingCanvasHandle>(null);
@@ -221,14 +206,6 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     [webviewPresentation]
   );
   const [preview, setPreview] = useState<ValidModulePreview | null>(null);
-  const [invocationSnapshot, setInvocationSnapshot] = useState<VscodeModulePreviewInvocationSnapshot | null>(null);
-  const [invocationUnavailable, setInvocationUnavailable] = useState<VscodeModulePreviewInvocationUnavailable | null>(null);
-  const [previewEditorSource, setPreviewEditorSource] = useState<{
-    normalizedSource: string;
-    sourceRevision: number;
-    compiled: ReturnType<AutomationDocument["getState"]>["currentCompiled"];
-  } | null>(null);
-  const [parameterSplitPercent, setParameterSplitPercent] = useState(MODULE_PREVIEW_PARAMETER_SPLIT_INITIAL_PERCENT);
   const [ephemeralElements, setEphemeralElements] = useState<CadElement[] | null>(null);
   const ephemeralElementsRef = useRef<CadElement[] | null>(null);
   const dragProofRef = useRef<ModulePreviewDragProof | null>(null);
@@ -259,14 +236,14 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     api.postMessage({ type: "webviewReady" });
   }, [api]);
 
-  const publishInvocationSnapshot = useCallback((snapshot: ModulePreviewSessionSnapshot) => {
+  const publishValueSnapshot = useCallback((snapshot: ModulePreviewSessionSnapshot) => {
     const sessionId = sessionIdRef.current;
     const documentUri = sessionDocumentUriRef.current;
     const documentVersion = documentVersionRef.current;
     if (!sessionId || !documentUri || documentVersion === null) return;
-    const sessionRevision = invocationSessionRevisionRef.current + 1;
-    invocationSessionRevisionRef.current = sessionRevision;
-    const message: VscodeModulePreviewInvocationSnapshot = modulePreviewInvocationSnapshotFor({
+    const sessionRevision = valueSessionRevisionRef.current + 1;
+    valueSessionRevisionRef.current = sessionRevision;
+    const message: VscodeModulePreviewValueSnapshot = modulePreviewValueSnapshotFor({
       snapshot,
       sessionId,
       documentUri,
@@ -274,34 +251,33 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       normalizedSource: normalizedSourceFor(automationDocumentRef.current?.getSource() ?? ""),
       sessionRevision
     });
-    setInvocationSnapshot(message);
-    setInvocationUnavailable(null);
     api.postMessage(message);
   }, [api]);
 
-  const publishInvocationUnavailable = useCallback((
-    reason: VscodeModulePreviewInvocationUnavailable["reason"],
-    targetDefinitionStatementId: string | null = previewSession.getState()?.target.definitionStatementId ?? null
+  const publishValueUnavailable = useCallback((
+    reason: VscodeModulePreviewValueUnavailable["reason"],
+    target: VscodeModulePreviewValueUnavailable["target"] = (() => {
+      const current = previewSession.getState()?.target;
+      return current ? { definitionStatementIndex: current.definitionStatementIndex, name: current.name } : null;
+    })()
   ): void => {
     const sessionId = sessionIdRef.current;
     const documentUri = sessionDocumentUriRef.current;
     const documentVersion = documentVersionRef.current;
     if (!sessionId || !documentUri || documentVersion === null) return;
     const state = automationDocumentRef.current?.getState();
-    const sessionRevision = invocationSessionRevisionRef.current + 1;
-    invocationSessionRevisionRef.current = sessionRevision;
-    const message: VscodeModulePreviewInvocationUnavailable = {
-      type: "modulePreviewInvocationUnavailable",
+    const sessionRevision = valueSessionRevisionRef.current + 1;
+    valueSessionRevisionRef.current = sessionRevision;
+    const message: VscodeModulePreviewValueUnavailable = {
+      type: "modulePreviewValueUnavailable",
       sessionId,
       documentUri,
       documentVersion,
       sourceRevision: state?.currentCompiled.spans.sourceMap.sourceRevision ?? null,
       sessionRevision,
-      targetDefinitionStatementId,
+      target,
       reason
     };
-    setInvocationSnapshot(null);
-    setInvocationUnavailable(message);
     api.postMessage(message);
   }, [api, previewSession]);
 
@@ -343,18 +319,21 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       request.sessionId !== sessionIdRef.current ||
       request.documentUri !== sessionDocumentUriRef.current ||
       request.documentVersion !== documentVersionRef.current ||
-      request.sessionRevision !== invocationSessionRevisionRef.current ||
+      request.sessionRevision !== valueSessionRevisionRef.current ||
       request.normalizedSource !== normalizedSourceFor(document.getSource()) ||
+      request.sourceRevision !== state.sourceRevision ||
       request.targetDefinitionStatementIndex !== state.target.definitionStatementIndex ||
       request.targetName !== state.target.name) return null;
-    const block = state.invocation.blocks.find((candidate) =>
+    const groups = [...state.ancestorContexts, state.parameters];
+    const group = groups.find((candidate) =>
       candidate.kind === request.blockKind &&
-      candidate.definitionStatementIndex === request.blockDefinitionStatementIndex &&
-      candidate.name === request.blockName
+      candidate.definitionStatementIndex === request.definitionStatementIndex &&
+      candidate.name === request.definitionName
     );
-    const parameter = block?.parameters.find((candidate) => candidate.parameterIndex === request.parameterIndex);
-    if (!block || !parameter || block.text !== request.invocationText ||
-      request.selectionStart < parameter.lineRange.from || request.selectionEnd > parameter.lineRange.to) return null;
+    const parameter = group?.parameters.find((candidate) =>
+      candidate.parameterIndex === request.parameterIndex && candidate.name === request.parameterName
+    );
+    if (!group || !parameter) return null;
     if (state.preview.kind !== "current") return { kind: "unavailable" };
     const activePreview = previewRef.current;
     if (!activePreview || state.preview.result !== activePreview.root) return { kind: "pending" };
@@ -371,7 +350,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     ) return { kind: "pending" };
     const target = modulePreviewReferencePickTargetFor({
       root: activePreview.root,
-      definitionStatementId: block.definitionStatementId,
+      definitionStatementId: group.definitionStatementId,
       parameterIndex: request.parameterIndex,
       expectedGeometryInterface: request.expectedGeometryInterface
     });
@@ -427,7 +406,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   }, [clearEphemeralPreview]);
 
   const applySessionSnapshot = useCallback((snapshot: ModulePreviewSessionSnapshot): void => {
-    publishInvocationSnapshot(snapshot);
+    publishValueSnapshot(snapshot);
     const root = snapshot.preview.result;
     const document = automationDocumentRef.current;
     if (!root || !document) {
@@ -451,14 +430,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       sourceLexicalNamespace: state.currentCompiled.sourceLexicalNamespace,
       statementInfoByElementId: state.currentCompiled.statementMap?.byElementId
     }, nextStatusMessages);
-  }, [applyValidPreview, clearEphemeralPreview, publishInvocationSnapshot]);
-
-  const applyInvocationBlock = useCallback((
-    block: ModulePreviewInvocationEditorSite["block"]
-  ): void => {
-    const next = previewSession.setInvocationText(block.definitionStatementId, block.text);
-    if (next) applySessionSnapshot(next);
-  }, [applySessionSnapshot, previewSession]);
+  }, [applyValidPreview, clearEphemeralPreview, publishValueSnapshot]);
 
   const compileTargetAt = useCallback((normalizedSourceOffset: number) => {
     clearEphemeralPreview();
@@ -475,17 +447,12 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       sourceText: normalizedSource,
       compiled: state.currentCompiled
     };
-    setPreviewEditorSource({
-      normalizedSource,
-      sourceRevision: source.sourceRevision,
-      compiled: state.currentCompiled
-    });
     const target = queryModulePreviewTarget({ source, position: normalizedSourceOffset, semantic });
     const snapshot = target ? previewSession.activate({ source, semantic, target }) : null;
-    if (snapshot) publishInvocationSnapshot(snapshot);
+    if (snapshot) publishValueSnapshot(snapshot);
     const root = snapshot?.preview.result ?? null;
     if (!snapshot || !root) {
-      if (!snapshot) publishInvocationUnavailable("target-unavailable");
+      if (!snapshot) publishValueUnavailable("target-unavailable", null);
       previewRef.current = null;
       setPreview(null);
       const diagnostics = snapshot?.inputDiagnostics.map(statusInputDiagnostic)
@@ -507,7 +474,33 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       sourceLexicalNamespace: state.currentCompiled.sourceLexicalNamespace,
       statementInfoByElementId: state.currentCompiled.statementMap?.byElementId
     }, nextStatusMessages);
-  }, [applyValidPreview, clearEphemeralPreview, previewSession, publishInvocationSnapshot, publishInvocationUnavailable]);
+  }, [applyValidPreview, clearEphemeralPreview, previewSession, publishValueSnapshot, publishValueUnavailable]);
+
+  const applyValueEdit = useCallback((message: VscodeModulePreviewValueEdit): void => {
+    const document = automationDocumentRef.current;
+    const state = previewSession.getState();
+    if (!document || !state ||
+      message.sessionId !== sessionIdRef.current ||
+      message.documentUri !== sessionDocumentUriRef.current ||
+      message.documentVersion !== documentVersionRef.current ||
+      message.normalizedSource !== normalizedSourceFor(document.getSource()) ||
+      message.sourceRevision !== state.sourceRevision ||
+      message.sessionRevision !== valueSessionRevisionRef.current ||
+      message.targetDefinitionStatementIndex !== state.target.definitionStatementIndex ||
+      message.targetName !== state.target.name
+    ) return;
+    const group = [...state.ancestorContexts, state.parameters].find((candidate) =>
+      candidate.kind === message.blockKind &&
+      candidate.definitionStatementIndex === message.definitionStatementIndex &&
+      candidate.name === message.definitionName
+    );
+    const parameter = group?.parameters.find((candidate) =>
+      candidate.parameterIndex === message.parameterIndex && candidate.name === message.parameterName
+    );
+    if (!group || !parameter) return;
+    const next = previewSession.setParameterValue(group.definitionStatementId, parameter.parameterIndex, message.expression);
+    if (next) applySessionSnapshot(next);
+  }, [applySessionSnapshot, previewSession]);
 
   const currentPreviewAuthority = useCallback((): ModulePreviewAuthority | null => {
     const document = automationDocumentRef.current;
@@ -1018,15 +1011,11 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       if (rustTransport.handleMessage(message)) return;
       if (message.type === "modulePreviewSession") {
         if (sessionIdRef.current !== message.sessionId) {
-          invocationSessionRevisionRef.current = 0;
-          currentInvocationFocusRef.current = null;
+          valueSessionRevisionRef.current = 0;
           clearPendingModelPatch();
           clearEphemeralPreview();
           previewRef.current = null;
           setPreview(null);
-          setInvocationSnapshot(null);
-          setInvocationUnavailable(null);
-          setPreviewEditorSource(null);
         }
         sessionIdRef.current = message.sessionId;
         sessionDocumentUriRef.current = message.documentUri;
@@ -1036,11 +1025,9 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         clearPendingModelPatch();
         if (documentVersionRef.current !== null && message.documentVersion < documentVersionRef.current) return;
         clearEphemeralPreview();
-        currentInvocationFocusRef.current = null;
-        setPreviewEditorSource(null);
         automationDocumentRef.current = AutomationDocument.fromSource(message.sourceText);
         documentVersionRef.current = message.documentVersion;
-        publishInvocationUnavailable("source-stale");
+        publishValueUnavailable("source-stale");
         setStatusMessages(previewRef.current
           ? [statusText("modulePreview.waitingForTarget", "Module Preview is waiting for the exact current target.")]
           : [statusText("modulePreview.noValid", "No valid Module Preview is available yet.")]);
@@ -1058,13 +1045,11 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         }
         if (!isOwnModelPatchCommit) clearPendingModelPatch();
         clearEphemeralPreview();
-        currentInvocationFocusRef.current = null;
-        setPreviewEditorSource(null);
         const document = automationDocumentRef.current ?? AutomationDocument.fromSource(message.sourceText);
         if (document.getSource() !== message.sourceText) document.replaceSource(message.sourceText);
         automationDocumentRef.current = document;
         documentVersionRef.current = message.documentVersion;
-        publishInvocationUnavailable("source-stale");
+        publishValueUnavailable("source-stale");
         setStatusMessages(previewRef.current
           ? [statusText("modulePreview.waitingForTarget", "Module Preview is waiting for the exact current target.")]
           : [statusText("modulePreview.noValid", "No valid Module Preview is available yet.")]);
@@ -1082,12 +1067,16 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         clearEphemeralPreview();
         previewRef.current = null;
         setPreview(null);
-        publishInvocationUnavailable("target-unavailable", null);
+        publishValueUnavailable("target-unavailable", null);
         const document = automationDocumentRef.current;
         setStatusMessages([
           statusText("modulePreview.targetUnavailable", "Module Preview target is not exact-current and was not rebound."),
           ...(document ? diagnosticMessagesFor(document) : [])
         ]);
+        return;
+      }
+      if (message.type === "modulePreviewValueEdit") {
+        applyValueEdit(message);
         return;
       }
       if (message.type === "modulePreviewModelPatchResult") {
@@ -1143,164 +1132,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     return () => {
       window.removeEventListener("message", onMessage);
     };
-  }, [api, applyInvocationBlock, applySessionSnapshot, clearEphemeralPreview, clearPendingModelPatch, compileTargetAt, executeModulePreviewBake, executeSharedCanvasCommand, previewSession, publishInvocationUnavailable, rustTransport]);
-
-  const parameterSplitBounds = useCallback((): { minimum: number; maximum: number } => {
-    const layout = modulePreviewLayoutRef.current;
-    const height = layout?.getBoundingClientRect().height ?? 0;
-    if (height <= 0) return { minimum: 10, maximum: 90 };
-    const separatorPercent = MODULE_PREVIEW_SPLITTER_HEIGHT / height * 100;
-    const minimum = Math.min(50, MODULE_PREVIEW_PARAMETER_MIN_HEIGHT / height * 100);
-    const canvasMinimum = Math.min(50, MODULE_PREVIEW_CANVAS_MIN_HEIGHT / height * 100);
-    return {
-      minimum,
-      maximum: Math.max(minimum, 100 - separatorPercent - canvasMinimum)
-    };
-  }, []);
-
-  const setParameterSplitFromClientY = useCallback((clientY: number): void => {
-    const layout = modulePreviewLayoutRef.current;
-    if (!layout) return;
-    const bounds = layout.getBoundingClientRect();
-    if (bounds.height <= 0) return;
-    const limits = parameterSplitBounds();
-    setParameterSplitPercent(clamp(
-      (clientY - bounds.top) / bounds.height * 100,
-      limits.minimum,
-      limits.maximum
-    ));
-  }, [parameterSplitBounds]);
-
-  const onParameterSplitPointerDown = useCallback((event: ReactPointerEvent<HTMLDivElement>): void => {
-    if (event.button !== 0) return;
-    isResizingParameterSplitRef.current = true;
-    event.currentTarget.setPointerCapture?.(event.pointerId);
-    event.preventDefault();
-    setParameterSplitFromClientY(event.clientY);
-  }, [setParameterSplitFromClientY]);
-
-  const onParameterSplitPointerMove = useCallback((event: ReactPointerEvent<HTMLDivElement>): void => {
-    if (!isResizingParameterSplitRef.current) return;
-    setParameterSplitFromClientY(event.clientY);
-  }, [setParameterSplitFromClientY]);
-
-  const endParameterSplitPointerDrag = useCallback((event: ReactPointerEvent<HTMLDivElement>): void => {
-    isResizingParameterSplitRef.current = false;
-    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    }
-  }, []);
-
-  const onParameterSplitKeyDown = useCallback((event: ReactKeyboardEvent<HTMLDivElement>): void => {
-    const direction = event.key === "ArrowUp" ? -1 : event.key === "ArrowDown" ? 1 : 0;
-    if (direction === 0) return;
-    event.preventDefault();
-    const limits = parameterSplitBounds();
-    setParameterSplitPercent((current) => clamp(
-      current + direction * MODULE_PREVIEW_PARAMETER_SPLIT_STEP_PERCENT,
-      limits.minimum,
-      limits.maximum
-    ));
-  }, [parameterSplitBounds]);
-
-  const currentInvocation = previewSession.getState()?.invocation ?? null;
-  const activeInvocation = invocationUnavailable ? null : currentInvocation;
-  const showInvocationRegion = invocationUnavailable !== null || activeInvocation !== null;
-  const [activeInvocationSite, setActiveInvocationSite] = useState<ModulePreviewInvocationEditorSite | null>(null);
-  const activePreviewState = previewSession.getState();
-  const referencePickAvailable = Boolean(
-    activeInvocationSite?.parameter &&
-    activePreviewState?.preview.kind === "current" &&
-    preview &&
-    invocationSnapshot &&
-    modulePreviewReferencePickTargetFor({
-      root: preview.root,
-      definitionStatementId: activeInvocationSite.block.definitionStatementId,
-      parameterIndex: activeInvocationSite.parameter.parameterIndex,
-      expectedGeometryInterface: activeInvocationSite.parameter.type?.kind === "point" ||
-        activeInvocationSite.parameter.type?.kind === "line" ||
-        activeInvocationSite.parameter.type?.kind === "path"
-        ? activeInvocationSite.parameter.type.kind
-        : undefined
-    }) !== null
-  );
-
-  const invocationSiteProofFor = useCallback((site: ModulePreviewInvocationEditorSite) => {
-    const sessionId = sessionIdRef.current;
-    const documentUri = sessionDocumentUriRef.current;
-    const documentVersion = documentVersionRef.current;
-    const snapshot = previewSession.getState();
-    if (!sessionId || !documentUri || documentVersion === null || !snapshot?.invocation) return null;
-    const parameter = site.parameter;
-    if (!parameter) return null;
-    return {
-      sessionId,
-      documentUri,
-      documentVersion,
-      normalizedSource: normalizedSourceFor(automationDocumentRef.current?.getSource() ?? ""),
-      sourceRevision: snapshot.sourceRevision,
-      sessionRevision: invocationSessionRevisionRef.current,
-      targetDefinitionStatementId: snapshot.target.definitionStatementId,
-      targetDefinitionStatementIndex: snapshot.target.definitionStatementIndex,
-      targetName: snapshot.target.name,
-      definitionStatementId: site.block.definitionStatementId,
-      blockKind: site.block.kind,
-      blockDefinitionStatementIndex: site.block.definitionStatementIndex,
-      blockName: site.block.name,
-      parameterIndex: parameter.parameterIndex,
-      invocationText: site.block.text,
-      selectionStart: site.selectionStart,
-      selectionEnd: site.selectionEnd
-    };
-  }, [previewSession]);
-
-  const onInvocationSiteChange = useCallback((site: ModulePreviewInvocationEditorSite | null): void => {
-    if (!site?.parameter) {
-      setActiveInvocationSite(null);
-      const previous = currentInvocationFocusRef.current;
-      currentInvocationFocusRef.current = null;
-      if (previous) api.postMessage({
-        ...previous,
-        type: "modulePreviewInvocationSiteBlur"
-      });
-      return;
-    }
-    setActiveInvocationSite(site);
-    const proof = invocationSiteProofFor(site);
-    if (!proof) return;
-    const focus: VscodeModulePreviewInvocationSiteFocus = {
-      type: "modulePreviewInvocationSiteFocus",
-      ...proof,
-      focusGeneration: invocationFocusGenerationRef.current++
-    };
-    currentInvocationFocusRef.current = focus;
-    api.postMessage(focus);
-  }, [api, invocationSiteProofFor]);
-
-  const onInvocationReferencePick = useCallback((site: ModulePreviewInvocationEditorSite): void => {
-    const parameter = site.parameter;
-    const proof = invocationSiteProofFor(site);
-    if (!parameter || !proof) return;
-    const expectedGeometryInterface = parameter.type?.kind === "point" || parameter.type?.kind === "line" || parameter.type?.kind === "path"
-      ? parameter.type.kind
-      : undefined;
-    if (!expectedGeometryInterface) return;
-    api.postMessage({
-      type: "modulePreviewInvocationReferencePickStart",
-      ...proof,
-      expectedGeometryInterface
-    });
-  }, [api, invocationSiteProofFor]);
-
-  const onInvocationValueStep = useCallback((site: ModulePreviewInvocationEditorSite, direction: 1 | -1): void => {
-    const proof = invocationSiteProofFor(site);
-    if (!proof) return;
-    api.postMessage({
-      type: "modulePreviewInvocationValueStep",
-      ...proof,
-      direction
-    });
-  }, [api, invocationSiteProofFor]);
+  }, [api, applySessionSnapshot, applyValueEdit, clearEphemeralPreview, clearPendingModelPatch, compileTargetAt, executeModulePreviewBake, executeSharedCanvasCommand, previewSession, publishValueUnavailable, rustTransport]);
 
   const selectElement = useCallback<CanvasHostAdapter["selectElement"]>((elementId, selectionMode) => {
     const before = canvasSelectionSnapshot();
@@ -1497,71 +1329,31 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
 
   return (
     <main
-      ref={modulePreviewLayoutRef}
       className="module-preview-workspace"
       style={{ width: "100vw", height: "100vh" }}
     >
-      {showInvocationRegion ? (
-        <>
-          <section
-            className="module-preview-invocation-region"
-            data-module-preview-invocation-region="true"
-            style={{ flex: `0 0 ${parameterSplitPercent}%` }}
-          >
-            <ModulePreviewInvocationEditorApp
-              invocation={activeInvocation}
-              unavailable={invocationUnavailable?.reason ?? null}
-              source={previewEditorSource}
-              semantic={previewEditorSource ? {
-                sourceRevision: previewEditorSource.sourceRevision,
-                sourceText: previewEditorSource.normalizedSource,
-                compiled: previewEditorSource.compiled
-              } : null}
-              target={activeInvocation ? {
-                definitionStatementId: activeInvocation.blocks.at(-1)?.definitionStatementId ?? "",
-                definitionStatementIndex: activeInvocation.blocks.at(-1)?.definitionStatementIndex ?? 0
-              } : null}
-              proof={invocationSnapshot ? {
-                sessionId: invocationSnapshot.sessionId,
-                documentUri: invocationSnapshot.documentUri,
-                documentVersion: invocationSnapshot.documentVersion,
-                normalizedSource: invocationSnapshot.normalizedSource,
-                sourceRevision: invocationSnapshot.sourceRevision,
-                sessionRevision: invocationSnapshot.sessionRevision,
-                targetDefinitionStatementId: invocationSnapshot.target.definitionStatementId,
-                targetDefinitionStatementIndex: invocationSnapshot.target.definitionStatementIndex,
-                targetName: invocationSnapshot.target.name
-              } : null}
-              referencePickAvailable={referencePickAvailable}
-              onChange={(_block, site) => applyInvocationBlock(site.block)}
-              onSiteChange={onInvocationSiteChange}
-              onValueStep={onInvocationValueStep}
-              onReferencePick={onInvocationReferencePick}
-            />
-          </section>
-          <div
-            className="module-preview-invocation-separator"
-            data-module-preview-invocation-separator="true"
-            role="separator"
-            aria-orientation="horizontal"
-            aria-label="Resize Module Preview invocation editor"
-            aria-valuemin={10}
-            aria-valuemax={90}
-            aria-valuenow={Math.round(parameterSplitPercent)}
-            tabIndex={0}
-            onKeyDown={onParameterSplitKeyDown}
-            onPointerDown={onParameterSplitPointerDown}
-            onPointerMove={onParameterSplitPointerMove}
-            onPointerUp={endParameterSplitPointerDrag}
-            onPointerCancel={endParameterSplitPointerDrag}
-          />
-        </>
-      ) : null}
       <section
         className="module-preview-canvas-region"
         data-module-preview-canvas-region="true"
-        style={{ flex: showInvocationRegion ? `1 1 ${100 - parameterSplitPercent}%` : "1 1 100%" }}
+        style={{ flex: "1 1 100%" }}
       >
+        <button
+          type="button"
+          data-module-preview-edit-values="true"
+          onClick={() => api.postMessage({ type: "modulePreviewEditValues" })}
+          style={{
+            position: "absolute",
+            top: 12,
+            right: 12,
+            zIndex: 2,
+            padding: "4px 8px",
+            border: "1px solid var(--vscode-button-border, transparent)",
+            color: "var(--vscode-button-foreground)",
+            background: "var(--vscode-button-background)"
+          }}
+        >
+          Preview Values...
+        </button>
         {preview ? (
           <DrawingCanvas
             ref={drawingCanvasRef}

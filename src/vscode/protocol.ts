@@ -15,8 +15,8 @@ import type { VscodeCanvasThemeToExtensionMessage } from "./vscodeCanvasThemePro
 import type { VscodeMultiDocumentGraphPublication } from "./multiDocumentGraphTransport";
 import type {
   VscodeExtensionToModulePreviewMessage,
-  VscodeModulePreviewInvocationSnapshot,
-  VscodeModulePreviewInvocationUnavailable,
+  VscodeModulePreviewValueSnapshot,
+  VscodeModulePreviewValueUnavailable,
   VscodeModulePreviewToExtensionMessage
 } from "./modulePreviewProtocol";
 import type {
@@ -46,17 +46,14 @@ export type {
 export type { VscodeCanvasThemePublication } from "./vscodeCanvasThemeProtocol";
 export type {
   VscodeExtensionToModulePreviewMessage,
-  VscodeModulePreviewInvocationDiagnostic,
-  VscodeModulePreviewInvocationParameter,
-  VscodeModulePreviewInvocationBlock,
-  VscodeModulePreviewInvocationSnapshot,
-  VscodeModulePreviewInvocationUnavailable,
-  VscodeModulePreviewInvocationSiteBlur,
-  VscodeModulePreviewInvocationSiteFocus,
-  VscodeModulePreviewInvocationSiteProof,
-  VscodeModulePreviewInvocationReferencePickStart,
-  VscodeModulePreviewInvocationValueStep,
-  VscodeModulePreviewInvocationValueEdit,
+  VscodeModulePreviewValueDiagnostic,
+  VscodeModulePreviewValueParameter,
+  VscodeModulePreviewValueGroup,
+  VscodeModulePreviewValueSnapshot,
+  VscodeModulePreviewValueUnavailable,
+  VscodeModulePreviewValueSiteProof,
+  VscodeModulePreviewValueReferencePickStart,
+  VscodeModulePreviewValueEdit,
   VscodeModulePreviewModelPatchRequest,
   VscodeModulePreviewModelPatchResult,
   VscodeModulePreviewReferencePickCancelRequest,
@@ -252,8 +249,9 @@ export type VscodeToExtensionMessage =
   | VscodeCanvasThemeToExtensionMessage
   | VscodeReferencePickToExtensionMessage
   | VscodeModulePreviewToExtensionMessage
-  | VscodeModulePreviewInvocationSnapshot
-  | VscodeModulePreviewInvocationUnavailable
+  | VscodeModulePreviewValueSnapshot
+  | VscodeModulePreviewValueUnavailable
+  | { type: "modulePreviewEditValues" }
   | {
       type: "canvasSourceDefinitionResult";
       requestId: number;

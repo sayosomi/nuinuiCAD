@@ -134,6 +134,12 @@
         "when": "editorTextFocus && editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.modulePreviewSourceTarget"
       },
       {
+        "command": "nuinuiCAD.editModulePreviewValues",
+        "key": "ctrl+shift+alt+m",
+        "mac": "ctrl+shift+m",
+        "when": "editorTextFocus && editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.modulePreviewSourceTarget"
+      },
+      {
         "command": "nuinuiCAD.inlineModuleInstance",
         "key": "ctrl+shift+alt+l",
         "mac": "ctrl+shift+l",
@@ -278,6 +284,10 @@
         },
         {
           "command": "nuinuiCAD.openModulePreview",
+          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui"
+        },
+        {
+          "command": "nuinuiCAD.editModulePreviewValues",
           "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui"
         },
         {
@@ -809,6 +819,12 @@
         "command": "nuinuiCAD.openModulePreview",
         "title": "%command.openModulePreview.title%",
         "shortTitle": "%command.openModulePreview.shortTitle%",
+        "enablement": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.modulePreviewSourceTarget"
+      },
+      {
+        "command": "nuinuiCAD.editModulePreviewValues",
+        "title": "%command.editModulePreviewValues.title%",
+        "shortTitle": "%command.editModulePreviewValues.shortTitle%",
         "enablement": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.modulePreviewSourceTarget"
       },
       {
