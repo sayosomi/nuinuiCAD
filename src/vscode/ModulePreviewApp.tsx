@@ -1386,6 +1386,21 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         }
         return;
       }
+      if (message.type === "modulePreviewInsertInstanceResult") {
+        if (
+          message.sessionId !== sessionIdRef.current ||
+          message.documentUri !== sessionDocumentUriRef.current
+        ) return;
+        if (message.status !== "applied") {
+          setStatusMessages([
+            message.status === "stale"
+              ? statusText("modulePreview.editStale", "Module Preview edit became stale and was rejected.")
+              : statusText("modulePreview.editRejected", "Module Preview edit was rejected."),
+            ...(message.reason ? [{ kind: "raw" as const, message: message.reason }] : [])
+          ]);
+        }
+        return;
+      }
       if (message.type === "canvasThemeChanged") {
         refreshCanvasTheme();
         return;
@@ -1656,23 +1671,43 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         data-module-preview-canvas-region="true"
         style={{ flex: "1 1 100%" }}
       >
-        <button
-          type="button"
-          data-module-preview-edit-values="true"
-          onClick={() => api.postMessage({ type: "modulePreviewEditValues" })}
+        <div
           style={{
             position: "absolute",
             top: 12,
             right: 12,
             zIndex: 2,
-            padding: "4px 8px",
-            border: "1px solid var(--vscode-button-border, transparent)",
-            color: "var(--vscode-button-foreground)",
-            background: "var(--vscode-button-background)"
+            display: "flex",
+            gap: 4
           }}
         >
-          Preview Values...
-        </button>
+          <button
+            type="button"
+            data-module-preview-edit-values="true"
+            onClick={() => api.postMessage({ type: "modulePreviewEditValues" })}
+            style={{
+              padding: "4px 8px",
+              border: "1px solid var(--vscode-button-border, transparent)",
+              color: "var(--vscode-button-foreground)",
+              background: "var(--vscode-button-background)"
+            }}
+          >
+            Preview Values...
+          </button>
+          <button
+            type="button"
+            data-module-preview-insert-instance="true"
+            onClick={() => api.postMessage({ type: "modulePreviewInsertInstance" })}
+            style={{
+              padding: "4px 8px",
+              border: "1px solid var(--vscode-button-border, transparent)",
+              color: "var(--vscode-button-foreground)",
+              background: "var(--vscode-button-background)"
+            }}
+          >
+            Insert Instance
+          </button>
+        </div>
         {preview || modulePreviewReferencePickSession ? (
           <DrawingCanvas
             ref={drawingCanvasRef}

@@ -15,6 +15,7 @@ export * from "./document/drawingModifierBatchAssignment";
 export * from "./document/identityTuple";
 export * from "./document/imageFilePaths";
 export * from "./document/moduleModelBridge";
+export * from "./document/modulePreviewInstancePlanner";
 export * from "./document/moduleSemanticRenameAnalysis";
 export * from "./document/nuiFormat";
 export * from "./document/nuiVersion";

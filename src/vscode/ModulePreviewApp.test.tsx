@@ -86,14 +86,17 @@ afterEach(() => {
 });
 
 describe("ModulePreviewApp Canvas-first composition", () => {
-  it("mounts Canvas with one minimal Preview Values button and no invocation editor", () => {
+  it("mounts Canvas with compact preview actions and no invocation editor", () => {
     renderPreview();
     expect(screen.getByTestId("module-preview-canvas")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Preview Values..." })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Insert Instance" })).toBeInTheDocument();
     expect(document.querySelector("[data-module-preview-invocation-surface]")).toBeNull();
     expect(screen.queryByRole("separator")).toBeNull();
     act(() => screen.getByRole("button", { name: "Preview Values..." }).click());
     expect(mocks.postMessage).toHaveBeenCalledWith({ type: "modulePreviewEditValues" });
+    act(() => screen.getByRole("button", { name: "Insert Instance" }).click());
+    expect(mocks.postMessage).toHaveBeenCalledWith({ type: "modulePreviewInsertInstance" });
   });
 
   it("publishes value-site proof without editing canonical Source", () => {
