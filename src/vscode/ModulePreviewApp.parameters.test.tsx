@@ -918,7 +918,17 @@ describe("ModulePreviewApp Canvas and Preview boundary", () => {
     const parameterLink = screen.getByRole("button", { name: "width" });
     expect(screen.getByRole("status")).toHaveTextContent("パラメータ「width」には値が必要です。");
     expect(screen.getByRole("status")).not.toHaveTextContent("Parameter \"width\" requires a value.");
-    expect(screen.getByRole("status").style.pointerEvents).toBe("none");
+    const status = screen.getByRole("status");
+    const emptySurface = globalThis.document.querySelector<HTMLElement>("[data-module-preview-empty='true']");
+    expect(emptySurface).not.toBeNull();
+    expect(JSON.parse(emptySurface?.getAttribute("data-vscode-context") ?? "{}")).toMatchObject({
+      webviewSection: "blank",
+      preventDefaultContextMenuItems: true
+    });
+    expect(status.style.pointerEvents).toBe("none");
+    expect(status.style.zIndex).toBe("1");
+    expect(emptySurface?.style.zIndex).toBe("0");
+    expect(Number(status.style.zIndex)).toBeGreaterThan(Number(emptySurface?.style.zIndex));
     expect(parameterLink.style.pointerEvents).toBe("auto");
     fireEvent.click(parameterLink);
     const directSiteRequest = mocks.postMessage.mock.calls
@@ -943,8 +953,7 @@ describe("ModulePreviewApp Canvas and Preview boundary", () => {
     expect(liveSession.getState()?.parameters.parameters[0]).toMatchObject({ value: "12", active: true });
     expect(liveSession.getState()?.inputDiagnostics).toEqual([]);
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
-    const emptySurface = globalThis.document.querySelector<HTMLElement>("[data-module-preview-empty='true']");
-    expect(emptySurface).toBeNull();
+    expect(globalThis.document.querySelector<HTMLElement>("[data-module-preview-empty='true']")).toBeNull();
     expect(document.getSource()).toBe(sourceText);
   });
 

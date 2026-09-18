@@ -1697,6 +1697,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
               background: "var(--vscode-editorWidget-background)",
               color: "var(--vscode-editorWidget-foreground)",
               fontSize: 12,
+              zIndex: 1,
               pointerEvents: "none"
             }}
           >
@@ -1763,6 +1764,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
               inset: 0,
               display: "grid",
               placeItems: "center",
+              zIndex: 0,
               color: "var(--vscode-descriptionForeground)"
             }}
           >
