@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   webviewDiagnosticTextFor,
+  webviewInputDiagnosticSegmentsFor,
   webviewInputDiagnosticTextFor,
   webviewPresentationTextFor
 } from "./webviewPresentation";
@@ -43,6 +44,21 @@ describe("Webview presentation boundary", () => {
         parameters: { name: "Bust" }
       }
     })).toBe("パラメータ「Bust」には値が必要です。");
+    expect(webviewInputDiagnosticSegmentsFor(presentation, {
+      message: "input fallback",
+      presentation: {
+        key: "modulePreview.parameters.diagnostic.required-value-missing",
+        parameters: { name: "Bust" }
+      }
+    })).toEqual([
+      { kind: "text", text: "パラメータ「" },
+      { kind: "parameter", text: "Bust" },
+      { kind: "text", text: "」には値が必要です。" }
+    ]);
+    expect(webviewInputDiagnosticSegmentsFor(presentation, {
+      message: 'Parameter "Bust" requires a value.',
+      presentation: { key: "missing-template", parameters: { name: "Bust" } }
+    })).toBeNull();
   });
 
   it("projects localized Canvas labels without exposing locale state", () => {

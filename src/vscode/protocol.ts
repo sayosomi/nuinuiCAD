@@ -52,6 +52,7 @@ export type {
   VscodeModulePreviewValueSnapshot,
   VscodeModulePreviewValueUnavailable,
   VscodeModulePreviewValueSiteProof,
+  VscodeModulePreviewValueSiteEditRequest,
   VscodeModulePreviewValueReferencePickStart,
   VscodeModulePreviewValueEdit,
   VscodeModulePreviewModelPatchRequest,

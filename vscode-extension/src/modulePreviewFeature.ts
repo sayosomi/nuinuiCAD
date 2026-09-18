@@ -16,6 +16,7 @@ import type {
   VscodeModulePreviewValueSnapshot,
   VscodeModulePreviewValueUnavailable,
   VscodeModulePreviewValueSiteProof,
+  VscodeModulePreviewValueSiteEditRequest,
   VscodeModulePreviewValueReferencePickStart,
   VscodeModulePreviewValueEdit,
   VscodeModulePreviewModelPatchRequest,
@@ -145,6 +146,14 @@ const isModulePreviewValueReferencePickStart = (
       candidate.expectedGeometryInterface === "line" ||
       candidate.expectedGeometryInterface === "path") &&
     isValueSiteProof(candidate);
+};
+
+const isModulePreviewValueSiteEditRequest = (
+  message: unknown
+): message is VscodeModulePreviewValueSiteEditRequest => {
+  if (typeof message !== "object" || message === null) return false;
+  const candidate = message as Partial<VscodeModulePreviewValueSiteEditRequest>;
+  return candidate.type === "modulePreviewValueSiteEdit" && isValueSiteProof(candidate);
 };
 
 const isModulePreviewReferencePickResult = (
@@ -657,6 +666,44 @@ export const registerModulePreviewFeature = ({
     parameterName: parameter.name
   });
 
+  const editModulePreviewValueSite = async (
+    session: ModulePreviewSession,
+    site: VscodeModulePreviewValueSiteProof
+  ): Promise<void> => {
+    const currentSite = currentValueSiteFor(session, site);
+    if (!currentSite) return;
+    const geometryInterface = moduleGeometryInterfaceTypeOf(currentSite.parameter.type);
+    if (geometryInterface) {
+      const geometryChoice = await nativeShowQuickPick([
+        { label: "Pick from Canvas", kind: "pick" as const },
+        { label: "Enter expression...", kind: "expression" as const }
+      ], {
+        placeHolder: `Choose how to edit ${site.definitionName}.${site.parameterName}`
+      });
+      if (!geometryChoice) return;
+      if (geometryChoice.kind === "pick") {
+        startValueReferencePick({
+          type: "modulePreviewValueReferencePickStart",
+          ...site,
+          expectedGeometryInterface: geometryInterface
+        });
+        return;
+      }
+    }
+    const expression = await nativeShowInputBox({
+      prompt: `${site.blockKind === "ancestor" ? "Context" : "Target"} ${site.definitionName}.${site.parameterName}`,
+      value: currentSite.parameter.valueState === "explicit" ? currentSite.parameter.value : ""
+    });
+    if (expression === undefined) return;
+    const message: VscodeModulePreviewValueEdit = {
+      ...site,
+      type: "modulePreviewValueEdit",
+      expression: expression.trim().length === 0 ? null : expression
+    };
+    if (!currentValueSiteFor(session, message)) return;
+    void session.panel.webview.postMessage(message satisfies ExtensionToVscodeMessage);
+  };
+
   const editModulePreviewValues = async (sessionOverride?: ModulePreviewSession): Promise<void> => {
     let session = sessionOverride;
     if (!session) {
@@ -697,38 +744,7 @@ export const registerModulePreviewFeature = ({
       matchOnDetail: true
     });
     if (!selected) return;
-    const currentSite = currentValueSiteFor(session, selected.site);
-    if (!currentSite) return;
-    const geometryInterface = moduleGeometryInterfaceTypeOf(currentSite.parameter.type);
-    if (geometryInterface) {
-      const geometryChoice = await nativeShowQuickPick([
-        { label: "Pick from Canvas", kind: "pick" as const },
-        { label: "Enter expression...", kind: "expression" as const }
-      ], {
-        placeHolder: `Choose how to edit ${selected.site.definitionName}.${selected.site.parameterName}`
-      });
-      if (!geometryChoice) return;
-      if (geometryChoice.kind === "pick") {
-        startValueReferencePick({
-          type: "modulePreviewValueReferencePickStart",
-          ...selected.site,
-          expectedGeometryInterface: geometryInterface
-        });
-        return;
-      }
-    }
-    const expression = await nativeShowInputBox({
-      prompt: `${selected.site.blockKind === "ancestor" ? "Context" : "Target"} ${selected.site.definitionName}.${selected.site.parameterName}`,
-      value: currentSite.parameter.valueState === "explicit" ? currentSite.parameter.value : ""
-    });
-    if (expression === undefined) return;
-    const message: VscodeModulePreviewValueEdit = {
-      type: "modulePreviewValueEdit",
-      ...selected.site,
-      expression: expression.trim().length === 0 ? null : expression
-    };
-    if (!currentValueSiteFor(session, message)) return;
-    void session.panel.webview.postMessage(message satisfies ExtensionToVscodeMessage);
+    await editModulePreviewValueSite(session, selected.site);
   };
 
   const currentReferencePickSiteFor = (
@@ -1100,6 +1116,10 @@ export const registerModulePreviewFeature = ({
       }
       if (isModulePreviewReferencePickResult(message)) {
         handleReferencePickResult(session, message);
+        return;
+      }
+      if (isModulePreviewValueSiteEditRequest(message)) {
+        void editModulePreviewValueSite(session, message);
         return;
       }
       if (isModulePreviewValueReferencePickStart(message)) {

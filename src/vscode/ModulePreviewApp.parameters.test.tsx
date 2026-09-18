@@ -1,7 +1,7 @@
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { RefObject } from "react";
-import type { ModulePreviewSessionSnapshot } from "../dsl/modulePreviewState";
+import type { ModulePreviewSession, ModulePreviewSessionSnapshot } from "../dsl/modulePreviewState";
 import type { ModulePreviewTarget } from "../dsl/modulePreviewTarget";
 import type { VscodeModulePreviewModelPatchRequest } from "./protocol";
 
@@ -325,7 +325,13 @@ const publishPresentation = (language: "ja" | "en") => {
             : "Module Preview geometry has no writable authored owner.",
           "modulePreview.dragTargetUnavailable": language === "ja"
             ? "Module Previewのドラッグ対象を利用できません。"
-            : "Module Preview drag target is unavailable."
+            : "Module Preview drag target is unavailable.",
+          "modulePreview.parameters.diagnostic.required-value-missing": language === "ja"
+            ? "パラメータ「{name}」には値が必要です。"
+            : "Parameter \"{name}\" requires a value.",
+          "modulePreview.parameters.diagnostic.invalid-expression": language === "ja"
+            ? "「{name}」の値はこのコンテキストで有効なModule引数式ではありません。"
+            : "Value for \"{name}\" is not a valid Module argument expression in this context."
         },
         diagnosticTemplates: {}
       }
@@ -870,6 +876,9 @@ describe("ModulePreviewApp Canvas and Preview boundary", () => {
     const liveSession = actual.createModulePreviewSession();
     mocks.session.activate.mockImplementation((input) => liveSession.activate(input));
     mocks.session.getState.mockImplementation(() => liveSession.getState());
+    mocks.session.setParameterValue.mockImplementation((...args: Parameters<ModulePreviewSession["setParameterValue"]>) =>
+      liveSession.setParameterValue(...args)
+    );
     mocks.queryModulePreviewTarget.mockReturnValue(requiredTarget);
     vi.spyOn(AutomationDocument, "fromSource").mockReturnValue(document);
     render(<ModulePreviewApp api={{ postMessage: mocks.postMessage }} />);
@@ -905,12 +914,37 @@ describe("ModulePreviewApp Canvas and Preview boundary", () => {
     expect(screen.getByText("No valid Module Preview")).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent('Parameter "width" requires a value.');
     expect(screen.getByRole("status")).not.toHaveTextContent("Module Preview is unavailable.");
-    const emptySurface = globalThis.document.querySelector<HTMLElement>("[data-module-preview-empty='true']");
-    expect(emptySurface).not.toBeNull();
-    expect(JSON.parse(emptySurface?.getAttribute("data-vscode-context") ?? "{}")).toMatchObject({
-      webviewSection: "blank",
-      preventDefaultContextMenuItems: true
+    publishPresentation("ja");
+    const parameterLink = screen.getByRole("button", { name: "width" });
+    expect(screen.getByRole("status")).toHaveTextContent("パラメータ「width」には値が必要です。");
+    expect(screen.getByRole("status")).not.toHaveTextContent("Parameter \"width\" requires a value.");
+    expect(screen.getByRole("status").style.pointerEvents).toBe("none");
+    expect(parameterLink.style.pointerEvents).toBe("auto");
+    fireEvent.click(parameterLink);
+    const directSiteRequest = mocks.postMessage.mock.calls
+      .map(([message]) => message)
+      .find((message) => message?.type === "modulePreviewValueSiteEdit");
+    expect(directSiteRequest).toMatchObject({
+      type: "modulePreviewValueSiteEdit",
+      targetDefinitionStatementIndex: requiredTarget.definitionStatementIndex,
+      targetName: "Required",
+      definitionStatementIndex: definition.statementIndex,
+      definitionName: "Required",
+      blockKind: "target",
+      parameterIndex: 0,
+      parameterName: "width"
     });
+    expect(directSiteRequest).not.toHaveProperty("definitionStatementId");
+    if (!directSiteRequest) throw new Error("expected direct Preview value-site request");
+    act(() => window.dispatchEvent(new MessageEvent("message", {
+      data: { ...directSiteRequest, type: "modulePreviewValueEdit", expression: "12" }
+    })));
+    expect(mocks.session.setParameterValue).toHaveBeenCalledWith(definition.statementId, 0, "12");
+    expect(liveSession.getState()?.parameters.parameters[0]).toMatchObject({ value: "12", active: true });
+    expect(liveSession.getState()?.inputDiagnostics).toEqual([]);
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    const emptySurface = globalThis.document.querySelector<HTMLElement>("[data-module-preview-empty='true']");
+    expect(emptySurface).toBeNull();
     expect(document.getSource()).toBe(sourceText);
   });
 

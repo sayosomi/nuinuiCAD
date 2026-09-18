@@ -962,6 +962,101 @@ describe("registerModulePreviewFeature", () => {
     feature.dispose();
   });
 
+  it("opens a direct scalar status-site edit without the generic parameter QuickPick", async () => {
+    const source = [
+      "nui 1",
+      "module Pocket(width: number) {",
+      "  point P = coordinate(x: @width, y: 0)",
+      "}"
+    ].join("\n");
+    const { document, panel, feature, analysis } = registerInvocationFixture(source);
+    await panel.receive({ type: "webviewReady" });
+    await panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    const sessionId = panel.webview.postMessage.mock.calls
+      .map(([message]) => message)
+      .find((message) => message?.type === "modulePreviewSession")?.sessionId as string;
+    const snapshot = { ...valueSnapshotFor(document, analysis, { name: "width", type: { kind: "number" }, value: "" }), sessionId };
+    await panel.receive(snapshot);
+    const group = snapshot.groups[0]!;
+    const parameter = group.parameters[0]!;
+    mocks.nativeShowInputBox.mockResolvedValue("13");
+    panel.webview.postMessage.mockClear();
+
+    await panel.receive({
+      type: "modulePreviewValueSiteEdit",
+      sessionId: snapshot.sessionId,
+      documentUri: snapshot.documentUri,
+      documentVersion: snapshot.documentVersion,
+      normalizedSource: snapshot.normalizedSource,
+      sourceRevision: snapshot.sourceRevision,
+      sessionRevision: snapshot.sessionRevision,
+      targetDefinitionStatementIndex: snapshot.target.definitionStatementIndex,
+      targetName: snapshot.target.name,
+      definitionStatementIndex: group.definitionStatementIndex,
+      definitionName: group.name,
+      blockKind: group.kind,
+      parameterIndex: parameter.parameterIndex,
+      parameterName: parameter.name
+    });
+    await flushContext();
+
+    expect(mocks.nativeShowQuickPick).not.toHaveBeenCalled();
+    expect(mocks.nativeShowInputBox).toHaveBeenCalledTimes(1);
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewValueEdit",
+      definitionName: "Pocket",
+      parameterName: "width",
+      expression: "13"
+    }));
+    expect(document.getText()).toBe(source);
+    feature.dispose();
+  });
+
+  it("rejects a stale direct status-site proof without opening or applying an editor", async () => {
+    const source = [
+      "nui 1",
+      "module Pocket(width: number) {",
+      "  point P = coordinate(x: @width, y: 0)",
+      "}"
+    ].join("\n");
+    const { document, panel, feature, analysis } = registerInvocationFixture(source);
+    await panel.receive({ type: "webviewReady" });
+    await panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    const sessionId = panel.webview.postMessage.mock.calls
+      .map(([message]) => message)
+      .find((message) => message?.type === "modulePreviewSession")?.sessionId as string;
+    const snapshot = { ...valueSnapshotFor(document, analysis, { name: "width", type: { kind: "number" }, value: "" }), sessionId };
+    await panel.receive(snapshot);
+    const group = snapshot.groups[0]!;
+    const parameter = group.parameters[0]!;
+    mocks.nativeShowInputBox.mockResolvedValue("13");
+    panel.webview.postMessage.mockClear();
+
+    await panel.receive({
+      type: "modulePreviewValueSiteEdit",
+      sessionId: snapshot.sessionId,
+      documentUri: snapshot.documentUri,
+      documentVersion: snapshot.documentVersion,
+      normalizedSource: snapshot.normalizedSource,
+      sourceRevision: snapshot.sourceRevision,
+      sessionRevision: snapshot.sessionRevision + 1,
+      targetDefinitionStatementIndex: snapshot.target.definitionStatementIndex,
+      targetName: snapshot.target.name,
+      definitionStatementIndex: group.definitionStatementIndex,
+      definitionName: group.name,
+      blockKind: group.kind,
+      parameterIndex: parameter.parameterIndex,
+      parameterName: parameter.name
+    });
+    await flushContext();
+
+    expect(mocks.nativeShowQuickPick).not.toHaveBeenCalled();
+    expect(mocks.nativeShowInputBox).not.toHaveBeenCalled();
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "modulePreviewValueEdit" }));
+    expect(document.getText()).toBe(source);
+    feature.dispose();
+  });
+
   it("waits through cold-start hydration until the exact-current value snapshot arrives", async () => {
     const source = [
       "nui 1",
@@ -1037,6 +1132,58 @@ describe("registerModulePreviewFeature", () => {
     await panel.receive({ ...request, type: "modulePreviewReferencePickResult", status: "started", candidateReferences: [{ base: "Top" }] });
     await panel.receive({ ...request, type: "modulePreviewReferencePickResult", status: "confirmed", resultKind: "geometry", references: [{ base: "Top" }] });
     expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: "modulePreviewValueEdit", parameterName: "anchor", expression: "@Top" }));
+    feature.dispose();
+  });
+
+  it("opens only the geometry-method QuickPick for a direct geometry status-site edit", async () => {
+    const source = [
+      "nui 1",
+      "point Top = coordinate(x: 0, y: 0)",
+      "module Pocket(anchor: point) {",
+      "}"
+    ].join("\n");
+    const { document, panel, feature, analysis } = registerInvocationFixture(source);
+    await panel.receive({ type: "webviewReady" });
+    await panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    const sessionId = panel.webview.postMessage.mock.calls
+      .map(([message]) => message)
+      .find((message) => message?.type === "modulePreviewSession")?.sessionId as string;
+    const snapshot = { ...valueSnapshotFor(document, analysis, { name: "anchor", type: { kind: "point" }, value: "" }), sessionId };
+    await panel.receive(snapshot);
+    const group = snapshot.groups[0]!;
+    const parameter = group.parameters[0]!;
+    mocks.nativeShowQuickPick.mockResolvedValue({ label: "Pick from Canvas", kind: "pick" });
+    panel.webview.postMessage.mockClear();
+
+    await panel.receive({
+      type: "modulePreviewValueSiteEdit",
+      sessionId: snapshot.sessionId,
+      documentUri: snapshot.documentUri,
+      documentVersion: snapshot.documentVersion,
+      normalizedSource: snapshot.normalizedSource,
+      sourceRevision: snapshot.sourceRevision,
+      sessionRevision: snapshot.sessionRevision,
+      targetDefinitionStatementIndex: snapshot.target.definitionStatementIndex,
+      targetName: snapshot.target.name,
+      definitionStatementIndex: group.definitionStatementIndex,
+      definitionName: group.name,
+      blockKind: group.kind,
+      parameterIndex: parameter.parameterIndex,
+      parameterName: parameter.name
+    });
+    await flushContext();
+
+    expect(mocks.nativeShowQuickPick).toHaveBeenCalledTimes(1);
+    expect(mocks.nativeShowQuickPick.mock.calls[0]?.[0].map((item: { label: string }) => item.label)).toEqual([
+      "Pick from Canvas",
+      "Enter expression..."
+    ]);
+    expect(mocks.nativeShowInputBox).not.toHaveBeenCalled();
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewReferencePickStartRequest",
+      parameterName: "anchor",
+      expectedGeometryInterface: "point"
+    }));
     feature.dispose();
   });
 
