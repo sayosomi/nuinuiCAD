@@ -953,6 +953,12 @@ describe("ModulePreviewApp Canvas and Preview boundary", () => {
       .find((message) => message?.type === "modulePreviewValueSnapshot");
     expect(snapshot).toMatchObject({ previewStatus: "noValidPreview" });
     if (!snapshot) throw new Error("expected no-valid Preview snapshot");
+    const emptySurfaceBeforePick = globalThis.document.querySelector<HTMLElement>("[data-module-preview-empty='true']");
+    expect(emptySurfaceBeforePick).not.toBeNull();
+    expect(JSON.parse(emptySurfaceBeforePick?.getAttribute("data-vscode-context") ?? "{}")).toMatchObject({
+      webviewSection: "blank",
+      preventDefaultContextMenuItems: true
+    });
 
     act(() => {
       window.dispatchEvent(new MessageEvent("message", {
@@ -985,6 +991,7 @@ describe("ModulePreviewApp Canvas and Preview boundary", () => {
       status: "started",
       candidateReferences: [{ base: "RootA" }]
     }));
+    expect(globalThis.document.querySelector("[data-module-preview-empty='true']")).toBeNull();
     expect(screen.getByTestId("module-preview-canvas-viewport")).toBeInTheDocument();
   });
 

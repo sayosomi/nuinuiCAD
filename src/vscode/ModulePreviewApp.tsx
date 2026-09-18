@@ -1471,7 +1471,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
             })}
           </div>
         ) : null}
-        {!preview ? (
+        {!preview && !modulePreviewReferencePickSession ? (
           <div
             data-module-preview-empty="true"
             data-vscode-context={vscodeCanvasContextDataFor(
