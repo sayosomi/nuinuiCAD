@@ -524,7 +524,7 @@ export const registerModulePreviewFeature = ({
     reason: Exclude<VscodeModulePreviewValueUnavailable["reason"], "no-session">
   ): void => {
     const message = valueUnavailableFor(session, reason);
-    retainValueMessage(session, message);
+    if (!currentValueAuthorityFor(session)) retainValueMessage(session, message);
     if (session.webviewReady) void session.panel.webview.postMessage(message satisfies ExtensionToVscodeMessage);
   };
 

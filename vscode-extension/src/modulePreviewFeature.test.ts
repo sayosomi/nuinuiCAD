@@ -1458,6 +1458,67 @@ describe("registerModulePreviewFeature", () => {
     feature.dispose();
   });
 
+  it("preserves exact-current value authority after stale feedback and immediately reopens Preview Values", async () => {
+    const source = [
+      "nui 1",
+      "module Pocket(width: number) {",
+      "  point P = coordinate(x: @width, y: 0)",
+      "}"
+    ].join("\n");
+    const { document, panel, feature, analysis } = registerInvocationFixture(source);
+    await panel.receive({ type: "webviewReady" });
+    await panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    const sessionId = panel.webview.postMessage.mock.calls
+      .map(([message]) => message)
+      .find((message) => message?.type === "modulePreviewSession")?.sessionId as string;
+    const snapshot = {
+      ...valueSnapshotFor(document, analysis, { name: "width", type: { kind: "number" }, value: "12" }),
+      sessionId
+    };
+    await panel.receive(snapshot);
+    const group = snapshot.groups[0]!;
+    const parameter = group.parameters[0]!;
+    panel.webview.postMessage.mockClear();
+
+    await panel.receive({
+      type: "modulePreviewValueSiteEdit",
+      sessionId: snapshot.sessionId,
+      documentUri: snapshot.documentUri,
+      documentVersion: snapshot.documentVersion,
+      normalizedSource: snapshot.normalizedSource,
+      sourceRevision: snapshot.sourceRevision,
+      sessionRevision: snapshot.sessionRevision + 1,
+      targetDefinitionStatementIndex: snapshot.target.definitionStatementIndex,
+      targetName: snapshot.target.name,
+      definitionStatementIndex: group.definitionStatementIndex,
+      definitionName: group.name,
+      blockKind: group.kind,
+      parameterIndex: parameter.parameterIndex,
+      parameterName: parameter.name
+    });
+    await flushContext();
+
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewValueUnavailable"
+    }));
+
+    mocks.nativeShowQuickPick.mockImplementation(async (items: readonly unknown[]) => items[0]);
+    mocks.nativeShowInputBox.mockResolvedValue("13");
+    panel.webview.postMessage.mockClear();
+    await mocks.commandHandlers.get("nuinuiCAD.editModulePreviewValues")!();
+    await flushContext();
+
+    expect(mocks.nativeShowInputBox).toHaveBeenCalledTimes(1);
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewValueEdit",
+      definitionName: "Pocket",
+      parameterName: "width",
+      expression: "13"
+    }));
+    expect(mocks.showErrorMessage).not.toHaveBeenCalled();
+    feature.dispose();
+  });
+
   it("waits through cold-start hydration until the exact-current value snapshot arrives", async () => {
     const source = [
       "nui 1",
@@ -1507,6 +1568,54 @@ describe("registerModulePreviewFeature", () => {
     await flushContext();
     expect(mocks.nativeShowQuickPick).toHaveBeenCalledTimes(1);
     feature.dispose();
+  });
+
+  it("does not replace a snapshot that arrives at the Preview Values timeout boundary", async () => {
+    vi.useFakeTimers();
+    try {
+      const source = [
+        "nui 1",
+        "module Pocket(width: number) {",
+        "  point P = coordinate(x: @width, y: 0)",
+        "}"
+      ].join("\n");
+      const { document, panel, feature, analysis } = registerInvocationFixture(source);
+      await panel.receive({ type: "webviewReady" });
+      await panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+      const command = mocks.commandHandlers.get("nuinuiCAD.editModulePreviewValues")!;
+      command();
+
+      vi.advanceTimersByTime(5000);
+      const sessionId = panel.webview.postMessage.mock.calls
+        .map(([message]) => message as { type?: string; sessionId?: string })
+        .find((message) => message.type === "modulePreviewSession")?.sessionId;
+      if (!sessionId) throw new Error("expected Module Preview session identity");
+      const lateSnapshot = {
+        ...valueSnapshotFor(document, analysis, { name: "width", type: { kind: "number" }, value: "12" }),
+        sessionId
+      };
+      const snapshotDelivery = panel.receive(lateSnapshot);
+      await snapshotDelivery;
+      await flushContext();
+
+      expect(mocks.showErrorMessage).toHaveBeenCalledTimes(1);
+      mocks.nativeShowQuickPick.mockImplementation(async (items: readonly unknown[]) => items[0]);
+      mocks.nativeShowInputBox.mockResolvedValue("13");
+      panel.webview.postMessage.mockClear();
+      command();
+      await flushContext();
+
+      expect(mocks.nativeShowInputBox).toHaveBeenCalledTimes(1);
+      expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+        type: "modulePreviewValueEdit",
+        definitionName: "Pocket",
+        parameterName: "width",
+        expression: "13"
+      }));
+      feature.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("routes geometry values through Reference Pick and applies only the selected site", async () => {
