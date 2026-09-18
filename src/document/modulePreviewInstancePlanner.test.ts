@@ -85,6 +85,138 @@ describe("planModulePreviewInstance", () => {
     });
   });
 
+  it("suffixes a generated name that conflicts with the caller Module parameter overlay", () => {
+    const source = [
+      "nui 1",
+      "point Top = coordinate(x: 0, y: 0)",
+      "module Pocket(anchor: point) {",
+      "}",
+      "module Caller(anchor: point, PocketInstance: number) {",
+      "  point Existing = coordinate(x: 0, y: 0)",
+      "}",
+      ""
+    ].join("\n");
+    const compiled = compileCurrent(source);
+    const result = planModulePreviewInstance({
+      source: { normalizedSource: source, sourceRevision: REVISION },
+      compiled,
+      insertionOffset: source.indexOf("point Existing"),
+      target: targetFor(compiled, "Pocket"),
+      explicitArguments: [{ name: "anchor", expression: "@anchor" }]
+    });
+
+    expect(result).toMatchObject({
+      status: "planned",
+      instanceName: "PocketInstance2",
+      splice: { replacementLines: ["  instance PocketInstance2 = Pocket(anchor: @anchor)"] }
+    });
+  });
+
+  it("suffixes a generated name that conflicts with a forGroup iteration binding", () => {
+    const source = [
+      "nui 1",
+      "point Top = coordinate(x: 0, y: 0)",
+      "module Pocket(anchor: point) {",
+      "}",
+      "for PocketInstance in range(min: 0, max: 1, step: 1) {",
+      "  point Existing = coordinate(x: @PocketInstance, y: 0)",
+      "}",
+      ""
+    ].join("\n");
+    const compiled = compileCurrent(source);
+    const result = planModulePreviewInstance({
+      source: { normalizedSource: source, sourceRevision: REVISION },
+      compiled,
+      insertionOffset: source.indexOf("point Existing"),
+      target: targetFor(compiled, "Pocket"),
+      explicitArguments: [{ name: "anchor", expression: "@Top" }]
+    });
+
+    expect(result).toMatchObject({
+      status: "planned",
+      instanceName: "PocketInstance2",
+      splice: { replacementLines: ["  instance PocketInstance2 = Pocket(anchor: @Top)"] }
+    });
+  });
+
+  it("keeps suffix selection deterministic across ordinary declarations and binding conflicts", () => {
+    const source = [
+      "nui 1",
+      "point Top = coordinate(x: 0, y: 0)",
+      "module Pocket(anchor: point) {",
+      "}",
+      "instance PocketInstance = Pocket(anchor: @Top)",
+      "instance PocketInstance2 = Pocket(anchor: @Top)",
+      ""
+    ].join("\n");
+    const compiled = compileCurrent(source);
+    const input = {
+      source: { normalizedSource: source, sourceRevision: REVISION },
+      compiled,
+      insertionOffset: source.length,
+      target: targetFor(compiled, "Pocket"),
+      explicitArguments: [{ name: "anchor", expression: "@Top" }]
+    };
+    const first = planModulePreviewInstance(input);
+    const second = planModulePreviewInstance(input);
+
+    expect(first).toMatchObject({ status: "planned", instanceName: "PocketInstance3" });
+    expect(second).toEqual(first);
+  });
+
+  it("inserts after the statement containing the caret and before the next statement", () => {
+    const source = [
+      "nui 1",
+      "point Top = coordinate(x: 0, y: 0)",
+      "module Pocket(anchor: point) {",
+      "}",
+      "point Before = coordinate(x: 1, y: 0)",
+      "point After = coordinate(x: 2, y: 0)"
+    ].join("\n");
+    const compiled = compileCurrent(source);
+    const result = planModulePreviewInstance({
+      source: { normalizedSource: source, sourceRevision: REVISION },
+      compiled,
+      insertionOffset: source.indexOf("point Before") + "point Before".length,
+      target: targetFor(compiled, "Pocket"),
+      explicitArguments: [{ name: "anchor", expression: "@Top" }]
+    });
+
+    expect(result).toMatchObject({
+      status: "planned",
+      splice: { startLine: 6, endLine: 5, replacementLines: ["instance PocketInstance = Pocket(anchor: @Top)"] }
+    });
+    if (result.status !== "planned") return;
+    expect(result.expectedPatchedSource.split("\n")[5]).toBe("instance PocketInstance = Pocket(anchor: @Top)");
+    expect(result.expectedPatchedSource.split("\n")[6]).toBe("point After = coordinate(x: 2, y: 0)");
+  });
+
+  it("inserts a nested target at a legal caller site with the caller indentation", () => {
+    const source = [
+      "nui 1",
+      "module Outer() {",
+      "  module Inner() {",
+      "  }",
+      "  point Existing = coordinate(x: 0, y: 0)",
+      "}",
+      ""
+    ].join("\n");
+    const compiled = compileCurrent(source);
+    const result = planModulePreviewInstance({
+      source: { normalizedSource: source, sourceRevision: REVISION },
+      compiled,
+      insertionOffset: source.indexOf("point Existing"),
+      target: targetFor(compiled, "Inner"),
+      explicitArguments: []
+    });
+
+    expect(result).toMatchObject({
+      status: "planned",
+      instanceName: "InnerInstance",
+      splice: { replacementLines: ["  instance InnerInstance = Inner()"] }
+    });
+  });
+
   it("rejects a target that is not visible at the insertion position", () => {
     const source = [
       "nui 1",
@@ -104,6 +236,27 @@ describe("planModulePreviewInstance", () => {
     });
 
     expect(result).toMatchObject({ status: "rejected", code: "target-not-visible" });
+  });
+
+  it("rejects a same-name target with the wrong stable identity", () => {
+    const source = [
+      "nui 1",
+      "point Top = coordinate(x: 0, y: 0)",
+      "module Pocket(anchor: point) {",
+      "}",
+      ""
+    ].join("\n");
+    const compiled = compileCurrent(source);
+    const target = targetFor(compiled, "Pocket");
+    const result = planModulePreviewInstance({
+      source: { normalizedSource: source, sourceRevision: REVISION },
+      compiled,
+      insertionOffset: source.length,
+      target: { ...target, statementId: "module-preview:wrong" },
+      explicitArguments: [{ name: "anchor", expression: "@Top" }]
+    });
+
+    expect(result).toMatchObject({ status: "rejected", code: "target-unavailable" });
   });
 
   it("rejects a generated call whose explicit expression fails semantic validation", () => {

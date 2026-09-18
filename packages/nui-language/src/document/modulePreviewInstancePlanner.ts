@@ -172,13 +172,36 @@ const indentationFor = (
 const uniqueInstanceNameFor = (
   compiled: CompiledDslDocument,
   scopeId: string,
-  targetName: string
+  targetName: string,
+  sourceOrderIndex: number
 ): string => {
-  const declarations = compiled.sourceLexicalNamespace!.declarationsByScopeAndName.get(scopeId);
+  const namespace = compiled.sourceLexicalNamespace!;
+  const statementIds = compiled.statementMap?.statementIdByStatementIndex;
+  const owner = compiled.moduleSemanticAnalysis?.definitions.find((definition) => definition.bodyScopeId === scopeId);
+  const parameterOverlays = owner ? [{
+    bodyScopeId: owner.bodyScopeId,
+    value: owner,
+    parameters: owner.parameters.map((parameter) => ({
+      index: parameter.parameterIndex,
+      name: parameter.name,
+      value: parameter
+    }))
+  }] : undefined;
+  const nameIsTaken = (name: string): boolean => {
+    if (namespace.declarationsByScopeAndName.get(scopeId)?.has(name)) return true;
+    if (!statementIds) return false;
+    const lookup = resolveModuleLexicalDeclaration(
+      { sourceNamespace: namespace, stableStatementIdByIndex: statementIds, parameterOverlays },
+      sourceOrderIndex,
+      name,
+      { scopeId, sourceOrderIndex }
+    );
+    return lookup.kind === "parameter" || lookup.kind === "iteration";
+  };
   const base = `${targetName}Instance`;
-  if (!declarations?.has(base)) return base;
+  if (!nameIsTaken(base)) return base;
   let suffix = 2;
-  while (declarations.has(`${base}${suffix}`)) suffix += 1;
+  while (nameIsTaken(`${base}${suffix}`)) suffix += 1;
   return `${base}${suffix}`;
 };
 
@@ -278,7 +301,7 @@ export const planModulePreviewInstance = (
   }
   const sourceLines = source.normalizedSource.split("\n");
   const indent = indentationFor(sourceLines, compiled, scopeId);
-  const instanceName = uniqueInstanceNameFor(compiled, scopeId, input.target.name);
+  const instanceName = uniqueInstanceNameFor(compiled, scopeId, input.target.name, boundary.nextStatementIndex);
   const targetParameters = target.parameters.map((parameter) => ({ name: parameter.name }));
   if (input.explicitArguments.some((argument) => !targetParameters.some((parameter) => parameter.name === argument.name))) {
     return rejected("invalid-argument", "Module Preview contains an argument that is not declared by the target Module.");
