@@ -70,6 +70,7 @@ import type {
   VscodeModulePreviewValueSnapshot,
   VscodeModulePreviewValueUnavailable,
   VscodeModulePreviewValueEdit,
+  VscodeModulePreviewValueSiteProof,
   VscodeWebviewApi
 } from "./protocol";
 import { vscodeCanvasContextDataFor } from "./protocol";
@@ -87,6 +88,7 @@ import { webviewCanvasPresentationFor } from "./webviewCanvasPresentation";
 import {
   useVscodeWebviewPresentation,
   webviewDiagnosticTextFor,
+  webviewInputDiagnosticSegmentsFor,
   webviewInputDiagnosticTextFor,
   webviewPresentationTextFor
 } from "./webviewPresentation";
@@ -213,7 +215,7 @@ const sourceOwnersSignature = (owners: readonly ModulePreviewSourceOwnerProof[])
 type ModulePreviewStatusMessage =
   | { kind: "text"; key: string; fallback: string }
   | { kind: "diagnostic"; message: string; presentation?: DslDiagnosticPresentation }
-  | { kind: "inputDiagnostic"; message: string; presentation?: DslDiagnosticPresentation }
+  | { kind: "inputDiagnostic"; message: string; presentation?: DslDiagnosticPresentation; site?: VscodeModulePreviewValueSiteProof }
   | { kind: "raw"; message: string };
 
 const statusText = (key: string, fallback: string): ModulePreviewStatusMessage => ({ kind: "text", key, fallback });
@@ -222,11 +224,64 @@ const statusDiagnostic = (diagnostic: { message: string; presentation?: DslDiagn
   message: diagnostic.message,
   ...(diagnostic.presentation ? { presentation: diagnostic.presentation } : {})
 });
-const statusInputDiagnostic = (diagnostic: ModulePreviewInputDiagnostic): ModulePreviewStatusMessage => ({
+const statusInputDiagnostic = (
+  diagnostic: ModulePreviewInputDiagnostic,
+  site?: VscodeModulePreviewValueSiteProof
+): ModulePreviewStatusMessage => ({
   kind: "inputDiagnostic",
   message: diagnostic.message,
-  ...(diagnostic.presentation ? { presentation: diagnostic.presentation } : {})
+  ...(diagnostic.presentation ? { presentation: diagnostic.presentation } : {}),
+  ...(site ? { site } : {})
 });
+
+const inputDiagnosticSiteFor = (
+  snapshot: ModulePreviewSessionSnapshot,
+  diagnostic: ModulePreviewInputDiagnostic,
+  context: {
+    sessionId: string | null;
+    documentUri: string | null;
+    documentVersion: number | null;
+    normalizedSource: string;
+    sessionRevision: number;
+  }
+): VscodeModulePreviewValueSiteProof | null => {
+  const group = [...snapshot.ancestorContexts, snapshot.parameters].find((candidate) =>
+    candidate.definitionStatementId === diagnostic.definitionStatementId
+  );
+  const parameter = group?.parameters.find((candidate) =>
+    candidate.definitionStatementId === diagnostic.definitionStatementId &&
+    candidate.parameterIndex === diagnostic.parameterIndex
+  );
+  if (!group || !parameter || !context.sessionId || !context.documentUri || context.documentVersion === null) return null;
+  return {
+    sessionId: context.sessionId,
+    documentUri: context.documentUri,
+    documentVersion: context.documentVersion,
+    normalizedSource: context.normalizedSource,
+    sourceRevision: snapshot.sourceRevision,
+    sessionRevision: context.sessionRevision,
+    targetDefinitionStatementIndex: snapshot.target.definitionStatementIndex,
+    targetName: snapshot.target.name,
+    definitionStatementIndex: group.definitionStatementIndex,
+    definitionName: group.name,
+    blockKind: group.kind,
+    parameterIndex: parameter.parameterIndex,
+    parameterName: parameter.name
+  };
+};
+
+const statusInputDiagnosticsFor = (
+  snapshot: ModulePreviewSessionSnapshot,
+  context: {
+    sessionId: string | null;
+    documentUri: string | null;
+    documentVersion: number | null;
+    normalizedSource: string;
+    sessionRevision: number;
+  }
+): ModulePreviewStatusMessage[] => snapshot.inputDiagnostics.map((diagnostic) =>
+  statusInputDiagnostic(diagnostic, inputDiagnosticSiteFor(snapshot, diagnostic, context) ?? undefined)
+);
 
 const noRootStatusMessagesFor = (
   diagnostics: ModulePreviewStatusMessage[]
@@ -289,6 +344,15 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   useEffect(() => {
     api.postMessage({ type: "webviewReady" });
   }, [api]);
+
+  const statusInputDiagnosticsForSnapshot = useCallback((snapshot: ModulePreviewSessionSnapshot) =>
+    statusInputDiagnosticsFor(snapshot, {
+      sessionId: sessionIdRef.current,
+      documentUri: sessionDocumentUriRef.current,
+      documentVersion: documentVersionRef.current,
+      normalizedSource: normalizedSourceFor(automationDocumentRef.current?.getSource() ?? ""),
+      sessionRevision: valueSessionRevisionRef.current
+    }), []);
 
   const publishValueSnapshot = useCallback((snapshot: ModulePreviewSessionSnapshot) => {
     const sessionId = sessionIdRef.current;
@@ -623,7 +687,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       clearEphemeralPreview();
       previewRef.current = null;
       setPreview(null);
-      setStatusMessages(noRootStatusMessagesFor(snapshot.inputDiagnostics.map(statusInputDiagnostic)));
+      setStatusMessages(noRootStatusMessagesFor(statusInputDiagnosticsForSnapshot(snapshot)));
       return;
     }
     const state = document.getState();
@@ -631,7 +695,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       ...(snapshot.preview.kind === "lastGood"
         ? [statusText("modulePreview.lastGood", "Module Preview is showing the last valid preview for the current target.")]
         : []),
-      ...snapshot.inputDiagnostics.map(statusInputDiagnostic),
+      ...statusInputDiagnosticsForSnapshot(snapshot),
       ...root.diagnostics.map(statusDiagnostic)
     ];
     applyValidPreview(root, {
@@ -640,7 +704,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       sourceLexicalNamespace: state.currentCompiled.sourceLexicalNamespace,
       statementInfoByElementId: state.currentCompiled.statementMap?.byElementId
     }, nextStatusMessages);
-  }, [applyValidPreview, clearEphemeralPreview, publishValueSnapshot]);
+  }, [applyValidPreview, clearEphemeralPreview, publishValueSnapshot, statusInputDiagnosticsForSnapshot]);
 
   const compileTargetAt = useCallback((normalizedSourceOffset: number) => {
     clearEphemeralPreview();
@@ -665,8 +729,9 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       if (!snapshot) publishValueUnavailable("target-unavailable", null);
       previewRef.current = null;
       setPreview(null);
-      const diagnostics = snapshot?.inputDiagnostics.map(statusInputDiagnostic)
-        ?? diagnosticMessagesFor(document);
+      const diagnostics = snapshot
+        ? statusInputDiagnosticsForSnapshot(snapshot)
+        : diagnosticMessagesFor(document);
       setStatusMessages(noRootStatusMessagesFor(diagnostics));
       return;
     }
@@ -675,7 +740,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       ...(snapshot.preview.kind === "lastGood"
         ? [statusText("modulePreview.lastGood", "Module Preview is showing the last valid preview for the current target.")]
         : []),
-      ...snapshot.inputDiagnostics.map(statusInputDiagnostic),
+      ...statusInputDiagnosticsForSnapshot(snapshot),
       ...root.diagnostics.map(statusDiagnostic)
     ];
     applyValidPreview(root, {
@@ -684,7 +749,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       sourceLexicalNamespace: state.currentCompiled.sourceLexicalNamespace,
       statementInfoByElementId: state.currentCompiled.statementMap?.byElementId
     }, nextStatusMessages);
-  }, [applyValidPreview, clearEphemeralPreview, previewSession, publishValueSnapshot, publishValueUnavailable]);
+  }, [applyValidPreview, clearEphemeralPreview, previewSession, publishValueSnapshot, publishValueUnavailable, statusInputDiagnosticsForSnapshot]);
 
   const applyValueEdit = useCallback((message: VscodeModulePreviewValueEdit): void => {
     const document = automationDocumentRef.current;
@@ -1643,7 +1708,42 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
                   : message.kind === "inputDiagnostic"
                     ? webviewInputDiagnosticTextFor(webviewPresentation, message)
                     : message.message;
-              return <div key={`${index}:${rendered}`}>{rendered}</div>;
+              const inputDiagnosticSegments = message.kind === "inputDiagnostic" && message.site
+                ? webviewInputDiagnosticSegmentsFor(webviewPresentation, message)
+                : null;
+              const inputDiagnosticSite = message.kind === "inputDiagnostic" ? message.site : undefined;
+              return (
+                <div key={`${index}:${rendered}`}>
+                  {inputDiagnosticSegments && inputDiagnosticSite
+                    ? inputDiagnosticSegments.map((segment, segmentIndex) => segment.kind === "parameter"
+                      ? (
+                        <button
+                          key={`${segmentIndex}:${segment.text}`}
+                          type="button"
+                          aria-label={segment.text}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            if (!inputDiagnosticSite) return;
+                            api.postMessage({ type: "modulePreviewValueSiteEdit", ...inputDiagnosticSite });
+                          }}
+                          style={{
+                            pointerEvents: "auto",
+                            padding: 0,
+                            border: 0,
+                            color: "var(--vscode-textLink-foreground)",
+                            background: "transparent",
+                            font: "inherit",
+                            textDecoration: "underline",
+                            cursor: "pointer"
+                          }}
+                        >
+                          {segment.text}
+                        </button>
+                      )
+                      : <span key={`${segmentIndex}:${segment.text}`}>{segment.text}</span>)
+                    : rendered}
+                </div>
+              );
             })}
           </div>
         ) : null}

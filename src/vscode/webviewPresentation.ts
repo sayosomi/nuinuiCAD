@@ -16,6 +16,10 @@ export type VscodeWebviewPresentation = {
 
 export type WebviewPresentationParameters = Readonly<Record<string, string | number | boolean>>;
 
+export type WebviewInputDiagnosticSegment =
+  | { kind: "text"; text: string }
+  | { kind: "parameter"; text: string };
+
 const interpolate = (
   text: string,
   parameters: WebviewPresentationParameters | undefined
@@ -57,6 +61,23 @@ export const webviewInputDiagnosticTextFor = (
     diagnostic.message,
     diagnosticPresentation.parameters
   );
+};
+
+export const webviewInputDiagnosticSegmentsFor = (
+  presentation: VscodeWebviewPresentation | null | undefined,
+  diagnostic: { message: string; presentation?: DslDiagnosticPresentation }
+): WebviewInputDiagnosticSegment[] | null => {
+  const diagnosticPresentation = diagnostic.presentation;
+  if (!diagnosticPresentation) return null;
+  const parameterName = diagnosticPresentation.parameters?.name;
+  const template = presentation?.strings[diagnosticPresentation.key];
+  if (typeof parameterName !== "string" || typeof template !== "string") return null;
+  const placeholder = "{name}";
+  if (!template.includes(placeholder)) return null;
+  return template.split(placeholder).flatMap((part, index, parts) => [
+    ...(part.length > 0 ? [{ kind: "text" as const, text: interpolate(part, diagnosticPresentation.parameters) }] : []),
+    ...(index < parts.length - 1 ? [{ kind: "parameter" as const, text: parameterName }] : [])
+  ]);
 };
 
 export const useVscodeWebviewPresentation = (): VscodeWebviewPresentation | null => {

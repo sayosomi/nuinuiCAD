@@ -98,6 +98,10 @@ export type VscodeModulePreviewValueEdit = VscodeModulePreviewValueSiteProof & {
   expression: string | null;
 };
 
+export type VscodeModulePreviewValueSiteEditRequest = VscodeModulePreviewValueSiteProof & {
+  type: "modulePreviewValueSiteEdit";
+};
+
 export type VscodeModulePreviewModelPatchRequest = {
   type: "modulePreviewModelPatch";
   operationId: number;
@@ -136,6 +140,7 @@ export type VscodeExtensionToModulePreviewMessage =
 export type VscodeModulePreviewToExtensionMessage =
   | VscodeModulePreviewValueSnapshot
   | VscodeModulePreviewValueUnavailable
+  | VscodeModulePreviewValueSiteEditRequest
   | VscodeModulePreviewReferencePickResult
   | VscodeModulePreviewValueReferencePickStart
   | VscodeModulePreviewModelPatchRequest;
