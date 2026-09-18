@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AutomationDocument } from "@nuinuicad/nui-language/document";
+import {
+  AutomationDocument,
+  isLastGoodDslDocument,
+  type LastGoodDslDocument
+} from "@nuinuicad/nui-language/document";
 import {
   canvasSelectionForElement,
   canvasSelectionSnapshot
@@ -21,6 +25,8 @@ import { queryModulePreviewTarget } from "../dsl/modulePreviewTarget";
 import { useEvaluationEngine } from "../geometry/useEvaluationEngine";
 import { evaluationStateIsCurrentFor } from "../geometry/useEvaluationEngine";
 import { evaluateElementsWithRust } from "../geometry/evaluationEngine";
+import { evaluateElements } from "../geometry/evaluate";
+import { buildEvaluationOptions } from "../geometry/productionEvaluationContext";
 import { applyLineSplices } from "@nuinuicad/nui-language/document";
 import {
   planBakeGeometry,
@@ -36,7 +42,10 @@ import { useCadUiStore } from "../state/cadUiStore";
 import type { CadElement, EvaluationResult } from "../types/geometry";
 import { buildModulePreviewEvaluationOptions } from "./modulePreviewEvaluation";
 import { modulePreviewValueSnapshotFor } from "./modulePreviewValueProjection";
-import { modulePreviewReferencePickTargetFor } from "./modulePreviewReferencePick";
+import {
+  modulePreviewReferencePickTargetFor,
+  modulePreviewReferencePickTargetForAuthoredSource
+} from "./modulePreviewReferencePick";
 import type {
   ExtensionToVscodeMessage,
   VscodeCanvasCommandId,
@@ -142,6 +151,36 @@ type PendingModulePreviewModelPatch = {
   expectedPatchedSource: string;
 };
 
+type AuthoredModulePreviewCandidateContext = {
+  compiled: LastGoodDslDocument;
+  elements: CadElement[];
+  evaluation: EvaluationResult;
+  sourceRevision: number;
+};
+
+const authoredModulePreviewCandidateContextFor = (
+  document: AutomationDocument
+): AuthoredModulePreviewCandidateContext | null => {
+  const currentCompiled = document.getState().currentCompiled;
+  if (!isLastGoodDslDocument(currentCompiled)) return null;
+  const compiled = currentCompiled;
+  const authoredDocument = compiled.document;
+  try {
+    const evaluationOptions = buildEvaluationOptions({
+      compiledDocument: compiled,
+      evaluationLimitIndex: authoredDocument.evaluationLimitIndex
+    });
+    return {
+      compiled,
+      elements: authoredDocument.elements,
+      evaluation: evaluateElements(authoredDocument.elements, evaluationOptions),
+      sourceRevision: compiled.spans.sourceMap.sourceRevision
+    };
+  } catch {
+    return null;
+  }
+};
+
 const bakeTargetsSignature = (targets: readonly BakeResolvedTarget[]) => JSON.stringify(
   targets.map((target) => ({
     targetId: target.targetId,
@@ -206,6 +245,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     [webviewPresentation]
   );
   const [preview, setPreview] = useState<ValidModulePreview | null>(null);
+  const [authoredCandidateContext, setAuthoredCandidateContext] = useState<AuthoredModulePreviewCandidateContext | null>(null);
   const [ephemeralElements, setEphemeralElements] = useState<CadElement[] | null>(null);
   const ephemeralElementsRef = useRef<CadElement[] | null>(null);
   const dragProofRef = useRef<ModulePreviewDragProof | null>(null);
@@ -334,7 +374,36 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       candidate.parameterIndex === request.parameterIndex && candidate.name === request.parameterName
     );
     if (!group || !parameter) return null;
-    if (state.preview.kind !== "current") return { kind: "unavailable" };
+    if (state.preview.kind !== "current") {
+      const documentState = document.getState();
+      const authoredCandidates = authoredCandidateContext ?? authoredModulePreviewCandidateContextFor(document);
+      if (!authoredCandidates) return { kind: "unavailable" };
+      if (!authoredCandidateContext) setAuthoredCandidateContext(authoredCandidates);
+      const compiled = authoredCandidates.compiled;
+      const source = {
+        normalizedSource: normalizedSourceFor(document.getSource()),
+        sourceRevision: documentState.currentCompiled.spans.sourceMap.sourceRevision
+      };
+      if (
+        request.sourceRevision !== state.sourceRevision ||
+        source.normalizedSource !== compiled.spans.sourceMap.source ||
+        source.sourceRevision !== compiled.spans.sourceMap.sourceRevision
+      ) return { kind: "pending" };
+      const target = modulePreviewReferencePickTargetForAuthoredSource({
+        compiled,
+        definitionStatementId: group.definitionStatementId,
+        parameterIndex: request.parameterIndex,
+        expectedGeometryInterface: request.expectedGeometryInterface
+      });
+      if (!target) return { kind: "unavailable" };
+      return {
+        source,
+        compiled,
+        evaluation: authoredCandidates.evaluation,
+        evaluationIsCurrent: true,
+        target
+      };
+    }
     const activePreview = previewRef.current;
     if (!activePreview || state.preview.result !== activePreview.root) return { kind: "pending" };
     const documentState = document.getState();
@@ -362,7 +431,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       evaluationIsCurrent: evaluationStateIsCurrentFor(evaluationState, activePreview.revision),
       target
     };
-  }, [evaluationState, previewSession]);
+  }, [authoredCandidateContext, evaluationState, previewSession]);
 
   const {
     session: modulePreviewReferencePickSession,
@@ -375,11 +444,16 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     currentContextFor: currentModulePreviewReferencePickContext
   });
 
+  const authoredPickContext = !preview && modulePreviewReferencePickSession
+    ? authoredCandidateContext
+    : null;
   const renderElements = useMemo(() => {
     if (!preview) return [];
     const targetIds = new Set(preview.root.targetRuntimeElementIds);
     return evaluationElements.filter((element) => targetIds.has(element.id));
   }, [evaluationElements, preview]);
+  const referencePickElements = authoredPickContext?.elements ?? evaluationElements;
+  const referencePickEvaluation = authoredPickContext?.evaluation ?? evaluationState.evaluation;
 
   const applyValidPreview = useCallback((
     root: ModulePreviewRootResult,
@@ -1014,6 +1088,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
           valueSessionRevisionRef.current = 0;
           clearPendingModelPatch();
           clearEphemeralPreview();
+          setAuthoredCandidateContext(null);
           previewRef.current = null;
           setPreview(null);
         }
@@ -1026,6 +1101,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         if (documentVersionRef.current !== null && message.documentVersion < documentVersionRef.current) return;
         clearEphemeralPreview();
         automationDocumentRef.current = AutomationDocument.fromSource(message.sourceText);
+        setAuthoredCandidateContext(null);
         documentVersionRef.current = message.documentVersion;
         publishValueUnavailable("source-stale");
         setStatusMessages(previewRef.current
@@ -1048,6 +1124,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         const document = automationDocumentRef.current ?? AutomationDocument.fromSource(message.sourceText);
         if (document.getSource() !== message.sourceText) document.replaceSource(message.sourceText);
         automationDocumentRef.current = document;
+        setAuthoredCandidateContext(null);
         documentVersionRef.current = message.documentVersion;
         publishValueUnavailable("source-stale");
         setStatusMessages(previewRef.current
@@ -1258,10 +1335,10 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
               viewportSize={viewportSize}
               canvasViewport={canvasViewport}
               canvasTheme={canvasTheme}
-              elements={evaluationElements}
-              evaluation={evaluationState.evaluation}
-              visibilityProfiles={preview?.root.compileResult.visibilityProfiles ?? []}
-              activeVisibilityProfileId={preview?.root.compileResult.activeVisibilityProfileId ?? null}
+              elements={referencePickElements}
+              evaluation={referencePickEvaluation}
+              visibilityProfiles={preview?.root.compileResult.visibilityProfiles ?? authoredPickContext?.compiled.document?.visibilityProfiles ?? []}
+              activeVisibilityProfileId={preview?.root.compileResult.activeVisibilityProfileId ?? authoredPickContext?.compiled.document?.activeVisibilityProfileId ?? null}
               session={modulePreviewReferencePickSession}
               onHover={setModulePreviewReferencePickHover}
               onSelect={selectModulePreviewReferencePick}
@@ -1304,8 +1381,9 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     captureDragProof,
     dispatchCommitGeometry,
     executeSharedCanvasCommand,
-    evaluationElements,
-    evaluationState.evaluation,
+    authoredPickContext,
+    referencePickElements,
+    referencePickEvaluation,
     modulePreviewReferencePickSession,
     setModulePreviewReferencePickHover,
     selectModulePreviewReferencePick,
@@ -1354,7 +1432,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         >
           Preview Values...
         </button>
-        {preview ? (
+        {preview || modulePreviewReferencePickSession ? (
           <DrawingCanvas
             ref={drawingCanvasRef}
             evaluation={evaluationState.evaluation}
@@ -1393,9 +1471,17 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
             })}
           </div>
         ) : null}
-        {!preview ? (
+        {!preview && !modulePreviewReferencePickSession ? (
           <div
             data-module-preview-empty="true"
+            data-vscode-context={vscodeCanvasContextDataFor(
+              "blank",
+              selectedElementIds.length > 0,
+              undefined,
+              false,
+              false,
+              { showCanvasPointNames, showCanvasGeometryNames, showCanvasPoints }
+            )}
             style={{
               position: "absolute",
               inset: 0,

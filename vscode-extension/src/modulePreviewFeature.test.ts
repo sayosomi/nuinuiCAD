@@ -1040,4 +1040,92 @@ describe("registerModulePreviewFeature", () => {
     feature.dispose();
   });
 
+  it("offers Enter expression for geometry values through the same ephemeral edit path", async () => {
+    const source = [
+      "nui 1",
+      "point RootA = coordinate(x: 0, y: 0)",
+      "module Pocket(anchor: point) {",
+      "}"
+    ].join("\n");
+    const { document, panel, feature, analysis } = registerInvocationFixture(source);
+    await panel.receive({ type: "webviewReady" });
+    await panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    const sessionId = panel.webview.postMessage.mock.calls
+      .map(([message]) => message)
+      .find((message) => message?.type === "modulePreviewSession")?.sessionId as string;
+    const snapshot = {
+      ...valueSnapshotFor(document, analysis, { name: "anchor", type: { kind: "point" }, value: "" }),
+      sessionId,
+      groups: [{
+        kind: "target" as const,
+        definitionStatementIndex: valueSnapshotFor(document, analysis, { name: "anchor", type: { kind: "point" }, value: "" }).groups[0]!.definitionStatementIndex,
+        name: "Pocket",
+        parameters: [{
+          parameterIndex: 0,
+          name: "anchor",
+          type: { kind: "point" as const },
+          optional: false,
+          required: true,
+          defaultSourceText: null,
+          value: "",
+          valueState: "required-missing" as const,
+          diagnostic: null
+        }]
+      }]
+    } satisfies VscodeModulePreviewValueSnapshot;
+    await panel.receive(snapshot);
+    mocks.nativeShowQuickPick.mockImplementation(async (items: readonly { label: string; kind?: string }[]) =>
+      items[0]?.kind ? items[1] : items[0]
+    );
+    mocks.nativeShowInputBox.mockResolvedValue("@RootA");
+    panel.webview.postMessage.mockClear();
+
+    const command = mocks.commandHandlers.get("nuinuiCAD.editModulePreviewValues")!();
+    await command;
+    await flushContext();
+
+    expect(mocks.nativeShowQuickPick).toHaveBeenCalledTimes(2);
+    expect(mocks.nativeShowInputBox).toHaveBeenCalledTimes(1);
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewValueEdit",
+      parameterName: "anchor",
+      expression: "@RootA"
+    }));
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewReferencePickStartRequest"
+    }));
+    expect(document.getText()).toBe(source);
+    feature.dispose();
+  });
+
+  it("uses the active exact-current Preview session without Source focus", async () => {
+    const source = [
+      "nui 1",
+      "module Pocket(width: number) {",
+      "}"
+    ].join("\n");
+    const { document, panel, feature, analysis } = registerInvocationFixture(source);
+    await panel.receive({ type: "webviewReady" });
+    await panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    const sessionId = panel.webview.postMessage.mock.calls
+      .map(([message]) => message)
+      .find((message) => message?.type === "modulePreviewSession")?.sessionId as string;
+    await panel.receive({
+      ...valueSnapshotFor(document, analysis, { name: "width", type: { kind: "number" }, value: "12" }),
+      sessionId
+    });
+    mocks.activeTextEditor!.selection.active = positionAt(source, 0);
+    mocks.nativeShowQuickPick.mockResolvedValue(undefined);
+
+    const command = mocks.commandHandlers.get("nuinuiCAD.editModulePreviewValues")!();
+    await command;
+    await flushContext();
+
+    expect(mocks.nativeShowQuickPick).toHaveBeenCalledWith(expect.arrayContaining([
+      expect.objectContaining({ label: "Target: Pocket.width" })
+    ]), expect.anything());
+    expect(mocks.showErrorMessage).not.toHaveBeenCalled();
+    feature.dispose();
+  });
+
 });

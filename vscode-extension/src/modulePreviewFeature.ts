@@ -701,12 +701,21 @@ export const registerModulePreviewFeature = ({
     if (!currentSite) return;
     const geometryInterface = moduleGeometryInterfaceTypeOf(currentSite.parameter.type);
     if (geometryInterface) {
-      startValueReferencePick({
-        type: "modulePreviewValueReferencePickStart",
-        ...selected.site,
-        expectedGeometryInterface: geometryInterface
+      const geometryChoice = await nativeShowQuickPick([
+        { label: "Pick from Canvas", kind: "pick" as const },
+        { label: "Enter expression...", kind: "expression" as const }
+      ], {
+        placeHolder: `Choose how to edit ${selected.site.definitionName}.${selected.site.parameterName}`
       });
-      return;
+      if (!geometryChoice) return;
+      if (geometryChoice.kind === "pick") {
+        startValueReferencePick({
+          type: "modulePreviewValueReferencePickStart",
+          ...selected.site,
+          expectedGeometryInterface: geometryInterface
+        });
+        return;
+      }
     }
     const expression = await nativeShowInputBox({
       prompt: `${selected.site.blockKind === "ancestor" ? "Context" : "Target"} ${selected.site.definitionName}.${selected.site.parameterName}`,
@@ -1184,7 +1193,8 @@ export const registerModulePreviewFeature = ({
   }));
 
   disposables.push(vscode.commands.registerCommand("nuinuiCAD.editModulePreviewValues", () => {
-    void editModulePreviewValues();
+    const activeSession = [...sessions.values()].find((session) => session.panel.active);
+    void editModulePreviewValues(activeSession);
   }));
 
   disposables.push(vscode.window.onDidChangeActiveTextEditor(() => refreshSourceTargetContext()));

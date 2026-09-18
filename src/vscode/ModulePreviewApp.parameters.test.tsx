@@ -902,7 +902,97 @@ describe("ModulePreviewApp Canvas and Preview boundary", () => {
     expect(screen.getByText("No valid Module Preview")).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent('Parameter "width" requires a value.');
     expect(screen.getByRole("status")).not.toHaveTextContent("Module Preview is unavailable.");
+    const emptySurface = globalThis.document.querySelector<HTMLElement>("[data-module-preview-empty='true']");
+    expect(emptySurface).not.toBeNull();
+    expect(JSON.parse(emptySurface?.getAttribute("data-vscode-context") ?? "{}")).toMatchObject({
+      webviewSection: "blank",
+      preventDefaultContextMenuItems: true
+    });
     expect(document.getSource()).toBe(sourceText);
+  });
+
+  it("starts authored-source Reference Pick from an initially invalid required geometry Preview", async () => {
+    const sourceText = [
+      "nui 1",
+      "point RootA = coordinate(x: 15, y: 20)",
+      "module Preview(anchor: point) {",
+      "  point P = coordinate(x: @anchor.x, y: @anchor.y)",
+      "}"
+    ].join("\n");
+    const document = AutomationDocument.fromSource(sourceText);
+    const compiled = document.getState().currentCompiled;
+    const definition = compiled.moduleSemanticAnalysis?.definitions.find((candidate) => candidate.name === "Preview");
+    if (!definition) throw new Error("expected Preview definition");
+    const previewTarget: ModulePreviewTarget = {
+      definitionStatementId: definition.statementId,
+      definitionStatementIndex: definition.statementIndex,
+      name: definition.name
+    };
+    const actual = await vi.importActual<typeof import("../dsl/modulePreviewState")>("../dsl/modulePreviewState");
+    const liveSession = actual.createModulePreviewSession();
+    mocks.session.activate.mockImplementation((input) => liveSession.activate(input));
+    mocks.session.getState.mockImplementation(() => liveSession.getState());
+    mocks.queryModulePreviewTarget.mockReturnValue(previewTarget);
+    vi.spyOn(AutomationDocument, "fromSource").mockReturnValue(document);
+    render(<ModulePreviewApp api={{ postMessage: mocks.postMessage }} />);
+
+    act(() => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "modulePreviewSession", sessionId: "module-preview-session:1", documentUri: "file:///pattern.nui" }
+      }));
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText, documentVersion: 1 }
+      }));
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "modulePreviewTarget", documentVersion: 1, normalizedSourceOffset: sourceText.indexOf("module Preview") }
+      }));
+    });
+
+    const snapshot = mocks.postMessage.mock.calls
+      .map(([message]) => message)
+      .find((message) => message?.type === "modulePreviewValueSnapshot");
+    expect(snapshot).toMatchObject({ previewStatus: "noValidPreview" });
+    if (!snapshot) throw new Error("expected no-valid Preview snapshot");
+    const emptySurfaceBeforePick = globalThis.document.querySelector<HTMLElement>("[data-module-preview-empty='true']");
+    expect(emptySurfaceBeforePick).not.toBeNull();
+    expect(JSON.parse(emptySurfaceBeforePick?.getAttribute("data-vscode-context") ?? "{}")).toMatchObject({
+      webviewSection: "blank",
+      preventDefaultContextMenuItems: true
+    });
+
+    act(() => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "modulePreviewReferencePickStartRequest",
+          requestId: 1,
+          sessionId: snapshot.sessionId,
+          documentUri: snapshot.documentUri,
+          documentVersion: snapshot.documentVersion,
+          normalizedSource: snapshot.normalizedSource,
+          sourceRevision: snapshot.sourceRevision,
+          sessionRevision: snapshot.sessionRevision,
+          targetDefinitionStatementIndex: snapshot.target.definitionStatementIndex,
+          targetName: snapshot.target.name,
+          definitionStatementIndex: definition.statementIndex,
+          definitionName: definition.name,
+          blockKind: "target",
+          parameterIndex: 0,
+          parameterName: "anchor",
+          expectedGeometryInterface: "point",
+          role: "geometry",
+          multiplicity: "single"
+        }
+      }));
+    });
+
+    expect(mocks.postMessage.mock.calls.map(([message]) => message)).toContainEqual(expect.objectContaining({
+      type: "modulePreviewReferencePickResult",
+      requestId: 1,
+      status: "started",
+      candidateReferences: [{ base: "RootA" }]
+    }));
+    expect(globalThis.document.querySelector("[data-module-preview-empty='true']")).toBeNull();
+    expect(screen.getByTestId("module-preview-canvas-viewport")).toBeInTheDocument();
   });
 
   it("shows one concise fallback when a no-root preview has no concrete diagnostic", () => {

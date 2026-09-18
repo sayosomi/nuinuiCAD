@@ -223,6 +223,8 @@ const extractModuleSourceContextWhen = `${sourcePaletteWhen} && nuinuiCAD.extrac
 const extractModuleCanvasContextWhen = "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'element' && nuinuiCAD.extractModuleCanvasTarget";
 const sourceOrCanvasPaletteWhen = "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui) || activeWebviewPanelId == 'nuinuiCAD.canvas'";
 const sourceOrOutputPreviewPaletteWhen = "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui) || activeWebviewPanelId == 'nuinuiCAD.outputPreview'";
+const modulePreviewPaletteWhen = "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui) || activeWebviewPanelId == 'nuinuiCAD.modulePreview'";
+const modulePreviewValueEditEnablement = "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.modulePreviewSourceTarget) || activeWebviewPanelId == 'nuinuiCAD.modulePreview'";
 const canvasPaletteWhen = "activeWebviewPanelId == 'nuinuiCAD.canvas'";
 const sourceKeybindingWhen = `editorTextFocus && ${sourcePaletteWhen}`;
 const sourceCreationKeybindingWhen = `${sourceKeybindingWhen} && !editorReadonly`;
@@ -230,6 +232,7 @@ const canvasKeybindingWhen = `${canvasPaletteWhen}`;
 const webviewEditableFocusGuard = "!inputFocus && !nuinuiCAD.webviewEditableFocus";
 const canvasFocusKeybindingWhen = `${canvasKeybindingWhen} && ${webviewEditableFocusGuard}`;
 const modulePreviewKeybindingWhen = `activeWebviewPanelId == 'nuinuiCAD.modulePreview' && ${webviewEditableFocusGuard}`;
+const modulePreviewValueEditKeybindingWhen = `(${sourceKeybindingWhen} && nuinuiCAD.modulePreviewSourceTarget) || (${modulePreviewKeybindingWhen})`;
 const modulePreviewSelectionKeybindingWhen = `activeWebviewPanelId == 'nuinuiCAD.modulePreview' && nuinuiCAD.canvasHasSelection && ${webviewEditableFocusGuard}`;
 const outputPreviewKeybindingWhen = `activeWebviewPanelId == 'nuinuiCAD.outputPreview' && ${webviewEditableFocusGuard}`;
 const canvasSelectionKeybindingWhen = `${canvasKeybindingWhen} && nuinuiCAD.canvasHasSelection && ${webviewEditableFocusGuard}`;
@@ -248,6 +251,7 @@ const canvasBlankWhen = "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'b
 const canvasElementWhen = "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'element' && nuinuiCAD.canvasHasSelection";
 const canvasOrModulePreviewElementWhen = "(webviewId == 'nuinuiCAD.canvas' || webviewId == 'nuinuiCAD.modulePreview') && webviewSection == 'element' && nuinuiCAD.canvasHasSelection";
 const canvasOrModulePreviewRibbonWhen = "(webviewId == 'nuinuiCAD.canvas' || webviewId == 'nuinuiCAD.modulePreview') && (webviewSection == 'blank' || webviewSection == 'ribbon')";
+const modulePreviewContextMenuWhen = "webviewId == 'nuinuiCAD.modulePreview'";
 const modulePreviewBlankWhen = "webviewId == 'nuinuiCAD.modulePreview' && webviewSection == 'blank'";
 
 async function readManifest(): Promise<ExtensionManifest> {
@@ -676,7 +680,7 @@ describe("VS Code extension manifest command contributions", () => {
       { command: "nuinuiCAD.openCanvas", when: sourceOrOutputPreviewPaletteWhen },
       { command: "nuinuiCAD.openOutputPreview", when: sourceOrCanvasPaletteWhen },
       { command: "nuinuiCAD.openModulePreview", when: sourcePaletteWhen },
-      { command: "nuinuiCAD.editModulePreviewValues", when: sourcePaletteWhen },
+      { command: "nuinuiCAD.editModulePreviewValues", when: modulePreviewPaletteWhen },
       { command: "nuinuiCAD.editCanvasRibbon", when: canvasPaletteWhen },
       { command: "nuinuiCAD.goToSourceDefinition", when: canvasPaletteWhen },
       { command: "nuinuiCAD.revealInCanvas", when: sourcePaletteWhen },
@@ -730,6 +734,7 @@ describe("VS Code extension manifest command contributions", () => {
       { command: "nuinuiCAD.revealInOutputPreview", when: outputPreviewRevealContextWhen, group: "2_nuinuiCAD@2" },
       { command: "nuinuiCAD.openOutputPreview", when: outputPreviewOpenFallbackContextWhen, group: "2_nuinuiCAD@2" },
       { command: "nuinuiCAD.openModulePreview", when: modulePreviewContextWhen, group: "2_nuinuiCAD@3" },
+      { command: "nuinuiCAD.editModulePreviewValues", when: modulePreviewContextWhen, group: "2_nuinuiCAD@3.1" },
       { command: "nuinuiCAD.inlineModuleInstance", when: inlineModuleSourceContextWhen, group: "2_nuinuiCAD@4" },
       { command: "nuinuiCAD.extractModule", when: extractModuleSourceContextWhen, group: "2_nuinuiCAD@5" },
       { command: "nuinuiCAD.pickReferenceFromCanvas", when: referencePickContextWhen, group: "2_nuinuiCAD@6" },
@@ -753,6 +758,7 @@ describe("VS Code extension manifest command contributions", () => {
       { command: "nuinuiCAD.resetCanvasView", when: canvasBlankWhen, group: "2_view@2" },
       { submenu: "nuinuiCAD.webview.canvasDisplay", when: canvasBlankWhen, group: "2_view@3" },
       { command: "nuinuiCAD.editCanvasRibbon", when: canvasOrModulePreviewRibbonWhen, group: "3_edit@1" },
+      { command: "nuinuiCAD.editModulePreviewValues", when: modulePreviewContextMenuWhen, group: "3_edit@2" },
       { command: "nuinuiCAD.clearCanvasSelection", when: `${canvasBlankWhen} && nuinuiCAD.canvasHasSelection`, group: "4_selection@1" },
       { submenu: "nuinuiCAD.webview.convertPoint", when: coordinatePointConversionCanvasContextWhen, group: "1_modification@1" },
       { command: "nuinuiCAD.selectParentGroup", when: canvasElementWhen, group: "1_modification@2" },
@@ -801,6 +807,7 @@ describe("VS Code extension manifest command contributions", () => {
       "nuinuiCAD.revealInOutputPreview",
       "nuinuiCAD.openOutputPreview",
       "nuinuiCAD.openModulePreview",
+      "nuinuiCAD.editModulePreviewValues",
       "nuinuiCAD.inlineModuleInstance",
       "nuinuiCAD.extractModule",
       "nuinuiCAD.pickReferenceFromCanvas",
@@ -824,7 +831,7 @@ describe("VS Code extension manifest command contributions", () => {
     expect(commands.find(({ command }) => command === "nuinuiCAD.openModulePreview")?.enablement)
       .toBe(`${sourcePaletteWhen} && nuinuiCAD.modulePreviewSourceTarget`);
     expect(commands.find(({ command }) => command === "nuinuiCAD.editModulePreviewValues")?.enablement)
-      .toBe(`${sourcePaletteWhen} && nuinuiCAD.modulePreviewSourceTarget`);
+      .toBe(modulePreviewValueEditEnablement);
     expect(manifest.contributes?.menus?.["editor/context"]?.slice(0, 4).every(({ when }) => !when.includes("canReveal")))
       .toBe(true);
     expect(manifest.contributes?.keybindings?.some(({ command }) => command === "nuinuiCAD.revealInOutputPreview")).toBe(true);
@@ -1002,7 +1009,7 @@ describe("VS Code extension manifest keybindings", () => {
         command: "nuinuiCAD.editModulePreviewValues",
         key: "ctrl+shift+alt+m",
         mac: "ctrl+shift+m",
-        when: `${sourceKeybindingWhen} && nuinuiCAD.modulePreviewSourceTarget`
+        when: modulePreviewValueEditKeybindingWhen
       },
       {
         command: "nuinuiCAD.inlineModuleInstance",
