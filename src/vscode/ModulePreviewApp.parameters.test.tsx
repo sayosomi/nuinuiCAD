@@ -541,6 +541,56 @@ describe("ModulePreviewApp Canvas and Preview boundary", () => {
     expect(screen.getByText("Source EditorのModule定義からModule Previewを開いてください。")).toBeInTheDocument();
   });
 
+  it("handles synchronous host bootstrap responses after installing the message listener", async () => {
+    const sourceText = [
+      "nui 1",
+      "module Preview() {",
+      "  point P = coordinate(x: 1, y: 2)",
+      "}"
+    ].join("\n");
+    const fixture = previewFixtureFor(sourceText);
+    const actual = await vi.importActual<typeof import("../dsl/modulePreviewState")>("../dsl/modulePreviewState");
+    const liveSession = actual.createModulePreviewSession();
+    mocks.session.activate.mockImplementation((input) => liveSession.activate(input));
+    mocks.session.getState.mockImplementation(() => liveSession.getState());
+    mocks.queryModulePreviewTarget.mockReturnValue(fixture.root.target);
+    mocks.evaluationState = {
+      evaluation: fixture.evaluation,
+      evaluationRevision: 1,
+      evaluationRequestRevision: 1,
+      mode: "reference",
+      source: "reference",
+      status: "ready",
+      rustEligible: false,
+      isStale: false,
+      error: null
+    };
+    vi.spyOn(AutomationDocument, "fromSource").mockReturnValue(fixture.document);
+    const api = {
+      postMessage: vi.fn((message: { type?: string }) => {
+        if (message.type !== "webviewReady") return;
+        window.dispatchEvent(new MessageEvent("message", {
+          data: { type: "modulePreviewSession", sessionId: "module-preview-session:sync", documentUri: "file:///pattern.nui" }
+        }));
+        window.dispatchEvent(new MessageEvent("message", {
+          data: { type: "replaceTextDocument", sourceText, documentVersion: 1 }
+        }));
+        window.dispatchEvent(new MessageEvent("message", {
+          data: { type: "modulePreviewTarget", documentVersion: 1, normalizedSourceOffset: sourceText.indexOf("module Preview") }
+        }));
+      })
+    };
+
+    await act(async () => {
+      render(<ModulePreviewApp api={api} />);
+      await Promise.resolve();
+    });
+
+    expect(api.postMessage).toHaveBeenCalledWith({ type: "webviewReady" });
+    expect(mocks.session.activate).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("No valid Module Preview")).not.toBeInTheDocument();
+  });
+
   it("renders an omitted default-only Module Preview through the live session boundary", async () => {
     const sourceText = [
       "nui 1",
@@ -621,6 +671,8 @@ describe("ModulePreviewApp Canvas and Preview boundary", () => {
     expect((mocks.hostAdapter as CanvasHostAdapter | null)?.elements).toEqual(
       expect.arrayContaining([expect.objectContaining({ name: "AltEnd" })])
     );
+    expect(globalThis.document.querySelector<HTMLElement>("[data-module-preview-value-summary='true']"))
+      .toHaveTextContent("Target: Alternate.size = omitted (default: 30)");
     expect(mocks.postMessage.mock.calls.filter(([message]) => message?.type === "webviewReady")).toHaveLength(1);
     const syntheticCall = liveRoot.candidateCompiledDocument.statements.find(
       (statement) => statement.kind === "moduleInstance" && statement.name === "__module_preview_0"
@@ -953,8 +1005,60 @@ describe("ModulePreviewApp Canvas and Preview boundary", () => {
     expect(liveSession.getState()?.parameters.parameters[0]).toMatchObject({ value: "12", active: true });
     expect(liveSession.getState()?.inputDiagnostics).toEqual([]);
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(globalThis.document.querySelector<HTMLElement>("[data-module-preview-value-summary='true']"))
+      .toHaveTextContent("Target: Required.width = 12");
     expect(globalThis.document.querySelector<HTMLElement>("[data-module-preview-empty='true']")).toBeNull();
     expect(document.getSource()).toBe(sourceText);
+  });
+
+  it("distinguishes explicit, defaulted, and optional values in the current-value summary", () => {
+    const fixture = previewFixtureFor([
+      "nui 1",
+      "module Preview(withDefault: number = 30) {",
+      "}"
+    ].join("\n"));
+    const defaulted = fixture.snapshot.parameters.parameters[0];
+    if (!defaulted) throw new Error("expected defaulted parameter");
+    const parameterFor = (
+      overrides: Partial<ModulePreviewSessionSnapshot["parameters"]["parameters"][number]>
+    ): ModulePreviewSessionSnapshot["parameters"]["parameters"][number] => ({
+      ...defaulted,
+      ...overrides
+    });
+    const summaryParameters: ModulePreviewSessionSnapshot["parameters"]["parameters"] = [
+      parameterFor({
+        parameterIndex: 0,
+        name: "explicit",
+        defaultSourceText: null,
+        value: "7",
+        active: true,
+        optional: false,
+        required: true
+      }),
+      parameterFor({
+        name: "withDefault",
+        parameterIndex: 1,
+        value: "",
+        active: false
+      }),
+      parameterFor({
+        parameterIndex: 2,
+        name: "optional",
+        defaultSourceText: null,
+        value: "",
+        active: false,
+        optional: true,
+        required: false
+      })
+    ];
+    fixture.snapshot.parameters.parameters = summaryParameters as unknown as typeof fixture.snapshot.parameters.parameters;
+    renderPreviewFixture(fixture);
+
+    const summary = globalThis.document.querySelector<HTMLElement>("[data-module-preview-value-summary='true']");
+    expect(summary).not.toBeNull();
+    expect(summary).toHaveTextContent("Target: Preview.explicit = 7");
+    expect(summary).toHaveTextContent("Target: Preview.withDefault = omitted (default: 30)");
+    expect(summary).toHaveTextContent("Target: Preview.optional = omitted (optional)");
   });
 
   it("starts authored-source Reference Pick from an initially invalid required geometry Preview", async () => {

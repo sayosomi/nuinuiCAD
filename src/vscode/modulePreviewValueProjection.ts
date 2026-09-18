@@ -78,3 +78,33 @@ export const modulePreviewValueSnapshotFor = ({
   })),
   previewStatus: snapshot.preview.kind
 });
+
+export type ModulePreviewValueSummaryEntry = {
+  groupLabel: "Context" | "Target";
+  groupName: string;
+  parameterName: string;
+  valueLabel: string;
+};
+
+/**
+ * Project the exact-current session inputs into the compact status summary.
+ * Diagnostics and non-current previews deliberately return no summary so the
+ * existing diagnostic/status shell remains the highest-priority presentation.
+ */
+export const modulePreviewValueSummaryFor = (
+  snapshot: ModulePreviewSessionSnapshot | null
+): readonly ModulePreviewValueSummaryEntry[] => {
+  if (!snapshot || snapshot.preview.kind !== "current" || snapshot.inputDiagnostics.length > 0) return [];
+  return [...snapshot.ancestorContexts, snapshot.parameters].flatMap((group) =>
+    group.parameters.map((parameter) => ({
+      groupLabel: group.kind === "ancestor" ? "Context" : "Target",
+      groupName: group.name,
+      parameterName: parameter.name,
+      valueLabel: parameter.active && parameter.value.trim().length > 0
+        ? parameter.value
+        : parameter.defaultSourceText === null
+          ? "omitted (optional)"
+          : `omitted (default: ${parameter.defaultSourceText})`
+    }))
+  );
+};

@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
     selection: { active: { line: number; character: number } };
   },
   commandHandlers: new Map<string, (...args: unknown[]) => unknown>(),
+  commandRegistrations: [] as string[],
   activeEditorListeners: [] as Array<() => void>,
   selectionListeners: [] as Array<(event: { textEditor: unknown }) => void>,
   themeListeners: [] as Array<() => void>,
@@ -27,9 +28,9 @@ const mocks = vi.hoisted(() => ({
   showTextDocument: vi.fn(),
   executeCommand: vi.fn(async () => undefined),
   showErrorMessage: vi.fn(),
-  createWebviewPanel: vi.fn()
-  ,nativeShowQuickPick: vi.fn()
-  ,nativeShowInputBox: vi.fn()
+  createWebviewPanel: vi.fn(),
+  nativeShowQuickPick: vi.fn(),
+  nativeShowInputBox: vi.fn()
 }));
 
 vi.mock("./nativeQuickInput", () => ({
@@ -118,6 +119,7 @@ vi.mock("vscode", () => ({
   },
   commands: {
     registerCommand: (command: string, handler: (...args: unknown[]) => unknown) => {
+      mocks.commandRegistrations.push(command);
       mocks.commandHandlers.set(command, handler);
       return { dispose: () => mocks.commandHandlers.delete(command) };
     },
@@ -143,6 +145,8 @@ vi.mock("vscode", () => ({
 }));
 
 import {
+  MODULE_PREVIEW_INSERT_INSTANCE_COMMAND,
+  NUI_MODULE_PREVIEW_INSERT_CONTEXT,
   NUI_MODULE_PREVIEW_SOURCE_TARGET_CONTEXT,
   registerModulePreviewFeature
 } from "./modulePreviewFeature";
@@ -293,6 +297,7 @@ afterEach(() => {
   cleanup();
   mocks.activeTextEditor = null;
   mocks.commandHandlers.clear();
+  mocks.commandRegistrations.length = 0;
   mocks.activeEditorListeners.length = 0;
   mocks.selectionListeners.length = 0;
   mocks.themeListeners.length = 0;
@@ -302,6 +307,11 @@ afterEach(() => {
   mocks.textDocuments = undefined;
   mocks.visibleTextEditors.length = 0;
   mocks.executeCommand.mockClear();
+  mocks.executeCommand.mockReset();
+  mocks.executeCommand.mockImplementation(async (command: string) => {
+    const handler = mocks.commandHandlers.get(command);
+    return handler ? await handler() : undefined;
+  });
   mocks.showTextDocument.mockReset();
   mocks.showErrorMessage.mockClear();
   mocks.createWebviewPanel.mockReset();
@@ -689,6 +699,149 @@ describe("registerModulePreviewFeature", () => {
     expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
       type: "modulePreviewTarget",
       documentVersion: 2
+    }));
+
+    feature.dispose();
+  });
+
+  it("creates a fresh session after panel disposal and rejects late messages from the disposed session", async () => {
+    const source = [
+      "nui 1",
+      "module Pocket(width: number) {",
+      "  point P = coordinate(x: @width, y: 0)",
+      "}"
+    ].join("\n");
+    const document = createDocument(source);
+    const oldPanel = createPanel();
+    const newPanel = createPanel();
+    const analysis = createLanguageAnalysisSession(source);
+    mocks.createWebviewPanel.mockReturnValueOnce(oldPanel).mockReturnValueOnce(newPanel);
+    mocks.activeTextEditor = {
+      document,
+      selection: { active: positionAt(source, source.indexOf("module Pocket")) }
+    };
+    mocks.textDocuments = [document];
+    mocks.visibleTextEditors = [createEditor(document)];
+    const feature = registerModulePreviewFeature({
+      languageAnalysisSessionFor: (() => analysis) as never,
+      canvasThemeGeneration: () => 0,
+      webviewHtml: () => "<html />",
+      canvasRibbons: () => [],
+      updateCanvasRibbonPosition: () => undefined,
+      editCanvasRibbon: () => undefined,
+      evaluateWithRust: async () => ({})
+    });
+    expect(mocks.commandRegistrations.filter((command) => command === MODULE_PREVIEW_INSERT_INSTANCE_COMMAND)).toHaveLength(1);
+
+    const open = mocks.commandHandlers.get("nuinuiCAD.openModulePreview");
+    if (!open) throw new Error("expected open Module Preview command");
+    open();
+    await oldPanel.receive({ type: "webviewReady" });
+    await oldPanel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    await flushContext();
+    expect(mocks.executeCommand).toHaveBeenCalledWith("setContext", NUI_MODULE_PREVIEW_INSERT_CONTEXT, true);
+    const oldSessionId = oldPanel.webview.postMessage.mock.calls
+      .map(([message]) => message as { type?: string; sessionId?: string })
+      .find((message) => message.type === "modulePreviewSession")?.sessionId;
+    if (!oldSessionId) throw new Error("expected disposed Module Preview session identity");
+
+    oldPanel.fireDispose();
+    await flushContext();
+    expect(mocks.executeCommand).toHaveBeenCalledWith("setContext", NUI_MODULE_PREVIEW_INSERT_CONTEXT, false);
+    oldPanel.webview.postMessage.mockClear();
+    await oldPanel.receive({ type: "webviewReady" });
+    expect(oldPanel.webview.postMessage).not.toHaveBeenCalled();
+
+    open();
+    await newPanel.receive({ type: "webviewReady" });
+    await newPanel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    await flushContext();
+    expect(mocks.executeCommand).toHaveBeenCalledWith("setContext", NUI_MODULE_PREVIEW_INSERT_CONTEXT, true);
+    const newSessionId = newPanel.webview.postMessage.mock.calls
+      .map(([message]) => message as { type?: string; sessionId?: string })
+      .find((message) => message.type === "modulePreviewSession")?.sessionId;
+    expect(newSessionId).toBeDefined();
+    expect(newSessionId).not.toBe(oldSessionId);
+
+    const staleSnapshot = {
+      ...valueSnapshotFor(document, analysis, { name: "width", type: { kind: "number" }, value: "11" }),
+      sessionId: oldSessionId
+    };
+    await oldPanel.receive(staleSnapshot);
+    expect(newPanel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewValueSnapshot",
+      sessionId: oldSessionId
+    }));
+
+    const currentSnapshot = { ...staleSnapshot, sessionId: newSessionId };
+    mocks.executeCommand.mockClear();
+    mocks.executeCommand.mockImplementationOnce(async (command: string) => {
+      expect(command).toBe(MODULE_PREVIEW_INSERT_INSTANCE_COMMAND);
+      return undefined;
+    });
+    await newPanel.receive({ type: "modulePreviewInsertInstance" });
+    expect(mocks.executeCommand).toHaveBeenCalledWith(MODULE_PREVIEW_INSERT_INSTANCE_COMMAND);
+
+    await newPanel.receive({
+      type: "modulePreviewValueSiteEdit",
+      sessionId: currentSnapshot.sessionId,
+      documentUri: currentSnapshot.documentUri,
+      documentVersion: currentSnapshot.documentVersion,
+      normalizedSource: currentSnapshot.normalizedSource,
+      sourceRevision: currentSnapshot.sourceRevision,
+      sessionRevision: currentSnapshot.sessionRevision,
+      targetDefinitionStatementIndex: currentSnapshot.target.definitionStatementIndex,
+      targetName: currentSnapshot.target.name,
+      definitionStatementIndex: currentSnapshot.groups[0]!.definitionStatementIndex,
+      definitionName: currentSnapshot.groups[0]!.name,
+      blockKind: currentSnapshot.groups[0]!.kind,
+      parameterIndex: 0,
+      parameterName: "width"
+    });
+    expect(newPanel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewValueUnavailable",
+      reason: "not-ready"
+    }));
+
+    await newPanel.receive(currentSnapshot);
+    mocks.nativeShowQuickPick.mockImplementation(async (items: readonly { label: string }[]) =>
+      items.find((item) => item.label === "Target: Pocket.width")
+    );
+    mocks.nativeShowInputBox.mockResolvedValue("12");
+    newPanel.webview.postMessage.mockClear();
+    await mocks.commandHandlers.get("nuinuiCAD.editModulePreviewValues")!();
+    await flushContext();
+    expect(mocks.nativeShowInputBox).toHaveBeenCalledTimes(1);
+    expect(newPanel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewValueEdit",
+      definitionName: "Pocket",
+      parameterName: "width",
+      expression: "12"
+    }));
+
+    mocks.nativeShowInputBox.mockResolvedValue("13");
+    await newPanel.receive({
+      type: "modulePreviewValueSiteEdit",
+      sessionId: currentSnapshot.sessionId,
+      documentUri: currentSnapshot.documentUri,
+      documentVersion: currentSnapshot.documentVersion,
+      normalizedSource: currentSnapshot.normalizedSource,
+      sourceRevision: currentSnapshot.sourceRevision,
+      sessionRevision: currentSnapshot.sessionRevision,
+      targetDefinitionStatementIndex: currentSnapshot.target.definitionStatementIndex,
+      targetName: currentSnapshot.target.name,
+      definitionStatementIndex: currentSnapshot.groups[0]!.definitionStatementIndex,
+      definitionName: currentSnapshot.groups[0]!.name,
+      blockKind: currentSnapshot.groups[0]!.kind,
+      parameterIndex: 0,
+      parameterName: "width"
+    });
+    expect(mocks.nativeShowInputBox).toHaveBeenCalledTimes(2);
+    expect(newPanel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewValueEdit",
+      definitionName: "Pocket",
+      parameterName: "width",
+      expression: "13"
     }));
 
     feature.dispose();
@@ -1305,6 +1458,67 @@ describe("registerModulePreviewFeature", () => {
     feature.dispose();
   });
 
+  it("preserves exact-current value authority after stale feedback and immediately reopens Preview Values", async () => {
+    const source = [
+      "nui 1",
+      "module Pocket(width: number) {",
+      "  point P = coordinate(x: @width, y: 0)",
+      "}"
+    ].join("\n");
+    const { document, panel, feature, analysis } = registerInvocationFixture(source);
+    await panel.receive({ type: "webviewReady" });
+    await panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    const sessionId = panel.webview.postMessage.mock.calls
+      .map(([message]) => message)
+      .find((message) => message?.type === "modulePreviewSession")?.sessionId as string;
+    const snapshot = {
+      ...valueSnapshotFor(document, analysis, { name: "width", type: { kind: "number" }, value: "12" }),
+      sessionId
+    };
+    await panel.receive(snapshot);
+    const group = snapshot.groups[0]!;
+    const parameter = group.parameters[0]!;
+    panel.webview.postMessage.mockClear();
+
+    await panel.receive({
+      type: "modulePreviewValueSiteEdit",
+      sessionId: snapshot.sessionId,
+      documentUri: snapshot.documentUri,
+      documentVersion: snapshot.documentVersion,
+      normalizedSource: snapshot.normalizedSource,
+      sourceRevision: snapshot.sourceRevision,
+      sessionRevision: snapshot.sessionRevision + 1,
+      targetDefinitionStatementIndex: snapshot.target.definitionStatementIndex,
+      targetName: snapshot.target.name,
+      definitionStatementIndex: group.definitionStatementIndex,
+      definitionName: group.name,
+      blockKind: group.kind,
+      parameterIndex: parameter.parameterIndex,
+      parameterName: parameter.name
+    });
+    await flushContext();
+
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewValueUnavailable"
+    }));
+
+    mocks.nativeShowQuickPick.mockImplementation(async (items: readonly unknown[]) => items[0]);
+    mocks.nativeShowInputBox.mockResolvedValue("13");
+    panel.webview.postMessage.mockClear();
+    await mocks.commandHandlers.get("nuinuiCAD.editModulePreviewValues")!();
+    await flushContext();
+
+    expect(mocks.nativeShowInputBox).toHaveBeenCalledTimes(1);
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewValueEdit",
+      definitionName: "Pocket",
+      parameterName: "width",
+      expression: "13"
+    }));
+    expect(mocks.showErrorMessage).not.toHaveBeenCalled();
+    feature.dispose();
+  });
+
   it("waits through cold-start hydration until the exact-current value snapshot arrives", async () => {
     const source = [
       "nui 1",
@@ -1354,6 +1568,54 @@ describe("registerModulePreviewFeature", () => {
     await flushContext();
     expect(mocks.nativeShowQuickPick).toHaveBeenCalledTimes(1);
     feature.dispose();
+  });
+
+  it("does not replace a snapshot that arrives at the Preview Values timeout boundary", async () => {
+    vi.useFakeTimers();
+    try {
+      const source = [
+        "nui 1",
+        "module Pocket(width: number) {",
+        "  point P = coordinate(x: @width, y: 0)",
+        "}"
+      ].join("\n");
+      const { document, panel, feature, analysis } = registerInvocationFixture(source);
+      await panel.receive({ type: "webviewReady" });
+      await panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+      const command = mocks.commandHandlers.get("nuinuiCAD.editModulePreviewValues")!;
+      command();
+
+      vi.advanceTimersByTime(5000);
+      const sessionId = panel.webview.postMessage.mock.calls
+        .map(([message]) => message as { type?: string; sessionId?: string })
+        .find((message) => message.type === "modulePreviewSession")?.sessionId;
+      if (!sessionId) throw new Error("expected Module Preview session identity");
+      const lateSnapshot = {
+        ...valueSnapshotFor(document, analysis, { name: "width", type: { kind: "number" }, value: "12" }),
+        sessionId
+      };
+      const snapshotDelivery = panel.receive(lateSnapshot);
+      await snapshotDelivery;
+      await flushContext();
+
+      expect(mocks.showErrorMessage).toHaveBeenCalledTimes(1);
+      mocks.nativeShowQuickPick.mockImplementation(async (items: readonly unknown[]) => items[0]);
+      mocks.nativeShowInputBox.mockResolvedValue("13");
+      panel.webview.postMessage.mockClear();
+      command();
+      await flushContext();
+
+      expect(mocks.nativeShowInputBox).toHaveBeenCalledTimes(1);
+      expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+        type: "modulePreviewValueEdit",
+        definitionName: "Pocket",
+        parameterName: "width",
+        expression: "13"
+      }));
+      feature.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("routes geometry values through Reference Pick and applies only the selected site", async () => {

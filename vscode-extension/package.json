@@ -140,6 +140,12 @@
         "when": "(editorTextFocus && editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.modulePreviewSourceTarget) || (activeWebviewPanelId == 'nuinuiCAD.modulePreview' && !inputFocus && !nuinuiCAD.webviewEditableFocus)"
       },
       {
+        "command": "nuinuiCAD.insertModulePreviewInstance",
+        "key": "ctrl+shift+alt+i",
+        "mac": "ctrl+shift+i",
+        "when": "((editorTextFocus && editorLangId == nui && resourceScheme == file && resourceExtname == .nui) || (activeWebviewPanelId == 'nuinuiCAD.modulePreview')) && nuinuiCAD.modulePreviewInsertAvailable && !inputFocus && !nuinuiCAD.webviewEditableFocus"
+      },
+      {
         "command": "nuinuiCAD.inlineModuleInstance",
         "key": "ctrl+shift+alt+l",
         "mac": "ctrl+shift+l",
@@ -289,6 +295,10 @@
         {
           "command": "nuinuiCAD.editModulePreviewValues",
           "when": "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui) || activeWebviewPanelId == 'nuinuiCAD.modulePreview'"
+        },
+        {
+          "command": "nuinuiCAD.insertModulePreviewInstance",
+          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui"
         },
         {
           "command": "nuinuiCAD.editCanvasRibbon",
@@ -564,6 +574,11 @@
           "group": "3_edit@2"
         },
         {
+          "command": "nuinuiCAD.insertModulePreviewInstance",
+          "when": "webviewId == 'nuinuiCAD.modulePreview' && nuinuiCAD.modulePreviewInsertAvailable && !inputFocus && !nuinuiCAD.webviewEditableFocus",
+          "group": "3_edit@3"
+        },
+        {
           "command": "nuinuiCAD.clearCanvasSelection",
           "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank' && nuinuiCAD.canvasHasSelection",
           "group": "4_selection@1"
@@ -760,6 +775,11 @@
           "group": "2_nuinuiCAD@3.1"
         },
         {
+          "command": "nuinuiCAD.insertModulePreviewInstance",
+          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.modulePreviewInsertAvailable",
+          "group": "2_nuinuiCAD@3.2"
+        },
+        {
           "command": "nuinuiCAD.inlineModuleInstance",
           "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.inlineModuleSourceTarget",
           "group": "2_nuinuiCAD@4"
@@ -836,6 +856,13 @@
         "title": "%command.editModulePreviewValues.title%",
         "shortTitle": "%command.editModulePreviewValues.shortTitle%",
         "enablement": "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.modulePreviewSourceTarget) || activeWebviewPanelId == 'nuinuiCAD.modulePreview'"
+      },
+      {
+        "command": "nuinuiCAD.insertModulePreviewInstance",
+        "title": "%command.insertModulePreviewInstance.title%",
+        "shortTitle": "%command.insertModulePreviewInstance.shortTitle%",
+        "category": "nuinuiCAD",
+        "enablement": "nuinuiCAD.modulePreviewInsertAvailable"
       },
       {
         "command": "nuinuiCAD.inlineModuleInstance",
