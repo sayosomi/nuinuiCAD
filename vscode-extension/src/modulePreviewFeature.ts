@@ -370,6 +370,8 @@ export const registerModulePreviewFeature = ({
         message.sessionRevision !== session.activeReferencePick.request.sessionRevision)
     ) cancelActiveReferencePick(session);
     session.retainedValueMessage = message;
+    if (message.type === "modulePreviewValueUnavailable" &&
+      message.reason !== "target-unavailable" && message.reason !== "disposed") return;
     for (const resolve of session.valueSnapshotWaiters) resolve();
     session.valueSnapshotWaiters.clear();
   };

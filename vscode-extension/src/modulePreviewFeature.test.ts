@@ -962,6 +962,57 @@ describe("registerModulePreviewFeature", () => {
     feature.dispose();
   });
 
+  it("waits through cold-start hydration until the exact-current value snapshot arrives", async () => {
+    const source = [
+      "nui 1",
+      "module Pocket(width: number) {",
+      "  point P = coordinate(x: @width, y: 0)",
+      "}"
+    ].join("\n");
+    const { document, panel, feature, analysis } = registerInvocationFixture(source);
+    const command = mocks.commandHandlers.get("nuinuiCAD.editModulePreviewValues")!;
+
+    command();
+    await flushContext();
+    expect(mocks.nativeShowQuickPick).not.toHaveBeenCalled();
+
+    await panel.receive({ type: "webviewReady" });
+    await panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    const sessionId = panel.webview.postMessage.mock.calls
+      .map(([message]) => message as { type?: string; sessionId?: string })
+      .find((message) => message.type === "modulePreviewSession")?.sessionId;
+    if (!sessionId) throw new Error("expected Module Preview session identity");
+    const target = analysis.runtimeEvaluationSnapshot()!.compiled.moduleSemanticAnalysis!.definitions
+      .find((definition) => definition.name === "Pocket")!;
+
+    await panel.receive({
+      type: "modulePreviewValueUnavailable",
+      sessionId,
+      documentUri: document.uri.toString(),
+      documentVersion: document.version,
+      normalizedSource: source,
+      sourceRevision: analysis.getSourceRevision(),
+      sessionRevision: 1,
+      target: { definitionStatementIndex: target.statementIndex, name: target.name },
+      reason: "source-stale"
+    });
+    await flushContext();
+    expect(mocks.nativeShowQuickPick).not.toHaveBeenCalled();
+
+    await panel.receive({
+      ...valueSnapshotFor(document, analysis, {
+        name: "width",
+        type: { kind: "number" },
+        value: "12"
+      }),
+      sessionId,
+      sessionRevision: 2
+    });
+    await flushContext();
+    expect(mocks.nativeShowQuickPick).toHaveBeenCalledTimes(1);
+    feature.dispose();
+  });
+
   it("routes geometry values through Reference Pick and applies only the selected site", async () => {
     const source = [
       "nui 1",
