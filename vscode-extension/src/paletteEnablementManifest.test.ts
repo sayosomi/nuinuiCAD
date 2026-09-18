@@ -26,14 +26,16 @@ const manifestPath = resolve(process.cwd(), "vscode-extension/package.json");
 const agentsPath = resolve(process.cwd(), "AGENTS.md");
 const sourceWhen = "editorLangId == nui && resourceScheme == file && resourceExtname == .nui";
 const canvasWhen = "activeWebviewPanelId == 'nuinuiCAD.canvas'";
+const modulePreviewWhen = "activeWebviewPanelId == 'nuinuiCAD.modulePreview'";
 const sourceOrCanvasWhen = `(${sourceWhen}) || ${canvasWhen}`;
+const sourceOrModulePreviewWhen = `(${sourceWhen}) || ${modulePreviewWhen}`;
 const canvasSelectionEnablement = `${canvasWhen} && nuinuiCAD.canvasHasSelection`;
 const bakeEnablement = `(${sourceWhen} && nuinuiCAD.bakeSourceTarget) || ((activeWebviewPanelId == 'nuinuiCAD.canvas' || activeWebviewPanelId == 'nuinuiCAD.modulePreview') && nuinuiCAD.canvasHasSelection)`;
 const coordinatePointConversionExplorerWhen = "view == nuinuiCAD.elements && viewItem == 'nuinuiCAD.coordinatePointConversionTarget'";
 
 const expectedTargetEnablement = new Map<string, string>([
   ["nuinuiCAD.openModulePreview", `${sourceWhen} && nuinuiCAD.modulePreviewSourceTarget`],
-  ["nuinuiCAD.editModulePreviewValues", `${sourceWhen} && nuinuiCAD.modulePreviewSourceTarget`],
+  ["nuinuiCAD.editModulePreviewValues", `(${sourceWhen} && nuinuiCAD.modulePreviewSourceTarget) || ${modulePreviewWhen}`],
   ["nuinuiCAD.inlineModuleInstance", `(${sourceWhen} && nuinuiCAD.inlineModuleSourceTarget) || (${canvasWhen} && nuinuiCAD.inlineModuleCanvasTarget)`],
   ["nuinuiCAD.extractModule", `(${sourceWhen} && nuinuiCAD.extractModuleSourceTarget) || (${canvasWhen} && nuinuiCAD.extractModuleCanvasTarget)`],
   ["nuinuiCAD.goToSourceDefinition", canvasSelectionEnablement],
@@ -55,7 +57,7 @@ const expectedTargetEnablement = new Map<string, string>([
 
 const expectedPaletteScope = new Map<string, string>([
   ["nuinuiCAD.openModulePreview", sourceWhen],
-  ["nuinuiCAD.editModulePreviewValues", sourceWhen],
+  ["nuinuiCAD.editModulePreviewValues", sourceOrModulePreviewWhen],
   ["nuinuiCAD.inlineModuleInstance", sourceOrCanvasWhen],
   ["nuinuiCAD.extractModule", sourceOrCanvasWhen],
   ["nuinuiCAD.goToSourceDefinition", canvasWhen],
