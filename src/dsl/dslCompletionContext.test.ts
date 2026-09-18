@@ -12,6 +12,12 @@ describe("dslCompletionContextAt", () => {
     expect(dslCompletionContextAt("/* point */", 5)).toBeNull();
     expect(dslCompletionContextAt("still */ poi", 5, true)).toBeNull();
     expect(dslCompletionContextAt("still */ poi", 12, true)).toMatchObject({ kind: "keyword" });
+    const carry = dslCompletionContextAt("car", 3);
+    expect(carry?.kind === "keyword" && carry.options).toContain("carry");
+    const next = dslCompletionContextAt("nex", 3);
+    expect(next?.kind === "keyword" && next.options).toContain("next");
+    expect(next?.kind === "keyword" && next.options).not.toContain("let");
+    expect(next?.kind === "keyword" && next.options).not.toContain("set");
     const line = "point P = coordinate(x: 0, y: 0)";
     expect(dslCompletionContextAt(line, at(line, "="))).toBeNull();
   });
@@ -185,13 +191,6 @@ describe("dslCompletionContextAt", () => {
       });
     });
 
-    it("retains an unfinished geometry-property token for set RHS type resolution", () => {
-      const line = "set length = @AB.";
-      expect(dslCompletionContextAt(line, line.length)).toMatchObject({
-        kind: "setRhs",
-        geometryProperty: { elementToken: "AB", from: line.length, to: line.length }
-      });
-    });
   });
 
   describe("nominal record initializer narrowing", () => {

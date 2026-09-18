@@ -29,11 +29,26 @@ const applyEdits = (source: string, edits: readonly { from: number; to: number; 
     .reduce((text, edit) => `${text.slice(0, edit.from)}${edit.newText}${text.slice(edit.to)}`, source);
 
 describe("host-neutral DSL rename query", () => {
+  it("renames statement-for carries through next and escaped references", () => {
+    const source = [
+      "nui 1",
+      "for i in range(min: 0, max: 0, step: 1) carry total: number = 0 {",
+      "  next total = @i",
+      "}",
+      "const result: number = @total"
+    ].join("\n");
+    const plan = planDslRenameEdits(snapshot(source), at(source, "total"), "sum");
+    expect(plan).not.toBeNull();
+    expect(plan?.edits.map((edit) => source.slice(edit.from, edit.to))).toEqual(["total", "total", "total"]);
+    expect(applyEdits(source, plan!.edits)).toContain("next sum = @i");
+    expect(applyEdits(source, plan!.edits)).toContain("@sum");
+  });
+
   it("renames a typed declaration from either its declaration or reference", () => {
     const source = [
       "nui 1",
       "const width: number = 10",
-      "let result: number = @width + 1"
+      "const result: number = @width + 1"
     ].join("\n");
     const declaration = queryDslRenameTarget(snapshot(source), at(source, "width"));
     const reference = queryDslRenameTarget(snapshot(source), at(source, "@width") + 1);

@@ -109,7 +109,7 @@ describe("bindingIssuesToDiagnostics", () => {
   });
 
   it("produces no diagnostics for a document with no BindingIssue at all", () => {
-    const fixture = typedDeclarationAnalysisFor(["nui 1", "const x: number = 1", "let y: number = @x + 1"].join("\n"));
+    const fixture = typedDeclarationAnalysisFor(["nui 1", "const x: number = 1", "const y: number = @x + 1"].join("\n"));
     expect(bindingIssuesToDiagnostics(fixture.bindingAnalysis, fixture.statements, fixture.spans)).toEqual([]);
   });
 });

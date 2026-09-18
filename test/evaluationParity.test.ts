@@ -1219,8 +1219,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       'const labels: string[] = ["valid"]',
       "const source: Pair = Pair(x: 7, label: @labels[99])",
       "const pairs: Pair[] = [@source]",
-      "let offset: number = 0",
-      "set offset = 1",
+      "const offset: number = 1",
       'const mapped: Pair[] = for item in @pairs { Pair(x: @item.x + @offset, label: "mapped") }',
       "const selected: Pair = @mapped[0]",
       "const selectedX: number = @selected.x"
@@ -1698,7 +1697,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
 
     expect(isRustEligibleFixture(fixture)).toBe(true);
     for (const payload of [tsPayload, rustPayload]) {
-      for (const name of ["spreadBasic", "spreadReversed", "spreadReferences", "mutableSpread"] as const) {
+      for (const name of ["spreadBasic", "spreadReversed", "spreadReferences", "spreadComputed"] as const) {
         expectScalarNumberClose(scalarBindingFor(fixture, payload, name), expected);
       }
       expect(scalarBindingFor(fixture, payload, "spreadZero")).toMatchObject({ status: "ok", value: { kind: "number", value: 0 } });
@@ -1908,8 +1907,8 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
   }, 30000);
 
-  it("asserts root set geometry builtin resolution with an unrelated module through both evaluators", () => {
-    const fixture = readParityFixture(repoRoot, "nui1-module-root-set-geometry-builtin-functions.nui");
+  it("asserts root immutable geometry builtin resolution with an unrelated module through both evaluators", () => {
+    const fixture = readParityFixture(repoRoot, "nui1-module-root-geometry-builtin-functions.nui");
     const options = optionsFor(fixture);
     const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
     const rustPayload = evaluateWithRustFixture(repoRoot, fixture);

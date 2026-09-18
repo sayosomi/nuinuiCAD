@@ -431,6 +431,15 @@ export const buildModuleGeometryRuntime = ({
     instancePath: readonly string[],
     elementsById: ReadonlyMap<ElementId, CadElement>
   ): ModuleGeometryPropertyRuntimeTarget | undefined => {
+    if (target.kind === "geometryCarry") {
+      return {
+        kind: "carry",
+        bindingId: target.bindingId,
+        property: target.property,
+        ...(target.pointKey ? { pointKey: target.pointKey } : {}),
+        targetSourceOrder: target.statementIndex
+      };
+    }
     if (target.kind === "recordField") {
       if (!target.property) return undefined;
       const fieldTarget: ModuleGeometrySourceTarget = {

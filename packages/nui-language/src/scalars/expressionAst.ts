@@ -1,5 +1,5 @@
 // AST/diagnostic types for typed scalar expressions used by declaration
-// initializers, `set` RHS values, and conditions. This module defines the
+// initializers, `next` RHS values, and conditions. This module defines the
 // shared shape only, with no name resolution, typecheck, || evaluation logic
 // of its own.
 //

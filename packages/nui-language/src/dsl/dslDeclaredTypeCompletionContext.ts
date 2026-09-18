@@ -3,7 +3,7 @@ import { parseDslTypedDeclarationStatement } from "./dslDeclarationParser";
 export type DslDeclaredTypeCompletionContext = {
   from: number;
   to: number;
-  bindingKind: "const" | "let";
+  bindingKind: "const";
 };
 
 const typeNamePrefix = /^[A-Za-z_][A-Za-z0-9_]*/;

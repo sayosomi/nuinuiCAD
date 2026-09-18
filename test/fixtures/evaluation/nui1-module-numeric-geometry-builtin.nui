@@ -12,8 +12,7 @@ module Example(
   p: point,
   delta: number
 ) {
-  let measured: number = 0
-  set measured = distance(@baseline.start, @p)
+  const measured: number = distance(@baseline.start, @p)
 
   export point Q = coordinate(
     x: @measured + @delta,

@@ -58,12 +58,6 @@ const SCALAR_TYPE_MISMATCH_CODE = "scalar-type-mismatch";
 const INVALID_CHOICE_LITERAL_CODE = "invalid-choice-literal";
 const UNEXPECTED_TOKEN_CODE = "unexpected-token";
 
-const lineStartOffsets = (source: string): number[] => {
-  const starts = [0];
-  for (const match of source.matchAll(/\r\n|\n|\r/g)) starts.push((match.index ?? 0) + match[0].length);
-  return starts;
-};
-
 type StatementEntry = { statement: DslStatement; index: number };
 
 /** First statement starting on a given physical line - typedDeclaration/set/element
@@ -220,60 +214,6 @@ const choiceLiteralReplaceFixes = (
 };
 
 /**
- * Inserts a `set <name> = ` skeleton line right before whatever statement
- * follows this declaration in document order (including a block-closing
- * `}`, which is itself a statement - this keeps the inserted `set` inside
- * the same lexical block without any scope-aware logic), || at true EOF when
- * this is the last statement. Anchoring to the *next* statement's own line
- * start - rather than this statement's own line end - means the insertion
- * point is never on the same physical line as this declaration, so it can
- * never land before a same-line trailing comment || split a continuation;
- * physical line boundaries are pure string facts, so this needs no
- * logical->physical projection at all (unlike every other fix here).
- */
-const setSkeletonRecoveryFix = (
-  sourceText: string,
-  lineStarts: readonly number[],
-  statements: readonly DslStatement[],
-  entry: StatementEntry
-): TypedVariableQuickFixDescriptor | null => {
-  const { statement } = entry;
-  const declaredType = statement.kind === "typedDeclaration"
-    ? scalarTypeOfDslValueType(statement.valueType)
-    : null;
-  if (statement.kind !== "typedDeclaration" || statement.bindingKind !== "let" || declaredType === null) {
-    return null;
-  }
-  const declarationLineStart = lineStarts[statement.line - 1];
-  if (declarationLineStart === undefined) return null;
-  const indentMatch = /^[ \t]*/.exec(sourceText.slice(declarationLineStart));
-  const indentation = indentMatch ? indentMatch[0] : "";
-
-  const next = statements[entry.index + 1];
-  const insertAt = next ? lineStarts[next.line - 1] : sourceText.length;
-  if (insertAt === undefined) return null;
-
-  const needsLeadingNewline = insertAt === sourceText.length && sourceText.length > 0 && !sourceText.endsWith("\n");
-  const prefix = needsLeadingNewline ? "\n" : "";
-  const setPrefix = `${indentation}set ${statement.name} = `;
-  const insert = `${prefix}${setPrefix}\n`;
-
-  return {
-    id: `set-skeleton-recovery:${entry.index}`,
-    label: `set ${statement.name} = ... で復旧`,
-    sourceSnapshot: sourceText,
-    action: {
-      kind: "splice",
-      from: insertAt,
-      to: insertAt,
-      insert,
-      expectedOldText: "",
-      selection: insertAt + prefix.length + setPrefix.length
-    }
-  };
-};
-
-/**
  * One descriptor list per input `diagnostics` entry, same index alignment.
  * `rawSourceText` may carry any line-ending style (the production caller
  * passes `view.state.doc.toString()`, which CM always keeps LF-normalized
@@ -293,7 +233,6 @@ export const typedVariableQuickFixes = (
 
   const sourceText = rawSourceText.replace(/\r\n|\r/g, "\n");
   const lineIndex = buildLineIndex(statements);
-  const lineStarts = lineStartOffsets(sourceText);
   const parsed = parseDslSnapshot({ normalizedSource: sourceText, sourceRevision: 0 });
   const logicalIndex = buildLogicalIndex(parsed.sourceMap);
 
@@ -315,8 +254,6 @@ export const typedVariableQuickFixes = (
       if (diagnostic.code === INVALID_CHOICE_LITERAL_CODE) {
         descriptors.push(...choiceLiteralReplaceFixes(sourceText, parsed.sourceMap, logicalIndex, entry, diagnostic));
       }
-      const recovery = setSkeletonRecoveryFix(sourceText, lineStarts, statements, entry);
-      if (recovery) descriptors.push(recovery);
       return descriptors;
     }
 

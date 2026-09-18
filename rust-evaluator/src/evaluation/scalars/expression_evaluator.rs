@@ -6,7 +6,7 @@
 //! resolve solely by the stable `bindingId` already attached to each
 //! reference node; scope, shadowing, declaration order, and binding
 //! eligibility are established before evaluation and are never reinterpreted
-//! here. Document declaration order, `set` versions, control flow, property
+//! here. Document declaration order, control flow, property
 //! wiring, and production wiring are owned by the surrounding runtime layers.
 //!
 //! **Traversal is iterative, not recursive**, for the same reason

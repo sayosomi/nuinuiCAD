@@ -8,17 +8,17 @@ const runPerformanceGates = (globalThis as {
 }).process?.env?.VITE_RUN_PERFORMANCE_GATES === "1";
 const describePerformanceGates = runPerformanceGates ? describe : describe.skip;
 
-// Dense fan-out, matching the property test's shape: `count` distinct `let`
+// Dense fan-out, matching the property test's shape: `count` distinct `const`
 // declarations each directly referencing one shared binding - the shape most
 // relevant to rename safety (every occurrence the rename must replay).
 const sourceFor = (count: number) => [
   "nui 1",
   "const Target: number = 0",
-  ...Array.from({ length: count }, (_, index) => `let v${index}: number = @Target`)
+  ...Array.from({ length: count }, (_, index) => `const v${index}: number = @Target`)
 ].join("\n");
 
 // Statement 0 is "nui 1"; statement 1 is "const Target...", followed by
-// `count` `let v{i}` declarations at statements 2..count+1 - every
+// `count` `const v{i}` declarations at statements 2..count+1 - every
 // declaration needs a stable identity, "nui 1" does not.
 const identitiesFor = (count: number) => new Map(
   Array.from({ length: count + 1 }, (_, index) => [index + 1, `perf:decl${index}`])

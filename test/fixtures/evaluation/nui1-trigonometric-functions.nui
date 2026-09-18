@@ -26,8 +26,7 @@ const acosInvalidHigh: number = acos(1.1)
 
 const nestedTrig: number = round(asin(sin(30)), 6)
 
-let mutableAngle: number = 0
-set mutableAngle = atan2(-1, 0)
+const mutableAngle: number = atan2(-1, 0)
 const referenceTrig: number = sin(@mutableAngle)
 
 point Origin = coordinate(

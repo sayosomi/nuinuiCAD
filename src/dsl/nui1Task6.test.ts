@@ -81,7 +81,7 @@ describe("nui1 Task 6 syntax lowering and lexical behavior", () => {
     const iteration = [...compiled.bindingAnalysis!.catalog.bindings].find(
       (binding) => binding.kind === "iteration" && binding.statementIndex === loopIndex
     );
-    expect(iteration).toMatchObject({ name: "i", mutability: "readonly", declaredType: null });
+    expect(iteration).toMatchObject({ name: "i", mutability: "readonly", declaredType: { kind: "number" } });
     const bodyPointIndex = compiled.statements.findIndex((statement) => statement.kind === "element" && statement.name === "P");
     expect(compiled.bindingAnalysis!.catalog.scopeIndex.scopeOfStatement.get(bodyPointIndex)).toBe(`for:${compiled.statementMap.statementIdByStatementIndex!.get(loopIndex)}`);
     expect(compiled.bindingAnalysis!.catalog.scopeIndex.scopeOfStatement.get(loopIndex)).toBe("root");

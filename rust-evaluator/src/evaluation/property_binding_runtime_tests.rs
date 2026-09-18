@@ -606,7 +606,7 @@ fn fails_closed_when_the_bound_binding_is_poisoned() {
     let scalar_program = program(vec![statement(
         "binding:closed-flag",
         0,
-        "let",
+        "const",
         json!({"kind": "boolean"}),
         reference("binding:no-such-legacy-var", json!({"kind": "boolean"})),
     )]);
@@ -725,7 +725,7 @@ fn materializes_a_bound_boolean_property_uniformly_across_every_forgroup_generat
     let scalar_program = program(vec![statement(
         "binding:mirror",
         0,
-        "let",
+        "const",
         json!({"kind": "boolean"}),
         boolean_literal(true),
     )]);

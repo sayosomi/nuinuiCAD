@@ -1,4 +1,4 @@
-// Evaluates a ScalarProgram's const/let declarations to their version-0 value
+// Evaluates a ScalarProgram's const declarations to their immutable value
 // using the pure expression evaluator. This
 // module never parses source, never re-resolves a binding name, && never
 // re-derives forward/self/cycle/eligibility diagnostics.
@@ -24,7 +24,7 @@
 // resolver, so callers that only need the whole-document result never see a
 // difference from the prior array-order construction.
 //
-// `set`, control-flow mutation, && Rust evaluation are handled by their
+// Immutable statement-for execution and Rust evaluation are handled by their
 // respective compilation/runtime paths rather than this declaration evaluator.
 
 import type { BindingId } from "@nuinuicad/nui-language";
@@ -56,6 +56,12 @@ export type LazyScalarProgramEvaluator = {
 
 export type ScalarProgramCollectionResolver = {
   environmentFor: (sourceOrder: number) => Pick<ScalarEvaluationEnvironment, "lookupCollectionIndex" | "lookupCollectionLength" | "lookupOptionalMember">;
+  recordFieldFor: (
+    collectionValueId: string,
+    index: number,
+    field: { recordStatementId: string; fieldIndex: number; type: ScalarExpressionType },
+    sourceOrder: number
+  ) => ScalarEvaluation;
 };
 
 const resultForDeclaredType = (evaluation: ScalarEvaluation, declaredType: ScalarExpressionType): ScalarEvaluation => {
@@ -380,7 +386,7 @@ export const createScalarProgramCollectionResolver = (
     };
   }
 
-  return { environmentFor };
+  return { environmentFor, recordFieldFor };
 };
 
 const isWithinEvaluationLimit = (

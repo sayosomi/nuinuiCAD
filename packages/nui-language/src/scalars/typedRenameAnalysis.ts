@@ -1,5 +1,5 @@
 // Typed binding rename safety analysis. Pure - determines whether
-// renaming one typed `const`/`let` declaration changes scope resolution
+// renaming one typed immutable declaration changes scope resolution
 // anywhere in the document, without ever re-parsing DSL source || invoking
 // compileDslDocument.
 //
@@ -33,7 +33,6 @@ import {
 } from "./bindingResolution";
 import type { ScalarValueSource } from "./propertyBindingCompiler";
 import type { ScalarProgram } from "./scalarProgram";
-import { classifySetTargetResolution, type SetStatementAnalysis, type SetTargetClassification } from "./setStatementCompiler";
 import type { TextTemplateAst } from "./textTemplate";
 import type { CompiledNumericBinding } from "./numericBindingCompiler";
 import {
@@ -51,7 +50,6 @@ export type TypedRenameAnalysisInput = {
   newName: string;
   physicalSpan?: DslPhysicalSpan;
   scalarProgram?: ScalarProgram;
-  setStatements?: ReadonlyMap<number, SetStatementAnalysis>;
   propertyBindings?: ReadonlyMap<string, ScalarValueSource>;
   textTemplates?: ReadonlyMap<string, TextTemplateAst>;
   numericBindings?: ReadonlyMap<string, CompiledNumericBinding>;
@@ -160,13 +158,6 @@ const sameResolution = (before: BindingResolution, after: BindingResolution): bo
   }
 };
 
-const sameSetTargetClassification = (before: SetTargetClassification, after: SetTargetClassification): boolean => {
-  if (before.kind !== after.kind) return false;
-  if (before.kind === "valid" && after.kind === "valid") return before.binding.id === after.binding.id;
-  if (before.kind === "invalid" && after.kind === "invalid") return before.reason === after.reason;
-  return true;
-};
-
 const toInitializerRequests = (
   occurrences: readonly TypedRenameOccurrence[],
   affectedKeys: ReadonlySet<string> | null,
@@ -221,13 +212,11 @@ export const analyzeTypedBindingRename = (input: TypedRenameAnalysisInput): Type
   const siteOccurrences = collectSiteBatchOccurrences({
     scopeIndex: input.catalog.scopeIndex,
     statements: input.statements,
-    setStatements: input.setStatements,
     propertyBindings: input.propertyBindings,
     textTemplates: input.textTemplates,
     numericBindings: input.numericBindings
   }).filter((occurrence) => input.catalog.scopeIndex.scopes.has(occurrence.site.scopeId));
-  const setTargetOccurrences = siteOccurrences.filter((occurrence) => occurrence.kind === "set-target");
-  const otherSiteOccurrences = siteOccurrences.filter((occurrence) => occurrence.kind !== "set-target");
+  const otherSiteOccurrences = siteOccurrences;
 
   // Pass 1: real catalog, every occurrence's actual current name text - one
   // batched sweep per resolver, not one call per occurrence.
@@ -244,10 +233,7 @@ export const analyzeTypedBindingRename = (input: TypedRenameAnalysisInput): Type
   for (const occurrence of otherSiteOccurrences) {
     if (resolutionTargetsBinding(siteBefore.get(occurrence.key), target.id)) affectedKeys.add(occurrence.key);
   }
-  for (const occurrence of setTargetOccurrences) {
-    const classification = classifySetTargetResolution(siteBefore.get(occurrence.key));
-    if (classification.kind === "valid" && classification.binding.id === target.id) affectedKeys.add(occurrence.key);
-  }
+
 
   // A rename with zero referencing occurrences (only the declaration itself
   // changes) still falls through to the same replay below, so shadow-capture
@@ -285,18 +271,6 @@ export const analyzeTypedBindingRename = (input: TypedRenameAnalysisInput): Type
       };
     }
   }
-  for (const occurrence of setTargetOccurrences) {
-    const before = classifySetTargetResolution(siteBefore.get(occurrence.key));
-    const after = classifySetTargetResolution(siteAfter.get(occurrence.key));
-    if (!sameSetTargetClassification(before, after)) {
-      return {
-        verdict: "rejected",
-        reason: "capture",
-        detail: { kind: occurrence.kind, span: occurrence.span, name: occurrence.currentName }
-      };
-    }
-  }
-
   const occurrences: TypedRenameSpan[] = [];
   for (const occurrence of [...initializerOccurrences, ...siteOccurrences]) {
     if (!affectedKeys.has(occurrence.key)) continue;

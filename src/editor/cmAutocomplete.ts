@@ -41,8 +41,6 @@ import {
 } from "@nuinuicad/nui-language";
 import type { ScalarType } from "@nuinuicad/nui-language";
 import type { ScalarExpressionCompletionContext } from "@nuinuicad/nui-language";
-import { setRhsScalarCandidates, setTargetCandidates, type SetCompletionSiteDeps, type SetTargetCandidate } from "@nuinuicad/nui-language";
-import { mergeSetTargetCandidates, recoverLiveSetTargetCandidates, type SetTargetCompletionCandidate } from "@nuinuicad/nui-language";
 import { visibleTypedBindingsAtLivePosition } from "@nuinuicad/nui-language";
 import { cmCompositionCompletionRetry } from "./cmCompositionCompletionRetry";
 import { cmDeleteCompletionRetry } from "./cmDeleteCompletionRetry";
@@ -79,14 +77,14 @@ export type DslAutocompleteOptions = {
   /** Tier B for typed value completion (Task 39): the last successfully
    * compiled document's precomputed BindingCatalog/BindingAnalysis, read
    * as-is on every keystroke (never rebuilt here) - undefined for a document
-   * with no typed declarations || set statements. */
+   * with no typed declarations. */
   bindingAnalysis: () => BindingAnalysis | undefined;
   /** Live-line -> stable typed-declaration BindingId bridge (Task 39), kept
    * in sync with CM edits by the caller the same way statementRanges is. */
   typedDeclarationRanges: () => TypedDeclarationRangeIndex;
-  /** Tier B site resolution for `set` target/RHS completion (Task 40): live
+  /** Tier B site resolution for immutable expression completion (Task 40): live
    * body-range tracking per lexical scope, purely structural &&
-   * independent of any specific `set` statement's own compiled identity -
+ * independent of any specific declaration's own compiled identity -
    * see statementRangeIndex.ts's own doc comment for why this (not
    * BindingVersionGraph) is the source of truth here. */
   scopeBodyRanges: () => ScopeBodyRangeIndex;
@@ -208,12 +206,6 @@ const asScalarCompletions = (candidates: readonly ScalarCompletionCandidate[]): 
     return { label: candidate.label, type: "enum" };
   });
 
-/** Task 40: maps `SetTargetCandidate` to CM's `Completion` shape. Unlike
- * asScalarCompletions's reference branch, a `set` target is a bare
- * identifier - `apply` is the plain name, never `@`-prefixed. */
-const asSetTargetCompletions = (candidates: readonly Pick<SetTargetCandidate, "name">[]): Completion[] =>
-  candidates.map((candidate) => ({ label: candidate.name, apply: candidate.name, type: "constant" }));
-
 /** Converts host-neutral Module candidates at the existing CodeMirror
  * boundary. Marker/colon/parenthesis insertion remains an editor concern. */
 const asModuleCompletions = (candidates: readonly ModuleCompletionCandidate[], bareReferences = false): Completion[] =>
@@ -332,60 +324,6 @@ const elementBindingSite = (
   if (statementIndex === undefined) return null;
   const scopeId = bindingAnalysis.catalog.scopeIndex.scopeOfStatement.get(statementIndex) ?? bindingAnalysis.catalog.scopeIndex.rootScopeId;
   return { scopeId, statementIndex };
-};
-
-/** Task 40: builds the position-based site setTargetCandidates/
- * setRhsScalarCandidates need, purely from the last successfully compiled
- * BindingCatalog's own scope index (via ScopeBodyRangeIndex) plus each
- * candidate binding's own live position (via TypedDeclarationRangeIndex) -
- * never BindingVersionGraph, && never gated on this specific `set`
- * statement's own compiled identity, so it resolves the same way for an
- * already-compiled `set` && a brand-new, never-yet-compiled one. */
-const setCompletionSiteDeps = (
-  options: DslAutocompleteOptions,
-  bindingAnalysis: BindingAnalysis,
-  cursorPosition: number
-): SetCompletionSiteDeps => ({
-  catalog: bindingAnalysis.catalog,
-  entriesById: bindingAnalysis.entriesById,
-  containingScopeId: deepestContainingScopeId(options.scopeBodyRanges(), cursorPosition, bindingAnalysis.catalog.scopeIndex.rootScopeId),
-  livePositionOf: (bindingId) => options.typedDeclarationRanges().get(bindingId)?.from,
-  cursorPosition
-});
-
-/**
- * Task 51 completion-only recovery: the last-good catalog remains the source
- * of normal candidates, while the current tolerant parse supplies poisoned
- * `let` declarations && any newly typed lexical scopes. The committed
- * candidate is mapped through its live declaration position before merging;
- * this lets one lexical winner be selected across stale && live metadata
- * without inventing a BindingId || changing runtime reference resolution.
- */
-const mergedSetTargetCandidates = (
-  options: DslAutocompleteOptions,
-  input: DslAutocompleteDocumentInput,
-  cursorPosition: number,
-  bindingAnalysis: BindingAnalysis | undefined
-) => {
-  const recovery = recoverLiveSetTargetCandidates({ source: input.source, cursorPosition });
-  const committed: SetTargetCompletionCandidate[] = [];
-  if (bindingAnalysis) {
-    const deps = setCompletionSiteDeps(options, bindingAnalysis, cursorPosition);
-    for (const candidate of setTargetCandidates(deps)) {
-      const livePosition = deps.livePositionOf(candidate.bindingId);
-      if (livePosition === undefined) continue;
-      const location = recovery.declarationLocationAtPosition(livePosition);
-      if (!location || location.name !== candidate.name) continue;
-      committed.push({
-        name: candidate.name,
-        type: candidate.type,
-        declarationPosition: location.declarationPosition,
-        scopeKey: location.scopeKey,
-        source: "committed"
-      });
-    }
-  }
-  return mergeSetTargetCandidates(committed, recovery);
 };
 
 /**
@@ -615,7 +553,7 @@ const typedReferenceCompletions = (
 };
 
 /**
- * Task 51: typed `const`/`let` number-kind bindings, offered as `@name`
+ * Task 51: typed immutable number-kind bindings, offered as `@name`
  * candidates alongside the legacy top-level/local `@variable` candidates in
  * a plain numeric attribute (`x:`, `,length:`, `dx:`, ...) - the same
  * position `numericBindingCompiler.ts` already resolves a compiled
@@ -690,9 +628,6 @@ const typedReferenceToken = (input: DslAutocompleteDocumentInput, completionCont
 const referenceMarkerToken = (input: DslAutocompleteDocumentInput, completionContext: DslCompletionContext): string | null => {
   if (completionContext?.kind === "elementParameter") {
     return completionContext.sigil ? input.lineText.slice(completionContext.tokenStart, completionContext.to) : null;
-  }
-  if (completionContext?.kind === "setRhs" && completionContext.geometryProperty) {
-    return input.lineText.slice(completionContext.geometryProperty.tokenStart, completionContext.to);
   }
   return typedReferenceToken(input, completionContext);
 };
@@ -779,14 +714,6 @@ export const isElementParameterRetryContext = (options: DslAutocompleteOptions, 
   if (completionContext.kind === "elementParameter") {
     elementToken = completionContext.elementToken;
     expectedScalarType = completionContext.expectedScalarType;
-  } else if (completionContext.kind === "setRhs" && completionContext.geometryProperty) {
-    const bindingAnalysis = options.bindingAnalysis();
-    const target = mergedSetTargetCandidates(options, input, context.pos, bindingAnalysis)
-      .find((candidate) => candidate.name === completionContext.targetName);
-    if (target) {
-      elementToken = completionContext.geometryProperty.elementToken;
-      expectedScalarType = target.type;
-    }
   }
   if (!elementToken?.trim()) return false;
   return elementPropertyCompletions({
@@ -808,7 +735,7 @@ export const isElementParameterRetryContext = (options: DslAutocompleteOptions, 
  * offer at least one candidate, non-explicitly, at `pos` right now. Used by
  * cmDeleteCompletionRetry.ts to decide whether a delete-shaped transaction
  * that left completion inactive is worth re-querying for - deliberately
- * context-kind-agnostic (setTarget, choice, typed binding, element
+ * context-kind-agnostic (next target, choice, typed binding, element
  * property, template hole all resolve through this exact same
  * createDslCompletionSource call), unlike isTypedReferenceRetryContext/
  * isElementParameterRetryContext above, which each narrow to one specific
@@ -857,7 +784,6 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
       neutralQuery,
       completionContext.kind === "moduleQualifiedMember",
       moduleBodyQuery && neutralQuery.context.kind === "parameter" && neutralQuery.context.parameter.definition.kind === "number",
-      completionContext.kind === "setTarget"
     )
     : [];
   const neutralHasSourceCandidates = Boolean(neutralQuery?.candidates.some((candidate) =>
@@ -1050,48 +976,6 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
       completions = filteredTypedReferenceCompletions(
         typedReferenceCompletions(options, input, context, completionContext), input, completionContext
       );
-    }
-  } else if (completionContext.kind === "setTarget") {
-    const bindingAnalysis = options.bindingAnalysis();
-    if (neutralQuery && neutralCompletions.length > 0 && neutralSemanticIsCurrent) {
-      completions = neutralCompletions;
-      usesNeutralQuery = true;
-    } else {
-      completions = asSetTargetCompletions(mergedSetTargetCandidates(options, input, context.pos, bindingAnalysis));
-    }
-  } else if (completionContext.kind === "setRhs") {
-    const bindingAnalysis = options.bindingAnalysis();
-    const deps = bindingAnalysis ? setCompletionSiteDeps(options, bindingAnalysis, context.pos) : null;
-    const target = mergedSetTargetCandidates(options, input, context.pos, bindingAnalysis)
-      .find((candidate) => candidate.name === completionContext.targetName);
-    if (neutralQuery && neutralCompletions.length > 0 && neutralSemanticIsCurrent &&
-      !(completionContext.geometryProperty && target?.type.kind === "choice")) {
-      completions = neutralCompletions;
-      usesNeutralQuery = true;
-    } else {
-      completions = completionContext.geometryProperty
-        ? target
-          ? elementPropertyCompletions({
-          source: input.source,
-          cursorLine: input.cursorLineNumber,
-          statementElementIds: statementElementIdsByLiveLine(input.doc, options.statementRanges()),
-          elements: options.elements(),
-          elementToken: completionContext.geometryProperty.elementToken,
-          expectedScalarType: target.type,
-          computedGeometry: options.computedGeometry() ?? new Map(),
-          effectiveEnabledElementIds: options.effectiveEnabledElementIds(),
-          errors: options.evaluationErrors() ?? [],
-          evaluationIsCurrent: options.evaluationIsCurrent?.() ?? true
-          })
-          : []
-        : (() => {
-          const existingCandidates = deps && target
-            ? setRhsScalarCandidates(input.lineText, completionContext.expressionSpan, input.localPos, target.type, deps)
-            : [];
-          const module = moduleScalarCompletions(options, input, context, target?.type ?? null);
-          const existing = module.body ? scalarCandidatesWithoutReferences(existingCandidates) : existingCandidates;
-          return mergeCompletionCandidates(asScalarCompletions(existing), normalizeModuleScalarCompletions(module.candidates));
-        })();
     }
   } else if (
     completionContext.kind === "transformationTarget" ||

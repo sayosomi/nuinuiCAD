@@ -12,9 +12,9 @@ const declarationOf = (source: string): Extract<DslStatement, { kind: "typedDecl
 };
 
 describe("serializeTypedDeclaration", () => {
-  it("emits canonical const/let + type text for every declared type", () => {
+  it("emits canonical const + type text for every declared type", () => {
     expect(serializeTypedDeclaration(declarationOf("const x: number = 12"))).toBe("const x: number = 12");
-    expect(serializeTypedDeclaration(declarationOf('let y: string = "front"'))).toBe('let y: string = "front"');
+    expect(serializeTypedDeclaration(declarationOf('const y: string = "front"'))).toBe('const y: string = "front"');
     expect(serializeTypedDeclaration(declarationOf("const z: boolean = true"))).toBe("const z: boolean = true");
     expect(serializeTypedDeclaration(declarationOf("const d: choice(right, left) = right"))).toBe(
       "const d: choice(right, left) = right"
@@ -51,7 +51,7 @@ describe("serializeTypedDeclaration", () => {
     // A single-quoted string with an already-escaped double quote inside: if
     // Task 10 canonicalized the initializer (double-quote + re-escape), this
     // would come out differently. It must not.
-    const source = "let note: string = 'has \\\" inside'";
+    const source = "const note: string = 'has \\\" inside'";
     expect(serializeTypedDeclaration(declarationOf(source))).toBe(source);
   });
 
@@ -67,9 +67,9 @@ describe("serializeTypedDeclaration", () => {
     for (const source of [
       "const a: number = 1 + 2",
       "const bounded: number(step: 0.5, min: -1, max: 2) = 1",
-      'let b: string = "x"',
+      'const b: string = "x"',
       "const c: boolean = false",
-      "let d: choice(a, b, c) = b"
+      "const d: choice(a, b, c) = b"
     ]) {
       const serialized = serializeTypedDeclaration(declarationOf(source));
       const reparsed = parseDsl(serialized);

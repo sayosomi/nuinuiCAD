@@ -153,6 +153,16 @@ const geometryPropertyMetadataFor = (
       type
     };
   }
+  if (target.kind === "geometryCarry") {
+    return {
+      kind: "geometryCarry",
+      bindingId: target.bindingId,
+      property: target.property,
+      ...(target.pointKey ? { pointKey: target.pointKey } : {}),
+      targetSourceOrder: target.statementIndex,
+      type
+    };
+  }
   if (target.kind === "recordField") {
     throw new Error("moduleScalarExpression: record field properties are lowered as scalar references");
   }
@@ -480,6 +490,16 @@ const typecheckGeometryTarget = (
   const unwrapped = unwrapModuleGeometrySourceTarget(reference.target);
   const target = unwrapped.target;
   const pointKey = unwrapped.pointKey;
+  if (target.kind === "geometryCarry") {
+    return {
+      kind: "geometryCarry",
+      bindingId: target.bindingId,
+      statementId: target.statementId,
+      statementIndex: target.statementIndex,
+      geometryType: expectedGeometryType,
+      ...(pointKey ? { pointKey } : {})
+    };
+  }
   if (target.kind === "parameter") {
     return {
       statementId: target.definitionStatementId,

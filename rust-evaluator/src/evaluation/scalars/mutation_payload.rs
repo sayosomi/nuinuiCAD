@@ -26,9 +26,6 @@ pub(crate) enum ValidatedBindingVersionKind {
     Declare {
         initializer: Option<TypedScalarExpression>,
     },
-    Set {
-        expression: TypedScalarExpression,
-    },
 }
 
 #[derive(Debug)]
@@ -54,6 +51,23 @@ pub(crate) struct ValidatedBindingVersions {
     pub(crate) conditional_owners_by_element_id: HashMap<String, String>,
     pub(crate) for_group_owners_by_element_id: HashMap<String, ValidatedForGroupOwner>,
     pub(crate) collection_values: Vec<ValidatedScalarProgramCollection>,
+    pub(crate) immutable_for_groups: HashMap<String, ValidatedImmutableForGroupPlan>,
+}
+
+#[derive(Debug)]
+pub(crate) struct ValidatedImmutableForGroupPlan {
+    pub(crate) owner_statement_id: String,
+    pub(crate) carries: Vec<ValidatedImmutableForGroupCarry>,
+}
+
+#[derive(Debug)]
+pub(crate) struct ValidatedImmutableForGroupCarry {
+    pub(crate) binding_id: BindingId,
+    pub(crate) next_binding_id: BindingId,
+    pub(crate) initializer: TypedScalarExpression,
+    pub(crate) declared_type: ScalarType,
+    pub(crate) next_expression: TypedScalarExpression,
+    pub(crate) next_source_order: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -289,22 +303,6 @@ fn decode_version(
             "initialState",
             "initializer",
         ][..],
-        "set" => &[
-            "versionId",
-            "statementId",
-            "kind",
-            "bindingId",
-            "targetBindingId",
-            "bindingKind",
-            "declaredType",
-            "sourceOrder",
-            "scopeId",
-            "scopeExitSourceOrder",
-            "control",
-            "predecessorId",
-            "initialState",
-            "expression",
-        ][..],
         _ => return Err(issue(Code::UnknownKind, "unknown binding version kind")),
     };
     reject_unexpected_fields(object, allowed, "binding version")?;
@@ -350,7 +348,7 @@ fn decode_version(
         decode_initial_state(require_field(object, "initialState", "binding version")?)?;
     let kind = match kind {
         "declare" => {
-            if version_id != statement_id || !matches!(binding_kind, "const" | "let") {
+            if version_id != statement_id || binding_kind != "const" {
                 return Err(issue(
                     Code::InvalidVersionId,
                     "declaration version identity or bindingKind is inconsistent",
@@ -377,40 +375,6 @@ fn decode_version(
                 }
             }
             ValidatedBindingVersionKind::Declare { initializer }
-        }
-        "set" => {
-            if binding_kind != "let"
-                || version_id != statement_id
-                || string(
-                    require_field(object, "targetBindingId", "set binding version")?,
-                    "set binding version targetBindingId",
-                )? != binding_id
-            {
-                return Err(issue(
-                    Code::InvalidBindingId,
-                    "set target/binding/version identity is inconsistent",
-                ));
-            }
-            if initial_state != InitialState::Uncomputed {
-                return Err(issue(
-                    Code::InvalidFieldType,
-                    "set initialState must be uncomputed",
-                ));
-            }
-            let expression = validate_typed_expression_payload(require_field(
-                object,
-                "expression",
-                "set binding version",
-            )?)?;
-            if expression_type(&expression).map_or(true, |actual| {
-                !scalar_type_assignable(actual, &declared_type)
-            }) {
-                return Err(issue(
-                    Code::LiteralTypeMismatch,
-                    "set expression type must match declaredType",
-                ));
-            }
-            ValidatedBindingVersionKind::Set { expression }
         }
         _ => unreachable!(),
     };
@@ -493,6 +457,7 @@ pub(crate) fn validate_binding_versions_payload(
             "evaluationLimitSourceOrder",
             "postStopBindingIds",
             "collectionValues",
+            "immutableForGroups",
         ],
         "binding versions payload",
     )?;
@@ -530,8 +495,6 @@ pub(crate) fn validate_binding_versions_payload(
             (ValidatedBindingVersionKind::Declare { .. }, None) => {
                 declared_types.insert(version.binding_id.clone(), version.declared_type.clone());
             }
-            (ValidatedBindingVersionKind::Set { .. }, Some(r#type))
-                if r#type == &version.declared_type => {}
             _ => {
                 return Err(issue(
                     Code::InvalidBindingId,
@@ -542,12 +505,126 @@ pub(crate) fn validate_binding_versions_payload(
         current_by_binding.insert(version.binding_id.clone(), version.version_id.clone());
         versions.push(version);
     }
-    let binding_ids = declared_types.keys().cloned().collect::<HashSet<_>>();
     let collection_values = object
         .get("collectionValues")
         .map(decode_collection_values)
         .transpose()?
         .unwrap_or_default();
+    let mut immutable_for_groups = HashMap::new();
+    if let Some(plans) = object.get("immutableForGroups") {
+        let plans = plans.as_array().ok_or_else(|| {
+            issue(
+                Code::InvalidFieldType,
+                "immutableForGroups must be an array",
+            )
+        })?;
+        for plan in plans {
+            let plan = as_object(plan, "immutable forGroup plan")?;
+            reject_unexpected_fields(
+                plan,
+                &["ownerStatementId", "carries"],
+                "immutable forGroup plan",
+            )?;
+            let owner_statement_id = string(
+                require_field(plan, "ownerStatementId", "immutable forGroup plan")?,
+                "immutable forGroup ownerStatementId",
+            )?
+            .to_owned();
+            if immutable_for_groups.contains_key(&owner_statement_id) {
+                return Err(issue(
+                    Code::InvalidBindingId,
+                    "immutable forGroup ownerStatementId must be unique",
+                ));
+            }
+            let carry_json = require_field(plan, "carries", "immutable forGroup plan")?
+                .as_array()
+                .ok_or_else(|| {
+                    issue(
+                        Code::InvalidFieldType,
+                        "immutable forGroup carries must be an array",
+                    )
+                })?;
+            let mut carries = Vec::with_capacity(carry_json.len());
+            for carry in carry_json {
+                let carry = as_object(carry, "immutable forGroup carry")?;
+                reject_unexpected_fields(
+                    carry,
+                    &[
+                        "bindingId",
+                        "nextBindingId",
+                        "initializer",
+                        "declaredType",
+                        "nextExpression",
+                        "nextSourceOrder",
+                    ],
+                    "immutable forGroup carry",
+                )?;
+                let binding_id = string(
+                    require_field(carry, "bindingId", "immutable carry")?,
+                    "immutable carry bindingId",
+                )?
+                .to_owned();
+                let next_binding_id = string(
+                    require_field(carry, "nextBindingId", "immutable carry")?,
+                    "immutable carry nextBindingId",
+                )?
+                .to_owned();
+                let declared_type =
+                    decode_scalar_type(require_field(carry, "declaredType", "immutable carry")?)?;
+                let initializer = validate_typed_expression_payload(require_field(
+                    carry,
+                    "initializer",
+                    "immutable carry",
+                )?)?;
+                let next_expression = validate_typed_expression_payload(require_field(
+                    carry,
+                    "nextExpression",
+                    "immutable carry",
+                )?)?;
+                for expression in [&initializer, &next_expression] {
+                    if expression_type(expression).map_or(true, |actual| {
+                        !scalar_type_assignable(actual, &declared_type)
+                    }) {
+                        return Err(issue(
+                            Code::LiteralTypeMismatch,
+                            "immutable carry expression type must match declaredType",
+                        ));
+                    }
+                }
+                let next_source_order = integer(
+                    require_field(carry, "nextSourceOrder", "immutable carry")?,
+                    "immutable carry nextSourceOrder",
+                )?;
+                carries.push(ValidatedImmutableForGroupCarry {
+                    binding_id,
+                    next_binding_id,
+                    initializer,
+                    declared_type,
+                    next_expression,
+                    next_source_order,
+                });
+            }
+            immutable_for_groups.insert(
+                owner_statement_id.clone(),
+                ValidatedImmutableForGroupPlan {
+                    owner_statement_id,
+                    carries,
+                },
+            );
+        }
+    }
+    // Carry declarations and their `next` expressions are immutable loop
+    // state, not temporal versions. They still belong to the resolved binding
+    // namespace so expressions can reference them at the Rust boundary.
+    let mut binding_ids = declared_types.keys().cloned().collect::<HashSet<_>>();
+    for plan in immutable_for_groups.values() {
+        for carry in &plan.carries {
+            binding_ids.insert(carry.binding_id.clone());
+            declared_types.insert(carry.binding_id.clone(), carry.declared_type.clone());
+            binding_ids.insert(carry.next_binding_id.clone());
+            declared_types.insert(carry.next_binding_id.clone(), carry.declared_type.clone());
+        }
+    }
     for collection in &collection_values {
         if let super::program_payload::ValidatedScalarProgramCollectionValue::Literal(members) =
             &collection.value
@@ -581,7 +658,6 @@ pub(crate) fn validate_binding_versions_payload(
     for version in &versions {
         let expression = match &version.kind {
             ValidatedBindingVersionKind::Declare { initializer } => initializer.as_ref(),
-            ValidatedBindingVersionKind::Set { expression } => Some(expression),
         };
         if let Some(expression) = expression {
             let mut references = Vec::new();
@@ -597,6 +673,25 @@ pub(crate) fn validate_binding_versions_payload(
                     Code::InvalidBindingId,
                     format!("unknown binding reference {reference}"),
                 ));
+            }
+        }
+    }
+    for plan in immutable_for_groups.values() {
+        for carry in &plan.carries {
+            for expression in [&carry.initializer, &carry.next_expression] {
+                let mut references = Vec::new();
+                collect_references(expression, &mut references);
+                for reference in references {
+                    if binding_ids.contains(reference)
+                        || listed_iteration_binding_ids.contains(reference)
+                    {
+                        continue;
+                    }
+                    return Err(issue(
+                        Code::InvalidBindingId,
+                        format!("unknown binding reference {reference}"),
+                    ));
+                }
             }
         }
     }
@@ -943,6 +1038,15 @@ pub(crate) fn validate_binding_versions_payload(
             referenced_for_group_owner_ids.insert(owner_statement_id.to_owned());
         }
     }
+    for owner_statement_id in immutable_for_groups.keys() {
+        if !for_group_owner_ids.contains(owner_statement_id) {
+            return Err(issue(
+                Code::InvalidControlOwner,
+                "immutable forGroup plan has no matching forGroupOwners entry",
+            ));
+        }
+        referenced_for_group_owner_ids.insert(owner_statement_id.clone());
+    }
     if referenced_for_group_owner_ids.len() != for_group_owner_ids.len() {
         return Err(issue(
             Code::InvalidControlOwner,
@@ -959,5 +1063,6 @@ pub(crate) fn validate_binding_versions_payload(
         conditional_owners_by_element_id,
         for_group_owners_by_element_id,
         collection_values,
+        immutable_for_groups,
     })
 }

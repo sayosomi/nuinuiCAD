@@ -2,8 +2,8 @@ import type { CadElement, ElementId, GeometryInputTarget, PointAnchor } from "..
 import { anchorReferenceElementId, pointAnchorForElement } from "../model/pointAnchors";
 import { getDirectParentIds } from "@nuinuicad/nui-language";
 import type { EvaluateElementsOptions } from "./evaluate";
-import { hasSetVersions, isRustLinearMutationEligible } from "../scalars/linearMutationEvaluator";
-import { hasCanonicalForGroupMutationOwners } from "../scalars/forGroupMutationControl";
+import { isRustLinearMutationEligible } from "../scalars/linearMutationEvaluator";
+import { hasCanonicalForGroupExecutionOwners } from "../scalars/forGroupMutationControl";
 import { referencesIn } from "@nuinuicad/nui-language";
 
 const rustSupportedElementTypes = new Set<CadElement["type"]>([
@@ -285,13 +285,23 @@ const hasRustSupportedCompiledReferences = (
   options: EvaluateElementsOptions
 ): boolean => {
   const usesMutationPayload = options.bindingVersions && isRustLinearMutationEligible(options.bindingVersions);
+  // Geometry carries are evaluated by the TS geometry-value authority until
+  // their value payload is part of the Rust boundary. Never send a document
+  // with one of these plans to Rust as if the scalar-only payload were
+  // complete.
+  if (usesMutationPayload && [...(options.bindingVersions!.immutableForGroups?.values() ?? [])].some((plan) => (plan.geometryCarries?.length ?? 0) > 0)) return false;
   // Eligibility must never decode || reject a malformed scalar payload. The
   // Rust command owns validation && its typed-input failure must stay on the
   // existing fail-closed path rather than becoming a TypeScript exception.
   const scalarStatements = options.scalarProgram?.statements;
+  const immutableCarryBindingIds = usesMutationPayload
+    ? [...(options.bindingVersions!.immutableForGroups?.values() ?? [])].flatMap((plan) =>
+        plan.carries.flatMap((carry) => [carry.bindingId, ...(carry.nextBindingId ? [carry.nextBindingId] : [])])
+      )
+    : [];
   const availableBindingIds = new Set(
     usesMutationPayload
-      ? options.bindingVersions!.versionIdsByBindingId.keys()
+      ? [...options.bindingVersions!.versionIdsByBindingId.keys(), ...immutableCarryBindingIds]
       : Array.isArray(scalarStatements) ? scalarStatements.map((statement) => statement.bindingId) : []
   );
   const hasBinding = (bindingId: string) => availableBindingIds.has(bindingId);
@@ -426,18 +436,18 @@ export const canUseRustEvaluationForElements = (
   elements: CadElement[],
   options: EvaluateElementsOptions = {}
 ) => {
-  if (options.bindingVersions && hasSetVersions(options.bindingVersions) &&
+  if (options.bindingVersions?.requiresExecutionOrdering === true &&
     !isRustLinearMutationEligible(options.bindingVersions)) return false;
   if (options.bindingVersions?.versions.some((version) => version.control.ownerChain.some((owner) => owner.kind === "conditionalBranch")) &&
     (!options.statementIdByStatementIndex || !options.conditionalOwnerStatementIdByElementId)) return false;
   if (options.bindingVersions?.versions.some((version) => version.control.ownerChain.some((owner) => owner.kind === "forGroup")) &&
-    !hasCanonicalForGroupMutationOwners(
+    !hasCanonicalForGroupExecutionOwners(
       options.bindingVersions,
       elements,
       options.statementInfoByElementId,
       options.statementIdByStatementIndex,
       options.forGroupMutationOwnerByElementId,
-      new Set(options.moduleForGroupMutationOwnerByElementId ? [...options.moduleForGroupMutationOwnerByElementId.values()].map((owner) => owner.ownerStatementId) : [])
+      new Set(options.moduleForGroupExecutionOwnerByElementId ? [...options.moduleForGroupExecutionOwnerByElementId.values()].map((owner) => owner.ownerStatementId) : [])
     )) return false;
   const evaluationLimitIndex = Math.min(
     Math.max(options.evaluationLimitIndex ?? elements.length, 0),

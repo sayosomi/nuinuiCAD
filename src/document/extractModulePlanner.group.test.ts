@@ -174,25 +174,4 @@ describe("planExtractModule checkpoint 4 plain groups", () => {
     ].join("\n"));
   });
 
-  it("keeps a let/set pair inside the group but rejects a write crossing the Extract boundary", () => {
-    const internalSource = [
-      "nui 1",
-      "group Pocket {",
-      "  let total: number = 0",
-      "  set total = @total + 1",
-      "}"
-    ].join("\n");
-    const internal = planGroup(internalSource);
-    expect(internal.status).toBe("planned");
-    if (internal.status === "planned") expect(internal.dependencies).toEqual([]);
-
-    const crossingSource = [
-      "nui 1",
-      "let total: number = 0",
-      "group Pocket {",
-      "  set total = @total + 1",
-      "}"
-    ].join("\n");
-    expectRejectedWithoutPatch(planGroup(crossingSource), "cross-boundary-mutation");
-  });
 });

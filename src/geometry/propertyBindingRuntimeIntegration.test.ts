@@ -227,7 +227,7 @@ describe("Task 23 standard property runtime, end-to-end through the real compile
       "point Z1 = coordinate(x: 0, y: 0)",
       "point Z2 = coordinate(x: 3, y: 4)",
       "line D = segment(start: @Z1, end: @Z2, enabled: false)",
-      "let 有効: boolean = @D.length > 0",
+      "const 有効: boolean = @D.length > 0",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line AB = segment(start: @A, end: @B)",
@@ -252,7 +252,7 @@ describe("Task 23 standard property runtime, end-to-end through the real compile
     const source = (mirrorXArg: string) =>
       [
         "nui 1",
-        ...(mirrorXArg === "@反転" ? ["let 反転: boolean = true"] : []),
+        ...(mirrorXArg === "@反転" ? ["const 反転: boolean = true"] : []),
         "point A = coordinate(x: 0, y: 0)",
         "point B = coordinate(x: 10, y: 0)",
         "line AB = segment(start: @A, end: @B)",

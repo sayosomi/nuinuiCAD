@@ -30,7 +30,7 @@ const hasCleanCanonicalSource = () => {
 };
 
 /**
- * Safely renames one typed `const`/`let` binding through the same
+ * Safely renames one typed immutable binding through the same
  * flush -> analyze -> atomic-reject-or-commit -> one Undo step boundary the
  * existing element rename command uses
  * (src/commands/renameElementWithPropagation.ts), swapping element-model-diff

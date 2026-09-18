@@ -49,10 +49,10 @@ reference rather than a second place to edit parser behavior.
 | `if` | `dsl-ref:statement:if` |
 <!-- dsl-ref:statement:const -->
 | `const` | `dsl-ref:statement:const` |
-<!-- dsl-ref:statement:let -->
-| `let` | `dsl-ref:statement:let` |
-<!-- dsl-ref:statement:set -->
-| `set` | `dsl-ref:statement:set` |
+<!-- dsl-ref:statement:carry -->
+| `carry` | `dsl-ref:statement:carry` |
+<!-- dsl-ref:statement:next -->
+| `next` | `dsl-ref:statement:next` |
 <!-- dsl-ref:statement:reverse -->
 | `reverse` | `dsl-ref:statement:reverse` |
 <!-- dsl-ref:statement:edge -->
@@ -109,7 +109,7 @@ introduce their own block rules. Blocks use braces and preserve source order.
 Declarations are not hoisted: a later statement cannot be referenced from an
 earlier one, even when both statements are in the same block.
 
-`set` is allowed only where a mutable scalar binding is in scope. Geometry
+`next` is allowed only where a statement-for carry is in scope. Geometry
 construction calls and builtin calls use named arguments unless the generated
 catalog or the relevant page says otherwise. Named arguments may be reordered;
 duplicate, missing, or unknown names are errors.

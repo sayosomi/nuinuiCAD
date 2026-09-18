@@ -42,6 +42,22 @@ const slices = (
 };
 
 describe("queryDslReferences", () => {
+  it("indexes statement-for carry declarations, next targets, and escaped references", () => {
+    const source = [
+      "nui 1",
+      "for i in range(min: 0, max: 0, step: 1) carry total: number = 0 {",
+      "  next total = @i",
+      "}",
+      "const result: number = @total"
+    ].join("\n");
+    const declaration = queryAt(source, "total");
+    const escaped = queryAt(source, "@total");
+    expect(declaration).not.toBeNull();
+    expect(escaped).toEqual(declaration);
+    expect(slices(source, declaration!.declarationRange)).toEqual(["total"]);
+    expect(slices(source, declaration!.referenceRanges)).toEqual(["total", "total"]);
+  });
+
   it("returns one declaration and ordered usages from either declaration or reference", () => {
     const source = [
       "nui 1",
@@ -309,8 +325,7 @@ describe("queryDslReferences", () => {
       "if (@Outer::A.direction == clockwise) {",
       "  point Marker = coordinate(x: 0, y: 0)",
       "}",
-      "let copied: choice(counterclockwise, clockwise) = clockwise",
-      "set copied = @Outer::A.direction",
+      "const copied: choice(counterclockwise, clockwise) = @Outer::A.direction",
       "text Label = label(text: \"clockwise ${@Outer::A.direction == clockwise}\", anchor: none, size: 3)"
     ].join("\n");
     const declaration = queryAt(source, "A");
@@ -318,7 +333,7 @@ describe("queryDslReferences", () => {
       source.indexOf("@Outer::A.direction"),
       source.indexOf("@Outer::A.direction", source.indexOf("arc B")),
       source.indexOf("@Outer::A.direction", source.indexOf("if (")),
-      source.indexOf("@Outer::A.direction", source.indexOf("set copied")),
+      source.indexOf("@Outer::A.direction", source.indexOf("const copied")),
       source.indexOf("@Outer::A.direction", source.indexOf("text Label"))
     ];
 

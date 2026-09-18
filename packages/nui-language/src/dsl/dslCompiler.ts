@@ -279,6 +279,22 @@ export const applyStatement = (
     name: statement.name,
     ...(statement.modifierNames?.length ? { modifierNames: [...statement.modifierNames] } : { modifierNames: undefined })
   };
+  if (statement.kind === "element" && statement.type === "forGroup" && statement.forSource && element.type === "forGroup") {
+    const variable = statement.attrs.find((item) => item.key === "variable")?.value ?? (element.type === "forGroup" ? element.variableName : "i");
+    return {
+      ...(named as Extract<CadElement, { type: "forGroup" }>),
+      variableName: unquoteDslString(variable),
+      iterationSource: statement.forSource,
+      min: 0,
+      max: -1,
+      step: 1,
+      carries: (statement.forCarries ?? []).map((carry) => ({
+        name: carry.name,
+        typeText: carry.typeText,
+        initializer: carry.initializer
+      }))
+    };
+  }
   const spec = constructionSpecFor(statement);
   if (!spec) return named;
 
@@ -297,6 +313,16 @@ export const applyStatement = (
   ));
 
   let next = result.element;
+  if (statement.kind === "element" && statement.type === "forGroup" && statement.forCarries?.length && next.type === "forGroup") {
+    next = {
+      ...next,
+      carries: statement.forCarries.map((carry) => ({
+        name: carry.name,
+        typeText: carry.typeText,
+        initializer: carry.initializer
+      }))
+    };
+  }
   if (result.metadata.parent) {
     next = { ...next, parentGroupId: resolveId(result.metadata.parent, index, statement.line, diagnostics, next) };
   }

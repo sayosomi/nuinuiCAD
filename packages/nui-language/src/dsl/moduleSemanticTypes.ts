@@ -127,7 +127,7 @@ export type ModuleScalarSourceTarget =
       optional: boolean;
     })
   | ModuleRecordFieldSourceTarget
-  | { kind: "iteration"; statementId: StatementIdentity; statementIndex: number; name: string; identity?: DocumentQualifiedSemanticIdentity<StatementIdentity> }
+  | { kind: "iteration"; statementId: StatementIdentity; statementIndex: number; name: string; valueType?: DslValueType; identity?: DocumentQualifiedSemanticIdentity<StatementIdentity> }
   | { kind: "valueForBinder"; binderId: BindingId; statementId: StatementIdentity; statementIndex: number; name: string; sourceElementType: ScalarType }
   | { kind: "moduleLocal"; statementId: StatementIdentity; statementIndex: number; identity?: DocumentQualifiedSemanticIdentity<StatementIdentity> }
   | { kind: "documentBinding"; bindingId: BindingId; statementId: StatementIdentity; statementIndex: number; identity?: DocumentQualifiedSemanticIdentity<StatementIdentity> }
@@ -171,6 +171,14 @@ export type ModuleScalarSourceTarget =
 
 export type ModuleGeometrySourceTarget =
   | ModuleRecordFieldValueSourceTarget
+  | {
+      kind: "geometryCarry";
+      bindingId: BindingId;
+      statementId: StatementIdentity;
+      statementIndex: number;
+      geometryKind: ModuleGeometryInterfaceType;
+      pointKey?: string;
+    }
   | (ModuleParameterSlot & { kind: "parameter"; geometryKind: "point" | "line"; pointKey?: string })
   | {
       /** Immutable geometry binder owned by a geometry collection map. It is
@@ -288,6 +296,15 @@ export type ModuleParentReferenceSemantic = {
 
 export type ModuleGeometryPropertySourceTarget =
   | ModuleRecordFieldSourceTarget
+  | {
+      kind: "geometryCarry";
+      bindingId: BindingId;
+      statementId: StatementIdentity;
+      statementIndex: number;
+      geometryKind: ModuleGeometryInterfaceType;
+      property: string;
+      pointKey?: string;
+    }
   | {
       kind: "geometryValueForBinder";
       binderId: BindingId;
@@ -841,7 +858,7 @@ export type ResolvedModuleGeometryExport = ResolvedModuleExportBase & {
 export type ResolvedModuleScalarExport = ResolvedModuleExportBase & {
   kind: "scalar";
   declaredType: ScalarType;
-  bindingKind: "const" | "let";
+  bindingKind: "const";
 };
 
 export type ResolvedModuleRecordExport = ResolvedModuleExportBase & {
@@ -956,7 +973,7 @@ export type ModuleDefinitionSemantic = {
     identity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
     name: string;
     type: ScalarExpressionType | null;
-    bindingKind: "const" | "let";
+    bindingKind: "const";
     initializer: ModuleScalarExpressionSemantic | null;
   }[];
   /** Scalar/choice value-for bodies are Module-owned semantic expressions;

@@ -236,7 +236,7 @@ describe("nui VS Code language foundation", () => {
     await expectScope("true false", "false", "constant.language.boolean.nui");
     await expectScope("choice(前, 後)", "前", "constant.other.enum.nui");
     await expectScope("const width = 10", "const", "storage.modifier.nui");
-    await expectScope("let height = 20", "let", "storage.modifier.nui");
+    await expectNotScope("let height = 20", "let", "storage.modifier.nui");
     await expectScope(
       "export point P = coordinate()",
       "export",
@@ -280,7 +280,9 @@ describe("nui VS Code language foundation", () => {
       "sleeve",
       "entity.name.variable.nui"
     );
-    await expectScope("set seam = 10", "set", "keyword.other.nui");
+    await expectNotScope("set seam = 10", "set", "keyword.other.nui");
+    await expectScope("for i in 1..2 carry total: number = 0 {", "carry", "storage.modifier.nui");
+    await expectScope("next total = @total + 1", "next", "keyword.control.nui");
     await expectScope("if a <= b and not c {", "if", "keyword.control.nui");
     await expectScope(
       "if a <= b and not c {",
@@ -366,7 +368,7 @@ describe("nui VS Code language foundation", () => {
     );
   });
 
-  it("keeps const/let annotations in the normal type-position grammar", async () => {
+  it("keeps const annotations in the normal type-position grammar", async () => {
     const constNumber = "const seam: number = 5";
     await expectScope(constNumber, "const", "storage.modifier.nui");
     await expectScope(constNumber, "seam", "entity.name.variable.nui");
@@ -374,11 +376,6 @@ describe("nui VS Code language foundation", () => {
     await expectNotScope(constNumber, "number", "entity.name.variable.nui");
     await expectScope(constNumber, "=", "keyword.operator.assignment.nui");
     await expectScope(constNumber, "5", "constant.numeric.nui");
-
-    const letNumber = "let angle: number = 90";
-    await expectScope(letNumber, "let", "storage.modifier.nui");
-    await expectScope(letNumber, "angle", "entity.name.variable.nui");
-    await expectScope(letNumber, "number", "storage.type.nui");
 
     const constBoolean = "const show: boolean = @seam > 0 and not false";
     await expectScope(constBoolean, "boolean", "storage.type.nui");

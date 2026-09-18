@@ -18,7 +18,7 @@ type ControllerInternals = {
 const source = [
   "nui 1",
   "point A = coordinate(x: 0, y: 0)",
-  "let base: number = 1",
+  "const base: number = 1",
   "const anchor: number = 42"
 ].join("\n");
 
@@ -51,7 +51,7 @@ describe("SourceEditorController typed binding selection - mutual exclusion with
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
 
-    const cursorOffset = offsetOf(source, "let base") + "let base: number = ".length;
+    const cursorOffset = offsetOf(source, "const base") + "const base: number = ".length;
     internals.view.dispatch({ selection: { anchor: cursorOffset } });
 
     expect(useCadUiStore.getState().selectionSubject).toEqual({ kind: "binding", bindingId: baseId });

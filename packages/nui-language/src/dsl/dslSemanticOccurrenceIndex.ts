@@ -14,6 +14,7 @@ import {
 import { parseGeometryArrayDeferredModuleExportId } from "./geometryArraySemanticAnalysis";
 import {
   resolveSourceLexicalPathSegments,
+  resolveSourceLexicalPath,
   resolveSourceLexicalDeclaration,
   type SourceLexicalDeclaration
 } from "./sourceLexicalNamespaceIndex";
@@ -50,6 +51,7 @@ import { createModifierAuthoringIndex } from "./dslModifierAuthoringIndex";
 import { numericValueSpan } from "./dslCompiledGeometryProperty";
 import { resolveParameterValueSpan } from "./dslParameterSpans";
 import { getParameterDefinitions } from "../parameters/parameterDefinitions";
+import { bindingIdForStableStatementId } from "../scalars/bindingCatalog";
 
 export type DslSemanticIdentity =
   | { kind: "typed"; bindingId: BindingId }
@@ -242,6 +244,7 @@ const addTypedOccurrences = (
   for (const binding of analysis.catalog.bindings) {
     const isNonGeometryArray = isDslArrayValueType(binding.declaredType) && !isDslGeometryValueType(binding.declaredType.elementType);
     if (binding.kind !== "typed" || !binding.nameSpan ||
+        binding.id.startsWith("binding:next:") ||
         (scalarExpressionTypeOfDslValueType(binding.declaredType) === null && !isNonGeometryArray)) continue;
     addPhysicalOccurrence(add, compiled, binding.statementIndex, binding.nameSpan, { kind: "typed", bindingId: binding.id }, "declaration");
   }
@@ -319,15 +322,6 @@ const addTypedOccurrences = (
     const statementIndex = Number(occurrenceKey.slice(0, occurrenceKey.indexOf(":")));
     if (Number.isInteger(statementIndex)) addExpression(statementIndex, expression);
   }
-  for (const [statementIndex, analysisForSet] of compiled.setStatements ?? []) {
-    if (analysisForSet.targetBindingId) {
-      addPhysicalOccurrence(add, compiled, statementIndex, analysisForSet.targetSpan, {
-        kind: "typed",
-        bindingId: analysisForSet.targetBindingId
-      }, "reference");
-    }
-    addExpression(statementIndex, analysisForSet.expression);
-  }
   for (const [occurrenceKey, template] of compiled.textTemplates ?? []) {
     const statementIndex = Number(occurrenceKey.slice(0, occurrenceKey.indexOf(":")));
     if (!Number.isInteger(statementIndex)) continue;
@@ -344,6 +338,71 @@ const addTypedOccurrences = (
         ? reference.physicalNameSpan.segments[0]
         : null;
       if (physical && !isSyntheticRecordBinding(reference.bindingId)) add("reference", physical.from, physical.to, { kind: "typed", bindingId: reference.bindingId });
+    }
+  }
+};
+
+/** Carry names are ordinary lexical identities, including when the carried
+ * value is geometry or a nominal record and therefore has no scalar catalog
+ * declaration.  The semantic occurrence index owns the source-facing name
+ * and target ranges; runtime lowering may still use family-specific values. */
+const addImmutableCarryOccurrences = (compiled: CompiledDslDocument, add: AddOccurrence) => {
+  const namespace = compiled.sourceLexicalNamespace;
+  if (!namespace) return;
+  const identityFor = (statementId: string): DslSemanticIdentity => ({
+    kind: "typed",
+    bindingId: bindingIdForStableStatementId(statementId)
+  });
+  const identityByName = new Map<string, DslSemanticIdentity>();
+  for (const declaration of namespace.allDeclarations) {
+    if (declaration.kind !== "carry" || !declaration.nameSpan) continue;
+    const identity = identityFor(declaration.statementId);
+    identityByName.set(`${declaration.statementIndex}:${declaration.name}`, identity);
+    addPhysicalOccurrence(add, compiled, declaration.statementIndex, declaration.nameSpan, identity, "declaration");
+  }
+  if (identityByName.size === 0) return;
+
+  const addCarryReference = (statementIndex: number, logicalText: string, referenceStart: number, referenceEnd: number) => {
+    const parsed = parseDslSourceReferenceAt(logicalText, referenceStart, referenceEnd);
+    if (parsed.kind !== "valid") return;
+    const path = parseDslReferenceToken(parsed.reference.pathText);
+    if (path.segments.length === 0) return;
+    const lookup = resolveSourceLexicalPath(namespace, statementIndex, path);
+    if (lookup.kind !== "resolved" || lookup.declaration.kind !== "carry") return;
+    const identity = identityByName.get(`${lookup.declaration.statementIndex}:${lookup.declaration.name}`);
+    if (!identity) return;
+    addPhysicalOccurrence(add, compiled, statementIndex, {
+      start: parsed.reference.pathRange.start,
+      end: parsed.reference.pathRange.start + lookup.declaration.name.length
+    }, identity, "reference");
+  };
+
+  for (const [statementIndex, statement] of compiled.statements.entries()) {
+    const logical = compiled.spans.logicalStatementByRangeFrom.get(statement.documentRange.from);
+    if (!logical) continue;
+    const source = logical.logicalText;
+    for (let cursor = source.indexOf("@"); cursor >= 0; cursor = source.indexOf("@", cursor + 1)) {
+      addCarryReference(statementIndex, source, cursor, source.length);
+    }
+    if (statement.kind === "next") {
+      const owner = (() => {
+        let enclosing = statement.enclosing?.statementIndex;
+        while (enclosing !== undefined) {
+          const candidate = compiled.statements[enclosing];
+          if (candidate?.kind === "element" && candidate.type === "forGroup") return candidate;
+          enclosing = candidate?.enclosing?.statementIndex;
+        }
+        return undefined;
+      })();
+      if (owner?.kind === "element") {
+        const declaration = namespace.allDeclarations.find((candidate) =>
+          candidate.kind === "carry" && candidate.statementIndex === compiled.statements.indexOf(owner) && candidate.name === statement.name
+        );
+        if (declaration?.nameSpan) {
+          addPhysicalOccurrence(add, compiled, statementIndex, statement.nameSpan ?? statement.keywordSpan,
+            identityFor(declaration.statementId), "reference");
+        }
+      }
     }
   }
 };
@@ -1924,6 +1983,7 @@ export const createDslSemanticOccurrenceIndex = (
   ) => addQualifiedPathOccurrences(compiled, add, statementIndex, nameSpan, finalTarget);
 
   addTypedOccurrences(compiled, bindingAnalysis, add, addQualifiedPath);
+  addImmutableCarryOccurrences(compiled, add);
   addRecordOccurrences(compiled, add);
   addSyntheticRecordFieldOccurrences(compiled, add);
   addRootDeclarations(compiled, add);

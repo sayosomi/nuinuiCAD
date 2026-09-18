@@ -238,22 +238,6 @@ describe("planExtractModule checkpoint 1", () => {
     expectRejectedWithoutPatch(result, "non-authored-target");
   });
 
-  it("rejects cross-boundary set writes but allows a direct moved let/set pair to remain internal", () => {
-    const source = [
-      "nui 1",
-      "let total: number = 0",
-      "set total = @total + 1"
-    ].join("\n");
-
-    expectRejectedWithoutPatch(plan(source, [2]).result, "cross-boundary-mutation");
-
-    const internal = plan(source, [1, 2]).result;
-    expect(internal.status).toBe("planned");
-    if (internal.status !== "planned") return;
-    expect(internal.dependencies).toEqual([]);
-    expect(internal.exports).toEqual([]);
-  });
-
   it("parameterizes a direct point dependency used from a selected scalar expression", () => {
     const source = [
       "nui 1",

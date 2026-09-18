@@ -29,8 +29,6 @@ import type {
   ModuleGeometryValueSemantic,
   ModuleGeometryValueExpressionSemantic,
   ModuleScalarExpressionSemantic,
-  ModuleScalarSourceTarget,
-  ModuleSourceTarget,
   ModuleSemanticAnalysisInput,
   ModuleTextTemplateHoleSite,
   ResolvedModuleExport
@@ -96,11 +94,6 @@ type ResolveGeometryConstruction = (
     geometryPropertyResolver?: (reference: ModuleGeometryPropertyReferenceInput) => ModuleGeometryPropertyReferenceResolution;
   }
 ) => ModuleGeometryConstructionSemantic | null;
-type ResolvePlainScalarTarget = (
-  statementIndex: number,
-  ownerIndex: number | null,
-  name: string
-) => ModuleScalarReferenceResolution;
 export type ModuleBodySemanticResult = {
   localScalars: NonNullable<ModuleDefinitionSemantic["localScalars"]>[number][];
   localGeometryValues: ModuleGeometryValueSemantic[];
@@ -109,7 +102,7 @@ export type ModuleBodySemanticResult = {
 };
 
 const isAllowedModuleBodyStatement = (statement: DslStatement): boolean => {
-  if (statement.kind === "typedDeclaration" || statement.kind === "set" || statement.kind === "group") return true;
+  if (statement.kind === "typedDeclaration" || statement.kind === "group") return true;
   if (statement.kind === "moduleDefinition" || statement.kind === "moduleInstance") return true;
   if (statement.kind === "transformation") return true;
   if (!isElementDslStatement(statement) || statement.kind !== "element") return false;
@@ -134,9 +127,6 @@ const textParameterSemantic = (raw: string, span: DslSpan): ModuleScalarExpressi
   geometryBuiltinArguments: []
 });
 
-const isModuleScalarTarget = (target: ModuleSourceTarget | null): target is ModuleScalarSourceTarget =>
-  target !== null && ["parameter", "iteration", "moduleLocal", "documentBinding"].includes(target.kind);
-
 const localTextValue = (input: ModuleSemanticAnalysisInput, statementIndex: number, span: DslSpan, fallback = "") => {
   const text = input.logicalTextByStatementIndex?.get(statementIndex);
   return text ? text.slice(span.start, span.end) : fallback;
@@ -152,7 +142,6 @@ export const analyzeModuleBody = ({
   resolveGeometry,
   resolveGeometryConstruction,
   parseGeometryValueExpression,
-  resolvePlainScalarTarget,
   resolveBodyScalar,
   resolveBodyBareScalar,
   resolveBodyGeometryProperty,
@@ -179,7 +168,6 @@ export const analyzeModuleBody = ({
     parseConstruction: (raw: string, span: DslSpan, expectedInterfaceType: import("./moduleGeometryInterfaces").ModuleGeometryInterfaceType) => ModuleGeometryConstructionSemantic | null;
     addDiagnostic: (diagnostic: ModuleScalarLocalDiagnostic) => void;
   }) => ModuleGeometryValueExpressionSemantic | null;
-  resolvePlainScalarTarget: ResolvePlainScalarTarget;
   resolveBodyScalar: (statementIndex: number, reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution;
   resolveBodyBareScalar: (statementIndex: number, reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution | null;
   resolveBodyGeometryProperty: (statementIndex: number, reference: ModuleGeometryPropertyReferenceInput) => ModuleGeometryPropertyReferenceResolution;
@@ -800,33 +788,6 @@ export const analyzeModuleBody = ({
             }, statement.exportSpan ?? statement.nameSpan ?? statement.keywordSpan);
           }
         }
-      }
-    } else if (statement.kind === "set") {
-      const target = resolvePlainScalarTarget(statementIndex, definition.statementIndex, statement.name);
-      const expressionSpan = statement.payloadSpans.expression ?? statement.keywordSpan;
-      const expression = analyzeExpression(
-        statementIndex,
-        definition.statementIndex,
-        statement.expression,
-        expressionSpan,
-        target.type?.kind === "optional" ? null : target.type,
-              (reference) => resolveBodyScalar(statementIndex, reference),
-        undefined,
-        (reference) => resolveBodyGeometryProperty(statementIndex, reference),
-        (reference) => resolveBodyGeometryBuiltin(statementIndex, reference)
-      );
-      if (bodySemantic && expression) bodySemantic.scalarExpressions = [{ parameterKey: null, span: expressionSpan, expression }];
-      if (bodySemantic) bodySemantic.scalarTarget = isModuleScalarTarget(target.target) ? target.target : null;
-      if (!target.target || target.resolution !== "resolved") {
-        addLocal(statementIndex, target.diagnostic ?? {
-          code: "module-invalid-set-target",
-          span: statement.nameSpan ?? statement.keywordSpan,
-          message: `set target「${statement.name}」を解決できません。`,
-          presentation: {
-            key: "diagnostic.module-invalid-set-target",
-            parameters: { target: statement.name }
-          }
-        });
       }
     } else if (statement.kind === "group" || statement.kind === "element") {
       if (statement.kind === "element" && statement.exported) {

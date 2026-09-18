@@ -71,13 +71,13 @@ describe("general numeric typed binding runtime", () => {
     expect(geometry.x).toBe(5);
   });
 
-  it("uses the current version at each geometry statement", () => {
+  it("uses an immutable binding at each geometry statement", () => {
     const compiled = compile([
       "nui 1",
-      "let length: number = 2",
+      "const length: number = 2",
       "point Before = coordinate(x: @length, y: 0)",
-      "set length = 9",
-      "point After = coordinate(x: @length, y: 0)"
+      "const afterLength: number = 9",
+      "point After = coordinate(x: @afterLength, y: 0)"
     ].join("\n"));
     const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
     expect((result.computedGeometry.get(point(compiled, "Before").id) as { x: number }).x).toBe(2);

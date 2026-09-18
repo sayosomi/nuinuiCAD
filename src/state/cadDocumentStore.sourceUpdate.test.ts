@@ -72,25 +72,25 @@ describe("cadDocumentStore source updates", () => {
   });
 
   it("commitLineSplices tags model-patch (not reset) with the given splices, in one Undo step", () => {
-    const source = ["nui 1", "const base: number = 1", "let derived: number = @base"].join("\n");
+    const source = ["nui 1", "const base: number = 1", "const derived: number = @base"].join("\n");
     useCadDocumentStore.getState().commitText(source, "test");
     const pastLength = useCadDocumentStore.getState().past.length;
 
     const result = useCadDocumentStore.getState().commitLineSplices([
       { startLine: 2, endLine: 2, replacementLines: ["const renamed: number = 1"] },
-      { startLine: 3, endLine: 3, replacementLines: ["let derived: number = @renamed"] }
+      { startLine: 3, endLine: 3, replacementLines: ["const derived: number = @renamed"] }
     ]);
 
     expect(result).toEqual({ status: "applied" });
     expect(useCadDocumentStore.getState().sourceText).toBe(
-      ["nui 1", "const renamed: number = 1", "let derived: number = @renamed"].join("\n")
+      ["nui 1", "const renamed: number = 1", "const derived: number = @renamed"].join("\n")
     );
     const update = useCadDocumentStore.getState().sourceUpdate;
     expect(update.kind).toBe("model-patch");
     if (update.kind !== "model-patch") throw new Error("expected model patch");
     expect(update.splices).toEqual([
       { startLine: 2, endLine: 2, replacementLines: ["const renamed: number = 1"] },
-      { startLine: 3, endLine: 3, replacementLines: ["let derived: number = @renamed"] }
+      { startLine: 3, endLine: 3, replacementLines: ["const derived: number = @renamed"] }
     ]);
     expect(useCadDocumentStore.getState().past.length).toBe(pastLength + 1);
   });

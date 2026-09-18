@@ -98,7 +98,7 @@ describe("SAY-292 computation/presentation separation", () => {
   it("resolves shared boolean enabled/visible bindings before ordinary inputs", () => {
     const compiled = compileWithIds([
       "nui 1",
-      "let heavy: boolean = false",
+      "const heavy: boolean = false",
       "point A = coordinate(x: 1, y: 2, enabled: @heavy)",
       "point B = coordinate(x: 3, y: 4, visible: @heavy)"
     ].join("\n"));

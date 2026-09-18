@@ -15,7 +15,7 @@ import {
   type DslSourceReference
 } from "./dslReferenceTokens";
 import { resolveSourceLexicalPath, type SourceLexicalNamespaceIndex } from "./sourceLexicalNamespaceIndex";
-import { isDslGeometryValueType } from "./dslValueTypes";
+import { dslRequiredValueTypeOf, isDslGeometryValueType } from "./dslValueTypes";
 import { parseScalarExpression } from "../scalars/expressionParser";
 
 export type NameIndex = {
@@ -197,6 +197,21 @@ export const resolveId = (
         // fail-closed without inventing a drawable identity.
         return unresolvedToken;
       }
+      if (
+        sourceResolution.declaration.kind === "carry" &&
+        sourceResolution.declaration.statement.kind === "element"
+      ) {
+        const carry = sourceResolution.declaration.statement.forCarries?.find(
+          (candidate) => candidate.name === sourceResolution.declaration.name
+        );
+        // Carry geometry is resolved by the later semantic/runtime geometry
+        // owners.  Keep the preliminary element compiler fail-closed without
+        // inventing a drawable element identity or emitting a duplicate
+        // scalar-value diagnostic.
+        if (carry && isDslGeometryValueType(dslRequiredValueTypeOf(carry.valueType))) {
+          return unresolvedToken;
+        }
+      }
       diagnostics.push(invalidReferenceDiagnostic(
         line,
         reference.source,
@@ -288,6 +303,21 @@ export const resolveAnchor = (
         occurrence: value.occurrence,
         ...(reference.property ? { pointKey: reference.property } : {})
       };
+    }
+  }
+  if (
+    sourceResolution?.kind === "resolved" &&
+    sourceResolution.declaration.kind === "carry" &&
+    sourceResolution.declaration.statement.kind === "element"
+  ) {
+    const carry = sourceResolution.declaration.statement.forCarries?.find(
+      (candidate) => candidate.name === sourceResolution.declaration.name
+    );
+    if (carry && isDslGeometryValueType(dslRequiredValueTypeOf(carry.valueType))) {
+      // The geometry semantic pass owns the exact carry target.  This first
+      // compiler pass must preserve the source token as an unresolved anchor
+      // instead of reporting that it is not a drawable element.
+      return referenceAnchor(value.trim());
     }
   }
   const pathToken = formatDslSourceReference({

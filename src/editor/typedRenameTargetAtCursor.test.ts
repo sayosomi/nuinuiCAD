@@ -5,8 +5,6 @@ import { compileDslDocument, type CompiledDslDocument } from "@nuinuicad/nui-lan
 import { bindingIdForStableStatementId } from "@nuinuicad/nui-language";
 import {
   createPropertyBindingRangeIndex,
-  createSetStatementFieldRangeIndex,
-  createSetStatementRangeIndex,
   createTemplateHoleRangeIndex,
   createTypedDeclarationFieldRangeIndex,
   createTypedDeclarationRangeIndex
@@ -31,14 +29,11 @@ const contextFor = (source: string): { doc: CompiledDslDocument; context: TypedR
   const context: TypedRenameCursorContext = {
     typedDeclarationRanges: createTypedDeclarationRangeIndex(cmDoc, statementMap),
     typedDeclarationFieldRanges: createTypedDeclarationFieldRangeIndex(cmDoc, statementMap, doc.statements),
-    setStatementRanges: createSetStatementRangeIndex(cmDoc, statementMap),
-    setStatementFieldRanges: createSetStatementFieldRangeIndex(cmDoc, statementMap, doc.statements),
     propertyBindingRanges: createPropertyBindingRangeIndex(cmDoc, statementMap, doc.statements, doc.propertyBindings),
     templateHoleRanges: createTemplateHoleRangeIndex(cmDoc, statementMap, doc.statements, doc.textTemplates),
     doc: {
       statements: doc.statements,
       scalarProgram: doc.scalarProgram,
-      setStatements: doc.setStatements,
       propertyBindings: doc.propertyBindings,
       textTemplates: doc.textTemplates
     }
@@ -65,23 +60,9 @@ describe("typedRenameTargetBindingIdAtCursor", () => {
   });
 
   it("resolves a cursor on a reference inside another declaration's initializer to the referenced binding", () => {
-    const source = ["nui 1", "const a: number = 1", "let b: number = @a + 1"].join("\n");
+    const source = ["nui 1", "const a: number = 1", "const b: number = @a + 1"].join("\n");
     const { doc, context, cmDoc } = contextFor(source);
-    const refOffset = cmDoc.line(3).from + "let b: number = @".length;
-    expect(typedRenameTargetBindingIdAtCursor(context, refOffset)).toBe(bindingIdOfDeclaration(doc, 1));
-  });
-
-  it("resolves a cursor on a set target name to the target binding", () => {
-    const source = ["nui 1", "let a: number = 1", "set a = 2"].join("\n");
-    const { doc, context, cmDoc } = contextFor(source);
-    const targetOffset = cmDoc.line(3).from + "set ".length;
-    expect(typedRenameTargetBindingIdAtCursor(context, targetOffset)).toBe(bindingIdOfDeclaration(doc, 1));
-  });
-
-  it("resolves a cursor on a set RHS reference to the referenced binding", () => {
-    const source = ["nui 1", "let a: number = 1", "set a = @a + 1"].join("\n");
-    const { doc, context, cmDoc } = contextFor(source);
-    const refOffset = cmDoc.line(3).from + "set a = @".length;
+    const refOffset = cmDoc.line(3).from + "const b: number = @".length;
     expect(typedRenameTargetBindingIdAtCursor(context, refOffset)).toBe(bindingIdOfDeclaration(doc, 1));
   });
 

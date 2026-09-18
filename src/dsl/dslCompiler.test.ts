@@ -746,9 +746,9 @@ describe("DSL compiler document settings", () => {
 });
 
 describe("DSL compiler: typed declarations", () => {
-  it("accepts const/let with no diagnostics, and does not lift them into elements", () => {
+  it("accepts const with no diagnostics, and does not lift it into elements", () => {
     const result = compileDslToElements(
-      ["const x: number = 1", "let y: boolean = true", 'const label: string = "front"', "const dir: choice(a, b) = a"].join(
+      ["const x: number = 1", "const y: boolean = true", 'const label: string = "front"', "const dir: choice(a, b) = a"].join(
         "\n"
       ),
       { elements: [], majorVersion: 1 }
@@ -764,13 +764,5 @@ describe("DSL compiler: typed declarations", () => {
     );
     expect(result.diagnostics).toEqual([]);
     expect(result.elements).toHaveLength(1);
-  });
-});
-
-describe("DSL compiler: set statements", () => {
-  it("accepts set with no diagnostics, and does not lift it into elements", () => {
-    const result = compileDslToElements(["set x = 1", "set y = 2"].join("\n"), { elements: [], majorVersion: 1 });
-    expect(result.diagnostics).toEqual([]);
-    expect(result.elements).toHaveLength(0);
   });
 });

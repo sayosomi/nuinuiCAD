@@ -1,7 +1,5 @@
 import type { DslSpan } from "./dslTypes";
 import type { DslValueType } from "./dslValueTypes";
-import { isDslArrayValueType, isDslGeometryValueType } from "./dslValueTypes";
-import { geometryArrayTypeOfDslValueType } from "./geometryArrayTypes";
 import { unquoteDslString } from "./dslTokens";
 import {
   parseDslDeclaredValueType,
@@ -11,9 +9,8 @@ import {
 
 export { dslChoiceTypeName, dslModuleParameterTypeNames, dslTypedDeclarationTypeNames } from "./dslTypeParser";
 
-// Focused parser for the v3-only typed declaration statement:
+// Focused parser for the canonical immutable typed declaration statement:
 //   const NAME: TYPE = INITIALIZER
-//   let NAME: TYPE = INITIALIZER
 // The parser owns the declaration's outer shape and type annotation.
 //
 // The initializer is never interpreted as an expression here - it is kept
@@ -29,7 +26,7 @@ export const MISSING_DECLARED_TYPE_CODE = "missing-declared-type";
 
 export type DslTypedDeclarationStatement = {
   kind: "typedDeclaration";
-  bindingKind: "const" | "let";
+  bindingKind: "const";
   name: string;
   nameSpan: DslSpan | null;
   keywordSpan: DslSpan;
@@ -107,7 +104,7 @@ const parseName = (source: string, span: DslSpan): { name: string; nameSpan: Dsl
 export const parseDslTypedDeclarationStatement = (logicalText: string): DslDeclarationParseResult => {
   const diagnostics: DslDeclarationDiagnostic[] = [];
   const keyword = leadingIdentifier.exec(logicalText)?.[0];
-  if (keyword !== "const" && keyword !== "let") return { statement: null, diagnostics };
+  if (keyword !== "const") return { statement: null, diagnostics };
 
   const keywordSpan: DslSpan = { start: 0, end: keyword.length };
   const rest = trimSpan(logicalText, keyword.length, logicalText.length);
@@ -141,27 +138,6 @@ export const parseDslTypedDeclarationStatement = (logicalText: string): DslDecla
       ? { valueType: null, choiceOptionSpans: [] }
       : parseDslDeclaredValueType(logicalText, typeSpan, diagnostics);
 
-  if (keyword === "let" && geometryArrayTypeOfDslValueType(parsedType.valueType)) {
-    diagnostics.push({
-      message: "geometry array は const で宣言してください。",
-      span: keywordSpan,
-      code: "geometry-array-const-only"
-    });
-  } else if (keyword === "let" && isDslArrayValueType(parsedType.valueType)) {
-    diagnostics.push({
-      message: "array は const で宣言してください。",
-      span: keywordSpan,
-      code: "array-const-only",
-      presentation: { key: "diagnostic.array-const-only" }
-    });
-  }
-  if (keyword === "let" && isDslGeometryValueType(parsedType.valueType)) {
-    diagnostics.push({
-      message: "point/line/path のgeometry value は const で宣言してください。",
-      span: keywordSpan,
-      code: "geometry-value-const-only"
-    });
-  }
 
   const payloadSpans: Record<string, DslSpan> = {};
   if (name.nameSpan) payloadSpans.name = name.nameSpan;

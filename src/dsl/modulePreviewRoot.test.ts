@@ -29,7 +29,6 @@ const evaluatePreview = (result: NonNullable<ReturnType<typeof compileModulePrev
   const bindingVersions = buildBindingVersionGraph({
     scalarProgram: runtime.scalarProgram,
     bindingAnalysis: runtime.bindingAnalysis,
-    setStatements: new Map(runtime.moduleSetStatements.map((set, index) => [-(index + 1), set] as const)),
     controlByScopeId: runtime.controlByScopeId,
     requiresExecutionOrdering: true
   });

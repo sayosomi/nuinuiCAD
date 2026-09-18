@@ -48,7 +48,6 @@ export type ReconcileOptions = {
   createStatementId?: (
     kind:
       | "typedDeclaration"
-      | "set"
       | "moduleDefinition"
       | "moduleInstance"
       | "recordDefinition"
@@ -183,7 +182,6 @@ export const reconcileStatements = (
   const isIdentityStatement = (statement: DslStatement) =>
     isElementDslStatement(statement) ||
     statement.kind === "typedDeclaration" ||
-    statement.kind === "set" ||
     statement.kind === "moduleDefinition" ||
     statement.kind === "moduleInstance" ||
     statement.kind === "recordDefinition" ||
@@ -196,7 +194,6 @@ export const reconcileStatements = (
     statement.kind === "fileReExport";
   const identityKindOf = (statement: DslStatement) =>
     statement.kind === "typedDeclaration" ||
-    statement.kind === "set" ||
     statement.kind === "moduleDefinition" ||
     statement.kind === "moduleInstance" ||
     statement.kind === "recordDefinition" ||
@@ -402,7 +399,6 @@ export const reconcileStatements = (
   for (const index of residueList(newResidue)) {
     const statement = newStatements[index];
     const id = statement.kind === "typedDeclaration" ||
-      statement.kind === "set" ||
       statement.kind === "moduleDefinition" ||
       statement.kind === "moduleInstance" ||
       statement.kind === "recordDefinition" ||

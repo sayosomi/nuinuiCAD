@@ -2571,7 +2571,6 @@ const typedExpressionsForStatement = (
       if (segment.kind === "hole" && segment.holeKind !== "numeric") add(segment.expression);
     }
   }
-  add(compiled.setStatements?.get(statementIndex)?.expression);
   return expressions;
 };
 

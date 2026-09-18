@@ -1,0 +1,215 @@
+import { describe, expect, it } from "vitest";
+import { compileCanonicalText, regenerateCanonicalFromModel, type LastGoodDslDocument } from "@nuinuicad/nui-language/document";
+import { emptyDocument } from "@nuinuicad/nui-language";
+import { evaluateElements } from "../geometry/evaluate";
+import { buildForGroupExecutionOwners, forGroupMutationOwnerByElementId } from "./forGroupMutationControl";
+
+const compile = (source: string): LastGoodDslDocument => {
+  const result = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), source);
+  if (result.status === "fatal") throw new Error(JSON.stringify(result.diagnostics));
+  return result.doc;
+};
+
+const optionsFor = (compiled: LastGoodDslDocument) => ({
+  scalarProgram: compiled.scalarProgram,
+  geometryInputTargetsByElementId: compiled.geometryInputTargetsByElementId,
+  geometryCollectionNodesByValueId: compiled.moduleGeometryRuntime?.geometryCollectionNodesByValueId,
+  bindingVersions: compiled.bindingVersions,
+  statementInfoByElementId: compiled.statementMap.byElementId,
+  statementIdByStatementIndex: compiled.statementMap.statementIdByStatementIndex,
+  forGroupMutationOwnerByElementId: compiled.bindingVersions
+    ? forGroupMutationOwnerByElementId(buildForGroupExecutionOwners(
+        compiled.bindingVersions,
+        compiled.document.elements,
+        compiled.statementMap.byElementId,
+        compiled.statementMap.statementIdByStatementIndex
+      ))
+    : undefined
+});
+
+describe("immutable statement-for carries", () => {
+  it("swaps multiple carries from one iteration-start snapshot and escapes the final value", () => {
+    const compiled = compile([
+      "nui 1",
+      "for i in range(min: 0, max: 2, step: 1) carry a: number = 0 carry b: number = 1 {",
+      "  next a = @b",
+      "  next b = @a",
+      "}",
+      "const result: number = @a"
+    ].join("\n"));
+    const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    expect(evaluation.errors).toEqual([]);
+    const resultId = compiled.bindingAnalysis!.catalog.bindings.find((binding) => binding.name === "result")!.id;
+    expect(evaluation.computedScalarBindings?.get(resultId)).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 1 }
+    });
+  });
+
+  it("iterates scalar collection members with their exact binder type", () => {
+    const compiled = compile([
+      "nui 1",
+      "const items: string[] = [\"a\", \"b\"]",
+      "for item in items carry last: string = \"\" {",
+      "  next last = @item",
+      "}",
+      "const result: string = @last"
+    ].join("\n"));
+    expect(compiled.diagnostics).toEqual([]);
+    const forGroup = compiled.document.elements.find((element) => element.type === "forGroup");
+    expect(forGroup).toMatchObject({ iterationElementType: { kind: "string" } });
+    expect(forGroup && forGroup.type === "forGroup" ? forGroup.iterationSourceValueId : undefined).toMatch(/^statement:typedDeclaration:/);
+    const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    expect(evaluation.errors).toEqual([]);
+    const resultId = compiled.bindingAnalysis!.catalog.bindings.find((binding) => binding.name === "result")!.id;
+    expect(evaluation.computedScalarBindings?.get(resultId)).toMatchObject({
+      status: "ok",
+      value: { kind: "string", value: "b" }
+    });
+  });
+
+  it("keeps the carry initializer outside the per-iteration frame", () => {
+    const compiled = compile([
+      "nui 1",
+      "for i in range(min: 0, max: 2, step: 1) carry total: number = 0 {",
+      "  next total = @total + 1",
+      "}",
+      "const result: number = @total"
+    ].join("\n"));
+    const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    expect(evaluation.errors).toEqual([]);
+    const resultId = compiled.bindingAnalysis!.catalog.bindings.find((binding) => binding.name === "result")!.id;
+    expect(evaluation.computedScalarBindings?.get(resultId)).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 3 }
+    });
+  });
+
+  it("keeps an empty range at the initializer", () => {
+    const compiled = compile([
+      "nui 1",
+      "for i in range(min: 2, max: 1, step: 1) carry total: number = 7 {",
+      "  next total = @total + 1",
+      "}",
+      "const result: number = @total"
+    ].join("\n"));
+    const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    expect(evaluation.errors).toEqual([]);
+    const resultId = compiled.bindingAnalysis!.catalog.bindings.find((binding) => binding.name === "result")!.id;
+    expect(evaluation.computedScalarBindings?.get(resultId)).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 7 }
+    });
+  });
+
+  it("propagates state through an inner carry and rejects direct outer next", () => {
+    const valid = compile([
+      "nui 1",
+      "for i in range(min: 0, max: 0, step: 1) carry outer: number = 0 {",
+      "  for j in range(min: 0, max: 1, step: 1) carry inner: number = @outer {",
+      "    next inner = @inner + 1",
+      "  }",
+      "  next outer = @inner",
+      "}",
+      "const result: number = @outer"
+    ].join("\n"));
+    expect(valid.diagnostics).toEqual([]);
+    const validEvaluation = evaluateElements(valid.document.elements, optionsFor(valid));
+    expect(validEvaluation.errors).toEqual([]);
+    const validResultId = valid.bindingAnalysis!.catalog.bindings.find((binding) => binding.name === "result")!.id;
+    expect(validEvaluation.computedScalarBindings?.get(validResultId)).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 2 }
+    });
+
+    const invalidResult = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), [
+      "nui 1",
+      "for i in range(min: 0, max: 0, step: 1) carry outer: number = 0 {",
+      "  for j in range(min: 0, max: 0, step: 1) {",
+      "    next outer = 1",
+      "  }",
+      "  next outer = @outer",
+      "}"
+    ].join("\n"));
+    expect(invalidResult.status).toBe("fatal");
+    expect(invalidResult.diagnostics.some((diagnostic) => diagnostic.code === "next-outer-carry")).toBe(true);
+  });
+
+  it("carries a nominal record through a loop", () => {
+    const compiled = compile([
+      "nui 1",
+      "record Pair(x: number, label: string)",
+      'const first: Pair = Pair(x: 1, label: "ok")',
+      "for i in range(min: 0, max: 0, step: 1) carry last: Pair = @first {",
+      '  next last = Pair(x: @last.x + 1, label: @last.label)',
+      "}",
+      "const result: number = @last.x"
+    ].join("\n"));
+    const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    expect(evaluation.errors).toEqual([]);
+    const resultId = compiled.bindingAnalysis!.catalog.bindings.find((binding) => binding.name === "result")!.id;
+    expect(evaluation.computedScalarBindings?.get(resultId)).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 2 }
+    });
+  });
+
+  it("iterates nominal record collection members through their field bindings", () => {
+    const compiled = compile([
+      "nui 1",
+      "record Pair(x: number, label: string)",
+      'const first: Pair = Pair(x: 1, label: "ok")',
+      "const items: Pair[] = [@first]",
+      "for item in items carry total: number = 0 {",
+      "  next total = @item.x",
+      "}",
+      "const result: number = @total"
+    ].join("\n"));
+    const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    expect(evaluation.errors).toEqual([]);
+    const resultId = compiled.bindingAnalysis!.catalog.bindings.find((binding) => binding.name === "result")!.id;
+    expect(evaluation.computedScalarBindings?.get(resultId)).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 1 }
+    });
+  });
+
+  it("feeds same-iteration geometry into a geometry carry next", () => {
+    const compiled = compile([
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "for i in range(min: 0, max: 1, step: 1) carry cursor: point = @A {",
+      "  line Edge = segment(start: @cursor, end: @A)",
+      "  next cursor = @Edge.end",
+      "}",
+      "const result: number = @cursor.x"
+    ].join("\n"));
+    const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    expect(evaluation.errors).toEqual([]);
+    const resultId = compiled.bindingAnalysis!.catalog.bindings.find((binding) => binding.name === "result")!.id;
+    expect(evaluation.computedScalarBindings?.get(resultId)).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 0 }
+    });
+  });
+
+  it("iterates immutable geometry collection members", () => {
+    const compiled = compile([
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 2, y: 0)",
+      "const items: point[] = [@A, @B]",
+      "for item in items carry cursor: point = @A {",
+      "  next cursor = @item",
+      "}",
+      "const result: number = @cursor.x"
+    ].join("\n"));
+    const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    expect(evaluation.errors).toEqual([]);
+    const resultId = compiled.bindingAnalysis!.catalog.bindings.find((binding) => binding.name === "result")!.id;
+    expect(evaluation.computedScalarBindings?.get(resultId)).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 2 }
+    });
+  });
+});

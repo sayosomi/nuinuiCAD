@@ -72,11 +72,11 @@ describe("nui 1 bare element-property reference diagnostic (Task 51)", () => {
     expect(errors).toEqual([]);
   });
 
-  it("accepts a geometry property reference in a let initializer", () => {
+  it("accepts a geometry property reference in a const initializer", () => {
     const source = [
       "nui 1",
       "line AB = segment(start: (0, 0), end: (10, 0))",
-      "let x: number = @AB.length"
+      "const x: number = @AB.length"
     ].join("\n");
     const errors = compileDslDocument(source, { assignedStatementIds: new Map([[2, "test:x"]]) }).diagnostics.filter(
       (diagnostic) => diagnostic.severity === "error"
@@ -133,7 +133,7 @@ describe("nui 1 bare element-property reference diagnostic (Task 51)", () => {
       "    line AB = segment(start: (0, 0), end: (10, 0))",
       "  }",
       "}",
-      "let x: number = @G::H::AB.length"
+      "const x: number = @G::H::AB.length"
     ].join("\n");
 
     expect(compileDslDocument(oneLevel, { assignedStatementIds: assignedStatementIds(oneLevel) }).diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
@@ -158,20 +158,7 @@ describe("nui 1 bare element-property reference diagnostic (Task 51)", () => {
     expect(segment && source.slice(segment.from, segment.to)).toBe("G::Missing");
   });
 
-  it("accepts a geometry property reference in a number set RHS", () => {
-    const source = [
-      "nui 1",
-      "line AB = segment(start: (0, 0), end: (10, 0))",
-      "let x: number = 0",
-      "set x = @AB.length"
-    ].join("\n");
-    const errors = compileDslDocument(source, {
-      assignedStatementIds: new Map([[2, "test:x"], [3, "test:set-x"]])
-    }).diagnostics.filter((diagnostic) => diagnostic.severity === "error");
-    expect(errors).toEqual([]);
-  });
-
-  it("compiles public choice geometry properties through declarations, equality, and set", () => {
+  it("compiles public choice geometry properties through declarations and equality", () => {
     const source = [
       "nui 1",
       "arc A = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: clockwise)",
@@ -180,8 +167,7 @@ describe("nui 1 bare element-property reference diagnostic (Task 51)", () => {
       "if (@A.direction == clockwise) {",
       "  point Marker = coordinate(x: 0, y: 0)",
       "}",
-      "let copied: choice(counterclockwise, clockwise) = counterclockwise",
-      "set copied = @A.direction"
+      "const copied: choice(counterclockwise, clockwise) = @A.direction"
     ].join("\n");
     const result = compileDslDocument(source, { assignedStatementIds: assignedStatementIds(source) });
     expect(result.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);

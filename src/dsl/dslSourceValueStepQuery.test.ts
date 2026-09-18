@@ -60,13 +60,13 @@ describe("DSL Source Value Step query", () => {
     expect(plan?.edit.from).toBe(multiline.indexOf("2"));
   });
 
-  it("steps typed declarations and set RHS values through compiler binding identity", () => {
+  it("steps typed declaration values through compiler binding identity", () => {
     const source = [
       "nui 1",
-      "let count: number(step: 0.5) = 1.50",
-      "let flag: boolean = true",
-      "let side: choice(right, left) = right",
-      "set count = 2.00"
+      "const count: number(step: 0.5) = 1.50",
+      "const flag: boolean = true",
+      "const side: choice(right, left) = right",
+      "const later: number(step: 0.5) = 2.00"
     ].join("\n");
     expect(query(source, "1.50")).toMatchObject({ edit: { newText: "2" } });
     expect(query(source, "true")).toMatchObject({ edit: { newText: "false" } });
@@ -101,7 +101,7 @@ describe("DSL Source Value Step query", () => {
   });
 
   it("accepts an after-value caret or exact selection and rejects partial or multiple selections", () => {
-    const source = ["nui 1", "let flag: boolean = true"].join("\n");
+    const source = ["nui 1", "const flag: boolean = true"].join("\n");
     expect(query(source, "true", 1, "after")).toMatchObject({ edit: { newText: "false" } });
     expect(query(source, "true", 1, "exact")).toMatchObject({ edit: { newText: "false" } });
     expect(query(source, "true", 1, "partial")).toBeNull();

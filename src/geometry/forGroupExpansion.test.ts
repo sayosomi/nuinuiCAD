@@ -36,8 +36,8 @@ describe("forGroupRangeValues", () => {
     expect(forGroupRangeValues(5, 6, 10)).toEqual({ values: [5] });
   });
 
-  it("rejects non-ascending and non-positive ranges", () => {
-    expect(forGroupRangeValues(6, 5, 1)).toEqual({ error: "min-greater-than-max" });
+  it("accepts empty ascending sources and rejects non-positive steps", () => {
+    expect(forGroupRangeValues(6, 5, 1)).toEqual({ values: [] });
     expect(forGroupRangeValues(0, 1, 0)).toEqual({ error: "non-positive-step" });
     expect(forGroupRangeValues(0, 1, -1)).toEqual({ error: "non-positive-step" });
   });

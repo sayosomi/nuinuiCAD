@@ -142,7 +142,7 @@ describe("runtimeScalarDiagnostics", () => {
   });
 
   it("recovery: an error becomes ok on a later evaluation and leaves no stale diagnostic", () => {
-    const compiled = compile(["nui 1", "let x: number = 1", "set x = 2"].join("\n"));
+    const compiled = compile(["nui 1", "const x: number = 1"].join("\n"));
     const bindingId = bindingIdFor(compiled, "x");
     const poisoned = runtimeScalarDiagnostics(baseInput(compiled, new Map([[bindingId, errorEvaluation("poisoned-binding")]])));
     expect(poisoned).toHaveLength(1);

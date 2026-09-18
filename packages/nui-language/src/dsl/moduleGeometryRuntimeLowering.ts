@@ -104,6 +104,7 @@ export type ExportEntry = {
 
 export type ModuleGeometryPropertyRuntimeTarget =
   | { kind: "runtime"; elementId: ElementId; property: string; targetSourceOrder?: number }
+  | { kind: "carry"; bindingId: string; property: string; pointKey?: string; targetSourceOrder?: number }
   | { kind: "forGroupOccurrence"; templateElementId: ElementId; property: string; targetSourceOrder: number; index: ModuleScalarExpressionSemantic | null; pointKey?: string }
   | { kind: "value"; occurrence: GeometryValueOccurrence; property: string; pointKey?: string; targetSourceOrder?: number }
   | { kind: "binder"; binderId: string; property: string; pointKey?: string; targetSourceOrder?: number }
@@ -583,6 +584,7 @@ export const sourceAliasForTarget = (
     return undefined;
   }
   if (target.kind === "collectionIndex" || target.kind === "geometryValueForBinder") return undefined;
+  if (target.kind === "geometryCarry") return undefined;
   const child = childContextFor(target.instanceStatementId, target.instanceIdentity?.documentId);
   const alias = child ? exportsByPath.get(pathKey(child.path))?.get(target.exportName)?.alias : undefined;
   return alias ? lowerAliasWithPointKey(alias, target.pointKey) : undefined;

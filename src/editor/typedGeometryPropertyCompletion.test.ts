@@ -15,8 +15,8 @@ const baseSource = [
   "point A = coordinate(x: 0, y: 0)",
   "point B = coordinate(x: 10, y: 0)",
   "line AB = segment(start: @A, end: @B)",
-  "let amount: number = 0",
-  "let label: string = \"\""
+  "const amount: number = 0",
+  "const label: string = \"\""
 ].join("\n");
 
 const statementIds = (source: string) => new Map(parseDsl(source).statements.map((_, index) => [index, `test:${index}`]));
@@ -114,9 +114,9 @@ describe("typed geometry-property completion", () => {
     expect(result?.options.map((option) => option.label)).toContain("length");
   });
 
-  it("completes an earlier element property in a number set RHS", async () => {
+  it("completes an earlier element property in a number initializer", async () => {
     const fixture = compiledFixture();
-    const source = `${baseSource}\nset amount = @AB.`;
+    const source = `${baseSource}\nconst length: number = @AB.`;
     const result = await completionAt({ fixture, source });
     expect(result).toMatchObject({ from: source.length, to: source.length });
     expect(result?.options.map((option) => option.label)).toContain("length");
@@ -148,8 +148,6 @@ describe("typed geometry-property completion", () => {
     expect(bindingResult?.options.map((option) => option.label)).not.toContain("AB");
 
     expect(await completionAt({ fixture, source: `${baseSource}\nconst text: string = @AB.` })).toMatchObject({ options: [] });
-    const stringSet = await completionAt({ fixture, source: `${baseSource}\nset label = @AB.` });
-    expect(stringSet?.options).toEqual([]);
   });
 
   it("does not offer properties for later, disabled, invalid, or stale geometry", async () => {

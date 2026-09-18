@@ -31,9 +31,9 @@ use crate::evaluation::types::EvaluationState;
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
 
-pub(crate) use for_group_scheduler::ForGroupMutationStatement;
+pub(crate) use for_group_scheduler::ForGroupExecutionStatement;
 
-const VERSION_UNAVAILABLE: &str = "evaluation-binding-version-unavailable";
+const BINDING_UNAVAILABLE: &str = "evaluation-binding-unavailable";
 const RUNTIME_VALUE_TYPE_MISMATCH: &str = "evaluation-runtime-value-type-mismatch";
 
 struct ScopeFrame {
@@ -173,10 +173,27 @@ impl<'a> ScalarMutationResolver<'a> {
         }
     }
     pub(crate) fn computed_bindings(&self) -> Vec<Value> {
-        self.program.versions.iter().filter(|version| matches!(version.kind, ValidatedBindingVersionKind::Declare { .. }) &&
+        let mut computed = self.program.versions.iter().filter(|version| matches!(version.kind, ValidatedBindingVersionKind::Declare { .. }) &&
             version.control.get("ownerChain").and_then(Value::as_array).is_some_and(Vec::is_empty))
-            .filter_map(|version| self.current.get(&version.binding_id).map(|evaluation| json!({"bindingId": version.binding_id, "evaluation": scalar_evaluation_json(evaluation)}))).collect()
+            .filter_map(|version| self.current.get(&version.binding_id).map(|evaluation| json!({"bindingId": version.binding_id, "evaluation": scalar_evaluation_json(evaluation)}))).collect::<Vec<_>>();
+        for plan in self.program.immutable_for_groups.values() {
+            for carry in &plan.carries {
+                if let Some(evaluation) = self.current.get(&carry.binding_id) {
+                    computed.push(json!({"bindingId": carry.binding_id, "evaluation": scalar_evaluation_json(evaluation)}));
+                }
+            }
+        }
+        computed
     }
+
+    pub(crate) fn is_immutable_carry_binding(&self, binding_id: &str) -> bool {
+        self.program.immutable_for_groups.values().any(|plan| {
+            plan.carries
+                .iter()
+                .any(|carry| carry.binding_id == binding_id || carry.next_binding_id == binding_id)
+        })
+    }
+
     pub(crate) fn history(&self) -> Vec<Value> {
         self.history.clone()
     }
@@ -283,10 +300,7 @@ impl<'a> ScalarMutationResolver<'a> {
                 ValidatedBindingVersionKind::Declare {
                     initializer: Some(expression),
                 },
-            )
-            | (_, ValidatedBindingVersionKind::Set { expression }) => {
-                self.evaluate(expression, version, state)
-            }
+            ) => self.evaluate(expression, version, state),
         };
         self.current
             .insert(version.binding_id.clone(), evaluation.clone());
@@ -349,7 +363,7 @@ impl<'a> ScalarMutationResolver<'a> {
                     .get(binding_id)
                     .cloned()
                     .unwrap_or(ScalarType::Number),
-                issue_code: VERSION_UNAVAILABLE.to_owned(),
+                issue_code: BINDING_UNAVAILABLE.to_owned(),
                 binding_id: Some(binding_id.to_owned()),
                 context: None,
             })

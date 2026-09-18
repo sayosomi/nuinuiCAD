@@ -46,12 +46,10 @@ describe("DSL typed declaration parser", () => {
     }
   });
 
-  it("requires const for every immutable array and rejects nested/invalid spellings", () => {
+  it("accepts only const for immutable arrays", () => {
     const mutable = parse("let items: path[] = []");
-    expect(mutable.statement?.valueType).toEqual({ kind: "array", elementType: { kind: "path" } });
-    expect(mutable.diagnostics).toContainEqual(
-      expect.objectContaining({ code: "geometry-array-const-only", span: { start: 0, end: 3 } })
-    );
+    expect(mutable.statement).toBeNull();
+    expect(mutable.diagnostics).toEqual([]);
 
     const numberArray = parse("const items: number[] = []");
     expect(numberArray.diagnostics).toEqual([]);
@@ -140,7 +138,7 @@ describe("DSL typed declaration parser", () => {
   });
 
   it("parses number step and bounds metadata", () => {
-    const source = "let 幅: number(max: 200, step: 5, min: 0) = 120";
+    const source = "const 幅: number(max: 200, step: 5, min: 0) = 120";
     const result = parse(source);
     expect(result.diagnostics).toEqual([]);
     expect(result.statement).toMatchObject({
@@ -199,12 +197,10 @@ describe("DSL typed declaration parser", () => {
     expect(parse("const p: path = @p").statement?.valueType).toEqual({ kind: "path" });
   });
 
-  it("requires const for single geometry declarations", () => {
+  it("rejects the removed let geometry declaration", () => {
     const result = parse("let p: point = @p");
-    expect(result.statement?.valueType).toEqual({ kind: "point" });
-    expect(result.diagnostics).toContainEqual(
-      expect.objectContaining({ code: "geometry-value-const-only", span: { start: 0, end: 3 } })
-    );
+    expect(result.statement).toBeNull();
+    expect(result.diagnostics).toEqual([]);
   });
 
   it("carries the canonical type through the final snapshot and projects geometry arrays compatibly", () => {

@@ -84,7 +84,7 @@ export type ScalarProgramCollection =
     };
 
 export type ScalarProgramDeclaration = {
-  bindingKind: "const" | "let";
+  bindingKind: "const";
   declaredType: ScalarExpressionType;
   initializer: TypedScalarExpression;
 };
@@ -141,7 +141,7 @@ export const lowerScalarProgram = ({
       scopeId: binding.effectiveScopeId,
       sourceOrder: sourceOrderByBindingId?.get(bindingId) ?? binding.statementIndex,
       declaration: {
-        bindingKind: binding.mutability as "const" | "let",
+        bindingKind: "const",
         declaredType,
         initializer
       }

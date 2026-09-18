@@ -6,7 +6,7 @@ import { registerSourceEditSession } from "../editor/sourceEditSession";
 import { buildConditionalGroupConditionsByElementId } from "../geometry/controlBooleanRuntime";
 import { evaluateElements, type EvaluateElementsOptions } from "../geometry/evaluate";
 import { buildConditionalMutationOwners, conditionalOwnerIdByElementId } from "../scalars/conditionalMutationControl";
-import { buildForGroupMutationOwners, forGroupMutationOwnerByElementId } from "../scalars/forGroupMutationControl";
+import { buildForGroupExecutionOwners, forGroupMutationOwnerByElementId } from "../scalars/forGroupMutationControl";
 import { buildTextTemplateEntriesByElementId } from "../geometry/textTemplateRuntime";
 import { buildNumericBindingRuntimeEntries } from "../geometry/numericBindingRuntime";
 import { createCadElement } from "@nuinuicad/nui-language";
@@ -452,7 +452,7 @@ describe("InspectorPanel typed declaration metadata", () => {
 
   it("jumps to the declaration when the declaration row is clicked", () => {
     const { handle, bindingId } = renderInspectorForBinding(
-      ["nui 1", "let shown: boolean = true"].join("\n"),
+      ["nui 1", "const shown: boolean = true"].join("\n"),
       "shown",
     );
 
@@ -463,7 +463,7 @@ describe("InspectorPanel typed declaration metadata", () => {
 
   it("jumps to just the type/initializer sub-span (Task 43) when those rows are clicked, not the whole declaration", () => {
     const { handle, bindingId } = renderInspectorForBinding(
-      ["nui 1", "let shown: boolean = true"].join("\n"),
+      ["nui 1", "const shown: boolean = true"].join("\n"),
       "shown",
     );
 
@@ -478,7 +478,7 @@ describe("InspectorPanel typed declaration metadata", () => {
 
   it("falls back to the whole-statement jump when the type/initializer sub-span does not resolve", () => {
     const { handle, bindingId } = renderInspectorForBinding(
-      ["nui 1", "let shown: boolean = true"].join("\n"),
+      ["nui 1", "const shown: boolean = true"].join("\n"),
       "shown",
     );
     vi.mocked(handle.jumpToBindingDeclarationPart).mockReturnValue(false);
@@ -491,7 +491,7 @@ describe("InspectorPanel typed declaration metadata", () => {
 
   it("does not attach a click handler to the non-span kind/ID rows", () => {
     const { handle } = renderInspectorForBinding(
-      ["nui 1", "let shown: boolean = true"].join("\n"),
+      ["nui 1", "const shown: boolean = true"].join("\n"),
       "shown",
     );
 
@@ -512,7 +512,7 @@ describe("InspectorPanel typed declaration metadata", () => {
   });
 
   it("keeps a recoverable invalid let's metadata visible without an invalid marker being required", () => {
-    renderInspectorForBinding(["nui 1", "let base: number = 1", "let derived: number = @base"].join("\n"), "derived");
+    renderInspectorForBinding(["nui 1", "const base: number = 1", "const derived: number = @base"].join("\n"), "derived");
 
     expect(screen.getByText("derived")).toBeInTheDocument();
     expect(screen.queryByText("無効")).not.toBeInTheDocument();
@@ -563,7 +563,7 @@ describe("InspectorPanel runtime values (Task 45)", () => {
         ))
       : undefined,
     forGroupMutationOwnerByElementId: state.doc.bindingVersions
-      ? forGroupMutationOwnerByElementId(buildForGroupMutationOwners(
+      ? forGroupMutationOwnerByElementId(buildForGroupExecutionOwners(
           state.doc.bindingVersions, state.doc.document.elements, state.doc.statementMap.byElementId,
           state.doc.statementMap.statementIdByStatementIndex
         ))
@@ -603,12 +603,11 @@ describe("InspectorPanel runtime values (Task 45)", () => {
 
   it("shows the final value and jumps to the initializer when the value row is clicked", () => {
     const { handle, bindingId } = renderInspectorForRuntimeBinding(
-      ["nui 1", "let total: number = 1", "set total = 5"].join("\n"),
+      ["nui 1", "const total: number = 5"].join("\n"),
       "total"
     );
 
     expect(within(screen.getByText("最終値").closest(".inspector-row")!).getByText("5")).toBeInTheDocument();
-    expect(screen.getByText("set履歴")).toBeInTheDocument();
 
     fireEvent.click(screen.getByText("最終値").closest(".inspector-row")!);
     expect(handle.jumpToBindingDeclarationPart).toHaveBeenCalledWith(bindingId, "initializer");

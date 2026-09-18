@@ -141,7 +141,7 @@ describe("sourceEditorFolding module definitions", () => {
     const source = [
       "nui 1",
       "module M(a: number) {",
-      "  let x: number = @a",
+      "  const x: number = @a",
       "  point P = coordinate(x: @x, y: 0)",
       "}",
       "instance I = M(a: 10)"

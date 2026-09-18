@@ -8,10 +8,10 @@ use crate::evaluation::for_group::{
     expand_for_group_iteration_from_template, for_group_loop_values, for_group_owned_template_ids,
     iteration_local_variables, record_for_group_expected_occurrences,
 };
-use crate::evaluation::scalars::{ForGroupMutationEnvironment, ForGroupMutationError};
+use crate::evaluation::scalars::{ForGroupExecutionEnvironment, ForGroupExecutionError};
 use crate::evaluation::types::element_name;
 
-pub(super) struct ForGroupMutationRuntime<'a> {
+pub(super) struct ForGroupExecutionRuntime<'a> {
     original_elements: &'a [Value],
     base_effective_enabled_ids: &'a HashSet<ElementId>,
     entries_by_element_id: &'a HashMap<ElementId, Vec<ValidatedPropertyBinding>>,
@@ -27,7 +27,7 @@ pub(super) struct ForGroupMutationRuntime<'a> {
     for_group_effective_show_generated_ids: &'a mut Vec<ElementId>,
 }
 
-impl<'a> ForGroupMutationRuntime<'a> {
+impl<'a> ForGroupExecutionRuntime<'a> {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn new(
         original_elements: &'a [Value],
@@ -65,7 +65,7 @@ impl<'a> ForGroupMutationRuntime<'a> {
     pub(super) fn run(
         &mut self,
         resolver: &mut ScalarMutationResolver<'_>,
-        environment: &mut ForGroupMutationEnvironment<scalars::ScalarEvaluation>,
+        environment: &mut ForGroupExecutionEnvironment<scalars::ScalarEvaluation>,
         template_for_group: &Value,
         instance_for_group: &Value,
         iteration_values: &[f64],
@@ -74,7 +74,7 @@ impl<'a> ForGroupMutationRuntime<'a> {
         ancestor_element_id_map: &HashMap<ElementId, ElementId>,
         ancestor_occurrence_path: &[types::ForGroupGeneratedOccurrenceStep],
         state: &mut EvaluationState,
-    ) -> Result<ForGroupMutationRunOutcome, ForGroupMutationError> {
+    ) -> Result<ForGroupExecutionRunOutcome, ForGroupExecutionError> {
         let template_for_group_id = element_id(template_for_group)
             .expect("forGroup template must have a validated element id");
         record_for_group_expected_occurrences(
@@ -92,7 +92,7 @@ impl<'a> ForGroupMutationRuntime<'a> {
             .filter_map(|template_element_id| {
                 resolver
                     .source_order_for_element(&template_element_id)
-                    .map(|source_order| ForGroupMutationStatement::Element {
+                    .map(|source_order| ForGroupExecutionStatement::Element {
                         source_order,
                         template_element_id,
                     })
@@ -100,7 +100,7 @@ impl<'a> ForGroupMutationRuntime<'a> {
             .chain(
                 resolver
                     .for_group_exit_source_order(&template_for_group_id)
-                    .map(|source_order| ForGroupMutationStatement::Exit { source_order }),
+                    .map(|source_order| ForGroupExecutionStatement::Exit { source_order }),
             )
             .collect::<Vec<_>>();
         let mut expanded_iteration = None;
@@ -118,12 +118,12 @@ impl<'a> ForGroupMutationRuntime<'a> {
             statements,
             state,
             |resolver, environment, context, state| {
-                let ForGroupMutationStatement::Element {
+                let ForGroupExecutionStatement::Element {
                     template_element_id,
                     ..
                 } = context.statement
                 else {
-                    return Ok(ForGroupMutationRunOutcome::Completed);
+                    return Ok(ForGroupExecutionRunOutcome::Completed);
                 };
                 if expanded_iteration != Some(context.iteration_index) {
                     expanded_iteration = Some(context.iteration_index);
@@ -172,7 +172,7 @@ impl<'a> ForGroupMutationRuntime<'a> {
     fn run_generated_statement(
         &mut self,
         resolver: &mut ScalarMutationResolver<'_>,
-        environment: &mut ForGroupMutationEnvironment<scalars::ScalarEvaluation>,
+        environment: &mut ForGroupExecutionEnvironment<scalars::ScalarEvaluation>,
         template_element_id: &str,
         generated: &[(Value, ElementId)],
         rows: &[types::ForGroupGeneratedRow],
@@ -183,13 +183,13 @@ impl<'a> ForGroupMutationRuntime<'a> {
         current_iteration_variable: &Value,
         current_occurrence_path: &[types::ForGroupGeneratedOccurrenceStep],
         state: &mut EvaluationState,
-    ) -> Result<ForGroupMutationRunOutcome, ForGroupMutationError> {
+    ) -> Result<ForGroupExecutionRunOutcome, ForGroupExecutionError> {
         let Some((mut generated_element, template_id)) = generated
             .iter()
             .find(|(_, candidate)| candidate == template_element_id)
             .cloned()
         else {
-            return Ok(ForGroupMutationRunOutcome::Completed);
+            return Ok(ForGroupExecutionRunOutcome::Completed);
         };
         if let Some(row) = rows
             .iter()
@@ -199,7 +199,7 @@ impl<'a> ForGroupMutationRuntime<'a> {
             state.for_group_generated_rows.push(row);
         }
         let Some(generated_id) = element_id(&generated_element) else {
-            return Ok(ForGroupMutationRunOutcome::Completed);
+            return Ok(ForGroupExecutionRunOutcome::Completed);
         };
         if show_generated
             && instance_is_visible
@@ -221,10 +221,10 @@ impl<'a> ForGroupMutationRuntime<'a> {
                 .entry(generated_id)
                 .or_default()
                 .disabled_by_group_id = Some(condition_group_id);
-            return Ok(ForGroupMutationRunOutcome::Completed);
+            return Ok(ForGroupExecutionRunOutcome::Completed);
         }
         if !self.base_effective_enabled_ids.contains(&template_id) {
-            return Ok(ForGroupMutationRunOutcome::Completed);
+            return Ok(ForGroupExecutionRunOutcome::Completed);
         }
         if self.effective_enabled_ids.insert(generated_id.clone()) {
             self.effective_enabled_order.push(generated_id.clone());
@@ -241,7 +241,7 @@ impl<'a> ForGroupMutationRuntime<'a> {
                 Ok(materialized) => generated_element = materialized,
                 Err(error) => {
                     state.errors.push(error);
-                    return Ok(ForGroupMutationRunOutcome::Completed);
+                    return Ok(ForGroupExecutionRunOutcome::Completed);
                 }
             }
         }
@@ -270,7 +270,7 @@ impl<'a> ForGroupMutationRuntime<'a> {
                     element_name(&generated_element)
                 ),
             ));
-            return Ok(ForGroupMutationRunOutcome::Completed);
+            return Ok(ForGroupExecutionRunOutcome::Completed);
         }
         state.elements[generated_index] = generated_element.clone();
 
@@ -283,7 +283,7 @@ impl<'a> ForGroupMutationRuntime<'a> {
             let Some(nested_iteration_values) =
                 for_group_loop_values(&generated_element, &local_variables, state)
             else {
-                return Ok(ForGroupMutationRunOutcome::Completed);
+                return Ok(ForGroupExecutionRunOutcome::Completed);
             };
             let nested_show_generated = self.record_effective_show_generated(
                 &generated_element,
@@ -330,7 +330,7 @@ impl<'a> ForGroupMutationRuntime<'a> {
                 }
                 Err(error) => {
                     state.errors.push(error);
-                    Ok(ForGroupMutationRunOutcome::Completed)
+                    Ok(ForGroupExecutionRunOutcome::Completed)
                 }
             },
             _ => self.evaluate_generated_element(
@@ -349,13 +349,13 @@ impl<'a> ForGroupMutationRuntime<'a> {
     fn evaluate_generated_element(
         &mut self,
         resolver: &mut ScalarMutationResolver<'_>,
-        environment: &ForGroupMutationEnvironment<scalars::ScalarEvaluation>,
+        environment: &ForGroupExecutionEnvironment<scalars::ScalarEvaluation>,
         generated_id: ElementId,
         generated_element: Value,
         template_id: ElementId,
         local_variables: (HashMap<String, f64>, HashMap<String, String>),
         state: &mut EvaluationState,
-    ) -> Result<ForGroupMutationRunOutcome, ForGroupMutationError> {
+    ) -> Result<ForGroupExecutionRunOutcome, ForGroupExecutionError> {
         let loop_binding_resolver = resolver.for_group_binding_resolver(environment);
         let is_conditional = element_type(&generated_element) == Some("conditionalGroup");
         evaluate_element_by_type(
@@ -383,7 +383,7 @@ impl<'a> ForGroupMutationRuntime<'a> {
                 .flatten();
             resolver.register_conditional_result(&template_id, branch);
         }
-        Ok(ForGroupMutationRunOutcome::Completed)
+        Ok(ForGroupExecutionRunOutcome::Completed)
     }
 
     fn record_effective_show_generated(
@@ -391,7 +391,7 @@ impl<'a> ForGroupMutationRuntime<'a> {
         instance_for_group: &Value,
         template_for_group_id: &str,
         resolver: &ScalarMutationResolver<'_>,
-        environment: &ForGroupMutationEnvironment<scalars::ScalarEvaluation>,
+        environment: &ForGroupExecutionEnvironment<scalars::ScalarEvaluation>,
         state: &EvaluationState,
     ) -> bool {
         let literal = instance_for_group

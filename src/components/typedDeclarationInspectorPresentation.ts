@@ -1,4 +1,4 @@
-// Read-only presentation for a single selected typed const/let binding
+// Read-only presentation for a single selected typed const binding
 // Never receives more than one bindingId at a time && never
 // projects every binding in the document into React rows.
 import type { DslStatement } from "@nuinuicad/nui-language";
@@ -17,7 +17,7 @@ export type TypedDeclarationInspectorRow = {
 export type TypedDeclarationInspectorPresentation = {
   bindingId: BindingId;
   name: string;
-  mutabilityLabel: "const" | "let";
+  mutabilityLabel: "const";
   rows: readonly TypedDeclarationInspectorRow[];
   /** Human-readable primary diagnostic message, || null when the binding is valid. */
   invalidMessage: string | null;
@@ -25,7 +25,7 @@ export type TypedDeclarationInspectorPresentation = {
 
 /**
  * Projects one selected typed binding into a small read-only row set. Returns
- * null whenever the binding no longer resolves to a typed const/let
+ * null whenever the binding no longer resolves to a typed const
  * declaration in the current compile - callers should treat that the same as
  * "nothing selected" rather than showing stale data.
  */
@@ -35,7 +35,7 @@ export const typedDeclarationInspectorPresentation = (
   bindingId: BindingId
 ): TypedDeclarationInspectorPresentation | null => {
   const binding = bindingAnalysis.catalog.bindingsById.get(bindingId);
-  if (!binding || binding.kind !== "typed" || (binding.mutability !== "const" && binding.mutability !== "let")) {
+  if (!binding || binding.kind !== "typed" || binding.mutability !== "const") {
     return null;
   }
   const statement = statements[binding.statementIndex];

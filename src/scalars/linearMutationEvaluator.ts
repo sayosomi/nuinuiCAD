@@ -7,14 +7,16 @@ import type {
   BindingReadPosition,
   BindingVersion,
   BindingVersionGraph,
-  BindingVersionId
+  BindingVersionId,
+  ImmutableForGroupPlan
 } from "@nuinuicad/nui-language";
 import { evaluateTypedExpression, type GeometryBuiltinTargetLookupResult } from "./expressionEvaluator";
 import { createScalarProgramCollectionResolver } from "./declarationEvaluator";
 import {
-  createForGroupMutationEnvironment,
-  type ForGroupMutationFrame,
-  type ForGroupMutationRunOutcome
+  createForGroupExecutionEnvironment,
+  type ForGroupExecutionFrame,
+  type ForGroupExecutionRunOutcome,
+  type ForGroupIterationContext
 } from "@nuinuicad/nui-language";
 import { scalarValueMatchesType, type ScalarEvaluation, type ScalarExpressionType } from "@nuinuicad/nui-language";
 import { isScalarExpressionTypeAssignable } from "@nuinuicad/nui-language";
@@ -44,31 +46,38 @@ export type IncrementalLinearMutationEvaluator = {
   resolveCurrent: (bindingId: BindingId) => ScalarEvaluation;
   finalize: (position: BindingReadPosition) => LinearMutationEvaluation;
   runForGroup: (
-    plan: ForGroupMutationExecutionPlan,
-    executeStatement: (statement: ForGroupMutationStatement, context: ForGroupMutationExecutionContext) => ForGroupMutationRunOutcome
-  ) => ForGroupMutationRunOutcome;
+    plan: ForGroupExecutionExecutionPlan,
+    executeStatement: (statement: ForGroupExecutionStatement, context: ForGroupExecutionExecutionContext) => ForGroupExecutionRunOutcome
+  ) => ForGroupExecutionRunOutcome;
 };
 
 /** Statements are supplied from the compiler's existing element map only. */
-export type ForGroupMutationStatement = {
+export type ForGroupExecutionStatement = {
   sourceOrder: number;
   kind: "element" | "exit";
   templateElementId?: string;
 };
-export type ForGroupMutationExecutionPlan = {
+export type ForGroupExecutionExecutionPlan = {
   ownerStatementId: string;
   loopScopeId: string;
   iterationBindingId: BindingId;
   iterationValues: readonly number[];
-  statements: readonly ForGroupMutationStatement[];
+  iterationValueOverrides?: readonly ScalarEvaluation[];
+  iterationRecordFieldOverrides?: readonly ReadonlyMap<BindingId, ScalarEvaluation>[];
+  statements: readonly ForGroupExecutionStatement[];
+  /** Called after the loop body's immutable carry snapshot has been committed. */
+  onIterationComplete?: (
+    frame: ForGroupExecutionFrame<ScalarEvaluation>,
+    context: Omit<ForGroupExecutionExecutionContext, "statement">
+  ) => ForGroupExecutionRunOutcome | void;
 };
-export type ForGroupMutationExecutionContext = {
+export type ForGroupExecutionExecutionContext = {
   iterationIndex: number;
   iterationValue: number;
 };
 
 const unavailable = (bindingId: BindingId): ScalarEvaluation => ({
-  status: "error", type: { kind: "number" }, issueCode: "evaluation-binding-version-unavailable", bindingId
+  status: "error", type: { kind: "number" }, issueCode: "evaluation-binding-unavailable", bindingId
 });
 
 const poisoned = (version: BindingVersion): ScalarEvaluation => ({
@@ -86,12 +95,7 @@ const resultForDeclaredType = (evaluation: ScalarEvaluation, declaredType: Scala
 const isBeforeOrAt = (version: BindingVersion, position: BindingReadPosition): boolean =>
   position.kind === "beforeStatement" ? version.sourceOrder < position.sourceOrder : version.sourceOrder <= position.sourceOrder;
 
-const statementIdFor = (version: BindingVersion): string => version.kind === "set" ? version.setStatementId : version.id;
-
-export const hasLinearSetVersions = (graph: BindingVersionGraph): boolean =>
-  graph.versions.some((version) => version.kind === "set" && version.control.kind === "linear");
-
-export const hasSetVersions = (graph: BindingVersionGraph): boolean => graph.versions.some((version) => version.kind === "set");
+const statementIdFor = (version: BindingVersion): string => version.id;
 
 /**
  * Task 35 supports forGroup owners, but the caller must separately prove its
@@ -99,7 +103,7 @@ export const hasSetVersions = (graph: BindingVersionGraph): boolean => graph.ver
  * Rust. This helper deliberately says nothing about that payload join.
  */
 export const isRustLinearMutationEligible = (graph: BindingVersionGraph): boolean =>
-  (hasSetVersions(graph) || graph.requiresExecutionOrdering === true) &&
+  graph.requiresExecutionOrdering === true &&
   graph.versions.every((version) => version.control.ownerChain.every((owner) =>
     owner.kind === "conditionalBranch" || owner.kind === "forGroup"
   ));
@@ -141,11 +145,15 @@ export const createIncrementalLinearMutationEvaluator = (
   const finalBindingIds = new Set(graph.versions.filter((version) =>
     version.kind === "declare" && version.control.ownerChain.length === 0
   ).map((version) => version.bindingId));
-  const finalBindingOrder = graph.versions.filter((version) =>
+  const declarationBindingOrder = graph.versions.filter((version) =>
     version.kind === "declare" && finalBindingIds.has(version.bindingId)
   ).map((version) => version.bindingId);
+  const carryBindingOrder = [...(graph.immutableForGroups?.values() ?? [])].flatMap((plan) =>
+    plan.carries.map((carry) => carry.bindingId)
+  );
+  const finalBindingOrder = [...new Set([...declarationBindingOrder, ...carryBindingOrder])];
   let nextVersionIndex = 0;
-  let activeLoopEnvironment: ReturnType<typeof createForGroupMutationEnvironment<ScalarEvaluation>> | undefined;
+  let activeLoopEnvironment: ReturnType<typeof createForGroupExecutionEnvironment<ScalarEvaluation>> | undefined;
   const conditionalResultFor = (ownerStatementId: string) => {
     for (let index = loopConditionalResults.length - 1; index >= 0; index -= 1) {
       const result = loopConditionalResults[index].get(ownerStatementId);
@@ -207,9 +215,9 @@ export const createIncrementalLinearMutationEvaluator = (
       });
       return;
     }
-    const evaluation = version.initialState.kind === "poisoned" || (version.kind === "declare" && !version.initializer)
+    const evaluation = version.initialState.kind === "poisoned" || !version.initializer
       ? poisoned(version)
-      : resultForDeclaredType(evaluateTypedExpression(version.kind === "declare" ? version.initializer! : version.expression, {
+      : resultForDeclaredType(evaluateTypedExpression(version.initializer, {
         lookupBinding: resolveCurrent,
         ...(collectionResolver ? collectionResolver.environmentFor(version.sourceOrder) : {}),
         ...(resolveCollectionLength ? {
@@ -237,12 +245,19 @@ export const createIncrementalLinearMutationEvaluator = (
   };
 
   const loopVersionsFor = (ownerStatementId: string): readonly BindingVersion[] => graph.versions.filter((version) => {
+    const immutableCarryBindingIds = new Set(
+      [...(graph.immutableForGroups?.values() ?? [])].flatMap((plan) => [
+        ...plan.carries.flatMap((carry) => [carry.bindingId, ...(carry.nextBindingId ? [carry.nextBindingId] : [])]),
+        ...(plan.geometryCarries?.map((carry) => carry.bindingId) ?? [])
+      ])
+    );
+    if (immutableCarryBindingIds.has(version.bindingId)) return false;
     const owners = version.control.ownerChain;
     const index = owners.findIndex((owner) => owner.kind === "forGroup" && owner.ownerStatementId === ownerStatementId);
     return index >= 0 && !owners.slice(index + 1).some((owner) => owner.kind === "forGroup");
   });
 
-  const executeLoopVersion = (version: BindingVersion, frame: ForGroupMutationFrame<ScalarEvaluation>) => {
+  const executeLoopVersion = (version: BindingVersion, frame: ForGroupExecutionFrame<ScalarEvaluation>) => {
     const control = activeControl(version, true);
     if (control !== "active") {
       historyByVersionId.set(version.id, {
@@ -251,9 +266,9 @@ export const createIncrementalLinearMutationEvaluator = (
       });
       return;
     }
-    const evaluation = version.initialState.kind === "poisoned" || (version.kind === "declare" && !version.initializer)
+    const evaluation = version.initialState.kind === "poisoned" || !version.initializer
       ? poisoned(version)
-      : resultForDeclaredType(evaluateTypedExpression(version.kind === "declare" ? version.initializer! : version.expression, {
+      : resultForDeclaredType(evaluateTypedExpression(version.initializer, {
         lookupBinding: resolveCurrent,
         ...(collectionResolver ? collectionResolver.environmentFor(version.sourceOrder) : {}),
         ...(resolveCollectionLength ? {
@@ -264,9 +279,9 @@ export const createIncrementalLinearMutationEvaluator = (
         ...(resolveGeometryProperty ? { lookupGeometryProperty: (reference) => resolveGeometryProperty(reference, version.sourceOrder) } : {}),
         ...(resolveGeometryTarget ? { lookupGeometryTarget: (target) => resolveGeometryTarget(target, version.sourceOrder) } : {})
       }), version.declaredType);
-    const isLoopLocal = version.kind === "declare" && version.control.ownerChain.length > 0;
+    const isLoopLocal = version.control.ownerChain.length > 0;
     if (isLoopLocal) frame.declareLocal(version.bindingId, evaluation);
-    else frame.set(version.bindingId, evaluation);
+    else frame.commit(version.bindingId, evaluation);
     historyByVersionId.set(version.id, {
       versionId: version.id, statementId: statementIdFor(version), bindingId: version.bindingId,
       status: evaluation.status === "error" ? "poisoned" : "executed", evaluation
@@ -320,11 +335,39 @@ export const createIncrementalLinearMutationEvaluator = (
   const runForGroup: IncrementalLinearMutationEvaluator["runForGroup"] = (plan, executeStatement) => {
     const loopVersions = loopVersionsFor(plan.ownerStatementId);
     const outerEnvironment = activeLoopEnvironment;
-    const environment = outerEnvironment ?? createForGroupMutationEnvironment(currentByBindingId);
+    const environment = outerEnvironment ?? createForGroupExecutionEnvironment(currentByBindingId);
+    const immutableCarryPlan: ImmutableForGroupPlan | undefined = graph.immutableForGroups?.get(plan.ownerStatementId);
+    if (immutableCarryPlan) {
+      // Carry declarations are lexical immutable bindings, not per-iteration
+      // declarations. Materialize each initializer once into the loop's
+      // surrounding slot map before the first iteration (also covering the
+      // zero-iteration case).
+      for (const carry of immutableCarryPlan.carries) {
+        const lookupBinding = (bindingId: BindingId): ScalarEvaluation => {
+          const local = environment.read(bindingId);
+          if (typeof local === "number") {
+            return { status: "ok", type: { kind: "number" }, value: { kind: "number", value: local } };
+          }
+          return local ?? resolveCurrent(bindingId);
+        };
+        const evaluation = evaluateTypedExpression(carry.initializer, {
+          ...(collectionResolver ? collectionResolver.environmentFor(carry.nextSourceOrder) : {}),
+          ...(resolveCollectionLength ? {
+            lookupCollectionLength: (collectionValueId: string) =>
+              resolveCollectionLength(collectionValueId, carry.nextSourceOrder) ??
+              collectionResolver?.environmentFor(carry.nextSourceOrder).lookupCollectionLength?.(collectionValueId)
+          } : {}),
+          ...(resolveGeometryProperty ? { lookupGeometryProperty: (reference) => resolveGeometryProperty(reference, carry.nextSourceOrder) } : {}),
+          ...(resolveGeometryTarget ? { lookupGeometryTarget: (target) => resolveGeometryTarget(target, carry.nextSourceOrder) } : {}),
+          lookupBinding
+        });
+        environment.seed(carry.bindingId, resultForDeclaredType(evaluation, carry.declaredType));
+      }
+    }
     let versionIndex = 0;
     let activeIterationIndex = -1;
     const iterationConditionalResults = new Map<string, "then" | "else" | null>();
-    const runVersionsBefore = (sourceOrder: number, frame: ForGroupMutationFrame<ScalarEvaluation>) => {
+    const runVersionsBefore = (sourceOrder: number, frame: ForGroupExecutionFrame<ScalarEvaluation>) => {
       while (versionIndex < loopVersions.length && loopVersions[versionIndex].sourceOrder < sourceOrder) {
         const version = loopVersions[versionIndex];
         versionIndex += 1;
@@ -347,12 +390,51 @@ export const createIncrementalLinearMutationEvaluator = (
     activeLoopEnvironment = environment;
     loopConditionalResults.push(iterationConditionalResults);
     try {
-      const outcome = environment.run({
+      const outcome = environment.run<ForGroupExecutionStatement>({
         loopScopeId: plan.loopScopeId,
         iterationBindingId: plan.iterationBindingId,
         iterationValues: plan.iterationValues,
-        generatedStatements: plan.statements
-      }, (frame, context) => {
+        ...(plan.iterationValueOverrides ? { iterationValueOverrides: plan.iterationValueOverrides } : {}),
+        ...(plan.iterationRecordFieldOverrides ? { iterationRecordFieldOverrides: plan.iterationRecordFieldOverrides } : {}),
+        generatedStatements: plan.statements,
+        ...(immutableCarryPlan || plan.onIterationComplete ? {
+          onIterationComplete: (frame, context) => {
+            if (immutableCarryPlan) {
+            const snapshot = new Map<BindingId, ScalarEvaluation>();
+            for (const carry of immutableCarryPlan.carries) {
+              const value = frame.read(carry.bindingId);
+              snapshot.set(carry.bindingId, typeof value === "number"
+                ? { status: "ok", type: { kind: "number" }, value: { kind: "number", value } }
+                : value ?? unavailable(carry.bindingId));
+            }
+            const nextValues = new Map<BindingId, ScalarEvaluation>();
+            for (const carry of immutableCarryPlan.carries) {
+              const evaluation = evaluateTypedExpression(carry.nextExpression, {
+                ...(collectionResolver ? collectionResolver.environmentFor(carry.nextSourceOrder) : {}),
+                ...(resolveCollectionLength ? {
+                  lookupCollectionLength: (collectionValueId: string) =>
+                    resolveCollectionLength(collectionValueId, carry.nextSourceOrder) ??
+                    collectionResolver?.environmentFor(carry.nextSourceOrder).lookupCollectionLength?.(collectionValueId)
+                } : {}),
+                ...(resolveGeometryProperty ? { lookupGeometryProperty: (reference) => resolveGeometryProperty(reference, carry.nextSourceOrder) } : {}),
+                ...(resolveGeometryTarget ? { lookupGeometryTarget: (target) => resolveGeometryTarget(target, carry.nextSourceOrder) } : {}),
+                lookupBinding: (bindingId) => {
+                  return snapshot.get(bindingId) ?? (() => {
+                  const value = environment.read(bindingId) ?? frame.read(bindingId);
+                  return typeof value === "number"
+                    ? { status: "ok", type: { kind: "number" }, value: { kind: "number", value } }
+                    : value ?? unavailable(bindingId);
+                  })();
+                }
+              });
+              nextValues.set(carry.bindingId, resultForDeclaredType(evaluation, carry.declaredType));
+            }
+            for (const [bindingId, value] of nextValues) frame.commit(bindingId, value);
+            }
+            return plan.onIterationComplete?.(frame, context) ?? "completed";
+          }
+        } : {})
+      }, (_frame: ForGroupExecutionFrame<ScalarEvaluation>, context: ForGroupIterationContext<ForGroupExecutionStatement>) => {
         // Each iteration replays only its own source-ordered loop body. No
         // generated payload carries an environment; the core frame is shared.
         if (activeIterationIndex !== context.iterationIndex) {
@@ -360,11 +442,11 @@ export const createIncrementalLinearMutationEvaluator = (
           versionIndex = 0;
           iterationConditionalResults.clear();
         }
-        runVersionsBefore(context.statement.sourceOrder, frame);
+        runVersionsBefore(context.statement.sourceOrder, _frame);
         return executeStatement(context.statement, context);
       });
       if (!outerEnvironment) {
-        for (const [bindingId, value] of environment.finalSlots()) currentByBindingId.set(bindingId, value);
+        for (const [bindingId, value] of environment.finalValues()) currentByBindingId.set(bindingId, value);
       }
       return outcome;
     } finally {

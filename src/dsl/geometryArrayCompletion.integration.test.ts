@@ -131,14 +131,9 @@ describe("geometry array expected-type completion", () => {
     expect(labels(queryAt(source, "@made::"))).toContain("edges");
   });
 
-  it("does not advertise immutable geometry-array types on let declarations", () => {
+  it("advertises immutable geometry-array types for const declarations", () => {
     const constSource = "const value: pa";
     expect(labels(queryAt(constSource, "pa"))).toEqual(expect.arrayContaining(["point[]", "path[]"]));
 
-    const letSource = "let value: pa";
-    expect(labels(queryAt(letSource, "pa"))).not.toEqual(expect.arrayContaining(["point[]"]));
-    expect(labels(queryAt(letSource, "pa"))).not.toContain("point[]");
-    expect(labels(queryAt(letSource, "pa"))).not.toContain("line[]");
-    expect(labels(queryAt(letSource, "pa"))).not.toContain("path[]");
   });
 });

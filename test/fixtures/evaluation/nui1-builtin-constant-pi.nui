@@ -8,8 +8,7 @@ const piComparison: boolean = pi > 3
 const pi: number = 2
 const builtinPiWithUserBinding: number = pi
 const explicitUserPi: number = @pi
-let piMutable: number = 0
-set piMutable = pi
+const piMutable: number = pi
 
 point PiPoint = coordinate(x: pi, y: 2 * pi)
 text PiTemplate = label(text: "円周率=${pi}", anchor: none, size: pi)

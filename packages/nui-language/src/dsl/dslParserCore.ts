@@ -34,7 +34,7 @@ import {
   type DslDeclarationParseResult,
   type DslTypedDeclarationStatement
 } from "./dslDeclarationParser";
-import { parseDslSetStatement, type DslSetParseResult, type DslSetStatement } from "./dslSetParser";
+import { parseDslNextStatement, type DslNextParseResult, type DslNextStatement } from "./dslNextParser";
 import {
   parseDslModuleStatement,
   type DslModuleParsedStatement,
@@ -87,14 +87,9 @@ const settingsKeywords = new Set<string>([
   dslStatementKeywords.place
 ]);
 
-// const/let route to their own focused parser (P5, dslDeclarationParser),
+// const routes to its own focused parser (P5, dslDeclarationParser),
 // disjoint from the call-category && settings keyword sets above.
-const declarationKeywords = new Set<string>([dslStatementKeywords.constDeclaration, dslStatementKeywords.letDeclaration]);
-
-// set routes to its own focused parser (P7, dslSetParser), independent of
-// declarationKeywords - Task 29 must not mix a set branch into
-// dslDeclarationParser.ts.
-const setKeywords = new Set<string>([dslStatementKeywords.setStatement]);
+const declarationKeywords = new Set<string>([dslStatementKeywords.constDeclaration]);
 
 // Bare mutation-statement keywords (P3/dslCallParser's bare-call branch):
 // the construction keyword itself leads the statement, with no
@@ -127,7 +122,7 @@ const nonElementKinds = new Set<DslStatement["kind"]>([
   "moduleInstance",
   "typedDeclaration",
   "transformation",
-  "set",
+  "next",
   "blockEnd",
   "blockElse"
 ]);
@@ -245,7 +240,9 @@ const callStatementToDslStatement = (
     category: call.category,
     construction: call.construction,
     exported: Boolean(exportInfo),
-    exportSpan: exportInfo?.exportSpan ?? null
+    exportSpan: exportInfo?.exportSpan ?? null,
+    ...(call.forSource !== undefined ? { forSource: call.forSource, forSourceSpan: call.forSourceSpan } : {}),
+    ...(call.forCarries ? { forCarries: call.forCarries } : {})
   };
 };
 
@@ -344,14 +341,15 @@ const declarationStatementToDslStatement = (
   exportSpan: decl.exportSpan ?? null
 });
 
-const setStatementToDslStatement = (
-  set: DslSetStatement,
+const nextStatementToDslStatement = (
+  next: DslNextStatement,
   line: number,
   endLine: number
 ): DslStatement => ({
-  ...baseFrom(set, line, endLine),
-  kind: "set",
-  expression: set.expression
+  ...baseFrom(next, line, endLine),
+  kind: "next",
+  expression: next.expression,
+  expressionSpan: next.expressionSpan
 });
 
 type ParsedModifierDefinition = StatementCommonFields & {
@@ -721,8 +719,8 @@ const fromDeclaration = (
   return { statement: declarationStatementToDslStatement(result.statement, line, endLine), diagnostics };
 };
 
-const fromSet = (
-  result: DslSetParseResult,
+const fromNext = (
+  result: DslNextParseResult,
   line: number,
   endLine: number,
   project: (span: DslSpan) => DslPhysicalSpan | null
@@ -731,7 +729,7 @@ const fromSet = (
     diagnostic(line, item.message, item.code, project(item.span) ?? undefined, item.presentation)
   );
   if (!result.statement) return { diagnostics };
-  return { statement: setStatementToDslStatement(result.statement, line, endLine), diagnostics };
+  return { statement: nextStatementToDslStatement(result.statement, line, endLine), diagnostics };
 };
 
 const fromImport = (
@@ -865,7 +863,6 @@ const parseLine = (
   }
   const propertyCandidate =
     !declarationKeywords.has(keyword) &&
-    !setKeywords.has(keyword) &&
     /^[A-Za-z_][A-Za-z0-9_]*\s*:/.test(logicalText);
   if (propertyCandidate) {
     const propertyDiagnostics: DslDiagnostic[] = [];
@@ -884,8 +881,8 @@ const parseLine = (
   if (declarationKeywords.has(keyword)) {
     return fromDeclaration(parseDslTypedDeclarationStatement(logicalText), line, endLine, project);
   }
-  if (setKeywords.has(keyword)) {
-    return fromSet(parseDslSetStatement(logicalText), line, endLine, project);
+  if (keyword === "next") {
+    return fromNext(parseDslNextStatement(logicalText), line, endLine, project);
   }
   return {
     diagnostics: keyword
@@ -929,6 +926,9 @@ const applyBlockStructure = (statements: DslStatement[], diagnostics: DslDiagnos
 
   statements.forEach((statement, index) => {
     statement.enclosing = enclosingOf();
+    if (statement.kind === "next" && !stack.some((frame) => frame.kind === "forGroup")) {
+      diagnostics.push(diagnostic(statement.line, "next は statement-for の carry scope 内でのみ使用できます。", "next-outside-for"));
+    }
     if (statement.kind === "blockElse") {
       const top = stack.at(-1);
       if (!top || top.kind !== "conditionalGroup" || top.branch !== "then") {
@@ -1168,7 +1168,15 @@ const decorateStatement = (statement: DslStatement, logical: LogicalStatement, s
     payloadPhysicalSpans: Object.fromEntries(Object.entries(statement.payloadSpans).map(([key, span]) => [key, project(span)]))
   });
   if (statement.kind === "element" || statement.kind === "group") {
-    if (statement.kind === "element") statement.exportPhysicalSpan = statement.exportSpan ? project(statement.exportSpan) : null;
+    if (statement.kind === "element") {
+      statement.exportPhysicalSpan = statement.exportSpan ? project(statement.exportSpan) : null;
+      if (statement.forSourceSpan) statement.forSourcePhysicalSpan = project(statement.forSourceSpan);
+      for (const carry of statement.forCarries ?? []) {
+        carry.namePhysicalSpan = project(carry.nameSpan);
+        carry.typePhysicalSpan = project(carry.typeSpan);
+        carry.initializerPhysicalSpan = project(carry.initializerSpan);
+      }
+    }
     statement.modifierNamePhysicalSpans = (statement.modifierNameSpans ?? []).map((span) => project(span));
   } else if (statement.kind === "transformation") {
     statement.targetPhysicalSpans = statement.targets.map((target) => project(target.span));
@@ -1203,6 +1211,8 @@ const decorateStatement = (statement: DslStatement, logical: LogicalStatement, s
     }
   } else if (statement.kind === "typedDeclaration") {
     statement.exportPhysicalSpan = statement.exportSpan ? project(statement.exportSpan) : null;
+  } else if (statement.kind === "next") {
+    statement.expressionPhysicalSpan = project(statement.expressionSpan);
   } else if (statement.kind === "moduleInstance") {
     statement.moduleNamePhysicalSpan = statement.moduleNameSpan ? project(statement.moduleNameSpan) : null;
     for (const option of statement.options) {

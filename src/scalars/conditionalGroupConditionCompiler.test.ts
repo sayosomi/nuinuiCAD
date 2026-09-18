@@ -68,7 +68,7 @@ describe("compileConditionalGroupConditions: typed candidates compile to a boole
   });
 
   it("unary not on a typed boolean reference", () => {
-    const compiled = compileFor(["let flag: boolean = true", "if (not @flag) {", "}"].join("\n"));
+    const compiled = compileFor(["const flag: boolean = true", "if (not @flag) {", "}"].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compileConditionalGroupConditions(compiled);
     expect(diagnostics).toEqual([]);
     expect(sourcesByOccurrenceKey.get(propertyBindingOccurrenceKey(1, "condition"))).toMatchObject({
@@ -79,7 +79,7 @@ describe("compileConditionalGroupConditions: typed candidates compile to a boole
   });
 
   it("bare reference to a typed boolean binding", () => {
-    const compiled = compileFor(["let flag: boolean = true", "if (@flag) {", "}"].join("\n"));
+    const compiled = compileFor(["const flag: boolean = true", "if (@flag) {", "}"].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compileConditionalGroupConditions(compiled);
     expect(diagnostics).toEqual([]);
     expect(sourcesByOccurrenceKey.get(propertyBindingOccurrenceKey(1, "condition"))).toMatchObject({
@@ -102,8 +102,8 @@ describe("compileConditionalGroupConditions: typed candidates compile to a boole
 
   it("logical  and  combining two typed boolean references", () => {
     const compiled = compileFor([
-      "let a: boolean = true",
-      "let b: boolean = false",
+      "const a: boolean = true",
+      "const b: boolean = false",
       "if (@a  and  @b) {",
       "}"
     ].join("\n"));
@@ -212,8 +212,8 @@ describe("compileConditionalGroupConditions: every scalar AST uses boolean expec
     // `compiled.diagnostics` assertion above would already fail before this
     // module even runs - this test exists to name that guarantee explicitly.
     const compiled = compileFor([
-      "let a: boolean = true",
-      "let b: boolean = true",
+      "const a: boolean = true",
+      "const b: boolean = true",
       "if (@a && @b) {",
       "}"
     ].join("\n"));
@@ -241,7 +241,7 @@ describe("compileConditionalGroupConditions: fail-closed diagnostics once classi
 
   it("an invalid (poisoned) typed declaration referenced inside a typed-only expression", () => {
     const compiled = compileFor([
-      "let 壊れた: boolean = @何か",
+      "const 壊れた: boolean = @何か",
       "if (@壊れた && true) {",
       "}"
     ].join("\n"));

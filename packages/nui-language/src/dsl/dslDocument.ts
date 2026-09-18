@@ -18,6 +18,7 @@ import type {
   VisibilityProfile,
   VisibilityRole
 } from "../types/geometry";
+import type { GeometryInputTarget } from "../model/cadDocumentTypes";
 import { compileDslToElements } from "./dslCompiler";
 import { lowerScalarProgram } from "../scalars/scalarProgram";
 import { analyzeTypedDeclarations } from "../scalars/typedDeclarationAnalysis";
@@ -30,7 +31,6 @@ import {
   type NumericBindingConsumerReference
 } from "../scalars/numericBindingCompiler";
 import { compileConditionalGroupConditions } from "../scalars/conditionalGroupConditionCompiler";
-import { compileSetStatements, type SetStatementAnalysis } from "../scalars/setStatementCompiler";
 import {
   buildBindingControlMetadata,
   buildBindingVersionGraph,
@@ -38,13 +38,14 @@ import {
 } from "../scalars/bindingVersions";
 import { compileTextTemplates, type TextTemplateAst } from "../scalars/textTemplate";
 import { buildTypedDependencyGraph, type TypedDependencyGraph } from "../scalars/typedDependencyGraph";
-import type { ScalarExpressionResolvedGeometryProperty, TypedScalarExpression } from "../scalars/typedExpressionAst";
+import { compileImmutableCarries, type ImmutableCarryCompilation } from "../scalars/immutableCarryCompiler";
+import type { ScalarExpressionResolvedGeometryProperty, ScalarExpressionResolvedGeometryTarget, TypedScalarExpression } from "../scalars/typedExpressionAst";
 import { formatNumericValueForDsl } from "./dslExpressionFormat";
 import { isCompilableDslStatement, isCanonicalValueBindingDeclaration, type DslStatementInclusion } from "./dslCompilationGuard";
 import { compilePropertyReferenceSyntax } from "./dslPropertyReferenceSyntax";
 import { buildPlacementRefsByStatementIndex } from "./dslPrintLayoutPlacementIndex";
 import { isGeometryDeclarationCategory } from "./dslConstructions";
-import { dslRequiredValueTypeOf, isDslGeometryValueType, isDslRecordValueType, nominalRecordTypeOfDslValueType, scalarTypeOfDslValueType } from "./dslValueTypes";
+import { dslRequiredValueTypeOf, isDslArrayValueType, isDslGeometryValueType, isDslRecordValueType, nominalRecordTypeOfDslValueType, scalarTypeOfDslValueType } from "./dslValueTypes";
 import { collectionLengthForValueId, collectionValueSemanticForStatement, geometryArrayDeferredModuleExportId } from "./geometryArraySemanticAnalysis";
 import type { GenericArraySourceTarget } from "./geometryArraySemanticAnalysis";
 import type { DslArrayMappedValue, DslArraySemanticValue } from "./geometryArraySemantics";
@@ -60,7 +61,7 @@ import type { ModuleGeometryRuntimeCompilation } from "./moduleGeometryRuntime";
 import { geometryAliasForSourceElement, geometryValueOccurrenceForRecordField, propertyForAlias } from "./moduleGeometryRuntimeLowering";
 import { parseGeometryArrayExpression } from "./geometryArrayExpression";
 import { buildRootGeometryValueProgram } from "./moduleGeometryValueProgram";
-import { compileModuleScalarRuntime, lowerExpression, moduleRecordExportFieldBindingIdFor, moduleScalarBindingIdFor, moduleScalarExportBindingSeeds, type ModuleScalarRuntimeCompilation } from "../scalars/moduleScalarRuntime";
+import { compileModuleScalarRuntime, lowerExpression, moduleRecordCollectionBinderFieldIdForPath, moduleRecordExportFieldBindingIdFor, moduleScalarBindingIdFor, moduleScalarExportBindingSeeds, type ModuleScalarRuntimeCompilation } from "../scalars/moduleScalarRuntime";
 import {
   recordFieldCollectionValueIdFor,
   recordScalarBindingIdFor,
@@ -73,8 +74,9 @@ import type { SourceRevision } from "./logicalStatementSourceMap";
 import { createStatementIdentity, type StatementIdentity } from "../document/statementIdentity";
 import type { BindingAnalysis } from "../scalars/bindingAnalysis";
 import { bindingIdForStableStatementId, type BindingId, type BindingSeed, type SourceNamespaceBindingResolver } from "../scalars/bindingCatalog";
+import { scopeChain } from "../scalars/lexicalScopeIndex";
 import type { ScalarProgram, ScalarProgramCollection, ScalarProgramCollectionMember, ScalarProgramPositionMap } from "../scalars/scalarProgram";
-import type { ScalarValue } from "../scalars/types";
+import type { ScalarExpressionType, ScalarValue } from "../scalars/types";
 import { scanScalarLiteral } from "../scalars/literalScanner";
 import type {
   MaterializedNumericBindingSource,
@@ -270,18 +272,7 @@ export type CompiledDslDocument = {
    * conditionalGroupConditions above, this does not gate on `scalarAnalysis`.
    */
   textTemplates?: ReadonlyMap<string, TextTemplateAst>;
-  /**
-   * Task 29 compiled `set name = expression` target/RHS resolution, keyed by
-   * plain statementIndex rather than propertyBindingOccurrenceKey - a `set`
-   * statement has exactly one target, unlike the multi-attribute occurrence
-   * maps above, so the string occurrence-key format doesn't apply. Like
-   * textTemplates, this does not gate on `scalarAnalysis` (a `set` with no
-   * catalog to resolve against must still be diagnosed, not silently
-   * dropped) - see compileSetStatements's own handling of an undefined
-   * bindingAnalysis.
-   */
-  setStatements?: ReadonlyMap<number, SetStatementAnalysis>;
-  /** Task 30 evaluation-neutral declaration/set version graph. */
+  /** Evaluation-neutral declaration and immutable-carry execution graph. */
   bindingVersions?: BindingVersionGraph;
   /** Task 36 static dependency graph for this exact compile attempt. */
   typedDependencyGraph?: TypedDependencyGraph;
@@ -297,6 +288,8 @@ export type CompiledDslDocument = {
   moduleMaterialization?: ModuleMaterialization;
   /** Compiler-owned Module geometry lowering for exact current runtime consumers. */
   moduleGeometryRuntime?: ModuleGeometryRuntimeCompilation;
+  /** Root geometry consumers whose source target is an immutable carry. */
+  geometryInputTargetsByElementId?: ReadonlyMap<ElementId, ReadonlyMap<string, GeometryInputTarget | readonly GeometryInputTarget[]>>;
   /** Compiled immutable geometry values; never part of document.elements. */
   geometryValueProgram?: import("./moduleGeometryValueProgram").GeometryValueProgram;
   /** Source-derived scalar order for materialized runtime occurrences. */
@@ -306,7 +299,7 @@ export type CompiledDslDocument = {
   materializedNumericBindings?: readonly MaterializedNumericBindingSource[];
   materializedTextTemplates?: readonly import("../scalars/moduleScalarRuntime").MaterializedTextTemplateSource[];
   moduleConditionalOwnerStatementIdByElementId?: ReadonlyMap<ElementId, string>;
-  moduleForGroupMutationOwnerByElementId?: ReadonlyMap<ElementId, Extract<import("../scalars/bindingVersions").BindingControlOwner, { kind: "forGroup" }> & { elementId: ElementId }>;
+  moduleForGroupExecutionOwnerByElementId?: ReadonlyMap<ElementId, Extract<import("../scalars/bindingVersions").BindingControlOwner, { kind: "forGroup" }> & { elementId: ElementId }>;
   materializedConditionalGroupConditions?: readonly { elementId: ElementId; expression: TypedScalarExpression }[];
   /**
    * Task 48: `bindingAnalysis.issues` (duplicate-binding/binding-cycle/
@@ -1063,7 +1056,6 @@ export const buildStatementMap = (
       statement.kind === "group" ||
       statement.kind === "element" ||
       statement.kind === "typedDeclaration" ||
-      statement.kind === "set" ||
       statement.kind === "atStop"
     ) {
       // 単一行の複数行call(例: 複数行coordinate())はブロックを開かないため
@@ -1132,15 +1124,7 @@ export const compileDslDocument = (
   const hasTypedDeclarations = parsed.statements.some(
     (statement, statementIndex) => statement.kind === "typedDeclaration" && isCanonicalValueBindingDeclaration(parsed.statements, statementIndex)
   );
-  // set statements need the same reconciler-issued identity map as typed
-  // declarations (Task 29) - the gate must include them too, otherwise a
-  // document with `set` but no local const/let would build the map from a
-  // fallback empty source instead of the caller's real reconciliation
-  // output.
-  const hasSetStatements = parsed.statements.some(
-    (statement, statementIndex) => statement.kind === "set" && includeStatement(statement, statementIndex)
-  );
-  // layout/place/output numeric fields resolve `@name` against typed const/let
+  // layout/place/output numeric fields resolve `@name` against typed const
   // bindings the same way element fields do (Task 53), so a document with a
   // layout/output declarations but zero typedDeclaration/set statements of its own
   // must still run scalar analysis - otherwise an unresolved `@name` inside
@@ -1154,6 +1138,10 @@ export const compileDslDocument = (
   );
   const hasGeometryValueStatements = parsed.statements.some(
     (statement) => statement.kind === "typedDeclaration" && isDslGeometryValueType(dslRequiredValueTypeOf(statement.valueType))
+  );
+  const hasGeometryCarryStatements = parsed.statements.some(
+    (statement) => statement.kind === "element" && statement.type === "forGroup" &&
+      statement.forCarries?.some((carry) => isDslGeometryValueType(dslRequiredValueTypeOf(carry.valueType)))
   );
   const hasRecordValueControlFlowStatements = parsed.statements.some(
     (statement) => statement.kind === "typedDeclaration" && nominalRecordTypeOfDslValueType(dslRequiredValueTypeOf(statement.valueType)) !== null &&
@@ -1243,7 +1231,7 @@ export const compileDslDocument = (
     (statement, statementIndex) => statement.kind === "profileDeclaration" && includeStatement(statement, statementIndex)
   );
   const stableStatementIdByIndex =
-    (hasTypedDeclarations || hasSetStatements || hasSourceOutputStatements || hasModuleStatements || hasSourceNamespaceStatements)
+    (hasTypedDeclarations || hasSourceOutputStatements || hasModuleStatements || hasSourceNamespaceStatements)
     ? new Map<number, string>(options.assignedStatementIds ?? options.assignedElementIds ?? [])
     : undefined;
   if (stableStatementIdByIndex) {
@@ -1303,8 +1291,42 @@ export const compileDslDocument = (
     parsed.statements.every(
       (statement, statementIndex) => !sourceNamespaceRequiresIdentity(statement) || stableStatementIdByIndex.has(statementIndex)
     );
-  const sourceLexicalNamespace = sourceNamespaceHasCompleteIdentity
+  const baseSourceLexicalNamespace = sourceNamespaceHasCompleteIdentity
     ? buildSourceLexicalNamespaceIndex(parsed.statements, stableStatementIdByIndex!)
+    : undefined;
+  const sourceLexicalNamespace = baseSourceLexicalNamespace
+    ? (() => {
+        const iterationSlots = new Map(baseSourceLexicalNamespace.scopeIndex.forGroupIterationSlots);
+        for (const [scopeId, slot] of iterationSlots) {
+          const statement = parsed.statements[slot.statementIndex];
+          if (statement?.kind !== "element" || statement.type !== "forGroup") continue;
+          if (statement.forSource === undefined) {
+            iterationSlots.set(scopeId, { ...slot, valueType: { kind: "number" } });
+            continue;
+          }
+          const parsedSource = parseDslSourceReference(statement.forSource);
+          const sourcePath = parsedSource.kind === "valid"
+            ? parsedSource.reference.path
+            : parseDslReferenceToken(statement.forSource);
+          const lookup = resolveSourceLexicalPath(baseSourceLexicalNamespace, slot.statementIndex, sourcePath);
+          if (lookup.kind !== "resolved") continue;
+          const declaredValueType = lookup.declaration.statement.kind === "typedDeclaration"
+            ? lookup.declaration.statement.valueType
+            : null;
+          const collectionSemantic = baseSourceLexicalNamespace.geometryArraySemanticAnalysis?.genericValuesByStatementId.get(lookup.declaration.statementId) ??
+            baseSourceLexicalNamespace.geometryArraySemanticAnalysis?.valuesByStatementId.get(lookup.declaration.statementId);
+          const valueType = declaredValueType ?? collectionSemantic?.declaredValueType;
+          if (valueType && isDslArrayValueType(valueType)) {
+            iterationSlots.set(scopeId, { ...slot, valueType: valueType.elementType });
+          } else if (statement.forSource === undefined || /^range\s*\(/.test(statement.forSource.trim())) {
+            iterationSlots.set(scopeId, { ...slot, valueType: { kind: "number" } });
+          }
+        }
+        return {
+          ...baseSourceLexicalNamespace,
+          scopeIndex: { ...baseSourceLexicalNamespace.scopeIndex, forGroupIterationSlots: iterationSlots }
+        };
+      })()
     : undefined;
   const hasNominalRecordCollectionValueFor = sourceLexicalNamespace?.geometryArraySemanticAnalysis?.genericValues.some((value) => {
     if (value.valueType.elementType.kind !== "record" || !value.value) return false;
@@ -1355,6 +1377,13 @@ export const compileDslDocument = (
   // never re-scanned per diagnostic; always available, even on the earliest
   // error return below, since it depends only on `parsed`.
   const spans: DiagnosticSpanContext = { sourceMap: parsed.sourceMap, logicalStatementByRangeFrom: parsed.logicalStatementByRangeFrom };
+  const immutableCarryCompilation: ImmutableCarryCompilation | undefined = sourceLexicalNamespace && stableStatementIdByIndex
+    ? compileImmutableCarries({
+        statements: parsed.statements,
+        stableStatementIdByIndex,
+        sourceNamespace: sourceLexicalNamespace
+      })
+    : undefined;
   const projectCompilerDiagnostic = (diagnostic: DslDiagnostic): DslDiagnostic => {
     const { logicalSpan, statementIndex, ...publicDiagnostic } = diagnostic;
     if (logicalSpan === undefined || statementIndex === undefined) return publicDiagnostic;
@@ -1412,11 +1441,34 @@ export const compileDslDocument = (
         statementIndex: number;
         node: Extract<import("../scalars/expressionAst").ScalarExpressionAst, { kind: "geometryProperty" }>;
       }) => {
-        const lookup = resolveSourceLexicalDeclaration(
+        const lookup = resolveSourceLexicalPath(
           sourceLexicalNamespace,
           statementIndex,
-          parseDslReferenceToken(node.elementName).segments[0] ?? node.elementName
+          parseDslReferenceToken(node.elementName)
         );
+        if (lookup.kind === "resolved" && lookup.declaration.kind === "carry" && lookup.declaration.statement.kind === "element") {
+          const carry = lookup.declaration.statement.forCarries?.find(
+            (candidate) => candidate.name === lookup.declaration.name
+          );
+          const valueType = dslRequiredValueTypeOf(carry?.valueType);
+          if (carry && valueType && isDslGeometryValueType(valueType)) {
+            const pointPath = /^(start|end)\.(x|y)$/.exec(node.property);
+            const property = pointPath?.[2] ?? node.property;
+            const valid = valueType.kind === "point"
+              ? property === "x" || property === "y"
+              : property === "length" || property === "startAngleDeg" || property === "endAngleDeg" || Boolean(pointPath);
+            if (valid) {
+              return {
+                kind: "geometryCarry" as const,
+                bindingId: `binding:${lookup.declaration.statementId}`,
+                property,
+                ...(pointPath ? { pointKey: pointPath[1] } : {}),
+                targetSourceOrder: lookup.declaration.statementIndex,
+                type: { kind: "number" as const }
+              };
+            }
+          }
+        }
         if (lookup.kind !== "resolved" ||
             lookup.declaration.kind !== "typedDeclaration" ||
             lookup.declaration.statement.kind !== "typedDeclaration" ||
@@ -1490,6 +1542,25 @@ export const compileDslDocument = (
         occurrenceIndex: number | null;
         expectedGeometryType: "point" | "line";
       }) => {
+        if (node.kind === "reference") {
+          const lookup = resolveSourceLexicalPath(sourceLexicalNamespace, statementIndex, parseDslReferenceToken(node.name));
+          if (lookup.kind === "resolved" && lookup.declaration.kind === "carry") {
+            const carry = lookup.declaration.statement.kind === "element"
+              ? lookup.declaration.statement.forCarries?.find((candidate) => candidate.name === lookup.declaration.name)
+              : undefined;
+            const valueType = dslRequiredValueTypeOf(carry?.valueType);
+            if (valueType && isDslGeometryValueType(valueType)) {
+              return {
+                kind: "geometryCarry" as const,
+                bindingId: `binding:${lookup.declaration.statementId}`,
+                statementId: lookup.declaration.statementId,
+                statementIndex: lookup.declaration.statementIndex,
+                geometryType: valueType.kind
+              };
+            }
+          }
+          return undefined;
+        }
         if (node.kind !== "geometryProperty") return undefined;
         const lookup = resolveSourceLexicalPath(
           sourceLexicalNamespace,
@@ -1645,6 +1716,103 @@ export const compileDslDocument = (
       }
     : undefined;
 
+  // A record collection binder is a read-only projection of the current
+  // member.  Give its scalar leaves the same stable binder-field identities
+  // used by the existing record collection runtime; the execution owner will
+  // provide the per-iteration values rather than materializing mutable slots.
+  const iterationRecordFieldBindingSeeds: readonly BindingSeed[] = sourceLexicalNamespace && stableStatementIdByIndex
+    ? compiled.elements.flatMap((element) => {
+        if (element.type !== "forGroup" || !element.iterationSource) return [];
+        const statementIndex = [...(compiled.elementIdsByStatementIndex ?? new Map())]
+          .find(([, elementId]) => elementId === element.id)?.[0];
+        if (statementIndex === undefined) return [];
+        const parsedSource = parseDslSourceReference(element.iterationSource);
+        const sourcePath = parsedSource.kind === "valid"
+          ? parsedSource.reference.path
+          : parseDslReferenceToken(element.iterationSource);
+        const lookup = resolveSourceLexicalPath(sourceLexicalNamespace, statementIndex, sourcePath);
+        const sourceStatement = lookup.kind === "resolved" && lookup.declaration.statement.kind === "typedDeclaration"
+          ? lookup.declaration.statement
+          : null;
+        const elementType = sourceStatement?.valueType?.kind === "array" ? sourceStatement.valueType.elementType : null;
+        if (!elementType || elementType.kind !== "record") return [];
+        const definition = (elementType.identity
+          ? sourceLexicalNamespace.recordSemanticAnalysis?.definitionsByStatementId.get(elementType.identity)
+          : undefined) ?? [...(sourceLexicalNamespace.recordSemanticAnalysis?.definitionsByStatementId.values() ?? [])]
+            .find((candidate) => candidate.name === elementType.name);
+        if (!definition) return [];
+        const stableId = stableStatementIdByIndex.get(statementIndex);
+        if (!stableId) return [];
+        const scopeId = sourceLexicalNamespace.scopeIndex.scopeOfStatement.get(statementIndex) ?? sourceLexicalNamespace.scopeIndex.rootScopeId;
+        const slot = [...sourceLexicalNamespace.scopeIndex.forGroupIterationSlots.values()]
+          .find((candidate) => candidate.statementIndex === statementIndex);
+        const leafPaths = (current: typeof definition, prefix: readonly import("./recordSemanticAnalysis").RecordFieldIdentity[] = []): Array<{ path: readonly import("./recordSemanticAnalysis").RecordFieldIdentity[]; type: DslValueType; name: string }> => current.fields.flatMap((field) => {
+          const path = [...prefix, field.identity];
+          const nested = field.type.kind === "record" && field.type.identity
+            ? sourceLexicalNamespace.recordSemanticAnalysis?.definitionsByStatementId.get(field.type.identity)
+            : undefined;
+          return nested
+            ? leafPaths(nested, path).map((entry) => ({ ...entry, name: `${field.name}.${entry.name}` }))
+            : scalarTypeOfDslValueType(field.type) ? [{ path, type: field.type, name: field.name }] : [];
+        });
+        return leafPaths(definition).map(({ path, type, name }) => ({
+          id: moduleRecordCollectionBinderFieldIdForPath([], `binding:iteration:${stableId}`, path),
+          kind: "typed" as const,
+          name: `${element.variableName}.${name}`,
+          nameSpan: slot?.nameSpan ?? { start: 0, end: 0 },
+          statementIndex,
+          sourceOrder: 0,
+          effectiveScopeId: scopeId,
+          visibility: { kind: "typed", scopeId } as const,
+          mutability: "const" as const,
+          declaredType: type,
+          resolutionMode: "preResolvedOnly" as const,
+          catalogOrder: "append" as const
+        }));
+      })
+    : [];
+  const iterationRecordPropertyResolver = sourceLexicalNamespace && stableStatementIdByIndex
+      ? ({ statementIndex, node }: { statementIndex: number; node: Extract<ScalarExpressionAst, { kind: "geometryProperty" }> }) => {
+        const path = parseDslReferenceToken(node.elementName);
+        if (path.absolute || path.segments.length !== 1) return null;
+        const startScope = sourceLexicalNamespace!.scopeIndex.scopeOfStatement.get(statementIndex);
+        const slot = startScope
+          ? scopeChain(sourceLexicalNamespace!.scopeIndex, startScope)
+              .map((scopeId) => sourceLexicalNamespace!.scopeIndex.forGroupIterationSlots.get(scopeId))
+              .find((candidate) => candidate?.name === path.segments[0] && candidate.statementIndex < statementIndex)
+          : undefined;
+        if (!slot) return null;
+        const statementId = stableStatementIdByIndex!.get(slot.statementIndex);
+        if (!statementId) return null;
+        const lookup = { statementId, valueType: slot.valueType };
+        const valueType = lookup.valueType;
+        if (!valueType || valueType.kind !== "record") return null;
+        let currentType: DslValueType = valueType;
+        const fieldPath: import("./recordSemanticAnalysis").RecordFieldIdentity[] = [];
+        for (const part of node.property.split(".")) {
+          if (currentType.kind !== "record") return null;
+          const definition: import("./recordSemanticAnalysis").RecordDefinitionSemantic | undefined = (currentType.identity
+            ? sourceLexicalNamespace!.recordSemanticAnalysis?.definitionsByStatementId.get(currentType.identity)
+            : undefined) ??
+            [...(sourceLexicalNamespace!.recordSemanticAnalysis?.definitionsByStatementId.values() ?? [])]
+              .find((candidate) => candidate.name === (currentType.kind === "record" ? currentType.name : ""));
+          const field: import("./recordSemanticAnalysis").RecordFieldSemantic | null = definition
+            ? definition.fields.find((candidate) => candidate.name === part) ?? null
+            : null;
+          if (!field) return null;
+          fieldPath.push(field.identity);
+          currentType = field.type;
+        }
+        const type = scalarTypeOfDslValueType(currentType);
+        if (!type) return null;
+        const bindingId = moduleRecordCollectionBinderFieldIdForPath([], `binding:iteration:${lookup.statementId}`, fieldPath);
+        return {
+          resolution: { kind: "resolvedType" as const, bindingId, type },
+          dependency: { bindingId, name: `${node.elementName}.${node.property}`, span: node.span }
+        };
+      }
+    : undefined;
+
   // Value-for collection shape is owned by the collection semantic pass, but
   // its scalar body belongs to the established typed-declaration analyzer.
   // Give each body a source-owned synthetic binding so the normal source
@@ -1779,7 +1947,43 @@ export const compileDslDocument = (
         values.push({ valueId, kind: "none" });
         return;
       }
-      if (collectionValue.valueType.elementType.kind === "record") return;
+      const collectionRecordType = collectionValue.valueType.elementType;
+      if (collectionRecordType.kind === "record") {
+        if (collectionValue.kind !== "literal") return;
+        const definition = (collectionRecordType.identity
+          ? sourceLexicalNamespace!.recordSemanticAnalysis?.definitionsByStatementId.get(collectionRecordType.identity)
+          : undefined) ?? [...(sourceLexicalNamespace!.recordSemanticAnalysis?.definitionsByStatementId.values() ?? [])]
+            .find((candidate) => candidate.name === collectionRecordType.name);
+        if (!definition) return;
+        const leafFields = (current: typeof definition, prefix: readonly import("./recordSemanticAnalysis").RecordFieldIdentity[] = []): Array<{ path: readonly import("./recordSemanticAnalysis").RecordFieldIdentity[]; field: import("./recordSemanticAnalysis").RecordFieldSemantic; type: ScalarExpressionType }> => current.fields.flatMap((field) => {
+          const path = [...prefix, field.identity];
+          const nested = field.type.kind === "record" && field.type.identity
+            ? sourceLexicalNamespace!.recordSemanticAnalysis?.definitionsByStatementId.get(field.type.identity)
+            : undefined;
+          return nested
+            ? leafFields(nested, path)
+            : scalarTypeOfDslValueType(field.type) ? [{ path, field, type: scalarTypeOfDslValueType(field.type)! }] : [];
+        });
+        const fields = leafFields(definition);
+        const members: ScalarProgramCollectionMember[] = [];
+        for (const member of collectionValue.members) {
+          const recordTarget = member.target;
+          if (recordTarget.kind !== "recordValue") return;
+          members.push({
+            kind: "record",
+            typeIdentity: definition.statementId,
+            fields: fields.map(({ path, field, type }) => ({
+              recordStatementId: field.identity.recordStatementId,
+              fieldIndex: field.identity.fieldIndex,
+              type,
+              bindingId: recordScalarBindingIdForPath(recordTarget.statementId, path),
+              fieldPath: path
+            }))
+          });
+        }
+        values.push({ valueId, kind: "literal", members });
+        return;
+      }
       const elementType = scalarTypeOfDslValueType(collectionValue.valueType.elementType);
       if (!elementType) return;
       if (collectionValue.kind === "map") {
@@ -1817,10 +2021,14 @@ export const compileDslDocument = (
     };
     for (const value of collectionAnalysis.genericValues) {
       if (value.ownerModuleDefinitionStatementIndex !== null) continue;
-      if (value.valueType.elementType.kind === "record") continue;
       const elementType = scalarTypeOfDslValueType(value.valueType.elementType);
       const collectionValue = value.value;
-      if (!elementType || !collectionValue) continue;
+      if (!collectionValue) continue;
+      if (value.valueType.elementType.kind === "record") {
+        append(value.statementId, collectionValue, value.statementId, value.statementIndex);
+        continue;
+      }
+      if (!elementType) continue;
       if (collectionValue.kind === "if" || collectionValue.kind === "match") {
         if (moduleAnalysis) append(value.statementId, collectionValue, value.statementId, value.statementIndex);
         continue;
@@ -1899,10 +2107,29 @@ export const compileDslDocument = (
         additionalGeometryResolver: rootGeometryBuiltinResolver,
         additionalGeometryPropertyResolver: rootGeometryValuePropertyResolver,
         additionalCollectionIndexResolver: rootCollectionIndexResolver,
-        additionalBindings: rootValueForBodyBindingSeeds,
-        additionalBindingResolver: rootValueForBodyBindingResolver,
-        additionalInitializers: rootValueForBodyInitializers,
-        nonProgramBindingIds: new Set(rootValueForBodyBindingSeeds.map((seed) => seed.id))
+        additionalBindings: [
+          ...rootValueForBodyBindingSeeds,
+          ...iterationRecordFieldBindingSeeds,
+          ...(immutableCarryCompilation?.bindings ?? [])
+        ],
+        additionalBindingResolver: (name, statementIndex, scopeId) =>
+          immutableCarryCompilation?.resolver(name, statementIndex, scopeId)
+          ?? rootValueForBodyBindingResolver?.(name, statementIndex, scopeId)
+          ?? null,
+        additionalInitializers: [
+          ...rootValueForBodyInitializers,
+          ...(immutableCarryCompilation?.initializers ?? [])
+        ],
+        ...(iterationRecordPropertyResolver || immutableCarryCompilation?.recordPropertyResolver
+          ? {
+              additionalRecordPropertyResolver: (input: { statementIndex: number; node: Extract<ScalarExpressionAst, { kind: "geometryProperty" }> }) =>
+                iterationRecordPropertyResolver?.(input) ?? immutableCarryCompilation?.recordPropertyResolver?.(input) ?? null
+            }
+          : {}),
+        nonProgramBindingIds: new Set([
+          ...rootValueForBodyBindingSeeds.map((seed) => seed.id),
+          ...iterationRecordFieldBindingSeeds.map((seed) => seed.id)
+        ])
       })
     : { diagnostics: [] };
   let documentScalarAnalysis = scalarAnalysisCompilation.analysis;
@@ -1942,7 +2169,27 @@ export const compileDslDocument = (
   // The source semantic projection is also useful for Definition Query in a
   // document without Modules. Geometry values also need this path so their
   // source-only aliases can be lowered at existing geometry consumers.
-  const moduleSemanticCompilation = hasModuleStatements || hasGeometryValueStatements || hasRecordValueControlFlowStatements || hasGeneralizedRecordFields || hasNonScalarOptionalOrCoalescingStatements || hasGenericCollectionIndexStatements || hasGeometryCollectionIndexStatements || hasCollectionControlFlowStatements || hasNominalRecordCollectionValueFor || hasOptionalMemberStatements ? sourceSemanticCompilation : undefined;
+  const moduleSemanticCompilation = hasModuleStatements || hasGeometryValueStatements || hasGeometryCarryStatements || hasRecordValueControlFlowStatements || hasGeneralizedRecordFields || hasNonScalarOptionalOrCoalescingStatements || hasGenericCollectionIndexStatements || hasGeometryCollectionIndexStatements || hasCollectionControlFlowStatements || hasNominalRecordCollectionValueFor || hasOptionalMemberStatements ? sourceSemanticCompilation : undefined;
+  const geometryInputTargetsByElementId = new Map<ElementId, Map<string, GeometryInputTarget>>();
+  if (moduleSemanticCompilation && stableStatementIdByIndex) {
+    for (const [statementId, sites] of moduleSemanticCompilation.rootGeometryReferencesByStatementId) {
+      const statementIndex = [...stableStatementIdByIndex.entries()].find(([, candidateId]) => candidateId === statementId)?.[0];
+      const elementId = statementIndex === undefined ? undefined : compiled.elementIdsByStatementIndex?.get(statementIndex);
+      if (elementId === undefined || statementIndex === undefined) continue;
+      for (const site of sites) {
+        const target = site.reference.target;
+        if (site.parameterKey === null || target?.kind !== "geometryCarry") continue;
+        const targets = geometryInputTargetsByElementId.get(elementId) ?? new Map<string, GeometryInputTarget>();
+        targets.set(site.parameterKey, {
+          kind: "geometryCarry",
+          bindingId: target.bindingId,
+          geometryType: target.geometryKind,
+          ...(target.pointKey ? { pointKey: target.pointKey } : {})
+        });
+        geometryInputTargetsByElementId.set(elementId, targets);
+      }
+    }
+  }
   let moduleGeometryPropertyResolver: ((input: {
     statementIndex: number;
     node: Extract<ScalarExpressionAst, { kind: "geometryProperty" }>;
@@ -2100,6 +2347,16 @@ export const compileDslDocument = (
         const property = candidates.find((candidate) => candidate.span.start === node.span.start) ?? (candidates.length === 1 ? candidates[0] : undefined);
         const target = property?.target;
         if (!property?.type || !target) return null;
+        if (target.kind === "geometryCarry") {
+          return {
+            kind: "geometryCarry",
+            bindingId: target.bindingId,
+            property: target.property,
+            ...(target.pointKey ? { pointKey: target.pointKey } : {}),
+            targetSourceOrder: target.statementIndex,
+            type: property.type
+          };
+        }
         if (target.kind === "recordField" && target.property && target.record.kind === "recordValue") {
           const rootRecord = moduleSemanticCompilation.rootRecordValuesByStatementId.get(target.record.statementId);
           let fields = rootRecord?.fields ?? [];
@@ -2237,10 +2494,13 @@ export const compileDslDocument = (
         spans,
         includeStatement,
         sourceNamespace: sourceLexicalNamespace,
-        additionalBindings: [...rootValueForBodyBindingSeeds, ...usableExportBindingSeeds],
+        additionalBindings: [...rootValueForBodyBindingSeeds, ...iterationRecordFieldBindingSeeds, ...usableExportBindingSeeds],
         additionalBindingResolver,
         additionalInitializers: rootValueForBodyInitializers,
-        nonProgramBindingIds: new Set(rootValueForBodyBindingSeeds.map((seed) => seed.id)),
+        nonProgramBindingIds: new Set([
+          ...rootValueForBodyBindingSeeds.map((seed) => seed.id),
+          ...iterationRecordFieldBindingSeeds.map((seed) => seed.id)
+        ]),
         additionalCollectionIndexResolver: rootCollectionIndexResolver,
         additionalRecordValueResolver: (value) => {
           const reference = value.reference;
@@ -2286,6 +2546,18 @@ export const compileDslDocument = (
           const property = candidates.find((candidate) => candidate.span.start === node.span.start) ?? (candidates.length === 1 ? candidates[0] : undefined);
           if (property?.target?.kind !== "recordField" || !property.type) return null;
           if (scalarTypeOfDslValueType(property.target.valueType) === null) return null;
+          if (property.target.record.kind === "recordValueForBinder") {
+            const fieldPath = property.target.fieldPath ?? [property.target.field];
+            const bindingId = moduleRecordCollectionBinderFieldIdForPath([], property.target.record.binderId, fieldPath);
+            return {
+              resolution: {
+                kind: "resolvedType" as const,
+                bindingId,
+                type: property.type
+              },
+              dependency: { bindingId, name: `${node.elementName}.${node.property}`, span: node.span }
+            };
+          }
           if (property.target.record.kind === "recordValue") {
             const recordValue = sourceLexicalNamespace.recordSemanticAnalysis?.valuesByStatementId.get(property.target.record.statementId);
             if (recordValue?.valueExpression?.kind === "coalesce") {
@@ -2371,7 +2643,8 @@ export const compileDslDocument = (
             dependency: { bindingId: lookup.bindingId, name: `${node.elementName}.${node.property}`, span: node.span }
           };
         },
-        additionalGeometryPropertyResolver: moduleGeometryPropertyResolver,
+        additionalGeometryPropertyResolver: (input) =>
+          moduleGeometryPropertyResolver?.(input) ?? rootGeometryValuePropertyResolver?.(input) ?? null,
         additionalGeometryResolver: ({ statementIndex, node, expectedGeometryType }) => {
           const statementId = stableStatementIdByIndex.get(statementIndex);
           const site = statementId
@@ -2384,6 +2657,16 @@ export const compileDslDocument = (
           if (!occurrence || !target || (occurrence.reference.resolution !== "resolved" && occurrence.reference.resolution !== "deferred")) return undefined;
           const unwrapped = unwrapModuleGeometrySourceTarget(target);
           const pointKey = unwrapped.pointKey;
+          if (unwrapped.target.kind === "geometryCarry") {
+            return {
+              kind: "geometryCarry" as const,
+              bindingId: unwrapped.target.bindingId,
+              statementId: unwrapped.target.statementId,
+              statementIndex: unwrapped.target.statementIndex,
+              geometryType: expectedGeometryType,
+              ...(pointKey ? { pointKey } : {})
+            };
+          }
           if (unwrapped.target.kind === "parameter") {
             return {
               statementId: unwrapped.target.definitionStatementId,
@@ -2451,6 +2734,7 @@ export const compileDslDocument = (
               ...(pointKey ? { pointKey } : {})
             };
           }
+          if (unwrapped.target.kind !== "deferredModuleExport") return undefined;
           return {
             statementId: unwrapped.target.instanceStatementId,
             statementIndex: unwrapped.target.instanceStatementIndex,
@@ -2608,6 +2892,7 @@ export const compileDslDocument = (
         : diagnostic
     ),
     ...(sourceLexicalNamespace?.diagnostics ?? []),
+    ...(immutableCarryCompilation?.diagnostics ?? []),
     ...scalarAnalysisCompilation.diagnostics,
     ...(moduleSemanticCompilation?.diagnostics ?? [])
   ].map(withDiagnosticPresentation);
@@ -2690,31 +2975,6 @@ export const compileDslDocument = (
         includeStatement
       })
     : undefined;
-  // Task 29: `set name = expression` target resolution/RHS typecheck. Gated
-  // on `stableStatementIdByIndex` being truthy (narrowed inline below, so no
-  // `!`/`?? new Map()` is ever needed) && on `hasSetStatements`, NOT on
-  // `scalarAnalysis` truthy - like textTemplates above, a `set` with no
-  // catalog to resolve against must still be diagnosed
-  // (invalid-set-target), not silently dropped. compileSetStatements itself
-  // handles `bindingAnalysis === undefined`; the identity map it receives
-  // here is always the caller's real reconciler output because the gate
-  // above already widened to include `set` statements.
-  const setStatementCompilation = stableStatementIdByIndex && hasSetStatements
-    ? compileSetStatements({
-        statements: parsed.statements,
-      stableStatementIdByIndex,
-      bindingAnalysis: scalarAnalysis?.bindingAnalysis,
-      elements: compiled.elements,
-      elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map(),
-      sourceNamespace: sourceLexicalNamespace,
-      spans,
-      includeStatement
-      })
-    : undefined;
-  // Task 30 only consumes products of the compiler/analysis passes above.
-  // It intentionally remains available for a recoverable invalid let: the
-  // compiled document is still erroneous, but Task 31 needs the poisoned
-  // version 0 && its validated recovery set chain without reparsing source.
   const bindingControlMetadata = scalarAnalysis && stableStatementIdByIndex
     ? new Map([
         ...buildBindingControlMetadata(
@@ -2725,31 +2985,233 @@ export const compileDslDocument = (
         ...(moduleScalarCompilation?.controlByScopeId ?? new Map())
       ])
     : undefined;
-  const documentSetStatements = setStatementCompilation?.setsByStatementIndex && moduleScalarCompilation
-    ? new Map(Array.from(setStatementCompilation.setsByStatementIndex, ([statementIndex, set]) => [
-        statementIndex,
-        {
-          ...set,
-          sourceOrder: moduleScalarCompilation.scalarExecutionPositionByStatementIndex.get(statementIndex) ?? set.sourceOrder
-        }
-      ] as const))
-    : setStatementCompilation?.setsByStatementIndex;
-  const allSetStatements = scalarAnalysis && stableStatementIdByIndex
-    ? new Map<number, SetStatementAnalysis>([
-        ...(documentSetStatements ?? new Map()),
-        ...(moduleScalarCompilation?.moduleSetStatements.map((set, index) => [-(index + 1), set] as const) ?? [])
-      ])
-    : undefined;
-  const bindingVersions = scalarAnalysis && stableStatementIdByIndex && scalarProgram && bindingControlMetadata &&
+  const bindingVersionsBase = scalarAnalysis && stableStatementIdByIndex && scalarProgram && bindingControlMetadata &&
     !allDiagnostics.some((diagnostic) => diagnostic.code === "record-constructor-missing-field")
     ? buildBindingVersionGraph({
         scalarProgram,
         bindingAnalysis: scalarAnalysis.bindingAnalysis,
-        setStatements: allSetStatements,
         controlByScopeId: bindingControlMetadata,
-        requiresExecutionOrdering: moduleScalarCompilation !== undefined
+        requiresExecutionOrdering: moduleScalarCompilation !== undefined || Boolean(immutableCarryCompilation?.carries.length)
       })
     : undefined;
+  const immutableForGroups = new Map<string, import("../scalars/bindingVersions").ImmutableForGroupPlan>();
+  const immutableExecutionOwnerFor = (ownerStatementIndex: number, ownerStatementId: string) => {
+    const scopeId = `for:${ownerStatementId}`;
+    const scope = sourceLexicalNamespace?.scopeIndex.scopes.get(scopeId);
+    const statementIndexForVersion = (bindingId: string): number | undefined => {
+      const stableId = bindingId.startsWith("binding:") ? bindingId.slice("binding:".length) : undefined;
+      if (!stableId) return undefined;
+      return [...(stableStatementIdByIndex ?? new Map())].find(([, candidate]) => candidate === stableId)?.[0];
+    };
+    const outsideVersions = bindingVersionsBase?.versions.filter((version) =>
+      !version.control.ownerChain.some((owner) => owner.kind === "forGroup" && owner.ownerStatementId === ownerStatementId)
+    ) ?? [];
+    const before = outsideVersions
+      .map((version) => ({ version, statementIndex: statementIndexForVersion(version.bindingId) }))
+      .filter((entry): entry is { version: typeof outsideVersions[number]; statementIndex: number } =>
+        entry.statementIndex !== undefined && entry.statementIndex < ownerStatementIndex
+      )
+      .sort((left, right) => right.statementIndex - left.statementIndex)[0]?.version;
+    const after = outsideVersions
+      .map((version) => ({ version, statementIndex: statementIndexForVersion(version.bindingId) }))
+      .filter((entry): entry is { version: typeof outsideVersions[number]; statementIndex: number } =>
+        entry.statementIndex !== undefined && entry.statementIndex > ownerStatementIndex
+      )
+      .sort((left, right) => left.statementIndex - right.statementIndex)[0]?.version;
+    const fallbackExitStatementIndex = scope?.exitStatementIndex ?? ownerStatementIndex;
+    const fallbackExitSourceOrder = moduleScalarCompilation?.scalarExecutionPositionByStatementIndex?.get(fallbackExitStatementIndex) ?? fallbackExitStatementIndex;
+    const exitSourceOrder = after?.sourceOrder ?? fallbackExitSourceOrder;
+    const entrySourceOrder = after
+      ? after.sourceOrder - 0.5
+      : before
+        ? before.sourceOrder + 0.5
+        : exitSourceOrder - 0.5;
+    return {
+      scopeId,
+      exitSourceOrder,
+      entrySourceOrder,
+      iterationBindingId: `binding:iteration:${ownerStatementId}`
+    } as const;
+  };
+  if (bindingVersionsBase && immutableCarryCompilation && scalarAnalysis && stableStatementIdByIndex) {
+    for (const input of immutableCarryCompilation.carries) {
+      if (!input.nextBindingId) continue;
+      const nextExpression = scalarAnalysis.typedInitializerByBindingId.get(input.nextBindingId);
+      const initializer = scalarAnalysis.typedInitializerByBindingId.get(input.bindingId);
+      const ownerStatementId = stableStatementIdByIndex.get(input.ownerStatementIndex);
+      if (!nextExpression || !initializer || !ownerStatementId) continue;
+      const plan: import("../scalars/bindingVersions").ImmutableForGroupPlan = immutableForGroups.get(ownerStatementId) ?? {
+        ownerStatementId,
+        executionOwner: immutableExecutionOwnerFor(input.ownerStatementIndex, ownerStatementId),
+        carries: []
+      };
+      const existing = plan.carries.find((carry) => carry.bindingId === input.bindingId);
+      if (existing) continue;
+      immutableForGroups.set(ownerStatementId, {
+        ...plan,
+        carries: [...plan.carries, {
+          bindingId: input.bindingId,
+          initializer,
+          ...(input.nextBindingId ? { nextBindingId: input.nextBindingId } : {}),
+          declaredType: input.declaredType,
+          nextExpression,
+          nextSourceOrder: input.nextSourceOrder
+        }]
+      });
+    }
+  }
+  const geometryTargetForCarryExpression = (
+    raw: string,
+    statementIndex: number,
+    carryBindingId: BindingId
+  ): ScalarExpressionResolvedGeometryTarget | null => {
+    const parsedReference = parseDslSourceReference(raw.trim());
+    if (parsedReference.kind !== "valid" || parsedReference.reference.occurrenceIndex !== null) return null;
+    const iterationName = parsedReference.reference.path.segments.length === 1
+      ? parsedReference.reference.path.segments[0]
+      : undefined;
+    if (iterationName && sourceLexicalNamespace) {
+      const startScope = sourceLexicalNamespace.scopeIndex.scopeOfStatement.get(statementIndex);
+      const iteration = startScope
+        ? scopeChain(sourceLexicalNamespace.scopeIndex, startScope)
+            .map((scopeId) => sourceLexicalNamespace!.scopeIndex.forGroupIterationSlots.get(scopeId))
+            .find((candidate) => candidate?.name === iterationName && candidate.statementIndex < statementIndex)
+        : undefined;
+      const valueType = iteration?.valueType;
+      const iterationStatementId = iteration && stableStatementIdByIndex?.get(iteration.statementIndex);
+      if (iteration && iterationStatementId && valueType && isDslGeometryValueType(valueType)) {
+        return {
+          kind: "geometryValueForBinder",
+          binderId: `binding:iteration:${iterationStatementId}`,
+          statementId: iterationStatementId,
+          statementIndex: iteration.statementIndex,
+          geometryType: valueType.kind
+        };
+      }
+    }
+    const lookup = sourceLexicalNamespace
+      ? resolveSourceLexicalPath(sourceLexicalNamespace, statementIndex, parsedReference.reference.path)
+      : null;
+    if (!lookup || lookup.kind !== "resolved") return null;
+    const pointKey = parsedReference.reference.property === "start" || parsedReference.reference.property === "end"
+      ? parsedReference.reference.property
+      : undefined;
+    if (lookup.declaration.kind === "carry") {
+      const carry = lookup.declaration.statement.kind === "element"
+        ? lookup.declaration.statement.forCarries?.find((candidate) => candidate.name === lookup.declaration.name)
+        : undefined;
+      const valueType = dslRequiredValueTypeOf(carry?.valueType);
+      if (!valueType || !isDslGeometryValueType(valueType)) return null;
+      return {
+        kind: "geometryCarry",
+        bindingId: `binding:${lookup.declaration.statementId}`,
+        statementId: lookup.declaration.statementId,
+        statementIndex: lookup.declaration.statementIndex,
+        geometryType: valueType.kind,
+        ...(pointKey ? { pointKey } : {})
+      };
+    }
+    if (lookup.declaration.kind === "geometry") {
+      const elementId = compiled.elementIdsByStatementIndex?.get(lookup.declaration.statementIndex);
+      if (!elementId) return null;
+      const geometryType = lookup.declaration.statement.kind === "element"
+        ? lookup.declaration.statement.category === "point" ? "point" : lookup.declaration.statement.category === "line" ? "line" : "path"
+        : "path";
+      return { statementId: elementId, statementIndex: lookup.declaration.statementIndex, geometryType, ...(pointKey ? { pointKey } : {}) };
+    }
+    if (lookup.declaration.kind === "typedDeclaration" && lookup.declaration.statement.kind === "typedDeclaration" &&
+        isDslGeometryValueType(dslRequiredValueTypeOf(lookup.declaration.statement.valueType))) {
+      const value = moduleSemanticCompilation?.geometryValuesByStatementIndex.get(lookup.declaration.statementIndex);
+      if (!value) return null;
+      let backing = value.backingTarget;
+      while (backing?.kind === "geometryValue" && backing.backingTarget) backing = backing.backingTarget;
+      if (backing?.kind === "sourceGeometry") {
+        const elementId = compiled.elementIdsByStatementIndex?.get(backing.statementIndex);
+        return elementId
+          ? { statementId: elementId, statementIndex: backing.statementIndex, geometryType: value.declaredInterfaceType, ...(pointKey ? { pointKey } : {}) }
+          : null;
+      }
+      return {
+        kind: "geometryValue",
+        occurrence: { sourceStatementId: value.statementId, instancePath: [] },
+        statementId: value.statementId,
+        statementIndex: value.statementIndex,
+        geometryType: value.declaredInterfaceType,
+        ...(pointKey ? { pointKey } : {})
+      };
+    }
+    void carryBindingId;
+    return null;
+  };
+  if (bindingVersionsBase && immutableCarryCompilation && sourceLexicalNamespace && stableStatementIdByIndex) {
+    for (const declaration of immutableCarryCompilation.declarations) {
+      const valueType = dslRequiredValueTypeOf(declaration.valueType);
+      if (!valueType || !isDslGeometryValueType(valueType)) continue;
+      const next = immutableCarryCompilation.nexts.find((candidate) =>
+        candidate.ownerStatementIndex === declaration.ownerStatementIndex && candidate.carryName === declaration.name
+      );
+      if (!next) continue;
+      const initializerTarget = geometryTargetForCarryExpression(declaration.initializer, declaration.ownerStatementIndex, declaration.bindingId);
+      const nextTarget = geometryTargetForCarryExpression(next.expression, next.statementIndex, declaration.bindingId);
+      const ownerStatementId = stableStatementIdByIndex.get(declaration.ownerStatementIndex);
+      if (!initializerTarget || !nextTarget || !ownerStatementId) continue;
+      const plan: import("../scalars/bindingVersions").ImmutableForGroupPlan = immutableForGroups.get(ownerStatementId) ?? {
+        ownerStatementId,
+        executionOwner: immutableExecutionOwnerFor(declaration.ownerStatementIndex, ownerStatementId),
+        carries: []
+      };
+      const geometryCarries = [...(plan.geometryCarries ?? []), {
+        bindingId: declaration.bindingId,
+        declaredType: valueType,
+        initializerTarget,
+        nextTarget,
+        nextSourceOrder: next.statementIndex
+      }];
+      immutableForGroups.set(ownerStatementId, { ...plan, geometryCarries });
+    }
+  }
+  const bindingVersions = bindingVersionsBase
+    ? {
+        ...bindingVersionsBase,
+        ...(immutableForGroups.size ? { immutableForGroups } : {})
+      }
+    : undefined;
+  // Collection statement-for sources use the same source declaration and
+  // collection runtime IDs as ordinary collection indexing. Keep this join on
+  // the compiled element so every evaluation host receives identical,
+  // already-resolved metadata and no runtime reparses the header text.
+  if (sourceLexicalNamespace && stableStatementIdByIndex && sourceLexicalNamespace.geometryArraySemanticAnalysis) {
+    const collectionValueIds = new Set([
+      ...(scalarProgram?.collectionValues ?? []).map((value) => value.valueId),
+      ...sourceLexicalNamespace.geometryArraySemanticAnalysis.genericValues.map((value) => value.statementId),
+      ...sourceLexicalNamespace.geometryArraySemanticAnalysis.values.map((value) => value.statementId)
+    ]);
+    compiled.elements = compiled.elements.map((element) => {
+      if (element.type !== "forGroup" || !element.iterationSource) return element;
+      const statementIndex = [...(compiled.elementIdsByStatementIndex ?? new Map())]
+        .find(([, elementId]) => elementId === element.id)?.[0];
+      if (statementIndex === undefined) return element;
+      const parsedSource = parseDslSourceReference(element.iterationSource);
+      const sourcePath = parsedSource.kind === "valid"
+        ? parsedSource.reference.path
+        : parseDslReferenceToken(element.iterationSource);
+      const lookup = resolveSourceLexicalPath(sourceLexicalNamespace, statementIndex, sourcePath);
+      if (lookup.kind !== "resolved") return element;
+      const declaration = lookup.declaration;
+      const valueType = declaration.statement.kind === "typedDeclaration" ? declaration.statement.valueType : null;
+      if (!valueType || valueType.kind !== "array") return element;
+      const valueId = declaration.statementId;
+      const elementType = scalarTypeOfDslValueType(valueType.elementType);
+      if (!collectionValueIds.has(valueId)) return element;
+      return {
+        ...element,
+        iterationSourceValueId: valueId,
+        iterationSourceOrder: declaration.statementIndex,
+        iterationElementValueType: valueType.elementType,
+        ...(elementType ? { iterationElementType: elementType } : {})
+      };
+    });
+  }
   // This is intentionally built before the final diagnostic gate. It is a
   // current-source analysis record, not part of the last-good geometry model.
   const typedDependencyGraph = buildTypedDependencyGraph({
@@ -2761,7 +3223,6 @@ export const compileDslDocument = (
     propertyBindings: propertyBindingCompilation?.sourcesByOccurrenceKey,
     numericBindings: numericBindingCompilation?.sourcesByOccurrenceKey,
     textTemplates: textTemplateCompilation?.templatesByOccurrenceKey,
-    setStatements: setStatementCompilation?.setsByStatementIndex,
     scalarProgram
   });
   const finalDiagnostics = [
@@ -2769,8 +3230,7 @@ export const compileDslDocument = (
     ...(numericBindingCompilation ? numericBindingCompilation.diagnostics : []),
     ...(conditionalGroupConditionCompilation ? conditionalGroupConditionCompilation.diagnostics : []),
     ...(textTemplateCompilation ? textTemplateCompilation.diagnostics : []),
-    ...(propertyReferenceSyntaxCompilation ? propertyReferenceSyntaxCompilation.diagnostics : []),
-    ...(setStatementCompilation ? setStatementCompilation.diagnostics : [])
+    ...(propertyReferenceSyntaxCompilation ? propertyReferenceSyntaxCompilation.diagnostics : [])
   ].map(withDiagnosticPresentation);
   // Same missing-attribute-value carve-out as the earlier fatal gate above.
   if (finalDiagnostics.some((item) => item.severity === "error" && item.code !== MISSING_ATTRIBUTE_VALUE_CODE)) {
@@ -2788,13 +3248,13 @@ export const compileDslDocument = (
       ...(scalarProgram ? { scalarProgram } : {}),
       ...(scalarAnalysis ? { bindingAnalysis: scalarAnalysis.bindingAnalysis } : {}),
       ...(documentScalarAnalysis ? { scalarProgramPositionMap: documentScalarAnalysis.positionMap } : {}),
+      ...(geometryInputTargetsByElementId.size ? { geometryInputTargetsByElementId } : {}),
       ...(numericBindingCompilation
         ? {
             numericBindings: numericBindingCompilation.sourcesByOccurrenceKey,
             numericConsumerReferencesByBindingId: numericBindingCompilation.consumerReferencesByBindingId
           }
         : {}),
-      ...(setStatementCompilation ? { setStatements: setStatementCompilation.setsByStatementIndex } : {}),
       ...(bindingVersions ? { bindingVersions } : {}),
       ...(typedDependencyGraph ? { typedDependencyGraph } : {}),
       ...(sourceLexicalNamespace ? { sourceLexicalNamespace } : {}),
@@ -2820,7 +3280,7 @@ export const compileDslDocument = (
         ? { moduleConditionalOwnerStatementIdByElementId: moduleScalarCompilation.conditionalOwnerStatementIdByElementId }
         : {}),
       ...(moduleScalarCompilation?.forGroupMutationOwnerByElementId.size
-        ? { moduleForGroupMutationOwnerByElementId: moduleScalarCompilation.forGroupMutationOwnerByElementId }
+        ? { moduleForGroupExecutionOwnerByElementId: moduleScalarCompilation.forGroupMutationOwnerByElementId }
         : {}),
       ...(moduleScalarCompilation?.materializedConditionalGroupConditions.length
         ? { materializedConditionalGroupConditions: moduleScalarCompilation.materializedConditionalGroupConditions }
@@ -2875,6 +3335,7 @@ export const compileDslDocument = (
     ...(scalarProgram ? { scalarProgram } : {}),
     ...(scalarAnalysis ? { bindingAnalysis: scalarAnalysis.bindingAnalysis } : {}),
     ...(documentScalarAnalysis ? { scalarProgramPositionMap: documentScalarAnalysis.positionMap } : {}),
+    ...(geometryInputTargetsByElementId.size ? { geometryInputTargetsByElementId } : {}),
     ...(propertyBindingCompilation
       ? {
           propertyBindings: propertyBindingCompilation.sourcesByOccurrenceKey,
@@ -2891,7 +3352,6 @@ export const compileDslDocument = (
       ? { conditionalGroupConditions: conditionalGroupConditionCompilation.sourcesByOccurrenceKey }
       : {}),
     ...(textTemplateCompilation ? { textTemplates: textTemplateCompilation.templatesByOccurrenceKey } : {}),
-    ...(setStatementCompilation ? { setStatements: setStatementCompilation.setsByStatementIndex } : {}),
     ...(bindingVersions ? { bindingVersions } : {}),
     ...(typedDependencyGraph ? { typedDependencyGraph } : {}),
     ...(sourceLexicalNamespace ? { sourceLexicalNamespace } : {}),
@@ -2918,7 +3378,7 @@ export const compileDslDocument = (
       ? { moduleConditionalOwnerStatementIdByElementId: moduleScalarCompilation.conditionalOwnerStatementIdByElementId }
       : {}),
     ...(moduleScalarCompilation?.forGroupMutationOwnerByElementId.size
-      ? { moduleForGroupMutationOwnerByElementId: moduleScalarCompilation.forGroupMutationOwnerByElementId }
+      ? { moduleForGroupExecutionOwnerByElementId: moduleScalarCompilation.forGroupMutationOwnerByElementId }
       : {}),
     ...(moduleScalarCompilation?.materializedConditionalGroupConditions.length
       ? { materializedConditionalGroupConditions: moduleScalarCompilation.materializedConditionalGroupConditions }

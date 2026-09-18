@@ -146,10 +146,10 @@ The measurement builtins use the geometry interfaces described in
 
 ## Where calls are valid
 
-Scalar-only builtins can be used in typed declarations, `set` expressions,
+Scalar-only builtins can be used in typed declarations, `next` expressions,
 conditions, text-template holes, scalar properties, and scalar module
 expressions. Geometry measurement builtins can be called directly in typed
-declaration initializers, `set` right-hand sides, and module scalar
+declaration initializers, `next` right-hand sides, and module scalar
 expressions. To use a measurement in a construction numeric argument, a scalar
 property, a text hole, or a layout/output numeric field, first assign it to a
 typed `number` and reference that binding.

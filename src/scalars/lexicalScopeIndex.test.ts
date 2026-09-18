@@ -40,7 +40,7 @@ describe("buildLexicalScopeIndex", () => {
 
   it("models if/else as siblings, not parent/child", () => {
     const statements = parse(
-      ["if (1) {", "  let x: boolean = true", "} else {", "  let x: boolean = false", "}"].join("\n")
+      ["if (1) {", "  const x: boolean = true", "} else {", "  const x: boolean = false", "}"].join("\n")
     );
     const index = buildLexicalScopeIndex(statements, byName);
 

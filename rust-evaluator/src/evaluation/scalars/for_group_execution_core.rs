@@ -1,4 +1,4 @@
-//! Task 34's pure, production-unconnected forGroup mutation runner.
+//! Host-neutral statement-for execution runner.
 //!
 //! The caller supplies opaque binding/version/statement identities and a body
 //! callback. This module owns only frame lifetime and in-place outer carry;
@@ -7,7 +7,7 @@
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct ForGroupMutationPlan<Statement> {
+pub(crate) struct ForGroupExecutionPlan<Statement> {
     pub(crate) loop_scope_id: String,
     pub(crate) iteration_binding_id: String,
     pub(crate) iteration_values: Vec<f64>,
@@ -30,14 +30,14 @@ pub(crate) struct ForGroupIterationContext<'a, Statement> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum ForGroupMutationError {
+pub(crate) enum ForGroupExecutionError {
     NoActiveFrame,
     ReadOnlyIterationBinding(String),
     DuplicateLocalBinding(String),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum ForGroupMutationRunOutcome {
+pub(crate) enum ForGroupExecutionRunOutcome {
     Completed,
     Stopped,
 }
@@ -54,12 +54,12 @@ struct ActiveFrame<T> {
 /// A stack of Task 33-style lexical frames around one shared outer slot map.
 /// Entering/leaving an iteration allocates/drops only the frame's locals.
 #[derive(Debug)]
-pub(crate) struct ForGroupMutationEnvironment<T> {
+pub(crate) struct ForGroupExecutionEnvironment<T> {
     outer_slots: HashMap<String, T>,
     frames: Vec<ActiveFrame<T>>,
 }
 
-impl<T: Clone> ForGroupMutationEnvironment<T> {
+impl<T: Clone> ForGroupExecutionEnvironment<T> {
     pub(crate) fn new(initial_slots: HashMap<String, T>) -> Self {
         Self {
             outer_slots: initial_slots,
@@ -86,12 +86,12 @@ impl<T: Clone> ForGroupMutationEnvironment<T> {
         &mut self,
         binding_id: &str,
         value: T,
-    ) -> Result<(), ForGroupMutationError> {
+    ) -> Result<(), ForGroupExecutionError> {
         let Some(frame) = self.frames.last_mut() else {
-            return Err(ForGroupMutationError::NoActiveFrame);
+            return Err(ForGroupExecutionError::NoActiveFrame);
         };
         if binding_id == frame.iteration_binding_id || frame.locals.contains_key(binding_id) {
-            return Err(ForGroupMutationError::DuplicateLocalBinding(
+            return Err(ForGroupExecutionError::DuplicateLocalBinding(
                 binding_id.to_owned(),
             ));
         }
@@ -99,36 +99,46 @@ impl<T: Clone> ForGroupMutationEnvironment<T> {
         Ok(())
     }
 
-    pub(crate) fn set(&mut self, binding_id: &str, value: T) -> Result<(), ForGroupMutationError> {
-        for frame in self.frames.iter_mut().rev() {
-            if binding_id == frame.iteration_binding_id {
-                return Err(ForGroupMutationError::ReadOnlyIterationBinding(
-                    binding_id.to_owned(),
-                ));
-            }
-            if frame.locals.contains_key(binding_id) {
-                frame.locals.insert(binding_id.to_owned(), value);
-                return Ok(());
-            }
+    pub(crate) fn seed(
+        &mut self,
+        binding_id: &str,
+        value: T,
+    ) -> Result<(), ForGroupExecutionError> {
+        self.outer_slots.insert(binding_id.to_owned(), value);
+        Ok(())
+    }
+
+    pub(crate) fn commit(
+        &mut self,
+        binding_id: &str,
+        value: T,
+    ) -> Result<(), ForGroupExecutionError> {
+        let Some(frame) = self.frames.last() else {
+            return Err(ForGroupExecutionError::NoActiveFrame);
+        };
+        if binding_id == frame.iteration_binding_id {
+            return Err(ForGroupExecutionError::ReadOnlyIterationBinding(
+                binding_id.to_owned(),
+            ));
         }
         self.outer_slots.insert(binding_id.to_owned(), value);
         Ok(())
     }
 
-    pub(crate) fn final_slots(&self) -> HashMap<String, T> {
+    pub(crate) fn final_values(&self) -> HashMap<String, T> {
         self.outer_slots.clone()
     }
 
     pub(crate) fn run<Statement, F>(
         &mut self,
-        plan: &ForGroupMutationPlan<Statement>,
+        plan: &ForGroupExecutionPlan<Statement>,
         mut execute_statement: F,
-    ) -> Result<ForGroupMutationRunOutcome, ForGroupMutationError>
+    ) -> Result<ForGroupExecutionRunOutcome, ForGroupExecutionError>
     where
         F: FnMut(
             &mut Self,
             ForGroupIterationContext<'_, Statement>,
-        ) -> Result<ForGroupMutationRunOutcome, ForGroupMutationError>,
+        ) -> Result<ForGroupExecutionRunOutcome, ForGroupExecutionError>,
     {
         for (iteration_index, iteration_value) in plan.iteration_values.iter().copied().enumerate()
         {
@@ -159,18 +169,18 @@ impl<T: Clone> ForGroupMutationEnvironment<T> {
                             statement,
                         },
                     )?;
-                    if outcome == ForGroupMutationRunOutcome::Stopped {
-                        return Ok(ForGroupMutationRunOutcome::Stopped);
+                    if outcome == ForGroupExecutionRunOutcome::Stopped {
+                        return Ok(ForGroupExecutionRunOutcome::Stopped);
                     }
                 }
-                Ok(ForGroupMutationRunOutcome::Completed)
+                Ok(ForGroupExecutionRunOutcome::Completed)
             })();
             // Match Task 33's frame retirement even on callback failure.
             self.frames.pop();
-            if outcome? == ForGroupMutationRunOutcome::Stopped {
-                return Ok(ForGroupMutationRunOutcome::Stopped);
+            if outcome? == ForGroupExecutionRunOutcome::Stopped {
+                return Ok(ForGroupExecutionRunOutcome::Stopped);
             }
         }
-        Ok(ForGroupMutationRunOutcome::Completed)
+        Ok(ForGroupExecutionRunOutcome::Completed)
     }
 }

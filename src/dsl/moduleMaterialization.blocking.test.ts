@@ -37,64 +37,6 @@ const evaluateCompiled = (compiled: ReturnType<typeof runtimeNames>) => {
 };
 
 describe("module materialization blocking regressions", () => {
-  it("connects document-level linear mutation to a materialized call execution unit", () => {
-    const compiled = runtimeNames([
-      "nui 1",
-      "let value: number = 0",
-      "point Before = coordinate(x: @value, y: 0)",
-      "set value = 10",
-      "module M() {",
-      "  point P = coordinate(x: 10, y: 20)",
-      "  point Q = offset(from: @P, dx: 1, dy: 2)",
-      "}",
-      "instance A = M()",
-      "set value = 20",
-      "point After = coordinate(x: @value, y: 0)"
-    ].join("\n"));
-    const materialization = compiled.moduleMaterialization!;
-    const elements = compiled.document!.elements;
-    const callEntries = materialization.executionStatements.filter((entry) => entry.executionUnitStatementIndex === 8);
-
-    expect(callEntries.map((entry) => entry.type)).toEqual(["moduleInstance", "freePoint", "offsetPoint"]);
-    expect(callEntries.every((entry) =>
-      materialization.sourceExecutionPositionByRuntimeElementId.get(entry.runtimeElementId) === 8
-    )).toBe(true);
-    expect(materialization.sourceExecutionUnits.find((unit) => unit.sourceStatementIndex === 8)).toMatchObject({
-      runtimeStart: 1,
-      runtimeEnd: 4
-    });
-    expect(compiled.statementMap!.elementIdByStatementIndex.has(8)).toBe(false);
-
-    const result = evaluateCompiled(compiled);
-    const before = elements.find((element) => element.name === "Before")!;
-    const after = elements.find((element) => element.name === "After")!;
-    expect(result.errors).toEqual([]);
-    expect(result.computedGeometry.get(before.id)).toMatchObject({ kind: "point", x: 0 });
-    expect(result.computedGeometry.get(after.id)).toMatchObject({ kind: "point", x: 20 });
-    expect(result.computedScalarBindings).toBeDefined();
-  });
-
-  it("keeps a document set after a module call out of stop evaluation", () => {
-    const compiled = runtimeNames([
-      "nui 1",
-      "let value: number = 0",
-      "set value = 1",
-      "module M() {",
-      "  point P = coordinate(x: 10, y: 20)",
-      "}",
-      "instance A = M()",
-      "stop",
-      "set value = 2",
-      "point After = coordinate(x: @value, y: 0)"
-    ].join("\n"));
-
-    const result = evaluateCompiled(compiled);
-    const after = compiled.document!.elements.find((element) => element.name === "After")!;
-    expect(result.errors).toEqual([]);
-    expect(result.computedGeometry.has(after.id)).toBe(false);
-    expect(result.evaluatedElementIds?.size).toBe(compiled.moduleMaterialization!.evaluationLimitIndex);
-  });
-
   it("keeps private refs instance-local and opaque to ordinary callers", () => {
     const repeated = runtimeNames([
       "nui 1",

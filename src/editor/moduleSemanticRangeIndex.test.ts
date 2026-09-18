@@ -124,7 +124,7 @@ describe("module semantic editor range view", () => {
       "nui 1",
       "module M() {",
       "  export const value: number = 1",
-      "  export let label: string = \"\"",
+      "  export const label: string = \"\"",
       "}",
       "instance a = M()",
       "instance b = M()",

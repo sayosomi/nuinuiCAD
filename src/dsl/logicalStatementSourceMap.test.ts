@@ -99,7 +99,7 @@ describe("logicalStatementSourceMap", () => {
       "  } else {",
       "    20",
       "  }",
-      "  export let side: choice(left, right) =",
+      "  export const side: choice(left, right) =",
       "    if (true) {",
       "    left",
       "  } else {",
@@ -113,7 +113,7 @@ describe("logicalStatementSourceMap", () => {
       "nui 1",
       "module M() {",
       "export const amount: number = if (true) { 10 } else { 20 }",
-      "export let side: choice(left, right) = if (true) { left } else { right }",
+      "export const side: choice(left, right) = if (true) { left } else { right }",
       "const after: number = 30",
       "}"
     ]);

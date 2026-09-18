@@ -98,7 +98,7 @@ export const useEvaluationEngine = (
   const conditionalOwnerStatementIdByElementId = options.conditionalOwnerStatementIdByElementId;
   const forGroupMutationOwnerByElementId = options.forGroupMutationOwnerByElementId;
   const moduleConditionalOwnerStatementIdByElementId = options.moduleConditionalOwnerStatementIdByElementId;
-  const moduleForGroupMutationOwnerByElementId = options.moduleForGroupMutationOwnerByElementId;
+  const moduleForGroupExecutionOwnerByElementId = options.moduleForGroupExecutionOwnerByElementId;
   const moduleMaterialization = options.moduleMaterialization;
   const geometryValueProgram = options.geometryValueProgram;
   const geometryInputTargetsByElementId = options.geometryInputTargetsByElementId;
@@ -119,7 +119,7 @@ export const useEvaluationEngine = (
       ...(bindingVersions ? {
         bindingVersions, statementInfoByElementId, sourceExecutionPositionByElementId, scalarExecutionPositionByElementId, statementIdByStatementIndex,
         conditionalOwnerStatementIdByElementId, forGroupMutationOwnerByElementId,
-        moduleConditionalOwnerStatementIdByElementId, moduleForGroupMutationOwnerByElementId
+        moduleConditionalOwnerStatementIdByElementId, moduleForGroupExecutionOwnerByElementId
       } : {}),
       ...(moduleMaterialization ? { moduleMaterialization } : {}),
       ...(sourceExecutionPositionByElementId ? { sourceExecutionPositionByElementId } : {}),
@@ -148,7 +148,7 @@ export const useEvaluationEngine = (
       conditionalOwnerStatementIdByElementId,
       forGroupMutationOwnerByElementId,
       moduleConditionalOwnerStatementIdByElementId,
-      moduleForGroupMutationOwnerByElementId,
+      moduleForGroupExecutionOwnerByElementId,
       moduleMaterialization,
       geometryValueProgram,
       geometryInputTargetsByElementId,
@@ -195,8 +195,8 @@ export const useEvaluationEngine = (
         ? Array.from(forGroupMutationOwnerByElementId) : undefined,
       moduleConditionalOwnerStatementIdByElementId: moduleConditionalOwnerStatementIdByElementId
         ? Array.from(moduleConditionalOwnerStatementIdByElementId) : undefined,
-      moduleForGroupMutationOwnerByElementId: moduleForGroupMutationOwnerByElementId
-        ? Array.from(moduleForGroupMutationOwnerByElementId) : undefined,
+      moduleForGroupExecutionOwnerByElementId: moduleForGroupExecutionOwnerByElementId
+        ? Array.from(moduleForGroupExecutionOwnerByElementId) : undefined,
       propertyBindingEntries,
       numericBindingEntries,
       controlBooleanEntries,
@@ -225,7 +225,7 @@ export const useEvaluationEngine = (
       conditionalOwnerStatementIdByElementId,
       forGroupMutationOwnerByElementId,
       moduleConditionalOwnerStatementIdByElementId,
-      moduleForGroupMutationOwnerByElementId,
+      moduleForGroupExecutionOwnerByElementId,
       propertyBindingEntries,
       numericBindingEntries,
       controlBooleanEntries,

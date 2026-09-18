@@ -7,7 +7,7 @@ import { evaluateElements } from "../geometry/evaluate";
 import { buildEvaluationOptions } from "../geometry/productionEvaluationContext";
 import { buildRustEvaluationInput } from "../geometry/rustEvaluationInput";
 import { buildConditionalMutationOwners, conditionalOwnerIdByElementId } from "../scalars/conditionalMutationControl";
-import { buildForGroupMutationOwners, forGroupMutationOwnerByElementId } from "../scalars/forGroupMutationControl";
+import { buildForGroupExecutionOwners, forGroupMutationOwnerByElementId } from "../scalars/forGroupMutationControl";
 import { compileDslDocument } from "@nuinuicad/nui-language";
 import { parseDsl } from "@nuinuicad/nui-language";
 import { moduleRecordExportFieldBindingIdFor } from "@nuinuicad/nui-language";
@@ -89,20 +89,20 @@ const evaluateCompiled = (compiled: ReturnType<typeof compileWithIds>) => {
       : undefined
     ,forGroupMutationOwnerByElementId: compiled.bindingVersions
       ? new Map([
-          ...forGroupMutationOwnerByElementId(buildForGroupMutationOwners(
+          ...forGroupMutationOwnerByElementId(buildForGroupExecutionOwners(
             compiled.bindingVersions,
             elements,
             compiled.statementMap.byElementId,
             compiled.statementMap.statementIdByStatementIndex,
-            new Set(compiled.moduleForGroupMutationOwnerByElementId
-              ? [...compiled.moduleForGroupMutationOwnerByElementId.values()].map((owner) => owner.ownerStatementId)
+            new Set(compiled.moduleForGroupExecutionOwnerByElementId
+              ? [...compiled.moduleForGroupExecutionOwnerByElementId.values()].map((owner) => owner.ownerStatementId)
               : [])
           )),
-          ...(compiled.moduleForGroupMutationOwnerByElementId ? [...compiled.moduleForGroupMutationOwnerByElementId] : [])
+          ...(compiled.moduleForGroupExecutionOwnerByElementId ? [...compiled.moduleForGroupExecutionOwnerByElementId] : [])
         ])
       : undefined
     ,moduleConditionalOwnerStatementIdByElementId: compiled.moduleConditionalOwnerStatementIdByElementId
-    ,moduleForGroupMutationOwnerByElementId: compiled.moduleForGroupMutationOwnerByElementId
+    ,moduleForGroupExecutionOwnerByElementId: compiled.moduleForGroupExecutionOwnerByElementId
   });
 };
 
@@ -742,8 +742,7 @@ describe("module scalar runtime integration", () => {
       "point P = coordinate(x: 3, y: 4)",
       "line Baseline = segment(start: (0, 0), end: (1, 0))",
       "module Example(baseline: line, p: point, delta: number) {",
-      "  let measured: number = 0",
-      "  set measured = distance(@baseline.start, @p)",
+      "  const measured: number = distance(@baseline.start, @p)",
       "  export point Q = coordinate(",
       "    x: @measured + @delta,",
       "    y: lineDistance(@p, @baseline)",
@@ -1075,8 +1074,7 @@ describe("module scalar runtime integration", () => {
       "  const radius: number = distance(@origin, @p)",
       "  const direction: number = angle(@origin, @p)",
       "  const height: number = lineDistance(@p, @baseline)",
-      "  let measured: number = 0",
-      "  set measured = distance(@origin, @p)",
+      "  const measured: number = distance(@origin, @p)",
       "}",
       "instance A = Example(p: @P, origin: @O, baseline: @Baseline)",
       "instance B = Example(p: @P, origin: @O, baseline: @Baseline)"
@@ -1123,7 +1121,7 @@ describe("module scalar runtime integration", () => {
     }
   });
 
-  it("preserves root geometry builtin resolution for set statements when a module is present", () => {
+  it("preserves root geometry builtin resolution when a module is present", () => {
     const rootSource = [
       "nui 1",
       "point Origin = coordinate(x: 0, y: 0)",
@@ -1132,14 +1130,10 @@ describe("module scalar runtime integration", () => {
       "point MeasurePoint = coordinate(x: 10, y: 3)",
       "line Horizontal = segment(start: (0, 0), end: (10, 0))",
       "line Vertical = segment(start: (0, 0), end: (0, 10))",
-      "let distanceValue: number = 0",
-      "let angleValue: number = 0",
-      "let lineDistanceValue: number = 0",
-      "let lineAngleValue: number = 0",
-      "set distanceValue = distance(@Origin, @DistancePoint)",
-      "set angleValue = angle(@Origin, @Up)",
-      "set lineDistanceValue = lineDistance(@MeasurePoint, @Horizontal)",
-      "set lineAngleValue = lineAngle(@Horizontal, @Vertical)"
+      "const distanceValue: number = distance(@Origin, @DistancePoint)",
+      "const angleValue: number = angle(@Origin, @Up)",
+      "const lineDistanceValue: number = lineDistance(@MeasurePoint, @Horizontal)",
+      "const lineAngleValue: number = lineAngle(@Horizontal, @Vertical)"
     ];
     const sources = [
       rootSource.join("\n"),
@@ -1157,14 +1151,7 @@ describe("module scalar runtime integration", () => {
       ["lineDistanceValue", 3],
       ["lineAngleValue", 90]
     ]);
-    const expectedGeometryNamesBySetName = new Map([
-      ["distanceValue", ["Origin", "DistancePoint"]],
-      ["angleValue", ["Origin", "Up"]],
-      ["lineDistanceValue", ["MeasurePoint", "Horizontal"]],
-      ["lineAngleValue", ["Horizontal", "Vertical"]]
-    ]);
-
-    for (const [sourceIndex, source] of sources.entries()) {
+    for (const source of sources) {
       const compiled = compileWithIds(source);
       expectValid(compiled);
       const result = evaluateCompiled(compiled);
@@ -1181,33 +1168,15 @@ describe("module scalar runtime integration", () => {
         });
       }
 
-      if (sourceIndex !== 1) continue;
-      const setStatements = [...(compiled.setStatements?.values() ?? [])];
-      expect(setStatements.map((statement) => statement.targetName)).toEqual([...expectedValues.keys()]);
-      for (const statement of setStatements) {
-        const expectedGeometryNames = expectedGeometryNamesBySetName.get(statement.targetName);
-        if (!expectedGeometryNames) throw new Error(`unexpected set target ${statement.targetName}`);
-        expect(statement.expression.kind).toBe("call");
-        if (statement.expression.kind !== "call") throw new Error("expected geometry builtin call");
-        const targets = statement.expression.args.map((argument) => {
-          expect(argument.kind).toBe("geometryReference");
-          if (argument.kind !== "geometryReference") throw new Error("expected geometry reference argument");
-          expect(argument.target).not.toBeNull();
-          if (!argument.target) throw new Error("expected resolved geometry target");
-          return argument.target.statementId;
-        });
-        expect(targets).toEqual(expectedGeometryNames.map((name) => elementNamed(compiled, name).id));
-      }
     }
   });
 
-  it("retains geometry builtin type mismatch diagnostics for root set statements with a module", () => {
+  it("retains geometry builtin type mismatch diagnostics for root scalar declarations with a module", () => {
     const compiled = compileWithIds([
       "nui 1",
       "line Horizontal = segment(start: (0, 0), end: (10, 0))",
       "point Origin = coordinate(x: 0, y: 0)",
-      "let value: number = 0",
-      "set value = distance(@Horizontal, @Origin)",
+      "const value: number = distance(@Horizontal, @Origin)",
       "module Unrelated() {",
       "}"
     ].join("\n"));
@@ -1217,9 +1186,6 @@ describe("module scalar runtime integration", () => {
     ]));
     expect(compiled.diagnostics).not.toEqual(expect.arrayContaining([
       expect.objectContaining({ code: "builtin-geometry-argument-invalid" })
-    ]));
-    expect(compiled.diagnostics).not.toEqual(expect.arrayContaining([
-      expect.objectContaining({ code: "set-rhs-unresolved" })
     ]));
   });
 
@@ -1966,8 +1932,7 @@ describe("module scalar runtime integration", () => {
     const compiled = compileWithIds([
       "nui 1",
       "module M(input: number) {",
-      "  export let result: number = 0",
-      "  set result = @input * 2",
+      "  export const result: number = @input * 2",
       "}",
       "instance A = M(input: 10)",
       "instance B = M(input: 20)",
@@ -2181,37 +2146,6 @@ describe("module scalar runtime integration", () => {
     expect(result.computedGeometry.get(offset.id)).toBeDefined();
   });
 
-  it("evaluates instance-local let/set chains in body source order", () => {
-    const compiled = compileWithIds([
-      "nui 1",
-      "module M(value: number) {",
-      "  let local: number = @value",
-      "  point Before = coordinate(x: @local, y: 0)",
-      "  set local = @local + 1",
-      "  point After = coordinate(x: @local, y: 0)",
-      "}",
-      "instance A = M(value: 10)",
-      "instance B = M(value: 20)"
-    ].join("\n"));
-    expectValid(compiled);
-
-    const result = evaluateCompiled(compiled);
-    expect(result.errors).toEqual([]);
-    expect(compiled.document!.elements.filter((element) => element.name === "Before").map((element) =>
-      result.computedGeometry.get(element.id)
-    )).toEqual([
-      expect.objectContaining({ x: 10 }),
-      expect.objectContaining({ x: 20 })
-    ]);
-    expect(compiled.document!.elements.filter((element) => element.name === "After").map((element) =>
-      result.computedGeometry.get(element.id)
-    )).toEqual([
-      expect.objectContaining({ x: 11 }),
-      expect.objectContaining({ x: 21 })
-    ]);
-    expect(compiled.bindingVersions?.versions.filter((version) => version.kind === "set")).toHaveLength(2);
-  });
-
   it("connects a materialized string property through the text binding runtime", () => {
     const compiled = compileWithIds([
       "nui 1",
@@ -2229,29 +2163,6 @@ describe("module scalar runtime integration", () => {
     )).toEqual([
       expect.objectContaining({ kind: "text", text: "A" }),
       expect.objectContaining({ kind: "text", text: "B" })
-    ]);
-  });
-
-  it("captures caller scalar state at each call position", () => {
-    const compiled = compileWithIds([
-      "nui 1",
-      "let value: number = 1",
-      "module M(width: number) {",
-      "  point P = coordinate(x: @width, y: 0)",
-      "}",
-      "instance First = M(width: @value)",
-      "set value = 10",
-      "instance Second = M(width: @value)"
-    ].join("\n"));
-    expectValid(compiled);
-
-    const result = evaluateCompiled(compiled);
-    expect(result.errors).toEqual([]);
-    expect(compiled.document!.elements.filter((element) => element.name === "P").map((element) =>
-      result.computedGeometry.get(element.id)
-    )).toEqual([
-      expect.objectContaining({ x: 1 }),
-      expect.objectContaining({ x: 10 })
     ]);
   });
 
@@ -2286,7 +2197,7 @@ describe("module scalar runtime integration", () => {
       "  point P = coordinate(x: @width, y: 0)",
       "}",
       "module Outer(width: number) {",
-      "  let local: number = @width + 2",
+      "  const local: number = @width + 2",
       "  instance Nested = Inner(width: @local)",
       "}",
       "instance First = Outer(width: 3)",
@@ -2308,8 +2219,7 @@ describe("module scalar runtime integration", () => {
     const beforeSource = [
       "nui 1",
       "module M(width: number) {",
-      "  let local: number = @width",
-      "  set local = @local + 1",
+      "  const local: number = @width + 1",
       "  point P = coordinate(x: @local, y: 0)",
       "}",
       "instance Instance = M(width: 10)"
@@ -2338,9 +2248,6 @@ describe("module scalar runtime integration", () => {
       .filter((binding) => binding.id.startsWith("module-binding:"))
       .map((binding) => binding.id);
     expect(afterIds).toEqual(beforeIds);
-    expect(after.bindingVersions?.versions.filter((version) => version.kind === "set").map((version) => version.id)).toEqual(
-      before.bindingVersions?.versions.filter((version) => version.kind === "set").map((version) => version.id)
-    );
   });
 
   it("does not leak private module parameters into caller source lookup", () => {
@@ -2385,14 +2292,11 @@ describe("module scalar runtime integration", () => {
     expect(result.computedGeometry.get(elementNamed(compiled, "Q").id)).toMatchObject({ x: 2 });
   });
 
-  it("does not execute an inactive module conditional set", () => {
+  it("evaluates a module conditional value initializer per instance", () => {
     const compiled = compileWithIds([
       "nui 1",
       "module M(enabled: boolean) {",
-      "  let value: number = 1",
-      "  if (@enabled) {",
-      "    set value = 2",
-      "  }",
+      "  const value: number = if (@enabled) { 2 } else { 1 }",
       "  point P = coordinate(x: @value, y: 0)",
       "}",
       "instance A = M(enabled: false)",
@@ -2674,8 +2578,7 @@ describe("module scalar runtime integration", () => {
       'const labels: string[] = ["valid"]',
       "const source: Pair = Pair(x: 7, label: @labels[99])",
       "const pairs: Pair[] = [@source]",
-      "let offset: number = 0",
-      "set offset = 1",
+      "const offset: number = 1",
       'const mapped: Pair[] = for item in @pairs { Pair(x: @item.x + @offset, label: "mapped") }',
       "const selected: Pair = @mapped[0]",
       "const selectedX: number = @selected.x"

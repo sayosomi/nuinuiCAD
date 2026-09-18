@@ -103,13 +103,13 @@ describe("buildTypedVariableLintActions", () => {
   });
 
   it("selects the requested cursor position after applying an insertion", () => {
-    const source = "let x = 5";
+    const source = "const x = 5";
     const view = makeView(source);
-    const descriptor = spliceDescriptor(source, { from: 5, to: 5, insert: ": ", expectedOldText: "", selection: 7 });
+    const descriptor = spliceDescriptor(source, { from: 7, to: 7, insert: ": ", expectedOldText: "", selection: 9 });
     const [action] = buildTypedVariableLintActions(baseDeps(), [descriptor]);
     action.apply(view, 0, 0);
-    expect(view.state.doc.toString()).toBe("let x:  = 5");
-    expect(view.state.selection.main.head).toBe(7);
-    expect(view.state.selection.main.anchor).toBe(7);
+    expect(view.state.doc.toString()).toBe("const x:  = 5");
+    expect(view.state.selection.main.head).toBe(9);
+    expect(view.state.selection.main.anchor).toBe(9);
   });
 });

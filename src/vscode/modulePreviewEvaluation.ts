@@ -30,9 +30,6 @@ export const buildModulePreviewEvaluationOptions = (
   const bindingVersions = buildBindingVersionGraph({
     scalarProgram: runtime.scalarProgram,
     bindingAnalysis: runtime.bindingAnalysis,
-    setStatements: new Map(
-      runtime.moduleSetStatements.map((set, index) => [-(index + 1), set] as const)
-    ),
     controlByScopeId: runtime.controlByScopeId,
     requiresExecutionOrdering: true
   });
@@ -67,7 +64,7 @@ export const buildModulePreviewEvaluationOptions = (
     conditionalOwnerStatementIdByElementId: runtime.conditionalOwnerStatementIdByElementId,
     forGroupMutationOwnerByElementId: runtime.forGroupMutationOwnerByElementId,
     moduleConditionalOwnerStatementIdByElementId: runtime.conditionalOwnerStatementIdByElementId,
-    moduleForGroupMutationOwnerByElementId: runtime.forGroupMutationOwnerByElementId,
+    moduleForGroupExecutionOwnerByElementId: runtime.forGroupMutationOwnerByElementId,
     moduleMaterialization: preview.moduleMaterialization,
     ...(propertyBindingEntries.length ? { propertyBindingEntries } : {}),
     ...(numericBindingEntries.length ? { numericBindingEntries } : {}),

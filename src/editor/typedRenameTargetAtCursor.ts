@@ -1,7 +1,7 @@
 // Task 51 follow-up: resolves which typed binding (if any) an F2 press should
 // rename, from the live cursor offset alone. Pure - reads only already-built
 // Task 43 range indices (physical, live-mapped through edits) && the last
-// successful compile's own raw statements/scalarProgram/setStatements/
+// successful compile's own raw statements, scalarProgram, and property data/
 // propertyBindings/textTemplates (logical, from that same compile). Callers
 // must only invoke this while SourceEditorController's own
 // typedSemanticMetadataFresh flag is true - see stepTypedSourceValue's
@@ -11,7 +11,6 @@
 import type { BindingId } from "@nuinuicad/nui-language";
 import type { ScalarValueSource } from "@nuinuicad/nui-language";
 import type { ScalarProgram } from "@nuinuicad/nui-language";
-import type { SetStatementAnalysis } from "@nuinuicad/nui-language";
 import type { TextTemplateAst } from "@nuinuicad/nui-language";
 import type { CompiledNumericBinding } from "@nuinuicad/nui-language";
 import { referencesIn } from "@nuinuicad/nui-language";
@@ -19,11 +18,8 @@ import type { TypedScalarExpression } from "@nuinuicad/nui-language";
 import type { DslSpan, DslStatement } from "@nuinuicad/nui-language";
 import type { DslPhysicalSegment } from "@nuinuicad/nui-language";
 import {
-  setStatementIdAtCursor,
   typedDeclarationBindingIdAtCursor,
   type PropertyBindingRangeIndex,
-  type SetStatementFieldRangeIndex,
-  type SetStatementRangeIndex,
   type TemplateHoleRangeIndex,
   type TypedDeclarationFieldRangeIndex,
   type TypedDeclarationRangeIndex
@@ -32,7 +28,6 @@ import {
 export type TypedRenameCursorDocument = {
   statements: readonly DslStatement[];
   scalarProgram?: ScalarProgram;
-  setStatements?: ReadonlyMap<number, SetStatementAnalysis>;
   propertyBindings?: ReadonlyMap<string, ScalarValueSource>;
   textTemplates?: ReadonlyMap<string, TextTemplateAst>;
   numericBindings?: ReadonlyMap<string, CompiledNumericBinding>;
@@ -41,8 +36,6 @@ export type TypedRenameCursorDocument = {
 export type TypedRenameCursorContext = {
   typedDeclarationRanges: TypedDeclarationRangeIndex;
   typedDeclarationFieldRanges: TypedDeclarationFieldRangeIndex;
-  setStatementRanges: SetStatementRangeIndex;
-  setStatementFieldRanges: SetStatementFieldRangeIndex;
   propertyBindingRanges: PropertyBindingRangeIndex;
   templateHoleRanges: TemplateHoleRangeIndex;
   doc: TypedRenameCursorDocument;
@@ -110,27 +103,6 @@ const numericBindingTargetAtCursor = (context: TypedRenameCursorContext, cursor:
   return null;
 };
 
-const setStatementTargetAtCursor = (context: TypedRenameCursorContext, cursor: number): BindingId | null => {
-  const setStatementId = setStatementIdAtCursor(context.setStatementRanges, cursor);
-  if (!setStatementId) return null;
-  const fields = context.setStatementFieldRanges.get(setStatementId);
-  if (!fields) return null;
-
-  if (fields.target && cursor >= fields.target.from && cursor <= fields.target.to) {
-    return context.doc.setStatements?.get(fields.statementIndex)?.targetBindingId ?? null;
-  }
-
-  if (fields.expression && cursor >= fields.expression.from && cursor <= fields.expression.to) {
-    const statement = context.doc.statements[fields.statementIndex];
-    const analysis = context.doc.setStatements?.get(fields.statementIndex);
-    if (statement?.kind === "set" && analysis) {
-      return referenceBindingIdAtLogicalCursor(analysis.expression, fields.expression, statement.payloadSpans.expression, cursor);
-    }
-  }
-
-  return null;
-};
-
 const typedDeclarationTargetAtCursor = (context: TypedRenameCursorContext, cursor: number): BindingId | null => {
   const bindingId = typedDeclarationBindingIdAtCursor(context.typedDeclarationRanges, cursor);
   if (!bindingId) return null;
@@ -159,8 +131,7 @@ const typedDeclarationTargetAtCursor = (context: TypedRenameCursorContext, curso
 /**
  * Resolves the single typed binding an F2 press at `cursor` should rename, in
  * priority order from the narrowest possible match to the widest:
- * template-hole reference, property-binding reference, `set` target/RHS
- * reference, then a typed declaration's own name/initializer (an
+ * template-hole reference, property-binding reference, then a typed declaration's own name/initializer (an
  * initializer-embedded reference resolves to the *referenced* binding, never
  * the declaring one). Returns null when the cursor is not on any typed
  * construct at all - callers fall back to the existing CAD-element rename
@@ -170,5 +141,4 @@ export const typedRenameTargetBindingIdAtCursor = (context: TypedRenameCursorCon
   templateHoleTargetAtCursor(context, cursor) ??
   numericBindingTargetAtCursor(context, cursor) ??
   propertyBindingTargetAtCursor(context, cursor) ??
-  setStatementTargetAtCursor(context, cursor) ??
   typedDeclarationTargetAtCursor(context, cursor);

@@ -122,7 +122,7 @@ describe("source lexical namespace index", () => {
       "nui 1",
       "module M() {",
       "  const A: number = 1",
-      "  let A: number = 2",
+      "  const A: number = 2",
       "}"
     ].join("\n");
     const { parsed, stableIds } = parseWithStableIds(source);
@@ -204,7 +204,7 @@ describe("source lexical namespace index", () => {
       "point A = coordinate(x: 0, y: 0)",
       "point A = coordinate(x: 1, y: 1)",
       "const Scalar: number = 1",
-      "let Scalar: number = 2"
+      "const Scalar: number = 2"
     ].join("\n");
     const { parsed, stableIds } = parseWithStableIds(source);
     const compiled = compileDslDocument(source, { preparsed: parsed, assignedStatementIds: stableIds });
@@ -219,7 +219,6 @@ describe("source lexical namespace index", () => {
       "module M() {",
       "  point Hidden = coordinate(x: 0, y: 0)",
       "  const hidden: number = 1",
-      "  set hidden = 2",
       "}",
       "point Root = coordinate(x: 1, y: 1)"
     ].join("\n");
@@ -237,12 +236,11 @@ describe("source lexical namespace index", () => {
     ]);
   });
 
-  it("retains source-only identities for module const, set, and nested module statements", () => {
+  it("retains source-only identities for module const and nested module statements", () => {
     const source = [
       "nui 1",
       "module Outer() {",
       "  const value: number = 1",
-      "  set value = 2",
       "  module Inner() {",
       "  }",
       "  instance Instance = Inner()",
@@ -251,7 +249,7 @@ describe("source lexical namespace index", () => {
     const { parsed, stableIds } = parseWithStableIds(source);
     const compiled = compileDslDocument(source, { preparsed: parsed, assignedStatementIds: stableIds });
     const statementMap = compiled.statementMap!;
-    const sourceOnlyKinds = new Set(["typedDeclaration", "set", "moduleDefinition", "moduleInstance"]);
+    const sourceOnlyKinds = new Set(["typedDeclaration", "moduleDefinition", "moduleInstance"]);
 
     for (const [statementIndex, statement] of parsed.statements.entries()) {
       if (!sourceOnlyKinds.has(statement.kind)) continue;
@@ -429,7 +427,7 @@ describe("source lexical namespace index", () => {
       "nui 1",
       "group G {",
       "  const X: number = 1",
-      "  let X: number = 2",
+      "  const X: number = 2",
       "  const use: number = @G::X",
       "}"
     ].join("\n");

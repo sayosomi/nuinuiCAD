@@ -588,7 +588,7 @@ export const analyzeTypedDeclarations = ({
   if (missingIdentity.length > 0) return { diagnostics: missingIdentity };
 
   const scopeIndex = buildLexicalScopeIndexFromStatements(statements, stableStatementIdByIndex, includeBindingMetadataStatement);
-  const adapter = buildDslBindingAdapterSeeds({ statements, scopeIndex, stableStatementIdByIndex, reconciledContainers });
+  const adapter = buildDslBindingAdapterSeeds({ statements, scopeIndex, stableStatementIdByIndex, reconciledContainers, sourceNamespace });
   const scalarTypedStatementIndexes = new Set(
     typedStatements
       .filter(({ statement }) => scalarExpressionTypeOfDslValueType(statement.valueType) !== null)

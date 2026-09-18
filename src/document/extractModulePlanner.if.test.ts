@@ -47,13 +47,6 @@ const planContainer = (source: string, type: "conditionalGroup" | "forGroup" = "
   });
 };
 
-const expectRejectedWithoutPatch = (result: ReturnType<typeof planContainer>, code: string) => {
-  expect(result.status).toBe("rejected");
-  if (result.status !== "rejected") return;
-  expect(result.code).toBe(code);
-  expect("splices" in result).toBe(false);
-};
-
 const expectCleanTransformedSource = (
   source: string,
   result: ReturnType<typeof planContainer>
@@ -146,32 +139,6 @@ describe("planExtractModule checkpoint 5 root if", () => {
       "  }",
       "}"
     ].join("\n"));
-  });
-
-  it("keeps a let/set pair inside the conditional but rejects a write crossing the Extract boundary", () => {
-    const internalSource = [
-      "nui 1",
-      "const enabled: boolean = true",
-      "if (@enabled) {",
-      "  let total: number = 0",
-      "  set total = @total + 1",
-      "}"
-    ].join("\n");
-    const internal = planContainer(internalSource);
-    expect(internal.status).toBe("planned");
-    if (internal.status === "planned") {
-      expect(internal.dependencies.map((dependency) => dependency.name)).toEqual(["enabled"]);
-    }
-
-    const crossingSource = [
-      "nui 1",
-      "const enabled: boolean = true",
-      "let total: number = 0",
-      "if (@enabled) {",
-      "  set total = @total + 1",
-      "}"
-    ].join("\n");
-    expectRejectedWithoutPatch(planContainer(crossingSource), "cross-boundary-mutation");
   });
 
   it("moves a selected root containing a valid structural record value", () => {

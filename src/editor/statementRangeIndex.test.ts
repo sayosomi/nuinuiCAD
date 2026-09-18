@@ -7,8 +7,6 @@ import { bindingIdForStableStatementId } from "@nuinuicad/nui-language";
 import {
   createPropertyBindingRangeIndex,
   createScopeBodyRangeIndex,
-  createSetStatementFieldRangeIndex,
-  createSetStatementRangeIndex,
   createStatementRangeIndex,
   createTemplateHoleRangeIndex,
   createTypedDeclarationFieldRangeIndex,
@@ -17,15 +15,12 @@ import {
   elementIdAtCursor,
   mapPropertyBindingRangeIndex,
   mapScopeBodyRangeIndex,
-  mapSetStatementFieldRangeIndex,
-  mapSetStatementRangeIndex,
   mapStatementRangeIndex,
   mapTemplateHoleRangeIndex,
   mapTypedDeclarationFieldRangeIndex,
   mapTypedDeclarationRangeIndex,
   mapModuleSemanticRangeIndex,
   propertyBindingSpanAt,
-  setStatementIdAtCursor,
   templateHoleAtPosition,
   typedDeclarationBindingIdAtCursor
 } from "./statementRangeIndex";
@@ -198,7 +193,7 @@ describe("module definition fold range mapping", () => {
   const source = [
     "nui 1",
     "module M(a: number) {",
-    "  let x: number = @a",
+    "  const x: number = @a",
     "  point P = coordinate(x: @x, y: 0)",
     "}"
   ].join("\n");
@@ -332,11 +327,11 @@ describe("typedDeclarationRangeIndex", () => {
 describe("scopeBodyRangeIndex (Task 40)", () => {
   const nestedSource = [
     "nui 1",
-    "let outer: number = 1",
+    "const outer: number = 1",
     "if (true) {",
     "  for i in range(min: 0, max: 1, step: 1) {",
     "  }",
-    "  let insideThen: number = 2",
+      "  const insideThen: number = 2",
     "}"
   ].join("\n");
 
@@ -367,9 +362,9 @@ describe("scopeBodyRangeIndex (Task 40)", () => {
     const source = [
       "nui 1",
       "if (true) {",
-      "  let onlyThen: number = 1",
+      "  const onlyThen: number = 1",
       "} else {",
-      "  let onlyElse: number = 2",
+      "  const onlyElse: number = 2",
       "}"
     ].join("\n");
     const result = compiledWithStableIds(source);
@@ -390,10 +385,10 @@ describe("scopeBodyRangeIndex (Task 40)", () => {
     const thenScopeId = scopeIdOf(result, "then");
     const thenRange = original.find((range) => range.scopeId === thenScopeId)!;
 
-    // Simulates a brand-new, never-compiled `set` line typed inside the
+    // Simulates a brand-new, never-compiled `const` line typed inside the
     // then-branch body, well before any compile debounce fires.
     const insertPos = doc.line(6).from; // right before "  let insideThen..."
-    const insertText = "  set outer = 2\n";
+    const insertText = "  const inserted: number = 2\n";
     const changes = ChangeSet.of({ from: insertPos, insert: insertText }, doc.length);
     const mapped = mapScopeBodyRangeIndex(original, changes);
 
@@ -421,7 +416,7 @@ describe("scopeBodyRangeIndex (Task 40)", () => {
   });
 
   it("returns an empty index for a document with no nested scopes", () => {
-    const source = ["nui 1", "let a: number = 1"].join("\n");
+    const source = ["nui 1", "const a: number = 1"].join("\n");
     const result = compiledWithStableIds(source);
     const doc = Text.of(source.split("\n"));
     const index = createScopeBodyRangeIndex(doc, result.statementMap!, result.bindingAnalysis!.catalog.scopeIndex);
@@ -450,11 +445,11 @@ describe("typedDeclarationFieldRangeIndex (Task 43)", () => {
   it("a missing type annotation is a document-level error, so statementMap (and the field index built from it) is never reached", () => {
     // dslDeclarationParser.ts flags a missing `: type` as a hard diagnostic, which
     // nulls out CompiledDslDocument.statementMap entirely (dslDocument.ts's own
-    // error gate) - the same way an unresolved `set` target does. There is no
+    // error gate) - the same way an unresolved reference does. There is no
     // reachable case where a `typedDeclaration` statement inside a successfully
     // compiled document has a null type span; only the multi-segment (continuation
     // line) fail-closed path below actually exercises `type`/`initializer` being null.
-    const brokenSource = ["nui 1", "let broken = 1"].join("\n");
+    const brokenSource = ["nui 1", "const broken = 1"].join("\n");
     const parsed = parseDsl(brokenSource);
     const assignedStatementIds = new Map(parsed.statements.map((_, index) => [index, `stable-${index}`]));
     const result = compileDslDocument(brokenSource, { assignedStatementIds });
@@ -497,7 +492,7 @@ describe("typedDeclarationFieldRangeIndex (Task 43)", () => {
   });
 
   it("leaves the initializer span null (fail-closed) when it spans a continuation line, while name/type stay resolvable", () => {
-    const multilineSource = ["nui 1", "let total: number = (", "  1 + 2", ")"].join("\n");
+    const multilineSource = ["nui 1", "const total: number = (", "  1 + 2", ")"].join("\n");
     const result = compiledWithStableIds(multilineSource);
     const doc = Text.of(multilineSource.split("\n"));
     const fields = createTypedDeclarationFieldRangeIndex(doc, result.statementMap!, result.statements);
@@ -516,109 +511,6 @@ describe("typedDeclarationFieldRangeIndex (Task 43)", () => {
     const result = compiled(noTypedSource);
     const doc = Text.of(noTypedSource.split("\n"));
     expect(createTypedDeclarationFieldRangeIndex(doc, result.statementMap!, result.statements).size).toBe(0);
-  });
-});
-
-describe("setStatementRangeIndex / setStatementFieldRangeIndex (Task 43)", () => {
-  const source = ["nui 1", "let total: number = 0", "set total = @total + 1"].join("\n");
-
-  it("resolves a set statement's whole-line range && cursor lookup", () => {
-    const result = compiledWithStableIds(source);
-    const doc = Text.of(source.split("\n"));
-    const index = createSetStatementRangeIndex(doc, result.statementMap!);
-    const statementId = "stable-2";
-    const range = index.get(statementId)!;
-
-    expect(range).toBeDefined();
-    expect(doc.sliceString(range.from, range.to)).toBe("set total = @total + 1");
-    expect(setStatementIdAtCursor(index, range.from + 4)).toBe(statementId);
-  });
-
-  it("splits a set statement into target && expression sub-spans", () => {
-    const result = compiledWithStableIds(source);
-    const doc = Text.of(source.split("\n"));
-    const fields = createSetStatementFieldRangeIndex(doc, result.statementMap!, result.statements);
-    const spans = fields.get("stable-2")!;
-
-    expect(spans.target).toBeTruthy();
-    expect(doc.sliceString(spans.target!.from, spans.target!.to)).toBe("total");
-    expect(spans.expression).toBeTruthy();
-    expect(doc.sliceString(spans.expression!.from, spans.expression!.to)).toBe("@total + 1");
-  });
-
-  it("carries the statement's own statementIndex, bridging to CompiledDslDocument.setStatements (Task 44)", () => {
-    const result = compiledWithStableIds(source);
-    const doc = Text.of(source.split("\n"));
-    const fields = createSetStatementFieldRangeIndex(doc, result.statementMap!, result.statements);
-    const spans = fields.get("stable-2")!;
-    const expectedStatementIndex = result.statements.findIndex((statement) => statement.kind === "set");
-
-    expect(expectedStatementIndex).toBeGreaterThanOrEqual(0);
-    expect(spans.statementIndex).toBe(expectedStatementIndex);
-  });
-
-  it("resolves target/expression from the raw parsed statement alone, independent of setStatements/bindingAnalysis", () => {
-    // createSetStatementFieldRangeIndex takes only (doc, statementMap, statements) - no
-    // bindingAnalysis or setStatements parameter exists to pass, so a successfully
-    // compiled set (whose target does resolve, the only shape that reaches a non-null
-    // statementMap at all - an unresolved target is a document-level error like any
-    // other) already proves the field spans never depend on resolution succeeding.
-    const result = compiledWithStableIds(source);
-    const doc = Text.of(source.split("\n"));
-    const fields = createSetStatementFieldRangeIndex(doc, result.statementMap!, result.statements);
-    expect(fields.get("stable-2")).toBeDefined();
-  });
-
-  it("drops the whole-line range and both sub-spans once the set line is fully replaced", () => {
-    const result = compiledWithStableIds(source);
-    const doc = Text.of(source.split("\n"));
-    const rangeIndex = createSetStatementRangeIndex(doc, result.statementMap!);
-    const fieldIndex = createSetStatementFieldRangeIndex(doc, result.statementMap!, result.statements);
-    const range = rangeIndex.get("stable-2")!;
-    const changes = ChangeSet.of({ from: range.from, to: range.to, insert: "" }, doc.length);
-
-    expect(mapSetStatementRangeIndex(rangeIndex, changes).has("stable-2")).toBe(false);
-    expect(mapSetStatementFieldRangeIndex(fieldIndex, changes).get("stable-2")).toBeUndefined();
-  });
-
-  it("drops both sub-spans on a partial edit inside just the expression, even though the coarse whole-line range index survives it", () => {
-    const result = compiledWithStableIds(source);
-    const doc = Text.of(source.split("\n"));
-    const rangeIndex = createSetStatementRangeIndex(doc, result.statementMap!);
-    const fieldIndex = createSetStatementFieldRangeIndex(doc, result.statementMap!, result.statements);
-    const expression = fieldIndex.get("stable-2")!.expression!;
-    const interiorEdit = ChangeSet.of({ from: expression.to, insert: " + 1" }, doc.length);
-
-    // The coarse cursor-detection index (used only to find *which* statement the
-    // cursor is in) tolerates the interior edit, same as typedDeclarationRanges.
-    expect(mapSetStatementRangeIndex(rangeIndex, interiorEdit).has("stable-2")).toBe(true);
-    // The strict semantic field index does not - it is a jump/select target, not a
-    // cursor-containment check, so any edit inside the statement invalidates it.
-    expect(mapSetStatementFieldRangeIndex(fieldIndex, interiorEdit).get("stable-2")).toBeUndefined();
-  });
-
-  it("keeps both sub-spans alive, correctly shifted, through an edit strictly before the owning statement", () => {
-    const result = compiledWithStableIds(source);
-    const doc = Text.of(source.split("\n"));
-    const original = createSetStatementFieldRangeIndex(doc, result.statementMap!, result.statements);
-    const before = original.get("stable-2")!;
-    const insertAbove = ChangeSet.of({ from: 0, insert: "// dirty\n" }, doc.length);
-    const shift = "// dirty\n".length;
-
-    const after = mapSetStatementFieldRangeIndex(original, insertAbove).get("stable-2")!;
-    expect(after).toBeDefined();
-    expect(after.target).toEqual({ from: before.target!.from + shift, to: before.target!.to + shift });
-    expect(after.expression).toEqual({ from: before.expression!.from + shift, to: before.expression!.to + shift });
-    // statementIndex never shifts under edits - only physical offsets do.
-    expect(after.statementIndex).toBe(before.statementIndex);
-  });
-
-  it("returns empty indices for a document with no set statements", () => {
-    const noSetSource = ["nui 1", "let a: number = 1"].join("\n");
-    const result = compiledWithStableIds(noSetSource);
-    const doc = Text.of(noSetSource.split("\n"));
-    expect(createSetStatementRangeIndex(doc, result.statementMap!).size).toBe(0);
-    expect(createSetStatementFieldRangeIndex(doc, result.statementMap!, result.statements).size).toBe(0);
   });
 });
 
@@ -706,7 +598,7 @@ describe("templateHoleRangeIndex (Task 43)", () => {
   });
 
   it("returns an empty index for a document with no text templates", () => {
-    const noTemplateSource = ["nui 1", "let a: number = 1"].join("\n");
+    const noTemplateSource = ["nui 1", "const a: number = 1"].join("\n");
     const result = compiledWithStableIds(noTemplateSource);
     const doc = Text.of(noTemplateSource.split("\n"));
     const index = createTemplateHoleRangeIndex(doc, result.statementMap!, result.statements, result.textTemplates);
@@ -725,7 +617,7 @@ describe("templateHoleRangeIndex (Task 43)", () => {
 describe("propertyBindingRangeIndex (Task 43)", () => {
   const source = [
     "nui 1",
-    "let flag: boolean = true",
+    "const flag: boolean = true",
     "point A = coordinate(x: 0, y: 0)",
     "point B = coordinate(x: 10, y: 0)",
     "line AB = segment(start: @A, end: @B)",

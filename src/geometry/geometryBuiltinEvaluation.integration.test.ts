@@ -63,14 +63,14 @@ describe("geometry measurement builtins through the production TS scalar path", 
     expect(pointCoordinates(compiled, result, "LineAngleResult")).toEqual({ x: 90, y: 0 });
   });
 
-  it("keeps geometry builtin declarations working when linear mutation evaluation is selected", () => {
+  it("keeps geometry builtin declarations working alongside ordinary immutable bindings", () => {
     const compiled = compile([
       "nui 1",
-      "let unrelated: number = 1",
+      "const unrelated: number = 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 3, y: 4)",
       "const distanceValue: number = distance(@A, @B)",
-      "set unrelated = 2",
+      "const unrelatedAfter: number = 2",
       "point Result = coordinate(x: @distanceValue, y: 0)"
     ].join("\n"));
 

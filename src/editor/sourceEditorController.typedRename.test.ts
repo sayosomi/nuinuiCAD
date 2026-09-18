@@ -16,7 +16,7 @@ type ControllerInternals = {
   };
 };
 
-const source = ["nui 1", "let base: number = 1", "let derived: number = @base", "const anchor: number = 42"].join("\n");
+const source = ["nui 1", "const base: number = 1", "const derived: number = @base", "const anchor: number = 42"].join("\n");
 
 const typedBindingId = (name: string): BindingId =>
   useCadDocumentStore.getState().doc.bindingAnalysis!.catalog.bindings.find(
@@ -164,7 +164,7 @@ describe("SourceEditorController.currentCursorTypedRenameTargetBindingId / F2 di
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
 
-    const offset = source.indexOf("let base") + "let ".length;
+    const offset = source.indexOf("const base") + "const ".length;
     internals.view.dispatch({ selection: { anchor: offset }, annotations: Transaction.addToHistory.of(false) });
 
     expect(controller.currentCursorTypedRenameTargetBindingId()).toBe(typedBindingId("base"));
@@ -192,7 +192,7 @@ describe("SourceEditorController.currentCursorTypedRenameTargetBindingId / F2 di
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
 
-    const offset = source.indexOf("let base") + "let ".length;
+    const offset = source.indexOf("const base") + "const ".length;
     internals.view.dispatch({
       changes: { from: 0, to: 0, insert: "// " },
       annotations: Transaction.addToHistory.of(false)
@@ -210,7 +210,7 @@ describe("SourceEditorController.currentCursorTypedRenameTargetBindingId / F2 di
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
 
-    const offset = source.indexOf("let base") + "let ".length;
+    const offset = source.indexOf("const base") + "const ".length;
     internals.view.dispatch({ selection: { anchor: offset }, annotations: Transaction.addToHistory.of(false) });
 
     const handled = dispatchCommand("renameSelectedElement", {
@@ -263,36 +263,6 @@ describe("SourceEditorController.currentCursorTypedRenameTargetBindingId / F2 di
     expect(handled).toBe(true);
     expect(useCadUiStore.getState().renameElementPromptTargetId).toBe(elementId);
     expect(useCadUiStore.getState().renameTypedBindingPromptTargetId).toBeNull();
-  });
-
-  it("a single F2-resolved rename from the declaration propagates to an initializer reference, a set target, a set-RHS reference, && a template-hole reference together", () => {
-    const combined = [
-      "nui 1",
-      "let base: number = 1",
-      "let derived: number = @base",
-      "set base = @base + 1",
-      'text Label = label(text: "${@base}", anchor: none, size: 3)'
-    ].join("\n");
-    useCadDocumentStore.getState().commitText(combined, "test");
-    const parent = document.createElement("div");
-    const controller = new SourceEditorController(parent);
-    const internals = controller as unknown as ControllerInternals;
-
-    const offset = combined.indexOf("let base") + "let ".length;
-    internals.view.dispatch({ selection: { anchor: offset }, annotations: Transaction.addToHistory.of(false) });
-    const bindingId = controller.currentCursorTypedRenameTargetBindingId();
-    expect(bindingId).toBe(typedBindingId("base"));
-
-    expect(renameTypedBindingWithPropagation(bindingId!, "renamedBase")).toBe(true);
-
-    const after = useCadDocumentStore.getState().sourceText;
-    expect(after).toContain("let renamedBase: number = 1");
-    expect(after).toContain("let derived: number = @renamedBase");
-    expect(after).toContain("set renamedBase = @renamedBase + 1");
-    expect(after).toContain('text Label = label(text: "${@renamedBase}"');
-    expect(after).not.toContain("@base");
-
-    controller.destroy();
   });
 
   it("propagates a declaration rename into a compiled numeric expression", () => {

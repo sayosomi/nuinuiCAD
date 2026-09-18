@@ -160,6 +160,18 @@ const containerStatement = (element: CadElement, spec: DslConstructionSpec, refs
     return { header: `if (${[condition, ...gates.map((arg) => arg.text)].join(", ")})`, args: [], close: null };
   }
   if (spec.category === "for" && element.type === "forGroup") {
+    const carryClauses = (element.carries ?? []).map((carry) =>
+      `carry ${formatDslName(carry.name)}: ${carry.typeText} = ${carry.initializer}`
+    );
+    if (element.iterationSource) {
+      const gates = commonArgs(element, refs, new Set(spec.args.map((arg) => arg.arg)))
+        .filter((arg) => arg.key === "enabled" || arg.key === "visible");
+      return {
+        header: `for ${formatDslName(element.variableName)} in ${element.iterationSource}${[...carryClauses, ...gates.map((arg) => arg.text)].length ? ` ${[...carryClauses, ...gates.map((arg) => arg.text)].join(" ")}` : ""}`,
+        args: [],
+        close: null
+      };
+    }
     const rangeArgs = ["min", "max", "step", ...(element.showGenerated ? ["showGenerated"] : [])]
       .map((key) => spec.args.find((arg) => arg.arg === key))
       .filter((arg): arg is DslArgSpec => Boolean(arg))
@@ -168,7 +180,7 @@ const containerStatement = (element: CadElement, spec: DslConstructionSpec, refs
     const gates = commonArgs(element, refs, new Set(spec.args.map((arg) => arg.arg)))
       .filter((arg) => arg.key === "enabled" || arg.key === "visible");
     return {
-      header: `for ${formatDslName(element.variableName)} in range(${[...rangeArgs.map((arg) => arg.text), ...gates.map((arg) => arg.text)].join(", ")})`,
+      header: `for ${formatDslName(element.variableName)} in range(${[...rangeArgs.map((arg) => arg.text), ...gates.map((arg) => arg.text)].join(", ")})${carryClauses.length ? ` ${carryClauses.join(" ")}` : ""}`,
       args: [],
       close: null
     };
