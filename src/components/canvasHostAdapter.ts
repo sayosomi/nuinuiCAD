@@ -9,6 +9,7 @@ import type {
   ActiveLinePickTarget,
   ActiveNumericReferencePickTarget,
   ActivePointPickTarget,
+  ActivePickCursor,
   CanvasViewport
 } from "../state/cadUiStore";
 import type { CommandLineSession } from "../commands/commandLineSession";
@@ -126,6 +127,11 @@ export type CanvasHostAdapter = {
   activeLinePickTarget: ActiveLinePickTarget | null;
   /** Explicit Pick Mode authority; semantic targets above remain candidate data. */
   activePickModeSession?: PickModeSession | null;
+  /** Optional host-owned candidate authority for an ephemeral Pick Mode target. */
+  pickModeCandidates?: PickCandidate[];
+  /** Optional host-owned cursor for an ephemeral Pick Mode target. */
+  activePickCursor?: ActivePickCursor | null;
+  setActivePickCursor?: (cursor: ActivePickCursor | null) => unknown;
   commandLineSession: CommandLineSession | null;
 
   flushSourceEditorOnCanvasPointerDown: () => "blocked-composition" | "flushed" | "clean";

@@ -10,8 +10,10 @@ export type PickModeSelectionCardinality = "single" | "ordered-multiple";
 
 export type PickModeSession = {
   kind: PickModeKind;
-  targetElementId: ElementId;
+  /** Null is reserved for an ephemeral host-owned target with no CAD element. */
+  targetElementId: ElementId | null;
   targetParameterKey: string;
+  targetDisplayLabel?: string;
   selectionCardinality: PickModeSelectionCardinality;
   /** Resolved, uncommitted values owned only by this explicit Pick session. */
   draft: readonly PickModeDraftEntry[];
@@ -200,6 +202,7 @@ export const matchingPickModeSessionForTargets = (
   targets: PickModeSemanticTargets
 ): PickModeSession | null => {
   if (!session) return null;
+  if (session.targetElementId === null) return session.targetDisplayLabel ? session : null;
   const target = session.kind === "point"
     ? targets.point
     : session.kind === "line"

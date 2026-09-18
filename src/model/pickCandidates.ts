@@ -511,3 +511,37 @@ export const selectedPickOption = (
   const option = candidate?.options[resolved.optionIndex];
   return candidate && option ? { candidate, option, cursor: resolved } : null;
 };
+
+export const pickCursorForCandidateOffset = (
+  candidates: PickCandidate[],
+  cursor: ActivePickCursor | null,
+  offset: number
+): ActivePickCursor | null => {
+  if (candidates.length === 0) return null;
+  const currentIndex = cursor
+    ? candidates.findIndex((candidate) => candidate.elementId === cursor.elementId)
+    : -1;
+  const nextIndex = currentIndex < 0
+    ? offset > 0 ? 0 : candidates.length - 1
+    : (currentIndex + offset + candidates.length) % candidates.length;
+  const candidate = candidates[nextIndex];
+  if (!candidate) return null;
+  return {
+    elementId: candidate.elementId,
+    optionIndex: Math.min(cursor?.optionIndex ?? 0, candidate.options.length - 1)
+  };
+};
+
+export const pickCursorForOptionOffset = (
+  candidates: PickCandidate[],
+  cursor: ActivePickCursor | null,
+  offset: number
+): ActivePickCursor | null => {
+  const selected = selectedPickOption(candidates, cursor);
+  if (!selected) return null;
+  const optionCount = selected.candidate.options.length;
+  return {
+    elementId: selected.candidate.elementId,
+    optionIndex: (selected.cursor.optionIndex + offset + optionCount) % optionCount
+  };
+};

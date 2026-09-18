@@ -1044,12 +1044,15 @@ stable definition statement index/name plus parameter index/name and an
 expression or explicit clear operation; they never edit canonical Source or add
 a Source Undo entry.
 
-Point, line, and path values enter the existing shared Canvas Reference Pick
-candidate/session authority through the same exact-current site proof. Confirmed
-references are converted with `referencePickSourceForReference` and sent back to
-the selected ephemeral Preview site only. Independently generated process-local
-statement IDs are not cross-runtime equality authority; exact Source revision,
-definition index/name, parameter index/name, and session proof are.
+Point, line, and path values enter the existing shared Canvas Pick Mode through
+the same exact-current value-site proof. `referencePickCandidates` remains the
+compiler-authoritative lexical-scope, visibility, canonical-reference, and
+Module-geometry-interface filter; `modulePreviewReferencePick.ts` only adapts
+its results to the common Canvas candidate shape. Confirmed references are
+converted with `referencePickSourceForReference` and sent back to the selected
+ephemeral Preview site only. Independently generated process-local statement IDs
+are not cross-runtime equality authority; exact Source revision, definition
+index/name, parameter index/name, and session proof are.
 
 Inside the Webview, `ModulePreviewApp` owns only surface composition. It uses
 `AutomationDocument` for the authoritative source mirror,
@@ -1113,11 +1116,14 @@ Canvas interaction owner.
 
 The Preview route uses `modulePreviewProtocol.ts`,
 `useVSCodeModulePreviewReferencePickSession.ts`, and
-`modulePreviewReferencePick.ts` for its exact session/value-site proof and Preview
-target adapter. Its candidate input is the compiler-owned ephemeral Preview
-statement map, semantic analysis, and lexical namespace; the route-specific
-adapter shares the Canvas draft, hover, confirm, and cancel behavior without
-using Source caret positions or the Source replacement bridge.
+`modulePreviewReferencePick.ts` for exact session/value-site proof, request
+authority, and terminal delivery only. The active request supplies the common
+`DrawingCanvas` with compiler-authoritative candidates and an explicit
+non-persisted Preview value display target; the Canvas owns draft, hover,
+candidate-menu, pointer, keyboard, confirm, and cancel interaction. An
+initially invalid Preview renders the authored candidate elements/evaluation
+through the same CanvasOverlay path. The confirmed canonical reference updates
+only ephemeral Preview value state; it never enters Source or Source history.
 
 Coordinate point conversion keeps its semantic session and target/base
 revalidation in `coordinatePointConversion.ts` and

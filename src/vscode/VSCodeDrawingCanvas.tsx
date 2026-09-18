@@ -465,7 +465,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
         ? coordinatePointConversionSession.baseCandidates.find((candidate) => candidate.key === baseKey)
         : null;
       const pickModeSession = useCadUiStore.getState().activePickModeSession;
-      if (!base || !pickModeSession || pickModeSession.kind !== "point" ||
+      if (!base || !pickModeSession || pickModeSession.kind !== "point" || pickModeSession.targetElementId === null ||
         !isCoordinatePointConversionPickTarget({
           elementId: pickModeSession.targetElementId,
           parameterKey: pickModeSession.targetParameterKey

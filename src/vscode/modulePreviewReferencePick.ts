@@ -4,6 +4,8 @@ import type { StatementIdentity } from "@nuinuicad/nui-language/document";
 import type { DslReferencePickTarget } from "@nuinuicad/nui-language";
 import type { CompiledDslDocument } from "@nuinuicad/nui-language";
 import type { VscodeModulePreviewReferencePickProof } from "./modulePreviewProtocol";
+import type { PickCandidate, PickOption } from "../model/pickCandidates";
+import type { ReferencePickCandidate } from "../model/referencePickCandidates";
 
 const modulePreviewReferencePickTargetForCompiled = ({
   compiled,
@@ -111,3 +113,33 @@ export const modulePreviewReferencePickTargetForAuthoredSource = ({
     expectedGeometryInterface
   });
 };
+
+/**
+ * Adapts the compiler-authoritative Module Preview candidates into the common
+ * Canvas Pick Mode shape. Candidate filtering and canonical references remain
+ * owned by referencePickCandidates; this function only bridges presentation.
+ */
+export const modulePreviewPickCandidatesFor = (
+  candidates: readonly ReferencePickCandidate[]
+): PickCandidate[] => candidates.flatMap((candidate) => {
+  const options: PickOption[] = candidate.options.flatMap((option): PickOption[] => {
+    if (option.kind === "point") {
+      return [{
+        kind: "point" as const,
+        label: option.label,
+        anchor: option.anchor,
+        sourceReference: option.reference
+      }];
+    }
+    if (option.kind === "geometry") {
+      return [{
+        kind: "line" as const,
+        label: option.label,
+        lineId: candidate.elementId,
+        sourceReference: option.reference
+      }];
+    }
+    return [];
+  });
+  return options.length > 0 ? [{ elementId: candidate.elementId, options }] : [];
+});

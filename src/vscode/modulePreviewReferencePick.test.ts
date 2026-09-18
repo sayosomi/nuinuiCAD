@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { buildModulePreviewEvaluationOptions } from "./modulePreviewEvaluation";
-import { modulePreviewReferencePickTargetFor } from "./modulePreviewReferencePick";
+import {
+  modulePreviewPickCandidatesFor,
+  modulePreviewReferencePickTargetFor
+} from "./modulePreviewReferencePick";
 import { compileDslDocument } from "@nuinuicad/nui-language";
 import { compileModulePreviewRoot } from "../dsl/modulePreviewRoot";
 import { queryModulePreviewTarget } from "../dsl/modulePreviewTarget";
@@ -91,6 +94,12 @@ describe("Module Preview Reference Pick target and candidates", () => {
       expect.arrayContaining(["Straight", "Curve"])
     );
     expect(pointCandidates.flatMap((candidate) => candidate.options).map((option) => option.reference.base)).not.toContain("Forward");
+    expect(modulePreviewPickCandidatesFor(strictCandidates).flatMap((candidate) => candidate.options).map((option) =>
+      option.kind === "line" ? option.sourceReference?.base : null
+    )).toEqual(["Straight"]);
+    expect(modulePreviewPickCandidatesFor(broadCandidates).flatMap((candidate) => candidate.options).map((option) =>
+      option.kind === "line" ? option.sourceReference?.base : null
+    )).toEqual(expect.arrayContaining(["Straight", "Curve"]));
   });
 
   it("keeps caller-side nested Module geometry eligible while rejecting forward scope", () => {
