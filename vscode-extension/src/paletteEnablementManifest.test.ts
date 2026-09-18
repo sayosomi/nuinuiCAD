@@ -36,6 +36,7 @@ const coordinatePointConversionExplorerWhen = "view == nuinuiCAD.elements && vie
 const expectedTargetEnablement = new Map<string, string>([
   ["nuinuiCAD.openModulePreview", `${sourceWhen} && nuinuiCAD.modulePreviewSourceTarget`],
   ["nuinuiCAD.editModulePreviewValues", `(${sourceWhen} && nuinuiCAD.modulePreviewSourceTarget) || ${modulePreviewWhen}`],
+  ["nuinuiCAD.insertModulePreviewInstance", "nuinuiCAD.modulePreviewInsertAvailable"],
   ["nuinuiCAD.inlineModuleInstance", `(${sourceWhen} && nuinuiCAD.inlineModuleSourceTarget) || (${canvasWhen} && nuinuiCAD.inlineModuleCanvasTarget)`],
   ["nuinuiCAD.extractModule", `(${sourceWhen} && nuinuiCAD.extractModuleSourceTarget) || (${canvasWhen} && nuinuiCAD.extractModuleCanvasTarget)`],
   ["nuinuiCAD.goToSourceDefinition", canvasSelectionEnablement],
@@ -58,6 +59,7 @@ const expectedTargetEnablement = new Map<string, string>([
 const expectedPaletteScope = new Map<string, string>([
   ["nuinuiCAD.openModulePreview", sourceWhen],
   ["nuinuiCAD.editModulePreviewValues", sourceOrModulePreviewWhen],
+  ["nuinuiCAD.insertModulePreviewInstance", sourceWhen],
   ["nuinuiCAD.inlineModuleInstance", sourceOrCanvasWhen],
   ["nuinuiCAD.extractModule", sourceOrCanvasWhen],
   ["nuinuiCAD.goToSourceDefinition", canvasWhen],

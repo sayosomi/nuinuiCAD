@@ -16,6 +16,10 @@ export const modulePreviewTranslationCatalog = {
   "modulePreview.placeCaret": {
     en: "nuinuiCAD: Place the Source Editor caret inside a current Module definition.",
     ja: "nuinuiCAD: 現在の Module 定義の中に Source Editor のキャレットを置いてください。"
+  },
+  "modulePreview.valuesUnavailable": {
+    en: "nuinuiCAD: Module Preview values are unavailable. Reopen the Module Preview panel and try again.",
+    ja: "nuinuiCAD: Module Previewの値を利用できません。Module Previewパネルを開き直して、もう一度お試しください。"
   }
 } satisfies TranslationCatalog;
 

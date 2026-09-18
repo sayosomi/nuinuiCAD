@@ -50,6 +50,8 @@ import { nativeShowInputBox, nativeShowQuickPick } from "./nativeQuickInput";
 
 export const NUI_MODULE_PREVIEW_VIEW_TYPE = "nuinuiCAD.modulePreview";
 export const NUI_MODULE_PREVIEW_SOURCE_TARGET_CONTEXT = "nuinuiCAD.modulePreviewSourceTarget";
+export const NUI_MODULE_PREVIEW_INSERT_CONTEXT = "nuinuiCAD.modulePreviewInsertAvailable";
+export const MODULE_PREVIEW_INSERT_INSTANCE_COMMAND = "nuinuiCAD.insertModulePreviewInstance";
 
 const nonWritingCanvasCommands = new Set<VscodeCanvasCommandId>([
   "clearCanvasSelection",
@@ -496,6 +498,15 @@ export const registerModulePreviewFeature = ({
     reason
   });
 
+  const valueUnavailableReasonFor = (
+    session: ModulePreviewSession
+  ): Exclude<VscodeModulePreviewValueUnavailable["reason"], "no-session"> => {
+    if (!session.webviewReady) return "not-ready";
+    if (session.authoritativeDocumentVersion !== session.document.version) return "source-stale";
+    if (!currentTargetFor(session).target) return "target-unavailable";
+    return "not-ready";
+  };
+
   const publishValueUnavailable = (
     session: ModulePreviewSession,
     reason: Exclude<VscodeModulePreviewValueUnavailable["reason"], "no-session">
@@ -506,6 +517,15 @@ export const registerModulePreviewFeature = ({
   const clearValueBinding = (): void => {
     boundValueSession = null;
     for (const session of sessions.values()) cancelActiveReferencePick(session);
+  };
+
+  const postValueUnavailable = (
+    session: ModulePreviewSession,
+    reason: Exclude<VscodeModulePreviewValueUnavailable["reason"], "no-session">
+  ): void => {
+    const message = valueUnavailableFor(session, reason);
+    retainValueMessage(session, message);
+    if (session.webviewReady) void session.panel.webview.postMessage(message satisfies ExtensionToVscodeMessage);
   };
 
   const bindValueSession = (session: ModulePreviewSession): void => {
@@ -647,6 +667,22 @@ export const registerModulePreviewFeature = ({
     });
   };
 
+  const currentModulePreviewSessionForCommand = (): ModulePreviewSession | null => {
+    const activePanelSession = [...sessions.values()].find((candidate) => candidate.panel.active);
+    if (activePanelSession) return activePanelSession;
+    const editor = vscode.window.activeTextEditor;
+    return editor ? sessions.get(documentKey(editor.document)) ?? null : null;
+  };
+
+  const refreshInsertContext = (): void => {
+    const session = currentModulePreviewSessionForCommand();
+    const editor = session ? currentSourceEditorFor(session.document) : undefined;
+    setContext(
+      NUI_MODULE_PREVIEW_INSERT_CONTEXT,
+      Boolean(session && editor && sameDocument(editor.document, session.document) && isOpenDocument(session.document))
+    );
+  };
+
   const valueDescriptionFor = (parameter: VscodeModulePreviewValueSnapshot["groups"][number]["parameters"][number]): string => {
     switch (parameter.valueState) {
       case "explicit": return `Explicit: ${parameter.value}`;
@@ -682,7 +718,10 @@ export const registerModulePreviewFeature = ({
     site: VscodeModulePreviewValueSiteProof
   ): Promise<void> => {
     const currentSite = currentValueSiteFor(session, site);
-    if (!currentSite) return;
+    if (!currentSite) {
+      postValueUnavailable(session, valueUnavailableReasonFor(session));
+      return;
+    }
     const geometryInterface = moduleGeometryInterfaceTypeOf(currentSite.parameter.type);
     if (geometryInterface) {
       const geometryChoice = await nativeShowQuickPick([
@@ -741,7 +780,13 @@ export const registerModulePreviewFeature = ({
       }
     }
     const snapshot = await waitForValueAuthority(session);
-    if (!snapshot) return;
+    if (!snapshot) {
+      void vscode.window.showErrorMessage(
+        modulePreviewTranslatorFor(displayLanguageFor())("modulePreview.valuesUnavailable")
+      );
+      postValueUnavailable(session, valueUnavailableReasonFor(session));
+      return;
+    }
     const items = snapshot.groups.flatMap((group) => group.parameters.map((parameter) => ({
       label: `${group.kind === "ancestor" ? "Context" : "Target"}: ${group.name}.${parameter.name}`,
       description: valueDescriptionFor(parameter),
@@ -1193,9 +1238,14 @@ export const registerModulePreviewFeature = ({
     cancelActiveReferencePick(session);
     if (boundValueSession === session) clearValueBinding();
     session.retainedValueMessage = null;
+    for (const resolve of session.valueSnapshotWaiters) resolve();
     session.valueSnapshotWaiters.clear();
+    session.webviewReady = false;
+    session.authoritativeDocumentVersion = null;
+    session.pendingTarget = null;
     sessions.delete(session.documentUri);
     for (const disposable of session.disposables.splice(0)) disposable.dispose();
+    refreshInsertContext();
   };
 
   const createOrRetargetPanel = (
@@ -1220,6 +1270,7 @@ export const registerModulePreviewFeature = ({
       existing.panel.reveal(vscode.ViewColumn.Beside);
       if (existing.webviewReady) postSessionIdentity(existing);
       deliverPendingTarget(existing);
+      refreshInsertContext();
       return existing;
     }
 
@@ -1249,6 +1300,7 @@ export const registerModulePreviewFeature = ({
     };
     sessions.set(key, session);
     bindValueSession(session);
+    refreshInsertContext();
 
     session.disposables.push(vscode.workspace.onDidChangeTextDocument((event) => {
       if (!sameDocument(event.document, session.document) || event.contentChanges.length === 0) return;
@@ -1265,6 +1317,7 @@ export const registerModulePreviewFeature = ({
     }));
 
     session.disposables.push(panel.webview.onDidReceiveMessage(async (message: VscodeToExtensionMessage) => {
+      if (sessions.get(session.documentUri) !== session) return;
       if (message.type === "bakeOperationResult") {
         await presentBakeOperationResult?.(message);
         return;
@@ -1274,7 +1327,7 @@ export const registerModulePreviewFeature = ({
         return;
       }
       if (message.type === "modulePreviewInsertInstance") {
-        await insertModulePreviewInstance(session);
+        await vscode.commands.executeCommand(MODULE_PREVIEW_INSERT_INSTANCE_COMMAND);
         return;
       }
       if (typeof message === "object" && message !== null &&
@@ -1311,10 +1364,11 @@ export const registerModulePreviewFeature = ({
           type: "canvasRibbonConfiguration",
           ribbons: canvasRibbons()
         } satisfies ExtensionToVscodeMessage);
+        refreshInsertContext();
         return;
       }
       if (message.type === "webviewAuthoritativeDocumentReady") {
-        if (message.documentVersion !== session.document.version) return;
+        if (!session.webviewReady || message.documentVersion !== session.document.version) return;
         session.authoritativeDocumentVersion = message.documentVersion;
         deliverPendingTarget(session);
         return;
@@ -1356,6 +1410,7 @@ export const registerModulePreviewFeature = ({
     session.disposables.push(panel.onDidChangeViewState(({ webviewPanel }) => {
       if (webviewPanel !== panel || (!webviewPanel.active && !webviewPanel.visible)) return;
       bindValueSession(session);
+      refreshInsertContext();
     }));
     session.disposables.push(panel.onDidDispose(() => disposeSession(session)));
     panel.webview.html = webviewHtml(panel);
@@ -1385,13 +1440,31 @@ export const registerModulePreviewFeature = ({
     void editModulePreviewValues(activeSession);
   }));
 
-  disposables.push(vscode.window.onDidChangeActiveTextEditor(() => refreshSourceTargetContext()));
+  disposables.push(vscode.commands.registerCommand(MODULE_PREVIEW_INSERT_INSTANCE_COMMAND, () => {
+    const session = currentModulePreviewSessionForCommand();
+    if (!session) {
+      void vscode.window.showErrorMessage(
+        modulePreviewTranslatorFor(displayLanguageFor())("modulePreview.valuesUnavailable")
+      );
+      return;
+    }
+    void insertModulePreviewInstance(session);
+  }));
+
+  disposables.push(vscode.window.onDidChangeActiveTextEditor(() => {
+    refreshSourceTargetContext();
+    refreshInsertContext();
+  }));
   disposables.push(vscode.window.onDidChangeTextEditorSelection((event) => {
-    if (event.textEditor === vscode.window.activeTextEditor) refreshSourceTargetContext();
+    if (event.textEditor === vscode.window.activeTextEditor) {
+      refreshSourceTargetContext();
+      refreshInsertContext();
+    }
   }));
   disposables.push(vscode.workspace.onDidChangeTextDocument((event) => {
     if (vscode.window.activeTextEditor && sameDocument(event.document, vscode.window.activeTextEditor.document)) {
       refreshSourceTargetContext();
+      refreshInsertContext();
     }
   }));
   disposables.push(vscode.workspace.onDidCloseTextDocument((document) => {
@@ -1401,6 +1474,7 @@ export const registerModulePreviewFeature = ({
       disposeSession(session);
     }
     refreshSourceTargetContext();
+    refreshInsertContext();
   }));
   disposables.push(vscode.window.onDidChangeActiveColorTheme(() => {
     for (const session of sessions.values()) {
@@ -1445,6 +1519,7 @@ export const registerModulePreviewFeature = ({
     handoffNativeHistoryIfActive,
     dispose: () => {
       setSourceTargetContext(false);
+      setContext(NUI_MODULE_PREVIEW_INSERT_CONTEXT, false);
       clearValueBinding();
       for (const session of [...sessions.values()]) session.panel.dispose();
       if (boundValueSession) clearValueBinding();

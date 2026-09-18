@@ -14,6 +14,8 @@
   "command.openModulePreview.shortTitle": "Open Module Preview",
   "command.editModulePreviewValues.title": "nuinuiCAD: Edit Module Preview Values...",
   "command.editModulePreviewValues.shortTitle": "Edit Module Preview Values...",
+  "command.insertModulePreviewInstance.title": "Insert Module Preview Instance",
+  "command.insertModulePreviewInstance.shortTitle": "Insert Module Preview Instance",
   "command.inlineModuleInstance.title": "Inline Module Instance",
   "command.inlineModuleInstance.shortTitle": "Inline Module Instance",
   "command.extractModule.title": "Extract Module",

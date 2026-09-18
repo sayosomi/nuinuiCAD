@@ -74,6 +74,7 @@ const commandIds = [
   "nuinuiCAD.openOutputPreview",
   "nuinuiCAD.openModulePreview",
   "nuinuiCAD.editModulePreviewValues",
+  "nuinuiCAD.insertModulePreviewInstance",
   "nuinuiCAD.inlineModuleInstance",
   "nuinuiCAD.extractModule",
   "nuinuiCAD.goToSourceDefinition",
@@ -172,13 +173,15 @@ const staticWebviewCanonicalCommandIds = [
   "nuinuiCAD.selectInstance",
   "nuinuiCAD.goToSourceDefinition",
   "nuinuiCAD.inlineModuleInstance",
-  "nuinuiCAD.extractModule"
+  "nuinuiCAD.extractModule",
+  "nuinuiCAD.insertModulePreviewInstance"
 ] as const;
 const canonicalCommandShortTitles: Partial<Record<(typeof commandIds)[number], string>> = {
   "nuinuiCAD.openCanvas": "Open Canvas",
   "nuinuiCAD.openOutputPreview": "Open Output Preview",
   "nuinuiCAD.openModulePreview": "Open Module Preview",
   "nuinuiCAD.editModulePreviewValues": "Edit Module Preview Values...",
+  "nuinuiCAD.insertModulePreviewInstance": "Insert Module Preview Instance",
   "nuinuiCAD.convertPointToXYOffset": "XY Offset…",
   "nuinuiCAD.convertPointToAngleDistanceOffset": "Angle-Distance Offset…",
   "nuinuiCAD.selectParentGroup": "Select Parent Group",
@@ -225,6 +228,7 @@ const sourceOrCanvasPaletteWhen = "(editorLangId == nui && resourceScheme == fil
 const sourceOrOutputPreviewPaletteWhen = "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui) || activeWebviewPanelId == 'nuinuiCAD.outputPreview'";
 const modulePreviewPaletteWhen = "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui) || activeWebviewPanelId == 'nuinuiCAD.modulePreview'";
 const modulePreviewValueEditEnablement = "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.modulePreviewSourceTarget) || activeWebviewPanelId == 'nuinuiCAD.modulePreview'";
+const modulePreviewInsertEnablement = "nuinuiCAD.modulePreviewInsertAvailable";
 const canvasPaletteWhen = "activeWebviewPanelId == 'nuinuiCAD.canvas'";
 const sourceKeybindingWhen = `editorTextFocus && ${sourcePaletteWhen}`;
 const sourceCreationKeybindingWhen = `${sourceKeybindingWhen} && !editorReadonly`;
@@ -233,6 +237,7 @@ const webviewEditableFocusGuard = "!inputFocus && !nuinuiCAD.webviewEditableFocu
 const canvasFocusKeybindingWhen = `${canvasKeybindingWhen} && ${webviewEditableFocusGuard}`;
 const modulePreviewKeybindingWhen = `activeWebviewPanelId == 'nuinuiCAD.modulePreview' && ${webviewEditableFocusGuard}`;
 const modulePreviewValueEditKeybindingWhen = `(${sourceKeybindingWhen} && nuinuiCAD.modulePreviewSourceTarget) || (${modulePreviewKeybindingWhen})`;
+const modulePreviewInsertKeybindingWhen = `((${sourceKeybindingWhen}) || (activeWebviewPanelId == 'nuinuiCAD.modulePreview')) && nuinuiCAD.modulePreviewInsertAvailable && !inputFocus && !nuinuiCAD.webviewEditableFocus`;
 const modulePreviewSelectionKeybindingWhen = `activeWebviewPanelId == 'nuinuiCAD.modulePreview' && nuinuiCAD.canvasHasSelection && ${webviewEditableFocusGuard}`;
 const outputPreviewKeybindingWhen = `activeWebviewPanelId == 'nuinuiCAD.outputPreview' && ${webviewEditableFocusGuard}`;
 const canvasSelectionKeybindingWhen = `${canvasKeybindingWhen} && nuinuiCAD.canvasHasSelection && ${webviewEditableFocusGuard}`;
@@ -372,6 +377,7 @@ describe("VS Code extension manifest command contributions", () => {
       "nuinuiCAD: Open Output Preview",
       "nuinuiCAD: Open Module Preview",
       "nuinuiCAD: Edit Module Preview Values...",
+      "Insert Module Preview Instance",
       "Inline Module Instance",
       "Extract Module",
       "Go to Source Definition",
@@ -681,6 +687,7 @@ describe("VS Code extension manifest command contributions", () => {
       { command: "nuinuiCAD.openOutputPreview", when: sourceOrCanvasPaletteWhen },
       { command: "nuinuiCAD.openModulePreview", when: sourcePaletteWhen },
       { command: "nuinuiCAD.editModulePreviewValues", when: modulePreviewPaletteWhen },
+      { command: "nuinuiCAD.insertModulePreviewInstance", when: sourcePaletteWhen },
       { command: "nuinuiCAD.editCanvasRibbon", when: canvasPaletteWhen },
       { command: "nuinuiCAD.goToSourceDefinition", when: canvasPaletteWhen },
       { command: "nuinuiCAD.revealInCanvas", when: sourcePaletteWhen },
@@ -735,6 +742,7 @@ describe("VS Code extension manifest command contributions", () => {
       { command: "nuinuiCAD.openOutputPreview", when: outputPreviewOpenFallbackContextWhen, group: "2_nuinuiCAD@2" },
       { command: "nuinuiCAD.openModulePreview", when: modulePreviewContextWhen, group: "2_nuinuiCAD@3" },
       { command: "nuinuiCAD.editModulePreviewValues", when: modulePreviewContextWhen, group: "2_nuinuiCAD@3.1" },
+      { command: "nuinuiCAD.insertModulePreviewInstance", when: "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.modulePreviewInsertAvailable", group: "2_nuinuiCAD@3.2" },
       { command: "nuinuiCAD.inlineModuleInstance", when: inlineModuleSourceContextWhen, group: "2_nuinuiCAD@4" },
       { command: "nuinuiCAD.extractModule", when: extractModuleSourceContextWhen, group: "2_nuinuiCAD@5" },
       { command: "nuinuiCAD.pickReferenceFromCanvas", when: referencePickContextWhen, group: "2_nuinuiCAD@6" },
@@ -759,6 +767,7 @@ describe("VS Code extension manifest command contributions", () => {
       { submenu: "nuinuiCAD.webview.canvasDisplay", when: canvasBlankWhen, group: "2_view@3" },
       { command: "nuinuiCAD.editCanvasRibbon", when: canvasOrModulePreviewRibbonWhen, group: "3_edit@1" },
       { command: "nuinuiCAD.editModulePreviewValues", when: modulePreviewContextMenuWhen, group: "3_edit@2" },
+      { command: "nuinuiCAD.insertModulePreviewInstance", when: "webviewId == 'nuinuiCAD.modulePreview' && nuinuiCAD.modulePreviewInsertAvailable && !inputFocus && !nuinuiCAD.webviewEditableFocus", group: "3_edit@3" },
       { command: "nuinuiCAD.clearCanvasSelection", when: `${canvasBlankWhen} && nuinuiCAD.canvasHasSelection`, group: "4_selection@1" },
       { submenu: "nuinuiCAD.webview.convertPoint", when: coordinatePointConversionCanvasContextWhen, group: "1_modification@1" },
       { command: "nuinuiCAD.selectParentGroup", when: canvasElementWhen, group: "1_modification@2" },
@@ -808,6 +817,7 @@ describe("VS Code extension manifest command contributions", () => {
       "nuinuiCAD.openOutputPreview",
       "nuinuiCAD.openModulePreview",
       "nuinuiCAD.editModulePreviewValues",
+      "nuinuiCAD.insertModulePreviewInstance",
       "nuinuiCAD.inlineModuleInstance",
       "nuinuiCAD.extractModule",
       "nuinuiCAD.pickReferenceFromCanvas",
@@ -832,6 +842,8 @@ describe("VS Code extension manifest command contributions", () => {
       .toBe(`${sourcePaletteWhen} && nuinuiCAD.modulePreviewSourceTarget`);
     expect(commands.find(({ command }) => command === "nuinuiCAD.editModulePreviewValues")?.enablement)
       .toBe(modulePreviewValueEditEnablement);
+    expect(commands.find(({ command }) => command === "nuinuiCAD.insertModulePreviewInstance")?.enablement)
+      .toBe(modulePreviewInsertEnablement);
     expect(manifest.contributes?.menus?.["editor/context"]?.slice(0, 4).every(({ when }) => !when.includes("canReveal")))
       .toBe(true);
     expect(manifest.contributes?.keybindings?.some(({ command }) => command === "nuinuiCAD.revealInOutputPreview")).toBe(true);
@@ -886,7 +898,7 @@ describe("VS Code extension manifest keybindings", () => {
     const manifest = await readManifest();
     const keybindings = manifest.contributes?.keybindings ?? [];
 
-    expect(keybindings).toHaveLength(36);
+    expect(keybindings).toHaveLength(37);
     expect(keybindings).toContainEqual({
       command: "nuinuiCAD.stepSourceValueForward.keybinding",
       key: "ctrl+shift+.",
@@ -1010,6 +1022,12 @@ describe("VS Code extension manifest keybindings", () => {
         key: "ctrl+shift+alt+m",
         mac: "ctrl+shift+m",
         when: modulePreviewValueEditKeybindingWhen
+      },
+      {
+        command: "nuinuiCAD.insertModulePreviewInstance",
+        key: "ctrl+shift+alt+i",
+        mac: "ctrl+shift+i",
+        when: modulePreviewInsertKeybindingWhen
       },
       {
         command: "nuinuiCAD.inlineModuleInstance",

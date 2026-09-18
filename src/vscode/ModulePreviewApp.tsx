@@ -55,7 +55,10 @@ import {
 import type { ActivePickCursor } from "../state/cadUiStore";
 import type { CadElement, EvaluationResult } from "../types/geometry";
 import { buildModulePreviewEvaluationOptions } from "./modulePreviewEvaluation";
-import { modulePreviewValueSnapshotFor } from "./modulePreviewValueProjection";
+import {
+  modulePreviewValueSnapshotFor,
+  modulePreviewValueSummaryFor
+} from "./modulePreviewValueProjection";
 import {
   modulePreviewReferencePickTargetFor,
   modulePreviewReferencePickTargetForAuthoredSource,
@@ -341,9 +344,6 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   );
   const rustTransport = useMemo(() => new VscodeRustTransport(api.postMessage), [api]);
   useEffect(() => () => rustTransport.dispose(), [rustTransport]);
-  useEffect(() => {
-    api.postMessage({ type: "webviewReady" });
-  }, [api]);
 
   const statusInputDiagnosticsForSnapshot = useCallback((snapshot: ModulePreviewSessionSnapshot) =>
     statusInputDiagnosticsFor(snapshot, {
@@ -1289,6 +1289,8 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
           valueSessionRevisionRef.current = 0;
           clearPendingModelPatch();
           clearEphemeralPreview();
+          automationDocumentRef.current = null;
+          documentVersionRef.current = null;
           setAuthoredCandidateContext(null);
           previewRef.current = null;
           setPreview(null);
@@ -1351,6 +1353,27 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
           statusText("modulePreview.targetUnavailable", "Module Preview target is not exact-current and was not rebound."),
           ...(document ? diagnosticMessagesFor(document) : [])
         ]);
+        return;
+      }
+      if (message.type === "modulePreviewValueUnavailable") {
+        if (
+          message.sessionId !== sessionIdRef.current ||
+          message.documentUri !== sessionDocumentUriRef.current ||
+          message.documentVersion !== documentVersionRef.current
+        ) return;
+        clearPendingModelPatch();
+        setStatusMessages([statusText(
+          `modulePreview.parameters.unavailable.${message.reason}`,
+          message.reason === "disposed"
+            ? "The Module Preview panel is no longer available."
+            : message.reason === "target-unavailable"
+              ? "The Module Preview target is not available in the current source."
+              : message.reason === "source-stale"
+                ? "Module Preview parameters are waiting for the refreshed source."
+                : message.reason === "not-ready"
+                  ? "Module Preview is loading its exact current target."
+                  : "Open Module Preview to edit its parameters."
+        )]);
         return;
       }
       if (message.type === "modulePreviewValueEdit") {
@@ -1426,6 +1449,10 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       window.removeEventListener("message", onMessage);
     };
   }, [api, applySessionSnapshot, applyValueEdit, clearEphemeralPreview, clearPendingModelPatch, compileTargetAt, executeModulePreviewBake, executeSharedCanvasCommand, previewSession, publishValueUnavailable, rustTransport]);
+
+  useEffect(() => {
+    api.postMessage({ type: "webviewReady" });
+  }, [api]);
 
   const selectElement = useCallback<CanvasHostAdapter["selectElement"]>((elementId, selectionMode) => {
     const before = canvasSelectionSnapshot();
@@ -1661,6 +1688,8 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     showCanvasPoints
   ]);
 
+  const previewValueSummary = modulePreviewValueSummaryFor(previewSession.getState());
+
   return (
     <main
       className="module-preview-workspace"
@@ -1781,6 +1810,32 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
                 </div>
               );
             })}
+          </div>
+        ) : null}
+        {statusMessages.length === 0 && previewValueSummary.length > 0 ? (
+          <div
+            aria-label="Current Module Preview parameter values"
+            data-module-preview-value-summary="true"
+            style={{
+              position: "absolute",
+              right: 12,
+              bottom: 12,
+              maxWidth: "min(560px, calc(100% - 24px))",
+              padding: "8px 10px",
+              border: "1px solid var(--vscode-panel-border)",
+              borderRadius: 4,
+              background: "var(--vscode-editorWidget-background)",
+              color: "var(--vscode-editorWidget-foreground)",
+              fontSize: 12,
+              zIndex: 1,
+              pointerEvents: "none"
+            }}
+          >
+            {previewValueSummary.map((entry) => (
+              <div key={`${entry.groupLabel}:${entry.groupName}.${entry.parameterName}`}>
+                {entry.groupLabel}: {entry.groupName}.{entry.parameterName} = {entry.valueLabel}
+              </div>
+            ))}
           </div>
         ) : null}
         {!preview && !modulePreviewReferencePickSession ? (
