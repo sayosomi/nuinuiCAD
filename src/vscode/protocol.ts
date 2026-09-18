@@ -64,6 +64,8 @@ export type {
   VscodeModulePreviewReferencePickStartedResult,
   VscodeModulePreviewReferencePickStartRequest,
   VscodeModulePreviewReferencePickTerminalResult,
+  VscodeModulePreviewInsertInstanceRequest,
+  VscodeModulePreviewInsertInstanceResult,
   VscodeModulePreviewToExtensionMessage,
   VscodeModulePreviewSession,
   VscodeModulePreviewTarget,

@@ -49,7 +49,9 @@ type TestDocument = {
 
 type TestEditor = {
   document: TestDocument;
+  selection: { active: { line: number; character: number } };
   edit: ReturnType<typeof vi.fn>;
+  revealRange: ReturnType<typeof vi.fn>;
 };
 
 type TestDocumentChangeEvent = {
@@ -128,6 +130,15 @@ vi.mock("vscode", () => ({
       readonly end: { line: number; character: number }
     ) {}
   },
+  Selection: class Selection {
+    constructor(
+      readonly start: { line: number; character: number },
+      readonly end: { line: number; character: number }
+    ) {}
+    get active() {
+      return this.end;
+    }
+  },
   TextDocumentChangeReason: { Undo: 1, Redo: 2 }
 }));
 
@@ -187,7 +198,12 @@ const createEditor = (document: TestDocument): TestEditor => {
     if (edits.length > 0) document.setSource(nextSource);
     return true;
   });
-  return { document, edit };
+  return {
+    document,
+    selection: { active: positionAt(document.getText(), document.getText().length) },
+    edit,
+    revealRange: vi.fn()
+  };
 };
 
 const createPanel = (options: {
@@ -859,6 +875,7 @@ describe("registerModulePreviewFeature", () => {
   ) => {
     const document = createDocument(source);
     const editor = createEditor(document);
+    editor.selection.active = positionAt(source, source.indexOf("module Pocket"));
     const panel = createPanel();
     mocks.createWebviewPanel.mockReturnValue(panel);
     mocks.activeTextEditor = {
@@ -916,6 +933,94 @@ describe("registerModulePreviewFeature", () => {
       previewStatus: "current"
     };
   };
+
+  it("inserts the current target values through one native Source edit and selects the generated name", async () => {
+    const source = [
+      "nui 1",
+      "point Top = coordinate(x: 0, y: 0)",
+      "module Pocket(anchor: point) {",
+      "}",
+      ""
+    ].join("\n");
+    const { document, panel, feature, analysis } = registerInvocationFixture(source);
+    const editor = mocks.visibleTextEditors[0]!;
+    await panel.receive({ type: "webviewReady" });
+    await panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    const sessionId = panel.webview.postMessage.mock.calls
+      .map(([message]) => message)
+      .find((message) => message?.type === "modulePreviewSession")?.sessionId as string;
+    const snapshot = { ...valueSnapshotFor(document, analysis, { name: "anchor", type: { kind: "point" }, value: "@Top" }), sessionId };
+    await panel.receive(snapshot);
+    mocks.showTextDocument.mockResolvedValue(editor);
+
+    await panel.receive({ type: "modulePreviewInsertInstance" });
+
+    expect(document.getText()).toBe([
+      "nui 1",
+      "point Top = coordinate(x: 0, y: 0)",
+      "module Pocket(anchor: point) {",
+      "}",
+      "instance PocketInstance = Pocket(anchor: @Top)",
+      ""
+    ].join("\n"));
+    expect(editor.edit).toHaveBeenCalledTimes(1);
+    expect(editor.edit).toHaveBeenCalledWith(expect.any(Function), {
+      undoStopBefore: true,
+      undoStopAfter: true
+    });
+    expect(mocks.showTextDocument).toHaveBeenCalledWith(document, expect.objectContaining({ preserveFocus: false, preview: false }));
+    expect(editor.selection.active).toEqual({ line: 4, character: 23 });
+    expect(editor.revealRange).toHaveBeenCalledTimes(1);
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewInsertInstanceResult",
+      status: "applied",
+      instanceName: "PocketInstance",
+      documentVersion: 2
+    }));
+    feature.dispose();
+  });
+
+  it("does not edit when the retained Preview is last-good or has a target error", async () => {
+    const source = [
+      "nui 1",
+      "point Top = coordinate(x: 0, y: 0)",
+      "module Pocket(anchor: point) {",
+      "}",
+      ""
+    ].join("\n");
+    const { document, panel, feature, analysis } = registerInvocationFixture(source);
+    const editor = mocks.visibleTextEditors[0]!;
+    await panel.receive({ type: "webviewReady" });
+    await panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    const sessionId = panel.webview.postMessage.mock.calls
+      .map(([message]) => message)
+      .find((message) => message?.type === "modulePreviewSession")?.sessionId as string;
+    const snapshot = { ...valueSnapshotFor(document, analysis, { name: "anchor", type: { kind: "point" }, value: "@Top" }), sessionId };
+    mocks.showTextDocument.mockResolvedValue(editor);
+
+    await panel.receive({ ...snapshot, previewStatus: "lastGood" });
+    await panel.receive({ type: "modulePreviewInsertInstance" });
+    expect(editor.edit).not.toHaveBeenCalled();
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewInsertInstanceResult",
+      status: "stale"
+    }));
+
+    panel.webview.postMessage.mockClear();
+    await panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    await panel.receive({ ...snapshot, sessionRevision: 2, groups: [{
+      ...snapshot.groups[0]!,
+      parameters: [{ ...snapshot.groups[0]!.parameters[0]!, value: "", valueState: "required-missing" }
+      ]
+    }] });
+    await panel.receive({ type: "modulePreviewInsertInstance" });
+    expect(editor.edit).not.toHaveBeenCalled();
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewInsertInstanceResult",
+      status: "rejected"
+    }));
+    feature.dispose();
+  });
 
   it("orders native Preview Values sites and applies scalar edits without Source mutation", async () => {
     const source = [

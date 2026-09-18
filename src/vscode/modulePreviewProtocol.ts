@@ -126,6 +126,21 @@ export type VscodeModulePreviewModelPatchResult = {
   reason?: string;
 };
 
+export type VscodeModulePreviewInsertInstanceRequest = {
+  type: "modulePreviewInsertInstance";
+};
+
+export type VscodeModulePreviewInsertInstanceResult = {
+  type: "modulePreviewInsertInstanceResult";
+  sessionId: string;
+  documentUri: string;
+  documentVersion: number;
+  status: "applied" | "stale" | "rejected";
+  reason?: string;
+  instanceName?: string;
+  insertedNameRange?: { from: number; to: number };
+};
+
 export type VscodeExtensionToModulePreviewMessage =
   | VscodeModulePreviewTarget
   | VscodeModulePreviewTargetUnavailable
@@ -135,7 +150,8 @@ export type VscodeExtensionToModulePreviewMessage =
   | VscodeModulePreviewValueEdit
   | VscodeModulePreviewReferencePickStartRequest
   | VscodeModulePreviewReferencePickCancelRequest
-  | VscodeModulePreviewModelPatchResult;
+  | VscodeModulePreviewModelPatchResult
+  | VscodeModulePreviewInsertInstanceResult;
 
 export type VscodeModulePreviewToExtensionMessage =
   | VscodeModulePreviewValueSnapshot
@@ -143,4 +159,5 @@ export type VscodeModulePreviewToExtensionMessage =
   | VscodeModulePreviewValueSiteEditRequest
   | VscodeModulePreviewReferencePickResult
   | VscodeModulePreviewValueReferencePickStart
-  | VscodeModulePreviewModelPatchRequest;
+  | VscodeModulePreviewModelPatchRequest
+  | VscodeModulePreviewInsertInstanceRequest;

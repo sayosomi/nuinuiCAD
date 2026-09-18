@@ -1,5 +1,9 @@
 import * as vscode from "vscode";
-import { applyLineSplices, type LineSplice } from "@nuinuicad/nui-language/document";
+import {
+  applyLineSplices,
+  planModulePreviewInstance,
+  type LineSplice
+} from "@nuinuicad/nui-language/document";
 import type { StatementIdentity } from "@nuinuicad/nui-language/document";
 import { queryModulePreviewTarget } from "../../src/dsl/modulePreviewTarget";
 import {
@@ -21,6 +25,7 @@ import type {
   VscodeModulePreviewValueEdit,
   VscodeModulePreviewModelPatchRequest,
   VscodeModulePreviewModelPatchResult,
+  VscodeModulePreviewInsertInstanceResult,
   VscodeModulePreviewReferencePickResult,
   VscodeModulePreviewReferencePickStartRequest,
   VscodeCanvasCommandId,
@@ -34,12 +39,12 @@ import {
   type NuiLanguageAnalysisSession
 } from "./languageAnalysisSession";
 import { modulePreviewTranslatorFor } from "./modulePreviewLocalization";
-import { normalizedOffsetFromRaw, normalizedSourceFor } from "./sourceOffsetAdapter";
+import { normalizedOffsetFromRaw, normalizedSourceFor, vscodeRangeForNormalized } from "./sourceOffsetAdapter";
 import {
   handoffOutputPreviewHistory,
   type OutputPreviewHistoryDirection
 } from "./outputPreviewHistory";
-import { applySourceLineSplices } from "./textDocumentLineSplices";
+import { applySourceLineSplices, textEditForLineSplice } from "./textDocumentLineSplices";
 import { webviewPresentationFor } from "./webviewPresentationLocalization";
 import { nativeShowInputBox, nativeShowQuickPick } from "./nativeQuickInput";
 
@@ -246,6 +251,12 @@ const isOpenDocument = (document: vscode.TextDocument): boolean => {
 
 const visibleEditorFor = (document: vscode.TextDocument): vscode.TextEditor | undefined =>
   (vscode.window.visibleTextEditors ?? []).find((editor) => sameDocument(editor.document, document));
+
+const currentSourceEditorFor = (document: vscode.TextDocument): vscode.TextEditor | undefined => {
+  const active = vscode.window.activeTextEditor;
+  if (active && sameDocument(active.document, document) && typeof active.edit === "function") return active;
+  return visibleEditorFor(document);
+};
 
 const isLineSplice = (value: unknown): value is LineSplice => {
   if (typeof value !== "object" || value === null) return false;
@@ -1024,6 +1035,159 @@ export const registerModulePreviewFeature = ({
     postModelPatchResult(session, request, "applied");
   };
 
+  const postInsertInstanceResult = (
+    session: ModulePreviewSession,
+    status: VscodeModulePreviewInsertInstanceResult["status"],
+    reason?: string,
+    plan?: Extract<ReturnType<typeof planModulePreviewInstance>, { status: "planned" }>
+  ): void => {
+    void session.panel.webview.postMessage({
+      type: "modulePreviewInsertInstanceResult",
+      sessionId: session.sessionId,
+      documentUri: session.documentUri,
+      documentVersion: session.document.version,
+      status,
+      ...(reason ? { reason } : {}),
+      ...(plan ? {
+        instanceName: plan.instanceName,
+        insertedNameRange: plan.insertedNameRange
+      } : {})
+    } satisfies ExtensionToVscodeMessage);
+  };
+
+  const insertModulePreviewInstance = async (session: ModulePreviewSession): Promise<void> => {
+    const stale = (reason: string): void => {
+      resyncModulePreview(session);
+      postInsertInstanceResult(session, "stale", reason);
+    };
+    const rejected = (reason: string): void => {
+      postInsertInstanceResult(session, "rejected", reason);
+    };
+
+    if (
+      sessions.get(session.documentUri) !== session ||
+      !session.webviewReady ||
+      !isOpenDocument(session.document) ||
+      session.authoritativeDocumentVersion !== session.document.version
+    ) {
+      stale("Module Preview session is no longer authoritative.");
+      return;
+    }
+    const snapshot = currentValueAuthorityFor(session);
+    if (!snapshot || snapshot.previewStatus !== "current") {
+      stale("The current Module Preview values are not exact-current.");
+      return;
+    }
+    const current = currentTargetFor(session);
+    if (
+      !current.target ||
+      current.sourceRevision !== snapshot.sourceRevision ||
+      current.target.definitionStatementIndex !== snapshot.target.definitionStatementIndex ||
+      current.target.name !== snapshot.target.name
+    ) {
+      stale("The Module Preview target or source revision is stale.");
+      return;
+    }
+    const targetGroup = snapshot.groups.find((group) =>
+      group.kind === "target" &&
+      group.definitionStatementIndex === snapshot.target.definitionStatementIndex &&
+      group.name === snapshot.target.name
+    );
+    if (!targetGroup) {
+      rejected("The current Module Preview has no exact target value group.");
+      return;
+    }
+    if (targetGroup.parameters.some((parameter) => parameter.valueState === "required-missing" || parameter.valueState === "invalid")) {
+      rejected("Complete the required target values before inserting an instance.");
+      return;
+    }
+    const explicitArguments = targetGroup.parameters
+      .filter((parameter) => parameter.valueState === "explicit")
+      .map((parameter) => ({ name: parameter.name, expression: parameter.value }));
+    if (explicitArguments.some((argument) => argument.expression.length === 0)) {
+      rejected("The current Module Preview contains an empty explicit argument.");
+      return;
+    }
+
+    const editor = currentSourceEditorFor(session.document);
+    if (!editor || !sameDocument(editor.document, session.document)) {
+      rejected("The current same-document Source editor is not available.");
+      return;
+    }
+    const rawSource = editor.document.getText();
+    const source = sourceContextFor(session);
+    if (
+      editor.document.version !== snapshot.documentVersion ||
+      normalizedSourceFor(rawSource) !== snapshot.normalizedSource ||
+      source.source.sourceRevision !== snapshot.sourceRevision ||
+      !source.semantic?.compiled
+    ) {
+      stale("The source document changed after the current Module Preview values were published.");
+      return;
+    }
+    const insertionOffset = normalizedOffsetFromRaw(rawSource, editor.document.offsetAt(editor.selection.active));
+    const plan = planModulePreviewInstance({
+      source: source.source,
+      compiled: source.semantic.compiled,
+      insertionOffset,
+      target: {
+        statementId: session.targetDefinitionStatementId,
+        statementIndex: current.target.definitionStatementIndex,
+        name: current.target.name
+      },
+      explicitArguments
+    });
+    if (plan.status === "rejected") {
+      rejected(plan.message);
+      return;
+    }
+    if (
+      currentSourceEditorFor(session.document) !== editor ||
+      editor.document.version !== snapshot.documentVersion ||
+      editor.document.getText() !== rawSource ||
+      currentValueAuthorityFor(session) !== snapshot
+    ) {
+      stale("The Source editor or Module Preview values changed before insertion.");
+      return;
+    }
+    const edit = textEditForLineSplice(editor.document, rawSource, plan.splice);
+    let applied: boolean;
+    try {
+      applied = await editor.edit(
+        (editBuilder) => editBuilder.replace(edit.range, edit.replacement),
+        { undoStopBefore: true, undoStopAfter: true }
+      );
+    } catch (error) {
+      rejected(error instanceof Error ? error.message : String(error));
+      return;
+    }
+    if (!applied) {
+      const changedDuringApply = editor.document.version !== snapshot.documentVersion || editor.document.getText() !== rawSource;
+      if (changedDuringApply) stale("The source document changed while inserting the Module instance.");
+      else rejected("VS Code rejected the Module instance source edit.");
+      return;
+    }
+    let focusedEditor = editor;
+    try {
+      const shown = await vscode.window.showTextDocument(session.document, {
+        viewColumn: editor.viewColumn,
+        preserveFocus: false,
+        preview: false
+      });
+      if (sameDocument(shown.document, session.document)) focusedEditor = shown;
+    } catch {
+      // The source edit is already applied; retain the exact selection on the existing editor.
+    }
+    const insertedRange = vscodeRangeForNormalized(
+      focusedEditor.document,
+      focusedEditor.document.getText(),
+      plan.insertedNameRange
+    );
+    focusedEditor.selection = new vscode.Selection(insertedRange.start, insertedRange.end);
+    focusedEditor.revealRange?.(insertedRange);
+    postInsertInstanceResult(session, "applied", undefined, plan);
+  };
+
   const disposeSession = (session: ModulePreviewSession): void => {
     if (sessions.get(session.documentUri) !== session) return;
     cancelActiveReferencePick(session);
@@ -1107,6 +1271,10 @@ export const registerModulePreviewFeature = ({
       }
       if (isModulePreviewModelPatchRequest(message)) {
         await applyModulePreviewModelPatch(session, message);
+        return;
+      }
+      if (message.type === "modulePreviewInsertInstance") {
+        await insertModulePreviewInstance(session);
         return;
       }
       if (typeof message === "object" && message !== null &&
