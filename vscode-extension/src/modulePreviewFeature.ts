@@ -1,7 +1,6 @@
 import * as vscode from "vscode";
 import { applyLineSplices, type LineSplice } from "@nuinuicad/nui-language/document";
 import type { StatementIdentity } from "@nuinuicad/nui-language/document";
-import { resolveModulePreviewValueStep } from "../../src/dsl/modulePreviewValueStep";
 import { queryModulePreviewTarget } from "../../src/dsl/modulePreviewTarget";
 import {
   moduleGeometryInterfaceTypeOf
@@ -14,14 +13,11 @@ import {
 } from "../../src/vscode/referencePickProtocol";
 import type {
   ExtensionToVscodeMessage,
-  VscodeModulePreviewInvocationSnapshot,
-  VscodeModulePreviewInvocationUnavailable,
-  VscodeModulePreviewInvocationSiteBlur,
-  VscodeModulePreviewInvocationSiteFocus,
-  VscodeModulePreviewInvocationSiteProof,
-  VscodeModulePreviewInvocationReferencePickStart,
-  VscodeModulePreviewInvocationValueStep,
-  VscodeModulePreviewInvocationValueEdit,
+  VscodeModulePreviewValueSnapshot,
+  VscodeModulePreviewValueUnavailable,
+  VscodeModulePreviewValueSiteProof,
+  VscodeModulePreviewValueReferencePickStart,
+  VscodeModulePreviewValueEdit,
   VscodeModulePreviewModelPatchRequest,
   VscodeModulePreviewModelPatchResult,
   VscodeModulePreviewReferencePickResult,
@@ -44,14 +40,10 @@ import {
 } from "./outputPreviewHistory";
 import { applySourceLineSplices } from "./textDocumentLineSplices";
 import { webviewPresentationFor } from "./webviewPresentationLocalization";
-import type {
-  WebviewEditableFocusAttachment,
-  WebviewEditableFocusWebview
-} from "./webviewEditableFocusContext";
+import { nativeShowInputBox, nativeShowQuickPick } from "./nativeQuickInput";
 
 export const NUI_MODULE_PREVIEW_VIEW_TYPE = "nuinuiCAD.modulePreview";
 export const NUI_MODULE_PREVIEW_SOURCE_TARGET_CONTEXT = "nuinuiCAD.modulePreviewSourceTarget";
-export const NUI_MODULE_PREVIEW_VALUE_INPUT_FOCUS_CONTEXT = "nuinuiCAD.modulePreviewValueInputFocus";
 
 const nonWritingCanvasCommands = new Set<VscodeCanvasCommandId>([
   "clearCanvasSelection",
@@ -81,8 +73,8 @@ type ModulePreviewSession = {
   webviewReady: boolean;
   authoritativeDocumentVersion: number | null;
   pendingTarget: ModulePreviewPendingTarget | null;
-  retainedInvocationMessage: VscodeModulePreviewInvocationSnapshot | VscodeModulePreviewInvocationUnavailable | null;
-  editableFocusAttachment: WebviewEditableFocusAttachment | null;
+  retainedValueMessage: VscodeModulePreviewValueSnapshot | VscodeModulePreviewValueUnavailable | null;
+  valueSnapshotWaiters: Set<() => void>;
   activeReferencePick: {
     request: VscodeModulePreviewReferencePickStartRequest;
     candidateReferenceKeys: Set<string> | null;
@@ -90,9 +82,9 @@ type ModulePreviewSession = {
   disposables: vscode.Disposable[];
 };
 
-type ModulePreviewInvocationMessage =
-  | VscodeModulePreviewInvocationSnapshot
-  | VscodeModulePreviewInvocationUnavailable;
+type ModulePreviewValueMessage =
+  | VscodeModulePreviewValueSnapshot
+  | VscodeModulePreviewValueUnavailable;
 
 export type ModulePreviewFeature = vscode.Disposable & {
   postCanvasCommandIfActive: (commandId: VscodeCanvasCommandId) => boolean;
@@ -108,7 +100,6 @@ export type RegisterModulePreviewFeatureOptions = {
   updateCanvasRibbonPosition: (ribbonId: string, x: number, y: number) => Promise<void> | void;
   editCanvasRibbon: () => void;
   evaluateWithRust: (input: unknown) => Promise<unknown>;
-  attachWebviewEditableFocus?: (webview: WebviewEditableFocusWebview) => WebviewEditableFocusAttachment;
   presentBakeOperationResult?: (
     message: Extract<VscodeToExtensionMessage, { type: "bakeOperationResult" }>
   ) => Promise<void> | void;
@@ -128,69 +119,32 @@ const isSupportedNuiDocument = (document: vscode.TextDocument): boolean =>
 
 const documentKey = (document: vscode.TextDocument): string => document.uri.toString();
 
-const isInvocationSiteProof = (candidate: Partial<VscodeModulePreviewInvocationSiteFocus>): boolean =>
+const isValueSiteProof = (candidate: Partial<VscodeModulePreviewValueSiteProof>): boolean =>
   typeof candidate.sessionId === "string" &&
   typeof candidate.documentUri === "string" &&
   Number.isInteger(candidate.documentVersion) &&
   typeof candidate.normalizedSource === "string" &&
   Number.isInteger(candidate.sourceRevision) &&
   Number.isInteger(candidate.sessionRevision) &&
-  typeof candidate.targetDefinitionStatementId === "string" &&
   Number.isInteger(candidate.targetDefinitionStatementIndex) &&
   typeof candidate.targetName === "string" &&
-  typeof candidate.definitionStatementId === "string" &&
   (candidate.blockKind === "ancestor" || candidate.blockKind === "target") &&
-  Number.isInteger(candidate.blockDefinitionStatementIndex) &&
-  typeof candidate.blockName === "string" &&
+  Number.isInteger(candidate.definitionStatementIndex) &&
+  typeof candidate.definitionName === "string" &&
   Number.isInteger(candidate.parameterIndex) &&
-  typeof candidate.invocationText === "string" &&
-  Number.isInteger(candidate.selectionStart) &&
-  Number.isInteger(candidate.selectionEnd) &&
-  candidate.selectionStart >= 0 &&
-  candidate.selectionEnd >= candidate.selectionStart &&
-  candidate.selectionEnd <= candidate.invocationText.length;
+  typeof candidate.parameterName === "string";
 
-const isModulePreviewInvocationSiteFocus = (
+const isModulePreviewValueReferencePickStart = (
   message: unknown
-): message is VscodeModulePreviewInvocationSiteFocus => {
+): message is VscodeModulePreviewValueReferencePickStart => {
   if (typeof message !== "object" || message === null) return false;
-  const candidate = message as Partial<VscodeModulePreviewInvocationSiteFocus>;
-  return candidate.type === "modulePreviewInvocationSiteFocus" &&
-    Number.isInteger(candidate.focusGeneration) && candidate.focusGeneration > 0 &&
-    isInvocationSiteProof(candidate);
-};
-
-const isModulePreviewInvocationSiteBlur = (
-  message: unknown
-): message is VscodeModulePreviewInvocationSiteBlur => {
-  if (typeof message !== "object" || message === null) return false;
-  const candidate = message as Partial<VscodeModulePreviewInvocationSiteBlur>;
-  return candidate.type === "modulePreviewInvocationSiteBlur" &&
-    Number.isInteger(candidate.focusGeneration) && candidate.focusGeneration > 0 &&
-    isInvocationSiteProof(candidate);
-};
-
-const isModulePreviewInvocationReferencePickStart = (
-  message: unknown
-): message is VscodeModulePreviewInvocationReferencePickStart => {
-  if (typeof message !== "object" || message === null) return false;
-  const candidate = message as Partial<VscodeModulePreviewInvocationReferencePickStart>;
-  return candidate.type === "modulePreviewInvocationReferencePickStart" &&
+  const candidate = message as Partial<VscodeModulePreviewValueReferencePickStart>;
+  return candidate.type === "modulePreviewValueReferencePickStart" &&
     (candidate.expectedGeometryInterface === undefined ||
       candidate.expectedGeometryInterface === "point" ||
       candidate.expectedGeometryInterface === "line" ||
       candidate.expectedGeometryInterface === "path") &&
-    isInvocationSiteProof(candidate);
-};
-
-const isModulePreviewInvocationValueStep = (
-  message: unknown
-): message is VscodeModulePreviewInvocationValueStep => {
-  if (typeof message !== "object" || message === null) return false;
-  const candidate = message as Partial<VscodeModulePreviewInvocationValueStep>;
-  return candidate.type === "modulePreviewInvocationValueStep" &&
-    (candidate.direction === 1 || candidate.direction === -1) &&
-    isInvocationSiteProof(candidate);
+    isValueSiteProof(candidate);
 };
 
 const isModulePreviewReferencePickResult = (
@@ -207,17 +161,13 @@ const isModulePreviewReferencePickResult = (
     typeof candidate.normalizedSource !== "string" ||
     !Number.isInteger(candidate.sourceRevision) ||
     !Number.isInteger(candidate.sessionRevision) ||
-    typeof candidate.targetDefinitionStatementId !== "string" ||
     !Number.isInteger(candidate.targetDefinitionStatementIndex) ||
     typeof candidate.targetName !== "string" ||
-    typeof candidate.definitionStatementId !== "string" ||
     (candidate.blockKind !== "ancestor" && candidate.blockKind !== "target") ||
-    !Number.isInteger(candidate.blockDefinitionStatementIndex) ||
-    typeof candidate.blockName !== "string" ||
+    !Number.isInteger(candidate.definitionStatementIndex) ||
+    typeof candidate.definitionName !== "string" ||
     !Number.isInteger(candidate.parameterIndex) ||
-    typeof candidate.invocationText !== "string" ||
-    !Number.isInteger(candidate.selectionStart) ||
-    !Number.isInteger(candidate.selectionEnd) ||
+    typeof candidate.parameterName !== "string" ||
     (candidate.expectedGeometryInterface !== "point" &&
       candidate.expectedGeometryInterface !== "line" &&
       candidate.expectedGeometryInterface !== "path") ||
@@ -237,13 +187,13 @@ const isModulePreviewReferencePickResult = (
   return candidate.status === "canceled" || candidate.status === "stale" || candidate.status === "rejected";
 };
 
-const isModulePreviewInvocationSnapshot = (
+const isModulePreviewValueSnapshot = (
   message: unknown
-): message is VscodeModulePreviewInvocationSnapshot => {
+): message is VscodeModulePreviewValueSnapshot => {
   if (typeof message !== "object" || message === null) return false;
-  const candidate = message as Partial<VscodeModulePreviewInvocationSnapshot>;
+  const candidate = message as Partial<VscodeModulePreviewValueSnapshot>;
   const target = candidate.target;
-  return candidate.type === "modulePreviewInvocationSnapshot" &&
+  return candidate.type === "modulePreviewValueSnapshot" &&
     typeof candidate.sessionId === "string" &&
     typeof candidate.documentUri === "string" &&
     Number.isInteger(candidate.documentVersion) &&
@@ -251,28 +201,27 @@ const isModulePreviewInvocationSnapshot = (
     Number.isInteger(candidate.sourceRevision) &&
     Number.isInteger(candidate.sessionRevision) &&
     typeof target === "object" && target !== null &&
-    typeof target.definitionStatementId === "string" &&
     Number.isInteger(target.definitionStatementIndex) &&
     typeof target.name === "string" &&
-    Array.isArray(candidate.blocks) &&
+    Array.isArray(candidate.groups) &&
     Array.isArray(candidate.inputDiagnostics) &&
     (candidate.previewStatus === "current" ||
       candidate.previewStatus === "lastGood" ||
       candidate.previewStatus === "noValidPreview");
 };
 
-const isModulePreviewInvocationUnavailable = (
+const isModulePreviewValueUnavailable = (
   message: unknown
-): message is VscodeModulePreviewInvocationUnavailable => {
+): message is VscodeModulePreviewValueUnavailable => {
   if (typeof message !== "object" || message === null) return false;
-  const candidate = message as Partial<VscodeModulePreviewInvocationUnavailable>;
-  return candidate.type === "modulePreviewInvocationUnavailable" &&
+  const candidate = message as Partial<VscodeModulePreviewValueUnavailable>;
+  return candidate.type === "modulePreviewValueUnavailable" &&
     (candidate.sessionId === null || typeof candidate.sessionId === "string") &&
     (candidate.documentUri === null || typeof candidate.documentUri === "string") &&
     (candidate.documentVersion === null || Number.isInteger(candidate.documentVersion)) &&
     (candidate.sourceRevision === null || Number.isInteger(candidate.sourceRevision)) &&
     Number.isInteger(candidate.sessionRevision) &&
-    (candidate.targetDefinitionStatementId === null || typeof candidate.targetDefinitionStatementId === "string") &&
+    (candidate.target === null || typeof candidate.target === "object") &&
     (candidate.reason === "no-session" || candidate.reason === "not-ready" ||
       candidate.reason === "source-stale" || candidate.reason === "target-unavailable" ||
       candidate.reason === "disposed");
@@ -374,7 +323,6 @@ export const registerModulePreviewFeature = ({
   updateCanvasRibbonPosition,
   editCanvasRibbon,
   evaluateWithRust,
-  attachWebviewEditableFocus,
   presentBakeOperationResult,
   displayLanguageFor = vscodeDisplayLanguage
 }: RegisterModulePreviewFeatureOptions): ModulePreviewFeature => {
@@ -383,9 +331,7 @@ export const registerModulePreviewFeature = ({
   let contextUpdate: Promise<void> = Promise.resolve();
   let nextSessionGeneration = 1;
   let nextReferencePickRequestId = 1;
-  let boundInvocationSession: ModulePreviewSession | null = null;
-  let focusedInvocationSite: VscodeModulePreviewInvocationSiteFocus | null = null;
-  let invocationContextOwned = false;
+  let boundValueSession: ModulePreviewSession | null = null;
 
   const cancelActiveReferencePick = (session: ModulePreviewSession): void => {
     const active = session.activeReferencePick;
@@ -414,39 +360,18 @@ export const registerModulePreviewFeature = ({
       .then(() => undefined);
   };
 
-  const clearFocusedInvocationSite = (): void => {
-    const wasOwned = focusedInvocationSite !== null || invocationContextOwned;
-    focusedInvocationSite = null;
-    invocationContextOwned = false;
-    if (wasOwned) setContext(NUI_MODULE_PREVIEW_VALUE_INPUT_FOCUS_CONTEXT, false);
-    boundInvocationSession?.editableFocusAttachment?.setHostFocused(false);
-  };
-
-  const retainInvocationMessage = (
+  const retainValueMessage = (
     session: ModulePreviewSession,
-    message: ModulePreviewInvocationMessage
+    message: ModulePreviewValueMessage
   ): void => {
     if (
       session.activeReferencePick &&
-      (message.type !== "modulePreviewInvocationSnapshot" ||
+      (message.type !== "modulePreviewValueSnapshot" ||
         message.sessionRevision !== session.activeReferencePick.request.sessionRevision)
     ) cancelActiveReferencePick(session);
-    if (message.type === "modulePreviewInvocationUnavailable") clearFocusedInvocationSite();
-    session.retainedInvocationMessage = message;
-    if (
-      message.type === "modulePreviewInvocationSnapshot" &&
-      focusedInvocationSite &&
-      (focusedInvocationSite.sessionId !== message.sessionId ||
-        focusedInvocationSite.documentUri !== message.documentUri ||
-        focusedInvocationSite.documentVersion !== message.documentVersion ||
-        focusedInvocationSite.normalizedSource !== message.normalizedSource ||
-        focusedInvocationSite.sourceRevision !== message.sourceRevision ||
-        focusedInvocationSite.targetDefinitionStatementIndex !== message.target.definitionStatementIndex ||
-        focusedInvocationSite.targetName !== message.target.name)
-    ) {
-      invocationContextOwned = false;
-      setContext(NUI_MODULE_PREVIEW_VALUE_INPUT_FOCUS_CONTEXT, false);
-    }
+    session.retainedValueMessage = message;
+    for (const resolve of session.valueSnapshotWaiters) resolve();
+    session.valueSnapshotWaiters.clear();
   };
 
   const sourceContextFor = (session: ModulePreviewSession) => {
@@ -528,40 +453,43 @@ export const registerModulePreviewFeature = ({
     return true;
   };
 
-  const invocationUnavailableFor = (
+  const valueUnavailableFor = (
     session: ModulePreviewSession,
-    reason: VscodeModulePreviewInvocationUnavailable["reason"]
-  ): VscodeModulePreviewInvocationUnavailable => ({
-    type: "modulePreviewInvocationUnavailable",
+    reason: VscodeModulePreviewValueUnavailable["reason"]
+  ): VscodeModulePreviewValueUnavailable => ({
+    type: "modulePreviewValueUnavailable",
     sessionId: session.sessionId,
     documentUri: session.documentUri,
     documentVersion: session.document.version,
     sourceRevision: currentTargetFor(session).sourceRevision,
-    sessionRevision: session.retainedInvocationMessage?.sessionId === session.sessionId
-      ? session.retainedInvocationMessage.sessionRevision
+    sessionRevision: session.retainedValueMessage?.sessionId === session.sessionId
+      ? session.retainedValueMessage.sessionRevision
       : 0,
-    targetDefinitionStatementId: session.targetDefinitionStatementId,
+    target: currentTargetFor(session).target
+      ? {
+          definitionStatementIndex: currentTargetFor(session).target!.definitionStatementIndex,
+          name: currentTargetFor(session).target!.name
+        }
+      : null,
     reason
   });
 
-  const publishInvocationUnavailable = (
+  const publishValueUnavailable = (
     session: ModulePreviewSession,
-    reason: Exclude<VscodeModulePreviewInvocationUnavailable["reason"], "no-session">
+    reason: Exclude<VscodeModulePreviewValueUnavailable["reason"], "no-session">
   ): void => {
-    retainInvocationMessage(session, invocationUnavailableFor(session, reason));
+    retainValueMessage(session, valueUnavailableFor(session, reason));
   };
 
-  const clearInvocationBinding = (): void => {
-    boundInvocationSession = null;
-    clearFocusedInvocationSite();
+  const clearValueBinding = (): void => {
+    boundValueSession = null;
     for (const session of sessions.values()) cancelActiveReferencePick(session);
   };
 
-  const bindInvocationSession = (session: ModulePreviewSession): void => {
-    if (boundInvocationSession !== session) clearFocusedInvocationSite();
-    boundInvocationSession = session;
-    const retained = session.retainedInvocationMessage;
-    if (retained && isCurrentInvocationMessage(session, retained)) {
+  const bindValueSession = (session: ModulePreviewSession): void => {
+    boundValueSession = session;
+    const retained = session.retainedValueMessage;
+    if (retained && isCurrentValueMessage(session, retained)) {
       return;
     }
     const current = currentTargetFor(session);
@@ -570,7 +498,7 @@ export const registerModulePreviewFeature = ({
       : session.authoritativeDocumentVersion !== session.document.version
         ? "source-stale"
         : "not-ready";
-    publishInvocationUnavailable(session, reason);
+    publishValueUnavailable(session, reason);
   };
 
   const postSessionIdentity = (session: ModulePreviewSession): void => {
@@ -581,23 +509,23 @@ export const registerModulePreviewFeature = ({
     } satisfies ExtensionToVscodeMessage);
   };
 
-  const invocationBlockFor = (
-    snapshot: VscodeModulePreviewInvocationSnapshot,
-    proof: Pick<VscodeModulePreviewInvocationSiteProof, "blockKind" | "blockDefinitionStatementIndex" | "blockName">
-  ) => snapshot.blocks.find((block) =>
-    block.kind === proof.blockKind &&
-    block.definitionStatementIndex === proof.blockDefinitionStatementIndex &&
-    block.name === proof.blockName
+  const valueGroupFor = (
+    snapshot: VscodeModulePreviewValueSnapshot,
+    proof: Pick<VscodeModulePreviewValueSiteProof, "blockKind" | "definitionStatementIndex" | "definitionName">
+  ) => snapshot.groups.find((group) =>
+    group.kind === proof.blockKind &&
+    group.definitionStatementIndex === proof.definitionStatementIndex &&
+    group.name === proof.definitionName
   ) ?? null;
 
-  const currentInvocationSnapshot = (session: ModulePreviewSession): VscodeModulePreviewInvocationSnapshot | null =>
-    session.retainedInvocationMessage?.type === "modulePreviewInvocationSnapshot"
-      ? session.retainedInvocationMessage
+  const currentValueSnapshot = (session: ModulePreviewSession): VscodeModulePreviewValueSnapshot | null =>
+    session.retainedValueMessage?.type === "modulePreviewValueSnapshot"
+      ? session.retainedValueMessage
       : null;
 
-  const currentInvocationSnapshotIsCurrent = (
+  const currentValueSnapshotIsCurrent = (
     session: ModulePreviewSession,
-    snapshot: VscodeModulePreviewInvocationSnapshot
+    snapshot: VscodeModulePreviewValueSnapshot
   ): boolean => {
     if (
       snapshot.sessionId !== session.sessionId ||
@@ -610,105 +538,202 @@ export const registerModulePreviewFeature = ({
       session.authoritativeDocumentVersion !== session.document.version
     ) return false;
     const current = currentTargetFor(session);
-    return Boolean(current.target &&
+    return Boolean(current.target && current.sourceRevision === snapshot.sourceRevision &&
       current.target.definitionStatementIndex === snapshot.target.definitionStatementIndex &&
       current.target.name === snapshot.target.name);
   };
 
-  const currentInvocationSiteFor = (
+  const currentValueSiteFor = (
     session: ModulePreviewSession,
-    proof: VscodeModulePreviewInvocationSiteProof
+    proof: VscodeModulePreviewValueSiteProof
   ) => {
-    const snapshot = currentInvocationSnapshot(session);
-    if (!snapshot || boundInvocationSession !== session || !currentInvocationSnapshotIsCurrent(session, snapshot) ||
+    const snapshot = currentValueSnapshot(session);
+    if (!snapshot || boundValueSession !== session || !currentValueSnapshotIsCurrent(session, snapshot) ||
       proof.sessionId !== session.sessionId || proof.documentUri !== session.documentUri ||
       proof.documentVersion !== session.document.version || proof.normalizedSource !== snapshot.normalizedSource ||
       proof.sourceRevision !== snapshot.sourceRevision || proof.sessionRevision !== snapshot.sessionRevision ||
       proof.targetDefinitionStatementIndex !== snapshot.target.definitionStatementIndex ||
       proof.targetName !== snapshot.target.name)
       return null;
-    const block = invocationBlockFor(snapshot, proof);
-    const parameter = block?.parameters.find((candidate) => candidate.parameterIndex === proof.parameterIndex);
-    if (!block || !parameter || block.text !== proof.invocationText ||
-      proof.selectionStart < parameter.lineRange.from || proof.selectionEnd > parameter.lineRange.to)
+    const group = valueGroupFor(snapshot, proof);
+    const parameter = group?.parameters.find((candidate) =>
+      candidate.parameterIndex === proof.parameterIndex && candidate.name === proof.parameterName
+    );
+    if (!group || !parameter)
       return null;
-    return { snapshot, block, parameter };
+    return { snapshot, group, parameter };
   };
 
-  const acceptInvocationSiteFocus = (message: VscodeModulePreviewInvocationSiteFocus): boolean => {
-    const session = boundInvocationSession;
-    const snapshot = session ? currentInvocationSnapshot(session) : null;
-    if (!session || !snapshot || !currentInvocationSiteFor(session, message)) return false;
-    if (focusedInvocationSite && message.focusGeneration < focusedInvocationSite.focusGeneration) return false;
-    focusedInvocationSite = message;
-    invocationContextOwned = true;
-    setContext(NUI_MODULE_PREVIEW_VALUE_INPUT_FOCUS_CONTEXT, true);
-    session.editableFocusAttachment?.setHostFocused(true);
-    return true;
-  };
-
-  const acceptInvocationSiteBlur = (message: VscodeModulePreviewInvocationSiteBlur): boolean => {
-    const session = boundInvocationSession;
-    if (
-      !session ||
-      !focusedInvocationSite ||
-      message.focusGeneration !== focusedInvocationSite.focusGeneration ||
-      !currentInvocationSiteFor(session, message)
-    ) return false;
-    clearFocusedInvocationSite();
-    return true;
-  };
-
-  const isCurrentInvocationMessage = (
+  const isCurrentValueMessage = (
     session: ModulePreviewSession,
-    message: ModulePreviewInvocationMessage
+    message: ModulePreviewValueMessage
   ): boolean => {
     if (message.sessionId !== session.sessionId || message.documentUri !== session.documentUri ||
       message.documentVersion !== session.document.version) return false;
-    if (message.type === "modulePreviewInvocationUnavailable") {
-      const retained = currentInvocationSnapshot(session);
-      return message.targetDefinitionStatementId === null || !retained ||
-        message.targetDefinitionStatementId === retained.target.definitionStatementId;
+    if (message.type === "modulePreviewValueUnavailable") {
+      const current = currentTargetFor(session);
+      return message.target === null || !current.target ||
+        (message.target.definitionStatementIndex === current.target.definitionStatementIndex &&
+          message.target.name === current.target.name);
     }
-    return currentInvocationSnapshotIsCurrent(session, message);
+    return currentValueSnapshotIsCurrent(session, message);
   };
 
-  const acceptsInvocationSnapshot = (
+  const acceptsValueSnapshot = (
     session: ModulePreviewSession,
-    message: VscodeModulePreviewInvocationSnapshot
+    message: VscodeModulePreviewValueSnapshot
   ): boolean => {
     if (!session || !session.webviewReady || session.authoritativeDocumentVersion !== session.document.version) return false;
-    if (!Number.isInteger(message.sessionRevision) || !isCurrentInvocationMessage(session, message)) return false;
-    const latest = session.retainedInvocationMessage;
+    if (!Number.isInteger(message.sessionRevision) || !isCurrentValueMessage(session, message)) return false;
+    const latest = session.retainedValueMessage;
     if (latest && message.sessionRevision <= latest.sessionRevision) return false;
     return true;
   };
 
-  const acceptsInvocationUnavailable = (
+  const acceptsValueUnavailable = (
     session: ModulePreviewSession,
-    message: VscodeModulePreviewInvocationUnavailable
+    message: VscodeModulePreviewValueUnavailable
   ): boolean => {
-    if (!session || !isCurrentInvocationMessage(session, message)) return false;
-    const latest = session.retainedInvocationMessage;
+    if (!session || !isCurrentValueMessage(session, message)) return false;
+    const latest = session.retainedValueMessage;
     if (latest && message.sessionRevision <= latest.sessionRevision) return false;
-    retainInvocationMessage(session, message);
+    retainValueMessage(session, message);
     return true;
+  };
+
+  const currentValueAuthorityFor = (session: ModulePreviewSession): VscodeModulePreviewValueSnapshot | null => {
+    const snapshot = currentValueSnapshot(session);
+    return snapshot && currentValueSnapshotIsCurrent(session, snapshot) ? snapshot : null;
+  };
+
+  const waitForValueAuthority = async (
+    session: ModulePreviewSession
+  ): Promise<VscodeModulePreviewValueSnapshot | null> => {
+    const current = currentValueAuthorityFor(session);
+    if (current) return current;
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        session.valueSnapshotWaiters.delete(wake);
+        resolve(null);
+      }, 5000);
+      const wake = () => {
+        clearTimeout(timer);
+        session.valueSnapshotWaiters.delete(wake);
+        resolve(currentValueAuthorityFor(session));
+      };
+      session.valueSnapshotWaiters.add(wake);
+    });
+  };
+
+  const valueDescriptionFor = (parameter: VscodeModulePreviewValueSnapshot["groups"][number]["parameters"][number]): string => {
+    switch (parameter.valueState) {
+      case "explicit": return `Explicit: ${parameter.value}`;
+      case "omitted-defaulted": return `Omitted; default: ${parameter.defaultSourceText ?? ""}`;
+      case "omitted-optional": return "Omitted; optional";
+      case "required-missing": return "Required value missing";
+      case "invalid": return `Invalid: ${parameter.value}`;
+    }
+  };
+
+  const valueProofFor = (
+    snapshot: VscodeModulePreviewValueSnapshot,
+    group: VscodeModulePreviewValueSnapshot["groups"][number],
+    parameter: VscodeModulePreviewValueSnapshot["groups"][number]["parameters"][number]
+  ): VscodeModulePreviewValueSiteProof => ({
+    sessionId: snapshot.sessionId,
+    documentUri: snapshot.documentUri,
+    documentVersion: snapshot.documentVersion,
+    normalizedSource: snapshot.normalizedSource,
+    sourceRevision: snapshot.sourceRevision,
+    sessionRevision: snapshot.sessionRevision,
+    targetDefinitionStatementIndex: snapshot.target.definitionStatementIndex,
+    targetName: snapshot.target.name,
+    definitionStatementIndex: group.definitionStatementIndex,
+    definitionName: group.name,
+    blockKind: group.kind,
+    parameterIndex: parameter.parameterIndex,
+    parameterName: parameter.name
+  });
+
+  const editModulePreviewValues = async (sessionOverride?: ModulePreviewSession): Promise<void> => {
+    let session = sessionOverride;
+    if (!session) {
+      const editor = vscode.window.activeTextEditor;
+      if (!editor || !isSupportedNuiDocument(editor.document)) {
+        void vscode.window.showErrorMessage(modulePreviewTranslatorFor(displayLanguageFor())("modulePreview.requiresSourceEditor"));
+        return;
+      }
+      const target = exactTargetAtEditor(editor, languageAnalysisSessionFor);
+      if (!target) {
+        void vscode.window.showErrorMessage(modulePreviewTranslatorFor(displayLanguageFor())("modulePreview.placeCaret"));
+        return;
+      }
+      const existing = sessions.get(documentKey(editor.document));
+      const existingTarget = existing ? currentTargetFor(existing).target : null;
+      if (existing && existingTarget &&
+        existingTarget.definitionStatementId === target.target.definitionStatementId &&
+        existingTarget.definitionStatementIndex === target.target.definitionStatementIndex &&
+        existingTarget.name === target.target.name) {
+        existing.panel.reveal(undefined, false);
+        session = existing;
+      } else {
+        session = createOrRetargetPanel(editor, target);
+      }
+    }
+    const snapshot = await waitForValueAuthority(session);
+    if (!snapshot) return;
+    const items = snapshot.groups.flatMap((group) => group.parameters.map((parameter) => ({
+      label: `${group.kind === "ancestor" ? "Context" : "Target"}: ${group.name}.${parameter.name}`,
+      description: valueDescriptionFor(parameter),
+      detail: parameter.type ? `${parameter.type.kind} parameter` : "parameter",
+      site: valueProofFor(snapshot, group, parameter),
+      parameter
+    })));
+    const selected = await nativeShowQuickPick(items, {
+      placeHolder: "Select a Module Preview value to edit",
+      matchOnDescription: true,
+      matchOnDetail: true
+    });
+    if (!selected) return;
+    const currentSite = currentValueSiteFor(session, selected.site);
+    if (!currentSite) return;
+    const geometryInterface = moduleGeometryInterfaceTypeOf(currentSite.parameter.type);
+    if (geometryInterface) {
+      startValueReferencePick({
+        type: "modulePreviewValueReferencePickStart",
+        ...selected.site,
+        expectedGeometryInterface: geometryInterface
+      });
+      return;
+    }
+    const expression = await nativeShowInputBox({
+      prompt: `${selected.site.blockKind === "ancestor" ? "Context" : "Target"} ${selected.site.definitionName}.${selected.site.parameterName}`,
+      value: currentSite.parameter.valueState === "explicit" ? currentSite.parameter.value : ""
+    });
+    if (expression === undefined) return;
+    const message: VscodeModulePreviewValueEdit = {
+      type: "modulePreviewValueEdit",
+      ...selected.site,
+      expression: expression.trim().length === 0 ? null : expression
+    };
+    if (!currentValueSiteFor(session, message)) return;
+    void session.panel.webview.postMessage(message satisfies ExtensionToVscodeMessage);
   };
 
   const currentReferencePickSiteFor = (
     session: ModulePreviewSession,
-    proof: VscodeModulePreviewInvocationSiteProof
+    proof: VscodeModulePreviewValueSiteProof
   ) => {
-    const match = currentInvocationSiteFor(session, proof);
+    const match = currentValueSiteFor(session, proof);
     if (!match) return null;
     const expectedGeometryInterface = moduleGeometryInterfaceTypeOf(match.parameter.type);
     return expectedGeometryInterface ? { ...match, expectedGeometryInterface } : null;
   };
 
-  const startInvocationReferencePick = (
-    message: VscodeModulePreviewInvocationReferencePickStart
+  const startValueReferencePick = (
+    message: VscodeModulePreviewValueReferencePickStart
   ): boolean => {
-    const session = boundInvocationSession;
+    const session = boundValueSession;
     const match = session ? currentReferencePickSiteFor(session, message) : null;
     if (!session || !match) return false;
     cancelActiveReferencePick(session);
@@ -721,17 +746,13 @@ export const registerModulePreviewFeature = ({
       normalizedSource: message.normalizedSource,
       sourceRevision: message.sourceRevision,
       sessionRevision: message.sessionRevision,
-      targetDefinitionStatementId: message.targetDefinitionStatementId,
       targetDefinitionStatementIndex: message.targetDefinitionStatementIndex,
       targetName: message.targetName,
-      definitionStatementId: message.definitionStatementId,
+      definitionStatementIndex: message.definitionStatementIndex,
+      definitionName: message.definitionName,
       blockKind: message.blockKind,
-      blockDefinitionStatementIndex: message.blockDefinitionStatementIndex,
-      blockName: message.blockName,
       parameterIndex: message.parameterIndex,
-      invocationText: message.invocationText,
-      selectionStart: message.selectionStart,
-      selectionEnd: message.selectionEnd,
+      parameterName: message.parameterName,
       expectedGeometryInterface: match.expectedGeometryInterface,
       role: "geometry",
       multiplicity: "single"
@@ -760,12 +781,10 @@ export const registerModulePreviewFeature = ({
       result.targetDefinitionStatementIndex !== request.targetDefinitionStatementIndex ||
       result.targetName !== request.targetName ||
       result.blockKind !== request.blockKind ||
-      result.blockDefinitionStatementIndex !== request.blockDefinitionStatementIndex ||
-      result.blockName !== request.blockName ||
+      result.definitionStatementIndex !== request.definitionStatementIndex ||
+      result.definitionName !== request.definitionName ||
       result.parameterIndex !== request.parameterIndex ||
-      result.invocationText !== request.invocationText ||
-      result.selectionStart !== request.selectionStart ||
-      result.selectionEnd !== request.selectionEnd ||
+      result.parameterName !== request.parameterName ||
       result.expectedGeometryInterface !== request.expectedGeometryInterface ||
       result.role !== request.role ||
       result.multiplicity !== request.multiplicity
@@ -788,78 +807,23 @@ export const registerModulePreviewFeature = ({
     const match = currentReferencePickSiteFor(session, request);
     if (!match) return false;
     const expression = referencePickSourceForReference(reference);
-    const selection = match.parameter.valueRange.from + expression.length;
     void session.panel.webview.postMessage({
-      type: "modulePreviewInvocationValueEdit",
+      type: "modulePreviewValueEdit",
       sessionId: request.sessionId,
       documentUri: request.documentUri,
       documentVersion: request.documentVersion,
       normalizedSource: request.normalizedSource,
       sourceRevision: request.sourceRevision,
       sessionRevision: request.sessionRevision,
-      targetDefinitionStatementId: request.targetDefinitionStatementId,
       targetDefinitionStatementIndex: request.targetDefinitionStatementIndex,
       targetName: request.targetName,
-      definitionStatementId: request.definitionStatementId,
+      definitionStatementIndex: request.definitionStatementIndex,
+      definitionName: request.definitionName,
       blockKind: request.blockKind,
-      blockDefinitionStatementIndex: request.blockDefinitionStatementIndex,
-      blockName: request.blockName,
       parameterIndex: request.parameterIndex,
-      invocationText: request.invocationText,
-      selectionStart: request.selectionStart,
-      selectionEnd: request.selectionEnd,
-      expression,
-      resultSelectionStart: selection,
-      resultSelectionEnd: selection
+      parameterName: request.parameterName,
+      expression
     } satisfies ExtensionToVscodeMessage);
-    return true;
-  };
-
-  const dispatchPreviewValueStep = (message: VscodeModulePreviewInvocationValueStep): boolean => {
-    const session = boundInvocationSession;
-    if (!session) return false;
-    const match = currentInvocationSiteFor(session, message);
-    if (!match || !match.parameter.active ||
-      message.selectionStart < match.parameter.valueRange.from ||
-      message.selectionEnd > match.parameter.valueRange.to) return false;
-    const value = message.invocationText.slice(match.parameter.valueRange.from, match.parameter.valueRange.to);
-    const relativeSelection = {
-      start: message.selectionStart - match.parameter.valueRange.from,
-      end: message.selectionEnd - match.parameter.valueRange.from
-    };
-    const result = resolveModulePreviewValueStep(
-      value,
-      match.parameter.type,
-      match.parameter.numericTypeOptions,
-      relativeSelection,
-      message.direction
-    );
-    if (!result) return true;
-    const valueStart = match.parameter.valueRange.from;
-    const forwarded: VscodeModulePreviewInvocationValueEdit = {
-      type: "modulePreviewInvocationValueEdit",
-      sessionId: message.sessionId,
-      documentUri: message.documentUri,
-      documentVersion: message.documentVersion,
-      normalizedSource: message.normalizedSource,
-      sourceRevision: message.sourceRevision,
-      sessionRevision: match.snapshot.sessionRevision,
-      targetDefinitionStatementId: message.targetDefinitionStatementId,
-      targetDefinitionStatementIndex: message.targetDefinitionStatementIndex,
-      targetName: message.targetName,
-      definitionStatementId: message.definitionStatementId,
-      blockKind: message.blockKind,
-      blockDefinitionStatementIndex: message.blockDefinitionStatementIndex,
-      blockName: message.blockName,
-      parameterIndex: message.parameterIndex,
-      invocationText: message.invocationText,
-      selectionStart: message.selectionStart,
-      selectionEnd: message.selectionEnd,
-      expression: result.expression,
-      resultSelectionStart: valueStart + result.selection.start,
-      resultSelectionEnd: valueStart + result.selection.end
-    };
-    void session.panel.webview.postMessage(forwarded satisfies ExtensionToVscodeMessage);
     return true;
   };
 
@@ -892,7 +856,7 @@ export const registerModulePreviewFeature = ({
           documentVersion: pending.documentVersion
         };
     void session.panel.webview.postMessage(message);
-    if (pending.kind === "unavailable") publishInvocationUnavailable(session, "target-unavailable");
+    if (pending.kind === "unavailable") publishValueUnavailable(session, "target-unavailable");
   };
 
   const postAuthoritativeDocument = (session: ModulePreviewSession): void => {
@@ -1036,9 +1000,9 @@ export const registerModulePreviewFeature = ({
   const disposeSession = (session: ModulePreviewSession): void => {
     if (sessions.get(session.documentUri) !== session) return;
     cancelActiveReferencePick(session);
-    if (boundInvocationSession === session) clearInvocationBinding();
-    else if (focusedInvocationSite?.sessionId === session.sessionId) clearFocusedInvocationSite();
-    session.retainedInvocationMessage = null;
+    if (boundValueSession === session) clearValueBinding();
+    session.retainedValueMessage = null;
+    session.valueSnapshotWaiters.clear();
     sessions.delete(session.documentUri);
     for (const disposable of session.disposables.splice(0)) disposable.dispose();
   };
@@ -1052,16 +1016,16 @@ export const registerModulePreviewFeature = ({
     const existing = sessions.get(key);
     if (existing) {
       cancelActiveReferencePick(existing);
-      if (boundInvocationSession === existing) clearFocusedInvocationSite();
+      if (boundValueSession === existing) clearValueBinding();
       existing.sessionId = nextSessionId();
       existing.targetDefinitionStatementId = target.target.definitionStatementId;
-      existing.retainedInvocationMessage = null;
+      existing.retainedValueMessage = null;
       existing.pendingTarget = {
         kind: "target",
         documentVersion: document.version,
         normalizedSourceOffset: target.normalizedSourceOffset
       };
-      bindInvocationSession(existing);
+      bindValueSession(existing);
       existing.panel.reveal(vscode.ViewColumn.Beside);
       if (existing.webviewReady) postSessionIdentity(existing);
       deliverPendingTarget(existing);
@@ -1087,20 +1051,20 @@ export const registerModulePreviewFeature = ({
         documentVersion: document.version,
         normalizedSourceOffset: target.normalizedSourceOffset
       },
-      retainedInvocationMessage: null,
-      editableFocusAttachment: null,
+      retainedValueMessage: null,
+      valueSnapshotWaiters: new Set(),
       activeReferencePick: null,
       disposables: []
     };
     sessions.set(key, session);
-    bindInvocationSession(session);
+    bindValueSession(session);
 
     session.disposables.push(vscode.workspace.onDidChangeTextDocument((event) => {
       if (!sameDocument(event.document, session.document) || event.contentChanges.length === 0) return;
       cancelActiveReferencePick(session);
       refreshExistingTarget(session);
       session.authoritativeDocumentVersion = null;
-      publishInvocationUnavailable(session, "source-stale");
+      publishValueUnavailable(session, "source-stale");
       void panel.webview.postMessage({
         type: "commitText",
         sourceText: event.document.getText(),
@@ -1127,20 +1091,12 @@ export const registerModulePreviewFeature = ({
         handleReferencePickResult(session, message);
         return;
       }
-      if (isModulePreviewInvocationValueStep(message)) {
-        dispatchPreviewValueStep(message);
+      if (isModulePreviewValueReferencePickStart(message)) {
+        startValueReferencePick(message);
         return;
       }
-      if (isModulePreviewInvocationReferencePickStart(message)) {
-        startInvocationReferencePick(message);
-        return;
-      }
-      if (isModulePreviewInvocationSiteFocus(message)) {
-        acceptInvocationSiteFocus(message);
-        return;
-      }
-      if (isModulePreviewInvocationSiteBlur(message)) {
-        acceptInvocationSiteBlur(message);
+      if (message.type === "modulePreviewEditValues") {
+        void editModulePreviewValues(session);
         return;
       }
       if (message.type === "webviewReady") {
@@ -1164,12 +1120,12 @@ export const registerModulePreviewFeature = ({
         deliverPendingTarget(session);
         return;
       }
-      if (message.type === "modulePreviewInvocationSnapshot" && isModulePreviewInvocationSnapshot(message)) {
-        if (acceptsInvocationSnapshot(session, message)) retainInvocationMessage(session, message);
+      if (message.type === "modulePreviewValueSnapshot" && isModulePreviewValueSnapshot(message)) {
+        if (acceptsValueSnapshot(session, message)) retainValueMessage(session, message);
         return;
       }
-      if (message.type === "modulePreviewInvocationUnavailable" && isModulePreviewInvocationUnavailable(message)) {
-        acceptsInvocationUnavailable(session, message);
+      if (message.type === "modulePreviewValueUnavailable" && isModulePreviewValueUnavailable(message)) {
+        acceptsValueUnavailable(session, message);
         return;
       }
       if (message.type === "canvasRibbonPositionCommit") {
@@ -1200,11 +1156,8 @@ export const registerModulePreviewFeature = ({
     }));
     session.disposables.push(panel.onDidChangeViewState(({ webviewPanel }) => {
       if (webviewPanel !== panel || (!webviewPanel.active && !webviewPanel.visible)) return;
-      bindInvocationSession(session);
+      bindValueSession(session);
     }));
-    const editableFocusAttachment = attachWebviewEditableFocus?.(panel.webview);
-    session.editableFocusAttachment = editableFocusAttachment ?? null;
-    if (editableFocusAttachment) session.disposables.push(editableFocusAttachment);
     session.disposables.push(panel.onDidDispose(() => disposeSession(session)));
     panel.webview.html = webviewHtml(panel);
     return session;
@@ -1226,6 +1179,10 @@ export const registerModulePreviewFeature = ({
       return;
     }
     createOrRetargetPanel(editor, target);
+  }));
+
+  disposables.push(vscode.commands.registerCommand("nuinuiCAD.editModulePreviewValues", () => {
+    void editModulePreviewValues();
   }));
 
   disposables.push(vscode.window.onDidChangeActiveTextEditor(() => refreshSourceTargetContext()));
@@ -1288,9 +1245,9 @@ export const registerModulePreviewFeature = ({
     handoffNativeHistoryIfActive,
     dispose: () => {
       setSourceTargetContext(false);
-      clearFocusedInvocationSite();
+      clearValueBinding();
       for (const session of [...sessions.values()]) session.panel.dispose();
-      if (boundInvocationSession) clearInvocationBinding();
+      if (boundValueSession) clearValueBinding();
       for (const disposable of disposables.splice(0)) disposable.dispose();
       sessions.clear();
     }

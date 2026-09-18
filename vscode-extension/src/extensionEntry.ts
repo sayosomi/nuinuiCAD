@@ -114,8 +114,7 @@ const registerModulePreviewCommands = (
 };
 
 const registerModulePreview = (
-  context: vscode.ExtensionContext,
-  webviewEditableFocusContext: ReturnType<typeof createWebviewEditableFocusContext>
+  context: vscode.ExtensionContext
 ): void => {
   const rustProcessOwner = activeRustEvaluationProcessOwner();
   if (!rustProcessOwner) {
@@ -142,8 +141,7 @@ const registerModulePreview = (
       void vscode.commands.executeCommand("workbench.action.openSettings", VSCODE_CANVAS_RIBBON_SETTING);
     },
     evaluateWithRust: (input) => rustProcessOwner.get().request(input),
-    presentBakeOperationResult: presentModulePreviewBakeOperationResult,
-    attachWebviewEditableFocus: webviewEditableFocusContext.attach
+    presentBakeOperationResult: presentModulePreviewBakeOperationResult
   });
   const closeListener = vscode.workspace.onDidCloseTextDocument((document) => {
     analysisSessions.delete(document.uri.toString());
@@ -173,7 +171,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
   context.subscriptions.push(multiDocumentHost);
 
   activateExtension(context, webviewEditableFocusContext);
-  registerModulePreview(context, webviewEditableFocusContext);
+  registerModulePreview(context);
 
   const bridge = createMcpObservationBridge({
     configured: vscode.workspace.getConfiguration("nuinuiCAD").get<boolean>(NUI_MCP_OBSERVATION_SETTING, false),

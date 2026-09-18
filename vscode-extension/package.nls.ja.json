@@ -12,6 +12,8 @@
   "command.openOutputPreview.shortTitle": "Output Previewを開く",
   "command.openModulePreview.title": "nuinuiCAD: Module Previewを開く",
   "command.openModulePreview.shortTitle": "Module Previewを開く",
+  "command.editModulePreviewValues.title": "nuinuiCAD: Module Previewの値を編集...",
+  "command.editModulePreviewValues.shortTitle": "Module Previewの値を編集...",
   "command.inlineModuleInstance.title": "Module instanceをインライン化",
   "command.inlineModuleInstance.shortTitle": "Module instanceをインライン化",
   "command.extractModule.title": "Moduleを抽出",

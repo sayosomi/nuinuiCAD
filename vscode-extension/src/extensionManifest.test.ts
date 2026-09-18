@@ -73,6 +73,7 @@ const commandIds = [
   "nuinuiCAD.openCanvas",
   "nuinuiCAD.openOutputPreview",
   "nuinuiCAD.openModulePreview",
+  "nuinuiCAD.editModulePreviewValues",
   "nuinuiCAD.inlineModuleInstance",
   "nuinuiCAD.extractModule",
   "nuinuiCAD.goToSourceDefinition",
@@ -177,6 +178,7 @@ const canonicalCommandShortTitles: Partial<Record<(typeof commandIds)[number], s
   "nuinuiCAD.openCanvas": "Open Canvas",
   "nuinuiCAD.openOutputPreview": "Open Output Preview",
   "nuinuiCAD.openModulePreview": "Open Module Preview",
+  "nuinuiCAD.editModulePreviewValues": "Edit Module Preview Values...",
   "nuinuiCAD.convertPointToXYOffset": "XY Offset…",
   "nuinuiCAD.convertPointToAngleDistanceOffset": "Angle-Distance Offset…",
   "nuinuiCAD.selectParentGroup": "Select Parent Group",
@@ -365,6 +367,7 @@ describe("VS Code extension manifest command contributions", () => {
       "nuinuiCAD: Open Canvas",
       "nuinuiCAD: Open Output Preview",
       "nuinuiCAD: Open Module Preview",
+      "nuinuiCAD: Edit Module Preview Values...",
       "Inline Module Instance",
       "Extract Module",
       "Go to Source Definition",
@@ -673,6 +676,7 @@ describe("VS Code extension manifest command contributions", () => {
       { command: "nuinuiCAD.openCanvas", when: sourceOrOutputPreviewPaletteWhen },
       { command: "nuinuiCAD.openOutputPreview", when: sourceOrCanvasPaletteWhen },
       { command: "nuinuiCAD.openModulePreview", when: sourcePaletteWhen },
+      { command: "nuinuiCAD.editModulePreviewValues", when: sourcePaletteWhen },
       { command: "nuinuiCAD.editCanvasRibbon", when: canvasPaletteWhen },
       { command: "nuinuiCAD.goToSourceDefinition", when: canvasPaletteWhen },
       { command: "nuinuiCAD.revealInCanvas", when: sourcePaletteWhen },
@@ -819,6 +823,8 @@ describe("VS Code extension manifest command contributions", () => {
     expect(commands.find(({ command }) => command === "nuinuiCAD.openOutputPreview")?.enablement).toBeUndefined();
     expect(commands.find(({ command }) => command === "nuinuiCAD.openModulePreview")?.enablement)
       .toBe(`${sourcePaletteWhen} && nuinuiCAD.modulePreviewSourceTarget`);
+    expect(commands.find(({ command }) => command === "nuinuiCAD.editModulePreviewValues")?.enablement)
+      .toBe(`${sourcePaletteWhen} && nuinuiCAD.modulePreviewSourceTarget`);
     expect(manifest.contributes?.menus?.["editor/context"]?.slice(0, 4).every(({ when }) => !when.includes("canReveal")))
       .toBe(true);
     expect(manifest.contributes?.keybindings?.some(({ command }) => command === "nuinuiCAD.revealInOutputPreview")).toBe(true);
@@ -873,7 +879,7 @@ describe("VS Code extension manifest keybindings", () => {
     const manifest = await readManifest();
     const keybindings = manifest.contributes?.keybindings ?? [];
 
-    expect(keybindings).toHaveLength(35);
+    expect(keybindings).toHaveLength(36);
     expect(keybindings).toContainEqual({
       command: "nuinuiCAD.stepSourceValueForward.keybinding",
       key: "ctrl+shift+.",
@@ -990,6 +996,12 @@ describe("VS Code extension manifest keybindings", () => {
         command: "nuinuiCAD.openModulePreview",
         key: "ctrl+shift+alt+v",
         mac: "ctrl+shift+v",
+        when: `${sourceKeybindingWhen} && nuinuiCAD.modulePreviewSourceTarget`
+      },
+      {
+        command: "nuinuiCAD.editModulePreviewValues",
+        key: "ctrl+shift+alt+m",
+        mac: "ctrl+shift+m",
         when: `${sourceKeybindingWhen} && nuinuiCAD.modulePreviewSourceTarget`
       },
       {

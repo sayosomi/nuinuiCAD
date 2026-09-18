@@ -18,12 +18,6 @@ import type {
   ModulePreviewTargetSemanticSnapshot,
   SourceSnapshot
 } from "./modulePreviewTarget";
-import {
-  modulePreviewInvocationBlockWithText,
-  modulePreviewInvocationFor,
-  type ModulePreviewInvocation,
-  type ModulePreviewInvocationBlockInput
-} from "./modulePreviewInvocation";
 
 export type ModulePreviewInputDiagnostic = {
   code: "required-value-missing" | "invalid-expression";
@@ -45,7 +39,7 @@ export type ModulePreviewParameterState = {
   defaultSourceText: string | null;
   /** Exact ephemeral caller-side argument expression text. Empty means omitted. */
   value: string;
-  /** Whether the visible invocation line is an active explicit argument. */
+  /** Whether this is an explicit caller-side argument. */
   active: boolean;
   diagnostic: ModulePreviewInputDiagnostic | null;
 };
@@ -53,6 +47,7 @@ export type ModulePreviewParameterState = {
 export type ModulePreviewInputGroup = {
   kind: "ancestor" | "target";
   definitionStatementId: StatementIdentity;
+  definitionStatementIndex: number;
   name: string;
   parameters: readonly ModulePreviewParameterState[];
 };
@@ -68,8 +63,6 @@ export type ModulePreviewSessionSnapshot = {
   /** Ancestor Module contexts in outermost-to-innermost order. */
   ancestorContexts: readonly ModulePreviewInputGroup[];
   parameters: ModulePreviewInputGroup;
-  /** The exact ephemeral invocation text and semantic sites shown by Preview. */
-  invocation: ModulePreviewInvocation;
   inputDiagnostics: readonly ModulePreviewInputDiagnostic[];
   preview: ModulePreviewRenderState;
 };
@@ -83,10 +76,11 @@ export type ModulePreviewActivateInput = {
 export type ModulePreviewSession = {
   getState(): ModulePreviewSessionSnapshot | null;
   activate(input: ModulePreviewActivateInput): ModulePreviewSessionSnapshot | null;
-  /** Apply one edited call block in one semantic update. */
-  setInvocationText(
+  /** Apply one direct caller-side Preview parameter update. `null` clears it. */
+  setParameterValue(
     definitionStatementId: StatementIdentity,
-    text: string
+    parameterIndex: number,
+    expression: string | null
   ): ModulePreviewSessionSnapshot | null;
 };
 
@@ -194,7 +188,6 @@ export const createModulePreviewSession = (): ModulePreviewSession => {
   const lastGoodByPreviewKey = new Map<string, ModulePreviewRootResult>();
   const lastGoodValueByInputKey = new Map<string, ActiveParameterValue>();
   const invalidDiagnosticByInputKey = new Map<string, ModulePreviewInputDiagnostic>();
-  const invocationTextByPreviewKey = new Map<string, Map<StatementIdentity, string>>();
   let active: ActivePreview | null = null;
   let state: ModulePreviewSessionSnapshot | null = null;
 
@@ -214,41 +207,6 @@ export const createModulePreviewSession = (): ModulePreviewSession => {
 
   const activeFor = (definition: ModuleDefinitionSemantic, parameter: ResolvedModuleParameter) =>
     inputValueFor(definition, parameter).active;
-
-  const invocationBlockInputFor = (
-    definition: ModuleDefinitionSemantic,
-    kind: ModulePreviewInvocationBlockInput["kind"]
-  ): ModulePreviewInvocationBlockInput => ({
-    kind,
-    definitionStatementId: definition.statementId,
-    definitionStatementIndex: definition.statementIndex,
-    declarationScopeId: definition.declarationScopeId,
-    name: definition.name,
-    parameters: definition.parameters.map((parameter) => ({
-      definitionStatementId: definition.statementId,
-      parameterIndex: parameter.parameterIndex,
-      name: parameter.name,
-      type: parameter.type,
-      recordTypeIdentity: parameter.recordTypeIdentity,
-      ...(parameter.numericTypeOptions ? { numericTypeOptions: parameter.numericTypeOptions } : {}),
-      optional: parameter.optional,
-      required: parameter.required,
-      defaultSourceText: parameter.defaultValue,
-      active: activeFor(definition, parameter),
-      value: valueFor(definition, parameter),
-      caller: {
-        statementIndex: definition.statementIndex,
-        scopeId: definition.declarationScopeId,
-        sourceOrderIndex: definition.statementIndex
-      }
-    }))
-  });
-
-  const invocationBlockInputsFor = (
-    chain: readonly ModuleDefinitionSemantic[]
-  ): ModulePreviewInvocationBlockInput[] => chain.map((definition, index) =>
-    invocationBlockInputFor(definition, index === chain.length - 1 ? "target" : "ancestor")
-  );
 
   const activeParameters = (): ActiveParameter[] => {
     const currentActive = active;
@@ -344,6 +302,7 @@ export const createModulePreviewSession = (): ModulePreviewSession => {
   ): ModulePreviewInputGroup => ({
     kind,
     definitionStatementId: definition.statementId,
+    definitionStatementIndex: definition.statementIndex,
     name: definition.name,
     parameters: definition.parameters.map((parameter) => ({
       definitionStatementId: definition.statementId,
@@ -458,19 +417,11 @@ export const createModulePreviewSession = (): ModulePreviewSession => {
     const chain = active.chain;
     const targetDefinition = chain[chain.length - 1];
     if (!targetDefinition) return null;
-    const invocationBlocks = invocationBlockInputsFor(chain);
-    const savedTexts = invocationTextByPreviewKey.get(previewKey);
-    const invocation = modulePreviewInvocationFor({ blocks: invocationBlocks }).blocks.map((block) =>
-      savedTexts?.has(block.definitionStatementId)
-        ? modulePreviewInvocationBlockWithText({ blocks: [block] }, block.definitionStatementId, savedTexts.get(block.definitionStatementId) ?? "").blocks[0]!
-        : block
-    );
     state = {
       sourceRevision: active.source.sourceRevision,
       target: active.target,
       ancestorContexts: active.chain.slice(0, -1).map((definition) => buildGroup(definition, "ancestor", diagnostics)),
       parameters: buildGroup(targetDefinition, "target", diagnostics),
-      invocation: { blocks: invocation },
       inputDiagnostics: diagnostics,
       preview
     };
@@ -483,61 +434,28 @@ export const createModulePreviewSession = (): ModulePreviewSession => {
     const chain = definitionChainFor(compiled, input.target);
     if (!chain) return null;
     active = { ...input, compiled, chain };
-    const previewKey = previewKeyFor(active);
-    const savedTexts = invocationTextByPreviewKey.get(previewKey);
-    if (savedTexts) {
-      const blocks = modulePreviewInvocationFor({ blocks: invocationBlockInputsFor(chain) });
-      for (const block of blocks.blocks) {
-        if (!savedTexts.has(block.definitionStatementId)) continue;
-        const text = savedTexts.get(block.definitionStatementId) ?? "";
-        const parsed = modulePreviewInvocationBlockWithText({ blocks: [block] }, block.definitionStatementId, text).blocks[0]!;
-        for (const parameter of parsed.parameters) {
-          const definition = chain.find((candidate) => candidate.statementId === block.definitionStatementId);
-          const resolved = definition?.parameters.find((candidate) => candidate.parameterIndex === parameter.parameterIndex);
-          if (!definition || !resolved) continue;
-          valueByInputKey.set(inputKeyFor(input.target.definitionStatementId, definition, resolved), {
-            value: parameter.value,
-            active: !parameter.omitted
-          });
-        }
-      }
-    }
     return evaluate();
   };
 
-  const setInvocationText = (
+  const setParameterValue = (
     definitionStatementId: StatementIdentity,
-    text: string
+    parameterIndex: number,
+    expression: string | null
   ): ModulePreviewSessionSnapshot | null => {
     if (!active) return state;
-    const definition = active.chain.find((candidate) => candidate.statementId === definitionStatementId);
-    if (!definition) return state;
-    const previewKey = previewKeyFor(active);
-    const texts = invocationTextByPreviewKey.get(previewKey) ?? new Map<StatementIdentity, string>();
-    texts.set(definitionStatementId, text);
-    invocationTextByPreviewKey.set(previewKey, texts);
-    const base = modulePreviewInvocationFor({
-      blocks: [invocationBlockInputFor(definition, active.chain.at(-1) === definition ? "target" : "ancestor")]
+    const entry = parameterFor(definitionStatementId, parameterIndex);
+    if (!entry) return state;
+    const cleared = expression === null || isOmitted(expression);
+    valueByInputKey.set(keyFor(entry.definition, entry.parameter), {
+      value: cleared ? "" : expression,
+      active: !cleared
     });
-    const parsed = modulePreviewInvocationBlockWithText(base, definitionStatementId, text).blocks[0];
-    if (parsed) {
-      for (const parameter of parsed.parameters) {
-        const resolved = definition.parameters.find((candidate) => candidate.parameterIndex === parameter.parameterIndex);
-        if (!resolved) continue;
-        valueByInputKey.set(keyFor(definition, resolved), { value: parameter.value, active: !parameter.omitted });
-      }
-    }
-    // Derived values from every block are visible to one compile. This avoids
-    // exposing a sequence of intermediate row updates to the evaluator.
-    return evaluate(definition.parameters.map((parameter) => ({
-      definitionStatementId,
-      parameterIndex: parameter.parameterIndex
-    })));
+    return evaluate([{ definitionStatementId, parameterIndex }]);
   };
 
   return {
     getState: () => state,
     activate,
-    setInvocationText
+    setParameterValue
   };
 };

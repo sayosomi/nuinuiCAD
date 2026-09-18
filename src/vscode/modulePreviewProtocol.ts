@@ -6,16 +6,13 @@ export type VscodeModulePreviewTarget = { type: "modulePreviewTarget"; documentV
 export type VscodeModulePreviewTargetUnavailable = { type: "modulePreviewTargetUnavailable"; documentVersion: number };
 export type VscodeModulePreviewSession = { type: "modulePreviewSession"; sessionId: string; documentUri: string };
 
-export type VscodeModulePreviewInvocationDiagnostic = {
+export type VscodeModulePreviewValueDiagnostic = {
   code: "required-value-missing" | "invalid-expression";
-  definitionStatementId: StatementIdentity;
-  parameterIndex: number;
   message: string;
   presentation?: DslDiagnosticPresentation;
 };
 
-export type VscodeModulePreviewInvocationParameter = {
-  definitionStatementId: StatementIdentity;
+export type VscodeModulePreviewValueParameter = {
   parameterIndex: number;
   name: string;
   type: DslModuleParameterType | null;
@@ -24,91 +21,66 @@ export type VscodeModulePreviewInvocationParameter = {
   required: boolean;
   defaultSourceText: string | null;
   value: string;
-  active: boolean;
-  diagnostic: VscodeModulePreviewInvocationDiagnostic | null;
-  caller: { statementIndex: number; scopeId: string; sourceOrderIndex: number };
-  lineRange: { from: number; to: number };
-  labelRange: { from: number; to: number };
-  valueRange: { from: number; to: number };
+  valueState: "explicit" | "omitted-defaulted" | "omitted-optional" | "required-missing" | "invalid";
+  diagnostic: VscodeModulePreviewValueDiagnostic | null;
 };
 
-export type VscodeModulePreviewInvocationBlock = {
+export type VscodeModulePreviewValueGroup = {
   kind: "ancestor" | "target";
-  definitionStatementId: StatementIdentity;
   definitionStatementIndex: number;
   name: string;
-  text: string;
-  callRange: { from: number; to: number };
-  parameters: readonly VscodeModulePreviewInvocationParameter[];
+  parameters: readonly VscodeModulePreviewValueParameter[];
 };
 
-/** JSON-safe semantic/editor proof retained by the Extension Host. */
-export type VscodeModulePreviewInvocationSnapshot = {
-  type: "modulePreviewInvocationSnapshot";
+/** Exact-current Preview value authority projected from the Webview session. */
+export type VscodeModulePreviewValueSnapshot = {
+  type: "modulePreviewValueSnapshot";
   sessionId: string;
   documentUri: string;
   documentVersion: number;
-  /** Exact normalized Source retained as the cross-runtime proof. */
   normalizedSource: string;
   sourceRevision: number;
   sessionRevision: number;
-  target: { definitionStatementId: StatementIdentity; definitionStatementIndex: number; name: string };
-  blocks: readonly VscodeModulePreviewInvocationBlock[];
-  inputDiagnostics: readonly VscodeModulePreviewInvocationDiagnostic[];
+  target: { definitionStatementIndex: number; name: string };
+  groups: readonly VscodeModulePreviewValueGroup[];
+  inputDiagnostics: readonly VscodeModulePreviewValueDiagnostic[];
   previewStatus: "current" | "lastGood" | "noValidPreview";
 };
 
-export type VscodeModulePreviewInvocationUnavailable = {
-  type: "modulePreviewInvocationUnavailable";
+export type VscodeModulePreviewValueUnavailable = {
+  type: "modulePreviewValueUnavailable";
   sessionId: string | null;
   documentUri: string | null;
   documentVersion: number | null;
   sourceRevision: number | null;
   sessionRevision: number;
-  targetDefinitionStatementId: StatementIdentity | null;
+  target: { definitionStatementIndex: number; name: string } | null;
   reason: "no-session" | "not-ready" | "source-stale" | "target-unavailable" | "disposed";
 };
 
-export type VscodeModulePreviewInvocationSiteProof = {
+/** Stable exact-current proof for one projected Preview parameter site. */
+export type VscodeModulePreviewValueSiteProof = {
   sessionId: string;
   documentUri: string;
   documentVersion: number;
-  /** Exact normalized Source from the retained Webview snapshot. */
   normalizedSource: string;
   sourceRevision: number;
   sessionRevision: number;
-  targetDefinitionStatementId: StatementIdentity;
   targetDefinitionStatementIndex: number;
   targetName: string;
-  definitionStatementId: StatementIdentity;
+  definitionStatementIndex: number;
+  definitionName: string;
   blockKind: "ancestor" | "target";
-  blockDefinitionStatementIndex: number;
-  blockName: string;
   parameterIndex: number;
-  invocationText: string;
-  selectionStart: number;
-  selectionEnd: number;
+  parameterName: string;
 };
 
-export type VscodeModulePreviewInvocationSiteFocus = VscodeModulePreviewInvocationSiteProof & {
-  type: "modulePreviewInvocationSiteFocus";
-  focusGeneration: number;
-};
-export type VscodeModulePreviewInvocationSiteBlur = VscodeModulePreviewInvocationSiteProof & {
-  type: "modulePreviewInvocationSiteBlur";
-  focusGeneration: number;
-};
-export type VscodeModulePreviewInvocationReferencePickStart = VscodeModulePreviewInvocationSiteProof & {
-  type: "modulePreviewInvocationReferencePickStart";
+export type VscodeModulePreviewValueReferencePickStart = VscodeModulePreviewValueSiteProof & {
+  type: "modulePreviewValueReferencePickStart";
   expectedGeometryInterface?: "point" | "line" | "path";
 };
 
-export type VscodeModulePreviewInvocationValueStep = VscodeModulePreviewInvocationSiteProof & {
-  type: "modulePreviewInvocationValueStep";
-  direction: 1 | -1;
-};
-
-export type VscodeModulePreviewReferencePickProof = VscodeModulePreviewInvocationSiteProof & {
+export type VscodeModulePreviewReferencePickProof = VscodeModulePreviewValueSiteProof & {
   expectedGeometryInterface: "point" | "line" | "path";
   role: "geometry";
   multiplicity: "single";
@@ -121,11 +93,9 @@ export type VscodeModulePreviewReferencePickConfirmedResult = VscodeModulePrevie
 export type VscodeModulePreviewReferencePickTerminalResult = VscodeModulePreviewReferencePickResultBase & { status: "canceled" | "stale" | "rejected" };
 export type VscodeModulePreviewReferencePickResult = VscodeModulePreviewReferencePickStartedResult | VscodeModulePreviewReferencePickConfirmedResult | VscodeModulePreviewReferencePickTerminalResult;
 
-export type VscodeModulePreviewInvocationValueEdit = VscodeModulePreviewInvocationSiteProof & {
-  type: "modulePreviewInvocationValueEdit";
-  expression: string;
-  resultSelectionStart: number;
-  resultSelectionEnd: number;
+export type VscodeModulePreviewValueEdit = VscodeModulePreviewValueSiteProof & {
+  type: "modulePreviewValueEdit";
+  expression: string | null;
 };
 
 export type VscodeModulePreviewModelPatchRequest = {
@@ -156,17 +126,16 @@ export type VscodeExtensionToModulePreviewMessage =
   | VscodeModulePreviewTarget
   | VscodeModulePreviewTargetUnavailable
   | VscodeModulePreviewSession
-  | VscodeModulePreviewInvocationSnapshot
-  | VscodeModulePreviewInvocationUnavailable
-  | VscodeModulePreviewInvocationValueEdit
+  | VscodeModulePreviewValueSnapshot
+  | VscodeModulePreviewValueUnavailable
+  | VscodeModulePreviewValueEdit
   | VscodeModulePreviewReferencePickStartRequest
   | VscodeModulePreviewReferencePickCancelRequest
   | VscodeModulePreviewModelPatchResult;
 
 export type VscodeModulePreviewToExtensionMessage =
+  | VscodeModulePreviewValueSnapshot
+  | VscodeModulePreviewValueUnavailable
   | VscodeModulePreviewReferencePickResult
-  | VscodeModulePreviewInvocationReferencePickStart
-  | VscodeModulePreviewInvocationValueStep
-  | VscodeModulePreviewInvocationSiteFocus
-  | VscodeModulePreviewInvocationSiteBlur
+  | VscodeModulePreviewValueReferencePickStart
   | VscodeModulePreviewModelPatchRequest;

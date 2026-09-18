@@ -1,6 +1,4 @@
-import { act, cleanup, render } from "@testing-library/react";
-import { EditorView } from "@codemirror/view";
-import { createElement } from "react";
+import { cleanup } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   createLanguageAnalysisSession,
@@ -8,22 +6,9 @@ import {
 } from "./languageAnalysisSession";
 import type {
   VscodeModulePreviewModelPatchRequest,
-  VscodeToExtensionMessage,
-  VscodeWebviewApi
+  VscodeToExtensionMessage
 } from "../../src/vscode/protocol";
-import type {
-  VscodeModulePreviewInvocationSnapshot,
-  VscodeModulePreviewReferencePickResult
-} from "../../src/vscode/protocol";
-import type { DslReferencePickTarget } from "@nuinuicad/nui-language";
-import { evaluateElements } from "../../src/geometry/evaluate";
-import { modulePreviewInvocationFor } from "../../src/dsl/modulePreviewInvocation";
-import { ModulePreviewInvocationEditorApp } from "../../src/vscode/ModulePreviewInvocationEditorApp";
-import {
-  useVSCodeModulePreviewReferencePickSession,
-  type VscodeModulePreviewReferencePickCurrentContext,
-  type VscodeModulePreviewReferencePickContextLookup
-} from "../../src/vscode/useVSCodeModulePreviewReferencePickSession";
+import type { VscodeModulePreviewValueSnapshot } from "../../src/vscode/protocol";
 
 const mocks = vi.hoisted(() => ({
   activeTextEditor: null as null | {
@@ -43,6 +28,13 @@ const mocks = vi.hoisted(() => ({
   executeCommand: vi.fn(async () => undefined),
   showErrorMessage: vi.fn(),
   createWebviewPanel: vi.fn()
+  ,nativeShowQuickPick: vi.fn()
+  ,nativeShowInputBox: vi.fn()
+}));
+
+vi.mock("./nativeQuickInput", () => ({
+  nativeShowQuickPick: mocks.nativeShowQuickPick,
+  nativeShowInputBox: mocks.nativeShowInputBox
 }));
 
 type TestDocument = {
@@ -64,19 +56,6 @@ type TestDocumentChangeEvent = {
   document: TestDocument;
   reason?: number;
   contentChanges: readonly unknown[];
-};
-
-const ModulePreviewReferencePickBridge = ({
-  api,
-  currentContextFor
-}: {
-  api: VscodeWebviewApi;
-  currentContextFor: Parameters<typeof useVSCodeModulePreviewReferencePickSession>[0]["currentContextFor"];
-}) => {
-  const { session } = useVSCodeModulePreviewReferencePickSession({ api, currentContextFor });
-  return createElement("output", {
-    "data-module-preview-reference-pick-session": session ? "active" : "idle"
-  }, session ? "Reference Pick active" : "Reference Pick idle");
 };
 
 type TestPanel = {
@@ -310,6 +289,8 @@ afterEach(() => {
   mocks.showTextDocument.mockReset();
   mocks.showErrorMessage.mockClear();
   mocks.createWebviewPanel.mockReset();
+  mocks.nativeShowQuickPick.mockReset();
+  mocks.nativeShowInputBox.mockReset();
 });
 
 describe("registerModulePreviewFeature", () => {
@@ -899,42 +880,27 @@ describe("registerModulePreviewFeature", () => {
     return { document, panel, feature, analysis: hostAnalysis };
   };
 
-  const invocationSnapshotFor = (
+  const valueSnapshotFor = (
     document: TestDocument,
     analysis: ReturnType<typeof createLanguageAnalysisSession>,
-    parameterOverride: Partial<{
-      name: string;
-      type: { kind: "number" | "point" | "line" | "path" };
-      value: string;
-    }> = {}
-  ): VscodeModulePreviewInvocationSnapshot => {
+    parameter: { name: string; type: { kind: "number" | "point" | "line" | "path" }; value: string }
+  ): VscodeModulePreviewValueSnapshot => {
     const compiled = analysis.runtimeEvaluationSnapshot()!.compiled;
     const definition = compiled.moduleSemanticAnalysis!.definitions.find((candidate) => candidate.name === "Pocket")!;
-    const parameter = {
-      name: parameterOverride.name ?? "width",
-      type: parameterOverride.type ?? { kind: "number" as const },
-      value: parameterOverride.value ?? "12"
-    };
-    const text = `Pocket(\n  ${parameter.name}: ${parameter.value}\n)`;
-    const valueFrom = text.indexOf(parameter.value);
     return {
-      type: "modulePreviewInvocationSnapshot",
+      type: "modulePreviewValueSnapshot",
       sessionId: "module-preview-session:1",
       documentUri: document.uri.toString(),
       documentVersion: document.version,
       normalizedSource: document.getText(),
       sourceRevision: analysis.getSourceRevision(),
       sessionRevision: 1,
-      target: { definitionStatementId: definition.statementId, definitionStatementIndex: definition.statementIndex, name: "Pocket" },
-      blocks: [{
+      target: { definitionStatementIndex: definition.statementIndex, name: definition.name },
+      groups: [{
         kind: "target",
-        definitionStatementId: definition.statementId,
         definitionStatementIndex: definition.statementIndex,
-        name: "Pocket",
-        text,
-        callRange: { from: 0, to: text.length },
+        name: definition.name,
         parameters: [{
-          definitionStatementId: definition.statementId,
           parameterIndex: 0,
           name: parameter.name,
           type: parameter.type,
@@ -942,12 +908,8 @@ describe("registerModulePreviewFeature", () => {
           required: true,
           defaultSourceText: null,
           value: parameter.value,
-          active: true,
-          diagnostic: null,
-          caller: { statementIndex: definition.statementIndex, scopeId: definition.declarationScopeId, sourceOrderIndex: definition.statementIndex },
-          lineRange: { from: 9, to: text.length - 1 },
-          labelRange: { from: 11, to: 16 },
-          valueRange: { from: valueFrom, to: valueFrom + 2 }
+          valueState: "explicit",
+          diagnostic: null
         }]
       }],
       inputDiagnostics: [],
@@ -955,387 +917,76 @@ describe("registerModulePreviewFeature", () => {
     };
   };
 
-  it("retains an exact invocation snapshot and routes Value Step as an ephemeral value edit", async () => {
-    const source = ["nui 1", "module Pocket(width: number) {", "  point P = coordinate(x: @width, y: 0)", "}"].join("\n");
+  it("orders native Preview Values sites and applies scalar edits without Source mutation", async () => {
+    const source = [
+      "nui 1",
+      "module Outer(scale: number) {",
+      "  module Pocket(width: number) {",
+      "    point P = coordinate(x: @width, y: 0)",
+      "  }",
+      "}"
+    ].join("\n");
     const { document, panel, feature, analysis } = registerInvocationFixture(source);
     await panel.receive({ type: "webviewReady" });
     await panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
-    const snapshot = invocationSnapshotFor(document, analysis);
-    await panel.receive(snapshot);
-    const valueFrom = snapshot.blocks[0]!.parameters[0]!.valueRange.from;
-    await panel.receive({
-      type: "modulePreviewInvocationSiteFocus",
-      sessionId: snapshot.sessionId,
-      documentUri: snapshot.documentUri,
-      documentVersion: snapshot.documentVersion,
-      normalizedSource: snapshot.normalizedSource,
-      sourceRevision: snapshot.sourceRevision,
-      sessionRevision: snapshot.sessionRevision,
-      targetDefinitionStatementId: snapshot.target.definitionStatementId,
-      targetDefinitionStatementIndex: snapshot.target.definitionStatementIndex,
-      targetName: snapshot.target.name,
-      definitionStatementId: snapshot.blocks[0]!.definitionStatementId,
-      blockKind: snapshot.blocks[0]!.kind,
-      blockDefinitionStatementIndex: snapshot.blocks[0]!.definitionStatementIndex,
-      blockName: snapshot.blocks[0]!.name,
-      parameterIndex: 0,
-      invocationText: snapshot.blocks[0]!.text,
-      selectionStart: valueFrom,
-      selectionEnd: valueFrom + 2,
-      focusGeneration: 1
-    });
-    await panel.receive({
-      type: "modulePreviewInvocationValueStep",
-      sessionId: snapshot.sessionId,
-      documentUri: snapshot.documentUri,
-      documentVersion: snapshot.documentVersion,
-      normalizedSource: snapshot.normalizedSource,
-      sourceRevision: snapshot.sourceRevision,
-      sessionRevision: snapshot.sessionRevision,
-      targetDefinitionStatementId: snapshot.target.definitionStatementId,
-      targetDefinitionStatementIndex: snapshot.target.definitionStatementIndex,
-      targetName: snapshot.target.name,
-      definitionStatementId: snapshot.blocks[0]!.definitionStatementId,
-      blockKind: snapshot.blocks[0]!.kind,
-      blockDefinitionStatementIndex: snapshot.blocks[0]!.definitionStatementIndex,
-      blockName: snapshot.blocks[0]!.name,
-      parameterIndex: 0,
-      invocationText: snapshot.blocks[0]!.text,
-      selectionStart: valueFrom,
-      selectionEnd: valueFrom + 2,
-      direction: 1
-    });
+    const sessionId = panel.webview.postMessage.mock.calls.map(([message]) => message).find((message) => message?.type === "modulePreviewSession")?.sessionId as string;
+    const snapshot = { ...valueSnapshotFor(document, analysis, { name: "width", type: { kind: "number" }, value: "12" }), sessionId };
+    const contextDefinition = analysis.runtimeEvaluationSnapshot()!.compiled.moduleSemanticAnalysis!.definitions.find((definition) => definition.name === "Outer")!;
+    const targetGroup = snapshot.groups[0]!;
+    const enrichedSnapshot: VscodeModulePreviewValueSnapshot = {
+      ...snapshot,
+      groups: [{
+        kind: "ancestor", definitionStatementIndex: contextDefinition.statementIndex, name: "Outer",
+        parameters: [{ parameterIndex: 0, name: "scale", type: { kind: "number" }, optional: false, required: true, defaultSourceText: null, value: "2", valueState: "explicit", diagnostic: null }]
+      }, targetGroup]
+    };
+    await panel.receive(enrichedSnapshot);
+    mocks.nativeShowQuickPick.mockImplementation(async (items: readonly { label: string }[]) => items[1]);
+    mocks.nativeShowInputBox.mockResolvedValue("13");
+    panel.webview.postMessage.mockClear();
+    const command = mocks.commandHandlers.get("nuinuiCAD.editModulePreviewValues")!();
+    await command;
+    await flushContext();
+    expect(mocks.nativeShowQuickPick.mock.calls[0]?.[0].map((item: { label: string }) => item.label)).toEqual([
+      "Context: Outer.scale",
+      "Target: Pocket.width"
+    ]);
+    expect(mocks.nativeShowInputBox).toHaveBeenCalledTimes(1);
     expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
-      type: "modulePreviewInvocationValueEdit",
-      expression: "13",
-      invocationText: snapshot.blocks[0]!.text,
-      resultSelectionEnd: valueFrom + 2
+      type: "modulePreviewValueEdit",
+      definitionName: "Pocket",
+      parameterName: "width",
+      expression: "13"
     }));
     expect(document.getText()).toBe(source);
     feature.dispose();
   });
 
-  it("proves invocation authority with exact Source coordinates across independently compiled runtimes", async () => {
-    const source = ["nui 1", "module Pocket(width: number) {", "  point P = coordinate(x: @width, y: 0)", "}"].join("\n");
-    const webviewAnalysis = createLanguageAnalysisSession(source);
-    const hostAnalysis = createLanguageAnalysisSession(source);
-    const { document, panel, feature } = registerInvocationFixture(source, hostAnalysis);
-    await panel.receive({ type: "webviewReady" });
-    await panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
-    const snapshot = invocationSnapshotFor(document, webviewAnalysis);
-    const hostTarget = hostAnalysis.runtimeEvaluationSnapshot()!.compiled.moduleSemanticAnalysis!.definitions
-      .find((definition) => definition.name === "Pocket")!;
-    expect(snapshot.target.definitionStatementId).not.toBe(hostTarget.statementId);
-    await panel.receive(snapshot);
-
-    const block = snapshot.blocks[0]!;
-    const parameter = block.parameters[0]!;
-    const proof = {
-      sessionId: snapshot.sessionId,
-      documentUri: snapshot.documentUri,
-      documentVersion: snapshot.documentVersion,
-      normalizedSource: snapshot.normalizedSource,
-      sourceRevision: snapshot.sourceRevision,
-      sessionRevision: snapshot.sessionRevision,
-      targetDefinitionStatementId: snapshot.target.definitionStatementId,
-      targetDefinitionStatementIndex: snapshot.target.definitionStatementIndex,
-      targetName: snapshot.target.name,
-      definitionStatementId: block.definitionStatementId,
-      blockKind: block.kind,
-      blockDefinitionStatementIndex: block.definitionStatementIndex,
-      blockName: block.name,
-      parameterIndex: parameter.parameterIndex,
-      invocationText: block.text,
-      selectionStart: parameter.valueRange.from,
-      selectionEnd: parameter.valueRange.to
-    };
-    panel.webview.postMessage.mockClear();
-    const invalidProofs = [
-      { ...proof, documentVersion: proof.documentVersion + 1 },
-      { ...proof, normalizedSource: `${proof.normalizedSource}\n` },
-      { ...proof, targetDefinitionStatementIndex: proof.targetDefinitionStatementIndex + 1 },
-      { ...proof, blockDefinitionStatementIndex: proof.blockDefinitionStatementIndex + 1 },
-      { ...proof, invocationText: proof.invocationText.replace("12", "99") },
-      { ...proof, sessionRevision: proof.sessionRevision - 1 }
-    ];
-    for (const invalid of invalidProofs) {
-      await panel.receive({ type: "modulePreviewInvocationValueStep", ...invalid, direction: 1 });
-    }
-    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
-      type: "modulePreviewInvocationValueEdit"
-    }));
-
-    await panel.receive({ type: "modulePreviewInvocationValueStep", ...proof, direction: 1 });
-    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
-      type: "modulePreviewInvocationValueEdit",
-      expression: "13",
-      normalizedSource: source,
-      blockDefinitionStatementIndex: block.definitionStatementIndex,
-      blockName: block.name
-    }));
-    feature.dispose();
-  });
-
-  it("routes Reference Pick through the shared proof and rejects a stale site", async () => {
-    const source = ["nui 1", "point Top = coordinate(x: 0, y: 0)", "module Pocket(anchor: point) {", "}", ""].join("\n");
-    const { document, panel, feature, analysis } = registerInvocationFixture(source);
-    await panel.receive({ type: "webviewReady" });
-    await panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
-    const snapshot = invocationSnapshotFor(document, analysis);
-    const definition = snapshot.blocks[0]!.definitionStatementId;
-    const text = "Pocket(\n  anchor: @Top\n)";
-    const site = {
-      ...snapshot,
-      blocks: [{
-        ...snapshot.blocks[0]!,
-        text,
-        parameters: [{ ...snapshot.blocks[0]!.parameters[0]!, name: "anchor", type: { kind: "point" }, value: "@Top", valueRange: { from: text.indexOf("@Top"), to: text.indexOf("@Top") + 4 }, lineRange: { from: 9, to: text.length - 1 } }]
-      }]
-    } satisfies VscodeModulePreviewInvocationSnapshot;
-    await panel.receive(site);
-    await panel.receive({
-      type: "modulePreviewInvocationReferencePickStart",
-      sessionId: site.sessionId,
-      documentUri: site.documentUri,
-      documentVersion: site.documentVersion,
-      normalizedSource: site.normalizedSource,
-      sourceRevision: site.sourceRevision,
-      sessionRevision: site.sessionRevision,
-      targetDefinitionStatementId: site.target.definitionStatementId,
-      targetDefinitionStatementIndex: site.target.definitionStatementIndex,
-      targetName: site.target.name,
-      definitionStatementId: definition,
-      blockKind: site.blocks[0]!.kind,
-      blockDefinitionStatementIndex: site.blocks[0]!.definitionStatementIndex,
-      blockName: site.blocks[0]!.name,
-      parameterIndex: 0,
-      invocationText: text,
-      selectionStart: text.indexOf("@Top"),
-      selectionEnd: text.indexOf("@Top") + 4,
-      expectedGeometryInterface: "point"
-    });
-    const start = panel.webview.postMessage.mock.calls.map(([message]) => message as { type?: string; requestId?: number }).find((message) => message.type === "modulePreviewReferencePickStartRequest");
-    expect(start).toEqual(expect.objectContaining({ invocationText: text, parameterIndex: 0 }));
-    if (!start?.requestId) throw new Error("expected Reference Pick request");
-    const resultBase = {
-      type: "modulePreviewReferencePickResult" as const,
-      requestId: start.requestId,
-      sessionId: site.sessionId,
-      documentUri: site.documentUri,
-      documentVersion: site.documentVersion,
-      normalizedSource: site.normalizedSource,
-      sourceRevision: site.sourceRevision,
-      sessionRevision: site.sessionRevision,
-      targetDefinitionStatementId: site.target.definitionStatementId,
-      targetDefinitionStatementIndex: site.target.definitionStatementIndex,
-      targetName: site.target.name,
-      definitionStatementId: definition,
-      blockKind: site.blocks[0]!.kind,
-      blockDefinitionStatementIndex: site.blocks[0]!.definitionStatementIndex,
-      blockName: site.blocks[0]!.name,
-      parameterIndex: 0,
-      invocationText: text,
-      selectionStart: text.indexOf("@Top"),
-      selectionEnd: text.indexOf("@Top") + 4,
-      expectedGeometryInterface: "point" as const,
-      role: "geometry" as const,
-      multiplicity: "single" as const
-    };
-    const result = resultBase as VscodeModulePreviewReferencePickResult;
-    await panel.receive({ ...result, status: "started", candidateReferences: [{ base: "Top" }] });
-    await panel.receive({ ...result, status: "confirmed", resultKind: "geometry", references: [{ base: "Top" }] });
-    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: "modulePreviewInvocationValueEdit", expression: "@Top" }));
-    await panel.receive({ ...site, sessionRevision: site.sessionRevision + 1 });
-    expect(panel.webview.postMessage.mock.calls.filter(([message]) => (message as { type?: string }).type === "modulePreviewReferencePickStartRequest")).toHaveLength(1);
-    feature.dispose();
-  });
-
-  it("routes the visible Pick button and Alt+Enter through the real Webview-to-Host session", async () => {
+  it("routes geometry values through Reference Pick and applies only the selected site", async () => {
     const source = [
       "nui 1",
       "point Top = coordinate(x: 0, y: 0)",
       "module Pocket(anchor: point) {",
       "}"
     ].join("\n");
-    const webviewAnalysis = createLanguageAnalysisSession(source);
-    const hostAnalysis = createLanguageAnalysisSession(source);
-    const { document: hostDocument, panel, feature } = registerInvocationFixture(source, hostAnalysis);
-    const webviewCompiled = webviewAnalysis.runtimeEvaluationSnapshot()!.compiled;
-    if (!webviewCompiled.document || !webviewCompiled.statementMap) throw new Error("expected compiled Webview document");
-    const definition = webviewCompiled.moduleSemanticAnalysis!.definitions.find((candidate) => candidate.name === "Pocket");
-    if (!definition) throw new Error("expected Pocket definition");
-    const definitionStatement = webviewCompiled.statements[definition.statementIndex];
-    if (!definitionStatement) throw new Error("expected Pocket definition statement");
-    const statementRange = definitionStatement.documentRange;
-    const referenceTarget: DslReferencePickTarget = {
-      sourceAnchor: {
-        sourceRevision: webviewAnalysis.getSourceRevision(),
-        statementId: definition.statementId,
-        statementIndex: definition.statementIndex,
-        sourceOrderIndex: definition.statementIndex,
-        scopeId: definition.declarationScopeId,
-        statementRange: {
-          from: statementRange.from,
-          to: statementRange.to,
-          startLine: statementRange.startLine,
-          endLine: statementRange.endLine
-        }
-      },
-      expectedGeometryInterface: "point",
-      role: "geometry",
-      multiplicity: "single",
-      range: { from: statementRange.from, to: statementRange.to }
-    };
-    const evaluation = evaluateElements(webviewCompiled.document.elements, {
-      evaluationLimitIndex: webviewCompiled.document.evaluationLimitIndex,
-      statementInfoByElementId: webviewCompiled.statementMap.byElementId,
-      statementIdByStatementIndex: webviewCompiled.statementMap.statementIdByStatementIndex
-    });
-    const context: VscodeModulePreviewReferencePickCurrentContext = {
-      source: {
-        normalizedSource: source,
-        sourceRevision: webviewAnalysis.getSourceRevision()
-      },
-      compiled: webviewCompiled,
-      evaluation,
-      evaluationIsCurrent: true,
-      target: referenceTarget
-    };
-    const snapshot = invocationSnapshotFor(hostDocument, webviewAnalysis, {
-      name: "anchor",
-      type: { kind: "point" },
-      value: "@Top"
-    });
-    const block = snapshot.blocks[0]!;
-    const invocation = modulePreviewInvocationFor({
-      blocks: [{
-        kind: block.kind,
-        definitionStatementId: block.definitionStatementId,
-        definitionStatementIndex: block.definitionStatementIndex,
-        declarationScopeId: definition.declarationScopeId,
-        name: block.name,
-        parameters: [{
-          definitionStatementId: block.parameters[0]!.definitionStatementId,
-          parameterIndex: 0,
-          name: "anchor",
-          type: { kind: "point" },
-          optional: false,
-          required: true,
-          defaultSourceText: null,
-          active: true,
-          value: "@Top",
-          caller: block.parameters[0]!.caller
-        }]
-      }]
-    });
-    const proof = {
-      sessionId: snapshot.sessionId,
-      documentUri: snapshot.documentUri,
-      documentVersion: snapshot.documentVersion,
-      normalizedSource: snapshot.normalizedSource,
-      sourceRevision: snapshot.sourceRevision,
-      sessionRevision: snapshot.sessionRevision,
-      targetDefinitionStatementId: snapshot.target.definitionStatementId,
-      targetDefinitionStatementIndex: snapshot.target.definitionStatementIndex,
-      targetName: snapshot.target.name
-    };
-    const webviewMessages: VscodeToExtensionMessage[] = [];
-    let webviewActQueue = Promise.resolve();
-    const receiveFromWebview = (message: VscodeToExtensionMessage): void => {
-      webviewActQueue = webviewActQueue.then(async () => {
-        await act(async () => {
-          await panel.receive(message);
-        });
-      });
-    };
-    panel.webview.postMessage.mockImplementation(async (message: VscodeToExtensionMessage) => {
-      window.dispatchEvent(new MessageEvent("message", { data: message }));
-      return true;
-    });
-    const api: VscodeWebviewApi = {
-      postMessage: (message) => {
-        webviewMessages.push(message);
-        receiveFromWebview(message);
-      }
-    };
-    const currentContextFor = (): VscodeModulePreviewReferencePickContextLookup => context;
-    render(createElement(ModulePreviewReferencePickBridge, { api, currentContextFor }));
-    const onReferencePick = vi.fn((site: Parameters<NonNullable<React.ComponentProps<typeof ModulePreviewInvocationEditorApp>["onReferencePick"]>>[0]) => {
-      const parameter = site.parameter;
-      if (!parameter || parameter.type?.kind !== "point") return;
-      receiveFromWebview({
-          type: "modulePreviewInvocationReferencePickStart",
-          ...proof,
-          definitionStatementId: site.block.definitionStatementId,
-          blockKind: site.block.kind,
-          blockDefinitionStatementIndex: site.block.definitionStatementIndex,
-          blockName: site.block.name,
-          parameterIndex: parameter.parameterIndex,
-          invocationText: site.block.text,
-          selectionStart: site.selectionStart,
-          selectionEnd: site.selectionEnd,
-          expectedGeometryInterface: parameter.type.kind
-      });
-    });
-    render(createElement(ModulePreviewInvocationEditorApp, {
-      invocation,
-      source: context.source,
-      semantic: { sourceRevision: context.source.sourceRevision, compiled: webviewCompiled },
-      target: {
-        definitionStatementId: definition.statementId,
-        definitionStatementIndex: definition.statementIndex
-      },
-      proof,
-      referencePickAvailable: true,
-      onChange: vi.fn(),
-      onSiteChange: vi.fn(),
-      onValueStep: vi.fn(),
-      onReferencePick
-    }));
-
+    const { document, panel, feature, analysis } = registerInvocationFixture(source);
     await panel.receive({ type: "webviewReady" });
     await panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
-    await panel.receive(snapshot);
-    const editor = globalThis.document.querySelector<HTMLElement>(".cm-editor");
-    if (!editor) throw new Error("expected invocation CodeMirror editor");
-    const view = EditorView.findFromDOM(editor);
-    if (!view) throw new Error("expected invocation CodeMirror view");
-    const value = invocation.blocks[0]!.parameters[0]!;
-    act(() => view.dispatch({ selection: { anchor: value.valueRange.from + 1 } }));
-    const pick = globalThis.document.querySelector<HTMLButtonElement>("[data-module-preview-invocation-pick='true']");
-    if (!pick) throw new Error("expected visible Reference Pick button");
-    act(() => pick.click());
-    await vi.waitFor(() => expect(onReferencePick).toHaveBeenCalledTimes(1));
-    await vi.waitFor(() => expect(globalThis.document.querySelector("[data-module-preview-reference-pick-session='active']")).not.toBeNull());
-    expect(webviewMessages.filter((message) => message.type === "modulePreviewReferencePickResult")).toEqual([
-      expect.objectContaining({ status: "started" })
-    ]);
-
-    const event = new KeyboardEvent("keydown", {
-      key: "Enter",
-      altKey: true,
-      bubbles: true,
-      cancelable: true
-    });
-    act(() => {
-      view.focus();
-      view.contentDOM.dispatchEvent(event);
-    });
-    expect(event.defaultPrevented).toBe(true);
-    await vi.waitFor(() => expect(onReferencePick).toHaveBeenCalledTimes(2));
-    await vi.waitFor(() => expect(panel.webview.postMessage.mock.calls.filter(([message]) =>
-      (message as { type?: string }).type === "modulePreviewReferencePickStartRequest"
-    )).toHaveLength(2));
-    expect(globalThis.document.querySelector("[data-module-preview-reference-pick-session='active']")).not.toBeNull();
+    const sessionId = panel.webview.postMessage.mock.calls.map(([message]) => message).find((message) => message?.type === "modulePreviewSession")?.sessionId as string;
+    const snapshot = { ...valueSnapshotFor(document, analysis, { name: "anchor", type: { kind: "point" }, value: "" }), sessionId };
+    await panel.receive({ ...snapshot, groups: [{ ...snapshot.groups[0]!, parameters: [{ ...snapshot.groups[0]!.parameters[0]!, value: "", valueState: "required-missing" }] }] });
+    mocks.nativeShowQuickPick.mockImplementation(async (items: readonly { label: string }[]) => items[0]);
+    panel.webview.postMessage.mockClear();
+    const command = mocks.commandHandlers.get("nuinuiCAD.editModulePreviewValues")!();
+    await command;
+    await flushContext();
+    const request = panel.webview.postMessage.mock.calls.map(([message]) => message).find((message) => message?.type === "modulePreviewReferencePickStartRequest");
+    expect(request).toEqual(expect.objectContaining({ definitionName: "Pocket", parameterName: "anchor", expectedGeometryInterface: "point" }));
+    if (!request) throw new Error("expected Reference Pick request");
+    await panel.receive({ ...request, type: "modulePreviewReferencePickResult", status: "started", candidateReferences: [{ base: "Top" }] });
+    await panel.receive({ ...request, type: "modulePreviewReferencePickResult", status: "confirmed", resultKind: "geometry", references: [{ base: "Top" }] });
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: "modulePreviewValueEdit", parameterName: "anchor", expression: "@Top" }));
     feature.dispose();
   });
-
-  it("does not expose the retired completion request/result bridge", () => {
-    const source = "nui 1\nmodule Pocket() {}";
-    const { panel, feature } = registerInvocationFixture(source);
-    expect(panel.webview.postMessage.mock.calls.map(([message]) => message as { type?: string }).some((message) => message.type?.includes("Completion"))).toBe(false);
-    feature.dispose();
-  });
-
 
 });

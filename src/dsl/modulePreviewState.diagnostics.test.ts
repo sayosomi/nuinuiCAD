@@ -26,39 +26,34 @@ const fixture = () => {
   return { source, sourceRevision, compiled, target };
 };
 
-const edit = (text: string, name: string, expression: string): string =>
-  text.replace(new RegExp(`  ${name}: [^\\n]*`), `  ${name}: ${expression},`);
-
-describe("Module Preview invocation diagnostics", () => {
-  it("retains diagnostic ownership while other invocation arguments change", () => {
+describe("Module Preview direct value diagnostics", () => {
+  it("retains diagnostic ownership while other value sites change", () => {
     const { source, sourceRevision, compiled, target } = fixture();
     const session = createModulePreviewSession();
-    let state = session.activate({
+    session.activate({
       source: { normalizedSource: source, sourceRevision },
       semantic: { sourceRevision, compiled },
       target
     });
-    const initial = state!.invocation.blocks[0]!.text;
-    state = session.setInvocationText(target.definitionStatementId, edit(edit(initial, "a", "1"), "b", "2"));
+    session.setParameterValue(target.definitionStatementId, 0, "1");
+    let state = session.setParameterValue(target.definitionStatementId, 1, "2");
     expect(state?.preview.kind).toBe("current");
 
-    const invalidA = edit(edit(initial, "a", "("), "b", "2");
-    state = session.setInvocationText(target.definitionStatementId, invalidA);
+    state = session.setParameterValue(target.definitionStatementId, 0, "(");
     expect(state?.preview.kind).toBe("lastGood");
     expect(state?.inputDiagnostics.map((diagnostic) => diagnostic.parameterIndex)).toEqual([0]);
 
-    state = session.setInvocationText(target.definitionStatementId, edit(invalidA, "b", "3"));
+    state = session.setParameterValue(target.definitionStatementId, 1, "3");
     expect(state?.preview.kind).toBe("lastGood");
     expect(state?.inputDiagnostics.map((diagnostic) => diagnostic.parameterIndex)).toEqual([0]);
     expect(state?.parameters.parameters[1]?.diagnostic).toBeNull();
 
-    const invalidBoth = edit(invalidA, "b", "(");
-    state = session.setInvocationText(target.definitionStatementId, invalidBoth);
+    state = session.setParameterValue(target.definitionStatementId, 1, "(");
     expect(state?.inputDiagnostics.map((diagnostic) => diagnostic.parameterIndex)).toEqual([0, 1]);
 
-    state = session.setInvocationText(target.definitionStatementId, edit(invalidBoth, "a", "4"));
+    state = session.setParameterValue(target.definitionStatementId, 0, "4");
     expect(state?.inputDiagnostics.map((diagnostic) => diagnostic.parameterIndex)).toEqual([1]);
-    state = session.setInvocationText(target.definitionStatementId, edit(invalidBoth, "a", "4").replace("b: (", "b: 5"));
+    state = session.setParameterValue(target.definitionStatementId, 1, "5");
     expect(state?.preview.kind).toBe("current");
     expect(state?.inputDiagnostics).toEqual([]);
   });
