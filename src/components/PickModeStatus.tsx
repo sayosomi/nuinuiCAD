@@ -204,7 +204,7 @@ export const PickModeStatus = () => {
 
   const targetElementId = target?.elementId ?? pickModeSession.targetElementId;
   const targetParameterKey = target?.parameterKey ?? pickModeSession.targetParameterKey;
-  const element = elements.find((candidate) => candidate.id === targetElementId);
+  const element = targetElementId ? elements.find((candidate) => candidate.id === targetElementId) : null;
   const definition = element
     ? findParameterDefinition(element, targetParameterKey)
     : null;
@@ -254,7 +254,8 @@ export const PickModeStatus = () => {
   return (
     <PickModeStatusView
       model={{
-        targetLabel: `${element?.name ?? targetElementId} / ${definition?.label ?? targetParameterKey}`,
+        targetLabel: pickModeSession.targetDisplayLabel ??
+          `${element?.name ?? targetElementId ?? "Preview"} / ${definition?.label ?? targetParameterKey}`,
         instruction,
         currentSelection: pointDraftLabel ?? lineDraftLabel,
         currentValue: numericReferenceEntry?.expression,

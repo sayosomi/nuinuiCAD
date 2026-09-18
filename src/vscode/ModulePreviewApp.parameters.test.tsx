@@ -21,11 +21,14 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("../components/DrawingCanvas", () => ({
   DrawingCanvas: (props: {
-    hostAdapter: unknown;
+    hostAdapter: CanvasHostAdapter;
     canvasFocusRef: RefObject<HTMLDivElement | null>;
   }) => {
     mocks.hostAdapter = props.hostAdapter;
-    return <div ref={props.canvasFocusRef} data-canvas-viewport="true" data-testid="module-preview-canvas-viewport" />;
+    const pickOverlay = props.hostAdapter.activePickModeSession && props.hostAdapter.renderHostOverlay
+      ? props.hostAdapter.renderHostOverlay({ width: 800, height: 600 })
+      : null;
+    return <div ref={props.canvasFocusRef} data-canvas-viewport="true" data-testid="module-preview-canvas-viewport">{pickOverlay}</div>;
   }
 }));
 
@@ -993,6 +996,45 @@ describe("ModulePreviewApp Canvas and Preview boundary", () => {
     }));
     expect(globalThis.document.querySelector("[data-module-preview-empty='true']")).toBeNull();
     expect(screen.getByTestId("module-preview-canvas-viewport")).toBeInTheDocument();
+    const canvasHostAdapter = mocks.hostAdapter as CanvasHostAdapter;
+    expect(canvasHostAdapter.activePickModeSession).toMatchObject({
+      kind: "point",
+      targetElementId: null,
+      targetDisplayLabel: "Preview / anchor",
+      draft: []
+    });
+    expect(canvasHostAdapter.pickModeCandidates).toEqual([
+      expect.objectContaining({
+        options: [expect.objectContaining({ kind: "point", label: "RootA", sourceReference: { base: "RootA" } })]
+      })
+    ]);
+    expect(canvasHostAdapter.elements).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: "RootA" })
+    ]));
+    expect(screen.getByText("PICK MODE")).toBeInTheDocument();
+    expect(globalThis.document.querySelector("[data-reference-pick-frame='true']")).toBeNull();
+    expect(globalThis.document.querySelector("[data-reference-pick-visuals='true']")).toBeNull();
+    const pointCandidate = canvasHostAdapter.pickModeCandidates?.[0];
+    const pointOption = pointCandidate?.options[0];
+    if (!pointCandidate || pointOption?.kind !== "point") throw new Error("expected authored point candidate");
+    act(() => {
+      canvasHostAdapter.applyPickedPoint({
+        pickedPointAnchor: pointOption.anchor,
+        pickedPointCandidateElementId: pointCandidate.elementId,
+        pickedPointSourceReference: pointOption.sourceReference
+      });
+    });
+    expect(document.getSource()).toBe(sourceText);
+    const updatedCanvasHostAdapter = mocks.hostAdapter as CanvasHostAdapter;
+    act(() => {
+      updatedCanvasHostAdapter.dispatchCanvasPickCommand?.("finishPickMode");
+    });
+    expect(mocks.postMessage.mock.calls.map(([message]) => message)).toContainEqual(expect.objectContaining({
+      type: "modulePreviewReferencePickResult",
+      requestId: 1,
+      status: "confirmed",
+      references: [{ base: "RootA" }]
+    }));
   });
 
   it("shows one concise fallback when a no-root preview has no concrete diagnostic", () => {

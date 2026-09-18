@@ -274,8 +274,12 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     commandLineSession
   } = hostAdapter;
   const storePickModeSession = useCadUiStore((state) => state.activePickModeSession);
+  const storePickCursor = useCadUiStore((state) => state.activePickCursor);
+  const hostOwnsPickCandidates = hostAdapter.pickModeCandidates !== undefined;
   const pickModeSession = matchingPickModeSessionForTargets(
-    hostAdapter.activePickModeSession !== undefined
+    hostOwnsPickCandidates
+      ? hostAdapter.activePickModeSession
+      : hostAdapter.activePickModeSession !== undefined
       ? hostAdapter.activePickModeSession
       : storePickModeSession,
     {
@@ -288,6 +292,9 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
   const isNumericReferencePickActive = pickModeSession?.kind === "numeric-reference";
   const isLinePickActive = pickModeSession?.kind === "line";
   const isPickModeActive = Boolean(pickModeSession);
+  const activePickCursor = hostAdapter.activePickCursor !== undefined
+    ? hostAdapter.activePickCursor
+    : storePickCursor;
   const renderFixedCanvasChrome = hostAdapter.renderFixedCanvasChrome ?? true;
   const previewElementIds = useMemo(() => {
     const documentElementIds = new Set(documentElements.map((element) => element.id));
@@ -307,7 +314,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     [commandLineSession, documentElements, evaluationLimitIndex]
   );
   const commandLinePickParentGroupId = commandLinePlacement?.parentGroupId;
-  const sharedPickCandidates = useMemo(() => pickCandidates(documentElements, evaluation, {
+  const sharedPickCandidates = useMemo(() => hostAdapter.pickModeCandidates ?? pickCandidates(documentElements, evaluation, {
     activePointPickTarget,
     activeNumericReferencePickTarget: null,
     activeLinePickTarget,
@@ -324,6 +331,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     commandLineSession,
     documentElements,
     evaluation,
+    hostAdapter.pickModeCandidates,
     moduleSemanticContext,
     pickModeSession?.draft
   ]);
@@ -887,15 +895,13 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
    * the line is not pickable for the active line-pick target. */
   const pickableLineIdForLinePick = useCallback((lineElementId: ElementId) => {
     if (!isLinePickActive) return null;
-    const activeTarget = activeLinePickTarget;
-    if (!activeTarget) return null;
     const refKey = pickRefKey(pickRefForOption(lineElementId, {
       kind: "line",
       label: "",
       lineId: lineElementId
     }));
     return sharedLinePickRefKeys.has(refKey) ? lineElementId : null;
-  }, [activeLinePickTarget, isLinePickActive, sharedLinePickRefKeys]);
+  }, [isLinePickActive, sharedLinePickRefKeys]);
   const isPickableForNumericReference = useCallback((lineElementId: ElementId) => {
     if (!isNumericReferencePickActive) return false;
     const activeTarget = activeNumericReferencePickTarget;
@@ -932,7 +938,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     pickableLineIdForLinePick
   ]);
   const linePickCandidatesAt = useCallback((screen: ScreenPoint) => {
-    if (!isLinePickActive || !activeLinePickTarget) return [];
+    if (!isLinePickActive) return [];
 
     const uniqueCandidates = new Map<ElementId, LinePickCandidate>();
     for (const candidate of hitTestLineMeasurementCandidates({
@@ -950,7 +956,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       });
     }
     return Array.from(uniqueCandidates.values());
-  }, [activeLinePickTarget, isLinePickActive, overlayNumericReferenceCandidates, pickableLineIdForLinePick, previewElementIds, sharedLineCandidateElementIds, sharedLineSourceReferences]);
+  }, [isLinePickActive, overlayNumericReferenceCandidates, pickableLineIdForLinePick, previewElementIds, sharedLineCandidateElementIds, sharedLineSourceReferences]);
   const numericReferenceCandidatesAt = useCallback((screen: ScreenPoint) => {
     if (!isNumericReferencePickActive || !activeNumericReferencePickTarget) return [];
 
@@ -1174,9 +1180,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       finalizeOverlapSession();
     }
   }, [
-    activeLinePickTarget,
     activeNumericReferencePickTarget,
-    activePointPickTarget,
     commandLineSession,
     finalizeOverlapSession,
     isPickModeActive,
@@ -1312,7 +1316,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     const focusCanvas = () => viewport.focus();
     const handle = hitTestBezierHandle(screen, selectedBezierHandles, BEZIER_HANDLE_HIT_RADIUS_PX);
 
-    if (isLinePickActive && activeLinePickTarget) {
+    if (isLinePickActive) {
       const candidates = linePickCandidatesAt(screen);
       focusCanvas();
       if (candidates.length === 1) applyLinePickCandidate(candidates[0]);
@@ -1322,7 +1326,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       setPointPickCandidateMenu(null);
       return;
     }
-    if (isPointPickActive && activePointPickTarget) {
+    if (isPointPickActive) {
       const candidates = hitTestPointPickCandidates(screen, overlayPointPickCandidates, POINT_PICK_CANDIDATE_RADIUS_PX);
       focusCanvas();
       if (candidates.length === 1) applyPointPickCandidate(candidates[0]);
@@ -1499,9 +1503,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     });
     setIsPointDragging(true);
   }, [
-    activeLinePickTarget,
     activeNumericReferencePickTarget,
-    activePointPickTarget,
     applyLinePickCandidate,
     applyPointPickCandidate,
     beginRectangleSelection,
@@ -1891,7 +1893,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
           hostAdapter.cancelCanvasPickOperation();
         } else if (hostAdapter.dispatchCanvasPickCommand) {
           const selected = commandId === "applySelectedPickCandidate" && isPointPickActive
-            ? selectedPickOption(pointPickCandidates, useCadUiStore.getState().activePickCursor)
+            ? selectedPickOption(pointPickCandidates, activePickCursor)
             : null;
           const selectedPointPickAction = selected?.option.kind === "point"
             ? {

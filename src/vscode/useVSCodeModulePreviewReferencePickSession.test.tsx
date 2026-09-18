@@ -118,8 +118,7 @@ describe("useVSCodeModulePreviewReferencePickSession", () => {
     })]);
     expect(hook.result.current.session).not.toBeNull();
 
-    act(() => hook.result.current.select({ candidateElementId: "Top", reference: { base: "Top" } }));
-    act(() => hook.result.current.confirm());
+    act(() => hook.result.current.confirm({ base: "Top" }));
     expect(previewResultsFor(api)).toEqual([
       expect.objectContaining({ requestId: 1, status: "started" }),
       expect.objectContaining({

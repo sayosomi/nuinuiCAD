@@ -1,29 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { DslReferencePickTarget } from "@nuinuicad/nui-language";
-import type { SourceSnapshot } from "@nuinuicad/nui-language";
-import type { ReferencePickHover } from "../model/referencePickSession";
-import {
-  confirmReferencePickSession,
-  confirmedReferencePickResult,
-  type ReferencePickSession
-} from "../model/referencePickSession";
-import {
-  createVscodeReferencePickCanvasSession,
-  referencePickCandidateReferences,
-  selectVscodeReferencePickCanvasDraft,
-  setVscodeReferencePickCanvasHover,
-  type VscodeReferencePickCanvasSessionLike
-} from "./referencePickCanvasSession";
-import { referencePickCandidates } from "../model/referencePickCandidates";
-import {
-  type VscodeModulePreviewReferencePickStartRequest
-} from "./modulePreviewProtocol";
-import {
-  isCanonicalReferencePickReference
-} from "./referencePickProtocol";
+import type { DslReferencePickTarget, SourceSnapshot } from "@nuinuicad/nui-language";
 import type { CompiledDslDocument } from "@nuinuicad/nui-language";
 import type { EvaluationResult } from "../types/geometry";
+import type { CanonicalGeometrySourceReference } from "../model/moduleSemanticCandidateBoundary";
+import {
+  referencePickCandidates,
+  type ReferencePickCandidate
+} from "../model/referencePickCandidates";
 import type { VscodeWebviewApi } from "./protocol";
+import {
+  isCanonicalReferencePickReference,
+  referencePickReferenceKey
+} from "./referencePickProtocol";
+import { referencePickCandidateReferences } from "./referencePickCanvasSession";
+import type { VscodeModulePreviewReferencePickStartRequest } from "./modulePreviewProtocol";
 
 export type VscodeModulePreviewReferencePickCurrentContext = {
   source: SourceSnapshot;
@@ -38,6 +28,37 @@ export type VscodeModulePreviewReferencePickContextLookup =
   | { kind: "pending" | "unavailable" }
   | null;
 
+/** Protocol/session authority only. Draft, hover, hit testing, and completion
+ * remain owned by the common DrawingCanvas Pick Mode path. */
+export type VscodeModulePreviewReferencePickSession = {
+  request: VscodeModulePreviewReferencePickStartRequest;
+  target: DslReferencePickTarget;
+  candidates: ReferencePickCandidate[];
+  candidateReferences: CanonicalGeometrySourceReference[];
+};
+
+type TerminalStatus = "stale" | "rejected" | "canceled";
+
+const resultProofFor = (request: VscodeModulePreviewReferencePickStartRequest) => ({
+  requestId: request.requestId,
+  sessionId: request.sessionId,
+  documentUri: request.documentUri,
+  documentVersion: request.documentVersion,
+  normalizedSource: request.normalizedSource,
+  sourceRevision: request.sourceRevision,
+  sessionRevision: request.sessionRevision,
+  targetDefinitionStatementIndex: request.targetDefinitionStatementIndex,
+  targetName: request.targetName,
+  definitionStatementIndex: request.definitionStatementIndex,
+  definitionName: request.definitionName,
+  blockKind: request.blockKind,
+  parameterIndex: request.parameterIndex,
+  parameterName: request.parameterName,
+  expectedGeometryInterface: request.expectedGeometryInterface,
+  role: request.role,
+  multiplicity: request.multiplicity
+});
+
 export const useVSCodeModulePreviewReferencePickSession = ({
   api,
   currentContextFor
@@ -47,124 +68,85 @@ export const useVSCodeModulePreviewReferencePickSession = ({
     request: VscodeModulePreviewReferencePickStartRequest
   ) => VscodeModulePreviewReferencePickContextLookup;
 }) => {
-  const [session, setSession] = useState<VscodeReferencePickCanvasSessionLike | null>(null);
-  const sessionRef = useRef<VscodeReferencePickCanvasSessionLike | null>(null);
+  const [session, setSession] = useState<VscodeModulePreviewReferencePickSession | null>(null);
+  const sessionRef = useRef<VscodeModulePreviewReferencePickSession | null>(null);
   const requestRef = useRef<VscodeModulePreviewReferencePickStartRequest | null>(null);
 
-  const replaceSession = useCallback((next: VscodeReferencePickCanvasSessionLike | null) => {
+  const replaceSession = useCallback((next: VscodeModulePreviewReferencePickSession | null) => {
     sessionRef.current = next;
     setSession(next);
   }, []);
 
   const postTerminal = useCallback((
     request: VscodeModulePreviewReferencePickStartRequest,
-    status: "stale" | "rejected" | "canceled"
+    status: TerminalStatus
   ) => {
     api?.postMessage({
       type: "modulePreviewReferencePickResult",
-      requestId: request.requestId,
-      sessionId: request.sessionId,
-      documentUri: request.documentUri,
-      documentVersion: request.documentVersion,
-      normalizedSource: request.normalizedSource,
-      sourceRevision: request.sourceRevision,
-      sessionRevision: request.sessionRevision,
-      targetDefinitionStatementIndex: request.targetDefinitionStatementIndex,
-      targetName: request.targetName,
-      definitionStatementIndex: request.definitionStatementIndex,
-      definitionName: request.definitionName,
-      blockKind: request.blockKind,
-      parameterIndex: request.parameterIndex,
-      parameterName: request.parameterName,
-      expectedGeometryInterface: request.expectedGeometryInterface,
-      role: request.role,
-      multiplicity: request.multiplicity,
+      ...resultProofFor(request),
       status
     });
   }, [api]);
+
+  const clear = useCallback(() => {
+    requestRef.current = null;
+    replaceSession(null);
+  }, [replaceSession]);
+
+  const exactContextFor = useCallback((request: VscodeModulePreviewReferencePickStartRequest) => {
+    const lookup = currentContextFor(request);
+    if (!lookup || "kind" in lookup || !lookup.target || !lookup.evaluationIsCurrent) return null;
+    if (
+      lookup.source.normalizedSource !== request.normalizedSource ||
+      lookup.source.sourceRevision !== request.sourceRevision ||
+      lookup.target.sourceAnchor.sourceRevision !== request.sourceRevision ||
+      lookup.target.sourceAnchor.statementIndex !== request.definitionStatementIndex ||
+      lookup.target.expectedGeometryInterface !== request.expectedGeometryInterface ||
+      lookup.target.role !== request.role ||
+      lookup.target.multiplicity !== request.multiplicity
+    ) return null;
+    return lookup as VscodeModulePreviewReferencePickCurrentContext & {
+      target: DslReferencePickTarget;
+    };
+  }, [currentContextFor]);
 
   const tryStart = useCallback((request: VscodeModulePreviewReferencePickStartRequest) => {
     if (!api) return;
     const lookup = currentContextFor(request);
     if (lookup && "kind" in lookup && lookup.kind === "pending") return;
-    if (lookup && "kind" in lookup) {
+    if (!exactContextFor(request)) {
       postTerminal(request, "stale");
-      requestRef.current = null;
-      replaceSession(null);
+      clear();
       return;
     }
-    const context = lookup;
-    if (!context || !context.target ||
-      context.target.expectedGeometryInterface !== request.expectedGeometryInterface ||
-      context.target.role !== request.role ||
-      context.target.multiplicity !== request.multiplicity
-    ) {
-      postTerminal(request, "stale");
-      requestRef.current = null;
-      replaceSession(null);
-      return;
-    }
-    if (!context.evaluationIsCurrent) return;
     if (sessionRef.current) return;
+    const context = exactContextFor(request);
+    if (!context || !context.target) return;
     const candidates = referencePickCandidates({
       compiled: context.compiled,
       evaluation: context.evaluation,
       target: context.target
     });
     const candidateReferences = referencePickCandidateReferences(candidates);
-    const draft = {
-      expectedGeometryInterface: context.target.expectedGeometryInterface,
-      role: context.target.role,
-      multiplicity: context.target.multiplicity,
-      hover: null,
-      draftReferences: [],
-      numericProperty: null,
-      status: "active"
-    } satisfies ReferencePickSession;
-    const next = createVscodeReferencePickCanvasSession({
-      request,
-      target: context.target,
-      candidates,
-      draft
-    });
     requestRef.current = request;
-    replaceSession(next);
+    replaceSession({ request, target: context.target, candidates, candidateReferences });
     api.postMessage({
       type: "modulePreviewReferencePickResult",
-      requestId: request.requestId,
-      sessionId: request.sessionId,
-      documentUri: request.documentUri,
-      documentVersion: request.documentVersion,
-      normalizedSource: request.normalizedSource,
-      sourceRevision: request.sourceRevision,
-      sessionRevision: request.sessionRevision,
-      targetDefinitionStatementIndex: request.targetDefinitionStatementIndex,
-      targetName: request.targetName,
-      definitionStatementIndex: request.definitionStatementIndex,
-      definitionName: request.definitionName,
-      blockKind: request.blockKind,
-      parameterIndex: request.parameterIndex,
-      parameterName: request.parameterName,
-      expectedGeometryInterface: request.expectedGeometryInterface,
-      role: request.role,
-      multiplicity: request.multiplicity,
+      ...resultProofFor(request),
       status: "started",
       candidateReferences
     });
-  }, [api, currentContextFor, postTerminal, replaceSession]);
+  }, [api, clear, currentContextFor, exactContextFor, postTerminal, replaceSession]);
 
   useEffect(() => {
     const onMessage = (event: MessageEvent<unknown>) => {
-      const message = event.data as Partial<VscodeModulePreviewReferencePickStartRequest> & {
-        type?: string;
-      };
+      const message = event.data as Partial<VscodeModulePreviewReferencePickStartRequest> & { type?: string };
       if (message.type === "modulePreviewReferencePickStartRequest") {
         if (!api) return;
         const request = event.data as VscodeModulePreviewReferencePickStartRequest;
         const previousRequest = requestRef.current;
         if (previousRequest) postTerminal(previousRequest, "canceled");
-        requestRef.current = null;
-        replaceSession(null);
+        clear();
         requestRef.current = request;
         tryStart(request);
         return;
@@ -177,70 +159,57 @@ export const useVSCodeModulePreviewReferencePickSession = ({
           request.documentUri !== message.documentUri ||
           request.documentVersion !== message.documentVersion) return;
         postTerminal(request, "canceled");
-        requestRef.current = null;
-        replaceSession(null);
+        clear();
       }
     };
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [api, postTerminal, replaceSession, tryStart]);
+  }, [api, clear, postTerminal, tryStart]);
 
   useEffect(() => {
     const request = requestRef.current;
     if (request) tryStart(request);
-  }, [currentContextFor, tryStart]);
+  }, [tryStart]);
 
-  const setHover = useCallback((hover: ReferencePickHover | null) => {
-    const current = sessionRef.current;
-    if (current) replaceSession(setVscodeReferencePickCanvasHover(current, hover));
-  }, [replaceSession]);
-
-  const select = useCallback((selection: ReferencePickHover | null) => {
-    const current = sessionRef.current;
-    if (current) replaceSession(selectVscodeReferencePickCanvasDraft(current, selection));
-  }, [replaceSession]);
-
-  const confirm = useCallback(() => {
+  const confirm = useCallback((reference: CanonicalGeometrySourceReference) => {
     const current = sessionRef.current;
     const request = requestRef.current;
-    if (!current || !request || !api) return;
-    const confirmed = confirmReferencePickSession(current.draft);
-    const references = confirmedReferencePickResult(confirmed);
-    if (!references || references.length !== 1 || !isCanonicalReferencePickReference(references[0])) return;
+    if (!current || !request || !api) return false;
+    const context = exactContextFor(request);
+    if (!context) {
+      postTerminal(request, "stale");
+      clear();
+      return false;
+    }
+    const currentCandidates = referencePickCandidates({
+      compiled: context.compiled,
+      evaluation: context.evaluation,
+      target: context.target
+    });
+    const allowed = referencePickCandidateReferences(currentCandidates)
+      .some((candidate) => referencePickReferenceKey(candidate) === referencePickReferenceKey(reference));
+    if (!allowed || !isCanonicalReferencePickReference(reference)) {
+      postTerminal(request, "rejected");
+      clear();
+      return false;
+    }
     api.postMessage({
       type: "modulePreviewReferencePickResult",
-      requestId: request.requestId,
-      sessionId: request.sessionId,
-      documentUri: request.documentUri,
-      documentVersion: request.documentVersion,
-      normalizedSource: request.normalizedSource,
-      sourceRevision: request.sourceRevision,
-      sessionRevision: request.sessionRevision,
-      targetDefinitionStatementIndex: request.targetDefinitionStatementIndex,
-      targetName: request.targetName,
-      definitionStatementIndex: request.definitionStatementIndex,
-      definitionName: request.definitionName,
-      blockKind: request.blockKind,
-      parameterIndex: request.parameterIndex,
-      parameterName: request.parameterName,
-      expectedGeometryInterface: request.expectedGeometryInterface,
-      role: request.role,
-      multiplicity: request.multiplicity,
+      ...resultProofFor(request),
       status: "confirmed",
       resultKind: "geometry",
-      references: [references[0]]
+      references: [reference]
     });
-    requestRef.current = null;
-    replaceSession(null);
-  }, [api, replaceSession]);
+    clear();
+    return true;
+  }, [api, clear, exactContextFor, postTerminal]);
 
   const cancel = useCallback(() => {
     const request = requestRef.current;
     if (!request || !api) return;
     postTerminal(request, "canceled");
-    requestRef.current = null;
-    replaceSession(null);
-  }, [api, postTerminal, replaceSession]);
+    clear();
+  }, [api, clear, postTerminal]);
 
-  return { session, setHover, select, selectNumericProperty: undefined, confirm, cancel };
+  return { session, confirm, cancel };
 };

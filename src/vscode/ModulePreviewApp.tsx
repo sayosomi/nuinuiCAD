@@ -11,6 +11,7 @@ import {
 import { canvasRectangleSelectionForMembers } from "../commands/canvasRectangleSelectionCommands";
 import { dispatchCommand } from "../commands/commands";
 import { DrawingCanvas, type DrawingCanvasHandle } from "../components/DrawingCanvas";
+import { PickModeStatusView } from "../components/PickModeStatus";
 import type {
   CanvasBezierHandleDragAction,
   CanvasHostAdapter,
@@ -39,12 +40,26 @@ import { buildModuleOwnerElementPatch } from "@nuinuicad/nui-language/document";
 import { moveBezierHandleByDeltaInElements, movePointElementByDeltaInElements } from "../model/elementDragTransforms";
 import { sourceOwnerForRuntimeElementId } from "@nuinuicad/nui-language";
 import { useCadUiStore } from "../state/cadUiStore";
+import {
+  activatePickModeDraftEntry,
+  pickModeDraftEntryForOption,
+  type PickModeSession
+} from "../model/pickModeSession";
+import { sourceReferenceText } from "../model/moduleSemanticCandidateBoundary";
+import {
+  pickCursorForCandidateOffset,
+  pickCursorForOptionOffset,
+  selectedPickOption,
+  type PickOption
+} from "../model/pickCandidates";
+import type { ActivePickCursor } from "../state/cadUiStore";
 import type { CadElement, EvaluationResult } from "../types/geometry";
 import { buildModulePreviewEvaluationOptions } from "./modulePreviewEvaluation";
 import { modulePreviewValueSnapshotFor } from "./modulePreviewValueProjection";
 import {
   modulePreviewReferencePickTargetFor,
-  modulePreviewReferencePickTargetForAuthoredSource
+  modulePreviewReferencePickTargetForAuthoredSource,
+  modulePreviewPickCandidatesFor
 } from "./modulePreviewReferencePick";
 import type {
   ExtensionToVscodeMessage,
@@ -60,7 +75,6 @@ import type {
 import { vscodeCanvasContextDataFor } from "./protocol";
 import { readVSCodeCanvasTheme } from "./vscodeCanvasTheme";
 import { VSCodeCanvasRibbonOverlay } from "./VSCodeCanvasRibbonOverlay";
-import { VSCodeReferencePickOverlay } from "./VSCodeReferencePickOverlay";
 import { vscodeCanvasRibbonCommandFor } from "./vscodeCanvasRibbonCatalog";
 import type { VscodeCanvasRibbon } from "./vscodeCanvasRibbonConfig";
 import { VscodeRustTransport, isExtensionToVscodeMessage } from "./vscodeRustTransport";
@@ -435,8 +449,6 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
 
   const {
     session: modulePreviewReferencePickSession,
-    setHover: setModulePreviewReferencePickHover,
-    select: selectModulePreviewReferencePick,
     confirm: confirmModulePreviewReferencePick,
     cancel: cancelModulePreviewReferencePick
   } = useVSCodeModulePreviewReferencePickSession({
@@ -444,6 +456,41 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     currentContextFor: currentModulePreviewReferencePickContext
   });
 
+  const [modulePreviewPickDraftState, setModulePreviewPickDraftState] = useState<{
+    requestId: number | null;
+    draft: PickModeSession["draft"];
+  }>({ requestId: null, draft: [] });
+  const [modulePreviewPickCursorState, setModulePreviewPickCursorState] = useState<{
+    requestId: number | null;
+    cursor: ActivePickCursor | null;
+  }>({ requestId: null, cursor: null });
+  const modulePreviewPickRequestId = modulePreviewReferencePickSession?.request.requestId ?? null;
+  const modulePreviewPickDraft = useMemo(
+    () => modulePreviewPickDraftState.requestId === modulePreviewPickRequestId
+      ? modulePreviewPickDraftState.draft
+      : [],
+    [modulePreviewPickDraftState, modulePreviewPickRequestId]
+  );
+  const modulePreviewPickCursor = modulePreviewPickCursorState.requestId === modulePreviewPickRequestId
+    ? modulePreviewPickCursorState.cursor
+    : null;
+  const modulePreviewPickModeSession = useMemo<PickModeSession | null>(() => {
+    if (!modulePreviewReferencePickSession) return null;
+    return {
+      kind: modulePreviewReferencePickSession.target.expectedGeometryInterface === "point" ? "point" : "line",
+      targetElementId: null,
+      targetParameterKey: modulePreviewReferencePickSession.request.parameterName,
+      targetDisplayLabel: `${modulePreviewReferencePickSession.request.definitionName} / ${modulePreviewReferencePickSession.request.parameterName}`,
+      selectionCardinality: "single",
+      draft: modulePreviewPickDraft
+    };
+  }, [modulePreviewPickDraft, modulePreviewReferencePickSession]);
+  const modulePreviewPickCandidates = useMemo(
+    () => modulePreviewReferencePickSession
+      ? modulePreviewPickCandidatesFor(modulePreviewReferencePickSession.candidates)
+      : undefined,
+    [modulePreviewReferencePickSession]
+  );
   const authoredPickContext = !preview && modulePreviewReferencePickSession
     ? authoredCandidateContext
     : null;
@@ -454,6 +501,95 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   }, [evaluationElements, preview]);
   const referencePickElements = authoredPickContext?.elements ?? evaluationElements;
   const referencePickEvaluation = authoredPickContext?.evaluation ?? evaluationState.evaluation;
+
+  const applyModulePreviewPickOption = useCallback((
+    candidateElementId: string,
+    option: PickOption
+  ) => {
+    if (!modulePreviewPickModeSession) return false;
+    const entry = pickModeDraftEntryForOption(candidateElementId, option);
+    setModulePreviewPickDraftState((state) => ({
+      requestId: modulePreviewPickRequestId,
+      draft: activatePickModeDraftEntry({
+        ...modulePreviewPickModeSession,
+        draft: state.requestId === modulePreviewPickRequestId ? state.draft : []
+      }, entry).draft
+    }));
+    setModulePreviewPickCursorState({ requestId: modulePreviewPickRequestId, cursor: null });
+    return true;
+  }, [modulePreviewPickModeSession, modulePreviewPickRequestId]);
+
+  const applyModulePreviewPickedLine = useCallback((action: Parameters<NonNullable<CanvasHostAdapter["applyPickedLine"]>>[0]) => {
+    if (!action.pickedLineSourceReference || !modulePreviewPickModeSession) return false;
+    return applyModulePreviewPickOption(action.pickedLineCandidateElementId ?? action.pickedLineId, {
+      kind: "line",
+      label: action.pickedLineId,
+      lineId: action.pickedLineId,
+      sourceReference: action.pickedLineSourceReference
+    });
+  }, [applyModulePreviewPickOption, modulePreviewPickModeSession]);
+
+  const applyModulePreviewPickedPoint = useCallback((action: Parameters<NonNullable<CanvasHostAdapter["applyPickedPoint"]>>[0]) => {
+    if (!action.pickedPointSourceReference || !modulePreviewPickModeSession) return false;
+    const candidateElementId = action.pickedPointCandidateElementId ?? (
+      action.pickedPointAnchor.mode === "reference"
+        ? action.pickedPointAnchor.pointId
+        : action.pickedPointAnchor.mode === "derived"
+          ? action.pickedPointAnchor.elementId
+          : ""
+    );
+    return applyModulePreviewPickOption(candidateElementId, {
+      kind: "point",
+      label: action.pickedPointAnchor.mode === "derived" ? action.pickedPointAnchor.pointKey : "point",
+      anchor: action.pickedPointAnchor,
+      sourceReference: action.pickedPointSourceReference
+    });
+  }, [applyModulePreviewPickOption, modulePreviewPickModeSession]);
+
+  const finishModulePreviewPick = useCallback(() => {
+    const entry = modulePreviewPickModeSession?.draft[0];
+    if (!entry || (entry.kind !== "point" && entry.kind !== "line") || !entry.sourceReference) {
+      useCadUiStore.getState().setCommandErrorMessage("選択を1件以上追加してから完了してください。");
+      return false;
+    }
+    return confirmModulePreviewReferencePick(entry.sourceReference);
+  }, [confirmModulePreviewReferencePick, modulePreviewPickModeSession]);
+
+  const dispatchModulePreviewPickCommand = useCallback((commandId: Parameters<NonNullable<CanvasHostAdapter["dispatchCanvasPickCommand"]>>[0], pointPickAction?: Parameters<NonNullable<CanvasHostAdapter["dispatchCanvasPickCommand"]>>[1]) => {
+    const candidates = modulePreviewPickCandidates ?? [];
+    if (commandId === "selectNextPickCandidate" || commandId === "selectPreviousPickCandidate") {
+      const offset = commandId === "selectNextPickCandidate" ? 1 : -1;
+      setModulePreviewPickCursorState((state) => ({
+        requestId: modulePreviewPickRequestId,
+        cursor: pickCursorForCandidateOffset(
+          candidates,
+          state.requestId === modulePreviewPickRequestId ? state.cursor : null,
+          offset
+        )
+      }));
+      return true;
+    }
+    if (commandId === "selectNextPickOption" || commandId === "selectPreviousPickOption") {
+      const offset = commandId === "selectNextPickOption" ? 1 : -1;
+      setModulePreviewPickCursorState((state) => ({
+        requestId: modulePreviewPickRequestId,
+        cursor: pickCursorForOptionOffset(
+          candidates,
+          state.requestId === modulePreviewPickRequestId ? state.cursor : null,
+          offset
+        )
+      }));
+      return true;
+    }
+    if (commandId === "applySelectedPickCandidate") {
+      if (pointPickAction) return applyModulePreviewPickedPoint(pointPickAction);
+      const selected = selectedPickOption(candidates, modulePreviewPickCursor);
+      return selected ? applyModulePreviewPickOption(selected.candidate.elementId, selected.option) : false;
+    }
+    if (commandId === "finishPickMode") return finishModulePreviewPick();
+    if (commandId === "cancelPickMode") return cancelModulePreviewReferencePick();
+    return false;
+  }, [applyModulePreviewPickOption, applyModulePreviewPickedPoint, cancelModulePreviewReferencePick, finishModulePreviewPick, modulePreviewPickCandidates, modulePreviewPickCursor, modulePreviewPickRequestId]);
 
   const applyValidPreview = useCallback((
     root: ModulePreviewRootResult,
@@ -1242,17 +1378,47 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     showCanvasPoints
   }), [selectedElementIds.length, showCanvasGeometryNames, showCanvasPointNames, showCanvasPoints]);
 
+  const modulePreviewPickActive = modulePreviewReferencePickSession !== null;
+  const modulePreviewPickCompiled = modulePreviewPickActive
+    ? preview?.root.candidateCompiledDocument ?? authoredPickContext?.compiled
+    : null;
+  const canvasElements = modulePreviewPickActive
+    ? modulePreviewPickCompiled?.document?.elements ?? referencePickElements
+    : renderElements;
+  const canvasEvaluation = modulePreviewPickActive ? referencePickEvaluation : evaluationState.evaluation;
+  const canvasEvaluationRevision = modulePreviewPickActive
+    ? preview?.revision ?? authoredPickContext?.sourceRevision ?? 0
+    : preview?.revision ?? 0;
+  const canvasEvaluationState = modulePreviewPickActive
+    ? {
+        ...evaluationState,
+        evaluation: canvasEvaluation,
+        evaluationRevision: canvasEvaluationRevision,
+        status: "ready" as const,
+        source: "reference" as const,
+        isStale: false
+      }
+    : evaluationState;
+
   const hostAdapter = useMemo<CanvasHostAdapter>(() => ({
-    elements: renderElements,
-    canonicalElements: preview?.root.compileResult.elements ?? [],
-    runtimeElementIds: preview ? new Set(preview.root.targetRuntimeElementIds) : new Set(),
+    elements: canvasElements,
+    canonicalElements: modulePreviewPickActive
+      ? canvasElements
+      : preview?.root.compileResult.elements ?? [],
+    runtimeElementIds: modulePreviewPickActive ? new Set() : preview ? new Set(preview.root.targetRuntimeElementIds) : new Set(),
     evaluationLimitIndex: undefined,
-    compiledDocumentRevision: preview?.revision ?? 0,
+    compiledDocumentRevision: canvasEvaluationRevision,
     canvasTheme,
     presentation: canvasPresentationAdapter,
-    visibilityProfiles: preview?.root.compileResult.visibilityProfiles ?? [],
-    activeVisibilityProfileId: preview?.root.compileResult.activeVisibilityProfileId ?? null,
-    moduleSemanticContext: preview?.moduleSemanticContext ?? {},
+    visibilityProfiles: preview?.root.compileResult.visibilityProfiles ?? authoredPickContext?.compiled.document?.visibilityProfiles ?? [],
+    activeVisibilityProfileId: preview?.root.compileResult.activeVisibilityProfileId ?? authoredPickContext?.compiled.document?.activeVisibilityProfileId ?? null,
+    moduleSemanticContext: preview?.moduleSemanticContext ?? (authoredPickContext?.compiled ? {
+      moduleMaterialization: authoredPickContext.compiled.moduleMaterialization,
+      moduleSemanticAnalysis: authoredPickContext.compiled.moduleSemanticAnalysis,
+      sourceLexicalNamespace: authoredPickContext.compiled.sourceLexicalNamespace,
+      statementInfoByElementId: authoredPickContext.compiled.statementMap?.byElementId
+    } : {}),
+    canvasModuleMaterialization: modulePreviewPickCompiled?.moduleMaterialization,
     measureCanvasTextWidth,
     selectedElementId,
     selectedElementIds,
@@ -1290,6 +1456,13 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     activePointPickTarget: null,
     activeNumericReferencePickTarget: null,
     activeLinePickTarget: null,
+    activePickModeSession: modulePreviewPickModeSession,
+    pickModeCandidates: modulePreviewPickCandidates,
+    activePickCursor: modulePreviewPickCursor,
+    setActivePickCursor: (cursor) => setModulePreviewPickCursorState({
+      requestId: modulePreviewPickRequestId,
+      cursor
+    }),
     commandLineSession: null,
     flushSourceEditorOnCanvasPointerDown: () => "clean",
     setCommandErrorMessage: (message) => useCadUiStore.getState().setCommandErrorMessage(message),
@@ -1300,7 +1473,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       return {
         elements: preview?.root.compileResult.elements ?? [],
         sourceRevision: document?.getState().currentCompiled.spans.sourceMap.sourceRevision ?? 0,
-        compiledDocumentRevision: preview?.revision ?? 0,
+        compiledDocumentRevision: canvasEvaluationRevision,
         sourceText: document?.getSource() ?? "",
         docText: document?.getSource() ?? ""
       };
@@ -1321,30 +1494,28 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       : dispatchCommitGeometry(action),
     applyPickedNumericReference: () => undefined,
     applyNumericExpressionReference: () => undefined,
-    applyPickedLine: () => undefined,
-    applyPickedPoint: () => undefined,
+    applyPickedLine: applyModulePreviewPickedLine,
+    applyPickedPoint: applyModulePreviewPickedPoint,
+    dispatchCanvasPickCommand: dispatchModulePreviewPickCommand,
+    cancelCanvasPickOperation: cancelModulePreviewReferencePick,
     toggleCanvasPointNames: () => executeSharedCanvasCommand("toggleCanvasPointNames"),
     toggleCanvasGeometryNames: () => executeSharedCanvasCommand("toggleCanvasGeometryNames"),
     toggleCanvasPoints: () => executeSharedCanvasCommand("toggleCanvasPoints"),
     resolveImageSourceUrl: (sourcePath) => sourcePath,
       renderHostOverlay: (viewportSize) => (
         <>
-          {modulePreviewReferencePickSession ? (
-            <VSCodeReferencePickOverlay
-              canvasFocusRef={canvasFocusRef}
-              viewportSize={viewportSize}
-              canvasViewport={canvasViewport}
-              canvasTheme={canvasTheme}
-              elements={referencePickElements}
-              evaluation={referencePickEvaluation}
-              visibilityProfiles={preview?.root.compileResult.visibilityProfiles ?? authoredPickContext?.compiled.document?.visibilityProfiles ?? []}
-              activeVisibilityProfileId={preview?.root.compileResult.activeVisibilityProfileId ?? authoredPickContext?.compiled.document?.activeVisibilityProfileId ?? null}
-              session={modulePreviewReferencePickSession}
-              onHover={setModulePreviewReferencePickHover}
-              onSelect={selectModulePreviewReferencePick}
-              onConfirm={confirmModulePreviewReferencePick}
-              onCancel={cancelModulePreviewReferencePick}
-              presentation={canvasPresentationAdapter}
+          {modulePreviewPickModeSession ? (
+            <PickModeStatusView
+              model={{
+                targetLabel: modulePreviewPickModeSession.targetDisplayLabel ?? "Preview",
+                instruction: modulePreviewPickModeSession.kind === "point" ? "Canvasから点を選択" : "Canvasから線・曲線を選択",
+                currentSelection: modulePreviewPickModeSession.draft[0]?.kind !== "numeric-reference" &&
+                  modulePreviewPickModeSession.draft[0]?.sourceReference
+                  ? sourceReferenceText(modulePreviewPickModeSession.draft[0].sourceReference) ??
+                    modulePreviewPickModeSession.draft[0].sourceReference.base
+                  : null,
+                onFinish: finishModulePreviewPick
+              }}
             />
           ) : null}
           <VSCodeCanvasRibbonOverlay
@@ -1382,19 +1553,24 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     dispatchCommitGeometry,
     executeSharedCanvasCommand,
     authoredPickContext,
-    referencePickElements,
-    referencePickEvaluation,
-    modulePreviewReferencePickSession,
-    setModulePreviewReferencePickHover,
-    selectModulePreviewReferencePick,
-    confirmModulePreviewReferencePick,
+    applyModulePreviewPickedLine,
+    applyModulePreviewPickedPoint,
+    canvasElements,
+    canvasEvaluationRevision,
     cancelModulePreviewReferencePick,
+    dispatchModulePreviewPickCommand,
+    finishModulePreviewPick,
+    modulePreviewPickActive,
+    modulePreviewPickCompiled,
+    modulePreviewPickCandidates,
+    modulePreviewPickModeSession,
+    modulePreviewPickCursor,
+    modulePreviewPickRequestId,
     measureCanvasTextWidth,
     preview,
     dispatchPreviewGeometry,
     previewCanvasSelection,
     commitCanvasRectangleSelection,
-    renderElements,
     ribbonCommandContext,
     selectElement,
     selectedElementId,
@@ -1435,8 +1611,8 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         {preview || modulePreviewReferencePickSession ? (
           <DrawingCanvas
             ref={drawingCanvasRef}
-            evaluation={evaluationState.evaluation}
-            evaluationState={evaluationState}
+            evaluation={canvasEvaluation}
+            evaluationState={canvasEvaluationState}
             canvasFocusRef={canvasFocusRef}
             hostAdapter={hostAdapter}
           />
