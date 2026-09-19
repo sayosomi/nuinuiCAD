@@ -68,6 +68,21 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("matches forward transformation argument scheduling in TypeScript and Rust", () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "line A = segment(start: (0, 0), end: (1, 0))",
+      "move A (from: @B.start, to: (10, 0))",
+      "line B = segment(start: (5, 0), end: (6, 0))"
+    ].join("\n"));
+    const options = optionsFor(fixture);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustOptions(repoRoot, fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+    const aId = fixture.elements.find((element) => element.name === "A")!.id;
+    expect(evaluationPayloadToResult(tsPayload).computedGeometry.get(aId)).toBeDefined();
+  }, 30000);
+
   it("keeps incompatible geometry-value construction in the occurrence-owned error channel", () => {
     const fixture = fixtureFromSource([
       "nui 1",

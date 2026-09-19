@@ -2,7 +2,15 @@
 // records only: it deliberately never parses DSL source || resolves names.
 import type { DslSpan } from "../dsl/dslTypes";
 import { effectiveElementActivityById } from "../model/elementActivity";
-import type { CadElement, DrawingModifierDefinition, ElementId } from "../types/geometry";
+import type {
+  CadElement,
+  DrawingModifierDefinition,
+  ElementId,
+  NumericValue,
+  PointAnchor
+} from "../types/geometry";
+import { getDirectParentIds } from "../model/dependencies";
+import { extractNumericExpressionReferences } from "../geometry/numericExpressions";
 import type { BindingAnalysis, BindingIssue } from "./bindingAnalysis";
 import type { BindingId } from "./bindingCatalog";
 import type { BindingVersionGraph } from "./bindingVersions";
@@ -11,14 +19,35 @@ import type { CompiledNumericBinding } from "./numericBindingCompiler";
 import type { TextTemplateAst } from "./textTemplate";
 import type { TypedScalarExpression } from "./typedExpressionAst";
 import type { ScalarProgram } from "./scalarProgram";
+import type { TransformationOperation, TransformationRecipe, TransformationTargetSelector } from "../dsl/transformationRecipes";
+import type { ModuleMaterialization } from "../dsl/moduleMaterialization";
 
 export type TypedDependencyReason = "missing" | "invalid" | "disabled";
 export type TypedDependencyKind = "initializer" | "geometry" | "geometry-property" | "property-binding" | "numeric-expression" | "template-hole";
+export type TypedDependencyRequiredness = "required" | "conditional";
 
 export type TypedDependencyEndpoint =
   | { kind: "binding"; id: BindingId; name: string; statementIndex: number; span: DslSpan | null }
   | { kind: "version"; id: string; bindingId: BindingId; statementIndex: number }
   | { kind: "element"; id: ElementId; name: string; statementIndex: number }
+  | {
+      kind: "geometry-stage";
+      id: string;
+      ownerId: ElementId;
+      name: string;
+      stagePath: readonly string[];
+      occurrenceIndex?: string;
+      statementIndex: number;
+    }
+  | {
+      kind: "transformation-recipe";
+      id: string;
+      name: string;
+      ownerId: ElementId;
+      branchKey: string;
+      statementIndex: number;
+    }
+  | { kind: "module-occurrence"; id: string; name: string; statementIndex: number }
   | { kind: "missing"; id: string; name: string; statementIndex: number };
 
 export type TypedDependencyEdge = {
@@ -27,6 +56,30 @@ export type TypedDependencyEdge = {
   to: TypedDependencyEndpoint;
   span: DslSpan | null;
   reason?: TypedDependencyReason;
+  /** Conditional edges remain in the canonical graph but are activated only
+   * after the controlling value/scrutinee selects their branch. */
+  requiredness?: TypedDependencyRequiredness;
+};
+
+export type TypedTransformationDependency = {
+  ownerId: ElementId;
+  stagePath: readonly string[];
+  occurrenceIndex?: string;
+};
+
+/** Compiler-owned runtime facts for one transformation recipe. Evaluators
+ * consume this plan; they do not rediscover operation argument dependencies
+ * or same-branch predecessor ordering from recipe payloads. */
+export type TypedTransformationDependencyPlan = {
+  recipeId: string;
+  recipeIndex: number;
+  branchKey: string;
+  statementIndex: number;
+  ownerIds: readonly ElementId[];
+  prerequisites: readonly TypedTransformationDependency[];
+  argumentDependencies: readonly TypedTransformationDependency[];
+  predecessorRecipeIndices: readonly number[];
+  outputStages: readonly TypedTransformationDependency[];
 };
 
 export type TypedDependencyGraph = {
@@ -37,6 +90,8 @@ export type TypedDependencyGraph = {
   evaluationOrder: readonly ElementId[];
   /** Explicit strongly connected components, retained for diagnostics and tooling. */
   cycles: readonly TypedDependencyCycle[];
+  /** Recipe/stage plan consumed by both reference and Rust evaluators. */
+  transformationPlans: readonly TypedTransformationDependencyPlan[];
 };
 
 export type TypedDependencyCycle = {
@@ -56,6 +111,8 @@ export type TypedDependencyGraphInput = {
   textTemplates?: ReadonlyMap<string, TextTemplateAst>;
   scalarProgram?: ScalarProgram;
   geometryInputTargets?: ReadonlyMap<ElementId, ReadonlyMap<string, unknown>>;
+  transformationRecipes?: readonly TransformationRecipe[];
+  moduleMaterialization?: Pick<ModuleMaterialization, "instanceBaseGeometrySnapshots">;
 };
 
 const endpointId = (endpoint: TypedDependencyEndpoint) => `${endpoint.kind}:${endpoint.id}`;
@@ -138,6 +195,100 @@ export const geometryPropertiesIn = (expression: TypedScalarExpression): readonl
   return result;
 };
 
+const stageEndpointId = (ownerId: ElementId, occurrenceIndex: string | undefined, stagePath: readonly string[]) =>
+  `${ownerId}\u0000${occurrenceIndex ?? "*"}\u0000${stagePath.join(".") || "base"}`;
+
+const recipeBranchKey = (recipe: TransformationRecipe) => {
+  const target = recipe.targets[0];
+  return `${target?.ownerId ?? ""}\u0000${target?.occurrenceIndex ?? "*"}\u0000${recipe.recipeOwnerPath.join(".")}`;
+};
+
+const numericReferenceIds = (value: NumericValue): readonly ElementId[] =>
+  extractNumericExpressionReferences(value).map((reference) => reference.elementId);
+
+const anchorDependencies = (anchor: PointAnchor): readonly TypedTransformationDependency[] => {
+  if (anchor.mode === "reference") return [{ ownerId: anchor.pointId, stagePath: ["final"] }];
+  if (anchor.mode === "derived") {
+    const path = anchor.pointKey.split(".");
+    const property = path.pop();
+    return property ? [{ ownerId: anchor.elementId, stagePath: path.length ? path : ["final"] }] : [];
+  }
+  if (anchor.mode === "coordinate") return numericReferenceIds(anchor.x).concat(numericReferenceIds(anchor.y)).map((ownerId) => ({ ownerId, stagePath: ["final"] }));
+  return [];
+};
+
+const operationDependencies = (operation: TransformationOperation): readonly TypedTransformationDependency[] => {
+  switch (operation.kind) {
+    case "edge": return numericReferenceIds(operation.intersectionIndex).map((ownerId) => ({ ownerId, stagePath: ["final"] }));
+    case "extend": return [...anchorDependencies(operation.point)];
+    case "move": return [
+      ...anchorDependencies(operation.startPoint),
+      ...anchorDependencies(operation.endPoint),
+      ...numericReferenceIds(operation.scale).map((ownerId) => ({ ownerId, stagePath: ["final"] })),
+      ...numericReferenceIds(operation.angleDeg).map((ownerId) => ({ ownerId, stagePath: ["final"] }))
+    ];
+    case "mirrorMove": return [...anchorDependencies(operation.axisPoint1), ...anchorDependencies(operation.axisPoint2)];
+    case "reverse": return [];
+  }
+};
+
+const dedupe = <T>(values: readonly T[], key: (value: T) => string): T[] => {
+  const seen = new Set<string>();
+  return values.filter((value) => {
+    const valueKey = key(value);
+    if (seen.has(valueKey)) return false;
+    seen.add(valueKey);
+    return true;
+  });
+};
+
+const targetDependency = (target: TransformationTargetSelector): TypedTransformationDependency => ({
+  ownerId: target.ownerId,
+  occurrenceIndex: target.occurrenceIndex,
+  stagePath: target.stagePath
+});
+
+type StructuredGeometryDependency = { id: ElementId; requiredness: TypedDependencyRequiredness };
+
+const collectStructuredGeometryDependencies = (
+  value: unknown,
+  result: StructuredGeometryDependency[],
+  requiredness: TypedDependencyRequiredness = "required"
+): void => {
+  if (!value || typeof value !== "object") return;
+  if (Array.isArray(value)) {
+    value.forEach((item) => collectStructuredGeometryDependencies(item, result, requiredness));
+    return;
+  }
+  const target = value as {
+    kind?: string;
+    elementId?: unknown;
+    templateElementId?: unknown;
+    source?: unknown;
+    value?: unknown;
+    members?: unknown;
+    thenBranch?: unknown;
+    elseBranch?: unknown;
+    arms?: unknown;
+    leftBranch?: unknown;
+    rightBranch?: unknown;
+  };
+  if (typeof target.elementId === "string") result.push({ id: target.elementId, requiredness });
+  if (typeof target.templateElementId === "string") result.push({ id: target.templateElementId, requiredness });
+  if (target.kind === "geometryValueMap" && target.source) collectStructuredGeometryDependencies(target.source, result, requiredness);
+  if (target.kind === "collectionValue" || target.kind === "collectionIndex") collectStructuredGeometryDependencies(target.value, result, requiredness);
+  if (target.members) collectStructuredGeometryDependencies(target.members, result, requiredness);
+  if (target.kind === "if") {
+    collectStructuredGeometryDependencies(target.thenBranch, result, "conditional");
+    collectStructuredGeometryDependencies(target.elseBranch, result, "conditional");
+  }
+  if (target.kind === "match") collectStructuredGeometryDependencies(target.arms, result, "conditional");
+  if (target.kind === "coalesce") {
+    collectStructuredGeometryDependencies(target.leftBranch, result, requiredness);
+    collectStructuredGeometryDependencies(target.rightBranch, result, "conditional");
+  }
+};
+
 /** Builds once during compilation; query consumers only read its adjacency maps. */
 export const buildTypedDependencyGraph = ({
   elements,
@@ -148,18 +299,35 @@ export const buildTypedDependencyGraph = ({
   numericBindings,
   textTemplates,
   scalarProgram,
-  geometryInputTargets
+  geometryInputTargets,
+  transformationRecipes,
+  moduleMaterialization
 }: TypedDependencyGraphInput): TypedDependencyGraph | undefined => {
   const elementsById = new Map(elements.map((element) => [element.id, element]));
   const disabledBindingIds = bindingAnalysis
     ? staticDisabledBindingIds(bindingAnalysis, elements, drawingModifiers)
     : new Set<BindingId>();
   const edges: TypedDependencyEdge[] = [];
-  const seen = new Set<string>();
+  const deferredStageEdges: Array<{
+    kind: TypedDependencyKind;
+    from: TypedDependencyEndpoint;
+    ownerId: ElementId;
+    span: DslSpan | null;
+    requiredness: TypedDependencyRequiredness;
+  }> = [];
+  const seen = new Map<string, number>();
   const add = (edge: TypedDependencyEdge) => {
     const key = `${endpointId(edge.from)}|${edge.kind}|${endpointId(edge.to)}`;
-    if (seen.has(key)) return;
-    seen.add(key);
+    const existingIndex = seen.get(key);
+    if (existingIndex !== undefined) {
+      // A required path dominates a conditional path when both compiler
+      // products describe the same dependency.
+      if (edge.requiredness === "required" && edges[existingIndex]?.requiredness === "conditional") {
+        edges[existingIndex] = { ...edges[existingIndex], requiredness: "required" };
+      }
+      return;
+    }
+    seen.set(key, edges.length);
     edges.push(edge);
   };
   const reasonFor = (bindingId: BindingId): TypedDependencyReason | undefined => {
@@ -173,72 +341,82 @@ export const buildTypedDependencyGraph = ({
     if (binding.kind !== "typed") continue;
     const from = bindingEndpoint(bindingAnalysis, binding.id);
     for (const edge of bindingAnalysis.graph.edgesByFromBindingId.get(binding.id) ?? []) {
-      add({ kind: "initializer", from, to: bindingEndpoint(bindingAnalysis, edge.toBindingId), span: edge.reference.span, reason: reasonFor(edge.toBindingId) });
+      add({ kind: "initializer", from, to: bindingEndpoint(bindingAnalysis, edge.toBindingId), span: edge.reference.span, reason: reasonFor(edge.toBindingId), requiredness: "required" });
     }
   }
   if (bindingAnalysis) for (const statement of scalarProgram?.statements ?? []) {
     const from = bindingEndpoint(bindingAnalysis, statement.bindingId);
     for (const reference of geometryPropertiesIn(statement.declaration.initializer)) {
-      if (reference.lazy) continue;
       if (!reference.elementId || reference.targetSourceOrder === null) continue;
-      add({ kind: "geometry-property", from, to: elementEndpoint(elementsById, reference.elementId, reference.targetSourceOrder), span: reference.span });
+      deferredStageEdges.push({ kind: "geometry-property", from, ownerId: reference.elementId, span: reference.span, requiredness: reference.lazy ? "conditional" : "required" });
+    }
+    // Binding-analysis intentionally keeps the unconditional graph small. The
+    // canonical graph also retains conditional value-branch references so the
+    // selected branch can be scheduled later by either evaluator.
+    for (const reference of referencesIn(statement.declaration.initializer)) {
+      if (!reference.bindingId || !bindingAnalysis.catalog.bindingsById.has(reference.bindingId)) continue;
+      add({ kind: "initializer", from, to: bindingEndpoint(bindingAnalysis, reference.bindingId), span: reference.span, reason: reasonFor(reference.bindingId), requiredness: reference.lazy ? "conditional" : "required" });
     }
   }
   if (bindingAnalysis) for (const issue of bindingAnalysis.issues) {
     if (issue.origin.kind !== "reference") continue;
-    if (issue.origin.reference.lazy) continue;
     const reference = issue.origin.reference;
     const from = bindingEndpoint(bindingAnalysis, issue.bindingId);
     const target = issue.code === "undefined-binding" || issue.code === "forward-binding-reference"
       ? { kind: "missing" as const, id: `${issue.code}:${issue.bindingId}:${reference.occurrenceIndex}`, name: reference.name, statementIndex: from.statementIndex }
       : bindingEndpoint(bindingAnalysis, issue.relatedBindingIds[0] ?? issue.bindingId);
-    add({ kind: "initializer", from, to: target, span: issue.span, reason: issueReason(issue) });
+    add({ kind: "initializer", from, to: target, span: issue.span, reason: issueReason(issue), requiredness: reference.lazy ? "conditional" : "required" });
   }
 
-  // Persist every resolved drawable dependency in the same graph. Element
-  // fields are already compiler-resolved IDs; walking only strings that are
-  // known element IDs avoids parsing or name resolution here while covering
-  // anchors, line/path inputs, parent containers, and generated occurrences.
-  const knownElementIds = new Set(elementsById.keys());
+  // Persist every resolved drawable dependency in the same graph. This uses
+  // the structured compiler products rather than searching arbitrary strings
+  // against every element id (which made graph construction quadratic).
   const elementStatementIndex = new Map<ElementId, number>();
   for (const [statementIndex, elementId] of elementIdByStatementIndex) elementStatementIndex.set(elementId, statementIndex);
-  const collectElementIds = (value: unknown, ownerId: ElementId, result: Set<ElementId>): void => {
-    if (typeof value === "string") {
-      for (const candidate of knownElementIds) {
-        if (candidate === ownerId) continue;
-        const trimmed = value.trim();
-        if (
-          trimmed === candidate ||
-          trimmed.startsWith(`${candidate}.`) ||
-          trimmed.includes(`@${candidate}.`)
-        ) {
-          result.add(candidate);
-        }
-      }
-      return;
-    }
-    if (Array.isArray(value)) {
-      for (const item of value) collectElementIds(item, ownerId, result);
-      return;
-    }
-    if (!value || typeof value !== "object") return;
-    for (const [key, item] of Object.entries(value)) {
-      if (key === "id" && item === ownerId) continue;
-      collectElementIds(item, ownerId, result);
-    }
-  };
   for (const element of elements) {
-    const dependencies = new Set<ElementId>();
-    collectElementIds(element, element.id, dependencies);
+    const dependencies = new Map<ElementId, TypedDependencyRequiredness>((getDirectParentIds(element, {
+      textTemplatesByElementId: new Map(
+        [...(textTemplates ?? [])].map(([key, template]) => [elementIdByStatementIndex.get(Number(key.slice(0, key.indexOf(":")))), template] as const)
+          .filter((entry): entry is readonly [ElementId, TextTemplateAst] => Boolean(entry[0]))
+      )
+    }) ?? []).map((dependencyId) => [dependencyId, "required"] as const));
     const targetMap = geometryInputTargets?.get(element.id);
-    if (targetMap) collectElementIds(targetMap, element.id, dependencies);
+    if (targetMap) {
+      const structuredDependencies: StructuredGeometryDependency[] = [];
+      collectStructuredGeometryDependencies(targetMap, structuredDependencies);
+      for (const dependency of structuredDependencies) {
+        const existing = dependencies.get(dependency.id);
+        dependencies.set(dependency.id, existing === "required" ? existing : dependency.requiredness);
+      }
+    }
     const from = elementEndpoint(elementsById, element.id, elementStatementIndex.get(element.id) ?? 0);
-    for (const dependencyId of dependencies) {
-      add({
+    for (const [dependencyId, requiredness] of dependencies) {
+      if (dependencyId === element.id || !elementsById.has(dependencyId)) continue;
+      deferredStageEdges.push({
         kind: "geometry",
         from,
-        to: elementEndpoint(elementsById, dependencyId, elementStatementIndex.get(dependencyId) ?? 0),
-        span: null
+        ownerId: dependencyId,
+        span: null,
+        requiredness
+      });
+    }
+  }
+
+  for (const snapshot of moduleMaterialization?.instanceBaseGeometrySnapshots ?? []) {
+    const occurrence: TypedDependencyEndpoint = {
+      kind: "module-occurrence",
+      id: `module-occurrence:${snapshot.instanceId}`,
+      name: snapshot.instanceId,
+      statementIndex: elementStatementIndex.get(snapshot.instanceId) ?? 0
+    };
+    for (const descendantId of snapshot.descendantIds) {
+      if (!elementsById.has(descendantId)) continue;
+      add({
+        kind: "geometry",
+        from: occurrence,
+        to: elementEndpoint(elementsById, descendantId, elementStatementIndex.get(descendantId) ?? 0),
+        span: null,
+        requiredness: "required"
       });
     }
   }
@@ -248,9 +426,9 @@ export const buildTypedDependencyGraph = ({
     const elementId = elementIdByStatementIndex.get(statementIndex);
     if (!elementId) continue;
     const references = source.kind === "binding"
-      ? [{ bindingId: source.bindingId, span: source.span }]
+      ? [{ bindingId: source.bindingId, span: source.span, requiredness: "required" as const }]
       : source.kind === "expression"
-        ? referencesIn(source.expression).flatMap((reference) => !reference.lazy && reference.bindingId ? [{ bindingId: reference.bindingId, span: reference.span }] : [])
+        ? referencesIn(source.expression).flatMap((reference) => reference.bindingId ? [{ bindingId: reference.bindingId, span: reference.span, requiredness: reference.lazy ? "conditional" as const : "required" as const }] : [])
         : [];
     for (const reference of references) {
       add({
@@ -258,7 +436,8 @@ export const buildTypedDependencyGraph = ({
         from: elementEndpoint(elementsById, elementId, statementIndex),
         to: bindingEndpoint(bindingAnalysis, reference.bindingId),
         span: reference.span,
-        reason: reasonFor(reference.bindingId)
+        reason: reasonFor(reference.bindingId),
+        requiredness: reference.requiredness ?? "required"
       });
     }
   }
@@ -272,7 +451,8 @@ export const buildTypedDependencyGraph = ({
         from: elementEndpoint(elementsById, elementId, statementIndex),
         to: bindingEndpoint(bindingAnalysis, reference.bindingId),
         span: reference.span,
-        reason: reasonFor(reference.bindingId)
+        reason: reasonFor(reference.bindingId),
+        requiredness: "required"
       });
     }
   }
@@ -292,12 +472,6 @@ export const buildTypedDependencyGraph = ({
   }
   const directByEndpointId = new Map<string, TypedDependencyEdge[]>();
   const reverseByEndpointId = new Map<string, TypedDependencyEdge[]>();
-  for (const edge of edges) {
-    const direct = directByEndpointId.get(endpointId(edge.from)) ?? [];
-    direct.push(edge); directByEndpointId.set(endpointId(edge.from), direct);
-    const reverse = reverseByEndpointId.get(endpointId(edge.to)) ?? [];
-    reverse.push(edge); reverseByEndpointId.set(endpointId(edge.to), reverse);
-  }
   const endpointById = new Map<string, TypedDependencyEndpoint>();
   for (const element of elements) {
     const endpoint = elementEndpoint(elementsById, element.id, elementStatementIndex.get(element.id) ?? 0);
@@ -306,6 +480,150 @@ export const buildTypedDependencyGraph = ({
   for (const binding of bindingAnalysis?.catalog.bindings ?? []) {
     const endpoint = bindingEndpoint(bindingAnalysis!, binding.id);
     endpointById.set(endpointId(endpoint), endpoint);
+  }
+
+  const transformationPlans: TypedTransformationDependencyPlan[] = [];
+  const stageEndpoints = new Map<string, TypedDependencyEndpoint>();
+  const recipeEndpoints = new Map<number, TypedDependencyEndpoint>();
+  const recipes = transformationRecipes ?? [];
+  const stageEndpoint = (dependency: TypedTransformationDependency): TypedDependencyEndpoint => {
+    const id = stageEndpointId(dependency.ownerId, dependency.occurrenceIndex, dependency.stagePath);
+    const existing = stageEndpoints.get(id);
+    if (existing) return existing;
+    const owner = elementsById.get(dependency.ownerId);
+    const path = dependency.stagePath.length === 0 ? ["base"] : dependency.stagePath;
+    const endpoint: TypedDependencyEndpoint = {
+      kind: "geometry-stage",
+      id,
+      ownerId: dependency.ownerId,
+      name: `${owner?.name ?? dependency.ownerId}.${path.join(".")}`,
+      stagePath: path,
+      ...(dependency.occurrenceIndex !== undefined ? { occurrenceIndex: dependency.occurrenceIndex } : {}),
+      statementIndex: elementStatementIndex.get(dependency.ownerId) ?? 0
+    };
+    stageEndpoints.set(id, endpoint);
+    endpointById.set(endpointId(endpoint), endpoint);
+    return endpoint;
+  };
+  const addStageDependency = (from: TypedDependencyEndpoint, dependency: TypedTransformationDependency, kind: TypedDependencyKind = "geometry") => {
+    add({ kind, from, to: stageEndpoint(dependency), span: null, requiredness: "required" });
+  };
+  for (const deferred of deferredStageEdges) {
+    add({
+      kind: deferred.kind,
+      from: deferred.from,
+      to: stageEndpoint({ ownerId: deferred.ownerId, stagePath: ["final"] }),
+      span: deferred.span,
+      requiredness: deferred.requiredness
+    });
+  }
+  for (const [recipeIndex, recipe] of recipes.entries()) {
+    const target = recipe.targets[0];
+    if (!target) continue;
+    const recipeEndpoint: TypedDependencyEndpoint = {
+      kind: "transformation-recipe",
+      id: `recipe:${recipe.id}`,
+      name: recipe.construction,
+      ownerId: target.ownerId,
+      branchKey: recipeBranchKey(recipe),
+      statementIndex: recipe.sourceStatementIndex
+    };
+    recipeEndpoints.set(recipeIndex, recipeEndpoint);
+    endpointById.set(endpointId(recipeEndpoint), recipeEndpoint);
+    const predecessors = recipes
+      .slice(0, recipeIndex)
+      .map((prior, priorIndex) => ({ prior, priorIndex }))
+      .filter(({ prior }) => recipeBranchKey(prior) === recipeBranchKey(recipe))
+      .map(({ priorIndex }) => priorIndex);
+    const prerequisites = recipe.targets.map((target) => {
+      if (target.stagePath.length > 0) return targetDependency(target);
+      return {
+        ownerId: target.ownerId,
+        occurrenceIndex: target.occurrenceIndex,
+        // Bare target syntax is ownership, not a value read. The predecessor
+        // list carries same-branch local ordering for later root recipes;
+        // every root target's construction prerequisite remains Base.
+        stagePath: ["base"]
+      };
+    });
+    const argumentDependencies = dedupe(operationDependencies(recipe.operation),
+      (dependency) => `${dependency.ownerId}|${dependency.stagePath.join(".")}`);
+    const outputStages = recipe.targets.flatMap((target) => {
+      const stagePath = recipe.stageName
+        ? [...target.stagePath, recipe.stageName]
+        : [...target.stagePath, "final"];
+      const output = { ownerId: target.ownerId, occurrenceIndex: target.occurrenceIndex, stagePath };
+      return recipe.stageName
+        ? [output, { ...output, stagePath: [...stagePath, "final"] }]
+        : [output];
+    });
+    const plan = {
+      recipeId: recipe.id,
+      recipeIndex,
+      branchKey: recipeBranchKey(recipe),
+      statementIndex: recipe.sourceStatementIndex,
+      ownerIds: dedupe(recipe.targets.map((target) => target.ownerId), (value) => value),
+      prerequisites,
+      argumentDependencies,
+      predecessorRecipeIndices: predecessors,
+      outputStages
+    } satisfies TypedTransformationDependencyPlan;
+    transformationPlans.push(plan);
+    for (const prerequisite of prerequisites) addStageDependency(recipeEndpoint, prerequisite);
+    for (const dependency of argumentDependencies) addStageDependency(recipeEndpoint, dependency);
+    for (const priorIndex of predecessors) {
+      const priorEndpoint = recipeEndpoints.get(priorIndex);
+      if (priorEndpoint) add({ kind: "geometry", from: recipeEndpoint, to: priorEndpoint, span: null, requiredness: "required" });
+    }
+    for (const output of outputStages) {
+      add({ kind: "geometry", from: stageEndpoint(output), to: recipeEndpoint, span: null, requiredness: "required" });
+    }
+  }
+  const finalizedBranches = new Set<string>();
+  for (const recipe of recipes) {
+    const owner = recipe.targets[0];
+    if (!owner) continue;
+    const branchKey = recipeBranchKey(recipe);
+    if (finalizedBranches.has(branchKey)) continue;
+    finalizedBranches.add(branchKey);
+    const final = { ownerId: owner.ownerId, occurrenceIndex: owner.occurrenceIndex, stagePath: ["final"] };
+    const finalEndpoint = stageEndpoint(final);
+    const branchRecipes = recipes.filter((candidate) => recipeBranchKey(candidate) === branchKey);
+    const last = branchRecipes.filter((candidate) => candidate.stageName === null).at(-1);
+    if (last) {
+      const lastIndex = recipes.indexOf(last);
+      const lastPlan = transformationPlans.find((plan) => plan.recipeIndex === lastIndex);
+      const lastOutput = lastPlan?.outputStages.find((output) =>
+        output.stagePath.length === 1 && output.stagePath[0] === "final"
+      );
+      if (lastOutput && stageEndpointId(lastOutput.ownerId, lastOutput.occurrenceIndex, lastOutput.stagePath) !== stageEndpointId(final.ownerId, final.occurrenceIndex, final.stagePath)) {
+        addStageDependency(finalEndpoint, lastOutput);
+      }
+    } else {
+      addStageDependency(finalEndpoint, { ownerId: owner.ownerId, occurrenceIndex: owner.occurrenceIndex, stagePath: ["base"] });
+    }
+  }
+  const ownersWithRootRecipe = new Set(
+    recipes
+      .filter((recipe) => recipe.stageName === null && recipe.targets.some((target) => target.stagePath.length === 0))
+      .map((recipe) => recipe.targets[0]?.ownerId)
+      .filter((ownerId): ownerId is ElementId => Boolean(ownerId))
+  );
+  for (const element of elements) {
+    const construction = elementEndpoint(elementsById, element.id, elementStatementIndex.get(element.id) ?? 0);
+    const base = { ownerId: element.id, stagePath: ["base"] };
+    add({ kind: "geometry", from: stageEndpoint(base), to: construction, span: null, requiredness: "required" });
+    if (!ownersWithRootRecipe.has(element.id)) {
+      addStageDependency(stageEndpoint({ ownerId: element.id, stagePath: ["final"] }), base, "geometry");
+    }
+  }
+  directByEndpointId.clear();
+  reverseByEndpointId.clear();
+  for (const edge of edges) {
+    const direct = directByEndpointId.get(endpointId(edge.from)) ?? [];
+    direct.push(edge); directByEndpointId.set(endpointId(edge.from), direct);
+    const reverse = reverseByEndpointId.get(endpointId(edge.to)) ?? [];
+    reverse.push(edge); reverseByEndpointId.set(endpointId(edge.to), reverse);
   }
   for (const edge of edges) {
     endpointById.set(endpointId(edge.from), edge.from);
@@ -328,7 +646,15 @@ export const buildTypedDependencyGraph = ({
       const start = stack.indexOf(nodeId);
       const cycleIds = [...stack.slice(Math.max(0, start)), nodeId];
       const key = cycleIds.join("|");
-      if (!cycleKeys.has(key)) {
+      const cycleIsUnconditionallyRequired = cycleIds.slice(0, -1).every((fromId, index) => {
+        const toId = cycleIds[index + 1];
+        return edges.some((edge) =>
+          endpointId(edge.from) === fromId &&
+          endpointId(edge.to) === toId &&
+          edge.requiredness !== "conditional"
+        );
+      });
+      if (cycleIsUnconditionallyRequired && !cycleKeys.has(key)) {
         cycleKeys.add(key);
         const cycleEndpoints = cycleIds.map((id) => endpointById.get(id)).filter((endpoint): endpoint is TypedDependencyEndpoint => Boolean(endpoint));
         cycles.push({
@@ -351,7 +677,7 @@ export const buildTypedDependencyGraph = ({
     .map((id) => endpointById.get(id))
     .filter((endpoint): endpoint is Extract<TypedDependencyEndpoint, { kind: "element" }> => endpoint?.kind === "element")
     .map((endpoint) => endpoint.id);
-  return { edges, directByEndpointId, reverseByEndpointId, evaluationOrder, cycles };
+  return { edges, directByEndpointId, reverseByEndpointId, evaluationOrder, cycles, transformationPlans };
 };
 
 export const typedDependencyEndpointId = endpointId;

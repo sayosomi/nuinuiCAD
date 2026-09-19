@@ -348,6 +348,7 @@ pub(crate) struct EvaluationState {
     pub(crate) base_transformation_geometry: HashMap<ElementId, Value>,
     pub(crate) transformation_stage_geometry: HashMap<String, Value>,
     pub(crate) completed_transformation_recipe_indices: HashSet<usize>,
+    pub(crate) transformation_dependency_plans: Option<Value>,
     pub(crate) computed_geometry_order: Vec<ElementId>,
     pub(crate) computed_geometry_values: HashMap<GeometryValueOccurrence, Value>,
     pub(crate) geometry_input_targets:

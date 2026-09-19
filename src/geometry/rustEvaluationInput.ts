@@ -15,7 +15,11 @@ type TextTemplateInput = { elementId: ElementId; segments: readonly RustTextTemp
 export type EvaluateDocumentInput = {
   elements: CadElement[];
   evaluationOrder?: readonly ElementId[];
-  transformationRecipes?: readonly import("@nuinuicad/nui-language").TransformationRecipe[];
+  transformationRecipes?: readonly import("@nuinuicad/nui-language").TransformationRecipe[] | {
+    recipes: readonly import("@nuinuicad/nui-language").TransformationRecipe[];
+    dependencyPlans: readonly import("@nuinuicad/nui-language").TypedTransformationDependencyPlan[];
+  };
+  transformationDependencyPlans?: readonly import("@nuinuicad/nui-language").TypedTransformationDependencyPlan[];
   sourceStatementIndices?: Array<{ elementId: ElementId; statementIndex: number }>;
   evaluationLimitIndex?: number;
   allowDisabledElementIds?: readonly ElementId[];
@@ -71,7 +75,14 @@ export const buildRustEvaluationInput = (
   return {
     elements,
     ...(options.evaluationOrder ? { evaluationOrder: options.evaluationOrder } : {}),
-    ...(options.transformationRecipes?.length ? { transformationRecipes: options.transformationRecipes } : {}),
+    ...(options.transformationRecipes?.length
+      ? {
+          transformationRecipes: {
+            recipes: options.transformationRecipes,
+            dependencyPlans: options.transformationDependencyPlans ?? []
+          }
+        }
+      : {}),
     ...(options.statementInfoByElementId?.size
       ? {
           sourceStatementIndices: Array.from(options.statementInfoByElementId, ([elementId, info]) => ({

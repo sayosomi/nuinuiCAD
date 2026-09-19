@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compileDslToElements } from "@nuinuicad/nui-language";
+import { compileDslDocument, compileDslToElements } from "@nuinuicad/nui-language";
 import { transformationStageKey } from "@nuinuicad/nui-language";
 import type { ComputedGeometry, ComputedLine } from "../types/geometry";
 import { evaluateElements } from "./evaluate";
@@ -24,6 +24,46 @@ const lineOf = (geometry: ComputedGeometry | undefined): ComputedLine => {
 };
 
 describe("transformation recipe evaluation", () => {
+  it("waits for forward recipe arguments and keeps base reads non-cyclic", () => {
+    const { compiled, evaluation } = compileAndEvaluate([
+      "line A = segment(start: (0, 0), end: (1, 0))",
+      "move A (from: @B.start, to: (10, 0))",
+      "line B = segment(start: (5, 0), end: (6, 0))"
+    ].join("\n"));
+    expect(evaluation.errors).toEqual([]);
+    expect(lineOf(evaluation.computedGeometry.get(compiled.elements[0]!.id)).start.x).toBe(5);
+
+    const baseRead = compileDslDocument([
+      "nui 1",
+      "line A = segment(start: (0, 0), end: (1, 0))",
+      "move A (from: @A.base.start, to: (2, 0))"
+    ].join("\n"));
+    expect(baseRead.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(baseRead.typedDependencyGraph?.transformationPlans[0]?.argumentDependencies[0]?.stagePath).toEqual(["base"]);
+  });
+
+  it("keeps recipe/stage dependencies in the canonical graph and diagnoses final self reads", () => {
+    const valid = compileDslDocument([
+      "nui 1",
+      "line A = segment(start: (0, 0), end: (1, 0))",
+      "move A as moved (from: (0, 0), to: (1, 0))",
+      "reverse A ()",
+      "move A (from: @A.moved.start, to: (2, 0))"
+    ].join("\n"));
+    const plans = valid.typedDependencyGraph?.transformationPlans ?? [];
+    expect(plans).toHaveLength(3);
+    expect(plans[2]?.predecessorRecipeIndices).toEqual([0, 1]);
+    expect(plans[2]?.argumentDependencies[0]?.stagePath).toEqual(["moved"]);
+    expect(valid.typedDependencyGraph?.edges.some((edge) => edge.from.kind === "transformation-recipe" && edge.to.kind === "geometry-stage")).toBe(true);
+
+    const cycle = compileDslDocument([
+      "nui 1",
+      "line A = segment(start: (0, 0), end: (1, 0))",
+      "move A (from: @A.start, to: (2, 0))"
+    ].join("\n"));
+    expect(cycle.diagnostics.map((diagnostic) => diagnostic.code)).toContain("dependency-cycle");
+  });
+
   it("bypasses disabled clauses and keeps immutable checkpoints plus branch finals", () => {
     const { compiled, evaluation } = compileAndEvaluate([
       "line A = segment(start: (0, 0), end: (10, 0))",

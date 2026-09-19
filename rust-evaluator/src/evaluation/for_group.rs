@@ -532,6 +532,7 @@ mod tests {
         let id = element["id"].as_str().unwrap().to_owned();
         EvaluationState {
             completed_transformation_recipe_indices: std::collections::HashSet::new(),
+            transformation_dependency_plans: None,
             geometry_input_targets: HashMap::new(),
             geometry_collection_nodes: HashMap::new(),
             geometry_value_binders: HashMap::new(),

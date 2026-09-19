@@ -814,6 +814,103 @@ fn runtime_transformation_targets(
     vec![target]
 }
 
+fn transformation_plan_dependency_available(dependency: &Value, state: &EvaluationState) -> bool {
+    let Some(owner_id) = dependency.get("ownerId").and_then(Value::as_str) else {
+        return false;
+    };
+    let rows = state
+        .for_group_generated_rows
+        .iter()
+        .filter(|row| row.template_element_id == owner_id)
+        .collect::<Vec<_>>();
+    let runtime_ids =
+        if let Some(index_text) = dependency.get("occurrenceIndex").and_then(Value::as_str) {
+            index_text
+                .parse::<usize>()
+                .ok()
+                .and_then(|index| {
+                    rows.get(index)
+                        .map(|row| vec![row.generated_element_id.clone()])
+                })
+                .unwrap_or_default()
+        } else if has_for_group_ancestor(owner_id, state) {
+            rows.into_iter()
+                .map(|row| row.generated_element_id.clone())
+                .collect::<Vec<_>>()
+        } else {
+            vec![owner_id.to_owned()]
+        };
+    if runtime_ids.is_empty() {
+        return false;
+    }
+    let stage_path = dependency
+        .get("stagePath")
+        .and_then(Value::as_array)
+        .map(|path| {
+            path.iter()
+                .filter_map(Value::as_str)
+                .map(ToOwned::to_owned)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    runtime_ids.iter().all(|runtime_id| {
+        if stage_path == ["base".to_owned()] {
+            state.base_transformation_geometry.contains_key(runtime_id)
+        } else if stage_path == ["final".to_owned()] || stage_path.is_empty() {
+            state.computed_geometry.contains_key(runtime_id)
+        } else {
+            state
+                .transformation_stage_geometry
+                .contains_key(&transformation_stage_key(runtime_id, &stage_path))
+        }
+    })
+}
+
+fn transformation_recipe_plan_ready(recipe_index: usize, state: &EvaluationState) -> bool {
+    let Some(plan) = state
+        .transformation_dependency_plans
+        .as_ref()
+        .and_then(Value::as_array)
+        .and_then(|plans| {
+            plans.iter().find(|plan| {
+                plan.get("recipeIndex")
+                    .and_then(Value::as_u64)
+                    .is_some_and(|index| index as usize == recipe_index)
+            })
+        })
+    else {
+        return true;
+    };
+    let predecessors_ready = plan
+        .get("predecessorRecipeIndices")
+        .and_then(Value::as_array)
+        .map(|predecessors| {
+            predecessors.iter().all(|predecessor| {
+                predecessor.as_u64().is_some_and(|index| {
+                    state
+                        .completed_transformation_recipe_indices
+                        .contains(&(index as usize))
+                })
+            })
+        })
+        .unwrap_or(true);
+    if !predecessors_ready {
+        return false;
+    }
+    ["prerequisites", "argumentDependencies"]
+        .iter()
+        .all(|field| {
+            plan.get(*field)
+                .and_then(Value::as_array)
+                .map(|dependencies| {
+                    dependencies.iter().all(|dependency| {
+                        transformation_plan_dependency_available(dependency, state)
+                    })
+                })
+                .unwrap_or(true)
+        })
+}
+
 fn transformation_synthetic_element(
     recipe: &Value,
     targets: &[RuntimeTransformationTarget],
@@ -999,6 +1096,9 @@ fn execute_transformation_recipes_through(
             .completed_transformation_recipe_indices
             .contains(&recipe_index)
         {
+            continue;
+        }
+        if !transformation_recipe_plan_ready(recipe_index, state) {
             continue;
         }
         let recipe_key = recipe
@@ -1246,11 +1346,23 @@ fn evaluate_document_input_with_scalar_program(
         .iter()
         .map(|index| input.elements[*index].clone())
         .collect::<Vec<_>>();
-    let transformation_recipes = input
-        .transformation_recipes
-        .clone()
-        .and_then(|value| value.as_array().cloned())
+    let transformation_payload = input.transformation_recipes.clone();
+    let transformation_recipes = transformation_payload
+        .as_ref()
+        .and_then(|value| value.get("recipes"))
+        .and_then(Value::as_array)
+        .cloned()
+        .or_else(|| {
+            transformation_payload
+                .as_ref()
+                .and_then(Value::as_array)
+                .cloned()
+        })
         .unwrap_or_default();
+    let transformation_dependency_plans = transformation_payload
+        .as_ref()
+        .and_then(|value| value.get("dependencyPlans"))
+        .cloned();
     let source_statement_indices = input
         .source_statement_indices
         .as_ref()
@@ -1297,6 +1409,7 @@ fn evaluate_document_input_with_scalar_program(
         base_transformation_geometry: HashMap::new(),
         transformation_stage_geometry: HashMap::new(),
         completed_transformation_recipe_indices: HashSet::new(),
+        transformation_dependency_plans,
         computed_geometry_values: HashMap::new(),
         geometry_input_targets,
         geometry_collection_nodes,
@@ -1312,27 +1425,45 @@ fn evaluate_document_input_with_scalar_program(
         geometry_value_errors: Vec::new(),
         warnings: Vec::new(),
     };
+    for snapshot in &instance_snapshots {
+        if snapshot.end_runtime_index < evaluation_limit_index {
+            state
+                .instance_base_geometry
+                .insert(snapshot.instance_id.clone(), Vec::new());
+        }
+    }
     let mut conditional_group_states = HashMap::<ElementId, Option<&'static str>>::new();
     let mut condition_inactive_ids = HashSet::<ElementId>::new();
     let mut effective_enabled_ids = HashSet::<ElementId>::new();
     let mut effective_enabled_order = Vec::<ElementId>::new();
     let template_descendant_ids = for_group_template_descendant_ids(&state.elements);
     let mut for_group_effective_show_generated_ids = Vec::<ElementId>::new();
-    let capture_completed_instances = |completed_index: usize, state: &mut EvaluationState| {
-        for snapshot in instance_snapshots
-            .iter()
-            .filter(|snapshot| snapshot.end_runtime_index == completed_index)
-        {
-            let geometry = snapshot
-                .descendant_ids
-                .iter()
-                .filter_map(|id| state.computed_geometry.get(id).cloned())
-                .collect::<Vec<_>>();
-            state
-                .instance_base_geometry
-                .insert(snapshot.instance_id.clone(), geometry);
-        }
-    };
+    let mut completed_element_ids = HashSet::<ElementId>::new();
+    let mut captured_instance_ids = HashSet::<ElementId>::new();
+    let capture_completed_instances =
+        |state: &mut EvaluationState,
+         completed_element_ids: &HashSet<ElementId>,
+         captured_instance_ids: &mut HashSet<ElementId>| {
+            for snapshot in &instance_snapshots {
+                if captured_instance_ids.contains(&snapshot.instance_id)
+                    || !snapshot
+                        .descendant_ids
+                        .iter()
+                        .all(|id| completed_element_ids.contains(id))
+                {
+                    continue;
+                }
+                let geometry = snapshot
+                    .descendant_ids
+                    .iter()
+                    .filter_map(|id| state.computed_geometry.get(id).cloned())
+                    .collect::<Vec<_>>();
+                state
+                    .instance_base_geometry
+                    .insert(snapshot.instance_id.clone(), geometry);
+                captured_instance_ids.insert(snapshot.instance_id.clone());
+            }
+        };
 
     // Built whenever a scalar_program is present, independent of whether any
     // property bindings exist - computed_scalar_bindings is Task 21's own
@@ -1453,9 +1584,6 @@ fn evaluate_document_input_with_scalar_program(
     let empty_geometry_value_resolver = geometry_value_runtime::EmptyBindingResolver;
 
     'elements: for (evaluation_position, &index) in evaluation_indices.iter().enumerate() {
-        if evaluation_position > 0 {
-            capture_completed_instances(evaluation_position - 1, &mut state);
-        }
         let mut element = state.elements[index].clone();
         let id = match element_id(&element) {
             Some(id) => id,
@@ -1861,6 +1989,12 @@ fn evaluate_document_input_with_scalar_program(
                 )
             }
         }
+        completed_element_ids.insert(id.clone());
+        capture_completed_instances(
+            &mut state,
+            &completed_element_ids,
+            &mut captured_instance_ids,
+        );
         execute_transformation_recipes_through(
             &transformation_recipes,
             &mut next_transformation_recipe_index,
@@ -1908,7 +2042,11 @@ fn evaluate_document_input_with_scalar_program(
         next_geometry_value_index += 1;
     }
     if evaluation_limit_index > 0 {
-        capture_completed_instances(evaluation_limit_index - 1, &mut state);
+        capture_completed_instances(
+            &mut state,
+            &completed_element_ids,
+            &mut captured_instance_ids,
+        );
     }
 
     let (computed_scalar_bindings, computed_scalar_binding_versions) =

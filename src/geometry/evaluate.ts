@@ -76,6 +76,7 @@ import {
   type TransformationRecipe,
   type TransformationTargetSelector
 } from "@nuinuicad/nui-language";
+import type { TypedTransformationDependencyPlan } from "@nuinuicad/nui-language";
 import { geometryValueOccurrenceKey } from "@nuinuicad/nui-language";
 import type {
   ComputedGeometryValue,
@@ -99,6 +100,8 @@ export type EvaluateElementsOptions = {
   evaluationOrder?: readonly ElementId[];
   /** Compiled declarative transformation recipes, kept outside drawable elements. */
   transformationRecipes?: readonly TransformationRecipe[];
+  /** Compiler-owned recipe/stage readiness facts shared with Rust. */
+  transformationDependencyPlans?: readonly TypedTransformationDependencyPlan[];
   /** Bake-only evaluation escape hatch; normal evaluation leaves disabled elements unevaluated. */
   allowDisabledElementIds?: ReadonlySet<ElementId>;
   /** Compiled document-level drawing style definitions. */
@@ -237,12 +240,17 @@ export const evaluateElements = (
   );
   const eligibleElements = elements.slice(0, evaluationLimitIndex);
   const eligibleById = new Map(eligibleElements.map((element) => [element.id, element]));
-  const dependencyOrder = options.evaluationOrder ?? buildTypedDependencyGraph({
+  const dependencyGraph = options.transformationDependencyPlans
+    ? undefined
+    : buildTypedDependencyGraph({
     elements,
     elementIdByStatementIndex: new Map(
       elements.map((element, index) => [options.statementInfoByElementId?.get(element.id)?.statementIndex ?? index, element.id])
-    )
-  })?.evaluationOrder;
+    ),
+    transformationRecipes: options.transformationRecipes
+  });
+  const dependencyOrder = options.evaluationOrder ?? dependencyGraph?.evaluationOrder;
+  const transformationDependencyPlans = options.transformationDependencyPlans ?? dependencyGraph?.transformationPlans ?? [];
   const evaluatedElements = dependencyOrder
     ? dependencyOrder.map((elementId) => eligibleById.get(elementId)).filter((element): element is CadElement => Boolean(element))
     : eligibleElements;
@@ -256,12 +264,9 @@ export const evaluateElements = (
   const transformationStageGeometry = new Map<string, ComputedGeometry>();
   const geometryMutationExecutions: GeometryMutationExecution[] = [];
   const instanceBaseGeometry = new Map<ElementId, ComputedGeometry[]>();
-  const instanceSnapshotsByEnd = new Map<number, ModuleMaterialization["instanceBaseGeometrySnapshots"]>();
+  const instanceSnapshots = [...(options.moduleMaterialization?.instanceBaseGeometrySnapshots ?? [])];
+  const capturedInstanceIds = new Set<ElementId>();
   for (const snapshot of options.moduleMaterialization?.instanceBaseGeometrySnapshots ?? []) {
-    instanceSnapshotsByEnd.set(snapshot.endRuntimeIndex, [
-      ...(instanceSnapshotsByEnd.get(snapshot.endRuntimeIndex) ?? []),
-      snapshot
-    ]);
     if (snapshot.endRuntimeIndex < evaluationLimitIndex) {
       instanceBaseGeometry.set(snapshot.instanceId, []);
     }
@@ -2238,7 +2243,12 @@ export const evaluateElements = (
   // dependency-driven, so unrelated declaration positions cannot force a
   // recipe to run before its construction or prior stage exists.
   const recipeList = [...(options.transformationRecipes ?? [])];
-  const pendingTransformationRecipes = new Set(recipeList);
+  const pendingTransformationRecipes = new Set(recipeList.map((_, index) => index));
+  const completedTransformationRecipeIndices = new Set<number>();
+  const transformationPlanByRecipeIndex = new Map(
+    transformationDependencyPlans.map((plan) => [plan.recipeIndex, plan])
+  );
+  const completedElementIds = new Set<ElementId>();
   const generatedOwnerIds = new Set(
     elements
       .filter((element) => {
@@ -2445,27 +2455,36 @@ export const evaluateElements = (
     executeTransformationInvocation(recipe, expandedTargets.flat());
   };
 
-  const recipeDependencies = (recipe: TransformationRecipe): Set<ElementId> => {
-    const dependencies = new Set<ElementId>();
-    const knownIds = new Set(elementsById.keys());
-    const visit = (value: unknown): void => {
-      if (typeof value === "string") {
-        if (knownIds.has(value)) dependencies.add(value);
-        return;
-      }
-      if (Array.isArray(value)) {
-        value.forEach(visit);
-        return;
-      }
-      if (!value || typeof value !== "object") return;
-      Object.values(value).forEach(visit);
-    };
-    visit(recipe.operation);
-    return dependencies;
+  const transformationDependencyRuntimeIds = (dependency: { ownerId: ElementId; occurrenceIndex?: string }): ElementId[] => {
+    const rows = forGroupGeneratedRows.filter((row) => row.templateElementId === dependency.ownerId);
+    if (dependency.occurrenceIndex !== undefined) {
+      const index = Number(dependency.occurrenceIndex);
+      return Number.isInteger(index) && index >= 0 && rows[index] ? [rows[index]!.generatedElementId] : [];
+    }
+    if (generatedOwnerIds.has(dependency.ownerId)) return rows.map((row) => row.generatedElementId);
+    return [dependency.ownerId];
   };
-  const transformationRecipeReady = (recipe: TransformationRecipe): boolean => {
-    for (const dependencyId of recipeDependencies(recipe)) {
-      if (!computedGeometry.has(dependencyId) && !baseTransformationGeometry.has(dependencyId)) return false;
+  const transformationDependencyAvailable = (dependency: { ownerId: ElementId; stagePath: readonly string[]; occurrenceIndex?: string }): boolean => {
+    const runtimeIds = transformationDependencyRuntimeIds(dependency);
+    if (runtimeIds.length === 0) return false;
+    return runtimeIds.every((runtimeId) => {
+      if (dependency.stagePath.length === 1 && dependency.stagePath[0] === "base") {
+        return baseTransformationGeometry.has(runtimeId);
+      }
+      if (dependency.stagePath.length === 1 && dependency.stagePath[0] === "final") {
+        return computedGeometry.has(runtimeId);
+      }
+      return transformationStageGeometry.has(
+        transformationStageKey(runtimeId, undefined, dependency.stagePath)
+      );
+    });
+  };
+  const transformationRecipeReady = (recipeIndex: number, recipe: TransformationRecipe): boolean => {
+    const plan = transformationPlanByRecipeIndex.get(recipeIndex);
+    if (plan) {
+      if (plan.predecessorRecipeIndices.some((priorIndex) => !completedTransformationRecipeIndices.has(priorIndex))) return false;
+      if (plan.prerequisites.some((dependency) => !transformationDependencyAvailable(dependency))) return false;
+      if (plan.argumentDependencies.some((dependency) => !transformationDependencyAvailable(dependency))) return false;
     }
     for (const target of recipe.targets) {
       const runtimeIds = generatedOwnerIds.has(target.ownerId)
@@ -2492,12 +2511,26 @@ export const evaluateElements = (
     let progressed = true;
     while (progressed) {
       progressed = false;
-      for (const recipe of recipeList) {
-        if (!pendingTransformationRecipes.has(recipe) || !transformationRecipeReady(recipe)) continue;
+      for (const [recipeIndex, recipe] of recipeList.entries()) {
+        if (!pendingTransformationRecipes.has(recipeIndex) || !transformationRecipeReady(recipeIndex, recipe)) continue;
         executeTransformationRecipe(recipe);
-        pendingTransformationRecipes.delete(recipe);
+        pendingTransformationRecipes.delete(recipeIndex);
+        completedTransformationRecipeIndices.add(recipeIndex);
         progressed = true;
       }
+    }
+  };
+
+  const captureReadyModuleInstanceBases = () => {
+    for (const snapshot of instanceSnapshots) {
+      if (capturedInstanceIds.has(snapshot.instanceId)) continue;
+      if (!snapshot.descendantIds.every((id) => completedElementIds.has(id))) continue;
+      const geometry = snapshot.descendantIds
+        .map((id) => computedGeometry.get(id))
+        .filter((value): value is ComputedGeometry => Boolean(value))
+        .map((value) => structuredClone(value));
+      instanceBaseGeometry.set(snapshot.instanceId, geometry);
+      capturedInstanceIds.add(snapshot.instanceId);
     }
   };
 
@@ -2512,18 +2545,14 @@ export const evaluateElements = (
     // half-step excludes the current declaration itself.
     evaluateReadyTransformationRecipes();
     evaluateRuntimeElement(element);
+    completedElementIds.add(element.id);
+    captureReadyModuleInstanceBases();
     evaluateReadyTransformationRecipes();
-    for (const snapshot of instanceSnapshotsByEnd.get(elementIndex) ?? []) {
-      const geometry = snapshot.descendantIds
-        .map((id) => computedGeometry.get(id))
-        .filter((value): value is ComputedGeometry => Boolean(value))
-        .map((value) => structuredClone(value));
-      instanceBaseGeometry.set(snapshot.instanceId, geometry);
-    }
   }
 
   evaluateGeometryValuesThrough(Number.POSITIVE_INFINITY);
   evaluateReadyTransformationRecipes();
+  captureReadyModuleInstanceBases();
 
   const linearFinal = linearMutationResolver
     ? linearMutationResolver.finalize({

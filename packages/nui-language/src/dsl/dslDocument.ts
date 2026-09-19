@@ -3976,7 +3976,9 @@ export const compileDslDocument = (
     numericBindings: numericBindingCompilation?.sourcesByOccurrenceKey,
     textTemplates: textTemplateCompilation?.templatesByOccurrenceKey,
     scalarProgram,
-    geometryInputTargets: geometryInputTargetsByElementId
+    geometryInputTargets: geometryInputTargetsByElementId,
+    transformationRecipes: compiled.runtimeTransformationRecipes ?? compiled.transformationRecipes,
+    moduleMaterialization: compiled.moduleMaterialization
   });
   const finalDiagnostics = [
     ...(propertyBindingCompilation ? [...allDiagnostics, ...propertyBindingCompilation.diagnostics] : allDiagnostics),
