@@ -581,7 +581,7 @@ describe("planInlineModule Checkpoint 1", () => {
     expect(result.status).toBe("planned");
     if (result.status !== "planned") return;
     const nextSource = applyLineSplices(source, result.splices);
-    expect(nextSource.match(/const width: number = @width/g)).toHaveLength(2);
+    expect(nextSource.match(/const width: number = @::width/g)).toHaveLength(2);
     const next = compileCurrent(nextSource, "inline-next");
     const rootWidth = createDslSemanticOccurrenceIndex(next).occurrences.find((occurrence) =>
       occurrence.kind === "declaration" && nextSource.slice(occurrence.from, occurrence.to) === "width" &&
@@ -1920,7 +1920,7 @@ describe("planInlineModule Checkpoint 5 geometry-array parameters", () => {
     expect(compileCurrent(next, "inline-array-capture-next").diagnostics).toEqual([]);
   });
 
-  it("fails closed when candidate geometry-array ownership cannot be proven", () => {
+  it("keeps caller geometry-array ownership when the Module has a same-name local", () => {
     const source = [
       "nui 1",
       "point Input = coordinate(x: 1, y: 2)",
@@ -1931,23 +1931,17 @@ describe("planInlineModule Checkpoint 5 geometry-array parameters", () => {
       "instance Use = M(points: [@Input])"
     ].join("\n");
     const compiled = compileCurrent(source);
-    const originalCompile = dslDocument.compileDslDocument;
-    const compileSpy = vi.spyOn(dslDocument, "compileDslDocument").mockImplementationOnce((...args) => ({
-      ...originalCompile(...args),
-      diagnostics: [{ severity: "error", line: 1, column: 1, message: "forced array candidate ownership failure" }]
-    }));
-    try {
-      const result = planInlineModule({
-        source: { normalizedSource: source, sourceRevision: REVISION },
-        compiled,
-        targets: [targetFor(compiled, "Use")],
-        policy: DEFAULT_POLICY
-      });
-      expect(result).toMatchObject({ status: "rejected", code: "unsafe-rewrite" });
-      expect("splices" in result).toBe(false);
-    } finally {
-      compileSpy.mockRestore();
-    }
+    const result = planInlineModule({
+      source: { normalizedSource: source, sourceRevision: REVISION },
+      compiled,
+      targets: [targetFor(compiled, "Use")],
+      policy: DEFAULT_POLICY
+    });
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    const next = applyLineSplices(source, result.splices);
+    expect(next).toContain("const points: point[] = [@::Input]");
+    expect(compileCurrent(next, "inline-array-shadow-next").diagnostics).toEqual([]);
   });
 
   it("lowers mixed scalar, singular geometry, and geometry-array parameters in callee order", () => {

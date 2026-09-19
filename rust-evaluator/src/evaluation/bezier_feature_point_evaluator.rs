@@ -341,6 +341,7 @@ mod tests {
 
     fn evaluation_input(elements: Vec<Value>) -> EvaluationInput {
         EvaluationInput {
+            evaluation_order: None,
             geometry_input_targets: None,
             geometry_collection_nodes: None,
             geometry_value_program: None,
@@ -390,6 +391,7 @@ mod tests {
         let mut computed_geometry = HashMap::new();
         computed_geometry.insert("curve".to_owned(), source_geometry("bezierCurve"));
         let mut state = EvaluationState {
+            completed_transformation_recipe_indices: std::collections::HashSet::new(),
             geometry_input_targets: HashMap::new(),
             geometry_collection_nodes: HashMap::new(),
             geometry_value_binders: HashMap::new(),
@@ -442,6 +444,7 @@ mod tests {
         let mut computed_geometry = HashMap::new();
         computed_geometry.insert("curve".to_owned(), source_geometry("line"));
         let mut state = EvaluationState {
+            completed_transformation_recipe_indices: std::collections::HashSet::new(),
             geometry_input_targets: HashMap::new(),
             geometry_collection_nodes: HashMap::new(),
             geometry_value_binders: HashMap::new(),

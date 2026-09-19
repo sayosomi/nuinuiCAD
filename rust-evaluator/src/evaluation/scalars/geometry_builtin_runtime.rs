@@ -113,7 +113,7 @@ pub(crate) enum GeometryBuiltinRuntimeError {
 
 pub(crate) fn resolve_geometry_builtin_target(
     state: &EvaluationState,
-    current_source_order: f64,
+    _current_source_order: f64,
     target: &ScalarExpressionResolvedGeometryTarget,
 ) -> Result<GeometryBuiltinRuntimeTarget, GeometryBuiltinRuntimeError> {
     if let Some(binder_id) = &target.geometry_value_binder_id {
@@ -155,7 +155,7 @@ pub(crate) fn resolve_geometry_builtin_target(
             }
             GeometryInputTarget::Coordinate { .. } => unreachable!(),
         }
-        return resolve_geometry_builtin_target(state, current_source_order, &bound);
+        return resolve_geometry_builtin_target(state, _current_source_order, &bound);
     }
     if target.statement_id.is_empty() {
         return Err(GeometryBuiltinRuntimeError::Unavailable);
@@ -214,9 +214,6 @@ pub(crate) fn resolve_geometry_builtin_target(
             }
             GeometryInterfaceType::Path => Err(GeometryBuiltinRuntimeError::Unavailable),
         };
-    }
-    if target.statement_index >= current_source_order {
-        return Err(GeometryBuiltinRuntimeError::Unavailable);
     }
     if !state.elements_by_id.contains_key(&target.statement_id) {
         return Err(GeometryBuiltinRuntimeError::Unavailable);

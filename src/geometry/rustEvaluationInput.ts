@@ -14,6 +14,7 @@ type TextTemplateInput = { elementId: ElementId; segments: readonly RustTextTemp
 
 export type EvaluateDocumentInput = {
   elements: CadElement[];
+  evaluationOrder?: readonly ElementId[];
   transformationRecipes?: readonly import("@nuinuicad/nui-language").TransformationRecipe[];
   sourceStatementIndices?: Array<{ elementId: ElementId; statementIndex: number }>;
   evaluationLimitIndex?: number;
@@ -69,6 +70,7 @@ export const buildRustEvaluationInput = (
     : undefined;
   return {
     elements,
+    ...(options.evaluationOrder ? { evaluationOrder: options.evaluationOrder } : {}),
     ...(options.transformationRecipes?.length ? { transformationRecipes: options.transformationRecipes } : {}),
     ...(options.statementInfoByElementId?.size
       ? {

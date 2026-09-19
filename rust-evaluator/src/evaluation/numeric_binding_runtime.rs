@@ -579,6 +579,7 @@ mod tests {
 
     fn geometry_state(element: Value) -> EvaluationState {
         EvaluationState {
+            completed_transformation_recipe_indices: std::collections::HashSet::new(),
             geometry_input_targets: HashMap::new(),
             geometry_collection_nodes: HashMap::new(),
             geometry_value_binders: HashMap::new(),
@@ -633,6 +634,7 @@ mod tests {
 
     fn state(element: Value) -> EvaluationState {
         EvaluationState {
+            completed_transformation_recipe_indices: std::collections::HashSet::new(),
             geometry_input_targets: HashMap::new(),
             geometry_collection_nodes: HashMap::new(),
             geometry_value_binders: HashMap::new(),

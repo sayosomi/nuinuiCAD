@@ -946,7 +946,7 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
     }
   } else if (completionContext.kind === "typedInitializer" || completionContext.kind === "conditionExpression") {
     disablesCompletionFiltering = referenceToken?.startsWith("@") ?? false;
-    if (neutralQuery && neutralCompletions.length > 0 &&
+    if (!moduleBodyQuery && neutralQuery && neutralCompletions.length > 0 &&
       (!semanticInput.semantic || neutralSemanticIsCurrent || neutralHasSourceCandidates)) {
       completions = neutralCompletions;
       usesNeutralQuery = true;
@@ -957,7 +957,7 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
     }
   } else if (completionContext.kind === "propertyScalarValue") {
     disablesCompletionFiltering = referenceToken?.startsWith("@") ?? false;
-    if (neutralQuery && neutralCompletions.length > 0 &&
+    if (!moduleBodyQuery && neutralQuery && neutralCompletions.length > 0 &&
       (!semanticInput.semantic || neutralSemanticIsCurrent || neutralHasSourceCandidates)) {
       completions = neutralCompletions;
       usesNeutralQuery = true;
@@ -968,7 +968,7 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
     }
   } else if (completionContext.kind === "templateHole") {
     disablesCompletionFiltering = referenceToken?.startsWith("@") ?? false;
-    if (neutralQuery && neutralCompletions.length > 0 &&
+    if (!moduleBodyQuery && neutralQuery && neutralCompletions.length > 0 &&
       (!semanticInput.semantic || neutralSemanticIsCurrent || neutralHasSourceCandidates)) {
       completions = neutralCompletions;
       usesNeutralQuery = true;

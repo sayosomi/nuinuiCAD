@@ -908,8 +908,8 @@ describe("queryDslModulePreviewParameterValueCompletion", () => {
     const result = previewQuery(source, "@R", caller);
 
     expect(result?.replacementRange).toEqual({ from: 1, to: 2 });
-    expect(result?.candidates.map((candidate) => candidate.label)).toEqual(["RootA", "RootB"]);
-    expect(result?.candidates.some((candidate) => candidate.label === "Forward")).toBe(false);
+    expect(result?.candidates.map((candidate) => candidate.label)).toEqual(["RootA", "RootB", "Forward"]);
+    expect(result?.candidates.some((candidate) => candidate.label === "Forward")).toBe(true);
   });
 
   it("applies caller order and existing line/path assignability", () => {
@@ -939,7 +939,7 @@ describe("queryDslModulePreviewParameterValueCompletion", () => {
       ...caller,
       sourceOrderIndex: 1
     });
-    expect(forwardOnly?.candidates.map((candidate) => candidate.label)).not.toContain("L");
+    expect(forwardOnly?.candidates.map((candidate) => candidate.label)).toContain("L");
   });
 
   it("reuses scalar boolean and choice candidates with language-owned ordering", () => {

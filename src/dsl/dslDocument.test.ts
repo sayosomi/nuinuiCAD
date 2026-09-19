@@ -315,49 +315,9 @@ describe("dslDocument canonical blocks", () => {
 
 });
 
-describe("dslDocument stop / evaluationLimitIndex", () => {
-  it("round-trips a mid-document stop", () => {
-    const source = ["point A = coordinate(x: 0,y: 0)", "point B = coordinate(x: 1,y: 1)", "stop", "point C = coordinate(x: 2,y: 2)"].join("\n");
-    const { document, parsed, text } = roundTrip(source);
-    expect(document.evaluationLimitIndex).toBe(2);
-    expect(parsed.evaluationLimitIndex).toBe(2);
-    expect(text).toContain("stop");
-  });
-
-  it("omits stop entirely when the whole document evaluates", () => {
-    const source = ["point A = coordinate(x: 0,y: 0)", "point B = coordinate(x: 1,y: 1)"].join("\n");
-    const { text, parsed } = roundTrip(source);
-    expect(text).not.toContain("stop");
-    expect(parsed.evaluationLimitIndex).toBeUndefined();
-  });
-
-  it("round-trips an explicit terminal stop without conflating it with no marker", () => {
-    const source = ["point A = coordinate(x: 0,y: 0)", "point B = coordinate(x: 1,y: 1)", "stop"].join("\n");
-    const { document, parsed, text } = roundTrip(source);
-
-    expect(document.evaluationLimitIndex).toBe(2);
-    expect(parsed.evaluationLimitIndex).toBe(2);
-    expect(text.split("\n").filter((line) => line === "stop")).toHaveLength(1);
-    expect(text.trimEnd().endsWith("stop")).toBe(true);
-  });
-
-  it("places stop before the first element when evaluationLimitIndex is 0", () => {
-    const source = ["stop", "point A = coordinate(x: 0,y: 0)"].join("\n");
-    const { parsed } = roundTrip(source);
-    expect(parsed.evaluationLimitIndex).toBe(0);
-  });
-
-  it("keeps stop working when nested inside a group", () => {
-    const source = ["group G {", "  point A = coordinate(x: 0,y: 0)", "  stop", "  point B = coordinate(x: 1,y: 1)", "}"].join("\n");
-    const { document, parsed } = roundTrip(source);
-    expect(document.evaluationLimitIndex).toBe(2);
-    expect(parsed.evaluationLimitIndex).toBe(2);
-  });
-});
-
 describe("dslDocument layoutElementTree ElementTreeRow shape", () => {
   it("bakes a container's `{` onto its own header row and emits multi-line vertical-call rows for regular elements", () => {
-    const source = ["nui 1", "group G {", "  point A = coordinate(x: 0, y: 0)", "  stop", "  point B = coordinate(x: 1, y: 1)", "}"].join("\n");
+    const source = ["nui 1", "group G {", "  point A = coordinate(x: 0, y: 0)", "  point B = coordinate(x: 1, y: 1)", "}"].join("\n");
     const compiled = compileDslDocument(source);
     const document = compiled.document!;
     const refs = documentDslRefs(document.elements);
@@ -365,7 +325,7 @@ describe("dslDocument layoutElementTree ElementTreeRow shape", () => {
 
     // There is no separate "blockStart" row: a container's own header
     // row carries its `{` on its last physical line.
-    expect(rows.map((row) => row.role)).toEqual(["statement", "statement", "atStop", "statement", "blockEnd"]);
+    expect(rows.map((row) => row.role)).toEqual(["statement", "statement", "statement", "blockEnd"]);
 
     const groupRow = rows[0];
     expect(groupRow.lines).toEqual(["group G {"]);
@@ -377,7 +337,7 @@ describe("dslDocument layoutElementTree ElementTreeRow shape", () => {
     expect(pointARow.lines).toEqual(["  point A = coordinate(", "    x: 0,", "    y: 0,", "  )"]);
     expect(pointARow.argKeys).toEqual([null, "x", "y", null]);
 
-    expect(rows.find((row) => row.role === "atStop")!.lines).toEqual(["  stop"]);
+    expect(rows[2].lines).toEqual(["  point B = coordinate(", "    x: 1,", "    y: 1,", "  )"]);
     expect(rows.find((row) => row.role === "blockEnd")!.lines).toEqual(["}"]);
   });
 });
@@ -548,20 +508,17 @@ describe("compileDslDocument facade", () => {
     expect(map.byKey.get("view:通常")).toMatchObject({ line: 8 });
     expect(map.byKey.get("view:印刷")).toMatchObject({ line: 9 });
     expect(map.byKey.get("activeView")).toMatchObject({ line: 10 });
-    expect(map.byKey.get("atStop")).toMatchObject({ line: 52 });
+    expect(map.byKey.has("atStop")).toBe(false);
 
     expect(map.sectionEnds).toEqual({ version: 1, visibility: 10, elements: 57 });
   });
 
-  it("counts a trailing stop as the end of the elements section, not the statement before it", () => {
+  it("rejects a trailing stop instead of adding a statement-map boundary", () => {
     const source = ["nui 1", "point A = coordinate(x: 0, y: 0)", "stop"].join("\n");
     const compiled = compileDslDocument(source);
-    const map = compiled.statementMap!;
-    // Line 2 is "point A = ..."; line 3 is "stop" - sectionEnds.elements must
-    // point at stop's own line (the true end of the section) so a
-    // A newly-inserted source-output declaration is anchored after it, not before it.
-    expect(map.byKey.get("atStop")).toMatchObject({ line: 3 });
-    expect(map.sectionEnds.elements).toBe(3);
+    expect(compiled.document).toBeNull();
+    expect(compiled.statementMap).toBeNull();
+    expect(compiled.diagnostics.some((item) => item.message.includes("有効な構文ではありません"))).toBe(true);
   });
 
   it("injects assignedElementIds while letting explicit id= win", () => {
@@ -589,7 +546,7 @@ describe("dslDocument golden fixture", () => {
     const document = parsed.document!;
     expect(document.visibilityRoles).toEqual([{ id: "seam", name: "縫い代" }]);
     expect(document.elements.some((element) => element.name === "前身頃" && element.type === "group")).toBe(true);
-    expect(document.evaluationLimitIndex).toBeLessThan(document.elements.length);
+    expect(document.evaluationLimitIndex).toBeUndefined();
   });
 });
 
@@ -712,7 +669,7 @@ describe("Task 26 text template wiring", () => {
 });
 
 describe("Task 36 typed dependency graph wiring", () => {
-  it("keeps static missing and late initializer navigation on the compiled document", () => {
+  it("keeps static missing and resolved forward initializer navigation on the compiled document", () => {
     const compiled = compileDslDocument(
       ["nui 1", "const missing: number = @unknown", "const late: number = @later", "const later: number = 1"].join("\n"),
       { assignedStatementIds: new Map([[1, "test:missing"], [2, "test:late"], [3, "test:later"]]) }
@@ -721,7 +678,7 @@ describe("Task 36 typed dependency graph wiring", () => {
     expect(compiled.document).not.toBeNull();
     expect(compiled.typedDependencyGraph?.edges).toEqual(expect.arrayContaining([
       expect.objectContaining({ kind: "initializer", reason: "missing", span: expect.any(Object) }),
-      expect.objectContaining({ kind: "initializer", reason: "late", span: expect.any(Object) })
+      expect.objectContaining({ kind: "initializer", reason: undefined, span: expect.any(Object) })
     ]));
   });
 

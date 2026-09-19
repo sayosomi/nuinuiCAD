@@ -129,7 +129,7 @@ export type DslDocumentData = {
   layouts: Layout[];
   printOutputs: PrintOutput[];
   svgOutputs: SvgOutput[];
-  /** `undefined` means no stop marker; a numeric value includes an explicit terminal stop. */
+  /** Optional host-owned evaluation slice; nui1 source never supplies this. */
   evaluationLimitIndex: number | undefined;
 };
 
@@ -197,8 +197,8 @@ export type StatementMap = {
   statementRangeById: Map<StatementIdentity, StatementInfo>;
   /**
    * 非要素文のキー: `role:<id>` / `view:<id>` / `layout:<id>` /
-   * `print:<id>` / `svg:<id>` / `version` / `atStop` / `activeView`。
-   * active系は最後の出現(コンパイラのlast-winsに一致)、version/atStopは最初の出現。
+   * `print:<id>` / `svg:<id>` / `version` / `activeView`。
+   * active系は最後の出現(コンパイラのlast-winsに一致)、versionは最初の出現。
    */
   byKey: Map<string, StatementInfo>;
   /** 各セクションが存在する場合の最終行(セクション新設時の挿入アンカー)。 */
@@ -526,7 +526,7 @@ export const planSourceOutputSection = (data: DslDocumentData): {
   return { blocks, activeSourceOutputLine: null };
 };
 
-// ==== 要素ツリー(ブレースブロック + stop) ====
+// ==== 要素ツリー(ブレースブロック) ====
 
 type BlockFrame = {
   elementId: ElementId;
@@ -544,7 +544,7 @@ export type ElementTreeRow = {
   argKeys: (string | null)[];
   /** 正準インデント深さ(blockEnd/blockElse は開き文と同じ深さ)。 */
   depth: number;
-  role: "statement" | "blockEnd" | "blockElse" | "atStop";
+  role: "statement" | "blockEnd" | "blockElse";
   /** statement 行はその要素、blockEnd / blockElse 行は対応する開き要素のID。 */
   elementId?: ElementId;
   /** ,parent:/,branch: フォールバックで出力されたトップレベル文。 */
@@ -611,11 +611,9 @@ export const layoutElementTree = (
   refs: DslSerializerRefs,
   evaluationLimitIndex: number | undefined
 ): ElementTreeRow[] => {
+  void evaluationLimitIndex;
   const lines: ElementTreeRow[] = [];
   const stack: BlockFrame[] = [];
-  const hasAtStop = evaluationLimitIndex !== undefined;
-  const limit = Math.max(0, Math.min(evaluationLimitIndex ?? elements.length, elements.length));
-  let emitted = 0;
 
   const closeTo = (depth: number) => {
     while (stack.length > depth) {
@@ -631,15 +629,6 @@ export const layoutElementTree = (
   };
 
   for (const element of elements) {
-    if (hasAtStop && emitted === limit) {
-      lines.push({
-        lines: [`${DSL_INDENT.repeat(stack.length)}stop`],
-        argKeys: [null],
-        depth: stack.length,
-        role: "atStop"
-      });
-    }
-
     const parentId = element.parentGroupId;
     const desiredBranch: "then" | "else" = element.conditionalBranch === "else" ? "else" : "then";
     const targetIdx = parentId ? stack.findIndex((frame) => frame.elementId === parentId) : -1;
@@ -699,18 +688,9 @@ export const layoutElementTree = (
       }
     }
 
-    emitted += 1;
   }
 
   closeTo(0);
-  if (hasAtStop && emitted === limit) {
-    lines.push({
-      lines: ["stop"],
-      argKeys: [null],
-      depth: 0,
-      role: "atStop"
-    });
-  }
   return lines;
 };
 
@@ -736,13 +716,10 @@ const serializeFlatElementTree = (
   evaluationLimitIndex: number | undefined
 ) => {
   const lines: string[] = [];
-  const hasAtStop = evaluationLimitIndex !== undefined;
-  const limit = Math.max(0, Math.min(evaluationLimitIndex ?? elements.length, elements.length));
-  for (const [index, element] of elements.entries()) {
-    if (hasAtStop && index === limit) lines.push("stop");
+  void evaluationLimitIndex;
+  for (const element of elements) {
     lines.push(...serializedFlatStatementLines(element, serializeElementStatementBlock(element, refs)));
   }
-  if (hasAtStop && limit === elements.length) lines.push("stop");
   return lines;
 };
 
@@ -962,9 +939,6 @@ export const buildStatementMap = (
       case "version":
         setFirst("version", info);
         break;
-      case "atStop":
-        setFirst("atStop", info);
-        break;
       case "activeView":
         byKey.set("activeView", info);
         break;
@@ -1056,8 +1030,7 @@ export const buildStatementMap = (
     } else if (
       statement.kind === "group" ||
       statement.kind === "element" ||
-      statement.kind === "typedDeclaration" ||
-      statement.kind === "atStop"
+      statement.kind === "typedDeclaration"
     ) {
       // 単一行の複数行call(例: 複数行coordinate())はブロックを開かないため
       // range.endLineは更新されない - info.endLine(文自体の最終物理行)との
@@ -2224,6 +2197,10 @@ export const compileDslDocument = (
     const sourceElementType = scalarTypeOfDslValueType(mapped.sourceElementType);
     if (!sourceElementType) return [];
     const binderId = mapped.binderId;
+    // The mapped body is analyzed as an additional initializer for the
+    // owning declaration.  Its pre-resolved synthetic binding is kept in the
+    // owning lexical scope for control/version metadata, while ordinary name
+    // lookup excludes pre-resolved-only bindings outside the body.
     const scopeId = sourceLexicalNamespace!.scopeIndex.scopeOfStatement.get(value.statementIndex) ?? sourceLexicalNamespace!.scopeIndex.rootScopeId;
     return {
       id: binderId,
@@ -3998,7 +3975,8 @@ export const compileDslDocument = (
     propertyBindings: propertyBindingCompilation?.sourcesByOccurrenceKey,
     numericBindings: numericBindingCompilation?.sourcesByOccurrenceKey,
     textTemplates: textTemplateCompilation?.templatesByOccurrenceKey,
-    scalarProgram
+    scalarProgram,
+    geometryInputTargets: geometryInputTargetsByElementId
   });
   const finalDiagnostics = [
     ...(propertyBindingCompilation ? [...allDiagnostics, ...propertyBindingCompilation.diagnostics] : allDiagnostics),
@@ -4006,7 +3984,19 @@ export const compileDslDocument = (
     ...(conditionalGroupConditionCompilation ? conditionalGroupConditionCompilation.diagnostics : []),
     ...(textTemplateCompilation ? textTemplateCompilation.diagnostics : []),
     ...(propertyReferenceSyntaxCompilation ? propertyReferenceSyntaxCompilation.diagnostics : [])
-    ,...carryCollectionDiagnostics
+    ,...carryCollectionDiagnostics,
+    ...(typedDependencyGraph?.cycles ?? []).map((cycle) => {
+      const statementIndex = cycle.statementIndices[0] ?? 0;
+      const statement = parsed.statements[statementIndex];
+      return withDiagnosticPresentation({
+        severity: "error" as const,
+        line: statement?.line ?? 1,
+        column: 1,
+        code: "dependency-cycle",
+        message: `依存関係 cycle: ${cycle.names.join(" -> ")}`,
+        presentation: { key: "diagnostic.dependency-cycle", parameters: { names: cycle.names.join(" -> ") } }
+      });
+    })
   ].map(withDiagnosticPresentation);
   // Same missing-attribute-value carve-out as the earlier fatal gate above.
   if (finalDiagnostics.some((item) => item.severity === "error" && item.code !== MISSING_ATTRIBUTE_VALUE_CODE)) {

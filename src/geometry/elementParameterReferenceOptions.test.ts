@@ -302,7 +302,7 @@ describe("elementParameterCandidateState", () => {
 
   it("reports ready with zero options for a genuinely excluded element when current - never masked as pending", () => {
     // A current evaluation that legitimately excludes the element (disabled,
-    // forward reference, dependency error) must read as a confirmed "ready,
+    // unavailable dependency, dependency error) must read as a confirmed "ready,
     // no candidates" - not "pending". Hiding a real Rust exclusion behind
     // "pending" would be exactly the kind of bug-masking this type exists to
     // prevent.
@@ -321,8 +321,8 @@ describe("elementParameterCandidateState", () => {
 
   it("typed runtime safety: a current Rust result stays authoritative for every exclusion reason, never re-derived via TS evaluation", async () => {
     // effectiveEnabledElementIds/errors already fold together every reason an
-    // element can be excluded - disabled, forward reference, an inactive
-    // typed conditional-group branch, past stop, an invalid forGroup scope,
+    // element can be excluded - disabled, unavailable dependency, an inactive
+    // typed conditional-group branch, an invalid forGroup scope,
     // || a plain dependency error (see elementIsCurrentlyReferenceable's own
     // doc comment). elementParameterCandidateState must never second-guess a
     // *current* Rust result for any of them, && must never run its own

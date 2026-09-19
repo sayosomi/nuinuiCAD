@@ -22,7 +22,7 @@ const isReferenceStep = (kind: CommandLineSession["recipe"]["steps"][number]["ki
 /**
  * Why the ghost could not (or could) be produced. "not-evaluated" is the
  * deliberate non-error case: the insertion position itself is outside the
- * evaluator's reach (after `stop`, inside a disabled group || an inactive
+ * evaluator's reach (outside an explicit evaluation slice, inside a disabled group || an inactive
  * conditional branch), so no preview exists AND no verdict about the value can
  * be derived from evaluation. Isolated step edits additionally inspect which
  * prompts caused "missing-input", without changing this global classification.
@@ -122,7 +122,7 @@ export const commandLineGhostPreviewStatus = ({
   if (evaluation.errors.some((error) => error.elementId === emitted.id)) {
     return { kind: "invalid" };
   }
-  // evaluatedElementIds tracks the stop/limit boundary only; a member of a
+  // evaluatedElementIds tracks the explicit evaluation boundary only; a member of a
   // disabled group || an inactive conditional branch stays inside that boundary
   // but is excluded from effectiveEnabledElementIds && computes no geometry —
   // both are "the evaluator cannot see this position", not a value verdict.

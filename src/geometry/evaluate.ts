@@ -91,10 +91,12 @@ import { joinedPathGeometryValueKernel } from "./joinedPathGeometryValue";
 import { lineLength } from "./offsetPathMath";
 import { findLineIntersections, isSelfIntersectingClosedPath } from "./lineIntersections";
 import { evaluateTypedExpression, type GeometryBuiltinTargetLookupResult } from "../scalars/expressionEvaluator";
-import { setParameterValue } from "@nuinuicad/nui-language";
+import { buildTypedDependencyGraph, setParameterValue } from "@nuinuicad/nui-language";
 
 export type EvaluateElementsOptions = {
   evaluationLimitIndex?: number;
+  /** Compiler-resolved dependency-first element order. */
+  evaluationOrder?: readonly ElementId[];
   /** Compiled declarative transformation recipes, kept outside drawable elements. */
   transformationRecipes?: readonly TransformationRecipe[];
   /** Bake-only evaluation escape hatch; normal evaluation leaves disabled elements unevaluated. */
@@ -233,7 +235,17 @@ export const evaluateElements = (
     Math.max(options.evaluationLimitIndex ?? elements.length, 0),
     elements.length
   );
-  const evaluatedElements = elements.slice(0, evaluationLimitIndex);
+  const eligibleElements = elements.slice(0, evaluationLimitIndex);
+  const eligibleById = new Map(eligibleElements.map((element) => [element.id, element]));
+  const dependencyOrder = options.evaluationOrder ?? buildTypedDependencyGraph({
+    elements,
+    elementIdByStatementIndex: new Map(
+      elements.map((element, index) => [options.statementInfoByElementId?.get(element.id)?.statementIndex ?? index, element.id])
+    )
+  })?.evaluationOrder;
+  const evaluatedElements = dependencyOrder
+    ? dependencyOrder.map((elementId) => eligibleById.get(elementId)).filter((element): element is CadElement => Boolean(element))
+    : eligibleElements;
   const evaluatedElementIds = new Set(evaluatedElements.map((element) => element.id));
   const computedGeometry = new Map<ElementId, ComputedGeometry>();
   const computedGeometryValues = new Map<import("@nuinuicad/nui-language").GeometryValueOccurrenceKey, ComputedGeometryValueEntry>();
@@ -682,10 +694,6 @@ export const evaluateElements = (
         };
       }
       if (target.kind === "forGroupOccurrence") {
-        if (target.targetSourceOrder >= sourceOrder) {
-          invalid(target, "evaluation-collection-index-unavailable");
-          return null;
-        }
         const rows = forGroupGeneratedRows.filter((row) => row.templateElementId === target.templateElementId);
         const expectedOccurrenceCount = forGroupExpectedOccurrenceCountByTemplateId.get(target.templateElementId);
         const index = target.index
@@ -713,10 +721,6 @@ export const evaluateElements = (
         };
       }
       if (target.kind !== "collectionIndex") return target;
-      if (target.targetSourceOrder >= sourceOrder) {
-        invalid(target, "evaluation-collection-index-unavailable");
-        return null;
-      }
       const evaluation = evaluateTypedExpression(target.index, scalarEnvironmentFor(sourceOrder));
       if (evaluation.status === "error") {
         invalid(target, evaluation.issueCode);
@@ -2034,8 +2038,6 @@ export const evaluateElements = (
             }
           } : {})
         }, (statement, context) => {
-          if (options.bindingVersions!.evaluationLimitSourceOrder !== undefined &&
-            statement.sourceOrder >= options.bindingVersions!.evaluationLimitSourceOrder) return "stopped";
           if (statement.kind === "exit") return "completed";
           if (expandedIteration !== context.iterationIndex) {
             expandedIteration = context.iterationIndex;
@@ -2232,12 +2234,11 @@ export const evaluateElements = (
     }
   };
 
-  const recipeList = [...(options.transformationRecipes ?? [])].sort(
-    (left, right) =>
-      (left.runtimeSourceOrder ?? left.sourceStatementIndex) -
-      (right.runtimeSourceOrder ?? right.sourceStatementIndex)
-  );
-  let nextTransformationRecipeIndex = 0;
+  // Recipe order is authored order within each owner/branch. Readiness is
+  // dependency-driven, so unrelated declaration positions cannot force a
+  // recipe to run before its construction or prior stage exists.
+  const recipeList = [...(options.transformationRecipes ?? [])];
+  const pendingTransformationRecipes = new Set(recipeList);
   const generatedOwnerIds = new Set(
     elements
       .filter((element) => {
@@ -2444,11 +2445,59 @@ export const evaluateElements = (
     executeTransformationInvocation(recipe, expandedTargets.flat());
   };
 
-  const evaluateTransformationRecipesThrough = (sourceOrder: number) => {
-    while (nextTransformationRecipeIndex < recipeList.length &&
-      (recipeList[nextTransformationRecipeIndex]!.runtimeSourceOrder ?? recipeList[nextTransformationRecipeIndex]!.sourceStatementIndex) <= sourceOrder) {
-      executeTransformationRecipe(recipeList[nextTransformationRecipeIndex]!);
-      nextTransformationRecipeIndex += 1;
+  const recipeDependencies = (recipe: TransformationRecipe): Set<ElementId> => {
+    const dependencies = new Set<ElementId>();
+    const knownIds = new Set(elementsById.keys());
+    const visit = (value: unknown): void => {
+      if (typeof value === "string") {
+        if (knownIds.has(value)) dependencies.add(value);
+        return;
+      }
+      if (Array.isArray(value)) {
+        value.forEach(visit);
+        return;
+      }
+      if (!value || typeof value !== "object") return;
+      Object.values(value).forEach(visit);
+    };
+    visit(recipe.operation);
+    return dependencies;
+  };
+  const transformationRecipeReady = (recipe: TransformationRecipe): boolean => {
+    for (const dependencyId of recipeDependencies(recipe)) {
+      if (!computedGeometry.has(dependencyId) && !baseTransformationGeometry.has(dependencyId)) return false;
+    }
+    for (const target of recipe.targets) {
+      const runtimeIds = generatedOwnerIds.has(target.ownerId)
+        ? forGroupGeneratedRows
+            .filter((row) => row.templateElementId === target.ownerId)
+            .filter((_, index) => target.occurrenceIndex === undefined || String(index) === target.occurrenceIndex)
+            .map((row) => row.generatedElementId)
+        : [target.ownerId];
+      if (runtimeIds.length === 0) return false;
+      for (const runtimeId of runtimeIds) {
+        if (target.stagePath.length === 0) {
+          if (!computedGeometry.has(runtimeId)) return false;
+        } else if (target.stagePath[0] === "base" && target.stagePath.length === 1) {
+          if (!baseTransformationGeometry.has(runtimeId)) return false;
+        } else {
+          const stageKey = transformationStageKey(runtimeId, undefined, target.stagePath);
+          if (!transformationStageGeometry.has(stageKey)) return false;
+        }
+      }
+    }
+    return true;
+  };
+  const evaluateReadyTransformationRecipes = () => {
+    let progressed = true;
+    while (progressed) {
+      progressed = false;
+      for (const recipe of recipeList) {
+        if (!pendingTransformationRecipes.has(recipe) || !transformationRecipeReady(recipe)) continue;
+        executeTransformationRecipe(recipe);
+        pendingTransformationRecipes.delete(recipe);
+        progressed = true;
+      }
     }
   };
 
@@ -2461,9 +2510,9 @@ export const evaluateElements = (
     // Apply clauses between declarations before the later declaration observes
     // the owner's geometry. Statement positions are integer indexes, so the
     // half-step excludes the current declaration itself.
-    evaluateTransformationRecipesThrough(sourceOrder - 0.5);
+    evaluateReadyTransformationRecipes();
     evaluateRuntimeElement(element);
-    evaluateTransformationRecipesThrough(sourceOrder);
+    evaluateReadyTransformationRecipes();
     for (const snapshot of instanceSnapshotsByEnd.get(elementIndex) ?? []) {
       const geometry = snapshot.descendantIds
         .map((id) => computedGeometry.get(id))
@@ -2474,17 +2523,12 @@ export const evaluateElements = (
   }
 
   evaluateGeometryValuesThrough(Number.POSITIVE_INFINITY);
-  evaluateTransformationRecipesThrough(Number.POSITIVE_INFINITY);
+  evaluateReadyTransformationRecipes();
 
   const linearFinal = linearMutationResolver
     ? linearMutationResolver.finalize({
         kind: "beforeStatement",
-        // Geometry still stops at the document's stop marker, but a
-        // printLayout-local scalar binding is an explicit post-stop
-        // evaluation exception carried by its resolved BindingId.
-        sourceOrder: options.bindingVersions!.postStopBindingIds?.size
-          ? Number.POSITIVE_INFINITY
-          : options.bindingVersions!.evaluationLimitSourceOrder ?? Number.POSITIVE_INFINITY
+        sourceOrder: Number.POSITIVE_INFINITY
       })
     : undefined;
   const computedScalarBindings = linearFinal?.resultsByBindingId ?? declarationResolver?.finalize().resultsByBindingId;

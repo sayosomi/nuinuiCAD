@@ -2166,7 +2166,7 @@ describe("module scalar runtime integration", () => {
     ]);
   });
 
-  it("keeps nested module instances independent and stops at the outer call boundary", () => {
+  it("keeps nested module instances independent across declaration order", () => {
     const source = [
       "nui 1",
       "module Inner(width: number) {",
@@ -2176,7 +2176,6 @@ describe("module scalar runtime integration", () => {
       "  instance Nested = Inner(width: @width)",
       "}",
       "instance First = Outer(width: 3)",
-      "stop",
       "instance Second = Outer(width: 7)"
     ].join("\n");
     const compiled = compileWithIds(source);
@@ -2186,7 +2185,7 @@ describe("module scalar runtime integration", () => {
     const points = compiled.document!.elements.filter((element) => element.name === "P");
     expect(points).toHaveLength(2);
     expect(result.computedGeometry.get(points[0].id)).toMatchObject({ x: 3 });
-    expect(result.computedGeometry.has(points[1].id)).toBe(false);
+    expect(result.computedGeometry.get(points[1].id)).toMatchObject({ x: 7 });
     expect(compiled.bindingVersions?.requiresExecutionOrdering).toBe(true);
   });
 
@@ -2777,8 +2776,14 @@ describe("module scalar runtime integration", () => {
       "const selected: number = @later[0]",
       "const later: number[] = [1]"
     ].join("\n"), "collection-index-forward");
-    const forwardDiagnostics = [...forward.diagnostics, ...(forward.bindingIssueDiagnostics ?? [])];
-    expect(forwardDiagnostics.some((diagnostic) => diagnostic.code?.includes("forward"))).toBe(true);
+    expect(forward.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(forward.bindingIssueDiagnostics ?? []).toEqual([]);
+    const forwardResult = evaluateCompiled(forward);
+    const selected = forward.bindingAnalysis!.catalog.bindings.find((binding) => binding.name === "selected")!;
+    expect(forwardResult.computedScalarBindings?.get(selected.id)).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 1 }
+    });
 
     const privateExport = compileWithIds([
       "nui 1",

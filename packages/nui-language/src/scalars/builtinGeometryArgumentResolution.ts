@@ -107,7 +107,6 @@ const sourceLookupMessage = (name: string, lookup: SourceLexicalLookup): string 
 
 export const resolveBuiltinGeometryArguments = ({
   ast,
-  statementIndex,
   scalarReferenceResolutions,
   collectionIndexBaseReferenceOccurrenceIndexes,
   sourceDeclarationsByStatementId,
@@ -152,7 +151,7 @@ export const resolveBuiltinGeometryArguments = ({
     ) {
       const declaration = sourceDeclarationsByStatementId.get(resolution.statementId);
       const geometryType = moduleGeometryInterfaceTypeOfElement(declaration?.statement);
-      if (declaration?.kind === "geometry" && geometryType !== null && declaration.statementIndex < statementIndex) {
+      if (declaration?.kind === "geometry" && geometryType !== null) {
         target = {
           statementId: declaration.statementId,
           statementIndex: declaration.statementIndex,

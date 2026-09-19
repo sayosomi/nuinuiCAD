@@ -322,7 +322,6 @@ export const createScalarProgramCollectionResolver = (
   ): ScalarEvaluation => {
     const redirected = redirectedValueId(collectionValueId, sourceOrder);
     if (redirected !== collectionValueId) return indexFor(redirected, index, elementType, collectionLength, targetSourceOrder, sourceOrder, seen);
-    if (targetSourceOrder >= sourceOrder) return { status: "error", type: elementType, issueCode: "evaluation-collection-index-unavailable" };
     if (!Number.isFinite(index) || !Number.isInteger(index) || index < 0 ||
       (collectionLength !== null && index >= collectionLength)) {
       return { status: "error", type: elementType, issueCode: "evaluation-collection-index-invalid" };
@@ -400,21 +399,9 @@ export const createScalarProgramCollectionResolver = (
   return { environmentFor, recordFieldFor };
 };
 
-const isWithinEvaluationLimit = (
-  program: ScalarProgram,
-  statement: ScalarProgramStatement,
-  postStopBindingIds: ReadonlySet<BindingId>
-): boolean =>
-  program.evaluationLimitSourceOrder === undefined ||
-  statement.sourceOrder < program.evaluationLimitSourceOrder ||
-  postStopBindingIds.has(statement.bindingId);
-
 /**
  * Builds an on-demand resolver over `program`. Nothing is evaluated until
- * `resolve` is actually called for a given bindingId; a statement at or after
- * `program.evaluationLimitSourceOrder` (the `stop` cutoff) is treated as
- * absent unless its resolved bindingId is explicitly listed in
- * `postStopBindingIds` for a printLayout-local binding.
+ * `resolve` is actually called for a given bindingId.
  */
 export const createLazyScalarProgramEvaluator = (
   program: ScalarProgram,
@@ -422,10 +409,9 @@ export const createLazyScalarProgramEvaluator = (
   resolveGeometryTarget?: (target: ScalarExpressionResolvedGeometryTarget, sourceOrder: number) => GeometryBuiltinTargetLookupResult | undefined,
   resolveCollectionLength?: (collectionValueId: string, sourceOrder: number) => number | undefined
 ): LazyScalarProgramEvaluator => {
-  const postStopBindingIds = new Set(program.postStopBindingIds ?? []);
   const statementByBindingId = new Map<BindingId, ScalarProgramStatement>();
   for (const statement of program.statements) {
-    if (isWithinEvaluationLimit(program, statement, postStopBindingIds)) statementByBindingId.set(statement.bindingId, statement);
+    statementByBindingId.set(statement.bindingId, statement);
   }
 
   const cache = new Map<BindingId, ScalarEvaluation>();
@@ -501,10 +487,8 @@ export const finalizeScalarProgramEvaluation = (
   program: ScalarProgram,
   evaluator: LazyScalarProgramEvaluator
 ): ScalarProgramEvaluation => {
-  const postStopBindingIds = new Set(program.postStopBindingIds ?? []);
   const resultsByBindingId = new Map<BindingId, ScalarEvaluation>();
   for (const statement of program.statements) {
-    if (!isWithinEvaluationLimit(program, statement, postStopBindingIds)) continue;
     resultsByBindingId.set(statement.bindingId, evaluator.resolve(statement.bindingId));
   }
   return { resultsByBindingId };

@@ -695,29 +695,6 @@ describe("textPatch 非要素セクション", () => {
     expect(patched).toContain("activeView 印刷");
   });
 
-  it("stop の移動は削除+挿入", () => {
-    const source = ["nui 1", "point A = coordinate(x: 0, y: 0)", "stop", "point B = coordinate(x: 1, y: 1)", "point C = coordinate(x: 2, y: 2)"].join("\n");
-    const { patched } = applyChange(source, (document) => ({
-      ...document,
-      evaluationLimitIndex: 2
-    }));
-    const lines = patched.split("\n");
-    expect(lines.filter((line) => line === "stop")).toHaveLength(1);
-    const stopIndex = lines.indexOf("stop");
-    const bIndex = lines.findIndex((line) => line.startsWith("point B "));
-    const cIndex = lines.findIndex((line) => line.startsWith("point C "));
-    expect(stopIndex).toBeGreaterThan(bIndex);
-    expect(stopIndex).toBeLessThan(cIndex);
-  });
-
-  it("stop を明示的に除去したら行も除去される", () => {
-    const source = ["nui 1", "point A = coordinate(x: 0, y: 0)", "stop", "point B = coordinate(x: 1, y: 1)"].join("\n");
-    const { patched } = applyChange(source, (document) => ({
-      ...document,
-      evaluationLimitIndex: undefined
-    }));
-    expect(patched).not.toContain("stop");
-  });
 });
 
 describe("diffDocuments", () => {

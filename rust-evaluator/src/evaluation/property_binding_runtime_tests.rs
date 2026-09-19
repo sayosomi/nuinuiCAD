@@ -18,6 +18,7 @@ fn input(
     property_bindings: Option<Value>,
 ) -> EvaluationInput {
     EvaluationInput {
+        evaluation_order: None,
         geometry_input_targets: None,
         geometry_collection_nodes: None,
         geometry_value_program: None,
@@ -157,6 +158,7 @@ fn arc(id: &str, start_angle_deg: f64, end_angle_deg: f64, direction: Option<&st
 
 fn state_with_element(id: &str, element: Value) -> EvaluationState {
     EvaluationState {
+        completed_transformation_recipe_indices: std::collections::HashSet::new(),
         geometry_input_targets: HashMap::new(),
         geometry_collection_nodes: HashMap::new(),
         geometry_value_binders: HashMap::new(),
@@ -430,8 +432,8 @@ fn choice_geometry_property_cannot_leak_disabled_or_failed_targets_but_hidden_ta
 }
 
 #[test]
-fn geometry_property_choice_runtime_fails_closed_with_concrete_type_for_invalid_and_too_late_reads()
-{
+fn geometry_property_choice_runtime_fails_closed_with_concrete_type_for_invalid_and_allows_forward_reads(
+) {
     let invalid_options = ["clockwise"];
     let invalid = evaluate_document_input(input(
         vec![arc("source", 0.0, 90.0, None)],
@@ -458,10 +460,10 @@ fn geometry_property_choice_runtime_fails_closed_with_concrete_type_for_invalid_
     );
 
     let too_late_options = ["counterclockwise", "clockwise"];
-    let too_late = evaluate_document_input(input(
+    let forward = evaluate_document_input(input(
         vec![arc("source", 0.0, 90.0, None)],
         Some(program(vec![statement(
-            "binding:too-late",
+            "binding:forward",
             1,
             "const",
             json!({"kind": "choice", "options": too_late_options}),
@@ -469,17 +471,21 @@ fn geometry_property_choice_runtime_fails_closed_with_concrete_type_for_invalid_
         )])),
         None,
     ));
-    let too_late_evaluation = &too_late
+    let forward_evaluation = &forward
         .computed_scalar_bindings
         .expect("scalar program output")[0]["evaluation"];
-    assert_eq!(too_late_evaluation["status"], json!("error"));
+    assert_eq!(forward_evaluation["status"], json!("ok"));
     assert_eq!(
-        too_late_evaluation["type"],
+        forward_evaluation["type"],
         json!({"kind": "choice", "options": too_late_options})
     );
     assert_eq!(
-        too_late_evaluation["issueCode"],
-        json!("evaluation-geometry-property-unavailable")
+        forward_evaluation["value"],
+        json!({
+            "kind": "choice",
+            "value": "counterclockwise",
+            "options": too_late_options
+        })
     );
 }
 

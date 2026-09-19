@@ -470,7 +470,9 @@ or semantics are supplied by later declaration contributors, not by this owner.
 
 Import aliases participate in the existing source lexical namespace only when the
 multi-document caller supplies their stable statement identities. The ordinary
-lexical resolver still owns alias visibility, source order, and collisions. For
+lexical resolver still owns alias visibility, legal lexical scope, and
+collisions; source position does not make an in-scope declaration unavailable.
+For
 `alias::member`, only the member lookup is delegated through the optional external
 namespace resolver to the imported public catalog. Existing single-document
 callers do not receive external lookup variants and remain fail-closed for import
@@ -640,11 +642,13 @@ production evaluator input としてそのまま評価される。
 
 `EvaluationResult.transformationStageGeometry` is the production/reference
 parity fact for immutable named checkpoints produced by declarative
-transformation recipes. `src/geometry/evaluate.ts` applies each compiled recipe
-in authored source order, keeps branch snapshots separate from the drawable
-owner's final geometry, and expands generated bulk/indexed selectors through the
-existing occurrence rows. Rust consumes the same JSON-shaped recipe product at
-the stable `evaluate_document(input)` boundary and returns the same stage map.
+transformation recipes. `typedDependencyGraph.ts` is the host-neutral graph
+owner: it records resolved scalar, geometry, property, gate, template, and
+stage-related dependencies and emits dependency-first element order plus cycle
+facts. `src/geometry/evaluate.ts` consumes that order, waits for construction or
+prior-stage prerequisites, and keeps authored recipe order within each owner
+branch. Rust receives the same JSON-shaped order and recipe product at the
+stable `evaluate_document(input)` boundary and returns the same stage map.
 
 `EvaluationResult.geometryMutationExecutions` remains a compatibility fact for
 pre-existing programmatic runtime element inputs; the nui1 source compiler no

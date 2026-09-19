@@ -4,13 +4,11 @@ import type { ElementId } from "../types/geometry";
 import { entriesInVisibleRanges, type EvaluationDecorationIndex, type IndexedLineStatus } from "./sourceEditorEvaluationIndex";
 import { evaluationChanged } from "./sourceEditorEvaluationEffects";
 import { sourceEditorGeneratedRowsExtension } from "./sourceEditorGeneratedRowsExtension";
-import type { AtStopRange } from "./statementRangeIndex";
 
 export { evaluationChanged } from "./sourceEditorEvaluationEffects";
 
 export type EvaluationExtensionSource = {
   index: () => EvaluationDecorationIndex;
-  atStopRange: () => AtStopRange | null;
   pickCursorElementId: () => ElementId | null;
   isLastGood: () => boolean;
   onGutterAction: (lineFrom: number) => boolean;
@@ -44,8 +42,6 @@ export class EvaluationViewPluginValue {
     const visible = this.view.visibleRanges;
     this.statuses = entriesInVisibleRanges(index.statuses, visible);
     const pickLines = entriesInVisibleRanges(index.pickLines, visible);
-    const atStop = this.source.atStopRange();
-    const stopVisible = atStop && visible.some((range) => atStop.from >= range.from && atStop.from <= range.to);
     const entries: { pos: number; decoration: Decoration }[] = [];
     for (const status of this.statuses) entries.push({
       pos: status.from,
@@ -55,7 +51,6 @@ export class EvaluationViewPluginValue {
       })
     });
     for (const line of pickLines) entries.push({ pos: line.from, decoration: Decoration.line({ class: line.elementId === this.source.pickCursorElementId() ? "cm-pick-cursor" : "cm-pick-candidate" }) });
-    if (stopVisible && atStop) entries.push({ pos: atStop.from, decoration: Decoration.line({ class: "cm-at-stop-line" }) });
     entries.sort((left, right) => left.pos - right.pos);
     const builder = new RangeSetBuilder<Decoration>();
     for (const entry of entries) builder.add(entry.pos, entry.pos, entry.decoration);

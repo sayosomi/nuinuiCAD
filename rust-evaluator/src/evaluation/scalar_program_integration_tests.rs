@@ -3,6 +3,7 @@ use serde_json::{json, Value};
 
 fn input(elements: Vec<Value>, scalar_program: Option<Value>) -> EvaluationInput {
     EvaluationInput {
+        evaluation_order: None,
         geometry_input_targets: None,
         geometry_collection_nodes: None,
         geometry_value_program: None,
@@ -146,17 +147,18 @@ fn rejects_external_document_binding_references() {
 }
 
 #[test]
-fn honors_stop_and_keeps_geometry_unchanged_for_empty_or_omitted_programs() {
+fn evaluates_all_resolved_scalar_statements_and_keeps_geometry_unchanged_for_empty_or_omitted_programs(
+) {
     let number_type = json!({"kind": "number"});
-    let stopped = json!({
+    let resolved = json!({
         "statements": [
             statement("binding:first", 0, number_type.clone(), number(1.0)),
             statement("binding:after-stop", 1, number_type, number(2.0))
-        ],
-        "evaluationLimitSourceOrder": 1
+        ]
     });
-    let stopped_result = evaluate_document_input(input(vec![point("a", 1.0, 2.0)], Some(stopped)));
-    assert_eq!(stopped_result.computed_scalar_bindings.unwrap().len(), 1);
+    let resolved_result =
+        evaluate_document_input(input(vec![point("a", 1.0, 2.0)], Some(resolved)));
+    assert_eq!(resolved_result.computed_scalar_bindings.unwrap().len(), 2);
 
     let omitted = evaluate_document_input(input(vec![point("a", 1.0, 2.0)], None));
     let empty = evaluate_document_input(input(vec![point("a", 1.0, 2.0)], Some(program(vec![]))));
@@ -167,7 +169,7 @@ fn honors_stop_and_keeps_geometry_unchanged_for_empty_or_omitted_programs() {
 }
 
 #[test]
-fn evaluates_resolved_print_layout_bindings_after_stop() {
+fn evaluates_resolved_print_layout_bindings_without_source_order_cutoffs() {
     let number_type = json!({"kind": "number"});
     let mut print_layout_binding = statement(
         "binding:layout-margin",
@@ -180,9 +182,7 @@ fn evaluates_resolved_print_layout_bindings_after_stop() {
         "statements": [
             statement("binding:before-stop", 0, number_type, number(1.0)),
             print_layout_binding,
-        ],
-        "evaluationLimitSourceOrder": 1,
-        "postStopBindingIds": ["binding:layout-margin"]
+        ]
     });
 
     let result = evaluate_document_input(input(vec![], Some(program)));

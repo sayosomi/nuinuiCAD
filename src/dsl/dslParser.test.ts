@@ -215,16 +215,10 @@ describe("DSL parser new document statements", () => {
 
 
 
-  it("parses stop as a standalone statement", () => {
-    const statement = single("stop");
-    expect(statement.kind).toBe("atStop");
-    expect(errors("stop extra")[0].message).toContain("単独の行");
-  });
-
-  it("rejects more than one stop", () => {
-    const result = errors(["point A = coordinate(x: 0, y: 0)", "stop", "point B = coordinate(x: 1, y: 1)", "stop"].join("\n"));
-    expect(result).toHaveLength(1);
-    expect(result[0].message).toContain("1つだけ");
+  it("rejects stop instead of producing a source terminator statement", () => {
+    const parsed = parseDsl(["point A = coordinate(x: 0, y: 0)", "stop", "point B = coordinate(x: 1, y: 1)"].join("\n"));
+    expect(parsed.statements.some((statement) => (statement as { kind: string }).kind === "atStop")).toBe(false);
+    expect(errors("stop")).toEqual([expect.objectContaining({ message: expect.stringContaining("有効な構文ではありません") })]);
   });
 
   it("parses layout blocks with place members", () => {

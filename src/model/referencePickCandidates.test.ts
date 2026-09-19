@@ -64,12 +64,12 @@ describe("referencePickCandidates", () => {
     const strict = referencePickCandidates({ compiled, evaluation, target: strictTarget });
     expect(referenceBases(strict)).toContain("Straight");
     expect(referenceBases(strict)).not.toContain("Curve");
-    expect(referenceBases(strict)).not.toContain("Later");
+    expect(referenceBases(strict)).toContain("Later");
 
     const broadTarget = targetAt(source, compiled, "broad: @Curve");
     const broad = referencePickCandidates({ compiled, evaluation, target: broadTarget });
     expect(referenceBases(broad)).toEqual(expect.arrayContaining(["Straight", "Curve"]));
-    expect(referenceBases(broad)).not.toContain("Later");
+    expect(referenceBases(broad)).toContain("Later");
 
     const straightId = compiled.document!.elements.find((element) => element.name === "Straight")!.id;
     const hiddenEvaluation: EvaluationResult = {

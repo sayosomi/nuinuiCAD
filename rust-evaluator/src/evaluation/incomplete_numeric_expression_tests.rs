@@ -4,6 +4,7 @@ use serde_json::json;
 #[test]
 fn generated_copy_reports_its_incomplete_numeric_expression_as_the_dependency_id() {
     let result = evaluate_document_input(EvaluationInput {
+        evaluation_order: None,
         geometry_input_targets: None,
         geometry_collection_nodes: None,
         geometry_value_program: None,

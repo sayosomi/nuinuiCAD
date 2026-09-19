@@ -66,14 +66,12 @@ import { normalizeSourceTextForEditor, serializeEditorText, sourceTextFormat } f
 import type { ModuleSemanticCursorResolution, SourceEditorControllerOptions, SourceEditorHandle, SourceEvaluationPublication, SourceTextFormat } from "./sourceEditorTypes";
 import {
   elementIdAtCursor,
-  createAtStopRange,
   createPropertyBindingRangeIndex,
   createScopeBodyRangeIndex,
   createStatementRangeIndex,
   createTemplateHoleRangeIndex,
   createTypedDeclarationFieldRangeIndex,
   createTypedDeclarationRangeIndex,
-  mapAtStopRange,
   mapPropertyBindingRangeIndex,
   mapModuleSemanticRangeIndex,
   mapScopeBodyRangeIndex,
@@ -84,7 +82,6 @@ import {
   propertyBindingSpanAt,
   templateHoleAtPosition,
   typedDeclarationBindingIdAtCursor,
-  type AtStopRange,
   type PropertyBindingRangeIndex,
   type ScopeBodyRangeIndex,
   type StatementRangeIndex,
@@ -243,7 +240,6 @@ export class SourceEditorController implements SourceEditorHandle {
   private templateHoleRanges: TemplateHoleRangeIndex = new Map();
   private propertyBindingRanges: PropertyBindingRangeIndex = new Map();
   private scopeBodyRanges: ScopeBodyRangeIndex = [];
-  private atStopRange: AtStopRange | null = null;
   private moduleSemanticRanges: ModuleSemanticRangeIndex = { tokens: [], declarationByTarget: new Map() };
   /** Source-only presentation state; never enters groupFoldById || hierarchy state. */
   private collapsedModuleDefinitionIds = new Set<StatementIdentity>();
@@ -362,7 +358,6 @@ export class SourceEditorController implements SourceEditorHandle {
           createDiagnosticsExtension(this.diagnosticsExtensionSource()),
           createEvaluationExtension({
             index: () => this.decorationIndex,
-            atStopRange: () => this.atStopRange,
             pickCursorElementId: () => this.uiStore.getState().activePickCursor?.elementId ?? null,
             isLastGood: () => this.isShowingLastGoodEvaluation(),
             onGutterAction: (lineFrom) => this.handleElementStateGutterAction(lineFrom)
@@ -1639,7 +1634,6 @@ export class SourceEditorController implements SourceEditorHandle {
       this.templateHoleRanges = mapTemplateHoleRangeIndex(this.templateHoleRanges, update.changes);
       this.propertyBindingRanges = mapPropertyBindingRangeIndex(this.propertyBindingRanges, update.changes);
       this.scopeBodyRanges = mapScopeBodyRangeIndex(this.scopeBodyRanges, update.changes);
-      this.atStopRange = mapAtStopRange(this.atStopRange, update.changes);
       this.staleDiagnosticBaseline = mapPositionedDiagnostics(this.staleDiagnosticBaseline, update.changes);
       // A dirty edit may have shifted an intact target || invalidated one of
       // its delimiter anchors. Reconcile CM's replacement set immediately;
@@ -1895,7 +1889,6 @@ export class SourceEditorController implements SourceEditorHandle {
       this.templateHoleRanges = new Map();
       this.propertyBindingRanges = new Map();
       this.scopeBodyRanges = [];
-      this.atStopRange = null;
       this.typedSemanticMetadataFresh = false;
       this.refreshFoldGutter();
       return;
@@ -1912,7 +1905,6 @@ export class SourceEditorController implements SourceEditorHandle {
     this.scopeBodyRanges = state.doc.bindingAnalysis
       ? createScopeBodyRangeIndex(this.view.state.doc, state.doc.statementMap, state.doc.bindingAnalysis.catalog.scopeIndex)
       : [];
-    this.atStopRange = createAtStopRange(this.view.state.doc, state.doc.statementMap);
     this.moduleSemanticRanges = createModuleSemanticRangeIndex(state.doc);
     const liveModuleDefinitionIds = new Set(this.moduleSemanticRanges.moduleDefinitionFoldRanges?.keys() ?? []);
     for (const statementId of this.collapsedModuleDefinitionIds) {

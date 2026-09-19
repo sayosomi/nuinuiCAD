@@ -69,14 +69,14 @@ export const dslElementParameterCompletionOptions = ({
   const parentGroupId = groupScopeStatement ? statementElementIds.get(groupScopeStatement.line) : undefined;
   if (groupScopeStatement && !parentGroupId) return [];
 
-  const firstAtStopLine = parsed.statements.find((statement) => statement.kind === "atStop")?.line ?? Infinity;
-  const cutoffLine = Math.min(cursorLine, firstAtStopLine);
-  const live = liveElementsBeforeLine(parsed, cutoffLine, statementElementIds, elements);
+  const currentElementId = statementElementIds.get(cursorLine);
+  const live = liveElementsBeforeLine(parsed, Number.POSITIVE_INFINITY, statementElementIds, elements)
+    .filter((element) => element.id !== currentElementId);
 
   const liveElementIds = new Set(live.map((element) => element.id));
   const statementByElementId = new Map<ElementId, DslStatement>();
   for (const statement of parsed.statements) {
-    if (statement.line >= cutoffLine) continue;
+    if (currentElementId !== undefined && statementElementIds.get(statement.line) === currentElementId) continue;
     const elementId = statementElementIds.get(statement.line);
     if (elementId && liveElementIds.has(elementId)) statementByElementId.set(elementId, statement);
   }

@@ -21,6 +21,7 @@ fn image_element(target_pixels_per_mm: Value) -> Value {
 
 fn evaluate_image(target_pixels_per_mm: Value) -> EvaluationPayload {
     evaluate_document(EvaluationInput {
+        evaluation_order: None,
         geometry_input_targets: None,
         geometry_collection_nodes: None,
         geometry_value_program: None,

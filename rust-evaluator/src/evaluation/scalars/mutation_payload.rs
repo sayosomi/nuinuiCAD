@@ -49,8 +49,6 @@ pub(crate) struct ValidatedBindingVersions {
     pub(crate) binding_ids: HashSet<BindingId>,
     pub(crate) declared_types: HashMap<BindingId, ScalarType>,
     pub(crate) element_source_orders: HashMap<String, usize>,
-    pub(crate) evaluation_limit_source_order: Option<usize>,
-    pub(crate) post_stop_binding_ids: HashSet<BindingId>,
     pub(crate) conditional_owners_by_element_id: HashMap<String, String>,
     pub(crate) for_group_owners_by_element_id: HashMap<String, ValidatedForGroupOwner>,
     pub(crate) collection_values: Vec<ValidatedScalarProgramCollection>,
@@ -705,8 +703,6 @@ pub(crate) fn validate_binding_versions_payload(
             "elementSourceExecutionUnits",
             "conditionalOwners",
             "forGroupOwners",
-            "evaluationLimitSourceOrder",
-            "postStopBindingIds",
             "collectionValues",
             "immutableForGroups",
         ],
@@ -1368,33 +1364,6 @@ pub(crate) fn validate_binding_versions_payload(
             }
         }
     }
-    let evaluation_limit_source_order = object
-        .get("evaluationLimitSourceOrder")
-        .map(|value| integer(value, "evaluationLimitSourceOrder"))
-        .transpose()?;
-    let post_stop_binding_ids = object
-        .get("postStopBindingIds")
-        .map(|value| {
-            let ids = value.as_array().ok_or_else(|| {
-                issue(
-                    Code::InvalidFieldType,
-                    "postStopBindingIds must be an array",
-                )
-            })?;
-            let mut result = HashSet::new();
-            for id in ids {
-                let id = string(id, "postStopBindingIds entry")?;
-                if !binding_ids.contains(id) || !result.insert(id.to_owned()) {
-                    return Err(issue(
-                        Code::InvalidBindingId,
-                        "postStopBindingIds contains an unknown or duplicate bindingId",
-                    ));
-                }
-            }
-            Ok(result)
-        })
-        .transpose()?
-        .unwrap_or_default();
     let for_group_json = object
         .get("forGroupOwners")
         .unwrap_or(&empty_conditional_owners)
@@ -1524,8 +1493,6 @@ pub(crate) fn validate_binding_versions_payload(
         binding_ids,
         declared_types,
         element_source_orders,
-        evaluation_limit_source_order,
-        post_stop_binding_ids,
         conditional_owners_by_element_id,
         for_group_owners_by_element_id,
         collection_values,

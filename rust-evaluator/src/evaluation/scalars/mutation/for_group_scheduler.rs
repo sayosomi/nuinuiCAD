@@ -384,14 +384,7 @@ impl ScalarMutationResolver<'_> {
             {
                 let version_index_in_program = loop_versions[version_index];
                 version_index += 1;
-                if self
-                    .is_before_cutoff(self.program.versions[version_index_in_program].source_order)
-                {
-                    self.execute_for_group_version(version_index_in_program, environment, state)?;
-                }
-            }
-            if !self.is_before_cutoff(context.statement.source_order()) {
-                return Ok(ForGroupExecutionRunOutcome::Stopped);
+                self.execute_for_group_version(version_index_in_program, environment, state)?;
             }
             if matches!(context.statement, ForGroupExecutionStatement::Exit { .. }) {
                 self.commit_for_group_carries(&owner.owner_statement_id, environment, state)?;

@@ -37,7 +37,7 @@ const randomOpArbitrary: fc.Arbitrary<RandomOp> = fc.record({
     "ungroup",
     "move",
     "reparent",
-    "stopMove",
+    "evaluationLimitMove",
     "profileToggle",
     "layoutEdit"
   ) as fc.Arbitrary<RandomOp["kind"]>,

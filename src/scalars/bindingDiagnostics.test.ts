@@ -96,14 +96,13 @@ describe("bindingDiagnostics", () => {
     expect(formatted.message).toContain("nope");
   });
 
-  it("formats forward-binding-reference using the referenced name", () => {
+  it("resolves a later binding without a forward-reference issue", () => {
     const catalog = catalogFor(["const a: number = @b", "const b: number = 0"].join("\n"));
     const resolution = resolveBindingReferenceForTests(catalog, "b", { scopeId: "root", statementIndex: 0 });
+    expect(resolution).toMatchObject({ kind: "resolved", binding: { id: bindingId(1) } });
     const reference: InitializerReference = { fromBindingId: bindingId(0), occurrenceIndex: 0, name: "b", span: null, resolution };
     const analysis = analyzeBindings({ catalog, initializerReferences: [reference] });
-    const formatted = formatBindingIssue(analysis, analysis.issues[0]);
-    expect(formatted.code).toBe("forward-binding-reference");
-    expect(formatted.message).toContain("b");
+    expect(analysis.issues).toEqual([]);
   });
 
   it("buildBindingDiagnosticMessages preserves analysis.issues order 1:1", () => {

@@ -176,18 +176,6 @@ fn record_type_identity_matches(
         == type_identity
 }
 
-fn is_within_evaluation_limit(
-    program: &ValidatedScalarProgram,
-    statement: &ValidatedScalarProgramStatement,
-) -> bool {
-    !program.evaluation_limit_source_order.is_some_and(|limit| {
-        statement.source_order >= limit
-            && !program
-                .post_stop_binding_ids
-                .contains(&statement.binding_id)
-    })
-}
-
 /// Resolves one binding's value on demand, memoized for the lifetime of one
 /// `evaluate_document` call. `program` is borrowed for this resolver's whole
 /// lifetime (it is never mutated during evaluation), but `state` is passed
@@ -228,9 +216,7 @@ impl<'a> ScalarBindingResolver<'a> {
     pub(crate) fn new(program: &'a ValidatedScalarProgram) -> Self {
         let mut statement_by_binding_id = HashMap::new();
         for statement in &program.statements {
-            if is_within_evaluation_limit(program, statement) {
-                statement_by_binding_id.insert(statement.binding_id.as_str(), statement);
-            }
+            statement_by_binding_id.insert(statement.binding_id.as_str(), statement);
         }
         Self {
             program,
@@ -395,9 +381,6 @@ impl<'a> ScalarBindingResolver<'a> {
     pub(crate) fn finalize(&self, state: &EvaluationState) -> Vec<Value> {
         let mut output = Vec::new();
         for statement in &self.program.statements {
-            if !is_within_evaluation_limit(self.program, statement) {
-                continue;
-            }
             let evaluation = self.resolve(&statement.binding_id, state);
             output.push(json!({
                 "bindingId": statement.binding_id,
@@ -1330,14 +1313,6 @@ impl ScalarEvaluationEnvironment for ResolvingEnvironment<'_, '_, '_> {
         collection_length: Option<f64>,
         target_source_order: f64,
     ) -> ScalarEvaluation {
-        if target_source_order >= self.source_order {
-            return ScalarEvaluation::Error {
-                r#type: element_type.clone(),
-                issue_code: "evaluation-collection-index-unavailable".to_owned(),
-                binding_id: None,
-                context: None,
-            };
-        }
         self.resolver.resolve_collection_index(
             collection_value_id,
             index,

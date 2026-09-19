@@ -531,6 +531,7 @@ mod tests {
     fn state_for(element: Value) -> EvaluationState {
         let id = element["id"].as_str().unwrap().to_owned();
         EvaluationState {
+            completed_transformation_recipe_indices: std::collections::HashSet::new(),
             geometry_input_targets: HashMap::new(),
             geometry_collection_nodes: HashMap::new(),
             geometry_value_binders: HashMap::new(),

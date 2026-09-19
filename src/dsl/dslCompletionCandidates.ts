@@ -40,9 +40,8 @@ const referenceKind = (kind: ParameterValueKind) =>
  * data) whenever its live type no longer matches the compiled element's type,
  * its name is empty, || its live enclosing group has no live identity yet -
  * callers must never fall back to compiled data for a statement that fails
- * this check. Shared by dslReferenceCompletionOptions (cutoffLine = cursorLine,
- * unchanged behavior) && the element-parameter completion candidates
- * (cutoffLine additionally clamped to the first `stop` line).
+ * this check. The cutoff remains a presentation/context boundary; semantic
+ * name resolution itself is supplied by the canonical lexical namespace.
  */
 export const liveElementsBeforeLine = (
   parsed: ParseDslResult,
@@ -103,7 +102,9 @@ export const dslReferenceCompletionOptions = ({
   const parentGroupId = scopeStatement ? statementElementIds.get(scopeStatement.line) : undefined;
   if (scopeStatement && !parentGroupId) return [];
 
-  const live = liveElementsBeforeLine(parsed, cursorLine, statementElementIds, elements);
+  const currentElementId = statementElementIds.get(cursorLine);
+  const live = liveElementsBeforeLine(parsed, Number.POSITIVE_INFINITY, statementElementIds, elements)
+    .filter((element) => element.id !== currentElementId);
   const fallbackEvaluation = computedGeometry ? null : evaluateElements([...elements]);
   const evaluation = {
     computedGeometry: computedGeometry ?? fallbackEvaluation!.computedGeometry,

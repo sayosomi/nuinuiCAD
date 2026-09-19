@@ -136,7 +136,7 @@ describe("Module same-name shorthand acceptance coverage", () => {
       "const width: number = 10"
     ].join("\n");
     const unavailableLabels = completionLabels(unavailable);
-    expect(unavailableLabels).not.toContain("@width");
+    expect(unavailableLabels).toContain("@width");
     expect(unavailableLabels).toContain("width");
   });
 

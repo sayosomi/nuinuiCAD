@@ -203,7 +203,7 @@ describe("SourceEditorController module semantic target priority", () => {
     controller.destroy();
   });
 
-  it("uses source order for a new body declaration after an existing Module local", async () => {
+  it("includes later declarations for a new body reference while preserving Module scope", async () => {
     const source = [
       "nui 1",
       "const outer: number = 10",
@@ -226,7 +226,7 @@ describe("SourceEditorController module semantic target priority", () => {
     const labels = result?.options.map((option) => option.label) ?? [];
     expect(labels).toContain("first");
     expect(labels).not.toContain("second");
-    expect(labels).not.toContain("later");
+    expect(labels).toContain("later");
     expect(labels).not.toContain("outer");
     controller.destroy();
   });
@@ -368,7 +368,7 @@ describe("SourceEditorController module semantic target priority", () => {
     const newCallCursor = insertAt(controller, forwardOffset, "instance I = F\n");
     const callLabels = (await completionAt(controller, newCallCursor - 1))?.options.map((option) => option.label) ?? [];
     expect(callLabels).toContain("First");
-    expect(callLabels).not.toContain("Forward");
+    expect(callLabels).toContain("Forward");
     controller.destroy();
 
     const existingCall = [

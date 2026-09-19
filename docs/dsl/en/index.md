@@ -11,9 +11,9 @@ and the geometry and output declarations that are currently available. The
   use Y-up: positive Y is upward.
 - The first meaningful statement is `nui 1`. Other nui major versions are not
   part of the implemented language.
-- Statements are evaluated in document order. A reference must point to an
-  earlier, available declaration; the compiler reports dependency problems
-  instead of reordering the document.
+- Legal declarations are resolved by lexical scope and evaluated through the
+  compiler's dependency graph. Unrelated source positions do not impose order;
+  missing, unavailable, invalid, and cyclic dependencies remain diagnostics.
 - Every element and container has `visible`, `hidden`, or `disabled` activity.
   Visible values evaluate and draw, hidden values evaluate and can be
   referenced but do not draw, and disabled values do not evaluate or become
@@ -27,7 +27,7 @@ and the geometry and output declarations that are currently available. The
 
 ## Reference map
 
-- [Syntax](syntax.md) — document structure, comments, names, and source order.
+- [Syntax](syntax.md) — document structure, comments, names, and lexical scope.
 - [Types](types.md) — scalar, geometry, array, and record types.
 - [Expressions](expressions.md) — literals, operators, references, and
   interpolation.
@@ -40,7 +40,7 @@ and the geometry and output declarations that are currently available. The
   exports.
 - [Records](records.md) — nominal source-only record values.
 - [Styles](modifiers.md) — drawing Styles and profiles.
-- [Output](output.md) — layouts, print output, SVG output, and `stop`.
+- [Output](output.md) — layouts, print output, and SVG output.
 - [Builtins](builtins.md) — scalar and geometry measurement functions.
 
 Reference identities in the linked pages are stable language-neutral metadata.

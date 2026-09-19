@@ -59,6 +59,8 @@ fn module_instance_is_an_activity_container_and_a_geometry_noop() {
     assert_eq!(activities["child"].activity, ElementActivity::Hidden);
 
     let result = evaluate_document_input(super::types::EvaluationInput {
+        evaluation_order: None,
+
         geometry_input_targets: None,
         geometry_collection_nodes: None,
         geometry_value_program: None,
@@ -116,6 +118,7 @@ fn bake_sandbox_can_evaluate_disabled_geometry_without_changing_normal_evaluatio
         "y": 4
     })];
     let normal = evaluate_document_input(super::types::EvaluationInput {
+        evaluation_order: None,
         geometry_input_targets: None,
         geometry_collection_nodes: None,
         geometry_value_program: None,
@@ -137,6 +140,7 @@ fn bake_sandbox_can_evaluate_disabled_geometry_without_changing_normal_evaluatio
         source_statement_indices: None,
     });
     let sandbox = evaluate_document_input(super::types::EvaluationInput {
+        evaluation_order: None,
         geometry_input_targets: None,
         geometry_collection_nodes: None,
         geometry_value_program: None,
@@ -184,6 +188,7 @@ fn bake_sandbox_does_not_enable_a_disabled_dependency_that_is_not_a_target() {
         }),
     ];
     let result = evaluate_document_input(super::types::EvaluationInput {
+        evaluation_order: None,
         geometry_input_targets: None,
         geometry_collection_nodes: None,
         geometry_value_program: None,
@@ -332,6 +337,7 @@ fn drawing_modifier_strokes_resolve_properties_and_defaults_independently_from_s
 #[test]
 fn generated_rows_receive_the_template_stroke_without_id_parsing() {
     let result = evaluate_document_input(super::types::EvaluationInput {
+        evaluation_order: None,
         geometry_input_targets: None,
         geometry_collection_nodes: None,
         geometry_value_program: None,
@@ -380,6 +386,7 @@ fn generated_rows_receive_the_template_stroke_without_id_parsing() {
 #[test]
 fn drawing_modifier_activity_uses_compiled_definitions_for_evaluation() {
     let result = evaluate_document_input(super::types::EvaluationInput {
+        evaluation_order: None,
         geometry_input_targets: None,
         geometry_collection_nodes: None,
         geometry_value_program: None,
@@ -435,6 +442,7 @@ fn drawing_modifier_activity_uses_compiled_definitions_for_evaluation() {
 #[test]
 fn directly_disabled_dependency_reports_evaluation_off() {
     let result = evaluate_document_input(super::types::EvaluationInput {
+        evaluation_order: None,
         geometry_input_targets: None,
         geometry_collection_nodes: None,
         geometry_value_program: None,

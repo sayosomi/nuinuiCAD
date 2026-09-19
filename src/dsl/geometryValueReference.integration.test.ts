@@ -537,7 +537,7 @@ describe("immutable single-geometry reference values", () => {
       "const forward: point = @Later",
       "point Later = coordinate(x: 0, y: 0)"
     ].join("\n"));
-    expect(errorCodes(forwardTarget)).toContain("module-forward-geometry-reference");
+    expect(errorCodes(forwardTarget)).not.toContain("module-forward-geometry-reference");
   });
 
   it("does not recover a narrower Module type from an alias backing target", () => {

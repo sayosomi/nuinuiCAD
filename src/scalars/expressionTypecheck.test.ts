@@ -1019,13 +1019,13 @@ describe("typecheckScalarExpression / poisoned or unresolved references", () => 
     expect(result.typed.left).toMatchObject({ kind: "reference", bindingId: null, type: null });
   });
 
-  it("propagates a forward reference as invalid without a new diagnostic", () => {
+  it("accepts a later reference without a new diagnostic", () => {
     const catalog = catalogFor(["const a: number = @b", "const b: number = 1"].join("\n"));
     const resolution = resolutionAt(catalog, "b", 0);
-    expect(resolution.kind).toBe("forward");
-    const result = check("@missing + 1", null, [resolution]);
+    expect(resolution.kind).toBe("resolved");
+    const result = check("@b + 1", null, [resolution]);
     expect(result.diagnostics).toEqual([]);
-    expect(result.type).toBeNull();
+    expect(result.type).toMatchObject({ kind: "number" });
   });
 
   it("propagates a self-initialization reference as invalid without a new diagnostic", () => {

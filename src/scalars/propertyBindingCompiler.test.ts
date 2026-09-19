@@ -241,7 +241,7 @@ describe("compilePropertyBindings: opted-in properties resolve to a binding sour
     });
   });
 
-  it("rejects a forward geometry property in a property expression before runtime", () => {
+  it("accepts a forward geometry property in a property expression before runtime", () => {
     const compiled = compileFor([
       "const _unused: boolean = true",
       "point A = coordinate(x: 0, y: 0)",
@@ -250,17 +250,8 @@ describe("compilePropertyBindings: opted-in properties resolve to a binding sour
       "line Later = segment(start: @A, end: @B)"
     ].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compilePropertyBindings(compiled);
-    expect(sourcesByOccurrenceKey.size).toBe(0);
-    expect(diagnostics).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        code: PROPERTY_BINDING_INVALID_CODE,
-        message: expect.stringContaining("後"),
-        presentation: {
-          key: "diagnostic.geometry-property-invalid",
-          parameters: { target: "Later.length" }
-        }
-      })
-    ]));
+    expect(sourcesByOccurrenceKey.size).toBe(1);
+    expect(diagnostics).toEqual([]);
   });
 
   it("forGroup.showGenerated", () => {
@@ -398,20 +389,14 @@ describe("compilePropertyBindings: unresolved", () => {
     });
   });
 
-  it("forward-declared name (same code, different message)", () => {
+  it("declared-later name resolves through the shared namespace", () => {
     const compiled = compileFor([
       "for i in range(min: 0, max: 0, step: 1, showGenerated: @Later) {", "}",
       "const Later: boolean = true"
     ].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compilePropertyBindings(compiled);
-    expect(sourcesByOccurrenceKey.size).toBe(0);
-    expect(diagnostics).toHaveLength(1);
-    expect(diagnostics[0].code).toBe(PROPERTY_BINDING_UNRESOLVED_CODE);
-    expect(diagnostics[0].message).toContain("後で宣言");
-    expect(diagnostics[0].presentation).toEqual({
-      key: "diagnostic.property-binding-unresolved",
-      parameters: { name: "Later" }
-    });
+    expect(sourcesByOccurrenceKey.size).toBe(1);
+    expect(diagnostics).toEqual([]);
   });
 });
 

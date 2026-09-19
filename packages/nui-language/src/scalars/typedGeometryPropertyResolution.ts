@@ -150,15 +150,6 @@ export const resolveGeometryPropertyMetadata = (
         });
         return;
       }
-      if (context?.currentSourceOrder !== undefined && targetSourceOrder >= context.currentSourceOrder) {
-        geometryPropertyReferences.set(node.span.start, null);
-        issues.push({
-          span: node.elementNameSpan,
-          message: `要素「${node.elementName}」はこの式より後、または同じ位置にあるため参照できません。`,
-          presentation: { key: "diagnostic.geometry-property-invalid", parameters: { target: `${node.elementName}.${node.property}` } }
-        });
-        return;
-      }
       const isForGroupTemplate = (() => {
         let parentId = targetElement?.parentGroupId;
         const visited = new Set<ElementId>();

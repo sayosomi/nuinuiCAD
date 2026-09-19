@@ -16,8 +16,6 @@ use super::types::{BindingId, ScalarType, TypedScalarExpression};
 pub(crate) struct ValidatedScalarProgram {
     pub(crate) statements: Vec<ValidatedScalarProgramStatement>,
     pub(crate) collection_values: Vec<ValidatedScalarProgramCollection>,
-    pub(crate) evaluation_limit_source_order: Option<usize>,
-    pub(crate) post_stop_binding_ids: HashSet<BindingId>,
 }
 
 #[derive(Debug)]
@@ -922,12 +920,7 @@ pub(crate) fn validate_scalar_program_payload(
     let object = as_object(json, "scalar program")?;
     reject_unexpected_fields(
         object,
-        &[
-            "statements",
-            "collectionValues",
-            "evaluationLimitSourceOrder",
-            "postStopBindingIds",
-        ],
+        &["statements", "collectionValues"],
         "scalar program",
     )?;
     let statements = require_field(object, "statements", "scalar program")?
@@ -948,42 +941,8 @@ pub(crate) fn validate_scalar_program_payload(
         .map(decode_collection_values)
         .transpose()?
         .unwrap_or_default();
-    let post_stop_binding_ids = object
-        .get("postStopBindingIds")
-        .map(|value| {
-            let ids = value.as_array().ok_or_else(|| {
-                issue(
-                    Code::InvalidFieldType,
-                    "scalar program postStopBindingIds must be an array",
-                )
-            })?;
-            let mut result = HashSet::new();
-            for id in ids {
-                let id = non_empty_string(id, "scalar program postStopBindingIds entry")?;
-                if !binding_ids.contains(id) || !result.insert(id.to_owned()) {
-                    return Err(issue(
-                        Code::InvalidBindingId,
-                        "scalar program postStopBindingIds contains an unknown or duplicate bindingId",
-                    ));
-                }
-            }
-            Ok(result)
-        })
-        .transpose()?
-        .unwrap_or_default();
-    let evaluation_limit_source_order = match object.get("evaluationLimitSourceOrder") {
-        Some(limit) => Some(limit.as_u64().ok_or_else(|| {
-            issue(
-                Code::InvalidFieldType,
-                "scalar program evaluationLimitSourceOrder must be a non-negative integer",
-            )
-        })? as usize),
-        None => None,
-    };
     Ok(ValidatedScalarProgram {
         statements: decoded,
         collection_values,
-        evaluation_limit_source_order,
-        post_stop_binding_ids,
     })
 }

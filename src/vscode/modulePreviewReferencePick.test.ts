@@ -93,7 +93,7 @@ describe("Module Preview Reference Pick target and candidates", () => {
     expect(broadCandidates.flatMap((candidate) => candidate.options).map((option) => option.reference.base)).toEqual(
       expect.arrayContaining(["Straight", "Curve"])
     );
-    expect(pointCandidates.flatMap((candidate) => candidate.options).map((option) => option.reference.base)).not.toContain("Forward");
+    expect(pointCandidates.flatMap((candidate) => candidate.options).map((option) => option.reference.base)).toContain("Forward");
     expect(modulePreviewPickCandidatesFor(strictCandidates).flatMap((candidate) => candidate.options).map((option) =>
       option.kind === "line" ? option.sourceReference?.base : null
     )).toEqual(["Straight"]);

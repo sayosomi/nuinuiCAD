@@ -356,14 +356,10 @@ pub(crate) fn lookup_geometry_property(
     state: &EvaluationState,
     element_id: &str,
     property: &str,
-    target_source_order: f64,
-    current_source_order: Option<f64>,
+    _target_source_order: f64,
+    _current_source_order: Option<f64>,
     property_type: &ScalarType,
 ) -> ScalarEvaluation {
-    if current_source_order.is_some_and(|source_order| target_source_order >= source_order) {
-        return unavailable_geometry_property(property_type);
-    }
-
     match property_type {
         ScalarType::Number => state
             .computed_geometry
@@ -638,9 +634,7 @@ fn optional_geometry_target_present(
         .map_err(GeometryBuiltinRuntimeError::EvaluationIssue)?;
         return Ok(state.computed_geometry.contains_key(&generated_id));
     }
-    if target.statement_index >= current_source_order
-        || !state.elements_by_id.contains_key(&target.statement_id)
-    {
+    if !state.elements_by_id.contains_key(&target.statement_id) {
         return Ok(false);
     }
     Ok(state.computed_geometry.contains_key(&target.statement_id))
@@ -738,17 +732,6 @@ impl ScalarEvaluationEnvironment for ResolverEnvironment<'_> {
         collection_length: Option<f64>,
         target_source_order: f64,
     ) -> ScalarEvaluation {
-        if self
-            .current_source_order
-            .is_some_and(|source_order| target_source_order >= source_order)
-        {
-            return ScalarEvaluation::Error {
-                r#type: element_type.clone(),
-                issue_code: "evaluation-collection-index-unavailable".to_owned(),
-                binding_id: None,
-                context: None,
-            };
-        }
         self.resolver.resolve_collection_index(
             collection_value_id,
             index,
@@ -773,28 +756,10 @@ impl ScalarEvaluationEnvironment for ResolverEnvironment<'_> {
         r#type: &ScalarType,
     ) -> ScalarEvaluation {
         match target {
-            ScalarExpressionResolvedOptionalMemberTarget::CollectionLength {
-                target_source_order,
-                ..
-            }
-            | ScalarExpressionResolvedOptionalMemberTarget::RecordField {
-                target_source_order,
-                ..
-            } => {
-                if self
-                    .current_source_order
-                    .is_some_and(|source_order| *target_source_order >= source_order)
-                {
-                    return ScalarEvaluation::Error {
-                        r#type: r#type.clone(),
-                        issue_code: "evaluation-collection-index-unavailable".to_owned(),
-                        binding_id: None,
-                        context: None,
-                    };
-                }
-                self.resolver
-                    .resolve_optional_collection_member(target, r#type, self.state)
-            }
+            ScalarExpressionResolvedOptionalMemberTarget::CollectionLength { .. }
+            | ScalarExpressionResolvedOptionalMemberTarget::RecordField { .. } => self
+                .resolver
+                .resolve_optional_collection_member(target, r#type, self.state),
             ScalarExpressionResolvedOptionalMemberTarget::GeometryProperty { .. } => {
                 lookup_optional_geometry_property(
                     self.state,

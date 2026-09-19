@@ -1,5 +1,6 @@
 import { encodeIdentityTuple } from "./identityTuple";
-import { compileDslDocument, type CompiledDslDocument } from "../dsl/dslDocument";
+import * as dslDocument from "../dsl/dslDocument";
+import type { CompiledDslDocument } from "../dsl/dslDocument";
 import {
   createDslSemanticOccurrenceIndex,
   dslSemanticIdentityKey,
@@ -654,6 +655,28 @@ const prepareScalarParameterLowering = (
   const geometryArrayParameters: GeometryArrayParameterLowering[] = [];
   const recordParameters: RecordParameterLowering[] = [];
   const geometryParameters: GeometryParameterSubstitution[] = [];
+  const localParameterNames = new Set(entry.definition.parameters.map((parameter) => parameter.name));
+  const rootQualifiedInitializerSource = (
+    range: ExactSourceRange | null,
+    binding: ResolvedModuleParameterBinding
+  ): string | null => {
+    const expression = binding.value?.kind === "scalar" ? binding.value.expression : null;
+    if (!range || !expression) return range ? source.slice(range.from, range.to) : null;
+    const rootNames = new Set(expression.references
+      .filter((reference) =>
+        reference.target?.kind === "documentBinding" &&
+        localParameterNames.has(reference.name) &&
+        !reference.name.includes("::")
+      )
+      .map((reference) => reference.name));
+    const initializer = source.slice(range.from, range.to);
+    if (rootNames.size === 0) return initializer;
+    const trimmed = initializer.trim();
+    for (const name of rootNames) {
+      if (trimmed === `@${name}`) return `@::${name}`;
+    }
+    return initializer;
+  };
   const omittedValueIsNone = (value: ResolvedModuleParameterBinding["value"]): boolean =>
     value === null ||
     value.kind === "none" ||
@@ -1097,8 +1120,8 @@ const prepareScalarParameterLowering = (
       state: binding.state,
       nameSource: source.slice(nameRange.from, nameRange.to),
       typeSource: source.slice(typeRange.from, typeRange.to),
-    initializerSource: initializerRange
-        ? source.slice(initializerRange.from, initializerRange.to)
+      initializerSource: initializerRange
+        ? rootQualifiedInitializerSource(initializerRange, binding)
         : optional && binding.state === "omitted"
           ? "none"
           : null,
@@ -3900,7 +3923,7 @@ export const planInlineModule = (input: InlineModulePlanInput): InlineModulePlan
       newStatements: parsed.statements,
       newLines: sourceText.split("\n")
     });
-    return compileDslDocument(sourceText, {
+    return dslDocument.compileDslDocument(sourceText, {
       preparsed: parsed,
       sourceRevision: nextRevision,
       assignedElementIds: reconciled.assignedIds,

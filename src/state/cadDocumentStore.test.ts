@@ -92,7 +92,11 @@ describe("cadDocumentStore file state", () => {
     );
     expect(useCadDocumentStore.getState().dirtySinceSave).toBe(false);
 
-    useCadDocumentStore.getState().commitDocumentChange({ evaluationLimitIndex: 1 });
+    useCadDocumentStore.getState().commitDocumentChange({
+      elements: useCadDocumentStore.getState().elements.map((element, index) =>
+        index === 0 && element.type === "freePoint" && typeof element.x === "number" ? { ...element, x: element.x + 1 } : element
+      )
+    });
     expect(useCadDocumentStore.getState().dirtySinceSave).toBe(true);
 
     useCadDocumentStore.getState().markDocumentSaved(
@@ -184,7 +188,11 @@ describe("cadDocumentStore file state", () => {
   });
 
   it("replaces the document, resets history, and normalizes invalid selection", () => {
-    useCadDocumentStore.getState().commitDocumentChange({ evaluationLimitIndex: 1 });
+    useCadDocumentStore.getState().commitDocumentChange({
+      elements: useCadDocumentStore.getState().elements.map((element, index) =>
+        index === 0 && element.type === "freePoint" && typeof element.x === "number" ? { ...element, x: element.x + 1 } : element
+      )
+    });
     expect(useCadDocumentStore.getState().past).toHaveLength(1);
 
     useCadDocumentStore.getState().replaceDocument(
@@ -203,7 +211,7 @@ describe("cadDocumentStore file state", () => {
 
     expect(useCadDocumentStore.getState()).toMatchObject({
       elements: [sampleElements[1]],
-      evaluationLimitIndex: 1,
+      evaluationLimitIndex: undefined,
       past: [],
       future: [],
       currentFilePath: "/tmp/loaded.nuinui.json",

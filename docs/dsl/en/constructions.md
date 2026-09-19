@@ -629,10 +629,10 @@ gates and Style metadata are described in [Styles](modifiers.md).
 ### `coordinate`, `offset`, and `polar`
 
 **Description:** `coordinate` creates a free point at its `x` and `y`
-coordinates. `offset` adds `dx` and `dy` millimetres to an earlier
+coordinates. `offset` adds `dx` and `dy` millimetres to a referenced
 point-compatible value. It is available both as a drawable point construction
 and as an identity-free pure `point` initializer in `const` declarations.
-`polar` adds a distance at an angle in degrees from an earlier point. It is
+`polar` adds a distance at an angle in degrees from a referenced point. It is
 available both as a drawable point construction and as an identity-free pure
 `point` initializer; both forms default `angle` and `distance` to `0`.
 
@@ -798,7 +798,7 @@ are errors; source primitive order and degenerate geometry are preserved.
 
 ### `split`
 
-**Description:** `split` divides an earlier line-like value at an available
+**Description:** `split` divides a referenced line-like value at an available
 point and returns the resulting split line value. The split point must satisfy
 the source geometry's supported split rules.
 

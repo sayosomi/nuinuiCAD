@@ -2468,7 +2468,6 @@ export const compileModuleScalarRuntime = ({
   const eventOrderByStatementIndex = new Map<number, number>();
   const elementOrderById = new Map<ElementId, number>();
   const scopeExitOrderById = new Map<string, number>();
-  let evaluationLimitSourceOrder: number | undefined;
   const pushEvent = (event: RuntimeEvent, sourceStatementIndex?: number) => {
     const order = events.length;
     events.push(event);
@@ -2567,13 +2566,6 @@ export const compileModuleScalarRuntime = ({
 
   for (const [statementIndex, statement] of statements.entries()) {
     if (!include(statement, statementIndex)) continue;
-    if (statement.kind === "atStop") {
-      evaluationLimitSourceOrder ??= events.length;
-      if (!eventOrderByStatementIndex.has(statementIndex)) {
-        eventOrderByStatementIndex.set(statementIndex, events.length);
-      }
-      continue;
-    }
     if (statement.kind === "moduleDefinition") continue;
     if (statement.kind === "moduleInstance") {
       const statementId = stableStatementIdByIndex.get(statementIndex);
@@ -5598,7 +5590,6 @@ export const compileModuleScalarRuntime = ({
     typedInitializerByBindingId: initializers,
     positionMap: documentBindingAnalysis?.catalog ? { sourceOrderByElementIndex: [] } : { sourceOrderByElementIndex: [] },
     sourceOrderByBindingId,
-    evaluationLimitSourceOrder,
     collectionValues: [
       ...documentCollectionValues,
       ...moduleCollectionValues.filter((value) =>

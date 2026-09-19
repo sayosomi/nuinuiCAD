@@ -143,28 +143,28 @@ describe("module materialization", () => {
     );
   });
 
-  it("treats a module call as one stop atomic unit", () => {
-    const callBeforeStop = runtimeNames([
+  it("materializes module calls regardless of unrelated declaration position", () => {
+    const callBefore = runtimeNames([
       "nui 1",
       "module M() {",
       "  point P = coordinate(x: 1, y: 2)",
       "}",
       "instance A = M()",
-      "stop",
       "point After = coordinate(x: 3, y: 4)"
     ].join("\n"));
-    expect(callBeforeStop.document!.evaluationLimitIndex).toBe(2);
+    expect(callBefore.document!.evaluationLimitIndex).toBeUndefined();
+    expect(callBefore.document!.elements.map((element) => element.name)).toEqual(["A", "P", "After"]);
 
-    const callAfterStop = runtimeNames([
+    const callAfter = runtimeNames([
       "nui 1",
       "module M() {",
       "  point P = coordinate(x: 1, y: 2)",
       "}",
-      "stop",
       "instance A = M()",
       "point After = coordinate(x: 3, y: 4)"
     ].join("\n"));
-    expect(callAfterStop.document!.evaluationLimitIndex).toBe(0);
+    expect(callAfter.document!.evaluationLimitIndex).toBeUndefined();
+    expect(callAfter.document!.elements.map((element) => element.name)).toEqual(["A", "P", "After"]);
   });
 
   it("maps outer and inner source containers to runtime parents without changing group semantics", () => {
@@ -216,17 +216,16 @@ describe("module materialization", () => {
     expect(result.effectiveEnabledElementIds).not.toContain(disabledPoint.id);
   });
 
-  it("preserves ordinary source order and stop behavior when no module is present", () => {
+  it("preserves ordinary declaration order when no module is present", () => {
     const compiled = runtimeNames([
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 1, y: 1)",
-      "stop",
       "point C = coordinate(x: 2, y: 2)"
     ].join("\n"));
 
     expect(compiled.document!.elements.map((element) => element.name)).toEqual(["A", "B", "C"]);
-    expect(compiled.document!.evaluationLimitIndex).toBe(2);
+    expect(compiled.document!.evaluationLimitIndex).toBeUndefined();
     expect(compiled.moduleMaterialization).toBeUndefined();
   });
 });

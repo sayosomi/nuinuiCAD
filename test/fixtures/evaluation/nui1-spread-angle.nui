@@ -93,4 +93,4 @@ group Pattern {
   )
 }
 
-stop
+// declarative evaluation continues; source stop is no longer valid nui1 syntax

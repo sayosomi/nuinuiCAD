@@ -363,7 +363,7 @@ export const evaluateNumericValue = ({
     const dependencyError = (elementId: ElementId) => {
       const dependencyName = elementsById.get(elementId)?.name;
       return Object.assign(
-        new Error(`${dependencyName ?? elementId} はこの要素より後にあるか、存在しません。`),
+        new Error(`${dependencyName ?? elementId} が見つからないため、数値式を評価できません。`),
         { dependencyId: elementId, dependencyName }
       );
     };
@@ -414,7 +414,7 @@ export const evaluateNumericValue = ({
         const dependencyName = elementsById.get(reference.elementId)?.name;
         throw Object.assign(
           new Error(
-            `${dependencyName ?? reference.elementId} はこの要素より後にあるか、存在しません。`
+            `${dependencyName ?? reference.elementId} が見つからないため、数値式を評価できません。`
           ),
           { dependencyId: reference.elementId, dependencyName }
         );
@@ -490,7 +490,7 @@ export const evaluateNumericValue = ({
         const dependencyName = elementsById.get(reference.elementId)?.name;
         throw Object.assign(
           new Error(
-            `${dependencyName ?? reference.elementId} はこの要素より後にあるか、存在しません。`
+            `${dependencyName ?? reference.elementId} が見つからないため、数値式を評価できません。`
           ),
           { dependencyId: reference.elementId, dependencyName }
         );

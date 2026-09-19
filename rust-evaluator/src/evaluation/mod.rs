@@ -990,24 +990,72 @@ fn execute_transformation_invocation(
 
 fn execute_transformation_recipes_through(
     recipes: &[Value],
-    next_recipe_index: &mut usize,
-    source_order: f64,
+    _next_recipe_index: &mut usize,
+    _source_order: f64,
     state: &mut EvaluationState,
 ) {
-    while *next_recipe_index < recipes.len() {
-        let recipe = &recipes[*next_recipe_index];
-        let recipe_order = recipe
-            .get("runtimeSourceOrder")
-            .and_then(Value::as_f64)
-            .or_else(|| {
-                recipe
-                    .get("sourceStatementIndex")
-                    .and_then(Value::as_u64)
-                    .map(|value| value as f64)
-            })
-            .unwrap_or(f64::MAX);
-        if recipe_order > source_order {
-            break;
+    for (recipe_index, recipe) in recipes.iter().enumerate() {
+        if state
+            .completed_transformation_recipe_indices
+            .contains(&recipe_index)
+        {
+            continue;
+        }
+        let recipe_key = recipe
+            .get("targets")
+            .and_then(Value::as_array)
+            .and_then(|targets| targets.first())
+            .map(|target| {
+                format!(
+                    "{}\u{0}{}",
+                    target
+                        .get("ownerId")
+                        .and_then(Value::as_str)
+                        .unwrap_or_default(),
+                    recipe
+                        .get("recipeOwnerPath")
+                        .and_then(Value::as_array)
+                        .map(|path| {
+                            path.iter()
+                                .filter_map(Value::as_str)
+                                .collect::<Vec<_>>()
+                                .join(".")
+                        })
+                        .unwrap_or_default()
+                )
+            });
+        if recipes.iter().enumerate().any(|(prior_index, prior)| {
+            prior_index < recipe_index
+                && !state
+                    .completed_transformation_recipe_indices
+                    .contains(&prior_index)
+                && recipe_key.is_some()
+                && prior
+                    .get("targets")
+                    .and_then(Value::as_array)
+                    .and_then(|targets| targets.first())
+                    .map(|target| {
+                        format!(
+                            "{}\u{0}{}",
+                            target
+                                .get("ownerId")
+                                .and_then(Value::as_str)
+                                .unwrap_or_default(),
+                            prior
+                                .get("recipeOwnerPath")
+                                .and_then(Value::as_array)
+                                .map(|path| {
+                                    path.iter()
+                                        .filter_map(Value::as_str)
+                                        .collect::<Vec<_>>()
+                                        .join(".")
+                                })
+                                .unwrap_or_default()
+                        )
+                    })
+                    == recipe_key
+        }) {
+            continue;
         }
         let targets = recipe
             .get("targets")
@@ -1017,7 +1065,27 @@ fn execute_transformation_recipes_through(
             .iter()
             .map(|target| runtime_transformation_targets(recipe, target, state))
             .collect::<Vec<_>>();
-        if !targets.iter().any(Vec::is_empty) {
+        if targets.iter().flatten().any(|target| {
+            if target.stage_path.is_empty() {
+                !state
+                    .computed_geometry
+                    .contains_key(&target.runtime_owner_id)
+            } else if target.stage_path == ["base".to_owned()] {
+                !state
+                    .base_transformation_geometry
+                    .contains_key(&target.runtime_owner_id)
+            } else {
+                !state
+                    .transformation_stage_geometry
+                    .contains_key(&transformation_stage_key(
+                        &target.runtime_owner_id,
+                        &target.stage_path,
+                    ))
+            }
+        }) {
+            continue;
+        }
+        if !targets.is_empty() && !targets.iter().any(Vec::is_empty) {
             if recipe.get("construction").and_then(Value::as_str) == Some("edge")
                 && targets.iter().any(|targets| targets.len() > 1)
             {
@@ -1043,8 +1111,10 @@ fn execute_transformation_recipes_through(
                     state,
                 );
             }
+            state
+                .completed_transformation_recipe_indices
+                .insert(recipe_index);
         }
-        *next_recipe_index += 1;
     }
 }
 
@@ -1147,37 +1217,40 @@ fn evaluate_document_input_with_scalar_program(
     let drawing_modifiers = input
         .drawing_modifiers
         .unwrap_or_else(|| Value::Array(Vec::new()));
-    let evaluated_elements = input.elements[..evaluation_limit_index].to_vec();
-    let mut transformation_recipes = input
+    let mut element_index_by_id = HashMap::<ElementId, usize>::new();
+    for (index, element) in input.elements.iter().enumerate() {
+        if let Some(id) = element_id(element) {
+            element_index_by_id.insert(id, index);
+        }
+    }
+    let evaluation_indices = if let Some(order) = input.evaluation_order.as_ref() {
+        let mut indices = Vec::with_capacity(evaluation_limit_index);
+        let mut seen = HashSet::new();
+        for id in order {
+            if let Some(index) = element_index_by_id.get(id).copied() {
+                if index < evaluation_limit_index && seen.insert(index) {
+                    indices.push(index);
+                }
+            }
+        }
+        for index in 0..evaluation_limit_index {
+            if seen.insert(index) {
+                indices.push(index);
+            }
+        }
+        indices
+    } else {
+        (0..evaluation_limit_index).collect()
+    };
+    let evaluated_elements = evaluation_indices
+        .iter()
+        .map(|index| input.elements[*index].clone())
+        .collect::<Vec<_>>();
+    let transformation_recipes = input
         .transformation_recipes
         .clone()
         .and_then(|value| value.as_array().cloned())
         .unwrap_or_default();
-    transformation_recipes.sort_by(|left, right| {
-        let order = |recipe: &Value| {
-            recipe
-                .get("runtimeSourceOrder")
-                .and_then(Value::as_f64)
-                .or_else(|| {
-                    recipe
-                        .get("sourceStatementIndex")
-                        .and_then(Value::as_u64)
-                        .map(|value| value as f64)
-                })
-                .unwrap_or(f64::MAX)
-        };
-        order(left).total_cmp(&order(right)).then_with(|| {
-            left.get("sourceStatementIndex")
-                .and_then(Value::as_u64)
-                .unwrap_or(usize::MAX as u64)
-                .cmp(
-                    &right
-                        .get("sourceStatementIndex")
-                        .and_then(Value::as_u64)
-                        .unwrap_or(usize::MAX as u64),
-                )
-        })
-    });
     let source_statement_indices = input
         .source_statement_indices
         .as_ref()
@@ -1223,6 +1296,7 @@ fn evaluate_document_input_with_scalar_program(
         computed_geometry: HashMap::new(),
         base_transformation_geometry: HashMap::new(),
         transformation_stage_geometry: HashMap::new(),
+        completed_transformation_recipe_indices: HashSet::new(),
         computed_geometry_values: HashMap::new(),
         geometry_input_targets,
         geometry_collection_nodes,
@@ -1378,9 +1452,9 @@ fn evaluate_document_input_with_scalar_program(
     let mut next_transformation_recipe_index = 0usize;
     let empty_geometry_value_resolver = geometry_value_runtime::EmptyBindingResolver;
 
-    'elements: for index in 0..evaluation_limit_index {
-        if index > 0 {
-            capture_completed_instances(index - 1, &mut state);
+    'elements: for (evaluation_position, &index) in evaluation_indices.iter().enumerate() {
+        if evaluation_position > 0 {
+            capture_completed_instances(evaluation_position - 1, &mut state);
         }
         let mut element = state.elements[index].clone();
         let id = match element_id(&element) {
@@ -1414,7 +1488,12 @@ fn evaluate_document_input_with_scalar_program(
                 });
         let current_execution_position = current_source_order
             .map(|source_order| source_order as f64)
-            .unwrap_or(source_statement_indices.get(&id).copied().unwrap_or(index) as f64);
+            .unwrap_or(
+                source_statement_indices
+                    .get(&id)
+                    .copied()
+                    .unwrap_or(evaluation_position) as f64,
+            );
         while next_geometry_value_index < geometry_value_program.len()
             && geometry_value_program[next_geometry_value_index].execution_position
                 <= current_execution_position

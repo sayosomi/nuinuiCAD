@@ -3,6 +3,7 @@ use serde_json::json;
 
 fn evaluate_text(font_size: f64) -> EvaluationPayload {
     evaluate_document(EvaluationInput {
+        evaluation_order: None,
         geometry_input_targets: None,
         geometry_collection_nodes: None,
         geometry_value_program: None,

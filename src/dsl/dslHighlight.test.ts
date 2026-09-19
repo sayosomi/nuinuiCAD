@@ -90,8 +90,8 @@ describe("DSL highlighting", () => {
     );
   });
 
-  it("classifies stop as a keyword, not a reference", () => {
-    expect(tokenKinds("stop")).toEqual(["keyword"]);
+  it("does not classify retired stop as a language keyword", () => {
+    expect(tokenKinds("stop")).not.toEqual(["keyword"]);
   });
 
   it("classifies the nui 1 sigil form @Element.property as one reference token (Task 51)", () => {

@@ -61,21 +61,18 @@ describe("compiled scalar program", () => {
     ]);
   });
 
-  it("keeps stop geometry indexing while carrying an explicit source-order scalar limit", () => {
+  it("does not derive a scalar evaluation limit from source order", () => {
     const compiled = compileCanonical([
       "nui 1",
       "const before: number = 1",
       "point A = coordinate(x: 0, y: 0)",
-      "stop",
       "const after: number = 2",
       "point B = coordinate(x: 1, y: 1)"
     ].join("\n"));
 
-    expect(compiled.document.evaluationLimitIndex).toBe(1);
-    expect(compiled.scalarProgram?.evaluationLimitSourceOrder).toBe(3);
+    expect(compiled.document.evaluationLimitIndex).toBeUndefined();
     expect(compiled.scalarProgramPositionMap).toEqual({
-      sourceOrderByElementIndex: [2, 5],
-      evaluationLimit: { elementIndex: 1, sourceOrder: 3 }
+      sourceOrderByElementIndex: [2, 4]
     });
   });
 
@@ -125,6 +122,20 @@ describe("compiled scalar program", () => {
       value: { kind: "choice", value: "left", options: ["left", "right"] }
     });
     expect(evaluated.get(byName.get("after")!)).toMatchObject({ status: "ok", value: { value: 30 } });
+  });
+
+  it("does not require an unselected value-if branch that would cycle", () => {
+    const compiled = compileCanonical([
+      "nui 1",
+      "const flag: boolean = true",
+      "const selected: number = if (@flag) { 10 } else { @cycle }",
+      "const cycle: number = @selected"
+    ].join("\n"));
+
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const selected = compiled.bindingAnalysis!.catalog.bindings.find((binding) => binding.name === "selected")!;
+    const evaluated = evaluateScalarProgram(compiled.scalarProgram!).resultsByBindingId;
+    expect(evaluated.get(selected.id)).toMatchObject({ status: "ok", value: { kind: "number", value: 10 } });
   });
 
   it("compiles and evaluates exhaustive choice matches through the canonical scalar program", () => {

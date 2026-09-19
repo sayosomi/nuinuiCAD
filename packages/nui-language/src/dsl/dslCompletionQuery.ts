@@ -469,7 +469,7 @@ const sourceGeometryDeclarations = (
   if (!namespace || statementIndex < 0) return [];
   const candidates: DslCompletionCandidate[] = [];
   for (const declaration of namespace.allDeclarations) {
-    if (declaration.kind !== "geometry" || declaration.statementIndex >= statementIndex) continue;
+    if (declaration.kind !== "geometry") continue;
     const lookup = resolveSourceLexicalDeclaration(namespace, statementIndex, declaration.name);
     if (lookup.kind !== "resolved" || lookup.declaration.statementId !== declaration.statementId) continue;
     candidates.push(...sourceGeometryCandidatesForDeclaration(declaration.name, declaration.statementId, declaration.statement, kind));
@@ -519,7 +519,7 @@ const sourceGeometryQualifiedMembers = (
   if (!scopeId) return null;
   const members = namespace.declarationsByScope.get(scopeId) ?? [];
   return members
-    .filter((declaration) => declaration.kind === "geometry" && declaration.statementIndex < statementIndex)
+    .filter((declaration) => declaration.kind === "geometry")
     .filter((declaration) => {
       const memberPath: DslReferencePath = {
         absolute: qualifierPath.absolute,
@@ -537,10 +537,8 @@ const sourceGeometryQualifiedMembers = (
 };
 
 const transformationRecipesFor = (
-  compiled: CompiledDslDocument,
-  statementIndex: number
-): readonly TransformationRecipe[] => (compiled.transformationRecipes ?? compiled.document?.transformationRecipes ?? [])
-  .filter((recipe) => recipe.sourceStatementIndex < statementIndex);
+  compiled: CompiledDslDocument
+): readonly TransformationRecipe[] => compiled.transformationRecipes ?? compiled.document?.transformationRecipes ?? [];
 
 const targetBaseForStage = (target: TransformationRecipe["targets"][number]): string => {
   const source = target.canonical.slice(1);
@@ -549,7 +547,6 @@ const targetBaseForStage = (target: TransformationRecipe["targets"][number]): st
 
 const transformationStageCandidates = (
   compiled: CompiledDslDocument,
-  statementIndex: number,
   base: string | null,
   suffixOnly: boolean
 ): DslCompletionCandidate[] => {
@@ -558,7 +555,7 @@ const transformationStageCandidates = (
     if (!label) return;
     candidates.push({ kind: "geometry", label, identity, sourceText: label });
   };
-  for (const recipe of transformationRecipesFor(compiled, statementIndex)) {
+  for (const recipe of transformationRecipesFor(compiled)) {
     for (const target of recipe.targets) {
       const targetBase = targetBaseForStage(target);
       const branch = target.stagePath.length > 0 ? `${targetBase}.${target.stagePath.join(".")}` : targetBase;
@@ -600,7 +597,7 @@ const transformationTargetCandidates = (
       : candidate.label;
     return { ...candidate, label, sourceText: label };
   });
-  const stages = transformationStageCandidates(compiled, statementIndex, suffixOnly ? basePrefix : null, suffixOnly);
+  const stages = transformationStageCandidates(compiled, suffixOnly ? basePrefix : null, suffixOnly);
   return uniqueCandidates([...geometry, ...stages]);
 };
 
@@ -695,7 +692,7 @@ const sourceRecordTypeCandidates = (
   const records = namespace?.recordSemanticAnalysis;
   if (!namespace || !records || statementIndex < 0) return [];
   return namespace.allDeclarations
-    .filter((declaration) => declaration.kind === "recordDefinition" && declaration.statementIndex < statementIndex)
+    .filter((declaration) => declaration.kind === "recordDefinition")
     .filter((declaration) => {
       const lookup = resolveSourceLexicalDeclaration(namespace, statementIndex, declaration.name);
       return lookup.kind === "resolved" && lookup.declaration.statementId === declaration.statementId;
@@ -730,7 +727,7 @@ const sourceRecordValueCandidates = (
   const records = namespace?.recordSemanticAnalysis;
   if (!namespace || !records || statementIndex < 0) return [];
   return namespace.allDeclarations
-    .filter((declaration) => declaration.kind === "recordValue" && declaration.statementIndex < statementIndex)
+    .filter((declaration) => declaration.kind === "recordValue")
     .filter((declaration) => {
       const lookup = resolveSourceLexicalDeclaration(namespace, statementIndex, declaration.name);
       const value = records.valuesByStatementId.get(declaration.statementId);
@@ -1116,7 +1113,7 @@ const queryCandidates = (
   if (context.kind === "transformationAs") return [{ kind: "keyword" as const, label: "as", identity: "as", sourceText: "as" }];
   if (context.kind === "transformationStageName") {
     if (!compiled || !exact || statementIndex < 0) return [];
-    return transformationStageCandidates(compiled, statementIndex, null, false)
+    return transformationStageCandidates(compiled, null, false)
       .map((candidate) => ({ ...candidate, label: candidate.label.split(".").at(-1) ?? candidate.label, sourceText: candidate.label.split(".").at(-1) ?? candidate.label }));
   }
   if (context.kind === "transformationTarget") {
@@ -1126,7 +1123,7 @@ const queryCandidates = (
   }
   if (context.kind === "transformationStageReference") {
     if (!compiled || !exact || statementIndex < 0) return [];
-    return transformationStageCandidates(compiled, statementIndex, context.base, true);
+    return transformationStageCandidates(compiled, context.base, true);
   }
   if (context.kind === "declaredType") {
     const names = context.bindingKind === "const"

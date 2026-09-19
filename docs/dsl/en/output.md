@@ -3,10 +3,10 @@
 ## Layouts and placement
 
 `layout` is a named top-level declaration containing direct `place` entries.
-Each `place` selects an earlier group and can set an origin, position, scale,
-angle, and mirror flag. Layouts are non-hoisted and cannot contain arbitrary
-geometry declarations. `print` and `svg` are bodyless output declarations that
-refer to an earlier layout.
+Each `place` selects a group and can set an origin, position, scale, angle, and
+mirror flag. Layouts cannot contain arbitrary geometry declarations. `print`
+and `svg` are bodyless output declarations that refer to a layout in the same
+legal lexical scope.
 
 The defaults are layout scale `1`, the selected group's local origin, place
 scale inherited from the layout, angle `0`, and `mirror: false`. Literal scales
@@ -31,11 +31,6 @@ Print does not accept `margin`.
 
 SVG uses `margin` in millimetres, defaulting to `0`. Its margin affects the SVG
 canvas around the rendered bounds; it is independent of print overlap.
-
-## Terminator
-
-`stop` is a standalone document terminator. Statements after it remain in the
-source but are outside the evaluation limit.
 
 <!-- dsl-example: compile-success -->
 ```nui

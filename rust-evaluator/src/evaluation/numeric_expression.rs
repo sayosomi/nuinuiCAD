@@ -717,7 +717,7 @@ impl<'a> Parser<'a> {
             dependency_id: element_id.to_owned(),
             dependency_name: find_element_name(self.state, element_id),
             message: format!(
-                "{} はこの要素より後にあるか、存在しません。",
+                "{} が見つからないため、数値式を評価できません。",
                 find_element_name(self.state, element_id).unwrap_or_else(|| element_id.to_owned())
             ),
         })
@@ -929,7 +929,7 @@ impl<'a> Parser<'a> {
             dependency_id: element_id.to_owned(),
             dependency_name: dependency_name.clone(),
             message: format!(
-                "{} はこの要素より後にあるか、存在しません。",
+                "{} が見つからないため、数値式を評価できません。",
                 dependency_name.unwrap_or_else(|| element_id.to_owned())
             ),
         }

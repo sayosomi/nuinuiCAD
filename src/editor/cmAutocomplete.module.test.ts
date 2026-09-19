@@ -56,16 +56,16 @@ describe("module completion through the existing CodeMirror pipeline", () => {
     expect(result?.options.map((option) => option.label)).toContain("module");
   });
 
-  it("offers only source-order visible module callees and excludes forward definitions", async () => {
+  it("offers lexically visible module callees including later definitions", async () => {
     const source = ["nui 1", "module First() {", "}", "instance Use = F", "module Forward() {", "}"].join("\n");
     const result = await completionFor(source, source.indexOf("F\n", source.indexOf("module Use")) + 1);
-    expect(result?.options.map((option) => option.label)).toEqual(["First"]);
+    expect(result?.options.map((option) => option.label)).toEqual(["First", "Forward"]);
   });
 
   it("offers module callees through the formal nui1 instance spelling", async () => {
     const source = ["nui 1", "module First() {", "}", "instance Use = F", "module Forward() {", "}"].join("\n");
     const result = await completionFor(source, source.indexOf("F\n", source.indexOf("instance Use")) + 1);
-    expect(result?.options.map((option) => option.label)).toEqual(["First"]);
+    expect(result?.options.map((option) => option.label)).toEqual(["First", "Forward"]);
   });
 
   it("offers unconsumed named labels and type-filters scalar, point, and line arguments", async () => {
@@ -152,7 +152,7 @@ describe("module completion through the existing CodeMirror pipeline", () => {
     const source = [
       "nui 1",
       "module M(value: number?) {",
-      "  const value: number? = @value ?? 0",
+      "  const result: number? = @value ?? 0",
       "}",
       "instance Use = M()"
     ].join("\n");
@@ -583,7 +583,7 @@ describe("module completion through the existing CodeMirror pipeline", () => {
       sourceOrderIndex: 6
     });
     expect(callee?.options.map((option) => option.label)).toContain("First");
-    expect(callee?.options.map((option) => option.label)).not.toContain("Forward");
+    expect(callee?.options.map((option) => option.label)).toContain("Forward");
 
     const existingCall = [
       "nui 1",
@@ -644,6 +644,6 @@ describe("module completion through the existing CodeMirror pipeline", () => {
       sourceOrderIndex: groupClose
     });
     expect(nested?.options.map((option) => option.label)).toContain("First");
-    expect(nested?.options.map((option) => option.label)).not.toContain("Forward");
+    expect(nested?.options.map((option) => option.label)).toContain("Forward");
   });
 });

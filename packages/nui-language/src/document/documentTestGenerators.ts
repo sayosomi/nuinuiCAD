@@ -146,7 +146,7 @@ export type RandomOp = {
     | "ungroup"
     | "move"
     | "reparent"
-    | "stopMove"
+    | "evaluationLimitMove"
     | "profileToggle"
     | "layoutEdit";
   a: number;
@@ -320,14 +320,14 @@ export const applyRandomOp = (document: DslDocumentData, op: RandomOp): AppliedO
         const elements = [...document.elements];
         elements.splice(groupIndex + 1, 0, { ...point, parentGroupId: group.id } as CadElement);
         return {
-          document: { ...document, elements, evaluationLimitIndex: elements.length },
+          document: { ...document, elements },
           insertedIds: [point.id],
           description: `insert ${name} into ${group.name}`
         };
       }
       const elements = [...document.elements, point];
       return {
-        document: { ...document, elements, evaluationLimitIndex: elements.length },
+        document: { ...document, elements },
         insertedIds: [point.id],
         description: `insert ${name} at top`
       };
@@ -338,7 +338,7 @@ export const applyRandomOp = (document: DslDocumentData, op: RandomOp): AppliedO
       if (!target) return fallbackUpdate();
       const elements = document.elements.filter((element) => element.id !== target.id);
       return {
-        document: { ...document, elements, evaluationLimitIndex: elements.length },
+        document: { ...document, elements },
         insertedIds: [],
         description: `deleteLeaf ${target.name}`
       };
@@ -354,7 +354,7 @@ export const applyRandomOp = (document: DslDocumentData, op: RandomOp): AppliedO
       if (!target) return fallbackUpdate();
       const elements = document.elements.filter((element) => element.id !== target.id);
       return {
-        document: { ...document, elements, evaluationLimitIndex: elements.length },
+        document: { ...document, elements },
         insertedIds: [],
         description: `deleteReferencedTarget ${target.name || target.id}`
       };
@@ -369,7 +369,7 @@ export const applyRandomOp = (document: DslDocumentData, op: RandomOp): AppliedO
       if ([...removed].some((id) => referenced.has(id))) return fallbackUpdate();
       const elements = document.elements.filter((element) => !removed.has(element.id));
       return {
-        document: { ...document, elements, evaluationLimitIndex: elements.length },
+        document: { ...document, elements },
         insertedIds: [],
         description: `deleteSubtree ${target.name || target.id}`
       };
@@ -386,7 +386,7 @@ export const applyRandomOp = (document: DslDocumentData, op: RandomOp): AppliedO
             : element
         );
       return {
-        document: { ...document, elements, evaluationLimitIndex: elements.length },
+        document: { ...document, elements },
         insertedIds: [],
         description: `ungroup ${target.name || target.id}`
       };
@@ -436,11 +436,11 @@ export const applyRandomOp = (document: DslDocumentData, op: RandomOp): AppliedO
     }
 
 
-    case "stopMove":
+    case "evaluationLimitMove":
       return {
         document: { ...document, evaluationLimitIndex: op.a % (document.elements.length + 1) },
         insertedIds: [],
-        description: "stopMove"
+        description: "evaluationLimitMove"
       };
 
     case "profileToggle": {

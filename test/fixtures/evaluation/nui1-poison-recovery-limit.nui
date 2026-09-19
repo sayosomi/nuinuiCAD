@@ -7,6 +7,6 @@ const mirror: number = @value
 const recovered: number = 4
 text Recovered = label(text: "${@recovered}", anchor: none, size: 3)
 text Poisoned = label(text: "${@mirror}", anchor: none, size: 3)
-stop
+// declarative evaluation continues; source stop is no longer valid nui1 syntax
 const afterStop: number = 99
 text AfterStop = label(text: "${@afterStop}", anchor: none, size: 3)

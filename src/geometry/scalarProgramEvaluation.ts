@@ -200,7 +200,7 @@ export const resolveDocumentGeometryProperty = (
     }
     return { status: "error", type: reference.type, issueCode: "evaluation-geometry-property-unavailable" };
   }
-  if (!reference.elementId || reference.targetSourceOrder === null || reference.targetSourceOrder >= sourceOrder) {
+  if (!reference.elementId || reference.targetSourceOrder === null) {
     return { status: "error", type: reference.type, issueCode: "evaluation-geometry-property-unavailable" };
   }
   if (reference.type.kind === "number") {
@@ -314,7 +314,7 @@ export const resolveDocumentGeometryTarget = (
     if (!target.pointKey) return computed;
     return resolveDerivedPoint(computed, target.pointKey, new Map(geometry.elementsById)) ?? undefined;
   }
-  if (target.statementIndex >= sourceOrder || !geometry.elementsById.has(target.statementId)) return undefined;
+  if (!geometry.elementsById.has(target.statementId)) return undefined;
   if (geometry.activities.get(target.statementId)?.activity === "disabled") {
     return { kind: "unavailable", reason: "disabled" };
   }

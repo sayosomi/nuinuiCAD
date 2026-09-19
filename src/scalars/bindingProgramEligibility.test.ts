@@ -152,11 +152,6 @@ describe("binding compiled-program eligibility", () => {
       source: ["const bad: number = @missing", "const dependent: number = @bad"].join("\n"),
       references: (catalog: ReturnType<typeof catalogFor>) => [referenceFor(catalog, 0, 0, "missing"), referenceFor(catalog, 1, 0, "bad")]
     },
-    {
-      label: "forward",
-      source: ["const bad: number = @later", "const later: number = 0", "const dependent: number = @bad"].join("\n"),
-      references: (catalog: ReturnType<typeof catalogFor>) => [referenceFor(catalog, 0, 0, "later"), referenceFor(catalog, 2, 0, "bad")]
-    }
   ])("uses a direct $label invalid binding as an invalid-dependency propagation seed", ({ source, references }) => {
     const catalog = catalogFor(source);
     const dependentStatementIndex = source.includes("const duplicate") ? 3 : source.includes("const later") ? 2 : 1;

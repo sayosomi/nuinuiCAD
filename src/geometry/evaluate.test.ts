@@ -372,7 +372,7 @@ describe("evaluateElements", () => {
       endPoint: { mode: "coordinate", x: 10, y: 10 }
     };
 
-    it("keeps the missing-parent message when the referenced id does not exist", () => {
+    it("reports a missing-parent message when the referenced id does not exist", () => {
       const result = evaluateElements([
         {
           id: "line",
@@ -385,15 +385,15 @@ describe("evaluateElements", () => {
       ]);
 
       expect(result.errors[0]).toMatchObject({ elementId: "line", missingDependencyId: "ghost" });
-      expect(result.errors[0].message).toContain("はこの要素より後にあるか、存在しません");
+      expect(result.errors[0].message).toContain("が見つからないため評価できません");
     });
 
-    it("keeps the forward-reference message when the parent appears after the dependent element", () => {
+    it("reports the parent's failure when a later dependency is invalid", () => {
       const result = evaluateElements([dependentLine, brokenParent]);
 
       const dependentError = result.errors.find((error) => error.elementId === "dependent-line");
       expect(dependentError).toMatchObject({ missingDependencyId: "broken-parent" });
-      expect(dependentError?.message).toContain("はこの要素より後にあるか、存在しません");
+      expect(dependentError?.message).toContain("評価に失敗");
     });
 
     it("reports an evaluation-failed message when the parent exists earlier but failed to evaluate", () => {
@@ -1516,7 +1516,7 @@ point Q = coordinate(x: distance(P, PR:start), y: 0)`);
     expect(result.errors[0].message).toContain("sqrt");
   });
 
-  it("reports a direct coordinate expression dependency that appears too late", () => {
+  it("evaluates a direct coordinate expression dependency that appears later", () => {
     const result = evaluateElements([
       validElements[0],
       {
@@ -1531,12 +1531,8 @@ point Q = coordinate(x: distance(P, PR:start), y: 0)`);
       validElements[2]
     ]);
 
-    expect(result.computedGeometry.has("direct-line")).toBe(false);
-    expect(result.errors[0]).toMatchObject({
-      elementId: "direct-line",
-      missingDependencyId: "ab",
-      missingDependencyName: "直線AB"
-    });
+    expect(result.errors).toHaveLength(0);
+    expect(result.computedGeometry.has("direct-line")).toBe(true);
   });
 
   it("evaluates numeric reference paths for computed geometry and parameters", () => {
@@ -1736,7 +1732,7 @@ point Q = coordinate(x: distance(P, PR:start), y: 0)`);
     expect(result.computedGeometry.get("division")).toMatchObject({ kind: "point", x: 25, y: 22.5 });
   });
 
-  it("reports a division point dependency that appears too late", () => {
+  it("evaluates a division point whose dependencies appear later", () => {
     const result = evaluateElements([
       validElements[0],
       {
@@ -1751,12 +1747,8 @@ point Q = coordinate(x: distance(P, PR:start), y: 0)`);
       validElements[1]
     ]);
 
-    expect(result.computedGeometry.has("division")).toBe(false);
-    expect(result.errors[0]).toMatchObject({
-      elementId: "division",
-      missingDependencyId: "b",
-      missingDependencyName: "点B"
-    });
+    expect(result.errors).toHaveLength(0);
+    expect(result.computedGeometry.get("division")).toMatchObject({ kind: "point", x: 25, y: 22.5 });
   });
 
   it("splits a line at an existing point on the finite segment", () => {
@@ -3081,7 +3073,7 @@ point Q = coordinate(x: distance(P, PR:start), y: 0)`);
     });
   });
 
-  it("reports a line division point dependency that appears too late", () => {
+  it("evaluates a line division point whose dependency appears later", () => {
     const result = evaluateElements([
       {
         id: "division",
@@ -3094,12 +3086,8 @@ point Q = coordinate(x: distance(P, PR:start), y: 0)`);
       ...validElements
     ]);
 
-    expect(result.computedGeometry.has("division")).toBe(false);
-    expect(result.errors[0]).toMatchObject({
-      elementId: "division",
-      missingDependencyId: "ab",
-      missingDependencyName: "直線AB"
-    });
+    expect(result.errors).toHaveLength(0);
+    expect(result.computedGeometry.has("division")).toBe(true);
   });
 
   it("copies connected lines by translating from start to end", () => {
@@ -3665,7 +3653,7 @@ point Q = coordinate(x: distance(P, PR:start), y: 0)`);
     expect(line.segments[0].end.y).toBeCloseTo(30);
   });
 
-  it("reports symmetric copy line dependencies that appear too late", () => {
+  it("evaluates symmetric copy line dependencies that appear later", () => {
     const result = evaluateElements([
       {
         id: "axis-a",
@@ -3702,12 +3690,8 @@ point Q = coordinate(x: distance(P, PR:start), y: 0)`);
       }
     ]);
 
-    expect(result.computedGeometry.has("symmetric")).toBe(false);
-    expect(result.errors[0]).toMatchObject({
-      elementId: "symmetric",
-      missingDependencyId: "line",
-      missingDependencyName: "線"
-    });
+    expect(result.errors).toHaveLength(0);
+    expect(result.computedGeometry.has("symmetric")).toBe(true);
   });
 
   it("reports a geometry error when symmetric copy axis points are the same", () => {
@@ -3944,7 +3928,7 @@ point Q = coordinate(x: distance(P, PR:start), y: 0)`);
     });
   });
 
-  it("reports move dependencies that appear too late", () => {
+  it("evaluates move dependencies that appear later", () => {
     const result = evaluateElements([
       validElements[0],
       validElements[1],
@@ -3963,12 +3947,8 @@ point Q = coordinate(x: distance(P, PR:start), y: 0)`);
       validElements[2]
     ]);
 
-    expect(result.computedGeometry.has("move")).toBe(false);
-    expect(result.errors[0]).toMatchObject({
-      elementId: "move",
-      missingDependencyId: "ab",
-      missingDependencyName: "直線AB"
-    });
+    expect(result.errors).toHaveLength(0);
+    expect(result.computedGeometry.has("ab")).toBe(true);
   });
 
   it("evaluates line tangent offset points relative to the tangent at the base point", () => {
@@ -4298,7 +4278,7 @@ point Q = coordinate(x: distance(P, PR:start), y: 0)`);
     expect(tangentPoint.y).toBeCloseTo(expected.y, 9);
   });
 
-  it("reports a line tangent offset point dependency that appears too late", () => {
+  it("evaluates a line tangent offset point whose line appears later", () => {
     const result = evaluateElements([
       {
         id: "offset",
@@ -4313,12 +4293,8 @@ point Q = coordinate(x: distance(P, PR:start), y: 0)`);
       ...validElements
     ]);
 
-    expect(result.computedGeometry.has("offset")).toBe(false);
-    expect(result.errors[0]).toMatchObject({
-      elementId: "offset",
-      missingDependencyId: "ab",
-      missingDependencyName: "直線AB"
-    });
+    expect(result.errors).toHaveLength(0);
+    expect(result.computedGeometry.has("offset")).toBe(true);
   });
 
   it("reports a line tangent offset point when the base point is not on the base line", () => {
@@ -4987,8 +4963,7 @@ point Q = coordinate(x: distance(P, PR:start), y: 0)`);
 
     expect(missing.errors[0]).toMatchObject({
       elementId: "intersection",
-      missingDependencyId: "ab",
-      missingDependencyName: "直線AB"
+      missingDependencyId: "missing"
     });
     expect(sameLine.errors[0].message).toContain("同じ線");
     expect(invalidIndex.errors[0].message).toContain("0以上の整数");
@@ -5559,7 +5534,7 @@ point Q = coordinate(x: distance(P, PR:start), y: 0)`);
     expect(point).toMatchObject({ kind: "point", x: 20 + Math.PI * 10, y: 300 });
   });
 
-  it("reports a three-point arc dependency that appears too late", () => {
+  it("distinguishes a missing three-point arc dependency from source order", () => {
     const result = evaluateElements([
       validElements[0],
       {
@@ -5579,8 +5554,7 @@ point Q = coordinate(x: distance(P, PR:start), y: 0)`);
     expect(result.computedGeometry.has("arc")).toBe(false);
     expect(result.errors[0]).toMatchObject({
       elementId: "arc",
-      missingDependencyId: "b",
-      missingDependencyName: "点B"
+      missingDependencyId: "missing"
     });
   });
 
@@ -5710,7 +5684,7 @@ point Q = coordinate(x: distance(P, PR:start), y: 0)`);
     });
   });
 
-  it("reports a numeric expression dependency that appears too late", () => {
+  it("evaluates a numeric expression whose geometry dependency appears later", () => {
     const result = evaluateElements([
       validElements[0],
       {
@@ -5726,12 +5700,8 @@ point Q = coordinate(x: distance(P, PR:start), y: 0)`);
       validElements[2]
     ]);
 
-    expect(result.computedGeometry.has("c")).toBe(false);
-    expect(result.errors[0]).toMatchObject({
-      elementId: "c",
-      missingDependencyId: "ab",
-      missingDependencyName: "直線AB"
-    });
+    expect(result.errors).toHaveLength(0);
+    expect(result.computedGeometry.has("c")).toBe(true);
   });
 
   it("reports a missing dependency", () => {
@@ -5794,19 +5764,14 @@ point Q = coordinate(x: distance(P, PR:start), y: 0)`);
     });
   });
 
-  it("reports a dependency that appears too late", () => {
+  it("evaluates a line whose endpoint appears later", () => {
     const result = evaluateElements([validElements[0], validElements[2], validElements[1]]);
 
-    expect(result.computedGeometry.has("ab")).toBe(false);
-    expect(result.errors[0]).toMatchObject({
-      elementId: "ab",
-      elementName: "直線AB",
-      missingDependencyId: "b",
-      missingDependencyName: "点B"
-    });
+    expect(result.errors).toHaveLength(0);
+    expect(result.computedGeometry.has("ab")).toBe(true);
   });
 
-  it("reports a Bezier curve dependency that appears too late", () => {
+  it("evaluates a Bezier curve whose endpoint appears later", () => {
     const result = evaluateElements([
       validElements[0],
       {
@@ -5825,12 +5790,8 @@ point Q = coordinate(x: distance(P, PR:start), y: 0)`);
       validElements[1]
     ]);
 
-    expect(result.computedGeometry.has("curve")).toBe(false);
-    expect(result.errors[0]).toMatchObject({
-      elementId: "curve",
-      missingDependencyId: "b",
-      missingDependencyName: "点B"
-    });
+    expect(result.errors).toHaveLength(0);
+    expect(result.computedGeometry.has("curve")).toBe(true);
   });
 
   it("evaluates derived line start && end point anchors", () => {
@@ -5906,7 +5867,7 @@ point Q = coordinate(x: distance(P, PR:start), y: 0)`);
     });
   });
 
-  it("reports a derived point dependency that appears too late", () => {
+  it("evaluates a derived point dependency whose line appears later", () => {
     const result = evaluateElements([
       validElements[0],
       {
@@ -5921,12 +5882,8 @@ point Q = coordinate(x: distance(P, PR:start), y: 0)`);
       validElements[2]
     ]);
 
-    expect(result.computedGeometry.has("before-line")).toBe(false);
-    expect(result.errors[0]).toMatchObject({
-      elementId: "before-line",
-      missingDependencyId: "ab",
-      missingDependencyName: "直線AB"
-    });
+    expect(result.errors).toHaveLength(0);
+    expect(result.computedGeometry.has("before-line")).toBe(true);
   });
 
   it("allows hidden elements to be evaluated && referenced", () => {
@@ -6494,11 +6451,7 @@ point Q = coordinate(x: distance(P, PR:start), y: 0)`);
       validElements[2]
     ]);
 
-    expect(result.computedGeometry.has("offset")).toBe(false);
-    expect(result.errors[0]).toMatchObject({
-      elementId: "offset",
-      missingDependencyId: "ab",
-      missingDependencyName: "直線AB"
-    });
+    expect(result.errors).toHaveLength(0);
+    expect(result.computedGeometry.has("offset")).toBe(true);
   });
 });

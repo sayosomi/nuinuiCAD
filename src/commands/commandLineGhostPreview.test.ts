@@ -68,8 +68,11 @@ describe("command-line ghost preview", () => {
     expect(previewFor(session)?.elements).toHaveLength(1);
   });
 
-  it("does not preview a fully supplied candidate inserted after stop", () => {
-    const document = compiled(["nui 1", "point A = coordinate(x: 0, y: 0)", "stop", "point B = coordinate(x: 10, y: 0)"].join("\n"));
+  it("does not preview a fully supplied candidate outside an explicit evaluation slice", () => {
+    const document = {
+      ...compiled(["nui 1", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)"].join("\n")),
+      evaluationLimitIndex: 1
+    };
     const recipe = creationRecipeForType("line")!;
     let session = startSession(recipe, {
       insertionIndex: document.elements.length,

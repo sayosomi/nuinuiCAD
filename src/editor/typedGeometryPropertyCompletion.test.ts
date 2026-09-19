@@ -150,7 +150,7 @@ describe("typed geometry-property completion", () => {
     expect(await completionAt({ fixture, source: `${baseSource}\nconst text: string = @AB.` })).toMatchObject({ options: [] });
   });
 
-  it("does not offer properties for later, disabled, invalid, or stale geometry", async () => {
+  it("offers properties for forward geometry while rejecting disabled, invalid, or stale geometry", async () => {
     const laterSource = [
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
@@ -160,12 +160,14 @@ describe("typed geometry-property completion", () => {
     ].join("\n");
     const laterFixture = compiledFixture(laterSource);
     // Keep all compiled statement offsets stable; the editor's range index
-    // maps edits incrementally in production, while this focused test keeps
-    // the same identity map to exercise source-order filtering.
+    // maps edits incrementally in production while this focused test keeps
+    // the same identity map.
     const dirtyLater = laterSource.replace("@Later.length", "@Later.      ");
     const laterPos = dirtyLater.indexOf("@Later.") + "@Later.".length;
     const laterResult = await completionAt({ fixture: laterFixture, source: dirtyLater, pos: laterPos });
-    expect(laterResult?.options).toEqual([]);
+    expect(laterResult?.options.map((option) => option.label)).toEqual([
+      "length", "startAngleDeg", "endAngleDeg", "startPoint.x", "startPoint.y", "endPoint.x", "endPoint.y"
+    ]);
 
     const fixture = compiledFixture();
     const source = `${baseSource}\nconst length: number = @AB.`;

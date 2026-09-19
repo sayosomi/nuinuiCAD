@@ -356,11 +356,8 @@ export const buildSourceLexicalNamespaceIndex = (
 export const buildLexicalNamespaceIndex = buildSourceLexicalNamespaceIndex;
 
 /**
- * Resolve one source declaration using the parser's document order && the
- * shared lexical scope tree. A visible declaration in the nearest scope wins.
- * A declaration that only appears later in that scope is not a shadowing
- * declaration yet, so lookup continues through parent scopes before deciding
- * that the name is forward.
+ * Resolve one source declaration using the shared lexical scope tree. The
+ * nearest lexical scope owns the name regardless of source position.
  */
 export const resolveSourceLexicalDeclaration = (
   index: SourceLexicalNamespaceIndex,
@@ -369,16 +366,12 @@ export const resolveSourceLexicalDeclaration = (
 ): SourceLexicalLookup => {
   const startScope = index.scopeIndex.scopeOfStatement.get(statementIndex);
   if (!startScope) return { kind: "undefined" };
-  let firstFuture: { scopeId: ScopeId; declarations: readonly SourceLexicalDeclaration[] } | null = null;
   for (const scopeId of scopeChain(index.scopeIndex, startScope)) {
     const declarations = index.declarationsByScopeAndName.get(scopeId)?.get(name) ?? [];
     if (declarations.length === 0) continue;
-    const visible = declarations.filter((declaration) => declaration.statementIndex < statementIndex);
-    if (visible.length === 1) return { kind: "resolved", declaration: visible[0] };
-    if (visible.length > 1) return { kind: "ambiguous", scopeId, declarations: visible };
-    firstFuture ??= { scopeId, declarations };
+    if (declarations.length === 1) return { kind: "resolved", declaration: declarations[0] };
+    return { kind: "ambiguous", scopeId, declarations };
   }
-  if (firstFuture) return { kind: "forward", ...firstFuture };
   return { kind: "undefined" };
 };
 
@@ -388,10 +381,8 @@ export const resolveSourceLexicalDeclaration = (
  * ordinary document references cannot drift apart. */
 export const resolveSourceLexicalPathFromDeclaration = (
   index: SourceLexicalNamespaceIndex,
-  statementIndex: number,
   declaration: SourceLexicalDeclaration,
   remainingSegments: readonly string[],
-  sourceOrderIndex = statementIndex,
   options: ResolveSourceLexicalPathOptions = {}
 ): SourceLexicalLookupWithExternal => {
   if (declaration.kind === "import" && remainingSegments.length > 0) {
@@ -419,14 +410,11 @@ export const resolveSourceLexicalPathFromDeclaration = (
     const declarations = scopeIds.flatMap((scopeId) =>
       index.declarationsByScopeAndName.get(scopeId)?.get(segment) ?? []
     );
-    const visible = declarations.filter((candidate) => candidate.statementIndex < sourceOrderIndex);
-    if (visible.length === 1) {
-      current = visible[0];
+    if (declarations.length === 1) {
+      current = declarations[0];
       continue;
     }
-    if (visible.length > 1) return { kind: "ambiguous", scopeId: scopeIds[0], declarations: visible };
-    const future = declarations.filter((candidate) => candidate.statementIndex >= sourceOrderIndex);
-    if (future.length > 0) return { kind: "forward", scopeId: scopeIds[0], declarations: future };
+    if (declarations.length > 1) return { kind: "ambiguous", scopeId: scopeIds[0], declarations };
     return { kind: "undefined" };
   }
 
@@ -467,22 +455,16 @@ export function resolveSourceLexicalPath(
   const first = path.absolute
     ? (() => {
         const declarations = index.declarationsByScopeAndName.get(rootScope)?.get(path.segments[0]) ?? [];
-        const visible = declarations.filter((declaration) => declaration.statementIndex < statementIndex);
-        if (visible.length === 1) return { kind: "resolved" as const, declaration: visible[0] };
-        if (visible.length > 1) return { kind: "ambiguous" as const, scopeId: rootScope, declarations: visible };
-        const future = declarations.filter((declaration) => declaration.statementIndex >= statementIndex);
-        return future.length > 0
-          ? { kind: "forward" as const, scopeId: rootScope, declarations: future }
-          : { kind: "undefined" as const };
+        if (declarations.length === 1) return { kind: "resolved" as const, declaration: declarations[0] };
+        if (declarations.length > 1) return { kind: "ambiguous" as const, scopeId: rootScope, declarations };
+        return { kind: "undefined" as const };
       })()
     : resolveSourceLexicalDeclaration(index, statementIndex, path.segments[0]);
   if (first.kind !== "resolved") return first;
   return resolveSourceLexicalPathFromDeclaration(
     index,
-    statementIndex,
     first.declaration,
     path.segments.slice(1),
-    statementIndex,
     options
   );
 }

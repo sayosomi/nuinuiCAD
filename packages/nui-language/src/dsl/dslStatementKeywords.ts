@@ -6,7 +6,6 @@
  * rather than duplicating parser keywords in editor/source-map helpers.
  */
 export const dslStatementKeywords = {
-  stop: "stop",
   version: "nui",
   for: "for",
   place: "place",

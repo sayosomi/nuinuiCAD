@@ -159,13 +159,13 @@ describe("typedBindingReferenceCandidates: pre-declaration visibility", () => {
     expect(names).toContain("outer");
   });
 
-  it("excludes a same-scope forward declaration", () => {
+  it("includes a same-scope later declaration", () => {
     const source = ["nui 1", "group G {", "const b: number = 1", "const c: number = 1", "}"].join("\n");
     const { catalog, entriesById } = compileFor(source);
     const b = bindingIdByName(catalog, "b");
     const site = { scopeId: b.effectiveScopeId, statementIndex: b.statementIndex };
     const names = typedBindingReferenceCandidates({ catalog, entriesById, site, accepts }).map((c) => c.name);
-    expect(names).not.toContain("c");
+    expect(names).toContain("c");
   });
 
   it("excludes an ambiguous same-scope duplicate name entirely", () => {

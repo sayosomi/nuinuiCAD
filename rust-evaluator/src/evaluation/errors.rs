@@ -56,7 +56,7 @@ pub(crate) fn dependency_error(
             )
         } else {
             format!(
-                "{element_name} は {dependency_label} を参照していますが、{dependency_label} はこの要素より後にあるか、存在しません。{dependency_label} を {element_name} より前に移動してください。"
+                "{element_name} は {dependency_label} を参照していますが、{dependency_label} が見つからないため評価できません。参照先を確認してください。"
             )
         },
     }

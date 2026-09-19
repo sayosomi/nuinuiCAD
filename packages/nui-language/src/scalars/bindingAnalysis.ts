@@ -33,6 +33,8 @@ export type InitializerReference = {
   span: DslSpan | null;
   /** Resolution for this exact occurrence; never re-resolved here. */
   resolution: BindingResolution;
+  /** References under an unselected value branch are runtime-lazy. */
+  lazy?: boolean;
 };
 
 export type AnalyzeBindingsInput = {
@@ -188,10 +190,12 @@ export const buildInitializerGraph = (
     if (!ownReferences || ownReferences.length === 0) continue;
     const edges: InitializerGraphEdge[] = [];
     for (const reference of ownReferences) {
+      if (reference.lazy) continue;
       const { resolution } = reference;
       if (resolution.kind === "resolved") {
         edges.push({ toBindingId: resolution.binding.id, reference });
       } else if (resolution.kind === "forward") {
+        if (reference.lazy) continue;
         for (const toBindingId of resolution.bindingIds) edges.push({ toBindingId, reference });
       }
       // "self" / "undefined" / "duplicate": no known single target, no edge.
@@ -359,6 +363,7 @@ export const analyzeBindings = (input: AnalyzeBindingsInput): BindingAnalysis =>
     const ownComponent = componentByBindingId.get(fromBindingId);
     for (const reference of references) {
       const { resolution } = reference;
+      if (reference.lazy && (resolution.kind === "self" || resolution.kind === "forward")) continue;
       if (resolution.kind === "self") {
         bucket.self.push({
           code: "self-initialization",

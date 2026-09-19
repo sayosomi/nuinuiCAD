@@ -675,9 +675,15 @@ const targetFor = (
   } satisfies Omit<DslGeometryReferenceRetargetTarget, "candidates"> & {
     candidates: DslGeometryReferenceRetargetCandidate[];
   };
+  const ownerElementIds = new Set(
+    occurrences
+      .map((occurrence) => exact.compiled.statementMap?.elementIdByStatementIndex.get(occurrence.statementIndex))
+      .filter((elementId): elementId is string => elementId !== undefined)
+  );
   const applicableCandidates: DslGeometryReferenceRetargetCandidate[] = [];
   for (const candidate of candidates) {
     if (candidate.identityKey === identityKey) continue;
+    if (candidate.identity.kind === "element" && ownerElementIds.has(candidate.identity.elementId)) continue;
     if (!compilerGeometryIdentityIsUsable(exact.compiled, candidate.identity)) continue;
     const resolutions = occurrences.map((occurrence) =>
       candidateSupportsOccurrence(candidate, occurrence)

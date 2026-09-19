@@ -582,10 +582,33 @@ const compileTransformationRecipes = ({
 }): TransformationRecipe[] => {
   const recipes: TransformationRecipe[] = [];
   const stageDeclarations = new Set<string>();
+  const declaredStageSiblings = new Set<string>();
   const geometryPropertyNames = new Set<string>([
     ...["start", "end", "center", "intermediatePoints"],
     ...["length", "radius", "sweepAngleDeg", "startAngleDeg", "endAngleDeg", "startHandleLength", "endHandleLength", "x", "y"]
   ]);
+  // Collect the complete stage namespace before validating any target. Stage
+  // lookup is lexical/owner-based, not a source-order availability check.
+  for (const [statementIndex, candidate] of statements.entries()) {
+    if (!includeStatement(candidate, statementIndex) || candidate.kind !== "transformation" || !candidate.stageName) continue;
+    for (const target of candidate.targets) {
+      const parsed = parseTransformationTargetSelector(
+        target.source,
+        target.span,
+        candidate,
+        statementIndex,
+        candidate.construction,
+        index,
+        sourceNamespace,
+        sourceElementIds,
+        resolveModuleOwner,
+        new Set(),
+        []
+      );
+      if (!parsed) continue;
+      stageDeclarations.add(`${parsed.ownerId}\u0000${targetOccurrenceKey(parsed)}\u0000${[...parsed.stagePath, candidate.stageName].join(".")}`);
+    }
+  }
   for (const [statementIndex, candidate] of statements.entries()) {
     if (!includeStatement(candidate, statementIndex) || candidate.kind !== "transformation") continue;
     const statement = candidate;
@@ -623,10 +646,10 @@ const compileTransformationRecipes = ({
     for (const target of targets) {
       if (!statement.stageName) continue;
       const siblingKey = `${target.ownerId}\u0000${targetOccurrenceKey(target)}\u0000${target.stagePath.join(".")}\u0000${statement.stageName}`;
-      if (stageDeclarations.has(siblingKey)) {
+      if (declaredStageSiblings.has(siblingKey)) {
         diagnostics.push(transformationDiagnostic(statement, `同じ recipe branch に stage「${statement.stageName}」が重複しています。`, "duplicate-transformation-stage", statement.stageNameSpan ?? undefined, statementIndex));
       }
-      stageDeclarations.add(`${target.ownerId}\u0000${targetOccurrenceKey(target)}\u0000${[...target.stagePath, statement.stageName].join(".")}`);
+      declaredStageSiblings.add(siblingKey);
       // Keep the sibling key in the same set as a private marker: the full
       // path above is what later target selectors resolve against.
       stageDeclarations.add(siblingKey);
@@ -1606,23 +1629,9 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
     includeStatement
   });
 
-  let evaluationLimitIndex: number | undefined;
-  const atStopIndex = parsed.statements.findIndex(
-    (statement, statementIndex) => statement.kind === "atStop" && includeStatement(statement, statementIndex)
-  );
-  if (atStopIndex >= 0) {
-    if (documentMode) {
-      evaluationLimitIndex = parsed.statements
-        .map((statement, statementIndex) => ({ statement, statementIndex }))
-        .slice(0, atStopIndex)
-        .filter(({ statement, statementIndex }) =>
-          isElementDslStatement(statement) && isCompilableDslStatement(parsed.statements, statementIndex)
-        ).length;
-    } else {
-      const stopStatement = parsed.statements[atStopIndex];
-      diagnostics.push(warning(stopStatement.line, "stop は文書全体の適用でのみ有効なため無視されます。"));
-    }
-  }
+  // nui1 has no source-derived evaluation terminator. Preview/bake callers
+  // retain their explicit evaluationLimitIndex API outside the DSL compiler.
+  const evaluationLimitIndex: number | undefined = undefined;
 
   const elementIdsByStatementIndex = new Map<number, ElementId>();
   for (const [statement, id] of createdIds) {

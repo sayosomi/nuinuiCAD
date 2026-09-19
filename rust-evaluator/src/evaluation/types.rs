@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 
 use super::scalars::TypedScalarExpression;
@@ -90,6 +90,8 @@ pub(crate) enum GeometryInputTarget {
 #[serde(rename_all = "camelCase")]
 pub struct EvaluationInput {
     pub(crate) elements: Vec<Value>,
+    #[serde(default)]
+    pub(crate) evaluation_order: Option<Vec<ElementId>>,
     pub(crate) evaluation_limit_index: Option<usize>,
     /// Bake-only evaluation escape hatch; normal evaluation leaves disabled elements unevaluated.
     #[serde(default)]
@@ -345,6 +347,7 @@ pub(crate) struct EvaluationState {
     pub(crate) computed_geometry: HashMap<ElementId, Value>,
     pub(crate) base_transformation_geometry: HashMap<ElementId, Value>,
     pub(crate) transformation_stage_geometry: HashMap<String, Value>,
+    pub(crate) completed_transformation_recipe_indices: HashSet<usize>,
     pub(crate) computed_geometry_order: Vec<ElementId>,
     pub(crate) computed_geometry_values: HashMap<GeometryValueOccurrence, Value>,
     pub(crate) geometry_input_targets:
