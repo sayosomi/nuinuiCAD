@@ -83,10 +83,13 @@ export const createScalarProgramCollectionResolver = (
   resolveBinding: (bindingId: BindingId) => ScalarEvaluation,
   resolveGeometryProperty?: (reference: TypedScalarGeometryPropertyReferenceNode, sourceOrder: number) => ScalarEvaluation,
   resolveGeometryTarget?: (target: ScalarExpressionResolvedGeometryTarget, sourceOrder: number) => GeometryBuiltinTargetLookupResult | undefined,
-  resolveExternalCollectionLength?: (collectionValueId: string, sourceOrder: number) => number | undefined
+  resolveExternalCollectionLength?: (collectionValueId: string, sourceOrder: number) => number | undefined,
+  resolveCollectionValueId?: (collectionValueId: string, sourceOrder: number) => string | undefined
 ): ScalarProgramCollectionResolver | undefined => {
   if (!program.collectionValues?.length && !resolveGeometryProperty && !resolveGeometryTarget) return undefined;
   const valuesById = new Map((program.collectionValues ?? []).map((value) => [value.valueId, value] as const));
+  const redirectedValueId = (collectionValueId: string, sourceOrder: number): string =>
+    resolveCollectionValueId?.(collectionValueId, sourceOrder) ?? collectionValueId;
 
   const matchLabelFor = (scrutinee: ScalarEvaluation): string | undefined => {
     if (scrutinee.status !== "ok") return undefined;
@@ -95,6 +98,8 @@ export const createScalarProgramCollectionResolver = (
   };
 
   const presentFor = (collectionValueId: string, sourceOrder: number, seen: ReadonlySet<string> = new Set()): boolean | undefined => {
+    const redirected = redirectedValueId(collectionValueId, sourceOrder);
+    if (redirected !== collectionValueId) return presentFor(redirected, sourceOrder, seen);
     if (seen.has(collectionValueId)) return undefined;
     const collection = valuesById.get(collectionValueId);
     if (!collection) return undefined;
@@ -121,6 +126,8 @@ export const createScalarProgramCollectionResolver = (
   };
 
   const lengthFor = (collectionValueId: string, sourceOrder: number, seen: ReadonlySet<string> = new Set()): number | undefined => {
+    const redirected = redirectedValueId(collectionValueId, sourceOrder);
+    if (redirected !== collectionValueId) return lengthFor(redirected, sourceOrder, seen);
     if (seen.has(collectionValueId)) return undefined;
     const collection = valuesById.get(collectionValueId);
     if (!collection) return undefined;
@@ -159,6 +166,8 @@ export const createScalarProgramCollectionResolver = (
     sourceOrder: number,
     seen: ReadonlySet<string> = new Set()
   ): ScalarEvaluation => {
+    const redirected = redirectedValueId(collectionValueId, sourceOrder);
+    if (redirected !== collectionValueId) return recordFieldFor(redirected, index, field, sourceOrder, seen);
     if (seen.has(collectionValueId)) return { status: "error", type: field.type, issueCode: "evaluation-collection-index-unavailable" };
     const collection = valuesById.get(collectionValueId);
     if (!collection) return { status: "error", type: field.type, issueCode: "evaluation-collection-index-unavailable" };
@@ -311,6 +320,8 @@ export const createScalarProgramCollectionResolver = (
     sourceOrder: number,
     seen: ReadonlySet<string> = new Set()
   ): ScalarEvaluation => {
+    const redirected = redirectedValueId(collectionValueId, sourceOrder);
+    if (redirected !== collectionValueId) return indexFor(redirected, index, elementType, collectionLength, targetSourceOrder, sourceOrder, seen);
     if (targetSourceOrder >= sourceOrder) return { status: "error", type: elementType, issueCode: "evaluation-collection-index-unavailable" };
     if (!Number.isFinite(index) || !Number.isInteger(index) || index < 0 ||
       (collectionLength !== null && index >= collectionLength)) {

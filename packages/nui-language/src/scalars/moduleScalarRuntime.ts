@@ -21,7 +21,7 @@ import type {
 import { unwrapModuleGeometrySourceTarget } from "../dsl/moduleSemanticTypes";
 import type { ModuleMaterialization } from "../dsl/moduleMaterialization";
 import type { ModuleGeometryPropertyRuntimeTarget, ModuleGeometryRuntimeCompilation } from "../dsl/moduleGeometryRuntime";
-import { geometryInputTargetForAlias, geometryValueOccurrenceForRecordField, type GeometryAlias, type RuntimeGeometryCollectionNode, type RuntimeGeometryInputTarget } from "../dsl/moduleGeometryRuntimeLowering";
+import { geometryInputTargetForAlias, geometryValueOccurrenceForRecordField, moduleCarryBindingIdFor, type GeometryAlias, type RuntimeGeometryCollectionNode, type RuntimeGeometryInputTarget } from "../dsl/moduleGeometryRuntimeLowering";
 import type {
   GeometryValueProgram,
   GeometryValueProgramEntry,
@@ -41,7 +41,7 @@ import {
   type BindingId,
   type BindingSeed
 } from "./bindingCatalog";
-import { buildBindingControlMetadata, type BindingControlMetadata, type BindingControlOwner } from "./bindingVersions";
+import { buildBindingControlMetadata, type BindingControlMetadata, type BindingControlOwner, type ImmutableForGroupPlan } from "./bindingVersions";
 import type { LexicalScopeIndex } from "./lexicalScopeIndex";
 import {
   lowerScalarProgram,
@@ -119,6 +119,7 @@ export type ModuleScalarRuntimeCompilation = {
   geometryValueProgram: GeometryValueProgram;
   geometryInputTargetsByRuntimeElementId: ReadonlyMap<ElementId, ReadonlyMap<string, GeometryInputTarget | readonly GeometryInputTarget[]>>;
   geometryCollectionNodesByValueId: ReadonlyMap<string, GeometryInputCollectionNode>;
+  immutableForGroups: ReadonlyMap<string, ImmutableForGroupPlan>;
 };
 
 type BindingInfo = {
@@ -148,6 +149,7 @@ type InstanceContext = {
   parameters: ReadonlyMap<number, BindingInfo>;
   locals: ReadonlyMap<string, BindingInfo>;
   iterations: ReadonlyMap<string, BindingInfo>;
+  carries: ReadonlyMap<BindingId, BindingInfo>;
   recordValues: ReadonlyMap<string, ReadonlyMap<number, { id: BindingId }>>;
   recordValueFieldBindingsByPath: ReadonlyMap<string, ReadonlyMap<string, { id: BindingId }>>;
   recordParameters: ReadonlyMap<number, ReadonlyMap<number, { id: BindingId }>>;
@@ -365,6 +367,78 @@ const remapTypedExpressionCollectionValueIds = (
     };
     default: return expression;
   }
+};
+
+const typedExpressionContainsImmutableCarryCollection = (expression: TypedScalarExpression): boolean => {
+  if (expression.kind === "collectionIndex") {
+    return expression.collectionValueId?.startsWith("carry-collection:") === true ||
+      typedExpressionContainsImmutableCarryCollection(expression.index);
+  }
+  if (expression.kind === "binary") {
+    return typedExpressionContainsImmutableCarryCollection(expression.left) ||
+      typedExpressionContainsImmutableCarryCollection(expression.right);
+  }
+  if (expression.kind === "unary") return typedExpressionContainsImmutableCarryCollection(expression.operand);
+  if (expression.kind === "group") return typedExpressionContainsImmutableCarryCollection(expression.expression);
+  if (expression.kind === "valueIf") {
+    return typedExpressionContainsImmutableCarryCollection(expression.condition) ||
+      typedExpressionContainsImmutableCarryCollection(expression.thenBranch) ||
+      (expression.elseBranch ? typedExpressionContainsImmutableCarryCollection(expression.elseBranch) : false);
+  }
+  if (expression.kind === "valueMatch") {
+    return typedExpressionContainsImmutableCarryCollection(expression.scrutinee) ||
+      expression.arms.some((arm) => typedExpressionContainsImmutableCarryCollection(arm.expression));
+  }
+  if (expression.kind === "call") {
+    return expression.args.some((argument) => argument.kind === "scalar" && typedExpressionContainsImmutableCarryCollection(argument.expression));
+  }
+  return false;
+};
+
+const typedExpressionContainsImmutableCarryProperty = (
+  expression: TypedScalarExpression,
+  statementIndex: number,
+  sourceNamespace: SourceLexicalNamespaceIndex | undefined
+): boolean => {
+  if (expression.kind === "geometryProperty") {
+    return sourceNamespace?.allDeclarations.some((declaration) =>
+      declaration.kind === "carry" && declaration.name === expression.elementName && declaration.statementIndex <= statementIndex
+    ) === true;
+  }
+  if (expression.kind === "binary") {
+    return typedExpressionContainsImmutableCarryProperty(expression.left, statementIndex, sourceNamespace) ||
+      typedExpressionContainsImmutableCarryProperty(expression.right, statementIndex, sourceNamespace);
+  }
+  if (expression.kind === "unary") return typedExpressionContainsImmutableCarryProperty(expression.operand, statementIndex, sourceNamespace);
+  if (expression.kind === "group") return typedExpressionContainsImmutableCarryProperty(expression.expression, statementIndex, sourceNamespace);
+  if (expression.kind === "valueIf") {
+    return typedExpressionContainsImmutableCarryProperty(expression.condition, statementIndex, sourceNamespace) ||
+      typedExpressionContainsImmutableCarryProperty(expression.thenBranch, statementIndex, sourceNamespace) ||
+      (expression.elseBranch ? typedExpressionContainsImmutableCarryProperty(expression.elseBranch, statementIndex, sourceNamespace) : false);
+  }
+  if (expression.kind === "valueMatch") {
+    return typedExpressionContainsImmutableCarryProperty(expression.scrutinee, statementIndex, sourceNamespace) ||
+      expression.arms.some((arm) => typedExpressionContainsImmutableCarryProperty(arm.expression, statementIndex, sourceNamespace));
+  }
+  if (expression.kind === "collectionIndex") return typedExpressionContainsImmutableCarryProperty(expression.index, statementIndex, sourceNamespace);
+  if (expression.kind === "call") return expression.args.some((argument) => argument.kind === "scalar" && typedExpressionContainsImmutableCarryProperty(argument.expression, statementIndex, sourceNamespace));
+  return false;
+};
+
+const typedExpressionContainsImmutableCarryBinding = (expression: TypedScalarExpression): boolean => {
+  if (expression.kind === "reference") return expression.bindingId?.includes(":carry:") === true;
+  if (expression.kind === "geometryProperty") return expression.geometryCarryBindingId?.includes(":carry:") === true;
+  if (expression.kind === "collectionIndex") {
+    return expression.collectionValueId?.startsWith("carry-collection:") === true ||
+      typedExpressionContainsImmutableCarryBinding(expression.index);
+  }
+  if (expression.kind === "binary") return typedExpressionContainsImmutableCarryBinding(expression.left) || typedExpressionContainsImmutableCarryBinding(expression.right);
+  if (expression.kind === "unary") return typedExpressionContainsImmutableCarryBinding(expression.operand);
+  if (expression.kind === "group") return typedExpressionContainsImmutableCarryBinding(expression.expression);
+  if (expression.kind === "valueIf") return typedExpressionContainsImmutableCarryBinding(expression.condition) || typedExpressionContainsImmutableCarryBinding(expression.thenBranch) || (expression.elseBranch ? typedExpressionContainsImmutableCarryBinding(expression.elseBranch) : false);
+  if (expression.kind === "valueMatch") return typedExpressionContainsImmutableCarryBinding(expression.scrutinee) || expression.arms.some((arm) => typedExpressionContainsImmutableCarryBinding(arm.expression));
+  if (expression.kind === "call") return expression.args.some((argument) => argument.kind === "scalar" && typedExpressionContainsImmutableCarryBinding(argument.expression));
+  return false;
 };
 
 const remapTypedExpressionSourceOrders = (
@@ -2047,11 +2121,12 @@ export const compileModuleScalarRuntime = ({
     const parameters = new Map<number, BindingInfo>();
     const locals = new Map<string, BindingInfo>();
     const iterations = new Map<string, BindingInfo>();
+    const carries = new Map<BindingId, BindingInfo>();
     const recordValues = new Map<string, ReadonlyMap<number, { id: BindingId }>>();
     const recordValueFieldBindingsByPath = new Map<string, ReadonlyMap<string, { id: BindingId }>>();
     const recordParameters = new Map<number, ReadonlyMap<number, { id: BindingId }>>();
     const recordParameterFieldBindingsByPath = new Map<number, ReadonlyMap<string, { id: BindingId }>>();
-    const context = { key, path, instance, instanceDocumentId, definitionDocumentId, definition, parentKey, scopeId, bodyScopeId, parameters, locals, iterations, recordValues, recordValueFieldBindingsByPath, recordParameters, recordParameterFieldBindingsByPath } as InstanceContext;
+    const context = { key, path, instance, instanceDocumentId, definitionDocumentId, definition, parentKey, scopeId, bodyScopeId, parameters, locals, iterations, carries, recordValues, recordValueFieldBindingsByPath, recordParameters, recordParameterFieldBindingsByPath } as InstanceContext;
     contextsByKey.set(key, context);
     const definitionDocument = moduleRuntimeContext?.documentFor(definitionDocumentId);
     const definitionStatements = definitionDocument?.statements ?? statements;
@@ -2144,6 +2219,25 @@ export const compileModuleScalarRuntime = ({
         statementIndex: local.statementIndex
       };
       locals.set(local.statementId, info);
+      allBindingInfos.push(info);
+    }
+    for (const carry of definition.immutableCarries ?? []) {
+      if (!carry.type) continue;
+      const sourceScopeId = definitionSourceScopeIndex?.scopeOfStatement.get(carry.statementIndex) ?? bodyScopeId;
+      const id = moduleCarryBindingIdFor(path, carry.bindingId);
+      const info: BindingInfo = {
+        id,
+        declarationVersionId: `module-carry-declaration:${encodeIdentityTuple(["carry", ...path, carry.bindingId])}`,
+        name: carry.name,
+        type: carry.type,
+        bindingKind: "const",
+        sourceScopeId,
+        scopeId: moduleScopeIdFor(path, sourceScopeId),
+        contextKey: key,
+        statementId: carry.statementId,
+        statementIndex: carry.statementIndex
+      };
+      carries.set(carry.bindingId, info);
       allBindingInfos.push(info);
     }
     for (const recordValue of definition.recordValues) {
@@ -2323,6 +2417,12 @@ export const compileModuleScalarRuntime = ({
         ?.parameters.get(target.parameterIndex);
     }
     if (target.kind === "moduleLocal") {
+      const carryBindingId = target.carryBindingId;
+      if (carryBindingId) {
+        return contextCandidates.find((candidate) => candidate.carries.has(carryBindingId) &&
+          (!target.identity || candidate.definitionDocumentId === target.identity.documentId))
+          ?.carries.get(carryBindingId);
+      }
       return contextCandidates.find((candidate) => candidate.locals.has(target.statementId) &&
         (!target.identity || candidate.definitionDocumentId === target.identity.documentId))
         ?.locals.get(target.statementId);
@@ -2505,7 +2605,12 @@ export const compileModuleScalarRuntime = ({
     }
   }
 
-  for (const info of allBindingInfos) info.eventOrder = eventOrderByBindingId.get(info.id);
+  for (const info of allBindingInfos) {
+    info.eventOrder = eventOrderByBindingId.get(info.id);
+    if (info.eventOrder === undefined) {
+      info.eventOrder = eventOrderByStatementIndex.get(info.statementIndex) ?? events.length;
+    }
+  }
   const moduleSeeds: BindingSeed[] = allBindingInfos.flatMap<BindingSeed>((info) => info.eventOrder === undefined ? [] : [{
     id: info.id,
     kind: "typed" as const,
@@ -2548,7 +2653,7 @@ export const compileModuleScalarRuntime = ({
     }))
   );
   const basePreResolvedSeeds: BindingSeed[] = baseCatalog.bindings
-    .filter((binding) => binding.resolutionMode === "preResolvedOnly")
+    .filter((binding) => binding.resolutionMode === "preResolvedOnly" || binding.id.includes(":carry:"))
     .map((binding) => ({
       id: binding.id,
       kind: binding.kind,
@@ -3761,6 +3866,7 @@ export const compileModuleScalarRuntime = ({
       if (lowered.kind === "carry") {
         return {
           ...lowered,
+          bindingId: moduleCarryBindingIdFor(context.path, lowered.bindingId),
           targetSourceOrder: lowered.targetSourceOrder !== undefined && lowered.targetSourceOrder >= 0
             ? executionPositionForValue(context.path, lowered.targetSourceOrder)
             : lowered.targetSourceOrder
@@ -3898,6 +4004,16 @@ export const compileModuleScalarRuntime = ({
         ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {})
       };
     }
+    if (lowered.kind === "geometryCarry") {
+      return {
+        kind: "geometryCarry",
+        bindingId: lowered.bindingId,
+        statementId: lowered.bindingId,
+        statementIndex: occurrence.span.start,
+        geometryType: lowered.geometryType,
+        ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {})
+      };
+    }
     const statementIndex = elementOrderById.get(lowered.elementId);
     return statementIndex === undefined ? undefined : { statementId: lowered.elementId, statementIndex, geometryType: lowered.geometryType, ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {}) };
   };
@@ -3949,10 +4065,21 @@ export const compileModuleScalarRuntime = ({
         ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {})
       };
     }
+    if (lowered.kind === "geometryCarry") {
+      return {
+        kind: "geometryCarry",
+        bindingId: lowered.bindingId,
+        statementId: lowered.bindingId,
+        statementIndex: occurrence.span.start,
+        geometryType: lowered.geometryType,
+        ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {})
+      };
+    }
     const statementIndex = elementOrderById.get(lowered.elementId);
     return statementIndex === undefined ? undefined : { statementId: lowered.elementId, statementIndex, geometryType: lowered.geometryType, ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {}) };
   };
   const moduleInitializers = new Map<BindingId, TypedScalarExpression>();
+  const moduleCarryNextExpressions = new Map<BindingId, TypedScalarExpression>();
   const moduleReferences: InitializerReference[] = [];
   const lowerForContext = (semantic: ModuleScalarExpressionSemantic, context: InstanceContext, ownerBindingId: BindingId) => {
     if (contextIsDisabled(context)) return;
@@ -4044,6 +4171,23 @@ export const compileModuleScalarRuntime = ({
       if (info && local.initializer && body && moduleBodyStatementIsReachable(context, body)) {
         lowerForContext(local.initializer, context, info.id);
       }
+    }
+    for (const carry of context.definition.immutableCarries ?? []) {
+      if (!carry.type || !carry.initializer || !carry.next) continue;
+      const info = context.carries.get(carry.bindingId);
+      if (!info) continue;
+      lowerForContext(carry.initializer, context, info.id);
+      const loweredNext = lowerExpression(
+        carry.next,
+        (target) => resolvedBindingForContext(target, context),
+        bindingsById,
+        (target) => resolvedGeometryPropertyForContext(target, context),
+        (target) => collectionLengthForTargetContext(target, context),
+        (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context),
+        (valueId) => collectionValueIdFor(valueId, context),
+        (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder
+      );
+      moduleCarryNextExpressions.set(info.id, loweredNext.expression);
     }
   }
 
@@ -4612,7 +4756,12 @@ export const compileModuleScalarRuntime = ({
     if (initializer) {
       const statementId = stableStatementIdByIndex.get(statementIndex);
       const semanticSite = statementId ? moduleSemanticAnalysis.rootScalarExpressionsByStatementId.get(statementId) : undefined;
-      if (semanticSite) {
+      if (
+        semanticSite &&
+        !typedExpressionContainsImmutableCarryCollection(initializer) &&
+        !typedExpressionContainsImmutableCarryProperty(initializer, statementIndex, sourceNamespace) &&
+        !typedExpressionContainsImmutableCarryBinding(initializer)
+      ) {
         const lowered = lowerExpression(
           semanticSite.expression,
           (target) => rootBindingForTarget(target, statementIndex),
@@ -4718,6 +4867,19 @@ export const compileModuleScalarRuntime = ({
         }
       };
     }
+    if (lowered.kind === "geometryCarry") {
+      return {
+        kind: "target",
+        target: {
+          kind: "geometryCarry",
+          bindingId: lowered.bindingId,
+          statementId: lowered.bindingId,
+          statementIndex: executionPosition,
+          geometryType: lowered.geometryType,
+          ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {})
+        }
+      };
+    }
     const targetSourceOrder = elementOrderById.get(lowered.elementId);
     if (targetSourceOrder === undefined) return undefined;
     return {
@@ -4780,6 +4942,18 @@ export const compileModuleScalarRuntime = ({
           index: lowered.index ? lowerGeometryValueScalar(lowered.index, context) : null,
           geometryType: lowered.geometryType,
           ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {})
+        }
+      };
+    }
+    if (lowered.kind === "geometryCarry") {
+      return {
+        kind: "target",
+        target: {
+          kind: "geometryCarry",
+          bindingId: lowered.bindingId,
+          statementId: lowered.bindingId,
+          statementIndex: executionPosition,
+          geometryType: lowered.geometryType
         }
       };
     }
@@ -5541,6 +5715,151 @@ export const compileModuleScalarRuntime = ({
     }
   }
 
+  const immutableForGroups = new Map<string, ImmutableForGroupPlan>();
+  for (const context of contextsByKey.values()) {
+    if (!contextIsReachable(context)) continue;
+    for (const carry of context.definition.immutableCarries ?? []) {
+      if (!carry.type || !carry.initializer || !carry.next) continue;
+      const binding = context.carries.get(carry.bindingId);
+      const initializer = binding ? moduleInitializers.get(binding.id) : undefined;
+      const nextExpression = binding ? moduleCarryNextExpressions.get(binding.id) : undefined;
+      if (!binding || !initializer || !nextExpression) continue;
+      const ownerStatementId = moduleOwnerIdFor(context.path, carry.statementId);
+      const owner = [...controlByScopeId.values()]
+        .flatMap((control) => control.ownerChain)
+        .find((candidate): candidate is Extract<BindingControlOwner, { kind: "forGroup" }> =>
+          candidate.kind === "forGroup" && candidate.ownerStatementId === ownerStatementId
+        );
+      const definitionScopeIndex = moduleRuntimeContext?.documentFor(context.definitionDocumentId)?.sourceLexicalNamespace.scopeIndex ?? sourceScopeIndex;
+      const loopScopeId = `for:${carry.statementId}`;
+      const isInsideLoopScope = (statementIndex: number): boolean => {
+        let scopeId = definitionScopeIndex?.scopeOfStatement.get(statementIndex);
+        while (scopeId) {
+          if (scopeId === loopScopeId) return true;
+          scopeId = definitionScopeIndex?.scopes.get(scopeId)?.parentId ?? undefined;
+        }
+        return false;
+      };
+      const firstPostLoopBindingOrder = [...context.locals.values()]
+        .filter((local) => local.statementIndex > carry.statementIndex && !isInsideLoopScope(local.statementIndex))
+        .map((local) => eventOrderByBindingId.get(local.id))
+        .filter((order): order is number => order !== undefined)
+        .sort((left, right) => left - right)[0];
+      const executionExitSourceOrder = firstPostLoopBindingOrder === undefined
+        ? undefined
+        : firstPostLoopBindingOrder - 0.5;
+      const executionOwner = owner
+        ? {
+            scopeId: owner.scopeId,
+            exitSourceOrder: executionExitSourceOrder === undefined
+              ? owner.exitSourceOrder
+              : Math.min(owner.exitSourceOrder, executionExitSourceOrder),
+            ...(owner.entrySourceOrder !== undefined ? { entrySourceOrder: owner.entrySourceOrder } : {}),
+            iterationBindingId: moduleIterationIdFor(context.path, carry.statementId)
+          }
+        : {
+            scopeId: moduleScopeIdFor(context.path, `for:${carry.statementId}`),
+            exitSourceOrder: executionPositionForValue(context.path, carry.statementIndex),
+            entrySourceOrder: executionPositionForValue(context.path, carry.statementIndex) - 0.5,
+            iterationBindingId: moduleIterationIdFor(context.path, carry.statementId)
+          };
+      const existing = immutableForGroups.get(ownerStatementId);
+      immutableForGroups.set(ownerStatementId, {
+        ownerStatementId,
+        executionOwner: existing?.executionOwner ?? executionOwner,
+        carries: [
+          ...(existing?.carries ?? []),
+          {
+            bindingId: binding.id,
+            initializer,
+            declaredType: carry.type,
+            nextExpression,
+            nextSourceOrder: executionPositionForValue(context.path, carry.nextStatementIndex)
+          }
+        ],
+        ...(existing?.geometryCarries ? { geometryCarries: existing.geometryCarries } : {}),
+        ...(existing?.collectionCarries ? { collectionCarries: existing.collectionCarries } : {}),
+        ...(existing?.geometryCollectionCarries ? { geometryCollectionCarries: existing.geometryCollectionCarries } : {})
+      });
+    }
+  }
+  const moduleGeometryTargetFor = (context: InstanceContext, reference: import("../dsl/moduleSemanticTypes").ModuleGeometryReferenceSemantic): ScalarExpressionResolvedGeometryTarget | undefined => {
+    if (!reference.target || !moduleGeometryRuntime) return undefined;
+    return resolvedGeometryBuiltinForContext({
+      builtinName: "immutable-carry",
+      argumentIndex: 0,
+      span: reference.span,
+      expectedGeometryType: reference.expectedGeometryKind,
+      reference
+    }, context);
+  };
+  for (const context of contextsByKey.values()) {
+    if (!contextIsReachable(context)) continue;
+    for (const carry of context.definition.immutableCarries ?? []) {
+      if (carry.type || !carry.geometryInitializer || !carry.geometryNext) continue;
+      const initializerTarget = moduleGeometryTargetFor(context, carry.geometryInitializer);
+      const nextTarget = moduleGeometryTargetFor(context, carry.geometryNext);
+      if (!initializerTarget || !nextTarget || !isDslGeometryValueType(carry.valueType)) continue;
+      const ownerStatementId = moduleOwnerIdFor(context.path, carry.statementId);
+      const owner = [...controlByScopeId.values()]
+        .flatMap((control) => control.ownerChain)
+        .find((candidate): candidate is Extract<BindingControlOwner, { kind: "forGroup" }> =>
+          candidate.kind === "forGroup" && candidate.ownerStatementId === ownerStatementId
+        );
+      const definitionScopeIndex = moduleRuntimeContext?.documentFor(context.definitionDocumentId)?.sourceLexicalNamespace.scopeIndex ?? sourceScopeIndex;
+      const loopScopeId = `for:${carry.statementId}`;
+      const isInsideLoopScope = (statementIndex: number): boolean => {
+        let scopeId = definitionScopeIndex?.scopeOfStatement.get(statementIndex);
+        while (scopeId) {
+          if (scopeId === loopScopeId) return true;
+          scopeId = definitionScopeIndex?.scopes.get(scopeId)?.parentId ?? undefined;
+        }
+        return false;
+      };
+      const firstPostLoopBindingOrder = [...context.locals.values()]
+        .filter((local) => local.statementIndex > carry.statementIndex && !isInsideLoopScope(local.statementIndex))
+        .map((local) => eventOrderByBindingId.get(local.id))
+        .filter((order): order is number => order !== undefined)
+        .sort((left, right) => left - right)[0];
+      const executionExitSourceOrder = firstPostLoopBindingOrder === undefined ? undefined : firstPostLoopBindingOrder - 0.5;
+      const executionOwner = owner
+        ? {
+            scopeId: owner.scopeId,
+            exitSourceOrder: executionExitSourceOrder === undefined ? owner.exitSourceOrder : Math.min(owner.exitSourceOrder, executionExitSourceOrder),
+            ...(owner.entrySourceOrder !== undefined ? { entrySourceOrder: owner.entrySourceOrder } : {}),
+            iterationBindingId: moduleIterationIdFor(context.path, carry.statementId)
+          }
+        : {
+            scopeId: moduleScopeIdFor(context.path, loopScopeId),
+            exitSourceOrder: executionPositionForValue(context.path, carry.statementIndex),
+            entrySourceOrder: executionPositionForValue(context.path, carry.statementIndex) - 0.5,
+            iterationBindingId: moduleIterationIdFor(context.path, carry.statementId)
+          };
+      // Module geometry targets retain the carry name in their resolved
+      // target identity; keep that execution identity local to this runtime
+      // projection while the source carry binding remains canonical.
+      const bindingId = moduleCarryBindingIdFor(context.path, `${carry.bindingId}:${carry.name}`);
+      const existing = immutableForGroups.get(ownerStatementId);
+      immutableForGroups.set(ownerStatementId, {
+        ownerStatementId,
+        executionOwner: existing?.executionOwner ?? executionOwner,
+        carries: existing?.carries ?? [],
+        ...(existing?.collectionCarries ? { collectionCarries: existing.collectionCarries } : {}),
+        ...(existing?.geometryCollectionCarries ? { geometryCollectionCarries: existing.geometryCollectionCarries } : {}),
+        geometryCarries: [
+          ...(existing?.geometryCarries ?? []).filter((candidate) => candidate.bindingId !== bindingId),
+          {
+            bindingId,
+            declaredType: carry.valueType,
+            initializerTarget,
+            nextTarget,
+            nextSourceOrder: executionPositionForValue(context.path, carry.nextStatementIndex)
+          }
+        ]
+      });
+    }
+  }
+
   const scalarExecutionPositionByRuntimeElementId = new Map<ElementId, number>();
   const lastScalarExecutionPositionByExecutionUnit = new Map<number, number>();
   for (const entry of moduleMaterialization.executionStatements) {
@@ -5590,6 +5909,7 @@ export const compileModuleScalarRuntime = ({
     forGroupMutationOwnerByElementId,
     geometryValueProgram,
     geometryInputTargetsByRuntimeElementId,
-    geometryCollectionNodesByValueId
+    geometryCollectionNodesByValueId,
+    immutableForGroups
   };
 };

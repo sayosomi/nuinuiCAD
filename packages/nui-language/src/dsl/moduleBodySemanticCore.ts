@@ -28,6 +28,7 @@ import type {
   ModuleGeometryConstructionSemantic,
   ModuleGeometryValueSemantic,
   ModuleGeometryValueExpressionSemantic,
+  ModuleImmutableCarrySemantic,
   ModuleScalarExpressionSemantic,
   ModuleSemanticAnalysisInput,
   ModuleTextTemplateHoleSite,
@@ -97,12 +98,14 @@ type ResolveGeometryConstruction = (
 export type ModuleBodySemanticResult = {
   localScalars: NonNullable<ModuleDefinitionSemantic["localScalars"]>[number][];
   localGeometryValues: ModuleGeometryValueSemantic[];
+  immutableCarries: ModuleImmutableCarrySemantic[];
   bodyStatements: ModuleBodyStatementSemantic[];
   exports: ResolvedModuleExport[];
 };
 
 const isAllowedModuleBodyStatement = (statement: DslStatement): boolean => {
   if (statement.kind === "typedDeclaration" || statement.kind === "group") return true;
+  if (statement.kind === "next") return true;
   if (statement.kind === "moduleDefinition" || statement.kind === "moduleInstance") return true;
   if (statement.kind === "transformation") return true;
   if (!isElementDslStatement(statement) || statement.kind !== "element") return false;
@@ -176,6 +179,7 @@ export const analyzeModuleBody = ({
 }): ModuleBodySemanticResult => {
   const localScalars: NonNullable<ModuleDefinitionSemantic["localScalars"]>[number][] = [];
   const localGeometryValues: ModuleGeometryValueSemantic[] = [];
+  const immutableCarries: ModuleImmutableCarrySemantic[] = [];
   const bodyStatements: ModuleBodyStatementSemantic[] = [];
   const exports: ResolvedModuleExport[] = [];
   const exportByName = new Map<string, ResolvedModuleExport>();
@@ -449,6 +453,106 @@ export const analyzeModuleBody = ({
           scalarTarget: null
         }
       : null;
+
+    if (statement.kind === "element" && statement.type === "forGroup" && statementId) {
+      for (const [carryIndex, carry] of (statement.forCarries ?? []).entries()) {
+        const valueType = dslRequiredValueTypeOf(carry.valueType);
+        const scalarType = scalarExpressionTypeOfDslValueType(valueType);
+        const nextStatement = definition.bodyStatementIndexes
+          .map((candidateIndex) => ({ candidateIndex, candidate: statements[candidateIndex] }))
+          .find(({ candidate }) =>
+            candidate.kind === "next" &&
+            candidate.enclosing?.statementIndex === statementIndex &&
+            candidate.name === carry.name
+          );
+        if (!valueType || !nextStatement || nextStatement.candidate.kind !== "next") continue;
+        if (scalarType) {
+          const initializer = analyzeExpression(
+            statementIndex,
+            definition.statementIndex,
+            carry.initializer,
+            carry.initializerSpan,
+            scalarType,
+            (reference) => resolveBodyScalar(statementIndex, reference),
+            (reference) => resolveBodyBareScalar(statementIndex, reference),
+            (reference) => resolveBodyGeometryProperty(statementIndex, reference),
+            (reference) => resolveBodyGeometryBuiltin(statementIndex, reference)
+          );
+          const next = initializer
+            ? analyzeExpression(
+                nextStatement.candidateIndex,
+                definition.statementIndex,
+                nextStatement.candidate.expression,
+                nextStatement.candidate.expressionSpan,
+                scalarType,
+                (reference) => resolveBodyScalar(nextStatement.candidateIndex, reference),
+                (reference) => resolveBodyBareScalar(nextStatement.candidateIndex, reference),
+                (reference) => resolveBodyGeometryProperty(nextStatement.candidateIndex, reference),
+                (reference) => resolveBodyGeometryBuiltin(nextStatement.candidateIndex, reference)
+              )
+            : null;
+          if (!initializer || !next) continue;
+          immutableCarries.push({
+            bindingId: `binding:${statementId}:carry:${carryIndex}`,
+            statementId,
+            statementIndex,
+            carryIndex,
+            name: carry.name,
+            type: scalarType,
+            valueType,
+            initializer,
+            next,
+            nextStatementIndex: nextStatement.candidateIndex
+          });
+          continue;
+        }
+        if (!isDslGeometryValueType(valueType)) continue;
+        const expectedGeometryKind = valueType.kind === "point" ? "point" : "line";
+        const initializer = resolveGeometry(
+          statementIndex,
+          definition.statementIndex,
+          carry.initializer,
+          carry.initializerSpan,
+          expectedGeometryKind,
+          {
+            expectedInterfaceType: valueType.kind,
+            expectedValueType: valueType,
+            role: valueType.kind === "point" ? "pointReference" : "lineReference",
+            scalarResolver: (reference) => resolveBodyScalar(statementIndex, reference),
+            bareScalarResolver: (reference) => resolveBodyBareScalar(statementIndex, reference),
+            geometryPropertyResolver: (reference) => resolveBodyGeometryProperty(statementIndex, reference)
+          }
+        );
+        const next = resolveGeometry(
+          nextStatement.candidateIndex,
+          definition.statementIndex,
+          nextStatement.candidate.expression,
+          nextStatement.candidate.expressionSpan,
+          expectedGeometryKind,
+          {
+            expectedInterfaceType: valueType.kind,
+            expectedValueType: valueType,
+            role: valueType.kind === "point" ? "pointReference" : "lineReference",
+            scalarResolver: (reference) => resolveBodyScalar(nextStatement.candidateIndex, reference),
+            bareScalarResolver: (reference) => resolveBodyBareScalar(nextStatement.candidateIndex, reference),
+            geometryPropertyResolver: (reference) => resolveBodyGeometryProperty(nextStatement.candidateIndex, reference)
+          }
+        );
+        if (initializer.resolution !== "resolved" || next.resolution !== "resolved") continue;
+        immutableCarries.push({
+          bindingId: `binding:${statementId}:carry:${carryIndex}`,
+          statementId,
+          statementIndex,
+          carryIndex,
+          name: carry.name,
+          type: null,
+          valueType,
+          geometryInitializer: initializer,
+          geometryNext: next,
+          nextStatementIndex: nextStatement.candidateIndex
+        });
+      }
+    }
 
     if (statement.kind === "typedDeclaration") {
       if (!statementId || !bodySemantic) continue;
@@ -901,5 +1005,5 @@ export const analyzeModuleBody = ({
     }
     if (bodySemantic) bodyStatements.push(bodySemantic);
   }
-  return { localScalars, localGeometryValues, bodyStatements, exports };
+  return { localScalars, localGeometryValues, immutableCarries, bodyStatements, exports };
 };

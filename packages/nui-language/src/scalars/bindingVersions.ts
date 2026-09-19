@@ -2,12 +2,13 @@
 // products only; it never parses source || resolves a target/reference.
 import type { BindingAnalysis, BindingAnalysisEntry } from "./bindingAnalysis";
 import { bindingIdForStableStatementId, type BindingId } from "./bindingCatalog";
-import { scalarExpressionTypeOfDslValueType, type DslGeometryValueType } from "../dsl/dslValueTypes";
+import { scalarExpressionTypeOfDslValueType, type DslArrayValueType, type DslGeometryValueType } from "../dsl/dslValueTypes";
 import type { ScopeId, LexicalScopeIndex } from "./lexicalScopeIndex";
 import type { ScalarProgram, ScalarProgramStatement } from "./scalarProgram";
 import type { ScalarExpressionType } from "./types";
 import type { TypedScalarExpression } from "./typedExpressionAst";
 import type { ScalarExpressionResolvedGeometryTarget } from "./typedExpressionAst";
+import type { GeometryInputCollectionNode } from "../model/cadDocumentTypes";
 
 export type BindingVersionId = string;
 
@@ -117,6 +118,20 @@ export type ImmutableForGroupPlan = {
   };
   carries: readonly ImmutableForGroupCarry[];
   geometryCarries?: readonly ImmutableGeometryCarry[];
+  /** Collection-valued carry projections use the existing collection graph;
+   * the runtime only swaps the resolved descriptor identity at the immutable
+   * iteration commit boundary. */
+  collectionCarries?: readonly ImmutableCollectionCarry[];
+  geometryCollectionCarries?: readonly ImmutableGeometryCollectionCarry[];
+};
+
+export type ImmutableCollectionCarry = {
+  bindingId: BindingId;
+  collectionValueId: string;
+  initializerValueId: string;
+  nextValueId: string;
+  declaredType: DslArrayValueType;
+  nextSourceOrder: number;
 };
 
 export type ImmutableGeometryCarry = {
@@ -124,6 +139,19 @@ export type ImmutableGeometryCarry = {
   declaredType: DslGeometryValueType;
   initializerTarget: ScalarExpressionResolvedGeometryTarget;
   nextTarget: ScalarExpressionResolvedGeometryTarget;
+  nextSourceOrder: number;
+};
+
+export type ImmutableGeometryCollectionSource =
+  | { kind: "node"; node: GeometryInputCollectionNode }
+  | { kind: "value"; valueId: string };
+
+export type ImmutableGeometryCollectionCarry = {
+  bindingId: BindingId;
+  collectionValueId: string;
+  initializer: ImmutableGeometryCollectionSource;
+  next: ImmutableGeometryCollectionSource;
+  declaredType: DslArrayValueType;
   nextSourceOrder: number;
 };
 

@@ -50,7 +50,7 @@ describe("immutable statement-for carries", () => {
     const compiled = compile([
       "nui 1",
       "const items: string[] = [\"a\", \"b\"]",
-      "for item in items carry last: string = \"\" {",
+      "for item in @items carry last: string = \"\" {",
       "  next last = @item",
       "}",
       "const result: string = @last"
@@ -83,6 +83,52 @@ describe("immutable statement-for carries", () => {
       status: "ok",
       value: { kind: "number", value: 3 }
     });
+  });
+
+  it("swaps collection carries through the shared collection runtime", () => {
+    const compiled = compile([
+      "nui 1",
+      "const first: number[] = [1, 2]",
+      "const second: number[] = [3, 4]",
+      "for i in range(min: 0, max: 1, step: 1) carry a: number[] = @first carry b: number[] = @second {",
+      "  next a = @b",
+      "  next b = @a",
+      "}",
+      "const result: number = @a[0] + @b[1]"
+    ].join("\n"));
+    const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    expect(evaluation.errors).toEqual([]);
+    const resultId = compiled.bindingAnalysis!.catalog.bindings.find((binding) => binding.name === "result")!.id;
+    expect(evaluation.computedScalarBindings?.get(resultId)).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 5 }
+    });
+  });
+
+  it("rejects branch-local next instead of compiling an unconditional update", () => {
+    const result = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), [
+      "nui 1",
+      "for i in range(min: 0, max: 1, step: 1) carry total: number = 0 {",
+      "  if (true) {",
+      "    next total = 1",
+      "  }",
+      "}",
+      "const result: number = @total"
+    ].join("\n"));
+    expect(result.status).toBe("fatal");
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "next-inside-conditional")).toBe(true);
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "missing-next")).toBe(false);
+  });
+
+  it("requires the canonical @reference form for collection sources", () => {
+    const result = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), [
+      "nui 1",
+      "const items: number[] = [1, 2]",
+      "for item in items {",
+      "}"
+    ].join("\n"));
+    expect(result.status).toBe("fatal");
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "invalid-for-source-reference")).toBe(true);
   });
 
   it("keeps an empty range at the initializer", () => {
@@ -154,13 +200,42 @@ describe("immutable statement-for carries", () => {
     });
   });
 
+  it("preserves generalized record geometry, collection, and nested fields", () => {
+    const compiled = compile([
+      "nui 1",
+      "point A = coordinate(x: 3, y: 4)",
+      "line Edge = segment(start: (0, 0), end: (10, 0))",
+      "record Metadata(label: string)",
+      "record Piece(count: number, edge: line, points: point[], metadata: Metadata)",
+      'const first: Piece = Piece(count: 1, edge: @Edge, points: [@A], metadata: Metadata(label: "ok"))',
+      "for i in range(min: 0, max: 0, step: 1) carry last: Piece = @first {",
+      '  next last = Piece(count: @last.count + 1, edge: @last.edge, points: @last.points, metadata: @last.metadata)',
+      "}",
+      "const count: number = @last.count",
+      "const pointCount: number = @last.points.length",
+      "const edgeLength: number = @last.edge.length",
+      "const label: string = @last.metadata.label"
+    ].join("\n"));
+    expect(compiled.diagnostics).toEqual([]);
+    const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    expect(evaluation.errors).toEqual([]);
+    const value = (name: string) => {
+      const id = compiled.bindingAnalysis!.catalog.bindings.find((binding) => binding.name === name)!.id;
+      return evaluation.computedScalarBindings?.get(id);
+    };
+    expect(value("count")).toMatchObject({ status: "ok", value: { kind: "number", value: 2 } });
+    expect(value("pointCount")).toMatchObject({ status: "ok", value: { kind: "number", value: 1 } });
+    expect(value("edgeLength")).toMatchObject({ status: "ok", value: { kind: "number", value: 10 } });
+    expect(value("label")).toMatchObject({ status: "ok", value: { kind: "string", value: "ok" } });
+  });
+
   it("iterates nominal record collection members through their field bindings", () => {
     const compiled = compile([
       "nui 1",
       "record Pair(x: number, label: string)",
       'const first: Pair = Pair(x: 1, label: "ok")',
       "const items: Pair[] = [@first]",
-      "for item in items carry total: number = 0 {",
+      "for item in @items carry total: number = 0 {",
       "  next total = @item.x",
       "}",
       "const result: number = @total"
@@ -199,7 +274,7 @@ describe("immutable statement-for carries", () => {
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 2, y: 0)",
       "const items: point[] = [@A, @B]",
-      "for item in items carry cursor: point = @A {",
+      "for item in @items carry cursor: point = @A {",
       "  next cursor = @item",
       "}",
       "const result: number = @cursor.x"

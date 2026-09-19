@@ -129,7 +129,16 @@ export type ModuleScalarSourceTarget =
   | ModuleRecordFieldSourceTarget
   | { kind: "iteration"; statementId: StatementIdentity; statementIndex: number; name: string; valueType?: DslValueType; identity?: DocumentQualifiedSemanticIdentity<StatementIdentity> }
   | { kind: "valueForBinder"; binderId: BindingId; statementId: StatementIdentity; statementIndex: number; name: string; sourceElementType: ScalarType }
-  | { kind: "moduleLocal"; statementId: StatementIdentity; statementIndex: number; identity?: DocumentQualifiedSemanticIdentity<StatementIdentity> }
+  | {
+      kind: "moduleLocal";
+      statementId: StatementIdentity;
+      statementIndex: number;
+      identity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
+      /** Source carry identity when the lexical declaration is a statement-for
+       * carry rather than a const. The target stays on the ordinary Module
+       * scalar lowering path and is rematerialized per instance. */
+      carryBindingId?: BindingId;
+    }
   | { kind: "documentBinding"; bindingId: BindingId; statementId: StatementIdentity; statementIndex: number; identity?: DocumentQualifiedSemanticIdentity<StatementIdentity> }
   | {
       kind: "collectionValue";
@@ -926,6 +935,27 @@ export type ModuleBodyStatementSemantic = {
   scalarTarget: ModuleScalarSourceTarget | null;
 };
 
+/** Typed scalar portion of one immutable carry owned by a Module-local
+ * statement-for. Geometry carries keep their existing geometry semantic
+ * owners; this record only supplies the scalar runtime plan and binding
+ * identity. */
+export type ModuleImmutableCarrySemantic = {
+  bindingId: BindingId;
+  statementId: StatementIdentity;
+  statementIndex: number;
+  carryIndex: number;
+  name: string;
+  /** Scalar carries use the ordinary scalar expression lowering path. */
+  type: ScalarExpressionType | null;
+  valueType: DslValueType;
+  initializer?: ModuleScalarExpressionSemantic;
+  next?: ModuleScalarExpressionSemantic;
+  /** Geometry carries reuse the existing Module geometry reference/runtime path. */
+  geometryInitializer?: ModuleGeometryReferenceSemantic;
+  geometryNext?: ModuleGeometryReferenceSemantic;
+  nextStatementIndex: number;
+};
+
 export type ResolvedModuleCallee = {
   definitionStatementId: StatementIdentity;
   definitionStatementIndex: number;
@@ -1020,6 +1050,7 @@ export type ModuleDefinitionSemantic = {
   }[];
   localGeometryValues: readonly ModuleGeometryValueSemantic[];
   recordValues: readonly ModuleRecordValueSemantic[];
+  immutableCarries?: readonly ModuleImmutableCarrySemantic[];
   bodyStatements: readonly ModuleBodyStatementSemantic[];
   exports: readonly ResolvedModuleExport[];
   bodyStatementIds: readonly StatementIdentity[];

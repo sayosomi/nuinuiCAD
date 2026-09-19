@@ -7,6 +7,7 @@ use crate::evaluation::point_anchor::{
     point_from_geometry, point_from_value, resolve_derived_point,
 };
 use crate::evaluation::types::{EvaluationState, GeometryInputTarget, Point};
+use serde_json::json;
 use serde_json::Value;
 
 #[derive(Debug, Clone)]
@@ -15,6 +16,33 @@ pub(crate) enum GeometryBuiltinRuntimeTarget {
     Line { start: Point, end: Point },
     GeometryValuePoint { x: f64, y: f64 },
     GeometryValueLine { start: (f64, f64), end: (f64, f64) },
+}
+
+pub(crate) fn geometry_builtin_runtime_target_value(
+    target: &GeometryBuiltinRuntimeTarget,
+) -> Value {
+    match target {
+        GeometryBuiltinRuntimeTarget::Point(point) => json!({
+            "kind": "point",
+            "elementId": point.element_id,
+            "name": point.name,
+            "x": point.x,
+            "y": point.y
+        }),
+        GeometryBuiltinRuntimeTarget::GeometryValuePoint { x, y } => {
+            json!({ "kind": "point", "x": x, "y": y })
+        }
+        GeometryBuiltinRuntimeTarget::Line { start, end } => json!({
+            "kind": "line",
+            "start": { "x": start.x, "y": start.y },
+            "end": { "x": end.x, "y": end.y }
+        }),
+        GeometryBuiltinRuntimeTarget::GeometryValueLine { start, end } => json!({
+            "kind": "line",
+            "start": { "x": start.0, "y": start.1 },
+            "end": { "x": end.0, "y": end.1 }
+        }),
+    }
 }
 
 impl PartialEq for GeometryBuiltinRuntimeTarget {
@@ -209,9 +237,6 @@ pub(crate) fn resolve_geometry_builtin_target(
     };
 
     if let Some(point_key) = target.point_key.as_deref() {
-        if target.geometry_type != GeometryInterfaceType::Point {
-            return Err(GeometryBuiltinRuntimeError::Unavailable);
-        }
         return resolve_derived_point(geometry, point_key, state)
             .map(GeometryBuiltinRuntimeTarget::Point)
             .ok_or(GeometryBuiltinRuntimeError::Unavailable);

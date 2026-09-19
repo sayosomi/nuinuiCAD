@@ -2,7 +2,7 @@ import type { DslDiagnostic, DslStatement } from "../dsl/dslTypes";
 import type { SourceLexicalNamespaceIndex } from "../dsl/sourceLexicalNamespaceIndex";
 import { resolveSourceLexicalPath } from "../dsl/sourceLexicalNamespaceIndex";
 import { parseDslReferenceToken } from "../dsl/dslReferenceTokens";
-import { dslRequiredValueTypeOf, isDslRecordValueType, scalarExpressionTypeOfDslValueType, scalarTypeOfDslValueType, type DslValueType } from "../dsl/dslValueTypes";
+import { dslRequiredValueTypeOf, isDslArrayValueType, isDslGeometryValueType, isDslRecordValueType, scalarExpressionTypeOfDslValueType, scalarTypeOfDslValueType, type DslValueType } from "../dsl/dslValueTypes";
 import { parseRecordConstructorFields, type RecordDefinitionSemantic } from "../dsl/recordSemanticAnalysis";
 import type { BindingId, BindingSeed, SourceNamespaceBindingResolver } from "./bindingCatalog";
 import { bindingIdForStableStatementId } from "./bindingCatalog";
@@ -17,6 +17,9 @@ export type ImmutableCarryInput = {
   declaredType: NonNullable<ReturnType<typeof scalarTypeOfDslValueType>>;
 };
 
+export const immutableCarryCollectionValueId = (bindingId: BindingId): string =>
+  `carry-collection:${bindingId}`;
+
 export type ImmutableCarryCompilation = {
   bindings: readonly BindingSeed[];
   initializers: readonly AdditionalScalarInitializer[];
@@ -26,6 +29,7 @@ export type ImmutableCarryCompilation = {
     bindingId: BindingId;
     ownerStatementIndex: number;
     name: string;
+    fieldPath?: readonly string[];
     valueType: import("../dsl/dslValueTypes").DslValueType | null;
     initializer: string;
     initializerSpan: { start: number; end: number };
@@ -33,6 +37,7 @@ export type ImmutableCarryCompilation = {
   nexts: readonly {
     ownerStatementIndex: number;
     carryName: string;
+    fieldPath?: readonly string[];
     statementIndex: number;
     expression: string;
     expressionSpan: { start: number; end: number };
@@ -64,6 +69,20 @@ const nearestForIndex = (statements: readonly DslStatement[], statementIndex: nu
     const candidate = statements[enclosing];
     if (candidate?.kind === "element" && candidate.type === "forGroup") return enclosing;
     enclosing = candidate?.enclosing?.statementIndex;
+  }
+  return undefined;
+};
+
+const conditionalEnclosingFor = (
+  statements: readonly DslStatement[],
+  statementIndex: number,
+  ownerStatementIndex: number
+): DslStatement | undefined => {
+  let enclosing = statements[statementIndex]?.enclosing;
+  while (enclosing && enclosing.statementIndex !== ownerStatementIndex) {
+    const candidate = statements[enclosing.statementIndex];
+    if (candidate?.kind === "element" && candidate.type === "conditionalGroup") return candidate;
+    enclosing = candidate?.enclosing;
   }
   return undefined;
 };
@@ -105,6 +124,8 @@ export const compileImmutableCarries = ({
     return analysis?.definitionsByStatementId.get(required.identity ?? "") ??
       [...(analysis?.definitionsByStatementId.values() ?? [])].find((definition) => definition.name === required.name);
   };
+  const nextSyntheticSourceOrder = (statementIndex: number): number =>
+    bindings.filter((binding) => binding.statementIndex === statementIndex).length;
 
   const directReferencePath = (raw: string): string | null => {
     const trimmed = raw.trim();
@@ -148,6 +169,21 @@ export const compileImmutableCarries = ({
       currentSpan = field.valueSpan;
       currentType = field.expectedType;
       if (index < fieldPath.length - 1) {
+        const reference = directReferencePath(currentRaw);
+        if (reference !== null) {
+          let referencedType = currentType;
+          for (const remainingFieldName of fieldPath.slice(index + 1)) {
+            const referencedDefinition = recordDefinitionFor(referencedType);
+            const remainingField = referencedDefinition?.fields.find((candidate) => candidate.name === remainingFieldName);
+            if (!remainingField) return null;
+            referencedType = remainingField.type;
+          }
+          return {
+            raw: `@${reference}.${fieldPath.slice(index + 1).join(".")}`,
+            span: { start: currentSpan.start, end: currentSpan.start + `@${reference}.${fieldPath.slice(index + 1).join(".")}`.length },
+            valueType: referencedType
+          };
+        }
         currentDefinition = recordDefinitionFor(currentType);
         if (!currentDefinition) return null;
       }
@@ -161,7 +197,11 @@ export const compileImmutableCarries = ({
       const path = [...prefix, field.name];
       const nested = recordDefinitionFor(field.type);
       if (nested) leaves.push(...recordLeafPaths(nested, path));
-      else if (scalarExpressionTypeOfDslValueType(field.type) !== null) leaves.push({ path, type: field.type });
+      else if (
+        scalarExpressionTypeOfDslValueType(field.type) !== null ||
+        isDslGeometryValueType(field.type) ||
+        isDslArrayValueType(field.type)
+      ) leaves.push({ path, type: field.type });
     }
     return leaves;
   };
@@ -175,11 +215,20 @@ export const compileImmutableCarries = ({
   ) => {
     const definition = recordDefinitionFor(carry.valueType);
     if (!definition) return;
-    for (const [fieldIndex, field] of recordLeafPaths(definition).entries()) {
+    for (const field of recordLeafPaths(definition)) {
       const initializer = recordFieldRaw(carry.initializer, carry.initializerSpan, definition, field.path);
       if (!initializer) continue;
       const bindingId = `binding:${stableStatementIdByIndex.get(statementIndex) ?? statementIndex}:carry:${carryIndex}:field:${field.path.join(".")}`;
       const key = `${statementIndex}:${carry.name}.${field.path.join(".")}`;
+      declarations.push({
+        bindingId,
+        ownerStatementIndex: statementIndex,
+        name: `${carry.name}.${field.path.join(".")}`,
+        fieldPath: field.path,
+        valueType: field.type,
+        initializer: initializer.raw,
+        initializerSpan: initializer.span
+      });
       carryFieldBindings.set(key, bindingId);
       carryFieldNames.set(key, {
         bindingId,
@@ -197,7 +246,7 @@ export const compileImmutableCarries = ({
         name: `${carry.name}.${field.path.join(".")}`,
         nameSpan: carry.nameSpan,
         statementIndex,
-        sourceOrder: carryIndex * 1000 + fieldIndex,
+        sourceOrder: nextSyntheticSourceOrder(statementIndex),
         effectiveScopeId: loopScopeId,
         visibility: { kind: "typed", scopeId: loopScopeId },
         mutability: "const",
@@ -252,7 +301,7 @@ export const compileImmutableCarries = ({
           name: carry.name,
           nameSpan: carry.nameSpan,
           statementIndex,
-          sourceOrder: carryIndex,
+          sourceOrder: nextSyntheticSourceOrder(statementIndex),
           effectiveScopeId: loopScopeId,
           visibility: { kind: "typed", scopeId: loopScopeId },
           mutability: "const",
@@ -302,7 +351,16 @@ export const compileImmutableCarries = ({
     }
     nextNames.add(statement.name);
     nextNamesByLoop.set(ownerStatementIndex, nextNames);
-    nexts.push({
+    if (conditionalEnclosingFor(statements, statementIndex, ownerStatementIndex)) {
+      diagnostics.push(diagnosticFor(
+        statement,
+        statement.nameSpan ?? statement.keywordSpan,
+        "next-inside-conditional",
+        "next は statement-for の直接 body にのみ書けます。条件分岐内では next RHS の value-if または match を使ってください。"
+      ));
+      continue;
+    }
+      nexts.push({
       ownerStatementIndex,
       carryName: statement.name,
       statementIndex,
@@ -317,11 +375,19 @@ export const compileImmutableCarries = ({
       : undefined;
     const carryDefinition = recordDefinitionFor(carryDeclaration?.valueType ?? null);
     if (carryDeclaration && carryDefinition) {
-      for (const [fieldIndex, field] of recordLeafPaths(carryDefinition).entries()) {
+      for (const field of recordLeafPaths(carryDefinition)) {
         const fieldKey = `${ownerStatementIndex}:${statement.name}.${field.path.join(".")}`;
         const fieldBindingId = carryFieldBindings.get(fieldKey);
         const nextField = recordFieldRaw(statement.expression, statement.expressionSpan, carryDefinition, field.path);
         if (!fieldBindingId || !nextField) continue;
+        nexts.push({
+          ownerStatementIndex,
+          carryName: statement.name,
+          fieldPath: field.path,
+          statementIndex,
+          expression: nextField.raw,
+          expressionSpan: nextField.span
+        });
         const scalarType = scalarTypeOfDslValueType(nextField.valueType);
         if (!scalarType) continue;
         const nextBindingId = `binding:next:${stableStatementIdByIndex.get(ownerStatementIndex) ?? ownerStatementIndex}:${statementIndex}:field:${field.path.join(".")}`;
@@ -332,7 +398,7 @@ export const compileImmutableCarries = ({
           name: `${statement.name}.${field.path.join(".")}:next`,
           nameSpan: statement.nameSpan,
           statementIndex,
-          sourceOrder: fieldIndex,
+          sourceOrder: nextSyntheticSourceOrder(statementIndex),
           effectiveScopeId: nextScopeId,
           visibility: { kind: "typed", scopeId: nextScopeId },
           mutability: "const",
@@ -369,7 +435,7 @@ export const compileImmutableCarries = ({
       name: `${statement.name}:next`,
       nameSpan: statement.nameSpan,
       statementIndex,
-      sourceOrder: 0,
+      sourceOrder: nextSyntheticSourceOrder(statementIndex),
       effectiveScopeId: nextScopeId,
       visibility: { kind: "typed", scopeId: nextScopeId },
       mutability: "const",

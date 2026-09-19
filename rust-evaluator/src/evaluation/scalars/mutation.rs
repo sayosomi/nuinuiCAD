@@ -3,7 +3,8 @@
 mod for_group_scheduler;
 use super::super::scalar_expression_runtime::{
     lookup_for_group_geometry_property, lookup_geometry_collection_length,
-    lookup_geometry_property, lookup_geometry_value_property, lookup_optional_geometry_property,
+    lookup_geometry_property, lookup_geometry_value_binder_property,
+    lookup_geometry_value_property, lookup_optional_geometry_property,
     resolve_for_group_geometry_builtin_target, ForGroupGeometryPropertyRequest,
 };
 use super::bindings::ScalarDocumentBindingResolver;
@@ -50,6 +51,7 @@ pub(crate) struct ScalarMutationResolver<'a> {
     conditional_results: HashMap<String, Option<String>>,
     loop_conditional_results: Vec<HashMap<String, Option<String>>>,
     frames: Vec<ScopeFrame>,
+    collection_carry_value_ids: HashMap<String, String>,
 }
 
 impl<'a> ScalarMutationResolver<'a> {
@@ -62,6 +64,7 @@ impl<'a> ScalarMutationResolver<'a> {
             conditional_results: HashMap::new(),
             loop_conditional_results: Vec::new(),
             frames: Vec::new(),
+            collection_carry_value_ids: HashMap::new(),
         }
     }
     pub(crate) fn advance_before_with_geometry_values(
@@ -191,7 +194,31 @@ impl<'a> ScalarMutationResolver<'a> {
             plan.carries
                 .iter()
                 .any(|carry| carry.binding_id == binding_id || carry.next_binding_id == binding_id)
+                || plan
+                    .geometry_carries
+                    .iter()
+                    .any(|carry| carry.binding_id == binding_id)
+                || plan
+                    .collection_carries
+                    .iter()
+                    .any(|carry| carry.binding_id == binding_id)
+                || plan
+                    .geometry_collection_carries
+                    .iter()
+                    .any(|carry| carry.binding_id == binding_id)
         })
+    }
+
+    pub(crate) fn resolve_collection_carry_value_id(&self, value_id: &str) -> String {
+        let mut current = value_id.to_owned();
+        let mut seen = HashSet::new();
+        while let Some(next) = self.collection_carry_value_ids.get(&current) {
+            if !seen.insert(current.clone()) {
+                break;
+            }
+            current = next.clone();
+        }
+        current
     }
 
     pub(crate) fn history(&self) -> Vec<Value> {
@@ -377,6 +404,10 @@ impl<'a> ScalarMutationResolver<'a> {
         state: &EvaluationState,
         seen: &mut HashSet<String>,
     ) -> ScalarEvaluation {
+        let redirected = self.resolve_collection_carry_value_id(collection_value_id);
+        if redirected != collection_value_id {
+            return self.resolve_record_field(&redirected, index, field, state, seen);
+        }
         if !seen.insert(collection_value_id.to_owned()) {
             return ScalarEvaluation::Error {
                 r#type: field.r#type.clone(),
@@ -601,6 +632,10 @@ impl<'a> ScalarMutationResolver<'a> {
         state: &EvaluationState,
         seen: &mut HashSet<String>,
     ) -> Option<bool> {
+        let redirected = self.resolve_collection_carry_value_id(collection_value_id);
+        if redirected != collection_value_id {
+            return self.resolve_collection_presence(&redirected, state, seen);
+        }
         if !seen.insert(collection_value_id.to_owned()) {
             return None;
         }
@@ -696,6 +731,7 @@ impl<'a> ScalarMutationResolver<'a> {
         _target_source_order: f64,
         state: &EvaluationState,
     ) -> ScalarEvaluation {
+        let collection_value_id = self.resolve_collection_carry_value_id(collection_value_id);
         if !index.is_finite()
             || index.fract() != 0.0
             || index < 0.0
@@ -711,6 +747,11 @@ impl<'a> ScalarMutationResolver<'a> {
         let mut current = collection_value_id;
         let mut seen = HashSet::new();
         let member = loop {
+            let redirected = self.resolve_collection_carry_value_id(&current);
+            if redirected != current {
+                current = redirected;
+                continue;
+            }
             if !seen.insert(current.to_owned()) {
                 return ScalarEvaluation::Error {
                     r#type: element_type.clone(),
@@ -741,7 +782,7 @@ impl<'a> ScalarMutationResolver<'a> {
                         context: None,
                     };
                 }
-                ValidatedScalarProgramCollectionValue::Alias(target) => current = target,
+                ValidatedScalarProgramCollectionValue::Alias(target) => current = target.clone(),
                 ValidatedScalarProgramCollectionValue::Literal(members) => {
                     break members.get(index as usize)
                 }
@@ -1011,6 +1052,10 @@ impl<'a> ScalarMutationResolver<'a> {
         state: &EvaluationState,
         seen: &mut HashSet<String>,
     ) -> Option<f64> {
+        let redirected = self.resolve_collection_carry_value_id(collection_value_id);
+        if redirected != collection_value_id {
+            return self.resolve_collection_length(&redirected, state, seen);
+        }
         let Some(value) = self
             .program
             .collection_values
@@ -1186,6 +1231,25 @@ impl ScalarEvaluationEnvironment for MutationEnvironment<'_, '_, '_> {
         lookup_geometry_value_property(
             self.state,
             occurrence,
+            point_key,
+            property,
+            target_source_order,
+            Some(self.source_order),
+            property_type,
+        )
+    }
+
+    fn lookup_geometry_value_binder_property(
+        &self,
+        binder_id: &str,
+        point_key: Option<&str>,
+        property: &str,
+        target_source_order: f64,
+        property_type: &ScalarType,
+    ) -> ScalarEvaluation {
+        lookup_geometry_value_binder_property(
+            self.state,
+            binder_id,
             point_key,
             property,
             target_source_order,

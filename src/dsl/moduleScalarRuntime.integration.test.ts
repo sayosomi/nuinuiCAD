@@ -3116,4 +3116,57 @@ describe("module scalar runtime integration", () => {
     ]);
   });
 
+  it("escapes Module-local scalar carries independently for each instance", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "module Counter(start: number) {",
+      "  for i in range(min: 0, max: 0, step: 1) carry total: number = @start {",
+      "    next total = @total + 1",
+      "  }",
+      "  export const result: number = @total",
+      "}",
+      "instance A = Counter(start: 10)",
+      "instance B = Counter(start: 20)",
+      "const first: number = @A::result",
+      "const second: number = @B::result"
+    ].join("\n"), "module-scalar-carry");
+    expectValid(compiled);
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const valueFor = (name: string) => {
+      const binding = compiled.bindingAnalysis?.catalog.bindings.find((candidate) => candidate.name === name);
+      return binding ? result.computedScalarBindings?.get(binding.id) : undefined;
+    };
+    expect(valueFor("first")).toMatchObject({ status: "ok", value: { kind: "number", value: 11 } });
+    expect(valueFor("second")).toMatchObject({ status: "ok", value: { kind: "number", value: 21 } });
+  });
+
+  it("escapes Module-local geometry carries through instance materialization", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 20, y: 0)",
+      "module Cursor(start: point) {",
+      "  for i in range(min: 0, max: 0, step: 1) carry cursor: point = @start {",
+      "    line Edge = segment(start: @cursor, end: (10, 0))",
+      "    next cursor = @Edge.end",
+      "  }",
+      "  export const x: number = @cursor.x",
+      "}",
+      "instance One = Cursor(start: @A)",
+      "instance Two = Cursor(start: @B)",
+      "const first: number = @One::x",
+      "const second: number = @Two::x"
+    ].join("\n"), "module-geometry-carry");
+    expectValid(compiled);
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const valueFor = (name: string) => {
+      const binding = compiled.bindingAnalysis?.catalog.bindings.find((candidate) => candidate.name === name);
+      return binding ? result.computedScalarBindings?.get(binding.id) : undefined;
+    };
+    expect(valueFor("first")).toMatchObject({ status: "ok", value: { kind: "number", value: 10 } });
+    expect(valueFor("second")).toMatchObject({ status: "ok", value: { kind: "number", value: 10 } });
+  });
+
 });

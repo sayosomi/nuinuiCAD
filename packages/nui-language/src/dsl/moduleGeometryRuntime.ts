@@ -21,6 +21,7 @@ import {
   diagnosticForExportNamespace,
   geometryKindOfCategory,
   lowerReference,
+  moduleCarryBindingIdFor,
   pathKey,
   propertyForAlias,
   resolverForBody,
@@ -56,6 +57,12 @@ export type ModuleGeometryBuiltinRuntimeTarget =
       templateElementId: ElementId;
       targetSourceOrder: number;
       index: ModuleScalarExpressionSemantic | null;
+      geometryType: Extract<ModuleGeometryInterfaceType, "point" | "line">;
+      pointKey?: string;
+    }
+  | {
+      kind: "geometryCarry";
+      bindingId: string;
       geometryType: Extract<ModuleGeometryInterfaceType, "point" | "line">;
       pointKey?: string;
     };
@@ -516,6 +523,14 @@ export const buildModuleGeometryRuntime = ({
     instancePath: readonly string[],
     expectedGeometryType: Extract<ModuleGeometryInterfaceType, "point" | "line">
   ): ModuleGeometryBuiltinRuntimeTarget | undefined => {
+    if (target.kind === "geometryCarry") {
+      return {
+        kind: "geometryCarry",
+        bindingId: moduleCarryBindingIdFor(instancePath, target.bindingId),
+        geometryType: expectedGeometryType,
+        ...(target.pointKey ? { pointKey: target.pointKey } : {})
+      };
+    }
     const alias = sourceAliasForTarget(target, instancePath, contextsByPath, moduleMaterialization, exportsByPath, rootRecordValuesByStatementId);
     if (!alias) return undefined;
     if (alias.kind === "forGroupOccurrence") {

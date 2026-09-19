@@ -362,6 +362,8 @@ pub(crate) fn decode_geometry_property(
             "geometryValueOccurrence",
             "geometryValuePointKey",
             "geometryValueBinderId",
+            "geometryCarryBindingId",
+            "geometryCarryPointKey",
             "forGroupOccurrenceTemplateElementId",
             "forGroupOccurrenceIndex",
             "forGroupOccurrencePointKey",
@@ -476,7 +478,10 @@ pub(crate) fn decode_geometry_property(
             }))
         }
     };
-    let geometry_value_binder_id = match object.get("geometryValueBinderId") {
+    let geometry_value_binder_id = match object
+        .get("geometryValueBinderId")
+        .or_else(|| object.get("geometryCarryBindingId"))
+    {
         None | Some(Value::Null) => None,
         Some(value) => Some(
             value
@@ -501,7 +506,10 @@ pub(crate) fn decode_geometry_property(
             )
         })?
         .to_owned();
-    let geometry_value_point_key = match object.get("geometryValuePointKey") {
+    let geometry_value_point_key = match object
+        .get("geometryValuePointKey")
+        .or_else(|| object.get("geometryCarryPointKey"))
+    {
         None | Some(Value::Null) => None,
         Some(value) => Some(
             value

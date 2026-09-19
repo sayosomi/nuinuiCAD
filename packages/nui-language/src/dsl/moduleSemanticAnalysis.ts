@@ -1035,6 +1035,44 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     const declaration = lookup.declaration;
     const declarationOwner = moduleOwnerIndexOf(statements, declaration.statementIndex);
     const declarationRelated = relatedForDeclaration(declaration);
+    if (declaration.kind === "carry" && declaration.statement.kind === "element") {
+      const carryIndex = declaration.statement.forCarries?.findIndex((candidate) => candidate.name === declaration.name) ?? -1;
+      const carry = carryIndex >= 0 ? declaration.statement.forCarries?.[carryIndex] : undefined;
+      const type = carry ? scalarExpressionTypeOfDslValueType(dslRequiredValueTypeOf(carry.valueType)) : null;
+      if (boundaryOwnerIndex !== null && declarationOwner !== boundaryOwnerIndex) {
+        return {
+          target: null,
+          type: null,
+          resolution: "outerCapture",
+          diagnostic: issue("module-outer-capture", declaration.nameSpan ?? declaration.statement.keywordSpan, `module body から outer scalar「${name}」を暗黙 capture できません。`, {
+            relatedSources: declarationRelated,
+            presentation: { key: "diagnostic.module-outer-capture", parameters: { name } }
+          })
+        };
+      }
+      if (!type || carryIndex < 0) {
+        return {
+          target: null,
+          type: null,
+          resolution: "invalid",
+          diagnostic: issue("module-record-value-in-scalar", declaration.nameSpan ?? declaration.statement.keywordSpan, `carry「${name}」はscalar expressionでは参照できません。`, {
+            relatedSources: declarationRelated,
+            presentation: { key: "diagnostic.module-record-value-in-scalar", parameters: { name } }
+          })
+        };
+      }
+      const statementId = stableStatementIdByIndex.get(declaration.statementIndex) ?? declaration.statementId;
+      return {
+        target: {
+          kind: "moduleLocal",
+          statementId,
+          statementIndex: declaration.statementIndex,
+          carryBindingId: `binding:${statementId}:carry:${carryIndex}`
+        },
+        type,
+        resolution: "resolved"
+      };
+    }
     if (declaration.kind === "typedDeclaration" && declaration.statement.kind === "typedDeclaration") {
       const type = scalarExpressionTypeOfDslValueType(declaration.statement.valueType);
       if (boundaryOwnerIndex !== null && declarationOwner !== boundaryOwnerIndex) {
@@ -6433,6 +6471,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
   const mappedRecordCollectionBodiesByDefinition = new Map<number, ModuleDefinitionSemantic["mappedRecordCollectionBodies"]>();
   const mappedGeometryCollectionBodiesByDefinition = new Map<number, ModuleDefinitionSemantic["mappedGeometryCollectionBodies"]>();
   const localGeometryValuesByDefinition = new Map<number, ModuleGeometryValueSemantic[]>();
+  const immutableCarriesByDefinition = new Map<number, ModuleDefinitionSemantic["immutableCarries"]>();
   const bodyStatementsByDefinition = new Map<number, ModuleDefinitionSemantic["bodyStatements"]>();
   const recordValuesByDefinition = new Map<number, ModuleDefinitionSemantic["recordValues"]>();
   const exportsByDefinition = new Map<number, ResolvedModuleExport[]>();
@@ -6464,6 +6503,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       registerGeometryValue: (value) => geometryValuesByStatementIndex.set(value.statementIndex, value)
     });
     localScalarsByDefinition.set(definition.statementIndex, body.localScalars);
+    immutableCarriesByDefinition.set(definition.statementIndex, body.immutableCarries);
     const moduleCollectionAnalysisForControlFlow = sourceNamespace.geometryArraySemanticAnalysis;
     for (const collectionValue of [
       ...(moduleCollectionAnalysisForControlFlow?.genericValues ?? []),
@@ -6888,6 +6928,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     mappedRecordCollectionBodies: mappedRecordCollectionBodiesByDefinition.get(definition.statementIndex) ?? [],
     mappedGeometryCollectionBodies: mappedGeometryCollectionBodiesByDefinition.get(definition.statementIndex) ?? [],
     localGeometryValues: localGeometryValuesByDefinition.get(definition.statementIndex) ?? [],
+    immutableCarries: immutableCarriesByDefinition.get(definition.statementIndex) ?? [],
     recordValues: recordValuesByDefinition.get(definition.statementIndex) ?? [],
     bodyStatements: bodyStatementsByDefinition.get(definition.statementIndex) ?? [],
     exports: exportsByDefinition.get(definition.statementIndex) ?? [],

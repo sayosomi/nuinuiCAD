@@ -39,6 +39,29 @@ export type RustBindingMutationPayload = {
       nextExpression: unknown;
       nextSourceOrder: number;
     }[];
+    geometryCarries?: readonly {
+      bindingId: string;
+      declaredType: unknown;
+      initializerTarget: unknown;
+      nextTarget: unknown;
+      nextSourceOrder: number;
+    }[];
+    collectionCarries?: readonly {
+      bindingId: string;
+      collectionValueId: string;
+      initializerValueId: string;
+      nextValueId: string;
+      declaredType: unknown;
+      nextSourceOrder: number;
+    }[];
+    geometryCollectionCarries?: readonly {
+      bindingId: string;
+      collectionValueId: string;
+      initializer: unknown;
+      next: unknown;
+      declaredType: unknown;
+      nextSourceOrder: number;
+    }[];
   }[];
 };
 
@@ -156,7 +179,36 @@ export const buildRustBindingMutationPayload = (
               declaredType: carry.declaredType,
               nextExpression: carry.nextExpression,
               nextSourceOrder: carry.nextSourceOrder
-            }))
+            })),
+            ...(plan.geometryCarries?.length ? {
+              geometryCarries: plan.geometryCarries.map((carry) => ({
+                bindingId: carry.bindingId,
+                declaredType: carry.declaredType,
+                initializerTarget: carry.initializerTarget,
+                nextTarget: carry.nextTarget,
+                nextSourceOrder: carry.nextSourceOrder
+              }))
+            } : {}),
+            ...(plan.collectionCarries?.length ? {
+              collectionCarries: plan.collectionCarries.map((carry) => ({
+                bindingId: carry.bindingId,
+                collectionValueId: carry.collectionValueId,
+                initializerValueId: carry.initializerValueId,
+                nextValueId: carry.nextValueId,
+                declaredType: carry.declaredType,
+                nextSourceOrder: carry.nextSourceOrder
+              }))
+            } : {}),
+            ...(plan.geometryCollectionCarries?.length ? {
+              geometryCollectionCarries: plan.geometryCollectionCarries.map((carry) => ({
+                bindingId: carry.bindingId,
+                collectionValueId: carry.collectionValueId,
+                initializer: carry.initializer,
+                next: carry.next,
+                declaredType: carry.declaredType,
+                nextSourceOrder: carry.nextSourceOrder
+              }))
+            } : {})
           }))
         }
       : {})

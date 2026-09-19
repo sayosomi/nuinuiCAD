@@ -28,6 +28,12 @@ export type TypedGeometryPropertyResolutionContext = {
   additionalGeometryPropertyResolver?: (input: {
     node: Extract<ScalarExpressionAst, { kind: "geometryProperty" }>;
   }) => ScalarExpressionResolvedGeometryProperty | null;
+  /** Closed scalar-record frontend hook. A claimed property is rewritten by
+   * the record lowering owner and must not fall through to CAD element-name
+   * diagnostics during the shared geometry-property sweep. */
+  additionalScalarPropertyResolver?: (input: {
+    node: Extract<ScalarExpressionAst, { kind: "geometryProperty" }>;
+  }) => boolean;
   /** Source-order position of the expression owner. Geometry reads must point
    * strictly earlier in document order. */
   currentSourceOrder?: number;
@@ -85,6 +91,10 @@ export const resolveGeometryPropertyMetadata = (
       const additional = context?.additionalGeometryPropertyResolver?.({ node });
       if (additional) {
         geometryPropertyReferences.set(node.span.start, additional);
+        return;
+      }
+      if (context?.additionalScalarPropertyResolver?.({ node })) {
+        geometryPropertyReferences.set(node.span.start, null);
         return;
       }
       const reference = normalizedReference(

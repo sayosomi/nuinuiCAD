@@ -112,6 +112,14 @@ export type ModuleGeometryPropertyRuntimeTarget =
 
 export const pathKey = (path: readonly string[]) => encodeIdentityTuple(["instance", ...path]);
 
+/** Runtime identity for a carry owned by one materialized Module instance.
+ * The source carry binding remains the semantic identity; the call path is
+ * the execution identity, just like Module-local scalar bindings. */
+export const moduleCarryBindingIdFor = (path: readonly string[], bindingId: string) =>
+  path.length === 0
+    ? bindingId
+    : `module-binding:${encodeIdentityTuple(["carry", ...path, bindingId])}`;
+
 const recordTargetIdentity = (target: ModuleRecordSourceTarget): readonly string[] => {
   switch (target.kind) {
     case "recordValue":
@@ -639,6 +647,15 @@ export const resolverForBody = ({
   return {
     resolveLineReferenceTarget: (token) => {
       const site = siteFor(token, "lineReference") ?? siteFor(token, "lineReferenceList");
+      const carry = site?.reference.target?.kind === "geometryCarry" ? site.reference.target : undefined;
+      if (carry) {
+        return {
+          kind: "geometryCarry",
+          bindingId: moduleCarryBindingIdFor(currentPath, carry.bindingId),
+          geometryType: carry.geometryKind,
+          ...(carry.pointKey ? { pointKey: carry.pointKey } : {})
+        } satisfies GeometryInputTarget;
+      }
       const indexed = resolveLineReferenceTargetAt?.(token, statementIndex, currentPath, site?.reference.target ?? undefined);
       if (indexed) return indexed;
       const lowered = site && lowerReference(site.reference, currentPath, statement, contextsByPath, materialization, exportsByPath, rootRecordValuesByStatementId);
@@ -660,6 +677,15 @@ export const resolverForBody = ({
     },
     resolveLineEndpointTarget: (token) => {
       const site = siteFor(token, "lineEndpointReference");
+      const carry = site?.reference.target?.kind === "geometryCarry" ? site.reference.target : undefined;
+      if (carry) {
+        return {
+          kind: "geometryCarry",
+          bindingId: moduleCarryBindingIdFor(currentPath, carry.bindingId),
+          geometryType: carry.geometryKind,
+          ...(carry.pointKey ? { pointKey: carry.pointKey } : {})
+        } satisfies GeometryInputTarget;
+      }
       const indexed = resolvePointReferenceAt?.(token, statementIndex, currentPath, site?.reference.target ?? undefined);
       if (indexed && "kind" in indexed) return indexed;
       const lowered = site && lowerReference(site.reference, currentPath, statement, contextsByPath, materialization, exportsByPath, rootRecordValuesByStatementId);
@@ -685,6 +711,15 @@ export const resolverForBody = ({
     },
     resolveAnchor: (token, index, line, diagnostics, numeric, currentElement) => {
       const site = siteFor(token, "pointReference") ?? siteFor(token, "derivedPoint") ?? siteFor(token, "coordinatePoint");
+      const carry = site?.reference.target?.kind === "geometryCarry" ? site.reference.target : undefined;
+      if (carry) {
+        return {
+          kind: "geometryCarry",
+          bindingId: moduleCarryBindingIdFor(currentPath, carry.bindingId),
+          geometryType: carry.geometryKind,
+          ...(carry.pointKey ? { pointKey: carry.pointKey } : {})
+        } satisfies GeometryInputTarget;
+      }
       const indexed = resolvePointReferenceAt?.(token, statementIndex, currentPath, site?.reference.target ?? undefined);
       if (indexed) return indexed;
       const lowered = site && lowerReference(site.reference, currentPath, statement, contextsByPath, materialization, exportsByPath, rootRecordValuesByStatementId);

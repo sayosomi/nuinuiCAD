@@ -842,6 +842,9 @@ export const analyzeTypedDeclarations = ({
         additionalGeometryPropertyResolver: additionalGeometryPropertyResolver
           ? ({ node }) => additionalGeometryPropertyResolver({ statementIndex: binding.statementIndex, node })
           : undefined,
+        additionalScalarPropertyResolver: additionalRecordPropertyResolver
+          ? ({ node }) => Boolean(additionalRecordPropertyResolver({ statementIndex: binding.statementIndex, node }))
+          : undefined,
         skipPropertySpanStarts: geometryResolutionByBindingId.get(binding.id)?.geometryPropertyTargets
           ? new Set(geometryResolutionByBindingId.get(binding.id)!.geometryPropertyTargets.keys())
           : undefined

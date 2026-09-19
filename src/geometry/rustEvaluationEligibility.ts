@@ -103,6 +103,9 @@ const referencesRustSupportedLineTargetValue = (
   if (target.kind === "geometryValue") {
     return target.geometryType === "line" || target.geometryType === "path";
   }
+  if (target.kind === "geometryCarry") {
+    return target.geometryType === "line" || target.geometryType === "path";
+  }
   if (target.kind === "geometryValueMap") {
     return (target.geometryType === "line" || target.geometryType === "path") &&
       referencesRustSupportedLineTargetValue(target.source, elementsById);
@@ -168,6 +171,7 @@ const referencesRustSupportedPointTargetValue = (
 ): boolean => {
   if (target.kind === "coordinate") return true;
   if (target.kind === "geometryValue") return target.geometryType === "point";
+  if (target.kind === "geometryCarry") return target.geometryType === "point";
   if (target.kind === "geometryValueMap") {
     return target.geometryType === "point" &&
       referencesRustSupportedPointTargetValue(target.source, elementsById);
@@ -214,7 +218,7 @@ const hasRustSupportedDeferredPointTarget = (
   return [...targets].some((target) => {
     const candidates = Array.isArray(target) ? target : [target];
     return candidates.some((candidate) =>
-      (candidate.kind === "collectionIndex" || candidate.kind === "collectionValue" || candidate.kind === "geometryValueMap") &&
+      (candidate.kind === "collectionIndex" || candidate.kind === "collectionValue" || candidate.kind === "geometryValueMap" || candidate.kind === "geometryCarry") &&
       referencesRustSupportedPointTargetValue(candidate, elementsById)
     );
   });
@@ -285,18 +289,18 @@ const hasRustSupportedCompiledReferences = (
   options: EvaluateElementsOptions
 ): boolean => {
   const usesMutationPayload = options.bindingVersions && isRustLinearMutationEligible(options.bindingVersions);
-  // Geometry carries are evaluated by the TS geometry-value authority until
-  // their value payload is part of the Rust boundary. Never send a document
-  // with one of these plans to Rust as if the scalar-only payload were
-  // complete.
-  if (usesMutationPayload && [...(options.bindingVersions!.immutableForGroups?.values() ?? [])].some((plan) => (plan.geometryCarries?.length ?? 0) > 0)) return false;
   // Eligibility must never decode || reject a malformed scalar payload. The
   // Rust command owns validation && its typed-input failure must stay on the
   // existing fail-closed path rather than becoming a TypeScript exception.
   const scalarStatements = options.scalarProgram?.statements;
   const immutableCarryBindingIds = usesMutationPayload
     ? [...(options.bindingVersions!.immutableForGroups?.values() ?? [])].flatMap((plan) =>
-        plan.carries.flatMap((carry) => [carry.bindingId, ...(carry.nextBindingId ? [carry.nextBindingId] : [])])
+        [
+          ...plan.carries.flatMap((carry) => [carry.bindingId, ...(carry.nextBindingId ? [carry.nextBindingId] : [])]),
+          ...(plan.geometryCarries?.map((carry) => carry.bindingId) ?? []),
+          ...(plan.collectionCarries?.map((carry) => carry.bindingId) ?? []),
+          ...(plan.geometryCollectionCarries?.map((carry) => carry.bindingId) ?? [])
+        ]
       )
     : [];
   const availableBindingIds = new Set(

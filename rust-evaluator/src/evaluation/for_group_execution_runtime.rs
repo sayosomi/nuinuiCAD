@@ -273,7 +273,6 @@ impl<'a> ForGroupExecutionRuntime<'a> {
             return Ok(ForGroupExecutionRunOutcome::Completed);
         }
         state.elements[generated_index] = generated_element.clone();
-
         if element_type(&generated_element) == Some("forGroup") {
             let template_for_group = self
                 .original_elements

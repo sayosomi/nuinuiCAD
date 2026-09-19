@@ -18,7 +18,7 @@ import {
   type ForGroupExecutionRunOutcome,
   type ForGroupIterationContext
 } from "@nuinuicad/nui-language";
-import { scalarValueMatchesType, type ScalarEvaluation, type ScalarExpressionType } from "@nuinuicad/nui-language";
+import { scalarValueMatchesType, type ScalarEvaluation, type ScalarExpressionType, type ScalarType } from "@nuinuicad/nui-language";
 import { isScalarExpressionTypeAssignable } from "@nuinuicad/nui-language";
 import type { ScalarProgramCollection } from "@nuinuicad/nui-language";
 import type {
@@ -44,6 +44,9 @@ export type IncrementalLinearMutationEvaluator = {
   /** Records Task 25's already-evaluated result exactly once for this owner. */
   registerConditionalResult: (ownerStatementId: string, branch: "then" | "else" | null) => void;
   resolveCurrent: (bindingId: BindingId) => ScalarEvaluation;
+  resolveCollectionValueId: (collectionValueId: string, sourceOrder: number) => string | undefined;
+  resolveCollectionIndex: (collectionValueId: string, index: number, elementType: ScalarExpressionType, collectionLength: number | null, targetSourceOrder: number, sourceOrder: number) => ScalarEvaluation;
+  resolveCollectionLength: (collectionValueId: string, sourceOrder: number) => number | undefined;
   finalize: (position: BindingReadPosition) => LinearMutationEvaluation;
   runForGroup: (
     plan: ForGroupExecutionExecutionPlan,
@@ -152,6 +155,20 @@ export const createIncrementalLinearMutationEvaluator = (
     plan.carries.map((carry) => carry.bindingId)
   );
   const finalBindingOrder = [...new Set([...declarationBindingOrder, ...carryBindingOrder])];
+  const collectionCarryValueIds = new Map<string, string>();
+  let activeCollectionCarryValueIds: ReadonlyMap<string, string> = collectionCarryValueIds;
+  const collectionValuesById = new Map((collectionValues ?? []).map((value) => [value.valueId, value] as const));
+  const materializeCollectionValueId = (
+    valueId: string,
+    snapshot: ReadonlyMap<string, string>,
+    seen: ReadonlySet<string> = new Set()
+  ): string => {
+    if (seen.has(valueId)) return valueId;
+    const redirected = snapshot.get(valueId) ?? valueId;
+    const value = collectionValuesById.get(redirected);
+    if (!value || value.kind !== "alias") return redirected;
+    return materializeCollectionValueId(redirected === valueId ? value.targetValueId : value.targetValueId, snapshot, new Set([...seen, valueId]));
+  };
   let nextVersionIndex = 0;
   let activeLoopEnvironment: ReturnType<typeof createForGroupExecutionEnvironment<ScalarEvaluation>> | undefined;
   const conditionalResultFor = (ownerStatementId: string) => {
@@ -177,7 +194,8 @@ export const createIncrementalLinearMutationEvaluator = (
     resolveCurrent,
     resolveGeometryProperty,
     resolveGeometryTarget,
-    resolveCollectionLength
+    resolveCollectionLength,
+    (collectionValueId) => activeCollectionCarryValueIds.get(collectionValueId)
   );
 
   const retireFramesBefore = (sourceOrder: number) => {
@@ -248,7 +266,8 @@ export const createIncrementalLinearMutationEvaluator = (
     const immutableCarryBindingIds = new Set(
       [...(graph.immutableForGroups?.values() ?? [])].flatMap((plan) => [
         ...plan.carries.flatMap((carry) => [carry.bindingId, ...(carry.nextBindingId ? [carry.nextBindingId] : [])]),
-        ...(plan.geometryCarries?.map((carry) => carry.bindingId) ?? [])
+        ...(plan.geometryCarries?.map((carry) => carry.bindingId) ?? []),
+        ...(plan.geometryCollectionCarries?.map((carry) => carry.bindingId) ?? [])
       ])
     );
     if (immutableCarryBindingIds.has(version.bindingId)) return false;
@@ -363,6 +382,9 @@ export const createIncrementalLinearMutationEvaluator = (
         });
         environment.seed(carry.bindingId, resultForDeclaredType(evaluation, carry.declaredType));
       }
+      for (const carry of immutableCarryPlan.collectionCarries ?? []) {
+        collectionCarryValueIds.set(carry.collectionValueId, carry.initializerValueId);
+      }
     }
     let versionIndex = 0;
     let activeIterationIndex = -1;
@@ -400,6 +422,8 @@ export const createIncrementalLinearMutationEvaluator = (
         ...(immutableCarryPlan || plan.onIterationComplete ? {
           onIterationComplete: (frame, context) => {
             if (immutableCarryPlan) {
+            const collectionSnapshot = new Map(collectionCarryValueIds);
+            activeCollectionCarryValueIds = collectionSnapshot;
             const snapshot = new Map<BindingId, ScalarEvaluation>();
             for (const carry of immutableCarryPlan.carries) {
               const value = frame.read(carry.bindingId);
@@ -430,6 +454,13 @@ export const createIncrementalLinearMutationEvaluator = (
               nextValues.set(carry.bindingId, resultForDeclaredType(evaluation, carry.declaredType));
             }
             for (const [bindingId, value] of nextValues) frame.commit(bindingId, value);
+            for (const carry of immutableCarryPlan.collectionCarries ?? []) {
+              collectionCarryValueIds.set(
+                carry.collectionValueId,
+                materializeCollectionValueId(carry.nextValueId, collectionSnapshot)
+              );
+            }
+            activeCollectionCarryValueIds = collectionCarryValueIds;
             }
             return plan.onIterationComplete?.(frame, context) ?? "completed";
           }
@@ -455,5 +486,21 @@ export const createIncrementalLinearMutationEvaluator = (
     }
   };
 
-  return { advanceTo, registerConditionalResult, resolveCurrent, finalize, runForGroup };
+  return {
+    advanceTo,
+    registerConditionalResult,
+    resolveCurrent,
+    resolveCollectionValueId: (collectionValueId) => activeCollectionCarryValueIds.get(collectionValueId),
+    resolveCollectionIndex: (collectionValueId, index, elementType, collectionLength, targetSourceOrder, sourceOrder) => {
+      const lookup = collectionResolver?.environmentFor(sourceOrder).lookupCollectionIndex;
+      if (!lookup || !["number", "string", "boolean", "choice"].includes(elementType.kind)) {
+        return { status: "error", type: elementType, issueCode: "evaluation-collection-index-unavailable" };
+      }
+      return lookup(collectionValueId, index, elementType as ScalarType, collectionLength, targetSourceOrder);
+    },
+    resolveCollectionLength: (collectionValueId, sourceOrder) =>
+      collectionResolver?.environmentFor(sourceOrder).lookupCollectionLength?.(collectionValueId),
+    finalize,
+    runForGroup
+  };
 };

@@ -4,11 +4,25 @@
 
 use super::super::bindings::ScalarDocumentBindingResolver;
 use super::*;
-use crate::evaluation::scalar_expression_runtime::lookup_geometry_property;
+use crate::evaluation::scalar_expression_runtime::{
+    lookup_for_group_geometry_property, lookup_geometry_property,
+    lookup_geometry_value_binder_property, lookup_geometry_value_property,
+    resolve_for_group_geometry_builtin_target, ForGroupGeometryPropertyRequest,
+};
 use crate::evaluation::scalars::for_group_execution_core::{
     ForGroupExecutionEnvironment, ForGroupExecutionError, ForGroupExecutionPlan,
     ForGroupExecutionRunOutcome, ForGroupIterationContext, LoopRead,
 };
+use crate::evaluation::scalars::geometry_builtin_runtime::{
+    geometry_builtin_runtime_target_value, resolve_geometry_builtin_target,
+};
+use crate::evaluation::scalars::mutation_payload::{
+    ValidatedImmutableGeometryCarry, ValidatedImmutableGeometryCollectionSource,
+};
+use crate::evaluation::types::{
+    GeometryInputCollectionNode, GeometryInputTarget, GeometryValueOccurrence,
+};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum ForGroupExecutionStatement {
@@ -85,11 +99,62 @@ impl ScalarMutationResolver<'_> {
             })
     }
 
-    fn seed_for_group_carries(
+    fn geometry_collection_source_node(
         &self,
+        source: &ValidatedImmutableGeometryCollectionSource,
+        nodes: &HashMap<String, GeometryInputCollectionNode>,
+    ) -> Option<GeometryInputCollectionNode> {
+        match source {
+            ValidatedImmutableGeometryCollectionSource::Value(value_id) => {
+                nodes.get(value_id).and_then(clone_geometry_collection_node)
+            }
+            ValidatedImmutableGeometryCollectionSource::Node(node) => {
+                clone_geometry_collection_node(node)
+            }
+        }
+    }
+
+    fn install_geometry_carry(
+        &self,
+        state: &mut EvaluationState,
+        carry: &ValidatedImmutableGeometryCarry,
+        value: &super::super::geometry_builtin_runtime::GeometryBuiltinRuntimeTarget,
+    ) {
+        self.install_geometry_carry_value(state, &carry.binding_id, &carry.initializer, value);
+    }
+
+    fn install_geometry_carry_value(
+        &self,
+        state: &mut EvaluationState,
+        binding_id: &str,
+        target: &super::super::types::ScalarExpressionResolvedGeometryTarget,
+        value: &super::super::geometry_builtin_runtime::GeometryBuiltinRuntimeTarget,
+    ) {
+        let occurrence = GeometryValueOccurrence {
+            source_statement_id: binding_id.to_owned(),
+            instance_path: Vec::new(),
+            mapped_member_index: None,
+        };
+        state.computed_geometry_values.insert(
+            occurrence.clone(),
+            geometry_builtin_runtime_target_value(value),
+        );
+        state.geometry_value_binders.insert(
+            binding_id.to_owned(),
+            GeometryInputTarget::GeometryValue {
+                occurrence,
+                geometry_type: geometry_type_name(&target.geometry_type),
+                point_key: None,
+            },
+        );
+    }
+
+    fn seed_for_group_carries(
+        &mut self,
         owner_statement_id: &str,
         environment: &mut ForGroupExecutionEnvironment<ScalarEvaluation>,
-        state: &EvaluationState,
+        state: &mut EvaluationState,
+        current_source_order: f64,
     ) -> Result<(), ForGroupExecutionError> {
         for carry in self.immutable_carries_for(owner_statement_id) {
             let initial = self.evaluate_for_group(
@@ -102,14 +167,44 @@ impl ScalarMutationResolver<'_> {
             );
             environment.seed(&carry.binding_id, initial)?;
         }
+        let plan = self.program.immutable_for_groups.get(owner_statement_id);
+        if let Some(plan) = plan {
+            for carry in &plan.collection_carries {
+                self.collection_carry_value_ids.insert(
+                    carry.collection_value_id.clone(),
+                    carry.initializer_value_id.clone(),
+                );
+            }
+            let resolver = self.for_group_binding_resolver(environment);
+            for carry in &plan.geometry_carries {
+                if let Ok(value) = resolve_for_group_geometry_builtin_target(
+                    state,
+                    &resolver,
+                    current_source_order,
+                    &carry.initializer,
+                ) {
+                    self.install_geometry_carry(state, carry, &value);
+                }
+            }
+            for carry in &plan.geometry_collection_carries {
+                if let Some(node) = self.geometry_collection_source_node(
+                    &carry.initializer,
+                    &state.geometry_collection_nodes,
+                ) {
+                    state
+                        .geometry_collection_nodes
+                        .insert(carry.collection_value_id.clone(), node);
+                }
+            }
+        }
         Ok(())
     }
 
     fn commit_for_group_carries(
-        &self,
+        &mut self,
         owner_statement_id: &str,
         environment: &mut ForGroupExecutionEnvironment<ScalarEvaluation>,
-        state: &EvaluationState,
+        state: &mut EvaluationState,
     ) -> Result<(), ForGroupExecutionError> {
         let carries = self.immutable_carries_for(owner_statement_id);
         let mut next_values = Vec::with_capacity(carries.len());
@@ -126,6 +221,86 @@ impl ScalarMutationResolver<'_> {
         }
         for (binding_id, value) in next_values {
             environment.commit(&binding_id, value)?;
+        }
+        let Some(plan) = self.program.immutable_for_groups.get(owner_statement_id) else {
+            return Ok(());
+        };
+        let collection_snapshot = self.collection_carry_value_ids.clone();
+        let collection_next_values = plan
+            .collection_carries
+            .iter()
+            .map(|carry| {
+                (
+                    carry.collection_value_id.clone(),
+                    resolve_collection_carry_snapshot(
+                        &carry.next_value_id,
+                        &collection_snapshot,
+                        &self.program.collection_values,
+                    ),
+                )
+            })
+            .collect::<Vec<_>>();
+        for (value_id, next) in collection_next_values {
+            self.collection_carry_value_ids.insert(value_id, next);
+        }
+
+        let resolver = self.for_group_binding_resolver(environment);
+        let geometry_next_values = plan
+            .geometry_carries
+            .iter()
+            .filter_map(|carry| {
+                let template_element_id = carry
+                    .next
+                    .for_group_template_element_id
+                    .as_deref()
+                    .or_else(|| {
+                        state
+                            .for_group_generated_rows
+                            .iter()
+                            .any(|row| row.template_element_id == carry.next.statement_id)
+                            .then_some(carry.next.statement_id.as_str())
+                    });
+                let resolved = if let Some(template_element_id) = template_element_id {
+                    let row = state
+                        .for_group_generated_rows
+                        .iter()
+                        .rev()
+                        .find(|row| row.template_element_id == template_element_id);
+                    if let Some(row) = row {
+                        let mut target = carry.next.clone();
+                        target.statement_id = row.generated_element_id.clone();
+                        target.statement_index = -1.0;
+                        target.for_group_template_element_id = None;
+                        target.for_group_target_source_order = None;
+                        target.for_group_index = None;
+                        resolve_geometry_builtin_target(state, f64::INFINITY, &target)
+                    } else {
+                        Err(super::super::geometry_builtin_runtime::GeometryBuiltinRuntimeError::CollectionIndexUnavailable)
+                    }
+                } else {
+                    resolve_for_group_geometry_builtin_target(
+                        state,
+                        &resolver,
+                        f64::INFINITY,
+                        &carry.next,
+                    )
+                };
+                resolved.ok().map(|value| (carry.binding_id.clone(), value, carry))
+            })
+            .collect::<Vec<_>>();
+        for (binding_id, value, carry) in geometry_next_values {
+            self.install_geometry_carry_value(state, &binding_id, &carry.next, &value);
+        }
+        let geometry_collection_next_values = plan
+            .geometry_collection_carries
+            .iter()
+            .filter_map(|carry| {
+                self.geometry_collection_source_node(&carry.next, &state.geometry_collection_nodes)
+                    .map(|node| (carry.collection_value_id.clone(), node))
+            })
+            .collect::<Vec<_>>();
+        for (value_id, node) in geometry_collection_next_values {
+            state.geometry_collection_nodes.insert(value_id, node);
         }
         Ok(())
     }
@@ -187,7 +362,15 @@ impl ScalarMutationResolver<'_> {
             iteration_values,
             generated_statements: statements,
         };
-        self.seed_for_group_carries(&owner.owner_statement_id, environment, state)?;
+        let loop_source_order = self
+            .source_order_for_element(element_id)
+            .unwrap_or_default() as f64;
+        self.seed_for_group_carries(
+            &owner.owner_statement_id,
+            environment,
+            state,
+            loop_source_order,
+        )?;
         self.push_loop_conditional_results();
         let outcome = environment.run(&plan, |environment, context| {
             if active_iteration != Some(context.iteration_index) {
@@ -344,6 +527,93 @@ impl ScalarMutationResolver<'_> {
     }
 }
 
+fn resolve_collection_carry_snapshot(
+    value_id: &str,
+    redirects: &HashMap<String, String>,
+    collection_values: &[super::super::program_payload::ValidatedScalarProgramCollection],
+) -> String {
+    let mut current = value_id.to_owned();
+    let mut seen = HashMap::new();
+    loop {
+        if seen.insert(current.clone(), ()).is_some() {
+            break;
+        }
+        if let Some(next) = redirects.get(&current) {
+            current = next.clone();
+            continue;
+        }
+        let Some(value) = collection_values
+            .iter()
+            .find(|value| value.value_id == current)
+        else {
+            break;
+        };
+        let super::super::program_payload::ValidatedScalarProgramCollectionValue::Alias(target) =
+            &value.value
+        else {
+            break;
+        };
+        current = target.clone();
+    }
+    current
+}
+
+fn geometry_type_name(geometry_type: &super::super::types::GeometryInterfaceType) -> String {
+    match geometry_type {
+        super::super::types::GeometryInterfaceType::Point => "point",
+        super::super::types::GeometryInterfaceType::Line => "line",
+        super::super::types::GeometryInterfaceType::Path => "path",
+    }
+    .to_owned()
+}
+
+fn clone_geometry_collection_node(
+    node: &GeometryInputCollectionNode,
+) -> Option<GeometryInputCollectionNode> {
+    match node {
+        GeometryInputCollectionNode::None => Some(GeometryInputCollectionNode::None),
+        GeometryInputCollectionNode::Leaf { targets } => Some(GeometryInputCollectionNode::Leaf {
+            targets: targets
+                .iter()
+                .map(clone_geometry_input_target)
+                .collect::<Option<Vec<_>>>()?,
+        }),
+        GeometryInputCollectionNode::If { .. }
+        | GeometryInputCollectionNode::Match { .. }
+        | GeometryInputCollectionNode::Coalesce { .. } => None,
+    }
+}
+
+fn clone_geometry_input_target(target: &GeometryInputTarget) -> Option<GeometryInputTarget> {
+    match target {
+        GeometryInputTarget::Drawable {
+            element_id,
+            geometry_type,
+            point_key,
+        } => Some(GeometryInputTarget::Drawable {
+            element_id: element_id.clone(),
+            geometry_type: geometry_type.clone(),
+            point_key: point_key.clone(),
+        }),
+        GeometryInputTarget::GeometryValue {
+            occurrence,
+            geometry_type,
+            point_key,
+        } => Some(GeometryInputTarget::GeometryValue {
+            occurrence: occurrence.clone(),
+            geometry_type: geometry_type.clone(),
+            point_key: point_key.clone(),
+        }),
+        GeometryInputTarget::Coordinate { anchor } => Some(GeometryInputTarget::Coordinate {
+            anchor: anchor.clone(),
+        }),
+        GeometryInputTarget::ForGroupOccurrence { .. }
+        | GeometryInputTarget::GeometryValueMap { .. }
+        | GeometryInputTarget::CollectionValue { .. }
+        | GeometryInputTarget::CollectionIndex { .. } => None,
+    }
+}
+
 pub(crate) struct ForGroupExecutionBindingResolver<'resolver, 'program, 'environment> {
     resolver: &'resolver ScalarMutationResolver<'program>,
     environment: &'environment ForGroupExecutionEnvironment<ScalarEvaluation>,
@@ -395,6 +665,83 @@ impl ScalarEvaluationEnvironment for ForGroupExecutionEvaluationEnvironment<'_, 
             target_source_order,
             Some(self.source_order as f64),
             property_type,
+        )
+    }
+
+    fn lookup_geometry_value_property(
+        &self,
+        occurrence: &GeometryValueOccurrence,
+        point_key: Option<&str>,
+        property: &str,
+        target_source_order: f64,
+        property_type: &ScalarType,
+    ) -> ScalarEvaluation {
+        lookup_geometry_value_property(
+            self.state,
+            occurrence,
+            point_key,
+            property,
+            target_source_order,
+            Some(self.source_order as f64),
+            property_type,
+        )
+    }
+
+    fn lookup_geometry_value_binder_property(
+        &self,
+        binder_id: &str,
+        point_key: Option<&str>,
+        property: &str,
+        target_source_order: f64,
+        property_type: &ScalarType,
+    ) -> ScalarEvaluation {
+        lookup_geometry_value_binder_property(
+            self.state,
+            binder_id,
+            point_key,
+            property,
+            target_source_order,
+            Some(self.source_order as f64),
+            property_type,
+        )
+    }
+
+    fn lookup_for_group_geometry_property(
+        &self,
+        template_element_id: &str,
+        index: Option<&super::super::types::TypedScalarExpression>,
+        point_key: Option<&str>,
+        property: &str,
+        target_source_order: f64,
+        property_type: &ScalarType,
+    ) -> ScalarEvaluation {
+        lookup_for_group_geometry_property(
+            self.state,
+            self.resolver,
+            ForGroupGeometryPropertyRequest {
+                template_element_id,
+                index,
+                point_key,
+                property,
+                target_source_order,
+                current_source_order: Some(self.source_order as f64),
+                property_type,
+            },
+        )
+    }
+
+    fn lookup_geometry_builtin_target(
+        &self,
+        target: &super::super::types::ScalarExpressionResolvedGeometryTarget,
+    ) -> Result<
+        super::super::geometry_builtin_runtime::GeometryBuiltinRuntimeTarget,
+        super::super::geometry_builtin_runtime::GeometryBuiltinRuntimeError,
+    > {
+        resolve_for_group_geometry_builtin_target(
+            self.state,
+            self.resolver,
+            self.source_order as f64,
+            target,
         )
     }
 }

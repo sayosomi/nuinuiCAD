@@ -1,0 +1,119 @@
+import { describe, expect, it } from "vitest";
+import { compileDslDocument } from "@nuinuicad/nui-language";
+import { parseDsl } from "@nuinuicad/nui-language";
+import { collectInitializerOccurrences, collectSiteBatchOccurrences } from "@nuinuicad/nui-language";
+
+// Task 37's completion condition requires that every reference Task 36's
+// typedDependencyGraph already knows about has a matching rename occurrence
+// with an exact span - otherwise Task 38 could not build an atomic patch
+// from this task's output alone. This test exercises every surviving
+// TypedDependencyKind edge kind in one document.
+const source = [
+  "nui 1",
+  "const base: number = 1",
+  "const derived: number = @base",
+  "const counter: number = @derived + 1",
+  "const flag: boolean = true",
+  "for i in range(min: 0, max: 0, step: 1, showGenerated: @flag) {",
+  "}",
+  'text T = label(text: "${@base}", anchor: none, size: 3)'
+].join("\n");
+
+const compile = () => {
+  const parsed = parseDsl(source);
+  expect(parsed.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+  const assignedStatementIds = new Map(parsed.statements.map((_, index) => [index, `statement:,test:${index}`]));
+  const compiled = compileDslDocument(source, { assignedStatementIds, preparsed: parsed });
+  expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+  return compiled;
+};
+
+describe("typed rename occurrence coverage against Task 36's dependency graph", () => {
+  it("keeps condition and both value-if branch references in source order", () => {
+    const valueIfSource = [
+      "nui 1",
+      "const flag: boolean = true",
+      "const thenValue: number = 10",
+      "const elseValue: number = 20",
+      "const result: number = if (@flag) { @thenValue } else { @elseValue }"
+    ].join("\n");
+    const parsed = parseDsl(valueIfSource);
+    const compiled = compileDslDocument(valueIfSource, {
+      preparsed: parsed,
+      assignedStatementIds: new Map(parsed.statements.map((_, index) => [index, `statement:value-if:${index}`]))
+    });
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const occurrences = collectInitializerOccurrences(compiled.scalarProgram, compiled.bindingAnalysis!.catalog)
+      .filter((occurrence) => occurrence.initializerOwner?.fromBindingId === compiled.scalarProgram!.statements.at(-1)!.bindingId);
+    const initializerSource = "const result: number = if (@flag) { @thenValue } else { @elseValue }";
+
+    expect(occurrences.map((occurrence) => occurrence.currentName)).toEqual(["flag", "thenValue", "elseValue"]);
+    expect(occurrences.map((occurrence) => initializerSource.slice(occurrence.span.start, occurrence.span.end))).toEqual([
+      "flag",
+      "thenValue",
+      "elseValue"
+    ]);
+  });
+
+  it("has a matching rename occurrence for every resolved typed dependency edge, across all four edge kinds", () => {
+    const compiled = compile();
+    const graph = compiled.typedDependencyGraph!;
+    expect(graph.edges.length).toBeGreaterThan(0);
+
+    const occurrences = [
+      ...collectInitializerOccurrences(compiled.scalarProgram, compiled.bindingAnalysis!.catalog),
+      ...collectSiteBatchOccurrences({
+        scopeIndex: compiled.bindingAnalysis!.catalog.scopeIndex,
+        statements: compiled.statements,
+        propertyBindings: compiled.propertyBindings,
+        textTemplates: compiled.textTemplates
+      })
+    ];
+
+    const edgeKindsSeen = new Set<string>();
+    for (const edge of graph.edges) {
+      // A clean, resolved dependency - the only kind of edge a rename
+      // occurrence can meaningfully correspond to (missing/invalid/late/
+      // disabled edges point at problems that predate any candidate rename).
+      if (edge.reason !== undefined) continue;
+      if (!edge.span) continue;
+      edgeKindsSeen.add(edge.kind);
+      // Task 36 edges carry the whole `@name` token span (including `@`),
+      // while a rename occurrence's span is deliberately the bare identifier
+      // only (Task 38 must splice just the name, keeping `@` intact) - the
+      // two always share the same END offset regardless of kind, so that is
+      // the correct coverage check here, not exact span equality.
+      const matching = occurrences.find(
+        (occurrence) => occurrence.kind === edge.kind && occurrence.span.end === edge.span!.end
+      );
+      expect(matching, `no rename occurrence covers ${edge.kind} edge at span ${JSON.stringify(edge.span)}`).toBeDefined();
+    }
+    expect(edgeKindsSeen).toEqual(new Set(["initializer", "property-binding", "template-hole"]));
+  });
+
+  it("uses BindingCatalog statement identity for Module-aware initializer sites", () => {
+    const moduleSource = [
+      "nui 1",
+      "const width: number = 10",
+      "const result: number = @width + 5",
+      "module Measure(input: number) {",
+      "  const local: number = @input + 1",
+      "}",
+      "instance Call = Measure(input: @width)"
+    ].join("\n");
+    const parsed = parseDsl(moduleSource);
+    const compiled = compileDslDocument(moduleSource, {
+      preparsed: parsed,
+      assignedStatementIds: new Map(parsed.statements.map((_, index) => [index, `statement:module:${index}`]))
+    });
+    const catalog = compiled.bindingAnalysis!.catalog;
+    const result = catalog.bindings.find((binding) => binding.name === "result")!;
+    const scalarStatement = compiled.scalarProgram!.statements.find((statement) => statement.bindingId === result.id)!;
+    const occurrence = collectInitializerOccurrences(compiled.scalarProgram, catalog)
+      .find((candidate) => candidate.initializerOwner?.fromBindingId === result.id && candidate.currentName === "width");
+
+    expect(occurrence).toBeDefined();
+    expect(occurrence!.site.statementIndex).toBe(result.statementIndex);
+    expect(occurrence!.site.statementIndex).not.toBe(scalarStatement.sourceOrder);
+  });
+});

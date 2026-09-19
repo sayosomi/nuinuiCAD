@@ -410,7 +410,8 @@ export const createDocumentLinearScalarBindingResolver = (
     evaluator.resolveCurrent,
     resolveGeometryProperty,
     resolveGeometryTarget,
-    resolveGeometryCollectionLength
+    resolveGeometryCollectionLength,
+    evaluator.resolveCollectionValueId
   );
   const evaluateOccurrenceIndex: OccurrenceIndexResolver = (expression, sourceOrder) => evaluateTypedExpression(expression, {
     lookupBinding: evaluator.resolveCurrent,
@@ -424,10 +425,10 @@ export const createDocumentLinearScalarBindingResolver = (
     resolveBinding: evaluator.resolveCurrent,
     ...(collectionResolver ? {
       resolveCollectionIndex: (collectionValueId, index, elementType, collectionLength, targetSourceOrder, sourceOrder) =>
-        collectionResolver.environmentFor(sourceOrder).lookupCollectionIndex!(collectionValueId, index, elementType, collectionLength, targetSourceOrder),
+        evaluator.resolveCollectionIndex(collectionValueId, index, elementType, collectionLength, targetSourceOrder, sourceOrder),
       resolveCollectionRecordField: (collectionValueId, index, field, sourceOrder) =>
         collectionResolver.recordFieldFor(collectionValueId, index, field, sourceOrder),
-      resolveCollectionLength: (collectionValueId, sourceOrder) => collectionResolver.environmentFor(sourceOrder).lookupCollectionLength!(collectionValueId)
+      resolveCollectionLength: (collectionValueId, sourceOrder) => evaluator.resolveCollectionLength(collectionValueId, sourceOrder)
     } : {}),
     ...(resolveGeometryCollectionLength ? { resolveGeometryCollectionLength } : {}),
     finalize: evaluator.finalize,

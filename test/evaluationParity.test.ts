@@ -1923,4 +1923,36 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
 
     expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
   }, 30000);
+
+  it("runs scalar, collection, and geometry immutable carries through the Rust boundary", () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 2, y: 0)",
+      "const numsA: number[] = [1, 2]",
+      "const numsB: number[] = [3, 4]",
+      "const points: point[] = [@A, @B]",
+      "for i in range(min: 0, max: 1, step: 1) carry a: number[] = @numsA carry b: number[] = @numsB carry cursor: point = @A carry path: point[] = @points {",
+      "  line Edge = segment(start: @cursor, end: @B)",
+      "  next a = @b",
+      "  next b = @a",
+      "  next cursor = @Edge.end",
+      "  next path = @path",
+      "}",
+      "const swapped: number = @a[0] + @b[1]",
+      "const cursorX: number = @cursor.x",
+      "const pointCount: number = @path.length"
+    ].join("\n"));
+    const options = optionsFor(fixture);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustOptions(repoRoot, fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+    expectScalarNumberClose(scalarBindingFor(fixture, tsPayload, "swapped"), 5);
+    expectScalarNumberClose(scalarBindingFor(fixture, rustPayload, "swapped"), 5);
+    expectScalarNumberClose(scalarBindingFor(fixture, tsPayload, "cursorX"), 2);
+    expectScalarNumberClose(scalarBindingFor(fixture, rustPayload, "cursorX"), 2);
+    expectScalarNumberClose(scalarBindingFor(fixture, tsPayload, "pointCount"), 2);
+    expectScalarNumberClose(scalarBindingFor(fixture, rustPayload, "pointCount"), 2);
+  }, 30000);
 });

@@ -27,7 +27,7 @@ export const buildForGroupExecutionOwners = (
   }
   for (const plan of graph.immutableForGroups?.values() ?? []) {
     const executionOwner = plan.executionOwner;
-    if (!executionOwner || owners.has(plan.ownerStatementId)) continue;
+    if (prejoinedOwnerStatementIds.has(plan.ownerStatementId) || !executionOwner || owners.has(plan.ownerStatementId)) continue;
     owners.set(plan.ownerStatementId, {
       kind: "forGroup",
       ownerStatementId: plan.ownerStatementId,

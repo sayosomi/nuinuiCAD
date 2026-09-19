@@ -305,6 +305,7 @@ export const evaluateElements = (
     !options.sourceExecutionPositionByElementId && !options.scalarExecutionPositionByElementId) {
     throw new Error("evaluateElements: binding mutation requires compiled source execution positions");
   }
+  const geometryCollectionNodesByValueId = new Map(options.geometryCollectionNodesByValueId ?? []);
   const geometryRuntime = {
     computedGeometry,
     computedGeometryValues,
@@ -313,7 +314,7 @@ export const evaluateElements = (
     activities,
     forGroupGeneratedRows,
     forGroupExpectedOccurrenceCountByTemplateId,
-    ...(options.geometryCollectionNodesByValueId ? { geometryCollectionNodesByValueId: options.geometryCollectionNodesByValueId } : {})
+    geometryCollectionNodesByValueId
   };
   const linearMutationResolver = linearMutationEnabled
     ? createDocumentLinearScalarBindingResolver(options.bindingVersions!, geometryRuntime, options.scalarProgram?.collectionValues)
@@ -1937,6 +1938,34 @@ export const evaluateElements = (
           if (initial) geometryCarryValues.set(carry.bindingId, initial);
         }
       };
+      const geometryCollectionSource = (
+        source: import("@nuinuicad/nui-language").ImmutableGeometryCollectionSource,
+        nodes: ReadonlyMap<string, import("../types/geometry").GeometryInputCollectionNode>
+      ) => source.kind === "node" ? source.node : nodes.get(source.valueId);
+      const initializeGeometryCollectionCarries = () => {
+        for (const carry of immutableForGroupPlan?.geometryCollectionCarries ?? []) {
+          const node = geometryCollectionSource(carry.initializer, geometryCollectionNodesByValueId);
+          if (node) geometryCollectionNodesByValueId.set(carry.collectionValueId, node);
+        }
+      };
+      const commitGeometryCollectionCarries = () => {
+        const carries = immutableForGroupPlan?.geometryCollectionCarries ?? [];
+        if (carries.length === 0) return;
+        const snapshot = new Map(geometryCollectionNodesByValueId);
+        const nextNodes = new Map<string, import("../types/geometry").GeometryInputCollectionNode>();
+        for (const carry of carries) {
+          const node = geometryCollectionSource(carry.next, snapshot);
+          if (node) nextNodes.set(carry.collectionValueId, node);
+          else errors.push({
+            elementId: element.id,
+            elementName: element.name,
+            missingDependencyId: carry.bindingId,
+            missingDependencyName: carry.bindingId,
+            message: `${element.name} の carry next collection を評価できません。`
+          });
+        }
+        for (const [valueId, node] of nextNodes) geometryCollectionNodesByValueId.set(valueId, node);
+      };
       const commitGeometryCarries = () => {
         if (!immutableForGroupPlan?.geometryCarries?.length) return;
         const snapshot = new Map(geometryCarryValues);
@@ -1960,6 +1989,7 @@ export const evaluateElements = (
         for (const [bindingId, value] of nextValues) geometryCarryValues.set(bindingId, value);
       };
       initializeGeometryCarries();
+      initializeGeometryCollectionCarries();
       if (linearMutationResolver && mutationOwner) {
         if (!options.statementInfoByElementId) {
           throw new Error("evaluateElements: forGroup mutation requires compiled generated statement mapping");
@@ -1972,7 +2002,10 @@ export const evaluateElements = (
           if (sourceOrder === undefined) throw new Error(`evaluateElements: no compiled execution mapping for forGroup template ${templateElement.id}`);
           return { kind: "element" as const, sourceOrder, templateElementId: templateElement.id };
         });
-        statements.push({ kind: "exit", sourceOrder: mutationOwner.exitSourceOrder });
+        statements.push({
+          kind: "exit",
+          sourceOrder: immutableForGroupPlan?.executionOwner?.exitSourceOrder ?? mutationOwner.exitSourceOrder
+        });
         let expandedIteration = -1;
         let generatedByTemplateId = new Map<ElementId, CadElement>();
         let rowByTemplateId = new Map<ElementId, ForGroupGeneratedRow>();
@@ -1988,11 +2021,12 @@ export const evaluateElements = (
           ...(iterationValueOverrides ? { iterationValueOverrides } : {}),
           ...(iterationRecordFieldOverrides ? { iterationRecordFieldOverrides } : {}),
           statements,
-          ...(immutableForGroupPlan?.geometryCarries?.length ? {
-            onIterationComplete: (_frame, context) => {
+        ...(immutableForGroupPlan?.geometryCarries?.length || immutableForGroupPlan?.geometryCollectionCarries?.length ? {
+          onIterationComplete: (_frame, context) => {
               const previousStatementForGeometryBinder = activeStatementForGeometryBinder;
               activeStatementForGeometryBinder = iterationGeometryMembersForLoop?.[context.iterationIndex] ?? null;
               try {
+                commitGeometryCollectionCarries();
                 return commitGeometryCarries();
               } finally {
                 activeStatementForGeometryBinder = previousStatementForGeometryBinder;
