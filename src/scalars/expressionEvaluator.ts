@@ -4,7 +4,7 @@
 // References resolve solely by the stable bindingId already attached to each
 // reference node; scope, shadowing, declaration order, && binding
 // eligibility are established before evaluation and are never reinterpreted
-// here. Document declaration order, `set` versions, control flow, property
+// here. Document declaration order, immutable carry state, control flow, property
 // wiring, && Rust integration are owned by the surrounding document/runtime
 // layers rather than this expression evaluator.
 
@@ -217,7 +217,7 @@ const evaluateGeometryProperty = (
   if (node.type.kind !== "number" && node.type.kind !== "choice") {
     return { status: "error", type: node.type, issueCode: "evaluation-geometry-property-unavailable" };
   }
-  if ((!node.elementId && !node.geometryValueOccurrence && !node.geometryValueBinderId && !node.forGroupOccurrenceTemplateElementId) || node.targetSourceOrder === null || !environment.lookupGeometryProperty) {
+  if ((!node.elementId && !node.geometryValueOccurrence && !node.geometryValueBinderId && !node.forGroupOccurrenceTemplateElementId && !node.geometryCarryBindingId) || node.targetSourceOrder === null || !environment.lookupGeometryProperty) {
     return { status: "error", type: node.type, issueCode: "evaluation-geometry-property-unavailable" };
   }
   const result = environment.lookupGeometryProperty(node);

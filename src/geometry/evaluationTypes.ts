@@ -396,12 +396,12 @@ export type EvaluationResult = {
   forGroupEffectiveShowGeneratedIds?: Set<ElementId>;
   /**
    * Task 20: version-0 TS reference evaluation of the compiled scalar
-   * program's const/let declarations, keyed by BindingId. Present only when the source document had a non-empty
+   * program's const declarations, keyed by BindingId. Present only when the source document had a non-empty
    * `EvaluateElementsOptions.scalarProgram` && only on the TS reference
    * evaluation path (`evaluateElementsWithRust` does not run `evaluateElements`'s loop at all, so Rust output has no equivalent field
    * until Task 21).
    */
   computedScalarBindings?: ReadonlyMap<BindingId, ScalarEvaluation>;
-  /** Task 31: TS-only per-version history, present only for linear-set documents. */
+  /** TS-only declaration execution history retained for inspector projections. */
   computedScalarBindingVersions?: ReadonlyMap<BindingVersionId, BindingVersionRuntimeHistory>;
 };

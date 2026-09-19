@@ -25,7 +25,6 @@ import {
 } from "./moduleGeometryInterfaces";
 import { parseDslTypedDeclarationStatement } from "./dslDeclarationParser";
 import { scalarTypeOfDslValueType } from "./dslValueTypes";
-import { setCompletionContextAt } from "./dslSetCompletionContext";
 import type { DslSpan, DslModuleParameterType } from "./dslTypes";
 import { resolveSourceLexicalDeclaration } from "./sourceLexicalNamespaceIndex";
 import {
@@ -186,16 +185,13 @@ const sourceAnchorFor = (
   const namespaceDeclaration = namespace?.allDeclarations.find((candidate) =>
     candidate.statementIndex === statementIndex
   );
-  const setAnalysis = compiled.setStatements?.get(statementIndex);
   const statementId = oneExactString([
     compiled.statementMap?.statementIdByStatementIndex?.get(statementIndex),
     namespaceDeclaration?.statementId,
-    setAnalysis?.statementId,
     transformationId
   ]);
   const scopeId = oneExactString([
     namespace?.scopeIndex.scopeOfStatement.get(statementIndex),
-    setAnalysis?.scopeId
   ]) ?? namespace?.scopeIndex.rootScopeId ?? null;
   if (!statementId || !scopeId) return null;
 
@@ -653,33 +649,6 @@ const typedDeclarationTarget = (
     : null;
 };
 
-const setNumericTarget = (
-  position: number,
-  exact: ExactPosition,
-  compiled: CompiledDslDocument,
-  anchor: DslReferencePickSourceAnchor
-): DslReferencePickTarget | null => {
-  const context = setCompletionContextAt(exact.statement.logicalText, exact.logicalPosition);
-  if (context?.kind !== "rhs") return null;
-  const analysis = compiled.setStatements?.get(anchor.statementIndex);
-  if (!analysis || analysis.statementId !== anchor.statementId || analysis.scopeId !== anchor.scopeId) return null;
-  const targetBinding = compiled.bindingAnalysis?.catalog.bindingsById.get(analysis.targetBindingId);
-  if (targetBinding?.declaredType?.kind !== "number") return null;
-  const numeric = numericOperandTarget(exact.statement.logicalText, exact.logicalPosition, context.expressionSpan);
-  if (!numeric) return null;
-  const range = physicalRangeForLogical(exact, numeric.range, position);
-  if (!range) return null;
-  const activationRange = numeric.activationRange
-    ? physicalRangeForLogical(exact, numeric.activationRange, position)
-    : range;
-  return activationRange
-    ? targetFromExpectation(anchor, numeric.expectation, range, {
-        activationRange,
-        numericProperty: numeric.numericProperty
-      })
-    : null;
-};
-
 const sameRange = (
   left: DslReferencePickRange,
   right: DslReferencePickRange
@@ -754,8 +723,7 @@ const targetCandidateAt = (
   }
 
   const target = emptyConstructionTarget(position, exact, compiled, anchor) ??
-    typedDeclarationTarget(position, exact, anchor) ??
-    setNumericTarget(position, exact, compiled, anchor);
+    typedDeclarationTarget(position, exact, anchor);
   return target
     ? { target, region: lineRangeAt(source.normalizedSource, position) }
     : null;

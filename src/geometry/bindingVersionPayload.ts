@@ -1,11 +1,10 @@
-// Task 32's Rust mutation boundary. It serializes Task 30's completed graph
-// verbatim enough for Rust to validate/evaluate it, but never reparses source,
-// resolves names, || synthesizes any identity.
+// Host-neutral Rust execution boundary. It serializes compiler-owned binding
+// and control metadata without reparsing source or resolving names.
 import type { CadElement, ElementId } from "../types/geometry";
 import type { BindingVersion, BindingVersionGraph } from "@nuinuicad/nui-language";
 import type { ScalarProgramCollection } from "@nuinuicad/nui-language";
 import { buildConditionalMutationOwners } from "../scalars/conditionalMutationControl";
-import { buildForGroupMutationOwners } from "../scalars/forGroupMutationControl";
+import { buildForGroupExecutionOwners } from "../scalars/forGroupMutationControl";
 
 export type BindingMutationElementSourceOrder = {
   elementId: ElementId;
@@ -30,16 +29,49 @@ export type RustBindingMutationPayload = {
   evaluationLimitSourceOrder?: number;
   postStopBindingIds?: readonly string[];
   collectionValues?: readonly ScalarProgramCollection[];
+  immutableForGroups?: readonly {
+    ownerStatementId: string;
+    carries: readonly {
+      bindingId: string;
+      nextBindingId?: string;
+      initializer: unknown;
+      declaredType: unknown;
+      nextExpression: unknown;
+      nextSourceOrder: number;
+    }[];
+    geometryCarries?: readonly {
+      bindingId: string;
+      declaredType: unknown;
+      initializerTarget: unknown;
+      nextTarget: unknown;
+      nextSourceOrder: number;
+    }[];
+    collectionCarries?: readonly {
+      bindingId: string;
+      collectionValueId: string;
+      initializerValueId: string;
+      nextValueId: string;
+      declaredType: unknown;
+      nextSourceOrder: number;
+    }[];
+    geometryCollectionCarries?: readonly {
+      bindingId: string;
+      collectionValueId: string;
+      initializer: unknown;
+      next: unknown;
+      declaredType: unknown;
+      nextSourceOrder: number;
+    }[];
+  }[];
 };
 
 type StatementInfo = { statementIndex: number };
 
 const versionPayload = (version: BindingVersion): Record<string, unknown> => ({
   versionId: version.id,
-  statementId: version.kind === "set" ? version.setStatementId : version.id,
+  statementId: version.id,
   kind: version.kind,
   bindingId: version.bindingId,
-  ...(version.kind === "set" ? { targetBindingId: version.bindingId } : {}),
   bindingKind: version.bindingKind,
   declaredType: version.declaredType,
   sourceOrder: version.sourceOrder,
@@ -48,7 +80,7 @@ const versionPayload = (version: BindingVersion): Record<string, unknown> => ({
   control: version.control,
   ...(version.predecessorId === undefined ? {} : { predecessorId: version.predecessorId }),
   initialState: version.initialState,
-  ...(version.kind === "declare" ? { initializer: version.initializer } : { expression: version.expression })
+  ...(version.initializer ? { initializer: version.initializer } : {})
 });
 
 /**
@@ -104,7 +136,7 @@ export const buildRustBindingMutationPayload = (
         : [])
     ],
     forGroupOwners: [
-      ...buildForGroupMutationOwners(
+      ...buildForGroupExecutionOwners(
         graph,
         elements,
         statementInfoByElementId,
@@ -136,5 +168,49 @@ export const buildRustBindingMutationPayload = (
       ? { postStopBindingIds: [...graph.postStopBindingIds] }
       : {}),
     ...(collectionValues?.length ? { collectionValues } : {})
+    ,...(graph.immutableForGroups?.size
+      ? {
+          immutableForGroups: [...graph.immutableForGroups.values()].map((plan) => ({
+            ownerStatementId: plan.ownerStatementId,
+            carries: plan.carries.map((carry) => ({
+              bindingId: carry.bindingId,
+              ...(carry.nextBindingId ? { nextBindingId: carry.nextBindingId } : {}),
+              initializer: carry.initializer,
+              declaredType: carry.declaredType,
+              nextExpression: carry.nextExpression,
+              nextSourceOrder: carry.nextSourceOrder
+            })),
+            ...(plan.geometryCarries?.length ? {
+              geometryCarries: plan.geometryCarries.map((carry) => ({
+                bindingId: carry.bindingId,
+                declaredType: carry.declaredType,
+                initializerTarget: carry.initializerTarget,
+                nextTarget: carry.nextTarget,
+                nextSourceOrder: carry.nextSourceOrder
+              }))
+            } : {}),
+            ...(plan.collectionCarries?.length ? {
+              collectionCarries: plan.collectionCarries.map((carry) => ({
+                bindingId: carry.bindingId,
+                collectionValueId: carry.collectionValueId,
+                initializerValueId: carry.initializerValueId,
+                nextValueId: carry.nextValueId,
+                declaredType: carry.declaredType,
+                nextSourceOrder: carry.nextSourceOrder
+              }))
+            } : {}),
+            ...(plan.geometryCollectionCarries?.length ? {
+              geometryCollectionCarries: plan.geometryCollectionCarries.map((carry) => ({
+                bindingId: carry.bindingId,
+                collectionValueId: carry.collectionValueId,
+                initializer: carry.initializer,
+                next: carry.next,
+                declaredType: carry.declaredType,
+                nextSourceOrder: carry.nextSourceOrder
+              }))
+            } : {})
+          }))
+        }
+      : {})
   };
 };

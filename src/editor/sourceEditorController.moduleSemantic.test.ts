@@ -278,7 +278,7 @@ describe("SourceEditorController module semantic target priority", () => {
     controller.destroy();
   });
 
-  it("unions Module completion into new template, set, and numeric body statements", async () => {
+  it("unions Module completion into new template, const, and numeric body statements", async () => {
     const cases = [
       {
         insert: `\n  text Label = label(text: "width=\${@}", anchor: (0, 0))`,
@@ -286,8 +286,8 @@ describe("SourceEditorController module semantic target priority", () => {
         expected: "width"
       },
       {
-        insert: "\n  set first = @",
-        cursorOffset: "\n  set first = @".length,
+        insert: "\n  const second: number = @",
+        cursorOffset: "\n  const second: number = @".length,
         expected: "width"
       },
       {

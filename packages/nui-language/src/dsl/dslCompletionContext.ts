@@ -33,9 +33,7 @@ import { declaredTypeCompletionContextAt } from "./dslDeclaredTypeCompletionCont
 import { numericTypeOptionCompletionContextAt } from "./dslNumericTypeOptionsCompletionContext";
 import { propertyScalarValueCompletionContext, type PropertyScalarValueCompletionContext } from "./dslPropertyScalarCompletionContext";
 import { templateHoleContentSpanAt } from "./dslTemplateHoleCompletionContext";
-import { setCompletionContextAt } from "./dslSetCompletionContext";
 import { dslModuleCompletionContextAt, dslModuleParameterTypeCompletionContextAt } from "./dslModuleCompletionContext";
-import type { TypedGeometryPropertyCompletionContext } from "./dslTypedGeometryPropertyCompletionContext";
 import { scalarExpressionCompletionContextAt, type ScalarExpressionCompletionContext } from "../scalars/scalarExpressionPositionClassifier";
 import type { DslSpan } from "./dslTypes";
 import type { ScalarType } from "../scalars/types";
@@ -47,7 +45,7 @@ export type DslCompletionContext =
   | { kind: "argument"; from: number; to: number; spec: DslConstructionSpec; usedArgumentNames: ReadonlySet<string> }
   | { kind: "parameter"; from: number; to: number; parameter: DslCompletionParameter }
   | { kind: "elementParameter"; from: number; to: number; elementToken: string; tokenStart: number; sigil: boolean; expectedScalarType: ScalarType }
-  | { kind: "declaredType"; from: number; to: number; bindingKind: "const" | "let" }
+  | { kind: "declaredType"; from: number; to: number; bindingKind: "const" }
   | { kind: "typedInitializer"; from: number; to: number; declaredType: ScalarType; positionContext: ScalarExpressionCompletionContext }
   | { kind: "geometryValueInitializer"; from: number; to: number; declaredType: "point" | "line" | "path" }
   | { kind: "recordInitializer"; from: number; to: number; initializerFrom: number; recordTypeName: string; fieldLabel: boolean; providedFieldNames: readonly string[] }
@@ -56,8 +54,6 @@ export type DslCompletionContext =
   | { kind: "numericTypeOption"; from: number; to: number; options: readonly ("step" | "min" | "max")[] }
   | { kind: "propertyScalarValue"; from: number; to: number; propertyContext: PropertyScalarValueCompletionContext }
   | { kind: "templateHole"; from: number; to: number; contentSpan: DslSpan }
-  | { kind: "setTarget"; from: number; to: number }
-  | { kind: "setRhs"; from: number; to: number; expressionSpan: DslSpan; targetName: string; geometryProperty?: TypedGeometryPropertyCompletionContext }
   | { kind: "moduleCallee"; from: number; to: number }
   | { kind: "moduleParameterType"; from: number; to: number }
   | { kind: "moduleArgumentLabel"; from: number; to: number; argumentIndex: number }
@@ -505,20 +501,6 @@ export const dslCompletionContextAt = (
       declaredType: typedDeclarationContext.declaredType,
       positionContext: typedDeclarationContext.positionContext
     };
-  }
-
-  const setContext = setCompletionContextAt(code, pos);
-  if (setContext) {
-    return setContext.kind === "target"
-      ? { kind: "setTarget", from: setContext.from, to: setContext.to }
-      : {
-        kind: "setRhs",
-        from: setContext.from,
-        to: setContext.to,
-        expressionSpan: setContext.expressionSpan,
-        targetName: setContext.targetName,
-        ...(setContext.geometryProperty ? { geometryProperty: setContext.geometryProperty } : {})
-      };
   }
 
   const statement = dslLineElementStatement(lineText);

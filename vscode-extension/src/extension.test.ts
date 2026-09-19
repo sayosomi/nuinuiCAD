@@ -5020,8 +5020,8 @@ describe("VS Code compiler diagnostics lifecycle", () => {
   it("publishes invalid choice literals for typed declarations", () => {
     const source = [
       "nui 1",
-      "let width: number = 10",
-      "let mode: choice(front, back) = side"
+      "const width: number = 10",
+      "const mode: choice(front, back) = center"
     ].join("\n");
     const document = documentFor("/tmp/invalid-choice.nui", "file:///tmp/invalid-choice.nui", source);
     setup(false, null, [document]);
@@ -5040,8 +5040,8 @@ describe("VS Code compiler diagnostics lifecycle", () => {
       source: "nuinuiCAD",
       severity: 0,
       range: {
-        start: { line: 2, character: 32 },
-        end: { line: 2, character: 36 }
+        start: { line: 2, character: 34 },
+        end: { line: 2, character: 40 }
       }
     });
     expect(published.filter((item) => item.code === "invalid-choice-literal")).toHaveLength(1);

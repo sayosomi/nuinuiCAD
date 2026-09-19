@@ -133,16 +133,15 @@ describe("record nominal semantic analysis", () => {
     expect(namespace.diagnostics.filter((diagnostic) => diagnostic.code === "record-nominal-type-mismatch")).toHaveLength(1);
   });
 
-  it("rejects record let/set and keeps whole records out of the scalar lexical catalog", () => {
+  it("keeps whole records out of the scalar lexical catalog", () => {
     const { namespace } = analyze([
       "nui 1",
       "record Pair(x: number)",
-      "let pair: Pair = Pair(x: 1)",
-      "set pair = Pair(x: 2)"
+      "const pair: Pair = Pair(x: 1)"
     ].join("\n"));
     const codes = namespace.diagnostics.map((diagnostic) => diagnostic.code);
 
-    expect(codes).toEqual(expect.arrayContaining(["record-let-unsupported", "record-set-unsupported"]));
+    expect(codes).not.toEqual(expect.arrayContaining(["record-let-unsupported", "record-set-unsupported"]));
     expect(namespace.allDeclarations.find((declaration) => declaration.name === "pair")?.kind).toBe("recordValue");
     expect(namespace.scopeIndex.allDeclarations.map((declaration) => declaration.name)).not.toContain("pair");
   });
@@ -178,12 +177,11 @@ describe("record nominal semantic analysis", () => {
       "module Copy(input: Pair) {",
       "  const input: number = 1",
       "  const copy: Pair = @input",
-      "  set input = 2",
+      "  const other: number = 2",
       "}"
     ].join("\n"));
 
     expect(namespace.diagnostics.map((diagnostic) => diagnostic.code)).toContain("record-reference-not-record");
-    expect(namespace.diagnostics.map((diagnostic) => diagnostic.code)).not.toContain("record-set-unsupported");
     expect(records.valuesByStatementId.get("stable-4")?.reference).toMatchObject({
       name: "input",
       targetTypeIdentity: null

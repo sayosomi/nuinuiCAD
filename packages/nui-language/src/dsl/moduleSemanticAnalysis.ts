@@ -162,7 +162,7 @@ type DefinitionState = {
 
 type ModuleLexicalLookup =
   | { kind: "parameter"; definition: DefinitionState; parameter: { parameter: ResolvedModuleParameter; index: number } }
-  | { kind: "iteration"; statementId: StatementIdentity; statementIndex: number; name: string }
+  | { kind: "iteration"; statementId: StatementIdentity; statementIndex: number; name: string; valueType?: DslValueType }
   | SourceLexicalLookup;
 
 type ReferenceResolution = ModuleScalarReferenceResolution & {
@@ -1013,7 +1013,19 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           })
         };
       }
-      return { target: { ...lookup }, type: { kind: "number" }, resolution: "resolved" };
+      const type = scalarExpressionTypeOfDslValueType(lookup.valueType ?? null);
+      if (!type) {
+        return {
+          target: null,
+          type: null,
+          resolution: "invalid",
+          diagnostic: issue("module-record-value-in-scalar", { start: 0, end: 0 }, `iteration binder「${name}」はscalar expression では参照できません。collection element の field を指定してください。`, {
+            relatedSources: relatedForLookup(lookup),
+            presentation: { key: "diagnostic.module-record-value-in-scalar", parameters: { name } }
+          })
+        };
+      }
+      return { target: { ...lookup }, type, resolution: "resolved" };
     }
     if (lookup.kind === "undefined") return { target: null, type: null, resolution: "undefined", diagnostic: issue("module-undefined-reference", { start: 0, end: 0 }, `未定義のmodule scalar「${name}」を参照しています。`, { presentation: { key: "diagnostic.module-undefined-reference", parameters: { name } } }) };
     if (lookup.kind === "forward") return { target: null, type: null, resolution: "forward", diagnostic: issue("module-forward-reference", { start: 0, end: 0 }, `module scalar「${name}」はこの位置より後で宣言されています。`, { relatedSources: relatedForLookup(lookup), presentation: { key: "diagnostic.module-forward-reference", parameters: { name } } }) };
@@ -1023,6 +1035,44 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     const declaration = lookup.declaration;
     const declarationOwner = moduleOwnerIndexOf(statements, declaration.statementIndex);
     const declarationRelated = relatedForDeclaration(declaration);
+    if (declaration.kind === "carry" && declaration.statement.kind === "element") {
+      const carryIndex = declaration.statement.forCarries?.findIndex((candidate) => candidate.name === declaration.name) ?? -1;
+      const carry = carryIndex >= 0 ? declaration.statement.forCarries?.[carryIndex] : undefined;
+      const type = carry ? scalarExpressionTypeOfDslValueType(dslRequiredValueTypeOf(carry.valueType)) : null;
+      if (boundaryOwnerIndex !== null && declarationOwner !== boundaryOwnerIndex) {
+        return {
+          target: null,
+          type: null,
+          resolution: "outerCapture",
+          diagnostic: issue("module-outer-capture", declaration.nameSpan ?? declaration.statement.keywordSpan, `module body から outer scalar「${name}」を暗黙 capture できません。`, {
+            relatedSources: declarationRelated,
+            presentation: { key: "diagnostic.module-outer-capture", parameters: { name } }
+          })
+        };
+      }
+      if (!type || carryIndex < 0) {
+        return {
+          target: null,
+          type: null,
+          resolution: "invalid",
+          diagnostic: issue("module-record-value-in-scalar", declaration.nameSpan ?? declaration.statement.keywordSpan, `carry「${name}」はscalar expressionでは参照できません。`, {
+            relatedSources: declarationRelated,
+            presentation: { key: "diagnostic.module-record-value-in-scalar", parameters: { name } }
+          })
+        };
+      }
+      const statementId = stableStatementIdByIndex.get(declaration.statementIndex) ?? declaration.statementId;
+      return {
+        target: {
+          kind: "moduleLocal",
+          statementId,
+          statementIndex: declaration.statementIndex,
+          carryBindingId: `binding:${statementId}:carry:${carryIndex}`
+        },
+        type,
+        resolution: "resolved"
+      };
+    }
     if (declaration.kind === "typedDeclaration" && declaration.statement.kind === "typedDeclaration") {
       const type = scalarExpressionTypeOfDslValueType(declaration.statement.valueType);
       if (boundaryOwnerIndex !== null && declarationOwner !== boundaryOwnerIndex) {
@@ -1239,7 +1289,12 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         ? { target: scalarParameterTarget(lookup.definition, lookup.parameter), type, resolution: "resolved" }
         : { target: null, type: null, resolution: "invalid", diagnostic: issue("module-default-invalid-reference", reference.span, `default の参照先「${reference.name}」はscalarではありません。`, { relatedSources, presentation: { key: "diagnostic.module-default-invalid-reference", parameters: { name: reference.name } } }) };
     }
-    if (lookup.kind === "iteration") return { target: { ...lookup }, type: { kind: "number" }, resolution: "resolved" };
+    if (lookup.kind === "iteration") {
+      const type = scalarExpressionTypeOfDslValueType(lookup.valueType ?? null);
+      return type
+        ? { target: { ...lookup }, type, resolution: "resolved" }
+        : { target: null, type: null, resolution: "invalid", diagnostic: issue("module-record-value-in-scalar", reference.span, `iteration binder「${reference.name}」はscalarではありません。collection element の field を指定してください。`, { relatedSources, presentation: { key: "diagnostic.module-record-value-in-scalar", parameters: { name: reference.name } } }) };
+    }
     if (lookup.kind === "undefined") return { target: null, type: null, resolution: "undefined", diagnostic: issue("module-undefined-reference", reference.span, `未定義のmodule scalar「${reference.name}」を参照しています。`, { presentation: { key: "diagnostic.module-undefined-reference", parameters: { name: reference.name } } }) };
     if (lookup.kind === "forward") return { target: null, type: null, resolution: "forward", diagnostic: issue("module-forward-reference", reference.span, `module scalar「${reference.name}」はこの位置より後で宣言されています。`, { relatedSources, presentation: { key: "diagnostic.module-forward-reference", parameters: { name: reference.name } } }) };
     if (lookup.kind === "ambiguous") return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-ambiguous-reference", reference.span, `module scalar「${reference.name}」を一意に解決できません。`, { relatedSources, presentation: { key: "diagnostic.module-ambiguous-reference", parameters: { name: reference.name } } }) };
@@ -1613,6 +1668,27 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
               typeIdentity
             },
             typeIdentity,
+            definition
+          }
+        : { kind: "blocked", resolution: "invalid" };
+    }
+    if (lookup.kind === "iteration") {
+      const valueType = dslRequiredValueTypeOf(lookup.valueType);
+      if (!isDslRecordValueType(valueType)) return { kind: "notRecord" };
+      const definition = recordDefinitionFor(valueType.identity ?? null) ??
+        [...(recordAnalysis?.definitionsByStatementId.values() ?? [])].find((candidate) => candidate.name === valueType.name);
+      return definition
+        ? {
+            kind: "record",
+            target: {
+              kind: "recordValueForBinder",
+              binderId: `binding:iteration:${lookup.statementId}`,
+              statementId: lookup.statementId,
+              statementIndex: lookup.statementIndex,
+              name: lookup.name,
+              typeIdentity: definition.statementId
+            },
+            typeIdentity: definition.statementId,
             definition
           }
         : { kind: "blocked", resolution: "invalid" };
@@ -2216,9 +2292,12 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       return semantic(null, qualified.kind === "forward" ? "forward" : qualified.kind === "undefined" ? "undefined" : qualified.kind === "outerCapture" ? "outerCapture" : "invalid", null, derivedRole);
     }
     const path = parseDslReferenceToken(base);
-    const lookup = ownerIndex === null
-      ? qualifiedSourceDeclarationResolution(sourceNamespace, statementIndex, path) ?? sourceDeclarationResolution(sourceNamespace, statementIndex, base)
-      : resolveModuleLexicalPath(statementIndex, ownerIndex, path);
+    const overlayLookup = resolveModuleLexicalPath(statementIndex, ownerIndex, path);
+    const lookup = overlayLookup.kind === "iteration"
+      ? overlayLookup
+      : ownerIndex === null
+        ? qualifiedSourceDeclarationResolution(sourceNamespace, statementIndex, path) ?? sourceDeclarationResolution(sourceNamespace, statementIndex, base)
+        : overlayLookup;
     if (lookup.kind === "parameter") {
       const parameterTarget = geometryParameterTarget(lookup.definition, lookup.parameter);
       const pointTarget = pointKey
@@ -2264,6 +2343,23 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       return semantic(null, "undefined", null, derivedRole);
     }
     if (lookup.kind === "iteration") {
+      const actualInterfaceType = lookup.valueType && isDslGeometryValueType(lookup.valueType)
+        ? lookup.valueType.kind
+        : null;
+      const expectedInterfaceType = options.expectedInterfaceType ?? (expected === "point" ? "point" : "path");
+      const compatible = actualInterfaceType !== null && isModuleGeometryInterfaceAssignable(actualInterfaceType, expectedInterfaceType);
+      if (compatible) {
+        const target: Extract<ModuleGeometrySourceTarget, { kind: "geometryValueForBinder" }> = {
+          kind: "geometryValueForBinder",
+          binderId: `binding:iteration:${lookup.statementId}`,
+          statementId: lookup.statementId,
+          statementIndex: lookup.statementIndex,
+          name: lookup.name,
+          sourceElementType: actualInterfaceType
+        };
+        referenceNameSpan = baseSpan;
+        return semantic(target, "resolved", null, derivedRole, lookup.valueType);
+      }
       addLocal(statementIndex, issue("module-geometry-type-mismatch", baseSpan, `「${base}」はgeometryではありません。`, {
         relatedSources: expectedRelatedSources.length ? expectedRelatedSources : relatedForLookup(lookup),
         presentation: { key: "diagnostic.module-geometry-type-mismatch", parameters: { target: base } }
@@ -2291,6 +2387,36 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         presentation: { key: "diagnostic.module-geometry-type-mismatch", parameters: { target: lookup.declaration.name } }
       }));
       return semantic(null, "invalid", null, derivedRole);
+    }
+    if (lookup.declaration.kind === "carry" && lookup.declaration.statement.kind === "element") {
+      const carry = lookup.declaration.statement.forCarries?.find((candidate) => candidate.name === lookup.declaration.name);
+      const carryType = carry?.valueType;
+      const requiredCarryType = dslRequiredValueTypeOf(carryType);
+      const carryGeometryType = requiredCarryType && isDslGeometryValueType(requiredCarryType)
+        ? requiredCarryType.kind
+        : null;
+      const compatible = carryGeometryType !== null && (
+        pointKey
+          ? expected === "point" && carryGeometryType !== "point" && isLineEndpointPointKey(pointKey)
+          : options.expectedInterfaceType
+            ? isModuleGeometryInterfaceAssignable(carryGeometryType, options.expectedInterfaceType)
+            : isModuleGeometryInterfaceAssignable(carryGeometryType, expected)
+      );
+      if (!compatible) {
+        addLocal(statementIndex, issue("module-geometry-type-mismatch", baseSpan, `carry「${base}」の型が一致しません。`, {
+          presentation: { key: "diagnostic.module-geometry-type-mismatch", parameters: { target: base } }
+        }));
+        return semantic(null, "invalid", null, derivedRole);
+      }
+      const target: Extract<ModuleGeometrySourceTarget, { kind: "geometryCarry" }> = {
+        kind: "geometryCarry",
+        bindingId: `binding:${lookup.declaration.statementId}`,
+        statementId: lookup.declaration.statementId,
+        statementIndex: lookup.declaration.statementIndex,
+        geometryKind: carryGeometryType!,
+        ...(pointKey ? { pointKey } : {})
+      };
+      return semantic(target, "resolved", null, pointKey ? "derivedPoint" : role, pointKey ? { kind: "point" } : carryType ?? undefined);
     }
     if (
       lookup.declaration.kind === "typedDeclaration" &&
@@ -3868,9 +3994,38 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       return { target: null, type: null, resolution: qualified.kind === "forward" ? "forward" : qualified.kind === "undefined" ? "undefined" : qualified.kind === "outerCapture" ? "outerCapture" : "invalid" };
     }
     const path = parseDslReferenceToken(reference.elementName);
-    const lookup = ownerIndex === null
-      ? qualifiedSourceDeclarationResolution(sourceNamespace, statementIndex, path) ?? sourceDeclarationResolution(sourceNamespace, statementIndex, reference.elementName)
-      : resolveModuleLexicalPath(statementIndex, ownerIndex, path);
+    const overlayLookup = resolveModuleLexicalPath(statementIndex, ownerIndex, path);
+    const lookup = overlayLookup.kind === "iteration"
+      ? overlayLookup
+      : ownerIndex === null
+        ? qualifiedSourceDeclarationResolution(sourceNamespace, statementIndex, path) ?? sourceDeclarationResolution(sourceNamespace, statementIndex, reference.elementName)
+        : overlayLookup;
+    if (lookup.kind === "resolved" && lookup.declaration.kind === "carry" && lookup.declaration.statement.kind === "element") {
+      const carry = lookup.declaration.statement.forCarries?.find((candidate) => candidate.name === lookup.declaration.name);
+      const valueType = dslRequiredValueTypeOf(carry?.valueType);
+      if (carry && valueType && isDslGeometryValueType(valueType)) {
+        const type = pointPath || numericGeometryPropertySupportedByStaticTarget(
+          numericGeometryStaticTargetForModuleInterface(valueType.kind),
+          resolvedProperty
+        )
+          ? { kind: "number" as const }
+          : null;
+        if (!type) return unknownProperty();
+        return {
+          target: {
+            kind: "geometryCarry",
+            bindingId: `binding:${lookup.declaration.statementId}`,
+            statementId: lookup.declaration.statementId,
+            statementIndex: lookup.declaration.statementIndex,
+            geometryKind: valueType.kind,
+            property: resolvedProperty,
+            ...(resolvedPointKey ? { pointKey: resolvedPointKey } : {})
+          },
+          type,
+          resolution: "resolved"
+        };
+      }
+    }
     if (lookup.kind === "parameter") {
       const parameterTarget = geometryParameterTarget(lookup.definition, lookup.parameter);
       const relatedSources = relatedForParameter(lookup.definition, lookup.parameter.index);
@@ -3902,7 +4057,35 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       };
     }
     if (lookup.kind === "undefined") return { target: null, type: null, resolution: "undefined", diagnostic: issue("module-undefined-geometry-reference", reference.span, `未定義のgeometry「${reference.elementName}」を参照しています。`, { presentation: { key: "diagnostic.module-undefined-geometry-reference", parameters: { name: reference.elementName } } }) };
-    if (lookup.kind === "iteration") return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-geometry-property-type-mismatch", reference.span, `「${reference.elementName}」はgeometryではありません。`, { relatedSources: relatedForLookup(lookup), presentation: { key: "diagnostic.module-geometry-property-type-mismatch", parameters: { target: reference.elementName } } }) };
+    if (lookup.kind === "iteration") {
+      const actualInterfaceType = lookup.valueType && isDslGeometryValueType(lookup.valueType)
+        ? lookup.valueType.kind
+        : null;
+      const type = actualInterfaceType
+        ? pointPath
+          ? { kind: "number" as const }
+          : numericGeometryPropertySupportedByStaticTarget(numericGeometryStaticTargetForModuleInterface(actualInterfaceType), reference.property)
+            ? { kind: "number" as const }
+            : null
+        : null;
+      if (type) {
+        return {
+          target: {
+            kind: "geometryValueForBinder",
+            binderId: `binding:iteration:${lookup.statementId}`,
+            statementId: lookup.statementId,
+            statementIndex: lookup.statementIndex,
+            name: lookup.name,
+            sourceElementType: actualInterfaceType!,
+            property: resolvedProperty,
+            ...(resolvedPointKey ? { pointKey: resolvedPointKey } : {})
+          },
+          type,
+          resolution: "resolved"
+        };
+      }
+      return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-geometry-property-type-mismatch", reference.span, `「${reference.elementName}」はgeometryではありません。`, { relatedSources: relatedForLookup(lookup), presentation: { key: "diagnostic.module-geometry-property-type-mismatch", parameters: { target: reference.elementName } } }) };
+    }
     if (lookup.kind === "forward") return { target: null, type: null, resolution: "forward", diagnostic: issue("module-forward-geometry-reference", reference.span, `geometry「${reference.elementName}」はこの位置より後で宣言されています。`, { relatedSources: relatedForLookup(lookup), presentation: { key: "diagnostic.module-forward-geometry-reference", parameters: { name: reference.elementName } } }) };
     if (lookup.kind === "ambiguous") return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-ambiguous-geometry-reference", reference.span, `geometry「${reference.elementName}」を一意に解決できません。`, { relatedSources: relatedForLookup(lookup), presentation: { key: "diagnostic.module-ambiguous-geometry-reference", parameters: { name: reference.elementName } } }) };
     if (lookup.kind === "invalidOverlayTraversal") return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-geometry-property-type-mismatch", reference.span, `「${lookup.name}」はparameter/iteration namespaceではありません。`, { presentation: { key: "diagnostic.module-geometry-property-type-mismatch", parameters: { target: lookup.name } } }) };
@@ -5168,14 +5351,6 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     }
   };
 
-  const resolvePlainScalarTarget = (statementIndex: number, ownerIndex: number | null, name: string): ReferenceResolution => {
-    const resolution = resolveSourceScalar(statementIndex, ownerIndex, name, ownerIndex);
-    if (resolution.diagnostic && resolution.diagnostic.span.start === 0 && resolution.diagnostic.span.end === 0) {
-      return { ...resolution, diagnostic: { ...resolution.diagnostic, span: statements[statementIndex].nameSpan ?? statements[statementIndex].keywordSpan } };
-    }
-    return resolution;
-  };
-
   // Root elements normally use the ordinary document NameIndex. Keep the
   // source-only result of the same resolver here as an editor projection too;
   // ordinary references suppress diagnostics because their existing compiler
@@ -6296,6 +6471,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
   const mappedRecordCollectionBodiesByDefinition = new Map<number, ModuleDefinitionSemantic["mappedRecordCollectionBodies"]>();
   const mappedGeometryCollectionBodiesByDefinition = new Map<number, ModuleDefinitionSemantic["mappedGeometryCollectionBodies"]>();
   const localGeometryValuesByDefinition = new Map<number, ModuleGeometryValueSemantic[]>();
+  const immutableCarriesByDefinition = new Map<number, ModuleDefinitionSemantic["immutableCarries"]>();
   const bodyStatementsByDefinition = new Map<number, ModuleDefinitionSemantic["bodyStatements"]>();
   const recordValuesByDefinition = new Map<number, ModuleDefinitionSemantic["recordValues"]>();
   const exportsByDefinition = new Map<number, ResolvedModuleExport[]>();
@@ -6310,7 +6486,6 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       resolveGeometry,
       resolveGeometryConstruction: parseGeometryValueConstruction,
       parseGeometryValueExpression,
-      resolvePlainScalarTarget,
       resolveBodyScalar: (statementIndex, reference) => resolveBodyScalar(statementIndex, definition.statementIndex, reference),
       resolveBodyBareScalar: (statementIndex, reference) => resolveBodyBareScalar(statementIndex, definition.statementIndex, reference),
       resolveBodyGeometryProperty: (statementIndex, reference) => resolveGeometryProperty(statementIndex, definition.statementIndex, reference),
@@ -6328,6 +6503,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       registerGeometryValue: (value) => geometryValuesByStatementIndex.set(value.statementIndex, value)
     });
     localScalarsByDefinition.set(definition.statementIndex, body.localScalars);
+    immutableCarriesByDefinition.set(definition.statementIndex, body.immutableCarries);
     const moduleCollectionAnalysisForControlFlow = sourceNamespace.geometryArraySemanticAnalysis;
     for (const collectionValue of [
       ...(moduleCollectionAnalysisForControlFlow?.genericValues ?? []),
@@ -6752,6 +6928,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     mappedRecordCollectionBodies: mappedRecordCollectionBodiesByDefinition.get(definition.statementIndex) ?? [],
     mappedGeometryCollectionBodies: mappedGeometryCollectionBodiesByDefinition.get(definition.statementIndex) ?? [],
     localGeometryValues: localGeometryValuesByDefinition.get(definition.statementIndex) ?? [],
+    immutableCarries: immutableCarriesByDefinition.get(definition.statementIndex) ?? [],
     recordValues: recordValuesByDefinition.get(definition.statementIndex) ?? [],
     bodyStatements: bodyStatementsByDefinition.get(definition.statementIndex) ?? [],
     exports: exportsByDefinition.get(definition.statementIndex) ?? [],

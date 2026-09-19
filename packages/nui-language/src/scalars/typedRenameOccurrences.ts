@@ -1,24 +1,22 @@
 // Occurrence enumeration for typed binding rename safety analysis.
 // Pure - reads only already-compiled analysis records (scalarProgram,
-// textTemplates, propertyBindings, setStatements, &&
-// the raw already-parsed DslStatement stream for `set` target names). Never
+// textTemplates, propertyBindings, and other typed references, &&
+// the raw already-parsed DslStatement stream). Never
 // re-parses DSL source, never calls compileDslDocument/parseDsl.
 //
-// Completeness boundary: initializer/set-rhs/property/template
+// Completeness boundary: initializer/property/template
 // occurrences are enumerated only for statements that already compiled
 // successfully - each source map here only contains resolved entries. A
 // currently-broken reference is an existing, independent compile diagnostic
 // && out of reach without re-parsing raw text, which this module avoids.
-// `set` target enumeration is the one exception with full coverage (valid ||
-// not), since it only needs the statement's own `name`/`nameSpan`, already
-// parsed - no RHS parsing required.
+// Carry targets and next references are owned by the source semantic
+// occurrence index; this typed batch only handles scalar expression sites.
 import type { DslSpan, DslStatement } from "../dsl/dslTypes";
 import type { BindingCatalog, BindingId } from "./bindingCatalog";
 import type { BindingReferenceSite } from "./bindingResolution";
 import type { LexicalScopeIndex } from "./lexicalScopeIndex";
 import type { ScalarValueSource } from "./propertyBindingCompiler";
 import type { ScalarProgram } from "./scalarProgram";
-import type { SetStatementAnalysis } from "./setStatementCompiler";
 import type { TextTemplateAst } from "./textTemplate";
 import type { CompiledNumericBinding } from "./numericBindingCompiler";
 import type { DslPhysicalSpan } from "../dsl/logicalStatementSourceMap";
@@ -26,8 +24,6 @@ import { referencesIn } from "./typedDependencyGraph";
 
 export type TypedRenameOccurrenceKind =
   | "initializer"
-  | "set-rhs"
-  | "set-target"
   | "property-binding"
   | "numeric-expression"
   | "template-hole"
@@ -77,7 +73,6 @@ export const collectInitializerOccurrences = (
 export type SiteBatchOccurrenceInput = {
   readonly scopeIndex: LexicalScopeIndex;
   readonly statements: readonly DslStatement[];
-  readonly setStatements?: ReadonlyMap<number, SetStatementAnalysis>;
   readonly propertyBindings?: ReadonlyMap<string, ScalarValueSource>;
   readonly textTemplates?: ReadonlyMap<string, TextTemplateAst>;
   readonly numericBindings?: ReadonlyMap<string, CompiledNumericBinding>;
@@ -90,7 +85,7 @@ const statementIndexFromOccurrenceKey = (key: string): number => Number(key.slic
 
 /**
  * Every occurrence resolvable through the owner-less `resolveReferencesAtSites`
- * batch resolver: set RHS references, every `set` statement's own target name
+ * batch resolver: scalar expression references,
  * (valid || not - see the module header), bare `@binding` property values,
  * && typed text-template holes.
  */
@@ -98,30 +93,6 @@ export const collectSiteBatchOccurrences = (
   input: SiteBatchOccurrenceInput
 ): readonly TypedRenameOccurrence[] => {
   const occurrences: TypedRenameOccurrence[] = [];
-
-  for (const [statementIndex, analysis] of input.setStatements ?? []) {
-    const refs = referencesIn(analysis.expression);
-    refs.forEach((reference, index) => {
-      occurrences.push({
-        kind: "set-rhs",
-        key: `set-rhs:${statementIndex}:${index}`,
-        site: { scopeId: analysis.scopeId, statementIndex: analysis.sourceOrder },
-        span: reference.nameSpan,
-        currentName: reference.name
-      });
-    });
-  }
-
-  input.statements.forEach((statement, statementIndex) => {
-    if (statement.kind !== "set" || !statement.nameSpan) return;
-    occurrences.push({
-      kind: "set-target",
-      key: `set-target:${statementIndex}`,
-      site: { scopeId: scopeIdForStatement(input.scopeIndex, statementIndex), statementIndex },
-      span: statement.nameSpan,
-      currentName: statement.name
-    });
-  });
 
   for (const [occurrenceKey, source] of input.propertyBindings ?? []) {
     const statementIndex = statementIndexFromOccurrenceKey(occurrenceKey);

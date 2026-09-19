@@ -609,6 +609,63 @@ const projectValueForBinderRenameEdits = (
   return { ok: true, edits };
 };
 
+const projectCarryRenameEdits = (
+  sourceText: string,
+  compiled: CompiledDslDocument,
+  bindingId: string,
+  newName: string
+): { ok: true; edits: readonly DslRenameEdit[] } | { ok: false; rejection: DslRenameRejection } => {
+  const normalizedName = newName.trim();
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(normalizedName)) {
+    return { ok: false, rejection: { reason: "invalid-name", message: "carry 名は有効な識別子である必要があります。" } };
+  }
+  const declaration = compiled.sourceLexicalNamespace?.allDeclarations.find((candidate) =>
+    candidate.kind === "carry" && `binding:${candidate.statementId}` === bindingId
+  );
+  if (!declaration || !compiled.statementMap) return { ok: false, rejection: unavailableRenameRejection() };
+  const conflict = compiled.sourceLexicalNamespace?.declarationsByScopeAndName
+    .get(declaration.scopeId)?.get(normalizedName)
+    ?.find((candidate) => candidate.statementId !== declaration.statementId);
+  if (conflict) {
+    return {
+      ok: false,
+      rejection: {
+        reason: "same-scope-collision",
+        conflictingName: normalizedName,
+        conflictingLine: conflict.statement.line
+      }
+    };
+  }
+  const identity = dslSemanticIdentityKey({ kind: "typed", bindingId });
+  const occurrences = createDslSemanticOccurrenceIndex(compiled).occurrences.filter((occurrence) =>
+    dslSemanticIdentityKey(occurrence.identity) === identity
+  );
+  if (occurrences.filter((occurrence) => occurrence.kind === "declaration").length !== 1) {
+    return { ok: false, rejection: unavailableRenameRejection() };
+  }
+  const edits = occurrences.map((occurrence) => ({
+    from: occurrence.from,
+    to: occurrence.to,
+    expectedText: sourceText.slice(occurrence.from, occurrence.to),
+    newText: formatDslName(normalizedName)
+  }));
+  if (!editsAreSafe(edits)) return { ok: false, rejection: unavailableRenameRejection() };
+  const candidateSource = [...edits]
+    .sort((left, right) => right.from - left.from || right.to - left.to)
+    .reduce((source, edit) => `${source.slice(0, edit.from)}${edit.newText}${source.slice(edit.to)}`, sourceText);
+  const after = compileDslDocument(candidateSource, {
+    assignedElementIds: compiled.statementMap.elementIdByStatementIndex,
+    assignedStatementIds: compiled.statementMap.statementIdByStatementIndex
+  });
+  const renamed = after.sourceLexicalNamespace?.allDeclarations.some((candidate) =>
+    candidate.kind === "carry" && candidate.statementIndex === declaration.statementIndex && candidate.name === normalizedName
+  );
+  if (after.diagnostics.some((diagnostic) => diagnostic.severity === "error") || !renamed) {
+    return { ok: false, rejection: unavailableRenameRejection() };
+  }
+  return { ok: true, edits };
+};
+
 const projectModifierRenameEdits = (
   sourceText: string,
   compiled: CompiledDslDocument,
@@ -717,6 +774,12 @@ export const planDslRenameEditsResult = (
     const valueForBinder = identity.bindingId.startsWith("value-for-binder:") || identity.bindingId.startsWith("geometry-value-for-binder:");
     if (valueForBinder) {
       const projected = projectValueForBinderRenameEdits(exact.source.normalizedSource, exact.compiled, identity.bindingId, newName);
+      if (!projected.ok) return { status: "rejected", rejection: projected.rejection };
+      edits = projected.edits;
+    } else if (exact.compiled.sourceLexicalNamespace?.allDeclarations.some((declaration) =>
+      declaration.kind === "carry" && `binding:${declaration.statementId}` === identity.bindingId
+    )) {
+      const projected = projectCarryRenameEdits(exact.source.normalizedSource, exact.compiled, identity.bindingId, newName);
       if (!projected.ok) return { status: "rejected", rejection: projected.rejection };
       edits = projected.edits;
     } else {

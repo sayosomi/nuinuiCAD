@@ -1038,7 +1038,7 @@ describe("typecheckScalarExpression / poisoned or unresolved references", () => 
   });
 
   it("propagates a duplicate reference as invalid without a new diagnostic", () => {
-    const catalog = catalogFor(["const x: number = 1", "let x: number = 2", "const use: number = @x"].join("\n"));
+    const catalog = catalogFor(["const x: number = 1", "const x: number = 2", "const use: number = @x"].join("\n"));
     const resolution = resolutionAt(catalog, "x", 2);
     expect(resolution.kind).toBe("duplicate");
     const result = check("@missing + 1", null, [resolution]);

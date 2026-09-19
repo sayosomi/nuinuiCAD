@@ -345,9 +345,8 @@ describe("multi-document module runtime", () => {
     const optionalModuleSource = [
       "nui 1",
       "export module Optional(value: number?) {",
-      "  let marker: number = 0",
       "  if ((@value ?? 0) > 0) {",
-      "    set marker = (@value ?? 0) + 1",
+      "    const marker: number = (@value ?? 0) + 1",
       "    point P = coordinate(x: @marker, y: 0)",
       "  }",
       "}"
@@ -409,59 +408,6 @@ describe("multi-document module runtime", () => {
       first.documentId,
       second.documentId
     ]);
-  });
-
-  it("keeps imported conditional set and forGroup behavior in parity with local Module runtime", async () => {
-    const moduleBody = [
-      "module Adjust(enabled: boolean, start: number) {",
-      "  let value: number = @start",
-      "  if (@enabled) {",
-      "    set value = @value + 1",
-      "  }",
-      "  for i in range(min: 1, max: 2, step: 1) {",
-      "    point P = coordinate(x: @value + @i, y: 0)",
-      "  }",
-      "}"
-    ];
-    const library = savedSource("control-library", "sha256:control-library", ["nui 1", `export ${moduleBody[0]}`, ...moduleBody.slice(1)].join("\n"));
-    const root = rootSource("control-root", [
-      "nui 1",
-      "import \"./control-library.nui\" as lib",
-      "instance off = lib::Adjust(enabled: false, start: 0)",
-      "instance on = lib::Adjust(enabled: true, start: 10)"
-    ].join("\n"));
-    const imported = await compileImported(
-      root,
-      new Map([[`${root.documentId}|./control-library.nui`, library]])
-    );
-
-    const localSource = [
-      "nui 1",
-      ...moduleBody,
-      "instance off = Adjust(enabled: false, start: 0)",
-      "instance on = Adjust(enabled: true, start: 10)"
-    ].join("\n");
-    const localParsed = parseDsl(localSource);
-    const localCompiled = compileDslDocument(localSource, {
-      preparsed: localParsed,
-      assignedStatementIds: new Map(localParsed.statements.map((_, index) => [index, `local-control:${index}`] as const))
-    });
-
-    expect(imported.compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
-    expect(localCompiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
-    const importedResult = evaluateCompiled(imported.compiled);
-    const localResult = evaluateCompiled(localCompiled);
-    expect(importedResult.errors).toEqual([]);
-    expect(localResult.errors).toEqual([]);
-    const pointXs = (result: ReturnType<typeof evaluateCompiled>) => [...result.computedGeometry.values()]
-      .filter((geometry): geometry is Extract<typeof geometry, { kind: "point" }> => geometry.kind === "point")
-      .map((geometry) => geometry.x);
-    expect(pointXs(importedResult)).toEqual([1, 2, 12, 13]);
-    expect(pointXs(importedResult)).toEqual(pointXs(localResult));
-    expect(imported.compiled.bindingVersions).toBeDefined();
-    expect(imported.compiled.bindingVersions?.versions.filter((version) => version.kind === "set")).toHaveLength(2);
-    expect(imported.compiled.bindingVersions?.versions.some((version) => JSON.stringify(version.control).includes("conditionalBranch"))).toBe(true);
-    expect(imported.compiled.moduleForGroupMutationOwnerByElementId?.size).toBe(2);
   });
 
   it("resolves imported geometry bodies against the caller's exact source geometry", async () => {

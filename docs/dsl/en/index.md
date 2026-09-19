@@ -31,11 +31,11 @@ and the geometry and output declarations that are currently available. The
 - [Types](types.md) — scalar, geometry, array, and record types.
 - [Expressions](expressions.md) — literals, operators, references, and
   interpolation.
-- [Declarations](declarations.md) — `const`, `let`, and `set`.
+- [Declarations](declarations.md) — immutable `const` declarations.
 - [Constructions](constructions.md) — geometry constructions, transformation
   recipes, and
   their argument behavior.
-- [Control flow](control-flow.md) — groups, conditions, and ranges.
+- [Control flow](control-flow.md) — groups, conditions, ranges, and immutable carries.
 - [Modules](modules.md) — module definitions, instances, parameters, and
   exports.
 - [Records](records.md) — nominal source-only record values.

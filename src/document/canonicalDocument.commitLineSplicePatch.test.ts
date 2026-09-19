@@ -22,7 +22,7 @@ const canonicalFrom = (source: string): CanonicalDocumentValue => {
 
 describe("commitLineSplicePatch", () => {
   it("applies given splices and recompiles, preserving the renamed declaration's BindingId", () => {
-    const source = ["nui 1", "const base: number = 1", "let derived: number = @base"].join("\n");
+    const source = ["nui 1", "const base: number = 1", "const derived: number = @base"].join("\n");
     const current = canonicalFrom(source);
     const targetId = current.doc.bindingAnalysis!.catalog.bindings.find(
       (binding) => binding.kind === "typed" && binding.name === "base"
@@ -30,11 +30,11 @@ describe("commitLineSplicePatch", () => {
 
     const result = commitLineSplicePatch(current, [
       { startLine: 2, endLine: 2, replacementLines: ["const renamed: number = 1"] },
-      { startLine: 3, endLine: 3, replacementLines: ["let derived: number = @renamed"] }
+      { startLine: 3, endLine: 3, replacementLines: ["const derived: number = @renamed"] }
     ]);
     expect(result.status).toBe("committed");
     if (result.status !== "committed") return;
-    expect(result.value.sourceText).toBe(["nui 1", "const renamed: number = 1", "let derived: number = @renamed"].join("\n"));
+    expect(result.value.sourceText).toBe(["nui 1", "const renamed: number = 1", "const derived: number = @renamed"].join("\n"));
     expect(result.value.docText).toBe(result.value.sourceText);
     expect(result.splices).toHaveLength(2);
 

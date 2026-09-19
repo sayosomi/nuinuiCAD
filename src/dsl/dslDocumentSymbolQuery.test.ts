@@ -27,7 +27,7 @@ describe("DSL document symbol query", () => {
     const source = [
       "nui 1",
       "const fixed: number = 1",
-      "let changing: number = 2",
+      "const changing: number = 2",
       "profile Print",
       "style Seam {",
       "  ",
@@ -44,7 +44,7 @@ describe("DSL document symbol query", () => {
     const symbols = symbolsFor(source);
 
     expect(symbolNamed(symbols, "fixed")).toMatchObject({ kind: "constant", detail: "" });
-    expect(symbolNamed(symbols, "changing")).toMatchObject({ kind: "variable", detail: "" });
+    expect(symbolNamed(symbols, "changing")).toMatchObject({ kind: "constant", detail: "" });
     expect(symbolNamed(symbols, "Print")).toMatchObject({ kind: "enum", detail: "profile" });
     expect(symbolNamed(symbols, "Seam")).toMatchObject({ kind: "struct", detail: "" });
     expect(symbolNamed(symbols, "A")).toMatchObject({ kind: "property", detail: "point [Seam, Cutting]" });

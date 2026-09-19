@@ -41,27 +41,25 @@ const numericReferenceSource = [
   "point Combined = coordinate(x: @AB.length + @Arc.radius, y: @Bez.endHandleLength)"
 ].join("\n");
 
-const controlMutationSource = [
+const controlSource = [
   "nui 1",
-  "let flag: boolean = true",
-  "let total: number = 0",
-  "let show: boolean = false",
+  "const flag: boolean = true",
+  "const total: number = 0",
+  "const show: boolean = false",
   "if (@flag) {",
-  "  set total = @total + 3",
   "  text Then = label(text: \"${@total}\", anchor: none, size: 3)",
   "} else {",
-  "  set total = 99",
   "  text Else = label(text: \"inactive\", anchor: none, size: 3)",
   "}",
   "point A = coordinate(x: 0, y: 0)",
   "point B = coordinate(x: 10, y: 0)",
   "line AB = segment(start: @A, end: @B)",
-  "for i in range(min: 0, max: 1, step: 1, showGenerated: @show) {",
-  "  set total = @total + 1",
+  "for i in range(min: 0, max: 1, step: 1, showGenerated: @show) carry loopTotal: number = @total {",
+  "  next loopTotal = @loopTotal + 1",
   "  text T = label(text: \"${@total}\", anchor: none, size: 3)",
   "  line Copy = transformCopy(startPoint: @A, endPoint: @B, scale: 1, angleDeg: 0, mirrorX: @flag, baseLines: [@AB])",
   "}",
-  "text Final = label(text: \"${@total}\", anchor: none, size: 3)"
+  "text Final = label(text: \"${@loopTotal}\", anchor: none, size: 3)"
 ].join("\n");
 
 const declarationsTemplatesSource = [
@@ -148,7 +146,7 @@ describe("buildEvaluationOptions", () => {
       "Combined:y"
     ]));
 
-    const controlCompiled = compile(controlMutationSource);
+    const controlCompiled = compile(controlSource);
     const controlOptions = optionsFor(controlCompiled);
     expect(entryKeys(controlCompiled, controlOptions.controlBooleanEntries)).toContain(":showGenerated");
     expect(controlOptions.conditionalGroupConditionsByElementId?.size).toBeGreaterThan(0);
@@ -192,21 +190,21 @@ describe("buildEvaluationOptions", () => {
   it("merges source and Module materialized metadata for properties, numbers, controls, text, and owners", () => {
     const compiled = compile([
       "nui 1",
-      "let flag: boolean = true",
-      "let total: number = 0",
+      "const flag: boolean = true",
+      "const total: number = 0",
       "if (@flag) {",
-      "  set total = 1",
+      "  text Then = label(text: \"${@total}\", anchor: none, size: 3)",
       "}",
       "for i in range(min: 0, max: 1, step: 1) {",
-      "  set total = @total + 1",
+      "  point Iteration = coordinate(x: @i, y: 0)",
       "}",
       "module M(enabled: boolean) {",
-      "  let local: number = 0",
+      "  const local: number = 0",
       "  if (@enabled) {",
-      "    set local = 1",
+      "    text LocalThen = label(text: \"${@local}\", anchor: none, size: 3)",
       "  }",
       "  for j in range(min: 0, max: 1, step: 1) {",
-      "    set local = @local + 1",
+      "    point LoopPoint = coordinate(x: @j, y: @local)",
       "  }",
       "  point P = coordinate(x: @local, y: 0)",
       "  text T = label(text: \"${@local}\", anchor: none, size: 3)",
@@ -226,7 +224,7 @@ describe("buildEvaluationOptions", () => {
     const sourceForGroupIds = [...(options.forGroupMutationOwnerByElementId ?? [])]
       .map(([elementId]) => elementId)
       .filter((elementId) => compiled.document.elements.find((element) => element.id === elementId)?.type === "forGroup");
-    const moduleForGroupIds = [...(options.moduleForGroupMutationOwnerByElementId?.keys() ?? [])];
+    const moduleForGroupIds = [...(options.moduleForGroupExecutionOwnerByElementId?.keys() ?? [])];
     expect(sourceForGroupIds.length).toBeGreaterThan(0);
     expect(moduleForGroupIds.length).toBeGreaterThan(0);
   });

@@ -885,30 +885,6 @@ const validateMutationBoundaries = (
   selectedFrom: number,
   selectedTo: number
 ): ExtractModuleRejection | null => {
-  const setTargetIndexes = new Map<number, number>();
-  for (const [setStatementIndex, set] of compiled.setStatements ?? []) {
-    const targetIndex = compiled.bindingAnalysis?.catalog.bindingsById.get(set.targetBindingId)?.statementIndex;
-    if (targetIndex !== undefined) setTargetIndexes.set(setStatementIndex, targetIndex);
-  }
-  for (const body of [...(compiled.moduleSemanticAnalysis?.definitions ?? [])].flatMap((definition) => definition.bodyStatements)) {
-    if (body.statementKind !== "set" || body.scalarTarget?.kind !== "moduleLocal") continue;
-    const targetIndex = statementIndexForId(compiled, body.scalarTarget.statementId);
-    if (targetIndex !== undefined) setTargetIndexes.set(body.statementIndex, targetIndex);
-  }
-
-  for (const [setStatementIndex, targetIndex] of setTargetIndexes) {
-    if (targetIndex === undefined) continue;
-    const setInside = statementInsideOffsets(compiled.statements[setStatementIndex], selectedFrom, selectedTo);
-    const targetInside = statementInsideOffsets(compiled.statements[targetIndex], selectedFrom, selectedTo);
-    if (setInside !== targetInside) {
-      return reject(
-        "cross-boundary-mutation",
-        `set ${compiled.statements[setStatementIndex]?.name ?? "target"} は Extract 境界をまたいで mutable binding を書き換えるため移動できません。`,
-        { statementIndex: setStatementIndex }
-      );
-    }
-  }
-
   for (const [statementIndex, statement] of compiled.statements.entries()) {
     if (statement.kind !== "element" || statement.category !== "mutation") continue;
     const statementId = compiled.statementMap?.statementIdByStatementIndex?.get(statementIndex);
@@ -1057,7 +1033,6 @@ const valueStatementRejection = (
     }
     return null;
   }
-  if (statement.kind === "set") return null;
   return reject(
     "unsupported-statement",
     `「${statement.kind}」statement は Checkpoint 7 の scalar / single-geometry / geometry-array value scope 外です。`,

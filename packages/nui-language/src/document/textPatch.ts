@@ -810,7 +810,7 @@ const directPrintLayoutSourceChildren = (
   statements: readonly DslStatement[],
   layoutStatementIndex: number
 ) => statements.filter((statement) =>
-  (statement.kind === "typedDeclaration" || statement.kind === "set") &&
+  statement.kind === "typedDeclaration" &&
   statement.enclosing?.statementIndex === layoutStatementIndex
 );
 

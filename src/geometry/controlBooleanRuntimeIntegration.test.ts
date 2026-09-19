@@ -64,7 +64,7 @@ describe("Task 25 conditionalGroup.condition, end-to-end through the real compil
   it("bare boolean binding reference condition selects the correct branch", () => {
     const compiled = compileCanonical([
       "nui 1",
-      "let flag: boolean = false",
+      "const flag: boolean = false",
       "if (@flag) {",
       "  point A = coordinate(x: 0, y: 0)",
       "} else {",
@@ -115,8 +115,8 @@ describe("Task 25 conditionalGroup.condition, end-to-end through the real compil
   it("logical  and  condition (typed boolean bindings) selects the correct branch", () => {
     const compiled = compileCanonical([
       "nui 1",
-      "let a: boolean = true",
-      "let b: boolean = false",
+      "const a: boolean = true",
+      "const b: boolean = false",
       "if (@a  and  @b) {",
       "  point A = coordinate(x: 0, y: 0)",
       "} else {",
@@ -135,7 +135,7 @@ describe("Task 25 conditionalGroup.condition, end-to-end through the real compil
       "point Z1 = coordinate(x: 0, y: 0)",
       "point Z2 = coordinate(x: 3, y: 4)",
       "line D = segment(start: @Z1, end: @Z2, enabled: false)",
-      "let flag: boolean = @D.length > 0",
+      "const flag: boolean = @D.length > 0",
       "if (@flag) {",
       "  point A = coordinate(x: 0, y: 0)",
       "} else {",
@@ -167,7 +167,7 @@ describe("Task 25 conditionalGroup.condition, end-to-end through the real compil
   it("a typed condition inside a forGroup template resolves the same active branch on every generated iteration", () => {
     const compiled = compileCanonical([
       "nui 1",
-      "let flag: boolean = true",
+      "const flag: boolean = true",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line AB = segment(start: @A, end: @B)",
@@ -217,7 +217,7 @@ describe("Task 25 forGroup.showGenerated, end-to-end through the real compiler",
   it("showGenerated: false (bound to a typed boolean binding) never affects iteration count or generated rows", () => {
     const compiled = compileCanonical([
       "nui 1",
-      "let 表示: boolean = false",
+      "const 表示: boolean = false",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line AB = segment(start: @A, end: @B)",
@@ -242,7 +242,7 @@ describe("Task 25 forGroup.showGenerated, end-to-end through the real compiler",
   it("showGenerated: true (bound) is reflected in forGroupEffectiveShowGeneratedIds without affecting rows", () => {
     const compiled = compileCanonical([
       "nui 1",
-      "let 表示: boolean = true",
+      "const 表示: boolean = true",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line AB = segment(start: @A, end: @B)",
@@ -259,8 +259,8 @@ describe("Task 25 forGroup.showGenerated, end-to-end through the real compiler",
   it("an outer hidden loop removes every nested generated descendant from the draw mask", () => {
     const compiled = compileCanonical([
       "nui 1",
-      "let outerShown: boolean = false",
-      "let innerShown: boolean = true",
+      "const outerShown: boolean = false",
+      "const innerShown: boolean = true",
       "for i in range(min: 0, max: 1, step: 1, showGenerated: @outerShown) {",
       "  for j in range(min: 0, max: 1, step: 1, showGenerated: @innerShown) {",
       "    point P = coordinate(x: 10, y: 20)",
@@ -288,7 +288,7 @@ describe("Task 25 forGroup.showGenerated, end-to-end through the real compiler",
       "point Z1 = coordinate(x: 0, y: 0)",
       "point Z2 = coordinate(x: 3, y: 4)",
       "line D = segment(start: @Z1, end: @Z2, enabled: false)",
-      "let 表示: boolean = @D.length > 0",
+      "const 表示: boolean = @D.length > 0",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line AB = segment(start: @A, end: @B)",

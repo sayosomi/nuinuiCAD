@@ -15,7 +15,6 @@ const RUNTIME_ISSUE_MESSAGES: Readonly<Record<string, string>> = {
   "evaluation-binding-unavailable": "参照先のbindingを解決できません。",
   "evaluation-runtime-value-type-mismatch": "値の型が宣言と一致しません。",
   "evaluation-binding-cycle-guard": "循環参照が検出されました。",
-  "evaluation-binding-version-unavailable": "この時点のsetがまだ評価されていません。",
   "evaluation-divide-by-zero": "0での除算が発生しました。",
   "evaluation-remainder-by-zero": "0での剰余が発生しました。",
   "evaluation-invalid-builtin-argument": "組み込み関数の引数が不正です。",

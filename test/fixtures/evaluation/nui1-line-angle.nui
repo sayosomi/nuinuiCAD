@@ -23,5 +23,4 @@ const swapped: number = lineAngle(@DiagonalSeparated, @Horizontal)
 const polarAngle: number = lineAngle(@Horizontal, @Polar)
 const zeroFirst: number = lineAngle(@ZeroFirst, @Horizontal)
 const zeroSecond: number = lineAngle(@Horizontal, @ZeroSecond)
-let setValue: number = 0
-set setValue = lineAngle(@Horizontal, @Vertical)
+const setValue: number = lineAngle(@Horizontal, @Vertical)

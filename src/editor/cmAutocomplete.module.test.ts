@@ -338,7 +338,7 @@ describe("module completion through the existing CodeMirror pipeline", () => {
       "nui 1",
       "module M() {",
       "  export const value: number = 1",
-      "  export let label: string = \"\"",
+      "  export const label: string = \"\"",
       "  const privateValue: number = 2",
       "  export point P = coordinate(x: 0, y: 0)",
       "}",
@@ -515,7 +515,7 @@ describe("module completion through the existing CodeMirror pipeline", () => {
     expect(result?.options.map((option) => option.label)).toEqual(["縫い代線"]);
   });
 
-  it("unions Module candidates into typed initializers, template holes, and set RHS without leaking outer bindings", async () => {
+  it("unions Module candidates into typed initializers and template holes without leaking outer bindings", async () => {
     const source = [
       "nui 1",
       "const outer: number = 10",
@@ -523,7 +523,7 @@ describe("module completion through the existing CodeMirror pipeline", () => {
       "  const leaked: number = @outer",
       "  const first: number = 1",
       "  const second: number = @first",
-      "  set first = @width",
+      "  const third: number = @width",
       "  text Label = label(text: \"width=${@width}\", anchor: (0, 0))",
       "  text LabelLocal = label(text: \"first=${@first}\", anchor: (0, 0))",
       "  text Label2 = label(text: @caption, anchor: (0, 0))",
@@ -533,9 +533,6 @@ describe("module completion through the existing CodeMirror pipeline", () => {
     const typed = await completionFor(source, source.indexOf("@first") + 1);
     expect(typed?.options.map((option) => option.label)).toContain("width");
     expect(typed?.options.map((option) => option.label)).toContain("first");
-    const set = await completionFor(source, source.indexOf("@width", source.indexOf("set first")) + 1);
-    expect(set?.options.map((option) => option.label)).toContain("width");
-    expect(set?.options.map((option) => option.label)).toContain("first");
     const template = await completionFor(source, source.indexOf("${@width") + 2);
     expect(template?.options.map((option) => option.label)).toContain("width");
     const localTemplate = await completionFor(source, source.indexOf("${@first") + 2);

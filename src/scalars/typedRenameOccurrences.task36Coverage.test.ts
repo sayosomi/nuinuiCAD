@@ -6,16 +6,14 @@ import { collectInitializerOccurrences, collectSiteBatchOccurrences } from "@nui
 // Task 37's completion condition requires that every reference Task 36's
 // typedDependencyGraph already knows about has a matching rename occurrence
 // with an exact span - otherwise Task 38 could not build an atomic patch
-// from this task's output alone. This test exercises all four
-// TypedDependencyKind edge kinds in one document, plus `set` targets (which
-// Task 36 does not model as an edge kind at all, so it is checked directly).
+// from this task's output alone. This test exercises every surviving
+// TypedDependencyKind edge kind in one document.
 const source = [
   "nui 1",
   "const base: number = 1",
-  "let derived: number = @base",
-  "let counter: number = 0",
-  "set counter = @derived + 1",
-  "let flag: boolean = true",
+  "const derived: number = @base",
+  "const counter: number = @derived + 1",
+  "const flag: boolean = true",
   "for i in range(min: 0, max: 0, step: 1, showGenerated: @flag) {",
   "}",
   'text T = label(text: "${@base}", anchor: none, size: 3)'
@@ -67,7 +65,6 @@ describe("typed rename occurrence coverage against Task 36's dependency graph", 
       ...collectSiteBatchOccurrences({
         scopeIndex: compiled.bindingAnalysis!.catalog.scopeIndex,
         statements: compiled.statements,
-        setStatements: compiled.setStatements,
         propertyBindings: compiled.propertyBindings,
         textTemplates: compiled.textTemplates
       })
@@ -91,24 +88,7 @@ describe("typed rename occurrence coverage against Task 36's dependency graph", 
       );
       expect(matching, `no rename occurrence covers ${edge.kind} edge at span ${JSON.stringify(edge.span)}`).toBeDefined();
     }
-    expect(edgeKindsSeen).toEqual(new Set(["initializer", "set-rhs", "property-binding", "template-hole"]));
-  });
-
-  it("covers every `set` statement's own target name, which Task 36 does not model as an edge kind at all", () => {
-    const compiled = compile();
-    const occurrences = collectSiteBatchOccurrences({
-      scopeIndex: compiled.bindingAnalysis!.catalog.scopeIndex,
-      statements: compiled.statements,
-      setStatements: compiled.setStatements,
-      propertyBindings: compiled.propertyBindings,
-      textTemplates: compiled.textTemplates
-    });
-    const setStatement = compiled.statements.find((statement) => statement.kind === "set")!;
-    const targetOccurrence = occurrences.find(
-      (occurrence) => occurrence.kind === "set-target" && occurrence.currentName === setStatement.name
-    );
-    expect(targetOccurrence).toBeDefined();
-    expect(targetOccurrence!.span).toEqual(setStatement.nameSpan);
+    expect(edgeKindsSeen).toEqual(new Set(["initializer", "property-binding", "template-hole"]));
   });
 
   it("uses BindingCatalog statement identity for Module-aware initializer sites", () => {

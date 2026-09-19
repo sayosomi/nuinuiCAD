@@ -1,4 +1,6 @@
 import type { TypedScalarExpression } from "../scalars/typedExpressionAst";
+import type { ScalarType } from "../scalars/types";
+import type { DslNonArrayValueType } from "../dsl/dslValueTypes";
 
 export type ElementId = string;
 
@@ -204,6 +206,14 @@ export type GeometryInputCollectionNode =
 
 export type GeometryInputTarget =
   | { kind: "drawable"; elementId: ElementId; geometryType: "point" | "line" | "path"; pointKey?: string }
+  | {
+      /** Immutable statement-for geometry carry resolved by the evaluator's
+       * active carry snapshot. It is never persisted as a drawable id. */
+      kind: "geometryCarry";
+      bindingId: string;
+      geometryType: "point" | "line" | "path";
+      pointKey?: string;
+    }
   | {
       /** A source/template drawable materialized by statement-for. The
        * evaluator resolves the ordinal against explicit provenance rows; it
@@ -492,6 +502,16 @@ export type ForGroupElement = CadElementBase & {
   max: NumericValue;
   step: NumericValue;
   showGenerated: boolean;
+  /** Present for immutable collection iteration. Range iteration continues
+   * to use min/max/step as its canonical source. */
+  iterationSource?: string;
+  iterationSourceValueId?: string;
+  iterationSourceOrder?: number;
+  /** Exact nui1 source-level element type for collection iteration, including
+   * geometry and nominal-record members that are not ScalarType values. */
+  iterationElementValueType?: DslNonArrayValueType;
+  iterationElementType?: ScalarType;
+  carries?: readonly { name: string; typeText: string; initializer: string }[];
 };
 
 export type ModuleInstanceElement = CadElementBase & {

@@ -735,9 +735,6 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
       typeSpan,
       diagnostics
     );
-    if (statement.bindingKind === "let") {
-      diagnostics.push(diagnostic(statement, statement.keywordSpan, "record-let-unsupported", "record 型 binding は v1 では const のみです。let は使用できません。"));
-    }
 
     const initializerSpan = statement.payloadSpans.initializer;
     let constructor: RecordConstructorSemantic | null = null;
@@ -856,25 +853,6 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
     };
     valuesByStatementId.set(statementId, value);
     valuesByStatementIndex.set(statementIndex, value);
-  }
-
-  for (const [statementIndex, statement] of statements.entries()) {
-    if (statement.kind !== "set" || !statement.name) continue;
-    const baseName = statement.name.split(".", 1)[0]!;
-    const lookup = input.resolveDeclaration(statementIndex, baseName);
-    let isRecordTarget = lookup.kind === "resolved" && lookup.declaration.kind === "recordValue";
-    if (lookup.kind !== "resolved" && lookup.kind !== "ambiguous") {
-      isRecordTarget = Boolean(recordModuleParameterAt(
-        statements,
-        stableStatementIdByIndex,
-        moduleParameterTypeByDefinitionAndIndex,
-        statementIndex,
-        baseName
-      ));
-    }
-    if (isRecordTarget) {
-      diagnostics.push(diagnostic(statement, statement.nameSpan ?? statement.keywordSpan, "record-set-unsupported", "record 値または record field は v1 では set できません。"));
-    }
   }
 
   return {

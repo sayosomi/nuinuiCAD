@@ -13,11 +13,6 @@ import {
 } from "@nuinuicad/nui-language";
 import { TEXT_TEMPLATE_HOLE_TYPE_MISMATCH_CODE } from "@nuinuicad/nui-language";
 import {
-  CONST_ASSIGNMENT_CODE,
-  INVALID_SET_TARGET_CODE,
-  MISSING_SET_STATEMENT_IDENTITY_CODE
-} from "@nuinuicad/nui-language";
-import {
   emptyDocument,
   expectSemanticallyEqualDocuments,
   roundTrip
@@ -625,11 +620,11 @@ describe("nui 1 enabled/visible syntax wiring", () => {
 });
 
 describe("nui 1 typed declaration wiring", () => {
-  it("accepts const/let with no diagnostics, staying out of document.elements", () => {
+  it("accepts const declarations with no diagnostics, staying out of document.elements", () => {
     // 型付き宣言のidentityはstatement reconcilerが供給する。直接compilerを
     // 呼ぶこの単体テストでも、その契約を明示して渡す。
     const compiled = compileDslDocument(
-      ["nui 1", "const x: number = 1", "let 表示する: boolean = true", "point A = coordinate(x: 0, y: 0)"].join("\n"),
+      ["nui 1", "const x: number = 1", "const 表示する: boolean = true", "point A = coordinate(x: 0, y: 0)"].join("\n"),
       {
         assignedStatementIds: new Map([
           [1, "test:typed:x"],
@@ -694,7 +689,7 @@ describe("Task 26 text template wiring", () => {
 
   it("accepts a boolean hole and stores the compiled boolean template", () => {
     const compiled = compileDslDocument(
-      ["nui 1", "let 表示する: boolean = true", 'text T = label(text: "flag ${@表示する}", anchor: none, size: 3)'].join("\n"),
+      ["nui 1", "const 表示する: boolean = true", 'text T = label(text: "flag ${@表示する}", anchor: none, size: 3)'].join("\n"),
       { assignedStatementIds: new Map([[1, "test:flag"]]) }
     );
     expect(compiled.document).not.toBeNull();
@@ -716,71 +711,6 @@ describe("Task 26 text template wiring", () => {
 
 });
 
-describe("Task 29 set statement wiring", () => {
-  it("stores a resolved target/typed RHS on compiled.setStatements, alongside a clean diagnostics list", () => {
-    const compiled = compileDslDocument(
-      ["nui 1", "let x: number = 1", "set x = 2"].join("\n"),
-      { assignedStatementIds: new Map([[1, "test:x"], [2, "test:set-x"]]) }
-    );
-    expect(compiled.diagnostics).toEqual([]);
-    expect(compiled.document).not.toBeNull();
-    const entry = compiled.setStatements?.get(2);
-    expect(entry).toMatchObject({ targetName: "x", statementId: "test:set-x", sourceOrder: 2 });
-  });
-
-  it("keeps the last-good document (null) and surfaces const-assignment for a const target", () => {
-    const compiled = compileDslDocument(
-      ["nui 1", "const x: number = 1", "set x = 2"].join("\n"),
-      { assignedStatementIds: new Map([[1, "test:x"], [2, "test:set-x"]]) }
-    );
-    expect(compiled.document).toBeNull();
-    expect(compiled.diagnostics).toEqual(
-      expect.arrayContaining([expect.objectContaining({ severity: "error", code: CONST_ASSIGNMENT_CODE })])
-    );
-  });
-
-  it("keeps the last-good document (null) and surfaces invalid-set-target for an undefined name", () => {
-    const compiled = compileDslDocument(
-      ["nui 1", "let unrelated: number = 1", "set missing = 2"].join("\n"),
-      { assignedStatementIds: new Map([[1, "test:unrelated"], [2, "test:set-missing"]]) }
-    );
-    expect(compiled.document).toBeNull();
-    expect(compiled.diagnostics).toEqual(
-      expect.arrayContaining([expect.objectContaining({ severity: "error", code: INVALID_SET_TARGET_CODE })])
-    );
-  });
-
-  it("keeps the last-good document (null) and surfaces invalid-set-target for a set with no typed declarations at all", () => {
-    const compiled = compileDslDocument(
-      ["nui 1", "set missing = 2"].join("\n"),
-      { assignedStatementIds: new Map([[1, "test:set-missing"]]) }
-    );
-    expect(compiled.document).toBeNull();
-    expect(compiled.diagnostics).toEqual(
-      expect.arrayContaining([expect.objectContaining({ severity: "error", code: INVALID_SET_TARGET_CODE })])
-    );
-  });
-
-  it("fails closed with missing-stable-statement-identity when no reconciled identity is supplied for a set statement", () => {
-    const compiled = compileDslDocument(["nui 1", "let x: number = 1", "set x = 2"].join("\n"));
-    expect(compiled.document).toBeNull();
-    expect(compiled.diagnostics).toEqual(
-      expect.arrayContaining([expect.objectContaining({ severity: "error", code: MISSING_SET_STATEMENT_IDENTITY_CODE })])
-    );
-  });
-
-  it("leaves setStatements undefined for a document with no set statements at all", () => {
-    const compiled = compileDslDocument(
-      ["nui 1", "let x: number = 1"].join("\n"),
-      { assignedStatementIds: new Map([[1, "test:x"]]) }
-    );
-    expect(compiled.diagnostics).toEqual([]);
-    expect(compiled.document).not.toBeNull();
-    expect(compiled.setStatements).toBeUndefined();
-  });
-
-});
-
 describe("Task 36 typed dependency graph wiring", () => {
   it("keeps static missing and late initializer navigation on the compiled document", () => {
     const compiled = compileDslDocument(
@@ -793,19 +723,6 @@ describe("Task 36 typed dependency graph wiring", () => {
       expect.objectContaining({ kind: "initializer", reason: "missing", span: expect.any(Object) }),
       expect.objectContaining({ kind: "initializer", reason: "late", span: expect.any(Object) })
     ]));
-  });
-
-  it("connects a set RHS to the version current before its statement", () => {
-    const compiled = compileDslDocument(
-      ["nui 1", "let x: number = 1", "let y: number = 2", "set x = @y", "set y = 3"].join("\n"),
-      { assignedStatementIds: new Map([[1, "test:x"], [2, "test:y"], [3, "test:set-x"], [4, "test:set-y"]]) }
-    );
-    const edge = compiled.typedDependencyGraph?.edges.find((candidate) => candidate.kind === "set-rhs");
-
-    expect(edge).toMatchObject({
-      from: { kind: "version", id: "test:set-x" },
-      to: { kind: "version", id: "test:y" }
-    });
   });
 
   it("deduplicates repeated initializer targets while retaining an invalid target reason", () => {

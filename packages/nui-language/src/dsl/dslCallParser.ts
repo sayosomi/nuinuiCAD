@@ -9,7 +9,8 @@ import {
   type DslArgSpec,
 } from "./dslConstructions";
 import { scanCallArgs, type ScannedArg } from "./dslArgScanner";
-import type { DslAttribute, DslDiagnosticPresentation, DslSpan } from "./dslTypes";
+import type { DslAttribute, DslDiagnosticPresentation, DslForCarryClause, DslSpan } from "./dslTypes";
+import { parseDslDeclaredValueType } from "./dslTypeParser";
 import { unquoteDslString } from "./dslTokens";
 
 export type DslCallDiagnostic = { message: string; span: DslSpan; code?: string; presentation?: DslDiagnosticPresentation };
@@ -33,6 +34,11 @@ export type DslCallStatement = {
   /** Optional immutable checkpoint declared by `as`. */
   stageName?: string | null;
   stageNameSpan?: DslSpan | null;
+  /** Collection source for a statement-for header. Range headers keep the
+   * existing min/max/step argument representation and leave this absent. */
+  forSource?: string;
+  forSourceSpan?: DslSpan;
+  forCarries?: readonly DslForCarryClause[];
 };
 
 export type DslTransformationTargetSyntax = {
@@ -219,6 +225,76 @@ const topLevelWordIndex = (source: string, word: string, start = 0, end = source
     if ((before === undefined || whitespace.test(before)) && (after === undefined || whitespace.test(after))) return index;
   }
   return -1;
+};
+
+const parseForCarries = (
+  source: string,
+  start: number,
+  end: number,
+  diagnostics: DslCallDiagnostic[]
+): DslForCarryClause[] => {
+  const carries: DslForCarryClause[] = [];
+  let cursor = start;
+  while (true) {
+    const clauseStart = trimSpan(source, cursor, end);
+    if (clauseStart.start === clauseStart.end) break;
+    if (source.slice(clauseStart.start, clauseStart.start + 5) !== "carry" ||
+        !/\s/.test(source[clauseStart.start + 5] ?? "")) {
+      diagnostic(diagnostics, "for ヘッダの本体前には carry 宣言だけを指定できます。", clauseStart, "invalid-for-header");
+      break;
+    }
+    const carryKeywordSpan = { start: clauseStart.start, end: clauseStart.start + 5 };
+    let nameStart = carryKeywordSpan.end;
+    while (whitespace.test(source[nameStart] ?? "")) nameStart += 1;
+    const nameMatch = identifier.exec(source.slice(nameStart));
+    if (!nameMatch) {
+      diagnostic(diagnostics, "carry には名前が必要です。", carryKeywordSpan, "invalid-carry");
+      break;
+    }
+    const nameSpan = { start: nameStart, end: nameStart + nameMatch[0].length };
+    const colon = topLevelIndex(source, ":", nameSpan.end);
+    if (colon < 0 || colon >= end) {
+      diagnostic(diagnostics, "carry には `name: Type = initializer` の型注釈が必要です。", nameSpan, "missing-carry-type");
+      break;
+    }
+    const equals = topLevelIndex(source, "=", colon + 1);
+    if (equals < 0 || equals >= end) {
+      diagnostic(diagnostics, "carry には `name: Type = initializer` の初期化式が必要です。", { start: colon, end: colon + 1 }, "missing-carry-initializer");
+      break;
+    }
+    const typeSpan = trimSpan(source, colon + 1, equals);
+    const nextCarry = topLevelWordIndex(source, "carry", equals + 1, end);
+    const initializerSpan = trimSpan(source, equals + 1, nextCarry >= 0 ? nextCarry : end);
+    const typeDiagnostics: { message: string; span: DslSpan; code?: string; presentation?: DslDiagnosticPresentation }[] = [];
+    const parsedType = parseDslDeclaredValueType(source, typeSpan, typeDiagnostics);
+    diagnostics.push(...typeDiagnostics);
+    if (typeSpan.start === typeSpan.end) {
+      diagnostic(diagnostics, "carry には空でない型注釈が必要です。", { start: colon, end: colon + 1 }, "missing-carry-type");
+    }
+    if (initializerSpan.start === initializerSpan.end) {
+      diagnostic(diagnostics, "carry の初期化式には値が必要です。", { start: equals, end: equals + 1 }, "missing-carry-initializer");
+    }
+    const payloadSpans: Record<string, DslSpan> = {
+      name: nameSpan,
+      type: typeSpan,
+      initializer: initializerSpan
+    };
+    carries.push({
+      name: unquoteDslString(source.slice(nameSpan.start, nameSpan.end)),
+      nameSpan,
+      typeSpan,
+      typeText: source.slice(typeSpan.start, typeSpan.end),
+      valueType: parsedType.valueType,
+      choiceOptionSpans: parsedType.choiceOptionSpans,
+      ...(parsedType.numericTypeOptions ? { numericTypeOptions: parsedType.numericTypeOptions } : {}),
+      initializer: source.slice(initializerSpan.start, initializerSpan.end),
+      initializerSpan,
+      carryKeywordSpan,
+      payloadSpans
+    });
+    cursor = nextCarry >= 0 ? nextCarry : end;
+  }
+  return carries;
 };
 
 type ParsedNameWithModifiers = ReturnType<typeof parseName> & {
@@ -631,49 +707,78 @@ export const parseDslCallStatement = (
     // This is a syntax lowering only; it does not introduce another loop AST
     // || runtime.
     if (category === "for") {
-      const forHeader = logicalText.slice(afterCategory.start).match(/^([A-Za-z_][A-Za-z0-9_]*)\s+in\s+range\s*\(/);
+      const forHeader = logicalText.slice(afterCategory.start).match(/^([A-Za-z_][A-Za-z0-9_]*)\s+in\s+/);
       if (forHeader) {
         const variableStart = afterCategory.start + forHeader[0].indexOf(forHeader[1]);
-        const rangeOpen = afterCategory.start + forHeader[0].lastIndexOf("(");
-        const brace = topLevelIndex(logicalText, "{", rangeOpen);
+        const variableSpan = { start: variableStart, end: variableStart + forHeader[1].length };
+        const sourceStart = afterCategory.start + forHeader[0].length;
+        const brace = topLevelIndex(logicalText, "{", sourceStart);
         const headerEnd = brace >= 0 ? brace : logicalText.length;
         const afterBrace = brace >= 0 ? trimSpan(logicalText, brace + 1, logicalText.length) : null;
         const inlineBlock = brace >= 0 && afterBrace!.start === afterBrace!.end;
         if (brace >= 0 && !inlineBlock) diagnostic(diagnostics, "「{」の後に余分なトークンがあります。", afterBrace!);
-        const close = matchingClose(logicalText, rangeOpen);
-        if (close < 0) diagnostic(diagnostics, "range 呼び出しの「(」が閉じられていません。", { start: rangeOpen, end: rangeOpen + 1 });
-        const tail = close >= 0 ? trimSpan(logicalText, close + 1, headerEnd) : { start: headerEnd, end: headerEnd };
-        if (tail.start < tail.end) diagnostic(diagnostics, "range 呼び出しの「)」の後に余分なトークンがあります。", tail);
         const opensBlock = Boolean(options.opensBlock || inlineBlock);
         if (!opensBlock) diagnostic(diagnostics, "for にはブロックが必要です。", keywordSpan);
-        const scanned = scanCallArgs(
-          logicalText,
-          { start: rangeOpen + 1, end: close >= 0 ? close : logicalText.length }
-        );
-        diagnostics.push(...scanned.errors);
-        const variableSpan = { start: variableStart, end: variableStart + forHeader[1].length };
-        scanned.args.unshift({
-          key: null,
-          keySpan: null,
-          value: forHeader[1],
-          valueSpan: variableSpan
-        });
-        const payloadSpans: Record<string, DslSpan> = {};
-        const spec = validateArgs("for", "", keywordSpan, null, scanned.args, diagnostics, payloadSpans);
+
+        const rangeMatch = logicalText.slice(sourceStart, headerEnd).match(/^range\s*\(/);
+        if (rangeMatch) {
+          const rangeOpen = sourceStart + rangeMatch[0].lastIndexOf("(");
+          const close = matchingClose(logicalText, rangeOpen);
+          if (close < 0) diagnostic(diagnostics, "range 呼び出しの「(」が閉じられていません。", { start: rangeOpen, end: rangeOpen + 1 });
+          const scanned = scanCallArgs(
+            logicalText,
+            { start: rangeOpen + 1, end: close >= 0 ? close : headerEnd }
+          );
+          diagnostics.push(...scanned.errors);
+          scanned.args.unshift({ key: null, keySpan: null, value: forHeader[1], valueSpan: variableSpan });
+          const payloadSpans: Record<string, DslSpan> = {};
+          const spec = validateArgs("for", "", keywordSpan, null, scanned.args, diagnostics, payloadSpans);
+          const carryStart = close >= 0 ? close + 1 : headerEnd;
+          const carries = parseForCarries(logicalText, carryStart, headerEnd, diagnostics);
+          const statement = {
+            category: "for",
+            construction: "",
+            elementType: spec?.elementType ?? null,
+            name: "",
+            nameSpan: null,
+            keywordSpan,
+            constructionSpan: null,
+            args: scanned.args,
+            attrs: attrsFromArgs(scanned.args),
+            payloadSpans,
+            modifierNames: [],
+            modifierNameSpans: [],
+            opensBlock,
+            forCarries: carries
+          } satisfies DslCallStatement;
+          return { statement, diagnostics };
+        }
+
+        const firstCarry = topLevelWordIndex(logicalText, "carry", sourceStart, headerEnd);
+        const sourceSpan = trimSpan(logicalText, sourceStart, firstCarry >= 0 ? firstCarry : headerEnd);
+        if (sourceSpan.start === sourceSpan.end) {
+          diagnostic(diagnostics, "for には range(...) または collection source が必要です。", { start: sourceStart, end: sourceStart }, "missing-for-source");
+        }
+        const carries = parseForCarries(logicalText, firstCarry >= 0 ? firstCarry : headerEnd, headerEnd, diagnostics);
+        const payloadSpans: Record<string, DslSpan> = { variable: variableSpan };
+        if (sourceSpan.start < sourceSpan.end) payloadSpans.source = sourceSpan;
         const statement = {
           category: "for",
           construction: "",
-          elementType: spec?.elementType ?? null,
+          elementType: "forGroup" as const,
           name: "",
           nameSpan: null,
           keywordSpan,
           constructionSpan: null,
-          args: scanned.args,
-          attrs: attrsFromArgs(scanned.args),
+          args: [{ key: null, keySpan: null, value: forHeader[1], valueSpan: variableSpan }],
+          attrs: [],
           payloadSpans,
           modifierNames: [],
           modifierNameSpans: [],
-          opensBlock
+          opensBlock,
+          forSource: logicalText.slice(sourceSpan.start, sourceSpan.end),
+          forSourceSpan: sourceSpan,
+          forCarries: carries
         } satisfies DslCallStatement;
         return { statement, diagnostics };
       }

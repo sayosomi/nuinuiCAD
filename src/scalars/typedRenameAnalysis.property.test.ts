@@ -4,7 +4,7 @@ import { compileDslDocument } from "@nuinuicad/nui-language";
 import { parseDsl } from "@nuinuicad/nui-language";
 import { analyzeTypedBindingRenameInDocument } from "@nuinuicad/nui-language/document";
 
-// Dense fan-out: `count` distinct `let` declarations each directly
+// Dense fan-out: `count` distinct `const` declarations each directly
 // referencing one shared binding by `name` - this is the shape most
 // relevant to rename safety specifically (every occurrence the rename must
 // replay), as opposed to typedDependencyGraph.performance.test.ts's long
@@ -12,7 +12,7 @@ import { analyzeTypedBindingRenameInDocument } from "@nuinuicad/nui-language/doc
 const fanOutSource = (count: number, name: string) => [
   "nui 1",
   `const ${name}: number = 0`,
-  ...Array.from({ length: count }, (_, index) => `let v${index}: number = @${name}`)
+  ...Array.from({ length: count }, (_, index) => `const v${index}: number = @${name}`)
 ].join("\n");
 
 const compile = (source: string) => {

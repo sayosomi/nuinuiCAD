@@ -1,5 +1,5 @@
-//! Record-only Task 50 production benchmarks for the two mutually-exclusive
-//! pure nui1 payload forms accepted by `evaluate_document`.
+//! Record-only production benchmarks for pure immutable nui1 payloads accepted
+//! by `evaluate_document`.
 
 use serde_json::{json, Value};
 
@@ -47,11 +47,8 @@ fn initializer(index: usize) -> Value {
 }
 
 fn binding_kind(index: usize) -> &'static str {
-    if index.is_multiple_of(2) {
-        "const"
-    } else {
-        "let"
-    }
+    let _ = index;
+    "const"
 }
 
 fn scalar_program(binding_count: usize) -> Value {
@@ -72,8 +69,7 @@ fn scalar_program(binding_count: usize) -> Value {
 
 fn binding_versions(binding_count: usize) -> Value {
     assert!(binding_count.is_multiple_of(2));
-    let terminal_binding_index = binding_count - 1;
-    let mut versions = (0..binding_count)
+    let versions = (0..binding_count)
         .map(|index| {
             let id = statement_id(index);
             json!({
@@ -92,22 +88,6 @@ fn binding_versions(binding_count: usize) -> Value {
             })
         })
         .collect::<Vec<_>>();
-    versions.push(json!({
-        "versionId":"task50:pure:set",
-        "statementId":"task50:pure:set",
-        "kind":"set",
-        "bindingId":binding_id(terminal_binding_index),
-        "targetBindingId":binding_id(terminal_binding_index),
-        "bindingKind":"let",
-        "declaredType":{"kind":"number"},
-        "sourceOrder":binding_count,
-        "scopeId":"root",
-        "scopeExitSourceOrder":binding_count + 1,
-        "control":{"scopeId":"root","scopeExitSourceOrder":binding_count + 1,"ownerChain":[],"kind":"linear"},
-        "predecessorId":statement_id(terminal_binding_index),
-        "initialState":{"kind":"uncomputed"},
-        "expression":add(reference(terminal_binding_index), number(1.0))
-    }));
     json!({
         "versions":versions,
         "elementSourceOrders":[],

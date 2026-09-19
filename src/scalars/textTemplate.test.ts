@@ -165,7 +165,7 @@ describe("compileTextTemplates: typed holes", () => {
 
   it("boolean binding is accepted as a boolean hole", () => {
     const compiled = compileTemplatesFor([
-      "let 表示する: boolean = true",
+      "const 表示する: boolean = true",
       'text T = label(text: "flag ${@表示する}", anchor: none, size: 3)'
     ].join("\n"));
     expect(compiled.diagnostics).toEqual([]);

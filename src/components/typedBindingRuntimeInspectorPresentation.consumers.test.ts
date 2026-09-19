@@ -4,7 +4,7 @@ import { emptyDocument } from "@nuinuicad/nui-language";
 import { buildConditionalGroupConditionsByElementId } from "../geometry/controlBooleanRuntime";
 import { evaluateElements, type EvaluateElementsOptions } from "../geometry/evaluate";
 import { buildConditionalMutationOwners, conditionalOwnerIdByElementId } from "../scalars/conditionalMutationControl";
-import { buildForGroupMutationOwners, forGroupMutationOwnerByElementId } from "../scalars/forGroupMutationControl";
+import { buildForGroupExecutionOwners, forGroupMutationOwnerByElementId } from "../scalars/forGroupMutationControl";
 import type { BindingId } from "@nuinuicad/nui-language";
 import {
   typedBindingRuntimeInspectorPresentation,
@@ -31,7 +31,7 @@ const optionsFor = (compiled: LastGoodDslDocument): EvaluateElementsOptions => (
       ))
     : undefined,
   forGroupMutationOwnerByElementId: compiled.bindingVersions
-    ? forGroupMutationOwnerByElementId(buildForGroupMutationOwners(
+    ? forGroupMutationOwnerByElementId(buildForGroupExecutionOwners(
         compiled.bindingVersions, compiled.document.elements, compiled.statementMap.byElementId,
         compiled.statementMap.statementIdByStatementIndex
       ))
@@ -83,7 +83,7 @@ describe("typedBindingRuntimeInspectorPresentation: consumer rows", () => {
   it("intersectionPoint.useExtensions (boolean)", () => {
     const compiled = compileCanonical([
       "nui 1",
-      "let 延長: boolean = true",
+      "const 延長: boolean = true",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "point C = coordinate(x: 0, y: 10)",
@@ -102,7 +102,7 @@ describe("typedBindingRuntimeInspectorPresentation: consumer rows", () => {
   it("forGroup.showGenerated", () => {
     const compiled = compileCanonical([
       "nui 1",
-      "let 表示: boolean = true",
+      "const 表示: boolean = true",
       "for i in range(min: 0, max: 1, step: 1, showGenerated: @表示) {",
       "  point P = coordinate(x: 0, y: 0)",
       "}"
@@ -129,7 +129,7 @@ describe("typedBindingRuntimeInspectorPresentation: consumer rows", () => {
   it("conditionalGroup.condition - falls back to a whole-element jump (no Task 43 span index for a condition expression)", () => {
     const compiled = compileCanonical([
       "nui 1",
-      "let flag: boolean = true",
+      "const flag: boolean = true",
       "if (@flag) {",
       "  point P = coordinate(x: 0, y: 0)",
       "}"

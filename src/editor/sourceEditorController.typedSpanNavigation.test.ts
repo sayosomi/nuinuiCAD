@@ -1,4 +1,4 @@
-// Task 43: click/Tab/Inspector-jump navigation over typed declaration/set fields,
+// Typed declaration click/Tab/Inspector-jump navigation,
 // property bindings, && text template holes, built on the compile-time span indices in
 // statementRangeIndex.ts. Mirrors the fixture/harness conventions of
 // sourceEditorController.test.ts's own "value-span click selection" /
@@ -119,7 +119,7 @@ describe("SourceEditorController Task 43: typed declaration Tab/click navigation
   });
 
   it("leaves the initializer span null (fail-closed), while name/type stay reachable, when the initializer spans a continuation line", () => {
-    const multilineSource = ["nui 1", "let total: number = (", "  1 + 2", ")"].join("\n");
+    const multilineSource = ["nui 1", "const total: number = (", "  1 + 2", ")"].join("\n");
     useCadDocumentStore.getState().commitText(multilineSource, "test");
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
@@ -173,43 +173,6 @@ describe("SourceEditorController Task 43: typed declaration Tab/click navigation
     expect(controller.jumpToBindingDeclarationPart(bindingId, "initializer")).toBe(false);
 
     fireEvent.compositionEnd(content);
-    controller.destroy();
-  });
-});
-
-describe("SourceEditorController Task 43: set statement Tab/click navigation", () => {
-  beforeEach(setUp);
-  afterEach(() => vi.restoreAllMocks());
-
-  const source = ["nui 1", "let total: number = 0", "set total = @total + 1"].join("\n");
-
-  it("Tab cycles target -> expression -> wraps to target on a set statement line", () => {
-    useCadDocumentStore.getState().commitText(source, "test");
-    const parent = document.createElement("div");
-    const controller = new SourceEditorController(parent);
-    const internals = controller as unknown as ControllerInternals;
-    const text = internals.view.state.doc.toString();
-    const setLineStart = text.lastIndexOf("set total");
-    internals.view.dispatch({ selection: EditorSelection.cursor(setLineStart) });
-
-    expect(internals.navigateValueSpan("next")).toBe(true);
-    expect(selectedText(internals)).toBe("total");
-    expect(internals.navigateValueSpan("next")).toBe(true);
-    expect(selectedText(internals)).toBe("@total + 1");
-    expect(internals.navigateValueSpan("next")).toBe(true);
-    expect(selectedText(internals)).toBe("total");
-    controller.destroy();
-  });
-
-  it("clicking on the RHS expression selects exactly that sub-span", () => {
-    useCadDocumentStore.getState().commitText(source, "test");
-    const parent = document.createElement("div");
-    const controller = new SourceEditorController(parent);
-    const internals = controller as unknown as ControllerInternals;
-    const text = internals.view.state.doc.toString();
-
-    expect(clickAt(internals, text.lastIndexOf("@total") + 1)).toBe(true);
-    expect(selectedText(internals)).toBe("@total + 1");
     controller.destroy();
   });
 });
@@ -283,22 +246,6 @@ describe("SourceEditorController Task 43: dirty-source fail-closed semantics for
 
     expect(internals.navigateValueSpan("next")).toBe(false);
     expect(internals.view.state.selection.main.empty).toBe(true);
-    controller.destroy();
-  });
-
-  it("Tab no-ops once any edit lands inside a set statement, even before the next compile", () => {
-    const source = ["nui 1", "let total: number = 0", "set total = @total + 1"].join("\n");
-    useCadDocumentStore.getState().commitText(source, "test");
-    const parent = document.createElement("div");
-    const controller = new SourceEditorController(parent);
-    const internals = controller as unknown as ControllerInternals;
-    const text = internals.view.state.doc.toString();
-    const setLineStart = text.lastIndexOf("set total");
-    internals.view.dispatch({ changes: { from: setLineStart, insert: "#" } });
-    const dirtyText = internals.view.state.doc.toString();
-    internals.view.dispatch({ selection: EditorSelection.cursor(dirtyText.lastIndexOf("total")) });
-
-    expect(internals.navigateValueSpan("next")).toBe(false);
     controller.destroy();
   });
 

@@ -23,7 +23,7 @@ mod expression_leaf_payload;
 mod expression_payload;
 mod expression_shape_payload;
 #[allow(dead_code)]
-mod for_group_mutation_core;
+mod for_group_execution_core;
 mod geometry_builtin_runtime;
 mod issue;
 mod json_helpers;
@@ -54,7 +54,7 @@ mod expression_evaluator_tests;
 #[cfg(test)]
 mod expression_payload_tests;
 #[cfg(test)]
-mod for_group_mutation_core_tests;
+mod for_group_execution_core_tests;
 #[cfg(test)]
 mod geometry_builtin_runtime_tests;
 #[cfg(test)]
@@ -82,13 +82,13 @@ pub(crate) use control_boolean_payload::validate_control_boolean_bindings_payloa
 pub(crate) use expression_evaluator::{evaluate_typed_expression, ScalarEvaluationEnvironment};
 pub(crate) use expression_payload::validate_typed_expression_payload;
 pub(crate) use expression_shape_payload::decode_geometry_target_payload;
-pub(crate) use for_group_mutation_core::{
-    ForGroupMutationEnvironment, ForGroupMutationError, ForGroupMutationRunOutcome,
+pub(crate) use for_group_execution_core::{
+    ForGroupExecutionEnvironment, ForGroupExecutionError, ForGroupExecutionRunOutcome,
 };
 pub(crate) use geometry_builtin_runtime::{
     resolve_geometry_builtin_target, GeometryBuiltinRuntimeError, GeometryBuiltinRuntimeTarget,
 };
-pub(crate) use mutation::{ForGroupMutationStatement, ScalarMutationResolver};
+pub(crate) use mutation::{ForGroupExecutionStatement, ScalarMutationResolver};
 pub(crate) use mutation_payload::{validate_binding_versions_payload, ValidatedBindingVersions};
 pub(crate) use program_payload::{validate_scalar_program_payload, ValidatedScalarProgram};
 pub(crate) use property_binding_payload::{

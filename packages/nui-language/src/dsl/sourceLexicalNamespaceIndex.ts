@@ -20,6 +20,7 @@ export type SourceLexicalDeclarationKind =
   | "geometry"
   | "conditionalGroup"
   | "forGroup"
+  | "carry"
   | "typedDeclaration"
   | "layout"
   | "print"
@@ -202,35 +203,49 @@ export const buildSourceLexicalNamespaceIndex = (
   statements.forEach((statement, statementIndex) => {
     if (!includeStatement(statement, statementIndex)) return;
     const kind = declarationKindOf(statement);
-    if (!kind || !statement.name) return;
     const scopeId = scopeIndex.scopeOfStatement.get(statementIndex);
     if (!scopeId) return;
+    const hasCarryDeclarations = statement.kind === "element" && statement.type === "forGroup" && Boolean(statement.forCarries?.length);
+    if (!kind || (!statement.name && !hasCarryDeclarations)) return;
     const statementId = stableStatementIdByIndex.get(statementIndex);
-    if (statementId === undefined) {
-      if (kind === "import") return;
+    if (statementId === undefined && kind !== "import") {
       throw new Error(`sourceLexicalNamespaceIndex: no stable statement id supplied for statement index ${statementIndex}`);
     }
-    const declaration: SourceLexicalDeclaration = {
-      scopeId,
-      statementIndex,
-      statementId,
-      kind,
-      name: statement.name,
-      nameSpan: statement.nameSpan,
-      statement
+    const addDeclaration = (
+      declarationKind: SourceLexicalDeclarationKind,
+      name: string,
+      nameSpan: DslSpan | null,
+      declarationScopeId = scopeId,
+      declarationStatementId = statementId ?? `import:${statementIndex}`
+    ) => {
+      const declaration: SourceLexicalDeclaration = {
+        scopeId: declarationScopeId,
+        statementIndex,
+        statementId: declarationStatementId,
+        kind: declarationKind,
+        name,
+        nameSpan,
+        statement
+      };
+      const scopeDeclarations = declarationsByScope.get(declarationScopeId);
+      if (scopeDeclarations) scopeDeclarations.push(declaration);
+      else declarationsByScope.set(declarationScopeId, [declaration]);
+      const names = declarationsByScopeAndName.get(declarationScopeId);
+      if (names) {
+        const sameName = names.get(name);
+        if (sameName) sameName.push(declaration);
+        else names.set(name, [declaration]);
+      } else {
+        declarationsByScopeAndName.set(declarationScopeId, new Map([[name, [declaration]]]));
+      }
+      allDeclarations.push(declaration);
     };
-    const scopeDeclarations = declarationsByScope.get(scopeId);
-    if (scopeDeclarations) scopeDeclarations.push(declaration);
-    else declarationsByScope.set(scopeId, [declaration]);
-    const names = declarationsByScopeAndName.get(scopeId);
-    if (names) {
-      const sameName = names.get(statement.name);
-      if (sameName) sameName.push(declaration);
-      else names.set(statement.name, [declaration]);
-    } else {
-      declarationsByScopeAndName.set(scopeId, new Map([[statement.name, [declaration]]]));
+    if (kind && statement.name) addDeclaration(kind, statement.name, statement.nameSpan);
+    if (statement.kind === "element" && statement.type === "forGroup" && statement.forCarries?.length) {
+      statement.forCarries.forEach((carry, carryIndex) => {
+        addDeclaration("carry", carry.name, carry.nameSpan, scopeId, `${statementId}:carry:${carryIndex}:${carry.name}`);
+      });
     }
-    allDeclarations.push(declaration);
   });
 
   const collisions: SourceLexicalNamespaceCollision[] = [];

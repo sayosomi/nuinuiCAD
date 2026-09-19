@@ -10,9 +10,8 @@ const source = [
   "nui 1",
   "point Outside = coordinate(x: 0, y: 0)",
   "module M() {",
-  "  let value: number = 0",
   "  if (false) {",
-  "    set value = 1",
+  "    point Inside = coordinate(x: 1, y: 1)",
   "  }",
   "}",
   "instance I = M()"
@@ -23,7 +22,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("Module conditional mutation evaluation engine", () => {
+describe("Module conditional evaluation engine", () => {
   it("forwards qualified Module conditional owners into the Rust payload", async () => {
     vi.stubEnv("VITE_EVALUATION_ENGINE", "rust");
     const compiled = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), source);

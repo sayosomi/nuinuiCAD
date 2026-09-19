@@ -39,7 +39,7 @@ describe("queryDslTypoSuggestions", () => {
     expect(keyword?.targetKind).toBe("keyword");
     expect(keyword?.candidates.map((candidate) => candidate.label)).toContain("point");
 
-    const type = queryFor("nui 1\nlet value: numbr = 10", "unknown-type").result;
+    const type = queryFor("nui 1\nconst value: numbr = 10", "unknown-type").result;
     expect(type?.targetKind).toBe("type");
     expect(type?.candidates.map((candidate) => candidate.label)).toContain("number");
 

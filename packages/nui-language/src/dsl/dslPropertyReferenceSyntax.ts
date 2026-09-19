@@ -6,7 +6,7 @@
 // than silently accepting the pre-migration spelling || silently rewriting
 // it. Callers invoke it only for `nui 1` compilation (mirrors compileTextTemplates'
 // own gate in dslDocument.ts, not compileNumericBindings' scalarAnalysis
-// gate, since a nui 1 document with zero const/let/set statements never
+// gate, since a nui 1 document with zero const or carry statements never
 // runs scalar analysis but must still reject bare property references).
 import type { CadElement, ElementId } from "../types/geometry";
 import type { DslDiagnostic, DslSpan, DslStatement } from "../dsl/dslTypes";

@@ -46,5 +46,4 @@ const lineDistanceDiagonal: number = lineDistance(@DiagonalOutside, @Diagonal)
 const lineDistanceOnLine: number = lineDistance(@OnLine, @Horizontal)
 const lineDistanceZero: number = lineDistance(@ZeroLinePoint, @ZeroLength)
 const derivedLineDistance: number = lineDistance(@AB.start, @Horizontal)
-let mutationValue: number = 0
-set mutationValue = distance(@Origin, @DistanceFive)
+const mutationValue: number = distance(@Origin, @DistanceFive)

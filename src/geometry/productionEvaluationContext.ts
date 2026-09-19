@@ -4,7 +4,7 @@ import { buildNumericBindingRuntimeEntries } from "./numericBindingRuntime";
 import { buildPropertyBindingRuntimeEntries } from "./propertyBindingRuntime";
 import { buildTextPropertyBindingRuntimeEntries, buildTextTemplateEntriesByElementId } from "./textTemplateRuntime";
 import { buildConditionalMutationOwners, conditionalOwnerIdByElementId } from "../scalars/conditionalMutationControl";
-import { buildForGroupMutationOwners, forGroupMutationOwnerByElementId as mapForGroupMutationOwnersByElementId } from "../scalars/forGroupMutationControl";
+import { buildForGroupExecutionOwners, forGroupMutationOwnerByElementId as mapForGroupExecutionOwnersByElementId } from "../scalars/forGroupMutationControl";
 import type { EvaluateElementsOptions } from "./evaluate";
 
 export type BuildEvaluationOptionsInput = {
@@ -36,7 +36,7 @@ export const buildEvaluationOptions = ({
     materializedTextTemplates,
     materializedConditionalGroupConditions,
     moduleConditionalOwnerStatementIdByElementId,
-    moduleForGroupMutationOwnerByElementId,
+    moduleForGroupExecutionOwnerByElementId,
     statementMap
   } = compiledDocument;
   const compiledElements = document.elements;
@@ -106,17 +106,17 @@ export const buildEvaluationOptions = ({
     : undefined;
   const forGroupMutationOwnerByElementId = bindingVersions
     ? new Map([
-        ...mapForGroupMutationOwnersByElementId(buildForGroupMutationOwners(
+        ...mapForGroupExecutionOwnersByElementId(buildForGroupExecutionOwners(
           bindingVersions,
           compiledElements,
           statementInfoByElementId,
           statementIdByStatementIndex,
-          new Set(moduleForGroupMutationOwnerByElementId
-            ? [...moduleForGroupMutationOwnerByElementId.values()].map((owner) => owner.ownerStatementId)
+          new Set(moduleForGroupExecutionOwnerByElementId
+            ? [...moduleForGroupExecutionOwnerByElementId.values()].map((owner) => owner.ownerStatementId)
             : [])
         )),
-        ...(moduleForGroupMutationOwnerByElementId
-          ? [...moduleForGroupMutationOwnerByElementId]
+        ...(moduleForGroupExecutionOwnerByElementId
+          ? [...moduleForGroupExecutionOwnerByElementId]
           : [])
       ])
     : undefined;
@@ -139,13 +139,18 @@ export const buildEvaluationOptions = ({
       conditionalOwnerStatementIdByElementId,
       forGroupMutationOwnerByElementId,
       moduleConditionalOwnerStatementIdByElementId,
-      moduleForGroupMutationOwnerByElementId
+      moduleForGroupExecutionOwnerByElementId
     } : {}),
     ...(compiledDocument.moduleMaterialization ? { moduleMaterialization: compiledDocument.moduleMaterialization } : {}),
     ...(sourceExecutionPositionByElementId ? { sourceExecutionPositionByElementId } : {}),
     ...(scalarExecutionPositionByElementId ? { scalarExecutionPositionByElementId } : {}),
-    ...(compiledDocument.moduleGeometryRuntime?.geometryInputTargetsByRuntimeElementId
-      ? { geometryInputTargetsByElementId: compiledDocument.moduleGeometryRuntime.geometryInputTargetsByRuntimeElementId }
+    ...((compiledDocument.geometryInputTargetsByElementId || compiledDocument.moduleGeometryRuntime?.geometryInputTargetsByRuntimeElementId)
+      ? {
+          geometryInputTargetsByElementId: new Map([
+            ...(compiledDocument.geometryInputTargetsByElementId ?? []),
+            ...(compiledDocument.moduleGeometryRuntime?.geometryInputTargetsByRuntimeElementId ?? [])
+          ])
+        }
       : {}),
     ...(compiledDocument.moduleGeometryRuntime?.geometryCollectionNodesByValueId
       ? { geometryCollectionNodesByValueId: compiledDocument.moduleGeometryRuntime.geometryCollectionNodesByValueId }

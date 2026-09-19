@@ -3,19 +3,19 @@
 import type { CadElement, ElementId } from "../types/geometry";
 import type { BindingControlOwner, BindingVersionGraph } from "@nuinuicad/nui-language";
 
-export type ForGroupMutationOwner = Extract<BindingControlOwner, { kind: "forGroup" }> & {
+export type ForGroupExecutionOwner = Extract<BindingControlOwner, { kind: "forGroup" }> & {
   elementId: ElementId;
 };
 
 type StatementInfo = { statementIndex: number };
 
-export const buildForGroupMutationOwners = (
+export const buildForGroupExecutionOwners = (
   graph: BindingVersionGraph,
   elements: readonly CadElement[],
   statementInfoByElementId: ReadonlyMap<ElementId, StatementInfo> | undefined,
   statementIdByStatementIndex: ReadonlyMap<number, string> | undefined,
   prejoinedOwnerStatementIds: ReadonlySet<string> = new Set()
-): readonly ForGroupMutationOwner[] => {
+): readonly ForGroupExecutionOwner[] => {
   const owners = new Map<string, Extract<BindingControlOwner, { kind: "forGroup" }>>();
   for (const version of graph.versions) for (const owner of version.control.ownerChain) {
     if (owner.kind !== "forGroup" || prejoinedOwnerStatementIds.has(owner.ownerStatementId)) continue;
@@ -25,11 +25,23 @@ export const buildForGroupMutationOwners = (
     }
     owners.set(owner.ownerStatementId, owner);
   }
+  for (const plan of graph.immutableForGroups?.values() ?? []) {
+    const executionOwner = plan.executionOwner;
+    if (prejoinedOwnerStatementIds.has(plan.ownerStatementId) || !executionOwner || owners.has(plan.ownerStatementId)) continue;
+    owners.set(plan.ownerStatementId, {
+      kind: "forGroup",
+      ownerStatementId: plan.ownerStatementId,
+      scopeId: executionOwner.scopeId,
+      exitSourceOrder: executionOwner.exitSourceOrder,
+      ...(executionOwner.entrySourceOrder !== undefined ? { entrySourceOrder: executionOwner.entrySourceOrder } : {}),
+      ...(executionOwner.iterationBindingId ? { iterationBindingId: executionOwner.iterationBindingId } : {})
+    });
+  }
   if (!owners.size) return [];
   if (!statementInfoByElementId || !statementIdByStatementIndex) {
     throw new Error("forGroup mutation requires compiled forGroup statement identities");
   }
-  const result: ForGroupMutationOwner[] = [];
+  const result: ForGroupExecutionOwner[] = [];
   for (const element of elements) {
     if (element.type !== "forGroup") continue;
     const statement = statementInfoByElementId.get(element.id);
@@ -44,24 +56,24 @@ export const buildForGroupMutationOwners = (
 };
 
 export const forGroupMutationOwnerByElementId = (
-  owners: readonly ForGroupMutationOwner[]
-): ReadonlyMap<ElementId, ForGroupMutationOwner> => new Map(owners.map((owner) => [owner.elementId, owner]));
+  owners: readonly ForGroupExecutionOwner[]
+): ReadonlyMap<ElementId, ForGroupExecutionOwner> => new Map(owners.map((owner) => [owner.elementId, owner]));
 
 /**
  * Eligibility must not infer an owner from element order. A missing, stale,
  * || inconsistent compiled join keeps the document on the TS reference path.
  */
-export const hasCanonicalForGroupMutationOwners = (
+export const hasCanonicalForGroupExecutionOwners = (
   graph: BindingVersionGraph,
   elements: readonly CadElement[],
   statementInfoByElementId: ReadonlyMap<ElementId, StatementInfo> | undefined,
   statementIdByStatementIndex: ReadonlyMap<number, string> | undefined,
-  ownersByElementId: ReadonlyMap<ElementId, ForGroupMutationOwner> | undefined,
+  ownersByElementId: ReadonlyMap<ElementId, ForGroupExecutionOwner> | undefined,
   prejoinedOwnerStatementIds: ReadonlySet<string> = new Set()
 ): boolean => {
   if (!ownersByElementId) return false;
   try {
-    const expected = buildForGroupMutationOwners(
+    const expected = buildForGroupExecutionOwners(
       graph, elements, statementInfoByElementId, statementIdByStatementIndex, prejoinedOwnerStatementIds
     );
     const ordinaryActual = [...ownersByElementId.values()].filter((owner) =>

@@ -271,25 +271,14 @@ describe("DSL typed declarations", () => {
     expect(source.slice(statement.payloadSpans.initializer.start, statement.payloadSpans.initializer.end)).toBe("12");
   });
 
-  it("parses a let string declaration", () => {
-    const statement = single('let ラベル: string = "前身頃"');
-    expect(statement).toMatchObject({
-      kind: "typedDeclaration",
-      bindingKind: "let",
-      name: "ラベル",
-      valueType: { kind: "string" },
-      initializer: '"前身頃"'
-    });
+  it("rejects the removed let declaration through the unknown-keyword path", () => {
+    const result = errors('let ラベル: string = "前身頃"');
+    expect(result.some((item) => item.code === "unknown-dsl-keyword")).toBe(true);
   });
 
-  it("parses a boolean declaration", () => {
-    const statement = single("let 表示する: boolean = true");
-    expect(statement).toMatchObject({
-      kind: "typedDeclaration",
-      bindingKind: "let",
-      valueType: { kind: "boolean" },
-      initializer: "true"
-    });
+  it("keeps const as the only canonical declaration keyword", () => {
+    const statement = single("const 表示する: boolean = true");
+    expect(statement).toMatchObject({ kind: "typedDeclaration", bindingKind: "const", valueType: { kind: "boolean" }, initializer: "true" });
   });
 
   it("parses a choice declaration with ordered options and per-option spans", () => {
@@ -401,9 +390,9 @@ describe("DSL typed declarations", () => {
       "  const 幅: number = 10",
       "}",
       "if (@condition) {",
-      "  let x: boolean = true",
+      "  const x: boolean = true",
       "} else {",
-      "  let x: boolean = false",
+      "  const x: boolean = false",
       "}"
     ].join("\n"));
     expect(parsed.diagnostics).toEqual([]);
@@ -460,53 +449,33 @@ describe("DSL typed declarations", () => {
 
 });
 
-describe("DSL set statements", () => {
-  it("parses a set statement with exact target/expression spans", () => {
-    const source = "set x = 1";
-    const statement = single(source);
-    expect(statement).toMatchObject({ kind: "set", name: "x", expression: "1" });
-    if (statement.kind !== "set") return;
-    expect(source.slice(statement.nameSpan!.start, statement.nameSpan!.end)).toBe("x");
-    expect(source.slice(statement.payloadSpans.expression.start, statement.payloadSpans.expression.end)).toBe("1");
-  });
-
-  it("does not open a block and is excluded from element/duplicate-name processing", () => {
-    const statement = single("set x = 1");
-    expect(statement.opensBlock).toBe(false);
-  });
-
-  it("is legal inside group and if/else blocks and records enclosing scope", () => {
-    const parsed = parseDsl([
-      "group 前身頃 {",
-      "  set 幅 = 10",
-      "}",
-      "if (@condition) {",
-      "  set x = true",
-      "} else {",
-      "  set x = false",
+describe("DSL immutable statement-for carry/next", () => {
+  it("parses repeated carries and next with exact source spans", () => {
+    const source = [
+      "for i in range(min: 0, max: 1, step: 1) carry a: number = 0 carry b: number = 1 {",
+      "  next a = @b",
+      "  next b = @a",
       "}"
-    ].join("\n"));
+    ].join("\n");
+    const parsed = parseDsl(source);
     expect(parsed.diagnostics).toEqual([]);
-    const sets = parsed.statements.filter((item) => item.kind === "set");
-    expect(sets).toHaveLength(3);
-    expect(sets[0].enclosing).toEqual({ statementIndex: 0, branch: "then" });
-    expect(sets[1].enclosing).toMatchObject({ branch: "then" });
-    expect(sets[2].enclosing).toMatchObject({ branch: "else" });
+    expect(parsed.statements.map((statement) => statement.kind)).toEqual(["element", "next", "next", "blockEnd"]);
+    const header = parsed.statements[0];
+    expect(header).toMatchObject({ kind: "element", type: "forGroup", forCarries: [{ name: "a" }, { name: "b" }] });
+    if (header?.kind !== "element" || !header.forCarries) return;
+    expect(source.slice(header.forCarries[0]!.nameSpan.start, header.forCarries[0]!.nameSpan.end)).toBe("a");
+    expect(source.slice(header.forCarries[1]!.initializerSpan.start, header.forCarries[1]!.initializerSpan.end)).toBe("1");
+    expect(parsed.statements[1]).toMatchObject({ kind: "next", name: "a", expression: "@b" });
+    expect(parsed.statements[1]!.payloadSpans.expression).toEqual(expect.any(Object));
   });
 
-  it("reports a missing target name", () => {
-    const result = errors("set = 1");
-    expect(result.some((item) => item.message.includes("変数名"))).toBe(true);
+  it("rejects let and set as unsupported nui1 syntax", () => {
+    const parsed = parseDsl("let x: number = 0\nset x = 1");
+    expect(parsed.diagnostics.filter((diagnostic) => diagnostic.code === "unknown-dsl-keyword")).toHaveLength(2);
   });
 
-  it("reports a missing assignment", () => {
-    const result = errors("set x");
-    expect(result.some((item) => item.message.includes("代入式"))).toBe(true);
-  });
-
-  it("tolerates a trailing comment on the same line", () => {
-    const statement = single("set x = 1 // 上書き");
-    expect(statement).toMatchObject({ kind: "set", expression: "1" });
+  it("diagnoses next outside a statement-for", () => {
+    expect(errors("next a = 1").some((diagnostic) => diagnostic.code === "next-outside-for")).toBe(true);
   });
 });
 

@@ -16,7 +16,8 @@ import type { ArcDirection } from "../types/geometry";
 import {
   isConditionalGroupElement,
   isForGroupElement,
-  isContainerElement
+  isContainerElement,
+  moduleRecordCollectionBinderFieldIdForPath
 } from "@nuinuicad/nui-language";
 import {
   activityAllowsEvaluation,
@@ -39,10 +40,10 @@ import {
 } from "./forGroupExpansion";
 import type { ScalarProgram } from "@nuinuicad/nui-language";
 import type { BindingVersionGraph } from "@nuinuicad/nui-language";
-import { hasSetVersions } from "../scalars/linearMutationEvaluator";
 import {
   createDocumentLinearScalarBindingResolver,
   createDocumentScalarBindingResolver,
+  resolveGeometryCollectionMemberForNode,
   resolveDocumentGeometryProperty,
   resolveDocumentGeometryTarget
 } from "./scalarProgramEvaluation";
@@ -65,8 +66,8 @@ import type { ConditionEvaluationTrace } from "../scalars/conditionEvaluationTra
 import type { ScalarEvaluation } from "@nuinuicad/nui-language";
 import type { TextTemplateAst } from "@nuinuicad/nui-language";
 import type { BindingId } from "@nuinuicad/nui-language";
-import type { ForGroupMutationOwner } from "../scalars/forGroupMutationControl";
-import type { ForGroupMutationStatement } from "../scalars/linearMutationEvaluator";
+import type { ForGroupExecutionOwner } from "../scalars/forGroupMutationControl";
+import type { ForGroupExecutionStatement } from "../scalars/linearMutationEvaluator";
 import { degreesToRadians, normalizeDegrees360 } from "@nuinuicad/nui-language";
 import type { ModuleMaterialization } from "@nuinuicad/nui-language";
 import type { GeometryValueProgram } from "@nuinuicad/nui-language";
@@ -89,7 +90,7 @@ import { connectSourceSegmentGroups, sourceSegmentsForGeometry } from "./offsetS
 import { joinedPathGeometryValueKernel } from "./joinedPathGeometryValue";
 import { lineLength } from "./offsetPathMath";
 import { findLineIntersections, isSelfIntersectingClosedPath } from "./lineIntersections";
-import { evaluateTypedExpression } from "../scalars/expressionEvaluator";
+import { evaluateTypedExpression, type GeometryBuiltinTargetLookupResult } from "../scalars/expressionEvaluator";
 import { setParameterValue } from "@nuinuicad/nui-language";
 
 export type EvaluateElementsOptions = {
@@ -122,10 +123,10 @@ export type EvaluateElementsOptions = {
   /** Task 33's completed static join from conditional element id to owner statement id. */
   conditionalOwnerStatementIdByElementId?: ReadonlyMap<ElementId, string>;
   /** Task 35's compiled stable join; never inferred from element array order. */
-  forGroupMutationOwnerByElementId?: ReadonlyMap<ElementId, ForGroupMutationOwner>;
+  forGroupMutationOwnerByElementId?: ReadonlyMap<ElementId, ForGroupExecutionOwner>;
   /** Explicit joins for materialized module control owners. */
   moduleConditionalOwnerStatementIdByElementId?: ReadonlyMap<ElementId, string>;
-  moduleForGroupMutationOwnerByElementId?: ReadonlyMap<ElementId, ForGroupMutationOwner>;
+  moduleForGroupExecutionOwnerByElementId?: ReadonlyMap<ElementId, ForGroupExecutionOwner>;
   moduleMaterialization?: ModuleMaterialization;
   /** Compiler-resolved read-only line/path consumer targets. */
   geometryInputTargetsByElementId?: ReadonlyMap<ElementId, ReadonlyMap<string, GeometryInputTarget | readonly GeometryInputTarget[]>>;
@@ -236,6 +237,7 @@ export const evaluateElements = (
   const evaluatedElementIds = new Set(evaluatedElements.map((element) => element.id));
   const computedGeometry = new Map<ElementId, ComputedGeometry>();
   const computedGeometryValues = new Map<import("@nuinuicad/nui-language").GeometryValueOccurrenceKey, ComputedGeometryValueEntry>();
+  const geometryCarryValues = new Map<BindingId, GeometryBuiltinTargetLookupResult>();
   const geometryValueErrors: GeometryValueEvaluationError[] = [];
   const preMutationGeometry = new Map<ElementId, ComputedGeometry>();
   const baseTransformationGeometry = new Map<ElementId, ComputedGeometry>();
@@ -298,20 +300,21 @@ export const evaluateElements = (
   // Built whenever a scalarProgram is present, independent of whether any
   // property bindings exist - computedScalarBindings is Task 21's own
   // contract && must not depend on Task 23's property wiring.
-  const linearMutationEnabled = options.bindingVersions !== undefined &&
-    (hasSetVersions(options.bindingVersions) || options.bindingVersions.requiresExecutionOrdering === true);
+  const linearMutationEnabled = options.bindingVersions?.requiresExecutionOrdering === true;
   if (linearMutationEnabled && !options.statementInfoByElementId &&
     !options.sourceExecutionPositionByElementId && !options.scalarExecutionPositionByElementId) {
     throw new Error("evaluateElements: binding mutation requires compiled source execution positions");
   }
+  const geometryCollectionNodesByValueId = new Map(options.geometryCollectionNodesByValueId ?? []);
   const geometryRuntime = {
     computedGeometry,
     computedGeometryValues,
+    geometryCarryValues,
     elementsById: runtimeElementsById,
     activities,
     forGroupGeneratedRows,
     forGroupExpectedOccurrenceCountByTemplateId,
-    ...(options.geometryCollectionNodesByValueId ? { geometryCollectionNodesByValueId: options.geometryCollectionNodesByValueId } : {})
+    geometryCollectionNodesByValueId
   };
   const linearMutationResolver = linearMutationEnabled
     ? createDocumentLinearScalarBindingResolver(options.bindingVersions!, geometryRuntime, options.scalarProgram?.collectionValues)
@@ -429,6 +432,11 @@ export const evaluateElements = (
   };
 
   let activeGeometryMapBinder: Exclude<GeometryInputTarget, { kind: "collectionIndex" | "geometryValueMap" }> | null = null;
+  let activeStatementForGeometryBinder: Exclude<GeometryInputTarget, { kind: "collectionIndex" | "collectionValue" | "geometryValueMap" }> | null = null;
+  // Generated forGroup geometry is addressed by its authored template in the
+  // typed program. During a body evaluation this map supplies the current
+  // occurrence without creating a second geometry-reference model.
+  let activeForGroupElementIdMap: ReadonlyMap<ElementId, ElementId> = new Map();
   const unavailableScalarBinding = (): ScalarEvaluation => ({
     status: "error",
     type: { kind: "number" },
@@ -454,10 +462,21 @@ export const evaluateElements = (
   const resolveGeometryTargetForEvaluation = (
     target: Parameters<typeof resolveDocumentGeometryTarget>[1],
     sourceOrder: number,
-    lookupBinding: (bindingId: BindingId) => ScalarEvaluation = scalarBindingLookupFor([])
+    lookupBinding: (bindingId: BindingId) => ScalarEvaluation = scalarBindingLookupFor([]),
+    carryValues: ReadonlyMap<BindingId, GeometryBuiltinTargetLookupResult> = geometryCarryValues
   ): ReturnType<typeof resolveDocumentGeometryTarget> => {
-    if (target.kind === "geometryValueForBinder" && activeGeometryMapBinder) {
-      const source = activeGeometryMapBinder;
+    if (target.kind === "geometryCarry") return carryValues.get(target.bindingId);
+    if ((target.kind === undefined || target.kind === "drawable") &&
+        activeForGroupElementIdMap.has(target.statementId)) {
+      const generatedId = activeForGroupElementIdMap.get(target.statementId)!;
+      return resolveDocumentGeometryTarget(geometryRuntime, {
+        ...target,
+        statementId: generatedId,
+        statementIndex: -1
+      }, sourceOrder);
+    }
+    if (target.kind === "geometryValueForBinder" && (activeStatementForGeometryBinder || activeGeometryMapBinder)) {
+      const source = activeStatementForGeometryBinder ?? activeGeometryMapBinder!;
       if (source.kind === "drawable") {
         return resolveDocumentGeometryTarget(geometryRuntime, {
           kind: "drawable",
@@ -489,6 +508,31 @@ export const evaluateElements = (
       (expression, occurrenceSourceOrder) => evaluateOccurrenceIndexForEvaluation(expression, occurrenceSourceOrder, lookupBinding)
     );
   };
+  const resolveGeometryCarryPropertyForEvaluation = (
+    reference: Parameters<typeof resolveDocumentGeometryProperty>[1]
+  ): ScalarEvaluation | null => {
+    const bindingId = reference.geometryCarryBindingId;
+    if (!bindingId || !reference.type || reference.type.kind !== "number") return null;
+    const target = geometryCarryValues.get(bindingId);
+    if (!target || target.kind === "unavailable") {
+      return { status: "error", type: reference.type, issueCode: "evaluation-geometry-property-unavailable" };
+    }
+    const point = target.kind === "point"
+      ? target
+      : reference.geometryCarryPointKey === "start"
+        ? ("start" in target ? target.start : undefined)
+        : reference.geometryCarryPointKey === "end"
+          ? ("end" in target ? target.end : undefined)
+          : undefined;
+    const value = point && (reference.property === "x" || reference.property === "y")
+      ? point[reference.property]
+      : reference.property === "length" && "length" in target
+        ? target.length
+        : undefined;
+    return typeof value === "number"
+      ? { status: "ok", type: reference.type, value: { kind: "number", value } }
+      : { status: "error", type: reference.type, issueCode: "evaluation-geometry-property-unavailable" };
+  };
   const evaluateOccurrenceIndexForEvaluation = (
     expression: TypedScalarExpression,
     sourceOrder: number,
@@ -511,8 +555,10 @@ export const evaluateElements = (
     sourceOrder: number,
     lookupBinding: (bindingId: BindingId) => ScalarEvaluation = scalarBindingLookupFor([])
   ): ScalarEvaluation => {
-    if (reference.geometryValueBinderId && activeGeometryMapBinder) {
-      const source = activeGeometryMapBinder;
+    const carryProperty = resolveGeometryCarryPropertyForEvaluation(reference);
+    if (carryProperty) return carryProperty;
+    if (reference.geometryValueBinderId && (activeStatementForGeometryBinder || activeGeometryMapBinder)) {
+      const source = activeStatementForGeometryBinder ?? activeGeometryMapBinder!;
       const rest = { ...reference, geometryValueBinderId: undefined };
       if (source.kind === "drawable") {
         return resolveDocumentGeometryProperty(geometryRuntime, { ...rest, elementId: source.elementId, geometryValueOccurrence: undefined }, sourceOrder, scalarBindingResolver?.resolveGeometryCollectionLength, (expression, occurrenceSourceOrder) => evaluateOccurrenceIndexForEvaluation(expression, occurrenceSourceOrder, lookupBinding));
@@ -585,6 +631,23 @@ export const evaluateElements = (
       return arm ? materializeCollectionNode(arm.value) : null;
     };
     const materialize = (target: GeometryInputTarget): GeometryInputTarget | null => {
+      if (target.kind === "geometryCarry") {
+        const resolved = geometryCarryValues.get(target.bindingId);
+        if (!resolved || resolved.kind === "unavailable") {
+          invalid(target, "evaluation-geometry-property-unavailable");
+          return null;
+        }
+        if (resolved.kind === "point") {
+          return { kind: "coordinate", anchor: { mode: "coordinate", x: resolved.x, y: resolved.y } };
+        }
+        const syntheticElementId = `geometry-carry:${target.bindingId}`;
+        // A carry may contain either a drawable geometry or an immutable
+        // geometry value. The runtime target map is intentionally keyed by
+        // the same synthetic id for both; downstream geometry consumers read
+        // the shared line/path shape, while point carries use coordinates.
+        computedGeometry.set(syntheticElementId, resolved as unknown as ComputedGeometry);
+        return { kind: "drawable", elementId: syntheticElementId, geometryType: target.geometryType, ...(target.pointKey ? { pointKey: target.pointKey } : {}) };
+      }
       if (target.kind === "geometryValueMap") {
         const previousBinder = activeGeometryMapBinder;
         activeGeometryMapBinder = target.source;
@@ -700,7 +763,7 @@ export const evaluateElements = (
         continue;
       }
       materialized.set(parameterKey, selected);
-      if (target.kind === "collectionIndex" || target.kind === "geometryValueMap" || target.kind === "forGroupOccurrence") {
+      if (target.kind === "collectionIndex" || target.kind === "geometryValueMap" || target.kind === "forGroupOccurrence" || target.kind === "geometryCarry") {
         const anchor = pointAnchorForGeometryInputTarget(selected);
         if (anchor) materializedElement = setParameterValue(materializedElement, parameterKey, anchor);
       }
@@ -1507,7 +1570,11 @@ export const evaluateElements = (
     if (!linearMutationEnabled) return;
     const sourceId = (sourceElement ?? element).id;
     const statement = options.statementInfoByElementId?.get(sourceId);
-    const sourceOrder = options.scalarExecutionPositionByElementId?.get(sourceId) ??
+    const immutableExecutionOwner = element.type === "forGroup"
+      ? options.forGroupMutationOwnerByElementId?.get(sourceId)
+      : undefined;
+    const sourceOrder = immutableExecutionOwner?.entrySourceOrder ??
+      options.scalarExecutionPositionByElementId?.get(sourceId) ??
       options.scalarExecutionPositionByElementId?.get(element.id) ??
       statement?.statementIndex ?? options.sourceExecutionPositionByElementId?.get(element.id);
     if (sourceOrder === undefined) {
@@ -1516,7 +1583,14 @@ export const evaluateElements = (
       );
     }
     // `beforeStatement` deliberately excludes a set on this same source line.
-    linearMutationResolver!.advanceTo({ kind: "beforeStatement", sourceOrder });
+    linearMutationResolver!.advanceTo({
+      kind: "beforeStatement",
+      // A carry initializer belongs to the statement-for header and must be
+      // materialized before its first generated iteration. The header itself
+      // is the first source position, so use the narrow half-step only for a
+      // forGroup boundary; ordinary statements keep the established rule.
+      sourceOrder: element.type === "forGroup" ? sourceOrder + 0.5 : sourceOrder
+    });
   };
 
   const pushGeneratedVisibilityState = (
@@ -1598,6 +1672,7 @@ export const evaluateElements = (
     ancestorElementIdMap: ReadonlyMap<ElementId, ElementId> = new Map(),
     ancestorOccurrencePath: readonly ForGroupGeneratedOccurrenceStep[] = []
   ) => {
+    activeForGroupElementIdMap = ancestorElementIdMap;
     advanceLinearBindingsBefore(element, sourceElement);
     const inactiveGroupId = inactiveConditionalGroupId(element);
     if (inactiveGroupId) {
@@ -1733,13 +1808,90 @@ export const evaluateElements = (
         disabledByGroupId,
         runtimeElements
       );
-      if (min === undefined || max === undefined || step === undefined) return;
-      const range = forGroupRangeValues(min, max, step);
-      if ("error" in range) {
-        forGroupRangeError(element, range.error);
-        return;
+      let iterationValues: readonly number[];
+      let iterationValueOverrides: readonly ScalarEvaluation[] | undefined;
+      let iterationRecordFieldOverrides: readonly ReadonlyMap<BindingId, ScalarEvaluation>[] | undefined;
+      let iterationGeometryMembersForLoop: readonly (Exclude<GeometryInputTarget, { kind: "collectionIndex" | "collectionValue" | "geometryValueMap" }> | undefined)[] | undefined;
+      if (element.iterationSource && element.iterationSourceValueId && element.iterationElementValueType) {
+        const sourceOrder = options.scalarExecutionPositionByElementId?.get((sourceElement ?? element).id) ??
+          options.statementInfoByElementId?.get((sourceElement ?? element).id)?.statementIndex ?? 0;
+        const length = scalarBindingResolver?.resolveCollectionLength?.(element.iterationSourceValueId, sourceOrder) ??
+          scalarBindingResolver?.resolveGeometryCollectionLength?.(element.iterationSourceValueId, sourceOrder);
+        if (length === undefined || length < 0 || !Number.isInteger(length) ||
+          (element.iterationElementType && !scalarBindingResolver?.resolveCollectionIndex)) {
+          errors.push({
+            elementId: element.id,
+            elementName: element.name,
+            missingDependencyId: element.iterationSourceValueId,
+            missingDependencyName: element.iterationSource,
+            message: `${element.name} の collection iteration source を評価できません。`
+          });
+          return;
+        }
+        iterationValues = Array.from({ length }, (_, index) => index);
+        if (element.iterationElementType) {
+          iterationValueOverrides = iterationValues.map((index) =>
+            scalarBindingResolver!.resolveCollectionIndex!(
+              element.iterationSourceValueId!,
+              index,
+              element.iterationElementType!,
+              length,
+              element.iterationSourceOrder ?? sourceOrder - 1,
+              sourceOrder
+            )
+          );
+        }
+      const collection = options.scalarProgram?.collectionValues?.find((candidate) =>
+          candidate.valueId === element.iterationSourceValueId
+        );
+        const resolveCollectionRecordField = scalarBindingResolver?.resolveCollectionRecordField;
+        if (collection?.kind === "literal" && resolveCollectionRecordField) {
+          const recordMembers = iterationValues.map((index) => {
+            const member = collection.members[index];
+            if (!member || member.kind !== "record") return new Map<BindingId, ScalarEvaluation>();
+            return new Map(member.fields.map((field) => [
+              moduleRecordCollectionBinderFieldIdForPath(
+                [],
+                `binding:iteration:${element.id}`,
+                field.fieldPath ?? [{ recordStatementId: field.recordStatementId, fieldIndex: field.fieldIndex }]
+              ),
+              resolveCollectionRecordField(
+                element.iterationSourceValueId!,
+                index,
+                field,
+                sourceOrder
+              )
+            ] as const));
+          });
+          if (recordMembers.some((fields) => fields.size > 0)) iterationRecordFieldOverrides = recordMembers;
+        }
+        const geometryCollectionNode = options.geometryCollectionNodesByValueId?.get(element.iterationSourceValueId);
+        const iterationGeometryMembers = geometryCollectionNode
+          ? iterationValues.map((index) => resolveGeometryCollectionMemberForNode(
+              geometryCollectionNode,
+              index,
+              (currentSourceOrder) => ({
+                lookupBinding: (bindingId) => scalarBindingResolver?.resolveBinding(bindingId) ?? unavailableScalarBinding(),
+                lookupGeometryProperty: (reference) => resolveGeometryPropertyForEvaluation(reference, currentSourceOrder),
+                lookupGeometryTarget: (target) => resolveGeometryTargetForEvaluation(target, currentSourceOrder),
+                ...(scalarBindingResolver?.resolveCollectionLength ? {
+                  lookupCollectionLength: (collectionValueId: string) => scalarBindingResolver.resolveCollectionLength!(collectionValueId, currentSourceOrder)
+                } : {})
+              })
+            ))
+          : undefined;
+        if (iterationGeometryMembers?.some((target) => target !== undefined)) {
+          iterationGeometryMembersForLoop = iterationGeometryMembers;
+        }
+      } else {
+        if (min === undefined || max === undefined || step === undefined) return;
+        const range = forGroupRangeValues(min, max, step);
+        if ("error" in range) {
+          forGroupRangeError(element, range.error);
+          return;
+        }
+        iterationValues = range.values;
       }
-      const iterationValues = range.values;
       const sourceForGroup = sourceElement ?? element;
       let enclosingOccurrenceCount = 1;
       let parentGroupId = sourceForGroup.parentGroupId;
@@ -1772,19 +1924,88 @@ export const evaluateElements = (
       if (effectiveShowGenerated) forGroupEffectiveShowGeneratedIds.add(element.id);
 
       const mutationOwner = options.forGroupMutationOwnerByElementId?.get((sourceElement ?? element).id);
+      const immutableForGroupPlan = options.bindingVersions?.immutableForGroups?.get(
+        mutationOwner?.ownerStatementId ?? (sourceElement ?? element).id
+      );
+      const initializeGeometryCarries = () => {
+        for (const carry of immutableForGroupPlan?.geometryCarries ?? []) {
+          const initial = resolveGeometryTargetForEvaluation(
+            carry.initializerTarget,
+            sourceOrder,
+            lookupBinding,
+            geometryCarryValues
+          );
+          if (initial) geometryCarryValues.set(carry.bindingId, initial);
+        }
+      };
+      const geometryCollectionSource = (
+        source: import("@nuinuicad/nui-language").ImmutableGeometryCollectionSource,
+        nodes: ReadonlyMap<string, import("../types/geometry").GeometryInputCollectionNode>
+      ) => source.kind === "node" ? source.node : nodes.get(source.valueId);
+      const initializeGeometryCollectionCarries = () => {
+        for (const carry of immutableForGroupPlan?.geometryCollectionCarries ?? []) {
+          const node = geometryCollectionSource(carry.initializer, geometryCollectionNodesByValueId);
+          if (node) geometryCollectionNodesByValueId.set(carry.collectionValueId, node);
+        }
+      };
+      const commitGeometryCollectionCarries = () => {
+        const carries = immutableForGroupPlan?.geometryCollectionCarries ?? [];
+        if (carries.length === 0) return;
+        const snapshot = new Map(geometryCollectionNodesByValueId);
+        const nextNodes = new Map<string, import("../types/geometry").GeometryInputCollectionNode>();
+        for (const carry of carries) {
+          const node = geometryCollectionSource(carry.next, snapshot);
+          if (node) nextNodes.set(carry.collectionValueId, node);
+          else errors.push({
+            elementId: element.id,
+            elementName: element.name,
+            missingDependencyId: carry.bindingId,
+            missingDependencyName: carry.bindingId,
+            message: `${element.name} の carry next collection を評価できません。`
+          });
+        }
+        for (const [valueId, node] of nextNodes) geometryCollectionNodesByValueId.set(valueId, node);
+      };
+      const commitGeometryCarries = () => {
+        if (!immutableForGroupPlan?.geometryCarries?.length) return;
+        const snapshot = new Map(geometryCarryValues);
+        const nextValues = new Map<BindingId, GeometryBuiltinTargetLookupResult>();
+        for (const carry of immutableForGroupPlan.geometryCarries) {
+          const next = resolveGeometryTargetForEvaluation(
+            carry.nextTarget,
+            carry.nextSourceOrder,
+            lookupBinding,
+            snapshot
+          );
+          if (next) nextValues.set(carry.bindingId, next);
+          else errors.push({
+            elementId: element.id,
+            elementName: element.name,
+            missingDependencyId: carry.bindingId,
+            missingDependencyName: carry.bindingId,
+            message: `${element.name} の carry next geometry を評価できません。`
+          });
+        }
+        for (const [bindingId, value] of nextValues) geometryCarryValues.set(bindingId, value);
+      };
+      initializeGeometryCarries();
+      initializeGeometryCollectionCarries();
       if (linearMutationResolver && mutationOwner) {
         if (!options.statementInfoByElementId) {
           throw new Error("evaluateElements: forGroup mutation requires compiled generated statement mapping");
         }
         const templates = forGroupOwnedTemplateElements(elements, (sourceElement ?? element).id);
         const ownedTemplateIds = new Set(templates.map((templateElement) => templateElement.id));
-        const statements: ForGroupMutationStatement[] = templates.map((templateElement) => {
+        const statements: ForGroupExecutionStatement[] = templates.map((templateElement) => {
           const statement = options.statementInfoByElementId!.get(templateElement.id);
           const sourceOrder = options.scalarExecutionPositionByElementId?.get(templateElement.id) ?? statement?.statementIndex;
           if (sourceOrder === undefined) throw new Error(`evaluateElements: no compiled execution mapping for forGroup template ${templateElement.id}`);
           return { kind: "element" as const, sourceOrder, templateElementId: templateElement.id };
         });
-        statements.push({ kind: "exit", sourceOrder: mutationOwner.exitSourceOrder });
+        statements.push({
+          kind: "exit",
+          sourceOrder: immutableForGroupPlan?.executionOwner?.exitSourceOrder ?? mutationOwner.exitSourceOrder
+        });
         let expandedIteration = -1;
         let generatedByTemplateId = new Map<ElementId, CadElement>();
         let rowByTemplateId = new Map<ElementId, ForGroupGeneratedRow>();
@@ -1797,7 +2018,21 @@ export const evaluateElements = (
           // This is the compiler's established iteration binding identity.
           iterationBindingId: mutationOwner.iterationBindingId ?? `binding:iteration:${mutationOwner.ownerStatementId}`,
           iterationValues,
-          statements
+          ...(iterationValueOverrides ? { iterationValueOverrides } : {}),
+          ...(iterationRecordFieldOverrides ? { iterationRecordFieldOverrides } : {}),
+          statements,
+        ...(immutableForGroupPlan?.geometryCarries?.length || immutableForGroupPlan?.geometryCollectionCarries?.length ? {
+          onIterationComplete: (_frame, context) => {
+              const previousStatementForGeometryBinder = activeStatementForGeometryBinder;
+              activeStatementForGeometryBinder = iterationGeometryMembersForLoop?.[context.iterationIndex] ?? null;
+              try {
+                commitGeometryCollectionCarries();
+                return commitGeometryCarries();
+              } finally {
+                activeStatementForGeometryBinder = previousStatementForGeometryBinder;
+              }
+            }
+          } : {})
         }, (statement, context) => {
           if (options.bindingVersions!.evaluationLimitSourceOrder !== undefined &&
             statement.sourceOrder >= options.bindingVersions!.evaluationLimitSourceOrder) return "stopped";
@@ -1837,6 +2072,8 @@ export const evaluateElements = (
           runtimeElements.push(generatedElement);
           runtimeElementsById.set(generatedElement.id, generatedElement);
           pushGeneratedVisibilityState(generatedElement, templateElement, effectiveShowGenerated, element);
+          const previousStatementForGeometryBinder = activeStatementForGeometryBinder;
+          activeStatementForGeometryBinder = iterationGeometryMembersForLoop?.[context.iterationIndex] ?? null;
           evaluateRuntimeElement(
             generatedElement,
             templateElement,
@@ -1844,6 +2081,7 @@ export const evaluateElements = (
             childAncestorElementIdMap,
             childAncestorOccurrencePath
           );
+          activeStatementForGeometryBinder = previousStatementForGeometryBinder;
           return "completed";
         });
         if (outcome === "stopped") return;
@@ -1889,6 +2127,7 @@ export const evaluateElements = (
             occurrencePath
           );
         }
+        commitGeometryCarries();
       }
       return;
     }

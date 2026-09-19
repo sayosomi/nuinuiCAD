@@ -263,6 +263,19 @@ export const buildRootGeometryValueProgram = ({
     if (!reference.target) return undefined;
     const unwrapped = unwrapModuleGeometrySourceTarget(reference.target);
     const target = unwrapped.target;
+    if (target.kind === "geometryCarry") {
+      return {
+        kind: "target",
+        target: {
+          kind: "geometryCarry",
+          bindingId: target.bindingId,
+          statementId: target.statementId,
+          statementIndex: target.statementIndex,
+          geometryType: target.geometryKind,
+          ...(unwrapped.pointKey ? { pointKey: unwrapped.pointKey } : {})
+        }
+      };
+    }
     if (target.kind === "geometryValue" && !target.backingTarget) {
       return {
         kind: "target",
@@ -297,6 +310,19 @@ export const buildRootGeometryValueProgram = ({
     if (!reference.target) return undefined;
     const unwrapped = unwrapModuleGeometrySourceTarget(reference.target);
     const target = unwrapped.target;
+    if (target.kind === "geometryCarry") {
+      return {
+        kind: "target",
+        target: {
+          kind: "geometryCarry",
+          bindingId: target.bindingId,
+          statementId: target.statementId,
+          statementIndex: target.statementIndex,
+          geometryType: target.geometryKind,
+          ...(unwrapped.pointKey ? { pointKey: unwrapped.pointKey } : {})
+        }
+      };
+    }
     if (target.kind === "geometryValue" && !target.backingTarget) {
       return {
         kind: "target",

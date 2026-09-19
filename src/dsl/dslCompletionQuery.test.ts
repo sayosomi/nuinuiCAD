@@ -446,25 +446,6 @@ describe("queryDslCompletion", () => {
     expect(labels(result)).toEqual(["placementMode"]);
   });
 
-  it("resolves set RHS geometry properties using the target's exact type", () => {
-    const source = [
-      "nui 1",
-      "arc A = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: clockwise)",
-      "let direction: choice(counterclockwise, clockwise) = clockwise",
-      "set direction = @A."
-    ].join("\n");
-    const choiceResult = exactQuery(source, "@A.", 3);
-    expect(choiceResult?.category).toBe("setRhs");
-    expect(labels(choiceResult)).toEqual(["direction"]);
-
-    const numericSource = source.replace(
-      "let direction: choice(counterclockwise, clockwise) = clockwise",
-      "let length: number = 1"
-    ).replace("set direction", "set length");
-    const numericResult = exactQuery(numericSource, "@A.", 3);
-    expect(labels(numericResult)).toContain("length");
-  });
-
   it("completes qualified members in the ordinary CAD namespace", () => {
     const source = [
       "nui 1",
@@ -537,19 +518,7 @@ describe("queryDslCompletion", () => {
     expect(labels(result)).not.toContain("intermediatePoints[2].x");
   });
 
-  it("returns choice literals and mutable set targets only", () => {
-    const source = [
-      "nui 1",
-      "let target: number = 1",
-      "const fixed: number = 2",
-      "set ta = @target"
-    ].join("\n");
-    const set = exactQuery(source, "set ta", "set ta".length);
-    expect(set?.category).toBe("setTarget");
-    expect(labels(set)).toContain("target");
-    expect(labels(set)).not.toContain("fixed");
-    expect(set?.candidates.every((candidate) => candidate.kind === "binding")).toBe(true);
-
+  it("returns choice literals for typed value expressions", () => {
     const choiceSource = "nui 1\nline L = offset(sources: [A], distance: 1, side: le)";
     const choicePosition = choiceSource.indexOf("side: le") + "side: le".length;
     const choice = queryIncomplete(choiceSource, choicePosition);

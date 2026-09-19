@@ -133,7 +133,7 @@ describe("NuiLanguageSession", () => {
       expect.arrayContaining([expect.objectContaining({ kind: "typed-variable" })])
     );
 
-    const missing = createNuiLanguageSession("nui 1\nlet width = 10\n");
+    const missing = createNuiLanguageSession("nui 1\nconst width = 10\n");
     expect(missing.quickFixes(fingerprintFor(missing, "missing-declared-type"))).toEqual(
       expect.arrayContaining([expect.objectContaining({ kind: "typed-variable" })])
     );

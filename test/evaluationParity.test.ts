@@ -1219,8 +1219,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       'const labels: string[] = ["valid"]',
       "const source: Pair = Pair(x: 7, label: @labels[99])",
       "const pairs: Pair[] = [@source]",
-      "let offset: number = 0",
-      "set offset = 1",
+      "const offset: number = 1",
       'const mapped: Pair[] = for item in @pairs { Pair(x: @item.x + @offset, label: "mapped") }',
       "const selected: Pair = @mapped[0]",
       "const selectedX: number = @selected.x"
@@ -1698,7 +1697,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
 
     expect(isRustEligibleFixture(fixture)).toBe(true);
     for (const payload of [tsPayload, rustPayload]) {
-      for (const name of ["spreadBasic", "spreadReversed", "spreadReferences", "mutableSpread"] as const) {
+      for (const name of ["spreadBasic", "spreadReversed", "spreadReferences", "spreadComputed"] as const) {
         expectScalarNumberClose(scalarBindingFor(fixture, payload, name), expected);
       }
       expect(scalarBindingFor(fixture, payload, "spreadZero")).toMatchObject({ status: "ok", value: { kind: "number", value: 0 } });
@@ -1908,8 +1907,8 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
   }, 30000);
 
-  it("asserts root set geometry builtin resolution with an unrelated module through both evaluators", () => {
-    const fixture = readParityFixture(repoRoot, "nui1-module-root-set-geometry-builtin-functions.nui");
+  it("asserts root immutable geometry builtin resolution with an unrelated module through both evaluators", () => {
+    const fixture = readParityFixture(repoRoot, "nui1-module-root-geometry-builtin-functions.nui");
     const options = optionsFor(fixture);
     const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
     const rustPayload = evaluateWithRustFixture(repoRoot, fixture);
@@ -1923,5 +1922,72 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
 
     expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+  }, 30000);
+
+  it("runs scalar, collection, and geometry immutable carries through the Rust boundary", () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 2, y: 0)",
+      "const numsA: number[] = [1, 2]",
+      "const numsB: number[] = [3, 4]",
+      "const points: point[] = [@A, @B]",
+      "for i in range(min: 0, max: 1, step: 1) carry a: number[] = @numsA carry b: number[] = @numsB carry cursor: point = @A carry path: point[] = @points {",
+      "  line Edge = segment(start: @cursor, end: @B)",
+      "  next a = @b",
+      "  next b = @a",
+      "  next cursor = @Edge.end",
+      "  next path = @path",
+      "}",
+      "const swapped: number = @a[0] + @b[1]",
+      "const cursorX: number = @cursor.x",
+      "const pointCount: number = @path.length"
+    ].join("\n"));
+    const options = optionsFor(fixture);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustOptions(repoRoot, fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+    expectScalarNumberClose(scalarBindingFor(fixture, tsPayload, "swapped"), 5);
+    expectScalarNumberClose(scalarBindingFor(fixture, rustPayload, "swapped"), 5);
+    expectScalarNumberClose(scalarBindingFor(fixture, tsPayload, "cursorX"), 2);
+    expectScalarNumberClose(scalarBindingFor(fixture, rustPayload, "cursorX"), 2);
+    expectScalarNumberClose(scalarBindingFor(fixture, tsPayload, "pointCount"), 2);
+    expectScalarNumberClose(scalarBindingFor(fixture, rustPayload, "pointCount"), 2);
+  }, 30000);
+
+  it("runs generalized-record immutable carries through the Rust boundary", () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "point A = coordinate(x: 3, y: 4)",
+      "line Edge = segment(start: (0, 0), end: (10, 0))",
+      "record Metadata(label: string)",
+      "record Piece(count: number, edge: line, points: point[], metadata: Metadata)",
+      'const first: Piece = Piece(count: 1, edge: @Edge, points: [@A], metadata: Metadata(label: "ok"))',
+      "for i in range(min: 0, max: 0, step: 1) carry last: Piece = @first {",
+      '  next last = Piece(count: @last.count + 1, edge: @last.edge, points: @last.points, metadata: @last.metadata)',
+      "}",
+      "const count: number = @last.count",
+      "const pointCount: number = @last.points.length",
+      "const edgeLength: number = @last.edge.length",
+      "const label: string = @last.metadata.label"
+    ].join("\n"));
+    const options = optionsFor(fixture);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustOptions(repoRoot, fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+    for (const payload of [tsPayload, rustPayload]) {
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "count"), 2);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "pointCount"), 1);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "edgeLength"), 10);
+      const labelBinding = fixture.compiled?.doc?.bindingAnalysis?.catalog.bindings.find(
+        (candidate) => candidate.kind === "typed" && candidate.name === "label"
+      );
+      const label = labelBinding
+        ? evaluationPayloadToResult(payload).computedScalarBindings?.get(labelBinding.id)
+        : undefined;
+      expect(label).toMatchObject({ status: "ok", value: { kind: "string", value: "ok" } });
+    }
   }, 30000);
 });

@@ -109,28 +109,6 @@ describe("AutomationDocument", () => {
     expect(renamedBinding?.id).toBe(originalBinding?.id);
   });
 
-  it("updates the typed dependency graph for fatal current source", () => {
-    const document = AutomationDocument.fromSource("nui 1\nconst stable: number = 1");
-    const lastGoodGraph = document.getState().typedDependencyGraph;
-    const fatal = [
-      "nui 1",
-      "const missing: number = @unknown",
-      "set unknown = 1",
-      "group G {",
-      "}"
-    ].join("\n");
-
-    document.replaceSource(fatal);
-    const state = document.getState();
-
-    expect(state.status).toBe("fatal");
-    expect(state.docText).not.toBe(fatal);
-    expect(state.typedDependencyGraph).not.toBe(lastGoodGraph);
-    expect(state.typedDependencyGraph?.edges).toEqual(expect.arrayContaining([
-      expect.objectContaining({ kind: "initializer", reason: "missing" })
-    ]));
-  });
-
   it("uses the production Module semantic and materialization path", () => {
     const source = [
       "nui 1",

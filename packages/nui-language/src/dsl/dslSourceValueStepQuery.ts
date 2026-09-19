@@ -15,6 +15,8 @@ import {
   typedValueStepTargetForStatement
 } from "./dslTypedValueStep";
 import type { DslSpan, DslStatement } from "./dslTypes";
+import { resolveSourceLexicalDeclaration } from "./sourceLexicalNamespaceIndex";
+import { bindingIdForStableStatementId } from "../scalars/bindingCatalog";
 
 export type DslSourceValueStepSemanticSnapshot = {
   sourceRevision: SourceRevision;
@@ -107,16 +109,22 @@ const typedPlan = (
   selection: DslSpan,
   direction: DslValueStepDirection
 ): DslSourceValueStepPlan | null => {
-  if (statement.kind !== "typedDeclaration" && statement.kind !== "set") return null;
-  const valueSpan = statement.payloadSpans[statement.kind === "typedDeclaration" ? "initializer" : "expression"];
+  if (statement.kind !== "typedDeclaration" && statement.kind !== "next") return null;
+  const valueSpan = statement.kind === "typedDeclaration"
+    ? statement.payloadSpans.initializer
+    : statement.expressionSpan;
   if (!valueSpan) return null;
   const logicalSelection = logicalSelectionFor(compiled, statement, selection);
   if (!logicalSelection) return null;
   const target = statement.kind === "typedDeclaration"
     ? typedValueStepTargetForStatement(compiled, statementIndex)
     : (() => {
-        const bindingId = compiled.setStatements?.get(statementIndex)?.targetBindingId;
-        return bindingId ? typedValueStepTargetForBinding(compiled, bindingId) : null;
+        const namespace = compiled.sourceLexicalNamespace;
+        const declaration = namespace
+          ? resolveSourceLexicalDeclaration(namespace, statementIndex, statement.name)
+          : null;
+        if (!declaration || declaration.kind !== "resolved" || declaration.declaration.kind !== "carry") return null;
+        return typedValueStepTargetForBinding(compiled, bindingIdForStableStatementId(declaration.declaration.statementId));
       })();
   if (!target) return null;
   const logical = compiled.spans.logicalStatementByRangeFrom.get(statement.documentRange.from);

@@ -37,11 +37,11 @@ describe("typedDeclarationInspectorPresentation", () => {
     });
   });
 
-  it("projects a let boolean declaration", () => {
-    const compiled = compileCanonical(["nui 1", "let shown: boolean = true"].join("\n"));
+  it("projects a const boolean declaration", () => {
+    const compiled = compileCanonical(["nui 1", "const shown: boolean = true"].join("\n"));
     const bindingId = bindingIdByName(compiled, "shown");
     const presentation = typedDeclarationInspectorPresentation(compiled.bindingAnalysis!, compiled.statements, bindingId);
-    expect(presentation?.mutabilityLabel).toBe("let");
+    expect(presentation?.mutabilityLabel).toBe("const");
     expect(presentation?.rows).toContainEqual({ key: "type", label: "型", value: "boolean" });
     expect(presentation?.rows).toContainEqual({ key: "initializer", label: "初期化式", value: "true" });
     expect(presentation?.invalidMessage).toBeNull();
@@ -70,16 +70,6 @@ describe("typedDeclarationInspectorPresentation", () => {
     const presentation = typedDeclarationInspectorPresentation(compiled.bindingAnalysis!, compiled.statements, bindingId);
     expect(presentation?.invalidMessage).toContain("未定義の変数");
     expect(presentation?.rows).toContainEqual({ key: "initializer", label: "初期化式", value: "@missing" });
-  });
-
-  it("keeps a recoverable invalid let's metadata visible (Task 40's recovery target stays inspectable)", () => {
-    const compiled = compileCanonical(
-      ["nui 1", "let broken: number = @missing", "set broken = 5"].join("\n")
-    );
-    const bindingId = bindingIdByName(compiled, "broken");
-    const presentation = typedDeclarationInspectorPresentation(compiled.bindingAnalysis!, compiled.statements, bindingId);
-    expect(presentation?.mutabilityLabel).toBe("let");
-    expect(presentation?.invalidMessage).toContain("未定義の変数");
   });
 
   it("returns null for an unknown binding id", () => {

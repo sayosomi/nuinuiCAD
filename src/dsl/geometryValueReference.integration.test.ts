@@ -136,7 +136,7 @@ describe("immutable single-geometry reference values", () => {
       "point A = coordinate(x: 0, y: 0)",
       "let origin: point = @A"
     ].join("\n"));
-    expect(errorCodes(mutable)).toContain("geometry-value-const-only");
+    expect(errorCodes(mutable)).toContain("unknown-dsl-keyword");
     expect(mutable.document).toBeNull();
   });
 

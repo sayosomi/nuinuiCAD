@@ -6,8 +6,8 @@
 export const outputPreviewManualE2eSource = [
   "nui 1",
   "",
-  "let scale: number = 1",
-  "let overlap: number = 5",
+  "const scale: number = 1",
+  "const overlap: number = 5",
   "",
   "profile 印刷用",
   "profile SVG用",

@@ -222,7 +222,7 @@ describe("textPatch 要素の更新", () => {
   ])("@ の有無にかかわらず compound boolean source を保持する: %s", (expression) => {
     const source = [
       "nui 1",
-      ...(expression.includes("@enabled") ? ["let enabled: boolean = true"] : []),
+      ...(expression.includes("@enabled") ? ["const enabled: boolean = true"] : []),
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line AB = segment(start: @A, end: @B)",

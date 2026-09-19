@@ -8,6 +8,7 @@ import {
   type SourceLexicalNamespaceIndex
 } from "./sourceLexicalNamespaceIndex";
 import type { DslReferencePath } from "./dslReferenceTokens";
+import type { DslNonArrayValueType } from "./dslValueTypes";
 
 /** The synthetic bindings which module semantic analysis overlays on the real
  * source namespace. The value is deliberately generic so completion &&
@@ -20,7 +21,7 @@ export type ModuleLexicalParameterOverlay<T, D = unknown> = {
 
 export type ModuleLexicalLookup<T, D = unknown> =
   | { kind: "parameter"; definition: ModuleLexicalParameterOverlay<T, D>; parameter: { index: number; name: string; value: T } }
-  | { kind: "iteration"; statementId: StatementIdentity; statementIndex: number; name: string }
+  | { kind: "iteration"; statementId: StatementIdentity; statementIndex: number; name: string; valueType?: DslNonArrayValueType }
   | SourceLexicalLookup;
 
 export type ModuleLexicalPathLookup<T, D = unknown> =
@@ -76,7 +77,8 @@ export const resolveModuleLexicalDeclaration = <T, D = unknown>(
         kind: "iteration",
         statementId: statementIdAt(input.stableStatementIdByIndex, iteration.statementIndex),
         statementIndex: iteration.statementIndex,
-        name
+        name,
+        ...(iteration.valueType ? { valueType: iteration.valueType } : {})
       };
     }
     const overlay = input.parameterOverlays?.find((candidate) => candidate.bodyScopeId === scopeId);

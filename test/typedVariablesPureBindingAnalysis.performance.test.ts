@@ -52,7 +52,7 @@ const counts = (bindingCount: number): FixtureCounts => ({
 });
 
 describePerformanceGates("pure nui 1 binding analysis performance", () => {
-  it("gates 250/1000 typed const/let binding analysis without runtime evaluation", () => {
+  it("gates 250/1000 typed const binding analysis without runtime evaluation", () => {
     const small = prepare(SMALL_SIZE);
     const large = prepare(LARGE_SIZE);
     const measurement = measureWorkerCpuScaling({

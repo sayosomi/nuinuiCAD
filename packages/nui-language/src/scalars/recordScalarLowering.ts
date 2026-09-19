@@ -651,7 +651,8 @@ export const resolveRecordScalarProperties = ({
   analysis,
   sourceNamespace,
   plan,
-  skipPropertySpanStarts = new Set<number>()
+  skipPropertySpanStarts = new Set<number>(),
+  additionalPropertyResolver
 }: {
   ast: ScalarExpressionAst;
   statementIndex: number;
@@ -660,6 +661,7 @@ export const resolveRecordScalarProperties = ({
   plan: RecordScalarLoweringPlan;
   /** Geometry-builtin operands already claimed by the existing geometry owner. */
   skipPropertySpanStarts?: ReadonlySet<number>;
+  additionalPropertyResolver?: (node: Extract<ScalarExpressionAst, { kind: "geometryProperty" }>) => AdditionalRecordScalarPropertyResolution | null;
 }): RecordScalarPropertyResolution => {
   const referencesBySpanStart = new Map<number, ScalarExpressionResolvedReference>();
   const dependencies: {
@@ -681,6 +683,12 @@ export const resolveRecordScalarProperties = ({
 
   const resolveProperty = (node: Extract<ScalarExpressionAst, { kind: "geometryProperty" }>) => {
     if (skipPropertySpanStarts.has(node.span.start)) return;
+    const additional = additionalPropertyResolver?.(node) ?? null;
+    if (additional) {
+      referencesBySpanStart.set(node.span.start, additional.resolution);
+      if (additional.dependency) dependencies.push(additional.dependency);
+      return;
+    }
     const lookup = resolveSourceLexicalPath(
       sourceNamespace,
       statementIndex,
@@ -1053,7 +1061,8 @@ export const prepareRecordScalarExpression = ({
     analysis,
     sourceNamespace,
     plan,
-    ...(skipPropertySpanStarts ? { skipPropertySpanStarts } : {})
+    ...(skipPropertySpanStarts ? { skipPropertySpanStarts } : {}),
+    additionalPropertyResolver
   });
   const additionalPropertiesBySpanStart = new Map<number, AdditionalRecordScalarPropertyResolution>();
   const resolveAdditionalProperty = (node: Extract<ScalarExpressionAst, { kind: "geometryProperty" }>) => {

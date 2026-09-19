@@ -1,4 +1,4 @@
-// Evaluates a ScalarProgram's const/let declarations to their version-0 value
+// Evaluates a ScalarProgram's const declarations to their immutable value
 // using the pure expression evaluator. This
 // module never parses source, never re-resolves a binding name, && never
 // re-derives forward/self/cycle/eligibility diagnostics.
@@ -24,7 +24,7 @@
 // resolver, so callers that only need the whole-document result never see a
 // difference from the prior array-order construction.
 //
-// `set`, control-flow mutation, && Rust evaluation are handled by their
+// Immutable statement-for execution and Rust evaluation are handled by their
 // respective compilation/runtime paths rather than this declaration evaluator.
 
 import type { BindingId } from "@nuinuicad/nui-language";
@@ -56,6 +56,12 @@ export type LazyScalarProgramEvaluator = {
 
 export type ScalarProgramCollectionResolver = {
   environmentFor: (sourceOrder: number) => Pick<ScalarEvaluationEnvironment, "lookupCollectionIndex" | "lookupCollectionLength" | "lookupOptionalMember">;
+  recordFieldFor: (
+    collectionValueId: string,
+    index: number,
+    field: { recordStatementId: string; fieldIndex: number; type: ScalarExpressionType },
+    sourceOrder: number
+  ) => ScalarEvaluation;
 };
 
 const resultForDeclaredType = (evaluation: ScalarEvaluation, declaredType: ScalarExpressionType): ScalarEvaluation => {
@@ -77,10 +83,13 @@ export const createScalarProgramCollectionResolver = (
   resolveBinding: (bindingId: BindingId) => ScalarEvaluation,
   resolveGeometryProperty?: (reference: TypedScalarGeometryPropertyReferenceNode, sourceOrder: number) => ScalarEvaluation,
   resolveGeometryTarget?: (target: ScalarExpressionResolvedGeometryTarget, sourceOrder: number) => GeometryBuiltinTargetLookupResult | undefined,
-  resolveExternalCollectionLength?: (collectionValueId: string, sourceOrder: number) => number | undefined
+  resolveExternalCollectionLength?: (collectionValueId: string, sourceOrder: number) => number | undefined,
+  resolveCollectionValueId?: (collectionValueId: string, sourceOrder: number) => string | undefined
 ): ScalarProgramCollectionResolver | undefined => {
   if (!program.collectionValues?.length && !resolveGeometryProperty && !resolveGeometryTarget) return undefined;
   const valuesById = new Map((program.collectionValues ?? []).map((value) => [value.valueId, value] as const));
+  const redirectedValueId = (collectionValueId: string, sourceOrder: number): string =>
+    resolveCollectionValueId?.(collectionValueId, sourceOrder) ?? collectionValueId;
 
   const matchLabelFor = (scrutinee: ScalarEvaluation): string | undefined => {
     if (scrutinee.status !== "ok") return undefined;
@@ -89,6 +98,8 @@ export const createScalarProgramCollectionResolver = (
   };
 
   const presentFor = (collectionValueId: string, sourceOrder: number, seen: ReadonlySet<string> = new Set()): boolean | undefined => {
+    const redirected = redirectedValueId(collectionValueId, sourceOrder);
+    if (redirected !== collectionValueId) return presentFor(redirected, sourceOrder, seen);
     if (seen.has(collectionValueId)) return undefined;
     const collection = valuesById.get(collectionValueId);
     if (!collection) return undefined;
@@ -115,6 +126,8 @@ export const createScalarProgramCollectionResolver = (
   };
 
   const lengthFor = (collectionValueId: string, sourceOrder: number, seen: ReadonlySet<string> = new Set()): number | undefined => {
+    const redirected = redirectedValueId(collectionValueId, sourceOrder);
+    if (redirected !== collectionValueId) return lengthFor(redirected, sourceOrder, seen);
     if (seen.has(collectionValueId)) return undefined;
     const collection = valuesById.get(collectionValueId);
     if (!collection) return undefined;
@@ -153,6 +166,8 @@ export const createScalarProgramCollectionResolver = (
     sourceOrder: number,
     seen: ReadonlySet<string> = new Set()
   ): ScalarEvaluation => {
+    const redirected = redirectedValueId(collectionValueId, sourceOrder);
+    if (redirected !== collectionValueId) return recordFieldFor(redirected, index, field, sourceOrder, seen);
     if (seen.has(collectionValueId)) return { status: "error", type: field.type, issueCode: "evaluation-collection-index-unavailable" };
     const collection = valuesById.get(collectionValueId);
     if (!collection) return { status: "error", type: field.type, issueCode: "evaluation-collection-index-unavailable" };
@@ -305,6 +320,8 @@ export const createScalarProgramCollectionResolver = (
     sourceOrder: number,
     seen: ReadonlySet<string> = new Set()
   ): ScalarEvaluation => {
+    const redirected = redirectedValueId(collectionValueId, sourceOrder);
+    if (redirected !== collectionValueId) return indexFor(redirected, index, elementType, collectionLength, targetSourceOrder, sourceOrder, seen);
     if (targetSourceOrder >= sourceOrder) return { status: "error", type: elementType, issueCode: "evaluation-collection-index-unavailable" };
     if (!Number.isFinite(index) || !Number.isInteger(index) || index < 0 ||
       (collectionLength !== null && index >= collectionLength)) {
@@ -380,7 +397,7 @@ export const createScalarProgramCollectionResolver = (
     };
   }
 
-  return { environmentFor };
+  return { environmentFor, recordFieldFor };
 };
 
 const isWithinEvaluationLimit = (

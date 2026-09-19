@@ -69,8 +69,6 @@ import {
   createAtStopRange,
   createPropertyBindingRangeIndex,
   createScopeBodyRangeIndex,
-  createSetStatementFieldRangeIndex,
-  createSetStatementRangeIndex,
   createStatementRangeIndex,
   createTemplateHoleRangeIndex,
   createTypedDeclarationFieldRangeIndex,
@@ -79,21 +77,16 @@ import {
   mapPropertyBindingRangeIndex,
   mapModuleSemanticRangeIndex,
   mapScopeBodyRangeIndex,
-  mapSetStatementFieldRangeIndex,
-  mapSetStatementRangeIndex,
   mapStatementRangeIndex,
   mapTemplateHoleRangeIndex,
   mapTypedDeclarationFieldRangeIndex,
   mapTypedDeclarationRangeIndex,
   propertyBindingSpanAt,
-  setStatementIdAtCursor,
   templateHoleAtPosition,
   typedDeclarationBindingIdAtCursor,
   type AtStopRange,
   type PropertyBindingRangeIndex,
   type ScopeBodyRangeIndex,
-  type SetStatementFieldRangeIndex,
-  type SetStatementRangeIndex,
   type StatementRangeIndex,
   type TemplateHoleRangeIndex,
   type TypedDeclarationFieldRangeIndex,
@@ -247,8 +240,6 @@ export class SourceEditorController implements SourceEditorHandle {
   private statementRanges: StatementRangeIndex = new Map();
   private typedDeclarationRanges: TypedDeclarationRangeIndex = new Map();
   private typedDeclarationFieldRanges: TypedDeclarationFieldRangeIndex = new Map();
-  private setStatementRanges: SetStatementRangeIndex = new Map();
-  private setStatementFieldRanges: SetStatementFieldRangeIndex = new Map();
   private templateHoleRanges: TemplateHoleRangeIndex = new Map();
   private propertyBindingRanges: PropertyBindingRangeIndex = new Map();
   private scopeBodyRanges: ScopeBodyRangeIndex = [];
@@ -258,18 +249,7 @@ export class SourceEditorController implements SourceEditorHandle {
   private collapsedModuleDefinitionIds = new Set<StatementIdentity>();
   /** Parameter-list folding is independent from module-body folding. */
   private collapsedModuleDefinitionParameterIds = new Set<StatementIdentity>();
-  /**
-   * True only while `doc.bindingAnalysis`/`doc.setStatements` are proven to
-   * describe the exact live CM buffer (i.e. a compile just landed &&
-   * refreshStatementRanges rebuilt from it with no intervening edit). Any
-   * doc-changing transaction immediately clears it; only refreshStatementRanges's
-   * success branch sets it back. This is deliberately coarser than the
-   * per-statement span dirty-tracking above (mapOwningStatementRange) - a `set`
-   * statement's own span can remain untouched && still position-valid while an
-   * earlier, unrelated edit changes what its target *should* resolve to, &&
-   * that staleness can only be detected at the whole-document compile level, not
-   * per statement. Typed value stepping must hold both: a live, position-valid
-   * span AND this flag, before trusting doc.bindingAnalysis/doc.setStatements. */
+  /** True only while the compiled typed-binding metadata describes the exact live CM buffer. */
   private typedSemanticMetadataFresh = false;
   private staleDiagnosticBaseline: PositionedDiagnostic[] = [];
   /** At most two newest compiled-document revisions are retained; older results can never become current. */
@@ -508,7 +488,7 @@ export class SourceEditorController implements SourceEditorHandle {
 
   /** Typed-span counterpart to currentCursorElementId, gated by the same
    * typedSemanticMetadataFresh contract as stepTypedSourceValue: the tracked
-   * physical spans && doc.scalarProgram/setStatements/propertyBindings/
+   * physical spans && doc.scalarProgram/propertyBindings/
    * textTemplates must describe the exact live buffer, not just survive an
    * unrelated edit via mapPos. */
   currentCursorTypedRenameTargetBindingId = (): BindingId | null => {
@@ -518,14 +498,11 @@ export class SourceEditorController implements SourceEditorHandle {
       {
         typedDeclarationRanges: this.typedDeclarationRanges,
         typedDeclarationFieldRanges: this.typedDeclarationFieldRanges,
-        setStatementRanges: this.setStatementRanges,
-        setStatementFieldRanges: this.setStatementFieldRanges,
         propertyBindingRanges: this.propertyBindingRanges,
         templateHoleRanges: this.templateHoleRanges,
         doc: {
           statements: doc.statements,
           scalarProgram: doc.scalarProgram,
-          setStatements: doc.setStatements,
           propertyBindings: doc.propertyBindings,
           textTemplates: doc.textTemplates,
           numericBindings: doc.numericBindings
@@ -940,7 +917,7 @@ export class SourceEditorController implements SourceEditorHandle {
   /**
    * Dispatches one value-step edit && decides preview-vs-commit, shared by
    * every value-step source (legacy element attribute, typed declaration
-   * initializer, `set` RHS). This is the sole owner of the editorTransaction
+   * initializer). This is the sole owner of the editorTransaction
    * commit/undo behavior for Alt+←/→: keyboard-repeat gesture coalescing
    * (`pendingKeyboardValueStep`/`activeValueStepGesture`) && the
    * one-commitText-per-burst Undo grouping apply identically regardless of
@@ -972,11 +949,11 @@ export class SourceEditorController implements SourceEditorHandle {
 
   /**
    * Typed-span counterpart to the legacy branch above, tried only when the
-   * cursor is not inside a CadElement statement (typedDeclaration/set
+   * cursor is not inside a CadElement statement (typedDeclaration
    * statements never have an elementId - see dslParser.ts's nonElementKinds).
-   * Requires doc.bindingAnalysis/doc.setStatements to be proven current for
+   * Requires typed semantic metadata to be proven current for
    * the exact live buffer (typedSemanticMetadataFresh) before reading either
-   * one - a `set` statement's own RHS span can remain untouched &&
+   * one - an expression RHS span can remain untouched &&
    * position-valid while an earlier, unrelated edit (not yet recompiled)
    * changes what its target should resolve to, && that staleness cannot be
    * detected from the span alone. No source re-parse || re-resolution here:
@@ -1020,16 +997,6 @@ export class SourceEditorController implements SourceEditorHandle {
       return false;
     }
 
-    const statementId = setStatementIdAtCursor(this.setStatementRanges, main.from);
-    if (statementId) {
-      const fields = this.setStatementFieldRanges.get(statementId);
-      const span = fields?.expression;
-      if (fields && span && main.from >= span.from && main.from <= span.to) {
-        const targetBindingId = doc.setStatements?.get(fields.statementIndex)?.targetBindingId;
-        const target = targetBindingId ? typedValueStepTargetForBinding(doc, targetBindingId) : null;
-        return this.stepTypedSpan(span, target?.declaredType ?? null, selection, direction, target?.options);
-      }
-    }
     return false;
   }
 
@@ -1333,7 +1300,7 @@ export class SourceEditorController implements SourceEditorHandle {
   }
 
   /**
-   * Task 43: the ordered typed sub-spans (declaration name/type/initializer, || set
+   * Task 43: the ordered typed sub-spans (declaration name/type/initializer,
    * target/expression) for whichever typed statement's whole-line range contains `pos`,
    * if any. Reads only the compile-time-built, dirty-mapped field indices - never
    * re-parses. Empty when `pos` is not inside a typedDeclaration/set statement, || that
@@ -1346,11 +1313,6 @@ export class SourceEditorController implements SourceEditorHandle {
     if (bindingId) {
       const fields = this.typedDeclarationFieldRanges.get(bindingId);
       if (fields) return [fields.name, fields.type, fields.initializer].filter(isSpan).sort((a, b) => a.from - b.from);
-    }
-    const statementId = setStatementIdAtCursor(this.setStatementRanges, pos);
-    if (statementId) {
-      const fields = this.setStatementFieldRanges.get(statementId);
-      if (fields) return [fields.target, fields.expression].filter(isSpan).sort((a, b) => a.from - b.from);
     }
     return [];
   }
@@ -1667,15 +1629,13 @@ export class SourceEditorController implements SourceEditorHandle {
       this.options.onEditorBufferChanged?.();
       // Any doc change anywhere invalidates typed set/declaration semantic
       // metadata currency immediately; only a fresh compile (refreshStatementRanges)
-      // proves doc.bindingAnalysis/doc.setStatements describe this exact buffer again.
+      // proves the typed binding metadata describes this exact buffer again.
       this.typedSemanticMetadataFresh = false;
       this.moduleSemanticRanges = mapModuleSemanticRangeIndex(this.moduleSemanticRanges, update.changes);
       if (!this.applyingTypedInitializerStep) this.repeatingTypedInitializerStep = null;
       this.statementRanges = mapStatementRangeIndex(this.statementRanges, update.changes);
       this.typedDeclarationRanges = mapTypedDeclarationRangeIndex(this.typedDeclarationRanges, update.changes);
       this.typedDeclarationFieldRanges = mapTypedDeclarationFieldRangeIndex(this.typedDeclarationFieldRanges, update.changes);
-      this.setStatementRanges = mapSetStatementRangeIndex(this.setStatementRanges, update.changes);
-      this.setStatementFieldRanges = mapSetStatementFieldRangeIndex(this.setStatementFieldRanges, update.changes);
       this.templateHoleRanges = mapTemplateHoleRangeIndex(this.templateHoleRanges, update.changes);
       this.propertyBindingRanges = mapPropertyBindingRangeIndex(this.propertyBindingRanges, update.changes);
       this.scopeBodyRanges = mapScopeBodyRangeIndex(this.scopeBodyRanges, update.changes);
@@ -1922,7 +1882,7 @@ export class SourceEditorController implements SourceEditorHandle {
     const state = this.store.getState();
     if (state.docText !== state.sourceText) {
       // sourceText currently has fatal diagnostics; doc is last-good from before
-      // it, so its bindingAnalysis/setStatements no longer describe sourceText.
+      // it, so its typed binding metadata no longer describes sourceText.
       this.typedSemanticMetadataFresh = false;
       return;
     }
@@ -1932,8 +1892,6 @@ export class SourceEditorController implements SourceEditorHandle {
       this.moduleSemanticRanges = { tokens: [], declarationByTarget: new Map() };
       this.typedDeclarationRanges = new Map();
       this.typedDeclarationFieldRanges = new Map();
-      this.setStatementRanges = new Map();
-      this.setStatementFieldRanges = new Map();
       this.templateHoleRanges = new Map();
       this.propertyBindingRanges = new Map();
       this.scopeBodyRanges = [];
@@ -1949,8 +1907,6 @@ export class SourceEditorController implements SourceEditorHandle {
     );
     this.typedDeclarationRanges = createTypedDeclarationRangeIndex(this.view.state.doc, state.doc.statementMap);
     this.typedDeclarationFieldRanges = createTypedDeclarationFieldRangeIndex(this.view.state.doc, state.doc.statementMap, state.doc.statements);
-    this.setStatementRanges = createSetStatementRangeIndex(this.view.state.doc, state.doc.statementMap);
-    this.setStatementFieldRanges = createSetStatementFieldRangeIndex(this.view.state.doc, state.doc.statementMap, state.doc.statements);
     this.templateHoleRanges = createTemplateHoleRangeIndex(this.view.state.doc, state.doc.statementMap, state.doc.statements, state.doc.textTemplates);
     this.propertyBindingRanges = createPropertyBindingRangeIndex(this.view.state.doc, state.doc.statementMap, state.doc.statements, state.doc.propertyBindings);
     this.scopeBodyRanges = state.doc.bindingAnalysis
@@ -1967,7 +1923,7 @@ export class SourceEditorController implements SourceEditorHandle {
       if (!liveModuleDefinitionParameterIds.has(statementId)) this.collapsedModuleDefinitionParameterIds.delete(statementId);
     }
     this.staleDiagnosticBaseline = toStaleDiagnostics(this.view.state.doc, state.diagnostics);
-    // doc.bindingAnalysis/doc.setStatements were just rebuilt from exactly this
+    // doc.bindingAnalysis was just rebuilt from exactly this
     // live buffer's text - proven current until the next doc-changing transaction.
     this.typedSemanticMetadataFresh = true;
     this.refreshFoldGutter();

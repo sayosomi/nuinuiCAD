@@ -48,8 +48,7 @@ const spreadInvalidTooLarge: number = spreadAngle(
   spread: 201,
 )
 
-let mutableSpread: number = 0
-set mutableSpread = spreadAngle(
+const spreadComputed: number = spreadAngle(
   spread: 20,
   length: 100,
 )

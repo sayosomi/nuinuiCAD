@@ -6,6 +6,7 @@ use std::collections::{HashMap, HashSet};
 use serde_json::Value;
 
 use super::expression_payload::validate_typed_expression_payload;
+use super::expression_shape_payload::decode_geometry_target_payload;
 use super::issue::{ScalarPayloadIssue, ScalarPayloadIssueCode as Code};
 use super::json_helpers::{as_object, issue, reject_unexpected_fields, require_field};
 use super::program_payload::{
@@ -14,6 +15,8 @@ use super::program_payload::{
 };
 use super::scalar_payload::{decode_scalar_type, scalar_type_assignable};
 use super::types::{BindingId, ScalarType, TypedBuiltinArgument, TypedScalarExpression};
+use crate::evaluation::line_geometry_input::decode_collection_node;
+use crate::evaluation::types::{GeometryInputCollectionNode, GeometryInputTarget};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum InitialState {
@@ -25,9 +28,6 @@ pub(crate) enum InitialState {
 pub(crate) enum ValidatedBindingVersionKind {
     Declare {
         initializer: Option<TypedScalarExpression>,
-    },
-    Set {
-        expression: TypedScalarExpression,
     },
 }
 
@@ -54,6 +54,213 @@ pub(crate) struct ValidatedBindingVersions {
     pub(crate) conditional_owners_by_element_id: HashMap<String, String>,
     pub(crate) for_group_owners_by_element_id: HashMap<String, ValidatedForGroupOwner>,
     pub(crate) collection_values: Vec<ValidatedScalarProgramCollection>,
+    pub(crate) immutable_for_groups: HashMap<String, ValidatedImmutableForGroupPlan>,
+}
+
+#[derive(Debug)]
+pub(crate) struct ValidatedImmutableForGroupPlan {
+    pub(crate) owner_statement_id: String,
+    pub(crate) carries: Vec<ValidatedImmutableForGroupCarry>,
+    pub(crate) geometry_carries: Vec<ValidatedImmutableGeometryCarry>,
+    pub(crate) collection_carries: Vec<ValidatedImmutableCollectionCarry>,
+    pub(crate) geometry_collection_carries: Vec<ValidatedImmutableGeometryCollectionCarry>,
+}
+
+#[derive(Debug)]
+pub(crate) struct ValidatedImmutableForGroupCarry {
+    pub(crate) binding_id: BindingId,
+    pub(crate) next_binding_id: BindingId,
+    pub(crate) initializer: TypedScalarExpression,
+    pub(crate) declared_type: ScalarType,
+    pub(crate) next_expression: TypedScalarExpression,
+    pub(crate) next_source_order: usize,
+}
+
+#[derive(Debug)]
+pub(crate) struct ValidatedImmutableGeometryCarry {
+    pub(crate) binding_id: BindingId,
+    pub(crate) initializer: super::types::ScalarExpressionResolvedGeometryTarget,
+    pub(crate) next: super::types::ScalarExpressionResolvedGeometryTarget,
+}
+
+#[derive(Debug)]
+pub(crate) struct ValidatedImmutableCollectionCarry {
+    pub(crate) binding_id: BindingId,
+    pub(crate) collection_value_id: String,
+    pub(crate) initializer_value_id: String,
+    pub(crate) next_value_id: String,
+}
+
+#[derive(Debug)]
+pub(crate) enum ValidatedImmutableGeometryCollectionSource {
+    Value(String),
+    Node(Box<GeometryInputCollectionNode>),
+}
+
+#[derive(Debug)]
+pub(crate) struct ValidatedImmutableGeometryCollectionCarry {
+    pub(crate) binding_id: BindingId,
+    pub(crate) collection_value_id: String,
+    pub(crate) initializer: ValidatedImmutableGeometryCollectionSource,
+    pub(crate) next: ValidatedImmutableGeometryCollectionSource,
+}
+
+fn geometry_input_target_type(
+    target: &GeometryInputTarget,
+) -> Option<super::types::GeometryInterfaceType> {
+    let (geometry_type, point_key) = match target {
+        GeometryInputTarget::Drawable {
+            geometry_type,
+            point_key,
+            ..
+        }
+        | GeometryInputTarget::ForGroupOccurrence {
+            geometry_type,
+            point_key,
+            ..
+        }
+        | GeometryInputTarget::GeometryValue {
+            geometry_type,
+            point_key,
+            ..
+        }
+        | GeometryInputTarget::GeometryValueMap {
+            geometry_type,
+            point_key,
+            ..
+        } => (geometry_type.as_str(), point_key.as_ref()),
+        GeometryInputTarget::Coordinate { .. } => {
+            return Some(super::types::GeometryInterfaceType::Point)
+        }
+        GeometryInputTarget::CollectionValue { .. }
+        | GeometryInputTarget::CollectionIndex { .. } => return None,
+    };
+    if point_key.is_some() {
+        Some(super::types::GeometryInterfaceType::Point)
+    } else {
+        super::types::GeometryInterfaceType::from_wire_name(geometry_type)
+    }
+}
+
+fn resolved_geometry_target_type(
+    target: &super::types::ScalarExpressionResolvedGeometryTarget,
+) -> super::types::GeometryInterfaceType {
+    if target.point_key.is_some() {
+        super::types::GeometryInterfaceType::Point
+    } else {
+        target.geometry_type
+    }
+}
+
+fn geometry_type_assignable(
+    actual: super::types::GeometryInterfaceType,
+    expected: super::types::GeometryInterfaceType,
+) -> bool {
+    actual == expected
+        || matches!(
+            (actual, expected),
+            (
+                super::types::GeometryInterfaceType::Line,
+                super::types::GeometryInterfaceType::Path
+            )
+        )
+}
+
+fn geometry_collection_node_assignable(
+    node: &GeometryInputCollectionNode,
+    expected: super::types::GeometryInterfaceType,
+) -> bool {
+    match node {
+        GeometryInputCollectionNode::None => true,
+        GeometryInputCollectionNode::Leaf { targets } => targets.iter().all(|target| {
+            geometry_input_target_type(target)
+                .is_some_and(|actual| geometry_type_assignable(actual, expected))
+        }),
+        GeometryInputCollectionNode::If {
+            then_branch,
+            else_branch,
+            ..
+        } => {
+            geometry_collection_node_assignable(then_branch, expected)
+                && geometry_collection_node_assignable(else_branch, expected)
+        }
+        GeometryInputCollectionNode::Match { arms, .. } => arms
+            .iter()
+            .all(|(_, arm)| geometry_collection_node_assignable(arm, expected)),
+        GeometryInputCollectionNode::Coalesce {
+            left_branch,
+            right_branch,
+        } => {
+            geometry_collection_node_assignable(left_branch, expected)
+                && geometry_collection_node_assignable(right_branch, expected)
+        }
+    }
+}
+
+fn geometry_collection_source_assignable(
+    source: &ValidatedImmutableGeometryCollectionSource,
+    expected: super::types::GeometryInterfaceType,
+) -> bool {
+    match source {
+        // A value source is already compiler-resolved to a declaration-backed
+        // collection identity. Its element type is not duplicated in this
+        // payload, so the Rust boundary can only validate node sources here.
+        ValidatedImmutableGeometryCollectionSource::Value(_) => true,
+        ValidatedImmutableGeometryCollectionSource::Node(node) => {
+            geometry_collection_node_assignable(node, expected)
+        }
+    }
+}
+
+fn decode_geometry_collection_declared_type(
+    value: &Value,
+    context: &str,
+) -> Result<super::types::GeometryInterfaceType, ScalarPayloadIssue> {
+    let object = as_object(value, context)?;
+    reject_unexpected_fields(object, &["kind", "elementType"], context)?;
+    if string(
+        require_field(object, "kind", context)?,
+        &format!("{context} kind"),
+    )? != "array"
+    {
+        return Err(issue(
+            Code::InvalidFieldType,
+            format!("{context} kind must be array"),
+        ));
+    }
+    let element = as_object(
+        require_field(object, "elementType", context)?,
+        &format!("{context} elementType"),
+    )?;
+    reject_unexpected_fields(element, &["kind"], &format!("{context} elementType"))?;
+    let element_name = string(
+        require_field(element, "kind", &format!("{context} elementType"))?,
+        &format!("{context} elementType kind"),
+    )?;
+    super::types::GeometryInterfaceType::from_wire_name(element_name).ok_or_else(|| {
+        issue(
+            Code::InvalidFieldType,
+            format!("{context} elementType kind must be point, line, or path"),
+        )
+    })
+}
+
+fn decode_geometry_carry_declared_type(
+    value: &Value,
+    context: &str,
+) -> Result<super::types::GeometryInterfaceType, ScalarPayloadIssue> {
+    let object = as_object(value, context)?;
+    reject_unexpected_fields(object, &["kind"], context)?;
+    let kind = string(
+        require_field(object, "kind", context)?,
+        &format!("{context} kind"),
+    )?;
+    super::types::GeometryInterfaceType::from_wire_name(kind).ok_or_else(|| {
+        issue(
+            Code::InvalidFieldType,
+            format!("{context} kind must be point, line, or path"),
+        )
+    })
 }
 
 #[derive(Debug, Clone)]
@@ -82,6 +289,64 @@ fn integer(json: &Value, context: &str) -> Result<usize, ScalarPayloadIssue> {
             format!("{context} must be a non-negative integer"),
         )
     })
+}
+
+fn decode_geometry_target(
+    value: &Value,
+    context: &str,
+) -> Result<super::types::ScalarExpressionResolvedGeometryTarget, ScalarPayloadIssue> {
+    decode_geometry_target_payload(value)
+        .map_err(|error| {
+            issue(
+                Code::InvalidFieldType,
+                format!("{context} is invalid: {error:?}"),
+            )
+        })?
+        .ok_or_else(|| {
+            issue(
+                Code::InvalidFieldType,
+                format!("{context} must not be null"),
+            )
+        })
+}
+
+fn decode_geometry_collection_source(
+    value: &Value,
+    context: &str,
+) -> Result<ValidatedImmutableGeometryCollectionSource, ScalarPayloadIssue> {
+    let object = as_object(value, context)?;
+    reject_unexpected_fields(object, &["kind", "valueId", "node"], context)?;
+    match string(
+        require_field(object, "kind", context)?,
+        &format!("{context} kind"),
+    )? {
+        "value" => Ok(ValidatedImmutableGeometryCollectionSource::Value(
+            string(
+                require_field(object, "valueId", context)?,
+                &format!("{context} valueId"),
+            )?
+            .to_owned(),
+        )),
+        "node" => {
+            let node = decode_collection_node(
+                require_field(object, "node", context)?,
+                &format!("{context} node"),
+            )
+            .map_err(|error| {
+                issue(
+                    Code::InvalidFieldType,
+                    format!("{context} is invalid: {error:?}"),
+                )
+            })?;
+            Ok(ValidatedImmutableGeometryCollectionSource::Node(Box::new(
+                node,
+            )))
+        }
+        _ => Err(issue(
+            Code::UnknownKind,
+            format!("{context} kind must be value or node"),
+        )),
+    }
 }
 
 fn expression_type(expression: &TypedScalarExpression) -> Option<&ScalarType> {
@@ -289,22 +554,6 @@ fn decode_version(
             "initialState",
             "initializer",
         ][..],
-        "set" => &[
-            "versionId",
-            "statementId",
-            "kind",
-            "bindingId",
-            "targetBindingId",
-            "bindingKind",
-            "declaredType",
-            "sourceOrder",
-            "scopeId",
-            "scopeExitSourceOrder",
-            "control",
-            "predecessorId",
-            "initialState",
-            "expression",
-        ][..],
         _ => return Err(issue(Code::UnknownKind, "unknown binding version kind")),
     };
     reject_unexpected_fields(object, allowed, "binding version")?;
@@ -350,7 +599,7 @@ fn decode_version(
         decode_initial_state(require_field(object, "initialState", "binding version")?)?;
     let kind = match kind {
         "declare" => {
-            if version_id != statement_id || !matches!(binding_kind, "const" | "let") {
+            if version_id != statement_id || binding_kind != "const" {
                 return Err(issue(
                     Code::InvalidVersionId,
                     "declaration version identity or bindingKind is inconsistent",
@@ -377,40 +626,6 @@ fn decode_version(
                 }
             }
             ValidatedBindingVersionKind::Declare { initializer }
-        }
-        "set" => {
-            if binding_kind != "let"
-                || version_id != statement_id
-                || string(
-                    require_field(object, "targetBindingId", "set binding version")?,
-                    "set binding version targetBindingId",
-                )? != binding_id
-            {
-                return Err(issue(
-                    Code::InvalidBindingId,
-                    "set target/binding/version identity is inconsistent",
-                ));
-            }
-            if initial_state != InitialState::Uncomputed {
-                return Err(issue(
-                    Code::InvalidFieldType,
-                    "set initialState must be uncomputed",
-                ));
-            }
-            let expression = validate_typed_expression_payload(require_field(
-                object,
-                "expression",
-                "set binding version",
-            )?)?;
-            if expression_type(&expression).map_or(true, |actual| {
-                !scalar_type_assignable(actual, &declared_type)
-            }) {
-                return Err(issue(
-                    Code::LiteralTypeMismatch,
-                    "set expression type must match declaredType",
-                ));
-            }
-            ValidatedBindingVersionKind::Set { expression }
         }
         _ => unreachable!(),
     };
@@ -493,6 +708,7 @@ pub(crate) fn validate_binding_versions_payload(
             "evaluationLimitSourceOrder",
             "postStopBindingIds",
             "collectionValues",
+            "immutableForGroups",
         ],
         "binding versions payload",
     )?;
@@ -530,8 +746,6 @@ pub(crate) fn validate_binding_versions_payload(
             (ValidatedBindingVersionKind::Declare { .. }, None) => {
                 declared_types.insert(version.binding_id.clone(), version.declared_type.clone());
             }
-            (ValidatedBindingVersionKind::Set { .. }, Some(r#type))
-                if r#type == &version.declared_type => {}
             _ => {
                 return Err(issue(
                     Code::InvalidBindingId,
@@ -542,12 +756,341 @@ pub(crate) fn validate_binding_versions_payload(
         current_by_binding.insert(version.binding_id.clone(), version.version_id.clone());
         versions.push(version);
     }
-    let binding_ids = declared_types.keys().cloned().collect::<HashSet<_>>();
     let collection_values = object
         .get("collectionValues")
         .map(decode_collection_values)
         .transpose()?
         .unwrap_or_default();
+    let mut immutable_for_groups = HashMap::new();
+    if let Some(plans) = object.get("immutableForGroups") {
+        let plans = plans.as_array().ok_or_else(|| {
+            issue(
+                Code::InvalidFieldType,
+                "immutableForGroups must be an array",
+            )
+        })?;
+        for plan in plans {
+            let plan = as_object(plan, "immutable forGroup plan")?;
+            reject_unexpected_fields(
+                plan,
+                &[
+                    "ownerStatementId",
+                    "carries",
+                    "geometryCarries",
+                    "collectionCarries",
+                    "geometryCollectionCarries",
+                ],
+                "immutable forGroup plan",
+            )?;
+            let owner_statement_id = string(
+                require_field(plan, "ownerStatementId", "immutable forGroup plan")?,
+                "immutable forGroup ownerStatementId",
+            )?
+            .to_owned();
+            if immutable_for_groups.contains_key(&owner_statement_id) {
+                return Err(issue(
+                    Code::InvalidBindingId,
+                    "immutable forGroup ownerStatementId must be unique",
+                ));
+            }
+            let carry_json = require_field(plan, "carries", "immutable forGroup plan")?
+                .as_array()
+                .ok_or_else(|| {
+                    issue(
+                        Code::InvalidFieldType,
+                        "immutable forGroup carries must be an array",
+                    )
+                })?;
+            let mut carries = Vec::with_capacity(carry_json.len());
+            for carry in carry_json {
+                let carry = as_object(carry, "immutable forGroup carry")?;
+                reject_unexpected_fields(
+                    carry,
+                    &[
+                        "bindingId",
+                        "nextBindingId",
+                        "initializer",
+                        "declaredType",
+                        "nextExpression",
+                        "nextSourceOrder",
+                    ],
+                    "immutable forGroup carry",
+                )?;
+                let binding_id = string(
+                    require_field(carry, "bindingId", "immutable carry")?,
+                    "immutable carry bindingId",
+                )?
+                .to_owned();
+                let next_binding_id = string(
+                    require_field(carry, "nextBindingId", "immutable carry")?,
+                    "immutable carry nextBindingId",
+                )?
+                .to_owned();
+                let declared_type =
+                    decode_scalar_type(require_field(carry, "declaredType", "immutable carry")?)?;
+                let initializer = validate_typed_expression_payload(require_field(
+                    carry,
+                    "initializer",
+                    "immutable carry",
+                )?)?;
+                let next_expression = validate_typed_expression_payload(require_field(
+                    carry,
+                    "nextExpression",
+                    "immutable carry",
+                )?)?;
+                for expression in [&initializer, &next_expression] {
+                    if expression_type(expression).map_or(true, |actual| {
+                        !scalar_type_assignable(actual, &declared_type)
+                    }) {
+                        return Err(issue(
+                            Code::LiteralTypeMismatch,
+                            "immutable carry expression type must match declaredType",
+                        ));
+                    }
+                }
+                let next_source_order = integer(
+                    require_field(carry, "nextSourceOrder", "immutable carry")?,
+                    "immutable carry nextSourceOrder",
+                )?;
+                carries.push(ValidatedImmutableForGroupCarry {
+                    binding_id,
+                    next_binding_id,
+                    initializer,
+                    declared_type,
+                    next_expression,
+                    next_source_order,
+                });
+            }
+            let mut geometry_carries = Vec::new();
+            if let Some(entries) = plan.get("geometryCarries") {
+                let entries = entries.as_array().ok_or_else(|| {
+                    issue(
+                        Code::InvalidFieldType,
+                        "immutable forGroup geometryCarries must be an array",
+                    )
+                })?;
+                for carry in entries {
+                    let carry = as_object(carry, "immutable geometry carry")?;
+                    reject_unexpected_fields(
+                        carry,
+                        &[
+                            "bindingId",
+                            "declaredType",
+                            "initializerTarget",
+                            "nextTarget",
+                            "nextSourceOrder",
+                        ],
+                        "immutable geometry carry",
+                    )?;
+                    let binding_id = string(
+                        require_field(carry, "bindingId", "immutable geometry carry")?,
+                        "immutable geometry carry bindingId",
+                    )?
+                    .to_owned();
+                    let declared_type = decode_geometry_carry_declared_type(
+                        require_field(carry, "declaredType", "immutable geometry carry")?,
+                        "immutable geometry carry declaredType",
+                    )?;
+                    let initializer = decode_geometry_target(
+                        require_field(carry, "initializerTarget", "immutable geometry carry")?,
+                        "immutable geometry carry initializerTarget",
+                    )?;
+                    let next = decode_geometry_target(
+                        require_field(carry, "nextTarget", "immutable geometry carry")?,
+                        "immutable geometry carry nextTarget",
+                    )?;
+                    integer(
+                        require_field(carry, "nextSourceOrder", "immutable geometry carry")?,
+                        "immutable geometry carry nextSourceOrder",
+                    )?;
+                    if !geometry_type_assignable(
+                        resolved_geometry_target_type(&initializer),
+                        declared_type,
+                    ) || !geometry_type_assignable(
+                        resolved_geometry_target_type(&next),
+                        declared_type,
+                    ) {
+                        return Err(issue(
+                            Code::LiteralTypeMismatch,
+                            "immutable geometry carry target type must be assignable to declaredType",
+                        ));
+                    }
+                    geometry_carries.push(ValidatedImmutableGeometryCarry {
+                        binding_id,
+                        initializer,
+                        next,
+                    });
+                }
+            }
+            let mut collection_carries = Vec::new();
+            if let Some(entries) = plan.get("collectionCarries") {
+                let entries = entries.as_array().ok_or_else(|| {
+                    issue(
+                        Code::InvalidFieldType,
+                        "immutable forGroup collectionCarries must be an array",
+                    )
+                })?;
+                for carry in entries {
+                    let carry = as_object(carry, "immutable collection carry")?;
+                    reject_unexpected_fields(
+                        carry,
+                        &[
+                            "bindingId",
+                            "collectionValueId",
+                            "initializerValueId",
+                            "nextValueId",
+                            "declaredType",
+                            "nextSourceOrder",
+                        ],
+                        "immutable collection carry",
+                    )?;
+                    integer(
+                        require_field(carry, "nextSourceOrder", "immutable collection carry")?,
+                        "immutable collection carry nextSourceOrder",
+                    )?;
+                    collection_carries.push(ValidatedImmutableCollectionCarry {
+                        binding_id: string(
+                            require_field(carry, "bindingId", "immutable collection carry")?,
+                            "immutable collection carry bindingId",
+                        )?
+                        .to_owned(),
+                        collection_value_id: string(
+                            require_field(
+                                carry,
+                                "collectionValueId",
+                                "immutable collection carry",
+                            )?,
+                            "immutable collection carry collectionValueId",
+                        )?
+                        .to_owned(),
+                        initializer_value_id: string(
+                            require_field(
+                                carry,
+                                "initializerValueId",
+                                "immutable collection carry",
+                            )?,
+                            "immutable collection carry initializerValueId",
+                        )?
+                        .to_owned(),
+                        next_value_id: string(
+                            require_field(carry, "nextValueId", "immutable collection carry")?,
+                            "immutable collection carry nextValueId",
+                        )?
+                        .to_owned(),
+                    });
+                }
+            }
+            let mut geometry_collection_carries = Vec::new();
+            if let Some(entries) = plan.get("geometryCollectionCarries") {
+                let entries = entries.as_array().ok_or_else(|| {
+                    issue(
+                        Code::InvalidFieldType,
+                        "immutable forGroup geometryCollectionCarries must be an array",
+                    )
+                })?;
+                for carry in entries {
+                    let carry = as_object(carry, "immutable geometry collection carry")?;
+                    reject_unexpected_fields(
+                        carry,
+                        &[
+                            "bindingId",
+                            "collectionValueId",
+                            "initializer",
+                            "next",
+                            "declaredType",
+                            "nextSourceOrder",
+                        ],
+                        "immutable geometry collection carry",
+                    )?;
+                    integer(
+                        require_field(
+                            carry,
+                            "nextSourceOrder",
+                            "immutable geometry collection carry",
+                        )?,
+                        "immutable geometry collection carry nextSourceOrder",
+                    )?;
+                    let declared_type = decode_geometry_collection_declared_type(
+                        require_field(
+                            carry,
+                            "declaredType",
+                            "immutable geometry collection carry",
+                        )?,
+                        "immutable geometry collection carry declaredType",
+                    )?;
+                    let initializer = decode_geometry_collection_source(
+                        require_field(carry, "initializer", "immutable geometry collection carry")?,
+                        "immutable geometry collection carry initializer",
+                    )?;
+                    let next = decode_geometry_collection_source(
+                        require_field(carry, "next", "immutable geometry collection carry")?,
+                        "immutable geometry collection carry next",
+                    )?;
+                    if !geometry_collection_source_assignable(&initializer, declared_type)
+                        || !geometry_collection_source_assignable(&next, declared_type)
+                    {
+                        return Err(issue(
+                            Code::LiteralTypeMismatch,
+                            "immutable geometry collection carry source type must be assignable to declaredType",
+                        ));
+                    }
+                    geometry_collection_carries.push(ValidatedImmutableGeometryCollectionCarry {
+                        binding_id: string(
+                            require_field(
+                                carry,
+                                "bindingId",
+                                "immutable geometry collection carry",
+                            )?,
+                            "immutable geometry collection carry bindingId",
+                        )?
+                        .to_owned(),
+                        collection_value_id: string(
+                            require_field(
+                                carry,
+                                "collectionValueId",
+                                "immutable geometry collection carry",
+                            )?,
+                            "immutable geometry collection carry collectionValueId",
+                        )?
+                        .to_owned(),
+                        initializer,
+                        next,
+                    });
+                }
+            }
+            immutable_for_groups.insert(
+                owner_statement_id.clone(),
+                ValidatedImmutableForGroupPlan {
+                    owner_statement_id,
+                    carries,
+                    geometry_carries,
+                    collection_carries,
+                    geometry_collection_carries,
+                },
+            );
+        }
+    }
+    // Carry declarations and their `next` expressions are immutable loop
+    // state, not temporal versions. They still belong to the resolved binding
+    // namespace so expressions can reference them at the Rust boundary.
+    let mut binding_ids = declared_types.keys().cloned().collect::<HashSet<_>>();
+    for plan in immutable_for_groups.values() {
+        for carry in &plan.carries {
+            binding_ids.insert(carry.binding_id.clone());
+            declared_types.insert(carry.binding_id.clone(), carry.declared_type.clone());
+            binding_ids.insert(carry.next_binding_id.clone());
+            declared_types.insert(carry.next_binding_id.clone(), carry.declared_type.clone());
+        }
+        for carry in &plan.geometry_carries {
+            binding_ids.insert(carry.binding_id.clone());
+        }
+        for carry in &plan.collection_carries {
+            binding_ids.insert(carry.binding_id.clone());
+        }
+        for carry in &plan.geometry_collection_carries {
+            binding_ids.insert(carry.binding_id.clone());
+        }
+    }
     for collection in &collection_values {
         if let super::program_payload::ValidatedScalarProgramCollectionValue::Literal(members) =
             &collection.value
@@ -581,7 +1124,6 @@ pub(crate) fn validate_binding_versions_payload(
     for version in &versions {
         let expression = match &version.kind {
             ValidatedBindingVersionKind::Declare { initializer } => initializer.as_ref(),
-            ValidatedBindingVersionKind::Set { expression } => Some(expression),
         };
         if let Some(expression) = expression {
             let mut references = Vec::new();
@@ -597,6 +1139,25 @@ pub(crate) fn validate_binding_versions_payload(
                     Code::InvalidBindingId,
                     format!("unknown binding reference {reference}"),
                 ));
+            }
+        }
+    }
+    for plan in immutable_for_groups.values() {
+        for carry in &plan.carries {
+            for expression in [&carry.initializer, &carry.next_expression] {
+                let mut references = Vec::new();
+                collect_references(expression, &mut references);
+                for reference in references {
+                    if binding_ids.contains(reference)
+                        || listed_iteration_binding_ids.contains(reference)
+                    {
+                        continue;
+                    }
+                    return Err(issue(
+                        Code::InvalidBindingId,
+                        format!("unknown binding reference {reference}"),
+                    ));
+                }
             }
         }
     }
@@ -943,6 +1504,15 @@ pub(crate) fn validate_binding_versions_payload(
             referenced_for_group_owner_ids.insert(owner_statement_id.to_owned());
         }
     }
+    for owner_statement_id in immutable_for_groups.keys() {
+        if !for_group_owner_ids.contains(owner_statement_id) {
+            return Err(issue(
+                Code::InvalidControlOwner,
+                "immutable forGroup plan has no matching forGroupOwners entry",
+            ));
+        }
+        referenced_for_group_owner_ids.insert(owner_statement_id.clone());
+    }
     if referenced_for_group_owner_ids.len() != for_group_owner_ids.len() {
         return Err(issue(
             Code::InvalidControlOwner,
@@ -959,5 +1529,6 @@ pub(crate) fn validate_binding_versions_payload(
         conditional_owners_by_element_id,
         for_group_owners_by_element_id,
         collection_values,
+        immutable_for_groups,
     })
 }

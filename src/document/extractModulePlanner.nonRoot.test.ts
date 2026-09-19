@@ -379,20 +379,6 @@ describe("planExtractModule checkpoint 10 non-root source scopes", () => {
     if (result.status === "rejected") expect("splices" in result).toBe(false);
   });
 
-  it("keeps Module-local cross-boundary mutation rejection intact", () => {
-    const source = [
-      "nui 1",
-      "module Outer() {",
-      "  let total: number = 0",
-      "  set total = @total + 1",
-      "}"
-    ].join("\n");
-
-    const { result } = plan(source, (compiled) => [statementIndexNamed(compiled, "total") + 1]);
-    expect(result).toMatchObject({ status: "rejected", code: "cross-boundary-mutation" });
-    if (result.status === "rejected") expect("splices" in result).toBe(false);
-  });
-
   it("parameterizes an outer Module record parameter through its field access", () => {
     const source = [
       "nui 1",

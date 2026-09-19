@@ -588,7 +588,7 @@ export const analyzeTypedDeclarations = ({
   if (missingIdentity.length > 0) return { diagnostics: missingIdentity };
 
   const scopeIndex = buildLexicalScopeIndexFromStatements(statements, stableStatementIdByIndex, includeBindingMetadataStatement);
-  const adapter = buildDslBindingAdapterSeeds({ statements, scopeIndex, stableStatementIdByIndex, reconciledContainers });
+  const adapter = buildDslBindingAdapterSeeds({ statements, scopeIndex, stableStatementIdByIndex, reconciledContainers, sourceNamespace });
   const scalarTypedStatementIndexes = new Set(
     typedStatements
       .filter(({ statement }) => scalarExpressionTypeOfDslValueType(statement.valueType) !== null)
@@ -841,6 +841,9 @@ export const analyzeTypedDeclarations = ({
         nameContext,
         additionalGeometryPropertyResolver: additionalGeometryPropertyResolver
           ? ({ node }) => additionalGeometryPropertyResolver({ statementIndex: binding.statementIndex, node })
+          : undefined,
+        additionalScalarPropertyResolver: additionalRecordPropertyResolver
+          ? ({ node }) => Boolean(additionalRecordPropertyResolver({ statementIndex: binding.statementIndex, node }))
           : undefined,
         skipPropertySpanStarts: geometryResolutionByBindingId.get(binding.id)?.geometryPropertyTargets
           ? new Set(geometryResolutionByBindingId.get(binding.id)!.geometryPropertyTargets.keys())

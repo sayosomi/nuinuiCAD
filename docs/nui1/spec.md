@@ -374,7 +374,7 @@ number is not silently converted to a string or boolean, a choice is not silentl
 converted to a string, and a geometry value is not silently converted to a
 different geometry type.
 
-Scalar initializers, `set` right-hand sides, runtime-ready numeric construction
+Scalar initializers, `next` right-hand sides, runtime-ready numeric construction
 fields, module arguments, conditions, property values, array members, and
 `layout`, `place`, `print`, and `svg` numeric fields all use one typed expression surface
 model. nui1 does not expose separate historical
@@ -635,12 +635,12 @@ effectively zero-length line is an evaluation error; the runtime threshold is
 directed point-to-point direction normalized to `0..360` degrees.
 
 Scalar-only builtins are available anywhere the shared typed-expression
-frontend already supports scalar expressions: typed declarations, `set`
+frontend already supports scalar expressions: typed declarations, `next`
 right-hand sides, boolean conditions, scalar property values, text-template
 holes, and scalar module arguments/body expressions. Geometry-argument builtins
 (`distance`, `angle`, `lineDistance`, and `lineAngle`) can be called directly
 only where the existing geometry-reference resolution path is available:
-typed declaration initializers, `set` right-hand sides, and module scalar
+typed declaration initializers, `next` right-hand sides, and module scalar
 expressions. The same catalog and signatures are used by source completion.
 
 Task 4 does not add a new evaluator or resolver surface. To use a geometry
@@ -715,7 +715,7 @@ immutable value model described above.
 Constructors are named-only and must provide every non-optional field exactly
 once; optional fields may be supplied at most once or omitted. The
 constructor name and the declared type must identify the same record definition;
-record values cannot be declared with `let`. A record value can be referenced
+record values are declared with `const`. A record value can be referenced
 as a whole with `@name` or read through a scalar field such as `@first.x`.
 Record values do not become scalar runtime values and are not a replacement for
 geometry elements.
@@ -729,19 +729,28 @@ record read must resolve the optional value first.
 Exported record values can be read from an instance with a qualified reference,
 for example `@front::output.x`.
 
-### Scalar declarations and mutation
+### Scalar declarations and immutable loop state
 
 The scalar declaration forms are:
 
 ```text
 const seam: number = 5
-let angle: number = 90
-set angle = 180
+for i in range(min: 0, max: 2, step: 1)
+  carry angle: number = 90 {
+  next angle = @angle + 15
+}
 ```
 
-`const` is immutable after initialization. `let` may be updated by `set` in its
-scope, subject to normal type checking and source-order rules. `var` does not
-exist in nui1.
+All declarations are immutable and `var`, `let`, and `set` do not exist in
+nui1. A statement-for may iterate a range or an existing one-dimensional
+collection. Each repeated `carry name: Type = initializer` is an immutable
+binding whose inside-iteration view is the iteration-start value and whose
+post-loop view is the final escaped value. Every carry has exactly one
+`next name = expression`; all next expressions observe one shared snapshot and
+commit simultaneously. Empty sources preserve initializers. The collection
+binder has the collection element's exact accepted value type. An inner loop
+owns only its own carries; outer state propagates through an inner carry
+initializer and the inner final value used by the outer `next`.
 
 ## Geometry types
 
@@ -1060,6 +1069,29 @@ across its materialized instances; nested loops retain each occurrence path.
 exactly one occurrence is available and otherwise reports the existing
 collection-index-unavailable diagnostic rather than selecting zero.
 
+The iteration source may instead be an existing one-dimensional immutable
+collection. Its binder has the collection element's exact accepted value type;
+range binders remain `number`. A statement-for may declare repeated immutable
+carry clauses between the source and body:
+
+```text
+for item in @values
+  carry total: number = 0
+  carry label: string = "" {
+  next total = @total + @item
+  next label = @label + string(@item)
+}
+```
+
+Each carry has an incoming iteration-start view inside the body and one final
+escaped view after the loop. The initializer is the final value for zero
+iterations. Every carry has exactly one `next` definition. All next
+expressions are evaluated simultaneously from the same incoming carry
+snapshot, alongside the iteration binder, immutable body values, and geometry
+materialized in that iteration. `next` belongs to the nearest statement-for;
+an inner loop cannot target an outer carry directly. Nested propagation uses an
+inner carry initializer and the inner final value in the outer `next`.
+
 ## Modules
 
 ### Definitions and instances
@@ -1233,7 +1265,7 @@ produce strict `line`; and direct
 also permits the `segment` path form. Direct `arc` accepts the same
 `center`, `radius`, `start`, `end`, and optional `direction` values as its
 drawable construction; `direction` defaults to `counterclockwise`. A
-single-geometry value is `const`-only; `let` receives a focused diagnostic.
+single-geometry value is `const`-only.
 These values are source-level immutable values, not drawable elements and not
 scalar runtime values. They do not create a new element, computed drawable
 geometry entry, or synthetic `ElementId`; direct arc and pure through values
@@ -1728,8 +1760,10 @@ text uses `${...}`; and termination uses `stop`.
 nui 1
 
 const seam: number = 5
-let angle: number = 90
-set angle = 180
+for i in range(min: 0, max: 1, step: 1)
+  carry angle: number = 90 {
+  next angle = @angle + 15
+}
 const mirror: boolean = false
 const isDraft: boolean = true
 const showDetail: boolean = @seam > 0 and (not @mirror or @isDraft)

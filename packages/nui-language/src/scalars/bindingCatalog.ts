@@ -8,7 +8,7 @@ import type { CadContainerIndex } from "./containerIndex";
 
 export type BindingId = string;
 export type BindingKind = "typed" | "iteration";
-export type BindingMutability = "const" | "let" | "readonly";
+export type BindingMutability = "const" | "readonly";
 export type BindingVisibility =
   | { kind: "typed"; scopeId: ScopeId }
   | { kind: "iteration"; rootScopeId: ScopeId };

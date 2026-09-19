@@ -1,7 +1,7 @@
 nui 1
 // Active nui1 evaluation fixture.
-let printVisible: boolean = true
-let printHidden: boolean = false
+const printVisible: boolean = true
+const printHidden: boolean = false
 group Visible {
   point A = coordinate(x: 0, y: 0)
 }

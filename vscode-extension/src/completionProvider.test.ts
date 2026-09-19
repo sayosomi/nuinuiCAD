@@ -376,18 +376,17 @@ describe("VS Code native nui completion provider", () => {
     const source = [
       "nui 1",
       "arc A = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: clockwise)",
-      "let direction: choice(counterclockwise, clockwise) = clockwise",
-      "set direction = @A."
+      "const direction: choice(counterclockwise, clockwise) = @A."
     ].join("\n");
-    const line = source.split("\n")[3]!;
+    const line = source.split("\n")[2]!;
     const items = itemsFor(source);
     const direction = items.find((item) => item.label === "direction")!;
 
     expect(direction.kind).toBe(vscodeMocks.CompletionItemKind.Property);
     expect(direction.insertText).toBe("direction");
     expect(direction.range).toMatchObject({
-      start: { line: 3, character: line.length },
-      end: { line: 3, character: line.length }
+      start: { line: 2, character: line.length },
+      end: { line: 2, character: line.length }
     });
   });
 
@@ -616,18 +615,11 @@ describe("VS Code native nui completion provider", () => {
     });
   });
 
-  it("uses a snippet only for the choice type and keeps set targets bare", () => {
+  it("uses a snippet for the choice type", () => {
     const choice = itemsFor("nui 1\nconst value: cho").find((item) => item.label === "choice")!;
     expect(choice.insertText).toBeInstanceOf(vscode.SnippetString);
     expect((choice.insertText as vscode.SnippetString).value).toBe("choice($0)");
 
-    const setSource = [
-      "nui 1",
-      "let target: number = 1",
-      "set target = 1"
-    ].join("\n");
-    const target = itemsFor(setSource, 2, "set target".length).find((item) => item.label === "target")!;
-    expect(target.insertText).toBe("target");
   });
 
   it("adds @ only for bare binding and geometry references", () => {

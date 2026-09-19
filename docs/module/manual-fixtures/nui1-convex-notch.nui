@@ -39,10 +39,7 @@ point ノッチ位置 = onLine(
 )
 
 module 凸ノッチ(凸ノッチ高さ: number, 縫い線: path, 縫い代線: path, ノッチ位置: point, 反転: boolean = false) {
-  let 方向: number = 270
-  if (@反転 == true) {
-    set 方向 = 90
-  }
+  const 方向: number = if (@反転 == true) { 90 } else { 270 }
 
   point 頭 = tangentOffset(
   line: @縫い線,

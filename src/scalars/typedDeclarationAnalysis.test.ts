@@ -233,7 +233,7 @@ describe("analyzeTypedDeclarations resolution buckets", () => {
       "nui 1",
       "const first: number = 1",
       "const second: number = 2",
-      "let total: number = @second + @first + @second"
+      "const total: number = @second + @first + @second"
     ].join("\n"));
     const totalId = bindingIdForName(fixture, "total");
     const typed = fixture.analysis.typedInitializerByBindingId.get(totalId)!;
@@ -253,8 +253,8 @@ describe("analyzeTypedDeclarations resolution buckets", () => {
       "nui 1",
       "const first: number = 1",
       "const second: number = 2",
-      "let left: number = @first + @second",
-      "let right: number = @second + @first"
+      "const left: number = @first + @second",
+      "const right: number = @second + @first"
     ].join("\n"));
     const referencesFor = (name: string) => referencesInOccurrenceOrder(
       fixture.analysis.typedInitializerByBindingId.get(bindingIdForName(fixture, name))!
@@ -296,7 +296,7 @@ describe("analyzeTypedDeclarations resolution buckets", () => {
     const fixture = typedDeclarationAnalysisFor([
       "nui 1",
       "const value: number = 42",
-      "let copy: number = @value"
+      "const copy: number = @value"
     ].join("\n"));
     const program = lowerScalarProgram(fixture.analysis);
 
@@ -306,7 +306,7 @@ describe("analyzeTypedDeclarations resolution buckets", () => {
       initializerKind: statement.declaration.initializer.kind
     }))).toEqual([
       { bindingId: bindingIdForName(fixture, "value"), bindingKind: "const", initializerKind: "numberLiteral" },
-      { bindingId: bindingIdForName(fixture, "copy"), bindingKind: "let", initializerKind: "reference" }
+      { bindingId: bindingIdForName(fixture, "copy"), bindingKind: "const", initializerKind: "reference" }
     ]);
   });
 

@@ -362,7 +362,7 @@ export type CadUiState = CadElementSelection & {
   setSelectedElementRange: (anchorId: ElementId, targetId: ElementId) => void;
   /** Clears element fields while preserving a typed binding as the active subject. */
   clearElementSelection: () => void;
-  /** Selects a typed const/let binding as the current subject, clearing any active element selection. */
+  /** Selects a typed const binding as the current subject, clearing any active element selection. */
   setSelectedBindingId: (bindingId: BindingId) => void;
   setSourceCursorLine: (sourceCursorLine: number | null) => void;
   applySelection: (

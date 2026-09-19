@@ -5,16 +5,15 @@ import { effectiveElementActivityById } from "../model/elementActivity";
 import type { CadElement, DrawingModifierDefinition, ElementId } from "../types/geometry";
 import type { BindingAnalysis, BindingIssue } from "./bindingAnalysis";
 import type { BindingId } from "./bindingCatalog";
-import { beforeStatement, readBindingVersionAtPosition, type BindingVersionGraph } from "./bindingVersions";
+import type { BindingVersionGraph } from "./bindingVersions";
 import type { ScalarValueSource } from "./propertyBindingCompiler";
 import type { CompiledNumericBinding } from "./numericBindingCompiler";
-import type { SetStatementAnalysis } from "./setStatementCompiler";
 import type { TextTemplateAst } from "./textTemplate";
 import type { TypedScalarExpression } from "./typedExpressionAst";
 import type { ScalarProgram } from "./scalarProgram";
 
 export type TypedDependencyReason = "missing" | "invalid" | "late" | "disabled";
-export type TypedDependencyKind = "initializer" | "set-rhs" | "geometry-property" | "property-binding" | "numeric-expression" | "template-hole";
+export type TypedDependencyKind = "initializer" | "geometry-property" | "property-binding" | "numeric-expression" | "template-hole";
 
 export type TypedDependencyEndpoint =
   | { kind: "binding"; id: BindingId; name: string; statementIndex: number; span: DslSpan | null }
@@ -45,7 +44,6 @@ export type TypedDependencyGraphInput = {
   propertyBindings?: ReadonlyMap<string, ScalarValueSource>;
   numericBindings?: ReadonlyMap<string, CompiledNumericBinding>;
   textTemplates?: ReadonlyMap<string, TextTemplateAst>;
-  setStatements?: ReadonlyMap<number, SetStatementAnalysis>;
   scalarProgram?: ScalarProgram;
 };
 
@@ -133,11 +131,9 @@ export const buildTypedDependencyGraph = ({
   drawingModifiers,
   elementIdByStatementIndex,
   bindingAnalysis,
-  bindingVersions,
   propertyBindings,
   numericBindings,
   textTemplates,
-  setStatements,
   scalarProgram
 }: TypedDependencyGraphInput): TypedDependencyGraph | undefined => {
   if (!bindingAnalysis) return undefined;
@@ -228,24 +224,6 @@ export const buildTypedDependencyGraph = ({
       });
     }
   }
-  if (bindingVersions) for (const set of setStatements?.values() ?? []) {
-    const version = bindingVersions.versionsById.get(set.statementId);
-    if (!version) continue;
-    const from: TypedDependencyEndpoint = { kind: "version", id: version.id, bindingId: version.bindingId, statementIndex: set.sourceOrder };
-    for (const reference of referencesIn(set.expression)) {
-      if (!reference.bindingId) continue;
-      const current = readBindingVersionAtPosition(bindingVersions, reference.bindingId, beforeStatement(set.sourceOrder));
-      const to = current
-        ? { kind: "version" as const, id: current.id, bindingId: current.bindingId, statementIndex: current.sourceOrder }
-        : bindingEndpoint(bindingAnalysis, reference.bindingId);
-      add({ kind: "set-rhs", from, to, span: reference.span, reason: reasonFor(reference.bindingId) });
-    }
-    for (const reference of geometryPropertiesIn(set.expression)) {
-      if (!reference.elementId || reference.targetSourceOrder === null) continue;
-      add({ kind: "geometry-property", from, to: elementEndpoint(elementsById, reference.elementId, reference.targetSourceOrder), span: reference.span });
-    }
-  }
-
   const directByEndpointId = new Map<string, TypedDependencyEdge[]>();
   const reverseByEndpointId = new Map<string, TypedDependencyEdge[]>();
   for (const edge of edges) {

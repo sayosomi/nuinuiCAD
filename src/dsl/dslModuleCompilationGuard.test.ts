@@ -75,15 +75,15 @@ describe("module definition compilation guard", () => {
     expect(compiled.document?.elements.map((element) => element.name)).toEqual(["Root"]);
   });
 
-  it("keeps module-body const/let out of scalar analysis but compiles outer declarations", () => {
+  it("keeps module-body const declarations out of scalar analysis but compiles outer declarations", () => {
     const source = [
       "nui 1",
       "module M() {",
       "  const inner: number = 10",
-      "  let innerMutable: number = 20",
+      "  const innerMutable: number = 20",
       "}",
       "const outer: number = 30",
-      "let outerMutable: number = 40"
+      "const outerMutable: number = 40"
     ].join("\n");
     const { compiled } = compileWithStableIds(source);
 
@@ -113,39 +113,6 @@ describe("module definition compilation guard", () => {
     const physicalSegment = point.physicalSpan.segments[0];
     expect(source.slice(physicalSegment.from, physicalSegment.to)).toContain("point P = coordinate");
     expect(compiled.statementMap?.statements.map((info) => info.statementIndex)).toEqual([0, 1, 2, 3, 4, 5]);
-  });
-
-  it("does not let a module-body set mutate an outer binding or start set compilation", () => {
-    const source = [
-      "nui 1",
-      "module M() {",
-      "  set x = 20",
-      "}",
-      "let x: number = 10"
-    ].join("\n");
-    const { compiled } = compileWithRootStableIds(source);
-
-    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
-    expect(compiled.document?.elements).toEqual([]);
-    expect(compiled.bindingAnalysis?.catalog.bindings.map((binding) => binding.name)).toEqual(["x"]);
-    expect(compiled.scalarProgram?.statements[0].declaration.initializer).toMatchObject({ kind: "numberLiteral", value: 10 });
-    expect(compiled.setStatements).toBeUndefined();
-  });
-
-  it("does not start document scalar or print-layout infrastructure for module-only statements", () => {
-    const source = [
-      "nui 1",
-      "module M() {",
-      "  const inner: number = 10",
-      "  set inner = 20",
-      "}"
-    ].join("\n");
-    const compiled = compileDslDocument(source);
-
-    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
-    expect(compiled.bindingAnalysis).toBeUndefined();
-    expect(compiled.scalarProgram).toBeUndefined();
-    expect(compiled.setStatements).toBeUndefined();
   });
 
   it("uses the first compilable stop and keeps module-body stop inert", () => {

@@ -44,7 +44,7 @@ const isRealUserDeleteTransaction = (update: ViewUpdate): boolean =>
  * query from an "input.type"-tagged transaction; a purely delete-shaped one
  * never activates a completion that wasn't already open. A delete that
  * lands the cursor at a position where a completion context newly applies
- * (an edited `set` line's target collapsed back to zero characters, a
+ * (an edited incomplete expression line's target collapsed back to zero characters, a
  * choice value deleted down to empty, an `@partial` reference shortened but
  * still resolvable, ...) therefore never reopens the popup on its own.
  * Mirrors cmCompositionCompletionRetry.ts's own retry shape, but reacts to

@@ -172,9 +172,9 @@ describe("SourceEditor element state gutter", () => {
     expect(markerFor(lineOfA.from)).not.toBeNull();
     expect(markerFor(lineOfB.from)).not.toBeNull();
 
-    // Repro B (let): a second, independent fatal-then-valid edit must not
+    // Repro B: a second, independent fatal-then-valid edit must not
     // compound (or merely coincidentally clear) any staleness left by repro A.
-    view.dispatch({ changes: { from: view.state.doc.length, insert: "\nlet test2: number = " } });
+    view.dispatch({ changes: { from: view.state.doc.length, insert: "\nconst test2: number = " } });
     vi.advanceTimersByTime(300);
     expect(useCadDocumentStore.getState().docText).not.toBe(useCadDocumentStore.getState().sourceText);
     view.dispatch({ changes: { from: view.state.doc.length, insert: "1" } });

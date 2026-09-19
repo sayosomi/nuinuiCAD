@@ -217,7 +217,7 @@ export type TypedDeclarationRange = { bindingId: BindingId; from: number; to: nu
 export type TypedDeclarationRangeIndex = ReadonlyMap<BindingId, TypedDeclarationRange>;
 
 /**
- * Mirrors the source-range index for `const`/`let` typed declaration
+ * Mirrors the source-range index for typed `const` declaration
  * statements (Task 39): a live-line -> stable binding identity index used only
  * for typed value completion's cursor -> BindingCatalog bridge, never for
  * fold/gutter presentation. Keyed by the same `binding:<stableStatementId>`
@@ -332,7 +332,7 @@ export type TypedDeclarationFieldSpans = {
 export type TypedDeclarationFieldRangeIndex = ReadonlyMap<BindingId, TypedDeclarationFieldSpans>;
 
 /**
- * Task 43: sub-statement spans for a `const`/`let` declaration's own name,
+ * Task 43: sub-statement spans for a typed `const` declaration's own name,
  * type annotation, && initializer, keyed the same way as
  * createTypedDeclarationRangeIndex. Reads only `namePhysicalSpan`/
  * `payloadPhysicalSpans.type`/`.initializer`, already computed once by the
@@ -383,124 +383,6 @@ export const mapTypedDeclarationFieldRangeIndex = (
       name: mapSegment(spans.name),
       type: mapSegment(spans.type),
       initializer: mapSegment(spans.initializer)
-    });
-  }
-  return mapped;
-};
-
-export type SetStatementRange = { statementId: string; from: number; to: number };
-export type SetStatementRangeIndex = ReadonlyMap<string, SetStatementRange>;
-
-/**
- * Mirrors createTypedDeclarationRangeIndex for `set` statements: a live-line
- * -> stable statement identity index used for cursor-in-a-set-line detection
- * (Task 43 Tab/value navigation). Unlike typed declarations, the key is the
- * raw reconciler-issued statementId itself - `set` has no BindingId of its
- * own (it targets an existing binding, it does not declare one).
- */
-export const createSetStatementRangeIndex = (doc: Text, statementMap: StatementMap): SetStatementRangeIndex => {
-  const ranges = new Map<string, SetStatementRange>();
-  const statementIdByStatementIndex = statementMap.statementIdByStatementIndex;
-  if (!statementIdByStatementIndex) return ranges;
-  for (const info of statementMap.statements) {
-    if (info.kind !== "set") continue;
-    const statementId = statementIdByStatementIndex.get(info.statementIndex);
-    if (statementId === undefined) continue;
-    if (info.line < 1 || info.line > doc.lines) continue;
-    const line = doc.line(info.line);
-    const endLine = info.endLine >= info.line && info.endLine <= doc.lines ? doc.line(info.endLine) : line;
-    ranges.set(statementId, { statementId, from: line.from, to: endLine.to });
-  }
-  return ranges;
-};
-
-/** Mirrors mapTypedDeclarationRangeIndex. */
-export const mapSetStatementRangeIndex = (ranges: SetStatementRangeIndex, changes: ChangeDesc): SetStatementRangeIndex => {
-  const mapped = new Map<string, SetStatementRange>();
-  for (const [statementId, range] of ranges) {
-    if (changes.touchesRange(range.from, range.to) === "cover") continue;
-    const from = changes.mapPos(range.from, 1, MapMode.TrackAfter);
-    const to = changes.mapPos(range.to, 1, MapMode.Simple);
-    if (from === null || to === null || to < from) continue;
-    mapped.set(statementId, { statementId, from, to });
-  }
-  return mapped;
-};
-
-/** Mirrors elementIdAtCursor for the set statement range index. */
-export const setStatementIdAtCursor = (ranges: SetStatementRangeIndex, head: number): string | null => {
-  for (const [statementId, range] of ranges) {
-    if (head >= range.from && head <= range.to) return statementId;
-  }
-  return null;
-};
-
-export type SetStatementFieldSpans = {
-  statementRange: OwningStatementRange;
-  /** Bridges to CompiledDslDocument.setStatements (keyed by statementIndex, not
-   * statementId - see SetStatementAnalysis) so a caller holding this record can
-   * look up the statement's resolved target binding without a reverse map || a
-   * re-parse. Stable for the statement's lifetime; carried through unchanged by
-   * mapSetStatementFieldRangeIndex. */
-  statementIndex: number;
-  target: DslPhysicalSegment | null;
-  expression: DslPhysicalSegment | null;
-};
-export type SetStatementFieldRangeIndex = ReadonlyMap<string, SetStatementFieldSpans>;
-
-/**
- * Task 43 sibling to createTypedDeclarationFieldRangeIndex: a `set`
- * statement's own target (`nameSpan`/`namePhysicalSpan`, reused verbatim by
- * SetStatementAnalysis.targetSpan) && RHS expression
- * (`payloadPhysicalSpans.expression`, reused verbatim by
- * SetStatementAnalysis.expressionSpan). Built from the raw parsed statement
- * alone - works even when bindingAnalysis/setStatements resolution failed,
- * exactly like legacy element value spans stay Tab/click-reachable
- * regardless of dependency validity.
- */
-export const createSetStatementFieldRangeIndex = (
-  doc: Text,
-  statementMap: StatementMap,
-  statements: readonly DslStatement[]
-): SetStatementFieldRangeIndex => {
-  const fields = new Map<string, SetStatementFieldSpans>();
-  const statementIdByStatementIndex = statementMap.statementIdByStatementIndex;
-  if (!statementIdByStatementIndex) return fields;
-  for (const info of statementMap.statements) {
-    if (info.kind !== "set") continue;
-    const statementId = statementIdByStatementIndex.get(info.statementIndex);
-    if (statementId === undefined) continue;
-    const statement = statements[info.statementIndex];
-    if (!statement || statement.kind !== "set") continue;
-    const statementRange = owningStatementRange(doc, info);
-    if (!statementRange) continue;
-    fields.set(statementId, {
-      statementRange,
-      statementIndex: info.statementIndex,
-      target: onlyPhysicalSegment(statement.namePhysicalSpan),
-      expression: onlyPhysicalSegment(statement.payloadPhysicalSpans?.expression)
-    });
-  }
-  return fields;
-};
-
-/** See mapOwningStatementRange: any edit inside the set statement (not only
- * one that fully replaces the target || expression) drops both fields until
- * the next successful compile. */
-export const mapSetStatementFieldRangeIndex = (
-  fields: SetStatementFieldRangeIndex,
-  changes: ChangeDesc
-): SetStatementFieldRangeIndex => {
-  const mapped = new Map<string, SetStatementFieldSpans>();
-  for (const [statementId, spans] of fields) {
-    const statementRange = mapOwningStatementRange(spans.statementRange, changes);
-    if (!statementRange) continue;
-    const mapSegment = (segment: DslPhysicalSegment | null) => segment && mapSegmentWithinUntouchedStatement(segment, changes);
-    mapped.set(statementId, {
-      statementRange,
-      statementIndex: spans.statementIndex,
-      target: mapSegment(spans.target),
-      expression: mapSegment(spans.expression)
     });
   }
   return mapped;
@@ -680,14 +562,14 @@ export type ScopeBodyRangeIndex = readonly ScopeBodyRange[];
 /**
  * Task 40: live body-range tracking for every non-root lexical scope
  * (`group`/`then`/`else`/`forGroup`), purely structural - independent of
- * which (if any) `set` statement lives inside a scope's body. Set target/RHS
- * completion (src/scalars/setCompletionCandidates.ts) uses this to resolve
- * "which scope contains the live cursor" the same way for a brand-new,
- * never-yet-compiled `set` line as for an already-compiled one - unlike
+ * which declarations or loop statements live inside a scope's body. The
+ * structural editor queries use this to resolve "which scope contains the
+ * live cursor" the same way for a brand-new line as for an already-compiled
+ * one - unlike
  * TypedDeclarationRangeIndex above, entries here are keyed by structural
  * position, never by a specific statement's own stable identity, so a scope
- * whose body has not yet had any successful `set`/declaration compile inside
- * it is still resolvable as long as the scope itself (its opening/closing
+ * whose body has not yet had any successful declaration compile inside it is
+ * still resolvable as long as the scope itself (its opening/closing
  * braces) survived the last successful compile.
  */
 export const createScopeBodyRangeIndex = (
@@ -725,15 +607,12 @@ export const createScopeBodyRangeIndex = (
 
 /**
  * Mirrors mapTypedDeclarationRangeIndex: an edit anywhere inside a tracked
- * scope body (including every keystroke typed into a brand-new `set` line
- * inside it) maps through && keeps the entry alive; only a change fully
+ * scope body maps through and keeps the entry alive; only a change fully
  * replacing the body end-to-end drops it. A change to the scope's own
  * opening/closing brace *line* outside the tracked `[from, to)` interior is
  * not specially detected here - like every other Tier B range index in this
  * file, that staleness is accepted until the next successful compile
- * refreshes the index (see dslSetCompletionContext.ts's own Tier A reparse,
- * which independently guards the `set` statement's own shape on every
- * keystroke).
+ * refreshes the index.
  */
 export const mapScopeBodyRangeIndex = (ranges: ScopeBodyRangeIndex, changes: ChangeDesc): ScopeBodyRangeIndex => {
   const mapped: ScopeBodyRange[] = [];

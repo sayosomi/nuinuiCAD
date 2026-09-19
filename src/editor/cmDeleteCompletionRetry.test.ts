@@ -19,9 +19,7 @@ import {
 // a candidate. This file exercises the shared retry contract itself across
 // more than one completion kind (a choice value here, a generic keyword
 // context for the "no candidates"/"already open" cases) rather than
-// duplicating cmAutocomplete.ts's own per-kind coverage. set target
-// completion's own delete-repro fixture lives in cmAutocomplete.test.ts
-// alongside the rest of Task 40's coverage.
+// duplicating cmAutocomplete.ts's own per-kind coverage.
 
 const baseOptions = () => ({
   elements: () => [] as never[],
@@ -85,7 +83,7 @@ describe("cmDeleteCompletionRetry (Task 51 manual E2E rerun)", () => {
     const { view, parent } = createView(source);
 
     // Deletes the version digit: "nui 1" -> "nui " has no keyword, call,
-    // declaration, set, || element-statement context at all.
+    // declaration, or element-statement context at all.
     const versionDigit = source.indexOf("1");
     view.dispatch({
       changes: { from: versionDigit, to: versionDigit + 1 },
@@ -107,12 +105,12 @@ describe("cmDeleteCompletionRetry (Task 51 manual E2E rerun)", () => {
     const { view, parent } = createView("");
 
     // Opens the line-head keyword popup by typing two characters, then
-    // narrows it back down to one by deleting the second - "s" alone is
+    // narrows it back down to one by deleting the second - "c" alone is
     // still a valid, non-empty-matching keyword prefix throughout, so a
     // completion is active both immediately before && immediately after
     // the delete transaction the retry mechanism reacts to.
     view.dispatch({
-      changes: { from: 0, insert: "se" },
+      changes: { from: 0, insert: "co" },
       selection: { anchor: 2 },
       annotations: Transaction.userEvent.of("input.type")
     });
@@ -124,7 +122,7 @@ describe("cmDeleteCompletionRetry (Task 51 manual E2E rerun)", () => {
       annotations: Transaction.userEvent.of("delete.backward")
     });
     await expect.poll(() => completionStatus(view.state), { timeout: 500, interval: 20 }).toBe("active");
-    expect(currentCompletions(view.state).map((option) => option.label)).toContain("set");
+    expect(currentCompletions(view.state).map((option) => option.label)).toContain("const");
     expect(parent.querySelectorAll(".cm-tooltip-autocomplete").length).toBe(1);
 
     view.destroy();
@@ -191,26 +189,16 @@ describe("cmDeleteCompletionRetry only fires for a real user delete origin (bloc
   // this transaction remove characters") misfires for undo: undoing an
   // insertion also shortens the document, but it is never a user delete
   // gesture. isRealUserDeleteTransaction (cmDeleteCompletionRetry.ts) now
-  // additionally requires transaction.isUserEvent("delete") - a real repro
-  // ("set " -> type "total" -> undo back to "set ") must never reopen the
-  // popup on its own from that undo.
-  const buildSetTargetView = () => {
-    // A committed document must be a fully valid nui 1 source (an
-    // incomplete "set " target has error diagnostics && never compiles) -
-    // so this commits a complete "set total = 99" line, exactly like the
-    // real duplicate-line repro, then reaches the zero-length "set " state
-    // through a real, live delete transaction before the undo/redo/
-    // programmatic-change scenarios below take over from there.
+  // additionally requires transaction.isUserEvent("delete"). This helper
+  // starts at an empty choice value after a real delete, then each test
+  // applies one non-delete-origin transition to that same editor state.
+  const buildChoiceTargetView = () => {
     const committedSource = [
       "nui 1",
-      "let flag: boolean = true",
-      "let total: number = 0",
-      "let show: boolean = false",
-      "const limit: number = 10",
-      "if (@flag) {",
-      "} else {",
-      "  set total = 99",
-      "}"
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line AB = segment(start: @A, end: @B)",
+      "line Off = offset(sources: [@AB], distance: 3, side: right, closed: false)"
     ].join("\n");
     const statements = parseDsl(committedSource).statements;
     const assignedStatementIds = new Map(statements.map((_, index) => [index, `stable-${index}`]));
@@ -225,9 +213,9 @@ describe("cmDeleteCompletionRetry only fires for a real user delete origin (bloc
       ? createScopeBodyRangeIndex(committedDoc, compiled.statementMap!, compiled.bindingAnalysis.catalog.scopeIndex)
       : [];
 
-    const setLine = committedSource.indexOf("  set total = 99");
-    const targetPos = setLine + "  set ".length;
-    const targetEnd = setLine + "  set total = 99".length;
+    const choiceLine = committedSource.indexOf("side: right");
+    const targetPos = choiceLine + "side: ".length;
+    const targetEnd = choiceLine + "side: right".length;
     const parent = document.createElement("div");
     document.body.append(parent);
     // jsdom has no real text-layout engine; CM's own scrollIntoView-driven
@@ -258,8 +246,8 @@ describe("cmDeleteCompletionRetry only fires for a real user delete origin (bloc
       parent
     });
 
-    // Real user delete, reaching "set |" exactly like the manual repro -
-    // this is not itself under test here, only the starting point for it.
+    // Real user delete, reaching an empty choice value; this is only the
+    // starting point for the origin checks below.
     view.dispatch({
       changes: { from: targetPos, to: targetEnd },
       selection: { anchor: targetPos },
@@ -270,11 +258,11 @@ describe("cmDeleteCompletionRetry only fires for a real user delete origin (bloc
   };
 
   it("does not reopen the popup when undo removes text back down to a completable zero-length target", async () => {
-    const { view, parent, targetPos } = buildSetTargetView();
+    const { view, parent, targetPos } = buildChoiceTargetView();
 
     view.dispatch({
-      changes: { from: targetPos, insert: "total" },
-      selection: { anchor: targetPos + "total".length },
+      changes: { from: targetPos, insert: "right" },
+      selection: { anchor: targetPos + "right".length },
       annotations: Transaction.userEvent.of("input.type")
     });
     await expect.poll(() => completionStatus(view.state), { timeout: 500, interval: 20 }).toBe("active");
@@ -282,7 +270,7 @@ describe("cmDeleteCompletionRetry only fires for a real user delete origin (bloc
     expect(completionStatus(view.state)).toBeNull();
 
     undo(view);
-    expect(view.state.doc.toString().slice(targetPos - 6, targetPos)).toBe("  set ");
+    expect(view.state.doc.toString().slice(targetPos - 6, targetPos)).toBe("side: ");
     expect(view.state.selection.main.head).toBe(targetPos);
 
     // No further input, and no explicit invocation: a real user delete would
@@ -296,11 +284,11 @@ describe("cmDeleteCompletionRetry only fires for a real user delete origin (bloc
   });
 
   it("does not misfire the delete retry when redo reinserts text after that undo", async () => {
-    const { view, parent, targetPos } = buildSetTargetView();
+    const { view, parent, targetPos } = buildChoiceTargetView();
 
     view.dispatch({
-      changes: { from: targetPos, insert: "total" },
-      selection: { anchor: targetPos + "total".length },
+      changes: { from: targetPos, insert: "right" },
+      selection: { anchor: targetPos + "right".length },
       annotations: Transaction.userEvent.of("input.type")
     });
     await expect.poll(() => completionStatus(view.state), { timeout: 500, interval: 20 }).toBe("active");
@@ -309,7 +297,7 @@ describe("cmDeleteCompletionRetry only fires for a real user delete origin (bloc
     await new Promise((resolve) => setTimeout(resolve, 100));
 
     redo(view);
-    expect(view.state.doc.toString().slice(targetPos, targetPos + "total".length)).toBe("total");
+    expect(view.state.doc.toString().slice(targetPos, targetPos + "right".length)).toBe("right");
 
     await new Promise((resolve) => setTimeout(resolve, 300));
     expect(completionStatus(view.state)).toBeNull();
@@ -319,11 +307,11 @@ describe("cmDeleteCompletionRetry only fires for a real user delete origin (bloc
   });
 
   it("does not fire for a programmatic transaction that removes text without a delete-origin userEvent", async () => {
-    const { view, parent, targetPos } = buildSetTargetView();
+    const { view, parent, targetPos } = buildChoiceTargetView();
 
     view.dispatch({
-      changes: { from: targetPos, insert: "total" },
-      selection: { anchor: targetPos + "total".length },
+      changes: { from: targetPos, insert: "right" },
+      selection: { anchor: targetPos + "right".length },
       annotations: Transaction.userEvent.of("input.type")
     });
     await expect.poll(() => completionStatus(view.state), { timeout: 500, interval: 20 }).toBe("active");
@@ -334,10 +322,10 @@ describe("cmDeleteCompletionRetry only fires for a real user delete origin (bloc
     // reset transaction takes in this editor (see sourceEditorController.ts's
     // own modelPatchOrigin/resetOrigin-tagged dispatches), never "delete".
     view.dispatch({
-      changes: { from: targetPos, to: targetPos + "total".length },
+      changes: { from: targetPos, to: targetPos + "right".length },
       selection: { anchor: targetPos }
     });
-    expect(view.state.doc.toString().slice(targetPos - 6, targetPos)).toBe("  set ");
+    expect(view.state.doc.toString().slice(targetPos - 6, targetPos)).toBe("side: ");
 
     await new Promise((resolve) => setTimeout(resolve, 300));
     expect(completionStatus(view.state)).toBeNull();
@@ -347,26 +335,25 @@ describe("cmDeleteCompletionRetry only fires for a real user delete origin (bloc
   });
 
   it("still reopens automatically for a real user delete, unaffected by the origin gate", async () => {
-    const { view, parent, targetPos } = buildSetTargetView();
+    const { view, parent, targetPos } = buildChoiceTargetView();
 
     view.dispatch({
-      changes: { from: targetPos, insert: "total" },
-      selection: { anchor: targetPos + "total".length },
+      changes: { from: targetPos, insert: "right" },
+      selection: { anchor: targetPos + "right".length },
       annotations: Transaction.userEvent.of("input.type")
     });
     await expect.poll(() => completionStatus(view.state), { timeout: 500, interval: 20 }).toBe("active");
     closeCompletion(view);
 
     view.dispatch({
-      changes: { from: targetPos, to: targetPos + "total".length },
+      changes: { from: targetPos, to: targetPos + "right".length },
       selection: { anchor: targetPos },
       annotations: Transaction.userEvent.of("delete.selection")
     });
 
     await expect.poll(() => completionStatus(view.state), { timeout: 500, interval: 20 }).toBe("active");
     const labels = currentCompletions(view.state).map((option) => option.label);
-    expect(labels).toEqual(expect.arrayContaining(["flag", "total", "show"]));
-    expect(labels).not.toContain("limit");
+    expect(labels).toEqual(expect.arrayContaining(["right", "left"]));
 
     view.destroy();
     parent.remove();

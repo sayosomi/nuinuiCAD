@@ -99,9 +99,5 @@ export const rootCompiledGeometryPropertyOccurrences = (
     const occurrence = parsePropertyBindingOccurrenceKey(occurrenceKey);
     if (occurrence && source.kind === "expression") addExpression(occurrence.statementIndex, source.expression, 0);
   }
-  for (const [statementIndex, set] of compiled.setStatements ?? []) {
-    addExpression(statementIndex, set.expression, 0);
-  }
-
   return result;
 };

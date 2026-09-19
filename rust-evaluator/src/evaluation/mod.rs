@@ -34,10 +34,10 @@ mod for_group;
 mod for_group_ancestor_reference;
 #[cfg(test)]
 mod for_group_ancestor_reference_tests;
+mod for_group_execution_runtime;
 mod for_group_generic_runtime;
 #[cfg(test)]
 mod for_group_generic_runtime_tests;
-mod for_group_mutation_runtime;
 #[cfg(test)]
 mod for_group_tests;
 mod geometry_value_kernels;
@@ -71,8 +71,6 @@ mod line_tangent_offset_point_evaluator;
 #[cfg(test)]
 mod line_tangent_offset_point_tests;
 mod line_transform;
-#[cfg(test)]
-mod linear_mutation_integration_tests;
 mod math;
 mod numeric_binding_runtime;
 mod numeric_expression;
@@ -144,8 +142,8 @@ use errors::geometry_error;
 use for_group::{
     for_group_loop_values, for_group_template_descendant_ids, iteration_local_variables,
 };
+use for_group_execution_runtime::ForGroupExecutionRuntime;
 use for_group_generic_runtime::GenericForGroupRuntime;
-use for_group_mutation_runtime::ForGroupMutationRuntime;
 use groups::{effective_element_ids, group_state_by_element_id};
 use image_evaluator::evaluate_image;
 use intersection_point_evaluator::evaluate_intersection_point;
@@ -180,11 +178,11 @@ use scalars::{
     validate_binding_versions_payload, validate_condition_expressions_payload,
     validate_control_boolean_bindings_payload, validate_property_bindings_payload,
     validate_scalar_program_payload, validate_text_property_bindings_payload,
-    validate_text_templates_payload, validate_typed_expression_payload, ForGroupMutationRunOutcome,
-    ForGroupMutationStatement, ScalarBindingResolver, ScalarDocumentBindingResolver,
-    ScalarMutationResolver, TypedScalarExpression, ValidatedBindingVersions,
-    ValidatedConditionExpression, ValidatedPropertyBinding, ValidatedScalarProgram,
-    ValidatedTextTemplate,
+    validate_text_templates_payload, validate_typed_expression_payload,
+    ForGroupExecutionRunOutcome, ForGroupExecutionStatement, ScalarBindingResolver,
+    ScalarDocumentBindingResolver, ScalarMutationResolver, TypedScalarExpression,
+    ValidatedBindingVersions, ValidatedConditionExpression, ValidatedPropertyBinding,
+    ValidatedScalarProgram, ValidatedTextTemplate,
 };
 use split_line_evaluator::evaluate_split_line;
 use text_evaluator::{evaluate_text, TextTemplateContext};
@@ -1604,7 +1602,7 @@ fn evaluate_document_input_with_scalar_program(
                     .to_owned();
                 resolver.consume_for_group_source_range(&owner_statement_id, exit_source_order);
                 let mut environment = resolver.begin_for_group_environment();
-                let mut runtime = ForGroupMutationRuntime::new(
+                let mut runtime = ForGroupExecutionRuntime::new(
                     &original_elements,
                     &base_effective_enabled_ids,
                     &entries_by_element_id,
@@ -1634,7 +1632,7 @@ fn evaluate_document_input_with_scalar_program(
                     )
                     .expect("validated forGroup scheduler must not mutate an iteration binding");
                 resolver.commit_for_group_environment(&environment);
-                if outcome == ForGroupMutationRunOutcome::Stopped {
+                if outcome == ForGroupExecutionRunOutcome::Stopped {
                     break 'elements;
                 }
                 execute_transformation_recipes_through(

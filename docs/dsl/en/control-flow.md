@@ -42,6 +42,48 @@ step: ...)`. The variable is not added to the surrounding scope.
 `showGenerated` remains a for-control option; it controls whether generated
 rows are shown and does not change the range values.
 
+### Immutable carries
+
+A statement-for may iterate either an ascending range or an existing
+one-dimensional collection. Range binders have type `number`; collection
+binders have the collection's exact element type, including scalar, choice,
+geometry, and nominal-record values:
+
+<!-- dsl-example: compile-success -->
+```nui
+nui 1
+const values: number[] = [1, 2, 3]
+for item in @values carry total: number = 0 {
+  next total = @total + @item
+}
+text Result = label(text: "${@total}", anchor: none, size: 3)
+```
+
+Each `carry name: Type = initializer` is one immutable binding with two
+lexical views. Inside an iteration, `@name` is the value at that iteration's
+start. After the loop, `@name` is the final escaped value. The initializer is
+also the result for an empty range or collection. Each carry must have exactly
+one `next name = expression` in its owning loop. All `next` right-hand sides
+are evaluated against the same iteration-start snapshot, so swaps and other
+multiple-carry updates are simultaneous:
+
+<!-- dsl-example: syntax-fragment -->
+```nui
+for i in range(min: 0, max: 1, step: 1)
+  carry a: number = 1
+  carry b: number = 2 {
+  next a = @b
+  next b = @a
+}
+```
+
+`next` belongs to the nearest statement-for carry scope. An inner loop cannot
+target an outer carry directly. Propagate state through an inner carry
+initializer and use the inner carry's final escaped value in the outer loop's
+own `next` expression. Carry values support the accepted immutable scalar,
+choice, geometry, collection, and nominal-record families; geometry properties
+materialized during the iteration may feed a `next` expression.
+
 Drawable declarations inside a `for` create ordered runtime occurrences under
 their source/template declaration. Use `@Name[index]` to address one
 occurrence, where `index` is a finite, integral, non-negative numeric

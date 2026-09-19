@@ -192,7 +192,7 @@
               "name": "entity.name.variable.nui"
             }
           },
-          "match": "(?<![\\p{L}\\p{N}_-])(const|let)\\s+([\\p{L}\\p{N}_](?:[\\p{L}\\p{N}_-]*[\\p{L}\\p{N}_])?)(?=\\s*(?::|=|$))"
+          "match": "(?<![\\p{L}\\p{N}_-])(const)\\s+([\\p{L}\\p{N}_](?:[\\p{L}\\p{N}_-]*[\\p{L}\\p{N}_])?)(?=\\s*(?::|=|$))"
         },
         {
           "begin": "(?<![\\p{L}\\p{N}_-])(number|string|boolean|choice|point|line|path|curve|arc|text|image)(?=\\s+[\\p{L}\\p{N}_](?:[\\p{L}\\p{N}_-]*[\\p{L}\\p{N}_])?)",
@@ -350,7 +350,7 @@
       "patterns": [
         {
           "name": "keyword.control.nui",
-          "match": "(?<![\\p{L}\\p{N}_-])(?:if|else|for|in|stop)(?![\\p{L}\\p{N}_-])"
+          "match": "(?<![\\p{L}\\p{N}_-])(?:if|else|for|in|stop|next)(?![\\p{L}\\p{N}_-])"
         },
         {
           "name": "keyword.operator.logical.nui",
@@ -358,15 +358,11 @@
         },
         {
           "name": "storage.modifier.nui",
-          "match": "(?<![\\p{L}\\p{N}_-])(?:const|let)(?![\\p{L}\\p{N}_-])"
+          "match": "(?<![\\p{L}\\p{N}_-])(?:const|carry)(?![\\p{L}\\p{N}_-])"
         },
         {
           "name": "storage.modifier.export.nui",
           "match": "(?<![\\p{L}\\p{N}_-])export(?![\\p{L}\\p{N}_-])"
-        },
-        {
-          "name": "keyword.other.nui",
-          "match": "(?<![\\p{L}\\p{N}_-])set(?![\\p{L}\\p{N}_-])"
         }
       ]
     },

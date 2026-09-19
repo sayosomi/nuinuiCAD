@@ -342,39 +342,6 @@ describe("queryDslCanvasRevealSourceTarget", () => {
     }
   });
 
-  it("recognizes a geometry property in a set RHS", () => {
-    const source = [
-      "nui 1",
-      "let direction: choice(counterclockwise, clockwise) = clockwise",
-      "arc Guide = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: clockwise)",
-      "set direction = @Guide.direction"
-    ].join("\n");
-    const token = "@Guide.direction";
-    const tokenStart = source.indexOf(token);
-    const compiled = compileWithIds(source);
-
-    expect(compiled.setStatements).toBeDefined();
-    for (let offset = 0; offset < token.length; offset += 1) {
-      const result = queryDslCanvasRevealSourceTarget({
-        source: { normalizedSource: source, sourceRevision: 11 },
-        compiled,
-        position: tokenStart + offset
-      });
-
-      expect(result.status).toBe("resolved");
-      if (result.status !== "resolved" || result.target.kind !== "semantic") continue;
-      expect(result.target.semantic.kind).toBe("geometry-property");
-      if (result.target.semantic.kind !== "geometry-property") continue;
-      expect(result.target.semantic.referenceText).toBe(token);
-      expect(result.target.semantic.reference.target).toMatchObject({
-        kind: "sourceGeometryProperty",
-        statementIndex: 2,
-        category: "arc",
-        property: "direction"
-      });
-    }
-  });
-
   it("keeps multiline in-progress punctuation, indentation, and comments inside the owner envelope", () => {
     const source = [
       "nui 1",

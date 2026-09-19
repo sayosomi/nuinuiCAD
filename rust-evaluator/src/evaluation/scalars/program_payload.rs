@@ -839,11 +839,11 @@ fn decode_declaration(
         require_field(object, "bindingKind", "scalar program declaration")?,
         "scalar program declaration bindingKind",
     )? {
-        "const" | "let" => {}
+        "const" => {}
         _ => {
             return Err(issue(
                 Code::InvalidFieldType,
-                "scalar program declaration bindingKind must be const or let",
+                "scalar program declaration bindingKind must be const",
             ))
         }
     }

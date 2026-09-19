@@ -131,7 +131,7 @@ fn decode_occurrence(
     })
 }
 
-fn decode_collection_node(
+pub(crate) fn decode_collection_node(
     value: &Value,
     context: &str,
 ) -> Result<GeometryInputCollectionNode, EvaluationCommandError> {
@@ -388,6 +388,31 @@ fn decode_target(
                         .ok_or_else(|| invalid(format!("{context}.occurrence is required")))?,
                     &format!("{context}.occurrence"),
                 )?,
+                geometry_type,
+                point_key: object
+                    .get("pointKey")
+                    .and_then(Value::as_str)
+                    .map(ToOwned::to_owned),
+            })
+        }
+        "geometryCarry" => {
+            reject_unexpected_fields(
+                object,
+                &["kind", "bindingId", "geometryType", "pointKey"],
+                context,
+            )?;
+            let geometry_type = non_empty_string(object, "geometryType", context)?;
+            if geometry_type != "point" && geometry_type != "line" && geometry_type != "path" {
+                return Err(invalid(format!(
+                    "{context}.geometryType must be point, line, or path"
+                )));
+            }
+            Ok(GeometryInputTarget::GeometryValue {
+                occurrence: GeometryValueOccurrence {
+                    source_statement_id: non_empty_string(object, "bindingId", context)?,
+                    instance_path: Vec::new(),
+                    mapped_member_index: None,
+                },
                 geometry_type,
                 point_key: object
                     .get("pointKey")
@@ -1023,9 +1048,18 @@ pub(crate) fn materialize_geometry_input_targets_for_runtime(
         }
         materialized_parameters.insert(parameter_key, materialized);
     }
+    // A forGroup template is materialized once per generated occurrence. Keep
+    // the resolved template targets available for the next occurrence; the
+    // immutable carry/collection identities they contain are intentionally
+    // re-read from the current evaluator state on each iteration.
+    let retained_id = if target_element_id == runtime_element_id {
+        runtime_element_id
+    } else {
+        target_element_id
+    };
     state
         .geometry_input_targets
-        .insert(runtime_element_id.to_owned(), materialized_parameters);
+        .insert(retained_id.to_owned(), materialized_parameters);
     Ok(())
 }
 

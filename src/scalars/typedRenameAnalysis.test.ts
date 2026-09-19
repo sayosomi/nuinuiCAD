@@ -24,7 +24,7 @@ const rename = (compiled: ReturnType<typeof compile>, targetName: string, newNam
 
 describe("typed binding rename safety analysis", () => {
   it("allows a safe rename with an initializer reference, with a span that excludes the leading @", () => {
-    const source = ["nui 1", "const base: number = 1", "let derived: number = @base"].join("\n");
+    const source = ["nui 1", "const base: number = 1", "const derived: number = @base"].join("\n");
     const compiled = compile(source);
     const analysis = rename(compiled, "base", "renamed");
     expect(analysis.verdict).toBe("ok");
@@ -39,7 +39,7 @@ describe("typed binding rename safety analysis", () => {
   });
 
   it("collects references inside builtin call arguments without treating the function name as a binding", () => {
-    const source = ["nui 1", "const oldName: number = 1", "let result: number = max(@oldName, 10)"].join("\n");
+    const source = ["nui 1", "const oldName: number = 1", "const result: number = max(@oldName, 10)"].join("\n");
     const compiled = compile(source);
     const analysis = rename(compiled, "oldName", "newName");
     expect(analysis.verdict).toBe("ok");
@@ -50,34 +50,9 @@ describe("typed binding rename safety analysis", () => {
     expect(analysis.occurrences.some((occurrence) => occurrence.oldName === "max")).toBe(false);
   });
 
-  it("allows a safe rename of a set target", () => {
-    const compiled = compile(
-      ["nui 1", "let counter: number = 0", "let other: number = 1", "set counter = @other + 1"].join("\n")
-    );
-    const analysis = rename(compiled, "counter", "total");
-    expect(analysis.verdict).toBe("ok");
-    if (analysis.verdict !== "ok") return;
-    expect(analysis.occurrences).toHaveLength(1);
-    expect(analysis.occurrences[0].kind).toBe("set-target");
-    expect(analysis.occurrences[0].oldName).toBe("counter");
-    expect(analysis.occurrences[0].statementIndex).toBe(3);
-  });
-
-  it("allows a safe rename of a set RHS reference", () => {
-    const compiled = compile(
-      ["nui 1", "let counter: number = 0", "let other: number = 1", "set counter = @other + 1"].join("\n")
-    );
-    const analysis = rename(compiled, "other", "renamedOther");
-    expect(analysis.verdict).toBe("ok");
-    if (analysis.verdict !== "ok") return;
-    expect(analysis.occurrences).toHaveLength(1);
-    expect(analysis.occurrences[0].kind).toBe("set-rhs");
-    expect(analysis.occurrences[0].oldName).toBe("other");
-    expect(analysis.occurrences[0].statementIndex).toBe(3);
-  });
 
   it("allows a safe rename of a property binding reference", () => {
-    const compiled = compile(["nui 1", "let flag: boolean = true", "for i in range(min: 0, max: 0, step: 1, showGenerated: @flag) {", "}"].join("\n"));
+    const compiled = compile(["nui 1", "const flag: boolean = true", "for i in range(min: 0, max: 0, step: 1, showGenerated: @flag) {", "}"].join("\n"));
     const analysis = rename(compiled, "flag", "enabled");
     expect(analysis.verdict).toBe("ok");
     if (analysis.verdict !== "ok") return;
@@ -88,7 +63,7 @@ describe("typed binding rename safety analysis", () => {
   });
 
   it("allows a safe rename of a typed text template hole reference, with a span that excludes the leading @", () => {
-    const source = ["nui 1", "let amount: number = 5", 'text T = label(text: "${@amount}", anchor: none, size: 3)'].join("\n");
+    const source = ["nui 1", "const amount: number = 5", 'text T = label(text: "${@amount}", anchor: none, size: 3)'].join("\n");
     const compiled = compile(source);
     const analysis = rename(compiled, "amount", "qty");
     expect(analysis.verdict).toBe("ok");
@@ -133,7 +108,7 @@ describe("typed binding rename safety analysis", () => {
         "const outer: number = 1",
         "group G {",
         "const inner: number = 2",
-        "let usesOuter: number = @outer",
+        "const usesOuter: number = @outer",
         "}"
       ].join("\n")
     );
@@ -179,36 +154,8 @@ describe("typed binding rename safety analysis", () => {
     expect(analysis.detail.conflictingName).toBe("angleB");
   });
 
-  it("never treats an already-invalid const set-target as a live, affected occurrence to patch", () => {
-    // `set frozen = 2` is already an existing, unrelated compile error
-    // (frozen is const) - classifySetTargetResolution must say "invalid",
-    // not just "resolves to the renamed binding by id", so this occurrence
-    // is never mistaken for a live reference Task 38 should rewrite. It is
-    // NOT marked "affected", so its text stays "frozen" post-rename - which
-    // then correctly stops resolving at all (reason shifts from
-    // const-assignment to unresolved), a genuine before/after difference
-    // this rename must still surface rather than silently drop.
-    const source = ["nui 1", "const frozen: number = 1", "set frozen = 2"].join("\n");
-    const parsed = parseDsl(source);
-    const assignedStatementIds = new Map(parsed.statements.map((_, index) => [index, `statement:test:${index}`]));
-    const compiled = compileDslDocument(source, { assignedStatementIds, preparsed: parsed });
-    const analysis = rename(compiled, "frozen", "renamed");
-    expect(analysis).toMatchObject({ verdict: "rejected", reason: "capture" });
-    if (analysis.verdict !== "rejected" || analysis.reason !== "capture") return;
-    expect(analysis.detail.kind).toBe("set-target");
-  });
-
-  it("does not reject a rename because of an unrelated, already-invalid set target", () => {
-    const source = ["nui 1", "const frozen: number = 1", "let counter: number = 0", "set undefinedName = 2"].join("\n");
-    const parsed = parseDsl(source);
-    const assignedStatementIds = new Map(parsed.statements.map((_, index) => [index, `statement:test:${index}`]));
-    const compiled = compileDslDocument(source, { assignedStatementIds, preparsed: parsed });
-    const analysis = rename(compiled, "frozen", "renamed");
-    expect(analysis.verdict).toBe("ok");
-  });
-
   it("allows a safe rename with a Japanese (non-ASCII) name", () => {
-    const compiled = compile(["nui 1", "const 元: number = 1", "let 派生: number = @元"].join("\n"));
+    const compiled = compile(["nui 1", "const 元: number = 1", "const 派生: number = @元"].join("\n"));
     const analysis = rename(compiled, "元", "改元");
     expect(analysis.verdict).toBe("ok");
     if (analysis.verdict !== "ok") return;

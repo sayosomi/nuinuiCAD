@@ -1,5 +1,5 @@
 //! Recursive expansion runtime for the generic (non-mutation-owned) forGroup
-//! iteration path. Mirrors `ForGroupMutationRuntime`'s shape - same owned
+//! iteration path. Mirrors `ForGroupExecutionRuntime`'s shape - same owned
 //! template-id filtering, same explicit ancestor-iteration-variable
 //! threading - but carries no scheduler/resolver/environment dependency:
 //! iteration is a plain nested loop, not scheduler-driven statement replay,

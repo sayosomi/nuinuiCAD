@@ -25,7 +25,7 @@ describe("stable unknown-name diagnostics", () => {
   });
 
   it("marks an unknown declaration type with a stable code and exact token span", () => {
-    const source = "nui 1\nlet x: numbr = 10";
+    const source = "nui 1\nconst x: numbr = 10";
     const diagnostic = parsedDiagnostic(source, "unknown-type");
     expect(exactText(source, diagnostic)).toBe("numbr");
   });

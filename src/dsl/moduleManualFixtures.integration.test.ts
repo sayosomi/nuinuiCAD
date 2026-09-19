@@ -7,7 +7,7 @@ import { buildPropertyBindingRuntimeEntries } from "../geometry/propertyBindingR
 import { evaluateElements } from "../geometry/evaluate";
 import { elementParameterReferenceOptionsForPosition } from "../geometry/elementParameterReferenceOptions";
 import { buildConditionalMutationOwners, conditionalOwnerIdByElementId } from "../scalars/conditionalMutationControl";
-import { buildForGroupMutationOwners, forGroupMutationOwnerByElementId } from "../scalars/forGroupMutationControl";
+import { buildForGroupExecutionOwners, forGroupMutationOwnerByElementId } from "../scalars/forGroupMutationControl";
 import { pickCandidates } from "../model/pickCandidates";
 import {
   activePickCandidates,
@@ -94,22 +94,22 @@ const evaluateFixture = (compiled: ReturnType<typeof compileFixture>) => {
       : undefined,
     forGroupMutationOwnerByElementId: compiled.bindingVersions
       ? new Map([
-          ...forGroupMutationOwnerByElementId(buildForGroupMutationOwners(
+          ...forGroupMutationOwnerByElementId(buildForGroupExecutionOwners(
             compiled.bindingVersions,
             elements,
             compiled.statementMap.byElementId,
             compiled.statementMap.statementIdByStatementIndex,
-            new Set(compiled.moduleForGroupMutationOwnerByElementId
-              ? [...compiled.moduleForGroupMutationOwnerByElementId].map(([, owner]) => owner.ownerStatementId)
+            new Set(compiled.moduleForGroupExecutionOwnerByElementId
+              ? [...compiled.moduleForGroupExecutionOwnerByElementId].map(([, owner]) => owner.ownerStatementId)
               : [])
           )),
-          ...(compiled.moduleForGroupMutationOwnerByElementId
-            ? [...compiled.moduleForGroupMutationOwnerByElementId]
+          ...(compiled.moduleForGroupExecutionOwnerByElementId
+            ? [...compiled.moduleForGroupExecutionOwnerByElementId]
             : [])
         ])
       : undefined,
     moduleConditionalOwnerStatementIdByElementId: compiled.moduleConditionalOwnerStatementIdByElementId,
-    moduleForGroupMutationOwnerByElementId: compiled.moduleForGroupMutationOwnerByElementId
+    moduleForGroupExecutionOwnerByElementId: compiled.moduleForGroupExecutionOwnerByElementId
   });
 };
 

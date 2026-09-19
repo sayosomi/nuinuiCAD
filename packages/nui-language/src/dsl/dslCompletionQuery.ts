@@ -71,7 +71,6 @@ import {
 } from "../scalars/scalarExpressionPositionClassifier";
 import type { ScalarType } from "../scalars/types";
 import type { DslModuleParameterType } from "./dslTypes";
-import { setRhsScalarCandidates, setTargetCandidates, type SetCompletionSiteDeps } from "../scalars/setCompletionCandidates";
 import {
   numericGeometryPropertiesForStaticTarget,
   numericGeometryStaticTargetForConstruction,
@@ -875,32 +874,6 @@ const scalarCandidatesAt = (
   return [];
 };
 
-const setSiteDeps = (
-  analysis: BindingAnalysis,
-  position: number,
-  statementIndex: number,
-  exact: boolean,
-  compiled: CompiledDslDocument | undefined
-): SetCompletionSiteDeps | null => {
-  if (!exact) return null;
-  const containingScopeId = exactScopeIdFor(analysis, statementIndex);
-  if (!containingScopeId) return null;
-  return {
-    catalog: analysis.catalog,
-    entriesById: analysis.entriesById,
-    containingScopeId,
-    cursorPosition: position,
-    livePositionOf: (bindingId) => {
-      if (!compiled) return undefined;
-      const binding = analysis.catalog.bindingsById.get(bindingId);
-      const statement = binding ? compiled.statements[binding.statementIndex] : undefined;
-      return statement?.namePhysicalSpan?.segments.length === 1
-        ? statement.namePhysicalSpan.segments[0].from
-        : undefined;
-    }
-  };
-};
-
 const moduleCandidatesAt = (
   context: Exclude<DslCompletionContext, null>,
   input: LogicalInput,
@@ -1080,7 +1053,6 @@ export const dslCompletionInsertionTextFor = (
   if (candidate.kind === "argumentName") return `${candidate.label}: `;
   if (
     (candidate.kind === "binding" || candidate.kind === "geometry") &&
-    category !== "setTarget" &&
     !hasReferencePrefix(normalizedSource, replacementRange.from)
   ) return `@${candidate.label}`;
   return candidate.label;
@@ -1251,27 +1223,6 @@ const queryCandidates = (
   }
   if (context.kind === "typedInitializer" || context.kind === "conditionExpression" || context.kind === "propertyScalarValue" || context.kind === "templateHole") {
     return scalarCandidatesAt(context, input, position, semantic, compiled, exact, statementIndex);
-  }
-  if (context.kind === "setTarget") {
-    const analysis = semantic?.bindingAnalysis ?? compiled?.bindingAnalysis;
-    if (!analysis || !semantic || !exact) return [];
-    const deps = setSiteDeps(analysis, position, statementIndex, exact, compiled);
-    return deps
-      ? setTargetCandidates(deps).map((candidate) => ({ kind: "binding" as const, label: candidate.name, identity: candidate.bindingId }))
-      : [];
-  }
-  if (context.kind === "setRhs") {
-    const analysis = semantic?.bindingAnalysis ?? compiled?.bindingAnalysis;
-    if (!analysis || !semantic || !exact) return [];
-    const deps = setSiteDeps(analysis, position, statementIndex, exact, compiled);
-    const target = deps
-      ? setTargetCandidates(deps).find((candidate) => candidate.name === context.targetName)
-      : undefined;
-    if (!deps || !target) return [];
-    if (context.geometryProperty) return compiled && exact
-      ? sourceGeometryPropertyCandidates(compiled, statementIndex, context.geometryProperty.elementToken, target.type)
-      : [];
-    return setRhsScalarCandidates(input.lineText, context.expressionSpan, input.localPosition, target.type, deps).map(scalarCandidate);
   }
   if (context.kind === "parameter") {
     if (context.parameter.definition.kind === "choice") {

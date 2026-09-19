@@ -14,7 +14,7 @@
 // identity the caller's resolver returns for a scope-opening statement.
 
 import type { DslSpan, DslStatement } from "../dsl/dslTypes";
-import { dslRequiredValueTypeOf, nominalRecordTypeOfDslValueType, type DslValueType } from "../dsl/dslValueTypes";
+import { dslRequiredValueTypeOf, nominalRecordTypeOfDslValueType, type DslNonArrayValueType, type DslValueType } from "../dsl/dslValueTypes";
 
 export type ScopeKind = "root" | "group" | "then" | "else" | "forGroup" | "module" | "layout";
 export type ScopeId = string;
@@ -38,7 +38,7 @@ export type ScopeDeclaration = {
   scopeId: ScopeId;
   /** Document-order metadata; visibility starts here (no hoisting). */
   statementIndex: number;
-  bindingKind: "const" | "let";
+  bindingKind: "const";
   name: string;
   nameSpan: DslSpan | null;
   declaredType: DslValueType | null;
@@ -50,6 +50,8 @@ export type ForGroupIterationSlot = {
   /** "" for an unnamed statement-for loop. */
   name: string;
   nameSpan: DslSpan | null;
+  /** Exact element value type for a collection-backed statement-for. */
+  valueType?: DslNonArrayValueType;
 };
 
 export type LexicalScopeIndex = {

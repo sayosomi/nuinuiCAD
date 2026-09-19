@@ -97,6 +97,13 @@ export interface TypedScalarCollectionIndexNode {
  * && must not perform another name lookup.
  */
 export type ScalarExpressionResolvedGeometryTarget = {
+  readonly kind: "geometryCarry";
+  readonly bindingId: BindingId;
+  readonly statementId: string;
+  readonly statementIndex: number;
+  readonly geometryType: ModuleGeometryInterfaceType;
+  readonly pointKey?: string;
+} | {
   readonly kind?: "drawable";
   readonly statementId: string;
   readonly statementIndex: number;
@@ -145,6 +152,13 @@ export type ScalarExpressionResolvedReference =
  * The common expression typechecker consumes this closed result; it does not
  * resolve element names, property schemas, or source order itself. */
 export type ScalarExpressionResolvedGeometryProperty = {
+  readonly kind: "geometryCarry";
+  readonly bindingId: BindingId;
+  readonly property: string;
+  readonly pointKey?: string;
+  readonly targetSourceOrder: number;
+  readonly type: ScalarExpressionType;
+} | {
   readonly kind?: "drawable";
   readonly elementId: ElementId;
   readonly property: string;
@@ -229,6 +243,8 @@ export interface TypedScalarGeometryPropertyReferenceNode {
   readonly collectionLength?: number | null;
   readonly geometryValueOccurrence?: GeometryValueOccurrence;
   readonly geometryValuePointKey?: string;
+  readonly geometryCarryBindingId?: BindingId;
+  readonly geometryCarryPointKey?: string;
   readonly geometryValueBinderId?: BindingId;
   readonly forGroupOccurrenceTemplateElementId?: ElementId;
   readonly forGroupOccurrenceIndex?: TypedScalarExpression | null;
@@ -391,7 +407,7 @@ export interface ScalarExpressionTypecheckDiagnostic {
 /**
  * `expectedType`: the declaration's declared type (or the target type of
  * whatever other context is checking this expression - a condition, a
- * future `set` RHS - || null for no target). `references`: one
+ * future assignment-like RHS - || null for no target). `references`: one
  * `BindingResolution` per `reference` AST node, in the same left-to-right
  * source order the parser built the tree in (matching the occurrenceIndex
  * convention). The caller assembles this array; this module never calls the

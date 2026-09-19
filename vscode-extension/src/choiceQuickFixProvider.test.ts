@@ -197,13 +197,7 @@ describe("VS Code choice Quick Fix provider", () => {
     expect(mocks.applyEdit).toHaveBeenCalledTimes(1);
   });
 
-  it("filters let recovery descriptors and prefers a single valid option", () => {
-    const letDocument = documentFor("nui 1\nlet side: choice(left, right) = center\n");
-    mocks.textDocuments.push(letDocument);
-    const letActions = actionsFor(letDocument).actions;
-    expect(letActions).toHaveLength(2);
-    expect(letActions.every((action) => !action.title.includes("set"))).toBe(true);
-
+  it("prefers a single valid choice option", () => {
     const singleDocument = documentFor("nui 1\nconst side: choice(left) = center\n");
     mocks.textDocuments.push(singleDocument);
     const singleActions = actionsFor(singleDocument).actions;
@@ -212,7 +206,7 @@ describe("VS Code choice Quick Fix provider", () => {
   });
 
   it("offers the missing-declared-type skeleton without preferring it", async () => {
-    const source = "nui 1\nlet width = 10\n";
+    const source = "nui 1\nconst width = 10\n";
     const document = documentFor(source, "/tmp/missing-type.nui");
     mocks.textDocuments.push(document);
     const { actions, apply } = actionsFor(document, [diagnosticFor(document, "missing-declared-type")]);
@@ -225,8 +219,8 @@ describe("VS Code choice Quick Fix provider", () => {
     const action = descriptor.action as Record<string, unknown>;
     expect(descriptor.id).toMatch(/^missing-declared-type:/);
     expect(action).toMatchObject({
-      from: "nui 1\nlet width".length,
-      to: "nui 1\nlet width".length,
+      from: "nui 1\nconst width".length,
+      to: "nui 1\nconst width".length,
       insert: ": ",
       expectedOldText: ""
     });
@@ -238,12 +232,12 @@ describe("VS Code choice Quick Fix provider", () => {
     expect(edit.edits).toHaveLength(1);
     expect(edit.edits[0]?.newText).toBe(": ");
     expect(edit.edits[0]?.range).toMatchObject({
-      start: { line: 1, character: "let width".length },
-      end: { line: 1, character: "let width".length }
+      start: { line: 1, character: "const width".length },
+      end: { line: 1, character: "const width".length }
     });
     const insertion = action.from as number;
     expect(`${source.slice(0, insertion)}${edit.edits[0]?.newText}${source.slice(insertion)}`).toBe(
-      "nui 1\nlet width:  = 10\n"
+      "nui 1\nconst width:  = 10\n"
     );
   });
 
@@ -426,7 +420,7 @@ describe("VS Code choice Quick Fix provider", () => {
   });
 
   it("rejects a stale missing-declared-type descriptor through the composed provider", async () => {
-    const source = "nui 1\nlet width = 10\n";
+    const source = "nui 1\nconst width = 10\n";
     const document = documentFor(source, "/tmp/missing-descriptor-payload.nui");
     mocks.textDocuments.push(document);
     const { actions, apply } = actionsFor(document, [diagnosticFor(document, "missing-declared-type")]);
@@ -500,7 +494,7 @@ describe("VS Code choice Quick Fix provider", () => {
   });
 
   it("does not expose the missing-type action for wrong source/code or unsupported documents", () => {
-    const document = documentFor("nui 1\nlet width = 10\n", "/tmp/missing-context.nui");
+    const document = documentFor("nui 1\nconst width = 10\n", "/tmp/missing-context.nui");
     mocks.textDocuments.push(document);
     const matching = diagnosticFor(document, "missing-declared-type");
 
@@ -520,34 +514,14 @@ describe("VS Code choice Quick Fix provider", () => {
   });
 
   it.each([
-    ["scalar-type-mismatch", "nui 1\nlet x: number = \"hello\"\nlet y: number = 1\n"],
-    ["unexpected-token", "nui 1\nlet x: number = 1 $\n"]
+    ["scalar-type-mismatch", "nui 1\nconst x: number = \"hello\"\nconst y: number = 1\n"],
+    ["unexpected-token", "nui 1\nconst x: number = 1 $\n"]
   ])("does not expose %s recovery descriptors as native actions", (code, source) => {
     const document = documentFor(source, `/tmp/${code}.nui`);
     mocks.textDocuments.push(document);
     expect(actionsFor(document, [diagnosticFor(document, code)]).actions).toEqual([]);
   });
 
-  it("does not repair an invalid choice on a set RHS in v1", () => {
-    const document = documentFor([
-      "nui 1",
-      "let side: choice(left, right) = left",
-      "set side = center"
-    ].join("\n"));
-    mocks.textDocuments.push(document);
-
-    const session = createLanguageAnalysisSession(document.getText());
-    const diagnostic = session.getDiagnostics().find((item) => item.code === "invalid-choice-literal");
-    expect(diagnostic).toBeDefined();
-    const vscodeDiagnostic = diagnosticFor(document);
-    const provider = createNuiChoiceQuickFixProvider(() => session);
-    expect(provider.provideCodeActions(
-      document as unknown as vscode.TextDocument,
-      new vscode.Range(new vscode.Position(0, 0), new vscode.Position(0, 0)),
-      { diagnostics: [vscodeDiagnostic] } as unknown as vscode.CodeActionContext,
-      undefined as never
-    )).toEqual([]);
-  });
 
   it("applies only the invalid literal through a WorkspaceEdit", async () => {
     const source = "nui 1\nconst side: choice(left, right) = center\n";
@@ -607,7 +581,7 @@ describe("VS Code choice Quick Fix provider", () => {
   });
 
   it("fails closed for stale missing-declared-type payload state", async () => {
-    const source = "nui 1\nlet width = 10\n";
+    const source = "nui 1\nconst width = 10\n";
 
     const versionDocument = documentFor(source, "/tmp/missing-version.nui");
     mocks.textDocuments.push(versionDocument);
@@ -618,7 +592,7 @@ describe("VS Code choice Quick Fix provider", () => {
     const rawDocument = documentFor(source, "/tmp/missing-raw.nui");
     mocks.textDocuments.push(rawDocument);
     const rawCase = actionsFor(rawDocument, [diagnosticFor(rawDocument, "missing-declared-type")]);
-    rawDocument.setSourceText("nui 1\nlet width = 20\n");
+    rawDocument.setSourceText("nui 1\nconst width = 20\n");
     await rawCase.apply(payloadFor(rawCase.actions[0]!));
 
     const semanticDocument = documentFor(source, "/tmp/missing-semantic.nui");

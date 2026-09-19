@@ -2,8 +2,8 @@ import type { CadElement, ElementId, GeometryInputTarget, PointAnchor } from "..
 import { anchorReferenceElementId, pointAnchorForElement } from "../model/pointAnchors";
 import { getDirectParentIds } from "@nuinuicad/nui-language";
 import type { EvaluateElementsOptions } from "./evaluate";
-import { hasSetVersions, isRustLinearMutationEligible } from "../scalars/linearMutationEvaluator";
-import { hasCanonicalForGroupMutationOwners } from "../scalars/forGroupMutationControl";
+import { isRustLinearMutationEligible } from "../scalars/linearMutationEvaluator";
+import { hasCanonicalForGroupExecutionOwners } from "../scalars/forGroupMutationControl";
 import { referencesIn } from "@nuinuicad/nui-language";
 
 const rustSupportedElementTypes = new Set<CadElement["type"]>([
@@ -103,6 +103,9 @@ const referencesRustSupportedLineTargetValue = (
   if (target.kind === "geometryValue") {
     return target.geometryType === "line" || target.geometryType === "path";
   }
+  if (target.kind === "geometryCarry") {
+    return target.geometryType === "line" || target.geometryType === "path";
+  }
   if (target.kind === "geometryValueMap") {
     return (target.geometryType === "line" || target.geometryType === "path") &&
       referencesRustSupportedLineTargetValue(target.source, elementsById);
@@ -168,6 +171,7 @@ const referencesRustSupportedPointTargetValue = (
 ): boolean => {
   if (target.kind === "coordinate") return true;
   if (target.kind === "geometryValue") return target.geometryType === "point";
+  if (target.kind === "geometryCarry") return target.geometryType === "point";
   if (target.kind === "geometryValueMap") {
     return target.geometryType === "point" &&
       referencesRustSupportedPointTargetValue(target.source, elementsById);
@@ -214,7 +218,7 @@ const hasRustSupportedDeferredPointTarget = (
   return [...targets].some((target) => {
     const candidates = Array.isArray(target) ? target : [target];
     return candidates.some((candidate) =>
-      (candidate.kind === "collectionIndex" || candidate.kind === "collectionValue" || candidate.kind === "geometryValueMap") &&
+      (candidate.kind === "collectionIndex" || candidate.kind === "collectionValue" || candidate.kind === "geometryValueMap" || candidate.kind === "geometryCarry") &&
       referencesRustSupportedPointTargetValue(candidate, elementsById)
     );
   });
@@ -289,9 +293,19 @@ const hasRustSupportedCompiledReferences = (
   // Rust command owns validation && its typed-input failure must stay on the
   // existing fail-closed path rather than becoming a TypeScript exception.
   const scalarStatements = options.scalarProgram?.statements;
+  const immutableCarryBindingIds = usesMutationPayload
+    ? [...(options.bindingVersions!.immutableForGroups?.values() ?? [])].flatMap((plan) =>
+        [
+          ...plan.carries.flatMap((carry) => [carry.bindingId, ...(carry.nextBindingId ? [carry.nextBindingId] : [])]),
+          ...(plan.geometryCarries?.map((carry) => carry.bindingId) ?? []),
+          ...(plan.collectionCarries?.map((carry) => carry.bindingId) ?? []),
+          ...(plan.geometryCollectionCarries?.map((carry) => carry.bindingId) ?? [])
+        ]
+      )
+    : [];
   const availableBindingIds = new Set(
     usesMutationPayload
-      ? options.bindingVersions!.versionIdsByBindingId.keys()
+      ? [...options.bindingVersions!.versionIdsByBindingId.keys(), ...immutableCarryBindingIds]
       : Array.isArray(scalarStatements) ? scalarStatements.map((statement) => statement.bindingId) : []
   );
   const hasBinding = (bindingId: string) => availableBindingIds.has(bindingId);
@@ -426,18 +440,18 @@ export const canUseRustEvaluationForElements = (
   elements: CadElement[],
   options: EvaluateElementsOptions = {}
 ) => {
-  if (options.bindingVersions && hasSetVersions(options.bindingVersions) &&
+  if (options.bindingVersions?.requiresExecutionOrdering === true &&
     !isRustLinearMutationEligible(options.bindingVersions)) return false;
   if (options.bindingVersions?.versions.some((version) => version.control.ownerChain.some((owner) => owner.kind === "conditionalBranch")) &&
     (!options.statementIdByStatementIndex || !options.conditionalOwnerStatementIdByElementId)) return false;
   if (options.bindingVersions?.versions.some((version) => version.control.ownerChain.some((owner) => owner.kind === "forGroup")) &&
-    !hasCanonicalForGroupMutationOwners(
+    !hasCanonicalForGroupExecutionOwners(
       options.bindingVersions,
       elements,
       options.statementInfoByElementId,
       options.statementIdByStatementIndex,
       options.forGroupMutationOwnerByElementId,
-      new Set(options.moduleForGroupMutationOwnerByElementId ? [...options.moduleForGroupMutationOwnerByElementId.values()].map((owner) => owner.ownerStatementId) : [])
+      new Set(options.moduleForGroupExecutionOwnerByElementId ? [...options.moduleForGroupExecutionOwnerByElementId.values()].map((owner) => owner.ownerStatementId) : [])
     )) return false;
   const evaluationLimitIndex = Math.min(
     Math.max(options.evaluationLimitIndex ?? elements.length, 0),

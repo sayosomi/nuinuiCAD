@@ -97,7 +97,7 @@ describe("module source-semantic rename analysis", () => {
       "nui 1",
       "module M() {",
       "  export const value: number = 1",
-      "  export let label: string = \"\"",
+      "  export const label: string = \"\"",
       "}",
       "instance a = M()",
       "instance b = M()",

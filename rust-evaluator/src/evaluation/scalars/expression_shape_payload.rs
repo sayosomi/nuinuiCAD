@@ -372,6 +372,7 @@ pub(crate) fn decode_geometry_target_payload(
             "pointKey",
             "occurrence",
             "binderId",
+            "bindingId",
             "templateElementId",
             "targetSourceOrder",
             "index",
@@ -446,6 +447,18 @@ pub(crate) fn decode_geometry_target_payload(
                     issue(
                         Code::InvalidFieldType,
                         "geometry reference target binderId must be a non-empty string",
+                    )
+                })?
+                .to_owned(),
+        ),
+        "geometryCarry" => Some(
+            require_field(object, "bindingId", "geometry reference target")?
+                .as_str()
+                .filter(|value| !value.is_empty())
+                .ok_or_else(|| {
+                    issue(
+                        Code::InvalidFieldType,
+                        "geometry reference target bindingId must be a non-empty string",
                     )
                 })?
                 .to_owned(),

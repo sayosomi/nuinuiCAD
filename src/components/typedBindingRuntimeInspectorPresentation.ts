@@ -1,5 +1,5 @@
 // Read-only Inspector "実行時値" section for a selected typed
-// const/let binding. This module reads only already-computed production
+// const binding. This module reads only already-computed production
 // output - EvaluationResult.computedScalarBindings/computedScalarBindingVersions
 // && the compiled analysis maps already on
 // CompiledDslDocument (propertyBindings/conditionalGroupConditions/textTemplates)
@@ -99,30 +99,6 @@ const formatScalarValue = (value: ScalarValue): string => {
     case "none":
       return "none";
   }
-};
-
-/** Only the selected binding's own static version chain (bounded by how many
- * `set` statements target this one binding, never the whole document's
- * version history) - a short reduced summary, never a per-version list. */
-const buildHistorySummaryRow = (
-  bindingVersions: BindingVersionGraph | undefined,
-  computedScalarBindingVersions: EvaluationResult["computedScalarBindingVersions"],
-  bindingId: BindingId,
-  finalIsPoisoned: boolean
-): TypedBindingRuntimeInspectorRow | null => {
-  const versionIds = bindingVersions?.versionIdsByBindingId.get(bindingId);
-  if (!versionIds) return null;
-  const setVersionIds = versionIds.filter((id) => bindingVersions!.versionsById.get(id)?.kind === "set");
-  if (setVersionIds.length === 0) return null;
-
-  const everPoisoned = versionIds.some((id) => computedScalarBindingVersions?.get(id)?.status === "poisoned");
-  const summary = finalIsPoisoned
-    ? `set ${setVersionIds.length}件・現在無効(poisoned)`
-    : everPoisoned
-      ? `set ${setVersionIds.length}件・一時無効化後に回復`
-      : `set ${setVersionIds.length}件・すべて成功`;
-
-  return { key: "history", label: "set履歴", value: summary };
 };
 
 /** The hole segment's position among ast.segments' hole-kind entries (all
@@ -226,7 +202,7 @@ const typedBindingConsumerRows = (
 /**
  * Projects one selected typed binding's runtime state into a small read-only
  * row set. Returns null under the same guard as the declaration
- * presentation (the binding must currently resolve to a typed const/let
+ * presentation (the binding must currently resolve to a typed const
  * declaration) - callers treat null the same as "nothing selected".
  *
  * `isFresh` must be false whenever the caller cannot currently prove the
@@ -243,7 +219,7 @@ export const typedBindingRuntimeInspectorPresentation = (
   isFresh: boolean
 ): TypedBindingRuntimeInspectorPresentation | null => {
   const binding = bindingAnalysis.catalog.bindingsById.get(bindingId);
-  if (!binding || binding.kind !== "typed" || (binding.mutability !== "const" && binding.mutability !== "let")) {
+  if (!binding || binding.kind !== "typed" || binding.mutability !== "const") {
     return null;
   }
 
@@ -274,8 +250,6 @@ export const typedBindingRuntimeInspectorPresentation = (
     rows.push({ key: "value", label: "最終値", value: "無効(poisoned)" });
   }
 
-  const historyRow = buildHistorySummaryRow(bindingVersions, evaluation.computedScalarBindingVersions, bindingId, status === "poisoned");
-  if (historyRow) rows.push(historyRow);
 
   return {
     bindingId,

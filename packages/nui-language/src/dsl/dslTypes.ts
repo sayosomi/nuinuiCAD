@@ -230,6 +230,26 @@ export type DslStatementBase = {
   openBraceLine?: number;
 };
 
+/** One immutable statement-for carry declaration.  The declaration is owned
+ * by its for header, while its binding identity is projected into the
+ * ordinary lexical namespace by the semantic layer. */
+export type DslForCarryClause = {
+  name: string;
+  nameSpan: DslSpan;
+  typeSpan: DslSpan;
+  typeText: string;
+  valueType: DslValueType | null;
+  choiceOptionSpans: readonly DslSpan[];
+  numericTypeOptions?: DslNumericTypeOptions;
+  initializer: string;
+  initializerSpan: DslSpan;
+  carryKeywordSpan: DslSpan;
+  payloadSpans: Record<string, DslSpan>;
+  namePhysicalSpan?: DslPhysicalSpan | null;
+  typePhysicalSpan?: DslPhysicalSpan | null;
+  initializerPhysicalSpan?: DslPhysicalSpan | null;
+};
+
 // v2: 旧要素 kind(freePoint/offsetPoint/polarOffsetPoint/line/angleLengthLine/
 // arcLine/text の7種)はすべて category/construction を持つ "element" へ統合。
 export type DslStatement =
@@ -306,6 +326,11 @@ export type DslStatement =
       exported: boolean;
       exportSpan?: DslSpan | null;
       exportPhysicalSpan?: DslPhysicalSpan | null;
+      /** Present only on statement-for headers. */
+      forSource?: string;
+      forSourceSpan?: DslSpan;
+      forSourcePhysicalSpan?: DslPhysicalSpan | null;
+      forCarries?: readonly DslForCarryClause[];
     })
   | (DslStatementBase & {
       kind: "transformation";
@@ -320,7 +345,7 @@ export type DslStatement =
   | (DslStatementBase & { kind: "place"; group: string })
   | (DslStatementBase & {
       kind: "typedDeclaration";
-      bindingKind: "const" | "let";
+      bindingKind: "const";
       /** `null` when the type annotation failed. */
       valueType: DslValueType | null;
       /** Per-option spans, index-aligned with scalar `choice` options. */
@@ -335,12 +360,11 @@ export type DslStatement =
       exportPhysicalSpan?: DslPhysicalSpan | null;
     })
   | (DslStatementBase & {
-      kind: "set";
-      /** Raw, unparsed RHS source text - never evaluated || re-quoted here
-       * (Task 14/15 own that), mirroring typedDeclaration.initializer. Target
-       * name/span reuse the base `name`/`nameSpan` fields, same convention
-       * typedDeclaration uses for its own declared name. */
+      kind: "next";
+      /** Carry target owned by the nearest enclosing statement-for. */
       expression: string;
+      expressionSpan: DslSpan;
+      expressionPhysicalSpan?: DslPhysicalSpan | null;
     })
   | (DslStatementBase & { kind: "blockEnd" })
   | (DslStatementBase & { kind: "blockElse" });

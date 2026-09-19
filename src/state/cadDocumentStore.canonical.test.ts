@@ -82,27 +82,6 @@ describe("cadDocumentStore canonical text", () => {
     error.mockRestore();
   });
 
-  it("keeps the current-source typed dependency graph when fatal text retains last-good geometry", () => {
-    seedText(["nui 1", "const stable: number = 1"].join("\n"));
-    const lastGoodGraph = useCadDocumentStore.getState().typedDependencyGraph;
-    const fatal = [
-      "nui 1",
-      "const missing: number = @unknown",
-      "set unknown = 1",
-      "group G {",
-      "}"
-    ].join("\n");
-
-    useCadDocumentStore.getState().commitText(fatal, "test");
-    const state = useCadDocumentStore.getState();
-
-    expect(state.docText).not.toBe(fatal);
-    expect(state.typedDependencyGraph).not.toBe(lastGoodGraph);
-    expect(state.typedDependencyGraph?.edges).toEqual(expect.arrayContaining([
-      expect.objectContaining({ kind: "initializer", reason: "missing" })
-    ]));
-  });
-
   it("unifies text and model commits into one alternating undo history", () => {
     seedText(twoPointSource());
     useCadDocumentStore.getState().commitText(

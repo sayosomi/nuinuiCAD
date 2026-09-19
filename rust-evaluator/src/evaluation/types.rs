@@ -111,7 +111,7 @@ pub struct EvaluationInput {
     /// setup.
     pub(crate) scalar_program: Option<Value>,
     /// Optional compiled binding-version payload for documents containing
-    /// linear `set` statements. Rust receives stable IDs, resolved references,
+    /// linear execution statements. Rust receives stable IDs, resolved references,
     /// and source positions, never source text or names to resolve.
     pub(crate) binding_versions: Option<Value>,
     /// Schema-driven elementId-keyed property sources (re-keyed from

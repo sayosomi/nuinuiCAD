@@ -2,12 +2,13 @@
 // products only; it never parses source || resolves a target/reference.
 import type { BindingAnalysis, BindingAnalysisEntry } from "./bindingAnalysis";
 import { bindingIdForStableStatementId, type BindingId } from "./bindingCatalog";
-import { scalarExpressionTypeOfDslValueType } from "../dsl/dslValueTypes";
+import { scalarExpressionTypeOfDslValueType, type DslArrayValueType, type DslGeometryValueType } from "../dsl/dslValueTypes";
 import type { ScopeId, LexicalScopeIndex } from "./lexicalScopeIndex";
 import type { ScalarProgram, ScalarProgramStatement } from "./scalarProgram";
-import type { SetStatementAnalysis } from "./setStatementCompiler";
 import type { ScalarExpressionType } from "./types";
 import type { TypedScalarExpression } from "./typedExpressionAst";
+import type { ScalarExpressionResolvedGeometryTarget } from "./typedExpressionAst";
+import type { GeometryInputCollectionNode } from "../model/cadDocumentTypes";
 
 export type BindingVersionId = string;
 
@@ -25,6 +26,8 @@ export type BindingControlOwner =
       ownerStatementId: string;
       scopeId: ScopeId;
       exitSourceOrder: number;
+      /** Position immediately before the first body execution. */
+      entrySourceOrder?: number;
       /** Instance-qualified loop slots are supplied by module lowering. */
       iterationBindingId?: BindingId;
     };
@@ -57,18 +60,11 @@ type BindingVersionBase = {
 
 export type DeclarationBindingVersion = BindingVersionBase & {
   kind: "declare";
-  bindingKind: "const" | "let";
+  bindingKind: "const";
   initializer?: TypedScalarExpression;
 };
 
-export type SetBindingVersion = BindingVersionBase & {
-  kind: "set";
-  bindingKind: "let";
-  expression: TypedScalarExpression;
-  setStatementId: string;
-};
-
-export type BindingVersion = DeclarationBindingVersion | SetBindingVersion;
+export type BindingVersion = DeclarationBindingVersion;
 
 export type BeforeStatementPosition = { kind: "beforeStatement"; sourceOrder: number };
 export type AfterStatementPosition = { kind: "afterStatement"; sourceOrder: number };
@@ -93,12 +89,75 @@ export type BindingVersionGraph = {
   postStopBindingIds?: ReadonlySet<BindingId>;
   /** Module calls can require ordered execution even when no set exists. */
   requiresExecutionOrdering?: boolean;
+  /** Immutable statement-for carry plans. This is a value snapshot/commit
+   * contract, not a version timeline and is deliberately separate from the
+   * retired let/set mutation model. */
+  immutableForGroups?: ReadonlyMap<string, ImmutableForGroupPlan>;
+};
+
+export type ImmutableForGroupCarry = {
+  bindingId: BindingId;
+  /** The initializer is evaluated once when the loop is entered. */
+  initializer: TypedScalarExpression;
+  /** Synthetic checker binding; never executed as a mutable slot. */
+  nextBindingId?: BindingId;
+  declaredType: ScalarExpressionType;
+  nextExpression: TypedScalarExpression;
+  nextSourceOrder: number;
+};
+
+export type ImmutableForGroupPlan = {
+  ownerStatementId: string;
+  /** Canonical execution-owner join for loops whose body has no ordinary
+   * scalar declaration version. */
+  executionOwner?: {
+    scopeId: ScopeId;
+    exitSourceOrder: number;
+    entrySourceOrder?: number;
+    iterationBindingId?: BindingId;
+  };
+  carries: readonly ImmutableForGroupCarry[];
+  geometryCarries?: readonly ImmutableGeometryCarry[];
+  /** Collection-valued carry projections use the existing collection graph;
+   * the runtime only swaps the resolved descriptor identity at the immutable
+   * iteration commit boundary. */
+  collectionCarries?: readonly ImmutableCollectionCarry[];
+  geometryCollectionCarries?: readonly ImmutableGeometryCollectionCarry[];
+};
+
+export type ImmutableCollectionCarry = {
+  bindingId: BindingId;
+  collectionValueId: string;
+  initializerValueId: string;
+  nextValueId: string;
+  declaredType: DslArrayValueType;
+  nextSourceOrder: number;
+};
+
+export type ImmutableGeometryCarry = {
+  bindingId: BindingId;
+  declaredType: DslGeometryValueType;
+  initializerTarget: ScalarExpressionResolvedGeometryTarget;
+  nextTarget: ScalarExpressionResolvedGeometryTarget;
+  nextSourceOrder: number;
+};
+
+export type ImmutableGeometryCollectionSource =
+  | { kind: "node"; node: GeometryInputCollectionNode }
+  | { kind: "value"; valueId: string };
+
+export type ImmutableGeometryCollectionCarry = {
+  bindingId: BindingId;
+  collectionValueId: string;
+  initializer: ImmutableGeometryCollectionSource;
+  next: ImmutableGeometryCollectionSource;
+  declaredType: DslArrayValueType;
+  nextSourceOrder: number;
 };
 
 export type BindingVersionBuildInput = {
   scalarProgram: ScalarProgram;
   bindingAnalysis: BindingAnalysis;
-  setStatements: ReadonlyMap<number, SetStatementAnalysis> | undefined;
   controlByScopeId: ReadonlyMap<ScopeId, BindingControlMetadata>;
   requiresExecutionOrdering?: boolean;
 };
@@ -228,10 +287,16 @@ export const readBindingVersionAtPosition = (
 export const buildBindingVersionGraph = ({
   scalarProgram,
   bindingAnalysis,
-  setStatements,
   controlByScopeId,
   requiresExecutionOrdering = false
 }: BindingVersionBuildInput): BindingVersionGraph => {
+  // Immutable statement-for carries and their `next` expressions are
+  // evaluated by the carry snapshot/commit runtime. They are not temporal
+  // binding versions and must not enter this execution-order graph.
+  const isImmutableCarryBinding = (bindingId: BindingId): boolean =>
+    bindingId.includes(":carry:") ||
+    bindingId.startsWith("binding:next:") ||
+    bindingId.startsWith("module-collection-binder-field:");
   const programByBindingId = new Map<BindingId, ScalarProgramStatement>();
   for (const statement of scalarProgram.statements) {
     if (programByBindingId.has(statement.bindingId)) throw new Error(`bindingVersions: duplicate scalar program binding ${statement.bindingId}`);
@@ -240,6 +305,7 @@ export const buildBindingVersionGraph = ({
 
   const declarations: DeclarationBindingVersion[] = [];
   for (const binding of bindingAnalysis.catalog.bindings) {
+    if (isImmutableCarryBinding(binding.id)) continue;
     const declaredType = scalarExpressionTypeOfDslValueType(binding.declaredType);
     if (binding.kind !== "typed" || declaredType === null) continue;
     const entry = bindingAnalysis.entriesById.get(binding.id);
@@ -250,7 +316,7 @@ export const buildBindingVersionGraph = ({
       id,
       kind: "declare",
       bindingId: binding.id,
-      bindingKind: binding.mutability === "let" ? "let" : "const",
+      bindingKind: "const",
       declaredType,
       sourceOrder: programByBindingId.get(binding.id)?.sourceOrder ?? binding.statementIndex,
       scopeId: binding.effectiveScopeId,
@@ -262,19 +328,11 @@ export const buildBindingVersionGraph = ({
   }
   declarations.sort((left, right) => left.sourceOrder - right.sourceOrder);
 
-  const sets = setStatements ? [...setStatements.values()].sort((left, right) => left.sourceOrder - right.sourceOrder) : [];
-  for (let index = 1; index < sets.length; index += 1) {
-    if (sets[index - 1].sourceOrder >= sets[index].sourceOrder) {
-      throw new Error("bindingVersions: set statements must be supplied in strict source order");
-    }
-  }
-
   const versions: BindingVersion[] = [];
   const currentVersionByBindingId = new Map<BindingId, BindingVersionId>();
   const versionIdsByBindingId = new Map<BindingId, BindingVersionId[]>();
   const timelineSourceOrdersByBindingId = new Map<BindingId, number[]>();
   let declarationIndex = 0;
-  let setIndex = 0;
   const appendTo = <T>(map: Map<BindingId, T[]>, bindingId: BindingId, value: T): void => {
     const values = map.get(bindingId);
     if (values) values.push(value);
@@ -282,41 +340,15 @@ export const buildBindingVersionGraph = ({
   };
   const append = (version: BindingVersion) => {
     if (currentVersionByBindingId.has(version.bindingId)) version.predecessorId = currentVersionByBindingId.get(version.bindingId);
-    else if (version.kind === "set") throw new Error(`bindingVersions: set ${version.id} has no declaration version for ${version.bindingId}`);
     currentVersionByBindingId.set(version.bindingId, version.id);
     versions.push(version);
     appendTo(versionIdsByBindingId, version.bindingId, version.id);
     appendTo(timelineSourceOrdersByBindingId, version.bindingId, version.sourceOrder);
   };
 
-  while (declarationIndex < declarations.length || setIndex < sets.length) {
-    const declaration = declarations[declarationIndex];
-    const set = sets[setIndex];
-    if (set === undefined || (declaration !== undefined && declaration.sourceOrder < set.sourceOrder)) {
-      append(declaration);
-      declarationIndex += 1;
-      continue;
-    }
-    const target = bindingAnalysis.catalog.bindingsById.get(set.targetBindingId);
-    const declaredType = target ? scalarExpressionTypeOfDslValueType(target.declaredType) : null;
-    if (!target || target.kind !== "typed" || target.mutability !== "let" || declaredType === null) {
-      throw new Error(`bindingVersions: resolved set ${set.statementId} has no typed let target`);
-    }
-    append({
-      id: set.versionId ?? set.statementId,
-      kind: "set",
-      bindingId: set.targetBindingId,
-      bindingKind: "let",
-      declaredType,
-      sourceOrder: set.sourceOrder,
-      scopeId: set.scopeId,
-      scopeExitSourceOrder: controlFor(controlByScopeId, set.scopeId).scopeExitSourceOrder,
-      control: controlFor(controlByScopeId, set.scopeId),
-      expression: set.expression,
-      setStatementId: set.versionId ?? set.statementId,
-      initialState: { kind: "uncomputed" }
-    });
-    setIndex += 1;
+  while (declarationIndex < declarations.length) {
+    append(declarations[declarationIndex]!);
+    declarationIndex += 1;
   }
 
   const versionsById = new Map<BindingVersionId, BindingVersion>();

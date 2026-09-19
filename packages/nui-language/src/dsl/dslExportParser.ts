@@ -181,7 +181,7 @@ export const parseDslExportStatement = (
       diagnostics: []
     };
   }
-  if (category === "const" || category === "let") {
+  if (category === "const") {
     return {
       exportSpan,
       kind: "typedDeclaration",

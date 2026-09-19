@@ -112,7 +112,7 @@ const steppedNumberWithinBounds = (
 };
 
 /**
- * Resolves a typed value edit for a declaration initializer || `set` RHS
+ * Resolves a typed value edit for a declaration initializer
  * literal. Pure: the caller has already sliced
  * `value` from a tracked physical span && resolved `declaredType` from
  * BindingAnalysis - this never re-parses source || re-resolves a name.
@@ -120,7 +120,7 @@ const steppedNumberWithinBounds = (
  * Mirrors resolveDslValueStep's numeric/boolean/choice behavior
  * (dslValueStep.ts), generalized from ParameterDefinition to ScalarType.
  * Typed-number step policy is supplied from the target declaration for both
- * declaration initializers and `set` RHS values. Strings remain out of scope.
+ * declaration initializers. Strings remain out of scope.
  */
 export const resolveTypedValueStep = (
   value: string,
