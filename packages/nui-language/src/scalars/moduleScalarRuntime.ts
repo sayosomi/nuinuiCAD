@@ -1476,7 +1476,22 @@ export const lowerExpression = (
       });
       continue;
     }
-    if (property.target.kind === "recordField") continue;
+    if (property.target.kind === "recordField") {
+      const recordCollection = recordCollectionTargetFor(property.target);
+      const propertyName = property.target.property?.split(".").at(-1);
+      if (recordCollection && propertyName === "length") {
+        const fieldPath = recordCollection.fieldPath;
+        const field = fieldPath[fieldPath.length - 1]!;
+        geometryPropertyReferences.set(property.span.start, {
+          kind: "collection",
+          collectionValueId: collectionValueIdFor(recordFieldCollectionValueIdFor(recordCollection.collectionValueId, field, fieldPath)),
+          collectionLength: recordCollection.collectionLength,
+          targetSourceOrder: recordCollection.targetSourceOrder,
+          type: { kind: "number" }
+        });
+      }
+      continue;
+    }
   const elementId = property.target.kind === "sourceGeometryProperty"
     ? property.target.statementId
     : property.target.kind === "deferredModuleExportProperty"

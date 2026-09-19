@@ -46,6 +46,10 @@ export type ImmutableCarryCompilation = {
     statementIndex: number;
     node: Extract<import("../scalars/expressionAst").ScalarExpressionAst, { kind: "geometryProperty" }>;
   }) => import("../scalars/recordScalarLowering").AdditionalRecordScalarPropertyResolution | null;
+  collectionLengthPropertyResolver?: (input: {
+    statementIndex: number;
+    node: Extract<import("../scalars/expressionAst").ScalarExpressionAst, { kind: "geometryProperty" }>;
+  }) => import("./typedExpressionAst").ScalarExpressionResolvedGeometryProperty | null;
   diagnostics: readonly DslDiagnostic[];
 };
 
@@ -497,5 +501,21 @@ export const compileImmutableCarries = ({
     };
   };
 
-  return { bindings, initializers, resolver, carries, declarations, nexts, recordPropertyResolver, diagnostics };
+  const collectionLengthPropertyResolver: ImmutableCarryCompilation["collectionLengthPropertyResolver"] = ({ statementIndex, node }) => {
+    if (!node.property.endsWith(".length")) return null;
+    const base = resolveSourceLexicalPath(sourceNamespace, statementIndex, parseDslReferenceToken(node.elementName));
+    if (base.kind !== "resolved" || base.declaration.kind !== "carry") return null;
+    const field = carryFieldNames.get(`${base.declaration.statementIndex}:${base.declaration.name}.${node.property.slice(0, -".length".length)}`);
+    const valueType = dslRequiredValueTypeOf(field?.valueType);
+    if (!field || !valueType || !isDslArrayValueType(valueType)) return null;
+    return {
+      kind: "collection",
+      collectionValueId: immutableCarryCollectionValueId(field.bindingId),
+      collectionLength: null,
+      targetSourceOrder: base.declaration.statementIndex,
+      type: { kind: "number" }
+    };
+  };
+
+  return { bindings, initializers, resolver, carries, declarations, nexts, recordPropertyResolver, collectionLengthPropertyResolver, diagnostics };
 };

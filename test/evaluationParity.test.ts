@@ -1955,4 +1955,39 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     expectScalarNumberClose(scalarBindingFor(fixture, tsPayload, "pointCount"), 2);
     expectScalarNumberClose(scalarBindingFor(fixture, rustPayload, "pointCount"), 2);
   }, 30000);
+
+  it("runs generalized-record immutable carries through the Rust boundary", () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "point A = coordinate(x: 3, y: 4)",
+      "line Edge = segment(start: (0, 0), end: (10, 0))",
+      "record Metadata(label: string)",
+      "record Piece(count: number, edge: line, points: point[], metadata: Metadata)",
+      'const first: Piece = Piece(count: 1, edge: @Edge, points: [@A], metadata: Metadata(label: "ok"))',
+      "for i in range(min: 0, max: 0, step: 1) carry last: Piece = @first {",
+      '  next last = Piece(count: @last.count + 1, edge: @last.edge, points: @last.points, metadata: @last.metadata)',
+      "}",
+      "const count: number = @last.count",
+      "const pointCount: number = @last.points.length",
+      "const edgeLength: number = @last.edge.length",
+      "const label: string = @last.metadata.label"
+    ].join("\n"));
+    const options = optionsFor(fixture);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustOptions(repoRoot, fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+    for (const payload of [tsPayload, rustPayload]) {
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "count"), 2);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "pointCount"), 1);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "edgeLength"), 10);
+      const labelBinding = fixture.compiled?.doc?.bindingAnalysis?.catalog.bindings.find(
+        (candidate) => candidate.kind === "typed" && candidate.name === "label"
+      );
+      const label = labelBinding
+        ? evaluationPayloadToResult(payload).computedScalarBindings?.get(labelBinding.id)
+        : undefined;
+      expect(label).toMatchObject({ status: "ok", value: { kind: "string", value: "ok" } });
+    }
+  }, 30000);
 });

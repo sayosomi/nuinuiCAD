@@ -35,12 +35,14 @@ pub(crate) fn geometry_builtin_runtime_target_value(
         GeometryBuiltinRuntimeTarget::Line { start, end } => json!({
             "kind": "line",
             "start": { "x": start.x, "y": start.y },
-            "end": { "x": end.x, "y": end.y }
+            "end": { "x": end.x, "y": end.y },
+            "length": ((end.x - start.x).powi(2) + (end.y - start.y).powi(2)).sqrt()
         }),
         GeometryBuiltinRuntimeTarget::GeometryValueLine { start, end } => json!({
             "kind": "line",
             "start": { "x": start.0, "y": start.1 },
-            "end": { "x": end.0, "y": end.1 }
+            "end": { "x": end.0, "y": end.1 },
+            "length": ((end.0 - start.0).powi(2) + (end.1 - start.1).powi(2)).sqrt()
         }),
     }
 }

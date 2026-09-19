@@ -2597,7 +2597,8 @@ export const compileDslDocument = (
         includeStatement,
         sourceNamespace: sourceLexicalNamespace,
         additionalGeometryResolver: rootGeometryBuiltinResolver,
-        additionalGeometryPropertyResolver: rootGeometryValuePropertyResolver,
+        additionalGeometryPropertyResolver: (input) =>
+          immutableCarryCompilation?.collectionLengthPropertyResolver?.(input) ?? rootGeometryValuePropertyResolver?.(input) ?? null,
         additionalCollectionIndexResolver: rootCollectionIndexResolver,
         additionalBindings: [
           ...rootValueForBodyBindingSeeds,
