@@ -287,4 +287,135 @@ describe("immutable statement-for carries", () => {
       value: { kind: "number", value: 2 }
     });
   });
+
+  it("uses the exact choice type for scalar carries and accepts value-if next", () => {
+    const compiled = compile([
+      "nui 1",
+      "const side: choice(left, right) = left",
+      "for i in range(min: 0, max: 1, step: 1) carry last: choice(left, right) = @side {",
+      "  next last = if (true) { right } else { left }",
+      "}",
+      "const result: choice(left, right) = @last"
+    ].join("\n"));
+    const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    expect(evaluation.errors).toEqual([]);
+    const resultId = compiled.bindingAnalysis!.catalog.bindings.find((binding) => binding.name === "result")!.id;
+    expect(evaluation.computedScalarBindings?.get(resultId)).toMatchObject({
+      status: "ok",
+      value: { kind: "choice", value: "right", options: ["left", "right"] }
+    });
+  });
+
+  it("accepts exhaustive choice match as a carry next RHS", () => {
+    const compiled = compile([
+      "nui 1",
+      "const side: choice(left, right) = left",
+      "for i in range(min: 0, max: 1, step: 1) carry last: choice(left, right) = @side {",
+      "  next last = match @side { left => right right => left }",
+      "}",
+      "const result: choice(left, right) = @last"
+    ].join("\n"));
+    const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    expect(evaluation.errors).toEqual([]);
+    const resultId = compiled.bindingAnalysis!.catalog.bindings.find((binding) => binding.name === "result")!.id;
+    expect(evaluation.computedScalarBindings?.get(resultId)).toMatchObject({
+      status: "ok",
+      value: { kind: "choice", value: "right", options: ["left", "right"] }
+    });
+  });
+
+  it("keeps missing, duplicate, unknown, and wrong-type next diagnostics deterministic", () => {
+    const source = (body: string) => [
+      "nui 1",
+      "for i in range(min: 0, max: 1, step: 1) carry total: number = 0 {",
+      body,
+      "}"
+    ].join("\n");
+    const diagnostics = (body: string) => compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), source(body)).diagnostics;
+    expect(diagnostics("")).toEqual(expect.arrayContaining([expect.objectContaining({ code: "missing-next" })]));
+    expect(diagnostics("  next total = 1\n  next total = 2")).toEqual(expect.arrayContaining([expect.objectContaining({ code: "duplicate-next" })]));
+    expect(diagnostics("  next missing = 1")).toEqual(expect.arrayContaining([expect.objectContaining({ code: "unknown-next-carry" })]));
+    expect(diagnostics('  next total = "wrong"')).not.toEqual([]);
+  });
+
+  it("uses canonical assignability for scalar choice and nominal record collections", () => {
+    const choiceMismatch = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), [
+      "nui 1",
+      "const left: choice(left, right)[] = [left]",
+      "const other: choice(up, down)[] = [up]",
+      "for i in range(min: 0, max: 1, step: 1) carry values: choice(left, right)[] = @other {",
+      "  next values = @left",
+      "}"
+    ].join("\n"));
+    expect(choiceMismatch.status).toBe("fatal");
+    expect(choiceMismatch.diagnostics).toEqual(expect.arrayContaining([expect.objectContaining({ code: "carry-collection-expression-invalid" })]));
+
+    const recordMismatch = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), [
+      "nui 1",
+      "record Foo(value: number)",
+      "record Bar(value: number)",
+      "const bar: Bar = Bar(value: 1)",
+      "const bars: Bar[] = [@bar]",
+      "for i in range(min: 0, max: 1, step: 1) carry foos: Foo[] = @bars {",
+      "  next foos = @bars",
+      "}"
+    ].join("\n"));
+    expect(recordMismatch.status).toBe("fatal");
+    expect(recordMismatch.diagnostics).toEqual(expect.arrayContaining([expect.objectContaining({ code: "carry-collection-expression-invalid" })]));
+  });
+
+  it("applies directional canonical assignability to geometry carries", () => {
+    const lineToPath = compile([
+      "nui 1",
+      "line L = segment(start: (0, 0), end: (10, 0))",
+      "for i in range(min: 0, max: 1, step: 1) carry pathValue: path = @L {",
+      "  next pathValue = @L",
+      "}"
+    ].join("\n"));
+    expect(lineToPath.diagnostics).toEqual([]);
+
+    const pathToLine = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), [
+      "nui 1",
+      "curve C = bezier(start: (0, 0), end: (10, 0))",
+      "for i in range(min: 0, max: 1, step: 1) carry lineValue: line = @C {",
+      "  next lineValue = @C",
+      "}"
+    ].join("\n"));
+    expect(pathToLine.status).toBe("fatal");
+    expect(pathToLine.diagnostics).toEqual(expect.arrayContaining([expect.objectContaining({ code: "carry-geometry-type-mismatch" })]));
+  });
+
+  it("applies directional canonical assignability to geometry collection carries", () => {
+    const lineToPath = compile([
+      "nui 1",
+      "line L = segment(start: (0, 0), end: (10, 0))",
+      "const lines: line[] = [@L]",
+      "for i in range(min: 0, max: 1, step: 1) carry paths: path[] = @lines {",
+      "  next paths = @lines",
+      "}"
+    ].join("\n"));
+    expect(lineToPath.diagnostics).toEqual([]);
+
+    const pathToLine = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), [
+      "nui 1",
+      "curve C = bezier(start: (0, 0), end: (10, 0))",
+      "const paths: path[] = [@C]",
+      "for i in range(min: 0, max: 1, step: 1) carry lines: line[] = @paths {",
+      "  next lines = @paths",
+      "}"
+    ].join("\n"));
+    expect(pathToLine.status).toBe("fatal");
+    expect(pathToLine.diagnostics).toEqual(expect.arrayContaining([expect.objectContaining({ code: "carry-collection-expression-invalid" })]));
+
+    const pointLineMismatch = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), [
+      "nui 1",
+      "point P = coordinate(x: 0, y: 0)",
+      "const points: point[] = [@P]",
+      "for i in range(min: 0, max: 1, step: 1) carry lines: line[] = @points {",
+      "  next lines = @points",
+      "}"
+    ].join("\n"));
+    expect(pointLineMismatch.status).toBe("fatal");
+    expect(pointLineMismatch.diagnostics).toEqual(expect.arrayContaining([expect.objectContaining({ code: "carry-collection-expression-invalid" })]));
+  });
 });

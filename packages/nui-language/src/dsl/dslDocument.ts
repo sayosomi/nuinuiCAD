@@ -45,7 +45,7 @@ import { isCompilableDslStatement, isCanonicalValueBindingDeclaration, type DslS
 import { compilePropertyReferenceSyntax } from "./dslPropertyReferenceSyntax";
 import { buildPlacementRefsByStatementIndex } from "./dslPrintLayoutPlacementIndex";
 import { isGeometryDeclarationCategory } from "./dslConstructions";
-import { dslRequiredValueTypeOf, isDslArrayValueType, isDslGeometryValueType, isDslRecordValueType, nominalRecordTypeOfDslValueType, scalarTypeOfDslValueType } from "./dslValueTypes";
+import { dslRequiredValueTypeOf, isDslArrayValueType, isDslGeometryValueType, isDslRecordValueType, isDslValueTypeAssignable, nominalRecordTypeOfDslValueType, scalarTypeOfDslValueType, type DslArrayValueType } from "./dslValueTypes";
 import { collectionLengthForValueId, collectionValueSemanticForStatement, geometryArrayDeferredModuleExportId } from "./geometryArraySemanticAnalysis";
 import type { GenericArraySourceTarget } from "./geometryArraySemanticAnalysis";
 import { type DslArrayMappedValue, type DslArraySemanticValue } from "./geometryArraySemantics";
@@ -1484,11 +1484,16 @@ export const compileDslDocument = (
     if (node) geometryCollectionNodesByValueId.set(valueId, node);
     return node;
   };
+  type GeometryCollectionCarrySourceResolution = {
+    source: import("../scalars/bindingVersions").ImmutableGeometryCollectionSource;
+    valueType: DslArrayValueType;
+  };
   const geometryCollectionSourceForRaw = (
     raw: string,
     statementIndex: number,
-    seen = new Set<string>()
-  ): import("../scalars/bindingVersions").ImmutableGeometryCollectionSource | null => {
+    seen = new Set<string>(),
+    expectedType?: DslArrayValueType
+  ): GeometryCollectionCarrySourceResolution | null => {
     const parsedReference = parseDslSourceReference(raw.trim());
     if (parsedReference.kind === "valid" && parsedReference.reference.occurrenceIndex === null) {
       const path = parsedReference.reference.path;
@@ -1502,17 +1507,17 @@ export const compileDslDocument = (
         const field = carryCollectionDeclarationForPath(lookup.declaration.statementIndex, [...path.segments.slice(1), ...propertyPath]);
         const fieldType = dslRequiredValueTypeOf(field?.valueType);
         if (field && fieldType && isDslArrayValueType(fieldType) && isDslGeometryValueType(fieldType.elementType)) {
-          return { kind: "value", valueId: carryCollectionIdForDeclaration(field) };
+          return { source: { kind: "value", valueId: carryCollectionIdForDeclaration(field) }, valueType: fieldType };
         }
         if (valueType && isDslArrayValueType(valueType) && isDslGeometryValueType(valueType.elementType)) {
-          return { kind: "value", valueId: immutableCarryCollectionValueId(`binding:${lookup.declaration.statementId}`) };
+          return { source: { kind: "value", valueId: immutableCarryCollectionValueId(`binding:${lookup.declaration.statementId}`) }, valueType };
         }
       }
       if (lookup.kind === "invalidTraversal" && lookup.declaration.kind === "carry") {
         const field = carryCollectionDeclarationForPath(lookup.declaration.statementIndex, [...path.segments.slice(1), ...propertyPath]);
         const fieldType = dslRequiredValueTypeOf(field?.valueType);
         if (field && fieldType && isDslArrayValueType(fieldType) && isDslGeometryValueType(fieldType.elementType)) {
-          return { kind: "value", valueId: carryCollectionIdForDeclaration(field) };
+          return { source: { kind: "value", valueId: carryCollectionIdForDeclaration(field) }, valueType: fieldType };
         }
       }
       if (lookup.kind === "invalidTraversal" && (lookup.declaration.kind === "typedDeclaration" || lookup.declaration.kind === "recordValue") && (path.segments.length > 1 || propertyPath.length > 0)) {
@@ -1533,7 +1538,7 @@ export const compileDslDocument = (
               currentSpan = field.valueSpan;
               const fieldType = field.expectedType;
               if (index === fieldPath.length - 1 && isDslArrayValueType(fieldType) && isDslGeometryValueType(fieldType.elementType)) {
-                return geometryCollectionSourceForRaw(currentRaw, lookup.declaration.statementIndex, new Set([...seen, path.segments.join(".")]));
+                return geometryCollectionSourceForRaw(currentRaw, lookup.declaration.statementIndex, new Set([...seen, path.segments.join(".")]), expectedType);
               }
               const nested = dslRequiredValueTypeOf(fieldType);
               if (!nested || nested.kind !== "record") break;
@@ -1549,7 +1554,7 @@ export const compileDslDocument = (
         const semanticRequiredType = semanticValueType ? dslRequiredValueTypeOf(semanticValueType) : null;
         if (semantic && semanticRequiredType?.kind === "array" && isDslGeometryValueType(semanticRequiredType.elementType)) {
           const node = geometryCollectionNodeForValueId(semantic.statementId);
-          return node ? { kind: "value", valueId: semantic.statementId } : null;
+          return node ? { source: { kind: "value", valueId: semantic.statementId }, valueType: semanticRequiredType } : null;
         }
         // A record field collection uses the same authored collection
         // expression as the record constructor. Resolve that expression and
@@ -1572,7 +1577,7 @@ export const compileDslDocument = (
               const fieldType = field.expectedType;
               if (index === fieldPath.length - 1) {
                 if (isDslArrayValueType(fieldType) && isDslGeometryValueType(fieldType.elementType)) {
-                  return geometryCollectionSourceForRaw(currentRaw, lookup.declaration.statementIndex, new Set([...seen, path.segments.join(".")]));
+                  return geometryCollectionSourceForRaw(currentRaw, lookup.declaration.statementIndex, new Set([...seen, path.segments.join(".")]), expectedType);
                 }
                 break;
               }
@@ -1590,21 +1595,30 @@ export const compileDslDocument = (
         const semanticRequiredType = semanticValueType ? dslRequiredValueTypeOf(semanticValueType) : null;
         if (semantic && semanticRequiredType?.kind === "array" && isDslGeometryValueType(semanticRequiredType.elementType)) {
           const node = geometryCollectionNodeForValueId(semantic.statementId);
-          return node ? { kind: "value", valueId: semantic.statementId } : null;
+          return node ? { source: { kind: "value", valueId: semantic.statementId }, valueType: semanticRequiredType } : null;
         }
       }
     }
     const parsedArray = parseGeometryArrayExpression(raw.trim());
     if (parsedArray.expression?.kind !== "literal") return null;
-    const targets = parsedArray.expression.members.map((member) => {
+    const geometryElementTypeFor = (
+      geometryType: "point" | "line" | "path",
+      pointKey?: string
+    ): import("./dslValueTypes").DslGeometryValueType => ({ kind: pointKey ? "point" : geometryType });
+    type GeometryCollectionLiteralTarget = Exclude<GeometryInputTarget, { kind: "collectionIndex" } | { kind: "collectionValue" }>;
+    const targets: Array<{ target: GeometryCollectionLiteralTarget; elementType: import("./dslValueTypes").DslGeometryValueType } | null> = parsedArray.expression.members.map((member) => {
       const reference = parseDslSourceReference(member.text);
       if (reference.kind !== "valid" || reference.reference.occurrenceIndex !== null) return null;
       const lookup = resolveSourceLexicalPath(sourceLexicalNamespace!, statementIndex, reference.reference.path);
       if (lookup.kind === "resolved" && lookup.declaration.kind === "geometry") {
         const elementId = compiled.elementIdsByStatementIndex?.get(lookup.declaration.statementIndex);
         const geometryStatement = lookup.declaration.statement as Extract<DslStatement, { kind: "element" }>;
+        const pointKey = reference.reference.property === "start" || reference.reference.property === "end"
+          ? reference.reference.property
+          : undefined;
+        const geometryType = geometryStatement.category === "point" ? "point" as const : geometryStatement.category === "line" ? "line" as const : "path" as const;
         return elementId
-          ? { kind: "drawable" as const, elementId, geometryType: geometryStatement.category === "point" ? "point" as const : geometryStatement.category === "line" ? "line" as const : "path" as const }
+          ? { target: { kind: "drawable" as const, elementId, geometryType, ...(pointKey ? { pointKey } : {}) }, elementType: geometryElementTypeFor(geometryType, pointKey) }
           : null;
       }
       if (lookup.kind === "resolved" && lookup.declaration.kind === "carry") {
@@ -1612,20 +1626,35 @@ export const compileDslDocument = (
           ? lookup.declaration.statement.forCarries?.find((candidate) => candidate.name === lookup.declaration.name)
           : undefined;
         const valueType = dslRequiredValueTypeOf(carry?.valueType);
+        const pointKey = reference.reference.property === "start" || reference.reference.property === "end"
+          ? reference.reference.property
+          : undefined;
         return valueType && isDslGeometryValueType(valueType)
-          ? { kind: "geometryCarry" as const, bindingId: `binding:${lookup.declaration.statementId}`, geometryType: valueType.kind }
+          ? { target: { kind: "geometryCarry" as const, bindingId: `binding:${lookup.declaration.statementId}`, geometryType: valueType.kind, ...(pointKey ? { pointKey } : {}) }, elementType: geometryElementTypeFor(valueType.kind, pointKey) }
           : null;
       }
       if (lookup.kind === "resolved" && (lookup.declaration.kind === "typedDeclaration" || lookup.declaration.kind === "recordValue")) {
         const sourceStatement = lookup.declaration.statement as Extract<DslStatement, { kind: "typedDeclaration" }>;
-        if (!isDslGeometryValueType(dslRequiredValueTypeOf(sourceStatement.valueType))) return null;
-        const valueType = dslRequiredValueTypeOf(sourceStatement.valueType)!;
-        return { kind: "geometryValue" as const, occurrence: { sourceStatementId: lookup.declaration.statementId, instancePath: [] }, geometryType: valueType.kind as "point" | "line" | "path" };
+        const valueType = dslRequiredValueTypeOf(sourceStatement.valueType);
+        if (!isDslGeometryValueType(valueType)) return null;
+        const pointKey = reference.reference.property === "start" || reference.reference.property === "end"
+          ? reference.reference.property
+          : undefined;
+        return { target: { kind: "geometryValue" as const, occurrence: { sourceStatementId: lookup.declaration.statementId, instancePath: [] }, geometryType: valueType.kind as "point" | "line" | "path", ...(pointKey ? { pointKey } : {}) }, elementType: geometryElementTypeFor(valueType.kind, pointKey) };
       }
       return null;
-    }).filter((target): target is NonNullable<typeof target> => target !== null);
-    return targets.length === parsedArray.expression.members.length
-      ? { kind: "node", node: { kind: "leaf", targets } }
+    });
+    if (targets.some((target) => target === null)) return null;
+    const resolvedTargets = targets as Array<NonNullable<(typeof targets)[number]>>;
+    if (expectedType && resolvedTargets.some((target) => !isDslValueTypeAssignable(
+      { kind: "array", elementType: target.elementType },
+      expectedType
+    ))) return null;
+    const literalType = expectedType ?? (resolvedTargets[0]
+      ? { kind: "array" as const, elementType: resolvedTargets[0].elementType }
+      : null);
+    return literalType
+      ? { source: { kind: "node", node: { kind: "leaf", targets: resolvedTargets.map((target) => target.target) } }, valueType: literalType }
       : null;
   };
 
@@ -2505,10 +2534,7 @@ export const compileDslDocument = (
         const targetId = targetDeclaration.kind === "carry"
           ? immutableCarryCollectionValueId(`binding:${targetDeclaration.statementId}`)
           : targetDeclaration.statementId;
-        if (!isDslArrayValueType(source.valueType) ||
-          (elementType
-            ? scalarTypeOfDslValueType(source.valueType.elementType)?.kind !== elementType.kind
-            : source.valueType.elementType.kind !== "record")) return null;
+        if (!isDslArrayValueType(source.valueType) || !isDslValueTypeAssignable(source.valueType, valueType)) return null;
         return { valueId, kind: "alias", targetValueId: targetId };
       }
       const parsedArray = parseGeometryArrayExpression(trimmed);
@@ -2530,11 +2556,11 @@ export const compileDslDocument = (
           continue;
         }
         const target = bindingForReference(member.text, declaration.ownerStatementIndex);
-        if (!elementType || !target || scalarTypeOfDslValueType(target.valueType)?.kind !== elementType.kind) {
-          const recordDefinition = recordDefinitionFor(valueType.elementType);
-          if (!recordDefinition) return null;
-          const recordTarget = bindingForReference(member.text, declaration.ownerStatementIndex);
-          if (!recordTarget || !isDslRecordValueType(recordTarget.valueType)) return null;
+          if (!elementType || !target || !isDslValueTypeAssignable(target.valueType, valueType.elementType)) {
+            const recordDefinition = recordDefinitionFor(valueType.elementType);
+            if (!recordDefinition) return null;
+            const recordTarget = bindingForReference(member.text, declaration.ownerStatementIndex);
+            if (!recordTarget || !isDslRecordValueType(recordTarget.valueType) || !isDslValueTypeAssignable(recordTarget.valueType, valueType.elementType)) return null;
           const fields = recordFieldsFor(recordDefinition).map(({ path, type }) => ({
             recordStatementId: path.at(-1)!.recordStatementId,
             fieldIndex: path.at(-1)!.fieldIndex,
@@ -3797,7 +3823,34 @@ export const compileDslDocument = (
       const initializerTarget = geometryTargetForCarryExpression(declaration.initializer, declaration.ownerStatementIndex, declaration.bindingId);
       const nextTarget = geometryTargetForCarryExpression(next.expression, next.statementIndex, declaration.bindingId);
       const ownerStatementId = stableStatementIdByIndex.get(declaration.ownerStatementIndex);
-      if (!initializerTarget || !nextTarget || !ownerStatementId) continue;
+      const targetValueType = (target: ScalarExpressionResolvedGeometryTarget): import("./dslValueTypes").DslGeometryValueType => ({
+        kind: target.pointKey ? "point" : target.geometryType
+      });
+      const initializerAssignable = initializerTarget && isDslValueTypeAssignable(targetValueType(initializerTarget), valueType);
+      const nextAssignable = nextTarget && isDslValueTypeAssignable(targetValueType(nextTarget), valueType);
+      if (initializerTarget && !initializerAssignable) {
+        carryCollectionDiagnostics.push({
+          severity: "error",
+          line: parsed.statements[declaration.ownerStatementIndex]?.line ?? 1,
+          column: declaration.initializerSpan.start + 1,
+          code: "carry-geometry-type-mismatch",
+          message: `carry「${declaration.name}」の geometry initializer は宣言された型と一致する必要があります。`,
+          logicalSpan: declaration.initializerSpan,
+          statementIndex: declaration.ownerStatementIndex
+        });
+      }
+      if (nextTarget && !nextAssignable) {
+        carryCollectionDiagnostics.push({
+          severity: "error",
+          line: parsed.statements[next.statementIndex]?.line ?? 1,
+          column: next.expressionSpan.start + 1,
+          code: "carry-geometry-type-mismatch",
+          message: `carry「${declaration.name}」の geometry next は宣言された型と一致する必要があります。`,
+          logicalSpan: next.expressionSpan,
+          statementIndex: next.statementIndex
+        });
+      }
+      if (!initializerTarget || !nextTarget || !initializerAssignable || !nextAssignable || !ownerStatementId) continue;
       const plan: import("../scalars/bindingVersions").ImmutableForGroupPlan = immutableForGroups.get(ownerStatementId) ?? {
         ownerStatementId,
         executionOwner: immutableExecutionOwnerFor(declaration.ownerStatementIndex, ownerStatementId),
@@ -3822,9 +3875,11 @@ export const compileDslDocument = (
       );
       const ownerStatementId = stableStatementIdByIndex.get(declaration.ownerStatementIndex);
       if (!next || !ownerStatementId) continue;
-      const initializer = geometryCollectionSourceForRaw(declaration.initializer, declaration.ownerStatementIndex);
-      const nextSource = geometryCollectionSourceForRaw(next.expression, next.statementIndex);
-      if (!initializer || !nextSource) {
+      const initializer = geometryCollectionSourceForRaw(declaration.initializer, declaration.ownerStatementIndex, new Set(), valueType);
+      const nextSource = geometryCollectionSourceForRaw(next.expression, next.statementIndex, new Set(), valueType);
+      const initializerAssignable = initializer && isDslValueTypeAssignable(initializer.valueType, valueType);
+      const nextAssignable = nextSource && isDslValueTypeAssignable(nextSource.valueType, valueType);
+      if (!initializer || !initializerAssignable) {
         carryCollectionDiagnostics.push({
           severity: "error",
           line: parsed.statements[declaration.ownerStatementIndex]?.line ?? 1,
@@ -3834,6 +3889,19 @@ export const compileDslDocument = (
           logicalSpan: declaration.initializerSpan,
           statementIndex: declaration.ownerStatementIndex
         });
+      }
+      if (!nextSource || !nextAssignable) {
+        carryCollectionDiagnostics.push({
+          severity: "error",
+          line: parsed.statements[next.statementIndex]?.line ?? 1,
+          column: next.expressionSpan.start + 1,
+          code: "carry-collection-expression-invalid",
+          message: `carry「${declaration.name}」の geometry collection next は宣言された collection 型と一致する必要があります。`,
+          logicalSpan: next.expressionSpan,
+          statementIndex: next.statementIndex
+        });
+      }
+      if (!initializer || !initializerAssignable || !nextSource || !nextAssignable) {
         continue;
       }
       const plan: import("../scalars/bindingVersions").ImmutableForGroupPlan = immutableForGroups.get(ownerStatementId) ?? {
@@ -3845,8 +3913,8 @@ export const compileDslDocument = (
       geometryCollectionCarries.push({
         bindingId: declaration.bindingId,
         collectionValueId: carryCollectionIdForDeclaration(declaration),
-        initializer,
-        next: nextSource,
+        initializer: initializer.source,
+        next: nextSource.source,
         declaredType: valueType,
         nextSourceOrder: next.statementIndex
       });

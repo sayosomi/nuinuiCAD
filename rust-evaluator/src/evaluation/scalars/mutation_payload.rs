@@ -16,7 +16,7 @@ use super::program_payload::{
 use super::scalar_payload::{decode_scalar_type, scalar_type_assignable};
 use super::types::{BindingId, ScalarType, TypedBuiltinArgument, TypedScalarExpression};
 use crate::evaluation::line_geometry_input::decode_collection_node;
-use crate::evaluation::types::GeometryInputCollectionNode;
+use crate::evaluation::types::{GeometryInputCollectionNode, GeometryInputTarget};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum InitialState {
@@ -103,6 +103,164 @@ pub(crate) struct ValidatedImmutableGeometryCollectionCarry {
     pub(crate) collection_value_id: String,
     pub(crate) initializer: ValidatedImmutableGeometryCollectionSource,
     pub(crate) next: ValidatedImmutableGeometryCollectionSource,
+}
+
+fn geometry_input_target_type(
+    target: &GeometryInputTarget,
+) -> Option<super::types::GeometryInterfaceType> {
+    let (geometry_type, point_key) = match target {
+        GeometryInputTarget::Drawable {
+            geometry_type,
+            point_key,
+            ..
+        }
+        | GeometryInputTarget::ForGroupOccurrence {
+            geometry_type,
+            point_key,
+            ..
+        }
+        | GeometryInputTarget::GeometryValue {
+            geometry_type,
+            point_key,
+            ..
+        }
+        | GeometryInputTarget::GeometryValueMap {
+            geometry_type,
+            point_key,
+            ..
+        } => (geometry_type.as_str(), point_key.as_ref()),
+        GeometryInputTarget::Coordinate { .. } => {
+            return Some(super::types::GeometryInterfaceType::Point)
+        }
+        GeometryInputTarget::CollectionValue { .. }
+        | GeometryInputTarget::CollectionIndex { .. } => return None,
+    };
+    if point_key.is_some() {
+        Some(super::types::GeometryInterfaceType::Point)
+    } else {
+        super::types::GeometryInterfaceType::from_wire_name(geometry_type)
+    }
+}
+
+fn resolved_geometry_target_type(
+    target: &super::types::ScalarExpressionResolvedGeometryTarget,
+) -> super::types::GeometryInterfaceType {
+    if target.point_key.is_some() {
+        super::types::GeometryInterfaceType::Point
+    } else {
+        target.geometry_type
+    }
+}
+
+fn geometry_type_assignable(
+    actual: super::types::GeometryInterfaceType,
+    expected: super::types::GeometryInterfaceType,
+) -> bool {
+    actual == expected
+        || matches!(
+            (actual, expected),
+            (
+                super::types::GeometryInterfaceType::Line,
+                super::types::GeometryInterfaceType::Path
+            )
+        )
+}
+
+fn geometry_collection_node_assignable(
+    node: &GeometryInputCollectionNode,
+    expected: super::types::GeometryInterfaceType,
+) -> bool {
+    match node {
+        GeometryInputCollectionNode::None => true,
+        GeometryInputCollectionNode::Leaf { targets } => targets.iter().all(|target| {
+            geometry_input_target_type(target)
+                .is_some_and(|actual| geometry_type_assignable(actual, expected))
+        }),
+        GeometryInputCollectionNode::If {
+            then_branch,
+            else_branch,
+            ..
+        } => {
+            geometry_collection_node_assignable(then_branch, expected)
+                && geometry_collection_node_assignable(else_branch, expected)
+        }
+        GeometryInputCollectionNode::Match { arms, .. } => arms
+            .iter()
+            .all(|(_, arm)| geometry_collection_node_assignable(arm, expected)),
+        GeometryInputCollectionNode::Coalesce {
+            left_branch,
+            right_branch,
+        } => {
+            geometry_collection_node_assignable(left_branch, expected)
+                && geometry_collection_node_assignable(right_branch, expected)
+        }
+    }
+}
+
+fn geometry_collection_source_assignable(
+    source: &ValidatedImmutableGeometryCollectionSource,
+    expected: super::types::GeometryInterfaceType,
+) -> bool {
+    match source {
+        // A value source is already compiler-resolved to a declaration-backed
+        // collection identity. Its element type is not duplicated in this
+        // payload, so the Rust boundary can only validate node sources here.
+        ValidatedImmutableGeometryCollectionSource::Value(_) => true,
+        ValidatedImmutableGeometryCollectionSource::Node(node) => {
+            geometry_collection_node_assignable(node, expected)
+        }
+    }
+}
+
+fn decode_geometry_collection_declared_type(
+    value: &Value,
+    context: &str,
+) -> Result<super::types::GeometryInterfaceType, ScalarPayloadIssue> {
+    let object = as_object(value, context)?;
+    reject_unexpected_fields(object, &["kind", "elementType"], context)?;
+    if string(
+        require_field(object, "kind", context)?,
+        &format!("{context} kind"),
+    )? != "array"
+    {
+        return Err(issue(
+            Code::InvalidFieldType,
+            format!("{context} kind must be array"),
+        ));
+    }
+    let element = as_object(
+        require_field(object, "elementType", context)?,
+        &format!("{context} elementType"),
+    )?;
+    reject_unexpected_fields(element, &["kind"], &format!("{context} elementType"))?;
+    let element_name = string(
+        require_field(element, "kind", &format!("{context} elementType"))?,
+        &format!("{context} elementType kind"),
+    )?;
+    super::types::GeometryInterfaceType::from_wire_name(element_name).ok_or_else(|| {
+        issue(
+            Code::InvalidFieldType,
+            format!("{context} elementType kind must be point, line, or path"),
+        )
+    })
+}
+
+fn decode_geometry_carry_declared_type(
+    value: &Value,
+    context: &str,
+) -> Result<super::types::GeometryInterfaceType, ScalarPayloadIssue> {
+    let object = as_object(value, context)?;
+    reject_unexpected_fields(object, &["kind"], context)?;
+    let kind = string(
+        require_field(object, "kind", context)?,
+        &format!("{context} kind"),
+    )?;
+    super::types::GeometryInterfaceType::from_wire_name(kind).ok_or_else(|| {
+        issue(
+            Code::InvalidFieldType,
+            format!("{context} kind must be point, line, or path"),
+        )
+    })
 }
 
 #[derive(Debug, Clone)]
@@ -729,6 +887,10 @@ pub(crate) fn validate_binding_versions_payload(
                         "immutable geometry carry bindingId",
                     )?
                     .to_owned();
+                    let declared_type = decode_geometry_carry_declared_type(
+                        require_field(carry, "declaredType", "immutable geometry carry")?,
+                        "immutable geometry carry declaredType",
+                    )?;
                     let initializer = decode_geometry_target(
                         require_field(carry, "initializerTarget", "immutable geometry carry")?,
                         "immutable geometry carry initializerTarget",
@@ -741,6 +903,18 @@ pub(crate) fn validate_binding_versions_payload(
                         require_field(carry, "nextSourceOrder", "immutable geometry carry")?,
                         "immutable geometry carry nextSourceOrder",
                     )?;
+                    if !geometry_type_assignable(
+                        resolved_geometry_target_type(&initializer),
+                        declared_type,
+                    ) || !geometry_type_assignable(
+                        resolved_geometry_target_type(&next),
+                        declared_type,
+                    ) {
+                        return Err(issue(
+                            Code::LiteralTypeMismatch,
+                            "immutable geometry carry target type must be assignable to declaredType",
+                        ));
+                    }
                     geometry_carries.push(ValidatedImmutableGeometryCarry {
                         binding_id,
                         initializer,
@@ -836,6 +1010,30 @@ pub(crate) fn validate_binding_versions_payload(
                         )?,
                         "immutable geometry collection carry nextSourceOrder",
                     )?;
+                    let declared_type = decode_geometry_collection_declared_type(
+                        require_field(
+                            carry,
+                            "declaredType",
+                            "immutable geometry collection carry",
+                        )?,
+                        "immutable geometry collection carry declaredType",
+                    )?;
+                    let initializer = decode_geometry_collection_source(
+                        require_field(carry, "initializer", "immutable geometry collection carry")?,
+                        "immutable geometry collection carry initializer",
+                    )?;
+                    let next = decode_geometry_collection_source(
+                        require_field(carry, "next", "immutable geometry collection carry")?,
+                        "immutable geometry collection carry next",
+                    )?;
+                    if !geometry_collection_source_assignable(&initializer, declared_type)
+                        || !geometry_collection_source_assignable(&next, declared_type)
+                    {
+                        return Err(issue(
+                            Code::LiteralTypeMismatch,
+                            "immutable geometry collection carry source type must be assignable to declaredType",
+                        ));
+                    }
                     geometry_collection_carries.push(ValidatedImmutableGeometryCollectionCarry {
                         binding_id: string(
                             require_field(
@@ -855,18 +1053,8 @@ pub(crate) fn validate_binding_versions_payload(
                             "immutable geometry collection carry collectionValueId",
                         )?
                         .to_owned(),
-                        initializer: decode_geometry_collection_source(
-                            require_field(
-                                carry,
-                                "initializer",
-                                "immutable geometry collection carry",
-                            )?,
-                            "immutable geometry collection carry initializer",
-                        )?,
-                        next: decode_geometry_collection_source(
-                            require_field(carry, "next", "immutable geometry collection carry")?,
-                            "immutable geometry collection carry next",
-                        )?,
+                        initializer,
+                        next,
                     });
                 }
             }
