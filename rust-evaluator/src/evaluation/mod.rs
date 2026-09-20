@@ -1960,6 +1960,7 @@ fn evaluate_document_input_with_scalar_program(
             complete_attempt_and_continue!();
         }
 
+        let error_count_before_element_evaluation = state.errors.len();
         match entries_by_element_id.get(&id) {
             Some(entries) if !entries.is_empty() => {
                 let resolver = active_scalar_binding_resolver
@@ -2062,6 +2063,13 @@ fn evaluate_document_input_with_scalar_program(
                     &mut state,
                 )
             }
+        }
+        if state.errors.len() > error_count_before_element_evaluation {
+            // A terminal evaluation error completes the attempt but must not
+            // leave partially constructed geometry available to Module
+            // snapshots or later consumers. Disabled and inactive descendants
+            // use the existing terminal macro above.
+            state.computed_geometry.remove(&id);
         }
         completed_element_ids.insert(id.clone());
         capture_completed_instances(

@@ -243,6 +243,28 @@ describe("module materialization", () => {
     });
   });
 
+  it("completes disabled, inactive, and errored descendants before capturing Module Base", () => {
+    const compiled = runtimeNames([
+      "nui 1",
+      "module M() {",
+      "  if (false) {",
+      "    line Inactive = segment(start: (0, 0), end: (1, 0))",
+      "  }",
+      "  arc Error = arc(center: (0, 0), radius: 0, start: 0, end: 90)",
+      "  line Disabled = segment(start: (0, 0), end: (5, 0), enabled: false)",
+      "  line Good = segment(start: (0, 0), end: (10, 0))",
+      "}",
+      "instance A = M()"
+    ].join("\n"));
+    const result = evaluateCompiled(compiled);
+    const instance = compiled.document!.elements.find((element) => element.name === "A")!;
+    const snapshot = result.instanceBaseGeometry?.get(instance.id);
+    expect(snapshot?.map((geometry) => geometry.name)).toEqual(["Good"]);
+    expect(result.errors).toEqual(expect.arrayContaining([
+      expect.objectContaining({ elementName: "Error" })
+    ]));
+  });
+
   it("preserves ordinary declaration order when no module is present", () => {
     const compiled = runtimeNames([
       "nui 1",

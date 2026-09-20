@@ -108,6 +108,7 @@ pub(crate) trait ScalarEvaluationEnvironment {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn lookup_for_group_geometry_property(
         &self,
         _template_element_id: &str,

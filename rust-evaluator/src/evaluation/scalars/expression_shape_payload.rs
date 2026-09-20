@@ -328,6 +328,7 @@ fn decode_call_target(json: &Value) -> Result<TypedScalarCallTarget, ScalarPaylo
     Ok(TypedScalarCallTarget::Builtin(builtin))
 }
 
+#[allow(clippy::large_enum_variant)]
 pub(crate) enum CallArgumentShape<'a> {
     Scalar {
         expression: &'a Value,

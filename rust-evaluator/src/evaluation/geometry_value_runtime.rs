@@ -47,6 +47,7 @@ impl ScalarDocumentBindingResolver for EmptyBindingResolver {
 }
 
 #[derive(Debug)]
+#[allow(clippy::large_enum_variant)]
 pub(crate) enum GeometryValuePoint {
     Coordinate {
         x: Box<TypedScalarExpression>,

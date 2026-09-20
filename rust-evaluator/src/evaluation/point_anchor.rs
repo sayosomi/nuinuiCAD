@@ -83,9 +83,10 @@ pub(crate) fn point_anchor_for_element(element: &Value) -> Option<Value> {
 }
 
 pub(crate) fn anchor_reference_element_id(anchor: &Value) -> Option<ElementId> {
-    if anchor_stage_path(anchor).as_deref().is_some_and(|path| {
-        !path.is_empty() && !(path.len() == 1 && path[0] == "final")
-    }) {
+    if anchor_stage_path(anchor)
+        .as_deref()
+        .is_some_and(|path| !(path.is_empty() || (path.len() == 1 && path[0] == "final")))
+    {
         return None;
     }
     match anchor.get("mode")?.as_str()? {
@@ -191,7 +192,7 @@ pub(crate) fn point_anchor_or_error(
             let stage_path = anchor_stage_path(anchor);
             let selected_stage = stage_path
                 .as_deref()
-                .is_some_and(|path| !path.is_empty() && !(path.len() == 1 && path[0] == "final"));
+                .is_some_and(|path| !(path.is_empty() || (path.len() == 1 && path[0] == "final")));
             let point = selected_transformation_geometry(state, point_id, stage_path.as_deref())
                 .and_then(point_from_geometry);
             if point.is_none() {
@@ -220,7 +221,7 @@ pub(crate) fn point_anchor_or_error(
             let stage_path = anchor_stage_path(anchor);
             let selected_stage = stage_path
                 .as_deref()
-                .is_some_and(|path| !path.is_empty() && !(path.len() == 1 && path[0] == "final"));
+                .is_some_and(|path| !(path.is_empty() || (path.len() == 1 && path[0] == "final")));
             let point = selected_transformation_geometry(state, source_id, stage_path.as_deref())
                 .and_then(|source| resolve_derived_point(source, point_key, state));
             if point.is_none() {

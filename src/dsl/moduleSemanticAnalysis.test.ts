@@ -898,7 +898,8 @@ describe("module semantic analysis", () => {
       statementIndex: 4,
       category: "line",
       geometryKind: "line",
-      pointKey: "end"
+      pointKey: "end",
+      stagePath: ["final"]
     });
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
   });

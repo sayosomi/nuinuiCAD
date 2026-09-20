@@ -463,6 +463,7 @@ pub(crate) enum TypedScalarExpression {
 }
 
 #[derive(Debug, PartialEq)]
+#[allow(clippy::large_enum_variant)]
 pub(crate) enum TypedBuiltinArgument {
     Scalar {
         expression: Box<TypedScalarExpression>,

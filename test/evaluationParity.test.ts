@@ -101,6 +101,33 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("matches dynamic selected lazy-branch activation and cycle handling", () => {
+    for (const controller of [true, false]) {
+      const fixture = fixtureFromSource([
+        "nui 1",
+        `const controller: boolean = ${controller}`,
+        "const selected: number = if (@controller) { @other } else { 10 }",
+        "const other: number = @selected"
+      ].join("\n"));
+      const options = optionsFor(fixture);
+      expect(isRustEligibleFixture(fixture)).toBe(true);
+      const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+      const rustPayload = evaluateWithRustOptions(repoRoot, fixture.elements, options);
+      expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+
+      const selected = scalarBindingFor(fixture, tsPayload, "selected");
+      for (const payload of [tsPayload, rustPayload]) {
+        const value = scalarBindingFor(fixture, payload, "selected");
+        if (controller) {
+          expect(value).toMatchObject({ status: "error", issueCode: "evaluation-binding-cycle-guard" });
+        } else {
+          expect(value).toMatchObject({ status: "ok", value: { value: 10 } });
+        }
+      }
+      expect(selected).toBeDefined();
+    }
+  }, 30000);
+
   it("matches forward transformation argument scheduling in TypeScript and Rust", () => {
     const fixture = fixtureFromSource([
       "nui 1",
@@ -991,6 +1018,36 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     for (const name of ["localLength", "exportLength"]) {
       expectScalarNumberClose(scalarBindingFor(fixture, tsPayload, name), 3);
       expectScalarNumberClose(scalarBindingFor(fixture, rustPayload, name), 3);
+    }
+  }, 30000);
+
+  it("matches terminal Module descendant completion across TypeScript and Rust", () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "module M() {",
+      "  if (false) {",
+      "    line Inactive = segment(start: (0, 0), end: (1, 0))",
+      "  }",
+      "  arc Error = arc(center: (0, 0), radius: 0, start: 0, end: 90)",
+      "  line Disabled = segment(start: (0, 0), end: (5, 0), enabled: false)",
+      "  line Good = segment(start: (0, 0), end: (10, 0))",
+      "}",
+      "instance A = M()"
+    ].join("\n"));
+    const options = optionsFor(fixture);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustOptions(repoRoot, fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+
+    const instance = fixture.elements.find((element) => element.name === "A")!;
+    for (const payload of [tsPayload, rustPayload]) {
+      const result = evaluationPayloadToResult(payload);
+      expect(result.instanceBaseGeometry?.get(instance.id)).toHaveLength(1);
+      expect(result.instanceBaseGeometry?.get(instance.id)?.[0]).toMatchObject({ name: "Good" });
+      expect(result.errors).toEqual(expect.arrayContaining([
+        expect.objectContaining({ elementName: "Error" })
+      ]));
     }
   }, 30000);
 

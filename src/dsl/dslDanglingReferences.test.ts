@@ -42,7 +42,7 @@ describe("dangling reference diagnostics and retention", () => {
     expect((byName.get("DotAnchorUser") as Extract<CadElement, { type: "offsetPoint" }>).fromPoint)
       .toEqual({ mode: "reference", pointId: '@"Missing.Point"' });
     expect((byName.get("DerivedAnchorUser") as Extract<CadElement, { type: "line" }>).startPoint)
-      .toEqual({ mode: "derived", elementId: '@"Outer group"::"Missing shape#1"', pointKey: "pivot" });
+      .toEqual({ mode: "derived", elementId: '@"Outer group"::"Missing shape#1"', pointKey: "pivot", stagePath: ["final"] });
     expect((byName.get("NormalRefUser") as Extract<CadElement, { type: "intersectionPoint" }>).line1Id)
       .toBe("@MissingLine");
     expect((byName.get("ListRefUser") as Extract<CadElement, { type: "copyLine" }>).baseLineIds)

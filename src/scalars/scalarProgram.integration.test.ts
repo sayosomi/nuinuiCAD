@@ -138,6 +138,25 @@ describe("compiled scalar program", () => {
     expect(evaluated.get(selected.id)).toMatchObject({ status: "ok", value: { kind: "number", value: 10 } });
   });
 
+  it("activates a dynamic selected lazy cycle at runtime and leaves the unselected branch valid", () => {
+    const compile = (controller: boolean) => compileCanonical([
+      "nui 1",
+      `const controller: boolean = ${controller}`,
+      "const selected: number = if (@controller) { @other } else { 10 }",
+      "const other: number = @selected"
+    ].join("\n"));
+
+    for (const controller of [true, false]) {
+      const compiled = compile(controller);
+      expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+      const selected = compiled.bindingAnalysis!.catalog.bindings.find((binding) => binding.name === "selected")!;
+      const evaluated = evaluateScalarProgram(compiled.scalarProgram!).resultsByBindingId.get(selected.id);
+      expect(evaluated).toMatchObject(controller
+        ? { status: "error", issueCode: "evaluation-binding-cycle-guard" }
+        : { status: "ok", value: { kind: "number", value: 10 } });
+    }
+  });
+
   it("compiles and evaluates exhaustive choice matches through the canonical scalar program", () => {
     const compiled = compileCanonical([
       "nui 1",

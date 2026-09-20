@@ -116,6 +116,25 @@ describe("transformation recipe evaluation", () => {
     expect(evaluation.transformationStageGeometry?.get(transformationStageKey(aId, undefined, ["moved"]))).toBeDefined();
   });
 
+  it("publishes a named root recipe through final and delays final consumers", () => {
+    const { compiled, evaluation } = compileCanonicalAndEvaluate([
+      "nui 1",
+      "line A = segment(start: (0, 0), end: (10, 0))",
+      "line Consumer = segment(start: @A.start, end: (30, 0))",
+      "move A as moved (from: (0, 0), to: (10, 0))"
+    ].join("\n"));
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(evaluation.errors).toEqual([]);
+
+    const owner = compiled.document.elements.find((element) => element.name === "A")!;
+    const consumer = compiled.document.elements.find((element) => element.name === "Consumer")!;
+    expect(lineOf(evaluation.computedGeometry.get(owner.id))).toMatchObject({
+      start: { x: 10, y: 0 },
+      end: { x: 20, y: 0 }
+    });
+    expect(lineOf(evaluation.computedGeometry.get(consumer.id)).start).toMatchObject({ x: 10, y: 0 });
+  });
+
   it("evaluates a selected lazy forward geometry dependency after its target is scheduled", () => {
     const { compiled, evaluation } = compileCanonicalAndEvaluate([
       "nui 1",
@@ -196,5 +215,26 @@ describe("transformation recipe evaluation", () => {
     expect(lineOf(evaluation.transformationStageGeometry!.get(
       transformationStageKey(bId, undefined, ["joined"])
     )).start.y).toBe(0);
+  });
+
+  it("orders a later recipe after a coupled recipe for a non-first target", () => {
+    const source = [
+      "nui 1",
+      "line A = segment(start: (0, 0), end: (100, 0))",
+      "line B = segment(start: (50, -50), end: (50, 50))",
+      "edge [A.end, B.start] as joined (index: 0)",
+      "reverse B ()"
+    ].join("\n");
+    const compiledDocument = compileDslDocument(source);
+    expect(compiledDocument.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(compiledDocument.typedDependencyGraph?.transformationPlans[1]?.predecessorRecipeIndices).toContain(0);
+
+    const { compiled, evaluation } = compileAndEvaluate(source.replace(/^nui 1\n/, ""));
+    expect(evaluation.errors).toEqual([]);
+    const bId = compiled.elements.find((element) => element.name === "B")!.id;
+    expect(lineOf(evaluation.computedGeometry.get(bId))).toMatchObject({
+      start: { x: 50, y: 50 },
+      end: { x: 50, y: 0 }
+    });
   });
 });

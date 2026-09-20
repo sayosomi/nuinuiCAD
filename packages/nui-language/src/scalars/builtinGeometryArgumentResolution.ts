@@ -308,8 +308,7 @@ export const resolveBuiltinGeometryArguments = ({
       });
       return;
     }
-    const pointPath = /^(start|end)$/.exec(property);
-    if (!category || (property && !isDerivedPointKeyForGeometryCategory(category, property) && !pointPath)) {
+    if (!category || !isDerivedPointKeyForGeometryCategory(category, property)) {
       issue(
         invalidGeometryPropertyMessage(node.elementName, node.property, "point"),
         invalidGeometryPropertyPresentation(node.elementName, node.property, "point")
@@ -327,7 +326,7 @@ export const resolveBuiltinGeometryArguments = ({
       statementId: declaration.statementId,
       statementIndex: declaration.statementIndex,
       geometryType: "point",
-      ...(pointPath ? { pointKey: pointPath[1] } : {}),
+      pointKey: property,
       stagePath: stageSelection.stagePath
     });
   };

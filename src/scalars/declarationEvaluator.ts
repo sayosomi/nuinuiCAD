@@ -431,11 +431,12 @@ export const createLazyScalarProgramEvaluator = (
     }
 
     if (inProgressBindingIds.has(bindingId)) {
-      throw new Error(
-        `createLazyScalarProgramEvaluator: cyclic reference detected while resolving ${bindingId} - ` +
-          "a compiled ScalarProgram is expected to be acyclic (Task 13's binding-cycle diagnostic should " +
-          "have rejected this document at compile time)"
-      );
+      return {
+        status: "error",
+        type: statement.declaration.declaredType,
+        issueCode: "evaluation-binding-cycle-guard",
+        bindingId
+      };
     }
 
     inProgressBindingIds.add(bindingId);

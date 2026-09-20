@@ -2307,6 +2307,13 @@ export const evaluateElements = (
         ? { textTemplate: textTemplateForElement, resolveScalarBinding: resolveScalarBindingForText }
         : {})
     });
+    if (errors.length > errorCountBeforeElementEvaluation) {
+      // A terminal evaluation error completes the attempt but must not leave
+      // partially constructed geometry available to Module snapshots or later
+      // consumers. Disabled and inactive descendants use their existing
+      // terminal paths above.
+      computedGeometry.delete(elementToEvaluate.id);
+    }
     if (mutationTargetIds.length > 0 && errors.length === errorCountBeforeElementEvaluation) {
       geometryMutationExecutions.push({
         mutationElementId: elementToEvaluate.id,
