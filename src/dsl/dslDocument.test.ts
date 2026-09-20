@@ -941,8 +941,10 @@ describe("Task 36 typed dependency graph wiring", () => {
         guards: [expect.objectContaining({ branch: "then", controllerExpression: expect.any(Object) })]
       }
     });
-    expect(laterEdges[0]?.span?.start).toBeGreaterThan(0);
-    expect(laterEdges[0]?.span?.end).toBeGreaterThan(laterEdges[0]?.span?.start ?? 0);
+    const numericSource = [...(compiled.numericBindings ?? [])].find(([key]) => key.endsWith(":x"))?.[1];
+    const authoredLaterReference = numericSource?.references.find((reference) => reference.bindingId === later?.id);
+    expect(authoredLaterReference).toBeDefined();
+    expect(laterEdges[0]?.span).toEqual(authoredLaterReference?.span);
     expect(numericEdges.filter((edge) => edge.to.kind === "binding" && edge.to.id === later?.id && edge.requiredness === "required")).toHaveLength(0);
     const numericKey = [...(compiled.numericBindings ?? [])].find(([key]) => key.endsWith(":x"))?.[0];
     expect(numericKey).toBeDefined();
