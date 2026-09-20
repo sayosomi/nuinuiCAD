@@ -53,10 +53,11 @@ fn push_numeric_expression_hole_error(
         None => format!("{name} のテキストを評価できません。{}", error.message),
     };
     state.errors.push(DependencyError {
+        code: None,
         element_id: element_id(element).unwrap_or_default(),
         element_name: name,
         missing_dependency_id: error.dependency_id,
-        missing_dependency_name: error.dependency_name,
+        missing_dependency_name: error.dependency_name.map(Into::into),
         message,
     });
 }
@@ -147,10 +148,11 @@ pub(crate) fn resolve_text_template(
                     error.message.unwrap_or_default()
                 );
                 context.state.errors.push(DependencyError {
+                    code: None,
                     element_id: element_id(element).unwrap_or_default(),
                     element_name: name,
                     missing_dependency_id: element_id(element).unwrap_or_default(),
-                    missing_dependency_name: Some(element_name(element)),
+                    missing_dependency_name: Some(element_name(element).into()),
                     message,
                 });
             }

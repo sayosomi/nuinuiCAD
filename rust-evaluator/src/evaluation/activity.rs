@@ -75,6 +75,16 @@ pub(crate) fn activity_from_element(element: &Value) -> ElementActivity {
     if element.get("visible").and_then(Value::as_bool) == Some(false) {
         return ElementActivity::Hidden;
     }
+    // Explicit runtime gate values replace the draft model's persisted
+    // activity projection. This mirrors the TypeScript owner: a bound
+    // `enabled: true` can re-enable an element whose source snapshot still
+    // carries `activity: "disabled"`, while an absent gate preserves the
+    // authored activity fallback.
+    if element.get("enabled").and_then(Value::as_bool) == Some(true)
+        || element.get("visible").and_then(Value::as_bool) == Some(true)
+    {
+        return ElementActivity::Visible;
+    }
     match element.get("activity").and_then(Value::as_str) {
         Some("hidden") => ElementActivity::Hidden,
         Some("disabled") => ElementActivity::Disabled,

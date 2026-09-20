@@ -200,11 +200,13 @@ impl std::error::Error for EvaluationCommandError {}
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DependencyError {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) code: Option<Box<str>>,
     pub(crate) element_id: ElementId,
     pub(crate) element_name: String,
     pub(crate) missing_dependency_id: ElementId,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) missing_dependency_name: Option<String>,
+    pub(crate) missing_dependency_name: Option<Box<str>>,
     pub(crate) message: String,
 }
 

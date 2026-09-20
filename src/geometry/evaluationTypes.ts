@@ -323,6 +323,7 @@ export type InstanceBaseGeometry = {
 };
 
 export type DependencyError = {
+  code?: "dependency-cycle";
   elementId: ElementId;
   elementName: string;
   missingDependencyId: ElementId;

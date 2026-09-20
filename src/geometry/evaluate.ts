@@ -93,7 +93,12 @@ import { joinedPathGeometryValueKernel } from "./joinedPathGeometryValue";
 import { lineLength } from "./offsetPathMath";
 import { findLineIntersections, isSelfIntersectingClosedPath } from "./lineIntersections";
 import { evaluateTypedExpression, type GeometryBuiltinTargetLookupResult } from "../scalars/expressionEvaluator";
-import { buildTypedDependencyGraph, setParameterValue } from "@nuinuicad/nui-language";
+import {
+  buildTypedDependencyGraph,
+  resolveTypedDependencyGraphRuntime,
+  setParameterValue,
+  type TypedDependencyGraph
+} from "@nuinuicad/nui-language";
 import { evaluateNumericValue } from "./numericExpressionsRuntime";
 import { resolveDerivedPoint } from "../model/pointAnchorsRuntime";
 
@@ -101,6 +106,8 @@ export type EvaluateElementsOptions = {
   evaluationLimitIndex?: number;
   /** Compiler-resolved dependency-first element order. */
   evaluationOrder?: readonly ElementId[];
+  /** The complete compiler-owned graph, including conditional activation facts. */
+  typedDependencyGraph?: TypedDependencyGraph;
   /** Compiled declarative transformation recipes, kept outside drawable elements. */
   transformationRecipes?: readonly TransformationRecipe[];
   /** Compiler-owned recipe/stage readiness facts shared with Rust. */
@@ -665,6 +672,78 @@ export const evaluateElements = (
     }
     return resolveDocumentGeometryProperty(geometryRuntime, reference, sourceOrder, scalarBindingResolver?.resolveGeometryCollectionLength, (expression, occurrenceSourceOrder) => evaluateOccurrenceIndexForEvaluation(expression, occurrenceSourceOrder, lookupBinding));
   };
+
+  // Conditional graph edges remain present for tooling, but only the branch
+  // reached by the existing typed scalar evaluator participates in runtime
+  // readiness and cycle detection. This is a projection of the compiler-owned
+  // graph, not a second resolver or evaluator.
+  if (
+    options.typedDependencyGraph &&
+    scalarBindingResolver &&
+    options.typedDependencyGraph.edges.some((edge) => edge.activation)
+  ) {
+    const branchSelections = new Map<string, string>();
+    const controllers = new Map<string, TypedScalarExpression>();
+    const controllerBranches = new Map<string, Set<string>>();
+    for (const edge of options.typedDependencyGraph.edges) {
+      const activation = edge.activation;
+      if (activation) {
+        const branches = controllerBranches.get(activation.controllerId) ?? new Set<string>();
+        branches.add(activation.branch);
+        controllerBranches.set(activation.controllerId, branches);
+      }
+      if (activation?.controllerExpression && !controllers.has(activation.controllerId)) {
+        controllers.set(activation.controllerId, activation.controllerExpression);
+      }
+    }
+    const scalarEnvironment = {
+      lookupBinding: scalarBindingResolver.resolveBinding,
+      lookupGeometryProperty: (reference: Parameters<typeof resolveDocumentGeometryProperty>[1]) =>
+        resolveGeometryPropertyForEvaluation(reference, Number.POSITIVE_INFINITY)
+    };
+    for (const [controllerId, expression] of controllers) {
+      const evaluation = evaluateTypedExpression(expression, scalarEnvironment);
+      if (evaluation.status !== "ok") continue;
+      const branches = controllerBranches.get(controllerId) ?? new Set<string>();
+      const branch = evaluation.value.kind === "boolean"
+        ? (evaluation.value.value ? "then" : "else")
+        : evaluation.value.kind === "choice"
+          ? `match:${evaluation.value.value}`
+          : evaluation.value.kind === "none"
+            ? (branches.has("match:none") ? "match:none" : "right")
+            : branches.has("match:some")
+              ? "match:some"
+              : undefined;
+      if (branch) branchSelections.set(controllerId, branch);
+    }
+    const activeGraph = resolveTypedDependencyGraphRuntime(options.typedDependencyGraph, branchSelections);
+    const existingEvaluationOrder = [...evaluatedElements];
+    const activeOrderIds = [...activeGraph.evaluationOrder];
+    const activeOrderSet = new Set(activeOrderIds);
+    for (const element of existingEvaluationOrder) {
+      if (!activeOrderSet.has(element.id)) activeOrderIds.push(element.id);
+    }
+    evaluatedElements.splice(
+      0,
+      evaluatedElements.length,
+      ...activeOrderIds.map((elementId) => eligibleById.get(elementId)).filter((element): element is CadElement => Boolean(element))
+    );
+    runtimeElements.splice(0, runtimeElements.length, ...evaluatedElements);
+    evaluatedElementIds.clear();
+    for (const element of evaluatedElements) evaluatedElementIds.add(element.id);
+    for (const cycle of activeGraph.cycles) {
+      const [elementId, missingDependencyId] = cycle.endpointIds;
+      const element = elementId ? elementsById.get(elementId.replace(/^element:/, "")) : undefined;
+      errors.push({
+        code: "dependency-cycle",
+        elementId: element?.id ?? elementId ?? "dependency-cycle",
+        elementName: element?.name ?? cycle.names[0] ?? "",
+        missingDependencyId: missingDependencyId ?? elementId ?? "dependency-cycle",
+        missingDependencyName: cycle.names[1],
+        message: `依存関係 cycle: ${cycle.names.join(" -> ")}`
+      });
+    }
+  }
 
   const materializeGeometryInputTargets = (
     element: CadElement,

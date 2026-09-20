@@ -123,6 +123,9 @@ export const buildEvaluationOptions = ({
 
   return {
     evaluationLimitIndex,
+    ...(compiledDocument.typedDependencyGraph
+      ? { typedDependencyGraph: compiledDocument.typedDependencyGraph }
+      : {}),
     ...(compiledDocument.typedDependencyGraph?.evaluationOrder
       ? { evaluationOrder: compiledDocument.typedDependencyGraph.evaluationOrder }
       : {}),

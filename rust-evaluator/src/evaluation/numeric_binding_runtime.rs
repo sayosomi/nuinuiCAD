@@ -413,6 +413,7 @@ fn numeric_literal_for_expression(value: f64) -> Option<String> {
     ))
 }
 
+#[allow(clippy::result_large_err)]
 pub(crate) fn apply_numeric_bindings(
     element: &Value,
     entries: Option<&Vec<ValidatedNumericBinding>>,

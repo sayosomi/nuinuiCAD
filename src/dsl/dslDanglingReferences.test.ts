@@ -82,6 +82,25 @@ describe("dangling reference diagnostics and retention", () => {
       expect.objectContaining({ severity: "warning", line: 7, message: expect.stringContaining("曖昧") })
     ]);
   });
+
+  it("classifies canonical dotted geometry properties in ID-only roles", () => {
+    const line: CadElement = {
+      id: "line-a",
+      name: "A",
+      type: "line",
+      activity: "visible",
+      startPoint: { mode: "coordinate", x: 0, y: 0 },
+      endPoint: { mode: "coordinate", x: 10, y: 0 }
+    };
+    const diagnostics: Parameters<typeof resolveId>[3] = [];
+    expect(resolveId("@A.startPoint.x", createNameIndex([line]), 3, diagnostics)).toBe("@A.startPoint.x");
+    expect(diagnostics).toEqual([
+      expect.objectContaining({
+        code: "invalid-source-reference",
+        message: expect.stringContaining("property")
+      })
+    ]);
+  });
 });
 
 describe("dangling automatic recovery and evaluation", () => {

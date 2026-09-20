@@ -66,6 +66,7 @@ fn property_binding_failure_message(element: &Value, parameter_key: &str) -> Str
 /// eval failure/poison, runtime type mismatch, or choice-option mismatch: the
 /// caller must not evaluate or draw the element in that case. Returns a
 /// clone of `element` unchanged when `entries` is `None`/empty.
+#[allow(clippy::result_large_err)]
 fn apply_property_bindings_filtered(
     element: &Value,
     entries: Option<&Vec<ValidatedPropertyBinding>>,
@@ -130,6 +131,7 @@ fn apply_property_bindings_filtered(
     Ok(materialized)
 }
 
+#[allow(clippy::result_large_err)]
 pub(crate) fn apply_property_bindings(
     element: &Value,
     entries: Option<&Vec<ValidatedPropertyBinding>>,
@@ -150,6 +152,7 @@ pub(crate) fn apply_property_bindings(
 /// Resolves only the direct computation/presentation gates. This pass runs
 /// before the normal property-binding materialization so a false gate cannot
 /// cause construction parameters, conditions, or iteration inputs to run.
+#[allow(clippy::result_large_err)]
 pub(crate) fn apply_gate_bindings(
     element: &Value,
     entries: Option<&Vec<ValidatedPropertyBinding>>,

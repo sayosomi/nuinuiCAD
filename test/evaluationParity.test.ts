@@ -128,6 +128,64 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("activates dynamic cross-domain geometry branches for readiness and cycles", () => {
+    for (const controller of [true, false]) {
+      const fixture = fixtureFromSource([
+        "nui 1",
+        `const controller: boolean = ${controller}`,
+        "const gate: boolean = if (@controller) { @A.length > 0 } else { true }",
+        "line A = segment(start: (0, 0), end: (10, 0), enabled: @gate)"
+      ].join("\n"));
+      const options = optionsFor(fixture);
+      const graph = fixture.compiled?.doc.typedDependencyGraph;
+      expect(graph?.edges.some((edge) => edge.activation?.controllerId)).toBe(true);
+      expect(isRustEligibleFixture(fixture)).toBe(true);
+      const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+      const rustPayload = evaluateWithRustOptions(repoRoot, fixture.elements, options);
+      expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+      const tsResult = evaluationPayloadToResult(tsPayload);
+      const rustResult = evaluationPayloadToResult(rustPayload);
+      if (controller) {
+        expect(tsResult.errors).toEqual(expect.arrayContaining([
+          expect.objectContaining({ code: "dependency-cycle" })
+        ]));
+        expect(rustResult.errors).toEqual(expect.arrayContaining([
+          expect.objectContaining({ code: "dependency-cycle" })
+        ]));
+      } else {
+        expect(tsResult.errors).not.toEqual(expect.arrayContaining([
+          expect.objectContaining({ code: "dependency-cycle" })
+        ]));
+        expect(rustResult.errors).not.toEqual(expect.arrayContaining([
+          expect.objectContaining({ code: "dependency-cycle" })
+        ]));
+        expect(tsResult.computedGeometry.size).toBeGreaterThan(0);
+        expect(rustResult.computedGeometry.size).toBeGreaterThan(0);
+      }
+    }
+  }, 30000);
+
+  it("schedules a selected dynamic forward geometry branch before its consumer", () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "const chooseLater: boolean = true",
+      "const selectedLength: number = if (@chooseLater) { @Later.length } else { 0 }",
+      "line Consumer = segment(start: (0, 0), end: (@selectedLength, 1))",
+      "line Later = segment(start: (0, 0), end: (10, 0))"
+    ].join("\n"));
+    const options = optionsFor(fixture);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustOptions(repoRoot, fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+    for (const payload of [tsPayload, rustPayload]) {
+      const result = evaluationPayloadToResult(payload);
+      expect(result.errors).toEqual([]);
+      const consumer = fixture.elements.find((element) => element.name === "Consumer")!;
+      expect(result.computedGeometry.get(consumer.id)).toMatchObject({ end: { x: 10, y: 1 } });
+    }
+  }, 30000);
+
   it("matches forward transformation argument scheduling in TypeScript and Rust", () => {
     const fixture = fixtureFromSource([
       "nui 1",

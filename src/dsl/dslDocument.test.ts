@@ -18,6 +18,7 @@ import {
   roundTrip
 } from "@nuinuicad/nui-language";
 import { documentDslRefs } from "@nuinuicad/nui-language";
+import { resolveTypedDependencyGraphRuntime } from "@nuinuicad/nui-language";
 import sampleFixture from "./__fixtures__/sample.nui?raw";
 
 describe("dslDocument round-trip matrix", () => {
@@ -724,5 +725,9 @@ describe("Task 36 typed dependency graph wiring", () => {
         activation: expect.objectContaining({ branch: "then", staticSelection: "unselected" })
       })
     ]));
+    const runtimeProjection = unselected.typedDependencyGraph
+      ? resolveTypedDependencyGraphRuntime(unselected.typedDependencyGraph, new Map())
+      : undefined;
+    expect(runtimeProjection?.cycles).toEqual([]);
   });
 });

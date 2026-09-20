@@ -12,6 +12,7 @@ mod bezier_path;
 mod common_tangent_evaluator;
 #[cfg(test)]
 mod common_tangent_evaluator_tests;
+mod conditional_dependency_runtime;
 mod control_boolean_runtime;
 #[cfg(test)]
 mod control_boolean_runtime_tests;
@@ -133,6 +134,9 @@ use activity::{
 use bezier_evaluator::evaluate_bezier_curve;
 use bezier_feature_point_evaluator::{evaluate_bezier_bulge_point, evaluate_bezier_extreme_point};
 use common_tangent_evaluator::evaluate_common_tangent_line;
+use conditional_dependency_runtime::{
+    decode_conditional_dependency_graph, ConditionalDependencyGraph,
+};
 use control_boolean_runtime::{
     resolve_conditional_group_condition, resolve_for_group_effective_show_generated,
 };
@@ -450,6 +454,16 @@ pub fn evaluate_document(
         decode_geometry_input_targets(input.geometry_input_targets.as_ref())?;
     let geometry_collection_nodes =
         decode_geometry_collection_nodes(input.geometry_collection_nodes.as_ref())?;
+    let conditional_dependency_graph = decode_conditional_dependency_graph(
+        input
+            .scalar_expression_payload
+            .as_ref()
+            .and_then(|payload| payload.get("conditionalDependencyGraph")),
+    )
+    .map_err(|message| EvaluationCommandError {
+        code: "conditional-dependency-graph-invalid".to_owned(),
+        message,
+    })?;
     Ok(evaluate_document_input_with_scalar_program(
         input,
         DecodedScalarPayloads {
@@ -464,6 +478,7 @@ pub fn evaluate_document(
             geometry_value_program,
             geometry_input_targets,
             geometry_collection_nodes,
+            conditional_dependency_graph,
         },
     ))
 }
@@ -480,6 +495,7 @@ struct DecodedScalarPayloads {
     geometry_value_program: Vec<geometry_value_runtime::GeometryValueProgramEntry>,
     geometry_input_targets: GeometryInputTargets,
     geometry_collection_nodes: HashMap<String, types::GeometryInputCollectionNode>,
+    conditional_dependency_graph: Option<ConditionalDependencyGraph>,
 }
 
 fn inactive_conditional_group_id(
@@ -708,6 +724,7 @@ fn transformation_recipe_error(
         .unwrap_or("transformation")
         .to_owned();
     state.errors.push(DependencyError {
+        code: None,
         element_id: recipe_id,
         element_name: recipe
             .get("construction")
@@ -717,7 +734,7 @@ fn transformation_recipe_error(
         missing_dependency_id: target
             .map(|target| target.owner_id.clone())
             .unwrap_or_default(),
-        missing_dependency_name: target.map(|target| target.source.clone()),
+        missing_dependency_name: target.map(|target| target.source.clone().into()),
         message: message.into(),
     });
 }
@@ -1313,6 +1330,13 @@ fn evaluate_document_input(input: EvaluationInput) -> EvaluationPayload {
     let geometry_collection_nodes =
         decode_geometry_collection_nodes(input.geometry_collection_nodes.as_ref())
             .expect("evaluation test input geometry_collection_nodes must be valid");
+    let conditional_dependency_graph = decode_conditional_dependency_graph(
+        input
+            .scalar_expression_payload
+            .as_ref()
+            .and_then(|payload| payload.get("conditionalDependencyGraph")),
+    )
+    .expect("evaluation test input conditional_dependency_graph must be valid");
     evaluate_document_input_with_scalar_program(
         input,
         DecodedScalarPayloads {
@@ -1327,6 +1351,7 @@ fn evaluate_document_input(input: EvaluationInput) -> EvaluationPayload {
             geometry_value_program,
             geometry_input_targets,
             geometry_collection_nodes,
+            conditional_dependency_graph,
         },
     )
 }
@@ -1347,6 +1372,7 @@ fn evaluate_document_input_with_scalar_program(
         geometry_value_program,
         geometry_input_targets,
         geometry_collection_nodes,
+        conditional_dependency_graph,
     } = decoded;
     let mut geometry_value_program = geometry_value_program;
     geometry_value_program.sort_by(|left, right| {
@@ -1370,7 +1396,7 @@ fn evaluate_document_input_with_scalar_program(
             element_index_by_id.insert(id, index);
         }
     }
-    let evaluation_indices = if let Some(order) = input.evaluation_order.as_ref() {
+    let mut evaluation_indices = if let Some(order) = input.evaluation_order.as_ref() {
         let mut indices = Vec::with_capacity(evaluation_limit_index);
         let mut seen = HashSet::new();
         for id in order {
@@ -1389,7 +1415,7 @@ fn evaluate_document_input_with_scalar_program(
     } else {
         (0..evaluation_limit_index).collect()
     };
-    let evaluated_elements = evaluation_indices
+    let mut evaluated_elements = evaluation_indices
         .iter()
         .map(|index| input.elements[*index].clone())
         .collect::<Vec<_>>();
@@ -1524,6 +1550,49 @@ fn evaluate_document_input_with_scalar_program(
     // evaluated more than once.
     let scalar_binding_resolver = scalar_program.as_ref().map(ScalarBindingResolver::new);
     let mut scalar_mutation_resolver = binding_versions.as_ref().map(ScalarMutationResolver::new);
+    if let Some(conditional_dependency_graph) =
+        conditional_dependency_graph.as_ref().filter(|graph| {
+            graph.has_activation()
+                && (scalar_binding_resolver.is_some() || scalar_mutation_resolver.is_some())
+        })
+    {
+        let active_resolver = scalar_mutation_resolver
+            .as_ref()
+            .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
+            .or_else(|| {
+                scalar_binding_resolver
+                    .as_ref()
+                    .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
+            });
+        let element_ids = state
+            .elements
+            .iter()
+            .filter_map(element_id)
+            .collect::<Vec<_>>();
+        let activated = conditional_dependency_graph.activate(
+            &element_ids,
+            evaluation_limit_index,
+            active_resolver,
+            &state,
+        );
+        state.errors.extend(activated.cycles);
+        evaluation_indices = activated
+            .evaluation_order
+            .iter()
+            .filter_map(|id| element_index_by_id.get(id).copied())
+            .filter(|index| *index < evaluation_limit_index)
+            .collect();
+        let mut seen = evaluation_indices.iter().copied().collect::<HashSet<_>>();
+        for index in 0..evaluation_limit_index {
+            if seen.insert(index) {
+                evaluation_indices.push(index);
+            }
+        }
+        evaluated_elements = evaluation_indices
+            .iter()
+            .map(|index| state.elements[*index].clone())
+            .collect();
+    }
     let entries_by_element_id: HashMap<ElementId, Vec<ValidatedPropertyBinding>> =
         property_bindings
             .into_iter()

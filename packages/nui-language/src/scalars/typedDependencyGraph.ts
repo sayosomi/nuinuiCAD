@@ -30,6 +30,8 @@ export type TypedDependencyActivation = {
   /** Literal control-flow facts are compiler-owned. Dynamic controls remain
    * conditional until the typed evaluator reaches the controller. */
   staticSelection?: "selected" | "unselected";
+  /** The compiler-owned controller AST for dynamic runtime activation. */
+  controllerExpression?: TypedScalarExpression;
 };
 
 export type TypedDependencyEndpoint =
@@ -101,6 +103,8 @@ export type TypedDependencyGraph = {
   /** Recipe/stage plan consumed by both reference and Rust evaluators. */
   transformationPlans: readonly TypedTransformationDependencyPlan[];
 };
+
+export type TypedDependencyBranchSelection = ReadonlyMap<string, string>;
 
 export type TypedDependencyCycle = {
   endpointIds: readonly string[];
@@ -174,15 +178,27 @@ export const referencesIn = (expression: TypedScalarExpression): readonly TypedD
       if (node.operator === "??") {
         const rightSelection = node.left.kind === "noneLiteral" ? "selected" :
           node.left.kind === "numberLiteral" || node.left.kind === "stringLiteral" || node.left.kind === "booleanLiteral" || node.left.kind === "choiceLiteral" ? "unselected" : undefined;
-        visit(node.right, true, { controllerId: `scalar:${node.span.start}`, branch: "right", ...(rightSelection ? { staticSelection: rightSelection } : {}) });
+        visit(node.right, true, {
+          controllerId: `scalar:${node.span.start}`,
+          branch: "right",
+          ...(rightSelection ? { staticSelection: rightSelection } : { controllerExpression: node.left })
+        });
       } else visit(node.right, lazy, activation);
     }
     else if (node.kind === "group") visit(node.expression, lazy, activation);
     else if (node.kind === "valueIf") {
       visit(node.condition, lazy, activation);
       const selection = node.condition.kind === "booleanLiteral" ? node.condition.value : undefined;
-      visit(node.thenBranch, true, { controllerId: `scalar:${node.span.start}`, branch: "then", ...(selection === undefined ? {} : { staticSelection: selection ? "selected" : "unselected" }) });
-      visit(node.elseBranch, true, { controllerId: `scalar:${node.span.start}`, branch: "else", ...(selection === undefined ? {} : { staticSelection: selection ? "unselected" : "selected" }) });
+      visit(node.thenBranch, true, {
+        controllerId: `scalar:${node.span.start}`,
+        branch: "then",
+        ...(selection === undefined ? { controllerExpression: node.condition } : { staticSelection: selection ? "selected" : "unselected" })
+      });
+      visit(node.elseBranch, true, {
+        controllerId: `scalar:${node.span.start}`,
+        branch: "else",
+        ...(selection === undefined ? { controllerExpression: node.condition } : { staticSelection: selection ? "unselected" : "selected" })
+      });
     }
     else if (node.kind === "valueMatch") {
       visit(node.scrutinee, lazy, activation);
@@ -190,7 +206,9 @@ export const referencesIn = (expression: TypedScalarExpression): readonly TypedD
       node.arms.forEach((arm) => visit(arm.expression, true, {
         controllerId: `scalar:${node.span.start}`,
         branch: `match:${arm.label}`,
-        ...(selectedLabel === undefined ? {} : { staticSelection: arm.label === selectedLabel ? "selected" : "unselected" })
+        ...(selectedLabel === undefined
+          ? { controllerExpression: node.scrutinee }
+          : { staticSelection: arm.label === selectedLabel ? "selected" : "unselected" })
       }));
     }
     else if (node.kind === "collectionIndex") visit(node.index, lazy, activation);
@@ -216,15 +234,27 @@ export const geometryPropertiesIn = (expression: TypedScalarExpression): readonl
       if (node.operator === "??") {
         const rightSelection = node.left.kind === "noneLiteral" ? "selected" :
           node.left.kind === "numberLiteral" || node.left.kind === "stringLiteral" || node.left.kind === "booleanLiteral" || node.left.kind === "choiceLiteral" ? "unselected" : undefined;
-        visit(node.right, true, { controllerId: `scalar:${node.span.start}`, branch: "right", ...(rightSelection ? { staticSelection: rightSelection } : {}) });
+        visit(node.right, true, {
+          controllerId: `scalar:${node.span.start}`,
+          branch: "right",
+          ...(rightSelection ? { staticSelection: rightSelection } : { controllerExpression: node.left })
+        });
       } else visit(node.right, lazy, activation);
     }
     else if (node.kind === "group") visit(node.expression, lazy, activation);
     else if (node.kind === "valueIf") {
       visit(node.condition, lazy, activation);
       const selection = node.condition.kind === "booleanLiteral" ? node.condition.value : undefined;
-      visit(node.thenBranch, true, { controllerId: `scalar:${node.span.start}`, branch: "then", ...(selection === undefined ? {} : { staticSelection: selection ? "selected" : "unselected" }) });
-      visit(node.elseBranch, true, { controllerId: `scalar:${node.span.start}`, branch: "else", ...(selection === undefined ? {} : { staticSelection: selection ? "unselected" : "selected" }) });
+      visit(node.thenBranch, true, {
+        controllerId: `scalar:${node.span.start}`,
+        branch: "then",
+        ...(selection === undefined ? { controllerExpression: node.condition } : { staticSelection: selection ? "selected" : "unselected" })
+      });
+      visit(node.elseBranch, true, {
+        controllerId: `scalar:${node.span.start}`,
+        branch: "else",
+        ...(selection === undefined ? { controllerExpression: node.condition } : { staticSelection: selection ? "unselected" : "selected" })
+      });
     }
     else if (node.kind === "valueMatch") {
       visit(node.scrutinee, lazy, activation);
@@ -232,7 +262,9 @@ export const geometryPropertiesIn = (expression: TypedScalarExpression): readonl
       node.arms.forEach((arm) => visit(arm.expression, true, {
         controllerId: `scalar:${node.span.start}`,
         branch: `match:${arm.label}`,
-        ...(selectedLabel === undefined ? {} : { staticSelection: arm.label === selectedLabel ? "selected" : "unselected" })
+        ...(selectedLabel === undefined
+          ? { controllerExpression: node.scrutinee }
+          : { staticSelection: arm.label === selectedLabel ? "selected" : "unselected" })
       }));
     }
     else if (node.kind === "collectionIndex") visit(node.index, lazy, activation);
@@ -349,6 +381,86 @@ const collectStructuredGeometryDependencies = (
     collectStructuredGeometryDependencies(target.leftBranch, result, requiredness);
     collectStructuredGeometryDependencies(target.rightBranch, result, "conditional");
   }
+};
+
+const typedDependencyEdgeIsActive = (
+  edge: TypedDependencyEdge,
+  branchSelections: TypedDependencyBranchSelection
+): boolean => {
+  if (edge.requiredness !== "conditional") return true;
+  // Some structured geometry products are conditional without exposing a
+  // scalar controller AST at this owner boundary. Preserve their established
+  // readiness behavior; only compiler-resolved activation facts are filtered.
+  if (!edge.activation) return true;
+  if (edge.activation?.staticSelection === "selected") return true;
+  if (edge.activation?.staticSelection === "unselected") return false;
+  return branchSelections.get(edge.activation.controllerId) === edge.activation.branch;
+};
+
+/** Resolves the compiler-owned graph for one runtime branch selection. The
+ * edge set remains the canonical graph; this only projects its already
+ * resolved activation facts into readiness/cycle behavior. */
+export const resolveTypedDependencyGraphOrder = (
+  edges: readonly TypedDependencyEdge[],
+  endpointById: ReadonlyMap<string, TypedDependencyEndpoint>,
+  branchSelections: TypedDependencyBranchSelection = new Map()
+): { evaluationOrder: readonly ElementId[]; cycles: readonly TypedDependencyCycle[] } => {
+  const dependenciesByNode = new Map<string, string[]>();
+  for (const edge of edges) {
+    if (!typedDependencyEdgeIsActive(edge, branchSelections)) continue;
+    const dependencies = dependenciesByNode.get(endpointId(edge.from)) ?? [];
+    if (!dependencies.includes(endpointId(edge.to))) dependencies.push(endpointId(edge.to));
+    dependenciesByNode.set(endpointId(edge.from), dependencies);
+  }
+  const visitState = new Map<string, "visiting" | "visited">();
+  const stack: string[] = [];
+  const orderedEndpoints: string[] = [];
+  const cycles: TypedDependencyCycle[] = [];
+  const cycleKeys = new Set<string>();
+  const visit = (nodeId: string): void => {
+    if (visitState.get(nodeId) === "visited") return;
+    if (visitState.get(nodeId) === "visiting") {
+      const start = stack.indexOf(nodeId);
+      const cycleIds = [...stack.slice(Math.max(0, start)), nodeId];
+      const key = cycleIds.join("|");
+      if (!cycleKeys.has(key)) {
+        cycleKeys.add(key);
+        const cycleEndpoints = cycleIds
+          .map((id) => endpointById.get(id))
+          .filter((endpoint): endpoint is TypedDependencyEndpoint => Boolean(endpoint));
+        cycles.push({
+          endpointIds: cycleIds,
+          names: cycleEndpoints.map((endpoint) => endpoint.kind === "version" ? endpoint.id : endpoint.name),
+          statementIndices: cycleEndpoints.map((endpoint) => endpoint.statementIndex)
+        });
+      }
+      return;
+    }
+    visitState.set(nodeId, "visiting");
+    stack.push(nodeId);
+    for (const dependencyId of dependenciesByNode.get(nodeId) ?? []) visit(dependencyId);
+    stack.pop();
+    visitState.set(nodeId, "visited");
+    orderedEndpoints.push(nodeId);
+  };
+  for (const nodeId of endpointById.keys()) visit(nodeId);
+  const evaluationOrder = orderedEndpoints
+    .map((id) => endpointById.get(id))
+    .filter((endpoint): endpoint is Extract<TypedDependencyEndpoint, { kind: "element" }> => endpoint?.kind === "element")
+    .map((endpoint) => endpoint.id);
+  return { evaluationOrder, cycles };
+};
+
+export const resolveTypedDependencyGraphRuntime = (
+  graph: TypedDependencyGraph,
+  branchSelections: TypedDependencyBranchSelection
+): { evaluationOrder: readonly ElementId[]; cycles: readonly TypedDependencyCycle[] } => {
+  const endpointById = new Map<string, TypedDependencyEndpoint>();
+  for (const edge of graph.edges) {
+    endpointById.set(endpointId(edge.from), edge.from);
+    endpointById.set(endpointId(edge.to), edge.to);
+  }
+  return resolveTypedDependencyGraphOrder(graph.edges, endpointById, branchSelections);
 };
 
 /** Builds once during compilation; query consumers only read its adjacency maps. */
@@ -526,7 +638,12 @@ export const buildTypedDependencyGraph = ({
     const references = source.kind === "binding"
       ? [{ bindingId: source.bindingId, span: source.span, requiredness: "required" as const }]
       : source.kind === "expression"
-        ? referencesIn(source.expression).flatMap((reference) => reference.bindingId ? [{ bindingId: reference.bindingId, span: reference.span, requiredness: reference.lazy ? "conditional" as const : "required" as const }] : [])
+        ? referencesIn(source.expression).flatMap((reference) => reference.bindingId ? [{
+            bindingId: reference.bindingId,
+            span: reference.span,
+            requiredness: reference.lazy ? "conditional" as const : "required" as const,
+            ...(reference.activation ? { activation: reference.activation } : {})
+          }] : [])
         : [];
     for (const reference of references) {
       add({
@@ -535,7 +652,8 @@ export const buildTypedDependencyGraph = ({
         to: bindingEndpoint(bindingAnalysis, reference.bindingId),
         span: reference.span,
         reason: reasonFor(reference.bindingId),
-        requiredness: reference.requiredness ?? "required"
+        requiredness: reference.requiredness ?? "required",
+        ...(reference.activation ? { activation: reference.activation } : {})
       });
     }
     if (source.kind === "expression") for (const reference of geometryPropertiesIn(source.expression)) {
@@ -754,54 +872,7 @@ export const buildTypedDependencyGraph = ({
     endpointById.set(endpointId(edge.from), edge.from);
     endpointById.set(endpointId(edge.to), edge.to);
   }
-  const dependenciesByNode = new Map<string, string[]>();
-  for (const edge of edges) {
-    const dependencies = dependenciesByNode.get(endpointId(edge.from)) ?? [];
-    if (!dependencies.includes(endpointId(edge.to))) dependencies.push(endpointId(edge.to));
-    dependenciesByNode.set(endpointId(edge.from), dependencies);
-  }
-  const visitState = new Map<string, "visiting" | "visited">();
-  const stack: string[] = [];
-  const orderedEndpoints: string[] = [];
-  const cycles: TypedDependencyCycle[] = [];
-  const cycleKeys = new Set<string>();
-  const visit = (nodeId: string): void => {
-    if (visitState.get(nodeId) === "visited") return;
-    if (visitState.get(nodeId) === "visiting") {
-      const start = stack.indexOf(nodeId);
-      const cycleIds = [...stack.slice(Math.max(0, start)), nodeId];
-      const key = cycleIds.join("|");
-      const cycleIsUnconditionallyRequired = cycleIds.slice(0, -1).every((fromId, index) => {
-        const toId = cycleIds[index + 1];
-        return edges.some((edge) =>
-          endpointId(edge.from) === fromId &&
-          endpointId(edge.to) === toId &&
-          (edge.requiredness !== "conditional" || edge.activation?.staticSelection === "selected")
-        );
-      });
-      if (cycleIsUnconditionallyRequired && !cycleKeys.has(key)) {
-        cycleKeys.add(key);
-        const cycleEndpoints = cycleIds.map((id) => endpointById.get(id)).filter((endpoint): endpoint is TypedDependencyEndpoint => Boolean(endpoint));
-        cycles.push({
-          endpointIds: cycleIds,
-          names: cycleEndpoints.map((endpoint) => endpoint.kind === "version" ? endpoint.id : endpoint.name),
-          statementIndices: cycleEndpoints.map((endpoint) => endpoint.statementIndex)
-        });
-      }
-      return;
-    }
-    visitState.set(nodeId, "visiting");
-    stack.push(nodeId);
-    for (const dependencyId of dependenciesByNode.get(nodeId) ?? []) visit(dependencyId);
-    stack.pop();
-    visitState.set(nodeId, "visited");
-    orderedEndpoints.push(nodeId);
-  };
-  for (const endpointIdValue of endpointById.keys()) visit(endpointIdValue);
-  const evaluationOrder = orderedEndpoints
-    .map((id) => endpointById.get(id))
-    .filter((endpoint): endpoint is Extract<TypedDependencyEndpoint, { kind: "element" }> => endpoint?.kind === "element")
-    .map((endpoint) => endpoint.id);
+  const { evaluationOrder, cycles } = resolveTypedDependencyGraphOrder(edges, endpointById);
   return { edges, directByEndpointId, reverseByEndpointId, evaluationOrder, cycles, transformationPlans };
 };
 
