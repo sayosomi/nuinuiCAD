@@ -784,4 +784,52 @@ describe("Task 36 typed dependency graph wiring", () => {
     expect([...controllerIdsBySource.values()].every((ids) => ids.size === 1)).toBe(true);
     expect(new Set([...controllerIdsBySource.values()].map((ids) => [...ids][0]))).toHaveLength(2);
   });
+
+  it("scopes same-element numeric controller ids by parameter occurrence", () => {
+    const compiled = compileDslDocument([
+      "nui 1",
+      "const flagX: boolean = false",
+      "const flagY: boolean = true",
+      "point P = coordinate(x: if (@flagX) { @LaterX.length } else { 0 }, y: if (@flagY) { @LaterY.length } else { 0 })",
+      "line LaterX = segment(start: (0, 0), end: (20, 0))",
+      "line LaterY = segment(start: (0, 0), end: (10, 0))"
+    ].join("\n"), {
+      assignedStatementIds: new Map([
+        [1, "test:flag-x"],
+        [2, "test:flag-y"],
+        [3, "test:p"],
+        [4, "test:later-x"],
+        [5, "test:later-y"]
+      ])
+    });
+    const point = compiled.document?.elements.find((element) => element.name === "P");
+    const numericKeys = [...(compiled.numericBindings ?? [])]
+      .map(([key]) => key)
+      .filter((key) => key.endsWith(":x") || key.endsWith(":y"));
+    const xKey = numericKeys.find((key) => key.endsWith(":x"));
+    const yKey = numericKeys.find((key) => key.endsWith(":y"));
+    expect(point).toBeDefined();
+    expect(xKey).toBeDefined();
+    expect(yKey).toBeDefined();
+    expect(xKey).not.toBe(yKey);
+
+    const guardedEdges = compiled.typedDependencyGraph?.edges.filter((edge) =>
+      edge.kind === "geometry-property" &&
+      edge.from.kind === "element" &&
+      edge.from.id === point?.id &&
+      edge.to.kind === "geometry-stage" &&
+      edge.activation?.guards.some((guard) => guard.controllerExpression)
+    ) ?? [];
+    const xEdges = guardedEdges.filter((edge) => edge.to.kind === "geometry-stage" && edge.to.name.startsWith("LaterX."));
+    const yEdges = guardedEdges.filter((edge) => edge.to.kind === "geometry-stage" && edge.to.name.startsWith("LaterY."));
+    expect(xEdges).toHaveLength(1);
+    expect(yEdges).toHaveLength(1);
+    expect(xEdges[0]!.from.id).toBe(yEdges[0]!.from.id);
+    expect(xEdges[0]!.activation!.guards[0]!.controllerExpression!.span.start)
+      .toBe(yEdges[0]!.activation!.guards[0]!.controllerExpression!.span.start);
+    expect(new Set(xEdges.map((edge) => edge.activation!.guards[0]!.controllerId))).toHaveLength(1);
+    expect(new Set(yEdges.map((edge) => edge.activation!.guards[0]!.controllerId))).toHaveLength(1);
+    expect(xEdges[0]!.activation!.guards[0]!.controllerId)
+      .not.toBe(yEdges[0]!.activation!.guards[0]!.controllerId);
+  });
 });

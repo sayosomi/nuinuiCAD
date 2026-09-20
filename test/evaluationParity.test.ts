@@ -275,6 +275,60 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("keeps same-element numeric lazy controller occurrences independent", () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "const flagX: boolean = false",
+      "const flagY: boolean = true",
+      "point P = coordinate(x: if (@flagX) { @LaterX.length } else { 0 }, y: if (@flagY) { @LaterY.length } else { 0 })",
+      "line LaterX = segment(start: (0, 0), end: (20, 0))",
+      "line LaterY = segment(start: (0, 0), end: (10, 0))"
+    ].join("\n"));
+    const options = optionsFor(fixture);
+    const point = fixture.elements.find((element) => element.name === "P")!;
+    const numericKeys = [...(fixture.compiled?.doc.numericBindings ?? [])]
+      .map(([key]) => key)
+      .filter((key) => key.endsWith(":x") || key.endsWith(":y"));
+    const xKey = numericKeys.find((key) => key.endsWith(":x"));
+    const yKey = numericKeys.find((key) => key.endsWith(":y"));
+    expect(xKey).toBeDefined();
+    expect(yKey).toBeDefined();
+    expect(xKey).not.toBe(yKey);
+
+    const guardedEdges = fixture.compiled?.doc.typedDependencyGraph?.edges.filter((edge) =>
+      edge.kind === "geometry-property" &&
+      edge.from.kind === "element" &&
+      edge.from.id === point.id &&
+      edge.activation?.guards.some((guard) => guard.controllerExpression)
+    ) ?? [];
+    const xEdges = guardedEdges.filter((edge) => edge.to.name.startsWith("LaterX."));
+    const yEdges = guardedEdges.filter((edge) => edge.to.name.startsWith("LaterY."));
+    expect(xEdges).toHaveLength(1);
+    expect(yEdges).toHaveLength(1);
+    expect(xEdges[0]!.from.id).toBe(yEdges[0]!.from.id);
+    expect(xEdges[0]!.activation!.guards[0]!.controllerExpression!.span.start)
+      .toBe(yEdges[0]!.activation!.guards[0]!.controllerExpression!.span.start);
+    expect(new Set(xEdges.map((edge) => edge.activation!.guards[0]!.controllerId))).toHaveLength(1);
+    expect(new Set(yEdges.map((edge) => edge.activation!.guards[0]!.controllerId))).toHaveLength(1);
+    expect(xEdges[0]!.activation!.guards[0]!.controllerId)
+      .not.toBe(yEdges[0]!.activation!.guards[0]!.controllerId);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustOptions(repoRoot, fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+
+    const laterX = fixture.elements.find((element) => element.name === "LaterX")!;
+    const laterY = fixture.elements.find((element) => element.name === "LaterY")!;
+    for (const payload of [tsPayload, rustPayload]) {
+      const result = evaluationPayloadToResult(payload);
+      expect(result.errors).toEqual([]);
+      expect(result.computedGeometry.get(point.id)).toMatchObject({ kind: "point", x: 0, y: 10 });
+      const computedGeometryIds = [...result.computedGeometry.keys()];
+      expect(computedGeometryIds.indexOf(laterX.id) < computedGeometryIds.indexOf(point.id)).toBe(false);
+      expect(computedGeometryIds.indexOf(laterY.id) < computedGeometryIds.indexOf(point.id)).toBe(true);
+    }
+  }, 30000);
+
   it("preserves nested lazy guard ancestry and activates the inner cycle only on the selected path", () => {
     const sourceFor = (outer: boolean) => [
       "nui 1",

@@ -182,12 +182,13 @@ const appendActivationGuard = (
 
 const scopeActivationToSource = (
   activation: TypedDependencyActivation | undefined,
-  source: TypedDependencyEndpoint
+  source: TypedDependencyEndpoint,
+  occurrenceNamespace?: string
 ): TypedDependencyActivation | undefined => activation
   ? {
       guards: activation.guards.map((guard) => ({
         ...guard,
-        controllerId: `${endpointId(source)}\u0000${guard.controllerId}`
+        controllerId: `${endpointId(source)}${occurrenceNamespace !== undefined ? `\u0000${occurrenceNamespace}` : ""}\u0000${guard.controllerId}`
       }))
     }
   : undefined;
@@ -587,11 +588,12 @@ export const buildTypedDependencyGraph = ({
     span: DslSpan | null;
     requiredness: TypedDependencyRequiredness;
     activation?: TypedDependencyActivation;
+    occurrenceNamespace?: string;
   }> = [];
   const seen = new Map<string, number>();
-  const add = (edge: TypedDependencyEdge) => {
+  const add = (edge: TypedDependencyEdge, occurrenceNamespace?: string) => {
     const scopedEdge = edge.activation
-      ? { ...edge, activation: scopeActivationToSource(edge.activation, edge.from) }
+      ? { ...edge, activation: scopeActivationToSource(edge.activation, edge.from, occurrenceNamespace) }
       : edge;
     const activationKey = scopedEdge.activation
       ? `|${scopedEdge.activation.guards.map((guard) => `${guard.controllerId}:${guard.branch}:${guard.staticSelection ?? "dynamic"}`).join(">")}`
@@ -662,7 +664,7 @@ export const buildTypedDependencyGraph = ({
         reason: reasonFor(reference.bindingId),
         requiredness: reference.lazy ? "conditional" : "required",
         ...(reference.activation ? { activation: reference.activation } : {})
-      });
+      }, key);
     }
     for (const reference of geometryPropertiesIn(expression)) {
       if (!reference.elementId) continue;
@@ -673,7 +675,8 @@ export const buildTypedDependencyGraph = ({
         stagePath: reference.stagePath ?? ["final"],
         span: reference.span,
         requiredness: reference.lazy ? "conditional" : "required",
-        ...(reference.activation ? { activation: reference.activation } : {})
+        ...(reference.activation ? { activation: reference.activation } : {}),
+        occurrenceNamespace: key
       });
     }
   }
@@ -683,17 +686,49 @@ export const buildTypedDependencyGraph = ({
   // against every element id (which made graph construction quadratic).
   const elementStatementIndex = new Map<ElementId, number>();
   for (const [statementIndex, elementId] of elementIdByStatementIndex) elementStatementIndex.set(elementId, statementIndex);
+  const scalarOwnedParameterKeysByElementId = new Map<ElementId, ReadonlySet<string>>();
+  const typedScalarGeometryDependencyIdsByElementId = new Map<ElementId, Set<ElementId>>();
+  const addTypedScalarGeometryDependencies = (key: string, expression: TypedScalarExpression | undefined) => {
+    if (!expression) return;
+    const separator = key.indexOf(":");
+    if (separator < 0) return;
+    const statementIndex = Number(key.slice(0, separator));
+    const elementId = elementIdByStatementIndex.get(statementIndex);
+    if (!elementId) return;
+    const dependencyIds = typedScalarGeometryDependencyIdsByElementId.get(elementId) ?? new Set<ElementId>();
+    for (const reference of geometryPropertiesIn(expression)) {
+      if (reference.elementId) dependencyIds.add(reference.elementId);
+    }
+    if (dependencyIds.size > 0) {
+      const parameterKey = key.slice(separator + 1);
+      const owned = new Set(scalarOwnedParameterKeysByElementId.get(elementId) ?? []);
+      owned.add(parameterKey);
+      scalarOwnedParameterKeysByElementId.set(elementId, owned);
+    }
+    typedScalarGeometryDependencyIdsByElementId.set(elementId, dependencyIds);
+  };
+  for (const [key, source] of propertyBindings ?? []) {
+    if (source.kind === "expression") addTypedScalarGeometryDependencies(key, source.expression);
+  }
+  for (const [key, source] of numericBindings ?? []) {
+    addTypedScalarGeometryDependencies(key, source.typedExpression);
+  }
   for (const element of elements) {
+    const typedScalarGeometryDependencyIds = typedScalarGeometryDependencyIdsByElementId.get(element.id) ?? new Set<ElementId>();
     const dependencies = new Map<ElementId, TypedDependencyRequiredness>((getDirectParentIds(element, {
       textTemplatesByElementId: new Map(
         [...(textTemplates ?? [])].map(([key, template]) => [elementIdByStatementIndex.get(Number(key.slice(0, key.indexOf(":")))), template] as const)
           .filter((entry): entry is readonly [ElementId, TextTemplateAst] => Boolean(entry[0]))
       )
-    }) ?? []).map((dependencyId) => [dependencyId, "required"] as const));
+    }) ?? []).filter((dependencyId) => !typedScalarGeometryDependencyIds.has(dependencyId)).map((dependencyId) => [dependencyId, "required"] as const));
     const targetMap = geometryInputTargets?.get(element.id);
     if (targetMap) {
+      const scalarOwnedParameterKeys = scalarOwnedParameterKeysByElementId.get(element.id) ?? new Set<string>();
       const structuredDependencies: StructuredGeometryDependency[] = [];
-      collectStructuredGeometryDependencies(targetMap, structuredDependencies);
+      for (const [parameterKey, target] of targetMap) {
+        if (scalarOwnedParameterKeys.has(parameterKey)) continue;
+        collectStructuredGeometryDependencies(target, structuredDependencies);
+      }
       for (const dependency of structuredDependencies) {
         const existing = dependencies.get(dependency.id);
         dependencies.set(dependency.id, existing === "required" ? existing : dependency.requiredness);
@@ -755,7 +790,7 @@ export const buildTypedDependencyGraph = ({
         reason: reasonFor(reference.bindingId),
         requiredness: reference.requiredness ?? "required",
         ...(reference.activation ? { activation: reference.activation } : {})
-      });
+      }, key);
     }
     if (source.kind === "expression") for (const reference of geometryPropertiesIn(source.expression)) {
       if (!reference.elementId) continue;
@@ -766,7 +801,8 @@ export const buildTypedDependencyGraph = ({
         stagePath: reference.stagePath ?? ["final"],
         span: reference.span,
         requiredness: reference.lazy ? "conditional" : "required",
-        ...(reference.activation ? { activation: reference.activation } : {})
+        ...(reference.activation ? { activation: reference.activation } : {}),
+        occurrenceNamespace: key
       });
     }
   }
@@ -782,7 +818,7 @@ export const buildTypedDependencyGraph = ({
         span: reference.span,
         reason: reasonFor(reference.bindingId),
         requiredness: "required"
-      });
+      }, key);
     }
     if (source.typedExpression) for (const reference of geometryPropertiesIn(source.typedExpression)) {
       if (!reference.elementId) continue;
@@ -793,7 +829,8 @@ export const buildTypedDependencyGraph = ({
         stagePath: reference.stagePath ?? ["final"],
         span: reference.span,
         requiredness: reference.lazy ? "conditional" : "required",
-        ...(reference.activation ? { activation: reference.activation } : {})
+        ...(reference.activation ? { activation: reference.activation } : {}),
+        occurrenceNamespace: key
       });
     }
   }
@@ -857,7 +894,7 @@ export const buildTypedDependencyGraph = ({
       span: deferred.span,
       requiredness: deferred.requiredness,
       ...(deferred.activation ? { activation: deferred.activation } : {})
-    });
+    }, deferred.occurrenceNamespace);
   }
   for (const [recipeIndex, recipe] of recipes.entries()) {
     const target = recipe.targets[0];
