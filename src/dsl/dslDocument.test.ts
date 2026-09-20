@@ -738,4 +738,50 @@ describe("Task 36 typed dependency graph wiring", () => {
       : undefined;
     expect(runtimeProjection?.cycles).toEqual([]);
   });
+
+  it("scopes lazy controller ids by their dependency source endpoint", () => {
+    const compiled = compileDslDocument([
+      "nui 1",
+      "const flagA: boolean = false",
+      "const flagB: boolean = true",
+      "const valueA: number = if (@flagA) { @LaterA.length } else { 0 }",
+      "const valueB: number = if (@flagB) { @LaterB.length } else { 0 }",
+      "line ConsumerA = segment(start: (0, 0), end: (@valueA, 1))",
+      "line ConsumerB = segment(start: (0, 0), end: (@valueB, 1))",
+      "line LaterA = segment(start: (0, 0), end: (20, 0))",
+      "line LaterB = segment(start: (0, 0), end: (10, 0))"
+    ].join("\n"), {
+      assignedStatementIds: new Map([
+        [1, "test:flag-a"],
+        [2, "test:flag-b"],
+        [3, "test:value-a"],
+        [4, "test:value-b"],
+        [5, "test:consumer-a"],
+        [6, "test:consumer-b"],
+        [7, "test:later-a"],
+        [8, "test:later-b"]
+      ])
+    });
+    const graph = compiled.typedDependencyGraph;
+    expect(graph).toBeDefined();
+    const guardedEdges = graph?.edges.filter((edge) =>
+      edge.from.kind === "binding" &&
+      (edge.from.name === "valueA" || edge.from.name === "valueB") &&
+      edge.activation?.guards.some((guard) => guard.controllerExpression)
+    ) ?? [];
+    expect(guardedEdges).toHaveLength(2);
+
+    const localStarts = guardedEdges.map((edge) => edge.activation!.guards[0]!.controllerExpression!.span.start);
+    expect(localStarts[0]).toBe(localStarts[1]);
+
+    const controllerIdsBySource = new Map<string, Set<string>>();
+    for (const edge of guardedEdges) {
+      const ids = controllerIdsBySource.get(edge.from.id) ?? new Set<string>();
+      for (const guard of edge.activation!.guards) ids.add(guard.controllerId);
+      controllerIdsBySource.set(edge.from.id, ids);
+    }
+    expect(controllerIdsBySource.size).toBe(2);
+    expect([...controllerIdsBySource.values()].every((ids) => ids.size === 1)).toBe(true);
+    expect(new Set([...controllerIdsBySource.values()].map((ids) => [...ids][0]))).toHaveLength(2);
+  });
 });

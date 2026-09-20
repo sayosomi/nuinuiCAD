@@ -229,6 +229,52 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("keeps colliding local lazy controller spans independent across bindings", () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "const flagA: boolean = false",
+      "const flagB: boolean = true",
+      "const valueA: number = if (@flagA) { @LaterA.length } else { 0 }",
+      "const valueB: number = if (@flagB) { @LaterB.length } else { 0 }",
+      "line ConsumerA = segment(start: (0, 0), end: (@valueA, 1))",
+      "line ConsumerB = segment(start: (0, 0), end: (@valueB, 1))",
+      "line LaterA = segment(start: (0, 0), end: (20, 0))",
+      "line LaterB = segment(start: (0, 0), end: (10, 0))"
+    ].join("\n"));
+    const options = optionsFor(fixture);
+    const graph = fixture.compiled?.doc.typedDependencyGraph;
+    const guardedEdges = graph?.edges.filter((edge) =>
+      edge.from.kind === "binding" &&
+      (edge.from.name === "valueA" || edge.from.name === "valueB") &&
+      edge.activation?.guards.some((guard) => guard.controllerExpression)
+    ) ?? [];
+    expect(guardedEdges).toHaveLength(2);
+    expect(guardedEdges[0]!.activation!.guards[0]!.controllerExpression!.span.start)
+      .toBe(guardedEdges[1]!.activation!.guards[0]!.controllerExpression!.span.start);
+    expect(new Set(guardedEdges.map((edge) => edge.activation!.guards[0]!.controllerId))).toHaveLength(2);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustOptions(repoRoot, fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+
+    const consumerA = fixture.elements.find((element) => element.name === "ConsumerA")!;
+    const consumerB = fixture.elements.find((element) => element.name === "ConsumerB")!;
+    const laterA = fixture.elements.find((element) => element.name === "LaterA")!;
+    const laterB = fixture.elements.find((element) => element.name === "LaterB")!;
+    for (const payload of [tsPayload, rustPayload]) {
+      const result = evaluationPayloadToResult(payload);
+      expect(result.errors).toEqual([]);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "valueA"), 0);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "valueB"), 10);
+      expect(result.computedGeometry.get(consumerA.id)).toMatchObject({ end: { x: 0, y: 1 } });
+      expect(result.computedGeometry.get(consumerB.id)).toMatchObject({ end: { x: 10, y: 1 } });
+      const computedGeometryIds = [...result.computedGeometry.keys()];
+      expect(computedGeometryIds.indexOf(laterA.id) < computedGeometryIds.indexOf(consumerA.id)).toBe(false);
+      expect(computedGeometryIds.indexOf(laterB.id) < computedGeometryIds.indexOf(consumerB.id)).toBe(true);
+    }
+  }, 30000);
+
   it("preserves nested lazy guard ancestry and activates the inner cycle only on the selected path", () => {
     const sourceFor = (outer: boolean) => [
       "nui 1",

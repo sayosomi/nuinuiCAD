@@ -180,6 +180,18 @@ const appendActivationGuard = (
   guards: [...(activation?.guards ?? []), guard]
 });
 
+const scopeActivationToSource = (
+  activation: TypedDependencyActivation | undefined,
+  source: TypedDependencyEndpoint
+): TypedDependencyActivation | undefined => activation
+  ? {
+      guards: activation.guards.map((guard) => ({
+        ...guard,
+        controllerId: `${endpointId(source)}\u0000${guard.controllerId}`
+      }))
+    }
+  : undefined;
+
 export const referencesIn = (expression: TypedScalarExpression): readonly TypedDependencyReferenceNode[] => {
   const result: TypedDependencyReferenceNode[] = [];
   const visit = (node: TypedScalarExpression, lazy = false, activation?: TypedDependencyActivation): void => {
@@ -578,21 +590,24 @@ export const buildTypedDependencyGraph = ({
   }> = [];
   const seen = new Map<string, number>();
   const add = (edge: TypedDependencyEdge) => {
-    const activationKey = edge.activation
-      ? `|${edge.activation.guards.map((guard) => `${guard.controllerId}:${guard.branch}:${guard.staticSelection ?? "dynamic"}`).join(">")}`
+    const scopedEdge = edge.activation
+      ? { ...edge, activation: scopeActivationToSource(edge.activation, edge.from) }
+      : edge;
+    const activationKey = scopedEdge.activation
+      ? `|${scopedEdge.activation.guards.map((guard) => `${guard.controllerId}:${guard.branch}:${guard.staticSelection ?? "dynamic"}`).join(">")}`
       : "";
-    const key = `${endpointId(edge.from)}|${edge.kind}|${endpointId(edge.to)}${activationKey}`;
+    const key = `${endpointId(scopedEdge.from)}|${scopedEdge.kind}|${endpointId(scopedEdge.to)}${activationKey}`;
     const existingIndex = seen.get(key);
     if (existingIndex !== undefined) {
       // A required path dominates a conditional path when both compiler
       // products describe the same dependency.
-      if (edge.requiredness === "required" && edges[existingIndex]?.requiredness === "conditional") {
+      if (scopedEdge.requiredness === "required" && edges[existingIndex]?.requiredness === "conditional") {
         edges[existingIndex] = { ...edges[existingIndex], requiredness: "required" };
       }
       return;
     }
     seen.set(key, edges.length);
-    edges.push(edge);
+    edges.push(scopedEdge);
   };
   const reasonFor = (bindingId: BindingId): TypedDependencyReason | undefined => {
     if (!bindingAnalysis) return undefined;
