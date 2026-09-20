@@ -27,6 +27,7 @@ import type { ScalarExpressionResolvedGeometryTarget, TypedScalarGeometryPropert
 import { evaluateTypedExpression, type GeometryBuiltinTargetLookupResult, type ScalarEvaluationEnvironment } from "../scalars/expressionEvaluator";
 import type { EffectiveElementActivity } from "@nuinuicad/nui-language";
 import type { GeometryInputCollectionNode, GeometryInputTarget } from "../types/geometry";
+import { transformationStageKey } from "@nuinuicad/nui-language";
 
 /**
  * A scalar-program binding resolver for one compiled nui 1 document.
@@ -69,6 +70,8 @@ export type LinearScalarBindingResolver = {
 
 export type DocumentGeometryRuntime = {
   computedGeometry: ReadonlyMap<ElementId, ComputedGeometry>;
+  baseTransformationGeometry?: ReadonlyMap<ElementId, ComputedGeometry>;
+  transformationStageGeometry?: ReadonlyMap<string, ComputedGeometry>;
   computedGeometryValues?: ReadonlyMap<GeometryValueOccurrenceKey, { value: ComputedGeometryValue }>;
   geometryCarryValues?: ReadonlyMap<BindingId, GeometryBuiltinTargetLookupResult>;
   geometryCollectionNodesByValueId?: ReadonlyMap<string, GeometryInputCollectionNode>;
@@ -80,6 +83,20 @@ export type DocumentGeometryRuntime = {
    * generated references reject an ambiguous future occurrence instead of
    * accidentally selecting the first row evaluated so far. */
   forGroupExpectedOccurrenceCountByTemplateId?: ReadonlyMap<ElementId, number>;
+};
+
+const geometrySnapshotFor = (
+  geometry: DocumentGeometryRuntime,
+  elementId: ElementId,
+  stagePath: readonly string[] | undefined
+): ComputedGeometry | undefined => {
+  if (!stagePath || stagePath.length === 0 || (stagePath.length === 1 && stagePath[0] === "final")) {
+    return geometry.computedGeometry.get(elementId);
+  }
+  if (stagePath.length === 1 && stagePath[0] === "base") {
+    return geometry.baseTransformationGeometry?.get(elementId);
+  }
+  return geometry.transformationStageGeometry?.get(transformationStageKey(elementId, undefined, stagePath));
 };
 
 type OccurrenceIndexResolver = (expression: TypedScalarExpression, sourceOrder: number) => ScalarEvaluation;
@@ -156,7 +173,7 @@ export const resolveDocumentGeometryProperty = (
       resolveOccurrenceIndex
     );
     if (!row) return { status: "error", type: reference.type, issueCode: "evaluation-geometry-property-unavailable" };
-    const computed = geometry.computedGeometry.get(row.generatedElementId);
+    const computed = geometrySnapshotFor(geometry, row.generatedElementId, reference.stagePath);
     if (!computed) return { status: "error", type: reference.type, issueCode: "evaluation-geometry-property-unavailable" };
     if (reference.type.kind === "number") {
       const point = reference.forGroupOccurrencePointKey
@@ -204,12 +221,13 @@ export const resolveDocumentGeometryProperty = (
     return { status: "error", type: reference.type, issueCode: "evaluation-geometry-property-unavailable" };
   }
   if (reference.type.kind === "number") {
-    const value = computedReferencePathValue(geometry.computedGeometry.get(reference.elementId), reference.property);
+    const value = computedReferencePathValue(geometrySnapshotFor(geometry, reference.elementId, reference.stagePath), reference.property);
     return typeof value === "number"
       ? { status: "ok", type: reference.type, value: { kind: "number", value } }
       : { status: "error", type: reference.type, issueCode: "evaluation-geometry-property-unavailable" };
   }
-  if (!geometry.computedGeometry.has(reference.elementId)) {
+  const selectedGeometry = geometrySnapshotFor(geometry, reference.elementId, reference.stagePath);
+  if (!selectedGeometry) {
     return { status: "error", type: reference.type, issueCode: "evaluation-geometry-property-unavailable" };
   }
   if (geometry.activities.get(reference.elementId)?.activity === "disabled") {
@@ -222,7 +240,7 @@ export const resolveDocumentGeometryProperty = (
   }
   let value = getParameterValue(targetElement, reference.property);
   if (targetElement.type === "arcLine" && reference.property === "direction") {
-    const computed = geometry.computedGeometry.get(reference.elementId);
+    const computed = selectedGeometry;
     if (!computed || computed.kind !== "arcLine") {
       return { status: "error", type: reference.type, issueCode: "evaluation-geometry-property-unavailable" };
     }
@@ -309,7 +327,7 @@ export const resolveDocumentGeometryTarget = (
     if (geometry.activities.get(row.generatedElementId)?.activity === "disabled") {
       return { kind: "unavailable", reason: "disabled" };
     }
-    const computed = geometry.computedGeometry.get(row.generatedElementId);
+    const computed = geometrySnapshotFor(geometry, row.generatedElementId, target.stagePath);
     if (!computed) return undefined;
     if (!target.pointKey) return computed;
     return resolveDerivedPoint(computed, target.pointKey, new Map(geometry.elementsById)) ?? undefined;
@@ -318,7 +336,7 @@ export const resolveDocumentGeometryTarget = (
   if (geometry.activities.get(target.statementId)?.activity === "disabled") {
     return { kind: "unavailable", reason: "disabled" };
   }
-  const computed = geometry.computedGeometry.get(target.statementId);
+  const computed = geometrySnapshotFor(geometry, target.statementId, target.stagePath);
   if (!computed) return undefined;
   if (!target.pointKey) return computed;
   return resolveDerivedPoint(computed, target.pointKey, new Map(geometry.elementsById)) ?? undefined;

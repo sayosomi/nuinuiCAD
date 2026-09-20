@@ -38,6 +38,7 @@ import { resolveGeometryPropertyMetadata } from "./typedGeometryPropertyResoluti
 import { createElementNameContext } from "../model/elementNames";
 import type { ScalarCallArgumentNode, ScalarExpressionAst, ScalarReferenceNode } from "./expressionAst";
 import type { ScalarExpressionResolvedReference, TypedScalarExpression } from "./typedExpressionAst";
+import type { TransformationStageSelection } from "../dsl/transformationRecipes";
 import { prepareRecordScalarExpressionFromCatalog } from "./recordScalarLowering";
 import { scalarTypeOfDslValueType } from "../dsl/dslValueTypes";
 
@@ -283,7 +284,8 @@ const attributeValueSpan = (statement: DslStatement, attrKey: string): DslSpan |
 
 export const compileNumericBindings = ({
   statements, elementIdByStatementIndex, elements, bindingAnalysis, spans,
-  layouts, layoutIdsByStatementIndex, includeStatement, additionalGeometryPropertyResolver
+  layouts, layoutIdsByStatementIndex, includeStatement, additionalGeometryPropertyResolver,
+  resolveGeometryStageSelection
 }: {
   statements: readonly DslStatement[];
   elementIdByStatementIndex: ReadonlyMap<number, ElementId>;
@@ -298,6 +300,7 @@ export const compileNumericBindings = ({
     statementIndex: number;
     node: Extract<ScalarExpressionAst, { kind: "geometryProperty" }>;
   }) => import("./typedExpressionAst").ScalarExpressionResolvedGeometryProperty | null;
+  resolveGeometryStageSelection?: (input: { elementId: ElementId; members: readonly string[] }) => TransformationStageSelection;
 }): NumericBindingCompilation => {
   const byId = new Map(elements.map((element) => [element.id, element]));
   const sourceOrderByElementId = new Map<ElementId, number>();
@@ -583,7 +586,8 @@ export const compileNumericBindings = ({
             currentSourceOrder: candidate.statementIndex,
             additionalGeometryPropertyResolver: additionalGeometryPropertyResolver
               ? ({ node }) => additionalGeometryPropertyResolver({ statementIndex: candidate.statementIndex, node })
-              : undefined
+              : undefined,
+            resolveStageSelection: resolveGeometryStageSelection
           }
         );
         const hasGeometryProperty = geometryPropertyResolution.geometryPropertyReferences.size > 0;

@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { compileDslDocument, compileDslToElements } from "@nuinuicad/nui-language";
+import { emptyDocument } from "@nuinuicad/nui-language";
+import { compileCanonicalText, regenerateCanonicalFromModel } from "@nuinuicad/nui-language/document";
 import { transformationStageKey } from "@nuinuicad/nui-language";
 import type { ComputedGeometry, ComputedLine } from "../types/geometry";
 import { evaluateElements } from "./evaluate";
+import { buildEvaluationOptions } from "./productionEvaluationContext";
 
 const compileAndEvaluate = (source: string) => {
   const compiled = compileDslToElements(source, { elements: [], mode: "document" });
@@ -21,6 +24,26 @@ const compileAndEvaluate = (source: string) => {
 const lineOf = (geometry: ComputedGeometry | undefined): ComputedLine => {
   if (!geometry || !("start" in geometry) || !("end" in geometry)) throw new Error("expected line-like geometry");
   return geometry as ComputedLine;
+};
+
+const compileCanonicalAndEvaluate = (source: string) => {
+  const baseline = regenerateCanonicalFromModel(emptyDocument(), 1);
+  const result = compileCanonicalText(baseline, source);
+  if (result.status === "fatal") throw new Error(JSON.stringify(result.diagnostics));
+  const compiled = result.doc;
+  return {
+    compiled,
+    evaluation: evaluateElements(
+      compiled.document.elements,
+      buildEvaluationOptions({ compiledDocument: compiled, evaluationLimitIndex: undefined })
+    )
+  };
+};
+
+const scalarByName = (compiled: ReturnType<typeof compileCanonicalAndEvaluate>["compiled"], name: string) => {
+  const binding = compiled.bindingAnalysis?.catalog.bindings.find((candidate) => candidate.name === name);
+  if (!binding) throw new Error(`missing scalar binding ${name}`);
+  return binding.id;
 };
 
 describe("transformation recipe evaluation", () => {
@@ -62,6 +85,50 @@ describe("transformation recipe evaluation", () => {
       "move A (from: @A.start, to: (2, 0))"
     ].join("\n"));
     expect(cycle.diagnostics.map((diagnostic) => diagnostic.code)).toContain("dependency-cycle");
+  });
+
+  it("reads final, base, and named immutable stages through the compiled scalar geometry IR", () => {
+    const { compiled, evaluation } = compileCanonicalAndEvaluate([
+      "nui 1",
+      "line A = segment(start: (0, 0), end: (10, 0))",
+      "move A as moved (from: (0, 0), to: (10, 0))",
+      "move A (from: (0, 0), to: (20, 0))",
+      "line StageStart = segment(start: @A.moved.start, end: (20, 0))",
+      "line MovedOffset = offset(sources: [@A.moved], distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
+      "const finalLength: number = @A.length",
+      "const explicitFinalLength: number = @A.final.length",
+      "const baseLength: number = @A.base.length",
+      "const movedLength: number = @A.moved.length"
+    ].join("\n"));
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(evaluation.errors).toEqual([]);
+    expect(evaluation.computedScalarBindings?.get(scalarByName(compiled, "finalLength"))).toMatchObject({ status: "ok", value: { value: 10 } });
+    expect(evaluation.computedScalarBindings?.get(scalarByName(compiled, "explicitFinalLength"))).toMatchObject({ status: "ok", value: { value: 10 } });
+    expect(evaluation.computedScalarBindings?.get(scalarByName(compiled, "baseLength"))).toMatchObject({ status: "ok", value: { value: 10 } });
+    expect(evaluation.computedScalarBindings?.get(scalarByName(compiled, "movedLength"))).toMatchObject({ status: "ok", value: { value: 10 } });
+    expect((evaluation.computedGeometry.get(compiled.document.elements.find((element) => element.name === "StageStart")!.id) as ComputedLine).start.x).toBe(10);
+    const aId = compiled.document.elements.find((element) => element.name === "A")!.id;
+    const movedOffset = compiled.document.elements.find((element) => element.name === "MovedOffset")!;
+    const movedOffsetTargets = compiled.geometryInputTargetsByElementId?.get(movedOffset.id);
+    expect([...((movedOffsetTargets?.values() ?? []) as Iterable<unknown>)].flatMap((target) => Array.isArray(target) ? target : [target]))
+      .toEqual(expect.arrayContaining([expect.objectContaining({ stagePath: ["moved"] })]));
+    expect(lineOf(evaluation.computedGeometry.get(movedOffset.id)).start.x).toBe(10);
+    expect(evaluation.transformationStageGeometry?.get(transformationStageKey(aId, undefined, ["moved"]))).toBeDefined();
+  });
+
+  it("evaluates a selected lazy forward geometry dependency after its target is scheduled", () => {
+    const { compiled, evaluation } = compileCanonicalAndEvaluate([
+      "nui 1",
+      "const chooseLater: boolean = true",
+      "const selectedLength: number = if (@chooseLater) { @Later.length } else { 0 }",
+      "line Later = segment(start: (0, 0), end: (10, 0))"
+    ].join("\n"));
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(evaluation.errors).toEqual([]);
+    expect(evaluation.computedScalarBindings?.get(scalarByName(compiled, "selectedLength"))).toMatchObject({
+      status: "ok",
+      value: { value: 10 }
+    });
   });
 
   it("bypasses disabled clauses and keeps immutable checkpoints plus branch finals", () => {

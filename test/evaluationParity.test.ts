@@ -68,6 +68,39 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("matches compiler-resolved final, base, and named-stage reads", () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "line A = segment(start: (0, 0), end: (10, 0))",
+      "move A as moved (from: (0, 0), to: (10, 0))",
+      "line StageStart = segment(start: @A.moved.start, end: (20, 0))",
+      "const finalLength: number = @A.length",
+      "const explicitFinalLength: number = @A.final.length",
+      "const baseLength: number = @A.base.length",
+      "const movedLength: number = @A.moved.length"
+    ].join("\n"));
+    const options = optionsFor(fixture);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustOptions(repoRoot, fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+
+    for (const payload of [tsPayload, rustPayload]) {
+      const result = evaluationPayloadToResult(payload);
+      expect(result.errors).toEqual([]);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "finalLength"), 10);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "explicitFinalLength"), 10);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "baseLength"), 10);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "movedLength"), 10);
+      const stageStart = fixture.elements.find((element) => element.name === "StageStart");
+      expect(stageStart && result.computedGeometry.get(stageStart.id)).toMatchObject({
+        kind: "line",
+        start: { x: 10, y: 0 },
+        end: { x: 20, y: 0 }
+      });
+    }
+  }, 30000);
+
   it("matches forward transformation argument scheduling in TypeScript and Rust", () => {
     const fixture = fixtureFromSource([
       "nui 1",

@@ -453,6 +453,7 @@ export const analyzeTypedDeclarations = ({
   additionalGeometryResolver,
   additionalCollectionIndexResolver,
   additionalGeometryPropertyResolver,
+  resolveGeometryStageSelection,
   additionalInitializers,
   nonProgramBindingIds,
   prepareScalarExpression,
@@ -487,6 +488,10 @@ export const analyzeTypedDeclarations = ({
     statementIndex: number;
     node: Extract<ScalarExpressionAst, { kind: "geometryProperty" }>;
   }) => import("./typedExpressionAst").ScalarExpressionResolvedGeometryProperty | null;
+  resolveGeometryStageSelection?: (input: {
+    elementId: string;
+    members: readonly string[];
+  }) => import("../dsl/transformationRecipes").TransformationStageSelection;
   additionalRecordValueResolver?: (value: RecordValueSemantic) => ExternalRecordScalarAlias | null;
 }): TypedDeclarationAnalysisCompilation => {
   const includeStatement = includeStatementOption ?? ((_statement, statementIndex) =>
@@ -705,6 +710,17 @@ export const analyzeTypedDeclarations = ({
         : undefined,
       resolveSourceGeometryPath: sourceNamespace
         ? (elementName) => resolveSourceLexicalPath(sourceNamespace, binding.statementIndex, parseDslReferenceToken(elementName))
+        : undefined,
+      resolveGeometryStageSelection: resolveGeometryStageSelection && sourceNamespace
+        ? ({ statementId, members }) => {
+            const declaration = sourceDeclarationsByStatementId.get(statementId);
+            return declaration
+              ? resolveGeometryStageSelection({
+                  elementId: reconciledContainers.elementIdByStatementIndex.get(declaration.statementIndex) ?? statementId,
+                  members
+                })
+              : { stagePath: ["final"], propertyPath: members };
+          }
         : undefined
     });
     geometryResolutionByBindingId.set(binding.id, geometryResolution);
@@ -857,6 +873,7 @@ export const analyzeTypedDeclarations = ({
         additionalScalarPropertyResolver: additionalRecordPropertyResolver
           ? ({ node }) => Boolean(additionalRecordPropertyResolver({ statementIndex: binding.statementIndex, node }))
           : undefined,
+        resolveStageSelection: resolveGeometryStageSelection,
         skipPropertySpanStarts: geometryResolutionByBindingId.get(binding.id)?.geometryPropertyTargets
           ? new Set(geometryResolutionByBindingId.get(binding.id)!.geometryPropertyTargets.keys())
           : undefined

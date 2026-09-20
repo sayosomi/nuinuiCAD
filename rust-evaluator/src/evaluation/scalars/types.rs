@@ -39,6 +39,7 @@ pub(crate) struct ScalarExpressionResolvedGeometryTarget {
     pub(crate) statement_index: f64,
     pub(crate) geometry_type: GeometryInterfaceType,
     pub(crate) point_key: Option<String>,
+    pub(crate) stage_path: Option<Vec<String>>,
     pub(crate) geometry_value_occurrence: Option<GeometryValueOccurrence>,
     pub(crate) geometry_value_binder_id: Option<String>,
     pub(crate) for_group_template_element_id: Option<String>,
@@ -59,12 +60,14 @@ pub(crate) enum ScalarExpressionResolvedGeometryProperty {
     Drawable {
         element_id: String,
         property: String,
+        stage_path: Option<Vec<String>>,
         target_source_order: f64,
         r#type: ScalarType,
     },
     ForGroupOccurrence {
         template_element_id: String,
         property: String,
+        stage_path: Option<Vec<String>>,
         target_source_order: f64,
         point_key: Option<String>,
         r#type: ScalarType,
@@ -72,6 +75,7 @@ pub(crate) enum ScalarExpressionResolvedGeometryProperty {
     GeometryValue {
         occurrence: GeometryValueOccurrence,
         property: String,
+        stage_path: Option<Vec<String>>,
         point_key: Option<String>,
         target_source_order: f64,
         r#type: ScalarType,
@@ -79,6 +83,7 @@ pub(crate) enum ScalarExpressionResolvedGeometryProperty {
     GeometryValueForBinder {
         binder_id: String,
         property: String,
+        stage_path: Option<Vec<String>>,
         point_key: Option<String>,
         target_source_order: f64,
         r#type: ScalarType,
@@ -403,6 +408,7 @@ pub(crate) enum TypedScalarExpression {
         for_group_target_source_order: Option<f64>,
         for_group_index: Option<Box<TypedScalarExpression>>,
         property: String,
+        stage_path: Option<Vec<String>>,
         target_source_order: f64,
         r#type: ScalarType,
     },

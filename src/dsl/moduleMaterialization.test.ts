@@ -20,12 +20,16 @@ const runtimeNames = (source: string) => {
 const evaluateCompiled = (compiled: ReturnType<typeof runtimeNames>) =>
   evaluateElements(compiled.document!.elements, {
     evaluationLimitIndex: compiled.document!.evaluationLimitIndex,
+    evaluationOrder: compiled.typedDependencyGraph?.evaluationOrder,
+    transformationDependencyPlans: compiled.typedDependencyGraph?.transformationPlans,
+    transformationRecipes: compiled.runtimeTransformationRecipes ?? compiled.document!.transformationRecipes,
     drawingModifiers: compiled.document!.modifiers ?? [],
     scalarProgram: compiled.scalarProgram,
     bindingVersions: compiled.bindingVersions,
     statementInfoByElementId: compiled.statementMap?.byElementId,
     statementIdByStatementIndex: compiled.statementMap?.statementIdByStatementIndex,
     sourceExecutionPositionByElementId: compiled.moduleMaterialization?.sourceExecutionPositionByRuntimeElementId,
+    moduleMaterialization: compiled.moduleMaterialization,
   });
 
 describe("module materialization", () => {
@@ -214,6 +218,29 @@ describe("module materialization", () => {
     expect(result.effectiveEnabledElementIds).toContain(hiddenPoint.id);
     expect(result.computedGeometry.has(disabledPoint.id)).toBe(false);
     expect(result.effectiveEnabledElementIds).not.toContain(disabledPoint.id);
+  });
+
+  it("captures a dependency-reordered Module Base after terminal descendants", () => {
+    const compiled = runtimeNames([
+      "nui 1",
+      "module M() {",
+      "  line Later = segment(start: @First.start, end: (20, 0))",
+      "  line First = segment(start: (0, 0), end: (10, 0))",
+      "  line Disabled = segment(start: (0, 0), end: (5, 0), enabled: false)",
+      "}",
+      "instance A = M()"
+    ].join("\n"));
+    const result = evaluateCompiled(compiled);
+    const instance = compiled.document!.elements.find((element) => element.name === "A")!;
+    const snapshot = result.instanceBaseGeometry?.get(instance.id);
+    expect(result.errors).toEqual([]);
+    expect(snapshot).toHaveLength(2);
+    expect(snapshot?.map((geometry) => geometry.name).sort()).toEqual(["First", "Later"]);
+    expect(snapshot?.find((geometry) => geometry.name === "Later")).toMatchObject({
+      kind: "line",
+      start: { x: 0, y: 0 },
+      end: { x: 20, y: 0 }
+    });
   });
 
   it("preserves ordinary declaration order when no module is present", () => {

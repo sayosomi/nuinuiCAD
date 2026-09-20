@@ -20,6 +20,7 @@ import { typecheckScalarExpression } from "./expressionTypecheck";
 import { propertyBindingOccurrenceKey } from "./propertyBindingCompiler";
 import { collectReferences, unresolvedReferenceMessage } from "./typedDeclarationAnalysis";
 import type { TypedScalarExpression } from "./typedExpressionAst";
+import type { TransformationStageSelection } from "../dsl/transformationRecipes";
 import { resolveGeometryPropertyMetadata } from "./typedGeometryPropertyResolution";
 import { createElementNameContext } from "../model/elementNames";
 import { prepareRecordScalarExpressionFromCatalog } from "./recordScalarLowering";
@@ -35,6 +36,7 @@ export type CompileConditionalGroupConditionsInput = {
   bindingAnalysis: BindingAnalysis;
   spans: DiagnosticSpanContext;
   includeStatement?: DslStatementInclusion;
+  resolveGeometryStageSelection?: (input: { elementId: ElementId; members: readonly string[] }) => TransformationStageSelection;
 };
 
 export type ConditionalGroupConditionCompilation = {
@@ -74,7 +76,8 @@ export const compileConditionalGroupConditions = ({
   elements,
   bindingAnalysis,
   spans,
-  includeStatement
+  includeStatement,
+  resolveGeometryStageSelection
 }: CompileConditionalGroupConditionsInput): ConditionalGroupConditionCompilation => {
   const elementsById = new Map(elements.map((element) => [element.id, element]));
   const diagnostics: DslDiagnostic[] = [];
@@ -157,7 +160,8 @@ export const compileConditionalGroupConditions = ({
       {
         currentElement: element,
         nameContext,
-        currentSourceOrder: statementIndex
+        currentSourceOrder: statementIndex,
+        resolveStageSelection: resolveGeometryStageSelection
       }
     );
     if (geometryResolution.issues.length > 0) {

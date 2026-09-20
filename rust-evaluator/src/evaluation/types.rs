@@ -45,6 +45,7 @@ pub(crate) enum GeometryInputTarget {
         element_id: ElementId,
         geometry_type: String,
         point_key: Option<String>,
+        stage_path: Option<Vec<String>>,
     },
     ForGroupOccurrence {
         template_element_id: ElementId,
@@ -57,6 +58,7 @@ pub(crate) enum GeometryInputTarget {
         occurrence: GeometryValueOccurrence,
         geometry_type: String,
         point_key: Option<String>,
+        stage_path: Option<Vec<String>>,
     },
     GeometryValueMap {
         occurrence: GeometryValueOccurrence,
@@ -177,7 +179,6 @@ pub(crate) struct ModuleMaterializationInput {
 #[serde(rename_all = "camelCase")]
 pub(crate) struct ModuleMaterializationSnapshotInput {
     pub(crate) instance_id: ElementId,
-    pub(crate) end_runtime_index: usize,
     pub(crate) descendant_ids: Vec<ElementId>,
 }
 

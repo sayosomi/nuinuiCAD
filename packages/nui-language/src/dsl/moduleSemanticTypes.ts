@@ -117,6 +117,7 @@ export type ModuleRecordFieldValueSourceTarget = {
   fieldPath?: readonly RecordFieldIdentity[];
   collectionIndex?: number;
   pointKey?: string;
+  stagePath?: readonly string[];
 };
 
 export type ModuleScalarSourceTarget =
@@ -187,6 +188,7 @@ export type ModuleGeometrySourceTarget =
       statementIndex: number;
       geometryKind: ModuleGeometryInterfaceType;
       pointKey?: string;
+      stagePath?: readonly string[];
     }
   | (ModuleParameterSlot & { kind: "parameter"; geometryKind: "point" | "line"; pointKey?: string })
   | {
@@ -199,6 +201,7 @@ export type ModuleGeometrySourceTarget =
       statementIndex: number;
       name: string;
       sourceElementType: ModuleGeometryInterfaceType;
+      stagePath?: readonly string[];
     }
   | {
       kind: "collectionIndex";
@@ -213,6 +216,7 @@ export type ModuleGeometrySourceTarget =
       referenceSpan: DslSpan;
       nameSpan: DslSpan;
       pointKey?: string;
+      stagePath?: readonly string[];
     }
   | {
       /** A drawable declaration whose runtime materialization is owned by a
@@ -231,6 +235,7 @@ export type ModuleGeometrySourceTarget =
       occurrenceIndexSpan?: DslSpan;
       occurrenceRange?: DslSpan;
       pointKey?: string;
+      stagePath?: readonly string[];
       identity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
     }
   | {
@@ -240,6 +245,7 @@ export type ModuleGeometrySourceTarget =
       category: DslGeometryDeclarationCategory;
       geometryKind: "point" | "line";
       pointKey?: string;
+      stagePath?: readonly string[];
       identity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
     }
   | {
@@ -253,6 +259,7 @@ export type ModuleGeometrySourceTarget =
       ownerModuleDefinitionStatementId?: StatementIdentity | null;
       ownerModuleDefinitionStatementIndex?: number | null;
       pointKey?: string;
+      stagePath?: readonly string[];
       identity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
     }
   | {
@@ -267,6 +274,7 @@ export type ModuleGeometrySourceTarget =
       referenceSpan: DslSpan;
       instanceSpan: DslSpan;
       memberSpan: DslSpan;
+      stagePath?: readonly string[];
       instanceIdentity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
       exportedIdentity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
     };
@@ -323,6 +331,7 @@ export type ModuleGeometryPropertySourceTarget =
       sourceElementType: ModuleGeometryInterfaceType;
       property: string;
       pointKey?: string;
+      stagePath?: readonly string[];
     }
   | {
       kind: "collectionValueLength";
@@ -363,6 +372,7 @@ export type ModuleGeometryPropertySourceTarget =
       ownerModuleDefinitionStatementIndex?: number | null;
       property: string;
       pointKey?: string;
+      stagePath?: readonly string[];
       identity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
     }
   | {
@@ -372,6 +382,7 @@ export type ModuleGeometryPropertySourceTarget =
       category: DslGeometryDeclarationCategory;
       property: string;
       pointKey?: string;
+      stagePath?: readonly string[];
       identity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
     }
   | {
@@ -384,6 +395,7 @@ export type ModuleGeometryPropertySourceTarget =
       occurrenceIndexSpan?: DslSpan;
       occurrenceRange?: DslSpan;
       pointKey?: string;
+      stagePath?: readonly string[];
       identity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
     }
   | {
@@ -394,6 +406,7 @@ export type ModuleGeometryPropertySourceTarget =
       exportName: string;
       property: string;
       pointKey?: string;
+      stagePath?: readonly string[];
       referenceSpan: DslSpan;
       instanceSpan: DslSpan;
       memberSpan: DslSpan;
@@ -1121,6 +1134,12 @@ export type ModuleSemanticAnalysisInput = {
   externalNamespaceResolver?: SourceLexicalExternalNamespaceResolver;
   /** Resolves an external public Module entry to its defining semantic data. */
   externalModuleResolver?: (member: SourceLexicalExternalNamespaceMember) => ExternalModuleSemanticTarget | null;
+  /** Compiler-owned transformation-stage symbol resolution shared by root
+   * geometry values and scalar/property lowering. */
+  resolveGeometryStageSelection?: (input: {
+    readonly statementId: StatementIdentity;
+    readonly members: readonly string[];
+  }) => import("./transformationRecipes").TransformationStageSelection;
 };
 
 export const moduleSemanticIdentityKey = (

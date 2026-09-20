@@ -161,13 +161,11 @@ export const resolveId = (
   const path = reference.path;
   const unresolvedToken = formatDslSourceReference(reference);
   if (reference.property) {
-    diagnostics.push(invalidReferenceDiagnostic(
-      line,
-      reference.source,
-      "この geometry reference role では property を指定できません。",
-      sourceSpan,
-      reference.propertyRange ?? reference.fullRange
-    ));
+    // Keep dotted geometry members intact for the compiler-owned semantic
+    // resolver. A single dotted token may select a transformation stage
+    // (`@A.base`, `@A.moved`) rather than a geometry property; rejecting it
+    // in this preliminary ID pass would discard the stage selector before
+    // the shared semantic reference authority can resolve it.
     return unresolvedToken;
   }
   const sourceResolution = index.sourceLexicalResolution && currentElement

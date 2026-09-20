@@ -77,6 +77,7 @@ import {
   type TransformationTargetSelector
 } from "@nuinuicad/nui-language";
 import type { TypedTransformationDependencyPlan } from "@nuinuicad/nui-language";
+import type { NumericValue } from "@nuinuicad/nui-language";
 import { geometryValueOccurrenceKey } from "@nuinuicad/nui-language";
 import type {
   ComputedGeometryValue,
@@ -93,6 +94,8 @@ import { lineLength } from "./offsetPathMath";
 import { findLineIntersections, isSelfIntersectingClosedPath } from "./lineIntersections";
 import { evaluateTypedExpression, type GeometryBuiltinTargetLookupResult } from "../scalars/expressionEvaluator";
 import { buildTypedDependencyGraph, setParameterValue } from "@nuinuicad/nui-language";
+import { evaluateNumericValue } from "./numericExpressionsRuntime";
+import { resolveDerivedPoint } from "../model/pointAnchorsRuntime";
 
 export type EvaluateElementsOptions = {
   evaluationLimitIndex?: number;
@@ -267,7 +270,7 @@ export const evaluateElements = (
   const instanceSnapshots = [...(options.moduleMaterialization?.instanceBaseGeometrySnapshots ?? [])];
   const capturedInstanceIds = new Set<ElementId>();
   for (const snapshot of options.moduleMaterialization?.instanceBaseGeometrySnapshots ?? []) {
-    if (snapshot.endRuntimeIndex < evaluationLimitIndex) {
+    if (snapshot.descendantIds.every((id) => evaluatedElementIds.has(id))) {
       instanceBaseGeometry.set(snapshot.instanceId, []);
     }
   }
@@ -325,6 +328,8 @@ export const evaluateElements = (
   const geometryCollectionNodesByValueId = new Map(options.geometryCollectionNodesByValueId ?? []);
   const geometryRuntime = {
     computedGeometry,
+    baseTransformationGeometry,
+    transformationStageGeometry,
     computedGeometryValues,
     geometryCarryValues,
     elementsById: runtimeElementsById,
@@ -332,6 +337,72 @@ export const evaluateElements = (
     forGroupGeneratedRows,
     forGroupExpectedOccurrenceCountByTemplateId,
     geometryCollectionNodesByValueId
+  };
+  const selectedTransformationGeometry = (
+    elementId: ElementId,
+    stagePath: readonly string[] | undefined
+  ): ComputedGeometry | undefined => {
+    if (!stagePath || stagePath.length === 0 || (stagePath.length === 1 && stagePath[0] === "final")) {
+      return computedGeometry.get(elementId);
+    }
+    if (stagePath.length === 1 && stagePath[0] === "base") {
+      return baseTransformationGeometry.get(elementId);
+    }
+    return transformationStageGeometry.get(transformationStageKey(elementId, undefined, stagePath));
+  };
+  const materializeStageResolvedReferences = (
+    value: unknown,
+    localVariableValues: Map<string, number>,
+    localVariableNames: Map<string, string>
+  ): unknown => {
+    if (Array.isArray(value)) {
+      return value.map((entry) => materializeStageResolvedReferences(entry, localVariableValues, localVariableNames));
+    }
+    if (!value || typeof value !== "object") return value;
+    const candidate = value as Record<string, unknown>;
+    if (
+      candidate.kind === "expression" &&
+      typeof candidate.expression === "string" &&
+      Array.isArray(candidate.resolvedReferences) &&
+      candidate.resolvedReferences.some((reference) => {
+        const stagePath = (reference as { stagePath?: readonly string[] }).stagePath;
+        return stagePath && stagePath.length > 0 && !(stagePath.length === 1 && stagePath[0] === "final");
+      })
+    ) {
+      const evaluated = evaluateNumericValue({
+        value: candidate as NumericValue,
+        computedGeometry,
+        baseTransformationGeometry,
+        transformationStageGeometry,
+        elementsById: runtimeElementsById,
+        localVariables: localVariableValues,
+        localVariableNames,
+        elements: runtimeElements
+      });
+      if (evaluated.value !== undefined) return evaluated.value;
+    }
+    if (candidate.mode === "reference" && typeof candidate.pointId === "string" && Array.isArray(candidate.stagePath)) {
+      const point = selectedTransformationGeometry(
+        candidate.pointId,
+        candidate.stagePath as readonly string[]
+      );
+      if (point?.kind === "point") return { mode: "coordinate", x: point.x, y: point.y };
+    }
+    if (candidate.mode === "derived" && typeof candidate.elementId === "string" &&
+      typeof candidate.pointKey === "string" && Array.isArray(candidate.stagePath)) {
+      const point = resolveDerivedPoint(
+        selectedTransformationGeometry(candidate.elementId, candidate.stagePath as readonly string[]),
+        candidate.pointKey,
+        runtimeElementsById
+      );
+      if (point) return { mode: "coordinate", x: point.x, y: point.y };
+    }
+    return Object.fromEntries(
+      Object.entries(candidate).map(([key, entry]) => [
+        key,
+        materializeStageResolvedReferences(entry, localVariableValues, localVariableNames)
+      ])
+    );
   };
   const linearMutationResolver = linearMutationEnabled
     ? createDocumentLinearScalarBindingResolver(options.bindingVersions!, geometryRuntime, options.scalarProgram?.collectionValues)
@@ -435,14 +506,15 @@ export const evaluateElements = (
     if (target.kind === "coordinate") return target.anchor;
     if (target.kind === "drawable" && target.geometryType === "point") {
       return target.pointKey
-        ? { mode: "derived", elementId: target.elementId, pointKey: target.pointKey }
-        : { mode: "reference", pointId: target.elementId };
+        ? { mode: "derived", elementId: target.elementId, pointKey: target.pointKey, ...(target.stagePath ? { stagePath: target.stagePath } : {}) }
+        : { mode: "reference", pointId: target.elementId, ...(target.stagePath ? { stagePath: target.stagePath } : {}) };
     }
     if (target.kind === "geometryValue" && target.geometryType === "point") {
       return {
         mode: "geometryValue",
         occurrence: target.occurrence,
-        ...(target.pointKey ? { pointKey: target.pointKey } : {})
+        ...(target.pointKey ? { pointKey: target.pointKey } : {}),
+        ...(target.stagePath ? { stagePath: target.stagePath } : {})
       };
     }
     return undefined;
@@ -1681,6 +1753,7 @@ export const evaluateElements = (
     ancestorElementIdMap: ReadonlyMap<ElementId, ElementId> = new Map(),
     ancestorOccurrencePath: readonly ForGroupGeneratedOccurrenceStep[] = []
   ) => {
+    try {
     activeForGroupElementIdMap = ancestorElementIdMap;
     advanceLinearBindingsBefore(element, sourceElement);
     const inactiveGroupId = inactiveConditionalGroupId(element);
@@ -1784,6 +1857,9 @@ export const evaluateElements = (
     }
 
     if (isForGroupElement(element)) {
+      // Keep the narrowed container identity stable even though the common
+      // property/geometry materialization path may replace `element` above.
+      const forGroupElement = element;
       const min = numericError(
         element,
         element.min,
@@ -1821,37 +1897,37 @@ export const evaluateElements = (
       let iterationValueOverrides: readonly ScalarEvaluation[] | undefined;
       let iterationRecordFieldOverrides: readonly ReadonlyMap<BindingId, ScalarEvaluation>[] | undefined;
       let iterationGeometryMembersForLoop: readonly (Exclude<GeometryInputTarget, { kind: "collectionIndex" | "collectionValue" | "geometryValueMap" }> | undefined)[] | undefined;
-      if (element.iterationSource && element.iterationSourceValueId && element.iterationElementValueType) {
+      if (forGroupElement.iterationSource && forGroupElement.iterationSourceValueId && forGroupElement.iterationElementValueType) {
         const sourceOrder = options.scalarExecutionPositionByElementId?.get((sourceElement ?? element).id) ??
           options.statementInfoByElementId?.get((sourceElement ?? element).id)?.statementIndex ?? 0;
-        const length = scalarBindingResolver?.resolveCollectionLength?.(element.iterationSourceValueId, sourceOrder) ??
-          scalarBindingResolver?.resolveGeometryCollectionLength?.(element.iterationSourceValueId, sourceOrder);
+        const length = scalarBindingResolver?.resolveCollectionLength?.(forGroupElement.iterationSourceValueId, sourceOrder) ??
+          scalarBindingResolver?.resolveGeometryCollectionLength?.(forGroupElement.iterationSourceValueId, sourceOrder);
         if (length === undefined || length < 0 || !Number.isInteger(length) ||
-          (element.iterationElementType && !scalarBindingResolver?.resolveCollectionIndex)) {
+          (forGroupElement.iterationElementType && !scalarBindingResolver?.resolveCollectionIndex)) {
           errors.push({
             elementId: element.id,
             elementName: element.name,
-            missingDependencyId: element.iterationSourceValueId,
-            missingDependencyName: element.iterationSource,
+            missingDependencyId: forGroupElement.iterationSourceValueId,
+            missingDependencyName: forGroupElement.iterationSource,
             message: `${element.name} の collection iteration source を評価できません。`
           });
           return;
         }
         iterationValues = Array.from({ length }, (_, index) => index);
-        if (element.iterationElementType) {
+        if (forGroupElement.iterationElementType) {
           iterationValueOverrides = iterationValues.map((index) =>
             scalarBindingResolver!.resolveCollectionIndex!(
-              element.iterationSourceValueId!,
+              forGroupElement.iterationSourceValueId!,
               index,
-              element.iterationElementType!,
+              forGroupElement.iterationElementType!,
               length,
-              element.iterationSourceOrder ?? sourceOrder - 1,
+              forGroupElement.iterationSourceOrder ?? sourceOrder - 1,
               sourceOrder
             )
           );
         }
       const collection = options.scalarProgram?.collectionValues?.find((candidate) =>
-          candidate.valueId === element.iterationSourceValueId
+          candidate.valueId === forGroupElement.iterationSourceValueId
         );
         const resolveCollectionRecordField = scalarBindingResolver?.resolveCollectionRecordField;
         if (collection?.kind === "literal" && resolveCollectionRecordField) {
@@ -1865,7 +1941,7 @@ export const evaluateElements = (
                 field.fieldPath ?? [{ recordStatementId: field.recordStatementId, fieldIndex: field.fieldIndex }]
               ),
               resolveCollectionRecordField(
-                element.iterationSourceValueId!,
+                forGroupElement.iterationSourceValueId!,
                 index,
                 field,
                 sourceOrder
@@ -1874,7 +1950,7 @@ export const evaluateElements = (
           });
           if (recordMembers.some((fields) => fields.size > 0)) iterationRecordFieldOverrides = recordMembers;
         }
-        const geometryCollectionNode = options.geometryCollectionNodesByValueId?.get(element.iterationSourceValueId);
+        const geometryCollectionNode = options.geometryCollectionNodesByValueId?.get(forGroupElement.iterationSourceValueId);
         const iterationGeometryMembers = geometryCollectionNode
           ? iterationValues.map((index) => resolveGeometryCollectionMemberForNode(
               geometryCollectionNode,
@@ -2050,7 +2126,7 @@ export const evaluateElements = (
             rowByTemplateId = new Map();
             const expanded = expandForGroupIteration({
               elements,
-              forGroup: element,
+              forGroup: forGroupElement,
               templateForGroupId: sourceElement?.id,
               iterationIndex: context.iterationIndex,
               variableValue: context.iterationValue,
@@ -2205,10 +2281,18 @@ export const evaluateElements = (
       runtimeElementsById.set(elementToEvaluate.id, elementToEvaluate);
     }
 
+    elementToEvaluate = materializeStageResolvedReferences(
+      elementToEvaluate,
+      localVariables.localVariableValues,
+      localVariables.localVariableNames
+    ) as CadElement;
+    runtimeElementsById.set(elementToEvaluate.id, elementToEvaluate);
+
     const mutationTargetIds = geometryMutationTargetIds(elementToEvaluate);
     const errorCountBeforeElementEvaluation = errors.length;
     evaluateElement(elementToEvaluate, {
       computedGeometry,
+      resolveGeometrySnapshot: selectedTransformationGeometry,
       computedGeometryValues,
       elementsById: runtimeElementsById,
       errors,
@@ -2236,6 +2320,10 @@ export const evaluateElements = (
     if (!baseTransformationGeometry.has(elementToEvaluate.id)) {
       const geometry = computedGeometry.get(elementToEvaluate.id);
       if (geometry) baseTransformationGeometry.set(elementToEvaluate.id, structuredClone(geometry));
+    }
+    } finally {
+      completedElementIds.add(element.id);
+      captureReadyModuleInstanceBases();
     }
   };
 
@@ -2354,7 +2442,7 @@ export const evaluateElements = (
     if (targets.length === 0) return;
     const inputByRuntimeId = new Map<ElementId, ComputedGeometry>();
     for (const target of targets) {
-      const input = target.stagePath.length === 0
+      const input = target.stagePath.length === 0 || (target.stagePath.length === 1 && target.stagePath[0] === "final")
         ? computedGeometry.get(target.runtimeOwnerId)
         : target.stagePath[0] === "base" && target.stagePath.length === 1
           ? baseTransformationGeometry.get(target.runtimeOwnerId)
@@ -2373,12 +2461,47 @@ export const evaluateElements = (
       [...targetIds].map((id) => [id, computedGeometry.get(id)])
     );
     for (const [id, input] of inputByRuntimeId) computedGeometry.set(id, input);
-    const synthetic = transformationSyntheticElement(recipe, targets);
+    const selectedSnapshotFor = (elementId: ElementId, stagePath: readonly string[] | undefined) => {
+      if (!stagePath || stagePath.length === 0 || (stagePath.length === 1 && stagePath[0] === "final")) return computedGeometry.get(elementId);
+      if (stagePath.length === 1 && stagePath[0] === "base") return baseTransformationGeometry.get(elementId);
+      return transformationStageGeometry.get(transformationStageKey(elementId, undefined, stagePath));
+    };
+    const materializeTransformationValue = (value: unknown): unknown => {
+      if (Array.isArray(value)) return value.map(materializeTransformationValue);
+      if (!value || typeof value !== "object") return value;
+      const candidate = value as Record<string, unknown>;
+      if (candidate.kind === "expression") {
+        const evaluated = evaluateNumericValue({
+          value: candidate as NumericValue,
+          computedGeometry,
+          baseTransformationGeometry,
+          transformationStageGeometry,
+          elementsById: runtimeElementsById,
+          elements: runtimeElements
+        });
+        return evaluated.value ?? value;
+      }
+      if (candidate.mode === "derived" && typeof candidate.elementId === "string" && typeof candidate.pointKey === "string") {
+        const point = resolveDerivedPoint(
+          selectedSnapshotFor(candidate.elementId, candidate.stagePath as readonly string[] | undefined),
+          candidate.pointKey,
+          runtimeElementsById
+        );
+        return point ? { mode: "coordinate", x: point.x, y: point.y } : value;
+      }
+      if (candidate.mode === "reference" && typeof candidate.pointId === "string") {
+        const point = selectedSnapshotFor(candidate.pointId, candidate.stagePath as readonly string[] | undefined);
+        return point?.kind === "point" ? { mode: "coordinate", x: point.x, y: point.y } : value;
+      }
+      return Object.fromEntries(Object.entries(candidate).map(([key, child]) => [key, materializeTransformationValue(child)]));
+    };
+    const synthetic = materializeTransformationValue(transformationSyntheticElement(recipe, targets)) as CadElement;
     runtimeElementsById.set(synthetic.id, synthetic);
     const errorCountBefore = errors.length;
     if (recipe.enabled) {
       evaluateElement(synthetic, {
         computedGeometry,
+        resolveGeometrySnapshot: selectedTransformationGeometry,
         computedGeometryValues,
         elementsById: runtimeElementsById,
         errors,
@@ -2495,7 +2618,7 @@ export const evaluateElements = (
         : [target.ownerId];
       if (runtimeIds.length === 0) return false;
       for (const runtimeId of runtimeIds) {
-        if (target.stagePath.length === 0) {
+        if (target.stagePath.length === 0 || (target.stagePath.length === 1 && target.stagePath[0] === "final")) {
           if (!computedGeometry.has(runtimeId)) return false;
         } else if (target.stagePath[0] === "base" && target.stagePath.length === 1) {
           if (!baseTransformationGeometry.has(runtimeId)) return false;
@@ -2545,8 +2668,6 @@ export const evaluateElements = (
     // half-step excludes the current declaration itself.
     evaluateReadyTransformationRecipes();
     evaluateRuntimeElement(element);
-    completedElementIds.add(element.id);
-    captureReadyModuleInstanceBases();
     evaluateReadyTransformationRecipes();
   }
 

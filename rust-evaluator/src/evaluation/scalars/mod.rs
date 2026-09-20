@@ -24,7 +24,7 @@ mod expression_payload;
 mod expression_shape_payload;
 #[allow(dead_code)]
 mod for_group_execution_core;
-mod geometry_builtin_runtime;
+pub(crate) mod geometry_builtin_runtime;
 mod issue;
 mod json_helpers;
 mod mutation;

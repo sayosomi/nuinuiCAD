@@ -694,4 +694,35 @@ describe("Task 36 typed dependency graph wiring", () => {
     expect(edges).toHaveLength(1);
     expect(edges?.[0]).toMatchObject({ to: { id: "binding:test:bad" }, reason: "invalid" });
   });
+
+  it("activates selected lazy geometry edges for cycles without requiring unselected branches", () => {
+    const compile = (condition: "true" | "false") => compileDslDocument(
+      [
+        "nui 1",
+        `const gate: boolean = if (${condition}) { @A.length > 0 } else { true }`,
+        "line A = segment(start: (0, 0), end: (10, 0), enabled: @gate)"
+      ].join("\n"),
+      { assignedStatementIds: new Map([[1, "test:gate"], [2, "test:a"]]) }
+    );
+
+    const selected = compile("true");
+    expect(selected.diagnostics.map((diagnostic) => diagnostic.code)).toContain("dependency-cycle");
+    expect(selected.typedDependencyGraph?.edges).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        kind: "geometry-property",
+        requiredness: "conditional",
+        activation: expect.objectContaining({ branch: "then", staticSelection: "selected" })
+      })
+    ]));
+
+    const unselected = compile("false");
+    expect(unselected.diagnostics.map((diagnostic) => diagnostic.code)).not.toContain("dependency-cycle");
+    expect(unselected.typedDependencyGraph?.edges).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        kind: "geometry-property",
+        requiredness: "conditional",
+        activation: expect.objectContaining({ branch: "then", staticSelection: "unselected" })
+      })
+    ]));
+  });
 });

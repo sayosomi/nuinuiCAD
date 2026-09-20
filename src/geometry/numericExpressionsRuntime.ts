@@ -27,6 +27,7 @@ import {
   type NumericGeometryStaticTarget
 } from "@nuinuicad/nui-language";
 import { numericGeometryStaticTargetForComputedGeometry } from "./numericGeometryPropertiesRuntime";
+import { transformationStageKey } from "@nuinuicad/nui-language";
 
 const EPSILON = 1e-9;
 type OffsetLineSegment = ComputedOffsetLineSegment | ComputedGeometryValueOffsetLineSegment;
@@ -343,6 +344,8 @@ export const numericComputedGeometrySupportsProperty = (
 export const evaluateNumericValue = ({
   value,
   computedGeometry,
+  baseTransformationGeometry,
+  transformationStageGeometry,
   elementsById,
   localVariables,
   localVariableNames,
@@ -351,6 +354,8 @@ export const evaluateNumericValue = ({
 }: {
   value: NumericValue;
   computedGeometry: Map<ElementId, ComputedGeometry>;
+  baseTransformationGeometry?: ReadonlyMap<ElementId, ComputedGeometry>;
+  transformationStageGeometry?: ReadonlyMap<string, ComputedGeometry>;
   elementsById: Map<ElementId, CadElement>;
   localVariables?: Map<string, number>;
   localVariableNames?: Map<string, string>;
@@ -408,8 +413,15 @@ export const evaluateNumericValue = ({
         throw new Error(`${name} の引数は ${count} 個必要です。`);
       }
     };
+    const selectedSnapshotFor = (elementId: ElementId, stagePath: readonly string[] | undefined) => {
+      if (!stagePath || stagePath.length === 0 || (stagePath.length === 1 && stagePath[0] === "final")) return computedGeometry.get(elementId);
+      if (stagePath.length === 1 && stagePath[0] === "base") return baseTransformationGeometry?.get(elementId);
+      return transformationStageGeometry?.get(transformationStageKey(elementId, undefined, stagePath));
+    };
+    let resolvedReferenceIndex = 0;
     const parser = new Parser(tokenize(value.expression), (reference) => {
-      const geometry = computedGeometry.get(reference.elementId);
+      const resolvedReference = value.resolvedReferences?.[resolvedReferenceIndex++];
+      const geometry = selectedSnapshotFor(reference.elementId, resolvedReference?.stagePath);
       if (!reference.property) {
         const dependencyName = elementsById.get(reference.elementId)?.name;
         throw Object.assign(
@@ -442,7 +454,9 @@ export const evaluateNumericValue = ({
               localVariables,
               localVariableNames,
               currentElement,
-              elements
+              elements,
+              baseTransformationGeometry,
+              transformationStageGeometry
             });
             if (evaluated.value !== undefined) return evaluated.value;
             throw Object.assign(new Error(evaluated.error?.message ?? "設定値を評価できません。"), {
@@ -461,7 +475,9 @@ export const evaluateNumericValue = ({
             localVariables,
             localVariableNames,
             currentElement,
-            elements
+            elements,
+            baseTransformationGeometry,
+            transformationStageGeometry
           });
           if (evaluated.value !== undefined) return evaluated.value;
           throw Object.assign(new Error(evaluated.error?.message ?? "設定値を評価できません。"), {

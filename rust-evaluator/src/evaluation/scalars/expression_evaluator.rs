@@ -65,6 +65,17 @@ pub(crate) trait ScalarEvaluationEnvironment {
         }
     }
 
+    fn lookup_geometry_property_at_stage(
+        &self,
+        element_id: &str,
+        _stage_path: Option<&[String]>,
+        property: &str,
+        target_source_order: f64,
+        property_type: &ScalarType,
+    ) -> ScalarEvaluation {
+        self.lookup_geometry_property(element_id, property, target_source_order, property_type)
+    }
+
     fn lookup_geometry_value_property(
         &self,
         _occurrence: &GeometryValueOccurrence,
@@ -102,6 +113,7 @@ pub(crate) trait ScalarEvaluationEnvironment {
         _template_element_id: &str,
         _index: Option<&TypedScalarExpression>,
         _point_key: Option<&str>,
+        _stage_path: Option<&[String]>,
         _property: &str,
         _target_source_order: f64,
         property_type: &ScalarType,
@@ -218,6 +230,7 @@ impl<E: ScalarEvaluationEnvironment + ?Sized> ScalarEvaluationEnvironment
         template_element_id: &str,
         index: Option<&TypedScalarExpression>,
         point_key: Option<&str>,
+        stage_path: Option<&[String]>,
         property: &str,
         target_source_order: f64,
         property_type: &ScalarType,
@@ -226,6 +239,7 @@ impl<E: ScalarEvaluationEnvironment + ?Sized> ScalarEvaluationEnvironment
             template_element_id,
             index,
             point_key,
+            stage_path,
             property,
             target_source_order,
             property_type,
@@ -627,6 +641,7 @@ fn eval_node<'a>(
             for_group_target_source_order,
             for_group_index,
             property,
+            stage_path,
             target_source_order,
             r#type,
             ..
@@ -654,6 +669,7 @@ fn eval_node<'a>(
                     template_element_id,
                     for_group_index.as_deref(),
                     geometry_value_point_key.as_deref(),
+                    stage_path.as_deref(),
                     property,
                     for_group_target_source_order.unwrap_or(*target_source_order),
                     r#type,
@@ -675,8 +691,9 @@ fn eval_node<'a>(
                     r#type,
                 )
             } else {
-                environment.lookup_geometry_property(
+                environment.lookup_geometry_property_at_stage(
                     element_id,
+                    stage_path.as_deref(),
                     property,
                     *target_source_order,
                     r#type,

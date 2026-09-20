@@ -3967,6 +3967,7 @@ export const compileModuleScalarRuntime = ({
     context: InstanceContext
   ): ScalarExpressionResolvedGeometryTarget | undefined => {
     if (!moduleGeometryRuntime || !occurrence.reference.target) return undefined;
+    const stagePath = "stagePath" in occurrence.reference.target ? occurrence.reference.target.stagePath : undefined;
     const lowered = moduleGeometryRuntime.resolveBuiltinTarget(
       occurrence.reference.target,
       context.path,
@@ -3982,7 +3983,8 @@ export const compileModuleScalarRuntime = ({
           ? executionPositionForValue(context.path, occurrence.reference.target.statementIndex)
           : occurrence.span.start,
         geometryType: lowered.geometryType,
-        ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {})
+        ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {}),
+        ...(stagePath ? { stagePath } : {})
       };
     }
     if (lowered.kind === "forGroupOccurrence") {
@@ -4008,7 +4010,8 @@ export const compileModuleScalarRuntime = ({
           : lowered.targetSourceOrder,
         index,
         geometryType: lowered.geometryType,
-        ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {})
+        ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {}),
+        ...(stagePath ? { stagePath } : {})
       };
     }
     if (lowered.kind === "geometryCarry") {
@@ -4018,7 +4021,8 @@ export const compileModuleScalarRuntime = ({
         statementId: lowered.bindingId,
         statementIndex: occurrence.span.start,
         geometryType: lowered.geometryType,
-        ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {})
+        ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {}),
+        ...(stagePath ? { stagePath } : {})
       };
     }
     const statementIndex = elementOrderById.get(lowered.elementId);
@@ -4028,6 +4032,7 @@ export const compileModuleScalarRuntime = ({
     occurrence: ModuleGeometryBuiltinArgumentSemantic
   ): ScalarExpressionResolvedGeometryTarget | undefined => {
     if (!moduleGeometryRuntime || !occurrence.reference.target) return undefined;
+    const stagePath = "stagePath" in occurrence.reference.target ? occurrence.reference.target.stagePath : undefined;
     const lowered = moduleGeometryRuntime.resolveBuiltinTarget(
       occurrence.reference.target,
       [],
@@ -4043,7 +4048,8 @@ export const compileModuleScalarRuntime = ({
           ? executionPositionForValue([], occurrence.reference.target.statementIndex)
           : occurrence.span.start,
         geometryType: lowered.geometryType,
-        ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {})
+        ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {}),
+        ...(stagePath ? { stagePath } : {})
       };
     }
     if (lowered.kind === "forGroupOccurrence") {
@@ -4069,7 +4075,8 @@ export const compileModuleScalarRuntime = ({
           : lowered.targetSourceOrder,
         index,
         geometryType: lowered.geometryType,
-        ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {})
+        ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {}),
+        ...(stagePath ? { stagePath } : {})
       };
     }
     if (lowered.kind === "geometryCarry") {
@@ -4079,7 +4086,8 @@ export const compileModuleScalarRuntime = ({
         statementId: lowered.bindingId,
         statementIndex: occurrence.span.start,
         geometryType: lowered.geometryType,
-        ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {})
+        ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {}),
+        ...(stagePath ? { stagePath } : {})
       };
     }
     const statementIndex = elementOrderById.get(lowered.elementId);
@@ -4840,6 +4848,7 @@ export const compileModuleScalarRuntime = ({
     }
     if (!reference.target || !moduleGeometryRuntime) return undefined;
     const path = context?.path ?? [];
+    const stagePath = "stagePath" in reference.target ? reference.target.stagePath : undefined;
     const lowered = moduleGeometryRuntime.resolveBuiltinTarget(reference.target, path, "point");
     if (!lowered) return undefined;
     if (lowered.kind === "geometryValue") {
@@ -4853,7 +4862,8 @@ export const compileModuleScalarRuntime = ({
             ? executionPositionForValue(path, reference.target.statementIndex)
             : executionPosition,
           geometryType: lowered.geometryType,
-          ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {})
+          ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {}),
+          ...(stagePath ? { stagePath } : {})
         }
       };
     }
@@ -4870,7 +4880,8 @@ export const compileModuleScalarRuntime = ({
             : lowered.targetSourceOrder,
           index: lowered.index ? lowerGeometryValueScalar(lowered.index, context) : null,
           geometryType: lowered.geometryType,
-          ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {})
+          ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {}),
+          ...(stagePath ? { stagePath } : {})
         }
       };
     }
@@ -4883,7 +4894,8 @@ export const compileModuleScalarRuntime = ({
           statementId: lowered.bindingId,
           statementIndex: executionPosition,
           geometryType: lowered.geometryType,
-          ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {})
+          ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {}),
+          ...(stagePath ? { stagePath } : {})
         }
       };
     }
@@ -4895,7 +4907,8 @@ export const compileModuleScalarRuntime = ({
         statementId: lowered.elementId,
         statementIndex: targetSourceOrder,
         geometryType: lowered.geometryType,
-        ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {})
+        ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {}),
+        ...(stagePath ? { stagePath } : {})
       }
     };
   };
@@ -4913,12 +4926,14 @@ export const compileModuleScalarRuntime = ({
           binderId: reference.target.binderId,
           statementId: reference.target.statementId,
           statementIndex: executionPosition,
-          geometryType: reference.target.sourceElementType
+          geometryType: reference.target.sourceElementType,
+          ...(reference.target.stagePath ? { stagePath: reference.target.stagePath } : {})
         }
       };
     }
     if (!reference.target || !moduleGeometryRuntime) return undefined;
     const path = context?.path ?? [];
+    const stagePath = "stagePath" in reference.target ? reference.target.stagePath : undefined;
     const lowered = moduleGeometryRuntime.resolveBuiltinTarget(reference.target, path, "line");
     if (!lowered) return undefined;
     if (lowered.kind === "geometryValue") {
@@ -4931,7 +4946,8 @@ export const compileModuleScalarRuntime = ({
           statementIndex: reference.target.kind === "geometryValue"
             ? executionPositionForValue(path, reference.target.statementIndex)
             : executionPosition,
-          geometryType: lowered.geometryType
+          geometryType: lowered.geometryType,
+          ...(stagePath ? { stagePath } : {})
         }
       };
     }
@@ -4948,7 +4964,8 @@ export const compileModuleScalarRuntime = ({
             : lowered.targetSourceOrder,
           index: lowered.index ? lowerGeometryValueScalar(lowered.index, context) : null,
           geometryType: lowered.geometryType,
-          ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {})
+          ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {}),
+          ...(stagePath ? { stagePath } : {})
         }
       };
     }
@@ -4960,7 +4977,8 @@ export const compileModuleScalarRuntime = ({
           bindingId: lowered.bindingId,
           statementId: lowered.bindingId,
           statementIndex: executionPosition,
-          geometryType: lowered.geometryType
+          geometryType: lowered.geometryType,
+          ...(stagePath ? { stagePath } : {})
         }
       };
     }
@@ -4971,7 +4989,8 @@ export const compileModuleScalarRuntime = ({
       target: {
         statementId: lowered.elementId,
         statementIndex: targetSourceOrder,
-        geometryType: lowered.geometryType
+        geometryType: lowered.geometryType,
+        ...(stagePath ? { stagePath } : {})
       }
     };
   };

@@ -103,12 +103,14 @@ export type ScalarExpressionResolvedGeometryTarget = {
   readonly statementIndex: number;
   readonly geometryType: ModuleGeometryInterfaceType;
   readonly pointKey?: string;
+  readonly stagePath?: readonly string[];
 } | {
   readonly kind?: "drawable";
   readonly statementId: string;
   readonly statementIndex: number;
   readonly geometryType: ModuleGeometryInterfaceType;
   readonly pointKey?: string;
+  readonly stagePath?: readonly string[];
 } | {
   readonly kind: "forGroupOccurrence";
   readonly templateElementId: ElementId;
@@ -120,6 +122,7 @@ export type ScalarExpressionResolvedGeometryTarget = {
   readonly index: TypedScalarExpression | null;
   readonly geometryType: ModuleGeometryInterfaceType;
   readonly pointKey?: string;
+  readonly stagePath?: readonly string[];
 } | {
   readonly kind: "geometryValueForBinder";
   readonly binderId: BindingId;
@@ -127,6 +130,7 @@ export type ScalarExpressionResolvedGeometryTarget = {
   readonly statementIndex: number;
   readonly geometryType: ModuleGeometryInterfaceType;
   readonly pointKey?: string;
+  readonly stagePath?: readonly string[];
 } | {
   readonly kind: "geometryValue";
   readonly occurrence: GeometryValueOccurrence;
@@ -134,6 +138,7 @@ export type ScalarExpressionResolvedGeometryTarget = {
   readonly statementIndex: number;
   readonly geometryType: ModuleGeometryInterfaceType;
   readonly pointKey?: string;
+  readonly stagePath?: readonly string[];
 };
 
 export type ScalarExpressionResolvedReference =
@@ -156,6 +161,7 @@ export type ScalarExpressionResolvedGeometryProperty = {
   readonly bindingId: BindingId;
   readonly property: string;
   readonly pointKey?: string;
+  readonly stagePath?: readonly string[];
   readonly targetSourceOrder: number;
   readonly type: ScalarExpressionType;
 } | {
@@ -164,6 +170,7 @@ export type ScalarExpressionResolvedGeometryProperty = {
   readonly property: string;
   readonly targetSourceOrder: number;
   readonly type: ScalarExpressionType;
+  readonly stagePath?: readonly string[];
 } | {
   readonly kind: "forGroupOccurrence";
   readonly templateElementId: ElementId;
@@ -172,6 +179,7 @@ export type ScalarExpressionResolvedGeometryProperty = {
   readonly index: TypedScalarExpression | null;
   readonly pointKey?: string;
   readonly type: ScalarExpressionType;
+  readonly stagePath?: readonly string[];
 } | {
   readonly kind: "geometryValueForBinder";
   readonly binderId: BindingId;
@@ -179,6 +187,7 @@ export type ScalarExpressionResolvedGeometryProperty = {
   readonly pointKey?: string;
   readonly targetSourceOrder: number;
   readonly type: ScalarExpressionType;
+  readonly stagePath?: readonly string[];
 } | {
   readonly kind: "geometryValue";
   readonly occurrence: GeometryValueOccurrence;
@@ -186,6 +195,7 @@ export type ScalarExpressionResolvedGeometryProperty = {
   readonly pointKey?: string;
   readonly targetSourceOrder: number;
   readonly type: ScalarExpressionType;
+  readonly stagePath?: readonly string[];
 } | {
   readonly kind: "collection";
   readonly collectionValueId: string;
@@ -250,6 +260,7 @@ export interface TypedScalarGeometryPropertyReferenceNode {
   readonly forGroupOccurrenceIndex?: TypedScalarExpression | null;
   readonly forGroupOccurrencePointKey?: string;
   readonly property: string;
+  readonly stagePath?: readonly string[];
   readonly targetSourceOrder: number | null;
   readonly type: ScalarExpressionType | null;
 }

@@ -58,6 +58,21 @@ const measure = (count: number): Measurement => {
   };
 };
 
+const measureGeometry = (count: number): Measurement => {
+  for (let warmup = 0; warmup < 10; warmup += 1) compileGeometryGraph(count);
+  const samples: number[] = [];
+  for (let trial = 0; trial < 11; trial += 1) {
+    const started = performance.now();
+    compileGeometryGraph(count);
+    samples.push(performance.now() - started);
+  }
+  samples.sort((left, right) => left - right);
+  return {
+    medianMs: samples[Math.floor(samples.length / 2)],
+    p95Ms: samples[Math.min(samples.length - 1, Math.ceil(samples.length * 0.95) - 1)]
+  };
+};
+
 describePerformanceGates("Task 36 typed dependency graph performance", () => {
   it("records 250/1000 dense initializer graph construction", () => {
     const small = measure(250);
@@ -72,17 +87,17 @@ describePerformanceGates("Task 36 typed dependency graph performance", () => {
   }, 150_000);
 
   it("records a 1,000-node structured geometry chain through graph construction", () => {
-    for (let warmup = 0; warmup < 10; warmup += 1) compileGeometryGraph(1000);
-    const samples: number[] = [];
-    for (let trial = 0; trial < 11; trial += 1) {
-      const started = performance.now();
-      compileGeometryGraph(1000);
-      samples.push(performance.now() - started);
-    }
-    samples.sort((left, right) => left - right);
-    const medianMs = samples[Math.floor(samples.length / 2)];
-    console.log(`[Task 36 geometry dependency graph] 1000-node chain median=${medianMs.toFixed(3)}ms`);
+    const small = measureGeometry(250);
+    const large = measureGeometry(1000);
+    const scaling = large.medianMs / Math.max(small.medianMs, 0.001);
+    console.log(
+      `[Task 36 geometry dependency graph] 250 median=${small.medianMs.toFixed(3)}ms p95=${small.p95Ms.toFixed(3)}ms; ` +
+      `1000 median=${large.medianMs.toFixed(3)}ms p95=${large.p95Ms.toFixed(3)}ms; scaling=${scaling.toFixed(3)}x`
+    );
+    expect(compileGeometryGraph(250)).toMatchObject({ edgeCount: 752, orderCount: 251 });
     expect(compileGeometryGraph(1000)).toMatchObject({ edgeCount: 3002, orderCount: 1001 });
-    expect(Number.isFinite(medianMs)).toBe(true);
+    expect(Number.isFinite(small.medianMs)).toBe(true);
+    expect(Number.isFinite(large.medianMs)).toBe(true);
+    expect(Number.isFinite(scaling)).toBe(true);
   }, 150_000);
 });

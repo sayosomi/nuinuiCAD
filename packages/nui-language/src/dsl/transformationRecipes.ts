@@ -51,6 +51,48 @@ export type TransformationRecipe = {
   runtimeSourceOrder?: number;
 };
 
+/** The compiler-owned interpretation of the dotted member suffix on a
+ * geometry reference.  The source parser intentionally keeps the suffix as
+ * text; this is the semantic split shared by scalar/property lowering and
+ * transformation lowering. */
+export type TransformationStageSelection = {
+  stagePath: readonly string[];
+  propertyPath: readonly string[];
+};
+
+export const resolveTransformationStageSelection = ({
+  ownerId,
+  members,
+  recipes,
+  occurrenceIndex
+}: {
+  ownerId: ElementId;
+  members: readonly string[];
+  recipes: readonly TransformationRecipe[];
+  occurrenceIndex?: string;
+}): TransformationStageSelection => {
+  const namedPaths = recipes.flatMap((recipe) => recipe.stageName
+    ? recipe.targets
+      .filter((target) => target.ownerId === ownerId &&
+        (target.occurrenceIndex === occurrenceIndex ||
+          (occurrenceIndex !== undefined && target.occurrenceIndex === undefined)))
+      .map((target) => [...target.stagePath, recipe.stageName!])
+    : []);
+  const candidates: readonly (readonly string[])[] = [
+    ["base"],
+    ["final"],
+    ...namedPaths
+  ];
+  let selected: readonly string[] | undefined;
+  for (const candidate of candidates) {
+    if (candidate.length > members.length) continue;
+    if (candidate.every((part, index) => members[index] === part) &&
+        (!selected || candidate.length > selected.length)) selected = candidate;
+  }
+  if (!selected) return { stagePath: ["final"], propertyPath: members };
+  return { stagePath: selected, propertyPath: members.slice(selected.length) };
+};
+
 export const transformationStageKey = (
   runtimeOwnerId: ElementId,
   occurrenceIndex: string | undefined,

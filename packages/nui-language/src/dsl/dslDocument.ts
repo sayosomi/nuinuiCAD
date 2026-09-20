@@ -20,6 +20,7 @@ import type {
 } from "../types/geometry";
 import type { GeometryInputCollectionNode, GeometryInputTarget } from "../model/cadDocumentTypes";
 import { compileDslToElements } from "./dslCompiler";
+import { resolveTransformationStageSelection } from "./transformationRecipes";
 import { lowerScalarProgram } from "../scalars/scalarProgram";
 import { analyzeTypedDeclarations } from "../scalars/typedDeclarationAnalysis";
 import { bindingIssuesToDiagnostics } from "../scalars/bindingIssueDiagnostics";
@@ -2602,6 +2603,11 @@ export const compileDslDocument = (
         additionalGeometryResolver: rootGeometryBuiltinResolver,
         additionalGeometryPropertyResolver: (input) =>
           immutableCarryCompilation?.collectionLengthPropertyResolver?.(input) ?? rootGeometryValuePropertyResolver?.(input) ?? null,
+        resolveGeometryStageSelection: ({ elementId, members }) => resolveTransformationStageSelection({
+          ownerId: elementId,
+          members,
+          recipes: compiled.transformationRecipes ?? []
+        }),
         additionalCollectionIndexResolver: rootCollectionIndexResolver,
         additionalBindings: [
           ...rootValueForBodyBindingSeeds,
@@ -2661,14 +2667,36 @@ export const compileDslDocument = (
         sourceNamespace: sourceLexicalNamespace,
         spans,
         logicalTextByStatementIndex,
-        documentScalarBindings
+        documentScalarBindings,
+        resolveGeometryStageSelection: ({ statementId, members }) => {
+          const statementIndex = [...stableStatementIdByIndex.entries()].find(([, candidateId]) => candidateId === statementId)?.[0];
+          const ownerId = statementIndex === undefined
+            ? statementId
+            : compiled.elementIdsByStatementIndex?.get(statementIndex) ?? statementId;
+          return resolveTransformationStageSelection({
+            ownerId,
+            members,
+            recipes: compiled.runtimeTransformationRecipes ?? compiled.transformationRecipes ?? []
+          });
+        }
       })
     : undefined;
   const sourceSemanticCompilation = moduleRuntimeContext?.analysisFor(moduleRuntimeContext.rootDocumentId) ?? locallyAnalyzedSourceSemanticCompilation;
+  const hasStageAwareGeometryReferences = Boolean(
+    sourceSemanticCompilation?.rootGeometryReferencesByStatementId &&
+    [...sourceSemanticCompilation.rootGeometryReferencesByStatementId.values()].some((sites) =>
+      sites.some((site) => {
+        const stagePath = site.reference.target && "stagePath" in site.reference.target
+          ? site.reference.target.stagePath
+          : undefined;
+        return Boolean(stagePath?.length && !(stagePath.length === 1 && stagePath[0] === "final"));
+      })
+    )
+  );
   // The source semantic projection is also useful for Definition Query in a
   // document without Modules. Geometry values also need this path so their
   // source-only aliases can be lowered at existing geometry consumers.
-  const moduleSemanticCompilation = hasModuleStatements || hasGeometryValueStatements || hasGeometryCarryStatements || hasRecordValueControlFlowStatements || hasGeneralizedRecordFields || hasNonScalarOptionalOrCoalescingStatements || hasGenericCollectionIndexStatements || hasGeometryCollectionIndexStatements || hasCollectionControlFlowStatements || hasNominalRecordCollectionValueFor || hasOptionalMemberStatements ? sourceSemanticCompilation : undefined;
+  const moduleSemanticCompilation = hasModuleStatements || hasGeometryValueStatements || hasGeometryCarryStatements || hasRecordValueControlFlowStatements || hasGeneralizedRecordFields || hasNonScalarOptionalOrCoalescingStatements || hasGenericCollectionIndexStatements || hasGeometryCollectionIndexStatements || hasCollectionControlFlowStatements || hasNominalRecordCollectionValueFor || hasOptionalMemberStatements || hasStageAwareGeometryReferences ? sourceSemanticCompilation : undefined;
   const geometryInputTargetsByElementId = new Map<ElementId, Map<string, GeometryInputTarget>>();
   if (moduleSemanticCompilation && stableStatementIdByIndex) {
     for (const [statementId, sites] of moduleSemanticCompilation.rootGeometryReferencesByStatementId) {
@@ -2677,14 +2705,41 @@ export const compileDslDocument = (
       if (elementId === undefined || statementIndex === undefined) continue;
       for (const site of sites) {
         const target = site.reference.target;
-        if (site.parameterKey === null || target?.kind !== "geometryCarry") continue;
+        if (site.parameterKey === null || !target) continue;
+        const targetForRuntime: GeometryInputTarget | undefined =
+          target.kind === "geometryCarry"
+            ? {
+                kind: "geometryCarry",
+                bindingId: target.bindingId,
+                geometryType: target.geometryKind,
+                ...(target.pointKey ? { pointKey: target.pointKey } : {}),
+                ...(target.stagePath ? { stagePath: target.stagePath } : {})
+              }
+            : target.kind === "sourceGeometry"
+              ? (() => {
+                  const sourceElementId = compiled.elementIdsByStatementIndex?.get(target.statementIndex);
+                  return sourceElementId
+                    ? {
+                        kind: "drawable" as const,
+                        elementId: sourceElementId,
+                        geometryType: target.geometryKind,
+                        ...(target.pointKey ? { pointKey: target.pointKey } : {}),
+                        ...(target.stagePath ? { stagePath: target.stagePath } : {})
+                      }
+                    : undefined;
+                })()
+              : target.kind === "geometryValue"
+                ? {
+                    kind: "geometryValue" as const,
+                    occurrence: { sourceStatementId: target.statementId, instancePath: [] },
+                    geometryType: target.declaredInterfaceType,
+                    ...(target.pointKey ? { pointKey: target.pointKey } : {}),
+                    ...(target.stagePath ? { stagePath: target.stagePath } : {})
+                  }
+                : undefined;
+        if (!targetForRuntime) continue;
         const targets = geometryInputTargetsByElementId.get(elementId) ?? new Map<string, GeometryInputTarget>();
-        targets.set(site.parameterKey, {
-          kind: "geometryCarry",
-          bindingId: target.bindingId,
-          geometryType: target.geometryKind,
-          ...(target.pointKey ? { pointKey: target.pointKey } : {})
-        });
+        targets.set(site.parameterKey, targetForRuntime);
         geometryInputTargetsByElementId.set(elementId, targets);
       }
     }
@@ -2903,6 +2958,7 @@ export const compileDslDocument = (
               occurrence: { sourceStatementId: unwrapped.target.statementId, instancePath: [] },
               property: target.property,
               ...(unwrapped.pointKey ? { pointKey: unwrapped.pointKey } : {}),
+              ...(unwrapped.target.stagePath ? { stagePath: unwrapped.target.stagePath } : {}),
               targetSourceOrder: unwrapped.target.statementIndex,
               type: property.type
             };
@@ -2953,6 +3009,7 @@ export const compileDslDocument = (
           return {
             elementId: lowered.elementId,
             property: lowered.property,
+            ...(target.stagePath ? { stagePath: target.stagePath } : {}),
             targetSourceOrder: target.statementIndex,
             type: property.type
           };
@@ -2966,6 +3023,7 @@ export const compileDslDocument = (
             },
             property: target.property,
             ...(target.pointKey ? { pointKey: target.pointKey } : {}),
+            ...(target.stagePath ? { stagePath: target.stagePath } : {}),
             targetSourceOrder: target.statementIndex,
             type: property.type
           };
@@ -2978,6 +3036,7 @@ export const compileDslDocument = (
             targetSourceOrder: target.statementIndex,
             index: null,
             ...(target.pointKey ? { pointKey: target.pointKey } : {}),
+            ...(target.stagePath ? { stagePath: target.stagePath } : {}),
             type: property.type
           };
         }
@@ -2985,6 +3044,7 @@ export const compileDslDocument = (
         return {
           elementId: target.instanceStatementId,
           property: target.property,
+          ...(target.stagePath ? { stagePath: target.stagePath } : {}),
           targetSourceOrder: target.instanceStatementIndex,
           type: property.type
         };
@@ -3428,6 +3488,12 @@ export const compileDslDocument = (
     : new Map(
         compiled.moduleMaterialization?.executionStatements.map((entry) => [entry.sourceStatementIndex, entry.runtimeElementId] as const)
       );
+  const resolveGeometryStageSelection = ({ elementId, members }: { elementId: ElementId; members: readonly string[] }) =>
+    resolveTransformationStageSelection({
+      ownerId: elementId,
+      members,
+      recipes: compiled.runtimeTransformationRecipes ?? compiled.transformationRecipes ?? []
+    });
   const propertyBindingCompilation = scalarAnalysis
     ? compilePropertyBindings({
         statements: parsed.statements,
@@ -3435,7 +3501,8 @@ export const compileDslDocument = (
         elements: compiled.elements,
         bindingAnalysis: scalarAnalysis.bindingAnalysis,
         spans,
-        includeStatement
+        includeStatement,
+        resolveGeometryStageSelection
       })
     : undefined;
   const numericBindingCompilation = scalarAnalysis
@@ -3448,7 +3515,8 @@ export const compileDslDocument = (
         includeStatement,
         layouts: compiled.layouts,
         layoutIdsByStatementIndex: compiled.layoutIdsByStatementIndex,
-        ...(moduleGeometryPropertyResolver ? { additionalGeometryPropertyResolver: moduleGeometryPropertyResolver } : {})
+        ...(moduleGeometryPropertyResolver ? { additionalGeometryPropertyResolver: moduleGeometryPropertyResolver } : {}),
+        resolveGeometryStageSelection
       })
     : undefined;
   // Task 25: conditionalGroup.condition typed-boolean compile/typecheck.
@@ -3462,7 +3530,8 @@ export const compileDslDocument = (
         elements: compiled.elements,
         bindingAnalysis: scalarAnalysis.bindingAnalysis,
         spans,
-        includeStatement
+        includeStatement,
+        resolveGeometryStageSelection
       })
     : undefined;
   // Task 26: text template brace/escape/hole analysis for every canonical
@@ -3478,7 +3547,8 @@ export const compileDslDocument = (
         elements: compiled.elements,
         bindingAnalysis: scalarAnalysis?.bindingAnalysis,
         spans,
-        includeStatement
+        includeStatement,
+        resolveGeometryStageSelection
       })
     : undefined;
   // Every supported document requires element-property references to carry
@@ -3975,6 +4045,7 @@ export const compileDslDocument = (
     propertyBindings: propertyBindingCompilation?.sourcesByOccurrenceKey,
     numericBindings: numericBindingCompilation?.sourcesByOccurrenceKey,
     textTemplates: textTemplateCompilation?.templatesByOccurrenceKey,
+    conditionalGroupConditions: conditionalGroupConditionCompilation?.sourcesByOccurrenceKey,
     scalarProgram,
     geometryInputTargets: geometryInputTargetsByElementId,
     transformationRecipes: compiled.runtimeTransformationRecipes ?? compiled.transformationRecipes,

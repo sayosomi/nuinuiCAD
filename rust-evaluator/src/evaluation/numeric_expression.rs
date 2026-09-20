@@ -30,6 +30,32 @@ pub(crate) fn numeric_value(
         dependency_name: None,
         message,
     })?;
+    let resolved_references = value
+        .get("resolvedReferences")
+        .and_then(Value::as_array)
+        .map(|references| {
+            references
+                .iter()
+                .filter_map(|reference| {
+                    Some(ResolvedNumericReference {
+                        element_id: reference.get("elementId")?.as_str()?.to_owned(),
+                        property: reference
+                            .get("property")
+                            .and_then(Value::as_str)
+                            .map(ToOwned::to_owned),
+                        stage_path: reference.get("stagePath").and_then(|path| {
+                            path.as_array().map(|parts| {
+                                parts
+                                    .iter()
+                                    .filter_map(Value::as_str)
+                                    .map(ToOwned::to_owned)
+                                    .collect()
+                            })
+                        }),
+                    })
+                })
+                .collect::<Vec<_>>()
+        });
     Parser::new(
         expression,
         tokens,
@@ -37,6 +63,7 @@ pub(crate) fn numeric_value(
         element,
         local_variables,
         local_variable_names,
+        resolved_references,
     )
     .parse()
 }
@@ -571,6 +598,15 @@ struct Parser<'a> {
     element: &'a Value,
     local_variables: &'a HashMap<String, f64>,
     local_variable_names: &'a HashMap<String, String>,
+    resolved_references: Option<Vec<ResolvedNumericReference>>,
+    resolved_reference_index: usize,
+}
+
+#[derive(Clone)]
+struct ResolvedNumericReference {
+    element_id: String,
+    property: Option<String>,
+    stage_path: Option<Vec<String>>,
 }
 
 impl<'a> Parser<'a> {
@@ -581,6 +617,7 @@ impl<'a> Parser<'a> {
         element: &'a Value,
         local_variables: &'a HashMap<String, f64>,
         local_variable_names: &'a HashMap<String, String>,
+        resolved_references: Option<Vec<ResolvedNumericReference>>,
     ) -> Self {
         Self {
             expression,
@@ -590,6 +627,8 @@ impl<'a> Parser<'a> {
             element,
             local_variables,
             local_variable_names,
+            resolved_references,
+            resolved_reference_index: 0,
         }
     }
 
@@ -687,7 +726,26 @@ impl<'a> Parser<'a> {
             Token::Reference {
                 element_id,
                 property,
-            } => self.reference_value(&element_id, &property),
+            } => {
+                let resolved = self
+                    .resolved_references
+                    .as_ref()
+                    .and_then(|references| references.get(self.resolved_reference_index))
+                    .cloned();
+                self.resolved_reference_index += 1;
+                self.reference_value(
+                    resolved
+                        .as_ref()
+                        .map_or(&element_id, |reference| &reference.element_id),
+                    resolved
+                        .as_ref()
+                        .and_then(|reference| reference.property.as_deref())
+                        .unwrap_or(&property),
+                    resolved
+                        .as_ref()
+                        .and_then(|reference| reference.stage_path.as_deref()),
+                )
+            }
             Token::LocalVariable(variable_id) => self.local_variable_value(&variable_id),
             Token::Function(name) => self.parse_function_call(&name),
             Token::Operator('+') => self.parse_factor(),
@@ -703,15 +761,30 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn reference_value(&self, element_id: &str, property: &str) -> Result<f64, NumericEvalError> {
+    fn reference_value(
+        &self,
+        element_id: &str,
+        property: &str,
+        stage_path: Option<&[String]>,
+    ) -> Result<f64, NumericEvalError> {
         if let Some(parameter_path) = property.strip_prefix("params.") {
             return self.parameter_reference_value(element_id, parameter_path);
         }
-        let geometry = self
-            .state
-            .computed_geometry
-            .get(element_id)
-            .ok_or_else(|| self.dependency_error(element_id))?;
+        let geometry = match stage_path {
+            None => self.state.computed_geometry.get(element_id),
+            Some(path) if path.is_empty() || (path.len() == 1 && path[0] == "final") => {
+                self.state.computed_geometry.get(element_id)
+            }
+            Some(path) if path.len() == 1 && path[0] == "base" => {
+                self.state.base_transformation_geometry.get(element_id)
+            }
+            Some(path) => self.state.transformation_stage_geometry.get(&format!(
+                "{}\u{0}*\u{0}{}",
+                element_id,
+                path.join(".")
+            )),
+        }
+        .ok_or_else(|| self.dependency_error(element_id))?;
         let measured_value = computed_reference_value(geometry, property);
         measured_value.ok_or_else(|| NumericEvalError {
             dependency_id: element_id.to_owned(),

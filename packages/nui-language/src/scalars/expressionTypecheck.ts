@@ -522,6 +522,7 @@ const checkNode = (
           forGroupOccurrenceIndex: occurrenceIndex,
           ...(resolved.pointKey ? { forGroupOccurrencePointKey: resolved.pointKey } : {})
         } : {}),
+        ...(resolved && resolved.kind !== "collection" && resolved.stagePath ? { stagePath: resolved.stagePath } : {}),
         property: resolved?.kind === "collection" ? "length" : resolved?.property ?? node.property,
         targetSourceOrder: resolved?.targetSourceOrder ?? null,
         type: occurrenceIndexOk ? resolved?.type ?? null : null

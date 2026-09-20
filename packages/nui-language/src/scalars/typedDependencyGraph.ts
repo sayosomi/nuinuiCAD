@@ -10,7 +10,6 @@ import type {
   PointAnchor
 } from "../types/geometry";
 import { getDirectParentIds } from "../model/dependencies";
-import { extractNumericExpressionReferences } from "../geometry/numericExpressions";
 import type { BindingAnalysis, BindingIssue } from "./bindingAnalysis";
 import type { BindingId } from "./bindingCatalog";
 import type { BindingVersionGraph } from "./bindingVersions";
@@ -25,6 +24,13 @@ import type { ModuleMaterialization } from "../dsl/moduleMaterialization";
 export type TypedDependencyReason = "missing" | "invalid" | "disabled";
 export type TypedDependencyKind = "initializer" | "geometry" | "geometry-property" | "property-binding" | "numeric-expression" | "template-hole";
 export type TypedDependencyRequiredness = "required" | "conditional";
+export type TypedDependencyActivation = {
+  controllerId: string;
+  branch: string;
+  /** Literal control-flow facts are compiler-owned. Dynamic controls remain
+   * conditional until the typed evaluator reaches the controller. */
+  staticSelection?: "selected" | "unselected";
+};
 
 export type TypedDependencyEndpoint =
   | { kind: "binding"; id: BindingId; name: string; statementIndex: number; span: DslSpan | null }
@@ -59,6 +65,7 @@ export type TypedDependencyEdge = {
   /** Conditional edges remain in the canonical graph but are activated only
    * after the controlling value/scrutinee selects their branch. */
   requiredness?: TypedDependencyRequiredness;
+  activation?: TypedDependencyActivation;
 };
 
 export type TypedTransformationDependency = {
@@ -74,6 +81,7 @@ export type TypedTransformationDependencyPlan = {
   recipeId: string;
   recipeIndex: number;
   branchKey: string;
+  branchKeys?: readonly string[];
   statementIndex: number;
   ownerIds: readonly ElementId[];
   prerequisites: readonly TypedTransformationDependency[];
@@ -110,6 +118,7 @@ export type TypedDependencyGraphInput = {
   numericBindings?: ReadonlyMap<string, CompiledNumericBinding>;
   textTemplates?: ReadonlyMap<string, TextTemplateAst>;
   scalarProgram?: ScalarProgram;
+  conditionalGroupConditions?: ReadonlyMap<string, TypedScalarExpression>;
   geometryInputTargets?: ReadonlyMap<ElementId, ReadonlyMap<string, unknown>>;
   transformationRecipes?: readonly TransformationRecipe[];
   moduleMaterialization?: Pick<ModuleMaterialization, "instanceBaseGeometrySnapshots">;
@@ -152,22 +161,42 @@ const staticDisabledBindingIds = (
 };
 
 /** Shared with Task 37's rename occurrence gathering (src/scalars/typedRenameOccurrences.ts) - the sole reference-node walker for a typed AST, never forked. */
-type TypedDependencyReferenceNode = Extract<TypedScalarExpression, { kind: "reference" }> & { readonly lazy?: boolean };
-type TypedDependencyGeometryPropertyNode = Extract<TypedScalarExpression, { kind: "geometryProperty" }> & { readonly lazy?: boolean };
+type TypedDependencyReferenceNode = Extract<TypedScalarExpression, { kind: "reference" }> & { readonly lazy?: boolean; readonly activation?: TypedDependencyActivation };
+type TypedDependencyGeometryPropertyNode = Extract<TypedScalarExpression, { kind: "geometryProperty" }> & { readonly lazy?: boolean; readonly activation?: TypedDependencyActivation };
 
 export const referencesIn = (expression: TypedScalarExpression): readonly TypedDependencyReferenceNode[] => {
   const result: TypedDependencyReferenceNode[] = [];
-  const visit = (node: TypedScalarExpression, lazy = false): void => {
-    if (node.kind === "reference") result.push(lazy ? { ...node, lazy: true } : node);
-    else if (node.kind === "unary") visit(node.operand, lazy);
-    else if (node.kind === "binary") { visit(node.left); visit(node.right, node.operator === "??" ? true : lazy); }
-    else if (node.kind === "group") visit(node.expression, lazy);
-    else if (node.kind === "valueIf") { visit(node.condition, lazy); visit(node.thenBranch, true); visit(node.elseBranch, true); }
-    else if (node.kind === "valueMatch") { visit(node.scrutinee, lazy); node.arms.forEach((arm) => visit(arm.expression, true)); }
-    else if (node.kind === "collectionIndex") visit(node.index, lazy);
-    else if (node.kind === "geometryProperty" && node.forGroupOccurrenceIndex) visit(node.forGroupOccurrenceIndex);
+  const visit = (node: TypedScalarExpression, lazy = false, activation?: TypedDependencyActivation): void => {
+    if (node.kind === "reference") result.push({ ...node, ...(lazy ? { lazy: true } : {}), ...(activation ? { activation } : {}) });
+    else if (node.kind === "unary") visit(node.operand, lazy, activation);
+    else if (node.kind === "binary") {
+      visit(node.left, lazy, activation);
+      if (node.operator === "??") {
+        const rightSelection = node.left.kind === "noneLiteral" ? "selected" :
+          node.left.kind === "numberLiteral" || node.left.kind === "stringLiteral" || node.left.kind === "booleanLiteral" || node.left.kind === "choiceLiteral" ? "unselected" : undefined;
+        visit(node.right, true, { controllerId: `scalar:${node.span.start}`, branch: "right", ...(rightSelection ? { staticSelection: rightSelection } : {}) });
+      } else visit(node.right, lazy, activation);
+    }
+    else if (node.kind === "group") visit(node.expression, lazy, activation);
+    else if (node.kind === "valueIf") {
+      visit(node.condition, lazy, activation);
+      const selection = node.condition.kind === "booleanLiteral" ? node.condition.value : undefined;
+      visit(node.thenBranch, true, { controllerId: `scalar:${node.span.start}`, branch: "then", ...(selection === undefined ? {} : { staticSelection: selection ? "selected" : "unselected" }) });
+      visit(node.elseBranch, true, { controllerId: `scalar:${node.span.start}`, branch: "else", ...(selection === undefined ? {} : { staticSelection: selection ? "unselected" : "selected" }) });
+    }
+    else if (node.kind === "valueMatch") {
+      visit(node.scrutinee, lazy, activation);
+      const selectedLabel = node.scrutinee.kind === "choiceLiteral" ? node.scrutinee.value : undefined;
+      node.arms.forEach((arm) => visit(arm.expression, true, {
+        controllerId: `scalar:${node.span.start}`,
+        branch: `match:${arm.label}`,
+        ...(selectedLabel === undefined ? {} : { staticSelection: arm.label === selectedLabel ? "selected" : "unselected" })
+      }));
+    }
+    else if (node.kind === "collectionIndex") visit(node.index, lazy, activation);
+    else if (node.kind === "geometryProperty" && node.forGroupOccurrenceIndex) visit(node.forGroupOccurrenceIndex, lazy, activation);
     else if (node.kind === "call") node.args.forEach((argument) => {
-      if (argument.kind === "scalar") visit(argument.expression, lazy);
+      if (argument.kind === "scalar") visit(argument.expression, lazy, activation);
     });
   };
   visit(expression);
@@ -176,19 +205,39 @@ export const referencesIn = (expression: TypedScalarExpression): readonly TypedD
 
 export const geometryPropertiesIn = (expression: TypedScalarExpression): readonly TypedDependencyGeometryPropertyNode[] => {
   const result: TypedDependencyGeometryPropertyNode[] = [];
-  const visit = (node: TypedScalarExpression, lazy = false): void => {
+  const visit = (node: TypedScalarExpression, lazy = false, activation?: TypedDependencyActivation): void => {
     if (node.kind === "geometryProperty") {
-      result.push(lazy ? { ...node, lazy: true } : node);
-      if (node.forGroupOccurrenceIndex) visit(node.forGroupOccurrenceIndex, lazy);
+      result.push({ ...node, ...(lazy ? { lazy: true } : {}), ...(activation ? { activation } : {}) });
+      if (node.forGroupOccurrenceIndex) visit(node.forGroupOccurrenceIndex, lazy, activation);
     }
-    else if (node.kind === "unary") visit(node.operand, lazy);
-    else if (node.kind === "binary") { visit(node.left, lazy); visit(node.right, node.operator === "??" ? true : lazy); }
-    else if (node.kind === "group") visit(node.expression, lazy);
-    else if (node.kind === "valueIf") { visit(node.condition, lazy); visit(node.thenBranch, true); visit(node.elseBranch, true); }
-    else if (node.kind === "valueMatch") { visit(node.scrutinee, lazy); node.arms.forEach((arm) => visit(arm.expression, true)); }
-    else if (node.kind === "collectionIndex") visit(node.index, lazy);
+    else if (node.kind === "unary") visit(node.operand, lazy, activation);
+    else if (node.kind === "binary") {
+      visit(node.left, lazy, activation);
+      if (node.operator === "??") {
+        const rightSelection = node.left.kind === "noneLiteral" ? "selected" :
+          node.left.kind === "numberLiteral" || node.left.kind === "stringLiteral" || node.left.kind === "booleanLiteral" || node.left.kind === "choiceLiteral" ? "unselected" : undefined;
+        visit(node.right, true, { controllerId: `scalar:${node.span.start}`, branch: "right", ...(rightSelection ? { staticSelection: rightSelection } : {}) });
+      } else visit(node.right, lazy, activation);
+    }
+    else if (node.kind === "group") visit(node.expression, lazy, activation);
+    else if (node.kind === "valueIf") {
+      visit(node.condition, lazy, activation);
+      const selection = node.condition.kind === "booleanLiteral" ? node.condition.value : undefined;
+      visit(node.thenBranch, true, { controllerId: `scalar:${node.span.start}`, branch: "then", ...(selection === undefined ? {} : { staticSelection: selection ? "selected" : "unselected" }) });
+      visit(node.elseBranch, true, { controllerId: `scalar:${node.span.start}`, branch: "else", ...(selection === undefined ? {} : { staticSelection: selection ? "unselected" : "selected" }) });
+    }
+    else if (node.kind === "valueMatch") {
+      visit(node.scrutinee, lazy, activation);
+      const selectedLabel = node.scrutinee.kind === "choiceLiteral" ? node.scrutinee.value : undefined;
+      node.arms.forEach((arm) => visit(arm.expression, true, {
+        controllerId: `scalar:${node.span.start}`,
+        branch: `match:${arm.label}`,
+        ...(selectedLabel === undefined ? {} : { staticSelection: arm.label === selectedLabel ? "selected" : "unselected" })
+      }));
+    }
+    else if (node.kind === "collectionIndex") visit(node.index, lazy, activation);
     else if (node.kind === "call") node.args.forEach((argument) => {
-      if (argument.kind === "scalar") visit(argument.expression, lazy);
+      if (argument.kind === "scalar") visit(argument.expression, lazy, activation);
     });
   };
   visit(expression);
@@ -198,34 +247,47 @@ export const geometryPropertiesIn = (expression: TypedScalarExpression): readonl
 const stageEndpointId = (ownerId: ElementId, occurrenceIndex: string | undefined, stagePath: readonly string[]) =>
   `${ownerId}\u0000${occurrenceIndex ?? "*"}\u0000${stagePath.join(".") || "base"}`;
 
-const recipeBranchKey = (recipe: TransformationRecipe) => {
-  const target = recipe.targets[0];
-  return `${target?.ownerId ?? ""}\u0000${target?.occurrenceIndex ?? "*"}\u0000${recipe.recipeOwnerPath.join(".")}`;
+const recipeBranchKeys = (recipe: TransformationRecipe): readonly string[] => recipe.targets.map((target) =>
+  `${target.ownerId}\u0000${target.occurrenceIndex ?? "*"}\u0000${target.stagePath.join(".")}`
+);
+
+const recipeBranchKey = (recipe: TransformationRecipe) => recipeBranchKeys(recipe).join("|");
+
+const numericReferenceDependencies = (value: NumericValue): readonly TypedTransformationDependency[] => {
+  if (typeof value === "object" && value !== null && value.kind === "expression" && value.resolvedReferences) {
+    return value.resolvedReferences.map((reference) => ({
+      ownerId: reference.elementId,
+      stagePath: reference.stagePath
+    }));
+  }
+  // Transformation recipes are compiled through dslCompiler, which attaches
+  // the resolved reference sidecar while source names and stage symbols are
+  // available. A graph must never recover semantic stage identity by parsing
+  // the legacy expression string after that compiler boundary.
+  return [];
 };
 
-const numericReferenceIds = (value: NumericValue): readonly ElementId[] =>
-  extractNumericExpressionReferences(value).map((reference) => reference.elementId);
-
 const anchorDependencies = (anchor: PointAnchor): readonly TypedTransformationDependency[] => {
-  if (anchor.mode === "reference") return [{ ownerId: anchor.pointId, stagePath: ["final"] }];
+  if (anchor.mode === "reference") return [{ ownerId: anchor.pointId, stagePath: anchor.stagePath ?? ["final"] }];
   if (anchor.mode === "derived") {
-    const path = anchor.pointKey.split(".");
+    if (anchor.stagePath) return [{ ownerId: anchor.elementId, stagePath: anchor.stagePath }];
+    const path = anchor.stagePath ?? anchor.pointKey.split(".");
     const property = path.pop();
     return property ? [{ ownerId: anchor.elementId, stagePath: path.length ? path : ["final"] }] : [];
   }
-  if (anchor.mode === "coordinate") return numericReferenceIds(anchor.x).concat(numericReferenceIds(anchor.y)).map((ownerId) => ({ ownerId, stagePath: ["final"] }));
+  if (anchor.mode === "coordinate") return [...numericReferenceDependencies(anchor.x), ...numericReferenceDependencies(anchor.y)];
   return [];
 };
 
 const operationDependencies = (operation: TransformationOperation): readonly TypedTransformationDependency[] => {
   switch (operation.kind) {
-    case "edge": return numericReferenceIds(operation.intersectionIndex).map((ownerId) => ({ ownerId, stagePath: ["final"] }));
+    case "edge": return [...numericReferenceDependencies(operation.intersectionIndex)];
     case "extend": return [...anchorDependencies(operation.point)];
     case "move": return [
       ...anchorDependencies(operation.startPoint),
       ...anchorDependencies(operation.endPoint),
-      ...numericReferenceIds(operation.scale).map((ownerId) => ({ ownerId, stagePath: ["final"] })),
-      ...numericReferenceIds(operation.angleDeg).map((ownerId) => ({ ownerId, stagePath: ["final"] }))
+      ...numericReferenceDependencies(operation.scale),
+      ...numericReferenceDependencies(operation.angleDeg)
     ];
     case "mirrorMove": return [...anchorDependencies(operation.axisPoint1), ...anchorDependencies(operation.axisPoint2)];
     case "reverse": return [];
@@ -301,7 +363,8 @@ export const buildTypedDependencyGraph = ({
   scalarProgram,
   geometryInputTargets,
   transformationRecipes,
-  moduleMaterialization
+  moduleMaterialization,
+  conditionalGroupConditions
 }: TypedDependencyGraphInput): TypedDependencyGraph | undefined => {
   const elementsById = new Map(elements.map((element) => [element.id, element]));
   const disabledBindingIds = bindingAnalysis
@@ -312,12 +375,15 @@ export const buildTypedDependencyGraph = ({
     kind: TypedDependencyKind;
     from: TypedDependencyEndpoint;
     ownerId: ElementId;
+    stagePath: readonly string[];
     span: DslSpan | null;
     requiredness: TypedDependencyRequiredness;
+    activation?: TypedDependencyActivation;
   }> = [];
   const seen = new Map<string, number>();
   const add = (edge: TypedDependencyEdge) => {
-    const key = `${endpointId(edge.from)}|${edge.kind}|${endpointId(edge.to)}`;
+    const activationKey = edge.activation ? `|${edge.activation.controllerId}:${edge.activation.branch}:${edge.activation.staticSelection ?? "dynamic"}` : "";
+    const key = `${endpointId(edge.from)}|${edge.kind}|${endpointId(edge.to)}${activationKey}`;
     const existingIndex = seen.get(key);
     if (existingIndex !== undefined) {
       // A required path dominates a conditional path when both compiler
@@ -348,14 +414,14 @@ export const buildTypedDependencyGraph = ({
     const from = bindingEndpoint(bindingAnalysis, statement.bindingId);
     for (const reference of geometryPropertiesIn(statement.declaration.initializer)) {
       if (!reference.elementId || reference.targetSourceOrder === null) continue;
-      deferredStageEdges.push({ kind: "geometry-property", from, ownerId: reference.elementId, span: reference.span, requiredness: reference.lazy ? "conditional" : "required" });
+      deferredStageEdges.push({ kind: "geometry-property", from, ownerId: reference.elementId, stagePath: reference.stagePath ?? ["final"], span: reference.span, requiredness: reference.lazy ? "conditional" : "required", ...(reference.activation ? { activation: reference.activation } : {}) });
     }
     // Binding-analysis intentionally keeps the unconditional graph small. The
     // canonical graph also retains conditional value-branch references so the
     // selected branch can be scheduled later by either evaluator.
     for (const reference of referencesIn(statement.declaration.initializer)) {
       if (!reference.bindingId || !bindingAnalysis.catalog.bindingsById.has(reference.bindingId)) continue;
-      add({ kind: "initializer", from, to: bindingEndpoint(bindingAnalysis, reference.bindingId), span: reference.span, reason: reasonFor(reference.bindingId), requiredness: reference.lazy ? "conditional" : "required" });
+      add({ kind: "initializer", from, to: bindingEndpoint(bindingAnalysis, reference.bindingId), span: reference.span, reason: reasonFor(reference.bindingId), requiredness: reference.lazy ? "conditional" : "required", ...(reference.activation ? { activation: reference.activation } : {}) });
     }
   }
   if (bindingAnalysis) for (const issue of bindingAnalysis.issues) {
@@ -366,6 +432,37 @@ export const buildTypedDependencyGraph = ({
       ? { kind: "missing" as const, id: `${issue.code}:${issue.bindingId}:${reference.occurrenceIndex}`, name: reference.name, statementIndex: from.statementIndex }
       : bindingEndpoint(bindingAnalysis, issue.relatedBindingIds[0] ?? issue.bindingId);
     add({ kind: "initializer", from, to: target, span: issue.span, reason: issueReason(issue), requiredness: reference.lazy ? "conditional" : "required" });
+  }
+
+  if (bindingAnalysis) for (const [key, expression] of conditionalGroupConditions ?? []) {
+    const statementIndex = Number(key.slice(0, key.indexOf(":")));
+    const elementId = elementIdByStatementIndex.get(statementIndex);
+    if (!elementId) continue;
+    const from = elementEndpoint(elementsById, elementId, statementIndex);
+    for (const reference of referencesIn(expression)) {
+      if (!reference.bindingId || !bindingAnalysis.catalog.bindingsById.has(reference.bindingId)) continue;
+      add({
+        kind: "property-binding",
+        from,
+        to: bindingEndpoint(bindingAnalysis, reference.bindingId),
+        span: reference.span,
+        reason: reasonFor(reference.bindingId),
+        requiredness: reference.lazy ? "conditional" : "required",
+        ...(reference.activation ? { activation: reference.activation } : {})
+      });
+    }
+    for (const reference of geometryPropertiesIn(expression)) {
+      if (!reference.elementId) continue;
+      deferredStageEdges.push({
+        kind: "geometry-property",
+        from,
+        ownerId: reference.elementId,
+        stagePath: reference.stagePath ?? ["final"],
+        span: reference.span,
+        requiredness: reference.lazy ? "conditional" : "required",
+        ...(reference.activation ? { activation: reference.activation } : {})
+      });
+    }
   }
 
   // Persist every resolved drawable dependency in the same graph. This uses
@@ -396,6 +493,7 @@ export const buildTypedDependencyGraph = ({
         kind: "geometry",
         from,
         ownerId: dependencyId,
+        stagePath: ["final"],
         span: null,
         requiredness
       });
@@ -440,6 +538,18 @@ export const buildTypedDependencyGraph = ({
         requiredness: reference.requiredness ?? "required"
       });
     }
+    if (source.kind === "expression") for (const reference of geometryPropertiesIn(source.expression)) {
+      if (!reference.elementId) continue;
+      deferredStageEdges.push({
+        kind: "geometry-property",
+        from: elementEndpoint(elementsById, elementId, statementIndex),
+        ownerId: reference.elementId,
+        stagePath: reference.stagePath ?? ["final"],
+        span: reference.span,
+        requiredness: reference.lazy ? "conditional" : "required",
+        ...(reference.activation ? { activation: reference.activation } : {})
+      });
+    }
   }
   if (bindingAnalysis) for (const [key, source] of numericBindings ?? []) {
     const statementIndex = Number(key.slice(0, key.indexOf(":")));
@@ -453,6 +563,18 @@ export const buildTypedDependencyGraph = ({
         span: reference.span,
         reason: reasonFor(reference.bindingId),
         requiredness: "required"
+      });
+    }
+    if (source.typedExpression) for (const reference of geometryPropertiesIn(source.typedExpression)) {
+      if (!reference.elementId) continue;
+      deferredStageEdges.push({
+        kind: "geometry-property",
+        from: elementEndpoint(elementsById, elementId, statementIndex),
+        ownerId: reference.elementId,
+        stagePath: reference.stagePath ?? ["final"],
+        span: reference.span,
+        requiredness: reference.lazy ? "conditional" : "required",
+        ...(reference.activation ? { activation: reference.activation } : {})
       });
     }
   }
@@ -512,9 +634,10 @@ export const buildTypedDependencyGraph = ({
     add({
       kind: deferred.kind,
       from: deferred.from,
-      to: stageEndpoint({ ownerId: deferred.ownerId, stagePath: ["final"] }),
+      to: stageEndpoint({ ownerId: deferred.ownerId, stagePath: deferred.stagePath }),
       span: deferred.span,
-      requiredness: deferred.requiredness
+      requiredness: deferred.requiredness,
+      ...(deferred.activation ? { activation: deferred.activation } : {})
     });
   }
   for (const [recipeIndex, recipe] of recipes.entries()) {
@@ -530,10 +653,11 @@ export const buildTypedDependencyGraph = ({
     };
     recipeEndpoints.set(recipeIndex, recipeEndpoint);
     endpointById.set(endpointId(recipeEndpoint), recipeEndpoint);
+    const branchKeys = recipeBranchKeys(recipe);
     const predecessors = recipes
       .slice(0, recipeIndex)
       .map((prior, priorIndex) => ({ prior, priorIndex }))
-      .filter(({ prior }) => recipeBranchKey(prior) === recipeBranchKey(recipe))
+      .filter(({ prior }) => recipeBranchKeys(prior).some((branchKey) => branchKeys.includes(branchKey)))
       .map(({ priorIndex }) => priorIndex);
     const prerequisites = recipe.targets.map((target) => {
       if (target.stagePath.length > 0) return targetDependency(target);
@@ -554,13 +678,18 @@ export const buildTypedDependencyGraph = ({
         : [...target.stagePath, "final"];
       const output = { ownerId: target.ownerId, occurrenceIndex: target.occurrenceIndex, stagePath };
       return recipe.stageName
-        ? [output, { ...output, stagePath: [...stagePath, "final"] }]
+        ? [
+            output,
+            { ...output, stagePath: [...stagePath, "final"] },
+            ...(target.stagePath.length === 0 ? [{ ...output, stagePath: ["final"] }] : [])
+          ]
         : [output];
     });
     const plan = {
       recipeId: recipe.id,
       recipeIndex,
       branchKey: recipeBranchKey(recipe),
+      branchKeys,
       statementIndex: recipe.sourceStatementIndex,
       ownerIds: dedupe(recipe.targets.map((target) => target.ownerId), (value) => value),
       prerequisites,
@@ -579,35 +708,31 @@ export const buildTypedDependencyGraph = ({
       add({ kind: "geometry", from: stageEndpoint(output), to: recipeEndpoint, span: null, requiredness: "required" });
     }
   }
-  const finalizedBranches = new Set<string>();
+  const rootOwners = new Set<ElementId>();
   for (const recipe of recipes) {
-    const owner = recipe.targets[0];
-    if (!owner) continue;
-    const branchKey = recipeBranchKey(recipe);
-    if (finalizedBranches.has(branchKey)) continue;
-    finalizedBranches.add(branchKey);
-    const final = { ownerId: owner.ownerId, occurrenceIndex: owner.occurrenceIndex, stagePath: ["final"] };
+    for (const target of recipe.targets) if (target.stagePath.length === 0) rootOwners.add(target.ownerId);
+  }
+  for (const ownerId of rootOwners) {
+    const final = { ownerId, stagePath: ["final"] };
     const finalEndpoint = stageEndpoint(final);
-    const branchRecipes = recipes.filter((candidate) => recipeBranchKey(candidate) === branchKey);
-    const last = branchRecipes.filter((candidate) => candidate.stageName === null).at(-1);
-    if (last) {
-      const lastIndex = recipes.indexOf(last);
-      const lastPlan = transformationPlans.find((plan) => plan.recipeIndex === lastIndex);
-      const lastOutput = lastPlan?.outputStages.find((output) =>
-        output.stagePath.length === 1 && output.stagePath[0] === "final"
-      );
-      if (lastOutput && stageEndpointId(lastOutput.ownerId, lastOutput.occurrenceIndex, lastOutput.stagePath) !== stageEndpointId(final.ownerId, final.occurrenceIndex, final.stagePath)) {
-        addStageDependency(finalEndpoint, lastOutput);
-      }
-    } else {
-      addStageDependency(finalEndpoint, { ownerId: owner.ownerId, occurrenceIndex: owner.occurrenceIndex, stagePath: ["base"] });
+    const ownerRecipes = recipes.filter((recipe) => recipe.targets.some((target) =>
+      target.ownerId === ownerId && target.stagePath.length === 0
+    ));
+    const last = ownerRecipes.at(-1);
+    const lastIndex = last ? recipes.indexOf(last) : -1;
+    const lastPlan = lastIndex >= 0 ? transformationPlans.find((plan) => plan.recipeIndex === lastIndex) : undefined;
+    const lastOutput = lastPlan?.outputStages.find((output) =>
+      output.ownerId === ownerId && output.stagePath.length === 1 && output.stagePath[0] === "final"
+    );
+    const finalOutput = lastOutput ?? { ownerId, stagePath: ["base"] };
+    if (stageEndpointId(finalOutput.ownerId, finalOutput.occurrenceIndex, finalOutput.stagePath) !==
+        stageEndpointId(final.ownerId, undefined, final.stagePath)) {
+      addStageDependency(finalEndpoint, finalOutput);
     }
   }
   const ownersWithRootRecipe = new Set(
     recipes
-      .filter((recipe) => recipe.stageName === null && recipe.targets.some((target) => target.stagePath.length === 0))
-      .map((recipe) => recipe.targets[0]?.ownerId)
-      .filter((ownerId): ownerId is ElementId => Boolean(ownerId))
+      .flatMap((recipe) => recipe.targets.filter((target) => target.stagePath.length === 0).map((target) => target.ownerId))
   );
   for (const element of elements) {
     const construction = elementEndpoint(elementsById, element.id, elementStatementIndex.get(element.id) ?? 0);
@@ -651,7 +776,7 @@ export const buildTypedDependencyGraph = ({
         return edges.some((edge) =>
           endpointId(edge.from) === fromId &&
           endpointId(edge.to) === toId &&
-          edge.requiredness !== "conditional"
+          (edge.requiredness !== "conditional" || edge.activation?.staticSelection === "selected")
         );
       });
       if (cycleIsUnconditionallyRequired && !cycleKeys.has(key)) {
