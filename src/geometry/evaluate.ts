@@ -97,6 +97,8 @@ import {
   buildTypedDependencyGraph,
   resolveTypedDependencyGraphRuntime,
   setParameterValue,
+  typedDependencyControllerCandidates,
+  typedDependencyEndpointId,
   type TypedDependencyGraph
 } from "@nuinuicad/nui-language";
 import { evaluateNumericValue } from "./numericExpressionsRuntime";
@@ -672,78 +674,6 @@ export const evaluateElements = (
     }
     return resolveDocumentGeometryProperty(geometryRuntime, reference, sourceOrder, scalarBindingResolver?.resolveGeometryCollectionLength, (expression, occurrenceSourceOrder) => evaluateOccurrenceIndexForEvaluation(expression, occurrenceSourceOrder, lookupBinding));
   };
-
-  // Conditional graph edges remain present for tooling, but only the branch
-  // reached by the existing typed scalar evaluator participates in runtime
-  // readiness and cycle detection. This is a projection of the compiler-owned
-  // graph, not a second resolver or evaluator.
-  if (
-    options.typedDependencyGraph &&
-    scalarBindingResolver &&
-    options.typedDependencyGraph.edges.some((edge) => edge.activation)
-  ) {
-    const branchSelections = new Map<string, string>();
-    const controllers = new Map<string, TypedScalarExpression>();
-    const controllerBranches = new Map<string, Set<string>>();
-    for (const edge of options.typedDependencyGraph.edges) {
-      const activation = edge.activation;
-      if (activation) {
-        const branches = controllerBranches.get(activation.controllerId) ?? new Set<string>();
-        branches.add(activation.branch);
-        controllerBranches.set(activation.controllerId, branches);
-      }
-      if (activation?.controllerExpression && !controllers.has(activation.controllerId)) {
-        controllers.set(activation.controllerId, activation.controllerExpression);
-      }
-    }
-    const scalarEnvironment = {
-      lookupBinding: scalarBindingResolver.resolveBinding,
-      lookupGeometryProperty: (reference: Parameters<typeof resolveDocumentGeometryProperty>[1]) =>
-        resolveGeometryPropertyForEvaluation(reference, Number.POSITIVE_INFINITY)
-    };
-    for (const [controllerId, expression] of controllers) {
-      const evaluation = evaluateTypedExpression(expression, scalarEnvironment);
-      if (evaluation.status !== "ok") continue;
-      const branches = controllerBranches.get(controllerId) ?? new Set<string>();
-      const branch = evaluation.value.kind === "boolean"
-        ? (evaluation.value.value ? "then" : "else")
-        : evaluation.value.kind === "choice"
-          ? `match:${evaluation.value.value}`
-          : evaluation.value.kind === "none"
-            ? (branches.has("match:none") ? "match:none" : "right")
-            : branches.has("match:some")
-              ? "match:some"
-              : undefined;
-      if (branch) branchSelections.set(controllerId, branch);
-    }
-    const activeGraph = resolveTypedDependencyGraphRuntime(options.typedDependencyGraph, branchSelections);
-    const existingEvaluationOrder = [...evaluatedElements];
-    const activeOrderIds = [...activeGraph.evaluationOrder];
-    const activeOrderSet = new Set(activeOrderIds);
-    for (const element of existingEvaluationOrder) {
-      if (!activeOrderSet.has(element.id)) activeOrderIds.push(element.id);
-    }
-    evaluatedElements.splice(
-      0,
-      evaluatedElements.length,
-      ...activeOrderIds.map((elementId) => eligibleById.get(elementId)).filter((element): element is CadElement => Boolean(element))
-    );
-    runtimeElements.splice(0, runtimeElements.length, ...evaluatedElements);
-    evaluatedElementIds.clear();
-    for (const element of evaluatedElements) evaluatedElementIds.add(element.id);
-    for (const cycle of activeGraph.cycles) {
-      const [elementId, missingDependencyId] = cycle.endpointIds;
-      const element = elementId ? elementsById.get(elementId.replace(/^element:/, "")) : undefined;
-      errors.push({
-        code: "dependency-cycle",
-        elementId: element?.id ?? elementId ?? "dependency-cycle",
-        elementName: element?.name ?? cycle.names[0] ?? "",
-        missingDependencyId: missingDependencyId ?? elementId ?? "dependency-cycle",
-        missingDependencyName: cycle.names[1],
-        message: `依存関係 cycle: ${cycle.names.join(" -> ")}`
-      });
-    }
-  }
 
   const materializeGeometryInputTargets = (
     element: CadElement,
@@ -2730,6 +2660,118 @@ export const evaluateElements = (
     }
   };
 
+  // Dynamic conditional controllers are activated only at this existing
+  // scheduler boundary. The graph supplies both the controller's enclosing
+  // guard path and the required endpoint prerequisites; no source is parsed
+  // and no second scalar evaluator is introduced here.
+  const conditionalBranchSelections = new Map<string, string>();
+  const reportedConditionalCycles = new Set<string>();
+  const graphEndpointById = new Map<string, NonNullable<TypedDependencyGraph>["edges"][number]["from"]>();
+  for (const edge of options.typedDependencyGraph?.edges ?? []) {
+    graphEndpointById.set(typedDependencyEndpointId(edge.from), edge.from);
+    graphEndpointById.set(typedDependencyEndpointId(edge.to), edge.to);
+  }
+  const graphEdgeIsActive = (edge: NonNullable<TypedDependencyGraph>["edges"][number]): boolean => {
+    if (edge.requiredness !== "conditional" || !edge.activation) return true;
+    return edge.activation.guards.every((guard) => {
+      if (guard.staticSelection === "selected") return true;
+      if (guard.staticSelection === "unselected") return false;
+      return conditionalBranchSelections.get(guard.controllerId) === guard.branch;
+    });
+  };
+  const endpointIsReady = (endpointId: string, visiting = new Set<string>()): boolean => {
+    const endpoint = graphEndpointById.get(endpointId);
+    if (!endpoint || visiting.has(endpointId)) return false;
+    const nextVisiting = new Set(visiting).add(endpointId);
+    if (endpoint.kind === "geometry-stage") {
+      return Boolean(selectedTransformationGeometry(endpoint.ownerId, endpoint.stagePath));
+    }
+    if (endpoint.kind === "element") {
+      return completedElementIds.has(endpoint.id) && computedGeometry.has(endpoint.id);
+    }
+    if (endpoint.kind === "transformation-recipe") {
+      const recipeIndex = recipeList.findIndex((recipe) => `recipe:${recipe.id}` === endpoint.id);
+      return recipeIndex >= 0 && completedTransformationRecipeIndices.has(recipeIndex);
+    }
+    if (endpoint.kind === "module-occurrence") return instanceBaseGeometry.has(endpoint.id.replace(/^module-occurrence:/, ""));
+    if (endpoint.kind === "missing") return false;
+    if (endpoint.kind === "version") return false;
+    if (!scalarBindingResolver) return false;
+    const prerequisites = options.typedDependencyGraph?.edges.filter((edge) =>
+      typedDependencyEndpointId(edge.from) === endpointId && graphEdgeIsActive(edge)
+    ) ?? [];
+    if (prerequisites.some((edge) => !endpointIsReady(typedDependencyEndpointId(edge.to), nextVisiting))) return false;
+    return scalarBindingResolver.resolveBinding(endpoint.id).status === "ok";
+  };
+  const activateReadyConditionalControllers = (): boolean => {
+    if (!options.typedDependencyGraph || !scalarBindingResolver) return false;
+    let changed = false;
+    let progressed = true;
+    while (progressed) {
+      progressed = false;
+      for (const candidate of typedDependencyControllerCandidates(
+        options.typedDependencyGraph,
+        conditionalBranchSelections
+      )) {
+        if (conditionalBranchSelections.has(candidate.controllerId)) continue;
+        if (candidate.prerequisiteEndpointIds.some((id) => !endpointIsReady(id))) continue;
+        const evaluation = evaluateTypedExpression(candidate.expression, {
+          lookupBinding: scalarBindingResolver.resolveBinding,
+          lookupGeometryProperty: (reference) => resolveGeometryPropertyForEvaluation(reference, Number.POSITIVE_INFINITY)
+        });
+        if (evaluation.status !== "ok") continue;
+        const branch = evaluation.value.kind === "boolean"
+          ? (evaluation.value.value ? "then" : "else")
+          : evaluation.value.kind === "choice"
+            ? `match:${evaluation.value.value}`
+            : evaluation.value.kind === "none"
+              ? (candidate.branches.includes("match:none") ? "match:none" : "right")
+              : candidate.branches.includes("match:some")
+                ? "match:some"
+                : undefined;
+        if (!branch) continue;
+        conditionalBranchSelections.set(candidate.controllerId, branch);
+        changed = true;
+        progressed = true;
+      }
+    }
+    if (changed) {
+      const activeGraph = resolveTypedDependencyGraphRuntime(
+        options.typedDependencyGraph,
+        conditionalBranchSelections
+      );
+      for (const cycle of activeGraph.cycles) {
+        const key = cycle.endpointIds.join("|");
+        if (reportedConditionalCycles.has(key)) continue;
+        reportedConditionalCycles.add(key);
+        const [elementId, missingDependencyId] = cycle.endpointIds;
+        const element = elementId ? elementsById.get(elementId.replace(/^element:/, "")) : undefined;
+        errors.push({
+          code: "dependency-cycle",
+          elementId: element?.id ?? elementId ?? "dependency-cycle",
+          elementName: element?.name ?? cycle.names[0] ?? "",
+          missingDependencyId: missingDependencyId ?? elementId ?? "dependency-cycle",
+          missingDependencyName: cycle.names[1],
+          message: `依存関係 cycle: ${cycle.names.join(" -> ")}`
+        });
+      }
+    }
+    return changed;
+  };
+  const reorderPendingElements = (pending: CadElement[]) => {
+    if (!options.typedDependencyGraph) return;
+    const activeOrder = resolveTypedDependencyGraphRuntime(
+      options.typedDependencyGraph,
+      conditionalBranchSelections
+    ).evaluationOrder;
+    const rank = new Map(activeOrder.map((id, index) => [id, index] as const));
+    const originalOrder = new Map(pending.map((element, index) => [element.id, index] as const));
+    pending.sort((left, right) =>
+      (rank.get(left.id) ?? Number.MAX_SAFE_INTEGER) - (rank.get(right.id) ?? Number.MAX_SAFE_INTEGER) ||
+      (originalOrder.get(left.id) ?? 0) - (originalOrder.get(right.id) ?? 0)
+    );
+  };
+
   const captureReadyModuleInstanceBases = () => {
     for (const snapshot of instanceSnapshots) {
       if (capturedInstanceIds.has(snapshot.instanceId)) continue;
@@ -2743,8 +2785,12 @@ export const evaluateElements = (
     }
   };
 
-  for (const [elementIndex, element] of evaluatedElements.entries()) {
-    if (templateDescendantIds.has(element.id)) continue;
+  const pendingElements = evaluatedElements.filter((element) => !templateDescendantIds.has(element.id));
+  let evaluationPosition = 0;
+  while (pendingElements.length > 0) {
+    if (activateReadyConditionalControllers()) reorderPendingElements(pendingElements);
+    const element = pendingElements.shift()!;
+    const elementIndex = evaluationPosition++;
     const sourceOrder = options.scalarExecutionPositionByElementId?.get(element.id) ??
       options.sourceExecutionPositionByElementId?.get(element.id) ??
       options.statementInfoByElementId?.get(element.id)?.statementIndex ?? elementIndex;

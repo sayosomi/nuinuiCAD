@@ -10,7 +10,6 @@ use std::collections::{HashMap, HashSet};
 use serde::Deserialize;
 use serde_json::Value;
 
-use super::control_boolean_runtime::evaluate_scalar_expression_with_document_resolver;
 use super::scalars::{
     validate_typed_expression_payload, ScalarDocumentBindingResolver, ScalarValue,
     TypedScalarExpression,
@@ -38,11 +37,22 @@ struct RawConditionalDependencyEndpoint {
     kind: String,
     id: String,
     name: String,
+    #[serde(default)]
+    owner_id: Option<String>,
+    #[serde(default)]
+    stage_path: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct RawConditionalDependencyActivation {
+    #[serde(default)]
+    guards: Vec<RawConditionalDependencyGuard>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RawConditionalDependencyGuard {
     controller_id: String,
     branch: String,
     static_selection: Option<String>,
@@ -62,10 +72,17 @@ struct ConditionalDependencyEndpoint {
     kind: String,
     id: String,
     name: String,
+    owner_id: Option<String>,
+    stage_path: Vec<String>,
 }
 
 #[derive(Debug)]
 struct ConditionalDependencyActivation {
+    guards: Vec<ConditionalDependencyGuard>,
+}
+
+#[derive(Debug)]
+struct ConditionalDependencyGuard {
     controller_id: String,
     branch: String,
     static_selection: Option<String>,
@@ -82,6 +99,13 @@ pub(crate) struct ActivatedConditionalDependencies {
     pub(crate) cycles: Vec<DependencyError>,
 }
 
+pub(crate) struct ConditionalDependencyControllerCandidate<'a> {
+    pub(crate) controller_id: String,
+    pub(crate) expression: &'a TypedScalarExpression,
+    pub(crate) branches: Vec<String>,
+    pub(crate) prerequisite_endpoint_ids: Vec<String>,
+}
+
 pub(crate) fn decode_conditional_dependency_graph(
     payload: Option<&Value>,
 ) -> Result<Option<ConditionalDependencyGraph>, String> {
@@ -95,18 +119,25 @@ pub(crate) fn decode_conditional_dependency_graph(
         let activation = raw_edge
             .activation
             .map(|raw_activation| {
-                let controller_expression = raw_activation
-                    .controller_expression
-                    .as_ref()
-                    .map(validate_typed_expression_payload)
-                    .transpose()
-                    .map_err(|error| error.message)?;
-                Ok::<_, String>(ConditionalDependencyActivation {
-                    controller_id: raw_activation.controller_id,
-                    branch: raw_activation.branch,
-                    static_selection: raw_activation.static_selection,
-                    controller_expression,
-                })
+                let guards = raw_activation
+                    .guards
+                    .into_iter()
+                    .map(|raw_guard| {
+                        let controller_expression = raw_guard
+                            .controller_expression
+                            .as_ref()
+                            .map(validate_typed_expression_payload)
+                            .transpose()
+                            .map_err(|error| error.message)?;
+                        Ok::<_, String>(ConditionalDependencyGuard {
+                            controller_id: raw_guard.controller_id,
+                            branch: raw_guard.branch,
+                            static_selection: raw_guard.static_selection,
+                            controller_expression,
+                        })
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                Ok::<_, String>(ConditionalDependencyActivation { guards })
             })
             .transpose()?;
         edges.push(ConditionalDependencyEdge {
@@ -114,11 +145,15 @@ pub(crate) fn decode_conditional_dependency_graph(
                 kind: raw_edge.from.kind,
                 id: raw_edge.from.id,
                 name: raw_edge.from.name,
+                owner_id: raw_edge.from.owner_id,
+                stage_path: raw_edge.from.stage_path,
             },
             to: ConditionalDependencyEndpoint {
                 kind: raw_edge.to.kind,
                 id: raw_edge.to.id,
                 name: raw_edge.to.name,
+                owner_id: raw_edge.to.owner_id,
+                stage_path: raw_edge.to.stage_path,
             },
             requiredness: raw_edge.requiredness,
             activation,
@@ -131,7 +166,10 @@ fn endpoint_key(endpoint: &ConditionalDependencyEndpoint) -> String {
     format!("{}:{}", endpoint.kind, endpoint.id)
 }
 
-fn branch_for_controller_value(value: &ScalarValue, branches: &HashSet<String>) -> Option<String> {
+pub(crate) fn branch_for_controller_value(
+    value: &ScalarValue,
+    branches: &HashSet<String>,
+) -> Option<String> {
     match value {
         ScalarValue::Boolean(value) => Some(if *value { "then" } else { "else" }.to_owned()),
         ScalarValue::Choice { value, .. } => Some(format!("match:{value}")),
@@ -162,57 +200,199 @@ fn edge_is_active(
         // boundary. Compiler-resolved activation facts are filtered below.
         return true;
     };
-    match activation.static_selection.as_deref() {
-        Some("selected") => true,
-        Some("unselected") => false,
-        _ => branch_selections
-            .get(&activation.controller_id)
-            .is_some_and(|branch| branch == &activation.branch),
-    }
+    activation
+        .guards
+        .iter()
+        .all(|guard| match guard.static_selection.as_deref() {
+            Some("selected") => true,
+            Some("unselected") => false,
+            _ => branch_selections
+                .get(&guard.controller_id)
+                .is_some_and(|branch| branch == &guard.branch),
+        })
+}
+
+fn activation_path_matches(
+    guards: &[ConditionalDependencyGuard],
+    prefix: &[ConditionalDependencyGuard],
+) -> bool {
+    guards.len() == prefix.len()
+        && guards.iter().zip(prefix).all(|(guard, expected)| {
+            guard.controller_id == expected.controller_id
+                && guard.branch == expected.branch
+                && guard.static_selection == expected.static_selection
+        })
+}
+
+fn activation_path_is_active(
+    guards: &[ConditionalDependencyGuard],
+    branch_selections: &HashMap<String, String>,
+) -> bool {
+    guards
+        .iter()
+        .all(|guard| match guard.static_selection.as_deref() {
+            Some("selected") => true,
+            Some("unselected") => false,
+            _ => branch_selections
+                .get(&guard.controller_id)
+                .is_some_and(|branch| branch == &guard.branch),
+        })
 }
 
 impl ConditionalDependencyGraph {
     pub(crate) fn has_activation(&self) -> bool {
-        self.edges.iter().any(|edge| edge.activation.is_some())
+        self.edges.iter().any(|edge| {
+            edge.activation
+                .as_ref()
+                .is_some_and(|activation| !activation.guards.is_empty())
+        })
     }
 
-    pub(crate) fn activate(
+    pub(crate) fn controller_candidates(
         &self,
-        element_ids: &[ElementId],
-        evaluation_limit_index: usize,
-        resolver: Option<&dyn ScalarDocumentBindingResolver>,
-        state: &EvaluationState,
-    ) -> ActivatedConditionalDependencies {
-        let mut branch_selections = HashMap::<String, String>::new();
-        if let Some(resolver) = resolver {
-            let mut controllers = HashMap::<String, &TypedScalarExpression>::new();
-            for edge in &self.edges {
-                if let Some(activation) = edge.activation.as_ref() {
-                    if let Some(expression) = activation.controller_expression.as_ref() {
-                        controllers
-                            .entry(activation.controller_id.clone())
-                            .or_insert(expression);
-                    }
+        branch_selections: &HashMap<String, String>,
+    ) -> Vec<ConditionalDependencyControllerCandidate<'_>> {
+        let mut candidates = HashMap::<String, ConditionalDependencyControllerCandidate<'_>>::new();
+        for edge in &self.edges {
+            let Some(activation) = edge.activation.as_ref() else {
+                continue;
+            };
+            for (guard_index, guard) in activation.guards.iter().enumerate() {
+                let Some(expression) = guard.controller_expression.as_ref() else {
+                    continue;
+                };
+                let prefix = &activation.guards[..guard_index];
+                if !activation_path_is_active(prefix, branch_selections) {
+                    continue;
                 }
-            }
-            for (controller_id, expression) in controllers {
-                let evaluation =
-                    evaluate_scalar_expression_with_document_resolver(expression, resolver, state);
-                if let super::scalars::ScalarEvaluation::Ok { value, .. } = evaluation {
-                    let branches = self
-                        .edges
-                        .iter()
-                        .filter_map(|edge| edge.activation.as_ref())
-                        .filter(|activation| activation.controller_id == controller_id)
-                        .map(|activation| activation.branch.clone())
-                        .collect::<HashSet<_>>();
-                    if let Some(branch) = branch_for_controller_value(&value, &branches) {
-                        branch_selections.insert(controller_id, branch);
+                let candidate = candidates
+                    .entry(guard.controller_id.clone())
+                    .or_insert_with(|| ConditionalDependencyControllerCandidate {
+                        controller_id: guard.controller_id.clone(),
+                        expression,
+                        branches: Vec::new(),
+                        prerequisite_endpoint_ids: Vec::new(),
+                    });
+                if !candidate.branches.contains(&guard.branch) {
+                    candidate.branches.push(guard.branch.clone());
+                }
+                for prerequisite in &self.edges {
+                    if endpoint_key(&prerequisite.from) != endpoint_key(&edge.from) {
+                        continue;
+                    }
+                    let prerequisite_guards = prerequisite
+                        .activation
+                        .as_ref()
+                        .map(|activation| activation.guards.as_slice())
+                        .unwrap_or_default();
+                    if !activation_path_matches(prerequisite_guards, prefix)
+                        || !edge_is_active(prerequisite, branch_selections)
+                    {
+                        continue;
+                    }
+                    let endpoint_id = endpoint_key(&prerequisite.to);
+                    if !candidate.prerequisite_endpoint_ids.contains(&endpoint_id) {
+                        candidate.prerequisite_endpoint_ids.push(endpoint_id);
                     }
                 }
             }
         }
+        candidates.into_values().collect()
+    }
 
+    pub(crate) fn endpoint_is_ready(
+        &self,
+        endpoint_id: &str,
+        branch_selections: &HashMap<String, String>,
+        resolver: &dyn ScalarDocumentBindingResolver,
+        state: &EvaluationState,
+    ) -> bool {
+        self.endpoint_is_ready_inner(
+            endpoint_id,
+            branch_selections,
+            resolver,
+            state,
+            &mut HashSet::new(),
+        )
+    }
+
+    fn endpoint_is_ready_inner(
+        &self,
+        endpoint_id: &str,
+        branch_selections: &HashMap<String, String>,
+        resolver: &dyn ScalarDocumentBindingResolver,
+        state: &EvaluationState,
+        visiting: &mut HashSet<String>,
+    ) -> bool {
+        if !visiting.insert(endpoint_id.to_owned()) {
+            return false;
+        }
+        let endpoint = self
+            .edges
+            .iter()
+            .flat_map(|edge| [&edge.from, &edge.to])
+            .find(|endpoint| endpoint_key(endpoint) == endpoint_id);
+        let Some(endpoint) = endpoint else {
+            visiting.remove(endpoint_id);
+            return false;
+        };
+        let ready = match endpoint.kind.as_str() {
+            "geometry-stage" => match endpoint.owner_id.as_ref() {
+                Some(owner_id) if endpoint.stage_path == ["base".to_owned()] => {
+                    state.base_transformation_geometry.contains_key(owner_id)
+                }
+                Some(owner_id) if endpoint.stage_path == ["final".to_owned()] => {
+                    state.computed_geometry.contains_key(owner_id)
+                }
+                Some(owner_id) => state.transformation_stage_geometry.contains_key(&format!(
+                    "{}\u{0}*\u{0}{}",
+                    owner_id,
+                    endpoint.stage_path.join(".")
+                )),
+                None => false,
+            },
+            "element" => state.computed_geometry.contains_key(&endpoint.id),
+            "module-occurrence" => state.instance_base_geometry.contains_key(
+                endpoint
+                    .id
+                    .strip_prefix("module-occurrence:")
+                    .unwrap_or(&endpoint.id),
+            ),
+            "binding" => {
+                let prerequisites_ready = self
+                    .edges
+                    .iter()
+                    .filter(|edge| {
+                        endpoint_key(&edge.from) == endpoint_id
+                            && edge_is_active(edge, branch_selections)
+                    })
+                    .all(|edge| {
+                        self.endpoint_is_ready_inner(
+                            &endpoint_key(&edge.to),
+                            branch_selections,
+                            resolver,
+                            state,
+                            visiting,
+                        )
+                    });
+                prerequisites_ready
+                    && matches!(
+                        resolver.resolve_binding(&endpoint.id, state),
+                        super::scalars::ScalarEvaluation::Ok { .. }
+                    )
+            }
+            _ => false,
+        };
+        visiting.remove(endpoint_id);
+        ready
+    }
+
+    pub(crate) fn project(
+        &self,
+        element_ids: &[ElementId],
+        evaluation_limit_index: usize,
+        branch_selections: &HashMap<String, String>,
+    ) -> ActivatedConditionalDependencies {
         let mut endpoint_by_id = HashMap::<String, &ConditionalDependencyEndpoint>::new();
         let mut dependencies_by_node = HashMap::<String, Vec<String>>::new();
         let mut endpoint_order = Vec::<String>::new();
@@ -227,7 +407,7 @@ impl ConditionalDependencyGraph {
                 endpoint_order.push(to.clone());
                 endpoint_by_id.insert(to.clone(), &edge.to);
             }
-            if !edge_is_active(edge, &branch_selections) {
+            if !edge_is_active(edge, branch_selections) {
                 continue;
             }
             let dependencies = dependencies_by_node.entry(from).or_default();

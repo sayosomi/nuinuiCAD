@@ -24,7 +24,7 @@ import type { ModuleMaterialization } from "../dsl/moduleMaterialization";
 export type TypedDependencyReason = "missing" | "invalid" | "disabled";
 export type TypedDependencyKind = "initializer" | "geometry" | "geometry-property" | "property-binding" | "numeric-expression" | "template-hole";
 export type TypedDependencyRequiredness = "required" | "conditional";
-export type TypedDependencyActivation = {
+export type TypedDependencyActivationGuard = {
   controllerId: string;
   branch: string;
   /** Literal control-flow facts are compiler-owned. Dynamic controls remain
@@ -32,6 +32,11 @@ export type TypedDependencyActivation = {
   staticSelection?: "selected" | "unselected";
   /** The compiler-owned controller AST for dynamic runtime activation. */
   controllerExpression?: TypedScalarExpression;
+};
+
+export type TypedDependencyActivation = {
+  /** Guards are ordered from the outermost lazy expression to the innermost. */
+  guards: readonly TypedDependencyActivationGuard[];
 };
 
 export type TypedDependencyEndpoint =
@@ -168,6 +173,13 @@ const staticDisabledBindingIds = (
 type TypedDependencyReferenceNode = Extract<TypedScalarExpression, { kind: "reference" }> & { readonly lazy?: boolean; readonly activation?: TypedDependencyActivation };
 type TypedDependencyGeometryPropertyNode = Extract<TypedScalarExpression, { kind: "geometryProperty" }> & { readonly lazy?: boolean; readonly activation?: TypedDependencyActivation };
 
+const appendActivationGuard = (
+  activation: TypedDependencyActivation | undefined,
+  guard: TypedDependencyActivationGuard
+): TypedDependencyActivation => ({
+  guards: [...(activation?.guards ?? []), guard]
+});
+
 export const referencesIn = (expression: TypedScalarExpression): readonly TypedDependencyReferenceNode[] => {
   const result: TypedDependencyReferenceNode[] = [];
   const visit = (node: TypedScalarExpression, lazy = false, activation?: TypedDependencyActivation): void => {
@@ -178,38 +190,38 @@ export const referencesIn = (expression: TypedScalarExpression): readonly TypedD
       if (node.operator === "??") {
         const rightSelection = node.left.kind === "noneLiteral" ? "selected" :
           node.left.kind === "numberLiteral" || node.left.kind === "stringLiteral" || node.left.kind === "booleanLiteral" || node.left.kind === "choiceLiteral" ? "unselected" : undefined;
-        visit(node.right, true, {
+        visit(node.right, true, appendActivationGuard(activation, {
           controllerId: `scalar:${node.span.start}`,
           branch: "right",
           ...(rightSelection ? { staticSelection: rightSelection } : { controllerExpression: node.left })
-        });
+        }));
       } else visit(node.right, lazy, activation);
     }
     else if (node.kind === "group") visit(node.expression, lazy, activation);
     else if (node.kind === "valueIf") {
       visit(node.condition, lazy, activation);
       const selection = node.condition.kind === "booleanLiteral" ? node.condition.value : undefined;
-      visit(node.thenBranch, true, {
+      visit(node.thenBranch, true, appendActivationGuard(activation, {
         controllerId: `scalar:${node.span.start}`,
         branch: "then",
         ...(selection === undefined ? { controllerExpression: node.condition } : { staticSelection: selection ? "selected" : "unselected" })
-      });
-      visit(node.elseBranch, true, {
+      }));
+      visit(node.elseBranch, true, appendActivationGuard(activation, {
         controllerId: `scalar:${node.span.start}`,
         branch: "else",
         ...(selection === undefined ? { controllerExpression: node.condition } : { staticSelection: selection ? "unselected" : "selected" })
-      });
+      }));
     }
     else if (node.kind === "valueMatch") {
       visit(node.scrutinee, lazy, activation);
       const selectedLabel = node.scrutinee.kind === "choiceLiteral" ? node.scrutinee.value : undefined;
-      node.arms.forEach((arm) => visit(arm.expression, true, {
+      node.arms.forEach((arm) => visit(arm.expression, true, appendActivationGuard(activation, {
         controllerId: `scalar:${node.span.start}`,
         branch: `match:${arm.label}`,
         ...(selectedLabel === undefined
           ? { controllerExpression: node.scrutinee }
           : { staticSelection: arm.label === selectedLabel ? "selected" : "unselected" })
-      }));
+      })));
     }
     else if (node.kind === "collectionIndex") visit(node.index, lazy, activation);
     else if (node.kind === "geometryProperty" && node.forGroupOccurrenceIndex) visit(node.forGroupOccurrenceIndex, lazy, activation);
@@ -234,38 +246,38 @@ export const geometryPropertiesIn = (expression: TypedScalarExpression): readonl
       if (node.operator === "??") {
         const rightSelection = node.left.kind === "noneLiteral" ? "selected" :
           node.left.kind === "numberLiteral" || node.left.kind === "stringLiteral" || node.left.kind === "booleanLiteral" || node.left.kind === "choiceLiteral" ? "unselected" : undefined;
-        visit(node.right, true, {
+        visit(node.right, true, appendActivationGuard(activation, {
           controllerId: `scalar:${node.span.start}`,
           branch: "right",
           ...(rightSelection ? { staticSelection: rightSelection } : { controllerExpression: node.left })
-        });
+        }));
       } else visit(node.right, lazy, activation);
     }
     else if (node.kind === "group") visit(node.expression, lazy, activation);
     else if (node.kind === "valueIf") {
       visit(node.condition, lazy, activation);
       const selection = node.condition.kind === "booleanLiteral" ? node.condition.value : undefined;
-      visit(node.thenBranch, true, {
+      visit(node.thenBranch, true, appendActivationGuard(activation, {
         controllerId: `scalar:${node.span.start}`,
         branch: "then",
         ...(selection === undefined ? { controllerExpression: node.condition } : { staticSelection: selection ? "selected" : "unselected" })
-      });
-      visit(node.elseBranch, true, {
+      }));
+      visit(node.elseBranch, true, appendActivationGuard(activation, {
         controllerId: `scalar:${node.span.start}`,
         branch: "else",
         ...(selection === undefined ? { controllerExpression: node.condition } : { staticSelection: selection ? "unselected" : "selected" })
-      });
+      }));
     }
     else if (node.kind === "valueMatch") {
       visit(node.scrutinee, lazy, activation);
       const selectedLabel = node.scrutinee.kind === "choiceLiteral" ? node.scrutinee.value : undefined;
-      node.arms.forEach((arm) => visit(arm.expression, true, {
+      node.arms.forEach((arm) => visit(arm.expression, true, appendActivationGuard(activation, {
         controllerId: `scalar:${node.span.start}`,
         branch: `match:${arm.label}`,
         ...(selectedLabel === undefined
           ? { controllerExpression: node.scrutinee }
           : { staticSelection: arm.label === selectedLabel ? "selected" : "unselected" })
-      }));
+      })));
     }
     else if (node.kind === "collectionIndex") visit(node.index, lazy, activation);
     else if (node.kind === "call") node.args.forEach((argument) => {
@@ -392,9 +404,81 @@ const typedDependencyEdgeIsActive = (
   // scalar controller AST at this owner boundary. Preserve their established
   // readiness behavior; only compiler-resolved activation facts are filtered.
   if (!edge.activation) return true;
-  if (edge.activation?.staticSelection === "selected") return true;
-  if (edge.activation?.staticSelection === "unselected") return false;
-  return branchSelections.get(edge.activation.controllerId) === edge.activation.branch;
+  return edge.activation.guards.every((guard) => {
+    if (guard.staticSelection === "selected") return true;
+    if (guard.staticSelection === "unselected") return false;
+    return branchSelections.get(guard.controllerId) === guard.branch;
+  });
+};
+
+const activationPathMatches = (
+  guards: readonly TypedDependencyActivationGuard[],
+  prefix: readonly TypedDependencyActivationGuard[]
+): boolean => guards.length === prefix.length && guards.every((guard, index) =>
+  guard.controllerId === prefix[index]?.controllerId &&
+  guard.branch === prefix[index]?.branch &&
+  guard.staticSelection === prefix[index]?.staticSelection
+);
+
+const activationPathIsActive = (
+  guards: readonly TypedDependencyActivationGuard[],
+  branchSelections: TypedDependencyBranchSelection
+): boolean => guards.every((guard) => {
+  if (guard.staticSelection === "selected") return true;
+  if (guard.staticSelection === "unselected") return false;
+  return branchSelections.get(guard.controllerId) === guard.branch;
+});
+
+export type TypedDependencyControllerCandidate = {
+  controllerId: string;
+  expression: TypedScalarExpression;
+  branches: readonly string[];
+  prerequisiteEndpointIds: readonly string[];
+};
+
+/**
+ * Returns only controllers whose enclosing guard path is active. Required
+ * prerequisites are taken from the same compiler-owned edge source at the
+ * path prefix preceding that controller, so a controller is not probed until
+ * its scalar/geometry inputs are ready.
+ */
+export const typedDependencyControllerCandidates = (
+  graph: TypedDependencyGraph,
+  branchSelections: TypedDependencyBranchSelection
+): readonly TypedDependencyControllerCandidate[] => {
+  const candidates = new Map<string, {
+    expression: TypedScalarExpression;
+    branches: Set<string>;
+    prerequisites: Set<string>;
+  }>();
+  for (const edge of graph.edges) {
+    const guards = edge.activation?.guards ?? [];
+    guards.forEach((guard, guardIndex) => {
+      if (!guard.controllerExpression) return;
+      const prefix = guards.slice(0, guardIndex);
+      if (!activationPathIsActive(prefix, branchSelections)) return;
+      const candidate = candidates.get(guard.controllerId) ?? {
+        expression: guard.controllerExpression,
+        branches: new Set<string>(),
+        prerequisites: new Set<string>()
+      };
+      candidate.branches.add(guard.branch);
+      for (const prerequisite of graph.edges) {
+        if (endpointId(prerequisite.from) !== endpointId(edge.from)) continue;
+        const prerequisiteGuards = prerequisite.activation?.guards ?? [];
+        if (!activationPathMatches(prerequisiteGuards, prefix)) continue;
+        if (!typedDependencyEdgeIsActive(prerequisite, branchSelections)) continue;
+        candidate.prerequisites.add(endpointId(prerequisite.to));
+      }
+      candidates.set(guard.controllerId, candidate);
+    });
+  }
+  return [...candidates.entries()].map(([controllerId, candidate]) => ({
+    controllerId,
+    expression: candidate.expression,
+    branches: [...candidate.branches],
+    prerequisiteEndpointIds: [...candidate.prerequisites]
+  }));
 };
 
 /** Resolves the compiler-owned graph for one runtime branch selection. The
@@ -494,7 +578,9 @@ export const buildTypedDependencyGraph = ({
   }> = [];
   const seen = new Map<string, number>();
   const add = (edge: TypedDependencyEdge) => {
-    const activationKey = edge.activation ? `|${edge.activation.controllerId}:${edge.activation.branch}:${edge.activation.staticSelection ?? "dynamic"}` : "";
+    const activationKey = edge.activation
+      ? `|${edge.activation.guards.map((guard) => `${guard.controllerId}:${guard.branch}:${guard.staticSelection ?? "dynamic"}`).join(">")}`
+      : "";
     const key = `${endpointId(edge.from)}|${edge.kind}|${endpointId(edge.to)}${activationKey}`;
     const existingIndex = seen.get(key);
     if (existingIndex !== undefined) {

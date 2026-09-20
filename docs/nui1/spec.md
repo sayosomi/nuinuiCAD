@@ -20,13 +20,17 @@ user layout.
 
 The following principles are normative and apply to every nui1 feature:
 
-1. A document is evaluated from top to bottom. Declarations are never hoisted.
+1. Legal declarations are resolved by lexical ownership independent of unrelated
+   source position. Required nodes are evaluated in canonical dependency order;
+   dependency cycles are diagnostics. Only same-owner transformation recipe
+   order remains authored source order.
 2. `@` always means a reference.
 3. Every value has a type.
 4. `{}` creates a lexical scope.
 5. `::` traverses a namespace or container.
-6. nui1 does not perform implicit dependencies, implicit capture, or automatic
-   reordering.
+6. nui1 does not perform implicit dependencies or implicit capture. The compiler
+   schedules explicit required dependencies through its canonical dependency
+   graph; unrelated source positions do not impose evaluation order.
 
 These rules are language semantics, not formatter preferences or implementation
 options.
@@ -986,9 +990,11 @@ warning marker.
 
 ## Style declarations, profiles, and presentation properties
 
-Drawing Profiles are top-level, source-ordered declarations in the ordinary
-lexical namespace. A profile is referenced with `@name`; references are not
-hoisted, so a declaration must appear before its use.
+Drawing Profiles are top-level declarations in the ordinary lexical namespace.
+Their authored source order remains the document/display order. A profile is
+referenced with `@name`; lexical ownership resolves the reference independently
+of unrelated source position, while source text order is preserved for editing
+and serialization.
 
 ```text
 profile 印刷用

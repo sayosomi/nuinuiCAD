@@ -10,8 +10,11 @@ behavior implemented by nuinuiCAD. Repository implementation is authoritative
 for actual implementation details.
 
 Lengths and coordinates use millimetres with Y-up drafting coordinates.
-Declarations are evaluated in document order, and unavailable or invalid
-dependencies are reported rather than repaired. References use `@`, module
+Legal declarations are resolved by lexical scope and evaluated through the
+compiler's dependency graph. Unrelated source positions do not impose
+evaluation order; unavailable or invalid dependencies and dependency cycles
+are reported rather than repaired. Same-owner transformation recipe order
+remains authored order. References use `@`, module
 exports use `::`, ordinary geometry properties use `.`, optional member access
 uses `?.`, and generated drawable
 occurrences use an explicit zero-based suffix such as `@Mark[1]` or

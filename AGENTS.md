@@ -267,9 +267,11 @@ importer, or migration layer does not currently exist; do not add old-format
 compatibility without an explicit Task.
 
 The persisted document is one `.nui` DSL text file. `.nui` `sourceText` is
-canonical. Document-order deterministic evaluation, no automatic dependency
-sorting, Rust-first evaluation, and statement-level source editing are current
-rules. Keep document edits on the established canonical source-edit boundary.
+canonical. Source order is the authored document/display/edit order; required
+nodes are evaluated through the canonical dependency graph, while same-owner
+recipe order remains authored order. Rust-first evaluation and statement-level
+source editing are current rules. Keep document edits on the established
+canonical source-edit boundary.
 Canvas and command model edits must use statement-level text splices through the
 document bridge. Do not add a whole-file reserialization mutation path that can
 damage comments, blank lines, or user layout.

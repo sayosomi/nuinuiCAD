@@ -712,7 +712,11 @@ describe("Task 36 typed dependency graph wiring", () => {
       expect.objectContaining({
         kind: "geometry-property",
         requiredness: "conditional",
-        activation: expect.objectContaining({ branch: "then", staticSelection: "selected" })
+        activation: expect.objectContaining({
+          guards: expect.arrayContaining([
+            expect.objectContaining({ branch: "then", staticSelection: "selected" })
+          ])
+        })
       })
     ]));
 
@@ -722,7 +726,11 @@ describe("Task 36 typed dependency graph wiring", () => {
       expect.objectContaining({
         kind: "geometry-property",
         requiredness: "conditional",
-        activation: expect.objectContaining({ branch: "then", staticSelection: "unselected" })
+        activation: expect.objectContaining({
+          guards: expect.arrayContaining([
+            expect.objectContaining({ branch: "then", staticSelection: "unselected" })
+          ])
+        })
       })
     ]));
     const runtimeProjection = unselected.typedDependencyGraph

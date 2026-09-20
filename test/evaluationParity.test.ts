@@ -138,7 +138,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       ].join("\n"));
       const options = optionsFor(fixture);
       const graph = fixture.compiled?.doc.typedDependencyGraph;
-      expect(graph?.edges.some((edge) => edge.activation?.controllerId)).toBe(true);
+      expect(graph?.edges.some((edge) => edge.activation?.guards.some((guard) => guard.controllerId))).toBe(true);
       expect(isRustEligibleFixture(fixture)).toBe(true);
       const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
       const rustPayload = evaluateWithRustOptions(repoRoot, fixture.elements, options);
@@ -183,6 +183,89 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       expect(result.errors).toEqual([]);
       const consumer = fixture.elements.find((element) => element.name === "Consumer")!;
       expect(result.computedGeometry.get(consumer.id)).toMatchObject({ end: { x: 10, y: 1 } });
+    }
+  }, 30000);
+
+  it("retries a geometry-dependent dynamic controller after its predecessor is ready", () => {
+    const sourceFor = (condition: string) => [
+      "nui 1",
+      "const gateFromGeometry: boolean = @GateGeometry.length " + condition + " 0",
+      "const selectedLength: number = if (@gateFromGeometry) { @Later.length } else { 0 }",
+      "line Consumer = segment(start: (0, 0), end: (@selectedLength, 1))",
+      "line Later = segment(start: (0, 0), end: (10, 0))",
+      "line GateGeometry = segment(start: (0, 0), end: (5, 0))"
+    ].join("\n");
+
+    for (const [condition, expectedLength, branchIsSelected] of [[">", 10, true], ["<", 0, false]] as const) {
+      const fixture = fixtureFromSource(sourceFor(condition));
+      const options = optionsFor(fixture);
+      const graph = fixture.compiled?.doc.typedDependencyGraph;
+      expect(isRustEligibleFixture(fixture)).toBe(true);
+      expect(graph?.edges.some((edge) =>
+        edge.kind === "geometry-property" &&
+        edge.from.kind === "binding" &&
+        edge.activation?.guards.some((guard) => guard.controllerExpression)
+      )).toBe(true);
+
+      const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+      const rustPayload = evaluateWithRustOptions(repoRoot, fixture.elements, options);
+      expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+      const consumer = fixture.elements.find((element) => element.name === "Consumer")!;
+      const later = fixture.elements.find((element) => element.name === "Later")!;
+      const gateGeometry = fixture.elements.find((element) => element.name === "GateGeometry")!;
+      for (const payload of [tsPayload, rustPayload]) {
+        const result = evaluationPayloadToResult(payload);
+        const computedGeometryIds = [...result.computedGeometry.keys()];
+        expect(result.errors).not.toEqual(expect.arrayContaining([
+          expect.objectContaining({ code: "dependency-cycle" })
+        ]));
+        expect(result.computedGeometry.get(consumer.id)).toMatchObject({ end: { x: expectedLength, y: 1 } });
+        const gateIndex = computedGeometryIds.indexOf(gateGeometry.id);
+        const consumerIndex = computedGeometryIds.indexOf(consumer.id);
+        const laterIndex = computedGeometryIds.indexOf(later.id);
+        expect(gateIndex).toBeLessThan(consumerIndex);
+        expect(laterIndex < consumerIndex).toBe(branchIsSelected);
+      }
+    }
+  }, 30000);
+
+  it("preserves nested lazy guard ancestry and activates the inner cycle only on the selected path", () => {
+    const sourceFor = (outer: boolean) => [
+      "nui 1",
+      `const outer: boolean = ${outer}`,
+      "const inner: boolean = true",
+      "const gate: boolean = if (@outer) { if (@inner) { @A.length > 0 } else { true } } else { true }",
+      "line A = segment(start: (0, 0), end: (10, 0), enabled: @gate)"
+    ].join("\n");
+
+    for (const outer of [false, true]) {
+      const fixture = fixtureFromSource(sourceFor(outer));
+      const options = optionsFor(fixture);
+      const graph = fixture.compiled?.doc.typedDependencyGraph;
+      const guardedEdge = graph?.edges.find((edge) =>
+        edge.kind === "geometry-property" && edge.from.kind === "binding" && edge.activation
+      );
+      expect(guardedEdge?.activation?.guards).toHaveLength(2);
+      expect(guardedEdge?.activation?.guards.map((guard) => guard.branch)).toEqual(["then", "then"]);
+      expect(guardedEdge?.activation?.guards.every((guard) => guard.controllerExpression)).toBe(true);
+      expect(isRustEligibleFixture(fixture)).toBe(true);
+
+      const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+      const rustPayload = evaluateWithRustOptions(repoRoot, fixture.elements, options);
+      expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+      for (const payload of [tsPayload, rustPayload]) {
+        const result = evaluationPayloadToResult(payload);
+        if (outer) {
+          expect(result.errors).toEqual(expect.arrayContaining([
+            expect.objectContaining({ code: "dependency-cycle" })
+          ]));
+        } else {
+          expect(result.errors).not.toEqual(expect.arrayContaining([
+            expect.objectContaining({ code: "dependency-cycle" })
+          ]));
+          expect(result.computedGeometry.size).toBeGreaterThan(0);
+        }
+      }
     }
   }, 30000);
 

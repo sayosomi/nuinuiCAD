@@ -135,10 +135,11 @@ use bezier_evaluator::evaluate_bezier_curve;
 use bezier_feature_point_evaluator::{evaluate_bezier_bulge_point, evaluate_bezier_extreme_point};
 use common_tangent_evaluator::evaluate_common_tangent_line;
 use conditional_dependency_runtime::{
-    decode_conditional_dependency_graph, ConditionalDependencyGraph,
+    branch_for_controller_value, decode_conditional_dependency_graph, ConditionalDependencyGraph,
 };
 use control_boolean_runtime::{
-    resolve_conditional_group_condition, resolve_for_group_effective_show_generated,
+    evaluate_scalar_expression_with_document_resolver, resolve_conditional_group_condition,
+    resolve_for_group_effective_show_generated,
 };
 use corner_radius_evaluator::evaluate_corner_radius_arc_line;
 use edge_extend_evaluator::{evaluate_edge, evaluate_extend_trim};
@@ -185,7 +186,7 @@ use scalars::{
     validate_scalar_program_payload, validate_text_property_bindings_payload,
     validate_text_templates_payload, validate_typed_expression_payload,
     ForGroupExecutionRunOutcome, ForGroupExecutionStatement, ScalarBindingResolver,
-    ScalarDocumentBindingResolver, ScalarMutationResolver, TypedScalarExpression,
+    ScalarDocumentBindingResolver, ScalarEvaluation, ScalarMutationResolver, TypedScalarExpression,
     ValidatedBindingVersions, ValidatedConditionExpression, ValidatedPropertyBinding,
     ValidatedScalarProgram, ValidatedTextTemplate,
 };
@@ -1396,7 +1397,7 @@ fn evaluate_document_input_with_scalar_program(
             element_index_by_id.insert(id, index);
         }
     }
-    let mut evaluation_indices = if let Some(order) = input.evaluation_order.as_ref() {
+    let evaluation_indices = if let Some(order) = input.evaluation_order.as_ref() {
         let mut indices = Vec::with_capacity(evaluation_limit_index);
         let mut seen = HashSet::new();
         for id in order {
@@ -1415,7 +1416,7 @@ fn evaluate_document_input_with_scalar_program(
     } else {
         (0..evaluation_limit_index).collect()
     };
-    let mut evaluated_elements = evaluation_indices
+    let evaluated_elements = evaluation_indices
         .iter()
         .map(|index| input.elements[*index].clone())
         .collect::<Vec<_>>();
@@ -1550,49 +1551,6 @@ fn evaluate_document_input_with_scalar_program(
     // evaluated more than once.
     let scalar_binding_resolver = scalar_program.as_ref().map(ScalarBindingResolver::new);
     let mut scalar_mutation_resolver = binding_versions.as_ref().map(ScalarMutationResolver::new);
-    if let Some(conditional_dependency_graph) =
-        conditional_dependency_graph.as_ref().filter(|graph| {
-            graph.has_activation()
-                && (scalar_binding_resolver.is_some() || scalar_mutation_resolver.is_some())
-        })
-    {
-        let active_resolver = scalar_mutation_resolver
-            .as_ref()
-            .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
-            .or_else(|| {
-                scalar_binding_resolver
-                    .as_ref()
-                    .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
-            });
-        let element_ids = state
-            .elements
-            .iter()
-            .filter_map(element_id)
-            .collect::<Vec<_>>();
-        let activated = conditional_dependency_graph.activate(
-            &element_ids,
-            evaluation_limit_index,
-            active_resolver,
-            &state,
-        );
-        state.errors.extend(activated.cycles);
-        evaluation_indices = activated
-            .evaluation_order
-            .iter()
-            .filter_map(|id| element_index_by_id.get(id).copied())
-            .filter(|index| *index < evaluation_limit_index)
-            .collect();
-        let mut seen = evaluation_indices.iter().copied().collect::<HashSet<_>>();
-        for index in 0..evaluation_limit_index {
-            if seen.insert(index) {
-                evaluation_indices.push(index);
-            }
-        }
-        evaluated_elements = evaluation_indices
-            .iter()
-            .map(|index| state.elements[*index].clone())
-            .collect();
-    }
     let entries_by_element_id: HashMap<ElementId, Vec<ValidatedPropertyBinding>> =
         property_bindings
             .into_iter()
@@ -1702,8 +1660,109 @@ fn evaluate_document_input_with_scalar_program(
     let mut next_geometry_value_index = 0usize;
     let mut next_transformation_recipe_index = 0usize;
     let empty_geometry_value_resolver = geometry_value_runtime::EmptyBindingResolver;
+    let mut conditional_branch_selections = HashMap::<String, String>::new();
+    let mut pending_indices = evaluation_indices.clone();
+    let original_pending_order = pending_indices
+        .iter()
+        .enumerate()
+        .map(|(order, index)| (*index, order))
+        .collect::<HashMap<usize, usize>>();
+    let mut scheduled_indices = Vec::with_capacity(pending_indices.len());
 
-    'elements: for (evaluation_position, &index) in evaluation_indices.iter().enumerate() {
+    'elements: while !pending_indices.is_empty() {
+        if let (Some(graph), Some(_)) = (
+            conditional_dependency_graph
+                .as_ref()
+                .filter(|graph| graph.has_activation()),
+            scalar_mutation_resolver
+                .as_ref()
+                .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
+                .or_else(|| {
+                    scalar_binding_resolver
+                        .as_ref()
+                        .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
+                }),
+        ) {
+            let mut changed = false;
+            let mut progressed = true;
+            while progressed {
+                progressed = false;
+                let resolver = scalar_mutation_resolver
+                    .as_ref()
+                    .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
+                    .or_else(|| {
+                        scalar_binding_resolver
+                            .as_ref()
+                            .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
+                    })
+                    .expect("conditional activation requires a scalar resolver");
+                for candidate in graph.controller_candidates(&conditional_branch_selections) {
+                    if conditional_branch_selections.contains_key(&candidate.controller_id)
+                        || candidate
+                            .prerequisite_endpoint_ids
+                            .iter()
+                            .any(|endpoint_id| {
+                                !graph.endpoint_is_ready(
+                                    endpoint_id,
+                                    &conditional_branch_selections,
+                                    resolver,
+                                    &state,
+                                )
+                            })
+                    {
+                        continue;
+                    }
+                    let evaluation = evaluate_scalar_expression_with_document_resolver(
+                        candidate.expression,
+                        resolver,
+                        &state,
+                    );
+                    let ScalarEvaluation::Ok { value, .. } = evaluation else {
+                        continue;
+                    };
+                    let branches = candidate.branches.iter().cloned().collect::<HashSet<_>>();
+                    let Some(branch) = branch_for_controller_value(&value, &branches) else {
+                        continue;
+                    };
+                    conditional_branch_selections.insert(candidate.controller_id, branch);
+                    changed = true;
+                    progressed = true;
+                }
+            }
+            if changed {
+                let element_ids = state
+                    .elements
+                    .iter()
+                    .filter_map(element_id)
+                    .collect::<Vec<_>>();
+                let projected = graph.project(
+                    &element_ids,
+                    evaluation_limit_index,
+                    &conditional_branch_selections,
+                );
+                state.errors.extend(projected.cycles);
+                let rank = projected
+                    .evaluation_order
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(rank, id)| {
+                        element_index_by_id.get(id).map(|index| (*index, rank))
+                    })
+                    .collect::<HashMap<usize, usize>>();
+                pending_indices.sort_by_key(|index| {
+                    (
+                        rank.get(index).copied().unwrap_or(usize::MAX),
+                        original_pending_order
+                            .get(index)
+                            .copied()
+                            .unwrap_or(usize::MAX),
+                    )
+                });
+            }
+        }
+        let index = pending_indices.remove(0);
+        let evaluation_position = scheduled_indices.len();
+        scheduled_indices.push(index);
         let mut element = state.elements[index].clone();
         let id = match element_id(&element) {
             Some(id) => id,

@@ -28,6 +28,21 @@ const BINDING_UNAVAILABLE: &str = "evaluation-binding-unavailable";
 const RUNTIME_VALUE_TYPE_MISMATCH: &str = "evaluation-runtime-value-type-mismatch";
 const BINDING_CYCLE_GUARD: &str = "evaluation-binding-cycle-guard";
 
+fn is_transient_unavailable_evaluation(evaluation: &ScalarEvaluation) -> bool {
+    matches!(
+        evaluation,
+        ScalarEvaluation::Error { issue_code, .. }
+            if matches!(
+                issue_code.as_str(),
+                "evaluation-geometry-property-unavailable"
+                    | "evaluation-geometry-builtin-unavailable"
+                    | "evaluation-collection-property-unavailable"
+                    | "evaluation-collection-index-unavailable"
+                    | "evaluation-optional-member-unavailable"
+            )
+    )
+}
+
 pub(crate) trait ScalarDocumentBindingResolver {
     fn resolve_binding(&self, binding_id: &str, state: &EvaluationState) -> ScalarEvaluation;
 
@@ -176,8 +191,10 @@ fn record_type_identity_matches(
         == type_identity
 }
 
-/// Resolves one binding's value on demand, memoized for the lifetime of one
-/// `evaluate_document` call. `program` is borrowed for this resolver's whole
+/// Resolves one binding's value on demand, memoized for stable results during
+/// one `evaluate_document` call. Transient unavailable geometry results are
+/// intentionally retryable as graph predecessors become ready. `program` is
+/// borrowed for this resolver's whole
 /// lifetime (it is never mutated during evaluation), but `state` is passed
 /// per call rather than stored - `state` is still being mutated by the
 /// caller's own per-element loop, so this resolver must never hold a live
@@ -227,9 +244,9 @@ impl<'a> ScalarBindingResolver<'a> {
     }
 
     /// Resolves `binding_id` against `state`'s current (possibly still
-    /// in-progress) contents, caching the result. Safe to call at any point
-    /// during the caller's per-element loop, any number of times, for any
-    /// binding - each is only ever actually evaluated once.
+    /// in-progress) contents, caching stable results. Safe to call at any
+    /// point during the caller's per-element loop; transient unavailable
+    /// geometry results may be evaluated again after their prerequisites run.
     pub(crate) fn resolve(&self, binding_id: &str, state: &EvaluationState) -> ScalarEvaluation {
         if let Some(cached) = self.cache.borrow().get(binding_id) {
             return cached.clone();
@@ -275,9 +292,11 @@ impl<'a> ScalarBindingResolver<'a> {
         };
 
         self.in_progress.borrow_mut().remove(binding_id);
-        self.cache
-            .borrow_mut()
-            .insert(binding_id.to_owned(), evaluation.clone());
+        if !is_transient_unavailable_evaluation(&evaluation) {
+            self.cache
+                .borrow_mut()
+                .insert(binding_id.to_owned(), evaluation.clone());
+        }
         evaluation
     }
 
@@ -374,7 +393,7 @@ impl<'a> ScalarBindingResolver<'a> {
     }
 
     /// Walks `program.statements` in array order and pulls each value from
-    /// the (memoized, so free after the first ask) resolver, producing the
+    /// the stable-result memoized resolver, producing the
     /// same `computed_scalar_bindings` shape/order the original one-shot
     /// implementation did - independent of whatever order (if any) the
     /// caller's own per-element loop resolved bindings in beforehand.
