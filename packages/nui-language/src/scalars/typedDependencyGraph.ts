@@ -301,6 +301,54 @@ export const geometryPropertiesIn = (expression: TypedScalarExpression): readonl
   return result;
 };
 
+type TypedNumericBindingReference = {
+  typed: TypedDependencyReferenceNode;
+  source: CompiledNumericBinding["references"][number];
+};
+
+/**
+ * Joins the typed scalar reference semantics to the compiler's authored
+ * numeric occurrence metadata. The typed walker owns lazy activation, while
+ * the compiled occurrence owns the statement-relative diagnostic span.
+ *
+ * A BindingId may occur more than once in one expression, so matching only by
+ * BindingId would be ambiguous. The compiler emits both external lists in
+ * source order; consume one source occurrence per typed occurrence and fail
+ * closed if that invariant is ever broken. Local iteration bindings can also
+ * appear in the typed AST, but are intentionally absent from the compiled
+ * external occurrence list and remain owned by the legacy numeric runtime.
+ */
+const typedNumericBindingReferences = (
+  source: CompiledNumericBinding
+): readonly TypedNumericBindingReference[] => {
+  if (!source.typedExpression) return [];
+  const sourceReferencesByBindingId = new Map<BindingId, CompiledNumericBinding["references"][number][]>();
+  for (const reference of source.references) {
+    const references = sourceReferencesByBindingId.get(reference.bindingId);
+    if (references) references.push(reference);
+    else sourceReferencesByBindingId.set(reference.bindingId, [reference]);
+  }
+  const typedReferences = referencesIn(source.typedExpression)
+    .filter((reference): reference is TypedDependencyReferenceNode =>
+      reference.bindingId !== null && sourceReferencesByBindingId.has(reference.bindingId)
+    );
+  const result: TypedNumericBindingReference[] = [];
+  for (const typed of typedReferences) {
+    const references = sourceReferencesByBindingId.get(typed.bindingId!);
+    const sourceReference = references?.shift();
+    if (!sourceReference) {
+      throw new Error(
+        `typedDependencyGraph: numeric binding reference mapping mismatch for ${typed.bindingId}`
+      );
+    }
+    result.push({ typed, source: sourceReference });
+  }
+  if ([...sourceReferencesByBindingId.values()].some((references) => references.length > 0)) {
+    throw new Error("typedDependencyGraph: numeric binding reference mapping has unmatched source occurrences");
+  }
+  return result;
+};
+
 const stageEndpointId = (ownerId: ElementId, occurrenceIndex: string | undefined, stagePath: readonly string[]) =>
   `${ownerId}\u0000${occurrenceIndex ?? "*"}\u0000${stagePath.join(".") || "base"}`;
 
@@ -813,14 +861,20 @@ export const buildTypedDependencyGraph = ({
     const statementIndex = Number(key.slice(0, key.indexOf(":")));
     const elementId = elementIdByStatementIndex.get(statementIndex);
     if (!elementId) continue;
-    for (const reference of source.references) {
+    const references = source.typedExpression
+      ? typedNumericBindingReferences(source)
+      : source.references.map((reference) => ({ typed: undefined, source: reference }));
+    for (const reference of references) {
+      const typed = reference.typed;
+      const sourceReference = reference.source;
       add({
         kind: "numeric-expression",
         from: elementEndpoint(elementsById, elementId, statementIndex),
-        to: bindingEndpoint(bindingAnalysis, reference.bindingId),
-        span: reference.span,
-        reason: reasonFor(reference.bindingId),
-        requiredness: "required"
+        to: bindingEndpoint(bindingAnalysis, sourceReference.bindingId),
+        span: sourceReference.span,
+        reason: reasonFor(sourceReference.bindingId),
+        requiredness: typed?.lazy ? "conditional" : "required",
+        ...(typed?.activation ? { activation: typed.activation } : {})
       }, key);
     }
     if (source.typedExpression) for (const reference of geometryPropertiesIn(source.typedExpression)) {

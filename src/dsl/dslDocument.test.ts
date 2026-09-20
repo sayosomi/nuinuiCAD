@@ -904,4 +904,48 @@ describe("Task 36 typed dependency graph wiring", () => {
       expect(fallbackEdges[0]!.activation?.guards[0]?.controllerExpression).toBeDefined();
     }
   });
+
+  it("projects typed numeric binding activation with authored source spans", () => {
+    const source = [
+      "nui 1",
+      "const flag: boolean = false",
+      "point P = coordinate(x: if (@flag) { @later } else { 0 }, y: 0)",
+      "const later: number = @P.x"
+    ].join("\n");
+    const compiled = compileDslDocument(source, {
+      assignedStatementIds: new Map([
+        [1, "test:flag"],
+        [2, "test:p"],
+        [3, "test:later"]
+      ])
+    });
+    expect(compiled.document).not.toBeNull();
+    const point = compiled.document?.elements.find((element) => element.name === "P");
+    const flag = compiled.bindingAnalysis?.catalog.bindings.find((binding) => binding.name === "flag");
+    const later = compiled.bindingAnalysis?.catalog.bindings.find((binding) => binding.name === "later");
+    expect(point).toBeDefined();
+    expect(flag).toBeDefined();
+    expect(later).toBeDefined();
+
+    const numericEdges = compiled.typedDependencyGraph?.edges.filter((edge) =>
+      edge.kind === "numeric-expression" && edge.from.kind === "element" && edge.from.id === point?.id
+    ) ?? [];
+    const flagEdges = numericEdges.filter((edge) => edge.to.kind === "binding" && edge.to.id === flag?.id);
+    const laterEdges = numericEdges.filter((edge) => edge.to.kind === "binding" && edge.to.id === later?.id);
+    expect(flagEdges).toHaveLength(1);
+    expect(flagEdges[0]).toMatchObject({ requiredness: "required" });
+    expect(laterEdges).toHaveLength(1);
+    expect(laterEdges[0]).toMatchObject({
+      requiredness: "conditional",
+      activation: {
+        guards: [expect.objectContaining({ branch: "then", controllerExpression: expect.any(Object) })]
+      }
+    });
+    expect(laterEdges[0]?.span?.start).toBeGreaterThan(0);
+    expect(laterEdges[0]?.span?.end).toBeGreaterThan(laterEdges[0]?.span?.start ?? 0);
+    expect(numericEdges.filter((edge) => edge.to.kind === "binding" && edge.to.id === later?.id && edge.requiredness === "required")).toHaveLength(0);
+    const numericKey = [...(compiled.numericBindings ?? [])].find(([key]) => key.endsWith(":x"))?.[0];
+    expect(numericKey).toBeDefined();
+    expect(laterEdges[0]?.activation?.guards[0]?.controllerId).toContain(numericKey ?? "");
+  });
 });

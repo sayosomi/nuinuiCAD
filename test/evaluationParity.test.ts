@@ -165,6 +165,49 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("matches typed numeric lazy binding activation and cross-domain cycles", () => {
+    for (const flag of [false, true]) {
+      const fixture = fixtureFromSource([
+        "nui 1",
+        `const flag: boolean = ${flag}`,
+        "point P = coordinate(x: if (@flag) { @later } else { 0 }, y: 0)",
+        "const later: number = @P.x"
+      ].join("\n"));
+      const options = optionsFor(fixture);
+      const point = fixture.elements.find((element) => element.name === "P")!;
+      const later = fixture.compiled?.doc.bindingAnalysis?.catalog.bindings.find((binding) => binding.name === "later");
+      if (!later) throw new Error("expected later binding");
+      const numericEdges = fixture.compiled?.doc.typedDependencyGraph?.edges.filter((edge) =>
+        edge.kind === "numeric-expression" && edge.from.kind === "element" && edge.from.id === point.id
+      ) ?? [];
+      const laterEdges = numericEdges.filter((edge) => edge.to.kind === "binding" && edge.to.id === later.id);
+      expect(laterEdges).toHaveLength(1);
+      expect(laterEdges[0]).toMatchObject({ requiredness: "conditional" });
+      expect(isRustEligibleFixture(fixture)).toBe(true);
+
+      const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+      const rustPayload = evaluateWithRustOptions(repoRoot, fixture.elements, options);
+      expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+      for (const payload of [tsPayload, rustPayload]) {
+        const result = evaluationPayloadToResult(payload);
+        if (flag) {
+          expect(result.errors).toEqual(expect.arrayContaining([
+            expect.objectContaining({ code: "dependency-cycle" })
+          ]));
+          expect(result.errors).not.toEqual(expect.arrayContaining([
+            expect.objectContaining({ code: "evaluation-binding-cycle-guard" })
+          ]));
+        } else {
+          expect(result.errors).not.toEqual(expect.arrayContaining([
+            expect.objectContaining({ code: "dependency-cycle" })
+          ]));
+          expect(result.computedGeometry.get(point.id)).toMatchObject({ kind: "point", x: 0, y: 0 });
+          expectScalarNumberClose(scalarBindingFor(fixture, payload, "later"), 0);
+        }
+      }
+    }
+  }, 30000);
+
   it("schedules a selected dynamic forward geometry branch before its consumer", () => {
     const fixture = fixtureFromSource([
       "nui 1",

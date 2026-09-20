@@ -166,6 +166,14 @@ fn endpoint_key(endpoint: &ConditionalDependencyEndpoint) -> String {
     format!("{}:{}", endpoint.kind, endpoint.id)
 }
 
+fn diagnostic_endpoint_id(endpoint: &ConditionalDependencyEndpoint) -> String {
+    if endpoint.kind == "element" {
+        endpoint.id.clone()
+    } else {
+        endpoint_key(endpoint)
+    }
+}
+
 pub(crate) fn branch_for_controller_value(
     value: &ScalarValue,
     branches: &HashSet<String>,
@@ -478,7 +486,7 @@ impl<'a> DependencyTraversal<'a> {
                     if let Some(first) = first {
                         self.cycles.push(DependencyError {
                             code: Some("dependency-cycle".into()),
-                            element_id: endpoint_key(first),
+                            element_id: diagnostic_endpoint_id(first),
                             element_name: first.name.clone(),
                             missing_dependency_id: second
                                 .map(|endpoint| endpoint_key(endpoint))
