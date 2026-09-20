@@ -183,6 +183,30 @@ const controllerReferenceSpansIn = (ast: ScalarExpressionAst | null): ReadonlySe
         return;
     }
   };
+  const visitControllerOperand = (node: ScalarExpressionAst): void => {
+    switch (node.kind) {
+      case "valueIf":
+        collect(node.condition);
+        visit(node.thenBranch);
+        if (node.elseBranch) visit(node.elseBranch);
+        return;
+      case "valueMatch":
+        collect(node.scrutinee);
+        node.arms.forEach((arm) => visit(arm.expression));
+        return;
+      case "binary":
+        if (node.operator === "??") {
+          visitControllerOperand(node.left);
+          visit(node.right);
+          return;
+        }
+        collect(node);
+        return;
+      default:
+        collect(node);
+        return;
+    }
+  };
   const visit = (node: ScalarExpressionAst): void => {
     switch (node.kind) {
       case "valueIf":
@@ -198,6 +222,11 @@ const controllerReferenceSpansIn = (ast: ScalarExpressionAst | null): ReadonlySe
         visit(node.operand);
         return;
       case "binary":
+        if (node.operator === "??") {
+          visitControllerOperand(node.left);
+          visit(node.right);
+          return;
+        }
         visit(node.left);
         visit(node.right);
         return;

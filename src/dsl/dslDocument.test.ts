@@ -832,4 +832,76 @@ describe("Task 36 typed dependency graph wiring", () => {
     expect(xEdges[0]!.activation!.guards[0]!.controllerId)
       .not.toBe(yEdges[0]!.activation!.guards[0]!.controllerId);
   });
+
+  it("keeps conditionalGroup lazy geometry dependencies free of legacy duplicates", () => {
+    const compiled = compileDslDocument([
+      "nui 1",
+      "const chooseLater: boolean = false",
+      "if (if (@chooseLater) { @Later.length > 0 } else { false }) {",
+      "  point Inside = coordinate(x: 1, y: 1)",
+      "}",
+      "line Later = segment(start: (0, 0), end: (10, 0))"
+    ].join("\n"), {
+      assignedStatementIds: new Map([
+        [1, "test:choose-later"],
+        [2, "test:conditional-group"],
+        [3, "test:inside"],
+        [5, "test:later"]
+      ])
+    });
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const conditional = compiled.document?.elements.find((element) => element.type === "conditionalGroup");
+    const later = compiled.document?.elements.find((element) => element.name === "Later");
+    expect(conditional).toBeDefined();
+    expect(later).toBeDefined();
+    const dependencyEdges = compiled.typedDependencyGraph?.edges.filter((edge) =>
+      edge.from.kind === "element" &&
+      edge.from.id === conditional?.id &&
+      edge.to.kind === "geometry-stage" &&
+      edge.to.ownerId === later?.id
+    ) ?? [];
+    expect(dependencyEdges).toHaveLength(1);
+    expect(dependencyEdges[0]).toMatchObject({ kind: "geometry-property", requiredness: "conditional" });
+    expect(dependencyEdges[0]!.activation?.guards).toHaveLength(1);
+    expect(dependencyEdges[0]!.activation?.guards[0]?.branch).toBe("then");
+    expect(compiled.typedDependencyGraph?.edges.some((edge) =>
+      edge.from.kind === "element" &&
+      edge.from.id === conditional?.id &&
+      edge.to.kind === "geometry-stage" &&
+      edge.to.ownerId === later?.id &&
+      edge.kind === "geometry" &&
+      edge.requiredness === "required"
+    )).toBe(false);
+  });
+
+  it("classifies numeric coalescing fallback geometry as a lazy dependency", () => {
+    for (const maybeValue of ["5", "none"]) {
+      const compiled = compileDslDocument([
+        "nui 1",
+        `const maybe: number? = ${maybeValue}`,
+        "point P = coordinate(x: @maybe ?? @Later.length, y: 0)",
+        "line Later = segment(start: (0, 0), end: (10, 0))"
+      ].join("\n"), {
+        assignedStatementIds: new Map([
+          [1, `test:maybe-${maybeValue}`],
+          [2, `test:p-${maybeValue}`],
+          [3, `test:later-${maybeValue}`]
+        ])
+      });
+      expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+      const point = compiled.document?.elements.find((element) => element.name === "P");
+      const later = compiled.document?.elements.find((element) => element.name === "Later");
+      const fallbackEdges = compiled.typedDependencyGraph?.edges.filter((edge) =>
+        edge.from.kind === "element" &&
+        edge.from.id === point?.id &&
+        edge.to.kind === "geometry-stage" &&
+        edge.to.ownerId === later?.id &&
+        edge.kind === "geometry-property"
+      ) ?? [];
+      expect(fallbackEdges).toHaveLength(1);
+      expect(fallbackEdges[0]).toMatchObject({ requiredness: "conditional" });
+      expect(fallbackEdges[0]!.activation?.guards[0]).toMatchObject({ branch: "right" });
+      expect(fallbackEdges[0]!.activation?.guards[0]?.controllerExpression).toBeDefined();
+    }
+  });
 });

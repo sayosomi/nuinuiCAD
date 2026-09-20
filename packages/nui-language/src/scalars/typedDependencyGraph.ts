@@ -713,6 +713,9 @@ export const buildTypedDependencyGraph = ({
   for (const [key, source] of numericBindings ?? []) {
     addTypedScalarGeometryDependencies(key, source.typedExpression);
   }
+  for (const [key, expression] of conditionalGroupConditions ?? []) {
+    addTypedScalarGeometryDependencies(key, expression);
+  }
   for (const element of elements) {
     const typedScalarGeometryDependencyIds = typedScalarGeometryDependencyIdsByElementId.get(element.id) ?? new Set<ElementId>();
     const dependencies = new Map<ElementId, TypedDependencyRequiredness>((getDirectParentIds(element, {

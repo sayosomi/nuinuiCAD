@@ -186,6 +186,97 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("matches conditionalGroup lazy geometry activation in TypeScript and Rust", () => {
+    const sourceFor = (chooseLater: boolean) => [
+      "nui 1",
+      `const chooseLater: boolean = ${chooseLater}`,
+      "if (if (@chooseLater) { @Later.length > 0 } else { false }) {",
+      "  point Inside = coordinate(x: 1, y: 1)",
+      "}",
+      "line Later = segment(start: (0, 0), end: (10, 0))"
+    ].join("\n");
+
+    for (const chooseLater of [false, true]) {
+      const fixture = fixtureFromSource(sourceFor(chooseLater));
+      const options = optionsFor(fixture);
+      const conditional = fixture.elements.find((element) => element.type === "conditionalGroup")!;
+      const inside = fixture.elements.find((element) => element.name === "Inside")!;
+      const later = fixture.elements.find((element) => element.name === "Later")!;
+      const graphEdges = fixture.compiled?.doc.typedDependencyGraph?.edges.filter((edge) =>
+        edge.from.kind === "element" &&
+        edge.from.id === conditional.id &&
+        edge.to.kind === "geometry-stage" &&
+        edge.to.ownerId === later.id
+      ) ?? [];
+      expect(graphEdges).toHaveLength(1);
+      expect(graphEdges[0]).toMatchObject({ kind: "geometry-property", requiredness: "conditional" });
+      expect(fixture.compiled?.doc.typedDependencyGraph?.edges.some((edge) =>
+        edge.from.kind === "element" &&
+        edge.from.id === conditional.id &&
+        edge.to.kind === "geometry-stage" &&
+        edge.to.ownerId === later.id &&
+        edge.kind === "geometry" &&
+        edge.requiredness === "required"
+      )).toBe(false);
+      expect(isRustEligibleFixture(fixture)).toBe(true);
+
+      const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+      const rustPayload = evaluateWithRustOptions(repoRoot, fixture.elements, options);
+      expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+      for (const payload of [tsPayload, rustPayload]) {
+        const result = evaluationPayloadToResult(payload);
+        expect(result.errors).toEqual([]);
+        expect(result.errors).not.toEqual(expect.arrayContaining([
+          expect.objectContaining({ code: "dependency-cycle" })
+        ]));
+        if (chooseLater) {
+          const computedIds = [...result.computedGeometry.keys()];
+          expect(result.computedGeometry.get(inside.id)).toMatchObject({ kind: "point", x: 1, y: 1 });
+          expect(computedIds.indexOf(later.id) < computedIds.indexOf(inside.id)).toBe(true);
+        } else {
+          expect(result.computedGeometry.has(inside.id)).toBe(false);
+        }
+      }
+    }
+  }, 30000);
+
+  it("matches numeric coalescing fallback activation in TypeScript and Rust", () => {
+    for (const maybeValue of ["5", "none"] as const) {
+      const fixture = fixtureFromSource([
+        "nui 1",
+        `const maybe: number? = ${maybeValue}`,
+        "point P = coordinate(x: @maybe ?? @Later.length, y: 0)",
+        "line Later = segment(start: (0, 0), end: (10, 0))"
+      ].join("\n"));
+      const options = optionsFor(fixture);
+      const point = fixture.elements.find((element) => element.name === "P")!;
+      const later = fixture.elements.find((element) => element.name === "Later")!;
+      const fallbackEdges = fixture.compiled?.doc.typedDependencyGraph?.edges.filter((edge) =>
+        edge.from.kind === "element" &&
+        edge.from.id === point.id &&
+        edge.to.kind === "geometry-stage" &&
+        edge.to.ownerId === later.id &&
+        edge.kind === "geometry-property"
+      ) ?? [];
+      expect(fallbackEdges).toHaveLength(1);
+      expect(fallbackEdges[0]).toMatchObject({ requiredness: "conditional" });
+      expect(fallbackEdges[0]!.activation?.guards[0]).toMatchObject({ branch: "right" });
+      expect(fallbackEdges[0]!.activation?.guards[0]?.controllerExpression).toBeDefined();
+      expect(isRustEligibleFixture(fixture)).toBe(true);
+
+      const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+      const rustPayload = evaluateWithRustOptions(repoRoot, fixture.elements, options);
+      expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+      for (const payload of [tsPayload, rustPayload]) {
+        const result = evaluationPayloadToResult(payload);
+        expect(result.errors).toEqual([]);
+        expect(result.computedGeometry.get(point.id)).toMatchObject({ kind: "point", x: maybeValue === "5" ? 5 : 10, y: 0 });
+        const computedIds = [...result.computedGeometry.keys()];
+        expect(computedIds.indexOf(later.id) < computedIds.indexOf(point.id)).toBe(maybeValue === "none");
+      }
+    }
+  }, 30000);
+
   it("retries a geometry-dependent dynamic controller after its predecessor is ready", () => {
     const sourceFor = (condition: string) => [
       "nui 1",
