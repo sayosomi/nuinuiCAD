@@ -69,9 +69,25 @@ const renderPreview = () => {
   mocks.session.getState.mockReturnValue(snapshot);
   render(<ModulePreviewApp api={{ postMessage: mocks.postMessage }} />);
   act(() => {
-    window.dispatchEvent(new MessageEvent("message", { data: { type: "modulePreviewSession", sessionId: "module-preview-session:1", documentUri: "file:///pattern.nui" } }));
-    window.dispatchEvent(new MessageEvent("message", { data: { type: "replaceTextDocument", sourceText, documentVersion: 1 } }));
-    window.dispatchEvent(new MessageEvent("message", { data: { type: "modulePreviewTarget", documentVersion: 1, normalizedSourceOffset: sourceText.indexOf("module Preview") } }));
+    const bootstrap = {
+      type: "modulePreviewBootstrap",
+      sessionId: "module-preview-session:1",
+      sessionGeneration: 1,
+      documentUri: "file:///pattern.nui",
+      documentVersion: 1,
+      sourceText
+    };
+    window.dispatchEvent(new MessageEvent("message", { data: bootstrap }));
+    window.dispatchEvent(new MessageEvent("message", {
+      data: {
+        type: "modulePreviewTarget",
+        sessionId: bootstrap.sessionId,
+        sessionGeneration: bootstrap.sessionGeneration,
+        documentUri: bootstrap.documentUri,
+        documentVersion: bootstrap.documentVersion,
+        normalizedSourceOffset: sourceText.indexOf("module Preview")
+      }
+    }));
   });
 };
 

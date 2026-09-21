@@ -65,9 +65,9 @@ export type {
   VscodeModulePreviewReferencePickStartRequest,
   VscodeModulePreviewReferencePickTerminalResult,
   VscodeModulePreviewInsertInstanceRequest,
-  VscodeModulePreviewInsertInstanceResult,
   VscodeModulePreviewToExtensionMessage,
-  VscodeModulePreviewSession,
+  VscodeModulePreviewBootstrap,
+  VscodeModulePreviewBootstrapAcknowledged,
   VscodeModulePreviewTarget,
   VscodeModulePreviewTargetUnavailable
 } from "./modulePreviewProtocol";

@@ -155,6 +155,30 @@ const snapshot = {
 
 const source = "nui 1\nmodule Preview(width: number) {\n}\n";
 
+const modulePreviewBootstrapFor = (
+  sourceText: string,
+  options: { sessionId?: string; sessionGeneration?: number; documentUri?: string; documentVersion?: number } = {}
+) => ({
+  type: "modulePreviewBootstrap" as const,
+  sessionId: options.sessionId ?? "module-preview-session:1",
+  sessionGeneration: options.sessionGeneration ?? 1,
+  documentUri: options.documentUri ?? "file:///pattern.nui",
+  documentVersion: options.documentVersion ?? 1,
+  sourceText
+});
+
+const modulePreviewTargetFor = (
+  bootstrap: ReturnType<typeof modulePreviewBootstrapFor>,
+  normalizedSourceOffset: number
+) => ({
+  type: "modulePreviewTarget" as const,
+  sessionId: bootstrap.sessionId,
+  sessionGeneration: bootstrap.sessionGeneration,
+  documentUri: bootstrap.documentUri,
+  documentVersion: bootstrap.documentVersion,
+  normalizedSourceOffset
+});
+
 const previewFixtureFor = (sourceText: string, moduleName = "Preview") => {
   const document = AutomationDocument.fromSource(sourceText);
   const compiled = document.getState().currentCompiled;
@@ -221,14 +245,26 @@ const renderPreviewFixture = (fixture: ReturnType<typeof previewFixtureFor>) => 
   vi.spyOn(AutomationDocument, "fromSource").mockReturnValue(fixture.document);
   render(<ModulePreviewApp api={api} />);
   act(() => {
+    const bootstrap = {
+      type: "modulePreviewBootstrap",
+      sessionId: "module-preview-session:1",
+      sessionGeneration: 1,
+      documentUri: "file:///pattern.nui",
+      documentVersion: 1,
+      sourceText: fixture.document.getSource()
+    };
     window.dispatchEvent(new MessageEvent("message", {
-      data: { type: "modulePreviewSession", sessionId: "module-preview-session:1", documentUri: "file:///pattern.nui" }
+      data: bootstrap
     }));
     window.dispatchEvent(new MessageEvent("message", {
-      data: { type: "replaceTextDocument", sourceText: fixture.document.getSource(), documentVersion: 1 }
-    }));
-    window.dispatchEvent(new MessageEvent("message", {
-      data: { type: "modulePreviewTarget", documentVersion: 1, normalizedSourceOffset: fixture.document.getSource().indexOf("module Preview") }
+      data: {
+        type: "modulePreviewTarget",
+        sessionId: bootstrap.sessionId,
+        sessionGeneration: bootstrap.sessionGeneration,
+        documentUri: bootstrap.documentUri,
+        documentVersion: bootstrap.documentVersion,
+        normalizedSourceOffset: fixture.document.getSource().indexOf("module Preview")
+      }
     }));
   });
   mocks.postMessage.mockClear();
@@ -394,14 +430,12 @@ describe("ModulePreviewApp Canvas and Preview boundary", () => {
     expect(readinessMessages()).toHaveLength(1);
 
     act(() => {
+      const bootstrap = modulePreviewBootstrapFor(sourceText);
       window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "modulePreviewSession", sessionId: "module-preview-session:1", documentUri: "file:///pattern.nui" }
+        data: bootstrap
       }));
       window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "replaceTextDocument", sourceText, documentVersion: 1 }
-      }));
-      window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "modulePreviewTarget", documentVersion: 1, normalizedSourceOffset: sourceText.indexOf("module First") }
+        data: modulePreviewTargetFor(bootstrap, sourceText.indexOf("module First"))
       }));
     });
 
@@ -421,7 +455,10 @@ describe("ModulePreviewApp Canvas and Preview boundary", () => {
     };
     act(() => {
       window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "modulePreviewTarget", documentVersion: 1, normalizedSourceOffset: sourceText.indexOf("module Second") }
+        data: modulePreviewTargetFor(
+          modulePreviewBootstrapFor(sourceText),
+          sourceText.indexOf("module Second")
+        )
       }));
     });
 
@@ -569,14 +606,14 @@ describe("ModulePreviewApp Canvas and Preview boundary", () => {
     const api = {
       postMessage: vi.fn((message: { type?: string }) => {
         if (message.type !== "webviewReady") return;
+        const bootstrap = modulePreviewBootstrapFor(sourceText, {
+          sessionId: "module-preview-session:sync"
+        });
         window.dispatchEvent(new MessageEvent("message", {
-          data: { type: "modulePreviewSession", sessionId: "module-preview-session:sync", documentUri: "file:///pattern.nui" }
+          data: bootstrap
         }));
         window.dispatchEvent(new MessageEvent("message", {
-          data: { type: "replaceTextDocument", sourceText, documentVersion: 1 }
-        }));
-        window.dispatchEvent(new MessageEvent("message", {
-          data: { type: "modulePreviewTarget", documentVersion: 1, normalizedSourceOffset: sourceText.indexOf("module Preview") }
+          data: modulePreviewTargetFor(bootstrap, sourceText.indexOf("module Preview"))
         }));
       })
     };
@@ -589,6 +626,72 @@ describe("ModulePreviewApp Canvas and Preview boundary", () => {
     expect(api.postMessage).toHaveBeenCalledWith({ type: "webviewReady" });
     expect(mocks.session.activate).toHaveBeenCalledTimes(1);
     expect(screen.queryByText("No valid Module Preview")).not.toBeInTheDocument();
+  });
+
+  it("generates fresh exact-current value authority from the Webview bootstrap boundary", async () => {
+    const sourceText = [
+      "nui 1",
+      "module Preview(width: number) {",
+      "  point P = coordinate(x: @width, y: 0)",
+      "}"
+    ].join("\n");
+    const document = AutomationDocument.fromSource(sourceText);
+    const compiled = document.getState().currentCompiled;
+    const definition = compiled.moduleSemanticAnalysis?.definitions.find((candidate) => candidate.name === "Preview");
+    if (!definition) throw new Error("expected Preview definition");
+    const actual = await vi.importActual<typeof import("../dsl/modulePreviewState")>("../dsl/modulePreviewState");
+    const liveSession = actual.createModulePreviewSession();
+    mocks.session.activate.mockImplementation((input) => liveSession.activate(input));
+    mocks.session.getState.mockImplementation(() => liveSession.getState());
+    mocks.queryModulePreviewTarget.mockReturnValue({
+      definitionStatementId: definition.statementId,
+      definitionStatementIndex: definition.statementIndex,
+      name: definition.name
+    });
+    vi.spyOn(AutomationDocument, "fromSource").mockReturnValue(document);
+    render(<ModulePreviewApp api={{ postMessage: mocks.postMessage }} />);
+
+    const bootstrap = modulePreviewBootstrapFor(sourceText);
+    act(() => window.dispatchEvent(new MessageEvent("message", { data: bootstrap })));
+    expect(mocks.postMessage).toHaveBeenCalledWith({
+      type: "modulePreviewBootstrapAcknowledged",
+      sessionId: bootstrap.sessionId,
+      sessionGeneration: bootstrap.sessionGeneration,
+      documentUri: bootstrap.documentUri,
+      documentVersion: bootstrap.documentVersion
+    });
+    act(() => window.dispatchEvent(new MessageEvent("message", {
+      data: modulePreviewTargetFor(bootstrap, sourceText.indexOf("module Preview"))
+    })));
+
+    const snapshot = mocks.postMessage.mock.calls
+      .map(([message]) => message)
+      .filter((message) => message?.type === "modulePreviewValueSnapshot")
+      .at(-1);
+    expect(snapshot).toMatchObject({
+      type: "modulePreviewValueSnapshot",
+      sessionId: bootstrap.sessionId,
+      documentUri: bootstrap.documentUri,
+      documentVersion: bootstrap.documentVersion,
+      target: { definitionStatementIndex: definition.statementIndex, name: "Preview" },
+      previewStatus: "noValidPreview",
+      groups: [expect.objectContaining({
+        name: "Preview",
+        parameters: [expect.objectContaining({ name: "width", valueState: "required-missing" })]
+      })]
+    });
+    expect(mocks.session.activate).toHaveBeenCalledTimes(1);
+
+    act(() => window.dispatchEvent(new MessageEvent("message", {
+      data: modulePreviewBootstrapFor(sourceText, { sessionId: "module-preview-session:0", sessionGeneration: 0 })
+    })));
+    act(() => window.dispatchEvent(new MessageEvent("message", {
+      data: modulePreviewTargetFor(
+        modulePreviewBootstrapFor(sourceText, { sessionId: "module-preview-session:0", sessionGeneration: 0 }),
+        sourceText.indexOf("module Preview")
+      )
+    })));
+    expect(mocks.session.activate).toHaveBeenCalledTimes(1);
   });
 
   it("renders an omitted default-only Module Preview through the live session boundary", async () => {
@@ -621,14 +724,12 @@ describe("ModulePreviewApp Canvas and Preview boundary", () => {
     render(<ModulePreviewApp api={{ postMessage: mocks.postMessage }} />);
 
     act(() => {
+      const bootstrap = modulePreviewBootstrapFor(sourceText);
       window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "modulePreviewSession", sessionId: "module-preview-session:1", documentUri: "file:///pattern.nui" }
+        data: bootstrap
       }));
       window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "replaceTextDocument", sourceText, documentVersion: 1 }
-      }));
-      window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "modulePreviewTarget", documentVersion: 1, normalizedSourceOffset: sourceText.indexOf("module Alternate") }
+        data: modulePreviewTargetFor(bootstrap, sourceText.indexOf("module Alternate"))
       }));
     });
 
@@ -705,14 +806,12 @@ describe("ModulePreviewApp Canvas and Preview boundary", () => {
     render(<ModulePreviewApp api={{ postMessage: mocks.postMessage }} />);
 
     act(() => {
+      const bootstrap = modulePreviewBootstrapFor(sourceText);
       window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "modulePreviewSession", sessionId: "module-preview-session:1", documentUri: "file:///pattern.nui" }
+        data: bootstrap
       }));
       window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "replaceTextDocument", sourceText, documentVersion: 1 }
-      }));
-      window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "modulePreviewTarget", documentVersion: 1, normalizedSourceOffset: sourceText.indexOf("module Alternate") }
+        data: modulePreviewTargetFor(bootstrap, sourceText.indexOf("module Alternate"))
       }));
     });
 
@@ -796,14 +895,12 @@ describe("ModulePreviewApp Canvas and Preview boundary", () => {
     render(<ModulePreviewApp api={api} />);
 
     act(() => {
+      const bootstrap = modulePreviewBootstrapFor(sourceText);
       window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "modulePreviewSession", sessionId: "module-preview-session:1", documentUri: "file:///pattern.nui" }
+        data: bootstrap
       }));
       window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "replaceTextDocument", sourceText, documentVersion: 1 }
-      }));
-      window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "modulePreviewTarget", documentVersion: 1, normalizedSourceOffset: sourceText.indexOf("module SmokePreview") }
+        data: modulePreviewTargetFor(bootstrap, sourceText.indexOf("module SmokePreview"))
       }));
     });
 
@@ -861,29 +958,25 @@ describe("ModulePreviewApp Canvas and Preview boundary", () => {
     render(<ModulePreviewApp api={api} />);
 
     act(() => {
+      const bootstrap = modulePreviewBootstrapFor(sourceText);
       window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "modulePreviewSession", sessionId: "module-preview-session:1", documentUri: "file:///pattern.nui" }
-      }));
-    });
-    act(() => {
-      window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "replaceTextDocument", sourceText, documentVersion: 1 }
+        data: bootstrap
       }));
     });
 
     expect(mocks.session.activate).not.toHaveBeenCalled();
     expect(mocks.postMessage).toHaveBeenCalledWith({
-      type: "webviewAuthoritativeDocumentReady",
+      type: "modulePreviewBootstrapAcknowledged",
+      sessionId: "module-preview-session:1",
+      sessionGeneration: 1,
+      documentUri: "file:///pattern.nui",
       documentVersion: 1
     });
 
     act(() => {
+      const bootstrap = modulePreviewBootstrapFor(sourceText);
       window.dispatchEvent(new MessageEvent("message", {
-        data: {
-          type: "modulePreviewTarget",
-          documentVersion: 1,
-          normalizedSourceOffset: sourceText.indexOf("module Preview")
-        }
+        data: modulePreviewTargetFor(bootstrap, sourceText.indexOf("module Preview"))
       }));
     });
 
@@ -936,14 +1029,12 @@ describe("ModulePreviewApp Canvas and Preview boundary", () => {
     render(<ModulePreviewApp api={{ postMessage: mocks.postMessage }} />);
 
     act(() => {
+      const bootstrap = modulePreviewBootstrapFor(sourceText);
       window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "modulePreviewSession", sessionId: "module-preview-session:1", documentUri: "file:///pattern.nui" }
+        data: bootstrap
       }));
       window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "replaceTextDocument", sourceText, documentVersion: 1 }
-      }));
-      window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "modulePreviewTarget", documentVersion: 1, normalizedSourceOffset: sourceText.indexOf("module Required") }
+        data: modulePreviewTargetFor(bootstrap, sourceText.indexOf("module Required"))
       }));
     });
 
@@ -1087,14 +1178,12 @@ describe("ModulePreviewApp Canvas and Preview boundary", () => {
     render(<ModulePreviewApp api={{ postMessage: mocks.postMessage }} />);
 
     act(() => {
+      const bootstrap = modulePreviewBootstrapFor(sourceText);
       window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "modulePreviewSession", sessionId: "module-preview-session:1", documentUri: "file:///pattern.nui" }
+        data: bootstrap
       }));
       window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "replaceTextDocument", sourceText, documentVersion: 1 }
-      }));
-      window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "modulePreviewTarget", documentVersion: 1, normalizedSourceOffset: sourceText.indexOf("module Preview") }
+        data: modulePreviewTargetFor(bootstrap, sourceText.indexOf("module Preview"))
       }));
     });
 
@@ -1191,14 +1280,12 @@ describe("ModulePreviewApp Canvas and Preview boundary", () => {
     render(<ModulePreviewApp api={{ postMessage: mocks.postMessage }} />);
 
     act(() => {
+      const bootstrap = modulePreviewBootstrapFor(source);
       window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "modulePreviewSession", sessionId: "module-preview-session:1", documentUri: "file:///pattern.nui" }
+        data: bootstrap
       }));
       window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "replaceTextDocument", sourceText: source, documentVersion: 1 }
-      }));
-      window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "modulePreviewTarget", documentVersion: 1, normalizedSourceOffset: source.indexOf("module Preview") }
+        data: modulePreviewTargetFor(bootstrap, source.indexOf("module Preview"))
       }));
     });
 
@@ -1237,7 +1324,7 @@ describe("ModulePreviewApp Canvas and Preview boundary", () => {
     expect(useCadDocumentStore.getState().sourceText).toBe(sourceBefore);
     expect(mocks.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "modulePreviewModelPatch" }));
     act(() => window.dispatchEvent(new MessageEvent("message", {
-      data: { type: "commitText", sourceText: source, documentVersion: 2, reason: "edit" }
+      data: modulePreviewBootstrapFor(source, { documentVersion: 2 })
     })));
     expect(previewHostAdapter.movePointElementByDelta({
       elementId: point.id,
@@ -1296,7 +1383,7 @@ describe("ModulePreviewApp Canvas and Preview boundary", () => {
     const previewHostAdapter = mocks.hostAdapter as CanvasHostAdapter;
     const base = previewHostAdapter.getCurrentCanonicalDocument();
     act(() => window.dispatchEvent(new MessageEvent("message", {
-      data: { type: "commitText", sourceText: source, documentVersion: 2, reason: "edit" }
+      data: modulePreviewBootstrapFor(source, { documentVersion: 2 })
     })));
 
     let result: unknown;
@@ -1406,10 +1493,9 @@ describe("ModulePreviewApp Canvas and Preview boundary", () => {
 
     act(() => window.dispatchEvent(new MessageEvent("message", {
       data: {
-        type: "commitText",
-        sourceText: request.expectedPatchedSource,
-        documentVersion: request.expectedDocumentVersion + 1,
-        reason: "edit"
+        ...modulePreviewBootstrapFor(request.expectedPatchedSource, {
+          documentVersion: request.expectedDocumentVersion + 1
+        })
       }
     })));
     act(() => window.dispatchEvent(new MessageEvent("message", {
@@ -1594,10 +1680,9 @@ describe("ModulePreviewApp Canvas and Preview boundary", () => {
     await act(async () => {
       window.dispatchEvent(new MessageEvent("message", {
         data: {
-          type: "commitText",
-          sourceText: request.expectedPatchedSource,
-          documentVersion: expectedDocumentVersion,
-          reason: "edit"
+          ...modulePreviewBootstrapFor(request.expectedPatchedSource, {
+            documentVersion: expectedDocumentVersion
+          })
         }
       }));
       await Promise.resolve();
@@ -1658,10 +1743,9 @@ describe("ModulePreviewApp Canvas and Preview boundary", () => {
     await act(async () => {
       window.dispatchEvent(new MessageEvent("message", {
         data: {
-          type: "commitText",
-          sourceText: fixture.document.getSource(),
-          documentVersion: request.expectedDocumentVersion + 2,
-          reason: "edit"
+          ...modulePreviewBootstrapFor(fixture.document.getSource(), {
+            documentVersion: request.expectedDocumentVersion + 2
+          })
         }
       }));
       await Promise.resolve();
@@ -1793,7 +1877,7 @@ describe("ModulePreviewApp Canvas and Preview boundary", () => {
       }));
       await Promise.resolve();
       window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "commitText", sourceText, documentVersion: 2, reason: "edit" }
+        data: modulePreviewBootstrapFor(sourceText, { documentVersion: 2 })
       }));
       resolveSandbox?.(sandbox);
       await pendingSandbox;

@@ -2,9 +2,39 @@ import type { DslDiagnosticPresentation, DslModuleParameterType, DslNumericTypeO
 import type { StatementIdentity, LineSplice } from "@nuinuicad/nui-language/document";
 import type { CanonicalGeometrySourceReference } from "../model/moduleSemanticCandidateBoundary";
 
-export type VscodeModulePreviewTarget = { type: "modulePreviewTarget"; documentVersion: number; normalizedSourceOffset: number };
-export type VscodeModulePreviewTargetUnavailable = { type: "modulePreviewTargetUnavailable"; documentVersion: number };
-export type VscodeModulePreviewSession = { type: "modulePreviewSession"; sessionId: string; documentUri: string };
+export type VscodeModulePreviewBootstrap = {
+  type: "modulePreviewBootstrap";
+  sessionId: string;
+  sessionGeneration: number;
+  documentUri: string;
+  documentVersion: number;
+  sourceText: string;
+};
+
+export type VscodeModulePreviewBootstrapAcknowledged = {
+  type: "modulePreviewBootstrapAcknowledged";
+  sessionId: string;
+  sessionGeneration: number;
+  documentUri: string;
+  documentVersion: number;
+};
+
+export type VscodeModulePreviewTarget = {
+  type: "modulePreviewTarget";
+  sessionId: string;
+  sessionGeneration: number;
+  documentUri: string;
+  documentVersion: number;
+  normalizedSourceOffset: number;
+};
+
+export type VscodeModulePreviewTargetUnavailable = {
+  type: "modulePreviewTargetUnavailable";
+  sessionId: string;
+  sessionGeneration: number;
+  documentUri: string;
+  documentVersion: number;
+};
 
 export type VscodeModulePreviewValueDiagnostic = {
   code: "required-value-missing" | "invalid-expression";
@@ -130,30 +160,19 @@ export type VscodeModulePreviewInsertInstanceRequest = {
   type: "modulePreviewInsertInstance";
 };
 
-export type VscodeModulePreviewInsertInstanceResult = {
-  type: "modulePreviewInsertInstanceResult";
-  sessionId: string;
-  documentUri: string;
-  documentVersion: number;
-  status: "applied" | "stale" | "rejected";
-  reason?: string;
-  instanceName?: string;
-  insertedNameRange?: { from: number; to: number };
-};
-
 export type VscodeExtensionToModulePreviewMessage =
+  | VscodeModulePreviewBootstrap
   | VscodeModulePreviewTarget
   | VscodeModulePreviewTargetUnavailable
-  | VscodeModulePreviewSession
   | VscodeModulePreviewValueSnapshot
   | VscodeModulePreviewValueUnavailable
   | VscodeModulePreviewValueEdit
   | VscodeModulePreviewReferencePickStartRequest
   | VscodeModulePreviewReferencePickCancelRequest
-  | VscodeModulePreviewModelPatchResult
-  | VscodeModulePreviewInsertInstanceResult;
+  | VscodeModulePreviewModelPatchResult;
 
 export type VscodeModulePreviewToExtensionMessage =
+  | VscodeModulePreviewBootstrapAcknowledged
   | VscodeModulePreviewValueSnapshot
   | VscodeModulePreviewValueUnavailable
   | VscodeModulePreviewValueSiteEditRequest
