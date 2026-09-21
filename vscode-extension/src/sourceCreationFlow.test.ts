@@ -60,6 +60,35 @@ describe("runSourceCreationFlow", () => {
     });
   });
 
+  it.each([
+    ["addMaterializedPoint", "point"],
+    ["addMaterializedLine", "line"],
+    ["addMaterializedPath", "path"]
+  ] as const)("routes %s through the existing Source snippet insertion flow", async (commandId, category) => {
+    mocks.pickCreationCommand.mockResolvedValue(commandId);
+    const editor = { id: commandId } as unknown as TestEditor;
+    const position = { line: 2, character: 3 } as TestPosition;
+
+    await expect(runSourceCreationFlow(editor, position, "en-US", createSourceCreationMru())).resolves.toBe(true);
+
+    expect(mocks.showQuickPick).not.toHaveBeenCalled();
+    expect(mocks.insertSnippet).toHaveBeenCalledTimes(1);
+    const materialization = mocks.insertSnippet.mock.calls[0]?.[1] as {
+      commandId: string;
+      formIndex: number;
+      parts: ReadonlyArray<
+        | { kind: "text"; text: string }
+        | { kind: "hole"; hole: { role: "name" } | { role: "argument"; argName: string } }
+      >;
+    };
+    expect(materialization.commandId).toBe(commandId);
+    expect(materialization.formIndex).toBe(0);
+    expect(materialization.parts.some((part) => part.kind === "text" && part.text.startsWith(`${category} `))).toBe(true);
+    expect(materialization.parts.some((part) => (
+      part.kind === "hole" && part.hole.role === "argument" && part.hole.argName === "source"
+    ))).toBe(true);
+  });
+
   it("derives division forms from planner metadata and materializes only the selected exclusive argument", async () => {
     mocks.pickCreationCommand.mockResolvedValue("addDivisionPoint");
     mocks.showQuickPick.mockImplementation(async (items: readonly { label: string; formIndex: number }[]) => {

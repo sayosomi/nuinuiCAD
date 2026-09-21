@@ -44,6 +44,14 @@ const source = [
   "line AB = segment(start: @A, end: @B)"
 ].join("\n");
 
+const materializationPickSource = [
+  "nui 1",
+  "point A = coordinate(x: 0, y: 0)",
+  "point B = coordinate(x: 100, y: 0)",
+  "line AB = segment(start: @A, end: @B)",
+  "arc Arc = arc(center: (0, 0), radius: 10, start: 0, end: 90)"
+].join("\n");
+
 const byName = (name: string) => {
   const element = useCadDocumentStore.getState().elements.find((item) => item.name === name);
   if (!element) throw new Error(`Missing ${name}`);
@@ -151,6 +159,22 @@ describe("command-line pick routing", () => {
       targetElementId: point.id,
       targetParameterKey: "x"
     });
+  });
+
+  it("uses the materialization command recipe type for virtual strict-line versus path picks", () => {
+    useCadDocumentStore.getState().commitText(materializationPickSource, "test");
+
+    expect(startCommandLineCreation("materializedLine")).toBe(true);
+    submitCommandLineInput("");
+    const strictCandidates = activePickCandidates().map((candidate) => candidate.elementId);
+    expect(strictCandidates).toContain(byName("AB").id);
+    expect(strictCandidates).not.toContain(byName("Arc").id);
+
+    expect(startCommandLineCreation("materializedPath")).toBe(true);
+    submitCommandLineInput("");
+    const broadCandidates = activePickCandidates().map((candidate) => candidate.elementId);
+    expect(broadCandidates).toContain(byName("AB").id);
+    expect(broadCandidates).toContain(byName("Arc").id);
   });
 
   it("fills point, endpoint, line, line-list, and numeric steps without mutating the document", () => {

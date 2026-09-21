@@ -48,7 +48,10 @@ export const canvasQuickCreateTranslationCatalog = {
   "canvasQuickCreate.command.addSymmetricCopyLine": { en: "Symmetric Copy Line", ja: "対称コピー線" },
   "canvasQuickCreate.command.addMove": { en: "Move", ja: "移動" },
   "canvasQuickCreate.command.addSymmetricMove": { en: "Symmetric Move", ja: "対称移動" },
-  "canvasQuickCreate.command.addSplitLine": { en: "Split Line", ja: "分割線" }
+  "canvasQuickCreate.command.addSplitLine": { en: "Split Line", ja: "分割線" },
+  "canvasQuickCreate.command.addMaterializedPoint": { en: "Point from Source", ja: "ソースから点" },
+  "canvasQuickCreate.command.addMaterializedLine": { en: "Line from Source", ja: "ソースから線" },
+  "canvasQuickCreate.command.addMaterializedPath": { en: "Path from Source", ja: "ソースからパス" }
 } satisfies TranslationCatalog;
 
 export const canvasQuickCreateTranslatorFor = (displayLanguage: string) =>

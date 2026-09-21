@@ -244,6 +244,24 @@ export const creationCommandDefinitions = {
     palette: { order: 20, keywords: ["split", "divide", "line", "分割", "分割線", "線", "追加"] },
     run: (context) => startCreationSessionForCommand("addSplitLine", context)
   },
+  addMaterializedPoint: {
+    id: "addMaterializedPoint",
+    label: "ソースから点を作成",
+    palette: { order: 21, keywords: ["from", "source", "materialize", "point", "ソース", "点", "作成"] },
+    run: (context) => startCreationSessionForCommand("addMaterializedPoint", context)
+  },
+  addMaterializedLine: {
+    id: "addMaterializedLine",
+    label: "ソースから線を作成",
+    palette: { order: 21.25, keywords: ["from", "source", "materialize", "line", "ソース", "線", "作成"] },
+    run: (context) => startCreationSessionForCommand("addMaterializedLine", context)
+  },
+  addMaterializedPath: {
+    id: "addMaterializedPath",
+    label: "ソースからパスを作成",
+    palette: { order: 21.5, keywords: ["from", "source", "materialize", "path", "ソース", "パス", "作成"] },
+    run: (context) => startCreationSessionForCommand("addMaterializedPath", context)
+  },
   addBezierIntermediatePoint: {
     id: "addBezierIntermediatePoint",
     label: "曲線の中間点を追加",

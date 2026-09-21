@@ -181,7 +181,10 @@ describe("creationRecipes", () => {
       symmetricCopyLine: "line 作成symmetricCopyLine = mirrorCopy(axis1: @A, axis2: @A, baseLines: [@AB])",
       move: "move(targets: [@AB], from: @A, to: @A, scale: 12, angleDeg: 12, mirrorX: false)",
       symmetricMove: "mirrorMove(targets: [@AB], axis1: @A, axis2: @A)",
-      splitLine: "line 作成splitLine = split(source: @AB, at: @A)"
+      splitLine: "line 作成splitLine = split(source: @AB, at: @A)",
+      materializedPoint: "point 作成materializedPoint = from(source: @A)",
+      materializedLine: "line 作成materializedLine = from(source: @AB)",
+      materializedPath: "path 作成materializedPath = from(source: @AB)"
     });
   });
 
@@ -191,8 +194,15 @@ describe("creationRecipes", () => {
     // parser/compiler round-trip.  Its semantic coverage lives in
     // transformationRecipes.test.ts.
     const transformationTypes = new Set<CadElementType>(["edge", "extendTrim", "move", "symmetricMove", "pathReverse"]);
+    // Materialized drawables keep their live source in the compiler-owned
+    // geometry-input sidecar rather than in the persisted element shape.
+    const compilerOwnedSourceTypes = new Set<CadElementType>([
+      "materializedPoint",
+      "materializedLine",
+      "materializedPath"
+    ]);
     for (const recipe of legacyCreationRecipes()) {
-      if (transformationTypes.has(recipe.type)) continue;
+      if (transformationTypes.has(recipe.type) || compilerOwnedSourceTypes.has(recipe.type)) continue;
       for (const includeName of [true, false]) {
         const { context, element } = emittedFor(recipe, includeName);
         const source = [
@@ -266,6 +276,19 @@ describe("creationRecipes", () => {
     expect(creationRecipeForLegacyCommand("addGroup")).toBeNull();
     expect(creationRecipeForLegacyCommand("addConditionalGroup")).toBeNull();
     expect(creationRecipeForLegacyCommand("addForGroup")).toBeNull();
+  });
+
+  it("maps all materialization declarations into the Create Geometry catalog", () => {
+    expect(Object.fromEntries([
+      "addMaterializedPoint",
+      "addMaterializedLine",
+      "addMaterializedPath"
+    ].map((commandId) => [commandId, legacyCreationCommandRecipeMap[commandId as keyof typeof legacyCreationCommandRecipeMap]]))).toEqual({
+      addMaterializedPoint: { type: "materializedPoint", recipeKind: "fallback" },
+      addMaterializedLine: { type: "materializedLine", recipeKind: "fallback" },
+      addMaterializedPath: { type: "materializedPath", recipeKind: "fallback" }
+    });
+    expect(legacyCreationCatalogExclusions.map(({ type }) => type)).toEqual(["pathReverse"]);
   });
 
   it("classifies every current element type exactly once for the creation catalog", () => {
