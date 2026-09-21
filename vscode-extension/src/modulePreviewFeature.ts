@@ -25,12 +25,10 @@ import type {
   VscodeModulePreviewValueEdit,
   VscodeModulePreviewModelPatchRequest,
   VscodeModulePreviewModelPatchResult,
-  VscodeModulePreviewInsertInstanceResult,
   VscodeModulePreviewReferencePickResult,
   VscodeModulePreviewReferencePickStartRequest,
   VscodeCanvasCommandId,
   VscodeBakeSettings,
-  VscodeDocumentChangeReason,
   VscodeToExtensionMessage
 } from "../../src/vscode/protocol";
 import type { VscodeCanvasRibbon } from "../../src/vscode/vscodeCanvasRibbonConfig";
@@ -69,17 +67,36 @@ const bakeCanvasCommands = new Set<VscodeCanvasCommandId>([
 ]);
 
 type ModulePreviewPendingTarget =
-  | { kind: "target"; documentVersion: number; normalizedSourceOffset: number }
-  | { kind: "unavailable"; documentVersion: number };
+  | {
+      kind: "target";
+      sessionId: string;
+      sessionGeneration: number;
+      documentUri: string;
+      documentVersion: number;
+      normalizedSourceOffset: number;
+    }
+  | {
+      kind: "unavailable";
+      sessionId: string;
+      sessionGeneration: number;
+      documentUri: string;
+      documentVersion: number;
+    };
 
 type ModulePreviewSession = {
   documentUri: string;
   document: vscode.TextDocument;
   panel: vscode.WebviewPanel;
   sessionId: string;
+  sessionGeneration: number;
   targetDefinitionStatementId: StatementIdentity;
   webviewReady: boolean;
-  authoritativeDocumentVersion: number | null;
+  bootstrapAcknowledgement: {
+    sessionId: string;
+    sessionGeneration: number;
+    documentUri: string;
+    documentVersion: number;
+  } | null;
   pendingTarget: ModulePreviewPendingTarget | null;
   retainedValueMessage: VscodeModulePreviewValueSnapshot | VscodeModulePreviewValueUnavailable | null;
   valueSnapshotWaiters: Set<() => void>;
@@ -303,14 +320,6 @@ const isModulePreviewModelPatchRequest = (
     candidate.splices.every(isLineSplice);
 };
 
-const documentChangeReasonFor = (
-  reason: vscode.TextDocumentChangeReason | undefined
-): VscodeDocumentChangeReason => reason === vscode.TextDocumentChangeReason.Undo
-  ? "undo"
-  : reason === vscode.TextDocumentChangeReason.Redo
-    ? "redo"
-    : "edit";
-
 const exactTargetAtEditor = (
   editor: vscode.TextEditor,
   languageAnalysisSessionFor: RegisterModulePreviewFeatureOptions["languageAnalysisSessionFor"]
@@ -369,11 +378,42 @@ export const registerModulePreviewFeature = ({
     } satisfies ExtensionToVscodeMessage);
   };
 
-  const nextSessionId = (): string => {
-    const sessionId = `module-preview-session:${nextSessionGeneration}`;
+  const nextSessionIdentity = (): { sessionId: string; sessionGeneration: number } => {
+    const sessionGeneration = nextSessionGeneration;
     nextSessionGeneration += 1;
-    return sessionId;
+    return {
+      sessionId: `module-preview-session:${sessionGeneration}`,
+      sessionGeneration
+    };
   };
+
+  const currentBootstrapIdentityFor = (session: Pick<ModulePreviewSession, "sessionId" | "sessionGeneration" | "documentUri" | "document">) => ({
+    sessionId: session.sessionId,
+    sessionGeneration: session.sessionGeneration,
+    documentUri: session.documentUri,
+    documentVersion: session.document.version
+  });
+
+  const bootstrapIsAuthoritative = (session: ModulePreviewSession): boolean => {
+    const acknowledgement = session.bootstrapAcknowledgement;
+    const current = currentBootstrapIdentityFor(session);
+    return Boolean(
+      session.webviewReady &&
+      acknowledgement &&
+      acknowledgement.sessionId === current.sessionId &&
+      acknowledgement.sessionGeneration === current.sessionGeneration &&
+      acknowledgement.documentUri === current.documentUri &&
+      acknowledgement.documentVersion === current.documentVersion
+    );
+  };
+
+  const pendingTargetFor = (
+    session: Pick<ModulePreviewSession, "sessionId" | "sessionGeneration" | "documentUri" | "document">,
+    pending: Omit<ModulePreviewPendingTarget, "sessionId" | "sessionGeneration" | "documentUri" | "documentVersion">
+  ): ModulePreviewPendingTarget => ({
+    ...pending,
+    ...currentBootstrapIdentityFor(session)
+  });
 
   const setContext = (key: string, enabled: boolean): void => {
     contextUpdate = contextUpdate
@@ -436,7 +476,7 @@ export const registerModulePreviewFeature = ({
   const historySessionIsAuthoritative = (session: ModulePreviewSession): boolean => {
     if (
       !historySessionIsCurrent(session) ||
-      session.authoritativeDocumentVersion !== session.document.version
+      !bootstrapIsAuthoritative(session)
     ) return false;
     const current = currentTargetFor(session);
     return current.target?.definitionStatementId === session.targetDefinitionStatementId;
@@ -450,7 +490,7 @@ export const registerModulePreviewFeature = ({
 
     void handoffOutputPreviewHistory(direction, {
       isSessionCurrent: () => historySessionIsCurrent(session) &&
-        (nativeHistoryStarted || session.authoritativeDocumentVersion === expectedDocumentVersion),
+        (nativeHistoryStarted || bootstrapIsAuthoritative(session) && session.document.version === expectedDocumentVersion),
       isPanelActive: () => session.panel.active,
       isDocumentOpen: () => isOpenDocument(session.document),
       documentVersion: () => session.document.version,
@@ -502,7 +542,7 @@ export const registerModulePreviewFeature = ({
     session: ModulePreviewSession
   ): Exclude<VscodeModulePreviewValueUnavailable["reason"], "no-session"> => {
     if (!session.webviewReady) return "not-ready";
-    if (session.authoritativeDocumentVersion !== session.document.version) return "source-stale";
+    if (!bootstrapIsAuthoritative(session)) return "source-stale";
     if (!currentTargetFor(session).target) return "target-unavailable";
     return "not-ready";
   };
@@ -537,18 +577,10 @@ export const registerModulePreviewFeature = ({
     const current = currentTargetFor(session);
     const reason = !current.target
       ? "target-unavailable"
-      : session.authoritativeDocumentVersion !== session.document.version
+      : !bootstrapIsAuthoritative(session)
         ? "source-stale"
         : "not-ready";
     publishValueUnavailable(session, reason);
-  };
-
-  const postSessionIdentity = (session: ModulePreviewSession): void => {
-    void session.panel.webview.postMessage({
-      type: "modulePreviewSession",
-      sessionId: session.sessionId,
-      documentUri: session.documentUri
-    } satisfies ExtensionToVscodeMessage);
   };
 
   const valueGroupFor = (
@@ -577,7 +609,7 @@ export const registerModulePreviewFeature = ({
       sessions.get(session.documentUri) !== session ||
       !isOpenDocument(session.document) ||
       !session.webviewReady ||
-      session.authoritativeDocumentVersion !== session.document.version
+      !bootstrapIsAuthoritative(session)
     ) return false;
     const current = currentTargetFor(session);
     return Boolean(current.target && current.sourceRevision === snapshot.sourceRevision &&
@@ -625,7 +657,7 @@ export const registerModulePreviewFeature = ({
     session: ModulePreviewSession,
     message: VscodeModulePreviewValueSnapshot
   ): boolean => {
-    if (!session || !session.webviewReady || session.authoritativeDocumentVersion !== session.document.version) return false;
+    if (!session || !bootstrapIsAuthoritative(session)) return false;
     if (!Number.isInteger(message.sessionRevision) || !isCurrentValueMessage(session, message)) return false;
     const latest = session.retainedValueMessage;
     if (latest && message.sessionRevision <= latest.sessionRevision) return false;
@@ -924,28 +956,40 @@ export const registerModulePreviewFeature = ({
     if (
       !pending ||
       !session.webviewReady ||
-      session.authoritativeDocumentVersion !== session.document.version ||
+      !bootstrapIsAuthoritative(session) ||
+      pending.sessionId !== session.sessionId ||
+      pending.sessionGeneration !== session.sessionGeneration ||
+      pending.documentUri !== session.documentUri ||
       pending.documentVersion !== session.document.version
     ) return;
     session.pendingTarget = null;
     const message: ExtensionToVscodeMessage = pending.kind === "target"
       ? {
           type: "modulePreviewTarget",
+          sessionId: pending.sessionId,
+          sessionGeneration: pending.sessionGeneration,
+          documentUri: pending.documentUri,
           documentVersion: pending.documentVersion,
           normalizedSourceOffset: pending.normalizedSourceOffset
         }
       : {
           type: "modulePreviewTargetUnavailable",
+          sessionId: pending.sessionId,
+          sessionGeneration: pending.sessionGeneration,
+          documentUri: pending.documentUri,
           documentVersion: pending.documentVersion
         };
     void session.panel.webview.postMessage(message);
     if (pending.kind === "unavailable") publishValueUnavailable(session, "target-unavailable");
   };
 
-  const postAuthoritativeDocument = (session: ModulePreviewSession): void => {
-    session.authoritativeDocumentVersion = null;
+  const postBootstrap = (session: ModulePreviewSession): void => {
+    session.bootstrapAcknowledgement = null;
     void session.panel.webview.postMessage({
-      type: "replaceTextDocument",
+      type: "modulePreviewBootstrap",
+      sessionId: session.sessionId,
+      sessionGeneration: session.sessionGeneration,
+      documentUri: session.documentUri,
       sourceText: session.document.getText(),
       documentVersion: session.document.version
     } satisfies ExtensionToVscodeMessage);
@@ -965,13 +1009,9 @@ export const registerModulePreviewFeature = ({
       semantic,
       definitionStatementId: session.targetDefinitionStatementId
     });
-    session.pendingTarget = refreshed
-      ? {
-          kind: "target",
-          documentVersion: session.document.version,
-          normalizedSourceOffset: refreshed.normalizedSourceOffset
-        }
-      : { kind: "unavailable", documentVersion: session.document.version };
+    session.pendingTarget = pendingTargetFor(session, refreshed
+      ? { kind: "target", normalizedSourceOffset: refreshed.normalizedSourceOffset }
+      : { kind: "unavailable" });
   };
 
   const postModelPatchResult = (
@@ -994,7 +1034,7 @@ export const registerModulePreviewFeature = ({
   const resyncModulePreview = (session: ModulePreviewSession): void => {
     cancelActiveReferencePick(session);
     refreshExistingTarget(session);
-    postAuthoritativeDocument(session);
+    postBootstrap(session);
   };
 
   const applyModulePreviewModelPatch = async (
@@ -1015,7 +1055,7 @@ export const registerModulePreviewFeature = ({
       request.documentUri !== session.documentUri ||
       sessions.get(session.documentUri) !== session ||
       !isOpenDocument(session.document) ||
-      session.authoritativeDocumentVersion !== session.document.version
+      !bootstrapIsAuthoritative(session)
     ) {
       stale("Module Preview session is no longer authoritative.");
       return;
@@ -1080,40 +1120,20 @@ export const registerModulePreviewFeature = ({
     postModelPatchResult(session, request, "applied");
   };
 
-  const postInsertInstanceResult = (
-    session: ModulePreviewSession,
-    status: VscodeModulePreviewInsertInstanceResult["status"],
-    reason?: string,
-    plan?: Extract<ReturnType<typeof planModulePreviewInstance>, { status: "planned" }>
-  ): void => {
-    void session.panel.webview.postMessage({
-      type: "modulePreviewInsertInstanceResult",
-      sessionId: session.sessionId,
-      documentUri: session.documentUri,
-      documentVersion: session.document.version,
-      status,
-      ...(reason ? { reason } : {}),
-      ...(plan ? {
-        instanceName: plan.instanceName,
-        insertedNameRange: plan.insertedNameRange
-      } : {})
-    } satisfies ExtensionToVscodeMessage);
-  };
-
   const insertModulePreviewInstance = async (session: ModulePreviewSession): Promise<void> => {
     const stale = (reason: string): void => {
       resyncModulePreview(session);
-      postInsertInstanceResult(session, "stale", reason);
+      void vscode.window.showErrorMessage(reason);
     };
     const rejected = (reason: string): void => {
-      postInsertInstanceResult(session, "rejected", reason);
+      void vscode.window.showErrorMessage(reason);
     };
 
     if (
       sessions.get(session.documentUri) !== session ||
       !session.webviewReady ||
       !isOpenDocument(session.document) ||
-      session.authoritativeDocumentVersion !== session.document.version
+      !bootstrapIsAuthoritative(session)
     ) {
       stale("Module Preview session is no longer authoritative.");
       return;
@@ -1230,7 +1250,6 @@ export const registerModulePreviewFeature = ({
     );
     focusedEditor.selection = new vscode.Selection(insertedRange.start, insertedRange.end);
     focusedEditor.revealRange?.(insertedRange);
-    postInsertInstanceResult(session, "applied", undefined, plan);
   };
 
   const disposeSession = (session: ModulePreviewSession): void => {
@@ -1241,7 +1260,7 @@ export const registerModulePreviewFeature = ({
     for (const resolve of session.valueSnapshotWaiters) resolve();
     session.valueSnapshotWaiters.clear();
     session.webviewReady = false;
-    session.authoritativeDocumentVersion = null;
+    session.bootstrapAcknowledgement = null;
     session.pendingTarget = null;
     sessions.delete(session.documentUri);
     for (const disposable of session.disposables.splice(0)) disposable.dispose();
@@ -1258,17 +1277,19 @@ export const registerModulePreviewFeature = ({
     if (existing) {
       cancelActiveReferencePick(existing);
       if (boundValueSession === existing) clearValueBinding();
-      existing.sessionId = nextSessionId();
+      const identity = nextSessionIdentity();
+      existing.sessionId = identity.sessionId;
+      existing.sessionGeneration = identity.sessionGeneration;
       existing.targetDefinitionStatementId = target.target.definitionStatementId;
+      existing.bootstrapAcknowledgement = null;
       existing.retainedValueMessage = null;
-      existing.pendingTarget = {
+      existing.pendingTarget = pendingTargetFor(existing, {
         kind: "target",
-        documentVersion: document.version,
         normalizedSourceOffset: target.normalizedSourceOffset
-      };
+      });
       bindValueSession(existing);
       existing.panel.reveal(vscode.ViewColumn.Beside);
-      if (existing.webviewReady) postSessionIdentity(existing);
+      if (existing.webviewReady) postBootstrap(existing);
       deliverPendingTarget(existing);
       refreshInsertContext();
       return existing;
@@ -1280,19 +1301,25 @@ export const registerModulePreviewFeature = ({
       vscode.ViewColumn.Beside,
       { enableScripts: true }
     );
+    const identity = nextSessionIdentity();
     const session: ModulePreviewSession = {
       documentUri: key,
       document,
       panel,
-      sessionId: nextSessionId(),
+      sessionId: identity.sessionId,
+      sessionGeneration: identity.sessionGeneration,
       targetDefinitionStatementId: target.target.definitionStatementId,
       webviewReady: false,
-      authoritativeDocumentVersion: null,
-      pendingTarget: {
+      bootstrapAcknowledgement: null,
+      pendingTarget: pendingTargetFor({
+        documentUri: key,
+        document,
+        sessionId: identity.sessionId,
+        sessionGeneration: identity.sessionGeneration
+      }, {
         kind: "target",
-        documentVersion: document.version,
         normalizedSourceOffset: target.normalizedSourceOffset
-      },
+      }),
       retainedValueMessage: null,
       valueSnapshotWaiters: new Set(),
       activeReferencePick: null,
@@ -1306,14 +1333,9 @@ export const registerModulePreviewFeature = ({
       if (!sameDocument(event.document, session.document) || event.contentChanges.length === 0) return;
       cancelActiveReferencePick(session);
       refreshExistingTarget(session);
-      session.authoritativeDocumentVersion = null;
+      session.bootstrapAcknowledgement = null;
       publishValueUnavailable(session, "source-stale");
-      void panel.webview.postMessage({
-        type: "commitText",
-        sourceText: event.document.getText(),
-        documentVersion: event.document.version,
-        reason: documentChangeReasonFor(event.reason)
-      } satisfies ExtensionToVscodeMessage);
+      if (session.webviewReady) postBootstrap(session);
     }));
 
     session.disposables.push(panel.webview.onDidReceiveMessage(async (message: VscodeToExtensionMessage) => {
@@ -1354,12 +1376,11 @@ export const registerModulePreviewFeature = ({
       if (message.type === "webviewReady") {
         session.webviewReady = true;
         refreshExistingTarget(session);
-        postSessionIdentity(session);
         void panel.webview.postMessage({
           type: "webviewPresentation",
           presentation: webviewPresentationFor(displayLanguageFor())
         } satisfies ExtensionToVscodeMessage);
-        postAuthoritativeDocument(session);
+        postBootstrap(session);
         void panel.webview.postMessage({
           type: "canvasRibbonConfiguration",
           ribbons: canvasRibbons()
@@ -1367,9 +1388,15 @@ export const registerModulePreviewFeature = ({
         refreshInsertContext();
         return;
       }
-      if (message.type === "webviewAuthoritativeDocumentReady") {
-        if (!session.webviewReady || message.documentVersion !== session.document.version) return;
-        session.authoritativeDocumentVersion = message.documentVersion;
+      if (message.type === "modulePreviewBootstrapAcknowledged") {
+        if (
+          !session.webviewReady ||
+          message.sessionId !== session.sessionId ||
+          message.sessionGeneration !== session.sessionGeneration ||
+          message.documentUri !== session.documentUri ||
+          message.documentVersion !== session.document.version
+        ) return;
+        session.bootstrapAcknowledgement = message;
         deliverPendingTarget(session);
         return;
       }

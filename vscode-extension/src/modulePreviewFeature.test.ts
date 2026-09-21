@@ -287,6 +287,32 @@ const createPanel = (options: {
   return panel;
 };
 
+const latestBootstrapFor = (panel: TestPanel) => panel.webview.postMessage.mock.calls
+  .map(([message]) => message as {
+    type?: string;
+    sessionId?: string;
+    sessionGeneration?: number;
+    documentUri?: string;
+    documentVersion?: number;
+  })
+  .filter((message) => message.type === "modulePreviewBootstrap")
+  .at(-1);
+
+const acknowledgeBootstrap = async (panel: TestPanel): Promise<void> => {
+  const bootstrap = latestBootstrapFor(panel);
+  if (!bootstrap?.sessionId || !Number.isInteger(bootstrap.sessionGeneration) ||
+    !bootstrap.documentUri || !Number.isInteger(bootstrap.documentVersion)) {
+    throw new Error("expected Module Preview bootstrap");
+  }
+  await (panel as TestPanel & { receive: (message: unknown) => Promise<void> }).receive({
+    type: "modulePreviewBootstrapAcknowledged",
+    sessionId: bootstrap.sessionId,
+    sessionGeneration: bootstrap.sessionGeneration,
+    documentUri: bootstrap.documentUri,
+    documentVersion: bootstrap.documentVersion
+  });
+};
+
 const flushContext = async () => {
   await Promise.resolve();
   await Promise.resolve();
@@ -363,7 +389,7 @@ describe("registerModulePreviewFeature", () => {
   ): VscodeModulePreviewModelPatchRequest => {
     const sessionId = fixture.panel.webview.postMessage.mock.calls
       .map(([message]) => message as { type?: string; sessionId?: string })
-      .find((message) => message.type === "modulePreviewSession")?.sessionId;
+      .find((message) => message.type === "modulePreviewBootstrap")?.sessionId;
     const target = currentCompiledSemanticSnapshotFor(fixture.analysis, {
       normalizedSource: fixture.source,
       sourceRevision: fixture.analysis.getSourceRevision()
@@ -394,7 +420,7 @@ describe("registerModulePreviewFeature", () => {
       type: "webviewPresentation",
       presentation: expect.objectContaining({ locale: "en" })
     }));
-    await fixture.panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    await acknowledgeBootstrap(fixture.panel);
     await fixture.panel.receive(patchRequestFor(fixture));
 
     expect(fixture.document.getText()).toContain("x: 2");
@@ -464,7 +490,7 @@ describe("registerModulePreviewFeature", () => {
   it("applies multiple Bake splices through one authoritative editor transaction", async () => {
     const fixture = openModulePatchFixture();
     await fixture.panel.receive({ type: "webviewReady" });
-    await fixture.panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    await acknowledgeBootstrap(fixture.panel);
     const expectedPatchedSource = fixture.source
       .replace("x: 1", "x: 2")
       .replace("x: 5", "x: 6");
@@ -488,7 +514,7 @@ describe("registerModulePreviewFeature", () => {
   it("fails closed for malformed multi-target ownership proofs", async () => {
     const fixture = openModulePatchFixture();
     await fixture.panel.receive({ type: "webviewReady" });
-    await fixture.panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    await acknowledgeBootstrap(fixture.panel);
     await fixture.panel.receive(patchRequestFor(fixture, {
       sourceOwners: [
         { runtimeElementId: "preview-runtime-point", sourceStatementId: "authored-point" },
@@ -504,7 +530,7 @@ describe("registerModulePreviewFeature", () => {
   it("rejects stale versions and mismatched expected patched source without editing", async () => {
     const staleFixture = openModulePatchFixture();
     await staleFixture.panel.receive({ type: "webviewReady" });
-    await staleFixture.panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    await acknowledgeBootstrap(staleFixture.panel);
     await staleFixture.panel.receive(patchRequestFor(staleFixture, { expectedDocumentVersion: 0 }));
     expect(staleFixture.editor.edit).not.toHaveBeenCalled();
     expect(staleFixture.panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
@@ -515,7 +541,7 @@ describe("registerModulePreviewFeature", () => {
 
     const mismatchFixture = openModulePatchFixture();
     await mismatchFixture.panel.receive({ type: "webviewReady" });
-    await mismatchFixture.panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    await acknowledgeBootstrap(mismatchFixture.panel);
     await mismatchFixture.panel.receive(patchRequestFor(mismatchFixture, {
       expectedPatchedSource: mismatchFixture.source
     }));
@@ -530,7 +556,7 @@ describe("registerModulePreviewFeature", () => {
     const unavailableFixture = openModulePatchFixture();
     mocks.visibleTextEditors = [];
     await unavailableFixture.panel.receive({ type: "webviewReady" });
-    await unavailableFixture.panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    await acknowledgeBootstrap(unavailableFixture.panel);
     await unavailableFixture.panel.receive(patchRequestFor(unavailableFixture));
     expect(unavailableFixture.editor.edit).not.toHaveBeenCalled();
     expect(unavailableFixture.panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
@@ -545,7 +571,7 @@ describe("registerModulePreviewFeature", () => {
     async (direction) => {
       const fixture = openModulePatchFixture();
       await fixture.panel.receive({ type: "webviewReady" });
-      await fixture.panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+      await acknowledgeBootstrap(fixture.panel);
       await flushContext();
       mocks.executeCommand.mockClear();
       fixture.panel.webview.postMessage.mockClear();
@@ -582,18 +608,17 @@ describe("registerModulePreviewFeature", () => {
         preview: false
       });
       expect(mocks.executeCommand.mock.calls.filter(([command]) => command !== "setContext")).toEqual([[direction]]);
-      expect(fixture.panel.webview.postMessage).toHaveBeenCalledWith({
-        type: "commitText",
+      expect(fixture.panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+        type: "modulePreviewBootstrap",
         sourceText: fixture.document.getText(),
-        documentVersion: 2,
-        reason: direction
-      });
+        documentVersion: 2
+      }));
 
-      await fixture.panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 2 });
-      expect(fixture.panel.webview.postMessage).toHaveBeenCalledWith({
+      await acknowledgeBootstrap(fixture.panel);
+      expect(fixture.panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
         type: "modulePreviewTargetUnavailable",
         documentVersion: 2
-      });
+      }));
       expect(fixture.panel.reveal).toHaveBeenCalledWith(undefined, false);
       fixture.feature.dispose();
     }
@@ -602,7 +627,7 @@ describe("registerModulePreviewFeature", () => {
   it("fails closed before native history when the authoritative document version is stale", async () => {
     const fixture = openModulePatchFixture();
     await fixture.panel.receive({ type: "webviewReady" });
-    await fixture.panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    await acknowledgeBootstrap(fixture.panel);
     fixture.document.setSource(fixture.source.replace("x: 1", "x: 3"));
     expect(fixture.feature.handoffNativeHistoryIfActive("undo")).toBe(false);
     expect(mocks.showTextDocument).not.toHaveBeenCalled();
@@ -613,7 +638,7 @@ describe("registerModulePreviewFeature", () => {
   it("fails closed when the document version drifts during Source activation", async () => {
     const fixture = openModulePatchFixture();
     await fixture.panel.receive({ type: "webviewReady" });
-    await fixture.panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    await acknowledgeBootstrap(fixture.panel);
     await flushContext();
     mocks.executeCommand.mockClear();
     mocks.showTextDocument.mockImplementation(async () => {
@@ -656,9 +681,16 @@ describe("registerModulePreviewFeature", () => {
     mocks.commandHandlers.get("nuinuiCAD.openModulePreview")!();
 
     await panel.receive({ type: "webviewReady" });
-    await panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    await acknowledgeBootstrap(panel);
+    const initialBootstrap = latestBootstrapFor(panel);
+    if (!initialBootstrap?.sessionId || !Number.isInteger(initialBootstrap.sessionGeneration) || !initialBootstrap.documentUri) {
+      throw new Error("expected Module Preview bootstrap identity");
+    }
     const initialTarget = {
       type: "modulePreviewTarget",
+      sessionId: initialBootstrap.sessionId,
+      sessionGeneration: initialBootstrap.sessionGeneration,
+      documentUri: initialBootstrap.documentUri,
       documentVersion: 1,
       normalizedSourceOffset: source.indexOf("module Pocket")
     };
@@ -674,7 +706,7 @@ describe("registerModulePreviewFeature", () => {
         type: "modulePreviewTargetUnavailable"
       }));
 
-      await panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+      await acknowledgeBootstrap(panel);
       expect(panel.webview.postMessage).toHaveBeenCalledWith(initialTarget);
     }
 
@@ -691,11 +723,11 @@ describe("registerModulePreviewFeature", () => {
     expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
       type: "modulePreviewTargetUnavailable"
     }));
-    await panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 2 });
-    expect(panel.webview.postMessage).toHaveBeenCalledWith({
+    await acknowledgeBootstrap(panel);
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
       type: "modulePreviewTargetUnavailable",
       documentVersion: 2
-    });
+    }));
     expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
       type: "modulePreviewTarget",
       documentVersion: 2
@@ -737,12 +769,12 @@ describe("registerModulePreviewFeature", () => {
     if (!open) throw new Error("expected open Module Preview command");
     open();
     await oldPanel.receive({ type: "webviewReady" });
-    await oldPanel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    await acknowledgeBootstrap(oldPanel);
     await flushContext();
     expect(mocks.executeCommand).toHaveBeenCalledWith("setContext", NUI_MODULE_PREVIEW_INSERT_CONTEXT, true);
     const oldSessionId = oldPanel.webview.postMessage.mock.calls
       .map(([message]) => message as { type?: string; sessionId?: string })
-      .find((message) => message.type === "modulePreviewSession")?.sessionId;
+      .find((message) => message.type === "modulePreviewBootstrap")?.sessionId;
     if (!oldSessionId) throw new Error("expected disposed Module Preview session identity");
 
     oldPanel.fireDispose();
@@ -754,12 +786,12 @@ describe("registerModulePreviewFeature", () => {
 
     open();
     await newPanel.receive({ type: "webviewReady" });
-    await newPanel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    await acknowledgeBootstrap(newPanel);
     await flushContext();
     expect(mocks.executeCommand).toHaveBeenCalledWith("setContext", NUI_MODULE_PREVIEW_INSERT_CONTEXT, true);
     const newSessionId = newPanel.webview.postMessage.mock.calls
       .map(([message]) => message as { type?: string; sessionId?: string })
-      .find((message) => message.type === "modulePreviewSession")?.sessionId;
+      .find((message) => message.type === "modulePreviewBootstrap")?.sessionId;
     expect(newSessionId).toBeDefined();
     expect(newSessionId).not.toBe(oldSessionId);
 
@@ -768,6 +800,14 @@ describe("registerModulePreviewFeature", () => {
       sessionId: oldSessionId
     };
     await oldPanel.receive(staleSnapshot);
+    await newPanel.receive(staleSnapshot);
+    await newPanel.receive({
+      type: "modulePreviewBootstrapAcknowledged",
+      sessionId: oldSessionId,
+      sessionGeneration: 1,
+      documentUri: document.uri.toString(),
+      documentVersion: document.version
+    });
     expect(newPanel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
       type: "modulePreviewValueSnapshot",
       sessionId: oldSessionId
@@ -888,14 +928,14 @@ describe("registerModulePreviewFeature", () => {
     if (!open) throw new Error("expected open Module Preview command");
 
     open();
-    await panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    await acknowledgeBootstrap(panel);
 
     const expectedTarget = source.indexOf("module Preview");
-    expect(panel.webview.postMessage).toHaveBeenCalledWith({
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
       type: "modulePreviewTarget",
       documentVersion: 1,
       normalizedSourceOffset: expectedTarget
-    });
+    }));
     expect(panel.webview.postMessage.mock.calls.filter(([message]) =>
       (message as { type?: string }).type === "modulePreviewTarget"
     )).toHaveLength(1);
@@ -906,14 +946,17 @@ describe("registerModulePreviewFeature", () => {
     expect(mocks.createWebviewPanel).toHaveBeenCalledTimes(1);
     expect(panel.webview.postMessage.mock.calls.filter(([message]) =>
       (message as { type?: string }).type === "modulePreviewTarget"
+    )).toHaveLength(1);
+
+    await acknowledgeBootstrap(panel);
+    expect(panel.webview.postMessage.mock.calls.filter(([message]) =>
+      (message as { type?: string }).type === "modulePreviewTarget"
     )).toHaveLength(2);
-    expect(panel.webview.postMessage).toHaveBeenLastCalledWith({
+    expect(panel.webview.postMessage).toHaveBeenLastCalledWith(expect.objectContaining({
       type: "modulePreviewTarget",
       documentVersion: 1,
       normalizedSourceOffset: expectedTarget
-    });
-
-    await panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    }));
     expect(panel.webview.postMessage.mock.calls.filter(([message]) =>
       (message as { type?: string }).type === "modulePreviewTarget"
     )).toHaveLength(2);
@@ -949,7 +992,7 @@ describe("registerModulePreviewFeature", () => {
     });
     mocks.commandHandlers.get("nuinuiCAD.openModulePreview")!();
     await panel.receive({ type: "webviewReady" });
-    await panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    await acknowledgeBootstrap(panel);
     panel.webview.postMessage.mockClear();
 
     const nextSource = [
@@ -963,14 +1006,14 @@ describe("registerModulePreviewFeature", () => {
       listener({ document, contentChanges: [{}] });
     }
     expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
-      type: "commitText",
+      type: "modulePreviewBootstrap",
       documentVersion: 2
     }));
-    await panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 2 });
-    expect(panel.webview.postMessage).toHaveBeenCalledWith({
+    await acknowledgeBootstrap(panel);
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
       type: "modulePreviewTargetUnavailable",
       documentVersion: 2
-    });
+    }));
     expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
       type: "modulePreviewTarget",
       documentVersion: 2,
@@ -1098,10 +1141,10 @@ describe("registerModulePreviewFeature", () => {
     const { document, panel, feature, analysis } = registerInvocationFixture(source);
     const editor = mocks.visibleTextEditors[0]!;
     await panel.receive({ type: "webviewReady" });
-    await panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    await acknowledgeBootstrap(panel);
     const sessionId = panel.webview.postMessage.mock.calls
       .map(([message]) => message)
-      .find((message) => message?.type === "modulePreviewSession")?.sessionId as string;
+      .find((message) => message?.type === "modulePreviewBootstrap")?.sessionId as string;
     const snapshot = { ...valueSnapshotFor(document, analysis, { name: "anchor", type: { kind: "point" }, value: "@Top" }), sessionId };
     await panel.receive(snapshot);
     mocks.showTextDocument.mockResolvedValue(editor);
@@ -1124,12 +1167,7 @@ describe("registerModulePreviewFeature", () => {
     expect(mocks.showTextDocument).toHaveBeenCalledWith(document, expect.objectContaining({ preserveFocus: false, preview: false }));
     expect(editor.selection.active).toEqual({ line: 4, character: 23 });
     expect(editor.revealRange).toHaveBeenCalledTimes(1);
-    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
-      type: "modulePreviewInsertInstanceResult",
-      status: "applied",
-      instanceName: "PocketInstance",
-      documentVersion: 2
-    }));
+    expect(mocks.showErrorMessage).not.toHaveBeenCalled();
     feature.dispose();
   });
 
@@ -1145,10 +1183,10 @@ describe("registerModulePreviewFeature", () => {
     const { document, panel, feature, analysis } = registerInvocationFixture(source);
     const editor = mocks.visibleTextEditors[0]!;
     await panel.receive({ type: "webviewReady" });
-    await panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    await acknowledgeBootstrap(panel);
     const sessionId = panel.webview.postMessage.mock.calls
       .map(([message]) => message)
-      .find((message) => message?.type === "modulePreviewSession")?.sessionId as string;
+      .find((message) => message?.type === "modulePreviewBootstrap")?.sessionId as string;
     const snapshot = { ...valueSnapshotFor(document, analysis, { name: "anchor", type: { kind: "point" }, value: "@Top" }), sessionId };
     await panel.receive(snapshot);
     editor.selection.active = positionAt(source, source.indexOf("point After"));
@@ -1169,6 +1207,43 @@ describe("registerModulePreviewFeature", () => {
     feature.dispose();
   });
 
+  it("presents an illegal nested lexical insertion through native VS Code error notification", async () => {
+    const source = [
+      "nui 1",
+      "point Top = coordinate(x: 0, y: 0)",
+      "module Outer() {",
+      "  module Pocket(anchor: point) {",
+      "  }",
+      "}",
+      ""
+    ].join("\n");
+    const { document, panel, feature, analysis } = registerInvocationFixture(source);
+    const editor = mocks.visibleTextEditors[0]!;
+    await panel.receive({ type: "webviewReady" });
+    await acknowledgeBootstrap(panel);
+    const sessionId = panel.webview.postMessage.mock.calls
+      .map(([message]) => message)
+      .find((message) => message?.type === "modulePreviewBootstrap")?.sessionId as string;
+    await panel.receive({
+      ...valueSnapshotFor(document, analysis, { name: "anchor", type: { kind: "point" }, value: "@Top" }),
+      sessionId
+    });
+    editor.selection.active = positionAt(source, source.length);
+    mocks.showErrorMessage.mockClear();
+
+    await panel.receive({ type: "modulePreviewInsertInstance" });
+
+    expect(editor.edit).not.toHaveBeenCalled();
+    expect(document.getText()).toBe(source);
+    expect(mocks.showErrorMessage).toHaveBeenCalledWith(
+      "The target Module is not visible at the current source insertion position."
+    );
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: "modulePreviewInsertInstanceResult" })
+    );
+    feature.dispose();
+  });
+
   it("fails closed when the same-document Source editor is unavailable or the visible editor is for another document", async () => {
     const source = [
       "nui 1",
@@ -1180,35 +1255,29 @@ describe("registerModulePreviewFeature", () => {
     const unavailable = registerInvocationFixture(source);
     const unavailableEditor = mocks.visibleTextEditors[0]!;
     await unavailable.panel.receive({ type: "webviewReady" });
-    await unavailable.panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    await acknowledgeBootstrap(unavailable.panel);
     const unavailableSessionId = unavailable.panel.webview.postMessage.mock.calls
       .map(([message]) => message)
-      .find((message) => message?.type === "modulePreviewSession")?.sessionId as string;
+      .find((message) => message?.type === "modulePreviewBootstrap")?.sessionId as string;
     await unavailable.panel.receive({ ...valueSnapshotFor(unavailable.document, unavailable.analysis, { name: "anchor", type: { kind: "point" }, value: "@Top" }), sessionId: unavailableSessionId });
     mocks.visibleTextEditors = [];
     await unavailable.panel.receive({ type: "modulePreviewInsertInstance" });
     expect(unavailableEditor.edit).not.toHaveBeenCalled();
-    expect(unavailable.panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
-      type: "modulePreviewInsertInstanceResult",
-      status: "rejected"
-    }));
+    expect(mocks.showErrorMessage).toHaveBeenCalledWith("The current same-document Source editor is not available.");
     unavailable.feature.dispose();
 
     const wrongDocument = registerInvocationFixture(source);
     const wrongEditor = createEditor(createDocument(source, "file:///workspace/other.nui"));
     mocks.visibleTextEditors = [wrongEditor];
     await wrongDocument.panel.receive({ type: "webviewReady" });
-    await wrongDocument.panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    await acknowledgeBootstrap(wrongDocument.panel);
     const wrongSessionId = wrongDocument.panel.webview.postMessage.mock.calls
       .map(([message]) => message)
-      .find((message) => message?.type === "modulePreviewSession")?.sessionId as string;
+      .find((message) => message?.type === "modulePreviewBootstrap")?.sessionId as string;
     await wrongDocument.panel.receive({ ...valueSnapshotFor(wrongDocument.document, wrongDocument.analysis, { name: "anchor", type: { kind: "point" }, value: "@Top" }), sessionId: wrongSessionId });
     await wrongDocument.panel.receive({ type: "modulePreviewInsertInstance" });
     expect(wrongEditor.edit).not.toHaveBeenCalled();
-    expect(wrongDocument.panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
-      type: "modulePreviewInsertInstanceResult",
-      status: "rejected"
-    }));
+    expect(mocks.showErrorMessage).toHaveBeenCalledWith("The current same-document Source editor is not available.");
     wrongDocument.feature.dispose();
   });
 
@@ -1223,45 +1292,39 @@ describe("registerModulePreviewFeature", () => {
     const staleSource = registerInvocationFixture(source);
     const staleEditor = mocks.visibleTextEditors[0]!;
     await staleSource.panel.receive({ type: "webviewReady" });
-    await staleSource.panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    await acknowledgeBootstrap(staleSource.panel);
     const staleSessionId = staleSource.panel.webview.postMessage.mock.calls
       .map(([message]) => message)
-      .find((message) => message?.type === "modulePreviewSession")?.sessionId as string;
+      .find((message) => message?.type === "modulePreviewBootstrap")?.sessionId as string;
     const staleSnapshot = { ...valueSnapshotFor(staleSource.document, staleSource.analysis, { name: "anchor", type: { kind: "point" }, value: "@Top" }), sessionId: staleSessionId };
     await staleSource.panel.receive(staleSnapshot);
     staleSource.document.setSource(source.replace("y: 0", "y: 1"));
     await staleSource.panel.receive({ type: "modulePreviewInsertInstance" });
     expect(staleEditor.edit).not.toHaveBeenCalled();
-    expect(staleSource.panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
-      type: "modulePreviewInsertInstanceResult",
-      status: "stale"
-    }));
+    expect(mocks.showErrorMessage).toHaveBeenCalledWith("Module Preview session is no longer authoritative.");
     staleSource.feature.dispose();
 
     const wrongSession = registerInvocationFixture(source);
     const wrongSessionEditor = mocks.visibleTextEditors[0]!;
     await wrongSession.panel.receive({ type: "webviewReady" });
-    await wrongSession.panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    await acknowledgeBootstrap(wrongSession.panel);
     const currentSessionId = wrongSession.panel.webview.postMessage.mock.calls
       .map(([message]) => message)
-      .find((message) => message?.type === "modulePreviewSession")?.sessionId as string;
+      .find((message) => message?.type === "modulePreviewBootstrap")?.sessionId as string;
     const currentSnapshot = { ...valueSnapshotFor(wrongSession.document, wrongSession.analysis, { name: "anchor", type: { kind: "point" }, value: "@Top" }), sessionId: currentSessionId };
     await wrongSession.panel.receive({ ...currentSnapshot, sessionId: "module-preview-session:wrong" });
     await wrongSession.panel.receive({ type: "modulePreviewInsertInstance" });
     expect(wrongSessionEditor.edit).not.toHaveBeenCalled();
-    expect(wrongSession.panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
-      type: "modulePreviewInsertInstanceResult",
-      status: "stale"
-    }));
+    expect(mocks.showErrorMessage).toHaveBeenCalledWith("The current Module Preview values are not exact-current.");
     wrongSession.feature.dispose();
 
     const wrongTarget = registerInvocationFixture(source);
     const wrongTargetEditor = mocks.visibleTextEditors[0]!;
     await wrongTarget.panel.receive({ type: "webviewReady" });
-    await wrongTarget.panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    await acknowledgeBootstrap(wrongTarget.panel);
     const wrongTargetSessionId = wrongTarget.panel.webview.postMessage.mock.calls
       .map(([message]) => message)
-      .find((message) => message?.type === "modulePreviewSession")?.sessionId as string;
+      .find((message) => message?.type === "modulePreviewBootstrap")?.sessionId as string;
     const targetSnapshot = { ...valueSnapshotFor(wrongTarget.document, wrongTarget.analysis, { name: "anchor", type: { kind: "point" }, value: "@Top" }), sessionId: wrongTargetSessionId };
     await wrongTarget.panel.receive({
       ...targetSnapshot,
@@ -1269,10 +1332,7 @@ describe("registerModulePreviewFeature", () => {
     });
     await wrongTarget.panel.receive({ type: "modulePreviewInsertInstance" });
     expect(wrongTargetEditor.edit).not.toHaveBeenCalled();
-    expect(wrongTarget.panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
-      type: "modulePreviewInsertInstanceResult",
-      status: "stale"
-    }));
+    expect(mocks.showErrorMessage).toHaveBeenCalledWith("The current Module Preview values are not exact-current.");
     wrongTarget.feature.dispose();
   });
 
@@ -1287,23 +1347,19 @@ describe("registerModulePreviewFeature", () => {
     const { document, panel, feature, analysis } = registerInvocationFixture(source);
     const editor = mocks.visibleTextEditors[0]!;
     await panel.receive({ type: "webviewReady" });
-    await panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    await acknowledgeBootstrap(panel);
     const sessionId = panel.webview.postMessage.mock.calls
       .map(([message]) => message)
-      .find((message) => message?.type === "modulePreviewSession")?.sessionId as string;
+      .find((message) => message?.type === "modulePreviewBootstrap")?.sessionId as string;
     const snapshot = { ...valueSnapshotFor(document, analysis, { name: "anchor", type: { kind: "point" }, value: "@Top" }), sessionId };
     mocks.showTextDocument.mockResolvedValue(editor);
 
     await panel.receive({ ...snapshot, previewStatus: "lastGood" });
     await panel.receive({ type: "modulePreviewInsertInstance" });
     expect(editor.edit).not.toHaveBeenCalled();
-    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
-      type: "modulePreviewInsertInstanceResult",
-      status: "stale"
-    }));
+    expect(mocks.showErrorMessage).toHaveBeenCalledWith("The current Module Preview values are not exact-current.");
 
-    panel.webview.postMessage.mockClear();
-    await panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    await acknowledgeBootstrap(panel);
     await panel.receive({ ...snapshot, sessionRevision: 2, groups: [{
       ...snapshot.groups[0]!,
       parameters: [{ ...snapshot.groups[0]!.parameters[0]!, value: "", valueState: "required-missing" }
@@ -1311,10 +1367,7 @@ describe("registerModulePreviewFeature", () => {
     }] });
     await panel.receive({ type: "modulePreviewInsertInstance" });
     expect(editor.edit).not.toHaveBeenCalled();
-    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
-      type: "modulePreviewInsertInstanceResult",
-      status: "rejected"
-    }));
+    expect(mocks.showErrorMessage).toHaveBeenCalledWith("Complete the required target values before inserting an instance.");
     feature.dispose();
   });
 
@@ -1329,8 +1382,8 @@ describe("registerModulePreviewFeature", () => {
     ].join("\n");
     const { document, panel, feature, analysis } = registerInvocationFixture(source);
     await panel.receive({ type: "webviewReady" });
-    await panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
-    const sessionId = panel.webview.postMessage.mock.calls.map(([message]) => message).find((message) => message?.type === "modulePreviewSession")?.sessionId as string;
+    await acknowledgeBootstrap(panel);
+    const sessionId = panel.webview.postMessage.mock.calls.map(([message]) => message).find((message) => message?.type === "modulePreviewBootstrap")?.sessionId as string;
     const snapshot = { ...valueSnapshotFor(document, analysis, { name: "width", type: { kind: "number" }, value: "12" }), sessionId };
     const contextDefinition = analysis.runtimeEvaluationSnapshot()!.compiled.moduleSemanticAnalysis!.definitions.find((definition) => definition.name === "Outer")!;
     const targetGroup = snapshot.groups[0]!;
@@ -1372,10 +1425,10 @@ describe("registerModulePreviewFeature", () => {
     ].join("\n");
     const { document, panel, feature, analysis } = registerInvocationFixture(source);
     await panel.receive({ type: "webviewReady" });
-    await panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    await acknowledgeBootstrap(panel);
     const sessionId = panel.webview.postMessage.mock.calls
       .map(([message]) => message)
-      .find((message) => message?.type === "modulePreviewSession")?.sessionId as string;
+      .find((message) => message?.type === "modulePreviewBootstrap")?.sessionId as string;
     const snapshot = { ...valueSnapshotFor(document, analysis, { name: "width", type: { kind: "number" }, value: "" }), sessionId };
     await panel.receive(snapshot);
     const group = snapshot.groups[0]!;
@@ -1422,10 +1475,10 @@ describe("registerModulePreviewFeature", () => {
     ].join("\n");
     const { document, panel, feature, analysis } = registerInvocationFixture(source);
     await panel.receive({ type: "webviewReady" });
-    await panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    await acknowledgeBootstrap(panel);
     const sessionId = panel.webview.postMessage.mock.calls
       .map(([message]) => message)
-      .find((message) => message?.type === "modulePreviewSession")?.sessionId as string;
+      .find((message) => message?.type === "modulePreviewBootstrap")?.sessionId as string;
     const snapshot = { ...valueSnapshotFor(document, analysis, { name: "width", type: { kind: "number" }, value: "" }), sessionId };
     await panel.receive(snapshot);
     const group = snapshot.groups[0]!;
@@ -1467,10 +1520,10 @@ describe("registerModulePreviewFeature", () => {
     ].join("\n");
     const { document, panel, feature, analysis } = registerInvocationFixture(source);
     await panel.receive({ type: "webviewReady" });
-    await panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    await acknowledgeBootstrap(panel);
     const sessionId = panel.webview.postMessage.mock.calls
       .map(([message]) => message)
-      .find((message) => message?.type === "modulePreviewSession")?.sessionId as string;
+      .find((message) => message?.type === "modulePreviewBootstrap")?.sessionId as string;
     const snapshot = {
       ...valueSnapshotFor(document, analysis, { name: "width", type: { kind: "number" }, value: "12" }),
       sessionId
@@ -1534,10 +1587,10 @@ describe("registerModulePreviewFeature", () => {
     expect(mocks.nativeShowQuickPick).not.toHaveBeenCalled();
 
     await panel.receive({ type: "webviewReady" });
-    await panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    await acknowledgeBootstrap(panel);
     const sessionId = panel.webview.postMessage.mock.calls
       .map(([message]) => message as { type?: string; sessionId?: string })
-      .find((message) => message.type === "modulePreviewSession")?.sessionId;
+      .find((message) => message.type === "modulePreviewBootstrap")?.sessionId;
     if (!sessionId) throw new Error("expected Module Preview session identity");
     const target = analysis.runtimeEvaluationSnapshot()!.compiled.moduleSemanticAnalysis!.definitions
       .find((definition) => definition.name === "Pocket")!;
@@ -1581,14 +1634,14 @@ describe("registerModulePreviewFeature", () => {
       ].join("\n");
       const { document, panel, feature, analysis } = registerInvocationFixture(source);
       await panel.receive({ type: "webviewReady" });
-      await panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+      await acknowledgeBootstrap(panel);
       const command = mocks.commandHandlers.get("nuinuiCAD.editModulePreviewValues")!;
       command();
 
       vi.advanceTimersByTime(5000);
       const sessionId = panel.webview.postMessage.mock.calls
         .map(([message]) => message as { type?: string; sessionId?: string })
-        .find((message) => message.type === "modulePreviewSession")?.sessionId;
+      .find((message) => message.type === "modulePreviewBootstrap")?.sessionId;
       if (!sessionId) throw new Error("expected Module Preview session identity");
       const lateSnapshot = {
         ...valueSnapshotFor(document, analysis, { name: "width", type: { kind: "number" }, value: "12" }),
@@ -1627,8 +1680,8 @@ describe("registerModulePreviewFeature", () => {
     ].join("\n");
     const { document, panel, feature, analysis } = registerInvocationFixture(source);
     await panel.receive({ type: "webviewReady" });
-    await panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
-    const sessionId = panel.webview.postMessage.mock.calls.map(([message]) => message).find((message) => message?.type === "modulePreviewSession")?.sessionId as string;
+    await acknowledgeBootstrap(panel);
+    const sessionId = panel.webview.postMessage.mock.calls.map(([message]) => message).find((message) => message?.type === "modulePreviewBootstrap")?.sessionId as string;
     const snapshot = { ...valueSnapshotFor(document, analysis, { name: "anchor", type: { kind: "point" }, value: "" }), sessionId };
     await panel.receive({ ...snapshot, groups: [{ ...snapshot.groups[0]!, parameters: [{ ...snapshot.groups[0]!.parameters[0]!, value: "", valueState: "required-missing" }] }] });
     mocks.nativeShowQuickPick.mockImplementation(async (items: readonly { label: string }[]) => items[0]);
@@ -1654,10 +1707,10 @@ describe("registerModulePreviewFeature", () => {
     ].join("\n");
     const { document, panel, feature, analysis } = registerInvocationFixture(source);
     await panel.receive({ type: "webviewReady" });
-    await panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    await acknowledgeBootstrap(panel);
     const sessionId = panel.webview.postMessage.mock.calls
       .map(([message]) => message)
-      .find((message) => message?.type === "modulePreviewSession")?.sessionId as string;
+      .find((message) => message?.type === "modulePreviewBootstrap")?.sessionId as string;
     const snapshot = { ...valueSnapshotFor(document, analysis, { name: "anchor", type: { kind: "point" }, value: "" }), sessionId };
     await panel.receive(snapshot);
     const group = snapshot.groups[0]!;
@@ -1706,10 +1759,10 @@ describe("registerModulePreviewFeature", () => {
     ].join("\n");
     const { document, panel, feature, analysis } = registerInvocationFixture(source);
     await panel.receive({ type: "webviewReady" });
-    await panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    await acknowledgeBootstrap(panel);
     const sessionId = panel.webview.postMessage.mock.calls
       .map(([message]) => message)
-      .find((message) => message?.type === "modulePreviewSession")?.sessionId as string;
+      .find((message) => message?.type === "modulePreviewBootstrap")?.sessionId as string;
     const snapshot = {
       ...valueSnapshotFor(document, analysis, { name: "anchor", type: { kind: "point" }, value: "" }),
       sessionId,
@@ -1763,10 +1816,10 @@ describe("registerModulePreviewFeature", () => {
     ].join("\n");
     const { document, panel, feature, analysis } = registerInvocationFixture(source);
     await panel.receive({ type: "webviewReady" });
-    await panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    await acknowledgeBootstrap(panel);
     const sessionId = panel.webview.postMessage.mock.calls
       .map(([message]) => message)
-      .find((message) => message?.type === "modulePreviewSession")?.sessionId as string;
+      .find((message) => message?.type === "modulePreviewBootstrap")?.sessionId as string;
     await panel.receive({
       ...valueSnapshotFor(document, analysis, { name: "width", type: { kind: "number" }, value: "12" }),
       sessionId

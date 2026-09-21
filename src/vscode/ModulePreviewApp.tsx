@@ -304,6 +304,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   const automationDocumentRef = useRef<AutomationDocument | null>(null);
   const documentVersionRef = useRef<number | null>(null);
   const sessionIdRef = useRef<string | null>(null);
+  const sessionGenerationRef = useRef<number | null>(null);
   const sessionDocumentUriRef = useRef<string | null>(null);
   const valueSessionRevisionRef = useRef(0);
   const nextPreviewRevisionRef = useRef(1);
@@ -1284,65 +1285,87 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       if (!isExtensionToVscodeMessage(event.data)) return;
       const message: ExtensionToVscodeMessage = event.data;
       if (rustTransport.handleMessage(message)) return;
-      if (message.type === "modulePreviewSession") {
-        if (sessionIdRef.current !== message.sessionId) {
-          valueSessionRevisionRef.current = 0;
-          clearPendingModelPatch();
-          clearEphemeralPreview();
-          automationDocumentRef.current = null;
-          documentVersionRef.current = null;
-          setAuthoredCandidateContext(null);
-          previewRef.current = null;
-          setPreview(null);
-        }
-        sessionIdRef.current = message.sessionId;
-        sessionDocumentUriRef.current = message.documentUri;
-        return;
-      }
-      if (message.type === "replaceTextDocument") {
-        clearPendingModelPatch();
-        if (documentVersionRef.current !== null && message.documentVersion < documentVersionRef.current) return;
-        clearEphemeralPreview();
-        automationDocumentRef.current = AutomationDocument.fromSource(message.sourceText);
-        setAuthoredCandidateContext(null);
-        documentVersionRef.current = message.documentVersion;
-        publishValueUnavailable("source-stale");
-        setStatusMessages(previewRef.current
-          ? [statusText("modulePreview.waitingForTarget", "Module Preview is waiting for the exact current target.")]
-          : [statusText("modulePreview.noValid", "No valid Module Preview is available yet.")]);
-        api.postMessage({ type: "webviewAuthoritativeDocumentReady", documentVersion: message.documentVersion });
-        return;
-      }
-      if (message.type === "commitText") {
-        const pendingModelPatch = pendingModelPatchRef.current;
-        const isOwnModelPatchCommit = pendingModelPatch !== null &&
-          message.sourceText === pendingModelPatch.expectedPatchedSource &&
-          message.documentVersion === pendingModelPatch.expectedDocumentVersion + 1;
-        if (documentVersionRef.current !== null && message.documentVersion < documentVersionRef.current) {
-          if (!isOwnModelPatchCommit) clearPendingModelPatch();
+      if (message.type === "modulePreviewBootstrap") {
+        if (
+          sessionGenerationRef.current !== null &&
+          message.sessionGeneration < sessionGenerationRef.current
+        ) return;
+        if (
+          sessionGenerationRef.current !== null &&
+          message.sessionGeneration === sessionGenerationRef.current &&
+          message.sessionId !== sessionIdRef.current
+        ) return;
+        if (
+          sessionGenerationRef.current !== null &&
+          message.sessionGeneration === sessionGenerationRef.current &&
+          documentVersionRef.current !== null &&
+          message.documentVersion < documentVersionRef.current
+        ) return;
+        const sameIdentity =
+          sessionIdRef.current === message.sessionId &&
+          sessionGenerationRef.current === message.sessionGeneration &&
+          sessionDocumentUriRef.current === message.documentUri &&
+          documentVersionRef.current === message.documentVersion;
+        const sameDocument = sameIdentity &&
+          automationDocumentRef.current?.getSource() === message.sourceText;
+        if (sameDocument) {
+          api.postMessage({
+            type: "modulePreviewBootstrapAcknowledged",
+            sessionId: message.sessionId,
+            sessionGeneration: message.sessionGeneration,
+            documentUri: message.documentUri,
+            documentVersion: message.documentVersion
+          });
           return;
         }
-        if (!isOwnModelPatchCommit) clearPendingModelPatch();
+        if (sameIdentity) return;
+        const newSession = sessionIdRef.current !== message.sessionId ||
+          sessionGenerationRef.current !== message.sessionGeneration;
+        if (newSession) valueSessionRevisionRef.current = 0;
+        const pendingModelPatch = pendingModelPatchRef.current;
+        const isOwnModelPatchBootstrap = pendingModelPatch !== null &&
+          message.sourceText === pendingModelPatch.expectedPatchedSource &&
+          message.documentVersion === pendingModelPatch.expectedDocumentVersion + 1;
+        if (!isOwnModelPatchBootstrap) clearPendingModelPatch();
         clearEphemeralPreview();
         const document = automationDocumentRef.current ?? AutomationDocument.fromSource(message.sourceText);
         if (document.getSource() !== message.sourceText) document.replaceSource(message.sourceText);
         automationDocumentRef.current = document;
         setAuthoredCandidateContext(null);
+        previewRef.current = null;
+        setPreview(null);
+        sessionIdRef.current = message.sessionId;
+        sessionGenerationRef.current = message.sessionGeneration;
+        sessionDocumentUriRef.current = message.documentUri;
         documentVersionRef.current = message.documentVersion;
         publishValueUnavailable("source-stale");
-        setStatusMessages(previewRef.current
-          ? [statusText("modulePreview.waitingForTarget", "Module Preview is waiting for the exact current target.")]
-          : [statusText("modulePreview.noValid", "No valid Module Preview is available yet.")]);
-        api.postMessage({ type: "webviewAuthoritativeDocumentReady", documentVersion: message.documentVersion });
+        setStatusMessages([statusText("modulePreview.noValid", "No valid Module Preview is available yet.")]);
+        api.postMessage({
+          type: "modulePreviewBootstrapAcknowledged",
+          sessionId: message.sessionId,
+          sessionGeneration: message.sessionGeneration,
+          documentUri: message.documentUri,
+          documentVersion: message.documentVersion
+        });
         return;
       }
       if (message.type === "modulePreviewTarget") {
-        if (documentVersionRef.current !== message.documentVersion) return;
+        if (
+          sessionIdRef.current !== message.sessionId ||
+          sessionGenerationRef.current !== message.sessionGeneration ||
+          sessionDocumentUriRef.current !== message.documentUri ||
+          documentVersionRef.current !== message.documentVersion
+        ) return;
         compileTargetAt(message.normalizedSourceOffset);
         return;
       }
       if (message.type === "modulePreviewTargetUnavailable") {
-        if (documentVersionRef.current !== message.documentVersion) return;
+        if (
+          sessionIdRef.current !== message.sessionId ||
+          sessionGenerationRef.current !== message.sessionGeneration ||
+          sessionDocumentUriRef.current !== message.documentUri ||
+          documentVersionRef.current !== message.documentVersion
+        ) return;
         clearPendingModelPatch();
         clearEphemeralPreview();
         previewRef.current = null;
@@ -1399,21 +1422,6 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
           });
           return;
         }
-        if (message.status !== "applied") {
-          setStatusMessages([
-            message.status === "stale"
-              ? statusText("modulePreview.editStale", "Module Preview edit became stale and was rejected.")
-              : statusText("modulePreview.editRejected", "Module Preview edit was rejected."),
-            ...(message.reason ? [{ kind: "raw" as const, message: message.reason }] : [])
-          ]);
-        }
-        return;
-      }
-      if (message.type === "modulePreviewInsertInstanceResult") {
-        if (
-          message.sessionId !== sessionIdRef.current ||
-          message.documentUri !== sessionDocumentUriRef.current
-        ) return;
         if (message.status !== "applied") {
           setStatusMessages([
             message.status === "stale"
