@@ -143,7 +143,7 @@
         "command": "nuinuiCAD.insertModulePreviewInstance",
         "key": "ctrl+shift+alt+i",
         "mac": "ctrl+shift+i",
-        "when": "((editorTextFocus && editorLangId == nui && resourceScheme == file && resourceExtname == .nui) || (activeWebviewPanelId == 'nuinuiCAD.modulePreview')) && nuinuiCAD.modulePreviewInsertAvailable && !inputFocus && !nuinuiCAD.webviewEditableFocus"
+        "when": "(editorTextFocus && editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.modulePreviewInsertAvailable) || (activeWebviewPanelId == 'nuinuiCAD.modulePreview' && !inputFocus && !nuinuiCAD.webviewEditableFocus && nuinuiCAD.modulePreviewInsertAvailable)"
       },
       {
         "command": "nuinuiCAD.inlineModuleInstance",
