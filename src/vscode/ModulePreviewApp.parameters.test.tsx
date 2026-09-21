@@ -1028,8 +1028,8 @@ describe("ModulePreviewApp Canvas and Preview boundary", () => {
     vi.spyOn(AutomationDocument, "fromSource").mockReturnValue(document);
     render(<ModulePreviewApp api={{ postMessage: mocks.postMessage }} />);
 
+    const bootstrap = modulePreviewBootstrapFor(sourceText);
     act(() => {
-      const bootstrap = modulePreviewBootstrapFor(sourceText);
       window.dispatchEvent(new MessageEvent("message", {
         data: bootstrap
       }));
@@ -1062,6 +1062,8 @@ describe("ModulePreviewApp Canvas and Preview boundary", () => {
     expect(screen.getByRole("status")).toHaveTextContent("パラメータ「width」には値が必要です。");
     expect(screen.getByRole("status")).not.toHaveTextContent("Parameter \"width\" requires a value.");
     const status = screen.getByRole("status");
+    expect(status.style.left).toBe("12px");
+    expect(status.style.right).toBe("");
     const emptySurface = globalThis.document.querySelector<HTMLElement>("[data-module-preview-empty='true']");
     expect(emptySurface).not.toBeNull();
     expect(JSON.parse(emptySurface?.getAttribute("data-vscode-context") ?? "{}")).toMatchObject({
@@ -1096,8 +1098,43 @@ describe("ModulePreviewApp Canvas and Preview boundary", () => {
     expect(liveSession.getState()?.parameters.parameters[0]).toMatchObject({ value: "12", active: true });
     expect(liveSession.getState()?.inputDiagnostics).toEqual([]);
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
-    expect(globalThis.document.querySelector<HTMLElement>("[data-module-preview-value-summary='true']"))
-      .toHaveTextContent("Target: Required.width = 12");
+    const summary = globalThis.document.querySelector<HTMLElement>("[data-module-preview-value-summary='true']");
+    expect(summary).toBe(status);
+    expect(summary).toHaveTextContent("Target: Required.width = 12");
+    expect(summary?.style.left).toBe("12px");
+    expect(summary?.style.right).toBe("");
+    expect(summary?.style.pointerEvents).toBe("none");
+    const summaryParameterLink = screen.getByRole("button", { name: "width" });
+    expect(summaryParameterLink.style.pointerEvents).toBe("auto");
+    fireEvent.click(summaryParameterLink);
+    const summarySiteRequest = mocks.postMessage.mock.calls
+      .map(([message]) => message)
+      .filter((message) => message?.type === "modulePreviewValueSiteEdit")
+      .at(-1);
+    expect(summarySiteRequest).toMatchObject({
+      type: "modulePreviewValueSiteEdit",
+      sessionId: bootstrap.sessionId,
+      documentUri: bootstrap.documentUri,
+      documentVersion: bootstrap.documentVersion,
+      normalizedSource: sourceText,
+      sourceRevision: expect.any(Number),
+      sessionRevision: expect.any(Number),
+      targetDefinitionStatementIndex: requiredTarget.definitionStatementIndex,
+      targetName: "Required",
+      definitionStatementIndex: definition.statementIndex,
+      definitionName: "Required",
+      blockKind: "target",
+      parameterIndex: 0,
+      parameterName: "width"
+    });
+    expect(summarySiteRequest).not.toHaveProperty("definitionStatementId");
+    if (!summarySiteRequest) throw new Error("expected summary Preview value-site request");
+    act(() => window.dispatchEvent(new MessageEvent("message", {
+      data: { ...summarySiteRequest, type: "modulePreviewValueEdit", expression: "18" }
+    })));
+    expect(mocks.session.setParameterValue).toHaveBeenLastCalledWith(definition.statementId, 0, "18");
+    expect(liveSession.getState()?.parameters.parameters[0]).toMatchObject({ value: "18", active: true });
+    expect(summary).toHaveTextContent("Target: Required.width = 18");
     expect(globalThis.document.querySelector<HTMLElement>("[data-module-preview-empty='true']")).toBeNull();
     expect(document.getSource()).toBe(sourceText);
   });
@@ -1143,13 +1180,77 @@ describe("ModulePreviewApp Canvas and Preview boundary", () => {
       })
     ];
     fixture.snapshot.parameters.parameters = summaryParameters as unknown as typeof fixture.snapshot.parameters.parameters;
+    (fixture.snapshot as ModulePreviewSessionSnapshot).ancestorContexts = [{
+      kind: "ancestor",
+      definitionStatementId: "module:outer",
+      definitionStatementIndex: 0,
+      name: "Outer",
+      parameters: [parameterFor({
+        definitionStatementId: "module:outer",
+        parameterIndex: 0,
+        name: "scale",
+        value: "2",
+        active: true,
+        defaultSourceText: null,
+        optional: false,
+        required: true
+      })]
+    }];
     renderPreviewFixture(fixture);
 
     const summary = globalThis.document.querySelector<HTMLElement>("[data-module-preview-value-summary='true']");
     expect(summary).not.toBeNull();
+    expect(summary?.style.left).toBe("12px");
+    expect(summary?.style.right).toBe("");
+    expect(summary?.style.pointerEvents).toBe("none");
+    expect(summary).toHaveTextContent("Context: Outer.scale = 2");
     expect(summary).toHaveTextContent("Target: Preview.explicit = 7");
     expect(summary).toHaveTextContent("Target: Preview.withDefault = omitted (default: 30)");
     expect(summary).toHaveTextContent("Target: Preview.optional = omitted (optional)");
+    for (const parameterName of ["scale", "explicit", "withDefault", "optional"]) {
+      const parameterLink = screen.getByRole("button", { name: parameterName });
+      expect(parameterLink.style.pointerEvents).toBe("auto");
+      fireEvent.click(parameterLink);
+    }
+    const summarySiteRequests = mocks.postMessage.mock.calls
+      .map(([message]) => message)
+      .filter((message) => message?.type === "modulePreviewValueSiteEdit");
+    expect(summarySiteRequests).toHaveLength(4);
+    expect(summarySiteRequests).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: "modulePreviewValueSiteEdit",
+        targetDefinitionStatementIndex: fixture.root.target.definitionStatementIndex,
+        targetName: "Preview",
+        definitionStatementIndex: 0,
+        definitionName: "Outer",
+        blockKind: "ancestor",
+        parameterIndex: 0,
+        parameterName: "scale"
+      }),
+      expect.objectContaining({
+        type: "modulePreviewValueSiteEdit",
+        targetDefinitionStatementIndex: fixture.root.target.definitionStatementIndex,
+        targetName: "Preview",
+        definitionStatementIndex: fixture.root.target.definitionStatementIndex,
+        definitionName: "Preview",
+        blockKind: "target",
+        parameterIndex: 0,
+        parameterName: "explicit"
+      }),
+      expect.objectContaining({
+        type: "modulePreviewValueSiteEdit",
+        blockKind: "target",
+        parameterIndex: 1,
+        parameterName: "withDefault"
+      }),
+      expect.objectContaining({
+        type: "modulePreviewValueSiteEdit",
+        blockKind: "target",
+        parameterIndex: 2,
+        parameterName: "optional"
+      })
+    ]));
+    expect(summarySiteRequests.every((message) => !Object.prototype.hasOwnProperty.call(message, "definitionStatementId"))).toBe(true);
   });
 
   it("starts authored-source Reference Pick from an initially invalid required geometry Preview", async () => {
