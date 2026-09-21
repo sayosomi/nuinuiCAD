@@ -84,6 +84,9 @@ export type ModulePreviewValueSummaryEntry = {
   groupName: string;
   parameterName: string;
   valueLabel: string;
+  blockKind: ModulePreviewInputGroup["kind"];
+  definitionStatementIndex: number;
+  parameterIndex: number;
 };
 
 /**
@@ -104,7 +107,10 @@ export const modulePreviewValueSummaryFor = (
         ? parameter.value
         : parameter.defaultSourceText === null
           ? "omitted (optional)"
-          : `omitted (default: ${parameter.defaultSourceText})`
+          : `omitted (default: ${parameter.defaultSourceText})`,
+      blockKind: group.kind,
+      definitionStatementIndex: group.definitionStatementIndex,
+      parameterIndex: parameter.parameterIndex
     }))
   );
 };
