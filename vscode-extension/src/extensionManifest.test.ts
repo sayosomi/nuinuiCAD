@@ -237,7 +237,7 @@ const webviewEditableFocusGuard = "!inputFocus && !nuinuiCAD.webviewEditableFocu
 const canvasFocusKeybindingWhen = `${canvasKeybindingWhen} && ${webviewEditableFocusGuard}`;
 const modulePreviewKeybindingWhen = `activeWebviewPanelId == 'nuinuiCAD.modulePreview' && ${webviewEditableFocusGuard}`;
 const modulePreviewValueEditKeybindingWhen = `(${sourceKeybindingWhen} && nuinuiCAD.modulePreviewSourceTarget) || (${modulePreviewKeybindingWhen})`;
-const modulePreviewInsertKeybindingWhen = `((${sourceKeybindingWhen}) || (activeWebviewPanelId == 'nuinuiCAD.modulePreview')) && nuinuiCAD.modulePreviewInsertAvailable && !inputFocus && !nuinuiCAD.webviewEditableFocus`;
+const modulePreviewInsertKeybindingWhen = `(${sourceKeybindingWhen} && ${modulePreviewInsertEnablement}) || (${modulePreviewKeybindingWhen} && ${modulePreviewInsertEnablement})`;
 const modulePreviewSelectionKeybindingWhen = `activeWebviewPanelId == 'nuinuiCAD.modulePreview' && nuinuiCAD.canvasHasSelection && ${webviewEditableFocusGuard}`;
 const outputPreviewKeybindingWhen = `activeWebviewPanelId == 'nuinuiCAD.outputPreview' && ${webviewEditableFocusGuard}`;
 const canvasSelectionKeybindingWhen = `${canvasKeybindingWhen} && nuinuiCAD.canvasHasSelection && ${webviewEditableFocusGuard}`;
@@ -1176,6 +1176,24 @@ describe("VS Code extension manifest keybindings", () => {
     expect(keybindings.filter(({ command }) => newBindingCommands.includes(command))).toEqual(expectedNewBindings);
     expect(keybindings.every(({ command }) =>
       existingBindingCommands.includes(command) || newBindingCommands.includes(command))).toBe(true);
+    const insertBinding = expectedNewBindings.find(({ command }) => command === "nuinuiCAD.insertModulePreviewInstance");
+    expect(insertBinding?.key).toBe("ctrl+shift+alt+i");
+    expect(insertBinding?.mac).toBe("ctrl+shift+i");
+    const insertWhenBranches = insertBinding?.when.split(" || ") ?? [];
+    expect(insertWhenBranches).toHaveLength(2);
+    const insertSourceWhen = insertWhenBranches[0] ?? "";
+    const insertModulePreviewWhen = insertWhenBranches[1] ?? "";
+    expect(insertSourceWhen).toContain("editorTextFocus");
+    expect(insertSourceWhen).toContain("editorLangId == nui");
+    expect(insertSourceWhen).toContain("resourceScheme == file");
+    expect(insertSourceWhen).toContain("resourceExtname == .nui");
+    expect(insertSourceWhen).toContain(modulePreviewInsertEnablement);
+    expect(insertSourceWhen).not.toContain("!inputFocus");
+    expect(insertSourceWhen).not.toContain("!nuinuiCAD.webviewEditableFocus");
+    expect(insertModulePreviewWhen).toContain("activeWebviewPanelId == 'nuinuiCAD.modulePreview'");
+    expect(insertModulePreviewWhen).toContain(modulePreviewInsertEnablement);
+    expect(insertModulePreviewWhen).toContain("!inputFocus");
+    expect(insertModulePreviewWhen).toContain("!nuinuiCAD.webviewEditableFocus");
     expect(expectedNewBindings.flatMap(({ key, mac }) => [key, mac]).every((shortcut) => !shortcut.includes(" "))).toBe(true);
     expect(new Set(newBindingCommands).size).toBe(expectedNewBindings.length);
 
