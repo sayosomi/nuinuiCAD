@@ -8,9 +8,26 @@ import type { NumericBindingRuntimeEntry } from "./numericBindingRuntime";
 import { toRustTextTemplateSegments, type RustTextTemplateSegment } from "./textTemplateRuntime";
 import type { ModuleMaterialization } from "@nuinuicad/nui-language";
 import type { GeometryInputCollectionNode } from "../types/geometry";
+import type { GeometryInputTarget } from "../types/geometry";
 
 type ConditionExpressionInput = { elementId: ElementId; expression: TypedScalarExpression };
 type TextTemplateInput = { elementId: ElementId; segments: readonly RustTextTemplateSegment[] };
+
+const rustGeometryInputTarget = (target: GeometryInputTarget): GeometryInputTarget => {
+  const withoutSourceText = { ...target } as GeometryInputTarget & { sourceText?: string };
+  delete withoutSourceText.sourceText;
+  if (withoutSourceText.kind === "geometryValueMap") {
+    return {
+      ...withoutSourceText,
+      source: rustGeometryInputTarget(withoutSourceText.source)
+    } as GeometryInputTarget;
+  }
+  return withoutSourceText as GeometryInputTarget;
+};
+
+const isGeometryInputTargetList = (
+  target: GeometryInputTarget | readonly GeometryInputTarget[]
+): target is readonly GeometryInputTarget[] => Array.isArray(target);
 
 export type EvaluateDocumentInput = {
   elements: CadElement[];
@@ -119,8 +136,13 @@ export const buildRustEvaluationInput = (
     ...(options.geometryInputTargetsByElementId?.size
       ? {
           geometryInputTargets: Array.from(options.geometryInputTargetsByElementId, ([elementId, parameters]) => ({
-            elementId,
-            parameters: Array.from(parameters, ([parameterKey, target]) => ({ parameterKey, target }))
+          elementId,
+            parameters: Array.from(parameters, ([parameterKey, target]) => ({
+              parameterKey,
+              target: isGeometryInputTargetList(target)
+                ? target.map((item) => rustGeometryInputTarget(item))
+                : rustGeometryInputTarget(target)
+            }))
           }))
         }
       : {}),

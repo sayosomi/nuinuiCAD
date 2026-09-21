@@ -22,6 +22,7 @@ export type DslPureValueInterface = "point" | "line" | "path";
 export const DSL_GEOMETRY_DECLARATION_CATEGORIES = [
   "point",
   "line",
+  "path",
   "curve",
   "arc",
   "text",
@@ -94,6 +95,7 @@ export const commonArgSpecs: DslArgSpec[] = [
 
 const constructionSpecs: DslConstructionSpec[] = [
   { category: "point", construction: "coordinate", elementType: "freePoint", pureValueInterface: "point", args: [arg("x"), arg("y")] },
+  { category: "point", construction: "from", elementType: "materializedPoint", args: [required("source")] },
   { category: "point", construction: "offset", elementType: "offsetPoint", pureValueInterface: "point", args: [required("from", "fromPoint"), arg("dx"), arg("dy")] },
   { category: "point", construction: "polar", elementType: "polarOffsetPoint", pureValueInterface: "point", args: [required("from", "fromPoint"), arg("angle", "angleDeg"), arg("distance")] },
   {
@@ -142,6 +144,7 @@ const constructionSpecs: DslConstructionSpec[] = [
     args: [required("source", "baseLineId"), arg("segmentIndex")],
   },
   { category: "line", construction: "segment", elementType: "line", pureValueInterface: "line", args: [required("start", "startPoint"), required("end", "endPoint")] },
+  { category: "line", construction: "from", elementType: "materializedLine", args: [required("source")] },
   { category: "line", construction: "polar", elementType: "angleLengthLine", pureValueInterface: "line", args: [required("start", "startPoint"), arg("angle", "angleDeg"), arg("length")] },
   {
     category: "line",
@@ -186,6 +189,7 @@ const constructionSpecs: DslConstructionSpec[] = [
     pureValueInterface: "path",
     args: [required("axis1", "axisPoint1"), required("axis2", "axisPoint2"), required("baseLines", "baseLineIds")],
   },
+  { category: "path", construction: "from", elementType: "materializedPath", args: [required("source")] },
   {
     category: "transformation",
     construction: "edge",

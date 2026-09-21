@@ -159,7 +159,7 @@ export const geometryKindOfCategory = (
   interfaceType: ModuleGeometryInterfaceType
 ): "point" | "line" | null =>
   interfaceType === "point" ? "point" : interfaceType === "line" || interfaceType === "path" ? "line" :
-    category === "point" ? "point" : category === "line" || category === "curve" || category === "arc" ? "line" : null;
+    category === "point" ? "point" : category === "line" || category === "path" || category === "curve" || category === "arc" ? "line" : null;
 
 const sourceForStatement = (statement: DslStatement): string => {
   const values = statement.kind === "moduleInstance"
@@ -741,6 +741,12 @@ export const resolverForBody = ({
           geometryType: carry.geometryKind,
           ...(carry.pointKey ? { pointKey: carry.pointKey } : {})
         } satisfies GeometryInputTarget;
+      }
+      const materializationSource = currentElement?.type === "materializedPoint" && site?.reference.target;
+      if (materializationSource) {
+        const lowered = lowerReference(site.reference, currentPath, statement, contextsByPath, materialization, exportsByPath, rootRecordValuesByStatementId);
+        const loweredTarget = lowered ? geometryInputTargetSourceForAlias(lowered) : null;
+        if (loweredTarget && loweredTarget.kind !== "collectionIndex") return loweredTarget;
       }
       const indexed = resolvePointReferenceAt?.(token, statementIndex, currentPath, site?.reference.target ?? undefined);
       if (indexed) return indexed;

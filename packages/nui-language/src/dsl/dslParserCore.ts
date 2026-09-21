@@ -67,6 +67,7 @@ export { dslStatementKeywordCompletions, dslStatementKeywords } from "./dslState
 const callCategoryKeywords = new Set<string>([
   dslStatementKeywords.point,
   dslStatementKeywords.line,
+  dslStatementKeywords.path,
   dslStatementKeywords.curve,
   dslStatementKeywords.arc,
   dslStatementKeywords.text,

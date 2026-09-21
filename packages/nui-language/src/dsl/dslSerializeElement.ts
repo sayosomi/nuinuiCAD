@@ -69,6 +69,8 @@ const specialArgText = (element: CadElement, arg: DslArgSpec, refs: DslSerialize
 };
 
 const ordinaryArgText = (element: CadElement, parameterKey: string, refs: DslSerializerRefs): string => {
+  const compilerOwnedSource = refs.geometryInputSource(element, parameterKey);
+  if (compilerOwnedSource !== undefined) return compilerOwnedSource;
   const value = getParameterValue(element, parameterKey);
   const definition = findParameterDefinition(element, parameterKey);
   if (!definition) throw new Error(`Missing parameter definition for ${element.type}.${parameterKey}`);

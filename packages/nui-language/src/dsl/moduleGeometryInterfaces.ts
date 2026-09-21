@@ -43,6 +43,8 @@ export const moduleGeometryInterfaceTypeOfConstruction = (
 ): ModuleGeometryInterfaceType | null => {
   if (!construction) return null;
   if (category === "point") return "point";
+  if (category === "path") return "path";
+  if (construction.construction === "from" && category === "line") return "line";
   if (category !== "line" && category !== "curve" && category !== "arc") return null;
   return construction.elementType === "line" || construction.elementType === "angleLengthLine" || construction.elementType === "commonTangentLine"
     ? "line"

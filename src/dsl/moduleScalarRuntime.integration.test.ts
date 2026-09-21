@@ -767,6 +767,49 @@ describe("module scalar runtime integration", () => {
     });
   });
 
+  it("materializes a Module geometry parameter through the shared source target", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "line Baseline = segment(start: (0, 0), end: (10, 0))",
+      "point SourcePoint = coordinate(x: 3, y: 4)",
+      "module PointConsumer(input: point) {",
+      "  export point PointOutput = from(source: @input)",
+      "}",
+      "instance PointUse = PointConsumer(input: @SourcePoint)",
+      "module Consumer(input: path) {",
+      "  export path Output = from(source: @input)",
+      "}",
+      "instance Use = Consumer(input: @Baseline)",
+      "path RootCopy = from(source: @Use::Output)"
+    ].join("\n"), "materialized-module-geometry");
+    expectValid(compiled);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const output = elementNamed(compiled, "Output");
+    expect(output.type).toBe("materializedPath");
+    expect(result.computedGeometry.get(output.id)).toMatchObject({
+      kind: "line",
+      elementId: output.id,
+      start: { x: 0, y: 0 },
+      end: { x: 10, y: 0 }
+    });
+    const rootCopy = elementNamed(compiled, "RootCopy");
+    expect(result.computedGeometry.get(rootCopy.id)).toMatchObject({
+      kind: "line",
+      elementId: rootCopy.id,
+      start: { x: 0, y: 0 },
+      end: { x: 10, y: 0 }
+    });
+    const pointOutput = elementNamed(compiled, "PointOutput");
+    expect(result.computedGeometry.get(pointOutput.id)).toMatchObject({
+      kind: "point",
+      elementId: pointOutput.id,
+      x: 3,
+      y: 4
+    });
+  });
+
   it("evaluates a geometry builtin operand projected from a root record field", () => {
     const compiled = compileWithIds([
       "nui 1",

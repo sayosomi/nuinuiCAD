@@ -196,7 +196,7 @@ describe("module semantic editor range view", () => {
     const privateRename = analyzeModuleSemanticRename(templateSource, document, { kind: "moduleSource", statementId: "statement:template:5" }, "renamedLine");
     expect(privateRename.verdict).toBe("ok");
     if (privateRename.verdict === "ok") expect(privateRename.entries.map((entry) => entry.oldName)).toEqual(["lineA", "lineA"]);
-    const parameterRename = analyzeModuleSemanticRename(templateSource, document, { kind: "moduleParameter", slot: { definitionStatementId: "statement:template:4", parameterIndex: 0 } }, "path");
+    const parameterRename = analyzeModuleSemanticRename(templateSource, document, { kind: "moduleParameter", slot: { definitionStatementId: "statement:template:4", parameterIndex: 0 } }, "renamedParameter");
     expect(parameterRename.verdict).toBe("ok");
     if (parameterRename.verdict === "ok") expect(parameterRename.entries.map((entry) => entry.oldName)).toEqual(["lineParam", "lineParam"]);
     const exportRename = analyzeModuleSemanticRename(templateSource, document, { kind: "moduleSource", statementId: "statement:template:2" }, "renamedExport");

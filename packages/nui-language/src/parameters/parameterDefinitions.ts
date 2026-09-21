@@ -121,6 +121,21 @@ const parameterDefinitionsForElement = (
   element: CadElement,
 ): ParameterDefinition[] => {
   switch (element.type) {
+    case "materializedPoint":
+      return [
+        ...commonParameters,
+        { key: "source", label: "ソース", kind: "reference", allowCoordinate: false, valueType: { kind: "point" } }
+      ];
+    case "materializedLine":
+      return [
+        ...commonParameters,
+        { key: "source", label: "ソース", kind: "lineReference", valueType: { kind: "line" } }
+      ];
+    case "materializedPath":
+      return [
+        ...commonParameters,
+        { key: "source", label: "ソース", kind: "lineReference", valueType: { kind: "path" } }
+      ];
     case "group":
       return [
         ...commonParameters

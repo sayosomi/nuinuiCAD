@@ -11,6 +11,9 @@ const rustSupportedElementTypes = new Set<CadElement["type"]>([
   "conditionalGroup",
   "forGroup",
   "moduleInstance",
+  "materializedPoint",
+  "materializedLine",
+  "materializedPath",
   "freePoint",
   "offsetPoint",
   "polarOffsetPoint",
@@ -43,6 +46,8 @@ const rustSupportedElementTypes = new Set<CadElement["type"]>([
 ]);
 
 const rustSupportedLineReferenceTypes = new Set<CadElement["type"]>([
+  "materializedLine",
+  "materializedPath",
   "line",
   "angleLengthLine",
   "commonTangentLine",
@@ -59,6 +64,7 @@ const rustSupportedLineReferenceTypes = new Set<CadElement["type"]>([
 ]);
 
 const rustSupportedPointReferenceTypes = new Set<CadElement["type"]>([
+  "materializedPoint",
   "freePoint",
   "offsetPoint",
   "polarOffsetPoint",
@@ -71,6 +77,8 @@ const rustSupportedPointReferenceTypes = new Set<CadElement["type"]>([
 ]);
 
 const rustSupportedDerivedPointSourceTypes = new Set<CadElement["type"]>([
+  "materializedLine",
+  "materializedPath",
   "line",
   "angleLengthLine",
   "commonTangentLine",
@@ -346,6 +354,20 @@ const canUseRustEvaluationForElement = (
     options.textTemplateEntriesByElementId,
     textPropertyBoundElementIds
   )) return false;
+  if (element.type === "materializedPoint") {
+    const target = options.geometryInputTargetsByElementId?.get(element.id)?.get("source");
+    const candidates = target && Array.isArray(target) ? target : target ? [target] : [];
+    return candidates.length > 0 && candidates.every((candidate) =>
+      referencesRustSupportedPointTargetValue(candidate, elementsById)
+    );
+  }
+  if (element.type === "materializedLine" || element.type === "materializedPath") {
+    const target = options.geometryInputTargetsByElementId?.get(element.id)?.get("source");
+    const candidates = target && Array.isArray(target) ? target : target ? [target] : [];
+    return candidates.length > 0 && candidates.every((candidate) =>
+      referencesRustSupportedLineTargetValue(candidate, elementsById)
+    );
+  }
   if (
     pointAnchorsForElement(element).some(
       (anchor) => !referencesRustSupportedPointAnchor(anchor, elementsById)

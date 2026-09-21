@@ -13,8 +13,10 @@ import { evaluatePointElement } from "./pointEvaluators";
 import { evaluateSplitLineElement } from "./splitLineEvaluator";
 import { evaluateSymmetricCopyLineElement } from "./symmetricCopyLineEvaluator";
 import { evaluateTextElement } from "./textEvaluator";
+import { evaluateMaterializedElement } from "./materializedEvaluator";
 
 export const evaluateElement = (element: CadElement, context: ElementEvaluationContext) => {
+  if (evaluateMaterializedElement(element, context)) return;
   if (evaluatePointElement(element, context)) return;
   if (evaluateCornerRadiusArcLineElement(element, context)) return;
   if (evaluateLineElement(element, context)) return;

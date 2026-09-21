@@ -78,10 +78,13 @@ export const resolveTransformationStageSelection = ({
           (occurrenceIndex !== undefined && target.occurrenceIndex === undefined)))
       .map((target) => [...target.stagePath, recipe.stageName!])
     : []);
+  const explicitFinalPaths = namedPaths.map((path) => [...path, "final"]);
   const candidates: readonly (readonly string[])[] = [
     ["base"],
     ["final"],
-    ...namedPaths
+    ["base", "final"],
+    ...namedPaths,
+    ...explicitFinalPaths
   ];
   let selected: readonly string[] | undefined;
   for (const candidate of candidates) {

@@ -41,6 +41,19 @@ describe("Source creation template planning", () => {
     }]);
   });
 
+  it.each([
+    ["addMaterializedPoint", "point", "from", "materializedPoint", "reference"],
+    ["addMaterializedLine", "line", "from", "materializedLine", "lineReference"],
+    ["addMaterializedPath", "path", "from", "materializedPath", "lineReference"]
+  ] as const)("plans %s through the shared materialization metadata", (commandId, category, construction, elementType, kind) => {
+    const plan = planFor(commandId);
+    expect(plan).toMatchObject({ commandId, category, construction, elementType, hasNameHole: true });
+    expect(plan.forms).toEqual([{
+      argumentHoles: [{ argName: "source", parameterKey: "source", kind, label: "ソース" }],
+      exclusiveChoices: []
+    }]);
+  });
+
   it("plans addJoinedPath through the shared catalog with an ordered paths hole", () => {
     const plan = planFor("addJoinedPath");
 

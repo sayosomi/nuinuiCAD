@@ -33,7 +33,10 @@ export const legacyCreationCommandRecipeMap = {
   addSymmetricCopyLine: { type: "symmetricCopyLine", recipeKind: "specialized" },
   addMove: { type: "move", recipeKind: "specialized" },
   addSymmetricMove: { type: "symmetricMove", recipeKind: "specialized" },
-  addSplitLine: { type: "splitLine", recipeKind: "fallback" }
+  addSplitLine: { type: "splitLine", recipeKind: "fallback" },
+  addMaterializedPoint: { type: "materializedPoint", recipeKind: "fallback" },
+  addMaterializedLine: { type: "materializedLine", recipeKind: "fallback" },
+  addMaterializedPath: { type: "materializedPath", recipeKind: "fallback" }
 } as const satisfies Readonly<Record<string, {
   type: CadElementType;
   recipeKind: "specialized" | "fallback";

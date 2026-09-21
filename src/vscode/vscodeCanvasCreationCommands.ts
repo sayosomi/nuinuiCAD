@@ -164,6 +164,18 @@ const presentationByCommandId = {
   addSplitLine: {
     quickPickLabel: "Split Line",
     keywords: ["split", "divide", "line", "分割", "分割線", "線", "追加"]
+  },
+  addMaterializedPoint: {
+    quickPickLabel: "Point from Source",
+    keywords: ["from", "source", "materialize", "point", "ソース", "点", "作成"]
+  },
+  addMaterializedLine: {
+    quickPickLabel: "Line from Source",
+    keywords: ["from", "source", "materialize", "line", "ソース", "線", "作成"]
+  },
+  addMaterializedPath: {
+    quickPickLabel: "Path from Source",
+    keywords: ["from", "source", "materialize", "path", "ソース", "パス", "作成"]
   }
 } satisfies Record<VscodeCanvasCreationCommandId, VscodeCanvasCreationPresentation>;
 

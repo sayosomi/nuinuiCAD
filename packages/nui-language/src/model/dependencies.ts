@@ -79,6 +79,9 @@ export const getDirectParentIds = (
     switch (element.type) {
       case "group":
       case "moduleInstance":
+      case "materializedPoint":
+      case "materializedLine":
+      case "materializedPath":
         return [];
       case "conditionalGroup":
         return [
@@ -259,6 +262,9 @@ export const getDirectParentIds = (
     case "forGroup":
       return numericExpressionParentIds();
     case "freePoint":
+    case "materializedPoint":
+    case "materializedLine":
+    case "materializedPath":
       return numericExpressionParentIds();
     case "offsetPoint":
     case "polarOffsetPoint":

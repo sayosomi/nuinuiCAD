@@ -616,10 +616,15 @@ export const buildRootGeometryValueProgram = ({
   };
 
   return values.flatMap((value): GeometryValueProgramEntry[] => {
-    if ((!value.construction && !value.valueExpression) || value.ownerModuleDefinitionStatementId !== null) return [];
+    if ((!value.construction && !value.valueExpression && !value.initializer) || value.ownerModuleDefinitionStatementId !== null) return [];
     const construction = value.valueExpression
       ? lowerExpression(value, value.valueExpression)
-      : lowerConstruction(value);
+      : value.initializer
+        ? (() => {
+            const target = targetForReference(value.initializer!);
+            return target ? { kind: "reference" as const, target } : null;
+          })()
+        : lowerConstruction(value);
     return construction
       ? [{
           sourceStatementId: value.statementId,

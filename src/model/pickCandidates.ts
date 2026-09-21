@@ -3,8 +3,17 @@ import {
   numericReferenceGeometrySupportsProperty,
   type NumericReferenceGeometry
 } from "../geometry/numericReferenceProperties";
-import { getParameterDefinitions } from "@nuinuicad/nui-language";
-import { getParameterValue } from "@nuinuicad/nui-language";
+import {
+  constructionForElementType,
+  dslRequiredValueTypeOf,
+  dslValueTypeForParameterDefinition,
+  getParameterDefinitions,
+  getParameterValue,
+  isDslGeometryValueType,
+  isModuleGeometryInterfaceAssignable,
+  moduleGeometryInterfaceTypeOfConstruction,
+  moduleGeometryInterfaceTypeOfElement
+} from "@nuinuicad/nui-language";
 import {
   runtimeOnlyElementTypes,
   type CadElement,
@@ -36,6 +45,7 @@ import type {
 } from "../state/cadUiStore";
 import type { PickModeDraftEntry } from "./pickModeSession";
 import type { CommandLineSession } from "../commands/commandLineSession";
+import { creationParameterDefinitionFor } from "../commands/creationRecipes";
 import {
   commandLinePointPickTargetIds,
   commandLinePickNormalizationTargetId,
@@ -55,7 +65,56 @@ import {
   numericGeometryStaticTargetForElementInDocument,
   numericGeometryStaticTargetForModuleInterface
 } from "../geometry/numericGeometryProperties";
-import { moduleGeometryInterfaceTypeOfElement } from "@nuinuicad/nui-language";
+
+type StaticGeometryInterface = "point" | "line" | "path";
+
+const staticGeometryInterfaceForParameter = (
+  definition: ReturnType<typeof getParameterDefinitions>[number] | undefined
+): StaticGeometryInterface | null => {
+  const valueType = dslRequiredValueTypeOf(dslValueTypeForParameterDefinition(definition));
+  return isDslGeometryValueType(valueType) ? valueType.kind : null;
+};
+
+const expectedLinePickInterface = (
+  targetElement: CadElement | undefined,
+  target: ActiveLinePickTarget,
+  commandLineStep: ReturnType<typeof commandLineStepForPickTarget>,
+  commandLineSession?: CommandLineSession | null
+): StaticGeometryInterface | null => {
+  const definition = targetElement
+    ? getParameterDefinitions(targetElement).find((candidate) => candidate.key === target.parameterKey)
+    : commandLineStep && commandLineSession
+      ? (() => {
+          try {
+            return creationParameterDefinitionFor(commandLineSession.recipe.type, commandLineStep.key);
+          } catch {
+            return undefined;
+          }
+        })()
+      : undefined;
+  return staticGeometryInterfaceForParameter(definition);
+};
+
+const staticGeometryInterfaceForCandidate = (
+  candidate: PickCandidateGeometry,
+  moduleSemanticContext?: ModuleSemanticCandidateContext
+): StaticGeometryInterface | null => {
+  const origin = moduleSemanticContext?.moduleMaterialization?.originByRuntimeElementId.get(candidate.templateElement.id);
+  if (origin?.kind === "moduleBody") {
+    const declaration = moduleSemanticContext?.sourceLexicalNamespace?.allDeclarations.find(
+      (entry) => entry.statementId === origin.sourceStatementId
+    );
+    if (declaration?.kind === "geometry") {
+      return moduleGeometryInterfaceTypeOfElement(declaration.statement);
+    }
+  }
+  try {
+    const construction = constructionForElementType(candidate.templateElement.type);
+    return moduleGeometryInterfaceTypeOfConstruction(construction.category, construction);
+  } catch {
+    return null;
+  }
+};
 
 export type PickOption =
   | {
@@ -315,6 +374,13 @@ const lineCandidates = (
   moduleSemanticContext?: ModuleSemanticCandidateContext
 ): PickCandidate[] => {
   const targetElement = elements.find((element) => element.id === activeLinePickTarget.elementId);
+  const commandLineStep = commandLineStepForPickTarget(activeLinePickTarget, commandLineSession);
+  const expectedGeometryInterface = expectedLinePickInterface(
+    targetElement,
+    activeLinePickTarget,
+    commandLineStep,
+    commandLineSession
+  );
   const parameterValue = pickModeDraft
     ?.filter((entry): entry is Extract<PickModeDraftEntry, { kind: "line" }> => entry.kind === "line")
     .map((entry) => entry.lineId) ?? (targetElement
@@ -355,6 +421,13 @@ const lineCandidates = (
         candidate.geometry.kind !== "point" &&
         candidate.geometry.kind !== "image" &&
         candidate.geometry.kind !== "text" &&
+        (expectedGeometryInterface === null || (() => {
+          const actualGeometryInterface = staticGeometryInterfaceForCandidate(candidate, moduleSemanticContext);
+          return actualGeometryInterface === null || isModuleGeometryInterfaceAssignable(
+            actualGeometryInterface,
+            expectedGeometryInterface
+          );
+        })()) &&
         isEnabledPickSource(evaluation, candidate.geometry.elementId) &&
         (pickModeDraft !== undefined ||
           (!selectedLineIds.has(candidate.templateElement.id) &&

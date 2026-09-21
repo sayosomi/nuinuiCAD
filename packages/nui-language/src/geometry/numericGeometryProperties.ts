@@ -301,6 +301,7 @@ export const numericGeometryStaticTargetForElement = (
 ): NumericGeometryStaticTarget | null => {
   switch (element.type) {
     case "freePoint":
+    case "materializedPoint":
     case "offsetPoint":
     case "polarOffsetPoint":
     case "divisionPoint":
@@ -311,6 +312,8 @@ export const numericGeometryStaticTargetForElement = (
     case "bezierBulgePoint":
       return targetForFamily("point");
     case "line":
+    case "materializedLine":
+    case "materializedPath":
     case "angleLengthLine":
     case "commonTangentLine":
       return targetForFamily("line");

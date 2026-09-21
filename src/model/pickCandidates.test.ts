@@ -377,7 +377,7 @@ describe("pickCandidates", () => {
     const withUnnamed = [...elements.slice(0, 2), unnamedLine, ...elements.slice(2)];
     const withUnnamedEvaluation: EvaluationResult = {
       ...evaluation,
-      computedGeometry: new Map([
+      computedGeometry: new Map<string, ComputedGeometry>([
         ...evaluation.computedGeometry,
         ["unnamed-line", { ...line, elementId: "unnamed-line", name: "" }]
       ])
@@ -480,6 +480,94 @@ describe("pickCandidates", () => {
       activeNumericReferencePickTarget: null
     });
     expect(lineCandidates.map((candidate) => candidate.elementId)).toEqual(["line", "curve"]);
+  });
+
+  it("filters materialization line and path targets by static geometry interface", () => {
+    const materializedLine: CadElement = {
+      id: "materialized-line",
+      name: "Materialized line",
+      type: "materializedLine",
+      activity: "visible"
+    };
+    const materializedPath: CadElement = {
+      id: "materialized-path",
+      name: "Materialized path",
+      type: "materializedPath",
+      activity: "visible"
+    };
+    const strictTarget: CadElement = {
+      id: "strict-target",
+      name: "Strict target",
+      type: "materializedLine",
+      activity: "visible"
+    };
+    const broadTarget: CadElement = {
+      id: "broad-target",
+      name: "Broad target",
+      type: "materializedPath",
+      activity: "visible"
+    };
+    const sourceElements = [
+      elements[0]!,
+      elements[1]!,
+      elements[2]!,
+      materializedLine,
+      materializedPath,
+      strictTarget,
+      broadTarget
+    ];
+    const sourceEvaluation: EvaluationResult = {
+      ...evaluation,
+      computedGeometry: new Map<string, ComputedGeometry>([
+        ["a", point("a", 0, 0)],
+        ["line", line],
+        ["curve", curve],
+        ["materialized-line", { ...line, elementId: "materialized-line", name: "Materialized line" }],
+        ["materialized-path", { ...line, elementId: "materialized-path", name: "Materialized path" }]
+      ])
+    };
+
+    const candidateIdsFor = (target: CadElement) => pickCandidates(sourceElements, sourceEvaluation, {
+      activePointPickTarget: null,
+      activeLinePickTarget: { elementId: target.id, parameterKey: "source" },
+      activeNumericReferencePickTarget: null
+    }).map((candidate) => candidate.elementId);
+
+    expect(candidateIdsFor(strictTarget)).toEqual(["line", "materialized-line"]);
+    expect(candidateIdsFor(strictTarget)).not.toContain("curve");
+    expect(candidateIdsFor(strictTarget)).not.toContain("materialized-path");
+    expect(candidateIdsFor(broadTarget)).toEqual([
+      "line",
+      "curve",
+      "materialized-line",
+      "materialized-path"
+    ]);
+  });
+
+  it("keeps ordinary broad line-reference targets broad", () => {
+    const offsetTarget: CadElement = {
+      id: "offset-target",
+      name: "Offset target",
+      type: "offsetLine",
+      activity: "visible",
+      baseLineIds: [],
+      offset: 1,
+      side: "right",
+      closed: false
+    };
+    const sourceElements = [...elements, offsetTarget];
+    const sourceEvaluation: EvaluationResult = {
+      ...evaluation,
+      computedGeometry: new Map([
+        ...evaluation.computedGeometry,
+        ["offset-target", { ...line, elementId: "offset-target", name: "Offset target" }]
+      ])
+    };
+    expect(pickCandidates(sourceElements, sourceEvaluation, {
+      activePointPickTarget: null,
+      activeLinePickTarget: { elementId: offsetTarget.id, parameterKey: "baseLineIds" },
+      activeNumericReferencePickTarget: null
+    }).map((candidate) => candidate.elementId)).toEqual(["line", "curve"]);
   });
 
   it("keeps the first direct child of a normal planned group in command-line point candidates", () => {

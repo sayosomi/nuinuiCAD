@@ -74,6 +74,7 @@ import {
   pickVscodeCreationCommand,
   sortVscodeCreationCommandsForQuickPick
 } from "./creationCommandQuickPick";
+import { canvasQuickCreateDescriptionFor } from "./canvasQuickCreateLocalization";
 import { createSourceCreationMru } from "./sourceCreationMru";
 
 beforeEach(() => {
@@ -83,6 +84,27 @@ beforeEach(() => {
 });
 
 describe("pickVscodeCreationCommand", () => {
+  it("presents all three materialization entries and filters them by source vocabulary", async () => {
+    const pending = pickVscodeCreationCommand({
+      displayLanguage: "en-US",
+      recentCommandIds: []
+    });
+    const picker = mocks.quickPicks[0]!;
+
+    expect(picker.items.filter(({ commandId }) => commandId.startsWith("addMaterialized"))).toEqual([
+      expect.objectContaining({ commandId: "addMaterializedLine", label: "Line from Source" }),
+      expect.objectContaining({ commandId: "addMaterializedPath", label: "Path from Source" }),
+      expect.objectContaining({ commandId: "addMaterializedPoint", label: "Point from Source" })
+    ]);
+    picker.fireValue("materialize point");
+    expect(picker.items.map(({ commandId }) => commandId)).toEqual(["addMaterializedPoint"]);
+    picker.fireValue("ソース パス");
+    expect(picker.items.map(({ commandId }) => commandId)).toEqual(["addMaterializedPath"]);
+
+    picker.fireHide();
+    await expect(pending).resolves.toBeUndefined();
+  });
+
   it("sorts initial and filtered presentation without changing catalog membership", async () => {
     const englishPending = pickVscodeCreationCommand({
       displayLanguage: "en-US",
@@ -291,6 +313,12 @@ describe("pickVscodeCreationCommand", () => {
       "addText"
     ]);
     expect(entries.map(({ commandId }) => commandId)).toEqual(["addText", "addLine"]);
+  });
+
+  it("localizes materialization descriptions through the generic Create Geometry wrapper", () => {
+    expect(canvasQuickCreateDescriptionFor("addMaterializedPoint", "en-US")).toBe("Create Point from Source");
+    expect(canvasQuickCreateDescriptionFor("addMaterializedLine", "ja-JP")).toBe("ソースから線を作成");
+    expect(canvasQuickCreateDescriptionFor("addMaterializedPath", "en-US")).toBe("Create Path from Source");
   });
 
 });

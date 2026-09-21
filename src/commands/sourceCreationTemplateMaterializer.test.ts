@@ -54,6 +54,20 @@ describe("Source creation template materializer", () => {
     )).toEqual(["name", "start", "end"]);
   });
 
+  it.each([
+    ["addMaterializedPoint", "point"],
+    ["addMaterializedLine", "line"],
+    ["addMaterializedPath", "path"]
+  ] as const)("materializes %s as the canonical %s from-source declaration", (commandId, category) => {
+    const materialization = materializeFor(commandId);
+    expect(render(materialization.parts)).toBe([
+      `${category} <name> = from(`,
+      "  source: <source>",
+      ")"
+    ].join("\n"));
+    expect(argumentHolesFor(materialization).map(({ argName }) => argName)).toEqual(["source"]);
+  });
+
   it("copies argument-hole metadata directly from the selected planner form", () => {
     const plan = planFor("addLine");
     const materialization = materializeFor("addLine");

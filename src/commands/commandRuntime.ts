@@ -22,6 +22,8 @@ export const getSelectedElement = () => {
 };
 
 export const isLineLikeElement = (element: CadElement) =>
+  element.type === "materializedLine" ||
+  element.type === "materializedPath" ||
   element.type === "line" ||
   element.type === "angleLengthLine" ||
   element.type === "commonTangentLine" ||
@@ -37,6 +39,7 @@ export const isLineLikeElement = (element: CadElement) =>
   element.type === "symmetricCopyLine";
 
 export const isPointLikeElement = (element: CadElement) =>
+  element.type === "materializedPoint" ||
   element.type === "freePoint" ||
   element.type === "offsetPoint" ||
   element.type === "polarOffsetPoint" ||
