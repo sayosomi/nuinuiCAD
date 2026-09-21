@@ -123,7 +123,7 @@ describe("queryDslTypoSuggestions", () => {
     expect(result?.candidates[0]).toMatchObject({ kind: "geometry", label: "Anchor", distance: 1 });
     expect(result?.candidates.map((candidate) => candidate.label)).not.toContain("Anchur");
     expect(result?.candidates.map((candidate) => candidate.label)).not.toContain("Anchra");
-    expect(result?.candidates.map((candidate) => candidate.label)).not.toContain("Anchre");
+    expect(result?.candidates.map((candidate) => candidate.label)).toContain("Anchre");
   });
 
   it("reuses Module callee and argument candidates", () => {
@@ -149,13 +149,13 @@ describe("queryDslTypoSuggestions", () => {
     expect(argument?.candidates.map((candidate) => candidate.label)).toContain("startPoint");
   });
 
-  it("keeps forward, wrong-callable, already-used, and exclusive-group names out of candidates", () => {
+  it("includes valid later names while filtering wrong-callable, already-used, and exclusive-group names", () => {
     const forward = [
       "nui 1",
       "const use: number = @ltaerName",
       "const laterName: number = 10"
     ].join("\n");
-    expect(labels(forward, "undefined-binding")).not.toContain("laterName");
+    expect(labels(forward, "undefined-binding")).toContain("laterName");
 
     const wrongCallable = "nui 1\npoint P = coordinate(statr: 0, y: 0)";
     expect(labels(wrongCallable, "unknown-construction-argument")).not.toContain("start");
@@ -229,13 +229,7 @@ describe("queryDslTypoSuggestions", () => {
       "const later: number = 10"
     ].join("\n");
     const forwardCompiled = compileWithIds(forwardSource);
-    const forwardDiagnostic = diagnosticsOf(forwardCompiled).find((item) => item.code === "forward-binding-reference");
-    expect(forwardDiagnostic).toBeDefined();
-    expect(queryDslTypoSuggestions({
-      source: { normalizedSource: forwardSource, sourceRevision: SOURCE_REVISION },
-      diagnostic: forwardDiagnostic!,
-      semantic: { sourceRevision: SOURCE_REVISION, compiled: forwardCompiled }
-    })).toBeNull();
+    expect(diagnosticsOf(forwardCompiled).some((item) => item.code === "forward-binding-reference")).toBe(false);
 
     const mismatchSource = "nui 1\npoint P = segment(start: @A, end: @B)";
     const mismatchCompiled = compileWithIds(mismatchSource);

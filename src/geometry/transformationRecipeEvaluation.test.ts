@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { compileDslToElements } from "@nuinuicad/nui-language";
+import { compileDslDocument, compileDslToElements } from "@nuinuicad/nui-language";
+import { emptyDocument } from "@nuinuicad/nui-language";
+import { compileCanonicalText, regenerateCanonicalFromModel } from "@nuinuicad/nui-language/document";
 import { transformationStageKey } from "@nuinuicad/nui-language";
 import type { ComputedGeometry, ComputedLine } from "../types/geometry";
 import { evaluateElements } from "./evaluate";
+import { buildEvaluationOptions } from "./productionEvaluationContext";
 
 const compileAndEvaluate = (source: string) => {
   const compiled = compileDslToElements(source, { elements: [], mode: "document" });
@@ -23,7 +26,130 @@ const lineOf = (geometry: ComputedGeometry | undefined): ComputedLine => {
   return geometry as ComputedLine;
 };
 
+const compileCanonicalAndEvaluate = (source: string) => {
+  const baseline = regenerateCanonicalFromModel(emptyDocument(), 1);
+  const result = compileCanonicalText(baseline, source);
+  if (result.status === "fatal") throw new Error(JSON.stringify(result.diagnostics));
+  const compiled = result.doc;
+  return {
+    compiled,
+    evaluation: evaluateElements(
+      compiled.document.elements,
+      buildEvaluationOptions({ compiledDocument: compiled, evaluationLimitIndex: undefined })
+    )
+  };
+};
+
+const scalarByName = (compiled: ReturnType<typeof compileCanonicalAndEvaluate>["compiled"], name: string) => {
+  const binding = compiled.bindingAnalysis?.catalog.bindings.find((candidate) => candidate.name === name);
+  if (!binding) throw new Error(`missing scalar binding ${name}`);
+  return binding.id;
+};
+
 describe("transformation recipe evaluation", () => {
+  it("waits for forward recipe arguments and keeps base reads non-cyclic", () => {
+    const { compiled, evaluation } = compileAndEvaluate([
+      "line A = segment(start: (0, 0), end: (1, 0))",
+      "move A (from: @B.start, to: (10, 0))",
+      "line B = segment(start: (5, 0), end: (6, 0))"
+    ].join("\n"));
+    expect(evaluation.errors).toEqual([]);
+    expect(lineOf(evaluation.computedGeometry.get(compiled.elements[0]!.id)).start.x).toBe(5);
+
+    const baseRead = compileDslDocument([
+      "nui 1",
+      "line A = segment(start: (0, 0), end: (1, 0))",
+      "move A (from: @A.base.start, to: (2, 0))"
+    ].join("\n"));
+    expect(baseRead.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(baseRead.typedDependencyGraph?.transformationPlans[0]?.argumentDependencies[0]?.stagePath).toEqual(["base"]);
+  });
+
+  it("keeps recipe/stage dependencies in the canonical graph and diagnoses final self reads", () => {
+    const valid = compileDslDocument([
+      "nui 1",
+      "line A = segment(start: (0, 0), end: (1, 0))",
+      "move A as moved (from: (0, 0), to: (1, 0))",
+      "reverse A ()",
+      "move A (from: @A.moved.start, to: (2, 0))"
+    ].join("\n"));
+    const plans = valid.typedDependencyGraph?.transformationPlans ?? [];
+    expect(plans).toHaveLength(3);
+    expect(plans[2]?.predecessorRecipeIndices).toEqual([0, 1]);
+    expect(plans[2]?.argumentDependencies[0]?.stagePath).toEqual(["moved"]);
+    expect(valid.typedDependencyGraph?.edges.some((edge) => edge.from.kind === "transformation-recipe" && edge.to.kind === "geometry-stage")).toBe(true);
+
+    const cycle = compileDslDocument([
+      "nui 1",
+      "line A = segment(start: (0, 0), end: (1, 0))",
+      "move A (from: @A.start, to: (2, 0))"
+    ].join("\n"));
+    expect(cycle.diagnostics.map((diagnostic) => diagnostic.code)).toContain("dependency-cycle");
+  });
+
+  it("reads final, base, and named immutable stages through the compiled scalar geometry IR", () => {
+    const { compiled, evaluation } = compileCanonicalAndEvaluate([
+      "nui 1",
+      "line A = segment(start: (0, 0), end: (10, 0))",
+      "move A as moved (from: (0, 0), to: (10, 0))",
+      "move A (from: (0, 0), to: (20, 0))",
+      "line StageStart = segment(start: @A.moved.start, end: (20, 0))",
+      "line MovedOffset = offset(sources: [@A.moved], distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
+      "const finalLength: number = @A.length",
+      "const explicitFinalLength: number = @A.final.length",
+      "const baseLength: number = @A.base.length",
+      "const movedLength: number = @A.moved.length"
+    ].join("\n"));
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(evaluation.errors).toEqual([]);
+    expect(evaluation.computedScalarBindings?.get(scalarByName(compiled, "finalLength"))).toMatchObject({ status: "ok", value: { value: 10 } });
+    expect(evaluation.computedScalarBindings?.get(scalarByName(compiled, "explicitFinalLength"))).toMatchObject({ status: "ok", value: { value: 10 } });
+    expect(evaluation.computedScalarBindings?.get(scalarByName(compiled, "baseLength"))).toMatchObject({ status: "ok", value: { value: 10 } });
+    expect(evaluation.computedScalarBindings?.get(scalarByName(compiled, "movedLength"))).toMatchObject({ status: "ok", value: { value: 10 } });
+    expect((evaluation.computedGeometry.get(compiled.document.elements.find((element) => element.name === "StageStart")!.id) as ComputedLine).start.x).toBe(10);
+    const aId = compiled.document.elements.find((element) => element.name === "A")!.id;
+    const movedOffset = compiled.document.elements.find((element) => element.name === "MovedOffset")!;
+    const movedOffsetTargets = compiled.geometryInputTargetsByElementId?.get(movedOffset.id);
+    expect([...((movedOffsetTargets?.values() ?? []) as Iterable<unknown>)].flatMap((target) => Array.isArray(target) ? target : [target]))
+      .toEqual(expect.arrayContaining([expect.objectContaining({ stagePath: ["moved"] })]));
+    expect(lineOf(evaluation.computedGeometry.get(movedOffset.id)).start.x).toBe(10);
+    expect(evaluation.transformationStageGeometry?.get(transformationStageKey(aId, undefined, ["moved"]))).toBeDefined();
+  });
+
+  it("publishes a named root recipe through final and delays final consumers", () => {
+    const { compiled, evaluation } = compileCanonicalAndEvaluate([
+      "nui 1",
+      "line A = segment(start: (0, 0), end: (10, 0))",
+      "line Consumer = segment(start: @A.start, end: (30, 0))",
+      "move A as moved (from: (0, 0), to: (10, 0))"
+    ].join("\n"));
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(evaluation.errors).toEqual([]);
+
+    const owner = compiled.document.elements.find((element) => element.name === "A")!;
+    const consumer = compiled.document.elements.find((element) => element.name === "Consumer")!;
+    expect(lineOf(evaluation.computedGeometry.get(owner.id))).toMatchObject({
+      start: { x: 10, y: 0 },
+      end: { x: 20, y: 0 }
+    });
+    expect(lineOf(evaluation.computedGeometry.get(consumer.id)).start).toMatchObject({ x: 10, y: 0 });
+  });
+
+  it("evaluates a selected lazy forward geometry dependency after its target is scheduled", () => {
+    const { compiled, evaluation } = compileCanonicalAndEvaluate([
+      "nui 1",
+      "const chooseLater: boolean = true",
+      "const selectedLength: number = if (@chooseLater) { @Later.length } else { 0 }",
+      "line Later = segment(start: (0, 0), end: (10, 0))"
+    ].join("\n"));
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(evaluation.errors).toEqual([]);
+    expect(evaluation.computedScalarBindings?.get(scalarByName(compiled, "selectedLength"))).toMatchObject({
+      status: "ok",
+      value: { value: 10 }
+    });
+  });
+
   it("bypasses disabled clauses and keeps immutable checkpoints plus branch finals", () => {
     const { compiled, evaluation } = compileAndEvaluate([
       "line A = segment(start: (0, 0), end: (10, 0))",
@@ -89,5 +215,26 @@ describe("transformation recipe evaluation", () => {
     expect(lineOf(evaluation.transformationStageGeometry!.get(
       transformationStageKey(bId, undefined, ["joined"])
     )).start.y).toBe(0);
+  });
+
+  it("orders a later recipe after a coupled recipe for a non-first target", () => {
+    const source = [
+      "nui 1",
+      "line A = segment(start: (0, 0), end: (100, 0))",
+      "line B = segment(start: (50, -50), end: (50, 50))",
+      "edge [A.end, B.start] as joined (index: 0)",
+      "reverse B ()"
+    ].join("\n");
+    const compiledDocument = compileDslDocument(source);
+    expect(compiledDocument.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(compiledDocument.typedDependencyGraph?.transformationPlans[1]?.predecessorRecipeIndices).toContain(0);
+
+    const { compiled, evaluation } = compileAndEvaluate(source.replace(/^nui 1\n/, ""));
+    expect(evaluation.errors).toEqual([]);
+    const bId = compiled.elements.find((element) => element.name === "B")!.id;
+    expect(lineOf(evaluation.computedGeometry.get(bId))).toMatchObject({
+      start: { x: 50, y: 50 },
+      end: { x: 50, y: 0 }
+    });
   });
 });

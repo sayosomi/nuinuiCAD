@@ -1513,13 +1513,13 @@ describe("pure geometry construction runtime", () => {
     expect(metadata.diagnostics.filter((diagnostic) => diagnostic.code === "geometry-value-drawable-metadata")).toHaveLength(5);
   });
 
-  it("keeps later references fail-closed", () => {
+  it("resolves forward geometry references through the declarative graph", () => {
     const compiled = compile([
       "nui 1",
       "line Later = segment(start: @P, end: (1, 0))",
       "const P: point = coordinate(x: 0, y: 0)"
     ].join("\n"));
-    expect(compiled.diagnostics.some((diagnostic) => diagnostic.message.includes("この位置より後"))).toBe(true);
+    expect(compiled.diagnostics.some((diagnostic) => diagnostic.message.includes("この位置より後"))).toBe(false);
     expect(compiled.document?.elements.map((element) => element.name)).toEqual(["Later"]);
   });
 

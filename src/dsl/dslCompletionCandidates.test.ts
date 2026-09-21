@@ -28,7 +28,7 @@ const lineOf = (source: string, needle: string): number => {
 };
 
 describe("dslReferenceCompletionOptions", () => {
-  it("uses the live scope and strictly excludes the cursor line and later statements", () => {
+  it("uses the live lexical scope and includes later declarations", () => {
     const groupLines = dslLinesForElements([
       { id: "outer", name: "Outer", type: "group", activity: "visible" },
       { id: "a", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0, parentGroupId: "outer" },
@@ -54,7 +54,7 @@ describe("dslReferenceCompletionOptions", () => {
     }).map((option) => option.label);
     expect(options).toContain("A");
     expect(options).toContain("AB.start");
-    expect(options).not.toContain("Later");
+    expect(options).toContain("Later");
 
     const currentLineOptions = dslReferenceCompletionOptions({
       source,

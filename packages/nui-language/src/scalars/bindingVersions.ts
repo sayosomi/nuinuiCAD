@@ -83,10 +83,6 @@ export type BindingVersionGraph = {
   versionsById: ReadonlyMap<BindingVersionId, BindingVersion>;
   versionIdsByBindingId: ReadonlyMap<BindingId, readonly BindingVersionId[]>;
   timelinesByBindingId: ReadonlyMap<BindingId, BindingVersionTimeline>;
-  /** Statement-stream cutoff inherited from the compiled scalar program. */
-  evaluationLimitSourceOrder?: number;
-  /** Resolved printLayout bindings that remain evaluable after stop. */
-  postStopBindingIds?: ReadonlySet<BindingId>;
   /** Module calls can require ordered execution even when no set exists. */
   requiresExecutionOrdering?: boolean;
   /** Immutable statement-for carry plans. This is a value snapshot/commit
@@ -365,12 +361,6 @@ export const buildBindingVersionGraph = ({
     versionsById,
     versionIdsByBindingId,
     timelinesByBindingId,
-    ...(scalarProgram.evaluationLimitSourceOrder === undefined
-      ? {}
-      : { evaluationLimitSourceOrder: scalarProgram.evaluationLimitSourceOrder }),
-    ...(scalarProgram.postStopBindingIds?.length
-      ? { postStopBindingIds: new Set(scalarProgram.postStopBindingIds) }
-      : {}),
     ...(requiresExecutionOrdering ? { requiresExecutionOrdering: true } : {})
   };
 };

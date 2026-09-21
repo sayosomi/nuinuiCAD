@@ -287,7 +287,7 @@ describe("source lexical namespace index", () => {
     ]));
   });
 
-  it("keeps nested shadowing source-ordered without allowing a later local to shadow an outer declaration", () => {
+  it("uses the nearer lexical declaration even when it is written later", () => {
     const { parsed, stableIds } = parseWithStableIds([
       "nui 1",
       "const X: number = 1",
@@ -302,11 +302,11 @@ describe("source lexical namespace index", () => {
     const before = resolveSourceLexicalPath(index, 3, parseDslReferenceToken("X"));
     const after = resolveSourceLexicalPath(index, 5, parseDslReferenceToken("X"));
 
-    expect(before).toMatchObject({ kind: "resolved", declaration: { kind: "typedDeclaration", name: "X", statementId: "stable-1" } });
+    expect(before).toMatchObject({ kind: "resolved", declaration: { kind: "geometry", name: "X", statementId: "stable-4" } });
     expect(after).toMatchObject({ kind: "resolved", declaration: { kind: "geometry", name: "X", statementId: "stable-4" } });
   });
 
-  it("reports later same-scope declarations as forward rather than falling through when no outer declaration exists", () => {
+  it("resolves later same-scope declarations declaratively", () => {
     const { parsed, stableIds } = parseWithStableIds([
       "nui 1",
       "group G {",
@@ -317,8 +317,7 @@ describe("source lexical namespace index", () => {
     const index = buildSourceLexicalNamespaceIndex(parsed.statements, stableIds);
     const lookup = resolveSourceLexicalPath(index, 2, parseDslReferenceToken("G::Later"));
 
-    expect(lookup).toMatchObject({ kind: "forward", scopeId: "group:stable-1" });
-    if (lookup.kind === "forward") expect(lookup.declarations.map((declaration) => declaration.statementId)).toEqual(["stable-3"]);
+    expect(lookup).toMatchObject({ kind: "resolved", declaration: { kind: "geometry", statementId: "stable-3" } });
   });
 
   it("resolves nested qualified group paths and rejects traversal through a non-container", () => {
@@ -345,7 +344,7 @@ describe("source lexical namespace index", () => {
     });
   });
 
-  it("distinguishes qualified missing, forward, and ambiguous intermediate results", () => {
+  it("distinguishes qualified missing, resolved, and ambiguous intermediate results", () => {
     const { parsed, stableIds } = parseWithStableIds([
       "nui 1",
       "group G {",
@@ -361,7 +360,10 @@ describe("source lexical namespace index", () => {
     const index = buildSourceLexicalNamespaceIndex(parsed.statements, stableIds);
 
     expect(resolveSourceLexicalPath(index, 9, parseDslReferenceToken("G::Missing"))).toEqual({ kind: "undefined" });
-    expect(resolveSourceLexicalPath(index, 2, parseDslReferenceToken("G::Later"))).toMatchObject({ kind: "forward" });
+    expect(resolveSourceLexicalPath(index, 2, parseDslReferenceToken("G::Later"))).toMatchObject({
+      kind: "resolved",
+      declaration: { statementId: "stable-3" }
+    });
     expect(resolveSourceLexicalPath(index, 9, parseDslReferenceToken("A::member"))).toMatchObject({ kind: "ambiguous" });
   });
 
@@ -403,7 +405,7 @@ describe("source lexical namespace index", () => {
     expect(compiled.document).toBeNull();
   });
 
-  it("keeps a qualified typed scalar forward result in the canonical namespace", () => {
+  it("keeps a qualified typed scalar result in the canonical namespace", () => {
     const source = [
       "nui 1",
       "group G {",
@@ -415,8 +417,8 @@ describe("source lexical namespace index", () => {
     const compiled = compileDslDocument(source, { preparsed: parsed, assignedStatementIds: stableIds });
     const reference = compiled.bindingAnalysis?.initializerReferences.find((candidate) => candidate.name === "G::X");
 
-    expect(reference?.resolution).toMatchObject({ kind: "namespace", reason: "forward" });
-    expect(compiled.diagnostics).toEqual(expect.arrayContaining([expect.objectContaining({ code: "forward-binding-reference" })]));
+    expect(reference?.resolution).toMatchObject({ kind: "resolved", binding: { name: "X" } });
+    expect(compiled.diagnostics).not.toEqual(expect.arrayContaining([expect.objectContaining({ code: "forward-binding-reference" })]));
     expect(compiled.diagnostics).not.toEqual(expect.arrayContaining([
       expect.objectContaining({ code: "undefined-binding", message: expect.stringContaining("G::X") })
     ]));

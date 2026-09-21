@@ -253,9 +253,9 @@ describe("CommandLineBar", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 100, y: 0)",
-      "stop",
       "point C = coordinate(x: 200, y: 0)"
     ].join("\n"), "test");
+    useCadDocumentStore.getState().commitDocumentChange({ evaluationLimitIndex: 2 });
     publishTestCanvasSelectionEligibility();
     renderBar();
     const pointA = useCadDocumentStore.getState().elements.find((item) => item.name === "A")!;
@@ -292,11 +292,12 @@ describe("CommandLineBar", () => {
     expect(useCadUiStore.getState().commandLineSession?.args.startPoint).toEqual({ mode: "reference", pointId: pointA.id });
     expect(useCadUiStore.getState().commandLineSession?.editingStepIndex).toBeNull();
 
-    // Outside the shared candidate set (unevaluated, past stop) nothing is offered.
+    // The source language has no stop boundary; later declarations remain
+    // eligible through the same declarative candidate set.
     act(() => { startCommandLineStepEdit(1); });
     act(() => { useCadUiStore.getState().setActivePickCursor(null); });
     act(() => { useCadUiStore.getState().setSelectedElementId(pointC.id); });
-    expect(screen.queryByText(/Enterで選択中を採用/)).not.toBeInTheDocument();
+    expect(screen.getByText("Enterで選択中を採用：C")).toBeInTheDocument();
   });
 
   it("keeps a planned group's first child in the shared name candidates and pick cursor", () => {

@@ -3,10 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import { dslTextForElements } from "@nuinuicad/nui-language";
-import type { DslDocumentData } from "@nuinuicad/nui-language";
 import { SourceEditorController } from "./sourceEditorController";
 import type { PositionedDiagnostic } from "./sourceEditorDiagnostics";
-import type { AtStopRange } from "./statementRangeIndex";
 import type { EvaluationResult } from "../types/geometry";
 import { evaluateElements } from "../geometry/evaluate";
 import { pickModeSessionForTarget } from "../model/pickModeSession";
@@ -21,8 +19,6 @@ const twoPointSource = () => dslTextForElements([
   { id: "b", name: "B", type: "freePoint", activity: "visible", x: 1, y: 1 }
 ]);
 
-// stopの直前で評価を打ち切った文書(A有効・B以降は評価対象外)。
-const stoppedSource = (elements: DslDocumentData["elements"]) => dslTextForElements(elements, 1);
 
 vi.mock("../commands/commands", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../commands/commands")>()),
@@ -48,7 +44,6 @@ type ControllerInternals = {
     statuses: readonly { elementId: string; disabledSelf: boolean }[];
     generatedWidgets: readonly unknown[];
   };
-  atStopRange: AtStopRange | null;
   staleDiagnosticBaseline: PositionedDiagnostic[];
   runEscape: () => boolean;
   handleElementStateGutterAction: (lineFrom: number) => boolean;
@@ -272,89 +267,6 @@ describe("SourceEditorController evaluation revision gating", () => {
     controller.destroy();
     parent.remove();
   });
-});
-
-describe("SourceEditorController stop mapping", () => {
-  beforeEach(() => {
-    useCadDocumentStore.setState(initialCadDocumentState());
-    useCadUiStore.setState(initialCadUiState());
-    vi.useFakeTimers();
-    Object.defineProperty(Range.prototype, "getClientRects", { configurable: true, value: () => [] });
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-    vi.useRealTimers();
-  });
-
-  it("resolves the stop marker to the committed line when clean", () => {
-    useCadDocumentStore.getState().commitText(stoppedSource([
-      { id: "a", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 },
-      { id: "b", name: "B", type: "freePoint", activity: "visible", x: 1, y: 1 }
-    ]), "test");
-    const parent = document.createElement("div");
-    const controller = new SourceEditorController(parent);
-    const internals = controller as unknown as ControllerInternals;
-
-    const stopLine = internals.view.state.doc.line(6);
-    expect(internals.atStopRange).toEqual({ from: stopLine.from, to: stopLine.to });
-
-    controller.destroy();
-  });
-
-  it("remaps the stop range through a dirty edit above it instead of using a stale line number", () => {
-    useCadDocumentStore.getState().commitText(stoppedSource([
-      { id: "a", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 },
-      { id: "b", name: "B", type: "freePoint", activity: "visible", x: 1, y: 1 }
-    ]), "test");
-    const parent = document.createElement("div");
-    const controller = new SourceEditorController(parent);
-    const internals = controller as unknown as ControllerInternals;
-    const originalFrom = internals.atStopRange!.from;
-
-    internals.view.dispatch({ changes: { from: 0, insert: "// note\n" } });
-    expect(internals.atStopRange).not.toBeNull();
-    expect(internals.atStopRange!.from).toBeGreaterThan(originalFrom);
-
-    controller.destroy();
-  });
-
-  it("hides the stop marker when an edit fully covers its line, rather than drawing it at a wrong position", () => {
-    useCadDocumentStore.getState().commitText(stoppedSource([
-      { id: "a", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 },
-      { id: "b", name: "B", type: "freePoint", activity: "visible", x: 1, y: 1 }
-    ]), "test");
-    const parent = document.createElement("div");
-    const controller = new SourceEditorController(parent);
-    const internals = controller as unknown as ControllerInternals;
-    const stopRange = internals.atStopRange!;
-
-    internals.view.dispatch({
-      changes: { from: stopRange.from, to: Math.min(internals.view.state.doc.length, stopRange.to + 1), insert: "" }
-    });
-    expect(internals.atStopRange).toBeNull();
-
-    controller.destroy();
-  });
-
-  it("invalidates stop when any part of its token changes", () => {
-    // stopは末尾要素の後に何も続かない場合serializer(layoutElementTree)からは
-    // 出力されない(次要素の直前にのみ挿入される仕組みのため)が、stop自体は
-    // v1/v2間で不変のキーワードなので末尾に直接付与しても構文上問題ない。
-    const source = `${dslTextForElements([
-      { id: "a", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 }
-    ])}\nstop`;
-    useCadDocumentStore.getState().commitText(source, "test");
-    const parent = document.createElement("div");
-    const controller = new SourceEditorController(parent);
-    const internals = controller as unknown as ControllerInternals;
-    const stopRange = internals.atStopRange!;
-
-    internals.view.dispatch({ changes: { from: stopRange.from + 1, to: stopRange.from + 2, insert: "x" } });
-    expect(internals.atStopRange).toBeNull();
-    controller.destroy();
-  });
-
   it("routes state gutter actions through the activity cycle command", () => {
     useCadDocumentStore.getState().commitText(dslTextForElements([
       { id: "a", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 }

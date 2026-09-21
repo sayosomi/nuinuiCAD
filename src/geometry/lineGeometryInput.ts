@@ -13,7 +13,11 @@ const geometryForTarget = (
   context: ElementEvaluationContext,
   target: GeometryInputTarget
 ) => {
-  if (target.kind === "drawable") return context.computedGeometry.get(target.elementId);
+  if (target.kind === "drawable") {
+    return context.resolveGeometrySnapshot
+      ? context.resolveGeometrySnapshot(target.elementId, target.stagePath)
+      : context.computedGeometry.get(target.elementId);
+  }
   if (target.kind === "geometryValue") return valueForOccurrence(context, target.occurrence);
   return undefined;
 };

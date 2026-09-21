@@ -263,6 +263,9 @@ export const buildRootGeometryValueProgram = ({
     if (!reference.target) return undefined;
     const unwrapped = unwrapModuleGeometrySourceTarget(reference.target);
     const target = unwrapped.target;
+    const stagePath = "stagePath" in reference.target
+      ? reference.target.stagePath
+      : "stagePath" in target ? target.stagePath : undefined;
     if (target.kind === "geometryCarry") {
       return {
         kind: "target",
@@ -272,7 +275,8 @@ export const buildRootGeometryValueProgram = ({
           statementId: target.statementId,
           statementIndex: target.statementIndex,
           geometryType: target.geometryKind,
-          ...(unwrapped.pointKey ? { pointKey: unwrapped.pointKey } : {})
+          ...(unwrapped.pointKey ? { pointKey: unwrapped.pointKey } : {}),
+          ...(stagePath ? { stagePath } : {})
         }
       };
     }
@@ -285,7 +289,8 @@ export const buildRootGeometryValueProgram = ({
           statementId: target.statementId,
           statementIndex: target.statementIndex,
           geometryType: target.declaredInterfaceType === "point" ? "point" : "line",
-          ...(unwrapped.pointKey ? { pointKey: unwrapped.pointKey } : {})
+          ...(unwrapped.pointKey ? { pointKey: unwrapped.pointKey } : {}),
+          ...(stagePath ? { stagePath } : {})
         }
       };
     }
@@ -298,7 +303,8 @@ export const buildRootGeometryValueProgram = ({
               statementId: elementId,
               statementIndex: target.statementIndex,
               geometryType: target.geometryKind,
-              ...(unwrapped.pointKey ? { pointKey: unwrapped.pointKey } : {})
+              ...(unwrapped.pointKey ? { pointKey: unwrapped.pointKey } : {}),
+              ...(stagePath ? { stagePath } : {})
             }
           }
         : undefined;
@@ -310,6 +316,9 @@ export const buildRootGeometryValueProgram = ({
     if (!reference.target) return undefined;
     const unwrapped = unwrapModuleGeometrySourceTarget(reference.target);
     const target = unwrapped.target;
+    const stagePath = "stagePath" in reference.target
+      ? reference.target.stagePath
+      : "stagePath" in target ? target.stagePath : undefined;
     if (target.kind === "geometryCarry") {
       return {
         kind: "target",
@@ -319,7 +328,8 @@ export const buildRootGeometryValueProgram = ({
           statementId: target.statementId,
           statementIndex: target.statementIndex,
           geometryType: target.geometryKind,
-          ...(unwrapped.pointKey ? { pointKey: unwrapped.pointKey } : {})
+          ...(unwrapped.pointKey ? { pointKey: unwrapped.pointKey } : {}),
+          ...(stagePath ? { stagePath } : {})
         }
       };
     }
@@ -332,7 +342,8 @@ export const buildRootGeometryValueProgram = ({
           statementId: target.statementId,
           statementIndex: target.statementIndex,
           geometryType: target.declaredInterfaceType,
-          ...(unwrapped.pointKey ? { pointKey: unwrapped.pointKey } : {})
+          ...(unwrapped.pointKey ? { pointKey: unwrapped.pointKey } : {}),
+          ...(stagePath ? { stagePath } : {})
         }
       };
     }
@@ -345,7 +356,8 @@ export const buildRootGeometryValueProgram = ({
               statementId: elementId,
               statementIndex: target.statementIndex,
               geometryType: target.geometryKind,
-              ...(unwrapped.pointKey ? { pointKey: unwrapped.pointKey } : {})
+              ...(unwrapped.pointKey ? { pointKey: unwrapped.pointKey } : {}),
+              ...(stagePath ? { stagePath } : {})
             }
           }
         : undefined;

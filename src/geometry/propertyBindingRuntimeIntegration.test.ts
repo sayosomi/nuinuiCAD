@@ -342,7 +342,7 @@ describe("Task 23 standard property runtime, end-to-end through the real compile
     });
   });
 
-  it("preserves the concrete choice type for unavailable, invalid-member, and too-late reads", () => {
+  it("preserves the concrete choice type for unavailable and invalid-member reads", () => {
     const source = arc("source", 0, 90);
     const evaluation = evaluateElements([source]);
     const type = directionType();
@@ -362,9 +362,9 @@ describe("Task 23 standard property runtime, end-to-end through the real compile
       issueCode: "evaluation-geometry-property-unavailable"
     });
     expect(resolveDocumentGeometryProperty(runtime, geometryProperty(source.id, "direction", 1, type), 1)).toEqual({
-      status: "error",
+      status: "ok",
       type,
-      issueCode: "evaluation-geometry-property-unavailable"
+      value: { kind: "choice", value: "counterclockwise", options: type.options }
     });
   });
 

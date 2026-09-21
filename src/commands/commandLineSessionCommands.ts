@@ -279,7 +279,7 @@ const editingDraftIsParseable = (draftSession: CommandLineSession) => {
 /**
  * Validates an edit draft through the same ghost path as normal creation
  * before copying it into confirmed args. "not-evaluated" (insertion after
- * `stop`, inside a disabled group, || an inactive conditional branch) is not
+ * an explicit evaluation slice, inside a disabled group, || an inactive conditional branch) is not
  * a rejection: no preview exists there by design, exactly as during initial
  * fill, so the edit only needs the Tier-A shape check. A global
  * "missing-input" caused exclusively by future prompts is likewise not an

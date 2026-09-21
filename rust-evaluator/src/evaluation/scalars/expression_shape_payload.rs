@@ -10,7 +10,8 @@
 use serde_json::{Map, Value};
 
 use super::expression_leaf_payload::{
-    decode_binary_operator, decode_nullable_scalar_type, decode_span, decode_unary_operator,
+    decode_binary_operator, decode_nullable_scalar_type, decode_span, decode_stage_path,
+    decode_unary_operator,
 };
 use super::issue::ScalarPayloadIssue;
 use super::issue::ScalarPayloadIssueCode as Code;
@@ -327,6 +328,7 @@ fn decode_call_target(json: &Value) -> Result<TypedScalarCallTarget, ScalarPaylo
     Ok(TypedScalarCallTarget::Builtin(builtin))
 }
 
+#[allow(clippy::large_enum_variant)]
 pub(crate) enum CallArgumentShape<'a> {
     Scalar {
         expression: &'a Value,
@@ -370,6 +372,7 @@ pub(crate) fn decode_geometry_target_payload(
             "statementIndex",
             "geometryType",
             "pointKey",
+            "stagePath",
             "occurrence",
             "binderId",
             "bindingId",
@@ -572,11 +575,16 @@ pub(crate) fn decode_geometry_target_payload(
             Some(point_key.to_owned())
         }
     };
+    let stage_path = decode_stage_path(
+        object.get("stagePath"),
+        "geometry reference target stagePath",
+    )?;
     Ok(Some(ScalarExpressionResolvedGeometryTarget {
         statement_id,
         statement_index,
         geometry_type,
         point_key,
+        stage_path,
         geometry_value_occurrence,
         geometry_value_binder_id,
         for_group_template_element_id,
@@ -691,6 +699,7 @@ fn decode_optional_geometry_property_reference(
             "kind",
             "elementId",
             "property",
+            "stagePath",
             "targetSourceOrder",
             "templateElementId",
             "index",
@@ -721,6 +730,10 @@ fn decode_optional_geometry_property_reference(
         )
     })?
     .to_owned();
+    let stage_path = decode_stage_path(
+        object.get("stagePath"),
+        "optional member geometry-property reference stagePath",
+    )?;
     let r#type = decode_scalar_type(require_field(
         object,
         "type",
@@ -744,6 +757,7 @@ fn decode_optional_geometry_property_reference(
                 .ok_or_else(|| issue(Code::InvalidFieldType, "optional member drawable reference elementId must be a non-empty string"))?
                 .to_owned(),
             property,
+            stage_path,
             target_source_order: decode_optional_order(object, "targetSourceOrder", "optional member drawable reference targetSourceOrder")?,
             r#type,
         }),
@@ -754,6 +768,7 @@ fn decode_optional_geometry_property_reference(
                 .ok_or_else(|| issue(Code::InvalidFieldType, "optional member forGroup reference templateElementId must be a non-empty string"))?
                 .to_owned(),
             property,
+            stage_path,
             target_source_order: decode_optional_order(object, "targetSourceOrder", "optional member forGroup reference targetSourceOrder")?,
             point_key,
             r#type,
@@ -764,6 +779,7 @@ fn decode_optional_geometry_property_reference(
                 "optional member geometry-value occurrence",
             )?,
             property,
+            stage_path,
             point_key,
             target_source_order: decode_optional_order(object, "targetSourceOrder", "optional member geometry-value reference targetSourceOrder")?,
             r#type,
@@ -775,6 +791,7 @@ fn decode_optional_geometry_property_reference(
                 .ok_or_else(|| issue(Code::InvalidFieldType, "optional member binder reference binderId must be a non-empty string"))?
                 .to_owned(),
             property,
+            stage_path,
             point_key,
             target_source_order: decode_optional_order(object, "targetSourceOrder", "optional member binder reference targetSourceOrder")?,
             r#type,

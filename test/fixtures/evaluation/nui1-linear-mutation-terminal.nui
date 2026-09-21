@@ -12,4 +12,4 @@ for i in range(min: 0, max: 1, step: 1) carry value: number = @AB.length carry m
   next mirror = @value
 }
 text Label = label(text: "${@label} ${@value}", anchor: none, size: 3)
-stop
+// declarative evaluation continues; source stop is no longer valid nui1 syntax

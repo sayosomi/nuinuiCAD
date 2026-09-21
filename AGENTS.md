@@ -27,9 +27,10 @@ curves, dimensions, labels, notches, seam allowances, grain lines, and printable
 physical units.
 
 Do not introduce a full generic geometric constraint solver unless the product
-need is explicit. The core engine should remain a deterministic construction
-evaluator: elements are evaluated in document order, and invalid dependencies
-are reported rather than silently repaired.
+need is explicit. The core engine should remain a deterministic declarative
+construction evaluator: the compiler resolves lexical identities and builds a
+dependency graph, hosts evaluate required nodes in dependency order, and
+invalid dependencies or cycles are reported rather than silently repaired.
 
 Use millimeters as the conceptual unit. Rendering may map millimeters to pixels,
 but geometry values should remain physical units so export and printing stay
@@ -112,14 +113,18 @@ Never describe a future architecture or proposed design as current architecture.
 
 ## Evaluation and dependencies
 
-Elements are evaluated from top to bottom. An element may only reference
-geometry that has already been evaluated earlier in the document order. Do not
-automatically sort, repair, or reorder elements to hide dependency problems.
+Elements are evaluated from the canonical compiler-resolved dependency graph.
+Unrelated source positions do not impose evaluation order. Same-owner
+transformation recipes retain authored local order, while construction,
+geometry-property, scalar, gate, Module occurrence, and stage dependencies are
+scheduled through the graph. Do not add a second resolver or scheduler, and do
+not sort source merely to hide dependency problems.
 
 Dependency errors should be explicit and actionable. Include the broken element
 ID/name, the missing or unavailable dependency ID/name when known, and a
 human-readable message explaining whether the dependency is missing, disabled,
-invalid, or appears too late.
+invalid, or part of a dependency cycle. A later declaration is not a
+dependency error when it is legal in the same lexical scope.
 
 Elements with dependency errors should be visibly marked in the UI. Invalid
 geometry should not be drawn as normal valid geometry; either omit it or render
@@ -136,8 +141,8 @@ Style `visible` is presentation-only and cannot override a direct or ancestor
 `visible: false`. Existing UI/status `activity` values may remain as derived
 projections, but are not a language-level computation model.
 
-For now, document order can continue to serve as both evaluation order and
-display order unless a change explicitly introduces separate visual layering.
+Document order remains the display order unless a change explicitly introduces
+separate visual layering; it is not a global evaluation dependency.
 
 The Rust evaluation core is the production source of truth for CAD document
 evaluation. Production hosts that evaluate documents must reuse the same Rust
@@ -262,9 +267,11 @@ importer, or migration layer does not currently exist; do not add old-format
 compatibility without an explicit Task.
 
 The persisted document is one `.nui` DSL text file. `.nui` `sourceText` is
-canonical. Document-order deterministic evaluation, no automatic dependency
-sorting, Rust-first evaluation, and statement-level source editing are current
-rules. Keep document edits on the established canonical source-edit boundary.
+canonical. Source order is the authored document/display/edit order; required
+nodes are evaluated through the canonical dependency graph, while same-owner
+recipe order remains authored order. Rust-first evaluation and statement-level
+source editing are current rules. Keep document edits on the established
+canonical source-edit boundary.
 Canvas and command model edits must use statement-level text splices through the
 document bridge. Do not add a whole-file reserialization mutation path that can
 damage comments, blank lines, or user layout.

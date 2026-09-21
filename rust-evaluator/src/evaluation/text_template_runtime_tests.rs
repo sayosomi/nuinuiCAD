@@ -17,6 +17,7 @@ fn input(
     text_property_bindings: Option<Value>,
 ) -> EvaluationInput {
     EvaluationInput {
+        evaluation_order: None,
         geometry_input_targets: None,
         geometry_collection_nodes: None,
         geometry_value_program: None,

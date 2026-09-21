@@ -350,7 +350,7 @@
       "patterns": [
         {
           "name": "keyword.control.nui",
-          "match": "(?<![\\p{L}\\p{N}_-])(?:if|else|for|in|stop|next)(?![\\p{L}\\p{N}_-])"
+          "match": "(?<![\\p{L}\\p{N}_-])(?:if|else|for|in|next)(?![\\p{L}\\p{N}_-])"
         },
         {
           "name": "keyword.operator.logical.nui",

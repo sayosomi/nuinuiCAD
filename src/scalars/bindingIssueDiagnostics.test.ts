@@ -53,15 +53,11 @@ describe("bindingIssuesToDiagnostics", () => {
     expect(diagnostics[0].navigationTarget).toEqual({ kind: "sourceSpan", physicalSpan: diagnostics[0].physicalSpan });
   });
 
-  it("converts forward-binding-reference at the exact reference token", () => {
+  it("does not diagnose a legal later binding", () => {
     const source = ["nui 1", "const x: number = @y", "const y: number = 1"].join("\n");
     const fixture = typedDeclarationAnalysisFor(source);
     const diagnostics = bindingIssuesToDiagnostics(fixture.bindingAnalysis, fixture.statements, fixture.spans);
-    expect(diagnostics).toHaveLength(1);
-    expect(diagnostics[0].code).toBe("forward-binding-reference");
-    const [segment] = diagnostics[0].physicalSpan!.segments;
-    expect(source.slice(segment.from, segment.to)).toBe("@y");
-    expect(diagnostics[0].navigationTarget).toEqual({ kind: "sourceSpan", physicalSpan: diagnostics[0].physicalSpan });
+    expect(diagnostics).toEqual([]);
   });
 
   it("converts binding-cycle for every cycle member with the shared cycle message", () => {

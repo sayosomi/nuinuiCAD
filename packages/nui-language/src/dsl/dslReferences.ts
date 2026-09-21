@@ -1,4 +1,4 @@
-import { derivedAnchor, referenceAnchor } from "../model/pointAnchors";
+import { derivedAnchor, isKnownDerivedPointKey, referenceAnchor } from "../model/pointAnchors";
 import { createElementNameContext, resolveElementNamePath, type ElementNameContext } from "../model/elementNames";
 import type {
   CadElement,
@@ -17,6 +17,7 @@ import {
 import { resolveSourceLexicalPath, type SourceLexicalNamespaceIndex } from "./sourceLexicalNamespaceIndex";
 import { dslRequiredValueTypeOf, isDslGeometryValueType } from "./dslValueTypes";
 import { parseScalarExpression } from "../scalars/expressionParser";
+import { isKnownNumericComputedGeometryProperty } from "../geometry/numericGeometryProperties";
 
 export type NameIndex = {
   elements: CadElement[];
@@ -161,13 +162,20 @@ export const resolveId = (
   const path = reference.path;
   const unresolvedToken = formatDslSourceReference(reference);
   if (reference.property) {
-    diagnostics.push(invalidReferenceDiagnostic(
-      line,
-      reference.source,
-      "この geometry reference role では property を指定できません。",
-      sourceSpan,
-      reference.propertyRange ?? reference.fullRange
-    ));
+    const firstProperty = reference.property.split(".")[0] ?? "";
+    const isKnownGeometryProperty =
+      isKnownNumericComputedGeometryProperty(reference.property) ||
+      isKnownNumericComputedGeometryProperty(firstProperty) ||
+      isKnownDerivedPointKey(firstProperty);
+    if (isKnownGeometryProperty) {
+      diagnostics.push(invalidReferenceDiagnostic(
+        line,
+        reference.source,
+        "この geometry reference role では property を指定できません。",
+        sourceSpan,
+        reference.propertyRange ?? reference.fullRange
+      ));
+    }
     return unresolvedToken;
   }
   const sourceResolution = index.sourceLexicalResolution && currentElement

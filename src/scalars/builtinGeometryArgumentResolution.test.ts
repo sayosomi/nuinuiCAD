@@ -217,9 +217,9 @@ describe("resolveBuiltinGeometryArguments", () => {
     expect(distance.issues).toEqual([]);
     expect(angle.issues).toEqual([]);
     expect(lineDistance.issues).toEqual([]);
-    expect(distance.geometryPropertyTargets.get(9)).toEqual({ statementId: "stable-3", statementIndex: 3, geometryType: "point", pointKey: "start" });
-    expect(angle.geometryPropertyTargets.get(6)).toEqual({ statementId: "stable-3", statementIndex: 3, geometryType: "point", pointKey: "end" });
-    expect(lineDistance.geometryPropertyTargets.get(13)).toEqual({ statementId: "stable-3", statementIndex: 3, geometryType: "point", pointKey: "start" });
+    expect(distance.geometryPropertyTargets.get(9)).toEqual({ statementId: "stable-3", statementIndex: 3, geometryType: "point", pointKey: "start", stagePath: ["final"] });
+    expect(angle.geometryPropertyTargets.get(6)).toEqual({ statementId: "stable-3", statementIndex: 3, geometryType: "point", pointKey: "end", stagePath: ["final"] });
+    expect(lineDistance.geometryPropertyTargets.get(13)).toEqual({ statementId: "stable-3", statementIndex: 3, geometryType: "point", pointKey: "start", stagePath: ["final"] });
     expect(distance.claimedReferenceOccurrenceIndexes).toEqual(new Set([0]));
   });
 

@@ -26,8 +26,6 @@ export type RustBindingMutationPayload = {
     ownerStatementId: string; elementId: ElementId; scopeId: string;
     exitSourceOrder: number; iterationBindingId: string;
   }[];
-  evaluationLimitSourceOrder?: number;
-  postStopBindingIds?: readonly string[];
   collectionValues?: readonly ScalarProgramCollection[];
   immutableForGroups?: readonly {
     ownerStatementId: string;
@@ -161,12 +159,6 @@ export const buildRustBindingMutationPayload = (
     ],
     elementSourceOrders,
     ...(elementSourceExecutionUnits ? { elementSourceExecutionUnits } : {}),
-    ...(graph.evaluationLimitSourceOrder === undefined
-      ? {}
-      : { evaluationLimitSourceOrder: graph.evaluationLimitSourceOrder }),
-    ...(graph.postStopBindingIds && graph.postStopBindingIds.size > 0
-      ? { postStopBindingIds: [...graph.postStopBindingIds] }
-      : {}),
     ...(collectionValues?.length ? { collectionValues } : {})
     ,...(graph.immutableForGroups?.size
       ? {

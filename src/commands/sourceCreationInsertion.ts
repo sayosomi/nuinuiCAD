@@ -125,7 +125,7 @@ const hasScope = (element: CadElement, scope: Scope) =>
  * a line-splice anchor. A cursor in an element retains the established
  * "after the complete statement" behavior. A non-element cursor in a logical
  * statement's header is normalized to that statement's first physical line;
- * blank/comment/stop lines retain their physical boundary.
+ * blank/comment lines retain their physical boundary.
  */
 const sourceInsertionAttemptForCreation = ({
   cursor,

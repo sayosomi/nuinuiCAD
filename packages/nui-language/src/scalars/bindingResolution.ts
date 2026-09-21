@@ -1,13 +1,6 @@
 import type { Binding, BindingCatalog, BindingId } from "./bindingCatalog";
 import { parseDslReferenceToken } from "../dsl/dslReferenceTokens";
-import type { ScopeId } from "./lexicalScopeIndex";
-import {
-  activateFrameNames,
-  addTypedBinding,
-  addTypedBindingToFrame,
-  transitionScopeFrames,
-  type ScopeFrame
-} from "./bindingResolutionSweepState";
+import { scopeChain, type ScopeId } from "./lexicalScopeIndex";
 
 export type BindingReferenceSite = {
   scopeId: ScopeId;
@@ -79,13 +72,6 @@ const createLookupObserver = (): LookupObserver => ({
   candidateVisitsByVisibilityKind: new Map()
 });
 
-const sourceStatementAtOrBefore = (indices: readonly number[], target: number) => {
-  for (let index = indices.length - 1; index >= 0; index -= 1) {
-    if (indices[index] <= target) return indices[index];
-  }
-  return indices[0];
-};
-
 const recordCandidateInspection = (observer: LookupObserver | undefined, binding: Binding) => {
   if (!observer) return;
   observer.candidateInspectionCount += 1;
@@ -144,176 +130,70 @@ const canonicalize = (catalog: BindingCatalog, requests: readonly InitializerRes
   return canonical;
 };
 
-const mergeCatalogOrderedLanes = (
-  lanes: readonly (readonly Binding[] | undefined)[],
-  observer?: LookupObserver
-): readonly Binding[] => {
-  let candidateCount = 0;
-  let singleton: Binding | undefined;
-  for (const lane of lanes) {
-    if (!lane?.length) continue;
-    candidateCount += lane.length;
-    singleton = lane[0];
-  }
-  if (candidateCount === 0) return [];
-  if (candidateCount === 1) {
-    recordCandidateInspection(observer, singleton!);
-    return [singleton!];
-  }
-
-  const positions = lanes.map(() => 0);
-  const merged: Binding[] = [];
-  while (merged.length < candidateCount) {
-    let nextLane = -1;
-    let nextRank = Number.POSITIVE_INFINITY;
-    for (let laneIndex = 0; laneIndex < lanes.length; laneIndex += 1) {
-      const candidate = lanes[laneIndex]?.[positions[laneIndex]];
-      if (!candidate || candidate.rank >= nextRank) continue;
-      nextLane = laneIndex;
-      nextRank = candidate.rank;
-    }
-    if (nextLane < 0) throw new Error("bindingResolution: lookup lane merge lost a candidate");
-    const binding = lanes[nextLane]![positions[nextLane]++];
-    recordCandidateInspection(observer, binding);
-    merged.push(binding);
-  }
-  return merged;
-};
-
-const candidateLaneGroupsForFrame = (
-  catalog: BindingCatalog,
-  frame: ScopeFrame,
-  name: string
-): readonly (readonly (readonly Binding[] | undefined)[])[] => {
-  const lexical: (readonly Binding[] | undefined)[] = [frame.iterationNames.get(name), frame.typedNames.get(name)];
-  return [lexical];
-};
-
 const resolutionFor = (
   catalog: BindingCatalog,
   request: SweepRequest,
-  activeByName: Map<string, ScopeFrame[]>,
   observer?: LookupObserver
 ): BindingResolution | null => {
   const { name, site } = request;
-  // Initializer self-detection remains owned by the existing binding sweep.
-  // The source namespace quite correctly sees the declaration as future at
-  // this point, but an initializer's own declaration must stay `self` rather
-  // than becoming a namespace-forward result.
   if (request.owner && request.owner.resolutionMode !== "preResolvedOnly" && request.owner.name === name && request.owner.statementIndex === site.statementIndex) {
-    // Continue to the established lexical sweep below; it will emit `self`
-    // after finding no visible candidate.
-  } else {
-    const sourceLookup = catalog.sourceNamespaceBindingResolver?.(name, site.statementIndex, site.scopeId);
-    if (sourceLookup?.kind === "resolved") {
-      const binding = catalog.bindingsById.get(sourceLookup.bindingId);
-      // Rename analysis creates a virtual catalog by changing only the
-      // binding's name. The source namespace callback remains tied to the
-      // current document snapshot, so its identity claim is valid only while
-      // the virtual binding still carries that source name. Otherwise let the
-      // established sweep observe the virtual rename.
-      const path = parseDslReferenceToken(name);
-      const finalName = path.segments.at(-1);
-      if (binding && (binding.name === name || binding.name === finalName)) return { kind: "resolved", binding };
-    } else if (sourceLookup?.kind === "blocked") {
-      return {
-        kind: "namespace",
-        name,
-        scopeId: site.scopeId,
-        statementIndex: site.statementIndex,
-        reason: sourceLookup.reason,
-        ...(sourceLookup.declarationKind ? { declarationKind: sourceLookup.declarationKind } : {}),
-        ...(sourceLookup.statementId ? { statementId: sourceLookup.statementId } : {})
-      };
-    }
+    return {
+      kind: "self",
+      name,
+      scopeId: site.scopeId,
+      statementIndex: site.statementIndex,
+      bindingId: request.owner.id
+    };
   }
-  const stack = activeByName.get(name) ?? [];
-  for (let index = stack.length - 1; index >= 0; index -= 1) {
-    const frame = stack[index];
-    for (const lanes of candidateLaneGroupsForFrame(catalog, frame, name)) {
-      const candidates = mergeCatalogOrderedLanes(lanes, observer);
-      if (!candidates.length) continue;
-      recordEmittedCandidateCount(observer, candidates.length);
-      if (candidates.length > 1) return { kind: "duplicate", name, scopeId: site.scopeId, statementIndex: site.statementIndex, bindingIds: candidates.map((binding) => binding.id) };
-      return { kind: "resolved", binding: candidates[0] };
-    }
+
+  const sourceLookup = catalog.sourceNamespaceBindingResolver?.(name, site.statementIndex, site.scopeId);
+  if (sourceLookup?.kind === "resolved") {
+    const binding = catalog.bindingsById.get(sourceLookup.bindingId);
+    const path = parseDslReferenceToken(name);
+    const finalName = path.segments.at(-1);
+    if (binding && (binding.name === name || binding.name === finalName)) return { kind: "resolved", binding };
+  } else if (sourceLookup?.kind === "blocked") {
+    return {
+      kind: "namespace",
+      name,
+      scopeId: site.scopeId,
+      statementIndex: site.statementIndex,
+      reason: sourceLookup.reason,
+      ...(sourceLookup.declarationKind ? { declarationKind: sourceLookup.declarationKind } : {}),
+      ...(sourceLookup.statementId ? { statementId: sourceLookup.statementId } : {})
+    };
+  }
+
+  for (const scopeId of scopeChain(catalog.scopeIndex, site.scopeId)) {
+    if (observer) observer.siteTraversalCount += 1;
+    const candidates = catalog.bindings.filter((binding) =>
+      binding.effectiveScopeId === scopeId &&
+      binding.name === name &&
+      binding.resolutionMode !== "preResolvedOnly"
+    );
+    if (candidates.length === 0) continue;
+    for (const binding of candidates) recordCandidateInspection(observer, binding);
+    recordEmittedCandidateCount(observer, candidates.length);
+    if (candidates.length > 1) return { kind: "duplicate", name, scopeId: site.scopeId, statementIndex: site.statementIndex, bindingIds: candidates.map((binding) => binding.id) };
+    return { kind: "resolved", binding: candidates[0] };
   }
   return null;
 };
 
-/** Shared forward+reverse source sweep. `owner` on each request is the sole
- * signal for self-detection (never derived from any site field); requests
- * with `owner: null` can never resolve to "self". No caller sorting ||
- * comparison sort is permitted anywhere in this pass. */
+/** Shared declarative binding lookup. `owner` on each request is the sole
+ * signal for self-detection; requests with `owner: null` can never resolve to
+ * `self`. Lexical scope ownership, not source position, selects a binding. */
 const runSweep = (
   catalog: BindingCatalog,
   requests: readonly SweepRequest[],
   observer?: LookupObserver
 ): ReadonlyMap<string, BindingResolution> => {
-  const byStatement = new Map<number, SweepRequest[]>();
-  for (const request of requests) { const bucket = byStatement.get(request.site.statementIndex) ?? []; bucket.push(request); byStatement.set(request.site.statementIndex, bucket); }
-  const typedByStatement = new Map<number, Binding[]>();
-  for (const binding of catalog.bindings) {
-    if (observer) observer.registeredBindingCount += 1;
-    if (binding.kind !== "typed" || binding.resolutionMode === "preResolvedOnly") continue;
-    const bucket = typedByStatement.get(binding.statementIndex) ?? [];
-    bucket.push(binding);
-    typedByStatement.set(binding.statementIndex, bucket);
-  }
+  if (observer) observer.registeredBindingCount += catalog.bindings.length;
   if (observer) observer.requestCount += requests.length;
-  // The lexical index intentionally excludes inert module-body statements,
-  // so dense catalog ranks must not be mistaken for raw source indexes.
-  const sourceStatementIndices = [...catalog.scopeIndex.statementRankByIndex.keys()];
-  const direct = new Map<string, BindingResolution>();
-  const frames: ScopeFrame[] = [];
-  const active = new Map<string, ScopeFrame[]>();
-  for (const statementIndex of sourceStatementIndices) {
-    const scopeId = catalog.scopeIndex.scopeOfStatement.get(statementIndex) ?? catalog.scopeIndex.rootScopeId;
-    transitionScopeFrames(catalog, frames, active, scopeId, (frame) => activateFrameNames(frame, active));
-    for (const request of byStatement.get(statementIndex) ?? []) {
-      const resolved = resolutionFor(catalog, request, active, observer);
-      const directResolution: BindingResolution = resolved ?? (request.owner && request.owner.name === request.name
-        ? { kind: "self", name: request.name, scopeId: request.site.scopeId, statementIndex: request.site.statementIndex, bindingId: request.owner.id }
-        : { kind: "undefined", name: request.name, scopeId: request.site.scopeId, statementIndex: request.site.statementIndex });
-      direct.set(request.key, directResolution);
-    }
-    for (const binding of typedByStatement.get(statementIndex) ?? []) addTypedBinding(frames[frames.length - 1], binding, active);
-  }
-  const future = new Map<string, readonly Binding[]>();
-  const reverseFrames: ScopeFrame[] = [];
-  const reverseActive = new Map<string, ScopeFrame[]>();
-  for (let rank = sourceStatementIndices.length - 1; rank >= 0; rank -= 1) {
-    const statementIndex = sourceStatementIndices[rank];
-    const scopeId = catalog.scopeIndex.scopeOfStatement.get(statementIndex) ?? catalog.scopeIndex.rootScopeId;
-    transitionScopeFrames(catalog, reverseFrames, reverseActive, scopeId, () => {});
-    for (const request of byStatement.get(statementIndex) ?? []) {
-      if (direct.get(request.key)?.kind !== "undefined") continue;
-      const frame = reverseFrames[reverseFrames.length - 1];
-      const candidates = frame?.typedNames.get(request.name) ?? [];
-      // The reverse pass visits statements from last to first. Reading only
-      // this current frame is the exact-scope rule: ancestor && sibling
-      // frames can never contribute forward candidates. This scope's
-      // same-name bucket accumulates in descending statementIndex (=
-      // descending catalog rank) order. Reverse once here - a plain
-      // O(candidates.length) reversal, not a comparison sort - to report
-      // catalog rank order.
-      if (candidates.length) future.set(request.key, [...candidates].reverse());
-    }
-    for (const binding of typedByStatement.get(statementIndex) ?? []) {
-      addTypedBindingToFrame(reverseFrames[reverseFrames.length - 1], binding);
-    }
-  }
   const resolutions = new Map<string, BindingResolution>();
   for (const request of requests) {
-    const directResolution = direct.get(request.key)!;
-    const candidates = future.get(request.key);
-    if (directResolution.kind === "undefined" && candidates?.length) {
-      for (const binding of candidates) recordCandidateInspection(observer, binding);
-      recordEmittedCandidateCount(observer, candidates.length);
-      resolutions.set(request.key, { kind: "forward", name: request.name, scopeId: request.site.scopeId, statementIndex: request.site.statementIndex, bindingIds: candidates.map((binding) => binding.id) });
-    } else {
-      resolutions.set(request.key, directResolution);
-    }
+    const resolved = resolutionFor(catalog, request, observer);
+    resolutions.set(request.key, resolved ?? { kind: "undefined", name: request.name, scopeId: request.site.scopeId, statementIndex: request.site.statementIndex });
   }
   return resolutions;
 };
@@ -375,13 +255,8 @@ const resolveAtSite = (
   name: string,
   site: BindingReferenceSite
 ): BindingResolution => {
-  const sourceStatementIndices = [...catalog.scopeIndex.statementRankByIndex.keys()];
-  const scheduledStatementIndex = sourceStatementAtOrBefore(sourceStatementIndices, site.statementIndex) ?? 0;
-  const scheduledSite = sourceStatementIndices.includes(site.statementIndex)
-    ? site
-    : { ...site, statementIndex: scheduledStatementIndex };
   const key = "single";
-  const resolution = runSweep(catalog, [{ name, site: scheduledSite, key, owner: null }]).get(key);
+  const resolution = runSweep(catalog, [{ name, site, key, owner: null }]).get(key);
   if (!resolution) return { kind: "undefined", name, scopeId: site.scopeId, statementIndex: site.statementIndex };
   return resolution.kind === "resolved" ? resolution : { ...resolution, scopeId: site.scopeId, statementIndex: site.statementIndex };
 };
@@ -421,45 +296,24 @@ const visibleBindingsAtInternal = (
     observer.requestCount += 1;
     observer.siteTraversalCount += 1;
   }
-  const sourceStatementIndices = [...catalog.scopeIndex.statementRankByIndex.keys()];
-  if (sourceStatementIndices.length === 0) return [];
-  const scheduledStatementIndex = sourceStatementAtOrBefore(sourceStatementIndices, site.statementIndex)!;
-
-  const typedByStatement = new Map<number, Binding[]>();
-  for (const binding of catalog.bindings) {
-    if (binding.kind !== "typed" || binding.resolutionMode === "preResolvedOnly") continue;
-    const bucket = typedByStatement.get(binding.statementIndex) ?? [];
-    bucket.push(binding);
-    typedByStatement.set(binding.statementIndex, bucket);
-  }
-
-  const frames: ScopeFrame[] = [];
-  const activeByName = new Map<string, ScopeFrame[]>();
-  for (const statementIndex of sourceStatementIndices) {
-    const scopeId = catalog.scopeIndex.scopeOfStatement.get(statementIndex) ?? catalog.scopeIndex.rootScopeId;
-    transitionScopeFrames(catalog, frames, activeByName, scopeId, (frame) => activateFrameNames(frame, activeByName));
-    if (statementIndex === scheduledStatementIndex) break;
-    for (const binding of typedByStatement.get(statementIndex) ?? []) addTypedBinding(frames[frames.length - 1], binding, activeByName);
-  }
-
   const shadowedNames = new Set<string>();
   const selectedBindingIds = new Set<BindingId>();
-  for (let frameIndex = frames.length - 1; frameIndex >= 0; frameIndex -= 1) {
-    const frame = frames[frameIndex];
-    const namesAtLevel = new Set<string>();
-    for (const name of frame.iterationNames.keys()) namesAtLevel.add(name);
-    for (const name of frame.typedNames.keys()) namesAtLevel.add(name);
-    for (const name of namesAtLevel) {
-      if (shadowedNames.has(name)) continue;
-      for (const lanes of candidateLaneGroupsForFrame(catalog, frame, name)) {
-        const candidates = mergeCatalogOrderedLanes(lanes, observer);
-        if (candidates.length === 0) continue;
-        shadowedNames.add(name);
-        if (candidates.length === 1) {
-          selectedBindingIds.add(candidates[0].id);
-          recordEmittedCandidateCount(observer, 1);
-        }
-        break;
+  for (const scopeId of scopeChain(catalog.scopeIndex, site.scopeId)) {
+    if (observer) observer.siteTraversalCount += 1;
+    const namesAtLevel = new Map<string, Binding[]>();
+    for (const binding of catalog.bindings) {
+      if (binding.effectiveScopeId !== scopeId) continue;
+      const candidates = namesAtLevel.get(binding.name) ?? [];
+      candidates.push(binding);
+      namesAtLevel.set(binding.name, candidates);
+    }
+    for (const [name, candidates] of namesAtLevel) {
+      if (shadowedNames.has(name) || candidates.length === 0) continue;
+      shadowedNames.add(name);
+      for (const binding of candidates) recordCandidateInspection(observer, binding);
+      if (candidates.length === 1) {
+        selectedBindingIds.add(candidates[0].id);
+        recordEmittedCandidateCount(observer, 1);
       }
     }
   }

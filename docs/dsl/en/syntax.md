@@ -23,8 +23,6 @@ reference rather than a second place to edit parser behavior.
 <!-- This region is generated from packages/nui-language/src/dsl/dslStatementKeywords.ts. -->
 | Parser spelling | Reference identity |
 | --- | --- |
-<!-- dsl-ref:statement:stop -->
-| `stop` | `dsl-ref:statement:stop` |
 <!-- dsl-ref:statement:nui -->
 | `nui` | `dsl-ref:statement:nui` |
 <!-- dsl-ref:statement:for -->
@@ -105,17 +103,16 @@ Transformation clauses such as `move A as shifted (...)` select an existing
 design object without `@`; their target selectors are part of the clause
 header, not ordinary call arguments. A `group` has a name and contains
 declarations; `if`, `for`, `module`, and `layout`
-introduce their own block rules. Blocks use braces and preserve source order.
-Declarations are not hoisted: a later statement cannot be referenced from an
-earlier one, even when both statements are in the same block.
+introduce their own block rules. Blocks use braces and preserve authored order.
+Declarations in the same legal lexical scope are resolved declaratively, so a
+reference may name a declaration written later in that scope. Evaluation then
+follows the resolved dependency graph; only recipe stages retain their
+authored local order.
 
 `next` is allowed only where a statement-for carry is in scope. Geometry
 construction calls and builtin calls use named arguments unless the generated
 catalog or the relevant page says otherwise. Named arguments may be reordered;
 duplicate, missing, or unknown names are errors.
-
-`stop` is a standalone document terminator. The source after it remains text
-in the file but is outside the evaluated document.
 
 ## File imports and cross-file names
 
@@ -133,10 +130,10 @@ export @lib::Panel
 
 Import paths are filesystem paths relative to the importing file. They must
 start with `./` or `../` and end with `.nui`; package search, URLs, absolute
-paths, and extension inference are not supported. Imports are source-ordered
-and non-hoisted, so an alias cannot be referenced before its import. The alias
-is an ordinary lexical name, and `@alias::Name` traverses an imported public
-name.
+paths, and extension inference are not supported. Imports are resolved in their
+legal lexical scope, so an alias may be referenced before its import statement.
+The alias is an ordinary lexical name, and `@alias::Name` traverses an imported
+public name.
 
 Only the imported document's explicit public API is available through its alias.
 The current production foundation supplies that API through top-level exported
@@ -159,9 +156,9 @@ semantics.
 Blank lines and comments do not create statements. A comma separates call
 arguments, and a trailing comma is accepted in a multiline call. Parentheses,
 brackets, and braces must balance; strings and comments may contain punctuation
-without changing that structure. A reference must resolve to an earlier value
-that is available in the current lexical scope. A hidden value is available;
-an invalid, disabled, or not-yet-evaluated value is not.
+without changing that structure. A reference must resolve in the current legal
+lexical scope and its dependency must be available at evaluation time. A hidden
+value is available; an invalid or disabled value is not.
 
 <!-- dsl-example: compile-success -->
 ```nui
@@ -171,7 +168,6 @@ point A = coordinate(
   x: 0,
   y: 0,
 )
-stop
 ```
 
 The following is a syntax shape rather than an executable document.

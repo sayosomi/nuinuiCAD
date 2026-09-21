@@ -244,11 +244,10 @@ describe("buildEvaluationOptions", () => {
     const compiled = compile([
       "nui 1",
       "point A = coordinate(x: 1, y: 2)",
-      "stop",
       "point B = coordinate(x: 3, y: 4)"
     ].join("\n"));
 
-    expect(compiled.document.evaluationLimitIndex).toBe(1);
+    expect(compiled.document.evaluationLimitIndex).toBeUndefined();
     expect(buildEvaluationOptions({ compiledDocument: compiled, evaluationLimitIndex: undefined }).evaluationLimitIndex)
       .toBeUndefined();
     expect(buildEvaluationOptions({ compiledDocument: compiled, evaluationLimitIndex: 0 }).evaluationLimitIndex)

@@ -22,8 +22,7 @@ may be scalar or `choice(...)`,
 element types cannot themselves be arrays. Field defaults are not supported,
 and omission does not create field-specific presence state. A
 record definition's name is its type
-identity: two definitions with the same fields are still different types, and
-definitions are not hoisted.
+identity: two definitions with the same fields are still different types.
 
 ## Description and access
 

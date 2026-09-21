@@ -1,4 +1,5 @@
 import { makeNumericExpression, normalizeNumericExpressionInput } from "../geometry/numericExpressions";
+import { tokenize } from "../geometry/numericExpressionParser";
 import { createCadElement } from "../model/elementFactory";
 import { isLineLikeElement, isPointElement } from "../model/pointAnchors";
 import type { ElementNameContext } from "../model/elementNames";
@@ -14,6 +15,7 @@ import type {
   Layout,
   LayoutOrigin,
   LayoutPlacement,
+  NumericValue,
   PrintOutput,
   PrintPaperSizeId,
   SvgOutput,
@@ -25,7 +27,7 @@ import { MISSING_ATTRIBUTE_VALUE_CODE, type ScannedArg } from "./dslArgScanner";
 import { constructionFor, type DslConstructionSpec } from "./dslConstructions";
 import { isCompilableDslStatement, isInUnloweredModuleSubtree, type DslStatementInclusion } from "./dslCompilationGuard";
 import { isElementDslStatement, parseDsl } from "./dslParser";
-import { createNameIndex, resolveId, type NameIndex } from "./dslReferences";
+import { createNameIndex, resolveAnchor as resolveAnchorFromDsl, resolveId, type NameIndex } from "./dslReferences";
 import { formatDslReferencePath, parseDslReferenceToken, parseDslSourceReference, type DslSourceReference } from "./dslReferenceTokens";
 import { resolveSourceLexicalDeclaration, resolveSourceLexicalPath, resolveSourceLexicalPathSegments, type SourceLexicalNamespaceIndex } from "./sourceLexicalNamespaceIndex";
 import type {
@@ -197,6 +199,42 @@ const numericLiteral = (source: string): NumericLiteral | null => {
 
 const normalizedNumeric = (source: string, elements: readonly CadElement[], nameContext: ElementNameContext) =>
   makeNumericExpression(normalizeNumericExpressionInput(source, [...elements], undefined, nameContext));
+
+const normalizedTransformationNumeric = (
+  source: string,
+  elements: readonly CadElement[],
+  nameContext: ElementNameContext,
+  stageDeclarations: ReadonlySet<string>
+) => {
+  const normalized = normalizeNumericExpressionInput(source, [...elements], undefined, nameContext);
+  const value = makeNumericExpression(normalized);
+  if (typeof value !== "object") return value;
+  const resolvedReferences = (() => {
+    try {
+      return tokenize(normalized)
+        .filter((token): token is Extract<ReturnType<typeof tokenize>[number], { type: "reference" }> => token.type === "reference")
+        .map((reference) => {
+          const members = reference.property?.split(".") ?? [];
+          const candidates = [["base"], ["final"], ...[...stageDeclarations]
+            .map((key) => key.split("\u0000"))
+            .filter((parts) => parts.length >= 3 && parts[0] === reference.elementId)
+            .map((parts) => parts[2]!.split(".").filter(Boolean))];
+          let stagePath: readonly string[] = ["final"];
+          let property = members;
+          for (const candidate of candidates) {
+            if (candidate.length <= members.length && candidate.every((part, index) => members[index] === part) && candidate.length > stagePath.length - 1) {
+              stagePath = candidate;
+              property = members.slice(candidate.length);
+            }
+          }
+          return { elementId: reference.elementId, ...(property.length ? { property: property.join(".") } : {}), stagePath };
+        });
+    } catch {
+      return [];
+    }
+  })();
+  return { ...value, resolvedReferences };
+};
 
 const roleIdByToken = (roles: VisibilityRole[], token: string) => {
   const normalized = unquoteDslString(token);
@@ -509,7 +547,8 @@ const compileTransformationOperation = ({
   targets,
   elements,
   index,
-  diagnostics
+  diagnostics,
+  stageDeclarations
 }: {
   statement: TransformationStatement;
   statementIndex: number;
@@ -517,6 +556,7 @@ const compileTransformationOperation = ({
   elements: CadElement[];
   index: NameIndex;
   diagnostics: DslDiagnostic[];
+  stageDeclarations: ReadonlySet<string>;
 }): TransformationOperation | null => {
   const mutationSpec = constructionFor("mutation", statement.construction);
   if (!mutationSpec) return null;
@@ -537,7 +577,9 @@ const compileTransformationOperation = ({
       elementsForExpressions: elements,
       nameContext: index.nameContext,
       createIntermediateId: createDefaultIntermediateId,
-      majorVersion: undefined
+      majorVersion: undefined,
+      normalizeNumeric: (source) => normalizedTransformationNumeric(source, elements, index.nameContext, stageDeclarations),
+      resolveAnchor: stageAwareAnchorResolver({ stageDeclarations })
     }
   );
   diagnostics.push(...result.diagnostics.map((item) => ({ ...item, statementIndex })));
@@ -557,6 +599,76 @@ const compileTransformationOperation = ({
     case "reverse":
       return { kind: "reverse" };
   }
+};
+
+const collectTransformationStageDeclarations = ({
+  statements,
+  index,
+  sourceNamespace,
+  sourceElementIds,
+  resolveModuleOwner,
+  includeStatement
+}: {
+  statements: readonly DslStatement[];
+  index: NameIndex;
+  sourceNamespace?: SourceLexicalNamespaceIndex;
+  sourceElementIds?: ReadonlyMap<number, ElementId>;
+  resolveModuleOwner?: (target: DslSourceReference, statementIndex: number) => ElementId | undefined;
+  includeStatement: DslStatementInclusion;
+}): Set<string> => {
+  const stageDeclarations = new Set<string>();
+  for (const [statementIndex, candidate] of statements.entries()) {
+    if (!includeStatement(candidate, statementIndex) || candidate.kind !== "transformation" || !candidate.stageName) continue;
+    for (const target of candidate.targets) {
+      const parsed = parseTransformationTargetSelector(
+        target.source,
+        target.span,
+        candidate,
+        statementIndex,
+        candidate.construction,
+        index,
+        sourceNamespace,
+        sourceElementIds,
+        resolveModuleOwner,
+        new Set(),
+        []
+      );
+      if (!parsed) continue;
+      stageDeclarations.add(`${parsed.ownerId}\u0000${targetOccurrenceKey(parsed)}\u0000${[...parsed.stagePath, candidate.stageName].join(".")}`);
+    }
+  }
+  return stageDeclarations;
+};
+
+const stageAwareAnchorResolver = ({
+  stageDeclarations
+}: {
+  stageDeclarations: ReadonlySet<string>;
+}) => (
+  token: string,
+  index: NameIndex,
+  line: number,
+  diagnostics: DslDiagnostic[],
+  numeric: (source: string) => NumericValue,
+  currentElement?: CadElement,
+  sourceSpan?: { start: number; end: number }
+) => {
+  const anchor = resolveAnchorFromDsl(token, index, line, diagnostics, numeric, currentElement, sourceSpan);
+  const parsed = parseDslSourceReference(token);
+  if (parsed.kind !== "valid" || !parsed.reference.property || anchor.mode !== "derived") return anchor;
+  const members = parsed.reference.property.split(".");
+  const ownerId = anchor.elementId;
+  const candidates = [["base"], ["final"], ...[...stageDeclarations]
+    .map((key) => key.split("\u0000"))
+    .filter((parts) => parts.length >= 3 && parts[0] === ownerId &&
+      (parts[1] === "*" || parts[1] === (parsed.reference.occurrenceIndex ?? "*")))
+    .map((parts) => parts[2]!.split(".").filter(Boolean))];
+  const matched = candidates
+    .filter((candidate) => candidate.length <= members.length && candidate.every((part, memberIndex) => members[memberIndex] === part))
+    .sort((left, right) => right.length - left.length)[0];
+  const stagePath = matched ?? ["final"];
+  const pointKey = members.slice(matched?.length ?? 0).join(".");
+  return { ...anchor, pointKey, stagePath };
 };
 
 const compileTransformationRecipes = ({
@@ -581,11 +693,21 @@ const compileTransformationRecipes = ({
   diagnostics: DslDiagnostic[];
 }): TransformationRecipe[] => {
   const recipes: TransformationRecipe[] = [];
-  const stageDeclarations = new Set<string>();
+  const stageDeclarations = collectTransformationStageDeclarations({
+    statements,
+    index,
+    sourceNamespace,
+    sourceElementIds,
+    resolveModuleOwner,
+    includeStatement
+  });
+  const declaredStageSiblings = new Set<string>();
   const geometryPropertyNames = new Set<string>([
     ...["start", "end", "center", "intermediatePoints"],
     ...["length", "radius", "sweepAngleDeg", "startAngleDeg", "endAngleDeg", "startHandleLength", "endHandleLength", "x", "y"]
   ]);
+  // The complete stage namespace is collected before validating any target.
+  // Stage lookup is lexical/owner-based, not a source-order availability check.
   for (const [statementIndex, candidate] of statements.entries()) {
     if (!includeStatement(candidate, statementIndex) || candidate.kind !== "transformation") continue;
     const statement = candidate;
@@ -623,15 +745,15 @@ const compileTransformationRecipes = ({
     for (const target of targets) {
       if (!statement.stageName) continue;
       const siblingKey = `${target.ownerId}\u0000${targetOccurrenceKey(target)}\u0000${target.stagePath.join(".")}\u0000${statement.stageName}`;
-      if (stageDeclarations.has(siblingKey)) {
+      if (declaredStageSiblings.has(siblingKey)) {
         diagnostics.push(transformationDiagnostic(statement, `同じ recipe branch に stage「${statement.stageName}」が重複しています。`, "duplicate-transformation-stage", statement.stageNameSpan ?? undefined, statementIndex));
       }
-      stageDeclarations.add(`${target.ownerId}\u0000${targetOccurrenceKey(target)}\u0000${[...target.stagePath, statement.stageName].join(".")}`);
+      declaredStageSiblings.add(siblingKey);
       // Keep the sibling key in the same set as a private marker: the full
       // path above is what later target selectors resolve against.
       stageDeclarations.add(siblingKey);
     }
-    const operation = compileTransformationOperation({ statement, statementIndex, targets, elements, index, diagnostics });
+    const operation = compileTransformationOperation({ statement, statementIndex, targets, elements, index, diagnostics, stageDeclarations });
     if (!operation) continue;
     const enabledToken = attr(statement.attrs, "enabled");
     const enabled = enabledToken === undefined ? true : booleanValue(unquoteDslString(enabledToken));
@@ -1541,6 +1663,19 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
   });
   const index = createNameIndex([...existing, ...placeholderElements], context.sourceLexicalResolution);
   const elementsForExpressions = [...existing, ...placeholderElements];
+  const elementIdsByStatementIndexForStages = new Map<number, ElementId>(
+    [...createdIds].flatMap(([statement, id]) => {
+      const statementIndex = statementIndexOf.get(statement);
+      return statementIndex === undefined ? [] : [[statementIndex, id] as const];
+    })
+  );
+  const stageDeclarations = collectTransformationStageDeclarations({
+    statements: parsed.statements,
+    index,
+    sourceNamespace,
+    sourceElementIds: elementIdsByStatementIndexForStages,
+    includeStatement
+  });
 
   const updates = new Map<ElementId, CadElement>();
   const insertions: CadElement[] = [];
@@ -1567,7 +1702,7 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
         index.nameContext,
         visibilitySettings.visibilityRoles,
         context.majorVersion,
-        undefined,
+        { resolveAnchor: stageAwareAnchorResolver({ stageDeclarations }) },
         statementIndexOf.get(statement)
       ),
       statement
@@ -1606,23 +1741,9 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
     includeStatement
   });
 
-  let evaluationLimitIndex: number | undefined;
-  const atStopIndex = parsed.statements.findIndex(
-    (statement, statementIndex) => statement.kind === "atStop" && includeStatement(statement, statementIndex)
-  );
-  if (atStopIndex >= 0) {
-    if (documentMode) {
-      evaluationLimitIndex = parsed.statements
-        .map((statement, statementIndex) => ({ statement, statementIndex }))
-        .slice(0, atStopIndex)
-        .filter(({ statement, statementIndex }) =>
-          isElementDslStatement(statement) && isCompilableDslStatement(parsed.statements, statementIndex)
-        ).length;
-    } else {
-      const stopStatement = parsed.statements[atStopIndex];
-      diagnostics.push(warning(stopStatement.line, "stop は文書全体の適用でのみ有効なため無視されます。"));
-    }
-  }
+  // nui1 has no source-derived evaluation terminator. Preview/bake callers
+  // retain their explicit evaluationLimitIndex API outside the DSL compiler.
+  const evaluationLimitIndex: number | undefined = undefined;
 
   const elementIdsByStatementIndex = new Map<number, ElementId>();
   for (const [statement, id] of createdIds) {

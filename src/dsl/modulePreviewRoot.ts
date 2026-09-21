@@ -686,7 +686,7 @@ export const compileModulePreviewRoot = (input: ModulePreviewRootInput): ModuleP
         elements: compileResult.elements
       },
       includeStatement: (statement, statementIndex) =>
-        statement.kind !== "atStop" && isCompilableDslStatement(statements, statementIndex),
+        isCompilableDslStatement(statements, statementIndex),
       elements: compileResult.elements,
       sourceScopeIndex: sourceNamespace.scopeIndex,
       moduleGeometryRuntime,

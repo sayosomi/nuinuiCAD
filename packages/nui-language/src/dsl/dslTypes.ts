@@ -341,7 +341,6 @@ export type DslStatement =
       stageNameSpan: DslSpan | null;
     })
   | (DslStatementBase & { kind: "version"; value: string })
-  | (DslStatementBase & { kind: "atStop" })
   | (DslStatementBase & { kind: "place"; group: string })
   | (DslStatementBase & {
       kind: "typedDeclaration";
@@ -441,6 +440,7 @@ export type CompileDslResult = {
   layouts?: Layout[];
   printOutputs?: PrintOutput[];
   svgOutputs?: SvgOutput[];
+  /** Optional host-owned evaluation slice; never derived from nui1 source. */
   evaluationLimitIndex?: number;
   diagnostics: DslDiagnostic[];
   changedCount: number;

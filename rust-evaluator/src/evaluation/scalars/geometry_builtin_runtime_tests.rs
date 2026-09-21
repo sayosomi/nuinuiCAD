@@ -30,6 +30,8 @@ fn state_with_geometry(
         elements_by_id.insert(id.to_owned(), 0);
     }
     EvaluationState {
+        completed_transformation_recipe_indices: std::collections::HashSet::new(),
+        transformation_dependency_plans: None,
         geometry_input_targets: HashMap::new(),
         geometry_collection_nodes: HashMap::new(),
         geometry_value_binders: HashMap::new(),
@@ -75,6 +77,7 @@ fn target(
         statement_index: index as f64,
         geometry_type,
         point_key: None,
+        stage_path: None,
         geometry_value_occurrence: None,
         geometry_value_binder_id: None,
         for_group_template_element_id: None,
@@ -93,6 +96,7 @@ fn derived_target(
         statement_index: index as f64,
         geometry_type: GeometryInterfaceType::Point,
         point_key: Some(point_key.to_owned()),
+        stage_path: None,
         geometry_value_occurrence: None,
         geometry_value_binder_id: None,
         for_group_template_element_id: None,
@@ -207,21 +211,21 @@ fn ancestor_group_disabled_geometry_target_has_a_distinct_runtime_failure() {
 }
 
 #[test]
-fn self_and_forward_targets_reject() {
+fn computed_forward_targets_are_usable_and_missing_targets_reject() {
     let state = state_with_geometry("point-id", point_value(2.0, 3.0), true);
-    assert_eq!(
+    assert!(matches!(
         resolve_geometry_builtin_target(
             &state,
             2.0,
             &target("point-id", 2, GeometryInterfaceType::Point)
         ),
-        Err(GeometryBuiltinRuntimeError::Unavailable)
-    );
+        Ok(GeometryBuiltinRuntimeTarget::Point(_))
+    ));
     assert_eq!(
         resolve_geometry_builtin_target(
             &state,
             2.0,
-            &target("point-id", 3, GeometryInterfaceType::Point)
+            &target("missing", 3, GeometryInterfaceType::Point)
         ),
         Err(GeometryBuiltinRuntimeError::Unavailable)
     );

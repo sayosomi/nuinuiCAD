@@ -20,12 +20,16 @@ const runtimeNames = (source: string) => {
 const evaluateCompiled = (compiled: ReturnType<typeof runtimeNames>) =>
   evaluateElements(compiled.document!.elements, {
     evaluationLimitIndex: compiled.document!.evaluationLimitIndex,
+    evaluationOrder: compiled.typedDependencyGraph?.evaluationOrder,
+    transformationDependencyPlans: compiled.typedDependencyGraph?.transformationPlans,
+    transformationRecipes: compiled.runtimeTransformationRecipes ?? compiled.document!.transformationRecipes,
     drawingModifiers: compiled.document!.modifiers ?? [],
     scalarProgram: compiled.scalarProgram,
     bindingVersions: compiled.bindingVersions,
     statementInfoByElementId: compiled.statementMap?.byElementId,
     statementIdByStatementIndex: compiled.statementMap?.statementIdByStatementIndex,
     sourceExecutionPositionByElementId: compiled.moduleMaterialization?.sourceExecutionPositionByRuntimeElementId,
+    moduleMaterialization: compiled.moduleMaterialization,
   });
 
 describe("module materialization", () => {
@@ -143,28 +147,28 @@ describe("module materialization", () => {
     );
   });
 
-  it("treats a module call as one stop atomic unit", () => {
-    const callBeforeStop = runtimeNames([
+  it("materializes module calls regardless of unrelated declaration position", () => {
+    const callBefore = runtimeNames([
       "nui 1",
       "module M() {",
       "  point P = coordinate(x: 1, y: 2)",
       "}",
       "instance A = M()",
-      "stop",
       "point After = coordinate(x: 3, y: 4)"
     ].join("\n"));
-    expect(callBeforeStop.document!.evaluationLimitIndex).toBe(2);
+    expect(callBefore.document!.evaluationLimitIndex).toBeUndefined();
+    expect(callBefore.document!.elements.map((element) => element.name)).toEqual(["A", "P", "After"]);
 
-    const callAfterStop = runtimeNames([
+    const callAfter = runtimeNames([
       "nui 1",
       "module M() {",
       "  point P = coordinate(x: 1, y: 2)",
       "}",
-      "stop",
       "instance A = M()",
       "point After = coordinate(x: 3, y: 4)"
     ].join("\n"));
-    expect(callAfterStop.document!.evaluationLimitIndex).toBe(0);
+    expect(callAfter.document!.evaluationLimitIndex).toBeUndefined();
+    expect(callAfter.document!.elements.map((element) => element.name)).toEqual(["A", "P", "After"]);
   });
 
   it("maps outer and inner source containers to runtime parents without changing group semantics", () => {
@@ -216,17 +220,61 @@ describe("module materialization", () => {
     expect(result.effectiveEnabledElementIds).not.toContain(disabledPoint.id);
   });
 
-  it("preserves ordinary source order and stop behavior when no module is present", () => {
+  it("captures a dependency-reordered Module Base after terminal descendants", () => {
+    const compiled = runtimeNames([
+      "nui 1",
+      "module M() {",
+      "  line Later = segment(start: @First.start, end: (20, 0))",
+      "  line First = segment(start: (0, 0), end: (10, 0))",
+      "  line Disabled = segment(start: (0, 0), end: (5, 0), enabled: false)",
+      "}",
+      "instance A = M()"
+    ].join("\n"));
+    const result = evaluateCompiled(compiled);
+    const instance = compiled.document!.elements.find((element) => element.name === "A")!;
+    const snapshot = result.instanceBaseGeometry?.get(instance.id);
+    expect(result.errors).toEqual([]);
+    expect(snapshot).toHaveLength(2);
+    expect(snapshot?.map((geometry) => geometry.name).sort()).toEqual(["First", "Later"]);
+    expect(snapshot?.find((geometry) => geometry.name === "Later")).toMatchObject({
+      kind: "line",
+      start: { x: 0, y: 0 },
+      end: { x: 20, y: 0 }
+    });
+  });
+
+  it("completes disabled, inactive, and errored descendants before capturing Module Base", () => {
+    const compiled = runtimeNames([
+      "nui 1",
+      "module M() {",
+      "  if (false) {",
+      "    line Inactive = segment(start: (0, 0), end: (1, 0))",
+      "  }",
+      "  arc Error = arc(center: (0, 0), radius: 0, start: 0, end: 90)",
+      "  line Disabled = segment(start: (0, 0), end: (5, 0), enabled: false)",
+      "  line Good = segment(start: (0, 0), end: (10, 0))",
+      "}",
+      "instance A = M()"
+    ].join("\n"));
+    const result = evaluateCompiled(compiled);
+    const instance = compiled.document!.elements.find((element) => element.name === "A")!;
+    const snapshot = result.instanceBaseGeometry?.get(instance.id);
+    expect(snapshot?.map((geometry) => geometry.name)).toEqual(["Good"]);
+    expect(result.errors).toEqual(expect.arrayContaining([
+      expect.objectContaining({ elementName: "Error" })
+    ]));
+  });
+
+  it("preserves ordinary declaration order when no module is present", () => {
     const compiled = runtimeNames([
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 1, y: 1)",
-      "stop",
       "point C = coordinate(x: 2, y: 2)"
     ].join("\n"));
 
     expect(compiled.document!.elements.map((element) => element.name)).toEqual(["A", "B", "C"]);
-    expect(compiled.document!.evaluationLimitIndex).toBe(2);
+    expect(compiled.document!.evaluationLimitIndex).toBeUndefined();
     expect(compiled.moduleMaterialization).toBeUndefined();
   });
 });

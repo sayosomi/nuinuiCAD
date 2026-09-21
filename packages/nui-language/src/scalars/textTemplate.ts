@@ -31,6 +31,7 @@ import {
 } from "./typedDeclarationAnalysis";
 import type { ScalarExpressionAst } from "./expressionAst";
 import type { TypedScalarExpression } from "./typedExpressionAst";
+import type { TransformationStageSelection } from "../dsl/transformationRecipes";
 import type { ScalarSpan } from "./literalScanner";
 import { scanTextTemplateLiteral, type TextTemplateRawHoleSegment, type TextTemplateRawLiteralSegment } from "./textTemplateScan";
 import { barePropertyReferenceIssues } from "../dsl/expressionReferenceToken";
@@ -160,7 +161,8 @@ export const analyzeTextTemplate = (
   statementIndex: number,
   elementId: ElementId | undefined,
   elements: readonly CadElement[] = [],
-  sourceOrderByElementId: ReadonlyMap<ElementId, number> = new Map()
+  sourceOrderByElementId: ReadonlyMap<ElementId, number> = new Map(),
+  resolveGeometryStageSelection?: (input: { elementId: ElementId; members: readonly string[] }) => TransformationStageSelection
 ): { template: TextTemplateAst | null; diagnostics: readonly OccurrenceDiagnostic[] } => {
   const scanned = scanTextTemplateLiteral(source, valueSpan);
   if (scanned.kind === "error") {
@@ -244,7 +246,8 @@ export const analyzeTextTemplate = (
     const geometryResolution = resolveGeometryPropertyMetadata(ast, elements, sourceOrderByElementId, {
       currentElement,
       currentSourceOrder: statementIndex,
-      skipPropertySpanStarts: recordPropertySpanStarts
+      skipPropertySpanStarts: recordPropertySpanStarts,
+      resolveStageSelection: resolveGeometryStageSelection
     });
     if (geometryResolution.issues.length > 0) {
       diagnostics.push(...geometryResolution.issues.map((issue) => ({
@@ -417,6 +420,7 @@ export type CompileTextTemplatesInput = {
   bindingAnalysis: BindingAnalysis | undefined;
   spans: DiagnosticSpanContext;
   includeStatement?: DslStatementInclusion;
+  resolveGeometryStageSelection?: (input: { elementId: ElementId; members: readonly string[] }) => TransformationStageSelection;
 };
 
 export type TextTemplateCompilation = {
@@ -464,7 +468,8 @@ export const compileTextTemplates = ({
   elements,
   bindingAnalysis,
   spans,
-  includeStatement
+  includeStatement,
+  resolveGeometryStageSelection
 }: CompileTextTemplatesInput): TextTemplateCompilation => {
   const elementsById = new Map(elements.map((element) => [element.id, element]));
   const sourceOrderByElementId = new Map<ElementId, number>(
@@ -496,7 +501,8 @@ export const compileTextTemplates = ({
       statementIndex,
       elementId,
       elements,
-      sourceOrderByElementId
+      sourceOrderByElementId,
+      resolveGeometryStageSelection
     );
     if (occurrenceDiagnostics.length > 0) {
       diagnostics.push(...occurrenceDiagnostics.map((diagnostic) => diagnosticAt(spans, statement, diagnostic.span, diagnostic.code, diagnostic.message, diagnostic.presentation)));

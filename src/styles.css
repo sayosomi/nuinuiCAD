@@ -207,10 +207,6 @@ textarea {
   box-shadow: inset 3px 0 0 #0f766e;
 }
 
-.source-editor-pane .cm-at-stop-line {
-  border-top: 1px dashed #8b9086;
-}
-
 .source-editor-pane .cm-element-state-gutter {
   width: 20px;
   overflow: visible;

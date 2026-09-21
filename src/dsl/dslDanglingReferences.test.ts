@@ -42,7 +42,7 @@ describe("dangling reference diagnostics and retention", () => {
     expect((byName.get("DotAnchorUser") as Extract<CadElement, { type: "offsetPoint" }>).fromPoint)
       .toEqual({ mode: "reference", pointId: '@"Missing.Point"' });
     expect((byName.get("DerivedAnchorUser") as Extract<CadElement, { type: "line" }>).startPoint)
-      .toEqual({ mode: "derived", elementId: '@"Outer group"::"Missing shape#1"', pointKey: "pivot" });
+      .toEqual({ mode: "derived", elementId: '@"Outer group"::"Missing shape#1"', pointKey: "pivot", stagePath: ["final"] });
     expect((byName.get("NormalRefUser") as Extract<CadElement, { type: "intersectionPoint" }>).line1Id)
       .toBe("@MissingLine");
     expect((byName.get("ListRefUser") as Extract<CadElement, { type: "copyLine" }>).baseLineIds)
@@ -80,6 +80,25 @@ describe("dangling reference diagnostics and retention", () => {
       .toBe("@Same");
     expect(diagnostics).toEqual([
       expect.objectContaining({ severity: "warning", line: 7, message: expect.stringContaining("曖昧") })
+    ]);
+  });
+
+  it("classifies canonical dotted geometry properties in ID-only roles", () => {
+    const line: CadElement = {
+      id: "line-a",
+      name: "A",
+      type: "line",
+      activity: "visible",
+      startPoint: { mode: "coordinate", x: 0, y: 0 },
+      endPoint: { mode: "coordinate", x: 10, y: 0 }
+    };
+    const diagnostics: Parameters<typeof resolveId>[3] = [];
+    expect(resolveId("@A.startPoint.x", createNameIndex([line]), 3, diagnostics)).toBe("@A.startPoint.x");
+    expect(diagnostics).toEqual([
+      expect.objectContaining({
+        code: "invalid-source-reference",
+        message: expect.stringContaining("property")
+      })
     ]);
   });
 });

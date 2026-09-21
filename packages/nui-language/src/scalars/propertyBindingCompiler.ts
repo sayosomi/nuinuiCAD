@@ -24,6 +24,7 @@ import { isScalarTypeAssignable } from "./scalarAssignability";
 import { isDslOptionalValueType, scalarTypeOfDslValueType } from "../dsl/dslValueTypes";
 import type { ScalarType } from "./types";
 import type { TypedScalarExpression } from "./typedExpressionAst";
+import type { TransformationStageSelection } from "../dsl/transformationRecipes";
 import { resolveGeometryPropertyMetadata } from "./typedGeometryPropertyResolution";
 import { createElementNameContext } from "../model/elementNames";
 import { prepareRecordScalarExpressionFromCatalog } from "./recordScalarLowering";
@@ -84,6 +85,7 @@ export type CompilePropertyBindingsInput = {
   bindingAnalysis: BindingAnalysis;
   spans: DiagnosticSpanContext;
   includeStatement?: DslStatementInclusion;
+  resolveGeometryStageSelection?: (input: { elementId: ElementId; members: readonly string[] }) => TransformationStageSelection;
 };
 
 export type PropertyBindingCompilation = {
@@ -178,7 +180,8 @@ export const compilePropertyBindings = ({
   elements,
   bindingAnalysis,
   spans,
-  includeStatement
+  includeStatement,
+  resolveGeometryStageSelection
 }: CompilePropertyBindingsInput): PropertyBindingCompilation => {
   const elementsById = new Map(elements.map((element) => [element.id, element]));
   const diagnostics: DslDiagnostic[] = [];
@@ -306,7 +309,8 @@ export const compilePropertyBindings = ({
       {
         currentElement: element,
         nameContext,
-        currentSourceOrder: candidate.statementIndex
+        currentSourceOrder: candidate.statementIndex,
+        resolveStageSelection: resolveGeometryStageSelection
       }
     );
     if (geometryResolution.issues.length > 0) {

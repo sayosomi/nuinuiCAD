@@ -54,7 +54,7 @@ describe("stable unknown-name diagnostics", () => {
     expect(exactText(source, diagnostic)).toBe("xx");
   });
 
-  it("marks undefined geometry without reclassifying a forward reference", () => {
+  it("marks undefined geometry without misclassifying a valid forward reference", () => {
     const source = [
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
@@ -68,6 +68,6 @@ describe("stable unknown-name diagnostics", () => {
     expect(undefinedDiagnostic!.severity).toBe("warning");
     expect(exactText(source, undefinedDiagnostic!)).toBe("Missng");
     expect(compiled.diagnostics.some((item) => item.code === "undefined-geometry-reference" && item.message.includes("Later"))).toBe(false);
-    expect(compiled.diagnostics.some((item) => item.message.includes("この位置より後"))).toBe(true);
+    expect(compiled.diagnostics.some((item) => item.message.includes("この位置より後"))).toBe(false);
   });
 });

@@ -317,7 +317,7 @@ describe("multi-document Module semantics", () => {
     const analysis = analyzeMultiDocumentModuleSemantics(graph);
     const byName = new Map(analysis.root?.instances.map((instance) => [instance.name, instance]));
 
-    expect(byName.get("early")?.calleeResolution).toBe("forward");
+    expect(byName.get("early")?.calleeResolution).toBe("resolved");
     expect(byName.get("hidden")?.calleeResolution).toBe("undefined");
     expect(byName.get("missing")?.calleeResolution).toBe("undefined");
     expect(byName.get("wrongFamily")?.calleeResolution).toBe("notModule");

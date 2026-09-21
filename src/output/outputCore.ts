@@ -652,13 +652,11 @@ const scalarError = (message: string): ScalarEvaluation => ({ status: "error", t
 const resolveNumeric = ({
   value,
   occurrence,
-  sourceOrder,
   compiledDocument,
   evaluation
 }: {
   value: NumericValue;
   occurrence: string;
-  sourceOrder: number;
   compiledDocument: LastGoodDslDocument;
   evaluation: EvaluationResult;
 }): number => {
@@ -668,14 +666,13 @@ const resolveNumeric = ({
     const scalar = evaluateTypedExpression(binding.typedExpression, {
       lookupBinding: (bindingId) => evaluation.computedScalarBindings?.get(bindingId) ?? scalarError(`missing scalar binding ${bindingId}`),
       lookupGeometryProperty: (reference) => {
-        if (!reference.elementId || reference.targetSourceOrder === null || reference.targetSourceOrder >= sourceOrder) return scalarError("geometry property is unavailable");
+        if (!reference.elementId || reference.targetSourceOrder === null) return scalarError("geometry property is unavailable");
         const result = computedReferencePathValue(evaluation.computedGeometry.get(reference.elementId), reference.property);
         return typeof result === "number" && Number.isFinite(result)
           ? { status: "ok", type: { kind: "number" }, value: { kind: "number", value: result } }
           : scalarError("geometry property is unavailable");
       },
       lookupGeometryTarget: (target) => {
-        if (target.statementIndex >= sourceOrder) return undefined;
         const geometry = evaluation.computedGeometry.get(target.statementId);
         if (!geometry) return undefined;
         if (!target.pointKey) return geometry;
@@ -724,12 +721,12 @@ const resolvedPlacement = (
 ): OutputPlacementPlan => {
   const sourceOrder = outputSourceIndex(compiledDocument, placement.id);
   const scaleSourceOrder = placement.scale === undefined ? outputSourceIndex(compiledDocument, layout.id) : sourceOrder;
-  const scale = resolveNumeric({ value: placement.scale ?? layout.scale, occurrence: propertyBindingOccurrenceKey(scaleSourceOrder, "scale"), sourceOrder: scaleSourceOrder, compiledDocument, evaluation });
+  const scale = resolveNumeric({ value: placement.scale ?? layout.scale, occurrence: propertyBindingOccurrenceKey(scaleSourceOrder, "scale"), compiledDocument, evaluation });
   const at = {
-    x: resolveNumeric({ value: placement.at.x, occurrence: propertyBindingOccurrenceKey(sourceOrder, "at:x"), sourceOrder, compiledDocument, evaluation }),
-    y: resolveNumeric({ value: placement.at.y, occurrence: propertyBindingOccurrenceKey(sourceOrder, "at:y"), sourceOrder, compiledDocument, evaluation })
+    x: resolveNumeric({ value: placement.at.x, occurrence: propertyBindingOccurrenceKey(sourceOrder, "at:x"), compiledDocument, evaluation }),
+    y: resolveNumeric({ value: placement.at.y, occurrence: propertyBindingOccurrenceKey(sourceOrder, "at:y"), compiledDocument, evaluation })
   };
-  const resolvedAngleDeg = resolveNumeric({ value: placement.angleDeg, occurrence: propertyBindingOccurrenceKey(sourceOrder, "angle"), sourceOrder, compiledDocument, evaluation });
+  const resolvedAngleDeg = resolveNumeric({ value: placement.angleDeg, occurrence: propertyBindingOccurrenceKey(sourceOrder, "angle"), compiledDocument, evaluation });
   finitePositive(scale, `placement ${placement.id} scale`);
   const angleDeg = normalizeAngle(finite(resolvedAngleDeg, `placement ${placement.id} angle`));
   const origin = placement.origin.kind === "localOrigin"
@@ -921,7 +918,7 @@ export const buildOutputPlan = ({
   if (!Number.isFinite(renderedBounds.minX) || !Number.isFinite(renderedBounds.minY)) throw new OutputPlanError("Output has no renderable bounds.");
   const outputIndex = outputSourceIndex(compiledDocument, output.id);
   if (!("paper" in output)) {
-    const marginMm = resolveNumeric({ value: output.margin, occurrence: propertyBindingOccurrenceKey(outputIndex, "margin"), sourceOrder: outputIndex, compiledDocument, evaluation });
+    const marginMm = resolveNumeric({ value: output.margin, occurrence: propertyBindingOccurrenceKey(outputIndex, "margin"), compiledDocument, evaluation });
     finiteNonNegative(marginMm, "svg margin");
     const bounds = expandBounds(renderedBounds, marginMm);
     const contentOrigin = { x: bounds.minX, y: bounds.minY };
@@ -935,7 +932,7 @@ export const buildOutputPlan = ({
   const paperBase = output.paper === "a4" ? { widthMm: 210, heightMm: 297 } : { widthMm: 297, heightMm: 420 };
   const paperWidthMm = output.orientation === "landscape" ? paperBase.heightMm : paperBase.widthMm;
   const paperHeightMm = output.orientation === "landscape" ? paperBase.widthMm : paperBase.heightMm;
-  const overlapMm = resolveNumeric({ value: output.overlap, occurrence: propertyBindingOccurrenceKey(outputIndex, "overlap"), sourceOrder: outputIndex, compiledDocument, evaluation });
+  const overlapMm = resolveNumeric({ value: output.overlap, occurrence: propertyBindingOccurrenceKey(outputIndex, "overlap"), compiledDocument, evaluation });
   const tiling = printPages({ bounds: renderedBounds, paperWidthMm, paperHeightMm, overlapMm });
   const rustPayload: RustPrintOutputPayload = { version: 1, kind: "print", bounds: renderedBounds, drawables, paper: { widthMm: paperWidthMm, heightMm: paperHeightMm }, overlapMm, stride: { x: tiling.strideXmm, y: tiling.strideYmm }, pages: tiling.pages };
   return {

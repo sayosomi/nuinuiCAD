@@ -113,7 +113,6 @@ const nonElementKinds = new Set<DslStatement["kind"]>([
   "import",
   "fileReExport",
   "version",
-  "atStop",
   "place",
   "moduleDefinition",
   "modifierDefinition",
@@ -320,8 +319,6 @@ const settingsStatementToDslStatement = (settings: DslSettingsStatement, line: n
       return { ...base, kind: "print" };
     case "svg":
       return { ...base, kind: "svg" };
-    case "atStop":
-      return { ...base, kind: "atStop" };
   }
 };
 
@@ -1298,15 +1295,6 @@ export const parseDslSnapshot = (snapshot: SourceSnapshot): ParseDslResult => {
   applyBlockStructure(statements, diagnostics);
   finalizeModifierStatements(statements, diagnostics);
   reportDuplicateNames(statements, diagnostics);
-  for (const extra of statements
-    .map((statement, statementIndex) => ({ statement, statementIndex }))
-    .filter(({ statement, statementIndex }) =>
-      statement.kind === "atStop" && isCompilableDslStatement(statements, statementIndex)
-    )
-    .slice(1)
-    .map(({ statement }) => statement)) {
-    diagnostics.push(diagnostic(extra.line, "stop は文書に1つだけ書けます。"));
-  }
   return {
     statements,
     diagnostics: diagnostics.map((item) => decorateDiagnostic(item, sourceMap)),

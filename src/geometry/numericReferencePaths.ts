@@ -62,9 +62,6 @@ export const formatValue = (value: number, path: string) => {
   return unit === "°" ? `${formatted}°` : `${formatted} ${unit}`;
 };
 
-const elementIndex = (elements: CadElement[], elementId: ElementId) =>
-  elements.findIndex((element) => element.id === elementId);
-
 const concreteExpression = (element: CadElement, path: string, context: ResolveContext) =>
   `${sourceReferenceForElement({
     element,
@@ -218,7 +215,6 @@ const candidatesForElement = ({
 
 export const numericReferenceCandidates = (context: ResolveContext & { query?: string }) => {
   const currentElement = context.currentElement;
-  const currentIndex = currentElement ? elementIndex(context.elements, currentElement.id) : -1;
   const dependencyIndex = createDependencyIndex(context.elements);
   const byId = new Map(context.elements.map((element) => [element.id, element]));
   const candidates: NumericReferenceCandidate[] = [];
@@ -273,14 +269,12 @@ export const numericReferenceCandidates = (context: ResolveContext & { query?: s
 
   for (const element of context.elements) {
     if (element.id === currentElement?.id) continue;
-    const index = elementIndex(context.elements, element.id);
     candidates.push(
       ...candidatesForElement({
         element,
         relation: "element",
         context,
-        insertable: currentIndex < 0 || index < currentIndex,
-        disabledReason: currentIndex >= 0 && index >= currentIndex ? "この要素より後にあるため参照できません。" : undefined
+        insertable: true
       })
     );
   }

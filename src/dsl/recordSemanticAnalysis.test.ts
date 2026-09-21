@@ -85,17 +85,14 @@ describe("record nominal semantic analysis", () => {
     ]);
   });
 
-  it("is non-hoisted for record type and constructor names", () => {
+  it("resolves record type and constructor names declared later", () => {
     const { namespace } = analyze([
       "nui 1",
       "const before: Later = Later(value: 1)",
       "record Later(value: number)"
     ].join("\n"));
 
-    expect(namespace.diagnostics.map((diagnostic) => diagnostic.code)).toEqual(expect.arrayContaining([
-      "record-type-forward-reference",
-      "record-constructor-forward-reference"
-    ]));
+    expect(namespace.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
   });
 
   it("validates constructor named arguments and nominal constructor type", () => {
@@ -188,7 +185,7 @@ describe("record nominal semantic analysis", () => {
     });
   });
 
-  it("uses a record Module parameter before a later local shadow becomes visible", () => {
+  it("keeps a later same-scope local distinct from a record Module parameter", () => {
     const { records, namespace } = analyze([
       "nui 1",
       "record Pair(x: number)",
@@ -198,10 +195,10 @@ describe("record nominal semantic analysis", () => {
       "}"
     ].join("\n"));
 
-    expect(namespace.diagnostics.filter((diagnostic) => diagnostic.code?.startsWith("record-reference"))).toEqual([]);
+    expect(namespace.diagnostics.filter((diagnostic) => diagnostic.code?.startsWith("record-reference"))).toHaveLength(1);
     expect(records.valuesByStatementId.get("stable-3")?.reference).toMatchObject({
       name: "input",
-      targetTypeIdentity: "stable-1"
+      targetTypeIdentity: null
     });
   });
 });

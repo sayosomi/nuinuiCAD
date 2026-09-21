@@ -20,6 +20,7 @@ import type {
 } from "../types/geometry";
 import type { GeometryInputCollectionNode, GeometryInputTarget } from "../model/cadDocumentTypes";
 import { compileDslToElements } from "./dslCompiler";
+import { resolveTransformationStageSelection } from "./transformationRecipes";
 import { lowerScalarProgram } from "../scalars/scalarProgram";
 import { analyzeTypedDeclarations } from "../scalars/typedDeclarationAnalysis";
 import { bindingIssuesToDiagnostics } from "../scalars/bindingIssueDiagnostics";
@@ -129,7 +130,7 @@ export type DslDocumentData = {
   layouts: Layout[];
   printOutputs: PrintOutput[];
   svgOutputs: SvgOutput[];
-  /** `undefined` means no stop marker; a numeric value includes an explicit terminal stop. */
+  /** Optional host-owned evaluation slice; nui1 source never supplies this. */
   evaluationLimitIndex: number | undefined;
 };
 
@@ -197,8 +198,8 @@ export type StatementMap = {
   statementRangeById: Map<StatementIdentity, StatementInfo>;
   /**
    * 非要素文のキー: `role:<id>` / `view:<id>` / `layout:<id>` /
-   * `print:<id>` / `svg:<id>` / `version` / `atStop` / `activeView`。
-   * active系は最後の出現(コンパイラのlast-winsに一致)、version/atStopは最初の出現。
+   * `print:<id>` / `svg:<id>` / `version` / `activeView`。
+   * active系は最後の出現(コンパイラのlast-winsに一致)、versionは最初の出現。
    */
   byKey: Map<string, StatementInfo>;
   /** 各セクションが存在する場合の最終行(セクション新設時の挿入アンカー)。 */
@@ -526,7 +527,7 @@ export const planSourceOutputSection = (data: DslDocumentData): {
   return { blocks, activeSourceOutputLine: null };
 };
 
-// ==== 要素ツリー(ブレースブロック + stop) ====
+// ==== 要素ツリー(ブレースブロック) ====
 
 type BlockFrame = {
   elementId: ElementId;
@@ -544,7 +545,7 @@ export type ElementTreeRow = {
   argKeys: (string | null)[];
   /** 正準インデント深さ(blockEnd/blockElse は開き文と同じ深さ)。 */
   depth: number;
-  role: "statement" | "blockEnd" | "blockElse" | "atStop";
+  role: "statement" | "blockEnd" | "blockElse";
   /** statement 行はその要素、blockEnd / blockElse 行は対応する開き要素のID。 */
   elementId?: ElementId;
   /** ,parent:/,branch: フォールバックで出力されたトップレベル文。 */
@@ -611,11 +612,9 @@ export const layoutElementTree = (
   refs: DslSerializerRefs,
   evaluationLimitIndex: number | undefined
 ): ElementTreeRow[] => {
+  void evaluationLimitIndex;
   const lines: ElementTreeRow[] = [];
   const stack: BlockFrame[] = [];
-  const hasAtStop = evaluationLimitIndex !== undefined;
-  const limit = Math.max(0, Math.min(evaluationLimitIndex ?? elements.length, elements.length));
-  let emitted = 0;
 
   const closeTo = (depth: number) => {
     while (stack.length > depth) {
@@ -631,15 +630,6 @@ export const layoutElementTree = (
   };
 
   for (const element of elements) {
-    if (hasAtStop && emitted === limit) {
-      lines.push({
-        lines: [`${DSL_INDENT.repeat(stack.length)}stop`],
-        argKeys: [null],
-        depth: stack.length,
-        role: "atStop"
-      });
-    }
-
     const parentId = element.parentGroupId;
     const desiredBranch: "then" | "else" = element.conditionalBranch === "else" ? "else" : "then";
     const targetIdx = parentId ? stack.findIndex((frame) => frame.elementId === parentId) : -1;
@@ -699,18 +689,9 @@ export const layoutElementTree = (
       }
     }
 
-    emitted += 1;
   }
 
   closeTo(0);
-  if (hasAtStop && emitted === limit) {
-    lines.push({
-      lines: ["stop"],
-      argKeys: [null],
-      depth: 0,
-      role: "atStop"
-    });
-  }
   return lines;
 };
 
@@ -736,13 +717,10 @@ const serializeFlatElementTree = (
   evaluationLimitIndex: number | undefined
 ) => {
   const lines: string[] = [];
-  const hasAtStop = evaluationLimitIndex !== undefined;
-  const limit = Math.max(0, Math.min(evaluationLimitIndex ?? elements.length, elements.length));
-  for (const [index, element] of elements.entries()) {
-    if (hasAtStop && index === limit) lines.push("stop");
+  void evaluationLimitIndex;
+  for (const element of elements) {
     lines.push(...serializedFlatStatementLines(element, serializeElementStatementBlock(element, refs)));
   }
-  if (hasAtStop && limit === elements.length) lines.push("stop");
   return lines;
 };
 
@@ -962,9 +940,6 @@ export const buildStatementMap = (
       case "version":
         setFirst("version", info);
         break;
-      case "atStop":
-        setFirst("atStop", info);
-        break;
       case "activeView":
         byKey.set("activeView", info);
         break;
@@ -1056,8 +1031,7 @@ export const buildStatementMap = (
     } else if (
       statement.kind === "group" ||
       statement.kind === "element" ||
-      statement.kind === "typedDeclaration" ||
-      statement.kind === "atStop"
+      statement.kind === "typedDeclaration"
     ) {
       // 単一行の複数行call(例: 複数行coordinate())はブロックを開かないため
       // range.endLineは更新されない - info.endLine(文自体の最終物理行)との
@@ -2224,6 +2198,10 @@ export const compileDslDocument = (
     const sourceElementType = scalarTypeOfDslValueType(mapped.sourceElementType);
     if (!sourceElementType) return [];
     const binderId = mapped.binderId;
+    // The mapped body is analyzed as an additional initializer for the
+    // owning declaration.  Its pre-resolved synthetic binding is kept in the
+    // owning lexical scope for control/version metadata, while ordinary name
+    // lookup excludes pre-resolved-only bindings outside the body.
     const scopeId = sourceLexicalNamespace!.scopeIndex.scopeOfStatement.get(value.statementIndex) ?? sourceLexicalNamespace!.scopeIndex.rootScopeId;
     return {
       id: binderId,
@@ -2625,6 +2603,11 @@ export const compileDslDocument = (
         additionalGeometryResolver: rootGeometryBuiltinResolver,
         additionalGeometryPropertyResolver: (input) =>
           immutableCarryCompilation?.collectionLengthPropertyResolver?.(input) ?? rootGeometryValuePropertyResolver?.(input) ?? null,
+        resolveGeometryStageSelection: ({ elementId, members }) => resolveTransformationStageSelection({
+          ownerId: elementId,
+          members,
+          recipes: compiled.transformationRecipes ?? []
+        }),
         additionalCollectionIndexResolver: rootCollectionIndexResolver,
         additionalBindings: [
           ...rootValueForBodyBindingSeeds,
@@ -2684,14 +2667,36 @@ export const compileDslDocument = (
         sourceNamespace: sourceLexicalNamespace,
         spans,
         logicalTextByStatementIndex,
-        documentScalarBindings
+        documentScalarBindings,
+        resolveGeometryStageSelection: ({ statementId, members }) => {
+          const statementIndex = [...stableStatementIdByIndex.entries()].find(([, candidateId]) => candidateId === statementId)?.[0];
+          const ownerId = statementIndex === undefined
+            ? statementId
+            : compiled.elementIdsByStatementIndex?.get(statementIndex) ?? statementId;
+          return resolveTransformationStageSelection({
+            ownerId,
+            members,
+            recipes: compiled.runtimeTransformationRecipes ?? compiled.transformationRecipes ?? []
+          });
+        }
       })
     : undefined;
   const sourceSemanticCompilation = moduleRuntimeContext?.analysisFor(moduleRuntimeContext.rootDocumentId) ?? locallyAnalyzedSourceSemanticCompilation;
+  const hasStageAwareGeometryReferences = Boolean(
+    sourceSemanticCompilation?.rootGeometryReferencesByStatementId &&
+    [...sourceSemanticCompilation.rootGeometryReferencesByStatementId.values()].some((sites) =>
+      sites.some((site) => {
+        const stagePath = site.reference.target && "stagePath" in site.reference.target
+          ? site.reference.target.stagePath
+          : undefined;
+        return Boolean(stagePath?.length && !(stagePath.length === 1 && stagePath[0] === "final"));
+      })
+    )
+  );
   // The source semantic projection is also useful for Definition Query in a
   // document without Modules. Geometry values also need this path so their
   // source-only aliases can be lowered at existing geometry consumers.
-  const moduleSemanticCompilation = hasModuleStatements || hasGeometryValueStatements || hasGeometryCarryStatements || hasRecordValueControlFlowStatements || hasGeneralizedRecordFields || hasNonScalarOptionalOrCoalescingStatements || hasGenericCollectionIndexStatements || hasGeometryCollectionIndexStatements || hasCollectionControlFlowStatements || hasNominalRecordCollectionValueFor || hasOptionalMemberStatements ? sourceSemanticCompilation : undefined;
+  const moduleSemanticCompilation = hasModuleStatements || hasGeometryValueStatements || hasGeometryCarryStatements || hasRecordValueControlFlowStatements || hasGeneralizedRecordFields || hasNonScalarOptionalOrCoalescingStatements || hasGenericCollectionIndexStatements || hasGeometryCollectionIndexStatements || hasCollectionControlFlowStatements || hasNominalRecordCollectionValueFor || hasOptionalMemberStatements || hasStageAwareGeometryReferences ? sourceSemanticCompilation : undefined;
   const geometryInputTargetsByElementId = new Map<ElementId, Map<string, GeometryInputTarget>>();
   if (moduleSemanticCompilation && stableStatementIdByIndex) {
     for (const [statementId, sites] of moduleSemanticCompilation.rootGeometryReferencesByStatementId) {
@@ -2700,14 +2705,41 @@ export const compileDslDocument = (
       if (elementId === undefined || statementIndex === undefined) continue;
       for (const site of sites) {
         const target = site.reference.target;
-        if (site.parameterKey === null || target?.kind !== "geometryCarry") continue;
+        if (site.parameterKey === null || !target) continue;
+        const targetForRuntime: GeometryInputTarget | undefined =
+          target.kind === "geometryCarry"
+            ? {
+                kind: "geometryCarry",
+                bindingId: target.bindingId,
+                geometryType: target.geometryKind,
+                ...(target.pointKey ? { pointKey: target.pointKey } : {}),
+                ...(target.stagePath ? { stagePath: target.stagePath } : {})
+              }
+            : target.kind === "sourceGeometry"
+              ? (() => {
+                  const sourceElementId = compiled.elementIdsByStatementIndex?.get(target.statementIndex);
+                  return sourceElementId
+                    ? {
+                        kind: "drawable" as const,
+                        elementId: sourceElementId,
+                        geometryType: target.geometryKind,
+                        ...(target.pointKey ? { pointKey: target.pointKey } : {}),
+                        ...(target.stagePath ? { stagePath: target.stagePath } : {})
+                      }
+                    : undefined;
+                })()
+              : target.kind === "geometryValue"
+                ? {
+                    kind: "geometryValue" as const,
+                    occurrence: { sourceStatementId: target.statementId, instancePath: [] },
+                    geometryType: target.declaredInterfaceType,
+                    ...(target.pointKey ? { pointKey: target.pointKey } : {}),
+                    ...(target.stagePath ? { stagePath: target.stagePath } : {})
+                  }
+                : undefined;
+        if (!targetForRuntime) continue;
         const targets = geometryInputTargetsByElementId.get(elementId) ?? new Map<string, GeometryInputTarget>();
-        targets.set(site.parameterKey, {
-          kind: "geometryCarry",
-          bindingId: target.bindingId,
-          geometryType: target.geometryKind,
-          ...(target.pointKey ? { pointKey: target.pointKey } : {})
-        });
+        targets.set(site.parameterKey, targetForRuntime);
         geometryInputTargetsByElementId.set(elementId, targets);
       }
     }
@@ -2926,6 +2958,7 @@ export const compileDslDocument = (
               occurrence: { sourceStatementId: unwrapped.target.statementId, instancePath: [] },
               property: target.property,
               ...(unwrapped.pointKey ? { pointKey: unwrapped.pointKey } : {}),
+              ...(unwrapped.target.stagePath ? { stagePath: unwrapped.target.stagePath } : {}),
               targetSourceOrder: unwrapped.target.statementIndex,
               type: property.type
             };
@@ -2976,6 +3009,7 @@ export const compileDslDocument = (
           return {
             elementId: lowered.elementId,
             property: lowered.property,
+            ...(target.stagePath ? { stagePath: target.stagePath } : {}),
             targetSourceOrder: target.statementIndex,
             type: property.type
           };
@@ -2989,6 +3023,7 @@ export const compileDslDocument = (
             },
             property: target.property,
             ...(target.pointKey ? { pointKey: target.pointKey } : {}),
+            ...(target.stagePath ? { stagePath: target.stagePath } : {}),
             targetSourceOrder: target.statementIndex,
             type: property.type
           };
@@ -3001,6 +3036,7 @@ export const compileDslDocument = (
             targetSourceOrder: target.statementIndex,
             index: null,
             ...(target.pointKey ? { pointKey: target.pointKey } : {}),
+            ...(target.stagePath ? { stagePath: target.stagePath } : {}),
             type: property.type
           };
         }
@@ -3008,6 +3044,7 @@ export const compileDslDocument = (
         return {
           elementId: target.instanceStatementId,
           property: target.property,
+          ...(target.stagePath ? { stagePath: target.stagePath } : {}),
           targetSourceOrder: target.instanceStatementIndex,
           type: property.type
         };
@@ -3451,6 +3488,12 @@ export const compileDslDocument = (
     : new Map(
         compiled.moduleMaterialization?.executionStatements.map((entry) => [entry.sourceStatementIndex, entry.runtimeElementId] as const)
       );
+  const resolveGeometryStageSelection = ({ elementId, members }: { elementId: ElementId; members: readonly string[] }) =>
+    resolveTransformationStageSelection({
+      ownerId: elementId,
+      members,
+      recipes: compiled.runtimeTransformationRecipes ?? compiled.transformationRecipes ?? []
+    });
   const propertyBindingCompilation = scalarAnalysis
     ? compilePropertyBindings({
         statements: parsed.statements,
@@ -3458,7 +3501,8 @@ export const compileDslDocument = (
         elements: compiled.elements,
         bindingAnalysis: scalarAnalysis.bindingAnalysis,
         spans,
-        includeStatement
+        includeStatement,
+        resolveGeometryStageSelection
       })
     : undefined;
   const numericBindingCompilation = scalarAnalysis
@@ -3471,7 +3515,8 @@ export const compileDslDocument = (
         includeStatement,
         layouts: compiled.layouts,
         layoutIdsByStatementIndex: compiled.layoutIdsByStatementIndex,
-        ...(moduleGeometryPropertyResolver ? { additionalGeometryPropertyResolver: moduleGeometryPropertyResolver } : {})
+        ...(moduleGeometryPropertyResolver ? { additionalGeometryPropertyResolver: moduleGeometryPropertyResolver } : {}),
+        resolveGeometryStageSelection
       })
     : undefined;
   // Task 25: conditionalGroup.condition typed-boolean compile/typecheck.
@@ -3485,7 +3530,8 @@ export const compileDslDocument = (
         elements: compiled.elements,
         bindingAnalysis: scalarAnalysis.bindingAnalysis,
         spans,
-        includeStatement
+        includeStatement,
+        resolveGeometryStageSelection
       })
     : undefined;
   // Task 26: text template brace/escape/hole analysis for every canonical
@@ -3501,7 +3547,8 @@ export const compileDslDocument = (
         elements: compiled.elements,
         bindingAnalysis: scalarAnalysis?.bindingAnalysis,
         spans,
-        includeStatement
+        includeStatement,
+        resolveGeometryStageSelection
       })
     : undefined;
   // Every supported document requires element-property references to carry
@@ -3998,7 +4045,11 @@ export const compileDslDocument = (
     propertyBindings: propertyBindingCompilation?.sourcesByOccurrenceKey,
     numericBindings: numericBindingCompilation?.sourcesByOccurrenceKey,
     textTemplates: textTemplateCompilation?.templatesByOccurrenceKey,
-    scalarProgram
+    conditionalGroupConditions: conditionalGroupConditionCompilation?.sourcesByOccurrenceKey,
+    scalarProgram,
+    geometryInputTargets: geometryInputTargetsByElementId,
+    transformationRecipes: compiled.runtimeTransformationRecipes ?? compiled.transformationRecipes,
+    moduleMaterialization: compiled.moduleMaterialization
   });
   const finalDiagnostics = [
     ...(propertyBindingCompilation ? [...allDiagnostics, ...propertyBindingCompilation.diagnostics] : allDiagnostics),
@@ -4006,7 +4057,19 @@ export const compileDslDocument = (
     ...(conditionalGroupConditionCompilation ? conditionalGroupConditionCompilation.diagnostics : []),
     ...(textTemplateCompilation ? textTemplateCompilation.diagnostics : []),
     ...(propertyReferenceSyntaxCompilation ? propertyReferenceSyntaxCompilation.diagnostics : [])
-    ,...carryCollectionDiagnostics
+    ,...carryCollectionDiagnostics,
+    ...(typedDependencyGraph?.cycles ?? []).map((cycle) => {
+      const statementIndex = cycle.statementIndices[0] ?? 0;
+      const statement = parsed.statements[statementIndex];
+      return withDiagnosticPresentation({
+        severity: "error" as const,
+        line: statement?.line ?? 1,
+        column: 1,
+        code: "dependency-cycle",
+        message: `依存関係 cycle: ${cycle.names.join(" -> ")}`,
+        presentation: { key: "diagnostic.dependency-cycle", parameters: { names: cycle.names.join(" -> ") } }
+      });
+    })
   ].map(withDiagnosticPresentation);
   // Same missing-attribute-value carve-out as the earlier fatal gate above.
   if (finalDiagnostics.some((item) => item.severity === "error" && item.code !== MISSING_ATTRIBUTE_VALUE_CODE)) {

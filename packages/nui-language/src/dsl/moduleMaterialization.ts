@@ -56,7 +56,7 @@ export type MaterializedExecutionStatement = {
   conditionalBranch?: ConditionalBranch;
   /** True when the parent came from a source group/conditional/for block. */
   sourceBlockChild: boolean;
-  /** Root source statement whose runtime subtree is one stop atomic unit. */
+  /** Root source statement whose runtime subtree is one atomic module unit. */
   executionUnitStatementIndex: number;
   instancePath: readonly StatementIdentity[];
   /** Runtime-qualified path; absent for ordinary/single-document entries. */
@@ -459,13 +459,6 @@ export const materializeModuleExecution = ({
     });
   }
 
-  const atStopIndex = statements.findIndex(
-    (statement, statementIndex) => statement.kind === "atStop" && !isInUnloweredModuleSubtree(statements, statementIndex)
-  );
-  const evaluationLimitIndex = atStopIndex >= 0
-    ? executionStatements.filter((entry) => entry.executionUnitStatementIndex < atStopIndex).length
-    : undefined;
-
   return {
     executionStatements,
     sourceExecutionUnits,
@@ -498,6 +491,6 @@ export const materializeModuleExecution = ({
           descendantIds: descendants.map(({ candidate }) => candidate.runtimeElementId)
         };
       }),
-    evaluationLimitIndex
+    evaluationLimitIndex: undefined
   };
 };

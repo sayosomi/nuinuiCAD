@@ -101,10 +101,6 @@ export type ScalarProgram = {
   statements: readonly ScalarProgramStatement[];
   /** Source-owned scalar/choice collection values used by collectionIndex nodes. */
   collectionValues?: readonly ScalarProgramCollection[];
-  /** Statement-stream position of stop, not an elements-array index. */
-  evaluationLimitSourceOrder?: number;
-  /** Reserved for future output-time scalar evaluation; SAY-63 has no local bindings. */
-  postStopBindingIds?: readonly BindingId[];
 };
 
 export type ScalarProgramPositionMap = {
@@ -115,13 +111,10 @@ export type ScalarProgramPositionMap = {
 export const lowerScalarProgram = ({
   bindingAnalysis,
   typedInitializerByBindingId,
-  positionMap,
   sourceOrderByBindingId,
-  evaluationLimitSourceOrder,
   collectionValues
 }: TypedDeclarationAnalysis & {
   sourceOrderByBindingId?: ReadonlyMap<BindingId, number>;
-  evaluationLimitSourceOrder?: number;
   collectionValues?: readonly ScalarProgramCollection[];
 }): ScalarProgram => {
   const statements: ScalarProgramStatement[] = [];
@@ -149,11 +142,6 @@ export const lowerScalarProgram = ({
   }
   return {
     statements,
-    ...(collectionValues?.length ? { collectionValues } : {}),
-    ...(evaluationLimitSourceOrder !== undefined
-      ? { evaluationLimitSourceOrder }
-      : positionMap.evaluationLimit
-        ? { evaluationLimitSourceOrder: positionMap.evaluationLimit.sourceOrder }
-        : {})
+    ...(collectionValues?.length ? { collectionValues } : {})
   };
 };

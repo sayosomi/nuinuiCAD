@@ -13,6 +13,7 @@ import type { CadElement, ElementId } from "../types/geometry";
 import type { ScalarExpressionAst } from "./expressionAst";
 import type { DslDiagnosticPresentation } from "../dsl/dslTypes";
 import type { ScalarExpressionResolvedGeometryProperty } from "./typedExpressionAst";
+import type { TransformationStageSelection } from "../dsl/transformationRecipes";
 
 export type GeometryPropertyResolutionIssue = {
   span: { start: number; end: number };
@@ -41,6 +42,11 @@ export type TypedGeometryPropertyResolutionContext = {
    * operands are owned by the geometry builtin resolver, not this numeric
    * property resolver. */
   skipPropertySpanStarts?: ReadonlySet<number>;
+  /** Compiler-owned transformation stage namespace. */
+  resolveStageSelection?: (input: {
+    elementId: ElementId;
+    members: readonly string[];
+  }) => TransformationStageSelection;
 };
 
 const normalizedReference = (
@@ -123,20 +129,29 @@ export const resolveGeometryPropertyMetadata = (
         return resolved.status === "resolved" ? resolved.element : undefined;
       })();
       const targetElementId = targetElement?.id ?? reference.elementId;
+      const stageSelection = context?.resolveStageSelection?.({
+        elementId: targetElementId,
+        members: node.property.split(".")
+      }) ?? { stagePath: ["final"], propertyPath: node.property.split(".") };
+      const property = stageSelection.propertyPath.join(".");
+      if (!property) {
+        geometryPropertyReferences.set(node.span.start, null);
+        return;
+      }
       const type = numericGeometryPropertySupportedByStaticTarget(
         targetElement
           ? numericGeometryStaticTargetForElementInDocument(targetElement, elements)
           : null,
-        reference.property
+        property
       )
         ? { kind: "number" as const }
-        : choiceGeometryPropertyTypeFor(targetElement, reference.property);
+        : choiceGeometryPropertyTypeFor(targetElement, property);
       if (!type) {
         geometryPropertyReferences.set(node.span.start, null);
         issues.push({
           span: node.propertySpan,
-          message: `要素プロパティ「${node.property}」は公開されたgeometry propertyとして使用できません。`,
-          presentation: { key: "diagnostic.geometry-property-invalid", parameters: { target: `${node.elementName}.${node.property}` } }
+          message: `要素プロパティ「${property}」は公開されたgeometry propertyとして使用できません。`,
+          presentation: { key: "diagnostic.geometry-property-invalid", parameters: { target: `${node.elementName}.${property}` } }
         });
         return;
       }
@@ -146,15 +161,6 @@ export const resolveGeometryPropertyMetadata = (
         issues.push({
           span: node.elementNameSpan,
           message: `要素「${node.elementName}」のsource orderを解決できません。`,
-          presentation: { key: "diagnostic.geometry-property-invalid", parameters: { target: `${node.elementName}.${node.property}` } }
-        });
-        return;
-      }
-      if (context?.currentSourceOrder !== undefined && targetSourceOrder >= context.currentSourceOrder) {
-        geometryPropertyReferences.set(node.span.start, null);
-        issues.push({
-          span: node.elementNameSpan,
-          message: `要素「${node.elementName}」はこの式より後、または同じ位置にあるため参照できません。`,
           presentation: { key: "diagnostic.geometry-property-invalid", parameters: { target: `${node.elementName}.${node.property}` } }
         });
         return;
@@ -172,21 +178,23 @@ export const resolveGeometryPropertyMetadata = (
         return false;
       })();
       if (isForGroupTemplate && targetElement) {
-        const pointPath = /^(start|end)\.(x|y)$/.exec(reference.property);
+        const pointPath = /^(start|end)\.(x|y)$/.exec(property);
         geometryPropertyReferences.set(node.span.start, {
           kind: "forGroupOccurrence",
           templateElementId: targetElementId,
-          property: pointPath ? pointPath[2]! : reference.property,
+          property: pointPath ? pointPath[2]! : property,
           targetSourceOrder,
           index: null,
           ...(pointPath ? { pointKey: pointPath[1] } : {}),
+          stagePath: stageSelection.stagePath,
           type
         });
         return;
       }
       geometryPropertyReferences.set(node.span.start, {
         elementId: targetElementId,
-        property: reference.property,
+        property,
+        stagePath: stageSelection.stagePath,
         targetSourceOrder,
         type
       });

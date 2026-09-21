@@ -1,6 +1,6 @@
 import type { CadElement, DrawingModifierDefinition, ElementId } from "../types/geometry";
 import { isRustLinearMutationEligible } from "../scalars/linearMutationEvaluator";
-import type { TypedScalarExpression } from "@nuinuicad/nui-language";
+import type { TypedScalarExpression, TypedDependencyGraph } from "@nuinuicad/nui-language";
 import { buildRustBindingMutationPayload, type RustBindingMutationPayload } from "./bindingVersionPayload";
 import type { EvaluateElementsOptions } from "./evaluate";
 import type { PropertyBindingRuntimeEntry } from "./propertyBindingRuntime";
@@ -14,14 +14,22 @@ type TextTemplateInput = { elementId: ElementId; segments: readonly RustTextTemp
 
 export type EvaluateDocumentInput = {
   elements: CadElement[];
-  transformationRecipes?: readonly import("@nuinuicad/nui-language").TransformationRecipe[];
+  evaluationOrder?: readonly ElementId[];
+  transformationRecipes?: readonly import("@nuinuicad/nui-language").TransformationRecipe[] | {
+    recipes: readonly import("@nuinuicad/nui-language").TransformationRecipe[];
+    dependencyPlans: readonly import("@nuinuicad/nui-language").TypedTransformationDependencyPlan[];
+  };
+  transformationDependencyPlans?: readonly import("@nuinuicad/nui-language").TypedTransformationDependencyPlan[];
   sourceStatementIndices?: Array<{ elementId: ElementId; statementIndex: number }>;
   evaluationLimitIndex?: number;
   allowDisabledElementIds?: readonly ElementId[];
   drawingModifiers?: readonly DrawingModifierDefinition[];
   selectedDrawingProfileId?: string;
   scalarProgram?: EvaluateElementsOptions["scalarProgram"];
-  scalarExpressionPayload?: { numericBindings: readonly NumericBindingRuntimeEntry[] };
+  scalarExpressionPayload?: {
+    numericBindings: readonly NumericBindingRuntimeEntry[];
+    conditionalDependencyGraph?: Pick<TypedDependencyGraph, "edges">;
+  };
   bindingVersions?: RustBindingMutationPayload;
   propertyBindings?: readonly PropertyBindingRuntimeEntry[];
   numericBindings?: readonly NumericBindingRuntimeEntry[];
@@ -69,7 +77,15 @@ export const buildRustEvaluationInput = (
     : undefined;
   return {
     elements,
-    ...(options.transformationRecipes?.length ? { transformationRecipes: options.transformationRecipes } : {}),
+    ...(options.evaluationOrder ? { evaluationOrder: options.evaluationOrder } : {}),
+    ...(options.transformationRecipes?.length
+      ? {
+          transformationRecipes: {
+            recipes: options.transformationRecipes,
+            dependencyPlans: options.transformationDependencyPlans ?? []
+          }
+        }
+      : {}),
     ...(options.statementInfoByElementId?.size
       ? {
           sourceStatementIndices: Array.from(options.statementInfoByElementId, ([elementId, info]) => ({
@@ -88,7 +104,16 @@ export const buildRustEvaluationInput = (
       ? { bindingVersions: mutationPayload }
       : options.scalarProgram ? { scalarProgram: options.scalarProgram } : {}),
     ...(options.propertyBindingEntries?.length ? { propertyBindings: options.propertyBindingEntries } : {}),
-    ...(options.numericBindingEntries?.length ? { scalarExpressionPayload: { numericBindings: options.numericBindingEntries } } : {}),
+    ...((options.numericBindingEntries?.length || options.typedDependencyGraph)
+      ? {
+          scalarExpressionPayload: {
+            numericBindings: options.numericBindingEntries ?? [],
+            ...(options.typedDependencyGraph
+              ? { conditionalDependencyGraph: { edges: options.typedDependencyGraph.edges } }
+              : {})
+          }
+        }
+      : {}),
     ...(options.controlBooleanEntries?.length ? { controlBooleanBindings: options.controlBooleanEntries } : {}),
     ...(options.geometryValueProgram?.length ? { geometryValueProgram: options.geometryValueProgram } : {}),
     ...(options.geometryInputTargetsByElementId?.size

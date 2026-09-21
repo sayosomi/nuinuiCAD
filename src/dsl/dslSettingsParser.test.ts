@@ -9,7 +9,7 @@ describe("nui1 settings parser", () => {
     expect(parse("nui 2").statement).toMatchObject({ kind: "version", value: "2", payloadSpans: { value: { start: 4, end: 5 } } });
     expect(parse("activeView 通常").statement).toMatchObject({ kind: "activeView", name: "通常" });
     expect(parse("layout A4 {", true).statement).toMatchObject({ kind: "layout", name: "A4", opensBlock: true });
-    expect(parse("stop").statement).toMatchObject({ kind: "atStop" });
+    expect(parse("stop").statement).toBeNull();
   });
 
   it("parses call settings with positional and named arguments", () => {
@@ -41,6 +41,6 @@ describe("nui1 settings parser", () => {
     expect(messages("role seam (name: a ,name: b)").join("\n")).toContain("重複");
     expect(messages("view 通常 (default: )").join("\n")).toContain("値がありません");
     expect(messages("print A4 (paper: a4, overlap: 10)").join("\n")).toContain("必須引数「layout」");
-    expect(messages("stop extra").join("\n")).toContain("単独");
+    expect(messages("stop extra").join("\n")).toContain("有効な構文ではありません");
   });
 });

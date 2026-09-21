@@ -2,9 +2,9 @@
 
 Expressions are typed and checked at the place where they are used. There is
 no implicit conversion between numbers, strings, booleans, choices, or
-geometry. References resolve in the lexical namespace at their source
-position; a forward reference, a reference outside the scope, or a reference
-to a disabled or invalid value is a diagnostic.
+geometry. References resolve in the legal lexical namespace; a reference
+outside the scope, or a reference to a disabled or invalid value, is a
+diagnostic. Required dependencies are scheduled through the dependency graph.
 
 ## Operators
 
@@ -83,9 +83,9 @@ A bare `@name` reads a declaration in the current scope. `@instance::name`
 reads an exported module value, and `@value.property` reads a property that
 the referenced value publishes. Collection values expose the read-only numeric
 property `length`; it counts authored members, including duplicates, after
-whole-value aliases are resolved. Reads happen at the source position: a
-later transformation does not change an earlier scalar read. Hidden geometry remains
-readable; disabled, failed, or not-yet-evaluated geometry is unavailable.
+whole-value aliases are resolved. Reads resolve to the selected immutable value
+or stage. Hidden geometry remains readable; disabled, failed, or unavailable
+geometry is unavailable.
 
 Generated drawable occurrences from a `for` statement use an explicit
 zero-based occurrence suffix after the resolved source reference:
@@ -131,7 +131,7 @@ collection element type, including nominal record identity. Order, duplicates,
 aliases, and pure geometry value identity are preserved; indexing does not
 create a drawable element identity, and nested arrays remain unsupported.
 Root values, aliases, Module parameters, locals, exports, qualified exports,
-and cross-document exports use the same lexical and source-order rules as
+and cross-document exports use the same lexical and export rules as
 whole collection references. An optional collection parameter needs
 optional-value resolution before indexing.
 

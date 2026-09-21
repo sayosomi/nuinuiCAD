@@ -13,7 +13,7 @@ const namespaceFor = (source: string) => {
 };
 
 describe("multi-document lexical namespace integration", () => {
-  it("keeps import aliases source-ordered and delegates only the member lookup", () => {
+  it("resolves import aliases declaratively and delegates only the member lookup", () => {
     const { index } = namespaceFor([
       "nui 1",
       "const before: number = 0",
@@ -27,8 +27,9 @@ describe("multi-document lexical namespace integration", () => {
         : null;
 
     expect(resolveSourceLexicalPath(index, 1, path, { externalNamespaceResolver })).toMatchObject({
-      kind: "forward",
-      declarations: [{ kind: "import", name: "library" }]
+      kind: "external",
+      namespace: { kind: "import", name: "library", statementId: "statement-2" },
+      member: { name: "Pocket", value: { semantic: "pocket" } }
     });
     expect(resolveSourceLexicalPath(index, 3, path, { externalNamespaceResolver })).toMatchObject({
       kind: "external",

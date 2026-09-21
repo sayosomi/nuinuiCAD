@@ -123,6 +123,15 @@ export const buildEvaluationOptions = ({
 
   return {
     evaluationLimitIndex,
+    ...(compiledDocument.typedDependencyGraph
+      ? { typedDependencyGraph: compiledDocument.typedDependencyGraph }
+      : {}),
+    ...(compiledDocument.typedDependencyGraph?.evaluationOrder
+      ? { evaluationOrder: compiledDocument.typedDependencyGraph.evaluationOrder }
+      : {}),
+    ...(compiledDocument.typedDependencyGraph?.transformationPlans
+      ? { transformationDependencyPlans: compiledDocument.typedDependencyGraph.transformationPlans }
+      : {}),
     ...((compiledDocument.runtimeTransformationRecipes ?? document.transformationRecipes)?.length
       ? { transformationRecipes: compiledDocument.runtimeTransformationRecipes ?? document.transformationRecipes }
       : {}),

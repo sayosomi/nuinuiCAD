@@ -3,6 +3,7 @@ use std::collections::HashMap;
 
 use super::errors::dependency_error;
 use super::numeric_expression::evaluate_numeric_or_push;
+use super::selected_transformation_geometry;
 use super::types::{
     element_id, element_name, element_type, find_element_name, ElementId, EvaluationState,
     GeometryValueOccurrence, Point,
@@ -53,6 +54,15 @@ fn point_from_identity_free_value(value: &Value) -> Option<Point> {
     })
 }
 
+fn anchor_stage_path(anchor: &Value) -> Option<Vec<String>> {
+    anchor
+        .get("stagePath")?
+        .as_array()?
+        .iter()
+        .map(|part| part.as_str().map(ToOwned::to_owned))
+        .collect()
+}
+
 pub(crate) fn point_anchor_for_element(element: &Value) -> Option<Value> {
     if element_type(element) != Some("offsetPoint")
         && element_type(element) != Some("polarOffsetPoint")
@@ -73,6 +83,12 @@ pub(crate) fn point_anchor_for_element(element: &Value) -> Option<Value> {
 }
 
 pub(crate) fn anchor_reference_element_id(anchor: &Value) -> Option<ElementId> {
+    if anchor_stage_path(anchor)
+        .as_deref()
+        .is_some_and(|path| !(path.is_empty() || (path.len() == 1 && path[0] == "final")))
+    {
+        return None;
+    }
     match anchor.get("mode")?.as_str()? {
         "reference" => anchor.get("pointId")?.as_str().map(ToOwned::to_owned),
         "derived" => anchor.get("elementId")?.as_str().map(ToOwned::to_owned),
@@ -173,37 +189,68 @@ pub(crate) fn point_anchor_or_error(
     match anchor.get("mode").and_then(Value::as_str) {
         Some("reference") => {
             let point_id = anchor.get("pointId")?.as_str()?;
-            let point = state
-                .computed_geometry
-                .get(point_id)
+            let stage_path = anchor_stage_path(anchor);
+            let selected_stage = stage_path
+                .as_deref()
+                .is_some_and(|path| !(path.is_empty() || (path.len() == 1 && path[0] == "final")));
+            let point = selected_transformation_geometry(state, point_id, stage_path.as_deref())
                 .and_then(point_from_geometry);
             if point.is_none() {
                 state
                     .errors
                     .push(dependency_error(state, element, point_id));
             }
-            point
+            point.map(|point| {
+                if selected_stage {
+                    Point {
+                        element_id: format!(
+                            "{}:{anchor_key}",
+                            element_id(element).unwrap_or_default()
+                        ),
+                        name: format!("{}.{anchor_key}", element_name(element)),
+                        ..point
+                    }
+                } else {
+                    point
+                }
+            })
         }
         Some("derived") => {
             let source_id = anchor.get("elementId")?.as_str()?;
             let point_key = anchor.get("pointKey")?.as_str()?;
-            let point = state
-                .computed_geometry
-                .get(source_id)
+            let stage_path = anchor_stage_path(anchor);
+            let selected_stage = stage_path
+                .as_deref()
+                .is_some_and(|path| !(path.is_empty() || (path.len() == 1 && path[0] == "final")));
+            let point = selected_transformation_geometry(state, source_id, stage_path.as_deref())
                 .and_then(|source| resolve_derived_point(source, point_key, state));
             if point.is_none() {
                 state
                     .errors
                     .push(dependency_error(state, element, source_id));
             }
-            point.map(|point| Point {
-                element_id: format!("{source_id}:{point_key}"),
-                name: format!(
-                    "{}.{}",
-                    find_element_name(state, source_id).unwrap_or_else(|| source_id.to_owned()),
-                    point_key
-                ),
-                ..point
+            point.map(|point| {
+                if selected_stage {
+                    Point {
+                        element_id: format!(
+                            "{}:{anchor_key}",
+                            element_id(element).unwrap_or_default()
+                        ),
+                        name: format!("{}.{anchor_key}", element_name(element)),
+                        ..point
+                    }
+                } else {
+                    Point {
+                        element_id: format!("{source_id}:{point_key}"),
+                        name: format!(
+                            "{}.{}",
+                            find_element_name(state, source_id)
+                                .unwrap_or_else(|| source_id.to_owned()),
+                            point_key
+                        ),
+                        ..point
+                    }
+                }
             })
         }
         Some("coordinate") => {

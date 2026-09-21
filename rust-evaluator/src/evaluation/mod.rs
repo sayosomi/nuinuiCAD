@@ -12,6 +12,7 @@ mod bezier_path;
 mod common_tangent_evaluator;
 #[cfg(test)]
 mod common_tangent_evaluator_tests;
+mod conditional_dependency_runtime;
 mod control_boolean_runtime;
 #[cfg(test)]
 mod control_boolean_runtime_tests;
@@ -133,8 +134,12 @@ use activity::{
 use bezier_evaluator::evaluate_bezier_curve;
 use bezier_feature_point_evaluator::{evaluate_bezier_bulge_point, evaluate_bezier_extreme_point};
 use common_tangent_evaluator::evaluate_common_tangent_line;
+use conditional_dependency_runtime::{
+    branch_for_controller_value, decode_conditional_dependency_graph, ConditionalDependencyGraph,
+};
 use control_boolean_runtime::{
-    resolve_conditional_group_condition, resolve_for_group_effective_show_generated,
+    evaluate_scalar_expression_with_document_resolver, resolve_conditional_group_condition,
+    resolve_for_group_effective_show_generated,
 };
 use corner_radius_evaluator::evaluate_corner_radius_arc_line;
 use edge_extend_evaluator::{evaluate_edge, evaluate_extend_trim};
@@ -166,9 +171,10 @@ use line_tangent_offset_point_evaluator::evaluate_line_tangent_offset_point;
 use numeric_binding_runtime::{
     apply_numeric_bindings, validate_numeric_bindings_payload, ValidatedNumericBinding,
 };
-use numeric_expression::evaluate_numeric_or_push;
+use numeric_expression::{evaluate_numeric_or_push, numeric_value};
 use offset_line_evaluator::evaluate_offset_line;
 use path_reverse_evaluator::evaluate_path_reverse;
+use point_anchor::{point_from_geometry, resolve_derived_point};
 use point_evaluators::{
     evaluate_division_point, evaluate_free_point, evaluate_offset_point,
     evaluate_polar_offset_point,
@@ -180,7 +186,7 @@ use scalars::{
     validate_scalar_program_payload, validate_text_property_bindings_payload,
     validate_text_templates_payload, validate_typed_expression_payload,
     ForGroupExecutionRunOutcome, ForGroupExecutionStatement, ScalarBindingResolver,
-    ScalarDocumentBindingResolver, ScalarMutationResolver, TypedScalarExpression,
+    ScalarDocumentBindingResolver, ScalarEvaluation, ScalarMutationResolver, TypedScalarExpression,
     ValidatedBindingVersions, ValidatedConditionExpression, ValidatedPropertyBinding,
     ValidatedScalarProgram, ValidatedTextTemplate,
 };
@@ -449,6 +455,16 @@ pub fn evaluate_document(
         decode_geometry_input_targets(input.geometry_input_targets.as_ref())?;
     let geometry_collection_nodes =
         decode_geometry_collection_nodes(input.geometry_collection_nodes.as_ref())?;
+    let conditional_dependency_graph = decode_conditional_dependency_graph(
+        input
+            .scalar_expression_payload
+            .as_ref()
+            .and_then(|payload| payload.get("conditionalDependencyGraph")),
+    )
+    .map_err(|message| EvaluationCommandError {
+        code: "conditional-dependency-graph-invalid".to_owned(),
+        message,
+    })?;
     Ok(evaluate_document_input_with_scalar_program(
         input,
         DecodedScalarPayloads {
@@ -463,6 +479,7 @@ pub fn evaluate_document(
             geometry_value_program,
             geometry_input_targets,
             geometry_collection_nodes,
+            conditional_dependency_graph,
         },
     ))
 }
@@ -479,6 +496,7 @@ struct DecodedScalarPayloads {
     geometry_value_program: Vec<geometry_value_runtime::GeometryValueProgramEntry>,
     geometry_input_targets: GeometryInputTargets,
     geometry_collection_nodes: HashMap<String, types::GeometryInputCollectionNode>,
+    conditional_dependency_graph: Option<ConditionalDependencyGraph>,
 }
 
 fn inactive_conditional_group_id(
@@ -707,6 +725,7 @@ fn transformation_recipe_error(
         .unwrap_or("transformation")
         .to_owned();
     state.errors.push(DependencyError {
+        code: None,
         element_id: recipe_id,
         element_name: recipe
             .get("construction")
@@ -716,7 +735,7 @@ fn transformation_recipe_error(
         missing_dependency_id: target
             .map(|target| target.owner_id.clone())
             .unwrap_or_default(),
-        missing_dependency_name: target.map(|target| target.source.clone()),
+        missing_dependency_name: target.map(|target| target.source.clone().into()),
         message: message.into(),
     });
 }
@@ -814,6 +833,103 @@ fn runtime_transformation_targets(
     vec![target]
 }
 
+fn transformation_plan_dependency_available(dependency: &Value, state: &EvaluationState) -> bool {
+    let Some(owner_id) = dependency.get("ownerId").and_then(Value::as_str) else {
+        return false;
+    };
+    let rows = state
+        .for_group_generated_rows
+        .iter()
+        .filter(|row| row.template_element_id == owner_id)
+        .collect::<Vec<_>>();
+    let runtime_ids =
+        if let Some(index_text) = dependency.get("occurrenceIndex").and_then(Value::as_str) {
+            index_text
+                .parse::<usize>()
+                .ok()
+                .and_then(|index| {
+                    rows.get(index)
+                        .map(|row| vec![row.generated_element_id.clone()])
+                })
+                .unwrap_or_default()
+        } else if has_for_group_ancestor(owner_id, state) {
+            rows.into_iter()
+                .map(|row| row.generated_element_id.clone())
+                .collect::<Vec<_>>()
+        } else {
+            vec![owner_id.to_owned()]
+        };
+    if runtime_ids.is_empty() {
+        return false;
+    }
+    let stage_path = dependency
+        .get("stagePath")
+        .and_then(Value::as_array)
+        .map(|path| {
+            path.iter()
+                .filter_map(Value::as_str)
+                .map(ToOwned::to_owned)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    runtime_ids.iter().all(|runtime_id| {
+        if stage_path == ["base".to_owned()] {
+            state.base_transformation_geometry.contains_key(runtime_id)
+        } else if stage_path == ["final".to_owned()] || stage_path.is_empty() {
+            state.computed_geometry.contains_key(runtime_id)
+        } else {
+            state
+                .transformation_stage_geometry
+                .contains_key(&transformation_stage_key(runtime_id, &stage_path))
+        }
+    })
+}
+
+fn transformation_recipe_plan_ready(recipe_index: usize, state: &EvaluationState) -> bool {
+    let Some(plan) = state
+        .transformation_dependency_plans
+        .as_ref()
+        .and_then(Value::as_array)
+        .and_then(|plans| {
+            plans.iter().find(|plan| {
+                plan.get("recipeIndex")
+                    .and_then(Value::as_u64)
+                    .is_some_and(|index| index as usize == recipe_index)
+            })
+        })
+    else {
+        return true;
+    };
+    let predecessors_ready = plan
+        .get("predecessorRecipeIndices")
+        .and_then(Value::as_array)
+        .map(|predecessors| {
+            predecessors.iter().all(|predecessor| {
+                predecessor.as_u64().is_some_and(|index| {
+                    state
+                        .completed_transformation_recipe_indices
+                        .contains(&(index as usize))
+                })
+            })
+        })
+        .unwrap_or(true);
+    if !predecessors_ready {
+        return false;
+    }
+    ["prerequisites", "argumentDependencies"]
+        .iter()
+        .all(|field| {
+            plan.get(*field)
+                .and_then(Value::as_array)
+                .map(|dependencies| {
+                    dependencies.iter().all(|dependency| {
+                        transformation_plan_dependency_available(dependency, state)
+                    })
+                })
+                .unwrap_or(true)
+        })
+}
+
 fn transformation_synthetic_element(
     recipe: &Value,
     targets: &[RuntimeTransformationTarget],
@@ -857,6 +973,102 @@ fn transformation_synthetic_element(
     })
 }
 
+pub(crate) fn selected_transformation_geometry<'a>(
+    state: &'a EvaluationState,
+    element_id: &str,
+    stage_path: Option<&[String]>,
+) -> Option<&'a Value> {
+    match stage_path {
+        None => state.computed_geometry.get(element_id),
+        Some(path) if path.is_empty() || (path.len() == 1 && path[0] == "final") => {
+            state.computed_geometry.get(element_id)
+        }
+        Some(path) if path.len() == 1 && path[0] == "base" => {
+            state.base_transformation_geometry.get(element_id)
+        }
+        Some(path) => state
+            .transformation_stage_geometry
+            .get(&transformation_stage_key(element_id, path)),
+    }
+}
+
+fn materialize_transformation_value(value: &Value, state: &EvaluationState) -> Value {
+    if value.get("kind").and_then(Value::as_str) == Some("expression") {
+        let locals = HashMap::new();
+        return numeric_value(value, state, value, &locals, &HashMap::new())
+            .map(Value::from)
+            .unwrap_or_else(|_| value.clone());
+    }
+    if value.get("mode").and_then(Value::as_str) == Some("derived") {
+        if let (Some(element_id), Some(point_key)) = (
+            value.get("elementId").and_then(Value::as_str),
+            value.get("pointKey").and_then(Value::as_str),
+        ) {
+            if let Some(geometry) = selected_transformation_geometry(
+                state,
+                element_id,
+                value
+                    .get("stagePath")
+                    .and_then(|path| {
+                        path.as_array().map(|parts| {
+                            parts
+                                .iter()
+                                .filter_map(Value::as_str)
+                                .map(ToOwned::to_owned)
+                                .collect::<Vec<_>>()
+                        })
+                    })
+                    .as_deref(),
+            ) {
+                if let Some(point) = resolve_derived_point(geometry, point_key, state) {
+                    return json!({ "mode": "coordinate", "x": point.x, "y": point.y });
+                }
+            }
+        }
+    }
+    if value.get("mode").and_then(Value::as_str) == Some("reference") {
+        if let Some(point_id) = value.get("pointId").and_then(Value::as_str) {
+            if let Some(geometry) = selected_transformation_geometry(
+                state,
+                point_id,
+                value
+                    .get("stagePath")
+                    .and_then(|path| {
+                        path.as_array().map(|parts| {
+                            parts
+                                .iter()
+                                .filter_map(Value::as_str)
+                                .map(ToOwned::to_owned)
+                                .collect::<Vec<_>>()
+                        })
+                    })
+                    .as_deref(),
+            ) {
+                if let Some(point) = point_from_geometry(geometry) {
+                    return json!({ "mode": "coordinate", "x": point.x, "y": point.y });
+                }
+            }
+        }
+    }
+    if let Some(array) = value.as_array() {
+        return Value::Array(
+            array
+                .iter()
+                .map(|item| materialize_transformation_value(item, state))
+                .collect(),
+        );
+    }
+    if let Some(object) = value.as_object() {
+        return Value::Object(
+            object
+                .iter()
+                .map(|(key, child)| (key.clone(), materialize_transformation_value(child, state)))
+                .collect(),
+        );
+    }
+    value.clone()
+}
+
 fn execute_transformation_invocation(
     recipe: &Value,
     targets: &[RuntimeTransformationTarget],
@@ -867,7 +1079,9 @@ fn execute_transformation_invocation(
     }
     let mut inputs = HashMap::<ElementId, Value>::new();
     for target in targets {
-        let input = if target.stage_path.is_empty() {
+        let input = if target.stage_path.is_empty()
+            || (target.stage_path.len() == 1 && target.stage_path[0] == "final")
+        {
             state
                 .computed_geometry
                 .get(&target.runtime_owner_id)
@@ -915,7 +1129,9 @@ fn execute_transformation_invocation(
     for (id, input) in inputs {
         state.computed_geometry.insert(id, input);
     }
-    let Some(synthetic) = transformation_synthetic_element(recipe, targets) else {
+    let Some(synthetic) = transformation_synthetic_element(recipe, targets)
+        .map(|value| materialize_transformation_value(&value, state))
+    else {
         return;
     };
     let error_count_before = state.errors.len();
@@ -990,24 +1206,19 @@ fn execute_transformation_invocation(
 
 fn execute_transformation_recipes_through(
     recipes: &[Value],
-    next_recipe_index: &mut usize,
-    source_order: f64,
+    _next_recipe_index: &mut usize,
+    _source_order: f64,
     state: &mut EvaluationState,
 ) {
-    while *next_recipe_index < recipes.len() {
-        let recipe = &recipes[*next_recipe_index];
-        let recipe_order = recipe
-            .get("runtimeSourceOrder")
-            .and_then(Value::as_f64)
-            .or_else(|| {
-                recipe
-                    .get("sourceStatementIndex")
-                    .and_then(Value::as_u64)
-                    .map(|value| value as f64)
-            })
-            .unwrap_or(f64::MAX);
-        if recipe_order > source_order {
-            break;
+    for (recipe_index, recipe) in recipes.iter().enumerate() {
+        if state
+            .completed_transformation_recipe_indices
+            .contains(&recipe_index)
+        {
+            continue;
+        }
+        if !transformation_recipe_plan_ready(recipe_index, state) {
+            continue;
         }
         let targets = recipe
             .get("targets")
@@ -1017,7 +1228,29 @@ fn execute_transformation_recipes_through(
             .iter()
             .map(|target| runtime_transformation_targets(recipe, target, state))
             .collect::<Vec<_>>();
-        if !targets.iter().any(Vec::is_empty) {
+        if targets.iter().flatten().any(|target| {
+            if target.stage_path.is_empty()
+                || (target.stage_path.len() == 1 && target.stage_path[0] == "final")
+            {
+                !state
+                    .computed_geometry
+                    .contains_key(&target.runtime_owner_id)
+            } else if target.stage_path == ["base".to_owned()] {
+                !state
+                    .base_transformation_geometry
+                    .contains_key(&target.runtime_owner_id)
+            } else {
+                !state
+                    .transformation_stage_geometry
+                    .contains_key(&transformation_stage_key(
+                        &target.runtime_owner_id,
+                        &target.stage_path,
+                    ))
+            }
+        }) {
+            continue;
+        }
+        if !targets.is_empty() && !targets.iter().any(Vec::is_empty) {
             if recipe.get("construction").and_then(Value::as_str) == Some("edge")
                 && targets.iter().any(|targets| targets.len() > 1)
             {
@@ -1043,8 +1276,10 @@ fn execute_transformation_recipes_through(
                     state,
                 );
             }
+            state
+                .completed_transformation_recipe_indices
+                .insert(recipe_index);
         }
-        *next_recipe_index += 1;
     }
 }
 
@@ -1096,6 +1331,13 @@ fn evaluate_document_input(input: EvaluationInput) -> EvaluationPayload {
     let geometry_collection_nodes =
         decode_geometry_collection_nodes(input.geometry_collection_nodes.as_ref())
             .expect("evaluation test input geometry_collection_nodes must be valid");
+    let conditional_dependency_graph = decode_conditional_dependency_graph(
+        input
+            .scalar_expression_payload
+            .as_ref()
+            .and_then(|payload| payload.get("conditionalDependencyGraph")),
+    )
+    .expect("evaluation test input conditional_dependency_graph must be valid");
     evaluate_document_input_with_scalar_program(
         input,
         DecodedScalarPayloads {
@@ -1110,6 +1352,7 @@ fn evaluate_document_input(input: EvaluationInput) -> EvaluationPayload {
             geometry_value_program,
             geometry_input_targets,
             geometry_collection_nodes,
+            conditional_dependency_graph,
         },
     )
 }
@@ -1130,6 +1373,7 @@ fn evaluate_document_input_with_scalar_program(
         geometry_value_program,
         geometry_input_targets,
         geometry_collection_nodes,
+        conditional_dependency_graph,
     } = decoded;
     let mut geometry_value_program = geometry_value_program;
     geometry_value_program.sort_by(|left, right| {
@@ -1147,37 +1391,52 @@ fn evaluate_document_input_with_scalar_program(
     let drawing_modifiers = input
         .drawing_modifiers
         .unwrap_or_else(|| Value::Array(Vec::new()));
-    let evaluated_elements = input.elements[..evaluation_limit_index].to_vec();
-    let mut transformation_recipes = input
-        .transformation_recipes
-        .clone()
-        .and_then(|value| value.as_array().cloned())
-        .unwrap_or_default();
-    transformation_recipes.sort_by(|left, right| {
-        let order = |recipe: &Value| {
-            recipe
-                .get("runtimeSourceOrder")
-                .and_then(Value::as_f64)
-                .or_else(|| {
-                    recipe
-                        .get("sourceStatementIndex")
-                        .and_then(Value::as_u64)
-                        .map(|value| value as f64)
-                })
-                .unwrap_or(f64::MAX)
-        };
-        order(left).total_cmp(&order(right)).then_with(|| {
-            left.get("sourceStatementIndex")
-                .and_then(Value::as_u64)
-                .unwrap_or(usize::MAX as u64)
-                .cmp(
-                    &right
-                        .get("sourceStatementIndex")
-                        .and_then(Value::as_u64)
-                        .unwrap_or(usize::MAX as u64),
-                )
+    let mut element_index_by_id = HashMap::<ElementId, usize>::new();
+    for (index, element) in input.elements.iter().enumerate() {
+        if let Some(id) = element_id(element) {
+            element_index_by_id.insert(id, index);
+        }
+    }
+    let evaluation_indices = if let Some(order) = input.evaluation_order.as_ref() {
+        let mut indices = Vec::with_capacity(evaluation_limit_index);
+        let mut seen = HashSet::new();
+        for id in order {
+            if let Some(index) = element_index_by_id.get(id).copied() {
+                if index < evaluation_limit_index && seen.insert(index) {
+                    indices.push(index);
+                }
+            }
+        }
+        for index in 0..evaluation_limit_index {
+            if seen.insert(index) {
+                indices.push(index);
+            }
+        }
+        indices
+    } else {
+        (0..evaluation_limit_index).collect()
+    };
+    let evaluated_elements = evaluation_indices
+        .iter()
+        .map(|index| input.elements[*index].clone())
+        .collect::<Vec<_>>();
+    let transformation_payload = input.transformation_recipes.clone();
+    let transformation_recipes = transformation_payload
+        .as_ref()
+        .and_then(|value| value.get("recipes"))
+        .and_then(Value::as_array)
+        .cloned()
+        .or_else(|| {
+            transformation_payload
+                .as_ref()
+                .and_then(Value::as_array)
+                .cloned()
         })
-    });
+        .unwrap_or_default();
+    let transformation_dependency_plans = transformation_payload
+        .as_ref()
+        .and_then(|value| value.get("dependencyPlans"))
+        .cloned();
     let source_statement_indices = input
         .source_statement_indices
         .as_ref()
@@ -1223,6 +1482,8 @@ fn evaluate_document_input_with_scalar_program(
         computed_geometry: HashMap::new(),
         base_transformation_geometry: HashMap::new(),
         transformation_stage_geometry: HashMap::new(),
+        completed_transformation_recipe_indices: HashSet::new(),
+        transformation_dependency_plans,
         computed_geometry_values: HashMap::new(),
         geometry_input_targets,
         geometry_collection_nodes,
@@ -1238,27 +1499,49 @@ fn evaluate_document_input_with_scalar_program(
         geometry_value_errors: Vec::new(),
         warnings: Vec::new(),
     };
+    for snapshot in &instance_snapshots {
+        if snapshot
+            .descendant_ids
+            .iter()
+            .all(|id| evaluated_ids.contains(id))
+        {
+            state
+                .instance_base_geometry
+                .insert(snapshot.instance_id.clone(), Vec::new());
+        }
+    }
     let mut conditional_group_states = HashMap::<ElementId, Option<&'static str>>::new();
     let mut condition_inactive_ids = HashSet::<ElementId>::new();
     let mut effective_enabled_ids = HashSet::<ElementId>::new();
     let mut effective_enabled_order = Vec::<ElementId>::new();
     let template_descendant_ids = for_group_template_descendant_ids(&state.elements);
     let mut for_group_effective_show_generated_ids = Vec::<ElementId>::new();
-    let capture_completed_instances = |completed_index: usize, state: &mut EvaluationState| {
-        for snapshot in instance_snapshots
-            .iter()
-            .filter(|snapshot| snapshot.end_runtime_index == completed_index)
-        {
-            let geometry = snapshot
-                .descendant_ids
-                .iter()
-                .filter_map(|id| state.computed_geometry.get(id).cloned())
-                .collect::<Vec<_>>();
-            state
-                .instance_base_geometry
-                .insert(snapshot.instance_id.clone(), geometry);
-        }
-    };
+    let mut completed_element_ids = HashSet::<ElementId>::new();
+    let mut captured_instance_ids = HashSet::<ElementId>::new();
+    let capture_completed_instances =
+        |state: &mut EvaluationState,
+         completed_element_ids: &HashSet<ElementId>,
+         captured_instance_ids: &mut HashSet<ElementId>| {
+            for snapshot in &instance_snapshots {
+                if captured_instance_ids.contains(&snapshot.instance_id)
+                    || !snapshot
+                        .descendant_ids
+                        .iter()
+                        .all(|id| completed_element_ids.contains(id))
+                {
+                    continue;
+                }
+                let geometry = snapshot
+                    .descendant_ids
+                    .iter()
+                    .filter_map(|id| state.computed_geometry.get(id).cloned())
+                    .collect::<Vec<_>>();
+                state
+                    .instance_base_geometry
+                    .insert(snapshot.instance_id.clone(), geometry);
+                captured_instance_ids.insert(snapshot.instance_id.clone());
+            }
+        };
 
     // Built whenever a scalar_program is present, independent of whether any
     // property bindings exist - computed_scalar_bindings is Task 21's own
@@ -1377,11 +1660,109 @@ fn evaluate_document_input_with_scalar_program(
     let mut next_geometry_value_index = 0usize;
     let mut next_transformation_recipe_index = 0usize;
     let empty_geometry_value_resolver = geometry_value_runtime::EmptyBindingResolver;
+    let mut conditional_branch_selections = HashMap::<String, String>::new();
+    let mut pending_indices = evaluation_indices.clone();
+    let original_pending_order = pending_indices
+        .iter()
+        .enumerate()
+        .map(|(order, index)| (*index, order))
+        .collect::<HashMap<usize, usize>>();
+    let mut scheduled_indices = Vec::with_capacity(pending_indices.len());
 
-    'elements: for index in 0..evaluation_limit_index {
-        if index > 0 {
-            capture_completed_instances(index - 1, &mut state);
+    'elements: while !pending_indices.is_empty() {
+        if let (Some(graph), Some(_)) = (
+            conditional_dependency_graph
+                .as_ref()
+                .filter(|graph| graph.has_activation()),
+            scalar_mutation_resolver
+                .as_ref()
+                .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
+                .or_else(|| {
+                    scalar_binding_resolver
+                        .as_ref()
+                        .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
+                }),
+        ) {
+            let mut changed = false;
+            let mut progressed = true;
+            while progressed {
+                progressed = false;
+                let resolver = scalar_mutation_resolver
+                    .as_ref()
+                    .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
+                    .or_else(|| {
+                        scalar_binding_resolver
+                            .as_ref()
+                            .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
+                    })
+                    .expect("conditional activation requires a scalar resolver");
+                for candidate in graph.controller_candidates(&conditional_branch_selections) {
+                    if conditional_branch_selections.contains_key(&candidate.controller_id)
+                        || candidate
+                            .prerequisite_endpoint_ids
+                            .iter()
+                            .any(|endpoint_id| {
+                                !graph.endpoint_is_ready(
+                                    endpoint_id,
+                                    &conditional_branch_selections,
+                                    resolver,
+                                    &state,
+                                )
+                            })
+                    {
+                        continue;
+                    }
+                    let evaluation = evaluate_scalar_expression_with_document_resolver(
+                        candidate.expression,
+                        resolver,
+                        &state,
+                    );
+                    let ScalarEvaluation::Ok { value, .. } = evaluation else {
+                        continue;
+                    };
+                    let branches = candidate.branches.iter().cloned().collect::<HashSet<_>>();
+                    let Some(branch) = branch_for_controller_value(&value, &branches) else {
+                        continue;
+                    };
+                    conditional_branch_selections.insert(candidate.controller_id, branch);
+                    changed = true;
+                    progressed = true;
+                }
+            }
+            if changed {
+                let element_ids = state
+                    .elements
+                    .iter()
+                    .filter_map(element_id)
+                    .collect::<Vec<_>>();
+                let projected = graph.project(
+                    &element_ids,
+                    evaluation_limit_index,
+                    &conditional_branch_selections,
+                );
+                state.errors.extend(projected.cycles);
+                let rank = projected
+                    .evaluation_order
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(rank, id)| {
+                        element_index_by_id.get(id).map(|index| (*index, rank))
+                    })
+                    .collect::<HashMap<usize, usize>>();
+                pending_indices.sort_by_key(|index| {
+                    (
+                        rank.get(index).copied().unwrap_or(usize::MAX),
+                        original_pending_order
+                            .get(index)
+                            .copied()
+                            .unwrap_or(usize::MAX),
+                    )
+                });
+            }
         }
+        let index = pending_indices.remove(0);
+        let evaluation_position = scheduled_indices.len();
+        scheduled_indices.push(index);
         let mut element = state.elements[index].clone();
         let id = match element_id(&element) {
             Some(id) => id,
@@ -1414,7 +1795,29 @@ fn evaluate_document_input_with_scalar_program(
                 });
         let current_execution_position = current_source_order
             .map(|source_order| source_order as f64)
-            .unwrap_or(source_statement_indices.get(&id).copied().unwrap_or(index) as f64);
+            .unwrap_or(
+                source_statement_indices
+                    .get(&id)
+                    .copied()
+                    .unwrap_or(evaluation_position) as f64,
+            );
+        macro_rules! complete_attempt_and_continue {
+            () => {{
+                completed_element_ids.insert(id.clone());
+                capture_completed_instances(
+                    &mut state,
+                    &completed_element_ids,
+                    &mut captured_instance_ids,
+                );
+                execute_transformation_recipes_through(
+                    &transformation_recipes,
+                    &mut next_transformation_recipe_index,
+                    current_execution_position,
+                    &mut state,
+                );
+                continue 'elements;
+            }};
+        }
         while next_geometry_value_index < geometry_value_program.len()
             && geometry_value_program[next_geometry_value_index].execution_position
                 <= current_execution_position
@@ -1451,7 +1854,7 @@ fn evaluate_document_input_with_scalar_program(
             condition_inactive_ids.insert(id.clone());
             state
                 .group_states
-                .entry(id)
+                .entry(id.clone())
                 .or_default()
                 .disabled_by_group_id = Some(condition_group_id);
             execute_transformation_recipes_through(
@@ -1460,7 +1863,7 @@ fn evaluate_document_input_with_scalar_program(
                 current_execution_position,
                 &mut state,
             );
-            continue;
+            complete_attempt_and_continue!();
         }
         if !base_effective_enabled_ids.contains(&id) {
             execute_transformation_recipes_through(
@@ -1469,7 +1872,7 @@ fn evaluate_document_input_with_scalar_program(
                 current_execution_position,
                 &mut state,
             );
-            continue;
+            complete_attempt_and_continue!();
         }
         if effective_enabled_ids.insert(id.clone()) {
             effective_enabled_order.push(id.clone());
@@ -1497,7 +1900,7 @@ fn evaluate_document_input_with_scalar_program(
                         current_execution_position,
                         &mut state,
                     );
-                    continue;
+                    complete_attempt_and_continue!();
                 }
             }
         }
@@ -1542,7 +1945,7 @@ fn evaluate_document_input_with_scalar_program(
                 current_execution_position,
                 &mut state,
             );
-            continue;
+            complete_attempt_and_continue!();
         }
 
         if element_type(&element) == Some("forGroup") {
@@ -1555,7 +1958,7 @@ fn evaluate_document_input_with_scalar_program(
                     current_execution_position,
                     &mut state,
                 );
-                continue;
+                complete_attempt_and_continue!();
             };
 
             // Evaluated once per forGroup entry, alongside min/max/step -
@@ -1633,6 +2036,12 @@ fn evaluate_document_input_with_scalar_program(
                     .expect("validated forGroup scheduler must not mutate an iteration binding");
                 resolver.commit_for_group_environment(&environment);
                 if outcome == ForGroupExecutionRunOutcome::Stopped {
+                    completed_element_ids.insert(id.clone());
+                    capture_completed_instances(
+                        &mut state,
+                        &completed_element_ids,
+                        &mut captured_instance_ids,
+                    );
                     break 'elements;
                 }
                 execute_transformation_recipes_through(
@@ -1641,7 +2050,7 @@ fn evaluate_document_input_with_scalar_program(
                     current_execution_position,
                     &mut state,
                 );
-                continue;
+                complete_attempt_and_continue!();
             }
 
             let mut generic_runtime = GenericForGroupRuntime::new(
@@ -1676,9 +2085,10 @@ fn evaluate_document_input_with_scalar_program(
                 current_execution_position,
                 &mut state,
             );
-            continue;
+            complete_attempt_and_continue!();
         }
 
+        let error_count_before_element_evaluation = state.errors.len();
         match entries_by_element_id.get(&id) {
             Some(entries) if !entries.is_empty() => {
                 let resolver = active_scalar_binding_resolver
@@ -1715,7 +2125,7 @@ fn evaluate_document_input_with_scalar_program(
                                 current_execution_position,
                                 &mut state,
                             );
-                            continue;
+                            complete_attempt_and_continue!();
                         }
                         state.elements[index] = materialized_element.clone();
                         evaluate_element_by_type(
@@ -1760,7 +2170,7 @@ fn evaluate_document_input_with_scalar_program(
                         current_execution_position,
                         &mut state,
                     );
-                    continue;
+                    complete_attempt_and_continue!();
                 }
                 state.elements[index] = element.clone();
                 evaluate_element_by_type(
@@ -1782,6 +2192,19 @@ fn evaluate_document_input_with_scalar_program(
                 )
             }
         }
+        if state.errors.len() > error_count_before_element_evaluation {
+            // A terminal evaluation error completes the attempt but must not
+            // leave partially constructed geometry available to Module
+            // snapshots or later consumers. Disabled and inactive descendants
+            // use the existing terminal macro above.
+            state.computed_geometry.remove(&id);
+        }
+        completed_element_ids.insert(id.clone());
+        capture_completed_instances(
+            &mut state,
+            &completed_element_ids,
+            &mut captured_instance_ids,
+        );
         execute_transformation_recipes_through(
             &transformation_recipes,
             &mut next_transformation_recipe_index,
@@ -1829,7 +2252,11 @@ fn evaluate_document_input_with_scalar_program(
         next_geometry_value_index += 1;
     }
     if evaluation_limit_index > 0 {
-        capture_completed_instances(evaluation_limit_index - 1, &mut state);
+        capture_completed_instances(
+            &mut state,
+            &completed_element_ids,
+            &mut captured_instance_ids,
+        );
     }
 
     let (computed_scalar_bindings, computed_scalar_binding_versions) =

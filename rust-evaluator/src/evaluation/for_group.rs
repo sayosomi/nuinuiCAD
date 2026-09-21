@@ -134,10 +134,11 @@ pub(crate) fn for_group_loop_values(
     let (min, max, step) = min.zip(max).zip(step).map(|((a, b), c)| (a, b, c))?;
     let error = |message: String, state: &mut EvaluationState| {
         state.errors.push(DependencyError {
+            code: None,
             element_id: element_id(element).unwrap_or_default(),
             element_name: element_name(element),
             missing_dependency_id: element_id(element).unwrap_or_default(),
-            missing_dependency_name: Some(element_name(element)),
+            missing_dependency_name: Some(element_name(element).into()),
             message,
         });
     };
@@ -531,6 +532,8 @@ mod tests {
     fn state_for(element: Value) -> EvaluationState {
         let id = element["id"].as_str().unwrap().to_owned();
         EvaluationState {
+            completed_transformation_recipe_indices: std::collections::HashSet::new(),
+            transformation_dependency_plans: None,
             geometry_input_targets: HashMap::new(),
             geometry_collection_nodes: HashMap::new(),
             geometry_value_binders: HashMap::new(),

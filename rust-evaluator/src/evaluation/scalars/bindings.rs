@@ -28,6 +28,21 @@ const BINDING_UNAVAILABLE: &str = "evaluation-binding-unavailable";
 const RUNTIME_VALUE_TYPE_MISMATCH: &str = "evaluation-runtime-value-type-mismatch";
 const BINDING_CYCLE_GUARD: &str = "evaluation-binding-cycle-guard";
 
+fn is_transient_unavailable_evaluation(evaluation: &ScalarEvaluation) -> bool {
+    matches!(
+        evaluation,
+        ScalarEvaluation::Error { issue_code, .. }
+            if matches!(
+                issue_code.as_str(),
+                "evaluation-geometry-property-unavailable"
+                    | "evaluation-geometry-builtin-unavailable"
+                    | "evaluation-collection-property-unavailable"
+                    | "evaluation-collection-index-unavailable"
+                    | "evaluation-optional-member-unavailable"
+            )
+    )
+}
+
 pub(crate) trait ScalarDocumentBindingResolver {
     fn resolve_binding(&self, binding_id: &str, state: &EvaluationState) -> ScalarEvaluation;
 
@@ -176,20 +191,10 @@ fn record_type_identity_matches(
         == type_identity
 }
 
-fn is_within_evaluation_limit(
-    program: &ValidatedScalarProgram,
-    statement: &ValidatedScalarProgramStatement,
-) -> bool {
-    !program.evaluation_limit_source_order.is_some_and(|limit| {
-        statement.source_order >= limit
-            && !program
-                .post_stop_binding_ids
-                .contains(&statement.binding_id)
-    })
-}
-
-/// Resolves one binding's value on demand, memoized for the lifetime of one
-/// `evaluate_document` call. `program` is borrowed for this resolver's whole
+/// Resolves one binding's value on demand, memoized for stable results during
+/// one `evaluate_document` call. Transient unavailable geometry results are
+/// intentionally retryable as graph predecessors become ready. `program` is
+/// borrowed for this resolver's whole
 /// lifetime (it is never mutated during evaluation), but `state` is passed
 /// per call rather than stored - `state` is still being mutated by the
 /// caller's own per-element loop, so this resolver must never hold a live
@@ -228,9 +233,7 @@ impl<'a> ScalarBindingResolver<'a> {
     pub(crate) fn new(program: &'a ValidatedScalarProgram) -> Self {
         let mut statement_by_binding_id = HashMap::new();
         for statement in &program.statements {
-            if is_within_evaluation_limit(program, statement) {
-                statement_by_binding_id.insert(statement.binding_id.as_str(), statement);
-            }
+            statement_by_binding_id.insert(statement.binding_id.as_str(), statement);
         }
         Self {
             program,
@@ -241,9 +244,9 @@ impl<'a> ScalarBindingResolver<'a> {
     }
 
     /// Resolves `binding_id` against `state`'s current (possibly still
-    /// in-progress) contents, caching the result. Safe to call at any point
-    /// during the caller's per-element loop, any number of times, for any
-    /// binding - each is only ever actually evaluated once.
+    /// in-progress) contents, caching stable results. Safe to call at any
+    /// point during the caller's per-element loop; transient unavailable
+    /// geometry results may be evaluated again after their prerequisites run.
     pub(crate) fn resolve(&self, binding_id: &str, state: &EvaluationState) -> ScalarEvaluation {
         if let Some(cached) = self.cache.borrow().get(binding_id) {
             return cached.clone();
@@ -289,9 +292,11 @@ impl<'a> ScalarBindingResolver<'a> {
         };
 
         self.in_progress.borrow_mut().remove(binding_id);
-        self.cache
-            .borrow_mut()
-            .insert(binding_id.to_owned(), evaluation.clone());
+        if !is_transient_unavailable_evaluation(&evaluation) {
+            self.cache
+                .borrow_mut()
+                .insert(binding_id.to_owned(), evaluation.clone());
+        }
         evaluation
     }
 
@@ -388,16 +393,13 @@ impl<'a> ScalarBindingResolver<'a> {
     }
 
     /// Walks `program.statements` in array order and pulls each value from
-    /// the (memoized, so free after the first ask) resolver, producing the
+    /// the stable-result memoized resolver, producing the
     /// same `computed_scalar_bindings` shape/order the original one-shot
     /// implementation did - independent of whatever order (if any) the
     /// caller's own per-element loop resolved bindings in beforehand.
     pub(crate) fn finalize(&self, state: &EvaluationState) -> Vec<Value> {
         let mut output = Vec::new();
         for statement in &self.program.statements {
-            if !is_within_evaluation_limit(self.program, statement) {
-                continue;
-            }
             let evaluation = self.resolve(&statement.binding_id, state);
             output.push(json!({
                 "bindingId": statement.binding_id,
@@ -1303,6 +1305,7 @@ impl ScalarEvaluationEnvironment for ResolvingEnvironment<'_, '_, '_> {
         template_element_id: &str,
         index: Option<&super::types::TypedScalarExpression>,
         point_key: Option<&str>,
+        stage_path: Option<&[String]>,
         property: &str,
         target_source_order: f64,
         property_type: &ScalarType,
@@ -1314,6 +1317,7 @@ impl ScalarEvaluationEnvironment for ResolvingEnvironment<'_, '_, '_> {
                 template_element_id,
                 index,
                 point_key,
+                stage_path,
                 property,
                 target_source_order,
                 current_source_order: Some(self.source_order),
@@ -1330,14 +1334,6 @@ impl ScalarEvaluationEnvironment for ResolvingEnvironment<'_, '_, '_> {
         collection_length: Option<f64>,
         target_source_order: f64,
     ) -> ScalarEvaluation {
-        if target_source_order >= self.source_order {
-            return ScalarEvaluation::Error {
-                r#type: element_type.clone(),
-                issue_code: "evaluation-collection-index-unavailable".to_owned(),
-                binding_id: None,
-                context: None,
-            };
-        }
         self.resolver.resolve_collection_index(
             collection_value_id,
             index,

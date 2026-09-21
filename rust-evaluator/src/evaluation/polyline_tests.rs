@@ -44,6 +44,7 @@ fn closed_path_self_intersection_matches_fill_boundary_semantics() {
 #[test]
 fn self_intersecting_filled_polyline_warns_without_invalidating_stroke_geometry() {
     let result = evaluate_document_input(EvaluationInput {
+        evaluation_order: None,
         geometry_input_targets: None,
         geometry_collection_nodes: None,
         geometry_value_program: None,
@@ -106,6 +107,7 @@ fn self_intersecting_filled_polyline_warns_without_invalidating_stroke_geometry(
 #[test]
 fn evaluates_ordered_open_and_closed_polylines_with_duplicate_segments() {
     let result = evaluate_document_input(EvaluationInput {
+        evaluation_order: None,
         geometry_input_targets: None,
         geometry_collection_nodes: None,
         geometry_value_program: None,
@@ -175,6 +177,7 @@ fn evaluates_ordered_open_and_closed_polylines_with_duplicate_segments() {
 #[test]
 fn rejects_polyline_cardinality_without_computed_geometry() {
     let result = evaluate_document_input(EvaluationInput {
+        evaluation_order: None,
         geometry_input_targets: None,
         geometry_collection_nodes: None,
         geometry_value_program: None,
@@ -213,6 +216,7 @@ fn rejects_polyline_cardinality_without_computed_geometry() {
 #[test]
 fn suppressed_closed_closure_still_reports_the_first_point_as_end() {
     let result = evaluate_document_input(EvaluationInput {
+        evaluation_order: None,
         geometry_input_targets: None,
         geometry_collection_nodes: None,
         geometry_value_program: None,
@@ -259,6 +263,7 @@ fn suppressed_closed_closure_still_reports_the_first_point_as_end() {
 #[test]
 fn splits_a_polyline_through_the_existing_broad_path_consumer() {
     let result = evaluate_document_input(EvaluationInput {
+        evaluation_order: None,
         geometry_input_targets: None,
         geometry_collection_nodes: None,
         geometry_value_program: None,

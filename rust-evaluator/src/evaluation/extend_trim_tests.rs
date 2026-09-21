@@ -5,6 +5,7 @@ use serde_json::json;
 #[test]
 fn extend_trim_extends_line_and_supports_coordinate_target() {
     let result = evaluate_document_input(EvaluationInput {
+        evaluation_order: None,
         geometry_input_targets: None,
         geometry_collection_nodes: None,
         geometry_value_program: None,
@@ -50,6 +51,7 @@ fn extend_trim_extends_line_and_supports_coordinate_target() {
 #[test]
 fn extend_trim_reports_line_target_error_and_dependency_error() {
     let target_error = evaluate_document_input(EvaluationInput {
+        evaluation_order: None,
         geometry_input_targets: None,
         geometry_collection_nodes: None,
         geometry_value_program: None,
@@ -88,6 +90,8 @@ fn extend_trim_reports_line_target_error_and_dependency_error() {
         .contains("直線上または延長線上"));
 
     let dependency_error = evaluate_document_input(EvaluationInput {
+        evaluation_order: None,
+
         geometry_input_targets: None,
         geometry_collection_nodes: None,
         geometry_value_program: None,
@@ -121,6 +125,7 @@ fn extend_trim_reports_line_target_error_and_dependency_error() {
 #[test]
 fn extend_trim_moves_arc_endpoint() {
     let result = evaluate_document_input(EvaluationInput {
+        evaluation_order: None,
         geometry_input_targets: None,
         geometry_collection_nodes: None,
         geometry_value_program: None,
@@ -173,6 +178,7 @@ fn extend_trim_moves_arc_endpoint() {
 #[test]
 fn extend_trim_moves_bezier_endpoint_on_tangent() {
     let result = evaluate_document_input(EvaluationInput {
+        evaluation_order: None,
         geometry_input_targets: None,
         geometry_collection_nodes: None,
         geometry_value_program: None,
@@ -246,6 +252,7 @@ fn extend_trim_moves_bezier_endpoint_on_tangent() {
 #[test]
 fn extend_trim_shortens_bezier_to_division_point_on_body() {
     let result = evaluate_document_input(EvaluationInput {
+        evaluation_order: None,
         geometry_input_targets: None,
         geometry_collection_nodes: None,
         geometry_value_program: None,
@@ -307,6 +314,7 @@ fn extend_trim_shortens_bezier_to_division_point_on_body() {
     // The retained portion must be a true de Casteljau sub-curve: sampling it at t=0.5
     // must land on the same point as sampling the original curve at half the split's t.
     let original = evaluate_document_input(EvaluationInput {
+        evaluation_order: None,
         geometry_input_targets: None,
         geometry_collection_nodes: None,
         geometry_value_program: None,
@@ -361,6 +369,7 @@ fn extend_trim_shortens_bezier_to_division_point_on_body() {
 #[test]
 fn extend_trim_shortens_bezier_start_to_division_point_on_body() {
     let result = evaluate_document_input(EvaluationInput {
+        evaluation_order: None,
         geometry_input_targets: None,
         geometry_collection_nodes: None,
         geometry_value_program: None,
@@ -425,6 +434,7 @@ fn extend_trim_shortens_bezier_start_to_division_point_on_body() {
 #[test]
 fn extend_trim_shortens_multi_segment_bezier_and_keeps_untouched_segments() {
     let result = evaluate_document_input(EvaluationInput {
+        evaluation_order: None,
         geometry_input_targets: None,
         geometry_collection_nodes: None,
         geometry_value_program: None,
@@ -503,6 +513,7 @@ fn extend_trim_shortens_multi_segment_bezier_and_keeps_untouched_segments() {
 #[test]
 fn endpoint_truncation_after_bezier_reverse_keeps_current_join_slot_ids() {
     let result = evaluate_document_input(EvaluationInput {
+        evaluation_order: None,
         geometry_input_targets: None,
         geometry_collection_nodes: None,
         geometry_value_program: None,
@@ -594,6 +605,7 @@ fn extend_trim_bezier_to_opposite_anchor_reports_zero_length_error() {
     // curve's start anchor instead) must produce the zero-length error, not the
     // misleading "not on the endpoint-angle line" error.
     let result = evaluate_document_input(EvaluationInput {
+        evaluation_order: None,
         geometry_input_targets: None,
         geometry_collection_nodes: None,
         geometry_value_program: None,
@@ -634,6 +646,7 @@ fn extend_trim_bezier_to_opposite_anchor_reports_zero_length_error() {
 #[test]
 fn extend_trim_shortens_bezier_to_intersection_point_on_body() {
     let result = evaluate_document_input(EvaluationInput {
+        evaluation_order: None,
         geometry_input_targets: None,
         geometry_collection_nodes: None,
         geometry_value_program: None,
@@ -697,6 +710,7 @@ fn extend_trim_shortens_bezier_to_intersection_point_on_body() {
 #[test]
 fn extend_trim_shortens_arc_to_division_point_on_circle() {
     let result = evaluate_document_input(EvaluationInput {
+        evaluation_order: None,
         geometry_input_targets: None,
         geometry_collection_nodes: None,
         geometry_value_program: None,
@@ -761,6 +775,7 @@ fn extend_trim_shortens_arc_to_division_point_on_circle() {
 #[test]
 fn extend_trim_moves_open_offset_line_and_rejects_closed_offset_line() {
     let result = evaluate_document_input(EvaluationInput {
+        evaluation_order: None,
         geometry_input_targets: None,
         geometry_collection_nodes: None,
         geometry_value_program: None,
@@ -821,6 +836,8 @@ fn extend_trim_moves_open_offset_line_and_rejects_closed_offset_line() {
     );
 
     let closed = evaluate_document_input(EvaluationInput {
+        evaluation_order: None,
+
         geometry_input_targets: None,
         geometry_collection_nodes: None,
         geometry_value_program: None,
@@ -870,6 +887,7 @@ fn extend_trim_moves_open_offset_line_and_rejects_closed_offset_line() {
 #[test]
 fn updated_line_can_feed_downstream_rust_elements() {
     let result = evaluate_document_input(EvaluationInput {
+        evaluation_order: None,
         geometry_input_targets: None,
         geometry_collection_nodes: None,
         geometry_value_program: None,
@@ -965,6 +983,7 @@ fn extend_trim_shortens_offset_bezier_and_keeps_untouched_segments_analytic() {
     // whole offset line was flattened into an all-"line" polyline.
     let elements = offset_bezier_elements();
     let baseline = evaluate_document_input(EvaluationInput {
+        evaluation_order: None,
         geometry_input_targets: None,
         geometry_collection_nodes: None,
         geometry_value_program: None,
@@ -1006,6 +1025,7 @@ fn extend_trim_shortens_offset_bezier_and_keeps_untouched_segments_analytic() {
         "point": { "mode": "reference", "pointId": "target" }
     })));
     let result = evaluate_document_input(EvaluationInput {
+        evaluation_order: None,
         geometry_input_targets: None,
         geometry_collection_nodes: None,
         geometry_value_program: None,
@@ -1051,6 +1071,7 @@ fn extend_trim_extends_offset_bezier_endpoint_by_appending_line_segment() {
     // a new "line" segment rather than flattening the existing bezier chain.
     let elements = offset_bezier_elements();
     let probe = evaluate_document_input(EvaluationInput {
+        evaluation_order: None,
         geometry_input_targets: None,
         geometry_collection_nodes: None,
         geometry_value_program: None,
@@ -1091,6 +1112,7 @@ fn extend_trim_extends_offset_bezier_endpoint_by_appending_line_segment() {
         "point": { "mode": "reference", "pointId": "target" }
     })));
     let result = evaluate_document_input(EvaluationInput {
+        evaluation_order: None,
         geometry_input_targets: None,
         geometry_collection_nodes: None,
         geometry_value_program: None,

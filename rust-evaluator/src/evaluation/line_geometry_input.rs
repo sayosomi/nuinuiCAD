@@ -86,6 +86,35 @@ fn non_empty_string(
         .ok_or_else(|| invalid(format!("{context}.{key} must be a non-empty string")))
 }
 
+fn optional_stage_path(
+    object: &serde_json::Map<String, Value>,
+    context: &str,
+) -> Result<Option<Vec<String>>, EvaluationCommandError> {
+    let Some(value) = object.get("stagePath") else {
+        return Ok(None);
+    };
+    if value.is_null() {
+        return Ok(None);
+    }
+    let path = value
+        .as_array()
+        .ok_or_else(|| invalid(format!("{context}.stagePath must be an array")))?;
+    path.iter()
+        .enumerate()
+        .map(|(index, part)| {
+            part.as_str()
+                .filter(|value| !value.is_empty())
+                .map(ToOwned::to_owned)
+                .ok_or_else(|| {
+                    invalid(format!(
+                        "{context}.stagePath[{index}] must be a non-empty string"
+                    ))
+                })
+        })
+        .collect::<Result<Vec<_>, _>>()
+        .map(Some)
+}
+
 fn decode_occurrence(
     value: &Value,
     context: &str,
@@ -304,7 +333,7 @@ fn decode_target(
         "drawable" => {
             reject_unexpected_fields(
                 object,
-                &["kind", "elementId", "geometryType", "pointKey"],
+                &["kind", "elementId", "geometryType", "pointKey", "stagePath"],
                 context,
             )?;
             let geometry_type = non_empty_string(object, "geometryType", context)?;
@@ -320,6 +349,7 @@ fn decode_target(
                     .get("pointKey")
                     .and_then(Value::as_str)
                     .map(ToOwned::to_owned),
+                stage_path: optional_stage_path(object, context)?,
             })
         }
         "forGroupOccurrence" => {
@@ -372,7 +402,13 @@ fn decode_target(
         "geometryValue" => {
             reject_unexpected_fields(
                 object,
-                &["kind", "occurrence", "geometryType", "pointKey"],
+                &[
+                    "kind",
+                    "occurrence",
+                    "geometryType",
+                    "pointKey",
+                    "stagePath",
+                ],
                 context,
             )?;
             let geometry_type = non_empty_string(object, "geometryType", context)?;
@@ -393,12 +429,13 @@ fn decode_target(
                     .get("pointKey")
                     .and_then(Value::as_str)
                     .map(ToOwned::to_owned),
+                stage_path: optional_stage_path(object, context)?,
             })
         }
         "geometryCarry" => {
             reject_unexpected_fields(
                 object,
-                &["kind", "bindingId", "geometryType", "pointKey"],
+                &["kind", "bindingId", "geometryType", "pointKey", "stagePath"],
                 context,
             )?;
             let geometry_type = non_empty_string(object, "geometryType", context)?;
@@ -418,6 +455,7 @@ fn decode_target(
                     .get("pointKey")
                     .and_then(Value::as_str)
                     .map(ToOwned::to_owned),
+                stage_path: optional_stage_path(object, context)?,
             })
         }
         "geometryValueMap" => {
@@ -695,18 +733,21 @@ fn point_anchor_for_target(target: &GeometryInputTarget) -> Option<Value> {
             geometry_type,
             element_id,
             point_key,
+            stage_path,
         } if geometry_type == "point" => Some(match point_key {
             Some(point_key) => json!({
                 "mode": "derived",
                 "elementId": element_id,
                 "pointKey": point_key,
+                "stagePath": stage_path,
             }),
-            None => json!({ "mode": "reference", "pointId": element_id }),
+            None => json!({ "mode": "reference", "pointId": element_id, "stagePath": stage_path }),
         }),
         GeometryInputTarget::GeometryValue {
             geometry_type,
             occurrence,
             point_key,
+            stage_path,
         } if geometry_type == "point" => {
             let mut anchor = json!({
                 "mode": "geometryValue",
@@ -720,6 +761,9 @@ fn point_anchor_for_target(target: &GeometryInputTarget) -> Option<Value> {
             }
             if let Some(point_key) = point_key {
                 anchor["pointKey"] = Value::String(point_key.clone());
+            }
+            if let Some(stage_path) = stage_path {
+                anchor["stagePath"] = json!(stage_path);
             }
             Some(anchor)
         }
@@ -868,6 +912,7 @@ fn materialize_target(
             occurrence,
             geometry_type,
             point_key,
+            stage_path: None,
         }]);
     }
     if let GeometryInputTarget::ForGroupOccurrence {
@@ -920,6 +965,7 @@ fn materialize_target(
             element_id: row.generated_element_id.clone(),
             geometry_type,
             point_key,
+            stage_path: None,
         }]);
     }
     if let GeometryInputTarget::CollectionValue {
@@ -1075,9 +1121,12 @@ fn geometry_for_target(state: &EvaluationState, target: &GeometryInputTarget) ->
         {
             None
         }
-        GeometryInputTarget::Drawable { element_id, .. } => {
-            state.computed_geometry.get(element_id).cloned()
-        }
+        GeometryInputTarget::Drawable {
+            element_id,
+            stage_path,
+            ..
+        } => super::selected_transformation_geometry(state, element_id, stage_path.as_deref())
+            .cloned(),
         GeometryInputTarget::GeometryValue { occurrence, .. } => {
             state.computed_geometry_values.get(occurrence).cloned()
         }

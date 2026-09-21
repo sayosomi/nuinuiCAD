@@ -700,24 +700,23 @@ describe("DSL compiler document settings", () => {
     expect(result).not.toHaveProperty("palette");
   });
 
-  it("computes evaluationLimitIndex from stop in document mode", () => {
+  it("rejects stop in document mode without deriving an evaluation limit", () => {
     const result = compileDslToElements(
       ["point A = coordinate(x: 0,y: 0)", "point B = coordinate(x: 1,y: 1)", "stop", "point C = coordinate(x: 2,y: 2)"].join("\n"),
       { elements: [], mode: "document" }
     );
 
-    expect(result.diagnostics).toEqual([]);
-    expect(result.evaluationLimitIndex).toBe(2);
-    expect(result.elements).toHaveLength(3);
+    expect(result.diagnostics.some((item) => item.message.includes("有効な構文ではありません"))).toBe(true);
+    expect(result.evaluationLimitIndex).toBeUndefined();
   });
 
-  it("warns and ignores stop in edit mode", () => {
+  it("rejects stop in edit mode", () => {
     const result = compileDslToElements(
       ["point A = coordinate(x: 0,y: 0)", "stop"].join("\n"),
       { elements: [] }
     );
     expect(result.evaluationLimitIndex).toBeUndefined();
-    expect(result.diagnostics.some((item) => item.severity === "warning" && item.message.includes("stop"))).toBe(true);
+    expect(result.diagnostics.some((item) => item.severity === "error" && item.message.includes("有効な構文ではありません"))).toBe(true);
   });
 
   it("ignores the nui version statement during compilation", () => {

@@ -170,7 +170,7 @@ describe("joined path construction", () => {
     expect(invalid.errors.at(-1)?.message).toContain("closed: true");
   });
 
-  it("fails empty, disabled, discontinuous, and too-late dependencies", () => {
+  it("fails empty, disabled, and discontinuous dependencies while resolving later geometry", () => {
     expect(evaluateElements([join("empty", [])]).computedGeometry.has("empty")).toBe(false);
     expect(evaluateElements([
       point("a", 0, 0), point("b", 1, 0), point("c", 4, 0), point("d", 5, 0),
@@ -181,7 +181,7 @@ describe("joined path construction", () => {
     ]).computedGeometry.has("disabled")).toBe(false);
     expect(evaluateElements([
       join("late", ["source"]), point("a", 0, 0), point("b", 1, 0), line("source", "a", "b")
-    ]).computedGeometry.has("late")).toBe(false);
+    ]).computedGeometry.has("late")).toBe(true);
   });
 
   it("accepts path[] and rejects strict line[] covariance", () => {

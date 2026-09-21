@@ -5,6 +5,7 @@ use serde_json::json;
 #[test]
 fn evaluates_ordered_joined_paths_with_reversal_and_closed_validation() {
     let result = evaluate_document_input(EvaluationInput {
+        evaluation_order: None,
         geometry_input_targets: None,
         geometry_collection_nodes: None,
         geometry_value_program: None,
@@ -87,6 +88,7 @@ fn evaluates_ordered_joined_paths_with_reversal_and_closed_validation() {
 #[test]
 fn uses_shared_epsilon_and_preserves_authored_bezier_orientation_on_a_tie() {
     let result = evaluate_document_input(EvaluationInput {
+        evaluation_order: None,
         geometry_input_targets: None,
         geometry_collection_nodes: None,
         geometry_value_program: None,
@@ -174,6 +176,7 @@ fn uses_shared_epsilon_and_preserves_authored_bezier_orientation_on_a_tie() {
 #[test]
 fn reverses_directed_arcs_broad_paths_and_nested_joined_paths_exactly() {
     let result = evaluate_document_input(EvaluationInput {
+        evaluation_order: None,
         geometry_input_targets: None,
         geometry_collection_nodes: None,
         geometry_value_program: None,
@@ -349,6 +352,7 @@ fn reverses_directed_arcs_broad_paths_and_nested_joined_paths_exactly() {
 #[test]
 fn rejects_empty_and_discontinuous_joined_paths() {
     let result = evaluate_document_input(EvaluationInput {
+        evaluation_order: None,
         geometry_input_targets: None,
         geometry_collection_nodes: None,
         geometry_value_program: None,

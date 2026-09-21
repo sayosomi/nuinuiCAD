@@ -98,7 +98,7 @@ type CollectionIndexResolver = (input: {
   node: Extract<ScalarExpressionAst, { kind: "collectionIndex" }>;
 }) => ScalarExpressionResolvedCollectionIndex | null;
 
-type ParsedInitializer = { ast: ScalarExpressionAst; references: ReturnType<typeof collectReferences> };
+type ParsedInitializer = { ast: ScalarExpressionAst; references: readonly TypedDeclarationReference[] };
 
 /** Pure AST walker with no declaration-specific logic - reused as-is by
  * Task 25's conditionalGroupConditionCompiler.ts for the same purpose
@@ -109,34 +109,48 @@ export const collectReferences = (ast: ScalarExpressionAst): readonly { name: st
   return collectScalarExpressionReferences(ast);
 };
 
-const collectTypedDeclarationReferences = (ast: ScalarExpressionAst): readonly { name: string; span: { start: number; end: number } }[] => {
+type TypedDeclarationReference = { name: string; span: { start: number; end: number }; lazy: boolean };
+
+const collectTypedDeclarationReferences = (ast: ScalarExpressionAst): readonly TypedDeclarationReference[] => {
   const optionalReceiverSpans: DslSpan[] = [];
-  const visit = (node: ScalarExpressionAst): void => {
+  const references: TypedDeclarationReference[] = [];
+  const visit = (node: ScalarExpressionAst, lazy: boolean, boundNames: ReadonlySet<string> = new Set()): void => {
     switch (node.kind) {
+      case "reference":
+        if (!boundNames.has(node.name)) references.push({ name: node.name, span: node.span, lazy });
+        return;
+      case "collectionIndex":
+        if (!boundNames.has(node.name)) references.push({ name: node.name, span: { start: node.span.start, end: node.nameSpan.end + 1 }, lazy });
+        visit(node.index, lazy, boundNames);
+        return;
+      case "geometryProperty":
+        if (node.occurrenceIndex) visit(node.occurrenceIndex, lazy, boundNames);
+        return;
       case "optionalMember":
         optionalReceiverSpans.push(node.receiver.span);
-        visit(node.receiver);
+        visit(node.receiver, lazy, boundNames);
         return;
-      case "collectionIndex": visit(node.index); return;
-      case "geometryProperty": if (node.occurrenceIndex) visit(node.occurrenceIndex); return;
-      case "unary": visit(node.operand); return;
-      case "binary": visit(node.left); visit(node.right); return;
-      case "group": visit(node.expression); return;
+      case "unary": visit(node.operand, lazy, boundNames); return;
+      case "binary":
+        visit(node.left, lazy, boundNames);
+        visit(node.right, lazy || node.operator === "??", boundNames);
+        return;
+      case "group": visit(node.expression, lazy, boundNames); return;
       case "valueIf":
-        visit(node.condition);
-        visit(node.thenBranch);
-        if (node.elseBranch) visit(node.elseBranch);
+        visit(node.condition, lazy, boundNames);
+        visit(node.thenBranch, true, boundNames);
+        if (node.elseBranch) visit(node.elseBranch, true, boundNames);
         return;
       case "valueMatch":
-        visit(node.scrutinee);
-        node.arms.forEach((arm) => visit(arm.expression));
+        visit(node.scrutinee, lazy, boundNames);
+        node.arms.forEach((arm) => visit(arm.expression, true, arm.binder ? new Set([...boundNames, arm.binder]) : boundNames));
         return;
-      case "call": node.args.forEach((argument) => visit(argument.expression)); return;
+      case "call": node.args.forEach((argument) => visit(argument.expression, lazy, boundNames)); return;
       default: return;
     }
   };
-  visit(ast);
-  return collectScalarExpressionReferences(ast).filter((reference) => !optionalReceiverSpans.some((span) =>
+  visit(ast, false);
+  return references.filter((reference) => !optionalReceiverSpans.some((span) =>
     reference.span.start >= span.start && reference.span.end <= span.end
   ));
 };
@@ -420,15 +434,11 @@ const positionMapFor = (
   includeStatement: (statement: DslStatement, statementIndex: number) => boolean
 ): ScalarProgramPositionMap => {
   const sourceOrderByElementIndex: number[] = [];
-  let evaluationLimit: ScalarProgramPositionMap["evaluationLimit"];
   for (let sourceOrder = 0; sourceOrder < statements.length; sourceOrder += 1) {
     if (!includeStatement(statements[sourceOrder], sourceOrder)) continue;
-    if (statements[sourceOrder].kind === "atStop" && !evaluationLimit) {
-      evaluationLimit = { elementIndex: sourceOrderByElementIndex.length, sourceOrder };
-    }
     if (isElementDslStatement(statements[sourceOrder])) sourceOrderByElementIndex.push(sourceOrder);
   }
-  return evaluationLimit ? { sourceOrderByElementIndex, evaluationLimit } : { sourceOrderByElementIndex };
+  return { sourceOrderByElementIndex };
 };
 
 export const analyzeTypedDeclarations = ({
@@ -443,6 +453,7 @@ export const analyzeTypedDeclarations = ({
   additionalGeometryResolver,
   additionalCollectionIndexResolver,
   additionalGeometryPropertyResolver,
+  resolveGeometryStageSelection,
   additionalInitializers,
   nonProgramBindingIds,
   prepareScalarExpression,
@@ -477,6 +488,10 @@ export const analyzeTypedDeclarations = ({
     statementIndex: number;
     node: Extract<ScalarExpressionAst, { kind: "geometryProperty" }>;
   }) => import("./typedExpressionAst").ScalarExpressionResolvedGeometryProperty | null;
+  resolveGeometryStageSelection?: (input: {
+    elementId: string;
+    members: readonly string[];
+  }) => import("../dsl/transformationRecipes").TransformationStageSelection;
   additionalRecordValueResolver?: (value: RecordValueSemantic) => ExternalRecordScalarAlias | null;
 }): TypedDeclarationAnalysisCompilation => {
   const includeStatement = includeStatementOption ?? ((_statement, statementIndex) =>
@@ -632,7 +647,7 @@ export const analyzeTypedDeclarations = ({
   if (diagnostics.length > 0) return { diagnostics };
 
   const collectionIndexResolutionByBindingId = new Map<BindingId, ReadonlyMap<number, ScalarExpressionResolvedCollectionIndex>>();
-  const ordinaryReferencesByBindingId = new Map<BindingId, readonly { name: string; span: { start: number; end: number } }[]>();
+  const ordinaryReferencesByBindingId = new Map<BindingId, readonly TypedDeclarationReference[]>();
   const collectionIndexBaseReferenceOccurrenceIndexesByBindingId = new Map<BindingId, ReadonlySet<number>>();
   for (const binding of catalog.bindings) {
     const parsed = parsedByBindingId.get(binding.id);
@@ -695,6 +710,17 @@ export const analyzeTypedDeclarations = ({
         : undefined,
       resolveSourceGeometryPath: sourceNamespace
         ? (elementName) => resolveSourceLexicalPath(sourceNamespace, binding.statementIndex, parseDslReferenceToken(elementName))
+        : undefined,
+      resolveGeometryStageSelection: resolveGeometryStageSelection && sourceNamespace
+        ? ({ statementId, members }) => {
+            const declaration = sourceDeclarationsByStatementId.get(statementId);
+            return declaration
+              ? resolveGeometryStageSelection({
+                  elementId: reconciledContainers.elementIdByStatementIndex.get(declaration.statementIndex) ?? statementId,
+                  members
+                })
+              : { stagePath: ["final"], propertyPath: members };
+          }
         : undefined
     });
     geometryResolutionByBindingId.set(binding.id, geometryResolution);
@@ -774,6 +800,7 @@ export const analyzeTypedDeclarations = ({
     const normal = (resolvedReferencesByBindingId.get(binding.id) ?? []).map((reference) => ({
       name: reference.name,
       span: ordinaryReferencesByBindingId.get(binding.id)?.[reference.occurrenceIndex]?.span ?? null,
+      lazy: ordinaryReferencesByBindingId.get(binding.id)?.[reference.occurrenceIndex]?.lazy ?? false,
       resolution: geometryResolutionByBindingId.get(binding.id)?.claimedReferenceOccurrenceIndexes.has(reference.occurrenceIndex)
         ? {
             kind: "namespace" as const,
@@ -810,7 +837,8 @@ export const analyzeTypedDeclarations = ({
         occurrenceIndex,
         name: entry.name,
         span: entry.span,
-        resolution: entry.resolution
+        resolution: entry.resolution,
+        ...(entry && "lazy" in entry && entry.lazy ? { lazy: true } : {})
       });
       occurrenceIndex += 1;
     }
@@ -845,6 +873,7 @@ export const analyzeTypedDeclarations = ({
         additionalScalarPropertyResolver: additionalRecordPropertyResolver
           ? ({ node }) => Boolean(additionalRecordPropertyResolver({ statementIndex: binding.statementIndex, node }))
           : undefined,
+        resolveStageSelection: resolveGeometryStageSelection,
         skipPropertySpanStarts: geometryResolutionByBindingId.get(binding.id)?.geometryPropertyTargets
           ? new Set(geometryResolutionByBindingId.get(binding.id)!.geometryPropertyTargets.keys())
           : undefined

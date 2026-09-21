@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 
 use super::scalars::TypedScalarExpression;
@@ -45,6 +45,7 @@ pub(crate) enum GeometryInputTarget {
         element_id: ElementId,
         geometry_type: String,
         point_key: Option<String>,
+        stage_path: Option<Vec<String>>,
     },
     ForGroupOccurrence {
         template_element_id: ElementId,
@@ -57,6 +58,7 @@ pub(crate) enum GeometryInputTarget {
         occurrence: GeometryValueOccurrence,
         geometry_type: String,
         point_key: Option<String>,
+        stage_path: Option<Vec<String>>,
     },
     GeometryValueMap {
         occurrence: GeometryValueOccurrence,
@@ -90,6 +92,8 @@ pub(crate) enum GeometryInputTarget {
 #[serde(rename_all = "camelCase")]
 pub struct EvaluationInput {
     pub(crate) elements: Vec<Value>,
+    #[serde(default)]
+    pub(crate) evaluation_order: Option<Vec<ElementId>>,
     pub(crate) evaluation_limit_index: Option<usize>,
     /// Bake-only evaluation escape hatch; normal evaluation leaves disabled elements unevaluated.
     #[serde(default)]
@@ -175,7 +179,6 @@ pub(crate) struct ModuleMaterializationInput {
 #[serde(rename_all = "camelCase")]
 pub(crate) struct ModuleMaterializationSnapshotInput {
     pub(crate) instance_id: ElementId,
-    pub(crate) end_runtime_index: usize,
     pub(crate) descendant_ids: Vec<ElementId>,
 }
 
@@ -197,11 +200,13 @@ impl std::error::Error for EvaluationCommandError {}
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DependencyError {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) code: Option<Box<str>>,
     pub(crate) element_id: ElementId,
     pub(crate) element_name: String,
     pub(crate) missing_dependency_id: ElementId,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) missing_dependency_name: Option<String>,
+    pub(crate) missing_dependency_name: Option<Box<str>>,
     pub(crate) message: String,
 }
 
@@ -345,6 +350,8 @@ pub(crate) struct EvaluationState {
     pub(crate) computed_geometry: HashMap<ElementId, Value>,
     pub(crate) base_transformation_geometry: HashMap<ElementId, Value>,
     pub(crate) transformation_stage_geometry: HashMap<String, Value>,
+    pub(crate) completed_transformation_recipe_indices: HashSet<usize>,
+    pub(crate) transformation_dependency_plans: Option<Value>,
     pub(crate) computed_geometry_order: Vec<ElementId>,
     pub(crate) computed_geometry_values: HashMap<GeometryValueOccurrence, Value>,
     pub(crate) geometry_input_targets:

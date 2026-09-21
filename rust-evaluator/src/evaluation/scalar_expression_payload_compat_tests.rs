@@ -22,6 +22,7 @@ fn baseline_elements() -> Vec<Value> {
 
 fn evaluate_with(payload: Option<Value>) -> Value {
     let result = evaluate_document(EvaluationInput {
+        evaluation_order: None,
         geometry_input_targets: None,
         geometry_collection_nodes: None,
         geometry_value_program: None,
@@ -48,6 +49,7 @@ fn evaluate_with(payload: Option<Value>) -> Value {
 
 fn evaluate_with_program(program: Option<Value>) -> Result<Value, EvaluationCommandError> {
     let result = evaluate_document(EvaluationInput {
+        evaluation_order: None,
         geometry_input_targets: None,
         geometry_collection_nodes: None,
         geometry_value_program: None,

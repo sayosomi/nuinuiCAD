@@ -38,6 +38,7 @@ import { resolveGeometryPropertyMetadata } from "./typedGeometryPropertyResoluti
 import { createElementNameContext } from "../model/elementNames";
 import type { ScalarCallArgumentNode, ScalarExpressionAst, ScalarReferenceNode } from "./expressionAst";
 import type { ScalarExpressionResolvedReference, TypedScalarExpression } from "./typedExpressionAst";
+import type { TransformationStageSelection } from "../dsl/transformationRecipes";
 import { prepareRecordScalarExpressionFromCatalog } from "./recordScalarLowering";
 import { scalarTypeOfDslValueType } from "../dsl/dslValueTypes";
 
@@ -137,6 +138,113 @@ const referencesIn = (source: string, outer: DslSpan): CandidateReference[] => {
       span: { start: outer.start + match.from, end: outer.start + match.to },
       nameSpan: { start: outer.start + match.from + 1, end: outer.start + match.to }
     }));
+};
+
+/** Binding references in lazy controller positions are still dependencies of
+ * the numeric occurrence, but their declared type is checked by the shared
+ * scalar expression typechecker rather than by the numeric value-position
+ * guard below. */
+const controllerReferenceSpansIn = (ast: ScalarExpressionAst | null): ReadonlySet<string> => {
+  const spans = new Set<string>();
+  const collect = (node: ScalarExpressionAst): void => {
+    switch (node.kind) {
+      case "reference":
+        spans.add(`${node.span.start}:${node.span.end}`);
+        return;
+      case "geometryProperty":
+        if (node.occurrenceIndex) collect(node.occurrenceIndex);
+        return;
+      case "unary":
+        collect(node.operand);
+        return;
+      case "binary":
+        collect(node.left);
+        collect(node.right);
+        return;
+      case "group":
+        collect(node.expression);
+        return;
+      case "valueIf":
+        collect(node.condition);
+        collect(node.thenBranch);
+        if (node.elseBranch) collect(node.elseBranch);
+        return;
+      case "valueMatch":
+        collect(node.scrutinee);
+        node.arms.forEach((arm) => collect(arm.expression));
+        return;
+      case "collectionIndex":
+        collect(node.index);
+        return;
+      case "call":
+        node.args.forEach((argument) => collect(argument.expression));
+        return;
+      default:
+        return;
+    }
+  };
+  const visitControllerOperand = (node: ScalarExpressionAst): void => {
+    switch (node.kind) {
+      case "valueIf":
+        collect(node.condition);
+        visit(node.thenBranch);
+        if (node.elseBranch) visit(node.elseBranch);
+        return;
+      case "valueMatch":
+        collect(node.scrutinee);
+        node.arms.forEach((arm) => visit(arm.expression));
+        return;
+      case "binary":
+        if (node.operator === "??") {
+          visitControllerOperand(node.left);
+          visit(node.right);
+          return;
+        }
+        collect(node);
+        return;
+      default:
+        collect(node);
+        return;
+    }
+  };
+  const visit = (node: ScalarExpressionAst): void => {
+    switch (node.kind) {
+      case "valueIf":
+        collect(node.condition);
+        visit(node.thenBranch);
+        if (node.elseBranch) visit(node.elseBranch);
+        return;
+      case "valueMatch":
+        collect(node.scrutinee);
+        node.arms.forEach((arm) => visit(arm.expression));
+        return;
+      case "unary":
+        visit(node.operand);
+        return;
+      case "binary":
+        if (node.operator === "??") {
+          visitControllerOperand(node.left);
+          visit(node.right);
+          return;
+        }
+        visit(node.left);
+        visit(node.right);
+        return;
+      case "group":
+        visit(node.expression);
+        return;
+      case "collectionIndex":
+        visit(node.index);
+        return;
+      case "call":
+        node.args.forEach((argument) => visit(argument.expression));
+        return;
+      default:
+        return;
+    }
+  };
+  if (ast) visit(ast);
+  return spans;
 };
 
 /** The numeric surface scanner intentionally treats `@Name[index].property`
@@ -283,7 +391,8 @@ const attributeValueSpan = (statement: DslStatement, attrKey: string): DslSpan |
 
 export const compileNumericBindings = ({
   statements, elementIdByStatementIndex, elements, bindingAnalysis, spans,
-  layouts, layoutIdsByStatementIndex, includeStatement, additionalGeometryPropertyResolver
+  layouts, layoutIdsByStatementIndex, includeStatement, additionalGeometryPropertyResolver,
+  resolveGeometryStageSelection
 }: {
   statements: readonly DslStatement[];
   elementIdByStatementIndex: ReadonlyMap<number, ElementId>;
@@ -298,6 +407,7 @@ export const compileNumericBindings = ({
     statementIndex: number;
     node: Extract<ScalarExpressionAst, { kind: "geometryProperty" }>;
   }) => import("./typedExpressionAst").ScalarExpressionResolvedGeometryProperty | null;
+  resolveGeometryStageSelection?: (input: { elementId: ElementId; members: readonly string[] }) => TransformationStageSelection;
 }): NumericBindingCompilation => {
   const byId = new Map(elements.map((element) => [element.id, element]));
   const sourceOrderByElementId = new Map<ElementId, number>();
@@ -461,6 +571,7 @@ export const compileNumericBindings = ({
     });
 
     let rejected = false;
+    const controllerReferenceSpans = controllerReferenceSpansIn(candidate.scalarParseResult.ast);
     const typedRefs: { reference: CandidateReference; bindingId: BindingId }[] = [];
     candidate.references.forEach((reference, index) => {
       const resolution = resolutions.get(`${candidate.key}:${index}`);
@@ -492,7 +603,8 @@ export const compileNumericBindings = ({
       const entry = bindingAnalysis.entriesById.get(binding.id);
       if (entry?.status.kind === "invalid") { rejected = true; return; } // binding diagnostics already own this cause.
       const declaredType = scalarTypeOfDslValueType(binding.declaredType);
-      if (declaredType?.kind !== "number") {
+      const isControllerReference = controllerReferenceSpans.has(`${reference.span.start - candidate.valueSpan.start}:${reference.span.end - candidate.valueSpan.start}`);
+      if (declaredType?.kind !== "number" && !isControllerReference) {
         diagnostics.push(diagnosticAt(
           spans,
           candidate.statement,
@@ -583,7 +695,8 @@ export const compileNumericBindings = ({
             currentSourceOrder: candidate.statementIndex,
             additionalGeometryPropertyResolver: additionalGeometryPropertyResolver
               ? ({ node }) => additionalGeometryPropertyResolver({ statementIndex: candidate.statementIndex, node })
-              : undefined
+              : undefined,
+            resolveStageSelection: resolveGeometryStageSelection
           }
         );
         const hasGeometryProperty = geometryPropertyResolution.geometryPropertyReferences.size > 0;

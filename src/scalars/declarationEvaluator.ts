@@ -3,14 +3,16 @@
 // module never parses source, never re-resolves a binding name, && never
 // re-derives forward/self/cycle/eligibility diagnostics.
 //
-// The evaluation strategy uses an on-demand, memoized resolver
+// The evaluation strategy uses an on-demand resolver with stable-result
+// memoization
 // (`createLazyScalarProgramEvaluator`) rather than a single eager left-to-right
 // sweep:
 // a binding's initializer is evaluated the first time something asks for it
 // (recursing into other referenced bindings on demand) rather than always in
 // array order up front. This lets a caller (the per-element evaluation loop)
 // ask for a specific binding's value mid-run, without re-evaluating the whole
-// program && without ever evaluating any single binding more than once. A
+// program. Stable results are evaluated once; transient unavailable geometry
+// results remain retryable as graph predecessors become ready. A
 // compiled ScalarProgram is already guaranteed acyclic && forward-reference
 // free (`binding-cycle`/`forward-binding-reference`/
 // `self-initialization` diagnostics make the whole document fail to compile
@@ -20,9 +22,9 @@
 // resolves "earlier" statements first && terminates. `evaluateScalarProgram`
 // still exists with its original signature && byte-identical output (same
 // map, same insertion order) - it walks `program.statements` in array order,
-// pulling each value from the (memoized, so free after the first ask)
-// resolver, so callers that only need the whole-document result never see a
-// difference from the prior array-order construction.
+// pulling each value from the resolver, so callers that only need the
+// whole-document result never see a difference from the prior array-order
+// construction.
 //
 // Immutable statement-for execution and Rust evaluation are handled by their
 // respective compilation/runtime paths rather than this declaration evaluator.
@@ -47,8 +49,9 @@ export type ScalarProgramEvaluation = {
 export type LazyScalarProgramEvaluator = {
   /**
    * Resolves a single binding's value, evaluating its initializer on first
-   * ask && caching the result for every subsequent ask (including asks made
-   * recursively while resolving a different binding's initializer).
+   * ask && caching stable results for subsequent asks (including asks made
+   * recursively while resolving a different binding's initializer). A
+   * transient unavailable geometry result remains retryable.
    */
   resolve: (bindingId: BindingId) => ScalarEvaluation;
   collectionResolver?: ScalarProgramCollectionResolver;
@@ -71,6 +74,15 @@ const resultForDeclaredType = (evaluation: ScalarEvaluation, declaredType: Scala
   }
   return { status: "error", type: declaredType, issueCode: "evaluation-runtime-value-type-mismatch" };
 };
+
+const isTransientUnavailableEvaluation = (evaluation: ScalarEvaluation): boolean =>
+  evaluation.status === "error" && (
+    evaluation.issueCode === "evaluation-geometry-property-unavailable" ||
+    evaluation.issueCode === "evaluation-geometry-builtin-unavailable" ||
+    evaluation.issueCode === "evaluation-collection-property-unavailable" ||
+    evaluation.issueCode === "evaluation-collection-index-unavailable" ||
+    evaluation.issueCode === "evaluation-optional-member-unavailable"
+  );
 
 /**
  * Shared runtime boundary for collection members and cardinality. The
@@ -322,7 +334,6 @@ export const createScalarProgramCollectionResolver = (
   ): ScalarEvaluation => {
     const redirected = redirectedValueId(collectionValueId, sourceOrder);
     if (redirected !== collectionValueId) return indexFor(redirected, index, elementType, collectionLength, targetSourceOrder, sourceOrder, seen);
-    if (targetSourceOrder >= sourceOrder) return { status: "error", type: elementType, issueCode: "evaluation-collection-index-unavailable" };
     if (!Number.isFinite(index) || !Number.isInteger(index) || index < 0 ||
       (collectionLength !== null && index >= collectionLength)) {
       return { status: "error", type: elementType, issueCode: "evaluation-collection-index-invalid" };
@@ -400,21 +411,9 @@ export const createScalarProgramCollectionResolver = (
   return { environmentFor, recordFieldFor };
 };
 
-const isWithinEvaluationLimit = (
-  program: ScalarProgram,
-  statement: ScalarProgramStatement,
-  postStopBindingIds: ReadonlySet<BindingId>
-): boolean =>
-  program.evaluationLimitSourceOrder === undefined ||
-  statement.sourceOrder < program.evaluationLimitSourceOrder ||
-  postStopBindingIds.has(statement.bindingId);
-
 /**
  * Builds an on-demand resolver over `program`. Nothing is evaluated until
- * `resolve` is actually called for a given bindingId; a statement at or after
- * `program.evaluationLimitSourceOrder` (the `stop` cutoff) is treated as
- * absent unless its resolved bindingId is explicitly listed in
- * `postStopBindingIds` for a printLayout-local binding.
+ * `resolve` is actually called for a given bindingId.
  */
 export const createLazyScalarProgramEvaluator = (
   program: ScalarProgram,
@@ -422,10 +421,9 @@ export const createLazyScalarProgramEvaluator = (
   resolveGeometryTarget?: (target: ScalarExpressionResolvedGeometryTarget, sourceOrder: number) => GeometryBuiltinTargetLookupResult | undefined,
   resolveCollectionLength?: (collectionValueId: string, sourceOrder: number) => number | undefined
 ): LazyScalarProgramEvaluator => {
-  const postStopBindingIds = new Set(program.postStopBindingIds ?? []);
   const statementByBindingId = new Map<BindingId, ScalarProgramStatement>();
   for (const statement of program.statements) {
-    if (isWithinEvaluationLimit(program, statement, postStopBindingIds)) statementByBindingId.set(statement.bindingId, statement);
+    statementByBindingId.set(statement.bindingId, statement);
   }
 
   const cache = new Map<BindingId, ScalarEvaluation>();
@@ -445,11 +443,12 @@ export const createLazyScalarProgramEvaluator = (
     }
 
     if (inProgressBindingIds.has(bindingId)) {
-      throw new Error(
-        `createLazyScalarProgramEvaluator: cyclic reference detected while resolving ${bindingId} - ` +
-          "a compiled ScalarProgram is expected to be acyclic (Task 13's binding-cycle diagnostic should " +
-          "have rejected this document at compile time)"
-      );
+      return {
+        status: "error",
+        type: statement.declaration.declaredType,
+        issueCode: "evaluation-binding-cycle-guard",
+        bindingId
+      };
     }
 
     inProgressBindingIds.add(bindingId);
@@ -469,7 +468,10 @@ export const createLazyScalarProgramEvaluator = (
         evaluateTypedExpression(statement.declaration.initializer, environment),
         statement.declaration.declaredType
       );
-      cache.set(bindingId, evaluation);
+      // Geometry-dependent controller probes can be transiently unavailable
+      // before their canonical graph predecessors have run. Do not turn that
+      // scheduler state into a permanent scalar result.
+      if (!isTransientUnavailableEvaluation(evaluation)) cache.set(bindingId, evaluation);
       return evaluation;
     } finally {
       inProgressBindingIds.delete(bindingId);
@@ -489,9 +491,10 @@ export const createLazyScalarProgramEvaluator = (
 
 /**
  * Walks `program.statements` in array order (already source order) && pulls
- * each statement's value from `evaluator` - a memoized resolver, so anything
-   * already resolved (e.g. by a property-materialization lookup made mid-run)
-   * is a free cache hit here, never re-evaluated. This is what
+ * each statement's value from `evaluator` - a stable-result memoized resolver,
+ * so anything already resolved (e.g. by a property-materialization lookup made
+ * mid-run) is a free cache hit here. Transient unavailable geometry results may
+ * be re-evaluated after their graph predecessors become ready. This is what
  * guarantees the returned map's shape/insertion order is always the same
  * regardless of what order (if any) callers resolved bindings in beforehand,
  * so `computedScalarBindings`'s output stays byte-identical to the original
@@ -501,10 +504,8 @@ export const finalizeScalarProgramEvaluation = (
   program: ScalarProgram,
   evaluator: LazyScalarProgramEvaluator
 ): ScalarProgramEvaluation => {
-  const postStopBindingIds = new Set(program.postStopBindingIds ?? []);
   const resultsByBindingId = new Map<BindingId, ScalarEvaluation>();
   for (const statement of program.statements) {
-    if (!isWithinEvaluationLimit(program, statement, postStopBindingIds)) continue;
     resultsByBindingId.set(statement.bindingId, evaluator.resolve(statement.bindingId));
   }
   return { resultsByBindingId };

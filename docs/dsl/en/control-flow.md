@@ -1,9 +1,9 @@
 # Control flow
 
-Control-flow blocks preserve source order and introduce lexical scopes. A
+Control-flow blocks preserve authored order and introduce lexical scopes. A
 `group` creates a named container, and named group/container members can be
 reached through a qualified namespace path such as `@Front::Hem`, subject to
-the usual source-order and activity rules. `if` and `for` create unnamed
+the usual lexical and activity rules. `if` and `for` create unnamed
 lexical scopes; their children have no user-visible `::` path and follow the
 normal block-scope rules. Modules are closed scopes: callers can reach only
 declarations marked `export`, through an instance path such as `@front::Hem`.

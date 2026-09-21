@@ -30,12 +30,12 @@ const catalogFor = (source: string) => {
 };
 
 describe("nui 1 binding resolution", () => {
-  it("resolves an earlier typed declaration and reports a later declaration as forward", () => {
+  it("resolves typed declarations regardless of source order", () => {
     const catalog = catalogFor(["nui 1", "const earlier: number = 1", "const later: number = 2"].join("\n"));
     expect(resolveBindingReferenceForTests(catalog, "earlier", { scopeId: "root", statementIndex: 2 }))
       .toMatchObject({ kind: "resolved", binding: { name: "earlier", kind: "typed" } });
     expect(resolveBindingReferenceForTests(catalog, "later", { scopeId: "root", statementIndex: 1 }))
-      .toMatchObject({ kind: "forward" });
+      .toMatchObject({ kind: "resolved", binding: { name: "later", kind: "typed" } });
   });
 
   it("keeps the forGroup iteration slot in its lexical scope", () => {

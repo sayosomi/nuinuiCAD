@@ -414,22 +414,18 @@ const patchElements = (input: TextPatchInput, ops: PatchOps) => {
   // 二重 `{` の原因になる)。
   const effectiveEndLine = (info: StatementInfo) => Math.max(info.endLine, info.openBraceLine ?? 0);
 
-  // 旧テキストの「要素系」行(要素文・そのブロック枠・@stop)。
+  // 旧テキストの「要素系」行(要素文・そのブロック枠)。
   type OldElemLine = {
     line: number;
     /** 非マッチ削除時に落とす末尾行(既定はline自身)。複数行文・次行単独`{`を伴うstatement行のみline超え。 */
     endLine: number;
-    role: "statement" | "blockEnd" | "blockElse" | "atStop";
+    role: "statement" | "blockEnd" | "blockElse";
     elementId?: ElementId;
     statementIndex: number;
   };
   const oldElemLines: OldElemLine[] = [];
   for (const info of statementMap.statements) {
     const statement = old.statements[info.statementIndex];
-    if (statement.kind === "atStop") {
-      oldElemLines.push({ line: info.line, endLine: info.line, role: "atStop", statementIndex: info.statementIndex });
-      continue;
-    }
     if (statement.kind === "blockEnd" || statement.kind === "blockElse") {
       const ownerIndex = statement.enclosing?.statementIndex;
       if (ownerIndex === undefined) continue;
@@ -459,7 +455,6 @@ const patchElements = (input: TextPatchInput, ops: PatchOps) => {
 
   // layout行 → 旧行候補(マッチング・insertBeforeアンカーに使う「先頭」行)。
   const candidates = layout.map((line): number | undefined => {
-    if (line.role === "atStop") return statementMap.byKey.get("atStop")?.line;
     const info = line.elementId !== undefined ? statementMap.byElementId.get(line.elementId) : undefined;
     if (!info) return undefined;
     if (line.role === "statement") return info.line;
@@ -587,12 +582,9 @@ const patchElements = (input: TextPatchInput, ops: PatchOps) => {
       continue;
     }
 
-    // Structural rows && @stop only change for indentation changes.
+    // Structural rows only change for indentation changes.
     // (blockEnd/blockElse の正準深さは対応する開き文の深さに等しい。)
-    const info =
-      layoutLine.role === "atStop"
-        ? statementMap.byKey.get("atStop")!
-        : statementMap.byElementId.get(layoutLine.elementId!)!;
+    const info = statementMap.byElementId.get(layoutLine.elementId!)!;
     if (info.indentDepth !== layoutLine.depth) {
       const replacement = preserveDslLineComments(
         soleCanonicalLine(layoutLine, layoutLine.elementId),

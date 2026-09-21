@@ -8,9 +8,9 @@
 // ` && `/` || `/equality (`!` is a prefix, offered separately); string/choice
 // allow only equality. Binding reference candidates reuse
 // bindingResolution.ts's visibleBindingsAt, which already returns exactly one
-// binding per visible name (innermost, shadow-resolved) && naturally excludes
-// a typed declaration's own not-yet-declared self && any forward reference -
-// see typedValueCandidates.test.ts's "pre-declaration visibility" suite.
+// binding per visible name (innermost, shadow-resolved). The current declaration
+// is filtered below because it is a self-reference rather than a completion
+// candidate.
 
 import type { BindingAnalysis } from "./bindingAnalysis";
 import type { Binding, BindingCatalog, BindingId } from "./bindingCatalog";
@@ -137,16 +137,14 @@ export type TypedBindingReferenceCandidatesInput = {
 
 /**
  * `visibleBindingsAt` already returns one binding per visible name (innermost,
- * shadow-resolved) and, for an initializer's own declaration site, naturally
- * excludes the binding's own not-yet-declared self && any same-scope forward
- * declaration (see bindingResolution.ts's statement-index sweep boundary) -
- * no extra self/forward filtering is added here. Only invalid-status
- * exclusion && the caller's type filter are applied.
+ * shadow-resolved). A declaration's own binding is excluded as a self-reference;
+ * later declarations in the same scope remain valid candidates.
  */
 export const typedBindingReferenceCandidates = (input: TypedBindingReferenceCandidatesInput): readonly ScalarBindingCandidate[] => {
   const candidates: ScalarBindingCandidate[] = [];
   const visible = input.liveVisibleBindings ?? (input.site ? visibleBindingsAt(input.catalog, input.site) : []);
   for (const binding of visible) {
+    if (input.site && binding.statementIndex === input.site.statementIndex && binding.effectiveScopeId === input.site.scopeId) continue;
     if (input.entriesById.get(binding.id)?.status.kind === "invalid") continue;
     const type = declaredOrImplicitType(binding);
     if (!input.accepts(type)) continue;

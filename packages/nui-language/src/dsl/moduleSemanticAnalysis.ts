@@ -341,6 +341,7 @@ const geometryPropertyTargetForSourceTarget = (
   pointKey?: string
 ): ModuleGeometryPropertySourceTarget | null => {
   const effectivePointKey = pointKey ?? ("pointKey" in target ? target.pointKey : undefined);
+  const stagePath = "stagePath" in target ? target.stagePath : undefined;
   if (target.kind === "geometryValue") {
     if (target.backingTarget) return geometryPropertyTargetForSourceTarget(target.backingTarget, property, effectivePointKey);
     return {
@@ -352,6 +353,7 @@ const geometryPropertyTargetForSourceTarget = (
       ...(target.ownerModuleDefinitionStatementIndex !== undefined ? { ownerModuleDefinitionStatementIndex: target.ownerModuleDefinitionStatementIndex } : {}),
       property,
       ...(effectivePointKey ? { pointKey: effectivePointKey } : {}),
+      ...(stagePath ? { stagePath } : {}),
       ...(target.identity ? { identity: target.identity } : {})
     };
   }
@@ -371,6 +373,7 @@ const geometryPropertyTargetForSourceTarget = (
       category: target.category,
       property,
       ...(effectivePointKey ? { pointKey: effectivePointKey } : {}),
+      ...(stagePath ? { stagePath } : {}),
       ...(target.identity ? { identity: target.identity } : {})
     };
   }
@@ -386,6 +389,7 @@ const geometryPropertyTargetForSourceTarget = (
       referenceSpan: target.referenceSpan,
       instanceSpan: target.instanceSpan,
       memberSpan: target.memberSpan,
+      ...(stagePath ? { stagePath } : {}),
       ...(target.instanceIdentity ? { instanceIdentity: target.instanceIdentity } : {}),
       ...(target.exportedIdentity ? { exportedIdentity: target.exportedIdentity } : {})
     };
@@ -2269,9 +2273,6 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       }));
       return semantic(null, "invalid", null, derivedRole);
     };
-    if (pointKey && !isKnownDerivedPointKey(pointKey)) return rejectAccessor(`geometry reference「${pointKey}」は既知のpoint anchorではありません。`);
-    if (pointKey && (role === "lineReference" || role === "lineReferenceList")) return rejectAccessor("plain line referenceにはderived point accessorを指定できません。");
-    if (pointKey && role === "lineEndpointReference" && !isLineEndpointPointKey(pointKey)) return rejectAccessor("line endpoint referenceにはstartまたはendを指定してください。");
     const qualified = resolveQualifiedModuleExport(statementIndex, ownerIndex, base, semanticSpan, reference.pathRange.start);
     if (qualified?.kind === "deferred") {
       return semantic(
@@ -2547,12 +2548,20 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       addLocal(statementIndex, issue("module-outer-capture", baseSpan, `module body から outer geometry「${base}」を暗黙 capture できません。`, { relatedSources: declarationRelated, presentation: { key: "diagnostic.module-outer-capture", parameters: { name: base } } }));
       return semantic(null, "outerCapture", null, derivedRole);
     }
-    const pointTarget = pointKey && expected === "point" && isDerivedPointKeyForGeometryCategory(target.category, pointKey)
-      ? { ...target, pointKey }
-      : pointKey ? null : target;
+    const stageSelection = input.resolveGeometryStageSelection?.({
+      statementId: target.statementId,
+      members: pointKey ? pointKey.split(".") : []
+    }) ?? { stagePath: ["final"], propertyPath: pointKey ? pointKey.split(".") : [] };
+    const selectedProperty = stageSelection.propertyPath.join(".");
+    if (selectedProperty && !isKnownDerivedPointKey(selectedProperty)) return rejectAccessor(`geometry reference「${selectedProperty}」は既知のpoint anchorではありません。`);
+    if (selectedProperty && (role === "lineReference" || role === "lineReferenceList")) return rejectAccessor("plain line referenceにはderived point accessorを指定できません。");
+    if (selectedProperty && role === "lineEndpointReference" && !isLineEndpointPointKey(selectedProperty)) return rejectAccessor("line endpoint referenceにはstartまたはendを指定してください。");
+    const selectedPointTarget = selectedProperty && expected === "point" && isDerivedPointKeyForGeometryCategory(target.category, selectedProperty)
+      ? { ...target, pointKey: selectedProperty, stagePath: stageSelection.stagePath }
+      : selectedProperty ? null : { ...target, stagePath: stageSelection.stagePath };
     const actualInterfaceType = moduleGeometryInterfaceTypeOfElement(lookup.declaration.statement);
-    const compatible = pointKey
-      ? Boolean(pointTarget)
+    const compatible = selectedProperty
+      ? Boolean(selectedPointTarget)
       : options.expectedInterfaceType
         ? isModuleGeometryInterfaceAssignable(actualInterfaceType, options.expectedInterfaceType)
         : target.geometryKind === expected;
@@ -2563,7 +2572,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       }));
       return semantic(null, "invalid", null, derivedRole);
     }
-    return semantic(pointTarget, "resolved", null, derivedRole);
+    return semantic(selectedPointTarget, "resolved", null, derivedRole);
   };
 
   const parseGeometryValueConstruction = (
@@ -4194,24 +4203,42 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       if (!propertyTarget || !type) return unknownProperty();
       return { target: propertyTarget, type, resolution: "resolved" };
     }
-    const geometryTarget = declarationGeometryPropertyTarget(lookup.declaration, stableStatementIdByIndex, reference.property);
+    const stageSelection = input.resolveGeometryStageSelection?.({
+      statementId: lookup.declaration.statementId,
+      members: reference.property.split(".")
+    }) ?? { stagePath: ["final"], propertyPath: reference.property.split(".") };
+    const selectedProperty = stageSelection.propertyPath.join(".");
+    const selectedPointPath = /^(start|end)$/.exec(selectedProperty);
+    const geometryTarget = declarationGeometryPropertyTarget(lookup.declaration, stableStatementIdByIndex, selectedProperty);
     if (!geometryTarget) return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-geometry-property-type-mismatch", reference.span, `「${reference.elementName}」はgeometryではありません。`, { relatedSources: declarationRelated, presentation: { key: "diagnostic.module-geometry-property-type-mismatch", parameters: { target: reference.elementName } } }) };
     const declarationOwner = moduleOwnerIndexOf(statements, lookup.declaration.statementIndex);
     if (ownerIndex !== null && declarationOwner !== ownerIndex) {
       return { target: null, type: null, resolution: "outerCapture", diagnostic: issue("module-outer-capture", reference.span, `module body から outer geometry「${reference.elementName}」を暗黙 capture できません。`, { relatedSources: declarationRelated, presentation: { key: "diagnostic.module-outer-capture", parameters: { name: reference.elementName } } }) };
     }
-    const type = numericGeometryPropertySupportedByStaticTarget(
+    const type = selectedPointPath
+      ? { kind: "number" as const }
+      : numericGeometryPropertySupportedByStaticTarget(
       numericGeometryTargetForSourceStatement(
         lookup.declaration.statementIndex,
         ownerIndex,
         lookup.declaration.statement,
       ),
-      reference.property
+      selectedProperty
     )
       ? { kind: "number" as const }
-      : choiceGeometryPropertyTypeForStatement(lookup.declaration.statement, reference.property);
+      : choiceGeometryPropertyTypeForStatement(lookup.declaration.statement, selectedProperty);
     if (!type) return unknownProperty();
-    return { target: { ...geometryTarget, kind: "sourceGeometryProperty", property: reference.property }, type, resolution: "resolved" };
+    return {
+      target: {
+        ...geometryTarget,
+        kind: "sourceGeometryProperty",
+        property: selectedPointPath ? selectedPointPath[1]! : selectedProperty,
+        ...(selectedPointPath ? { pointKey: selectedPointPath[1]! } : {}),
+        stagePath: stageSelection.stagePath
+      },
+      type,
+      resolution: "resolved"
+    };
   };
 
   optionalMemberResolver.current = (statementIndex, ownerIndex, reference) => {

@@ -21,6 +21,7 @@ export type LineMeasurementKey =
 export type NumericExpressionReference = {
   elementId: ElementId;
   property?: string;
+  stagePath?: readonly string[];
 };
 
 export type NumericExpressionError = {

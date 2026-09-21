@@ -131,17 +131,16 @@ describe("Module diagnostic related source information", () => {
     expect(diagnostic.relatedInformation?.map((related) => related.message)).toEqual(["Related parameter declaration"]);
   });
 
-  it("points a forward callee to the later module definition", () => {
+  it("resolves a callee against a later module definition", () => {
     const source = [
       "nui 1",
       "instance Before = Later()",
       "module Later() {",
       "}"
     ].join("\n");
-    const diagnostic = byCode(compileWithIds(source).diagnostics, "module-forward-callee");
-
-    expect(spanText(source, diagnostic)).toBe("Later");
-    expect(relatedTexts(source, diagnostic)).toEqual(["Later"]);
+    expect(compileWithIds(source).diagnostics).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "module-forward-callee" })
+    ]));
   });
 
   it("points private members and outer captures to the proven source declaration", () => {

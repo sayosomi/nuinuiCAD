@@ -149,7 +149,7 @@ describe("SAY-63 print layout DSL v1", () => {
       "layout 後出し {",
       "}",
     ].join("\n"));
-    expect(errors(forward.sourceLines.join("\n")).some((diagnostic) => diagnostic.message.includes("後で宣言"))).toBe(true);
+    expect(errors(forward.sourceLines.join("\n")).some((diagnostic) => diagnostic.message.includes("後で宣言"))).toBe(false);
 
     const invalid = compileDslDocument([
       "nui 1",
@@ -290,7 +290,7 @@ describe("SAY-63 print layout DSL v1", () => {
       "layout Later {",
       "}"
     ].join("\n"));
-    expect(forward.diagnostics.some((diagnostic) => diagnostic.message.includes("後で宣言"))).toBe(true);
+    expect(forward.diagnostics.some((diagnostic) => diagnostic.message.includes("後で宣言"))).toBe(false);
 
     const wrongKind = compileWithStatementIds([
       "nui 1",
@@ -359,7 +359,12 @@ describe("SAY-63 print layout DSL v1", () => {
       ...(reference === "@later" ? declarations : [])
     ];
     const compiled = compileWithStatementIds(lines.join("\n"));
-    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.code === code).length).toBeGreaterThan(0);
+    const matchingDiagnostics = compiled.diagnostics.filter((diagnostic) => diagnostic.code === code);
+    if (reference === "@later") {
+      expect(matchingDiagnostics).toEqual([]);
+    } else {
+      expect(matchingDiagnostics.length).toBeGreaterThan(0);
+    }
   });
 
   it("keeps default and inherited placement values in the source model while preserving explicit overrides and identities", () => {

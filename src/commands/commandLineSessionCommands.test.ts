@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { compileDslDocument, serializeDocumentToDsl } from "@nuinuicad/nui-language";
+import { compileDslDocument } from "@nuinuicad/nui-language";
 import { registerSourceEditSession } from "../editor/sourceEditSession";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
@@ -806,81 +806,7 @@ describe("command-line session commands", () => {
     expect(useCadDocumentStore.getState().elements.map((element) => element.name)).toEqual(["X", "A", "B"]);
   });
 
-  it("keeps a manual stop text boundary stable when inserting before it without double correction", () => {
-    useCadDocumentStore.getState().commitText([
-      "nui 1",
-      "point A = coordinate(x: 0, y: 0)",
-      "stop",
-      "point B = coordinate(x: 10, y: 0)"
-    ].join("\n"), "test");
-    const pointA = useCadDocumentStore.getState().elements.find((element) => element.name === "A")!;
-    expect(startCommandLineCreation("freePoint", {
-      currentCursorElementId: () => pointA.id,
-      currentSourceCursor: () => ({ sourceRevision: useCadDocumentStore.getState().sourceRevision, line: 2, lineCount: 4, elementId: pointA.id })
-    })).toBe(true);
-    submitCommandLineInput("");
-    submitCommandLineInput("1");
-    submitCommandLineInput("2");
-    expect(confirmCommandLineSession()).toBe(true);
-
-    const committed = useCadDocumentStore.getState();
-    const created = committed.elements.find((element) => element.name !== "A" && element.name !== "B")!;
-    const lines = committed.sourceText.split("\n");
-    expect(lines.filter((line) => line === "stop")).toHaveLength(1);
-    expect(lines.findIndex((line) => line.includes(created.name))).toBeLessThan(lines.indexOf("stop"));
-    expect(lines.indexOf("stop")).toBeLessThan(lines.findIndex((line) => line.includes("point B")));
-    expect(committed.evaluationLimitIndex).toBe(2);
-
-    const reparsed = compileDslDocument(committed.sourceText).document!;
-    expect(reparsed.evaluationLimitIndex).toBe(committed.evaluationLimitIndex);
-    expect(serializeDocumentToDsl(reparsed, 1)).toContain("stop");
-    useCadDocumentStore.getState().commitText(committed.sourceText, "test");
-    expect(useCadDocumentStore.getState().evaluationLimitIndex).toBe(2);
-  });
-
-  it("keeps one explicit terminal stop when creation follows its last element", () => {
-    useCadDocumentStore.getState().commitText([
-      "nui 1",
-      "point A = coordinate(x: 0, y: 0)",
-      "stop"
-    ].join("\n"), "test");
-    const pointA = useCadDocumentStore.getState().elements[0]!;
-
-    expect(startCommandLineCreation("freePoint", {
-      currentCursorElementId: () => pointA.id,
-      currentSourceCursor: () => ({ sourceRevision: useCadDocumentStore.getState().sourceRevision, line: 2, lineCount: 3, elementId: pointA.id })
-    })).toBe(true);
-    submitCommandLineInput("");
-    submitCommandLineInput("1");
-    submitCommandLineInput("2");
-    expect(confirmCommandLineSession()).toBe(true);
-
-    const committed = useCadDocumentStore.getState();
-    expect(committed.evaluationLimitIndex).toBe(2);
-    expect(committed.sourceText.split("\n").filter((line) => line === "stop")).toHaveLength(1);
-    expect(committed.sourceText.trimEnd().endsWith("stop")).toBe(true);
-  });
-
-  it("keeps one explicit terminal stop when creation is anchored at document end", () => {
-    useCadDocumentStore.getState().commitText([
-      "nui 1",
-      "point A = coordinate(x: 0, y: 0)",
-      "stop"
-    ].join("\n"), "test");
-
-    expect(startCommandLineCreation("freePoint")).toBe(true);
-    submitCommandLineInput("");
-    submitCommandLineInput("1");
-    submitCommandLineInput("2");
-    expect(confirmCommandLineSession()).toBe(true);
-
-    const committed = useCadDocumentStore.getState();
-    expect(committed.evaluationLimitIndex).toBe(1);
-    expect(committed.sourceText.split("\n").filter((line) => line === "stop")).toHaveLength(1);
-    expect(committed.sourceText.indexOf("stop")).toBeLessThan(committed.sourceText.lastIndexOf("point"));
-  });
-
-  it("does not introduce stop when the source has no manual evaluation boundary", () => {
+  it("does not introduce a source terminator when the source has no evaluation boundary", () => {
     useCadDocumentStore.getState().commitText([
       "nui 1",
       "point A = coordinate(x: 0, y: 0)"
@@ -1028,36 +954,6 @@ describe("command-line session commands", () => {
     expect(useCadDocumentStore.getState().previewEvaluationLimitIndex).toBeNull();
   });
 
-  it("confirms a step edit at a post-stop insertion position where no ghost can exist", () => {
-    useCadDocumentStore.getState().commitText(
-      ["nui 1", "point A = coordinate(x: 0, y: 0)", "stop", "point B = coordinate(x: 10, y: 10)", "point C = coordinate(x: 20, y: 20)"].join("\n"),
-      "test"
-    );
-    const cursorElementId = useCadDocumentStore.getState().elements.find((element) => element.name === "C")!.id;
-    expect(startCommandLineCreation("freePoint", {
-      currentCursorElementId: () => cursorElementId,
-      currentSourceCursor: () => ({ sourceRevision: useCadDocumentStore.getState().sourceRevision, line: 5, lineCount: 5, elementId: cursorElementId })
-    })).toBe(true);
-    submitCommandLineInput("");
-    submitCommandLineInput("1");
-    submitCommandLineInput("2");
-    // The insertion position is outside the evaluator's reach, so no ghost exists.
-    expect(useCadDocumentStore.getState().previewElements).toBeNull();
-
-    expect(startCommandLineStepEdit(1)).toBe(true);
-    expect(submitCommandLineInput("5")).toBe(true);
-    expect(useCadUiStore.getState().commandLineSession).toMatchObject({
-      editingStepIndex: null,
-      error: null,
-      args: { x: 5 }
-    });
-
-    const pastBefore = useCadDocumentStore.getState().past.length;
-    expect(confirmCommandLineSession()).toBe(true);
-    expect(useCadDocumentStore.getState().past.length).toBe(pastBefore + 1);
-    expect(useCadDocumentStore.getState().sourceText).toContain("x: 5,\n  y: 2");
-  });
-
   it("confirms a step edit inside a disabled group where no ghost can exist", () => {
     useCadDocumentStore.getState().commitText(
       ["nui 1", "group G (enabled: false) {", "point A = coordinate(x: 0, y: 0)", "}"].join("\n"),
@@ -1084,31 +980,6 @@ describe("command-line session commands", () => {
       error: null,
       args: { x: 1, y: 7 }
     });
-  });
-
-  it("still rejects an unparseable edit draft at a position without a ghost", () => {
-    useCadDocumentStore.getState().commitText(
-      ["nui 1", "point A = coordinate(x: 0, y: 0)", "stop", "point B = coordinate(x: 10, y: 10)", "point C = coordinate(x: 20, y: 20)"].join("\n"),
-      "test"
-    );
-    const cursorElementId = useCadDocumentStore.getState().elements.find((element) => element.name === "C")!.id;
-    expect(startCommandLineCreation("freePoint", {
-      currentCursorElementId: () => cursorElementId,
-      currentSourceCursor: () => ({ sourceRevision: useCadDocumentStore.getState().sourceRevision, line: 5, lineCount: 5, elementId: cursorElementId })
-    })).toBe(true);
-    submitCommandLineInput("");
-    submitCommandLineInput("1");
-    submitCommandLineInput("2");
-    expect(startCommandLineStepEdit(1)).toBe(true);
-
-    expect(submitCommandLineInput("(")).toBe(false);
-
-    expect(useCadUiStore.getState().commandLineSession).toMatchObject({
-      editingStepIndex: 1,
-      editingDraft: { kind: "expression", expression: "(" },
-      args: { x: 1, y: 2 }
-    });
-    expect(useCadUiStore.getState().commandLineSession?.error).toContain("プレビュー");
   });
 
   it("keeps measurement-insert progress through selection changes and session cancel, resetting only on session start", () => {

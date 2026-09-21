@@ -19,6 +19,37 @@ use super::types::{
 };
 use crate::evaluation::types::GeometryValueOccurrence;
 
+pub(crate) fn decode_stage_path(
+    json: Option<&Value>,
+    context: &str,
+) -> Result<Option<Vec<String>>, ScalarPayloadIssue> {
+    let Some(json) = json else { return Ok(None) };
+    if json.is_null() {
+        return Ok(None);
+    }
+    let path = json.as_array().ok_or_else(|| {
+        issue(
+            Code::InvalidFieldType,
+            format!("{context} must be an array"),
+        )
+    })?;
+    let mut result = Vec::with_capacity(path.len());
+    for part in path {
+        result.push(
+            part.as_str()
+                .filter(|value| !value.is_empty())
+                .ok_or_else(|| {
+                    issue(
+                        Code::InvalidFieldType,
+                        format!("{context} must contain non-empty strings"),
+                    )
+                })?
+                .to_owned(),
+        );
+    }
+    Ok(Some(result))
+}
+
 pub(crate) fn decode_span(json: &Value, context: &str) -> Result<ScalarSpan, ScalarPayloadIssue> {
     let object = as_object(json, context)?;
     reject_unexpected_fields(object, &["start", "end"], context)?;
@@ -368,6 +399,7 @@ pub(crate) fn decode_geometry_property(
             "forGroupOccurrenceIndex",
             "forGroupOccurrencePointKey",
             "property",
+            "stagePath",
             "targetSourceOrder",
             "type",
         ],
@@ -506,6 +538,7 @@ pub(crate) fn decode_geometry_property(
             )
         })?
         .to_owned();
+    let stage_path = decode_stage_path(object.get("stagePath"), "geometryProperty node stagePath")?;
     let geometry_value_point_key = match object
         .get("geometryValuePointKey")
         .or_else(|| object.get("geometryCarryPointKey"))
@@ -635,6 +668,7 @@ pub(crate) fn decode_geometry_property(
         for_group_template_element_id,
         for_group_index,
         property,
+        stage_path,
         target_source_order,
         r#type: scalar_type,
     })

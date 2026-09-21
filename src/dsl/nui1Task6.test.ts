@@ -14,21 +14,19 @@ const compileValue = (source: string) => {
 const compile = (source: string): LastGoodDslDocument => compileValue(source).doc;
 
 describe("nui1 Task 6 syntax lowering and lexical behavior", () => {
-  it("parses unnamed if, range for, bare stop, and keeps control names empty", () => {
+  it("parses unnamed if and range for while keeping control names empty", () => {
     const parsed = parseDsl([
       "nui 1",
       "if (@condition) {",
       "}",
       "for i in range(min: 0, max: 4, step: 1) {",
-      "}",
-      "stop"
+      "}"
     ].join("\n"));
     expect(parsed.diagnostics).toEqual([]);
     expect(parsed.statements.filter((statement) => statement.kind === "element").map((statement) => statement.name)).toEqual(["", ""]);
     const loop = parsed.statements.find((statement) => statement.kind === "element" && statement.type === "forGroup");
     expect(loop?.attrs.find((attribute) => attribute.key === "variable")?.value).toBe("i");
-    expect(parsed.statements.at(-1)?.kind).toBe("atStop");
-    expect(dslStatementKeywordCompletions).toContain("stop");
+    expect(dslStatementKeywordCompletions).not.toContain("stop");
     expect(dslStatementKeywordCompletions).not.toContain("@stop");
   });
 
@@ -115,20 +113,19 @@ describe("nui1 Task 6 syntax lowering and lexical behavior", () => {
     );
   });
 
-  it("regenerates unnamed controls and bare stop without inventing user names", () => {
+  it("regenerates unnamed controls without inventing user names", () => {
     const compiled = compile([
       "nui 1",
       "const condition: boolean = true",
       "if (@condition) {",
       "}",
       "for i in range(min: 0, max: 1, step: 1) {",
-      "}",
-      "stop"
+      "}"
     ].join("\n"));
     const serialized = serializeDocumentToDsl(compiled.document, 1);
     expect(serialized).toContain("if (@condition) {");
     expect(serialized).toContain("for i in range(min: 0, max: 1, step: 1) {");
-    expect(serialized).toContain("stop");
+    expect(serialized).not.toContain("\nstop");
     expect(serialized).not.toContain("if ifブロック");
     expect(serialized).not.toContain("for forブロック");
   });

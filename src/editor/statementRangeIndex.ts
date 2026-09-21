@@ -184,35 +184,6 @@ export const statementRangeAtLine = (ranges: StatementRangeIndex, lineFrom: numb
   return null;
 };
 
-export type AtStopRange = { from: number; to: number };
-
-/**
- * Mirrors createStatementRangeIndex for the single non-element "stop" line: only
- * valid while the matching statementMap is current (docText === sourceText).
- */
-export const createAtStopRange = (doc: Text, statementMap: StatementMap): AtStopRange | null => {
-  const statement = statementMap.byKey.get("atStop");
-  if (!statement || statement.line < 1 || statement.line > doc.lines) return null;
-  const line = doc.line(statement.line);
-  return { from: line.from, to: line.to };
-};
-
-/**
- * Mirrors mapStatementRangeIndex: re-projects the last-known-good "stop" position
- * through a CM ChangeDesc. Returns null once the position becomes unrecoverable
- * (fully covered by an edit), rather than ever falling back to a raw stale line number.
- */
-export const mapAtStopRange = (range: AtStopRange | null, changes: ChangeDesc): AtStopRange | null => {
-  if (!range) return null;
-  // Unlike element statements, stop has no runtime identity to retain through an
-  // in-place edit. Any touch can change || remove the directive, so wait for a
-  // successful compile rather than leaving a marker on an unrelated line.
-  if (changes.touchesRange(range.from, range.to) !== false) return null;
-  const from = changes.mapPos(range.from, 1, MapMode.TrackAfter);
-  const to = changes.mapPos(range.to, -1, MapMode.TrackBefore);
-  return from === null || to === null || to < from ? null : { from, to };
-};
-
 export type TypedDeclarationRange = { bindingId: BindingId; from: number; to: number };
 export type TypedDeclarationRangeIndex = ReadonlyMap<BindingId, TypedDeclarationRange>;
 

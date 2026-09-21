@@ -86,23 +86,22 @@ describe("command-line source insertion", () => {
     });
   });
 
-  it("places an stop-line cursor before the evaluation boundary", () => {
+  it("places a comment-line cursor at the requested source boundary", () => {
     const result = compiled([
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
-      "// create before the stop",
-      "stop",
+      "// create between elements",
       "point B = coordinate(x: 1, y: 1)"
     ]);
 
     expect(sourceInsertionForCreation({
-      cursor: { sourceRevision: 1, line: 4, lineCount: result.sourceLines.length, elementId: null },
+      cursor: { sourceRevision: 1, line: 3, lineCount: result.sourceLines.length, elementId: null },
       elements: result.document!.elements,
       statementMap: result.statementMap!
     })).toEqual({
       sourceRevision: 1,
       insertionTarget: { insertionIndex: 1 },
-      sourceInsertionLine: 4
+      sourceInsertionLine: 3
     });
   });
 

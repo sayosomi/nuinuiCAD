@@ -13,5 +13,5 @@ module M(value: number, side: choice(right, left), label: string) {
 }
 instance First = M(value: round(@caller, 0), side: left, label: "first")
 instance Second = M(value: 20, side: right, label: "second")
-stop
+// declarative evaluation continues; source stop is no longer valid nui1 syntax
 point Ignored = coordinate(x: @caller, y: 0)

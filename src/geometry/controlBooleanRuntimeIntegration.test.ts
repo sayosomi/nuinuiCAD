@@ -112,6 +112,24 @@ describe("Task 25 conditionalGroup.condition, end-to-end through the real compil
     expect(result.conditionInactiveElementIds?.has(idByName(compiled, "Else"))).toBe(true);
   });
 
+  it("schedules a forward geometry-property condition through the canonical graph", () => {
+    const compiled = compileCanonical([
+      "nui 1",
+      "if (@AB.length > 0) {",
+      "  point Then = coordinate(x: 0, y: 0)",
+      "} else {",
+      "  point Else = coordinate(x: 1, y: 1)",
+      "}",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line AB = segment(start: @A, end: @B)"
+    ].join("\n"));
+    const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometry.has(idByName(compiled, "Then"))).toBe(true);
+    expect(result.conditionInactiveElementIds?.has(idByName(compiled, "Else"))).toBe(true);
+  });
+
   it("logical  and  condition (typed boolean bindings) selects the correct branch", () => {
     const compiled = compileCanonical([
       "nui 1",

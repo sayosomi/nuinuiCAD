@@ -20,13 +20,17 @@ user layout.
 
 The following principles are normative and apply to every nui1 feature:
 
-1. A document is evaluated from top to bottom. Declarations are never hoisted.
+1. Legal declarations are resolved by lexical ownership independent of unrelated
+   source position. Required nodes are evaluated in canonical dependency order;
+   dependency cycles are diagnostics. Only same-owner transformation recipe
+   order remains authored source order.
 2. `@` always means a reference.
 3. Every value has a type.
 4. `{}` creates a lexical scope.
 5. `::` traverses a namespace or container.
-6. nui1 does not perform implicit dependencies, implicit capture, or automatic
-   reordering.
+6. nui1 does not perform implicit dependencies or implicit capture. The compiler
+   schedules explicit required dependencies through its canonical dependency
+   graph; unrelated source positions do not impose evaluation order.
 
 These rules are language semantics, not formatter preferences or implementation
 options.
@@ -53,8 +57,8 @@ top-level import declaration:
 import "./path/file.nui" as alias
 ```
 
-Imports require an alias, are processed in source order, and are not hoisted. An
-import path is an importer-relative `./...` or `../...` filesystem path that
+Imports require an alias and participate in the importing document's legal
+lexical scope. An import path is an importer-relative `./...` or `../...` filesystem path that
 must end in `.nui`. nui1 does not provide package search, URL imports,
 absolute-path imports, or extension inference.
 
@@ -245,8 +249,9 @@ line AB = segment(
 `from: A` is not a reference in nui1. A bare identifier is a keyword, a choice
 literal, the builtin numeric constant `pi`, or another grammar token with a
 specifically defined role; it is never silently treated as a value reference.
-A missing, disabled, invalid, private, or too-late reference is a diagnostic and
-is not repaired by reordering the document.
+A missing, disabled, invalid, private, or cyclic reference is a diagnostic. A
+legal reference is resolved by lexical scope and dependency identity rather
+than by its textual position.
 
 ### Scalar geometry-property reads
 
@@ -264,12 +269,12 @@ const isClockwise: boolean = @A.direction == clockwise
 arc B = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: @A.direction)
 ```
 
-The target identity and property are resolved at the read's source position.
-The target must be earlier in document order and available to evaluation there;
-hidden elements remain readable, while disabled, invalid, failed, or not-yet-
-evaluated elements are unavailable and produce the existing dependency
-diagnostic. The read observes the target value materialized at that position;
-later mutations do not retroactively change an earlier read.
+The target identity and property are resolved through the lexical namespace and
+dependency graph rather than the read's source position.
+Hidden elements remain readable, while disabled, invalid, or failed elements are
+unavailable and produce the existing dependency diagnostic. The evaluator
+requires only the selected dependency path; an unselected lazy branch is not a
+required dependency.
 
 ### Canonical numeric geometry properties
 
@@ -328,9 +333,13 @@ This includes scalars, geometry, groups, module definitions, and module
 instances. A name may be declared only once in one scope. Nested scopes may
 reuse a name without changing the meaning of an already-resolved outer binding.
 
-Declarations are non-hoisted and obey source order. A declaration cannot refer to
-a later declaration in the same scope. The evaluator does not dependency-sort,
-forward-resolve, or otherwise reorder statements to make a reference work.
+Declarations are resolved in their legal lexical scope regardless of source
+position. The compiler's canonical dependency graph schedules required nodes;
+unrelated source positions do not impose evaluation order. A nearer lexical
+declaration owns its name even when written later, while Module, import/export,
+conditional, and loop ownership boundaries remain intact. Dependency cycles
+are explicit diagnostics containing the involved declaration/stage names and
+source locations where available.
 
 The following constructs create scopes:
 
@@ -674,8 +683,8 @@ collection whose element type is not an array, one optional wrapper around any
 of those, or another named record type.
 Record type identity is the identity of the record definition statement; two
 definitions with the same field names and types are still different types.
-Definitions and values obey the normal non-hoisted source order. Nested arrays
-and field defaults are not part of nui1 v1. Optional field omission does not
+Definitions and values use the same legal lexical scope and dependency graph.
+Nested arrays and field defaults are not part of nui1 v1. Optional field omission does not
 create field-specific presence state or defaults; it uses the generic `T?` value
 type and `none` rules above.
 
@@ -958,7 +967,7 @@ on the value occurrence and do not allocate a drawable identity.
 - computation and presentation container
 
 Nested groups may contain members with names that exist in an outer group. The
-same source-order, non-hoisted resolution rules apply in every group.
+same lexical-scope and dependency-graph resolution rules apply in every group.
 
 Every geometry declaration and container may have independent direct gates:
 
@@ -981,9 +990,11 @@ warning marker.
 
 ## Style declarations, profiles, and presentation properties
 
-Drawing Profiles are top-level, source-ordered declarations in the ordinary
-lexical namespace. A profile is referenced with `@name`; references are not
-hoisted, so a declaration must appear before its use.
+Drawing Profiles are top-level declarations in the ordinary lexical namespace.
+Their authored source order remains the document/display order. A profile is
+referenced with `@name`; lexical ownership resolves the reference independently
+of unrelated source position, while source text order is preserved for editing
+and serialization.
 
 ```text
 profile 印刷用
@@ -1112,8 +1123,8 @@ instance foo = Foo(
 )
 ```
 
-Module definitions are non-hoisted. A definition must appear before the
-instance that uses it. Recursive and mutually recursive module definitions are
+Module definitions are resolved within their definition namespace regardless of
+source position. Recursive and mutually recursive module definitions are
 forbidden.
 
 Module arguments are named-only. In a Module call only, an unlabeled simple
@@ -1169,8 +1180,8 @@ unchanged: optionality does not make geometry, collection, or record parameters
 default-eligible. An eligible optional scalar such as
 `height: number? = 10` uses `10` when omitted, preserves `none` for explicit
 `none`, and uses a supplied number otherwise. Scalar defaults are evaluated in
-source order in the module's parameter context and do not capture values from
-the module's caller.
+the module's parameter context and do not capture values from the module's
+caller.
 
 The existing Module v1 evaluation-limit atomicity is retained: an instance is
 evaluated as an atomic module operation within its evaluation limit, and a
@@ -1232,7 +1243,7 @@ The declared type is retained at every alias boundary. Assignability is
 directional: `point` accepts only `point`, `line` accepts only `line`, and
 `path` accepts `line` or `path`. A `path` value cannot be assigned to `line`,
 and a geometry value cannot be assigned to a scalar or record type. Aliases
-follow the ordinary lexical namespace, source-order, dependency, module
+follow the ordinary lexical namespace, dependency, module
 parameter, and export rules; alias chains are allowed when each step is
 assignable.
 
@@ -1366,7 +1377,7 @@ mirrorCopy reflects across the directed two-point axis and reverses arc sweep.
 Both forms transform line endpoints, Bezier controls, and arc radius/sweep,
 drop degenerate transformed line/Bezier segments, retain ordered segments and
 endpoint tangents, and produce no drawable element identity. Missing,
-disabled, invalid, non-line-like, empty, discontinuous, or too-late sources,
+disabled, invalid, non-line-like, empty, discontinuous, or cyclic sources,
 non-positive scales, coincident axes, and no-segment results fail through the
 occurrence-owned geometry-value diagnostic channel. `corner` and other
 deferred constructions remain unsupported.
@@ -1415,13 +1426,17 @@ an independent drawable Canvas element. `base` is a valid branch target;
 name may not be `base` or `final`, and a stage name may not collide with a
 geometry property name of its owner.
 
-Recipes are evaluated in root source order. A named stage owns a recursive
-branch: a later recipe targeting `A.stage` reads and extends that branch. When
+Recipes are scheduled by resolved dependencies, while authored recipe order is
+preserved within each owner/branch. A named stage owns a recursive branch: a
+recipe targeting `A.stage` reads and extends that branch. When
 the target is already a stage, the resulting checkpoint remains in that branch;
 an empty branch has the implicit `.final` result. The first recipe in a branch
 reads the branch's `base` snapshot. Transformation targets must refer to
-available geometry in the settled source order; SAY-291's general
-forward-reference/global scheduling semantics are not part of this contract.
+available construction or prior-stage geometry. `@A` and `@A.final` read the
+owner's final graph node; `@A.base` reads its construction node; and
+`@A.stage.property` resolves through the immutable named stage before reading
+the geometry property. A final/self dependency is a cycle; explicit base or
+prior-stage reads are valid when their graph dependencies are acyclic.
 
 An operation may target one owner or several coupled owners. Coupled operations
 produce independent resulting checkpoints for each owner. Generated geometry
@@ -1467,21 +1482,10 @@ The old `{@name}` interpolation is removed. Ordinary `{` and `}` in text are
 literal characters; nui1 does not require a special escape merely to write
 literal braces.
 
-## Stop
-
-The document terminator is the bare keyword:
-
-```text
-stop
-```
-
-`@stop` is not a reference and is not part of nui1. This reserves `@` for
-references only.
-
 ## Print layout source model
 
-Print layout declarations are ordinary top-level, non-hoisted source
-declarations. `layout` owns only direct `place` children; `print` and `svg`
+Print layout declarations are ordinary top-level source declarations. `layout`
+owns only direct `place` children; `print` and `svg`
 are output declarations without bodies. Their references use the same `@` / `::`
 lexical resolver as geometry and scalar declarations.
 
@@ -1593,7 +1597,7 @@ declared element type using the existing scalar, choice, geometry, and nominal
 record assignability rules. Geometry arrays accept the normal
 qualified/derived/coordinate point forms; `line[]` remains assignable to
 `path[]`. Whole-value array references retain their source identity and use the
-ordinary lexical/source-order/private and export rules; references always retain
+ordinary lexical/private and export rules; references always retain
 their `@` marker.
 
 Geometry-array assignability is intentionally narrow: `point[] -> point[]`,
@@ -1604,8 +1608,8 @@ conversion are invalid.
 Module signatures may declare required or optional collection parameters.
 They have no defaults under the existing eligibility rules; optionality does not
 change those rules. Module bodies may
-create local immutable arrays and may export them with `export const`; private,
-source-order, and instance-member visibility rules are unchanged. Collection
+create local immutable arrays and may export them with `export const`; private
+and instance-member visibility rules are unchanged. Collection
 members remain values: pure geometry members are not converted into drawable
 identities.
 
@@ -1626,7 +1630,7 @@ evaluated only when that result member is requested. The binder is an
 immutable lexical value with the exact source element type, visible only in
 the body; it is not a statement-for mutation binding and never leaks into the
 surrounding scope. The source is a whole-value collection reference resolved
-by the ordinary lexical, source-order, alias, Module, privacy, and export
+by the ordinary lexical, alias, Module, privacy, and export
 rules. The result remains an immutable one-dimensional `T[]` with its
 declared element type, and the body is checked by the existing scalar
 expression rules against that result element type. Bare choice literals use
@@ -1739,8 +1743,6 @@ The following are not part of the initial language:
 - an object model
 - inheritance
 - package search, URL imports, absolute-path imports, and extension inference
-- dependency auto-sorting
-- forward references
 - module closure or implicit outer capture
 - implicit type conversion
 - an arbitrary geometry expression system
@@ -1754,7 +1756,7 @@ not a general-purpose programming language.
 The following example uses the canonical nui1 spellings. Every value reference
 is marked with `@`; the module uses the broad `path` interface type; boolean
 logic uses `and`, `or`, and `not`; the module exports declarations directly;
-text uses `${...}`; and termination uses `stop`.
+text uses `${...}`; evaluation uses resolved dependencies.
 
 ```text
 nui 1
@@ -1868,12 +1870,10 @@ layout A4(scale: 1) {
 
 print 家庭用A4(layout: @A4, paper: a4, orientation: portrait, overlap: 10)
 svg 型紙SVG(layout: @A4, margin: 0)
-
-stop
 ```
 
-The example also demonstrates that `front` is defined before it is referenced,
-that the module's `seamLine` is a read-only external geometry alias, and that
+The example also demonstrates that the module's `seamLine` is a read-only
+external geometry alias, and that
 the post-instance transformation targets exported, module-owned geometry.
 
 ## nui3 to nui1 mapping
@@ -1888,7 +1888,6 @@ the post-instance transformation targets exported, module-owned geometry.
 | `{@foo}` | `${@foo}` |
 | `if Name (@cond)` | `if (@cond)` |
 | `for Name (i, ...)` | `for i in range(...)` |
-| `@stop` | `stop` |
 | property binding opt-in | all typed arguments |
 | `&&` / `\|\|` / `!` | `and` / `or` / `not` |
 

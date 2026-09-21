@@ -18,10 +18,29 @@ const identitiesFor = (count: number) => new Map(
   Array.from({ length: count }, (_, index) => [index + 1, `perf:v${index}`])
 );
 
+const geometrySourceFor = (count: number) => [
+  "nui 1",
+  "point P0 = coordinate(x: 0, y: 0)",
+  ...Array.from({ length: count }, (_, index) =>
+    index === 0
+      ? "line L0 = segment(start: @P0, end: (1, 0))"
+      : `line L${index} = segment(start: @L${index - 1}.start, end: (${index + 1}, 0))`
+  )
+].join("\n");
+
 const compileGraph = (count: number) => {
   const compiled = compileDslDocument(sourceFor(count), { assignedStatementIds: identitiesFor(count) });
   if (!compiled.typedDependencyGraph) throw new Error("typed dependency graph was not built");
   return compiled.typedDependencyGraph.edges.length;
+};
+
+const compileGeometryGraph = (count: number) => {
+  const compiled = compileDslDocument(geometrySourceFor(count));
+  if (!compiled.typedDependencyGraph) throw new Error("geometry typed dependency graph was not built");
+  return {
+    edgeCount: compiled.typedDependencyGraph.edges.filter((edge) => edge.kind === "geometry").length,
+    orderCount: compiled.typedDependencyGraph.evaluationOrder.length
+  };
 };
 
 const measure = (count: number): Measurement => {
@@ -30,6 +49,21 @@ const measure = (count: number): Measurement => {
   for (let trial = 0; trial < 21; trial += 1) {
     const started = performance.now();
     compileGraph(count);
+    samples.push(performance.now() - started);
+  }
+  samples.sort((left, right) => left - right);
+  return {
+    medianMs: samples[Math.floor(samples.length / 2)],
+    p95Ms: samples[Math.min(samples.length - 1, Math.ceil(samples.length * 0.95) - 1)]
+  };
+};
+
+const measureGeometry = (count: number): Measurement => {
+  for (let warmup = 0; warmup < 10; warmup += 1) compileGeometryGraph(count);
+  const samples: number[] = [];
+  for (let trial = 0; trial < 11; trial += 1) {
+    const started = performance.now();
+    compileGeometryGraph(count);
     samples.push(performance.now() - started);
   }
   samples.sort((left, right) => left - right);
@@ -49,6 +83,21 @@ describePerformanceGates("Task 36 typed dependency graph performance", () => {
       `1000 median=${large.medianMs.toFixed(3)}ms p95=${large.p95Ms.toFixed(3)}ms; scaling=${scaling.toFixed(3)}x`
     );
     expect(compileGraph(1000)).toBe(999);
+    expect(Number.isFinite(scaling)).toBe(true);
+  }, 150_000);
+
+  it("records a 1,000-node structured geometry chain through graph construction", () => {
+    const small = measureGeometry(250);
+    const large = measureGeometry(1000);
+    const scaling = large.medianMs / Math.max(small.medianMs, 0.001);
+    console.log(
+      `[Task 36 geometry dependency graph] 250 median=${small.medianMs.toFixed(3)}ms p95=${small.p95Ms.toFixed(3)}ms; ` +
+      `1000 median=${large.medianMs.toFixed(3)}ms p95=${large.p95Ms.toFixed(3)}ms; scaling=${scaling.toFixed(3)}x`
+    );
+    expect(compileGeometryGraph(250)).toMatchObject({ edgeCount: 752, orderCount: 251 });
+    expect(compileGeometryGraph(1000)).toMatchObject({ edgeCount: 3002, orderCount: 1001 });
+    expect(Number.isFinite(small.medianMs)).toBe(true);
+    expect(Number.isFinite(large.medianMs)).toBe(true);
     expect(Number.isFinite(scaling)).toBe(true);
   }, 150_000);
 });

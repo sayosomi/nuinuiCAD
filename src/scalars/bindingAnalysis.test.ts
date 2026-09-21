@@ -50,11 +50,11 @@ describe("analyzeBindings", () => {
     });
   });
 
-  it("classifies a 2-node forward/resolved cycle as binding-cycle and suppresses the forward issue", () => {
+  it("classifies a 2-node declarative cycle as binding-cycle", () => {
     const catalog = catalogFor(["const a: number = @b", "const b: number = @a"].join("\n"));
     const aToB = resolveBindingReferenceForTests(catalog, "b", { scopeId: "root", statementIndex: 0 });
     const bToA = resolveBindingReferenceForTests(catalog, "a", { scopeId: "root", statementIndex: 1 });
-    expect(aToB.kind).toBe("forward");
+    expect(aToB.kind).toBe("resolved");
     expect(bToA.kind).toBe("resolved");
 
     const references: InitializerReference[] = [
@@ -72,13 +72,13 @@ describe("analyzeBindings", () => {
     expect(analysis.issues.some((issue) => issue.code === "forward-binding-reference")).toBe(false);
   });
 
-  it("classifies a 3-node forward/forward/resolved cycle and suppresses every internal forward issue", () => {
+  it("classifies a 3-node declarative cycle and suppresses non-cycle issues", () => {
     const catalog = catalogFor(["const a: number = @b", "const b: number = @c", "const c: number = @a"].join("\n"));
     const aToB = resolveBindingReferenceForTests(catalog, "b", { scopeId: "root", statementIndex: 0 });
     const bToC = resolveBindingReferenceForTests(catalog, "c", { scopeId: "root", statementIndex: 1 });
     const cToA = resolveBindingReferenceForTests(catalog, "a", { scopeId: "root", statementIndex: 2 });
-    expect(aToB.kind).toBe("forward");
-    expect(bToC.kind).toBe("forward");
+    expect(aToB.kind).toBe("resolved");
+    expect(bToC.kind).toBe("resolved");
     expect(cToA.kind).toBe("resolved");
 
     const references: InitializerReference[] = [
@@ -94,12 +94,12 @@ describe("analyzeBindings", () => {
     expect(analysis.issues.some((issue) => issue.code === "forward-binding-reference")).toBe(false);
   });
 
-  it("keeps a non-cycle forward chain classified as forward-binding-reference, not binding-cycle", () => {
+  it("accepts a non-cycle declarative chain", () => {
     const catalog = catalogFor(["const a: number = @b", "const b: number = @c", "const c: number = 0"].join("\n"));
     const aToB = resolveBindingReferenceForTests(catalog, "b", { scopeId: "root", statementIndex: 0 });
     const bToC = resolveBindingReferenceForTests(catalog, "c", { scopeId: "root", statementIndex: 1 });
-    expect(aToB.kind).toBe("forward");
-    expect(bToC.kind).toBe("forward");
+    expect(aToB.kind).toBe("resolved");
+    expect(bToC.kind).toBe("resolved");
 
     const references: InitializerReference[] = [
       { fromBindingId: bindingId(0), occurrenceIndex: 0, name: "b", span: null, resolution: aToB },
@@ -108,10 +108,7 @@ describe("analyzeBindings", () => {
     const analysis = analyzeBindings({ catalog, initializerReferences: references });
 
     expect(analysis.components.every((component) => !component.isCycle)).toBe(true);
-    expect(analysis.issues).toEqual([
-      expect.objectContaining({ code: "forward-binding-reference", bindingId: bindingId(0) }),
-      expect.objectContaining({ code: "forward-binding-reference", bindingId: bindingId(1) })
-    ]);
+    expect(analysis.issues).toEqual([]);
   });
 
   it("reports undefined-binding for a reference with no matching declaration and creates no edge", () => {
@@ -186,29 +183,28 @@ describe("analyzeBindings", () => {
     expect(analysis.entriesById.get(bindingId(3))).toMatchObject({ status: { kind: "invalid", reason: "duplicate-binding" } });
   });
 
-  it("does not classify an inner initializer resolving to a visible outer binding as a cycle", () => {
+  it("keeps an inner self initializer distinct from an outer binding", () => {
     const catalog = catalogFor(["const x: number = 1", "group G {", "  const x: number = @x", "}"].join("\n"));
     const resolution = resolveBindingReferenceForTests(catalog, "x", { scopeId: "group:stable-1", statementIndex: 2 }, bindingId(2));
-    expect(resolution.kind).toBe("resolved");
+    expect(resolution.kind).toBe("self");
     const reference: InitializerReference = { fromBindingId: bindingId(2), occurrenceIndex: 0, name: "x", span: null, resolution };
 
     const analysis = analyzeBindings({ catalog, initializerReferences: [reference] });
 
     expect(analysis.components.every((component) => !component.isCycle)).toBe(true);
-    expect(analysis.issues).toEqual([]);
-    expect(analysis.entries.every((entry) => entry.status.kind === "valid")).toBe(true);
+    expect(analysis.issues).toEqual([expect.objectContaining({ code: "self-initialization" })]);
   });
 
-  it("picks the highest-priority reason when a binding has both a duplicate declaration and a forward reference", () => {
+  it("keeps duplicate declarations distinct from valid later references", () => {
     const catalog = catalogFor(["const a: number = @b", "const a: number = 1", "const b: number = 2"].join("\n"));
     const aToB = resolveBindingReferenceForTests(catalog, "b", { scopeId: "root", statementIndex: 0 });
-    expect(aToB.kind).toBe("forward");
+    expect(aToB.kind).toBe("resolved");
     const reference: InitializerReference = { fromBindingId: bindingId(0), occurrenceIndex: 0, name: "b", span: null, resolution: aToB };
 
     const analysis = analyzeBindings({ catalog, initializerReferences: [reference] });
 
     const issuesForA = analysis.issues.filter((issue) => issue.bindingId === bindingId(0));
-    expect(issuesForA.map((issue) => issue.code)).toEqual(["duplicate-binding", "forward-binding-reference"]);
+    expect(issuesForA.map((issue) => issue.code)).toEqual(["duplicate-binding"]);
     expect(analysis.entriesById.get(bindingId(0))).toMatchObject({ status: { kind: "invalid", reason: "duplicate-binding" } });
   });
 
@@ -296,14 +292,14 @@ describe("analyzeBindings", () => {
     expect(() => analyzeBindings({ catalog, initializerReferences: references })).toThrow(/occurrenceIndex/);
   });
 
-  it("keeps a forward reference's multiple graph edges in catalog rank order", () => {
+  it("does not create graph edges for an ambiguous duplicate reference", () => {
     const catalog = catalogFor(["const a: number = @b", "const b: number = 1", "const b: number = 2"].join("\n"));
     const resolution = resolveBindingReferenceForTests(catalog, "b", { scopeId: "root", statementIndex: 0 });
-    expect(resolution).toMatchObject({ kind: "forward", bindingIds: [bindingId(1), bindingId(2)] });
+    expect(resolution).toMatchObject({ kind: "duplicate", bindingIds: [bindingId(1), bindingId(2)] });
     const reference: InitializerReference = { fromBindingId: bindingId(0), occurrenceIndex: 0, name: "b", span: null, resolution };
 
     const graph = buildInitializerGraph(catalog, [reference]);
 
-    expect(graph.edgesByFromBindingId.get(bindingId(0))?.map((edge) => edge.toBindingId)).toEqual([bindingId(1), bindingId(2)]);
+    expect(graph.edgesByFromBindingId.get(bindingId(0))).toBeUndefined();
   });
 });

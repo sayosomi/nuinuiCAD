@@ -3,7 +3,6 @@ import { scopeChain, type ScopeId } from "../scalars/lexicalScopeIndex";
 import {
   resolveSourceLexicalPath,
   resolveSourceLexicalPathFromDeclaration,
-  type SourceLexicalDeclaration,
   type SourceLexicalLookup,
   type SourceLexicalNamespaceIndex
 } from "./sourceLexicalNamespaceIndex";
@@ -54,8 +53,8 @@ const statementIdAt = (ids: ReadonlyMap<number, StatementIdentity>, index: numbe
 };
 
 /** Resolves one name with the module parameter/iteration overlays applied.
- * This is the sole source-order + nearest-scope lookup used by module
- * semantic analysis && module completion. */
+ * This is the sole declarative nearest-scope lookup used by module semantic
+ * analysis and module completion. */
 export const resolveModuleLexicalDeclaration = <T, D = unknown>(
   input: ModuleLexicalResolutionInput<T, D>,
   statementIndex: number,
@@ -64,15 +63,12 @@ export const resolveModuleLexicalDeclaration = <T, D = unknown>(
 ): ModuleLexicalLookup<T, D> => {
   const startScope = position.scopeId ?? input.sourceNamespace.scopeIndex.scopeOfStatement.get(statementIndex);
   if (!startScope) return { kind: "undefined" };
-  const sourceOrderIndex = position.sourceOrderIndex ?? statementIndex;
-  let firstFuture: { scopeId: ScopeId; declarations: readonly SourceLexicalDeclaration[] } | null = null;
   for (const scopeId of scopeChain(input.sourceNamespace.scopeIndex, startScope)) {
     const declarations = input.sourceNamespace.declarationsByScopeAndName.get(scopeId)?.get(name) ?? [];
-    const visible = declarations.filter((declaration) => declaration.statementIndex < sourceOrderIndex);
-    if (visible.length === 1) return { kind: "resolved", declaration: visible[0] };
-    if (visible.length > 1) return { kind: "ambiguous", scopeId, declarations: visible };
+    if (declarations.length === 1) return { kind: "resolved", declaration: declarations[0] };
+    if (declarations.length > 1) return { kind: "ambiguous", scopeId, declarations };
     const iteration = input.sourceNamespace.scopeIndex.forGroupIterationSlots.get(scopeId);
-    if (iteration?.name === name && iteration.statementIndex < sourceOrderIndex) {
+    if (iteration?.name === name) {
       return {
         kind: "iteration",
         statementId: statementIdAt(input.stableStatementIdByIndex, iteration.statementIndex),
@@ -84,9 +80,8 @@ export const resolveModuleLexicalDeclaration = <T, D = unknown>(
     const overlay = input.parameterOverlays?.find((candidate) => candidate.bodyScopeId === scopeId);
     const parameter = overlay?.parameters.find((candidate) => candidate.name === name);
     if (parameter) return { kind: "parameter", definition: overlay!, parameter };
-    if (declarations.length > 0 && !firstFuture) firstFuture = { scopeId, declarations };
   }
-  return firstFuture ? { kind: "forward", ...firstFuture } : { kind: "undefined" };
+  return { kind: "undefined" };
 };
 
 /** Resolve a qualified module-body path without duplicating source namespace
@@ -116,10 +111,8 @@ export const resolveModuleLexicalPath = <T, D = unknown>(
   if (first.kind !== "resolved") return first;
   const lookup = resolveSourceLexicalPathFromDeclaration(
     input.sourceNamespace,
-    statementIndex,
     first.declaration,
-    path.segments.slice(1),
-    position.sourceOrderIndex ?? statementIndex
+    path.segments.slice(1)
   );
   // Module lexical resolution does not supply an external namespace resolver.
   // Keep an imported namespace fail-closed here instead of widening the

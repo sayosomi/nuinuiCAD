@@ -45,12 +45,14 @@ export type ModuleGeometryBuiltinRuntimeTarget =
       elementId: ElementId;
       geometryType: Extract<ModuleGeometryInterfaceType, "point" | "line">;
       pointKey?: string;
+      stagePath?: readonly string[];
     }
   | {
       kind: "geometryValue";
       occurrence: GeometryValueOccurrence;
       geometryType: Extract<ModuleGeometryInterfaceType, "point" | "line">;
       pointKey?: string;
+      stagePath?: readonly string[];
     }
   | {
       kind: "forGroupOccurrence";
@@ -59,12 +61,14 @@ export type ModuleGeometryBuiltinRuntimeTarget =
       index: ModuleScalarExpressionSemantic | null;
       geometryType: Extract<ModuleGeometryInterfaceType, "point" | "line">;
       pointKey?: string;
+      stagePath?: readonly string[];
     }
   | {
       kind: "geometryCarry";
       bindingId: string;
       geometryType: Extract<ModuleGeometryInterfaceType, "point" | "line">;
       pointKey?: string;
+      stagePath?: readonly string[];
     };
 
 export type ModuleGeometryRuntimeCompilation = {
@@ -528,7 +532,8 @@ export const buildModuleGeometryRuntime = ({
         kind: "geometryCarry",
         bindingId: moduleCarryBindingIdFor(instancePath, target.bindingId),
         geometryType: expectedGeometryType,
-        ...(target.pointKey ? { pointKey: target.pointKey } : {})
+        ...(target.pointKey ? { pointKey: target.pointKey } : {}),
+        ...(target.stagePath ? { stagePath: target.stagePath } : {})
       };
     }
     const alias = sourceAliasForTarget(target, instancePath, contextsByPath, moduleMaterialization, exportsByPath, rootRecordValuesByStatementId);
@@ -540,25 +545,27 @@ export const buildModuleGeometryRuntime = ({
         targetSourceOrder: alias.targetSourceOrder,
         index: alias.index,
         geometryType: expectedGeometryType,
-        ...(alias.pointKey ? { pointKey: alias.pointKey } : {})
+        ...(alias.pointKey ? { pointKey: alias.pointKey } : {}),
+        ...(alias.stagePath ? { stagePath: alias.stagePath } : {})
       };
     }
     if (expectedGeometryType === "line" && alias.kind === "line") {
-      return { kind: "drawable", elementId: alias.elementId, geometryType: "line" };
+      return { kind: "drawable", elementId: alias.elementId, geometryType: "line", ...(alias.stagePath ? { stagePath: alias.stagePath } : {}) };
     }
     if (alias.kind === "value" && alias.geometryType === expectedGeometryType) {
       return {
         kind: "geometryValue",
         occurrence: alias.occurrence,
         geometryType: expectedGeometryType,
-        ...(alias.pointKey ? { pointKey: alias.pointKey } : {})
+        ...(alias.pointKey ? { pointKey: alias.pointKey } : {}),
+        ...(alias.stagePath ? { stagePath: alias.stagePath } : {})
       };
     }
     if (expectedGeometryType === "point" && alias.kind === "point" && alias.anchor.mode === "reference") {
-      return { kind: "drawable", elementId: alias.anchor.pointId, geometryType: "point" };
+      return { kind: "drawable", elementId: alias.anchor.pointId, geometryType: "point", ...(alias.stagePath ?? alias.anchor.stagePath ? { stagePath: alias.stagePath ?? alias.anchor.stagePath } : {}) };
     }
     if (expectedGeometryType === "point" && alias.kind === "point" && alias.anchor.mode === "derived") {
-      return { kind: "drawable", elementId: alias.anchor.elementId, geometryType: "point", pointKey: alias.anchor.pointKey };
+      return { kind: "drawable", elementId: alias.anchor.elementId, geometryType: "point", pointKey: alias.anchor.pointKey, ...(alias.stagePath ?? alias.anchor.stagePath ? { stagePath: alias.stagePath ?? alias.anchor.stagePath } : {}) };
     }
     // Coordinate aliases intentionally fail closed here:
     // geometry builtins require a concrete runtime geometry element identity.

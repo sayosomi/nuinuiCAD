@@ -521,7 +521,7 @@ describe("nui1 drawing style source model", () => {
       "}",
       "profile Print"
     ));
-    expect(forward.some((item) => item.message.includes("後で宣言"))).toBe(true);
+    expect(forward.some((item) => item.message.includes("後で宣言"))).toBe(false);
 
     const undefinedProfile = errors(sourceLines(
       "nui 1",

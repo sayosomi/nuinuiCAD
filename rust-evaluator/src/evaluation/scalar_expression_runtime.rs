@@ -15,6 +15,7 @@ use super::scalars::{GeometryBuiltinRuntimeError, GeometryBuiltinRuntimeTarget};
 use super::types::{
     EvaluationState, GeometryInputCollectionNode, GeometryInputTarget, GeometryValueOccurrence,
 };
+use crate::evaluation::scalars::geometry_builtin_runtime;
 use serde_json::Value;
 use std::collections::HashSet;
 
@@ -28,6 +29,7 @@ pub(crate) struct ForGroupGeometryPropertyRequest<'a> {
     pub(crate) template_element_id: &'a str,
     pub(crate) index: Option<&'a TypedScalarExpression>,
     pub(crate) point_key: Option<&'a str>,
+    pub(crate) stage_path: Option<&'a [String]>,
     pub(crate) property: &'a str,
     pub(crate) target_source_order: f64,
     pub(crate) current_source_order: Option<f64>,
@@ -120,7 +122,9 @@ pub(crate) fn lookup_for_group_geometry_property(
         }
     };
     if request.point_key.is_some() {
-        let Some(geometry) = state.computed_geometry.get(&generated_id) else {
+        let Some(geometry) =
+            geometry_builtin_runtime::selected_geometry(state, &generated_id, request.stage_path)
+        else {
             return unavailable_geometry_property(request.property_type);
         };
         let Some(point) = request
@@ -141,9 +145,10 @@ pub(crate) fn lookup_for_group_geometry_property(
             })
             .unwrap_or_else(|| unavailable_geometry_property(request.property_type));
     }
-    lookup_geometry_property(
+    lookup_geometry_property_at_stage(
         state,
         &generated_id,
+        request.stage_path,
         request.property,
         -1.0,
         None,
@@ -356,18 +361,46 @@ pub(crate) fn lookup_geometry_property(
     state: &EvaluationState,
     element_id: &str,
     property: &str,
-    target_source_order: f64,
-    current_source_order: Option<f64>,
+    _target_source_order: f64,
+    _current_source_order: Option<f64>,
     property_type: &ScalarType,
 ) -> ScalarEvaluation {
-    if current_source_order.is_some_and(|source_order| target_source_order >= source_order) {
-        return unavailable_geometry_property(property_type);
-    }
+    lookup_geometry_property_at_stage(
+        state,
+        element_id,
+        None,
+        property,
+        _target_source_order,
+        _current_source_order,
+        property_type,
+    )
+}
 
+pub(crate) fn lookup_geometry_property_at_stage(
+    state: &EvaluationState,
+    element_id: &str,
+    stage_path: Option<&[String]>,
+    property: &str,
+    _target_source_order: f64,
+    _current_source_order: Option<f64>,
+    property_type: &ScalarType,
+) -> ScalarEvaluation {
+    let geometry = match stage_path {
+        None => state.computed_geometry.get(element_id),
+        Some(path) if path.is_empty() || (path.len() == 1 && path[0] == "final") => {
+            state.computed_geometry.get(element_id)
+        }
+        Some(path) if path.len() == 1 && path[0] == "base" => {
+            state.base_transformation_geometry.get(element_id)
+        }
+        Some(path) => state.transformation_stage_geometry.get(&format!(
+            "{}\u{0}*\u{0}{}",
+            element_id,
+            path.join(".")
+        )),
+    };
     match property_type {
-        ScalarType::Number => state
-            .computed_geometry
-            .get(element_id)
+        ScalarType::Number => geometry
             .and_then(|geometry| computed_reference_value(geometry, property))
             .map(|value| ScalarEvaluation::Ok {
                 r#type: ScalarType::Number,
@@ -375,7 +408,7 @@ pub(crate) fn lookup_geometry_property(
             })
             .unwrap_or_else(|| unavailable_geometry_property(property_type)),
         ScalarType::Choice { options } => {
-            if !state.computed_geometry.contains_key(element_id) {
+            if geometry.is_none() {
                 return unavailable_geometry_property(property_type);
             }
             let Some(element) = state
@@ -389,7 +422,7 @@ pub(crate) fn lookup_geometry_property(
             let value = if element.get("type").and_then(Value::as_str) == Some("arcLine")
                 && property == "direction"
             {
-                let Some(geometry) = state.computed_geometry.get(element_id) else {
+                let Some(geometry) = geometry else {
                     return unavailable_geometry_property(property_type);
                 };
                 if geometry.get("kind").and_then(Value::as_str) != Some("arcLine") {
@@ -491,11 +524,13 @@ pub(crate) fn lookup_optional_geometry_property(
         ScalarExpressionResolvedGeometryProperty::Drawable {
             element_id,
             property,
+            stage_path,
             target_source_order,
             r#type: property_type,
-        } => lookup_geometry_property(
+        } => lookup_geometry_property_at_stage(
             state,
             element_id,
+            stage_path.as_deref(),
             property,
             *target_source_order,
             Some(current_source_order),
@@ -504,9 +539,11 @@ pub(crate) fn lookup_optional_geometry_property(
         ScalarExpressionResolvedGeometryProperty::ForGroupOccurrence {
             template_element_id,
             property,
+            stage_path,
             target_source_order,
             point_key,
             r#type: property_type,
+            ..
         } => lookup_for_group_geometry_property(
             state,
             resolver,
@@ -514,6 +551,7 @@ pub(crate) fn lookup_optional_geometry_property(
                 template_element_id,
                 index: None,
                 point_key: point_key.as_deref(),
+                stage_path: stage_path.as_deref(),
                 property,
                 target_source_order: *target_source_order,
                 current_source_order: Some(current_source_order),
@@ -526,6 +564,7 @@ pub(crate) fn lookup_optional_geometry_property(
             point_key,
             target_source_order,
             r#type: property_type,
+            ..
         } => lookup_geometry_value_property(
             state,
             occurrence,
@@ -541,6 +580,7 @@ pub(crate) fn lookup_optional_geometry_property(
             point_key,
             target_source_order,
             r#type: property_type,
+            ..
         } => lookup_geometry_value_binder_property(
             state,
             binder_id,
@@ -638,12 +678,15 @@ fn optional_geometry_target_present(
         .map_err(GeometryBuiltinRuntimeError::EvaluationIssue)?;
         return Ok(state.computed_geometry.contains_key(&generated_id));
     }
-    if target.statement_index >= current_source_order
-        || !state.elements_by_id.contains_key(&target.statement_id)
-    {
+    if !state.elements_by_id.contains_key(&target.statement_id) {
         return Ok(false);
     }
-    Ok(state.computed_geometry.contains_key(&target.statement_id))
+    Ok(geometry_builtin_runtime::selected_geometry(
+        state,
+        &target.statement_id,
+        target.stage_path.as_deref(),
+    )
+    .is_some())
 }
 
 impl ScalarEvaluationEnvironment for ResolverEnvironment<'_> {
@@ -661,6 +704,25 @@ impl ScalarEvaluationEnvironment for ResolverEnvironment<'_> {
         lookup_geometry_property(
             self.state,
             element_id,
+            property,
+            target_source_order,
+            self.current_source_order,
+            property_type,
+        )
+    }
+
+    fn lookup_geometry_property_at_stage(
+        &self,
+        element_id: &str,
+        stage_path: Option<&[String]>,
+        property: &str,
+        target_source_order: f64,
+        property_type: &ScalarType,
+    ) -> ScalarEvaluation {
+        lookup_geometry_property_at_stage(
+            self.state,
+            element_id,
+            stage_path,
             property,
             target_source_order,
             self.current_source_order,
@@ -711,6 +773,7 @@ impl ScalarEvaluationEnvironment for ResolverEnvironment<'_> {
         template_element_id: &str,
         index: Option<&TypedScalarExpression>,
         point_key: Option<&str>,
+        stage_path: Option<&[String]>,
         property: &str,
         target_source_order: f64,
         property_type: &ScalarType,
@@ -722,6 +785,7 @@ impl ScalarEvaluationEnvironment for ResolverEnvironment<'_> {
                 template_element_id,
                 index,
                 point_key,
+                stage_path,
                 property,
                 target_source_order,
                 current_source_order: self.current_source_order,
@@ -738,17 +802,6 @@ impl ScalarEvaluationEnvironment for ResolverEnvironment<'_> {
         collection_length: Option<f64>,
         target_source_order: f64,
     ) -> ScalarEvaluation {
-        if self
-            .current_source_order
-            .is_some_and(|source_order| target_source_order >= source_order)
-        {
-            return ScalarEvaluation::Error {
-                r#type: element_type.clone(),
-                issue_code: "evaluation-collection-index-unavailable".to_owned(),
-                binding_id: None,
-                context: None,
-            };
-        }
         self.resolver.resolve_collection_index(
             collection_value_id,
             index,
@@ -773,28 +826,10 @@ impl ScalarEvaluationEnvironment for ResolverEnvironment<'_> {
         r#type: &ScalarType,
     ) -> ScalarEvaluation {
         match target {
-            ScalarExpressionResolvedOptionalMemberTarget::CollectionLength {
-                target_source_order,
-                ..
-            }
-            | ScalarExpressionResolvedOptionalMemberTarget::RecordField {
-                target_source_order,
-                ..
-            } => {
-                if self
-                    .current_source_order
-                    .is_some_and(|source_order| *target_source_order >= source_order)
-                {
-                    return ScalarEvaluation::Error {
-                        r#type: r#type.clone(),
-                        issue_code: "evaluation-collection-index-unavailable".to_owned(),
-                        binding_id: None,
-                        context: None,
-                    };
-                }
-                self.resolver
-                    .resolve_optional_collection_member(target, r#type, self.state)
-            }
+            ScalarExpressionResolvedOptionalMemberTarget::CollectionLength { .. }
+            | ScalarExpressionResolvedOptionalMemberTarget::RecordField { .. } => self
+                .resolver
+                .resolve_optional_collection_member(target, r#type, self.state),
             ScalarExpressionResolvedOptionalMemberTarget::GeometryProperty { .. } => {
                 lookup_optional_geometry_property(
                     self.state,

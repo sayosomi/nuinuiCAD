@@ -114,8 +114,7 @@ describe("geometry array source semantic integration", () => {
 
     expect(namespace.diagnostics).toEqual(expect.arrayContaining([
       expect.objectContaining({ code: "array-member-type-mismatch", exactSpanOnly: true }),
-      expect.objectContaining({ code: "array-assignability-mismatch", exactSpanOnly: true }),
-      expect.objectContaining({ code: "array-reference-forward", exactSpanOnly: true })
+      expect.objectContaining({ code: "array-assignability-mismatch", exactSpanOnly: true })
     ]));
   });
 
@@ -559,7 +558,7 @@ describe("geometry array source semantic integration", () => {
 
     expect(namespace.diagnostics).toEqual(expect.arrayContaining([
       expect.objectContaining({ code: "geometry-array-member-type-mismatch", exactSpanOnly: true }),
-      expect.objectContaining({ code: "geometry-array-reference-forward", exactSpanOnly: true }),
+      expect.objectContaining({ code: "geometry-array-reference-not-array", exactSpanOnly: true }),
       expect.objectContaining({ code: "geometry-array-parameter-default", exactSpanOnly: true })
     ]));
   });

@@ -19,6 +19,10 @@ export type LocalVariableEvaluation = {
 
 export type ElementEvaluationContext = {
   computedGeometry: Map<ElementId, ComputedGeometry>;
+  resolveGeometrySnapshot?: (
+    elementId: ElementId,
+    stagePath?: readonly string[]
+  ) => ComputedGeometry | undefined;
   computedGeometryValues?: Map<GeometryValueOccurrenceKey, ComputedGeometryValueEntry>;
   geometryInputTargets?: ReadonlyMap<string, GeometryInputTarget | readonly GeometryInputTarget[]>;
   elementsById: Map<ElementId, CadElement>;

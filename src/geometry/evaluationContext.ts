@@ -58,7 +58,7 @@ export const dependencyError = (
         ? `${elementName} は ${dependencyLabel} を参照していますが、${dependencyLabel} は評価OFFです。${dependencyLabel} を評価ONにするか、参照先を変更してください。`
       : dependencyEvaluationFailed
         ? `${elementName} は ${dependencyLabel} を参照していますが、${dependencyLabel} の評価に失敗しているため評価できません。先に ${dependencyLabel} のエラーを解消してください。`
-        : `${elementName} は ${dependencyLabel} を参照していますが、${dependencyLabel} はこの要素より後にあるか、存在しません。${dependencyLabel} を ${elementName} より前に移動してください。`
+        : `${elementName} は ${dependencyLabel} を参照していますが、${dependencyLabel} が見つからないため評価できません。参照先を確認してください。`
   };
 };
 

@@ -19,8 +19,7 @@ fn valid_program() -> serde_json::Value {
                     "type": {"kind": "number"}
                 }
             }
-        }],
-        "evaluationLimitSourceOrder": 3
+        }]
     })
 }
 

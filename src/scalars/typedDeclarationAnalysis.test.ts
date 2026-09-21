@@ -267,7 +267,7 @@ describe("analyzeTypedDeclarations resolution buckets", () => {
     expect(referencesFor("right")).toEqual([bindingIdForName(fixture, "second"), bindingIdForName(fixture, "first")]);
   });
 
-  it("preserves invalid reference diagnostics, binding IDs, exact spans, and order", () => {
+  it("preserves missing-reference diagnostics while resolving later declarations", () => {
     const source = [
       "nui 1",
       "const invalid: number = @later + @missing",
@@ -281,15 +281,14 @@ describe("analyzeTypedDeclarations resolution buckets", () => {
     expect(referencesInOccurrenceOrder(typed).map((reference) => {
       if (reference.kind !== "reference") throw new Error("Expected a reference");
       return reference.bindingId;
-    })).toEqual([null, null]);
+    })).toEqual([bindingIdForName(fixture, "later"), null]);
     expect(diagnostics.map((diagnostic) => ({ code: diagnostic.code, bindingId: diagnostic.bindingId }))).toEqual([
-      { code: "undefined-binding", bindingId: invalidId },
-      { code: "forward-binding-reference", bindingId: invalidId }
+      { code: "undefined-binding", bindingId: invalidId }
     ]);
     expect(diagnostics.map((diagnostic) => {
       const [segment] = diagnostic.physicalSpan!.segments;
       return source.slice(segment.from, segment.to);
-    })).toEqual(["@missing", "@later"]);
+    })).toEqual(["@missing"]);
   });
 
   it("retains reference-free declarations in the compiled scalar program", () => {

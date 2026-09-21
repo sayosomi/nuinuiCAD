@@ -16,6 +16,7 @@ fn input(
     condition_expressions: Option<Value>,
 ) -> EvaluationInput {
     EvaluationInput {
+        evaluation_order: None,
         geometry_input_targets: None,
         geometry_collection_nodes: None,
         geometry_value_program: None,

@@ -76,26 +76,22 @@ describe("dslElementParameterCompletionOptions", () => {
     expect(options).toEqual([]);
   });
 
-  it("excludes a statement declared after the document's stop marker, even if it would otherwise resolve", () => {
+  it("includes a later statement when its geometry is available", () => {
     const source = [
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line AB = segment(start: @A, end: @B)",
-      "stop",
       "point C = coordinate(x: 20, y: 0)",
       "line CD = segment(start: @B, end: @C)",
       "point Target = coordinate(x: 5, y: 5)"
     ].join("\n");
     const { elements, ids } = identities(source);
-    const cdId = ids.get(7)!;
-    // Fabricate as if CD had somehow been computed - the stop cutoff must
-    // still exclude it from the name-resolution pool regardless of whatever
-    // computedGeometry/effectiveEnabledElementIds are passed in.
+    const cdId = ids.get(6)!;
     const computedGeometry = new Map<ElementId, ComputedGeometry>([[cdId, lineGeometry(cdId)]]);
     const options = dslElementParameterCompletionOptions({
       source,
-      cursorLine: 8,
+      cursorLine: 7,
       statementElementIds: ids,
       elements,
       elementToken: "CD",
@@ -103,7 +99,7 @@ describe("dslElementParameterCompletionOptions", () => {
       effectiveEnabledElementIds: new Set([cdId]),
       errors: []
     });
-    expect(options).toEqual([]);
+    expect(options.map((option) => option.path)).toContain("length");
   });
 
   it("excludes a group-scoped element outside the cursor's live group scope", () => {

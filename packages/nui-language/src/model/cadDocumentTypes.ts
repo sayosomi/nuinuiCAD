@@ -95,6 +95,13 @@ export type VisibilityProfile = {
 export type NumericExpression = {
   kind: "expression";
   expression: string;
+  /** Compiler-resolved geometry selectors used by recipe/runtime numeric
+   * evaluation. The expression text remains the canonical serialized form. */
+  resolvedReferences?: readonly {
+    elementId: ElementId;
+    property?: string;
+    stagePath: readonly string[];
+  }[];
 };
 
 export type NumericValue = number | NumericExpression;
@@ -205,7 +212,7 @@ export type GeometryInputCollectionNode =
   | { kind: "coalesce"; leftBranch: GeometryInputCollectionNode; rightBranch: GeometryInputCollectionNode };
 
 export type GeometryInputTarget =
-  | { kind: "drawable"; elementId: ElementId; geometryType: "point" | "line" | "path"; pointKey?: string }
+  | { kind: "drawable"; elementId: ElementId; geometryType: "point" | "line" | "path"; pointKey?: string; stagePath?: readonly string[] }
   | {
       /** Immutable statement-for geometry carry resolved by the evaluator's
        * active carry snapshot. It is never persisted as a drawable id. */
@@ -213,6 +220,7 @@ export type GeometryInputTarget =
       bindingId: string;
       geometryType: "point" | "line" | "path";
       pointKey?: string;
+      stagePath?: readonly string[];
     }
   | {
       /** A source/template drawable materialized by statement-for. The
@@ -222,16 +230,18 @@ export type GeometryInputTarget =
       templateElementId: ElementId;
       geometryType: "point" | "line" | "path";
       pointKey?: string;
+      stagePath?: readonly string[];
       targetSourceOrder: number;
       index: TypedScalarExpression | null;
     }
-  | { kind: "geometryValue"; occurrence: GeometryValueOccurrence; geometryType: "point" | "line" | "path"; pointKey?: string }
+  | { kind: "geometryValue"; occurrence: GeometryValueOccurrence; geometryType: "point" | "line" | "path"; pointKey?: string; stagePath?: readonly string[] }
   | {
       kind: "geometryValueMap";
       occurrence: GeometryValueOccurrence;
       binderId: string;
       geometryType: "point" | "line" | "path";
       pointKey?: string;
+      stagePath?: readonly string[];
       source: Exclude<GeometryInputTarget, { kind: "collectionIndex" | "geometryValueMap" }>;
       program: import("../dsl/moduleGeometryValueProgram").GeometryValueProgramNode;
       executionPosition: number;
@@ -294,11 +304,13 @@ export type PointAnchor =
   | {
       mode: "reference";
       pointId: ElementId;
+      stagePath?: readonly string[];
     }
   | {
       mode: "derived";
       elementId: ElementId;
       pointKey: string;
+      stagePath?: readonly string[];
     }
   | {
       mode: "coordinate";
@@ -309,6 +321,7 @@ export type PointAnchor =
       mode: "geometryValue";
       occurrence: GeometryValueOccurrence;
       pointKey?: string;
+      stagePath?: readonly string[];
     };
 
 export type LineElement = CadElementBase & {

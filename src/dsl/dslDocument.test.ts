@@ -18,6 +18,7 @@ import {
   roundTrip
 } from "@nuinuicad/nui-language";
 import { documentDslRefs } from "@nuinuicad/nui-language";
+import { resolveTypedDependencyGraphRuntime } from "@nuinuicad/nui-language";
 import sampleFixture from "./__fixtures__/sample.nui?raw";
 
 describe("dslDocument round-trip matrix", () => {
@@ -315,49 +316,9 @@ describe("dslDocument canonical blocks", () => {
 
 });
 
-describe("dslDocument stop / evaluationLimitIndex", () => {
-  it("round-trips a mid-document stop", () => {
-    const source = ["point A = coordinate(x: 0,y: 0)", "point B = coordinate(x: 1,y: 1)", "stop", "point C = coordinate(x: 2,y: 2)"].join("\n");
-    const { document, parsed, text } = roundTrip(source);
-    expect(document.evaluationLimitIndex).toBe(2);
-    expect(parsed.evaluationLimitIndex).toBe(2);
-    expect(text).toContain("stop");
-  });
-
-  it("omits stop entirely when the whole document evaluates", () => {
-    const source = ["point A = coordinate(x: 0,y: 0)", "point B = coordinate(x: 1,y: 1)"].join("\n");
-    const { text, parsed } = roundTrip(source);
-    expect(text).not.toContain("stop");
-    expect(parsed.evaluationLimitIndex).toBeUndefined();
-  });
-
-  it("round-trips an explicit terminal stop without conflating it with no marker", () => {
-    const source = ["point A = coordinate(x: 0,y: 0)", "point B = coordinate(x: 1,y: 1)", "stop"].join("\n");
-    const { document, parsed, text } = roundTrip(source);
-
-    expect(document.evaluationLimitIndex).toBe(2);
-    expect(parsed.evaluationLimitIndex).toBe(2);
-    expect(text.split("\n").filter((line) => line === "stop")).toHaveLength(1);
-    expect(text.trimEnd().endsWith("stop")).toBe(true);
-  });
-
-  it("places stop before the first element when evaluationLimitIndex is 0", () => {
-    const source = ["stop", "point A = coordinate(x: 0,y: 0)"].join("\n");
-    const { parsed } = roundTrip(source);
-    expect(parsed.evaluationLimitIndex).toBe(0);
-  });
-
-  it("keeps stop working when nested inside a group", () => {
-    const source = ["group G {", "  point A = coordinate(x: 0,y: 0)", "  stop", "  point B = coordinate(x: 1,y: 1)", "}"].join("\n");
-    const { document, parsed } = roundTrip(source);
-    expect(document.evaluationLimitIndex).toBe(2);
-    expect(parsed.evaluationLimitIndex).toBe(2);
-  });
-});
-
 describe("dslDocument layoutElementTree ElementTreeRow shape", () => {
   it("bakes a container's `{` onto its own header row and emits multi-line vertical-call rows for regular elements", () => {
-    const source = ["nui 1", "group G {", "  point A = coordinate(x: 0, y: 0)", "  stop", "  point B = coordinate(x: 1, y: 1)", "}"].join("\n");
+    const source = ["nui 1", "group G {", "  point A = coordinate(x: 0, y: 0)", "  point B = coordinate(x: 1, y: 1)", "}"].join("\n");
     const compiled = compileDslDocument(source);
     const document = compiled.document!;
     const refs = documentDslRefs(document.elements);
@@ -365,7 +326,7 @@ describe("dslDocument layoutElementTree ElementTreeRow shape", () => {
 
     // There is no separate "blockStart" row: a container's own header
     // row carries its `{` on its last physical line.
-    expect(rows.map((row) => row.role)).toEqual(["statement", "statement", "atStop", "statement", "blockEnd"]);
+    expect(rows.map((row) => row.role)).toEqual(["statement", "statement", "statement", "blockEnd"]);
 
     const groupRow = rows[0];
     expect(groupRow.lines).toEqual(["group G {"]);
@@ -377,7 +338,7 @@ describe("dslDocument layoutElementTree ElementTreeRow shape", () => {
     expect(pointARow.lines).toEqual(["  point A = coordinate(", "    x: 0,", "    y: 0,", "  )"]);
     expect(pointARow.argKeys).toEqual([null, "x", "y", null]);
 
-    expect(rows.find((row) => row.role === "atStop")!.lines).toEqual(["  stop"]);
+    expect(rows[2].lines).toEqual(["  point B = coordinate(", "    x: 1,", "    y: 1,", "  )"]);
     expect(rows.find((row) => row.role === "blockEnd")!.lines).toEqual(["}"]);
   });
 });
@@ -548,20 +509,17 @@ describe("compileDslDocument facade", () => {
     expect(map.byKey.get("view:通常")).toMatchObject({ line: 8 });
     expect(map.byKey.get("view:印刷")).toMatchObject({ line: 9 });
     expect(map.byKey.get("activeView")).toMatchObject({ line: 10 });
-    expect(map.byKey.get("atStop")).toMatchObject({ line: 52 });
+    expect(map.byKey.has("atStop")).toBe(false);
 
     expect(map.sectionEnds).toEqual({ version: 1, visibility: 10, elements: 57 });
   });
 
-  it("counts a trailing stop as the end of the elements section, not the statement before it", () => {
+  it("rejects a trailing stop instead of adding a statement-map boundary", () => {
     const source = ["nui 1", "point A = coordinate(x: 0, y: 0)", "stop"].join("\n");
     const compiled = compileDslDocument(source);
-    const map = compiled.statementMap!;
-    // Line 2 is "point A = ..."; line 3 is "stop" - sectionEnds.elements must
-    // point at stop's own line (the true end of the section) so a
-    // A newly-inserted source-output declaration is anchored after it, not before it.
-    expect(map.byKey.get("atStop")).toMatchObject({ line: 3 });
-    expect(map.sectionEnds.elements).toBe(3);
+    expect(compiled.document).toBeNull();
+    expect(compiled.statementMap).toBeNull();
+    expect(compiled.diagnostics.some((item) => item.message.includes("有効な構文ではありません"))).toBe(true);
   });
 
   it("injects assignedElementIds while letting explicit id= win", () => {
@@ -589,7 +547,7 @@ describe("dslDocument golden fixture", () => {
     const document = parsed.document!;
     expect(document.visibilityRoles).toEqual([{ id: "seam", name: "縫い代" }]);
     expect(document.elements.some((element) => element.name === "前身頃" && element.type === "group")).toBe(true);
-    expect(document.evaluationLimitIndex).toBeLessThan(document.elements.length);
+    expect(document.evaluationLimitIndex).toBeUndefined();
   });
 });
 
@@ -712,7 +670,7 @@ describe("Task 26 text template wiring", () => {
 });
 
 describe("Task 36 typed dependency graph wiring", () => {
-  it("keeps static missing and late initializer navigation on the compiled document", () => {
+  it("keeps static missing and resolved forward initializer navigation on the compiled document", () => {
     const compiled = compileDslDocument(
       ["nui 1", "const missing: number = @unknown", "const late: number = @later", "const later: number = 1"].join("\n"),
       { assignedStatementIds: new Map([[1, "test:missing"], [2, "test:late"], [3, "test:later"]]) }
@@ -721,7 +679,7 @@ describe("Task 36 typed dependency graph wiring", () => {
     expect(compiled.document).not.toBeNull();
     expect(compiled.typedDependencyGraph?.edges).toEqual(expect.arrayContaining([
       expect.objectContaining({ kind: "initializer", reason: "missing", span: expect.any(Object) }),
-      expect.objectContaining({ kind: "initializer", reason: "late", span: expect.any(Object) })
+      expect.objectContaining({ kind: "initializer", reason: undefined, span: expect.any(Object) })
     ]));
   });
 
@@ -736,5 +694,260 @@ describe("Task 36 typed dependency graph wiring", () => {
 
     expect(edges).toHaveLength(1);
     expect(edges?.[0]).toMatchObject({ to: { id: "binding:test:bad" }, reason: "invalid" });
+  });
+
+  it("activates selected lazy geometry edges for cycles without requiring unselected branches", () => {
+    const compile = (condition: "true" | "false") => compileDslDocument(
+      [
+        "nui 1",
+        `const gate: boolean = if (${condition}) { @A.length > 0 } else { true }`,
+        "line A = segment(start: (0, 0), end: (10, 0), enabled: @gate)"
+      ].join("\n"),
+      { assignedStatementIds: new Map([[1, "test:gate"], [2, "test:a"]]) }
+    );
+
+    const selected = compile("true");
+    expect(selected.diagnostics.map((diagnostic) => diagnostic.code)).toContain("dependency-cycle");
+    expect(selected.typedDependencyGraph?.edges).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        kind: "geometry-property",
+        requiredness: "conditional",
+        activation: expect.objectContaining({
+          guards: expect.arrayContaining([
+            expect.objectContaining({ branch: "then", staticSelection: "selected" })
+          ])
+        })
+      })
+    ]));
+
+    const unselected = compile("false");
+    expect(unselected.diagnostics.map((diagnostic) => diagnostic.code)).not.toContain("dependency-cycle");
+    expect(unselected.typedDependencyGraph?.edges).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        kind: "geometry-property",
+        requiredness: "conditional",
+        activation: expect.objectContaining({
+          guards: expect.arrayContaining([
+            expect.objectContaining({ branch: "then", staticSelection: "unselected" })
+          ])
+        })
+      })
+    ]));
+    const runtimeProjection = unselected.typedDependencyGraph
+      ? resolveTypedDependencyGraphRuntime(unselected.typedDependencyGraph, new Map())
+      : undefined;
+    expect(runtimeProjection?.cycles).toEqual([]);
+  });
+
+  it("scopes lazy controller ids by their dependency source endpoint", () => {
+    const compiled = compileDslDocument([
+      "nui 1",
+      "const flagA: boolean = false",
+      "const flagB: boolean = true",
+      "const valueA: number = if (@flagA) { @LaterA.length } else { 0 }",
+      "const valueB: number = if (@flagB) { @LaterB.length } else { 0 }",
+      "line ConsumerA = segment(start: (0, 0), end: (@valueA, 1))",
+      "line ConsumerB = segment(start: (0, 0), end: (@valueB, 1))",
+      "line LaterA = segment(start: (0, 0), end: (20, 0))",
+      "line LaterB = segment(start: (0, 0), end: (10, 0))"
+    ].join("\n"), {
+      assignedStatementIds: new Map([
+        [1, "test:flag-a"],
+        [2, "test:flag-b"],
+        [3, "test:value-a"],
+        [4, "test:value-b"],
+        [5, "test:consumer-a"],
+        [6, "test:consumer-b"],
+        [7, "test:later-a"],
+        [8, "test:later-b"]
+      ])
+    });
+    const graph = compiled.typedDependencyGraph;
+    expect(graph).toBeDefined();
+    const guardedEdges = graph?.edges.filter((edge) =>
+      edge.from.kind === "binding" &&
+      (edge.from.name === "valueA" || edge.from.name === "valueB") &&
+      edge.activation?.guards.some((guard) => guard.controllerExpression)
+    ) ?? [];
+    expect(guardedEdges).toHaveLength(2);
+
+    const localStarts = guardedEdges.map((edge) => edge.activation!.guards[0]!.controllerExpression!.span.start);
+    expect(localStarts[0]).toBe(localStarts[1]);
+
+    const controllerIdsBySource = new Map<string, Set<string>>();
+    for (const edge of guardedEdges) {
+      const ids = controllerIdsBySource.get(edge.from.id) ?? new Set<string>();
+      for (const guard of edge.activation!.guards) ids.add(guard.controllerId);
+      controllerIdsBySource.set(edge.from.id, ids);
+    }
+    expect(controllerIdsBySource.size).toBe(2);
+    expect([...controllerIdsBySource.values()].every((ids) => ids.size === 1)).toBe(true);
+    expect(new Set([...controllerIdsBySource.values()].map((ids) => [...ids][0]))).toHaveLength(2);
+  });
+
+  it("scopes same-element numeric controller ids by parameter occurrence", () => {
+    const compiled = compileDslDocument([
+      "nui 1",
+      "const flagX: boolean = false",
+      "const flagY: boolean = true",
+      "point P = coordinate(x: if (@flagX) { @LaterX.length } else { 0 }, y: if (@flagY) { @LaterY.length } else { 0 })",
+      "line LaterX = segment(start: (0, 0), end: (20, 0))",
+      "line LaterY = segment(start: (0, 0), end: (10, 0))"
+    ].join("\n"), {
+      assignedStatementIds: new Map([
+        [1, "test:flag-x"],
+        [2, "test:flag-y"],
+        [3, "test:p"],
+        [4, "test:later-x"],
+        [5, "test:later-y"]
+      ])
+    });
+    const point = compiled.document?.elements.find((element) => element.name === "P");
+    const numericKeys = [...(compiled.numericBindings ?? [])]
+      .map(([key]) => key)
+      .filter((key) => key.endsWith(":x") || key.endsWith(":y"));
+    const xKey = numericKeys.find((key) => key.endsWith(":x"));
+    const yKey = numericKeys.find((key) => key.endsWith(":y"));
+    expect(point).toBeDefined();
+    expect(xKey).toBeDefined();
+    expect(yKey).toBeDefined();
+    expect(xKey).not.toBe(yKey);
+
+    const guardedEdges = compiled.typedDependencyGraph?.edges.filter((edge) =>
+      edge.kind === "geometry-property" &&
+      edge.from.kind === "element" &&
+      edge.from.id === point?.id &&
+      edge.to.kind === "geometry-stage" &&
+      edge.activation?.guards.some((guard) => guard.controllerExpression)
+    ) ?? [];
+    const xEdges = guardedEdges.filter((edge) => edge.to.kind === "geometry-stage" && edge.to.name.startsWith("LaterX."));
+    const yEdges = guardedEdges.filter((edge) => edge.to.kind === "geometry-stage" && edge.to.name.startsWith("LaterY."));
+    expect(xEdges).toHaveLength(1);
+    expect(yEdges).toHaveLength(1);
+    expect(xEdges[0]!.from.id).toBe(yEdges[0]!.from.id);
+    expect(xEdges[0]!.activation!.guards[0]!.controllerExpression!.span.start)
+      .toBe(yEdges[0]!.activation!.guards[0]!.controllerExpression!.span.start);
+    expect(new Set(xEdges.map((edge) => edge.activation!.guards[0]!.controllerId))).toHaveLength(1);
+    expect(new Set(yEdges.map((edge) => edge.activation!.guards[0]!.controllerId))).toHaveLength(1);
+    expect(xEdges[0]!.activation!.guards[0]!.controllerId)
+      .not.toBe(yEdges[0]!.activation!.guards[0]!.controllerId);
+  });
+
+  it("keeps conditionalGroup lazy geometry dependencies free of legacy duplicates", () => {
+    const compiled = compileDslDocument([
+      "nui 1",
+      "const chooseLater: boolean = false",
+      "if (if (@chooseLater) { @Later.length > 0 } else { false }) {",
+      "  point Inside = coordinate(x: 1, y: 1)",
+      "}",
+      "line Later = segment(start: (0, 0), end: (10, 0))"
+    ].join("\n"), {
+      assignedStatementIds: new Map([
+        [1, "test:choose-later"],
+        [2, "test:conditional-group"],
+        [3, "test:inside"],
+        [5, "test:later"]
+      ])
+    });
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const conditional = compiled.document?.elements.find((element) => element.type === "conditionalGroup");
+    const later = compiled.document?.elements.find((element) => element.name === "Later");
+    expect(conditional).toBeDefined();
+    expect(later).toBeDefined();
+    const dependencyEdges = compiled.typedDependencyGraph?.edges.filter((edge) =>
+      edge.from.kind === "element" &&
+      edge.from.id === conditional?.id &&
+      edge.to.kind === "geometry-stage" &&
+      edge.to.ownerId === later?.id
+    ) ?? [];
+    expect(dependencyEdges).toHaveLength(1);
+    expect(dependencyEdges[0]).toMatchObject({ kind: "geometry-property", requiredness: "conditional" });
+    expect(dependencyEdges[0]!.activation?.guards).toHaveLength(1);
+    expect(dependencyEdges[0]!.activation?.guards[0]?.branch).toBe("then");
+    expect(compiled.typedDependencyGraph?.edges.some((edge) =>
+      edge.from.kind === "element" &&
+      edge.from.id === conditional?.id &&
+      edge.to.kind === "geometry-stage" &&
+      edge.to.ownerId === later?.id &&
+      edge.kind === "geometry" &&
+      edge.requiredness === "required"
+    )).toBe(false);
+  });
+
+  it("classifies numeric coalescing fallback geometry as a lazy dependency", () => {
+    for (const maybeValue of ["5", "none"]) {
+      const compiled = compileDslDocument([
+        "nui 1",
+        `const maybe: number? = ${maybeValue}`,
+        "point P = coordinate(x: @maybe ?? @Later.length, y: 0)",
+        "line Later = segment(start: (0, 0), end: (10, 0))"
+      ].join("\n"), {
+        assignedStatementIds: new Map([
+          [1, `test:maybe-${maybeValue}`],
+          [2, `test:p-${maybeValue}`],
+          [3, `test:later-${maybeValue}`]
+        ])
+      });
+      expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+      const point = compiled.document?.elements.find((element) => element.name === "P");
+      const later = compiled.document?.elements.find((element) => element.name === "Later");
+      const fallbackEdges = compiled.typedDependencyGraph?.edges.filter((edge) =>
+        edge.from.kind === "element" &&
+        edge.from.id === point?.id &&
+        edge.to.kind === "geometry-stage" &&
+        edge.to.ownerId === later?.id &&
+        edge.kind === "geometry-property"
+      ) ?? [];
+      expect(fallbackEdges).toHaveLength(1);
+      expect(fallbackEdges[0]).toMatchObject({ requiredness: "conditional" });
+      expect(fallbackEdges[0]!.activation?.guards[0]).toMatchObject({ branch: "right" });
+      expect(fallbackEdges[0]!.activation?.guards[0]?.controllerExpression).toBeDefined();
+    }
+  });
+
+  it("projects typed numeric binding activation with authored source spans", () => {
+    const source = [
+      "nui 1",
+      "const flag: boolean = false",
+      "point P = coordinate(x: if (@flag) { @later } else { 0 }, y: 0)",
+      "const later: number = @P.x"
+    ].join("\n");
+    const compiled = compileDslDocument(source, {
+      assignedStatementIds: new Map([
+        [1, "test:flag"],
+        [2, "test:p"],
+        [3, "test:later"]
+      ])
+    });
+    expect(compiled.document).not.toBeNull();
+    const point = compiled.document?.elements.find((element) => element.name === "P");
+    const flag = compiled.bindingAnalysis?.catalog.bindings.find((binding) => binding.name === "flag");
+    const later = compiled.bindingAnalysis?.catalog.bindings.find((binding) => binding.name === "later");
+    expect(point).toBeDefined();
+    expect(flag).toBeDefined();
+    expect(later).toBeDefined();
+
+    const numericEdges = compiled.typedDependencyGraph?.edges.filter((edge) =>
+      edge.kind === "numeric-expression" && edge.from.kind === "element" && edge.from.id === point?.id
+    ) ?? [];
+    const flagEdges = numericEdges.filter((edge) => edge.to.kind === "binding" && edge.to.id === flag?.id);
+    const laterEdges = numericEdges.filter((edge) => edge.to.kind === "binding" && edge.to.id === later?.id);
+    expect(flagEdges).toHaveLength(1);
+    expect(flagEdges[0]).toMatchObject({ requiredness: "required" });
+    expect(laterEdges).toHaveLength(1);
+    expect(laterEdges[0]).toMatchObject({
+      requiredness: "conditional",
+      activation: {
+        guards: [expect.objectContaining({ branch: "then", controllerExpression: expect.any(Object) })]
+      }
+    });
+    const numericSource = [...(compiled.numericBindings ?? [])].find(([key]) => key.endsWith(":x"))?.[1];
+    const authoredLaterReference = numericSource?.references.find((reference) => reference.bindingId === later?.id);
+    expect(authoredLaterReference).toBeDefined();
+    expect(laterEdges[0]?.span).toEqual(authoredLaterReference?.span);
+    expect(numericEdges.filter((edge) => edge.to.kind === "binding" && edge.to.id === later?.id && edge.requiredness === "required")).toHaveLength(0);
+    const numericKey = [...(compiled.numericBindings ?? [])].find(([key]) => key.endsWith(":x"))?.[0];
+    expect(numericKey).toBeDefined();
+    expect(laterEdges[0]?.activation?.guards[0]?.controllerId).toContain(numericKey ?? "");
   });
 });

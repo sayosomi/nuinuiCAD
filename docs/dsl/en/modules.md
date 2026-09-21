@@ -5,8 +5,9 @@
 `module` defines a reusable, closed lexical body. `instance` creates a module
 occurrence from that definition. A module never implicitly captures an outer
 scalar, geometry value, group member, or loop binding; anything it needs must
-be declared as a parameter. Definitions and instances are non-hoisted and are
-resolved in document order.
+be declared as a parameter. Definitions and instances are resolved in their
+legal lexical scopes, and runtime dependencies use the document dependency
+graph.
 
 Module parameters may use scalar types, `point`, `line`, `path`, record types,
 or the immutable one-dimensional collection type `T[]` for any currently valid
@@ -39,8 +40,8 @@ are unchanged: optionality does not make geometry, collection, or record
 parameters default-eligible. For an eligible optional scalar such as
 `height: number? = 10`, omission evaluates the default, explicit `none`
 preserves `none`, and an explicit number is used as supplied. Scalar defaults
-are evaluated in source order in the module's parameter context and do not
-capture values from the module's caller.
+are evaluated in the module's parameter context and do not capture values from
+the module's caller.
 
 ## Arguments and exports
 
@@ -62,7 +63,7 @@ boolean literals or shared boolean references.
 Module locals and exports may use the scalar, choice, geometry, and nominal-record
 collection value-for form.
 The source collection and the mapped result keep the Module's normal lexical,
-privacy, export, and source-order rules. Each Module instance remaps the
+privacy, and export rules. Each Module instance remaps the
 immutable binder and body references independently, so one instance cannot
 observe another instance's mapped members. Root consumers can read an
 exported mapped collection's `.length` or index it normally. Nominal-record

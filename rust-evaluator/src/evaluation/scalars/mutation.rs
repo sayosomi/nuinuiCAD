@@ -92,9 +92,7 @@ impl<'a> ScalarMutationResolver<'a> {
                 *next_geometry_value_index += 1;
             }
             self.next_version_index += 1;
-            if self.is_version_before_cutoff(version) {
-                self.execute(version, state);
-            }
+            self.execute(version, state);
         }
         self.retire_before(source_order);
     }
@@ -103,9 +101,7 @@ impl<'a> ScalarMutationResolver<'a> {
             let version = &self.program.versions[self.next_version_index];
             self.retire_before(version.source_order);
             self.next_version_index += 1;
-            if self.is_version_before_cutoff(version) {
-                self.execute(version, state);
-            }
+            self.execute(version, state);
         }
         self.retire_before(usize::MAX);
     }
@@ -236,24 +232,6 @@ impl<'a> ScalarMutationResolver<'a> {
         } else {
             self.history.push(entry);
         }
-    }
-    pub(super) fn is_before_cutoff(&self, source_order: usize) -> bool {
-        !self
-            .program
-            .evaluation_limit_source_order
-            .is_some_and(|limit| source_order >= limit)
-    }
-    fn is_version_before_cutoff(&self, version: &ValidatedBindingVersion) -> bool {
-        !self
-            .program
-            .evaluation_limit_source_order
-            .is_some_and(|limit| {
-                version.source_order >= limit
-                    && !self
-                        .program
-                        .post_stop_binding_ids
-                        .contains(&version.binding_id)
-            })
     }
     fn retire_before(&mut self, source_order: usize) {
         for index in (0..self.frames.len()).rev() {
@@ -1263,6 +1241,7 @@ impl ScalarEvaluationEnvironment for MutationEnvironment<'_, '_, '_> {
         template_element_id: &str,
         index: Option<&super::types::TypedScalarExpression>,
         point_key: Option<&str>,
+        stage_path: Option<&[String]>,
         property: &str,
         target_source_order: f64,
         property_type: &ScalarType,
@@ -1274,6 +1253,7 @@ impl ScalarEvaluationEnvironment for MutationEnvironment<'_, '_, '_> {
                 template_element_id,
                 index,
                 point_key,
+                stage_path,
                 property,
                 target_source_order,
                 current_source_order: Some(self.source_order),

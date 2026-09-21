@@ -50,7 +50,7 @@ const candidateSpans = (statement: DslStatement): DslLabeledValueSpan[] => [
  * can be told apart from that artifact.
  *
  * Non-element statements (palette/view/print/directive lines such as `nui`, `role`,
- * `view`, `color`, `layout`, `print`, `svg`, `place`, `atStop`) are never a target,
+ * `view`, `color`, `layout`, `print`, `svg`, `place`) are never a target,
  * even when they carry real attribute/payload values — this is the one shared
  * determination both click-selection && Tab-navigation rely on for "is this line's
  * value clickable/tabbable at all."

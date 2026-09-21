@@ -111,9 +111,30 @@ pub(crate) enum GeometryBuiltinRuntimeError {
     ZeroLengthLine,
 }
 
+pub(crate) fn selected_geometry<'a>(
+    state: &'a EvaluationState,
+    element_id: &str,
+    stage_path: Option<&[String]>,
+) -> Option<&'a Value> {
+    match stage_path {
+        None => state.computed_geometry.get(element_id),
+        Some(path) if path.is_empty() || (path.len() == 1 && path[0] == "final") => {
+            state.computed_geometry.get(element_id)
+        }
+        Some(path) if path.len() == 1 && path[0] == "base" => {
+            state.base_transformation_geometry.get(element_id)
+        }
+        Some(path) => state.transformation_stage_geometry.get(&format!(
+            "{}\u{0}*\u{0}{}",
+            element_id,
+            path.join(".")
+        )),
+    }
+}
+
 pub(crate) fn resolve_geometry_builtin_target(
     state: &EvaluationState,
-    current_source_order: f64,
+    _current_source_order: f64,
     target: &ScalarExpressionResolvedGeometryTarget,
 ) -> Result<GeometryBuiltinRuntimeTarget, GeometryBuiltinRuntimeError> {
     if let Some(binder_id) = &target.geometry_value_binder_id {
@@ -155,7 +176,7 @@ pub(crate) fn resolve_geometry_builtin_target(
             }
             GeometryInputTarget::Coordinate { .. } => unreachable!(),
         }
-        return resolve_geometry_builtin_target(state, current_source_order, &bound);
+        return resolve_geometry_builtin_target(state, _current_source_order, &bound);
     }
     if target.statement_id.is_empty() {
         return Err(GeometryBuiltinRuntimeError::Unavailable);
@@ -215,9 +236,6 @@ pub(crate) fn resolve_geometry_builtin_target(
             GeometryInterfaceType::Path => Err(GeometryBuiltinRuntimeError::Unavailable),
         };
     }
-    if target.statement_index >= current_source_order {
-        return Err(GeometryBuiltinRuntimeError::Unavailable);
-    }
     if !state.elements_by_id.contains_key(&target.statement_id) {
         return Err(GeometryBuiltinRuntimeError::Unavailable);
     }
@@ -234,7 +252,9 @@ pub(crate) fn resolve_geometry_builtin_target(
             target.clone(),
         )));
     }
-    let Some(geometry) = state.computed_geometry.get(&target.statement_id) else {
+    let Some(geometry) =
+        selected_geometry(state, &target.statement_id, target.stage_path.as_deref())
+    else {
         return Err(GeometryBuiltinRuntimeError::Unavailable);
     };
 

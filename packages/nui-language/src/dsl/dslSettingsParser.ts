@@ -14,8 +14,7 @@ export type DslSettingsKind =
   | "layout"
   | "print"
   | "svg"
-  | "place"
-  | "atStop";
+  | "place";
 
 export type DslSettingsStatement = {
   kind: DslSettingsKind;
@@ -186,7 +185,7 @@ export const parseDslSettingsStatement = (
   const diagnostics: DslSettingsDiagnostic[] = [];
   if (logicalText.trimStart().startsWith("@stop")) {
     const start = logicalText.indexOf("@stop");
-    addDiagnostic(diagnostics, "`@stop` は nui1 では使えません。`stop` を使用してください。", { start, end: start + 5 });
+    addDiagnostic(diagnostics, "`@stop` は nui1 の有効な構文ではありません。", { start, end: start + 5 });
     return { statement: null, diagnostics };
   }
   const keywordMatch = logicalText.match(identifier);
@@ -196,8 +195,8 @@ export const parseDslSettingsStatement = (
   const rest = trimSpan(logicalText, keyword.length, logicalText.length);
 
   if (keyword === "stop") {
-    if (rest.start !== rest.end || options.opensBlock) addDiagnostic(diagnostics, `${keyword} は単独の行に書いてください。`, rest);
-    return { statement: { kind: "atStop", name: "", nameSpan: null, keywordSpan, args: [], attrs: [], payloadSpans: {}, opensBlock: false }, diagnostics };
+    addDiagnostic(diagnostics, "stop は nui1 の有効な構文ではありません。", keywordSpan);
+    return { statement: null, diagnostics };
   }
   if (keyword === "nui") {
     return {

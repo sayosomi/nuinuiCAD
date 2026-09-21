@@ -209,14 +209,14 @@ describe("queryDslGeometryReferenceRetargetTarget", () => {
     expect(target!.candidates.some((candidate) => candidate.name === "B")).toBe(false);
   });
 
-  it("rejects a candidate made unavailable by source order or scope", () => {
+  it("rejects a candidate made unavailable by lexical scope", () => {
     const forwardSource = [
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point Use = offset(from: @A, dx: 1, dy: 0)",
       "point B = coordinate(x: 20, y: 0)"
     ].join("\n");
-    expect(targetAt(forwardSource, "@A")!.candidates.some((candidate) => candidate.name === "B")).toBe(false);
+    expect(targetAt(forwardSource, "@A")!.candidates.some((candidate) => candidate.name === "B")).toBe(true);
 
     const scopeSource = [
       "nui 1",
@@ -330,7 +330,7 @@ describe("queryDslGeometryReferenceRetargetTarget", () => {
     ].join("\n");
     const target = targetAt(source, "@A");
     expect(target).not.toBeNull();
-    expect(target!.candidates).toEqual([]);
+    expect(target!.candidates.map((candidate) => candidate.name)).toEqual([]);
     expect(planDslGeometryReferenceRetargetEditsResult(snapshotFor(source), source.indexOf("@A") + 1, { kind: "element", elementId: "missing" })).toEqual({
       status: "rejected",
       rejection: { reason: "candidate-not-found" }

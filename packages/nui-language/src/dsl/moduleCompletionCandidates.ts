@@ -811,7 +811,7 @@ const moduleCalleeCompletions = (compiled: CompiledDslDocument, statementIndex: 
   const input = lexicalInput(compiled, owner);
   if (!namespace || !input) return [];
   const local = namespace.allDeclarations
-    .filter((declaration) => declaration.kind === "moduleDefinition" && declaration.statementIndex < (request.sourceOrderIndex ?? statementIndex))
+    .filter((declaration) => declaration.kind === "moduleDefinition")
     .filter((declaration) => {
       const lookup = resolveModuleLexicalDeclaration(input, statementIndex, declaration.name, { scopeId: request.scopeId, sourceOrderIndex: request.sourceOrderIndex });
       return lookup.kind === "resolved" && lookup.declaration.statementId === declaration.statementId;

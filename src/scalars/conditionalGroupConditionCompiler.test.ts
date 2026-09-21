@@ -134,7 +134,7 @@ describe("compileConditionalGroupConditions: typed candidates compile to a boole
     });
   });
 
-  it("rejects a forward geometry property in a conditional expression", () => {
+  it("accepts a forward geometry property in a conditional expression", () => {
     const compiled = compileFor([
       "const _unused: number = 0",
       "point A = coordinate(x: 0, y: 0)",
@@ -144,10 +144,8 @@ describe("compileConditionalGroupConditions: typed candidates compile to a boole
       "line Later = segment(start: @A, end: @B)"
     ].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compileConditionalGroupConditions(compiled);
-    expect(sourcesByOccurrenceKey.size).toBe(0);
-    expect(diagnostics).toEqual(expect.arrayContaining([
-      expect.objectContaining({ code: "geometry-property-invalid", message: expect.stringContaining("後") })
-    ]));
+    expect(sourcesByOccurrenceKey.size).toBe(1);
+    expect(diagnostics).toEqual([]);
   });
 });
 

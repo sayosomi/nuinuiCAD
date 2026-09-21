@@ -502,9 +502,9 @@ describe("module semantic analysis", () => {
     });
   });
 
-  it("reports forward/non-module callees and does not fall through a shadowing declaration", () => {
+  it("resolves later module callees and does not fall through a shadowing declaration", () => {
     const forward = compileWithIds(["nui 1", "instance Before = Later()", "module Later() {"] .concat(["}"]).join("\n"));
-    expect(forward.diagnostics).toEqual(expect.arrayContaining([expect.objectContaining({ code: "module-forward-callee" })]));
+    expect(forward.diagnostics).not.toEqual(expect.arrayContaining([expect.objectContaining({ code: "module-forward-callee" })]));
 
     const shadow = compileWithIds([
       "nui 1",
@@ -534,7 +534,7 @@ describe("module semantic analysis", () => {
       "module-geometry-default",
       "module-outer-capture",
       "module-undefined-reference",
-      "module-forward-geometry-reference",
+      "module-undefined-geometry-reference",
       "module-recursion"
     ]));
     expect(compiled.moduleSemanticAnalysis?.callEdges[0]).toMatchObject({
@@ -608,7 +608,7 @@ describe("module semantic analysis", () => {
       "}"
     ].join("\n"));
     expect(compiled.moduleSemanticAnalysis?.instances.find((instance) => instance.name === "x")).toMatchObject({
-      callee: { definitionStatementId: "statement:test:1", definitionStatementIndex: 1 },
+      callee: { definitionStatementId: "statement:test:5", definitionStatementIndex: 5 },
       calleeResolution: "resolved"
     });
   });
@@ -898,7 +898,8 @@ describe("module semantic analysis", () => {
       statementIndex: 4,
       category: "line",
       geometryKind: "line",
-      pointKey: "end"
+      pointKey: "end",
+      stagePath: ["final"]
     });
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
   });
@@ -1297,7 +1298,6 @@ describe("module semantic analysis", () => {
     ].join("\n"));
     expect(compiled.diagnostics).toEqual(expect.arrayContaining([
       expect.objectContaining({ code: "module-undefined-instance-reference" }),
-      expect.objectContaining({ code: "module-forward-instance-reference" }),
       expect.objectContaining({ code: "module-geometry-type-mismatch" })
     ]));
   });
@@ -1402,7 +1402,7 @@ describe("module semantic analysis", () => {
     ]));
   });
 
-  it("reports a qualified path first-segment forward reference without outer fallback", () => {
+  it("resolves a qualified path first segment declared later in the module", () => {
     const compiled = compileWithIds([
       "nui 1",
       "module M() {",
@@ -1414,8 +1414,8 @@ describe("module semantic analysis", () => {
     ].join("\n"));
     const reference = moduleBodyAt(compiled, 2).geometryReferences[0].reference;
 
-    expect(reference).toMatchObject({ resolution: "forward", target: null });
-    expect(compiled.diagnostics).toEqual(expect.arrayContaining([
+    expect(reference).toMatchObject({ resolution: "resolved", target: { kind: "sourceGeometry" } });
+    expect(compiled.diagnostics).not.toEqual(expect.arrayContaining([
       expect.objectContaining({ code: "module-forward-geometry-reference" })
     ]));
     expect(compiled.diagnostics).not.toEqual(expect.arrayContaining([
@@ -1424,7 +1424,7 @@ describe("module semantic analysis", () => {
     ]));
   });
 
-  it("reports a qualified path nested-member forward after resolving its local container", () => {
+  it("resolves a qualified path nested member declared later in its container", () => {
     const compiled = compileWithIds([
       "nui 1",
       "module M() {",
@@ -1436,8 +1436,8 @@ describe("module semantic analysis", () => {
     ].join("\n"));
     const reference = moduleBodyAt(compiled, 3).geometryReferences[0].reference;
 
-    expect(reference).toMatchObject({ resolution: "forward", target: null });
-    expect(compiled.diagnostics).toEqual(expect.arrayContaining([
+    expect(reference).toMatchObject({ resolution: "resolved", target: { kind: "sourceGeometry" } });
+    expect(compiled.diagnostics).not.toEqual(expect.arrayContaining([
       expect.objectContaining({ code: "module-forward-geometry-reference" })
     ]));
     expect(compiled.diagnostics).not.toEqual(expect.arrayContaining([

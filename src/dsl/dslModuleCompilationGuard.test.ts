@@ -115,7 +115,7 @@ describe("module definition compilation guard", () => {
     expect(compiled.statementMap?.statements.map((info) => info.statementIndex)).toEqual([0, 1, 2, 3, 4, 5]);
   });
 
-  it("uses the first compilable stop and keeps module-body stop inert", () => {
+  it("rejects stop in a module body without creating a terminator statement", () => {
     const source = [
       "nui 1",
       "module M() {",
@@ -123,13 +123,11 @@ describe("module definition compilation guard", () => {
       "}",
       "point Root = coordinate(x: 0, y: 0)"
     ].join("\n");
-    const { parsed, compiled } = compileWithRootStableIds(source);
+    const parsed = parseDsl(source);
+    const compiled = compileDslDocument(source);
 
-    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
-    expect(compiled.document?.elements.map((element) => element.name)).toEqual(["Root"]);
-    expect(compiled.document?.evaluationLimitIndex).toBeUndefined();
-    expect(compiled.statementMap?.byKey.has("atStop")).toBe(false);
-    expect(parsed.statements.some((statement) => statement.kind === "atStop")).toBe(true);
+    expect(compiled.diagnostics.some((diagnostic) => diagnostic.severity === "error")).toBe(true);
+    expect(parsed.statements.some((statement) => (statement as { kind: string }).kind === "atStop")).toBe(false);
   });
 
   it("does not apply module-body global settings or treat module nui as a duplicate header", () => {

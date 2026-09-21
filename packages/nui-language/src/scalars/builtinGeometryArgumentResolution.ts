@@ -15,6 +15,7 @@ import type {
   ScalarExpressionResolvedGeometryTarget,
   ScalarExpressionResolvedReference
 } from "./typedExpressionAst";
+import type { TransformationStageSelection } from "../dsl/transformationRecipes";
 
 export type BuiltinGeometryArgumentResolutionIssueCode =
   | "builtin-geometry-argument-invalid"
@@ -43,6 +44,10 @@ export type ResolveBuiltinGeometryArgumentsInput = {
    * deliberately separate from scalar reference occurrences: a
    * geometryProperty never becomes a fake scalar reference. */
   readonly resolveSourceGeometryPath?: (elementName: string) => SourceLexicalLookup;
+  readonly resolveGeometryStageSelection?: (input: {
+    readonly statementId: string;
+    readonly members: readonly string[];
+  }) => TransformationStageSelection;
   /** Module semantic analysis may claim an already-resolved qualified geometry
    * occurrence before the ordinary source namespace lookup runs. */
   readonly additionalGeometryResolver?: (input: {
@@ -107,12 +112,12 @@ const sourceLookupMessage = (name: string, lookup: SourceLexicalLookup): string 
 
 export const resolveBuiltinGeometryArguments = ({
   ast,
-  statementIndex,
   scalarReferenceResolutions,
   collectionIndexBaseReferenceOccurrenceIndexes,
   sourceDeclarationsByStatementId,
   additionalGeometryResolver,
-  resolveSourceGeometryPath
+  resolveSourceGeometryPath,
+  resolveGeometryStageSelection
 }: ResolveBuiltinGeometryArgumentsInput): ResolveBuiltinGeometryArgumentsResult => {
   const references: (BindingResolution | ScalarExpressionResolvedReference)[] = [...scalarReferenceResolutions];
   const claimedReferenceOccurrenceIndexes = new Set<number>();
@@ -152,7 +157,7 @@ export const resolveBuiltinGeometryArguments = ({
     ) {
       const declaration = sourceDeclarationsByStatementId.get(resolution.statementId);
       const geometryType = moduleGeometryInterfaceTypeOfElement(declaration?.statement);
-      if (declaration?.kind === "geometry" && geometryType !== null && declaration.statementIndex < statementIndex) {
+      if (declaration?.kind === "geometry" && geometryType !== null) {
         target = {
           statementId: declaration.statementId,
           statementIndex: declaration.statementIndex,
@@ -281,7 +286,29 @@ export const resolveBuiltinGeometryArguments = ({
     const category = declaration.kind === "geometry" && declaration.statement.kind === "element" && isGeometryDeclarationCategory(declaration.statement.category)
       ? declaration.statement.category
       : null;
-    if (!category || !isDerivedPointKeyForGeometryCategory(category, node.property)) {
+    const stageSelection = resolveGeometryStageSelection?.({
+      statementId: declaration.statementId,
+      members: node.property.split(".")
+    }) ?? { stagePath: ["final"], propertyPath: node.property.split(".") };
+    const property = stageSelection.propertyPath.join(".");
+    if (!property) {
+      const geometryType = moduleGeometryInterfaceTypeOfElement(declaration.statement);
+      if (!geometryType || !isModuleGeometryInterfaceAssignable(geometryType, expectedGeometryType)) {
+        issue(
+          invalidGeometryPropertyMessage(node.elementName, node.property, expectedGeometryType),
+          invalidGeometryPropertyPresentation(node.elementName, node.property, expectedGeometryType)
+        );
+        return;
+      }
+      geometryPropertyTargets.set(node.span.start, {
+        statementId: declaration.statementId,
+        statementIndex: declaration.statementIndex,
+        geometryType,
+        stagePath: stageSelection.stagePath
+      });
+      return;
+    }
+    if (!category || !isDerivedPointKeyForGeometryCategory(category, property)) {
       issue(
         invalidGeometryPropertyMessage(node.elementName, node.property, "point"),
         invalidGeometryPropertyPresentation(node.elementName, node.property, "point")
@@ -299,7 +326,8 @@ export const resolveBuiltinGeometryArguments = ({
       statementId: declaration.statementId,
       statementIndex: declaration.statementIndex,
       geometryType: "point",
-      pointKey: node.property
+      pointKey: property,
+      stagePath: stageSelection.stagePath
     });
   };
 

@@ -1731,8 +1731,8 @@ const addSourceOutputOccurrences = (compiled: CompiledDslDocument, add: AddOccur
   }
 };
 
-const transformationRecipesBefore = (compiled: CompiledDslDocument, statementIndex: number) =>
-  (compiled.transformationRecipes ?? compiled.document?.transformationRecipes ?? []).filter((recipe) => recipe.sourceStatementIndex < statementIndex);
+const transformationRecipesFor = (compiled: CompiledDslDocument) =>
+  compiled.transformationRecipes ?? compiled.document?.transformationRecipes ?? [];
 
 const transformationStageIdentityFor = (
   compiled: CompiledDslDocument,
@@ -1743,7 +1743,7 @@ const transformationStageIdentityFor = (
 ): DslSemanticIdentity | null => {
   if (stagePath.length === 0 || stagePath[0] === "base" || stagePath[0] === "final") return null;
   const occurrenceKey = occurrenceIndex ?? "*";
-  for (const recipe of [...transformationRecipesBefore(compiled, statementIndex)].reverse()) {
+  for (const recipe of [...transformationRecipesFor(compiled)].reverse()) {
     if (!recipe.stageName) continue;
     for (const target of recipe.targets) {
       const targetOccurrenceKey = target.occurrenceIndex ?? "*";
