@@ -73,7 +73,7 @@
   "command.modulePreview.toggleGeometryNames.title": "nuinuiCAD: Toggle Module Preview Geometry Names",
   "command.modulePreview.togglePoints.title": "nuinuiCAD: Toggle Module Preview Points",
   "command.createGeometry.title": "nuinuiCAD: Create Geometry…",
-  "command.insertTemplate.title": "nuinuiCAD: Insert Template…",
+  "command.insertTemplate.title": "Insert Template…",
   "command.createFreePointAtPointer.title": "Create Free Point at Pointer",
   "command.createFreePointAtPointer.shortTitle": "Create Free Point at Pointer",
   "command.webview.showCanvasPointNames.title": "Show Point Names",

@@ -45,6 +45,10 @@ import {
 } from "./sourceCreationCommandFeature";
 import { VSCODE_SOURCE_INSERT_TEMPLATE_COMMAND_ID } from "./sourceCreationCommandFeature";
 import { createNuiLanguageSession } from "@nuinuicad/nui-language";
+import {
+  SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS,
+  sourceTemplateRouteFor
+} from "../../src/commands/sourceTemplateCatalog";
 
 beforeEach(() => {
   mocks.commands.clear();
@@ -188,10 +192,19 @@ const sourceEditorFor = (source: string, version = 1, line = 1) => {
 };
 
 describe("Source Insert Template command feature", () => {
+  it("keeps the fixed family order and explicit family routes", () => {
+    expect(SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS.map(({ label }) => label))
+      .toEqual(["Geometry", "Output / Print"]);
+    expect(sourceTemplateRouteFor(SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS[0]!.id))
+      .toEqual({ familyId: "geometry", kind: "geometry" });
+    expect(sourceTemplateRouteFor(SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS[1]!.id))
+      .toEqual({ familyId: "output-print", kind: "output-print" });
+  });
+
   it("captures the Source target before the fixed family picker and routes Output / Print in order", async () => {
     const { editor, session } = sourceEditorFor("nui 1\n");
     mocks.showQuickPick
-      .mockResolvedValueOnce("Output / Print")
+      .mockResolvedValueOnce(SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS[1])
       .mockResolvedValueOnce("Layout + Print");
     mocks.insertOutputSnippet.mockResolvedValue(true);
     const feature = registerVscodeSourceCreationCommandFeature({
@@ -204,7 +217,7 @@ describe("Source Insert Template command feature", () => {
 
     expect(mocks.currentCompiledSemanticSnapshotFor.mock.invocationCallOrder[0])
       .toBeLessThan(mocks.showQuickPick.mock.invocationCallOrder[0]);
-    expect(mocks.showQuickPick).toHaveBeenNthCalledWith(1, ["Geometry", "Output / Print"]);
+    expect(mocks.showQuickPick).toHaveBeenNthCalledWith(1, SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS);
     expect(mocks.showQuickPick).toHaveBeenNthCalledWith(2, [
       "Layout + Print", "Layout", "Place", "Print", "SVG"
     ]);
@@ -225,7 +238,7 @@ describe("Source Insert Template command feature", () => {
     expect(mocks.insertOutputSnippet).not.toHaveBeenCalled();
 
     mocks.showQuickPick
-      .mockResolvedValueOnce("Output / Print")
+      .mockResolvedValueOnce(SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS[1])
       .mockResolvedValueOnce(undefined);
     await expect(mocks.commands.get(VSCODE_SOURCE_INSERT_TEMPLATE_COMMAND_ID)?.()).resolves.toBeUndefined();
     expect(mocks.insertOutputSnippet).not.toHaveBeenCalled();
@@ -236,7 +249,7 @@ describe("Source Insert Template command feature", () => {
     const { editor, document, session } = sourceEditorFor("nui 1\n");
     mocks.showQuickPick.mockImplementationOnce(async () => {
       document.version += 1;
-      return "Output / Print";
+      return SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS[1];
     });
     const feature = registerVscodeSourceCreationCommandFeature({
       activeSourceEditor: () => editor,
@@ -254,7 +267,7 @@ describe("Source Insert Template command feature", () => {
   it("rejects Place at the top level while preserving the fixed Output / Print catalog", async () => {
     const { editor, session } = sourceEditorFor("nui 1\n");
     mocks.showQuickPick
-      .mockResolvedValueOnce("Output / Print")
+      .mockResolvedValueOnce(SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS[1])
       .mockResolvedValueOnce("Place");
     const feature = registerVscodeSourceCreationCommandFeature({
       activeSourceEditor: () => editor,
@@ -274,7 +287,7 @@ describe("Source Insert Template command feature", () => {
   it("accepts Place only at a direct layout-body boundary", async () => {
     const { editor, session } = sourceEditorFor("nui 1\nlayout L {\n}\n", 1, 2);
     mocks.showQuickPick
-      .mockResolvedValueOnce("Output / Print")
+      .mockResolvedValueOnce(SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS[1])
       .mockResolvedValueOnce("Place");
     mocks.insertOutputSnippet.mockResolvedValue(true);
     const feature = registerVscodeSourceCreationCommandFeature({
@@ -291,7 +304,7 @@ describe("Source Insert Template command feature", () => {
   it("rejects a top-level-only template in a nested group after the unchanged picker order", async () => {
     const { editor, session } = sourceEditorFor("nui 1\ngroup G {\n\n}\n", 1, 2);
     mocks.showQuickPick
-      .mockResolvedValueOnce("Output / Print")
+      .mockResolvedValueOnce(SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS[1])
       .mockResolvedValueOnce("SVG");
     const feature = registerVscodeSourceCreationCommandFeature({
       activeSourceEditor: () => editor,
@@ -312,7 +325,7 @@ describe("Source Insert Template command feature", () => {
     const source = "nui 1\npoint A = coordinate(\n  x: 0,\n  y: 0\n)\n";
     const { editor, session } = sourceEditorFor(source, 1, 1);
     mocks.showQuickPick
-      .mockResolvedValueOnce("Output / Print")
+      .mockResolvedValueOnce(SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS[1])
       .mockResolvedValueOnce("Layout");
     mocks.insertOutputSnippet.mockResolvedValue(true);
     const feature = registerVscodeSourceCreationCommandFeature({
@@ -329,7 +342,7 @@ describe("Source Insert Template command feature", () => {
 
   it("delegates the Geometry family to the existing Geometry chooser and keeps its MRU local", async () => {
     const { editor, session } = sourceEditorFor("nui 1\n");
-    mocks.showQuickPick.mockResolvedValueOnce("Geometry");
+    mocks.showQuickPick.mockResolvedValueOnce(SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS[0]);
     mocks.pickCreationCommand.mockResolvedValue("addLine");
     mocks.insertSnippet.mockResolvedValue(true);
     const feature = registerVscodeSourceCreationCommandFeature({

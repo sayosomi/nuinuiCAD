@@ -73,7 +73,7 @@
   "command.modulePreview.toggleGeometryNames.title": "nuinuiCAD: Module Previewのジオメトリ名の表示を切り替え",
   "command.modulePreview.togglePoints.title": "nuinuiCAD: Module Previewの点の表示を切り替え",
   "command.createGeometry.title": "nuinuiCAD: ジオメトリを作成…",
-  "command.insertTemplate.title": "nuinuiCAD: テンプレートを挿入…",
+  "command.insertTemplate.title": "テンプレートを挿入…",
   "command.createFreePointAtPointer.title": "ポインター位置に自由点を作成",
   "command.createFreePointAtPointer.shortTitle": "ポインター位置に自由点を作成",
   "command.webview.showCanvasPointNames.title": "点名を表示",

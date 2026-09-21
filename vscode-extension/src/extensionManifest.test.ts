@@ -342,6 +342,10 @@ describe("VS Code extension manifest command contributions", () => {
       if (staticWebviewCanonicalCommandIds.some((id) => id === command.command)) {
         expect(command.category).toBe("nuinuiCAD");
         expect(japanese[titleKey]).not.toMatch(/^nuinuiCAD: /);
+      } else if (command.command === "nuinuiCAD.insertTemplate") {
+        expect(command.category).toBe("nuinuiCAD");
+        expect(english[titleKey]).toBe("Insert Template…");
+        expect(japanese[titleKey]).toBe("テンプレートを挿入…");
       } else {
         expect(japanese[titleKey]).toMatch(/^nuinuiCAD: /);
       }
@@ -421,7 +425,7 @@ describe("VS Code extension manifest command contributions", () => {
       "nuinuiCAD: Toggle Module Preview Geometry Names",
       "nuinuiCAD: Toggle Module Preview Points",
       "nuinuiCAD: Create Geometry…",
-      "nuinuiCAD: Insert Template…",
+      "Insert Template…",
       "Create Free Point at Pointer"
     ]);
     expect(commands.map(({ command, category }) => ({ command, category }))).toEqual(commandIds.map((command) => ({

@@ -993,6 +993,7 @@ Primary:
 - `vscode-extension/src/sourceCreationFlow.ts`
 - `vscode-extension/src/creationCommandQuickPick.ts`
 - `vscode-extension/src/sourceCreationSnippetAdapter.ts`
+- `src/commands/sourceTemplateCatalog.ts`
 - `src/commands/sourceOutputTemplateCatalog.ts`
 - `src/vscode/vscodeCanvasCreationCommands.ts`
 - `src/geometry/geometryHoverPresentation.ts`
@@ -1129,14 +1130,16 @@ Assist Bottom Dock. Canvas Free Point at Pointer remains a separate
 command-owned Source-position flow, and shared Pick Mode remains a distinct
 Canvas interaction owner.
 
-`nuinuiCAD: Insert Template…` is the unified native Source catalog entry. Its
-family picker is owned by `sourceCreationCommandFeature.ts`; Geometry delegates
-to the existing Create Geometry flow and its session-local MRU, while the
-fixed Output / Print definitions and template-specific scope classification
-are owned by `sourceOutputTemplateCatalog.ts`. Both routes capture the Source
-document/version and reuse `src/commands/sourceCreationInsertion.ts` for a
-statement-safe boundary before native snippet insertion. Template catalog
-state is ephemeral to the command invocation; source text remains canonical.
+`Insert Template…` is the unified native Source catalog entry. The
+host-neutral `src/commands/sourceTemplateCatalog.ts` owns its fixed family
+presentation/order, selected family identity, exhaustive family routing, and
+the shared statement-safe insertion context. Geometry routing delegates to the
+existing Create Geometry flow and its session-local MRU. The separate
+`src/commands/sourceOutputTemplateCatalog.ts` owns only the five fixed Output /
+Print definitions, snippet shapes, and legality rules. Both routes capture the
+Source document/version and reuse `src/commands/sourceCreationInsertion.ts` for
+a statement-safe boundary before native snippet insertion. Catalog state is
+ephemeral to the command invocation; source text remains canonical.
 
 The Preview route uses `modulePreviewProtocol.ts`,
 `useVSCodeModulePreviewReferencePickSession.ts`, and

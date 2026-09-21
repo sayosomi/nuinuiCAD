@@ -1,13 +1,5 @@
-import type { CompiledDslDocument, StatementInfo } from "@nuinuicad/nui-language";
 import { DSL_INDENT } from "@nuinuicad/nui-language";
-import {
-  resolveSourceCreationInsertion,
-  type SourceCreationCursor,
-  type SourceCreationInsertion
-} from "./sourceCreationInsertion";
-
-export const SOURCE_TEMPLATE_FAMILIES = ["Geometry", "Output / Print"] as const;
-export type SourceTemplateFamily = (typeof SOURCE_TEMPLATE_FAMILIES)[number];
+import type { SourceTemplateInsertionScope } from "./sourceTemplateCatalog";
 
 export const SOURCE_OUTPUT_TEMPLATE_DEFINITIONS = [
   { id: "layout-print", label: "Layout + Print" },
@@ -28,17 +20,6 @@ export type SourceOutputTemplateSnippet = {
   templateId: SourceOutputTemplateId;
   parts: readonly SourceOutputTemplateSnippetPart[];
 };
-
-export type SourceTemplateInsertionScope = "top-level" | "direct-layout-body" | "nested";
-
-export type SourceTemplateInsertionContext = {
-  insertion: SourceCreationInsertion;
-  scope: SourceTemplateInsertionScope;
-};
-
-export type SourceTemplateInsertionResolution =
-  | { kind: "safe"; context: SourceTemplateInsertionContext }
-  | { kind: "unsafe" };
 
 const text = (value: string): SourceOutputTemplateSnippetPart => ({ kind: "text", text: value });
 const tabstop = (index: number): SourceOutputTemplateSnippetPart => ({ kind: "tabstop", index });
@@ -122,61 +103,6 @@ export const sourceOutputTemplateSnippetFor = (
   templateId,
   parts: sourceOutputTemplateSnippetPartsFor(templateId)
 });
-
-const openingBraceLineFor = (info: StatementInfo): number | undefined =>
-  info.openBraceLine ?? (info.range.endLine > info.endLine ? info.endLine : undefined);
-
-const openBlockContainsInsertionLine = (info: StatementInfo, line: number): boolean =>
-  openingBraceLineFor(info) !== undefined &&
-  info.closeBraceLine !== undefined &&
-  openingBraceLineFor(info)! < line &&
-  line <= info.closeBraceLine;
-
-/**
- * Resolves the existing statement-safe Source boundary and classifies only
- * the structural scopes needed by the current template catalog. The parser
- * and compiler remain the owners of statement identity and lexical structure.
- */
-export const resolveSourceTemplateInsertion = ({
-  cursor,
-  compiled
-}: {
-  cursor: SourceCreationCursor;
-  compiled: CompiledDslDocument;
-}): SourceTemplateInsertionResolution => {
-  const insertion = resolveSourceCreationInsertion({
-    cursor,
-    sourceRevision: compiled.spans.sourceMap.sourceRevision,
-    elements: [...compiled.sourceElementsByStatementIndex.values()],
-    statementMap: compiled.statementMap
-  });
-  if (insertion.kind !== "safe") return { kind: "unsafe" };
-
-  const statementMap = compiled.statementMap;
-  if (!statementMap) return { kind: "unsafe" };
-  const enclosingBlocks = statementMap.statements.filter((info) =>
-    openBlockContainsInsertionLine(info, insertion.insertion.sourceInsertionLine)
-  );
-  if (enclosingBlocks.length === 0) {
-    return {
-      kind: "safe",
-      context: {
-        insertion: insertion.insertion,
-        scope: insertion.insertion.insertionTarget.parentGroupId === undefined ? "top-level" : "nested"
-      }
-    };
-  }
-  if (enclosingBlocks.length === 1 && enclosingBlocks[0]?.kind === "layout") {
-    return {
-      kind: "safe",
-      context: { insertion: insertion.insertion, scope: "direct-layout-body" }
-    };
-  }
-  return {
-    kind: "safe",
-    context: { insertion: insertion.insertion, scope: "nested" }
-  };
-};
 
 export const sourceOutputTemplateIsLegalIn = (
   templateId: SourceOutputTemplateId,

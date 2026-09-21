@@ -7,13 +7,16 @@ import {
 import { normalizedSourceFor } from "./sourceOffsetAdapter";
 import {
   SOURCE_OUTPUT_TEMPLATE_DEFINITIONS,
-  SOURCE_TEMPLATE_FAMILIES,
-  resolveSourceTemplateInsertion,
   sourceOutputTemplateIsLegalIn,
   sourceOutputTemplateSnippetFor,
-  type SourceOutputTemplateId,
-  type SourceTemplateInsertionContext
+  type SourceOutputTemplateId
 } from "../../src/commands/sourceOutputTemplateCatalog";
+import {
+  SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS,
+  resolveSourceTemplateInsertion,
+  sourceTemplateRouteFor,
+  type SourceTemplateInsertionContext
+} from "../../src/commands/sourceTemplateCatalog";
 import {
   type SourceCreationCursor,
   type SourceCreationInsertion
@@ -134,6 +137,38 @@ const illegalScopeMessageFor = (templateId: SourceOutputTemplateId): string =>
     ? "nuinuiCAD: Place is legal only directly inside a layout body."
     : "nuinuiCAD: This template is legal only at the document top level.";
 
+const insertOutputTemplate = async (
+  target: SourceTemplateTarget,
+  insertionPosition: vscode.Position,
+  isCurrent: () => boolean,
+  showStaleMessage: () => void
+): Promise<boolean | undefined> => {
+  const outputTemplateLabel = await nativeShowQuickPick(
+    SOURCE_OUTPUT_TEMPLATE_DEFINITIONS.map((template) => template.label)
+  );
+  if (!isCurrent()) {
+    showStaleMessage();
+    return undefined;
+  }
+  if (!outputTemplateLabel) return undefined;
+  const templateId = outputTemplateIdForLabel(outputTemplateLabel);
+  if (!templateId) return undefined;
+  if (!sourceOutputTemplateIsLegalIn(templateId, target.context.scope)) {
+    void vscode.window.showErrorMessage(illegalScopeMessageFor(templateId));
+    return undefined;
+  }
+
+  return insertSourceOutputTemplateSnippet(
+    target.editor,
+    sourceOutputTemplateSnippetFor(templateId),
+    insertionPosition
+  );
+};
+
+const unreachableSourceTemplateRoute = (route: never): never => {
+  throw new Error(`Unsupported Source Template route: ${String(route)}`);
+};
+
 export const registerVscodeSourceCreationCommandFeature = ({
   activeSourceEditor,
   displayLanguageFor,
@@ -178,7 +213,7 @@ export const registerVscodeSourceCreationCommandFeature = ({
         target.session.getSourceRevision() === target.sourceRevision &&
         target.session.getSource() === target.rawSource;
 
-      const family = await nativeShowQuickPick(SOURCE_TEMPLATE_FAMILIES);
+      const family = await nativeShowQuickPick(SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS);
       if (!isCurrent()) {
         showStaleMessage();
         return undefined;
@@ -186,44 +221,33 @@ export const registerVscodeSourceCreationCommandFeature = ({
       if (!family) return undefined;
 
       const insertionPosition = sourcePositionForInsertion(target.context.insertion);
-      if (family === "Geometry") {
-        return runSourceCreationFlow(
-          target.editor,
-          target.caret,
-          displayLanguageFor(),
-          sourceCreationMru,
-          {
+      const route = sourceTemplateRouteFor(family.id);
+      switch (route.kind) {
+        case "geometry":
+          return runSourceCreationFlow(
+            target.editor,
+            target.caret,
+            displayLanguageFor(),
+            sourceCreationMru,
+            {
+              insertionPosition,
+              snippetOptions: {
+                ...(target.context.scope === "direct-layout-body" ? { prefixText: DSL_INDENT } : {}),
+                appendNewline: true
+              },
+              isCurrent,
+              onStale: showStaleMessage
+            }
+          );
+        case "output-print":
+          return insertOutputTemplate(
+            target,
             insertionPosition,
-            snippetOptions: {
-              ...(target.context.scope === "direct-layout-body" ? { prefixText: DSL_INDENT } : {}),
-              appendNewline: true
-            },
             isCurrent,
-            onStale: showStaleMessage
-          }
-        );
+            showStaleMessage
+          );
       }
-
-      const outputTemplateLabel = await nativeShowQuickPick(
-        SOURCE_OUTPUT_TEMPLATE_DEFINITIONS.map((template) => template.label)
-      );
-      if (!isCurrent()) {
-        showStaleMessage();
-        return undefined;
-      }
-      if (!outputTemplateLabel) return undefined;
-      const templateId = outputTemplateIdForLabel(outputTemplateLabel);
-      if (!templateId) return undefined;
-      if (!sourceOutputTemplateIsLegalIn(templateId, target.context.scope)) {
-        void vscode.window.showErrorMessage(illegalScopeMessageFor(templateId));
-        return undefined;
-      }
-
-      return insertSourceOutputTemplateSnippet(
-        target.editor,
-        sourceOutputTemplateSnippetFor(templateId),
-        insertionPosition
-      );
+      return unreachableSourceTemplateRoute(route);
     }
   );
   return {
