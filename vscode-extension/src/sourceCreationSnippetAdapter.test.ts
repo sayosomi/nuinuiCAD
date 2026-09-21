@@ -2,7 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 
 type SnippetEvent =
   | { kind: "text"; text: string }
-  | { kind: "tabstop"; index: number };
+  | { kind: "tabstop"; index: number }
+  | { kind: "choice"; index: number; choices: readonly string[] };
 
 type TestSnippetString = {
   readonly events: SnippetEvent[];
@@ -29,6 +30,13 @@ vi.mock("vscode", () => {
       this.value += `$${index}`;
       return this;
     }
+
+    appendChoice(choices: readonly string[], index?: number): this {
+      const tabstopIndex = index ?? 1;
+      this.events.push({ kind: "choice", index: tabstopIndex, choices });
+      this.value += "${" + tabstopIndex + "|" + choices.join(",") + "|}";
+      return this;
+    }
   }
 
   return { Position, SnippetString };
@@ -43,8 +51,11 @@ import {
 } from "../../src/commands/sourceCreationTemplateMaterializer";
 import {
   createSourceCreationSnippet,
-  insertSourceCreationSnippet
+  createSourceOutputTemplateSnippet,
+  insertSourceCreationSnippet,
+  insertSourceOutputTemplateSnippet
 } from "./sourceCreationSnippetAdapter";
+import { sourceOutputTemplateSnippetFor } from "../../src/commands/sourceOutputTemplateCatalog";
 
 const materializeFor = (commandId: string, formIndex = 0): SourceCreationTemplateMaterialization => {
   const plan = sourceCreationTemplatePlanForLegacyCommand(commandId);
@@ -144,5 +155,59 @@ describe("VS Code source creation snippet adapter", () => {
     expect(insertionPosition).toBe(position);
     expect(result).toBe(insertionResult);
     await expect(result).resolves.toBe(true);
+  });
+
+  it("uses linked layout-name tabstops and native paper/orientation choices for Layout + Print", () => {
+    const snippet = createSourceOutputTemplateSnippet(sourceOutputTemplateSnippetFor("layout-print")) as unknown as TestSnippetString;
+
+    expect(snippet.events).toContainEqual({ kind: "tabstop", index: 1 });
+    expect(snippet.events).toContainEqual({ kind: "choice", index: 3, choices: ["a4", "a3"] });
+    expect(snippet.events).toContainEqual({ kind: "choice", index: 4, choices: ["portrait", "landscape"] });
+    expect(snippet.events.filter((event) => event.kind === "tabstop").map((event) => event.index))
+      .toEqual([1, 2, 1, 5]);
+    expect(snippet.value).toContain("layout $1");
+    expect(snippet.value).toContain("layout: @$1");
+  });
+
+  it("keeps Print's required fields in output-name, layout, paper, orientation, overlap order", () => {
+    const snippet = createSourceOutputTemplateSnippet(sourceOutputTemplateSnippetFor("print")) as unknown as TestSnippetString;
+
+    expect(snippet.events.filter((event) => event.kind === "tabstop").map((event) => event.index))
+      .toEqual([1, 2, 5]);
+    expect(snippet.events.filter((event) => event.kind === "choice").map((event) => event.index))
+      .toEqual([3, 4]);
+    expect(snippet.value).toContain("paper:");
+    expect(snippet.value).toContain("orientation:");
+    expect(snippet.value).toContain("overlap: $5");
+  });
+
+  it("inserts Output / Print through the same native TextEditor.insertSnippet boundary", async () => {
+    const insertSnippet = vi.fn(() => Promise.resolve(true));
+    const editor = { insertSnippet } as unknown as vscode.TextEditor;
+    const position = new vscode.Position(7, 0);
+
+    await expect(insertSourceOutputTemplateSnippet(
+      editor,
+      sourceOutputTemplateSnippetFor("svg"),
+      position
+    )).resolves.toBe(true);
+    expect(insertSnippet).toHaveBeenCalledTimes(1);
+    expect(insertSnippet.mock.calls[0]?.[0]).toBeInstanceOf(vscode.SnippetString);
+    expect(insertSnippet.mock.calls[0]?.[1]).toBe(position);
+  });
+
+  it("keeps Place minimal with the group, X, and Y tabstops only", () => {
+    const snippet = createSourceOutputTemplateSnippet(sourceOutputTemplateSnippetFor("place")) as unknown as TestSnippetString;
+
+    expect(snippet.value).toBe([
+      "  place @$1(",
+      "    at: ($2, $3)",
+      "  )",
+      ""
+    ].join("\n"));
+    expect(snippet.value).not.toContain("origin:");
+    expect(snippet.value).not.toContain("scale:");
+    expect(snippet.value).not.toContain("angle:");
+    expect(snippet.value).not.toContain("mirror:");
   });
 });

@@ -453,6 +453,10 @@
           "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui"
         },
         {
+          "command": "nuinuiCAD.insertTemplate",
+          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && !editorReadonly"
+        },
+        {
           "command": "nuinuiCAD.createFreePointAtPointer",
           "when": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
         },
@@ -743,6 +747,11 @@
           "command": "nuinuiCAD.createGeometry",
           "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && !editorReadonly",
           "group": "2_nuinuiCAD@0"
+        },
+        {
+          "command": "nuinuiCAD.insertTemplate",
+          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && !editorReadonly",
+          "group": "2_nuinuiCAD@0.1"
         },
         {
           "command": "nuinuiCAD.revealInCanvas",
@@ -1069,6 +1078,11 @@
       {
         "command": "nuinuiCAD.createGeometry",
         "title": "%command.createGeometry.title%"
+      },
+      {
+        "command": "nuinuiCAD.insertTemplate",
+        "title": "%command.insertTemplate.title%",
+        "category": "nuinuiCAD"
       },
       {
         "command": "nuinuiCAD.createFreePointAtPointer",

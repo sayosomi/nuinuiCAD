@@ -2077,7 +2077,8 @@ export const activate = (
   });
   const sourceCreationFeature = registerVscodeSourceCreationCommandFeature({
     activeSourceEditor: activeNuiTextEditorForCommand,
-    displayLanguageFor: extensionDisplayLanguage
+    displayLanguageFor: extensionDisplayLanguage,
+    languageAnalysisSessionFor
   });
   canvasFreePointAtPointerFeature = registerVscodeCanvasFreePointAtPointerFeature({
     sourceAuthoringPosition: sourceAuthoringPositionFeature,
