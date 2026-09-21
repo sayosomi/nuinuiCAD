@@ -1,6 +1,6 @@
 import type { CadElement, ElementId, LineEndpointReference, PointAnchor } from "../types/geometry";
 
-export type PointAnchorGeometryCategory = "point" | "line" | "curve" | "arc" | "text" | "image";
+export type PointAnchorGeometryCategory = "point" | "line" | "path" | "curve" | "arc" | "text" | "image";
 
 /** Canonical source-level derived-point accessor vocabulary. */
 export const isKnownDerivedPointKey = (pointKey: string): boolean =>
@@ -14,7 +14,7 @@ export const isDerivedPointKeyForGeometryCategory = (
   pointKey: string
 ): boolean => {
   if (!isKnownDerivedPointKey(pointKey)) return false;
-  if (category === "line") return pointKey === "start" || pointKey === "end";
+  if (category === "line" || category === "path") return pointKey === "start" || pointKey === "end";
   if (category === "curve") return pointKey === "start" || pointKey === "end" || pointKey.startsWith("intermediate:");
   if (category === "arc") return pointKey === "start" || pointKey === "end" || pointKey === "center";
   return false;
@@ -66,7 +66,8 @@ export const isPointElement = (element: CadElement) =>
   element.type === "intersectionPoint" ||
   element.type === "lineTangentOffsetPoint" ||
   element.type === "bezierExtremePoint" ||
-  element.type === "bezierBulgePoint";
+  element.type === "bezierBulgePoint" ||
+  element.type === "materializedPoint";
 
 export const pointAnchorForElement = (element: CadElement): PointAnchor | null => {
   if (element.type === "offsetPoint" || element.type === "polarOffsetPoint") {
@@ -78,7 +79,7 @@ export const pointAnchorForElement = (element: CadElement): PointAnchor | null =
 export const pointAnchorOptions = (elements: CadElement[]): PointAnchor[] =>
   elements.flatMap((element) => {
     if (isPointElement(element)) return [referenceAnchor(element.id)];
-    if (element.type === "line" || element.type === "commonTangentLine") {
+    if (element.type === "line" || element.type === "commonTangentLine" || element.type === "materializedLine" || element.type === "materializedPath") {
       return [derivedAnchor(element.id, "start"), derivedAnchor(element.id, "end")];
     }
     if (element.type === "arcLine" || element.type === "threePointArcLine") {
@@ -161,7 +162,9 @@ export const isLineLikeElement = (element: CadElement) =>
   element.type === "polyline" ||
   element.type === "splitLine" ||
   element.type === "copyLine" ||
-  element.type === "symmetricCopyLine";
+  element.type === "symmetricCopyLine" ||
+  element.type === "materializedLine" ||
+  element.type === "materializedPath";
 
 export const lineEndpointReferenceOptions = (elements: CadElement[]): LineEndpointReference[] =>
   elements.flatMap((element) =>

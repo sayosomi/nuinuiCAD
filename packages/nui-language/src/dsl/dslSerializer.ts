@@ -13,6 +13,7 @@ import type {
   VisibilityProfile,
   VisibilityRole
 } from "../types/geometry";
+import type { GeometryInputTarget } from "../model/cadDocumentTypes";
 import { formatNumericValueForDsl } from "./dslExpressionFormat";
 import { formatDslReferencePath, formatDslReferenceToken } from "./dslReferenceTokens";
 import { serializeElementStatementBlock, type SerializedStatement } from "./dslSerializeElement";
@@ -31,7 +32,23 @@ export type DslSerializerRefs = {
   endpoint: (value: LineEndpointReference, source: CadElement) => string;
   numeric: (value: NumericValue, source: CadElement) => string;
   name: (element: CadElement) => string;
+  geometryInputSource: (element: CadElement, parameterKey: string) => string | undefined;
   includeRecordIds: boolean;
+};
+
+type GeometryInputTargetsByElementId = ReadonlyMap<
+  ElementId,
+  ReadonlyMap<string, GeometryInputTarget | readonly GeometryInputTarget[]>
+>;
+
+const geometryInputSourceText = (
+  targets: GeometryInputTargetsByElementId | undefined,
+  element: CadElement,
+  parameterKey: string
+): string | undefined => {
+  const value = targets?.get(element.id)?.get(parameterKey);
+  const target = Array.isArray(value) ? value[0] : value;
+  return target && "sourceText" in target ? target.sourceText : undefined;
 };
 
 const flatAnchor = (value: PointAnchor | null | undefined) => {
@@ -44,12 +61,15 @@ const flatAnchor = (value: PointAnchor | null | undefined) => {
 
 const sourceToken = (token: string) => token.startsWith("@") ? token : `@${token}`;
 
-export const flatRefs = (): DslSerializerRefs => ({
+export const flatRefs = (
+  geometryInputTargetsByElementId?: GeometryInputTargetsByElementId
+): DslSerializerRefs => ({
   token: (id) => sourceToken(id),
   anchor: (value) => flatAnchor(value),
   endpoint: (value) => `${sourceToken(value.lineId)}.${value.endpointKey}`,
   numeric: (value) => numericValueExpression(value),
   name: (element) => formatDslName(element.name || element.id),
+  geometryInputSource: (element, parameterKey) => geometryInputSourceText(geometryInputTargetsByElementId, element, parameterKey),
   includeRecordIds: true
 });
 
@@ -58,7 +78,8 @@ export const flatRefs = (): DslSerializerRefs => ({
 // 参照先が無名・消滅している場合は生IDトークンのまま出力し、決して例外を
 // 投げない(再パース時に明示的な依存診断になる)。
 export const documentDslRefs = (
-  elements: CadElement[]
+  elements: CadElement[],
+  geometryInputTargetsByElementId?: GeometryInputTargetsByElementId
 ): DslSerializerRefs => {
   const nameContext = createElementNameContext(elements);
   const elementsById = nameContext.elementsById;
@@ -88,6 +109,7 @@ export const documentDslRefs = (
     },
     endpoint: (value, source) => `${sourceToken(token(value.lineId, source))}.${value.endpointKey}`,
     numeric,
+    geometryInputSource: (element, parameterKey) => geometryInputSourceText(geometryInputTargetsByElementId, element, parameterKey),
     // 無名要素は名前トークンを一切出力しない(空文字列)。ID
     // フォールバックは「参照される側」(token関数)のみの役割で、
     // 「文自身の名前」には適用しない — さもないと無名要素が

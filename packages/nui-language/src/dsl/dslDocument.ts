@@ -118,6 +118,8 @@ export {
 
 export type DslDocumentData = {
   elements: CadElement[];
+  /** Compiler-owned geometry references used to serialize materialized source slots. */
+  geometryInputTargetsByElementId?: ReadonlyMap<ElementId, ReadonlyMap<string, GeometryInputTarget | readonly GeometryInputTarget[]>>;
   /** Declarative transformation clauses kept separate from drawable elements. */
   transformationRecipes?: import("./transformationRecipes").TransformationRecipe[];
   /** Document-level source definitions; runtime style resolution is deferred. */
@@ -729,7 +731,9 @@ export const serializeDocumentToDsl = (
   majorVersion: DslMajorVersion,
   options: SerializeDslDocumentOptions = {}
 ): string => {
-  const refs = options.preserveElementOrder ? flatRefs() : documentDslRefs(data.elements);
+  const refs = options.preserveElementOrder
+    ? flatRefs(data.geometryInputTargetsByElementId)
+    : documentDslRefs(data.elements, data.geometryInputTargetsByElementId);
   const drawingProfiles = data.drawingProfiles?.length
     ? data.drawingProfiles
     : [...new Map(
@@ -1113,6 +1117,9 @@ export const compileDslDocument = (
   );
   const hasGeometryValueStatements = parsed.statements.some(
     (statement) => statement.kind === "typedDeclaration" && isDslGeometryValueType(dslRequiredValueTypeOf(statement.valueType))
+  );
+  const hasMaterializationStatements = parsed.statements.some(
+    (statement) => statement.kind === "element" && statement.construction === "from"
   );
   const hasGeometryCarryStatements = parsed.statements.some(
     (statement) => statement.kind === "element" && statement.type === "forGroup" &&
@@ -2696,7 +2703,7 @@ export const compileDslDocument = (
   // The source semantic projection is also useful for Definition Query in a
   // document without Modules. Geometry values also need this path so their
   // source-only aliases can be lowered at existing geometry consumers.
-  const moduleSemanticCompilation = hasModuleStatements || hasGeometryValueStatements || hasGeometryCarryStatements || hasRecordValueControlFlowStatements || hasGeneralizedRecordFields || hasNonScalarOptionalOrCoalescingStatements || hasGenericCollectionIndexStatements || hasGeometryCollectionIndexStatements || hasCollectionControlFlowStatements || hasNominalRecordCollectionValueFor || hasOptionalMemberStatements || hasStageAwareGeometryReferences ? sourceSemanticCompilation : undefined;
+  const moduleSemanticCompilation = hasModuleStatements || hasGeometryValueStatements || hasMaterializationStatements || hasGeometryCarryStatements || hasRecordValueControlFlowStatements || hasGeneralizedRecordFields || hasNonScalarOptionalOrCoalescingStatements || hasGenericCollectionIndexStatements || hasGeometryCollectionIndexStatements || hasCollectionControlFlowStatements || hasNominalRecordCollectionValueFor || hasOptionalMemberStatements || hasStageAwareGeometryReferences ? sourceSemanticCompilation : undefined;
   const geometryInputTargetsByElementId = new Map<ElementId, Map<string, GeometryInputTarget>>();
   if (moduleSemanticCompilation && stableStatementIdByIndex) {
     for (const [statementId, sites] of moduleSemanticCompilation.rootGeometryReferencesByStatementId) {
@@ -2724,7 +2731,8 @@ export const compileDslDocument = (
                         elementId: sourceElementId,
                         geometryType: target.geometryKind,
                         ...(target.pointKey ? { pointKey: target.pointKey } : {}),
-                        ...(target.stagePath ? { stagePath: target.stagePath } : {})
+                        ...(target.stagePath ? { stagePath: target.stagePath } : {}),
+                        sourceText: site.reference.source
                       }
                     : undefined;
                 })()
@@ -2734,7 +2742,8 @@ export const compileDslDocument = (
                     occurrence: { sourceStatementId: target.statementId, instancePath: [] },
                     geometryType: target.declaredInterfaceType,
                     ...(target.pointKey ? { pointKey: target.pointKey } : {}),
-                    ...(target.stagePath ? { stagePath: target.stagePath } : {})
+                    ...(target.stagePath ? { stagePath: target.stagePath } : {}),
+                    sourceText: site.reference.source
                   }
                 : undefined;
         if (!targetForRuntime) continue;
@@ -4102,7 +4111,7 @@ export const compileDslDocument = (
       ...(compiled.moduleMaterialization ? { moduleMaterialization: compiled.moduleMaterialization } : {}),
       ...(compiled.moduleGeometryRuntime ? { moduleGeometryRuntime: compiled.moduleGeometryRuntime } : {}),
       ...(compiled.geometryValueProgram ? { geometryValueProgram: compiled.geometryValueProgram } : {}),
-      ...(moduleScalarCompilation?.geometryValueProgram ? { geometryValueProgram: moduleScalarCompilation.geometryValueProgram } : {}),
+      ...(moduleScalarCompilation?.geometryValueProgram?.length ? { geometryValueProgram: moduleScalarCompilation.geometryValueProgram } : {}),
       ...(moduleScalarCompilation?.scalarExecutionPositionByRuntimeElementId
         ? { scalarExecutionPositionByRuntimeElementId: moduleScalarCompilation.scalarExecutionPositionByRuntimeElementId }
         : {}),
@@ -4137,6 +4146,7 @@ export const compileDslDocument = (
 
   const document: DslDocumentData = {
     elements: compiled.elements,
+    ...(geometryInputTargetsByElementId.size ? { geometryInputTargetsByElementId } : {}),
     transformationRecipes: compiled.documentTransformationRecipes ?? compiled.transformationRecipes ?? [],
     modifiers: compiled.modifiers ?? [],
     ...(compiled.drawingProfiles?.length ? { drawingProfiles: compiled.drawingProfiles } : {}),
@@ -4200,7 +4210,7 @@ export const compileDslDocument = (
     ...(compiled.moduleMaterialization ? { moduleMaterialization: compiled.moduleMaterialization } : {}),
       ...(compiled.moduleGeometryRuntime ? { moduleGeometryRuntime: compiled.moduleGeometryRuntime } : {}),
       ...(compiled.geometryValueProgram ? { geometryValueProgram: compiled.geometryValueProgram } : {}),
-      ...(moduleScalarCompilation?.geometryValueProgram ? { geometryValueProgram: moduleScalarCompilation.geometryValueProgram } : {}),
+    ...(moduleScalarCompilation?.geometryValueProgram?.length ? { geometryValueProgram: moduleScalarCompilation.geometryValueProgram } : {}),
     ...(moduleScalarCompilation?.scalarExecutionPositionByRuntimeElementId
       ? { scalarExecutionPositionByRuntimeElementId: moduleScalarCompilation.scalarExecutionPositionByRuntimeElementId }
       : {}),

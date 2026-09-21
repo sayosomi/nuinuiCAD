@@ -298,6 +298,22 @@ export const applyArgs = (
   const anchor = (source: string, parameterKeyOrSpan?: string | DslSpan, sourceSpan?: DslSpan) => {
     const parameterKey = typeof parameterKeyOrSpan === "string" ? parameterKeyOrSpan : undefined;
     const actualSpan = typeof parameterKeyOrSpan === "string" ? sourceSpan : parameterKeyOrSpan;
+    if (parameterKey && materializationSource(parameterKey)) {
+      const probeDiagnostics: DslDiagnostic[] = [];
+      const lowered = resolvers.resolveAnchor?.(
+        source,
+        resolvers.index,
+        resolvers.line,
+        probeDiagnostics,
+        numeric,
+        next,
+        actualSpan
+      );
+      if (lowered && isDeferredGeometryInputTarget(lowered)) {
+        resolvers.recordGeometryInputTarget?.(next.id, parameterKey, lowered);
+      }
+      return referenceAnchor(source.trim());
+    }
     const resolved = resolveAnchor(source, resolvers.index, resolvers.line, diagnostics, numeric, next, actualSpan);
     if (isDeferredGeometryInputTarget(resolved)) {
       resolvers.recordGeometryInputTarget?.(next.id, parameterKey ?? "", resolved);
@@ -307,6 +323,9 @@ export const applyArgs = (
   };
   const lineConsumerPolicy = (parameterKey: string) =>
     geometryLineConsumerPolicyFor(next.type, parameterKey);
+  const materializationSource = (parameterKey: string) =>
+    parameterKey === "source" &&
+    (next.type === "materializedPoint" || next.type === "materializedLine" || next.type === "materializedPath");
   const rejectImmutableMutationTarget = (target: RuntimeGeometryInputTarget, parameterKey: string, sourceSpan?: DslSpan) => {
     if (target.kind === "collectionIndex") return false;
     if (target.kind !== "geometryValue" || lineConsumerPolicy(parameterKey) !== "identityMutation") return false;
@@ -337,7 +356,7 @@ export const applyArgs = (
       );
       if (lowered) {
         if (rejectImmutableMutationTarget(lowered, parameterKey, sourceSpan)) return source.trim();
-        if (lineConsumerPolicy(parameterKey) === "readOnly") {
+        if (lineConsumerPolicy(parameterKey) === "readOnly" || materializationSource(parameterKey)) {
           resolvers.recordGeometryInputTarget?.(next.id, parameterKey, lowered);
         }
         if (lowered.kind === "drawable") return lowered.elementId;
@@ -346,6 +365,11 @@ export const applyArgs = (
         // interpreted as an ElementId.
         return source.trim();
       }
+      // Materialization source compatibility is owned by the shared Module
+      // geometry interface analysis. Do not let the legacy ElementId lookup
+      // turn an optional, broad-path, or forward source into an unrelated
+      // invalid-source-reference diagnostic before that authority runs.
+      if (materializationSource(parameterKey)) return source.trim();
       const resolvedId = resolveId(source, resolvers.index, resolvers.line, diagnostics, next, sourceSpan);
       const target = resolvers.index.elementsById.get(resolvedId);
       if (target && !isLineLikeElement(target)) {

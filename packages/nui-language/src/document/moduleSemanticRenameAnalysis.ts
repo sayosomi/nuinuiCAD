@@ -51,7 +51,7 @@ export type RecordRenameAnalysis =
 
 const validIdentifier = (name: string) => {
   if (!name || ![...name].every(isBareDslIdentifierChar) || !/^[^0-9\s]/.test(name)) return false;
-  return !new Set(["true", "false", "module", "export", "point", "line", "curve", "arc"]).has(name);
+  return !new Set(["true", "false", "module", "export", "point", "line", "path", "curve", "arc"]).has(name);
 };
 
 const statementIndexForOffset = (compiled: CompiledDslDocument, offset: number) => compiled.statements.findIndex((statement) =>

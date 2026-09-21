@@ -70,6 +70,8 @@ export type DslCompletionContext =
 export type DslGeometryReferenceKind =
   | "point"
   | "line"
+  | "strictLine"
+  | "path"
   | "lineEndpointReference"
   | "lineReference"
   | "lineReferenceList"
@@ -83,6 +85,9 @@ export const dslGeometryReferenceKindForParameter = (
     case "lineEndpointReference":
       return "lineEndpointReference";
     case "lineReference":
+      if (parameter.definition.valueType?.kind === "line") return "strictLine";
+      if (parameter.definition.valueType?.kind === "path") return "path";
+      return parameter.definition.kind;
     case "lineReferenceList":
       return parameter.definition.kind;
     case "pointReferenceList":

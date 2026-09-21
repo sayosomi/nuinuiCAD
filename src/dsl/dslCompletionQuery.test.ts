@@ -489,6 +489,26 @@ describe("queryDslCompletion", () => {
     expect(labels(result)).toEqual(["L"]);
   });
 
+  it("filters materialized source candidates by the declaration interface", () => {
+    const source = [
+      "nui 1",
+      "point P = coordinate(x: 0, y: 0)",
+      "line L = segment(start: @P, end: @P)",
+      "curve C = bezier(start: @P, end: @P)",
+      "path Broad = from(source: @L)",
+      "line Strict = from(source: @L)"
+    ].join("\n");
+    const broad = exactQuery(source, "path Broad = from(source: @", "path Broad = from(source: @".length);
+    const strict = exactQuery(source, "line Strict = from(source: @", "line Strict = from(source: @".length);
+    expect(broad?.context).toMatchObject({ parameter: { definition: { valueType: { kind: "path" } } } });
+    expect(labels(broad)).toEqual(expect.arrayContaining(["L", "C"]));
+    expect(labels(broad)).not.toContain("P");
+    expect(strict?.context).toMatchObject({ parameter: { definition: { valueType: { kind: "line" } } } });
+    expect(labels(strict)).toContain("L");
+    expect(labels(strict)).not.toContain("C");
+    expect(labels(strict)).not.toContain("Broad");
+  });
+
   it("uses the canonical typed-scalar geometry property vocabulary", () => {
     const source = [
       "nui 1",

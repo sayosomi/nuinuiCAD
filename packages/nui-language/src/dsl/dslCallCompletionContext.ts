@@ -18,7 +18,7 @@ export type DslCallCompletionContext =
 const identifierStart = /[A-Za-z_]/;
 const identifierPart = /[A-Za-z0-9_-]/;
 const categories = new Set<DslConstructionCategory>([
-  "point", "line", "curve", "arc", "text", "image", "group", "if", "for"
+  "point", "line", "path", "curve", "arc", "text", "image", "group", "if", "for"
 ]);
 const containerCategories = new Set<DslConstructionCategory>(["group", "if", "for"]);
 

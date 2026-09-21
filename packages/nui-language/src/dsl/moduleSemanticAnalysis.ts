@@ -177,7 +177,7 @@ const scalarTypeOf = (type: DslModuleParameterType | null): ScalarType | null =>
 const geometryKindOf = moduleRuntimeGeometryKindOf;
 
 const geometryKindOfCategory = (category: DslGeometryDeclarationCategory): "point" | "line" | null =>
-  category === "point" ? "point" : category === "line" || category === "curve" || category === "arc" ? "line" : null;
+  category === "point" ? "point" : category === "line" || category === "path" || category === "curve" || category === "arc" ? "line" : null;
 
 const sourceSpanFor = (spans: DiagnosticSpanContext, statement: DslStatement, span: DslSpan) =>
   exactPhysicalSpan(spans, statement, span);
@@ -2449,21 +2449,28 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           }
         : null;
       const expectedValueType = options.expectedValueType ?? { kind: options.expectedInterfaceType ?? (expected === "point" ? "point" : "path") } satisfies DslValueType;
+      const optionalSourceRequiresResolution = isDslOptionalValueType(actualValueType) && !isDslOptionalValueType(expectedValueType);
       const compatible = pointKey
         ? Boolean(target && actualInterfaceType !== "point" && isLineEndpointPointKey(pointKey))
-        : Boolean(actualValueType && actualRequiredValueType && isDslValueTypeAssignable(actualValueType, expectedValueType));
+        : Boolean(!optionalSourceRequiresResolution && actualValueType && actualRequiredValueType && isDslValueTypeAssignable(actualValueType, expectedValueType));
       const optionalRequirementSatisfied = !options.requireOptional || isDslOptionalValueType(actualValueType);
       if (!target || !compatible || !optionalRequirementSatisfied) {
-        const code = options.requireOptional && !optionalRequirementSatisfied ? "coalesce-left-not-optional" : "module-geometry-type-mismatch";
+        const code = options.requireOptional && !optionalRequirementSatisfied
+          ? "coalesce-left-not-optional"
+          : optionalSourceRequiresResolution
+            ? "module-optional-value-required"
+            : "module-geometry-type-mismatch";
         addLocal(statementIndex, issue(
           code,
           baseSpan,
           code === "coalesce-left-not-optional"
             ? "?? の左辺は optional geometry 値である必要があります。"
+            : code === "module-optional-value-required"
+              ? `optional geometry「${base}」は optional value を解決してから参照してください。`
             : `geometry reference「${base}」の型が一致しません(期待: ${expectedDiagnosticType})。`,
           {
           relatedSources: expectedRelatedSources.length ? expectedRelatedSources : declarationRelated,
-          presentation: { key: "diagnostic.module-geometry-type-mismatch", parameters: { target: base } }
+          presentation: { key: `diagnostic.${code}`, parameters: { name: base, target: base } }
           }
         ));
         return semantic(null, "invalid", null, derivedRole);
@@ -5860,6 +5867,21 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         continue;
       }
       const expected = parameter.kind === "reference" || parameter.kind === "lineEndpointReference" ? "point" : "line";
+      const requiredExpectedValueType = expectedValueType ? dslRequiredValueTypeOf(expectedValueType) : null;
+      const expectedInterfaceType = requiredExpectedValueType && isDslGeometryValueType(requiredExpectedValueType)
+        ? requiredExpectedValueType.kind
+        : undefined;
+      const useSemanticRootDiagnostics = statement.type === "materializedPoint" ||
+        statement.type === "materializedLine" ||
+        statement.type === "materializedPath";
+      const resolveOrdinaryRootGeometry = (
+        rawValue: string,
+        span: DslSpan,
+        referenceExpected: "point" | "line",
+        referenceOptions: Parameters<typeof resolveGeometry>[5]
+      ) => useSemanticRootDiagnostics
+        ? resolveGeometry(statementIndex, null, rawValue, span, referenceExpected, referenceOptions)
+        : resolveRootGeometry(statementIndex, rawValue, span, referenceExpected, referenceOptions);
       const sitesFor = (reference: ModuleGeometryReferenceSemantic, parameterKey: string | null, span: DslSpan) => sites.push({ parameterKey, span, reference });
       const referenceKind = (value: string): "module" | "ordinary" | "skip" => {
         const parsedReference = parseDslSourceReference(value);
@@ -5885,16 +5907,18 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           const tokenSpan = { start: valueSpan.start + Math.max(0, offset), end: valueSpan.start + Math.max(0, offset) + token.length };
           const kind = referenceKind(token);
           if (kind === "module") sitesFor(resolveGeometry(statementIndex, null, token, tokenSpan, expected, { expectedValueType: memberValueType ?? undefined, role: "lineReferenceList" }), parameterKey, tokenSpan);
-          else if (kind === "ordinary") sitesFor(resolveRootGeometry(statementIndex, token, tokenSpan, expected, { role: "lineReferenceList" }), parameterKey, tokenSpan);
+          else if (kind === "ordinary") sitesFor(resolveOrdinaryRootGeometry(token, tokenSpan, expected, { role: "lineReferenceList" }), parameterKey, tokenSpan);
         }
       } else if (referenceKind(raw) === "module") {
         const reference = resolveGeometry(statementIndex, null, raw, valueSpan, expected, {
+          ...(expectedInterfaceType ? { expectedInterfaceType } : {}),
           expectedValueType: expectedValueType ?? undefined,
           role: parameter.kind === "reference" ? "pointReference" : parameter.kind === "lineEndpointReference" ? "lineEndpointReference" : "lineReference"
         });
         sitesFor(reference, parameterKey, valueSpan);
       } else if (referenceKind(raw) === "ordinary") {
-        const reference = resolveRootGeometry(statementIndex, raw, valueSpan, expected, {
+        const reference = resolveOrdinaryRootGeometry(raw, valueSpan, expected, {
+          ...(expectedInterfaceType ? { expectedInterfaceType } : {}),
           expectedValueType: expectedValueType ?? undefined,
           role: parameter.kind === "reference" ? "pointReference" : parameter.kind === "lineEndpointReference" ? "lineEndpointReference" : "lineReference"
         });

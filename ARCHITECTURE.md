@@ -681,6 +681,16 @@ same compiled program and discriminated runtime targets through the existing
 separate `computed_geometry_values` payload field. Neither evaluator adds these
 occurrences to drawable geometry or drawable activity-ID sets.
 
+The compiler-owned `geometryInputTargetsByElementId` boundary is also the bridge
+from immutable geometry values, Module geometry occurrences, and drawable stage
+values into `from(source: ...)` materialization. Immutable values themselves
+remain outside `document.elements`; a `materializedPoint`, `materializedLine`,
+or `materializedPath` declaration creates the new drawable identity and keeps
+the resolved source target in that existing sidecar. TypeScript and Rust
+resolve the target through their shared JSON-shaped evaluation boundary, then
+materialize the computed concrete geometry family under the destination
+`ElementId` without mutating or aliasing the source value or stage.
+
 Drawable geometry errors remain `ElementId`-owned, while immutable geometry-value
 errors are occurrence-owned (`sourceStatementId` plus Module instance path). Both
 error channels project through the existing runtime source diagnostic surface;

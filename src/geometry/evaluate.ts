@@ -1656,6 +1656,20 @@ export const evaluateElements = (
     }
   };
 
+  const geometryValueExecutionPositionForTarget = (
+    target: GeometryInputTarget | readonly GeometryInputTarget[]
+  ): number | undefined => {
+    if (!("kind" in target)) {
+      const positions = target
+        .map(geometryValueExecutionPositionForTarget)
+        .filter((position): position is number => position !== undefined);
+      return positions.length > 0 ? Math.max(...positions) : undefined;
+    }
+    if (target.kind !== "geometryValue" && target.kind !== "geometryValueMap") return undefined;
+    const key = geometryValueOccurrenceKey(target.occurrence);
+    return geometryValueProgram.find((entry) => geometryValueOccurrenceKey(entry.occurrence) === key)?.executionPosition;
+  };
+
   const advanceLinearBindingsBefore = (element: CadElement, sourceElement?: CadElement) => {
     if (!linearMutationEnabled) return;
     const sourceId = (sourceElement ?? element).id;
@@ -2791,10 +2805,19 @@ export const evaluateElements = (
     if (activateReadyConditionalControllers()) reorderPendingElements(pendingElements);
     const element = pendingElements.shift()!;
     const elementIndex = evaluationPosition++;
-    const sourceOrder = options.scalarExecutionPositionByElementId?.get(element.id) ??
-      options.sourceExecutionPositionByElementId?.get(element.id) ??
-      options.statementInfoByElementId?.get(element.id)?.statementIndex ?? elementIndex;
-    evaluateGeometryValuesThrough(sourceOrder);
+    let geometryValueSourceOrder = options.scalarExecutionPositionByElementId?.get(element.id) ??
+      options.statementInfoByElementId?.get(element.id)?.statementIndex ??
+      options.sourceExecutionPositionByElementId?.get(element.id) ?? elementIndex;
+    if (element.type === "materializedPoint" || element.type === "materializedLine" || element.type === "materializedPath") {
+      const sourceTarget = options.geometryInputTargetsByElementId?.get(element.id)?.get("source");
+      const sourceExecutionPosition = sourceTarget
+        ? geometryValueExecutionPositionForTarget(sourceTarget)
+        : undefined;
+      if (sourceExecutionPosition !== undefined) {
+        geometryValueSourceOrder = Math.max(geometryValueSourceOrder, sourceExecutionPosition);
+      }
+    }
+    evaluateGeometryValuesThrough(geometryValueSourceOrder);
     // Apply clauses between declarations before the later declaration observes
     // the owner's geometry. Statement positions are integer indexes, so the
     // half-step excludes the current declaration itself.

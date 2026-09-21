@@ -111,6 +111,9 @@ export const remapElementReferences = (source: CadElement, idMap: Map<ElementId,
   switch (element.type) {
     case "group":
     case "moduleInstance":
+    case "materializedPoint":
+    case "materializedLine":
+    case "materializedPath":
       return element;
     case "conditionalGroup":
       return {

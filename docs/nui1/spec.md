@@ -771,8 +771,8 @@ The minimum geometry types usable in module and interface signatures are:
   supported linear geometry.
 
 The module/interface type `line` must not be confused with the existing element
-declaration category `line`. The existing element categories remain unchanged by
-this Task 1 specification:
+declaration category `line`. The existing direct-construction element categories
+remain unchanged:
 
 ```text
 point
@@ -783,9 +783,14 @@ text
 image
 ```
 
-`path` is an interface type for accepting broad line-like geometry. It does not
-require renaming the internal `line` element category or introducing a new
-persisted element category.
+`path` is an interface type for accepting broad line-like geometry and is also
+the materialization-only drawable declaration category for the
+`from(source: ...)` construction. Existing direct `curve`, `arc`, and `line`
+construction categories remain unchanged; `path` does not replace or rename
+them. A `from(...)` declaration creates a new drawable identity with its own
+base/final recipe, gates, style, and Canvas/Output membership while retaining a
+live dependency on the source value or stage. Immutable geometry values remain
+identity-free until materialized by this construction.
 
 ## Element declarations and construction calls
 

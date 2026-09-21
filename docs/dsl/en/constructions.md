@@ -30,6 +30,24 @@ interpreted, and where its restrictions matter.
 | `parent` | — | no | no | parent |
 | `branch` | — | no | no | branch |
 
+<!-- dsl-ref:construction:point/from -->
+### `point / from`
+
+**Syntax**: `point Name = from(...)`
+
+**Arguments**:
+
+| Spelling | Kind and constraints | Required | Positional | Special |
+| --- | --- | --- | --- | --- |
+| `source` | point | yes | no | — |
+| `enabled` | boolean | no | no | — |
+| `visible` | boolean | no | no | — |
+| `steps` | — | no | no | steps |
+| `id` | — | no | no | id |
+| `roles` | — | no | no | roles |
+| `parent` | — | no | no | parent |
+| `branch` | — | no | no | branch |
+
 <!-- dsl-ref:construction:point/offset -->
 ### `point / offset`
 
@@ -230,6 +248,24 @@ interpreted, and where its restrictions matter.
 | `parent` | — | no | no | parent |
 | `branch` | — | no | no | branch |
 
+<!-- dsl-ref:construction:line/from -->
+### `line / from`
+
+**Syntax**: `line Name = from(...)`
+
+**Arguments**:
+
+| Spelling | Kind and constraints | Required | Positional | Special |
+| --- | --- | --- | --- | --- |
+| `source` | line | yes | no | — |
+| `enabled` | boolean | no | no | — |
+| `visible` | boolean | no | no | — |
+| `steps` | — | no | no | steps |
+| `id` | — | no | no | id |
+| `roles` | — | no | no | roles |
+| `parent` | — | no | no | parent |
+| `branch` | — | no | no | branch |
+
 <!-- dsl-ref:construction:line/polar -->
 ### `line / polar`
 
@@ -399,6 +435,24 @@ interpreted, and where its restrictions matter.
 | `axis1` | point | yes | no | — |
 | `axis2` | point | yes | no | — |
 | `baseLines` | path[] | yes | no | — |
+| `enabled` | boolean | no | no | — |
+| `visible` | boolean | no | no | — |
+| `steps` | — | no | no | steps |
+| `id` | — | no | no | id |
+| `roles` | — | no | no | roles |
+| `parent` | — | no | no | parent |
+| `branch` | — | no | no | branch |
+
+<!-- dsl-ref:construction:path/from -->
+### `path / from`
+
+**Syntax**: `path Name = from(...)`
+
+**Arguments**:
+
+| Spelling | Kind and constraints | Required | Positional | Special |
+| --- | --- | --- | --- | --- |
+| `source` | path | yes | no | — |
 | `enabled` | boolean | no | no | — |
 | `visible` | boolean | no | no | — |
 | `steps` | — | no | no | steps |

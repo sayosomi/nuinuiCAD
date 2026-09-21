@@ -159,6 +159,13 @@ export type FreePointElement = CadElementBase & {
   y: NumericValue;
 };
 
+/** Drawable identities materialized from immutable geometry values or stages.
+ * Their live source is compiler-owned in geometryInputTargetsByElementId;
+ * source coordinates and construction arguments do not belong in the element. */
+export type MaterializedPointElement = CadElementBase & { type: "materializedPoint" };
+export type MaterializedLineElement = CadElementBase & { type: "materializedLine" };
+export type MaterializedPathElement = CadElementBase & { type: "materializedPath" };
+
 export type OffsetPointElement = CadElementBase & {
   type: "offsetPoint";
   fromPoint?: PointAnchor;
@@ -212,7 +219,7 @@ export type GeometryInputCollectionNode =
   | { kind: "coalesce"; leftBranch: GeometryInputCollectionNode; rightBranch: GeometryInputCollectionNode };
 
 export type GeometryInputTarget =
-  | { kind: "drawable"; elementId: ElementId; geometryType: "point" | "line" | "path"; pointKey?: string; stagePath?: readonly string[] }
+  | { kind: "drawable"; elementId: ElementId; geometryType: "point" | "line" | "path"; pointKey?: string; stagePath?: readonly string[]; sourceText?: string }
   | {
       /** Immutable statement-for geometry carry resolved by the evaluator's
        * active carry snapshot. It is never persisted as a drawable id. */
@@ -234,7 +241,7 @@ export type GeometryInputTarget =
       targetSourceOrder: number;
       index: TypedScalarExpression | null;
     }
-  | { kind: "geometryValue"; occurrence: GeometryValueOccurrence; geometryType: "point" | "line" | "path"; pointKey?: string; stagePath?: readonly string[] }
+  | { kind: "geometryValue"; occurrence: GeometryValueOccurrence; geometryType: "point" | "line" | "path"; pointKey?: string; stagePath?: readonly string[]; sourceText?: string }
   | {
       kind: "geometryValueMap";
       occurrence: GeometryValueOccurrence;
@@ -537,6 +544,9 @@ export type CadElement =
   | ForGroupElement
   | ModuleInstanceElement
   | FreePointElement
+  | MaterializedPointElement
+  | MaterializedLineElement
+  | MaterializedPathElement
   | OffsetPointElement
   | PolarOffsetPointElement
   | DivisionPointElement

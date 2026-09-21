@@ -1109,6 +1109,28 @@ pub(crate) fn materialize_geometry_input_targets_for_runtime(
     Ok(())
 }
 
+pub(crate) fn resolve_geometry_input_target(
+    state: &EvaluationState,
+    target: &GeometryInputTarget,
+) -> Option<Value> {
+    match target {
+        GeometryInputTarget::Drawable {
+            element_id,
+            stage_path,
+            ..
+        } => super::selected_transformation_geometry(state, element_id, stage_path.as_deref())
+            .cloned(),
+        GeometryInputTarget::GeometryValue { occurrence, .. } => {
+            state.computed_geometry_values.get(occurrence).cloned()
+        }
+        GeometryInputTarget::Coordinate { anchor } => Some(anchor.clone()),
+        GeometryInputTarget::GeometryValueMap { .. }
+        | GeometryInputTarget::CollectionValue { .. }
+        | GeometryInputTarget::CollectionIndex { .. }
+        | GeometryInputTarget::ForGroupOccurrence { .. } => None,
+    }
+}
+
 fn geometry_for_target(state: &EvaluationState, target: &GeometryInputTarget) -> Option<Value> {
     match target {
         GeometryInputTarget::Drawable { geometry_type, .. }

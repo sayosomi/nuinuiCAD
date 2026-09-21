@@ -27,6 +27,7 @@ export const dslStatementKeywords = {
   mirrorMove: "mirrorMove",
   point: "point",
   line: "line",
+  path: "path",
   curve: "curve",
   arc: "arc",
   text: "text",

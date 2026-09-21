@@ -134,6 +134,16 @@ export const createCadElement = (
         y: 0
       };
     }
+    case "materializedPoint": {
+      const id = createId(type);
+      const count = elements.filter((element) => element.type === "materializedPoint").length;
+      return {
+        id,
+        name: uniqueName(id, `マテリアライズ点${count + 1}`),
+        type,
+        activity: "visible"
+      };
+    }
     case "offsetPoint": {
       const id = createId(type);
       const requestedName = `オフセット点${points.length + 1}`;
@@ -261,6 +271,26 @@ export const createCadElement = (
         activity: "visible",
         startPoint: referenceAnchor(firstPointId),
         endPoint: referenceAnchor(secondPointId)
+      };
+    }
+    case "materializedLine": {
+      const id = createId(type);
+      const count = elements.filter((element) => element.type === "materializedLine").length;
+      return {
+        id,
+        name: uniqueName(id, `マテリアライズ線${count + 1}`),
+        type,
+        activity: "visible"
+      };
+    }
+    case "materializedPath": {
+      const id = createId(type);
+      const count = elements.filter((element) => element.type === "materializedPath").length;
+      return {
+        id,
+        name: uniqueName(id, `マテリアライズパス${count + 1}`),
+        type,
+        activity: "visible"
       };
     }
     case "polyline": {

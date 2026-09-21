@@ -76,7 +76,8 @@ import {
   numericGeometryStaticTargetForConstruction,
   numericGeometryStaticTargetForElementInDocument
 } from "../geometry/numericGeometryProperties";
-import { isLineLikeElement, isPointElement } from "../model/pointAnchors";
+import { isPointElement } from "../model/pointAnchors";
+import { isModuleGeometryInterfaceAssignable, moduleGeometryInterfaceTypeOfElement } from "./moduleGeometryInterfaces";
 import type { CadElement } from "../types/geometry";
 import { getParameterDefinitions, scalarTypeForParameterDefinition } from "../parameters/parameterDefinitions";
 import { dslModifierCompletionContextAt } from "./dslModifierCompletionContext";
@@ -487,16 +488,24 @@ const sourceGeometryCandidatesForDeclaration = (
   const elementType = dslStatementElementType(statement);
   if (!elementType) return [];
   const element = { type: elementType } as CadElement;
-  if (expectedGeometryKind === "lineReference" || expectedGeometryKind === "lineReferenceList") {
-    return isLineLikeElement(element) ? [{ kind: "geometry", label: name, identity: statementId }] : [];
+  const interfaceType = moduleGeometryInterfaceTypeOfElement(statement);
+  if (expectedGeometryKind === "strictLine") {
+    return interfaceType === "line" ? [{ kind: "geometry", label: name, identity: statementId }] : [];
+  }
+  if (expectedGeometryKind === "path" || expectedGeometryKind === "lineReference" || expectedGeometryKind === "lineReferenceList") {
+    return interfaceType && isModuleGeometryInterfaceAssignable(interfaceType, "path")
+      ? [{ kind: "geometry", label: name, identity: statementId }]
+      : [];
   }
   if (expectedGeometryKind === "point" || expectedGeometryKind === "pointReferenceList") {
-    return isPointElement(element) ? [{ kind: "geometry", label: name, identity: statementId }] : [];
+    return interfaceType === "point" && isPointElement(element) ? [{ kind: "geometry", label: name, identity: statementId }] : [];
   }
   if (expectedGeometryKind === "line") {
-    return isLineLikeElement(element) ? [{ kind: "geometry", label: name, identity: statementId }] : [];
+    return interfaceType && isModuleGeometryInterfaceAssignable(interfaceType, "path")
+      ? [{ kind: "geometry", label: name, identity: statementId }]
+      : [];
   }
-  return isLineLikeElement(element)
+  return interfaceType && isModuleGeometryInterfaceAssignable(interfaceType, "path")
     ? [
         { kind: "geometry", label: `${name}.start`, identity: `${statementId}:start` },
         { kind: "geometry", label: `${name}.end`, identity: `${statementId}:end` }

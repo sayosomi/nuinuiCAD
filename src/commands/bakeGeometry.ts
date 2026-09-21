@@ -511,6 +511,7 @@ const coordinateRefs: DslSerializerRefs = {
   endpoint: () => "none",
   numeric: (value) => typeof value === "number" && Object.is(value, -0) ? "0" : String(value),
   name: (element) => element.name.trim(),
+  geometryInputSource: () => undefined,
   includeRecordIds: false
 };
 

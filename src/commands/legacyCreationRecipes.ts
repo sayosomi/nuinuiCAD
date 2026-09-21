@@ -49,6 +49,18 @@ export const legacyCreationCatalogExclusions = [
   {
     type: "pathReverse",
     rationale: "Path reversal acts on a selected existing path and is inserted by its selection command."
+  },
+  {
+    type: "materializedPoint",
+    rationale: "Point materialization is exposed through the Create Geometry source-pick flow rather than the legacy standalone type catalog."
+  },
+  {
+    type: "materializedLine",
+    rationale: "Line materialization is exposed through the Create Geometry source-pick flow rather than the legacy standalone type catalog."
+  },
+  {
+    type: "materializedPath",
+    rationale: "Path materialization is exposed through the Create Geometry source-pick flow rather than the legacy standalone type catalog."
   }
 ] as const satisfies readonly { type: CadElementType; rationale: string }[];
 

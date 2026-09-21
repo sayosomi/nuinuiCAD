@@ -72,6 +72,8 @@ mod line_tangent_offset_point_evaluator;
 #[cfg(test)]
 mod line_tangent_offset_point_tests;
 mod line_transform;
+#[cfg(test)]
+mod materialized_tests;
 mod math;
 mod numeric_binding_runtime;
 mod numeric_expression;
@@ -164,7 +166,7 @@ use line_evaluators::{
 use line_geometry_input::{
     decode_geometry_collection_nodes, decode_geometry_input_targets,
     materialize_geometry_input_targets, materialize_geometry_input_targets_for_runtime,
-    GeometryInputTargets,
+    resolve_geometry_input_target, GeometryInputTargets,
 };
 use line_intersections::is_self_intersecting_closed_path;
 use line_tangent_offset_point_evaluator::evaluate_line_tangent_offset_point;
@@ -193,8 +195,9 @@ use scalars::{
 use split_line_evaluator::evaluate_split_line;
 use text_evaluator::{evaluate_text, TextTemplateContext};
 use types::{
-    element_id, element_type, DependencyError, EffectiveDrawingModifierStroke, ElementId,
-    EvaluationState, EvaluationWarning, GeometryMutationExecution,
+    element_display_name, element_id, element_type, insert_geometry, DependencyError,
+    EffectiveDrawingModifierStroke, ElementId, EvaluationState, EvaluationWarning,
+    GeometryInputTarget, GeometryMutationExecution,
 };
 pub use types::{EvaluationCommandError, EvaluationInput, EvaluationPayload};
 
@@ -586,6 +589,307 @@ fn geometry_mutation_target_ids(element: &Value) -> Vec<ElementId> {
     target_ids
 }
 
+fn materialized_point_value(id: &str, name: &str, key: &str, value: &Value) -> Option<Value> {
+    Some(json!({
+        "kind": "point",
+        "elementId": format!("{id}:{key}"),
+        "name": format!("{name}.{key}"),
+        "x": value.get("x")?.clone(),
+        "y": value.get("y")?.clone(),
+    }))
+}
+
+fn materialize_geometry_value(element: &Value, value: &Value) -> Option<Value> {
+    let id = element_id(element)?;
+    let name = element_display_name(element);
+    let kind = value.get("kind")?.as_str()?.to_owned();
+    let mut object = value.as_object()?.clone();
+    object.insert("elementId".to_owned(), Value::String(id.clone()));
+    object.insert("name".to_owned(), Value::String(name.clone()));
+    match kind.as_str() {
+        "point" => {}
+        "line" => {
+            let start = materialized_point_value(&id, &name, "start", object.get("start")?)?;
+            let end = materialized_point_value(&id, &name, "end", object.get("end")?)?;
+            object.insert("startPointId".to_owned(), start["elementId"].clone());
+            object.insert("endPointId".to_owned(), end["elementId"].clone());
+            object.insert("start".to_owned(), start);
+            object.insert("end".to_owned(), end);
+        }
+        "arcLine" => {
+            let center = materialized_point_value(&id, &name, "center", object.get("center")?)?;
+            let start = materialized_point_value(&id, &name, "start", object.get("start")?)?;
+            let end = materialized_point_value(&id, &name, "end", object.get("end")?)?;
+            object.insert("centerPointId".to_owned(), center["elementId"].clone());
+            object.insert("center".to_owned(), center);
+            object.insert("start".to_owned(), start);
+            object.insert("end".to_owned(), end);
+        }
+        "bezierCurve" => {
+            let segments = object.get("segments")?.as_array()?.clone();
+            let mut materialized_segments = Vec::with_capacity(segments.len());
+            for (index, segment) in segments.iter().enumerate() {
+                let mut segment_object = segment.as_object()?.clone();
+                let start = materialized_point_value(
+                    &id,
+                    &name,
+                    &format!("segment{index}:start"),
+                    segment_object.get("start")?,
+                )?;
+                let end = materialized_point_value(
+                    &id,
+                    &name,
+                    &format!("segment{index}:end"),
+                    segment_object.get("end")?,
+                )?;
+                segment_object.insert("startPointId".to_owned(), start["elementId"].clone());
+                segment_object.insert("endPointId".to_owned(), end["elementId"].clone());
+                segment_object.insert("start".to_owned(), start);
+                segment_object.insert("end".to_owned(), end);
+                materialized_segments.push(Value::Object(segment_object));
+            }
+            let start_point_id = materialized_segments
+                .first()
+                .and_then(|segment| segment.get("startPointId"))
+                .cloned()
+                .unwrap_or(Value::Null);
+            let end_point_id = materialized_segments
+                .last()
+                .and_then(|segment| segment.get("endPointId"))
+                .cloned()
+                .unwrap_or(Value::Null);
+            object.insert("startPointId".to_owned(), start_point_id);
+            object.insert("endPointId".to_owned(), end_point_id);
+            object.insert("intermediatePointIds".to_owned(), json!([]));
+            object.insert("intermediateSlotIds".to_owned(), json!([]));
+            object.insert("startTangentAngleDeg".to_owned(), Value::Null);
+            object.insert("endTangentAngleDeg".to_owned(), Value::Null);
+            object.insert("startHandleAngleDeg".to_owned(), json!(0));
+            object.insert("startHandleLength".to_owned(), json!(0));
+            object.insert("endHandleAngleDeg".to_owned(), json!(0));
+            object.insert("endHandleLength".to_owned(), json!(0));
+            object.insert("segments".to_owned(), Value::Array(materialized_segments));
+        }
+        "polyline" => {
+            let segments = object.get("segments")?.as_array()?.clone();
+            let mut materialized_segments = Vec::with_capacity(segments.len());
+            for (index, segment) in segments.iter().enumerate() {
+                let mut segment_object = segment.as_object()?.clone();
+                let start = materialized_point_value(
+                    &id,
+                    &name,
+                    &format!("segment{index}:start"),
+                    segment_object.get("start")?,
+                )?;
+                let end = materialized_point_value(
+                    &id,
+                    &name,
+                    &format!("segment{index}:end"),
+                    segment_object.get("end")?,
+                )?;
+                segment_object.insert("start".to_owned(), start);
+                segment_object.insert("end".to_owned(), end);
+                segment_object.insert("kind".to_owned(), Value::String("line".to_owned()));
+                materialized_segments.push(Value::Object(segment_object));
+            }
+            let start = materialized_point_value(&id, &name, "start", object.get("start")?)?;
+            let end = materialized_point_value(&id, &name, "end", object.get("end")?)?;
+            object.insert("start".to_owned(), start);
+            object.insert("end".to_owned(), end);
+            object.insert("segments".to_owned(), Value::Array(materialized_segments));
+        }
+        "offsetLine" | "joinedPath" => {
+            let segments = object.get("segments")?.as_array()?.clone();
+            let mut materialized_segments = Vec::with_capacity(segments.len());
+            for (index, segment) in segments.iter().enumerate() {
+                let mut segment_object = segment.as_object()?.clone();
+                let segment_kind = segment_object.get("kind")?.as_str()?.to_owned();
+                let prefix = format!("segment{index}");
+                match segment_kind.as_str() {
+                    "line" | "bezier" => {
+                        let start = materialized_point_value(
+                            &id,
+                            &name,
+                            &format!("{prefix}:start"),
+                            segment_object.get("start")?,
+                        )?;
+                        let end = materialized_point_value(
+                            &id,
+                            &name,
+                            &format!("{prefix}:end"),
+                            segment_object.get("end")?,
+                        )?;
+                        segment_object.insert("start".to_owned(), start);
+                        segment_object.insert("end".to_owned(), end);
+                    }
+                    "arc" => {
+                        let center = materialized_point_value(
+                            &id,
+                            &name,
+                            &format!("{prefix}:center"),
+                            segment_object.get("center")?,
+                        )?;
+                        let start = materialized_point_value(
+                            &id,
+                            &name,
+                            &format!("{prefix}:start"),
+                            segment_object.get("start")?,
+                        )?;
+                        let end = materialized_point_value(
+                            &id,
+                            &name,
+                            &format!("{prefix}:end"),
+                            segment_object.get("end")?,
+                        )?;
+                        segment_object.insert("center".to_owned(), center);
+                        segment_object.insert("start".to_owned(), start);
+                        segment_object.insert("end".to_owned(), end);
+                    }
+                    _ => return None,
+                }
+                materialized_segments.push(Value::Object(segment_object));
+            }
+            for key in ["start", "end"] {
+                if let Some(coordinate) = object.get(key).filter(|value| !value.is_null()) {
+                    object.insert(
+                        key.to_owned(),
+                        materialized_point_value(&id, &name, key, coordinate)?,
+                    );
+                }
+            }
+            object.insert("segments".to_owned(), Value::Array(materialized_segments));
+            if kind == "offsetLine" {
+                object.insert("baseLineIds".to_owned(), json!([]));
+            } else {
+                object.insert("pathIds".to_owned(), json!([]));
+            }
+        }
+        _ => return None,
+    }
+    Some(Value::Object(object))
+}
+
+fn rekey_materialized_points(
+    value: &mut Value,
+    source_id: &str,
+    source_name: &str,
+    destination_id: &str,
+    destination_name: &str,
+) {
+    match value {
+        Value::Array(values) => values.iter_mut().for_each(|value| {
+            rekey_materialized_points(
+                value,
+                source_id,
+                source_name,
+                destination_id,
+                destination_name,
+            )
+        }),
+        Value::Object(object) => {
+            if object.get("kind").and_then(Value::as_str) == Some("point") {
+                if let Some(point_id) = object.get("elementId").and_then(Value::as_str) {
+                    let suffix = point_id
+                        .strip_prefix(&format!("{source_id}:"))
+                        .unwrap_or(point_id)
+                        .to_owned();
+                    object.insert(
+                        "elementId".to_owned(),
+                        Value::String(format!("{destination_id}:{suffix}")),
+                    );
+                    if let Some(point_name) = object.get("name").and_then(Value::as_str) {
+                        let name_suffix = point_name
+                            .strip_prefix(&format!("{source_name}."))
+                            .unwrap_or(&suffix)
+                            .to_owned();
+                        object.insert(
+                            "name".to_owned(),
+                            Value::String(format!("{destination_name}.{name_suffix}")),
+                        );
+                    }
+                }
+            }
+            object.values_mut().for_each(|value| {
+                rekey_materialized_points(
+                    value,
+                    source_id,
+                    source_name,
+                    destination_id,
+                    destination_name,
+                )
+            });
+        }
+        _ => {}
+    }
+}
+
+fn evaluate_materialized_element(element: &Value, id: &ElementId, state: &mut EvaluationState) {
+    let target = state
+        .geometry_input_targets
+        .get(id)
+        .and_then(|parameters| parameters.get("source"))
+        .and_then(|targets| targets.first());
+    let Some(target) = target else {
+        state.errors.push(geometry_error(
+            element,
+            format!(
+                "{} の source geometry が利用できません。依存先を確認してください。",
+                element_display_name(element)
+            ),
+        ));
+        return;
+    };
+    let Some(mut geometry) = resolve_geometry_input_target(state, target) else {
+        state.errors.push(geometry_error(
+            element,
+            format!(
+                "{} の source geometry が利用できません。依存先を確認してください。",
+                element_display_name(element)
+            ),
+        ));
+        return;
+    };
+    if matches!(target, GeometryInputTarget::GeometryValue { .. }) {
+        let Some(materialized) = materialize_geometry_value(element, &geometry) else {
+            state.errors.push(geometry_error(
+                element,
+                format!(
+                    "{} の source geometry が利用できません。依存先を確認してください。",
+                    element_display_name(element)
+                ),
+            ));
+            return;
+        };
+        geometry = materialized;
+    } else {
+        let source_id = geometry
+            .get("elementId")
+            .and_then(Value::as_str)
+            .map(ToOwned::to_owned);
+        let source_name = geometry
+            .get("name")
+            .and_then(Value::as_str)
+            .map(ToOwned::to_owned);
+        if let (Some(source_id), Some(source_name)) = (source_id, source_name) {
+            rekey_materialized_points(
+                &mut geometry,
+                &source_id,
+                &source_name,
+                id,
+                &element_display_name(element),
+            );
+        }
+    }
+    if let Some(object) = geometry.as_object_mut() {
+        object.insert("elementId".to_owned(), Value::String(id.clone()));
+        object.insert(
+            "name".to_owned(),
+            Value::String(element_display_name(element)),
+        );
+    }
+    insert_geometry(state, id.clone(), geometry);
+}
+
 fn evaluate_element_by_type(
     id: ElementId,
     element: Value,
@@ -631,6 +935,9 @@ fn evaluate_element_by_type(
             conditional_group_states.insert(id.clone(), active_branch);
         }
         Some("group" | "forGroup" | "moduleInstance") => {}
+        Some("materializedPoint" | "materializedLine" | "materializedPath") => {
+            evaluate_materialized_element(&element, &id, state)
+        }
         Some("freePoint") => evaluate_free_point(&element, &local_variables, state),
         Some("offsetPoint") => evaluate_offset_point(&element, &local_variables, state),
         Some("polarOffsetPoint") => evaluate_polar_offset_point(&element, &local_variables, state),

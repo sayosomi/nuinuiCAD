@@ -65,6 +65,8 @@ reference rather than a second place to edit parser behavior.
 | `point` | `dsl-ref:statement:point` |
 <!-- dsl-ref:statement:line -->
 | `line` | `dsl-ref:statement:line` |
+<!-- dsl-ref:statement:path -->
+| `path` | `dsl-ref:statement:path` |
 <!-- dsl-ref:statement:curve -->
 | `curve` | `dsl-ref:statement:curve` |
 <!-- dsl-ref:statement:arc -->

@@ -15,6 +15,7 @@ import {
 import { settingsSpecFor } from "@nuinuicad/nui-language";
 
 const calls = [
+  ["point", "from", "materializedPoint"],
   ["point", "coordinate", "freePoint"],
   ["point", "offset", "offsetPoint"],
   ["point", "polar", "polarOffsetPoint"],
@@ -24,6 +25,7 @@ const calls = [
   ["point", "tangentOffset", "lineTangentOffsetPoint"],
   ["point", "bezierExtremePoint", "bezierExtremePoint"],
   ["point", "bezierBulgePoint", "bezierBulgePoint"],
+  ["line", "from", "materializedLine"],
   ["line", "segment", "line"],
   ["line", "polar", "angleLengthLine"],
   ["line", "commonTangent", "commonTangentLine"],
@@ -33,6 +35,7 @@ const calls = [
   ["line", "split", "splitLine"],
   ["line", "transformCopy", "copyLine"],
   ["line", "mirrorCopy", "symmetricCopyLine"],
+  ["path", "from", "materializedPath"],
   ["mutation", "edge", "edge"],
   ["mutation", "extend", "extendTrim"],
   ["mutation", "move", "move"],
