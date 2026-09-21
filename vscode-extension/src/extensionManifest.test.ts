@@ -113,6 +113,7 @@ const commandIds = [
   "nuinuiCAD.modulePreview.toggleGeometryNames",
   "nuinuiCAD.modulePreview.togglePoints",
   "nuinuiCAD.createGeometry",
+  "nuinuiCAD.insertTemplate",
   "nuinuiCAD.createFreePointAtPointer"
 ] as const;
 const webviewContextAliasIds = [
@@ -176,6 +177,10 @@ const staticWebviewCanonicalCommandIds = [
   "nuinuiCAD.extractModule",
   "nuinuiCAD.insertModulePreviewInstance"
 ] as const;
+const canonicalCommandsWithCategory = new Set<string>([
+  ...staticWebviewCanonicalCommandIds,
+  "nuinuiCAD.insertTemplate"
+]);
 const canonicalCommandShortTitles: Partial<Record<(typeof commandIds)[number], string>> = {
   "nuinuiCAD.openCanvas": "Open Canvas",
   "nuinuiCAD.openOutputPreview": "Open Output Preview",
@@ -337,6 +342,10 @@ describe("VS Code extension manifest command contributions", () => {
       if (staticWebviewCanonicalCommandIds.some((id) => id === command.command)) {
         expect(command.category).toBe("nuinuiCAD");
         expect(japanese[titleKey]).not.toMatch(/^nuinuiCAD: /);
+      } else if (command.command === "nuinuiCAD.insertTemplate") {
+        expect(command.category).toBe("nuinuiCAD");
+        expect(english[titleKey]).toBe("Insert Template…");
+        expect(japanese[titleKey]).toBe("テンプレートを挿入…");
       } else {
         expect(japanese[titleKey]).toMatch(/^nuinuiCAD: /);
       }
@@ -416,11 +425,12 @@ describe("VS Code extension manifest command contributions", () => {
       "nuinuiCAD: Toggle Module Preview Geometry Names",
       "nuinuiCAD: Toggle Module Preview Points",
       "nuinuiCAD: Create Geometry…",
+      "Insert Template…",
       "Create Free Point at Pointer"
     ]);
     expect(commands.map(({ command, category }) => ({ command, category }))).toEqual(commandIds.map((command) => ({
       command,
-      category: staticWebviewCanonicalCommandIds.some((id) => id === command) ? "nuinuiCAD" : undefined
+      category: canonicalCommandsWithCategory.has(command) ? "nuinuiCAD" : undefined
     })));
     expect(commands.map(({ command, shortTitle }) => ({
       command,
@@ -726,6 +736,7 @@ describe("VS Code extension manifest command contributions", () => {
       { command: "nuinuiCAD.modulePreview.toggleGeometryNames", when: "false" },
       { command: "nuinuiCAD.modulePreview.togglePoints", when: "false" },
       { command: "nuinuiCAD.createGeometry", when: sourcePaletteWhen },
+      { command: "nuinuiCAD.insertTemplate", when: sourceCreationContextWhen },
       { command: "nuinuiCAD.createFreePointAtPointer", when: canvasPaletteWhen }
     ]);
     expect(commandPalette.find(({ command }) => command === "nuinuiCAD.openModulePreview")?.when)
@@ -736,6 +747,7 @@ describe("VS Code extension manifest command contributions", () => {
     const manifest = await readManifest();
     expect(manifest.contributes?.menus?.["editor/context"]).toEqual([
       { command: "nuinuiCAD.createGeometry", when: sourceCreationContextWhen, group: "2_nuinuiCAD@0" },
+      { command: "nuinuiCAD.insertTemplate", when: sourceCreationContextWhen, group: "2_nuinuiCAD@0.1" },
       { command: "nuinuiCAD.revealInCanvas", when: canvasRevealContextWhen, group: "2_nuinuiCAD@1" },
       { command: "nuinuiCAD.openCanvas", when: canvasOpenFallbackContextWhen, group: "2_nuinuiCAD@1" },
       { command: "nuinuiCAD.revealInOutputPreview", when: outputPreviewRevealContextWhen, group: "2_nuinuiCAD@2" },
@@ -811,6 +823,7 @@ describe("VS Code extension manifest command contributions", () => {
     const editorContextCommands = (manifest.contributes?.menus?.["editor/context"] ?? []).map(({ command, submenu }) => command ?? submenu);
     expect(editorContextCommands).toEqual([
       "nuinuiCAD.createGeometry",
+      "nuinuiCAD.insertTemplate",
       "nuinuiCAD.revealInCanvas",
       "nuinuiCAD.openCanvas",
       "nuinuiCAD.revealInOutputPreview",
@@ -881,6 +894,16 @@ describe("VS Code extension manifest command contributions", () => {
       command: "nuinuiCAD.createGeometry",
       when: sourcePaletteWhen
     }]);
+    expect(commands.filter(({ command }) => command === "nuinuiCAD.insertTemplate")).toEqual([{
+      command: "nuinuiCAD.insertTemplate",
+      title: "%command.insertTemplate.title%",
+      category: "nuinuiCAD"
+    }]);
+    expect(commandPalette.filter(({ command }) => command === "nuinuiCAD.insertTemplate")).toEqual([{
+      command: "nuinuiCAD.insertTemplate",
+      when: sourceCreationContextWhen
+    }]);
+    expect((manifest.contributes?.keybindings ?? []).some(({ command }) => command === "nuinuiCAD.insertTemplate")).toBe(false);
     expect(commandPalette.some(({ command, when }) => command === "nuinuiCAD.createGeometry" && when === canvasPaletteWhen)).toBe(false);
     expect(webviewContext.some(({ command, submenu }) => command === "nuinuiCAD.createGeometry" || submenu === "nuinuiCAD.create")).toBe(false);
     expect(commands.some(({ command }) => command === "nuinuiCAD.configureQuickCreate" || (command ?? "").startsWith("nuinuiCAD.create."))).toBe(false);

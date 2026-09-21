@@ -14,7 +14,10 @@ import {
 } from "./canvasQuickCreateLocalization";
 import { pickVscodeCreationCommand } from "./creationCommandQuickPick";
 import { nativeShowQuickPick } from "./nativeQuickInput";
-import { insertSourceCreationSnippet } from "./sourceCreationSnippetAdapter";
+import {
+  insertSourceCreationSnippet,
+  type SourceCreationSnippetOptions
+} from "./sourceCreationSnippetAdapter";
 import type { SourceCreationMru } from "./sourceCreationMru";
 
 type SourceCreationFormPickerItem = vscode.QuickPickItem & {
@@ -68,26 +71,44 @@ const selectedMaterializationFor = async (
   return materializeSourceCreationTemplate(plan, formIndex);
 };
 
+export type SourceCreationFlowOptions = {
+  insertionPosition?: vscode.Position;
+  snippetOptions?: SourceCreationSnippetOptions;
+  isCurrent?: () => boolean;
+  onStale?: () => void;
+};
+
 /** Runs Source-native creation using only the caller's editor and insertion position. */
 export const runSourceCreationFlow = async (
   editor: vscode.TextEditor,
   position: vscode.Position,
   displayLanguage: string,
-  sourceCreationMru: SourceCreationMru
+  sourceCreationMru: SourceCreationMru,
+  options: SourceCreationFlowOptions = {}
 ): Promise<boolean | undefined> => {
+  const ensureCurrent = (): boolean => {
+    if (!options.isCurrent || options.isCurrent()) return true;
+    options.onStale?.();
+    return false;
+  };
   const commandId = await pickVscodeCreationCommand({
     displayLanguage,
     recentCommandIds: sourceCreationMru.recentCommandIds
   });
+  if (!ensureCurrent()) return undefined;
   if (!commandId) return undefined;
 
   const plan = sourceCreationTemplatePlanForLegacyCommand(commandId);
   if (!plan) return undefined;
 
   const materialization = await selectedMaterializationFor(plan, displayLanguage);
+  if (!ensureCurrent()) return undefined;
   if (!materialization) return undefined;
 
-  const insertionResult = await insertSourceCreationSnippet(editor, materialization, position);
+  const insertionPosition = options.insertionPosition ?? position;
+  const insertionResult = options.snippetOptions
+    ? await insertSourceCreationSnippet(editor, materialization, insertionPosition, options.snippetOptions)
+    : await insertSourceCreationSnippet(editor, materialization, insertionPosition);
   if (insertionResult === true) sourceCreationMru.record(commandId);
   return insertionResult;
 };
