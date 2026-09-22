@@ -1640,27 +1640,28 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     toggleCanvasGeometryNames: () => executeSharedCanvasCommand("toggleCanvasGeometryNames"),
     toggleCanvasPoints: () => executeSharedCanvasCommand("toggleCanvasPoints"),
     resolveImageSourceUrl: (sourcePath) => sourcePath,
-      renderHostOverlay: (viewportSize) => (
+    renderPickModeChrome: () => modulePreviewPickModeSession ? (
+      <PickModeStatusView
+        model={{
+          targetLabel: modulePreviewPickModeSession.targetDisplayLabel ?? "Preview",
+          instruction: modulePreviewPickModeSession.kind === "point" ? "Canvasから点を選択" : "Canvasから線・曲線を選択",
+          currentSelection: modulePreviewPickModeSession.draft[0]?.kind !== "numeric-reference" &&
+            modulePreviewPickModeSession.draft[0]?.sourceReference
+            ? sourceReferenceText(modulePreviewPickModeSession.draft[0].sourceReference) ??
+              modulePreviewPickModeSession.draft[0].sourceReference.base
+            : null,
+          onFinish: finishModulePreviewPick
+        }}
+      />
+    ) : null,
+    renderHostOverlay: (_viewportSize, layout = { pickModeChromeHeight: 0 }) => (
         <>
-          {modulePreviewPickModeSession ? (
-            <PickModeStatusView
-              model={{
-                targetLabel: modulePreviewPickModeSession.targetDisplayLabel ?? "Preview",
-                instruction: modulePreviewPickModeSession.kind === "point" ? "Canvasから点を選択" : "Canvasから線・曲線を選択",
-                currentSelection: modulePreviewPickModeSession.draft[0]?.kind !== "numeric-reference" &&
-                  modulePreviewPickModeSession.draft[0]?.sourceReference
-                  ? sourceReferenceText(modulePreviewPickModeSession.draft[0].sourceReference) ??
-                    modulePreviewPickModeSession.draft[0].sourceReference.base
-                  : null,
-                onFinish: finishModulePreviewPick
-              }}
-            />
-          ) : null}
           <VSCodeCanvasRibbonOverlay
             canvasFocusRef={canvasFocusRef}
             canvasViewport={canvasViewport}
             canvasRibbonRibbons={canvasRibbonRibbons}
-            viewportSize={viewportSize}
+            viewportSize={_viewportSize}
+            pickModeChromeHeight={layout.pickModeChromeHeight}
             ribbonCommandContext={ribbonCommandContext}
             presentation={canvasPresentationAdapter}
             onCommand={(item) => {

@@ -6,15 +6,26 @@ const stylesheet = readFileSync(resolve(process.cwd(), "src/styles.css"), "utf8"
 const pickModeStatusStart = stylesheet.indexOf(".pick-mode-status {");
 const pickModeStatusEnd = stylesheet.indexOf(".canvas-viewport.is-point-dragging,", pickModeStatusStart);
 const pickModeStatusStyles = stylesheet.slice(pickModeStatusStart, pickModeStatusEnd);
+const pickModeChromeStart = stylesheet.indexOf(".canvas-pick-mode-chrome {");
+const pickModeChromeEnd = stylesheet.indexOf(".pick-mode-status-title", pickModeChromeStart);
+const pickModeChromeStyles = stylesheet.slice(pickModeChromeStart, pickModeChromeEnd);
 
 describe("Pick Mode status stylesheet contract", () => {
-  it("anchors the panel at the top-left without losing the bounded list", () => {
-    expect(pickModeStatusStyles).toContain("top: 10px;");
-    expect(pickModeStatusStyles).toContain("left: 10px;");
+  it("uses a Canvas-local top row without losing the bounded list", () => {
+    expect(pickModeChromeStyles).toContain("position: absolute;");
+    expect(pickModeChromeStyles).toContain("top: 0;");
+    expect(pickModeChromeStyles).toContain("right: 0;");
+    expect(pickModeChromeStyles).toContain("left: 0;");
+    expect(pickModeChromeStyles).toContain("padding: 6px 10px;");
+    expect(pickModeChromeStyles).toContain("background: var(--canvas-background);");
+    expect(pickModeStatusStyles).not.toContain("position: fixed;");
+    expect(pickModeStatusStyles).not.toContain("top: 10px;");
+    expect(pickModeStatusStyles).not.toContain("left: 10px;");
     expect(pickModeStatusStyles).toContain("max-height: min(180px, 28vh);");
     expect(pickModeStatusStyles).toContain("overflow: auto;");
     expect(pickModeStatusStyles).not.toContain("bottom:");
     expect(pickModeStatusStyles).not.toContain("transform: translateX(-50%);");
+    expect(pickModeStatusStyles).toContain("flex-wrap: wrap;");
   });
 
   it("uses the inherited Canvas semantic theme without owning a fixed palette", () => {

@@ -148,6 +148,25 @@ describe("VSCodeDrawingCanvas adapter", () => {
     expect(mocks.commitCanvasRectangleSelection).not.toHaveBeenCalled();
   });
 
+  it("projects ordinary Pick Mode status into the shared chrome slot", () => {
+    const target = { elementId: "target", parameterKey: "point" };
+    useCadUiStore.setState({
+      activePointPickTarget: target,
+      activePickModeSession: pickModeSessionForTarget("point", target)
+    });
+    const evaluation = emptyEvaluationResult(useCadDocumentStore.getState().elements);
+    const { adapter } = renderCanvas(evaluation, undefined);
+    const chrome = adapter.renderPickModeChrome?.();
+    if (!chrome) throw new Error("Pick Mode chrome was not rendered");
+    render(chrome);
+
+    expect(screen.getByText("PICK MODE")).toBeInTheDocument();
+    const uiOverlay = adapter.renderHostOverlay?.({ width: 400, height: 300 }, { pickModeChromeHeight: 52 });
+    if (!uiOverlay) throw new Error("Canvas UI overlay was not rendered");
+    const uiView = render(uiOverlay);
+    expect(uiView.container.querySelector(".pick-mode-status")).toBeNull();
+  });
+
   it("keeps view and presentation Ribbon operations available during Pick", () => {
     const target = { elementId: "target", parameterKey: "point" };
     useCadUiStore.setState({
@@ -172,7 +191,7 @@ describe("VSCodeDrawingCanvas adapter", () => {
         { id: "edit", type: "command", commandId: "editCanvasRibbon", icon: "settings-2", showLabel: true }
       ]
     }], onEditCanvasRibbon);
-    const overlay = adapter.renderHostOverlay?.({ width: 400, height: 300 });
+    const overlay = adapter.renderHostOverlay?.({ width: 400, height: 300 }, { pickModeChromeHeight: 60 });
     if (!overlay) throw new Error("Ribbon overlay was not rendered");
     render(overlay);
 
@@ -379,7 +398,7 @@ describe("VSCodeDrawingCanvas adapter", () => {
       ]
     }];
     const { adapter } = renderCanvas(evaluation, undefined, vi.fn(), ribbons, onEditCanvasRibbon);
-    const overlay = adapter.renderHostOverlay?.({ width: 400, height: 300 });
+    const overlay = adapter.renderHostOverlay?.({ width: 400, height: 300 }, { pickModeChromeHeight: 60 });
     if (!overlay) throw new Error("Ribbon overlay was not rendered");
     render(overlay);
 
@@ -393,6 +412,8 @@ describe("VSCodeDrawingCanvas adapter", () => {
     expect(screen.getByRole("button", { name: "キャンバス選択を解除" })).toHaveTextContent("キャンバス選択を解除");
     expect(screen.queryByRole("button", { name: "Toggle Canvas Element Names (Legacy)" })).toBeNull();
     expect(screen.getByRole("status", { name: /Canvas status: ZOOM: \d+%, X: —, Y: —/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Ribbonを移動" }).closest(".command-ribbon")?.parentElement)
+      .toHaveStyle({ top: "68px" });
     fireEvent.click(screen.getByRole("button", { name: "Edit Canvas Ribbon" }));
     expect(onEditCanvasRibbon).toHaveBeenCalledTimes(1);
   });

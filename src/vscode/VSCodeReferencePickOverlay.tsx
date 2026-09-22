@@ -57,7 +57,9 @@ const pointerScreenPoint = (event: PointerEvent, viewport: HTMLDivElement) => {
 };
 
 const eventTargetsReferencePickUi = (event: Event): boolean =>
-  event.target instanceof Element && Boolean(event.target.closest("[data-reference-pick-ui='true']"));
+  event.target instanceof Element && Boolean(event.target.closest(
+    "[data-reference-pick-ui='true'], [data-canvas-pick-mode-chrome='true']"
+  ));
 
 const geometryOptionFor = (candidate: ReferencePickCandidate) => candidate.options.find((option) =>
   option.kind === "geometry" ||
@@ -309,6 +311,7 @@ export const VSCodeReferencePickOverlay = ({
 
   const handleReferencePickWheel = useCallback((event: WheelEvent) => {
     if (session.draft.status !== "active") return;
+    if (eventTargetsReferencePickUi(event)) return;
     const requestId = session.request.requestId;
     const numericMenu = numericPropertyMenuRef.current;
     if (numericMenu && numericMenu.requestId === requestId) {

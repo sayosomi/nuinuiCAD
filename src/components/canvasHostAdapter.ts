@@ -50,6 +50,10 @@ export type CanvasContextMenuKind = "blank" | "element";
 
 export type CanvasWorldPoint = { x: number; y: number };
 
+export type CanvasHostOverlayLayout = {
+  pickModeChromeHeight: number;
+};
+
 export type CanvasPointPickAction = {
   pickedPointAnchor: PointAnchor;
   pickedPointCandidateElementId?: ElementId;
@@ -183,5 +187,13 @@ export type CanvasHostAdapter = {
   toggleCanvasGeometryNames?: () => unknown;
   toggleCanvasPoints: () => unknown;
   resolveImageSourceUrl: (sourcePath: string) => string;
-  renderHostOverlay?: (viewportSize: ViewportSize) => ReactNode;
+  /** Shared Pick Mode status row rendered above the clipped world-space layer. */
+  renderPickModeChrome?: () => ReactNode;
+  /** Host-owned overlays that use Canvas/world-space coordinates. */
+  renderHostDrawingOverlay?: (viewportSize: ViewportSize) => ReactNode;
+  /** Host-owned Canvas UI chrome, outside the clipped world-space layer. */
+  renderHostOverlay?: (
+    viewportSize: ViewportSize,
+    layout?: CanvasHostOverlayLayout
+  ) => ReactNode;
 };

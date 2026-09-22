@@ -21,6 +21,8 @@ type RibbonDrag = {
 export type CommandRibbonFloatingOverlayProps = {
   ribbons: CommandRibbonPresentation[];
   viewportSize: ViewportSize;
+  /** Presentation-only top space reserved by the shared Pick Mode chrome. */
+  topInset?: number;
   iconResolver: (iconName: string) => import("lucide-react").LucideIcon;
   viewportAwareTooltips?: boolean;
   contextMenuData?: string;
@@ -47,6 +49,7 @@ const isClientPointInRect = (clientX: number, clientY: number, rect: DOMRect | n
 export const CommandRibbonFloatingOverlay = ({
   ribbons,
   viewportSize,
+  topInset = 0,
   iconResolver,
   viewportAwareTooltips = false,
   contextMenuData,
@@ -70,15 +73,18 @@ export const CommandRibbonFloatingOverlay = ({
   const sizeFor = (ribbon: CommandRibbonPresentation): RibbonRenderedSize =>
     renderedSizes[ribbon.id] ?? estimatedRibbonSize(ribbon);
 
-  const clampFor = (ribbon: CommandRibbonPresentation, position: RibbonPosition): RibbonPosition =>
+  const clampBaseFor = (ribbon: CommandRibbonPresentation, position: RibbonPosition): RibbonPosition =>
     clampRibbonPosition(position.x, position.y, viewportSize, sizeFor(ribbon));
+
+  const clampDisplayedFor = (ribbon: CommandRibbonPresentation, position: RibbonPosition): RibbonPosition =>
+    clampRibbonPosition(position.x, position.y, viewportSize, sizeFor(ribbon), undefined, topInset);
 
   const positionFor = (ribbon: CommandRibbonPresentation): RibbonPosition => {
     const configured = positions[ribbon.id] ?? {
       x: ribbon.x ?? defaultRibbonX(viewportSize, ribbon, sizeFor(ribbon)),
       y: ribbon.y
     };
-    return clampFor(ribbon, configured);
+    return clampDisplayedFor(ribbon, configured);
   };
 
   useEffect(() => {
@@ -95,7 +101,7 @@ export const CommandRibbonFloatingOverlay = ({
         const configuredCoordinatesChanged = previousConfigured === undefined
           || previousConfigured.x !== ribbon.x
           || previousConfigured.y !== ribbon.y;
-        const position = clampFor(ribbon, configuredCoordinatesChanged
+        const position = clampBaseFor(ribbon, configuredCoordinatesChanged
           ? configuredPosition
           : current[ribbon.id] ?? configuredPosition);
         next[ribbon.id] = position;
@@ -107,7 +113,9 @@ export const CommandRibbonFloatingOverlay = ({
       }
       return changed ? next : current;
     });
-    // The position is intentionally reclamped locally on config/viewport/size changes.
+    // The underlying position is intentionally reclamped locally on
+    // config/viewport/size changes. Pick Mode topInset is applied only by
+    // positionFor, so its automatic displacement never replaces this value.
     // This effect never invokes onPositionCommit, so resize alone cannot persist.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ribbonConfigurationKey, viewportSize.width, viewportSize.height, renderedSizes]);
@@ -167,7 +175,7 @@ export const CommandRibbonFloatingOverlay = ({
   const dragPositionFor = (drag: RibbonDrag, clientX: number, clientY: number): RibbonPosition => {
     const ribbon = ribbons.find((candidate) => candidate.id === drag.ribbonId);
     if (!ribbon) return { x: drag.startX, y: drag.startY };
-    return clampFor(ribbon, {
+    return clampDisplayedFor(ribbon, {
       x: drag.startX + clientX - drag.startClientX,
       y: drag.startY + clientY - drag.startClientY
     });
