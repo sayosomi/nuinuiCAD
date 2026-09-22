@@ -612,7 +612,7 @@ export const registerModulePreviewFeature = ({
       !bootstrapIsAuthoritative(session)
     ) return false;
     const current = currentTargetFor(session);
-    return Boolean(current.target && current.sourceRevision === snapshot.sourceRevision &&
+    return Boolean(current.target &&
       current.target.definitionStatementIndex === snapshot.target.definitionStatementIndex &&
       current.target.name === snapshot.target.name);
   };
@@ -1146,11 +1146,10 @@ export const registerModulePreviewFeature = ({
     const current = currentTargetFor(session);
     if (
       !current.target ||
-      current.sourceRevision !== snapshot.sourceRevision ||
       current.target.definitionStatementIndex !== snapshot.target.definitionStatementIndex ||
       current.target.name !== snapshot.target.name
     ) {
-      stale("The Module Preview target or source revision is stale.");
+      stale("The Module Preview target is stale.");
       return;
     }
     const targetGroup = snapshot.groups.find((group) =>
@@ -1184,7 +1183,6 @@ export const registerModulePreviewFeature = ({
     if (
       editor.document.version !== snapshot.documentVersion ||
       normalizedSourceFor(rawSource) !== snapshot.normalizedSource ||
-      source.source.sourceRevision !== snapshot.sourceRevision ||
       !source.semantic?.compiled
     ) {
       stale("The source document changed after the current Module Preview values were published.");
