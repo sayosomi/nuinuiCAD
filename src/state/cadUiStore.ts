@@ -21,6 +21,11 @@ import {
   type PickModeSelectionCardinality,
   type PickModeSession
 } from "../model/pickModeSession";
+import {
+  panViewportByScreenDelta,
+  zoomViewportAt,
+  type Viewport
+} from "../geometry/viewport";
 
 export type MeasurementInsertMode = "distance" | "angle" | "lineDistance";
 export type MeasurementPointSlot = "point1" | "point2";
@@ -81,11 +86,7 @@ export type ActivePickCursor = {
   optionIndex: number;
 };
 
-export type CanvasViewport = {
-  panX: number;
-  panY: number;
-  zoom: number;
-};
+export type CanvasViewport = Viewport;
 
 export type ReferenceHelperPosition = {
   x: number;
@@ -481,35 +482,6 @@ const isFinitePositive = (value: number): boolean => Number.isFinite(value) && v
 const normalizeCanvasZoom = (zoom: number): number | null =>
   isFinitePositive(zoom) ? zoom : null;
 
-const zoomViewportAt = (
-  current: CanvasViewport,
-  zoomFactor: number,
-  anchor: { x: number; y: number; width: number; height: number } | undefined,
-  normalizeZoom: (zoom: number) => number | null
-) => {
-  const nextZoom = normalizeZoom(current.zoom * zoomFactor);
-  if (nextZoom === null || nextZoom === current.zoom) return current;
-
-  if (!anchor) {
-    return {
-      ...current,
-      zoom: nextZoom
-    };
-  }
-
-  const worldX = (anchor.x - anchor.width / 2 - current.panX) / current.zoom;
-  const worldY = (anchor.height / 2 + current.panY - anchor.y) / current.zoom;
-
-  const nextViewport = {
-    zoom: nextZoom,
-    panX: anchor.x - anchor.width / 2 - worldX * nextZoom,
-    panY: anchor.y - anchor.height / 2 + worldY * nextZoom
-  };
-  return Number.isFinite(nextViewport.panX) && Number.isFinite(nextViewport.panY)
-    ? nextViewport
-    : current;
-};
-
 export const useCadUiStore = create<CadUiState>((set, get) => ({
   ...initialCadUiState(),
   setInspectorExpanded: (isInspectorExpanded) => set({ isInspectorExpanded }),
@@ -653,11 +625,7 @@ export const useCadUiStore = create<CadUiState>((set, get) => ({
     }),
   panCanvasViewport: (dx, dy) =>
     set((state) => ({
-      canvasViewport: {
-        ...state.canvasViewport,
-        panX: state.canvasViewport.panX + dx,
-        panY: state.canvasViewport.panY + dy
-      }
+      canvasViewport: panViewportByScreenDelta(state.canvasViewport, dx, dy)
     })),
   zoomCanvasViewportAt: (zoomFactor, anchor) =>
     set((state) => {

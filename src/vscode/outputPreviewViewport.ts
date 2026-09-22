@@ -1,14 +1,17 @@
 import { fitCanvasViewportToBounds, CANVAS_FIT_PADDING_PX } from "../geometry/canvasViewportFit";
+import {
+  screenToWorld,
+  worldToScreen,
+  zoomViewportAt,
+  type Viewport,
+  type ViewportSize
+} from "../geometry/viewport";
 import { outputDrawableBounds, type OutputBounds, type OutputDrawable, type OutputPlan } from "../output/outputCore";
 import { MAX_CANVAS_ZOOM, MIN_CANVAS_ZOOM } from "../state/cadUiStore";
 
-export type OutputPreviewViewport = {
-  panX: number;
-  panY: number;
-  zoom: number;
-};
+export type OutputPreviewViewport = Viewport;
 
-export type OutputPreviewViewportSize = { width: number; height: number };
+export type OutputPreviewViewportSize = ViewportSize;
 
 export type OutputPreviewFitBounds = {
   minX: number;
@@ -26,23 +29,9 @@ export const DEFAULT_OUTPUT_PREVIEW_VIEWPORT: OutputPreviewViewport = {
 export const clampOutputPreviewZoom = (zoom: number): number =>
   Math.min(MAX_CANVAS_ZOOM, Math.max(MIN_CANVAS_ZOOM, zoom));
 
-export const outputPreviewWorldToScreen = (
-  point: { x: number; y: number },
-  size: OutputPreviewViewportSize,
-  viewport: OutputPreviewViewport
-) => ({
-  x: size.width / 2 + viewport.panX + point.x * viewport.zoom,
-  y: size.height / 2 + viewport.panY - point.y * viewport.zoom
-});
+export const outputPreviewWorldToScreen = worldToScreen;
 
-export const outputPreviewScreenToWorld = (
-  point: { x: number; y: number },
-  size: OutputPreviewViewportSize,
-  viewport: OutputPreviewViewport
-) => ({
-  x: (point.x - size.width / 2 - viewport.panX) / viewport.zoom,
-  y: (size.height / 2 + viewport.panY - point.y) / viewport.zoom
-});
+export const outputPreviewScreenToWorld = screenToWorld;
 
 export const resetOutputPreviewViewport = (): OutputPreviewViewport => ({
   ...DEFAULT_OUTPUT_PREVIEW_VIEWPORT
@@ -53,17 +42,7 @@ export const zoomOutputPreviewViewportAt = (
   zoomFactor: number,
   anchor: { x: number; y: number; width: number; height: number }
 ): OutputPreviewViewport => {
-  if (!Number.isFinite(zoomFactor) || zoomFactor <= 0) return viewport;
-  const world = {
-    x: (anchor.x - anchor.width / 2 - viewport.panX) / viewport.zoom,
-    y: (anchor.height / 2 + viewport.panY - anchor.y) / viewport.zoom
-  };
-  const zoom = clampOutputPreviewZoom(viewport.zoom * zoomFactor);
-  return {
-    zoom,
-    panX: anchor.x - anchor.width / 2 - world.x * zoom,
-    panY: anchor.y - anchor.height / 2 + world.y * zoom
-  };
+  return zoomViewportAt(viewport, zoomFactor, anchor, clampOutputPreviewZoom);
 };
 
 export const outputPreviewFitBoundsFor = (plan: OutputPlan): OutputPreviewFitBounds | null => {

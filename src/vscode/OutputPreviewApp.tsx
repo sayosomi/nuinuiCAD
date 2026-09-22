@@ -4,6 +4,7 @@ import { canvasThemeCssVariables, LEGACY_CANVAS_THEME } from "../components/canv
 import { compileCanonicalText, type LastGoodDslDocument } from "@nuinuicad/nui-language/document";
 import { evaluateElementsWithRust } from "../geometry/evaluationEngine";
 import { evaluateOutputPlan, type OutputDrawable, type OutputPlan, type OutputText } from "../output/outputCore";
+import { panViewportByScreenDelta } from "../geometry/viewport";
 import { projectOutputPlaces } from "../output/outputPlaceProjection";
 import {
   projectDslOutputPreviewRevealRuntimeTarget,
@@ -889,11 +890,11 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     setPointerClientPosition({ clientX: event.clientX, clientY: event.clientY });
     const pan = panRef.current;
     if (!pan || pan.pointerId !== event.pointerId) return;
-    setViewport((current) => ({
-      ...current,
-      panX: current.panX + event.clientX - pan.lastX,
-      panY: current.panY + event.clientY - pan.lastY
-    }));
+    setViewport((current) => panViewportByScreenDelta(
+      current,
+      event.clientX - pan.lastX,
+      event.clientY - pan.lastY
+    ));
     panRef.current = { ...pan, lastX: event.clientX, lastY: event.clientY };
   };
 
