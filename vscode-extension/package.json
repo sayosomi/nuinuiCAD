@@ -248,10 +248,10 @@
         "when": "(editorTextFocus && editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.coordinatePointConversionSourceTarget) || (activeWebviewPanelId == 'nuinuiCAD.canvas' && nuinuiCAD.canvasHasCoordinatePointConversionTarget && !inputFocus && !nuinuiCAD.webviewEditableFocus)"
       },
       {
-        "command": "nuinuiCAD.replaceGeometryReferences",
+        "command": "nuinuiCAD.insertTemplate",
         "key": "ctrl+shift+alt+t",
         "mac": "ctrl+shift+t",
-        "when": "editorTextFocus && editorLangId == nui && resourceScheme == file && resourceExtname == .nui && !editorReadonly && nuinuiCAD.geometryReferenceRetargetSourceTarget"
+        "when": "editorTextFocus && editorLangId == nui && resourceScheme == file && resourceExtname == .nui && !editorReadonly"
       },
       {
         "command": "nuinuiCAD.bakeCurrentShape",
