@@ -11,9 +11,17 @@ import {
 } from "./canvasQuickCreateLocalization";
 import { nativeCreateQuickPick } from "./nativeQuickInput";
 
-type QuickPickCreationItem = vscode.QuickPickItem & {
+type QuickPickCreationCommandItem = Omit<vscode.QuickPickItem, "kind"> & {
+  kind?: vscode.QuickPickItemKind.Default;
   commandId: VscodeCanvasCreationCommandId;
 };
+
+type QuickPickCreationSeparatorItem = {
+  label: "";
+  kind: vscode.QuickPickItemKind.Separator;
+};
+
+type QuickPickCreationItem = QuickPickCreationCommandItem | QuickPickCreationSeparatorItem;
 
 export type VscodeCreationCommandPickerOptions = {
   displayLanguage: string;
@@ -32,7 +40,7 @@ export const sortVscodeCreationCommandsForQuickPick = (
   entries: readonly VscodeCanvasCreationCommand[]
 ): VscodeCanvasCreationCommand[] => [...entries].sort(compareCreationEntriesForQuickPick);
 
-const quickPickItemsFor = (
+export const createVscodeCreationQuickPickItems = (
   entries: readonly VscodeCanvasCreationCommand[],
   displayLanguage: string,
   recentCommandIds: readonly VscodeCanvasCreationCommandId[]
@@ -48,12 +56,19 @@ const quickPickItemsFor = (
     promotedEntries.push(entry);
   }
 
-  return [...promotedEntries, ...sortedEntries.filter(({ commandId }) => !promotedCommandIds.has(commandId))].map((entry) => ({
-  label: entry.quickPickLabel,
-  description: canvasQuickCreateDescriptionFor(entry.commandId, displayLanguage),
-  commandId: entry.commandId,
-  alwaysShow: true
-}));
+  const remainderEntries = sortedEntries.filter(({ commandId }) => !promotedCommandIds.has(commandId));
+  const commandItems = [...promotedEntries, ...remainderEntries].map((entry) => ({
+    label: entry.quickPickLabel,
+    description: canvasQuickCreateDescriptionFor(entry.commandId, displayLanguage),
+    commandId: entry.commandId,
+    alwaysShow: true
+  }));
+  if (promotedEntries.length === 0 || remainderEntries.length === 0) return commandItems;
+  return [
+    ...commandItems.slice(0, promotedEntries.length),
+    { label: "", kind: vscode.QuickPickItemKind.Separator },
+    ...commandItems.slice(promotedEntries.length)
+  ];
 };
 
 /** Picks one existing Create Geometry command without owning any command lifecycle. */
@@ -75,9 +90,12 @@ export const pickVscodeCreationCommand = ({
     settled = true;
     for (const listener of listeners) listener.dispose();
     picker.dispose();
+    const commandId = selection?.kind === vscode.QuickPickItemKind.Separator
+      ? undefined
+      : selection?.commandId;
     resolvePick(
-      selection && isVscodeCanvasCreationCommandId(selection.commandId)
-        ? selection.commandId
+      commandId && isVscodeCanvasCreationCommandId(commandId)
+        ? commandId
         : undefined
     );
   };
@@ -85,7 +103,7 @@ export const pickVscodeCreationCommand = ({
     "canvasQuickCreate.placeholder.createGeometry"
   );
   picker.matchOnDescription = false;
-  const itemsForValue = (value: string): QuickPickCreationItem[] => quickPickItemsFor(
+  const itemsForValue = (value: string): QuickPickCreationItem[] => createVscodeCreationQuickPickItems(
     filterVscodeCanvasCreationCommands(value),
     displayLanguage,
     value === "" ? recentCommandIds : []
