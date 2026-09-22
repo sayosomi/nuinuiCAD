@@ -278,7 +278,8 @@ describe("Output Preview application", () => {
               "output.selector.label": "出力",
               "output.selector.noOutputs": "出力なし",
               "output.noOutputs": "印刷またはSVGの出力がありません",
-              "output.addDeclaration": "Source Editorにprintまたはsvg宣言を追加してください。"
+              "output.addDeclaration": "Source Editorにprintまたはsvg宣言を追加してください。",
+              "output.insertTemplate": "テンプレートを挿入…"
             },
             diagnosticTemplates: {}
           }
@@ -288,6 +289,31 @@ describe("Output Preview application", () => {
 
     expect(screen.getByRole("combobox", { name: "出力" })).toBeInTheDocument();
     expect(screen.getByText("印刷またはSVGの出力がありません")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "テンプレートを挿入…" })).toBeInTheDocument();
+  });
+
+  it("posts the authoritative document version when the no-output template affordance is activated", () => {
+    useCadDocumentStore.setState(initialCadDocumentState());
+    render(<OutputPreviewApp api={api} />);
+
+    act(() => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText: "nui 1", documentVersion: 17 }
+      }));
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Insert Template…" }));
+    expect(api.postMessage).toHaveBeenCalledWith({
+      type: "outputPreviewInsertTemplate",
+      documentVersion: 17
+    });
+  });
+
+  it("does not show the no-output template affordance when output candidates exist", () => {
+    useCadDocumentStore.setState(initialCadDocumentState());
+    renderFixture();
+
+    expect(screen.queryByRole("button", { name: "Insert Template…" })).toBeNull();
   });
 
   it.each([

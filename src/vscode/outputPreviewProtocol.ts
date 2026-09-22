@@ -80,6 +80,7 @@ export type VscodeOutputPreviewRevealResult =
 export type VscodeOutputPreviewToExtensionMessage =
   | { type: "outputPreviewFit" }
   | { type: "outputPreviewResetView" }
+  | { type: "outputPreviewInsertTemplate"; documentVersion: number }
   | VscodeOutputPreviewExportAvailability
   | VscodeOutputPreviewExportRequest
   | VscodeOutputPreviewRevealResult

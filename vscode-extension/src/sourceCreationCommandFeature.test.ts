@@ -209,7 +209,8 @@ const sourceEditorFor = (source: string, version = 1, line = 1) => {
     version,
     lineCount: source.split("\n").length,
     uri: { scheme: "file", toString: () => "file:///tmp/example.nui" },
-    getText: () => source
+    getText: () => source,
+    positionAt: (offset: number) => ({ line: 0, character: offset })
   };
   const editor = { document, selection: { active: { line, character: 0 } } };
   const session = createNuiLanguageSession(source);
@@ -224,6 +225,54 @@ const sourceEditorFor = (source: string, version = 1, line = 1) => {
 };
 
 describe("Source Insert Template command feature", () => {
+  it.each([
+    { documentUri: "file:///tmp/other.nui", expectedDocumentVersion: 1 },
+    { documentUri: "file:///tmp/example.nui", expectedDocumentVersion: 2 }
+  ])("fails closed when an internal exact-document invocation is stale or mismatched", async (invocation) => {
+    const { editor, session } = sourceEditorFor("nui 1\n");
+    const feature = registerVscodeSourceCreationCommandFeature({
+      activeSourceEditor: () => editor,
+      displayLanguageFor: () => "en",
+      languageAnalysisSessionFor: () => session
+    });
+
+    await expect(mocks.commands.get(VSCODE_SOURCE_INSERT_TEMPLATE_COMMAND_ID)?.({
+      ...invocation,
+      insertionOrigin: "document-end"
+    })).resolves.toBeUndefined();
+
+    expect(mocks.showQuickPick).not.toHaveBeenCalled();
+    expect(mocks.insertOutputSnippet).not.toHaveBeenCalled();
+    feature.dispose();
+  });
+
+  it("uses the canonical document-end insertion and keeps a required separator in one Output snippet", async () => {
+    const { editor, session } = sourceEditorFor("nui 1");
+    mocks.showQuickPick
+      .mockResolvedValueOnce(SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS[7])
+      .mockResolvedValueOnce("Layout");
+    mocks.insertOutputSnippet.mockResolvedValue(true);
+    const feature = registerVscodeSourceCreationCommandFeature({
+      activeSourceEditor: () => editor,
+      displayLanguageFor: () => "en",
+      languageAnalysisSessionFor: () => session
+    });
+
+    await expect(mocks.commands.get(VSCODE_SOURCE_INSERT_TEMPLATE_COMMAND_ID)?.({
+      documentUri: "file:///tmp/example.nui",
+      expectedDocumentVersion: 1,
+      insertionOrigin: "document-end"
+    })).resolves.toBe(true);
+
+    expect(mocks.insertOutputSnippet).toHaveBeenCalledWith(
+      editor,
+      expect.anything(),
+      { line: 0, character: 5 },
+      { prefixText: "\n" }
+    );
+    feature.dispose();
+  });
+
   it("keeps the fixed family order and explicit family routes", () => {
     expect(SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS.map(({ label }) => label))
       .toEqual(["Geometry", "Geometry Value", "Calculation / Measurement", "Control Flow", "Value / Match", "Module", "Style / Profile", "Output / Print"]);

@@ -147,7 +147,9 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
   };
 
   const sourceInteraction = createOutputPreviewSourceInteractionFeature({
+    isSessionCurrent: (session) => host.registry.get(host.documentKey(session.document)) === session,
     isOpenDocument: host.isOpenDocument,
+    sameDocument: host.sameDocument,
     isNormalizedRangeSafe: host.isNormalizedRangeSafe,
     visibleEditorFor: host.visibleEditorFor,
     resyncOutputPreview: (session) => {
@@ -444,6 +446,10 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
       }
       if (message.type === "outputPreviewExportRequest") {
         await handleExport(session, message);
+        return;
+      }
+      if (message.type === "outputPreviewInsertTemplate") {
+        await sourceInteraction.handleInsertTemplate(session, message);
         return;
       }
       if (message.type === "outputPreviewRevealResult") {

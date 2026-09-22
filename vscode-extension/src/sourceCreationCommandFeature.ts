@@ -58,7 +58,9 @@ import {
 import { materializeSourceCalculationMeasurementTemplate } from "../../src/commands/sourceCalculationMeasurementTemplateMaterializer";
 import {
   type SourceCreationCursor,
-  type SourceCreationInsertion
+  type SourceCreationInsertion,
+  resolveDocumentEndSourceCreationInsertion,
+  type SourceCreationInsertionOrigin
 } from "../../src/commands/sourceCreationInsertion";
 import {
   insertSourceCalculationMeasurementSnippet,
@@ -75,6 +77,20 @@ import { nativeShowQuickPick } from "./nativeQuickInput";
 
 export const VSCODE_SOURCE_CREATE_GEOMETRY_COMMAND_ID = "nuinuiCAD.createGeometry";
 export const VSCODE_SOURCE_INSERT_TEMPLATE_COMMAND_ID = "nuinuiCAD.insertTemplate";
+
+export type SourceCreationInternalInvocation = {
+  documentUri: string;
+  expectedDocumentVersion: number;
+  insertionOrigin: "document-end";
+};
+
+const isSourceCreationInternalInvocation = (value: unknown): value is SourceCreationInternalInvocation => {
+  if (typeof value !== "object" || value === null) return false;
+  const candidate = value as Partial<SourceCreationInternalInvocation>;
+  return typeof candidate.documentUri === "string" &&
+    Number.isInteger(candidate.expectedDocumentVersion) &&
+    candidate.insertionOrigin === "document-end";
+};
 
 const SOURCE_TEMPLATE_STALE_MESSAGE =
   "nuinuiCAD: The Source changed while Insert Template was open. Retry the command.";
@@ -96,13 +112,12 @@ type SourceTemplateTarget = {
   sourceRevision: number;
   caret: vscode.Position;
   context: SourceTemplateInsertionContext;
+  insertionOrigin: SourceCreationInsertionOrigin;
   compiled: CompiledDslDocument;
   session: NuiLanguageAnalysisSession;
 };
 
-const isWritableSourceEditor = (editor: vscode.TextEditor | undefined): editor is vscode.TextEditor => {
-  if (!editor) return false;
-  const { document } = editor;
+export const isWritableSourceDocument = (document: vscode.TextDocument): boolean => {
   if (
     document.languageId !== "nui" ||
     document.uri.scheme !== "file" ||
@@ -110,6 +125,9 @@ const isWritableSourceEditor = (editor: vscode.TextEditor | undefined): editor i
   ) return false;
   return vscode.workspace.fs?.isWritableFileSystem(document.uri.scheme) !== false;
 };
+
+export const isWritableSourceEditor = (editor: vscode.TextEditor | undefined): editor is vscode.TextEditor =>
+  editor !== undefined && isWritableSourceDocument(editor.document);
 
 const lineCountFor = (document: vscode.TextDocument, rawSource: string): number =>
   Number.isInteger(document.lineCount) && document.lineCount > 0
@@ -143,7 +161,8 @@ const elementIdForLine = (
 
 const currentSourceTemplateTargetFor = (
   editor: vscode.TextEditor,
-  languageAnalysisSessionFor: ((document: vscode.TextDocument) => NuiLanguageAnalysisSession) | undefined
+  languageAnalysisSessionFor: ((document: vscode.TextDocument) => NuiLanguageAnalysisSession) | undefined,
+  insertionOrigin: SourceCreationInsertionOrigin = "source-cursor"
 ): SourceTemplateTarget | null => {
   if (!languageAnalysisSessionFor || !isWritableSourceEditor(editor)) return null;
   const document = editor.document;
@@ -157,13 +176,23 @@ const currentSourceTemplateTargetFor = (
   const semantic = currentCompiledSemanticSnapshotFor(session, source);
   if (!semantic) return null;
   const caret = editor.selection.active;
-  const cursor: SourceCreationCursor = {
-    sourceRevision: source.sourceRevision,
-    line: caret.line + 1,
-    lineCount: lineCountFor(document, rawSource),
-    elementId: elementIdForLine(semantic.compiled, caret.line + 1)
-  };
-  const insertion = resolveSourceTemplateInsertion({ cursor, compiled: semantic.compiled });
+  const insertion = insertionOrigin === "document-end"
+    ? resolveDocumentEndSourceCreationInsertion({
+        sourceText: rawSource,
+        documentText: rawSource,
+        sourceRevision: source.sourceRevision,
+        elements: [...semantic.compiled.sourceElementsByStatementIndex.values()],
+        statementMap: semantic.compiled.statementMap
+      })
+    : resolveSourceTemplateInsertion({
+        cursor: {
+          sourceRevision: source.sourceRevision,
+          line: caret.line + 1,
+          lineCount: lineCountFor(document, rawSource),
+          elementId: elementIdForLine(semantic.compiled, caret.line + 1)
+        },
+        compiled: semantic.compiled
+      });
   if (insertion.kind !== "safe") return null;
   return {
     editor,
@@ -173,7 +202,10 @@ const currentSourceTemplateTargetFor = (
     rawSource,
     sourceRevision: source.sourceRevision,
     caret,
-    context: insertion.context,
+    context: insertionOrigin === "document-end"
+      ? { insertion: insertion.insertion, scope: "top-level" }
+      : insertion.context,
+    insertionOrigin,
     compiled: semantic.compiled,
     session
   };
@@ -181,6 +213,24 @@ const currentSourceTemplateTargetFor = (
 
 const sourcePositionForInsertion = (insertion: SourceCreationInsertion): vscode.Position =>
   new vscode.Position(Math.max(0, insertion.sourceInsertionLine - 1), 0);
+
+const sourcePositionForTarget = (target: SourceTemplateTarget): vscode.Position =>
+  target.insertionOrigin === "document-end"
+    ? target.document.positionAt(target.rawSource.length)
+    : sourcePositionForInsertion(target.context.insertion);
+
+const sourceCreationSnippetOptionsFor = (target: SourceTemplateTarget) =>
+  target.insertionOrigin === "document-end" && !target.rawSource.endsWith("\n")
+    ? { prefixText: "\n", appendNewline: true }
+    : {
+        ...(target.context.scope === "direct-layout-body" ? { prefixText: DSL_INDENT } : {}),
+        appendNewline: true
+      };
+
+const sourceOutputSnippetOptionsFor = (target: SourceTemplateTarget) =>
+  target.insertionOrigin === "document-end" && !target.rawSource.endsWith("\n")
+    ? { prefixText: "\n" }
+    : undefined;
 
 const stableStatementIdFor = (compiled: CompiledDslDocument, statementIndex: number): string | undefined =>
   compiled.statementMap?.statementIdByStatementIndex?.get(statementIndex) ??
@@ -268,7 +318,8 @@ const insertOutputTemplate = async (
   return insertSourceOutputTemplateSnippet(
     target.editor,
     sourceOutputTemplateSnippetFor(templateId),
-    insertionPosition
+    insertionPosition,
+    sourceOutputSnippetOptionsFor(target)
   );
 };
 
@@ -354,10 +405,7 @@ const insertGeometryValueTemplate = async (
     target.editor,
     materialization,
     insertionPosition,
-    {
-      ...(target.context.scope === "direct-layout-body" ? { prefixText: DSL_INDENT } : {}),
-      appendNewline: true
-    }
+    sourceCreationSnippetOptionsFor(target)
   );
 };
 
@@ -396,10 +444,7 @@ const insertCalculationMeasurementTemplate = async (
     target.editor,
     materialization,
     insertionPosition,
-    {
-      ...(target.context.scope === "direct-layout-body" ? { prefixText: DSL_INDENT } : {}),
-      appendNewline: true
-    }
+    sourceCreationSnippetOptionsFor(target)
   );
 };
 
@@ -429,10 +474,7 @@ const insertControlFlowTemplate = async (
     target.editor,
     materialization,
     insertionPosition,
-    {
-      ...(target.context.scope === "direct-layout-body" ? { prefixText: DSL_INDENT } : {}),
-      appendNewline: true
-    }
+    sourceCreationSnippetOptionsFor(target)
   );
 };
 
@@ -462,10 +504,7 @@ const insertValueMatchTemplate = async (
     target.editor,
     materialization,
     insertionPosition,
-    {
-      ...(target.context.scope === "direct-layout-body" ? { prefixText: DSL_INDENT } : {}),
-      appendNewline: true
-    }
+    sourceCreationSnippetOptionsFor(target)
   );
 };
 
@@ -520,10 +559,7 @@ const insertModuleTemplate = async (
     target.editor,
     materialization,
     insertionPosition,
-    {
-      ...(target.context.scope === "direct-layout-body" ? { prefixText: DSL_INDENT } : {}),
-      appendNewline: true
-    }
+    sourceCreationSnippetOptionsFor(target)
   );
 };
 
@@ -558,10 +594,7 @@ const insertStyleProfileTemplate = async (
     target.editor,
     materialization,
     insertionPosition,
-    {
-      ...(target.context.scope === "direct-layout-body" ? { prefixText: DSL_INDENT } : {}),
-      appendNewline: true
-    }
+    sourceCreationSnippetOptionsFor(target)
   );
 };
 
@@ -590,11 +623,25 @@ export const registerVscodeSourceCreationCommandFeature = ({
   );
   const insertTemplateCommand = vscode.commands.registerCommand(
     VSCODE_SOURCE_INSERT_TEMPLATE_COMMAND_ID,
-    async (): Promise<boolean | undefined> => {
+    async (invocationArgument?: unknown): Promise<boolean | undefined> => {
+      const internalInvocation = invocationArgument === undefined
+        ? undefined
+        : isSourceCreationInternalInvocation(invocationArgument)
+          ? invocationArgument
+          : null;
+      if (internalInvocation === null) return undefined;
       const editor = activeSourceEditor();
       if (!isWritableSourceEditor(editor)) return undefined;
+      if (internalInvocation && (
+        editor.document.uri.toString() !== internalInvocation.documentUri ||
+        editor.document.version !== internalInvocation.expectedDocumentVersion
+      )) return undefined;
 
-      const target = currentSourceTemplateTargetFor(editor, languageAnalysisSessionFor);
+      const target = currentSourceTemplateTargetFor(
+        editor,
+        languageAnalysisSessionFor,
+        internalInvocation?.insertionOrigin ?? "source-cursor"
+      );
       if (!target) {
         void vscode.window.showErrorMessage(SOURCE_TEMPLATE_UNSAFE_INSERTION_MESSAGE);
         return undefined;
@@ -611,7 +658,13 @@ export const registerVscodeSourceCreationCommandFeature = ({
         target.editor.document.uri.toString() === target.documentUri &&
         target.document.version === target.documentVersion &&
         target.session.getSourceRevision() === target.sourceRevision &&
-        target.session.getSource() === target.rawSource;
+        target.session.getSource() === target.rawSource &&
+        (!internalInvocation || (() => {
+          const currentEditor = activeSourceEditor();
+          return isWritableSourceEditor(currentEditor) &&
+            currentEditor.document.uri.toString() === internalInvocation.documentUri &&
+            currentEditor.document.version === internalInvocation.expectedDocumentVersion;
+        })());
 
       const family = await nativeShowQuickPick(SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS);
       if (!isCurrent()) {
@@ -620,7 +673,7 @@ export const registerVscodeSourceCreationCommandFeature = ({
       }
       if (!family) return undefined;
 
-      const insertionPosition = sourcePositionForInsertion(target.context.insertion);
+      const insertionPosition = sourcePositionForTarget(target);
       const route = sourceTemplateRouteFor(family.id);
       switch (route.kind) {
         case "geometry":
@@ -631,10 +684,7 @@ export const registerVscodeSourceCreationCommandFeature = ({
             sourceCreationMru,
             {
               insertionPosition,
-              snippetOptions: {
-                ...(target.context.scope === "direct-layout-body" ? { prefixText: DSL_INDENT } : {}),
-                appendNewline: true
-              },
+              snippetOptions: sourceCreationSnippetOptionsFor(target),
               isCurrent,
               onStale: showStaleMessage
             }
