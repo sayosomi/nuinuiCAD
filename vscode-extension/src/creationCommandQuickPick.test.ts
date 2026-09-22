@@ -1,16 +1,25 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { QuickPickItemKind } from "vscode";
 import {
   filterVscodeCanvasCreationCommands,
   vscodeCanvasCreationCommands,
   type VscodeCanvasCreationCommand
 } from "../../src/vscode/vscodeCanvasCreationCommands";
 
-type TestItem = {
+type TestCommandItem = {
   label: string;
   description?: string;
   commandId: string;
   alwaysShow?: boolean;
+  kind?: number;
 };
+
+type TestSeparatorItem = {
+  label: string;
+  kind: number;
+};
+
+type TestItem = TestCommandItem | TestSeparatorItem;
 
 type TestQuickPick = {
   placeholder?: string;
@@ -23,6 +32,13 @@ type TestQuickPick = {
   fireAccept: () => void;
   fireHide: () => void;
 };
+
+const isCommandItem = (item: TestItem): item is TestCommandItem => "commandId" in item;
+const commandItemsOf = (items: readonly TestItem[]): TestCommandItem[] => items.filter(isCommandItem);
+const commandIdsOf = (items: readonly TestItem[]): string[] => commandItemsOf(items).map(({ commandId }) => commandId);
+const separatorItemsOf = (items: readonly TestItem[]): TestSeparatorItem[] => items.filter(
+  (item): item is TestSeparatorItem => item.kind === QuickPickItemKind.Separator
+);
 
 const mocks = vi.hoisted(() => ({
   createQuickPick: vi.fn(),
@@ -65,12 +81,17 @@ const createTestQuickPick = (): TestQuickPick => {
 };
 
 vi.mock("vscode", () => ({
+  QuickPickItemKind: {
+    Default: 0,
+    Separator: 1
+  },
   window: {
     createQuickPick: mocks.createQuickPick
   }
 }));
 
 import {
+  createVscodeCreationQuickPickItems,
   pickVscodeCreationCommand,
   sortVscodeCreationCommandsForQuickPick
 } from "./creationCommandQuickPick";
@@ -91,15 +112,15 @@ describe("pickVscodeCreationCommand", () => {
     });
     const picker = mocks.quickPicks[0]!;
 
-    expect(picker.items.filter(({ commandId }) => commandId.startsWith("addMaterialized"))).toEqual([
+    expect(commandItemsOf(picker.items).filter(({ commandId }) => commandId.startsWith("addMaterialized"))).toEqual([
       expect.objectContaining({ commandId: "addMaterializedLine", label: "Line from Source" }),
       expect.objectContaining({ commandId: "addMaterializedPath", label: "Path from Source" }),
       expect.objectContaining({ commandId: "addMaterializedPoint", label: "Point from Source" })
     ]);
     picker.fireValue("materialize point");
-    expect(picker.items.map(({ commandId }) => commandId)).toEqual(["addMaterializedPoint"]);
+    expect(commandIdsOf(picker.items)).toEqual(["addMaterializedPoint"]);
     picker.fireValue("ソース パス");
-    expect(picker.items.map(({ commandId }) => commandId)).toEqual(["addMaterializedPath"]);
+    expect(commandIdsOf(picker.items)).toEqual(["addMaterializedPath"]);
 
     picker.fireHide();
     await expect(pending).resolves.toBeUndefined();
@@ -115,25 +136,26 @@ describe("pickVscodeCreationCommand", () => {
     expect(englishPicker.items.map(({ label }) => label)).toEqual(
       [...englishPicker.items.map(({ label }) => label)].sort((left, right) => left.localeCompare(right))
     );
-    expect([...englishPicker.items.map(({ commandId }) => commandId)].sort()).toEqual(
+    expect([...commandIdsOf(englishPicker.items)].sort()).toEqual(
       [...vscodeCanvasCreationCommands.map(({ commandId }) => commandId)].sort()
     );
-    expect(englishPicker.items).toHaveLength(vscodeCanvasCreationCommands.length);
-    expect(englishPicker.items.every(({ alwaysShow }) => alwaysShow)).toBe(true);
+    expect(commandItemsOf(englishPicker.items)).toHaveLength(vscodeCanvasCreationCommands.length);
+    expect(separatorItemsOf(englishPicker.items)).toHaveLength(0);
+    expect(commandItemsOf(englishPicker.items).every(({ alwaysShow }) => alwaysShow)).toBe(true);
     expect(englishPicker.placeholder).toBe("Create geometry");
     expect(englishPicker.matchOnDescription).toBe(false);
-    expect(englishPicker.items.find(({ commandId }) => commandId === "addBezierCurve")).toMatchObject({
+    expect(commandItemsOf(englishPicker.items).find(({ commandId }) => commandId === "addBezierCurve")).toMatchObject({
       label: "Bezier Curve",
       description: "Create Bezier Curve"
     });
 
     englishPicker.fireValue("bezier 曲線");
     const expectedBezierCommands = filterVscodeCanvasCreationCommands("bezier 曲線");
-    expect([...englishPicker.items.map(({ commandId }) => commandId)].sort()).toEqual(
+    expect([...commandIdsOf(englishPicker.items)].sort()).toEqual(
       [...expectedBezierCommands.map(({ commandId }) => commandId)].sort()
     );
-    expect(englishPicker.items).toHaveLength(expectedBezierCommands.length);
-    expect(englishPicker.items.map(({ commandId }) => commandId)).toEqual([
+    expect(separatorItemsOf(englishPicker.items)).toHaveLength(0);
+    expect(commandIdsOf(englishPicker.items)).toEqual([
       "addBezierBulgePoint",
       "addBezierCurve",
       "addBezierExtremePoint"
@@ -147,9 +169,10 @@ describe("pickVscodeCreationCommand", () => {
     expect(englishPicker.items.map(({ label }) => label)).toEqual(
       [...englishPicker.items.map(({ label }) => label)].sort((left, right) => left.localeCompare(right))
     );
-    expect([...englishPicker.items.map(({ commandId }) => commandId)].sort()).toEqual(
+    expect([...commandIdsOf(englishPicker.items)].sort()).toEqual(
       [...vscodeCanvasCreationCommands.map(({ commandId }) => commandId)].sort()
     );
+    expect(separatorItemsOf(englishPicker.items)).toHaveLength(0);
 
     englishPicker.fireHide();
     englishPicker.fireHide();
@@ -163,11 +186,11 @@ describe("pickVscodeCreationCommand", () => {
     });
     const japanesePicker = mocks.quickPicks[1]!;
     expect(japanesePicker.placeholder).toBe("ジオメトリを作成");
-    expect(japanesePicker.items.find(({ commandId }) => commandId === "addBezierCurve")).toMatchObject({
+    expect(commandItemsOf(japanesePicker.items).find(({ commandId }) => commandId === "addBezierCurve")).toMatchObject({
       label: "Bezier Curve",
       description: "ベジェ曲線を作成"
     });
-    japanesePicker.selectedItems = [japanesePicker.items.find(({ commandId }) => commandId === "addLine")!];
+    japanesePicker.selectedItems = [commandItemsOf(japanesePicker.items).find(({ commandId }) => commandId === "addLine")!];
     japanesePicker.fireAccept();
     await expect(japanesePending).resolves.toBe("addLine");
     expect(japanesePicker.dispose).toHaveBeenCalledTimes(1);
@@ -185,18 +208,63 @@ describe("pickVscodeCreationCommand", () => {
       .map(({ commandId }) => commandId)
       .filter((commandId) => !recentSet.has(commandId));
 
-    expect(picker.items.map(({ commandId }) => commandId)).toEqual([
+    expect(commandIdsOf(picker.items)).toEqual([
       "addLine",
       "addBezierCurve",
       ...expectedRemainder
     ]);
-    expect(new Set(picker.items.map(({ commandId }) => commandId)).size).toBe(
+    expect(separatorItemsOf(picker.items)).toHaveLength(1);
+    expect(picker.items[2]).toEqual({ label: "", kind: QuickPickItemKind.Separator });
+    expect(new Set(commandIdsOf(picker.items)).size).toBe(
       vscodeCanvasCreationCommands.length
     );
-    expect(picker.items).toHaveLength(vscodeCanvasCreationCommands.length);
+    expect(commandItemsOf(picker.items)).toHaveLength(vscodeCanvasCreationCommands.length);
 
     picker.fireHide();
     await expect(pending).resolves.toBeUndefined();
+  });
+
+  it("does not add a separator when MRU promotion consumes every available result", () => {
+    const entries = vscodeCanvasCreationCommands.slice(0, 2);
+    const items = createVscodeCreationQuickPickItems(
+      entries,
+      "en-US",
+      entries.map(({ commandId }) => commandId)
+    );
+
+    expect(items.filter(({ kind }) => kind === QuickPickItemKind.Separator)).toHaveLength(0);
+    expect(items.flatMap((item) => "commandId" in item ? [item.commandId] : [])).toEqual(
+      entries.map(({ commandId }) => commandId)
+    );
+  });
+
+  it("does not add a separator when no recent command is available", () => {
+    const items = createVscodeCreationQuickPickItems(
+      vscodeCanvasCreationCommands,
+      "en-US",
+      ["not-a-command"] as never
+    );
+
+    expect(items.filter(({ kind }) => kind === QuickPickItemKind.Separator)).toHaveLength(0);
+    expect(items.flatMap((item) => "commandId" in item ? [item.commandId] : [])).toEqual(
+      sortVscodeCreationCommandsForQuickPick(vscodeCanvasCreationCommands).map(({ commandId }) => commandId)
+    );
+  });
+
+  it("does not resolve a separator selection as a geometry command", async () => {
+    const pending = pickVscodeCreationCommand({
+      displayLanguage: "en-US",
+      recentCommandIds: ["addLine"]
+    });
+    const picker = mocks.quickPicks[0]!;
+    const separator = picker.items.find(({ kind }) => kind === QuickPickItemKind.Separator);
+
+    expect(separator).toEqual({ label: "", kind: QuickPickItemKind.Separator });
+    picker.selectedItems = [separator!];
+    picker.fireAccept();
+
+    await expect(pending).resolves.toBeUndefined();
+    expect(picker.dispose).toHaveBeenCalledTimes(1);
   });
 
   it.each([1, 2, 3, 4, 5])(
@@ -214,17 +282,19 @@ describe("pickVscodeCreationCommand", () => {
       const recentSet = new Set(recentCommandIds);
       const expectedRemainder = sortedCatalogCommandIds.filter((commandId) => !recentSet.has(commandId));
 
-      expect(picker.items.map(({ commandId }) => commandId)).toEqual([
+      expect(commandIdsOf(picker.items)).toEqual([
         ...recentCommandIds,
         ...expectedRemainder
       ]);
-      expect(picker.items).toHaveLength(catalogCommandIds.length);
-      expect(new Set(picker.items.map(({ commandId }) => commandId)).size).toBe(catalogCommandIds.length);
-      expect(picker.items.map(({ commandId }) => commandId)).toEqual(
+      expect(separatorItemsOf(picker.items)).toHaveLength(1);
+      expect(picker.items[historySize]).toEqual({ label: "", kind: QuickPickItemKind.Separator });
+      expect(commandItemsOf(picker.items)).toHaveLength(catalogCommandIds.length);
+      expect(new Set(commandIdsOf(picker.items)).size).toBe(catalogCommandIds.length);
+      expect(commandIdsOf(picker.items)).toEqual(
         expect.arrayContaining(catalogCommandIds)
       );
-      expect(picker.items.map(({ commandId }) => commandId).slice(0, historySize)).toEqual(recentCommandIds);
-      expect(picker.items.map(({ commandId }) => commandId).slice(historySize)).toEqual(expectedRemainder);
+      expect(commandIdsOf(picker.items).slice(0, historySize)).toEqual(recentCommandIds);
+      expect(commandIdsOf(picker.items).slice(historySize)).toEqual(expectedRemainder);
 
       picker.fireHide();
       await expect(pending).resolves.toBeUndefined();
@@ -248,14 +318,16 @@ describe("pickVscodeCreationCommand", () => {
       .map(({ commandId }) => commandId);
     const retainedSet = new Set(retainedCommandIds);
     const expectedRemainder = sortedCatalogCommandIds.filter((commandId) => !retainedSet.has(commandId));
-    const presentedCommandIds = picker.items.map(({ commandId }) => commandId);
+    const presentedCommandIds = commandIdsOf(picker.items);
 
     expect(mru.recentCommandIds).toEqual(retainedCommandIds);
     expect(presentedCommandIds.slice(0, retainedCommandIds.length)).toEqual(retainedCommandIds);
     expect(presentedCommandIds.slice(retainedCommandIds.length)).toEqual(expectedRemainder);
     expect(presentedCommandIds.slice(0, retainedCommandIds.length)).not.toContain(evictedCommandId);
     expect(presentedCommandIds.filter((commandId) => commandId === evictedCommandId)).toHaveLength(1);
-    expect(presentedCommandIds).toHaveLength(catalogCommandIds.length);
+    expect(separatorItemsOf(picker.items)).toHaveLength(1);
+    expect(picker.items[retainedCommandIds.length]).toEqual({ label: "", kind: QuickPickItemKind.Separator });
+    expect(commandItemsOf(picker.items)).toHaveLength(catalogCommandIds.length);
     expect(new Set(presentedCommandIds).size).toBe(catalogCommandIds.length);
 
     picker.fireHide();
@@ -269,9 +341,10 @@ describe("pickVscodeCreationCommand", () => {
     });
     const picker = mocks.quickPicks[0]!;
 
-    expect(picker.items[0]?.commandId).toBe("addLine");
-    expect(picker.items.some(({ commandId }) => commandId === "not-a-command")).toBe(false);
-    expect(picker.items).toHaveLength(vscodeCanvasCreationCommands.length);
+    expect(commandItemsOf(picker.items)[0]?.commandId).toBe("addLine");
+    expect(commandIdsOf(picker.items).some((commandId) => commandId === "not-a-command")).toBe(false);
+    expect(separatorItemsOf(picker.items)).toHaveLength(1);
+    expect(commandItemsOf(picker.items)).toHaveLength(vscodeCanvasCreationCommands.length);
 
     picker.fireHide();
     await expect(pending).resolves.toBeUndefined();
@@ -288,15 +361,18 @@ describe("pickVscodeCreationCommand", () => {
     const expectedLineCommands = sortVscodeCreationCommandsForQuickPick(
       filterVscodeCanvasCreationCommands("line")
     ).map(({ commandId }) => commandId);
-    expect(picker.items.map(({ commandId }) => commandId)).toEqual(expectedLineCommands);
+    expect(commandIdsOf(picker.items)).toEqual(expectedLineCommands);
+    expect(separatorItemsOf(picker.items)).toHaveLength(0);
 
     picker.fireValue("   ");
-    expect(picker.items.map(({ commandId }) => commandId)).toEqual(
+    expect(commandIdsOf(picker.items)).toEqual(
       sortVscodeCreationCommandsForQuickPick(vscodeCanvasCreationCommands).map(({ commandId }) => commandId)
     );
+    expect(separatorItemsOf(picker.items)).toHaveLength(0);
 
     picker.fireValue("");
-    expect(picker.items[0]?.commandId).toBe("addLine");
+    expect(commandItemsOf(picker.items)[0]?.commandId).toBe("addLine");
+    expect(separatorItemsOf(picker.items)).toHaveLength(1);
 
     picker.fireHide();
     await expect(pending).resolves.toBeUndefined();
