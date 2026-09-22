@@ -83,6 +83,11 @@ import {
   type VscodeReferencePickCanvasEndpoint
 } from "./referencePickCommandFeature";
 import { registerVscodeGeometryReferenceRetargetFeature } from "./geometryReferenceRetargetCommandFeature";
+import {
+  createNuiRefactorCodeActionProvider,
+  nuiRefactorCodeActionKinds,
+  nuiRefactorCodeActionSelector
+} from "./refactorCodeActionProvider";
 import { registerVscodeSourceCreationCommandFeature } from "./sourceCreationCommandFeature";
 import {
   registerVscodeCanvasFreePointAtPointerFeature,
@@ -2072,6 +2077,15 @@ export const activate = (
   const geometryReferenceRetargetFeature = registerVscodeGeometryReferenceRetargetFeature({
     languageAnalysisSessionFor
   });
+  const refactorCodeActionProvider = vscode.languages.registerCodeActionsProvider(
+    nuiRefactorCodeActionSelector,
+    createNuiRefactorCodeActionProvider({
+      languageAnalysisSessionFor,
+      coordinatePointConversionFeature,
+      displayLanguageFor: extensionDisplayLanguage
+    }),
+    { providedCodeActionKinds: [...nuiRefactorCodeActionKinds] }
+  );
   const sourceValueStepFeature = registerVscodeSourceValueStepFeature({
     languageAnalysisSessionFor
   });
@@ -2392,6 +2406,7 @@ export const activate = (
     revealInCanvasCommand,
     referencePickFeature,
     geometryReferenceRetargetFeature,
+    refactorCodeActionProvider,
     sourceValueStepFeature,
     sourceCreationFeature,
     canvasFreePointAtPointerFeature,

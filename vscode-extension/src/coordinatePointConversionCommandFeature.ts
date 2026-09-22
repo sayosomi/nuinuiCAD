@@ -76,6 +76,7 @@ export type CoordinatePointConversionFeatureHost = {
 };
 
 export type VscodeCoordinatePointConversionFeature = vscode.Disposable & {
+  sourceTargetAvailableForEditor: (editor: vscode.TextEditor | undefined) => Promise<boolean>;
   explorerContextValueFor: (node: NuiElementsTreeNode) => string | undefined;
   handleCommitStart: (document: vscode.TextDocument, requestId: number, operationId: number, sourceText?: string) => void;
   handleDocumentChange: (document: vscode.TextDocument) => void;
@@ -413,11 +414,8 @@ export const registerVscodeCoordinatePointConversionFeature = ({
     refreshElementsTree?.();
   };
 
-  const sourceTargetAvailable = async (editor: vscode.TextEditor | undefined): Promise<boolean> => {
-    if (!isSupportedSourceEditor(editor)) {
-      setSourceContext(false);
-      return false;
-    }
+  const sourceTargetAvailableForEditor = async (editor: vscode.TextEditor | undefined): Promise<boolean> => {
+    if (!isSupportedSourceEditor(editor)) return false;
     const resolution = await sourceTargetResolutionFor(
       editor,
       languageAnalysisSessionFor(editor.document),
@@ -427,9 +425,18 @@ export const registerVscodeCoordinatePointConversionFeature = ({
       )
     );
     const current = vscode.window.activeTextEditor;
-    const enabled = Boolean(resolution && current && current.document.version === resolution.documentVersion && sameDocument(current.document, editor.document));
+    return Boolean(
+      resolution &&
+      current &&
+      current.document.version === resolution.documentVersion &&
+      sameDocument(current.document, editor.document)
+    );
+  };
+
+  const sourceTargetAvailable = async (editor: vscode.TextEditor | undefined): Promise<boolean> => {
+    const enabled = await sourceTargetAvailableForEditor(editor);
     setSourceContext(enabled);
-    void refreshExplorerTargets(editor.document);
+    if (isSupportedSourceEditor(editor)) void refreshExplorerTargets(editor.document);
     return enabled;
   };
 
@@ -1036,6 +1043,7 @@ export const registerVscodeCoordinatePointConversionFeature = ({
       }
     }
   ) as VscodeCoordinatePointConversionFeature;
+  disposable.sourceTargetAvailableForEditor = sourceTargetAvailableForEditor;
   disposable.explorerContextValueFor = explorerContextValueFor;
   disposable.handleCommitStart = (document, requestId, operationId, sourceText) => {
     if (!activeRequest || !sameDocument(document, activeRequest.editor.document)) return;

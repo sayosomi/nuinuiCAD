@@ -370,7 +370,12 @@ vi.mock("vscode", () => {
       Value: 7,
       Operator: 8
     },
-    CodeActionKind: { QuickFix: "quickfix" },
+    CodeActionKind: {
+      QuickFix: "quickfix",
+      RefactorExtract: "refactor.extract",
+      RefactorInline: "refactor.inline",
+      RefactorRewrite: "refactor.rewrite"
+    },
     FoldingRangeKind: { Comment: "comment" },
     ConfigurationTarget: { Global: 1 },
     TextDocumentChangeReason: { Undo: 1, Redo: 2 },
@@ -5600,6 +5605,29 @@ describe("VS Code native choice Quick Fix lifecycle", () => {
     );
     expect(commandHandlerFor("nuinuiCAD.applyChoiceQuickFix")).toEqual(expect.any(Function));
     expect(commandHandlerFor("nuinuiCAD.openCanvas")).toEqual(expect.any(Function));
+  });
+});
+
+describe("VS Code native Refactor Code Action lifecycle", () => {
+  it("registers exactly one nui/file provider with the three Refactor child kinds while preserving Quick Fix", () => {
+    const context = setup(false, null, []);
+    const quickFixRegistrations = mocks.codeActionRegistrations.filter((registration) =>
+      registration.providedCodeActionKinds.includes("quickfix")
+    );
+    const refactorRegistrations = mocks.codeActionRegistrations.filter((registration) =>
+      registration.providedCodeActionKinds.every((kind) => kind !== "quickfix")
+    );
+
+    expect(quickFixRegistrations).toHaveLength(1);
+    expect(refactorRegistrations).toHaveLength(1);
+    expect(refactorRegistrations[0]).toMatchObject({
+      selector: { language: "nui", scheme: "file" },
+      providedCodeActionKinds: ["refactor.extract", "refactor.inline", "refactor.rewrite"]
+    });
+    expect(refactorRegistrations[0]?.provider).toEqual(expect.objectContaining({
+      provideCodeActions: expect.any(Function)
+    }));
+    expect(context.subscriptions).toContain(refactorRegistrations[0]?.disposable);
   });
 });
 
