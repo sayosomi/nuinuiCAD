@@ -55,16 +55,20 @@ import { sourceCalculationMeasurementTemplatePlans } from "../../src/commands/so
 import { materializeSourceCalculationMeasurementTemplate } from "../../src/commands/sourceCalculationMeasurementTemplateMaterializer";
 import { SOURCE_CONTROL_FLOW_TEMPLATE_DEFINITIONS } from "../../src/commands/sourceControlFlowTemplateCatalog";
 import { materializeSourceControlFlowTemplate } from "../../src/commands/sourceControlFlowTemplateMaterializer";
+import { SOURCE_VALUE_MATCH_TEMPLATE_DEFINITIONS } from "../../src/commands/sourceValueMatchTemplateCatalog";
+import { materializeSourceValueMatchTemplate } from "../../src/commands/sourceValueMatchTemplateMaterializer";
 import {
   createSourceCalculationMeasurementSnippet,
   createSourceGeometryValueSnippet,
   createSourceCreationSnippet,
   createSourceOutputTemplateSnippet,
   createSourceControlFlowSnippet,
+  createSourceValueMatchSnippet,
   insertSourceGeometryValueSnippet,
   insertSourceCalculationMeasurementSnippet,
   insertSourceCreationSnippet,
-  insertSourceOutputTemplateSnippet
+  insertSourceOutputTemplateSnippet,
+  insertSourceValueMatchSnippet
 } from "./sourceCreationSnippetAdapter";
 import { sourceOutputTemplateSnippetFor } from "../../src/commands/sourceOutputTemplateCatalog";
 
@@ -100,6 +104,12 @@ const geometryValueMaterializeFor = (groupId: "point" | "line" | "path", constru
 const calculationMeasurementMaterializeFor = (builtinName: string) => {
   const plan = sourceCalculationMeasurementTemplatePlans().find(({ builtinName: candidate }) => candidate === builtinName)!;
   const materialization = materializeSourceCalculationMeasurementTemplate(plan);
+  expect(materialization).not.toBeNull();
+  return materialization!;
+};
+
+const valueMatchMaterializeFor = (templateId: (typeof SOURCE_VALUE_MATCH_TEMPLATE_DEFINITIONS)[number]["id"]) => {
+  const materialization = materializeSourceValueMatchTemplate(templateId);
   expect(materialization).not.toBeNull();
   return materialization!;
 };
@@ -241,6 +251,48 @@ describe("VS Code source creation snippet adapter", () => {
     expect(insertSnippet).toHaveBeenCalledTimes(1);
     expect(insertSnippet.mock.calls[0]?.[0]).toBeInstanceOf(vscode.SnippetString);
     expect(insertSnippet.mock.calls[0]?.[1]).toBe(position);
+  });
+
+  it.each([
+    ["choice-declaration", "const $1: choice($2) = $3"],
+    ["collection-declaration", "const $1: $2[] = [$3]"],
+    ["value-if", "const $1: $2 = if ($3) { $4 } else { $5 }"],
+    ["choice-match", "const $1: $2 = match @$3 {\n  $4\n}"],
+    ["optional-match", "const $1: $2 = match @$3 {\n  none => $4\n  some $5 => $6\n}"],
+    ["collection-value-for", "const $1: $2[] =\n  for $3 in @$4 {\n    $5\n  }"]
+  ] as const)("turns Value / Match %s into native tabstops", (templateId, expected) => {
+    const materialization = valueMatchMaterializeFor(templateId);
+    const snippet = createSourceValueMatchSnippet(materialization) as unknown as TestSnippetString;
+
+    expect(snippet.value).toBe(expected);
+    expect(tabstopEventsFor(snippet).map(({ index }) => index)).toEqual(
+      Array.from({ length: materialization.parts.filter((part) => part.kind === "hole").length }, (_, index) => index + 1)
+    );
+  });
+
+  it("inserts Value / Match through one native snippet operation with layout options", async () => {
+    const materialization = valueMatchMaterializeFor("optional-match");
+    const insertSnippet = vi.fn(() => Promise.resolve(true));
+    const editor = { insertSnippet } as unknown as vscode.TextEditor;
+    const position = new vscode.Position(6, 0);
+
+    await expect(insertSourceValueMatchSnippet(
+      editor,
+      materialization,
+      position,
+      { prefixText: "  ", appendNewline: true }
+    )).resolves.toBe(true);
+
+    expect(insertSnippet).toHaveBeenCalledTimes(1);
+    const [snippet, insertionPosition] = insertSnippet.mock.calls[0]!;
+    expect((snippet as unknown as TestSnippetString).value).toBe([
+      "  const $1: $2 = match @$3 {",
+      "  none => $4",
+      "  some $5 => $6",
+      "}",
+      ""
+    ].join("\n"));
+    expect(insertionPosition).toBe(position);
   });
 
   it.each(SOURCE_CONTROL_FLOW_TEMPLATE_DEFINITIONS)(

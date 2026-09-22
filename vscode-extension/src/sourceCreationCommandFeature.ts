@@ -17,6 +17,11 @@ import {
 } from "../../src/commands/sourceControlFlowTemplateCatalog";
 import { materializeSourceControlFlowTemplate } from "../../src/commands/sourceControlFlowTemplateMaterializer";
 import {
+  SOURCE_VALUE_MATCH_TEMPLATE_QUICK_PICK_ITEMS,
+  type SourceValueMatchTemplatePresentation
+} from "../../src/commands/sourceValueMatchTemplateCatalog";
+import { materializeSourceValueMatchTemplate } from "../../src/commands/sourceValueMatchTemplateMaterializer";
+import {
   SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS,
   resolveSourceTemplateInsertion,
   sourceTemplateRouteFor,
@@ -42,6 +47,7 @@ import {
   insertSourceCalculationMeasurementSnippet,
   insertSourceGeometryValueSnippet,
   insertSourceControlFlowSnippet,
+  insertSourceValueMatchSnippet,
   insertSourceOutputTemplateSnippet
 } from "./sourceCreationSnippetAdapter";
 import { runSourceCreationFlow } from "./sourceCreationFlow";
@@ -349,6 +355,39 @@ const insertControlFlowTemplate = async (
   );
 };
 
+const insertValueMatchTemplate = async (
+  target: SourceTemplateTarget,
+  insertionPosition: vscode.Position,
+  isCurrent: () => boolean,
+  showStaleMessage: () => void
+): Promise<boolean | undefined> => {
+  const item = await nativeShowQuickPick<SourceValueMatchTemplatePresentation>(
+    SOURCE_VALUE_MATCH_TEMPLATE_QUICK_PICK_ITEMS
+  );
+  if (!isCurrent()) {
+    showStaleMessage();
+    return undefined;
+  }
+  if (!item) return undefined;
+
+  const materialization = materializeSourceValueMatchTemplate(item.id);
+  if (!materialization) return undefined;
+  if (!isCurrent()) {
+    showStaleMessage();
+    return undefined;
+  }
+
+  return insertSourceValueMatchSnippet(
+    target.editor,
+    materialization,
+    insertionPosition,
+    {
+      ...(target.context.scope === "direct-layout-body" ? { prefixText: DSL_INDENT } : {}),
+      appendNewline: true
+    }
+  );
+};
+
 const unreachableSourceTemplateRoute = (route: never): never => {
   throw new Error(`Unsupported Source Template route: ${String(route)}`);
 };
@@ -439,6 +478,13 @@ export const registerVscodeSourceCreationCommandFeature = ({
           );
         case "control-flow":
           return insertControlFlowTemplate(
+            target,
+            insertionPosition,
+            isCurrent,
+            showStaleMessage
+          );
+        case "value-match":
+          return insertValueMatchTemplate(
             target,
             insertionPosition,
             isCurrent,
