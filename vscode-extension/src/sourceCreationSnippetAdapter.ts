@@ -5,6 +5,7 @@ import type { SourceCalculationMeasurementTemplateMaterialization } from "../../
 import type { SourceOutputTemplateSnippet } from "../../src/commands/sourceOutputTemplateCatalog";
 import type { SourceControlFlowTemplateMaterialization } from "../../src/commands/sourceControlFlowTemplateMaterializer";
 import type { SourceValueMatchTemplateMaterialization } from "../../src/commands/sourceValueMatchTemplateMaterializer";
+import type { SourceModuleTemplateMaterialization } from "../../src/commands/sourceModuleTemplateMaterializer";
 
 export type SourceCreationSnippetOptions = {
   /** Text inserted at a statement-safe line boundary before the declaration. */
@@ -183,6 +184,39 @@ export const insertSourceValueMatchSnippet = (
   options?: SourceCreationSnippetOptions
 ): Thenable<boolean> => editor.insertSnippet(
   createSourceValueMatchSnippet(materialization, options),
+  position
+);
+
+export const createSourceModuleTemplateSnippet = (
+  materialization: SourceModuleTemplateMaterialization,
+  options: SourceCreationSnippetOptions = {}
+): vscode.SnippetString => {
+  const snippet = new vscode.SnippetString();
+  let nextTabstopIndex = 1;
+
+  if (options.prefixText) snippet.appendText(options.prefixText);
+
+  for (const part of materialization.parts) {
+    if (part.kind === "text") {
+      snippet.appendText(part.text);
+      continue;
+    }
+    snippet.appendTabstop(nextTabstopIndex);
+    nextTabstopIndex += 1;
+  }
+
+  if (options.appendNewline) snippet.appendText("\n");
+
+  return snippet;
+};
+
+export const insertSourceModuleTemplateSnippet = (
+  editor: vscode.TextEditor,
+  materialization: SourceModuleTemplateMaterialization,
+  position: vscode.Position,
+  options?: SourceCreationSnippetOptions
+): Thenable<boolean> => editor.insertSnippet(
+  createSourceModuleTemplateSnippet(materialization, options),
   position
 );
 

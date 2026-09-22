@@ -1,5 +1,12 @@
 import * as vscode from "vscode";
-import { DSL_INDENT, type StatementInfo } from "@nuinuicad/nui-language";
+import {
+  DSL_INDENT,
+  sourceModuleTemplateCandidates,
+  type CompiledDslDocument,
+  type StatementInfo,
+  type SourceModuleTemplateCandidate,
+  type SourceModuleTemplateInsertionLocation
+} from "@nuinuicad/nui-language";
 import {
   currentCompiledSemanticSnapshotFor,
   type NuiLanguageAnalysisSession
@@ -21,6 +28,11 @@ import {
   type SourceValueMatchTemplatePresentation
 } from "../../src/commands/sourceValueMatchTemplateCatalog";
 import { materializeSourceValueMatchTemplate } from "../../src/commands/sourceValueMatchTemplateMaterializer";
+import {
+  SOURCE_MODULE_TEMPLATE_QUICK_PICK_ITEMS,
+  type SourceModuleTemplatePresentation
+} from "../../src/commands/sourceModuleTemplateCatalog";
+import { materializeSourceModuleTemplate } from "../../src/commands/sourceModuleTemplateMaterializer";
 import {
   SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS,
   resolveSourceTemplateInsertion,
@@ -48,7 +60,8 @@ import {
   insertSourceGeometryValueSnippet,
   insertSourceControlFlowSnippet,
   insertSourceValueMatchSnippet,
-  insertSourceOutputTemplateSnippet
+  insertSourceOutputTemplateSnippet,
+  insertSourceModuleTemplateSnippet
 } from "./sourceCreationSnippetAdapter";
 import { runSourceCreationFlow } from "./sourceCreationFlow";
 import { createSourceCreationMru } from "./sourceCreationMru";
@@ -61,6 +74,10 @@ const SOURCE_TEMPLATE_STALE_MESSAGE =
   "nuinuiCAD: The Source changed while Insert Template was open. Retry the command.";
 const SOURCE_TEMPLATE_UNSAFE_INSERTION_MESSAGE =
   "nuinuiCAD: Could not establish a safe Source statement boundary. Move the caret between statements and retry.";
+const SOURCE_MODULE_TEMPLATE_NO_CANDIDATES_MESSAGE =
+  "nuinuiCAD: No legal Module callees are available at this Source insertion target.";
+const SOURCE_MODULE_TEMPLATE_EXPORT_SCOPE_MESSAGE =
+  "nuinuiCAD: Export Module is legal only at the document top level.";
 
 type SourceTemplateTarget = {
   editor: vscode.TextEditor;
@@ -71,6 +88,7 @@ type SourceTemplateTarget = {
   sourceRevision: number;
   caret: vscode.Position;
   context: SourceTemplateInsertionContext;
+  compiled: CompiledDslDocument;
   session: NuiLanguageAnalysisSession;
 };
 
@@ -148,12 +166,67 @@ const currentSourceTemplateTargetFor = (
     sourceRevision: source.sourceRevision,
     caret,
     context: insertion.context,
+    compiled: semantic.compiled,
     session
   };
 };
 
 const sourcePositionForInsertion = (insertion: SourceCreationInsertion): vscode.Position =>
   new vscode.Position(Math.max(0, insertion.sourceInsertionLine - 1), 0);
+
+const stableStatementIdFor = (compiled: CompiledDslDocument, statementIndex: number): string | undefined =>
+  compiled.statementMap?.statementIdByStatementIndex?.get(statementIndex) ??
+  compiled.statementMap?.elementIdByStatementIndex.get(statementIndex) ??
+  compiled.sourceLexicalNamespace?.allDeclarations.find((declaration) => declaration.statementIndex === statementIndex)?.statementId ??
+  compiled.moduleSemanticAnalysis?.definitions.find((definition) => definition.statementIndex === statementIndex)?.statementId;
+
+const sourceModuleScopeIdFor = (
+  compiled: CompiledDslDocument,
+  info: StatementInfo,
+  insertionLine: number
+): string | undefined => {
+  const statement = compiled.statements[info.statementIndex];
+  const statementId = stableStatementIdFor(compiled, info.statementIndex);
+  if (!statementId || !statement) return undefined;
+  if (statement.kind === "moduleDefinition") return `module:${statementId}`;
+  if (statement.kind === "layout") return `layout:${statementId}`;
+  if (statement.kind === "group") return `group:${statementId}`;
+  if (statement.kind !== "element") return undefined;
+  if (statement.type === "forGroup") return `for:${statementId}`;
+  if (statement.type === "conditionalGroup") {
+    return `if:${statementId}:${info.elseLine !== undefined && insertionLine > info.elseLine ? "else" : "then"}`;
+  }
+  return undefined;
+};
+
+const sourceModuleTemplateInsertionFor = (
+  compiled: CompiledDslDocument,
+  insertion: SourceCreationInsertion
+): SourceModuleTemplateInsertionLocation => {
+  const infos = compiled.statementMap?.statements ?? [];
+  const openingBraceLineFor = (info: StatementInfo): number | undefined =>
+    info.openBraceLine ?? (info.range.endLine > info.endLine ? info.endLine : undefined);
+  const enclosing = infos
+    .filter((info) =>
+      openingBraceLineFor(info) !== undefined &&
+      info.closeBraceLine !== undefined &&
+      openingBraceLineFor(info)! < insertion.sourceInsertionLine &&
+      insertion.sourceInsertionLine <= info.closeBraceLine
+    )
+    .sort((left, right) => right.indentDepth - left.indentDepth)[0];
+  const statementIndex = enclosing?.statementIndex ?? infos
+    .filter((info) => info.endLine < insertion.sourceInsertionLine)
+    .sort((left, right) => right.endLine - left.endLine)[0]?.statementIndex ??
+    infos[0]?.statementIndex ?? 0;
+  const scopeId = enclosing
+    ? sourceModuleScopeIdFor(compiled, enclosing, insertion.sourceInsertionLine)
+    : compiled.sourceLexicalNamespace?.scopeIndex.scopeOfStatement.get(statementIndex);
+  return {
+    statementIndex,
+    ...(scopeId ? { scopeId } : {}),
+    sourceOrderIndex: statementIndex
+  };
+};
 
 const outputTemplateIdForLabel = (label: string): SourceOutputTemplateId | null =>
   SOURCE_OUTPUT_TEMPLATE_DEFINITIONS.find((template) => template.label === label)?.id ?? null;
@@ -388,6 +461,64 @@ const insertValueMatchTemplate = async (
   );
 };
 
+const insertModuleTemplate = async (
+  target: SourceTemplateTarget,
+  insertionPosition: vscode.Position,
+  isCurrent: () => boolean,
+  showStaleMessage: () => void
+): Promise<boolean | undefined> => {
+  const item = await nativeShowQuickPick<SourceModuleTemplatePresentation>(
+    SOURCE_MODULE_TEMPLATE_QUICK_PICK_ITEMS
+  );
+  if (!isCurrent()) {
+    showStaleMessage();
+    return undefined;
+  }
+  if (!item) return undefined;
+
+  const templateId = item.id;
+  if (templateId === "export-module" && target.context.scope !== "top-level") {
+    void vscode.window.showErrorMessage(SOURCE_MODULE_TEMPLATE_EXPORT_SCOPE_MESSAGE);
+    return undefined;
+  }
+
+  let candidate: SourceModuleTemplateCandidate | undefined;
+  if (templateId === "module-instance") {
+    const insertion = sourceModuleTemplateInsertionFor(target.compiled, target.context.insertion);
+    const candidates = sourceModuleTemplateCandidates({
+      compiled: target.compiled,
+      insertion
+    });
+    if (candidates.length === 0) {
+      void vscode.window.showErrorMessage(SOURCE_MODULE_TEMPLATE_NO_CANDIDATES_MESSAGE);
+      return undefined;
+    }
+    candidate = await nativeShowQuickPick(candidates);
+    if (!isCurrent()) {
+      showStaleMessage();
+      return undefined;
+    }
+    if (!candidate) return undefined;
+  }
+
+  const materialization = materializeSourceModuleTemplate(templateId, candidate);
+  if (!materialization) return undefined;
+  if (!isCurrent()) {
+    showStaleMessage();
+    return undefined;
+  }
+
+  return insertSourceModuleTemplateSnippet(
+    target.editor,
+    materialization,
+    insertionPosition,
+    {
+      ...(target.context.scope === "direct-layout-body" ? { prefixText: DSL_INDENT } : {}),
+      appendNewline: true
+    }
+  );
+};
+
 const unreachableSourceTemplateRoute = (route: never): never => {
   throw new Error(`Unsupported Source Template route: ${String(route)}`);
 };
@@ -485,6 +616,13 @@ export const registerVscodeSourceCreationCommandFeature = ({
           );
         case "value-match":
           return insertValueMatchTemplate(
+            target,
+            insertionPosition,
+            isCurrent,
+            showStaleMessage
+          );
+        case "module":
+          return insertModuleTemplate(
             target,
             insertionPosition,
             isCurrent,

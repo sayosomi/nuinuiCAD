@@ -1197,6 +1197,7 @@ export const compileDslDocument = (
       (statement.kind === "typedDeclaration" && isCanonicalValueBindingDeclaration(parsed.statements, statementIndex)) ||
       (includeStatement(statement, statementIndex) &&
         (statement.kind === "recordDefinition" ||
+          statement.kind === "import" ||
           statement.kind === "group" ||
           statement.kind === "moduleDefinition" ||
           statement.kind === "moduleInstance" ||
