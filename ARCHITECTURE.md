@@ -998,6 +998,8 @@ Primary:
 - `src/commands/sourceGeometryValueTemplateMaterializer.ts`
 - `src/commands/sourceCalculationMeasurementTemplateCatalog.ts`
 - `src/commands/sourceCalculationMeasurementTemplateMaterializer.ts`
+- `src/commands/sourceControlFlowTemplateCatalog.ts`
+- `src/commands/sourceControlFlowTemplateMaterializer.ts`
 - `src/commands/sourceOutputTemplateCatalog.ts`
 - `src/vscode/vscodeCanvasCreationCommands.ts`
 - `src/geometry/geometryHoverPresentation.ts`
@@ -1156,6 +1158,14 @@ Source document/version and reuse
 `src/commands/sourceCreationInsertion.ts` for a statement-safe boundary before
 native snippet insertion. Catalog state is ephemeral to the command
 invocation; source text remains canonical.
+Control Flow is an explicit six-row structural presentation allowlist owned by
+`src/commands/sourceControlFlowTemplateCatalog.ts`; its fixed group, if, range,
+collection, and carry rows are materialized by
+`src/commands/sourceControlFlowTemplateMaterializer.ts` as host-neutral
+structural parts with stable editable-field identities. The VS Code adapter
+projects those fields to linked native snippet tabstops while preserving the
+same captured-target and statement-safe insertion boundaries. Control Flow
+creates fresh Source structure and does not reuse selection-transform commands.
 
 The Preview route uses `modulePreviewProtocol.ts`,
 `useVSCodeModulePreviewReferencePickSession.ts`, and

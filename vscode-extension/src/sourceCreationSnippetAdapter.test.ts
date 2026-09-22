@@ -53,11 +53,14 @@ import { sourceGeometryValueTemplateGroups } from "../../src/commands/sourceGeom
 import { materializeSourceGeometryValueTemplate } from "../../src/commands/sourceGeometryValueTemplateMaterializer";
 import { sourceCalculationMeasurementTemplatePlans } from "../../src/commands/sourceCalculationMeasurementTemplateCatalog";
 import { materializeSourceCalculationMeasurementTemplate } from "../../src/commands/sourceCalculationMeasurementTemplateMaterializer";
+import { SOURCE_CONTROL_FLOW_TEMPLATE_DEFINITIONS } from "../../src/commands/sourceControlFlowTemplateCatalog";
+import { materializeSourceControlFlowTemplate } from "../../src/commands/sourceControlFlowTemplateMaterializer";
 import {
   createSourceCalculationMeasurementSnippet,
   createSourceGeometryValueSnippet,
   createSourceCreationSnippet,
   createSourceOutputTemplateSnippet,
+  createSourceControlFlowSnippet,
   insertSourceGeometryValueSnippet,
   insertSourceCalculationMeasurementSnippet,
   insertSourceCreationSnippet,
@@ -100,6 +103,27 @@ const calculationMeasurementMaterializeFor = (builtinName: string) => {
   expect(materialization).not.toBeNull();
   return materialization!;
 };
+
+const expectedControlFlowSnippetValues = {
+  group: "group $1 {\n  $2\n}",
+  if: "if ($1) {\n  $2\n}",
+  "for-range": "for $1 in range(min: $2, max: $3, step: $4) {\n  $5\n}",
+  "for-collection": "for $1 in @$2 {\n  $3\n}",
+  "for-range-carry": [
+    "for $1 in range(min: $2, max: $3, step: $4)",
+    "  carry $5: $6 = $7 {",
+    "  $8",
+    "  next $5 = $9",
+    "}"
+  ].join("\n"),
+  "for-collection-carry": [
+    "for $1 in @$2",
+    "  carry $3: $4 = $5 {",
+    "  $6",
+    "  next $3 = $7",
+    "}"
+  ].join("\n")
+} satisfies Record<(typeof SOURCE_CONTROL_FLOW_TEMPLATE_DEFINITIONS)[number]["id"], string>;
 
 describe("VS Code source creation snippet adapter", () => {
   it("emits addLine literal text and ordered name/argument tabstops", () => {
@@ -217,6 +241,33 @@ describe("VS Code source creation snippet adapter", () => {
     expect(insertSnippet).toHaveBeenCalledTimes(1);
     expect(insertSnippet.mock.calls[0]?.[0]).toBeInstanceOf(vscode.SnippetString);
     expect(insertSnippet.mock.calls[0]?.[1]).toBe(position);
+  });
+
+  it.each(SOURCE_CONTROL_FLOW_TEMPLATE_DEFINITIONS)(
+    "turns %s into the contracted native snippet structure",
+    ({ id }) => {
+      const materialization = materializeSourceControlFlowTemplate(id);
+      expect(materialization).not.toBeNull();
+      const snippet = createSourceControlFlowSnippet(materialization!) as unknown as TestSnippetString;
+      expect(snippet.value).toBe(expectedControlFlowSnippetValues[id]);
+    }
+  );
+
+  it("links the carry name and next name to one native tabstop", () => {
+    const materialization = materializeSourceControlFlowTemplate("for-range-carry");
+    expect(materialization).not.toBeNull();
+    const snippet = createSourceControlFlowSnippet(materialization!) as unknown as TestSnippetString;
+
+    expect(snippet.value).toBe([
+      "for $1 in range(min: $2, max: $3, step: $4)",
+      "  carry $5: $6 = $7 {",
+      "  $8",
+      "  next $5 = $9",
+      "}"
+    ].join("\n"));
+    expect(tabstopEventsFor(snippet).map(({ index }) => index)).toEqual([
+      1, 2, 3, 4, 5, 6, 7, 8, 5, 9
+    ]);
   });
 
   it("uses linked layout-name tabstops and native paper/orientation choices for Layout + Print", () => {

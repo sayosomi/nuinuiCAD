@@ -12,6 +12,11 @@ import {
   type SourceOutputTemplateId
 } from "../../src/commands/sourceOutputTemplateCatalog";
 import {
+  SOURCE_CONTROL_FLOW_TEMPLATE_QUICK_PICK_ITEMS,
+  type SourceControlFlowTemplatePresentation
+} from "../../src/commands/sourceControlFlowTemplateCatalog";
+import { materializeSourceControlFlowTemplate } from "../../src/commands/sourceControlFlowTemplateMaterializer";
+import {
   SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS,
   resolveSourceTemplateInsertion,
   sourceTemplateRouteFor,
@@ -36,6 +41,7 @@ import {
 import {
   insertSourceCalculationMeasurementSnippet,
   insertSourceGeometryValueSnippet,
+  insertSourceControlFlowSnippet,
   insertSourceOutputTemplateSnippet
 } from "./sourceCreationSnippetAdapter";
 import { runSourceCreationFlow } from "./sourceCreationFlow";
@@ -310,6 +316,39 @@ const insertCalculationMeasurementTemplate = async (
   );
 };
 
+const insertControlFlowTemplate = async (
+  target: SourceTemplateTarget,
+  insertionPosition: vscode.Position,
+  isCurrent: () => boolean,
+  showStaleMessage: () => void
+): Promise<boolean | undefined> => {
+  const item = await nativeShowQuickPick<SourceControlFlowTemplatePresentation>(
+    SOURCE_CONTROL_FLOW_TEMPLATE_QUICK_PICK_ITEMS
+  );
+  if (!isCurrent()) {
+    showStaleMessage();
+    return undefined;
+  }
+  if (!item) return undefined;
+
+  const materialization = materializeSourceControlFlowTemplate(item.id);
+  if (!materialization) return undefined;
+  if (!isCurrent()) {
+    showStaleMessage();
+    return undefined;
+  }
+
+  return insertSourceControlFlowSnippet(
+    target.editor,
+    materialization,
+    insertionPosition,
+    {
+      ...(target.context.scope === "direct-layout-body" ? { prefixText: DSL_INDENT } : {}),
+      appendNewline: true
+    }
+  );
+};
+
 const unreachableSourceTemplateRoute = (route: never): never => {
   throw new Error(`Unsupported Source Template route: ${String(route)}`);
 };
@@ -393,6 +432,13 @@ export const registerVscodeSourceCreationCommandFeature = ({
           );
         case "calculation-measurement":
           return insertCalculationMeasurementTemplate(
+            target,
+            insertionPosition,
+            isCurrent,
+            showStaleMessage
+          );
+        case "control-flow":
+          return insertControlFlowTemplate(
             target,
             insertionPosition,
             isCurrent,
