@@ -322,6 +322,49 @@ describe("Source Insert Template command feature", () => {
     feature.dispose();
   });
 
+  it("keeps Module row-picker cancellation mutation-free without opening a candidate picker", async () => {
+    const { editor, session } = sourceEditorFor("nui 1\n");
+    mocks.showQuickPick
+      .mockResolvedValueOnce(SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS[5])
+      .mockResolvedValueOnce(undefined);
+    const feature = registerVscodeSourceCreationCommandFeature({
+      activeSourceEditor: () => editor,
+      displayLanguageFor: () => "en",
+      languageAnalysisSessionFor: () => session
+    });
+
+    await expect(mocks.commands.get(VSCODE_SOURCE_INSERT_TEMPLATE_COMMAND_ID)?.()).resolves.toBeUndefined();
+
+    expect(mocks.showQuickPick).toHaveBeenCalledTimes(2);
+    expect(mocks.showQuickPick).toHaveBeenNthCalledWith(2, SOURCE_MODULE_TEMPLATE_QUICK_PICK_ITEMS);
+    expect(mocks.insertModuleTemplateSnippet).not.toHaveBeenCalled();
+    expect(mocks.showErrorMessage).not.toHaveBeenCalled();
+    feature.dispose();
+  });
+
+  it("keeps Module candidate-picker cancellation mutation-free", async () => {
+    const { editor, session } = sourceEditorFor("nui 1\nmodule Existing() {\n}\n");
+    mocks.showQuickPick
+      .mockResolvedValueOnce(SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS[5])
+      .mockResolvedValueOnce(SOURCE_MODULE_TEMPLATE_QUICK_PICK_ITEMS[2])
+      .mockResolvedValueOnce(undefined);
+    const feature = registerVscodeSourceCreationCommandFeature({
+      activeSourceEditor: () => editor,
+      displayLanguageFor: () => "en",
+      languageAnalysisSessionFor: () => session
+    });
+
+    await expect(mocks.commands.get(VSCODE_SOURCE_INSERT_TEMPLATE_COMMAND_ID)?.()).resolves.toBeUndefined();
+
+    expect(mocks.showQuickPick).toHaveBeenCalledTimes(3);
+    expect(mocks.showQuickPick).toHaveBeenNthCalledWith(3, expect.arrayContaining([
+      expect.objectContaining({ sourceCallee: "Existing" })
+    ]));
+    expect(mocks.insertModuleTemplateSnippet).not.toHaveBeenCalled();
+    expect(mocks.showErrorMessage).not.toHaveBeenCalled();
+    feature.dispose();
+  });
+
   it("rejects Export Module outside the top-level without editing Source", async () => {
     const { editor, session } = sourceEditorFor("nui 1\nlayout L {\n}\n", 1, 2);
     mocks.showQuickPick
