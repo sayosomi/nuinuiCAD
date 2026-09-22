@@ -61,6 +61,10 @@ import {
   materializeSourceModuleTemplate,
   type SourceModuleTemplateMaterialization
 } from "../../src/commands/sourceModuleTemplateMaterializer";
+import {
+  materializeSourceStyleProfileTemplate,
+  type SourceStyleProfileTemplateMaterialization
+} from "../../src/commands/sourceStyleProfileTemplateMaterializer";
 import type { ResolvedModuleParameter, SourceModuleTemplateCandidate } from "@nuinuicad/nui-language";
 import {
   createSourceCalculationMeasurementSnippet,
@@ -70,12 +74,14 @@ import {
   createSourceControlFlowSnippet,
   createSourceValueMatchSnippet,
   createSourceModuleTemplateSnippet,
+  createSourceStyleProfileTemplateSnippet,
   insertSourceGeometryValueSnippet,
   insertSourceCalculationMeasurementSnippet,
   insertSourceCreationSnippet,
   insertSourceOutputTemplateSnippet,
   insertSourceValueMatchSnippet,
-  insertSourceModuleTemplateSnippet
+  insertSourceModuleTemplateSnippet,
+  insertSourceStyleProfileTemplateSnippet
 } from "./sourceCreationSnippetAdapter";
 import { sourceOutputTemplateSnippetFor } from "../../src/commands/sourceOutputTemplateCatalog";
 
@@ -152,6 +158,14 @@ const moduleInstanceMaterializeFor = (): SourceModuleTemplateMaterialization => 
     ]
   };
   const materialization = materializeSourceModuleTemplate("module-instance", candidate);
+  expect(materialization).not.toBeNull();
+  return materialization!;
+};
+
+const styleProfileMaterializeFor = (
+  templateId: "profile" | "style" | "style-profile-override"
+): SourceStyleProfileTemplateMaterialization => {
+  const materialization = materializeSourceStyleProfileTemplate(templateId);
   expect(materialization).not.toBeNull();
   return materialization!;
 };
@@ -368,6 +382,51 @@ describe("VS Code source creation snippet adapter", () => {
       "  width: $2,",
       "  height: $3",
       ")",
+      ""
+    ].join("\n"));
+    expect(insertSnippet.mock.calls[0]?.[1]).toBe(position);
+  });
+
+  it("projects Style / Profile holes into ordered tabstops and inserts once", async () => {
+    const profile = createSourceStyleProfileTemplateSnippet(
+      styleProfileMaterializeFor("profile")
+    ) as unknown as TestSnippetString;
+    expect(profile.value).toBe("profile $1");
+
+    const style = createSourceStyleProfileTemplateSnippet(
+      styleProfileMaterializeFor("style")
+    ) as unknown as TestSnippetString;
+    expect(style.value).toBe("style $1 {\n  $2\n}");
+
+    const override = styleProfileMaterializeFor("style-profile-override");
+    const overrideSnippet = createSourceStyleProfileTemplateSnippet(override) as unknown as TestSnippetString;
+    expect(overrideSnippet.value).toBe([
+      "style $1 {",
+      "  $2",
+      "  for @$3 {",
+      "    $4",
+      "  }",
+      "}"
+    ].join("\n"));
+    expect(tabstopEventsFor(overrideSnippet).map(({ index }) => index)).toEqual([1, 2, 3, 4]);
+
+    const insertSnippet = vi.fn(() => Promise.resolve(true));
+    const editor = { insertSnippet } as unknown as vscode.TextEditor;
+    const position = new vscode.Position(8, 0);
+    await expect(insertSourceStyleProfileTemplateSnippet(
+      editor,
+      override,
+      position,
+      { appendNewline: true }
+    )).resolves.toBe(true);
+    expect(insertSnippet).toHaveBeenCalledTimes(1);
+    expect((insertSnippet.mock.calls[0]?.[0] as unknown as TestSnippetString).value).toBe([
+      "style $1 {",
+      "  $2",
+      "  for @$3 {",
+      "    $4",
+      "  }",
+      "}",
       ""
     ].join("\n"));
     expect(insertSnippet.mock.calls[0]?.[1]).toBe(position);

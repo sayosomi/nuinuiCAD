@@ -34,6 +34,11 @@ import {
 } from "../../src/commands/sourceModuleTemplateCatalog";
 import { materializeSourceModuleTemplate } from "../../src/commands/sourceModuleTemplateMaterializer";
 import {
+  SOURCE_STYLE_PROFILE_TEMPLATE_QUICK_PICK_ITEMS,
+  type SourceStyleProfileTemplatePresentation
+} from "../../src/commands/sourceStyleProfileTemplateCatalog";
+import { materializeSourceStyleProfileTemplate } from "../../src/commands/sourceStyleProfileTemplateMaterializer";
+import {
   SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS,
   resolveSourceTemplateInsertion,
   sourceTemplateRouteFor,
@@ -61,7 +66,8 @@ import {
   insertSourceControlFlowSnippet,
   insertSourceValueMatchSnippet,
   insertSourceOutputTemplateSnippet,
-  insertSourceModuleTemplateSnippet
+  insertSourceModuleTemplateSnippet,
+  insertSourceStyleProfileTemplateSnippet
 } from "./sourceCreationSnippetAdapter";
 import { runSourceCreationFlow } from "./sourceCreationFlow";
 import { createSourceCreationMru } from "./sourceCreationMru";
@@ -78,6 +84,8 @@ const SOURCE_MODULE_TEMPLATE_NO_CANDIDATES_MESSAGE =
   "nuinuiCAD: No legal Module callees are available at this Source insertion target.";
 const SOURCE_MODULE_TEMPLATE_EXPORT_SCOPE_MESSAGE =
   "nuinuiCAD: Export Module is legal only at the document top level.";
+const SOURCE_STYLE_PROFILE_TEMPLATE_PROFILE_SCOPE_MESSAGE =
+  "nuinuiCAD: Profile is legal only at the document top level.";
 
 type SourceTemplateTarget = {
   editor: vscode.TextEditor;
@@ -519,6 +527,44 @@ const insertModuleTemplate = async (
   );
 };
 
+const insertStyleProfileTemplate = async (
+  target: SourceTemplateTarget,
+  insertionPosition: vscode.Position,
+  isCurrent: () => boolean,
+  showStaleMessage: () => void
+): Promise<boolean | undefined> => {
+  const item = await nativeShowQuickPick<SourceStyleProfileTemplatePresentation>(
+    SOURCE_STYLE_PROFILE_TEMPLATE_QUICK_PICK_ITEMS
+  );
+  if (!isCurrent()) {
+    showStaleMessage();
+    return undefined;
+  }
+  if (!item) return undefined;
+
+  if (item.id === "profile" && target.context.scope !== "top-level") {
+    void vscode.window.showErrorMessage(SOURCE_STYLE_PROFILE_TEMPLATE_PROFILE_SCOPE_MESSAGE);
+    return undefined;
+  }
+
+  const materialization = materializeSourceStyleProfileTemplate(item.id);
+  if (!materialization) return undefined;
+  if (!isCurrent()) {
+    showStaleMessage();
+    return undefined;
+  }
+
+  return insertSourceStyleProfileTemplateSnippet(
+    target.editor,
+    materialization,
+    insertionPosition,
+    {
+      ...(target.context.scope === "direct-layout-body" ? { prefixText: DSL_INDENT } : {}),
+      appendNewline: true
+    }
+  );
+};
+
 const unreachableSourceTemplateRoute = (route: never): never => {
   throw new Error(`Unsupported Source Template route: ${String(route)}`);
 };
@@ -623,6 +669,13 @@ export const registerVscodeSourceCreationCommandFeature = ({
           );
         case "module":
           return insertModuleTemplate(
+            target,
+            insertionPosition,
+            isCurrent,
+            showStaleMessage
+          );
+        case "style-profile":
+          return insertStyleProfileTemplate(
             target,
             insertionPosition,
             isCurrent,
