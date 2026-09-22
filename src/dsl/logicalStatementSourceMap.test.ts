@@ -1,12 +1,22 @@
 import { describe, expect, it } from "vitest";
 import {
   assertSourceMapRevision,
+  compileDslDocument,
   createLogicalStatementSourceMap,
   logicalOffsetToPhysical,
   physicalSpanForStatement,
+  parseDsl,
+  parseDslSnapshot,
   physicalToLogicalOffset
 } from "@nuinuicad/nui-language";
-import { parseDslSnapshot } from "@nuinuicad/nui-language";
+
+const compileDslWithStableIds = (source: string) => {
+  const parsed = parseDslSnapshot({ normalizedSource: source, sourceRevision: 0 });
+  return compileDslDocument(source, {
+    preparsed: parsed,
+    assignedStatementIds: new Map(parsed.statements.map((_, index) => [index, `logical-match:${index}`] as const))
+  });
+};
 
 describe("logicalStatementSourceMap", () => {
   it("joins an unclosed-call continuation into one logical statement", () => {
@@ -74,19 +84,66 @@ describe("logicalStatementSourceMap", () => {
   it("keeps a canonical multiline exhaustive choice match declaration together", () => {
     const source = [
       "nui 1",
-      "const size: choice(small, large) =",
-      "  match @size {",
-      "  small => 5",
-      "  large => 10",
+      "const side: choice(left, right) = left",
+      "const selected: number = match @side {",
+      "left => 1",
+      "right => 2",
       "}",
       "const after: number = 30"
     ].join("\n");
     const map = createLogicalStatementSourceMap({ normalizedSource: source, sourceRevision: 14 });
     expect(map.statements.map((statement) => statement.logicalText)).toEqual([
       "nui 1",
-      "const size: choice(small, large) = match @size { small => 5 large => 10 }",
+      "const side: choice(left, right) = left",
+      "const selected: number = match @side { left => 1 right => 2 }",
       "const after: number = 30"
     ]);
+
+    for (const parsed of [
+      parseDsl(source),
+      parseDslSnapshot({ normalizedSource: source, sourceRevision: 14 })
+    ]) {
+      expect(parsed.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    }
+    expect(compileDslWithStableIds(source).diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+  });
+
+  it("keeps a canonical multiline optional some-binder match declaration together", () => {
+    const source = [
+      "nui 1",
+      'const note: string? = "hello"',
+      "const selected: string? = match @note {",
+      "none => none",
+      "some value => @value",
+      "}",
+      "const after: number = 30"
+    ].join("\n");
+    const map = createLogicalStatementSourceMap({ normalizedSource: source, sourceRevision: 15 });
+    expect(map.statements.map((statement) => statement.logicalText)).toEqual([
+      "nui 1",
+      'const note: string? = "hello"',
+      'const selected: string? = match @note { none => none some value => @value }',
+      "const after: number = 30"
+    ]);
+    expect(map.statements.some((statement) => statement.structural === "close")).toBe(false);
+
+    for (const parsed of [
+      parseDsl(source),
+      parseDslSnapshot({ normalizedSource: source, sourceRevision: 15 })
+    ]) {
+      expect(parsed.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    }
+    expect(compileDslWithStableIds(source).diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+  });
+
+  it("keeps single-line value-match syntax valid", () => {
+    const source = [
+      "nui 1",
+      "const side: choice(left, right) = left",
+      "const selected: number = match @side { left => 1 right => 2 }"
+    ].join("\n");
+    expect(parseDsl(source).diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(compileDslWithStableIds(source).diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
   });
 
   it("keeps canonical multiline exported value-if declarations separate from a following declaration", () => {

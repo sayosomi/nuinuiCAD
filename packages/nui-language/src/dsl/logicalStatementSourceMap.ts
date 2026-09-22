@@ -295,7 +295,7 @@ export const createLogicalStatementSourceMap = (snapshot: SourceSnapshot): Logic
       const next = cursor + 1;
       const nextCode = next < lines.length ? lexicalLines[next]!.codeText : "";
       const nextIsValueControlFlowHeader = /^\s*(?:if\s*\(|match\b|for\s+[A-Za-z_][A-Za-z0-9_]*\s+in\s+@[^{}]+\{)/.test(nextCode);
-      const nextIsValueMatchArm = /^\s*[^\s{}]+\s*=>/.test(nextCode);
+      const nextIsValueMatchArm = /^\s*(?:[^\s{}]+|some\s+[^\s{}]+)\s*=>/.test(nextCode);
       const activatesValueControlFlowOnNextLine = awaitingValueControlFlowHeader && nextIsValueControlFlowHeader;
       const startsStatementForCarryContinuation =
         isStatementForHeaderWithoutInlineBlock(first.codeText) && isCarryClauseStart(nextCode);
