@@ -49,9 +49,13 @@ import {
   materializeSourceCreationTemplate,
   type SourceCreationTemplateMaterialization
 } from "../../src/commands/sourceCreationTemplateMaterializer";
+import { sourceGeometryValueTemplateGroups } from "../../src/commands/sourceGeometryValueTemplateCatalog";
+import { materializeSourceGeometryValueTemplate } from "../../src/commands/sourceGeometryValueTemplateMaterializer";
 import {
+  createSourceGeometryValueSnippet,
   createSourceCreationSnippet,
   createSourceOutputTemplateSnippet,
+  insertSourceGeometryValueSnippet,
   insertSourceCreationSnippet,
   insertSourceOutputTemplateSnippet
 } from "./sourceCreationSnippetAdapter";
@@ -76,6 +80,15 @@ const holeNamesFor = (materialization: SourceCreationTemplateMaterialization): s
 
 const tabstopEventsFor = (snippet: TestSnippetString) =>
   snippet.events.filter((event): event is Extract<SnippetEvent, { kind: "tabstop" }> => event.kind === "tabstop");
+
+const geometryValueMaterializeFor = (groupId: "point" | "line" | "path", construction: string, formIndex = 0) => {
+  const plan = sourceGeometryValueTemplateGroups()
+    .find(({ id }) => id === groupId)!.plans
+    .find((candidate) => candidate.construction === construction)!;
+  const materialization = materializeSourceGeometryValueTemplate(plan, plan.forms[formIndex]!);
+  expect(materialization).not.toBeNull();
+  return materialization!;
+};
 
 describe("VS Code source creation snippet adapter", () => {
   it("emits addLine literal text and ordered name/argument tabstops", () => {
@@ -155,6 +168,28 @@ describe("VS Code source creation snippet adapter", () => {
     expect(insertionPosition).toBe(position);
     expect(result).toBe(insertionResult);
     await expect(result).resolves.toBe(true);
+  });
+
+  it("turns Geometry Value holes into ordered native tabstops and inserts once", async () => {
+    const materialization = geometryValueMaterializeFor("point", "between", 1);
+    const snippet = createSourceGeometryValueSnippet(materialization) as unknown as TestSnippetString;
+
+    expect(tabstopEventsFor(snippet).map(({ index }) => index)).toEqual([1, 2, 3, 4]);
+    expect(snippet.value).toBe([
+      "const $1: point = between(",
+      "  start: $2,",
+      "  end: $3,",
+      "  ratio: $4",
+      ")"
+    ].join("\n"));
+
+    const insertSnippet = vi.fn(() => Promise.resolve(true));
+    const editor = { insertSnippet } as unknown as vscode.TextEditor;
+    const position = new vscode.Position(6, 0);
+    await expect(insertSourceGeometryValueSnippet(editor, materialization, position)).resolves.toBe(true);
+    expect(insertSnippet).toHaveBeenCalledTimes(1);
+    expect(insertSnippet.mock.calls[0]?.[0]).toBeInstanceOf(vscode.SnippetString);
+    expect(insertSnippet.mock.calls[0]?.[1]).toBe(position);
   });
 
   it("uses linked layout-name tabstops and native paper/orientation choices for Layout + Print", () => {

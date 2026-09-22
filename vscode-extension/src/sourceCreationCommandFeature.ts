@@ -18,10 +18,18 @@ import {
   type SourceTemplateInsertionContext
 } from "../../src/commands/sourceTemplateCatalog";
 import {
+  sourceGeometryValueTemplateGroups,
+  type SourceGeometryValueConstructionPlan,
+  type SourceGeometryValueTemplateForm,
+  type SourceGeometryValueTemplateGroup
+} from "../../src/commands/sourceGeometryValueTemplateCatalog";
+import { materializeSourceGeometryValueTemplate } from "../../src/commands/sourceGeometryValueTemplateMaterializer";
+import {
   type SourceCreationCursor,
   type SourceCreationInsertion
 } from "../../src/commands/sourceCreationInsertion";
 import {
+  insertSourceGeometryValueSnippet,
   insertSourceOutputTemplateSnippet
 } from "./sourceCreationSnippetAdapter";
 import { runSourceCreationFlow } from "./sourceCreationFlow";
@@ -165,6 +173,95 @@ const insertOutputTemplate = async (
   );
 };
 
+type SourceGeometryValueGroupPickerItem = {
+  label: string;
+  group: SourceGeometryValueTemplateGroup;
+};
+
+type SourceGeometryValueConstructionPickerItem = {
+  label: string;
+  plan: SourceGeometryValueConstructionPlan;
+};
+
+type SourceGeometryValueFormPickerItem = {
+  label: string;
+  form: SourceGeometryValueTemplateForm;
+};
+
+const geometryValueGroupPickerItemsFor = (): SourceGeometryValueGroupPickerItem[] =>
+  sourceGeometryValueTemplateGroups().map((group) => ({
+    label: group.label,
+    group
+  }));
+
+const geometryValueConstructionPickerItemsFor = (
+  group: SourceGeometryValueTemplateGroup
+): SourceGeometryValueConstructionPickerItem[] =>
+  group.plans.map((plan) => ({
+    label: plan.construction,
+    plan
+  }));
+
+const geometryValueFormPickerItemsFor = (
+  plan: SourceGeometryValueConstructionPlan
+): SourceGeometryValueFormPickerItem[] =>
+  plan.forms.map((form) => ({
+    label: form.exclusiveChoices.map(({ selectedArgName }) => selectedArgName).join(" + "),
+    form
+  }));
+
+const insertGeometryValueTemplate = async (
+  target: SourceTemplateTarget,
+  insertionPosition: vscode.Position,
+  isCurrent: () => boolean,
+  showStaleMessage: () => void
+): Promise<boolean | undefined> => {
+  const groupItem = await nativeShowQuickPick(geometryValueGroupPickerItemsFor());
+  if (!isCurrent()) {
+    showStaleMessage();
+    return undefined;
+  }
+  if (!groupItem) return undefined;
+
+  const constructionItem = await nativeShowQuickPick(
+    geometryValueConstructionPickerItemsFor(groupItem.group)
+  );
+  if (!isCurrent()) {
+    showStaleMessage();
+    return undefined;
+  }
+  if (!constructionItem) return undefined;
+
+  let form = constructionItem.plan.forms[0];
+  if (!form) return undefined;
+  if (constructionItem.plan.forms.length > 1) {
+    const formItem = await nativeShowQuickPick(geometryValueFormPickerItemsFor(constructionItem.plan));
+    if (!isCurrent()) {
+      showStaleMessage();
+      return undefined;
+    }
+    if (!formItem) return undefined;
+    form = formItem.form;
+  }
+
+  const materialization = materializeSourceGeometryValueTemplate(constructionItem.plan, form);
+  if (!materialization) return undefined;
+  if (!isCurrent()) {
+    showStaleMessage();
+    return undefined;
+  }
+
+  return insertSourceGeometryValueSnippet(
+    target.editor,
+    materialization,
+    insertionPosition,
+    {
+      ...(target.context.scope === "direct-layout-body" ? { prefixText: DSL_INDENT } : {}),
+      appendNewline: true
+    }
+  );
+};
+
 const unreachableSourceTemplateRoute = (route: never): never => {
   throw new Error(`Unsupported Source Template route: ${String(route)}`);
 };
@@ -238,6 +335,13 @@ export const registerVscodeSourceCreationCommandFeature = ({
               isCurrent,
               onStale: showStaleMessage
             }
+          );
+        case "geometry-value":
+          return insertGeometryValueTemplate(
+            target,
+            insertionPosition,
+            isCurrent,
+            showStaleMessage
           );
         case "output-print":
           return insertOutputTemplate(
