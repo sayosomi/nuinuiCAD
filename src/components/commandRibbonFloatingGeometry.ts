@@ -52,15 +52,21 @@ export const clampRibbonPosition = (
   y: number,
   viewportSize: ViewportSize,
   renderedSize: RibbonRenderedSize,
-  margin = FLOATING_RIBBON_MARGIN
+  margin = FLOATING_RIBBON_MARGIN,
+  topInset = 0
 ): RibbonPosition => {
   const maxX = Math.max(0, viewportSize.width - renderedSize.width);
   const maxY = Math.max(0, viewportSize.height - renderedSize.height);
   const minX = maxX >= margin * 2 ? margin : 0;
-  const minY = maxY >= margin * 2 ? margin : 0;
+  const normalMinY = maxY >= margin * 2 ? margin : 0;
+  const maxAllowedY = Math.max(normalMinY, maxY - margin);
+  const minY = Math.min(
+    Math.max(normalMinY, topInset > 0 ? topInset + margin : normalMinY),
+    maxAllowedY
+  );
   return {
     x: Math.min(Math.max(Math.round(x), minX), Math.max(minX, maxX - margin)),
-    y: Math.min(Math.max(Math.round(y), minY), Math.max(minY, maxY - margin))
+    y: Math.min(Math.max(Math.round(y), minY), maxAllowedY)
   };
 };
 

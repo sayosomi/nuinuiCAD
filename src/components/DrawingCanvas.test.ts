@@ -746,6 +746,78 @@ describe("DrawingCanvas rendering", () => {
     expect(view.container.querySelector(".canvas-scale-overlay")).toBeNull();
   });
 
+  it("reserves Pick Mode chrome without shrinking the logical viewport or leaking Canvas input", () => {
+    const baseRect = {
+      x: 0,
+      y: 0,
+      top: 0,
+      left: 0,
+      right: 500,
+      bottom: 400,
+      width: 500,
+      height: 400,
+      toJSON: () => ({})
+    };
+    HTMLElement.prototype.getBoundingClientRect = vi.fn(function (this: HTMLElement) {
+      return this.classList.contains("canvas-pick-mode-chrome")
+        ? { ...baseRect, bottom: 48, height: 48 }
+        : baseRect;
+    });
+    const renderPickModeChrome = vi.fn(() => createElement("div", { "data-testid": "pick-mode-chrome-content" }, "Pick"));
+    const renderHostDrawingOverlay = vi.fn((size) => createElement("div", {
+      "data-testid": "host-drawing-overlay",
+      "data-viewport": `${size.width}x${size.height}`
+    }));
+    const renderHostOverlay = vi.fn((size, layout) => createElement("div", {
+      "data-testid": "host-ui-overlay",
+      "data-viewport": `${size.width}x${size.height}`,
+      "data-pick-height": layout?.pickModeChromeHeight
+    }));
+    const hostAdapter = createFakeCanvasHostAdapter({
+      activePointPickTarget: { elementId: "target", parameterKey: "point" },
+      renderPickModeChrome,
+      renderHostDrawingOverlay,
+      renderHostOverlay
+    });
+    const canvasViewportBefore = useCadUiStore.getState().canvasViewport;
+    const view = renderWithHostAdapter(hostAdapter);
+    const layer = view.container.querySelector<HTMLElement>(".canvas-drawing-layer");
+    const chrome = view.container.querySelector<HTMLElement>(".canvas-pick-mode-chrome");
+
+    expect(chrome).toBeInTheDocument();
+    expect(chrome).not.toContainElement(layer);
+    expect(layer?.querySelector("canvas")).toBeInTheDocument();
+    expect(layer?.querySelector("[data-testid='host-drawing-overlay']")).toBeInTheDocument();
+    expect(view.container.querySelector("[data-testid='host-ui-overlay']")).not.toBeNull();
+    expect(layer).toHaveAttribute("data-pick-mode-crop-height", "48");
+    expect(layer?.style.clipPath).toBe("inset(48px 0 0 0)");
+    expect(renderHostDrawingOverlay).toHaveBeenLastCalledWith({ width: 500, height: 400 });
+    expect(renderHostOverlay).toHaveBeenLastCalledWith(
+      { width: 500, height: 400 },
+      { pickModeChromeHeight: 48 }
+    );
+    expect(useCadUiStore.getState().canvasViewport).toBe(canvasViewportBefore);
+
+    fireEvent.pointerDown(chrome!, { button: 0, buttons: 1, clientX: 20, clientY: 20, pointerId: 1 });
+    fireEvent.wheel(chrome!, { deltaY: 100 });
+    expect(view.hostAdapter.flushSourceEditorOnCanvasPointerDown).not.toHaveBeenCalled();
+    expect(view.hostAdapter.panCanvasViewport).not.toHaveBeenCalled();
+
+    const normalHostAdapter = createFakeCanvasHostAdapter();
+    act(() => {
+      view.rerender(createElement(DrawingCanvas, {
+        evaluation: evaluateElements(normalHostAdapter.elements),
+        canvasFocusRef: createRef<HTMLDivElement>(),
+        hostAdapter: normalHostAdapter
+      }));
+    });
+    const restoredLayer = view.container.querySelector<HTMLElement>(".canvas-drawing-layer");
+    expect(view.container.querySelector(".canvas-pick-mode-chrome")).toBeNull();
+    expect(restoredLayer).toHaveAttribute("data-pick-mode-crop-height", "0");
+    expect(restoredLayer?.style.clipPath).toBe("");
+    expect(useCadUiStore.getState().canvasViewport).toBe(canvasViewportBefore);
+  });
+
   it("uses the host adapter for preview and commit actions with one drag base", () => {
     const hostAdapter = createFakeCanvasHostAdapter();
     const evaluation = evaluateElements(hostAdapter.elements);

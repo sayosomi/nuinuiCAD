@@ -31,6 +31,7 @@ export type VSCodeCanvasRibbonOverlayProps = {
   canvasViewport: CanvasViewport;
   canvasRibbonRibbons: VscodeCanvasRibbon[];
   viewportSize: ViewportSize;
+  pickModeChromeHeight?: number;
   ribbonCommandContext: VscodeCanvasRibbonCommandContext;
   onCommand?: (item: CommandRibbonPresentationCommandItem) => void;
   onPositionCommit?: (ribbonId: string, position: RibbonPosition) => void;
@@ -119,6 +120,7 @@ export const VSCodeCanvasRibbonOverlay = ({
   canvasViewport,
   canvasRibbonRibbons,
   viewportSize,
+  pickModeChromeHeight = 0,
   ribbonCommandContext,
   onCommand,
   onPositionCommit,
@@ -185,6 +187,7 @@ export const VSCodeCanvasRibbonOverlay = ({
     <CommandRibbonFloatingOverlay
       ribbons={ribbonPresentations}
       viewportSize={viewportSize}
+      topInset={pickModeChromeHeight}
       iconResolver={resolveVscodeLucideIcon}
       viewportAwareTooltips
       contextMenuData={vscodeCanvasRibbonContextData}

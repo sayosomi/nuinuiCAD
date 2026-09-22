@@ -72,6 +72,54 @@ describe("CommandRibbonFloatingOverlay", () => {
     expect(onPositionCommit).toHaveBeenCalledTimes(commitsBeforeResize);
   });
 
+  it("displaces only the displayed Ribbon position below Pick Mode chrome", () => {
+    const onPositionChange = vi.fn();
+    const onPositionCommit = vi.fn();
+    const view = render(
+      <CommandRibbonFloatingOverlay
+        ribbons={[ribbon]}
+        viewportSize={{ width: 320, height: 180 }}
+        topInset={40}
+        iconResolver={() => Circle}
+        onPositionChange={onPositionChange}
+        onPositionCommit={onPositionCommit}
+      />
+    );
+    const positionedRibbon = view.container.querySelector<HTMLElement>(".command-ribbon-layer > div");
+    expect(positionedRibbon).toHaveStyle({ top: "48px" });
+    expect(onPositionChange).not.toHaveBeenCalled();
+    expect(onPositionCommit).not.toHaveBeenCalled();
+
+    act(() => {
+      view.rerender(
+        <CommandRibbonFloatingOverlay
+          ribbons={[ribbon]}
+          viewportSize={{ width: 320, height: 180 }}
+          topInset={0}
+          iconResolver={() => Circle}
+          onPositionChange={onPositionChange}
+          onPositionCommit={onPositionCommit}
+        />
+      );
+    });
+    expect(view.container.querySelector<HTMLElement>(".command-ribbon-layer > div")).toHaveStyle({ top: "12px" });
+    expect(onPositionChange).not.toHaveBeenCalled();
+    expect(onPositionCommit).not.toHaveBeenCalled();
+  });
+
+  it("keeps a Ribbon already below Pick Mode chrome at its normal displayed position", () => {
+    const belowChrome = { ...ribbon, y: 96 };
+    const view = render(
+      <CommandRibbonFloatingOverlay
+        ribbons={[belowChrome]}
+        viewportSize={{ width: 320, height: 180 }}
+        topInset={40}
+        iconResolver={() => Circle}
+      />
+    );
+    expect(view.container.querySelector<HTMLElement>(".command-ribbon-layer > div")).toHaveStyle({ top: "96px" });
+  });
+
   it("positions a viewport-aware tooltip without committing Ribbon movement", () => {
     const onPositionCommit = vi.fn();
     const view = render(

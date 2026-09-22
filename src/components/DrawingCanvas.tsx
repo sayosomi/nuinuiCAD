@@ -5,7 +5,7 @@ import type {
   MouseEvent as ReactMouseEvent,
   WheelEvent as ReactWheelEvent
 } from "react";
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useReducer, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useReducer, useRef, useState } from "react";
 import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
 import { creationPlacementForTarget } from "../model/elementCreationPlacement";
 import type { CanvasRectangleSelectionUpdateMode } from "../commands/canvasRectangleSelectionCommands";
@@ -167,7 +167,7 @@ const deferPointerGestureCleanup = (callback: () => void): void => {
 const canvasPointerBoundaryFallbackShouldRun = (event: PointerEvent): boolean => {
   const target = event.target;
   return !(target instanceof Element && target.closest(
-    ".command-ribbon, [data-reference-pick-ui='true'], " +
+    ".command-ribbon, [data-reference-pick-ui='true'], [data-canvas-pick-mode-chrome='true'], " +
     ".numeric-reference-candidate-menu, .measurement-candidate-menu, .line-pick-candidate-menu, " +
     ".canvas-overlap-candidate-menu"
   ));
@@ -659,6 +659,31 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       baseEvaluation: evaluation
     };
   }, [evaluation, evaluationState, hostAdapter]);
+
+  const pickModeChrome = hostAdapter.renderPickModeChrome?.() ?? null;
+  const hasPickModeChrome = pickModeChrome !== null && pickModeChrome !== undefined && pickModeChrome !== false;
+  const pickModeChromeRef = useRef<HTMLDivElement>(null);
+  const [pickModeChromeHeight, setPickModeChromeHeight] = useState(0);
+
+  useLayoutEffect(() => {
+    const chrome = pickModeChromeRef.current;
+    if (!hasPickModeChrome || !chrome) {
+      setPickModeChromeHeight((current) => current === 0 ? current : 0);
+      return;
+    }
+
+    const updateHeight = () => {
+      const height = chrome.getBoundingClientRect().height;
+      const nextHeight = Number.isFinite(height) ? Math.max(height, 0) : 0;
+      setPickModeChromeHeight((current) => current === nextHeight ? current : nextHeight);
+    };
+    updateHeight();
+
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(chrome);
+    return () => observer.disconnect();
+  }, [hasPickModeChrome]);
 
   useEffect(() => {
     const viewport = canvasFocusRef.current;
@@ -2168,63 +2193,103 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
         onPointerLeave={handlePointerLeave}
         onAuxClick={(event) => event.preventDefault()}
       >
-        <canvas
-          ref={canvasRef}
-          aria-label={hostAdapter.presentation?.text("canvas.ariaLabel", "CAD drawing canvas") ?? "CAD drawing canvas"}
-        />
-        <CanvasOverlay
-          viewportSize={viewportSize}
-          moduleInstanceSelectionFrames={moduleInstanceSelectionFrames}
-          overlayLines={overlayLines}
-          overlayArcs={overlayArcs}
-          overlayCurves={overlayCurves}
-          overlayOffsetLines={overlayOffsetLines}
-          overlayJoinedPaths={overlayJoinedPaths}
-          rectangleSelection={rectangleSelectionSession?.activated ? {
-            rectangle: screenSelectionRectangleBetween(
-              rectangleSelectionSession.start,
-              rectangleSelectionSession.current
-            ),
-            mode: rectangleSelectionSession.current.x >= rectangleSelectionSession.start.x
-              ? "window"
-              : "crossing"
-          } : null}
-          overlayPoints={overlayPoints}
-          overlayTexts={overlayTexts}
-          selectedBezierHandles={selectedBezierHandles}
-          selectedBezierEditingHelper={selectedBezierEditingHelper}
-          overlayPointPickCandidates={overlayPointPickCandidates}
-          selectedElementIdSet={selectedElementIdSet}
-          draftLinePickElementIds={draftLinePickElementIds}
-          pickSelectedElementIdSet={pickSelectedElementIdSet}
-          draftPointPickReferenceKeys={draftPointPickReferenceKeys}
-          pickCandidateLineIds={pickCandidateLineIds}
-          selectedElementId={selectedElementId}
-          canvasTheme={canvasTheme}
-          effectiveDrawingModifierStrokes={evaluation.effectiveDrawingModifierStrokes}
-          overlayIdentityCandidates={interactiveOverlayIdentityCandidates}
-          showCanvasPointNames={showCanvasPointNames}
-          showCanvasGeometryNames={showCanvasGeometryNames}
-          hoveredElementIds={hoveredElementIds}
-          hoverRepresentativeElementId={hoverRepresentativeElementId}
-          showCanvasPoints={showCanvasPoints}
-          isPointPickActive={isPointPickActive}
-          isNumericReferencePickActive={isNumericReferencePickActive}
-          isLinePickActive={isLinePickActive}
-        />
-        {pointDragFeedback ? (
-          <PointDragAxisLockFeedback
-            feedback={pointDragFeedback}
-            viewportSize={viewportSize}
-            canvasTheme={canvasTheme}
-            presentation={hostAdapter.presentation?.axisLock}
-          />
+        {hasPickModeChrome ? (
+          <div
+            ref={pickModeChromeRef}
+            className="canvas-pick-mode-chrome"
+            data-canvas-pick-mode-chrome="true"
+            onPointerDown={(event) => event.stopPropagation()}
+            onPointerMove={(event) => event.stopPropagation()}
+            onPointerUp={(event) => event.stopPropagation()}
+            onPointerCancel={(event) => event.stopPropagation()}
+            onWheel={(event) => event.stopPropagation()}
+            onContextMenu={(event) => event.stopPropagation()}
+            onKeyDown={(event) => event.stopPropagation()}
+          >
+            {pickModeChrome}
+          </div>
         ) : null}
-        {hostAdapter.renderHostOverlay?.(viewportSize)}
+        <div
+          className="canvas-drawing-layer"
+          data-pick-mode-crop-height={pickModeChromeHeight}
+          style={pickModeChromeHeight > 0
+            ? { clipPath: `inset(${pickModeChromeHeight}px 0 0 0)` }
+            : undefined}
+        >
+          <canvas
+            ref={canvasRef}
+            aria-label={hostAdapter.presentation?.text("canvas.ariaLabel", "CAD drawing canvas") ?? "CAD drawing canvas"}
+          />
+          <CanvasOverlay
+            viewportSize={viewportSize}
+            moduleInstanceSelectionFrames={moduleInstanceSelectionFrames}
+            overlayLines={overlayLines}
+            overlayArcs={overlayArcs}
+            overlayCurves={overlayCurves}
+            overlayOffsetLines={overlayOffsetLines}
+            overlayJoinedPaths={overlayJoinedPaths}
+            rectangleSelection={rectangleSelectionSession?.activated ? {
+              rectangle: screenSelectionRectangleBetween(
+                rectangleSelectionSession.start,
+                rectangleSelectionSession.current
+              ),
+              mode: rectangleSelectionSession.current.x >= rectangleSelectionSession.start.x
+                ? "window"
+                : "crossing"
+            } : null}
+            overlayPoints={overlayPoints}
+            overlayTexts={overlayTexts}
+            selectedBezierHandles={selectedBezierHandles}
+            selectedBezierEditingHelper={selectedBezierEditingHelper}
+            overlayPointPickCandidates={overlayPointPickCandidates}
+            selectedElementIdSet={selectedElementIdSet}
+            draftLinePickElementIds={draftLinePickElementIds}
+            pickSelectedElementIdSet={pickSelectedElementIdSet}
+            draftPointPickReferenceKeys={draftPointPickReferenceKeys}
+            pickCandidateLineIds={pickCandidateLineIds}
+            selectedElementId={selectedElementId}
+            canvasTheme={canvasTheme}
+            effectiveDrawingModifierStrokes={evaluation.effectiveDrawingModifierStrokes}
+            overlayIdentityCandidates={interactiveOverlayIdentityCandidates}
+            showCanvasPointNames={showCanvasPointNames}
+            showCanvasGeometryNames={showCanvasGeometryNames}
+            hoveredElementIds={hoveredElementIds}
+            hoverRepresentativeElementId={hoverRepresentativeElementId}
+            showCanvasPoints={showCanvasPoints}
+            isPointPickActive={isPointPickActive}
+            isNumericReferencePickActive={isNumericReferencePickActive}
+            isLinePickActive={isLinePickActive}
+          />
+          {pointDragFeedback ? (
+            <PointDragAxisLockFeedback
+              feedback={pointDragFeedback}
+              viewportSize={viewportSize}
+              canvasTheme={canvasTheme}
+              presentation={hostAdapter.presentation?.axisLock}
+            />
+          ) : null}
+          {hostAdapter.renderHostDrawingOverlay?.(viewportSize)}
+          <CanvasCandidateMenus
+            measurementCandidateMenu={measurementCandidateMenu}
+            pointPickCandidateMenu={pointPickCandidateMenu}
+            linePickCandidateMenu={linePickCandidateMenu}
+            overlapCandidateSession={overlapCandidateSession}
+            hoverIdentityCandidatePopup={hoverIdentityCandidatePopup}
+            viewportSize={viewportSize}
+            onApplyMeasurementCandidate={applyMeasurementCandidate}
+            onApplyPointPickCandidate={applyPointPickCandidate}
+            onApplyLinePickCandidate={applyLinePickCandidate}
+            onActivateOverlapCandidate={activateOverlapCandidate}
+            onFocusCanvas={() => canvasFocusRef.current?.focus()}
+            presentation={hostAdapter.presentation}
+          />
+        </div>
+        {hostAdapter.renderHostOverlay?.(viewportSize, { pickModeChromeHeight })}
         {renderFixedCanvasChrome ? (
           <div
             className="canvas-display-controls"
             aria-label={hostAdapter.presentation?.text("canvas.displaySettings", "キャンバス表示設定") ?? "キャンバス表示設定"}
+            style={{ top: Math.max(10, pickModeChromeHeight + 10) }}
           >
             <button
               type="button"
@@ -2252,22 +2317,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
             </button>
           </div>
         ) : null}
-        <CanvasCandidateMenus
-          measurementCandidateMenu={measurementCandidateMenu}
-          pointPickCandidateMenu={pointPickCandidateMenu}
-          linePickCandidateMenu={linePickCandidateMenu}
-          overlapCandidateSession={overlapCandidateSession}
-          hoverIdentityCandidatePopup={hoverIdentityCandidatePopup}
-          viewportSize={viewportSize}
-          onApplyMeasurementCandidate={applyMeasurementCandidate}
-          onApplyPointPickCandidate={applyPointPickCandidate}
-          onApplyLinePickCandidate={applyLinePickCandidate}
-          onActivateOverlapCandidate={activateOverlapCandidate}
-          onFocusCanvas={() => canvasFocusRef.current?.focus()}
-          presentation={hostAdapter.presentation}
-        />
         {renderFixedCanvasChrome && evaluation.errors.length + evaluation.warnings.length > 0 ? (
-          <div className="canvas-warning">
+          <div className="canvas-warning" style={{ top: Math.max(12, pickModeChromeHeight + 12) }}>
             {hostAdapter.presentation?.text(
               "canvas.warning",
               "⚠ {count} 件のエラー/警告があります",

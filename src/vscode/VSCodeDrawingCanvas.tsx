@@ -70,6 +70,7 @@ import {
 } from "./pickModeCanvasPolicy";
 import {
   activatePickModeDraftEntry,
+  matchingPickModeSessionForTargets,
   pickModeDraftEntryForOption
 } from "../model/pickModeSession";
 
@@ -685,38 +686,41 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       toggleCanvasGeometryNames: () => dispatchCommand("toggleCanvasGeometryNames"),
       toggleCanvasPoints: () => dispatchCommand("toggleCanvasPoints"),
       resolveImageSourceUrl: (sourcePath) => sourcePath,
-        renderHostOverlay: (viewportSize) => (
+      renderPickModeChrome: () => referencePickSession && referencePickPresentationContext &&
+        referencePickSession.draft.status === "active" ? (
+        <VSCodeReferencePickModeStatus
+          session={referencePickSession}
+          context={referencePickPresentationContext}
+          onFinish={confirmReferencePick}
+          onMoveDraftEntry={moveReferencePickDraftEntry}
+          onRemoveDraftEntry={removeReferencePickDraftEntry}
+        />
+      ) : matchingPickModeSessionForTargets(activePickModeSession, {
+        point: activePointPickTarget,
+        numericReference: activeNumericReferencePickTarget,
+        line: activeLinePickTarget
+      }) ? <PickModeStatus /> : null,
+      renderHostDrawingOverlay: referencePickSession ? (viewportSize) => (
+        <VSCodeReferencePickOverlay
+          canvasFocusRef={canvasFocusRef}
+          viewportSize={viewportSize}
+          canvasViewport={canvasViewport}
+          canvasTheme={canvasTheme}
+          elements={canvasPresentation.elements}
+          evaluation={canvasPresentation.renderEvaluation}
+          visibilityProfiles={canvasPresentation.visibilityProfiles}
+          activeVisibilityProfileId={canvasPresentation.activeVisibilityProfileId}
+          session={referencePickSession}
+          onHover={setReferencePickHover}
+          onSelect={selectReferencePick}
+          onSelectNumericProperty={selectReferencePickNumericProperty}
+          onConfirm={confirmReferencePick}
+          onCancel={cancelReferencePick}
+          presentation={canvasPresentationAdapter}
+        />
+      ) : undefined,
+      renderHostOverlay: (viewportSize, layout = { pickModeChromeHeight: 0 }) => (
         <>
-          {referencePickSession ? (
-            <VSCodeReferencePickModeStatus
-              session={referencePickSession}
-              context={referencePickPresentationContext}
-              onFinish={confirmReferencePick}
-              onMoveDraftEntry={moveReferencePickDraftEntry}
-              onRemoveDraftEntry={removeReferencePickDraftEntry}
-            />
-          ) : (
-            <PickModeStatus />
-          )}
-          {referencePickSession ? (
-            <VSCodeReferencePickOverlay
-              canvasFocusRef={canvasFocusRef}
-              viewportSize={viewportSize}
-              canvasViewport={canvasViewport}
-              canvasTheme={canvasTheme}
-              elements={canvasPresentation.elements}
-              evaluation={canvasPresentation.renderEvaluation}
-              visibilityProfiles={canvasPresentation.visibilityProfiles}
-              activeVisibilityProfileId={canvasPresentation.activeVisibilityProfileId}
-              session={referencePickSession}
-              onHover={setReferencePickHover}
-              onSelect={selectReferencePick}
-              onSelectNumericProperty={selectReferencePickNumericProperty}
-              onConfirm={confirmReferencePick}
-              onCancel={cancelReferencePick}
-              presentation={canvasPresentationAdapter}
-            />
-          ) : null}
           {coordinatePointConversionSession && !coordinatePointConversionCanvasBasePick ? (
             <CommandLineBar
               coordinatePointConversion={{
@@ -735,6 +739,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
             canvasViewport={canvasViewport}
             canvasRibbonRibbons={canvasRibbonRibbons}
             viewportSize={viewportSize}
+            pickModeChromeHeight={layout.pickModeChromeHeight}
             ribbonCommandContext={ribbonCommandContext}
             presentation={canvasPresentationAdapter}
             onCommand={executeRibbonCommand}
