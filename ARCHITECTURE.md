@@ -996,6 +996,8 @@ Primary:
 - `src/commands/sourceTemplateCatalog.ts`
 - `src/commands/sourceGeometryValueTemplateCatalog.ts`
 - `src/commands/sourceGeometryValueTemplateMaterializer.ts`
+- `src/commands/sourceCalculationMeasurementTemplateCatalog.ts`
+- `src/commands/sourceCalculationMeasurementTemplateMaterializer.ts`
 - `src/commands/sourceOutputTemplateCatalog.ts`
 - `src/vscode/vscodeCanvasCreationCommands.ts`
 - `src/geometry/geometryHoverPresentation.ts`
@@ -1141,10 +1143,16 @@ owned by `src/commands/sourceGeometryValueTemplateCatalog.ts`, which projects
 pure point/line/path constructions from Language Core's `pureValueInterface`
 and `exclusiveGroups` into typed `const` snippet plans; its declaration parts
 are materialized by `src/commands/sourceGeometryValueTemplateMaterializer.ts`.
-Geometry and Output / Print retain their existing independent owners. The
-separate `src/commands/sourceOutputTemplateCatalog.ts` owns only the five fixed
-Output / Print definitions, snippet shapes, and legality rules. All routes
-capture the Source document/version and reuse
+Calculation / Measurement is an explicit five-builtin presentation allowlist
+owned by `src/commands/sourceCalculationMeasurementTemplateCatalog.ts`; builtin
+signatures, types, and calling style remain owned by Language Core, and
+`src/commands/sourceCalculationMeasurementTemplateMaterializer.ts` projects
+those resolved definitions into typed `const` snippet parts. The family uses
+the same captured-target and native snippet boundaries. Geometry and Output /
+Print retain their existing independent owners. The separate
+`src/commands/sourceOutputTemplateCatalog.ts` owns only the five fixed Output /
+Print definitions, snippet shapes, and legality rules. All routes capture the
+Source document/version and reuse
 `src/commands/sourceCreationInsertion.ts` for a statement-safe boundary before
 native snippet insertion. Catalog state is ephemeral to the command
 invocation; source text remains canonical.

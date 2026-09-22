@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   showQuickPick: vi.fn(),
   insertSnippet: vi.fn(),
   insertGeometryValueSnippet: vi.fn(),
+  insertCalculationMeasurementSnippet: vi.fn(),
   insertOutputSnippet: vi.fn(),
   showErrorMessage: vi.fn(),
   currentCompiledSemanticSnapshotFor: vi.fn()
@@ -38,6 +39,7 @@ vi.mock("./nativeQuickInput", () => ({
 vi.mock("./sourceCreationSnippetAdapter", () => ({
   insertSourceCreationSnippet: mocks.insertSnippet,
   insertSourceGeometryValueSnippet: mocks.insertGeometryValueSnippet,
+  insertSourceCalculationMeasurementSnippet: mocks.insertCalculationMeasurementSnippet,
   insertSourceOutputTemplateSnippet: mocks.insertOutputSnippet
 }));
 
@@ -52,6 +54,7 @@ import {
   sourceTemplateRouteFor
 } from "../../src/commands/sourceTemplateCatalog";
 import { sourceGeometryValueTemplateGroups } from "../../src/commands/sourceGeometryValueTemplateCatalog";
+import { sourceCalculationMeasurementTemplatePlans } from "../../src/commands/sourceCalculationMeasurementTemplateCatalog";
 
 beforeEach(() => {
   mocks.commands.clear();
@@ -59,6 +62,7 @@ beforeEach(() => {
   mocks.showQuickPick.mockReset();
   mocks.insertSnippet.mockReset();
   mocks.insertGeometryValueSnippet.mockReset();
+  mocks.insertCalculationMeasurementSnippet.mockReset();
   mocks.insertOutputSnippet.mockReset();
   mocks.showErrorMessage.mockReset();
   mocks.currentCompiledSemanticSnapshotFor.mockReset();
@@ -198,19 +202,21 @@ const sourceEditorFor = (source: string, version = 1, line = 1) => {
 describe("Source Insert Template command feature", () => {
   it("keeps the fixed family order and explicit family routes", () => {
     expect(SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS.map(({ label }) => label))
-      .toEqual(["Geometry", "Geometry Value", "Output / Print"]);
+      .toEqual(["Geometry", "Geometry Value", "Calculation / Measurement", "Output / Print"]);
     expect(sourceTemplateRouteFor(SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS[0]!.id))
       .toEqual({ familyId: "geometry", kind: "geometry" });
     expect(sourceTemplateRouteFor(SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS[1]!.id))
       .toEqual({ familyId: "geometry-value", kind: "geometry-value" });
     expect(sourceTemplateRouteFor(SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS[2]!.id))
+      .toEqual({ familyId: "calculation-measurement", kind: "calculation-measurement" });
+    expect(sourceTemplateRouteFor(SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS[3]!.id))
       .toEqual({ familyId: "output-print", kind: "output-print" });
   });
 
   it("captures the Source target before the fixed family picker and routes Output / Print in order", async () => {
     const { editor, session } = sourceEditorFor("nui 1\n");
     mocks.showQuickPick
-      .mockResolvedValueOnce(SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS[2])
+      .mockResolvedValueOnce(SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS[3])
       .mockResolvedValueOnce("Layout + Print");
     mocks.insertOutputSnippet.mockResolvedValue(true);
     const feature = registerVscodeSourceCreationCommandFeature({
@@ -244,7 +250,7 @@ describe("Source Insert Template command feature", () => {
     expect(mocks.insertOutputSnippet).not.toHaveBeenCalled();
 
     mocks.showQuickPick
-      .mockResolvedValueOnce(SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS[2])
+      .mockResolvedValueOnce(SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS[3])
       .mockResolvedValueOnce(undefined);
     await expect(mocks.commands.get(VSCODE_SOURCE_INSERT_TEMPLATE_COMMAND_ID)?.()).resolves.toBeUndefined();
     expect(mocks.insertOutputSnippet).not.toHaveBeenCalled();
@@ -255,7 +261,7 @@ describe("Source Insert Template command feature", () => {
     const { editor, document, session } = sourceEditorFor("nui 1\n");
     mocks.showQuickPick.mockImplementationOnce(async () => {
       document.version += 1;
-      return SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS[2];
+      return SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS[3];
     });
     const feature = registerVscodeSourceCreationCommandFeature({
       activeSourceEditor: () => editor,
@@ -273,7 +279,7 @@ describe("Source Insert Template command feature", () => {
   it("rejects Place at the top level while preserving the fixed Output / Print catalog", async () => {
     const { editor, session } = sourceEditorFor("nui 1\n");
     mocks.showQuickPick
-      .mockResolvedValueOnce(SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS[2])
+      .mockResolvedValueOnce(SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS[3])
       .mockResolvedValueOnce("Place");
     const feature = registerVscodeSourceCreationCommandFeature({
       activeSourceEditor: () => editor,
@@ -293,7 +299,7 @@ describe("Source Insert Template command feature", () => {
   it("accepts Place only at a direct layout-body boundary", async () => {
     const { editor, session } = sourceEditorFor("nui 1\nlayout L {\n}\n", 1, 2);
     mocks.showQuickPick
-      .mockResolvedValueOnce(SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS[2])
+      .mockResolvedValueOnce(SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS[3])
       .mockResolvedValueOnce("Place");
     mocks.insertOutputSnippet.mockResolvedValue(true);
     const feature = registerVscodeSourceCreationCommandFeature({
@@ -310,7 +316,7 @@ describe("Source Insert Template command feature", () => {
   it("rejects a top-level-only template in a nested group after the unchanged picker order", async () => {
     const { editor, session } = sourceEditorFor("nui 1\ngroup G {\n\n}\n", 1, 2);
     mocks.showQuickPick
-      .mockResolvedValueOnce(SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS[2])
+      .mockResolvedValueOnce(SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS[3])
       .mockResolvedValueOnce("SVG");
     const feature = registerVscodeSourceCreationCommandFeature({
       activeSourceEditor: () => editor,
@@ -331,7 +337,7 @@ describe("Source Insert Template command feature", () => {
     const source = "nui 1\npoint A = coordinate(\n  x: 0,\n  y: 0\n)\n";
     const { editor, session } = sourceEditorFor(source, 1, 1);
     mocks.showQuickPick
-      .mockResolvedValueOnce(SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS[2])
+      .mockResolvedValueOnce(SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS[3])
       .mockResolvedValueOnce("Layout");
     mocks.insertOutputSnippet.mockResolvedValue(true);
     const feature = registerVscodeSourceCreationCommandFeature({
@@ -343,6 +349,56 @@ describe("Source Insert Template command feature", () => {
     await expect(mocks.commands.get(VSCODE_SOURCE_INSERT_TEMPLATE_COMMAND_ID)?.()).resolves.toBe(true);
     const insertedPosition = mocks.insertOutputSnippet.mock.calls[0]?.[2];
     expect(insertedPosition).toMatchObject({ line: 5, character: 0 });
+    feature.dispose();
+  });
+
+  it("routes Calculation / Measurement through one row picker and native snippet insertion", async () => {
+    const { editor, session } = sourceEditorFor("nui 1\n");
+    const plans = sourceCalculationMeasurementTemplatePlans();
+    mocks.showQuickPick
+      .mockResolvedValueOnce(SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS[2])
+      .mockResolvedValueOnce({ label: plans[0]!.label, plan: plans[0] });
+    mocks.insertCalculationMeasurementSnippet.mockResolvedValue(true);
+    const feature = registerVscodeSourceCreationCommandFeature({
+      activeSourceEditor: () => editor,
+      displayLanguageFor: () => "en",
+      languageAnalysisSessionFor: () => session
+    });
+
+    await expect(mocks.commands.get(VSCODE_SOURCE_INSERT_TEMPLATE_COMMAND_ID)?.()).resolves.toBe(true);
+
+    expect(mocks.showQuickPick).toHaveBeenNthCalledWith(2, [
+      { label: "Distance between points", plan: plans[0] },
+      { label: "Angle between points", plan: plans[1] },
+      { label: "Point-to-line distance", plan: plans[2] },
+      { label: "Angle between lines", plan: plans[3] },
+      { label: "Spread angle", plan: plans[4] }
+    ]);
+    expect(mocks.insertCalculationMeasurementSnippet).toHaveBeenCalledTimes(1);
+    expect(mocks.insertCalculationMeasurementSnippet.mock.calls[0]?.[1]).toMatchObject({ plan: plans[0] });
+    expect(mocks.pickCreationCommand).not.toHaveBeenCalled();
+    expect(mocks.insertGeometryValueSnippet).not.toHaveBeenCalled();
+    expect(mocks.insertOutputSnippet).not.toHaveBeenCalled();
+    feature.dispose();
+  });
+
+  it("keeps Calculation / Measurement row cancellation mutation-free", async () => {
+    const { editor, session } = sourceEditorFor("nui 1\n");
+    const feature = registerVscodeSourceCreationCommandFeature({
+      activeSourceEditor: () => editor,
+      displayLanguageFor: () => "en",
+      languageAnalysisSessionFor: () => session
+    });
+
+    mocks.showQuickPick
+      .mockResolvedValueOnce(SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS[2])
+      .mockResolvedValueOnce(undefined);
+    await expect(mocks.commands.get(VSCODE_SOURCE_INSERT_TEMPLATE_COMMAND_ID)?.()).resolves.toBeUndefined();
+
+    expect(mocks.insertCalculationMeasurementSnippet).not.toHaveBeenCalled();
+    expect(mocks.insertSnippet).not.toHaveBeenCalled();
+    expect(mocks.insertGeometryValueSnippet).not.toHaveBeenCalled();
+    expect(mocks.insertOutputSnippet).not.toHaveBeenCalled();
     feature.dispose();
   });
 

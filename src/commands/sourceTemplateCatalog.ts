@@ -8,6 +8,7 @@ import {
 export const SOURCE_TEMPLATE_FAMILY_DEFINITIONS = [
   { id: "geometry", label: "Geometry" },
   { id: "geometry-value", label: "Geometry Value" },
+  { id: "calculation-measurement", label: "Calculation / Measurement" },
   { id: "output-print", label: "Output / Print" }
 ] as const;
 
@@ -20,6 +21,7 @@ export const SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS: readonly SourceTemplateFam
 export type SourceTemplateFamilyRoute =
   | { familyId: "geometry"; kind: "geometry" }
   | { familyId: "geometry-value"; kind: "geometry-value" }
+  | { familyId: "calculation-measurement"; kind: "calculation-measurement" }
   | { familyId: "output-print"; kind: "output-print" };
 
 const unreachableFamily = (familyId: never): never => {
@@ -36,6 +38,8 @@ export const sourceTemplateRouteFor = (familyId: SourceTemplateFamilyId): Source
       return { familyId, kind: "geometry" };
     case "geometry-value":
       return { familyId, kind: "geometry-value" };
+    case "calculation-measurement":
+      return { familyId, kind: "calculation-measurement" };
     case "output-print":
       return { familyId, kind: "output-print" };
   }
