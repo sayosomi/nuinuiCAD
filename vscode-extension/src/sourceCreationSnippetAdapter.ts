@@ -4,6 +4,7 @@ import type { SourceGeometryValueTemplateMaterialization } from "../../src/comma
 import type { SourceCalculationMeasurementTemplateMaterialization } from "../../src/commands/sourceCalculationMeasurementTemplateMaterializer";
 import type { SourceOutputTemplateSnippet } from "../../src/commands/sourceOutputTemplateCatalog";
 import type { SourceControlFlowTemplateMaterialization } from "../../src/commands/sourceControlFlowTemplateMaterializer";
+import type { SourceValueMatchTemplateMaterialization } from "../../src/commands/sourceValueMatchTemplateMaterializer";
 
 export type SourceCreationSnippetOptions = {
   /** Text inserted at a statement-safe line boundary before the declaration. */
@@ -144,6 +145,46 @@ export const insertSourceControlFlowSnippet = (
   position: vscode.Position,
   options?: SourceCreationSnippetOptions
 ): Thenable<boolean> => editor.insertSnippet(createSourceControlFlowSnippet(materialization, options), position);
+
+export const createSourceValueMatchSnippet = (
+  materialization: SourceValueMatchTemplateMaterialization,
+  options: SourceCreationSnippetOptions = {}
+): vscode.SnippetString => {
+  const snippet = new vscode.SnippetString();
+  const tabstopIndexForField = new Map<string, number>();
+  let nextTabstopIndex = 1;
+
+  if (options.prefixText) snippet.appendText(options.prefixText);
+
+  for (const part of materialization.parts) {
+    if (part.kind === "text") {
+      snippet.appendText(part.text);
+      continue;
+    }
+
+    let tabstopIndex = tabstopIndexForField.get(part.field);
+    if (tabstopIndex === undefined) {
+      tabstopIndex = nextTabstopIndex;
+      nextTabstopIndex += 1;
+      tabstopIndexForField.set(part.field, tabstopIndex);
+    }
+    snippet.appendTabstop(tabstopIndex);
+  }
+
+  if (options.appendNewline) snippet.appendText("\n");
+
+  return snippet;
+};
+
+export const insertSourceValueMatchSnippet = (
+  editor: vscode.TextEditor,
+  materialization: SourceValueMatchTemplateMaterialization,
+  position: vscode.Position,
+  options?: SourceCreationSnippetOptions
+): Thenable<boolean> => editor.insertSnippet(
+  createSourceValueMatchSnippet(materialization, options),
+  position
+);
 
 export const createSourceOutputTemplateSnippet = (
   template: SourceOutputTemplateSnippet

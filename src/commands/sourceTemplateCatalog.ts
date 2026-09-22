@@ -10,6 +10,7 @@ export const SOURCE_TEMPLATE_FAMILY_DEFINITIONS = [
   { id: "geometry-value", label: "Geometry Value" },
   { id: "calculation-measurement", label: "Calculation / Measurement" },
   { id: "control-flow", label: "Control Flow" },
+  { id: "value-match", label: "Value / Match" },
   { id: "output-print", label: "Output / Print" }
 ] as const;
 
@@ -24,6 +25,7 @@ export type SourceTemplateFamilyRoute =
   | { familyId: "geometry-value"; kind: "geometry-value" }
   | { familyId: "calculation-measurement"; kind: "calculation-measurement" }
   | { familyId: "control-flow"; kind: "control-flow" }
+  | { familyId: "value-match"; kind: "value-match" }
   | { familyId: "output-print"; kind: "output-print" };
 
 const unreachableFamily = (familyId: never): never => {
@@ -44,6 +46,8 @@ export const sourceTemplateRouteFor = (familyId: SourceTemplateFamilyId): Source
       return { familyId, kind: "calculation-measurement" };
     case "control-flow":
       return { familyId, kind: "control-flow" };
+    case "value-match":
+      return { familyId, kind: "value-match" };
     case "output-print":
       return { familyId, kind: "output-print" };
   }
