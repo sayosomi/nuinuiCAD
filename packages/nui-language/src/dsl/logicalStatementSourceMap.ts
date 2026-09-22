@@ -150,6 +150,34 @@ const valueControlFlowBraceDelta = (code: string): number => {
   return delta;
 };
 
+const hasUnquotedOpeningBrace = (code: string): boolean => {
+  let quote: string | null = null;
+  for (let index = 0; index < code.length; index += 1) {
+    const character = code[index]!;
+    if (quote) {
+      if (character === quote) {
+        let backslashCount = 0;
+        for (let previous = index - 1; previous >= 0 && code[previous] === "\\"; previous -= 1) {
+          backslashCount += 1;
+        }
+        if (backslashCount % 2 === 0) quote = null;
+      }
+      continue;
+    }
+    if (character === "\"" || character === "'") {
+      quote = character;
+      continue;
+    }
+    if (character === "{") return true;
+  }
+  return false;
+};
+
+const isStatementForHeaderWithoutInlineBlock = (code: string): boolean =>
+  /^\s*for\s+[A-Za-z_][A-Za-z0-9_]*\s+in\s+\S/.test(code) && !hasUnquotedOpeningBrace(code);
+
+const isCarryClauseStart = (code: string): boolean => /^\s*carry\b/.test(code);
+
 /**
  * A blank line is harmless only when the currently-open outer delimiter has a
  * real matching closer later in the same safe statement envelope. This is the
@@ -233,6 +261,7 @@ export const createLogicalStatementSourceMap = (snapshot: SourceSnapshot): Logic
     let valueControlFlowContinuation = isTypedDeclarationValueControlFlowStart(first.codeText);
     let awaitingValueControlFlowHeader = !valueControlFlowContinuation && isTypedDeclarationValueControlFlowTrailingEquals(first.codeText);
     let valueControlFlowBraceDepth = 0;
+    let statementForCarryContinuation = false;
     let cursor = index;
     while (true) {
       const line = lexicalLines[cursor]!;
@@ -268,11 +297,21 @@ export const createLogicalStatementSourceMap = (snapshot: SourceSnapshot): Logic
       const nextIsValueControlFlowHeader = /^\s*(?:if\s*\(|match\b|for\s+[A-Za-z_][A-Za-z0-9_]*\s+in\s+@[^{}]+\{)/.test(nextCode);
       const nextIsValueMatchArm = /^\s*[^\s{}]+\s*=>/.test(nextCode);
       const activatesValueControlFlowOnNextLine = awaitingValueControlFlowHeader && nextIsValueControlFlowHeader;
-      const continues = valueControlFlowContinuation
-        ? valueControlFlowBraceDepth > 0
-        : awaitingValueControlFlowHeader
-          ? activatesValueControlFlowOnNextLine
-          : nesting.unmatchedOpeners.length > 0;
+      const startsStatementForCarryContinuation =
+        isStatementForHeaderWithoutInlineBlock(first.codeText) && isCarryClauseStart(nextCode);
+      const continuesStatementForCarryContinuation = statementForCarryContinuation &&
+        !hasUnquotedOpeningBrace(line.codeText) &&
+        isCarryClauseStart(nextCode);
+      const completesStatementForCarryContinuation = statementForCarryContinuation && hasUnquotedOpeningBrace(line.codeText);
+      const continues = completesStatementForCarryContinuation
+        ? false
+        : startsStatementForCarryContinuation || continuesStatementForCarryContinuation
+          ? true
+          : valueControlFlowContinuation
+            ? valueControlFlowBraceDepth > 0
+            : awaitingValueControlFlowHeader
+              ? activatesValueControlFlowOnNextLine
+              : nesting.unmatchedOpeners.length > 0;
       if (!continues) break;
 
       if (next >= lines.length) {
@@ -286,6 +325,7 @@ export const createLogicalStatementSourceMap = (snapshot: SourceSnapshot): Logic
         valueControlFlowContinuation = true;
         awaitingValueControlFlowHeader = false;
       }
+      if (startsStatementForCarryContinuation) statementForCarryContinuation = true;
       const nextIsNestedValueControlFlow = nextIsValueControlFlowHeader;
       const valueControlFlowBoundary = valueControlFlowContinuation &&
         !nextIsStructural &&
