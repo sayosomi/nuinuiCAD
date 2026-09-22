@@ -1,12 +1,9 @@
-import type { CanvasViewport } from "../state/cadUiStore";
 import type { CanvasDrawingBounds } from "./canvasDrawingBounds";
+import type { Viewport, ViewportSize } from "./viewport";
 
 export const CANVAS_FIT_PADDING_PX = 32;
 
-export type CanvasViewportSize = {
-  width: number;
-  height: number;
-};
+export type CanvasViewportSize = ViewportSize;
 
 export type CanvasViewportFitInput = {
   bounds: CanvasDrawingBounds;
@@ -37,7 +34,7 @@ export const fitCanvasViewportToBounds = ({
   currentZoom,
   paddingPx = CANVAS_FIT_PADDING_PX,
   maxZoom
-}: CanvasViewportFitInput): CanvasViewport | null => {
+}: CanvasViewportFitInput): Viewport | null => {
   if (
     ![bounds.minX, bounds.minY, bounds.maxX, bounds.maxY, size.width, size.height, paddingPx]
       .every(Number.isFinite) ||

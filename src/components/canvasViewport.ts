@@ -1,32 +1,17 @@
-import type { CanvasViewport } from "../state/cadUiStore";
-import type { ScreenPoint } from "./DrawingCanvasHitTest";
+import {
+  screenToWorld,
+  worldToScreen,
+  type Viewport,
+  type ViewportSize
+} from "../geometry/viewport";
 
-export type ViewportSize = {
-  width: number;
-  height: number;
-};
+export type { ViewportSize } from "../geometry/viewport";
 
 export type PointDragAxis = "horizontal" | "vertical";
 
-export const worldToScreen = (
-  point: { x: number; y: number },
-  size: ViewportSize,
-  viewport: CanvasViewport
-): ScreenPoint => ({
-  x: size.width / 2 + viewport.panX + point.x * viewport.zoom,
-  y: size.height / 2 + viewport.panY - point.y * viewport.zoom
-});
+export { screenToWorld, worldToScreen };
 
-export const screenToWorld = (
-  point: ScreenPoint,
-  size: ViewportSize,
-  viewport: CanvasViewport
-): ScreenPoint => ({
-  x: (point.x - size.width / 2 - viewport.panX) / viewport.zoom,
-  y: (size.height / 2 + viewport.panY - point.y) / viewport.zoom
-});
-
-export const visibleWorldBounds = (size: ViewportSize, viewport: CanvasViewport) => ({
+export const visibleWorldBounds = (size: ViewportSize, viewport: Viewport) => ({
   minX: (0 - size.width / 2 - viewport.panX) / viewport.zoom,
   maxX: (size.width - size.width / 2 - viewport.panX) / viewport.zoom,
   minY: (size.height / 2 + viewport.panY - size.height) / viewport.zoom,
