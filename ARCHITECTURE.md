@@ -994,6 +994,8 @@ Primary:
 - `vscode-extension/src/creationCommandQuickPick.ts`
 - `vscode-extension/src/sourceCreationSnippetAdapter.ts`
 - `src/commands/sourceTemplateCatalog.ts`
+- `src/commands/sourceGeometryValueTemplateCatalog.ts`
+- `src/commands/sourceGeometryValueTemplateMaterializer.ts`
 - `src/commands/sourceOutputTemplateCatalog.ts`
 - `src/vscode/vscodeCanvasCreationCommands.ts`
 - `src/geometry/geometryHoverPresentation.ts`
@@ -1134,12 +1136,18 @@ Canvas interaction owner.
 host-neutral `src/commands/sourceTemplateCatalog.ts` owns its fixed family
 presentation/order, selected family identity, exhaustive family routing, and
 the shared statement-safe insertion context. Geometry routing delegates to the
-existing Create Geometry flow and its session-local MRU. The separate
-`src/commands/sourceOutputTemplateCatalog.ts` owns only the five fixed Output /
-Print definitions, snippet shapes, and legality rules. Both routes capture the
-Source document/version and reuse `src/commands/sourceCreationInsertion.ts` for
-a statement-safe boundary before native snippet insertion. Catalog state is
-ephemeral to the command invocation; source text remains canonical.
+existing Create Geometry flow and its session-local MRU. Geometry Value is
+owned by `src/commands/sourceGeometryValueTemplateCatalog.ts`, which projects
+pure point/line/path constructions from Language Core's `pureValueInterface`
+and `exclusiveGroups` into typed `const` snippet plans; its declaration parts
+are materialized by `src/commands/sourceGeometryValueTemplateMaterializer.ts`.
+Geometry and Output / Print retain their existing independent owners. The
+separate `src/commands/sourceOutputTemplateCatalog.ts` owns only the five fixed
+Output / Print definitions, snippet shapes, and legality rules. All routes
+capture the Source document/version and reuse
+`src/commands/sourceCreationInsertion.ts` for a statement-safe boundary before
+native snippet insertion. Catalog state is ephemeral to the command
+invocation; source text remains canonical.
 
 The Preview route uses `modulePreviewProtocol.ts`,
 `useVSCodeModulePreviewReferencePickSession.ts`, and

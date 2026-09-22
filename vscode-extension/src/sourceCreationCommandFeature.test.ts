@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   pickCreationCommand: vi.fn(),
   showQuickPick: vi.fn(),
   insertSnippet: vi.fn(),
+  insertGeometryValueSnippet: vi.fn(),
   insertOutputSnippet: vi.fn(),
   showErrorMessage: vi.fn(),
   currentCompiledSemanticSnapshotFor: vi.fn()
@@ -36,6 +37,7 @@ vi.mock("./nativeQuickInput", () => ({
 }));
 vi.mock("./sourceCreationSnippetAdapter", () => ({
   insertSourceCreationSnippet: mocks.insertSnippet,
+  insertSourceGeometryValueSnippet: mocks.insertGeometryValueSnippet,
   insertSourceOutputTemplateSnippet: mocks.insertOutputSnippet
 }));
 
@@ -49,12 +51,14 @@ import {
   SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS,
   sourceTemplateRouteFor
 } from "../../src/commands/sourceTemplateCatalog";
+import { sourceGeometryValueTemplateGroups } from "../../src/commands/sourceGeometryValueTemplateCatalog";
 
 beforeEach(() => {
   mocks.commands.clear();
   mocks.pickCreationCommand.mockReset();
   mocks.showQuickPick.mockReset();
   mocks.insertSnippet.mockReset();
+  mocks.insertGeometryValueSnippet.mockReset();
   mocks.insertOutputSnippet.mockReset();
   mocks.showErrorMessage.mockReset();
   mocks.currentCompiledSemanticSnapshotFor.mockReset();
@@ -194,17 +198,19 @@ const sourceEditorFor = (source: string, version = 1, line = 1) => {
 describe("Source Insert Template command feature", () => {
   it("keeps the fixed family order and explicit family routes", () => {
     expect(SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS.map(({ label }) => label))
-      .toEqual(["Geometry", "Output / Print"]);
+      .toEqual(["Geometry", "Geometry Value", "Output / Print"]);
     expect(sourceTemplateRouteFor(SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS[0]!.id))
       .toEqual({ familyId: "geometry", kind: "geometry" });
     expect(sourceTemplateRouteFor(SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS[1]!.id))
+      .toEqual({ familyId: "geometry-value", kind: "geometry-value" });
+    expect(sourceTemplateRouteFor(SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS[2]!.id))
       .toEqual({ familyId: "output-print", kind: "output-print" });
   });
 
   it("captures the Source target before the fixed family picker and routes Output / Print in order", async () => {
     const { editor, session } = sourceEditorFor("nui 1\n");
     mocks.showQuickPick
-      .mockResolvedValueOnce(SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS[1])
+      .mockResolvedValueOnce(SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS[2])
       .mockResolvedValueOnce("Layout + Print");
     mocks.insertOutputSnippet.mockResolvedValue(true);
     const feature = registerVscodeSourceCreationCommandFeature({
@@ -238,7 +244,7 @@ describe("Source Insert Template command feature", () => {
     expect(mocks.insertOutputSnippet).not.toHaveBeenCalled();
 
     mocks.showQuickPick
-      .mockResolvedValueOnce(SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS[1])
+      .mockResolvedValueOnce(SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS[2])
       .mockResolvedValueOnce(undefined);
     await expect(mocks.commands.get(VSCODE_SOURCE_INSERT_TEMPLATE_COMMAND_ID)?.()).resolves.toBeUndefined();
     expect(mocks.insertOutputSnippet).not.toHaveBeenCalled();
@@ -249,7 +255,7 @@ describe("Source Insert Template command feature", () => {
     const { editor, document, session } = sourceEditorFor("nui 1\n");
     mocks.showQuickPick.mockImplementationOnce(async () => {
       document.version += 1;
-      return SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS[1];
+      return SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS[2];
     });
     const feature = registerVscodeSourceCreationCommandFeature({
       activeSourceEditor: () => editor,
@@ -267,7 +273,7 @@ describe("Source Insert Template command feature", () => {
   it("rejects Place at the top level while preserving the fixed Output / Print catalog", async () => {
     const { editor, session } = sourceEditorFor("nui 1\n");
     mocks.showQuickPick
-      .mockResolvedValueOnce(SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS[1])
+      .mockResolvedValueOnce(SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS[2])
       .mockResolvedValueOnce("Place");
     const feature = registerVscodeSourceCreationCommandFeature({
       activeSourceEditor: () => editor,
@@ -287,7 +293,7 @@ describe("Source Insert Template command feature", () => {
   it("accepts Place only at a direct layout-body boundary", async () => {
     const { editor, session } = sourceEditorFor("nui 1\nlayout L {\n}\n", 1, 2);
     mocks.showQuickPick
-      .mockResolvedValueOnce(SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS[1])
+      .mockResolvedValueOnce(SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS[2])
       .mockResolvedValueOnce("Place");
     mocks.insertOutputSnippet.mockResolvedValue(true);
     const feature = registerVscodeSourceCreationCommandFeature({
@@ -304,7 +310,7 @@ describe("Source Insert Template command feature", () => {
   it("rejects a top-level-only template in a nested group after the unchanged picker order", async () => {
     const { editor, session } = sourceEditorFor("nui 1\ngroup G {\n\n}\n", 1, 2);
     mocks.showQuickPick
-      .mockResolvedValueOnce(SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS[1])
+      .mockResolvedValueOnce(SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS[2])
       .mockResolvedValueOnce("SVG");
     const feature = registerVscodeSourceCreationCommandFeature({
       activeSourceEditor: () => editor,
@@ -325,7 +331,7 @@ describe("Source Insert Template command feature", () => {
     const source = "nui 1\npoint A = coordinate(\n  x: 0,\n  y: 0\n)\n";
     const { editor, session } = sourceEditorFor(source, 1, 1);
     mocks.showQuickPick
-      .mockResolvedValueOnce(SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS[1])
+      .mockResolvedValueOnce(SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS[2])
       .mockResolvedValueOnce("Layout");
     mocks.insertOutputSnippet.mockResolvedValue(true);
     const feature = registerVscodeSourceCreationCommandFeature({
@@ -337,6 +343,101 @@ describe("Source Insert Template command feature", () => {
     await expect(mocks.commands.get(VSCODE_SOURCE_INSERT_TEMPLATE_COMMAND_ID)?.()).resolves.toBe(true);
     const insertedPosition = mocks.insertOutputSnippet.mock.calls[0]?.[2];
     expect(insertedPosition).toMatchObject({ line: 5, character: 0 });
+    feature.dispose();
+  });
+
+  it("routes Geometry Value through group, construction, and exclusive-form pickers", async () => {
+    const { editor, session } = sourceEditorFor("nui 1\n");
+    const pointGroup = sourceGeometryValueTemplateGroups().find(({ id }) => id === "point")!;
+    const between = pointGroup.plans.find(({ construction }) => construction === "between")!;
+    mocks.showQuickPick
+      .mockResolvedValueOnce(SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS[1])
+      .mockResolvedValueOnce({ label: "Point", group: pointGroup })
+      .mockResolvedValueOnce({ label: "between", plan: between })
+      .mockResolvedValueOnce({ label: "ratio", form: between.forms[1] });
+    mocks.insertGeometryValueSnippet.mockResolvedValue(true);
+    const feature = registerVscodeSourceCreationCommandFeature({
+      activeSourceEditor: () => editor,
+      displayLanguageFor: () => "en",
+      languageAnalysisSessionFor: () => session
+    });
+
+    await expect(mocks.commands.get(VSCODE_SOURCE_INSERT_TEMPLATE_COMMAND_ID)?.()).resolves.toBe(true);
+
+    expect(mocks.showQuickPick).toHaveBeenNthCalledWith(2, expect.arrayContaining([
+      expect.objectContaining({ label: "Point" }),
+      expect.objectContaining({ label: "Line" }),
+      expect.objectContaining({ label: "Path" })
+    ]));
+    expect(mocks.showQuickPick).toHaveBeenNthCalledWith(3, expect.arrayContaining([
+      expect.objectContaining({ label: "coordinate" }),
+      expect.objectContaining({ label: "between", plan: between })
+    ]));
+    expect(mocks.showQuickPick).toHaveBeenNthCalledWith(4, [
+      expect.objectContaining({ label: "distance" }),
+      expect.objectContaining({ label: "ratio" })
+    ]);
+    expect(mocks.insertGeometryValueSnippet).toHaveBeenCalledTimes(1);
+    expect(mocks.insertGeometryValueSnippet.mock.calls[0]?.[1]).toMatchObject({
+      plan: between,
+      form: between.forms[1]
+    });
+    expect(mocks.insertSnippet).not.toHaveBeenCalled();
+    expect(mocks.insertOutputSnippet).not.toHaveBeenCalled();
+    feature.dispose();
+  });
+
+  it("keeps Geometry Value group, construction, and form cancellation mutation-free", async () => {
+    const { editor, session } = sourceEditorFor("nui 1\n");
+    const pointGroup = sourceGeometryValueTemplateGroups().find(({ id }) => id === "point")!;
+    const between = pointGroup.plans.find(({ construction }) => construction === "between")!;
+    const feature = registerVscodeSourceCreationCommandFeature({
+      activeSourceEditor: () => editor,
+      displayLanguageFor: () => "en",
+      languageAnalysisSessionFor: () => session
+    });
+
+    mocks.showQuickPick
+      .mockResolvedValueOnce(SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS[1])
+      .mockResolvedValueOnce(undefined);
+    await expect(mocks.commands.get(VSCODE_SOURCE_INSERT_TEMPLATE_COMMAND_ID)?.()).resolves.toBeUndefined();
+
+    mocks.showQuickPick
+      .mockResolvedValueOnce(SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS[1])
+      .mockResolvedValueOnce({ label: "Point", group: pointGroup })
+      .mockResolvedValueOnce(undefined);
+    await expect(mocks.commands.get(VSCODE_SOURCE_INSERT_TEMPLATE_COMMAND_ID)?.()).resolves.toBeUndefined();
+
+    mocks.showQuickPick
+      .mockResolvedValueOnce(SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS[1])
+      .mockResolvedValueOnce({ label: "Point", group: pointGroup })
+      .mockResolvedValueOnce({ label: "between", plan: between })
+      .mockResolvedValueOnce(undefined);
+    await expect(mocks.commands.get(VSCODE_SOURCE_INSERT_TEMPLATE_COMMAND_ID)?.()).resolves.toBeUndefined();
+
+    expect(mocks.insertGeometryValueSnippet).not.toHaveBeenCalled();
+    feature.dispose();
+  });
+
+  it("rejects a stale Source after Geometry Value group selection before later picker work", async () => {
+    const { editor, document, session } = sourceEditorFor("nui 1\n");
+    const pointGroup = sourceGeometryValueTemplateGroups().find(({ id }) => id === "point")!;
+    mocks.showQuickPick
+      .mockResolvedValueOnce(SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS[1])
+      .mockImplementationOnce(async () => {
+        document.version += 1;
+        return { label: "Point", group: pointGroup };
+      });
+    const feature = registerVscodeSourceCreationCommandFeature({
+      activeSourceEditor: () => editor,
+      displayLanguageFor: () => "en",
+      languageAnalysisSessionFor: () => session
+    });
+
+    await expect(mocks.commands.get(VSCODE_SOURCE_INSERT_TEMPLATE_COMMAND_ID)?.()).resolves.toBeUndefined();
+    expect(mocks.showQuickPick).toHaveBeenCalledTimes(2);
+    expect(mocks.insertGeometryValueSnippet).not.toHaveBeenCalled();
+    expect(mocks.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining("changed"));
     feature.dispose();
   });
 
