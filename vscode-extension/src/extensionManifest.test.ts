@@ -252,7 +252,6 @@ const extractModuleKeybindingWhen = `(${sourceKeybindingWhen} && nuinuiCAD.extra
 const openCanvasKeybindingWhen = `(${sourceKeybindingWhen} && !nuinuiCAD.revealInCanvasSourceTarget) || (${outputPreviewKeybindingWhen})`;
 const openOutputPreviewKeybindingWhen = `(${sourceKeybindingWhen} && !nuinuiCAD.revealInOutputPreviewSourceTarget) || (${canvasFocusKeybindingWhen})`;
 const coordinatePointConversionKeybindingWhen = `(${sourceKeybindingWhen} && nuinuiCAD.coordinatePointConversionSourceTarget) || (${canvasKeybindingWhen} && nuinuiCAD.canvasHasCoordinatePointConversionTarget && ${webviewEditableFocusGuard})`;
-const geometryReferenceRetargetKeybindingWhen = `${sourceKeybindingWhen} && !editorReadonly && nuinuiCAD.geometryReferenceRetargetSourceTarget`;
 const bakeKeybindingWhen = `(${sourceKeybindingWhen} && nuinuiCAD.bakeSourceTarget) || ((activeWebviewPanelId == 'nuinuiCAD.canvas' || activeWebviewPanelId == 'nuinuiCAD.modulePreview') && nuinuiCAD.canvasHasSelection && ${webviewEditableFocusGuard})`;
 const bakePaletteWhen = "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui) || activeWebviewPanelId == 'nuinuiCAD.canvas'";
 const canvasHistoryWhen = "activeWebviewPanelId == 'nuinuiCAD.canvas' || activeWebviewPanelId == 'nuinuiCAD.modulePreview' || (editorTextFocus && nuinuiCAD.canvasHistoryHandoff)";
@@ -353,6 +352,14 @@ describe("VS Code extension manifest command contributions", () => {
         const shortTitleKey = command.shortTitle.slice(1, -1);
         expect(japanese[shortTitleKey]).not.toBe(english[shortTitleKey]);
       }
+    }
+
+    const tShortcutText = /(?:ctrl|cmd|control|command|⌃|⌘)\s*\+\s*(?:shift|⇧)\s*\+\s*t/i;
+    for (const commandId of ["nuinuiCAD.insertTemplate", "nuinuiCAD.replaceGeometryReferences"] as const) {
+      const command = commands.find(({ command: id }) => id === commandId);
+      expect(command).toBeDefined();
+      expect(resolveNlsToken(command!.title, english)).not.toMatch(tShortcutText);
+      expect(resolveNlsToken(command!.title, japanese)).not.toMatch(tShortcutText);
     }
   });
 
@@ -903,7 +910,13 @@ describe("VS Code extension manifest command contributions", () => {
       command: "nuinuiCAD.insertTemplate",
       when: sourceCreationContextWhen
     }]);
-    expect((manifest.contributes?.keybindings ?? []).some(({ command }) => command === "nuinuiCAD.insertTemplate")).toBe(false);
+    expect(manifest.contributes?.keybindings?.filter(({ command }) => command === "nuinuiCAD.insertTemplate")).toEqual([{
+      command: "nuinuiCAD.insertTemplate",
+      key: "ctrl+shift+alt+t",
+      mac: "ctrl+shift+t",
+      when: sourceCreationKeybindingWhen
+    }]);
+    expect(manifest.contributes?.keybindings?.some(({ command }) => command === "nuinuiCAD.replaceGeometryReferences")).toBe(false);
     expect(commandPalette.some(({ command, when }) => command === "nuinuiCAD.createGeometry" && when === canvasPaletteWhen)).toBe(false);
     expect(webviewContext.some(({ command, submenu }) => command === "nuinuiCAD.createGeometry" || submenu === "nuinuiCAD.create")).toBe(false);
     expect(commands.some(({ command }) => command === "nuinuiCAD.configureQuickCreate" || (command ?? "").startsWith("nuinuiCAD.create."))).toBe(false);
@@ -1155,10 +1168,10 @@ describe("VS Code extension manifest keybindings", () => {
         when: coordinatePointConversionKeybindingWhen
       },
       {
-        command: "nuinuiCAD.replaceGeometryReferences",
+        command: "nuinuiCAD.insertTemplate",
         key: "ctrl+shift+alt+t",
         mac: "ctrl+shift+t",
-        when: geometryReferenceRetargetKeybindingWhen
+        when: sourceCreationKeybindingWhen
       },
       {
         command: "nuinuiCAD.bakeCurrentShape",
