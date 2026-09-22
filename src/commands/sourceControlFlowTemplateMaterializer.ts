@@ -108,7 +108,7 @@ export const materializeSourceControlFlowTemplate = (
       appendHole(parts, "range-max");
       appendText(parts, ", step: ");
       appendHole(parts, "range-step");
-      appendText(parts, `)\n${DSL_INDENT}carry `);
+      appendText(parts, ") carry ");
       appendHole(parts, "carry-name");
       appendText(parts, ": ");
       appendHole(parts, "carry-type");
@@ -121,7 +121,7 @@ export const materializeSourceControlFlowTemplate = (
       appendHole(parts, "binder");
       appendText(parts, " in @");
       appendHole(parts, "collection");
-      appendText(parts, `\n${DSL_INDENT}carry `);
+      appendText(parts, " carry ");
       appendHole(parts, "carry-name");
       appendText(parts, ": ");
       appendHole(parts, "carry-type");
