@@ -14,6 +14,7 @@ import {
   type ModuleGeometrySourceTarget,
   type ModuleInstanceSemantic,
   type ModuleScalarSourceTarget,
+  type ResolvedModuleParameter,
   type ResolvedModuleExport
 } from "./moduleSemanticTypes";
 import type { ScopeId } from "../scalars/lexicalScopeIndex";
@@ -87,6 +88,28 @@ export type ModuleCompletionCandidate = {
   label: string;
   detail?: string;
   identity?: string;
+};
+
+/** The exact source location captured for a Source Template insertion. */
+export type SourceModuleTemplateInsertionLocation = {
+  statementIndex: number;
+  scopeId?: ScopeId;
+  sourceOrderIndex: number;
+};
+
+/** One canonical Module callee projected for Source Template insertion. */
+export type SourceModuleTemplateCandidate = {
+  kind: "module";
+  /** Native Quick Pick presentation label; this is the canonical source spelling. */
+  label: string;
+  /** Canonical source callee, including an import alias when qualified. */
+  sourceCallee: string;
+  /** Existing completion-style semantic identity key. */
+  identity: string;
+  /** Document-qualified identity when the graph-backed owner provides one. */
+  definitionIdentity?: DocumentQualifiedSemanticIdentity<string>;
+  /** Existing resolved semantic parameter metadata, in canonical source order. */
+  parameters: readonly ResolvedModuleParameter[];
 };
 
 const parameterGeometryKind = moduleRuntimeGeometryKindOf;
@@ -818,6 +841,106 @@ const moduleCalleeCompletions = (compiled: CompiledDslDocument, statementIndex: 
     })
     .map((declaration) => ({ kind: "module" as const, label: declaration.name, identity: declaration.statementId }));
   return [...local, ...importedModuleCalleeCompletions(compiled, statementIndex, request, input)];
+};
+
+const sourceModuleTemplateCandidateFor = (
+  definition: ModuleDefinitionSemantic,
+  sourceCallee: string
+): SourceModuleTemplateCandidate => {
+  const definitionIdentity = definition.identity;
+  return {
+    kind: "module",
+    label: sourceCallee,
+    sourceCallee,
+    identity: definitionIdentity ? moduleSemanticIdentityKey(definitionIdentity) : definition.statementId,
+    ...(definitionIdentity ? { definitionIdentity } : {}),
+    parameters: definition.parameters
+  };
+};
+
+/**
+ * Returns the legal Module callees at one captured Source insertion location.
+ * Resolution remains owned by the existing lexical namespace, Module semantic
+ * analysis, and graph-backed public API; this function only projects those
+ * resolved products for Source Template insertion.
+ */
+export const sourceModuleTemplateCandidates = ({
+  compiled,
+  insertion
+}: {
+  compiled: CompiledDslDocument;
+  insertion: SourceModuleTemplateInsertionLocation;
+}): SourceModuleTemplateCandidate[] => {
+  const namespace = compiled.sourceLexicalNamespace;
+  const analysis = compiled.moduleSemanticAnalysis;
+  if (!namespace) return [];
+
+  const owner = currentModuleDefinition(compiled, insertion.statementIndex, insertion.scopeId);
+  const input = lexicalInput(compiled, owner);
+  if (!input) return [];
+
+  const result: SourceModuleTemplateCandidate[] = [];
+  const seen = new Set<string>();
+  const add = (candidate: SourceModuleTemplateCandidate): void => {
+    if (seen.has(candidate.identity)) return;
+    seen.add(candidate.identity);
+    result.push(candidate);
+  };
+
+  for (const declaration of namespace.allDeclarations) {
+    if (declaration.kind !== "moduleDefinition") continue;
+    const resolved = visibleLookup(
+      compiled,
+      insertion.statementIndex,
+      declaration.name,
+      insertion.scopeId,
+      insertion.sourceOrderIndex
+    );
+    if (resolved?.lookup.kind !== "resolved" || resolved.lookup.declaration.statementId !== declaration.statementId) continue;
+    const definition = analysis?.definitionsByStatementId.get(declaration.statementId);
+    if (!definition) continue;
+    add(sourceModuleTemplateCandidateFor(
+      definition,
+      formatDslReferencePath({ absolute: false, segments: [definition.name] })
+    ));
+  }
+
+  const runtime = compiled.moduleRuntimeContext;
+  const importer = runtime?.valid ? runtime.graph.nodes.get(runtime.rootDocumentId) : undefined;
+  if (!runtime || !importer) return result;
+
+  for (const declaration of namespace.allDeclarations) {
+    if (declaration.kind !== "import") continue;
+    const resolved = visibleLookup(
+      compiled,
+      insertion.statementIndex,
+      declaration.name,
+      insertion.scopeId,
+      insertion.sourceOrderIndex
+    );
+    if (resolved?.lookup.kind !== "resolved" || resolved.lookup.declaration.statementId !== declaration.statementId) continue;
+
+    const edge = importer.imports.find((candidate) =>
+      candidate.importIdentity.localIdentity === declaration.statementId &&
+      candidate.status === "resolved" &&
+      candidate.targetDocumentId !== undefined
+    );
+    if (!edge?.targetDocumentId) continue;
+    const target = runtime.graph.nodes.get(edge.targetDocumentId);
+    if (!target?.valid || !target.publicApi.valid) continue;
+
+    for (const entry of target.publicApi.publicEntriesByName.values()) {
+      if (entry.family !== "module") continue;
+      const definition = runtime.definitionFor(entry.identity);
+      if (!definition) continue;
+      add(sourceModuleTemplateCandidateFor(
+        definition,
+        formatDslReferencePath({ absolute: false, segments: [declaration.name, entry.name] })
+      ));
+    }
+  }
+
+  return result;
 };
 
 const liveArguments = (request: ModuleCompletionRequest) => {

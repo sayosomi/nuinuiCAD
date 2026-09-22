@@ -58,17 +58,24 @@ import { materializeSourceControlFlowTemplate } from "../../src/commands/sourceC
 import { SOURCE_VALUE_MATCH_TEMPLATE_DEFINITIONS } from "../../src/commands/sourceValueMatchTemplateCatalog";
 import { materializeSourceValueMatchTemplate } from "../../src/commands/sourceValueMatchTemplateMaterializer";
 import {
+  materializeSourceModuleTemplate,
+  type SourceModuleTemplateMaterialization
+} from "../../src/commands/sourceModuleTemplateMaterializer";
+import type { ResolvedModuleParameter, SourceModuleTemplateCandidate } from "@nuinuicad/nui-language";
+import {
   createSourceCalculationMeasurementSnippet,
   createSourceGeometryValueSnippet,
   createSourceCreationSnippet,
   createSourceOutputTemplateSnippet,
   createSourceControlFlowSnippet,
   createSourceValueMatchSnippet,
+  createSourceModuleTemplateSnippet,
   insertSourceGeometryValueSnippet,
   insertSourceCalculationMeasurementSnippet,
   insertSourceCreationSnippet,
   insertSourceOutputTemplateSnippet,
-  insertSourceValueMatchSnippet
+  insertSourceValueMatchSnippet,
+  insertSourceModuleTemplateSnippet
 } from "./sourceCreationSnippetAdapter";
 import { sourceOutputTemplateSnippetFor } from "../../src/commands/sourceOutputTemplateCatalog";
 
@@ -110,6 +117,41 @@ const calculationMeasurementMaterializeFor = (builtinName: string) => {
 
 const valueMatchMaterializeFor = (templateId: (typeof SOURCE_VALUE_MATCH_TEMPLATE_DEFINITIONS)[number]["id"]) => {
   const materialization = materializeSourceValueMatchTemplate(templateId);
+  expect(materialization).not.toBeNull();
+  return materialization!;
+};
+
+const moduleParameterFor = (
+  parameterIndex: number,
+  name: string,
+  required: boolean
+): ResolvedModuleParameter => ({
+  definitionStatementId: "module:test",
+  parameterIndex,
+  name,
+  type: { kind: "number" },
+  valueType: { kind: "number" },
+  recordTypeIdentity: null,
+  optional: !required,
+  required,
+  defaultValue: null,
+  defaultSpan: null,
+  defaultExpression: null
+});
+
+const moduleInstanceMaterializeFor = (): SourceModuleTemplateMaterialization => {
+  const candidate: SourceModuleTemplateCandidate = {
+    kind: "module",
+    label: "lib::Panel",
+    sourceCallee: "lib::Panel",
+    identity: "library/module:panel",
+    parameters: [
+      moduleParameterFor(0, "width", true),
+      moduleParameterFor(1, "side", false),
+      moduleParameterFor(2, "height", true)
+    ]
+  };
+  const materialization = materializeSourceModuleTemplate("module-instance", candidate);
   expect(materialization).not.toBeNull();
   return materialization!;
 };
@@ -293,6 +335,42 @@ describe("VS Code source creation snippet adapter", () => {
       ""
     ].join("\n"));
     expect(insertionPosition).toBe(position);
+  });
+
+  it("projects Module definitions and instances into one native snippet operation", async () => {
+    const definition = materializeSourceModuleTemplate("module");
+    expect(definition).not.toBeNull();
+    const definitionSnippet = createSourceModuleTemplateSnippet(definition!) as unknown as TestSnippetString;
+    expect(definitionSnippet.value).toBe("module $1(\n  $2\n) {\n  $3\n}");
+    expect(tabstopEventsFor(definitionSnippet).map(({ index }) => index)).toEqual([1, 2, 3]);
+
+    const instance = moduleInstanceMaterializeFor();
+    const instanceSnippet = createSourceModuleTemplateSnippet(instance) as unknown as TestSnippetString;
+    expect(instanceSnippet.value).toBe([
+      "instance $1 = lib::Panel(",
+      "  width: $2,",
+      "  height: $3",
+      ")"
+    ].join("\n"));
+
+    const insertSnippet = vi.fn(() => Promise.resolve(true));
+    const editor = { insertSnippet } as unknown as vscode.TextEditor;
+    const position = new vscode.Position(8, 0);
+    await expect(insertSourceModuleTemplateSnippet(
+      editor,
+      instance,
+      position,
+      { appendNewline: true }
+    )).resolves.toBe(true);
+    expect(insertSnippet).toHaveBeenCalledTimes(1);
+    expect((insertSnippet.mock.calls[0]?.[0] as unknown as TestSnippetString).value).toBe([
+      "instance $1 = lib::Panel(",
+      "  width: $2,",
+      "  height: $3",
+      ")",
+      ""
+    ].join("\n"));
+    expect(insertSnippet.mock.calls[0]?.[1]).toBe(position);
   });
 
   it.each(SOURCE_CONTROL_FLOW_TEMPLATE_DEFINITIONS)(
