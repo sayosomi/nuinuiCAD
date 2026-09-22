@@ -118,7 +118,9 @@ export const materializeSourceValueMatchTemplate = (
       appendText(parts, DSL_INDENT);
       appendText(parts, "none => ");
       appendHole(parts, "none-value");
-      appendText(parts, " some ");
+      appendText(parts, "\n");
+      appendText(parts, DSL_INDENT);
+      appendText(parts, "some ");
       appendHole(parts, "binder");
       appendText(parts, " => ");
       appendHole(parts, "some-value");
@@ -129,11 +131,14 @@ export const materializeSourceValueMatchTemplate = (
       appendHole(parts, "name");
       appendText(parts, ": ");
       appendHole(parts, "element-type");
-      appendText(parts, "[] =\nfor ");
+      appendText(parts, `[] =\n${DSL_INDENT}for `);
       appendHole(parts, "binder");
       appendText(parts, " in @");
       appendHole(parts, "collection");
-      appendBlock(parts, "value");
+      appendText(parts, " {\n");
+      appendText(parts, DSL_INDENT.repeat(2));
+      appendHole(parts, "value");
+      appendText(parts, `\n${DSL_INDENT}}`);
       break;
   }
 

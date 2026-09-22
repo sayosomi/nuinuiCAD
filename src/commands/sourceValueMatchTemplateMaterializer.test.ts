@@ -96,8 +96,8 @@ describe("Value / Match template materializer", () => {
     ["collection-declaration", "const <name>: <element-type>[] = [<members>]"],
     ["value-if", "const <name>: <type> = if (<condition>) { <then-value> } else { <else-value> }"],
     ["choice-match", "const <name>: <type> = match @<choice-value> {\n  <arms>\n}"],
-    ["optional-match", "const <name>: <type> = match @<optional-value> {\n  none => <none-value> some <binder> => <some-value>\n}"],
-    ["collection-value-for", "const <name>: <element-type>[] =\nfor <binder> in @<collection> {\n  <value>\n}"]
+    ["optional-match", "const <name>: <type> = match @<optional-value> {\n  none => <none-value>\n  some <binder> => <some-value>\n}"],
+    ["collection-value-for", "const <name>: <element-type>[] =\n  for <binder> in @<collection> {\n    <value>\n  }"]
   ] as const)("materializes %s with only the contracted structure", (templateId, expected) => {
     const materialization = materializeFor(templateId);
     expect(render(materialization.parts)).toBe(expected);
@@ -145,7 +145,7 @@ describe("Value / Match template materializer", () => {
 
   it("keeps Collection Value For as a const collection expression", () => {
     const materialization = materializeFor("collection-value-for");
-    expect(render(materialization.parts)).toContain("const <name>: <element-type>[] =\nfor ");
+    expect(render(materialization.parts)).toContain("const <name>: <element-type>[] =\n  for ");
     expect(render(materialization.parts)).not.toMatch(/^for /);
   });
 });

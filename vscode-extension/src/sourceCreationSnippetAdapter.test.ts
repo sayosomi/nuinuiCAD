@@ -258,8 +258,8 @@ describe("VS Code source creation snippet adapter", () => {
     ["collection-declaration", "const $1: $2[] = [$3]"],
     ["value-if", "const $1: $2 = if ($3) { $4 } else { $5 }"],
     ["choice-match", "const $1: $2 = match @$3 {\n  $4\n}"],
-    ["optional-match", "const $1: $2 = match @$3 {\n  none => $4 some $5 => $6\n}"],
-    ["collection-value-for", "const $1: $2[] =\nfor $3 in @$4 {\n  $5\n}"]
+    ["optional-match", "const $1: $2 = match @$3 {\n  none => $4\n  some $5 => $6\n}"],
+    ["collection-value-for", "const $1: $2[] =\n  for $3 in @$4 {\n    $5\n  }"]
   ] as const)("turns Value / Match %s into native tabstops", (templateId, expected) => {
     const materialization = valueMatchMaterializeFor(templateId);
     const snippet = createSourceValueMatchSnippet(materialization) as unknown as TestSnippetString;
@@ -287,7 +287,8 @@ describe("VS Code source creation snippet adapter", () => {
     const [snippet, insertionPosition] = insertSnippet.mock.calls[0]!;
     expect((snippet as unknown as TestSnippetString).value).toBe([
       "  const $1: $2 = match @$3 {",
-      "  none => $4 some $5 => $6",
+      "  none => $4",
+      "  some $5 => $6",
       "}",
       ""
     ].join("\n"));
