@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createElement, type ComponentProps, type RefObject } from "react";
+import type { CanvasHostAdapter } from "../../src/components/canvasHostAdapter";
 import type { VscodeModulePreviewValueSnapshot } from "../../src/vscode/protocol";
 
 const mocks = vi.hoisted(() => ({
@@ -20,7 +21,8 @@ const mocks = vi.hoisted(() => ({
   showErrorMessage: vi.fn(),
   createWebviewPanel: vi.fn(),
   nativeShowQuickPick: vi.fn(),
-  nativeShowInputBox: vi.fn()
+  nativeShowInputBox: vi.fn(),
+  hostAdapter: null as CanvasHostAdapter | null
 }));
 
 type TestDocument = {
@@ -137,8 +139,20 @@ vi.mock("vscode", () => ({
 }));
 
 vi.mock("../../src/components/DrawingCanvas", () => ({
-  DrawingCanvas: ({ canvasFocusRef }: ComponentProps<"div"> & { canvasFocusRef?: RefObject<HTMLDivElement | null> }) =>
-    createElement("div", { ref: canvasFocusRef, "data-testid": "module-preview-canvas-viewport" })
+  DrawingCanvas: ({
+    canvasFocusRef,
+    hostAdapter
+  }: ComponentProps<"div"> & {
+    canvasFocusRef?: RefObject<HTMLDivElement | null>;
+    hostAdapter: CanvasHostAdapter;
+  }) => {
+    mocks.hostAdapter = hostAdapter;
+    return createElement(
+      "div",
+      { ref: canvasFocusRef, "data-testid": "module-preview-canvas-viewport" },
+      hostAdapter.renderPickModeChrome?.()
+    );
+  }
 }));
 
 vi.mock("../../src/geometry/useEvaluationEngine", async () => {
@@ -214,7 +228,30 @@ const createDocument = (sourceText: string): TestDocument => {
 const createEditor = (document: TestDocument): TestEditor => ({
   document,
   selection: { active: positionAt(document.getText(), document.getText().indexOf("module Pocket")) },
-  edit: vi.fn(async () => true),
+  edit: vi.fn(async (
+    callback: (builder: {
+      replace: (
+        range: { start: { line: number; character: number }; end: { line: number; character: number } },
+        replacement: string
+      ) => void
+    }) => void
+  ) => {
+    const edits: Array<{
+      range: { start: { line: number; character: number }; end: { line: number; character: number } };
+      replacement: string;
+    }> = [];
+    callback({
+      replace: (range, replacement) => edits.push({ range, replacement })
+    });
+    let nextSource = document.getText();
+    for (const edit of [...edits].reverse()) {
+      const from = document.offsetAt(edit.range.start);
+      const to = document.offsetAt(edit.range.end);
+      nextSource = `${nextSource.slice(0, from)}${edit.replacement}${nextSource.slice(to)}`;
+    }
+    if (edits.length > 0) document.setSource(nextSource);
+    return true;
+  }),
   revealRange: vi.fn()
 });
 
@@ -312,15 +349,18 @@ afterEach(() => {
   mocks.createWebviewPanel.mockReset();
   mocks.nativeShowQuickPick.mockReset();
   mocks.nativeShowInputBox.mockReset();
+  mocks.hostAdapter = null;
 });
 
 describe("Module Preview Host/Webview re-entry boundary", () => {
   it("re-establishes natural value authority on a fresh panel and keeps same-generation bootstrap idempotent", async () => {
     const source = [
       "nui 1",
-      "module Pocket(width: number) {",
-      "  point P = coordinate(x: @width, y: 0)",
-      "}"
+      "point Top = coordinate(x: 15, y: 20)",
+      "module Pocket(width: number, anchor: point) {",
+      "  point P = coordinate(x: @width, y: @anchor.y)",
+      "}",
+      ""
     ].join("\n");
     const document = createDocument(source);
     const editor = createEditor(document);
@@ -376,7 +416,10 @@ describe("Module Preview Host/Webview re-entry boundary", () => {
       groups: [expect.objectContaining({
         kind: "target",
         name: "Pocket",
-        parameters: [expect.objectContaining({ name: "width", valueState: "required-missing" })]
+        parameters: expect.arrayContaining([
+          expect.objectContaining({ name: "width", valueState: "required-missing" }),
+          expect.objectContaining({ name: "anchor", valueState: "required-missing" })
+        ])
       })],
       previewStatus: "noValidPreview"
     });
@@ -407,6 +450,11 @@ describe("Module Preview Host/Webview re-entry boundary", () => {
       await flushCrossBoundary();
     });
     expect(oldPanel.traffic).toHaveLength(oldTrafficLengthAfterDispose);
+
+    const hostRevisionBeforeIndependentAdvance = analysis.getSourceRevision();
+    analysis.replaceSource(`${source}\n`);
+    analysis.replaceSource(source);
+    expect(analysis.getSourceRevision()).toBeGreaterThan(hostRevisionBeforeIndependentAdvance);
 
     open();
     const staleAcknowledgement = {
@@ -442,10 +490,14 @@ describe("Module Preview Host/Webview re-entry boundary", () => {
       groups: [expect.objectContaining({
         kind: "target",
         name: "Pocket",
-        parameters: [expect.objectContaining({ name: "width", valueState: "required-missing" })]
+        parameters: expect.arrayContaining([
+          expect.objectContaining({ name: "width", valueState: "required-missing" }),
+          expect.objectContaining({ name: "anchor", valueState: "required-missing" })
+        ])
       })]
     });
     expect(newSnapshot?.sessionId).not.toBe(oldSnapshot?.sessionId);
+    expect(newSnapshot?.sourceRevision).not.toBe(analysis.getSourceRevision());
 
     const newReadyIndex = messageIndex(newPanel, "webview", "webviewReady");
     const newBootstrapIndex = messageIndex(newPanel, "extension", "modulePreviewBootstrap");
@@ -472,9 +524,23 @@ describe("Module Preview Host/Webview re-entry boundary", () => {
     expect(newPanel.traffic.some((entry) =>
       entry.direction === "extension" && entry.message.type === "modulePreviewValueEdit"
     )).toBe(true);
-    expect(screen.getByLabelText("Current Module Preview parameter values")).toHaveTextContent(
-      "Target: Pocket.width = 12"
+    expect(newPanel.traffic.findLast((entry) =>
+      entry.direction === "webview" && entry.message.type === "modulePreviewValueSnapshot"
+    )?.message).toMatchObject({
+      groups: [expect.objectContaining({
+        name: "Pocket",
+        parameters: expect.arrayContaining([
+          expect.objectContaining({ name: "width", value: "12", valueState: "explicit" }),
+          expect.objectContaining({ name: "anchor", valueState: "required-missing" })
+        ])
+      })]
+    });
+    expect(screen.getByRole("status")).toHaveTextContent('Parameter "anchor" requires a value.');
+
+    mocks.nativeShowQuickPick.mockImplementation(async (items: readonly { label: string }[]) =>
+      items.find((item) => item.label === "Target: Pocket.width")
     );
+    mocks.nativeShowInputBox.mockResolvedValue("13");
 
     const targetCountBeforeDuplicate = newPanel.traffic.filter((entry) =>
       entry.direction === "extension" && entry.message.type === "modulePreviewTarget"
@@ -492,9 +558,7 @@ describe("Module Preview Host/Webview re-entry boundary", () => {
     expect(newPanel.traffic.filter((entry) =>
       entry.direction === "extension" && entry.message.type === "modulePreviewTarget"
     )).toHaveLength(targetCountBeforeDuplicate);
-    expect(screen.getByLabelText("Current Module Preview parameter values")).toHaveTextContent(
-      "Target: Pocket.width = 12"
-    );
+    expect(screen.getByRole("status")).toHaveTextContent('Parameter "anchor" requires a value.');
 
     mocks.nativeShowQuickPick.mockImplementation(async (items: readonly { label: string }[]) =>
       items.find((item) => item.label === "Target: Pocket.width")
@@ -517,6 +581,103 @@ describe("Module Preview Host/Webview re-entry boundary", () => {
         })
       })
     ]));
+
+    mocks.nativeShowQuickPick.mockImplementation(async (items: readonly { label: string; kind?: string }[]) =>
+      items.find((item) => item.kind === "pick")
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "anchor" }));
+      await flushCrossBoundary();
+    });
+    const pickRequest = newPanel.traffic.findLast((entry) =>
+      entry.direction === "extension" && entry.message.type === "modulePreviewReferencePickStartRequest"
+    )?.message as typeof newPanel.traffic[number]["message"] & {
+      expectedGeometryInterface: string;
+      parameterName: string;
+    } | undefined;
+    expect(pickRequest).toMatchObject({
+      parameterName: "anchor",
+      expectedGeometryInterface: "point"
+    });
+    expect(screen.getByText("PICK MODE")).toBeInTheDocument();
+    const hostAdapter = mocks.hostAdapter;
+    if (!hostAdapter) throw new Error("expected Module Preview Canvas host adapter");
+    const pointCandidate = hostAdapter.pickModeCandidates?.[0];
+    const pointOption = pointCandidate?.options[0];
+    if (!pointCandidate || pointOption?.kind !== "point" || !pointOption.sourceReference) {
+      throw new Error("expected authored point Pick candidate");
+    }
+    act(() => {
+      hostAdapter.applyPickedPoint({
+        pickedPointAnchor: pointOption.anchor,
+        pickedPointCandidateElementId: pointCandidate.elementId,
+        pickedPointSourceReference: pointOption.sourceReference
+      });
+    });
+    await act(async () => {
+      await flushCrossBoundary();
+    });
+    const pickedHostAdapter = mocks.hostAdapter;
+    if (!pickedHostAdapter) throw new Error("expected updated Module Preview Canvas host adapter");
+    act(() => {
+      pickedHostAdapter.dispatchCanvasPickCommand?.("finishPickMode");
+    });
+    await act(async () => {
+      await flushCrossBoundary();
+    });
+    expect(newPanel.traffic).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        direction: "webview",
+        message: expect.objectContaining({
+          type: "modulePreviewReferencePickResult",
+          status: "confirmed",
+          references: [{ base: "Top" }]
+        })
+      })
+    ]));
+    const currentSnapshot = newPanel.traffic.findLast((entry) =>
+      entry.direction === "webview" && entry.message.type === "modulePreviewValueSnapshot" &&
+      (entry.message as VscodeModulePreviewValueSnapshot).previewStatus === "current"
+    )?.message as VscodeModulePreviewValueSnapshot | undefined;
+    expect(currentSnapshot).toMatchObject({
+      target: { name: "Pocket" },
+      previewStatus: "current",
+      groups: [expect.objectContaining({
+        kind: "target",
+        name: "Pocket",
+        parameters: [
+          expect.objectContaining({ name: "width", value: "13", valueState: "explicit" }),
+          expect.objectContaining({ name: "anchor", value: "@Top", valueState: "explicit" })
+        ]
+      })]
+    });
+    if (!currentSnapshot) throw new Error("expected current Module Preview snapshot");
+
+    await act(async () => {
+      await newPanel.receive({
+        ...currentSnapshot,
+        sessionId: oldBootstrap.sessionId
+      });
+      await flushCrossBoundary();
+    });
+    expect(newPanel.traffic.filter((entry) =>
+      entry.direction === "webview" && entry.message.type === "modulePreviewValueSnapshot"
+    ).at(-1)?.message).toBe(currentSnapshot);
+
+    editor.selection.active = positionAt(document.getText(), document.getText().length);
+    mocks.showTextDocument.mockResolvedValue(editor);
+    mocks.executeCommand.mockImplementation(async (command: string) => {
+      const handler = mocks.commandHandlers.get(command);
+      return handler ? await handler() : undefined;
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Insert Instance" }));
+      await flushCrossBoundary();
+    });
+    expect(mocks.commandHandlers.has(MODULE_PREVIEW_INSERT_INSTANCE_COMMAND)).toBe(true);
+    expect(editor.edit).toHaveBeenCalledTimes(1);
+    expect(document.getText()).toContain("instance PocketInstance = Pocket(width: 13, anchor: @Top)");
+    expect(mocks.showErrorMessage).not.toHaveBeenCalledWith("The Module Preview target is stale.");
 
     await act(async () => {
       newPanel.webview.postMessage({
