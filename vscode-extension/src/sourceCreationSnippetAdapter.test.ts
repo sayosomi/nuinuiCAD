@@ -498,6 +498,23 @@ describe("VS Code source creation snippet adapter", () => {
     expect(insertSnippet.mock.calls[0]?.[1]).toBe(position);
   });
 
+  it("keeps a document-end separator inside the one native Output snippet", async () => {
+    const insertSnippet = vi.fn(() => Promise.resolve(true));
+    const editor = { insertSnippet } as unknown as vscode.TextEditor;
+    const position = new vscode.Position(0, 5);
+
+    await expect(insertSourceOutputTemplateSnippet(
+      editor,
+      sourceOutputTemplateSnippetFor("svg"),
+      position,
+      { prefixText: "\n" }
+    )).resolves.toBe(true);
+
+    expect(insertSnippet).toHaveBeenCalledTimes(1);
+    expect((insertSnippet.mock.calls[0]?.[0] as unknown as TestSnippetString).events[0])
+      .toEqual({ kind: "text", text: "\n" });
+  });
+
   it("keeps Place minimal with the group, X, and Y tabstops only", () => {
     const snippet = createSourceOutputTemplateSnippet(sourceOutputTemplateSnippetFor("place")) as unknown as TestSnippetString;
 

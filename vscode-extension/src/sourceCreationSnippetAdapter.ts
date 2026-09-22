@@ -255,9 +255,11 @@ export const insertSourceStyleProfileTemplateSnippet = (
 );
 
 export const createSourceOutputTemplateSnippet = (
-  template: SourceOutputTemplateSnippet
+  template: SourceOutputTemplateSnippet,
+  options: SourceCreationSnippetOptions = {}
 ): vscode.SnippetString => {
   const snippet = new vscode.SnippetString();
+  if (options.prefixText) snippet.appendText(options.prefixText);
   for (const part of template.parts) {
     if (part.kind === "text") {
       snippet.appendText(part.text);
@@ -267,11 +269,13 @@ export const createSourceOutputTemplateSnippet = (
       snippet.appendChoice(part.choices, part.index);
     }
   }
+  if (options.appendNewline) snippet.appendText("\n");
   return snippet;
 };
 
 export const insertSourceOutputTemplateSnippet = (
   editor: vscode.TextEditor,
   template: SourceOutputTemplateSnippet,
-  position: vscode.Position
-): Thenable<boolean> => editor.insertSnippet(createSourceOutputTemplateSnippet(template), position);
+  position: vscode.Position,
+  options?: SourceCreationSnippetOptions
+): Thenable<boolean> => editor.insertSnippet(createSourceOutputTemplateSnippet(template, options), position);

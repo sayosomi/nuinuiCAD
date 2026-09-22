@@ -536,6 +536,13 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     setPendingExportRequestId(null);
     return false;
   }, [api, canonicalSelectedCandidate, exportablePlan, pendingExportRequestId]);
+
+  const requestInsertTemplate = useCallback((): boolean => {
+    const documentVersion = latestHostDocumentVersionRef.current;
+    if (documentVersion === null || canonicalCandidates.length !== 0) return false;
+    api.postMessage({ type: "outputPreviewInsertTemplate", documentVersion });
+    return true;
+  }, [api, canonicalCandidates.length]);
   useLayoutEffect(() => {
     requestCurrentExportRef.current = requestCurrentExport;
   }, [requestCurrentExport]);
@@ -1265,6 +1272,11 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
           <div className="output-preview-state" role="status">
             <strong>{webviewPresentationTextFor(webviewPresentation, "output.noOutputs", "No print or SVG outputs")}</strong>
             <span>{webviewPresentationTextFor(webviewPresentation, "output.addDeclaration", "Add a print or svg declaration in the Source Editor.")}</span>
+            {canonicalCandidates.length === 0 ? (
+              <button type="button" onClick={requestInsertTemplate}>
+                {webviewPresentationTextFor(webviewPresentation, "output.insertTemplate", "Insert Template…")}
+              </button>
+            ) : null}
           </div>
         ) : plan ? (
           <>

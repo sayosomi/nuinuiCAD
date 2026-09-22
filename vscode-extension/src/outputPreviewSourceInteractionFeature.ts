@@ -5,6 +5,11 @@ import {
 } from "../../src/vscode/outputPreviewPlaceDrag";
 import type { VscodeToExtensionMessage } from "../../src/vscode/protocol";
 import { normalizedSourceFor, vscodeRangeForNormalized } from "./sourceOffsetAdapter";
+import {
+  isWritableSourceDocument,
+  VSCODE_SOURCE_INSERT_TEMPLATE_COMMAND_ID,
+  type SourceCreationInternalInvocation
+} from "./sourceCreationCommandFeature";
 
 export type OutputPreviewSourceInteractionSession = {
   document: vscode.TextDocument;
@@ -12,13 +17,19 @@ export type OutputPreviewSourceInteractionSession = {
 };
 
 export type OutputPreviewSourceInteractionHost = {
+  isSessionCurrent: (session: OutputPreviewSourceInteractionSession) => boolean;
   isOpenDocument: (document: vscode.TextDocument) => boolean;
+  sameDocument: (left: vscode.TextDocument, right: vscode.TextDocument) => boolean;
   isNormalizedRangeSafe: (document: vscode.TextDocument, range: NormalizedSourceRange) => boolean;
   visibleEditorFor: (document: vscode.TextDocument) => vscode.TextEditor | undefined;
   resyncOutputPreview: (session: OutputPreviewSourceInteractionSession) => void;
 };
 
 export type OutputPreviewSourceInteractionFeature = {
+  handleInsertTemplate: (
+    session: OutputPreviewSourceInteractionSession,
+    message: Extract<VscodeToExtensionMessage, { type: "outputPreviewInsertTemplate" }>
+  ) => Promise<void>;
   handleSourceNavigation: (
     session: OutputPreviewSourceInteractionSession,
     message: Extract<VscodeToExtensionMessage, { type: "outputPreviewSourceNavigation" }>
@@ -36,6 +47,46 @@ export type OutputPreviewSourceInteractionFeature = {
 export const createOutputPreviewSourceInteractionFeature = (
   host: OutputPreviewSourceInteractionHost
 ): OutputPreviewSourceInteractionFeature => ({
+  handleInsertTemplate: async (session, message) => {
+    if (
+      !session.panel.active ||
+      !host.isSessionCurrent(session) ||
+      !host.isOpenDocument(session.document) ||
+      session.document.version !== message.documentVersion ||
+      !isWritableSourceDocument(session.document)
+    ) return;
+
+    const visibleEditor = host.visibleEditorFor(session.document);
+    const document = session.document;
+    let editor: vscode.TextEditor | undefined;
+    try {
+      const end = document.positionAt(document.getText().length);
+      editor = await vscode.window.showTextDocument(document, {
+        viewColumn: visibleEditor?.viewColumn ?? vscode.ViewColumn.Beside,
+        preserveFocus: false,
+        preview: false,
+        selection: new vscode.Selection(end, end)
+      });
+    } catch {
+      return;
+    }
+    if (
+      !editor ||
+      !host.isSessionCurrent(session) ||
+      !host.isOpenDocument(document) ||
+      document.version !== message.documentVersion ||
+      !host.sameDocument(editor.document, document) ||
+      !isWritableSourceDocument(editor.document)
+    ) return;
+
+    const invocation: SourceCreationInternalInvocation = {
+      documentUri: document.uri.toString(),
+      expectedDocumentVersion: message.documentVersion,
+      insertionOrigin: "document-end"
+    };
+    await vscode.commands.executeCommand(VSCODE_SOURCE_INSERT_TEMPLATE_COMMAND_ID, invocation);
+  },
+
   handleSourceNavigation: async (session, message) => {
     if (
       !session.panel.active ||

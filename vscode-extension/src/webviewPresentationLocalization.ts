@@ -161,6 +161,7 @@ export const webviewPresentationTranslationCatalog = {
   "output.goToSource": { en: "Go to Source", ja: "Sourceへ移動" },
   "output.noOutputs": { en: "No print or SVG outputs", ja: "印刷またはSVGの出力がありません" },
   "output.addDeclaration": { en: "Add a print or svg declaration in the Source Editor.", ja: "Source Editorにprintまたはsvg宣言を追加してください。" },
+  "output.insertTemplate": { en: "Insert Template…", ja: "テンプレートを挿入…" },
   "output.noValidPlan": { en: "The current source cannot produce a valid output plan.", ja: "現在のSourceから有効な出力プランを作成できません。" },
   "output.previewAriaLabel": { en: "Output Preview", ja: "出力プレビュー" },
 
