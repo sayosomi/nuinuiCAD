@@ -25,10 +25,16 @@ import {
 } from "../../src/commands/sourceGeometryValueTemplateCatalog";
 import { materializeSourceGeometryValueTemplate } from "../../src/commands/sourceGeometryValueTemplateMaterializer";
 import {
+  sourceCalculationMeasurementTemplatePlans,
+  type SourceCalculationMeasurementTemplatePlan
+} from "../../src/commands/sourceCalculationMeasurementTemplateCatalog";
+import { materializeSourceCalculationMeasurementTemplate } from "../../src/commands/sourceCalculationMeasurementTemplateMaterializer";
+import {
   type SourceCreationCursor,
   type SourceCreationInsertion
 } from "../../src/commands/sourceCreationInsertion";
 import {
+  insertSourceCalculationMeasurementSnippet,
   insertSourceGeometryValueSnippet,
   insertSourceOutputTemplateSnippet
 } from "./sourceCreationSnippetAdapter";
@@ -262,6 +268,48 @@ const insertGeometryValueTemplate = async (
   );
 };
 
+type SourceCalculationMeasurementPickerItem = {
+  label: string;
+  plan: SourceCalculationMeasurementTemplatePlan;
+};
+
+const calculationMeasurementPickerItemsFor = (): SourceCalculationMeasurementPickerItem[] =>
+  sourceCalculationMeasurementTemplatePlans().map((plan) => ({
+    label: plan.label,
+    plan
+  }));
+
+const insertCalculationMeasurementTemplate = async (
+  target: SourceTemplateTarget,
+  insertionPosition: vscode.Position,
+  isCurrent: () => boolean,
+  showStaleMessage: () => void
+): Promise<boolean | undefined> => {
+  const item = await nativeShowQuickPick(calculationMeasurementPickerItemsFor());
+  if (!isCurrent()) {
+    showStaleMessage();
+    return undefined;
+  }
+  if (!item) return undefined;
+
+  const materialization = materializeSourceCalculationMeasurementTemplate(item.plan);
+  if (!materialization) return undefined;
+  if (!isCurrent()) {
+    showStaleMessage();
+    return undefined;
+  }
+
+  return insertSourceCalculationMeasurementSnippet(
+    target.editor,
+    materialization,
+    insertionPosition,
+    {
+      ...(target.context.scope === "direct-layout-body" ? { prefixText: DSL_INDENT } : {}),
+      appendNewline: true
+    }
+  );
+};
+
 const unreachableSourceTemplateRoute = (route: never): never => {
   throw new Error(`Unsupported Source Template route: ${String(route)}`);
 };
@@ -338,6 +386,13 @@ export const registerVscodeSourceCreationCommandFeature = ({
           );
         case "geometry-value":
           return insertGeometryValueTemplate(
+            target,
+            insertionPosition,
+            isCurrent,
+            showStaleMessage
+          );
+        case "calculation-measurement":
+          return insertCalculationMeasurementTemplate(
             target,
             insertionPosition,
             isCurrent,

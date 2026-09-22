@@ -51,11 +51,15 @@ import {
 } from "../../src/commands/sourceCreationTemplateMaterializer";
 import { sourceGeometryValueTemplateGroups } from "../../src/commands/sourceGeometryValueTemplateCatalog";
 import { materializeSourceGeometryValueTemplate } from "../../src/commands/sourceGeometryValueTemplateMaterializer";
+import { sourceCalculationMeasurementTemplatePlans } from "../../src/commands/sourceCalculationMeasurementTemplateCatalog";
+import { materializeSourceCalculationMeasurementTemplate } from "../../src/commands/sourceCalculationMeasurementTemplateMaterializer";
 import {
+  createSourceCalculationMeasurementSnippet,
   createSourceGeometryValueSnippet,
   createSourceCreationSnippet,
   createSourceOutputTemplateSnippet,
   insertSourceGeometryValueSnippet,
+  insertSourceCalculationMeasurementSnippet,
   insertSourceCreationSnippet,
   insertSourceOutputTemplateSnippet
 } from "./sourceCreationSnippetAdapter";
@@ -86,6 +90,13 @@ const geometryValueMaterializeFor = (groupId: "point" | "line" | "path", constru
     .find(({ id }) => id === groupId)!.plans
     .find((candidate) => candidate.construction === construction)!;
   const materialization = materializeSourceGeometryValueTemplate(plan, plan.forms[formIndex]!);
+  expect(materialization).not.toBeNull();
+  return materialization!;
+};
+
+const calculationMeasurementMaterializeFor = (builtinName: string) => {
+  const plan = sourceCalculationMeasurementTemplatePlans().find(({ builtinName: candidate }) => candidate === builtinName)!;
+  const materialization = materializeSourceCalculationMeasurementTemplate(plan);
   expect(materialization).not.toBeNull();
   return materialization!;
 };
@@ -187,6 +198,22 @@ describe("VS Code source creation snippet adapter", () => {
     const editor = { insertSnippet } as unknown as vscode.TextEditor;
     const position = new vscode.Position(6, 0);
     await expect(insertSourceGeometryValueSnippet(editor, materialization, position)).resolves.toBe(true);
+    expect(insertSnippet).toHaveBeenCalledTimes(1);
+    expect(insertSnippet.mock.calls[0]?.[0]).toBeInstanceOf(vscode.SnippetString);
+    expect(insertSnippet.mock.calls[0]?.[1]).toBe(position);
+  });
+
+  it("turns Calculation / Measurement holes into ordered native tabstops", async () => {
+    const materialization = calculationMeasurementMaterializeFor("spreadAngle");
+    const snippet = createSourceCalculationMeasurementSnippet(materialization) as unknown as TestSnippetString;
+
+    expect(tabstopEventsFor(snippet).map(({ index }) => index)).toEqual([1, 2, 3]);
+    expect(snippet.value).toBe("const $1: number = spreadAngle(length: $2, spread: $3)");
+
+    const insertSnippet = vi.fn(() => Promise.resolve(true));
+    const editor = { insertSnippet } as unknown as vscode.TextEditor;
+    const position = new vscode.Position(6, 0);
+    await expect(insertSourceCalculationMeasurementSnippet(editor, materialization, position)).resolves.toBe(true);
     expect(insertSnippet).toHaveBeenCalledTimes(1);
     expect(insertSnippet.mock.calls[0]?.[0]).toBeInstanceOf(vscode.SnippetString);
     expect(insertSnippet.mock.calls[0]?.[1]).toBe(position);

@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import type { SourceCreationTemplateMaterialization } from "../../src/commands/sourceCreationTemplateMaterializer";
 import type { SourceGeometryValueTemplateMaterialization } from "../../src/commands/sourceGeometryValueTemplateMaterializer";
+import type { SourceCalculationMeasurementTemplateMaterialization } from "../../src/commands/sourceCalculationMeasurementTemplateMaterializer";
 import type { SourceOutputTemplateSnippet } from "../../src/commands/sourceOutputTemplateCatalog";
 
 export type SourceCreationSnippetOptions = {
@@ -71,6 +72,40 @@ export const insertSourceGeometryValueSnippet = (
   position: vscode.Position,
   options?: SourceCreationSnippetOptions
 ): Thenable<boolean> => editor.insertSnippet(createSourceGeometryValueSnippet(materialization, options), position);
+
+export const createSourceCalculationMeasurementSnippet = (
+  materialization: SourceCalculationMeasurementTemplateMaterialization,
+  options: SourceCreationSnippetOptions = {}
+): vscode.SnippetString => {
+  const snippet = new vscode.SnippetString();
+  let tabstopIndex = 1;
+
+  if (options.prefixText) snippet.appendText(options.prefixText);
+
+  for (const part of materialization.parts) {
+    if (part.kind === "text") {
+      snippet.appendText(part.text);
+      continue;
+    }
+
+    snippet.appendTabstop(tabstopIndex);
+    tabstopIndex += 1;
+  }
+
+  if (options.appendNewline) snippet.appendText("\n");
+
+  return snippet;
+};
+
+export const insertSourceCalculationMeasurementSnippet = (
+  editor: vscode.TextEditor,
+  materialization: SourceCalculationMeasurementTemplateMaterialization,
+  position: vscode.Position,
+  options?: SourceCreationSnippetOptions
+): Thenable<boolean> => editor.insertSnippet(
+  createSourceCalculationMeasurementSnippet(materialization, options),
+  position
+);
 
 export const createSourceOutputTemplateSnippet = (
   template: SourceOutputTemplateSnippet
