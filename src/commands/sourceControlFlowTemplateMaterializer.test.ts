@@ -93,11 +93,11 @@ describe("Control Flow template materializer", () => {
     ["for-collection", "for <binder> in @<collection> {\n  <body>\n}"],
     [
       "for-range-carry",
-      "for <binder> in range(min: <range-min>, max: <range-max>, step: <range-step>) carry <carry-name>: <carry-type> = <carry-initializer> {\n  <body>\n  next <carry-name> = <next-expression>\n}"
+      "for <binder> in range(min: <range-min>, max: <range-max>, step: <range-step>)\n  carry <carry-name>: <carry-type> = <carry-initializer> {\n  <body>\n  next <carry-name> = <next-expression>\n}"
     ],
     [
       "for-collection-carry",
-      "for <binder> in @<collection> carry <carry-name>: <carry-type> = <carry-initializer> {\n  <body>\n  next <carry-name> = <next-expression>\n}"
+      "for <binder> in @<collection>\n  carry <carry-name>: <carry-type> = <carry-initializer> {\n  <body>\n  next <carry-name> = <next-expression>\n}"
     ]
   ] as const)("materializes %s with only the contracted structure", (templateId, expected) => {
     const materialization = materializeFor(templateId);

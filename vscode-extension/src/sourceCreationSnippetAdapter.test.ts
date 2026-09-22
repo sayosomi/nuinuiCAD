@@ -110,13 +110,15 @@ const expectedControlFlowSnippetValues = {
   "for-range": "for $1 in range(min: $2, max: $3, step: $4) {\n  $5\n}",
   "for-collection": "for $1 in @$2 {\n  $3\n}",
   "for-range-carry": [
-    "for $1 in range(min: $2, max: $3, step: $4) carry $5: $6 = $7 {",
+    "for $1 in range(min: $2, max: $3, step: $4)",
+    "  carry $5: $6 = $7 {",
     "  $8",
     "  next $5 = $9",
     "}"
   ].join("\n"),
   "for-collection-carry": [
-    "for $1 in @$2 carry $3: $4 = $5 {",
+    "for $1 in @$2",
+    "  carry $3: $4 = $5 {",
     "  $6",
     "  next $3 = $7",
     "}"
@@ -257,7 +259,8 @@ describe("VS Code source creation snippet adapter", () => {
     const snippet = createSourceControlFlowSnippet(materialization!) as unknown as TestSnippetString;
 
     expect(snippet.value).toBe([
-      "for $1 in range(min: $2, max: $3, step: $4) carry $5: $6 = $7 {",
+      "for $1 in range(min: $2, max: $3, step: $4)",
+      "  carry $5: $6 = $7 {",
       "  $8",
       "  next $5 = $9",
       "}"
