@@ -28,6 +28,26 @@ const optionsFor = (compiled: LastGoodDslDocument) => ({
 });
 
 describe("immutable statement-for carries", () => {
+  it("compiles and evaluates the normative multiline carry header", () => {
+    const compiled = compile([
+      "nui 1",
+      "for i in range(min: 0, max: 2, step: 1)",
+      "carry total: number = 0",
+      "carry count: number = 0 {",
+      "  next total = @total + @i",
+      "  next count = @count + 1",
+      "}",
+      "const result: number = @total"
+    ].join("\n"));
+    const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    expect(evaluation.errors).toEqual([]);
+    const resultId = compiled.bindingAnalysis!.catalog.bindings.find((binding) => binding.name === "result")!.id;
+    expect(evaluation.computedScalarBindings?.get(resultId)).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 3 }
+    });
+  });
+
   it("swaps multiple carries from one iteration-start snapshot and escapes the final value", () => {
     const compiled = compile([
       "nui 1",

@@ -444,6 +444,64 @@ describe("DSL typed declarations", () => {
 });
 
 describe("DSL immutable statement-for carry/next", () => {
+  it("parses a range carry that starts on the following physical line", () => {
+    const parsed = parseDsl([
+      "for i in range(min: 0, max: 1, step: 1)",
+      "carry total: number = 0 {",
+      "  next total = @total + @i",
+      "}"
+    ].join("\n"));
+    expect(parsed.diagnostics).toEqual([]);
+    expect(parsed.statements[0]).toMatchObject({ kind: "element", type: "forGroup", forCarries: [{ name: "total" }] });
+  });
+
+  it("parses a collection carry that starts on the following physical line", () => {
+    const parsed = parseDsl([
+      "for item in @values",
+      "carry total: number = 0 {",
+      "  next total = @total + @item",
+      "}"
+    ].join("\n"));
+    expect(parsed.diagnostics).toEqual([]);
+    expect(parsed.statements[0]).toMatchObject({ kind: "element", type: "forGroup", forCarries: [{ name: "total" }] });
+  });
+
+  it("keeps multiple carry clauses on separate continuation lines in one header", () => {
+    const source = [
+      "for item in @values",
+      "carry total: number = 0",
+      "carry label: string = \"\" {",
+      "  next total = @total + @item",
+      "  next label = @label + string(@item)",
+      "}"
+    ].join("\n");
+    const parsed = parseDsl(source);
+    expect(parsed.diagnostics).toEqual([]);
+    expect(parsed.statements[0]).toMatchObject({
+      kind: "element",
+      type: "forGroup",
+      line: 1,
+      endLine: 3,
+      forCarries: [{ name: "total" }, { name: "label" }]
+    });
+    const header = parsed.statements[0]!;
+    expect(header.physicalSpan.segments.map((segment) => source.slice(segment.from, segment.to))).toEqual([
+      "for item in @values",
+      "carry total: number = 0",
+      "carry label: string = \"\" {"
+    ]);
+  });
+
+  it("does not swallow an unrelated statement after a for header", () => {
+    const parsed = parseDsl([
+      "for i in range(min: 0, max: 1, step: 1)",
+      "point P = coordinate(x: 0, y: 0)"
+    ].join("\n"));
+    expect(parsed.statements).toHaveLength(2);
+    expect(parsed.statements[1]).toMatchObject({ kind: "element", type: "freePoint", line: 2, endLine: 2 });
+    expect(parsed.diagnostics.some((diagnostic) => diagnostic.severity === "error")).toBe(true);
+  });
+
   it("parses repeated carries and next with exact source spans", () => {
     const source = [
       "for i in range(min: 0, max: 1, step: 1) carry a: number = 0 carry b: number = 1 {",
