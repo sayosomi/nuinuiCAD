@@ -83,6 +83,7 @@ export const resolveTransformationStageSelection = ({
     ["base"],
     ["final"],
     ["base", "final"],
+    ["input"],
     ...namedPaths,
     ...explicitFinalPaths
   ];

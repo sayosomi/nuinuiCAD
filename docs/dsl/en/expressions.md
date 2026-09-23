@@ -101,6 +101,36 @@ zero when several exist. The same authored occurrence spelling is used for
 geometry targets, scalar geometry-property reads, and generated-candidate
 insertion.
 
+### Construction-input members
+
+An accessible geometry declaration exposes supported single-geometry
+construction inputs through a dedicated `input` member namespace:
+
+<!-- dsl-example: compile-success -->
+```nui
+nui 1
+point A = coordinate(x: 0, y: 0)
+point B = offset(from: @A, dx: 10, dy: 0)
+point C = offset(from: @B.input.from, dx: 5, dy: 0)
+```
+
+The indexed form is also supported for generated geometry:
+`@B[0].input.from`. The owner is resolved lexically (including Module privacy
+and export rules) before the input name is checked. `@B.input` is incomplete.
+Only construction inputs with one static geometry value are exposed, and the
+static type remains exactly `point`, `line`, or `path`; scalar, boolean,
+string, choice, collection, transformation, gate, style, and profile inputs
+are not reflected. An unknown key and an existing-but-unsupported key produce
+different diagnostics.
+
+An input member aliases the original construction expression. It does not read
+the owner's later transformations or final geometry, and `visible` or
+`enabled` does not rewrite the alias. The resolved dependency is scheduled by
+the normal document graph, including ordinary unavailable and cycle errors.
+Serialization preserves the authored `@B.input.from` spelling. Construction
+inputs of private Module implementation geometry are not exposed through a
+public or materialized Module geometry.
+
 ## Geometry and collection properties
 
 Only numeric computed properties and schema-declared choice properties are

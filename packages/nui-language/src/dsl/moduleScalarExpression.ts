@@ -541,6 +541,14 @@ const typecheckGeometryTarget = (
       ...(pointKey ? { pointKey } : {})
     };
   }
+  if (target.kind === "constructionInput") {
+    return {
+      statementId: target.ownerStatementId,
+      statementIndex: target.ownerStatementIndex,
+      geometryType: target.interfaceType,
+      ...(pointKey ? { pointKey } : {})
+    };
+  }
   if (target.kind === "recordFieldValue") {
     if (target.record.kind === "recordValue") {
       return {

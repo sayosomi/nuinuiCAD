@@ -1139,6 +1139,14 @@ const typecheckGeometryTargetFor = (
     };
   }
   if (target.kind === "collectionIndex") return null;
+  if (target.kind === "constructionInput") {
+    return {
+      statementId: target.ownerStatementId,
+      statementIndex: target.ownerStatementIndex,
+      geometryType: target.interfaceType,
+      ...(pointKey ? { pointKey } : {})
+    };
+  }
   return {
     statementId: target.instanceStatementId,
     statementIndex: target.instanceStatementIndex,

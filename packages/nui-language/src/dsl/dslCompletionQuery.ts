@@ -80,6 +80,7 @@ import { isPointElement } from "../model/pointAnchors";
 import { isModuleGeometryInterfaceAssignable, moduleGeometryInterfaceTypeOfElement } from "./moduleGeometryInterfaces";
 import type { CadElement } from "../types/geometry";
 import { getParameterDefinitions, scalarTypeForParameterDefinition } from "../parameters/parameterDefinitions";
+import { commonArgSpecs, constructionFor, isGeometryDeclarationCategory } from "./dslConstructions";
 import { dslModifierCompletionContextAt } from "./dslModifierCompletionContext";
 import { modifierPropertyMetadata } from "./dslModifierAuthoring";
 import { formatDslName } from "./dslTokens";
@@ -511,6 +512,61 @@ const sourceGeometryCandidatesForDeclaration = (
         { kind: "geometry", label: `${name}.end`, identity: `${statementId}:end` }
       ]
     : [];
+};
+
+const sourceConstructionInputCandidates = (
+  compiled: CompiledDslDocument,
+  statementIndex: number,
+  token: string
+): DslCompletionCandidate[] => {
+  const namespace = compiled.sourceLexicalNamespace;
+  if (!namespace || statementIndex < 0) return [];
+  const inputMatch = token.match(/^@(.+)\.input(?:\.([A-Za-z_][A-Za-z0-9_]*)?)?$/);
+  const dotMatch = token.match(/^@(.+)\.$/);
+  if (!inputMatch && !dotMatch) return [];
+  const ownerToken = (inputMatch?.[1] ?? dotMatch?.[1])!;
+  const member = inputMatch ? "input" : undefined;
+  const argumentPrefix = inputMatch?.[2] ?? "";
+  const ownerPathText = ownerToken.replace(/\[[^\]]*\]$/, "");
+  const ownerPath = parseDslReferenceToken(ownerPathText);
+  const lookup = resolveSourceLexicalPath(namespace, statementIndex, ownerPath);
+  const declarations = lookup.kind === "resolved" && lookup.declaration.kind === "geometry"
+    ? [lookup.declaration]
+    : ownerPath.segments.length === 1 && ownerToken !== ownerPathText
+      ? namespace.allDeclarations.filter((candidate) =>
+          candidate.kind === "geometry" &&
+          candidate.name === ownerPath.segments[0] &&
+          candidate.statement.kind === "element" &&
+          candidate.statement.enclosing?.statementIndex !== undefined
+        )
+      : [];
+  const declaration = declarations.length === 1 ? declarations[0] : null;
+  if (!declaration || declaration.statement.kind !== "element" || !isGeometryDeclarationCategory(declaration.statement.category)) return [];
+  const spec = constructionFor(declaration.statement.category, declaration.statement.construction);
+  if (!spec) return [];
+  const element = compiled.sourceElementsByStatementIndex.get(declaration.statementIndex) ?? ({ type: declaration.statement.type, intermediatePoints: [] } as never);
+  const definitions = getParameterDefinitions(element);
+  const supported = [...spec.args, ...commonArgSpecs].flatMap((argument) => {
+    if (argument.special) return [];
+    const parameterKey = argument.parameterKey ?? argument.arg;
+    const definition = definitions.find((candidate) => candidate.key === parameterKey);
+    const valueType = definition ? (definition.valueType ?? (definition.kind === "reference" || definition.kind === "lineEndpointReference" ? { kind: "point" as const } : definition.kind === "lineReference" ? { kind: "path" as const } : null)) : null;
+    return definition && (definition.kind === "reference" || definition.kind === "lineEndpointReference" || definition.kind === "lineReference") &&
+      valueType && (valueType.kind === "point" || valueType.kind === "line" || valueType.kind === "path")
+      ? [{ label: argument.arg, identity: `${declaration.statementId}:input:${argument.arg}` }]
+      : [];
+  });
+  if (member === undefined) {
+    return supported.length > 0
+      ? [{ kind: "geometry", label: "input", identity: `${declaration.statementId}:input` }]
+      : [];
+  }
+  if (!token.endsWith(".") && inputMatch?.[2] === undefined) {
+    return [{ kind: "geometry", label: "input", identity: `${declaration.statementId}:input` }];
+  }
+  return supported
+    .filter((candidate) => candidate.label.startsWith(argumentPrefix))
+    .map((candidate) => ({ kind: "geometry" as const, label: candidate.label, identity: candidate.identity }));
 };
 
 const sourceGeometryQualifiedMembers = (
@@ -1231,6 +1287,11 @@ const queryCandidates = (
     return scalarCandidatesAt(context, input, position, semantic, compiled, exact, statementIndex);
   }
   if (context.kind === "parameter") {
+    if (compiled && exact) {
+      const referenceText = input.lineText.slice(context.from, input.localPosition).trim();
+      const inputCandidates = sourceConstructionInputCandidates(compiled, statementIndex, referenceText);
+      if (inputCandidates.length > 0 || /^@.+\.input(?:\.|$)/.test(referenceText)) return inputCandidates;
+    }
     if (context.parameter.definition.kind === "choice") {
       return (context.parameter.definition.choiceOptions ?? []).map((label) => ({ kind: "literal" as const, label, identity: label }));
     }

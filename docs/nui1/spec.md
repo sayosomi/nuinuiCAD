@@ -253,6 +253,38 @@ A missing, disabled, invalid, private, or cyclic reference is a diagnostic. A
 legal reference is resolved by lexical scope and dependency identity rather
 than by its textual position.
 
+### Construction-input member references
+
+After an accessible drawable geometry owner, `input` is a dedicated first
+member namespace for the value supplied to that declaration's construction:
+
+```text
+@Geometry.input.argument
+@Geometry[index].input.argument
+```
+
+The owner is resolved through the ordinary lexical and Module identity rules
+before its construction interface is inspected. `input` alone is incomplete
+and is not a value. Only a single geometry-valued construction argument whose
+static interface is exactly `point`, strict `line`, or broad `path` is exposed.
+The exposed interface is the argument's declared static interface; a `path`
+input remains `path` even when its current geometry is more specific. Scalar,
+boolean, string, choice, collection, transformation, gate, style, Drawing
+Modifier/Profile, and other non-construction arguments are not reflected.
+
+An input reference aliases the original input expression, not the owner's
+resulting geometry, later transformation stage, final shape, visibility, or
+enabled state. Its dependency is lowered through the existing geometry target
+boundary, so unavailable, invalid, and cyclic dependencies use the ordinary
+dependency diagnostics and canonical graph. The authored `input` spelling is
+preserved by source serialization. Public or materialized Module geometry does
+not expose private implementation construction inputs to callers; supported
+input members are available only within their legal semantic scope.
+
+`input` is reserved as a transformation-stage name alongside `base` and
+`final`. Unknown input keys and existing but unsupported keys are distinct
+diagnostics; `input.*` is not interpreted as a numeric geometry-property read.
+
 ### Scalar geometry-property reads
 
 A resolved geometry property may be used as a scalar expression when its
