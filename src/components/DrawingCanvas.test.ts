@@ -532,6 +532,32 @@ describe("DrawingCanvas rendering", () => {
       expect(moveBezierHandleByDelta).not.toHaveBeenCalled();
       expect(dispatchCanvasPickCommand.mock.calls.some(([commandId]) => commandId === "applySelectedPickCandidate")).toBe(false);
       expect(hostAdapter.flushSourceEditorOnCanvasPointerDown).not.toHaveBeenCalled();
+
+      const panCallCountAfterFallback = panCanvasViewport.mock.calls.length;
+      await act(async () => {
+        fireEvent.pointerDown(viewport, {
+          button: 0,
+          buttons: 1,
+          clientX: 300,
+          clientY: 250,
+          pointerId: 36
+        });
+        fireEvent.pointerMove(viewport, {
+          buttons: 1,
+          clientX: 320,
+          clientY: 260,
+          pointerId: 36
+        });
+        fireEvent.pointerUp(viewport, {
+          button: 0,
+          buttons: 0,
+          clientX: 320,
+          clientY: 260,
+          pointerId: 36
+        });
+        await Promise.resolve();
+      });
+      expect(panCanvasViewport).toHaveBeenCalledTimes(panCallCountAfterFallback);
     } finally {
       pointerEvents.forEach((eventName) => container.removeEventListener(eventName, blockReactPointerBoundary));
       container.remove();
