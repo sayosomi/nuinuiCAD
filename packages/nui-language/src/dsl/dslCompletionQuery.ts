@@ -534,14 +534,16 @@ const sourceConstructionInputCandidates = (
   const lookup = resolveSourceLexicalPath(namespace, statementIndex, ownerPath);
   const declarations = lookup.kind === "resolved" && lookup.declaration.kind === "geometry"
     ? [lookup.declaration]
-      : ownerPath.segments.length === 1 && ownerToken !== ownerPathText
+      : ownerPath.segments.length === 1 && indexedOwner
       ? namespace.allDeclarations.filter((candidate) =>
           candidate.kind === "geometry" &&
           candidate.name === ownerPath.segments[0] &&
           candidate.statement.kind === "element" &&
-          isMaterializedForGroupTemplate(compiled.statements, candidate.statementIndex)
+          isMaterializedForGroupTemplate(compiled.statements, candidate.statementIndex) &&
+          moduleOwnerIndexOf(compiled.statements, candidate.statementIndex) === moduleOwnerIndexOf(compiled.statements, statementIndex)
         )
       : [];
+  if (indexedOwner && declarations.length !== 1) return [];
   const declaration = declarations.length === 1 ? declarations[0] : null;
   if (!declaration || declaration.statement.kind !== "element" || !isGeometryDeclarationCategory(declaration.statement.category)) return [];
   if (indexedOwner && (
@@ -604,12 +606,14 @@ const sourceConstructionInputCandidates = (
       : [];
   }
   if (!token.endsWith(".") && inputMatch?.[2] === undefined) {
-    return [{
-      kind: "geometry",
-      label: "input",
-      identity: `${declaration.statementId}:input`,
-      sourceText: `${ownerToken}.input`
-    }];
+    return supported.length > 0
+      ? [{
+          kind: "geometry",
+          label: "input",
+          identity: `${declaration.statementId}:input`,
+          sourceText: `${ownerToken}.input`
+        }]
+      : [];
   }
   return supported
     .filter((candidate) => candidate.label.startsWith(argumentPrefix))

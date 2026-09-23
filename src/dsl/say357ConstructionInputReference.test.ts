@@ -272,6 +272,7 @@ describe("SAY-357 construction-input references", () => {
       "point C = offset(from: @B.input.from, dx: 2, dy: 0)"
     ].join("\n");
     expect(completionLabels(unresolved, "@B.input.from", "@B.".length)).not.toContain("input");
+    expect(completionLabels(unresolved, "@B.input.from", "@B.input".length)).not.toContain("input");
     expect(completionLabels(unresolved, "@B.input.from", "@B.input.".length)).not.toContain("from");
 
     const privateGenerated = [
@@ -286,9 +287,77 @@ describe("SAY-357 construction-input references", () => {
       "point Root = offset(from: @PrivateGenerated[0].input.from, dx: 2, dy: 0)"
     ].join("\n");
     const privateCompiled = compile(privateGenerated);
-    expect(errorCodes(privateCompiled)).toContain("module-outer-capture");
+    expect(errorCodes(privateCompiled)).toContain("module-undefined-construction-input-owner");
     expect(completionLabels(privateGenerated, "@PrivateGenerated[0].input.from", "@PrivateGenerated[0].input.".length)).not.toContain("from");
     expect(completionLabels(privateGenerated, "@PrivateGenerated[0].input.from", "@PrivateGenerated[0].".length)).not.toContain("input");
+  });
+
+  it("scopes indexed generated owners before uniqueness and preserves same-owner ambiguity", () => {
+    const rootCollision = [
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "for i in range(min: 0, max: 1, step: 1) {",
+      "  point B = offset(from: @A, dx: 1, dy: 0)",
+      "}",
+      "module M() {",
+      "  point A = coordinate(x: 10, y: 0)",
+      "  for i in range(min: 0, max: 1, step: 1) {",
+      "    point B = offset(from: @A, dx: 1, dy: 0)",
+      "  }",
+      "}",
+      "instance I = M()",
+      "point C = offset(from: @B[0].input.from, dx: 2, dy: 0)"
+    ].join("\n");
+    const rootCompiled = compile(rootCollision);
+    expect(errorCodes(rootCompiled)).not.toContain("module-ambiguous-construction-input-owner");
+    expect(errorCodes(rootCompiled)).not.toContain("module-outer-capture");
+    expect(targetFor(rootCompiled, "C", "fromPoint")).toMatchObject({
+      kind: "drawable",
+      elementId: elementByName(rootCompiled, "A").id,
+      sourceText: "@B[0].input.from"
+    });
+    expect(completionLabels(rootCollision, "@B[0].input.from", "@B[0].input.".length)).toEqual(["from"]);
+
+    const moduleCollision = compile([
+      "nui 1",
+      "module M() {",
+      "  point A = coordinate(x: 0, y: 0)",
+      "  for i in range(min: 0, max: 1, step: 1) {",
+      "    point B = offset(from: @A, dx: 1, dy: 0)",
+      "  }",
+      "  point C = offset(from: @B[0].input.from, dx: 2, dy: 0)",
+      "}",
+      "module N() {",
+      "  point A = coordinate(x: 10, y: 0)",
+      "  for i in range(min: 0, max: 1, step: 1) {",
+      "    point B = offset(from: @A, dx: 1, dy: 0)",
+      "  }",
+      "}",
+      "instance MInstance = M()",
+      "instance NInstance = N()"
+    ].join("\n"));
+    const moduleCollisionBody = moduleCollision.moduleSemanticAnalysis?.definitions[0].bodyStatements.find((statement) =>
+      statement.geometryReferences.some((site) => site.reference.source.includes("@B[0].input.from"))
+    );
+    expect(errorCodes(moduleCollision)).not.toContain("module-ambiguous-construction-input-owner");
+    expect(errorCodes(moduleCollision)).not.toContain("module-outer-capture");
+    expect(moduleCollisionBody?.geometryReferences[0]?.reference).toMatchObject({
+      resolution: "resolved",
+      target: { kind: "constructionInput", sourceTarget: expect.any(Object) }
+    });
+
+    const ambiguous = compile([
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "for i in range(min: 0, max: 1, step: 1) {",
+      "  point B = offset(from: @A, dx: 1, dy: 0)",
+      "}",
+      "for j in range(min: 0, max: 1, step: 1) {",
+      "  point B = offset(from: @A, dx: 2, dy: 0)",
+      "}",
+      "point C = offset(from: @B[0].input.from, dx: 3, dy: 0)"
+    ].join("\n"));
+    expect(errorCodes(ambiguous)).toContain("module-ambiguous-construction-input-owner");
   });
 
   it("adds input to existing member completion and preserves source-stable insertion", () => {

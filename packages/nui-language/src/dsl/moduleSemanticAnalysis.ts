@@ -2342,10 +2342,20 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         ? sourceNamespace.allDeclarations.filter((candidate) =>
             candidate.kind === "geometry" &&
             candidate.name === base &&
-            isMaterializedForGroupTemplate(statements, candidate.statementIndex)
+            isMaterializedForGroupTemplate(statements, candidate.statementIndex) &&
+            moduleOwnerIndexOf(statements, candidate.statementIndex) === ownerIndex
           )
         : [];
       const occurrenceOwner = occurrenceOwnerCandidates.length === 1 ? occurrenceOwnerCandidates[0] : null;
+      if (occurrenceOwnerCandidates.length > 1) {
+        addLocal(statementIndex, issue(
+          "module-ambiguous-construction-input-owner",
+          baseSpan,
+          `generated geometry「${base}」の construction input owner を一意に解決できません。`,
+          { presentation: { key: "diagnostic.module-ambiguous-construction-input-owner", parameters: { name: base } } }
+        ));
+        return semantic(null, "invalid", null, derivedRole);
+      }
       if (lookup.kind !== "resolved" && !occurrenceOwner) {
         const code = lookup.kind === "forward"
           ? "module-forward-construction-input-owner"
@@ -2362,15 +2372,6 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           { presentation: { key: `diagnostic.${code}`, parameters: { name } } }
         ));
         return semantic(null, lookup.kind === "forward" ? "forward" : "undefined", null, derivedRole);
-      }
-      if (occurrenceOwnerCandidates.length > 1) {
-        addLocal(statementIndex, issue(
-          "module-ambiguous-construction-input-owner",
-          baseSpan,
-          `generated geometry「${base}」の construction input owner を一意に解決できません。`,
-          { presentation: { key: "diagnostic.module-ambiguous-construction-input-owner", parameters: { name: base } } }
-        ));
-        return semantic(null, "invalid", null, derivedRole);
       }
       const declaration = lookup.kind === "resolved" ? lookup.declaration : occurrenceOwner!;
       const declarationRelated = relatedForDeclaration(declaration);
