@@ -7,7 +7,7 @@ import {
 export const modulePreviewTranslationCatalog = {
   "modulePreview.panelTitle": {
     en: "Module Preview",
-    ja: "Module プレビュー"
+    ja: "Module Preview"
   },
   "modulePreview.requiresSourceEditor": {
     en: "nuinuiCAD: Open Module Preview requires an active .nui Source Editor.",
