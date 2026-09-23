@@ -24,6 +24,7 @@ import {
   type VscodeCanvasWorldPoint,
   vscodeCanvasStatusPresentationFor
 } from "./vscodeCanvasRibbonStatus";
+import { vscodeViewportZoomPresentationFor } from "./vscodeViewportStatus";
 import { vscodeCanvasRibbonContextData } from "./protocol";
 
 export type VSCodeCanvasRibbonOverlayProps = {
@@ -89,16 +90,25 @@ const vscodeCanvasRibbonPresentationsFor = (
   orientation: ribbon.orientation,
   iconSize: VSCODE_CANVAS_RIBBON_ICON_SIZE,
   verticalHandlePlacement: ribbon.orientation === "vertical" ? "side" : undefined,
-    items: ribbon.items.map((item) => item.type === "value"
-      ? vscodeCanvasStatusPresentationFor(
+    items: ribbon.items.map((item) => {
+      if (item.type !== "value") return commandItemPresentationFor(item, ribbonCommandContext, presentation);
+      if (item.valueId === "canvasZoomPercent") {
+        return vscodeViewportZoomPresentationFor(
           item.id,
           canvasViewport,
-          pointerWorldPoint,
-          presentation?.text("canvas.status.label", "Canvas status"),
-          presentation?.text("canvas.status.description", "Current Canvas zoom and pointer position."),
-          presentation?.statusFields
-        )
-      : commandItemPresentationFor(item, ribbonCommandContext, presentation))
+          presentation?.text("canvas.zoomPercent.label", "Canvas zoom") ?? "Canvas zoom",
+          presentation?.text("canvas.zoomPercent.description", "Current Canvas zoom.") ?? "Current Canvas zoom."
+        );
+      }
+      return vscodeCanvasStatusPresentationFor(
+        item.id,
+        canvasViewport,
+        pointerWorldPoint,
+        presentation?.text("canvas.status.label", "Canvas status"),
+        presentation?.text("canvas.status.description", "Current Canvas zoom and pointer position."),
+        presentation?.statusFields
+      );
+    })
 }));
 
 const pointerWorldPointFor = (

@@ -374,6 +374,42 @@ describe("Output Preview application", () => {
     expect(status).toHaveTextContent("ZOOM100%X—Y—");
   });
 
+  it("pans with Space-primary drag and keeps ordinary primary drag unchanged", async () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(viewportRect);
+    mocks.evaluateOutputPlan.mockImplementation(async ({ output }: { output: TestOutput }) => planFor(output));
+    renderFixture();
+    await waitFor(() => expect(Number(pageFill().getAttribute("width"))).toBeGreaterThan(400));
+    const viewport = document.querySelector(".output-preview-viewport");
+    if (!(viewport instanceof HTMLElement)) throw new Error("missing output preview viewport");
+
+    const beforeOrdinary = Number(pageFill().getAttribute("x"));
+    fireEvent.pointerDown(viewport, { button: 0, buttons: 1, pointerId: 1, clientX: 100, clientY: 100 });
+    fireEvent.pointerMove(viewport, { buttons: 1, pointerId: 1, clientX: 120, clientY: 100 });
+    fireEvent.pointerUp(viewport, { button: 0, buttons: 0, pointerId: 1, clientX: 120, clientY: 100 });
+    expect(Number(pageFill().getAttribute("x"))).toBeCloseTo(beforeOrdinary);
+
+    viewport.focus();
+    fireEvent.keyDown(viewport, { key: " " });
+    fireEvent.pointerDown(viewport, { button: 0, buttons: 1, pointerId: 2, clientX: 100, clientY: 100 });
+    fireEvent.pointerMove(viewport, { buttons: 1, pointerId: 2, clientX: 120, clientY: 100 });
+    fireEvent.pointerUp(viewport, { button: 0, buttons: 0, pointerId: 2, clientX: 120, clientY: 100 });
+    fireEvent.keyUp(viewport, { key: " " });
+
+    expect(Number(pageFill().getAttribute("x"))).toBeCloseTo(beforeOrdinary + 20);
+  });
+
+  it("keeps the compact zoom percentage synchronized with center-anchored button zoom", () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(viewportRect);
+    renderFixture("nui 1");
+
+    const zoom = screen.getByRole("status", { name: "Output Preview zoom: 100%" });
+    expect(zoom).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+    expect(screen.getByRole("status", { name: "Output Preview zoom: 110%" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Zoom out" }));
+    expect(screen.getByRole("status", { name: "Output Preview zoom: 100%" })).toBeInTheDocument();
+  });
+
   it("updates the stored pointer anchor for wheel zoom and recomputes status after reset", () => {
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(viewportRect);
     renderFixture("nui 1");

@@ -22,6 +22,15 @@ const ribbonWithStatus: VscodeCanvasRibbon[] = [{
   items: [{ id: "status", type: "value", valueId: "canvasZoom" }]
 }];
 
+const ribbonWithZoomPercent: VscodeCanvasRibbon[] = [{
+  id: "ribbon",
+  label: "Canvas Ribbon",
+  x: null,
+  y: 12,
+  orientation: "horizontal",
+  items: [{ id: "zoom-percent", type: "value", valueId: "canvasZoomPercent" }]
+}];
+
 const ribbonWithCommands: VscodeCanvasRibbon[] = [{
   id: "ribbon",
   label: "Canvas Ribbon",
@@ -86,6 +95,24 @@ const renderStatus = (canvasViewport: CanvasViewport) => {
 };
 
 describe("VSCodeCanvasRibbonOverlay Canvas status", () => {
+  it("renders the compact Canvas zoom value without changing full status values", () => {
+    const canvasFocusRef = createRef<HTMLDivElement>();
+    render(
+      <div ref={canvasFocusRef}>
+        <VSCodeCanvasRibbonOverlay
+          canvasFocusRef={canvasFocusRef}
+          canvasViewport={{ panX: 0, panY: 0, zoom: 1.1 }}
+          canvasRibbonRibbons={ribbonWithZoomPercent}
+          viewportSize={{ width: 400, height: 300 }}
+          ribbonCommandContext={commandContext}
+        />
+      </div>
+    );
+
+    expect(screen.getByRole("status", { name: "Canvas zoom: 110%" })).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "Canvas zoom: 110%" })).toHaveTextContent("110%");
+  });
+
   it("uses a stable presentation width estimate as status values change", () => {
     const baseViewport: CanvasViewport = { panX: 0, panY: 0, zoom: 1 };
     const presentationFor = (

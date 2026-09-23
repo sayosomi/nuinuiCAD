@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   panViewportByScreenDelta,
   screenToWorld,
+  VIEWPORT_ZOOM_STEP,
   worldToScreen,
   zoomViewportAt
 } from "./viewport";
@@ -9,6 +10,10 @@ import {
 describe("viewport geometry", () => {
   const viewport = { panX: 35, panY: -18, zoom: 2.5 };
   const size = { width: 800, height: 600 };
+
+  it("defines the shared deterministic zoom step", () => {
+    expect(VIEWPORT_ZOOM_STEP).toBe(1.1);
+  });
 
   it("round-trips representative world coordinates", () => {
     const worldPoint = { x: 12.4, y: -27.8 };

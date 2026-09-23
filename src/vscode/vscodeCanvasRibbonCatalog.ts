@@ -5,6 +5,8 @@ import { pickModeCanvasOperationAllowedForActive } from "./pickModeCanvasPolicy"
 
 export const vscodeCanvasRibbonCommandIds = [
   "clearCanvasSelection",
+  "zoomOutCanvas",
+  "zoomInCanvas",
   "resetCanvasView",
   "fitDrawing",
   "toggleCanvasPointNames",
@@ -37,6 +39,8 @@ export type VscodeCanvasRibbonCommandDefinition = {
 const sharedLabel = (commandId: Exclude<VscodeCanvasRibbonCommandId, "editCanvasRibbon">): string =>
   ({
     clearCanvasSelection: selectionCommandDefinitions.clearCanvasSelection,
+    zoomOutCanvas: viewModeCommandDefinitions.zoomOutCanvas,
+    zoomInCanvas: viewModeCommandDefinitions.zoomInCanvas,
     resetCanvasView: viewModeCommandDefinitions.resetCanvasView,
     fitDrawing: viewModeCommandDefinitions.fitDrawing,
     toggleCanvasPointNames: viewModeCommandDefinitions.toggleCanvasPointNames,
@@ -56,6 +60,22 @@ export const vscodeCanvasRibbonCommandCatalog: Record<
     sharedCommandId: "clearCanvasSelection",
     isAvailable: ({ hasSelection, pickModeActive }) =>
       hasSelection && pickModeCanvasOperationAllowedForActive("clear-selection", Boolean(pickModeActive))
+  },
+  zoomOutCanvas: {
+    id: "zoomOutCanvas",
+    label: sharedLabel("zoomOutCanvas"),
+    description: "Zoom the Canvas out.",
+    icon: "minus",
+    sharedCommandId: "zoomOutCanvas",
+    isAvailable: () => true
+  },
+  zoomInCanvas: {
+    id: "zoomInCanvas",
+    label: sharedLabel("zoomInCanvas"),
+    description: "Zoom the Canvas in.",
+    icon: "plus",
+    sharedCommandId: "zoomInCanvas",
+    isAvailable: () => true
   },
   resetCanvasView: {
     id: "resetCanvasView",

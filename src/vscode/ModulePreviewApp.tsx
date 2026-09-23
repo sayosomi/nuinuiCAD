@@ -1671,7 +1671,12 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
                 api.postMessage({ type: "editCanvasRibbon" });
                 return;
               }
-              if (definition.sharedCommandId) executeSharedCanvasCommand(definition.sharedCommandId);
+              if (
+                definition.sharedCommandId &&
+                nonWritingCanvasCommands.has(definition.sharedCommandId as VscodeCanvasCommandId)
+              ) {
+                executeSharedCanvasCommand(definition.sharedCommandId as VscodeCanvasCommandId);
+              }
             }}
             onPositionCommit={(ribbonId, position) => api.postMessage({
               type: "canvasRibbonPositionCommit",

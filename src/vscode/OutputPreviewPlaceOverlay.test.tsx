@@ -133,6 +133,34 @@ describe("OutputPreviewPlaceOverlay", () => {
     expect(onBeginDrag).not.toHaveBeenCalled();
   });
 
+  it("lets a Space-primary handle press bubble to the viewport pan owner without activating the place", () => {
+    const onViewportPointerDown = vi.fn();
+    const onBeginDrag = vi.fn();
+    const onHighlight = vi.fn();
+    render(
+      <div onPointerDown={onViewportPointerDown}>
+        <OutputPreviewPlaceOverlay
+          projections={[projection({ placeId: "a", groupName: "Front" })]}
+          sourceText={sourceText}
+          viewportSize={{ width: 400, height: 300 }}
+          viewport={{ panX: 0, panY: 0, zoom: 1 }}
+          onNavigate={vi.fn()}
+          onHighlightPlaceIdChange={onHighlight}
+          onBeginDrag={onBeginDrag}
+          spacePrimaryPanActive
+        />
+      </div>
+    );
+
+    const handle = screen.getByRole("button", { name: "Place Front" });
+    fireEvent.pointerDown(handle, { button: 0, buttons: 1, clientX: 100, clientY: 100, pointerId: 8 });
+    fireEvent.click(handle);
+
+    expect(onViewportPointerDown).toHaveBeenCalledOnce();
+    expect(onBeginDrag).not.toHaveBeenCalled();
+    expect(onHighlight).not.toHaveBeenLastCalledWith("a");
+  });
+
   it("starts a primary handle drag through the native boundary when React delegation is interrupted", async () => {
     const container = document.createElement("div");
     document.body.append(container);

@@ -1295,7 +1295,14 @@ describe("VS Code Canvas Ribbon configuration contribution", () => {
         x: null,
         y: 12,
         orientation: "horizontal",
-        items: [{ commandId: "editCanvasRibbon", type: "command" }]
+        items: [
+          { commandId: "zoomOutCanvas", type: "command" },
+          { valueId: "canvasZoomPercent", type: "value" },
+          { commandId: "zoomInCanvas", type: "command" },
+          { commandId: "resetCanvasView", type: "command" },
+          { commandId: "fitDrawing", type: "command" },
+          { commandId: "editCanvasRibbon", type: "command" }
+        ]
       }]
     });
     expect(setting?.items).toMatchObject({
@@ -1313,7 +1320,7 @@ describe("VS Code Canvas Ribbon configuration contribution", () => {
     expect(commandSchema?.properties?.iconColor).toBeUndefined();
     expect(commandSchema?.properties?.label).toBeUndefined();
     expect(commandSchema?.properties?.commandId).toBeDefined();
-    expect(valueSchema?.properties?.valueId).toEqual({ const: "canvasZoom" });
+    expect(valueSchema?.properties?.valueId).toEqual({ enum: ["canvasZoom", "canvasZoomPercent"] });
     expect(valueSchema?.properties?.label).toBeUndefined();
   });
 });

@@ -106,6 +106,13 @@ const renderCanvas = (
 };
 
 describe("VSCodeDrawingCanvas adapter", () => {
+  it("enables Space-primary pan only in the production Canvas adapter", () => {
+    const evaluation = emptyEvaluationResult(useCadDocumentStore.getState().elements);
+    const { adapter } = renderCanvas(evaluation, undefined);
+
+    expect(adapter.spacePrimaryPanEnabled).toBe(true);
+  });
+
   it("blocks ordinary Canvas selection, rectangle selection, and drag mutation during Pick", () => {
     const target = { elementId: "target", parameterKey: "point" };
     useCadUiStore.setState({

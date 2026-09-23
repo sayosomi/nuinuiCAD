@@ -3,6 +3,7 @@ import { useCadUiStore } from "../state/cadUiStore";
 import { visibleCanvasDrawingBounds } from "../geometry/canvasDrawingBounds";
 import { CANVAS_FIT_PADDING_PX, fitCanvasViewportToBounds } from "../geometry/canvasViewportFit";
 import { pickModeCanvasOperationAllowed } from "../vscode/pickModeCanvasPolicy";
+import { VIEWPORT_ZOOM_STEP } from "../geometry/viewport";
 import type { Command, CommandContext, CommandId } from "./commandTypes";
 
 const canvasZoomAnchor = (context?: CommandContext) => {
@@ -86,7 +87,7 @@ export const viewModeCommandDefinitions = {
     run: (context) => {
       const state = useCadUiStore.getState();
       const anchor = canvasZoomAnchor(context);
-      state.zoomCanvasViewportAt(1.1, anchor);
+      state.zoomCanvasViewportAt(VIEWPORT_ZOOM_STEP, anchor);
     }
   },
   zoomOutCanvas: {
@@ -97,7 +98,7 @@ export const viewModeCommandDefinitions = {
     run: (context) => {
       const state = useCadUiStore.getState();
       const anchor = canvasZoomAnchor(context);
-      state.zoomCanvasViewportAt(1 / 1.1, anchor);
+      state.zoomCanvasViewportAt(1 / VIEWPORT_ZOOM_STEP, anchor);
     }
   },
   resetCanvasView: {

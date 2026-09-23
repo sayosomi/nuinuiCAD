@@ -4674,6 +4674,10 @@ textarea {
   letter-spacing: 0.06em;
 }
 
+.vscode-canvas-webview .command-ribbon-value-field-label:empty {
+  display: none;
+}
+
 .vscode-canvas-webview .command-ribbon-value output {
   font-family: var(--dsl-code-font);
   font-size: 11px;

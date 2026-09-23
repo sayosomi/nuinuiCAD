@@ -12,7 +12,7 @@ import {
 import { resolveVscodeLucideIconName } from "./vscodeCanvasRibbonIcons";
 
 describe("VS Code Canvas Ribbon configuration", () => {
-  it("provides the single edit-only default and preserves explicit empty settings", () => {
+  it("provides the default viewport controls and preserves explicit empty settings", () => {
     expect(defaultVscodeCanvasRibbons()).toEqual([
       {
         id: "canvas-ribbon",
@@ -20,13 +20,14 @@ describe("VS Code Canvas Ribbon configuration", () => {
         x: null,
         y: 12,
         orientation: "horizontal",
-        items: [{
-          id: "editCanvasRibbon",
-          type: "command",
-          commandId: "editCanvasRibbon",
-          icon: "settings-2",
-          showLabel: false
-        }]
+        items: [
+          { id: "zoomOutCanvas", type: "command", commandId: "zoomOutCanvas", icon: "minus", showLabel: false },
+          { id: "canvasZoomPercent", type: "value", valueId: "canvasZoomPercent" },
+          { id: "zoomInCanvas", type: "command", commandId: "zoomInCanvas", icon: "plus", showLabel: false },
+          { id: "resetCanvasView", type: "command", commandId: "resetCanvasView", icon: "scan", showLabel: false },
+          { id: "fitDrawing", type: "command", commandId: "fitDrawing", icon: "maximize", showLabel: false },
+          { id: "editCanvasRibbon", type: "command", commandId: "editCanvasRibbon", icon: "settings-2", showLabel: false }
+        ]
       }
     ]);
     expect(normalizeVscodeCanvasRibbons([])).toEqual([]);
@@ -160,6 +161,8 @@ describe("VS Code Canvas Ribbon configuration", () => {
   it("keeps the closed Ribbon command catalog separate from shared CommandId", () => {
     expect(vscodeCanvasRibbonCommandIds).toEqual([
       "clearCanvasSelection",
+      "zoomOutCanvas",
+      "zoomInCanvas",
       "resetCanvasView",
       "fitDrawing",
       "toggleCanvasPointNames",

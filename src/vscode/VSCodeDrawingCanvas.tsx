@@ -509,6 +509,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       showCanvasPointNames,
       showCanvasGeometryNames,
       showCanvasPoints,
+      spacePrimaryPanEnabled: true,
       renderFixedCanvasChrome: false,
       activePointPickTarget,
       activeNumericReferencePickTarget,
