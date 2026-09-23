@@ -212,7 +212,7 @@ const issue = (code: string, span: DslSpan, message: string, extra: Partial<Loca
   ...extra
 });
 
-const moduleOwnerIndexOf = (statements: readonly DslStatement[], statementIndex: number): number | null => {
+export const moduleOwnerIndexOf = (statements: readonly DslStatement[], statementIndex: number): number | null => {
   const visited = new Set<number>();
   let enclosing = statements[statementIndex]?.enclosing ?? null;
   while (enclosing && !visited.has(enclosing.statementIndex)) {
@@ -223,7 +223,7 @@ const moduleOwnerIndexOf = (statements: readonly DslStatement[], statementIndex:
   return null;
 };
 
-const isMaterializedForGroupTemplate = (
+export const isMaterializedForGroupTemplate = (
   statements: readonly DslStatement[],
   statementIndex: number
 ): boolean => {
@@ -2381,6 +2381,24 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           baseSpan,
           `construction input の owner「${base}」は drawable geometry declaration ではありません。`,
           { relatedSources: declarationRelated, presentation: { key: "diagnostic.module-construction-input-owner-not-geometry", parameters: { name: base } } }
+        ));
+        return semantic(null, "invalid", null, derivedRole);
+      }
+      if (reference.occurrenceIndex !== null && declarationOwner !== ownerIndex) {
+        addLocal(statementIndex, issue(
+          "module-outer-capture",
+          baseSpan,
+          `generated geometry「${base}」の construction input をこの semantic owner の外側から capture できません。`,
+          { relatedSources: declarationRelated, presentation: { key: "diagnostic.module-outer-capture", parameters: { name: base } } }
+        ));
+        return semantic(null, "outerCapture", null, derivedRole);
+      }
+      if (reference.occurrenceIndex !== null && !isMaterializedForGroupTemplate(statements, declaration.statementIndex)) {
+        addLocal(statementIndex, issue(
+          "module-invalid-construction-input-owner",
+          baseSpan,
+          `indexed construction input の owner「${base}」は statement-for geometry ではありません。`,
+          { relatedSources: declarationRelated, presentation: { key: "diagnostic.module-invalid-construction-input-owner", parameters: { name: base } } }
         ));
         return semantic(null, "invalid", null, derivedRole);
       }

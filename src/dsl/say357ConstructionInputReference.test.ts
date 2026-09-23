@@ -33,13 +33,13 @@ const targetFor = (compiled: CompiledDslDocument, elementName: string, parameter
   return compiled.geometryInputTargetsByElementId?.get(element.id)?.get(parameterKey);
 };
 
-const completionLabels = (source: string, token: string) => {
-  return completionResult(source, token)?.candidates.map((candidate) => candidate.label) ?? [];
+const completionLabels = (source: string, token: string, offset = token.length) => {
+  return completionResult(source, token, offset)?.candidates.map((candidate) => candidate.label) ?? [];
 };
 
-const completionResult = (source: string, token: string) => {
+const completionResult = (source: string, token: string, offset = token.length) => {
   const compiled = compile(source);
-  const position = source.indexOf(token) + token.length;
+  const position = source.indexOf(token) + offset;
   return queryDslCompletion({
     source: { normalizedSource: source, sourceRevision: 7 },
     position,
@@ -47,9 +47,7 @@ const completionResult = (source: string, token: string) => {
   });
 };
 
-const applyCompletion = (source: string, token: string, label: string) => {
-  const result = completionResult(source, token);
-  if (!result) throw new Error(`missing completion result for ${token}`);
+const applyCompletion = (source: string, result: NonNullable<ReturnType<typeof completionResult>>, label: string) => {
   const candidate = result.candidates.find((entry) => entry.label === label);
   if (!candidate) throw new Error(`missing completion candidate ${label}`);
   const insertion = dslCompletionInsertionTextFor(candidate, result.category, result.replacementRange, source);
@@ -243,6 +241,54 @@ describe("SAY-357 construction-input references", () => {
         sourceTarget: { kind: "sourceGeometry" }
       }
     });
+
+    const localGenerated = compile([
+      "nui 1",
+      "module M() {",
+      "  point A = coordinate(x: 0, y: 0)",
+      "  for i in range(min: 0, max: 1, step: 1) {",
+      "    point B = offset(from: @A, dx: 1, dy: 0)",
+      "  }",
+      "  point C = offset(from: @B[0].input.from, dx: 2, dy: 0)",
+      "}"
+    ].join("\n"));
+    expect(errorCodes(localGenerated)).toEqual([]);
+    const localGeneratedBody = localGenerated.moduleSemanticAnalysis?.definitions[0].bodyStatements.find((statement) =>
+      statement.geometryReferences.some((site) => site.reference.source.includes("@B[0].input.from"))
+    );
+    expect(localGeneratedBody?.geometryReferences[0]?.reference).toMatchObject({
+      resolution: "resolved",
+      target: {
+        kind: "constructionInput",
+        sourceTarget: expect.any(Object)
+      }
+    });
+  });
+
+  it("does not complete unresolved or private indexed construction inputs", () => {
+    const unresolved = [
+      "nui 1",
+      "point B = offset(from: @Missing, dx: 1, dy: 0)",
+      "point C = offset(from: @B.input.from, dx: 2, dy: 0)"
+    ].join("\n");
+    expect(completionLabels(unresolved, "@B.input.from", "@B.".length)).not.toContain("input");
+    expect(completionLabels(unresolved, "@B.input.from", "@B.input.".length)).not.toContain("from");
+
+    const privateGenerated = [
+      "nui 1",
+      "module M() {",
+      "  point A = coordinate(x: 0, y: 0)",
+      "  for i in range(min: 0, max: 1, step: 1) {",
+      "    point PrivateGenerated = offset(from: @A, dx: 1, dy: 0)",
+      "  }",
+      "}",
+      "instance I = M()",
+      "point Root = offset(from: @PrivateGenerated[0].input.from, dx: 2, dy: 0)"
+    ].join("\n");
+    const privateCompiled = compile(privateGenerated);
+    expect(errorCodes(privateCompiled)).toContain("module-outer-capture");
+    expect(completionLabels(privateGenerated, "@PrivateGenerated[0].input.from", "@PrivateGenerated[0].input.".length)).not.toContain("from");
+    expect(completionLabels(privateGenerated, "@PrivateGenerated[0].input.from", "@PrivateGenerated[0].".length)).not.toContain("input");
   });
 
   it("adds input to existing member completion and preserves source-stable insertion", () => {
@@ -253,21 +299,31 @@ describe("SAY-357 construction-input references", () => {
       "point C = offset(from: @B.input.from, dx: 2, dy: 0)"
     ].join("\n");
     const ownerPrefixSource = source.replace("@B.input.from", "@B.");
-    expect(completionLabels(ownerPrefixSource, "@B.")).toContain("input");
-    expect(applyCompletion(ownerPrefixSource, "@B.", "input")).toContain("from: @B.input,");
+    const ownerCompletion = completionResult(source, "@B.input.from", "@B.".length);
+    expect(completionLabels(source, "@B.input.from", "@B.".length)).toContain("input");
+    expect(applyCompletion(ownerPrefixSource, ownerCompletion!, "input")).toContain("from: @B.input,");
 
     const endpointSource = [
       "nui 1",
-      "line A = segment(start: (0, 0), end: (10, 0))",
-      "line B = segment(start: (0, 0), end: (20, 0))",
-      "point C = onLine(from: @B., distance: 1)"
+      "point Anchor = coordinate(x: 0, y: 0)",
+      "line B = segment(start: @Anchor, end: @Anchor)",
+      "point C = onLine(from: @B.input.start, distance: 1)"
     ].join("\n");
-    const endpointCompletion = completionResult(endpointSource, "@B.");
+    const endpointCompletion = completionResult(endpointSource, "@B.input.start", "@B.".length);
     expect(endpointCompletion?.candidates.map((candidate) => candidate.label)).toEqual(expect.arrayContaining(["B.start", "B.end", "input"]));
 
+    const inlineInputSource = [
+      "nui 1",
+      "line B = segment(start: (0, 0), end: (20, 0))",
+      "point C = onLine(from: @B.input.start, distance: 1)"
+    ].join("\n");
+    expect(completionLabels(inlineInputSource, "@B.input.start", "@B.".length)).toContain("input");
+    expect(completionLabels(inlineInputSource, "@B.input.start", "@B.input.".length)).toEqual(["start"]);
+
     const inputNamespaceSource = source.replace("@B.input.from", "@B.input.");
-    expect(completionLabels(inputNamespaceSource, "@B.input.")).toEqual(["from"]);
-    expect(applyCompletion(inputNamespaceSource, "@B.input.", "from")).toContain("from: @B.input.from,");
+    const inputNamespaceCompletion = completionResult(source, "@B.input.from", "@B.input.".length);
+    expect(completionLabels(source, "@B.input.from", "@B.input.".length)).toEqual(["from"]);
+    expect(applyCompletion(inputNamespaceSource, inputNamespaceCompletion!, "from")).toContain("from: @B.input.from,");
 
     const indexedSource = [
       "nui 1",
@@ -275,10 +331,12 @@ describe("SAY-357 construction-input references", () => {
       "for i in range(min: 0, max: 1, step: 1) {",
       "  point B = offset(from: @A, dx: 1, dy: 0)",
       "}",
-      "point C = offset(from: @B[0].input., dx: 2, dy: 0)"
+      "point C = offset(from: @B[0].input.from, dx: 2, dy: 0)"
     ].join("\n");
-    expect(completionLabels(indexedSource, "@B[0].input.")).toEqual(["from"]);
-    expect(applyCompletion(indexedSource, "@B[0].input.", "from")).toContain("from: @B[0].input.from,");
+    const indexedCompletion = completionResult(indexedSource, "@B[0].input.from", "@B[0].input.".length);
+    expect(completionLabels(indexedSource, "@B[0].input.from", "@B[0].input.".length)).toEqual(["from"]);
+    const indexedInputSource = indexedSource.replace("@B[0].input.from", "@B[0].input.");
+    expect(applyCompletion(indexedInputSource, indexedCompletion!, "from")).toContain("from: @B[0].input.from,");
 
     const compiled = compile(source);
     const aliasPosition = source.indexOf("@B.input.from") + "@B".length;

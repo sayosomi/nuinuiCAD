@@ -52,6 +52,7 @@ import {
   type ModuleDocumentation
 } from "./moduleDocumentation";
 import type { CompiledDslDocument } from "./dslDocument";
+import { isMaterializedForGroupTemplate, moduleOwnerIndexOf } from "./moduleSemanticAnalysis";
 import type { BindingAnalysis } from "../scalars/bindingAnalysis";
 import {
   scalarExpressionCandidates,
@@ -528,30 +529,66 @@ const sourceConstructionInputCandidates = (
   const member = inputMatch ? "input" : undefined;
   const argumentPrefix = inputMatch?.[2] ?? "";
   const ownerPathText = ownerToken.replace(/\[[^\]]*\]$/, "");
+  const indexedOwner = ownerToken !== ownerPathText;
   const ownerPath = parseDslReferenceToken(ownerPathText);
   const lookup = resolveSourceLexicalPath(namespace, statementIndex, ownerPath);
   const declarations = lookup.kind === "resolved" && lookup.declaration.kind === "geometry"
     ? [lookup.declaration]
-    : ownerPath.segments.length === 1 && ownerToken !== ownerPathText
+      : ownerPath.segments.length === 1 && ownerToken !== ownerPathText
       ? namespace.allDeclarations.filter((candidate) =>
           candidate.kind === "geometry" &&
           candidate.name === ownerPath.segments[0] &&
           candidate.statement.kind === "element" &&
-          candidate.statement.enclosing?.statementIndex !== undefined
+          isMaterializedForGroupTemplate(compiled.statements, candidate.statementIndex)
         )
       : [];
   const declaration = declarations.length === 1 ? declarations[0] : null;
   if (!declaration || declaration.statement.kind !== "element" || !isGeometryDeclarationCategory(declaration.statement.category)) return [];
+  if (indexedOwner && (
+    !isMaterializedForGroupTemplate(compiled.statements, declaration.statementIndex) ||
+    moduleOwnerIndexOf(compiled.statements, declaration.statementIndex) !== moduleOwnerIndexOf(compiled.statements, statementIndex)
+  )) return [];
   const spec = constructionFor(declaration.statement.category, declaration.statement.construction);
   if (!spec) return [];
   const element = compiled.sourceElementsByStatementIndex.get(declaration.statementIndex) ?? ({ type: declaration.statement.type, intermediatePoints: [] } as never);
   const definitions = getParameterDefinitions(element);
+  const semanticAnalysis = compiled.moduleSemanticAnalysis ?? compiled.sourceSemanticAnalysis;
+  const ownerSemanticSites = [
+    ...(semanticAnalysis?.rootGeometryReferencesByStatementId.get(declaration.statementId) ?? []),
+    ...(semanticAnalysis?.definitions.flatMap((definition) =>
+      definition.bodyStatements.find((statement) => statement.statementId === declaration.statementId)?.geometryReferences ?? []
+    ) ?? [])
+  ];
+  const semanticSites = [
+    ...(semanticAnalysis ? [...semanticAnalysis.rootGeometryReferencesByStatementId.values()].flat() : []),
+    ...(semanticAnalysis?.definitions.flatMap((definition) => definition.bodyStatements.flatMap((statement) => statement.geometryReferences)) ?? [])
+  ];
+  const resolvedSite = (site: typeof ownerSemanticSites[number]) =>
+    (site.reference.resolution === "resolved" || site.reference.resolution === "deferred") &&
+    (site.reference.target !== null || site.reference.coordinate !== null);
+  const resolvableInputKeys = new Set(
+    [
+      ...ownerSemanticSites
+        .filter((site) => site.parameterKey !== null && resolvedSite(site))
+        .map((site) => site.parameterKey!),
+      ...semanticSites.flatMap((site) => {
+        const target = site.reference.target;
+        return target?.kind === "constructionInput" &&
+          target.ownerStatementId === declaration.statementId &&
+          resolvedSite(site) &&
+          (target.sourceTarget !== null || target.coordinate != null)
+          ? [target.parameterKey]
+          : [];
+      })
+    ]
+  );
   const supported = [...spec.args, ...commonArgSpecs].flatMap((argument) => {
     if (argument.special) return [];
     const parameterKey = argument.parameterKey ?? argument.arg;
     const definition = definitions.find((candidate) => candidate.key === parameterKey);
     const valueType = definition ? (definition.valueType ?? (definition.kind === "reference" || definition.kind === "lineEndpointReference" ? { kind: "point" as const } : definition.kind === "lineReference" ? { kind: "path" as const } : null)) : null;
-    return definition && (definition.kind === "reference" || definition.kind === "lineEndpointReference" || definition.kind === "lineReference") &&
+    return definition && resolvableInputKeys.has(parameterKey) &&
+      (definition.kind === "reference" || definition.kind === "lineEndpointReference" || definition.kind === "lineReference") &&
       valueType && (valueType.kind === "point" || valueType.kind === "line" || valueType.kind === "path")
       ? [{ label: argument.arg, identity: `${declaration.statementId}:input:${argument.arg}` }]
       : [];
