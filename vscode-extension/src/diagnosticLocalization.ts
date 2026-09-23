@@ -47,6 +47,7 @@ export const diagnosticTranslationCatalog = {
   "diagnostic.unused-typed-declaration": { en: "Declaration '{name}' is not used anywhere.", ja: "宣言「{name}」はどこからも使用されていません。" },
   "diagnostic.unused-module-parameter": { en: "Module parameter '{name}' is not used anywhere.", ja: "Module parameter「{name}」はどこからも使用されていません。" },
   "diagnostic.unused-private-module": { en: "Private Module '{name}' is not used anywhere.", ja: "Private Module「{name}」はどこからも使用されていません。" },
+  "diagnostic.unused-import": { en: "Import alias '{name}' is not used anywhere.", ja: "import alias「{name}」はどこからも使用されていません。" },
   "diagnostic.invalid-drawing-profile-reference": { en: "Invalid Drawing Profile reference '{profile}'.", ja: "Drawing Profile参照「{profile}」が不正です。" },
   "diagnostic.duplicate-drawing-profile-override": { en: "Drawing Profile '{profile}' may be specified only once.", ja: "Drawing Profile「{profile}」は1つだけ指定できます。" },
   "diagnostic.geometry-array-const-only": { en: "Geometry arrays must be declared with const.", ja: "geometry arrayはconstで宣言してください。" },

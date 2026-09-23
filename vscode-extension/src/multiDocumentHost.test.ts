@@ -240,6 +240,50 @@ describe("VS Code multi-document host lifecycle", () => {
     host.dispose();
   });
 
+  it("projects graph-backed unused imports through the multi-document diagnostic owner", async () => {
+    const rootPath = "/workspace/root-unused-import.nui";
+    const dependencyPath = "/workspace/library-unused-import.nui";
+    const rootSource = [
+      "nui 1",
+      "import \"./library-unused-import.nui\" as library"
+    ].join("\n");
+    const dependencySource = [
+      "nui 1",
+      "export module Pocket() {",
+      "}"
+    ].join("\n");
+    mocks.files.set(dependencyPath, encoder.encode(dependencySource));
+    const root = documentFor(rootPath, rootSource);
+    mocks.textDocuments = [root];
+
+    const host = createVscodeModuleMultiDocumentHost();
+    host.start();
+
+    await vi.waitFor(() => {
+      const state = host.diagnosticsStateFor(root);
+      expect(state.status).toBe("current");
+      if (state.status !== "current" || state.owner !== "multi-document") return;
+      const diagnostic = state.snapshot.diagnostics.find((candidate) => candidate.code === "unused-import");
+      expect(diagnostic).toMatchObject({
+        severity: "warning",
+        presentation: { key: "diagnostic.unused-import", parameters: { name: "library" } },
+        location: {
+          source: { kind: "root-current", documentId: root.uri.toString() },
+          range: {
+            from: rootSource.lastIndexOf("library"),
+            to: rootSource.lastIndexOf("library") + "library".length
+          }
+        }
+      });
+      if (diagnostic) {
+        expect(diagnosticTextFor(diagnostic, "en")).toBe("Import alias 'library' is not used anywhere.");
+        expect(diagnosticTextFor(diagnostic, "ja-JP")).toBe("import alias「library」はどこからも使用されていません。");
+      }
+    });
+
+    host.dispose();
+  });
+
   it("keeps dependencies disk-authoritative and rebuilds importing roots after a saved dependency watch change", async () => {
     const rootPath = "/workspace/root.nui";
     const dependencyPath = "/workspace/library.nui";

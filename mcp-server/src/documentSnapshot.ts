@@ -1,11 +1,20 @@
 import { createHash } from "node:crypto";
 import { readFile, realpath, stat } from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { AutomationDocument } from "@nuinuicad/nui-language/document";
 import { analyzeDslLintDiagnostics, compileDslDocument, type CompiledDslDocument } from "@nuinuicad/nui-language";
 import type { DslDiagnostic, DslDiagnosticRelatedInformation, DslStatement } from "@nuinuicad/nui-language";
 import type { DslPhysicalSpan, SourceSnapshot } from "@nuinuicad/nui-language";
 import type { CadElement, ElementId } from "@nuinuicad/nui-language";
+import {
+  analyzeMultiDocumentLintDiagnostics,
+  buildMultiDocumentImportGraph,
+  documentIdFromHost,
+  moduleDeclarationContributor,
+  savedSourceFingerprintFromHost,
+  type MultiDocumentSavedSourceLoader
+} from "@nuinuicad/nui-language/workspace";
 
 export type SourcePositionDto = {
   offset: number;
@@ -98,6 +107,57 @@ export type DocumentInspectDto = {
 };
 
 const normalizedSourceFor = (sourceText: string): string => sourceText.replace(/\r\n/g, "\n");
+
+const documentIdForPath = (filePath: string) => documentIdFromHost(pathToFileURL(filePath).toString());
+
+const validRelativeImportPath = (importPath: string): boolean =>
+  !path.isAbsolute(importPath) &&
+  !importPath.includes("\0") &&
+  (importPath.startsWith("./") || importPath.startsWith("../")) &&
+  importPath.endsWith(".nui");
+
+const fileNotFound = (error: unknown): boolean => {
+  if (typeof error !== "object" || error === null) return false;
+  const candidate = error as { code?: unknown };
+  return candidate.code === "ENOENT";
+};
+
+const multiDocumentSavedLoaderFor = (): MultiDocumentSavedSourceLoader => ({
+  loadSavedDependency: async (importerDocumentId, validatedRelativePath) => {
+    if (!validRelativeImportPath(validatedRelativePath)) {
+      return { status: "failed", reason: "root-unaddressable" };
+    }
+
+    let importerPath: string;
+    try {
+      importerPath = fileURLToPath(String(importerDocumentId));
+    } catch {
+      return { status: "failed", reason: "root-unaddressable" };
+    }
+
+    try {
+      const targetPath = await realpath(path.resolve(path.dirname(importerPath), validatedRelativePath));
+      const bytes = await readFile(targetPath);
+      return {
+        status: "loaded",
+        snapshot: {
+          kind: "dependency-saved" as const,
+          documentId: documentIdForPath(targetPath),
+          normalizedSource: normalizedSourceFor(bytes.toString("utf8")),
+          savedSourceFingerprint: savedSourceFingerprintFromHost(
+            `sha256:${createHash("sha256").update(bytes).digest("hex")}`
+          )
+        }
+      };
+    } catch (error) {
+      return {
+        status: "failed",
+        reason: fileNotFound(error) ? "missing" : "unreadable",
+        message: error instanceof Error ? error.message : String(error)
+      };
+    }
+  }
+});
 
 export const stableSnapshotElementId = (
   sourceHash: string,
@@ -339,6 +399,48 @@ export const inspectNuiDocument = async (requestedPath: string): Promise<Documen
     .map(declarationSummary)
     .filter((item): item is DeclarationSummaryDto => item !== null);
 
+  const rootDocumentId = documentIdForPath(snapshot.path);
+  const graph = await buildMultiDocumentImportGraph({
+    root: {
+      kind: "root-current",
+      documentId: rootDocumentId,
+      normalizedSource: source.normalizedSource,
+      sourceRevision: source.sourceRevision
+    },
+    loader: multiDocumentSavedLoaderFor(),
+    declarationContributors: [moduleDeclarationContributor],
+    ...(currentCompiled.statementMap?.statementIdByStatementIndex
+      ? { rootStatementIdByStatementIndex: currentCompiled.statementMap.statementIdByStatementIndex }
+      : {})
+  });
+  const rootLintDiagnostics = analyzeMultiDocumentLintDiagnostics({ graph })
+    .filter((diagnostic) =>
+      diagnostic.location.source.kind === "root-current" &&
+      diagnostic.location.source.documentId === rootDocumentId &&
+      diagnostic.location.source.sourceRevision === source.sourceRevision &&
+      diagnostic.location.range.from >= 0 &&
+      diagnostic.location.range.to <= source.normalizedSource.length &&
+      diagnostic.location.range.to > diagnostic.location.range.from
+    )
+    .map((diagnostic) => {
+      const position = positionAt(lineStarts, source.normalizedSource.length, diagnostic.location.range.from);
+      const asDslDiagnostic: DslDiagnostic = {
+        severity: diagnostic.severity,
+        line: position.line,
+        column: position.column,
+        message: diagnostic.message,
+        presentation: diagnostic.presentation,
+        sourceRevision: source.sourceRevision,
+        physicalSpan: {
+          segments: [diagnostic.location.range],
+          sourceRevision: source.sourceRevision
+        },
+        exactSpanOnly: true,
+        code: diagnostic.code
+      };
+      return diagnosticDto(asDslDiagnostic, source.sourceRevision, source.normalizedSource, lineStarts);
+    });
+
   return {
     path: snapshot.path,
     sourceIdentity: snapshot.sourceIdentity,
@@ -364,7 +466,7 @@ export const inspectNuiDocument = async (requestedPath: string): Promise<Documen
       ),
       lint: analyzeDslLintDiagnostics(currentCompiled).map((diagnostic) =>
         diagnosticDto(diagnostic, source.sourceRevision, source.normalizedSource, lineStarts)
-      )
+      ).concat(rootLintDiagnostics)
     },
     summary: {
       declarations,
