@@ -356,22 +356,27 @@ describe("Output Preview application", () => {
     vi.restoreAllMocks();
   });
 
-  it("shows the default viewport status before pointer entry and tracks Y-up pointer coordinates", () => {
+  it("shows one explicit zoom percentage and tracks Y-up pointer coordinates in the adjacent X/Y status", () => {
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(viewportRect);
     renderFixture("nui 1");
 
-    const status = screen.getByRole("status", { name: "Output Preview status: ZOOM: 100%, X: —, Y: —" });
+    const zoom = screen.getByRole("status", { name: "Output Preview zoom: 100%" });
+    const status = screen.getByRole("status", { name: "Output Preview status: X: —, Y: —" });
+    expect(zoom).toBeVisible();
+    expect(status).not.toHaveTextContent("%");
+    expect(screen.getAllByText("100%", { exact: true })).toHaveLength(1);
     const viewport = document.querySelector(".output-preview-viewport");
     if (!(viewport instanceof HTMLElement)) throw new Error("missing output preview viewport");
 
     fireEvent.pointerMove(viewport, { clientX: 250, clientY: 150 });
-    expect(status).toHaveTextContent("ZOOM100%X-150.0Y150.0");
+    expect(status).toHaveTextContent("X-150.0Y150.0");
+    expect(status).not.toHaveTextContent("%");
 
     fireEvent.pointerMove(viewport, { clientX: 270, clientY: 130 });
-    expect(status).toHaveTextContent("ZOOM100%X-130.0Y170.0");
+    expect(status).toHaveTextContent("X-130.0Y170.0");
 
     fireEvent.pointerLeave(viewport);
-    expect(status).toHaveTextContent("ZOOM100%X—Y—");
+    expect(status).toHaveTextContent("X—Y—");
   });
 
   it("pans with Space-primary drag and keeps ordinary primary drag unchanged", async () => {
@@ -586,12 +591,14 @@ describe("Output Preview application", () => {
     const status = screen.getByRole("status", { name: /Output Preview status:/ });
 
     fireEvent.wheel(viewport, { deltaY: -100, clientX: 250, clientY: 150 });
-    expect(status).toHaveTextContent("ZOOM110%X-150.0Y150.0");
+    expect(status).toHaveTextContent("X-150.0Y150.0");
+    expect(screen.getByRole("status", { name: "Output Preview zoom: 110%" })).toBeInTheDocument();
 
     act(() => {
       window.dispatchEvent(new MessageEvent("message", { data: { type: "outputPreviewResetView" } }));
     });
-    expect(status).toHaveTextContent("ZOOM100%X-150.0Y150.0");
+    expect(status).toHaveTextContent("X-150.0Y150.0");
+    expect(screen.getByRole("status", { name: "Output Preview zoom: 100%" })).toBeInTheDocument();
   });
 
   it("recomputes a stationary pointer after viewport pan and viewport-size changes", () => {
@@ -619,12 +626,12 @@ describe("Output Preview application", () => {
     const status = screen.getByRole("status", { name: /Output Preview status:/ });
 
     fireEvent.pointerMove(viewport, { clientX: 350, clientY: 250 });
-    expect(status).toHaveTextContent("ZOOM100%X-150.0Y100.0");
+    expect(status).toHaveTextContent("X-150.0Y100.0");
 
     fireEvent.pointerDown(viewport, { button: 1, pointerId: 1, clientX: 350, clientY: 250 });
     fireEvent.pointerMove(viewport, { button: 1, buttons: 4, pointerId: 1, clientX: 370, clientY: 230 });
     fireEvent.pointerUp(viewport, { button: 1, pointerId: 1, clientX: 370, clientY: 230 });
-    expect(status).toHaveTextContent("ZOOM100%X-150.0Y100.0");
+    expect(status).toHaveTextContent("X-150.0Y100.0");
 
     currentRect = {
       ...viewportRect,
@@ -636,7 +643,7 @@ describe("Output Preview application", () => {
       height: 800
     } as DOMRect;
     act(() => resize?.());
-    expect(status).toHaveTextContent("ZOOM100%X-300.0Y250.0");
+    expect(status).toHaveTextContent("X-300.0Y250.0");
   });
 
   it("keeps Reset available without a plan while Fit remains plan-dependent", () => {
@@ -676,7 +683,7 @@ describe("Output Preview application", () => {
 
     expect(screen.getByRole("combobox")).toHaveValue(svgKey);
     expect(screen.getByRole("button", { name: "Fit Output Preview" })).not.toBeDisabled();
-    expect(screen.getByRole("status", { name: /Output Preview status:/ })).toHaveTextContent("ZOOM100%");
+    expect(screen.getByRole("status", { name: "Output Preview zoom: 100%" })).toBeInTheDocument();
     expect(Number(screen.getByLabelText("Output preview").querySelector('[data-output-preview-layer="output-fill"]')?.getAttribute("width"))).toBe(20);
   });
 
@@ -1010,7 +1017,7 @@ describe("Output Preview application", () => {
     const before = Number(pageFill().getAttribute("x"));
     const viewport = document.querySelector(".output-preview-viewport");
     const status = screen.getByRole("status", { name: /Output Preview status:/ });
-    const zoomBeforePan = status.textContent?.match(/ZOOM\d+%/)?.[0];
+    const zoomBeforePan = screen.getByRole("status", { name: /Output Preview zoom:/ }).textContent;
 
     if (!(viewport instanceof HTMLElement)) throw new Error("missing output preview viewport");
     fireEvent.pointerDown(viewport, { button: 1, pointerId: 1, clientX: 100, clientY: 100 });
@@ -1019,7 +1026,7 @@ describe("Output Preview application", () => {
 
     await waitFor(() => expect(Number(pageFill().getAttribute("x"))).toBeCloseTo(before + 20));
     expect(zoomBeforePan).toBeDefined();
-    expect(status).toHaveTextContent(zoomBeforePan ?? "");
+    expect(screen.getByRole("status", { name: /Output Preview zoom:/ }).textContent).toBe(zoomBeforePan);
     expect(status).toHaveTextContent(/X-?\d+\.\d+Y-?\d+\.\d+/);
   });
 
@@ -1063,7 +1070,6 @@ describe("Output Preview application", () => {
     renderFixture();
     await waitFor(() => expect(Number(pageFill().getAttribute("width"))).toBeGreaterThan(400));
     const viewport = document.querySelector(".output-preview-viewport");
-    const status = screen.getByRole("status", { name: /Output Preview status:/ });
 
     if (!(viewport instanceof HTMLElement)) throw new Error("missing output preview viewport");
     const before = Number(pageFill().getAttribute("x"));
@@ -1071,7 +1077,7 @@ describe("Output Preview application", () => {
     fireEvent.pointerMove(viewport, { buttons: 0, pointerId: 1, clientX: 120, clientY: 100 });
     await waitFor(() => expect(Number(pageFill().getAttribute("x"))).toBeCloseTo(before + 20));
     const afterPan = Number(pageFill().getAttribute("x"));
-    const zoomBeforeWheel = status.textContent?.match(/ZOOM\d+%/)?.[0];
+    const zoomBeforeWheel = screen.getByRole("status", { name: /Output Preview zoom:/ }).textContent;
 
     fireEvent.pointerUp(viewport, { button: 1, pointerId: 1, clientX: 120, clientY: 100 });
     fireEvent.pointerMove(viewport, { buttons: 0, pointerId: 1, clientX: 160, clientY: 100 });
@@ -1079,7 +1085,7 @@ describe("Output Preview application", () => {
 
     fireEvent.wheel(viewport, { deltaY: -100, clientX: 250, clientY: 150 });
     expect(zoomBeforeWheel).toBeDefined();
-    expect(status.textContent?.match(/ZOOM\d+%/)?.[0]).not.toBe(zoomBeforeWheel);
+    expect(screen.getByRole("status", { name: /Output Preview zoom:/ }).textContent).not.toBe(zoomBeforeWheel);
   });
 
   it("keeps the middle-button pan session bound to its pointer and cancels it safely", async () => {
@@ -1326,7 +1332,7 @@ describe("Output Preview application", () => {
     }));
     expect(screen.getByRole("combobox")).toHaveValue(outputKeyFor("print", "A"));
     expect(screen.getByLabelText("Output preview").querySelectorAll('[data-output-preview-layer="reveal-highlight"]')).toHaveLength(1);
-    expect(screen.getByRole("status", { name: /Output Preview status:/ })).toHaveTextContent("ZOOM2000%");
+    expect(screen.getByRole("status", { name: "Output Preview zoom: 2000%" })).toBeInTheDocument();
   });
 
   it("keeps a no-containing target distinct from stale and evaluation failures", async () => {
@@ -1432,7 +1438,7 @@ describe("Output Preview application", () => {
 
     const revealStatus = screen.getByRole("status", { name: /Output Preview status:/ }).textContent;
     const revealGeometryPath = screen.getByLabelText("Output preview").querySelector('[data-output-preview-layer="geometry"]')?.getAttribute("d");
-    expect(revealStatus).toContain("ZOOM2000%");
+    expect(screen.getByRole("status", { name: "Output Preview zoom: 2000%" })).toBeInTheDocument();
 
     const ordinaryEvaluation = pending[2];
     if (!ordinaryEvaluation) throw new Error("missing delayed selected-output evaluation");
