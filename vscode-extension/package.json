@@ -1190,48 +1190,13 @@
               "x": null,
               "y": 12,
               "orientation": "horizontal",
-              "items": [
-                {
-                  "id": "zoomOutCanvas",
-                  "type": "command",
-                  "commandId": "zoomOutCanvas",
-                  "icon": "minus",
-                  "showLabel": false
-                },
-                {
-                  "id": "canvasZoomPercent",
-                  "type": "value",
-                  "valueId": "canvasZoomPercent"
-                },
-                {
-                  "id": "zoomInCanvas",
-                  "type": "command",
-                  "commandId": "zoomInCanvas",
-                  "icon": "plus",
-                  "showLabel": false
-                },
-                {
-                  "id": "resetCanvasView",
-                  "type": "command",
-                  "commandId": "resetCanvasView",
-                  "icon": "scan",
-                  "showLabel": false
-                },
-                {
-                  "id": "fitDrawing",
-                  "type": "command",
-                  "commandId": "fitDrawing",
-                  "icon": "maximize",
-                  "showLabel": false
-                },
-                {
-                  "id": "editCanvasRibbon",
-                  "type": "command",
-                  "commandId": "editCanvasRibbon",
-                  "icon": "settings-2",
-                  "showLabel": false
-                }
-              ]
+              "items": [{
+                "id": "editCanvasRibbon",
+                "type": "command",
+                "commandId": "editCanvasRibbon",
+                "icon": "settings-2",
+                "showLabel": false
+              }]
             }
           ],
           "items": {
@@ -1266,7 +1231,7 @@
                           "properties": {
                             "id": { "type": "string", "minLength": 1 },
                             "type": { "const": "value" },
-                            "valueId": { "enum": ["canvasZoom", "canvasZoomPercent"] }
+                            "valueId": { "const": "canvasZoom" }
                           }
                         }
                       ]

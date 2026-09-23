@@ -16,7 +16,7 @@ export type VscodeCanvasRibbonCommandItem = {
 export type VscodeCanvasRibbonValueItem = {
   id: string;
   type: "value";
-  valueId: "canvasZoom" | "canvasZoomPercent";
+  valueId: "canvasZoom";
 };
 
 export type VscodeCanvasRibbonItem =
@@ -39,48 +39,13 @@ export const defaultVscodeCanvasRibbons = (): VscodeCanvasRibbon[] => [
     x: null,
     y: VSCODE_CANVAS_RIBBON_DEFAULT_Y,
     orientation: "horizontal",
-    items: [
-      {
-        id: "zoomOutCanvas",
-        type: "command",
-        commandId: "zoomOutCanvas",
-        icon: "minus",
-        showLabel: false
-      },
-      {
-        id: "canvasZoomPercent",
-        type: "value",
-        valueId: "canvasZoomPercent"
-      },
-      {
-        id: "zoomInCanvas",
-        type: "command",
-        commandId: "zoomInCanvas",
-        icon: "plus",
-        showLabel: false
-      },
-      {
-        id: "resetCanvasView",
-        type: "command",
-        commandId: "resetCanvasView",
-        icon: "scan",
-        showLabel: false
-      },
-      {
-        id: "fitDrawing",
-        type: "command",
-        commandId: "fitDrawing",
-        icon: "maximize",
-        showLabel: false
-      },
-      {
-        id: "editCanvasRibbon",
-        type: "command",
-        commandId: "editCanvasRibbon",
-        icon: "settings-2",
-        showLabel: false
-      }
-    ]
+    items: [{
+      id: "editCanvasRibbon",
+      type: "command",
+      commandId: "editCanvasRibbon",
+      icon: "settings-2",
+      showLabel: false
+    }]
   }
 ];
 
@@ -120,15 +85,11 @@ const normalizeCommandItem = (value: unknown): VscodeCanvasRibbonCommandItem | n
 const normalizeValueItem = (value: unknown): VscodeCanvasRibbonValueItem | null => {
   if (!isObject(value)) return null;
   const id = nonEmptyString(value.id);
-  if (
-    id === null ||
-    value.type !== "value" ||
-    (value.valueId !== "canvasZoom" && value.valueId !== "canvasZoomPercent")
-  ) return null;
+  if (id === null || value.type !== "value" || value.valueId !== "canvasZoom") return null;
   return {
     id,
     type: "value",
-    valueId: value.valueId === "canvasZoomPercent" ? "canvasZoomPercent" : "canvasZoom"
+    valueId: "canvasZoom"
   };
 };
 

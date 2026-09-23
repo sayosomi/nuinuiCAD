@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { RefObject } from "react";
 import type { ModulePreviewSessionSnapshot } from "../dsl/modulePreviewState";
 import type { ModulePreviewTarget } from "../dsl/modulePreviewTarget";
+import type { CanvasHostAdapter } from "../components/canvasHostAdapter";
 
 const mocks = vi.hoisted(() => ({
   queryModulePreviewTarget: vi.fn(),
@@ -12,9 +13,19 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("../components/DrawingCanvas", () => ({
-  DrawingCanvas: ({ canvasFocusRef }: { canvasFocusRef: RefObject<HTMLDivElement | null> }) => {
+  DrawingCanvas: ({
+    canvasFocusRef,
+    hostAdapter
+  }: {
+    canvasFocusRef: RefObject<HTMLDivElement | null>;
+    hostAdapter: CanvasHostAdapter;
+  }) => {
     mocks.canvasMounts += 1;
-    return <div ref={canvasFocusRef} data-testid="module-preview-canvas" />;
+    return (
+      <div ref={canvasFocusRef} data-testid="module-preview-canvas">
+        {hostAdapter.renderHostOverlay?.({ width: 400, height: 300 }, { pickModeChromeHeight: 0 })}
+      </div>
+    );
   }
 }));
 vi.mock("../geometry/useEvaluationEngine", () => ({
@@ -108,6 +119,7 @@ describe("ModulePreviewApp Canvas-first composition", () => {
     expect(screen.getByRole("button", { name: "Preview Values..." })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Insert Instance" })).toBeInTheDocument();
     expect(document.querySelector("[data-module-preview-invocation-surface]")).toBeNull();
+    expect(document.querySelector("[data-canvas-viewport-controls]")).toBeNull();
     expect(screen.queryByRole("separator")).toBeNull();
     act(() => screen.getByRole("button", { name: "Preview Values..." }).click());
     expect(mocks.postMessage).toHaveBeenCalledWith({ type: "modulePreviewEditValues" });

@@ -937,6 +937,12 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     panRef.current = null;
   }, []);
 
+  const clearSpaceOwnership = useCallback(() => {
+    spaceHeldRef.current = false;
+    setSpaceHeld(false);
+    stopSpacePan();
+  }, [stopSpacePan]);
+
   const handleViewportKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (
       (event.key !== " " && event.code !== "Space") ||
@@ -950,22 +956,17 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
 
   useEffect(() => {
     const isSpaceKey = (event: KeyboardEvent): boolean => event.key === " " || event.code === "Space";
-    const releaseSpace = () => {
-      spaceHeldRef.current = false;
-      setSpaceHeld(false);
-      stopSpacePan();
-    };
     const onKeyUp = (event: KeyboardEvent) => {
-      if (isSpaceKey(event)) releaseSpace();
+      if (isSpaceKey(event)) clearSpaceOwnership();
     };
     window.addEventListener("keyup", onKeyUp, { capture: true });
-    window.addEventListener("blur", releaseSpace);
+    window.addEventListener("blur", clearSpaceOwnership);
     return () => {
       window.removeEventListener("keyup", onKeyUp, { capture: true });
-      window.removeEventListener("blur", releaseSpace);
-      releaseSpace();
+      window.removeEventListener("blur", clearSpaceOwnership);
+      clearSpaceOwnership();
     };
-  }, [stopSpacePan]);
+  }, [clearSpaceOwnership]);
 
   const zoomViewportAtCenter = useCallback((zoomFactor: number) => {
     const size = latestViewportSizeRef.current;
@@ -1370,6 +1371,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         className="output-preview-viewport"
         tabIndex={0}
         data-vscode-context={vscodeWebviewContextDataFor("blank")}
+        onBlur={clearSpaceOwnership}
         onKeyDown={handleViewportKeyDown}
         onWheel={handleWheel}
         onPointerDown={handlePointerDown}

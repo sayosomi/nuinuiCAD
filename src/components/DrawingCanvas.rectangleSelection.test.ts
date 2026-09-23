@@ -543,6 +543,26 @@ describe("DrawingCanvas rectangle selection", () => {
     expect(panCanvasViewport).not.toHaveBeenCalled();
   });
 
+  it("clears Space ownership when Canvas focus is lost before the next primary gesture", () => {
+    const panCanvasViewport = vi.fn();
+    const commitCanvasRectangleSelection = vi.fn();
+    const { viewport } = renderCanvas({
+      panCanvasViewport,
+      commitCanvasRectangleSelection,
+      spacePrimaryPanEnabled: true
+    });
+
+    viewport.focus();
+    fireEvent.keyDown(viewport, { key: " " });
+    fireEvent.blur(viewport);
+    fireEvent.pointerDown(viewport, { button: 0, buttons: 1, ...pointer(50, 50), pointerId: 21 });
+    fireEvent.pointerMove(viewport, { buttons: 1, ...pointer(80, 90), pointerId: 21 });
+    fireEvent.pointerUp(viewport, { button: 0, buttons: 0, ...pointer(80, 90), pointerId: 21 });
+
+    expect(panCanvasViewport).not.toHaveBeenCalled();
+    expect(commitCanvasRectangleSelection).toHaveBeenCalledOnce();
+  });
+
   it("clears Space-primary pan on pointer cancellation and lost capture", () => {
     const panCanvasViewport = vi.fn();
     const { viewport } = renderCanvas({ panCanvasViewport, spacePrimaryPanEnabled: true });

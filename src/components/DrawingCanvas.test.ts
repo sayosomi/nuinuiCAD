@@ -393,6 +393,68 @@ beforeEach(() => {
 });
 
 describe("DrawingCanvas rendering", () => {
+  it("uses Space-primary pan instead of a selected point drag", () => {
+    const panCanvasViewport = vi.fn();
+    const movePointElementByDelta = vi.fn();
+    const { viewport } = renderWithHostAdapter({
+      panCanvasViewport,
+      movePointElementByDelta,
+      spacePrimaryPanEnabled: true
+    });
+
+    viewport.focus();
+    fireEvent.keyDown(viewport, { key: " " });
+    fireEvent.pointerDown(viewport, { button: 0, buttons: 1, clientX: 300, clientY: 250, pointerId: 31 });
+    fireEvent.pointerMove(viewport, { buttons: 1, clientX: 320, clientY: 260, pointerId: 31 });
+    fireEvent.pointerUp(viewport, { button: 0, buttons: 0, clientX: 320, clientY: 260, pointerId: 31 });
+    fireEvent.keyUp(viewport, { key: " " });
+
+    expect(panCanvasViewport).toHaveBeenCalledWith(20, 10);
+    expect(movePointElementByDelta).not.toHaveBeenCalled();
+  });
+
+  it("uses Space-primary pan instead of a selected Bezier-handle drag", () => {
+    useCadStore.setState({ selectedElementId: "curve-ac", selectedElementIds: ["curve-ac"] });
+    const panCanvasViewport = vi.fn();
+    const moveBezierHandleByDelta = vi.fn();
+    const { viewport } = renderWithHostAdapter({
+      panCanvasViewport,
+      moveBezierHandleByDelta,
+      spacePrimaryPanEnabled: true
+    });
+
+    viewport.focus();
+    fireEvent.keyDown(viewport, { key: " " });
+    fireEvent.pointerDown(viewport, { button: 0, buttons: 1, clientX: 345, clientY: 250, pointerId: 32 });
+    fireEvent.pointerMove(viewport, { buttons: 1, clientX: 365, clientY: 260, pointerId: 32 });
+    fireEvent.pointerUp(viewport, { button: 0, buttons: 0, clientX: 365, clientY: 260, pointerId: 32 });
+    fireEvent.keyUp(viewport, { key: " " });
+
+    expect(panCanvasViewport).toHaveBeenCalledWith(20, 10);
+    expect(moveBezierHandleByDelta).not.toHaveBeenCalled();
+  });
+
+  it("uses Space-primary pan instead of active Pick Mode selection", () => {
+    const applyPickedPoint = vi.fn();
+    const panCanvasViewport = vi.fn();
+    const { viewport } = renderWithHostAdapter({
+      activePointPickTarget: { elementId: "line-ab", parameterKey: "startPoint" },
+      applyPickedPoint,
+      panCanvasViewport,
+      spacePrimaryPanEnabled: true
+    });
+
+    viewport.focus();
+    fireEvent.keyDown(viewport, { key: " " });
+    fireEvent.pointerDown(viewport, { button: 0, buttons: 1, clientX: 300, clientY: 250, pointerId: 33 });
+    fireEvent.pointerMove(viewport, { buttons: 1, clientX: 320, clientY: 260, pointerId: 33 });
+    fireEvent.pointerUp(viewport, { button: 0, buttons: 0, clientX: 320, clientY: 260, pointerId: 33 });
+    fireEvent.keyUp(viewport, { key: " " });
+
+    expect(panCanvasViewport).toHaveBeenCalledWith(20, 10);
+    expect(applyPickedPoint).not.toHaveBeenCalled();
+  });
+
   it("does not publish stale Canvas presentation eligibility", async () => {
     const hostAdapter = createFakeCanvasHostAdapter({ compiledDocumentRevision: 1 });
     const evaluation = evaluateElements(hostAdapter.elements);

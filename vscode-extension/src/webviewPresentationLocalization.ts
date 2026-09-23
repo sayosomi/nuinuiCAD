@@ -50,6 +50,7 @@ export const webviewPresentationTranslationCatalog = {
   "canvas.ribbon.command.toggleCanvasPoints.description": { en: "Show or hide Canvas points.", ja: "Canvasの点を表示または非表示にします。" },
   "canvas.ribbon.command.editCanvasRibbon.label": { en: "Edit Canvas Ribbon", ja: "Canvas リボンを編集" },
   "canvas.ribbon.command.editCanvasRibbon.description": { en: "Open the VS Code setting for Canvas Ribbon items.", ja: "Canvas リボン項目のVS Code設定を開きます。" },
+  "canvas.viewportControls.title": { en: "Canvas viewport controls", ja: "Canvas表示領域の操作" },
   "canvas.status.label": { en: "Canvas status", ja: "Canvasの状態" },
   "canvas.status.description": { en: "Current Canvas zoom and pointer position.", ja: "現在のCanvasズームとポインター位置です。" },
   "canvas.zoomPercent.label": { en: "Canvas zoom", ja: "Canvasズーム" },

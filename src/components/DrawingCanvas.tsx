@@ -1685,6 +1685,11 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     stopPanningSession(event.pointerId, event.currentTarget);
   }, [stopPanningSession]);
 
+  const handleCanvasBlur = useCallback(() => {
+    spaceHeldRef.current = false;
+    if (panDragRef.current?.mode === "space-primary") stopPanningSession();
+  }, [stopPanningSession]);
+
   useEffect(() => {
     if (!hostAdapter.spacePrimaryPanEnabled) {
       spaceHeldRef.current = false;
@@ -2263,6 +2268,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
         tabIndex={-1}
         data-canvas-viewport="true"
         data-vscode-context={hostAdapter.canvasContextMenuData}
+        onBlur={handleCanvasBlur}
         onKeyDown={handleCanvasKeyDown}
         onContextMenu={handleContextMenu}
         onWheel={handleWheel}

@@ -24,7 +24,6 @@ import {
   type VscodeCanvasWorldPoint,
   vscodeCanvasStatusPresentationFor
 } from "./vscodeCanvasRibbonStatus";
-import { vscodeViewportZoomPresentationFor } from "./vscodeViewportStatus";
 import { vscodeCanvasRibbonContextData } from "./protocol";
 
 export type VSCodeCanvasRibbonOverlayProps = {
@@ -92,14 +91,6 @@ const vscodeCanvasRibbonPresentationsFor = (
   verticalHandlePlacement: ribbon.orientation === "vertical" ? "side" : undefined,
     items: ribbon.items.map((item) => {
       if (item.type !== "value") return commandItemPresentationFor(item, ribbonCommandContext, presentation);
-      if (item.valueId === "canvasZoomPercent") {
-        return vscodeViewportZoomPresentationFor(
-          item.id,
-          canvasViewport,
-          presentation?.text("canvas.zoomPercent.label", "Canvas zoom") ?? "Canvas zoom",
-          presentation?.text("canvas.zoomPercent.description", "Current Canvas zoom.") ?? "Current Canvas zoom."
-        );
-      }
       return vscodeCanvasStatusPresentationFor(
         item.id,
         canvasViewport,
