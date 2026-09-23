@@ -156,6 +156,28 @@ describe("CommandRibbonView", () => {
     expect(view.container.querySelector(".command-ribbon-tooltip")).toHaveTextContent("Go to Source");
   });
 
+  it("marks single-field values so VS Code can use a compact value layout", () => {
+    const view = render(
+      <CommandRibbonView
+        ribbon={{
+          ...ribbonFor("horizontal"),
+          items: [{
+            id: "zoom-only",
+            type: "value",
+            label: "Canvas zoom",
+            description: "Current Canvas zoom.",
+            fields: [{ label: "", value: "726%" }]
+          }]
+        }}
+        iconResolver={() => Circle}
+      />
+    );
+
+    const value = view.container.querySelector(".command-ribbon-value");
+    expect(value).toHaveClass("is-single-field");
+    expect(value?.querySelectorAll(".command-ribbon-value-field")).toHaveLength(1);
+  });
+
   it("uses an explicit tooltip override without the command description", () => {
     render(
       <CommandRibbonView

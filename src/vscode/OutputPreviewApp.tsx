@@ -316,7 +316,6 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   const viewportRef = useRef<HTMLDivElement>(null);
   const panRef = useRef<PanState | null>(null);
   const spaceHeldRef = useRef(false);
-  const [spaceHeld, setSpaceHeld] = useState(false);
   const [reactHandledPointerEvents] = useState(() => new WeakSet<Event>());
   const latestHostDocumentVersionRef = useRef<number | null>(null);
   const outputPreviewPlaceCommitPendingRef = useRef<number | null>(null);
@@ -939,7 +938,6 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
 
   const clearSpaceOwnership = useCallback(() => {
     spaceHeldRef.current = false;
-    setSpaceHeld(false);
     stopSpacePan();
   }, [stopSpacePan]);
 
@@ -951,7 +949,6 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     event.preventDefault();
     event.stopPropagation();
     spaceHeldRef.current = true;
-    setSpaceHeld(true);
   };
 
   useEffect(() => {
@@ -1425,7 +1422,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
               viewport={viewport}
               onNavigate={navigateToSourceRange}
               onHighlightPlaceIdChange={setHighlightedPlaceId}
-              spacePrimaryPanActive={spaceHeld}
+              spacePrimaryPanActiveRef={spaceHeldRef}
               clearInteractionKey={clearPlaceInteractionKey}
               focusViewport={() => viewportRef.current?.focus()}
               presentation={canvasPresentationAdapter}

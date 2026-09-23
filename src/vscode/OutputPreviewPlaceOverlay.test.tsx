@@ -137,6 +137,7 @@ describe("OutputPreviewPlaceOverlay", () => {
     const onViewportPointerDown = vi.fn();
     const onBeginDrag = vi.fn();
     const onHighlight = vi.fn();
+    const spaceHeldRef = { current: true };
     render(
       <div onPointerDown={onViewportPointerDown}>
         <OutputPreviewPlaceOverlay
@@ -147,7 +148,7 @@ describe("OutputPreviewPlaceOverlay", () => {
           onNavigate={vi.fn()}
           onHighlightPlaceIdChange={onHighlight}
           onBeginDrag={onBeginDrag}
-          spacePrimaryPanActive
+          spacePrimaryPanActiveRef={spaceHeldRef}
         />
       </div>
     );
@@ -159,6 +160,39 @@ describe("OutputPreviewPlaceOverlay", () => {
     expect(onViewportPointerDown).toHaveBeenCalledOnce();
     expect(onBeginDrag).not.toHaveBeenCalled();
     expect(onHighlight).not.toHaveBeenLastCalledWith("a");
+  });
+
+  it("starts an ordinary primary handle drag when the shared Space owner is clear", () => {
+    const onBeginDrag = vi.fn(() => ({
+      x: { literal: 10 },
+      y: { literal: 20 }
+    }) as OutputPreviewPlaceDragProof);
+    const onPreviewDrag = vi.fn(() => true);
+    const onCommitDrag = vi.fn(() => true);
+    const spaceHeldRef = { current: false };
+    render(
+      <OutputPreviewPlaceOverlay
+        projections={[projection({ placeId: "a", groupName: "Front" })]}
+        sourceText={sourceText}
+        viewportSize={{ width: 400, height: 300 }}
+        viewport={{ panX: 0, panY: 0, zoom: 1 }}
+        onNavigate={vi.fn()}
+        onHighlightPlaceIdChange={vi.fn()}
+        onBeginDrag={onBeginDrag}
+        onPreviewDrag={onPreviewDrag}
+        onCommitDrag={onCommitDrag}
+        spacePrimaryPanActiveRef={spaceHeldRef}
+      />
+    );
+
+    const handle = screen.getByRole("button", { name: "Place Front" });
+    fireEvent.pointerDown(handle, { button: 0, buttons: 1, clientX: 100, clientY: 100, pointerId: 9 });
+    fireEvent.pointerMove(handle, { button: 0, buttons: 1, clientX: 110, clientY: 100, pointerId: 9 });
+    fireEvent.pointerUp(handle, { button: 0, buttons: 0, clientX: 110, clientY: 100, pointerId: 9 });
+
+    expect(onBeginDrag).toHaveBeenCalledOnce();
+    expect(onPreviewDrag).toHaveBeenCalledOnce();
+    expect(onCommitDrag).toHaveBeenCalledOnce();
   });
 
   it("starts a primary handle drag through the native boundary when React delegation is interrupted", async () => {

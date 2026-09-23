@@ -398,6 +398,45 @@ describe("Output Preview application", () => {
     expect(Number(pageFill().getAttribute("x"))).toBeCloseTo(beforeOrdinary + 20);
   });
 
+  it("lets a Space-primary press on a place handle pan the viewport without starting place drag", async () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(viewportRect);
+    mocks.evaluateOutputPlan.mockImplementation(async ({ output }: { output: TestOutput }) => {
+      const plan = planFor(output);
+      const layout = useCadDocumentStore.getState().layouts.find((candidate) => candidate.id === output.layoutId);
+      const placement = layout?.placements[0];
+      if (!placement) return plan;
+      return {
+        ...plan,
+        placements: [{
+          id: placement.id,
+          groupId: placement.groupId,
+          origin: { x: 0, y: 0 },
+          at: { x: 0, y: 0 },
+          scale: 1,
+          angleDeg: 0,
+          mirror: false,
+          drawables: []
+        }]
+      };
+    });
+    renderFixture();
+    await waitFor(() => expect(Number(pageFill().getAttribute("width"))).toBeGreaterThan(400));
+    const viewport = document.querySelector(".output-preview-viewport");
+    const handle = screen.getByRole("button", { name: "Place G" });
+    if (!(viewport instanceof HTMLElement)) throw new Error("missing output preview viewport");
+
+    const before = Number(pageFill().getAttribute("x"));
+    viewport.focus();
+    fireEvent.keyDown(viewport, { key: " " });
+    fireEvent.pointerDown(handle, { button: 0, buttons: 1, pointerId: 16, clientX: 100, clientY: 100 });
+    fireEvent.pointerMove(handle, { buttons: 1, pointerId: 16, clientX: 120, clientY: 100 });
+    fireEvent.pointerUp(handle, { button: 0, buttons: 0, pointerId: 16, clientX: 120, clientY: 100 });
+    fireEvent.keyUp(viewport, { key: " " });
+
+    expect(Number(pageFill().getAttribute("x"))).toBeCloseTo(before + 20);
+    expect(vi.mocked(api.postMessage).mock.calls.some(([message]) => message.type === "outputPreviewPlaceCommit")).toBe(false);
+  });
+
   it("terminates Space-primary pan on release, cancel, lost capture, and viewport blur", async () => {
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(viewportRect);
     mocks.evaluateOutputPlan.mockImplementation(async ({ output }: { output: TestOutput }) => planFor(output));

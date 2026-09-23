@@ -100,6 +100,12 @@ describe("shared stylesheet host layout ownership", () => {
     const valueField = ruleBody(".vscode-canvas-webview .command-ribbon-value-field");
     expect(valueField).toMatch(/min-width:\s*0/);
     expect(valueField).not.toMatch(/min-width:\s*28px/);
+
+    const singleFieldValue = ruleBody(
+      ".vscode-canvas-webview .command-ribbon-value.is-single-field .command-ribbon-value-fields"
+    );
+    expect(singleFieldValue).toMatch(/grid-template-columns:\s*max-content/);
+    expect(singleFieldValue).toMatch(/gap:\s*0/);
   });
 
   it("lets VS Code tooltips escape shared Ribbon clipping", () => {

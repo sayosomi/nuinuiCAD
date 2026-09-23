@@ -197,12 +197,16 @@ const renderDrawingCanvas = () => {
   return { ...view, viewport };
 };
 
-const renderWithHostAdapter = (overrides: Partial<CanvasHostAdapter> = {}) => {
+const renderWithHostAdapter = (
+  overrides: Partial<CanvasHostAdapter> = {},
+  options: { nativePointerBoundaryFallback?: boolean } = {}
+) => {
   const hostAdapter = createFakeCanvasHostAdapter(overrides);
   const view = render(createElement(DrawingCanvas, {
     evaluation: evaluateElements(hostAdapter.elements),
     canvasFocusRef: createRef<HTMLDivElement>(),
-    hostAdapter
+    hostAdapter,
+    nativePointerBoundaryFallback: options.nativePointerBoundaryFallback
   }));
   const viewport = view.container.querySelector<HTMLDivElement>(".canvas-viewport");
   if (!viewport) throw new Error("Missing canvas viewport");
@@ -456,6 +460,76 @@ describe("DrawingCanvas rendering", () => {
     expect(panCanvasViewport).toHaveBeenCalledWith(20, 10);
     expect(applyPickedPoint).not.toHaveBeenCalled();
     expect(dispatchCanvasPickCommand.mock.calls.some(([commandId]) => commandId === "applySelectedPickCandidate")).toBe(false);
+  });
+
+  it("keeps production Canvas Space-primary pan through the native pointer fallback", async () => {
+    const panCanvasViewport = vi.fn();
+    const selectElement = vi.fn();
+    const commitCanvasRectangleSelection = vi.fn();
+    const movePointElementByDelta = vi.fn();
+    const moveBezierHandleByDelta = vi.fn();
+    const dispatchCanvasPickCommand = vi.fn();
+    const { container, hostAdapter, viewport } = renderWithHostAdapter({
+      activePointPickTarget: { elementId: "line-ab", parameterKey: "startPoint" },
+      panCanvasViewport,
+      selectElement,
+      commitCanvasRectangleSelection,
+      movePointElementByDelta,
+      moveBezierHandleByDelta,
+      dispatchCanvasPickCommand,
+      spacePrimaryPanEnabled: true
+    }, { nativePointerBoundaryFallback: true });
+    const geometry = container.querySelector<SVGCircleElement>(".overlay-draggable-point");
+    if (!geometry) throw new Error("Missing rendered Canvas geometry");
+
+    const blockReactPointerBoundary = (event: Event) => event.stopImmediatePropagation();
+    const pointerEvents = ["pointerdown", "pointermove", "pointerup", "pointercancel", "lostpointercapture"];
+    pointerEvents.forEach((eventName) => container.addEventListener(eventName, blockReactPointerBoundary));
+
+    try {
+      viewport.focus();
+      fireEvent.keyDown(viewport, { key: " " });
+      await act(async () => {
+        fireEvent.pointerDown(geometry, {
+          button: 0,
+          buttons: 1,
+          clientX: 300,
+          clientY: 250,
+          pointerId: 35
+        });
+        await Promise.resolve();
+      });
+      await act(async () => {
+        fireEvent.pointerMove(geometry, {
+          buttons: 1,
+          clientX: 320,
+          clientY: 260,
+          pointerId: 35
+        });
+        await Promise.resolve();
+      });
+      await act(async () => {
+        fireEvent.pointerUp(geometry, {
+          button: 0,
+          buttons: 0,
+          clientX: 320,
+          clientY: 260,
+          pointerId: 35
+        });
+        await Promise.resolve();
+      });
+      fireEvent.keyUp(viewport, { key: " " });
+
+      expect(panCanvasViewport).toHaveBeenCalledWith(20, 10);
+      expect(selectElement).not.toHaveBeenCalled();
+      expect(commitCanvasRectangleSelection).not.toHaveBeenCalled();
+      expect(movePointElementByDelta).not.toHaveBeenCalled();
+      expect(moveBezierHandleByDelta).not.toHaveBeenCalled();
+      expect(dispatchCanvasPickCommand.mock.calls.some(([commandId]) => commandId === "applySelectedPickCandidate")).toBe(false);
+      expect(hostAdapter.flushSourceEditorOnCanvasPointerDown).not.toHaveBeenCalled();
+    } finally {
+      pointerEvents.forEach((eventName) => container.removeEventListener(eventName, blockReactPointerBoundary));
+    }
   });
 
   it("does not re-arm a consumed Pick apply on repeated Space keydown", () => {

@@ -1840,11 +1840,11 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
   const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (!claimPrimaryPointerDown(event)) return;
     markReactPointerEvent(event);
-    const spacePanActive = hostAdapter.spacePrimaryPanEnabled &&
-      spaceHeldRef.current &&
-      canvasFocusRef.current === document.activeElement;
+    const spacePanActive = hostAdapter.spacePrimaryPanEnabled && spaceHeldRef.current;
     if (event.button === 0 && spacePanActive) {
-      if (!canvasPointerBoundaryFallbackShouldRun(event.nativeEvent)) return;
+      if (!canvasPointerBoundaryFallbackShouldRun(
+        (event.nativeEvent ?? event) as unknown as PointerEvent
+      )) return;
       event.preventDefault();
       clearPendingSpacePickApply();
       if (pendingPointerStateRef.current.kind === "waiting") {

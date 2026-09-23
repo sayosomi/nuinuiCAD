@@ -219,7 +219,7 @@ export const CommandRibbonView = ({
               <span
                 key={item.id}
                 ref={(node) => setTriggerNode(tooltipId, node)}
-                className="command-ribbon-value"
+                className={`command-ribbon-value${item.fields.length === 1 ? " is-single-field" : ""}`}
                 role="status"
                 aria-label={`${item.label}: ${valueText}`}
                 aria-describedby={tooltipId}
