@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { readFile, realpath, stat } from "node:fs/promises";
 import path from "node:path";
 import { AutomationDocument } from "@nuinuicad/nui-language/document";
-import { compileDslDocument, type CompiledDslDocument } from "@nuinuicad/nui-language";
+import { analyzeDslLintDiagnostics, compileDslDocument, type CompiledDslDocument } from "@nuinuicad/nui-language";
 import type { DslDiagnostic, DslDiagnosticRelatedInformation, DslStatement } from "@nuinuicad/nui-language";
 import type { DslPhysicalSpan, SourceSnapshot } from "@nuinuicad/nui-language";
 import type { CadElement, ElementId } from "@nuinuicad/nui-language";
@@ -89,6 +89,7 @@ export type DocumentInspectDto = {
   diagnostics: {
     compile: DiagnosticDto[];
     binding: DiagnosticDto[];
+    lint: DiagnosticDto[];
   };
   summary: {
     declarations: DeclarationSummaryDto[];
@@ -359,6 +360,9 @@ export const inspectNuiDocument = async (requestedPath: string): Promise<Documen
         diagnosticDto(diagnostic, source.sourceRevision, source.normalizedSource, lineStarts)
       ),
       binding: (currentCompiled.bindingIssueDiagnostics ?? []).map((diagnostic) =>
+        diagnosticDto(diagnostic, source.sourceRevision, source.normalizedSource, lineStarts)
+      ),
+      lint: analyzeDslLintDiagnostics(currentCompiled).map((diagnostic) =>
         diagnosticDto(diagnostic, source.sourceRevision, source.normalizedSource, lineStarts)
       )
     },

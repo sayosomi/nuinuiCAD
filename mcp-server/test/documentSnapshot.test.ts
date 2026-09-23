@@ -55,6 +55,47 @@ describe("inspectNuiDocument", () => {
     ]));
   });
 
+  it("keeps lint diagnostics separate and valid-only lint does not change compile status", async () => {
+    const source = [
+      "nui 1",
+      "const unused: number = 1"
+    ].join("\r\n");
+    const filePath = await makeTempDocument(source);
+
+    const result = await inspectNuiDocument(filePath);
+    expect(result.compileStatus).toBe("valid");
+    expect(result.diagnostics.compile).toEqual([]);
+    expect(result.diagnostics.binding).toEqual([]);
+    expect(result.diagnostics.lint).toEqual([
+      expect.objectContaining({
+        severity: "warning",
+        code: "unused-typed-declaration",
+        sourceRevision: result.lifecycle.sourceRevision,
+        range: expect.objectContaining({
+          sourceRevision: result.lifecycle.sourceRevision,
+          segments: [expect.objectContaining({
+            from: expect.objectContaining({ line: 2 }),
+            to: expect.objectContaining({ line: 2 })
+          })]
+        })
+      })
+    ]);
+    expect(rangeText(source, result.diagnostics.lint[0]!.range!)).toBe("unused");
+  });
+
+  it("leaves existing compile diagnostics unchanged when lint proof is unavailable", async () => {
+    const filePath = await makeTempDocument([
+      "nui 1",
+      "const unused: number = 1",
+      "this is not valid nui syntax"
+    ].join("\n"));
+
+    const result = await inspectNuiDocument(filePath);
+    expect(result.compileStatus).toBe("fatal");
+    expect(result.diagnostics.compile.some((diagnostic) => diagnostic.severity === "error")).toBe(true);
+    expect(result.diagnostics.lint).toEqual([]);
+  });
+
   it("keeps element IDs stable while exact source identity is unchanged", async () => {
     const filePath = await makeTempDocument([
       "nui 1",

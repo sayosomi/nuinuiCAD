@@ -25,7 +25,7 @@ export const compilerDiagnosticsFor = nuiDiagnosticsFor;
 /** @deprecated Kept for existing host diagnostics tests and adapters. */
 export const compilerDiagnosticsForState = (
   sourceText: string,
-  state: Pick<AutomationDocumentState, "diagnostics" | "bindingIssueDiagnostics">
+  state: Pick<AutomationDocumentState, "diagnostics" | "bindingIssueDiagnostics" | "currentCompiled">
 ): CompilerDiagnostic[] => nuiDiagnosticsForState(sourceText, state);
 
 export type { DslDiagnostic };

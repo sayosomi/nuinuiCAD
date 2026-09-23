@@ -4947,6 +4947,27 @@ describe("VS Code compiler diagnostics lifecycle", () => {
     expect(context.subscriptions).toContain(collection);
   });
 
+  it("publishes lint warnings through the existing single DiagnosticCollection alongside correctness warnings", () => {
+    const document = documentFor(
+      "/tmp/lint.nui",
+      "file:///tmp/lint.nui",
+      [
+        "nui 1",
+        "const Unused: number = 1",
+        "style UnusedStyle {",
+        "  visible: true,",
+        "}"
+      ].join("\n")
+    );
+    setup(false, null, [document]);
+
+    expect(mocks.createDiagnosticCollection).toHaveBeenCalledTimes(1);
+    expect(collectionFor().set).toHaveBeenCalledWith(document.uri, expect.arrayContaining([
+      expect.objectContaining({ code: "unused-typed-declaration", severity: 1 }),
+      expect.objectContaining({ code: "unused-drawing-style", severity: 1 })
+    ]));
+  });
+
   it("publishes exact graph-qualified imported diagnostics and clears them during invalidation", () => {
     const rootSource = "nui 1\nimport \"./dependency.nui\" as dependency\n";
     const dependencySource = "nui 1\nexport module Broken() {\n}\n";

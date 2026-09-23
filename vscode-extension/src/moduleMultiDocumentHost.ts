@@ -1,4 +1,4 @@
-import { compileDslDocument } from "@nuinuicad/nui-language";
+import { analyzeDslLintDiagnostics, compileDslDocument } from "@nuinuicad/nui-language";
 import type { DslCompletionSemanticSnapshot } from "@nuinuicad/nui-language";
 import { createModuleRuntimeContext } from "@nuinuicad/nui-language";
 import {
@@ -343,6 +343,9 @@ export const projectVscodeModuleDiagnostics: VscodeMultiDocumentDiagnosticsProje
       semantic
     );
     for (const diagnostic of projected) add(projectCompilerDiagnostic(graph.rootSource.normalizedSource, sourceIdentity, diagnostic));
+    for (const diagnostic of analyzeDslLintDiagnostics(diagnosticCompiled)) {
+      add(projectDslDiagnostic(graph.rootSource.normalizedSource, sourceIdentity, diagnostic));
+    }
   }
 
   const unique = new Map<string, VscodeMultiDocumentDiagnostic>();

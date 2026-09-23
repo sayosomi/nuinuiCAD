@@ -71,6 +71,17 @@ describe("diagnostic presentation localization", () => {
     expect(diagnosticTextFor(diagnostic, "ja-JP")).toBe("Style「TailoredStyle」はどこからも使用されていません。");
   });
 
+  it("localizes source lint declaration names", () => {
+    const source = "nui 1\nconst Unused: number = 1\n";
+    const document = AutomationDocument.fromSource(source);
+    const diagnostic = compilerDiagnosticsForState(document.getSource(), document.getState()).find(
+      (candidate) => candidate.code === "unused-typed-declaration"
+    );
+    if (!diagnostic) throw new Error("missing production lint diagnostic");
+    expect(diagnosticTextFor(diagnostic, "en")).toBe("Declaration 'Unused' is not used anywhere.");
+    expect(diagnosticTextFor(diagnostic, "ja-JP")).toBe("宣言「Unused」はどこからも使用されていません。");
+  });
+
   it("keeps a Module parameter name through semantic projection in both display languages", () => {
     const source = [
       "nui 1",

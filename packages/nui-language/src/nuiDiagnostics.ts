@@ -1,5 +1,6 @@
 import type { AutomationDocumentState } from "./document/automationDocument";
 import type { DslDiagnostic, DslDiagnosticPresentation } from "./dsl/dslTypes";
+import { analyzeDslLintDiagnostics } from "./dsl/dslLintDiagnostics";
 
 export type NuiDiagnosticPosition = {
   line: number;
@@ -165,5 +166,16 @@ export const nuiDiagnosticsFor = (
 
 export const nuiDiagnosticsForState = (
   sourceText: string,
-  state: Pick<AutomationDocumentState, "diagnostics" | "bindingIssueDiagnostics">
-): NuiDiagnostic[] => nuiDiagnosticsFor(sourceText, state.diagnostics, state.bindingIssueDiagnostics);
+  state: Pick<AutomationDocumentState, "diagnostics" | "bindingIssueDiagnostics" | "currentCompiled">
+): NuiDiagnostic[] => {
+  const diagnostics = nuiDiagnosticsFor(sourceText, state.diagnostics, state.bindingIssueDiagnostics);
+  const currentCompiled = "currentCompiled" in state ? state.currentCompiled : undefined;
+  const normalizedSource = normalizedSourceFor(sourceText);
+  if (!currentCompiled || currentCompiled.spans.sourceMap.source !== normalizedSource) return diagnostics;
+  return [
+    ...diagnostics,
+    ...analyzeDslLintDiagnostics(currentCompiled)
+      .map((diagnostic) => toNuiDiagnostic(sourceText, diagnostic))
+      .filter((diagnostic): diagnostic is NuiDiagnostic => diagnostic !== null)
+  ];
+};
