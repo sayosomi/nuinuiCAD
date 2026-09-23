@@ -107,31 +107,31 @@ export const pickCommandDefinitions = {
     id: "selectNextPickCandidate",
     label: "次の選択候補へ",
     shortcuts: [{ keys: "ArrowDown" }],
-    run: () => selectPickCandidateByOffset(1)
+    run: (context) => selectPickCandidateByOffset(1, undefined, context?.pickCandidateAuthority)
   },
   selectPreviousPickCandidate: {
     id: "selectPreviousPickCandidate",
     label: "前の選択候補へ",
     shortcuts: [{ keys: "ArrowUp" }],
-    run: () => selectPickCandidateByOffset(-1)
+    run: (context) => selectPickCandidateByOffset(-1, undefined, context?.pickCandidateAuthority)
   },
   selectNextPickOption: {
     id: "selectNextPickOption",
     label: "行内の次の候補へ",
     shortcuts: [{ keys: "ArrowRight" }],
-    run: () => selectPickOptionByOffset(1)
+    run: (context) => selectPickOptionByOffset(1, undefined, context?.pickCandidateAuthority)
   },
   selectPreviousPickOption: {
     id: "selectPreviousPickOption",
     label: "行内の前の候補へ",
     shortcuts: [{ keys: "ArrowLeft" }],
-    run: () => selectPickOptionByOffset(-1)
+    run: (context) => selectPickOptionByOffset(-1, undefined, context?.pickCandidateAuthority)
   },
   applySelectedPickCandidate: {
     id: "applySelectedPickCandidate",
     label: "選択候補を確定",
     shortcuts: [{ keys: "Enter" }],
-    run: (context) => applySelectedPickCandidate(context?.evaluation, context)
+    run: (context) => applySelectedPickCandidate(context?.evaluation, context, context?.pickCandidateAuthority)
   },
   startPointPick: {
     id: "startPointPick",

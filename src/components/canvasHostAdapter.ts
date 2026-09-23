@@ -179,7 +179,9 @@ export type CanvasHostAdapter = {
   /** Shared Canvas keyboard boundary for the active pick scope. */
   dispatchCanvasPickCommand?: (
     commandId: CanvasPickKeyboardCommandId,
-    pointPickAction?: CanvasPointPickAction
+    pointPickAction?: CanvasPointPickAction,
+    /** The exact candidate list rendered by DrawingCanvas for host-specific Pick flows. */
+    pickCandidateAuthority?: readonly PickCandidate[]
   ) => unknown;
   /** Optional host filter layered over the shared point-pick candidates. */
   filterPointPickCandidates?: (candidates: PickCandidate[]) => PickCandidate[];

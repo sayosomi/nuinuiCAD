@@ -655,19 +655,22 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
           ...action
         });
       },
-      dispatchCanvasPickCommand: (commandId, pointPickAction) => {
+      dispatchCanvasPickCommand: (commandId, pointPickAction, pickCandidateAuthority) => {
         const currentTarget = useCadUiStore.getState().activePointPickTarget;
         const coordinatePointConversionCanvasBasePick = coordinatePointConversionSession &&
           isCoordinatePointConversionPickTarget(currentTarget);
         if (coordinatePointConversionCanvasBasePick && commandId === "applySelectedPickCandidate" && pointPickAction) {
           return applyCoordinatePointConversionBasePick(pointPickAction);
         }
+        const commandContext = pickCandidateAuthority
+          ? { ...creationCommandContext, pickCandidateAuthority }
+          : creationCommandContext;
         if (!coordinatePointConversionCanvasBasePick || commandId !== "finishPickMode") {
-          return dispatchCommand(commandId, creationCommandContext);
+          return dispatchCommand(commandId, commandContext);
         }
 
         const draft = useCadUiStore.getState().activePickModeSession?.draft ?? [];
-        const result = dispatchCommand(commandId, creationCommandContext);
+        const result = dispatchCommand(commandId, commandContext);
         if (!result) return result;
         const entry = draft.find((candidate) => candidate.kind === "point");
         if (!entry || entry.kind !== "point") return result;

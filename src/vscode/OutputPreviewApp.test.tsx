@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import type { OutputPlan } from "../output/outputCore";
 import { evaluateElementsReferencePayload } from "../geometry/evaluationEngine";
@@ -435,6 +435,81 @@ describe("Output Preview application", () => {
 
     expect(Number(pageFill().getAttribute("x"))).toBeCloseTo(before + 20);
     expect(vi.mocked(api.postMessage).mock.calls.some(([message]) => message.type === "outputPreviewPlaceCommit")).toBe(false);
+  });
+
+  it("keeps Space ownership across the native handle focus boundary", async () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(viewportRect);
+    mocks.evaluateOutputPlan.mockImplementation(async ({ output }: { output: TestOutput }) => {
+      const plan = planFor(output);
+      const layout = useCadDocumentStore.getState().layouts.find((candidate) => candidate.id === output.layoutId);
+      const placement = layout?.placements[0];
+      if (!placement) return plan;
+      return {
+        ...plan,
+        placements: [{
+          id: placement.id,
+          groupId: placement.groupId,
+          origin: { x: 0, y: 0 },
+          at: { x: 0, y: 0 },
+          scale: 1,
+          angleDeg: 0,
+          mirror: false,
+          drawables: []
+        }]
+      };
+    });
+    const container = document.createElement("div");
+    document.body.append(container);
+    const blockReactPointerBoundary = (event: Event) => event.stopImmediatePropagation();
+    const pointerEvents = ["pointerdown", "pointermove", "pointerup", "pointercancel", "lostpointercapture"];
+    pointerEvents.forEach((eventName) => container.addEventListener(eventName, blockReactPointerBoundary));
+
+    try {
+      useCadDocumentStore.getState().commitText(source, "test");
+      render(<OutputPreviewApp api={api} />, { container });
+      postWindowMessage({ type: "replaceTextDocument", sourceText: source, documentVersion: 1 });
+      await waitFor(() => expect(Number(container.querySelector('[data-output-preview-layer="page-fill"]')?.getAttribute("width"))).toBeGreaterThan(400));
+      const viewport = container.querySelector(".output-preview-viewport");
+      const handle = within(container).getByRole("button", { name: "Place G" });
+      if (!(viewport instanceof HTMLElement)) throw new Error("missing output preview viewport");
+
+      const before = Number(container.querySelector('[data-output-preview-layer="page-fill"]')?.getAttribute("x"));
+      viewport.focus();
+      fireEvent.keyDown(viewport, { key: " ", code: "Space" });
+      handle.addEventListener("pointerdown", () => handle.focus(), { once: true });
+      fireEvent.pointerDown(handle, { button: 0, buttons: 1, pointerId: 61, clientX: 100, clientY: 100 });
+      await act(async () => { await Promise.resolve(); });
+      expect(document.activeElement).toBe(handle);
+
+      fireEvent.pointerMove(handle, { buttons: 1, pointerId: 61, clientX: 120, clientY: 100 });
+      await act(async () => { await Promise.resolve(); });
+      fireEvent.pointerUp(handle, { button: 0, buttons: 0, pointerId: 61, clientX: 120, clientY: 100 });
+      await act(async () => { await Promise.resolve(); });
+      fireEvent.click(handle);
+
+      expect(Number(container.querySelector('[data-output-preview-layer="page-fill"]')?.getAttribute("x"))).toBeCloseTo(before + 20);
+      expect(handle).toHaveAttribute("data-dragging", "false");
+      expect(vi.mocked(api.postMessage).mock.calls.some(([message]) => message.type === "outputPreviewPlaceCommit")).toBe(false);
+
+      fireEvent.keyUp(window, { key: " ", code: "Space" });
+      handle.focus();
+      fireEvent.keyDown(handle, { key: " ", code: "Space" });
+      expect(document.activeElement).toBe(handle);
+      fireEvent.keyUp(handle, { key: " ", code: "Space" });
+
+      pointerEvents.forEach((eventName) => container.removeEventListener(eventName, blockReactPointerBoundary));
+      fireEvent.pointerDown(handle, { button: 0, buttons: 1, pointerId: 62, clientX: 100, clientY: 100 });
+      fireEvent.pointerMove(handle, { buttons: 1, pointerId: 62, clientX: 120, clientY: 100 });
+      await act(async () => { await Promise.resolve(); });
+      fireEvent.pointerUp(handle, { button: 0, buttons: 0, pointerId: 62, clientX: 120, clientY: 100 });
+      await act(async () => { await Promise.resolve(); });
+      expect(handle).toHaveAttribute("data-dragging", "false");
+      expect(vi.mocked(api.postMessage).mock.calls.some(([message]) => message.type === "outputPreviewPlaceCommit")).toBe(true);
+    } finally {
+      pointerEvents.forEach((eventName) => container.removeEventListener(eventName, blockReactPointerBoundary));
+      cleanup();
+      container.remove();
+    }
   });
 
   it("terminates Space-primary pan on release, cancel, lost capture, and viewport blur", async () => {

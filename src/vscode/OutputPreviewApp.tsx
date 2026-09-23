@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FocusEvent as ReactFocusEvent } from "react";
 import { CommandRibbonView } from "../components/CommandRibbonView";
 import { canvasThemeCssVariables, LEGACY_CANVAS_THEME } from "../components/canvasTheme";
 import { compileCanonicalText, type LastGoodDslDocument } from "@nuinuicad/nui-language/document";
@@ -941,10 +941,16 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     stopSpacePan();
   }, [stopSpacePan]);
 
+  const handleViewportBlur = useCallback((event: ReactFocusEvent<HTMLDivElement>) => {
+    const relatedTarget = event.relatedTarget;
+    if (relatedTarget instanceof Node && event.currentTarget.contains(relatedTarget)) return;
+    clearSpaceOwnership();
+  }, [clearSpaceOwnership]);
+
   const handleViewportKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (
       (event.key !== " " && event.code !== "Space") ||
-      event.currentTarget !== document.activeElement
+      !event.currentTarget.contains(document.activeElement)
     ) return;
     event.preventDefault();
     event.stopPropagation();
@@ -1368,7 +1374,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         className="output-preview-viewport"
         tabIndex={0}
         data-vscode-context={vscodeWebviewContextDataFor("blank")}
-        onBlur={clearSpaceOwnership}
+        onBlur={handleViewportBlur}
         onKeyDown={handleViewportKeyDown}
         onWheel={handleWheel}
         onPointerDown={handlePointerDown}
