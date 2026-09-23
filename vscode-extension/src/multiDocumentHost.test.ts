@@ -188,6 +188,58 @@ afterEach(() => {
 });
 
 describe("VS Code multi-document host lifecycle", () => {
+  it("projects lint only from the exact-current root compiled semantics", async () => {
+    const rootPath = "/workspace/root.nui";
+    const dependencyPath = "/workspace/library.nui";
+    const rootSource = [
+      "nui 1",
+      "import \"./library.nui\" as lib",
+      "module Private() {",
+      "}",
+      "instance Use = lib::Public()"
+    ].join("\n");
+    const dependencySource = [
+      "nui 1",
+      "export module Public() {",
+      "}"
+    ].join("\n");
+    mocks.files.set(dependencyPath, encoder.encode(dependencySource));
+    const root = documentFor(rootPath, rootSource);
+    mocks.textDocuments = [root];
+
+    const host = createVscodeModuleMultiDocumentHost();
+    host.start();
+
+    await vi.waitFor(() => {
+      const state = host.diagnosticsStateFor(root);
+      expect(state.status).toBe("current");
+      if (state.status !== "current") return;
+      expect(state.owner).toBe("multi-document");
+      if (state.owner !== "multi-document") return;
+      expect(state.snapshot.diagnostics).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          code: "unused-private-module",
+          location: expect.objectContaining({
+            source: expect.objectContaining({
+              kind: "root-current",
+              documentId: root.uri.toString()
+            }),
+            range: {
+              from: rootSource.indexOf("Private"),
+              to: rootSource.indexOf("Private") + "Private".length
+            }
+          })
+        })
+      ]));
+    });
+
+    const state = host.diagnosticsStateFor(root);
+    if (state.status !== "current" || state.owner !== "multi-document") throw new Error("missing current multi-document diagnostics");
+    expect(state.snapshot.diagnostics.filter((diagnostic) => diagnostic.code?.startsWith("unused-") &&
+      diagnostic.location.source.kind === "dependency-saved")).toEqual([]);
+    host.dispose();
+  });
+
   it("keeps dependencies disk-authoritative and rebuilds importing roots after a saved dependency watch change", async () => {
     const rootPath = "/workspace/root.nui";
     const dependencyPath = "/workspace/library.nui";

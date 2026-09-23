@@ -27,6 +27,8 @@ compileDslDocument
         ↓
 current-source diagnostics
 +
+host-neutral source lint diagnostics
++
 last-good compiled document
         ↓
 shared production evaluation context builder
@@ -567,6 +569,7 @@ Representative owners:
 - `packages/nui-language/src/dsl/sourceLexicalNamespaceIndex.ts`
 - `packages/nui-language/src/dsl/dslReferenceTokens.ts`
 - `packages/nui-language/src/dsl/dslSemanticOccurrenceIndex.ts`
+- `packages/nui-language/src/dsl/dslLintDiagnostics.ts`
 - `packages/nui-language/src/dsl/dslModifierAuthoring.ts`
 - `packages/nui-language/src/dsl/dslModifierAuthoringIndex.ts`
 - `packages/nui-language/src/dsl/dslSourceValueStepQuery.ts`
@@ -1468,3 +1471,9 @@ contributed to the Explorer container. Shared Webview routing remains owned by
 
 Documentation churn 自体を目的にしない。Future proposal を current
 architecture として記載しない。
+
+`dslLintDiagnostics.ts` は exact-current `CompiledDslDocument` と
+`dslSemanticOccurrenceIndex.ts` の compiler-resolved occurrences だけを使って
+maintenance-quality warnings を生成する。Lint findings は compiler correctness
+diagnostics / binding issues とは別の projection collection として、VS Code の
+既存 DiagnosticCollection と Headless MCP の `diagnostics.lint` に渡される。

@@ -84,6 +84,23 @@ describe("VS Code compiler diagnostics adapter", () => {
     });
   });
 
+  it("flows lint warnings through the same production diagnostic adapter", () => {
+    const source = "nui 1\nconst Unused: number = 1\n";
+    const document = AutomationDocument.fromSource(source);
+
+    expect(compilerDiagnosticsForState(document.getSource(), document.getState())).toEqual([
+      expect.objectContaining({
+        severity: "warning",
+        code: "unused-typed-declaration",
+        presentation: { key: "diagnostic.unused-typed-declaration", parameters: { name: "Unused" } },
+        range: {
+          start: { line: 1, character: 6 },
+          end: { line: 1, character: 12 }
+        }
+      })
+    ]);
+  });
+
   it("preserves presentation metadata on the main diagnostic and related information", () => {
     const projected = toCompilerDiagnostic("abc\ndef", diagnostic({
       code: "source-namespace-collision",

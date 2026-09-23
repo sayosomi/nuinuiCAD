@@ -8,6 +8,7 @@ export * from "./dsl/dslSerializer";
 export * from "./dsl/dslSerializeElement";
 export * from "./dsl/dslReferenceTokens";
 export * from "./dsl/dslSemanticOccurrenceIndex";
+export * from "./dsl/dslLintDiagnostics";
 export * from "./dsl/dslDefinitionQuery";
 export * from "./dsl/dslReferencesQuery";
 export * from "./dsl/dslRenameQuery";

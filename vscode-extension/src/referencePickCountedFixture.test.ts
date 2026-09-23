@@ -79,7 +79,29 @@ const atEndOf = (fragment: string, after = 0): number => {
 describe("SAY-99 counted-run Reference Pick fixture", () => {
   it("has an exact-current semantic snapshot suitable for Reference Pick", () => {
     const languageSession = createLanguageAnalysisSession(source);
-    expect(languageSession.getDiagnostics()).toEqual([]);
+    const diagnostics = languageSession.getDiagnostics();
+    expect(diagnostics.filter((diagnostic) =>
+      diagnostic.code !== "unused-typed-declaration" && diagnostic.code !== "unused-module-parameter"
+    )).toEqual([]);
+    expect(diagnostics
+      .filter((diagnostic) => diagnostic.code === "unused-typed-declaration")
+      .map((diagnostic) => diagnostic.message))
+      .toEqual([
+        "Declaration 'DistancePoints' is not used anywhere.",
+        "Declaration 'AnglePoints' is not used anywhere.",
+        "Declaration 'DistancePointLine' is not used anywhere.",
+        "Declaration 'AngleLines' is not used anywhere.",
+        "Declaration 'NumericLiteral' is not used anywhere.",
+        "Declaration 'NumericProperty' is not used anywhere."
+      ]);
+    expect(diagnostics
+      .filter((diagnostic) => diagnostic.code === "unused-module-parameter")
+      .map((diagnostic) => diagnostic.message))
+      .toEqual([
+        "Module parameter 'anchor' is not used anywhere.",
+        "Module parameter 'straight' is not used anywhere.",
+        "Module parameter 'broad' is not used anywhere."
+      ]);
   });
 
   it("resolves a host-neutral target after top-level blank lines", () => {
