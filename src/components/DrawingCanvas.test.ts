@@ -199,15 +199,18 @@ const renderDrawingCanvas = () => {
 
 const renderWithHostAdapter = (
   overrides: Partial<CanvasHostAdapter> = {},
-  options: { nativePointerBoundaryFallback?: boolean } = {}
+  options: { nativePointerBoundaryFallback?: boolean; container?: HTMLElement } = {}
 ) => {
   const hostAdapter = createFakeCanvasHostAdapter(overrides);
-  const view = render(createElement(DrawingCanvas, {
-    evaluation: evaluateElements(hostAdapter.elements),
-    canvasFocusRef: createRef<HTMLDivElement>(),
-    hostAdapter,
-    nativePointerBoundaryFallback: options.nativePointerBoundaryFallback
-  }));
+  const view = render(
+    createElement(DrawingCanvas, {
+      evaluation: evaluateElements(hostAdapter.elements),
+      canvasFocusRef: createRef<HTMLDivElement>(),
+      hostAdapter,
+      nativePointerBoundaryFallback: options.nativePointerBoundaryFallback
+    }),
+    options.container ? { container: options.container } : undefined
+  );
   const viewport = view.container.querySelector<HTMLDivElement>(".canvas-viewport");
   if (!viewport) throw new Error("Missing canvas viewport");
   return { ...view, hostAdapter, viewport };
@@ -469,24 +472,26 @@ describe("DrawingCanvas rendering", () => {
     const movePointElementByDelta = vi.fn();
     const moveBezierHandleByDelta = vi.fn();
     const dispatchCanvasPickCommand = vi.fn();
-    const { container, hostAdapter, viewport } = renderWithHostAdapter({
-      activePointPickTarget: { elementId: "line-ab", parameterKey: "startPoint" },
-      panCanvasViewport,
-      selectElement,
-      commitCanvasRectangleSelection,
-      movePointElementByDelta,
-      moveBezierHandleByDelta,
-      dispatchCanvasPickCommand,
-      spacePrimaryPanEnabled: true
-    }, { nativePointerBoundaryFallback: true });
-    const geometry = container.querySelector<SVGCircleElement>(".overlay-draggable-point");
-    if (!geometry) throw new Error("Missing rendered Canvas geometry");
-
+    const container = document.createElement("div");
+    document.body.append(container);
     const blockReactPointerBoundary = (event: Event) => event.stopImmediatePropagation();
     const pointerEvents = ["pointerdown", "pointermove", "pointerup", "pointercancel", "lostpointercapture"];
     pointerEvents.forEach((eventName) => container.addEventListener(eventName, blockReactPointerBoundary));
 
     try {
+      const { hostAdapter, viewport } = renderWithHostAdapter({
+        activePointPickTarget: { elementId: "line-ab", parameterKey: "startPoint" },
+        panCanvasViewport,
+        selectElement,
+        commitCanvasRectangleSelection,
+        movePointElementByDelta,
+        moveBezierHandleByDelta,
+        dispatchCanvasPickCommand,
+        spacePrimaryPanEnabled: true
+      }, { nativePointerBoundaryFallback: true, container });
+      const geometry = container.querySelector<SVGCircleElement>(".overlay-draggable-point");
+      if (!geometry) throw new Error("Missing rendered Canvas geometry");
+
       viewport.focus();
       fireEvent.keyDown(viewport, { key: " " });
       await act(async () => {
@@ -529,6 +534,7 @@ describe("DrawingCanvas rendering", () => {
       expect(hostAdapter.flushSourceEditorOnCanvasPointerDown).not.toHaveBeenCalled();
     } finally {
       pointerEvents.forEach((eventName) => container.removeEventListener(eventName, blockReactPointerBoundary));
+      container.remove();
     }
   });
 
