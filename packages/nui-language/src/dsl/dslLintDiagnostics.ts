@@ -8,6 +8,7 @@ import {
   semanticIdentityForModuleTarget,
   type DslSemanticIdentity
 } from "./dslSemanticOccurrenceIndex";
+import { exactPhysicalSpan } from "./dslDiagnosticSpan";
 import type { DslDiagnostic } from "./dslTypes";
 import type { DslPhysicalSpan } from "./logicalStatementSourceMap";
 import type { ModuleDefinitionSemantic, ModuleSemanticAnalysis } from "./moduleSemanticTypes";
@@ -48,11 +49,15 @@ const sameRange = (
 
 const referenceCountFor = (
   index: ReturnType<typeof createDslSemanticOccurrenceIndex>,
-  identity: DslSemanticIdentity
+  identity: DslSemanticIdentity,
+  excludedRanges: readonly { from: number; to: number }[] = []
 ): number => {
   const identityKey = dslSemanticIdentityKey(identity);
+  const excluded = new Set(excludedRanges.map((range) => `${range.from}:${range.to}`));
   return index.occurrences.filter((occurrence) =>
-    occurrence.kind === "reference" && dslSemanticIdentityKey(occurrence.identity) === identityKey
+    occurrence.kind === "reference" &&
+    dslSemanticIdentityKey(occurrence.identity) === identityKey &&
+    !excluded.has(`${occurrence.from}:${occurrence.to}`)
   ).length;
 };
 
@@ -126,6 +131,37 @@ const moduleDefinitionFor = (
     : null;
 };
 
+const callSiteLabelRangesForModuleParameter = (
+  compiled: CompiledDslDocument,
+  analysis: ModuleSemanticAnalysis,
+  definitionStatementId: string,
+  parameterIndex: number
+): readonly { from: number; to: number }[] | null => {
+  const ranges: { from: number; to: number }[] = [];
+  for (const instance of analysis.instances) {
+    if (instance.callee?.definitionStatementId !== definitionStatementId) continue;
+    const bindings = instance.parameterBindings.filter((binding) => binding.parameterIndex === parameterIndex);
+    if (bindings.length !== 1) return null;
+    const binding = bindings[0]!;
+    if (binding.argumentIndex === null) continue;
+
+    const statement = compiled.statements[instance.statementIndex];
+    const statementId = compiled.statementMap?.statementIdByStatementIndex?.get(instance.statementIndex);
+    if (!statement || statement.kind !== "moduleInstance" || statementId !== instance.statementId) return null;
+    if (!Number.isInteger(binding.argumentIndex) || binding.argumentIndex < 0) return null;
+    const argument = statement.arguments[binding.argumentIndex];
+    if (!argument || argument.label === null) {
+      if (binding.argumentLabel !== null) return null;
+      continue;
+    }
+    if (binding.argumentLabel !== argument.label || !argument.labelSpan) return null;
+    const labelRange = exactSingleSegment(exactPhysicalSpan(compiled.spans, statement, argument.labelSpan));
+    if (!labelRange) return null;
+    ranges.push(labelRange);
+  }
+  return ranges;
+};
+
 const unusedTypedDeclarationDiagnostics = (
   compiled: CompiledDslDocument,
   occurrenceIndex: ReturnType<typeof createDslSemanticOccurrenceIndex>
@@ -192,7 +228,9 @@ const moduleSemanticDiagnostics = (
       });
       if (!identity) return;
       const parameterRange = exactDeclarationRangeFor(occurrenceIndex, identity, parameterPhysicalName);
-      if (!parameterRange || referenceCountFor(occurrenceIndex, identity) !== 0) return;
+      if (!parameterRange) return;
+      const callSiteLabelRanges = callSiteLabelRangesForModuleParameter(compiled, analysis, statementId, parameterIndex);
+      if (!callSiteLabelRanges || referenceCountFor(occurrenceIndex, identity, callSiteLabelRanges) !== 0) return;
       diagnostics.push(diagnosticFor(compiled, DSL_LINT_DIAGNOSTIC_CODES.unusedModuleParameter, parameter.name, parameterRange, statement.line));
     });
   }

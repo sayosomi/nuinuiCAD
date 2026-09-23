@@ -80,7 +80,9 @@ describe("SAY-99 counted-run Reference Pick fixture", () => {
   it("has an exact-current semantic snapshot suitable for Reference Pick", () => {
     const languageSession = createLanguageAnalysisSession(source);
     const diagnostics = languageSession.getDiagnostics();
-    expect(diagnostics.filter((diagnostic) => diagnostic.code !== "unused-typed-declaration")).toEqual([]);
+    expect(diagnostics.filter((diagnostic) =>
+      diagnostic.code !== "unused-typed-declaration" && diagnostic.code !== "unused-module-parameter"
+    )).toEqual([]);
     expect(diagnostics
       .filter((diagnostic) => diagnostic.code === "unused-typed-declaration")
       .map((diagnostic) => diagnostic.message))
@@ -91,6 +93,14 @@ describe("SAY-99 counted-run Reference Pick fixture", () => {
         "Declaration 'AngleLines' is not used anywhere.",
         "Declaration 'NumericLiteral' is not used anywhere.",
         "Declaration 'NumericProperty' is not used anywhere."
+      ]);
+    expect(diagnostics
+      .filter((diagnostic) => diagnostic.code === "unused-module-parameter")
+      .map((diagnostic) => diagnostic.message))
+      .toEqual([
+        "Module parameter 'anchor' is not used anywhere.",
+        "Module parameter 'straight' is not used anywhere.",
+        "Module parameter 'broad' is not used anywhere."
       ]);
   });
 

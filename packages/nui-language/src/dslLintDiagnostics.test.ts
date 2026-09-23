@@ -55,6 +55,17 @@ describe("DSL lint diagnostics", () => {
     expect(lintFor(unusedSource).map((diagnostic) => diagnostic.code)).toEqual(["unused-module-parameter"]);
     expect(rangeText(unusedSource, lintFor(unusedSource)[0]!)).toBe("value");
 
+    const suppliedButUnusedSource = [
+      "nui 1",
+      "module M(value: number) {",
+      "}",
+      "instance Use = M(value: 1)"
+    ].join("\n");
+    const suppliedButUnusedDiagnostics = lintFor(suppliedButUnusedSource);
+    expect(suppliedButUnusedDiagnostics.map((diagnostic) => diagnostic.code)).toEqual(["unused-module-parameter"]);
+    expect(rangeText(suppliedButUnusedSource, suppliedButUnusedDiagnostics[0]!)).toBe("value");
+    expect(suppliedButUnusedDiagnostics.some((diagnostic) => diagnostic.code === "unused-private-module")).toBe(false);
+
     const referencedSource = [
       "nui 1",
       "module M(value: number) {",
