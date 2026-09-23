@@ -200,12 +200,20 @@ describe("SAY-193 coordinate conversion Canvas lifecycle", () => {
     fireEvent.keyDown(viewport, { key: " " });
     expect(pendingCanvasCommit.value).toBeNull();
     expect(useCadDocumentStore.getState().sourceText).toBe(source);
+    expect(useCadUiStore.getState().activePickModeSession?.draft).toEqual([]);
+    fireEvent.keyUp(viewport, { key: " " });
+    expect(pendingCanvasCommit.value).toBeNull();
+    expect(useCadDocumentStore.getState().sourceText).toBe(source);
     expect(useCadUiStore.getState().activePickModeSession?.draft).toHaveLength(1);
     expect(useCadUiStore.getState().activePickModeSession?.draft[0]).toMatchObject({
       kind: "point",
       anchor: { mode: "reference", pointId: base.id }
     });
     fireEvent.keyDown(viewport, { key: " " });
+    expect(pendingCanvasCommit.value).toBeNull();
+    expect(useCadDocumentStore.getState().sourceText).toBe(source);
+    expect(useCadUiStore.getState().activePickModeSession?.draft).toHaveLength(1);
+    fireEvent.keyUp(viewport, { key: " " });
     expect(pendingCanvasCommit.value).toBeNull();
     expect(useCadDocumentStore.getState().sourceText).toBe(source);
     expect(useCadUiStore.getState().activePickModeSession?.draft).toEqual([]);

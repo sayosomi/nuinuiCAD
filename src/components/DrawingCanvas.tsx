@@ -14,7 +14,7 @@ import { numericGeometryStaticTargetForElementInDocument } from "../geometry/num
 import { pickCandidates, pickSourcePrecedesTarget, selectedPickOption } from "../model/pickCandidates";
 import { isSemanticGeometryCandidateAllowed } from "../model/moduleSemanticCandidateBoundary";
 import { pickRefForOption, pickRefKey } from "../model/pickReferences";
-import { matchingPickModeSessionForTargets } from "../model/pickModeSession";
+import { matchingPickModeSessionForTargets, type PickModeSession } from "../model/pickModeSession";
 import type { BezierHandleRole as CommandBezierHandleRole } from "../model/elementDragTransforms";
 import type {
   CadElement,
@@ -206,6 +206,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const panDragRef = useRef<{ pointerId: number; lastX: number; lastY: number; mode: CanvasPanMode } | null>(null);
   const spaceHeldRef = useRef(false);
+  const pendingSpacePickApplyRef = useRef<PickModeSession | null>(null);
+  const applyPendingSpacePickRef = useRef<() => void>(() => undefined);
   const pointDragRef = useRef<PointDragState | null>(null);
   const bezierHandleDragRef = useRef<BezierHandleDragState | null>(null);
   const pendingEditorFocusRef = useRef<{ pointerId: number } | null>(null);
@@ -383,6 +385,38 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       : [])
   )), [sharedPickCandidates]);
   const pointPickCandidates = hostAdapter.filterPointPickCandidates?.(sharedPickCandidates) ?? sharedPickCandidates;
+  const clearPendingSpacePickApply = useCallback(() => {
+    pendingSpacePickApplyRef.current = null;
+  }, []);
+  const dispatchSelectedPickCandidate = useCallback(() => {
+    if (hostAdapter.dispatchCanvasPickCommand) {
+      const selected = isPointPickActive
+        ? selectedPickOption(pointPickCandidates, activePickCursor)
+        : null;
+      const selectedPointPickAction = selected?.option.kind === "point"
+        ? {
+            pickedPointAnchor: selected.option.anchor,
+            pickedPointCandidateElementId: selected.candidate.elementId,
+            ...(selected.option.sourceReference
+              ? { pickedPointSourceReference: selected.option.sourceReference }
+              : {})
+          }
+        : null;
+      if (selectedPointPickAction) {
+        return hostAdapter.dispatchCanvasPickCommand("applySelectedPickCandidate", selectedPointPickAction);
+      }
+      return hostAdapter.dispatchCanvasPickCommand("applySelectedPickCandidate");
+    }
+    return dispatchCommand("applySelectedPickCandidate");
+  }, [activePickCursor, hostAdapter, isPointPickActive, pointPickCandidates]);
+  const applyPendingSpacePick = useCallback(() => {
+    const pendingSession = pendingSpacePickApplyRef.current;
+    pendingSpacePickApplyRef.current = null;
+    if (!pendingSession || canvasFocusRef.current !== document.activeElement) return;
+    if (panDragRef.current?.mode === "space-primary" || pickModeSession !== pendingSession) return;
+    dispatchSelectedPickCandidate();
+  }, [canvasFocusRef, dispatchSelectedPickCandidate, pickModeSession]);
+  applyPendingSpacePickRef.current = applyPendingSpacePick;
   const selectedElementIdSet = useMemo(() => new Set(selectedElementIds), [selectedElementIds]);
   const draftLinePickElementIds = useMemo(() => {
     const draftLineIds = new Set(pickModeSession?.draft.flatMap((entry) =>
@@ -1661,12 +1695,13 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     cancelRectangleSelection();
     finalizeOverlapSessionRef.current();
     spaceHeldRef.current = false;
+    clearPendingSpacePickApply();
     panDragRef.current = null;
     if (hoverFrameRef.current !== null && typeof window.cancelAnimationFrame === "function") {
       window.cancelAnimationFrame(hoverFrameRef.current);
     }
     hoverFrameRef.current = null;
-  }, [cancelRectangleSelection, captureLedger]);
+  }, [cancelRectangleSelection, clearPendingSpacePickApply, captureLedger]);
 
   const stopPanningSession = useCallback((pointerId?: number, captureTarget?: HTMLDivElement) => {
     const pan = panDragRef.current;
@@ -1687,30 +1722,36 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
 
   const handleCanvasBlur = useCallback(() => {
     spaceHeldRef.current = false;
+    clearPendingSpacePickApply();
     if (panDragRef.current?.mode === "space-primary") stopPanningSession();
-  }, [stopPanningSession]);
+  }, [clearPendingSpacePickApply, stopPanningSession]);
 
   useEffect(() => {
     if (!hostAdapter.spacePrimaryPanEnabled) {
       spaceHeldRef.current = false;
+      clearPendingSpacePickApply();
       return;
     }
     const isSpaceKey = (event: KeyboardEvent): boolean => event.key === " " || event.code === "Space";
-    const releaseSpace = () => {
+    const clearSpace = () => {
       spaceHeldRef.current = false;
+      clearPendingSpacePickApply();
       if (panDragRef.current?.mode === "space-primary") stopPanningSession();
     };
     const onKeyUp = (event: KeyboardEvent) => {
-      if (isSpaceKey(event)) releaseSpace();
+      if (!isSpaceKey(event)) return;
+      spaceHeldRef.current = false;
+      if (panDragRef.current?.mode === "space-primary") stopPanningSession();
+      applyPendingSpacePickRef.current();
     };
     window.addEventListener("keyup", onKeyUp, { capture: true });
-    window.addEventListener("blur", releaseSpace);
+    window.addEventListener("blur", clearSpace);
     return () => {
       window.removeEventListener("keyup", onKeyUp, { capture: true });
-      window.removeEventListener("blur", releaseSpace);
-      releaseSpace();
+      window.removeEventListener("blur", clearSpace);
+      clearSpace();
     };
-  }, [hostAdapter.spacePrimaryPanEnabled, stopPanningSession]);
+  }, [clearPendingSpacePickApply, hostAdapter.spacePrimaryPanEnabled, stopPanningSession]);
 
   const stopPointDragging = (event: ReactPointerEvent<HTMLDivElement>) => {
     const drag = pointDragRef.current;
@@ -1805,6 +1846,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     if (event.button === 0 && spacePanActive) {
       if (!canvasPointerBoundaryFallbackShouldRun(event.nativeEvent)) return;
       event.preventDefault();
+      clearPendingSpacePickApply();
       if (pendingPointerStateRef.current.kind === "waiting") {
         applyPendingPointerTransition(cancelPendingCanvasPointer(pendingPointerStateRef.current));
       }
@@ -1899,6 +1941,11 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     ) {
       event.preventDefault();
       event.stopPropagation();
+      if (!event.repeat) {
+        pendingSpacePickApplyRef.current = !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey && isPickModeActive
+          ? pickModeSession
+          : null;
+      }
       spaceHeldRef.current = true;
       return;
     }
@@ -1987,23 +2034,14 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       if (commandId) {
         event.preventDefault();
         event.stopPropagation();
+        if (commandId === "finishPickMode" || commandId.startsWith("cancel")) {
+          clearPendingSpacePickApply();
+        }
         if (commandId === "cancelPickMode" && hostAdapter.cancelCanvasPickOperation) {
           hostAdapter.cancelCanvasPickOperation();
         } else if (hostAdapter.dispatchCanvasPickCommand) {
-          const selected = commandId === "applySelectedPickCandidate" && isPointPickActive
-            ? selectedPickOption(pointPickCandidates, activePickCursor)
-            : null;
-          const selectedPointPickAction = selected?.option.kind === "point"
-            ? {
-                pickedPointAnchor: selected.option.anchor,
-                pickedPointCandidateElementId: selected.candidate.elementId,
-                ...(selected.option.sourceReference
-                  ? { pickedPointSourceReference: selected.option.sourceReference }
-                  : {})
-              }
-            : null;
-          if (selectedPointPickAction) {
-            hostAdapter.dispatchCanvasPickCommand(commandId, selectedPointPickAction);
+          if (commandId === "applySelectedPickCandidate") {
+            dispatchSelectedPickCandidate();
           } else {
             hostAdapter.dispatchCanvasPickCommand(commandId);
           }

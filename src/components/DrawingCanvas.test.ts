@@ -455,6 +455,42 @@ describe("DrawingCanvas rendering", () => {
     expect(applyPickedPoint).not.toHaveBeenCalled();
   });
 
+  it("applies a focused Canvas Space Pick on keyup when no pan begins", () => {
+    const dispatchCanvasPickCommand = vi.fn();
+    const { viewport } = renderWithHostAdapter({
+      activePointPickTarget: { elementId: "line-ab", parameterKey: "startPoint" },
+      dispatchCanvasPickCommand,
+      spacePrimaryPanEnabled: true
+    });
+
+    viewport.focus();
+    fireEvent.keyDown(viewport, { key: " " });
+    expect(dispatchCanvasPickCommand).not.toHaveBeenCalled();
+    fireEvent.keyUp(viewport, { key: " " });
+
+    expect(dispatchCanvasPickCommand.mock.calls[0]?.[0]).toBe("applySelectedPickCandidate");
+  });
+
+  it("clears a pending Canvas Space Pick when viewport focus is lost", () => {
+    const dispatchCanvasPickCommand = vi.fn();
+    const { viewport } = renderWithHostAdapter({
+      activePointPickTarget: { elementId: "line-ab", parameterKey: "startPoint" },
+      dispatchCanvasPickCommand,
+      spacePrimaryPanEnabled: true
+    });
+
+    viewport.focus();
+    fireEvent.keyDown(viewport, { key: " " });
+    fireEvent.blur(viewport);
+    fireEvent.keyUp(viewport, { key: " " });
+    expect(dispatchCanvasPickCommand).not.toHaveBeenCalled();
+
+    viewport.focus();
+    fireEvent.keyDown(viewport, { key: " " });
+    fireEvent.keyUp(viewport, { key: " " });
+    expect(dispatchCanvasPickCommand.mock.calls[0]?.[0]).toBe("applySelectedPickCandidate");
+  });
+
   it("does not publish stale Canvas presentation eligibility", async () => {
     const hostAdapter = createFakeCanvasHostAdapter({ compiledDocumentRevision: 1 });
     const evaluation = evaluateElements(hostAdapter.elements);
