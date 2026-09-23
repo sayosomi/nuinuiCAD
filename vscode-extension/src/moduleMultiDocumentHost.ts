@@ -9,6 +9,7 @@ import {
   analyzeMultiDocumentModuleSemantics,
   moduleDeclarationContributor
 } from "@nuinuicad/nui-language/workspace";
+import { analyzeMultiDocumentLintDiagnostics } from "@nuinuicad/nui-language/workspace";
 import type { MultiDocumentRenameDocumentProof } from "@nuinuicad/nui-language/workspace";
 import type {
   MultiDocumentGraphNode,
@@ -315,6 +316,17 @@ export const projectVscodeModuleDiagnostics: VscodeMultiDocumentDiagnosticsProje
       diagnostic.message,
       diagnostic.location,
       diagnostic.relatedLocations,
+      diagnostic.presentation
+    );
+  }
+
+  for (const diagnostic of analyzeMultiDocumentLintDiagnostics({ graph, moduleAnalysis: analysis })) {
+    addQualified(
+      diagnostic.severity,
+      diagnostic.code,
+      diagnostic.message,
+      diagnostic.location,
+      [],
       diagnostic.presentation
     );
   }

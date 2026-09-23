@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -16,6 +16,18 @@ const makeTempDocument = async (source: string, filename = "sample.nui") => {
   const filePath = path.join(directory, filename);
   await writeFile(filePath, source, "utf8");
   return filePath;
+};
+
+const makeTempWorkspace = async (files: Readonly<Record<string, string>>) => {
+  const directory = await mkdtemp(path.join(tmpdir(), "nuinuicad-mcp-workspace-"));
+  temporaryDirectories.push(directory);
+  const paths = new Map<string, string>();
+  for (const [filename, source] of Object.entries(files)) {
+    const filePath = path.join(directory, filename);
+    await writeFile(filePath, source, "utf8");
+    paths.set(filename, filePath);
+  }
+  return paths;
 };
 
 const rangeText = (source: string, range: SourceRangeDto): string => {
@@ -81,6 +93,70 @@ describe("inspectNuiDocument", () => {
       })
     ]);
     expect(rangeText(source, result.diagnostics.lint[0]!.range!)).toBe("unused");
+  });
+
+  it("reports an unused imported alias through lint without changing compile status", async () => {
+    const files = await makeTempWorkspace({
+      "root.nui": [
+        "nui 1",
+        "import \"./library.nui\" as library"
+      ].join("\n"),
+      "library.nui": [
+        "nui 1",
+        "export module Pocket() {",
+        "}"
+      ].join("\n")
+    });
+
+    const result = await inspectNuiDocument(files.get("root.nui")!);
+    expect(result.compileStatus).toBe("valid");
+    expect(result.diagnostics.compile).toEqual([]);
+    expect(result.diagnostics.lint).toEqual([
+      expect.objectContaining({
+        severity: "warning",
+        code: "unused-import",
+        presentation: { key: "diagnostic.unused-import", parameters: { name: "library" } },
+        range: expect.objectContaining({
+          segments: [expect.objectContaining({
+            from: expect.objectContaining({ line: 2 }),
+            to: expect.objectContaining({ line: 2 })
+          })]
+        })
+      })
+    ]);
+    expect(rangeText(
+      await readFile(files.get("root.nui")!, "utf8"),
+      result.diagnostics.lint[0]!.range!
+    )).toBe("library");
+  });
+
+  it("does not report a valid direct imported Module use as unused", async () => {
+    const files = await makeTempWorkspace({
+      "root.nui": [
+        "nui 1",
+        "import \"./library.nui\" as library",
+        "instance use = library::Pocket()"
+      ].join("\n"),
+      "library.nui": [
+        "nui 1",
+        "export module Pocket() {",
+        "}"
+      ].join("\n")
+    });
+
+    const result = await inspectNuiDocument(files.get("root.nui")!);
+    expect(result.diagnostics.lint.some((diagnostic) => diagnostic.code === "unused-import")).toBe(false);
+  });
+
+  it("fails closed for a graph load failure without adding unused-import", async () => {
+    const filePath = await makeTempDocument([
+      "nui 1",
+      "import \"./missing.nui\" as missing"
+    ].join("\n"), "root.nui");
+
+    const result = await inspectNuiDocument(filePath);
+    expect(result.compileStatus).toBe("valid");
+    expect(result.diagnostics.lint).toEqual([]);
   });
 
   it("leaves existing compile diagnostics unchanged when lint proof is unavailable", async () => {

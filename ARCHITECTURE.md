@@ -440,6 +440,7 @@ Primary:
 - `packages/nui-language/src/document/multiDocumentPublicApi.ts`
 - `packages/nui-language/src/document/multiDocumentModuleSemantics.ts`
 - `packages/nui-language/src/document/multiDocumentLanguageQueries.ts`
+- `packages/nui-language/src/document/multiDocumentLintDiagnostics.ts`
 - `packages/nui-language/src/dsl/dslMultiDocumentSyntax.ts`
 - `packages/nui-language/src/dsl/sourceLexicalNamespaceIndex.ts`
 - `vscode-extension/src/multiDocumentHost.ts`
@@ -506,6 +507,19 @@ exact expected source text; any rejected document rejects the whole plan. Import
 alias rename remains importer-local. Concrete VS Code filesystem discovery,
 watchers, document lifecycle, and `WorkspaceEdit`/host mutation adapters remain
 outside this subsystem.
+
+`multiDocumentLintDiagnostics.ts` is the host-neutral graph-backed lint owner
+for import aliases. It consumes the existing graph, re-export occurrence index,
+lexical namespace resolver, and Module semantic analysis. Re-export usage is
+counted only from the exact import directive identity already proved by the
+occurrence index; direct imported Module calls are checked separately against
+the owning statement and the exact resolved import namespace. Any invalid,
+stale, cyclic, incomplete, or contradictory graph/semantic proof suppresses
+the `unused-import` findings. The VS Code Module host projects these qualified
+findings through its existing multi-document diagnostics projector and native
+DiagnosticCollection, while Headless MCP builds a fresh file-backed graph for
+each `document_inspect` call and includes only root-owned findings in
+`diagnostics.lint`.
 
 `vscode-extension/src/multiDocumentHost.ts` is the generic production VS Code
 adapter for that host-neutral layer. It canonicalizes file-backed `.nui` paths
@@ -1326,6 +1340,7 @@ the existing dependency, public-catalog, and Module-runtime proofs succeed:
 VS Code TextDocument
 → one URI-scoped multi-document host / saved graph coordinator
 ├→ Module contributor → analyzeMultiDocumentModuleSemantics
+├→ graph-backed multi-document lint → DiagnosticCollection / diagnostics.lint
 ├→ createModuleRuntimeContext → exact graph-root compile
 ├→ completion-only current-root bridge → same graph/catalog/runtime authority
 ├→ Module graph/semantic/compiler diagnostics → DiagnosticCollection
@@ -1474,6 +1489,10 @@ architecture として記載しない。
 
 `dslLintDiagnostics.ts` は exact-current `CompiledDslDocument` と
 `dslSemanticOccurrenceIndex.ts` の compiler-resolved occurrences だけを使って
-maintenance-quality warnings を生成する。Lint findings は compiler correctness
-diagnostics / binding issues とは別の projection collection として、VS Code の
-既存 DiagnosticCollection と Headless MCP の `diagnostics.lint` に渡される。
+single-document maintenance-quality warnings を生成する。Graph-backed
+multi-document import warnings are owned by
+`multiDocumentLintDiagnostics.ts`, which requires exact graph and Module
+semantic proof before producing qualified findings. Both lint owners remain
+separate from compiler correctness diagnostics / binding issues and are
+projected through the existing VS Code DiagnosticCollection and Headless MCP
+`diagnostics.lint` surface.
