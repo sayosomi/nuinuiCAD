@@ -7,6 +7,7 @@ import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import { sourceOwnerByRuntimeElementId } from "@nuinuicad/nui-language";
 import { VSCodeApp } from "./VSCodeApp";
 import { setVscodeWebviewApi } from "./vscodeWebviewApiContext";
+import { activePickCandidates } from "../commands/pickCommands";
 
 const lifecycle = vi.hoisted(() => ({ evaluationCurrent: true }));
 
@@ -41,8 +42,9 @@ vi.mock("./VSCodeBenchmarkCaptureRunner", () => ({
 const source = [
   "nui 1",
   "const boundX: number = 40",
-  "point Base = coordinate(x: -40, y: -40)",
   "point TargetA = coordinate(x: 40, y: 0)",
+  "point Base = coordinate(x: -40, y: -40)",
+  "point BaseOther = coordinate(x: -20, y: -20)",
   "point TargetB = coordinate(x: 0, y: 40)",
   "point BindingTarget = coordinate(x: @boundX, y: 40)"
 ].join("\n");
@@ -195,8 +197,19 @@ describe("SAY-193 coordinate conversion Canvas lifecycle", () => {
     expect(useCadDocumentStore.getState().sourceText).toBe(source);
     expect(useCadUiStore.getState().activePickModeSession?.draft).toEqual([]);
 
+    expect(activePickCandidates()[0]?.elementId).toBe(targetA.id);
+    const baseOther = useCadDocumentStore.getState().elements.find((element) => element.name === "BaseOther");
+    if (!baseOther) throw new Error("Expected the second visible Base candidate");
+    expect(document.querySelectorAll(".overlay-derived-point-pick-candidate")).toHaveLength(2);
     fireEvent.keyDown(viewport, { key: "ArrowDown" });
     expect(useCadUiStore.getState().activePickCursor).toMatchObject({ elementId: base.id });
+    fireEvent.keyDown(viewport, { key: "ArrowDown" });
+    expect(useCadUiStore.getState().activePickCursor).toMatchObject({ elementId: baseOther.id });
+    fireEvent.keyDown(viewport, { key: "ArrowUp" });
+    expect(useCadUiStore.getState().activePickCursor).toMatchObject({ elementId: base.id });
+    fireEvent.keyDown(viewport, { key: "ArrowRight" });
+    fireEvent.keyDown(viewport, { key: "ArrowLeft" });
+    expect(useCadUiStore.getState().activePickCursor?.elementId).toBe(base.id);
     fireEvent.keyDown(viewport, { key: " " });
     expect(pendingCanvasCommit.value).toBeNull();
     expect(useCadDocumentStore.getState().sourceText).toBe(source);

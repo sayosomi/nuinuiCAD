@@ -385,6 +385,14 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       : [])
   )), [sharedPickCandidates]);
   const pointPickCandidates = hostAdapter.filterPointPickCandidates?.(sharedPickCandidates) ?? sharedPickCandidates;
+  const hostOwnsPickCandidateAuthority = hostAdapter.pickModeCandidates !== undefined ||
+    hostAdapter.filterPointPickCandidates !== undefined;
+  const keyboardPickCandidates = isPointPickActive
+    ? pointPickCandidates
+    : isNumericReferencePickActive
+      ? numericPickCandidates
+      : sharedPickCandidates;
+  const pickCandidateAuthority = hostOwnsPickCandidateAuthority ? keyboardPickCandidates : undefined;
   const clearPendingSpacePickApply = useCallback(() => {
     pendingSpacePickApplyRef.current = null;
   }, []);
@@ -403,12 +411,16 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
           }
         : null;
       if (selectedPointPickAction) {
-        return hostAdapter.dispatchCanvasPickCommand("applySelectedPickCandidate", selectedPointPickAction);
+        return pickCandidateAuthority
+          ? hostAdapter.dispatchCanvasPickCommand("applySelectedPickCandidate", selectedPointPickAction, pickCandidateAuthority)
+          : hostAdapter.dispatchCanvasPickCommand("applySelectedPickCandidate", selectedPointPickAction);
       }
-      return hostAdapter.dispatchCanvasPickCommand("applySelectedPickCandidate");
+      return pickCandidateAuthority
+        ? hostAdapter.dispatchCanvasPickCommand("applySelectedPickCandidate", undefined, pickCandidateAuthority)
+        : hostAdapter.dispatchCanvasPickCommand("applySelectedPickCandidate");
     }
     return dispatchCommand("applySelectedPickCandidate");
-  }, [activePickCursor, hostAdapter, isPointPickActive, pointPickCandidates]);
+  }, [activePickCursor, hostAdapter, isPointPickActive, pickCandidateAuthority, pointPickCandidates]);
   const applyPendingSpacePick = useCallback(() => {
     const pendingSession = pendingSpacePickApplyRef.current;
     pendingSpacePickApplyRef.current = null;
@@ -2043,7 +2055,11 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
           if (commandId === "applySelectedPickCandidate") {
             dispatchSelectedPickCandidate();
           } else {
-            hostAdapter.dispatchCanvasPickCommand(commandId);
+            if (pickCandidateAuthority) {
+              hostAdapter.dispatchCanvasPickCommand(commandId, undefined, pickCandidateAuthority);
+            } else {
+              hostAdapter.dispatchCanvasPickCommand(commandId);
+            }
           }
         } else {
           dispatchCommand(commandId);

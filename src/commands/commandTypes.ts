@@ -20,6 +20,7 @@ import type {
 import type { NumericValue } from "../types/geometry";
 import type { SourceCreationCursor } from "./sourceCreationInsertion";
 import type { CanonicalGeometrySourceReference } from "../model/moduleSemanticCandidateBoundary";
+import type { PickCandidate } from "../model/pickCandidates";
 
 export type { BezierHandleRole };
 
@@ -276,6 +277,8 @@ export type CommandContext = {
   pickedLineCandidateElementId?: ElementId;
   /** Internal caller adapter flag: apply a resolved Pick draft during Finish. */
   pickModeFinish?: boolean;
+  /** Exact current Canvas Pick candidates supplied by the rendering host. */
+  pickCandidateAuthority?: readonly PickCandidate[];
   /** Candidate identity used to derive the stable PickRef key for an explicit session. */
   numericReferenceCandidateElementId?: ElementId;
   numericValue?: NumericValue;

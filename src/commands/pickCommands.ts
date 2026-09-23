@@ -20,7 +20,10 @@ import {
 import { creationPlacementForTarget } from "../model/elementCreationPlacement";
 import {
   pickCandidates,
+  pickCursorForCandidateOffset,
+  pickCursorForOptionOffset,
   selectedPickOption,
+  type PickCandidate,
   type PickOption
 } from "../model/pickCandidates";
 import {
@@ -651,30 +654,21 @@ export const applyPickReference = (
   return true;
 };
 
-export const selectPickCandidateByOffset = (offset: number, currentEvaluation?: EvaluationResult) => {
-  const candidates = activePickCandidates(currentEvaluation);
-  if (candidates.length === 0) {
-    useCadUiStore.getState().setActivePickCursor(null);
-    return;
-  }
-
-  const { activePickCursor } = useCadUiStore.getState();
-  const currentIndex = activePickCursor
-    ? candidates.findIndex((candidate) => candidate.elementId === activePickCursor.elementId)
-    : -1;
-  const nextIndex =
-    currentIndex < 0
-      ? offset > 0 ? 0 : candidates.length - 1
-      : (currentIndex + offset + candidates.length) % candidates.length;
-  const candidate = candidates[nextIndex];
-  const optionIndex = Math.min(activePickCursor?.optionIndex ?? 0, candidate.options.length - 1);
-  useCadUiStore.getState().setActivePickCursor({
-    elementId: candidate.elementId,
-    optionIndex
-  });
+export const selectPickCandidateByOffset = (
+  offset: number,
+  currentEvaluation?: EvaluationResult,
+  candidateAuthority?: readonly PickCandidate[]
+) => {
+  const candidates = candidateAuthority ? [...candidateAuthority] : activePickCandidates(currentEvaluation);
+  const cursor = pickCursorForCandidateOffset(candidates, useCadUiStore.getState().activePickCursor, offset);
+  useCadUiStore.getState().setActivePickCursor(cursor);
 };
 
-export const selectPickOptionByOffset = (offset: number, currentEvaluation?: EvaluationResult) => {
+export const selectPickOptionByOffset = (
+  offset: number,
+  currentEvaluation?: EvaluationResult,
+  candidateAuthority?: readonly PickCandidate[]
+) => {
   const { activeNumericReferencePickTarget } = useCadUiStore.getState();
   if (activeNumericReferencePickTarget) {
     const currentIndex = numericReferencePickProperties.indexOf(activeNumericReferencePickTarget.property);
@@ -690,26 +684,17 @@ export const selectPickOptionByOffset = (offset: number, currentEvaluation?: Eva
     return;
   }
 
-  const candidates = activePickCandidates(currentEvaluation);
-  const selected = selectedPickOption(candidates, useCadUiStore.getState().activePickCursor);
-  if (!selected) {
-    useCadUiStore.getState().setActivePickCursor(null);
-    return;
-  }
-
-  const optionCount = selected.candidate.options.length;
-  const optionIndex = (selected.cursor.optionIndex + offset + optionCount) % optionCount;
-  useCadUiStore.getState().setActivePickCursor({
-    elementId: selected.candidate.elementId,
-    optionIndex
-  });
+  const candidates = candidateAuthority ? [...candidateAuthority] : activePickCandidates(currentEvaluation);
+  const cursor = pickCursorForOptionOffset(candidates, useCadUiStore.getState().activePickCursor, offset);
+  useCadUiStore.getState().setActivePickCursor(cursor);
 };
 
 export const applySelectedPickCandidate = (
   currentEvaluation?: EvaluationResult,
-  context?: CommandContext
+  context?: CommandContext,
+  candidateAuthority?: readonly PickCandidate[]
 ) => {
-  const candidates = activePickCandidates(currentEvaluation);
+  const candidates = candidateAuthority ? [...candidateAuthority] : activePickCandidates(currentEvaluation);
   const selected = selectedPickOption(candidates, useCadUiStore.getState().activePickCursor);
   if (!selected) return;
 
