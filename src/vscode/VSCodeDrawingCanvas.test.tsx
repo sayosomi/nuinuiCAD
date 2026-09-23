@@ -16,7 +16,8 @@ const mocks = vi.hoisted(() => ({
   dispatchCommand: vi.fn(),
   commitCanvasRectangleSelection: vi.fn(),
   hostAdapter: null as CanvasHostAdapter | null,
-  canvasFocusRef: null as { current: HTMLDivElement | null } | null
+  canvasFocusRef: null as { current: HTMLDivElement | null } | null,
+  nativePointerBoundaryFallback: false
 }));
 
 vi.mock("../commands/commands", () => ({
@@ -33,11 +34,13 @@ vi.mock("../components/DrawingCanvas", async () => {
     DrawingCanvas: React.forwardRef((_props: {
       hostAdapter: CanvasHostAdapter;
       canvasFocusRef: { current: HTMLDivElement | null };
+      nativePointerBoundaryFallback?: boolean;
     }, ref) => {
       void ref;
       const props = _props;
       mocks.hostAdapter = props.hostAdapter;
       mocks.canvasFocusRef = props.canvasFocusRef;
+      mocks.nativePointerBoundaryFallback = props.nativePointerBoundaryFallback ?? false;
       return React.createElement("div", {
         "data-testid": "drawing-canvas",
         ref: props.canvasFocusRef,
@@ -52,6 +55,7 @@ afterEach(() => {
   mocks.commitCanvasRectangleSelection.mockReset();
   mocks.hostAdapter = null;
   mocks.canvasFocusRef = null;
+  mocks.nativePointerBoundaryFallback = false;
   useCadUiStore.setState(initialCadUiState());
 });
 
@@ -111,6 +115,7 @@ describe("VSCodeDrawingCanvas adapter", () => {
     const { adapter } = renderCanvas(evaluation, undefined);
 
     expect(adapter.spacePrimaryPanEnabled).toBe(true);
+    expect(mocks.nativePointerBoundaryFallback).toBe(true);
   });
 
   it("keeps fixed viewport controls visible when configurable Canvas Ribbons are empty", () => {

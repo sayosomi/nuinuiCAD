@@ -4667,6 +4667,11 @@ textarea {
   gap: 12px;
 }
 
+.vscode-canvas-webview .command-ribbon-value.is-single-field .command-ribbon-value-fields {
+  grid-template-columns: max-content;
+  gap: 0;
+}
+
 
 .vscode-canvas-webview .command-ribbon-value-field {
   display: grid;

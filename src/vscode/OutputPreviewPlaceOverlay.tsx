@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { placeCanvasPopup } from "../components/canvasPopupPlacement";
 import { candidateWheelDeltaFor } from "../components/canvasCandidateWheel";
 import { CanvasOverlapCandidateMenu } from "../components/CanvasOverlapCandidateMenu";
@@ -50,7 +50,7 @@ type OutputPreviewPlaceOverlayProps = {
   viewport: OutputPreviewViewport;
   onNavigate: (range: NormalizedSourceRange) => void;
   onHighlightPlaceIdChange: (placeId: string | null) => void;
-  spacePrimaryPanActive?: boolean;
+  spacePrimaryPanActiveRef?: RefObject<boolean>;
   clearInteractionKey?: number;
   focusViewport?: () => void;
   placeContextMenuData?: string;
@@ -71,7 +71,7 @@ export const OutputPreviewPlaceOverlay = ({
   viewport,
   onNavigate,
   onHighlightPlaceIdChange,
-  spacePrimaryPanActive = false,
+  spacePrimaryPanActiveRef,
   clearInteractionKey = 0,
   focusViewport,
   placeContextMenuData,
@@ -362,7 +362,7 @@ export const OutputPreviewPlaceOverlay = ({
   };
 
   const beginHandleDrag = (event: React.PointerEvent<HTMLElement>, handle: OutputPreviewPlaceHandle) => {
-    if (event.button === 0 && spacePrimaryPanActive) {
+    if (event.button === 0 && spacePrimaryPanActiveRef?.current) {
       suppressClickPlaceIdRef.current = handle.placeId;
       return;
     }
@@ -522,7 +522,7 @@ export const OutputPreviewPlaceOverlay = ({
             onLostPointerCapture={cancelHandleDrag}
             onClick={(event) => {
               event.stopPropagation();
-              if (spacePrimaryPanActive || suppressClickPlaceIdRef.current === handle.placeId) {
+              if (spacePrimaryPanActiveRef?.current || suppressClickPlaceIdRef.current === handle.placeId) {
                 event.preventDefault();
                 suppressClickPlaceIdRef.current = null;
                 return;
