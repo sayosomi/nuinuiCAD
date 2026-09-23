@@ -436,10 +436,12 @@ describe("DrawingCanvas rendering", () => {
 
   it("uses Space-primary pan instead of active Pick Mode selection", () => {
     const applyPickedPoint = vi.fn();
+    const dispatchCanvasPickCommand = vi.fn();
     const panCanvasViewport = vi.fn();
     const { viewport } = renderWithHostAdapter({
       activePointPickTarget: { elementId: "line-ab", parameterKey: "startPoint" },
       applyPickedPoint,
+      dispatchCanvasPickCommand,
       panCanvasViewport,
       spacePrimaryPanEnabled: true
     });
@@ -453,6 +455,65 @@ describe("DrawingCanvas rendering", () => {
 
     expect(panCanvasViewport).toHaveBeenCalledWith(20, 10);
     expect(applyPickedPoint).not.toHaveBeenCalled();
+    expect(dispatchCanvasPickCommand.mock.calls.some(([commandId]) => commandId === "applySelectedPickCandidate")).toBe(false);
+  });
+
+  it("does not re-arm a consumed Pick apply on repeated Space keydown", () => {
+    const dispatchCanvasPickCommand = vi.fn();
+    const panCanvasViewport = vi.fn();
+    const { viewport } = renderWithHostAdapter({
+      activePointPickTarget: { elementId: "line-ab", parameterKey: "startPoint" },
+      dispatchCanvasPickCommand,
+      panCanvasViewport,
+      spacePrimaryPanEnabled: true
+    });
+
+    viewport.focus();
+    fireEvent.keyDown(viewport, { key: " " });
+    fireEvent.pointerDown(viewport, { button: 0, buttons: 1, clientX: 300, clientY: 250, pointerId: 34 });
+    fireEvent.keyDown(viewport, { key: " ", repeat: true });
+    fireEvent.pointerMove(viewport, { buttons: 1, clientX: 320, clientY: 260, pointerId: 34 });
+    fireEvent.pointerUp(viewport, { button: 0, buttons: 0, clientX: 320, clientY: 260, pointerId: 34 });
+    fireEvent.keyUp(viewport, { key: " " });
+
+    expect(panCanvasViewport).toHaveBeenCalledWith(20, 10);
+    expect(dispatchCanvasPickCommand.mock.calls.some(([commandId]) => commandId === "applySelectedPickCandidate")).toBe(false);
+  });
+
+  it("clears deferred Pick apply when Pick Mode finishes while Space is held", () => {
+    const dispatchCanvasPickCommand = vi.fn();
+    const { viewport } = renderWithHostAdapter({
+      activePointPickTarget: { elementId: "line-ab", parameterKey: "startPoint" },
+      dispatchCanvasPickCommand,
+      spacePrimaryPanEnabled: true
+    });
+
+    viewport.focus();
+    fireEvent.keyDown(viewport, { key: " " });
+    fireEvent.keyDown(viewport, { key: "Enter" });
+    fireEvent.keyUp(viewport, { key: " " });
+
+    expect(dispatchCanvasPickCommand).toHaveBeenCalledWith("finishPickMode");
+    expect(dispatchCanvasPickCommand.mock.calls.some(([commandId]) => commandId === "applySelectedPickCandidate")).toBe(false);
+  });
+
+  it("clears deferred Pick apply when Pick Mode is canceled while Space is held", () => {
+    const dispatchCanvasPickCommand = vi.fn();
+    const cancelCanvasPickOperation = vi.fn();
+    const { viewport } = renderWithHostAdapter({
+      activePointPickTarget: { elementId: "line-ab", parameterKey: "startPoint" },
+      cancelCanvasPickOperation,
+      dispatchCanvasPickCommand,
+      spacePrimaryPanEnabled: true
+    });
+
+    viewport.focus();
+    fireEvent.keyDown(viewport, { key: " " });
+    fireEvent.keyDown(viewport, { key: "Escape" });
+    fireEvent.keyUp(viewport, { key: " " });
+
+    expect(cancelCanvasPickOperation).toHaveBeenCalledOnce();
+    expect(dispatchCanvasPickCommand.mock.calls.some(([commandId]) => commandId === "applySelectedPickCandidate")).toBe(false);
   });
 
   it("applies a focused Canvas Space Pick on keyup when no pan begins", () => {
