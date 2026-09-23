@@ -558,15 +558,30 @@ const sourceConstructionInputCandidates = (
   });
   if (member === undefined) {
     return supported.length > 0
-      ? [{ kind: "geometry", label: "input", identity: `${declaration.statementId}:input` }]
+      ? [{
+          kind: "geometry",
+          label: "input",
+          identity: `${declaration.statementId}:input`,
+          sourceText: `${ownerToken}.input`
+        }]
       : [];
   }
   if (!token.endsWith(".") && inputMatch?.[2] === undefined) {
-    return [{ kind: "geometry", label: "input", identity: `${declaration.statementId}:input` }];
+    return [{
+      kind: "geometry",
+      label: "input",
+      identity: `${declaration.statementId}:input`,
+      sourceText: `${ownerToken}.input`
+    }];
   }
   return supported
     .filter((candidate) => candidate.label.startsWith(argumentPrefix))
-    .map((candidate) => ({ kind: "geometry" as const, label: candidate.label, identity: candidate.identity }));
+    .map((candidate) => ({
+      kind: "geometry" as const,
+      label: candidate.label,
+      identity: candidate.identity,
+      sourceText: `${ownerToken}.input.${candidate.label}`
+    }));
 };
 
 const sourceGeometryQualifiedMembers = (
@@ -1290,7 +1305,13 @@ const queryCandidates = (
     if (compiled && exact) {
       const referenceText = input.lineText.slice(context.from, input.localPosition).trim();
       const inputCandidates = sourceConstructionInputCandidates(compiled, statementIndex, referenceText);
-      if (inputCandidates.length > 0 || /^@.+\.input(?:\.|$)/.test(referenceText)) return inputCandidates;
+      if (/^@.+\.input(?:\.|$)/.test(referenceText)) return inputCandidates;
+      if (inputCandidates.length > 0) {
+        return uniqueCandidates([
+          ...statementElementReferenceCandidates(context, compiled, statementIndex),
+          ...inputCandidates
+        ]);
+      }
     }
     if (context.parameter.definition.kind === "choice") {
       return (context.parameter.definition.choiceOptions ?? []).map((label) => ({ kind: "literal" as const, label, identity: label }));

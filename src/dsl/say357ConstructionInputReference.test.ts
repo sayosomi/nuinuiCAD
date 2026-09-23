@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   compileDslDocument,
+  dslCompletionInsertionTextFor,
   parseDslSnapshot,
   parseDslSourceReference,
   queryDslCompletion,
@@ -33,14 +34,26 @@ const targetFor = (compiled: CompiledDslDocument, elementName: string, parameter
 };
 
 const completionLabels = (source: string, token: string) => {
+  return completionResult(source, token)?.candidates.map((candidate) => candidate.label) ?? [];
+};
+
+const completionResult = (source: string, token: string) => {
   const compiled = compile(source);
   const position = source.indexOf(token) + token.length;
-  const result = queryDslCompletion({
+  return queryDslCompletion({
     source: { normalizedSource: source, sourceRevision: 7 },
     position,
     semantic: { sourceRevision: 7, compiled }
   });
-  return result?.candidates.map((candidate) => candidate.label) ?? [];
+};
+
+const applyCompletion = (source: string, token: string, label: string) => {
+  const result = completionResult(source, token);
+  if (!result) throw new Error(`missing completion result for ${token}`);
+  const candidate = result.candidates.find((entry) => entry.label === label);
+  if (!candidate) throw new Error(`missing completion candidate ${label}`);
+  const insertion = dslCompletionInsertionTextFor(candidate, result.category, result.replacementRange, source);
+  return source.slice(0, result.replacementRange.from) + insertion + source.slice(result.replacementRange.to);
 };
 
 describe("SAY-357 construction-input references", () => {
@@ -211,17 +224,61 @@ describe("SAY-357 construction-input references", () => {
       "point Root = offset(from: @I::L.input.start, dx: 1, dy: 0)"
     ].join("\n"));
     expect(errorCodes(privateInput)).toContain("module-construction-input-inaccessible");
+
+    const localInput = compile([
+      "nui 1",
+      "module M() {",
+      "  point A = coordinate(x: 0, y: 0)",
+      "  point B = offset(from: @A, dx: 1, dy: 0)",
+      "  point C = offset(from: @B.input.from, dx: 2, dy: 0)",
+      "}"
+    ].join("\n"));
+    expect(errorCodes(localInput)).not.toContain("module-construction-input-inaccessible");
+    const localBody = localInput.moduleSemanticAnalysis?.definitions[0].bodyStatements.find((statement) => statement.statementIndex === 4);
+    expect(localBody?.geometryReferences[0]?.reference).toMatchObject({
+      resolution: "resolved",
+      target: {
+        kind: "constructionInput",
+        argument: "from",
+        sourceTarget: { kind: "sourceGeometry" }
+      }
+    });
   });
 
-  it("offers only supported input members and keeps semantic occurrences on the owner", () => {
+  it("adds input to existing member completion and preserves source-stable insertion", () => {
     const source = [
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = offset(from: @A, dx: 1, dy: 0)",
       "point C = offset(from: @B.input.from, dx: 2, dy: 0)"
     ].join("\n");
-    expect(completionLabels(source.replace("@B.input.from", "@B."), "@B.")).toEqual(["input"]);
-    expect(completionLabels(source.replace("@B.input.from", "@B.input."), "@B.input.")).toEqual(["from"]);
+    const ownerPrefixSource = source.replace("@B.input.from", "@B.");
+    expect(completionLabels(ownerPrefixSource, "@B.")).toContain("input");
+    expect(applyCompletion(ownerPrefixSource, "@B.", "input")).toContain("from: @B.input,");
+
+    const endpointSource = [
+      "nui 1",
+      "line A = segment(start: (0, 0), end: (10, 0))",
+      "line B = segment(start: (0, 0), end: (20, 0))",
+      "point C = onLine(from: @B., distance: 1)"
+    ].join("\n");
+    const endpointCompletion = completionResult(endpointSource, "@B.");
+    expect(endpointCompletion?.candidates.map((candidate) => candidate.label)).toEqual(expect.arrayContaining(["B.start", "B.end", "input"]));
+
+    const inputNamespaceSource = source.replace("@B.input.from", "@B.input.");
+    expect(completionLabels(inputNamespaceSource, "@B.input.")).toEqual(["from"]);
+    expect(applyCompletion(inputNamespaceSource, "@B.input.", "from")).toContain("from: @B.input.from,");
+
+    const indexedSource = [
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "for i in range(min: 0, max: 1, step: 1) {",
+      "  point B = offset(from: @A, dx: 1, dy: 0)",
+      "}",
+      "point C = offset(from: @B[0].input., dx: 2, dy: 0)"
+    ].join("\n");
+    expect(completionLabels(indexedSource, "@B[0].input.")).toEqual(["from"]);
+    expect(applyCompletion(indexedSource, "@B[0].input.", "from")).toContain("from: @B[0].input.from,");
 
     const compiled = compile(source);
     const aliasPosition = source.indexOf("@B.input.from") + "@B".length;
