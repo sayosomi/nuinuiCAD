@@ -4,7 +4,7 @@ import { canvasThemeCssVariables, LEGACY_CANVAS_THEME } from "../components/canv
 import { compileCanonicalText, type LastGoodDslDocument } from "@nuinuicad/nui-language/document";
 import { evaluateElementsWithRust } from "../geometry/evaluationEngine";
 import { evaluateOutputPlan, type OutputDrawable, type OutputPlan, type OutputText } from "../output/outputCore";
-import { panViewportByScreenDelta } from "../geometry/viewport";
+import { panViewportByScreenDelta, VIEWPORT_ZOOM_STEP } from "../geometry/viewport";
 import { projectOutputPlaces } from "../output/outputPlaceProjection";
 import {
   projectDslOutputPreviewRevealRuntimeTarget,
@@ -64,7 +64,10 @@ import {
 } from "./protocol";
 import { VSCODE_CANVAS_RIBBON_ICON_SIZE } from "./vscodeCanvasRibbonConfig";
 import { resolveVscodeLucideIcon } from "./vscodeCanvasRibbonIcons";
-import { vscodeViewportStatusPresentationFor } from "./vscodeViewportStatus";
+import {
+  vscodeViewportStatusPresentationFor,
+  vscodeViewportZoomPresentationFor
+} from "./vscodeViewportStatus";
 import { readVSCodeCanvasTheme } from "./vscodeCanvasTheme";
 import { useNativePointerBoundaryFallback } from "../components/nativePointerBoundaryFallback";
 import { webviewCanvasPresentationFor } from "./webviewCanvasPresentation";
@@ -113,7 +116,8 @@ type OutputPreviewRevealState =
       reason: Extract<VscodeOutputPreviewRevealResult, { status: "failed" }>["reason"];
     };
 
-type PanState = { pointerId: number; lastX: number; lastY: number };
+type OutputPreviewPanMode = "middle" | "space-primary";
+type PanState = { pointerId: number; lastX: number; lastY: number; mode: OutputPreviewPanMode };
 type OutputPreviewClientPoint = { clientX: number; clientY: number };
 type OutputPreviewViewportClientOrigin = { left: number; top: number };
 
@@ -311,6 +315,8 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   const workspaceRef = useRef<HTMLElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const panRef = useRef<PanState | null>(null);
+  const spaceHeldRef = useRef(false);
+  const [spaceHeld, setSpaceHeld] = useState(false);
   const [reactHandledPointerEvents] = useState(() => new WeakSet<Event>());
   const latestHostDocumentVersionRef = useRef<number | null>(null);
   const outputPreviewPlaceCommitPendingRef = useRef<number | null>(null);
@@ -866,7 +872,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     setPointerClientPosition({ clientX: event.clientX, clientY: event.clientY });
     setViewport((current) => zoomOutputPreviewViewportAt(
       current,
-      Math.pow(1.1, -event.deltaY / 100),
+      Math.pow(VIEWPORT_ZOOM_STEP, -event.deltaY / 100),
       {
         x: event.clientX - rect.left,
         y: event.clientY - rect.top,
@@ -878,11 +884,23 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     markReactPointerEvent(event);
+    if (event.button === 0 && spaceHeldRef.current) {
+      event.preventDefault();
+      setPointerClientPosition({ clientX: event.clientX, clientY: event.clientY });
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+      panRef.current = {
+        pointerId: event.pointerId,
+        lastX: event.clientX,
+        lastY: event.clientY,
+        mode: "space-primary"
+      };
+      return;
+    }
     if (event.button !== 1) return;
     event.preventDefault();
     setPointerClientPosition({ clientX: event.clientX, clientY: event.clientY });
     event.currentTarget.setPointerCapture?.(event.pointerId);
-    panRef.current = { pointerId: event.pointerId, lastX: event.clientX, lastY: event.clientY };
+    panRef.current = { pointerId: event.pointerId, lastX: event.clientX, lastY: event.clientY, mode: "middle" };
   };
 
   const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -890,6 +908,10 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     setPointerClientPosition({ clientX: event.clientX, clientY: event.clientY });
     const pan = panRef.current;
     if (!pan || pan.pointerId !== event.pointerId) return;
+    if (pan.mode === "space-primary" && (event.buttons & 1) === 0) {
+      stopPan(event);
+      return;
+    }
     setViewport((current) => panViewportByScreenDelta(
       current,
       event.clientX - pan.lastX,
@@ -903,6 +925,58 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     setPointerClientPosition({ clientX: event.clientX, clientY: event.clientY });
     if (panRef.current?.pointerId === event.pointerId) panRef.current = null;
   };
+
+  const stopSpacePan = useCallback(() => {
+    if (panRef.current?.mode !== "space-primary") return;
+    const viewport = viewportRef.current;
+    try {
+      viewport?.releasePointerCapture(panRef.current.pointerId);
+    } catch {
+      // Pointer capture can already be gone after pointercancel/lostpointercapture.
+    }
+    panRef.current = null;
+  }, []);
+
+  const clearSpaceOwnership = useCallback(() => {
+    spaceHeldRef.current = false;
+    setSpaceHeld(false);
+    stopSpacePan();
+  }, [stopSpacePan]);
+
+  const handleViewportKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (
+      (event.key !== " " && event.code !== "Space") ||
+      event.currentTarget !== document.activeElement
+    ) return;
+    event.preventDefault();
+    event.stopPropagation();
+    spaceHeldRef.current = true;
+    setSpaceHeld(true);
+  };
+
+  useEffect(() => {
+    const isSpaceKey = (event: KeyboardEvent): boolean => event.key === " " || event.code === "Space";
+    const onKeyUp = (event: KeyboardEvent) => {
+      if (isSpaceKey(event)) clearSpaceOwnership();
+    };
+    window.addEventListener("keyup", onKeyUp, { capture: true });
+    window.addEventListener("blur", clearSpaceOwnership);
+    return () => {
+      window.removeEventListener("keyup", onKeyUp, { capture: true });
+      window.removeEventListener("blur", clearSpaceOwnership);
+      clearSpaceOwnership();
+    };
+  }, [clearSpaceOwnership]);
+
+  const zoomViewportAtCenter = useCallback((zoomFactor: number) => {
+    const size = latestViewportSizeRef.current;
+    setViewport((current) => zoomOutputPreviewViewportAt(current, zoomFactor, {
+      x: size.width / 2,
+      y: size.height / 2,
+      width: size.width,
+      height: size.height
+    }));
+  }, []);
 
   const handlePointerLeave = (event: React.PointerEvent<HTMLDivElement>) => {
     markReactPointerEvent(event);
@@ -1213,6 +1287,53 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
           }}
         />
         <CommandRibbonView
+          className="output-preview-zoom-ribbon"
+          showHandle={false}
+          viewportAwareTooltips
+          tooltipBoundaryRef={workspaceRef}
+          ribbon={{
+            id: "output-preview-zoom-ribbon",
+            label: webviewPresentationTextFor(webviewPresentation, "output.ribbon.title", "Output Preview"),
+            x: null,
+            y: 0,
+            orientation: "horizontal",
+            iconSize: VSCODE_CANVAS_RIBBON_ICON_SIZE,
+            items: [
+              {
+                id: "output-preview-zoom-out",
+                type: "command",
+                commandId: "outputPreviewZoomOut",
+                icon: "minus",
+                label: webviewPresentationTextFor(webviewPresentation, "output.ribbon.zoomOut", "Zoom out"),
+                description: "",
+                showLabel: false,
+                available: true
+              },
+              vscodeViewportZoomPresentationFor(
+                "output-preview-zoom-percent",
+                viewport,
+                webviewPresentationTextFor(webviewPresentation, "output.zoomPercent.label", "Output Preview zoom"),
+                webviewPresentationTextFor(webviewPresentation, "output.zoomPercent.description", "Current Output Preview zoom.")
+              ),
+              {
+                id: "output-preview-zoom-in",
+                type: "command",
+                commandId: "outputPreviewZoomIn",
+                icon: "plus",
+                label: webviewPresentationTextFor(webviewPresentation, "output.ribbon.zoomIn", "Zoom in"),
+                description: "",
+                showLabel: false,
+                available: true
+              }
+            ]
+          }}
+          iconResolver={resolveVscodeLucideIcon}
+          onCommand={(item) => {
+            if (item.commandId === "outputPreviewZoomOut") zoomViewportAtCenter(1 / VIEWPORT_ZOOM_STEP);
+            if (item.commandId === "outputPreviewZoomIn") zoomViewportAtCenter(VIEWPORT_ZOOM_STEP);
+          }}
+        />
+        <CommandRibbonView
           className="output-preview-viewport-status-ribbon"
           showHandle={false}
           viewportAwareTooltips
@@ -1250,6 +1371,8 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         className="output-preview-viewport"
         tabIndex={0}
         data-vscode-context={vscodeWebviewContextDataFor("blank")}
+        onBlur={clearSpaceOwnership}
+        onKeyDown={handleViewportKeyDown}
         onWheel={handleWheel}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
@@ -1302,6 +1425,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
               viewport={viewport}
               onNavigate={navigateToSourceRange}
               onHighlightPlaceIdChange={setHighlightedPlaceId}
+              spacePrimaryPanActive={spaceHeld}
               clearInteractionKey={clearPlaceInteractionKey}
               focusViewport={() => viewportRef.current?.focus()}
               presentation={canvasPresentationAdapter}

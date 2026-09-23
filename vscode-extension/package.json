@@ -1190,15 +1190,13 @@
               "x": null,
               "y": 12,
               "orientation": "horizontal",
-              "items": [
-                {
-                  "id": "editCanvasRibbon",
-                  "type": "command",
-                  "commandId": "editCanvasRibbon",
-                  "icon": "settings-2",
-                  "showLabel": false
-                }
-              ]
+              "items": [{
+                "id": "editCanvasRibbon",
+                "type": "command",
+                "commandId": "editCanvasRibbon",
+                "icon": "settings-2",
+                "showLabel": false
+              }]
             }
           ],
           "items": {

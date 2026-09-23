@@ -488,6 +488,99 @@ describe("DrawingCanvas rectangle selection", () => {
     expect(commitCanvasRectangleSelection).not.toHaveBeenCalled();
   });
 
+  it("uses Space-primary drag for viewport pan before Canvas selection paths", () => {
+    const commitCanvasRectangleSelection = vi.fn();
+    const panCanvasViewport = vi.fn();
+    const selectElement = vi.fn();
+    const flushSourceEditorOnCanvasPointerDown = vi.fn(() => "flushed" as const);
+    const { viewport } = renderCanvas({
+      commitCanvasRectangleSelection,
+      panCanvasViewport,
+      selectElement,
+      flushSourceEditorOnCanvasPointerDown,
+      spacePrimaryPanEnabled: true
+    });
+
+    viewport.focus();
+    fireEvent.keyDown(viewport, { key: " " });
+    fireEvent.pointerDown(viewport, { button: 0, buttons: 1, ...pointer(50, 50), pointerId: 16 });
+    fireEvent.pointerMove(viewport, { buttons: 1, ...pointer(80, 90), pointerId: 16 });
+    fireEvent.pointerUp(viewport, { button: 0, buttons: 0, ...pointer(80, 90), pointerId: 16 });
+    fireEvent.keyUp(viewport, { key: " " });
+
+    expect(panCanvasViewport).toHaveBeenCalledWith(30, 40);
+    expect(selectElement).not.toHaveBeenCalled();
+    expect(commitCanvasRectangleSelection).not.toHaveBeenCalled();
+    expect(flushSourceEditorOnCanvasPointerDown).not.toHaveBeenCalled();
+  });
+
+  it("keeps Space-primary pan opt-in for other DrawingCanvas hosts", () => {
+    const panCanvasViewport = vi.fn();
+    const commitCanvasRectangleSelection = vi.fn();
+    const { viewport } = renderCanvas({ panCanvasViewport, commitCanvasRectangleSelection });
+
+    viewport.focus();
+    fireEvent.keyDown(viewport, { key: " " });
+    fireEvent.pointerDown(viewport, { button: 0, buttons: 1, ...pointer(50, 50), pointerId: 17 });
+    fireEvent.pointerMove(viewport, { buttons: 1, ...pointer(80, 90), pointerId: 17 });
+    fireEvent.pointerUp(viewport, { button: 0, buttons: 0, ...pointer(80, 90), pointerId: 17 });
+
+    expect(panCanvasViewport).not.toHaveBeenCalled();
+    expect(commitCanvasRectangleSelection).toHaveBeenCalledOnce();
+  });
+
+  it("ends Space-primary pan when Space is released before the pointer", () => {
+    const panCanvasViewport = vi.fn();
+    const { viewport } = renderCanvas({ panCanvasViewport, spacePrimaryPanEnabled: true });
+
+    viewport.focus();
+    fireEvent.keyDown(viewport, { key: " " });
+    fireEvent.pointerDown(viewport, { button: 0, buttons: 1, ...pointer(50, 50), pointerId: 18 });
+    fireEvent.keyUp(viewport, { key: " " });
+    fireEvent.pointerMove(viewport, { buttons: 1, ...pointer(80, 90), pointerId: 18 });
+    fireEvent.pointerUp(viewport, { button: 0, buttons: 0, ...pointer(80, 90), pointerId: 18 });
+
+    expect(panCanvasViewport).not.toHaveBeenCalled();
+  });
+
+  it("clears Space ownership when Canvas focus is lost before the next primary gesture", () => {
+    const panCanvasViewport = vi.fn();
+    const commitCanvasRectangleSelection = vi.fn();
+    const { viewport } = renderCanvas({
+      panCanvasViewport,
+      commitCanvasRectangleSelection,
+      spacePrimaryPanEnabled: true
+    });
+
+    viewport.focus();
+    fireEvent.keyDown(viewport, { key: " " });
+    fireEvent.blur(viewport);
+    fireEvent.pointerDown(viewport, { button: 0, buttons: 1, ...pointer(50, 50), pointerId: 21 });
+    fireEvent.pointerMove(viewport, { buttons: 1, ...pointer(80, 90), pointerId: 21 });
+    fireEvent.pointerUp(viewport, { button: 0, buttons: 0, ...pointer(80, 90), pointerId: 21 });
+
+    expect(panCanvasViewport).not.toHaveBeenCalled();
+    expect(commitCanvasRectangleSelection).toHaveBeenCalledOnce();
+  });
+
+  it("clears Space-primary pan on pointer cancellation and lost capture", () => {
+    const panCanvasViewport = vi.fn();
+    const { viewport } = renderCanvas({ panCanvasViewport, spacePrimaryPanEnabled: true });
+
+    viewport.focus();
+    fireEvent.keyDown(viewport, { key: " " });
+    fireEvent.pointerDown(viewport, { button: 0, buttons: 1, ...pointer(50, 50), pointerId: 19 });
+    fireEvent.pointerCancel(viewport, { pointerId: 19, ...pointer(50, 50) });
+    fireEvent.pointerMove(viewport, { buttons: 1, ...pointer(80, 90), pointerId: 19 });
+
+    fireEvent.pointerDown(viewport, { button: 0, buttons: 1, ...pointer(50, 50), pointerId: 20 });
+    fireEvent.lostPointerCapture(viewport, { pointerId: 20, ...pointer(50, 50) });
+    fireEvent.pointerMove(viewport, { buttons: 1, ...pointer(80, 90), pointerId: 20 });
+    fireEvent.keyUp(viewport, { key: " " });
+
+    expect(panCanvasViewport).not.toHaveBeenCalled();
+  });
+
   it("resolves a deferred blank drag against current prepared geometry and latest pointer position", async () => {
     const initialElements: CadElement[] = [];
     const currentElements: CadElement[] = [rectangleElements[2]!];

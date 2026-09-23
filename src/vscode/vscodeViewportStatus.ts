@@ -6,8 +6,23 @@ export type VscodeViewportStatusViewport = { zoom: number };
 
 // Approximate rendered pixels for the fixed 5ch/8ch/8ch status grid, its gaps, and padding.
 export const VSCODE_VIEWPORT_STATUS_ESTIMATED_WIDTH = 188;
+export const VSCODE_VIEWPORT_ZOOM_ESTIMATED_WIDTH = 72;
 
 export const formatVscodeViewportZoom = (zoom: number): string => `${Math.round(zoom * 100)}%`;
+
+export const vscodeViewportZoomPresentationFor = (
+  id: string,
+  viewport: VscodeViewportStatusViewport,
+  label = "Viewport zoom",
+  description = "Current viewport zoom."
+): CommandRibbonPresentationValueItem => ({
+  id,
+  type: "value",
+  label,
+  description,
+  estimatedWidth: VSCODE_VIEWPORT_ZOOM_ESTIMATED_WIDTH,
+  fields: [{ label: "", value: formatVscodeViewportZoom(viewport.zoom) }]
+});
 
 export const formatVscodeViewportCoordinate = (coordinate: number | null): string =>
   coordinate === null ? "—" : coordinate.toFixed(1);

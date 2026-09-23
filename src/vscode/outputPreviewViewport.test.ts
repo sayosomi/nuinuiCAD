@@ -11,6 +11,7 @@ import {
   resetOutputPreviewViewport,
   zoomOutputPreviewViewportAt
 } from "./outputPreviewViewport";
+import { VIEWPORT_ZOOM_STEP } from "../geometry/viewport";
 
 const printPlan = {
   kind: "print",
@@ -74,6 +75,24 @@ describe("Output Preview viewport", () => {
     expect(zoomed.panY).toBe(70);
     expect(clampOutputPreviewZoom(0)).toBe(0.1);
     expect(clampOutputPreviewZoom(100)).toBe(20);
+  });
+
+  it("supports deterministic button-sized steps without escaping the interactive clamp", () => {
+    expect(zoomOutputPreviewViewportAt(
+      DEFAULT_OUTPUT_PREVIEW_VIEWPORT,
+      VIEWPORT_ZOOM_STEP,
+      { x: 400, y: 300, width: 800, height: 600 }
+    ).zoom).toBeCloseTo(1.1);
+    expect(zoomOutputPreviewViewportAt(
+      { panX: 0, panY: 0, zoom: 20 },
+      VIEWPORT_ZOOM_STEP,
+      { x: 400, y: 300, width: 800, height: 600 }
+    ).zoom).toBe(20);
+    expect(zoomOutputPreviewViewportAt(
+      { panX: 0, panY: 0, zoom: 0.1 },
+      1 / VIEWPORT_ZOOM_STEP,
+      { x: 400, y: 300, width: 800, height: 600 }
+    ).zoom).toBe(0.1);
   });
 
   it("fits ordinary Reveal geometry with 32px edge padding and centers it", () => {

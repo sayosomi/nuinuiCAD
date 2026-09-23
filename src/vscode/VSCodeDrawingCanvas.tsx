@@ -1,7 +1,7 @@
 import type { RefObject } from "react";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from "react";
 import { dispatchCommand } from "../commands/commands";
-import type { CommandContext } from "../commands/commandTypes";
+import type { CommandContext, CommandId } from "../commands/commandTypes";
 import { commitCanvasRectangleSelection } from "../commands/canvasRectangleSelectionCommands";
 import {
   canvasSelectionSnapshot,
@@ -40,6 +40,8 @@ import {
 } from "./vscodeCanvasRibbonConfig";
 import { vscodeCanvasRibbonCommandFor } from "./vscodeCanvasRibbonCatalog";
 import { VSCodeCanvasRibbonOverlay } from "./VSCodeCanvasRibbonOverlay";
+import { VSCodeCanvasViewportControls } from "./VSCodeCanvasViewportControls";
+import { isVscodeCanvasViewportCommandId } from "./vscodeCanvasViewportCommandModel";
 import { VSCodeReferencePickOverlay } from "./VSCodeReferencePickOverlay";
 import { VSCodeReferencePickModeStatus } from "./VSCodeReferencePickModeStatus";
 import { CommandLineBar } from "../components/CommandLineBar";
@@ -359,6 +361,19 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       pickModeActive: effectivePickModeActive
     }), [effectivePickModeActive, selectedElementIds.length, showCanvasGeometryNames, showCanvasPointNames, showCanvasPoints]);
 
+    const dispatchSharedCanvasCommand = useCallback((commandId: CommandId) => {
+      drawingCanvasRef.current?.finalizeCanvasInteraction();
+      dispatchCommand(commandId, {
+        evaluation,
+        getCanvasViewportRect: () => canvasFocusRef.current?.getBoundingClientRect() ?? null,
+        measureCanvasTextWidth,
+        recordSelectionHistory: true,
+        finalizeCanvasInteraction: () => drawingCanvasRef.current?.finalizeCanvasInteraction(),
+        focusCanvas: () => canvasFocusRef.current?.focus()
+      });
+      canvasFocusRef.current?.focus();
+    }, [canvasFocusRef, evaluation, measureCanvasTextWidth]);
+
     const executeRibbonCommand = useCallback((item: CommandRibbonPresentationCommandItem) => {
       const currentUiState = useCadUiStore.getState();
       if (!pickModeCanvasCommandAllowedForActive(item.commandId, canvasPickModeActive())) return;
@@ -376,16 +391,14 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
         return;
       }
       if (!definition.sharedCommandId) return;
-      dispatchCommand(definition.sharedCommandId, {
-        evaluation,
-        getCanvasViewportRect: () => canvasFocusRef.current?.getBoundingClientRect() ?? null,
-        measureCanvasTextWidth,
-        recordSelectionHistory: true,
-        finalizeCanvasInteraction: () => drawingCanvasRef.current?.finalizeCanvasInteraction(),
-        focusCanvas: () => canvasFocusRef.current?.focus()
-      });
-      canvasFocusRef.current?.focus();
-    }, [canvasFocusRef, canvasPickModeActive, evaluation, measureCanvasTextWidth, onEditCanvasRibbon]);
+      dispatchSharedCanvasCommand(definition.sharedCommandId);
+    }, [canvasPickModeActive, dispatchSharedCanvasCommand, onEditCanvasRibbon]);
+
+    const executeViewportCommand = useCallback((item: CommandRibbonPresentationCommandItem) => {
+      if (!isVscodeCanvasViewportCommandId(item.commandId)) return;
+      if (!pickModeCanvasCommandAllowedForActive(item.commandId, canvasPickModeActive())) return;
+      dispatchSharedCanvasCommand(item.commandId);
+    }, [canvasPickModeActive, dispatchSharedCanvasCommand]);
 
     const dispatchGeometryAction = useMemo(
       () => (action: CanvasPointDragAction | CanvasBezierHandleDragAction) => {
@@ -509,6 +522,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       showCanvasPointNames,
       showCanvasGeometryNames,
       showCanvasPoints,
+      spacePrimaryPanEnabled: true,
       renderFixedCanvasChrome: false,
       activePointPickTarget,
       activeNumericReferencePickTarget,
@@ -745,6 +759,13 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
             onCommand={executeRibbonCommand}
             onPositionCommit={onCanvasRibbonPositionCommit}
           />
+          <VSCodeCanvasViewportControls
+            canvasViewport={canvasViewport}
+            pickModeChromeHeight={layout.pickModeChromeHeight}
+            pickModeActive={effectivePickModeActive}
+            presentation={canvasPresentationAdapter}
+            onCommand={executeViewportCommand}
+          />
         </>
       )
     }), [
@@ -760,6 +781,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       canvasTheme,
       dragPreviewScheduler,
       evaluationState,
+      effectivePickModeActive,
       multiDocumentRuntimePresentation,
       presentationCompiledDocumentRevision,
       runtimeOnlyElementIds,
@@ -771,6 +793,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       showCanvasGeometryNames,
       showCanvasPoints,
       executeRibbonCommand,
+      executeViewportCommand,
       onCanvasRibbonPositionCommit,
       canvasRibbonRibbons,
       ribbonCommandContext,

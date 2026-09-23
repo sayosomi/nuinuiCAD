@@ -4212,6 +4212,12 @@ textarea {
   pointer-events: none;
 }
 
+.canvas-viewport-controls {
+  position: absolute;
+  z-index: 1;
+  pointer-events: none;
+}
+
 .command-ribbon {
   display: flex;
   align-items: stretch;
@@ -4672,6 +4678,10 @@ textarea {
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.06em;
+}
+
+.vscode-canvas-webview .command-ribbon-value-field-label:empty {
+  display: none;
 }
 
 .vscode-canvas-webview .command-ribbon-value output {

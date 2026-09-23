@@ -89,16 +89,17 @@ const vscodeCanvasRibbonPresentationsFor = (
   orientation: ribbon.orientation,
   iconSize: VSCODE_CANVAS_RIBBON_ICON_SIZE,
   verticalHandlePlacement: ribbon.orientation === "vertical" ? "side" : undefined,
-    items: ribbon.items.map((item) => item.type === "value"
-      ? vscodeCanvasStatusPresentationFor(
-          item.id,
-          canvasViewport,
-          pointerWorldPoint,
-          presentation?.text("canvas.status.label", "Canvas status"),
-          presentation?.text("canvas.status.description", "Current Canvas zoom and pointer position."),
-          presentation?.statusFields
-        )
-      : commandItemPresentationFor(item, ribbonCommandContext, presentation))
+    items: ribbon.items.map((item) => {
+      if (item.type !== "value") return commandItemPresentationFor(item, ribbonCommandContext, presentation);
+      return vscodeCanvasStatusPresentationFor(
+        item.id,
+        canvasViewport,
+        pointerWorldPoint,
+        presentation?.text("canvas.status.label", "Canvas status"),
+        presentation?.text("canvas.status.description", "Current Canvas zoom and pointer position."),
+        presentation?.statusFields
+      );
+    })
 }));
 
 const pointerWorldPointFor = (

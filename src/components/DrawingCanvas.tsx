@@ -14,7 +14,7 @@ import { numericGeometryStaticTargetForElementInDocument } from "../geometry/num
 import { pickCandidates, pickSourcePrecedesTarget, selectedPickOption } from "../model/pickCandidates";
 import { isSemanticGeometryCandidateAllowed } from "../model/moduleSemanticCandidateBoundary";
 import { pickRefForOption, pickRefKey } from "../model/pickReferences";
-import { matchingPickModeSessionForTargets } from "../model/pickModeSession";
+import { matchingPickModeSessionForTargets, type PickModeSession } from "../model/pickModeSession";
 import type { BezierHandleRole as CommandBezierHandleRole } from "../model/elementDragTransforms";
 import type {
   CadElement,
@@ -47,6 +47,7 @@ import {
   constrainedWorldDelta,
   screenToWorld
 } from "./canvasViewport";
+import { VIEWPORT_ZOOM_STEP } from "../geometry/viewport";
 import { renderCanvasGeometry } from "./canvasRenderer";
 import { useCanvasOverlayData } from "./useCanvasOverlayData";
 import type { CanvasHostAdapter, CanvasSelectionMode, CanvasWorldPoint } from "./canvasHostAdapter";
@@ -149,7 +150,8 @@ type CanvasRectangleSelectionSessionState = {
   activated: boolean;
 };
 
-const WHEEL_ZOOM_BASE = 1.1;
+type CanvasPanMode = "middle" | "space-primary";
+
 const BEZIER_HANDLE_HIT_RADIUS_PX = 9;
 const POINT_PICK_CANDIDATE_RADIUS_PX = 10;
 const DEFERRED_BEZIER_HANDLE_DRAG_THRESHOLD_PX = 3;
@@ -202,7 +204,10 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
   nativePointerBoundaryFallback = false
 }, ref) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const panDragRef = useRef<{ pointerId: number; lastX: number; lastY: number } | null>(null);
+  const panDragRef = useRef<{ pointerId: number; lastX: number; lastY: number; mode: CanvasPanMode } | null>(null);
+  const spaceHeldRef = useRef(false);
+  const pendingSpacePickApplyRef = useRef<PickModeSession | null>(null);
+  const applyPendingSpacePickRef = useRef<() => void>(() => undefined);
   const pointDragRef = useRef<PointDragState | null>(null);
   const bezierHandleDragRef = useRef<BezierHandleDragState | null>(null);
   const pendingEditorFocusRef = useRef<{ pointerId: number } | null>(null);
@@ -380,6 +385,38 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       : [])
   )), [sharedPickCandidates]);
   const pointPickCandidates = hostAdapter.filterPointPickCandidates?.(sharedPickCandidates) ?? sharedPickCandidates;
+  const clearPendingSpacePickApply = useCallback(() => {
+    pendingSpacePickApplyRef.current = null;
+  }, []);
+  const dispatchSelectedPickCandidate = useCallback(() => {
+    if (hostAdapter.dispatchCanvasPickCommand) {
+      const selected = isPointPickActive
+        ? selectedPickOption(pointPickCandidates, activePickCursor)
+        : null;
+      const selectedPointPickAction = selected?.option.kind === "point"
+        ? {
+            pickedPointAnchor: selected.option.anchor,
+            pickedPointCandidateElementId: selected.candidate.elementId,
+            ...(selected.option.sourceReference
+              ? { pickedPointSourceReference: selected.option.sourceReference }
+              : {})
+          }
+        : null;
+      if (selectedPointPickAction) {
+        return hostAdapter.dispatchCanvasPickCommand("applySelectedPickCandidate", selectedPointPickAction);
+      }
+      return hostAdapter.dispatchCanvasPickCommand("applySelectedPickCandidate");
+    }
+    return dispatchCommand("applySelectedPickCandidate");
+  }, [activePickCursor, hostAdapter, isPointPickActive, pointPickCandidates]);
+  const applyPendingSpacePick = useCallback(() => {
+    const pendingSession = pendingSpacePickApplyRef.current;
+    pendingSpacePickApplyRef.current = null;
+    if (!pendingSession || canvasFocusRef.current !== document.activeElement) return;
+    if (panDragRef.current?.mode === "space-primary" || pickModeSession !== pendingSession) return;
+    dispatchSelectedPickCandidate();
+  }, [canvasFocusRef, dispatchSelectedPickCandidate, pickModeSession]);
+  applyPendingSpacePickRef.current = applyPendingSpacePick;
   const selectedElementIdSet = useMemo(() => new Set(selectedElementIds), [selectedElementIds]);
   const draftLinePickElementIds = useMemo(() => {
     const draftLineIds = new Set(pickModeSession?.draft.flatMap((entry) =>
@@ -882,7 +919,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       width: event.currentTarget.clientWidth,
       height: event.currentTarget.clientHeight
     };
-    hostAdapter.zoomCanvasViewportAt(Math.pow(WHEEL_ZOOM_BASE, -event.deltaY / 100), anchor);
+    hostAdapter.zoomCanvasViewportAt(Math.pow(VIEWPORT_ZOOM_STEP, -event.deltaY / 100), anchor);
   };
 
   const applyMeasurementCandidate = useCallback((candidate: LineMeasurementCandidate) => {
@@ -1657,19 +1694,64 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     pendingPointerStateRef.current = transition.state;
     cancelRectangleSelection();
     finalizeOverlapSessionRef.current();
+    spaceHeldRef.current = false;
+    clearPendingSpacePickApply();
+    panDragRef.current = null;
     if (hoverFrameRef.current !== null && typeof window.cancelAnimationFrame === "function") {
       window.cancelAnimationFrame(hoverFrameRef.current);
     }
     hoverFrameRef.current = null;
-  }, [cancelRectangleSelection, captureLedger]);
+  }, [cancelRectangleSelection, clearPendingSpacePickApply, captureLedger]);
 
-  const stopPanning = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (panDragRef.current?.pointerId === event.pointerId) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-      panDragRef.current = null;
-      setIsPanning(false);
+  const stopPanningSession = useCallback((pointerId?: number, captureTarget?: HTMLDivElement) => {
+    const pan = panDragRef.current;
+    if (!pan || (pointerId !== undefined && pan.pointerId !== pointerId)) return;
+    const target = captureTarget ?? canvasFocusRef.current;
+    try {
+      target?.releasePointerCapture(pan.pointerId);
+    } catch {
+      // Pointer capture can already be gone after pointercancel/lostpointercapture.
     }
-  };
+    panDragRef.current = null;
+    setIsPanning(false);
+  }, [canvasFocusRef]);
+
+  const stopPanning = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    stopPanningSession(event.pointerId, event.currentTarget);
+  }, [stopPanningSession]);
+
+  const handleCanvasBlur = useCallback(() => {
+    spaceHeldRef.current = false;
+    clearPendingSpacePickApply();
+    if (panDragRef.current?.mode === "space-primary") stopPanningSession();
+  }, [clearPendingSpacePickApply, stopPanningSession]);
+
+  useEffect(() => {
+    if (!hostAdapter.spacePrimaryPanEnabled) {
+      spaceHeldRef.current = false;
+      clearPendingSpacePickApply();
+      return;
+    }
+    const isSpaceKey = (event: KeyboardEvent): boolean => event.key === " " || event.code === "Space";
+    const clearSpace = () => {
+      spaceHeldRef.current = false;
+      clearPendingSpacePickApply();
+      if (panDragRef.current?.mode === "space-primary") stopPanningSession();
+    };
+    const onKeyUp = (event: KeyboardEvent) => {
+      if (!isSpaceKey(event)) return;
+      spaceHeldRef.current = false;
+      if (panDragRef.current?.mode === "space-primary") stopPanningSession();
+      applyPendingSpacePickRef.current();
+    };
+    window.addEventListener("keyup", onKeyUp, { capture: true });
+    window.addEventListener("blur", clearSpace);
+    return () => {
+      window.removeEventListener("keyup", onKeyUp, { capture: true });
+      window.removeEventListener("blur", clearSpace);
+      clearSpace();
+    };
+  }, [clearPendingSpacePickApply, hostAdapter.spacePrimaryPanEnabled, stopPanningSession]);
 
   const stopPointDragging = (event: ReactPointerEvent<HTMLDivElement>) => {
     const drag = pointDragRef.current;
@@ -1758,6 +1840,28 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
   const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (!claimPrimaryPointerDown(event)) return;
     markReactPointerEvent(event);
+    const spacePanActive = hostAdapter.spacePrimaryPanEnabled &&
+      spaceHeldRef.current &&
+      canvasFocusRef.current === document.activeElement;
+    if (event.button === 0 && spacePanActive) {
+      if (!canvasPointerBoundaryFallbackShouldRun(event.nativeEvent)) return;
+      event.preventDefault();
+      clearPendingSpacePickApply();
+      if (pendingPointerStateRef.current.kind === "waiting") {
+        applyPendingPointerTransition(cancelPendingCanvasPointer(pendingPointerStateRef.current));
+      }
+      setMeasurementCandidateMenu(null);
+      event.currentTarget.setPointerCapture(event.pointerId);
+      panDragRef.current = {
+        pointerId: event.pointerId,
+        lastX: event.clientX,
+        lastY: event.clientY,
+        mode: "space-primary"
+      };
+      setIsPanning(true);
+      return;
+    }
+    if (event.button === 0 && hostAdapter.spacePrimaryPanEnabled && spaceHeldRef.current) return;
     const flushResult = hostAdapter.flushSourceEditorOnCanvasPointerDown();
     if (flushResult === "blocked-composition") {
       hostAdapter.setCommandErrorMessage(
@@ -1823,12 +1927,28 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     panDragRef.current = {
       pointerId: event.pointerId,
       lastX: event.clientX,
-      lastY: event.clientY
+      lastY: event.clientY,
+      mode: "middle"
     };
     setIsPanning(true);
   };
 
   const handleCanvasKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (
+      hostAdapter.spacePrimaryPanEnabled &&
+      (event.key === " " || event.code === "Space") &&
+      event.currentTarget === document.activeElement
+    ) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (!event.repeat) {
+        pendingSpacePickApplyRef.current = !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey && isPickModeActive
+          ? pickModeSession
+          : null;
+      }
+      spaceHeldRef.current = true;
+      return;
+    }
     const overlapSession = overlapCandidateSessionRef.current;
     if (overlapSession && event.currentTarget === document.activeElement) {
       if (event.key === "ArrowDown" || event.key === "ArrowUp") {
@@ -1914,23 +2034,14 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       if (commandId) {
         event.preventDefault();
         event.stopPropagation();
+        if (commandId === "finishPickMode" || commandId.startsWith("cancel")) {
+          clearPendingSpacePickApply();
+        }
         if (commandId === "cancelPickMode" && hostAdapter.cancelCanvasPickOperation) {
           hostAdapter.cancelCanvasPickOperation();
         } else if (hostAdapter.dispatchCanvasPickCommand) {
-          const selected = commandId === "applySelectedPickCandidate" && isPointPickActive
-            ? selectedPickOption(pointPickCandidates, activePickCursor)
-            : null;
-          const selectedPointPickAction = selected?.option.kind === "point"
-            ? {
-                pickedPointAnchor: selected.option.anchor,
-                pickedPointCandidateElementId: selected.candidate.elementId,
-                ...(selected.option.sourceReference
-                  ? { pickedPointSourceReference: selected.option.sourceReference }
-                  : {})
-              }
-            : null;
-          if (selectedPointPickAction) {
-            hostAdapter.dispatchCanvasPickCommand(commandId, selectedPointPickAction);
+          if (commandId === "applySelectedPickCandidate") {
+            dispatchSelectedPickCandidate();
           } else {
             hostAdapter.dispatchCanvasPickCommand(commandId);
           }
@@ -1985,6 +2096,17 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     const screen = screenPointForPointerEvent(event);
     publishWorldPointerForScreen(screen);
     const pointerMoveEntry = capturePointerMoveEntry();
+    const pan = panDragRef.current;
+    if (pan?.mode === "space-primary" && pan.pointerId === event.pointerId) {
+      if ((event.buttons & 1) === 0) {
+        stopPanning(event);
+        return;
+      }
+      event.preventDefault();
+      hostAdapter.panCanvasViewport(event.clientX - pan.lastX, event.clientY - pan.lastY);
+      panDragRef.current = { ...pan, lastX: event.clientX, lastY: event.clientY };
+      return;
+    }
     if (pendingPointerStateRef.current.kind === "waiting") {
       applyPendingPointerTransition(movePendingCanvasPointer(
         pendingPointerStateRef.current,
@@ -2159,6 +2281,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       pointermove: handlePointerMove,
       pointerup: handlePointerUp,
       pointercancel: handlePointerCancel,
+      lostpointercapture: handlePointerCancel,
       pointerleave: handlePointerLeave
     },
     reactHandledEvents: reactHandledPointerEvents,
@@ -2183,6 +2306,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
         tabIndex={-1}
         data-canvas-viewport="true"
         data-vscode-context={hostAdapter.canvasContextMenuData}
+        onBlur={handleCanvasBlur}
         onKeyDown={handleCanvasKeyDown}
         onContextMenu={handleContextMenu}
         onWheel={handleWheel}
@@ -2190,6 +2314,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerCancel}
+        onLostPointerCapture={handlePointerCancel}
         onPointerLeave={handlePointerLeave}
         onAuxClick={(event) => event.preventDefault()}
       >

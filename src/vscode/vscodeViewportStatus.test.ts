@@ -3,7 +3,8 @@ import { vscodeCanvasStatusFields } from "./vscodeCanvasRibbonStatus";
 import {
   formatVscodeViewportCoordinate,
   formatVscodeViewportZoom,
-  vscodeViewportStatusFields
+  vscodeViewportStatusFields,
+  vscodeViewportZoomPresentationFor
 } from "./vscodeViewportStatus";
 
 describe("VS Code viewport status", () => {
@@ -30,5 +31,19 @@ describe("VS Code viewport status", () => {
       { label: "X", value: "—" },
       { label: "Y", value: "—" }
     ]);
+  });
+
+  it("builds a compact zoom-only presentation from the shared formatter", () => {
+    expect(vscodeViewportZoomPresentationFor(
+      "zoom",
+      { zoom: 1.1 },
+      "Canvas zoom",
+      "Current Canvas zoom."
+    )).toMatchObject({
+      id: "zoom",
+      type: "value",
+      label: "Canvas zoom",
+      fields: [{ label: "", value: "110%" }]
+    });
   });
 });

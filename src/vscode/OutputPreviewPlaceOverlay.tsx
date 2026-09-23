@@ -50,6 +50,7 @@ type OutputPreviewPlaceOverlayProps = {
   viewport: OutputPreviewViewport;
   onNavigate: (range: NormalizedSourceRange) => void;
   onHighlightPlaceIdChange: (placeId: string | null) => void;
+  spacePrimaryPanActive?: boolean;
   clearInteractionKey?: number;
   focusViewport?: () => void;
   placeContextMenuData?: string;
@@ -70,6 +71,7 @@ export const OutputPreviewPlaceOverlay = ({
   viewport,
   onNavigate,
   onHighlightPlaceIdChange,
+  spacePrimaryPanActive = false,
   clearInteractionKey = 0,
   focusViewport,
   placeContextMenuData,
@@ -360,6 +362,11 @@ export const OutputPreviewPlaceOverlay = ({
   };
 
   const beginHandleDrag = (event: React.PointerEvent<HTMLElement>, handle: OutputPreviewPlaceHandle) => {
+    if (event.button === 0 && spacePrimaryPanActive) {
+      suppressClickPlaceIdRef.current = handle.placeId;
+      return;
+    }
+    if (event.button === 0) suppressClickPlaceIdRef.current = null;
     if (event.button !== 0 || !handle.projection.dragability.draggable || !onBeginDrag) return;
     reactHandledPointerEvents.add(event.nativeEvent ?? event as unknown as Event);
     event.stopPropagation();
@@ -515,7 +522,8 @@ export const OutputPreviewPlaceOverlay = ({
             onLostPointerCapture={cancelHandleDrag}
             onClick={(event) => {
               event.stopPropagation();
-              if (suppressClickPlaceIdRef.current === handle.placeId) {
+              if (spacePrimaryPanActive || suppressClickPlaceIdRef.current === handle.placeId) {
+                event.preventDefault();
                 suppressClickPlaceIdRef.current = null;
                 return;
               }

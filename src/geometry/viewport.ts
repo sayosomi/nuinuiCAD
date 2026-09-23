@@ -18,6 +18,8 @@ export type ViewportZoomAnchor = ViewportSize & ViewportPoint;
 
 export type ViewportZoomNormalizer = (candidateZoom: number) => number | null;
 
+export const VIEWPORT_ZOOM_STEP = 1.1;
+
 export const worldToScreen = (
   point: ViewportPoint,
   size: ViewportSize,

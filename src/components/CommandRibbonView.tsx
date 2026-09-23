@@ -214,7 +214,7 @@ export const CommandRibbonView = ({
         {ribbon.items.map((item) => {
           const tooltipId = tooltipIdFor(ribbon.id, item.id);
           if (item.type === "value") {
-            const valueText = item.fields.map((field) => `${field.label}: ${field.value}`).join(", ");
+            const valueText = item.fields.map((field) => field.label ? `${field.label}: ${field.value}` : field.value).join(", ");
             return (
               <span
                 key={item.id}

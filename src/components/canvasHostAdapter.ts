@@ -118,6 +118,8 @@ export type CanvasHostAdapter = {
   showCanvasPoints: boolean;
   /** Whether the host wants the shared fixed Canvas controls/status chrome. */
   renderFixedCanvasChrome?: boolean;
+  /** Enables Space-primary temporary pan for this DrawingCanvas host. */
+  spacePrimaryPanEnabled?: boolean;
   /** Optional host projection for the semantic context of the latest right click. */
   canvasContextMenuData?: string;
   publishCanvasContextMenu?: (context: {

@@ -39,15 +39,13 @@ export const defaultVscodeCanvasRibbons = (): VscodeCanvasRibbon[] => [
     x: null,
     y: VSCODE_CANVAS_RIBBON_DEFAULT_Y,
     orientation: "horizontal",
-    items: [
-      {
-        id: "editCanvasRibbon",
-        type: "command",
-        commandId: "editCanvasRibbon",
-        icon: "settings-2",
-        showLabel: false
-      }
-    ]
+    items: [{
+      id: "editCanvasRibbon",
+      type: "command",
+      commandId: "editCanvasRibbon",
+      icon: "settings-2",
+      showLabel: false
+    }]
   }
 ];
 

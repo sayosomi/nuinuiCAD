@@ -1,5 +1,5 @@
 import { createRef } from "react";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { emptyEvaluationResult } from "../geometry/evaluationEngine";
 import { compileDslDocument } from "@nuinuicad/nui-language";
@@ -106,6 +106,39 @@ const renderCanvas = (
 };
 
 describe("VSCodeDrawingCanvas adapter", () => {
+  it("enables Space-primary pan only in the production Canvas adapter", () => {
+    const evaluation = emptyEvaluationResult(useCadDocumentStore.getState().elements);
+    const { adapter } = renderCanvas(evaluation, undefined);
+
+    expect(adapter.spacePrimaryPanEnabled).toBe(true);
+  });
+
+  it("keeps fixed viewport controls visible when configurable Canvas Ribbons are empty", () => {
+    const evaluation = emptyEvaluationResult(useCadDocumentStore.getState().elements);
+    const { adapter } = renderCanvas(evaluation, undefined, vi.fn(), []);
+    const overlay = adapter.renderHostOverlay?.({ width: 400, height: 300 }, { pickModeChromeHeight: 52 });
+    if (!overlay) throw new Error("Canvas UI overlay was not rendered");
+    const view = render(overlay);
+    const controls = view.container.querySelector("[data-canvas-viewport-controls]");
+
+    expect(controls).toBeInTheDocument();
+    expect(controls).toHaveStyle({ top: "60px", right: "8px" });
+    expect(controls?.querySelectorAll(".command-ribbon-button")).toHaveLength(4);
+    expect(controls?.querySelector("[data-command-id='zoomOutCanvas']")).toBeInTheDocument();
+    expect(controls?.querySelector("[data-command-id='zoomInCanvas']")).toBeInTheDocument();
+    expect(controls?.querySelector("[data-command-id='resetCanvasView']")).toBeInTheDocument();
+    expect(controls?.querySelector("[data-command-id='fitDrawing']")).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "Canvas zoom: 100%" })).toBeInTheDocument();
+    fireEvent.click(controls?.querySelector("[data-command-id='zoomOutCanvas']") as HTMLElement);
+    fireEvent.click(controls?.querySelector("[data-command-id='zoomInCanvas']") as HTMLElement);
+    fireEvent.click(controls?.querySelector("[data-command-id='resetCanvasView']") as HTMLElement);
+    fireEvent.click(controls?.querySelector("[data-command-id='fitDrawing']") as HTMLElement);
+    expect(mocks.dispatchCommand).toHaveBeenCalledWith("zoomOutCanvas", expect.anything());
+    expect(mocks.dispatchCommand).toHaveBeenCalledWith("zoomInCanvas", expect.anything());
+    expect(mocks.dispatchCommand).toHaveBeenCalledWith("resetCanvasView", expect.anything());
+    expect(mocks.dispatchCommand).toHaveBeenCalledWith("fitDrawing", expect.anything());
+  });
+
   it("blocks ordinary Canvas selection, rectangle selection, and drag mutation during Pick", () => {
     const target = { elementId: "target", parameterKey: "point" };
     useCadUiStore.setState({
@@ -194,13 +227,15 @@ describe("VSCodeDrawingCanvas adapter", () => {
     const overlay = adapter.renderHostOverlay?.({ width: 400, height: 300 }, { pickModeChromeHeight: 60 });
     if (!overlay) throw new Error("Ribbon overlay was not rendered");
     render(overlay);
+    const ribbon = document.querySelector("[data-ribbon-id='ribbon']");
+    if (!(ribbon instanceof HTMLElement)) throw new Error("Configured Ribbon was not rendered");
 
     expect(screen.getByRole("button", { name: "キャンバス選択を解除" })).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByRole("button", { name: "Edit Canvas Ribbon" })).toHaveAttribute("aria-disabled", "true");
-    fireEvent.click(screen.getByRole("button", { name: "キャンバス表示をリセット" }));
-    fireEvent.click(screen.getByRole("button", { name: "描画全体を表示" }));
-    fireEvent.click(screen.getByRole("button", { name: "Toggle Point Names" }));
-    fireEvent.click(screen.getByRole("button", { name: "Edit Canvas Ribbon" }));
+    fireEvent.click(within(ribbon).getByRole("button", { name: "キャンバス表示をリセット" }));
+    fireEvent.click(within(ribbon).getByRole("button", { name: "描画全体を表示" }));
+    fireEvent.click(within(ribbon).getByRole("button", { name: "Toggle Point Names" }));
+    fireEvent.click(within(ribbon).getByRole("button", { name: "Edit Canvas Ribbon" }));
 
     expect(mocks.dispatchCommand).toHaveBeenCalledWith("resetCanvasView", expect.anything());
     expect(mocks.dispatchCommand).toHaveBeenCalledWith("fitDrawing", expect.anything());
@@ -439,12 +474,13 @@ describe("VSCodeDrawingCanvas adapter", () => {
     if (!overlay) throw new Error("Ribbon overlay was not rendered");
     const view = render(overlay);
 
-    expect(view.container.querySelector(".command-ribbon")).toHaveClass("is-vertical", "has-side-handle");
-    expect(view.container.querySelector(".command-ribbon")?.children).toHaveLength(2);
-    expect(view.container.querySelector(".command-ribbon-buttons")?.children).toHaveLength(1);
-    expect(view.container.querySelector("svg")?.getAttribute("style")).toMatch(/color:\s*currentcolor/i);
-    expect(view.container.querySelector("svg")).toHaveAttribute("width", "16");
-    expect(view.container.querySelector("svg")).toHaveAttribute("height", "16");
+    const ribbon = view.container.querySelector("[data-ribbon-id='vertical-ribbon']");
+    expect(ribbon).toHaveClass("is-vertical", "has-side-handle");
+    expect(ribbon?.children).toHaveLength(2);
+    expect(ribbon?.querySelector(".command-ribbon-buttons")?.children).toHaveLength(1);
+    expect(ribbon?.querySelector("svg")?.getAttribute("style")).toMatch(/color:\s*currentcolor/i);
+    expect(ribbon?.querySelector("svg")).toHaveAttribute("width", "16");
+    expect(ribbon?.querySelector("svg")).toHaveAttribute("height", "16");
   });
 
   it("keeps preview mutations in the Webview and sends one canonical source after each commit", () => {
