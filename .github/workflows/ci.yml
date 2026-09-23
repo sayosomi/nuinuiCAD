@@ -27,12 +27,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
 
       - name: Setup Node
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 24
 
@@ -110,7 +110,7 @@ jobs:
       - name: Upload structured test results
         if: always()
         continue-on-error: true
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: nuinuicad-ci-test-results-classification-attempt-${{ github.run_attempt }}
           path: |
@@ -127,12 +127,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
 
       - name: Setup Node
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 24
           cache: npm
@@ -169,7 +169,7 @@ jobs:
       - name: Upload structured test results
         if: always()
         continue-on-error: true
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: nuinuicad-ci-test-results-node-attempt-${{ github.run_attempt }}
           path: |
@@ -186,16 +186,16 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
         with:
           components: rustfmt, clippy
 
       - name: Install cargo-nextest
         if: ${{ needs.classification.outputs.rust == 'true' }}
-        uses: taiki-e/install-action@nextest
+        uses: taiki-e/install-action@4765db214858792ed289a2b5e543daf93d682a48 # nextest
 
       - name: Check evaluator Rust formatting
         if: ${{ needs.classification.outputs.rust == 'true' }}
@@ -215,7 +215,7 @@ jobs:
 
       - name: Setup Node
         if: ${{ needs.classification.outputs.parity == 'true' || needs.classification.outputs.full_node == 'true' }}
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 24
           cache: npm
@@ -251,7 +251,7 @@ jobs:
       - name: Upload structured test results
         if: always()
         continue-on-error: true
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: nuinuicad-ci-test-results-rust-parity-attempt-${{ github.run_attempt }}
           path: |
