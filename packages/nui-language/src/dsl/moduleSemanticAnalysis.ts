@@ -212,7 +212,7 @@ const issue = (code: string, span: DslSpan, message: string, extra: Partial<Loca
   ...extra
 });
 
-const moduleOwnerIndexOf = (statements: readonly DslStatement[], statementIndex: number): number | null => {
+export const moduleOwnerIndexOf = (statements: readonly DslStatement[], statementIndex: number): number | null => {
   const visited = new Set<number>();
   let enclosing = statements[statementIndex]?.enclosing ?? null;
   while (enclosing && !visited.has(enclosing.statementIndex)) {
@@ -223,7 +223,7 @@ const moduleOwnerIndexOf = (statements: readonly DslStatement[], statementIndex:
   return null;
 };
 
-const isMaterializedForGroupTemplate = (
+export const isMaterializedForGroupTemplate = (
   statements: readonly DslStatement[],
   statementIndex: number
 ): boolean => {
@@ -340,6 +340,11 @@ const geometryPropertyTargetForSourceTarget = (
   property: string,
   pointKey?: string
 ): ModuleGeometryPropertySourceTarget | null => {
+  if (target.kind === "constructionInput") {
+    return target.sourceTarget
+      ? geometryPropertyTargetForSourceTarget(target.sourceTarget, property, pointKey)
+      : null;
+  }
   const effectivePointKey = pointKey ?? ("pointKey" in target ? target.pointKey : undefined);
   const stagePath = "stagePath" in target ? target.stagePath : undefined;
   if (target.kind === "geometryValue") {
@@ -1970,6 +1975,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
 
   let activeGeometryValueBinder: Extract<ModuleGeometrySourceTarget, { kind: "geometryValueForBinder" }> | null = null;
   let activeRecordValueBinder: Extract<ModuleRecordSourceTarget, { kind: "recordValueForBinder" }> | null = null;
+  const constructionInputResolutionStack = new Set<string>();
 
   const resolveGeometry = (
     statementIndex: number,
@@ -2222,6 +2228,20 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       end: semanticSpan.start + reference.pathRange.end
     };
     referenceNameSpan = baseSpan;
+    const inputMembers = pointKey?.split(".") ?? [];
+    const inputArgument = inputMembers[0] === "input" && inputMembers.length === 2 ? inputMembers[1] : null;
+    const inputMemberSpan = reference.propertyRange
+      ? {
+          start: semanticSpan.start + reference.propertyRange.start,
+          end: semanticSpan.start + reference.propertyRange.end
+        }
+      : baseSpan;
+    const inputArgumentSpan = inputArgument && reference.propertyRange
+      ? {
+          start: semanticSpan.start + reference.propertyRange.start + "input.".length,
+          end: semanticSpan.start + reference.propertyRange.end
+        }
+      : inputMemberSpan;
     const record = recordSourceLookup(statementIndex, ownerIndex, base, baseSpan);
     if (record.kind === "record") {
       const member = recordMemberFor(record, reference.property ?? "");
@@ -2275,6 +2295,15 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     };
     const qualified = resolveQualifiedModuleExport(statementIndex, ownerIndex, base, semanticSpan, reference.pathRange.start);
     if (qualified?.kind === "deferred") {
+      if (inputMembers[0] === "input") {
+        addLocal(statementIndex, issue(
+          "module-construction-input-inaccessible",
+          inputMemberSpan,
+          `module geometry「${base}」の construction input は module の外側には公開されていません。`,
+          { presentation: { key: "diagnostic.module-construction-input-inaccessible", parameters: { target: base } } }
+        ));
+        return semantic(null, "invalid", null, derivedRole);
+      }
       return semantic(
         deferredModuleExportTarget(
           qualified,
@@ -2299,6 +2328,172 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       : ownerIndex === null
         ? qualifiedSourceDeclarationResolution(sourceNamespace, statementIndex, path) ?? sourceDeclarationResolution(sourceNamespace, statementIndex, base)
         : overlayLookup;
+    if (inputMembers[0] === "input") {
+      if (inputArgument === null) {
+        addLocal(statementIndex, issue(
+          "module-incomplete-construction-input",
+          inputMemberSpan,
+          `construction input member「${base}.input」には argument 名が必要です。`,
+          { presentation: { key: "diagnostic.module-incomplete-construction-input", parameters: { target: base } } }
+        ));
+        return semantic(null, "invalid", null, derivedRole);
+      }
+      const occurrenceOwnerCandidates = reference.occurrenceIndex !== null && lookup.kind !== "resolved"
+        ? sourceNamespace.allDeclarations.filter((candidate) =>
+            candidate.kind === "geometry" &&
+            candidate.name === base &&
+            isMaterializedForGroupTemplate(statements, candidate.statementIndex) &&
+            moduleOwnerIndexOf(statements, candidate.statementIndex) === ownerIndex
+          )
+        : [];
+      const occurrenceOwner = occurrenceOwnerCandidates.length === 1 ? occurrenceOwnerCandidates[0] : null;
+      if (occurrenceOwnerCandidates.length > 1) {
+        addLocal(statementIndex, issue(
+          "module-ambiguous-construction-input-owner",
+          baseSpan,
+          `generated geometry「${base}」の construction input owner を一意に解決できません。`,
+          { presentation: { key: "diagnostic.module-ambiguous-construction-input-owner", parameters: { name: base } } }
+        ));
+        return semantic(null, "invalid", null, derivedRole);
+      }
+      if (lookup.kind !== "resolved" && !occurrenceOwner) {
+        const code = lookup.kind === "forward"
+          ? "module-forward-construction-input-owner"
+          : lookup.kind === "ambiguous"
+            ? "module-ambiguous-construction-input-owner"
+            : lookup.kind === "invalidTraversal" || lookup.kind === "invalidOverlayTraversal"
+              ? "module-invalid-construction-input-owner"
+              : "module-undefined-construction-input-owner";
+        const name = lookup.kind === "iteration" ? lookup.name : base;
+        addLocal(statementIndex, issue(
+          code,
+          baseSpan,
+          `construction input の owner「${name}」を解決できません。`,
+          { presentation: { key: `diagnostic.${code}`, parameters: { name } } }
+        ));
+        return semantic(null, lookup.kind === "forward" ? "forward" : "undefined", null, derivedRole);
+      }
+      const declaration = lookup.kind === "resolved" ? lookup.declaration : occurrenceOwner!;
+      const declarationRelated = relatedForDeclaration(declaration);
+      const declarationOwner = moduleOwnerIndexOf(statements, declaration.statementIndex);
+      if (declaration.kind !== "geometry") {
+        addLocal(statementIndex, issue(
+          "module-construction-input-owner-not-geometry",
+          baseSpan,
+          `construction input の owner「${base}」は drawable geometry declaration ではありません。`,
+          { relatedSources: declarationRelated, presentation: { key: "diagnostic.module-construction-input-owner-not-geometry", parameters: { name: base } } }
+        ));
+        return semantic(null, "invalid", null, derivedRole);
+      }
+      if (reference.occurrenceIndex !== null && declarationOwner !== ownerIndex) {
+        addLocal(statementIndex, issue(
+          "module-outer-capture",
+          baseSpan,
+          `generated geometry「${base}」の construction input をこの semantic owner の外側から capture できません。`,
+          { relatedSources: declarationRelated, presentation: { key: "diagnostic.module-outer-capture", parameters: { name: base } } }
+        ));
+        return semantic(null, "outerCapture", null, derivedRole);
+      }
+      if (reference.occurrenceIndex !== null && !isMaterializedForGroupTemplate(statements, declaration.statementIndex)) {
+        addLocal(statementIndex, issue(
+          "module-invalid-construction-input-owner",
+          baseSpan,
+          `indexed construction input の owner「${base}」は statement-for geometry ではありません。`,
+          { relatedSources: declarationRelated, presentation: { key: "diagnostic.module-invalid-construction-input-owner", parameters: { name: base } } }
+        ));
+        return semantic(null, "invalid", null, derivedRole);
+      }
+      if (ownerIndex !== null && declarationOwner !== ownerIndex) {
+        addLocal(statementIndex, issue(
+          "module-outer-capture",
+          baseSpan,
+          `module body から outer geometry「${base}」の construction input を暗黙 capture できません。`,
+          { relatedSources: declarationRelated, presentation: { key: "diagnostic.module-outer-capture", parameters: { name: base } } }
+        ));
+        return semantic(null, "outerCapture", null, derivedRole);
+      }
+      const metadata = input.resolveConstructionInput?.({
+        ownerStatementIndex: declaration.statementIndex,
+        argument: inputArgument
+      });
+      if (!metadata || metadata.kind === "unknown") {
+        addLocal(statementIndex, issue(
+          "module-unknown-construction-input",
+          inputArgumentSpan,
+          `geometry「${base}」には construction input「${inputArgument}」がありません。`,
+          { relatedSources: declarationRelated, presentation: { key: "diagnostic.module-unknown-construction-input", parameters: { target: inputArgument } } }
+        ));
+        return semantic(null, "invalid", null, derivedRole);
+      }
+      if (metadata.kind === "unsupported" || !metadata.interfaceType || !metadata.parameterKey) {
+        addLocal(statementIndex, issue(
+          "module-unsupported-construction-input",
+          inputArgumentSpan,
+          `construction input「${inputArgument}」は single geometry value (point, line, path) として公開できません。`,
+          { relatedSources: declarationRelated, presentation: { key: "diagnostic.module-unsupported-construction-input", parameters: { target: inputArgument } } }
+        ));
+        return semantic(null, "invalid", null, derivedRole);
+      }
+      if (metadata.source === undefined || metadata.sourceSpan === undefined) {
+        addLocal(statementIndex, issue(
+          "module-unavailable-construction-input",
+          inputArgumentSpan,
+          `construction input「${base}.input.${inputArgument}」の値を解決できません。`,
+          { relatedSources: declarationRelated, presentation: { key: "diagnostic.module-unavailable-construction-input", parameters: { target: inputArgument } } }
+        ));
+        return semantic(null, "invalid", null, derivedRole);
+      }
+      const inputStackKey = `${declaration.statementIndex}:${metadata.parameterKey}`;
+      const nested = constructionInputResolutionStack.has(inputStackKey)
+        ? null
+        : (() => {
+            constructionInputResolutionStack.add(inputStackKey);
+            try {
+              return resolveGeometry(
+                declaration.statementIndex,
+                declarationOwner,
+                metadata.source!,
+                metadata.sourceSpan!,
+                metadata.interfaceType === "point" ? "point" : "line",
+                {
+                  ...options,
+                  expectedInterfaceType: metadata.interfaceType,
+                  expectedValueType: { kind: metadata.interfaceType },
+                  allowCoordinate: metadata.allowCoordinate,
+                  role
+                }
+              );
+            } finally {
+              constructionInputResolutionStack.delete(inputStackKey);
+            }
+          })();
+      if (nested && nested.resolution !== "resolved" && nested.resolution !== "deferred") {
+        addLocal(statementIndex, issue(
+          "module-invalid-construction-input",
+          inputArgumentSpan,
+          `construction input「${base}.input.${inputArgument}」の元の値を解決できません。`,
+          { relatedSources: declarationRelated, presentation: { key: "diagnostic.module-invalid-construction-input", parameters: { target: inputArgument } } }
+        ));
+      }
+      const constructionInputTarget: Extract<ModuleGeometrySourceTarget, { kind: "constructionInput" }> = {
+        kind: "constructionInput",
+        ownerStatementId: statementIdAt(stableStatementIdByIndex, declaration.statementIndex),
+        ownerStatementIndex: declaration.statementIndex,
+        ...(metadata.ownerElementId ? { ownerElementId: metadata.ownerElementId } : {}),
+        argument: inputArgument,
+        parameterKey: metadata.parameterKey,
+        interfaceType: metadata.interfaceType,
+        sourceTarget: nested?.target ?? null,
+        ...(nested?.coordinate ? { coordinate: nested.coordinate } : {})
+      };
+      return semantic(
+        constructionInputTarget,
+        nested?.resolution ?? "resolved",
+        nested?.coordinate ?? null,
+        derivedRole,
+        { kind: metadata.interfaceType }
+      );
+    }
     if (lookup.kind === "parameter") {
       const parameterTarget = geometryParameterTarget(lookup.definition, lookup.parameter);
       const pointTarget = pointKey
@@ -5885,6 +6080,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       const sitesFor = (reference: ModuleGeometryReferenceSemantic, parameterKey: string | null, span: DslSpan) => sites.push({ parameterKey, span, reference });
       const referenceKind = (value: string): "module" | "ordinary" | "skip" => {
         const parsedReference = parseDslSourceReference(value);
+        if (parsedReference.kind === "valid" && parsedReference.reference.property?.split(".")[0] === "input") return "module";
         const parsedScalar = parseScalarExpression(value, { start: 0, end: value.length });
         const path = parsedScalar.ast?.kind === "collectionIndex"
           ? parseDslReferenceToken(parsedScalar.ast.name)

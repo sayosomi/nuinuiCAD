@@ -1297,6 +1297,30 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("evaluates construction-input aliases from the original input across TypeScript and Rust", () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "point A = coordinate(x: 3, y: 4)",
+      "point B = offset(from: @A, dx: 100, dy: 0, visible: false, enabled: false)",
+      "point C = offset(from: @B.input.from, dx: 2, dy: 3)"
+    ].join("\n"));
+    const options = optionsFor(fixture);
+
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustOptions(repoRoot, fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+
+    const pointB = fixture.elements.find((element) => element.name === "B");
+    const pointC = fixture.elements.find((element) => element.name === "C");
+    if (!pointB || !pointC) throw new Error("expected points B and C");
+    for (const payload of [tsPayload, rustPayload]) {
+      const result = evaluationPayloadToResult(payload);
+      expect(result.computedGeometry.get(pointB.id)).toBeUndefined();
+      expect(result.computedGeometry.get(pointC.id)).toMatchObject({ kind: "point", x: 5, y: 7 });
+    }
+  }, 30000);
+
   it("matches root collection length evaluation across TypeScript and Rust", () => {
     const fixture = fixtureFromSource([
       "nui 1",

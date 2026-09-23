@@ -16,7 +16,8 @@ import type {
   PrintOutput,
   SvgOutput,
   VisibilityProfile,
-  VisibilityRole
+  VisibilityRole,
+  PointAnchor
 } from "../types/geometry";
 import type { GeometryInputCollectionNode, GeometryInputTarget } from "../model/cadDocumentTypes";
 import { compileDslToElements } from "./dslCompiler";
@@ -45,7 +46,7 @@ import { formatNumericValueForDsl } from "./dslExpressionFormat";
 import { isCompilableDslStatement, isCanonicalValueBindingDeclaration, type DslStatementInclusion } from "./dslCompilationGuard";
 import { compilePropertyReferenceSyntax } from "./dslPropertyReferenceSyntax";
 import { buildPlacementRefsByStatementIndex } from "./dslPrintLayoutPlacementIndex";
-import { isGeometryDeclarationCategory } from "./dslConstructions";
+import { commonArgSpecs, constructionFor, isGeometryDeclarationCategory } from "./dslConstructions";
 import { dslRequiredValueTypeOf, isDslArrayValueType, isDslGeometryValueType, isDslRecordValueType, isDslValueTypeAssignable, nominalRecordTypeOfDslValueType, scalarTypeOfDslValueType, type DslArrayValueType } from "./dslValueTypes";
 import { collectionLengthForValueId, collectionValueSemanticForStatement, geometryArrayDeferredModuleExportId } from "./geometryArraySemanticAnalysis";
 import type { GenericArraySourceTarget } from "./geometryArraySemanticAnalysis";
@@ -95,6 +96,8 @@ import {
 import { serializeElementStatementBlock, type SerializedStatement } from "./dslSerializeElement";
 import type { DslDiagnostic, DslEnclosing, DslStatement, ParseDslResult } from "./dslTypes";
 import type { DslValueType } from "./dslValueTypes";
+import { dslValueTypeForParameterDefinition, getParameterDefinitions } from "../parameters/parameterDefinitions";
+import { makeNumericExpression } from "../geometry/numericExpressions";
 import { formatDslReferencePath, formatDslReferenceToken, parseDslReferenceToken, parseDslSourceReference } from "./dslReferenceTokens";
 import { resolveSourceLexicalDeclaration, resolveSourceLexicalPath } from "./sourceLexicalNamespaceIndex";
 import { DSL_INDENT, formatDslName, splitDslList } from "./dslTokens";
@@ -2668,6 +2671,42 @@ export const compileDslDocument = (
           ] as const)
       )
     : undefined;
+  const resolveConstructionInput = ({ ownerStatementIndex, argument }: {
+    ownerStatementIndex: number;
+    argument: string;
+  }) => {
+    const statement = parsed.statements[ownerStatementIndex];
+    if (statement?.kind !== "element" || !isGeometryDeclarationCategory(statement.category)) return { kind: "unknown" as const };
+    const construction = constructionFor(statement.category, statement.construction);
+    const argumentSpec = [
+      ...(construction?.args ?? []),
+      ...commonArgSpecs
+    ].find((candidate) => candidate.arg === argument);
+    if (!argumentSpec) return { kind: "unknown" as const };
+    const element = compiled.elementIdsByStatementIndex?.get(ownerStatementIndex)
+      ? compiled.elements.find((candidate) => candidate.id === compiled.elementIdsByStatementIndex?.get(ownerStatementIndex))
+      : undefined;
+    const schemaElement = element ?? ({ type: statement.type, intermediatePoints: [] } as never);
+    const parameterKey = argumentSpec.parameterKey ?? argumentSpec.arg;
+    const definition = getParameterDefinitions(schemaElement).find((candidate) => candidate.key === parameterKey);
+    const valueType = dslValueTypeForParameterDefinition(definition);
+    const supported = definition &&
+      (definition.kind === "reference" || definition.kind === "lineEndpointReference" || definition.kind === "lineReference") &&
+      valueType !== null &&
+      (valueType.kind === "point" || valueType.kind === "line" || valueType.kind === "path");
+    if (!supported) return { kind: "unsupported" as const, parameterKey };
+    const attribute = statement.attrs.find((candidate) => candidate.key === argument);
+    return {
+      kind: "supported" as const,
+      parameterKey,
+      interfaceType: valueType.kind,
+      allowCoordinate: definition.allowCoordinate,
+      ...(attribute ? { source: attribute.value, sourceSpan: { start: attribute.valueStart, end: attribute.valueEnd } } : {}),
+      ...(compiled.elementIdsByStatementIndex?.get(ownerStatementIndex)
+        ? { ownerElementId: compiled.elementIdsByStatementIndex.get(ownerStatementIndex) }
+        : {})
+    };
+  };
   const locallyAnalyzedSourceSemanticCompilation = sourceLexicalNamespace && stableStatementIdByIndex
     ? analyzeModuleSemantics({
         statements: parsed.statements,
@@ -2676,6 +2715,7 @@ export const compileDslDocument = (
         spans,
         logicalTextByStatementIndex,
         documentScalarBindings,
+        resolveConstructionInput,
         resolveGeometryStageSelection: ({ statementId, members }) => {
           const statementIndex = [...stableStatementIdByIndex.entries()].find(([, candidateId]) => candidateId === statementId)?.[0];
           const ownerId = statementIndex === undefined
@@ -2701,11 +2741,112 @@ export const compileDslDocument = (
       })
     )
   );
+  const hasConstructionInputReferences = Boolean(
+    sourceSemanticCompilation?.rootGeometryReferencesByStatementId &&
+    [...sourceSemanticCompilation.rootGeometryReferencesByStatementId.values()].some((sites) =>
+      sites.some((site) => {
+        const parsed = parseDslSourceReference(site.reference.source);
+        return parsed.kind === "valid" && parsed.reference.property?.split(".")[0] === "input";
+      })
+    )
+  );
   // The source semantic projection is also useful for Definition Query in a
   // document without Modules. Geometry values also need this path so their
   // source-only aliases can be lowered at existing geometry consumers.
-  const moduleSemanticCompilation = hasModuleStatements || hasGeometryValueStatements || hasMaterializationStatements || hasGeometryCarryStatements || hasRecordValueControlFlowStatements || hasGeneralizedRecordFields || hasNonScalarOptionalOrCoalescingStatements || hasGenericCollectionIndexStatements || hasGeometryCollectionIndexStatements || hasCollectionControlFlowStatements || hasNominalRecordCollectionValueFor || hasOptionalMemberStatements || hasStageAwareGeometryReferences ? sourceSemanticCompilation : undefined;
+  const moduleSemanticCompilation = hasModuleStatements || hasGeometryValueStatements || hasMaterializationStatements || hasGeometryCarryStatements || hasRecordValueControlFlowStatements || hasGeneralizedRecordFields || hasNonScalarOptionalOrCoalescingStatements || hasGenericCollectionIndexStatements || hasGeometryCollectionIndexStatements || hasCollectionControlFlowStatements || hasNominalRecordCollectionValueFor || hasOptionalMemberStatements || hasStageAwareGeometryReferences || hasConstructionInputReferences ? sourceSemanticCompilation : undefined;
   const geometryInputTargetsByElementId = new Map<ElementId, Map<string, GeometryInputTarget>>();
+  const constructionInputConsumerElementIds = new Set<ElementId>();
+  const coordinateTargetFor = (coordinate: import("./moduleSemanticTypes").ModulePointCoordinateSemantic, statementIndex: number, sourceText: string): GeometryInputTarget => {
+    const logical = logicalTextByStatementIndex.get(statementIndex) ?? "";
+    const anchor: Extract<PointAnchor, { mode: "coordinate" }> = {
+      mode: "coordinate",
+      x: coordinate.x ? makeNumericExpression(logical.slice(coordinate.x.ast.span.start, coordinate.x.ast.span.end)) : 0,
+      y: coordinate.y ? makeNumericExpression(logical.slice(coordinate.y.ast.span.start, coordinate.y.ast.span.end)) : 0
+    };
+    return { kind: "coordinate", anchor, sourceText };
+  };
+  const loweredOccurrenceIndexFor = (target: Extract<ModuleGeometrySourceTarget, { kind: "forGroupOccurrence" }>): TypedScalarExpression | null => {
+    if (!target.index) return null;
+    try {
+      return lowerExpression(target.index, () => undefined, new Map()).expression;
+    } catch {
+      return null;
+    }
+  };
+  const geometryInputTargetForSemantic = (
+    target: ModuleGeometrySourceTarget,
+    statementIndex: number,
+    sourceText: string,
+    seenInputOwners = new Set<string>()
+  ): GeometryInputTarget | undefined => {
+    if (target.kind === "constructionInput") {
+      const ownerKey = `${target.ownerStatementIndex}:${target.parameterKey}`;
+      if (seenInputOwners.has(ownerKey)) {
+        const ownerElementId = target.ownerElementId ?? compiled.elementIdsByStatementIndex?.get(target.ownerStatementIndex);
+        return ownerElementId
+          ? { kind: "drawable", elementId: ownerElementId, geometryType: target.interfaceType, sourceText }
+          : undefined;
+      }
+      const nextSeen = new Set(seenInputOwners);
+      nextSeen.add(ownerKey);
+      const nested = target.sourceTarget
+        ? geometryInputTargetForSemantic(target.sourceTarget, statementIndex, sourceText, nextSeen)
+        : target.coordinate
+          ? coordinateTargetFor(target.coordinate, target.ownerStatementIndex, sourceText)
+          : undefined;
+      if (!nested) return undefined;
+      return { ...nested, geometryType: target.interfaceType } as GeometryInputTarget;
+    }
+    if (target.kind === "geometryCarry") {
+      return {
+        kind: "geometryCarry",
+        bindingId: target.bindingId,
+        geometryType: target.geometryKind,
+        ...(target.pointKey ? { pointKey: target.pointKey } : {}),
+        ...(target.stagePath ? { stagePath: target.stagePath } : {}),
+        sourceText
+      };
+    }
+    if (target.kind === "sourceGeometry") {
+      const sourceElementId = compiled.elementIdsByStatementIndex?.get(target.statementIndex);
+      return sourceElementId
+        ? {
+            kind: "drawable",
+            elementId: sourceElementId,
+            geometryType: target.geometryKind,
+            ...(target.pointKey ? { pointKey: target.pointKey } : {}),
+            ...(target.stagePath ? { stagePath: target.stagePath } : {}),
+            sourceText
+          }
+        : undefined;
+    }
+    if (target.kind === "geometryValue") {
+      return {
+        kind: "geometryValue",
+        occurrence: { sourceStatementId: target.statementId, instancePath: [] },
+        geometryType: target.declaredInterfaceType,
+        ...(target.pointKey ? { pointKey: target.pointKey } : {}),
+        ...(target.stagePath ? { stagePath: target.stagePath } : {}),
+        sourceText
+      };
+    }
+    if (target.kind === "forGroupOccurrence") {
+      const templateElementId = compiled.elementIdsByStatementIndex?.get(target.statementIndex);
+      return templateElementId
+        ? {
+            kind: "forGroupOccurrence",
+            templateElementId,
+            geometryType: target.expectedInterfaceType ?? target.geometryKind,
+            ...(target.pointKey ? { pointKey: target.pointKey } : {}),
+            ...(target.stagePath ? { stagePath: target.stagePath } : {}),
+            targetSourceOrder: target.statementIndex,
+            index: loweredOccurrenceIndexFor(target),
+            sourceText
+          }
+        : undefined;
+    }
+    return undefined;
+  };
   if (moduleSemanticCompilation && stableStatementIdByIndex) {
     for (const [statementId, sites] of moduleSemanticCompilation.rootGeometryReferencesByStatementId) {
       const statementIndex = [...stableStatementIdByIndex.entries()].find(([, candidateId]) => candidateId === statementId)?.[0];
@@ -2714,39 +2855,8 @@ export const compileDslDocument = (
       for (const site of sites) {
         const target = site.reference.target;
         if (site.parameterKey === null || !target) continue;
-        const targetForRuntime: GeometryInputTarget | undefined =
-          target.kind === "geometryCarry"
-            ? {
-                kind: "geometryCarry",
-                bindingId: target.bindingId,
-                geometryType: target.geometryKind,
-                ...(target.pointKey ? { pointKey: target.pointKey } : {}),
-                ...(target.stagePath ? { stagePath: target.stagePath } : {})
-              }
-            : target.kind === "sourceGeometry"
-              ? (() => {
-                  const sourceElementId = compiled.elementIdsByStatementIndex?.get(target.statementIndex);
-                  return sourceElementId
-                    ? {
-                        kind: "drawable" as const,
-                        elementId: sourceElementId,
-                        geometryType: target.geometryKind,
-                        ...(target.pointKey ? { pointKey: target.pointKey } : {}),
-                        ...(target.stagePath ? { stagePath: target.stagePath } : {}),
-                        sourceText: site.reference.source
-                      }
-                    : undefined;
-                })()
-              : target.kind === "geometryValue"
-                ? {
-                    kind: "geometryValue" as const,
-                    occurrence: { sourceStatementId: target.statementId, instancePath: [] },
-                    geometryType: target.declaredInterfaceType,
-                    ...(target.pointKey ? { pointKey: target.pointKey } : {}),
-                    ...(target.stagePath ? { stagePath: target.stagePath } : {}),
-                    sourceText: site.reference.source
-                  }
-                : undefined;
+        if (target.kind === "constructionInput") constructionInputConsumerElementIds.add(elementId);
+        const targetForRuntime = geometryInputTargetForSemantic(target, statementIndex, site.reference.source);
         if (!targetForRuntime) continue;
         const targets = geometryInputTargetsByElementId.get(elementId) ?? new Map<string, GeometryInputTarget>();
         targets.set(site.parameterKey, targetForRuntime);
@@ -4058,6 +4168,7 @@ export const compileDslDocument = (
     conditionalGroupConditions: conditionalGroupConditionCompilation?.sourcesByOccurrenceKey,
     scalarProgram,
     geometryInputTargets: geometryInputTargetsByElementId,
+    constructionInputConsumerElementIds,
     transformationRecipes: compiled.runtimeTransformationRecipes ?? compiled.transformationRecipes,
     moduleMaterialization: compiled.moduleMaterialization
   });

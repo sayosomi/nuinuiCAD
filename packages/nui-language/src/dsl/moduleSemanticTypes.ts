@@ -239,6 +239,20 @@ export type ModuleGeometrySourceTarget =
       identity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
     }
   | {
+      /** A source-stable projection of one construction argument. The
+       * argument's own semantic target is retained rather than replacing it
+       * with the consuming geometry declaration. */
+      kind: "constructionInput";
+      ownerStatementId: StatementIdentity;
+      ownerStatementIndex: number;
+      ownerElementId?: string;
+      argument: string;
+      parameterKey: string;
+      interfaceType: ModuleGeometryInterfaceType;
+      sourceTarget: ModuleGeometrySourceTarget | null;
+      coordinate?: ModulePointCoordinateSemantic | null;
+    }
+  | {
       kind: "sourceGeometry";
       statementId: StatementIdentity;
       statementIndex: number;
@@ -285,10 +299,18 @@ export const unwrapModuleGeometrySourceTarget = (target: ModuleGeometrySourceTar
 } => {
   let current = target;
   let pointKey = "pointKey" in target ? target.pointKey : undefined;
-  while (current.kind === "geometryValue") {
-    pointKey ??= current.pointKey;
-    if (!current.backingTarget) break;
-    current = current.backingTarget;
+  for (;;) {
+    if (current.kind === "geometryValue") {
+      pointKey ??= current.pointKey;
+      if (!current.backingTarget) break;
+      current = current.backingTarget;
+      continue;
+    }
+    if (current.kind === "constructionInput" && current.sourceTarget) {
+      current = current.sourceTarget;
+      continue;
+    }
+    break;
   }
   pointKey ??= "pointKey" in current ? current.pointKey : undefined;
   return { target: current, ...(pointKey ? { pointKey } : {}) };
@@ -1134,6 +1156,21 @@ export type ModuleSemanticAnalysisInput = {
   externalNamespaceResolver?: SourceLexicalExternalNamespaceResolver;
   /** Resolves an external public Module entry to its defining semantic data. */
   externalModuleResolver?: (member: SourceLexicalExternalNamespaceMember) => ExternalModuleSemanticTarget | null;
+  /** Construction metadata is compiler-owned. The semantic pass asks this
+   * narrow adapter for the source argument and its canonical runtime key; it
+   * never reparses a declaration to discover the construction interface. */
+  resolveConstructionInput?: (input: {
+    readonly ownerStatementIndex: number;
+    readonly argument: string;
+  }) => {
+    readonly kind: "unknown" | "unsupported" | "supported";
+    readonly parameterKey?: string;
+    readonly interfaceType?: ModuleGeometryInterfaceType;
+    readonly allowCoordinate?: boolean;
+    readonly source?: string;
+    readonly sourceSpan?: DslSpan;
+    readonly ownerElementId?: string;
+  };
   /** Compiler-owned transformation-stage symbol resolution shared by root
    * geometry values and scalar/property lowering. */
   resolveGeometryStageSelection?: (input: {

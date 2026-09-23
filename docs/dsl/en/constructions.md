@@ -979,6 +979,10 @@ named `as stage` checkpoint is immutable; a later clause can continue the root
 recipe or start a branch from that checkpoint. `enabled: false` keeps the
 checkpoint but bypasses only that operation.
 
+The stage names `base`, `final`, and `input` are reserved. `input` is the
+construction-input member namespace in value references such as
+`@Shape.input.source`; it cannot be used as an `as` checkpoint name.
+
 ### `edge`
 
 **Description:** `edge [A.end, B.start] as joined (...)` trims or joins two

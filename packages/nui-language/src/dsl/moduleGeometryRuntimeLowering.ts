@@ -453,6 +453,17 @@ export const sourceAliasForTarget = (
     }
     return undefined;
   }
+  if (target.kind === "constructionInput") {
+    if (!target.sourceTarget) return undefined;
+    return sourceAliasForTarget(
+      target.sourceTarget,
+      currentPath,
+      contextsByPath,
+      materialization,
+      exportsByPath,
+      rootRecordValuesByStatementId
+    );
+  }
   if (target.kind === "geometryValue") {
     if (target.backingTarget) {
       const alias = sourceAliasForTarget(target.backingTarget, currentPath, contextsByPath, materialization, exportsByPath, rootRecordValuesByStatementId);

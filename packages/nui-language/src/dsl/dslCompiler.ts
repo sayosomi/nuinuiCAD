@@ -215,7 +215,7 @@ const normalizedTransformationNumeric = (
         .filter((token): token is Extract<ReturnType<typeof tokenize>[number], { type: "reference" }> => token.type === "reference")
         .map((reference) => {
           const members = reference.property?.split(".") ?? [];
-          const candidates = [["base"], ["final"], ...[...stageDeclarations]
+          const candidates = [["base"], ["final"], ["input"], ...[...stageDeclarations]
             .map((key) => key.split("\u0000"))
             .filter((parts) => parts.length >= 3 && parts[0] === reference.elementId)
             .map((parts) => parts[2]!.split(".").filter(Boolean))];
@@ -658,7 +658,7 @@ const stageAwareAnchorResolver = ({
   if (parsed.kind !== "valid" || !parsed.reference.property || anchor.mode !== "derived") return anchor;
   const members = parsed.reference.property.split(".");
   const ownerId = anchor.elementId;
-  const candidates = [["base"], ["final"], ...[...stageDeclarations]
+  const candidates = [["base"], ["final"], ["input"], ...[...stageDeclarations]
     .map((key) => key.split("\u0000"))
     .filter((parts) => parts.length >= 3 && parts[0] === ownerId &&
       (parts[1] === "*" || parts[1] === (parsed.reference.occurrenceIndex ?? "*")))
@@ -735,7 +735,7 @@ const compileTransformationRecipes = ({
       diagnostics.push(transformationDiagnostic(statement, `${statement.construction} の target 数が不正です。`, "transformation-target-kind-incompatible", undefined, statementIndex));
       continue;
     }
-    if (statement.stageName && (statement.stageName === "base" || statement.stageName === "final")) {
+    if (statement.stageName && (statement.stageName === "base" || statement.stageName === "final" || statement.stageName === "input")) {
       diagnostics.push(transformationDiagnostic(statement, `stage name「${statement.stageName}」は予約されています。`, "reserved-transformation-stage-name", statement.stageNameSpan ?? undefined, statementIndex));
     }
     if (statement.stageName && (geometryPropertyNames.has(statement.stageName) || isKnownNumericComputedGeometryProperty(statement.stageName))) {

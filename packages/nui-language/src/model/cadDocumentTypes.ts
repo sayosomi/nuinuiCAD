@@ -228,6 +228,7 @@ export type GeometryInputTarget =
       geometryType: "point" | "line" | "path";
       pointKey?: string;
       stagePath?: readonly string[];
+      sourceText?: string;
     }
   | {
       /** A source/template drawable materialized by statement-for. The
@@ -240,6 +241,7 @@ export type GeometryInputTarget =
       stagePath?: readonly string[];
       targetSourceOrder: number;
       index: TypedScalarExpression | null;
+      sourceText?: string;
     }
   | { kind: "geometryValue"; occurrence: GeometryValueOccurrence; geometryType: "point" | "line" | "path"; pointKey?: string; stagePath?: readonly string[]; sourceText?: string }
   | {
@@ -254,7 +256,7 @@ export type GeometryInputTarget =
       executionPosition: number;
       declaredInterfaceType: "point" | "line" | "path";
     }
-  | { kind: "coordinate"; anchor: Extract<PointAnchor, { mode: "coordinate" }> }
+  | { kind: "coordinate"; anchor: Extract<PointAnchor, { mode: "coordinate" }>; sourceText?: string }
   | {
       kind: "collectionValue";
       collectionValueId: string;

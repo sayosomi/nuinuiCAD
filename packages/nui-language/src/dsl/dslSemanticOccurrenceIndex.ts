@@ -1260,11 +1260,14 @@ const addModuleSemanticPathOccurrences = (compiled: CompiledDslDocument, add: Ad
       target.kind === "sourceGeometry" ||
       target.kind === "sourceGeometryProperty" ||
       target.kind === "forGroupOccurrence" ||
-      target.kind === "forGroupOccurrenceProperty"
+      target.kind === "forGroupOccurrenceProperty" ||
+      target.kind === "constructionInput"
     ) {
-      finalTarget = target.statementId
-        ? semanticIdentityForModuleTarget(compiled, { kind: "moduleSource", statementId: target.statementId })
-        : null;
+      finalTarget = target.kind === "constructionInput"
+        ? semanticIdentityForModuleTarget(compiled, { kind: "moduleSource", statementId: target.ownerStatementId })
+        : target.statementId
+          ? semanticIdentityForModuleTarget(compiled, { kind: "moduleSource", statementId: target.statementId })
+          : null;
     }
     addQualifiedPathOccurrences(compiled, add, statementIndex, nameSpan, finalTarget);
   };

@@ -129,6 +129,11 @@ export type TypedDependencyGraphInput = {
   scalarProgram?: ScalarProgram;
   conditionalGroupConditions?: ReadonlyMap<string, TypedScalarExpression>;
   geometryInputTargets?: ReadonlyMap<ElementId, ReadonlyMap<string, unknown>>;
+  /** Construction-input aliases may legitimately lower to a consumer's own
+   * original input expression. Keep that self edge in the canonical graph so
+   * alias cycles use the ordinary SCC diagnosis; ordinary geometry self reads
+   * retain their established semantic handling. */
+  constructionInputConsumerElementIds?: ReadonlySet<ElementId>;
   transformationRecipes?: readonly TransformationRecipe[];
   moduleMaterialization?: Pick<ModuleMaterialization, "instanceBaseGeometrySnapshots">;
 };
@@ -619,6 +624,7 @@ export const buildTypedDependencyGraph = ({
   textTemplates,
   scalarProgram,
   geometryInputTargets,
+  constructionInputConsumerElementIds,
   transformationRecipes,
   moduleMaterialization,
   conditionalGroupConditions
@@ -787,7 +793,8 @@ export const buildTypedDependencyGraph = ({
     }
     const from = elementEndpoint(elementsById, element.id, elementStatementIndex.get(element.id) ?? 0);
     for (const [dependencyId, requiredness] of dependencies) {
-      if (dependencyId === element.id || !elementsById.has(dependencyId)) continue;
+      if (!elementsById.has(dependencyId) ||
+          (dependencyId === element.id && !constructionInputConsumerElementIds?.has(element.id))) continue;
       deferredStageEdges.push({
         kind: "geometry",
         from,

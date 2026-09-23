@@ -52,6 +52,7 @@ import {
   type ModuleDocumentation
 } from "./moduleDocumentation";
 import type { CompiledDslDocument } from "./dslDocument";
+import { isMaterializedForGroupTemplate, moduleOwnerIndexOf } from "./moduleSemanticAnalysis";
 import type { BindingAnalysis } from "../scalars/bindingAnalysis";
 import {
   scalarExpressionCandidates,
@@ -80,6 +81,7 @@ import { isPointElement } from "../model/pointAnchors";
 import { isModuleGeometryInterfaceAssignable, moduleGeometryInterfaceTypeOfElement } from "./moduleGeometryInterfaces";
 import type { CadElement } from "../types/geometry";
 import { getParameterDefinitions, scalarTypeForParameterDefinition } from "../parameters/parameterDefinitions";
+import { commonArgSpecs, constructionFor, isGeometryDeclarationCategory } from "./dslConstructions";
 import { dslModifierCompletionContextAt } from "./dslModifierCompletionContext";
 import { modifierPropertyMetadata } from "./dslModifierAuthoring";
 import { formatDslName } from "./dslTokens";
@@ -511,6 +513,116 @@ const sourceGeometryCandidatesForDeclaration = (
         { kind: "geometry", label: `${name}.end`, identity: `${statementId}:end` }
       ]
     : [];
+};
+
+const sourceConstructionInputCandidates = (
+  compiled: CompiledDslDocument,
+  statementIndex: number,
+  token: string
+): DslCompletionCandidate[] => {
+  const namespace = compiled.sourceLexicalNamespace;
+  if (!namespace || statementIndex < 0) return [];
+  const inputMatch = token.match(/^@(.+)\.input(?:\.([A-Za-z_][A-Za-z0-9_]*)?)?$/);
+  const dotMatch = token.match(/^@(.+)\.$/);
+  if (!inputMatch && !dotMatch) return [];
+  const ownerToken = (inputMatch?.[1] ?? dotMatch?.[1])!;
+  const member = inputMatch ? "input" : undefined;
+  const argumentPrefix = inputMatch?.[2] ?? "";
+  const ownerPathText = ownerToken.replace(/\[[^\]]*\]$/, "");
+  const indexedOwner = ownerToken !== ownerPathText;
+  const ownerPath = parseDslReferenceToken(ownerPathText);
+  const lookup = resolveSourceLexicalPath(namespace, statementIndex, ownerPath);
+  const declarations = lookup.kind === "resolved" && lookup.declaration.kind === "geometry"
+    ? [lookup.declaration]
+      : ownerPath.segments.length === 1 && indexedOwner
+      ? namespace.allDeclarations.filter((candidate) =>
+          candidate.kind === "geometry" &&
+          candidate.name === ownerPath.segments[0] &&
+          candidate.statement.kind === "element" &&
+          isMaterializedForGroupTemplate(compiled.statements, candidate.statementIndex) &&
+          moduleOwnerIndexOf(compiled.statements, candidate.statementIndex) === moduleOwnerIndexOf(compiled.statements, statementIndex)
+        )
+      : [];
+  if (indexedOwner && declarations.length !== 1) return [];
+  const declaration = declarations.length === 1 ? declarations[0] : null;
+  if (!declaration || declaration.statement.kind !== "element" || !isGeometryDeclarationCategory(declaration.statement.category)) return [];
+  if (indexedOwner && (
+    !isMaterializedForGroupTemplate(compiled.statements, declaration.statementIndex) ||
+    moduleOwnerIndexOf(compiled.statements, declaration.statementIndex) !== moduleOwnerIndexOf(compiled.statements, statementIndex)
+  )) return [];
+  const spec = constructionFor(declaration.statement.category, declaration.statement.construction);
+  if (!spec) return [];
+  const element = compiled.sourceElementsByStatementIndex.get(declaration.statementIndex) ?? ({ type: declaration.statement.type, intermediatePoints: [] } as never);
+  const definitions = getParameterDefinitions(element);
+  const semanticAnalysis = compiled.moduleSemanticAnalysis ?? compiled.sourceSemanticAnalysis;
+  const ownerSemanticSites = [
+    ...(semanticAnalysis?.rootGeometryReferencesByStatementId.get(declaration.statementId) ?? []),
+    ...(semanticAnalysis?.definitions.flatMap((definition) =>
+      definition.bodyStatements.find((statement) => statement.statementId === declaration.statementId)?.geometryReferences ?? []
+    ) ?? [])
+  ];
+  const semanticSites = [
+    ...(semanticAnalysis ? [...semanticAnalysis.rootGeometryReferencesByStatementId.values()].flat() : []),
+    ...(semanticAnalysis?.definitions.flatMap((definition) => definition.bodyStatements.flatMap((statement) => statement.geometryReferences)) ?? [])
+  ];
+  const resolvedSite = (site: typeof ownerSemanticSites[number]) =>
+    (site.reference.resolution === "resolved" || site.reference.resolution === "deferred") &&
+    (site.reference.target !== null || site.reference.coordinate !== null);
+  const resolvableInputKeys = new Set(
+    [
+      ...ownerSemanticSites
+        .filter((site) => site.parameterKey !== null && resolvedSite(site))
+        .map((site) => site.parameterKey!),
+      ...semanticSites.flatMap((site) => {
+        const target = site.reference.target;
+        return target?.kind === "constructionInput" &&
+          target.ownerStatementId === declaration.statementId &&
+          resolvedSite(site) &&
+          (target.sourceTarget !== null || target.coordinate != null)
+          ? [target.parameterKey]
+          : [];
+      })
+    ]
+  );
+  const supported = [...spec.args, ...commonArgSpecs].flatMap((argument) => {
+    if (argument.special) return [];
+    const parameterKey = argument.parameterKey ?? argument.arg;
+    const definition = definitions.find((candidate) => candidate.key === parameterKey);
+    const valueType = definition ? (definition.valueType ?? (definition.kind === "reference" || definition.kind === "lineEndpointReference" ? { kind: "point" as const } : definition.kind === "lineReference" ? { kind: "path" as const } : null)) : null;
+    return definition && resolvableInputKeys.has(parameterKey) &&
+      (definition.kind === "reference" || definition.kind === "lineEndpointReference" || definition.kind === "lineReference") &&
+      valueType && (valueType.kind === "point" || valueType.kind === "line" || valueType.kind === "path")
+      ? [{ label: argument.arg, identity: `${declaration.statementId}:input:${argument.arg}` }]
+      : [];
+  });
+  if (member === undefined) {
+    return supported.length > 0
+      ? [{
+          kind: "geometry",
+          label: "input",
+          identity: `${declaration.statementId}:input`,
+          sourceText: `${ownerToken}.input`
+        }]
+      : [];
+  }
+  if (!token.endsWith(".") && inputMatch?.[2] === undefined) {
+    return supported.length > 0
+      ? [{
+          kind: "geometry",
+          label: "input",
+          identity: `${declaration.statementId}:input`,
+          sourceText: `${ownerToken}.input`
+        }]
+      : [];
+  }
+  return supported
+    .filter((candidate) => candidate.label.startsWith(argumentPrefix))
+    .map((candidate) => ({
+      kind: "geometry" as const,
+      label: candidate.label,
+      identity: candidate.identity,
+      sourceText: `${ownerToken}.input.${candidate.label}`
+    }));
 };
 
 const sourceGeometryQualifiedMembers = (
@@ -1231,6 +1343,17 @@ const queryCandidates = (
     return scalarCandidatesAt(context, input, position, semantic, compiled, exact, statementIndex);
   }
   if (context.kind === "parameter") {
+    if (compiled && exact) {
+      const referenceText = input.lineText.slice(context.from, input.localPosition).trim();
+      const inputCandidates = sourceConstructionInputCandidates(compiled, statementIndex, referenceText);
+      if (/^@.+\.input(?:\.|$)/.test(referenceText)) return inputCandidates;
+      if (inputCandidates.length > 0) {
+        return uniqueCandidates([
+          ...statementElementReferenceCandidates(context, compiled, statementIndex),
+          ...inputCandidates
+        ]);
+      }
+    }
     if (context.parameter.definition.kind === "choice") {
       return (context.parameter.definition.choiceOptions ?? []).map((label) => ({ kind: "literal" as const, label, identity: label }));
     }
