@@ -21,7 +21,7 @@ import {
   CANVAS_GRID_MAJOR_EVERY_SETTING,
   CANVAS_GRID_SPACING_SETTING
 } from "../../src/components/canvasGrid";
-import { vscodeCanvasPointerContextKeys, type VscodeCanvasObservationSnapshot } from "../../src/vscode/protocol";
+import { type VscodeCanvasObservationSnapshot } from "../../src/vscode/protocol";
 import { inlineModuleCanvasTargetProofsFor } from "../../src/vscode/inlineModuleCanvas";
 import { selectedElementSourcesForCanvasObservation } from "../../src/vscode/canvasObservation";
 import { vscodeObservationState } from "./vscodeObservationState";
@@ -588,6 +588,25 @@ const messageHandlerFor = (panel: TestPanel) =>
 const commandHandlerFor = (command: string): ((...args: unknown[]) => unknown) | undefined => {
   const handler = mocks.commandHandlers.get(command);
   return handler;
+};
+
+const coordinatePointCreationClick = async (
+  panel: TestPanel,
+  documentVersion: number,
+  pointer: { x: number; y: number }
+): Promise<void> => {
+  commandHandlerFor("nuinuiCAD.createFreePointAtPointer")?.();
+  const handler = messageHandlerFor(panel);
+  await handler({ type: "canvasCoordinatePointCreationState", active: true, documentVersion });
+  await handler({ type: "canvasCoordinatePointCreationClick", documentVersion, pointer });
+};
+
+const coordinatePointCreationClickOnly = async (
+  panel: TestPanel,
+  documentVersion: number,
+  pointer: { x: number; y: number }
+): Promise<void> => {
+  await messageHandlerFor(panel)({ type: "canvasCoordinatePointCreationClick", documentVersion, pointer });
 };
 
 const extractModuleHostFor = () => {
@@ -2308,11 +2327,7 @@ describe("VS Code production document lifecycle", () => {
     expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "canvasHistoryResult" }));
 
     panel.webview.postMessage.mockClear();
-    commandHandlerFor("nuinuiCAD.createFreePointAtPointer")?.({
-      webviewSection: "blank",
-      [vscodeCanvasPointerContextKeys.x]: 24,
-      [vscodeCanvasPointerContextKeys.y]: -13
-    });
+    await coordinatePointCreationClick(panel, 2, { x: 24, y: -13 });
     expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
       type: "canvasFreePointAtPointer"
     }));
@@ -2828,7 +2843,7 @@ describe("VS Code production document lifecycle", () => {
       pointer: { x: 12, y: -8 }
     });
 
-    commandHandlerFor("nuinuiCAD.createFreePointAtPointer")?.();
+    await coordinatePointCreationClick(panel, 1, { x: 12, y: -8 });
     const firstRequest = panel.webview.postMessage.mock.calls
       .map(([message]) => message)
       .find((message) => message?.type === "canvasFreePointAtPointer") as {
@@ -2860,11 +2875,7 @@ describe("VS Code production document lifecycle", () => {
     });
 
     panel.webview.postMessage.mockClear();
-    commandHandlerFor("nuinuiCAD.createFreePointAtPointer")?.({
-      webviewSection: "blank",
-      [vscodeCanvasPointerContextKeys.x]: 91,
-      [vscodeCanvasPointerContextKeys.y]: -37
-    });
+    await coordinatePointCreationClickOnly(panel, 2, { x: 91, y: -37 });
     expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
       type: "canvasFreePointAtPointer"
     }));
@@ -2895,7 +2906,7 @@ describe("VS Code production document lifecycle", () => {
       documentVersion: 1,
       pointer: { x: 12, y: -8 }
     });
-    commandHandlerFor("nuinuiCAD.createFreePointAtPointer")?.();
+    await coordinatePointCreationClick(panel, 1, { x: 12, y: -8 });
 
     const freePointMessages = (): Array<{
       requestId: number;
@@ -2932,11 +2943,7 @@ describe("VS Code production document lifecycle", () => {
     });
 
     mocks.showErrorMessage.mockClear();
-    commandHandlerFor("nuinuiCAD.createFreePointAtPointer")?.({
-      webviewSection: "blank",
-      [vscodeCanvasPointerContextKeys.x]: 91,
-      [vscodeCanvasPointerContextKeys.y]: -37
-    });
+    await coordinatePointCreationClickOnly(panel, 2, { x: 91, y: -37 });
     expect(freePointMessages()).toHaveLength(1);
     expect(mocks.showErrorMessage).not.toHaveBeenCalled();
 
@@ -2997,11 +3004,7 @@ describe("VS Code production document lifecycle", () => {
       documentVersion: 1,
       pointer: { x: 12, y: -8 }
     });
-    commandHandlerFor("nuinuiCAD.createFreePointAtPointer")?.({
-      webviewSection: "blank",
-      [vscodeCanvasPointerContextKeys.x]: 12,
-      [vscodeCanvasPointerContextKeys.y]: -8
-    });
+    await coordinatePointCreationClick(panel, 1, { x: 12, y: -8 });
     const firstRequest = panel.webview.postMessage.mock.calls
       .map(([message]) => message)
       .find((message) => message?.type === "canvasFreePointAtPointer") as {
@@ -3039,11 +3042,7 @@ describe("VS Code production document lifecycle", () => {
       operationId: firstRequest!.requestId
     });
 
-    commandHandlerFor("nuinuiCAD.createFreePointAtPointer")?.({
-      webviewSection: "blank",
-      [vscodeCanvasPointerContextKeys.x]: 91,
-      [vscodeCanvasPointerContextKeys.y]: -37
-    });
+    await coordinatePointCreationClickOnly(panel, 2, { x: 91, y: -37 });
     expect(panel.webview.postMessage.mock.calls.filter(([message]) => message?.type === "canvasFreePointAtPointer")).toHaveLength(1);
 
     await handler({
@@ -4872,7 +4871,7 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
       documentVersion: 1,
       pointer: { x: 5, y: -2 }
     });
-    commandHandlerFor("nuinuiCAD.createFreePointAtPointer")?.();
+    await coordinatePointCreationClick(panel, 1, { x: 5, y: -2 });
     expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
       type: "canvasFreePointAtPointer",
       sourcePosition: {

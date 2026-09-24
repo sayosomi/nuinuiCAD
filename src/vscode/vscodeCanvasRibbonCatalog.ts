@@ -1,7 +1,10 @@
 import { selectionCommandDefinitions } from "../commands/selectionCommandDefinitions";
 import { viewModeCommandDefinitions } from "../commands/viewModeCommandDefinitions";
 import type { CommandId } from "../commands/commandTypes";
-import { pickModeCanvasOperationAllowedForActive } from "./pickModeCanvasPolicy";
+import {
+  canvasModalCanvasOperationAllowed,
+  type CanvasModalMode
+} from "./pickModeCanvasPolicy";
 
 export const vscodeCanvasRibbonCommandIds = [
   "clearCanvasSelection",
@@ -21,6 +24,7 @@ export type VscodeCanvasRibbonCommandContext = {
   showCanvasGeometryNames: boolean;
   showCanvasPoints: boolean;
   pickModeActive?: boolean;
+  canvasModalMode?: CanvasModalMode | null;
 };
 
 export type VscodeCanvasRibbonCommandDefinition = {
@@ -54,8 +58,11 @@ export const vscodeCanvasRibbonCommandCatalog: Record<
     description: "Clear the current Canvas selection.",
     icon: "x",
     sharedCommandId: "clearCanvasSelection",
-    isAvailable: ({ hasSelection, pickModeActive }) =>
-      hasSelection && pickModeCanvasOperationAllowedForActive("clear-selection", Boolean(pickModeActive))
+    isAvailable: ({ hasSelection, pickModeActive, canvasModalMode }) =>
+      hasSelection && canvasModalCanvasOperationAllowed(
+        "clear-selection",
+        canvasModalMode ?? (pickModeActive ? "pick" : null)
+      )
   },
   resetCanvasView: {
     id: "resetCanvasView",
@@ -106,8 +113,11 @@ export const vscodeCanvasRibbonCommandCatalog: Record<
     description: "Open the VS Code setting for Canvas Ribbon items.",
     icon: "settings-2",
     hostAction: "editCanvasRibbon",
-    isAvailable: ({ pickModeActive }) =>
-      pickModeCanvasOperationAllowedForActive("workflow-start", Boolean(pickModeActive))
+    isAvailable: ({ pickModeActive, canvasModalMode }) =>
+      canvasModalCanvasOperationAllowed(
+        "workflow-start",
+        canvasModalMode ?? (pickModeActive ? "pick" : null)
+      )
   }
 };
 

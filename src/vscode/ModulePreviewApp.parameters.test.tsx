@@ -26,11 +26,11 @@ vi.mock("../components/DrawingCanvas", () => ({
   }) => {
     mocks.hostAdapter = props.hostAdapter;
     const viewportSize = { width: 800, height: 600 };
-    const pickChrome = props.hostAdapter.renderPickModeChrome?.();
+    const pickChrome = props.hostAdapter.renderCanvasModeChrome?.();
     const pickOverlay = props.hostAdapter.activePickModeSession
       ? <>
           {props.hostAdapter.renderHostDrawingOverlay?.(viewportSize)}
-          {props.hostAdapter.renderHostOverlay?.(viewportSize, { pickModeChromeHeight: 0 })}
+          {props.hostAdapter.renderHostOverlay?.(viewportSize, { canvasModeChromeHeight: 0 })}
         </>
       : null;
     return <div ref={props.canvasFocusRef} data-canvas-viewport="true" data-testid="module-preview-canvas-viewport">{pickChrome}{pickOverlay}</div>;

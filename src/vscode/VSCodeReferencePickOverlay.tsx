@@ -58,7 +58,7 @@ const pointerScreenPoint = (event: PointerEvent, viewport: HTMLDivElement) => {
 
 const eventTargetsReferencePickUi = (event: Event): boolean =>
   event.target instanceof Element && Boolean(event.target.closest(
-    "[data-reference-pick-ui='true'], [data-canvas-pick-mode-chrome='true']"
+    "[data-reference-pick-ui='true'], [data-canvas-mode-chrome='true']"
   ));
 
 const geometryOptionFor = (candidate: ReferencePickCandidate) => candidate.options.find((option) =>

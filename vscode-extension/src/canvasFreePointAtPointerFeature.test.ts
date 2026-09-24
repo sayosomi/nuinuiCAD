@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { vscodeCanvasPointerContextKeys } from "../../src/vscode/protocol";
 
 const mocks = vi.hoisted(() => ({
   commands: new Map<string, (...args: unknown[]) => unknown>(),
@@ -86,6 +85,14 @@ const observeCommandOwnedEdit = (
   mocks.documentChangeListeners[0]?.({ document, contentChanges: [{}] });
 };
 
+const clickAt = (
+  feature: { handleCoordinatePointCreationClick: (endpoint: null, documentVersion: number, pointer: { x: number; y: number }) => void },
+  document: TestDocument,
+  pointer: { x: number; y: number }
+): void => {
+  feature.handleCoordinatePointCreationClick(null, document.version, pointer);
+};
+
 beforeEach(() => {
   mocks.commands.clear();
   mocks.selectionListeners.length = 0;
@@ -100,6 +107,7 @@ describe("Canvas free point at pointer feature", () => {
     const token = {};
     let authoritativeReady = false;
     const postFreePointAtPointer = vi.fn();
+    const postCoordinatePointCreationStart = vi.fn();
     const feature = registerVscodeCanvasFreePointAtPointerFeature({
       activeCanvasEndpoint: () => ({
         sessionToken: token,
@@ -107,13 +115,15 @@ describe("Canvas free point at pointer feature", () => {
         isCurrent: () => true,
         isAuthoritativeReady: () => authoritativeReady,
         lastCanvasPointer: () => ({ x: 12, y: -8 }),
+        postCoordinatePointCreationStart,
         postFreePointAtPointer
       })
     });
 
     void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.();
     expect(postFreePointAtPointer).not.toHaveBeenCalled();
-    expect(mocks.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining("Source insertion position"));
+    expect(postCoordinatePointCreationStart).toHaveBeenCalledWith(1);
+    expect(mocks.showErrorMessage).not.toHaveBeenCalled();
 
     document.version = 2;
     feature.setExplicitSourceAuthoringPosition(document, {
@@ -123,11 +133,7 @@ describe("Canvas free point at pointer feature", () => {
     });
     mocks.showErrorMessage.mockClear();
 
-    void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.({
-      webviewSection: "blank",
-      [vscodeCanvasPointerContextKeys.x]: 91,
-      [vscodeCanvasPointerContextKeys.y]: -37
-    });
+    clickAt(feature, document, { x: 91, y: -37 });
 
     expect(postFreePointAtPointer).not.toHaveBeenCalled();
     expect(mocks.showErrorMessage).not.toHaveBeenCalled();
@@ -161,18 +167,14 @@ describe("Canvas free point at pointer feature", () => {
     });
 
     mocks.selectionListeners[0]?.({ textEditor: editor, kind: 3 });
-    void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.();
+    clickAt(feature, document, { x: 12, y: -8 });
     expect(postFreePointAtPointer).not.toHaveBeenCalled();
 
     document.version = 2;
     editor.selection.active = { line: 8, character: 9 };
     mocks.selectionListeners[0]?.({ textEditor: editor, kind: 1 });
 
-    void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.({
-      webviewSection: "blank",
-      [vscodeCanvasPointerContextKeys.x]: 91,
-      [vscodeCanvasPointerContextKeys.y]: -37
-    });
+    clickAt(feature, document, { x: 91, y: -37 });
 
     expect(postFreePointAtPointer).toHaveBeenCalledTimes(1);
     expect(postFreePointAtPointer).toHaveBeenCalledWith(expect.objectContaining({
@@ -203,7 +205,7 @@ describe("Canvas free point at pointer feature", () => {
     });
 
     mocks.selectionListeners[0]?.({ textEditor: editorFor(document), kind: 3 });
-    void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.();
+    clickAt(feature, document, { x: 12, y: -8 });
     expect(postFreePointAtPointer).not.toHaveBeenCalled();
 
     const activeTextEditor = (await import("vscode")).window as unknown as { activeTextEditor: TestEditor | null };
@@ -219,11 +221,7 @@ describe("Canvas free point at pointer feature", () => {
       character: 11
     });
 
-    void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.({
-      webviewSection: "blank",
-      [vscodeCanvasPointerContextKeys.x]: 91,
-      [vscodeCanvasPointerContextKeys.y]: -37
-    });
+    clickAt(feature, document, { x: 91, y: -37 });
 
     expect(postFreePointAtPointer).toHaveBeenCalledTimes(1);
     expect(postFreePointAtPointer).toHaveBeenCalledWith(expect.objectContaining({
@@ -256,11 +254,7 @@ describe("Canvas free point at pointer feature", () => {
     });
 
     mocks.selectionListeners[0]?.({ textEditor: initialEditor, kind: 1 });
-    void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.({
-      webviewSection: "blank",
-      [vscodeCanvasPointerContextKeys.x]: 91,
-      [vscodeCanvasPointerContextKeys.y]: -37
-    });
+    clickAt(feature, document, { x: 91, y: -37 });
     expect(postFreePointAtPointer).not.toHaveBeenCalled();
 
     latestPointer = { x: 100, y: 100 };
@@ -296,7 +290,7 @@ describe("Canvas free point at pointer feature", () => {
     });
 
     mocks.selectionListeners[0]?.({ textEditor: editor, kind: 1 });
-    void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.();
+    clickAt(feature, document, { x: 12, y: -8 });
     authoritativeReady = true;
     document.version = 2;
     feature.handleAuthoritativeDocumentReady(token, document, document.version);
@@ -311,7 +305,7 @@ describe("Canvas free point at pointer feature", () => {
       line: 3,
       character: 4
     });
-    void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.();
+    clickAt(feature, document, { x: 12, y: -8 });
     current = false;
     authoritativeReady = true;
     feature.handleAuthoritativeDocumentReady(token, document, document.version);
@@ -339,20 +333,12 @@ describe("Canvas free point at pointer feature", () => {
     });
 
     mocks.selectionListeners[0]?.({ textEditor: editor, kind: 1 });
-    void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.({
-      webviewSection: "blank",
-      [vscodeCanvasPointerContextKeys.x]: 11,
-      [vscodeCanvasPointerContextKeys.y]: -7
-    });
+    clickAt(feature, document, { x: 11, y: -7 });
     expect(postFreePointAtPointer).toHaveBeenCalledTimes(1);
     const firstRequestId = postFreePointAtPointer.mock.calls[0]![0].requestId as number;
     observeCommandOwnedEdit(feature, document, firstRequestId, 2);
 
-    void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.({
-      webviewSection: "blank",
-      [vscodeCanvasPointerContextKeys.x]: 91,
-      [vscodeCanvasPointerContextKeys.y]: -37
-    });
+    clickAt(feature, document, { x: 91, y: -37 });
 
     expect(postFreePointAtPointer).toHaveBeenCalledTimes(1);
     expect(mocks.showErrorMessage).not.toHaveBeenCalled();
@@ -395,16 +381,8 @@ describe("Canvas free point at pointer feature", () => {
     });
 
     mocks.selectionListeners[0]?.({ textEditor: editor, kind: 1 });
-    void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.({
-      webviewSection: "blank",
-      [vscodeCanvasPointerContextKeys.x]: 11,
-      [vscodeCanvasPointerContextKeys.y]: -7
-    });
-    void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.({
-      webviewSection: "blank",
-      [vscodeCanvasPointerContextKeys.x]: 91,
-      [vscodeCanvasPointerContextKeys.y]: -37
-    });
+    clickAt(feature, document, { x: 11, y: -7 });
+    clickAt(feature, document, { x: 91, y: -37 });
     expect(postFreePointAtPointer).not.toHaveBeenCalled();
 
     authoritativeReady = true;
@@ -467,17 +445,9 @@ describe("Canvas free point at pointer feature", () => {
 
     mocks.selectionListeners[0]?.({ textEditor: editorA, kind: 1 });
     mocks.selectionListeners[0]?.({ textEditor: editorB, kind: 1 });
-    void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.({
-      webviewSection: "blank",
-      [vscodeCanvasPointerContextKeys.x]: 10,
-      [vscodeCanvasPointerContextKeys.y]: 20
-    });
+    clickAt(feature, documentA, { x: 10, y: 20 });
     activeEndpoint = endpointB;
-    void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.({
-      webviewSection: "blank",
-      [vscodeCanvasPointerContextKeys.x]: 30,
-      [vscodeCanvasPointerContextKeys.y]: 40
-    });
+    clickAt(feature, documentB, { x: 30, y: 40 });
 
     feature.disposeSession(tokenA, documentA);
     feature.handleAuthoritativeDocumentReady(tokenA, documentA, 1);
@@ -507,11 +477,7 @@ describe("Canvas free point at pointer feature", () => {
     });
 
     mocks.selectionListeners[0]?.({ textEditor: editor, kind: 1 });
-    void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.({
-      webviewSection: "blank",
-      [vscodeCanvasPointerContextKeys.x]: 91,
-      [vscodeCanvasPointerContextKeys.y]: -37
-    });
+    clickAt(feature, document, { x: 91, y: -37 });
     document.version = 2;
     mocks.documentChangeListeners[0]?.({ document, contentChanges: [{}] });
     authoritativeReady = true;
@@ -539,19 +505,11 @@ describe("Canvas free point at pointer feature", () => {
     });
 
     mocks.selectionListeners[0]?.({ textEditor: editor, kind: 1 });
-    void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.({
-      webviewSection: "blank",
-      [vscodeCanvasPointerContextKeys.x]: 11,
-      [vscodeCanvasPointerContextKeys.y]: -7
-    });
+    clickAt(feature, document, { x: 11, y: -7 });
     const firstRequestId = postFreePointAtPointer.mock.calls[0]![0].requestId as number;
     observeCommandOwnedEdit(feature, document, firstRequestId, 2);
 
-    void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.({
-      webviewSection: "blank",
-      [vscodeCanvasPointerContextKeys.x]: 91,
-      [vscodeCanvasPointerContextKeys.y]: -37
-    });
+    clickAt(feature, document, { x: 91, y: -37 });
     document.version = 3;
     mocks.documentChangeListeners[0]?.({ document, contentChanges: [{}] });
     feature.handleAuthoritativeDocumentReady(token, document, 3);
@@ -579,7 +537,7 @@ describe("Canvas free point at pointer feature", () => {
     });
 
     mocks.selectionListeners[0]?.({ textEditor: editor, kind: 1 });
-    void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.();
+    clickAt(feature, document, { x: 12, y: -8 });
     expect(postFreePointAtPointer).toHaveBeenCalledWith(expect.objectContaining({
       documentVersion: 1,
       pointer: { x: 12, y: -8 },
@@ -595,7 +553,7 @@ describe("Canvas free point at pointer feature", () => {
       documentVersion: 2,
       nextSourcePosition: { line: 3, character: 19 }
     });
-    void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.();
+    clickAt(feature, document, { x: 12, y: -8 });
     expect(postFreePointAtPointer).toHaveBeenLastCalledWith(expect.objectContaining({
       documentVersion: 2,
       sourcePosition: { documentVersion: 2, line: 3, character: 19 }
@@ -620,7 +578,7 @@ describe("Canvas free point at pointer feature", () => {
     });
 
     mocks.selectionListeners[0]?.({ textEditor: editor, kind: 1 });
-    void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.();
+    clickAt(feature, document, { x: 12, y: -8 });
     const firstRequestId = postFreePointAtPointer.mock.calls[0]![0].requestId as number;
     observeCommandOwnedEdit(feature, document, firstRequestId, 2);
     feature.handleResult(token, document, {
@@ -637,7 +595,7 @@ describe("Canvas free point at pointer feature", () => {
       contentChanges: [{}],
       reason: 1
     });
-    void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.();
+    clickAt(feature, document, { x: 12, y: -8 });
     expect(postFreePointAtPointer).toHaveBeenLastCalledWith(expect.objectContaining({
       documentVersion: 3,
       sourcePosition: { documentVersion: 3, line: 3, character: 4 }
@@ -662,7 +620,7 @@ describe("Canvas free point at pointer feature", () => {
     });
 
     mocks.selectionListeners[0]?.({ textEditor: editor, kind: 1 });
-    void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.();
+    clickAt(feature, document, { x: 12, y: -8 });
     const requestId = postFreePointAtPointer.mock.calls[0]![0].requestId as number;
     observeCommandOwnedEdit(feature, document, requestId, 2);
     feature.handleResult(token, document, {
@@ -676,7 +634,7 @@ describe("Canvas free point at pointer feature", () => {
     mocks.documentChangeListeners[0]?.({ document, contentChanges: [{}], reason: 1 });
     document.version = 4;
     mocks.documentChangeListeners[0]?.({ document, contentChanges: [{}], reason: 2 });
-    void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.();
+    clickAt(feature, document, { x: 12, y: -8 });
 
     expect(postFreePointAtPointer).toHaveBeenLastCalledWith(expect.objectContaining({
       documentVersion: 4,
@@ -703,7 +661,7 @@ describe("Canvas free point at pointer feature", () => {
     const activeTextEditor = (await import("vscode")).window as unknown as { activeTextEditor: TestEditor | null };
 
     mocks.selectionListeners[0]?.({ textEditor: editor, kind: 1 });
-    void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.();
+    clickAt(feature, document, { x: 12, y: -8 });
     const requestId = postFreePointAtPointer.mock.calls[0]![0].requestId as number;
     observeCommandOwnedEdit(feature, document, requestId, 2);
     feature.handleResult(token, document, {
@@ -721,14 +679,14 @@ describe("Canvas free point at pointer feature", () => {
     await Promise.resolve();
     document.version = 4;
     mocks.documentChangeListeners[0]?.({ document, contentChanges: [{}], reason: 1 });
-    void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.();
+    clickAt(feature, document, { x: 12, y: -8 });
 
     expect(postFreePointAtPointer).toHaveBeenCalledTimes(1);
     expect(mocks.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining("Source insertion position is stale"));
     feature.dispose();
   });
 
-  it("does not fall back from an invalid or non-blank context to the latest pointer", () => {
+  it("enters creation mode without consuming an invocation context", () => {
     const document = documentFor();
     const editor = editorFor(document);
     const postFreePointAtPointer = vi.fn();
@@ -747,7 +705,7 @@ describe("Canvas free point at pointer feature", () => {
     void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.({ webviewSection: "element" });
     void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.({ webviewSection: "blank" });
     expect(postFreePointAtPointer).not.toHaveBeenCalled();
-    expect(mocks.showErrorMessage).toHaveBeenCalledTimes(2);
+    expect(mocks.showErrorMessage).not.toHaveBeenCalled();
     feature.dispose();
   });
 
@@ -775,7 +733,7 @@ describe("Canvas free point at pointer feature", () => {
     activeTextEditor.activeTextEditor = editor;
     mocks.documentChangeListeners[0]?.({ document, contentChanges: [{}] });
     await Promise.resolve();
-    void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.();
+    clickAt(feature, document, { x: 12, y: -8 });
     expect(postFreePointAtPointer).toHaveBeenCalledWith(expect.objectContaining({
       sourcePosition: { documentVersion: 2, line: 5, character: 2 }
     }));
@@ -787,7 +745,7 @@ describe("Canvas free point at pointer feature", () => {
     });
     editor.selection.active = { line: 9, character: 9 };
     mocks.selectionListeners[0]?.({ textEditor: editor, kind: 3 });
-    void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.();
+    clickAt(feature, document, { x: 12, y: -8 });
     expect(postFreePointAtPointer).toHaveBeenLastCalledWith(expect.objectContaining({
       sourcePosition: { documentVersion: 2, line: 4, character: 3 }
     }));

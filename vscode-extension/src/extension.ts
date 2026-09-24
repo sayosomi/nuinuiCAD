@@ -521,8 +521,10 @@ export const activate = (
   let benchmarkStarted = false;
   let benchmarkEditorListener: vscode.Disposable | null = null;
   const canvasHistoryHandoffContextKey = "nuinuiCAD.canvasHistoryHandoff";
+  const canvasCoordinatePointCreationContextKey = "nuinuiCAD.canvasCoordinatePointCreationActive";
   let canvasHistoryHandoffSession: DocumentSession | null = null;
   let lastActiveCanvasSession: DocumentSession | null = null;
+  const coordinatePointCreationSessions = new Set<DocumentSession>();
   let lastBakeSurface: LastBakeSurface | null = null;
   const surfaceDiagnosticsByUri = new Map<string, vscode.Diagnostic[]>();
   const multiDocumentDiagnosticsByRoot = new Map<string, Map<string, vscode.Diagnostic[]>>();
@@ -651,6 +653,12 @@ export const activate = (
     return remembered && sessions.get(remembered.documentUri, "canvas") === remembered && remembered.panel.visible
       ? remembered
       : null;
+  };
+
+  const updateCoordinatePointCreationContext = (): void => {
+    const activeSession = canvasSessionForCommand();
+    const active = activeSession !== null && coordinatePointCreationSessions.has(activeSession);
+    void vscode.commands.executeCommand("setContext", canvasCoordinatePointCreationContextKey, active);
   };
 
   const activeCanvasSessionForOpenCommand = (): DocumentSession | null => {
@@ -1631,6 +1639,7 @@ export const activate = (
 
   const disposeCanvasSession = (session: DocumentSession): void => {
     if (sessions.get(session.documentUri, "canvas") !== session) return;
+    coordinatePointCreationSessions.delete(session);
     sourceAuthoringPositionFeature.disposeSession(session, session.document);
     canvasFreePointAtPointerFeature?.disposeSession(session, session.document);
     if (lastActiveCanvasSession === session) lastActiveCanvasSession = null;
@@ -1646,6 +1655,7 @@ export const activate = (
     observationFeature.removeCanvasSession(session.documentUri);
     disposeSessionListeners(session);
     updatePanelTitles();
+    updateCoordinatePointCreationContext();
   };
 
   const disposeSession = (session: WebviewSession): void => {
@@ -1767,11 +1777,13 @@ export const activate = (
       flushPendingCanvasFocus(session);
       handleInlineModuleCanvasViewStateChange();
       handleExtractModuleCanvasViewStateChange();
+      updateCoordinatePointCreationContext();
     }));
 
     session.disposables.push(panel.webview.onDidReceiveMessage(async (message: VscodeToExtensionMessage) => {
       if (message.type === "webviewReady") {
         session.webviewReady = true;
+        coordinatePointCreationSessions.delete(session);
         session.authoritativeDocumentVersion = null;
         session.pendingCanvasFocus = null;
         postCanvasThemeGeneration(panel, activeCanvasThemeGeneration);
@@ -1779,7 +1791,36 @@ export const activate = (
         postAuthoritativeDocument(panel, session.document);
         postCanvasRibbonConfiguration(panel);
         postCanvasGridConfiguration(panel);
+        updateCoordinatePointCreationContext();
         if (benchmarkConfig) post({ type: "benchmarkConfig", config: benchmarkConfig });
+        return;
+      }
+      if (message.type === "canvasCoordinatePointCreationState") {
+        if (
+          !session.webviewReady ||
+          sessions.get(session.documentUri, "canvas") !== session ||
+          !isOpenDocument(session.document) ||
+          session.document.version !== message.documentVersion
+        ) return;
+        if (message.active) coordinatePointCreationSessions.add(session);
+        else coordinatePointCreationSessions.delete(session);
+        updateCoordinatePointCreationContext();
+        return;
+      }
+      if (message.type === "canvasCoordinatePointCreationClick") {
+        if (
+          !isVscodeCanvasPointer(message.pointer) ||
+          !session.webviewReady ||
+          sessions.get(session.documentUri, "canvas") !== session ||
+          !isOpenDocument(session.document) ||
+          !coordinatePointCreationSessions.has(session) ||
+          session.document.version !== message.documentVersion
+        ) return;
+        canvasFreePointAtPointerFeature?.handleCoordinatePointCreationClick(
+          canvasFreePointEndpointFor(session),
+          message.documentVersion,
+          message.pointer
+        );
         return;
       }
       if (message.type === "canvasPointerPublication") {
@@ -2134,6 +2175,40 @@ export const activate = (
     displayLanguageFor: extensionDisplayLanguage,
     languageAnalysisSessionFor
   });
+
+  const canvasFreePointEndpointFor = (session: DocumentSession): VscodeCanvasFreePointAtPointerEndpoint => {
+    const isCurrent = (): boolean =>
+      sessions.get(session.documentUri, "canvas") === session &&
+      isOpenDocument(session.document) &&
+      session.webviewReady;
+    return {
+      sessionToken: session,
+      document: session.document,
+      isCurrent,
+      isAuthoritativeReady: () =>
+        isCurrent() &&
+        session.inFlightCanvasHistory === null &&
+        session.authoritativeDocumentVersion === session.document.version,
+      isCoordinatePointCreationActive: () => coordinatePointCreationSessions.has(session),
+      lastCanvasPointer: () => session.lastCanvasPointer,
+      postCoordinatePointCreationStart: (documentVersion) => {
+        if (!isCurrent() || session.document.version !== documentVersion ||
+            coordinatePointCreationSessions.has(session)) return;
+        void session.panel.webview.postMessage({
+          type: "canvasCoordinatePointCreationStart",
+          documentVersion
+        } satisfies ExtensionToVscodeMessage);
+      },
+      postFreePointAtPointer: (request) => {
+        if (!isCurrent()) return;
+        void session.panel.webview.postMessage({
+          type: "canvasFreePointAtPointer",
+          ...request
+        } satisfies ExtensionToVscodeMessage);
+      }
+    };
+  };
+
   canvasFreePointAtPointerFeature = registerVscodeCanvasFreePointAtPointerFeature({
     sourceAuthoringPosition: sourceAuthoringPositionFeature,
     activeCanvasEndpoint: (context?: unknown): VscodeCanvasFreePointAtPointerEndpoint | null => {
@@ -2144,27 +2219,7 @@ export const activate = (
         !isOpenDocument(session.document) ||
         sessions.get(session.documentUri, "canvas") !== session
       ) return null;
-      const isCurrent = (): boolean =>
-        sessions.get(session.documentUri, "canvas") === session &&
-        isOpenDocument(session.document) &&
-        session.webviewReady;
-      return {
-        sessionToken: session,
-        document: session.document,
-        isCurrent,
-        isAuthoritativeReady: () =>
-          isCurrent() &&
-          session.inFlightCanvasHistory === null &&
-          session.authoritativeDocumentVersion === session.document.version,
-        lastCanvasPointer: () => session.lastCanvasPointer,
-        postFreePointAtPointer: (request) => {
-          if (!isCurrent()) return;
-          void session.panel.webview.postMessage({
-            type: "canvasFreePointAtPointer",
-            ...request
-          } satisfies ExtensionToVscodeMessage);
-        }
-      };
+      return canvasFreePointEndpointFor(session);
     }
   });
 

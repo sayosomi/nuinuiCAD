@@ -101,7 +101,7 @@
         "command": "nuinuiCAD.createFreePointAtPointer",
         "key": "ctrl+shift+alt+n",
         "mac": "ctrl+shift+n",
-        "when": "activeWebviewPanelId == 'nuinuiCAD.canvas' && !inputFocus && !nuinuiCAD.webviewEditableFocus"
+        "when": "activeWebviewPanelId == 'nuinuiCAD.canvas' && !nuinuiCAD.canvasCoordinatePointCreationActive && !inputFocus && !nuinuiCAD.webviewEditableFocus"
       },
       {
         "command": "nuinuiCAD.revealInCanvas",
@@ -549,7 +549,7 @@
       "webview/context": [
         {
           "command": "nuinuiCAD.createFreePointAtPointer",
-          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank'",
+          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank' && !nuinuiCAD.canvasCoordinatePointCreationActive",
           "group": "1_create@0"
         },
         {
@@ -1089,7 +1089,7 @@
         "title": "%command.createFreePointAtPointer.title%",
         "shortTitle": "%command.createFreePointAtPointer.shortTitle%",
         "category": "nuinuiCAD",
-        "enablement": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
+        "enablement": "activeWebviewPanelId == 'nuinuiCAD.canvas' && !nuinuiCAD.canvasCoordinatePointCreationActive"
       },
       {
         "command": "nuinuiCAD.webview.showCanvasPointNames",

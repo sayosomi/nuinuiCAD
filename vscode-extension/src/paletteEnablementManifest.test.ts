@@ -53,7 +53,7 @@ const expectedTargetEnablement = new Map<string, string>([
   ["nuinuiCAD.selectInstance", `${canvasWhen} && nuinuiCAD.canvasCanSelectInstance`],
   ["nuinuiCAD.bakeCurrentShape", bakeEnablement],
   ["nuinuiCAD.bakeBaseShape", bakeEnablement],
-  ["nuinuiCAD.createFreePointAtPointer", canvasWhen]
+  ["nuinuiCAD.createFreePointAtPointer", `${canvasWhen} && !nuinuiCAD.canvasCoordinatePointCreationActive`]
 ]);
 
 const expectedPaletteScope = new Map<string, string>([

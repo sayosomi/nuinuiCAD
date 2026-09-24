@@ -208,7 +208,7 @@ const canonicalCommandShortTitles: Partial<Record<(typeof commandIds)[number], s
   "nuinuiCAD.modulePreview.clearSelection": "Clear Selection",
   "nuinuiCAD.modulePreview.resetView": "Reset View",
   "nuinuiCAD.modulePreview.fitDrawing": "Fit Drawing",
-  "nuinuiCAD.createFreePointAtPointer": "Create Free Point at Pointer"
+  "nuinuiCAD.createFreePointAtPointer": "Create Coordinate Points"
 };
 const sourcePaletteWhen = "editorLangId == nui && resourceScheme == file && resourceExtname == .nui";
 const sourceCreationContextWhen = `${sourcePaletteWhen} && !editorReadonly`;
@@ -259,6 +259,8 @@ const bakePaletteWhen = "(editorLangId == nui && resourceScheme == file && resou
 const canvasHistoryWhen = "activeWebviewPanelId == 'nuinuiCAD.canvas' || activeWebviewPanelId == 'nuinuiCAD.modulePreview' || (editorTextFocus && nuinuiCAD.canvasHistoryHandoff)";
 const outputPreviewHistoryWhen = "activeWebviewPanelId == 'nuinuiCAD.outputPreview'";
 const canvasBlankWhen = "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank'";
+const coordinatePointCreationCanvasBlankWhen = `${canvasBlankWhen} && !nuinuiCAD.canvasCoordinatePointCreationActive`;
+const coordinatePointCreationKeybindingWhen = `${canvasFocusKeybindingWhen.replace("activeWebviewPanelId == 'nuinuiCAD.canvas'", "activeWebviewPanelId == 'nuinuiCAD.canvas' && !nuinuiCAD.canvasCoordinatePointCreationActive")}`;
 const canvasElementWhen = "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'element' && nuinuiCAD.canvasHasSelection";
 const canvasOrModulePreviewElementWhen = "(webviewId == 'nuinuiCAD.canvas' || webviewId == 'nuinuiCAD.modulePreview') && webviewSection == 'element' && nuinuiCAD.canvasHasSelection";
 const canvasOrModulePreviewRibbonWhen = "(webviewId == 'nuinuiCAD.canvas' || webviewId == 'nuinuiCAD.modulePreview') && (webviewSection == 'blank' || webviewSection == 'ribbon')";
@@ -340,7 +342,7 @@ describe("VS Code extension manifest command contributions", () => {
     for (const command of commands) {
       const titleKey = command.title.slice(1, -1);
       expect(japanese[titleKey]).not.toBe(english[titleKey]);
-      if (staticWebviewCanonicalCommandIds.some((id) => id === command.command)) {
+      if (staticWebviewCanonicalCommandIds.some((id) => id === command.command) && command.command !== "nuinuiCAD.createFreePointAtPointer") {
         expect(command.category).toBe("nuinuiCAD");
         expect(japanese[titleKey]).not.toMatch(/^nuinuiCAD: /);
       } else if (command.command === "nuinuiCAD.insertTemplate") {
@@ -435,7 +437,7 @@ describe("VS Code extension manifest command contributions", () => {
       "nuinuiCAD: Toggle Module Preview Points",
       "nuinuiCAD: Create Geometry…",
       "Insert Template…",
-      "Create Free Point at Pointer"
+      "nuinuiCAD: Create Coordinate Points"
     ]);
     expect(commands.map(({ command, category }) => ({ command, category }))).toEqual(commandIds.map((command) => ({
       command,
@@ -541,7 +543,7 @@ describe("VS Code extension manifest command contributions", () => {
     const english = JSON.parse(await readFile(packageNlsPath, "utf8")) as Record<string, unknown>;
     const japanese = JSON.parse(await readFile(packageNlsJaPath, "utf8")) as Record<string, unknown>;
     const expected = [
-      ["nuinuiCAD.createFreePointAtPointer", "Create Free Point at Pointer", "ポインター位置に自由点を作成"],
+      ["nuinuiCAD.createFreePointAtPointer", "Create Coordinate Points", "座標点を作成"],
       ["nuinuiCAD.fitDrawing", "Fit Drawing", "図面をフィット"],
       ["nuinuiCAD.resetCanvasView", "Reset View", "表示をリセット"],
       ["nuinuiCAD.editCanvasRibbon", "Edit Ribbon", "リボンを編集"],
@@ -567,10 +569,13 @@ describe("VS Code extension manifest command contributions", () => {
       const command = manifest.contributes?.commands?.find(({ command }) => command === commandId);
       const shortTitle = command?.shortTitle;
       expect(command?.category).toBe("nuinuiCAD");
-      expect(resolveNlsToken(command!.title, english)).toBe(englishShortTitle);
-      expect(resolveNlsToken(command!.title, japanese)).toBe(japaneseShortTitle);
-      expect(`${command!.category}: ${resolveNlsToken(command!.title, english)}`).toBe(`nuinuiCAD: ${englishShortTitle}`);
-      expect(`${command!.category}: ${resolveNlsToken(command!.title, japanese)}`).toBe(`nuinuiCAD: ${japaneseShortTitle}`);
+      const englishTitle = resolveNlsToken(command!.title, english);
+      const japaneseTitle = resolveNlsToken(command!.title, japanese);
+      const coordinatePointTitle = commandId === "nuinuiCAD.createFreePointAtPointer";
+      expect(englishTitle).toBe(coordinatePointTitle ? `nuinuiCAD: ${englishShortTitle}` : englishShortTitle);
+      expect(japaneseTitle).toBe(coordinatePointTitle ? `nuinuiCAD: ${japaneseShortTitle}` : japaneseShortTitle);
+      expect(`${command!.category}: ${englishTitle}`).toBe(coordinatePointTitle ? `nuinuiCAD: ${englishTitle}` : `nuinuiCAD: ${englishShortTitle}`);
+      expect(`${command!.category}: ${japaneseTitle}`).toBe(coordinatePointTitle ? `nuinuiCAD: ${japaneseTitle}` : `nuinuiCAD: ${japaneseShortTitle}`);
       expect(shortTitle).toBe(`%command.${commandId.replace("nuinuiCAD.", "")}.shortTitle%`);
       expect(resolveNlsToken(shortTitle!, english)).toBe(englishShortTitle);
       expect(resolveNlsToken(shortTitle!, japanese)).toBe(japaneseShortTitle);
@@ -782,7 +787,7 @@ describe("VS Code extension manifest command contributions", () => {
       { id: "nuinuiCAD.webview.bake", label: "%submenu.webview.bake%" }
     ]);
     expect(manifest.contributes?.menus?.["webview/context"]).toEqual([
-      { command: "nuinuiCAD.createFreePointAtPointer", when: canvasBlankWhen, group: "1_create@0" },
+      { command: "nuinuiCAD.createFreePointAtPointer", when: coordinatePointCreationCanvasBlankWhen, group: "1_create@0" },
       { command: "nuinuiCAD.fitDrawing", when: canvasBlankWhen, group: "2_view@1" },
       { command: "nuinuiCAD.resetCanvasView", when: canvasBlankWhen, group: "2_view@2" },
       { submenu: "nuinuiCAD.webview.canvasDisplay", when: canvasBlankWhen, group: "2_view@3" },
@@ -927,7 +932,7 @@ describe("VS Code extension manifest command contributions", () => {
     expect(manifest.contributes?.menus?.["nuinuiCAD.create"]).toBeUndefined();
     expect(manifest.contributes?.configuration?.properties?.["nuinuiCAD.canvasQuickCreate.commands"]).toBeUndefined();
     expect(commands.filter(({ command }) => command === "nuinuiCAD.createFreePointAtPointer")).toHaveLength(1);
-    expect(webviewContext).toContainEqual({ command: "nuinuiCAD.createFreePointAtPointer", when: canvasBlankWhen, group: "1_create@0" });
+    expect(webviewContext).toContainEqual({ command: "nuinuiCAD.createFreePointAtPointer", when: coordinatePointCreationCanvasBlankWhen, group: "1_create@0" });
   });
 });
 
@@ -1023,7 +1028,7 @@ describe("VS Code extension manifest keybindings", () => {
         command: "nuinuiCAD.createFreePointAtPointer",
         key: "ctrl+shift+alt+n",
         mac: "ctrl+shift+n",
-        when: canvasFocusKeybindingWhen
+        when: coordinatePointCreationKeybindingWhen
       },
       {
         command: "nuinuiCAD.revealInCanvas",

@@ -1,6 +1,9 @@
 import type { PickModeSession } from "../model/pickModeSession";
 
-export type PickModeCanvasOperation =
+export type CanvasModalMode = "pick" | "coordinate-point-creation";
+
+export type CanvasModalOperation =
+  | "create-coordinate-point"
   | "normal-selection"
   | "rectangle-selection"
   | "point-drag"
@@ -19,7 +22,9 @@ export type PickModeCanvasOperation =
   | "reveal"
   | "focus";
 
-const allowedWhilePicking = new Set<PickModeCanvasOperation>([
+export type PickModeCanvasOperation = CanvasModalOperation;
+
+const allowedWhilePicking = new Set<CanvasModalOperation>([
   "pan",
   "zoom",
   "reset-view",
@@ -30,15 +35,54 @@ const allowedWhilePicking = new Set<PickModeCanvasOperation>([
   "focus"
 ]);
 
+const allowedWhileCreatingCoordinatePoints = new Set<CanvasModalOperation>([
+  "create-coordinate-point",
+  "pan",
+  "zoom",
+  "reset-view",
+  "fit-drawing",
+  "presentation-toggle",
+  "focus",
+  "undo",
+  "redo"
+]);
+
+export const canvasModalCanvasOperationAllowed = (
+  operation: CanvasModalOperation,
+  mode: CanvasModalMode | null | undefined
+): boolean => {
+  if (!mode) return true;
+  return mode === "pick"
+    ? allowedWhilePicking.has(operation)
+    : allowedWhileCreatingCoordinatePoints.has(operation);
+};
+
+export const canvasModalCanvasOperationAllowedForActive = (
+  operation: CanvasModalOperation,
+  mode: CanvasModalMode | null | undefined
+): boolean => canvasModalCanvasOperationAllowed(operation, mode);
+
+export const canvasModalModeFor = ({
+  pickModeActive,
+  coordinatePointCreationActive
+}: {
+  pickModeActive: boolean;
+  coordinatePointCreationActive: boolean;
+}): CanvasModalMode | null => pickModeActive
+  ? "pick"
+  : coordinatePointCreationActive
+    ? "coordinate-point-creation"
+    : null;
+
 export const pickModeCanvasOperationAllowed = (
   operation: PickModeCanvasOperation,
   session: PickModeSession | null | undefined
-): boolean => !session || allowedWhilePicking.has(operation);
+): boolean => canvasModalCanvasOperationAllowed(operation, session ? "pick" : null);
 
 export const pickModeCanvasOperationAllowedForActive = (
   operation: PickModeCanvasOperation,
   active: boolean
-): boolean => !active || allowedWhilePicking.has(operation);
+): boolean => canvasModalCanvasOperationAllowed(operation, active ? "pick" : null);
 
 const pickCommandIds = new Set([
   "applyNumericExpressionReference",
@@ -87,6 +131,14 @@ export const pickModeCanvasCommandAllowed = (
 ): boolean => pickModeCanvasOperationAllowed(
   pickModeCanvasOperationForCommand(commandId),
   session
+);
+
+export const canvasModalCanvasCommandAllowed = (
+  commandId: string,
+  mode: CanvasModalMode | null | undefined
+): boolean => canvasModalCanvasOperationAllowed(
+  pickModeCanvasOperationForCommand(commandId),
+  mode
 );
 
 export const pickModeCanvasCommandAllowedForActive = (

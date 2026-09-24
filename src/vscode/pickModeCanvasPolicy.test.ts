@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  canvasModalCanvasCommandAllowed,
+  canvasModalCanvasOperationAllowed,
+  canvasModalModeFor,
   pickModeCanvasCommandAllowed,
   pickModeCanvasCommandAllowedForActive,
   pickModeCanvasOperationAllowed,
@@ -16,6 +19,7 @@ const activeSession = {
 
 describe("Pick Mode Canvas operation policy", () => {
   it.each([
+    ["create-coordinate-point", false],
     ["normal-selection", false],
     ["rectangle-selection", false],
     ["point-drag", false],
@@ -76,5 +80,20 @@ describe("Pick Mode Canvas operation policy", () => {
     expect(pickModeCanvasCommandAllowedForActive("undo", true)).toBe(false);
     expect(pickModeCanvasCommandAllowedForActive("addLine", true)).toBe(false);
     expect(pickModeCanvasCommandAllowedForActive("addLine", false)).toBe(true);
+  });
+
+  it("allows only coordinate-point creation, navigation, presentation, focus, and history in coordinate mode", () => {
+    const mode = canvasModalModeFor({ pickModeActive: false, coordinatePointCreationActive: true });
+    expect(mode).toBe("coordinate-point-creation");
+    for (const operation of ["create-coordinate-point", "pan", "zoom", "reset-view", "fit-drawing", "presentation-toggle", "focus", "undo", "redo"] as const) {
+      expect(canvasModalCanvasOperationAllowed(operation, mode)).toBe(true);
+    }
+    for (const operation of ["normal-selection", "rectangle-selection", "point-drag", "bezier-drag", "clear-selection", "document-mutation", "workflow-start", "pick", "reveal"] as const) {
+      expect(canvasModalCanvasOperationAllowed(operation, mode)).toBe(false);
+    }
+    expect(canvasModalCanvasCommandAllowed("undo", mode)).toBe(true);
+    expect(canvasModalCanvasCommandAllowed("redo", mode)).toBe(true);
+    expect(canvasModalCanvasCommandAllowed("clearCanvasSelection", mode)).toBe(false);
+    expect(canvasModalModeFor({ pickModeActive: true, coordinatePointCreationActive: true })).toBe("pick");
   });
 });

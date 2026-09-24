@@ -3827,7 +3827,7 @@ textarea {
   user-select: none;
 }
 
-.pick-mode-status {
+.canvas-mode-status {
   position: relative;
   z-index: auto;
   display: flex;
@@ -3846,7 +3846,7 @@ textarea {
   padding: 4px 6px;
 }
 
-.canvas-pick-mode-chrome {
+.canvas-mode-chrome {
   position: absolute;
   z-index: 10;
   top: 0;
@@ -3861,7 +3861,7 @@ textarea {
   pointer-events: auto;
 }
 
-.pick-mode-status-title {
+.canvas-mode-status-title {
   flex: 0 0 auto;
   border: 1px solid color-mix(in srgb, var(--canvas-accent) 58%, var(--canvas-background));
   border-radius: 4px;
@@ -3873,25 +3873,25 @@ textarea {
   letter-spacing: 0.08em;
 }
 
-.pick-mode-status-copy {
+.canvas-mode-status-copy {
   display: grid;
   flex: 1 1 240px;
   min-width: 0;
   gap: 1px;
 }
 
-.pick-mode-status-copy small {
+.canvas-mode-status-copy small {
   color: var(--canvas-muted);
 }
 
-.pick-mode-status-selection {
+.canvas-mode-status-selection {
   display: grid;
   gap: 4px;
   min-width: 0;
   font-size: 11px;
 }
 
-.pick-mode-status-list {
+.canvas-mode-status-list {
   display: grid;
   gap: 3px;
   max-height: min(180px, 28vh);
@@ -3900,7 +3900,7 @@ textarea {
   padding: 0 3px 0 22px;
 }
 
-.pick-mode-status-list-item {
+.canvas-mode-status-list-item {
   display: grid;
   grid-template-columns: 20px minmax(0, 1fr) auto;
   align-items: center;
@@ -3912,24 +3912,24 @@ textarea {
   padding: 2px 3px;
 }
 
-.pick-mode-status-list-index {
+.canvas-mode-status-list-index {
   color: var(--canvas-muted);
   text-align: right;
 }
 
-.pick-mode-status-list-label {
+.canvas-mode-status-list-label {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.pick-mode-status-list-actions {
+.canvas-mode-status-list-actions {
   display: flex;
   gap: 2px;
 }
 
-.pick-mode-status-list-actions button {
+.canvas-mode-status-list-actions button {
   min-width: 22px;
   margin-left: 0;
   border: 1px solid color-mix(in srgb, var(--canvas-accent) 55%, var(--canvas-background));
@@ -3940,12 +3940,12 @@ textarea {
   line-height: 1.1;
 }
 
-.pick-mode-status-list-actions button:disabled {
+.canvas-mode-status-list-actions button:disabled {
   cursor: default;
   opacity: 0.38;
 }
 
-.pick-mode-status kbd {
+.canvas-mode-status kbd {
   border: 1px solid color-mix(in srgb, var(--canvas-muted) 58%, var(--canvas-background));
   border-radius: 4px;
   color: var(--canvas-muted);
@@ -3953,7 +3953,7 @@ textarea {
   padding: 2px 4px;
 }
 
-.pick-mode-status button {
+.canvas-mode-status button {
   margin-left: auto;
   border-color: color-mix(in srgb, var(--canvas-accent) 72%, var(--canvas-background));
   background: color-mix(in srgb, var(--canvas-accent) 16%, var(--canvas-background));
@@ -3962,27 +3962,27 @@ textarea {
   white-space: nowrap;
 }
 
-.pick-mode-status button:hover {
+.canvas-mode-status button:hover {
   border-color: var(--canvas-accent);
   background: color-mix(in srgb, var(--canvas-accent) 26%, var(--canvas-background));
 }
 
 @media (max-width: 620px) {
-  .canvas-pick-mode-chrome {
+  .canvas-mode-chrome {
     padding: 4px 6px;
   }
 
-  .pick-mode-status {
+  .canvas-mode-status {
     align-items: flex-start;
     flex-wrap: wrap;
     gap: 6px 8px;
   }
 
-  .pick-mode-status-copy {
+  .canvas-mode-status-copy {
     flex-basis: min(100%, 240px);
   }
 
-  .pick-mode-status button {
+  .canvas-mode-status button {
     margin-left: 0;
   }
 }

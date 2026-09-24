@@ -59,11 +59,13 @@ const contextMatchesAuthority = (
 export const useVSCodeReferencePickSession = ({
   api,
   currentContextFor,
-  currentReferencePickAuthorityFor
+  currentReferencePickAuthorityFor,
+  canStart = () => true
 }: {
   api: VscodeWebviewApi | null;
   currentContextFor: () => VscodeReferencePickCurrentContext | null;
   currentReferencePickAuthorityFor: VscodeReferencePickAuthorityFor;
+  canStart?: () => boolean;
 }) => {
   const [session, setSession] = useState<VscodeReferencePickCanvasSession | null>(null);
   const sessionRef = useRef<VscodeReferencePickCanvasSession | null>(null);
@@ -87,6 +89,18 @@ export const useVSCodeReferencePickSession = ({
 
   const tryStart = useCallback((message: ReferencePickStartRequest) => {
     if (!api) return;
+    if (!canStart()) {
+      api.postMessage({
+        type: "referencePickResult",
+        requestId: message.requestId,
+        documentUri: message.documentUri,
+        documentVersion: message.documentVersion,
+        targetProof: message.targetProof,
+        status: "canceled"
+      });
+      pendingStartRequestRef.current = null;
+      return;
+    }
     const authoritative = currentReferencePickAuthorityFor(message.documentVersion);
     const current = currentContextFor();
     if (!authoritative) {
@@ -130,7 +144,7 @@ export const useVSCodeReferencePickSession = ({
     });
     api.postMessage(started.result);
     replaceSession(started.session);
-  }, [api, currentContextFor, currentReferencePickAuthorityFor, postStale, replaceSession]);
+  }, [api, canStart, currentContextFor, currentReferencePickAuthorityFor, postStale, replaceSession]);
 
   useEffect(() => {
     const current = currentContextFor();

@@ -24,6 +24,7 @@ import {
 import { useCadUiStore } from "../state/cadUiStore";
 import type { ElementId, EvaluationResult } from "../types/geometry";
 import { DrawingCanvas } from "../components/DrawingCanvas";
+import { CanvasModeStatus } from "../components/CanvasModeStatus";
 import type { DrawingCanvasHandle } from "../components/DrawingCanvas";
 import type {
   CanvasHostAdapter,
@@ -71,8 +72,9 @@ import {
 import { vscodeWebviewApi } from "./vscodeWebviewApiContext";
 import type { VscodeMultiDocumentCanvasRuntimePresentation } from "./multiDocumentRuntimeTransport";
 import {
-  pickModeCanvasCommandAllowedForActive,
-  pickModeCanvasOperationAllowedForActive
+  canvasModalCanvasCommandAllowed,
+  canvasModalCanvasOperationAllowed,
+  canvasModalModeFor
 } from "./pickModeCanvasPolicy";
 import {
   activatePickModeDraftEntry,
@@ -99,6 +101,9 @@ type VSCodeDrawingCanvasProps = {
   currentCoordinatePointConversionAuthorityFor?: (
     expectedDocumentVersion: number
   ) => VscodeCoordinatePointConversionAuthority | null;
+  coordinatePointCreationActive?: boolean;
+  onFinishCoordinatePointCreation?: () => void;
+  postCoordinatePointCreationClick?: (pointer: VscodeCanvasPointer) => void;
 };
 
 const normalizedSourceFor = (sourceText: string): string => sourceText.replace(/\r\n/g, "\n");
@@ -127,7 +132,10 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
     multiDocumentRuntimePresentation = null,
     webviewPresentation = null,
     currentReferencePickAuthorityFor,
-    currentCoordinatePointConversionAuthorityFor
+    currentCoordinatePointConversionAuthorityFor,
+    coordinatePointCreationActive = false,
+    onFinishCoordinatePointCreation,
+    postCoordinatePointCreationClick
   }, ref) {
     const drawingCanvasRef = useRef<DrawingCanvasHandle>(null);
     const referencePickActiveRef = useRef(false);
@@ -281,14 +289,17 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
     } = useVSCodeReferencePickSession({
       api: vscodeWebviewApi(),
       currentContextFor: currentReferencePickContext,
-      currentReferencePickAuthorityFor
+      currentReferencePickAuthorityFor,
+      canStart: () => !coordinatePointCreationActive && !(
+        useCadUiStore.getState().activePickModeSession || referencePickActiveRef.current
+      )
     });
     referencePickActiveRef.current = referencePickSession !== null;
-    const canvasPickModeActive = useCallback(
-      () => Boolean(useCadUiStore.getState().activePickModeSession || referencePickActiveRef.current),
-      []
-    );
     const effectivePickModeActive = Boolean(activePickModeSession || referencePickSession);
+    const canvasModalMode = canvasModalModeFor({
+      pickModeActive: effectivePickModeActive,
+      coordinatePointCreationActive
+    });
     const referencePickPresentationContext = referencePickSession
       ? currentReferencePickContext()
       : null;
@@ -341,7 +352,10 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       currentContextFor: currentCoordinatePointConversionContext,
       currentAuthorityFor: currentCoordinatePointConversionAuthorityFor ?? currentReferencePickAuthorityFor,
       postCanvasCommit: postCanvasCommit ?? (() => undefined),
-      presentation: canvasPresentationAdapter
+      presentation: canvasPresentationAdapter,
+      canStart: () => !coordinatePointCreationActive && !(
+        useCadUiStore.getState().activePickModeSession || referencePickActiveRef.current
+      )
     });
     const hasCoordinatePointConversionTarget = useMemo(() => {
       if (!evaluationStateIsCurrentFor(canvasPresentation.renderEvaluationState, compiledDocumentRevision)) return false;
@@ -364,8 +378,9 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       showCanvasPointNames,
       showCanvasGeometryNames,
       showCanvasPoints,
-      pickModeActive: effectivePickModeActive
-    }), [effectivePickModeActive, selectedElementIds.length, showCanvasGeometryNames, showCanvasPointNames, showCanvasPoints]);
+      pickModeActive: effectivePickModeActive,
+      canvasModalMode
+    }), [canvasModalMode, effectivePickModeActive, selectedElementIds.length, showCanvasGeometryNames, showCanvasPointNames, showCanvasPoints]);
 
     const dispatchSharedCanvasCommand = useCallback((commandId: CommandId) => {
       drawingCanvasRef.current?.finalizeCanvasInteraction();
@@ -382,14 +397,15 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
 
     const executeRibbonCommand = useCallback((item: CommandRibbonPresentationCommandItem) => {
       const currentUiState = useCadUiStore.getState();
-      if (!pickModeCanvasCommandAllowedForActive(item.commandId, canvasPickModeActive())) return;
+      if (!canvasModalCanvasCommandAllowed(item.commandId, canvasModalMode)) return;
       const definition = vscodeCanvasRibbonCommandFor(item.commandId);
       if (!definition || !definition.isAvailable({
         hasSelection: currentUiState.selectedElementIds.length > 0,
         showCanvasPointNames: currentUiState.showCanvasPointNames,
         showCanvasGeometryNames: currentUiState.showCanvasGeometryNames,
         showCanvasPoints: currentUiState.showCanvasPoints,
-        pickModeActive: canvasPickModeActive()
+        pickModeActive: canvasModalMode !== null,
+        canvasModalMode
       })) return;
       drawingCanvasRef.current?.finalizeCanvasInteraction();
       if (definition.hostAction === "editCanvasRibbon") {
@@ -398,13 +414,13 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       }
       if (!definition.sharedCommandId) return;
       dispatchSharedCanvasCommand(definition.sharedCommandId);
-    }, [canvasPickModeActive, dispatchSharedCanvasCommand, onEditCanvasRibbon]);
+    }, [canvasModalMode, dispatchSharedCanvasCommand, onEditCanvasRibbon]);
 
     const executeViewportCommand = useCallback((item: CommandRibbonPresentationCommandItem) => {
       if (!isVscodeCanvasViewportCommandId(item.commandId)) return;
-      if (!pickModeCanvasCommandAllowedForActive(item.commandId, canvasPickModeActive())) return;
+      if (!canvasModalCanvasCommandAllowed(item.commandId, canvasModalMode)) return;
       dispatchSharedCanvasCommand(item.commandId);
-    }, [canvasPickModeActive, dispatchSharedCanvasCommand]);
+    }, [canvasModalMode, dispatchSharedCanvasCommand]);
 
     const dispatchGeometryAction = useMemo(
       () => (action: CanvasPointDragAction | CanvasBezierHandleDragAction) => {
@@ -516,6 +532,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       compiledDocumentRevision: presentationCompiledDocumentRevision,
       canvasTheme,
       canvasGridSettings,
+      canvasModalMode,
       presentation: canvasPresentationAdapter,
       visibilityProfiles: canvasPresentation.visibilityProfiles,
       activeVisibilityProfileId: canvasPresentation.activeVisibilityProfileId,
@@ -584,7 +601,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       panCanvasViewport: (dx, dy) => useCadUiStore.getState().panCanvasViewport(dx, dy),
       zoomCanvasViewportAt: (zoomFactor, anchor) => useCadUiStore.getState().zoomCanvasViewportAt(zoomFactor, anchor),
       selectElement: (elementId, selectionMode, recordHistory) => {
-        if (!pickModeCanvasOperationAllowedForActive("normal-selection", canvasPickModeActive())) {
+        if (!canvasModalCanvasOperationAllowed("normal-selection", canvasModalMode)) {
           return false;
         }
         if (multiDocumentRuntimePresentation) {
@@ -609,36 +626,36 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       },
       getCanvasSelectionSnapshot: () => canvasSelectionSnapshot(),
       previewCanvasSelection: (previousSelection, elementId, selectionMode) =>
-        !pickModeCanvasOperationAllowedForActive("normal-selection", canvasPickModeActive())
+        !canvasModalCanvasOperationAllowed("normal-selection", canvasModalMode)
           ? false
           : multiDocumentRuntimePresentation
           ? previewCanvasSelection(previousSelection, elementId, selectionMode, canvasPresentation.elements)
           : previewCanvasSelection(previousSelection, elementId, selectionMode),
       finalizeCanvasSelectionSession: (previousSelection) =>
-        pickModeCanvasOperationAllowedForActive("normal-selection", canvasPickModeActive())
+        canvasModalCanvasOperationAllowed("normal-selection", canvasModalMode)
           ? finalizeCanvasSelectionSession(previousSelection)
           : false,
       commitCanvasRectangleSelection: (memberIds, mode) =>
-        !pickModeCanvasOperationAllowedForActive("rectangle-selection", canvasPickModeActive())
+        !canvasModalCanvasOperationAllowed("rectangle-selection", canvasModalMode)
           ? false
           : multiDocumentRuntimePresentation
           ? commitCanvasRectangleSelection(memberIds, mode, true, canvasPresentation.elements)
           : commitCanvasRectangleSelection(memberIds, mode, true),
-      clearCanvasSelection: () => pickModeCanvasOperationAllowedForActive("clear-selection", canvasPickModeActive())
+      clearCanvasSelection: () => canvasModalCanvasOperationAllowed("clear-selection", canvasModalMode)
         ? dispatchCommand("clearCanvasSelection", { recordSelectionHistory: true })
         : false,
       movePointElementByDelta: (action) => action.commitMode === "preview"
-        ? !pickModeCanvasOperationAllowedForActive("point-drag", canvasPickModeActive())
+        ? !canvasModalCanvasOperationAllowed("point-drag", canvasModalMode)
           ? false
           : runtimeOnlyElementIds.has(action.elementId) ? false : dragPreviewScheduler.dispatchPreview(action, evaluationState)
-        : pickModeCanvasOperationAllowedForActive("point-drag", canvasPickModeActive())
+        : canvasModalCanvasOperationAllowed("point-drag", canvasModalMode)
           ? commitGeometryCommand.movePointElementByDelta(action)
           : false,
       moveBezierHandleByDelta: (action) => action.commitMode === "preview"
-        ? !pickModeCanvasOperationAllowedForActive("bezier-drag", canvasPickModeActive())
+        ? !canvasModalCanvasOperationAllowed("bezier-drag", canvasModalMode)
           ? false
           : runtimeOnlyElementIds.has(action.elementId) ? false : dragPreviewScheduler.dispatchPreview(action, evaluationState)
-        : pickModeCanvasOperationAllowedForActive("bezier-drag", canvasPickModeActive())
+        : canvasModalCanvasOperationAllowed("bezier-drag", canvasModalMode)
           ? commitGeometryCommand.moveBezierHandleByDelta(action)
           : false,
       applyPickedNumericReference: (numericReferenceExpression, candidateElementId) => dispatchCommand("applyPickedNumericReference", {
@@ -706,11 +723,21 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
             .filter((candidate) => candidate.options.length > 0)
         : undefined,
       cancelCanvasPickOperation: coordinatePointConversionSession ? cancelCoordinatePointConversion : undefined,
+      createCoordinatePointAtPointer: postCoordinatePointCreationClick,
+      finishCoordinatePointCreation: onFinishCoordinatePointCreation,
       toggleCanvasPointNames: () => dispatchCommand("toggleCanvasPointNames"),
       toggleCanvasGeometryNames: () => dispatchCommand("toggleCanvasGeometryNames"),
       toggleCanvasPoints: () => dispatchCommand("toggleCanvasPoints"),
       resolveImageSourceUrl: (sourcePath) => sourcePath,
-      renderPickModeChrome: () => referencePickSession && referencePickPresentationContext &&
+      renderCanvasModeChrome: () => canvasModalMode === "coordinate-point-creation" ? (
+        <CanvasModeStatus model={{
+          title: "COORDINATE POINTS",
+          instruction: "Canvasをクリックして座標点を作成",
+          finishLabel: "作成を終了",
+          finishHint: "Enter で作成を終了",
+          onFinish: onFinishCoordinatePointCreation ?? (() => undefined)
+        }} />
+      ) : referencePickSession && referencePickPresentationContext &&
         referencePickSession.draft.status === "active" ? (
         <VSCodeReferencePickModeStatus
           session={referencePickSession}
@@ -743,7 +770,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
           presentation={canvasPresentationAdapter}
         />
       ) : undefined,
-      renderHostOverlay: (viewportSize, layout = { pickModeChromeHeight: 0 }) => (
+      renderHostOverlay: (viewportSize, layout = { canvasModeChromeHeight: 0 }) => (
         <>
           {coordinatePointConversionSession && !coordinatePointConversionCanvasBasePick ? (
             <CommandLineBar
@@ -763,7 +790,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
             canvasViewport={canvasViewport}
             canvasRibbonRibbons={canvasRibbonRibbons}
             viewportSize={viewportSize}
-            pickModeChromeHeight={layout.pickModeChromeHeight}
+            canvasModeChromeHeight={layout.canvasModeChromeHeight}
             ribbonCommandContext={ribbonCommandContext}
             presentation={canvasPresentationAdapter}
             onCommand={executeRibbonCommand}
@@ -771,8 +798,9 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
           />
           <VSCodeCanvasViewportControls
             canvasViewport={canvasViewport}
-            pickModeChromeHeight={layout.pickModeChromeHeight}
+            canvasModeChromeHeight={layout.canvasModeChromeHeight}
             pickModeActive={effectivePickModeActive}
+            canvasModalMode={canvasModalMode}
             presentation={canvasPresentationAdapter}
             onCommand={executeViewportCommand}
           />
@@ -786,6 +814,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       canvasPresentation,
       canvasPresentationAdapter,
       canvasViewport,
+      canvasModalMode,
       commandLineSession,
       commitGeometryCommand,
       canvasTheme,
@@ -793,6 +822,8 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       dragPreviewScheduler,
       evaluationState,
       effectivePickModeActive,
+      onFinishCoordinatePointCreation,
+      postCoordinatePointCreationClick,
       multiDocumentRuntimePresentation,
       presentationCompiledDocumentRevision,
       runtimeOnlyElementIds,
@@ -810,7 +841,6 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       ribbonCommandContext,
       canvasFocusRef,
       creationCommandContext,
-      canvasPickModeActive,
       referencePickPresentationContext,
       referencePickSession,
       setReferencePickHover,
