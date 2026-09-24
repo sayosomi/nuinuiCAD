@@ -34,6 +34,7 @@ import type {
   VscodeInlineModuleSelectionRequest
 } from "./inlineModuleProtocol";
 import type { VscodeWebviewPresentation } from "./webviewPresentation";
+import type { CanvasGridSettings } from "../components/canvasGrid";
 
 export type {
   VscodeCanvasObservationElementSource,
@@ -365,6 +366,7 @@ export type ExtensionToVscodeMessage =
     }
   | { type: "canvasThemeChanged"; generation: number }
   | { type: "canvasRibbonConfiguration"; ribbons: VscodeCanvasRibbon[] }
+  | { type: "canvasGridConfiguration"; settings: CanvasGridSettings }
   | {
       type: "canvasFreePointAtPointer";
       requestId: number;

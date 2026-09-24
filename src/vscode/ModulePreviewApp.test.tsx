@@ -9,7 +9,8 @@ const mocks = vi.hoisted(() => ({
   queryModulePreviewTarget: vi.fn(),
   session: { activate: vi.fn(), getState: vi.fn(), setParameterValue: vi.fn() },
   postMessage: vi.fn(),
-  canvasMounts: 0
+  canvasMounts: 0,
+  hostAdapter: null as CanvasHostAdapter | null
 }));
 
 vi.mock("../components/DrawingCanvas", () => ({
@@ -21,6 +22,7 @@ vi.mock("../components/DrawingCanvas", () => ({
     hostAdapter: CanvasHostAdapter;
   }) => {
     mocks.canvasMounts += 1;
+    mocks.hostAdapter = hostAdapter;
     return (
       <div ref={canvasFocusRef} data-testid="module-preview-canvas">
         {hostAdapter.renderHostOverlay?.({ width: 400, height: 300 }, { pickModeChromeHeight: 0 })}
@@ -110,6 +112,7 @@ afterEach(() => {
   mocks.session.setParameterValue.mockReset();
   mocks.postMessage.mockReset();
   mocks.canvasMounts = 0;
+  mocks.hostAdapter = null;
 });
 
 describe("ModulePreviewApp Canvas-first composition", () => {
@@ -135,5 +138,22 @@ describe("ModulePreviewApp Canvas-first composition", () => {
       groups: [{ kind: "target", definitionStatementIndex: 1, parameters: [{ parameterIndex: 0, name: "anchor", value: "@Top", valueState: "explicit" }] }]
     });
     expect(AutomationDocument.fromSource(sourceText).getSource()).toBe(sourceText);
+  });
+
+  it("accepts live Canvas grid configuration without mutating canonical Source", () => {
+    renderPreview();
+    const sourceBefore = AutomationDocument.fromSource(sourceText).getSource();
+
+    act(() => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "canvasGridConfiguration",
+          settings: { enabled: false, spacingMm: 2.5, majorEvery: 1 }
+        }
+      }));
+    });
+
+    expect(mocks.hostAdapter?.canvasGridSettings).toEqual({ enabled: false, spacingMm: 2.5, majorEvery: 1 });
+    expect(AutomationDocument.fromSource(sourceText).getSource()).toBe(sourceBefore);
   });
 });

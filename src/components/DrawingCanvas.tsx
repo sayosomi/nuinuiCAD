@@ -91,6 +91,7 @@ import { notifyProductionDrawCompleted } from "../performance/benchmarkFrameObse
 import { useNativePointerBoundaryFallback } from "./nativePointerBoundaryFallback";
 import { dispatchCommand } from "../commands/commands";
 import type { CanvasPickKeyboardCommandId } from "./canvasHostAdapter";
+import { DEFAULT_CANVAS_GRID_SETTINGS } from "./canvasGrid";
 
 type DrawingCanvasProps = {
   evaluation: EvaluationResult;
@@ -278,6 +279,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     activeLinePickTarget,
     commandLineSession
   } = hostAdapter;
+  const canvasGridSettings = hostAdapter.canvasGridSettings ?? DEFAULT_CANVAS_GRID_SETTINGS;
   const storePickModeSession = useCadUiStore((state) => state.activePickModeSession);
   const storePickCursor = useCadUiStore((state) => state.activePickCursor);
   const hostOwnsPickCandidates = hostAdapter.pickModeCandidates !== undefined;
@@ -783,6 +785,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
           selectedElementId,
           effectiveDrawingModifierStrokes: evaluation.effectiveDrawingModifierStrokes,
           canvasTheme,
+          canvasGridSettings,
           showCanvasPoints,
           isPointPickActive,
           isNumericReferencePickActive,
@@ -803,6 +806,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     canvasViewport,
     compiledDocumentRevision,
     canvasTheme,
+    canvasGridSettings,
     curves,
     evaluation.effectiveDrawingModifierStrokes,
     evaluation,

@@ -16,6 +16,11 @@ import { VSCodeBenchmarkCaptureRunner } from "./VSCodeBenchmarkCaptureRunner";
 import { VscodeRustTransport } from "./vscodeRustTransport";
 import { isStaleHostDocumentVersion } from "./hostDocumentVersion";
 import { LEGACY_CANVAS_THEME, type CanvasTheme } from "../components/canvasTheme";
+import {
+  DEFAULT_CANVAS_GRID_SETTINGS,
+  normalizeCanvasGridSettings,
+  type CanvasGridSettings
+} from "../components/canvasGrid";
 import { parseCssColor, readVSCodeCanvasTheme } from "./vscodeCanvasTheme";
 import { createCanvasTextWidthMeasurer } from "../components/canvasTextMeasurement";
 import { queryDslCanvasSourceDefinition, queryDslCanvasSourceTarget } from "@nuinuicad/nui-language";
@@ -196,6 +201,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   const canvasSelectionEligibleElementIds = useCadUiStore((state) => state.canvasSelectionEligibleElementIds);
   const [benchmarkConfig, setBenchmarkConfig] = useState<VscodeBenchmarkConfig | null>(null);
   const [canvasTheme, setCanvasTheme] = useState(LEGACY_CANVAS_THEME);
+  const [canvasGridSettings, setCanvasGridSettings] = useState<CanvasGridSettings>(DEFAULT_CANVAS_GRID_SETTINGS);
   const [canvasRibbonRibbons, setCanvasRibbonRibbons] = useState<VscodeCanvasRibbon[]>([]);
   const [multiDocumentGraphPublication, setMultiDocumentGraphPublication] = useState<VscodeMultiDocumentGraphPublication | null>(null);
   const [latestHostDocumentVersion, setLatestHostDocumentVersion] = useState<number | null>(null);
@@ -1543,6 +1549,8 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         if (Number.isInteger(message.generation)) refreshCanvasTheme(message.generation);
       } else if (message.type === "canvasRibbonConfiguration") {
         setCanvasRibbonRibbons(normalizeVscodeCanvasRibbons(message.ribbons));
+      } else if (message.type === "canvasGridConfiguration") {
+        setCanvasGridSettings(normalizeCanvasGridSettings(message.settings));
       } else if (message.type === "canvasCommand") {
         if (!pickModeCanvasCommandAllowedForActive(message.commandId, canvasPickModeActive())) return;
         if (message.commandId === "bakeCurrentShape" || message.commandId === "bakeBaseShape") {
@@ -2015,6 +2023,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         webviewPresentation={webviewPresentation}
         canvasFocusRef={canvasFocusRef}
         canvasTheme={canvasTheme}
+        canvasGridSettings={canvasGridSettings}
         canvasRibbonRibbons={canvasRibbonRibbons}
         measureCanvasTextWidth={measureCanvasTextWidth}
         postCanvasPointerPosition={(pointer: VscodeCanvasPointer) => {

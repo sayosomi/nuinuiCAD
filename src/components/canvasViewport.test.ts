@@ -51,6 +51,22 @@ describe("canvasViewport", () => {
     expect(visibleGridStep(0.02, options)).toBe(1250);
   });
 
+  it("uses configurable base spacing while retaining zoom-dependent coarsening", () => {
+    expect(visibleGridStep(1, {
+      gridStep: 2.5,
+      majorGridMultiplier: 4,
+      minGridSpacingPx: 8
+    })).toBe(10);
+  });
+
+  it("continues to progress when major cadence is one", () => {
+    expect(visibleGridStep(0.5, {
+      gridStep: 10,
+      majorGridMultiplier: 1,
+      minGridSpacingPx: 8
+    })).toBe(20);
+  });
+
   it("returns the free 2D world delta without Shift", () => {
     expect(
       constrainedWorldDelta({
