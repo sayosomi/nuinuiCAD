@@ -90,7 +90,8 @@ const renderCanvas = (
   postCanonicalSourceText = vi.fn(),
   canvasRibbonRibbons: VscodeCanvasRibbon[] = [],
   onEditCanvasRibbon = vi.fn(),
-  postCanvasPointerPosition = vi.fn()
+  postCanvasPointerPosition = vi.fn(),
+  canvasGridSettings?: { enabled: boolean; spacingMm: number; majorEvery: number }
 ) => {
   const view = render(
     <VSCodeDrawingCanvas
@@ -102,6 +103,7 @@ const renderCanvas = (
       currentReferencePickAuthorityFor={() => null}
       canvasRibbonRibbons={canvasRibbonRibbons}
       onEditCanvasRibbon={onEditCanvasRibbon}
+      canvasGridSettings={canvasGridSettings}
     />
   );
   const adapter = mocks.hostAdapter;
@@ -110,6 +112,17 @@ const renderCanvas = (
 };
 
 describe("VSCodeDrawingCanvas adapter", () => {
+  it("passes Canvas grid configuration through the shared DrawingCanvas boundary", () => {
+    const evaluation = emptyEvaluationResult(useCadDocumentStore.getState().elements);
+    const { adapter } = renderCanvas(evaluation, undefined, vi.fn(), [], vi.fn(), vi.fn(), {
+      enabled: false,
+      spacingMm: 2.5,
+      majorEvery: 1
+    });
+
+    expect(adapter.canvasGridSettings).toEqual({ enabled: false, spacingMm: 2.5, majorEvery: 1 });
+  });
+
   it("enables Space-primary pan only in the production Canvas adapter", () => {
     const evaluation = emptyEvaluationResult(useCadDocumentStore.getState().elements);
     const { adapter } = renderCanvas(evaluation, undefined);

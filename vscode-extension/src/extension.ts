@@ -136,6 +136,14 @@ import {
   VSCODE_CANVAS_RIBBON_SETTING,
   type VscodeCanvasRibbon
 } from "../../src/vscode/vscodeCanvasRibbonConfig";
+import {
+  CANVAS_GRID_ENABLED_SETTING,
+  CANVAS_GRID_MAJOR_EVERY_SETTING,
+  CANVAS_GRID_SETTING_KEYS,
+  CANVAS_GRID_SPACING_SETTING,
+  normalizeCanvasGridSettings,
+  type CanvasGridSettings
+} from "../../src/components/canvasGrid";
 import { normalizedOffsetFromRaw, normalizedSourceFor, vscodeRangeForNormalized } from "./sourceOffsetAdapter";
 import { presentBakeOperationResult } from "./bakeOperationPresentation";
 import { canvasPresentationTextFor } from "./canvasPresentationLocalization";
@@ -248,6 +256,15 @@ const normalizedCanvasRibbonConfiguration = (): VscodeCanvasRibbon[] => {
   return normalizeVscodeCanvasRibbons(configuration.get<unknown>(VSCODE_CANVAS_RIBBON_SETTING));
 };
 
+export const normalizedCanvasGridConfiguration = (): CanvasGridSettings => {
+  const configuration = canvasRibbonConfiguration();
+  return normalizeCanvasGridSettings({
+    enabled: configuration?.get<unknown>(CANVAS_GRID_ENABLED_SETTING),
+    spacingMm: configuration?.get<unknown>(CANVAS_GRID_SPACING_SETTING),
+    majorEvery: configuration?.get<unknown>(CANVAS_GRID_MAJOR_EVERY_SETTING)
+  });
+};
+
 const globalConfigurationTarget = (): unknown =>
   (vscode as typeof vscode & { ConfigurationTarget?: { Global: unknown } }).ConfigurationTarget?.Global ?? 1;
 
@@ -258,6 +275,16 @@ const postCanvasRibbonConfiguration = (
   void panel.webview.postMessage({
     type: "canvasRibbonConfiguration",
     ribbons
+  } satisfies ExtensionToVscodeMessage);
+};
+
+const postCanvasGridConfiguration = (
+  panel: vscode.WebviewPanel,
+  settings: CanvasGridSettings = normalizedCanvasGridConfiguration()
+): void => {
+  void panel.webview.postMessage({
+    type: "canvasGridConfiguration",
+    settings
   } satisfies ExtensionToVscodeMessage);
 };
 
@@ -577,6 +604,13 @@ export const activate = (
   const broadcastCanvasRibbonConfiguration = (): void => {
     const ribbons = normalizedCanvasRibbonConfiguration();
     for (const session of sessions.valuesForSurface("canvas")) postCanvasRibbonConfiguration(session.panel, ribbons);
+  };
+
+  const broadcastCanvasGridConfiguration = (): void => {
+    const settings = normalizedCanvasGridConfiguration();
+    for (const session of sessions.valuesForSurface("canvas")) {
+      postCanvasGridConfiguration(session.panel, settings);
+    }
   };
 
   const setCanvasHistoryHandoffContext = (enabled: boolean): Promise<void> => {
@@ -1405,6 +1439,11 @@ export const activate = (
     }
   });
   if (canvasRibbonConfigurationListener) context.subscriptions.push(canvasRibbonConfigurationListener);
+  const canvasGridConfigurationListener = vscode.workspace.onDidChangeConfiguration?.((event) => {
+    if (!CANVAS_GRID_SETTING_KEYS.some((key) => event.affectsConfiguration(key))) return;
+    broadcastCanvasGridConfiguration();
+  });
+  if (canvasGridConfigurationListener) context.subscriptions.push(canvasGridConfigurationListener);
 
   const postCanvasCommitResult = (
     session: DocumentSession,
@@ -1739,6 +1778,7 @@ export const activate = (
         postWebviewPresentation(panel);
         postAuthoritativeDocument(panel, session.document);
         postCanvasRibbonConfiguration(panel);
+        postCanvasGridConfiguration(panel);
         if (benchmarkConfig) post({ type: "benchmarkConfig", config: benchmarkConfig });
         return;
       }

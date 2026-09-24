@@ -465,6 +465,100 @@ describe("renderCanvasGeometry", () => {
     expect(strokeStyles).toContain("#axis");
   });
 
+  it("uses custom spacing and major cadence without changing theme ownership", () => {
+    const renderGrid = (canvasGridSettings?: {
+      enabled: boolean;
+      spacingMm: number;
+      majorEvery: number;
+    }) => {
+      let currentStrokeStyle = "";
+      const strokeStyles: string[] = [];
+      const ctx = {
+        beginPath: vi.fn(),
+        clearRect: vi.fn(),
+        fillRect: vi.fn(),
+        lineTo: vi.fn(),
+        moveTo: vi.fn(),
+        setLineDash: vi.fn(),
+        stroke: vi.fn(() => strokeStyles.push(currentStrokeStyle)),
+        set fillStyle(_value: string) {},
+        set lineCap(_value: CanvasLineCap) {},
+        set lineJoin(_value: CanvasLineJoin) {},
+        set lineWidth(_value: number) {},
+        set strokeStyle(value: string) { currentStrokeStyle = value; }
+      } as unknown as CanvasRenderingContext2D;
+      renderCanvasGeometry({
+        ctx,
+        size: { width: 100, height: 100 },
+        viewport: { panX: 0, panY: 0, zoom: 2 },
+        lines: [],
+        arcs: [],
+        curves: [],
+        offsetLines: [],
+        points: [],
+        visibleElementIds: new Set(),
+        selectedElementIdSet: new Set(),
+        selectedElementId: null,
+        canvasGridSettings,
+        showCanvasPoints: true,
+        isPointPickActive: false,
+        isNumericReferencePickActive: false,
+        isLinePickActive: false
+      });
+      return strokeStyles;
+    };
+
+    const defaultStrokes = renderGrid();
+    const customStrokes = renderGrid({ enabled: true, spacingMm: 5, majorEvery: 2 });
+
+    expect(defaultStrokes.filter((style) => style === LEGACY_CANVAS_THEME.majorGrid)).toHaveLength(0);
+    expect(customStrokes.filter((style) => style === LEGACY_CANVAS_THEME.majorGrid)).toHaveLength(8);
+    expect(customStrokes).toHaveLength(22);
+    expect(customStrokes).toContain(LEGACY_CANVAS_THEME.minorGrid);
+  });
+
+  it("keeps the background while suppressing grid and axis strokes when disabled", () => {
+    let currentFillStyle = "";
+    const fillStyles: string[] = [];
+    const stroke = vi.fn();
+    const ctx = {
+      beginPath: vi.fn(),
+      clearRect: vi.fn(),
+      fillRect: vi.fn(() => fillStyles.push(currentFillStyle)),
+      lineTo: vi.fn(),
+      moveTo: vi.fn(),
+      setLineDash: vi.fn(),
+      stroke,
+      set fillStyle(value: string) { currentFillStyle = value; },
+      set lineCap(_value: CanvasLineCap) {},
+      set lineJoin(_value: CanvasLineJoin) {},
+      set lineWidth(_value: number) {},
+      set strokeStyle(_value: string) {}
+    } as unknown as CanvasRenderingContext2D;
+
+    renderCanvasGeometry({
+      ctx,
+      size: { width: 100, height: 100 },
+      viewport: { panX: 0, panY: 0, zoom: 1 },
+      lines: [],
+      arcs: [],
+      curves: [],
+      offsetLines: [],
+      points: [],
+      visibleElementIds: new Set(),
+      selectedElementIdSet: new Set(),
+      selectedElementId: null,
+      canvasGridSettings: { enabled: false, spacingMm: 10, majorEvery: 5 },
+      showCanvasPoints: true,
+      isPointPickActive: false,
+      isNumericReferencePickActive: false,
+      isLinePickActive: false
+    });
+
+    expect(fillStyles).toEqual([LEGACY_CANVAS_THEME.background]);
+    expect(stroke).not.toHaveBeenCalled();
+  });
+
   it("uses solid, dashed, and dotted document dash styles without zoom scaling", () => {
     const start = point("start", 0, 0);
     const end = point("end", 100, 0);

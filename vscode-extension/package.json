@@ -1179,6 +1179,23 @@
           "default": false,
           "description": "%configuration.inlineModule.includeDisabledInstances.description%"
         },
+        "nuinuiCAD.canvas.grid.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.canvas.grid.enabled.description%"
+        },
+        "nuinuiCAD.canvas.grid.spacingMm": {
+          "type": "number",
+          "default": 10,
+          "exclusiveMinimum": 0,
+          "description": "%configuration.canvas.grid.spacingMm.description%"
+        },
+        "nuinuiCAD.canvas.grid.majorEvery": {
+          "type": "integer",
+          "default": 5,
+          "minimum": 1,
+          "description": "%configuration.canvas.grid.majorEvery.description%"
+        },
         "nuinuiCAD.canvasRibbon.ribbons": {
           "type": "array",
           "scope": "application",

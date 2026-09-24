@@ -31,8 +31,13 @@ export const visibleGridStep = (
   }
 ) => {
   let step = gridStep;
+  const growthFactor = Number.isFinite(majorGridMultiplier)
+    ? Math.max(majorGridMultiplier, 2)
+    : 2;
   while (step * zoom < minGridSpacingPx) {
-    step *= majorGridMultiplier;
+    const nextStep = step * growthFactor;
+    if (!Number.isFinite(nextStep) || nextStep <= step) break;
+    step = nextStep;
   }
   return step;
 };

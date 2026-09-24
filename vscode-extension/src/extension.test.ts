@@ -16,6 +16,11 @@ import {
 } from "@nuinuicad/nui-language/workspace";
 import { createLanguageAnalysisSession } from "./languageAnalysisSession";
 import { LEGACY_CANVAS_THEME } from "../../src/components/canvasTheme";
+import {
+  CANVAS_GRID_ENABLED_SETTING,
+  CANVAS_GRID_MAJOR_EVERY_SETTING,
+  CANVAS_GRID_SPACING_SETTING
+} from "../../src/components/canvasGrid";
 import { vscodeCanvasPointerContextKeys, type VscodeCanvasObservationSnapshot } from "../../src/vscode/protocol";
 import { inlineModuleCanvasTargetProofsFor } from "../../src/vscode/inlineModuleCanvas";
 import { selectedElementSourcesForCanvasObservation } from "../../src/vscode/canvasObservation";
@@ -138,6 +143,7 @@ const mocks = vi.hoisted(() => ({
   documentSymbolRegistrations: [] as Array<{ selector: unknown; provider: unknown; disposable: { dispose: () => void } }>,
   colorRegistrations: [] as Array<{ selector: unknown; provider: unknown; disposable: { dispose: () => void } }>,
   canvasRibbonSetting: undefined as unknown,
+  canvasGridSettings: {} as Record<string, unknown>,
   configurationUpdates: [] as Array<{ section: string; value: unknown; target: unknown }>,
   configurationChangeListeners: [] as Array<(event: { affectsConfiguration: (section: string) => boolean }) => void>,
   showErrorMessage: vi.fn(),
@@ -718,6 +724,9 @@ const setup = (
       if (fullKey === "nuinuiCAD.canvasRibbon.ribbons") {
         return (mocks.canvasRibbonSetting ?? defaultValue) as T;
       }
+      if (fullKey === CANVAS_GRID_ENABLED_SETTING) return mocks.canvasGridSettings.enabled as T;
+      if (fullKey === CANVAS_GRID_SPACING_SETTING) return mocks.canvasGridSettings.spacingMm as T;
+      if (fullKey === CANVAS_GRID_MAJOR_EVERY_SETTING) return mocks.canvasGridSettings.majorEvery as T;
       return Object.hasOwn(mocks.bakeSettings, fullKey)
         ? mocks.bakeSettings[fullKey] as T
         : defaultValue as T;
@@ -880,6 +889,7 @@ afterEach(() => {
   mocks.documentChangeListeners.length = 0;
   mocks.documentCloseListeners.length = 0;
   mocks.canvasRibbonSetting = undefined;
+  mocks.canvasGridSettings = {};
   mocks.configurationUpdates.length = 0;
   mocks.configurationChangeListeners.length = 0;
   mocks.panels.length = 0;
@@ -5785,6 +5795,48 @@ describe("VS Code Canvas Ribbon lifecycle", () => {
         items: []
       }]
     });
+  });
+
+  it("publishes Canvas grid configuration initially and live without broadcasting to Output Preview", async () => {
+    mocks.canvasGridSettings = { enabled: false, spacingMm: 2.5, majorEvery: 1 };
+    const documentA = documentFor("/tmp/grid-a.nui", "file:///tmp/grid-a.nui");
+    const documentB = documentFor("/tmp/grid-b.nui", "file:///tmp/grid-b.nui");
+    const editorA = editorFor(documentA);
+    const editorB = editorFor(documentB);
+    setup(false, editorA, [documentA]);
+    const panelA = openPanelFor(editorA);
+    await messageHandlerFor(panelA)({ type: "webviewReady" });
+
+    expect(panelA.webview.postMessage).toHaveBeenCalledWith({
+      type: "canvasGridConfiguration",
+      settings: { enabled: false, spacingMm: 2.5, majorEvery: 1 }
+    });
+
+    mocks.activeTextEditor = editorB;
+    mocks.visibleTextEditors = [editorB];
+    mocks.textDocuments = [documentA, documentB];
+    mocks.activeTabInput = new mocks.TabInputText(editorB.document.uri);
+    commandHandlerFor("nuinuiCAD.openCanvas")?.();
+    const panelB = mocks.panels.at(-1)!;
+    const outputPanel = openOutputPreviewPanelFor(editorA);
+    panelA.webview.postMessage.mockClear();
+    panelB.webview.postMessage.mockClear();
+    outputPanel.webview.postMessage.mockClear();
+
+    mocks.canvasGridSettings = { enabled: true, spacingMm: 20, majorEvery: 3 };
+    for (const listener of mocks.configurationChangeListeners) {
+      listener({
+        affectsConfiguration: (section) => section === CANVAS_GRID_SPACING_SETTING
+      });
+    }
+
+    const expected = {
+      type: "canvasGridConfiguration",
+      settings: { enabled: true, spacingMm: 20, majorEvery: 3 }
+    };
+    expect(panelA.webview.postMessage).toHaveBeenCalledWith(expected);
+    expect(panelB.webview.postMessage).toHaveBeenCalledWith(expected);
+    expect(outputPanel.webview.postMessage).not.toHaveBeenCalledWith(expected);
   });
 });
 
