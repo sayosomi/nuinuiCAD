@@ -8,6 +8,7 @@ import { evaluationPayloadToResult, type EvaluationPayload } from "../src/geomet
 import { buildEvaluationOptions } from "../src/geometry/productionEvaluationContext";
 import { canUseRustEvaluationForElements } from "../src/geometry/rustEvaluationEligibility";
 import { buildRustEvaluationInput } from "../src/geometry/rustEvaluationInput";
+import { resolveRustEvaluationBinaryPath, RustEvaluationProcess } from "../src/node/rustEvaluationProcess";
 import { runtimeScalarDiagnostics } from "../src/scalars/runtimeScalarDiagnostics";
 import type { EvaluateElementsOptions } from "../src/geometry/evaluate";
 
@@ -77,6 +78,27 @@ export const evaluateWithRustOptions = (
     { encoding: "utf8", input: JSON.stringify(input), maxBuffer: 64 * 1024 * 1024 }
   );
   return JSON.parse(output) as EvaluationPayload;
+};
+
+export const evaluateWithRustStdioOptions = async (
+  repoRoot: string,
+  elements: CadElement[],
+  options: EvaluateElementsOptions
+): Promise<EvaluationPayload> => {
+  const input = buildRustEvaluationInput(elements, options);
+  const cargoManifest = join(repoRoot, "rust-evaluator", "Cargo.toml");
+  execFileSync(
+    "cargo",
+    ["build", "--quiet", "--manifest-path", cargoManifest, "--bin", "evaluation_stdio"],
+    { cwd: repoRoot, stdio: "inherit" }
+  );
+
+  const rustProcess = new RustEvaluationProcess(resolveRustEvaluationBinaryPath(repoRoot));
+  try {
+    return await rustProcess.request(input) as EvaluationPayload;
+  } finally {
+    rustProcess.dispose();
+  }
 };
 
 export const normalizeParityPayload = (value: unknown): unknown => {
