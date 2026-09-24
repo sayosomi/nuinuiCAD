@@ -23,8 +23,7 @@ describe("Generate Random Number manifest", () => {
 
     expect(command).toEqual({
       command: commandId,
-      title: "%command.generateRandomNumber.title%",
-      enablement: "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && !editorReadonly"
+      title: "%command.generateRandomNumber.title%"
     });
     expect(manifest.contributes?.menus?.commandPalette?.filter(({ command: id }) => id === commandId)).toEqual([
       {

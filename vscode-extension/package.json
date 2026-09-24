@@ -944,8 +944,7 @@
       },
       {
         "command": "nuinuiCAD.generateRandomNumber",
-        "title": "%command.generateRandomNumber.title%",
-        "enablement": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && !editorReadonly"
+        "title": "%command.generateRandomNumber.title%"
       },
       {
         "command": "nuinuiCAD.canvasUndo",
