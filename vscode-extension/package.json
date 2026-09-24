@@ -944,7 +944,8 @@
       },
       {
         "command": "nuinuiCAD.generateRandomNumber",
-        "title": "%command.generateRandomNumber.title%"
+        "title": "%command.generateRandomNumber.title%",
+        "category": "nuinuiCAD"
       },
       {
         "command": "nuinuiCAD.canvasUndo",
