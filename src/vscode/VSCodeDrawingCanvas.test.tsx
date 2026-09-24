@@ -91,7 +91,7 @@ const renderCanvas = (
   canvasRibbonRibbons: VscodeCanvasRibbon[] = [],
   onEditCanvasRibbon = vi.fn(),
   postCanvasPointerPosition = vi.fn(),
-  canvasGridSettings?: { enabled: boolean; spacingMm: number; majorEvery: number }
+  canvasGridSettings?: { enabled: boolean; spacingMm: number; majorEvery: number; snapEnabled: boolean }
 ) => {
   const view = render(
     <VSCodeDrawingCanvas
@@ -117,10 +117,11 @@ describe("VSCodeDrawingCanvas adapter", () => {
     const { adapter } = renderCanvas(evaluation, undefined, vi.fn(), [], vi.fn(), vi.fn(), {
       enabled: false,
       spacingMm: 2.5,
-      majorEvery: 1
+      majorEvery: 1,
+      snapEnabled: false
     });
 
-    expect(adapter.canvasGridSettings).toEqual({ enabled: false, spacingMm: 2.5, majorEvery: 1 });
+    expect(adapter.canvasGridSettings).toEqual({ enabled: false, spacingMm: 2.5, majorEvery: 1, snapEnabled: false });
   });
 
   it("enables Space-primary pan only in the production Canvas adapter", () => {

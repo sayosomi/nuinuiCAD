@@ -148,12 +148,12 @@ describe("ModulePreviewApp Canvas-first composition", () => {
       window.dispatchEvent(new MessageEvent("message", {
         data: {
           type: "canvasGridConfiguration",
-          settings: { enabled: false, spacingMm: 2.5, majorEvery: 1 }
+          settings: { enabled: false, spacingMm: 2.5, majorEvery: 1, snapEnabled: true }
         }
       }));
     });
 
-    expect(mocks.hostAdapter?.canvasGridSettings).toEqual({ enabled: false, spacingMm: 2.5, majorEvery: 1 });
+    expect(mocks.hostAdapter?.canvasGridSettings).toEqual({ enabled: false, spacingMm: 2.5, majorEvery: 1, snapEnabled: true });
     expect(AutomationDocument.fromSource(sourceText).getSource()).toBe(sourceBefore);
   });
 });

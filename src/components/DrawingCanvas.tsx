@@ -45,6 +45,7 @@ import {
 import {
   type ViewportSize,
   constrainedWorldDelta,
+  pointDragAxisForScreenDelta,
   screenToWorld
 } from "./canvasViewport";
 import { VIEWPORT_ZOOM_STEP } from "../geometry/viewport";
@@ -91,7 +92,11 @@ import { notifyProductionDrawCompleted } from "../performance/benchmarkFrameObse
 import { useNativePointerBoundaryFallback } from "./nativePointerBoundaryFallback";
 import { dispatchCommand } from "../commands/commands";
 import type { CanvasPickKeyboardCommandId } from "./canvasHostAdapter";
-import { DEFAULT_CANVAS_GRID_SETTINGS } from "./canvasGrid";
+import {
+  DEFAULT_CANVAS_GRID_SETTINGS,
+  normalizeCanvasGridSettings,
+  snapWorldPointToGrid
+} from "./canvasGrid";
 
 type DrawingCanvasProps = {
   evaluation: EvaluationResult;
@@ -116,6 +121,7 @@ type PointDragState = {
   lastClientX: number;
   lastClientY: number;
   zoom: number;
+  originWorldPoint: CanvasWorldPoint | null;
   dragActivated: boolean;
   baseElements: CadElement[];
   baseEvaluation?: EvaluationResult;
@@ -203,6 +209,47 @@ const rectangleSelectionModeFor = (intent: PendingCanvasPointerIntent): CanvasRe
       ? "add"
       : "replace";
 
+const pointDragDeltaForScreenDisplacement = ({
+  originWorldPoint,
+  screenDx,
+  screenDy,
+  zoom,
+  shiftKey,
+  snapEnabled,
+  spacingMm
+}: {
+  originWorldPoint: CanvasWorldPoint | null;
+  screenDx: number;
+  screenDy: number;
+  zoom: number;
+  shiftKey: boolean;
+  snapEnabled: boolean;
+  spacingMm: number;
+}) => {
+  const rawDelta = constrainedWorldDelta({ screenDx, screenDy, zoom, shiftKey });
+  if (!snapEnabled || !originWorldPoint) return rawDelta;
+
+  const axis = pointDragAxisForScreenDelta({ screenDx, screenDy, shiftKey });
+  const snappedTarget = snapWorldPointToGrid({
+    x: originWorldPoint.x + rawDelta.dx,
+    y: originWorldPoint.y + rawDelta.dy
+  }, spacingMm);
+  if (axis === "horizontal") snappedTarget.y = originWorldPoint.y;
+  if (axis === "vertical") snappedTarget.x = originWorldPoint.x;
+  return {
+    dx: snappedTarget.x - originWorldPoint.x,
+    dy: snappedTarget.y - originWorldPoint.y
+  };
+};
+
+const pointWorldPositionFor = (
+  evaluation: EvaluationResult | undefined,
+  elementId: ElementId
+): CanvasWorldPoint | null => {
+  const geometry = evaluation?.computedGeometry.get(elementId);
+  return geometry?.kind === "point" ? { x: geometry.x, y: geometry.y } : null;
+};
+
 export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>(function DrawingCanvas({
   evaluation,
   evaluationState,
@@ -286,7 +333,9 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     activeLinePickTarget,
     commandLineSession
   } = hostAdapter;
-  const canvasGridSettings = hostAdapter.canvasGridSettings ?? DEFAULT_CANVAS_GRID_SETTINGS;
+  const canvasGridSettings = normalizeCanvasGridSettings(
+    hostAdapter.canvasGridSettings ?? DEFAULT_CANVAS_GRID_SETTINGS
+  );
   const storePickModeSession = useCadUiStore((state) => state.activePickModeSession);
   const storePickCursor = useCadUiStore((state) => state.activePickCursor);
   const hostOwnsPickCandidates = hostAdapter.pickModeCandidates !== undefined;
@@ -840,11 +889,14 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
   }, []);
 
   const previewPointDragAtLastPointer = useCallback((drag: PointDragState) => {
-    const worldDelta = constrainedWorldDelta({
+    const worldDelta = pointDragDeltaForScreenDisplacement({
+      originWorldPoint: drag.originWorldPoint,
       screenDx: drag.lastClientX - drag.startClientX,
       screenDy: drag.lastClientY - drag.startClientY,
       zoom: drag.zoom,
-      shiftKey: shiftKeyRef.current
+      shiftKey: shiftKeyRef.current,
+      snapEnabled: canvasGridSettings.snapEnabled,
+      spacingMm: canvasGridSettings.spacingMm
     });
     const result = hostAdapter.movePointElementByDelta({
       elementId: drag.elementId,
@@ -863,7 +915,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       setIsPointDragging(false);
     }
     return result;
-  }, [captureLedger, clearPointDragFeedback, hostAdapter]);
+  }, [captureLedger, canvasGridSettings.snapEnabled, canvasGridSettings.spacingMm, clearPointDragFeedback, hostAdapter]);
 
   useEffect(() => {
     const setDragLockKey = (event: KeyboardEvent, isPressed: boolean) => {
@@ -1298,8 +1350,12 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     const pointer = screenToWorld(screen, viewportSize, canvasViewport);
     if (!Number.isFinite(pointer.x) || !Number.isFinite(pointer.y)) return;
     hostAdapter.publishCanvasPointerPosition?.(pointer);
-    hostAdapter.createCoordinatePointAtPointer?.(pointer);
-  }, [canvasViewport, hostAdapter, isCoordinatePointCreationActive, viewportSize]);
+    hostAdapter.createCoordinatePointAtPointer?.(
+      canvasGridSettings.snapEnabled
+        ? snapWorldPointToGrid(pointer, canvasGridSettings.spacingMm)
+        : pointer
+    );
+  }, [canvasGridSettings.snapEnabled, canvasGridSettings.spacingMm, canvasViewport, hostAdapter, isCoordinatePointCreationActive, viewportSize]);
 
   const cancelCoordinatePointCreationGesture = useCallback(() => {
     const gesture = coordinatePointCreationGestureRef.current;
@@ -1601,13 +1657,18 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       return;
     }
     const dragBase = currentDocumentDragBase();
+    const originWorldPoint = pointWorldPositionFor(evaluation, elementId) ??
+      pointWorldPositionFor(dragBase.baseEvaluation, elementId);
     if (intent.pointerReleased) {
       if (movement >= POINT_DRAG_THRESHOLD_PX) {
-        const worldDelta = constrainedWorldDelta({
+        const worldDelta = pointDragDeltaForScreenDisplacement({
+          originWorldPoint,
           screenDx: intent.latest.clientX - intent.start.clientX,
           screenDy: intent.latest.clientY - intent.start.clientY,
           zoom: canvasViewport.zoom,
-          shiftKey: intent.modifiers.shiftKey
+          shiftKey: intent.modifiers.shiftKey,
+          snapEnabled: canvasGridSettings.snapEnabled,
+          spacingMm: canvasGridSettings.spacingMm
         });
         hostAdapter.movePointElementByDelta({
           elementId,
@@ -1633,6 +1694,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       lastClientX: intent.start.clientX,
       lastClientY: intent.start.clientY,
       zoom: canvasViewport.zoom,
+      originWorldPoint,
       dragActivated: false,
       ...dragBase,
       ...(identityCandidates.length > 1 && isPointCandidate && overlapSelectionBefore ? {
@@ -1654,6 +1716,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     applyPointPickCandidate,
     beginRectangleSelection,
     canvasViewport.zoom,
+    canvasGridSettings.snapEnabled,
+    canvasGridSettings.spacingMm,
     capturePointer,
     commitRectangleSelectionAt,
     currentBezierHandleDragBase,
@@ -1672,6 +1736,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     identityCandidatesForHits,
     overlayPointPickCandidates,
     interactiveOverlayPoints,
+    evaluation,
     scheduleEditorFocus,
     selectedBezierHandles,
     hostAdapter,
@@ -1878,11 +1943,14 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     if (drag.overlapSelectionBefore) {
       finalizeOverlapSelection(drag.overlapSelectionBefore);
     }
-    const worldDelta = constrainedWorldDelta({
+    const worldDelta = pointDragDeltaForScreenDisplacement({
+      originWorldPoint: drag.originWorldPoint,
       screenDx,
       screenDy,
       zoom: drag.zoom,
-      shiftKey: shiftKeyRef.current
+      shiftKey: shiftKeyRef.current,
+      snapEnabled: canvasGridSettings.snapEnabled,
+      spacingMm: canvasGridSettings.spacingMm
     });
 
     hostAdapter.movePointElementByDelta({

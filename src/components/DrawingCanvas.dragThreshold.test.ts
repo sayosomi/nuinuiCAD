@@ -235,6 +235,130 @@ describe("DrawingCanvas point drag activation threshold", () => {
     expect(Math.abs(commitAction?.dy ?? Number.NaN)).toBe(0);
   });
 
+  it("snaps preview and commit from the same absolute drag target", () => {
+    const movePointElementByDelta = vi.fn();
+    const { viewport } = renderCanvas({
+      canvasGridSettings: { enabled: false, spacingMm: 10, majorEvery: 1, snapEnabled: true },
+      movePointElementByDelta
+    });
+
+    fireEvent.pointerDown(viewport, {
+      button: 0,
+      buttons: 1,
+      clientX: pointScreen.x,
+      clientY: pointScreen.y,
+      pointerId: 5
+    });
+    fireEvent.pointerMove(viewport, {
+      buttons: 1,
+      clientX: pointScreen.x + 8,
+      clientY: pointScreen.y,
+      pointerId: 5
+    });
+    fireEvent.pointerUp(viewport, {
+      buttons: 0,
+      clientX: pointScreen.x + 8,
+      clientY: pointScreen.y,
+      pointerId: 5
+    });
+
+    expect(movePointElementByDelta.mock.calls.map(([action]) => action.dx)).toEqual([10, 10]);
+    expect(movePointElementByDelta.mock.calls.map(([action]) => action.commitMode)).toEqual(["preview", "commit"]);
+    expect(movePointElementByDelta.mock.calls.every(([action]) => action.dy === 0)).toBe(true);
+  });
+
+  it("uses spacing independently from grid visibility, major cadence, and zoom", () => {
+    const movePointElementByDelta = vi.fn();
+    const zoom = 2;
+    const zoomedPointScreen = {
+      x: 250 + 50 * zoom,
+      y: 200 - (-50 * zoom)
+    };
+    const { viewport } = renderCanvas({
+      canvasGridSettings: { enabled: false, spacingMm: 20, majorEvery: 99, snapEnabled: true },
+      canvasViewport: { ...DEFAULT_CANVAS_VIEWPORT, zoom },
+      movePointElementByDelta
+    });
+
+    fireEvent.pointerDown(viewport, {
+      button: 0,
+      buttons: 1,
+      clientX: zoomedPointScreen.x,
+      clientY: zoomedPointScreen.y,
+      pointerId: 6
+    });
+    fireEvent.pointerMove(viewport, {
+      buttons: 1,
+      clientX: zoomedPointScreen.x + 8,
+      clientY: zoomedPointScreen.y,
+      pointerId: 6
+    });
+    fireEvent.pointerUp(viewport, {
+      buttons: 0,
+      clientX: zoomedPointScreen.x + 8,
+      clientY: zoomedPointScreen.y,
+      pointerId: 6
+    });
+
+    expect(movePointElementByDelta.mock.calls.map(([action]) => action.dx)).toEqual([10, 10]);
+  });
+
+  it("preserves the stationary Shift axis while snapping the dominant axis", () => {
+    const horizontalMove = vi.fn();
+    const horizontal = renderCanvas({
+      canvasGridSettings: { enabled: false, spacingMm: 10, majorEvery: 1, snapEnabled: true },
+      movePointElementByDelta: horizontalMove
+    });
+    fireEvent.pointerDown(horizontal.viewport, {
+      button: 0,
+      buttons: 1,
+      clientX: pointScreen.x,
+      clientY: pointScreen.y,
+      pointerId: 7,
+      shiftKey: true
+    });
+    fireEvent.pointerMove(horizontal.viewport, {
+      buttons: 1,
+      clientX: pointScreen.x + 9,
+      clientY: pointScreen.y + 5,
+      pointerId: 7
+    });
+    expect(horizontalMove).toHaveBeenLastCalledWith(expect.objectContaining({ dx: 10, dy: 0 }));
+    fireEvent.pointerUp(horizontal.viewport, {
+      buttons: 0,
+      clientX: pointScreen.x + 9,
+      clientY: pointScreen.y + 5,
+      pointerId: 7
+    });
+
+    const verticalMove = vi.fn();
+    const vertical = renderCanvas({
+      canvasGridSettings: { enabled: false, spacingMm: 10, majorEvery: 1, snapEnabled: true },
+      movePointElementByDelta: verticalMove
+    });
+    fireEvent.pointerDown(vertical.viewport, {
+      button: 0,
+      buttons: 1,
+      clientX: pointScreen.x,
+      clientY: pointScreen.y,
+      pointerId: 8,
+      shiftKey: true
+    });
+    fireEvent.pointerMove(vertical.viewport, {
+      buttons: 1,
+      clientX: pointScreen.x + 5,
+      clientY: pointScreen.y + 9,
+      pointerId: 8
+    });
+    expect(verticalMove).toHaveBeenLastCalledWith(expect.objectContaining({ dx: 0, dy: -10 }));
+    fireEvent.pointerUp(vertical.viewport, {
+      buttons: 0,
+      clientX: pointScreen.x + 5,
+      clientY: pointScreen.y + 9,
+      pointerId: 8
+    });
+  });
+
   it("keeps drag activated after crossing the threshold and returning close to the start", () => {
     const movePointElementByDelta = vi.fn();
     const { viewport } = renderCanvas({ movePointElementByDelta });
