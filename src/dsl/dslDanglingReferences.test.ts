@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { evaluateElements } from "../geometry/evaluate";
 import type { CadElement } from "../types/geometry";
-import { compileDslDocument, serializeDocumentToDsl } from "@nuinuicad/nui-language";
+import { buildSourceLexicalNamespaceIndex, compileDslDocument, parseDsl, serializeDocumentToDsl } from "@nuinuicad/nui-language";
 import { createNameIndex, resolveId } from "@nuinuicad/nui-language";
 
 const compileRecoverable = (source: string) => {
@@ -16,6 +16,30 @@ const warningMessages = (source: string) =>
   compileRecoverable(source).diagnostics
     .filter((item) => item.severity === "warning")
     .map((item) => item.message);
+
+const resolveLexicalReference = (source: string, token: string) => {
+  const parsed = parseDsl(source);
+  const stableIds = new Map(parsed.statements.map((_, index) => [index, `stable-${index}`] as const));
+  const sourceNamespace = buildSourceLexicalNamespaceIndex(parsed.statements, stableIds);
+  const statementIndex = parsed.statements.findIndex((statement) => statement.kind === "element" && statement.name === "Use");
+  if (statementIndex < 0) throw new Error("missing Use source statement");
+  const currentElement: CadElement = {
+    id: "runtime-use",
+    name: "Use",
+    type: "offsetPoint",
+    activity: "visible",
+    fromPoint: { mode: "coordinate", x: 0, y: 0 },
+    dx: 1,
+    dy: 0
+  };
+  const index = createNameIndex([currentElement], {
+    sourceNamespace,
+    elementIdByStatementIndex: new Map([[statementIndex, currentElement.id]])
+  });
+  const diagnostics: Parameters<typeof resolveId>[3] = [];
+  const result = resolveId(token, index, 7, diagnostics, currentElement, { start: 0, end: token.length });
+  return { result, diagnostics };
+};
 
 const sourceWithAllDanglingKinds = [
   "nui 1",
@@ -79,7 +103,81 @@ describe("dangling reference diagnostics and retention", () => {
     expect(resolveId("@Same", createNameIndex([duplicate("a"), duplicate("b")]), 7, diagnostics))
       .toBe("@Same");
     expect(diagnostics).toEqual([
-      expect.objectContaining({ severity: "warning", line: 7, message: expect.stringContaining("曖昧") })
+      expect.objectContaining({
+        severity: "warning",
+        line: 7,
+        code: "source-reference-ambiguous",
+        presentation: { key: "diagnostic.source-reference-ambiguous", parameters: { reference: "@Same" } },
+        message: "参照名が曖昧です: @Same"
+      })
+    ]);
+  });
+
+  it.each([
+    {
+      kind: "ambiguous",
+      source: [
+        "nui 1",
+        "group A {",
+        "}",
+        "group A {",
+        "}",
+        "point Use = coordinate(x: 0, y: 0)"
+      ].join("\n"),
+      token: "@A",
+      code: "source-reference-ambiguous",
+      message: "参照名が曖昧です: @A",
+      parameters: { reference: "@A" }
+    },
+    {
+      kind: "invalid traversal",
+      source: [
+        "nui 1",
+        "const Scalar: number = 1",
+        "point Use = coordinate(x: 0, y: 0)"
+      ].join("\n"),
+      token: "@Scalar::member",
+      code: "source-reference-invalid-traversal",
+      message: "参照先「Scalar」はnamespace/containerではありません: @Scalar::member",
+      parameters: { reference: "@Scalar::member", declaration: "Scalar" }
+    },
+    {
+      kind: "undefined",
+      source: [
+        "nui 1",
+        "point Use = coordinate(x: 0, y: 0)"
+      ].join("\n"),
+      token: "@Missing::Child",
+      code: "source-reference-undefined",
+      message: "参照先が見つかりません: @Missing::Child",
+      parameters: { reference: "@Missing::Child" }
+    }
+  ] as const)("maps source lexical $kind outcomes onto structured warnings", ({ source, token, code, message, parameters }) => {
+    const { result, diagnostics } = resolveLexicalReference(source, token);
+
+    expect(result).toBe(token);
+    expect(diagnostics).toEqual([
+      expect.objectContaining({
+        severity: "warning",
+        line: 7,
+        code,
+        presentation: { key: `diagnostic.${code}`, parameters },
+        message
+      })
+    ]);
+  });
+
+  it("keeps the geometry-only undefined warning when source lexical resolution is unavailable", () => {
+    const diagnostics: Parameters<typeof resolveId>[3] = [];
+
+    expect(resolveId("@Missing", createNameIndex([]), 4, diagnostics)).toBe("@Missing");
+    expect(diagnostics).toEqual([
+      expect.objectContaining({
+        severity: "warning",
+        code: "undefined-geometry-reference",
+        presentation: { key: "diagnostic.undefined-geometry-reference", parameters: { reference: "@Missing" } },
+        message: "参照先が見つかりません: @Missing"
+      })
     ]);
   });
 

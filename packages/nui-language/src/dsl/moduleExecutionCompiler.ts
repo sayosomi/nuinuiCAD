@@ -65,11 +65,13 @@ type MaterializedVisibilitySettings = {
 
 const attr = (attrs: DslAttribute[], key: string) => attrs.find((item) => item.key === key)?.value;
 
-const warning = (line: number, message: string): DslDiagnostic => ({
+const warning = (line: number, message: string, code: string): DslDiagnostic => ({
   severity: "warning",
   line,
   column: 1,
-  message
+  message,
+  code,
+  presentation: { key: `diagnostic.${code}` }
 });
 
 const moduleInstanceGates = (entry: MaterializedExecutionStatement) => {
@@ -190,7 +192,11 @@ export const compileMaterializedExecution = ({
 
     let effectiveStatement = entry.statement;
     if (entry.sourceBlockChild && attr(entry.statement.attrs, "parent")) {
-      diagnostics.push(warning(entry.statement.line, "ブロック内の parent= 属性は無視されます。"));
+      diagnostics.push(warning(
+        entry.statement.line,
+        "ブロック内の parent= 属性は無視されます。",
+        "ignored-parent-in-block"
+      ));
       effectiveStatement = { ...entry.statement, attrs: entry.statement.attrs.filter((item) => item.key !== "parent") };
     }
     const compiled = applyStatement(

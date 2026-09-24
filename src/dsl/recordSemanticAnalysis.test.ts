@@ -130,6 +130,24 @@ describe("record nominal semantic analysis", () => {
     expect(namespace.diagnostics.filter((diagnostic) => diagnostic.code === "record-nominal-type-mismatch")).toHaveLength(1);
   });
 
+  it("retains the structured coalesce record type mismatch identity and fallback", () => {
+    const { namespace } = analyze([
+      "nui 1",
+      "record Pair(value: number)",
+      "record Other(value: number)",
+      "const maybe: Pair? = none",
+      "const other: Other = Other(value: 1)",
+      "const bad: Pair = @maybe ?? @other"
+    ].join("\n"));
+    const diagnostic = namespace.diagnostics.find((item) => item.code === "coalesce-type-mismatch");
+
+    expect(diagnostic).toMatchObject({
+      code: "coalesce-type-mismatch",
+      presentation: { key: "diagnostic.coalesce-type-mismatch" },
+      message: "?? の record operands は optional な同一 nominal record 型と、その underlying record 型である必要があります。"
+    });
+  });
+
   it("keeps whole records out of the scalar lexical catalog", () => {
     const { namespace } = analyze([
       "nui 1",
