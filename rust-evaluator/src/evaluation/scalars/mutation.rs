@@ -70,31 +70,63 @@ impl<'a> ScalarMutationResolver<'a> {
     pub(crate) fn advance_before_with_geometry_values(
         &mut self,
         source_order: usize,
+        geometry_execution_position: f64,
         state: &mut EvaluationState,
         geometry_value_program: &[GeometryValueProgramEntry],
-        next_geometry_value_index: &mut usize,
+        evaluated_geometry_values: &mut [bool],
     ) {
         while self.next_version_index < self.program.versions.len() {
-            let version = &self.program.versions[self.next_version_index];
-            if version.source_order >= source_order {
+            let version_source_order = self.program.versions[self.next_version_index].source_order;
+            if version_source_order >= source_order {
                 break;
             }
-            self.retire_before(version.source_order);
-            while *next_geometry_value_index < geometry_value_program.len()
-                && geometry_value_program[*next_geometry_value_index].execution_position
-                    <= version.source_order as f64
-            {
-                let entry = &geometry_value_program[*next_geometry_value_index];
-                let resolver: &dyn ScalarDocumentBindingResolver = self;
-                if !entry.lazy {
-                    evaluate_geometry_value_entry(entry, resolver, state);
-                }
-                *next_geometry_value_index += 1;
-            }
+            self.retire_before(version_source_order);
+            self.evaluate_geometry_values_through(
+                geometry_execution_position,
+                version_source_order,
+                geometry_value_program,
+                evaluated_geometry_values,
+                state,
+            );
             self.next_version_index += 1;
+            let version = &self.program.versions[self.next_version_index - 1];
             self.execute(version, state);
         }
         self.retire_before(source_order);
+        self.evaluate_geometry_values_through(
+            geometry_execution_position,
+            source_order,
+            geometry_value_program,
+            evaluated_geometry_values,
+            state,
+        );
+    }
+    fn evaluate_geometry_values_through(
+        &self,
+        geometry_execution_position: f64,
+        source_order: usize,
+        geometry_value_program: &[GeometryValueProgramEntry],
+        evaluated_geometry_values: &mut [bool],
+        state: &mut EvaluationState,
+    ) {
+        let resolver: &dyn ScalarDocumentBindingResolver = self;
+        for (index, entry) in geometry_value_program.iter().enumerate() {
+            if evaluated_geometry_values
+                .get(index)
+                .copied()
+                .unwrap_or(true)
+                || entry.execution_position > geometry_execution_position
+                || entry.source_execution_position > source_order as f64
+            {
+                continue;
+            }
+            if !entry.lazy {
+                evaluate_geometry_value_entry(entry, resolver, state);
+            }
+            if let Some(evaluated) = evaluated_geometry_values.get_mut(index) {
+                *evaluated = true;
+            }
+        }
     }
     pub(crate) fn finalize(&mut self, state: &EvaluationState) {
         while self.next_version_index < self.program.versions.len() {

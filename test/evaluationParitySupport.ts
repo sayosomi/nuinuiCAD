@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { CadElement } from "../src/types/geometry";
+import { resolveRustEvaluationBinaryPath, RustEvaluationProcess } from "../src/node/rustEvaluationProcess";
 import { compileCanonicalText, regenerateCanonicalFromModel, type TextCompileResult } from "@nuinuicad/nui-language/document";
 import { emptyDocument } from "@nuinuicad/nui-language";
 import { evaluationPayloadToResult, type EvaluationPayload } from "../src/geometry/evaluationPayload";
@@ -77,6 +78,22 @@ export const evaluateWithRustOptions = (
     { encoding: "utf8", input: JSON.stringify(input), maxBuffer: 64 * 1024 * 1024 }
   );
   return JSON.parse(output) as EvaluationPayload;
+};
+
+/** Issue regressions that must cross the production persistent Node→Rust stdio boundary. */
+export const createRustStdioParityClient = (repoRoot: string) => {
+  const cargoManifest = join(repoRoot, "rust-evaluator", "Cargo.toml");
+  execFileSync("cargo", ["build", "--quiet", "--manifest-path", cargoManifest, "--bin", "evaluation_stdio"], {
+    stdio: "inherit"
+  });
+  const process = new RustEvaluationProcess(resolveRustEvaluationBinaryPath(repoRoot));
+  return {
+    evaluate: async (elements: CadElement[], options: EvaluateElementsOptions): Promise<EvaluationPayload> => {
+      const payload = await process.request(buildRustEvaluationInput(elements, options));
+      return payload as EvaluationPayload;
+    },
+    dispose: () => process.dispose()
+  };
 };
 
 export const normalizeParityPayload = (value: unknown): unknown => {

@@ -898,6 +898,7 @@ fn materialize_target(
             source_statement_index: 0,
             declared_interface_type,
             occurrence: occurrence.clone(),
+            source_execution_position: execution_position,
             execution_position,
             lazy: false,
             construction: *program,

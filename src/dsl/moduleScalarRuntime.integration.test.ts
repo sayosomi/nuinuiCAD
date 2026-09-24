@@ -12,6 +12,7 @@ import { compileDslDocument } from "@nuinuicad/nui-language";
 import { parseDsl } from "@nuinuicad/nui-language";
 import { moduleRecordExportFieldBindingIdFor } from "@nuinuicad/nui-language";
 import { pickCandidates } from "../model/pickCandidates";
+import type { LastGoodDslDocument } from "@nuinuicad/nui-language/document";
 
 const compileWithIds = (source: string, prefix = "task6") => {
   const parsed = parseDsl(source);
@@ -24,13 +25,17 @@ const compileWithIds = (source: string, prefix = "task6") => {
 const evaluateCompiled = (compiled: ReturnType<typeof compileWithIds>) => {
   if (!compiled.document || !compiled.statementMap) throw new Error("expected a compiled document");
   const elements = compiled.document.elements;
+  const geometryValueProgram = buildEvaluationOptions({
+    compiledDocument: compiled as LastGoodDslDocument,
+    evaluationLimitIndex: compiled.document.evaluationLimitIndex
+  }).geometryValueProgram;
   return evaluateElements(elements, {
     evaluationLimitIndex: compiled.document.evaluationLimitIndex,
     scalarProgram: compiled.scalarProgram,
     bindingVersions: compiled.bindingVersions,
     geometryInputTargetsByElementId: compiled.moduleGeometryRuntime?.geometryInputTargetsByRuntimeElementId,
     geometryCollectionNodesByValueId: compiled.moduleGeometryRuntime?.geometryCollectionNodesByValueId,
-    geometryValueProgram: compiled.geometryValueProgram,
+    geometryValueProgram,
     statementInfoByElementId: compiled.statementMap.byElementId,
     statementIdByStatementIndex: compiled.statementMap.statementIdByStatementIndex,
     sourceExecutionPositionByElementId: compiled.moduleMaterialization?.sourceExecutionPositionByRuntimeElementId,

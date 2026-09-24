@@ -212,9 +212,11 @@ pub(crate) enum GeometryValueConstruction {
 #[derive(Debug)]
 pub(crate) struct GeometryValueProgramEntry {
     pub(crate) source_statement_id: String,
+    #[allow(dead_code)] // Source identity/debug data; never a runtime position.
     pub(crate) source_statement_index: usize,
     pub(crate) declared_interface_type: String,
     pub(crate) occurrence: GeometryValueOccurrence,
+    pub(crate) source_execution_position: f64,
     pub(crate) execution_position: f64,
     pub(crate) lazy: bool,
     pub(crate) construction: GeometryValueConstruction,
@@ -448,6 +450,11 @@ fn decode_entry(value: &Value) -> Result<GeometryValueProgramEntry, String> {
         .ok_or_else(|| {
             "geometry value program entry executionPosition must be finite".to_owned()
         })?;
+    let source_execution_position = entry_object
+        .get("sourceExecutionPosition")
+        .and_then(Value::as_f64)
+        .filter(|value| value.is_finite())
+        .unwrap_or(execution_position);
     let lazy = entry_object
         .get("lazy")
         .and_then(Value::as_bool)
@@ -1115,6 +1122,7 @@ fn decode_entry(value: &Value) -> Result<GeometryValueProgramEntry, String> {
         source_statement_index,
         declared_interface_type,
         occurrence,
+        source_execution_position,
         execution_position,
         lazy,
         construction,
@@ -1720,7 +1728,7 @@ pub(crate) fn evaluate_geometry_value_entry(
     if entry.source_statement_id != entry.occurrence.source_statement_id {
         return;
     }
-    let source_order = entry.execution_position;
+    let source_order = entry.source_execution_position;
     evaluate_geometry_value_node(&entry.construction, entry, resolver, state, source_order);
 }
 

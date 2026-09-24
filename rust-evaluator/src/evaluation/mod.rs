@@ -1682,15 +1682,6 @@ fn evaluate_document_input_with_scalar_program(
         geometry_collection_nodes,
         conditional_dependency_graph,
     } = decoded;
-    let mut geometry_value_program = geometry_value_program;
-    geometry_value_program.sort_by(|left, right| {
-        left.execution_position
-            .total_cmp(&right.execution_position)
-            .then(
-                left.source_statement_index
-                    .cmp(&right.source_statement_index),
-            )
-    });
     let evaluation_limit_index = input
         .evaluation_limit_index
         .unwrap_or(input.elements.len())
@@ -1964,7 +1955,7 @@ fn evaluate_document_input_with_scalar_program(
             &source_effective_drawing_modifier_runtime,
         );
 
-    let mut next_geometry_value_index = 0usize;
+    let mut evaluated_geometry_value_entries = vec![false; geometry_value_program.len()];
     let mut next_transformation_recipe_index = 0usize;
     let empty_geometry_value_resolver = geometry_value_runtime::EmptyBindingResolver;
     let mut conditional_branch_selections = HashMap::<String, String>::new();
@@ -2086,9 +2077,10 @@ fn evaluate_document_input_with_scalar_program(
                 .expect("source order requires a scalar mutation resolver")
                 .advance_before_with_geometry_values(
                     source_order,
+                    evaluation_position as f64,
                     &mut state,
                     &geometry_value_program,
-                    &mut next_geometry_value_index,
+                    &mut evaluated_geometry_value_entries,
                 );
         }
         let active_scalar_binding_resolver: Option<&dyn ScalarDocumentBindingResolver> =
@@ -2108,6 +2100,24 @@ fn evaluate_document_input_with_scalar_program(
                     .copied()
                     .unwrap_or(evaluation_position) as f64,
             );
+        if scalar_mutation_resolver.is_none() {
+            for (geometry_value_index, entry) in geometry_value_program.iter().enumerate() {
+                if evaluated_geometry_value_entries[geometry_value_index]
+                    || entry.execution_position > evaluation_position as f64
+                    || entry.source_execution_position > current_execution_position
+                {
+                    continue;
+                }
+                if !entry.lazy {
+                    let resolver =
+                        active_scalar_binding_resolver.unwrap_or(&empty_geometry_value_resolver);
+                    geometry_value_runtime::evaluate_geometry_value_entry(
+                        entry, resolver, &mut state,
+                    );
+                }
+                evaluated_geometry_value_entries[geometry_value_index] = true;
+            }
+        }
         macro_rules! complete_attempt_and_continue {
             () => {{
                 completed_element_ids.insert(id.clone());
@@ -2124,21 +2134,6 @@ fn evaluate_document_input_with_scalar_program(
                 );
                 continue 'elements;
             }};
-        }
-        while next_geometry_value_index < geometry_value_program.len()
-            && geometry_value_program[next_geometry_value_index].execution_position
-                <= current_execution_position
-        {
-            if !geometry_value_program[next_geometry_value_index].lazy {
-                let resolver =
-                    active_scalar_binding_resolver.unwrap_or(&empty_geometry_value_resolver);
-                geometry_value_runtime::evaluate_geometry_value_entry(
-                    &geometry_value_program[next_geometry_value_index],
-                    resolver,
-                    &mut state,
-                );
-            }
-            next_geometry_value_index += 1;
         }
         execute_transformation_recipes_through(
             &transformation_recipes,
@@ -2525,38 +2520,45 @@ fn evaluate_document_input_with_scalar_program(
         f64::INFINITY,
         &mut state,
     );
-    while next_geometry_value_index < geometry_value_program.len() {
+    while evaluated_geometry_value_entries
+        .iter()
+        .any(|evaluated| !evaluated)
+    {
         if let Some(resolver) = scalar_mutation_resolver.as_mut() {
-            let source_order = geometry_value_program[next_geometry_value_index]
-                .execution_position
+            let source_order = geometry_value_program
+                .iter()
+                .zip(&evaluated_geometry_value_entries)
+                .filter_map(|(entry, evaluated)| {
+                    (!evaluated).then_some(entry.source_execution_position)
+                })
+                .fold(0.0_f64, f64::max)
                 .ceil() as usize;
             resolver.advance_before_with_geometry_values(
                 source_order,
+                f64::INFINITY,
                 &mut state,
                 &geometry_value_program,
-                &mut next_geometry_value_index,
+                &mut evaluated_geometry_value_entries,
             );
-            if next_geometry_value_index >= geometry_value_program.len() {
-                break;
+        } else {
+            let remaining_geometry_value_resolver = scalar_binding_resolver
+                .as_ref()
+                .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
+                .unwrap_or(&empty_geometry_value_resolver);
+            for (geometry_value_index, entry) in geometry_value_program.iter().enumerate() {
+                if evaluated_geometry_value_entries[geometry_value_index] {
+                    continue;
+                }
+                if !entry.lazy {
+                    geometry_value_runtime::evaluate_geometry_value_entry(
+                        entry,
+                        remaining_geometry_value_resolver,
+                        &mut state,
+                    );
+                }
+                evaluated_geometry_value_entries[geometry_value_index] = true;
             }
         }
-        let remaining_geometry_value_resolver = scalar_mutation_resolver
-            .as_ref()
-            .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
-            .or_else(|| {
-                scalar_binding_resolver
-                    .as_ref()
-                    .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
-            })
-            .unwrap_or(&empty_geometry_value_resolver);
-        if !geometry_value_program[next_geometry_value_index].lazy {
-            geometry_value_runtime::evaluate_geometry_value_entry(
-                &geometry_value_program[next_geometry_value_index],
-                remaining_geometry_value_resolver,
-                &mut state,
-            );
-        }
-        next_geometry_value_index += 1;
     }
     if evaluation_limit_index > 0 {
         capture_completed_instances(

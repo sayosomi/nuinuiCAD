@@ -1072,7 +1072,7 @@ export const evaluateElements = (
   };
 
   const evaluateGeometryValueEntry = (entry: import("@nuinuicad/nui-language").GeometryValueProgramEntry) => {
-    const sourceOrder = entry.executionPosition;
+    const sourceOrder = entry.sourceExecutionPosition ?? entry.executionPosition;
     if (linearMutationResolver) {
       linearMutationResolver.advanceTo({ kind: "beforeStatement", sourceOrder });
     }
@@ -1646,13 +1646,14 @@ export const evaluateElements = (
   };
 
   const geometryValueProgram = options.geometryValueProgram ?? [];
-  let nextGeometryValueIndex = 0;
-  const evaluateGeometryValuesThrough = (sourceOrder: number) => {
-    while (nextGeometryValueIndex < geometryValueProgram.length &&
-      geometryValueProgram[nextGeometryValueIndex]!.executionPosition <= sourceOrder) {
-      const entry = geometryValueProgram[nextGeometryValueIndex]!;
+  const evaluatedGeometryValueEntries = new Set<number>();
+  const evaluateGeometryValuesThrough = (executionPosition: number, sourceExecutionPosition: number) => {
+    for (const [index, entry] of geometryValueProgram.entries()) {
+      if (evaluatedGeometryValueEntries.has(index) ||
+          entry.executionPosition > executionPosition ||
+          (entry.sourceExecutionPosition ?? entry.executionPosition) > sourceExecutionPosition) continue;
       if (!entry.lazy) evaluateGeometryValueEntry(entry);
-      nextGeometryValueIndex += 1;
+      evaluatedGeometryValueEntries.add(index);
     }
   };
 
@@ -2805,19 +2806,20 @@ export const evaluateElements = (
     if (activateReadyConditionalControllers()) reorderPendingElements(pendingElements);
     const element = pendingElements.shift()!;
     const elementIndex = evaluationPosition++;
-    let geometryValueSourceOrder = options.scalarExecutionPositionByElementId?.get(element.id) ??
+    const geometryValueSourceOrder = options.scalarExecutionPositionByElementId?.get(element.id) ??
       options.statementInfoByElementId?.get(element.id)?.statementIndex ??
-      options.sourceExecutionPositionByElementId?.get(element.id) ?? elementIndex;
+      elementIndex;
+    let geometryValueExecutionPosition = elementIndex;
     if (element.type === "materializedPoint" || element.type === "materializedLine" || element.type === "materializedPath") {
       const sourceTarget = options.geometryInputTargetsByElementId?.get(element.id)?.get("source");
       const sourceExecutionPosition = sourceTarget
         ? geometryValueExecutionPositionForTarget(sourceTarget)
         : undefined;
       if (sourceExecutionPosition !== undefined) {
-        geometryValueSourceOrder = Math.max(geometryValueSourceOrder, sourceExecutionPosition);
+        geometryValueExecutionPosition = Math.max(geometryValueExecutionPosition, sourceExecutionPosition);
       }
     }
-    evaluateGeometryValuesThrough(geometryValueSourceOrder);
+    evaluateGeometryValuesThrough(geometryValueExecutionPosition, geometryValueSourceOrder);
     // Apply clauses between declarations before the later declaration observes
     // the owner's geometry. Statement positions are integer indexes, so the
     // half-step excludes the current declaration itself.
@@ -2826,7 +2828,7 @@ export const evaluateElements = (
     evaluateReadyTransformationRecipes();
   }
 
-  evaluateGeometryValuesThrough(Number.POSITIVE_INFINITY);
+  evaluateGeometryValuesThrough(Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY);
   evaluateReadyTransformationRecipes();
   captureReadyModuleInstanceBases();
 
@@ -2861,6 +2863,19 @@ export const evaluateElements = (
       message: `${geometry.name} の塗りつぶしは自己交差する閉じたパスでは表示されません。`
     });
   }
+
+  const computedGeometryValuesInProgramOrder = new Map(computedGeometryValues);
+  computedGeometryValuesInProgramOrder.clear();
+  for (const entry of geometryValueProgram) {
+    const key = geometryValueOccurrenceKey(entry.occurrence);
+    const value = computedGeometryValues.get(key);
+    if (value) computedGeometryValuesInProgramOrder.set(key, value);
+  }
+  for (const [key, value] of computedGeometryValues) {
+    if (!computedGeometryValuesInProgramOrder.has(key)) computedGeometryValuesInProgramOrder.set(key, value);
+  }
+  computedGeometryValues.clear();
+  for (const [key, value] of computedGeometryValuesInProgramOrder) computedGeometryValues.set(key, value);
 
   return {
     computedGeometry,
