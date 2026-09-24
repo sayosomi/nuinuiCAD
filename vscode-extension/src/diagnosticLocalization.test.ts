@@ -26,6 +26,31 @@ describe("diagnostic presentation localization", () => {
     expect(diagnosticTextFor(diagnostic, "fr-FR")).toBe("Argument 'y' has no value.");
   });
 
+  it("localizes an incomplete layout through the production parser/compiler path without changing identity or range", () => {
+    const source = "nui 1\nlayout A4 (scale: 1)\n";
+    const document = AutomationDocument.fromSource(source);
+    const diagnostic = compilerDiagnosticsForState(document.getSource(), document.getState()).find(
+      (candidate) => candidate.code === "settings-layout-block-required"
+    );
+    if (!diagnostic) throw new Error("missing production settings diagnostic");
+
+    expect(diagnostic.message).toBe("layout にはブロックが必要です。");
+    expect(diagnostic.presentation).toEqual({
+      key: "diagnostic.settings-layout-block-required",
+      parameters: { keyword: "layout" }
+    });
+
+    const identity = { code: diagnostic.code, source: diagnostic.source, range: diagnostic.range };
+    expect(diagnosticTextFor(diagnostic, "en")).toBe("The layout statement requires a block.");
+    expect(diagnosticTextFor(diagnostic, "ja-JP")).toBe("layout にはブロックが必要です。");
+    expect({ ...identity, message: diagnosticTextFor(diagnostic, "en") }).toMatchObject(identity);
+    expect({ ...identity, message: diagnosticTextFor(diagnostic, "ja-JP") }).toMatchObject(identity);
+    expect(diagnostic.range).toEqual({
+      start: { line: 1, character: 0 },
+      end: { line: 1, character: 6 }
+    });
+  });
+
   it("interpolates structured parameters without inspecting the fallback message", () => {
     const diagnostic = {
       severity: "error" as const,

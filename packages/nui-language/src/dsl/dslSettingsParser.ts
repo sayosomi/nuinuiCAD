@@ -1,10 +1,15 @@
 import type { DslArgSpec } from "./dslConstructions";
 import { settingsSpecFor, type DslSettingsSpec } from "./dslConstructionsSettings";
 import { scanCallArgs, type ScannedArg } from "./dslArgScanner";
-import type { DslAttribute, DslSpan } from "./dslTypes";
+import type { DslAttribute, DslDiagnosticPresentation, DslSpan } from "./dslTypes";
 import { unquoteDslString } from "./dslTokens";
 
-export type DslSettingsDiagnostic = { message: string; span: DslSpan };
+export type DslSettingsDiagnostic = {
+  message: string;
+  span: DslSpan;
+  code?: string;
+  presentation?: DslDiagnosticPresentation;
+};
 
 export type DslSettingsKind =
   | "version"
@@ -103,8 +108,21 @@ const attrsFromArgs = (args: readonly ScannedArg[]): DslAttribute[] =>
     valueEnd: arg.valueSpan.end,
   }] : []);
 
-const addDiagnostic = (diagnostics: DslSettingsDiagnostic[], message: string, span: DslSpan) =>
-  diagnostics.push({ message, span });
+const addDiagnostic = (
+  diagnostics: DslSettingsDiagnostic[],
+  message: string,
+  span: DslSpan,
+  code: string,
+  parameters?: Readonly<Record<string, string | number | boolean>>,
+) => diagnostics.push({
+  message,
+  span,
+  code,
+  presentation: {
+    key: `diagnostic.${code}`,
+    ...(parameters ? { parameters } : {}),
+  },
+});
 
 const parseName = (source: string, span: DslSpan) =>
   span.start === span.end
@@ -124,36 +142,78 @@ const validateArgs = (
   for (const arg of args) {
     if (arg.key === null) {
       if (!positional) {
-        addDiagnostic(diagnostics, `${keyword}文は位置引数を受け付けません。`, arg.valueSpan);
+        addDiagnostic(
+          diagnostics,
+          `${keyword}文は位置引数を受け付けません。`,
+          arg.valueSpan,
+          "settings-positional-argument-not-accepted",
+          { keyword },
+        );
       } else if (payloadSpans[positional.arg]) {
-        addDiagnostic(diagnostics, `位置引数「${positional.arg}」が重複しています。`, arg.valueSpan);
+        addDiagnostic(
+          diagnostics,
+          `位置引数「${positional.arg}」が重複しています。`,
+          arg.valueSpan,
+          "settings-duplicate-positional-argument",
+          { keyword, parameter: positional.arg },
+        );
       } else {
         payloadSpans[positional.arg] = arg.valueSpan;
       }
       continue;
     }
     if (arg.key === positional?.arg) {
-      addDiagnostic(diagnostics, `位置引数「${arg.key}」は名前付き引数として指定できません。`, arg.keySpan!);
+      addDiagnostic(
+        diagnostics,
+        `位置引数「${arg.key}」は名前付き引数として指定できません。`,
+        arg.keySpan!,
+        "settings-positional-argument-named",
+        { keyword, parameter: arg.key },
+      );
       continue;
     }
     if (!allowed.has(arg.key) && !spec.allowsDynamicArgs) {
       const candidates = [...allowed.keys()].join("、") || "なし";
-      addDiagnostic(diagnostics, `${keyword}文に引数「${arg.key}」はありません。候補: ${candidates}。`, arg.keySpan!);
+      addDiagnostic(
+        diagnostics,
+        `${keyword}文に引数「${arg.key}」はありません。候補: ${candidates}。`,
+        arg.keySpan!,
+        "settings-unknown-argument",
+        { keyword, argument: arg.key, candidates: [...allowed.keys()].join(", ") || "none" },
+      );
       continue;
     }
     if (seen.has(arg.key)) {
-      addDiagnostic(diagnostics, `引数「${arg.key}」が重複しています。`, arg.keySpan!);
+      addDiagnostic(
+        diagnostics,
+        `引数「${arg.key}」が重複しています。`,
+        arg.keySpan!,
+        "settings-duplicate-argument",
+        { keyword, argument: arg.key },
+      );
       continue;
     }
     seen.add(arg.key);
     payloadSpans[arg.key] = arg.valueSpan;
   }
   if (positional && !payloadSpans[positional.arg]) {
-    addDiagnostic(diagnostics, `${keyword}文には必須の位置引数「${positional.arg}」が必要です。`, { start: 0, end: keyword.length });
+    addDiagnostic(
+      diagnostics,
+      `${keyword}文には必須の位置引数「${positional.arg}」が必要です。`,
+      { start: 0, end: keyword.length },
+      "settings-missing-positional-argument",
+      { keyword, parameter: positional.arg },
+    );
   }
   for (const required of spec.args.filter((arg) => arg.required && !arg.positional)) {
     if (!payloadSpans[required.arg]) {
-      addDiagnostic(diagnostics, `${keyword}文には必須引数「${required.arg}」が必要です。`, { start: 0, end: keyword.length });
+      addDiagnostic(
+        diagnostics,
+        `${keyword}文には必須引数「${required.arg}」が必要です。`,
+        { start: 0, end: keyword.length },
+        "settings-missing-named-argument",
+        { keyword, parameter: required.arg },
+      );
     }
   }
 };
@@ -166,7 +226,9 @@ const simpleStatement = (
   diagnostics: DslSettingsDiagnostic[],
 ): DslSettingsStatement => {
   const name = parseName(source, rest);
-  if (!name.nameSpan) addDiagnostic(diagnostics, `${keyword}には名前が必要です。`, keywordSpan);
+  if (!name.nameSpan) {
+    addDiagnostic(diagnostics, `${keyword}には名前が必要です。`, keywordSpan, "settings-missing-statement-name", { keyword });
+  }
   return {
     kind: keyword,
     ...name,
@@ -185,7 +247,13 @@ export const parseDslSettingsStatement = (
   const diagnostics: DslSettingsDiagnostic[] = [];
   if (logicalText.trimStart().startsWith("@stop")) {
     const start = logicalText.indexOf("@stop");
-    addDiagnostic(diagnostics, "`@stop` は nui1 の有効な構文ではありません。", { start, end: start + 5 });
+    addDiagnostic(
+      diagnostics,
+      "`@stop` は nui1 の有効な構文ではありません。",
+      { start, end: start + 5 },
+      "settings-invalid-stop",
+      { token: "@stop" },
+    );
     return { statement: null, diagnostics };
   }
   const keywordMatch = logicalText.match(identifier);
@@ -195,7 +263,7 @@ export const parseDslSettingsStatement = (
   const rest = trimSpan(logicalText, keyword.length, logicalText.length);
 
   if (keyword === "stop") {
-    addDiagnostic(diagnostics, "stop は nui1 の有効な構文ではありません。", keywordSpan);
+    addDiagnostic(diagnostics, "stop は nui1 の有効な構文ではありません。", keywordSpan, "settings-invalid-stop", { token: "stop" });
     return { statement: null, diagnostics };
   }
   if (keyword === "nui") {
@@ -222,7 +290,9 @@ export const parseDslSettingsStatement = (
   const name = keyword === "place"
     ? { name: "", nameSpan: null }
     : parsedName;
-  if (namedCallKeywords.has(keyword) && !name.nameSpan) addDiagnostic(diagnostics, `${keyword}には名前が必要です。`, keywordSpan);
+  if (namedCallKeywords.has(keyword) && !name.nameSpan) {
+    addDiagnostic(diagnostics, `${keyword}には名前が必要です。`, keywordSpan, "settings-missing-statement-name", { keyword });
+  }
   if (open < 0 && keyword === "layout" && (inlineBlock || options.opensBlock)) {
     const payloadSpans: Record<string, DslSpan> = {};
     const spec = settingsSpecFor(keyword)!;
@@ -241,20 +311,43 @@ export const parseDslSettingsStatement = (
     };
   }
   if (open < 0) {
-    addDiagnostic(diagnostics, `${keyword}文には「(」が必要です。`, { start: rest.end, end: rest.end });
+    addDiagnostic(
+      diagnostics,
+      `${keyword}文には「(」が必要です。`,
+      { start: rest.end, end: rest.end },
+      "settings-missing-call-open",
+      { keyword },
+    );
     return { statement: null, diagnostics };
   }
   const close = matchingClose(logicalText, open);
   if (close < 0) {
-    addDiagnostic(diagnostics, "呼び出しの「(」が閉じられていません。", { start: open, end: open + 1 });
+    addDiagnostic(
+      diagnostics,
+      "呼び出しの「(」が閉じられていません。",
+      { start: open, end: open + 1 },
+      "unclosed-call",
+    );
     return { statement: null, diagnostics };
   }
   const tail = trimSpan(logicalText, close + 1, logicalText.length);
   const hasInlineBlock = logicalText.slice(tail.start, tail.end) === "{";
   const opensBlock = keyword === "layout" && (hasInlineBlock || Boolean(options.opensBlock));
-  if (tail.start < tail.end && !hasInlineBlock) addDiagnostic(diagnostics, "呼び出しの「)」の後に余分なトークンがあります。", tail);
-  if (hasInlineBlock && keyword !== "layout") addDiagnostic(diagnostics, `${keyword}文はブロックを開けません。`, tail);
-  if (keyword === "layout" && !opensBlock) addDiagnostic(diagnostics, "layout にはブロックが必要です。", keywordSpan);
+  if (tail.start < tail.end && !hasInlineBlock) {
+    addDiagnostic(
+      diagnostics,
+      "呼び出しの「)」の後に余分なトークンがあります。",
+      tail,
+      "settings-trailing-token-after-call",
+      { keyword },
+    );
+  }
+  if (hasInlineBlock && keyword !== "layout") {
+    addDiagnostic(diagnostics, `${keyword}文はブロックを開けません。`, tail, "settings-block-not-allowed", { keyword });
+  }
+  if (keyword === "layout" && !opensBlock) {
+    addDiagnostic(diagnostics, "layout にはブロックが必要です。", keywordSpan, "settings-layout-block-required", { keyword });
+  }
 
   const scanned = scanCallArgs(logicalText, { start: open + 1, end: close });
   diagnostics.push(...scanned.errors);
