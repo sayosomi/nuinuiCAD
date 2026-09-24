@@ -102,10 +102,10 @@ beforeEach(() => {
 });
 
 describe("Canvas free point at pointer feature", () => {
-  it("reconciles an idle stale session after the F12-style explicit Source confirmation", () => {
+  it("starts mode only with a current Source anchor and preserves queued clicks", () => {
     const document = documentFor();
     const token = {};
-    let authoritativeReady = false;
+    let authoritativeReady = true;
     const postFreePointAtPointer = vi.fn();
     const postCoordinatePointCreationStart = vi.fn();
     const feature = registerVscodeCanvasFreePointAtPointerFeature({
@@ -119,6 +119,11 @@ describe("Canvas free point at pointer feature", () => {
         postFreePointAtPointer
       })
     });
+    feature.setExplicitSourceAuthoringPosition(document, {
+      documentVersion: 1,
+      line: 2,
+      character: 3
+    });
 
     void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.();
     expect(postFreePointAtPointer).not.toHaveBeenCalled();
@@ -126,6 +131,7 @@ describe("Canvas free point at pointer feature", () => {
     expect(mocks.showErrorMessage).not.toHaveBeenCalled();
 
     document.version = 2;
+    authoritativeReady = false;
     feature.setExplicitSourceAuthoringPosition(document, {
       documentVersion: 2,
       line: 6,
@@ -146,6 +152,106 @@ describe("Canvas free point at pointer feature", () => {
       pointer: { x: 91, y: -37 },
       sourcePosition: { documentVersion: 2, line: 6, character: 7 }
     }));
+    expect(mocks.showErrorMessage).not.toHaveBeenCalled();
+    feature.dispose();
+  });
+
+  it("does not enter creation mode without a retained Source anchor", () => {
+    const document = documentFor();
+    const postCoordinatePointCreationStart = vi.fn();
+    const feature = registerVscodeCanvasFreePointAtPointerFeature({
+      activeCanvasEndpoint: () => ({
+        sessionToken: {},
+        document,
+        isCurrent: () => true,
+        isAuthoritativeReady: () => true,
+        lastCanvasPointer: () => null,
+        postCoordinatePointCreationStart
+      })
+    });
+
+    void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.();
+
+    expect(postCoordinatePointCreationStart).not.toHaveBeenCalled();
+    expect(mocks.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining("Source insertion position"));
+    feature.dispose();
+  });
+
+  it("does not enter creation mode with a stale retained Source anchor", () => {
+    const document = documentFor();
+    const postCoordinatePointCreationStart = vi.fn();
+    const feature = registerVscodeCanvasFreePointAtPointerFeature({
+      activeCanvasEndpoint: () => ({
+        sessionToken: {},
+        document,
+        isCurrent: () => true,
+        isAuthoritativeReady: () => true,
+        lastCanvasPointer: () => null,
+        postCoordinatePointCreationStart
+      })
+    });
+    feature.setExplicitSourceAuthoringPosition(document, {
+      documentVersion: 1,
+      line: 2,
+      character: 3
+    });
+    document.version = 2;
+
+    void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.();
+
+    expect(postCoordinatePointCreationStart).not.toHaveBeenCalled();
+    expect(mocks.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining("Source insertion position is stale"));
+    feature.dispose();
+  });
+
+  it("does not enter creation mode when the current Canvas authority is unusable", () => {
+    const document = documentFor();
+    const postCoordinatePointCreationStart = vi.fn();
+    const feature = registerVscodeCanvasFreePointAtPointerFeature({
+      activeCanvasEndpoint: () => ({
+        sessionToken: {},
+        document,
+        isCurrent: () => true,
+        isAuthoritativeReady: () => false,
+        lastCanvasPointer: () => null,
+        postCoordinatePointCreationStart
+      })
+    });
+    feature.setExplicitSourceAuthoringPosition(document, {
+      documentVersion: 1,
+      line: 2,
+      character: 3
+    });
+
+    void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.();
+
+    expect(postCoordinatePointCreationStart).not.toHaveBeenCalled();
+    expect(mocks.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining("Source insertion position is stale"));
+    feature.dispose();
+  });
+
+  it("does not enter creation mode for a non-current Canvas endpoint", () => {
+    const document = documentFor();
+    const postCoordinatePointCreationStart = vi.fn();
+    const feature = registerVscodeCanvasFreePointAtPointerFeature({
+      activeCanvasEndpoint: () => ({
+        sessionToken: {},
+        document,
+        isCurrent: () => false,
+        isAuthoritativeReady: () => true,
+        lastCanvasPointer: () => null,
+        postCoordinatePointCreationStart
+      })
+    });
+    feature.setExplicitSourceAuthoringPosition(document, {
+      documentVersion: 1,
+      line: 2,
+      character: 3
+    });
+
+    void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.();
+
+    expect(postCoordinatePointCreationStart).not.toHaveBeenCalled();
     expect(mocks.showErrorMessage).not.toHaveBeenCalled();
     feature.dispose();
   });
@@ -690,6 +796,7 @@ describe("Canvas free point at pointer feature", () => {
     const document = documentFor();
     const editor = editorFor(document);
     const postFreePointAtPointer = vi.fn();
+    const postCoordinatePointCreationStart = vi.fn();
     const feature = registerVscodeCanvasFreePointAtPointerFeature({
       activeCanvasEndpoint: () => ({
         sessionToken: {},
@@ -697,6 +804,7 @@ describe("Canvas free point at pointer feature", () => {
         isCurrent: () => true,
         isAuthoritativeReady: () => true,
         lastCanvasPointer: () => ({ x: 1, y: 2 }),
+        postCoordinatePointCreationStart,
         postFreePointAtPointer
       })
     });
@@ -705,6 +813,7 @@ describe("Canvas free point at pointer feature", () => {
     void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.({ webviewSection: "element" });
     void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.({ webviewSection: "blank" });
     expect(postFreePointAtPointer).not.toHaveBeenCalled();
+    expect(postCoordinatePointCreationStart).toHaveBeenCalledTimes(2);
     expect(mocks.showErrorMessage).not.toHaveBeenCalled();
     feature.dispose();
   });

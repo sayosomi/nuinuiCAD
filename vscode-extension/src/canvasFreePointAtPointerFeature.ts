@@ -280,6 +280,19 @@ export const registerVscodeCanvasFreePointAtPointerFeature = ({
   const execute = (): void => {
     const endpoint = activeCanvasEndpoint();
     if (!endpoint || !endpoint.isCurrent() || endpoint.isCoordinatePointCreationActive?.()) return;
+    if (!endpoint.isAuthoritativeReady()) {
+      void vscode.window.showErrorMessage(staleSourceAnchorError());
+      return;
+    }
+    const anchor = ownedSourceAuthoringPosition.sourceAuthoringPositionFor(endpoint.document);
+    if (!anchor) {
+      void vscode.window.showErrorMessage(sourceAnchorError());
+      return;
+    }
+    if (!sourcePositionIsValid(anchor) || anchor.documentVersion !== endpoint.document.version) {
+      void vscode.window.showErrorMessage(staleSourceAnchorError());
+      return;
+    }
     endpoint.postCoordinatePointCreationStart?.(endpoint.document.version);
   };
 

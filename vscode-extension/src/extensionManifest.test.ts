@@ -259,8 +259,8 @@ const bakePaletteWhen = "(editorLangId == nui && resourceScheme == file && resou
 const canvasHistoryWhen = "activeWebviewPanelId == 'nuinuiCAD.canvas' || activeWebviewPanelId == 'nuinuiCAD.modulePreview' || (editorTextFocus && nuinuiCAD.canvasHistoryHandoff)";
 const outputPreviewHistoryWhen = "activeWebviewPanelId == 'nuinuiCAD.outputPreview'";
 const canvasBlankWhen = "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank'";
-const coordinatePointCreationCanvasBlankWhen = `${canvasBlankWhen} && !nuinuiCAD.canvasCoordinatePointCreationActive`;
-const coordinatePointCreationKeybindingWhen = `${canvasFocusKeybindingWhen.replace("activeWebviewPanelId == 'nuinuiCAD.canvas'", "activeWebviewPanelId == 'nuinuiCAD.canvas' && !nuinuiCAD.canvasCoordinatePointCreationActive")}`;
+const coordinatePointCreationCanvasBlankWhen = `${canvasBlankWhen} && nuinuiCAD.canvasCoordinatePointCreationAvailable && !nuinuiCAD.canvasCoordinatePointCreationActive`;
+const coordinatePointCreationKeybindingWhen = `${canvasFocusKeybindingWhen.replace("activeWebviewPanelId == 'nuinuiCAD.canvas'", "activeWebviewPanelId == 'nuinuiCAD.canvas' && nuinuiCAD.canvasCoordinatePointCreationAvailable && !nuinuiCAD.canvasCoordinatePointCreationActive")}`;
 const canvasElementWhen = "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'element' && nuinuiCAD.canvasHasSelection";
 const canvasOrModulePreviewElementWhen = "(webviewId == 'nuinuiCAD.canvas' || webviewId == 'nuinuiCAD.modulePreview') && webviewSection == 'element' && nuinuiCAD.canvasHasSelection";
 const canvasOrModulePreviewRibbonWhen = "(webviewId == 'nuinuiCAD.canvas' || webviewId == 'nuinuiCAD.modulePreview') && (webviewSection == 'blank' || webviewSection == 'ribbon')";

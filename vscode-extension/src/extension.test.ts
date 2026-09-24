@@ -2890,6 +2890,28 @@ describe("VS Code production document lifecycle", () => {
     }));
   });
 
+  it("projects coordinate-point target availability from current Canvas authority and the retained Source anchor", async () => {
+    const document = documentFor("/tmp/free-point-availability.nui", "file:///tmp/free-point-availability.nui", "nui 1\n");
+    const editor = editorFor(document);
+    setup(false, editor);
+    document.languageId = "nui";
+    const panel = openPanelFor(editor);
+    const handler = messageHandlerFor(panel);
+
+    await handler({ type: "webviewReady" });
+    expect(latestContextValueFor("nuinuiCAD.canvasCoordinatePointCreationAvailable")).toBe(false);
+
+    await handler({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    expect(latestContextValueFor("nuinuiCAD.canvasCoordinatePointCreationAvailable")).toBe(false);
+
+    for (const listener of mocks.selectionChangeListeners) listener({ textEditor: editor, kind: 1 });
+    expect(latestContextValueFor("nuinuiCAD.canvasCoordinatePointCreationAvailable")).toBe(true);
+
+    document.version = 2;
+    emitDocumentChange(document);
+    expect(latestContextValueFor("nuinuiCAD.canvasCoordinatePointCreationAvailable")).toBe(false);
+  });
+
   it("serializes Canvas free-point invocations through the authoritative session boundary", async () => {
     const document = documentFor("/tmp/free-point-queue.nui", "file:///tmp/free-point-queue.nui", "nui 1\n");
     const editor = editorFor(document);

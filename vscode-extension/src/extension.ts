@@ -522,6 +522,7 @@ export const activate = (
   let benchmarkEditorListener: vscode.Disposable | null = null;
   const canvasHistoryHandoffContextKey = "nuinuiCAD.canvasHistoryHandoff";
   const canvasCoordinatePointCreationContextKey = "nuinuiCAD.canvasCoordinatePointCreationActive";
+  const canvasCoordinatePointCreationAvailabilityContextKey = "nuinuiCAD.canvasCoordinatePointCreationAvailable";
   let canvasHistoryHandoffSession: DocumentSession | null = null;
   let lastActiveCanvasSession: DocumentSession | null = null;
   const coordinatePointCreationSessions = new Set<DocumentSession>();
@@ -555,9 +556,14 @@ export const activate = (
   let handleExtractModuleCanvasSessionDispose: VscodeExtractModuleCommandFeature["handleCanvasSessionDispose"] = () => undefined;
   let handleExtractModuleDocumentChange: VscodeExtractModuleCommandFeature["handleDocumentChange"] = () => undefined;
   let handleExtractModuleDocumentClose: VscodeExtractModuleCommandFeature["handleDocumentClose"] = () => undefined;
+  let updateCoordinatePointCreationContext: () => void = () => undefined;
   const sourceAuthoringPositionFeature = registerVscodeSourceAuthoringPositionFeature({
     onDocumentInvalidated: (document) => {
       canvasFreePointAtPointerFeature?.handleSourceDocumentInvalidated(document);
+      updateCoordinatePointCreationContext();
+    },
+    onSourceAuthoringPositionChanged: () => {
+      updateCoordinatePointCreationContext();
     }
   });
 
@@ -626,6 +632,7 @@ export const activate = (
   const clearCanvasHistoryHandoff = (session: DocumentSession): void => {
     if (canvasHistoryHandoffSession !== session) return;
     canvasHistoryHandoffSession = null;
+    updateCoordinatePointCreationContext();
     void setCanvasHistoryHandoffContext(false).catch(() => undefined);
   };
 
@@ -655,10 +662,22 @@ export const activate = (
       : null;
   };
 
-  const updateCoordinatePointCreationContext = (): void => {
-    const activeSession = canvasSessionForCommand();
+  updateCoordinatePointCreationContext = (): void => {
+    const activeSession = isNuiCanvasTab(activeEditorTabInput())
+      ? sessions.valuesForSurface("canvas").find((candidate) => candidate.panel.active) ?? null
+      : null;
     const active = activeSession !== null && coordinatePointCreationSessions.has(activeSession);
+    const available = activeSession !== null &&
+      sessions.get(activeSession.documentUri, "canvas") === activeSession &&
+      isOpenDocument(activeSession.document) &&
+      activeSession.webviewReady &&
+      canvasHistoryHandoffSession === null &&
+      activeSession.inFlightCanvasHistory === null &&
+      activeSession.authoritativeDocumentVersion === activeSession.document.version &&
+      sourceAuthoringPositionFeature.sourceAuthoringPositionFor(activeSession.document)?.documentVersion ===
+        activeSession.document.version;
     void vscode.commands.executeCommand("setContext", canvasCoordinatePointCreationContextKey, active);
+    void vscode.commands.executeCommand("setContext", canvasCoordinatePointCreationAvailabilityContextKey, available);
   };
 
   const activeCanvasSessionForOpenCommand = (): DocumentSession | null => {
@@ -1419,6 +1438,7 @@ export const activate = (
       session.authoritativeDocumentVersion !== session.document.version
     ) return;
     session.inFlightCanvasHistory = null;
+    updateCoordinatePointCreationContext();
     session.panel.reveal(vscode.ViewColumn.Beside, false);
     void session.panel.webview.postMessage({
       type: "canvasHistoryResult",
@@ -1565,6 +1585,7 @@ export const activate = (
     const failClosed = (status: "resynced" | "failed") => {
       session.pendingCanvasFocus = null;
       session.inFlightCanvasHistory = null;
+      updateCoordinatePointCreationContext();
       resync(session);
       postResult(status);
       if (sourceEditorActivated) {
@@ -1602,6 +1623,7 @@ export const activate = (
     };
     session.pendingCanvasFocus = null;
     canvasHistoryHandoffSession = session;
+    updateCoordinatePointCreationContext();
     try {
       await setCanvasHistoryHandoffContext(true);
       if (canvasHistoryHandoffSession !== session || sessions.get(session.documentUri, "canvas") !== session) return;
@@ -1733,6 +1755,7 @@ export const activate = (
           if (event.contentChanges.length === 0) return;
 
           session.authoritativeDocumentVersion = null;
+          updateCoordinatePointCreationContext();
           canvasThemeWarningFeature.invalidateCanvasSession({
             sessionToken: session,
             sessionDocumentUri: session.documentUri
@@ -1907,6 +1930,7 @@ export const activate = (
           !isOpenDocument(session.document)
         ) return;
         session.authoritativeDocumentVersion = message.documentVersion;
+        updateCoordinatePointCreationContext();
         completeCanvasHistory(session);
         canvasFreePointAtPointerFeature?.handleAuthoritativeDocumentReady(
           session,
@@ -2187,6 +2211,7 @@ export const activate = (
       isCurrent,
       isAuthoritativeReady: () =>
         isCurrent() &&
+        canvasHistoryHandoffSession === null &&
         session.inFlightCanvasHistory === null &&
         session.authoritativeDocumentVersion === session.document.version,
       isCoordinatePointCreationActive: () => coordinatePointCreationSessions.has(session),
