@@ -314,9 +314,14 @@ const recordIdentityForType = (
   return null;
 };
 
-const collectionMemberDiagnostic = (code: string, message: string, span: DslSpan): DslArrayMemberResolution<GenericArraySourceTarget> => ({
+const collectionMemberDiagnostic = (
+  code: string,
+  message: string,
+  span: DslSpan,
+  presentation?: DslDiagnostic["presentation"]
+): DslArrayMemberResolution<GenericArraySourceTarget> => ({
   kind: "invalid",
-  diagnostic: { code, message, span, presentation: { key: `diagnostic.${code}` } }
+  diagnostic: { code, message, span, presentation: presentation ?? { key: `diagnostic.${code}` } }
 });
 
 const arrayValueTypeOfParameter = (parameter: Extract<DslStatement, { kind: "moduleDefinition" }>["parameters"][number]): DslArrayValueType | null =>
@@ -785,7 +790,15 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
       resolveValueFor: (valueFor) => {
         const sourcePath = referencePath(valueFor.sourceText);
         if (!sourcePath || sourcePath.segments.length === 0) {
-          return { kind: "invalid", diagnostic: { code: "geometry-array-value-for-source-invalid", message: "value-for の source には whole-value geometry collection reference が必要です。", span: valueFor.sourceSpan } };
+          return {
+            kind: "invalid",
+            diagnostic: {
+              code: "geometry-array-value-for-source-invalid",
+              message: "value-for の source には whole-value geometry collection reference が必要です。",
+              span: valueFor.sourceSpan,
+              presentation: { key: "diagnostic.geometry-array-value-for-source-invalid", parameters: { source: valueFor.sourceText } }
+            }
+          };
         }
         let sourceValueId: string | null = null;
         let sourceType: GeometryArrayType | null = null;
@@ -816,7 +829,15 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
         }
         if (!sourceType || !sourceValueId) {
           const code = lookup?.kind === "forward" ? "geometry-array-value-for-source-forward" : "geometry-array-value-for-source-invalid";
-          return { kind: "invalid", diagnostic: { code, message: `value-for source「${valueFor.sourceText}」は解決できない geometry collection です。`, span: valueFor.sourceSpan } };
+          return {
+            kind: "invalid",
+            diagnostic: {
+              code,
+              message: `value-for source「${valueFor.sourceText}」は解決できない geometry collection です。`,
+              span: valueFor.sourceSpan,
+              presentation: { key: `diagnostic.${code}`, parameters: { source: valueFor.sourceText } }
+            }
+          };
         }
         const mapped: GeometryArrayMappedValue = {
           kind: "map",
@@ -871,12 +892,22 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
             if (token.kind === "choice" && isChoiceOptionMember(expectedElement, token.raw)) {
               return { kind: "resolved", value: { elementType: expectedElement, target: { kind: "scalarValue", statementId: semantic.statementId, statementIndex: semantic.statementIndex } } };
             }
-            return collectionMemberDiagnostic("array-member-type-mismatch", `choice literal「${member.text}」は宣言された choice の option ではありません。`, member.span);
+            return collectionMemberDiagnostic(
+              "array-member-type-mismatch",
+              `choice literal「${member.text}」は宣言された choice の option ではありません。`,
+              member.span,
+              { key: "diagnostic.array-member-type-mismatch", parameters: { member: member.text } }
+            );
           }
           if (isDslScalarValueType(expectedElement) && token.kind === expectedElement.kind) {
             return { kind: "resolved", value: { elementType: scalarLiteralType(token.kind), target: { kind: "scalarValue", statementId: semantic.statementId, statementIndex: semantic.statementIndex } } };
           }
-          return collectionMemberDiagnostic("array-member-type-mismatch", `array member「${member.text}」の型が宣言型と一致しません。`, member.span);
+          return collectionMemberDiagnostic(
+            "array-member-type-mismatch",
+            `array member「${member.text}」の型が宣言型と一致しません。`,
+            member.span,
+            { key: "diagnostic.array-member-type-mismatch", parameters: { member: member.text } }
+          );
         }
 
         const sourceReference = parsedSourceReference(member.text);
@@ -905,12 +936,24 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
             : lookup.kind === "ambiguous"
               ? `array member 参照が曖昧です: ${member.text}`
               : `未解決の array member です: ${member.text}`;
-          return collectionMemberDiagnostic(`array-member-${lookup.kind}`, message, member.span);
+          return collectionMemberDiagnostic(
+            `array-member-${lookup.kind}`,
+            message,
+            member.span,
+            { key: `diagnostic.array-member-${lookup.kind}`, parameters: { member: member.text } }
+          );
         }
         const target = lookup.declaration;
         if (target.statement.kind === "typedDeclaration") {
           if (isDslArrayValueType(target.statement.valueType)) return collectionMemberDiagnostic("nested-array-member", "配列を array literal member として入れ子にすることはできません。", member.span);
-          if (!target.statement.valueType) return collectionMemberDiagnostic("array-member-invalid-type", `参照先「${member.text}」の型を解決できません。`, member.span);
+          if (!target.statement.valueType) {
+            return collectionMemberDiagnostic(
+              "array-member-invalid-type",
+              `参照先「${member.text}」の型を解決できません。`,
+              member.span,
+              { key: "diagnostic.array-member-invalid-type", parameters: { member: member.text } }
+            );
+          }
           const actual = recordTypeWithIdentity(
             target.statement.valueType,
             target.statement.valueType.kind === "record" ? input.recordSemanticAnalysis?.valuesByStatementIndex.get(target.statementIndex)?.typeIdentity ?? null : null
@@ -933,7 +976,12 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
           const recordType: DslNonArrayValueType = { kind: "record", name: recordValue.typeReference.sourceName, identity: recordValue.typeIdentity };
           return { kind: "resolved", value: { elementType: recordType, target: { kind: "recordValue", statementId: target.statementId, statementIndex: target.statementIndex } } };
         }
-        return collectionMemberDiagnostic("array-member-not-value", `参照先「${member.text}」は array member に使用できる value ではありません。`, member.span);
+        return collectionMemberDiagnostic(
+          "array-member-not-value",
+          `参照先「${member.text}」は array member に使用できる value ではありません。`,
+          member.span,
+          { key: "diagnostic.array-member-not-value", parameters: { member: member.text } }
+        );
       },
       resolveArrayReference: (sourceText, sourceSpan) => {
         const path = referencePath(sourceText);
@@ -979,10 +1027,28 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
             : lookup.kind === "ambiguous"
               ? `array 参照が曖昧です: ${sourceText}`
               : `未解決の array 参照です: ${sourceText}`;
-          return { kind: "invalid", diagnostic: { code: `array-reference-${lookup.kind}`, message, span: sourceSpan } };
+          return {
+            kind: "invalid",
+            diagnostic: {
+              code: `array-reference-${lookup.kind}`,
+              message,
+              span: sourceSpan,
+              presentation: { key: `diagnostic.array-reference-${lookup.kind}`, parameters: { reference: sourceText } }
+            }
+          };
         }
         const target = genericValuesByStatementIndex.get(lookup.declaration.statementIndex);
-        if (!target) return { kind: "invalid", diagnostic: { code: "array-reference-not-array", message: `参照先「${sourceText}」はこの collection 型と互換性のある array ではありません。`, span: sourceSpan } };
+        if (!target) {
+          return {
+            kind: "invalid",
+            diagnostic: {
+              code: "array-reference-not-array",
+              message: `参照先「${sourceText}」はこの collection 型と互換性のある array ではありません。`,
+              span: sourceSpan,
+              presentation: { key: "diagnostic.array-reference-not-array", parameters: { reference: sourceText } }
+            }
+          };
+        }
         return { kind: "resolved", targetValueId: target.statementId, valueType: target.declaredValueType };
       },
       resolveValueFor: (valueFor) => {
@@ -1067,7 +1133,13 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
       if (!argument) continue;
       const reference = referencePath(argument.value);
       if (!reference) {
-        diagnostics.push(diagnostic(statement, argument.valueSpan, "array-argument-invalid", `array parameter「${parameter.name}」には compatible な whole-value collection reference が必要です。`));
+        diagnostics.push(diagnostic(
+          statement,
+          argument.valueSpan,
+          "array-argument-invalid",
+          `array parameter「${parameter.name}」には compatible な whole-value collection reference が必要です。`,
+          { key: "diagnostic.array-argument-invalid", parameters: { parameter: parameter.name } }
+        ));
         continue;
       }
       const lookup = input.resolvePath(statementIndex, reference);
@@ -1076,7 +1148,13 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
       const expected = genericModuleParametersBySlot.get(`${calleeLookup.declaration.statementId}:${parameters.indexOf(parameter)}`)?.valueType
         ?? arrayValueTypeOfParameter(parameter);
       if (!actual || !expected || !isDslNonArrayValueTypeAssignable(actual.elementType, expected.elementType)) {
-        diagnostics.push(diagnostic(statement, argument.valueSpan, "array-argument-type-mismatch", `array argument「${argument.value}」の型が parameter「${parameter.name}」と一致しません。`));
+        diagnostics.push(diagnostic(
+          statement,
+          argument.valueSpan,
+          "array-argument-type-mismatch",
+          `array argument「${argument.value}」の型が parameter「${parameter.name}」と一致しません。`,
+          { key: "diagnostic.array-argument-type-mismatch", parameters: { argument: argument.value, parameter: parameter.name } }
+        ));
       }
     }
   }

@@ -30,7 +30,148 @@ const legacyCompilerDiagnosticsFor = (source: string) => {
   return nuiDiagnosticsFor(source, compiled.diagnostics, []);
 };
 
+const geometryCollectionCatalogInventory = [
+  { code: "array-empty-member", parameters: undefined, english: "An array member is empty.", japanese: "array memberが空です。" },
+  { code: "array-expression-empty", parameters: undefined, english: "The array expression is empty.", japanese: "array式が空です。" },
+  { code: "array-invalid-expression", parameters: undefined, english: "Invalid array expression.", japanese: "array式が不正です。" },
+  { code: "array-invalid-member", parameters: undefined, english: "Invalid array member.", japanese: "array memberが不正です。" },
+  { code: "array-nested-array", parameters: undefined, english: "Arrays cannot contain nested arrays.", japanese: "arrayを入れ子にできません。" },
+  { code: "array-trailing-token", parameters: undefined, english: "Unexpected token after the array.", japanese: "arrayの後に余分なtokenがあります。" },
+  { code: "array-unclosed-literal", parameters: undefined, english: "The array literal is not closed.", japanese: "array literalが閉じられていません。" },
+  { code: "array-parameter-default", parameters: undefined, english: "Array Module parameters cannot have defaults.", japanese: "array 型 Module parameter に default は指定できません。" },
+  { code: "array-invalid-reference", parameters: undefined, english: "Invalid array alias reference.", japanese: "array alias の参照が不正です。" },
+  { code: "array-reference-forward", parameters: { reference: "@later" }, english: "Array '@later' is declared later.", japanese: "array「@later」はこの位置より後で宣言されています。" },
+  { code: "array-reference-ambiguous", parameters: { reference: "@same" }, english: "Array reference '@same' is ambiguous.", japanese: "array 参照が曖昧です: @same" },
+  { code: "array-reference-undefined", parameters: { reference: "@missing" }, english: "Array reference '@missing' could not be resolved.", japanese: "未解決の array 参照です: @missing" },
+  { code: "array-reference-invalidTraversal", parameters: { reference: "@value.member" }, english: "Array reference traversal '@value.member' is invalid.", japanese: "array 参照「@value.member」の traversal が不正です。" },
+  { code: "array-reference-not-array", parameters: { reference: "@scalar" }, english: "Reference '@scalar' is not an array compatible with this collection type.", japanese: "参照先「@scalar」はこの collection 型と互換性のある array ではありません。" },
+  { code: "array-member-forward", parameters: { member: "@later" }, english: "Array member '@later' is declared later.", japanese: "array member「@later」はこの位置より後で宣言されています。" },
+  { code: "array-member-ambiguous", parameters: { member: "@same" }, english: "Array member reference '@same' is ambiguous.", japanese: "array member 参照が曖昧です: @same" },
+  { code: "array-member-undefined", parameters: { member: "@missing" }, english: "Array member '@missing' could not be resolved.", japanese: "未解決の array member です: @missing" },
+  { code: "array-member-invalidTraversal", parameters: { member: "@value.member" }, english: "Array member traversal '@value.member' is invalid.", japanese: "array member「@value.member」の traversal が不正です。" },
+  { code: "array-member-invalid-type", parameters: { member: "@broken" }, english: "The type of reference '@broken' could not be resolved.", japanese: "参照先「@broken」の型を解決できません。" },
+  { code: "array-member-not-value", parameters: { member: "@Module" }, english: "Reference '@Module' cannot be used as an array member value.", japanese: "参照先「@Module」は array member に使用できる value ではありません。" },
+  { code: "array-member-type-mismatch", parameters: { member: "\"wrong\"" }, english: "Array member '\"wrong\"' does not match the declared element type.", japanese: "array member「\"wrong\"」の型が宣言型と一致しません。" },
+  { code: "nested-array-member", parameters: undefined, english: "Array literals cannot contain nested arrays.", japanese: "配列を array literal member として入れ子にすることはできません。" },
+  { code: "array-argument-invalid", parameters: { parameter: "values" }, english: "Array parameter 'values' requires a compatible whole-value collection reference.", japanese: "array parameter「values」には compatible な whole-value collection reference が必要です。" },
+  { code: "array-argument-type-mismatch", parameters: { argument: "@labels", parameter: "values" }, english: "Array argument '@labels' does not match parameter 'values'.", japanese: "array argument「@labels」の型が parameter「values」と一致しません。" },
+  { code: "array-assignability-mismatch", parameters: { actual: "string[]", expected: "number[]" }, english: "Array type 'string[]' is not assignable to 'number[]'.", japanese: "array型「string[]」を「number[]」に代入できません。" },
+  { code: "array-value-for-unsupported", parameters: undefined, english: "This collection does not support value-for.", japanese: "この collection では value-for を使用できません。" },
+  { code: "geometry-array-expected-array", parameters: undefined, english: "The expected geometry-array type is invalid.", japanese: "geometry array の期待型が不正です。" },
+  { code: "coalesce-left-not-optional", parameters: undefined, english: "The left operand of ?? must have an optional type.", japanese: "?? の左辺は optional 型である必要があります。" },
+  { code: "value-if-missing-else", parameters: undefined, english: "A value-if without else requires an optional result type.", japanese: "else を省略できる value-if の結果型は optional である必要があります。" },
+  { code: "geometry-array-value-for-source-invalid", parameters: { source: "@scalar" }, english: "Value-for source '@scalar' must resolve to a whole-value geometry collection.", japanese: "value-for source「@scalar」には解決可能な whole-value geometry collection reference が必要です。" },
+  { code: "geometry-array-value-for-source-forward", parameters: { source: "@later" }, english: "Geometry collection value-for source '@later' is declared later.", japanese: "value-for source「@later」はこの位置より後で宣言されています。" },
+  { code: "geometry-array-member-undefined", parameters: { member: "@missing" }, english: "Geometry array member '@missing' could not be resolved.", japanese: "geometry array member「@missing」を解決できません。" },
+  { code: "geometry-array-reference-undefined", parameters: { reference: "@missing" }, english: "Geometry array reference '@missing' could not be resolved.", japanese: "未解決のgeometry array参照です: @missing" }
+] as const;
+
 describe("diagnostic presentation localization", () => {
+  it("keeps the current geometry and collection diagnostic owner inventory cataloged", () => {
+    for (const entry of geometryCollectionCatalogInventory) {
+      const diagnostic = {
+        message: "owner fallback",
+        presentation: {
+          key: `diagnostic.${entry.code}`,
+          ...(entry.parameters ? { parameters: entry.parameters } : {})
+        }
+      };
+      expect(diagnosticTextFor(diagnostic, "en")).toBe(entry.english);
+      expect(diagnosticTextFor(diagnostic, "ja-JP")).toBe(entry.japanese);
+    }
+  });
+
+  it("localizes parameterized geometry and collection diagnostics without changing producer identity", () => {
+    const cases = [
+      {
+        family: "array member mismatch",
+        source: "nui 1\nconst mismatch: number[] = [\"wrong\"]",
+        code: "array-member-type-mismatch",
+        parameters: { member: "\"wrong\"" },
+        fallback: "array member「\"wrong\"」の型が宣言型と一致しません。",
+        english: "Array member '\"wrong\"' does not match the declared element type.",
+        japanese: "array member「\"wrong\"」の型が宣言型と一致しません。"
+      },
+      {
+        family: "array reference undefined",
+        source: "nui 1\nconst alias: number[] = @missing",
+        code: "array-reference-undefined",
+        parameters: { reference: "@missing" },
+        fallback: "未解決の array 参照です: @missing",
+        english: "Array reference '@missing' could not be resolved.",
+        japanese: "未解決の array 参照です: @missing"
+      },
+      {
+        family: "array reference not array",
+        source: "nui 1\nconst scalar: number = 1\nconst bad: number[] = @scalar",
+        code: "array-reference-not-array",
+        parameters: { reference: "@scalar" },
+        fallback: "参照先「@scalar」はこの collection 型と互換性のある array ではありません。",
+        english: "Reference '@scalar' is not an array compatible with this collection type.",
+        japanese: "参照先「@scalar」はこの collection 型と互換性のある array ではありません。"
+      },
+      {
+        family: "array argument invalid",
+        source: "nui 1\nmodule M(values: number[]) {\n}\ninstance use = M(values: 1)",
+        code: "array-argument-invalid",
+        parameters: { parameter: "values" },
+        fallback: "array parameter「values」には compatible な whole-value collection reference が必要です。",
+        english: "Array parameter 'values' requires a compatible whole-value collection reference.",
+        japanese: "array parameter「values」には compatible な whole-value collection reference が必要です。"
+      },
+      {
+        family: "array argument type mismatch",
+        source: "nui 1\nconst labels: string[] = [\"a\"]\nmodule M(values: number[]) {\n}\ninstance use = M(values: @labels)",
+        code: "array-argument-type-mismatch",
+        parameters: { argument: "@labels", parameter: "values" },
+        fallback: "array argument「@labels」の型が parameter「values」と一致しません。",
+        english: "Array argument '@labels' does not match parameter 'values'.",
+        japanese: "array argument「@labels」の型が parameter「values」と一致しません。"
+      },
+      {
+        family: "geometry value-for source",
+        source: "nui 1\nconst scalar: number = 1\nconst bad: point[] = for item in @scalar { @item }",
+        code: "geometry-array-value-for-source-invalid",
+        parameters: { source: "@scalar" },
+        fallback: "value-for source「@scalar」は解決できない geometry collection です。",
+        english: "Value-for source '@scalar' must resolve to a whole-value geometry collection.",
+        japanese: "value-for source「@scalar」には解決可能な whole-value geometry collection reference が必要です。"
+      },
+      {
+        family: "geometry array member undefined",
+        source: "nui 1\nconst bad: point[] = [@missing]",
+        code: "geometry-array-member-undefined",
+        parameters: { member: "@missing" },
+        fallback: "未解決の geometry array member です: @missing",
+        english: "Geometry array member '@missing' could not be resolved.",
+        japanese: "geometry array member「@missing」を解決できません。"
+      },
+      {
+        family: "geometry array reference undefined",
+        source: "nui 1\nconst bad: point[] = @missing",
+        code: "geometry-array-reference-undefined",
+        parameters: { reference: "@missing" },
+        fallback: "未解決の geometry array 参照です: @missing",
+        english: "Geometry array reference '@missing' could not be resolved.",
+        japanese: "未解決のgeometry array参照です: @missing"
+      },
+    ] as const;
+
+    for (const testCase of cases) {
+      const document = AutomationDocument.fromSource(testCase.source);
+      const diagnostic = compilerDiagnosticsForState(document.getSource(), document.getState()).find(
+        (candidate) => candidate.code === testCase.code
+      );
+      if (!diagnostic) throw new Error(`missing production ${testCase.family} diagnostic ${testCase.code}`);
+      expect(diagnostic.message).toBe(testCase.fallback);
+      expect(diagnostic.presentation).toEqual({ key: `diagnostic.${testCase.code}`, parameters: testCase.parameters });
+      const identity = { severity: diagnostic.severity, code: diagnostic.code, source: diagnostic.source, range: diagnostic.range };
+      expect(diagnosticTextFor(diagnostic, "en")).toBe(testCase.english);
+      expect(diagnosticTextFor(diagnostic, "ja-JP")).toBe(testCase.japanese);
+      expect({ severity: diagnostic.severity, code: diagnostic.code, source: diagnostic.source, range: diagnostic.range }).toEqual(identity);
+    }
+  });
+
   const missingValue = () => {
     const source = "nui 1\npoint A = coordinate(x: 0, y: )\n";
     const document = AutomationDocument.fromSource(source);
