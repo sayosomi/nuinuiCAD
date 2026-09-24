@@ -336,11 +336,21 @@ export type CompileDslDocumentOptions = {
   moduleRuntimeContext?: ModuleRuntimeContext;
 };
 
-const versionDiagnostic = (line: number, message: string): DslDiagnostic => ({
+const versionDiagnostic = (
+  line: number,
+  message: string,
+  code: string,
+  parameters?: Readonly<Record<string, string | number | boolean>>
+): DslDiagnostic => ({
   severity: "error",
   line,
   column: 1,
-  message
+  message,
+  code,
+  presentation: {
+    key: `diagnostic.${code}`,
+    ...(parameters ? { parameters } : {})
+  }
 });
 
 /** Attach the code-derived presentation identity at the document boundary for
@@ -790,19 +800,34 @@ const validateVersionStatements = (
   const firstStatement = statements[0];
 
   if (!firstStatement) {
-    diagnostics.push(versionDiagnostic(1, "文書が空です。先頭に `nui 1` が必要です。"));
+    diagnostics.push(versionDiagnostic(
+      1,
+      "文書が空です。先頭に `nui 1` が必要です。",
+      "missing-version-declaration"
+    ));
   } else if (firstStatement.kind !== "version") {
-    diagnostics.push(versionDiagnostic(firstStatement.line, "文書の先頭は `nui <バージョン>` である必要があります。"));
+    diagnostics.push(versionDiagnostic(
+      firstStatement.line,
+      "文書の先頭は `nui <バージョン>` である必要があります。",
+      "version-declaration-not-first"
+    ));
   } else {
     const value = Number(firstStatement.value.trim());
     if (!Number.isInteger(value) || value <= 0) {
-      diagnostics.push(versionDiagnostic(firstStatement.line, `不正なDSLバージョンです: ${firstStatement.value}`));
+      diagnostics.push(versionDiagnostic(
+        firstStatement.line,
+        `不正なDSLバージョンです: ${firstStatement.value}`,
+        "invalid-dsl-version",
+        { version: firstStatement.value }
+      ));
     } else if (!isSupportedDslMajorVersion(value)) {
       unsupportedMajor = value;
       diagnostics.push(
         versionDiagnostic(
           firstStatement.line,
-          `未対応のDSLバージョンです: ${value}(対応: ${SUPPORTED_DSL_MAJOR_VERSIONS.join(", ")})`
+          `未対応のDSLバージョンです: ${value}(対応: ${SUPPORTED_DSL_MAJOR_VERSIONS.join(", ")})`,
+          "unsupported-dsl-version",
+          { version: String(value), supported: SUPPORTED_DSL_MAJOR_VERSIONS.join(", ") }
         )
       );
     } else {
@@ -810,7 +835,11 @@ const validateVersionStatements = (
     }
   }
   for (const extra of versionStatements.slice(1)) {
-    diagnostics.push(versionDiagnostic(extra.line, "`nui` は文書の先頭に1つだけ書けます。"));
+    diagnostics.push(versionDiagnostic(
+      extra.line,
+      "`nui` は文書の先頭に1つだけ書けます。",
+      "duplicate-version-declaration"
+    ));
   }
   // 重複headerは(先頭が有効でも)どのmajorが正なのか曖昧なため、確定させない。
   if (versionStatements.length > 1) majorVersion = null;
@@ -2469,13 +2498,21 @@ export const compileDslDocument = (
     if (!sourceLexicalNamespace || !stableStatementIdByIndex || !immutableCarryCompilation) return { values: [], carries: [] };
     const values: ScalarProgramCollection[] = [];
     const carries: import("../scalars/bindingVersions").ImmutableCollectionCarry[] = [];
-    const diagnostic = (declaration: typeof immutableCarryCompilation.declarations[number], message: string) => {
+    const diagnostic = (
+      declaration: typeof immutableCarryCompilation.declarations[number],
+      message: string,
+      collectionKind: "collection" | "geometry collection"
+    ) => {
       carryCollectionDiagnostics.push({
         severity: "error",
         line: parsed.statements[declaration.ownerStatementIndex]?.line ?? 1,
         column: declaration.initializerSpan.start + 1,
         code: "carry-collection-expression-invalid",
         message,
+        presentation: {
+          key: "diagnostic.carry-collection-expression-invalid",
+          parameters: { name: declaration.name, collectionKind }
+        },
         logicalSpan: declaration.initializerSpan,
         statementIndex: declaration.ownerStatementIndex
       });
@@ -2583,7 +2620,11 @@ export const compileDslDocument = (
       const nextDeclaration = { ...declaration, initializer: next.expression, initializerSpan: next.expressionSpan };
       const nextDescriptor = descriptorFor(nextDeclaration, next.expression, nextValueId);
       if (!initializer || !nextDescriptor) {
-        diagnostic(declaration, `carry「${declaration.name}」の collection initializer/next は宣言された collection 型と一致する必要があります。`);
+        diagnostic(
+          declaration,
+          `carry「${declaration.name}」の collection initializer/next は宣言された collection 型と一致する必要があります。`,
+          "collection"
+        );
         continue;
       }
       values.push(initializer, nextDescriptor);
@@ -4002,6 +4043,10 @@ export const compileDslDocument = (
           column: declaration.initializerSpan.start + 1,
           code: "carry-geometry-type-mismatch",
           message: `carry「${declaration.name}」の geometry initializer は宣言された型と一致する必要があります。`,
+          presentation: {
+            key: "diagnostic.carry-geometry-type-mismatch",
+            parameters: { name: declaration.name, position: "initializer" }
+          },
           logicalSpan: declaration.initializerSpan,
           statementIndex: declaration.ownerStatementIndex
         });
@@ -4013,6 +4058,10 @@ export const compileDslDocument = (
           column: next.expressionSpan.start + 1,
           code: "carry-geometry-type-mismatch",
           message: `carry「${declaration.name}」の geometry next は宣言された型と一致する必要があります。`,
+          presentation: {
+            key: "diagnostic.carry-geometry-type-mismatch",
+            parameters: { name: declaration.name, position: "next" }
+          },
           logicalSpan: next.expressionSpan,
           statementIndex: next.statementIndex
         });
@@ -4053,6 +4102,10 @@ export const compileDslDocument = (
           column: declaration.initializerSpan.start + 1,
           code: "carry-collection-expression-invalid",
           message: `carry「${declaration.name}」の geometry collection initializer/next は宣言された collection 型と一致する必要があります。`,
+          presentation: {
+            key: "diagnostic.carry-collection-expression-invalid",
+            parameters: { name: declaration.name, collectionKind: "geometry collection" }
+          },
           logicalSpan: declaration.initializerSpan,
           statementIndex: declaration.ownerStatementIndex
         });
@@ -4064,6 +4117,10 @@ export const compileDslDocument = (
           column: next.expressionSpan.start + 1,
           code: "carry-collection-expression-invalid",
           message: `carry「${declaration.name}」の geometry collection next は宣言された collection 型と一致する必要があります。`,
+          presentation: {
+            key: "diagnostic.carry-collection-expression-invalid",
+            parameters: { name: declaration.name, collectionKind: "geometry collection" }
+          },
           logicalSpan: next.expressionSpan,
           statementIndex: next.statementIndex
         });
