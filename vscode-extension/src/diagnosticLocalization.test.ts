@@ -72,6 +72,14 @@ describe("diagnostic presentation localization", () => {
     });
 
     const identity = { code: diagnostic.code, source: diagnostic.source, range: diagnostic.range };
+    expect(identity).toEqual({
+      code: "settings-missing-statement-name",
+      source: "nuinuiCAD",
+      range: {
+        start: { line: 1, character: 0 },
+        end: { line: 1, character: 6 }
+      }
+    });
     const englishProblems = diagnosticTextFor(diagnostic, "en");
     const japaneseProblems = diagnosticTextFor(diagnostic, "ja-JP");
     expect(englishProblems).toBe("The layout statement requires a name.");
