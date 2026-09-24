@@ -32,6 +32,7 @@
   "command.replaceGeometryReferences.title": "nuinuiCAD: ジオメトリ参照を置換",
   "command.stepSourceValueForward.title": "nuinuiCAD: ソース値を次へ進める",
   "command.stepSourceValueBackward.title": "nuinuiCAD: ソース値を前へ戻す",
+  "command.generateRandomNumber.title": "ランダムな数値を生成",
   "command.canvasUndo.title": "nuinuiCAD: Canvasの遷移を元に戻す",
   "command.canvasRedo.title": "nuinuiCAD: Canvasの遷移をやり直す",
   "command.outputPreviewUndo.title": "nuinuiCAD: Output Previewのソース編集を元に戻す",

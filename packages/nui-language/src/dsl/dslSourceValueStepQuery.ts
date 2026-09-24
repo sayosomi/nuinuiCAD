@@ -40,7 +40,7 @@ export type DslSourceValueStepPlan = {
 const semanticSourceText = (semantic: DslSourceValueStepSemanticSnapshot) =>
   semantic.sourceText ?? semantic.compiled?.spans.sourceMap.source;
 
-const exactSemantic = (
+export const isExactDslSourceSemantic = (
   source: SourceSnapshot,
   semantic: DslSourceValueStepSemanticSnapshot | undefined
 ): semantic is DslSourceValueStepSemanticSnapshot & { compiled: CompiledDslDocument } => Boolean(
@@ -170,7 +170,7 @@ export const queryDslSourceValueStep = ({
   selections,
   direction
 }: DslSourceValueStepQueryInput): DslSourceValueStepPlan | null => {
-  if (!exactSemantic(source, semantic) || selections.length !== 1) return null;
+  if (!isExactDslSourceSemantic(source, semantic) || selections.length !== 1) return null;
   const selection = selections[0]!;
   if (
     selection.start < 0 || selection.end < selection.start ||

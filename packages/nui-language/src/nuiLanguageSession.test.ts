@@ -116,6 +116,34 @@ describe("NuiLanguageSession", () => {
     });
   });
 
+  it("returns random-number source edits through the exact-current session boundary", () => {
+    const source = "nui 1\nconst count: number = 12.34";
+    const session = createNuiLanguageSession(source);
+    const firstStart = source.indexOf("12.34");
+    const first = session.randomNumberSourceEditForSelections(
+      [{ start: firstStart + 2, end: firstStart + 2 }],
+      "0.625"
+    );
+    expect(first).toMatchObject({
+      edit: { from: firstStart, to: firstStart + 5, expectedText: "12.34", newText: "0.625" }
+    });
+
+    const nextSource = source.replace("12.34", "56.78");
+    session.replaceSource(nextSource);
+    const nextStart = nextSource.indexOf("56.78");
+    const next = session.randomNumberSourceEditForSelections(
+      [{ start: nextStart + 2, end: nextStart + 2 }],
+      "0.125"
+    );
+    expect(next?.sourceRevision).toBeGreaterThan(first!.sourceRevision);
+    expect(next?.edit).toEqual({
+      from: nextStart,
+      to: nextStart + 5,
+      expectedText: "56.78",
+      newText: "0.125"
+    });
+  });
+
   it("returns quick-fix plans with exact expected text for typo, choice, type, and category repairs", () => {
     const typo = createNuiLanguageSession([
       "nui 1",

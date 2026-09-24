@@ -54,6 +54,10 @@ import {
   queryDslSourceValueStep,
   type DslSourceValueStepPlan
 } from "./dsl/dslSourceValueStepQuery";
+import {
+  queryDslRandomNumberSourceEdit,
+  type DslRandomNumberSourceEditPlan
+} from "./dsl/dslRandomNumberSourceEditQuery";
 import { queryDslThemeRoleColors, type DslThemeRoleColor } from "./dsl/dslThemeRoleColorQuery";
 import {
   isDslTypoSuggestionDiagnosticCode,
@@ -425,6 +429,21 @@ export class NuiLanguageSession {
       semantic: semantic ?? undefined,
       selections: [selection],
       direction
+    });
+  }
+
+  randomNumberSourceEditForSelections(
+    selections: readonly { start: number; end: number }[],
+    generatedLiteral: string
+  ): DslRandomNumberSourceEditPlan | null {
+    const state = this.document.getState();
+    const source = exactSourceFor(this.getSource(), this.getSourceRevision());
+    const semantic = completionSemanticFor(state, source);
+    return queryDslRandomNumberSourceEdit({
+      source,
+      semantic: semantic ?? undefined,
+      selections,
+      generatedLiteral
     });
   }
 
