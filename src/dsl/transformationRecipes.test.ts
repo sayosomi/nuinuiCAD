@@ -74,17 +74,85 @@ describe("nui1 declarative transformation recipes", () => {
     expect(codes).toContain("invalid-final-transformation-target");
     expect(codes).toContain("transformation-stage-property-collision");
     expect(codes).toContain("reserved-transformation-stage-name");
+    expect(errors(result).find((diagnostic) => diagnostic.code === "duplicate-transformation-stage")?.presentation).toEqual({
+      key: "diagnostic.duplicate-transformation-stage",
+      parameters: { stage: "moved" }
+    });
+    expect(errors(result).find((diagnostic) => diagnostic.code === "transformation-stage-property-collision")?.presentation).toEqual({
+      key: "diagnostic.transformation-stage-property-collision",
+      parameters: { stage: "length" }
+    });
+    expect(errors(result).find((diagnostic) => diagnostic.code === "reserved-transformation-stage-name")?.presentation).toEqual({
+      key: "diagnostic.reserved-transformation-stage-name",
+      parameters: { stage: "base" }
+    });
   });
 
   it("rejects removed mutation syntax and occurrence-after-stage spelling", () => {
     const oldSyntax = parseDslCallStatement("move(targets: [A], from: @P1, to: @P2)");
-    expect(oldSyntax.diagnostics.some((diagnostic) => diagnostic.code === "malformed-transformation-target")).toBe(true);
+    expect(oldSyntax.diagnostics.find((diagnostic) => diagnostic.code === "malformed-transformation-target")?.presentation).toEqual({
+      key: "diagnostic.malformed-transformation-target"
+    });
     const malformed = compile([
       "line A = segment(start: (0, 0), end: (10, 0))",
       "move A as shifted (from: (0, 0), to: (1, 0))",
       "reverse A.shifted[2] ()"
     ].join("\n"));
-    expect(errors(malformed).map((diagnostic) => diagnostic.code)).toContain("malformed-transformation-target");
+    expect(errors(malformed).find((diagnostic) => diagnostic.code === "malformed-transformation-target")?.presentation).toEqual({
+      key: "diagnostic.malformed-transformation-target",
+      parameters: { target: "A.shifted[2]" }
+    });
+  });
+
+  it("preserves transformation target, operation, occurrence, and stage facts in diagnostic parameters", () => {
+    const unresolvedSource = "line A = segment(start: (0, 0), end: (10, 0))\nreverse Missing ()";
+    const unresolvedLegacy = errors(compile(unresolvedSource)).find(
+      (diagnostic) => diagnostic.code === "unresolved-transformation-target"
+    );
+    expect(unresolvedLegacy?.presentation).toEqual({
+      key: "diagnostic.unresolved-transformation-target",
+      parameters: { target: "@Missing" }
+    });
+
+    const unresolvedLexical = compileDslDocument(`nui 1\n${unresolvedSource}`).diagnostics.find(
+      (diagnostic) => diagnostic.code === "unresolved-transformation-target"
+    );
+    expect(unresolvedLexical?.presentation).toEqual({
+      key: "diagnostic.unresolved-transformation-target",
+      parameters: { target: "@Missing" }
+    });
+
+    const incompatible = compile([
+      "line A = segment(start: (0, 0), end: (10, 0))",
+      "move A.start as endpoint (from: (0, 0), to: (1, 0))",
+      "edge [A.start] (index: 0)"
+    ].join("\n"));
+    expect(errors(incompatible).find((diagnostic) =>
+      diagnostic.code === "transformation-target-kind-incompatible" && diagnostic.presentation?.parameters?.target === "A.start"
+    )?.presentation).toEqual({
+      key: "diagnostic.transformation-target-kind-incompatible",
+      parameters: { operation: "move", target: "A.start" }
+    });
+    expect(errors(incompatible).find((diagnostic) =>
+      diagnostic.code === "transformation-target-kind-incompatible" && diagnostic.presentation?.parameters?.operation === "edge"
+    )?.presentation).toEqual({
+      key: "diagnostic.transformation-target-kind-incompatible",
+      parameters: { operation: "edge" }
+    });
+
+    const selectorDiagnostics = errors(compile([
+      "line A = segment(start: (0, 0), end: (10, 0))",
+      "reverse A[2] ()",
+      "reverse A.missing ()"
+    ].join("\n")));
+    expect(selectorDiagnostics.find((diagnostic) => diagnostic.code === "generated-occurrence-unavailable")?.presentation).toEqual({
+      key: "diagnostic.generated-occurrence-unavailable",
+      parameters: { target: "A[2]" }
+    });
+    expect(selectorDiagnostics.find((diagnostic) => diagnostic.code === "unresolved-transformation-stage")?.presentation).toEqual({
+      key: "diagnostic.unresolved-transformation-stage",
+      parameters: { stage: "missing", target: "A.missing" }
+    });
   });
 
   it("serializes selectors in the header and preserves enabled false", () => {

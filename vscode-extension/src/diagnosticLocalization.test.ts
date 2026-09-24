@@ -282,6 +282,70 @@ describe("diagnostic presentation localization", () => {
     }
   });
 
+  it("localizes production transformation diagnostics from structured parameters without changing identity", () => {
+    const cases = [
+      {
+        family: "unresolved target",
+        source: "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nreverse Missing ()",
+        code: "unresolved-transformation-target",
+        parameters: { target: "@Missing" },
+        fallback: "transformation target「@Missing」を解決できません。",
+        english: "Transformation target '@Missing' could not be resolved as a geometry.",
+        japanese: "transformation target「@Missing」を geometry として解決できません。"
+      },
+      {
+        family: "incompatible operation target",
+        source: "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nmove A.start as endpoint (from: (0, 0), to: (1, 0))",
+        code: "transformation-target-kind-incompatible",
+        parameters: { operation: "move", target: "A.start" },
+        fallback: "move は endpoint ではなく owner / stage を対象にします。",
+        english: "The transformation target is incompatible with operation 'move'.",
+        japanese: "transformation target は operation「move」と互換性がありません。"
+      },
+      {
+        family: "unavailable generated occurrence",
+        source: "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nreverse A[2] ()",
+        code: "generated-occurrence-unavailable",
+        parameters: { target: "A[2]" },
+        fallback: "明示された generated occurrence「A[2]」は利用できません。",
+        english: "Generated occurrence 'A[2]' is unavailable.",
+        japanese: "generated occurrence「A[2]」は利用できません。"
+      },
+      {
+        family: "unresolved stage",
+        source: "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nreverse A.missing ()",
+        code: "unresolved-transformation-stage",
+        parameters: { stage: "missing", target: "A.missing" },
+        fallback: "stage「missing」はこの位置では利用できません。",
+        english: "Transformation stage 'missing' is not available at this point.",
+        japanese: "transformation stage「missing」はこの位置では利用できません。"
+      },
+      {
+        family: "reserved stage name",
+        source: "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nreverse A as base ()",
+        code: "reserved-transformation-stage-name",
+        parameters: { stage: "base" },
+        fallback: "stage name「base」は予約されています。",
+        english: "Transformation stage name 'base' is reserved.",
+        japanese: "transformation stage name「base」は予約されています。"
+      }
+    ] as const;
+
+    for (const testCase of cases) {
+      const diagnostic = automationDiagnosticsFor(testCase.source).find((candidate) => candidate.code === testCase.code);
+      if (!diagnostic) throw new Error(`missing production ${testCase.family} diagnostic ${testCase.code}`);
+      expect(diagnostic.message).toBe(testCase.fallback);
+      expect(diagnostic.presentation).toEqual({ key: `diagnostic.${testCase.code}`, parameters: testCase.parameters });
+      const identity = { severity: diagnostic.severity, code: diagnostic.code, source: diagnostic.source, range: diagnostic.range };
+      expect(identity.severity).toBe("error");
+      expect(identity.source).toBe("nuinuiCAD");
+      expect(identity.range).toBeDefined();
+      expect(diagnosticTextFor(diagnostic, "en")).toBe(testCase.english);
+      expect(diagnosticTextFor(diagnostic, "ja-JP")).toBe(testCase.japanese);
+      expect({ severity: diagnostic.severity, code: diagnostic.code, source: diagnostic.source, range: diagnostic.range }).toEqual(identity);
+    }
+  });
+
   it("localizes parameterized geometry and collection diagnostics without changing producer identity", () => {
     const cases = [
       {
@@ -758,6 +822,9 @@ describe("diagnostic presentation localization", () => {
     if (!diagnostic) throw new Error(`missing production ${testCase.family} diagnostic ${testCase.code}`);
 
     expect(diagnostic.presentation?.key).toBe(`diagnostic.${testCase.code}`);
+    if (testCase.code === "malformed-transformation-target") {
+      expect(diagnostic.presentation).toEqual({ key: "diagnostic.malformed-transformation-target" });
+    }
     const identity = { code: diagnostic.code, source: diagnostic.source, range: diagnostic.range };
     expect(diagnosticTextFor(diagnostic, "en")).toBe(testCase.english);
     expect(diagnosticTextFor(diagnostic, "ja-JP")).toBe(testCase.japanese);
