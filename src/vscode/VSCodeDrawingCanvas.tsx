@@ -732,9 +732,18 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       renderCanvasModeChrome: () => canvasModalMode === "coordinate-point-creation" ? (
         <CanvasModeStatus model={{
           title: "COORDINATE POINTS",
-          instruction: "Canvasをクリックして座標点を作成",
-          finishLabel: "作成を終了",
-          finishHint: "Enter で作成を終了",
+          instruction: canvasPresentationAdapter.text(
+            "canvas.coordinatePointCreation.instruction",
+            "Click the Canvas to create coordinate points"
+          ),
+          finishLabel: canvasPresentationAdapter.text(
+            "canvas.coordinatePointCreation.finish",
+            "Finish"
+          ),
+          finishHint: canvasPresentationAdapter.text(
+            "canvas.coordinatePointCreation.finishHint",
+            "Press Enter to finish"
+          ),
           onFinish: onFinishCoordinatePointCreation ?? (() => undefined)
         }} />
       ) : referencePickSession && referencePickPresentationContext &&
