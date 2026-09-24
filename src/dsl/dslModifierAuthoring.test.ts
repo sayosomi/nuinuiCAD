@@ -5,6 +5,15 @@ import { queryDslDefinition } from "@nuinuicad/nui-language";
 import { planDslRenameEditsResult } from "@nuinuicad/nui-language";
 import { parseDslSnapshot } from "@nuinuicad/nui-language";
 import { createModifierAuthoringIndex } from "@nuinuicad/nui-language";
+import {
+  parseModifierColorValue,
+  parseModifierFillOpacityValue,
+  parseModifierFillValue,
+  parseModifierLineTypeValue,
+  parseModifierVisibleValue,
+  parseModifierWidthValue,
+  resolveModifierValueStep
+} from "@nuinuicad/nui-language";
 
 const source = [
   "nui 1",
@@ -40,6 +49,43 @@ const completionAt = (text: string, position: number) => queryDslCompletion({
 });
 
 describe("style authoring semantics", () => {
+  it("attaches stable codes to producer-owned invalid modifier values", () => {
+    expect(parseModifierWidthValue("0px")).toEqual({
+      message: "style の width は正の有限な10進数pxリテラルで指定してください(例: 1.5px)。",
+      code: "style-width-invalid"
+    });
+    expect(parseModifierLineTypeValue("stripe")).toEqual({
+      message: "style の lineType は solid / dashed / dotted のいずれかで指定してください。",
+      code: "style-line-type-invalid"
+    });
+    expect(parseModifierVisibleValue("maybe")).toEqual({
+      message: "style の visible は true / false のいずれかで指定してください。",
+      code: "style-visible-invalid"
+    });
+    expect(parseModifierColorValue("#12")).toEqual({
+      message: "style の color 固定色は #RRGGBB の形式で指定してください。",
+      code: "style-color-fixed-invalid"
+    });
+    expect(parseModifierColorValue("brand")).toEqual({
+      message: "style の color は foreground / muted / accent / info / warning / error または #RRGGBB で指定してください。",
+      code: "style-color-invalid"
+    });
+    expect(parseModifierFillValue("brand")).toEqual({
+      message: "style の fill は foreground / muted / accent / info / warning / error、#RRGGBB、または none で指定してください。",
+      code: "style-fill-invalid"
+    });
+    expect(parseModifierFillOpacityValue("wat")).toEqual({
+      message: "style の fillOpacity は有限な数値で指定してください。",
+      code: "style-fill-opacity-invalid-number"
+    });
+    expect(parseModifierFillOpacityValue("1.1")).toEqual({
+      message: "style の fillOpacity は 0 以上 1 以下で指定してください。",
+      code: "style-fill-opacity-out-of-range"
+    });
+    expect(resolveModifierValueStep("width", "width", "1.5", 1)).toEqual({ insert: "1.6" });
+    expect(resolveModifierValueStep("fillOpacity", "value", "0.5", 1)).toEqual({ insert: "0.6" });
+  });
+
   it("keeps exact parser-owned width/unit and color sub-token spans", () => {
     const result = compiled();
     const property = result.statements.find((statement) => statement.kind === "modifierProperty" && statement.property.key === "width");

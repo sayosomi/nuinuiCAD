@@ -18,6 +18,7 @@ export const modifierPropertySchema = [
 export type ModifierPropertyKey = (typeof modifierPropertySchema)[number]["key"];
 export type ModifierAuthoringTokenKind = "value" | "width" | "unit" | "style" | "themeRole" | "fixedColor";
 export type ModifierAuthoringToken = { kind: ModifierAuthoringTokenKind; span: DslSpan };
+export type ModifierValueParseFailure = { message: string; code: string };
 
 export const modifierPropertyMetadata = (key: string) =>
   modifierPropertySchema.find((property) => property.key === key) ?? null;
@@ -26,52 +27,52 @@ const styles = new Set<DrawingModifierStrokeStyle>(["solid", "dashed", "dotted"]
 const themeRoles = new Set(["foreground", "muted", "accent", "info", "warning", "error"] as const);
 const fixedColor = /^#[0-9a-fA-F]{6}$/;
 
-export const parseModifierWidthValue = (value: string): { value: number } | { message: string } => {
+export const parseModifierWidthValue = (value: string): { value: number } | ModifierValueParseFailure => {
   const match = value.trim().match(/^(\d+(?:\.\d*)?|\.\d+)px$/);
   const width = match ? Number(match[1]) : NaN;
   return match && Number.isFinite(width) && width > 0
     ? { value: width }
-    : { message: "style の width は正の有限な10進数pxリテラルで指定してください(例: 1.5px)。" };
+    : { message: "style の width は正の有限な10進数pxリテラルで指定してください(例: 1.5px)。", code: "style-width-invalid" };
 };
 
-export const parseModifierLineTypeValue = (value: string): { value: DrawingModifierStrokeStyle } | { message: string } =>
+export const parseModifierLineTypeValue = (value: string): { value: DrawingModifierStrokeStyle } | ModifierValueParseFailure =>
   styles.has(value as DrawingModifierStrokeStyle)
     ? { value: value as DrawingModifierStrokeStyle }
-    : { message: "style の lineType は solid / dashed / dotted のいずれかで指定してください。" };
+    : { message: "style の lineType は solid / dashed / dotted のいずれかで指定してください。", code: "style-line-type-invalid" };
 
-export const parseModifierVisibleValue = (value: string): { value: boolean } | { message: string } =>
+export const parseModifierVisibleValue = (value: string): { value: boolean } | ModifierValueParseFailure =>
   value === "true" ? { value: true } : value === "false"
     ? { value: false }
-    : { message: "style の visible は true / false のいずれかで指定してください。" };
+    : { message: "style の visible は true / false のいずれかで指定してください。", code: "style-visible-invalid" };
 
-export const parseModifierColorValue = (value: string): { value: DrawingModifierStrokeColor } | { message: string } => {
+export const parseModifierColorValue = (value: string): { value: DrawingModifierStrokeColor } | ModifierValueParseFailure => {
   if (themeRoles.has(value as never)) return { value: { kind: "themeRole", role: value as DrawingModifierStrokeColor & { role: never }["role"] } };
   if (value.startsWith("#")) {
     return fixedColor.test(value)
       ? { value: { kind: "fixed", hex: value.toLowerCase() } }
-      : { message: "style の color 固定色は #RRGGBB の形式で指定してください。" };
+      : { message: "style の color 固定色は #RRGGBB の形式で指定してください。", code: "style-color-fixed-invalid" };
   }
-  return { message: "style の color は foreground / muted / accent / info / warning / error または #RRGGBB で指定してください。" };
+  return { message: "style の color は foreground / muted / accent / info / warning / error または #RRGGBB で指定してください。", code: "style-color-invalid" };
 };
 
-export const parseModifierFillValue = (value: string): { value: DrawingModifierFill } | { message: string } => {
+export const parseModifierFillValue = (value: string): { value: DrawingModifierFill } | ModifierValueParseFailure => {
   if (value === "none") return { value: { kind: "none" } };
   const parsed = parseModifierColorValue(value);
   return "message" in parsed
-    ? { message: "style の fill は foreground / muted / accent / info / warning / error、#RRGGBB、または none で指定してください。" }
+    ? { message: "style の fill は foreground / muted / accent / info / warning / error、#RRGGBB、または none で指定してください。", code: "style-fill-invalid" }
     : { value: parsed.value };
 };
 
 const decimalNumber = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/;
 
-export const parseModifierFillOpacityValue = (value: string): { value: number } | { message: string } => {
+export const parseModifierFillOpacityValue = (value: string): { value: number } | ModifierValueParseFailure => {
   const text = value.trim();
   const opacity = Number(text);
   if (!decimalNumber.test(text) || !Number.isFinite(opacity)) {
-    return { message: "style の fillOpacity は有限な数値で指定してください。" };
+    return { message: "style の fillOpacity は有限な数値で指定してください。", code: "style-fill-opacity-invalid-number" };
   }
   if (opacity < 0 || opacity > 1) {
-    return { message: "style の fillOpacity は 0 以上 1 以下で指定してください。" };
+    return { message: "style の fillOpacity は 0 以上 1 以下で指定してください。", code: "style-fill-opacity-out-of-range" };
   }
   return { value: opacity };
 };
