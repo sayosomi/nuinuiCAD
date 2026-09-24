@@ -17,6 +17,11 @@ import {
 } from "./canvasTheme";
 import type { CanvasOverlayImage } from "./DrawingCanvasTypes";
 import { CANVAS_BASE_DRAW_ORDER } from "./canvasDrawOrder";
+import {
+  DEFAULT_CANVAS_GRID_SETTINGS,
+  normalizeCanvasGridSettings,
+  type CanvasGridSettings
+} from "./canvasGrid";
 import { imageAssetForSource } from "./imageAssetCache";
 import type { ViewportSize } from "./canvasViewport";
 import {
@@ -25,31 +30,30 @@ import {
   worldToScreen
 } from "./canvasViewport";
 
-const GRID_STEP = 10;
-const MAJOR_GRID_MULTIPLIER = 5;
 const MIN_GRID_SPACING_PX = 8;
-const GRID_ENABLED = true;
 const AXIS_GRID_LINE_DASH = [6, 4];
 
 const drawGrid = (
   ctx: CanvasRenderingContext2D,
   size: ViewportSize,
   viewport: CanvasViewport,
-  canvasTheme: CanvasTheme
+  canvasTheme: CanvasTheme,
+  canvasGridSettings: CanvasGridSettings
 ) => {
   ctx.setLineDash([]);
   ctx.clearRect(0, 0, size.width, size.height);
   ctx.fillStyle = canvasTheme.background;
   ctx.fillRect(0, 0, size.width, size.height);
 
-  if (!GRID_ENABLED) return;
+  const normalizedSettings = normalizeCanvasGridSettings(canvasGridSettings);
+  if (!normalizedSettings.enabled) return;
 
   const step = visibleGridStep(viewport.zoom, {
-    gridStep: GRID_STEP,
-    majorGridMultiplier: MAJOR_GRID_MULTIPLIER,
+    gridStep: normalizedSettings.spacingMm,
+    majorGridMultiplier: normalizedSettings.majorEvery,
     minGridSpacingPx: MIN_GRID_SPACING_PX
   });
-  const majorStep = step * MAJOR_GRID_MULTIPLIER;
+  const majorStep = step * normalizedSettings.majorEvery;
   const bounds = visibleWorldBounds(size, viewport);
   const startX = Math.floor(bounds.minX / step) * step;
   const endX = Math.ceil(bounds.maxX / step) * step;
@@ -102,6 +106,7 @@ type RenderCanvasGeometryArgs = {
   selectedElementId: ElementId | null;
   effectiveDrawingModifierStrokes?: ReadonlyMap<ElementId, DrawingModifierStroke>;
   canvasTheme?: CanvasTheme;
+  canvasGridSettings?: CanvasGridSettings;
   showCanvasPoints: boolean;
   isPointPickActive: boolean;
   isNumericReferencePickActive: boolean;
@@ -236,13 +241,14 @@ export const renderCanvasGeometry = ({
   selectedElementId,
   effectiveDrawingModifierStrokes,
   canvasTheme = LEGACY_CANVAS_THEME,
+  canvasGridSettings = DEFAULT_CANVAS_GRID_SETTINGS,
   showCanvasPoints,
   isPointPickActive,
   isNumericReferencePickActive,
   isLinePickActive,
   onImageAssetSettled
 }: RenderCanvasGeometryArgs) => {
-  drawGrid(ctx, size, viewport, canvasTheme);
+  drawGrid(ctx, size, viewport, canvasTheme, canvasGridSettings);
 
   ctx.lineCap = "round";
   ctx.lineJoin = "round";

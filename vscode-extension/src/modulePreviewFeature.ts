@@ -33,6 +33,12 @@ import type {
 } from "../../src/vscode/protocol";
 import type { VscodeCanvasRibbon } from "../../src/vscode/vscodeCanvasRibbonConfig";
 import {
+  CANVAS_GRID_SETTING_KEYS,
+  DEFAULT_CANVAS_GRID_SETTINGS,
+  normalizeCanvasGridSettings,
+  type CanvasGridSettings
+} from "../../src/components/canvasGrid";
+import {
   currentCompiledSemanticSnapshotFor,
   type NuiLanguageAnalysisSession
 } from "./languageAnalysisSession";
@@ -122,6 +128,7 @@ export type RegisterModulePreviewFeatureOptions = {
   canvasThemeGeneration: () => number;
   webviewHtml: (panel: vscode.WebviewPanel) => string;
   canvasRibbons: () => VscodeCanvasRibbon[];
+  canvasGridSettings?: () => CanvasGridSettings;
   updateCanvasRibbonPosition: (ribbonId: string, x: number, y: number) => Promise<void> | void;
   editCanvasRibbon: () => void;
   evaluateWithRust: (input: unknown) => Promise<unknown>;
@@ -351,6 +358,7 @@ export const registerModulePreviewFeature = ({
   canvasThemeGeneration,
   webviewHtml,
   canvasRibbons,
+  canvasGridSettings = () => DEFAULT_CANVAS_GRID_SETTINGS,
   updateCanvasRibbonPosition,
   editCanvasRibbon,
   evaluateWithRust,
@@ -1383,6 +1391,10 @@ export const registerModulePreviewFeature = ({
           type: "canvasRibbonConfiguration",
           ribbons: canvasRibbons()
         } satisfies ExtensionToVscodeMessage);
+        void panel.webview.postMessage({
+          type: "canvasGridConfiguration",
+          settings: normalizeCanvasGridSettings(canvasGridSettings())
+        } satisfies ExtensionToVscodeMessage);
         refreshInsertContext();
         return;
       }
@@ -1510,13 +1522,23 @@ export const registerModulePreviewFeature = ({
     }
   }));
   const configurationListener = vscode.workspace.onDidChangeConfiguration?.((event) => {
-    if (!event.affectsConfiguration("nuinuiCAD.canvasRibbon.ribbons")) return;
-    const ribbons = canvasRibbons();
-    for (const session of sessions.values()) {
-      void session.panel.webview.postMessage({
-        type: "canvasRibbonConfiguration",
-        ribbons
-      } satisfies ExtensionToVscodeMessage);
+    if (event.affectsConfiguration("nuinuiCAD.canvasRibbon.ribbons")) {
+      const ribbons = canvasRibbons();
+      for (const session of sessions.values()) {
+        void session.panel.webview.postMessage({
+          type: "canvasRibbonConfiguration",
+          ribbons
+        } satisfies ExtensionToVscodeMessage);
+      }
+    }
+    if (CANVAS_GRID_SETTING_KEYS.some((key) => event.affectsConfiguration(key))) {
+      const settings = normalizeCanvasGridSettings(canvasGridSettings());
+      for (const session of sessions.values()) {
+        void session.panel.webview.postMessage({
+          type: "canvasGridConfiguration",
+          settings
+        } satisfies ExtensionToVscodeMessage);
+      }
     }
   });
   if (configurationListener) disposables.push(configurationListener);

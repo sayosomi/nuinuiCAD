@@ -350,6 +350,7 @@ describe("registerModulePreviewFeature", () => {
     presentBakeOperationResult?: (
       message: Extract<VscodeToExtensionMessage, { type: "bakeOperationResult" }>
     ) => Promise<void> | void;
+    canvasGridSettings?: () => { enabled: boolean; spacingMm: number; majorEvery: number };
   } = {}) => {
     const source = [
       "nui 1",
@@ -374,6 +375,7 @@ describe("registerModulePreviewFeature", () => {
       canvasThemeGeneration: () => 0,
       webviewHtml: () => "<html />",
       canvasRibbons: () => [],
+      canvasGridSettings: options.canvasGridSettings,
       updateCanvasRibbonPosition: () => undefined,
       editCanvasRibbon: () => undefined,
       evaluateWithRust: async () => ({}),
@@ -382,6 +384,29 @@ describe("registerModulePreviewFeature", () => {
     mocks.commandHandlers.get("nuinuiCAD.openModulePreview")!();
     return { source, document, editor, panel, analysis, feature };
   };
+
+  it("publishes initial and live Canvas grid configuration to the open Module Preview", async () => {
+    let settings = { enabled: false, spacingMm: 2.5, majorEvery: 1 };
+    const fixture = openModulePatchFixture({ canvasGridSettings: () => settings });
+
+    await fixture.panel.receive({ type: "webviewReady" });
+    expect(fixture.panel.webview.postMessage).toHaveBeenCalledWith({
+      type: "canvasGridConfiguration",
+      settings
+    });
+
+    fixture.panel.webview.postMessage.mockClear();
+    settings = { enabled: true, spacingMm: 20, majorEvery: 3 };
+    for (const listener of mocks.configurationListeners) {
+      listener({ affectsConfiguration: (section) => section === "nuinuiCAD.canvas.grid.spacingMm" });
+    }
+
+    expect(fixture.panel.webview.postMessage).toHaveBeenCalledWith({
+      type: "canvasGridConfiguration",
+      settings
+    });
+    fixture.feature.dispose();
+  });
 
   const patchRequestFor = (
     fixture: ReturnType<typeof openModulePatchFixture>,

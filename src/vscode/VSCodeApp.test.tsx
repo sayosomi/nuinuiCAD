@@ -10,6 +10,7 @@ import { dslTextForElements } from "@nuinuicad/nui-language";
 import { materializedRuntimeElementId } from "@nuinuicad/nui-language";
 import { sourceOwnerByRuntimeElementId } from "@nuinuicad/nui-language";
 import type { CadElement, EvaluationResult } from "../types/geometry";
+import type { CanvasGridSettings } from "../components/canvasGrid";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import { VSCodeApp as VSCodeAppForTest } from "./VSCodeApp";
@@ -38,6 +39,7 @@ const drawingCanvasProps = vi.hoisted(() => ({
   bakeSandboxTargetIds: null as string[] | null,
   bakeSandboxPromise: null as Promise<unknown> | null,
   multiDocumentRuntimePresentation: null as VscodeMultiDocumentCanvasRuntimePresentation | null,
+  canvasGridSettings: null as CanvasGridSettings | null,
   evaluation: { computedGeometry: new Map(), errors: [], warnings: [] } as EvaluationResult
 }));
 
@@ -68,18 +70,21 @@ vi.mock("./VSCodeDrawingCanvas", () => ({
     postCanvasCommit,
     postCanonicalSourceText,
     currentReferencePickAuthorityFor,
-    multiDocumentRuntimePresentation
+    multiDocumentRuntimePresentation,
+    canvasGridSettings
   }: {
     canvasFocusRef: RefObject<HTMLDivElement | null>;
     postCanvasCommit: (operationId?: number, coordinatePointConversionRequestId?: number) => void;
     postCanonicalSourceText: (sourceText: string) => void;
     currentReferencePickAuthorityFor: VscodeReferencePickAuthorityFor;
     multiDocumentRuntimePresentation?: VscodeMultiDocumentCanvasRuntimePresentation | null;
+    canvasGridSettings?: CanvasGridSettings;
   }) => {
     drawingCanvasProps.postCanvasCommit = postCanvasCommit;
     drawingCanvasProps.postCanonicalSourceText = postCanonicalSourceText;
     drawingCanvasProps.currentReferencePickAuthorityFor = currentReferencePickAuthorityFor;
     drawingCanvasProps.multiDocumentRuntimePresentation = multiDocumentRuntimePresentation ?? null;
+    drawingCanvasProps.canvasGridSettings = canvasGridSettings ?? null;
     return <div ref={canvasFocusRef} data-testid="canvas" tabIndex={-1} />;
   }
 }));
@@ -251,11 +256,32 @@ describe("VSCodeApp Canvas history coordinator", () => {
     drawingCanvasProps.bakeSandboxTargetIds = null;
     drawingCanvasProps.bakeSandboxPromise = null;
     drawingCanvasProps.multiDocumentRuntimePresentation = null;
+    drawingCanvasProps.canvasGridSettings = null;
     drawingCanvasProps.evaluation = { computedGeometry: new Map(), errors: [], warnings: [] };
     evaluationStateControl.isCurrent = true;
   });
 
   afterEach(() => vi.restoreAllMocks());
+
+  it("uses shared Canvas grid defaults and applies received configuration without source mutation", async () => {
+    const api = { postMessage: vi.fn() };
+    render(<VSCodeAppForTest api={api} />);
+
+    expect(drawingCanvasProps.canvasGridSettings).toEqual({ enabled: true, spacingMm: 10, majorEvery: 5 });
+    const sourceBefore = useCadDocumentStore.getState().sourceText;
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "canvasGridConfiguration",
+          settings: { enabled: false, spacingMm: 2.5, majorEvery: 1 }
+        }
+      }));
+    });
+
+    expect(drawingCanvasProps.canvasGridSettings).toEqual({ enabled: false, spacingMm: 2.5, majorEvery: 1 });
+    expect(useCadDocumentStore.getState().sourceText).toBe(sourceBefore);
+  });
 
   it.each([
     ["ja", "Canvas上にポインターを置いてから実行してください。"],

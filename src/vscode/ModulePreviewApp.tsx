@@ -18,6 +18,11 @@ import type {
   CanvasPointDragAction
 } from "../components/canvasHostAdapter";
 import { LEGACY_CANVAS_THEME } from "../components/canvasTheme";
+import {
+  DEFAULT_CANVAS_GRID_SETTINGS,
+  normalizeCanvasGridSettings,
+  type CanvasGridSettings
+} from "../components/canvasGrid";
 import { createCanvasTextWidthMeasurer } from "../components/canvasTextMeasurement";
 import type { ModulePreviewRootResult } from "../dsl/modulePreviewRoot";
 import {
@@ -341,6 +346,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     [webviewPresentation]
   );
   const [preview, setPreview] = useState<ValidModulePreview | null>(null);
+  const [canvasGridSettings, setCanvasGridSettings] = useState<CanvasGridSettings>(DEFAULT_CANVAS_GRID_SETTINGS);
   const [authoredCandidateContext, setAuthoredCandidateContext] = useState<AuthoredModulePreviewCandidateContext | null>(null);
   const [ephemeralElements, setEphemeralElements] = useState<CadElement[] | null>(null);
   const ephemeralElementsRef = useRef<CadElement[] | null>(null);
@@ -1463,6 +1469,10 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         setCanvasRibbonRibbons(message.ribbons);
         return;
       }
+      if (message.type === "canvasGridConfiguration") {
+        setCanvasGridSettings(normalizeCanvasGridSettings(message.settings));
+        return;
+      }
       if (message.type === "canvasCommand") {
         if (message.commandId === "bakeCurrentShape" || message.commandId === "bakeBaseShape") {
           void executeModulePreviewBake(message.commandId, {
@@ -1547,6 +1557,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     evaluationLimitIndex: undefined,
     compiledDocumentRevision: canvasEvaluationRevision,
     canvasTheme,
+    canvasGridSettings,
     presentation: canvasPresentationAdapter,
     visibilityProfiles: preview?.root.compileResult.visibilityProfiles ?? authoredPickContext?.compiled.document?.visibilityProfiles ?? [],
     activeVisibilityProfileId: preview?.root.compileResult.activeVisibilityProfileId ?? authoredPickContext?.compiled.document?.activeVisibilityProfileId ?? null,
@@ -1686,6 +1697,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     api,
     canvasRibbonRibbons,
     canvasTheme,
+    canvasGridSettings,
     canvasPresentationAdapter,
     canvasViewport,
     captureDragProof,

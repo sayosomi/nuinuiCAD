@@ -58,6 +58,8 @@ type ExtensionManifest = {
 type SchemaNode = {
   const?: unknown;
   enum?: unknown[];
+  minimum?: number;
+  exclusiveMinimum?: number;
   required?: string[];
   oneOf?: SchemaNode[];
   properties?: Record<string, SchemaNode>;
@@ -1315,5 +1317,41 @@ describe("VS Code Canvas Ribbon configuration contribution", () => {
     expect(commandSchema?.properties?.commandId).toBeDefined();
     expect(valueSchema?.properties?.valueId).toEqual({ const: "canvasZoom" });
     expect(valueSchema?.properties?.label).toBeUndefined();
+  });
+});
+
+describe("VS Code Canvas grid configuration contribution", () => {
+  it("declares localized settings with safe defaults and numeric validation", async () => {
+    const manifest = await readManifest();
+    const properties = manifest.contributes?.configuration?.properties ?? {};
+
+    expect(properties["nuinuiCAD.canvas.grid.enabled"]).toMatchObject({
+      type: "boolean",
+      default: true,
+      description: "%configuration.canvas.grid.enabled.description%"
+    });
+    expect(properties["nuinuiCAD.canvas.grid.spacingMm"]).toMatchObject({
+      type: "number",
+      default: 10,
+      exclusiveMinimum: 0,
+      description: "%configuration.canvas.grid.spacingMm.description%"
+    });
+    expect(properties["nuinuiCAD.canvas.grid.majorEvery"]).toMatchObject({
+      type: "integer",
+      default: 5,
+      minimum: 1,
+      description: "%configuration.canvas.grid.majorEvery.description%"
+    });
+
+    const english = JSON.parse(await readFile(packageNlsPath, "utf8")) as Record<string, unknown>;
+    const japanese = JSON.parse(await readFile(packageNlsJaPath, "utf8")) as Record<string, unknown>;
+    for (const key of [
+      "configuration.canvas.grid.enabled.description",
+      "configuration.canvas.grid.spacingMm.description",
+      "configuration.canvas.grid.majorEvery.description"
+    ]) {
+      expect(typeof english[key]).toBe("string");
+      expect(typeof japanese[key]).toBe("string");
+    }
   });
 });

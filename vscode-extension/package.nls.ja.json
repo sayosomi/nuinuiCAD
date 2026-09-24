@@ -96,6 +96,9 @@
   "configuration.inlineModule.emitOmittedBranchComments.description": "Inline Module で省略された分岐をコメントとして残します。",
   "configuration.inlineModule.includeHiddenInstances.description": "Inline Module の対象に非表示の Module instance を含めます。",
   "configuration.inlineModule.includeDisabledInstances.description": "Inline Module の対象に無効な Module instance を含めます。",
+  "configuration.canvas.grid.enabled.description": "Canvas のグリッドと軸ガイドを表示します。",
+  "configuration.canvas.grid.spacingMm.description": "Canvas グリッドの基準間隔（ミリメートル）です。",
+  "configuration.canvas.grid.majorEvery.description": "大グリッド線の間隔となるグリッド区切り数です。",
   "configuration.canvasRibbon.ribbons.description": "nuinuiCAD VS Code Canvas に表示するリボンです。",
   "configuration.canvasRibbon.defaultLabel": "Canvas リボン"
 }

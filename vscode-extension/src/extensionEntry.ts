@@ -11,6 +11,7 @@ import {
   activate as activateExtension,
   currentCanvasThemeGeneration,
   extensionDisplayLanguage,
+  normalizedCanvasGridConfiguration,
   presentModulePreviewBakeOperationResult,
   registerModulePreviewBakeFallback,
   registerModulePreviewHistoryFallback,
@@ -136,6 +137,7 @@ const registerModulePreview = (
     canvasThemeGeneration: currentCanvasThemeGeneration,
     webviewHtml: (panel) => modulePreviewWebviewHtml(panel, context),
     canvasRibbons: modulePreviewCanvasRibbons,
+    canvasGridSettings: normalizedCanvasGridConfiguration,
     updateCanvasRibbonPosition: updateModulePreviewCanvasRibbonPosition,
     editCanvasRibbon: () => {
       void vscode.commands.executeCommand("workbench.action.openSettings", VSCODE_CANVAS_RIBBON_SETTING);

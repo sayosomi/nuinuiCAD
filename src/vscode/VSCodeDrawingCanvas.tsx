@@ -49,6 +49,10 @@ import { PickModeStatus } from "../components/PickModeStatus";
 import type { RibbonPosition } from "../components/commandRibbonFloatingGeometry";
 import type { CommandRibbonPresentationCommandItem } from "../components/CommandRibbonView";
 import { LEGACY_CANVAS_THEME, type CanvasTheme } from "../components/canvasTheme";
+import {
+  DEFAULT_CANVAS_GRID_SETTINGS,
+  type CanvasGridSettings
+} from "../components/canvasGrid";
 import { vscodeCanvasContextDataFor, type VscodeCanvasPointer } from "./protocol";
 import {
   useVSCodeReferencePickSession,
@@ -84,6 +88,7 @@ type VSCodeDrawingCanvasProps = {
   postCanvasCommit?: (operationId?: number, coordinatePointConversionRequestId?: number) => void;
   postCanvasPointerPosition?: (pointer: VscodeCanvasPointer) => void;
   canvasTheme?: CanvasTheme;
+  canvasGridSettings?: CanvasGridSettings;
   canvasRibbonRibbons?: VscodeCanvasRibbon[];
   onCanvasRibbonPositionCommit?: (ribbonId: string, position: RibbonPosition) => void;
   onEditCanvasRibbon?: () => void;
@@ -114,6 +119,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
     postCanvasCommit,
     postCanvasPointerPosition,
     canvasTheme = LEGACY_CANVAS_THEME,
+    canvasGridSettings = DEFAULT_CANVAS_GRID_SETTINGS,
     canvasRibbonRibbons = [],
     onCanvasRibbonPositionCommit,
     onEditCanvasRibbon,
@@ -509,6 +515,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       evaluationLimitIndex: canvasPresentation.evaluationLimitIndex,
       compiledDocumentRevision: presentationCompiledDocumentRevision,
       canvasTheme,
+      canvasGridSettings,
       presentation: canvasPresentationAdapter,
       visibilityProfiles: canvasPresentation.visibilityProfiles,
       activeVisibilityProfileId: canvasPresentation.activeVisibilityProfileId,
@@ -782,6 +789,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       commandLineSession,
       commitGeometryCommand,
       canvasTheme,
+      canvasGridSettings,
       dragPreviewScheduler,
       evaluationState,
       effectivePickModeActive,

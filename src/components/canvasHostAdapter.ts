@@ -24,6 +24,7 @@ import type { SelectionSnapshot } from "../state/cadDocumentStore";
 import type { CanonicalGeometrySourceReference } from "../model/moduleSemanticCandidateBoundary";
 import type { ViewportSize } from "./canvasViewport";
 import type { CanvasTheme } from "./canvasTheme";
+import type { CanvasGridSettings } from "./canvasGrid";
 import type { PickCandidate } from "../model/pickCandidates";
 import type { PickModeSession } from "../model/pickModeSession";
 import type { CanvasModuleMaterialization } from "@nuinuicad/nui-language";
@@ -102,6 +103,7 @@ export type CanvasHostAdapter = {
   evaluationLimitIndex: number | undefined;
   compiledDocumentRevision: number;
   canvasTheme: CanvasTheme;
+  canvasGridSettings?: CanvasGridSettings;
   presentation?: CanvasPresentation;
   visibilityProfiles: VisibilityProfile[];
   activeVisibilityProfileId: string | null;
