@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 type Manifest = {
   contributes?: {
-    commands?: Array<{ command: string; title?: string; enablement?: string }>;
+    commands?: Array<{ command: string; title?: string; category?: string; enablement?: string }>;
     keybindings?: Array<{ command: string }>;
     menus?: Record<string, Array<{ command?: string; when?: string }>>;
   };
@@ -23,7 +23,8 @@ describe("Generate Random Number manifest", () => {
 
     expect(command).toEqual({
       command: commandId,
-      title: "%command.generateRandomNumber.title%"
+      title: "%command.generateRandomNumber.title%",
+      category: "nuinuiCAD"
     });
     expect(manifest.contributes?.menus?.commandPalette?.filter(({ command: id }) => id === commandId)).toEqual([
       {
