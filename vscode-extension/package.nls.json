@@ -99,6 +99,7 @@
   "configuration.canvas.grid.enabled.description": "Show the Canvas grid and axis guides.",
   "configuration.canvas.grid.spacingMm.description": "Base Canvas grid spacing in millimetres.",
   "configuration.canvas.grid.majorEvery.description": "Number of rendered grid intervals between major lines.",
+  "configuration.canvas.grid.snapEnabled.description": "Snap Canvas point drags and coordinate-point creation to the grid spacing.",
   "configuration.canvasRibbon.ribbons.description": "Canvas ribbons shown in the nuinuiCAD VS Code Canvas.",
   "configuration.canvasRibbon.defaultLabel": "Canvas Ribbon"
 }

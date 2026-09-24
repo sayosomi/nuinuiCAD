@@ -422,6 +422,24 @@ describe("DrawingCanvas rendering", () => {
     expect(movePointElementByDelta).not.toHaveBeenCalled();
   });
 
+  it("publishes the raw coordinate while snapping the created point independently", () => {
+    const createCoordinatePointAtPointer = vi.fn();
+    const publishCanvasPointerPosition = vi.fn();
+    const { viewport } = renderWithHostAdapter({
+      canvasGridSettings: { enabled: false, spacingMm: 10, majorEvery: 99, snapEnabled: true },
+      canvasModalMode: "coordinate-point-creation",
+      createCoordinatePointAtPointer,
+      publishCanvasPointerPosition
+    });
+    const pointer = screenFor({ x: 14, y: -16 });
+
+    fireEvent.pointerDown(viewport, { button: 0, buttons: 1, clientX: pointer.x, clientY: pointer.y, pointerId: 44 });
+    fireEvent.pointerUp(viewport, { button: 0, buttons: 0, clientX: pointer.x, clientY: pointer.y, pointerId: 44 });
+
+    expect(publishCanvasPointerPosition).toHaveBeenCalledWith({ x: 14, y: -16 });
+    expect(createCoordinatePointAtPointer).toHaveBeenCalledWith({ x: 10, y: -20 });
+  });
+
   it("keeps middle-button and Space-primary navigation available during coordinate-point creation", () => {
     const createCoordinatePointAtPointer = vi.fn();
     const panCanvasViewport = vi.fn();

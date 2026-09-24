@@ -267,19 +267,19 @@ describe("VSCodeApp Canvas history coordinator", () => {
     const api = { postMessage: vi.fn() };
     render(<VSCodeAppForTest api={api} />);
 
-    expect(drawingCanvasProps.canvasGridSettings).toEqual({ enabled: true, spacingMm: 10, majorEvery: 5 });
+    expect(drawingCanvasProps.canvasGridSettings).toEqual({ enabled: true, spacingMm: 10, majorEvery: 5, snapEnabled: false });
     const sourceBefore = useCadDocumentStore.getState().sourceText;
 
     await act(async () => {
       window.dispatchEvent(new MessageEvent("message", {
         data: {
           type: "canvasGridConfiguration",
-          settings: { enabled: false, spacingMm: 2.5, majorEvery: 1 }
+          settings: { enabled: false, spacingMm: 2.5, majorEvery: 1, snapEnabled: true }
         }
       }));
     });
 
-    expect(drawingCanvasProps.canvasGridSettings).toEqual({ enabled: false, spacingMm: 2.5, majorEvery: 1 });
+    expect(drawingCanvasProps.canvasGridSettings).toEqual({ enabled: false, spacingMm: 2.5, majorEvery: 1, snapEnabled: true });
     expect(useCadDocumentStore.getState().sourceText).toBe(sourceBefore);
   });
 
