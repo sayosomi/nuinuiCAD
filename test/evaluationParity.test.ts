@@ -16,6 +16,7 @@ import {
   runtimeDiagnosticsFor,
   evaluateWithRustOptions,
   createRustStdioParityClient,
+  evaluateWithRustStdioOptions,
   fixtureFromSource
 } from "./evaluationParitySupport";
 
@@ -1959,6 +1960,34 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     expect(normalizeParityPayload(runtimeDiagnosticsFor(fixture, rustPayload))).toEqual(
       normalizeParityPayload(runtimeDiagnosticsFor(fixture, tsPayload))
     );
+  }, 30000);
+
+  it("matches the descending range fixture through the production evaluation stdio process", async () => {
+    const fixture = readParityFixture(repoRoot, "nui1-statement-for-descending-range.nui");
+    const options = optionsFor(fixture);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = await evaluateWithRustStdioOptions(repoRoot, fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+
+    const tsResult = evaluationPayloadToResult(tsPayload);
+    const rustResult = evaluationPayloadToResult(rustPayload);
+    for (const result of [tsResult, rustResult]) {
+      expect(result.errors).toEqual(expect.arrayContaining([
+        expect.objectContaining({ message: expect.stringContaining("min は max 以下") })
+      ]));
+      expect(result.forGroupGeneratedRows).toEqual([]);
+      expect(result.computedGeometry.size).toBe(0);
+    }
+
+    const tsRuntimeDiagnostics = runtimeDiagnosticsFor(fixture, tsPayload);
+    const rustRuntimeDiagnostics = runtimeDiagnosticsFor(fixture, rustPayload);
+    if (tsRuntimeDiagnostics.length > 0 || rustRuntimeDiagnostics.length > 0) {
+      expect(normalizeParityPayload(rustRuntimeDiagnostics)).toEqual(
+        normalizeParityPayload(tsRuntimeDiagnostics)
+      );
+    }
   }, 30000);
 
   it("uses the materialized runtime position for Module geometry-property reads", () => {
