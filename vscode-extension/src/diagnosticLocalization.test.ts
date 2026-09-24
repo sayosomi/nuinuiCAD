@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { AutomationDocument } from "@nuinuicad/nui-language/document";
+import { compileDslDocument, compileDslToElements, nuiDiagnosticsFor } from "@nuinuicad/nui-language";
 import type { DslDiagnostic } from "@nuinuicad/nui-language";
 import { compilerDiagnosticsForState } from "./compilerDiagnostics";
 import {
@@ -9,6 +10,25 @@ import {
 } from "./diagnosticLocalization";
 import { webviewPresentationFor } from "./webviewPresentationLocalization";
 import { webviewDiagnosticTextFor } from "../../src/vscode/webviewPresentation";
+
+const documentDiagnosticsFor = (source: string) => {
+  const compiled = compileDslDocument(source);
+  return nuiDiagnosticsFor(source, compiled.diagnostics, []);
+};
+
+const automationDiagnosticsFor = (source: string) => {
+  const document = AutomationDocument.fromSource(source);
+  return compilerDiagnosticsForState(document.getSource(), document.getState());
+};
+
+const legacyCompilerDiagnosticsFor = (source: string) => {
+  const compiled = compileDslToElements(source, {
+    elements: [],
+    mode: "document",
+    majorVersion: 1
+  });
+  return nuiDiagnosticsFor(source, compiled.diagnostics, []);
+};
 
 describe("diagnostic presentation localization", () => {
   const missingValue = () => {
@@ -700,5 +720,408 @@ describe("diagnostic presentation localization", () => {
     expect(diagnosticTextFor(diagnostic, "ja-JP")).toBe(testCase.japanese);
     expect({ ...identity, message: diagnosticTextFor(diagnostic, "en") }).toMatchObject(identity);
     expect({ ...identity, message: diagnosticTextFor(diagnostic, "ja-JP") }).toMatchObject(identity);
+  });
+
+  it.each([
+    {
+      family: "empty document",
+      source: "",
+      code: "missing-version-declaration",
+      fallback: "文書が空です。先頭に `nui 1` が必要です。",
+      english: "The document is empty. Add `nui 1` at the beginning.",
+      japanese: "文書が空です。先頭に `nui 1` が必要です。",
+      diagnostics: documentDiagnosticsFor
+    },
+    {
+      family: "version not first",
+      source: "point A = coordinate(x: 0, y: 0)",
+      code: "version-declaration-not-first",
+      fallback: "文書の先頭は `nui <バージョン>` である必要があります。",
+      english: "The document must begin with `nui <version>`.",
+      japanese: "文書の先頭は `nui <バージョン>` である必要があります。",
+      diagnostics: documentDiagnosticsFor
+    },
+    {
+      family: "invalid DSL version",
+      source: "nui nope",
+      code: "invalid-dsl-version",
+      parameters: { version: "nope" },
+      fallback: "不正なDSLバージョンです: nope",
+      english: "Invalid DSL version: nope",
+      japanese: "不正なDSLバージョンです: nope",
+      diagnostics: documentDiagnosticsFor
+    },
+    {
+      family: "unsupported DSL version",
+      source: "nui 2",
+      code: "unsupported-dsl-version",
+      parameters: { version: "2", supported: "1" },
+      fallback: "未対応のDSLバージョンです: 2(対応: 1)",
+      english: "Unsupported DSL version: 2 (supported: 1)",
+      japanese: "未対応のDSLバージョンです: 2(対応: 1)",
+      diagnostics: documentDiagnosticsFor
+    },
+    {
+      family: "duplicate version",
+      source: "nui 1\nnui 1",
+      code: "duplicate-version-declaration",
+      fallback: "`nui` は文書の先頭に1つだけ書けます。",
+      english: "The `nui` declaration may appear only once at the beginning of the document.",
+      japanese: "`nui` は文書の先頭に1つだけ書けます。",
+      diagnostics: documentDiagnosticsFor
+    },
+    {
+      family: "invalid statement-for source",
+      source: "nui 1\nfor item in scalar {\n}",
+      code: "invalid-for-source-reference",
+      fallback: "statement-for の collection source は通常の @reference で指定してください。",
+      english: "A statement-for collection source must use an ordinary @reference.",
+      japanese: "statement-for の collection source は通常の @reference で指定してください。",
+      diagnostics: automationDiagnosticsFor
+    },
+    {
+      family: "geometry carry initializer",
+      source: [
+        "nui 1",
+        "curve C = bezier(start: (0, 0), end: (10, 0))",
+        "for i in range(min: 0, max: 1, step: 1) carry lineValue: line = @C {",
+        "  next lineValue = @C",
+        "}"
+      ].join("\n"),
+      code: "carry-geometry-type-mismatch",
+      parameters: { name: "lineValue", position: "initializer" },
+      fallback: "carry「lineValue」の geometry initializer は宣言された型と一致する必要があります。",
+      english: "carry 'lineValue' geometry initializer must match the declared type.",
+      japanese: "carry「lineValue」の geometry initializer は宣言された型と一致する必要があります。",
+      diagnostics: automationDiagnosticsFor
+    },
+    {
+      family: "geometry carry next",
+      source: [
+        "nui 1",
+        "curve C = bezier(start: (0, 0), end: (10, 0))",
+        "for i in range(min: 0, max: 1, step: 1) carry lineValue: line = @C {",
+        "  next lineValue = @C",
+        "}"
+      ].join("\n"),
+      code: "carry-geometry-type-mismatch",
+      parameters: { name: "lineValue", position: "next" },
+      fallback: "carry「lineValue」の geometry next は宣言された型と一致する必要があります。",
+      english: "carry 'lineValue' geometry next must match the declared type.",
+      japanese: "carry「lineValue」の geometry next は宣言された型と一致する必要があります。",
+      diagnostics: automationDiagnosticsFor
+    },
+    {
+      family: "geometry collection carry",
+      source: [
+        "nui 1",
+        "curve C = bezier(start: (0, 0), end: (10, 0))",
+        "const paths: path[] = [@C]",
+        "for i in range(min: 0, max: 1, step: 1) carry lines: line[] = @paths {",
+        "  next lines = @paths",
+        "}"
+      ].join("\n"),
+      code: "carry-collection-expression-invalid",
+      parameters: { name: "lines", collectionKind: "geometry collection" },
+      fallback: "carry「lines」の geometry collection initializer/next は宣言された collection 型と一致する必要があります。",
+      english: "carry 'lines' geometry collection initializer/next must match the declared collection type.",
+      japanese: "carry「lines」の geometry collection initializer/next は宣言された collection 型と一致する必要があります。",
+      diagnostics: automationDiagnosticsFor
+    },
+    {
+      family: "dependency cycle",
+      source: "nui 1\nconst a: number = @b\nconst b: number = @a",
+      code: "dependency-cycle",
+      parameters: { names: "a -> b -> a" },
+      fallback: "依存関係 cycle: a -> b -> a",
+      english: "Dependency cycle: a -> b -> a",
+      japanese: "依存関係 cycle: a -> b -> a",
+      diagnostics: automationDiagnosticsFor
+    },
+    {
+      family: "invalid source reference",
+      source: "nui 1\nlayout L {\n  place @G.foo(at: (0, 0))\n}",
+      code: "invalid-source-reference",
+      parameters: { reference: "@G.foo" },
+      fallback: "参照が不正です: @G.foo",
+      english: "Invalid source reference '@G.foo'.",
+      japanese: "参照「@G.foo」が不正です。",
+      diagnostics: automationDiagnosticsFor
+    },
+    {
+      family: "source reference ambiguous",
+      source: "nui 1\npoint P = coordinate(x: 0, y: 0)\nlayout L {\n  place @P(at: (0, 0))\n}",
+      code: "source-reference-kind-mismatch",
+      parameters: { reference: "@P", expected: "group" },
+      fallback: "参照先「@P」は group ではありません。",
+      english: "Reference '@P' is not one of the expected declaration kinds: group.",
+      japanese: "参照先「@P」は group ではありません。",
+      diagnostics: automationDiagnosticsFor
+    },
+    {
+      family: "source reference invalid traversal",
+      source: "nui 1\npoint P = coordinate(x: 0, y: 0)\nlayout L {\n  place @P::X(at: (0, 0))\n}",
+      code: "source-reference-invalid-traversal",
+      parameters: { reference: "@P::X" },
+      fallback: "参照先「@P::X」はこの種類の宣言を辿れません。",
+      english: "Reference '@P::X' cannot traverse this kind of declaration.",
+      japanese: "参照先「@P::X」はこの種類の宣言を辿れません。",
+      diagnostics: automationDiagnosticsFor
+    },
+    {
+      family: "source reference undefined",
+      source: "nui 1\nlayout L {\n  place @Missing(at: (0, 0))\n}",
+      code: "source-reference-undefined",
+      parameters: { reference: "@Missing" },
+      fallback: "未定義の参照です: @Missing",
+      english: "Reference '@Missing' is undefined.",
+      japanese: "未定義の参照です: @Missing",
+      diagnostics: automationDiagnosticsFor
+    },
+    {
+      family: "undefined visibility role",
+      source: "nui 1\nview Draft (default: true, ghost: nope)",
+      code: "undefined-visibility-role",
+      parameters: { role: "ghost" },
+      fallback: "未定義の表示ロールです: ghost",
+      english: "Visibility role 'ghost' is undefined.",
+      japanese: "未定義の表示ロールです: ghost",
+      diagnostics: automationDiagnosticsFor
+    },
+    {
+      family: "invalid visibility role value",
+      source: "nui 1\nview Draft (default: true, ghost: nope)",
+      code: "invalid-visibility-role-value",
+      parameters: { role: "ghost" },
+      fallback: "ghost は true/false で指定してください。",
+      english: "Visibility role 'ghost' must be true or false.",
+      japanese: "ghost は true/false で指定してください。",
+      diagnostics: automationDiagnosticsFor
+    },
+    {
+      family: "undefined visibility profile",
+      source: "nui 1\nactiveView Missing",
+      code: "undefined-visibility-profile",
+      parameters: { profile: "Missing" },
+      fallback: "未定義の表示プロファイルです: Missing",
+      english: "Visibility profile 'Missing' is undefined.",
+      japanese: "未定義の表示プロファイルです: Missing",
+      diagnostics: automationDiagnosticsFor
+    },
+    {
+      family: "place target not group",
+      source: "nui 1\npoint P = coordinate(x: 0, y: 0)\nlayout L {\n  place @P(at: (0, 0))\n}",
+      code: "place-target-not-group",
+      parameters: { reference: "@P" },
+      fallback: "place の参照先はグループではありません: @P",
+      english: "Place target '@P' is not a group.",
+      japanese: "place の参照先はグループではありません: @P",
+      diagnostics: legacyCompilerDiagnosticsFor
+    },
+    {
+      family: "place origin namespace unavailable",
+      source: "nui 1\ngroup G {\n}\nlayout L {\n  place @G(origin: @G, at: (0, 0))\n}",
+      code: "place-origin-namespace-unavailable",
+      parameters: { reference: "@G" },
+      fallback: "place origin は source lexical namespace で解決できません: @G",
+      english: "Place origin '@G' cannot be resolved without the source lexical namespace.",
+      japanese: "place origin は source lexical namespace で解決できません: @G",
+      diagnostics: legacyCompilerDiagnosticsFor
+    },
+    {
+      family: "place origin unresolved",
+      source: "nui 1\ngroup G {\n}\nlayout L {\n  place @G(origin: @Missing, at: (0, 0))\n}",
+      code: "place-origin-unresolved",
+      parameters: { reference: "@Missing" },
+      fallback: "origin の参照先を解決できません: @Missing",
+      english: "Place origin reference '@Missing' could not be resolved.",
+      japanese: "origin の参照先を解決できません: @Missing",
+      diagnostics: automationDiagnosticsFor
+    },
+    {
+      family: "place origin not point",
+      source: "nui 1\ngroup G {\n}\ngroup H {\n}\nlayout L {\n  place @G(origin: @H, at: (0, 0))\n}",
+      code: "place-origin-not-point",
+      parameters: { reference: "@H" },
+      fallback: "origin の参照先は点ではありません: @H",
+      english: "Place origin reference '@H' is not a point.",
+      japanese: "origin の参照先は点ではありません: @H",
+      diagnostics: automationDiagnosticsFor
+    },
+    {
+      family: "place origin outside group",
+      source: "nui 1\ngroup G {\n  point P = coordinate(x: 0, y: 0)\n}\npoint Q = coordinate(x: 1, y: 1)\nlayout L {\n  place @G(origin: @Q, at: (0, 0))\n}",
+      code: "place-origin-outside-target-group",
+      parameters: { reference: "@Q" },
+      fallback: "origin の点は配置対象グループの内部にありません: @Q",
+      english: "Place origin point '@Q' is not inside the placed group.",
+      japanese: "origin の点は配置対象グループの内部にありません: @Q",
+      diagnostics: automationDiagnosticsFor
+    },
+    {
+      family: "invalid layout scale",
+      source: "nui 1\nlayout L(scale: 0) {\n}",
+      code: "invalid-layout-scale",
+      fallback: "layout scale は有限の正の値で指定してください。",
+      english: "Layout scale must be a finite positive value.",
+      japanese: "layout scale は有限の正の値で指定してください。",
+      diagnostics: automationDiagnosticsFor
+    },
+    {
+      family: "place position required",
+      source: "nui 1\ngroup G {\n}\nlayout L {\n  place @G(at: nope)\n}",
+      code: "place-position-required",
+      fallback: "place には `at: (x, y)` が必要です。",
+      english: "Place requires `at: (x, y)`.",
+      japanese: "place には `at: (x, y)` が必要です。",
+      diagnostics: automationDiagnosticsFor
+    },
+    {
+      family: "invalid place mirror",
+      source: "nui 1\ngroup G {\n}\nlayout L {\n  place @G(at: (0, 0), mirror: maybe)\n}",
+      code: "invalid-place-mirror",
+      fallback: "place mirror は true / false で指定してください。",
+      english: "Place mirror must be true or false.",
+      japanese: "place mirror は true / false で指定してください。",
+      diagnostics: automationDiagnosticsFor
+    },
+    {
+      family: "invalid place scale",
+      source: "nui 1\ngroup G {\n}\nlayout L {\n  place @G(at: (0, 0), scale: 0)\n}",
+      code: "invalid-place-scale",
+      fallback: "place scale は有限の正の値で指定してください。",
+      english: "Place scale must be a finite positive value.",
+      japanese: "place scale は有限の正の値で指定してください。",
+      diagnostics: automationDiagnosticsFor
+    },
+    {
+      family: "invalid place angle",
+      source: "nui 1\ngroup G {\n}\nlayout L {\n  place @G(at: (0, 0), angle: 1e9999)\n}",
+      code: "invalid-place-angle",
+      fallback: "place angle は有限の値で指定してください。",
+      english: "Place angle must be finite.",
+      japanese: "place angle は有限の値で指定してください。",
+      diagnostics: automationDiagnosticsFor
+    },
+    {
+      family: "invalid print paper",
+      source: "nui 1\nprint P(layout: @Missing, paper: a5, overlap: 0)",
+      code: "invalid-print-paper",
+      fallback: "print paper は a4 または a3 で指定してください。",
+      english: "Print paper must be a4 or a3.",
+      japanese: "print paper は a4 または a3 で指定してください。",
+      diagnostics: automationDiagnosticsFor
+    },
+    {
+      family: "invalid print orientation",
+      source: "nui 1\nprint P(layout: @Missing, paper: a4, orientation: side, overlap: 0)",
+      code: "invalid-print-orientation",
+      fallback: "orientation は portrait / landscape で指定してください。",
+      english: "Orientation must be portrait or landscape.",
+      japanese: "orientation は portrait / landscape で指定してください。",
+      diagnostics: automationDiagnosticsFor
+    },
+    {
+      family: "invalid print overlap",
+      source: "nui 1\nprint P(layout: @Missing, paper: a4, overlap: -1)",
+      code: "invalid-print-overlap",
+      fallback: "print overlap は 0 以上で指定してください。",
+      english: "Print overlap must be at least 0.",
+      japanese: "print overlap は 0 以上で指定してください。",
+      diagnostics: automationDiagnosticsFor
+    },
+    {
+      family: "print overlap too large",
+      source: "nui 1\ngroup G {\n}\nlayout L {\n}\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 200)",
+      code: "print-overlap-too-large",
+      parameters: { paper: "A4", orientation: "portrait", maximum: 105 },
+      fallback: "print の overlap が大きすぎます。A4 portrait では overlap を 105mm 未満にしてください。",
+      english: "Print overlap is too large. For A4 portrait, overlap must be less than 105mm.",
+      japanese: "print の overlap が大きすぎます。A4 portrait では overlap を 105mm 未満にしてください。",
+      diagnostics: automationDiagnosticsFor
+    },
+    {
+      family: "invalid SVG margin",
+      source: "nui 1\nsvg S(layout: @Missing, margin: -1)",
+      code: "invalid-svg-margin",
+      fallback: "svg margin は 0 以上で指定してください。",
+      english: "SVG margin must be at least 0.",
+      japanese: "svg margin は 0 以上で指定してください。",
+      diagnostics: automationDiagnosticsFor
+    },
+    {
+      family: "undefined drawing style",
+      source: "nui 1\npoint P [Missing] = coordinate(x: 0, y: 0)",
+      code: "undefined-drawing-style",
+      parameters: { name: "Missing" },
+      fallback: "未定義の style です: Missing",
+      english: "Style 'Missing' is undefined.",
+      japanese: "未定義の style です: Missing",
+      diagnostics: automationDiagnosticsFor
+    },
+    {
+      family: "ignored parent in block",
+      source: "nui 1\nif (true) {\n  point P = coordinate(x: 0, y: 0, parent: @G)\n}",
+      code: "ignored-parent-in-block",
+      fallback: "ブロック内の parent= 属性は無視されます。",
+      english: "The parent= attribute is ignored inside a block.",
+      japanese: "ブロック内の parent= 属性は無視されます。",
+      diagnostics: automationDiagnosticsFor
+    }
+  ] as const)("localizes the $family document/compiler owner identity", (testCase) => {
+    const diagnostic = testCase.diagnostics(testCase.source).find(
+      (candidate) => candidate.code === testCase.code &&
+        JSON.stringify(candidate.presentation?.parameters) === JSON.stringify(testCase.parameters)
+    );
+    if (!diagnostic) throw new Error(`missing production ${testCase.family} diagnostic ${testCase.code}`);
+
+    expect(diagnostic.message).toBe(testCase.fallback);
+    expect(diagnostic.presentation).toEqual({
+      key: `diagnostic.${testCase.code}`,
+      ...(testCase.parameters ? { parameters: testCase.parameters } : {})
+    });
+    const identity = {
+      severity: diagnostic.severity,
+      code: diagnostic.code,
+      source: diagnostic.source,
+      range: diagnostic.range
+    };
+    const english = diagnosticTextFor(diagnostic, "en");
+    const japanese = diagnosticTextFor(diagnostic, "ja-JP");
+    expect(english).toBe(testCase.english);
+    expect(japanese).toBe(testCase.japanese);
+    expect({ ...identity, message: english }).toMatchObject(identity);
+    expect({ ...identity, message: japanese }).toMatchObject(identity);
+  });
+
+  it.each([
+    {
+      code: "source-reference-ambiguous",
+      parameters: { reference: "@Same" },
+      english: "Reference '@Same' is ambiguous.",
+      japanese: "参照が曖昧です: @Same"
+    },
+    {
+      code: "source-reference-forward",
+      parameters: { reference: "@Later" },
+      english: "Reference '@Later' is declared later and is not available here.",
+      japanese: "参照先「@Later」はこの位置より後で宣言されています。"
+    },
+    {
+      code: "output-layout-unavailable",
+      parameters: undefined,
+      english: "The print/svg layout declaration could not be resolved.",
+      japanese: "print/svg layout の宣言を取得できません。"
+    }
+  ] as const)("keeps the $code catalog entry available for deferred compiler branches", (testCase) => {
+    const diagnostic = {
+      message: "legacy compiler fallback",
+      presentation: {
+        key: `diagnostic.${testCase.code}`,
+        ...(testCase.parameters ? { parameters: testCase.parameters } : {})
+      }
+    };
+    expect(diagnosticTextFor(diagnostic, "en")).toBe(testCase.english);
+    expect(diagnosticTextFor(diagnostic, "ja-JP")).toBe(testCase.japanese);
   });
 });
