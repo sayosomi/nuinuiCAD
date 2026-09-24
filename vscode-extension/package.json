@@ -349,6 +349,10 @@
           "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui"
         },
         {
+          "command": "nuinuiCAD.generateRandomNumber",
+          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui"
+        },
+        {
           "command": "nuinuiCAD.clearCanvasSelection",
           "when": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
         },
@@ -937,6 +941,10 @@
         "command": "nuinuiCAD.stepSourceValueBackward",
         "title": "%command.stepSourceValueBackward.title%",
         "enablement": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && !editorReadonly && nuinuiCAD.sourceValueStepTarget"
+      },
+      {
+        "command": "nuinuiCAD.generateRandomNumber",
+        "title": "%command.generateRandomNumber.title%"
       },
       {
         "command": "nuinuiCAD.canvasUndo",

@@ -28,6 +28,7 @@ export * from "./dsl/dslGeometryReferenceRetargetQuery";
 export * from "./dsl/dslOutputPreviewRevealQuery";
 export * from "./dsl/dslReferencePickQuery";
 export * from "./dsl/dslSourceValueStepQuery";
+export * from "./dsl/dslRandomNumberSourceEditQuery";
 export * from "./dsl/dslFixedColorQuery";
 export * from "./dsl/dslThemeRoleColorQuery";
 export * from "./dsl/dslTypoSuggestionQuery";
