@@ -73,13 +73,15 @@ export const useVSCodeCoordinatePointConversionSession = ({
   currentContextFor,
   currentAuthorityFor,
   postCanvasCommit,
-  presentation
+  presentation,
+  canStart = () => true
 }: {
   api: VscodeWebviewApi | null;
   currentContextFor: () => VscodeCoordinatePointConversionCurrentContext | null;
   currentAuthorityFor: (documentVersion: number) => VscodeCoordinatePointConversionAuthority | null;
   postCanvasCommit: (operationId?: number, coordinatePointConversionRequestId?: number) => void;
   presentation?: CanvasPresentation;
+  canStart?: () => boolean;
 }) => {
   const [session, setSession] = useState<CoordinatePointConversionSession | null>(null);
   const [canvasBasePick, setCanvasBasePick] = useState(false);
@@ -118,6 +120,11 @@ export const useVSCodeCoordinatePointConversionSession = ({
 
   const tryStart = useCallback((request: CoordinatePointConversionStartRequest) => {
     if (!api) return;
+    if (!canStart()) {
+      postRejected(request, emptyReason("Canvasの現在のモードでは変換を開始できません。"));
+      pendingStartRef.current = null;
+      return;
+    }
     const current = currentContextFor();
     if (!current || !contextMatchesAuthority(request, currentAuthorityFor(request.documentVersion), current)) {
       pendingStartRef.current = null;
@@ -150,7 +157,7 @@ export const useVSCodeCoordinatePointConversionSession = ({
     canvasBasePickRef.current = request.canvasBasePick === true;
     setCanvasBasePick(canvasBasePickRef.current);
     replaceSession(started.session);
-  }, [api, currentAuthorityFor, currentContextFor, postRejected, presentation, replaceSession]);
+  }, [api, canStart, currentAuthorityFor, currentContextFor, postRejected, presentation, replaceSession]);
 
   useEffect(() => {
     const active = sessionRef.current;

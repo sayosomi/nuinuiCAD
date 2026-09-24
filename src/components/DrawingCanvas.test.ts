@@ -400,6 +400,50 @@ beforeEach(() => {
 });
 
 describe("DrawingCanvas rendering", () => {
+  it("routes one ordinary primary click to coordinate-point creation without selection or drag", () => {
+    const createCoordinatePointAtPointer = vi.fn();
+    const selectElement = vi.fn();
+    const movePointElementByDelta = vi.fn();
+    const { viewport } = renderWithHostAdapter({
+      canvasModalMode: "coordinate-point-creation",
+      createCoordinatePointAtPointer,
+      selectElement,
+      movePointElementByDelta
+    });
+
+    fireEvent.pointerDown(viewport, { button: 0, buttons: 1, clientX: 250, clientY: 200, pointerId: 41 });
+    fireEvent.pointerUp(viewport, { button: 0, buttons: 0, clientX: 250, clientY: 200, pointerId: 41 });
+
+    expect(createCoordinatePointAtPointer).toHaveBeenCalledTimes(1);
+    expect(createCoordinatePointAtPointer).toHaveBeenCalledWith(expect.objectContaining({ x: 0, y: 0 }));
+    expect(selectElement).not.toHaveBeenCalled();
+    expect(movePointElementByDelta).not.toHaveBeenCalled();
+  });
+
+  it("keeps middle-button and Space-primary navigation available during coordinate-point creation", () => {
+    const createCoordinatePointAtPointer = vi.fn();
+    const panCanvasViewport = vi.fn();
+    const { viewport } = renderWithHostAdapter({
+      canvasModalMode: "coordinate-point-creation",
+      createCoordinatePointAtPointer,
+      panCanvasViewport,
+      spacePrimaryPanEnabled: true
+    });
+
+    fireEvent.pointerDown(viewport, { button: 1, buttons: 4, clientX: 250, clientY: 200, pointerId: 42 });
+    fireEvent.pointerMove(viewport, { buttons: 4, clientX: 270, clientY: 210, pointerId: 42 });
+    fireEvent.pointerUp(viewport, { button: 1, buttons: 0, clientX: 270, clientY: 210, pointerId: 42 });
+    viewport.focus();
+    fireEvent.keyDown(viewport, { key: " " });
+    fireEvent.pointerDown(viewport, { button: 0, buttons: 1, clientX: 250, clientY: 200, pointerId: 43 });
+    fireEvent.pointerMove(viewport, { buttons: 1, clientX: 270, clientY: 210, pointerId: 43 });
+    fireEvent.pointerUp(viewport, { button: 0, buttons: 0, clientX: 270, clientY: 210, pointerId: 43 });
+    fireEvent.keyUp(viewport, { key: " " });
+
+    expect(panCanvasViewport).toHaveBeenCalledWith(20, 10);
+    expect(createCoordinatePointAtPointer).not.toHaveBeenCalled();
+  });
+
   it("uses Space-primary pan instead of a selected point drag", () => {
     const panCanvasViewport = vi.fn();
     const movePointElementByDelta = vi.fn();
@@ -1024,11 +1068,11 @@ describe("DrawingCanvas rendering", () => {
       toJSON: () => ({})
     };
     HTMLElement.prototype.getBoundingClientRect = vi.fn(function (this: HTMLElement) {
-      return this.classList.contains("canvas-pick-mode-chrome")
+      return this.classList.contains("canvas-mode-chrome")
         ? { ...baseRect, bottom: 48, height: 48 }
         : baseRect;
     });
-    const renderPickModeChrome = vi.fn(() => createElement("div", { "data-testid": "pick-mode-chrome-content" }, "Pick"));
+    const renderCanvasModeChrome = vi.fn(() => createElement("div", { "data-testid": "pick-mode-chrome-content" }, "Pick"));
     const renderHostDrawingOverlay = vi.fn((size) => createElement("div", {
       "data-testid": "host-drawing-overlay",
       "data-viewport": `${size.width}x${size.height}`
@@ -1036,30 +1080,30 @@ describe("DrawingCanvas rendering", () => {
     const renderHostOverlay = vi.fn((size, layout) => createElement("div", {
       "data-testid": "host-ui-overlay",
       "data-viewport": `${size.width}x${size.height}`,
-      "data-pick-height": layout?.pickModeChromeHeight
+      "data-pick-height": layout?.canvasModeChromeHeight
     }));
     const hostAdapter = createFakeCanvasHostAdapter({
       activePointPickTarget: { elementId: "target", parameterKey: "point" },
-      renderPickModeChrome,
+      renderCanvasModeChrome,
       renderHostDrawingOverlay,
       renderHostOverlay
     });
     const canvasViewportBefore = useCadUiStore.getState().canvasViewport;
     const view = renderWithHostAdapter(hostAdapter);
     const layer = view.container.querySelector<HTMLElement>(".canvas-drawing-layer");
-    const chrome = view.container.querySelector<HTMLElement>(".canvas-pick-mode-chrome");
+    const chrome = view.container.querySelector<HTMLElement>(".canvas-mode-chrome");
 
     expect(chrome).toBeInTheDocument();
     expect(chrome).not.toContainElement(layer);
     expect(layer?.querySelector("canvas")).toBeInTheDocument();
     expect(layer?.querySelector("[data-testid='host-drawing-overlay']")).toBeInTheDocument();
     expect(view.container.querySelector("[data-testid='host-ui-overlay']")).not.toBeNull();
-    expect(layer).toHaveAttribute("data-pick-mode-crop-height", "48");
+    expect(layer).toHaveAttribute("data-canvas-mode-crop-height", "48");
     expect(layer?.style.clipPath).toBe("inset(48px 0 0 0)");
     expect(renderHostDrawingOverlay).toHaveBeenLastCalledWith({ width: 500, height: 400 });
     expect(renderHostOverlay).toHaveBeenLastCalledWith(
       { width: 500, height: 400 },
-      { pickModeChromeHeight: 48 }
+      { canvasModeChromeHeight: 48 }
     );
     expect(useCadUiStore.getState().canvasViewport).toBe(canvasViewportBefore);
 
@@ -1077,8 +1121,8 @@ describe("DrawingCanvas rendering", () => {
       }));
     });
     const restoredLayer = view.container.querySelector<HTMLElement>(".canvas-drawing-layer");
-    expect(view.container.querySelector(".canvas-pick-mode-chrome")).toBeNull();
-    expect(restoredLayer).toHaveAttribute("data-pick-mode-crop-height", "0");
+    expect(view.container.querySelector(".canvas-mode-chrome")).toBeNull();
+    expect(restoredLayer).toHaveAttribute("data-canvas-mode-crop-height", "0");
     expect(restoredLayer?.style.clipPath).toBe("");
     expect(useCadUiStore.getState().canvasViewport).toBe(canvasViewportBefore);
   });

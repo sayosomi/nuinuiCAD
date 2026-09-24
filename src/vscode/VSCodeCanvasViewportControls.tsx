@@ -5,7 +5,10 @@ import {
   type CommandRibbonPresentationCommandItem
 } from "../components/CommandRibbonView";
 import type { CanvasPresentation } from "../components/canvasPresentation";
-import { pickModeCanvasCommandAllowedForActive } from "./pickModeCanvasPolicy";
+import {
+  canvasModalCanvasCommandAllowed,
+  type CanvasModalMode
+} from "./pickModeCanvasPolicy";
 import { resolveVscodeLucideIcon } from "./vscodeCanvasRibbonIcons";
 import { VSCODE_CANVAS_RIBBON_ICON_SIZE } from "./vscodeCanvasRibbonConfig";
 import { vscodeViewportZoomPresentationFor } from "./vscodeViewportStatus";
@@ -14,8 +17,9 @@ import { vscodeCanvasViewportCommands } from "./vscodeCanvasViewportCommandModel
 
 type VSCodeCanvasViewportControlsProps = {
   canvasViewport: CanvasViewport;
-  pickModeChromeHeight: number;
+  canvasModeChromeHeight: number;
   pickModeActive: boolean;
+  canvasModalMode?: CanvasModalMode | null;
   presentation?: CanvasPresentation;
   onCommand?: (item: CommandRibbonPresentationCommandItem) => void;
 };
@@ -23,6 +27,7 @@ type VSCodeCanvasViewportControlsProps = {
 const commandPresentationFor = (
   command: (typeof vscodeCanvasViewportCommands)[number],
   pickModeActive: boolean,
+  canvasModalMode: CanvasModalMode | null | undefined,
   presentation?: CanvasPresentation
 ): CommandRibbonPresentationCommandItem => {
   const definition = viewModeCommandDefinitions[command.commandId];
@@ -40,14 +45,18 @@ const commandPresentationFor = (
       "Canvas viewport command."
     ) ?? "Canvas viewport command.",
     showLabel: false,
-    available: pickModeCanvasCommandAllowedForActive(command.commandId, pickModeActive)
+    available: canvasModalCanvasCommandAllowed(
+      command.commandId,
+      canvasModalMode ?? (pickModeActive ? "pick" : null)
+    )
   };
 };
 
 export const VSCodeCanvasViewportControls = ({
   canvasViewport,
-  pickModeChromeHeight,
+  canvasModeChromeHeight,
   pickModeActive,
+  canvasModalMode,
   presentation,
   onCommand
 }: VSCodeCanvasViewportControlsProps) => {
@@ -60,16 +69,16 @@ export const VSCodeCanvasViewportControls = ({
     orientation: "horizontal",
     iconSize: VSCODE_CANVAS_RIBBON_ICON_SIZE,
     items: [
-      commandPresentationFor(vscodeCanvasViewportCommands[0], pickModeActive, presentation),
+      commandPresentationFor(vscodeCanvasViewportCommands[0], pickModeActive, canvasModalMode, presentation),
       vscodeViewportZoomPresentationFor(
         "canvas-viewport-zoom-percent",
         canvasViewport,
         presentation?.text("canvas.zoomPercent.label", "Canvas zoom") ?? "Canvas zoom",
         presentation?.text("canvas.zoomPercent.description", "Current Canvas zoom.") ?? "Current Canvas zoom."
       ),
-      commandPresentationFor(vscodeCanvasViewportCommands[1], pickModeActive, presentation),
-      commandPresentationFor(vscodeCanvasViewportCommands[2], pickModeActive, presentation),
-      commandPresentationFor(vscodeCanvasViewportCommands[3], pickModeActive, presentation)
+      commandPresentationFor(vscodeCanvasViewportCommands[1], pickModeActive, canvasModalMode, presentation),
+      commandPresentationFor(vscodeCanvasViewportCommands[2], pickModeActive, canvasModalMode, presentation),
+      commandPresentationFor(vscodeCanvasViewportCommands[3], pickModeActive, canvasModalMode, presentation)
     ]
   };
 
@@ -77,7 +86,7 @@ export const VSCodeCanvasViewportControls = ({
     <div
       className="canvas-viewport-controls"
       data-canvas-viewport-controls="true"
-      style={{ top: Math.max(8, pickModeChromeHeight + 8), right: 8 }}
+      style={{ top: Math.max(8, canvasModeChromeHeight + 8), right: 8 }}
     >
       <CommandRibbonView
         ribbon={ribbon}

@@ -30,6 +30,7 @@ import type { PickModeSession } from "../model/pickModeSession";
 import type { CanvasModuleMaterialization } from "@nuinuicad/nui-language";
 import type { CommandId } from "../commands/commandTypes";
 import type { CanvasPresentation } from "./canvasPresentation";
+import type { CanvasModalMode } from "../vscode/pickModeCanvasPolicy";
 
 export type CanvasCommitMode = "preview" | "commit";
 export type { CanvasSelectionMode };
@@ -52,7 +53,7 @@ export type CanvasContextMenuKind = "blank" | "element";
 export type CanvasWorldPoint = { x: number; y: number };
 
 export type CanvasHostOverlayLayout = {
-  pickModeChromeHeight: number;
+  canvasModeChromeHeight: number;
 };
 
 export type CanvasPointPickAction = {
@@ -135,6 +136,8 @@ export type CanvasHostAdapter = {
   activeLinePickTarget: ActiveLinePickTarget | null;
   /** Explicit Pick Mode authority; semantic targets above remain candidate data. */
   activePickModeSession?: PickModeSession | null;
+  /** Exact current transient Canvas modal workflow. */
+  canvasModalMode?: CanvasModalMode | null;
   /** Optional host-owned candidate authority for an ephemeral Pick Mode target. */
   pickModeCandidates?: PickCandidate[];
   /** Optional host-owned cursor for an ephemeral Pick Mode target. */
@@ -178,6 +181,10 @@ export type CanvasHostAdapter = {
     pickedLineSourceReference?: CanonicalGeometrySourceReference;
   }) => unknown;
   applyPickedPoint: (action: CanvasPointPickAction) => unknown;
+  /** Routes one coordinate-point creation click to the Extension Host. */
+  createCoordinatePointAtPointer?: (pointer: CanvasWorldPoint) => unknown;
+  /** Ends the exact current coordinate-point creation mode. */
+  finishCoordinatePointCreation?: () => unknown;
   /** Shared Canvas keyboard boundary for the active pick scope. */
   dispatchCanvasPickCommand?: (
     commandId: CanvasPickKeyboardCommandId,
@@ -193,8 +200,8 @@ export type CanvasHostAdapter = {
   toggleCanvasGeometryNames?: () => unknown;
   toggleCanvasPoints: () => unknown;
   resolveImageSourceUrl: (sourcePath: string) => string;
-  /** Shared Pick Mode status row rendered above the clipped world-space layer. */
-  renderPickModeChrome?: () => ReactNode;
+  /** Shared Canvas mode status row rendered above the clipped world-space layer. */
+  renderCanvasModeChrome?: () => ReactNode;
   /** Host-owned overlays that use Canvas/world-space coordinates. */
   renderHostDrawingOverlay?: (viewportSize: ViewportSize) => ReactNode;
   /** Host-owned Canvas UI chrome, outside the clipped world-space layer. */

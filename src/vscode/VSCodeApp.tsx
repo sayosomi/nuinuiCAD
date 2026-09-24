@@ -48,8 +48,9 @@ import { vscodeBakeOperationResultFromCommand } from "./vscodeBakeOperationResul
 import { canvasObservationSnapshot } from "./canvasObservation";
 import { canvasNavigationContainerTarget } from "./canvasNavigationContainerTarget";
 import {
-  pickModeCanvasCommandAllowedForActive,
-  pickModeCanvasOperationAllowedForActive
+  canvasModalCanvasCommandAllowed,
+  canvasModalCanvasOperationAllowed,
+  canvasModalModeFor
 } from "./pickModeCanvasPolicy";
 import { effectiveDrawElementIds, effectiveEvaluationElementIds } from "@nuinuicad/nui-language";
 import { effectiveVisibleElementIdsForProfile, visibilityProfileById } from "@nuinuicad/nui-language";
@@ -205,6 +206,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   const [canvasRibbonRibbons, setCanvasRibbonRibbons] = useState<VscodeCanvasRibbon[]>([]);
   const [multiDocumentGraphPublication, setMultiDocumentGraphPublication] = useState<VscodeMultiDocumentGraphPublication | null>(null);
   const [latestHostDocumentVersion, setLatestHostDocumentVersion] = useState<number | null>(null);
+  const [coordinatePointCreationActive, setCoordinatePointCreationActive] = useState(false);
   const [authoritativeHostSourceSnapshot, setAuthoritativeHostSourceSnapshot] = useState<AuthoritativeHostSourceSnapshot | null>(null);
   const canvasThemeRef = useRef<CanvasTheme>(LEGACY_CANVAS_THEME);
   const canvasThemeGenerationRef = useRef<number | null>(null);
@@ -241,6 +243,13 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   const canvasPickModeActive = useCallback(
     () => Boolean(useCadUiStore.getState().activePickModeSession || drawingCanvasRef.current?.isReferencePickActive()),
     []
+  );
+  const canvasModalMode = useCallback(
+    () => canvasModalModeFor({
+      pickModeActive: canvasPickModeActive(),
+      coordinatePointCreationActive
+    }),
+    [canvasPickModeActive, coordinatePointCreationActive]
   );
   const measureCanvasTextWidth = useMemo(
     () => createCanvasTextWidthMeasurer(() =>
@@ -574,6 +583,52 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       }
     };
   }, [currentHostSourceAuthorityFor]);
+
+  const finishCoordinatePointCreation = useCallback(() => {
+    if (!coordinatePointCreationActive) return;
+    setCoordinatePointCreationActive(false);
+    const documentVersion = latestHostDocumentVersionRef.current;
+    if (documentVersion !== null) {
+      api.postMessage({
+        type: "canvasCoordinatePointCreationState",
+        active: false,
+        documentVersion
+      });
+    }
+  }, [api, coordinatePointCreationActive]);
+
+  const startCoordinatePointCreation = useCallback((documentVersion: number): boolean => {
+    if (
+      coordinatePointCreationActive ||
+      canvasModalMode() !== null ||
+      latestHostDocumentVersionRef.current !== documentVersion ||
+      !currentAuthoritativeDocument(documentVersion)
+    ) return false;
+    drawingCanvasRef.current?.clearPendingCanvasPointerIntent();
+    drawingCanvasRef.current?.finalizeCanvasInteraction();
+    setCoordinatePointCreationActive(true);
+    api.postMessage({
+      type: "canvasCoordinatePointCreationState",
+      active: true,
+      documentVersion
+    });
+    canvasFocusRef.current?.focus();
+    return true;
+  }, [api, canvasFocusRef, canvasModalMode, coordinatePointCreationActive, currentAuthoritativeDocument]);
+
+  const postCoordinatePointCreationClick = useCallback((pointer: VscodeCanvasPointer) => {
+    const documentVersion = latestHostDocumentVersionRef.current;
+    if (
+      !coordinatePointCreationActive ||
+      documentVersion === null ||
+      canvasHistoryInFlightRef.current !== null
+    ) return;
+    api.postMessage({
+      type: "canvasCoordinatePointCreationClick",
+      documentVersion,
+      pointer
+    });
+  }, [api, coordinatePointCreationActive]);
 
   const discardDeferredSourceBake = useCallback(() => {
     const deferred = deferredSourceBakeRequestRef.current;
@@ -1454,7 +1509,10 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     const onMessage = (event: MessageEvent<ExtensionToVscodeMessage>) => {
       const message = event.data;
       if (rustTransport.handleMessage(message)) return;
-      if (message.type === "multiDocumentGraphPublication") {
+      if (message.type === "canvasCoordinatePointCreationStart") {
+        startCoordinatePointCreation(message.documentVersion);
+        return;
+      } else if (message.type === "multiDocumentGraphPublication") {
         multiDocumentGraphPublicationRef.current = message;
         multiDocumentRuntimePresentationRef.current = null;
         setMultiDocumentGraphPublication(message);
@@ -1552,7 +1610,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       } else if (message.type === "canvasGridConfiguration") {
         setCanvasGridSettings(normalizeCanvasGridSettings(message.settings));
       } else if (message.type === "canvasCommand") {
-        if (!pickModeCanvasCommandAllowedForActive(message.commandId, canvasPickModeActive())) return;
+        if (!canvasModalCanvasCommandAllowed(message.commandId, canvasModalMode())) return;
         if (message.commandId === "bakeCurrentShape" || message.commandId === "bakeBaseShape") {
           void runCanvasBake(message);
           return;
@@ -1805,7 +1863,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           "requested",
           currentEvaluationIsCurrent ? selectionEligibleIds : undefined,
           runtimeElements,
-          { preservePickMode: pickModeCanvasOperationAllowedForActive("reveal", canvasPickModeActive()) }
+          { preservePickMode: canvasModalCanvasOperationAllowed("reveal", canvasModalMode()) }
         )) {
           api.postMessage({
             type: "canvasNavigationResult",
@@ -2004,7 +2062,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     return () => {
       window.removeEventListener("message", onMessage);
     };
-  }, [api, applyPendingCoordinatePointConversionSelection, canvasPickModeActive, completeCanvasHistoryResult, completePendingCanvasSourceCommit, currentAuthoritativeDocument, currentHostSourceAuthorityFor, deferCoordinatePointConversionSelection, discardDeferredSourceBake, invalidateCanvasHistory, measureCanvasTextWidth, moveCanvasSourceHistory, postCanvasCommit, publishCanvasObservation, publishCanonicalRuntimeDiagnostics, publishCurrentCanvasTheme, publishInlineModuleCanvasTargets, pumpCanvasHistory, refreshCanvasTheme, requestCanvasHistory, resetCanvasHistoryChronology, restoreCanvasFocus, rustTransport, selectActiveCanvasInstance, setMultiDocumentGraphPublication, sourceInsertionError, staleSourceAnchorError, syncCanvasHistoryChronologyToSelection, canvasPointerError, tryApplyPendingCanvasSelectionRestore, tryCompleteCanvasFocus]);
+  }, [api, applyPendingCoordinatePointConversionSelection, canvasModalMode, canvasPickModeActive, completeCanvasHistoryResult, completePendingCanvasSourceCommit, currentAuthoritativeDocument, currentHostSourceAuthorityFor, deferCoordinatePointConversionSelection, discardDeferredSourceBake, invalidateCanvasHistory, measureCanvasTextWidth, moveCanvasSourceHistory, postCanvasCommit, publishCanvasObservation, publishCanonicalRuntimeDiagnostics, publishCurrentCanvasTheme, publishInlineModuleCanvasTargets, pumpCanvasHistory, refreshCanvasTheme, requestCanvasHistory, resetCanvasHistoryChronology, restoreCanvasFocus, rustTransport, selectActiveCanvasInstance, setMultiDocumentGraphPublication, sourceInsertionError, startCoordinatePointCreation, staleSourceAnchorError, syncCanvasHistoryChronologyToSelection, canvasPointerError, tryApplyPendingCanvasSelectionRestore, tryCompleteCanvasFocus]);
 
   const surfaceStyle = benchmarkConfig?.expectedRenderSurface
     ? {
@@ -2024,6 +2082,9 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         canvasFocusRef={canvasFocusRef}
         canvasTheme={canvasTheme}
         canvasGridSettings={canvasGridSettings}
+        coordinatePointCreationActive={coordinatePointCreationActive}
+        onFinishCoordinatePointCreation={finishCoordinatePointCreation}
+        postCoordinatePointCreationClick={postCoordinatePointCreationClick}
         canvasRibbonRibbons={canvasRibbonRibbons}
         measureCanvasTextWidth={measureCanvasTextWidth}
         postCanvasPointerPosition={(pointer: VscodeCanvasPointer) => {

@@ -153,6 +153,12 @@ type CanvasRectangleSelectionSessionState = {
 
 type CanvasPanMode = "middle" | "space-primary";
 
+type CoordinatePointCreationGesture = {
+  pointerId: number;
+  startClientX: number;
+  startClientY: number;
+};
+
 const BEZIER_HANDLE_HIT_RADIUS_PX = 9;
 const POINT_PICK_CANDIDATE_RADIUS_PX = 10;
 const DEFERRED_BEZIER_HANDLE_DRAG_THRESHOLD_PX = 3;
@@ -170,7 +176,7 @@ const deferPointerGestureCleanup = (callback: () => void): void => {
 const canvasPointerBoundaryFallbackShouldRun = (event: PointerEvent): boolean => {
   const target = event.target;
   return !(target instanceof Element && target.closest(
-    ".command-ribbon, [data-reference-pick-ui='true'], [data-canvas-pick-mode-chrome='true'], " +
+    ".command-ribbon, [data-reference-pick-ui='true'], [data-canvas-mode-chrome='true'], " +
     ".numeric-reference-candidate-menu, .measurement-candidate-menu, .line-pick-candidate-menu, " +
     ".canvas-overlap-candidate-menu"
   ));
@@ -211,6 +217,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
   const applyPendingSpacePickRef = useRef<() => void>(() => undefined);
   const pointDragRef = useRef<PointDragState | null>(null);
   const bezierHandleDragRef = useRef<BezierHandleDragState | null>(null);
+  const coordinatePointCreationGestureRef = useRef<CoordinatePointCreationGesture | null>(null);
   const pendingEditorFocusRef = useRef<{ pointerId: number } | null>(null);
   const [reactHandledPointerEvents] = useState(() => new WeakSet<Event>());
   // A webview can surface one physical primary press through both React and
@@ -299,6 +306,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
   const isNumericReferencePickActive = pickModeSession?.kind === "numeric-reference";
   const isLinePickActive = pickModeSession?.kind === "line";
   const isPickModeActive = Boolean(pickModeSession);
+  const canvasModalMode = hostAdapter.canvasModalMode ?? (isPickModeActive ? "pick" : null);
+  const isCoordinatePointCreationActive = canvasModalMode === "coordinate-point-creation";
   const activePickCursor = hostAdapter.activePickCursor !== undefined
     ? hostAdapter.activePickCursor
     : storePickCursor;
@@ -711,22 +720,22 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     };
   }, [evaluation, evaluationState, hostAdapter]);
 
-  const pickModeChrome = hostAdapter.renderPickModeChrome?.() ?? null;
-  const hasPickModeChrome = pickModeChrome !== null && pickModeChrome !== undefined && pickModeChrome !== false;
-  const pickModeChromeRef = useRef<HTMLDivElement>(null);
-  const [pickModeChromeHeight, setPickModeChromeHeight] = useState(0);
+  const canvasModeChrome = hostAdapter.renderCanvasModeChrome?.() ?? null;
+  const hasCanvasModeChrome = canvasModeChrome !== null && canvasModeChrome !== undefined && canvasModeChrome !== false;
+  const canvasModeChromeRef = useRef<HTMLDivElement>(null);
+  const [canvasModeChromeHeight, setCanvasModeChromeHeight] = useState(0);
 
   useLayoutEffect(() => {
-    const chrome = pickModeChromeRef.current;
-    if (!hasPickModeChrome || !chrome) {
-      setPickModeChromeHeight((current) => current === 0 ? current : 0);
+    const chrome = canvasModeChromeRef.current;
+    if (!hasCanvasModeChrome || !chrome) {
+      setCanvasModeChromeHeight((current) => current === 0 ? current : 0);
       return;
     }
 
     const updateHeight = () => {
       const height = chrome.getBoundingClientRect().height;
       const nextHeight = Number.isFinite(height) ? Math.max(height, 0) : 0;
-      setPickModeChromeHeight((current) => current === nextHeight ? current : nextHeight);
+      setCanvasModeChromeHeight((current) => current === nextHeight ? current : nextHeight);
     };
     updateHeight();
 
@@ -734,7 +743,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     const observer = new ResizeObserver(updateHeight);
     observer.observe(chrome);
     return () => observer.disconnect();
-  }, [hasPickModeChrome]);
+  }, [hasCanvasModeChrome]);
 
   useEffect(() => {
     const viewport = canvasFocusRef.current;
@@ -1170,6 +1179,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     rectangleSelectionSession ||
     pendingPointerState.kind === "waiting" ||
     isPickModeActive ||
+    isCoordinatePointCreationActive ||
     hasCommandLineGhost ||
     overlapCandidateSession ||
     !evaluationStateIsCurrentFor(evaluationState, compiledDocumentRevision)
@@ -1254,13 +1264,14 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
   ]);
 
   useEffect(() => {
-    if (overlapCandidateSession && (isPickModeActive || commandLineSession)) {
+    if (overlapCandidateSession && (isPickModeActive || isCoordinatePointCreationActive || commandLineSession)) {
       finalizeOverlapSession();
     }
   }, [
     activeNumericReferencePickTarget,
     commandLineSession,
     finalizeOverlapSession,
+    isCoordinatePointCreationActive,
     isPickModeActive,
     overlapCandidateSession
   ]);
@@ -1281,6 +1292,44 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       }
     }
   }, [captureLedger]);
+
+  const createCoordinatePointAtScreen = useCallback((screen: ScreenPoint) => {
+    if (!isCoordinatePointCreationActive || viewportSize.width <= 0 || viewportSize.height <= 0) return;
+    const pointer = screenToWorld(screen, viewportSize, canvasViewport);
+    if (!Number.isFinite(pointer.x) || !Number.isFinite(pointer.y)) return;
+    hostAdapter.publishCanvasPointerPosition?.(pointer);
+    hostAdapter.createCoordinatePointAtPointer?.(pointer);
+  }, [canvasViewport, hostAdapter, isCoordinatePointCreationActive, viewportSize]);
+
+  const cancelCoordinatePointCreationGesture = useCallback(() => {
+    const gesture = coordinatePointCreationGestureRef.current;
+    if (!gesture) return;
+    captureLedger.release(gesture.pointerId);
+    coordinatePointCreationGestureRef.current = null;
+  }, [captureLedger]);
+
+  const stopCoordinatePointCreation = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    const gesture = coordinatePointCreationGestureRef.current;
+    if (!gesture || gesture.pointerId !== event.pointerId) return false;
+    captureLedger.release(event.pointerId);
+    coordinatePointCreationGestureRef.current = null;
+    const movement = Math.hypot(
+      event.clientX - gesture.startClientX,
+      event.clientY - gesture.startClientY
+    );
+    if (movement < POINT_DRAG_THRESHOLD_PX) {
+      const screen = screenPointForClientCoordinates(event.currentTarget, {
+        clientX: gesture.startClientX,
+        clientY: gesture.startClientY
+      });
+      createCoordinatePointAtScreen(screen);
+    }
+    return true;
+  }, [captureLedger, createCoordinatePointAtScreen]);
+
+  useEffect(() => {
+    if (!isCoordinatePointCreationActive) cancelCoordinatePointCreationGesture();
+  }, [cancelCoordinatePointCreationGesture, isCoordinatePointCreationActive]);
 
   const beginRectangleSelection = useCallback((
     viewport: HTMLDivElement,
@@ -1364,11 +1413,12 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       pendingEditorFocusRef.current = null;
     },
     finalizeCanvasInteraction: () => {
+      cancelCoordinatePointCreationGesture();
       cancelRectangleSelection();
       finalizeOverlapSession();
       clearHoveredElement();
     }
-  }), [applyPendingPointerTransition, cancelRectangleSelection, clearHoveredElement, finalizeOverlapSession]);
+  }), [applyPendingPointerTransition, cancelCoordinatePointCreationGesture, cancelRectangleSelection, clearHoveredElement, finalizeOverlapSession]);
 
   /**
    * Resolves an intent only against the current render.  The original pointer
@@ -1392,6 +1442,24 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       capturePointer(viewport, intent.pointerId);
     };
     const focusCanvas = () => viewport.focus();
+    if (isCoordinatePointCreationActive) {
+      focusCanvas();
+      clearHoveredElement();
+      setPointPickCandidateMenu(null);
+      setLinePickCandidateMenu(null);
+      setMeasurementCandidateMenu(null);
+      if (intent.pointerReleased) {
+        if (movement < POINT_DRAG_THRESHOLD_PX) createCoordinatePointAtScreen(screen);
+        return;
+      }
+      beginCapture();
+      coordinatePointCreationGestureRef.current = {
+        pointerId: intent.pointerId,
+        startClientX: intent.start.clientX,
+        startClientY: intent.start.clientY
+      };
+      return;
+    }
     const handle = hitTestBezierHandle(screen, selectedBezierHandles, BEZIER_HANDLE_HIT_RADIUS_PX);
 
     if (isLinePickActive) {
@@ -1590,10 +1658,13 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     commitRectangleSelectionAt,
     currentBezierHandleDragBase,
     currentDocumentDragBase,
+    createCoordinatePointAtScreen,
+    clearHoveredElement,
     isLinePickActive,
     isNumericReferencePickActive,
     isPointPickActive,
     isPickModeActive,
+    isCoordinatePointCreationActive,
     hasCommandLineGhost,
     linePickCandidatesAt,
     numericReferenceCandidatesAt,
@@ -1965,6 +2036,18 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       spaceHeldRef.current = true;
       return;
     }
+    if (
+      isCoordinatePointCreationActive &&
+      event.currentTarget === document.activeElement &&
+      !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey &&
+      (event.key === "Enter" || event.key === "Escape")
+    ) {
+      event.preventDefault();
+      event.stopPropagation();
+      cancelCoordinatePointCreationGesture();
+      hostAdapter.finishCoordinatePointCreation?.();
+      return;
+    }
     const overlapSession = overlapCandidateSessionRef.current;
     if (overlapSession && event.currentTarget === document.activeElement) {
       if (event.key === "ArrowDown" || event.key === "ArrowUp") {
@@ -2127,6 +2210,16 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       panDragRef.current = { ...pan, lastX: event.clientX, lastY: event.clientY };
       return;
     }
+    const coordinatePointCreationGesture = coordinatePointCreationGestureRef.current;
+    if (coordinatePointCreationGesture?.pointerId === event.pointerId) {
+      if ((event.buttons & 1) === 0) {
+        cancelCoordinatePointCreationGesture();
+        return;
+      }
+      clearHoveredElement();
+      event.preventDefault();
+      return;
+    }
     if (pendingPointerStateRef.current.kind === "waiting") {
       applyPendingPointerTransition(movePendingCanvasPointer(
         pendingPointerStateRef.current,
@@ -2266,6 +2359,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       ));
       return;
     }
+    if (stopCoordinatePointCreation(event)) return;
     stopBezierHandleDragging(event);
     stopPointDragging(event);
     stopRectangleSelection(event, true);
@@ -2279,6 +2373,10 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     if (pendingPointerStateRef.current.kind === "waiting") {
       applyPendingPointerTransition(cancelPendingCanvasPointer(pendingPointerStateRef.current, event.pointerId));
       discardEditorFocusReservation(event.pointerId);
+      return;
+    }
+    if (coordinatePointCreationGestureRef.current?.pointerId === event.pointerId) {
+      cancelCoordinatePointCreationGesture();
       return;
     }
     stopBezierHandleDragging(event);
@@ -2338,11 +2436,11 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
         onPointerLeave={handlePointerLeave}
         onAuxClick={(event) => event.preventDefault()}
       >
-        {hasPickModeChrome ? (
+        {hasCanvasModeChrome ? (
           <div
-            ref={pickModeChromeRef}
-            className="canvas-pick-mode-chrome"
-            data-canvas-pick-mode-chrome="true"
+            ref={canvasModeChromeRef}
+            className="canvas-mode-chrome"
+            data-canvas-mode-chrome="true"
             onPointerDown={(event) => event.stopPropagation()}
             onPointerMove={(event) => event.stopPropagation()}
             onPointerUp={(event) => event.stopPropagation()}
@@ -2351,14 +2449,14 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
             onContextMenu={(event) => event.stopPropagation()}
             onKeyDown={(event) => event.stopPropagation()}
           >
-            {pickModeChrome}
+            {canvasModeChrome}
           </div>
         ) : null}
         <div
           className="canvas-drawing-layer"
-          data-pick-mode-crop-height={pickModeChromeHeight}
-          style={pickModeChromeHeight > 0
-            ? { clipPath: `inset(${pickModeChromeHeight}px 0 0 0)` }
+          data-canvas-mode-crop-height={canvasModeChromeHeight}
+          style={canvasModeChromeHeight > 0
+            ? { clipPath: `inset(${canvasModeChromeHeight}px 0 0 0)` }
             : undefined}
         >
           <canvas
@@ -2429,12 +2527,12 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
             presentation={hostAdapter.presentation}
           />
         </div>
-        {hostAdapter.renderHostOverlay?.(viewportSize, { pickModeChromeHeight })}
+        {hostAdapter.renderHostOverlay?.(viewportSize, { canvasModeChromeHeight })}
         {renderFixedCanvasChrome ? (
           <div
             className="canvas-display-controls"
             aria-label={hostAdapter.presentation?.text("canvas.displaySettings", "キャンバス表示設定") ?? "キャンバス表示設定"}
-            style={{ top: Math.max(10, pickModeChromeHeight + 10) }}
+            style={{ top: Math.max(10, canvasModeChromeHeight + 10) }}
           >
             <button
               type="button"
@@ -2463,7 +2561,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
           </div>
         ) : null}
         {renderFixedCanvasChrome && evaluation.errors.length + evaluation.warnings.length > 0 ? (
-          <div className="canvas-warning" style={{ top: Math.max(12, pickModeChromeHeight + 12) }}>
+          <div className="canvas-warning" style={{ top: Math.max(12, canvasModeChromeHeight + 12) }}>
             {hostAdapter.presentation?.text(
               "canvas.warning",
               "⚠ {count} 件のエラー/警告があります",

@@ -114,9 +114,11 @@ const samePosition = (
 ): boolean => left.line === right.line && left.character === right.character;
 
 export const registerVscodeSourceAuthoringPositionFeature = ({
-  onDocumentInvalidated = () => undefined
+  onDocumentInvalidated = () => undefined,
+  onSourceAuthoringPositionChanged = () => undefined
 }: {
   onDocumentInvalidated?: (document: vscode.TextDocument) => void;
+  onSourceAuthoringPositionChanged?: (document: vscode.TextDocument) => void;
 } = {}): VscodeSourceAuthoringPositionFeature => {
   const sourceAnchors = new Map<string, VscodeSourceAuthoringPosition>();
   const commandOwnedAnchorHistories = new Map<string, CommandOwnedAnchorHistory>();
@@ -145,7 +147,10 @@ export const registerVscodeSourceAuthoringPositionFeature = ({
   const selectionListener = vscode.window.onDidChangeTextEditorSelection((event: SourceSelectionChangeEvent) => {
     if (!explicitSelectionChange(event)) return;
     const position = sourcePositionForEditor(event.textEditor);
-    if (position) sourceAnchors.set(sourceDocumentKey(event.textEditor.document), position);
+    if (position) {
+      sourceAnchors.set(sourceDocumentKey(event.textEditor.document), position);
+      onSourceAuthoringPositionChanged(event.textEditor.document);
+    }
   });
 
   const documentChangeListener = vscode.workspace.onDidChangeTextDocument((event: SourceDocumentChangeEvent) => {
@@ -164,6 +169,7 @@ export const registerVscodeSourceAuthoringPositionFeature = ({
       commandOwnedEdit.marked = false;
       commandOwnedEdit.provisionalDocumentVersion = event.document.version;
       commandOwnedEdit.onObserved?.(event.document.version);
+      onSourceAuthoringPositionChanged(event.document);
       return;
     }
 
@@ -200,6 +206,7 @@ export const registerVscodeSourceAuthoringPositionFeature = ({
           character: entry.postInsertion.character
         });
       }
+      onSourceAuthoringPositionChanged(event.document);
       return;
     }
 
@@ -210,7 +217,10 @@ export const registerVscodeSourceAuthoringPositionFeature = ({
       if (!editor || sourceDocumentKey(editor.document) !== documentUri ||
         editor.document.version !== event.document.version) return;
       const position = sourcePositionForEditor(editor);
-      if (position) sourceAnchors.set(sourceDocumentKey(editor.document), position);
+      if (position) {
+        sourceAnchors.set(sourceDocumentKey(editor.document), position);
+        onSourceAuthoringPositionChanged(editor.document);
+      }
     });
   });
 
@@ -221,6 +231,7 @@ export const registerVscodeSourceAuthoringPositionFeature = ({
     for (const [requestId, pending] of pendingCommandOwnedEdits) {
       if (pending.document === document) pendingCommandOwnedEdits.delete(requestId);
     }
+    onSourceAuthoringPositionChanged(document);
   });
 
   const beginCommandOwnedEdit = ({
@@ -290,6 +301,7 @@ export const registerVscodeSourceAuthoringPositionFeature = ({
         line: postPosition.line,
         character: postPosition.character
       });
+      onSourceAuthoringPositionChanged(document);
       pendingCommandOwnedEdits.delete(requestId);
       return true;
     },
@@ -304,6 +316,7 @@ export const registerVscodeSourceAuthoringPositionFeature = ({
         !sourcePositionIsValid(position) ||
         position.documentVersion !== document.version) return;
       sourceAnchors.set(sourceDocumentKey(document), { ...position });
+      onSourceAuthoringPositionChanged(document);
     },
     disposeSession: (sessionToken: object, document: vscode.TextDocument): void => {
       for (const [requestId, pending] of pendingCommandOwnedEdits) {
