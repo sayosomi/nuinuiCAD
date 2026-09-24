@@ -3,6 +3,7 @@ import { parseDsl } from "@nuinuicad/nui-language";
 import { buildSourceLexicalNamespaceIndex } from "@nuinuicad/nui-language";
 import { compileDslDocument } from "@nuinuicad/nui-language";
 import { collectionLengthForValueId } from "@nuinuicad/nui-language";
+import { analyzeGeometryArraySemantics } from "@nuinuicad/nui-language";
 
 const analyze = (source: string) => {
   const parsed = parseDsl(source);
@@ -16,6 +17,19 @@ const compile = (source: string) => {
   return compileDslDocument(source, {
     preparsed: parsed,
     assignedStatementIds: new Map(parsed.statements.map((_, index) => [index, `statement:${index}`]))
+  });
+};
+
+const analyzeWithControlledLookup = (source: string, forwardNames: readonly string[]) => {
+  const parsed = parseDsl(source);
+  const ids = new Map(parsed.statements.map((_, index) => [index, `statement:${index}`]));
+  const forward = new Set(forwardNames);
+  return analyzeGeometryArraySemantics({
+    statements: parsed.statements,
+    stableStatementIdByIndex: ids,
+    resolvePath: (_statementIndex, path) => path.segments.length === 1 && forward.has(path.segments[0]!)
+      ? { kind: "forward", scopeId: "controlled-test", declarations: [] }
+      : { kind: "undefined" }
   });
 };
 
@@ -115,6 +129,56 @@ describe("geometry array source semantic integration", () => {
     expect(namespace.diagnostics).toEqual(expect.arrayContaining([
       expect.objectContaining({ code: "array-member-type-mismatch", exactSpanOnly: true }),
       expect.objectContaining({ code: "array-assignability-mismatch", exactSpanOnly: true })
+    ]));
+  });
+
+  it("preserves generic array member and reference facts in diagnostic presentation", () => {
+    const { namespace } = analyze([
+      "nui 1",
+      "const mismatch: number[] = [\"wrong\"]",
+      "const memberUndefined: number[] = [@missingValue]",
+      "const aliasUndefined: number[] = @missingArray",
+      "const scalar: number = 1",
+      "const notArray: number[] = @scalar"
+    ].join("\n"));
+
+    expect(namespace.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: "array-member-type-mismatch",
+        presentation: { key: "diagnostic.array-member-type-mismatch", parameters: { member: "\"wrong\"" } }
+      }),
+      expect.objectContaining({
+        code: "array-member-undefined",
+        presentation: { key: "diagnostic.array-member-undefined", parameters: { member: "@missingValue" } }
+      }),
+      expect.objectContaining({
+        code: "array-reference-undefined",
+        presentation: { key: "diagnostic.array-reference-undefined", parameters: { reference: "@missingArray" } }
+      }),
+      expect.objectContaining({
+        code: "array-reference-not-array",
+        presentation: { key: "diagnostic.array-reference-not-array", parameters: { reference: "@scalar" } }
+      })
+    ]));
+  });
+
+  it("preserves stable forward lookup facts through the collection owner", () => {
+    const result = analyzeWithControlledLookup([
+      "nui 1",
+      "const member: number[] = [@laterMember]",
+      "const alias: number[] = @laterArray",
+      "const laterMember: number = 1",
+      "const laterArray: number[] = []"
+    ].join("\n"), ["laterMember", "laterArray"]);
+    expect(result.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: "array-member-forward",
+        presentation: { key: "diagnostic.array-member-forward", parameters: { member: "@laterMember" } }
+      }),
+      expect.objectContaining({
+        code: "array-reference-forward",
+        presentation: { key: "diagnostic.array-reference-forward", parameters: { reference: "@laterArray" } }
+      })
     ]));
   });
 
@@ -477,7 +541,26 @@ describe("geometry array source semantic integration", () => {
     ].join("\n"));
     expect(incompatible.namespace.diagnostics).toContainEqual(expect.objectContaining({
       code: "array-argument-type-mismatch",
-      exactSpanOnly: true
+      exactSpanOnly: true,
+      presentation: {
+        key: "diagnostic.array-argument-type-mismatch",
+        parameters: { argument: "@labels", parameter: "values" }
+      }
+    }));
+
+    const invalid = analyze([
+      "nui 1",
+      "module M(values: number[]) {",
+      "}",
+      "instance use = M(values: 1)"
+    ].join("\n"));
+    expect(invalid.namespace.diagnostics).toContainEqual(expect.objectContaining({
+      code: "array-argument-invalid",
+      exactSpanOnly: true,
+      presentation: {
+        key: "diagnostic.array-argument-invalid",
+        parameters: { parameter: "values" }
+      }
     }));
   });
 
@@ -586,6 +669,42 @@ describe("geometry array source semantic integration", () => {
       "const paths: path[] = [@L.start]"
     ].join("\n"));
     expect(badDerived.namespace.diagnostics).toContainEqual(expect.objectContaining({ code: "geometry-array-member-type-mismatch" }));
+  });
+
+  it("preserves geometry collection value-for source facts in diagnostic presentation", () => {
+    const invalid = analyze([
+      "nui 1",
+      "const scalar: number = 1",
+      "const bad: point[] = for item in @scalar { @item }"
+    ].join("\n"));
+    expect(invalid.namespace.diagnostics).toContainEqual(expect.objectContaining({
+      code: "geometry-array-value-for-source-invalid",
+      presentation: {
+        key: "diagnostic.geometry-array-value-for-source-invalid",
+        parameters: { source: "@scalar" }
+      }
+    }));
+
+    const forward = analyze([
+      "nui 1",
+      "const bad: point[] = for item in @later { @item }"
+    ].join("\n"));
+    expect(forward.namespace.diagnostics).toContainEqual(expect.objectContaining({
+      code: "geometry-array-value-for-source-invalid"
+    }));
+
+    const controlledForward = analyzeWithControlledLookup([
+      "nui 1",
+      "const bad: point[] = for item in @later { @item }",
+      "const later: point[] = []"
+    ].join("\n"), ["later"]);
+    expect(controlledForward.diagnostics).toContainEqual(expect.objectContaining({
+      code: "geometry-array-value-for-source-forward",
+      presentation: {
+        key: "diagnostic.geometry-array-value-for-source-forward",
+        parameters: { source: "@later" }
+      }
+    }));
   });
 
   it("keeps pure geometry collection members as value occurrences", () => {
