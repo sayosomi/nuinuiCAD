@@ -235,7 +235,7 @@ describe("planModulePreviewInstance", () => {
       explicitArguments: []
     });
 
-    expect(result).toMatchObject({ status: "rejected", code: "target-not-visible" });
+    expect(result).toMatchObject({ status: "rejected", code: "target-not-visible", reason: "target-not-visible" });
   });
 
   it("rejects a same-name target with the wrong stable identity", () => {
@@ -256,7 +256,67 @@ describe("planModulePreviewInstance", () => {
       explicitArguments: [{ name: "anchor", expression: "@Top" }]
     });
 
-    expect(result).toMatchObject({ status: "rejected", code: "target-unavailable" });
+    expect(result).toMatchObject({ status: "rejected", code: "target-unavailable", reason: "target-not-exact-current" });
+  });
+
+  it("distinguishes missing semantic definitions from non-current target identities under target-unavailable", () => {
+    const source = [
+      "nui 1",
+      "point Top = coordinate(x: 0, y: 0)",
+      "module Pocket(anchor: point) {",
+      "}",
+      ""
+    ].join("\n");
+    const compiled = compileCurrent(source);
+    const semanticAnalysis = compiled.moduleSemanticAnalysis!;
+    const withoutDefinition = {
+      ...compiled,
+      moduleSemanticAnalysis: {
+        ...semanticAnalysis,
+        definitionsByStatementId: new Map()
+      }
+    } as CompiledDslDocument;
+    const result = planModulePreviewInstance({
+      source: { normalizedSource: source, sourceRevision: REVISION },
+      compiled: withoutDefinition,
+      insertionOffset: source.length,
+      target: targetFor(compiled, "Pocket"),
+      explicitArguments: []
+    });
+
+    expect(result).toMatchObject({
+      status: "rejected",
+      code: "target-unavailable",
+      reason: "target-semantic-definition-missing"
+    });
+  });
+
+  it("distinguishes malformed and undeclared arguments under invalid-argument", () => {
+    const source = [
+      "nui 1",
+      "point Top = coordinate(x: 0, y: 0)",
+      "module Pocket(anchor: point) {",
+      "}",
+      ""
+    ].join("\n");
+    const compiled = compileCurrent(source);
+    const input = {
+      source: { normalizedSource: source, sourceRevision: REVISION },
+      compiled,
+      insertionOffset: source.length,
+      target: targetFor(compiled, "Pocket")
+    };
+    const malformed = planModulePreviewInstance({
+      ...input,
+      explicitArguments: [{ name: "anchor", expression: "" }]
+    });
+    const undeclared = planModulePreviewInstance({
+      ...input,
+      explicitArguments: [{ name: "other", expression: "@Top" }]
+    });
+
+    expect(malformed).toMatchObject({ status: "rejected", code: "invalid-argument", reason: "invalid-explicit-argument" });
+    expect(undeclared).toMatchObject({ status: "rejected", code: "invalid-argument", reason: "undeclared-argument" });
   });
 
   it("rejects a generated call whose explicit expression fails semantic validation", () => {
@@ -275,6 +335,6 @@ describe("planModulePreviewInstance", () => {
       explicitArguments: [{ name: "anchor", expression: "@Missing" }]
     });
 
-    expect(result).toMatchObject({ status: "rejected", code: "candidate-invalid" });
+    expect(result).toMatchObject({ status: "rejected", code: "candidate-invalid", reason: "candidate-invalid" });
   });
 });
