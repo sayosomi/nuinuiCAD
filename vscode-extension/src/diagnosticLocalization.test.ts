@@ -7,6 +7,8 @@ import {
   diagnosticRelatedTextFor,
   diagnosticTextFor
 } from "./diagnosticLocalization";
+import { webviewPresentationFor } from "./webviewPresentationLocalization";
+import { webviewDiagnosticTextFor } from "../../src/vscode/webviewPresentation";
 
 describe("diagnostic presentation localization", () => {
   const missingValue = () => {
@@ -49,6 +51,36 @@ describe("diagnostic presentation localization", () => {
       start: { line: 1, character: 0 },
       end: { line: 1, character: 6 }
     });
+  });
+
+  it("localizes an unnamed layout block through Problems and the existing Webview path", () => {
+    const source = "nui 1\nlayout {\n}\n";
+    const document = AutomationDocument.fromSource(source);
+    const diagnostic = compilerDiagnosticsForState(document.getSource(), document.getState()).find(
+      (candidate) => candidate.code === "settings-missing-statement-name"
+    );
+    if (!diagnostic) throw new Error("missing production unnamed layout diagnostic");
+
+    expect(diagnostic.message).toBe("layoutには名前が必要です。");
+    expect(diagnostic.presentation).toEqual({
+      key: "diagnostic.settings-missing-statement-name",
+      parameters: { keyword: "layout" }
+    });
+    expect(diagnostic.range).toEqual({
+      start: { line: 1, character: 0 },
+      end: { line: 1, character: 6 }
+    });
+
+    const identity = { code: diagnostic.code, source: diagnostic.source, range: diagnostic.range };
+    const englishProblems = diagnosticTextFor(diagnostic, "en");
+    const japaneseProblems = diagnosticTextFor(diagnostic, "ja-JP");
+    expect(englishProblems).toBe("The layout statement requires a name.");
+    expect(japaneseProblems).toBe("layoutには名前が必要です。");
+    expect({ ...identity, message: englishProblems }).toEqual({ ...identity, message: "The layout statement requires a name." });
+    expect({ ...identity, message: japaneseProblems }).toEqual({ ...identity, message: "layoutには名前が必要です。" });
+
+    expect(webviewDiagnosticTextFor(webviewPresentationFor("en"), diagnostic)).toBe("The layout statement requires a name.");
+    expect(webviewDiagnosticTextFor(webviewPresentationFor("ja-JP"), diagnostic)).toBe("layoutには名前が必要です。");
   });
 
   it("interpolates structured parameters without inspecting the fallback message", () => {
