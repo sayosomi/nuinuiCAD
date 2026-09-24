@@ -25,7 +25,7 @@ vi.mock("../components/DrawingCanvas", () => ({
     mocks.hostAdapter = hostAdapter;
     return (
       <div ref={canvasFocusRef} data-testid="module-preview-canvas">
-        {hostAdapter.renderHostOverlay?.({ width: 400, height: 300 }, { pickModeChromeHeight: 0 })}
+        {hostAdapter.renderHostOverlay?.({ width: 400, height: 300 }, { canvasModeChromeHeight: 0 })}
       </div>
     );
   }

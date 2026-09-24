@@ -150,7 +150,7 @@ vi.mock("../../src/components/DrawingCanvas", () => ({
     return createElement(
       "div",
       { ref: canvasFocusRef, "data-testid": "module-preview-canvas-viewport" },
-      hostAdapter.renderPickModeChrome?.()
+      hostAdapter.renderCanvasModeChrome?.()
     );
   }
 }));

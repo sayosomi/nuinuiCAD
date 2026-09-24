@@ -1,7 +1,6 @@
 import * as vscode from "vscode";
 import {
   isVscodeCanvasPointer,
-  vscodeCanvasPointerContextKeys,
   type VscodeCanvasPointer
 } from "../../src/vscode/protocol";
 import type { VscodeToExtensionMessage } from "../../src/vscode/protocol";
@@ -21,7 +20,9 @@ export type VscodeCanvasFreePointAtPointerEndpoint = {
   document: vscode.TextDocument;
   isCurrent: () => boolean;
   isAuthoritativeReady: () => boolean;
+  isCoordinatePointCreationActive?: () => boolean;
   lastCanvasPointer: () => VscodeCanvasPointer | null;
+  postCoordinatePointCreationStart?: (documentVersion: number) => void;
   postFreePointAtPointer: (request: {
     requestId: number;
     documentVersion: number;
@@ -47,6 +48,11 @@ export type VscodeCanvasFreePointAtPointerFeature = vscode.Disposable & {
     sessionToken: object,
     document: vscode.TextDocument,
     message: Extract<VscodeToExtensionMessage, { type: "canvasFreePointAtPointerResult" }>
+  ) => void;
+  handleCoordinatePointCreationClick: (
+    endpoint: VscodeCanvasFreePointAtPointerEndpoint | null,
+    documentVersion: number,
+    pointer: VscodeCanvasPointer
   ) => void;
 };
 
@@ -79,17 +85,6 @@ export const isVscodeCanvasBlankContext = (context: unknown): boolean =>
   typeof context === "object" && context !== null &&
   (context as Record<string, unknown>).webviewSection === "blank";
 
-const pointerFromContext = (context: unknown): VscodeCanvasPointer | null => {
-  if (typeof context !== "object" || context === null) return null;
-  const values = context as Record<string, unknown>;
-  if (!isVscodeCanvasBlankContext(context)) return null;
-  const pointer = {
-    x: values[vscodeCanvasPointerContextKeys.x],
-    y: values[vscodeCanvasPointerContextKeys.y]
-  };
-  return isVscodeCanvasPointer(pointer) ? pointer : null;
-};
-
 const displayLanguage = (): string => {
   try {
     return vscode.env?.language ?? "en";
@@ -100,8 +95,6 @@ const displayLanguage = (): string => {
 
 const sourceAnchorError = (): string => canvasPresentationTextFor("canvas.sourceAnchor", displayLanguage());
 const staleSourceAnchorError = (): string => canvasPresentationTextFor("canvas.staleSourceAnchor", displayLanguage());
-const pointerError = (): string => canvasPresentationTextFor("canvas.pointer", displayLanguage());
-
 const sourcePositionIsValid = (position: unknown): position is { line: number; character: number } => {
   if (typeof position !== "object" || position === null) return false;
   const candidate = position as { line?: unknown; character?: unknown };
@@ -242,10 +235,11 @@ export const registerVscodeCanvasFreePointAtPointerFeature = ({
     });
   };
 
-  const execute = (context?: unknown): void => {
-    const endpoint = activeCanvasEndpoint(context);
-    if (!endpoint || !endpoint.isCurrent()) return;
-
+  const enqueuePointer = (
+    endpoint: VscodeCanvasFreePointAtPointerEndpoint,
+    pointer: VscodeCanvasPointer
+  ): void => {
+    if (!endpoint.isCurrent() || endpoint.isCoordinatePointCreationActive?.() === false) return;
     const documentUri = endpoint.document.uri.toString();
     const state = stateForEndpoint(endpoint);
     if (
@@ -273,12 +267,6 @@ export const registerVscodeCanvasFreePointAtPointerFeature = ({
       return;
     }
 
-    const pointer = context === undefined ? endpoint.lastCanvasPointer() : pointerFromContext(context);
-    if (!pointer || !isVscodeCanvasPointer(pointer)) {
-      void vscode.window.showErrorMessage(pointerError());
-      return;
-    }
-
     const invocation: DeferredInvocation = {
       endpoint,
       document: endpoint.document,
@@ -287,6 +275,25 @@ export const registerVscodeCanvasFreePointAtPointerFeature = ({
     };
     state.queuedInvocations = [...state.queuedInvocations, invocation];
     dispatchNext(state, state.inFlightRequestId === null && state.queuedInvocations.length === 1);
+  };
+
+  const execute = (): void => {
+    const endpoint = activeCanvasEndpoint();
+    if (!endpoint || !endpoint.isCurrent() || endpoint.isCoordinatePointCreationActive?.()) return;
+    if (!endpoint.isAuthoritativeReady()) {
+      void vscode.window.showErrorMessage(staleSourceAnchorError());
+      return;
+    }
+    const anchor = ownedSourceAuthoringPosition.sourceAuthoringPositionFor(endpoint.document);
+    if (!anchor) {
+      void vscode.window.showErrorMessage(sourceAnchorError());
+      return;
+    }
+    if (!sourcePositionIsValid(anchor) || anchor.documentVersion !== endpoint.document.version) {
+      void vscode.window.showErrorMessage(staleSourceAnchorError());
+      return;
+    }
+    endpoint.postCoordinatePointCreationStart?.(endpoint.document.version);
   };
 
   const command = vscode.commands.registerCommand(
@@ -371,6 +378,21 @@ export const registerVscodeCanvasFreePointAtPointerFeature = ({
       ownedSourceAuthoringPosition.markCommandOwnedEdit(requestId);
     },
     handleSourceDocumentInvalidated,
+    handleCoordinatePointCreationClick: (
+      endpoint: VscodeCanvasFreePointAtPointerEndpoint | null,
+      documentVersion: number,
+      pointer: VscodeCanvasPointer
+    ): void => {
+      const currentEndpoint = endpoint ?? activeCanvasEndpoint();
+      if (
+        !currentEndpoint ||
+        !currentEndpoint.isCurrent() ||
+        currentEndpoint.isCoordinatePointCreationActive?.() === false ||
+        currentEndpoint.document.version !== documentVersion ||
+        !isVscodeCanvasPointer(pointer)
+      ) return;
+      enqueuePointer(currentEndpoint, pointer);
+    },
     disposeSession: (sessionToken: object, document: vscode.TextDocument): void => {
       const state = sessionStates.get(sessionToken);
       if (state?.document === document) invalidateSessionState(state);

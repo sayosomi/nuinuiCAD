@@ -134,7 +134,7 @@ describe("VSCodeDrawingCanvas adapter", () => {
   it("keeps fixed viewport controls visible when configurable Canvas Ribbons are empty", () => {
     const evaluation = emptyEvaluationResult(useCadDocumentStore.getState().elements);
     const { adapter } = renderCanvas(evaluation, undefined, vi.fn(), []);
-    const overlay = adapter.renderHostOverlay?.({ width: 400, height: 300 }, { pickModeChromeHeight: 52 });
+    const overlay = adapter.renderHostOverlay?.({ width: 400, height: 300 }, { canvasModeChromeHeight: 52 });
     if (!overlay) throw new Error("Canvas UI overlay was not rendered");
     const view = render(overlay);
     const controls = view.container.querySelector("[data-canvas-viewport-controls]");
@@ -207,15 +207,15 @@ describe("VSCodeDrawingCanvas adapter", () => {
     });
     const evaluation = emptyEvaluationResult(useCadDocumentStore.getState().elements);
     const { adapter } = renderCanvas(evaluation, undefined);
-    const chrome = adapter.renderPickModeChrome?.();
+    const chrome = adapter.renderCanvasModeChrome?.();
     if (!chrome) throw new Error("Pick Mode chrome was not rendered");
     render(chrome);
 
     expect(screen.getByText("PICK MODE")).toBeInTheDocument();
-    const uiOverlay = adapter.renderHostOverlay?.({ width: 400, height: 300 }, { pickModeChromeHeight: 52 });
+    const uiOverlay = adapter.renderHostOverlay?.({ width: 400, height: 300 }, { canvasModeChromeHeight: 52 });
     if (!uiOverlay) throw new Error("Canvas UI overlay was not rendered");
     const uiView = render(uiOverlay);
-    expect(uiView.container.querySelector(".pick-mode-status")).toBeNull();
+    expect(uiView.container.querySelector(".canvas-mode-status")).toBeNull();
   });
 
   it("keeps view and presentation Ribbon operations available during Pick", () => {
@@ -242,7 +242,7 @@ describe("VSCodeDrawingCanvas adapter", () => {
         { id: "edit", type: "command", commandId: "editCanvasRibbon", icon: "settings-2", showLabel: true }
       ]
     }], onEditCanvasRibbon);
-    const overlay = adapter.renderHostOverlay?.({ width: 400, height: 300 }, { pickModeChromeHeight: 60 });
+    const overlay = adapter.renderHostOverlay?.({ width: 400, height: 300 }, { canvasModeChromeHeight: 60 });
     if (!overlay) throw new Error("Ribbon overlay was not rendered");
     render(overlay);
     const ribbon = document.querySelector("[data-ribbon-id='ribbon']");
@@ -451,7 +451,7 @@ describe("VSCodeDrawingCanvas adapter", () => {
       ]
     }];
     const { adapter } = renderCanvas(evaluation, undefined, vi.fn(), ribbons, onEditCanvasRibbon);
-    const overlay = adapter.renderHostOverlay?.({ width: 400, height: 300 }, { pickModeChromeHeight: 60 });
+    const overlay = adapter.renderHostOverlay?.({ width: 400, height: 300 }, { canvasModeChromeHeight: 60 });
     if (!overlay) throw new Error("Ribbon overlay was not rendered");
     render(overlay);
 

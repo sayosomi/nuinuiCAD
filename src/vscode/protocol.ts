@@ -243,6 +243,16 @@ export type VscodeCanvasNavigationRequest =
 export type VscodeToExtensionMessage =
   | { type: "webviewReady" }
   | { type: "webviewEditableFocus"; focused: boolean }
+  | {
+      type: "canvasCoordinatePointCreationState";
+      active: boolean;
+      documentVersion: number;
+    }
+  | {
+      type: "canvasCoordinatePointCreationClick";
+      documentVersion: number;
+      pointer: VscodeCanvasPointer;
+    }
   | { type: "canvasRibbonPositionCommit"; ribbonId: string; x: number; y: number }
   | { type: "editCanvasRibbon" }
   | { type: "webviewAuthoritativeDocumentReady"; documentVersion: number }
@@ -350,6 +360,10 @@ export type VscodeBenchmarkConfig = {
 
 export type ExtensionToVscodeMessage =
   | { type: "webviewPresentation"; presentation: VscodeWebviewPresentation }
+  | {
+      type: "canvasCoordinatePointCreationStart";
+      documentVersion: number;
+    }
   | { type: "replaceTextDocument"; sourceText: string; documentVersion: number }
   | { type: "commitText"; sourceText: string; documentVersion: number; reason: VscodeDocumentChangeReason }
   | VscodeMultiDocumentGraphPublication

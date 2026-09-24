@@ -3,11 +3,11 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const stylesheet = readFileSync(resolve(process.cwd(), "src/styles.css"), "utf8");
-const pickModeStatusStart = stylesheet.indexOf(".pick-mode-status {");
+const pickModeStatusStart = stylesheet.indexOf(".canvas-mode-status {");
 const pickModeStatusEnd = stylesheet.indexOf(".canvas-viewport.is-point-dragging,", pickModeStatusStart);
 const pickModeStatusStyles = stylesheet.slice(pickModeStatusStart, pickModeStatusEnd);
-const pickModeChromeStart = stylesheet.indexOf(".canvas-pick-mode-chrome {");
-const pickModeChromeEnd = stylesheet.indexOf(".pick-mode-status-title", pickModeChromeStart);
+const pickModeChromeStart = stylesheet.indexOf(".canvas-mode-chrome {");
+const pickModeChromeEnd = stylesheet.indexOf(".canvas-mode-status-title", pickModeChromeStart);
 const pickModeChromeStyles = stylesheet.slice(pickModeChromeStart, pickModeChromeEnd);
 
 describe("Pick Mode status stylesheet contract", () => {

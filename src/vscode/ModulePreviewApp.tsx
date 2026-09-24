@@ -1651,7 +1651,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     toggleCanvasGeometryNames: () => executeSharedCanvasCommand("toggleCanvasGeometryNames"),
     toggleCanvasPoints: () => executeSharedCanvasCommand("toggleCanvasPoints"),
     resolveImageSourceUrl: (sourcePath) => sourcePath,
-    renderPickModeChrome: () => modulePreviewPickModeSession ? (
+    renderCanvasModeChrome: () => modulePreviewPickModeSession ? (
       <PickModeStatusView
         model={{
           targetLabel: modulePreviewPickModeSession.targetDisplayLabel ?? "Preview",
@@ -1665,14 +1665,14 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         }}
       />
     ) : null,
-    renderHostOverlay: (_viewportSize, layout = { pickModeChromeHeight: 0 }) => (
+    renderHostOverlay: (_viewportSize, layout = { canvasModeChromeHeight: 0 }) => (
         <>
           <VSCodeCanvasRibbonOverlay
             canvasFocusRef={canvasFocusRef}
             canvasViewport={canvasViewport}
             canvasRibbonRibbons={canvasRibbonRibbons}
             viewportSize={_viewportSize}
-            pickModeChromeHeight={layout.pickModeChromeHeight}
+          canvasModeChromeHeight={layout.canvasModeChromeHeight}
             ribbonCommandContext={ribbonCommandContext}
             presentation={canvasPresentationAdapter}
             onCommand={(item) => {
