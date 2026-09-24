@@ -526,4 +526,16 @@ describe("VSCodeDrawingCanvas transient invalid-source selection presentation", 
       /\.drawing-overlay \.overlay-draggable-point\s*\{[\s\S]*?pointer-events:\s*all;/
     );
   });
+
+  it("projects the coordinate-point creation cursor through the production stylesheet", () => {
+    expect(stylesheet).toMatch(
+      /\.drawing-overlay \.overlay-draggable-point\s*\{[\s\S]*?cursor:\s*grab;[\s\S]*?pointer-events:\s*all;/
+    );
+    expect(stylesheet).toMatch(
+      /\.canvas-viewport\.is-coordinate-point-creation \.drawing-overlay \.overlay-draggable-point\s*\{\s*cursor:\s*inherit;\s*\}/
+    );
+    expect(stylesheet).toMatch(
+      /\.canvas-viewport\.is-panning\s*\{\s*cursor:\s*grabbing;\s*\}/
+    );
+  });
 });
