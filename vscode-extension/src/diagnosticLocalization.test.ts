@@ -376,4 +376,329 @@ describe("diagnostic presentation localization", () => {
     expect({ ...identity, message: diagnosticTextFor(diagnostic, "en") }).toMatchObject(identity);
     expect({ ...identity, message: diagnosticTextFor(diagnostic, "ja-JP") }).toMatchObject(identity);
   });
+
+  it.each([
+    {
+      family: "style missing name",
+      source: "nui 1\nstyle {\n}\n",
+      code: "style-missing-name",
+      english: "A style definition requires a name.",
+      japanese: "style には名前が必要です。"
+    },
+    {
+      family: "style invalid name",
+      source: "nui 1\nstyle bad name {\n  width: 1px,\n}\n",
+      code: "style-invalid-name",
+      english: "The style name is invalid. Quote names containing spaces or syntax punctuation.",
+      japanese: "style の名前が不正です。空白や構文記号を含める場合は引用符で囲んでください。"
+    },
+    {
+      family: "style missing block",
+      source: "nui 1\nstyle Guide\n",
+      code: "missing-block",
+      parameters: { category: "style" },
+      english: "The style statement requires a block.",
+      japanese: "style にはブロックが必要です。"
+    },
+    {
+      family: "style property missing comma",
+      source: "nui 1\nstyle Guide {\n  width: 1px\n}\n",
+      code: "style-property-missing-trailing-comma",
+      english: "Style properties require a trailing comma.",
+      japanese: "style のプロパティには末尾の「,」が必要です。"
+    },
+    {
+      family: "style property multiple per line",
+      source: "nui 1\nstyle Guide {\n  width: 1px, color: accent,\n}\n",
+      code: "style-property-multiple-per-line",
+      english: "Only one style property may be specified on each line.",
+      japanese: "style ブロックでは1行に1つのプロパティだけ指定できます。"
+    },
+    {
+      family: "style property missing value",
+      source: "nui 1\nstyle Guide {\n  width: ,\n}\n",
+      code: "style-property-missing-value",
+      parameters: { property: "width" },
+      english: "Style property 'width' has no value.",
+      japanese: "style プロパティ「width」の値がありません。"
+    },
+    {
+      family: "style width",
+      source: "nui 1\nstyle Guide {\n  width: 0px,\n}\n",
+      code: "style-width-invalid",
+      english: "Style width must be a positive finite decimal px literal (for example, 1.5px).",
+      japanese: "style の width は正の有限な10進数pxリテラルで指定してください(例: 1.5px)。"
+    },
+    {
+      family: "style lineType",
+      source: "nui 1\nstyle Guide {\n  lineType: stripe,\n}\n",
+      code: "style-line-type-invalid",
+      english: "Style lineType must be solid, dashed, or dotted.",
+      japanese: "style の lineType は solid / dashed / dotted のいずれかで指定してください。"
+    },
+    {
+      family: "style visible",
+      source: "nui 1\nstyle Guide {\n  visible: maybe,\n}\n",
+      code: "style-visible-invalid",
+      english: "Style visible must be true or false.",
+      japanese: "style の visible は true / false のいずれかで指定してください。"
+    },
+    {
+      family: "style fixed color",
+      source: "nui 1\nstyle Guide {\n  color: #12,\n}\n",
+      code: "style-color-fixed-invalid",
+      english: "A fixed style color must use the form #RRGGBB.",
+      japanese: "style の color 固定色は #RRGGBB の形式で指定してください。"
+    },
+    {
+      family: "style color",
+      source: "nui 1\nstyle Guide {\n  color: brand,\n}\n",
+      code: "style-color-invalid",
+      english: "Style color must be foreground, muted, accent, info, warning, error, or #RRGGBB.",
+      japanese: "style の color は foreground / muted / accent / info / warning / error または #RRGGBB で指定してください。"
+    },
+    {
+      family: "style fill",
+      source: "nui 1\nstyle Guide {\n  fill: brand,\n}\n",
+      code: "style-fill-invalid",
+      english: "Style fill must be foreground, muted, accent, info, warning, error, #RRGGBB, or none.",
+      japanese: "style の fill は foreground / muted / accent / info / warning / error、#RRGGBB、または none で指定してください。"
+    },
+    {
+      family: "style fillOpacity number",
+      source: "nui 1\nstyle Guide {\n  fillOpacity: nope,\n}\n",
+      code: "style-fill-opacity-invalid-number",
+      english: "Style fillOpacity must be a finite number.",
+      japanese: "style の fillOpacity は有限な数値で指定してください。"
+    },
+    {
+      family: "style fillOpacity range",
+      source: "nui 1\nstyle Guide {\n  fillOpacity: 1.1,\n}\n",
+      code: "style-fill-opacity-out-of-range",
+      english: "Style fillOpacity must be between 0 and 1 inclusive.",
+      japanese: "style の fillOpacity は 0 以上 1 以下で指定してください。"
+    },
+    {
+      family: "style profile reference",
+      source: "nui 1\nstyle Guide {\n  for @ {\n  }\n}\n",
+      code: "style-profile-reference-invalid",
+      parameters: { reference: "@" },
+      english: "Style for reference '@' must be an @profile reference.",
+      japanese: "style の for 参照「@」が不正です。@profile 参照で指定してください。"
+    },
+    {
+      family: "style profile property reference",
+      source: "nui 1\nstyle Guide {\n  for @Print.width {\n    width: 1px,\n  }\n}\n",
+      code: "style-profile-reference-property-not-allowed",
+      english: "A style for reference cannot specify a property.",
+      japanese: "style の for 参照には property を指定できません。"
+    },
+    {
+      family: "style profile missing block",
+      source: "nui 1\nstyle Guide {\n  for @Print\n}\n",
+      code: "missing-block",
+      parameters: { category: "style for @profile" },
+      english: "The style for @profile statement requires a block.",
+      japanese: "style for @profile にはブロックが必要です。"
+    },
+    {
+      family: "profile missing name",
+      source: "nui 1\nprofile\n",
+      code: "profile-missing-name",
+      english: "A profile definition requires a name.",
+      japanese: "profile には名前が必要です。"
+    },
+    {
+      family: "profile invalid name",
+      source: "nui 1\nprofile bad name\n",
+      code: "profile-invalid-name",
+      english: "The profile name is invalid. Quote names containing spaces or syntax punctuation.",
+      japanese: "profile の名前が不正です。空白や構文記号を含める場合は引用符で囲んでください。"
+    },
+    {
+      family: "missing statement keyword",
+      source: "nui 1\n= nope\n",
+      code: "missing-statement-keyword",
+      english: "A statement must begin with a keyword.",
+      japanese: "文はキーワードから始めてください。"
+    },
+    {
+      family: "invalid else placement",
+      source: "nui 1\n} else {\n",
+      code: "invalid-else-placement",
+      english: "`else` is allowed only immediately after the then branch of an if block.",
+      japanese: "「} else {」は if ブロックの then 部の直後にのみ書けます。"
+    },
+    {
+      family: "unmatched block end",
+      source: "nui 1\n}\n",
+      code: "unmatched-block-end",
+      english: "This closing brace has no matching block opener.",
+      japanese: "対応するブロックの開きがない「}」です。"
+    },
+    {
+      family: "statement top level",
+      source: "nui 1\ngroup G {\n  layout L {\n  }\n}\n",
+      code: "statement-top-level-only",
+      parameters: { keyword: "layout" },
+      english: "layout statements are allowed only at the document top level.",
+      japanese: "layout は文書のトップレベルにのみ書けます。"
+    },
+    {
+      family: "profile top level",
+      source: "nui 1\ngroup G {\n  profile P\n}\n",
+      code: "profile-top-level-only",
+      english: "Profile definitions are allowed only at the document top level.",
+      japanese: "profile 定義は文書のトップレベルにのみ書けます。"
+    },
+    {
+      family: "style property outside style",
+      source: "nui 1\nwidth: 1px,\n",
+      code: "style-property-outside-style",
+      english: "Style properties are allowed only inside a style or style for @profile block.",
+      japanese: "style プロパティは style または for @profile ブロック内にのみ書けます。"
+    },
+    {
+      family: "style profile outside style",
+      source: "nui 1\nfor @Print {\n}\n",
+      code: "style-profile-outside-style",
+      english: "A style for @profile block is allowed only inside a style block.",
+      japanese: "style の for @profile ブロックは style ブロック内にのみ書けます。"
+    },
+    {
+      family: "nested style",
+      source: "nui 1\nstyle Outer {\n  style Guide {\n    width: 1px,\n  }\n  width: 1px,\n}\n",
+      code: "style-nested-definition",
+      english: "A style definition cannot be nested inside another block.",
+      japanese: "style 定義を別のブロック内にネストできません。"
+    },
+    {
+      family: "style top level",
+      source: "nui 1\ngroup G {\n  style Guide {\n    width: 1px,\n  }\n}\n",
+      code: "style-top-level-only",
+      english: "Style definitions are allowed only at the document top level.",
+      japanese: "style 定義は文書のトップレベルにのみ書けます。"
+    },
+    {
+      family: "style block statement",
+      source: "nui 1\nstyle Guide {\n  point A = coordinate(x: 0, y: 0)\n}\n",
+      code: "style-block-invalid-statement",
+      english: "A style block may contain only visible, width, lineType, color, fill, fillOpacity, or for @profile.",
+      japanese: "style ブロック内には visible / width / lineType / color / fill / fillOpacity または for @profile だけを書けます。"
+    },
+    {
+      family: "layout block statement",
+      source: "nui 1\nlayout L {\n  point A = coordinate(x: 0, y: 0)\n}\n",
+      code: "layout-block-invalid-statement",
+      english: "A layout block may contain only place statements.",
+      japanese: "layout ブロック内には place のみ書けます。"
+    },
+    {
+      family: "place outside layout",
+      source: "nui 1\nplace @G(at: (0, 0))\n",
+      code: "place-outside-layout",
+      english: "Place statements are allowed only inside a layout block.",
+      japanese: "place は layout ブロック内にのみ書けます。"
+    },
+    {
+      family: "unclosed block",
+      source: "nui 1\ngroup G {\n",
+      code: "unclosed-block",
+      english: "The block is not closed. Close it with '}'.",
+      japanese: "ブロックが閉じられていません。「}」で閉じてください。"
+    },
+    {
+      family: "duplicate style name",
+      source: "nui 1\nstyle Guide {\n  width: 1px,\n}\nstyle Guide {\n  width: 2px,\n}\n",
+      code: "style-duplicate-name",
+      parameters: { name: "Guide", previousLine: 2 },
+      english: "Style name 'Guide' is duplicated (also declared on line 2).",
+      japanese: "style 名「Guide」が重複しています（行 2 と重複）。"
+    },
+    {
+      family: "duplicate style property",
+      source: "nui 1\nstyle Guide {\n  width: 1px,\n  width: 2px,\n}\n",
+      code: "style-duplicate-property",
+      parameters: { property: "width" },
+      english: "Style property 'width' may be specified only once.",
+      japanese: "style の width プロパティは1つだけ指定できます。"
+    },
+    {
+      family: "unknown style property",
+      source: "nui 1\nstyle Guide {\n  mystery: 1,\n}\n",
+      code: "style-unknown-property",
+      parameters: { property: "mystery" },
+      english: "Style has an unknown property 'mystery'.",
+      japanese: "style に未知のプロパティ「mystery」があります。"
+    },
+    {
+      family: "duplicate style profile property",
+      source: "nui 1\nstyle Guide {\n  for @Print {\n    width: 1px,\n    width: 2px,\n  }\n}\n",
+      code: "style-profile-duplicate-property",
+      parameters: { profile: "Print", property: "width" },
+      english: "Style for @Print property 'width' may be specified only once.",
+      japanese: "style の for @Print 内の width プロパティは1つだけ指定できます。"
+    },
+    {
+      family: "unknown style profile property",
+      source: "nui 1\nstyle Guide {\n  for @Print {\n    mystery: 1,\n  }\n}\n",
+      code: "style-profile-unknown-property",
+      parameters: { profile: "Print", property: "mystery" },
+      english: "Style for @Print has an unknown property 'mystery'.",
+      japanese: "style の for @Print に未知のプロパティ「mystery」があります。"
+    },
+    {
+      family: "empty style profile",
+      source: "nui 1\nstyle Guide {\n  for @Print {\n  }\n}\n",
+      code: "style-profile-empty",
+      parameters: { profile: "Print" },
+      english: "Style for @Print requires at least one property.",
+      japanese: "style の for @Print にはプロパティが1つ以上必要です。"
+    },
+    {
+      family: "empty style",
+      source: "nui 1\nstyle Guide {\n}\n",
+      code: "style-empty",
+      english: "A style requires at least one property or profile block.",
+      japanese: "style には visible / width / lineType / color / fill / fillOpacity または for @profile が1つ以上必要です。"
+    },
+    {
+      family: "duplicate element name",
+      source: "nui 1\npoint A = coordinate(x: 0, y: 0)\npoint A = coordinate(x: 1, y: 1)\n",
+      code: "duplicate-element-name",
+      parameters: { name: "A", previousLine: 2 },
+      english: "Element name 'A' is duplicated in the same scope (also declared on line 2).",
+      japanese: "同名の要素が同じスコープにあります: A(行 2 と重複)"
+    },
+    {
+      family: "unterminated block comment",
+      source: "nui 1\n/* not closed",
+      code: "unterminated-block-comment",
+      english: "The block comment is not closed. Close it with '*/'.",
+      japanese: "ブロックコメントが閉じられていません。「*/」で閉じてください。"
+    },
+    {
+      family: "next outside for",
+      source: "nui 1\nnext total = 1\n",
+      code: "next-outside-for",
+      english: "next is allowed only inside a statement-for carry scope.",
+      japanese: "next は statement-for の carry scope 内でのみ使用できます。"
+    }
+  ] as const)("localizes the $family parser-core identity through the production compiler path", (testCase) => {
+    const document = AutomationDocument.fromSource(testCase.source);
+    const diagnostic = compilerDiagnosticsForState(document.getSource(), document.getState()).find(
+      (candidate) => candidate.code === testCase.code && candidate.presentation?.key === `diagnostic.${testCase.code}`
+    );
+    if (!diagnostic) throw new Error(`missing production ${testCase.family} diagnostic ${testCase.code}`);
+
+    expect(diagnostic.presentation).toEqual({
+      key: `diagnostic.${testCase.code}`,
+      ...(testCase.parameters ? { parameters: testCase.parameters } : {})
+    });
+    const identity = { code: diagnostic.code, source: diagnostic.source, range: diagnostic.range };
+    expect(diagnosticTextFor(diagnostic, "en")).toBe(testCase.english);
+    expect(diagnosticTextFor(diagnostic, "ja-JP")).toBe(testCase.japanese);
+    expect({ ...identity, message: diagnosticTextFor(diagnostic, "en") }).toMatchObject(identity);
+    expect({ ...identity, message: diagnosticTextFor(diagnostic, "ja-JP") }).toMatchObject(identity);
+  });
 });

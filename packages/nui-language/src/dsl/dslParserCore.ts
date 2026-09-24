@@ -395,20 +395,26 @@ const parseModifierDefinition = (
     return { start, end };
   })();
   if (nameSpan.start === nameSpan.end) {
-    diagnostics.push(diagnostic(line, "style には名前が必要です。"));
+    diagnostics.push(diagnostic(line, "style には名前が必要です。", "style-missing-name"));
   } else {
     const rawName = logicalText.slice(nameSpan.start, nameSpan.end);
     const quoted = (rawName.startsWith("\"") && rawName.endsWith("\"")) ||
       (rawName.startsWith("'") && rawName.endsWith("'"));
     if (!quoted && [...rawName].some((character) => !isBareDslIdentifierChar(character))) {
-    diagnostics.push(diagnostic(line, "style の名前が不正です。空白や構文記号を含める場合は引用符で囲んでください。"));
+    diagnostics.push(diagnostic(line, "style の名前が不正です。空白や構文記号を含める場合は引用符で囲んでください。", "style-invalid-name"));
     }
   }
   if (inlineBrace && trimmedEnd < logicalText.length && logicalText.slice(trimmedEnd).trim()) {
-    diagnostics.push(diagnostic(line, "style ブロックの「{」の後に余分なトークンがあります。"));
+    diagnostics.push(diagnostic(line, "style ブロックの「{」の後に余分なトークンがあります。", "trailing-token-after-block"));
   }
   const opensBlock = inlineBrace || opensOnNextLine;
-  if (!opensBlock) diagnostics.push(diagnostic(line, "style にはブロックが必要です。"));
+  if (!opensBlock) diagnostics.push(diagnostic(
+    line,
+    "style にはブロックが必要です。",
+    "missing-block",
+    undefined,
+    { key: "diagnostic.missing-block", parameters: { category: "style" } }
+  ));
   return {
     name: nameSpan.start === nameSpan.end ? "" : unquoteDslString(logicalText.slice(nameSpan.start, nameSpan.end)),
     nameSpan: nameSpan.start === nameSpan.end ? null : nameSpan,
@@ -460,7 +466,7 @@ const parseModifierProperty = (
   const colon = logicalText.indexOf(":", keyEnd);
   const codeEnd = logicalText.trimEnd().length;
   const hasTrailingComma = logicalText[codeEnd - 1] === ",";
-  if (!hasTrailingComma) diagnostics.push(diagnostic(line, "style のプロパティには末尾の「,」が必要です。"));
+  if (!hasTrailingComma) diagnostics.push(diagnostic(line, "style のプロパティには末尾の「,」が必要です。", "style-property-missing-trailing-comma"));
   const valueEndLimit = hasTrailingComma ? codeEnd - 1 : codeEnd;
   let valueStart = colon + 1;
   while (valueStart < valueEndLimit && /\s/.test(logicalText[valueStart]!)) valueStart += 1;
@@ -468,11 +474,17 @@ const parseModifierProperty = (
   while (valueEnd > valueStart && /\s/.test(logicalText[valueEnd - 1]!)) valueEnd -= 1;
   const extraComma = topLevelComma(logicalText, valueStart, valueEnd);
   if (extraComma >= 0) {
-    diagnostics.push(diagnostic(line, "style ブロックでは1行に1つのプロパティだけ指定できます。"));
+    diagnostics.push(diagnostic(line, "style ブロックでは1行に1つのプロパティだけ指定できます。", "style-property-multiple-per-line"));
     valueEnd = extraComma;
     while (valueEnd > valueStart && /\s/.test(logicalText[valueEnd - 1]!)) valueEnd -= 1;
   }
-  if (valueStart === valueEnd) diagnostics.push(diagnostic(line, `style プロパティ「${key}」の値がありません。`));
+  if (valueStart === valueEnd) diagnostics.push(diagnostic(
+    line,
+    `style プロパティ「${key}」の値がありません。`,
+    "style-property-missing-value",
+    undefined,
+    { key: "diagnostic.style-property-missing-value", parameters: { property: key } }
+  ));
   const property: DslModifierProperty = {
     key,
     value: logicalText.slice(valueStart, valueEnd),
@@ -499,7 +511,7 @@ const parseModifierWidth = (
 ): number | null => {
   const parsed = parseModifierWidthValue(value);
   if ("message" in parsed) {
-    diagnostics.push(diagnostic(line, parsed.message));
+    diagnostics.push(diagnostic(line, parsed.message, parsed.code));
     return null;
   }
   return parsed.value;
@@ -512,7 +524,7 @@ const parseModifierLineType = (
 ): DrawingModifierStrokeStyle | null => {
   const parsed = parseModifierLineTypeValue(value);
   if ("message" in parsed) {
-    diagnostics.push(diagnostic(line, parsed.message));
+    diagnostics.push(diagnostic(line, parsed.message, parsed.code));
     return null;
   }
   return parsed.value;
@@ -525,7 +537,7 @@ const parseModifierColor = (
 ): DrawingModifierStrokeColor | null => {
   const parsed = parseModifierColorValue(value);
   if ("message" in parsed) {
-    diagnostics.push(diagnostic(line, parsed.message));
+    diagnostics.push(diagnostic(line, parsed.message, parsed.code));
     return null;
   }
   return parsed.value;
@@ -538,7 +550,7 @@ const parseModifierVisible = (
 ): boolean | null => {
   const parsed = parseModifierVisibleValue(unquoteDslString(value));
   if ("message" in parsed) {
-    diagnostics.push(diagnostic(line, parsed.message));
+    diagnostics.push(diagnostic(line, parsed.message, parsed.code));
     return null;
   }
   return parsed.value;
@@ -551,7 +563,7 @@ const parseModifierFill = (
 ): DrawingModifierFill | null => {
   const parsed = parseModifierFillValue(value);
   if ("message" in parsed) {
-    diagnostics.push(diagnostic(line, parsed.message));
+    diagnostics.push(diagnostic(line, parsed.message, parsed.code));
     return null;
   }
   return parsed.value;
@@ -564,7 +576,7 @@ const parseModifierFillOpacity = (
 ): number | null => {
   const parsed = parseModifierFillOpacityValue(value);
   if ("message" in parsed) {
-    diagnostics.push(diagnostic(line, parsed.message));
+    diagnostics.push(diagnostic(line, parsed.message, parsed.code));
     return null;
   }
   return parsed.value;
@@ -589,10 +601,16 @@ const parseModifierProfileBlock = (
   let profileName = "";
   let profileNameSpan: DslSpan = { start: rawStart, end: rawStart };
   if (parsed.kind !== "valid") {
-    diagnostics.push(diagnostic(line, `style の for は @profile 参照で指定してください: ${parsed.message}`));
+    diagnostics.push(diagnostic(
+      line,
+      `style の for は @profile 参照で指定してください: ${parsed.message}`,
+      "style-profile-reference-invalid",
+      undefined,
+      { key: "diagnostic.style-profile-reference-invalid", parameters: { reference: raw } }
+    ));
   } else {
     if (parsed.reference.property) {
-    diagnostics.push(diagnostic(line, "style の for 参照には property を指定できません。"));
+      diagnostics.push(diagnostic(line, "style の for 参照には property を指定できません。", "style-profile-reference-property-not-allowed"));
     }
     profileName = parsed.reference.pathText;
     profileNameSpan = {
@@ -601,9 +619,15 @@ const parseModifierProfileBlock = (
     };
   }
   if (inlineBrace && trimmedEnd < logicalText.length && logicalText.slice(trimmedEnd).trim()) {
-    diagnostics.push(diagnostic(line, "style の for ブロックの「{」の後に余分なトークンがあります。"));
+    diagnostics.push(diagnostic(line, "style の for ブロックの「{」の後に余分なトークンがあります。", "trailing-token-after-block"));
   }
-  if (!inlineBrace && !opensOnNextLine) diagnostics.push(diagnostic(line, "style の for にはブロックが必要です。"));
+  if (!inlineBrace && !opensOnNextLine) diagnostics.push(diagnostic(
+    line,
+    "style の for にはブロックが必要です。",
+    "missing-block",
+    undefined,
+    { key: "diagnostic.missing-block", parameters: { category: "style for @profile" } }
+  ));
   return {
     name: profileName,
     nameSpan: profileNameSpan,
@@ -779,12 +803,12 @@ const parseDrawingProfileDeclaration = (
   let end = logicalText.length;
   while (end > start && /\s/.test(logicalText[end - 1]!)) end -= 1;
   const nameSpan = { start, end };
-  if (start === end) diagnostics.push(diagnostic(line, "profile には名前が必要です。"));
+  if (start === end) diagnostics.push(diagnostic(line, "profile には名前が必要です。", "profile-missing-name"));
   else if ([...logicalText.slice(start, end)].some((character) => !isBareDslIdentifierChar(character))) {
     const rawName = logicalText.slice(start, end);
     const quoted = (rawName.startsWith("\"") && rawName.endsWith("\"")) ||
       (rawName.startsWith("'") && rawName.endsWith("'"));
-    if (!quoted) diagnostics.push(diagnostic(line, "profile の名前が不正です。空白や構文記号を含める場合は引用符で囲んでください。"));
+    if (!quoted) diagnostics.push(diagnostic(line, "profile の名前が不正です。空白や構文記号を含める場合は引用符で囲んでください。", "profile-invalid-name"));
   }
   return {
     line,
@@ -897,7 +921,7 @@ const parseLine = (
           "unknown-dsl-keyword",
           project({ start: 0, end: keyword.length }) ?? undefined
         )]
-      : [diagnostic(line, "文はキーワードから始めてください。")]
+      : [diagnostic(line, "文はキーワードから始めてください。", "missing-statement-keyword")]
   };
 };
 
@@ -937,7 +961,7 @@ const applyBlockStructure = (statements: DslStatement[], diagnostics: DslDiagnos
     if (statement.kind === "blockElse") {
       const top = stack.at(-1);
       if (!top || top.kind !== "conditionalGroup" || top.branch !== "then") {
-        diagnostics.push(diagnostic(statement.line, "「} else {」は if ブロックの then 部の直後にのみ書けます。"));
+        diagnostics.push(diagnostic(statement.line, "「} else {」は if ブロックの then 部の直後にのみ書けます。", "invalid-else-placement"));
         return;
       }
       top.branch = "else";
@@ -945,7 +969,7 @@ const applyBlockStructure = (statements: DslStatement[], diagnostics: DslDiagnos
     }
     if (statement.kind === "blockEnd") {
       if (stack.length === 0) {
-        diagnostics.push(diagnostic(statement.line, "対応するブロックの開きがない「}」です。"));
+        diagnostics.push(diagnostic(statement.line, "対応するブロックの開きがない「}」です。", "unmatched-block-end"));
         return;
       }
       stack.pop();
@@ -954,10 +978,16 @@ const applyBlockStructure = (statements: DslStatement[], diagnostics: DslDiagnos
     const top = stack.at(-1);
     const modifierAncestor = stack.some((frame) => frame.kind === "modifier");
     if ((statement.kind === "layout" || statement.kind === "print" || statement.kind === "svg") && statement.enclosing) {
-      diagnostics.push(diagnostic(statement.line, `${statement.kind} は文書のトップレベルにのみ書けます。`));
+      diagnostics.push(diagnostic(
+        statement.line,
+        `${statement.kind} は文書のトップレベルにのみ書けます。`,
+        "statement-top-level-only",
+        undefined,
+        { key: "diagnostic.statement-top-level-only", parameters: { keyword: statement.kind } }
+      ));
     }
     if (statement.kind === "profileDeclaration" && statement.enclosing) {
-      diagnostics.push(diagnostic(statement.line, "profile 定義は文書のトップレベルにのみ書けます。"));
+      diagnostics.push(diagnostic(statement.line, "profile 定義は文書のトップレベルにのみ書けます。", "profile-top-level-only"));
     }
     if (statement.kind === "import" && statement.enclosing) {
       diagnostics.push(diagnostic(statement.line, "import は文書のトップレベルにのみ書けます。", "import-top-level-only"));
@@ -972,27 +1002,27 @@ const applyBlockStructure = (statements: DslStatement[], diagnostics: DslDiagnos
       (top?.kind === "modifier" || top?.kind === "modifierProfile");
     const modifierProfileInModifier = statement.kind === "modifierProfileBlock" && top?.kind === "modifier";
     if (statement.kind === "modifierProperty" && !modifierPropertyInBlock) {
-      diagnostics.push(diagnostic(statement.line, "style プロパティは style または for @profile ブロック内にのみ書けます。"));
+      diagnostics.push(diagnostic(statement.line, "style プロパティは style または for @profile ブロック内にのみ書けます。", "style-property-outside-style"));
     } else if (statement.kind === "modifierProfileBlock" && !modifierProfileInModifier) {
-      diagnostics.push(diagnostic(statement.line, "style の for @profile ブロックは style ブロック内にのみ書けます。"));
+      diagnostics.push(diagnostic(statement.line, "style の for @profile ブロックは style ブロック内にのみ書けます。", "style-profile-outside-style"));
     } else if (modifierAncestor && statement.kind === "modifierDefinition") {
-      diagnostics.push(diagnostic(statement.line, "style 定義を別のブロック内にネストできません。"));
+      diagnostics.push(diagnostic(statement.line, "style 定義を別のブロック内にネストできません。", "style-nested-definition"));
     } else if (modifierAncestor && statement.kind !== "modifierProperty" && statement.kind !== "modifierProfileBlock") {
-      diagnostics.push(diagnostic(statement.line, "style ブロック内には visible / width / lineType / color / fill / fillOpacity または for @profile だけを書けます。"));
+      diagnostics.push(diagnostic(statement.line, "style ブロック内には visible / width / lineType / color / fill / fillOpacity または for @profile だけを書けます。", "style-block-invalid-statement"));
     }
     if (
       top?.kind === "layout" &&
       statement.kind !== "place"
     ) {
-      diagnostics.push(diagnostic(statement.line, "layout ブロック内には place のみ書けます。"));
+      diagnostics.push(diagnostic(statement.line, "layout ブロック内には place のみ書けます。", "layout-block-invalid-statement"));
     }
     if (statement.kind === "place" && top?.kind !== "layout") {
-      diagnostics.push(diagnostic(statement.line, `${statement.kind} は layout ブロック内にのみ書けます。`));
+      diagnostics.push(diagnostic(statement.line, `${statement.kind} は layout ブロック内にのみ書けます。`, "place-outside-layout"));
     }
     if (statement.opensBlock) {
       const frameKind = blockFrameKind(statement);
       if (!frameKind) {
-        diagnostics.push(diagnostic(statement.line, "この文はブロックを開けません。"));
+        diagnostics.push(diagnostic(statement.line, "この文はブロックを開けません。", "statement-block-not-allowed"));
         return;
       }
       stack.push({ statementIndex: index, kind: frameKind, branch: "then", line: statement.line });
@@ -1000,7 +1030,7 @@ const applyBlockStructure = (statements: DslStatement[], diagnostics: DslDiagnos
   });
 
   for (const frame of stack) {
-    diagnostics.push(diagnostic(frame.line, "ブロックが閉じられていません。「}」で閉じてください。"));
+    diagnostics.push(diagnostic(frame.line, "ブロックが閉じられていません。「}」で閉じてください。", "unclosed-block"));
   }
 };
 
@@ -1012,12 +1042,18 @@ const finalizeModifierStatements = (statements: DslStatement[], diagnostics: Dsl
   const seen = new Map<string, number>();
   for (const definition of definitions) {
     if (definition.enclosing) {
-      diagnostics.push(diagnostic(definition.line, "style 定義は文書のトップレベルにのみ書けます。"));
+      diagnostics.push(diagnostic(definition.line, "style 定義は文書のトップレベルにのみ書けます。", "style-top-level-only"));
     }
     if (definition.name) {
       const previousLine = seen.get(definition.name);
       if (previousLine !== undefined) {
-        diagnostics.push(diagnostic(definition.line, `style 名が重複しています: ${definition.name} (行 ${previousLine} と重複)`));
+        diagnostics.push(diagnostic(
+          definition.line,
+          `style 名が重複しています: ${definition.name} (行 ${previousLine} と重複)`,
+          "style-duplicate-name",
+          undefined,
+          { key: "diagnostic.style-duplicate-name", parameters: { name: definition.name, previousLine } }
+        ));
       } else {
         seen.set(definition.name, definition.line);
       }
@@ -1058,13 +1094,25 @@ const finalizeModifierStatements = (statements: DslStatement[], diagnostics: Dsl
     }
     for (const [key, sameKey] of propertiesByKey) {
       if (sameKey.length > 1) {
-        diagnostics.push(diagnostic(definition.line, `style の ${key} プロパティは1つだけ指定できます。`));
+        diagnostics.push(diagnostic(
+          definition.line,
+          `style の ${key} プロパティは1つだけ指定できます。`,
+          "style-duplicate-property",
+          undefined,
+          { key: "diagnostic.style-duplicate-property", parameters: { property: key } }
+        ));
       }
     }
     const supportedPropertyKeys = new Set(["visible", "width", "lineType", "color", "fill", "fillOpacity"]);
     if (properties.some((property) => !supportedPropertyKeys.has(property.key))) {
       for (const property of properties.filter((item) => !supportedPropertyKeys.has(item.key))) {
-        diagnostics.push(diagnostic(definition.line, `style に未知のプロパティ「${property.key}」があります。`));
+        diagnostics.push(diagnostic(
+          definition.line,
+          `style に未知のプロパティ「${property.key}」があります。`,
+          "style-unknown-property",
+          undefined,
+          { key: "diagnostic.style-unknown-property", parameters: { property: property.key } }
+        ));
       }
     }
     for (const [blockIndex, block] of profileBlocks.entries()) {
@@ -1082,14 +1130,32 @@ const finalizeModifierStatements = (statements: DslStatement[], diagnostics: Dsl
       }
       for (const [key, sameKey] of propertiesByBlockKey) {
         if (sameKey.length > 1) {
-          diagnostics.push(diagnostic(block.line, `style の for @${block.profileName} 内の ${key} プロパティは1つだけ指定できます。`));
+          diagnostics.push(diagnostic(
+            block.line,
+            `style の for @${block.profileName} 内の ${key} プロパティは1つだけ指定できます。`,
+            "style-profile-duplicate-property",
+            undefined,
+            { key: "diagnostic.style-profile-duplicate-property", parameters: { profile: block.profileName, property: key } }
+          ));
         }
       }
       for (const property of blockProperties.filter((item) => !supportedPropertyKeys.has(item.key))) {
-        diagnostics.push(diagnostic(block.line, `style の for @${block.profileName} に未知のプロパティ「${property.key}」があります。`));
+        diagnostics.push(diagnostic(
+          block.line,
+          `style の for @${block.profileName} に未知のプロパティ「${property.key}」があります。`,
+          "style-profile-unknown-property",
+          undefined,
+          { key: "diagnostic.style-profile-unknown-property", parameters: { profile: block.profileName, property: property.key } }
+        ));
       }
       if (blockProperties.length === 0) {
-        diagnostics.push(diagnostic(block.line, `style の for @${block.profileName} にはプロパティが1つ以上必要です。`));
+        diagnostics.push(diagnostic(
+          block.line,
+          `style の for @${block.profileName} にはプロパティが1つ以上必要です。`,
+          "style-profile-empty",
+          undefined,
+          { key: "diagnostic.style-profile-empty", parameters: { profile: block.profileName } }
+        ));
       }
       const blockVisible = propertiesByBlockKey.get("visible")?.[0]?.value;
       if (blockVisible !== undefined && blockEntry) {
@@ -1120,7 +1186,7 @@ const finalizeModifierStatements = (statements: DslStatement[], diagnostics: Dsl
     const fillProperties = propertiesByKey.get("fill") ?? [];
     const fillOpacityProperties = propertiesByKey.get("fillOpacity") ?? [];
     if (visibleProperties.length === 0 && widthProperties.length === 0 && lineTypeProperties.length === 0 && colorProperties.length === 0 && fillProperties.length === 0 && fillOpacityProperties.length === 0 && profileBlocks.length === 0) {
-      diagnostics.push(diagnostic(definition.line, "style には visible / width / lineType / color / fill / fillOpacity または for @profile が1つ以上必要です。"));
+      diagnostics.push(diagnostic(definition.line, "style には visible / width / lineType / color / fill / fillOpacity または for @profile が1つ以上必要です。", "style-empty"));
     }
     definition.visible = visibleProperties[0] ? parseModifierVisible(visibleProperties[0].value, diagnostics, definition.line) : null;
     definition.widthPx = widthProperties[0] ? parseModifierWidth(widthProperties[0].value, diagnostics, definition.line) : null;
@@ -1148,7 +1214,13 @@ const reportDuplicateNames = (statements: DslStatement[], diagnostics: DslDiagno
     }
     if (!id || entry.hasBareName) {
       diagnostics.push(
-        diagnostic(statement.line, `同名の要素が同じスコープにあります: ${statement.name}(行 ${entry.line} と重複)`)
+        diagnostic(
+          statement.line,
+          `同名の要素が同じスコープにあります: ${statement.name}(行 ${entry.line} と重複)`,
+          "duplicate-element-name",
+          undefined,
+          { key: "diagnostic.duplicate-element-name", parameters: { name: statement.name, previousLine: entry.line } }
+        )
       );
     }
     entry.hasBareName ||= !id;
@@ -1252,7 +1324,8 @@ export const parseDslSnapshot = (snapshot: SourceSnapshot): ParseDslResult => {
     diagnostics.push({
       ...diagnostic(
         sourceMap.unterminatedBlockComment.line,
-        "ブロックコメントが閉じられていません。「*/」で閉じてください。"
+        "ブロックコメントが閉じられていません。「*/」で閉じてください。",
+        "unterminated-block-comment"
       ),
       column: sourceMap.unterminatedBlockComment.column
     });

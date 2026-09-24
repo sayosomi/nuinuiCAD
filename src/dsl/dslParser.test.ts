@@ -177,19 +177,29 @@ describe("DSL parser blocks", () => {
 
   it("reports unclosed blocks", () => {
     expect(errors("group A {")).toHaveLength(1);
+    expect(errors("group A {")[0].code).toBe("unclosed-block");
     expect(errors("group A {")[0].message).toContain("閉じられていません");
   });
 
   it("reports stray closing braces", () => {
-    expect(errors("}")[0].message).toContain("対応するブロックの開きがない");
+    expect(errors("}")[0]).toMatchObject({
+      code: "unmatched-block-end",
+      message: expect.stringContaining("対応するブロックの開きがない")
+    });
   });
 
   it("reports else outside if blocks", () => {
-    expect(errors(["group A {", "} else {", "}"].join("\n"))[0].message).toContain("} else {");
+    expect(errors(["group A {", "} else {", "}"].join("\n"))[0]).toMatchObject({
+      code: "invalid-else-placement",
+      message: expect.stringContaining("} else {")
+    });
   });
 
   it("reports statements that cannot open blocks", () => {
-    expect(errors("point A = coordinate(x: 0, y: 0) {")[0].message).toContain("ブロックを開けません");
+    expect(errors("point A = coordinate(x: 0, y: 0) {")[0]).toMatchObject({
+      code: "call-block-not-allowed",
+      message: expect.stringContaining("ブロックを開けません")
+    });
   });
 
   it("reports if without a block", () => {
@@ -235,7 +245,10 @@ describe("DSL parser new document statements", () => {
   });
 
   it("rejects place outside layout blocks", () => {
-    expect(errors("place @前身頃(at: (0,0))")[0].message).toContain("layout");
+    expect(errors("place @前身頃(at: (0,0))")[0]).toMatchObject({
+      code: "place-outside-layout",
+      message: expect.stringContaining("layout")
+    });
   });
 
   it("rejects element statements inside layout blocks", () => {
@@ -244,7 +257,10 @@ describe("DSL parser new document statements", () => {
       "  point A = coordinate(x: 0, y: 0)",
       "}"
     ].join("\n"));
-    expect(parsed[0].message).toContain("place のみ");
+    expect(parsed[0]).toMatchObject({
+      code: "layout-block-invalid-statement",
+      message: expect.stringContaining("place のみ")
+    });
   });
 });
 
@@ -435,6 +451,7 @@ describe("DSL typed declarations", () => {
 
   it("fails closed for an unterminated block comment and does not treat old hash comments as comments", () => {
     const unterminated = parseDsl("nui 1\n/* not closed");
+    expect(unterminated.diagnostics.find((item) => item.message.includes("ブロックコメントが閉じられていません"))?.code).toBe("unterminated-block-comment");
     expect(unterminated.diagnostics.some((item) => item.message.includes("ブロックコメントが閉じられていません"))).toBe(true);
     const oldComment = parseDsl("# old comment\nnui 1");
     expect(oldComment.diagnostics.length).toBeGreaterThan(0);
@@ -528,6 +545,22 @@ describe("DSL immutable statement-for carry/next", () => {
 
   it("diagnoses next outside a statement-for", () => {
     expect(errors("next a = 1").some((diagnostic) => diagnostic.code === "next-outside-for")).toBe(true);
+  });
+
+  it("preserves parsed statements, fallback text, and ranges when adding duplicate-name metadata", () => {
+    const source = [
+      "point A = coordinate(x: 0, y: 0)",
+      "point A = coordinate(x: 1, y: 1)"
+    ].join("\n");
+    const parsed = parseDsl(source);
+    const duplicate = parsed.diagnostics.find((item) => item.code === "duplicate-element-name");
+    expect(parsed.statements.map((statement) => statement.kind)).toEqual(["element", "element"]);
+    expect(duplicate).toMatchObject({
+      code: "duplicate-element-name",
+      message: "同名の要素が同じスコープにあります: A(行 1 と重複)",
+      line: 2,
+      physicalSpan: { segments: [{ from: source.indexOf("point A", source.indexOf("point A") + 1), to: source.length }] }
+    });
   });
 });
 
