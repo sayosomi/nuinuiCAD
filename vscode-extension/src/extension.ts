@@ -140,6 +140,7 @@ import {
   CANVAS_GRID_ENABLED_SETTING,
   CANVAS_GRID_MAJOR_EVERY_SETTING,
   CANVAS_GRID_SETTING_KEYS,
+  CANVAS_GRID_SNAP_ENABLED_SETTING,
   CANVAS_GRID_SPACING_SETTING,
   normalizeCanvasGridSettings,
   type CanvasGridSettings
@@ -261,7 +262,8 @@ export const normalizedCanvasGridConfiguration = (): CanvasGridSettings => {
   return normalizeCanvasGridSettings({
     enabled: configuration?.get<unknown>(CANVAS_GRID_ENABLED_SETTING),
     spacingMm: configuration?.get<unknown>(CANVAS_GRID_SPACING_SETTING),
-    majorEvery: configuration?.get<unknown>(CANVAS_GRID_MAJOR_EVERY_SETTING)
+    majorEvery: configuration?.get<unknown>(CANVAS_GRID_MAJOR_EVERY_SETTING),
+    snapEnabled: configuration?.get<unknown>(CANVAS_GRID_SNAP_ENABLED_SETTING)
   });
 };
 

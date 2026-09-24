@@ -470,6 +470,7 @@ describe("renderCanvasGeometry", () => {
       enabled: boolean;
       spacingMm: number;
       majorEvery: number;
+      snapEnabled: boolean;
     }) => {
       let currentStrokeStyle = "";
       const strokeStyles: string[] = [];
@@ -509,7 +510,7 @@ describe("renderCanvasGeometry", () => {
     };
 
     const defaultStrokes = renderGrid();
-    const customStrokes = renderGrid({ enabled: true, spacingMm: 5, majorEvery: 2 });
+    const customStrokes = renderGrid({ enabled: true, spacingMm: 5, majorEvery: 2, snapEnabled: false });
 
     expect(defaultStrokes.filter((style) => style === LEGACY_CANVAS_THEME.majorGrid)).toHaveLength(0);
     expect(customStrokes.filter((style) => style === LEGACY_CANVAS_THEME.majorGrid)).toHaveLength(8);
@@ -548,7 +549,7 @@ describe("renderCanvasGeometry", () => {
       visibleElementIds: new Set(),
       selectedElementIdSet: new Set(),
       selectedElementId: null,
-      canvasGridSettings: { enabled: false, spacingMm: 10, majorEvery: 5 },
+      canvasGridSettings: { enabled: false, spacingMm: 10, majorEvery: 5, snapEnabled: false },
       showCanvasPoints: true,
       isPointPickActive: false,
       isNumericReferencePickActive: false,

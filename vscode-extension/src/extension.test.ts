@@ -19,6 +19,7 @@ import { LEGACY_CANVAS_THEME } from "../../src/components/canvasTheme";
 import {
   CANVAS_GRID_ENABLED_SETTING,
   CANVAS_GRID_MAJOR_EVERY_SETTING,
+  CANVAS_GRID_SNAP_ENABLED_SETTING,
   CANVAS_GRID_SPACING_SETTING
 } from "../../src/components/canvasGrid";
 import { type VscodeCanvasObservationSnapshot } from "../../src/vscode/protocol";
@@ -746,6 +747,7 @@ const setup = (
       if (fullKey === CANVAS_GRID_ENABLED_SETTING) return mocks.canvasGridSettings.enabled as T;
       if (fullKey === CANVAS_GRID_SPACING_SETTING) return mocks.canvasGridSettings.spacingMm as T;
       if (fullKey === CANVAS_GRID_MAJOR_EVERY_SETTING) return mocks.canvasGridSettings.majorEvery as T;
+      if (fullKey === CANVAS_GRID_SNAP_ENABLED_SETTING) return mocks.canvasGridSettings.snapEnabled as T;
       return Object.hasOwn(mocks.bakeSettings, fullKey)
         ? mocks.bakeSettings[fullKey] as T
         : defaultValue as T;
@@ -5819,7 +5821,7 @@ describe("VS Code Canvas Ribbon lifecycle", () => {
   });
 
   it("publishes Canvas grid configuration initially and live without broadcasting to Output Preview", async () => {
-    mocks.canvasGridSettings = { enabled: false, spacingMm: 2.5, majorEvery: 1 };
+    mocks.canvasGridSettings = { enabled: false, spacingMm: 2.5, majorEvery: 1, snapEnabled: true };
     const documentA = documentFor("/tmp/grid-a.nui", "file:///tmp/grid-a.nui");
     const documentB = documentFor("/tmp/grid-b.nui", "file:///tmp/grid-b.nui");
     const editorA = editorFor(documentA);
@@ -5830,7 +5832,7 @@ describe("VS Code Canvas Ribbon lifecycle", () => {
 
     expect(panelA.webview.postMessage).toHaveBeenCalledWith({
       type: "canvasGridConfiguration",
-      settings: { enabled: false, spacingMm: 2.5, majorEvery: 1 }
+      settings: { enabled: false, spacingMm: 2.5, majorEvery: 1, snapEnabled: true }
     });
 
     mocks.activeTextEditor = editorB;
@@ -5844,7 +5846,7 @@ describe("VS Code Canvas Ribbon lifecycle", () => {
     panelB.webview.postMessage.mockClear();
     outputPanel.webview.postMessage.mockClear();
 
-    mocks.canvasGridSettings = { enabled: true, spacingMm: 20, majorEvery: 3 };
+    mocks.canvasGridSettings = { enabled: true, spacingMm: 20, majorEvery: 3, snapEnabled: false };
     for (const listener of mocks.configurationChangeListeners) {
       listener({
         affectsConfiguration: (section) => section === CANVAS_GRID_SPACING_SETTING
@@ -5853,7 +5855,7 @@ describe("VS Code Canvas Ribbon lifecycle", () => {
 
     const expected = {
       type: "canvasGridConfiguration",
-      settings: { enabled: true, spacingMm: 20, majorEvery: 3 }
+      settings: { enabled: true, spacingMm: 20, majorEvery: 3, snapEnabled: false }
     };
     expect(panelA.webview.postMessage).toHaveBeenCalledWith(expected);
     expect(panelB.webview.postMessage).toHaveBeenCalledWith(expected);

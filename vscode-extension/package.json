@@ -1196,6 +1196,11 @@
           "minimum": 1,
           "description": "%configuration.canvas.grid.majorEvery.description%"
         },
+        "nuinuiCAD.canvas.grid.snapEnabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "%configuration.canvas.grid.snapEnabled.description%"
+        },
         "nuinuiCAD.canvasRibbon.ribbons": {
           "type": "array",
           "scope": "application",

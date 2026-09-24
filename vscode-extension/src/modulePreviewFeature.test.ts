@@ -350,7 +350,7 @@ describe("registerModulePreviewFeature", () => {
     presentBakeOperationResult?: (
       message: Extract<VscodeToExtensionMessage, { type: "bakeOperationResult" }>
     ) => Promise<void> | void;
-    canvasGridSettings?: () => { enabled: boolean; spacingMm: number; majorEvery: number };
+    canvasGridSettings?: () => { enabled: boolean; spacingMm: number; majorEvery: number; snapEnabled: boolean };
   } = {}) => {
     const source = [
       "nui 1",
@@ -386,7 +386,7 @@ describe("registerModulePreviewFeature", () => {
   };
 
   it("publishes initial and live Canvas grid configuration to the open Module Preview", async () => {
-    let settings = { enabled: false, spacingMm: 2.5, majorEvery: 1 };
+    let settings = { enabled: false, spacingMm: 2.5, majorEvery: 1, snapEnabled: true };
     const fixture = openModulePatchFixture({ canvasGridSettings: () => settings });
 
     await fixture.panel.receive({ type: "webviewReady" });
@@ -396,7 +396,7 @@ describe("registerModulePreviewFeature", () => {
     });
 
     fixture.panel.webview.postMessage.mockClear();
-    settings = { enabled: true, spacingMm: 20, majorEvery: 3 };
+    settings = { enabled: true, spacingMm: 20, majorEvery: 3, snapEnabled: false };
     for (const listener of mocks.configurationListeners) {
       listener({ affectsConfiguration: (section) => section === "nuinuiCAD.canvas.grid.spacingMm" });
     }
