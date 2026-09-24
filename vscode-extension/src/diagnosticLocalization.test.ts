@@ -66,9 +66,36 @@ const geometryCollectionCatalogInventory = [
   { code: "geometry-array-reference-undefined", parameters: { reference: "@missing" }, english: "Geometry array reference '@missing' could not be resolved.", japanese: "未解決のgeometry array参照です: @missing" }
 ] as const;
 
+const semanticOwnerCatalogInventory = [
+  { code: "invalid-boolean-parameter-value", parameters: { parameter: "visible" }, english: "Parameter 'visible' must be true or false.", japanese: "visible は true/false で指定してください。" },
+  { code: "invalid-numeric-parameter-steps", parameters: undefined, english: "steps must be a list of parameter:positiveNumber entries.", japanese: "steps は parameter:positiveNumber の一覧で指定してください。" },
+  { code: "none-requires-optional-type", parameters: undefined, english: "The 'none' value requires a known optional type context.", japanese: "none は基底型が確定した optional 型の文脈でのみ使用できます。" },
+  { code: "geometry-value-mutation-target-unsupported", parameters: undefined, english: "An immutable geometry value cannot be used as a mutation target.", japanese: "immutable geometry value は mutation target にできません。" },
+  { code: "join-empty-paths", parameters: undefined, english: "The join paths argument must contain at least one path.", japanese: "join の paths には少なくとも1つの path を指定してください。" },
+  { code: "coalesce-type-mismatch", parameters: undefined, english: "The ?? record operands must be the same optional nominal record type and its underlying record type.", japanese: "?? の record operands は optional な同一 nominal record 型と、その underlying record 型である必要があります。" },
+  { code: "unterminated-index", parameters: undefined, english: "A collection index is missing its closing ']'.", japanese: "閉じ括弧 ']' がありません。" },
+  { code: "empty-index", parameters: undefined, english: "A collection index requires an expression.", japanese: "collection index の式が必要です。" },
+  { code: "unterminated-string", parameters: undefined, english: "A string literal is missing its closing quote.", japanese: "string literalの閉じ引用符がありません。" },
+  { code: "physical-newline-in-string", parameters: undefined, english: "String literals cannot contain a physical newline; use \\n or \\r.", japanese: "string literalには物理的な改行を含められません。\\n または \\r を使用してください。" }
+] as const;
+
 describe("diagnostic presentation localization", () => {
   it("keeps the current geometry and collection diagnostic owner inventory cataloged", () => {
     for (const entry of geometryCollectionCatalogInventory) {
+      const diagnostic = {
+        message: "owner fallback",
+        presentation: {
+          key: `diagnostic.${entry.code}`,
+          ...(entry.parameters ? { parameters: entry.parameters } : {})
+        }
+      };
+      expect(diagnosticTextFor(diagnostic, "en")).toBe(entry.english);
+      expect(diagnosticTextFor(diagnostic, "ja-JP")).toBe(entry.japanese);
+    }
+  });
+
+  it("keeps the remaining semantic owner identities and mechanically forwarded parser identities cataloged", () => {
+    for (const entry of semanticOwnerCatalogInventory) {
       const diagnostic = {
         message: "owner fallback",
         presentation: {
@@ -1201,8 +1228,80 @@ describe("diagnostic presentation localization", () => {
       diagnostics: automationDiagnosticsFor
     },
     {
+      family: "invalid boolean parameter value",
+      source: "nui 1\npoint P = coordinate(x: 0, y: 0, visible: maybe)",
+      code: "invalid-boolean-parameter-value",
+      parameters: { parameter: "visible" },
+      fallback: "visible は true/false で指定してください。",
+      english: "Parameter 'visible' must be true or false.",
+      japanese: "visible は true/false で指定してください。",
+      diagnostics: automationDiagnosticsFor
+    },
+    {
+      family: "invalid numeric parameter steps",
+      source: "nui 1\npoint P = coordinate(x: 0, y: 0, steps: [x: 0])",
+      code: "invalid-numeric-parameter-steps",
+      fallback: "steps は parameter:positiveNumber の一覧で指定してください。",
+      english: "steps must be a list of parameter:positiveNumber entries.",
+      japanese: "steps は parameter:positiveNumber の一覧で指定してください。",
+      diagnostics: automationDiagnosticsFor
+    },
+    {
+      family: "none without an optional numeric type",
+      source: "nui 1\npoint P = coordinate(x: 1 ?? none, y: 0)",
+      code: "none-requires-optional-type",
+      fallback: "none は基底型が確定した optional 型の文脈でのみ使用できます。",
+      english: "The 'none' value requires a known optional type context.",
+      japanese: "none は基底型が確定した optional 型の文脈でのみ使用できます。",
+      diagnostics: automationDiagnosticsFor
+    },
+    {
+      family: "join empty paths",
+      source: "nui 1\nline Joined = join(paths: [])",
+      code: "join-empty-paths",
+      fallback: "join の paths には少なくとも1つの path を指定してください。",
+      english: "The join paths argument must contain at least one path.",
+      japanese: "join の paths には少なくとも1つの path を指定してください。",
+      diagnostics: automationDiagnosticsFor
+    },
+    {
+      family: "record coalesce type mismatch",
+      source: [
+        "nui 1",
+        "record Pair(value: number)",
+        "record Other(value: number)",
+        "const maybe: Pair? = none",
+        "const other: Other = Other(value: 1)",
+        "const bad: Pair = @maybe ?? @other"
+      ].join("\n"),
+      code: "coalesce-type-mismatch",
+      fallback: "?? の record operands は optional な同一 nominal record 型と、その underlying record 型である必要があります。",
+      english: "The ?? record operands must be the same optional nominal record type and its underlying record type.",
+      japanese: "?? の record operands は optional な同一 nominal record 型と、その underlying record 型である必要があります。",
+      diagnostics: automationDiagnosticsFor
+    },
+    {
+      family: "source reference invalid traversal",
+      source: "nui 1\nconst Scalar: number = 1\npoint Use = offset(from: @Scalar::member, dx: 1, dy: 0)",
+      code: "source-reference-invalid-traversal",
+      parameters: { reference: "@Scalar::member", declaration: "Scalar" },
+      fallback: "参照先「Scalar」はnamespace/containerではありません: @Scalar::member",
+      english: "Reference '@Scalar::member' cannot traverse this kind of declaration.",
+      japanese: "参照先「@Scalar::member」はこの種類の宣言を辿れません。",
+      diagnostics: automationDiagnosticsFor
+    },
+    {
       family: "ignored parent in block",
       source: "nui 1\nif (true) {\n  point P = coordinate(x: 0, y: 0, parent: @G)\n}",
+      code: "ignored-parent-in-block",
+      fallback: "ブロック内の parent= 属性は無視されます。",
+      english: "The parent= attribute is ignored inside a block.",
+      japanese: "ブロック内の parent= 属性は無視されます。",
+      diagnostics: automationDiagnosticsFor
+    },
+    {
+      family: "ignored parent in materialized module block",
+      source: "nui 1\nmodule M() {\n  if (true) {\n    point P = coordinate(x: 10, y: 20, parent: @IgnoredParent)\n  }\n}\ninstance A = M()",
       code: "ignored-parent-in-block",
       fallback: "ブロック内の parent= 属性は無視されます。",
       english: "The parent= attribute is ignored inside a block.",
@@ -1247,6 +1346,12 @@ describe("diagnostic presentation localization", () => {
       parameters: { reference: "@Later" },
       english: "Reference '@Later' is declared later and is not available here.",
       japanese: "参照先「@Later」はこの位置より後で宣言されています。"
+    },
+    {
+      code: "source-reference-undefined",
+      parameters: { reference: "@Missing" },
+      english: "Reference '@Missing' is undefined.",
+      japanese: "未定義の参照です: @Missing"
     },
     {
       code: "output-layout-unavailable",

@@ -80,11 +80,35 @@ export const createNameIndex = (
   };
 };
 
-const diagnostic = (line: number, message: string): DslDiagnostic => ({
+const diagnostic = (
+  line: number,
+  message: string,
+  options?: {
+    code: string;
+    parameters?: Readonly<Record<string, string | number | boolean>>;
+    sourceSpan?: DslSpan;
+    relativeSpan?: DslSpan;
+    exactSpanOnly?: true;
+  }
+): DslDiagnostic => ({
   severity: "warning",
   line,
   column: 1,
-  message
+  message,
+  ...(options ? {
+    code: options.code,
+    presentation: {
+      key: `diagnostic.${options.code}`,
+      ...(options.parameters ? { parameters: options.parameters } : {})
+    },
+    ...(options.exactSpanOnly ? { exactSpanOnly: options.exactSpanOnly } : {}),
+    ...(options.sourceSpan && options.relativeSpan ? {
+      logicalSpan: {
+        start: options.sourceSpan.start + options.relativeSpan.start,
+        end: options.sourceSpan.start + options.relativeSpan.end
+      }
+    } : {})
+  } : {})
 });
 
 const undefinedGeometryReferenceDiagnostic = (
@@ -229,14 +253,31 @@ export const resolveId = (
       ));
       return unresolvedToken;
     }
-    const sourceMessage = sourceResolution.kind === "forward"
-      ? `参照先がこの位置より後で宣言されています: ${unresolvedToken}`
-      : sourceResolution.kind === "ambiguous"
-        ? `参照名が曖昧です: ${unresolvedToken}`
-        : sourceResolution.kind === "invalidTraversal"
-          ? `参照先「${sourceResolution.declaration.name}」はnamespace/containerではありません: ${unresolvedToken}`
-          : `参照先が見つかりません: ${unresolvedToken}`;
-    diagnostics.push(diagnostic(line, sourceMessage));
+    if (sourceResolution.kind === "forward") {
+      diagnostics.push(diagnostic(
+        line,
+        `参照先がこの位置より後で宣言されています: ${unresolvedToken}`,
+        { code: "source-reference-forward", parameters: { reference: unresolvedToken } }
+      ));
+    } else if (sourceResolution.kind === "ambiguous") {
+      diagnostics.push(diagnostic(
+        line,
+        `参照名が曖昧です: ${unresolvedToken}`,
+        { code: "source-reference-ambiguous", parameters: { reference: unresolvedToken } }
+      ));
+    } else if (sourceResolution.kind === "invalidTraversal") {
+      diagnostics.push(diagnostic(
+        line,
+        `参照先「${sourceResolution.declaration.name}」はnamespace/containerではありません: ${unresolvedToken}`,
+        {
+          code: "source-reference-invalid-traversal",
+          parameters: {
+            reference: unresolvedToken,
+            declaration: sourceResolution.declaration.name
+          }
+        }
+      ));
+    }
     return unresolvedToken;
   }
   const resolution = resolveElementNamePath({
@@ -247,7 +288,28 @@ export const resolveId = (
   });
   if (resolution.status === "resolved") return resolution.element.id;
   if (resolution.status === "ambiguous") {
-    diagnostics.push(diagnostic(line, `参照名が曖昧です: ${unresolvedToken}`));
+    diagnostics.push(diagnostic(
+      line,
+      `参照名が曖昧です: ${unresolvedToken}`,
+      { code: "source-reference-ambiguous", parameters: { reference: unresolvedToken } }
+    ));
+    return unresolvedToken;
+  }
+  // A bare unresolved geometry name keeps its geometry-specific identity so
+  // the existing geometry typo query and exact token span remain available.
+  // Qualified source paths use the source-reference catalog identity.
+  if (sourceResolution?.kind === "undefined" && reference.path.segments.length > 1) {
+    diagnostics.push(diagnostic(
+      line,
+      `参照先が見つかりません: ${unresolvedToken}`,
+      {
+        code: "source-reference-undefined",
+        parameters: { reference: unresolvedToken },
+        sourceSpan,
+        relativeSpan: reference.pathRange,
+        exactSpanOnly: true
+      }
+    ));
     return unresolvedToken;
   }
   diagnostics.push(undefinedGeometryReferenceDiagnostic(

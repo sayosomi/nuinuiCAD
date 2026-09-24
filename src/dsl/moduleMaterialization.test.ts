@@ -45,6 +45,32 @@ describe("module materialization", () => {
     expect(compiled.moduleMaterialization?.executionStatements).toEqual([]);
   });
 
+  it("warns when a materialized source block child supplies parent and keeps block ownership", () => {
+    const compiled = runtimeNames([
+      "nui 1",
+      "module M() {",
+      "  if (true) {",
+      "    point P = coordinate(x: 10, y: 20, parent: @IgnoredParent)",
+      "  }",
+      "}",
+      "instance A = M()"
+    ].join("\n"));
+    const instance = compiled.document!.elements.find((element) => element.name === "A")!;
+    const conditional = compiled.document!.elements.find((element) => element.type === "conditionalGroup" && element.parentGroupId === instance.id)!;
+    const child = compiled.document!.elements.find((element) => element.name === "P")!;
+    const diagnostic = compiled.diagnostics.find((item) => item.code === "ignored-parent-in-block");
+
+    expect(diagnostic).toMatchObject({
+      severity: "warning",
+      code: "ignored-parent-in-block",
+      presentation: { key: "diagnostic.ignored-parent-in-block" },
+      message: "ブロック内の parent= 属性は無視されます。"
+    });
+    expect(conditional.parentGroupId).toBe(instance.id);
+    expect(child).toMatchObject({ parentGroupId: conditional.id, conditionalBranch: "then" });
+    expect(child.parentGroupId).not.toBe("IgnoredParent");
+  });
+
   it("emits a container and body in source execution order with private name resolution", () => {
     const compiled = runtimeNames([
       "nui 1",
