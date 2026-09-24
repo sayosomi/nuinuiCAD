@@ -23,6 +23,7 @@ describe("Webview presentation localization", () => {
     expect(presentation.strings["output.noValidPlan"]).toBe("現在のSourceから有効な出力プランを作成できません。");
     expect(presentation.strings["output.noOutputs"]).toBe("印刷またはSVGの出力がありません");
     expect(presentation.strings["output.ribbon.reset"]).toBe("出力プレビューの移動とズームをリセット");
+    expect(presentation.strings["output.viewportStatus.description"]).toBe("現在の出力プレビューのポインター位置です。");
     expect(presentation.strings["modulePreview.cannotEvaluate"]).toBe("Module Previewを表示できません。");
     expect(presentation.strings["modulePreview.parameters.diagnostic.requiredValueMissing"]).toBe("値を入力してください。");
     expect(presentation.strings["modulePreview.parameters.diagnostic.invalidExpression"]).toBe("有効な式を入力してください。");
@@ -50,6 +51,7 @@ describe("Webview presentation localization", () => {
     expect(english.strings["output.place.candidateMenu"]).toBe("Overlapping place handles");
     expect(english.strings["output.place.dragReason.axes"]).toBe("Cannot drag: {axes} in at must be direct finite numeric literals.");
     expect(english.strings["output.ribbon.reset"]).toBe("Reset Output Preview Pan and Zoom");
+    expect(english.strings["output.viewportStatus.description"]).toBe("Current Output Preview pointer position.");
     expect(english.strings["modulePreview.cannotEvaluate"]).toBe("Module Preview is unavailable.");
     expect(english.strings["modulePreview.parameters.diagnostic.requiredValueMissing"]).toBe("Enter a value.");
     expect(english.strings["modulePreview.parameters.diagnostic.invalidExpression"]).toBe("Enter a valid expression.");

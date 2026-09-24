@@ -166,7 +166,7 @@ export const webviewPresentationTranslationCatalog = {
   "output.zoomPercent.label": { en: "Output Preview zoom", ja: "出力プレビューのズーム" },
   "output.zoomPercent.description": { en: "Current Output Preview zoom.", ja: "現在の出力プレビューのズームです。" },
   "output.viewportStatus.label": { en: "Output Preview status", ja: "出力プレビューの状態" },
-  "output.viewportStatus.description": { en: "Current Output Preview zoom and pointer position.", ja: "現在の出力プレビューのズームとポインター位置です。" },
+  "output.viewportStatus.description": { en: "Current Output Preview pointer position.", ja: "現在の出力プレビューのポインター位置です。" },
   "output.evaluating": { en: "Evaluating…", ja: "評価中…" },
   "output.unavailable": { en: "Output Preview unavailable", ja: "出力プレビューを利用できません" },
   "output.goToSource": { en: "Go to Source", ja: "Sourceへ移動" },

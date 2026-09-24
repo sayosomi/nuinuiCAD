@@ -3,6 +3,8 @@ import { vscodeCanvasStatusFields } from "./vscodeCanvasRibbonStatus";
 import {
   formatVscodeViewportCoordinate,
   formatVscodeViewportZoom,
+  vscodeViewportCoordinateFields,
+  vscodeViewportCoordinatesPresentationFor,
   vscodeViewportStatusFields,
   vscodeViewportZoomPresentationFor
 } from "./vscodeViewportStatus";
@@ -28,6 +30,32 @@ describe("VS Code viewport status", () => {
     expect(vscodeCanvasStatusFields(viewport, pointer)).toEqual(expected);
     expect(vscodeViewportStatusFields(viewport, null)).toEqual([
       { label: "ZOOM", value: "200%" },
+      { label: "X", value: "—" },
+      { label: "Y", value: "—" }
+    ]);
+  });
+
+  it("builds coordinate-only X/Y fields and presentation without a zoom field", () => {
+    const pointer = { x: -35.04, y: 20.06 };
+    const expected = [
+      { label: "X", value: "-35.0" },
+      { label: "Y", value: "20.1" }
+    ];
+
+    expect(vscodeViewportCoordinateFields(pointer)).toEqual(expected);
+    expect(vscodeViewportCoordinatesPresentationFor(
+      "coordinates",
+      pointer,
+      "Output Preview status",
+      "Current Output Preview pointer position."
+    )).toMatchObject({
+      id: "coordinates",
+      type: "value",
+      label: "Output Preview status",
+      description: "Current Output Preview pointer position.",
+      fields: expected
+    });
+    expect(vscodeViewportCoordinatesPresentationFor("coordinates", null).fields).toEqual([
       { label: "X", value: "—" },
       { label: "Y", value: "—" }
     ]);

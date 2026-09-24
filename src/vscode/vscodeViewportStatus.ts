@@ -27,14 +27,35 @@ export const vscodeViewportZoomPresentationFor = (
 export const formatVscodeViewportCoordinate = (coordinate: number | null): string =>
   coordinate === null ? "—" : coordinate.toFixed(1);
 
+export const vscodeViewportCoordinateFields = (
+  pointerWorldPoint: VscodeViewportWorldPoint | null,
+  labels: { x: string; y: string } = { x: "X", y: "Y" }
+) => [
+  { label: labels.x, value: formatVscodeViewportCoordinate(pointerWorldPoint?.x ?? null) },
+  { label: labels.y, value: formatVscodeViewportCoordinate(pointerWorldPoint?.y ?? null) }
+];
+
+export const vscodeViewportCoordinatesPresentationFor = (
+  id: string,
+  pointerWorldPoint: VscodeViewportWorldPoint | null,
+  label = "Viewport coordinates",
+  description = "Current viewport pointer position.",
+  labels: { x: string; y: string } = { x: "X", y: "Y" }
+): CommandRibbonPresentationValueItem => ({
+  id,
+  type: "value",
+  label,
+  description,
+  fields: vscodeViewportCoordinateFields(pointerWorldPoint, labels)
+});
+
 export const vscodeViewportStatusFields = (
   viewport: VscodeViewportStatusViewport,
   pointerWorldPoint: VscodeViewportWorldPoint | null,
   labels: { zoom: string; x: string; y: string } = { zoom: "ZOOM", x: "X", y: "Y" }
 ) => [
   { label: labels.zoom, value: formatVscodeViewportZoom(viewport.zoom) },
-  { label: labels.x, value: formatVscodeViewportCoordinate(pointerWorldPoint?.x ?? null) },
-  { label: labels.y, value: formatVscodeViewportCoordinate(pointerWorldPoint?.y ?? null) }
+  ...vscodeViewportCoordinateFields(pointerWorldPoint, { x: labels.x, y: labels.y })
 ];
 
 export const vscodeViewportStatusPresentationFor = (

@@ -65,7 +65,7 @@ import {
 import { VSCODE_CANVAS_RIBBON_ICON_SIZE } from "./vscodeCanvasRibbonConfig";
 import { resolveVscodeLucideIcon } from "./vscodeCanvasRibbonIcons";
 import {
-  vscodeViewportStatusPresentationFor,
+  vscodeViewportCoordinatesPresentationFor,
   vscodeViewportZoomPresentationFor
 } from "./vscodeViewportStatus";
 import { readVSCodeCanvasTheme } from "./vscodeCanvasTheme";
@@ -1348,14 +1348,12 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
             y: 0,
             orientation: "horizontal",
             iconSize: VSCODE_CANVAS_RIBBON_ICON_SIZE,
-            items: [vscodeViewportStatusPresentationFor(
+            items: [vscodeViewportCoordinatesPresentationFor(
               "output-preview-viewport-status",
-              viewport,
               pointerWorldPoint,
               webviewPresentationTextFor(webviewPresentation, "output.viewportStatus.label", "Output Preview status"),
-              webviewPresentationTextFor(webviewPresentation, "output.viewportStatus.description", "Current Output Preview zoom and pointer position."),
+              webviewPresentationTextFor(webviewPresentation, "output.viewportStatus.description", "Current Output Preview pointer position."),
               {
-                zoom: webviewPresentationTextFor(webviewPresentation, "viewport.status.zoom", "ZOOM"),
                 x: webviewPresentationTextFor(webviewPresentation, "viewport.status.x", "X"),
                 y: webviewPresentationTextFor(webviewPresentation, "viewport.status.y", "Y")
               }
