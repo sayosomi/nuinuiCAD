@@ -99,6 +99,43 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     await evaluate(sourceFor(false));
     await evaluate(sourceFor(true));
 
+    const inactiveLaterBranch = fixtureFromSource([
+      "nui 1",
+      "const flag: boolean = false",
+      "const Selected: point =",
+      "  if (@flag) {",
+      "    @Late",
+      "  } else {",
+      "    coordinate(x: 3, y: 4)",
+      "  }",
+      "line Use = segment(start: @Selected, end: (0, 0))",
+      "point Late = coordinate(x: 20, y: 0)"
+    ].join("\n"));
+    const inactiveLaterOptions = {
+      ...optionsFor(inactiveLaterBranch),
+      evaluationLimitIndex: inactiveLaterBranch.elements.findIndex((element) => element.name === "Late")
+    };
+    const inactiveLaterTsPayload = evaluateElementsReferencePayload(inactiveLaterBranch.elements, inactiveLaterOptions);
+    const inactiveLaterRustPayload = await rustStdio!.evaluate(inactiveLaterBranch.elements, inactiveLaterOptions);
+    expect(inactiveLaterBranch.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(isRustEligibleFixture(inactiveLaterBranch)).toBe(true);
+    expect(normalizeParityPayload(inactiveLaterRustPayload)).toEqual(normalizeParityPayload(inactiveLaterTsPayload));
+    for (const payload of [inactiveLaterTsPayload, inactiveLaterRustPayload]) {
+      const result = evaluationPayloadToResult(payload);
+      const use = inactiveLaterBranch.elements.find((element) => element.name === "Use")!;
+      const late = inactiveLaterBranch.elements.find((element) => element.name === "Late")!;
+      expect(result.errors).toEqual([]);
+      expect(result.warnings).toEqual([]);
+      expect(result.geometryValueErrors ?? []).toEqual([]);
+      expect(result.evaluatedElementIds).toContain(use.id);
+      expect(result.evaluatedElementIds).not.toContain(late.id);
+      expect(result.computedGeometry.get(use.id)).toMatchObject({
+        kind: "line",
+        start: { x: 3, y: 4 },
+        end: { x: 0, y: 0 }
+      });
+    }
+
     const laterDeclaration = fixtureFromSource([
       "nui 1",
       "line Use = segment(start: @Later, end: (0, 0))",

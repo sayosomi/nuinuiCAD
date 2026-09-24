@@ -137,7 +137,8 @@ use bezier_evaluator::evaluate_bezier_curve;
 use bezier_feature_point_evaluator::{evaluate_bezier_bulge_point, evaluate_bezier_extreme_point};
 use common_tangent_evaluator::evaluate_common_tangent_line;
 use conditional_dependency_runtime::{
-    branch_for_controller_value, decode_conditional_dependency_graph, ConditionalDependencyGraph,
+    branch_for_controller_value, decode_conditional_dependency_graph, geometry_value_endpoint_id,
+    ConditionalDependencyGraph,
 };
 use control_boolean_runtime::{
     evaluate_scalar_expression_with_document_resolver, resolve_conditional_group_condition,
@@ -187,17 +188,17 @@ use scalars::{
     validate_control_boolean_bindings_payload, validate_property_bindings_payload,
     validate_scalar_program_payload, validate_text_property_bindings_payload,
     validate_text_templates_payload, validate_typed_expression_payload,
-    ForGroupExecutionRunOutcome, ForGroupExecutionStatement, ScalarBindingResolver,
-    ScalarDocumentBindingResolver, ScalarEvaluation, ScalarMutationResolver, TypedScalarExpression,
-    ValidatedBindingVersions, ValidatedConditionExpression, ValidatedPropertyBinding,
-    ValidatedScalarProgram, ValidatedTextTemplate,
+    ForGroupExecutionRunOutcome, ForGroupExecutionStatement, GeometryValueReleaseContext,
+    ScalarBindingResolver, ScalarDocumentBindingResolver, ScalarEvaluation, ScalarMutationResolver,
+    TypedScalarExpression, ValidatedBindingVersions, ValidatedConditionExpression,
+    ValidatedPropertyBinding, ValidatedScalarProgram, ValidatedTextTemplate,
 };
 use split_line_evaluator::evaluate_split_line;
 use text_evaluator::{evaluate_text, TextTemplateContext};
 use types::{
     element_display_name, element_id, element_type, insert_geometry, DependencyError,
     EffectiveDrawingModifierStroke, ElementId, EvaluationState, EvaluationWarning,
-    GeometryInputTarget, GeometryMutationExecution,
+    GeometryInputTarget, GeometryMutationExecution, GeometryValueOccurrence,
 };
 pub use types::{EvaluationCommandError, EvaluationInput, EvaluationPayload};
 
@@ -1959,6 +1960,42 @@ fn evaluate_document_input_with_scalar_program(
     let mut next_transformation_recipe_index = 0usize;
     let empty_geometry_value_resolver = geometry_value_runtime::EmptyBindingResolver;
     let mut conditional_branch_selections = HashMap::<String, String>::new();
+    let geometry_value_index_by_endpoint_id = geometry_value_program
+        .iter()
+        .enumerate()
+        .map(|(index, entry)| (geometry_value_endpoint_id(&entry.occurrence), index))
+        .collect::<HashMap<_, _>>();
+    let graph_element_ids = state
+        .elements
+        .iter()
+        .filter_map(element_id)
+        .collect::<Vec<_>>();
+    let mut dependency_rank_by_endpoint_id = conditional_dependency_graph
+        .as_ref()
+        .map(|graph| {
+            graph
+                .project(
+                    &graph_element_ids,
+                    evaluation_limit_index,
+                    &conditional_branch_selections,
+                )
+                .dependency_order
+                .into_iter()
+                .enumerate()
+                .map(|(rank, endpoint_id)| (endpoint_id, rank))
+                .collect::<HashMap<_, _>>()
+        })
+        .unwrap_or_default();
+    let mut geometry_value_execution_positions = geometry_value_program
+        .iter()
+        .map(|entry| {
+            dependency_rank_by_endpoint_id
+                .get(&geometry_value_endpoint_id(&entry.occurrence))
+                .copied()
+                .map(|rank| rank as f64)
+                .unwrap_or(entry.execution_position)
+        })
+        .collect::<Vec<_>>();
     let mut pending_indices = evaluation_indices.clone();
     let original_pending_order = pending_indices
         .iter()
@@ -1968,6 +2005,78 @@ fn evaluate_document_input_with_scalar_program(
     let mut scheduled_indices = Vec::with_capacity(pending_indices.len());
 
     'elements: while !pending_indices.is_empty() {
+        let pending_element_index = pending_indices[0];
+        let pending_element = &state.elements[pending_element_index];
+        let pending_element_id = element_id(pending_element);
+        let pending_source_order = pending_element_id.as_deref().and_then(|id| {
+            scalar_mutation_resolver
+                .as_ref()
+                .and_then(|resolver| resolver.source_order_for_element(id))
+                .or_else(|| source_statement_indices.get(id).copied())
+        });
+        let pending_source_position = pending_source_order
+            .map(|source_order| source_order as f64)
+            .unwrap_or(scheduled_indices.len() as f64);
+        let pending_geometry_position = pending_element_id
+            .as_ref()
+            .and_then(|id| dependency_rank_by_endpoint_id.get(&format!("element:{id}")))
+            .copied()
+            .unwrap_or(scheduled_indices.len()) as f64;
+        let mut release_allowed = vec![true; geometry_value_program.len()];
+        if let Some(graph) = conditional_dependency_graph.as_ref() {
+            for candidate in graph.controller_candidates(&conditional_branch_selections) {
+                if !conditional_branch_selections.contains_key(&candidate.controller_id) {
+                    if let Some(index) =
+                        geometry_value_index_by_endpoint_id.get(&candidate.source_endpoint_id)
+                    {
+                        release_allowed[*index] = false;
+                    }
+                }
+            }
+        }
+        if let Some(source_order) = pending_source_order {
+            if let Some(resolver) = scalar_mutation_resolver.as_mut() {
+                resolver.advance_before_with_geometry_values(
+                    source_order,
+                    pending_geometry_position,
+                    &mut state,
+                    GeometryValueReleaseContext {
+                        program: &geometry_value_program,
+                        execution_positions: &geometry_value_execution_positions,
+                        release_allowed: &release_allowed,
+                        evaluated: &mut evaluated_geometry_value_entries,
+                    },
+                );
+            }
+        } else {
+            let resolver = scalar_binding_resolver
+                .as_ref()
+                .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
+                .unwrap_or(&empty_geometry_value_resolver);
+            let mut entry_indices = (0..geometry_value_program.len()).collect::<Vec<_>>();
+            entry_indices.sort_by(|left, right| {
+                geometry_value_execution_positions[*left]
+                    .total_cmp(&geometry_value_execution_positions[*right])
+                    .then_with(|| left.cmp(right))
+            });
+            for geometry_value_index in entry_indices {
+                let entry = &geometry_value_program[geometry_value_index];
+                if evaluated_geometry_value_entries[geometry_value_index]
+                    || !release_allowed[geometry_value_index]
+                    || geometry_value_execution_positions[geometry_value_index]
+                        > pending_geometry_position
+                    || entry.source_execution_position > pending_source_position
+                {
+                    continue;
+                }
+                if !entry.lazy {
+                    geometry_value_runtime::evaluate_geometry_value_entry(
+                        entry, resolver, &mut state,
+                    );
+                }
+                evaluated_geometry_value_entries[geometry_value_index] = true;
+            }
+        }
         if let (Some(graph), Some(_)) = (
             conditional_dependency_graph
                 .as_ref()
@@ -1985,42 +2094,105 @@ fn evaluate_document_input_with_scalar_program(
             let mut progressed = true;
             while progressed {
                 progressed = false;
-                let resolver = scalar_mutation_resolver
-                    .as_ref()
-                    .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
-                    .or_else(|| {
-                        scalar_binding_resolver
+                let controller_source_position_limit = pending_indices
+                    .first()
+                    .and_then(|index| element_id(&state.elements[*index]))
+                    .and_then(|id| {
+                        scalar_mutation_resolver
                             .as_ref()
-                            .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
+                            .and_then(|resolver| resolver.source_order_for_element(&id))
+                            .or_else(|| source_statement_indices.get(&id).copied())
                     })
-                    .expect("conditional activation requires a scalar resolver");
+                    .unwrap_or(usize::MAX)
+                    as f64;
                 for candidate in graph.controller_candidates(&conditional_branch_selections) {
-                    if conditional_branch_selections.contains_key(&candidate.controller_id)
-                        || candidate
-                            .prerequisite_endpoint_ids
-                            .iter()
-                            .any(|endpoint_id| {
-                                !graph.endpoint_is_ready(
-                                    endpoint_id,
-                                    &conditional_branch_selections,
-                                    resolver,
-                                    &state,
-                                )
-                            })
+                    if conditional_branch_selections.contains_key(&candidate.controller_id) {
+                        continue;
+                    }
+                    let controller_entry = geometry_value_index_by_endpoint_id
+                        .get(&candidate.source_endpoint_id)
+                        .copied()
+                        .map(|index| (index, &geometry_value_program[index]));
+                    if let Some((_, entry)) = controller_entry {
+                        if entry.source_execution_position > controller_source_position_limit {
+                            continue;
+                        }
+                        if let Some(mutation_resolver) = scalar_mutation_resolver.as_mut() {
+                            mutation_resolver.advance_before_statement(
+                                entry.source_execution_position.ceil().max(0.0) as usize,
+                                &state,
+                            );
+                        }
+                    }
+                    let Some(resolver) = scalar_mutation_resolver
+                        .as_ref()
+                        .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
+                        .or_else(|| {
+                            scalar_binding_resolver
+                                .as_ref()
+                                .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
+                        })
+                    else {
+                        continue;
+                    };
+                    if candidate
+                        .prerequisite_endpoint_ids
+                        .iter()
+                        .any(|endpoint_id| {
+                            !graph.endpoint_is_ready(
+                                endpoint_id,
+                                &conditional_branch_selections,
+                                resolver,
+                                &state,
+                                &evaluated_geometry_value_entries,
+                                &geometry_value_index_by_endpoint_id,
+                            )
+                        })
                     {
                         continue;
                     }
-                    let evaluation = evaluate_scalar_expression_with_document_resolver(
-                        candidate.expression,
-                        resolver,
-                        &state,
-                    );
-                    let ScalarEvaluation::Ok { value, .. } = evaluation else {
-                        continue;
-                    };
-                    let branches = candidate.branches.iter().cloned().collect::<HashSet<_>>();
-                    let Some(branch) = branch_for_controller_value(&value, &branches) else {
-                        continue;
+                    let branch = if candidate.controller_kind.as_deref()
+                        == Some("geometry-value-coalesce")
+                    {
+                        let Some((entry_index, entry)) = controller_entry else {
+                            continue;
+                        };
+                        let Some(path_start) = candidate.controller_id.rfind(":coalesce:") else {
+                            continue;
+                        };
+                        let Ok(path) = serde_json::from_str::<Vec<String>>(
+                            &candidate.controller_id[path_start + ":coalesce:".len()..],
+                        ) else {
+                            continue;
+                        };
+                        let Some(left_selected) =
+                            geometry_value_runtime::evaluate_geometry_value_coalesce_left_at_path(
+                                entry, &path, resolver, &mut state,
+                            )
+                        else {
+                            continue;
+                        };
+                        if left_selected {
+                            evaluated_geometry_value_entries[entry_index] = true;
+                            "left".to_owned()
+                        } else {
+                            "right".to_owned()
+                        }
+                    } else {
+                        let Some(expression) = candidate.expression else {
+                            continue;
+                        };
+                        let evaluation = evaluate_scalar_expression_with_document_resolver(
+                            expression, resolver, &state,
+                        );
+                        let ScalarEvaluation::Ok { value, .. } = evaluation else {
+                            continue;
+                        };
+                        let branches = candidate.branches.iter().cloned().collect::<HashSet<_>>();
+                        let Some(branch) = branch_for_controller_value(&value, &branches) else {
+                            continue;
+                        };
+                        branch
                     };
                     conditional_branch_selections.insert(candidate.controller_id, branch);
                     changed = true;
@@ -2028,17 +2200,28 @@ fn evaluate_document_input_with_scalar_program(
                 }
             }
             if changed {
-                let element_ids = state
-                    .elements
-                    .iter()
-                    .filter_map(element_id)
-                    .collect::<Vec<_>>();
                 let projected = graph.project(
-                    &element_ids,
+                    &graph_element_ids,
                     evaluation_limit_index,
                     &conditional_branch_selections,
                 );
                 state.errors.extend(projected.cycles);
+                dependency_rank_by_endpoint_id = projected
+                    .dependency_order
+                    .into_iter()
+                    .enumerate()
+                    .map(|(rank, endpoint_id)| (endpoint_id, rank))
+                    .collect();
+                geometry_value_execution_positions = geometry_value_program
+                    .iter()
+                    .map(|entry| {
+                        dependency_rank_by_endpoint_id
+                            .get(&geometry_value_endpoint_id(&entry.occurrence))
+                            .copied()
+                            .map(|rank| rank as f64)
+                            .unwrap_or(entry.execution_position)
+                    })
+                    .collect();
                 let rank = projected
                     .evaluation_order
                     .iter()
@@ -2071,16 +2254,38 @@ fn evaluate_document_input_with_scalar_program(
                 .source_order_for_element(&id)
                 .expect("validated mutation payload must contain every element source order")
         });
+        let current_geometry_execution_position = dependency_rank_by_endpoint_id
+            .get(&format!("element:{id}"))
+            .copied()
+            .unwrap_or(evaluation_position)
+            as f64;
+        let mut geometry_value_release_allowed = vec![true; geometry_value_program.len()];
+        if let Some(graph) = conditional_dependency_graph.as_ref() {
+            for candidate in graph.controller_candidates(&conditional_branch_selections) {
+                if conditional_branch_selections.contains_key(&candidate.controller_id) {
+                    continue;
+                }
+                if let Some(index) =
+                    geometry_value_index_by_endpoint_id.get(&candidate.source_endpoint_id)
+                {
+                    geometry_value_release_allowed[*index] = false;
+                }
+            }
+        }
         if let Some(source_order) = current_source_order {
             scalar_mutation_resolver
                 .as_mut()
                 .expect("source order requires a scalar mutation resolver")
                 .advance_before_with_geometry_values(
                     source_order,
-                    evaluation_position as f64,
+                    current_geometry_execution_position,
                     &mut state,
-                    &geometry_value_program,
-                    &mut evaluated_geometry_value_entries,
+                    GeometryValueReleaseContext {
+                        program: &geometry_value_program,
+                        execution_positions: &geometry_value_execution_positions,
+                        release_allowed: &geometry_value_release_allowed,
+                        evaluated: &mut evaluated_geometry_value_entries,
+                    },
                 );
         }
         let active_scalar_binding_resolver: Option<&dyn ScalarDocumentBindingResolver> =
@@ -2101,9 +2306,18 @@ fn evaluate_document_input_with_scalar_program(
                     .unwrap_or(evaluation_position) as f64,
             );
         if scalar_mutation_resolver.is_none() {
-            for (geometry_value_index, entry) in geometry_value_program.iter().enumerate() {
+            let mut geometry_value_indices = (0..geometry_value_program.len()).collect::<Vec<_>>();
+            geometry_value_indices.sort_by(|left, right| {
+                geometry_value_execution_positions[*left]
+                    .total_cmp(&geometry_value_execution_positions[*right])
+                    .then_with(|| left.cmp(right))
+            });
+            for geometry_value_index in geometry_value_indices {
+                let entry = &geometry_value_program[geometry_value_index];
                 if evaluated_geometry_value_entries[geometry_value_index]
-                    || entry.execution_position > evaluation_position as f64
+                    || !geometry_value_release_allowed[geometry_value_index]
+                    || geometry_value_execution_positions[geometry_value_index]
+                        > current_geometry_execution_position
                     || entry.source_execution_position > current_execution_position
                 {
                     continue;
@@ -2537,15 +2751,26 @@ fn evaluate_document_input_with_scalar_program(
                 source_order,
                 f64::INFINITY,
                 &mut state,
-                &geometry_value_program,
-                &mut evaluated_geometry_value_entries,
+                GeometryValueReleaseContext {
+                    program: &geometry_value_program,
+                    execution_positions: &geometry_value_execution_positions,
+                    release_allowed: &vec![true; geometry_value_program.len()],
+                    evaluated: &mut evaluated_geometry_value_entries,
+                },
             );
         } else {
             let remaining_geometry_value_resolver = scalar_binding_resolver
                 .as_ref()
                 .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
                 .unwrap_or(&empty_geometry_value_resolver);
-            for (geometry_value_index, entry) in geometry_value_program.iter().enumerate() {
+            let mut geometry_value_indices = (0..geometry_value_program.len()).collect::<Vec<_>>();
+            geometry_value_indices.sort_by(|left, right| {
+                geometry_value_execution_positions[*left]
+                    .total_cmp(&geometry_value_execution_positions[*right])
+                    .then_with(|| left.cmp(right))
+            });
+            for geometry_value_index in geometry_value_indices {
+                let entry = &geometry_value_program[geometry_value_index];
                 if evaluated_geometry_value_entries[geometry_value_index] {
                     continue;
                 }
@@ -2687,6 +2912,17 @@ fn evaluate_document_input_with_scalar_program(
         left.get("key")
             .and_then(Value::as_str)
             .cmp(&right.get("key").and_then(Value::as_str))
+    });
+    let geometry_value_program_order = geometry_value_program
+        .iter()
+        .enumerate()
+        .map(|(index, entry)| (entry.occurrence.clone(), index))
+        .collect::<HashMap<GeometryValueOccurrence, usize>>();
+    state.geometry_value_errors.sort_by_key(|error| {
+        geometry_value_program_order
+            .get(&error.occurrence)
+            .copied()
+            .unwrap_or(usize::MAX)
     });
 
     EvaluationPayload {

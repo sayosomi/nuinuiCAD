@@ -194,6 +194,28 @@ export type EvaluateElementsOptions = {
   textPropertyBindingEntries?: readonly PropertyBindingRuntimeEntry[];
 };
 
+type GeometryValueProgramNode = import("@nuinuicad/nui-language").GeometryValueProgramNode;
+
+const geometryValueCoalesceNodeAtPath = (
+  node: GeometryValueProgramNode,
+  path: readonly string[]
+): Extract<GeometryValueProgramNode, { kind: "coalesce" }> | undefined => {
+  if (path.length === 0) return node.kind === "coalesce" ? node : undefined;
+  const [head, ...tail] = path;
+  if (node.kind === "coalesce" && (head === "left" || head === "right")) {
+    return geometryValueCoalesceNodeAtPath(head === "left" ? node.left : node.right, tail);
+  }
+  if (node.kind === "if" && (head === "then" || head === "else")) {
+    return geometryValueCoalesceNodeAtPath(head === "then" ? node.thenBranch : node.elseBranch, tail);
+  }
+  if (node.kind === "match" && head?.startsWith("match:")) {
+    const label = head.slice("match:".length);
+    const arm = node.arms.find((candidate) => candidate.label === label);
+    return arm ? geometryValueCoalesceNodeAtPath(arm.expression, tail) : undefined;
+  }
+  return undefined;
+};
+
 const geometryMutationTargetIds = (element: CadElement): ElementId[] => {
   const targetIds = (() => {
     switch (element.type) {
@@ -1647,28 +1669,33 @@ export const evaluateElements = (
 
   const geometryValueProgram = options.geometryValueProgram ?? [];
   const evaluatedGeometryValueEntries = new Set<number>();
-  const evaluateGeometryValuesThrough = (executionPosition: number, sourceExecutionPosition: number) => {
-    for (const [index, entry] of geometryValueProgram.entries()) {
+  let geometryValueEndpointRankById = new Map<string, number>();
+  const evaluateGeometryValuesThrough = (
+    executionPosition: number,
+    sourceExecutionPosition: number,
+    branchSelections: ReadonlyMap<string, string>
+  ) => {
+    const orderedEntries = Array.from(geometryValueProgram.entries());
+    orderedEntries.sort(([leftIndex, left], [rightIndex, right]) =>
+      (geometryValueEndpointRankById.get(`geometry-value:${geometryValueOccurrenceKey(left.occurrence)}`) ?? left.executionPosition) -
+        (geometryValueEndpointRankById.get(`geometry-value:${geometryValueOccurrenceKey(right.occurrence)}`) ?? right.executionPosition) ||
+      leftIndex - rightIndex
+    );
+    for (const [index, entry] of orderedEntries) {
+      const endpointId = `geometry-value:${geometryValueOccurrenceKey(entry.occurrence)}`;
+      const releasePosition = geometryValueEndpointRankById.get(endpointId) ?? entry.executionPosition;
+      const pendingController = Number.isFinite(sourceExecutionPosition) && options.typedDependencyGraph
+        ? typedDependencyControllerCandidates(options.typedDependencyGraph, branchSelections).some((candidate) =>
+            candidate.sourceEndpointId === endpointId && !branchSelections.has(candidate.controllerId)
+          )
+        : false;
       if (evaluatedGeometryValueEntries.has(index) ||
-          entry.executionPosition > executionPosition ||
-          (entry.sourceExecutionPosition ?? entry.executionPosition) > sourceExecutionPosition) continue;
+          releasePosition > executionPosition ||
+          (entry.sourceExecutionPosition ?? entry.executionPosition) > sourceExecutionPosition ||
+          pendingController) continue;
       if (!entry.lazy) evaluateGeometryValueEntry(entry);
       evaluatedGeometryValueEntries.add(index);
     }
-  };
-
-  const geometryValueExecutionPositionForTarget = (
-    target: GeometryInputTarget | readonly GeometryInputTarget[]
-  ): number | undefined => {
-    if (!("kind" in target)) {
-      const positions = target
-        .map(geometryValueExecutionPositionForTarget)
-        .filter((position): position is number => position !== undefined);
-      return positions.length > 0 ? Math.max(...positions) : undefined;
-    }
-    if (target.kind !== "geometryValue" && target.kind !== "geometryValueMap") return undefined;
-    const key = geometryValueOccurrenceKey(target.occurrence);
-    return geometryValueProgram.find((entry) => geometryValueOccurrenceKey(entry.occurrence) === key)?.executionPosition;
   };
 
   const advanceLinearBindingsBefore = (element: CadElement, sourceElement?: CadElement) => {
@@ -2682,6 +2709,10 @@ export const evaluateElements = (
   const conditionalBranchSelections = new Map<string, string>();
   const reportedConditionalCycles = new Set<string>();
   const graphEndpointById = new Map<string, NonNullable<TypedDependencyGraph>["edges"][number]["from"]>();
+  const geometryValueIndexByEndpointId = new Map<string, number>();
+  for (const [index, entry] of geometryValueProgram.entries()) {
+    geometryValueIndexByEndpointId.set(`geometry-value:${geometryValueOccurrenceKey(entry.occurrence)}`, index);
+  }
   for (const edge of options.typedDependencyGraph?.edges ?? []) {
     graphEndpointById.set(typedDependencyEndpointId(edge.from), edge.from);
     graphEndpointById.set(typedDependencyEndpointId(edge.to), edge.to);
@@ -2701,6 +2732,9 @@ export const evaluateElements = (
     if (endpoint.kind === "geometry-stage") {
       return Boolean(selectedTransformationGeometry(endpoint.ownerId, endpoint.stagePath));
     }
+    if (endpoint.kind === "geometry-value") {
+      return evaluatedGeometryValueEntries.has(geometryValueIndexByEndpointId.get(endpointId) ?? -1);
+    }
     if (endpoint.kind === "element") {
       return completedElementIds.has(endpoint.id) && computedGeometry.has(endpoint.id);
     }
@@ -2718,7 +2752,7 @@ export const evaluateElements = (
     if (prerequisites.some((edge) => !endpointIsReady(typedDependencyEndpointId(edge.to), nextVisiting))) return false;
     return scalarBindingResolver.resolveBinding(endpoint.id).status === "ok";
   };
-  const activateReadyConditionalControllers = (): boolean => {
+  const activateReadyConditionalControllers = (sourceExecutionPositionLimit: number): boolean => {
     if (!options.typedDependencyGraph || !scalarBindingResolver) return false;
     let changed = false;
     let progressed = true;
@@ -2729,7 +2763,39 @@ export const evaluateElements = (
         conditionalBranchSelections
       )) {
         if (conditionalBranchSelections.has(candidate.controllerId)) continue;
-        if (candidate.prerequisiteEndpointIds.some((id) => !endpointIsReady(id))) continue;
+        const entryIndex = geometryValueIndexByEndpointId.get(candidate.sourceEndpointId);
+        const entry = entryIndex === undefined ? undefined : geometryValueProgram[entryIndex];
+        if (entry && (entry.sourceExecutionPosition ?? entry.executionPosition) <= sourceExecutionPositionLimit) {
+          linearMutationResolver?.advanceTo({
+            kind: "beforeStatement",
+            sourceOrder: entry.sourceExecutionPosition ?? entry.executionPosition
+          });
+        }
+        if (candidate.kind === "geometry-value-coalesce") {
+          if (!entry || (entry.sourceExecutionPosition ?? entry.executionPosition) > sourceExecutionPositionLimit) continue;
+          if (candidate.prerequisiteEndpointIds.some((id) => !endpointIsReady(id))) continue;
+          const occurrenceKey = geometryValueOccurrenceKey(entry.occurrence);
+          const prefix = `${candidate.sourceEndpointId}\u0000${occurrenceKey}\u0000geometry-value:${occurrenceKey}:coalesce:`;
+          if (!candidate.controllerId.startsWith(prefix)) continue;
+          let path: readonly string[];
+          try {
+            const parsed: unknown = JSON.parse(candidate.controllerId.slice(prefix.length));
+            if (!Array.isArray(parsed) || !parsed.every((part) => typeof part === "string")) continue;
+            path = parsed;
+          } catch {
+            continue;
+          }
+          const coalesce = geometryValueCoalesceNodeAtPath(entry.construction, path);
+          if (!coalesce) continue;
+          evaluateGeometryValueEntry({ ...entry, construction: coalesce.left });
+          const selected = computedGeometryValues.has(geometryValueOccurrenceKey(entry.occurrence));
+          conditionalBranchSelections.set(candidate.controllerId, selected ? "left" : "right");
+          if (selected && entryIndex !== undefined) evaluatedGeometryValueEntries.add(entryIndex);
+          changed = true;
+          progressed = true;
+          continue;
+        }
+        if (candidate.prerequisiteEndpointIds.some((id) => !endpointIsReady(id)) || !candidate.expression) continue;
         const evaluation = evaluateTypedExpression(candidate.expression, {
           lookupBinding: scalarBindingResolver.resolveBinding,
           lookupGeometryProperty: (reference) => resolveGeometryPropertyForEvaluation(reference, Number.POSITIVE_INFINITY)
@@ -2803,23 +2869,32 @@ export const evaluateElements = (
   const pendingElements = evaluatedElements.filter((element) => !templateDescendantIds.has(element.id));
   let evaluationPosition = 0;
   while (pendingElements.length > 0) {
-    if (activateReadyConditionalControllers()) reorderPendingElements(pendingElements);
-    const element = pendingElements.shift()!;
-    const elementIndex = evaluationPosition++;
-    const geometryValueSourceOrder = options.scalarExecutionPositionByElementId?.get(element.id) ??
-      options.statementInfoByElementId?.get(element.id)?.statementIndex ??
-      elementIndex;
-    let geometryValueExecutionPosition = elementIndex;
-    if (element.type === "materializedPoint" || element.type === "materializedLine" || element.type === "materializedPath") {
-      const sourceTarget = options.geometryInputTargetsByElementId?.get(element.id)?.get("source");
-      const sourceExecutionPosition = sourceTarget
-        ? geometryValueExecutionPositionForTarget(sourceTarget)
+    let element: CadElement;
+    while (true) {
+      const nextElement = pendingElements[0]!;
+      const nextSourceExecutionPosition = options.scalarExecutionPositionByElementId?.get(nextElement.id) ??
+        options.statementInfoByElementId?.get(nextElement.id)?.statementIndex ??
+        evaluationPosition;
+      if (activateReadyConditionalControllers(nextSourceExecutionPosition)) reorderPendingElements(pendingElements);
+      const activeDependencyProjection = options.typedDependencyGraph
+        ? resolveTypedDependencyGraphRuntime(options.typedDependencyGraph, conditionalBranchSelections)
         : undefined;
-      if (sourceExecutionPosition !== undefined) {
-        geometryValueExecutionPosition = Math.max(geometryValueExecutionPosition, sourceExecutionPosition);
+      geometryValueEndpointRankById = new Map(
+        activeDependencyProjection?.dependencyOrder.map((id, index) => [id, index] as const) ?? []
+      );
+      const nextRank = geometryValueEndpointRankById.get(`element:${pendingElements[0]!.id}`) ?? evaluationPosition;
+      const nextSourceOrder = options.scalarExecutionPositionByElementId?.get(pendingElements[0]!.id) ??
+        options.statementInfoByElementId?.get(pendingElements[0]!.id)?.statementIndex ??
+        evaluationPosition;
+      evaluateGeometryValuesThrough(nextRank, nextSourceOrder, conditionalBranchSelections);
+      if (activateReadyConditionalControllers(nextSourceOrder)) {
+        reorderPendingElements(pendingElements);
+        continue;
       }
+      element = pendingElements.shift()!;
+      evaluationPosition += 1;
+      break;
     }
-    evaluateGeometryValuesThrough(geometryValueExecutionPosition, geometryValueSourceOrder);
     // Apply clauses between declarations before the later declaration observes
     // the owner's geometry. Statement positions are integer indexes, so the
     // half-step excludes the current declaration itself.
@@ -2828,7 +2903,7 @@ export const evaluateElements = (
     evaluateReadyTransformationRecipes();
   }
 
-  evaluateGeometryValuesThrough(Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY);
+  evaluateGeometryValuesThrough(Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY, conditionalBranchSelections);
   evaluateReadyTransformationRecipes();
   captureReadyModuleInstanceBases();
 
@@ -2876,6 +2951,14 @@ export const evaluateElements = (
   }
   computedGeometryValues.clear();
   for (const [key, value] of computedGeometryValuesInProgramOrder) computedGeometryValues.set(key, value);
+  const geometryValueProgramOrder = new Map(geometryValueProgram.map((entry, index) => [
+    geometryValueOccurrenceKey(entry.occurrence),
+    index
+  ] as const));
+  geometryValueErrors.sort((left, right) =>
+    (geometryValueProgramOrder.get(geometryValueOccurrenceKey(left.occurrence)) ?? Number.MAX_SAFE_INTEGER) -
+    (geometryValueProgramOrder.get(geometryValueOccurrenceKey(right.occurrence)) ?? Number.MAX_SAFE_INTEGER)
+  );
 
   return {
     computedGeometry,

@@ -25,12 +25,16 @@ const compileWithIds = (source: string, prefix = "task6") => {
 const evaluateCompiled = (compiled: ReturnType<typeof compileWithIds>) => {
   if (!compiled.document || !compiled.statementMap) throw new Error("expected a compiled document");
   const elements = compiled.document.elements;
-  const geometryValueProgram = buildEvaluationOptions({
+  const runtimeOptions = buildEvaluationOptions({
     compiledDocument: compiled as LastGoodDslDocument,
     evaluationLimitIndex: compiled.document.evaluationLimitIndex
-  }).geometryValueProgram;
+  });
+  const geometryValueProgram = runtimeOptions.geometryValueProgram;
   return evaluateElements(elements, {
     evaluationLimitIndex: compiled.document.evaluationLimitIndex,
+    ...(runtimeOptions.typedDependencyGraph ? { typedDependencyGraph: runtimeOptions.typedDependencyGraph } : {}),
+    ...(runtimeOptions.evaluationOrder ? { evaluationOrder: runtimeOptions.evaluationOrder } : {}),
+    ...(runtimeOptions.transformationDependencyPlans ? { transformationDependencyPlans: runtimeOptions.transformationDependencyPlans } : {}),
     scalarProgram: compiled.scalarProgram,
     bindingVersions: compiled.bindingVersions,
     geometryInputTargetsByElementId: compiled.moduleGeometryRuntime?.geometryInputTargetsByRuntimeElementId,

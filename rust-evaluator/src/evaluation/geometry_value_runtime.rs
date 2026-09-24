@@ -1732,6 +1732,51 @@ pub(crate) fn evaluate_geometry_value_entry(
     evaluate_geometry_value_node(&entry.construction, entry, resolver, state, source_order);
 }
 
+pub(crate) fn evaluate_geometry_value_coalesce_left_at_path(
+    entry: &GeometryValueProgramEntry,
+    path: &[String],
+    resolver: &dyn ScalarDocumentBindingResolver,
+    state: &mut EvaluationState,
+) -> Option<bool> {
+    fn node_at_path<'a>(
+        mut node: &'a GeometryValueConstruction,
+        path: &[String],
+    ) -> Option<&'a GeometryValueConstruction> {
+        for part in path {
+            node = match (part.as_str(), node) {
+                ("left", GeometryValueConstruction::Coalesce { left, .. }) => left,
+                ("right", GeometryValueConstruction::Coalesce { right, .. }) => right,
+                ("then", GeometryValueConstruction::If { then_branch, .. }) => then_branch,
+                ("else", GeometryValueConstruction::If { else_branch, .. }) => else_branch,
+                (label, GeometryValueConstruction::Match { arms, .. }) => arms
+                    .iter()
+                    .find(|arm| format!("match:{}", arm.label) == label)?
+                    .expression
+                    .as_ref(),
+                _ => return None,
+            };
+        }
+        Some(node)
+    }
+
+    let GeometryValueConstruction::Coalesce { left, .. } = node_at_path(&entry.construction, path)?
+    else {
+        return None;
+    };
+    evaluate_geometry_value_node(
+        left,
+        entry,
+        resolver,
+        state,
+        entry.source_execution_position,
+    );
+    Some(
+        state
+            .computed_geometry_values
+            .contains_key(&entry.occurrence),
+    )
+}
+
 fn evaluate_geometry_value_node(
     construction: &GeometryValueConstruction,
     entry: &GeometryValueProgramEntry,

@@ -249,10 +249,18 @@ Immutable single-geometry declarations have a Language Core-owned compiled
 geometry-value program in `moduleGeometryValueProgram.ts` and
 `moduleScalarRuntime.ts`. Each entry carries its source declaration identity,
 declared public interface, resolved scalar/geometry construction inputs, and
-the existing source/module execution position. Runtime occurrences use a
-dedicated geometry-value occurrence key (`sourceStatementId` plus the existing
-Module instance path); they are not `ElementId`s and never enter authored or
-materialized element lists.
+two distinct positions. `sourceExecutionPosition` orders scalar and stage
+reads on the source/module event timeline; `executionPosition` is the release
+rank assigned by the canonical typed dependency graph. The compiler joins the
+geometry-value program to that graph before publishing the compiled document.
+Runtime projection forwards both positions and does not rediscover dependencies
+from construction payloads. At evaluation time, controller selections for
+`if`, `match`, and `coalesce` are applied to the same graph projection, which
+supplies the current dependency order; inactive alternatives do not hold a
+selected value back.
+Runtime occurrences use a dedicated geometry-value occurrence key
+(`sourceStatementId` plus the existing Module instance path); they are not
+`ElementId`s and never enter authored or materialized element lists.
 
 ### Language Core package boundary
 
