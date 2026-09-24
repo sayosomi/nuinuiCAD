@@ -100,7 +100,8 @@ describe("Output Preview Source Insert Template interaction", () => {
     expect(mocks.executeCommand).toHaveBeenCalledWith("nuinuiCAD.insertTemplate", {
       documentUri: "file:///tmp/preview.nui",
       expectedDocumentVersion: document.version,
-      insertionOrigin: "document-end"
+      insertionOrigin: "document-end",
+      preselectedFamilyId: "output-print"
     });
   });
 

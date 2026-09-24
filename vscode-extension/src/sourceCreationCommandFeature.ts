@@ -82,6 +82,7 @@ export type SourceCreationInternalInvocation = {
   documentUri: string;
   expectedDocumentVersion: number;
   insertionOrigin: "document-end";
+  preselectedFamilyId: "output-print";
 };
 
 const isSourceCreationInternalInvocation = (value: unknown): value is SourceCreationInternalInvocation => {
@@ -89,7 +90,8 @@ const isSourceCreationInternalInvocation = (value: unknown): value is SourceCrea
   const candidate = value as Partial<SourceCreationInternalInvocation>;
   return typeof candidate.documentUri === "string" &&
     Number.isInteger(candidate.expectedDocumentVersion) &&
-    candidate.insertionOrigin === "document-end";
+    candidate.insertionOrigin === "document-end" &&
+    candidate.preselectedFamilyId === "output-print";
 };
 
 const SOURCE_TEMPLATE_STALE_MESSAGE =
@@ -666,15 +668,21 @@ export const registerVscodeSourceCreationCommandFeature = ({
             currentEditor.document.version === internalInvocation.expectedDocumentVersion;
         })());
 
-      const family = await nativeShowQuickPick(SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS);
-      if (!isCurrent()) {
-        showStaleMessage();
-        return undefined;
+      let route: ReturnType<typeof sourceTemplateRouteFor> | undefined;
+      if (internalInvocation?.preselectedFamilyId === "output-print") {
+        route = sourceTemplateRouteFor(internalInvocation.preselectedFamilyId);
+      } else {
+        const family = await nativeShowQuickPick(SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS);
+        if (!isCurrent()) {
+          showStaleMessage();
+          return undefined;
+        }
+        if (!family) return undefined;
+        route = sourceTemplateRouteFor(family.id);
       }
-      if (!family) return undefined;
+      if (!route) return undefined;
 
       const insertionPosition = sourcePositionForTarget(target);
-      const route = sourceTemplateRouteFor(family.id);
       switch (route.kind) {
         case "geometry":
           return runSourceCreationFlow(
