@@ -28,6 +28,7 @@ describe("Webview presentation localization", () => {
     expect(presentation.strings["modulePreview.parameters.diagnostic.requiredValueMissing"]).toBe("値を入力してください。");
     expect(presentation.strings["modulePreview.parameters.diagnostic.invalidExpression"]).toBe("有効な式を入力してください。");
     expect(presentation.diagnosticTemplates["diagnostic.undefined-binding"]).toBe("未定義の変数「{referencedName}」を参照しています。");
+    expect(presentation.diagnosticTemplates["diagnostic.settings-layout-block-required"]).toBe("layout にはブロックが必要です。");
     expect(structuredClone(presentation)).toEqual(presentation);
     expect(Object.getPrototypeOf(presentation)).toBe(Object.prototype);
     expect(Object.getPrototypeOf(presentation.strings)).toBe(Object.prototype);
@@ -55,6 +56,7 @@ describe("Webview presentation localization", () => {
     expect(english.strings["modulePreview.cannotEvaluate"]).toBe("Module Preview is unavailable.");
     expect(english.strings["modulePreview.parameters.diagnostic.requiredValueMissing"]).toBe("Enter a value.");
     expect(english.strings["modulePreview.parameters.diagnostic.invalidExpression"]).toBe("Enter a valid expression.");
+    expect(english.diagnosticTemplates["diagnostic.settings-layout-block-required"]).toBe("The layout statement requires a block.");
     expect(unsupported.strings["canvas.ariaLabel"]).toBe(english.strings["canvas.ariaLabel"]);
     expect(Object.keys(english.strings)).toEqual(Object.keys(webviewPresentationTranslationCatalog));
   });

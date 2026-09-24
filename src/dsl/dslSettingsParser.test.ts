@@ -27,7 +27,11 @@ describe("nui1 settings parser", () => {
 
   it("requires commas for settings calls", () => {
     const strict = parseDslSettingsStatement("view 印刷 (default: true seam: false)");
-    expect(strict.diagnostics).toContainEqual(expect.objectContaining({ code: "missing-argument-comma", span: { start: 23, end: 27 } }));
+    expect(strict.diagnostics).toContainEqual(expect.objectContaining({
+      code: "missing-argument-comma",
+      span: { start: 23, end: 27 },
+      presentation: { key: "diagnostic.missing-argument-comma", parameters: { parameter: "seam" } }
+    }));
     expect(parseDslSettingsStatement("view 印刷 (default: true, seam: false,)").diagnostics).toEqual([]);
   });
 
@@ -42,5 +46,39 @@ describe("nui1 settings parser", () => {
     expect(messages("view 通常 (default: )").join("\n")).toContain("値がありません");
     expect(messages("print A4 (paper: a4, overlap: 10)").join("\n")).toContain("必須引数「layout」");
     expect(messages("stop extra").join("\n")).toContain("有効な構文ではありません");
+  });
+
+  it("attaches structured identities and parameters to settings diagnostics", () => {
+    const cases = [
+      ["role seam (extra)", "settings-positional-argument-not-accepted", { keyword: "role" }],
+      ["place @Group (@Other)", "settings-duplicate-positional-argument", { keyword: "place", parameter: "group" }],
+      ["place (group: @Group)", "settings-positional-argument-named", { keyword: "place", parameter: "group" }],
+      ["print A4 (unknown: true)", "settings-unknown-argument", { keyword: "print", argument: "unknown", candidates: "layout, profile, paper, orientation, overlap" }],
+      ["role seam (name: a, name: b)", "settings-duplicate-argument", { keyword: "role", argument: "name" }],
+      ["place (at: (0, 0))", "settings-missing-positional-argument", { keyword: "place", parameter: "group" }],
+      ["print A4 (paper: a4)", "settings-missing-named-argument", { keyword: "print", parameter: "layout" }],
+      ["view (default: true)", "settings-missing-statement-name", { keyword: "view" }],
+      ["stop", "settings-invalid-stop", { token: "stop" }],
+      ["view View", "settings-missing-call-open", { keyword: "view" }],
+      ["view View (", "unclosed-call", undefined],
+      ["view View () trailing", "settings-trailing-token-after-call", { keyword: "view" }],
+      ["print Output () {", "settings-block-not-allowed", { keyword: "print" }],
+      ["layout A4 (scale: 1)", "settings-layout-block-required", { keyword: "layout" }],
+    ] as const;
+
+    for (const [source, code, parameters] of cases) {
+      const diagnostic = parse(source).diagnostics.find((candidate) => candidate.code === code);
+      expect(diagnostic, `missing ${code} for ${source}`).toBeDefined();
+      expect(diagnostic?.presentation).toEqual({
+        key: `diagnostic.${code}`,
+        ...(parameters ? { parameters } : {})
+      });
+      expect(diagnostic?.message).toContain("。");
+    }
+
+    const source = "role seam (name: a, name: b)";
+    const duplicate = parse(source).diagnostics.find((candidate) => candidate.code === "settings-duplicate-argument");
+    expect(duplicate?.span).toEqual({ start: source.indexOf("name: b"), end: source.indexOf("name: b") + 4 });
+    expect(duplicate?.message).toBe("引数「name」が重複しています。");
   });
 });

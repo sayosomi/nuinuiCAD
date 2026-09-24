@@ -698,8 +698,15 @@ const fromModule = (
   return { statement: moduleStatementToDslStatement(result.statement, line, endLine), diagnostics };
 };
 
-const fromSettings = (result: DslSettingsParseResult, line: number, endLine: number): ParsedLine => {
-  const diagnostics = result.diagnostics.map((item) => diagnostic(line, item.message));
+const fromSettings = (
+  result: DslSettingsParseResult,
+  line: number,
+  endLine: number,
+  project: (span: DslSpan) => DslPhysicalSpan | null
+): ParsedLine => {
+  const diagnostics = result.diagnostics.map((item) =>
+    diagnostic(line, item.message, item.code, project(item.span) ?? undefined, item.presentation)
+  );
   if (!result.statement) return { diagnostics };
   return { statement: settingsStatementToDslStatement(result.statement, line, endLine), diagnostics };
 };
@@ -804,7 +811,7 @@ const parseLine = (
   project: (span: DslSpan) => DslPhysicalSpan | null,
 ): ParsedLine => {
   if (/^stop(?:\s|$)/.test(logicalText)) {
-    return fromSettings(parseDslSettingsStatement(logicalText, { opensBlock: opensOnNextLine }), line, endLine);
+    return fromSettings(parseDslSettingsStatement(logicalText, { opensBlock: opensOnNextLine }), line, endLine, project);
   }
   const keyword = logicalText.match(leadingIdentifier)?.[0] ?? "";
   if (keyword === dslStatementKeywords.import) {
@@ -874,7 +881,7 @@ const parseLine = (
     return fromCall(parseDslCallStatement(logicalText, { opensBlock: opensOnNextLine }), line, endLine, project);
   }
   if (settingsKeywords.has(keyword)) {
-    return fromSettings(parseDslSettingsStatement(logicalText, { opensBlock: opensOnNextLine }), line, endLine);
+    return fromSettings(parseDslSettingsStatement(logicalText, { opensBlock: opensOnNextLine }), line, endLine, project);
   }
   if (declarationKeywords.has(keyword)) {
     return fromDeclaration(parseDslTypedDeclarationStatement(logicalText), line, endLine, project);
