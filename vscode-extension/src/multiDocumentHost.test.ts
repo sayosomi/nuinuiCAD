@@ -1019,13 +1019,11 @@ describe("VS Code multi-document host lifecycle", () => {
 
     const state = host.diagnosticsStateFor(root);
     if (state.status === "current" && state.owner === "multi-document") {
-      const legacy = state.snapshot.diagnostics.filter((diagnostic) =>
-        diagnostic.code === undefined && diagnostic.presentation === undefined
-      );
       const groupOpenOffset = rootSource.indexOf("[");
-      const atGroup = legacy.filter((diagnostic) => diagnostic.location.range.from === groupOpenOffset);
+      const atGroup = state.snapshot.diagnostics.filter((diagnostic) => diagnostic.location.range.from === groupOpenOffset);
       expect(atGroup).toHaveLength(2);
       expect(new Set(atGroup.map((diagnostic) => diagnostic.message)).size).toBe(2);
+      expect(atGroup.every((diagnostic) => diagnostic.code !== undefined && diagnostic.presentation !== undefined)).toBe(true);
     }
     host.dispose();
   });

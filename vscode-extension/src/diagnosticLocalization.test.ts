@@ -311,4 +311,69 @@ describe("diagnostic presentation localization", () => {
     }).toMatchObject(identity);
     expect(diagnosticTextFor(diagnostic, "en")).not.toBe(diagnosticTextFor(diagnostic, "ja"));
   });
+
+  it.each([
+    {
+      family: "Module parser",
+      source: "nui 1\nmodule (A: number) {\n}",
+      code: "module-definition-missing-name",
+      english: "A Module definition requires a name.",
+      japanese: "module definition には名前が必要です。"
+    },
+    {
+      family: "call parser",
+      source: "nui 1\nmove (from: @A, to: @B)",
+      code: "malformed-transformation-target",
+      english: "The transformation target syntax is invalid.",
+      japanese: "transformation targetの形式が不正です。"
+    },
+    {
+      family: "declaration parser",
+      source: "nui 1\nconst : number = 1",
+      code: "missing-declaration-name",
+      english: "A declaration requires a name.",
+      japanese: "const には名前が必要です。"
+    },
+    {
+      family: "next parser",
+      source: "nui 1\nnext",
+      code: "missing-next-target",
+      english: "The next statement requires a carry target.",
+      japanese: "next には対象の carry 名が必要です。"
+    },
+    {
+      family: "type parser",
+      source: "nui 1\nconst x: choice(none, left) = left",
+      code: "reserved-none-choice-option",
+      english: "The reserved word 'none' cannot be used as a choice option.",
+      japanese: "予約語 none は choice option に使用できません。"
+    },
+    {
+      family: "export parser",
+      source: "nui 1\nexport nope",
+      code: "invalid-export-statement",
+      english: "An export must be followed by a geometry or typed scalar declaration.",
+      japanese: "export の後には geometry または typed scalar declaration が必要です。"
+    },
+    {
+      family: "geometry-array expression",
+      source: "nui 1\nconst xs: point[] = if (@condition) @point",
+      code: "value-if-malformed-branch",
+      english: "A value-if branch must use the form `{ expression }`.",
+      japanese: "value-if のbranchは「{ 式 }」の形で指定してください。"
+    }
+  ] as const)("localizes the $family identity through the production parser/compiler path", (testCase) => {
+    const document = AutomationDocument.fromSource(testCase.source);
+    const diagnostic = compilerDiagnosticsForState(document.getSource(), document.getState()).find(
+      (candidate) => candidate.code === testCase.code
+    );
+    if (!diagnostic) throw new Error(`missing production ${testCase.family} diagnostic ${testCase.code}`);
+
+    expect(diagnostic.presentation?.key).toBe(`diagnostic.${testCase.code}`);
+    const identity = { code: diagnostic.code, source: diagnostic.source, range: diagnostic.range };
+    expect(diagnosticTextFor(diagnostic, "en")).toBe(testCase.english);
+    expect(diagnosticTextFor(diagnostic, "ja-JP")).toBe(testCase.japanese);
+    expect({ ...identity, message: diagnosticTextFor(diagnostic, "en") }).toMatchObject(identity);
+    expect({ ...identity, message: diagnosticTextFor(diagnostic, "ja-JP") }).toMatchObject(identity);
+  });
 });

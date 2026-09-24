@@ -184,13 +184,20 @@ export const parseDslScalarType = (
   const openIndex = typeSpan.start + choiceMatch[0].length - 1;
   const close = matchingClose(source, openIndex, typeSpan.end);
   if (close < 0) {
-    diagnostics.push({ message: "choice の「(」が閉じられていません。", span: { start: openIndex, end: openIndex + 1 } });
+    diagnostics.push({
+      message: "choice の「(」が閉じられていません。",
+      span: { start: openIndex, end: openIndex + 1 },
+      code: "unclosed-choice-type",
+      presentation: { key: "diagnostic.unclosed-choice-type" }
+    });
     return { declaredType: null, choiceOptionSpans: [] };
   }
   if (close !== typeSpan.end - 1) {
     diagnostics.push({
       message: "choice(...) の後に余分なトークンがあります。",
-      span: trimSpan(source, close + 1, typeSpan.end)
+      span: trimSpan(source, close + 1, typeSpan.end),
+      code: "trailing-token-after-choice-type",
+      presentation: { key: "diagnostic.trailing-token-after-choice-type" }
     });
     return { declaredType: null, choiceOptionSpans: [] };
   }
@@ -223,7 +230,8 @@ export const parseDslScalarType = (
         diagnostics.push({
           message: "予約語 none は choice option に使用できません。",
           span: token.span,
-          code: "reserved-none-choice-option"
+          code: "reserved-none-choice-option",
+          presentation: { key: "diagnostic.reserved-none-choice-option" }
         });
         hasError = true;
         continue;

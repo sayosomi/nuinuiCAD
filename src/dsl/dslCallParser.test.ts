@@ -164,8 +164,8 @@ describe("DSL nui 1 construction registry parser queries", () => {
   it("uses the selected registry spec once for pure constructor argument validation", () => {
     expect(parseDslConstructionInvocation("coordinate()").diagnostics).toEqual([]);
     expect(parseDslConstructionInvocation("coordinate(x: 2)").diagnostics).toEqual([]);
-    expect(parseDslConstructionInvocation("segment(end: @B)").diagnostics.map((item) => item.code)).toEqual([undefined]);
-    expect(parseDslConstructionInvocation("segment(start: @A)").diagnostics.map((item) => item.code)).toEqual([undefined]);
+    expect(parseDslConstructionInvocation("segment(end: @B)").diagnostics.map((item) => item.code)).toEqual(["missing-construction-argument"]);
+    expect(parseDslConstructionInvocation("segment(start: @A)").diagnostics.map((item) => item.code)).toEqual(["missing-construction-argument"]);
 
     const pointOffset = parseDslConstructionInvocation("offset(from: @A, dx: 1, dy: 2)", {
       spec: constructionFor("point", "offset")!
