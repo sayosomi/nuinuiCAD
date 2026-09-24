@@ -301,8 +301,53 @@ describe("DSL nui 1 compiler argument application", () => {
     const result = applyArgs(input, constructionFor("point", "coordinate")!, [
       arg("steps", "[x: 0]"),
     ], resolvers);
-    expect(result.diagnostics.map((item) => item.message)).toEqual([
-      "steps は parameter:positiveNumber の一覧で指定してください。",
+    expect(result.diagnostics).toEqual([
+      expect.objectContaining({
+        severity: "error",
+        code: "invalid-numeric-parameter-steps",
+        presentation: { key: "diagnostic.invalid-numeric-parameter-steps" },
+        message: "steps は parameter:positiveNumber の一覧で指定してください。"
+      })
+    ]);
+  });
+
+  it("preserves structured diagnostics for empty join paths", () => {
+    const result = applyArgs(sample("joinedPath"), constructionFor("line", "join")!, [
+      arg("paths", "[]")
+    ], resolvers);
+
+    expect(result.element).toMatchObject({ type: "joinedPath", pathIds: [] });
+    expect(result.diagnostics).toEqual([
+      expect.objectContaining({
+        severity: "error",
+        code: "join-empty-paths",
+        presentation: { key: "diagnostic.join-empty-paths" },
+        message: "join の paths には少なくとも1つの path を指定してください。"
+      })
+    ]);
+  });
+
+  it("rejects immutable geometry mutation targets through the resolver boundary", () => {
+    const target = {
+      kind: "geometryValue" as const,
+      occurrence: { sourceStatementId: "value-statement", instancePath: [] },
+      geometryType: "line" as const
+    };
+    const result = applyArgs(sample("splitLine"), constructionFor("line", "split")!, [
+      arg("source", "@Value"), arg("at", "@AB.start")
+    ], {
+      ...resolvers,
+      resolveLineReferenceTarget: () => target
+    });
+
+    expect(result.element).toMatchObject({ baseLineId: "@Value", splitPoint: derivedAnchor("l1", "start") });
+    expect(result.diagnostics).toEqual([
+      expect.objectContaining({
+        severity: "error",
+        code: "geometry-value-mutation-target-unsupported",
+        presentation: { key: "diagnostic.geometry-value-mutation-target-unsupported" },
+        message: "immutable geometry value は mutation target にできません。"
+      })
     ]);
   });
 
@@ -330,7 +375,12 @@ describe("nui 1 enabled/visible gate lowering", () => {
     const input: CadElement = { ...sample("freePoint"), activity: "hidden" };
     const result = applyArgs(input, constructionFor("point", "coordinate")!, [arg("enabled", "maybe")], resolvers);
     expect(result.diagnostics).toEqual([
-      expect.objectContaining({ message: "enabled は true/false で指定してください。" }),
+      expect.objectContaining({
+        severity: "error",
+        code: "invalid-boolean-parameter-value",
+        presentation: { key: "diagnostic.invalid-boolean-parameter-value", parameters: { parameter: "enabled" } },
+        message: "enabled は true/false で指定してください。"
+      }),
     ]);
     expect(result.element).toMatchObject({ enabled: false, activity: "disabled" });
   });

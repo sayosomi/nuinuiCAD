@@ -145,11 +145,21 @@ export type DslApplyArgsResolvers = DslGeometryResolverOverrides & {
   majorVersion?: DslMajorVersion;
 };
 
-const diagnostic = (line: number, message: string): DslDiagnostic => ({
+const diagnostic = (
+  line: number,
+  message: string,
+  code: string,
+  parameters?: Readonly<Record<string, string | number | boolean>>
+): DslDiagnostic => ({
   severity: "error",
   line,
   column: 1,
   message,
+  code,
+  presentation: {
+    key: `diagnostic.${code}`,
+    ...(parameters ? { parameters } : {})
+  }
 });
 
 const booleanValue = (value: string) =>
@@ -471,7 +481,12 @@ export const applyArgs = (
         // spurious "must be true/false" error. Any other unparseable value
         // still gets this diagnostic exactly as before.
         if (parsed === null && !isScalarExpressionCandidateSource(value)) {
-          diagnostics.push(diagnostic(resolvers.line, `${parameterKey} は true/false で指定してください。`));
+          diagnostics.push(diagnostic(
+            resolvers.line,
+            `${parameterKey} は true/false で指定してください。`,
+            "invalid-boolean-parameter-value",
+            { parameter: parameterKey }
+          ));
         }
         next = setParameterValue(next, parameterKey, parsed ?? false);
         if (parameterKey === "enabled" || parameterKey === "visible") {
@@ -555,6 +570,7 @@ export const applyArgs = (
               column: scanned.valueSpan.start + 1,
               code: "join-empty-paths",
               message: "join の paths には少なくとも1つの path を指定してください。",
+              presentation: { key: "diagnostic.join-empty-paths" },
               logicalSpan: scanned.valueSpan
             });
           }
@@ -585,7 +601,11 @@ export const applyArgs = (
       const [key, rawStep] = splitRecordFields(record);
       const value = Number(rawStep);
       if (key && Number.isFinite(value) && value > 0) numericParameterSteps[key] = value;
-      else diagnostics.push(diagnostic(resolvers.line, "steps は parameter:positiveNumber の一覧で指定してください。"));
+      else diagnostics.push(diagnostic(
+        resolvers.line,
+        "steps は parameter:positiveNumber の一覧で指定してください。",
+        "invalid-numeric-parameter-steps"
+      ));
     }
     next = { ...next, numericParameterSteps };
   }
