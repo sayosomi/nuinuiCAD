@@ -1788,7 +1788,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
               background: "var(--vscode-button-background)"
             }}
           >
-            Preview Values...
+            {webviewPresentationTextFor(webviewPresentation, "modulePreview.action.previewValues", "Preview Values...")}
           </button>
           <button
             type="button"
@@ -1801,7 +1801,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
               background: "var(--vscode-button-background)"
             }}
           >
-            Insert Instance
+            {webviewPresentationTextFor(webviewPresentation, "modulePreview.action.insertInstance", "Insert Instance")}
           </button>
         </div>
         {preview || modulePreviewReferencePickSession ? (
@@ -1816,7 +1816,13 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         {showPreviewStatusPanel ? (
           <div
             role={statusMessages.length > 0 ? "status" : undefined}
-            aria-label={statusMessages.length === 0 ? "Current Module Preview parameter values" : undefined}
+            aria-label={statusMessages.length === 0
+              ? webviewPresentationTextFor(
+                webviewPresentation,
+                "modulePreview.valueSummary.ariaLabel",
+                "Current Module Preview parameter values"
+              )
+              : undefined}
             data-module-preview-status="true"
             {...(statusMessages.length === 0 ? { "data-module-preview-value-summary": "true" } : {})}
             style={{
@@ -1881,9 +1887,30 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
                 );
               })
               : previewValueSummary.map((entry) => {
+                const groupLabel = webviewPresentationTextFor(
+                  webviewPresentation,
+                  entry.blockKind === "ancestor"
+                    ? "modulePreview.valueSummary.context"
+                    : "modulePreview.valueSummary.target",
+                  entry.blockKind === "ancestor" ? "Context" : "Target"
+                );
+                const valueLabel = entry.valueState === "explicit"
+                  ? entry.value
+                  : entry.valueState === "omitted-optional"
+                    ? webviewPresentationTextFor(
+                      webviewPresentation,
+                      "modulePreview.valueSummary.omittedOptional",
+                      "omitted (optional)"
+                    )
+                    : webviewPresentationTextFor(
+                      webviewPresentation,
+                      "modulePreview.valueSummary.omittedDefaulted",
+                      "omitted (default: {default})",
+                      { default: entry.defaultSourceText ?? "" }
+                    );
                 return (
-                  <div key={`${entry.groupLabel}:${entry.groupName}.${entry.parameterName}`}>
-                    {entry.groupLabel}: {entry.groupName}.
+                  <div key={`${entry.blockKind}:${entry.groupName}.${entry.parameterName}`}>
+                    {groupLabel}: {entry.groupName}.
                     <button
                       type="button"
                       aria-label={entry.parameterName}
@@ -1906,7 +1933,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
                     >
                       {entry.parameterName}
                     </button>
-                    {` = ${entry.valueLabel}`}
+                    {` = ${valueLabel}`}
                   </div>
                 );
               })}

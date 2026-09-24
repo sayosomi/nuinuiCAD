@@ -80,13 +80,14 @@ export const modulePreviewValueSnapshotFor = ({
 });
 
 export type ModulePreviewValueSummaryEntry = {
-  groupLabel: "Context" | "Target";
+  blockKind: ModulePreviewInputGroup["kind"];
   groupName: string;
   parameterName: string;
-  valueLabel: string;
-  blockKind: ModulePreviewInputGroup["kind"];
   definitionStatementIndex: number;
   parameterIndex: number;
+  valueState: "explicit" | "omitted-optional" | "omitted-defaulted";
+  value: string;
+  defaultSourceText: string | null;
 };
 
 /**
@@ -100,17 +101,18 @@ export const modulePreviewValueSummaryFor = (
   if (!snapshot || snapshot.preview.kind !== "current" || snapshot.inputDiagnostics.length > 0) return [];
   return [...snapshot.ancestorContexts, snapshot.parameters].flatMap((group) =>
     group.parameters.map((parameter) => ({
-      groupLabel: group.kind === "ancestor" ? "Context" : "Target",
+      blockKind: group.kind,
       groupName: group.name,
       parameterName: parameter.name,
-      valueLabel: parameter.active && parameter.value.trim().length > 0
-        ? parameter.value
-        : parameter.defaultSourceText === null
-          ? "omitted (optional)"
-          : `omitted (default: ${parameter.defaultSourceText})`,
-      blockKind: group.kind,
       definitionStatementIndex: group.definitionStatementIndex,
-      parameterIndex: parameter.parameterIndex
+      parameterIndex: parameter.parameterIndex,
+      valueState: parameter.active && parameter.value.trim().length > 0
+        ? "explicit"
+        : parameter.defaultSourceText === null
+          ? "omitted-optional"
+          : "omitted-defaulted",
+      value: parameter.value,
+      defaultSourceText: parameter.defaultSourceText
     }))
   );
 };

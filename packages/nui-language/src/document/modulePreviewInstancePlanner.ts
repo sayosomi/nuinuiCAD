@@ -35,6 +35,20 @@ export type ModulePreviewInstancePlan = {
   expectedPatchedSource: string;
 };
 
+export type ModulePreviewInstancePlanRejectionReason =
+  | "incomplete-source"
+  | "invalid-caret"
+  | "target-not-exact-current"
+  | "target-semantic-definition-missing"
+  | "invalid-explicit-argument"
+  | "illegal-statement-boundary"
+  | "unknown-lexical-scope"
+  | "statement-identities-missing"
+  | "target-not-visible"
+  | "undeclared-argument"
+  | "splice-rejected"
+  | "candidate-invalid";
+
 export type ModulePreviewInstancePlanResult =
   | ModulePreviewInstancePlan
   | {
@@ -47,13 +61,15 @@ export type ModulePreviewInstancePlanResult =
         | "target-not-visible"
         | "invalid-argument"
         | "candidate-invalid";
+      reason: ModulePreviewInstancePlanRejectionReason;
       message: string;
     };
 
 const rejected = (
   code: Extract<ModulePreviewInstancePlanResult, { status: "rejected" }>["code"],
+  reason: ModulePreviewInstancePlanRejectionReason,
   message: string
-): ModulePreviewInstancePlanResult => ({ status: "rejected", code, message });
+): ModulePreviewInstancePlanResult => ({ status: "rejected", code, reason, message });
 
 const isStructuralStatement = (statement: DslStatement): boolean =>
   statement.kind === "blockEnd" || statement.kind === "blockElse";
@@ -261,32 +277,32 @@ export const planModulePreviewInstance = (
     !compiled.statementMap ||
     !compiled.sourceLexicalNamespace ||
     !compiled.moduleSemanticAnalysis
-  ) return rejected("invalid-source", "The current source has no complete Module semantic snapshot.");
+  ) return rejected("invalid-source", "incomplete-source", "The current source has no complete Module semantic snapshot.");
   if (!Number.isInteger(input.insertionOffset) || input.insertionOffset < 0 || input.insertionOffset > source.normalizedSource.length) {
-    return rejected("invalid-caret", "The current Source editor caret is outside the current source.");
+    return rejected("invalid-caret", "invalid-caret", "The current Source editor caret is outside the current source.");
   }
   const target = compiled.statements[input.target.statementIndex];
   if (!target || target.kind !== "moduleDefinition" || target.name !== input.target.name ||
       compiled.statementMap.statementIdByStatementIndex?.get(input.target.statementIndex) !== input.target.statementId) {
-    return rejected("target-unavailable", "The Module Preview target is no longer the exact current Module definition.");
+    return rejected("target-unavailable", "target-not-exact-current", "The Module Preview target is no longer the exact current Module definition.");
   }
   if (!compiled.moduleSemanticAnalysis.definitionsByStatementId.has(input.target.statementId)) {
-    return rejected("target-unavailable", "The Module Preview target has no current Module semantic definition.");
+    return rejected("target-unavailable", "target-semantic-definition-missing", "The Module Preview target has no current Module semantic definition.");
   }
   const duplicateArguments = new Set<string>();
   for (const argument of input.explicitArguments) {
     if (!argument.name || duplicateArguments.has(argument.name) || argument.expression.length === 0 || /[\r\n]/.test(argument.expression)) {
-      return rejected("invalid-argument", "Module Preview contains an invalid or multiline explicit argument.");
+      return rejected("invalid-argument", "invalid-explicit-argument", "Module Preview contains an invalid or multiline explicit argument.");
     }
     duplicateArguments.add(argument.name);
   }
   const boundary = insertionBoundaryFor(source, compiled, input.insertionOffset);
-  if (!boundary) return rejected("illegal-boundary", "The current caret is not at a legal whole-statement insertion boundary.");
+  if (!boundary) return rejected("illegal-boundary", "illegal-statement-boundary", "The current caret is not at a legal whole-statement insertion boundary.");
   const parsed = parseDslSnapshot(source);
   const scopeId = lexicalScopeIdFor(parsed, compiled, boundary.insertionLine);
-  if (!scopeId) return rejected("illegal-boundary", "The current caret is not inside a known lexical scope.");
+  if (!scopeId) return rejected("illegal-boundary", "unknown-lexical-scope", "The current caret is not inside a known lexical scope.");
   const statementIds = compiled.statementMap.statementIdByStatementIndex;
-  if (!statementIds) return rejected("invalid-source", "The current source has no stable statement identities.");
+  if (!statementIds) return rejected("invalid-source", "statement-identities-missing", "The current source has no stable statement identities.");
   const lookup = resolveModuleLexicalDeclaration(
     {
       sourceNamespace: compiled.sourceLexicalNamespace,
@@ -297,14 +313,14 @@ export const planModulePreviewInstance = (
     { scopeId, sourceOrderIndex: boundary.nextStatementIndex }
   );
   if (lookup.kind !== "resolved" || lookup.declaration.kind !== "moduleDefinition" || lookup.declaration.statementId !== input.target.statementId) {
-    return rejected("target-not-visible", "The target Module is not visible at the current source insertion position.");
+    return rejected("target-not-visible", "target-not-visible", "The target Module is not visible at the current source insertion position.");
   }
   const sourceLines = source.normalizedSource.split("\n");
   const indent = indentationFor(sourceLines, compiled, scopeId);
   const instanceName = uniqueInstanceNameFor(compiled, scopeId, input.target.name, boundary.nextStatementIndex);
   const targetParameters = target.parameters.map((parameter) => ({ name: parameter.name }));
   if (input.explicitArguments.some((argument) => !targetParameters.some((parameter) => parameter.name === argument.name))) {
-    return rejected("invalid-argument", "Module Preview contains an argument that is not declared by the target Module.");
+    return rejected("invalid-argument", "undeclared-argument", "Module Preview contains an argument that is not declared by the target Module.");
   }
   const callArguments = input.explicitArguments
     .map((argument) => `${formatDslName(argument.name)}: ${argument.expression}`)
@@ -319,10 +335,10 @@ export const planModulePreviewInstance = (
   try {
     expectedPatchedSource = applyLineSplices(source.normalizedSource, [splice]);
   } catch {
-    return rejected("illegal-boundary", "The current source cannot accept the planned Module instance insertion.");
+    return rejected("illegal-boundary", "splice-rejected", "The current source cannot accept the planned Module instance insertion.");
   }
   if (!validateCandidate(input, boundary.insertionLine, instanceName, expectedPatchedSource, targetParameters)) {
-    return rejected("candidate-invalid", "The generated Module instance did not pass current semantic validation.");
+    return rejected("candidate-invalid", "candidate-invalid", "The generated Module instance did not pass current semantic validation.");
   }
   const nameStart = lineStartOffset(expectedPatchedSource, boundary.insertionLine) + indent.length + "instance ".length;
   return {
