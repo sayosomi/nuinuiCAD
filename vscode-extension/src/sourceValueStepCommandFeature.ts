@@ -6,6 +6,7 @@ import {
   normalizedSourceFor,
   vscodeRangeForNormalized
 } from "./sourceOffsetAdapter";
+import { isWritableNuiSourceEditor } from "./sourceEditorAvailability";
 
 export const VSCODE_SOURCE_VALUE_STEP_FORWARD_COMMAND_ID = "nuinuiCAD.stepSourceValueForward";
 export const VSCODE_SOURCE_VALUE_STEP_BACKWARD_COMMAND_ID = "nuinuiCAD.stepSourceValueBackward";
@@ -16,19 +17,12 @@ export const VSCODE_SOURCE_VALUE_STEP_CONTEXT_KEY = "nuinuiCAD.sourceValueStepTa
 const sameDocument = (left: vscode.TextDocument, right: vscode.TextDocument): boolean =>
   left === right || left.uri.toString() === right.uri.toString();
 
-const isSupportedSourceEditor = (editor: vscode.TextEditor | undefined): editor is vscode.TextEditor =>
-  Boolean(editor) &&
-  editor!.document.languageId === "nui" &&
-  editor!.document.uri.scheme === "file" &&
-  editor!.document.fileName.endsWith(".nui") &&
-  vscode.workspace.fs.isWritableFileSystem(editor!.document.uri.scheme) !== false;
-
 const stepPlanForEditor = (
   editor: vscode.TextEditor,
   languageAnalysisSession: NuiLanguageSession,
   direction: DslValueStepDirection
 ): DslSourceValueStepPlan | null => {
-  if (!isSupportedSourceEditor(editor)) return null;
+  if (!isWritableNuiSourceEditor(editor)) return null;
   const rawSource = editor.document.getText();
   if (languageAnalysisSession.getSource() !== rawSource) languageAnalysisSession.replaceSource(rawSource);
   const selections = editor.selections.map((selection) => ({
@@ -66,7 +60,7 @@ export const registerVscodeSourceValueStepFeature = ({
   };
 
   const refreshContext = (editor: vscode.TextEditor | undefined = vscode.window.activeTextEditor): void => {
-    setContext(Boolean(editor && isSupportedSourceEditor(editor) && sourceValueStepIsAvailableForEditor(
+    setContext(Boolean(editor && isWritableNuiSourceEditor(editor) && sourceValueStepIsAvailableForEditor(
       editor,
       languageAnalysisSessionFor(editor.document)
     )));
@@ -74,7 +68,7 @@ export const registerVscodeSourceValueStepFeature = ({
 
   const execute = async (direction: DslValueStepDirection): Promise<void> => {
     const editor = vscode.window.activeTextEditor;
-    if (!isSupportedSourceEditor(editor)) return;
+    if (!isWritableNuiSourceEditor(editor)) return;
     const document = editor.document;
     const documentVersion = document.version;
     const rawSource = document.getText();

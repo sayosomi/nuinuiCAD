@@ -47,23 +47,37 @@ const isNotNumericExpressionTerm = (tokens: readonly Token[], numberIndex: numbe
   return !canPrecedeNumber(beforeLiteral) || !canFollowNumber(next);
 };
 
-/** Finds one lexer-proven numeric literal without interpreting DSL parameter structure. */
-export const findNumericExpressionLiteralSpanAt = (
-  expression: string,
-  selection: NumericExpressionLiteralSpan
-): NumericExpressionLiteralSpan | null => {
+const numericExpressionLiteralSpans = (
+  expression: string
+): { tokens: Token[]; spans: NumericExpressionLiteralSpan[] } | null => {
   let tokens: Token[];
   try {
     tokens = tokenize(expression);
   } catch {
     return null;
   }
-  const candidates = tokens.flatMap((token, index) => {
+  const spans = tokens.flatMap((token, index) => {
     if (token.type !== "number" || isNotNumericExpressionTerm(tokens, index)) return [];
     const start = signedLiteralStart(tokens, index) ?? token.start;
     const end = token.end;
     return numericLiteral.test(expression.slice(start, end)) ? [{ start, end }] : [];
   });
+  return { tokens, spans };
+};
+
+/** Finds lexer-proven numeric literals without interpreting DSL parameter structure. */
+export const findNumericExpressionLiteralSpans = (
+  expression: string
+): NumericExpressionLiteralSpan[] | null => numericExpressionLiteralSpans(expression)?.spans ?? null;
+
+/** Finds one lexer-proven numeric literal without interpreting DSL parameter structure. */
+export const findNumericExpressionLiteralSpanAt = (
+  expression: string,
+  selection: NumericExpressionLiteralSpan
+): NumericExpressionLiteralSpan | null => {
+  const parsed = numericExpressionLiteralSpans(expression);
+  if (!parsed) return null;
+  const { tokens, spans: candidates } = parsed;
   const collapsed = selection.start === selection.end;
   const tokenAtCaret = collapsed
     ? tokens.some((token) => token.start <= selection.start && selection.start < token.end)

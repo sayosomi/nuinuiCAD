@@ -99,6 +99,7 @@ import { registerVscodeSourceAuthoringPositionFeature } from "./sourceAuthoringP
 import { isVscodeCanvasPointer } from "../../src/vscode/protocol";
 import type { VscodeCanvasPointer } from "../../src/vscode/protocol";
 import { registerVscodeSourceValueStepFeature } from "./sourceValueStepCommandFeature";
+import { registerVscodeGenerateRandomNumberFeature } from "./generateRandomNumberCommandFeature";
 import type {
   ExtensionToVscodeMessage,
   VscodeCanvasCommandId,
@@ -2196,6 +2197,9 @@ export const activate = (
   const sourceValueStepFeature = registerVscodeSourceValueStepFeature({
     languageAnalysisSessionFor
   });
+  const generateRandomNumberFeature = registerVscodeGenerateRandomNumberFeature({
+    languageAnalysisSessionFor
+  });
   const sourceCreationFeature = registerVscodeSourceCreationCommandFeature({
     activeSourceEditor: activeNuiTextEditorForCommand,
     displayLanguageFor: extensionDisplayLanguage,
@@ -2530,6 +2534,7 @@ export const activate = (
     geometryReferenceRetargetFeature,
     refactorCodeActionProvider,
     sourceValueStepFeature,
+    generateRandomNumberFeature,
     sourceCreationFeature,
     canvasFreePointAtPointerFeature,
     sourceAuthoringPositionFeature,
