@@ -86,6 +86,9 @@ export const webviewPresentationTranslationCatalog = {
   "canvas.creationAssist.help.reference": { en: "Click or enter a name to select.", ja: "クリックまたは名前入力で選択します。" },
   "canvas.creationAssist.help.lineList": { en: "Click or enter names, then use Finish selection to confirm.", ja: "クリックまたは名前入力で選び、選択完了ボタンで確定します。" },
   "canvas.creationAssist.help.empty": { en: "Press Enter with an empty value to continue without specifying one.", ja: "空Enterで未指定のまま次へ進みます。" },
+  "canvas.coordinatePointCreation.instruction": { en: "Click the Canvas to create coordinate points", ja: "Canvasをクリックして座標点を作成" },
+  "canvas.coordinatePointCreation.finish": { en: "Finish", ja: "作成を終了" },
+  "canvas.coordinatePointCreation.finishHint": { en: "Press Enter to finish", ja: "Enter で作成を終了" },
 
   "canvas.referencePick.target.endpoint": { en: "Endpoint", ja: "端点" },
   "canvas.referencePick.target.geometryBase": { en: "Geometry base", ja: "図形の基準" },

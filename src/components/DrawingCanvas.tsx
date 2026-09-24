@@ -2417,7 +2417,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
           rectangleSelectionSession ? "is-rectangle-selecting" : "",
           isPointPickActive ? "is-point-picking" : "",
           isNumericReferencePickActive ? "is-numeric-reference-picking" : "",
-          isLinePickActive ? "is-line-picking" : ""
+          isLinePickActive ? "is-line-picking" : "",
+          isCoordinatePointCreationActive ? "is-coordinate-point-creation" : ""
         ].filter(Boolean).join(" ")}
         style={canvasThemeCssVariables(canvasTheme)}
         ref={canvasFocusRef}

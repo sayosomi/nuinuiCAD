@@ -18,6 +18,9 @@ describe("Webview presentation localization", () => {
     expect(presentation.strings["canvas.referencePick.propertyHelp.intermediatePoint.incomingHandleAngleDeg"]).toBe("中間点{index}の入側ハンドル角度");
     expect(presentation.strings["canvas.referencePick.propertyHelp.intermediatePoint.outgoingHandleLength"]).toBe("中間点{index}の出側ハンドル長");
     expect(presentation.strings["canvas.coordinateConversion.apply"]).toBe("適用（Enter）");
+    expect(presentation.strings["canvas.coordinatePointCreation.instruction"]).toBe("Canvasをクリックして座標点を作成");
+    expect(presentation.strings["canvas.coordinatePointCreation.finish"]).toBe("作成を終了");
+    expect(presentation.strings["canvas.coordinatePointCreation.finishHint"]).toBe("Enter で作成を終了");
     expect(presentation.strings["output.place.candidateMenu"]).toBe("重なっている配置ハンドル");
     expect(presentation.strings["output.place.dragReason.axes"]).toBe("ドラッグできません: at の {axes} は直接の有限数値リテラルである必要があります。");
     expect(presentation.strings["output.noValidPlan"]).toBe("現在のSourceから有効な出力プランを作成できません。");
@@ -47,6 +50,9 @@ describe("Webview presentation localization", () => {
     expect(english.strings["canvas.commandError.staleSourceAnchor"]).toBe("The current Source position is stale. Reconfirm the caret in the current Source and try again.");
     expect(english.strings["canvas.commandError.pointer"]).toBe("Place the pointer on the Canvas before running this command.");
     expect(english.strings["canvas.coordinateConversion.apply"]).toBe("Apply (Enter)");
+    expect(english.strings["canvas.coordinatePointCreation.instruction"]).toBe("Click the Canvas to create coordinate points");
+    expect(english.strings["canvas.coordinatePointCreation.finish"]).toBe("Finish");
+    expect(english.strings["canvas.coordinatePointCreation.finishHint"]).toBe("Press Enter to finish");
     expect(english.strings["canvas.referencePick.propertyHelp.sweepAngleDeg"]).toBe("");
     expect(english.strings["canvas.referencePick.propertyHelp.intermediatePoint.incomingHandleLength"]).toBe("");
     expect(english.strings["output.place.candidateMenu"]).toBe("Overlapping place handles");

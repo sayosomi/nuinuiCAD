@@ -4014,6 +4014,10 @@ textarea {
   pointer-events: all;
 }
 
+.canvas-viewport.is-coordinate-point-creation .drawing-overlay .overlay-draggable-point {
+  cursor: inherit;
+}
+
 .drawing-overlay text {
   fill: var(--canvas-muted);
   paint-order: stroke;
