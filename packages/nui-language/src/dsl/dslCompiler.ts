@@ -62,18 +62,44 @@ export const statementTypeOf = (statement: DslStatement): CadElementType => {
   return statement.kind as CadElementType;
 };
 
-const diagnostic = (line: number, message: string): DslDiagnostic => ({
+type DiagnosticParameters = Readonly<Record<string, string | number | boolean>>;
+
+const diagnostic = (
+  line: number,
+  message: string,
+  code?: string,
+  parameters?: DiagnosticParameters
+): DslDiagnostic => ({
   severity: "error",
   line,
   column: 1,
-  message
+  message,
+  ...(code ? {
+    code,
+    presentation: {
+      key: `diagnostic.${code}`,
+      ...(parameters ? { parameters } : {})
+    }
+  } : {})
 });
 
-const warning = (line: number, message: string): DslDiagnostic => ({
+const warning = (
+  line: number,
+  message: string,
+  code?: string,
+  parameters?: DiagnosticParameters
+): DslDiagnostic => ({
   severity: "warning",
   line,
   column: 1,
-  message
+  message,
+  ...(code ? {
+    code,
+    presentation: {
+      key: `diagnostic.${code}`,
+      ...(parameters ? { parameters } : {})
+    }
+  } : {})
 });
 
 const modifierPropertiesFrom = (
@@ -249,7 +275,12 @@ const visibilityProfileIdByToken = (profiles: VisibilityProfile[], token: string
 const sourceReferencePath = (token: string, line: number, diagnostics: DslDiagnostic[]) => {
   const parsed = parseDslSourceReference(token);
   if (parsed.kind !== "valid" || parsed.reference.property) {
-    diagnostics.push(diagnostic(line, `参照が不正です: ${token}`));
+    diagnostics.push(diagnostic(
+      line,
+      `参照が不正です: ${token}`,
+      "invalid-source-reference",
+      { reference: token }
+    ));
     return null;
   }
   return parseDslReferenceToken(parsed.reference.pathText);
@@ -267,18 +298,44 @@ const sourceDeclarationFor = (
   if (!path || !sourceNamespace) return null;
   const resolved = resolveSourceLexicalPathSegments(sourceNamespace, statementIndex, path);
   if (resolved.lookup.kind !== "resolved") {
-    const message = resolved.lookup.kind === "forward"
-      ? `参照先「${token}」はこの位置より後で宣言されています。`
-      : resolved.lookup.kind === "ambiguous"
-        ? `参照が曖昧です: ${token}`
-        : resolved.lookup.kind === "invalidTraversal"
-          ? `参照先「${token}」はこの種類の宣言を辿れません。`
-          : `未定義の参照です: ${token}`;
-    diagnostics.push(diagnostic(line, message));
+    if (resolved.lookup.kind === "forward") {
+      diagnostics.push(diagnostic(
+        line,
+        `参照先「${token}」はこの位置より後で宣言されています。`,
+        "source-reference-forward",
+        { reference: token }
+      ));
+    } else if (resolved.lookup.kind === "ambiguous") {
+      diagnostics.push(diagnostic(
+        line,
+        `参照が曖昧です: ${token}`,
+        "source-reference-ambiguous",
+        { reference: token }
+      ));
+    } else if (resolved.lookup.kind === "invalidTraversal") {
+      diagnostics.push(diagnostic(
+        line,
+        `参照先「${token}」はこの種類の宣言を辿れません。`,
+        "source-reference-invalid-traversal",
+        { reference: token }
+      ));
+    } else {
+      diagnostics.push(diagnostic(
+        line,
+        `未定義の参照です: ${token}`,
+        "source-reference-undefined",
+        { reference: token }
+      ));
+    }
     return null;
   }
   if (!expected.includes(resolved.lookup.declaration.kind)) {
-    diagnostics.push(diagnostic(line, `参照先「${token}」は ${expected.join(" / ")} ではありません。`));
+    diagnostics.push(diagnostic(
+      line,
+      `参照先「${token}」は ${expected.join(" / ")} ではありません。`,
+      "source-reference-kind-mismatch",
+      { reference: token, expected: expected.join(" / ") }
+    ));
     return null;
   }
   return { ...resolved, declaration: resolved.segments.at(-1)! };
@@ -1079,11 +1136,21 @@ export const applyVisibilitySettings = ({
       if (key === "id" || key === "name" || key === "default" || key === "defaultRoleVisible") continue;
       const roleId = roleIdByToken(visibilityRoles, key);
       if (!visibilityRoles.some((role) => role.id === roleId)) {
-        diagnostics.push(warning(statement.line, `未定義の表示ロールです: ${key}`));
+        diagnostics.push(warning(
+          statement.line,
+          `未定義の表示ロールです: ${key}`,
+          "undefined-visibility-role",
+          { role: key }
+        ));
       }
       const parsed = booleanValue(value);
       if (parsed === null) {
-        diagnostics.push(diagnostic(statement.line, `${key} は true/false で指定してください。`));
+        diagnostics.push(diagnostic(
+          statement.line,
+          `${key} は true/false で指定してください。`,
+          "invalid-visibility-role-value",
+          { role: key }
+        ));
         continue;
       }
       roleVisibility[roleId] = parsed;
@@ -1111,7 +1178,12 @@ export const applyVisibilitySettings = ({
       if (visibilityProfiles.some((profile) => profile.id === profileId)) {
         activeVisibilityProfileId = profileId;
       } else {
-        diagnostics.push(warning(statement.line, `未定義の表示プロファイルです: ${statement.name}`));
+        diagnostics.push(warning(
+          statement.line,
+          `未定義の表示プロファイルです: ${statement.name}`,
+          "undefined-visibility-profile",
+          { profile: statement.name }
+        ));
         activeVisibilityProfileId = profileId;
       }
     }
@@ -1169,7 +1241,12 @@ const resolveSourceGroup = ({
     const groupId = elementIdByStatementIndex.get(resolved.declaration.statementIndex);
     const group = groupId ? elements.find((element) => element.id === groupId) : undefined;
     if (!group || group.type !== "group") {
-      diagnostics.push(diagnostic(line, `place の参照先はグループではありません: ${token}`));
+      diagnostics.push(diagnostic(
+        line,
+        `place の参照先はグループではありません: ${token}`,
+        "place-target-not-group",
+        { reference: token }
+      ));
       return null;
     }
     return { declaration: resolved.declaration, group };
@@ -1177,7 +1254,12 @@ const resolveSourceGroup = ({
   const groupId = resolveId(token, nameIndex, line, diagnostics);
   const group = elements.find((element) => element.id === groupId);
   if (!group || group.type !== "group") {
-    diagnostics.push(diagnostic(line, `place の参照先はグループではありません: ${token}`));
+    diagnostics.push(diagnostic(
+      line,
+      `place の参照先はグループではありません: ${token}`,
+      "place-target-not-group",
+      { reference: token }
+    ));
     return null;
   }
   return { declaration: null, group };
@@ -1206,14 +1288,24 @@ const resolveLayoutOrigin = ({
 }): LayoutOrigin => {
   if (!token) return { kind: "localOrigin" };
   if (!sourceNamespace) {
-    diagnostics.push(diagnostic(line, `place origin は source lexical namespace で解決できません: ${token}`));
+    diagnostics.push(diagnostic(
+      line,
+      `place origin は source lexical namespace で解決できません: ${token}`,
+      "place-origin-namespace-unavailable",
+      { reference: token }
+    ));
     return { kind: "localOrigin" };
   }
   const path = sourceReferencePath(token, line, diagnostics);
   if (!path) return { kind: "localOrigin" };
   const resolved = resolveSourceLexicalPathSegments(sourceNamespace, statementIndex, path);
   if (resolved.lookup.kind !== "resolved") {
-    diagnostics.push(diagnostic(line, `origin の参照先を解決できません: ${token}`));
+    diagnostics.push(diagnostic(
+      line,
+      `origin の参照先を解決できません: ${token}`,
+      "place-origin-unresolved",
+      { reference: token }
+    ));
     return { kind: "localOrigin" };
   }
   const originDeclaration = resolved.segments.at(-1);
@@ -1222,18 +1314,33 @@ const resolveLayoutOrigin = ({
     return { kind: "localOrigin" };
   }
   if (originDeclaration.kind !== "geometry") {
-    diagnostics.push(diagnostic(line, `origin の参照先は点ではありません: ${token}`));
+    diagnostics.push(diagnostic(
+      line,
+      `origin の参照先は点ではありません: ${token}`,
+      "place-origin-not-point",
+      { reference: token }
+    ));
     return { kind: "localOrigin" };
   }
   const pointId = elementIdByStatementIndex.get(originDeclaration.statementIndex);
   const point = pointId ? elements.find((element) => element.id === pointId) : undefined;
   if (!point || !isPointElement(point)) {
-    diagnostics.push(diagnostic(line, `origin の参照先は点ではありません: ${token}`));
+    diagnostics.push(diagnostic(
+      line,
+      `origin の参照先は点ではありません: ${token}`,
+      "place-origin-not-point",
+      { reference: token }
+    ));
     return { kind: "localOrigin" };
   }
   const elementsById = new Map(elements.map((element) => [element.id, element]));
   if (!isDescendantOf(point, target.id, elementsById)) {
-    diagnostics.push(diagnostic(line, `origin の点は配置対象グループの内部にありません: ${token}`));
+    diagnostics.push(diagnostic(
+      line,
+      `origin の点は配置対象グループの内部にありません: ${token}`,
+      "place-origin-outside-target-group",
+      { reference: token }
+    ));
     return { kind: "localOrigin" };
   }
   return { kind: "point", pointId: point.id };
@@ -1283,7 +1390,11 @@ export const buildSourceOutputModel = ({
     const scale = normalizedNumeric(scaleSource ?? "1", elements, nameContext);
     const scaleLiteral = numericLiteral(scaleSource ?? "1");
     if (scaleLiteral !== null && (!scaleLiteral.finite || scaleLiteral.value <= 0)) {
-      diagnostics.push(diagnostic(statement.line, "layout scale は有限の正の値で指定してください。"));
+      diagnostics.push(diagnostic(
+        statement.line,
+        "layout scale は有限の正の値で指定してください。",
+        "invalid-layout-scale"
+      ));
     }
     const placements: LayoutPlacement[] = [];
     for (const [memberIndex, member] of statements.entries()) {
@@ -1301,7 +1412,11 @@ export const buildSourceOutputModel = ({
       const atSource = attr(member.attrs, "at");
       const at = atSource ? coordinatePair(atSource) : null;
       if (!at) {
-        diagnostics.push(diagnostic(member.line, "place には `at: (x, y)` が必要です。"));
+        diagnostics.push(diagnostic(
+          member.line,
+          "place には `at: (x, y)` が必要です。",
+          "place-position-required"
+        ));
       }
       const atX = normalizedNumeric(at?.x ?? "0", elements, nameContext);
       const atY = normalizedNumeric(at?.y ?? "0", elements, nameContext);
@@ -1313,13 +1428,25 @@ export const buildSourceOutputModel = ({
         ? angleValue
         : ((angleLiteral.value % 360) + 360) % 360;
       const mirrorValue = booleanValue(attr(member.attrs, "mirror") ?? "false");
-      if (mirrorValue === null) diagnostics.push(diagnostic(member.line, "place mirror は true / false で指定してください。"));
+      if (mirrorValue === null) diagnostics.push(diagnostic(
+        member.line,
+        "place mirror は true / false で指定してください。",
+        "invalid-place-mirror"
+      ));
       const scaleLiteral = scaleSource === undefined ? null : numericLiteral(scaleSource);
       if (scaleLiteral !== null && (!scaleLiteral.finite || scaleLiteral.value <= 0)) {
-        diagnostics.push(diagnostic(member.line, "place scale は有限の正の値で指定してください。"));
+        diagnostics.push(diagnostic(
+          member.line,
+          "place scale は有限の正の値で指定してください。",
+          "invalid-place-scale"
+        ));
       }
       if (angleLiteral !== null && !angleLiteral.finite) {
-        diagnostics.push(diagnostic(member.line, "place angle は有限の値で指定してください。"));
+        diagnostics.push(diagnostic(
+          member.line,
+          "place angle は有限の値で指定してください。",
+          "invalid-place-angle"
+        ));
       }
       if (!target) continue;
       const placementId = sourceIdAt(stableStatementIdByIndex, memberIndex);
@@ -1357,27 +1484,50 @@ export const buildSourceOutputModel = ({
     const outputId = sourceIdAt(stableStatementIdByIndex, statementIndex);
     const layoutReference = resolveOutputDeclaration(attr(statement.attrs, "layout"), statementIndex, ["layout"], sourceNamespace, statement.line, diagnostics);
     const layoutId = layoutReference?.declaration.statementId ?? "";
-    if (layoutId && !layoutById.has(layoutId)) diagnostics.push(diagnostic(statement.line, "print/svg layout の宣言を取得できません。"));
+    if (layoutId && !layoutById.has(layoutId)) diagnostics.push(diagnostic(
+      statement.line,
+      "print/svg layout の宣言を取得できません。",
+      "output-layout-unavailable"
+    ));
     const profileReference = resolveOutputDeclaration(attr(statement.attrs, "profile"), statementIndex, ["profile"], sourceNamespace, statement.line, diagnostics);
     const profileId = profileReference?.declaration.statementId;
     if (statement.kind === "print") {
       const paperSource = attr(statement.attrs, "paper") ?? "a4";
       const paper = paperSource as PrintPaperSizeId;
-      if (paper !== "a4" && paper !== "a3") diagnostics.push(diagnostic(statement.line, "print paper は a4 または a3 で指定してください。"));
+      if (paper !== "a4" && paper !== "a3") diagnostics.push(diagnostic(
+        statement.line,
+        "print paper は a4 または a3 で指定してください。",
+        "invalid-print-paper"
+      ));
       const orientationSource = attr(statement.attrs, "orientation") ?? "portrait";
-      if (orientationSource !== "portrait" && orientationSource !== "landscape") diagnostics.push(diagnostic(statement.line, "orientation は portrait / landscape で指定してください。"));
+      if (orientationSource !== "portrait" && orientationSource !== "landscape") diagnostics.push(diagnostic(
+        statement.line,
+        "orientation は portrait / landscape で指定してください。",
+        "invalid-print-orientation"
+      ));
       const overlapAttribute = statement.attrs.find((item) => item.key === "overlap");
       const overlapSource = overlapAttribute?.value ?? "0";
       const overlapLiteral = numericLiteral(overlapSource);
-      if (overlapLiteral !== null && overlapLiteral.value < 0) diagnostics.push(diagnostic(statement.line, "print overlap は 0 以上で指定してください。"));
+      if (overlapLiteral !== null && overlapLiteral.value < 0) diagnostics.push(diagnostic(
+        statement.line,
+        "print overlap は 0 以上で指定してください。",
+        "invalid-print-overlap"
+      ));
       if (overlapLiteral !== null && overlapLiteral.finite && (paper === "a4" || paper === "a3")) {
         const base = paperDimensions[paper];
         const width = orientationSource === "landscape" ? base.height : base.width;
         const height = orientationSource === "landscape" ? base.width : base.height;
         if (width - overlapLiteral.value * 2 <= 0 || height - overlapLiteral.value * 2 <= 0) {
           const overlapUpperBound = Math.min(width, height) / 2;
+          const paperLabel = paper === "a4" ? "A4" : "A3";
+          const orientationLabel = orientationSource === "landscape" ? "landscape" : "portrait";
           diagnostics.push({
-            ...diagnostic(statement.line, `print の overlap が大きすぎます。${paper === "a4" ? "A4" : "A3"} ${orientationSource === "landscape" ? "landscape" : "portrait"} では overlap を ${overlapUpperBound}mm 未満にしてください。`),
+            ...diagnostic(
+              statement.line,
+              `print の overlap が大きすぎます。${paperLabel} ${orientationLabel} では overlap を ${overlapUpperBound}mm 未満にしてください。`,
+              "print-overlap-too-large",
+              { paper: paperLabel, orientation: orientationLabel, maximum: overlapUpperBound }
+            ),
             ...(overlapAttribute ? {
               logicalSpan: { start: overlapAttribute.valueStart, end: overlapAttribute.valueEnd },
               statementIndex
@@ -1397,7 +1547,11 @@ export const buildSourceOutputModel = ({
     } else {
       const marginSource = attr(statement.attrs, "margin") ?? "0";
       const marginLiteral = numericLiteral(marginSource);
-      if (marginLiteral !== null && marginLiteral.value < 0) diagnostics.push(diagnostic(statement.line, "svg margin は 0 以上で指定してください。"));
+      if (marginLiteral !== null && marginLiteral.value < 0) diagnostics.push(diagnostic(
+        statement.line,
+        "svg margin は 0 以上で指定してください。",
+        "invalid-svg-margin"
+      ));
       svgOutputs.push({
         id: outputId,
         name: statement.name,
@@ -1465,7 +1619,12 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
     for (const modifierName of statement.modifierNames ?? []) {
       referencedModifierNames.add(modifierName);
       if (!modifierNames.has(modifierName)) {
-        diagnostics.push(diagnostic(statement.line, `未定義の style です: ${modifierName}`));
+        diagnostics.push(diagnostic(
+          statement.line,
+          `未定義の style です: ${modifierName}`,
+          "undefined-drawing-style",
+          { name: modifierName }
+        ));
       }
     }
   }
@@ -1689,7 +1848,11 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
     );
     let effectiveStatement = statement;
     if (blockContextOf(statement) && attr(statement.attrs, "parent")) {
-      diagnostics.push(warning(statement.line, "ブロック内の parent= 属性は無視されます。"));
+      diagnostics.push(warning(
+        statement.line,
+        "ブロック内の parent= 属性は無視されます。",
+        "ignored-parent-in-block"
+      ));
       effectiveStatement = { ...statement, attrs: statement.attrs.filter((item) => item.key !== "parent") };
     }
     const compiled = withBlockContext(
