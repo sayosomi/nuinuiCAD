@@ -29,10 +29,9 @@ export const forGroupRangeValues = (
   if (!Number.isFinite(min)) return { error: "non-finite-min" };
   if (!Number.isFinite(max)) return { error: "non-finite-max" };
   if (!Number.isFinite(step)) return { error: "non-finite-step" };
-  // An ascending range whose lower bound is already past its upper bound is
-  // the canonical empty source. Carry initializers therefore escape without
-  // executing any next expression.
-  if (min > max) return { values: [] };
+  // Numeric ranges require ascending bounds. Empty collection sources are
+  // handled by the collection iteration path instead.
+  if (min > max) return { error: "min-greater-than-max" };
   if (step <= 0) return { error: "non-positive-step" };
 
   const values: number[] = [];

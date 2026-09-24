@@ -151,10 +151,32 @@ describe("immutable statement-for carries", () => {
     expect(result.diagnostics.some((diagnostic) => diagnostic.code === "invalid-for-source-reference")).toBe(true);
   });
 
-  it("keeps an empty range at the initializer", () => {
+  it("rejects a descending numeric range instead of returning its carry initializer", () => {
     const compiled = compile([
       "nui 1",
       "for i in range(min: 2, max: 1, step: 1) carry total: number = 7 {",
+      "  next total = @total + 1",
+      "}",
+      "const result: number = @total"
+    ].join("\n"));
+    const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    const forGroupId = compiled.document.elements.find((element) => element.type === "forGroup")!.id;
+    expect(evaluation.errors).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        elementId: forGroupId,
+        missingDependencyId: forGroupId,
+        message: expect.stringContaining("min は max 以下")
+      })
+    ]));
+    const resultId = compiled.bindingAnalysis!.catalog.bindings.find((binding) => binding.name === "result")!.id;
+    expect(evaluation.computedScalarBindings?.get(resultId)?.status).not.toBe("ok");
+  });
+
+  it("keeps the carry initializer for a genuinely empty collection source", () => {
+    const compiled = compile([
+      "nui 1",
+      "const items: number[] = []",
+      "for item in @items carry total: number = 7 {",
       "  next total = @total + 1",
       "}",
       "const result: number = @total"
