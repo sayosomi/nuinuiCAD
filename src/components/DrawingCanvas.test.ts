@@ -411,6 +411,8 @@ describe("DrawingCanvas rendering", () => {
       movePointElementByDelta
     });
 
+    expect(viewport).toHaveClass("is-coordinate-point-creation");
+
     fireEvent.pointerDown(viewport, { button: 0, buttons: 1, clientX: 250, clientY: 200, pointerId: 41 });
     fireEvent.pointerUp(viewport, { button: 0, buttons: 0, clientX: 250, clientY: 200, pointerId: 41 });
 
