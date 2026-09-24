@@ -114,23 +114,50 @@ export const parseDslTypedDeclarationStatement = (logicalText: string): DslDecla
 
   const nameSpanRaw = trimSpan(logicalText, rest.start, colon >= 0 ? colon : equals >= 0 ? equals : rest.end);
   const name = parseName(logicalText, nameSpanRaw);
-  if (!name.nameSpan) diagnostics.push({ message: `${keyword} には名前が必要です。`, span: keywordSpan });
+  if (!name.nameSpan) {
+    diagnostics.push({
+      message: `${keyword} には名前が必要です。`,
+      span: keywordSpan,
+      code: "missing-declaration-name",
+      presentation: { key: "diagnostic.missing-declaration-name" }
+    });
+  }
 
   if (colon < 0) {
-    diagnostics.push({ message: `${keyword} には型注釈(: 型)が必要です。`, span: keywordSpan, code: MISSING_DECLARED_TYPE_CODE });
+    diagnostics.push({
+      message: `${keyword} には型注釈(: 型)が必要です。`,
+      span: keywordSpan,
+      code: MISSING_DECLARED_TYPE_CODE,
+      presentation: { key: `diagnostic.${MISSING_DECLARED_TYPE_CODE}` }
+    });
   }
   const typeSpan: DslSpan =
     colon >= 0 ? trimSpan(logicalText, colon + 1, equals >= 0 ? equals : rest.end) : { start: rest.end, end: rest.end };
   if (colon >= 0 && typeSpan.start === typeSpan.end) {
-    diagnostics.push({ message: `${keyword} には型注釈(: 型)が必要です。`, span: { start: colon, end: colon + 1 } });
+    diagnostics.push({
+      message: `${keyword} には型注釈(: 型)が必要です。`,
+      span: { start: colon, end: colon + 1 },
+      code: "empty-declared-type",
+      presentation: { key: "diagnostic.empty-declared-type" }
+    });
   }
 
   if (equals < 0) {
-    diagnostics.push({ message: `${keyword} には初期化式(= 値)が必要です。`, span: keywordSpan });
+    diagnostics.push({
+      message: `${keyword} には初期化式(= 値)が必要です。`,
+      span: keywordSpan,
+      code: "missing-declaration-initializer",
+      presentation: { key: "diagnostic.missing-declaration-initializer" }
+    });
   }
   const initializerSpan = trimSpan(logicalText, equals >= 0 ? equals + 1 : rest.end, rest.end);
   if (equals >= 0 && initializerSpan.start === initializerSpan.end) {
-    diagnostics.push({ message: "初期化式には「=」の後に値が必要です。", span: initializerSpan });
+    diagnostics.push({
+      message: "初期化式には「=」の後に値が必要です。",
+      span: initializerSpan,
+      code: "empty-declaration-initializer",
+      presentation: { key: "diagnostic.empty-declaration-initializer" }
+    });
   }
 
   const parsedType: DslDeclaredValueTypeParseResult =

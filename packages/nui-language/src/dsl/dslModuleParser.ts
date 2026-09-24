@@ -125,10 +125,18 @@ const diagnostic = (
   diagnostics: DslModuleDiagnostic[],
   message: string,
   span: DslSpan,
-  code?: string,
-  presentation?: DslDiagnosticPresentation
+  code: string,
+  parameters?: Readonly<Record<string, string | number | boolean>>
 ) => {
-  diagnostics.push(code ? { message, span, code, presentation: presentation ?? { key: `diagnostic.${code}` } } : { message, span });
+  diagnostics.push({
+    message,
+    span,
+    code,
+    presentation: {
+      key: `diagnostic.${code}`,
+      ...(parameters ? { parameters } : {})
+    }
+  });
 };
 
 const moduleParameterType = (
@@ -159,7 +167,7 @@ const parameterFromArg = (source: string, arg: ScannedArg, diagnostics: DslModul
     ? { name: "", nameSpan: null }
     : { name: arg.key, nameSpan: arg.keySpan };
   if (arg.key === null) {
-    diagnostic(diagnostics, "module parameter は `名前: 型` の形式で指定してください。", arg.valueSpan);
+    diagnostic(diagnostics, "module parameter は `名前: 型` の形式で指定してください。", arg.valueSpan, "module-parameter-invalid-shape");
   }
 
   const equals = topLevelIndex(source, "=", arg.valueSpan.start, arg.valueSpan.end);
@@ -168,10 +176,10 @@ const parameterFromArg = (source: string, arg: ScannedArg, diagnostics: DslModul
     ? trimSpan(source, equals + 1, arg.valueSpan.end)
     : null;
   if (arg.key !== null && typeSpan.start === typeSpan.end) {
-    diagnostic(diagnostics, "module parameter には型注釈が必要です。", arg.valueSpan);
+    diagnostic(diagnostics, "module parameter には型注釈が必要です。", arg.valueSpan, "module-parameter-missing-type");
   }
   if (defaultSpan && defaultSpan.start === defaultSpan.end) {
-    diagnostic(diagnostics, "module parameter の default には `=` の後に値が必要です。", defaultSpan);
+    diagnostic(diagnostics, "module parameter の default には `=` の後に値が必要です。", defaultSpan, "module-parameter-missing-default");
   }
   const parsedType = typeSpan.start === typeSpan.end
     ? { type: null, valueType: null, recordTypeReference: null, choiceOptionSpans: [] as DslSpan[] }
@@ -208,7 +216,7 @@ const shorthandArgumentLabel = (arg: ScannedArg): { label: string; labelSpan: Ds
 const argumentFromArg = (arg: ScannedArg, diagnostics: DslModuleDiagnostic[]): DslModuleArgument => {
   const shorthand = shorthandArgumentLabel(arg);
   if (arg.key === null && shorthand === null) {
-    diagnostic(diagnostics, "module argument は名前付き引数で指定してください。単純な `@name` shorthand も使用できます。", arg.valueSpan);
+    diagnostic(diagnostics, "module argument は名前付き引数で指定してください。単純な `@name` shorthand も使用できます。", arg.valueSpan, "module-argument-not-named");
   }
   return {
     kind: "moduleArgument",
@@ -227,16 +235,28 @@ const instanceOptionFromArg = (
 ): DslModuleInstanceOption => {
   const name = arg.key ?? "";
   if (arg.key === null) {
-    diagnostic(diagnostics, "module instance option は名前付き引数で指定してください。", arg.valueSpan);
+    diagnostic(diagnostics, "module instance option は名前付き引数で指定してください。", arg.valueSpan, "module-instance-option-not-named");
   } else if (arg.key !== "enabled" && arg.key !== "visible") {
-    diagnostic(diagnostics, `module instance option「${arg.key}」はありません。使用できるoption: enabled, visible。`, arg.keySpan!);
+    diagnostic(
+      diagnostics,
+      `module instance option「${arg.key}」はありません。使用できるoption: enabled, visible。`,
+      arg.keySpan!,
+      "module-instance-unknown-option",
+      { option: arg.key, candidates: "enabled, visible" }
+    );
   } else if (seen.has(arg.key)) {
-    diagnostic(diagnostics, `引数「${arg.key}」が重複しています。`, arg.keySpan!);
+    diagnostic(diagnostics, `引数「${arg.key}」が重複しています。`, arg.keySpan!, "module-instance-duplicate-option", { option: arg.key });
   } else {
     seen.add(arg.key);
     const literal = unquoteDslString(arg.value).toLowerCase();
     if (arg.valueSpan.start !== arg.valueSpan.end && literal !== "true" && literal !== "false" && !literal.startsWith("@")) {
-      diagnostic(diagnostics, `${arg.key} は true/false または共有 boolean 参照で指定してください。`, arg.valueSpan, "invalid-module-instance-gate");
+      diagnostic(
+        diagnostics,
+        `${arg.key} は true/false または共有 boolean 参照で指定してください。`,
+        arg.valueSpan,
+        "invalid-module-instance-gate",
+        { option: arg.key }
+      );
     }
   }
   return {
@@ -273,14 +293,14 @@ const definition = (logicalText: string, options: ParseDslModuleOptions): DslMod
   const brace = topLevelIndex(logicalText, "{", afterKeyword.start);
   const headerEnd = brace >= 0 ? brace : logicalText.length;
   const inlineBlock = brace >= 0 && trimSpan(logicalText, brace + 1, logicalText.length).start === logicalText.length;
-  if (brace >= 0 && !inlineBlock) diagnostic(diagnostics, "「{」の後に余分なトークンがあります。", trimSpan(logicalText, brace + 1, logicalText.length));
+  if (brace >= 0 && !inlineBlock) diagnostic(diagnostics, "「{」の後に余分なトークンがあります。", trimSpan(logicalText, brace + 1, logicalText.length), "module-trailing-token-after-block");
   const open = topLevelIndex(logicalText, "(", afterKeyword.start, headerEnd);
   const nameSpan = trimSpan(logicalText, afterKeyword.start, open >= 0 ? open : headerEnd);
   const name = parseName(logicalText, nameSpan);
   const rawName = nameSpan.start < nameSpan.end ? logicalText.slice(nameSpan.start, nameSpan.end) : "";
   const firstNameWhitespace = rawName.search(/\s/);
   const missingInstanceEquals = firstNameWhitespace >= 0 && !/^['"]/.test(rawName);
-  if (!name.nameSpan) diagnostic(diagnostics, "module definition には名前が必要です。", keywordSpan);
+  if (!name.nameSpan) diagnostic(diagnostics, "module definition には名前が必要です。", keywordSpan, "module-definition-missing-name");
   if (missingInstanceEquals) {
     diagnostic(
       diagnostics,
@@ -290,10 +310,10 @@ const definition = (logicalText: string, options: ParseDslModuleOptions): DslMod
     );
   }
   if (open < 0) {
-    diagnostic(diagnostics, "module definition には parameter list の「(」が必要です。", { start: headerEnd, end: headerEnd });
+    diagnostic(diagnostics, "module definition には parameter list の「(」が必要です。", { start: headerEnd, end: headerEnd }, "module-definition-missing-parameter-list");
   }
   const close = open >= 0 ? matchingClose(logicalText, open, headerEnd) : -1;
-  if (open >= 0 && close < 0) diagnostic(diagnostics, "module parameter list の「(」が閉じられていません。", { start: open, end: open + 1 });
+  if (open >= 0 && close < 0) diagnostic(diagnostics, "module parameter list の「(」が閉じられていません。", { start: open, end: open + 1 }, "module-parameter-list-unclosed");
   const parameterSpan = {
     start: open >= 0 ? open + 1 : headerEnd,
     end: close >= 0 ? close : headerEnd
@@ -306,7 +326,7 @@ const definition = (logicalText: string, options: ParseDslModuleOptions): DslMod
   );
   diagnostics.push(...parsed.diagnostics);
   const opensBlock = Boolean(options.opensBlock || inlineBlock);
-  if (!opensBlock) diagnostic(diagnostics, "module definition にはブロックが必要です。", keywordSpan);
+  if (!opensBlock) diagnostic(diagnostics, "module definition にはブロックが必要です。", keywordSpan, "module-definition-missing-block");
   return {
     statement: {
       kind: "moduleDefinition",
@@ -355,18 +375,18 @@ const instance = (logicalText: string, keyword = "module"): DslModuleParseResult
         : logicalText.length;
   const instanceNameSpan = trimSpan(logicalText, afterKeyword.start, instanceNameEnd);
   const instanceName = parseName(logicalText, instanceNameSpan);
-  if (!instanceName.nameSpan) diagnostic(diagnostics, "module instance にはインスタンス名が必要です。", keywordSpan);
+  if (!instanceName.nameSpan) diagnostic(diagnostics, "module instance にはインスタンス名が必要です。", keywordSpan, "module-instance-missing-name");
   if (equals < 0) diagnostic(diagnostics, "module instance には「=」が必要です。", keywordSpan, "missing-module-instance-equals");
 
   const moduleNameSpan = trimSpan(logicalText, equals >= 0 ? equals + 1 : afterKeyword.end, open >= 0 ? open : logicalText.length);
   const moduleName = parseName(logicalText, moduleNameSpan);
-  if (!moduleName.nameSpan) diagnostic(diagnostics, "module instance には呼び出すmodule名が必要です。", { start: equals >= 0 ? equals + 1 : afterKeyword.end, end: equals >= 0 ? equals + 1 : afterKeyword.end });
-  if (open < 0) diagnostic(diagnostics, "module instance には argument list の「(」が必要です。", { start: logicalText.length, end: logicalText.length });
+  if (!moduleName.nameSpan) diagnostic(diagnostics, "module instance には呼び出すmodule名が必要です。", { start: equals >= 0 ? equals + 1 : afterKeyword.end, end: equals >= 0 ? equals + 1 : afterKeyword.end }, "module-instance-missing-callee");
+  if (open < 0) diagnostic(diagnostics, "module instance には argument list の「(」が必要です。", { start: logicalText.length, end: logicalText.length }, "module-instance-missing-argument-list");
   const close = open >= 0 ? matchingClose(logicalText, open, logicalText.length) : -1;
-  if (open >= 0 && close < 0) diagnostic(diagnostics, "module argument list の「(」が閉じられていません。", { start: open, end: open + 1 });
+  if (open >= 0 && close < 0) diagnostic(diagnostics, "module argument list の「(」が閉じられていません。", { start: open, end: open + 1 }, "module-argument-list-unclosed");
   if (close >= 0) {
     const tail = trimSpan(logicalText, close + 1, logicalText.length);
-    if (tail.start < tail.end) diagnostic(diagnostics, "module instance の「)」の後に余分なトークンがあります。", tail);
+    if (tail.start < tail.end) diagnostic(diagnostics, "module instance の「)」の後に余分なトークンがあります。", tail, "module-instance-trailing-token");
   }
   const argumentSpan = { start: open >= 0 ? open + 1 : logicalText.length, end: close >= 0 ? close : logicalText.length };
   const parsed = parseList(logicalText, argumentSpan, argumentFromArg);

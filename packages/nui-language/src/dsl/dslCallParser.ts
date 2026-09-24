@@ -158,11 +158,20 @@ const diagnostic = (
   message: string,
   span: DslSpan,
   code?: string,
-  presentation?: DslDiagnosticPresentation
-) =>
-  diagnostics.push(code
-    ? { message, span, code, presentation: presentation ?? { key: `diagnostic.${code}` } }
-    : { message, span });
+  presentationOrParameters?: DslDiagnosticPresentation | Readonly<Record<string, string | number | boolean>>
+) => {
+  if (!code) {
+    diagnostics.push({ message, span });
+    return;
+  }
+  const presentation = presentationOrParameters && "key" in presentationOrParameters
+    ? presentationOrParameters as DslDiagnosticPresentation
+    : {
+        key: `diagnostic.${code}`,
+        ...(presentationOrParameters ? { parameters: presentationOrParameters } : {})
+      };
+  diagnostics.push({ message, span, code, presentation });
+};
 
 /** A call whose `(` never finds its matching `)` (mid-edit, e.g. an unterminated
  * string swallowing the rest of the line). The statement returned alongside this
@@ -314,16 +323,16 @@ const parseNameWithModifiers = (
 
   const nameSpan = trimSpan(source, span.start, listOpen);
   if (nameSpan.start === nameSpan.end) {
-    diagnostic(diagnostics, "style参照は名前付きのgeometry / groupにのみ指定できます。", { start: listOpen, end: listOpen + 1 });
+    diagnostic(diagnostics, "style参照は名前付きのgeometry / groupにのみ指定できます。", { start: listOpen, end: listOpen + 1 }, "style-reference-name-required");
   }
   const close = matchingSquareClose(source, listOpen);
   if (close < 0 || close > span.end) {
-    diagnostic(diagnostics, "style参照リストの「[」が閉じられていません。", { start: listOpen, end: listOpen + 1 });
+    diagnostic(diagnostics, "style参照リストの「[」が閉じられていません。", { start: listOpen, end: listOpen + 1 }, "style-reference-list-unclosed");
     return { ...parseName(source, nameSpan), modifierNames: [], modifierNameSpans: [] };
   }
   const tail = trimSpan(source, close + 1, span.end);
   if (tail.start < tail.end) {
-    diagnostic(diagnostics, "style参照リストの後に余分なトークンがあります。", tail);
+    diagnostic(diagnostics, "style参照リストの後に余分なトークンがあります。", tail, "style-reference-list-trailing-token");
   }
 
   const scanned = scanCallArgs(source, { start: listOpen + 1, end: close });
@@ -332,17 +341,17 @@ const parseNameWithModifiers = (
   const modifierNameSpans: DslSpan[] = [];
   for (const arg of scanned.args) {
     if (arg.key !== null) {
-      diagnostic(diagnostics, "style参照リストには名前だけを書いてください。", arg.keySpan ?? arg.valueSpan);
+      diagnostic(diagnostics, "style参照リストには名前だけを書いてください。", arg.keySpan ?? arg.valueSpan, "style-reference-named-argument");
       continue;
     }
     const raw = source.slice(arg.valueSpan.start, arg.valueSpan.end);
     const name = unquoteDslString(arg.value).trim();
     if (!name || name.startsWith("@")) {
-      diagnostic(diagnostics, "style参照名が空、または不正です。", arg.valueSpan);
+      diagnostic(diagnostics, "style参照名が空、または不正です。", arg.valueSpan, "style-reference-invalid-name");
       continue;
     }
     if (!raw.startsWith("\"") && /\s/.test(raw)) {
-      diagnostic(diagnostics, "style参照名に空白を含める場合は引用符で囲んでください。", arg.valueSpan);
+      diagnostic(diagnostics, "style参照名に空白を含める場合は引用符で囲んでください。", arg.valueSpan, "style-reference-name-unquoted-whitespace");
       continue;
     }
     modifierNames.push(name);
@@ -364,7 +373,7 @@ const validateArgs = (
   const spec = constructionFor(category, construction);
   const categoryCandidates = constructionCandidatesFor(category);
   if (categoryCandidates.length === 0) {
-    diagnostic(diagnostics, `未知の category「${category}」です。`, categorySpan);
+    diagnostic(diagnostics, `未知の category「${category}」です。`, categorySpan, "unknown-category", { category });
     return null;
   }
   if (!spec) {
@@ -373,7 +382,9 @@ const validateArgs = (
       diagnostic(
         diagnostics,
         `「${construction}」は名前なしの単独文になりました。「${category} ${construction} = ...」ではなく「${construction}(…)」と書いてください。`,
-        constructionSpan ?? categorySpan
+        constructionSpan ?? categorySpan,
+        "bare-construction-not-call",
+        { category, construction }
       );
       return null;
     }
@@ -386,22 +397,16 @@ const validateArgs = (
         diagnostics,
         message,
         constructionSpan ?? categorySpan,
-        constructionSpan
-          ? categories.length > 0
-            ? CONSTRUCTION_CATEGORY_MISMATCH_CODE
-            : "unknown-construction"
-          : undefined,
-        constructionSpan
-          ? {
-              key: `diagnostic.${categories.length > 0 ? CONSTRUCTION_CATEGORY_MISMATCH_CODE : "unknown-construction"}`,
-              parameters: {
-                category,
-                construction,
-                ...(categories.length > 0 ? { categories: categories.join(", ") } : {}),
-                candidates
-              }
-            }
-          : undefined
+        categories.length > 0 ? CONSTRUCTION_CATEGORY_MISMATCH_CODE : "unknown-construction",
+        {
+          key: `diagnostic.${categories.length > 0 ? CONSTRUCTION_CATEGORY_MISMATCH_CODE : "unknown-construction"}`,
+          parameters: {
+            category,
+            construction,
+            ...(categories.length > 0 ? { categories: categories.join(", ") } : {}),
+            candidates
+          }
+        }
       );
     return null;
   }
@@ -415,7 +420,13 @@ const validateArgs = (
   for (const arg of args) {
     if (arg.key === null) {
       if (!positional) {
-        diagnostic(diagnostics, `category「${category}」の construction「${construction}」は位置引数を受け付けません。`, arg.valueSpan);
+        diagnostic(
+          diagnostics,
+          `category「${category}」の construction「${construction}」は位置引数を受け付けません。`,
+          arg.valueSpan,
+          "construction-positional-argument-not-accepted",
+          { category, construction }
+        );
       } else {
         payloadSpans[positional.arg] = arg.valueSpan;
       }
@@ -442,11 +453,19 @@ const validateArgs = (
       const message = args.some((item) => item.key === null)
         ? `位置引数「${arg.key}」が重複しています。`
         : `位置引数「${arg.key}」は名前付き引数として指定できません。`;
-      diagnostic(diagnostics, message, arg.keySpan!);
+      diagnostic(
+        diagnostics,
+        message,
+        arg.keySpan!,
+        args.some((item) => item.key === null)
+          ? "construction-positional-argument-duplicate"
+          : "construction-positional-argument-named",
+        { argument: arg.key }
+      );
       continue;
     }
     if (seen.has(arg.key)) {
-      diagnostic(diagnostics, `引数「${arg.key}」が重複しています。`, arg.keySpan!);
+      diagnostic(diagnostics, `引数「${arg.key}」が重複しています。`, arg.keySpan!, "construction-argument-duplicate", { argument: arg.key });
       continue;
     }
     if (arg.key === "color" && category === MUTATION_CATEGORY) {
@@ -466,12 +485,26 @@ const validateArgs = (
     const supplied = required.positional
       ? args.some((arg) => arg.key === null)
       : args.some((arg) => arg.key === required.arg);
-    if (!supplied) diagnostic(diagnostics, `construction「${construction}」には必須引数「${required.arg}」が必要です。`, constructionSpan ?? categorySpan);
+    if (!supplied) {
+      diagnostic(
+        diagnostics,
+        `construction「${construction}」には必須引数「${required.arg}」が必要です。`,
+        constructionSpan ?? categorySpan,
+        "missing-construction-argument",
+        { construction, argument: required.arg }
+      );
+    }
   }
   for (const group of spec.exclusiveGroups ?? []) {
     if (group.every((key) => args.some((arg) => arg.key === key))) {
       const span = args.find((arg) => arg.key === group.at(-1))?.keySpan ?? constructionSpan ?? categorySpan;
-      diagnostic(diagnostics, `引数「${group.join("」と「")}」は同時に指定できません。`, span);
+      diagnostic(
+        diagnostics,
+        `引数「${group.join("」と「")}」は同時に指定できません。`,
+        span,
+        "exclusive-construction-arguments",
+        { arguments: group.join(", ") }
+      );
     }
   }
   return spec;
@@ -490,7 +523,7 @@ export const parseDslConstructionInvocation = (
   const diagnostics: DslCallDiagnostic[] = [];
   const head = source.match(identifier);
   if (!head) {
-    diagnostic(diagnostics, "construction が必要です。", { start: spanOffset, end: spanOffset });
+    diagnostic(diagnostics, "construction が必要です。", { start: spanOffset, end: spanOffset }, "missing-construction");
     return { invocation: null, diagnostics };
   }
   const construction = head[0];
@@ -498,7 +531,7 @@ export const parseDslConstructionInvocation = (
   let open = construction.length;
   while (whitespace.test(source[open] ?? "")) open += 1;
   if (source[open] !== "(") {
-    diagnostic(diagnostics, "construction の後には「(」が必要です。", { start: spanOffset + open, end: spanOffset + open });
+    diagnostic(diagnostics, "construction の後には「(」が必要です。", { start: spanOffset + open, end: spanOffset + open }, "missing-construction-call-open");
     return { invocation: null, diagnostics };
   }
   const close = matchingClose(source, open);
@@ -669,7 +702,7 @@ const parseTransformationStatement = (
   }
 
   if (headerEnd < 0) {
-    diagnostic(diagnostics, `${operation} には引数括弧が必要です。`, keywordSpan);
+    diagnostic(diagnostics, `${operation} には引数括弧が必要です。`, keywordSpan, "missing-transformation-call-open", { operation });
     return transformationCallStatement(logicalText, keywordSpan, operation, keywordSpan, { start: logicalText.length, end: logicalText.length }, targets, stageName, stageNameSpan, diagnostics);
   }
   const close = matchingClose(logicalText, headerEnd);
@@ -678,8 +711,8 @@ const parseTransformationStatement = (
     return transformationCallStatement(logicalText, keywordSpan, operation, keywordSpan, { start: headerEnd + 1, end: logicalText.length }, targets, stageName, stageNameSpan, diagnostics);
   }
   const tail = trimSpan(logicalText, close + 1, logicalText.length);
-  if (tail.start < tail.end) diagnostic(diagnostics, "呼び出しの「)」の後に余分なトークンがあります。", tail);
-  if (options.opensBlock) diagnostic(diagnostics, `${operation} の呼び出しはブロックを開けません。`, keywordSpan);
+  if (tail.start < tail.end) diagnostic(diagnostics, "呼び出しの「)」の後に余分なトークンがあります。", tail, "trailing-token-after-call");
+  if (options.opensBlock) diagnostic(diagnostics, `${operation} の呼び出しはブロックを開けません。`, keywordSpan, "call-block-not-allowed", { category: operation });
   return transformationCallStatement(logicalText, keywordSpan, operation, keywordSpan, { start: headerEnd + 1, end: close }, targets, stageName, stageNameSpan, diagnostics);
 };
 
@@ -690,7 +723,7 @@ export const parseDslCallStatement = (
   const diagnostics: DslCallDiagnostic[] = [];
   const categoryMatch = logicalText.match(identifier);
   if (!categoryMatch) {
-    diagnostic(diagnostics, "文は category から始めてください。", { start: 0, end: 0 });
+    diagnostic(diagnostics, "文は category から始めてください。", { start: 0, end: 0 }, "missing-category");
     return { statement: null, diagnostics };
   }
   const category = categoryMatch[0];
@@ -716,15 +749,15 @@ export const parseDslCallStatement = (
         const headerEnd = brace >= 0 ? brace : logicalText.length;
         const afterBrace = brace >= 0 ? trimSpan(logicalText, brace + 1, logicalText.length) : null;
         const inlineBlock = brace >= 0 && afterBrace!.start === afterBrace!.end;
-        if (brace >= 0 && !inlineBlock) diagnostic(diagnostics, "「{」の後に余分なトークンがあります。", afterBrace!);
+        if (brace >= 0 && !inlineBlock) diagnostic(diagnostics, "「{」の後に余分なトークンがあります。", afterBrace!, "trailing-token-after-block");
         const opensBlock = Boolean(options.opensBlock || inlineBlock);
-        if (!opensBlock) diagnostic(diagnostics, "for にはブロックが必要です。", keywordSpan);
+        if (!opensBlock) diagnostic(diagnostics, "for にはブロックが必要です。", keywordSpan, "missing-block", { category: "for" });
 
         const rangeMatch = logicalText.slice(sourceStart, headerEnd).match(/^range\s*\(/);
         if (rangeMatch) {
           const rangeOpen = sourceStart + rangeMatch[0].lastIndexOf("(");
           const close = matchingClose(logicalText, rangeOpen);
-          if (close < 0) diagnostic(diagnostics, "range 呼び出しの「(」が閉じられていません。", { start: rangeOpen, end: rangeOpen + 1 });
+          if (close < 0) diagnostic(diagnostics, "range 呼び出しの「(」が閉じられていません。", { start: rangeOpen, end: rangeOpen + 1 }, "unclosed-range-call");
           const scanned = scanCallArgs(
             logicalText,
             { start: rangeOpen + 1, end: close >= 0 ? close : headerEnd }
@@ -787,31 +820,31 @@ export const parseDslCallStatement = (
     const headerEnd = brace >= 0 ? brace : logicalText.length;
     const afterBrace = brace >= 0 ? trimSpan(logicalText, brace + 1, logicalText.length) : null;
     const inlineBlock = brace >= 0 && afterBrace!.start === afterBrace!.end;
-    if (brace >= 0 && !inlineBlock) diagnostic(diagnostics, "「{」の後に余分なトークンがあります。", afterBrace!);
+    if (brace >= 0 && !inlineBlock) diagnostic(diagnostics, "「{」の後に余分なトークンがあります。", afterBrace!, "trailing-token-after-block");
     const openCandidate = topLevelIndex(logicalText, "(", afterCategory.start);
     const open = openCandidate >= 0 && openCandidate < headerEnd ? openCandidate : -1;
     const headerEquals = topLevelIndex(logicalText, "=", afterCategory.start);
     if (headerEquals >= 0 && (open < 0 || headerEquals < open)) {
-      diagnostic(diagnostics, `${category} ヘッダでは「=」を使えません。`, { start: headerEquals, end: headerEquals + 1 });
+      diagnostic(diagnostics, `${category} ヘッダでは「=」を使えません。`, { start: headerEquals, end: headerEquals + 1 }, "container-header-equals-not-allowed", { category });
     }
     const beforeCall = trimSpan(logicalText, afterCategory.start, open >= 0 ? open : headerEnd);
     if (category === "if" && beforeCall.start < beforeCall.end) {
-      diagnostic(diagnostics, "if は `if (@condition) { ... }` の形式で書いてください。", beforeCall);
+      diagnostic(diagnostics, "if は `if (@condition) { ... }` の形式で書いてください。", beforeCall, "invalid-if-header");
     }
     if (category === "for") {
-      diagnostic(diagnostics, "for は `for i in range(...) { ... }` の形式で書いてください。", beforeCall.start < beforeCall.end ? beforeCall : keywordSpan);
+      diagnostic(diagnostics, "for は `for i in range(...) { ... }` の形式で書いてください。", beforeCall.start < beforeCall.end ? beforeCall : keywordSpan, "invalid-for-header");
     }
     const name = category === "if"
       ? { ...parseName(logicalText, beforeCall), modifierNames: [], modifierNameSpans: [] }
       : parseNameWithModifiers(logicalText, beforeCall, diagnostics);
     const close = open >= 0 ? matchingClose(logicalText, open) : -1;
     const tail = close >= 0 ? trimSpan(logicalText, close + 1, headerEnd) : { start: headerEnd, end: headerEnd };
-    if (close >= headerEnd && close >= 0) diagnostic(diagnostics, "呼び出しの「)」の後に余分なトークンがあります。", { start: headerEnd, end: close + 1 });
-    if (tail.start < tail.end) diagnostic(diagnostics, "呼び出しの「)」の後に余分なトークンがあります。", tail);
+    if (close >= headerEnd && close >= 0) diagnostic(diagnostics, "呼び出しの「)」の後に余分なトークンがあります。", { start: headerEnd, end: close + 1 }, "trailing-token-after-call");
+    if (tail.start < tail.end) diagnostic(diagnostics, "呼び出しの「)」の後に余分なトークンがあります。", tail, "trailing-token-after-call");
     const opensBlock = Boolean(options.opensBlock || inlineBlock);
-    if (!opensBlock) diagnostic(diagnostics, `${category} にはブロックが必要です。`, keywordSpan);
-    if ((category === "if" || category === "for") && open < 0) diagnostic(diagnostics, `${category} には括弧内の引数が必要です。`, keywordSpan);
-    if (open >= 0 && close < 0) diagnostic(diagnostics, "呼び出しの「(」が閉じられていません。", { start: open, end: open + 1 });
+    if (!opensBlock) diagnostic(diagnostics, `${category} にはブロックが必要です。`, keywordSpan, "missing-block", { category });
+    if ((category === "if" || category === "for") && open < 0) diagnostic(diagnostics, `${category} には括弧内の引数が必要です。`, keywordSpan, "missing-container-call-arguments", { category });
+    if (open >= 0 && close < 0) diagnostic(diagnostics, "呼び出しの「(」が閉じられていません。", { start: open, end: open + 1 }, UNCLOSED_CALL_CODE);
     const callSpan = { start: open >= 0 ? open + 1 : logicalText.length, end: close >= 0 ? close : logicalText.length };
     return { statement: callStatement(logicalText, category, keywordSpan, name, "", null, callSpan, opensBlock, diagnostics), diagnostics };
   }
@@ -830,7 +863,7 @@ export const parseDslCallStatement = (
     let open = keywordSpan.end;
     while (whitespace.test(logicalText[open] ?? "")) open += 1;
     if (logicalText[open] !== "(") {
-      diagnostic(diagnostics, `${category} は「${category}(引数…)」の形式で書いてください。`, { start: open, end: open });
+      diagnostic(diagnostics, `${category} は「${category}(引数…)」の形式で書いてください。`, { start: open, end: open }, "bare-call-shape", { category });
       return { statement: null, diagnostics };
     }
     const close = matchingClose(logicalText, open);
@@ -843,8 +876,8 @@ export const parseDslCallStatement = (
       return { statement, diagnostics };
     }
     const tail = trimSpan(logicalText, close + 1, logicalText.length);
-    if (tail.start < tail.end) diagnostic(diagnostics, "呼び出しの「)」の後に余分なトークンがあります。", tail);
-    if (options.opensBlock) diagnostic(diagnostics, `${category} の呼び出しはブロックを開けません。`, keywordSpan);
+    if (tail.start < tail.end) diagnostic(diagnostics, "呼び出しの「)」の後に余分なトークンがあります。", tail, "trailing-token-after-call");
+    if (options.opensBlock) diagnostic(diagnostics, `${category} の呼び出しはブロックを開けません。`, keywordSpan, "call-block-not-allowed", { category });
     const statement = callStatement(
       logicalText, MUTATION_CATEGORY, keywordSpan, bareName, category, keywordSpan,
       { start: open + 1, end: close }, false, diagnostics
@@ -853,7 +886,7 @@ export const parseDslCallStatement = (
   }
 
   if (equals < 0) {
-    diagnostic(diagnostics, "要素文には「=」が必要です。", keywordSpan);
+    diagnostic(diagnostics, "要素文には「=」が必要です。", keywordSpan, "missing-element-equals");
     return { statement: null, diagnostics };
   }
   const name = parseNameWithModifiers(
@@ -864,7 +897,7 @@ export const parseDslCallStatement = (
   const constructionStart = trimSpan(logicalText, equals + 1, logicalText.length).start;
   const constructionMatch = logicalText.slice(constructionStart).match(identifier);
   if (!constructionMatch) {
-    diagnostic(diagnostics, "「=」の後に construction が必要です。", { start: constructionStart, end: constructionStart });
+    diagnostic(diagnostics, "「=」の後に construction が必要です。", { start: constructionStart, end: constructionStart }, "missing-element-construction");
     return { statement: null, diagnostics };
   }
   const construction = constructionMatch[0];
@@ -872,7 +905,7 @@ export const parseDslCallStatement = (
   let open = constructionSpan.end;
   while (whitespace.test(logicalText[open] ?? "")) open += 1;
   if (logicalText[open] !== "(") {
-    diagnostic(diagnostics, "construction の後には「(」が必要です。", { start: open, end: open });
+    diagnostic(diagnostics, "construction の後には「(」が必要です。", { start: open, end: open }, "missing-construction-call-open");
     return { statement: null, diagnostics };
   }
   const close = matchingClose(logicalText, open);
@@ -890,9 +923,9 @@ export const parseDslCallStatement = (
   }
   const tail = trimSpan(logicalText, close + 1, logicalText.length);
   const inlineBlock = tail.start < tail.end && logicalText.slice(tail.start, tail.end) === "{";
-  if (tail.start < tail.end && !inlineBlock) diagnostic(diagnostics, "呼び出しの「)」の後に余分なトークンがあります。", tail);
-  if (inlineBlock || options.opensBlock) diagnostic(diagnostics, `category「${category}」の呼び出しはブロックを開けません。`, inlineBlock ? tail : keywordSpan);
+  if (tail.start < tail.end && !inlineBlock) diagnostic(diagnostics, "呼び出しの「)」の後に余分なトークンがあります。", tail, "trailing-token-after-call");
+  if (inlineBlock || options.opensBlock) diagnostic(diagnostics, `category「${category}」の呼び出しはブロックを開けません。`, inlineBlock ? tail : keywordSpan, "call-block-not-allowed", { category });
   const statement = callStatement(logicalText, category, keywordSpan, name, construction, constructionSpan, { start: open + 1, end: close }, false, diagnostics);
-  if (category === "use") diagnostic(diagnostics, "use は予約済みですが、まだ実装されていません。", keywordSpan);
+  if (category === "use") diagnostic(diagnostics, "use は予約済みですが、まだ実装されていません。", keywordSpan, "unsupported-use");
   return { statement, diagnostics };
 };

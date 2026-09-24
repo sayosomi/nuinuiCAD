@@ -34,7 +34,12 @@ describe("DSL exported geometry parser", () => {
     expect(isGeometryDeclarationCategory(category)).toBe(false);
     expect(result.call.statement).toBeNull();
     expect(result.call.diagnostics).toEqual([
-      { message: "export の後には geometry declaration が必要です。", span: { start: 7, end: source.length } }
+      {
+        message: "export の後には geometry declaration が必要です。",
+        span: { start: 7, end: source.length },
+        code: "invalid-export-statement",
+        presentation: { key: "diagnostic.invalid-export-statement" }
+      }
     ]);
   });
 

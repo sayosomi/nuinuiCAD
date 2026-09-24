@@ -71,17 +71,32 @@ export const parseDslNextStatement = (logicalText: string): DslNextParseResult =
   const rest = trimSpan(logicalText, keywordSpan.end, logicalText.length);
   const nameMatch = identifier.exec(logicalText.slice(rest.start));
   if (!nameMatch) {
-    diagnostics.push({ message: "next には対象の carry 名が必要です。", span: keywordSpan, code: "missing-next-target" });
+    diagnostics.push({
+      message: "next には対象の carry 名が必要です。",
+      span: keywordSpan,
+      code: "missing-next-target",
+      presentation: { key: "diagnostic.missing-next-target" }
+    });
     return { statement: null, diagnostics };
   }
   const nameSpan = { start: rest.start, end: rest.start + nameMatch[0].length };
   const equals = topLevelEquals(logicalText, nameSpan.end);
   if (equals < 0) {
-    diagnostics.push({ message: "next には `name = expression` の式が必要です。", span: nameSpan, code: "missing-next-expression" });
+    diagnostics.push({
+      message: "next には `name = expression` の式が必要です。",
+      span: nameSpan,
+      code: "missing-next-expression",
+      presentation: { key: "diagnostic.missing-next-expression" }
+    });
   }
   const expressionSpan = trimSpan(logicalText, equals >= 0 ? equals + 1 : nameSpan.end, logicalText.length);
   if (equals >= 0 && expressionSpan.start === expressionSpan.end) {
-    diagnostics.push({ message: "next の式には値が必要です。", span: { start: equals, end: equals + 1 }, code: "missing-next-expression" });
+    diagnostics.push({
+      message: "next の式には値が必要です。",
+      span: { start: equals, end: equals + 1 },
+      code: "missing-next-expression",
+      presentation: { key: "diagnostic.missing-next-expression" }
+    });
   }
   const payloadSpans: Record<string, DslSpan> = { name: nameSpan, expression: expressionSpan };
   return {

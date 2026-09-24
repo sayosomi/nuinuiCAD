@@ -215,6 +215,11 @@ export const parseDslExportStatement = (
     call: null,
     declaration: null,
     module: null,
-    diagnostics: [{ message: "export の後には geometry または typed scalar declaration が必要です。", span: afterExport }]
+    diagnostics: [{
+      message: "export の後には geometry または typed scalar declaration が必要です。",
+      span: afterExport,
+      code: "invalid-export-statement",
+      presentation: { key: "diagnostic.invalid-export-statement" }
+    }]
   };
 };
