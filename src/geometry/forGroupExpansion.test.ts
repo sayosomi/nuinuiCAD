@@ -36,10 +36,16 @@ describe("forGroupRangeValues", () => {
     expect(forGroupRangeValues(5, 6, 10)).toEqual({ values: [5] });
   });
 
-  it("accepts empty ascending sources and rejects non-positive steps", () => {
-    expect(forGroupRangeValues(6, 5, 1)).toEqual({ values: [] });
+  it("rejects descending bounds and non-positive steps", () => {
+    expect(forGroupRangeValues(6, 5, 1)).toEqual({ error: "min-greater-than-max" });
     expect(forGroupRangeValues(0, 1, 0)).toEqual({ error: "non-positive-step" });
     expect(forGroupRangeValues(0, 1, -1)).toEqual({ error: "non-positive-step" });
+  });
+
+  it("rejects non-finite range operands", () => {
+    expect(forGroupRangeValues(Number.NaN, 1, 1)).toEqual({ error: "non-finite-min" });
+    expect(forGroupRangeValues(0, Number.POSITIVE_INFINITY, 1)).toEqual({ error: "non-finite-max" });
+    expect(forGroupRangeValues(0, 1, Number.NEGATIVE_INFINITY)).toEqual({ error: "non-finite-step" });
   });
 
   it("enforces the 1000-generated-value safety limit", () => {

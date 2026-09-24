@@ -1362,7 +1362,7 @@ point Q = coordinate(x: distance(P, PR:start), y: 0)`);
     expect(result.computedGeometry.size).toBe(0);
   });
 
-  it("treats a descending nested inner for group range as empty", () => {
+  it("reports a descending nested for group range diagnostic", () => {
     const outer: CadElement = {
       id: "outer",
       name: "外側繰り返し",
@@ -1393,7 +1393,9 @@ point Q = coordinate(x: distance(P, PR:start), y: 0)`);
     };
     const result = evaluateElements([outer, inner, p]);
 
-    expect(result.errors).toHaveLength(0);
+    expect(result.errors).toEqual(expect.arrayContaining([
+      expect.objectContaining({ message: expect.stringContaining("min は max 以下") })
+    ]));
     expect(result.forGroupGeneratedRows).toHaveLength(0);
     expect(result.computedGeometry.size).toBe(0);
   });
