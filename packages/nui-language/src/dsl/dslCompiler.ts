@@ -434,14 +434,18 @@ const transformationDiagnostic = (
   message: string,
   code: string,
   logicalSpan?: { start: number; end: number },
-  statementIndex?: number
+  statementIndex?: number,
+  parameters?: DiagnosticParameters
 ): DslDiagnostic => ({
   severity: "error",
   line: statement.line,
   column: 1,
   code,
   message,
-  presentation: { key: `diagnostic.${code}` },
+  presentation: {
+    key: `diagnostic.${code}`,
+    ...(parameters ? { parameters } : {})
+  },
   ...(logicalSpan && statementIndex !== undefined ? { logicalSpan, statementIndex } : {})
 });
 
@@ -495,7 +499,7 @@ const resolveTransformationOwner = ({
         : lookup.kind === "resolved"
           ? `transformation target「${target.source}」は geometry ではありません。`
           : `transformation target「${target.source}」を解決できません。`;
-    diagnostics.push(transformationDiagnostic(statement, message, "unresolved-transformation-target", target.pathRange, statementIndex));
+    diagnostics.push(transformationDiagnostic(statement, message, "unresolved-transformation-target", target.pathRange, statementIndex, { target: target.source }));
     return null;
   }
   const resolved = resolveElementNamePath({
@@ -512,7 +516,8 @@ const resolveTransformationOwner = ({
       : `transformation target「${target.source}」を解決できません。`,
     "unresolved-transformation-target",
     target.pathRange,
-    statementIndex
+    statementIndex,
+    { target: target.source }
   ));
   return null;
 };
@@ -531,17 +536,17 @@ const parseTransformationTargetSelector = (
   diagnostics: DslDiagnostic[]
 ): TransformationTargetSelector | null => {
   if (source.startsWith("@")) {
-    diagnostics.push(transformationDiagnostic(statement, "transformation target に `@` は付けません。", "malformed-transformation-target", span, statementIndex));
+    diagnostics.push(transformationDiagnostic(statement, "transformation target に `@` は付けません。", "malformed-transformation-target", span, statementIndex, { target: source }));
     return null;
   }
   const parsed = parseDslSourceReference(`@${source}`);
   if (parsed.kind !== "valid") {
-    diagnostics.push(transformationDiagnostic(statement, `transformation target が不正です: ${source}`, "malformed-transformation-target", span, statementIndex));
+    diagnostics.push(transformationDiagnostic(statement, `transformation target が不正です: ${source}`, "malformed-transformation-target", span, statementIndex, { target: source }));
     return null;
   }
   const reference = parsed.reference;
   if (reference.property?.includes("[")) {
-    diagnostics.push(transformationDiagnostic(statement, `generated occurrence は stage/property の後ではなく selector の直後に指定してください: ${source}`, "malformed-transformation-target", span, statementIndex));
+    diagnostics.push(transformationDiagnostic(statement, `generated occurrence は stage/property の後ではなく selector の直後に指定してください: ${source}`, "malformed-transformation-target", span, statementIndex, { target: source }));
     return null;
   }
   const propertySegments = reference.property ? reference.property.split(".") : [];
@@ -555,10 +560,10 @@ const parseTransformationTargetSelector = (
     diagnostics.push(transformationDiagnostic(statement, "`final` は transformation target に指定できません。", "invalid-final-transformation-target", span, statementIndex));
   }
   if (operation !== "edge" && operation !== "extend" && (propertySegments.includes("start") || propertySegments.includes("end"))) {
-    diagnostics.push(transformationDiagnostic(statement, `${operation} は endpoint ではなく owner / stage を対象にします。`, "transformation-target-kind-incompatible", span, statementIndex));
+    diagnostics.push(transformationDiagnostic(statement, `${operation} は endpoint ではなく owner / stage を対象にします。`, "transformation-target-kind-incompatible", span, statementIndex, { operation, target: source }));
   }
   if ((operation === "edge" || operation === "extend") && !endpointKey) {
-    diagnostics.push(transformationDiagnostic(statement, `${operation} の target には `.concat("`.start` または `.end` が必要です。"), "transformation-target-kind-incompatible", span, statementIndex));
+    diagnostics.push(transformationDiagnostic(statement, `${operation} の target には `.concat("`.start` または `.end` が必要です。"), "transformation-target-kind-incompatible", span, statementIndex, { operation, target: source }));
   }
   const ownerId = resolveModuleOwner?.(reference, statementIndex) ?? resolveTransformationOwner({
       target: reference,
@@ -575,18 +580,19 @@ const parseTransformationTargetSelector = (
   if (!ownerId) return null;
   const owner = index.elementsById.get(ownerId);
   if (!owner || !isLineLikeElement(owner)) {
-    diagnostics.push(transformationDiagnostic(statement, `transformation target「${source}」は線 / path geometry ではありません。`, "transformation-target-kind-incompatible", span, statementIndex));
+    diagnostics.push(transformationDiagnostic(statement, `transformation target「${source}」は線 / path geometry ではありません。`, "transformation-target-kind-incompatible", span, statementIndex, { operation, target: source }));
   }
   const occurrenceIndex = reference.occurrenceIndex ?? undefined;
   if (occurrenceIndex !== undefined && owner && !hasForGroupAncestor(owner, index.elementsById)) {
-    diagnostics.push(transformationDiagnostic(statement, `明示された generated occurrence「${source}」は利用できません。`, "generated-occurrence-unavailable", span, statementIndex));
+    diagnostics.push(transformationDiagnostic(statement, `明示された generated occurrence「${source}」は利用できません。`, "generated-occurrence-unavailable", span, statementIndex, { target: source }));
   }
   const canonical = `@${formatDslReferencePath(reference.path)}${occurrenceIndex === undefined ? "" : `[${occurrenceIndex}]`}${reference.property ? `.${reference.property}` : ""}`;
   const stageKey = `${ownerId}\u0000${occurrenceIndex ?? "*"}\u0000${stagePath.join(".")}`;
   const stageDeclared = stageDeclarations.has(stageKey) ||
     (occurrenceIndex !== undefined && stageDeclarations.has(`${ownerId}\u0000*\u0000${stagePath.join(".")}`));
   if (stagePath.length > 0 && stagePath[0] !== "base" && !stageDeclared) {
-    diagnostics.push(transformationDiagnostic(statement, `stage「${transformationTargetPath({ ownerId, source, canonical, stagePath })}」はこの位置では利用できません。`, "unresolved-transformation-stage", span, statementIndex));
+    const stage = transformationTargetPath({ ownerId, source, canonical, stagePath });
+    diagnostics.push(transformationDiagnostic(statement, `stage「${stage}」はこの位置では利用できません。`, "unresolved-transformation-stage", span, statementIndex, { stage, target: source }));
   }
   return {
     source,
@@ -789,21 +795,21 @@ const compileTransformationRecipes = ({
         (statement.construction === "extend" && targets.length !== expectedCount) ||
         ((statement.construction === "reverse") && targets.length !== expectedCount) ||
         ((statement.construction === "move" || statement.construction === "mirrorMove") && targets.length < expectedCount)) {
-      diagnostics.push(transformationDiagnostic(statement, `${statement.construction} の target 数が不正です。`, "transformation-target-kind-incompatible", undefined, statementIndex));
+      diagnostics.push(transformationDiagnostic(statement, `${statement.construction} の target 数が不正です。`, "transformation-target-kind-incompatible", undefined, statementIndex, { operation: statement.construction }));
       continue;
     }
     if (statement.stageName && (statement.stageName === "base" || statement.stageName === "final" || statement.stageName === "input")) {
-      diagnostics.push(transformationDiagnostic(statement, `stage name「${statement.stageName}」は予約されています。`, "reserved-transformation-stage-name", statement.stageNameSpan ?? undefined, statementIndex));
+      diagnostics.push(transformationDiagnostic(statement, `stage name「${statement.stageName}」は予約されています。`, "reserved-transformation-stage-name", statement.stageNameSpan ?? undefined, statementIndex, { stage: statement.stageName }));
     }
     if (statement.stageName && (geometryPropertyNames.has(statement.stageName) || isKnownNumericComputedGeometryProperty(statement.stageName))) {
-      diagnostics.push(transformationDiagnostic(statement, `stage name「${statement.stageName}」は geometry property と衝突します。`, "transformation-stage-property-collision", statement.stageNameSpan ?? undefined, statementIndex));
+      diagnostics.push(transformationDiagnostic(statement, `stage name「${statement.stageName}」は geometry property と衝突します。`, "transformation-stage-property-collision", statement.stageNameSpan ?? undefined, statementIndex, { stage: statement.stageName }));
     }
     if (!targets.length) continue;
     for (const target of targets) {
       if (!statement.stageName) continue;
       const siblingKey = `${target.ownerId}\u0000${targetOccurrenceKey(target)}\u0000${target.stagePath.join(".")}\u0000${statement.stageName}`;
       if (declaredStageSiblings.has(siblingKey)) {
-        diagnostics.push(transformationDiagnostic(statement, `同じ recipe branch に stage「${statement.stageName}」が重複しています。`, "duplicate-transformation-stage", statement.stageNameSpan ?? undefined, statementIndex));
+        diagnostics.push(transformationDiagnostic(statement, `同じ recipe branch に stage「${statement.stageName}」が重複しています。`, "duplicate-transformation-stage", statement.stageNameSpan ?? undefined, statementIndex, { stage: statement.stageName }));
       }
       declaredStageSiblings.add(siblingKey);
       // Keep the sibling key in the same set as a private marker: the full

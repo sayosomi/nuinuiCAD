@@ -4,6 +4,7 @@ import { compileDslDocument, compileDslToElements, nuiDiagnosticsFor } from "@nu
 import type { DslDiagnostic } from "@nuinuicad/nui-language";
 import { compilerDiagnosticsForState } from "./compilerDiagnostics";
 import {
+  diagnosticTranslationCatalog,
   diagnosticMessageFor,
   diagnosticRelatedTextFor,
   diagnosticTextFor
@@ -29,6 +30,160 @@ const legacyCompilerDiagnosticsFor = (source: string) => {
   });
   return nuiDiagnosticsFor(source, compiled.diagnostics, []);
 };
+
+// SAY-369 post-parse compiler/semantic owner inventory. A new user-visible
+// identity in one of these owners must update this inventory.
+const say369DiagnosticOwnerInventory = {
+  "dslDocument.ts": [
+    "missing-version-declaration",
+    "version-declaration-not-first",
+    "invalid-dsl-version",
+    "unsupported-dsl-version",
+    "duplicate-version-declaration",
+    "invalid-for-source-reference",
+    "carry-collection-expression-invalid",
+    "carry-geometry-type-mismatch",
+    "dependency-cycle"
+  ],
+  "dslCompiler.ts": [
+    "invalid-drawing-profile-reference",
+    "duplicate-drawing-profile-override",
+    "invalid-source-reference",
+    "source-reference-forward",
+    "source-reference-ambiguous",
+    "source-reference-invalid-traversal",
+    "source-reference-undefined",
+    "source-reference-kind-mismatch",
+    "unresolved-transformation-target",
+    "malformed-transformation-target",
+    "invalid-final-transformation-target",
+    "transformation-target-kind-incompatible",
+    "generated-occurrence-unavailable",
+    "unresolved-transformation-stage",
+    "reserved-transformation-stage-name",
+    "transformation-stage-property-collision",
+    "duplicate-transformation-stage",
+    "invalid-transformation-enabled",
+    "module-geometry-parameter-mutation",
+    "undefined-visibility-role",
+    "invalid-visibility-role-value",
+    "undefined-visibility-profile",
+    "place-target-not-group",
+    "place-origin-namespace-unavailable",
+    "place-origin-unresolved",
+    "place-origin-not-point",
+    "place-origin-outside-target-group",
+    "invalid-layout-scale",
+    "place-position-required",
+    "invalid-place-mirror",
+    "invalid-place-scale",
+    "invalid-place-angle",
+    "output-layout-unavailable",
+    "invalid-print-paper",
+    "invalid-print-orientation",
+    "invalid-print-overlap",
+    "print-overlap-too-large",
+    "invalid-svg-margin",
+    "undefined-drawing-style",
+    "unused-drawing-style",
+    "ignored-parent-in-block"
+  ],
+  "dslApplyArgs.ts": [
+    "geometry-value-mutation-target-unsupported",
+    "geometry-reference-type-mismatch",
+    "optional-value-required",
+    "invalid-boolean-parameter-value",
+    "join-empty-paths",
+    "invalid-numeric-parameter-steps"
+  ],
+  "geometryArraySemanticAnalysis.ts": [
+    "array-parameter-default",
+    "array-invalid-member",
+    "array-invalid-reference",
+    "array-reference-forward",
+    "array-reference-ambiguous",
+    "array-reference-undefined",
+    "array-reference-invalidTraversal",
+    "array-reference-not-array",
+    "array-member-forward",
+    "array-member-ambiguous",
+    "array-member-undefined",
+    "array-member-invalidTraversal",
+    "array-member-invalid-type",
+    "array-member-not-value",
+    "array-member-type-mismatch",
+    "nested-array-member",
+    "array-value-for-source-invalid",
+    "array-value-for-source-forward",
+    "array-value-for-source-unsupported",
+    "array-argument-invalid",
+    "array-argument-type-mismatch",
+    "geometry-array-parameter-default",
+    "geometry-array-member-forward",
+    "geometry-array-member-ambiguous",
+    "geometry-array-member-undefined",
+    "geometry-array-member-invalidTraversal",
+    "geometry-array-member-type-mismatch",
+    "geometry-array-member-not-geometry",
+    "geometry-array-invalid-member",
+    "geometry-array-nested-array",
+    "geometry-array-invalid-reference",
+    "geometry-array-reference-forward",
+    "geometry-array-reference-ambiguous",
+    "geometry-array-reference-undefined",
+    "geometry-array-reference-invalidTraversal",
+    "geometry-array-reference-not-array",
+    "geometry-array-value-for-source-invalid",
+    "geometry-array-value-for-source-forward"
+  ],
+  "geometryArraySemantics.ts": [
+    "array-member-type-mismatch",
+    "optional-value-required",
+    "value-if-missing-else",
+    "array-value-for-unsupported",
+    "coalesce-left-not-optional",
+    "array-assignability-mismatch",
+    "geometry-array-member-type-mismatch",
+    "geometry-array-expected-array",
+    "geometry-array-value-for-unsupported",
+    "geometry-array-assignability-mismatch"
+  ],
+  "recordSemanticAnalysis.ts": [
+    "record-type-not-record",
+    "record-type-forward-reference",
+    "record-type-ambiguous",
+    "record-type-undefined",
+    "record-constructor-invalid-argument",
+    "record-constructor-positional-argument",
+    "record-constructor-duplicate-field",
+    "record-constructor-unknown-field",
+    "record-constructor-missing-field",
+    "record-reference-invalid",
+    "record-reference-not-record",
+    "record-value-ambiguous",
+    "record-value-forward-reference",
+    "record-nominal-type-mismatch",
+    "record-constructor-invalid",
+    "record-constructor-not-record",
+    "record-constructor-forward-reference",
+    "record-constructor-ambiguous",
+    "record-constructor-undefined",
+    "record-definition-not-top-level",
+    "record-parameter-default-unsupported",
+    "coalesce-type-mismatch"
+  ],
+  "dslReferences.ts": [
+    "undefined-geometry-reference",
+    "invalid-source-reference",
+    "source-reference-forward",
+    "source-reference-ambiguous",
+    "source-reference-invalid-traversal",
+    "source-reference-undefined"
+  ],
+  "moduleExecutionCompiler.ts": [
+    "ignored-parent-in-block"
+  ]
+} as const satisfies Readonly<Record<string, readonly string[]>>;
 
 const geometryCollectionCatalogInventory = [
   { code: "array-empty-member", parameters: undefined, english: "An array member is empty.", japanese: "array memberが空です。" },
@@ -80,6 +235,25 @@ const semanticOwnerCatalogInventory = [
 ] as const;
 
 describe("diagnostic presentation localization", () => {
+  it("keeps every SAY-369 owner identity in the English and Japanese catalog", () => {
+    for (const [owner, codes] of Object.entries(say369DiagnosticOwnerInventory)) {
+      for (const code of codes) {
+        const entry = diagnosticTranslationCatalog[
+          `diagnostic.${code}` as keyof typeof diagnosticTranslationCatalog
+        ];
+        expect(entry, `${owner} diagnostic.${code}`).toBeDefined();
+        expect(entry?.en.trim(), `${owner} diagnostic.${code} English`).not.toBe("");
+        expect(entry?.ja.trim(), `${owner} diagnostic.${code} Japanese`).not.toBe("");
+        const diagnostic = {
+          message: "owner fallback",
+          presentation: { key: `diagnostic.${code}` }
+        };
+        expect(diagnosticTextFor(diagnostic, "en"), `${owner} diagnostic.${code} English rendering`).toBe(entry?.en);
+        expect(diagnosticTextFor(diagnostic, "ja-JP"), `${owner} diagnostic.${code} Japanese rendering`).toBe(entry?.ja);
+      }
+    }
+  });
+
   it("keeps the current geometry and collection diagnostic owner inventory cataloged", () => {
     for (const entry of geometryCollectionCatalogInventory) {
       const diagnostic = {
@@ -105,6 +279,70 @@ describe("diagnostic presentation localization", () => {
       };
       expect(diagnosticTextFor(diagnostic, "en")).toBe(entry.english);
       expect(diagnosticTextFor(diagnostic, "ja-JP")).toBe(entry.japanese);
+    }
+  });
+
+  it("localizes production transformation diagnostics from structured parameters without changing identity", () => {
+    const cases = [
+      {
+        family: "unresolved target",
+        source: "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nreverse Missing ()",
+        code: "unresolved-transformation-target",
+        parameters: { target: "@Missing" },
+        fallback: "transformation target「@Missing」を解決できません。",
+        english: "Transformation target '@Missing' could not be resolved as a geometry.",
+        japanese: "transformation target「@Missing」を geometry として解決できません。"
+      },
+      {
+        family: "incompatible operation target",
+        source: "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nmove A.start as endpoint (from: (0, 0), to: (1, 0))",
+        code: "transformation-target-kind-incompatible",
+        parameters: { operation: "move", target: "A.start" },
+        fallback: "move は endpoint ではなく owner / stage を対象にします。",
+        english: "The transformation target is incompatible with operation 'move'.",
+        japanese: "transformation target は operation「move」と互換性がありません。"
+      },
+      {
+        family: "unavailable generated occurrence",
+        source: "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nreverse A[2] ()",
+        code: "generated-occurrence-unavailable",
+        parameters: { target: "A[2]" },
+        fallback: "明示された generated occurrence「A[2]」は利用できません。",
+        english: "Generated occurrence 'A[2]' is unavailable.",
+        japanese: "generated occurrence「A[2]」は利用できません。"
+      },
+      {
+        family: "unresolved stage",
+        source: "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nreverse A.missing ()",
+        code: "unresolved-transformation-stage",
+        parameters: { stage: "missing", target: "A.missing" },
+        fallback: "stage「missing」はこの位置では利用できません。",
+        english: "Transformation stage 'missing' is not available at this point.",
+        japanese: "transformation stage「missing」はこの位置では利用できません。"
+      },
+      {
+        family: "reserved stage name",
+        source: "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nreverse A as base ()",
+        code: "reserved-transformation-stage-name",
+        parameters: { stage: "base" },
+        fallback: "stage name「base」は予約されています。",
+        english: "Transformation stage name 'base' is reserved.",
+        japanese: "transformation stage name「base」は予約されています。"
+      }
+    ] as const;
+
+    for (const testCase of cases) {
+      const diagnostic = automationDiagnosticsFor(testCase.source).find((candidate) => candidate.code === testCase.code);
+      if (!diagnostic) throw new Error(`missing production ${testCase.family} diagnostic ${testCase.code}`);
+      expect(diagnostic.message).toBe(testCase.fallback);
+      expect(diagnostic.presentation).toEqual({ key: `diagnostic.${testCase.code}`, parameters: testCase.parameters });
+      const identity = { severity: diagnostic.severity, code: diagnostic.code, source: diagnostic.source, range: diagnostic.range };
+      expect(identity.severity).toBe("error");
+      expect(identity.source).toBe("nuinuiCAD");
+      expect(identity.range).toBeDefined();
+      expect(diagnosticTextFor(diagnostic, "en")).toBe(testCase.english);
+      expect(diagnosticTextFor(diagnostic, "ja-JP")).toBe(testCase.japanese);
+      expect({ severity: diagnostic.severity, code: diagnostic.code, source: diagnostic.source, range: diagnostic.range }).toEqual(identity);
     }
   });
 
@@ -197,6 +435,32 @@ describe("diagnostic presentation localization", () => {
       expect(diagnosticTextFor(diagnostic, "ja-JP")).toBe(testCase.japanese);
       expect({ severity: diagnostic.severity, code: diagnostic.code, source: diagnostic.source, range: diagnostic.range }).toEqual(identity);
     }
+  });
+
+  it("localizes a production unresolved geometry reference from dslReferences without changing identity", () => {
+    const source = "nui 1\npoint P = offset(from: @Missing, dx: 1, dy: 0)\n";
+    const diagnostic = automationDiagnosticsFor(source).find(
+      (candidate) => candidate.code === "undefined-geometry-reference"
+    );
+    if (!diagnostic) throw new Error("missing production undefined geometry reference diagnostic");
+
+    expect(diagnostic.severity).toBe("warning");
+    expect(diagnostic.message).toBe("参照先が見つかりません: @Missing");
+    expect(diagnostic.presentation).toEqual({
+      key: "diagnostic.undefined-geometry-reference",
+      parameters: { reference: "@Missing" }
+    });
+    const identity = {
+      severity: diagnostic.severity,
+      code: diagnostic.code,
+      source: diagnostic.source,
+      range: diagnostic.range
+    };
+    const english = diagnosticTextFor(diagnostic, "en");
+    const japanese = diagnosticTextFor(diagnostic, "ja-JP");
+    expect(english).toBe("Geometry reference '@Missing' could not be resolved.");
+    expect(japanese).toBe("geometry参照「@Missing」を解決できません。");
+    expect({ severity: diagnostic.severity, code: diagnostic.code, source: diagnostic.source, range: diagnostic.range }).toEqual(identity);
   });
 
   const missingValue = () => {
@@ -558,6 +822,9 @@ describe("diagnostic presentation localization", () => {
     if (!diagnostic) throw new Error(`missing production ${testCase.family} diagnostic ${testCase.code}`);
 
     expect(diagnostic.presentation?.key).toBe(`diagnostic.${testCase.code}`);
+    if (testCase.code === "malformed-transformation-target") {
+      expect(diagnostic.presentation).toEqual({ key: "diagnostic.malformed-transformation-target" });
+    }
     const identity = { code: diagnostic.code, source: diagnostic.source, range: diagnostic.range };
     expect(diagnosticTextFor(diagnostic, "en")).toBe(testCase.english);
     expect(diagnosticTextFor(diagnostic, "ja-JP")).toBe(testCase.japanese);
