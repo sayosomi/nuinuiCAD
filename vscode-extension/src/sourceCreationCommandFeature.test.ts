@@ -75,6 +75,7 @@ import {
 import {
   SOURCE_STYLE_PROFILE_TEMPLATE_QUICK_PICK_ITEMS
 } from "../../src/commands/sourceStyleProfileTemplateCatalog";
+import { SOURCE_OUTPUT_TEMPLATE_DEFINITIONS } from "../../src/commands/sourceOutputTemplateCatalog";
 
 beforeEach(() => {
   mocks.commands.clear();
@@ -238,7 +239,8 @@ describe("Source Insert Template command feature", () => {
 
     await expect(mocks.commands.get(VSCODE_SOURCE_INSERT_TEMPLATE_COMMAND_ID)?.({
       ...invocation,
-      insertionOrigin: "document-end"
+      insertionOrigin: "document-end",
+      preselectedFamilyId: "output-print"
     })).resolves.toBeUndefined();
 
     expect(mocks.showQuickPick).not.toHaveBeenCalled();
@@ -246,11 +248,27 @@ describe("Source Insert Template command feature", () => {
     feature.dispose();
   });
 
-  it("uses the canonical document-end insertion and keeps a required separator in one Output snippet", async () => {
+  it.each([
+    { documentUri: "file:///tmp/example.nui", expectedDocumentVersion: 1, insertionOrigin: "document-end" },
+    { documentUri: "file:///tmp/example.nui", expectedDocumentVersion: 1, insertionOrigin: "document-end", preselectedFamilyId: "geometry" }
+  ])("fails closed for malformed internal invocations", async (invocation) => {
+    const { editor, session } = sourceEditorFor("nui 1\n");
+    const feature = registerVscodeSourceCreationCommandFeature({
+      activeSourceEditor: () => editor,
+      displayLanguageFor: () => "en",
+      languageAnalysisSessionFor: () => session
+    });
+
+    await expect(mocks.commands.get(VSCODE_SOURCE_INSERT_TEMPLATE_COMMAND_ID)?.(invocation)).resolves.toBeUndefined();
+
+    expect(mocks.showQuickPick).not.toHaveBeenCalled();
+    expect(mocks.insertOutputSnippet).not.toHaveBeenCalled();
+    feature.dispose();
+  });
+
+  it("preselects Output / Print internally while keeping the canonical document-end insertion", async () => {
     const { editor, session } = sourceEditorFor("nui 1");
-    mocks.showQuickPick
-      .mockResolvedValueOnce(SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS[7])
-      .mockResolvedValueOnce("Layout");
+    mocks.showQuickPick.mockResolvedValueOnce("Layout");
     mocks.insertOutputSnippet.mockResolvedValue(true);
     const feature = registerVscodeSourceCreationCommandFeature({
       activeSourceEditor: () => editor,
@@ -261,15 +279,71 @@ describe("Source Insert Template command feature", () => {
     await expect(mocks.commands.get(VSCODE_SOURCE_INSERT_TEMPLATE_COMMAND_ID)?.({
       documentUri: "file:///tmp/example.nui",
       expectedDocumentVersion: 1,
-      insertionOrigin: "document-end"
+      insertionOrigin: "document-end",
+      preselectedFamilyId: "output-print"
     })).resolves.toBe(true);
 
+    expect(mocks.showQuickPick).toHaveBeenCalledTimes(1);
+    expect(SOURCE_OUTPUT_TEMPLATE_DEFINITIONS.map(({ label }) => label)).toEqual([
+      "Layout + Print", "Layout", "Place", "Print", "SVG"
+    ]);
+    expect(mocks.showQuickPick).toHaveBeenCalledWith([
+      "Layout + Print", "Layout", "Place", "Print", "SVG"
+    ]);
+    expect(mocks.showQuickPick).not.toHaveBeenCalledWith(SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS);
     expect(mocks.insertOutputSnippet).toHaveBeenCalledWith(
       editor,
       expect.anything(),
       { line: 0, character: 5 },
       { prefixText: "\n" }
     );
+    feature.dispose();
+  });
+
+  it("keeps internal Output / Print cancellation mutation-free", async () => {
+    const { editor, session } = sourceEditorFor("nui 1\n");
+    mocks.showQuickPick.mockResolvedValueOnce(undefined);
+    const feature = registerVscodeSourceCreationCommandFeature({
+      activeSourceEditor: () => editor,
+      displayLanguageFor: () => "en",
+      languageAnalysisSessionFor: () => session
+    });
+
+    await expect(mocks.commands.get(VSCODE_SOURCE_INSERT_TEMPLATE_COMMAND_ID)?.({
+      documentUri: "file:///tmp/example.nui",
+      expectedDocumentVersion: 1,
+      insertionOrigin: "document-end",
+      preselectedFamilyId: "output-print"
+    })).resolves.toBeUndefined();
+
+    expect(mocks.showQuickPick).toHaveBeenCalledWith([
+      "Layout + Print", "Layout", "Place", "Print", "SVG"
+    ]);
+    expect(mocks.insertOutputSnippet).not.toHaveBeenCalled();
+    feature.dispose();
+  });
+
+  it("rejects a stale internal Output / Print target after the canonical picker", async () => {
+    const { editor, document, session } = sourceEditorFor("nui 1\n");
+    mocks.showQuickPick.mockImplementationOnce(async () => {
+      document.version += 1;
+      return "Layout";
+    });
+    const feature = registerVscodeSourceCreationCommandFeature({
+      activeSourceEditor: () => editor,
+      displayLanguageFor: () => "en",
+      languageAnalysisSessionFor: () => session
+    });
+
+    await expect(mocks.commands.get(VSCODE_SOURCE_INSERT_TEMPLATE_COMMAND_ID)?.({
+      documentUri: "file:///tmp/example.nui",
+      expectedDocumentVersion: 1,
+      insertionOrigin: "document-end",
+      preselectedFamilyId: "output-print"
+    })).resolves.toBeUndefined();
+
+    expect(mocks.insertOutputSnippet).not.toHaveBeenCalled();
+    expect(mocks.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining("changed"));
     feature.dispose();
   });
 

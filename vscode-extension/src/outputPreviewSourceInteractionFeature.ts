@@ -82,7 +82,8 @@ export const createOutputPreviewSourceInteractionFeature = (
     const invocation: SourceCreationInternalInvocation = {
       documentUri: document.uri.toString(),
       expectedDocumentVersion: message.documentVersion,
-      insertionOrigin: "document-end"
+      insertionOrigin: "document-end",
+      preselectedFamilyId: "output-print"
     };
     await vscode.commands.executeCommand(VSCODE_SOURCE_INSERT_TEMPLATE_COMMAND_ID, invocation);
   },
