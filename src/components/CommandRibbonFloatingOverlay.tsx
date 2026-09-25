@@ -100,7 +100,10 @@ export const CommandRibbonFloatingOverlay = ({
     const persistedPosition = defaultStackGap !== undefined && ribbon.x !== null
       ? { x: ribbon.x, y: ribbon.y }
       : null;
-    const configured = persistedPosition ?? positions[ribbon.id] ?? (
+    const activeDragPosition = draggingRibbonId === ribbon.id
+      ? positions[ribbon.id]
+      : undefined;
+    const configured = activeDragPosition ?? persistedPosition ?? positions[ribbon.id] ?? (
       usesDefaultStackPosition && defaultStackPosition
         ? defaultStackPosition
         : { x: ribbon.x ?? defaultRibbonX(viewportSize, ribbon, sizeFor(ribbon)), y: ribbon.y }
@@ -230,15 +233,31 @@ export const CommandRibbonFloatingOverlay = ({
     } else {
       onPositionCommit?.(drag.ribbonId, position);
     }
+    const ribbon = ribbons.find((candidate) => candidate.id === drag.ribbonId);
+    if (defaultStackGap !== undefined && ribbon?.x !== null && ribbon?.x !== undefined) {
+      setPositions((current) => {
+        if (current[drag.ribbonId] === undefined) return current;
+        const next = { ...current };
+        delete next[drag.ribbonId];
+        return next;
+      });
+    }
     dragRef.current = null;
     setDraggingRibbonId(null);
   };
 
   const cancelDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    if (!dragRef.current) return;
+    const drag = dragRef.current;
+    if (!drag) return;
     event.preventDefault();
     event.stopPropagation();
     event.currentTarget.releasePointerCapture?.(event.pointerId);
+    setPositions((current) => {
+      if (current[drag.ribbonId] === undefined) return current;
+      const next = { ...current };
+      delete next[drag.ribbonId];
+      return next;
+    });
     dragRef.current = null;
     setDraggingRibbonId(null);
   };
