@@ -652,6 +652,301 @@ fn point_references_project_drawable_geometry_values_and_selected_stages() {
 }
 
 #[test]
+fn geometry_references_project_exact_identity_free_values_from_drawables_and_values() {
+    let point = |id: &str, x: f64, y: f64| {
+        json!({
+            "kind": "point",
+            "elementId": id,
+            "name": format!("{id}.point"),
+            "x": x,
+            "y": y,
+            "pointId": format!("{id}.source")
+        })
+    };
+    let line = json!({
+        "kind": "line",
+        "elementId": "line:id",
+        "name": "Line",
+        "startPointId": "line:start-id",
+        "endPointId": "line:end-id",
+        "start": point("line:start", 0.0, 0.0),
+        "end": point("line:end", 3.0, 4.0),
+        "length": 5.0,
+        "startAngleDeg": 53.13010235415598,
+        "endAngleDeg": 53.13010235415598,
+        "startTangentAngleDeg": 53.13010235415598,
+        "endTangentAngleDeg": 53.13010235415598,
+        "drawableMetadata": { "keep": false }
+    });
+    let arc_line = json!({
+        "kind": "arcLine",
+        "elementId": "arc:id",
+        "name": "Arc",
+        "centerPointId": "arc:center-id",
+        "startPointId": "arc:start-id",
+        "endPointId": "arc:end-id",
+        "center": point("arc:center", 0.0, 0.0),
+        "start": point("arc:start", 10.0, 0.0),
+        "end": point("arc:end", 0.0, 10.0),
+        "radius": 10.0,
+        "startAngleDeg": 0.0,
+        "endAngleDeg": 90.0,
+        "startTangentAngleDeg": 90.0,
+        "endTangentAngleDeg": 180.0,
+        "sweepAngleDeg": 90.0,
+        "length": 15.707963267948966
+    });
+    let bezier = json!({
+        "kind": "bezierCurve",
+        "elementId": "bezier:id",
+        "name": "Bezier",
+        "intermediatePointIds": ["bezier:intermediate"],
+        "intermediateSlotIds": ["bezier:slot"],
+        "segments": [{
+            "elementId": "bezier:segment",
+            "start": point("bezier:start", 0.0, 0.0),
+            "control1": point("bezier:control1", 1.0, 2.0),
+            "control2": point("bezier:control2", 3.0, 2.0),
+            "end": point("bezier:end", 4.0, 0.0),
+            "drawableHandleData": true
+        }],
+        "length": 5.268
+    });
+    let polyline = json!({
+        "kind": "polyline",
+        "elementId": "polyline:id",
+        "name": "Polyline",
+        "pointIds": ["polyline:a", "polyline:b", "polyline:c"],
+        "segments": [
+            { "elementId": "polyline:segment-a", "start": point("polyline:a", 0.0, 0.0), "end": point("polyline:b", 3.0, 4.0), "length": 5.0 },
+            { "elementId": "polyline:segment-b", "start": point("polyline:b", 3.0, 4.0), "end": point("polyline:c", 3.0, 0.0), "length": 4.0 }
+        ],
+        "closed": false,
+        "start": point("polyline:a", 0.0, 0.0),
+        "end": point("polyline:c", 3.0, 0.0),
+        "length": 9.0,
+        "startTangentAngleDeg": 53.13010235415598,
+        "endTangentAngleDeg": -90.0
+    });
+    let mixed_segments = json!([
+        { "kind": "line", "elementId": "offset:line", "start": point("offset:line:start", 0.0, 0.0), "end": point("offset:line:end", 1.0, 0.0), "length": 1.0, "baseLineIds": ["base:line"] },
+        { "kind": "bezier", "elementId": "offset:bezier", "start": point("offset:bezier:start", 1.0, 0.0), "control1": point("offset:bezier:control1", 2.0, 1.0), "control2": point("offset:bezier:control2", 3.0, 1.0), "end": point("offset:bezier:end", 4.0, 0.0), "length": 3.5, "baseLineIds": ["base:bezier"] },
+        { "kind": "arc", "elementId": "offset:arc", "center": point("offset:arc:center", 4.0, 1.0), "start": point("offset:arc:start", 4.0, 0.0), "end": point("offset:arc:end", 5.0, 1.0), "radius": 1.0, "startAngleDeg": -90.0, "sweepAngleDeg": 90.0, "length": std::f64::consts::FRAC_PI_2, "centerPointId": "offset:arc:center-id" }
+    ]);
+    let path_value = |kind: &str| {
+        json!({
+            "kind": kind,
+            "elementId": format!("{kind}:id"),
+            "name": kind,
+            "pathIds": ["source:path"],
+            "baseLineIds": ["source:line"],
+            "start": point("path:start", 0.0, 0.0),
+            "end": point("path:end", 5.0, 1.0),
+            "segments": mixed_segments,
+            "closed": false,
+            "length": 6.070796326794897,
+            "startTangentAngleDeg": 0.0,
+            "endTangentAngleDeg": 90.0
+        })
+    };
+    let geometries = vec![
+        (
+            "point",
+            "point",
+            json!({ "kind": "point", "elementId": "point:id", "name": "Point", "x": 2.0, "y": 3.0 }),
+            json!({ "kind": "point", "x": 2.0, "y": 3.0 }),
+        ),
+        (
+            "line",
+            "line",
+            line,
+            json!({
+                "kind": "line", "start": { "x": 0.0, "y": 0.0 }, "end": { "x": 3.0, "y": 4.0 }, "length": 5.0,
+                "startAngleDeg": 53.13010235415598, "endAngleDeg": 53.13010235415598,
+                "startTangentAngleDeg": 53.13010235415598, "endTangentAngleDeg": 53.13010235415598
+            }),
+        ),
+        (
+            "arcLine",
+            "path",
+            arc_line,
+            json!({
+                "kind": "arcLine", "center": { "x": 0.0, "y": 0.0 }, "start": { "x": 10.0, "y": 0.0 }, "end": { "x": 0.0, "y": 10.0 },
+                "radius": 10.0, "startAngleDeg": 0.0, "endAngleDeg": 90.0, "startTangentAngleDeg": 90.0,
+                "endTangentAngleDeg": 180.0, "sweepAngleDeg": 90.0, "length": 15.707963267948966
+            }),
+        ),
+        (
+            "bezierCurve",
+            "path",
+            bezier,
+            json!({
+                "kind": "bezierCurve", "segments": [{
+                    "start": { "x": 0.0, "y": 0.0 }, "control1": { "x": 1.0, "y": 2.0 },
+                    "control2": { "x": 3.0, "y": 2.0 }, "end": { "x": 4.0, "y": 0.0 }
+                }], "length": 5.268
+            }),
+        ),
+        (
+            "polyline",
+            "path",
+            polyline,
+            json!({
+                "kind": "polyline", "segments": [
+                    { "start": { "x": 0.0, "y": 0.0 }, "end": { "x": 3.0, "y": 4.0 }, "length": 5.0 },
+                    { "start": { "x": 3.0, "y": 4.0 }, "end": { "x": 3.0, "y": 0.0 }, "length": 4.0 }
+                ], "closed": false, "start": { "x": 0.0, "y": 0.0 }, "end": { "x": 3.0, "y": 0.0 },
+                "length": 9.0, "startTangentAngleDeg": 53.13010235415598, "endTangentAngleDeg": -90.0
+            }),
+        ),
+        (
+            "offsetLine",
+            "path",
+            path_value("offsetLine"),
+            json!({
+                "kind": "offsetLine", "start": { "x": 0.0, "y": 0.0 }, "end": { "x": 5.0, "y": 1.0 },
+                "segments": [
+                    { "kind": "line", "start": { "x": 0.0, "y": 0.0 }, "end": { "x": 1.0, "y": 0.0 }, "length": 1.0 },
+                    { "kind": "bezier", "start": { "x": 1.0, "y": 0.0 }, "control1": { "x": 2.0, "y": 1.0 }, "control2": { "x": 3.0, "y": 1.0 }, "end": { "x": 4.0, "y": 0.0 }, "length": 3.5 },
+                    { "kind": "arc", "center": { "x": 4.0, "y": 1.0 }, "start": { "x": 4.0, "y": 0.0 }, "end": { "x": 5.0, "y": 1.0 }, "radius": 1.0, "startAngleDeg": -90.0, "sweepAngleDeg": 90.0, "length": std::f64::consts::FRAC_PI_2 }
+                ], "closed": false, "length": 6.070796326794897,
+                "startTangentAngleDeg": 0.0, "endTangentAngleDeg": 90.0
+            }),
+        ),
+        (
+            "joinedPath",
+            "path",
+            path_value("joinedPath"),
+            json!({
+                "kind": "joinedPath", "start": { "x": 0.0, "y": 0.0 }, "end": { "x": 5.0, "y": 1.0 },
+                "segments": [
+                    { "kind": "line", "start": { "x": 0.0, "y": 0.0 }, "end": { "x": 1.0, "y": 0.0 }, "length": 1.0 },
+                    { "kind": "bezier", "start": { "x": 1.0, "y": 0.0 }, "control1": { "x": 2.0, "y": 1.0 }, "control2": { "x": 3.0, "y": 1.0 }, "end": { "x": 4.0, "y": 0.0 }, "length": 3.5 },
+                    { "kind": "arc", "center": { "x": 4.0, "y": 1.0 }, "start": { "x": 4.0, "y": 0.0 }, "end": { "x": 5.0, "y": 1.0 }, "radius": 1.0, "startAngleDeg": -90.0, "sweepAngleDeg": 90.0, "length": std::f64::consts::FRAC_PI_2 }
+                ], "closed": false, "length": 6.070796326794897,
+                "startTangentAngleDeg": 0.0, "endTangentAngleDeg": 90.0
+            }),
+        ),
+    ];
+
+    let mut computed_geometry = HashMap::new();
+    let mut computed_geometry_values = HashMap::new();
+    let mut program = Vec::new();
+    let mut expected = HashMap::new();
+    for (index, (kind, interface_type, drawable, value)) in geometries.into_iter().enumerate() {
+        let drawable_id = format!("drawable:{kind}");
+        let materialized_id = format!("materialized:{kind}");
+        let materialized_occurrence = GeometryValueOccurrence {
+            source_statement_id: materialized_id.clone(),
+            instance_path: Vec::new(),
+            mapped_member_index: None,
+        };
+        computed_geometry.insert(drawable_id.clone(), drawable.clone());
+        computed_geometry_values.insert(materialized_occurrence.clone(), drawable);
+
+        for (alias_index, (alias_id, target)) in [
+            (
+                format!("alias:drawable:{kind}"),
+                json!({ "kind": "drawable", "statementId": drawable_id, "statementIndex": 0, "geometryType": interface_type }),
+            ),
+            (
+                format!("alias:value:{kind}"),
+                json!({ "kind": "geometryValue", "statementId": materialized_id, "statementIndex": 0, "geometryType": interface_type, "occurrence": materialized_occurrence }),
+            ),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let occurrence = GeometryValueOccurrence {
+                source_statement_id: alias_id.clone(),
+                instance_path: Vec::new(),
+                mapped_member_index: None,
+            };
+            program.push(json!({
+                "sourceStatementId": alias_id,
+                "sourceStatementIndex": index * 2 + alias_index,
+                "declaredInterfaceType": interface_type,
+                "occurrence": { "sourceStatementId": occurrence.source_statement_id, "instancePath": [] },
+                "executionPosition": (index * 2 + alias_index) as f64,
+                "construction": { "kind": "reference", "target": target }
+            }));
+            expected.insert(occurrence, value.clone());
+        }
+    }
+
+    computed_geometry.insert(
+        "drawable:unsupported".to_owned(),
+        json!({ "kind": "unsupportedGeometry", "elementId": "unsupported:id" }),
+    );
+    program.push(json!({
+        "sourceStatementId": "alias:unsupported",
+        "sourceStatementIndex": expected.len(),
+        "declaredInterfaceType": "path",
+        "occurrence": { "sourceStatementId": "alias:unsupported", "instancePath": [] },
+        "executionPosition": expected.len() as f64,
+        "construction": {
+            "kind": "reference",
+            "target": { "kind": "drawable", "statementId": "drawable:unsupported", "statementIndex": 0, "geometryType": "path" }
+        }
+    }));
+
+    let entries = decode_geometry_value_program(Some(&Value::Array(program)))
+        .expect("valid drawable and value references");
+    let mut state = EvaluationState {
+        elements: Vec::new(),
+        elements_by_id: HashMap::new(),
+        drawing_modifiers: Value::Array(Vec::new()),
+        selected_drawing_profile_id: None,
+        group_states: HashMap::new(),
+        computed_geometry,
+        base_transformation_geometry: HashMap::new(),
+        transformation_stage_geometry: HashMap::new(),
+        completed_transformation_recipe_indices: HashSet::new(),
+        transformation_dependency_plans: None,
+        computed_geometry_order: Vec::new(),
+        computed_geometry_values,
+        geometry_input_targets: HashMap::new(),
+        geometry_collection_nodes: HashMap::new(),
+        geometry_value_binders: HashMap::new(),
+        for_group_generated_rows: Vec::new(),
+        for_group_expected_occurrence_count_by_template_id: HashMap::new(),
+        pre_mutation_geometry: HashMap::new(),
+        geometry_mutation_executions: Vec::new(),
+        condition_evaluation_traces: Vec::new(),
+        instance_base_geometry: HashMap::new(),
+        errors: Vec::new(),
+        geometry_value_errors: Vec::new(),
+        warnings: Vec::new(),
+    };
+
+    for entry in &entries {
+        evaluate_geometry_value_entry(entry, &EmptyBindingResolver, &mut state);
+    }
+
+    assert_eq!(state.geometry_value_errors.len(), 1);
+    assert_eq!(
+        state.geometry_value_errors[0].message,
+        "Geometry value reference is unavailable at runtime."
+    );
+    assert_eq!(state.computed_geometry_values.len(), expected.len() + 7);
+    assert!(!state
+        .computed_geometry_values
+        .contains_key(&GeometryValueOccurrence {
+            source_statement_id: "alias:unsupported".to_owned(),
+            instance_path: Vec::new(),
+            mapped_member_index: None,
+        }));
+    for (occurrence, value) in expected {
+        assert_eq!(
+            state.computed_geometry_values.get(&occurrence),
+            Some(&value),
+            "{} did not match its canonical structural projection",
+            occurrence.source_statement_id
+        );
+    }
+}
+
+#[test]
 fn pure_bezier_feature_points_accept_pure_sources_and_remain_identity_free() {
     let curve_occurrence = json!({
         "sourceStatementId": "value:curve",
@@ -1060,10 +1355,22 @@ fn offset_point_and_line_values_stay_identity_free_and_reuse_drawable_geometry()
     assert_eq!(path["kind"], "offsetLine");
     assert_eq!(path["start"], json!({ "x": 0.0, "y": -2.0 }));
     assert_eq!(path["end"], json!({ "x": 10.0, "y": -2.0 }));
+    assert_eq!(path.as_object().map(serde_json::Map::len), Some(8));
     assert!(path.get("elementId").is_none());
     assert!(path.get("name").is_none());
+    assert_eq!(path["segments"][0]["kind"], "line");
+    assert_eq!(
+        path["segments"][0].as_object().map(serde_json::Map::len),
+        Some(4)
+    );
     assert!(path["segments"][0].get("elementId").is_none());
     assert!(path["segments"][0]["start"].get("elementId").is_none());
+    assert_eq!(
+        path["segments"][0]["start"]
+            .as_object()
+            .map(serde_json::Map::len),
+        Some(2)
+    );
 }
 
 #[test]
