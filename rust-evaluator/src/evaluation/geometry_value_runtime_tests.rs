@@ -211,6 +211,105 @@ fn geometry_value_if_and_match_evaluate_only_the_selected_branch() {
     );
 }
 
+#[test]
+fn computed_geometry_value_payload_preserves_mapped_occurrence_identity() {
+    let mapped_occurrence = |mapped_member_index| {
+        json!({
+            "sourceStatementId": "value:mapped",
+            "instancePath": ["instance:A"],
+            "mappedMemberIndex": mapped_member_index
+        })
+    };
+    let ordinary_occurrence = json!({
+        "sourceStatementId": "value:ordinary",
+        "instancePath": ["instance:ordinary"]
+    });
+    let program = vec![
+        json!({
+            "sourceStatementId": "value:mapped",
+            "sourceStatementIndex": 1,
+            "declaredInterfaceType": "point",
+            "occurrence": mapped_occurrence(0),
+            "executionPosition": 1.0,
+            "construction": {
+                "kind": "coordinate",
+                "x": number(1.0),
+                "y": number(2.0)
+            }
+        }),
+        json!({
+            "sourceStatementId": "value:mapped",
+            "sourceStatementIndex": 1,
+            "declaredInterfaceType": "point",
+            "occurrence": mapped_occurrence(1),
+            "executionPosition": 2.0,
+            "construction": {
+                "kind": "coordinate",
+                "x": number(3.0),
+                "y": number(4.0)
+            }
+        }),
+        json!({
+            "sourceStatementId": "value:ordinary",
+            "sourceStatementIndex": 2,
+            "declaredInterfaceType": "point",
+            "occurrence": ordinary_occurrence,
+            "executionPosition": 3.0,
+            "construction": {
+                "kind": "coordinate",
+                "x": number(5.0),
+                "y": number(6.0)
+            }
+        }),
+    ];
+
+    let result = evaluate_document_input(input(Vec::new(), program));
+
+    assert!(result.errors.is_empty());
+    assert!(result.geometry_value_errors.is_empty());
+    assert_eq!(result.computed_geometry_values.len(), 3);
+    assert_eq!(
+        result.computed_geometry_values[0]["occurrence"],
+        json!({
+            "sourceStatementId": "value:mapped",
+            "instancePath": ["instance:A"],
+            "mappedMemberIndex": 0
+        })
+    );
+    assert_eq!(
+        result.computed_geometry_values[1]["occurrence"],
+        json!({
+            "sourceStatementId": "value:mapped",
+            "instancePath": ["instance:A"],
+            "mappedMemberIndex": 1
+        })
+    );
+    assert_eq!(
+        result.computed_geometry_values[2]["occurrence"],
+        json!({
+            "sourceStatementId": "value:ordinary",
+            "instancePath": ["instance:ordinary"]
+        })
+    );
+
+    let serialized = serde_json::to_value(&result).expect("EvaluationPayload must serialize");
+    let serialized_occurrences = serialized["computedGeometryValues"]
+        .as_array()
+        .expect("computed geometry values must serialize as an array");
+    assert_eq!(
+        serialized_occurrences[0]["occurrence"]["mappedMemberIndex"],
+        0
+    );
+    assert_eq!(
+        serialized_occurrences[1]["occurrence"]["mappedMemberIndex"],
+        1
+    );
+    assert!(!serialized_occurrences[2]["occurrence"]
+        .as_object()
+        .expect("occurrence must serialize as an object")
+        .contains_key("mappedMemberIndex"));
+}
+
 fn input(elements: Vec<Value>, program: Vec<Value>) -> EvaluationInput {
     EvaluationInput {
         evaluation_order: None,
