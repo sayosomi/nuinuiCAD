@@ -72,19 +72,19 @@ const titleFor = (key: "extract" | "inline" | "replace" | "xy" | "angle-distance
   const japanese = language.toLowerCase().startsWith("ja");
   if (japanese) {
     return {
-      extract: "Moduleを抽出",
-      inline: "Module instanceをインライン化",
+      extract: "nuinuiCAD: Moduleを抽出",
+      inline: "nuinuiCAD: Module instanceをインライン化",
       replace: "nuinuiCAD: ジオメトリ参照を置換",
-      xy: "XYオフセット…",
-      "angle-distance": "角度と距離のオフセット…"
+      xy: "nuinuiCAD: XYオフセット…",
+      "angle-distance": "nuinuiCAD: 角度と距離のオフセット…"
     }[key];
   }
   return {
-    extract: "Extract Module",
-    inline: "Inline Module Instance",
+    extract: "nuinuiCAD: Extract Module",
+    inline: "nuinuiCAD: Inline Module Instance",
     replace: "nuinuiCAD: Replace Geometry References",
-    xy: "XY Offset…",
-    "angle-distance": "Angle-Distance Offset…"
+    xy: "nuinuiCAD: XY Offset…",
+    "angle-distance": "nuinuiCAD: Angle-Distance Offset…"
   }[key];
 };
 

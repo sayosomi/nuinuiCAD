@@ -149,21 +149,21 @@ describe("VS Code Refactor Code Action provider", () => {
 
     const english = await actionsFor(providerFor("en"), document);
     expect(english.map((action) => [action.title, action.kind, action.command?.command])).toEqual([
-      ["Extract Module", "refactor.extract", "nuinuiCAD.extractModule"],
-      ["Inline Module Instance", "refactor.inline", "nuinuiCAD.inlineModuleInstance"],
+      ["nuinuiCAD: Extract Module", "refactor.extract", "nuinuiCAD.extractModule"],
+      ["nuinuiCAD: Inline Module Instance", "refactor.inline", "nuinuiCAD.inlineModuleInstance"],
       ["nuinuiCAD: Replace Geometry References", "refactor.rewrite", "nuinuiCAD.replaceGeometryReferences"],
-      ["XY Offset…", "refactor.rewrite", "nuinuiCAD.convertPointToXYOffset"],
-      ["Angle-Distance Offset…", "refactor.rewrite", "nuinuiCAD.convertPointToAngleDistanceOffset"]
+      ["nuinuiCAD: XY Offset…", "refactor.rewrite", "nuinuiCAD.convertPointToXYOffset"],
+      ["nuinuiCAD: Angle-Distance Offset…", "refactor.rewrite", "nuinuiCAD.convertPointToAngleDistanceOffset"]
     ]);
     expect(english.every((action) => action.edit === undefined)).toBe(true);
 
     const japanese = await actionsFor(providerFor("ja"), document);
     expect(japanese.map((action) => action.title)).toEqual([
-      "Moduleを抽出",
-      "Module instanceをインライン化",
+      "nuinuiCAD: Moduleを抽出",
+      "nuinuiCAD: Module instanceをインライン化",
       "nuinuiCAD: ジオメトリ参照を置換",
-      "XYオフセット…",
-      "角度と距離のオフセット…"
+      "nuinuiCAD: XYオフセット…",
+      "nuinuiCAD: 角度と距離のオフセット…"
     ]);
     expect(mocks.collectExtract).toHaveBeenCalledWith(mocks.activeTextEditor, expect.any(Function));
     expect(mocks.collectInline).toHaveBeenCalledWith(mocks.activeTextEditor, expect.any(Function));

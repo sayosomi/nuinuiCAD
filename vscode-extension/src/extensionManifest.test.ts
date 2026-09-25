@@ -49,6 +49,7 @@ type ExtensionManifest = {
       "nuinuiCAD.webview.modulePreviewDisplay"?: CommandPaletteMenu[];
       "nuinuiCAD.webview.convertPoint"?: CommandPaletteMenu[];
       "nuinuiCAD.webview.bake"?: CommandPaletteMenu[];
+      "nuinuiCAD.sourceBake"?: CommandPaletteMenu[];
       "view/item/context"?: CommandPaletteMenu[];
       "view/title"?: CommandPaletteMenu[];
     };
@@ -134,6 +135,10 @@ const webviewContextAliasIds = [
   "nuinuiCAD.webview.modulePreview.hideGeometryNames",
   "nuinuiCAD.webview.modulePreview.showPoints",
   "nuinuiCAD.webview.modulePreview.hidePoints"
+] as const;
+const sourceContextAliasIds = [
+  "nuinuiCAD.sourceContext.insertTemplate",
+  "nuinuiCAD.sourceContext.insertModulePreviewInstance"
 ] as const;
 const removedStaticWebviewAliasIds = [
   "nuinuiCAD.webview.createFreePointAtPointer",
@@ -225,14 +230,11 @@ const coordinatePointConversionCanvasContextWhen = "webviewId == 'nuinuiCAD.canv
 const coordinatePointConversionExplorerContextWhen = "view == nuinuiCAD.elements && viewItem == 'nuinuiCAD.coordinatePointConversionTarget'";
 const coordinatePointConversionEnablement = `(${coordinatePointConversionSourceContextWhen}) || (activeWebviewPanelId == 'nuinuiCAD.canvas' && nuinuiCAD.canvasHasCoordinatePointConversionTarget) || (${coordinatePointConversionExplorerContextWhen})`;
 const outputPreviewRevealEnablement = `${sourcePaletteWhen} && nuinuiCAD.revealInOutputPreviewSourceTarget`;
-const geometryReferenceRetargetContextWhen = `${sourcePaletteWhen} && !editorReadonly && nuinuiCAD.geometryReferenceRetargetSourceTarget`;
 const sourceValueStepKeybindingWhen = `editorTextFocus && ${sourcePaletteWhen} && !editorReadonly`;
 const sourceValueStepContextWhen = `${sourcePaletteWhen} && !editorReadonly && nuinuiCAD.sourceValueStepTarget`;
 const bakeSourceContextWhen = `${sourcePaletteWhen} && nuinuiCAD.bakeSourceTarget`;
 const modulePreviewContextWhen = `${sourcePaletteWhen} && nuinuiCAD.modulePreviewSourceTarget`;
-const inlineModuleSourceContextWhen = `${sourcePaletteWhen} && nuinuiCAD.inlineModuleSourceTarget`;
 const inlineModuleCanvasContextWhen = "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'element' && nuinuiCAD.inlineModuleCanvasTarget";
-const extractModuleSourceContextWhen = `${sourcePaletteWhen} && nuinuiCAD.extractModuleSourceTarget`;
 const extractModuleCanvasContextWhen = "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'element' && nuinuiCAD.extractModuleCanvasTarget";
 const sourceOrCanvasPaletteWhen = "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui) || activeWebviewPanelId == 'nuinuiCAD.canvas'";
 const sourceOrOutputPreviewPaletteWhen = "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui) || activeWebviewPanelId == 'nuinuiCAD.outputPreview'";
@@ -367,6 +369,90 @@ describe("VS Code extension manifest command contributions", () => {
       expect(command).toBeDefined();
       expect(resolveNlsToken(command!.title, english)).not.toMatch(tShortcutText);
       expect(resolveNlsToken(command!.title, japanese)).not.toMatch(tShortcutText);
+    }
+  });
+
+  it("uses prefixed Source rows and Palette category presentation without changing canonical labels", async () => {
+    const manifest = await readManifest();
+    const english = JSON.parse(await readFile(packageNlsPath, "utf8")) as Record<string, unknown>;
+    const japanese = JSON.parse(await readFile(packageNlsJaPath, "utf8")) as Record<string, unknown>;
+    const commands = manifest.contributes?.commands ?? [];
+    const aliases = commands.filter(({ command }) => sourceContextAliasIds.some((id) => id === command));
+    const commandPalette = manifest.contributes?.menus?.commandPalette ?? [];
+    const keybindings = manifest.contributes?.keybindings ?? [];
+
+    expect(aliases.map(({ command }) => command)).toEqual(sourceContextAliasIds);
+    expect(aliases.map(({ command, title }) => [command, title])).toEqual([
+      ["nuinuiCAD.sourceContext.insertTemplate", "%command.sourceContext.insertTemplate.title%"],
+      ["nuinuiCAD.sourceContext.insertModulePreviewInstance", "%command.sourceContext.insertModulePreviewInstance.title%"]
+    ]);
+    expect(aliases.map(({ title }) => resolveNlsToken(title, english))).toEqual([
+      "nuinuiCAD: Insert Template…",
+      "nuinuiCAD: Insert Module Preview Instance"
+    ]);
+    expect(aliases.map(({ title }) => resolveNlsToken(title, japanese))).toEqual([
+      "nuinuiCAD: テンプレートを挿入…",
+      "nuinuiCAD: Module Previewのインスタンスを挿入"
+    ]);
+    expect(commandPalette.filter(({ command }) => sourceContextAliasIds.some((id) => id === command)))
+      .toEqual(sourceContextAliasIds.map((command) => ({ command, when: "false" })));
+    expect(keybindings.some(({ command }) => sourceContextAliasIds.some((id) => id === command))).toBe(false);
+
+    const sourceMenu = manifest.contributes?.menus?.["editor/context"] ?? [];
+    for (const item of sourceMenu) {
+      if (item.command) {
+        const command = commands.find(({ command: id }) => id === item.command);
+        expect(command, item.command).toBeDefined();
+        expect(resolveNlsToken(command!.title, english), item.command).toMatch(/^nuinuiCAD: /);
+        expect(resolveNlsToken(command!.title, japanese), item.command).toMatch(/^nuinuiCAD: /);
+      } else if (item.submenu) {
+        const submenu = manifest.contributes?.submenus?.find(({ id }) => id === item.submenu);
+        expect(submenu, item.submenu).toBeDefined();
+        expect(resolveNlsToken(submenu!.label, english), item.submenu).toMatch(/^nuinuiCAD: /);
+        expect(resolveNlsToken(submenu!.label, japanese), item.submenu).toMatch(/^nuinuiCAD: /);
+      }
+    }
+
+    const sourceBakeChildren = manifest.contributes?.menus?.["nuinuiCAD.sourceBake"] ?? [];
+    expect(sourceBakeChildren.map(({ command }) => command)).toEqual([
+      "nuinuiCAD.bakeCurrentShape",
+      "nuinuiCAD.bakeBaseShape"
+    ]);
+    for (const child of sourceBakeChildren) {
+      const command = commands.find(({ command: id }) => id === child.command);
+      expect(command).toBeDefined();
+      expect(resolveNlsToken(command!.title, english)).not.toMatch(/^nuinuiCAD: /);
+      expect(resolveNlsToken(command!.title, japanese)).not.toMatch(/^nuinuiCAD: /);
+    }
+
+    const sourcePaletteCommands = [
+      "nuinuiCAD.openCanvas",
+      "nuinuiCAD.openOutputPreview",
+      "nuinuiCAD.openModulePreview",
+      "nuinuiCAD.editModulePreviewValues",
+      "nuinuiCAD.insertModulePreviewInstance",
+      "nuinuiCAD.inlineModuleInstance",
+      "nuinuiCAD.extractModule",
+      "nuinuiCAD.revealInCanvas",
+      "nuinuiCAD.revealInOutputPreview",
+      "nuinuiCAD.pickReferenceFromCanvas",
+      "nuinuiCAD.convertPointToXYOffset",
+      "nuinuiCAD.convertPointToAngleDistanceOffset",
+      "nuinuiCAD.replaceGeometryReferences",
+      "nuinuiCAD.stepSourceValueForward",
+      "nuinuiCAD.stepSourceValueBackward",
+      "nuinuiCAD.bakeCurrentShape",
+      "nuinuiCAD.bakeBaseShape",
+      "nuinuiCAD.createGeometry",
+      "nuinuiCAD.insertTemplate"
+    ];
+    for (const id of sourcePaletteCommands) {
+      expect(commandPalette.some(({ command }) => command === id), id).toBe(true);
+      const command = commands.find(({ command }) => command === id);
+      expect(command, id).toBeDefined();
+      const title = resolveNlsToken(command!.title, english);
+      const palettePresentation = command!.category ? `${command!.category}: ${title}` : title;
+      expect(palettePresentation, id).toMatch(/^nuinuiCAD: /);
     }
   });
 
@@ -657,7 +743,7 @@ describe("VS Code extension manifest command contributions", () => {
     );
   });
 
-  it("keeps the public Convert titles while using native submenu short titles", async () => {
+  it("keeps the canonical Convert commands and non-Source surfaces intact", async () => {
     const manifest = await readManifest();
     const commands = manifest.contributes?.commands ?? [];
     const commandPalette = manifest.contributes?.menus?.commandPalette ?? [];
@@ -687,11 +773,8 @@ describe("VS Code extension manifest command contributions", () => {
       expect(keybindings.some(({ command }) => command === conversion.id)).toBe(true);
     }
 
-    expect(manifest.contributes?.menus?.["editor/context"]).toContainEqual({
-      submenu: "nuinuiCAD.convertPoint",
-      when: coordinatePointConversionSourceContextWhen,
-      group: "2_nuinuiCAD@7"
-    });
+    expect((manifest.contributes?.menus?.["editor/context"] ?? []).some(({ submenu }) => submenu === "nuinuiCAD.convertPoint"))
+      .toBe(false);
     expect(manifest.contributes?.menus?.["webview/context"]).toContainEqual({
       submenu: "nuinuiCAD.webview.convertPoint",
       when: coordinatePointConversionCanvasContextWhen,
@@ -796,35 +879,37 @@ describe("VS Code extension manifest command contributions", () => {
       .not.toContain("modulePreviewSourceTarget");
   });
 
-  it("keeps independent Reveal/Open fallback slots in the consolidated Source hierarchy", async () => {
+  it("keeps the consolidated Source hierarchy, removes duplicate Refactor rows, and groups Bake", async () => {
     const manifest = await readManifest();
     expect(manifest.contributes?.menus?.["editor/context"]).toEqual([
       { command: "nuinuiCAD.createGeometry", when: sourceCreationContextWhen, group: "2_nuinuiCAD@0" },
-      { command: "nuinuiCAD.insertTemplate", when: sourceCreationContextWhen, group: "2_nuinuiCAD@0.1" },
+      { command: "nuinuiCAD.sourceContext.insertTemplate", when: sourceCreationContextWhen, group: "2_nuinuiCAD@0.1" },
       { command: "nuinuiCAD.revealInCanvas", when: canvasRevealContextWhen, group: "2_nuinuiCAD@1" },
       { command: "nuinuiCAD.openCanvas", when: canvasOpenFallbackContextWhen, group: "2_nuinuiCAD@1" },
       { command: "nuinuiCAD.revealInOutputPreview", when: outputPreviewRevealContextWhen, group: "2_nuinuiCAD@2" },
       { command: "nuinuiCAD.openOutputPreview", when: outputPreviewOpenFallbackContextWhen, group: "2_nuinuiCAD@2" },
       { command: "nuinuiCAD.openModulePreview", when: modulePreviewContextWhen, group: "2_nuinuiCAD@3" },
       { command: "nuinuiCAD.editModulePreviewValues", when: modulePreviewContextWhen, group: "2_nuinuiCAD@3.1" },
-      { command: "nuinuiCAD.insertModulePreviewInstance", when: "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.modulePreviewInsertAvailable", group: "2_nuinuiCAD@3.2" },
-      { command: "nuinuiCAD.inlineModuleInstance", when: inlineModuleSourceContextWhen, group: "2_nuinuiCAD@4" },
-      { command: "nuinuiCAD.extractModule", when: extractModuleSourceContextWhen, group: "2_nuinuiCAD@5" },
+      { command: "nuinuiCAD.sourceContext.insertModulePreviewInstance", when: "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.modulePreviewInsertAvailable", group: "2_nuinuiCAD@3.2" },
       { command: "nuinuiCAD.pickReferenceFromCanvas", when: referencePickContextWhen, group: "2_nuinuiCAD@6" },
-      { submenu: "nuinuiCAD.convertPoint", when: coordinatePointConversionSourceContextWhen, group: "2_nuinuiCAD@7" },
-      { command: "nuinuiCAD.replaceGeometryReferences", when: geometryReferenceRetargetContextWhen, group: "2_nuinuiCAD@8" },
       { command: "nuinuiCAD.stepSourceValueForward", when: sourceValueStepContextWhen, group: "2_nuinuiCAD@9" },
       { command: "nuinuiCAD.stepSourceValueBackward", when: sourceValueStepContextWhen, group: "2_nuinuiCAD@10" },
-      { command: "nuinuiCAD.bakeCurrentShape", when: bakeSourceContextWhen, group: "2_nuinuiCAD@11" },
-      { command: "nuinuiCAD.bakeBaseShape", when: bakeSourceContextWhen, group: "2_nuinuiCAD@12" }
+      { submenu: "nuinuiCAD.sourceBake", when: bakeSourceContextWhen, group: "2_nuinuiCAD@11" }
     ]);
     expect(manifest.contributes?.submenus).toEqual([
       { id: "nuinuiCAD.convertPoint", label: "%submenu.convert%" },
+      { id: "nuinuiCAD.sourceBake", label: "%submenu.source.bake%" },
       { id: "nuinuiCAD.webview.canvasDisplay", label: "%submenu.webview.display%" },
       { id: "nuinuiCAD.webview.modulePreviewDisplay", label: "%submenu.webview.display%" },
       { id: "nuinuiCAD.webview.convertPoint", label: "%submenu.webview.convertPoint%" },
       { id: "nuinuiCAD.webview.bake", label: "%submenu.webview.bake%" }
     ]);
+    expect(manifest.contributes?.menus?.["nuinuiCAD.sourceBake"]).toEqual([
+      { command: "nuinuiCAD.bakeCurrentShape", when: bakeSourceContextWhen },
+      { command: "nuinuiCAD.bakeBaseShape", when: bakeSourceContextWhen }
+    ]);
+    expect((manifest.contributes?.menus?.["editor/context"] ?? []).filter(({ submenu }) => submenu === "nuinuiCAD.sourceBake"))
+      .toHaveLength(1);
     expect(manifest.contributes?.menus?.["webview/context"]).toEqual([
       { command: "nuinuiCAD.createFreePointAtPointer", when: coordinatePointCreationCanvasBlankWhen, group: "1_create@0" },
       { command: "nuinuiCAD.fitDrawing", when: canvasBlankWhen, group: "2_view@1" },
@@ -878,24 +963,23 @@ describe("VS Code extension manifest command contributions", () => {
     const editorContextCommands = (manifest.contributes?.menus?.["editor/context"] ?? []).map(({ command, submenu }) => command ?? submenu);
     expect(editorContextCommands).toEqual([
       "nuinuiCAD.createGeometry",
-      "nuinuiCAD.insertTemplate",
+      "nuinuiCAD.sourceContext.insertTemplate",
       "nuinuiCAD.revealInCanvas",
       "nuinuiCAD.openCanvas",
       "nuinuiCAD.revealInOutputPreview",
       "nuinuiCAD.openOutputPreview",
       "nuinuiCAD.openModulePreview",
       "nuinuiCAD.editModulePreviewValues",
-      "nuinuiCAD.insertModulePreviewInstance",
-      "nuinuiCAD.inlineModuleInstance",
-      "nuinuiCAD.extractModule",
+      "nuinuiCAD.sourceContext.insertModulePreviewInstance",
       "nuinuiCAD.pickReferenceFromCanvas",
-      "nuinuiCAD.convertPoint",
-      "nuinuiCAD.replaceGeometryReferences",
       "nuinuiCAD.stepSourceValueForward",
       "nuinuiCAD.stepSourceValueBackward",
-      "nuinuiCAD.bakeCurrentShape",
-      "nuinuiCAD.bakeBaseShape"
+      "nuinuiCAD.sourceBake"
     ]);
+    expect(editorContextCommands).not.toContain("nuinuiCAD.inlineModuleInstance");
+    expect(editorContextCommands).not.toContain("nuinuiCAD.extractModule");
+    expect(editorContextCommands).not.toContain("nuinuiCAD.convertPoint");
+    expect(editorContextCommands).not.toContain("nuinuiCAD.replaceGeometryReferences");
     expect(editorContextCommands).not.toContain("nuinuiCAD.fitOutputPreview");
     expect(editorContextCommands).not.toContain("nuinuiCAD.resetOutputPreviewView");
     expect(editorContextCommands).not.toContain("nuinuiCAD.clearOutputPreviewFocus");
