@@ -17,6 +17,12 @@ describe("Webview presentation localization", () => {
     expect(presentation.strings["canvas.referencePick.propertyHelp.startAngleDeg"]).toBe("始点からパス内部への角度");
     expect(presentation.strings["canvas.referencePick.propertyHelp.intermediatePoint.incomingHandleAngleDeg"]).toBe("中間点{index}の入側ハンドル角度");
     expect(presentation.strings["canvas.referencePick.propertyHelp.intermediatePoint.outgoingHandleLength"]).toBe("中間点{index}の出側ハンドル長");
+    expect(presentation.strings["canvas.ribbon.viewport"]).toBe("表示範囲");
+    expect(presentation.strings["canvas.ribbon.display"]).toBe("表示");
+    expect(presentation.strings["canvas.ribbon.grid"]).toBe("グリッド");
+    expect(presentation.strings["canvas.ribbon.points"]).toBe("点");
+    expect(presentation.strings["canvas.ribbon.pointNames"]).toBe("点名");
+    expect(presentation.strings["canvas.ribbon.geometryNames"]).toBe("図形名");
     expect(presentation.strings["canvas.coordinateConversion.apply"]).toBe("適用（Enter）");
     expect(presentation.strings["canvas.coordinatePointCreation.instruction"]).toBe("Canvasをクリックして座標点を作成");
     expect(presentation.strings["canvas.coordinatePointCreation.finish"]).toBe("作成を終了");
@@ -63,6 +69,12 @@ describe("Webview presentation localization", () => {
     expect(unsupported.locale).toBe("en");
     expect(missing.locale).toBe("en");
     expect(english.strings["canvas.ariaLabel"]).toBe("CAD drawing canvas");
+    expect(english.strings["canvas.ribbon.viewport"]).toBe("Viewport");
+    expect(english.strings["canvas.ribbon.display"]).toBe("Display");
+    expect(english.strings["canvas.ribbon.grid"]).toBe("Grid");
+    expect(english.strings["canvas.ribbon.points"]).toBe("Points");
+    expect(english.strings["canvas.ribbon.pointNames"]).toBe("Point Names");
+    expect(english.strings["canvas.ribbon.geometryNames"]).toBe("Geometry Names");
     expect(english.strings["canvas.commandError.staleSourceAnchor"]).toBe("The current Source position is stale. Reconfirm the caret in the current Source and try again.");
     expect(english.strings["canvas.commandError.pointer"]).toBe("Place the pointer on the Canvas before running this command.");
     expect(english.strings["canvas.coordinateConversion.apply"]).toBe("Apply (Enter)");

@@ -45,7 +45,9 @@ type ExtensionManifest = {
       "editor/context"?: CommandPaletteMenu[];
       "nuinuiCAD.create"?: CommandPaletteMenu[];
       "nuinuiCAD.convertPoint"?: CommandPaletteMenu[];
+      "nuinuiCAD.webview.canvasViewport"?: CommandPaletteMenu[];
       "nuinuiCAD.webview.canvasDisplay"?: CommandPaletteMenu[];
+      "nuinuiCAD.webview.canvasGrid"?: CommandPaletteMenu[];
       "nuinuiCAD.webview.modulePreviewDisplay"?: CommandPaletteMenu[];
       "nuinuiCAD.webview.convertPoint"?: CommandPaletteMenu[];
       "nuinuiCAD.webview.bake"?: CommandPaletteMenu[];
@@ -56,18 +58,8 @@ type ExtensionManifest = {
   };
 };
 
-type SchemaNode = {
-  const?: unknown;
-  enum?: unknown[];
-  minimum?: number;
-  exclusiveMinimum?: number;
-  required?: string[];
-  oneOf?: SchemaNode[];
-  properties?: Record<string, SchemaNode>;
-  items?: SchemaNode;
-};
-
 const manifestPath = resolve(process.cwd(), "vscode-extension/package.json");
+const webviewIconSourcePath = resolve(process.cwd(), "src/vscode/vscodeCanvasRibbonIcons.tsx");
 const architecturePath = resolve(process.cwd(), "ARCHITECTURE.md");
 const packageNlsPath = resolve(process.cwd(), "vscode-extension/package.nls.json");
 const packageNlsJaPath = resolve(process.cwd(), "vscode-extension/package.nls.ja.json");
@@ -96,6 +88,8 @@ const commandIds = [
   "nuinuiCAD.clearCanvasSelection",
   "nuinuiCAD.selectParentGroup",
   "nuinuiCAD.selectInstance",
+  "nuinuiCAD.zoomInCanvas",
+  "nuinuiCAD.zoomOutCanvas",
   "nuinuiCAD.resetCanvasView",
   "nuinuiCAD.fitDrawing",
   "nuinuiCAD.resetOutputPreviewView",
@@ -111,7 +105,6 @@ const commandIds = [
   "nuinuiCAD.configureCanvasGrid",
   "nuinuiCAD.bakeCurrentShape",
   "nuinuiCAD.bakeBaseShape",
-  "nuinuiCAD.editCanvasRibbon",
   "nuinuiCAD.modulePreview.clearSelection",
   "nuinuiCAD.modulePreview.resetView",
   "nuinuiCAD.modulePreview.fitDrawing",
@@ -149,7 +142,6 @@ const removedStaticWebviewAliasIds = [
   "nuinuiCAD.webview.createFreePointAtPointer",
   "nuinuiCAD.webview.fitDrawing",
   "nuinuiCAD.webview.resetCanvasView",
-  "nuinuiCAD.webview.editCanvasRibbon",
   "nuinuiCAD.webview.clearCanvasSelection",
   "nuinuiCAD.webview.convertPointToXYOffset",
   "nuinuiCAD.webview.convertPointToAngleDistanceOffset",
@@ -173,7 +165,6 @@ const staticWebviewCanonicalCommandIds = [
   "nuinuiCAD.createFreePointAtPointer",
   "nuinuiCAD.fitDrawing",
   "nuinuiCAD.resetCanvasView",
-  "nuinuiCAD.editCanvasRibbon",
   "nuinuiCAD.clearCanvasSelection",
   "nuinuiCAD.convertPointToXYOffset",
   "nuinuiCAD.convertPointToAngleDistanceOffset",
@@ -194,6 +185,8 @@ const staticWebviewCanonicalCommandIds = [
 ] as const;
 const canonicalCommandsWithCategory = new Set<string>([
   ...staticWebviewCanonicalCommandIds,
+  "nuinuiCAD.zoomInCanvas",
+  "nuinuiCAD.zoomOutCanvas",
   "nuinuiCAD.insertTemplate"
 ]);
 const canonicalCommandShortTitles: Partial<Record<(typeof commandIds)[number], string>> = {
@@ -216,7 +209,6 @@ const canonicalCommandShortTitles: Partial<Record<(typeof commandIds)[number], s
   "nuinuiCAD.clearOutputPreviewFocus": "Clear Focus",
   "nuinuiCAD.bakeCurrentShape": "Current Shape",
   "nuinuiCAD.bakeBaseShape": "Base Shape",
-  "nuinuiCAD.editCanvasRibbon": "Edit Ribbon",
   "nuinuiCAD.clearCanvasSelection": "Clear Selection",
   "nuinuiCAD.modulePreview.clearSelection": "Clear Selection",
   "nuinuiCAD.modulePreview.resetView": "Reset View",
@@ -273,7 +265,6 @@ const coordinatePointCreationCanvasBlankWhen = `${canvasBlankWhen} && nuinuiCAD.
 const coordinatePointCreationKeybindingWhen = `${canvasFocusKeybindingWhen.replace("activeWebviewPanelId == 'nuinuiCAD.canvas'", "activeWebviewPanelId == 'nuinuiCAD.canvas' && nuinuiCAD.canvasCoordinatePointCreationAvailable && !nuinuiCAD.canvasCoordinatePointCreationActive")}`;
 const canvasElementWhen = "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'element' && nuinuiCAD.canvasHasSelection";
 const canvasOrModulePreviewElementWhen = "(webviewId == 'nuinuiCAD.canvas' || webviewId == 'nuinuiCAD.modulePreview') && webviewSection == 'element' && nuinuiCAD.canvasHasSelection";
-const canvasOrModulePreviewRibbonWhen = "(webviewId == 'nuinuiCAD.canvas' || webviewId == 'nuinuiCAD.modulePreview') && (webviewSection == 'blank' || webviewSection == 'ribbon')";
 const modulePreviewContextMenuWhen = "webviewId == 'nuinuiCAD.modulePreview'";
 const modulePreviewBlankWhen = "webviewId == 'nuinuiCAD.modulePreview' && webviewSection == 'blank'";
 
@@ -353,6 +344,9 @@ describe("VS Code extension manifest command contributions", () => {
       const titleKey = command.title.slice(1, -1);
       expect(japanese[titleKey]).not.toBe(english[titleKey]);
       if (staticWebviewCanonicalCommandIds.some((id) => id === command.command) && command.command !== "nuinuiCAD.createFreePointAtPointer") {
+        expect(command.category).toBe("nuinuiCAD");
+        expect(japanese[titleKey]).not.toMatch(/^nuinuiCAD: /);
+      } else if (command.command === "nuinuiCAD.zoomInCanvas" || command.command === "nuinuiCAD.zoomOutCanvas") {
         expect(command.category).toBe("nuinuiCAD");
         expect(japanese[titleKey]).not.toMatch(/^nuinuiCAD: /);
       } else if (command.command === "nuinuiCAD.insertTemplate") {
@@ -510,6 +504,8 @@ describe("VS Code extension manifest command contributions", () => {
       "Clear Selection",
       "Select Parent Group",
       "Select Instance",
+      "Zoom In",
+      "Zoom Out",
       "Reset View",
       "Fit Drawing",
       "Reset View",
@@ -525,7 +521,6 @@ describe("VS Code extension manifest command contributions", () => {
       "nuinuiCAD: Configure Canvas Grid…",
       "Current Shape",
       "Base Shape",
-      "Edit Ribbon",
       "Clear Selection",
       "Reset View",
       "Fit Drawing",
@@ -708,7 +703,6 @@ describe("VS Code extension manifest command contributions", () => {
       ["nuinuiCAD.createFreePointAtPointer", "Create Coordinate Points", "座標点を作成"],
       ["nuinuiCAD.fitDrawing", "Fit Drawing", "図面をフィット"],
       ["nuinuiCAD.resetCanvasView", "Reset View", "表示をリセット"],
-      ["nuinuiCAD.editCanvasRibbon", "Edit Ribbon", "リボンを編集"],
       ["nuinuiCAD.clearCanvasSelection", "Clear Selection", "選択を解除"],
       ["nuinuiCAD.convertPointToXYOffset", "XY Offset…", "XYオフセット…"],
       ["nuinuiCAD.convertPointToAngleDistanceOffset", "Angle-Distance Offset…", "角度と距離のオフセット…"],
@@ -826,9 +820,7 @@ describe("VS Code extension manifest command contributions", () => {
 
     expect(manifest.contributes?.menus?.["view/title"]?.some(({ command }) =>
       conversionCommands.some((conversion) => conversion.id === command))).toBe(false);
-    const ribbonSetting = manifest.contributes?.configuration?.properties?.["nuinuiCAD.canvasRibbon.ribbons"];
-    expect(JSON.stringify(ribbonSetting)).not.toContain("convertPointToXYOffset");
-    expect(JSON.stringify(ribbonSetting)).not.toContain("convertPointToAngleDistanceOffset");
+    expect(manifest.contributes?.configuration?.properties?.["nuinuiCAD.canvasRibbon.ribbons"]).toBeUndefined();
     expect(manifest.contributes?.menus?.["nuinuiCAD.convertPoint"]).toEqual([
       {
         command: "nuinuiCAD.convertPointToXYOffset",
@@ -871,7 +863,8 @@ describe("VS Code extension manifest command contributions", () => {
       { command: "nuinuiCAD.openModulePreview", when: sourcePaletteWhen },
       { command: "nuinuiCAD.editModulePreviewValues", when: modulePreviewPaletteWhen },
       { command: "nuinuiCAD.insertModulePreviewInstance", when: sourcePaletteWhen },
-      { command: "nuinuiCAD.editCanvasRibbon", when: canvasPaletteWhen },
+      { command: "nuinuiCAD.zoomInCanvas", when: canvasPaletteWhen },
+      { command: "nuinuiCAD.zoomOutCanvas", when: canvasPaletteWhen },
       { command: "nuinuiCAD.toggleCanvasGridSnap", when: canvasPaletteWhen },
       { command: "nuinuiCAD.toggleCanvasGrid", when: canvasPaletteWhen },
       { command: "nuinuiCAD.configureCanvasGrid", when: canvasPaletteWhen },
@@ -939,7 +932,9 @@ describe("VS Code extension manifest command contributions", () => {
     expect(manifest.contributes?.submenus).toEqual([
       { id: "nuinuiCAD.convertPoint", label: "%submenu.convert%" },
       { id: "nuinuiCAD.sourceBake", label: "%submenu.source.bake%" },
+      { id: "nuinuiCAD.webview.canvasViewport", label: "%submenu.webview.viewport%" },
       { id: "nuinuiCAD.webview.canvasDisplay", label: "%submenu.webview.display%" },
+      { id: "nuinuiCAD.webview.canvasGrid", label: "%submenu.webview.grid%" },
       { id: "nuinuiCAD.webview.modulePreviewDisplay", label: "%submenu.webview.display%" },
       { id: "nuinuiCAD.webview.convertPoint", label: "%submenu.webview.convertPoint%" },
       { id: "nuinuiCAD.webview.bake", label: "%submenu.webview.bake%" }
@@ -952,10 +947,9 @@ describe("VS Code extension manifest command contributions", () => {
       .toHaveLength(1);
     expect(manifest.contributes?.menus?.["webview/context"]).toEqual([
       { command: "nuinuiCAD.createFreePointAtPointer", when: coordinatePointCreationCanvasBlankWhen, group: "1_create@0" },
-      { command: "nuinuiCAD.fitDrawing", when: canvasBlankWhen, group: "2_view@1" },
-      { command: "nuinuiCAD.resetCanvasView", when: canvasBlankWhen, group: "2_view@2" },
-      { submenu: "nuinuiCAD.webview.canvasDisplay", when: canvasBlankWhen, group: "2_view@3" },
-      { command: "nuinuiCAD.editCanvasRibbon", when: canvasOrModulePreviewRibbonWhen, group: "3_edit@1" },
+      { submenu: "nuinuiCAD.webview.canvasViewport", when: canvasBlankWhen, group: "2_view@1" },
+      { submenu: "nuinuiCAD.webview.canvasDisplay", when: canvasBlankWhen, group: "2_view@2" },
+      { submenu: "nuinuiCAD.webview.canvasGrid", when: canvasBlankWhen, group: "2_view@3" },
       { command: "nuinuiCAD.editModulePreviewValues", when: modulePreviewContextMenuWhen, group: "3_edit@2" },
       { command: "nuinuiCAD.insertModulePreviewInstance", when: "webviewId == 'nuinuiCAD.modulePreview' && nuinuiCAD.modulePreviewInsertAvailable && !inputFocus && !nuinuiCAD.webviewEditableFocus", group: "3_edit@3" },
       { command: "nuinuiCAD.clearCanvasSelection", when: `${canvasBlankWhen} && nuinuiCAD.canvasHasSelection`, group: "4_selection@1" },
@@ -974,18 +968,26 @@ describe("VS Code extension manifest command contributions", () => {
       { submenu: "nuinuiCAD.webview.modulePreviewDisplay", when: modulePreviewBlankWhen, group: "2_view@3" },
       { command: "nuinuiCAD.modulePreview.clearSelection", when: `${modulePreviewBlankWhen} && nuinuiCAD.canvasHasSelection`, group: "4_selection@1" }
     ]);
+    expect(manifest.contributes?.menus?.["nuinuiCAD.webview.canvasViewport"]).toEqual([
+      { command: "nuinuiCAD.zoomOutCanvas", when: canvasBlankWhen, group: "1_view@1" },
+      { command: "nuinuiCAD.zoomInCanvas", when: canvasBlankWhen, group: "1_view@2" },
+      { command: "nuinuiCAD.resetCanvasView", when: canvasBlankWhen, group: "1_view@3" },
+      { command: "nuinuiCAD.fitDrawing", when: canvasBlankWhen, group: "1_view@4" }
+    ]);
     expect(manifest.contributes?.menus?.["nuinuiCAD.webview.canvasDisplay"]).toEqual([
-      { command: "nuinuiCAD.webview.showCanvasPointNames", when: `${canvasBlankWhen} && !nuinuiCAD.showCanvasPointNames`, group: "1_display@1" },
-      { command: "nuinuiCAD.webview.hideCanvasPointNames", when: `${canvasBlankWhen} && nuinuiCAD.showCanvasPointNames`, group: "1_display@1" },
-      { command: "nuinuiCAD.webview.showCanvasGeometryNames", when: `${canvasBlankWhen} && !nuinuiCAD.showCanvasGeometryNames`, group: "1_display@2" },
-      { command: "nuinuiCAD.webview.hideCanvasGeometryNames", when: `${canvasBlankWhen} && nuinuiCAD.showCanvasGeometryNames`, group: "1_display@2" },
-      { command: "nuinuiCAD.webview.showCanvasPoints", when: `${canvasBlankWhen} && !nuinuiCAD.showCanvasPoints`, group: "1_display@3" },
-      { command: "nuinuiCAD.webview.hideCanvasPoints", when: `${canvasBlankWhen} && nuinuiCAD.showCanvasPoints`, group: "1_display@3" },
-      { command: "nuinuiCAD.webview.showCanvasGrid", when: `${canvasBlankWhen} && !nuinuiCAD.canvasGridEnabled`, group: "1_display@4" },
-      { command: "nuinuiCAD.webview.hideCanvasGrid", when: `${canvasBlankWhen} && nuinuiCAD.canvasGridEnabled`, group: "1_display@4" },
-      { command: "nuinuiCAD.webview.canvasGridSettings", when: canvasBlankWhen, group: "1_display@5" },
-      { command: "nuinuiCAD.webview.enableCanvasGridSnap", when: `${canvasBlankWhen} && !nuinuiCAD.canvasGridSnapEnabled`, group: "1_display@6" },
-      { command: "nuinuiCAD.webview.disableCanvasGridSnap", when: `${canvasBlankWhen} && nuinuiCAD.canvasGridSnapEnabled`, group: "1_display@6" }
+      { command: "nuinuiCAD.webview.showCanvasPoints", when: `${canvasBlankWhen} && !nuinuiCAD.showCanvasPoints`, group: "1_display@1" },
+      { command: "nuinuiCAD.webview.hideCanvasPoints", when: `${canvasBlankWhen} && nuinuiCAD.showCanvasPoints`, group: "1_display@1" },
+      { command: "nuinuiCAD.webview.showCanvasPointNames", when: `${canvasBlankWhen} && !nuinuiCAD.showCanvasPointNames`, group: "1_display@2" },
+      { command: "nuinuiCAD.webview.hideCanvasPointNames", when: `${canvasBlankWhen} && nuinuiCAD.showCanvasPointNames`, group: "1_display@2" },
+      { command: "nuinuiCAD.webview.showCanvasGeometryNames", when: `${canvasBlankWhen} && !nuinuiCAD.showCanvasGeometryNames`, group: "1_display@3" },
+      { command: "nuinuiCAD.webview.hideCanvasGeometryNames", when: `${canvasBlankWhen} && nuinuiCAD.showCanvasGeometryNames`, group: "1_display@3" }
+    ]);
+    expect(manifest.contributes?.menus?.["nuinuiCAD.webview.canvasGrid"]).toEqual([
+      { command: "nuinuiCAD.webview.showCanvasGrid", when: `${canvasBlankWhen} && !nuinuiCAD.canvasGridEnabled`, group: "1_grid@1" },
+      { command: "nuinuiCAD.webview.hideCanvasGrid", when: `${canvasBlankWhen} && nuinuiCAD.canvasGridEnabled`, group: "1_grid@1" },
+      { command: "nuinuiCAD.webview.canvasGridSettings", when: canvasBlankWhen, group: "1_grid@2" },
+      { command: "nuinuiCAD.webview.enableCanvasGridSnap", when: `${canvasBlankWhen} && !nuinuiCAD.canvasGridSnapEnabled`, group: "1_grid@3" },
+      { command: "nuinuiCAD.webview.disableCanvasGridSnap", when: `${canvasBlankWhen} && nuinuiCAD.canvasGridSnapEnabled`, group: "1_grid@3" }
     ]);
     expect(manifest.contributes?.menus?.["nuinuiCAD.webview.modulePreviewDisplay"]).toEqual([
       { command: "nuinuiCAD.webview.modulePreview.showPointNames", when: `${modulePreviewBlankWhen} && !nuinuiCAD.showCanvasPointNames`, group: "1_display@1" },
@@ -1109,7 +1111,7 @@ describe("VS Code extension manifest keybindings", () => {
     const manifest = await readManifest();
     const keybindings = manifest.contributes?.keybindings ?? [];
 
-    expect(keybindings).toHaveLength(37);
+    expect(keybindings).toHaveLength(39);
     expect(keybindings).toContainEqual({
       command: "nuinuiCAD.stepSourceValueForward.keybinding",
       key: "ctrl+shift+.",
@@ -1283,6 +1285,21 @@ describe("VS Code extension manifest keybindings", () => {
         when: outputPreviewKeybindingWhen
       },
       {
+        command: "nuinuiCAD.zoomInCanvas",
+        key: "=",
+        when: canvasFocusKeybindingWhen
+      },
+      {
+        command: "nuinuiCAD.zoomInCanvas",
+        key: "shift+=",
+        when: canvasFocusKeybindingWhen
+      },
+      {
+        command: "nuinuiCAD.zoomOutCanvas",
+        key: "-",
+        when: canvasFocusKeybindingWhen
+      },
+      {
         command: "nuinuiCAD.fitDrawing",
         key: "ctrl+shift+alt+f",
         mac: "ctrl+shift+f",
@@ -1317,12 +1334,6 @@ describe("VS Code extension manifest keybindings", () => {
         key: "ctrl+shift+alt+r",
         mac: "ctrl+shift+r",
         when: outputPreviewKeybindingWhen
-      },
-      {
-        command: "nuinuiCAD.editCanvasRibbon",
-        key: "ctrl+shift+alt+e",
-        mac: "ctrl+shift+e",
-        when: canvasFocusKeybindingWhen
       },
       {
         command: "nuinuiCAD.exportCurrentOutput",
@@ -1405,11 +1416,14 @@ describe("VS Code extension manifest keybindings", () => {
     expect(insertModulePreviewWhen).toContain(modulePreviewInsertEnablement);
     expect(insertModulePreviewWhen).toContain("!inputFocus");
     expect(insertModulePreviewWhen).toContain("!nuinuiCAD.webviewEditableFocus");
-    expect(expectedNewBindings.flatMap(({ key, mac }) => [key, mac]).every((shortcut) => !shortcut.includes(" "))).toBe(true);
-    expect(new Set(newBindingCommands).size).toBe(expectedNewBindings.length);
+    expect(expectedNewBindings.flatMap(({ key, mac }) => [key, mac].filter((shortcut): shortcut is string => typeof shortcut === "string"))
+      .every((shortcut) => !shortcut.includes(" "))).toBe(true);
+    expect(new Set(expectedNewBindings.map(({ command, key, when }) => `${command}::${key}::${when}`)).size)
+      .toBe(expectedNewBindings.length);
 
     const denseLetterBindings = expectedNewBindings.filter(({ command }) =>
-      command !== "nuinuiCAD.pickReferenceFromCanvas" && command !== "nuinuiCAD.goToSourceDefinition"
+      command !== "nuinuiCAD.pickReferenceFromCanvas" && command !== "nuinuiCAD.goToSourceDefinition" &&
+      command !== "nuinuiCAD.zoomInCanvas" && command !== "nuinuiCAD.zoomOutCanvas"
     );
     expect(denseLetterBindings.every(({ key, mac }) =>
       key.split("+").length === 4 && mac.split("+").length === 3
@@ -1436,7 +1450,8 @@ describe("VS Code extension manifest keybindings", () => {
     for (const platform of ["key", "mac"] as const) {
       const seen = new Set<string>();
       for (const binding of keybindings) {
-        const signature = `${binding[platform]}::${binding.when}`;
+        const shortcut = platform === "mac" ? binding.mac ?? binding.key : binding.key;
+        const signature = `${shortcut}::${binding.when}`;
         expect(seen.has(signature), `${platform} duplicate: ${signature}`).toBe(false);
         seen.add(signature);
       }
@@ -1445,6 +1460,18 @@ describe("VS Code extension manifest keybindings", () => {
 });
 
 describe("Module Preview architecture documentation", () => {
+  it("documents fixed Canvas Ribbon ownership and keeps Module Preview decoupled", async () => {
+    const architecture = await readFile(architecturePath, "utf8");
+
+    expect(architecture).toContain("fixed product-owned");
+    expect(architecture).toContain("horizontal Viewport, Display, and Grid Ribbons");
+    expect(architecture).toContain("position-only state for Canvas Ribbons");
+    expect(architecture).toContain("there is no contributed arbitrary Ribbon setting");
+    expect(architecture).toContain("is decoupled from the Canvas Ribbon contract");
+    expect(architecture).not.toContain("nuinuiCAD.canvasRibbon.ribbons");
+    expect(architecture).not.toContain("dynamic Lucide icon resolution");
+  });
+
   it("documents authored point/Bezier source commits and keeps Bake outside Slice A", async () => {
     const architecture = await readFile(architecturePath, "utf8");
 
@@ -1458,38 +1485,73 @@ describe("Module Preview architecture documentation", () => {
   });
 });
 
-describe("VS Code Canvas Ribbon configuration contribution", () => {
-  it("declares application scope, the edit-only default, and command/value item schema", async () => {
+describe("VS Code Canvas fixed Ribbon contract", () => {
+  it("removes arbitrary composition settings and Edit Ribbon contributions", async () => {
     const manifest = await readManifest();
-    const setting = manifest.contributes?.configuration?.properties?.["nuinuiCAD.canvasRibbon.ribbons"];
-    expect(setting).toMatchObject({
-      type: "array",
-      scope: "application",
-      default: [{
-        id: "canvas-ribbon",
-        x: null,
-        y: 12,
-        orientation: "horizontal",
-        items: [{ commandId: "editCanvasRibbon", type: "command" }]
-      }]
-    });
-    expect(setting?.items).toMatchObject({
-      oneOf: [expect.objectContaining({
-        required: expect.arrayContaining(["id", "items"]),
-        properties: expect.objectContaining({ items: expect.anything() })
-      })]
-    });
-    const ribbonSchema = (setting?.items as SchemaNode | undefined)?.oneOf?.[0];
-    const itemSchema = ribbonSchema?.properties?.items?.items;
-    const commandSchema = itemSchema?.oneOf?.find((schema) => schema.properties?.type?.const === "command");
-    const valueSchema = itemSchema?.oneOf?.find((schema) => schema.properties?.type?.const === "value");
-    expect(ribbonSchema?.required).not.toContain("iconSize");
-    expect(ribbonSchema?.properties?.iconSize).toBeUndefined();
-    expect(commandSchema?.properties?.iconColor).toBeUndefined();
-    expect(commandSchema?.properties?.label).toBeUndefined();
-    expect(commandSchema?.properties?.commandId).toBeDefined();
-    expect(valueSchema?.properties?.valueId).toEqual({ enum: ["canvasZoom", "canvasGrid"] });
-    expect(valueSchema?.properties?.label).toBeUndefined();
+    expect(manifest.contributes?.configuration?.properties?.["nuinuiCAD.canvasRibbon.ribbons"]).toBeUndefined();
+    expect(manifest.contributes?.commands?.some(({ command }) => command === "nuinuiCAD.editCanvasRibbon")).toBe(false);
+    expect(manifest.contributes?.menus?.commandPalette?.some(({ command }) => command === "nuinuiCAD.editCanvasRibbon")).toBe(false);
+    expect(manifest.contributes?.keybindings?.some(({ command }) => command === "nuinuiCAD.editCanvasRibbon")).toBe(false);
+    expect(JSON.stringify(manifest)).not.toContain("nuinuiCAD.canvasRibbon.ribbons");
+    expect(JSON.stringify(manifest)).not.toContain("editCanvasRibbon");
+  });
+
+  it("uses explicit static Lucide imports without the dynamic all-icon path", async () => {
+    const iconSource = await readFile(webviewIconSourcePath, "utf8");
+    expect(iconSource).toContain('from "lucide-react"');
+    expect(iconSource).not.toContain("lucide-react/dynamic");
+    expect(iconSource).not.toContain("DynamicIcon");
+    expect(iconSource).not.toContain("iconNames");
+  });
+
+  it("registers remappable Canvas-only Zoom In and Zoom Out with guarded defaults", async () => {
+    const manifest = await readManifest();
+    const english = JSON.parse(await readFile(packageNlsPath, "utf8")) as Record<string, unknown>;
+    const japanese = JSON.parse(await readFile(packageNlsJaPath, "utf8")) as Record<string, unknown>;
+    const commands = manifest.contributes?.commands ?? [];
+    const palette = manifest.contributes?.menus?.commandPalette ?? [];
+    const keybindings = manifest.contributes?.keybindings ?? [];
+
+    for (const [id, title, englishTitle, japaneseTitle] of [
+      ["nuinuiCAD.zoomInCanvas", "%command.zoomInCanvas.title%", "Zoom In", "拡大"],
+      ["nuinuiCAD.zoomOutCanvas", "%command.zoomOutCanvas.title%", "Zoom Out", "縮小"]
+    ] as const) {
+      const command = commands.find(({ command }) => command === id);
+      expect(command).toMatchObject({ command: id, title });
+      expect(command?.enablement).toBeUndefined();
+      expect(resolveNlsToken(command!.title, english)).toBe(englishTitle);
+      expect(resolveNlsToken(command!.title, japanese)).toBe(japaneseTitle);
+      expect(palette.filter(({ command: candidate }) => candidate === id)).toEqual([{ command: id, when: canvasPaletteWhen }]);
+    }
+
+    expect(keybindings.filter(({ command }) => command === "nuinuiCAD.zoomInCanvas" || command === "nuinuiCAD.zoomOutCanvas"))
+      .toEqual([
+        { command: "nuinuiCAD.zoomInCanvas", key: "=", when: canvasFocusKeybindingWhen },
+        { command: "nuinuiCAD.zoomInCanvas", key: "shift+=", when: canvasFocusKeybindingWhen },
+        { command: "nuinuiCAD.zoomOutCanvas", key: "-", when: canvasFocusKeybindingWhen }
+      ]);
+    expect(keybindings.find(({ command }) => command === "nuinuiCAD.resetCanvasView"))
+      .toEqual({ command: "nuinuiCAD.resetCanvasView", key: "ctrl+shift+alt+r", mac: "ctrl+shift+r", when: canvasFocusKeybindingWhen });
+    expect(keybindings.find(({ command }) => command === "nuinuiCAD.fitDrawing"))
+      .toEqual({ command: "nuinuiCAD.fitDrawing", key: "ctrl+shift+alt+f", mac: "ctrl+shift+f", when: canvasFocusKeybindingWhen });
+  });
+
+  it("localizes the fixed Viewport, Display, and Grid context submenu names", async () => {
+    const manifest = await readManifest();
+    const english = JSON.parse(await readFile(packageNlsPath, "utf8")) as Record<string, unknown>;
+    const japanese = JSON.parse(await readFile(packageNlsJaPath, "utf8")) as Record<string, unknown>;
+    const expected = [
+      ["nuinuiCAD.webview.canvasViewport", "Viewport", "表示範囲"],
+      ["nuinuiCAD.webview.canvasDisplay", "Display", "表示"],
+      ["nuinuiCAD.webview.canvasGrid", "Grid", "グリッド"]
+    ] as const;
+
+    for (const [id, englishLabel, japaneseLabel] of expected) {
+      const submenu = manifest.contributes?.submenus?.find(({ id: candidate }) => candidate === id);
+      expect(submenu).toBeDefined();
+      expect(resolveNlsToken(submenu!.label, english)).toBe(englishLabel);
+      expect(resolveNlsToken(submenu!.label, japanese)).toBe(japaneseLabel);
+    }
   });
 });
 

@@ -136,11 +136,9 @@ import type {
   MultiDocumentSourceSnapshot
 } from "@nuinuicad/nui-language/workspace";
 import {
-  defaultVscodeCanvasRibbons,
-  normalizeVscodeCanvasRibbons,
+  normalizeVscodeCanvasRibbonPositions,
   patchVscodeCanvasRibbonPosition,
-  VSCODE_CANVAS_RIBBON_SETTING,
-  type VscodeCanvasRibbon
+  type VscodeCanvasRibbonPositions
 } from "../../src/vscode/vscodeCanvasRibbonConfig";
 import {
   CANVAS_GRID_ENABLED_SETTING,
@@ -244,7 +242,7 @@ const benchmarkConfigFromEnvironment = (): VscodeBenchmarkConfig | null => {
 
 const nonce = () => randomBytes(16).toString("hex");
 
-type CanvasRibbonConfiguration = {
+type CanvasConfiguration = {
   get: <T>(section: string) => T | undefined;
   inspect: (section: string) => {
     globalValue?: unknown;
@@ -253,22 +251,18 @@ type CanvasRibbonConfiguration = {
   update: (section: string, value: unknown, target: unknown) => Thenable<void>;
 };
 
-const canvasRibbonConfiguration = (): CanvasRibbonConfiguration | null => {
+const canvasConfiguration = (): CanvasConfiguration | null => {
   const getConfiguration = (vscode.workspace as typeof vscode.workspace & {
-    getConfiguration?: (section?: string) => CanvasRibbonConfiguration;
+    getConfiguration?: (section?: string) => CanvasConfiguration;
   }).getConfiguration;
   if (typeof getConfiguration !== "function") return null;
   return getConfiguration.call(vscode.workspace);
 };
 
-const normalizedCanvasRibbonConfiguration = (): VscodeCanvasRibbon[] => {
-  const configuration = canvasRibbonConfiguration();
-  if (!configuration) return defaultVscodeCanvasRibbons();
-  return normalizeVscodeCanvasRibbons(configuration.get<unknown>(VSCODE_CANVAS_RIBBON_SETTING));
-};
+const CANVAS_RIBBON_POSITIONS_STATE_KEY = "nuinuiCAD.canvasRibbonPositions";
 
 export const normalizedCanvasGridConfiguration = (): CanvasGridSettings => {
-  const configuration = canvasRibbonConfiguration();
+  const configuration = canvasConfiguration();
   return normalizeCanvasGridSettings({
     enabled: configuration?.get<unknown>(CANVAS_GRID_ENABLED_SETTING),
     spacingMm: configuration?.get<unknown>(CANVAS_GRID_SPACING_SETTING),
@@ -277,11 +271,8 @@ export const normalizedCanvasGridConfiguration = (): CanvasGridSettings => {
   });
 };
 
-const globalConfigurationTarget = (): unknown =>
-  (vscode as typeof vscode & { ConfigurationTarget?: { Global: unknown } }).ConfigurationTarget?.Global ?? 1;
-
 const canvasGridConfigurationTargetFor = (
-  inspection: ReturnType<NonNullable<CanvasRibbonConfiguration["inspect"]>>
+  inspection: ReturnType<NonNullable<CanvasConfiguration["inspect"]>>
 ): unknown => {
   const targets = (vscode as typeof vscode & {
     ConfigurationTarget?: { Global?: unknown; Workspace?: unknown };
@@ -291,13 +282,13 @@ const canvasGridConfigurationTargetFor = (
   return targets?.Global ?? 1;
 };
 
-const postCanvasRibbonConfiguration = (
+const postCanvasRibbonPositions = (
   panel: vscode.WebviewPanel,
-  ribbons: VscodeCanvasRibbon[] = normalizedCanvasRibbonConfiguration()
+  positions: VscodeCanvasRibbonPositions
 ): void => {
   void panel.webview.postMessage({
-    type: "canvasRibbonConfiguration",
-    ribbons
+    type: "canvasRibbonPositions",
+    positions
   } satisfies ExtensionToVscodeMessage);
 };
 
@@ -628,13 +619,12 @@ export const activate = (
     }
   };
 
-  const editCanvasRibbon = (): void => {
-    void vscode.commands.executeCommand("workbench.action.openSettings", VSCODE_CANVAS_RIBBON_SETTING);
-  };
+  const canvasRibbonPositions = (): VscodeCanvasRibbonPositions =>
+    normalizeVscodeCanvasRibbonPositions(context.globalState.get<unknown>(CANVAS_RIBBON_POSITIONS_STATE_KEY));
 
-  const broadcastCanvasRibbonConfiguration = (): void => {
-    const ribbons = normalizedCanvasRibbonConfiguration();
-    for (const session of sessions.valuesForSurface("canvas")) postCanvasRibbonConfiguration(session.panel, ribbons);
+  const broadcastCanvasRibbonPositions = (): void => {
+    const positions = canvasRibbonPositions();
+    for (const session of sessions.valuesForSurface("canvas")) postCanvasRibbonPositions(session.panel, positions);
   };
 
   const broadcastCanvasGridConfiguration = (): void => {
@@ -678,7 +668,7 @@ export const activate = (
     setting: CanvasGridSettingKey,
     value: boolean | number
   ): Promise<void> => {
-    const configuration = canvasRibbonConfiguration();
+    const configuration = canvasConfiguration();
     if (!configuration) return;
     await configuration.update(
       setting,
@@ -690,7 +680,7 @@ export const activate = (
   const toggleCanvasGridSnap = async (): Promise<void> => {
     const session = canvasSessionForCommand();
     if (!session) return;
-    const configuration = canvasRibbonConfiguration();
+    const configuration = canvasConfiguration();
     if (!configuration) return;
     const snapEnabled = normalizeCanvasGridSettings({
       snapEnabled: configuration.get<unknown>(CANVAS_GRID_SNAP_ENABLED_SETTING)
@@ -1506,12 +1496,6 @@ export const activate = (
   });
   context.subscriptions.push(activeColorThemeListener);
 
-  const canvasRibbonConfigurationListener = vscode.workspace.onDidChangeConfiguration?.((event) => {
-    if (event.affectsConfiguration(VSCODE_CANVAS_RIBBON_SETTING)) {
-      broadcastCanvasRibbonConfiguration();
-    }
-  });
-  if (canvasRibbonConfigurationListener) context.subscriptions.push(canvasRibbonConfigurationListener);
   const canvasGridConfigurationListener = vscode.workspace.onDidChangeConfiguration?.((event) => {
     if (!CANVAS_GRID_SETTING_KEYS.some((key) => event.affectsConfiguration(key))) return;
     broadcastCanvasGridConfiguration();
@@ -1857,7 +1841,7 @@ export const activate = (
         postCanvasThemeGeneration(panel, activeCanvasThemeGeneration);
         postWebviewPresentation(panel);
         postAuthoritativeDocument(panel, session.document);
-        postCanvasRibbonConfiguration(panel);
+        postCanvasRibbonPositions(panel, canvasRibbonPositions());
         postCanvasGridConfiguration(panel, normalizedCanvasGridConfiguration());
         updateCoordinatePointCreationContext();
         if (benchmarkConfig) post({ type: "benchmarkConfig", config: benchmarkConfig });
@@ -1947,25 +1931,15 @@ export const activate = (
       }
       if (message.type === "canvasRibbonPositionCommit") {
         if (!message.ribbonId || !Number.isFinite(message.x) || !Number.isFinite(message.y)) return;
-        const configuration = canvasRibbonConfiguration();
-        if (!configuration) return;
-        const current = configuration.get<unknown>(VSCODE_CANVAS_RIBBON_SETTING);
+        const current = context.globalState.get<unknown>(CANVAS_RIBBON_POSITIONS_STATE_KEY);
         const patched = patchVscodeCanvasRibbonPosition(
           current,
           message.ribbonId,
-          message.x,
-          message.y
+          { x: message.x, y: message.y }
         );
         if (!patched) return;
-        await configuration.update(
-          VSCODE_CANVAS_RIBBON_SETTING,
-          patched,
-          globalConfigurationTarget()
-        );
-        return;
-      }
-      if (message.type === "editCanvasRibbon") {
-        editCanvasRibbon();
+        await context.globalState.update(CANVAS_RIBBON_POSITIONS_STATE_KEY, patched);
+        broadcastCanvasRibbonPositions();
         return;
       }
       if (message.type === "toggleCanvasGridSnap") {
@@ -2527,10 +2501,6 @@ export const activate = (
     NUI_CHOICE_QUICK_FIX_APPLY_COMMAND,
     createNuiChoiceQuickFixApplyHandler(languageAnalysisSessionFor)
   );
-  const editCanvasRibbonCommand = vscode.commands.registerCommand(
-    "nuinuiCAD.editCanvasRibbon",
-    editCanvasRibbon
-  );
   const toggleCanvasGridSnapCommand = vscode.commands.registerCommand(
     "nuinuiCAD.toggleCanvasGridSnap",
     toggleCanvasGridSnap
@@ -2547,6 +2517,8 @@ export const activate = (
     ["nuinuiCAD.clearCanvasSelection", "clearCanvasSelection"],
     ["nuinuiCAD.selectParentGroup", "selectParentGroup"],
     ["nuinuiCAD.selectInstance", "selectInstance"],
+    ["nuinuiCAD.zoomInCanvas", "zoomInCanvas"],
+    ["nuinuiCAD.zoomOutCanvas", "zoomOutCanvas"],
     ["nuinuiCAD.resetCanvasView", "resetCanvasView"],
     ["nuinuiCAD.fitDrawing", "fitDrawing"],
     ["nuinuiCAD.toggleCanvasPointNames", "toggleCanvasPointNames"],
@@ -2604,7 +2576,6 @@ export const activate = (
     canvasFreePointAtPointerFeature,
     sourceAuthoringPositionFeature,
     choiceQuickFixApplyCommand,
-    editCanvasRibbonCommand,
     toggleCanvasGridSnapCommand,
     canvasGridCommandFeature,
     ...canvasCommandDisposables,

@@ -1,28 +1,24 @@
 import { selectionCommandDefinitions } from "../commands/selectionCommandDefinitions";
 import { viewModeCommandDefinitions } from "../commands/viewModeCommandDefinitions";
 import type { CommandId } from "../commands/commandTypes";
-import {
-  canvasModalCanvasOperationAllowed,
-  type CanvasModalMode
-} from "./pickModeCanvasPolicy";
+import type { CanvasModalMode } from "./pickModeCanvasPolicy";
+import type { VscodeLucideIconName } from "./vscodeCanvasRibbonIcons";
+import type { VscodeCanvasRibbonCommandId } from "./vscodeCanvasRibbonConfig";
 
-export const vscodeCanvasRibbonCommandIds = [
-  "clearCanvasSelection",
+export const vscodeCanvasRibbonCommandIds: readonly VscodeCanvasRibbonCommandId[] = [
+  "zoomOutCanvas",
+  "zoomInCanvas",
   "resetCanvasView",
   "fitDrawing",
+  "toggleCanvasPoints",
   "toggleCanvasPointNames",
   "toggleCanvasGeometryNames",
-  "toggleCanvasPoints",
   "toggleCanvasGrid",
   "configureCanvasGrid",
-  "toggleCanvasGridSnap",
-  "editCanvasRibbon"
-] as const;
-
-export type VscodeCanvasRibbonCommandId = (typeof vscodeCanvasRibbonCommandIds)[number];
+  "toggleCanvasGridSnap"
+];
 
 export type VscodeCanvasRibbonCommandContext = {
-  hasSelection: boolean;
   showCanvasPointNames: boolean;
   showCanvasGeometryNames: boolean;
   showCanvasPoints: boolean;
@@ -39,55 +35,54 @@ export type VscodeCanvasRibbonCommandDefinition = {
   id: VscodeCanvasRibbonCommandId;
   label: string;
   description: string;
-  icon: string;
-  sharedCommandId?: Exclude<
-    VscodeCanvasRibbonCommandId,
-    "editCanvasRibbon" | "toggleCanvasGrid" | "configureCanvasGrid" | "toggleCanvasGridSnap"
-  > & CommandId;
-  hostAction?: "editCanvasRibbon" | "toggleCanvasGrid" | "configureCanvasGrid" | "toggleCanvasGridSnap";
+  icon: VscodeLucideIconName;
+  sharedCommandId?: CommandId;
+  hostAction?: "toggleCanvasGrid" | "configureCanvasGrid" | "toggleCanvasGridSnap";
   isAvailable: (context: VscodeCanvasRibbonCommandContext) => boolean;
   isPressed?: (context: VscodeCanvasRibbonCommandContext) => boolean;
 };
 
 const sharedLabel = (commandId: Exclude<
   VscodeCanvasRibbonCommandId,
-  "editCanvasRibbon" | "toggleCanvasGrid" | "configureCanvasGrid" | "toggleCanvasGridSnap"
->): string =>
-  ({
-    clearCanvasSelection: selectionCommandDefinitions.clearCanvasSelection,
-    resetCanvasView: viewModeCommandDefinitions.resetCanvasView,
-    fitDrawing: viewModeCommandDefinitions.fitDrawing,
-    toggleCanvasPointNames: viewModeCommandDefinitions.toggleCanvasPointNames,
-    toggleCanvasGeometryNames: viewModeCommandDefinitions.toggleCanvasGeometryNames,
-    toggleCanvasPoints: viewModeCommandDefinitions.toggleCanvasPoints
-  } as Record<Exclude<
-    VscodeCanvasRibbonCommandId,
-    "editCanvasRibbon" | "toggleCanvasGrid" | "configureCanvasGrid" | "toggleCanvasGridSnap"
-  >, { label: string }>)[commandId].label;
+  "zoomInCanvas" | "zoomOutCanvas" | "toggleCanvasGrid" | "configureCanvasGrid" | "toggleCanvasGridSnap"
+>): string => ({
+  clearCanvasSelection: selectionCommandDefinitions.clearCanvasSelection,
+  resetCanvasView: viewModeCommandDefinitions.resetCanvasView,
+  fitDrawing: viewModeCommandDefinitions.fitDrawing,
+  toggleCanvasPointNames: viewModeCommandDefinitions.toggleCanvasPointNames,
+  toggleCanvasGeometryNames: viewModeCommandDefinitions.toggleCanvasGeometryNames,
+  toggleCanvasPoints: viewModeCommandDefinitions.toggleCanvasPoints
+} as Record<string, { label: string }>)[commandId].label;
+
+const available = (): boolean => true;
 
 export const vscodeCanvasRibbonCommandCatalog: Record<
   VscodeCanvasRibbonCommandId,
   VscodeCanvasRibbonCommandDefinition
 > = {
-  clearCanvasSelection: {
-    id: "clearCanvasSelection",
-    label: sharedLabel("clearCanvasSelection"),
-    description: "Clear the current Canvas selection.",
-    icon: "x",
-    sharedCommandId: "clearCanvasSelection",
-    isAvailable: ({ hasSelection, pickModeActive, canvasModalMode }) =>
-      hasSelection && canvasModalCanvasOperationAllowed(
-        "clear-selection",
-        canvasModalMode ?? (pickModeActive ? "pick" : null)
-      )
+  zoomOutCanvas: {
+    id: "zoomOutCanvas",
+    label: "Zoom Out",
+    description: "Zoom the Canvas out.",
+    icon: "minus",
+    sharedCommandId: "zoomOutCanvas",
+    isAvailable: available
+  },
+  zoomInCanvas: {
+    id: "zoomInCanvas",
+    label: "Zoom In",
+    description: "Zoom the Canvas in.",
+    icon: "plus",
+    sharedCommandId: "zoomInCanvas",
+    isAvailable: available
   },
   resetCanvasView: {
     id: "resetCanvasView",
     label: sharedLabel("resetCanvasView"),
     description: "Reset Canvas pan and zoom.",
-    icon: "scan",
+    icon: "rotate-ccw",
     sharedCommandId: "resetCanvasView",
-    isAvailable: () => true
+    isAvailable: available
   },
   fitDrawing: {
     id: "fitDrawing",
@@ -95,34 +90,34 @@ export const vscodeCanvasRibbonCommandCatalog: Record<
     description: "Fit the drawing to the Canvas viewport.",
     icon: "maximize",
     sharedCommandId: "fitDrawing",
-    isAvailable: () => true
+    isAvailable: available
+  },
+  toggleCanvasPoints: {
+    id: "toggleCanvasPoints",
+    label: sharedLabel("toggleCanvasPoints"),
+    description: "Show or hide Canvas points.",
+    icon: "circle-dot",
+    sharedCommandId: "toggleCanvasPoints",
+    isAvailable: available,
+    isPressed: ({ showCanvasPoints }) => showCanvasPoints
   },
   toggleCanvasPointNames: {
     id: "toggleCanvasPointNames",
     label: sharedLabel("toggleCanvasPointNames"),
     description: "Show or hide Canvas point names.",
-    icon: "tags",
+    icon: "tag",
     sharedCommandId: "toggleCanvasPointNames",
-    isAvailable: () => true,
+    isAvailable: available,
     isPressed: ({ showCanvasPointNames }) => showCanvasPointNames
   },
   toggleCanvasGeometryNames: {
     id: "toggleCanvasGeometryNames",
     label: sharedLabel("toggleCanvasGeometryNames"),
     description: "Show or hide Canvas geometry names.",
-    icon: "tags",
+    icon: "tag",
     sharedCommandId: "toggleCanvasGeometryNames",
-    isAvailable: () => true,
+    isAvailable: available,
     isPressed: ({ showCanvasGeometryNames }) => showCanvasGeometryNames
-  },
-  toggleCanvasPoints: {
-    id: "toggleCanvasPoints",
-    label: sharedLabel("toggleCanvasPoints"),
-    description: "Show or hide Canvas points.",
-    icon: "dot",
-    sharedCommandId: "toggleCanvasPoints",
-    isAvailable: () => true,
-    isPressed: ({ showCanvasPoints }) => showCanvasPoints
   },
   toggleCanvasGrid: {
     id: "toggleCanvasGrid",
@@ -130,7 +125,7 @@ export const vscodeCanvasRibbonCommandCatalog: Record<
     description: "Show or hide the Canvas grid.",
     icon: "grid-3x3",
     hostAction: "toggleCanvasGrid",
-    isAvailable: () => true,
+    isAvailable: available,
     isPressed: ({ canvasGridEnabled }) => canvasGridEnabled === true
   },
   configureCanvasGrid: {
@@ -139,7 +134,7 @@ export const vscodeCanvasRibbonCommandCatalog: Record<
     description: "Configure Canvas grid visibility, spacing, and major interval.",
     icon: "ruler",
     hostAction: "configureCanvasGrid",
-    isAvailable: () => true
+    isAvailable: available
   },
   toggleCanvasGridSnap: {
     id: "toggleCanvasGridSnap",
@@ -149,18 +144,6 @@ export const vscodeCanvasRibbonCommandCatalog: Record<
     hostAction: "toggleCanvasGridSnap",
     isAvailable: ({ canvasGridSnapAvailable }) => canvasGridSnapAvailable === true,
     isPressed: ({ canvasGridSnapEnabled }) => canvasGridSnapEnabled === true
-  },
-  editCanvasRibbon: {
-    id: "editCanvasRibbon",
-    label: "Edit Canvas Ribbon",
-    description: "Open the VS Code setting for Canvas Ribbon items.",
-    icon: "settings-2",
-    hostAction: "editCanvasRibbon",
-    isAvailable: ({ pickModeActive, canvasModalMode }) =>
-      canvasModalCanvasOperationAllowed(
-        "workflow-start",
-        canvasModalMode ?? (pickModeActive ? "pick" : null)
-      )
   }
 };
 

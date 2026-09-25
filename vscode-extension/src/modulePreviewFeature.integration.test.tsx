@@ -380,9 +380,6 @@ describe("Module Preview Host/Webview re-entry boundary", () => {
       languageAnalysisSessionFor: (() => analysis) as never,
       canvasThemeGeneration: () => 0,
       webviewHtml: () => "<html />",
-      canvasRibbons: () => [],
-      updateCanvasRibbonPosition: () => undefined,
-      editCanvasRibbon: () => undefined,
       evaluateWithRust: async () => ({})
     });
     activeFeature = feature;

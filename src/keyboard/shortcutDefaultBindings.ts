@@ -63,8 +63,6 @@ const defaultBindings: ShortcutBinding[] = [
   binding("normal", "indentSelectedElements", []),
   binding("normal", "deleteSelectedElement", [ch("d"), ch("Delete"), ch("Backspace")]),
   binding("normal", "duplicateSelectedElement", [ch("d", { mod: true })]),
-  binding("normal", "zoomInCanvas", [ch("+"), ch("=")]),
-  binding("normal", "zoomOutCanvas", [ch("-")]),
   binding("normal", "resetCanvasView", [ch("0")]),
   binding("normal", "addIntersectionPoint", [ch("x")]),
   binding("normal", "addBezierCurve", [ch("c")], { label: "曲線を追加" }),

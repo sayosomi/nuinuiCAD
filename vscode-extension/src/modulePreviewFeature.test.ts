@@ -377,10 +377,7 @@ describe("registerModulePreviewFeature", () => {
       languageAnalysisSessionFor: (() => analysis) as never,
       canvasThemeGeneration: () => 0,
       webviewHtml: () => "<html />",
-      canvasRibbons: () => [],
       canvasGridSettings: options.canvasGridSettings,
-      updateCanvasRibbonPosition: () => undefined,
-      editCanvasRibbon: () => undefined,
       evaluateWithRust: async () => ({}),
       ...options
     });
@@ -397,6 +394,10 @@ describe("registerModulePreviewFeature", () => {
       type: "canvasGridConfiguration",
       settings
     });
+    expect(fixture.panel.webview.postMessage.mock.calls.flatMap(([message]) => [message])
+      .every((message) => !(message && typeof message === "object" &&
+        "type" in message && typeof message.type === "string" && message.type.startsWith("canvasRibbon"))))
+      .toBe(true);
 
     fixture.panel.webview.postMessage.mockClear();
     settings = { enabled: true, spacingMm: 20, majorEvery: 3, snapEnabled: false };
@@ -701,9 +702,6 @@ describe("registerModulePreviewFeature", () => {
       languageAnalysisSessionFor: (() => analysis) as never,
       canvasThemeGeneration: () => 0,
       webviewHtml: () => "<html />",
-      canvasRibbons: () => [],
-      updateCanvasRibbonPosition: () => undefined,
-      editCanvasRibbon: () => undefined,
       evaluateWithRust: async () => ({})
     });
     mocks.commandHandlers.get("nuinuiCAD.openModulePreview")!();
@@ -786,9 +784,6 @@ describe("registerModulePreviewFeature", () => {
       languageAnalysisSessionFor: (() => analysis) as never,
       canvasThemeGeneration: () => 0,
       webviewHtml: () => "<html />",
-      canvasRibbons: () => [],
-      updateCanvasRibbonPosition: () => undefined,
-      editCanvasRibbon: () => undefined,
       evaluateWithRust: async () => ({})
     });
     expect(mocks.commandRegistrations.filter((command) => command === MODULE_PREVIEW_INSERT_INSTANCE_COMMAND)).toHaveLength(1);
@@ -946,9 +941,6 @@ describe("registerModulePreviewFeature", () => {
       languageAnalysisSessionFor: (() => analysis) as never,
       canvasThemeGeneration: () => 0,
       webviewHtml: () => "<html />",
-      canvasRibbons: () => [],
-      updateCanvasRibbonPosition: () => undefined,
-      editCanvasRibbon: () => undefined,
       evaluateWithRust: async () => ({}),
       attachWebviewEditableFocus: focusContext.attach
     });
@@ -1013,9 +1005,6 @@ describe("registerModulePreviewFeature", () => {
       languageAnalysisSessionFor: (() => analysis) as never,
       canvasThemeGeneration: () => 0,
       webviewHtml: () => "<html />",
-      canvasRibbons: () => [],
-      updateCanvasRibbonPosition: () => undefined,
-      editCanvasRibbon: () => undefined,
       evaluateWithRust: async () => ({})
     });
     mocks.commandHandlers.get("nuinuiCAD.openModulePreview")!();
@@ -1068,9 +1057,6 @@ describe("registerModulePreviewFeature", () => {
       languageAnalysisSessionFor: (() => analysis) as never,
       canvasThemeGeneration: () => 0,
       webviewHtml: () => "<html />",
-      canvasRibbons: () => [],
-      updateCanvasRibbonPosition: () => undefined,
-      editCanvasRibbon: () => undefined,
       evaluateWithRust: async () => ({})
     });
     await flushContext();
@@ -1113,9 +1099,6 @@ describe("registerModulePreviewFeature", () => {
       languageAnalysisSessionFor: () => hostAnalysis,
       canvasThemeGeneration: () => 0,
       webviewHtml: () => "<html />",
-      canvasRibbons: () => [],
-      updateCanvasRibbonPosition: () => undefined,
-      editCanvasRibbon: () => undefined,
       evaluateWithRust: async () => ({}),
       displayLanguageFor: () => displayLanguage
     });

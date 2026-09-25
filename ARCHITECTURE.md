@@ -929,9 +929,13 @@ accessible visual surface, command/value item rendering, icon injection, and
 pointer/wheel isolation. `CommandRibbonFloatingOverlay` owns measured
 floating-position drag and viewport clamping, including label-aware rendered
 dimensions; pointer moves remain presentation-local and the host decides what a
-pointerup commit means. `VSCodeDrawingCanvas` adapts the separate
-`nuinuiCAD.canvasRibbon.ribbons` model, the closed Ribbon command catalog, and
-dynamic Lucide icon resolution through the same boundary.
+pointerup commit means. `VSCodeDrawingCanvas` adapts the fixed product-owned
+horizontal Viewport, Display, and Grid Ribbons through the same boundary. The
+Viewport Ribbon includes Canvas Status and owns the former separate viewport
+controls. Their composition and order are source-owned; the Extension Host only
+persists their independent positions. The VS Code Webview icon owner uses
+explicit named Lucide imports in a small typed registry shared with Output
+Preview.
 
 ### Commands / keyboard / parameters
 
@@ -1314,14 +1318,14 @@ boundary; the Webview resolves that position through
 shared position from the committed statement metadata rather than using a
 document-end fallback.
 
-The Extension Host is authoritative for VS Code Canvas Ribbon configuration. It
-normalizes `nuinuiCAD.canvasRibbon.ribbons`, sends the current normalized value
-to each Webview session, broadcasts configuration changes, and applies only
-validated `{ ribbonId, x, y }` position patches back to User Settings. The
-Webview keeps presentation state local during a drag and sends one position
-commit on pointerup. The `nuinuiCAD.editCanvasRibbon` command routes both
-Command Palette and Ribbon host-action invocations to the normal VS Code
-Settings surface.
+The Extension Host owns position-only state for Canvas Ribbons in
+`ExtensionContext.globalState`. Only the fixed `viewport`, `display`, and
+`grid` IDs with finite `x` and `y` coordinates are accepted. It hydrates Canvas
+Webviews from that state and broadcasts validated `{ ribbonId, x, y }` patches
+after pointerup. Composition, labels, icons, order, visibility, and orientation
+are product-owned; there is no contributed arbitrary Ribbon setting. Resizing
+clamps displayed positions without rewriting stored coordinates. Module Preview
+is decoupled from the Canvas Ribbon contract and does not render those controls.
 
 The extension keeps one package-owned `NuiLanguageSession` per supported
 document URI for local diagnostics and single-document language features.

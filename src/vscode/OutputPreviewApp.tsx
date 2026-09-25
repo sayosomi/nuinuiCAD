@@ -63,7 +63,7 @@ import {
   type VscodeWebviewApi
 } from "./protocol";
 import { VSCODE_CANVAS_RIBBON_ICON_SIZE } from "./vscodeCanvasRibbonConfig";
-import { resolveVscodeLucideIcon } from "./vscodeCanvasRibbonIcons";
+import { resolveVscodeLucideIcon, vscodeLucideIconName } from "./vscodeCanvasRibbonIcons";
 import {
   vscodeViewportCoordinatesPresentationFor,
   vscodeViewportZoomPresentationFor
@@ -1180,7 +1180,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
                   id: "output-preview-source-navigation",
                   type: "command",
                   commandId: "outputPreviewSourceNavigation",
-                  icon: "crosshair",
+                  icon: vscodeLucideIconName("crosshair"),
                   label: webviewPresentationTextFor(webviewPresentation, "output.ribbon.goToSource", "Go to Source"),
                   description: "",
                   showLabel: false,
@@ -1212,7 +1212,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
                 id: "output-preview-export",
                 type: "command",
                 commandId: "outputPreviewExport",
-                icon: "file-down",
+                icon: vscodeLucideIconName("file-down"),
                 label: webviewPresentationTextFor(
                   webviewPresentation,
                   exportablePlan.kind === "print" ? "output.ribbon.exportPdf" : "output.ribbon.exportSvg",
@@ -1246,7 +1246,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
               id: "output-preview-reset",
               type: "command",
               commandId: "outputPreviewResetView",
-              icon: "rotate-ccw",
+              icon: vscodeLucideIconName("rotate-ccw"),
               label: webviewPresentationTextFor(webviewPresentation, "output.ribbon.reset", "Reset Output Preview Pan and Zoom"),
               description: "",
               showLabel: false,
@@ -1275,7 +1275,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
                 id: "output-preview-fit",
                 type: "command",
                 commandId: "outputPreviewFit",
-                icon: "maximize",
+                icon: vscodeLucideIconName("maximize"),
                 label: webviewPresentationTextFor(webviewPresentation, "output.ribbon.fit", "Fit Output Preview"),
                 description: "",
                 showLabel: false,
@@ -1306,7 +1306,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
                 id: "output-preview-zoom-out",
                 type: "command",
                 commandId: "outputPreviewZoomOut",
-                icon: "minus",
+                icon: vscodeLucideIconName("minus"),
                 label: webviewPresentationTextFor(webviewPresentation, "output.ribbon.zoomOut", "Zoom out"),
                 description: "",
                 showLabel: false,
@@ -1322,7 +1322,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
                 id: "output-preview-zoom-in",
                 type: "command",
                 commandId: "outputPreviewZoomIn",
-                icon: "plus",
+                icon: vscodeLucideIconName("plus"),
                 label: webviewPresentationTextFor(webviewPresentation, "output.ribbon.zoomIn", "Zoom in"),
                 description: "",
                 showLabel: false,

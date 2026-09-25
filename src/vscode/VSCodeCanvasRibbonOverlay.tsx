@@ -7,32 +7,31 @@ import { CommandRibbonFloatingOverlay } from "../components/CommandRibbonFloatin
 import type { RibbonPosition } from "../components/commandRibbonFloatingGeometry";
 import type {
   CommandRibbonPresentation,
-  CommandRibbonPresentationActionItem,
-  CommandRibbonPresentationCommandItem
+  CommandRibbonPresentationActionItem
 } from "../components/CommandRibbonView";
 import type { CanvasPresentation } from "../components/canvasPresentation";
 import { DEFAULT_CANVAS_GRID_SETTINGS } from "../components/canvasGrid";
 import {
+  VSCODE_CANVAS_RIBBON_GAP,
   VSCODE_CANVAS_RIBBON_ICON_SIZE,
-  type VscodeCanvasRibbon,
-  type VscodeCanvasRibbonCommandItem,
-  type VscodeCanvasRibbonValueItem
+  vscodeCanvasRibbonDefinitions,
+  type VscodeCanvasRibbonCommandItem
 } from "./vscodeCanvasRibbonConfig";
+import type { VscodeCanvasRibbonPositions } from "./vscodeCanvasRibbonConfig";
 import {
   vscodeCanvasRibbonCommandFor,
   type VscodeCanvasRibbonCommandContext
 } from "./vscodeCanvasRibbonCatalog";
-import { resolveVscodeLucideIcon } from "./vscodeCanvasRibbonIcons";
+import { resolveVscodeLucideIcon, vscodeLucideIconName } from "./vscodeCanvasRibbonIcons";
 import {
   type VscodeCanvasWorldPoint,
   vscodeCanvasStatusPresentationFor
 } from "./vscodeCanvasRibbonStatus";
-import { vscodeCanvasRibbonContextData } from "./protocol";
 
 export type VSCodeCanvasRibbonOverlayProps = {
   canvasFocusRef: RefObject<HTMLDivElement | null>;
   canvasViewport: CanvasViewport;
-  canvasRibbonRibbons: VscodeCanvasRibbon[];
+  canvasRibbonPositions: VscodeCanvasRibbonPositions;
   viewportSize: ViewportSize;
   canvasModeChromeHeight?: number;
   ribbonCommandContext: VscodeCanvasRibbonCommandContext;
@@ -41,18 +40,20 @@ export type VSCodeCanvasRibbonOverlayProps = {
   presentation?: CanvasPresentation;
 };
 
-type PointerClientPosition = {
-  clientX: number;
-  clientY: number;
-};
+type PointerClientPosition = { clientX: number; clientY: number };
 
-const commandItemPresentationFor = (
+const ribbonItemPresentationFor = (
   item: VscodeCanvasRibbonCommandItem,
   ribbonCommandContext: VscodeCanvasRibbonCommandContext,
   presentation?: CanvasPresentation
-): CommandRibbonPresentationCommandItem => {
+): CommandRibbonPresentationActionItem => {
   const definition = vscodeCanvasRibbonCommandFor(item.commandId);
-  const label = presentation?.text(
+  const productLabels: Partial<Record<VscodeCanvasRibbonCommandItem["commandId"], string>> = {
+    toggleCanvasPoints: presentation?.text("canvas.ribbon.points", "Points") ?? "Points",
+    toggleCanvasPointNames: presentation?.text("canvas.ribbon.pointNames", "Point Names") ?? "Point Names",
+    toggleCanvasGeometryNames: presentation?.text("canvas.ribbon.geometryNames", "Geometry Names") ?? "Geometry Names"
+  };
+  const label = productLabels[item.commandId] ?? presentation?.text(
     `canvas.ribbon.command.${item.commandId}.label`,
     definition?.label ?? item.commandId
   ) ?? definition?.label ?? item.commandId;
@@ -64,20 +65,16 @@ const commandItemPresentationFor = (
     id: item.id,
     type: "command",
     commandId: item.commandId,
-    icon: item.icon || definition?.icon || "circle",
+    icon: item.icon,
     label,
     description,
-    ...(item.commandId === "editCanvasRibbon" ? { tooltipText: label } : {}),
     showLabel: item.showLabel,
     available: definition?.isAvailable(ribbonCommandContext) ?? false,
-    ...(definition?.isPressed
-      ? { pressed: definition.isPressed(ribbonCommandContext) }
-      : {})
+    ...(definition?.isPressed ? { pressed: definition.isPressed(ribbonCommandContext) } : {})
   };
 };
 
-const gridValueItemPresentationFor = (
-  item: VscodeCanvasRibbonValueItem,
+const gridSettingsPresentationFor = (
   ribbonCommandContext: VscodeCanvasRibbonCommandContext,
   presentation?: CanvasPresentation
 ): CommandRibbonPresentationActionItem => {
@@ -93,10 +90,10 @@ const gridValueItemPresentationFor = (
   const spacingMm = ribbonCommandContext.canvasGridSpacingMm ?? DEFAULT_CANVAS_GRID_SETTINGS.spacingMm;
   const majorEvery = ribbonCommandContext.canvasGridMajorEvery ?? DEFAULT_CANVAS_GRID_SETTINGS.majorEvery;
   return {
-    id: item.id,
+    id: "grid-settings",
     type: "interactive-value",
     commandId: "configureCanvasGrid",
-    icon: "ruler",
+    icon: vscodeLucideIconName("ruler"),
     label,
     description,
     valueText: `${spacingMm} mm · ×${majorEvery}`,
@@ -105,36 +102,34 @@ const gridValueItemPresentationFor = (
 };
 
 const vscodeCanvasRibbonPresentationsFor = (
-  ribbons: VscodeCanvasRibbon[],
+  positions: VscodeCanvasRibbonPositions,
   canvasViewport: CanvasViewport,
   pointerWorldPoint: VscodeCanvasWorldPoint | null,
   ribbonCommandContext: VscodeCanvasRibbonCommandContext,
   presentation?: CanvasPresentation
-): CommandRibbonPresentation[] => ribbons.map((ribbon) => ({
-  id: ribbon.id,
-  label: ribbon.label === "Canvas Ribbon"
-    ? presentation?.text("canvas.ribbon.title", ribbon.label) ?? ribbon.label
-    : ribbon.label,
-  x: ribbon.x,
-  y: ribbon.y,
-  orientation: ribbon.orientation,
-  iconSize: VSCODE_CANVAS_RIBBON_ICON_SIZE,
-  verticalHandlePlacement: ribbon.orientation === "vertical" ? "side" : undefined,
-  items: ribbon.items.map((item) => {
-    if (item.type !== "value") return commandItemPresentationFor(item, ribbonCommandContext, presentation);
-    if (item.valueId === "canvasGrid") {
-      return gridValueItemPresentationFor(item, ribbonCommandContext, presentation);
-    }
-    return vscodeCanvasStatusPresentationFor(
-      item.id,
-      canvasViewport,
-      pointerWorldPoint,
-      presentation?.text("canvas.status.label", "Canvas status"),
-      presentation?.text("canvas.status.description", "Current Canvas zoom and pointer position."),
-      presentation?.statusFields
-    );
-  })
-}));
+): CommandRibbonPresentation[] => vscodeCanvasRibbonDefinitions.map((ribbon) => {
+  const position = positions[ribbon.id];
+  return {
+    id: ribbon.id,
+    label: presentation?.text(ribbon.labelKey, ribbon.label) ?? ribbon.label,
+    x: position?.x ?? null,
+    y: position?.y ?? 0,
+    orientation: ribbon.orientation,
+    iconSize: VSCODE_CANVAS_RIBBON_ICON_SIZE,
+    items: ribbon.items.map((item) => {
+      if (item.type === "command") return ribbonItemPresentationFor(item, ribbonCommandContext, presentation);
+      if (item.valueId === "canvasGridSettings") return gridSettingsPresentationFor(ribbonCommandContext, presentation);
+      return vscodeCanvasStatusPresentationFor(
+        item.id,
+        canvasViewport,
+        pointerWorldPoint,
+        presentation?.text("canvas.status.label", "Canvas status"),
+        presentation?.text("canvas.status.description", "Current Canvas zoom and pointer position."),
+        presentation?.statusFields
+      );
+    })
+  };
+});
 
 const pointerWorldPointFor = (
   pointerPosition: PointerClientPosition,
@@ -153,7 +148,7 @@ const pointerWorldPointFor = (
 export const VSCodeCanvasRibbonOverlay = ({
   canvasFocusRef,
   canvasViewport,
-  canvasRibbonRibbons,
+  canvasRibbonPositions,
   viewportSize,
   canvasModeChromeHeight = 0,
   ribbonCommandContext,
@@ -165,34 +160,25 @@ export const VSCodeCanvasRibbonOverlay = ({
   const [pointerWorldPoint, setPointerWorldPoint] = useState<VscodeCanvasWorldPoint | null>(null);
   const ribbonPresentations = useMemo(
     () => vscodeCanvasRibbonPresentationsFor(
-      canvasRibbonRibbons,
+      canvasRibbonPositions,
       canvasViewport,
       pointerWorldPoint,
       ribbonCommandContext,
       presentation
     ),
-    [canvasRibbonRibbons, canvasViewport, pointerWorldPoint, ribbonCommandContext, presentation]
-  );
-  const tracksPointer = canvasRibbonRibbons.some((ribbon) =>
-    ribbon.items.some((item) => item.type === "value" && item.valueId === "canvasZoom")
+    [canvasRibbonPositions, canvasViewport, pointerWorldPoint, ribbonCommandContext, presentation]
   );
 
   useEffect(() => {
     const viewportElement = canvasFocusRef.current;
-    if (!viewportElement || !tracksPointer) {
+    if (!viewportElement) {
       setPointerWorldPoint(null);
       return;
     }
-
     const handlePointerMove = (event: PointerEvent) => {
       const nextPointerPosition = { clientX: event.clientX, clientY: event.clientY };
       setPointerPosition(nextPointerPosition);
-      setPointerWorldPoint(pointerWorldPointFor(
-        nextPointerPosition,
-        viewportElement,
-        viewportSize,
-        canvasViewport
-      ));
+      setPointerWorldPoint(pointerWorldPointFor(nextPointerPosition, viewportElement, viewportSize, canvasViewport));
     };
     const handlePointerLeave = () => {
       setPointerPosition(null);
@@ -204,18 +190,13 @@ export const VSCodeCanvasRibbonOverlay = ({
       viewportElement.removeEventListener("pointermove", handlePointerMove);
       viewportElement.removeEventListener("pointerleave", handlePointerLeave);
     };
-  }, [canvasFocusRef, canvasViewport, tracksPointer, viewportSize]);
+  }, [canvasFocusRef, canvasViewport, viewportSize]);
 
   useEffect(() => {
     if (!pointerPosition) return;
     const viewportElement = canvasFocusRef.current;
     if (!viewportElement) return;
-    setPointerWorldPoint(pointerWorldPointFor(
-      pointerPosition,
-      viewportElement,
-      viewportSize,
-      canvasViewport
-    ));
+    setPointerWorldPoint(pointerWorldPointFor(pointerPosition, viewportElement, viewportSize, canvasViewport));
   }, [canvasFocusRef, canvasViewport, pointerPosition, viewportSize]);
 
   return (
@@ -223,13 +204,13 @@ export const VSCodeCanvasRibbonOverlay = ({
       ribbons={ribbonPresentations}
       viewportSize={viewportSize}
       topInset={canvasModeChromeHeight}
+      defaultStackGap={VSCODE_CANVAS_RIBBON_GAP}
       iconResolver={resolveVscodeLucideIcon}
       viewportAwareTooltips
-      contextMenuData={vscodeCanvasRibbonContextData}
       handlePresentation={(ribbon) => ({
-        ariaLabel: presentation?.text("canvas.ribbon.move", "{label}を移動", { label: ribbon.label })
-          ?? `${ribbon.label}を移動`,
-        title: presentation?.text("canvas.ribbon.drag", "ドラッグで移動") ?? "ドラッグで移動"
+        ariaLabel: presentation?.text("canvas.ribbon.move", "Move {label}", { label: ribbon.label })
+          ?? `Move ${ribbon.label}`,
+        title: presentation?.text("canvas.ribbon.drag", "Drag to move") ?? "Drag to move"
       })}
       onCommand={onCommand}
       onPositionCommit={onPositionCommit}

@@ -42,8 +42,16 @@
         "label": "%submenu.source.bake%"
       },
       {
+        "id": "nuinuiCAD.webview.canvasViewport",
+        "label": "%submenu.webview.viewport%"
+      },
+      {
         "id": "nuinuiCAD.webview.canvasDisplay",
         "label": "%submenu.webview.display%"
+      },
+      {
+        "id": "nuinuiCAD.webview.canvasGrid",
+        "label": "%submenu.webview.grid%"
       },
       {
         "id": "nuinuiCAD.webview.modulePreviewDisplay",
@@ -192,6 +200,21 @@
         "when": "activeWebviewPanelId == 'nuinuiCAD.outputPreview' && !inputFocus && !nuinuiCAD.webviewEditableFocus"
       },
       {
+        "command": "nuinuiCAD.zoomInCanvas",
+        "key": "=",
+        "when": "activeWebviewPanelId == 'nuinuiCAD.canvas' && !inputFocus && !nuinuiCAD.webviewEditableFocus"
+      },
+      {
+        "command": "nuinuiCAD.zoomInCanvas",
+        "key": "shift+=",
+        "when": "activeWebviewPanelId == 'nuinuiCAD.canvas' && !inputFocus && !nuinuiCAD.webviewEditableFocus"
+      },
+      {
+        "command": "nuinuiCAD.zoomOutCanvas",
+        "key": "-",
+        "when": "activeWebviewPanelId == 'nuinuiCAD.canvas' && !inputFocus && !nuinuiCAD.webviewEditableFocus"
+      },
+      {
         "command": "nuinuiCAD.fitDrawing",
         "key": "ctrl+shift+alt+f",
         "mac": "ctrl+shift+f",
@@ -227,13 +250,7 @@
         "mac": "ctrl+shift+r",
         "when": "activeWebviewPanelId == 'nuinuiCAD.outputPreview' && !inputFocus && !nuinuiCAD.webviewEditableFocus"
       },
-      {
-        "command": "nuinuiCAD.editCanvasRibbon",
-        "key": "ctrl+shift+alt+e",
-        "mac": "ctrl+shift+e",
-        "when": "activeWebviewPanelId == 'nuinuiCAD.canvas' && !inputFocus && !nuinuiCAD.webviewEditableFocus"
-      },
-      {
+        {
         "command": "nuinuiCAD.exportCurrentOutput",
         "key": "ctrl+shift+alt+e",
         "mac": "ctrl+shift+e",
@@ -305,7 +322,11 @@
           "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui"
         },
         {
-          "command": "nuinuiCAD.editCanvasRibbon",
+          "command": "nuinuiCAD.zoomInCanvas",
+          "when": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
+        },
+        {
+          "command": "nuinuiCAD.zoomOutCanvas",
           "when": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
         },
         {
@@ -601,24 +622,19 @@
           "group": "1_create@0"
         },
         {
-          "command": "nuinuiCAD.fitDrawing",
+          "submenu": "nuinuiCAD.webview.canvasViewport",
           "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank'",
           "group": "2_view@1"
         },
         {
-          "command": "nuinuiCAD.resetCanvasView",
+          "submenu": "nuinuiCAD.webview.canvasDisplay",
           "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank'",
           "group": "2_view@2"
         },
         {
-          "submenu": "nuinuiCAD.webview.canvasDisplay",
+          "submenu": "nuinuiCAD.webview.canvasGrid",
           "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank'",
           "group": "2_view@3"
-        },
-        {
-          "command": "nuinuiCAD.editCanvasRibbon",
-          "when": "(webviewId == 'nuinuiCAD.canvas' || webviewId == 'nuinuiCAD.modulePreview') && (webviewSection == 'blank' || webviewSection == 'ribbon')",
-          "group": "3_edit@1"
         },
         {
           "command": "nuinuiCAD.editModulePreviewValues",
@@ -706,61 +722,85 @@
           "group": "4_selection@1"
         }
       ],
+      "nuinuiCAD.webview.canvasViewport": [
+        {
+          "command": "nuinuiCAD.zoomOutCanvas",
+          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank'",
+          "group": "1_view@1"
+        },
+        {
+          "command": "nuinuiCAD.zoomInCanvas",
+          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank'",
+          "group": "1_view@2"
+        },
+        {
+          "command": "nuinuiCAD.resetCanvasView",
+          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank'",
+          "group": "1_view@3"
+        },
+        {
+          "command": "nuinuiCAD.fitDrawing",
+          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank'",
+          "group": "1_view@4"
+        }
+      ],
       "nuinuiCAD.webview.canvasDisplay": [
-        {
-          "command": "nuinuiCAD.webview.showCanvasPointNames",
-          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank' && !nuinuiCAD.showCanvasPointNames",
-          "group": "1_display@1"
-        },
-        {
-          "command": "nuinuiCAD.webview.hideCanvasPointNames",
-          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank' && nuinuiCAD.showCanvasPointNames",
-          "group": "1_display@1"
-        },
-        {
-          "command": "nuinuiCAD.webview.showCanvasGeometryNames",
-          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank' && !nuinuiCAD.showCanvasGeometryNames",
-          "group": "1_display@2"
-        },
-        {
-          "command": "nuinuiCAD.webview.hideCanvasGeometryNames",
-          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank' && nuinuiCAD.showCanvasGeometryNames",
-          "group": "1_display@2"
-        },
         {
           "command": "nuinuiCAD.webview.showCanvasPoints",
           "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank' && !nuinuiCAD.showCanvasPoints",
-          "group": "1_display@3"
+          "group": "1_display@1"
         },
         {
           "command": "nuinuiCAD.webview.hideCanvasPoints",
           "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank' && nuinuiCAD.showCanvasPoints",
+          "group": "1_display@1"
+        },
+        {
+          "command": "nuinuiCAD.webview.showCanvasPointNames",
+          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank' && !nuinuiCAD.showCanvasPointNames",
+          "group": "1_display@2"
+        },
+        {
+          "command": "nuinuiCAD.webview.hideCanvasPointNames",
+          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank' && nuinuiCAD.showCanvasPointNames",
+          "group": "1_display@2"
+        },
+        {
+          "command": "nuinuiCAD.webview.showCanvasGeometryNames",
+          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank' && !nuinuiCAD.showCanvasGeometryNames",
           "group": "1_display@3"
         },
         {
+          "command": "nuinuiCAD.webview.hideCanvasGeometryNames",
+          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank' && nuinuiCAD.showCanvasGeometryNames",
+          "group": "1_display@3"
+        }
+      ],
+      "nuinuiCAD.webview.canvasGrid": [
+        {
           "command": "nuinuiCAD.webview.showCanvasGrid",
           "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank' && !nuinuiCAD.canvasGridEnabled",
-          "group": "1_display@4"
+          "group": "1_grid@1"
         },
         {
           "command": "nuinuiCAD.webview.hideCanvasGrid",
           "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank' && nuinuiCAD.canvasGridEnabled",
-          "group": "1_display@4"
+          "group": "1_grid@1"
         },
         {
           "command": "nuinuiCAD.webview.canvasGridSettings",
           "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank'",
-          "group": "1_display@5"
+          "group": "1_grid@2"
         },
         {
           "command": "nuinuiCAD.webview.enableCanvasGridSnap",
           "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank' && !nuinuiCAD.canvasGridSnapEnabled",
-          "group": "1_display@6"
+          "group": "1_grid@3"
         },
         {
           "command": "nuinuiCAD.webview.disableCanvasGridSnap",
           "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank' && nuinuiCAD.canvasGridSnapEnabled",
-          "group": "1_display@6"
+          "group": "1_grid@3"
         }
       ],
       "nuinuiCAD.webview.modulePreviewDisplay": [
@@ -1039,6 +1079,16 @@
         "enablement": "activeWebviewPanelId == 'nuinuiCAD.canvas' && nuinuiCAD.canvasCanSelectInstance"
       },
       {
+        "command": "nuinuiCAD.zoomInCanvas",
+        "title": "%command.zoomInCanvas.title%",
+        "category": "nuinuiCAD"
+      },
+      {
+        "command": "nuinuiCAD.zoomOutCanvas",
+        "title": "%command.zoomOutCanvas.title%",
+        "category": "nuinuiCAD"
+      },
+      {
         "command": "nuinuiCAD.resetCanvasView",
         "title": "%command.resetCanvasView.title%",
         "shortTitle": "%command.resetCanvasView.shortTitle%",
@@ -1113,12 +1163,6 @@
         "shortTitle": "%command.bakeBaseShape.shortTitle%",
         "category": "nuinuiCAD",
         "enablement": "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.bakeSourceTarget) || ((activeWebviewPanelId == 'nuinuiCAD.canvas' || activeWebviewPanelId == 'nuinuiCAD.modulePreview') && nuinuiCAD.canvasHasSelection)"
-      },
-      {
-        "command": "nuinuiCAD.editCanvasRibbon",
-        "title": "%command.editCanvasRibbon.title%",
-        "shortTitle": "%command.editCanvasRibbon.shortTitle%",
-        "category": "nuinuiCAD"
       },
       {
         "command": "nuinuiCAD.modulePreview.clearSelection",
@@ -1303,69 +1347,6 @@
           "type": "boolean",
           "default": false,
           "description": "%configuration.canvas.grid.snapEnabled.description%"
-        },
-        "nuinuiCAD.canvasRibbon.ribbons": {
-          "type": "array",
-          "scope": "application",
-          "description": "%configuration.canvasRibbon.ribbons.description%",
-          "default": [
-            {
-              "id": "canvas-ribbon",
-              "label": "%configuration.canvasRibbon.defaultLabel%",
-              "x": null,
-              "y": 12,
-              "orientation": "horizontal",
-              "items": [{
-                "id": "editCanvasRibbon",
-                "type": "command",
-                "commandId": "editCanvasRibbon",
-                "icon": "settings-2",
-                "showLabel": false
-              }]
-            }
-          ],
-          "items": {
-            "oneOf": [
-              {
-                "type": "object",
-                "required": ["id", "label", "x", "y", "orientation", "items"],
-                "properties": {
-                  "id": { "type": "string", "minLength": 1 },
-                  "label": { "type": "string" },
-                  "x": { "anyOf": [{ "type": "number" }, { "type": "null" }] },
-                  "y": { "type": "number" },
-                  "orientation": { "enum": ["horizontal", "vertical"] },
-                  "items": {
-                    "type": "array",
-                    "items": {
-                      "oneOf": [
-                        {
-                          "type": "object",
-                          "required": ["id", "type", "commandId", "icon", "showLabel"],
-                          "properties": {
-                            "id": { "type": "string", "minLength": 1 },
-                            "type": { "const": "command" },
-                            "commandId": { "type": "string", "minLength": 1 },
-                            "icon": { "type": "string", "minLength": 1 },
-                            "showLabel": { "type": "boolean" }
-                          }
-                        },
-                        {
-                          "type": "object",
-                          "required": ["id", "type", "valueId"],
-                          "properties": {
-                            "id": { "type": "string", "minLength": 1 },
-                            "type": { "const": "value" },
-                            "valueId": { "enum": ["canvasZoom", "canvasGrid"] }
-                          }
-                        }
-                      ]
-                    }
-                  }
-                }
-              }
-            ]
-          }
         }
       }
     },

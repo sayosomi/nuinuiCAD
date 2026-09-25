@@ -143,7 +143,8 @@ const mocks = vi.hoisted(() => ({
   foldingRegistrations: [] as Array<{ selector: unknown; provider: unknown; disposable: { dispose: () => void } }>,
   documentSymbolRegistrations: [] as Array<{ selector: unknown; provider: unknown; disposable: { dispose: () => void } }>,
   colorRegistrations: [] as Array<{ selector: unknown; provider: unknown; disposable: { dispose: () => void } }>,
-  canvasRibbonSetting: undefined as unknown,
+  globalStateValues: {} as Record<string, unknown>,
+  globalStateUpdates: [] as Array<{ key: string; value: unknown }>,
   canvasGridSettings: {} as Record<string, unknown>,
   canvasGridConfigurationInspection: {} as Record<string, unknown>,
   configurationUpdates: [] as Array<{ section: string; value: unknown; target: unknown }>,
@@ -548,7 +549,14 @@ const editorFor = (document = documentFor()): TestEditor => {
 const contextFor = () => ({
   extensionUri: "extension",
   extensionPath: "/tmp/extension",
-  subscriptions: [] as Array<{ dispose: () => void }>
+  subscriptions: [] as Array<{ dispose: () => void }>,
+  globalState: {
+    get: (key: string) => mocks.globalStateValues[key],
+    update: async (key: string, value: unknown) => {
+      mocks.globalStateUpdates.push({ key, value });
+      mocks.globalStateValues[key] = value;
+    }
+  }
 });
 
 const panelFor = (): TestPanel => {
@@ -745,9 +753,6 @@ const setup = (
     return {
       get: <T>(key: string, defaultValue?: T) => {
         const fullKey = section ? `${section}.${key}` : key;
-        if (fullKey === "nuinuiCAD.canvasRibbon.ribbons") {
-          return (mocks.canvasRibbonSetting ?? defaultValue) as T;
-        }
         if (fullKey === CANVAS_GRID_ENABLED_SETTING) return mocks.canvasGridSettings.enabled as T;
         if (fullKey === CANVAS_GRID_SPACING_SETTING) return mocks.canvasGridSettings.spacingMm as T;
         if (fullKey === CANVAS_GRID_MAJOR_EVERY_SETTING) return mocks.canvasGridSettings.majorEvery as T;
@@ -766,7 +771,6 @@ const setup = (
         : undefined,
       update: (key: string, value: unknown, target: unknown) => {
         mocks.configurationUpdates.push({ section: key, value, target });
-        if (key === "nuinuiCAD.canvasRibbon.ribbons") mocks.canvasRibbonSetting = value;
         if (key === CANVAS_GRID_ENABLED_SETTING) mocks.canvasGridSettings.enabled = value;
         if (key === CANVAS_GRID_SPACING_SETTING) mocks.canvasGridSettings.spacingMm = value;
         if (key === CANVAS_GRID_MAJOR_EVERY_SETTING) mocks.canvasGridSettings.majorEvery = value;
@@ -935,7 +939,8 @@ afterEach(() => {
   mocks.documentOpenListeners.length = 0;
   mocks.documentChangeListeners.length = 0;
   mocks.documentCloseListeners.length = 0;
-  mocks.canvasRibbonSetting = undefined;
+  mocks.globalStateValues = {};
+  mocks.globalStateUpdates.length = 0;
   mocks.canvasGridSettings = {};
   mocks.canvasGridConfigurationInspection = {};
   mocks.configurationUpdates.length = 0;
@@ -5713,91 +5718,53 @@ describe("VS Code native Refactor Code Action lifecycle", () => {
   });
 });
 
-describe("VS Code Canvas Ribbon lifecycle", () => {
-  it("registers the global edit command and targets the normal Settings surface", () => {
-    setup(false, null, []);
+describe("VS Code fixed Canvas Ribbon lifecycle", () => {
+  it("registers Zoom commands through the existing Canvas command owner", () => {
+    const document = documentFor("/tmp/canvas-zoom.nui", "file:///tmp/canvas-zoom.nui");
+    const editor = editorFor(document);
+    setup(false, editor, [document]);
+    const panel = openPanelFor(editor);
 
-    expect(mocks.registerCommand).toHaveBeenCalledWith(
-      "nuinuiCAD.editCanvasRibbon",
-      expect.any(Function)
-    );
-    commandHandlerFor("nuinuiCAD.editCanvasRibbon")?.();
-    expect(mocks.executeCommand).toHaveBeenCalledWith(
-      "workbench.action.openSettings",
-      "nuinuiCAD.canvasRibbon.ribbons"
-    );
+    expect(mocks.registerCommand).toHaveBeenCalledWith("nuinuiCAD.zoomInCanvas", expect.any(Function));
+    expect(mocks.registerCommand).toHaveBeenCalledWith("nuinuiCAD.zoomOutCanvas", expect.any(Function));
+    commandHandlerFor("nuinuiCAD.zoomInCanvas")?.();
+    commandHandlerFor("nuinuiCAD.zoomOutCanvas")?.();
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasCommand", commandId: "zoomInCanvas" });
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasCommand", commandId: "zoomOutCanvas" });
   });
 
-  it("patches only a validated Ribbon position in authoritative User Settings", async () => {
-    mocks.canvasRibbonSetting = [
-      {
-        id: "one",
-        label: "One",
-        x: null,
-        y: 12,
-        orientation: "horizontal",
-        iconSize: 16,
-        items: [{
-          id: "edit",
-          type: "command",
-          commandId: "editCanvasRibbon",
-          icon: "settings-2",
-          label: "Legacy edit",
-          showLabel: false,
-          futureItemField: { keep: "verbatim" }
-        }],
-        futureRibbonField: { keep: true }
-      },
-      {
-        id: "two",
-        items: "malformed",
-        futureMalformedRibbonField: [1, 2, 3]
-      },
-      {
-        id: "one",
-        label: "Later duplicate",
-        x: 7,
-        y: 8,
-        items: [{ id: "later", type: "value", valueId: "canvasZoom" }],
-        futureDuplicateField: "keep"
-      },
-      {
-        id: "three",
-        label: "Three",
-        x: 4,
-        y: 5,
-        orientation: "vertical",
-        iconSize: 20,
-        items: [{ id: "zoom", type: "value", valueId: "canvasZoom" }]
-      }
-    ];
-    const configuredRibbons = mocks.canvasRibbonSetting as Array<Record<string, unknown>>;
-    setup();
-    const panel = openPanelFor();
-    await messageHandlerFor(panel)({ type: "canvasRibbonPositionCommit", ribbonId: "one", x: 40, y: 52 });
+  it("restores independently validated position data from Extension global state", async () => {
+    const stateKey = "nuinuiCAD.canvasRibbonPositions";
+    mocks.globalStateValues[stateKey] = {
+      viewport: { x: 20, y: 36 },
+      display: { x: "corrupt", y: 84 },
+      grid: { x: 8, y: 132 },
+      legacyRibbon: { x: 500, y: 600 }
+    };
+    const document = documentFor("/tmp/canvas-ribbon-restore.nui", "file:///tmp/canvas-ribbon-restore.nui");
+    const editor = editorFor(document);
+    setup(false, editor, [document]);
+    const panel = openPanelFor(editor);
+    await messageHandlerFor(panel)({ type: "webviewReady" });
 
-    expect(mocks.configurationUpdates).toEqual([{
-      section: "nuinuiCAD.canvasRibbon.ribbons",
-      target: 1,
-      value: [
-        { ...configuredRibbons[0], x: 40, y: 52 },
-        configuredRibbons[1],
-        configuredRibbons[2],
-        configuredRibbons[3]
-      ]
-    }]);
-
-    await messageHandlerFor(panel)({ type: "canvasRibbonPositionCommit", ribbonId: "one", x: Number.NaN, y: 52 });
-    await messageHandlerFor(panel)({ type: "canvasRibbonPositionCommit", ribbonId: "one", x: Number.POSITIVE_INFINITY, y: 52 });
-    await messageHandlerFor(panel)({ type: "canvasRibbonPositionCommit", ribbonId: "", x: 40, y: 52 });
-    await messageHandlerFor(panel)({ type: "canvasRibbonPositionCommit", ribbonId: "missing", x: 40, y: 52 });
-    expect(mocks.configurationUpdates).toHaveLength(1);
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({
+      type: "canvasRibbonPositions",
+      positions: { viewport: { x: 20, y: 36 }, grid: { x: 8, y: 132 } }
+    });
+    expect(mocks.globalStateUpdates).toEqual([]);
+    expect(JSON.stringify(mocks.configurationScopes)).not.toContain("canvasRibbon.ribbons");
   });
 
-  it("broadcasts normalized configuration changes to every open Canvas session", () => {
-    mocks.canvasRibbonSetting = [];
-    const documentA = documentFor("/tmp/a.nui", "file:///tmp/a.nui");
-    const documentB = documentFor("/tmp/b.nui", "file:///tmp/b.nui");
+  it("persists only a moved fixed Ribbon position and broadcasts the update to Canvas sessions", async () => {
+    const stateKey = "nuinuiCAD.canvasRibbonPositions";
+    const initialPositions = {
+      viewport: { x: 8, y: 10 },
+      display: { x: 8, y: 80 },
+      grid: { x: 8, y: 150 }
+    };
+    mocks.globalStateValues[stateKey] = initialPositions;
+    const documentA = documentFor("/tmp/canvas-ribbon-a.nui", "file:///tmp/canvas-ribbon-a.nui");
+    const documentB = documentFor("/tmp/canvas-ribbon-b.nui", "file:///tmp/canvas-ribbon-b.nui");
     const editorA = editorFor(documentA);
     const editorB = editorFor(documentB);
     setup(false, editorA, [documentA]);
@@ -5811,43 +5778,26 @@ describe("VS Code Canvas Ribbon lifecycle", () => {
     panelA.webview.postMessage.mockClear();
     panelB.webview.postMessage.mockClear();
 
-    mocks.canvasRibbonSetting = [{
-      id: "new",
-      label: "New",
-      x: null,
-      y: 12,
-      orientation: "horizontal",
-      iconSize: 16,
-      items: []
-    }];
-    mocks.configurationChangeListeners[0]?.({
-      affectsConfiguration: (section) => section === "nuinuiCAD.canvasRibbon.ribbons"
-    });
+    const nextPositions = {
+      viewport: initialPositions.viewport,
+      display: { x: 44, y: 96 },
+      grid: initialPositions.grid
+    };
+    await messageHandlerFor(panelA)({ type: "canvasRibbonPositionCommit", ribbonId: "display", x: 44, y: 96 });
 
-    expect(panelA.webview.postMessage).toHaveBeenCalledWith({
-      type: "canvasRibbonConfiguration",
-      ribbons: [{
-        id: "new",
-        label: "New",
-        x: null,
-        y: 12,
-        orientation: "horizontal",
-        items: []
-      }]
-    });
-    expect(panelB.webview.postMessage).toHaveBeenCalledWith({
-      type: "canvasRibbonConfiguration",
-      ribbons: [{
-        id: "new",
-        label: "New",
-        x: null,
-        y: 12,
-        orientation: "horizontal",
-        items: []
-      }]
-    });
+    expect(mocks.globalStateUpdates).toEqual([{ key: stateKey, value: nextPositions }]);
+    expect(mocks.globalStateValues[stateKey]).toEqual(nextPositions);
+    expect(panelA.webview.postMessage).toHaveBeenCalledWith({ type: "canvasRibbonPositions", positions: nextPositions });
+    expect(panelB.webview.postMessage).toHaveBeenCalledWith({ type: "canvasRibbonPositions", positions: nextPositions });
+
+    await messageHandlerFor(panelA)({ type: "canvasRibbonPositionCommit", ribbonId: "custom", x: 1, y: 2 } as never);
+    await messageHandlerFor(panelA)({ type: "canvasRibbonPositionCommit", ribbonId: "grid", x: Number.NaN, y: 2 });
+    await messageHandlerFor(panelA)({ type: "canvasRibbonPositionCommit", ribbonId: "grid", x: Number.POSITIVE_INFINITY, y: 2 });
+    expect(mocks.globalStateUpdates).toHaveLength(1);
   });
+});
 
+describe("VS Code Canvas Grid configuration lifecycle", () => {
   it.each([
     ["workspace when it owns the effective value", { globalValue: true, workspaceValue: false }, 2],
     ["global when it is the only explicit value", { globalValue: false }, 1],
